@@ -9,6 +9,7 @@ const serverRoot = path.join(root, "server");
 async function walk(directory) {
   const files = [];
   for (const entry of await readdir(directory, { withFileTypes: true })) {
+    if (entry.isDirectory() && entry.name === "vendor") continue;
     const absolute = path.join(directory, entry.name);
     if (entry.isDirectory()) files.push(...await walk(absolute));
     else files.push(absolute);
