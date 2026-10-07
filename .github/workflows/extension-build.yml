@@ -1,0 +1,45 @@
+name: Extension artifact
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "extension-v*"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install workspace
+        run: npm ci
+
+      - name: Test and build extension
+        run: |
+          npm run test:extension
+          npm run build:extension
+
+      - name: Verify checksum
+        run: cd extension/dist && sha256sum --check celikom-extension-*.zip.sha256
+
+      - name: Upload immutable artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: celikom-extension-${{ github.ref_name }}
+          path: |
+            extension/dist/celikom-extension-*.zip
+            extension/dist/celikom-extension-*.zip.sha256
+          if-no-files-found: error
+          retention-days: 30

@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>CELIKOM</title>
+    <link rel="stylesheet" href="popup.css">
+  </head>
+  <body>
+    <main>
+      <header>
+        <span class="mark" aria-hidden="true"></span>
+        <strong>CELIKOM</strong>
+        <span class="status" data-status>Проверка…</span>
+      </header>
+      <div class="primary-actions" aria-label="Управление CELIKOM">
+        <button class="primary" type="button" data-action="start">Старт</button>
+        <button type="button" data-action="stop">Стоп</button>
+      </div>
+      <button class="wide" type="button" data-action="restore">Вернуть оригинал</button>
+      <button class="wide" type="button" disabled title="Будет добавлено на продуктовом этапе">Добавить трек</button>
+      <p>Production-каркас Stage 1. Подмена пока остаётся в проверенном PoC.</p>
+    </main>
+    <script type="module" src="popup.js"></script>
+  </body>
+</html>

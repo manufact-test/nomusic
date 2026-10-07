@@ -1,0 +1,81 @@
+:root {
+  color-scheme: dark;
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+  background: #0b1013;
+  color: #f4f7f8;
+}
+
+body {
+  margin: 0;
+  min-width: 292px;
+}
+
+main {
+  display: grid;
+  gap: 10px;
+  padding: 16px;
+}
+
+header {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.mark {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #66e0bf;
+  box-shadow: 0 0 16px rgb(102 224 191 / 55%);
+}
+
+.status {
+  color: #8fa0a8;
+  font-size: 11px;
+}
+
+.status[data-active="true"] {
+  color: #66e0bf;
+}
+
+.primary-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+button {
+  min-height: 40px;
+  border: 1px solid #2a3439;
+  border-radius: 10px;
+  background: #141b1f;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+button.primary {
+  border-color: #66e0bf;
+  background: #66e0bf;
+  color: #07110e;
+  font-weight: 700;
+}
+
+button:disabled {
+  cursor: default;
+  opacity: 0.42;
+}
+
+.wide {
+  width: 100%;
+}
+
+p {
+  margin: 2px 2px 0;
+  color: #788991;
+  font-size: 11px;
+  line-height: 1.45;
+}
