@@ -1,5 +1,7 @@
 # CELIKOM
 
+[![CI](https://github.com/manufact-test/nomusic/actions/workflows/ci.yml/badge.svg?branch=develop)](https://github.com/manufact-test/nomusic/actions/workflows/ci.yml)
+
 CELIKOM — клиентская система безопасной замены звука для точно определённого трека в поддерживаемом веб-плеере. Музыкальный сервис остаётся источником интерфейса, очереди и состояния воспроизведения.
 
 Технический gate `CELIKOM-POC-001` закрыт 7 октября 2026 года на версии `0.0.4`. Репозиторий перешёл к Stage 1: production-фундаменту расширения и серверного приложения.
