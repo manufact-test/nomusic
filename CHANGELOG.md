@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased — repository foundation
+
+- Создан production-каркас Chromium MV3 расширения с TypeScript build без runtime-зависимостей.
+- Добавлен PHP 8.3/Composer-каркас API с локальным health endpoint и smoke test.
+- Добавлены CI, воспроизводимый extension archive, SHA-256 и manifest validation.
+- Зафиксированы ADR структуры репозитория и обязательной приватизации перед клиентским релизом.
+- Добавлены продуктовые принципы будущего минималистичного UI и versioned-определения аналитических метрик.
+- Зарезервирована отдельная граница Android без преждевременного обещания playback.
+
 ## PoC gate accepted — 2026-10-07
 
 - Закрыт технический Этап 0 на версии v0.0.4.

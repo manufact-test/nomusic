@@ -1,0 +1,16 @@
+{
+  "name": "@celikom/extension",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "CELIKOM production Chromium MV3 extension foundation",
+  "scripts": {
+    "build": "node --disable-warning=ExperimentalWarning scripts/build.mjs",
+    "build:unpacked": "node --disable-warning=ExperimentalWarning scripts/build.mjs --unpacked-only",
+    "test": "npm run build:unpacked && node --test tests/*.test.mjs",
+    "validate": "npm run build:unpacked && node scripts/validate-manifest.mjs"
+  },
+  "engines": {
+    "node": ">=24"
+  }
+}

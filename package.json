@@ -1,16 +1,26 @@
 {
-  "name": "celikom-playback-poc",
-  "version": "0.0.4",
+  "name": "celikom",
+  "version": "0.1.0",
   "private": true,
-  "description": "CELIKOM-POC-001: Chromium MV3 player integration spike",
+  "description": "CELIKOM monorepository: browser extension, service foundation and validated playback PoC",
+  "workspaces": [
+    "extension"
+  ],
   "scripts": {
-    "test": "node --test spikes/player-poc/tests/*.test.cjs",
-    "validate": "node scripts/validate-poc.mjs",
-    "build": "node scripts/build-poc.mjs",
+    "build": "npm run build:extension",
+    "build:extension": "npm --prefix extension run build",
+    "build:poc": "node scripts/build-poc.mjs",
+    "ci": "npm run lint && npm test && npm run validate && npm run build",
     "fixture": "node scripts/serve-fixture.mjs",
-    "fixture:smoke": "node scripts/smoke-fixture.mjs"
+    "fixture:smoke": "node scripts/smoke-fixture.mjs",
+    "lint": "node scripts/lint-repository.mjs",
+    "test": "npm run test:poc && npm run test:extension && npm run test:server",
+    "test:extension": "npm --prefix extension test",
+    "test:poc": "node --test spikes/player-poc/tests/*.test.cjs",
+    "test:server": "node scripts/test-server-foundation.mjs",
+    "validate": "node scripts/validate-repository.mjs && node scripts/validate-poc.mjs && npm --prefix extension run validate"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=24"
   }
 }
