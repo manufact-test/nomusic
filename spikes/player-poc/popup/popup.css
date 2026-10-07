@@ -1,0 +1,94 @@
+:root {
+  color-scheme: dark;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  width: 380px;
+  min-height: 560px;
+  margin: 0;
+  color: #f5f7f8;
+  background: #0a0d11;
+}
+
+button, input { font: inherit; }
+button { cursor: pointer; }
+
+.shell { padding: 18px; }
+.header { margin-bottom: 14px; }
+.brand-row { display: flex; align-items: center; gap: 10px; }
+.brand-row strong { display: block; color: #fff; font-size: 17px; letter-spacing: .1em; }
+.brand-row div > span { display: block; margin-top: 1px; color: #7f8994; font-size: 9px; font-weight: 800; letter-spacing: .13em; }
+.brand-mark { width: 14px; height: 14px; border: 4px solid #77f2c4; border-right-color: transparent; border-radius: 50%; transform: rotate(-35deg); }
+.phase { margin-left: auto; padding: 4px 8px; border-radius: 999px; color: #77f2c4; background: rgba(119,242,196,.12); font-size: 9px; font-weight: 800; letter-spacing: .06em; }
+.header p { margin: 10px 0 0; color: #9ca5ae; font-size: 12px; line-height: 1.5; }
+
+.status-card {
+  display: grid;
+  gap: 5px;
+  margin-bottom: 14px;
+  padding: 14px;
+  border: 1px solid rgba(119,242,196,.2);
+  border-radius: 14px;
+  background: linear-gradient(135deg, rgba(119,242,196,.09), rgba(255,255,255,.025));
+}
+.eyebrow { color: #86919c; font-size: 9px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
+.track-id { color: #fff; font: 800 26px/1.1 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+.meta { min-height: 17px; color: #a8b0b8; font-size: 11px; overflow-wrap: anywhere; }
+
+form { display: grid; gap: 10px; }
+.switch-row, .field {
+  display: grid;
+  padding: 11px 12px;
+  border: 1px solid rgba(255,255,255,.09);
+  border-radius: 12px;
+  background: #11151b;
+}
+.switch-row { grid-template-columns: minmax(0,1fr) auto; align-items: center; gap: 12px; cursor: pointer; }
+.switch-row strong, .field > span { display: block; color: #eef1f3; font-size: 12px; font-weight: 750; }
+.switch-row small, .field small { display: block; margin-top: 3px; color: #747f8a; font-size: 10px; line-height: 1.35; }
+.switch-row input { position: absolute; opacity: 0; pointer-events: none; }
+.switch-row i { position: relative; width: 38px; height: 22px; border-radius: 999px; background: #303740; transition: .2s ease; }
+.switch-row i::after { content: ""; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: .2s ease; }
+.switch-row input:checked + i { background: #50d6a4; }
+.switch-row input:checked + i::after { transform: translateX(16px); }
+.switch-row.compact { padding-block: 9px; }
+
+.field { gap: 7px; }
+.field input[type="text"] {
+  width: 100%;
+  height: 38px;
+  padding: 0 10px;
+  border: 1px solid rgba(255,255,255,.13);
+  border-radius: 8px;
+  outline: none;
+  color: #fff;
+  background: #090c10;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+.field input[type="text"]:focus { border-color: #77f2c4; box-shadow: 0 0 0 3px rgba(119,242,196,.1); }
+.range-row { display: grid; grid-template-columns: minmax(0,1fr) 62px; align-items: center; gap: 10px; }
+.range-row input { accent-color: #77f2c4; }
+.range-row output { color: #77f2c4; font: 700 11px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; text-align: right; }
+
+.full { width: 100%; }
+.primary, .secondary, .danger {
+  min-height: 38px;
+  padding: 0 12px;
+  border-radius: 9px;
+  font-size: 11px;
+  font-weight: 800;
+}
+.primary { border: 0; color: #07110d; background: #77f2c4; }
+.primary:hover { background: #93f7d1; }
+.secondary { border: 1px solid rgba(255,255,255,.13); color: #e8ecef; background: rgba(255,255,255,.055); }
+.secondary:hover { background: rgba(255,255,255,.09); }
+.danger { border: 1px solid rgba(255,107,107,.34); color: #ffb3b3; background: rgba(255,107,107,.07); }
+.danger:hover { background: rgba(255,107,107,.13); }
+.status-card .secondary { min-height: 32px; margin-top: 6px; }
+.actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
+.feedback { min-height: 18px; margin: 9px 2px 0; color: #77f2c4; font-size: 10px; }
+footer { color: #66717c; font-size: 9px; text-align: center; }
+kbd { padding: 2px 4px; border: 1px solid #38414a; border-radius: 4px; color: #aab2ba; background: #151a20; font: inherit; }

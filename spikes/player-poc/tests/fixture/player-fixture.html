@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>CELIKOM Player Fixture — Synthetic Track A</title>
+    <style>
+      :root { color-scheme: dark; font-family: Inter, system-ui, sans-serif; }
+      * { box-sizing: border-box; }
+      body { min-height: 100vh; margin: 0; display: grid; place-items: center; background: #090c10; color: #fff; }
+      main { width: min(760px, calc(100% - 32px)); padding: 32px; border: 1px solid #26313a; border-radius: 24px; background: #11171d; box-shadow: 0 30px 90px #0008; }
+      .label { color: #77f2c4; font-size: 11px; font-weight: 800; letter-spacing: .13em; }
+      h1 { margin: 12px 0 8px; font-size: clamp(30px, 7vw, 64px); line-height: .95; }
+      p { color: #9ca8b2; line-height: 1.6; }
+      .PlayerBar_root { display: grid; gap: 14px; margin-top: 26px; padding: 18px; border-radius: 16px; background: #080b0e; }
+      .PlayerBar_root a { color: #fff; font-weight: 800; text-decoration: none; }
+      audio { width: 100%; }
+      .buttons { display: flex; flex-wrap: wrap; gap: 8px; }
+      button { min-height: 38px; padding: 0 14px; border: 1px solid #34414b; border-radius: 9px; background: #182028; color: #fff; font-weight: 700; cursor: pointer; }
+      button:hover { border-color: #77f2c4; }
+      code { color: #77f2c4; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <span class="label">LOCAL TEST · NO THIRD-PARTY AUDIO</span>
+      <h1>CELIKOM PLAYER FIXTURE</h1>
+      <p>Стартовый Track ID — <code>424242</code>. Укажите его в popup расширения. Original fixture играет низкий синтетический тон, replacement — высокий.</p>
+      <section class="PlayerBar_root" data-testid="player-bar">
+        <a id="track-link" href="/album/1/track/424242" aria-current="true">Fixture Artist — Synthetic Track A</a>
+        <audio id="original-player" controls preload="auto" src="/original-audio.mp3"></audio>
+        <div class="buttons">
+          <button id="seek-forward" type="button">Seek +15s</button>
+          <button id="seek-back" type="button">Seek −10s</button>
+          <button id="next" type="button">Next track</button>
+          <button id="replace-node" type="button">Replace player node</button>
+          <button id="throw-error" type="button">Synthetic JS error</button>
+        </div>
+      </section>
+    </main>
+    <script>
+      const playerRoot = document.querySelector(".PlayerBar_root");
+      const trackLink = document.getElementById("track-link");
+      let player = document.getElementById("original-player");
+      let trackIndex = 0;
+      const tracks = [
+        { id: "424242", title: "Synthetic Track A" },
+        { id: "424243", title: "Synthetic Track B" }
+      ];
+
+      function setMetadata(track) {
+        if ("mediaSession" in navigator && "MediaMetadata" in window) {
+          navigator.mediaSession.metadata = new MediaMetadata({ title: track.title, artist: "Fixture Artist", album: "CELIKOM Fixture" });
+        }
+      }
+
+      function changeTrack() {
+        trackIndex = (trackIndex + 1) % tracks.length;
+        const track = tracks[trackIndex];
+        trackLink.href = `/album/1/track/${track.id}`;
+        trackLink.textContent = `Fixture Artist — ${track.title}`;
+        history.pushState({}, "", `/album/1/track/${track.id}`);
+        document.title = `CELIKOM Player Fixture — ${track.title}`;
+        setMetadata(track);
+        player.currentTime = 0;
+        player.play();
+      }
+
+      document.getElementById("seek-forward").addEventListener("click", () => { player.currentTime = Math.min(player.duration || 120, player.currentTime + 15); });
+      document.getElementById("seek-back").addEventListener("click", () => { player.currentTime = Math.max(0, player.currentTime - 10); });
+      document.getElementById("next").addEventListener("click", changeTrack);
+      document.getElementById("replace-node").addEventListener("click", () => {
+        const wasPlaying = !player.paused;
+        const currentTime = player.currentTime;
+        const replacement = player.cloneNode(true);
+        player.replaceWith(replacement);
+        player = replacement;
+        player.currentTime = currentTime;
+        if (wasPlaying) player.play();
+      });
+      document.getElementById("throw-error").addEventListener("click", () => setTimeout(() => { throw new Error("CELIKOM fixture exception"); }, 0));
+      setMetadata(tracks[0]);
+    </script>
+  </body>
+</html>

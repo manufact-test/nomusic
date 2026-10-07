@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>CELIKOM Playback PoC</title>
+    <link rel="stylesheet" href="popup.css">
+  </head>
+  <body>
+    <main class="shell">
+      <header class="header">
+        <div class="brand-row">
+          <span class="brand-mark" aria-hidden="true"></span>
+          <div>
+            <strong>CELIKOM</strong>
+            <span>PLAYBACK POC · 001</span>
+          </div>
+          <span class="phase" id="phase">—</span>
+        </div>
+        <p data-i18n="subtitle"></p>
+      </header>
+
+      <section class="status-card">
+        <span class="eyebrow" data-i18n="detectedTrack"></span>
+        <strong class="track-id" id="current-track">—</strong>
+        <span class="meta" id="track-meta" data-i18n="openPlayerHint"></span>
+        <button class="secondary full" id="use-current" type="button" data-i18n="useCurrent"></button>
+      </section>
+
+      <form id="settings-form">
+        <label class="switch-row">
+          <span><strong data-i18n="enabled"></strong><small data-i18n="enabledHint"></small></span>
+          <input id="enabled" type="checkbox">
+          <i aria-hidden="true"></i>
+        </label>
+
+        <label class="switch-row">
+          <span><strong data-i18n="automatic"></strong><small data-i18n="automaticHint"></small></span>
+          <input id="automatic-replacement" type="checkbox">
+          <i aria-hidden="true"></i>
+        </label>
+
+        <label class="field">
+          <span data-i18n="testTrackId"></span>
+          <input id="test-track-id" type="text" inputmode="numeric" pattern="[0-9]*" autocomplete="off" placeholder="123456789">
+          <small data-i18n="testTrackHint"></small>
+        </label>
+
+        <label class="field">
+          <span data-i18n="driftThreshold"></span>
+          <div class="range-row">
+            <input id="drift-threshold" type="range" min="100" max="1000" step="50">
+            <output id="drift-output">350 ms</output>
+          </div>
+        </label>
+
+        <label class="switch-row compact">
+          <span><strong data-i18n="overlay"></strong><small data-i18n="overlayHint"></small></span>
+          <input id="show-overlay" type="checkbox">
+          <i aria-hidden="true"></i>
+        </label>
+
+        <button class="primary full" type="submit" data-i18n="save"></button>
+      </form>
+
+      <div class="actions">
+        <button class="danger" id="restore" type="button" data-i18n="restore"></button>
+        <button class="secondary" id="copy" type="button" data-i18n="copyDiagnostics"></button>
+      </div>
+
+      <p class="feedback" id="feedback" role="status"></p>
+      <footer><span data-i18n="shortcut"></span> <kbd>Alt</kbd> + <kbd>Shift</kbd> + <kbd>R</kbd></footer>
+    </main>
+    <script src="popup.js"></script>
+  </body>
+</html>

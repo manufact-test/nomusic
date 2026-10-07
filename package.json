@@ -1,0 +1,16 @@
+{
+  "name": "celikom-playback-poc",
+  "version": "0.0.4",
+  "private": true,
+  "description": "CELIKOM-POC-001: Chromium MV3 player integration spike",
+  "scripts": {
+    "test": "node --test spikes/player-poc/tests/*.test.cjs",
+    "validate": "node scripts/validate-poc.mjs",
+    "build": "node scripts/build-poc.mjs",
+    "fixture": "node scripts/serve-fixture.mjs",
+    "fixture:smoke": "node scripts/smoke-fixture.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
