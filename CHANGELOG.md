@@ -1,6 +1,15 @@
 # Changelog
 
-## Unreleased — repository foundation
+## Unreleased — player integration
+
+- Добавлен production `ServiceAdapter` и изолированный `YandexMusicAdapter` для exact Track ID, metadata и master media state.
+- Добавлен версионированный MAIN-world ↔ ISOLATED `PlayerBridge` с session ID, monotonic sequence, heartbeat и отсечением stale events.
+- Нормализованы `TRACK_CHANGED`, `PLAY`, `PAUSE`, `SEEK`, `TIME_UPDATE`, `VOLUME_CHANGED`, `RATE_CHANGED`, `METADATA_CHANGED`, `ENDED` и `ERROR`.
+- Service-specific selectors, state patches и ограниченный пассивный JSON capture локализованы в одном адаптере.
+- Popup версии `0.2.0` показывает найденный трек и копирует диагностику; на Stage 2 звук не изменяется.
+- Добавлены fixture/contract/lifecycle тесты и ADR источников player state.
+
+## Stage 1 — repository foundation
 
 - Создан production-каркас Chromium MV3 расширения с TypeScript build без runtime-зависимостей.
 - Добавлен PHP 8.3/Composer-каркас API с локальным health endpoint и smoke test.

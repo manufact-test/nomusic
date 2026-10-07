@@ -1,18 +1,18 @@
 # Repository layout
 
-Status: accepted for Stage 1 on 2026-10-07.
+Status: accepted and extended for Stage 2 on 2026-10-07.
 
 ## Boundaries
 
 | Path | Responsibility | May depend on |
 |---|---|---|
-| `extension/` | Production browser client, manifest, packaging | Versioned client contracts; no server secrets |
+| `extension/` | Production browser client, adapter/bridge, manifest, packaging | Versioned client contracts; no server secrets |
 | `server/` | API entrypoint and future domain modules | PHP runtime and explicit adapters |
 | `spikes/` | Time-boxed technical proofs | Nothing production imports directly |
 | `docs/` | ADR, architecture, product and analytics definitions | Project decisions |
 | `android/` | Reserved future native-client boundary | Nothing until Stage 16 gate |
 
-The accepted playback PoC remains executable but is not a production dependency. Code moves from `spikes/` only with tests that preserve exact Track ID selection, fail-open restoration and one-master-player semantics.
+The accepted playback PoC remains executable but is not a production dependency. Stage 2 migrated observation through a stable `ServiceAdapter`; replacement code remains in `spikes/` until Stage 3. Every migration keeps exact Track ID selection, fail-closed ambiguity and one-master-player semantics under tests.
 
 ## Build contract
 

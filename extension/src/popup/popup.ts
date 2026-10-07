@@ -4,13 +4,34 @@ const status = document.querySelector<HTMLElement>("[data-status]");
 const startButton = document.querySelector<HTMLButtonElement>("[data-action='start']");
 const stopButton = document.querySelector<HTMLButtonElement>("[data-action='stop']");
 const restoreButton = document.querySelector<HTMLButtonElement>("[data-action='restore']");
+const diagnosticsButton = document.querySelector<HTMLButtonElement>("[data-action='diagnostics']");
+const track = document.querySelector<HTMLElement>("[data-track]");
+let lastState: ExtensionState | null = null;
 
 function render(state: ExtensionState): void {
   if (!status || !startButton || !stopButton) return;
-  status.textContent = state.enabled ? "Готов к работе" : "Остановлен";
+  lastState = state;
+  const labels: Record<ExtensionState["phase"], string> = {
+    STOPPED: "Остановлен",
+    CONNECTING: "Подключение…",
+    OBSERVING: "Ищем трек…",
+    READY: "Трек найден"
+  };
+  status.textContent = labels[state.phase] || "Проверка…";
   status.dataset.active = String(state.enabled);
   startButton.disabled = state.enabled;
   stopButton.disabled = !state.enabled;
+  if (track) {
+    const title = state.track?.metadata?.title?.trim();
+    const artist = state.track?.metadata?.artist?.trim();
+    track.textContent = state.track?.id
+      ? [title || `Track ID ${state.track.id}`, artist].filter(Boolean).join(" — ")
+      : state.enabled ? "Запустите трек в Яндекс Музыке" : "Наблюдение приостановлено";
+    track.dataset.detected = String(Boolean(state.track?.id));
+    track.title = state.track?.id
+      ? `Track ID ${state.track.id} · confidence ${state.track.confidence}`
+      : "";
+  }
 }
 
 async function send<T>(message: object): Promise<T> {
@@ -30,4 +51,20 @@ restoreButton?.addEventListener("click", async () => {
   if (status) status.textContent = "Оригинал восстановлен";
 });
 
-void send<ExtensionState>({ type: COMMANDS.getStatus }).then(render);
+diagnosticsButton?.addEventListener("click", async () => {
+  const state = await send<ExtensionState>({ type: COMMANDS.getStatus });
+  lastState = state;
+  await navigator.clipboard.writeText(JSON.stringify(lastState, null, 2));
+  if (diagnosticsButton) diagnosticsButton.textContent = "Скопировано";
+});
+
+async function refresh(): Promise<void> {
+  try {
+    render(await send<ExtensionState>({ type: COMMANDS.getStatus }));
+  } catch (_error) {
+    if (status) status.textContent = "Нет связи";
+  }
+}
+
+void refresh();
+window.setInterval(() => void refresh(), 1000);

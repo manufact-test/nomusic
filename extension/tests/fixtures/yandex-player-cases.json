@@ -1,0 +1,58 @@
+{
+  "albumRoute": {
+    "route": "https://music.yandex.ru/album/192577/track/1944599",
+    "metadata": {
+      "title": "Папиросы",
+      "artist": "Зануда",
+      "album": "Папиросы",
+      "coverUri": "https://avatars.yandex.net/get-music-content/42108/33aed17a.a.192577-1/400x400",
+      "durationMs": 201000
+    },
+    "catalog": [
+      {
+        "id": "1944599",
+        "title": "Папиросы",
+        "artists": [{ "name": "Зануда" }],
+        "albums": [{ "id": "192577", "title": "Папиросы", "coverUri": "avatars.yandex.net/get-music-content/42108/33aed17a.a.192577-1/%%" }],
+        "durationMs": 201000,
+        "source": "yandex-inline-state"
+      },
+      {
+        "id": "1944603",
+        "title": "Другой трек",
+        "artists": [{ "name": "Зануда" }],
+        "durationMs": 184000
+      }
+    ],
+    "expectedId": "1944599"
+  },
+  "landingFetch": {
+    "route": "https://music.yandex.ru/landing/main",
+    "metadata": {
+      "title": "Smells Like Teen Spirit",
+      "artist": "ERCODES, SMOLA",
+      "album": "Smells Like Teen Spirit",
+      "coverUri": "https://avatars.yandex.net/get-music-content/20322863/810d39cc.a.43775051-1/400x400",
+      "durationMs": 193283
+    },
+    "catalog": [
+      {
+        "id": "155343370",
+        "title": "Smells Like Teen Spirit",
+        "artists": [{ "name": "ERCODES" }, { "name": "SMOLA" }],
+        "albums": [{ "id": "43775051", "title": "Smells Like Teen Spirit", "coverUri": "avatars.yandex.net/get-music-content/20322863/810d39cc.a.43775051-1/%%" }],
+        "durationMs": 193283,
+        "source": "fetch-json"
+      }
+    ],
+    "expectedId": "155343370"
+  },
+  "ambiguousQueue": {
+    "route": "https://music.yandex.ru/landing/main",
+    "candidates": [
+      { "id": "155194611", "score": 200, "source": "fetch-json", "evidence": "exact" },
+      { "id": "155194612", "score": 195, "source": "fetch-json", "evidence": "exact" }
+    ],
+    "expectedId": null
+  }
+}
