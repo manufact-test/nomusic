@@ -6,7 +6,6 @@ import { fileURLToPath } from "node:url";
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const extensionRoot = path.join(projectRoot, "spikes", "player-poc");
 const manifestPath = path.join(extensionRoot, "manifest.json");
-const packagePath = path.join(projectRoot, "package.json");
 
 function fail(message) {
   throw new Error(message);
@@ -24,10 +23,9 @@ async function walk(directory) {
 }
 
 const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
-const packageJson = JSON.parse(await readFile(packagePath, "utf8"));
 if (manifest.manifest_version !== 3) fail("manifest_version must be 3");
 if (!manifest.minimum_chrome_version) fail("minimum_chrome_version is required");
-if (manifest.version !== packageJson.version) fail("Manifest and package versions must match");
+if (manifest.version !== "0.0.4") fail("The accepted PoC must remain frozen at version 0.0.4");
 if (!manifest.permissions?.includes("scripting")) fail("scripting permission is required for self-recovery");
 if (!Array.isArray(manifest.content_scripts) || manifest.content_scripts.length !== 2) fail("Expected MAIN and ISOLATED content scripts");
 if (!manifest.content_scripts.some((entry) => entry.world === "MAIN")) fail("MAIN-world bridge is missing");
