@@ -11,7 +11,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: celikom-hostinger-private-test
+  group: celikom-hostinger-private-test-import-recovery
   cancel-in-progress: false
 
 jobs:
