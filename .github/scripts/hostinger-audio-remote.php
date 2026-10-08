@@ -124,19 +124,19 @@ try {
             $context = stream_context_create([
                 'http' => [
                     'method' => 'GET',
-                    'header' => 'Authorization: Bearer ' . $config['test_api_token'] . "\\r\\n",
+                    'header' => 'Authorization: Bearer ' . $config['test_api_token'] . "\r\n",
                     'timeout' => 15,
                     'ignore_errors' => true,
                     'follow_location' => 0,
                 ],
             ]);
             $publicBody = @file_get_contents($urlHttps, false, $context);
-            if (isset($http_response_header[0]) && preg_match('/^HTTP\\/\\S+\\s+(\\d{3})/', $http_response_header[0], $matched)) {
+            if (isset($http_response_header[0]) && preg_match('~^HTTP/[^ ]+ ([0-9]{3})~', $http_response_header[0], $matched)) {
                 $httpStatus = (int) $matched[1];
             }
         }
         if ($httpStatus !== 200 || !is_string($publicBody)) {
-            echo 'Public HTTPS authorized HTTP status: ' . $httpStatus . "\\n";
+            echo 'Public HTTPS authorized HTTP status: ' . $httpStatus . "\n";
             throw new RuntimeException('public_authorization_failed');
         }
         $publicResult = json_decode($publicBody, true, 8, JSON_THROW_ON_ERROR);
