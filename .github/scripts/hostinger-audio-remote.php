@@ -79,7 +79,7 @@ try {
         if (!$isOn || strlen((string) $config['test_api_token']) < 24) {
             throw new RuntimeException('selftest_not_ready');
         }
-        $service = new Celikom\\Application($config);
+        $service = new Celikom\Application($config);
         $res = $service->handle('GET', '/api/v1/resolve',
             ['service' => 'yandex', 'track_id' => $request['track_id']],
             ['authorization' => 'Bearer ' . $config['test_api_token']]);
@@ -100,7 +100,7 @@ try {
             || (int) ($audio->headers['Content-Length'] ?? 0) < 1000000) {
             throw new RuntimeException('selftest_audio_headers_failed');
         }
-        echo "Private authenticated resolve and signed audio HEAD verified; analytics remains disabled.\\n";
+        echo "Private authenticated resolve and signed audio HEAD verified; analytics remains disabled.\n";
         exit(0);
     }
 
