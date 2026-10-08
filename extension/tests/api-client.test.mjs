@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { ApiClient } from "../dist/unpacked/api/api-client.js";
+import { validateApiAccess } from "../dist/unpacked/api/api-access-validation.js";
 import { createApiBroker } from "../dist/unpacked/api/api-broker.js";
 import { apiBuildConfig } from "../scripts/api-build-config.mjs";
 
@@ -68,4 +69,54 @@ test("worker broker exposes no arbitrary fetch or access token to content", asyn
   assert.equal(JSON.stringify(result).includes("private-test-access"), false);
   const unconfigured = createApiBroker(api, { readConfig: async () => ({ baseUrl: "" }) });
   assert.equal((await unconfigured(message, { id: "extension-test", url: "https://music.yandex.ru" })).configured, false);
+});
+
+test("safe authentication diagnosis distinguishes a missing token, HTTP 401, and network failures", async () => {
+  const api = {
+    runtime: { id: "ext-diagnosis", getManifest: () => ({ version: "0.4.0" }) },
+    storage: { local: { get: async () => ({ apiTestToken: "" }) } }
+  };
+  const sender = { id: "ext-diagnosis", url: "https://music.yandex.ru/album/38902809/track/144530503" };
+  const request = { type: "CELIKOM_API_RESOLVE", service: "yandex", trackId: "144530503" };
+  const missing = createApiBroker(api, { readConfig: async () => ({ baseUrl: "https://celikom.example" }) });
+  assert.equal((await missing(request, sender)).error, "api_access_missing");
+
+  api.storage.local.get = async () => ({ apiTestToken: "a".repeat(40) });
+  const unauthorized = createApiBroker(api, {
+    readConfig: async () => ({ baseUrl: "https://celikom.example" }),
+    fetch: async url => url.endsWith("config") ? response(config) : new Response('{"error":"unauthorized"}', { status: 401, headers: { "Content-Type": "application/json" } })
+  });
+  const denied = await unauthorized(request, sender);
+  assert.equal(denied.error, "api_access_denied");
+  assert.equal(JSON.stringify(denied).includes("a".repeat(40)), false);
+
+  const unreachable = createApiBroker(api, {
+    readConfig: async () => ({ baseUrl: "https://celikom.example" }),
+    fetch: async () => { throw new Error("A SECRET THAT MUST NOT BE SENT TO PAGE"); }
+  });
+  const network = await unreachable(request, sender);
+  assert.equal(network.error, "api_network_error");
+  assert.equal(JSON.stringify(network).includes("SECRET"), false);
+});
+
+test("popup verifies real server authorization before storing a private token", async () => {
+  const api = { runtime: { id: "ext-test", getURL: path => "chrome-extension://ext-test/" + path, getManifest: () => ({ version: "0.4.0" }) } };
+  const token = "verified-token".repeat(4);
+  const base = { readConfig: async () => ({ baseUrl: "https://celikom.example" }) };
+  const invalid = await validateApiAccess(api, token, {
+    ...base, fetch: async (_url, opts) => {
+      assert.equal(opts.headers.Authorization, "Bearer " + token);
+      return new Response('{"error":"unauthorized"}', { status: 401, headers: { "Content-Type": "application/json" } });
+    }
+  });
+  assert.deepEqual(invalid, { ok: false, error: "api_access_denied" });
+
+  const valid = await validateApiAccess(api, " " + token + " ", {
+    ...base, fetch: async (_url, opts) => {
+      assert.equal(opts.headers.Authorization, "Bearer " + token);
+      return response({ found: false });
+    }
+  });
+  assert.deepEqual(valid, { ok: true, token });
+  assert.deepEqual(await validateApiAccess(api, "too-short", base), { ok: false, error: "invalid_access_code" });
 });
