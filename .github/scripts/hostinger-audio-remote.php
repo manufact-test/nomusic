@@ -1,0 +1,150 @@
+<?php
+declare(strict_types=1);
+
+/**
+ * Restricted owner-only Stage 5 operations. Uploaded by a pinned GitHub Actions
+ * SSH connection and executed from CELIKOM/incoming, NEVER the public web root.
+ * Never echo tokens, environment contents, private filenames or SQL errors.
+ */
+if (PHP_SAPI !== 'cli' || count($argv) !== 2) {
+    exit(2);
+}
+ini_set('display_errors', '0');
+
+try {
+    $site = '/home/u235811320/domains/darkred-camel-588676.hostingersite.com';
+    $app = $site . '/celikom';
+    if (realpath(dirname(__DIR__, 2)) !== $app || is_link($app) || !is_dir($site . '/public_html')) {
+        throw new RuntimeException('invalid_private_layout');
+    }
+    $shared = $app . '/shared';
+    $staging = $shared . '/staging';
+    $envPath = $shared . '/env';
+    $release = realpath($app . '/current');
+    if (!is_link($app . '/current') || $release === false || !str_starts_with($release, $app . '/releases/')
+        || is_link($shared) || is_link($staging) || is_link($envPath)
+        || realpath($staging) !== $staging || !is_file($envPath) || filesize($envPath) > 16384) {
+        throw new RuntimeException('private_environment_not_ready');
+    }
+    $requestPath = $argv[1];
+    if (realpath($requestPath) !== __DIR__ . '/hostinger-audio-request.json' || filesize($requestPath) > 2048) {
+        throw new RuntimeException('invalid_operation_request');
+    }
+    $request = json_decode((string) file_get_contents($requestPath), true, 8, JSON_THROW_ON_ERROR);
+    $fields = [
+        'inspect' => ['operation'],
+        'import' => ['operation', 'track_id', 'duration_ms', 'confirm_reviewed'],
+        'enable' => ['operation', 'track_id'],
+        'disable' => ['operation'],
+    ];
+    $operation = is_array($request) ? ($request['operation'] ?? null) : null;
+    if (!is_string($operation) || !isset($fields[$operation])) {
+        throw new RuntimeException('invalid_operation_request');
+    }
+    $names = array_keys($request);
+    sort($names);
+    $allowed = $fields[$operation];
+    sort($allowed);
+    if ($names !== $allowed) {
+        throw new RuntimeException('invalid_operation_request');
+    }
+    if (in_array($operation, ['import', 'enable'], true)
+        && (!is_string($request['track_id']) || !preg_match('/^[1-9][0-9]{0,23}$/D', $request['track_id']))) {
+        throw new RuntimeException('invalid_track_id');
+    }
+
+    require $release . '/bootstrap.php';
+    $config = require $release . '/config/app.php';
+    if ($config['environment'] !== 'production' || $config['storage_driver'] !== 'local'
+        || realpath($config['storage_path']) !== $shared . '/audio') {
+        throw new RuntimeException('invalid_runtime_environment');
+    }
+    $env = (string) file_get_contents($envPath);
+    if (preg_match_all('/^FEATURE_REPLACEMENTS="[01]"\r?$/m', $env) !== 1
+        || preg_match_all('/^FEATURE_ANALYTICS="0"\r?$/m', $env) !== 1) {
+        throw new RuntimeException('unexpected_feature_configuration');
+    }
+    $isOn = (bool) preg_match('/^FEATURE_REPLACEMENTS="1"\r?$/m', $env);
+
+    if ($operation === 'inspect') {
+        echo 'Private staging and configuration validated; replacements: ', $isOn ? 'enabled' : 'disabled', "; analytics: disabled.\n";
+        exit(0);
+    }
+
+    if ($operation === 'import') {
+        if ($isOn || ($request['confirm_reviewed'] ?? null) !== true || !is_int($request['duration_ms'])
+            || $request['duration_ms'] < 1000 || $request['duration_ms'] > 86400000) {
+            throw new RuntimeException('import_preconditions_failed');
+        }
+        $files = [];
+        foreach (scandir($staging) ?: [] as $name) {
+            if (!preg_match('/^[a-zA-Z0-9][a-zA-Z0-9._-]{0,119}\.(?:mp3|wav)$/iD', $name)) {
+                continue;
+            }
+            $candidate = $staging . '/' . $name;
+            if (is_link($candidate)) {
+                throw new RuntimeException('staging_symlink_forbidden');
+            }
+            if (is_file($candidate) && realpath($candidate) === $candidate) {
+                $files[] = $candidate;
+            }
+        }
+        if (count($files) !== 1) {
+            throw new RuntimeException('staging_requires_exactly_one_valid_audio_file');
+        }
+        $file = $files[0];
+        $size = filesize($file);
+        if ($size === false || $size < 1 || $size > (int) $config['max_audio_size']) {
+            throw new RuntimeException('invalid_test_audio_size');
+        }
+        $storage = new Celikom\Storage\LocalStorageAdapter($config['storage_path']);
+        $pdo = Celikom\Database\Connection::open($config);
+        $importer = new Celikom\Application\TestAudioImporter($pdo, $storage, $config['max_audio_size']);
+        $id = $importer->import($file, 'yandex', $request['track_id'], $request['duration_ms']);
+        $approved = (new Celikom\Repositories\PdoCatalogRepository($pdo))->findActive('yandex', $request['track_id']);
+        if ($approved === null || (int) $approved['replacement_id'] !== $id || !$storage->exists($approved['storage_key'])) {
+            throw new RuntimeException('import_verification_failed');
+        }
+        echo 'Reviewed asset imported and approved exact-ID mapping verified. Replacement ID: ', $id, ". Flag remains disabled.\n";
+        exit(0);
+    }
+
+    if ($operation === 'enable') {
+        $storage = new Celikom\Storage\LocalStorageAdapter($config['storage_path']);
+        $pdo = Celikom\Database\Connection::open($config);
+        $approved = (new Celikom\Repositories\PdoCatalogRepository($pdo))->findActive('yandex', $request['track_id']);
+        if ($approved === null || $approved['storage_driver'] !== 'local'
+            || !$storage->exists($approved['storage_key'])
+            || $storage->getSize($approved['storage_key']) < 1
+            || $storage->getSize($approved['storage_key']) > (int) $config['max_audio_size']) {
+            throw new RuntimeException('approved_private_audio_not_ready');
+        }
+    }
+
+    // Replace the exact single feature setting atomically, preserving all secrets.
+    $value = $operation === 'enable' ? '1' : '0';
+    $updated = preg_replace('/^FEATURE_REPLACEMENTS="[01]"\r?$/m', 'FEATURE_REPLACEMENTS="' . $value . '"', $env, 1, $replaced);
+    if ($replaced !== 1 || !is_string($updated)) {
+        throw new RuntimeException('feature_update_rejected');
+    }
+    if ($updated !== $env) {
+        $tmp = tempnam($shared, '.feature-');
+        if ($tmp === false) {
+            throw new RuntimeException('feature_update_rejected');
+        }
+        try {
+            chmod($tmp, 0600);
+            if (file_put_contents($tmp, $updated, LOCK_EX) !== strlen($updated) || !rename($tmp, $envPath)) {
+                throw new RuntimeException('feature_update_rejected');
+            }
+        } finally {
+            if (is_file($tmp)) {
+                unlink($tmp);
+            }
+        }
+    }
+    echo 'Replacement feature set to ', $value === '1' ? 'enabled' : 'disabled', "; analytics remains disabled.\n";
+} catch (Throwable) {
+    fwrite(STDERR, "Private audio operation failed. Inspect preconditions, private staging or server state; secrets were not logged.\n");
+    exit(1);
+}
