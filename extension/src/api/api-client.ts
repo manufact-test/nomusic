@@ -15,12 +15,19 @@ export class ApiClient {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 6000);
     try {
-      const response = await this.fetch(this.origin + path, {
-        credentials: "omit", redirect: "error", cache: "no-store", signal: controller.signal,
-        method: options.method || "GET", body: options.body,
-        headers: { ...(this.accessToken ? { Authorization: `Bearer ${this.accessToken}` } : {}), ...(options.body ? { "Content-Type": "application/json" } : {}) }
-      });
-      if (!response.ok || !response.headers.get("content-type")?.startsWith("application/json")) throw new Error("api_unavailable");
+      let response;
+      try {
+        response = await this.fetch(this.origin + path, {
+          credentials: "omit", redirect: "error", cache: "no-store", signal: controller.signal,
+          method: options.method || "GET", body: options.body,
+          headers: { ...(this.accessToken ? { Authorization: `Bearer ${this.accessToken}` } : {}), ...(options.body ? { "Content-Type": "application/json" } : {}) }
+        });
+      } catch (_error) { throw new Error("api_network_error"); }
+      if (response.status === 401) throw new Error("api_access_denied");
+      if (response.status === 403) throw new Error("api_forbidden");
+      if (response.status >= 500) throw new Error("api_server_error");
+      if (!response.ok) throw new Error("api_http_error");
+      if (!response.headers.get("content-type")?.startsWith("application/json")) throw new Error("invalid_api_response");
       // Bound the body before parsing; do not buffer an untrusted response whole.
       const reader = response.body.getReader(); const chunks = []; let size = 0;
       try {
