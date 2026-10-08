@@ -54,6 +54,7 @@ export interface PlayerState {
   networkState: number;
   source: string;
   connected: boolean;
+  guarded?: boolean;
 }
 
 export interface PlayerSnapshot {
@@ -88,5 +89,11 @@ export interface ServiceAdapter {
   mount(sink: ServiceAdapterSink): void;
   unmount(): void;
   getSnapshot(reason?: string): PlayerSnapshot;
+  // MAIN-world only: the DOM object is never serialized over PlayerBridge.
+  getMediaElement(mediaId: string): HTMLMediaElement | null;
 }
+
+export type ReplacementPhase = "IDLE" | "PREPARING" | "REPLACEMENT_ACTIVE" | "RESTORING";
+export interface GuardLease { token: string; trackId: string; mediaId: string; }
+export interface ReplacementAsset { url: string; demoLoop: boolean; }
 

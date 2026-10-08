@@ -59,3 +59,9 @@ npm run validate
 
 Stage 2 closes after automated CI is green and one live regression covers direct/album, landing/search, queue next/previous, pause, seek and SPA navigation. Any wrong or ambiguous ID blocks Stage 3 replacement work; a missing ID is diagnostic but remains fail-closed.
 
+### Accepted — 2026-10-08
+
+The owner reported completing the manual checklist on `0.2.1`: «Готово, всё прокликал». This is the acceptance evidence for scenario coverage, not an independently recorded browser run.
+
+The supplied snapshot independently confirms `READY`, `startupError: null`, exact non-ambiguous Track ID `45886281` at confidence 260 on `/search`, a playing detached audio master, advertisement rejection, a healthy protocol-v1 bridge and no connection error. Its log also records Start, Stop and original-audio confirmation. GitHub CI run 9 passed for `160869b58e51f46a0ea69e0a41a47e6cf2eb13b4`; PR #4 was merged into `develop`. Stage 3 is unlocked; its playback gate remains separate.
+

@@ -74,8 +74,15 @@ chrome.runtime.onMessage.addListener((message: unknown, _sender, sendResponse) =
   if (type === COMMANDS.setEnabled) {
     const enabled = normalizeEnabled((message as { enabled?: unknown }).enabled);
     void chrome.storage.local.set({ enabled }).then(async () => {
+      if (enabled) await sendToActiveTab({ type: COMMANDS.retryReplacement });
       sendResponse(await readState(enabled));
     });
+    return true;
+  }
+  if (type === COMMANDS.setTestTrack) {
+    const raw = String((message as { trackId?: unknown }).trackId || "").trim();
+    if (raw && !/^\d{1,24}$/.test(raw)) { sendResponse({ ok: false, error: "invalid-track-id" }); return false; }
+    void chrome.storage.local.set({ testTrackId: raw }).then(async () => sendResponse(await readState()));
     return true;
   }
   if (type === COMMANDS.restoreOriginal) {

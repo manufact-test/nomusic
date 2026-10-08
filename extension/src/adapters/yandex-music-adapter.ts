@@ -111,6 +111,12 @@
       });
     }
 
+    isUtilityMedia(element) {
+      return this.isMediaElement(element) && core.isUtilityMediaCandidate({
+        tag: element.tagName, source: element.currentSrc || element.src || "", duration: element.duration
+      });
+    }
+
     registerMedia(element) {
       if (!this.isMediaElement(element) || this.isReplacementElement(element)) return null;
 
@@ -148,6 +154,11 @@
       }
     }
 
+    getMediaElement(mediaId) {
+      const element = this.knownMedia.get(mediaId);
+      return element && this.isMediaElement(element) && !this.isReplacementElement(element) && !this.isKnownAdMedia(element) && !this.isUtilityMedia(element) ? element : null;
+    }
+
     mediaState(element) {
       if (!this.isMediaElement(element)) return null;
       const mediaId = this.registerMedia(element);
@@ -176,6 +187,7 @@
         isMedia: this.isMediaElement(element),
         replacement: this.isReplacementElement(element),
         knownAd: this.isKnownAdMedia(element),
+        knownUtility: this.isUtilityMedia(element),
         paused: Boolean(this.safeCall(() => element.paused, true)),
         ended: Boolean(this.safeCall(() => element.ended, false)),
         duration: this.safeCall(() => element.duration, 0),
@@ -206,12 +218,13 @@
       return [...this.knownMedia.values()].slice(-8).map((element) => {
         const score = this.mediaScore(element);
         const knownAd = this.isKnownAdMedia(element);
+        const utility = this.isUtilityMedia(element);
         return {
           mediaId: this.registerMedia(element),
           tag: String(element.tagName || "").toLocaleLowerCase(),
           eligible: Number.isFinite(score),
           score: Number.isFinite(score) ? score : null,
-          rejectedReason: knownAd ? "known-ad-media" : Number.isFinite(score) ? null : "empty-or-unusable-media",
+          rejectedReason: knownAd ? "known-ad-media" : utility ? "utility-media" : Number.isFinite(score) ? null : "empty-or-unusable-media",
           paused: Boolean(element.paused),
           currentTime: this.round(element.currentTime),
           duration: Number.isFinite(element.duration) ? this.round(element.duration) : null,
@@ -482,6 +495,9 @@
     trackState(master) {
       const metadata = this.playbackMetadata(master);
       const result = core.pickBestTrackCandidate(this.collectTrackCandidates(metadata, master), 70);
+      // Guard validation needs independent catalog duration, not a copy of the
+      // selected media duration which would make a mismatch check tautological.
+      const canonicalDuration = this.trackCatalog.get(result.selected?.id)?.durationMs;
       return {
         id: result.selected?.id || null,
         confidence: result.selected?.score || 0,
@@ -489,7 +505,7 @@
         evidence: result.selected?.evidence || "",
         ambiguous: result.ambiguous,
         candidates: result.ranked,
-        metadata,
+        metadata: { ...metadata, durationMs: canonicalDuration > 0 ? canonicalDuration : metadata.durationMs },
         catalogSize: this.trackCatalog.size
       };
     }

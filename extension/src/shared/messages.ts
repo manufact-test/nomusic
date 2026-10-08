@@ -1,6 +1,8 @@
 export const COMMANDS = {
   getStatus: "CELIKOM_STATUS_GET",
   setEnabled: "CELIKOM_ENABLED_SET",
+  setTestTrack: "CELIKOM_TEST_TRACK_SET",
+  retryReplacement: "CELIKOM_REPLACEMENT_RETRY",
   restoreOriginal: "CELIKOM_RESTORE_ORIGINAL",
   controllerPing: "CELIKOM_CONTROLLER_PING",
   getControllerStatus: "CELIKOM_CONTROLLER_STATUS_GET"
@@ -10,8 +12,11 @@ export type Command = typeof COMMANDS[keyof typeof COMMANDS];
 
 export interface ExtensionState {
   enabled: boolean;
-  phase: "STOPPED" | "CONNECTING" | "OBSERVING" | "READY" | "ERROR";
+  phase: "STOPPED" | "CONNECTING" | "OBSERVING" | "READY" | "ERROR" | "PREPARING" | "REPLACEMENT_ACTIVE" | "RESTORING";
   version: string;
+  settings?: { testTrackId: string };
+  manualBypass?: { trackId: string } | null;
+  replacementError?: string | null;
   connection?: {
     controllerPresent: boolean;
     recovered: boolean;

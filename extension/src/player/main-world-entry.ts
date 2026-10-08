@@ -3,7 +3,8 @@
 
   const core = root.__CELIKOM_PLAYER_CORE_V1__;
   const adapterFactory = root.__CELIKOM_YANDEX_ADAPTER_V1__;
-  if (!core || !adapterFactory) return;
+  const guardFactory = root.__CELIKOM_ORIGINAL_GUARD_V1__;
+  if (!core || !adapterFactory || !guardFactory) return;
 
   const BRIDGE_KEY = "__CELIKOM_MAIN_BRIDGE_V1__";
   if (root[BRIDGE_KEY]) {
@@ -19,7 +20,66 @@
   let lastHeartbeatAt = 0;
   let sequence = 0;
   let destroyed = false;
+  let lastReleasedGeneration = 0;
+  let lastGuardGeneration = 0;
   const adapter = adapterFactory.createAdapter(root);
+  const guard = new guardFactory.OriginalAudioGuard(() => {
+    post("PLAYER_SNAPSHOT", decorate(adapter.getSnapshot("volume-intent")));
+  });
+
+  function stopReplacement() {
+    for (const element of root.document?.querySelectorAll('audio[data-celikom-replacement="true"]') || []) {
+      try { element.muted = true; element.pause(); } catch (_error) { /* keep restoring */ }
+    }
+  }
+
+  function release(reason, token = null, detail = null) {
+    const oldToken = guard.current?.token;
+    const releasedGeneration = leaseGeneration(token || oldToken);
+    if (releasedGeneration) lastReleasedGeneration = Math.max(lastReleasedGeneration, releasedGeneration);
+    if (token && guard.current?.token !== token) return { released: false };
+    stopReplacement();
+    const result = guard.release(token);
+    if (oldToken) post("GUARD_RELEASED", { reason, token: oldToken, detail });
+    if (oldToken && adapter.mounted) post("PLAYER_SNAPSHOT", decorate(adapter.getSnapshot("guard-released")));
+    return result;
+  }
+
+  function leaseGeneration(token) {
+    if (typeof token !== "string" || !controllerSession || !token.startsWith(`${controllerSession}:`)) return 0;
+    const suffix = token.slice(controllerSession.length + 1);
+    const generation = /^\d+$/.test(suffix) ? Number(suffix) : 0;
+    return Number.isSafeInteger(generation) && generation > 0 ? generation : 0;
+  }
+
+  function decorate(snapshot) {
+    const state = guard.state();
+    if (snapshot.player) snapshot.player.guarded = state.active && state.mediaId === snapshot.player.mediaId;
+    snapshot.guard = state;
+    return snapshot;
+  }
+
+  function checkBinding(snapshot) {
+    const lease = guard.current;
+    if (!lease) return;
+    const player = snapshot.player;
+    const element = adapter.getMediaElement(lease.mediaId);
+    let reason = null;
+    if (!snapshot.track?.id) reason = "track-unknown";
+    else if (snapshot.track.ambiguous) reason = "track-ambiguous";
+    else if (snapshot.track.id !== lease.trackId) reason = "track-changed";
+    else if (!element || player?.mediaId !== lease.mediaId) reason = "media-changed";
+    else if ((element.currentSrc || element.src || "") !== lease.source) reason = "media-source-changed";
+    else if (player.ended) reason = "master-ended";
+    else if (!Number.isFinite(player.duration) || player.readyState < 1) reason = "media-emptied";
+    else if (Math.abs(player.duration * 1000 - snapshot.track.metadata?.durationMs) > 1500) reason = "duration-mismatch";
+    if (reason) {
+      release("master-binding-changed", lease.token, {
+        reason, trackId: snapshot.track?.id || null, mediaId: player?.mediaId || null,
+        readyState: player?.readyState ?? null, seeking: Boolean(player?.seeking)
+      });
+    }
+  }
 
   function now() {
     return Date.now();
@@ -47,10 +107,18 @@
 
   const sink = Object.freeze({
     onSnapshot(snapshot) {
-      post("PLAYER_SNAPSHOT", snapshot);
+      checkBinding(snapshot);
+      post("PLAYER_SNAPSHOT", decorate(snapshot));
     },
     onPlayerEvent(event) {
-      post("PLAYER_EVENT", event);
+      checkBinding(event.snapshot);
+      if (["ENDED", "ERROR"].includes(event.type)) release(`master-${event.type.toLowerCase()}`);
+      if (["PAUSE", "SEEK"].includes(event.type)) {
+        for (const element of root.document?.querySelectorAll('audio[data-celikom-replacement="true"]') || []) {
+          try { element.pause(); } catch (_error) { /* isolated controller also pauses */ }
+        }
+      }
+      post("PLAYER_EVENT", { ...event, snapshot: decorate(event.snapshot) });
     }
   });
 
@@ -64,8 +132,10 @@
       });
       return;
     }
-    if (controllerSession && controllerSession !== sessionId) adapter.unmount();
+    if (controllerSession && controllerSession !== sessionId) { release("session-changed"); adapter.unmount(); }
     controllerSession = sessionId;
+    lastReleasedGeneration = 0;
+    lastGuardGeneration = 0;
     lastHeartbeatAt = now();
     sequence = 0;
     adapter.mount(sink);
@@ -74,12 +144,13 @@
       protocolVersion: core.PROTOCOL_VERSION,
       service: adapter.service
     });
-    post("PLAYER_SNAPSHOT", adapter.getSnapshot("bridge-init"));
+    post("PLAYER_SNAPSHOT", decorate(adapter.getSnapshot("bridge-init")));
   }
 
   function detach(reason) {
     if (!controllerSession) return;
     const previousSession = controllerSession;
+    release(reason);
     adapter.unmount();
     controllerSession = null;
     lastHeartbeatAt = 0;
@@ -87,8 +158,26 @@
     return { detached: true, reason, sessionId: previousSession };
   }
 
-  function handleRequest(type) {
-    if (type === "GET_SNAPSHOT") return adapter.getSnapshot("request");
+  function handleRequest(type, payload) {
+    if (type === "GET_SNAPSHOT") return decorate(adapter.getSnapshot("request"));
+    if (type === "GUARD_RELEASE") return release(payload?.reason || "release-request", payload?.token);
+    if (type === "GUARD_ENGAGE") {
+      const generation = leaseGeneration(payload?.token);
+      if (!generation || generation <= lastReleasedGeneration || generation < lastGuardGeneration) throw new Error("Invalid or cancelled guard lease");
+      const snapshot = adapter.getSnapshot("guard-request");
+      const element = adapter.getMediaElement(payload.mediaId);
+      const player = snapshot.player;
+      if (!element || snapshot.track?.ambiguous || snapshot.track?.id !== payload.trackId || snapshot.track?.confidence < 100
+        || player?.mediaId !== payload.mediaId || player?.ended || player?.readyState < 2
+        || !Number.isFinite(player.duration) || !snapshot.track.metadata?.durationMs
+        || Math.abs(player.duration * 1000 - snapshot.track.metadata.durationMs) > 1500) throw new Error("Master changed before guard");
+      guard.engage(element, payload.mediaId, payload.token);
+      lastGuardGeneration = generation;
+      guard.current.trackId = payload.trackId;
+      // Compare stream identity only inside MAIN; never serialize the raw URL.
+      guard.current.source = element.currentSrc || element.src || "";
+      return { guard: guard.state(), snapshot: decorate(adapter.getSnapshot("guard-engaged")) };
+    }
     throw new Error(`Unknown bridge request: ${type}`);
   }
 
@@ -109,6 +198,8 @@
     if (message.sessionId !== controllerSession) return;
     lastHeartbeatAt = now();
 
+    if (message.type === "RELEASE_NOW") { release(message.payload?.reason || "emergency-signal", message.payload?.token); return; }
+
     if (message.type === "HEARTBEAT") {
       post("HEARTBEAT_ACK", {
         bridgeVersion: core.VERSION,
@@ -122,7 +213,7 @@
     }
     if (message.type === "REQUEST" && typeof message.requestId === "string") {
       try {
-        const result = handleRequest(message.payload?.type);
+        const result = handleRequest(message.payload?.type, message.payload?.payload);
         if (controllerSession) post("RESPONSE", { ok: true, result }, message.requestId);
       } catch (error) {
         post("RESPONSE", { ok: false, error: String(error?.message || error) }, message.requestId);
@@ -181,7 +272,8 @@
         attached: Boolean(controllerSession),
         mounted: adapter.mounted,
         service: adapter.service,
-        lastHeartbeatAt
+        lastHeartbeatAt,
+        guard: guard.state()
       })
     }),
     configurable: false,

@@ -1,5 +1,31 @@
 # Changelog
 
+## 0.3.2 — 2026-10-08 (same-track stability fix; live acceptance pending)
+
+- Живой JSON 0.3.1 подтвердил исправленный запуск, healthy bridge и активную подмену с drift −1 ms, но показал частые возвраты и generation 49 на одном треке. Stage 3 пока не принят.
+- Воспроизведён захват master коротким data-audio при паузе оригинала. Служебный data-audio длиной до секунды исключён из выбора; в диагностике получает `utility-media`, если ещё присутствует среди кандидатов.
+- Воспроизведён повторный запуск при seek с readyState=1. Существующая exact track/media lease сохраняется, а replacement приостанавливается до готовности оригинала; пустой/изменённый/неоднозначный master по-прежнему возвращает оригинал.
+- Длительность трека берётся из независимого каталога, чтобы проверка не сравнивала длительность audio с её же копией. MAIN отслеживает смену источника внутри page world и не передаёт raw URL; старая привязка не перезапускается автоматически.
+- Диагностика включает счётчики запусков/возвратов и сведения о последнем возврате. Добавлены regressions выбора плеера, seek/buffering и собранных MAIN/ISOLATED bundles.
+
+## 0.3.1 — 2026-10-08 (startup regression fix; live acceptance pending)
+
+- Воспроизведён присланный сбой `normalizeTrackId`: ранняя регистрация ReplacementController захватывала ещё отсутствующий core, затем immutable registry сохранял сломанный класс.
+- Зависимости разрешаются при создании контроллера и проверяются явно; ранняя регистрация больше не сохраняет undefined.
+- MAIN и ISOLATED получают по одному deterministic bundle с фиксированным порядком модулей и общей проверкой build/manifest.
+- Popup polling больше не внедряет повторно controller с startupError; wake/storage/retry не повторяют неуспешную инициализацию. Диагностика сохраняется, а обновление вкладки позволяет начать с чистого контекста.
+- Regression воспроизводит ошибку 0.3.0 до исправления, затем проверяет раннюю регистрацию, packaged startup, повторное внедрение и отсутствие log flood.
+
+## 0.3.0 — 2026-10-08 (live playback acceptance pending)
+
+- Stage 2 принят по ручному прогону владельца на 0.2.1 и зелёному CI; PR #4 интегрирован в develop.
+- Перенесена локальная подмена в отдельные ReplacementController, ReplacementPlayer, SyncEngine, OriginalAudioGuard и FailOpenController.
+- Exact-ID opt-in тестовая карта использует только встроенный синтетический MP3. Реальная библиотека и backend ещё не подключены.
+- Добавлены generation/session leases, отмена старых загрузок, коррекция seek/drift, зеркалирование pause/resume/volume/mute/rate и fail-open без повторных попыток на ошибочном треке.
+- MAIN-world watchdog самостоятельно останавливает подмену и возвращает пользовательский original volume/mute при потере heartbeat; устаревшие release не влияют на новую generation.
+- Основной UI ограничен четырьмя действиями; тестовый Track ID и диагностика скрыты в developer details. Добавление треков пока явно coming-soon.
+- Добавлены unit/race/compiled two-world playback тесты; живой gate новой версии остаётся обязательным.
+
 ## 0.2.1 — 2026-10-08
 
 - Исправлена регрессия `CONNECTING`: production background автоматически запускает manifest-declared MAIN/ISOLATED scripts в уже открытой вкладке, как это делал принятый PoC.

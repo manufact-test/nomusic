@@ -6,6 +6,7 @@ const stopButton = document.querySelector<HTMLButtonElement>("[data-action='stop
 const restoreButton = document.querySelector<HTMLButtonElement>("[data-action='restore']");
 const diagnosticsButton = document.querySelector<HTMLButtonElement>("[data-action='diagnostics']");
 const track = document.querySelector<HTMLElement>("[data-track]");
+const testInput = document.querySelector<HTMLInputElement>("[data-test-track]");
 let lastState: ExtensionState | null = null;
 
 function render(state: ExtensionState): void {
@@ -16,13 +17,17 @@ function render(state: ExtensionState): void {
     CONNECTING: "Подключение…",
     OBSERVING: "Ищем трек…",
     READY: "Трек найден",
-    ERROR: "Ошибка подключения"
+    ERROR: "Ошибка подключения",
+    PREPARING: "Готовим подмену…",
+    REPLACEMENT_ACTIVE: "Подмена активна",
+    RESTORING: "Возвращаем оригинал…"
   };
-  status.textContent = labels[state.phase] || "Проверка…";
+  status.textContent = state.manualBypass ? "Оригинал" : state.replacementError ? "Оригинал · ошибка подмены" : labels[state.phase] || "Проверка…";
   status.dataset.active = String(state.enabled);
-  startButton.disabled = state.enabled && state.phase !== "ERROR";
+  startButton.disabled = state.enabled && state.phase !== "ERROR" && !state.manualBypass && !state.replacementError;
   startButton.textContent = state.phase === "ERROR" ? "Повторить" : "Старт";
   stopButton.disabled = !state.enabled;
+  if (testInput && document.activeElement !== testInput) testInput.value = state.settings?.testTrackId || "";
   if (track) {
     const title = state.track?.metadata?.title?.trim();
     const artist = state.track?.metadata?.artist?.trim();
@@ -42,6 +47,22 @@ async function send<T>(message: object): Promise<T> {
 
 startButton?.addEventListener("click", async () => {
   render(await send<ExtensionState>({ type: COMMANDS.setEnabled, enabled: true }));
+});
+
+document.querySelector("[data-action='add']")?.addEventListener("click", () => {
+  const note = document.querySelector<HTMLElement>("[data-coming-soon]");
+  if (note) note.hidden = !note.hidden;
+});
+document.querySelector("[data-action='use-current']")?.addEventListener("click", async () => {
+  if (lastState?.track?.id) render(await send<ExtensionState>({ type: COMMANDS.setTestTrack, trackId: lastState.track.id }));
+});
+document.querySelector("[data-action='clear-test']")?.addEventListener("click", async () => {
+  render(await send<ExtensionState>({ type: COMMANDS.setTestTrack, trackId: "" }));
+});
+testInput?.addEventListener("change", async () => {
+  if (testInput.value && !/^\d{1,24}$/.test(testInput.value.trim())) { testInput.setCustomValidity("Только цифры Track ID"); testInput.reportValidity(); return; }
+  testInput.setCustomValidity("");
+  render(await send<ExtensionState>({ type: COMMANDS.setTestTrack, trackId: testInput.value.trim() }));
 });
 
 stopButton?.addEventListener("click", async () => {

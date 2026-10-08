@@ -100,3 +100,9 @@ button:disabled {
   font-size: 11px;
   line-height: 1.45;
 }
+
+[hidden] { display: none !important; }
+summary { cursor: pointer; color: #aab8be; font-size: 11px; padding: 8px 2px; }
+details[open] { display: grid; gap: 8px; }
+input { box-sizing: border-box; width: 100%; margin: 6px 0; border: 1px solid #55666d; border-radius: 8px; padding: 10px; background: #141b1f; color: #f4f7f8; }
+button:focus-visible, input:focus-visible, summary:focus-visible { outline: 2px solid #66e0bf; outline-offset: 3px; }
