@@ -1,6 +1,7 @@
 import { COMMANDS, normalizeEnabled, type ExtensionState } from "../shared/messages.js";
 import { createControllerBootstrap } from "./controller-bootstrap.js";
 import { createApiBroker } from "../api/api-broker.js";
+import { validateApiAccess } from "../api/api-access-validation.js";
 
 const VERSION = chrome.runtime.getManifest().version;
 const DEFAULT_STATE: ExtensionState = Object.freeze({
@@ -74,11 +75,15 @@ chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse) =>
     return true;
   }
   if (type === "CELIKOM_SET_API_ACCESS" && sender?.id === chrome.runtime.id && sender?.url === chrome.runtime.getURL("popup/popup.html")) {
-    const token = String((message as { token?: unknown }).token || "");
-    if (token.length > 512 || (token && token.length < 24)) { sendResponse({ ok: false, error: "invalid_access_code" }); return false; }
-    void chrome.storage.local.set({ apiTestToken: token }).then(async () => {
-      await sendToActiveTab({ type: COMMANDS.retryReplacement }); sendResponse({ ok: true });
-    });
+    const rawToken = (message as { token?: unknown }).token;
+    void validateApiAccess(chrome, rawToken)
+      .then(async (result) => {
+        if (!result.ok) { sendResponse({ ok: false, error: result.error }); return; }
+        await chrome.storage.local.set({ apiTestToken: result.token });
+        await sendToActiveTab({ type: COMMANDS.retryReplacement });
+        sendResponse({ ok: true });
+      })
+      .catch(() => sendResponse({ ok: false, error: "api_unavailable" }));
     return true;
   }
 
