@@ -46,6 +46,7 @@ function browserFixture() {
     remove() { elements.delete(this); this.isConnected = false; }
   }
   const runtime = {
+    sendMessage: async () => ({ ok: true, configured: false, asset: { found: false, retryAfterMs: 60000 } }),
     getManifest: () => manifest,
     getURL: (file) => `chrome-extension://test/${file}`,
     onMessage: {

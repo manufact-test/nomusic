@@ -7,8 +7,8 @@ Updated: 2026-10-08. Requirement authorities remain `CELIKOM_Master_TZ_MVP_v1.3`
 | 0 — playback PoC | Accepted | Live 0.0.4, 2026-10-07 |
 | 1 — production foundation | Complete | Merged foundation and CI |
 | 2 — adapter / bridge | Accepted | Owner completed manual 0.2.1 checklist; supplied healthy JSON; CI run 9; merged PR #4 |
-| 3 — local playback engine | Stability fix 0.3.2; live gate pending | Owner's 0.3.1 JSON confirms healthy startup, exact ID, guard and −1 ms drift; generation 49 and repeated same-track restores block acceptance. Utility-media hijacking and metadata-only seek aborts reproduced and fixed; compiled two-world regressions cover continuity and fail-open boundaries |
-| 4 — API / MySQL / Range audio | Next after Stage 3 gate | Resolve/config/audio contract, storage abstraction, signatures and tests |
-| 5 — Hostinger / live MP3 | After Stage 4 contract | HTTPS, private storage, DB and deployment; owner supplies hosting access and authorized fixture files |
+| 3 — local playback engine | Accepted by owner, 0.3.2 | Owner reports everything works; final JSON confirms healthy startup/bridge and manual bypass, 3 activations/3 restores. Two earlier binding-change releases remain observations: their causes are not established by this snapshot. This is owner acceptance, not independent evidence of every live scenario. PR #5 merged |
+| 4 — API / MySQL / Range audio | Implemented, automated gate | 0.4.0 config/resolve/signed audio, approved exact-ID catalog, private LocalStorageAdapter, client cache/broker and remote playback, optional deduplicated analytics. PHP unit and compiled client checks run locally; real MySQL/HTTP/native Chromium gate enforced in CI. See Stage 4 test plan for limits |
+| 5 — Hostinger / live MP3 | Deployment package prepared; live gate pending | HTTPS API domain, account access, private storage/DB and 1–3 reviewed MP3/WAV needed. Domain-specific extension build and real Yandex CSP/autoplay verification occur here; see Hostinger runbook |
 
 No accounts, uploads, billing, Android playback or client release are claimed complete. Stages 6–18 retain the order and scope of the authoritative plan. Public repository closure remains the mandatory Stage 18 gate before client release.

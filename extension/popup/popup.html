@@ -19,15 +19,19 @@
       </div>
       <button class="wide" type="button" data-action="restore">Вернуть оригинал</button>
       <button class="wide" type="button" data-action="add">Добавить трек</button>
-      <p class="stage" data-coming-soon hidden>Загрузка треков появится после подключения сервера. Сейчас ничего не загружается.</p>
+      <p class="stage" data-coming-soon hidden>Добавление треков появится в следующем этапе. Сейчас каталог наполняется для закрытого теста.</p>
       <p class="track" data-track>Запустите трек в Яндекс Музыке</p>
       <details>
         <summary>Для разработчика</summary>
-        <p class="stage">Stage 3 · тестовый сигнал вместо одного точного Track ID. Это ещё не библиотека песен.</p>
+        <p class="stage">Stage 4 · серверный каталог. Тестовый ID включает встроенный сигнал; пустое поле включает API.</p>
         <label class="stage" for="test-track">Тестовый Track ID</label>
-        <input id="test-track" data-test-track inputmode="numeric" pattern="[0-9]{1,24}" maxlength="24" placeholder="Пусто — без подмены">
+        <input id="test-track" data-test-track inputmode="numeric" pattern="[0-9]{1,24}" maxlength="24" placeholder="Пусто — серверный каталог">
         <button class="wide" type="button" data-action="use-current">Тестировать текущий трек</button>
         <button class="wide" type="button" data-action="clear-test">Убрать тестовую подмену</button>
+        <label class="stage" for="api-access">Код доступа к тестовому серверу</label>
+        <input id="api-access" data-api-access type="password" maxlength="512" autocomplete="off" placeholder="Только для закрытого теста">
+        <button class="wide" type="button" data-action="save-api-access">Сохранить код</button>
+        <p class="stage" data-api-note></p>
         <button class="diagnostics" type="button" data-action="diagnostics">Скопировать диагностику</button>
       </details>
     </main>

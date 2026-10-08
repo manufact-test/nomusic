@@ -40,6 +40,10 @@ for (const file of phpFiles) {
   if (lint.status !== 0) throw new Error(lint.stderr || lint.stdout);
 }
 
-const smoke = spawnSync("php", [path.join(serverRoot, "tests", "smoke.php")], { stdio: "inherit" });
+const smoke = spawnSync("php", [path.join(serverRoot, "tests", "database.php")], { stdio: "inherit" });
 if (smoke.status !== 0) process.exit(smoke.status || 1);
+if (process.env.DB_NAME) {
+  const http = spawnSync(process.execPath, [path.join(serverRoot, "tests", "http.mjs")], { stdio: "inherit" });
+  if (http.status !== 0) process.exit(http.status || 1);
+}
 console.log(`Server runtime validation passed with ${phpVersion.stdout.split("\n")[0]}.`);

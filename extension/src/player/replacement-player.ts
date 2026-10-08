@@ -23,6 +23,7 @@
     async prepare(asset) {
       this.demoLoop = asset.demoLoop === true;
       this.audio.loop = this.demoLoop;
+      if (!this.demoLoop) this.audio.crossOrigin = "anonymous";
       const parent = this.environment.document.documentElement;
       if (!parent) throw new Error("Document root is unavailable");
       parent.append(this.audio);

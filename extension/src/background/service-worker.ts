@@ -1,5 +1,6 @@
 import { COMMANDS, normalizeEnabled, type ExtensionState } from "../shared/messages.js";
 import { createControllerBootstrap } from "./controller-bootstrap.js";
+import { createApiBroker } from "../api/api-broker.js";
 
 const VERSION = chrome.runtime.getManifest().version;
 const DEFAULT_STATE: ExtensionState = Object.freeze({
@@ -8,6 +9,7 @@ const DEFAULT_STATE: ExtensionState = Object.freeze({
   version: VERSION
 });
 const bootstrap = createControllerBootstrap(chrome);
+const resolveApi = createApiBroker(chrome);
 
 async function readEnabled(): Promise<boolean> {
   const stored = await chrome.storage.local.get("enabled");
@@ -62,10 +64,23 @@ chrome.runtime.onStartup.addListener(() => {
   void bootstrap.ensureOpenTabs().catch(() => undefined);
 });
 
-chrome.runtime.onMessage.addListener((message: unknown, _sender, sendResponse) => {
+chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse) => {
   const type = typeof message === "object" && message !== null && "type" in message
     ? (message as { type?: unknown }).type
     : null;
+
+  if (type === "CELIKOM_API_RESOLVE" || type === "CELIKOM_API_EVENT") {
+    void resolveApi(message, sender).then(sendResponse).catch(() => sendResponse({ ok: false, error: "api_unavailable" }));
+    return true;
+  }
+  if (type === "CELIKOM_SET_API_ACCESS" && sender?.id === chrome.runtime.id && sender?.url === chrome.runtime.getURL("popup/popup.html")) {
+    const token = String((message as { token?: unknown }).token || "");
+    if (token.length > 512 || (token && token.length < 24)) { sendResponse({ ok: false, error: "invalid_access_code" }); return false; }
+    void chrome.storage.local.set({ apiTestToken: token }).then(async () => {
+      await sendToActiveTab({ type: COMMANDS.retryReplacement }); sendResponse({ ok: true });
+    });
+    return true;
+  }
 
   if (type === COMMANDS.getStatus) {
     void readState().then(sendResponse);
@@ -89,5 +104,6 @@ chrome.runtime.onMessage.addListener((message: unknown, _sender, sendResponse) =
     void sendToActiveTab({ type: COMMANDS.restoreOriginal }).then((result) => sendResponse(result || { ok: true }));
     return true;
   }
+  if (type === "CELIKOM_ADD_TRACK_OPENED") { void sendToActiveTab({ type }).then(sendResponse); return true; }
   return false;
 });

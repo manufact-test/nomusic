@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.4.0 — 2026-10-08 (API foundation; Hostinger live gate pending)
+
+- Stage 3 принят по сообщению владельца и диагностике 0.3.2; PR #5 объединён. Два guard-lost в истории сохранены как наблюдения с неизвестной причиной, без обещания независимого полного live-прогона.
+- Добавлены PHP 8.3/MySQL migrations, exact service/Track ID resolve, только approved/active mappings, LocalStorageAdapter и приватное хранилище с SHA-256 дедупликацией assets.
+- Подписанные versioned audio URLs истекают через 10 минут; выдача потоковая, поддерживает GET/HEAD, 200/206/416, Content-Range и byte-seek. Пути файлов не выдаются клиенту.
+- Worker ApiClient получает только фиксированные endpoints, проверяет origin, ID, duration/expiry, кэширует config/resolve. Один API origin добавляется в manifest при сборке. Загрузка реального файла завершается до заглушения оригинала; ошибки и stale операции возвращают оригинал.
+- Добавлен временный код доступа для закрытого теста и owner-reviewed CLI импорт MP3/WAV; аккаунты, entitlements и пользовательская загрузка остаются будущими этапами.
+- Добавлены schema-v1 события, безопасные batch retries/dedup, ключевой hash installation ID, дневные UTC агрегаты и retention; сбор выключен по умолчанию. Админка/подписки/финансовые метрики пока не реализованы.
+- Подготовлены server ZIP без секретов/аудиофайлов и Hostinger runbook с приватным web-root layout и откатом. Автоматические проверки включают MySQL, настоящий PHP HTTP Range и native Chromium WAV decode/seek; live HTTPS/Yandex gate остаётся Stage 5.
+
 ## 0.3.2 — 2026-10-08 (same-track stability fix; live acceptance pending)
 
 - Живой JSON 0.3.1 подтвердил исправленный запуск, healthy bridge и активную подмену с drift −1 ms, но показал частые возвраты и generation 49 на одном треке. Stage 3 пока не принят.

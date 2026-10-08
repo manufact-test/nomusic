@@ -52,6 +52,7 @@ startButton?.addEventListener("click", async () => {
 document.querySelector("[data-action='add']")?.addEventListener("click", () => {
   const note = document.querySelector<HTMLElement>("[data-coming-soon]");
   if (note) note.hidden = !note.hidden;
+  if (note && !note.hidden) void send({ type: "CELIKOM_ADD_TRACK_OPENED" });
 });
 document.querySelector("[data-action='use-current']")?.addEventListener("click", async () => {
   if (lastState?.track?.id) render(await send<ExtensionState>({ type: COMMANDS.setTestTrack, trackId: lastState.track.id }));
@@ -63,6 +64,15 @@ testInput?.addEventListener("change", async () => {
   if (testInput.value && !/^\d{1,24}$/.test(testInput.value.trim())) { testInput.setCustomValidity("Только цифры Track ID"); testInput.reportValidity(); return; }
   testInput.setCustomValidity("");
   render(await send<ExtensionState>({ type: COMMANDS.setTestTrack, trackId: testInput.value.trim() }));
+});
+
+document.querySelector("[data-action='save-api-access']")?.addEventListener("click", async () => {
+  const input = document.querySelector<HTMLInputElement>("[data-api-access]");
+  const note = document.querySelector<HTMLElement>("[data-api-note]");
+  if (!input || !note) return;
+  const response = await send<{ ok: boolean }>({ type: "CELIKOM_SET_API_ACCESS", token: input.value });
+  input.value = "";
+  note.textContent = response?.ok ? "Код сохранён" : "Проверьте код доступа";
 });
 
 stopButton?.addEventListener("click", async () => {

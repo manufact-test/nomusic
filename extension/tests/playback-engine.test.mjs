@@ -77,7 +77,7 @@ test("sync projects only a running ready clock and wraps only explicit synthetic
 function snapshot(id = "2", extra = {}) {
   return { observedAt: Date.now(), track: { id, confidence: 260, ambiguous: false, metadata: { durationMs: 200000 } }, player: { mediaId: "master", paused: false, ended: false, seeking: false, readyState: 4, currentTime: 7, duration: 200, volume: 0.012, muted: false, playbackRate: 1 }, ...extra };
 }
-function fixture({ loadGate, guardGate, rejectGuard = false, playerThrows = false } = {}) {
+function fixture({ loadGate, guardGate, rejectGuard = false, playerThrows = false, resolveAsset } = {}) {
   const players = []; const requests = []; let current = snapshot(); let healthy = true;
   const bridge = {
     sessionId: "session-123", isHealthy: () => healthy, getSnapshot: async () => current,
@@ -93,11 +93,11 @@ function fixture({ loadGate, guardGate, rejectGuard = false, playerThrows = fals
     post: (type, payload) => requests.push({ type, ...payload })
   };
   const environment = { chrome: { runtime: { getURL: (name) => `chrome-extension://test/${name}` } }, document: { hidden: false } };
-  const engine = new ReplacementController(bridge, environment, { createPlayer: (fatal) => {
+  const engine = new ReplacementController(bridge, environment, { resolveAsset, createPlayer: (fatal) => {
     if (playerThrows) throw new Error("constructor failed");
     const player = {
       audio: new Media(), demoLoop: true, fatal, destroyed: false,
-      prepare: async () => { if (loadGate) await loadGate.promise; },
+      prepare: async (asset) => { if (!asset.demoLoop) { player.audio.duration = 200; player.demoLoop = false; } if (loadGate) await loadGate.promise; },
       applyState: (state) => { player.audio.volume = state.volume; player.audio.muted = state.muted; player.audio.playbackRate = state.playbackRate; },
       play: () => { player.audio.paused = false; }, pause: () => { player.audio.paused = true; },
       destroy: () => { player.destroyed = true; player.audio.paused = true; }
@@ -244,4 +244,38 @@ test("destroy while demo fetch resolves does not leak or attach a playable asset
   const ready = player.prepare({ url: "packaged", demoLoop: true }); player.destroy();
   gate.resolve({ ok: true, blob: async () => new Blob(["fixture"]) });
   await assert.rejects(ready, /cancelled/); assert.equal(created, 0); assert.equal(media.paused, true);
+});
+
+const remoteAsset = () => ({ found: true, url: "https://celikom.example/api/v1/audio/7?token=fixture", durationMs: 200000, replacementId: 7, version: 1, expiresAt: Date.now() + 600000, demoLoop: false });
+
+test("remote resolve keeps original unguarded until a validated real file is ready", async () => {
+  const gate = deferred(); const f = fixture({ resolveAsset: () => gate.promise });
+  f.engine.configure(true, ""); f.update(snapshot()); await settle();
+  assert.equal(f.requests.some(r => r.type === "GUARD_ENGAGE"), false); assert.equal(f.players.length, 0);
+  gate.resolve(remoteAsset()); await settle();
+  assert.equal(f.engine.phase, "REPLACEMENT_ACTIVE"); assert.equal(f.players[0].demoLoop, false);
+  assert.equal(f.players[0].audio.currentTime >= 7, true, "real file position is never modulo-wrapped");
+  f.engine.manualRestore(); await settle(); f.update(snapshot());
+  assert.equal(f.players.length, 1, "remote mode preserves manual bypass");
+});
+test("negative resolve is cached without acquiring a guard or counting a restoration", async () => {
+  let calls = 0; const f = fixture({ resolveAsset: async () => { calls++; return { found: false, retryAfterMs: 15000 }; } });
+  f.engine.configure(true, ""); f.update(snapshot()); await settle();
+  for (let i = 0; i < 20; i++) { f.update(snapshot()); f.engine.tick(); }
+  await settle(); assert.equal(calls, 1); assert.equal(f.players.length, 0); assert.equal(f.engine.restoreCount, 0);
+});
+test("remote errors, mismatched duration and expired tokens fail open and hold automatic retry", async () => {
+  for (const resolver of [async () => { throw new Error("api_unavailable"); }, async () => ({ ...remoteAsset(), durationMs: 15000 }), async () => ({ ...remoteAsset(), expiresAt: Date.now() - 1 })]) {
+    const f = fixture({ resolveAsset: resolver }); f.engine.configure(true, ""); f.update(snapshot()); await settle();
+    assert.equal(f.requests.some(r => r.type === "GUARD_ENGAGE"), false);
+    assert.equal(f.engine.phase, "IDLE"); assert.ok(f.engine.lastError);
+    f.update(snapshot()); await settle(); assert.equal(f.players.length, 0);
+  }
+});
+test("track change during API resolve discards a late asset without muting the new track", async () => {
+  const gate = deferred(); let calls = 0;
+  const f = fixture({ resolveAsset: () => ++calls === 1 ? gate.promise : Promise.resolve({ found: false }) });
+  f.engine.configure(true, ""); f.update(snapshot()); await settle(); f.update(snapshot("3"));
+  await settle(); gate.resolve(remoteAsset()); await settle();
+  assert.equal(f.players.length, 0); assert.equal(f.requests.some(r => r.type === "GUARD_ENGAGE"), false);
 });
