@@ -1,6 +1,5 @@
 {
-  "purpose": "stage5-safe-api-diagnostics-and-verified-access",
-  "extension_version": "0.4.1",
+  "purpose": "stage5-native-worker-fetch-receiver-regression-fix",
+  "extension_version": "0.4.2",
   "server": "darkred-camel-588676.hostingersite.com"
 }
- 
