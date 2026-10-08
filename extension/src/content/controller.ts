@@ -35,7 +35,12 @@
         resolveAsset: async (trackId) => {
           const response = await chrome.runtime.sendMessage({ type: "CELIKOM_API_RESOLVE", service: "yandex", trackId });
           this.apiConfigured = response?.configured ?? this.apiConfigured;
-          if (!response?.ok) throw new Error("api_unavailable");
+          if (!response?.ok) {
+            const permitted = ["api_access_missing", "api_access_denied", "api_forbidden", "api_network_error",
+              "api_server_error", "api_http_error", "invalid_api_response", "invalid_audio_url",
+              "invalid_api_config", "extension_update_required", "invalid_api_sender"];
+            throw new Error(permitted.includes(response?.error) ? response.error : "api_unavailable");
+          }
           return response.asset;
         }
       });
