@@ -144,6 +144,77 @@ try {
             || ($publicResult['replacement_id'] ?? null) !== 1) {
             throw new RuntimeException('public_authorization_response_invalid');
         }
+        // Exercise the actual public HTTPS audio stream with the same Origin and
+        // byte range a browser media element requests; never expose signed URLs.
+        $signedAudioUrl = 'https://darkred-camel-588676.hostingersite.com' . $answer['audio_url'];
+        $mediaStatus = 0;
+        $mediaHeaders = [];
+        $mediaBytes = false;
+        if (function_exists('curl_init')) {
+            $handle = curl_init($signedAudioUrl);
+            curl_setopt_array($handle, [
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_TIMEOUT => 20,
+                CURLOPT_CONNECTTIMEOUT => 8,
+                CURLOPT_HTTPHEADER => [
+                    'Origin: https://music.yandex.ru',
+                    'Range: bytes=0-1023',
+                ],
+                CURLOPT_FOLLOWLOCATION => false,
+                CURLOPT_SSL_VERIFYPEER => true,
+                CURLOPT_SSL_VERIFYHOST => 2,
+                CURLOPT_HEADERFUNCTION => static function ($ch, string $headerLine) use (&$mediaHeaders): int {
+                    $parts = explode(':', $headerLine, 2);
+                    if (count($parts) === 2) {
+                        $key = strtolower(trim($parts[0]));
+                        if (in_array($key, ['content-type', 'content-length', 'content-range',
+                            'accept-ranges', 'access-control-allow-origin'], true)) {
+                            $mediaHeaders[$key] = trim($parts[1]);
+                        }
+                    }
+                    return strlen($headerLine);
+                },
+            ]);
+            $mediaBytes = curl_exec($handle);
+            $mediaStatus = (int) curl_getinfo($handle, CURLINFO_RESPONSE_CODE);
+            curl_close($handle);
+        } else {
+            $context = stream_context_create(['http' => [
+                'method' => 'GET',
+                'header' => "Origin: https://music.yandex.ru\r\nRange: bytes=0-1023\r\n",
+                'timeout' => 20,
+                'ignore_errors' => true,
+                'follow_location' => 0,
+            ]]);
+            $mediaBytes = @file_get_contents($signedAudioUrl, false, $context);
+            foreach (($http_response_header ?? []) as $line) {
+                if (preg_match('~^HTTP/[^ ]+ ([0-9]{3})~', $line, $statusParts)) {
+                    $mediaStatus = (int) $statusParts[1];
+                }
+                $parts = explode(':', $line, 2);
+                if (count($parts) === 2) {
+                    $key = strtolower(trim($parts[0]));
+                    if (in_array($key, ['content-type', 'content-length', 'content-range',
+                        'accept-ranges', 'access-control-allow-origin'], true)) {
+                        $mediaHeaders[$key] = trim($parts[1]);
+                    }
+                }
+            }
+        }
+        // Log status and non-secret headers ONLY; never log URLs or media bytes.
+        echo 'Public signed audio: HTTP ', $mediaStatus,
+            '; content type ', ($mediaHeaders['content-type'] ?? 'missing'),
+            '; CORS ', ($mediaHeaders['access-control-allow-origin'] ?? 'missing'),
+            '; bytes ', is_string($mediaBytes) ? strlen($mediaBytes) : 0, "\n";
+        if ($mediaStatus !== 206
+            || ($mediaHeaders['access-control-allow-origin'] ?? '') !== 'https://music.yandex.ru'
+            || !str_starts_with(strtolower($mediaHeaders['content-type'] ?? ''), 'audio/mpeg')
+            || ($mediaHeaders['accept-ranges'] ?? '') !== 'bytes'
+            || !str_starts_with($mediaHeaders['content-range'] ?? '', 'bytes 0-1023/')
+            || !is_string($mediaBytes) || strlen($mediaBytes) !== 1024) {
+            throw new RuntimeException('public_signed_audio_failed');
+        }
+        echo "HTTPS media Origin, CORS and Range verified; signed URL not logged.\n";
         echo "Internal and public HTTPS authorized resolve + signed audio HEAD passed; analytics disabled.\\n";
         exit(0);
     }
