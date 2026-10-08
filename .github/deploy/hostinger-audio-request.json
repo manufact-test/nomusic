@@ -1,7 +1,4 @@
 {
-  "operation": "import",
-  "track_id": "144530503",
-  "duration_ms": 180872,
-  "confirm_reviewed": true
+  "operation": "enable",
+  "track_id": "144530503"
 }
- 
