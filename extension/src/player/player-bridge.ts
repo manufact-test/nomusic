@@ -21,6 +21,7 @@
       this.lastSeenAt = 0;
       this.lastSequence = 0;
       this.requestSequence = 0;
+      this.lastInitAt = 0;
       this.pending = new Map();
       this.listeners = new Map();
       this.heartbeatTimer = null;
@@ -73,11 +74,18 @@
 
     connect() {
       if (this.destroyed || !this.started) return;
+      this.lastInitAt = Date.now();
       this.post("INIT", { controllerVersion: core.VERSION });
     }
 
     heartbeat() {
       if (this.destroyed || !this.started) return;
+      if (!this.isHealthy() && Date.now() - this.lastInitAt >= this.heartbeatIntervalMs * 2) {
+        this.ready = false;
+        this.lastSequence = 0;
+        this.connect();
+        return;
+      }
       this.post("HEARTBEAT");
     }
 
@@ -116,7 +124,10 @@
       if (message.direction !== DIRECTION_OUT) return;
 
       if (message.type === "BRIDGE_PRESENT") {
-        if (!this.ready) this.lastSequence = 0;
+        if (!this.isHealthy()) {
+          this.ready = false;
+          this.lastSequence = 0;
+        }
         if (this.started && !this.destroyed) this.connect();
         return;
       }

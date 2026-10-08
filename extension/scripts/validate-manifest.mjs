@@ -16,6 +16,7 @@ assert(manifest.version === packageJson.version, "Manifest/package version misma
 assert(manifest.minimum_chrome_version, "minimum_chrome_version is required");
 assert(manifest.background?.type === "module", "Background worker must be an ES module");
 assert(manifest.permissions?.includes("storage"), "storage permission is required");
+assert(manifest.permissions?.includes("scripting"), "Packaged-script recovery requires scripting permission");
 assert(!manifest.permissions?.includes("tabs"), "Broad tabs permission is not allowed in the foundation");
 assert(manifest.host_permissions?.length === 1, "Exactly one development host permission is expected");
 assert(manifest.host_permissions[0] === "https://music.yandex.ru/*", "Unexpected host permission");

@@ -15,18 +15,20 @@ function render(state: ExtensionState): void {
     STOPPED: "Остановлен",
     CONNECTING: "Подключение…",
     OBSERVING: "Ищем трек…",
-    READY: "Трек найден"
+    READY: "Трек найден",
+    ERROR: "Ошибка подключения"
   };
   status.textContent = labels[state.phase] || "Проверка…";
   status.dataset.active = String(state.enabled);
-  startButton.disabled = state.enabled;
+  startButton.disabled = state.enabled && state.phase !== "ERROR";
+  startButton.textContent = state.phase === "ERROR" ? "Повторить" : "Старт";
   stopButton.disabled = !state.enabled;
   if (track) {
     const title = state.track?.metadata?.title?.trim();
     const artist = state.track?.metadata?.artist?.trim();
     track.textContent = state.track?.id
       ? [title || `Track ID ${state.track.id}`, artist].filter(Boolean).join(" — ")
-      : state.enabled ? "Запустите трек в Яндекс Музыке" : "Наблюдение приостановлено";
+      : state.connection?.detail || (state.enabled ? "Запустите трек в Яндекс Музыке" : "CELIKOM остановлен");
     track.dataset.detected = String(Boolean(state.track?.id));
     track.title = state.track?.id
       ? `Track ID ${state.track.id} · confidence ${state.track.confidence}`

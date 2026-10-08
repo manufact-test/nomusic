@@ -106,3 +106,14 @@ test("PlayerBridge resolves matching requests and rejects unknown sessions", asy
   assert.equal(target.timeouts.size, 0);
   bridge.destroy();
 });
+
+test("a lost initial INIT is retried instead of waiting forever for READY", () => {
+  const target = new FakeWindow();
+  const bridge = new PlayerBridge(target, { sessionId: "lost-init-123" }).start();
+  bridge.lastInitAt = Date.now() - 3000;
+  bridge.heartbeat();
+  assert.equal(target.posts.filter((post) => post.type === "INIT").length, 2);
+  target.dispatch(message(bridge, "READY", 1));
+  assert.equal(bridge.ready, true);
+  bridge.destroy();
+});

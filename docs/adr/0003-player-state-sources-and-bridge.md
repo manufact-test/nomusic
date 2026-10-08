@@ -34,10 +34,15 @@ Normalized events are `TRACK_CHANGED`, `PLAY`, `PAUSE`, `SEEK`, `TIME_UPDATE`, `
 - `mount` and `PlayerBridge.start` are idempotent.
 - `unmount` removes media, navigation and observer listeners, clears timers and restores owned wrappers.
 - A new bridge session unmounts the previous adapter session before attaching.
+- Background bootstraps a previously open supported tab using only packaged, manifest-declared scripts, MAIN first and ISOLATED second. Parallel requests share one injection.
+- Missing receivers, denied script injection and failed handshakes have separate visible diagnostic codes. Explicit injection failure is not retried by popup polling; a user Retry/Start can attempt again after access is changed.
+- A lost initial INIT is retried by the isolated heartbeat; diagnostics listeners exist before asynchronous controller startup.
 - A visible-page heartbeat timeout detaches the adapter; the isolated bridge immediately reconnects with `INIT`.
 - The adapter observes only in Stage 2. It never changes playback state or audio output.
 
 ## Consequences
 
 Replacement and synchronization in Stage 3 can depend on one normalized player contract instead of Yandex internals. A future service integration supplies another adapter without modifying the content controller. The cost is a small MAIN-world observer and passive response cloning bounded to JSON bodies no larger than 5 MiB and 20,000 visited object nodes.
+
+Bootstrap API reference: <https://developer.chrome.com/docs/extensions/reference/api/scripting>.
 

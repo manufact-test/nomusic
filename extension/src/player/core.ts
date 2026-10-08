@@ -1,6 +1,7 @@
 (function initCelikomPlayerCore(root, factory) {
   "use strict";
 
+  if (root.__CELIKOM_PLAYER_CORE_V1__) return;
   const api = factory();
   Object.defineProperty(root, "__CELIKOM_PLAYER_CORE_V1__", {
     value: api,
@@ -11,7 +12,7 @@
 })(globalThis, function createCelikomPlayerCore() {
   "use strict";
 
-  const VERSION = "0.2.0";
+  const VERSION = "0.2.1";
   const PROTOCOL_VERSION = 1;
   const CHANNEL = "CELIKOM_PLAYER_V1";
   const PLAYER_EVENT_TYPES = Object.freeze([

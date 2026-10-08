@@ -2,7 +2,7 @@
 
 ## Scope
 
-Version `0.2.0` validates the production `ServiceAdapter`, `YandexMusicAdapter` and `PlayerBridge`. It observes the original player but does not replace or mute audio. A successful run therefore must not change what the user hears.
+Version `0.2.1` validates the production `ServiceAdapter`, `YandexMusicAdapter` and `PlayerBridge`. It observes the original player but does not replace or mute audio. A successful run therefore must not change what the user hears.
 
 ## Automated gate
 
@@ -18,6 +18,11 @@ Version `0.2.0` validates the production `ServiceAdapter`, `YandexMusicAdapter` 
 | Bridge lifecycle | Repeated start installs one listener and one heartbeat |
 | Stale event | Lower sequence and foreign session are ignored |
 | Manifest boundary | MAIN and ISOLATED scripts exist and start at `document_start` |
+| Previously open tab | Missing controller is injected automatically in MAIN/ISOLATED order |
+| Bootstrap integration | Packaged scripts establish a healthy bridge and return exact Track ID |
+| Injection denied | Diagnostic contains a failure code and popup polling does not retry |
+| Lost INIT | Heartbeat retries INIT; connection does not wait forever |
+| Async startup error | Runtime diagnostic still responds with `startupError` |
 
 Run:
 

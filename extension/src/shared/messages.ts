@@ -10,8 +10,14 @@ export type Command = typeof COMMANDS[keyof typeof COMMANDS];
 
 export interface ExtensionState {
   enabled: boolean;
-  phase: "STOPPED" | "CONNECTING" | "OBSERVING" | "READY";
+  phase: "STOPPED" | "CONNECTING" | "OBSERVING" | "READY" | "ERROR";
   version: string;
+  connection?: {
+    controllerPresent: boolean;
+    recovered: boolean;
+    error: string | null;
+    detail: string | null;
+  };
   track?: {
     id: string | null;
     confidence: number;

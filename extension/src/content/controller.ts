@@ -24,6 +24,7 @@
       this.lastEvent = "startup";
       this.logs = [];
       this.destroyed = false;
+      this.startupError = null;
       this.onRuntimeMessage = this.onRuntimeMessage.bind(this);
       this.onStorageChanged = this.onStorageChanged.bind(this);
     }
@@ -34,6 +35,9 @@
     }
 
     async start() {
+      // Expose diagnostics even if storage or bridge initialization fails.
+      chrome.runtime.onMessage.addListener(this.onRuntimeMessage);
+      chrome.storage.onChanged.addListener(this.onStorageChanged);
       const stored = await chrome.storage.local.get("enabled");
       this.enabled = stored.enabled === true;
       this.bridge.on("READY", () => {
@@ -51,8 +55,6 @@
         this.log(`bridge timeout · ${Math.round(payload?.elapsedMs || 0)} ms`);
       });
       this.bridge.start();
-      chrome.runtime.onMessage.addListener(this.onRuntimeMessage);
-      chrome.storage.onChanged.addListener(this.onStorageChanged);
       root.addEventListener("pagehide", () => this.destroy(), { once: true });
       this.markDocument();
       this.log("Stage 2 controller started");
@@ -92,6 +94,7 @@
 
     getPhase() {
       if (!this.enabled) return "STOPPED";
+      if (this.startupError) return "ERROR";
       if (!this.bridge.ready) return "CONNECTING";
       if (this.snapshot?.track?.id && this.snapshot?.player) return "READY";
       return "OBSERVING";
@@ -103,6 +106,7 @@
         stage: 2,
         enabled: this.enabled,
         phase: this.getPhase(),
+        startupError: this.startupError,
         track: this.snapshot?.track || null,
         player: this.snapshot?.player || null,
         mediaCandidates: this.snapshot?.mediaCandidates || [],
@@ -119,7 +123,12 @@
     }
 
     wake() {
-      if (!this.destroyed) this.bridge.connect();
+      if (!this.destroyed) {
+        this.bridge.connect();
+        void chrome.storage.local.get("enabled").then((stored) => {
+          this.enabled = stored.enabled === true;
+        }).catch((error) => this.log(`settings failed: ${error.message}`));
+      }
     }
 
     destroy() {
@@ -138,5 +147,8 @@
     enumerable: false,
     writable: false
   });
-  controller.start().catch((error) => controller.log(`startup failed: ${error.message}`));
+  controller.start().catch((error) => {
+    controller.startupError = String(error?.message || error);
+    controller.log(`startup failed: ${controller.startupError}`);
+  });
 })(globalThis);
