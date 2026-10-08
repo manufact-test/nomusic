@@ -148,6 +148,11 @@
       }
     }
 
+    getMediaElement(mediaId) {
+      const element = this.knownMedia.get(mediaId);
+      return element && this.isMediaElement(element) && !this.isReplacementElement(element) && !this.isKnownAdMedia(element) ? element : null;
+    }
+
     mediaState(element) {
       if (!this.isMediaElement(element)) return null;
       const mediaId = this.registerMedia(element);

@@ -17,21 +17,36 @@ function browserFixture() {
   const eventListeners = new Map();
   let timerId = 0;
   const timers = new Map();
+  const elements = new Set();
+  const stored = { enabled: true, testTrackId: "" };
   const document = {
-    documentElement: { dataset: {} },
+    documentElement: { dataset: {}, append: (element) => { elements.add(element); element.isConnected = true; } },
     hidden: false,
     title: "Папиросы — Зануда",
     querySelector: () => null,
-    querySelectorAll: () => [],
+    querySelectorAll: (selector) => selector.includes("data-celikom-replacement")
+      ? [...elements].filter((element) => element.dataset.celikomReplacement === "true") : [...elements],
+    createElement: () => new FakeMedia(),
     addEventListener() {},
     removeEventListener() {}
   };
-  class FakeMedia {}
-  FakeMedia.prototype.play = function () {};
-  FakeMedia.prototype.pause = function () {};
-  FakeMedia.prototype.load = function () {};
+  class FakeMedia extends EventTarget {
+    constructor() {
+      super(); Object.assign(this, { physicalMuted: false, physicalVolume: 0.012, paused: true, ended: false, seeking: false, readyState: 4, duration: 201, currentTime: 9, playbackRate: 1, tagName: "AUDIO", src: "https://strm-fra-03.strm.yandex.net/test", dataset: {}, isConnected: false });
+    }
+    get volume() { return this.physicalVolume; }
+    set volume(value) { if (this.physicalVolume === value) return; this.physicalVolume = value; queueMicrotask(() => this.dispatchEvent(new Event("volumechange"))); }
+    get muted() { return this.physicalMuted; }
+    set muted(value) { if (this.physicalMuted === Boolean(value)) return; this.physicalMuted = Boolean(value); queueMicrotask(() => this.dispatchEvent(new Event("volumechange"))); }
+    play() { this.paused = false; queueMicrotask(() => this.dispatchEvent(new Event("play"))); return Promise.resolve(); }
+    pause() { this.paused = true; queueMicrotask(() => this.dispatchEvent(new Event("pause"))); }
+    load() {}
+    removeAttribute(name) { if (name === "src") this.src = ""; }
+    remove() { elements.delete(this); this.isConnected = false; }
+  }
   const runtime = {
     getManifest: () => manifest,
+    getURL: (file) => `chrome-extension://test/${file}`,
     onMessage: {
       addListener: (callback) => runtimeListeners.add(callback),
       removeListener: (callback) => runtimeListeners.delete(callback)
@@ -40,7 +55,7 @@ function browserFixture() {
   const chrome = {
     runtime,
     storage: {
-      local: { get: async () => ({ enabled: true }) },
+      local: { get: async () => ({ ...stored }) },
       onChanged: {
         addListener: (callback) => storageListeners.add(callback),
         removeListener: (callback) => storageListeners.delete(callback)
@@ -53,6 +68,8 @@ function browserFixture() {
     eventListeners.set(name, listeners);
     const context = vm.createContext({
       URL,
+      AbortController,
+      fetch: async () => ({ ok: true, blob: async () => new Blob(["synthetic fixture"]) }),
       console,
       crypto: globalThis.crypto,
       chrome: name === "ISOLATED" ? chrome : undefined,
@@ -119,7 +136,11 @@ function browserFixture() {
       }
     }
   };
-  return { api, worlds, runtimeListeners, storageListeners, errors, timers };
+  const changeStorage = (changes) => {
+    for (const [key, change] of Object.entries(changes)) stored[key] = change.newValue;
+    for (const listener of storageListeners) listener(changes, "local");
+  };
+  return { api, worlds, runtimeListeners, storageListeners, errors, timers, changeStorage, elements };
 }
 
 test("packaged MAIN + ISOLATED scripts bootstrap an already-open tab end to end", async () => {
@@ -146,6 +167,50 @@ test("packaged MAIN + ISOLATED scripts bootstrap an already-open tab end to end"
   await new Promise((resolve) => setTimeout(resolve, 5));
   vm.runInContext("globalThis.__CELIKOM_MAIN_BRIDGE_V1__.destroy()", fixture.worlds.get("MAIN"));
   assert.equal(fixture.timers.size, 0);
+});
+
+test("packaged playback guards exact master, follows controls, bypasses and independently restores on lost heartbeat", async () => {
+  const f = browserFixture();
+  const bootstrap = createControllerBootstrap(f.api, { wait: () => new Promise((resolve) => setTimeout(resolve, 5)) });
+  await bootstrap.ensure(42);
+  const main = f.worlds.get("MAIN"); const isolated = f.worlds.get("ISOLATED");
+  vm.runInContext("globalThis.original = new HTMLMediaElement(); original.play();", main);
+  await new Promise((resolve) => setTimeout(resolve, 5));
+  f.changeStorage({ testTrackId: { newValue: "1944599" } });
+  await new Promise((resolve) => setTimeout(resolve, 5));
+  let response = await f.api.tabs.sendMessage(42, { type: "CELIKOM_CONTROLLER_STATUS_GET" });
+  assert.equal(response.status.phase, "REPLACEMENT_ACTIVE", JSON.stringify(response.status));
+  assert.equal(vm.runInContext("original.physicalMuted", main), true);
+  assert.equal(response.status.player.muted, false);
+  assert.equal(response.status.guardActive, true);
+  assert.equal(f.elements.size, 1, "one CELIKOM media instance; master is detached");
+  const replacement = [...f.elements][0]; assert.equal(replacement.paused, false);
+  vm.runInContext("original.volume = 0.2; original.pause();", main);
+  await new Promise((resolve) => setTimeout(resolve, 5));
+  assert.equal(replacement.paused, true); assert.equal(replacement.volume, 0.2);
+  await f.api.tabs.sendMessage(42, { type: "CELIKOM_RESTORE_ORIGINAL" });
+  await new Promise((resolve) => setTimeout(resolve, 5));
+  assert.equal(vm.runInContext("original.physicalMuted", main), false);
+  assert.equal(vm.runInContext("original.volume", main), 0.2);
+  assert.equal(f.elements.size, 0);
+  await assert.rejects(vm.runInContext("__CELIKOM_CONTENT_CONTROLLER_V2__.bridge.request('GUARD_ENGAGE', { token: __CELIKOM_CONTENT_CONTROLLER_V2__.bridge.sessionId + ':1', trackId: '1944599', mediaId: 'media-1' })", isolated), /cancelled guard lease/);
+  vm.runInContext("original.play();", main); await new Promise((resolve) => setTimeout(resolve, 5));
+  assert.equal(f.elements.size, 0, "same-track state must not rearm manual bypass");
+  await f.api.tabs.sendMessage(42, { type: "CELIKOM_REPLACEMENT_RETRY" });
+  await new Promise((resolve) => setTimeout(resolve, 5));
+  assert.equal(vm.runInContext("original.physicalMuted", main), true);
+  // Simulate a dead extension context without running its cleanup. MAIN watchdog
+  // must stop replacement and restore original using only shared DOM + native state.
+  vm.runInContext("Date = { now: () => 9999999999999 };", main);
+  for (const callback of [...f.timers.values()]) callback();
+  await new Promise((resolve) => setTimeout(resolve, 5));
+  assert.equal(vm.runInContext("original.physicalMuted", main), false);
+  assert.equal([...f.elements][0]?.paused ?? true, true);
+  assert.equal([...f.elements][0]?.muted ?? true, true);
+  vm.runInContext("globalThis.__CELIKOM_CONTENT_CONTROLLER_V2__.destroy()", isolated);
+  await new Promise((resolve) => setTimeout(resolve, 5));
+  vm.runInContext("globalThis.__CELIKOM_MAIN_BRIDGE_V1__.destroy()", main);
+  assert.deepEqual(f.errors.map((error) => error.message), []);
 });
 
 test("controller diagnostics still respond when async startup fails", async () => {

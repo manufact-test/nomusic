@@ -3,7 +3,7 @@
   "name": "__MSG_extensionName__",
   "short_name": "CELIKOM",
   "description": "__MSG_extensionDescription__",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "default_locale": "ru",
   "minimum_chrome_version": "120",
   "permissions": [
@@ -29,6 +29,7 @@
       "js": [
         "player/core.js",
         "adapters/yandex-music-adapter.js",
+        "player/original-audio-guard.js",
         "player/main-world-entry.js"
       ],
       "run_at": "document_start",
@@ -41,10 +42,15 @@
       "js": [
         "player/core.js",
         "player/player-bridge.js",
+        "player/sync-engine.js",
+        "player/replacement-player.js",
+        "player/fail-open-controller.js",
+        "player/replacement-controller.js",
         "content/controller.js"
       ],
       "run_at": "document_start",
       "world": "ISOLATED"
     }
-  ]
+  ],
+  "web_accessible_resources": [{ "resources": ["assets/test-audio.mp3"], "matches": ["https://music.yandex.ru/*"] }]
 }

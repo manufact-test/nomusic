@@ -50,6 +50,7 @@ await compileSources();
 await cp(path.join(extensionRoot, "manifest", "manifest.json"), path.join(unpackedRoot, "manifest.json"));
 await cp(path.join(extensionRoot, "popup"), path.join(unpackedRoot, "popup"), { recursive: true });
 await cp(path.join(extensionRoot, "_locales"), path.join(unpackedRoot, "_locales"), { recursive: true });
+await cp(path.join(extensionRoot, "assets"), path.join(unpackedRoot, "assets"), { recursive: true });
 
 const manifest = JSON.parse(await readFile(path.join(unpackedRoot, "manifest.json"), "utf8"));
 if (manifest.version !== packageJson.version) {

@@ -18,10 +18,18 @@
         <button type="button" data-action="stop">Стоп</button>
       </div>
       <button class="wide" type="button" data-action="restore">Вернуть оригинал</button>
-      <button class="wide" type="button" disabled title="Будет добавлено на продуктовом этапе">Добавить трек</button>
+      <button class="wide" type="button" data-action="add">Добавить трек</button>
+      <p class="stage" data-coming-soon hidden>Загрузка треков появится после подключения сервера. Сейчас ничего не загружается.</p>
       <p class="track" data-track>Запустите трек в Яндекс Музыке</p>
-      <button class="diagnostics" type="button" data-action="diagnostics">Скопировать диагностику</button>
-      <p class="stage">Stage 2 · наблюдение без подмены звука</p>
+      <details>
+        <summary>Для разработчика</summary>
+        <p class="stage">Stage 3 · тестовый сигнал вместо одного точного Track ID. Это ещё не библиотека песен.</p>
+        <label class="stage" for="test-track">Тестовый Track ID</label>
+        <input id="test-track" data-test-track inputmode="numeric" pattern="[0-9]{1,24}" maxlength="24" placeholder="Пусто — без подмены">
+        <button class="wide" type="button" data-action="use-current">Тестировать текущий трек</button>
+        <button class="wide" type="button" data-action="clear-test">Убрать тестовую подмену</button>
+        <button class="diagnostics" type="button" data-action="diagnostics">Скопировать диагностику</button>
+      </details>
     </main>
     <script type="module" src="popup.js"></script>
   </body>

@@ -17,6 +17,16 @@ export function createControllerBootstrap(api, options = {}) {
   const wait = options.wait || ((ms) => new Promise((resolve) => setTimeout(resolve, ms)));
   const attempts = options.attempts || 8;
 
+  function staleController(status) {
+    const manifest = api.runtime.getManifest();
+    const replacementBuild = manifest.content_scripts?.some((group) => group.js?.includes("player/replacement-controller.js"));
+    const oldStage = replacementBuild && typeof status?.stage === "number" && status.stage < 3;
+    const oldCore = manifest.version && status?.buildVersion && manifest.version !== status.buildVersion;
+    const oldMain = manifest.version && status?.bridge?.bridgeVersion && manifest.version !== status.bridge.bridgeVersion;
+    if (!oldStage && !oldCore && !oldMain) return null;
+    return { status, error: "stale-page-controller", detail: "Расширение обновлено, но вкладка использует прежний player controller. Обновите вкладку Яндекс Музыки один раз." };
+  }
+
   async function readStatus(tabId) {
     try {
       const response = await api.tabs.sendMessage(tabId, { type: COMMANDS.getControllerStatus });
@@ -33,7 +43,7 @@ export function createControllerBootstrap(api, options = {}) {
       return { status: null, error: "unsupported-page", detail: "Откройте вкладку Яндекс Музыки (music.yandex.ru)." };
     }
     const existing = await readStatus(tabId);
-    if (existing?.bridge?.healthy) return { status: existing, error: null, recovered: false };
+    if (existing?.bridge?.healthy) return staleController(existing) || { status: existing, error: null, recovered: false };
 
     const groups = api.runtime.getManifest().content_scripts;
     const main = groups?.find((group) => group.world === "MAIN");
@@ -47,7 +57,7 @@ export function createControllerBootstrap(api, options = {}) {
     await api.scripting.executeScript({ target: { tabId }, files: isolated.js, world: "ISOLATED" });
     for (let attempt = 0; attempt < attempts; attempt += 1) {
       const status = await readStatus(tabId);
-      if (status?.bridge?.healthy) return { status, error: null, recovered: true };
+      if (status?.bridge?.healthy) return staleController(status) || { status, error: null, recovered: true };
       if (status?.startupError) return { status, error: "controller-start-failed", detail: status.startupError };
       await wait(75);
     }

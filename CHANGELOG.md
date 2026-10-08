@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.3.0 — 2026-10-08 (live playback acceptance pending)
+
+- Stage 2 принят по ручному прогону владельца на 0.2.1 и зелёному CI; PR #4 интегрирован в develop.
+- Перенесена локальная подмена в отдельные ReplacementController, ReplacementPlayer, SyncEngine, OriginalAudioGuard и FailOpenController.
+- Exact-ID opt-in тестовая карта использует только встроенный синтетический MP3. Реальная библиотека и backend ещё не подключены.
+- Добавлены generation/session leases, отмена старых загрузок, коррекция seek/drift, зеркалирование pause/resume/volume/mute/rate и fail-open без повторных попыток на ошибочном треке.
+- MAIN-world watchdog самостоятельно останавливает подмену и возвращает пользовательский original volume/mute при потере heartbeat; устаревшие release не влияют на новую generation.
+- Основной UI ограничен четырьмя действиями; тестовый Track ID и диагностика скрыты в developer details. Добавление треков пока явно coming-soon.
+- Добавлены unit/race/compiled two-world playback тесты; живой gate новой версии остаётся обязательным.
+
 ## 0.2.1 — 2026-10-08
 
 - Исправлена регрессия `CONNECTING`: production background автоматически запускает manifest-declared MAIN/ISOLATED scripts в уже открытой вкладке, как это делал принятый PoC.

@@ -51,6 +51,16 @@ test("healthy controllers are not reinjected", async () => {
   assert.equal(state.injections.length, 0);
 });
 
+test("an upgraded extension reports stale page globals instead of pretending the old build is current", async () => {
+  for (const old of [{ stage: 2 }, { buildVersion: "0.2.1" }, { bridge: { ...connected.bridge, bridgeVersion: "0.2.1" } }]) {
+    const { state, api } = fixture({ ...connected, ...old });
+    const result = await createControllerBootstrap(api).ensure(42);
+    assert.equal(result.error, "stale-page-controller");
+    assert.match(result.detail, /Обновите вкладку/);
+    assert.equal(state.injections.length, 0);
+  }
+});
+
 test("concurrent popup status/start requests share one injection", async () => {
   const { state, api } = fixture();
   const bootstrap = createControllerBootstrap(api, { wait: async () => undefined });

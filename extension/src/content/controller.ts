@@ -2,7 +2,8 @@
   "use strict";
 
   const bridgeFactory = root.__CELIKOM_PLAYER_BRIDGE_V1__;
-  if (!bridgeFactory) return;
+  const engineFactory = root.__CELIKOM_REPLACEMENT_CONTROLLER_V1__;
+  if (!bridgeFactory || !engineFactory) return;
 
   const CONTROLLER_KEY = "__CELIKOM_CONTENT_CONTROLLER_V2__";
   if (root[CONTROLLER_KEY]) {
@@ -25,6 +26,10 @@
       this.logs = [];
       this.destroyed = false;
       this.startupError = null;
+      this.mainVersion = null;
+      this.testTrackId = "";
+      this.engine = new engineFactory.ReplacementController(this.bridge, root, { log: (message) => this.log(message) });
+      this.syncTimer = null;
       this.onRuntimeMessage = this.onRuntimeMessage.bind(this);
       this.onStorageChanged = this.onStorageChanged.bind(this);
     }
@@ -38,9 +43,12 @@
       // Expose diagnostics even if storage or bridge initialization fails.
       chrome.runtime.onMessage.addListener(this.onRuntimeMessage);
       chrome.storage.onChanged.addListener(this.onStorageChanged);
-      const stored = await chrome.storage.local.get("enabled");
+      const stored = await chrome.storage.local.get(["enabled", "testTrackId"]);
       this.enabled = stored.enabled === true;
-      this.bridge.on("READY", () => {
+      this.testTrackId = stored.testTrackId || "";
+      this.engine.configure(this.enabled, this.testTrackId);
+      this.bridge.on("READY", (payload) => {
+        this.mainVersion = payload?.bridgeVersion || null;
         this.log("MAIN-world bridge ready");
         this.bridge.getSnapshot()
           .then((snapshot) => this.handleSnapshot(snapshot, "request"))
@@ -49,15 +57,22 @@
       this.bridge.on("PLAYER_SNAPSHOT", (snapshot) => this.handleSnapshot(snapshot, "snapshot"));
       this.bridge.on("PLAYER_EVENT", (event) => {
         this.lastEvent = event?.type || "UNKNOWN";
-        if (event?.snapshot) this.snapshot = event.snapshot;
+        if (event?.snapshot && (!this.snapshot || event.snapshot.observedAt >= this.snapshot.observedAt)) { this.snapshot = event.snapshot; this.engine.update(event.snapshot, event.type); }
+      });
+      this.bridge.on("GUARD_RELEASED", (event) => {
+        if (event.token === this.engine.operation?.token) this.engine.abort(`guard-lost:${event.reason}`, event.reason !== "master-binding-changed");
       });
       this.bridge.on("BRIDGE_TIMEOUT", (payload) => {
         this.log(`bridge timeout · ${Math.round(payload?.elapsedMs || 0)} ms`);
+        this.engine.abort("bridge-timeout", true);
       });
       this.bridge.start();
+      this.syncTimer = root.setInterval(() => {
+        try { this.engine.tick(); } catch (error) { this.engine.abort(`sync-error:${error.message}`, true); }
+      }, 500);
       root.addEventListener("pagehide", () => this.destroy(), { once: true });
       this.markDocument();
-      this.log("Stage 2 controller started");
+      this.log("Stage 3 controller started");
     }
 
     markDocument() {
@@ -67,14 +82,17 @@
 
     handleSnapshot(snapshot, source) {
       if (!snapshot || this.destroyed) return;
+      if (this.snapshot && snapshot.observedAt < this.snapshot.observedAt) return;
       this.snapshot = snapshot;
       this.lastEvent = source;
+      this.engine.update(snapshot);
     }
 
     onStorageChanged(changes, areaName) {
-      if (areaName !== "local" || !("enabled" in changes)) return;
-      this.enabled = changes.enabled.newValue === true;
-      this.log(this.enabled ? "CELIKOM started" : "CELIKOM stopped");
+      if (areaName !== "local") return;
+      if ("enabled" in changes) { this.enabled = changes.enabled.newValue === true; this.log(this.enabled ? "CELIKOM started" : "CELIKOM stopped"); }
+      if ("testTrackId" in changes) this.testTrackId = changes.testTrackId.newValue || "";
+      this.engine.configure(this.enabled, this.testTrackId);
     }
 
     onRuntimeMessage(message, _sender, sendResponse) {
@@ -84,9 +102,14 @@
         return false;
       }
       if (type === COMMANDS.restoreOriginal) {
-        this.lastEvent = "ORIGINAL_CONFIRMED";
-        this.log("original audio confirmed");
-        sendResponse({ ok: true, stage: 2 });
+        this.lastEvent = "ORIGINAL_RESTORED";
+        this.engine.manualRestore();
+        sendResponse({ ok: true, stage: 3 });
+        return false;
+      }
+      if (type === "CELIKOM_REPLACEMENT_RETRY") {
+        this.engine.configure(this.enabled, this.testTrackId, true);
+        sendResponse({ ok: true });
         return false;
       }
       return false;
@@ -96,6 +119,7 @@
       if (!this.enabled) return "STOPPED";
       if (this.startupError) return "ERROR";
       if (!this.bridge.ready) return "CONNECTING";
+      if (this.engine.phase !== "IDLE") return this.engine.phase;
       if (this.snapshot?.track?.id && this.snapshot?.player) return "READY";
       return "OBSERVING";
     }
@@ -103,10 +127,17 @@
     getDiagnostics() {
       return {
         celikomVersion: chrome.runtime.getManifest().version,
-        stage: 2,
+        buildVersion: root.__CELIKOM_PLAYER_CORE_V1__.VERSION,
+        stage: 3,
         enabled: this.enabled,
         phase: this.getPhase(),
         startupError: this.startupError,
+        settings: { enabled: this.enabled, testTrackId: this.testTrackId, driftThresholdMs: 350 },
+        active: this.engine.operation ? { generation: this.engine.operation.generation, trackId: this.engine.operation.trackId, mediaId: this.engine.operation.mediaId } : null,
+        manualBypass: this.engine.manualBypass,
+        replacementError: this.engine.lastError,
+        guardActive: Boolean(this.snapshot?.guard?.active),
+        driftMs: this.engine.driftMs,
         track: this.snapshot?.track || null,
         player: this.snapshot?.player || null,
         mediaCandidates: this.snapshot?.mediaCandidates || [],
@@ -114,7 +145,8 @@
           ready: this.bridge.ready,
           healthy: this.bridge.isHealthy(),
           lastSeenAt: this.bridge.lastSeenAt || null,
-          protocolVersion: 1
+          protocolVersion: 1,
+          bridgeVersion: this.mainVersion
         },
         lastEvent: this.lastEvent,
         page: `${location.origin}${location.pathname}`,
@@ -125,8 +157,10 @@
     wake() {
       if (!this.destroyed) {
         this.bridge.connect();
-        void chrome.storage.local.get("enabled").then((stored) => {
+        void chrome.storage.local.get(["enabled", "testTrackId"]).then((stored) => {
           this.enabled = stored.enabled === true;
+          this.testTrackId = stored.testTrackId || "";
+          this.engine.configure(this.enabled, this.testTrackId);
         }).catch((error) => this.log(`settings failed: ${error.message}`));
       }
     }
@@ -134,6 +168,8 @@
     destroy() {
       if (this.destroyed) return;
       this.destroyed = true;
+      this.engine.destroy();
+      root.clearInterval(this.syncTimer);
       chrome.runtime.onMessage.removeListener(this.onRuntimeMessage);
       chrome.storage.onChanged.removeListener(this.onStorageChanged);
       this.bridge.destroy();

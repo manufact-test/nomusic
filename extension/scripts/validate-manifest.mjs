@@ -29,11 +29,16 @@ assert(isolatedWorld?.run_at === "document_start", "ISOLATED controller must sta
 assert(mainWorld.js.includes("adapters/yandex-music-adapter.js"), "YandexMusicAdapter is missing from MAIN world");
 assert(mainWorld.js.includes("player/main-world-entry.js"), "MAIN-world bridge entry is missing");
 assert(isolatedWorld.js.includes("player/player-bridge.js"), "PlayerBridge is missing from ISOLATED world");
+assert(mainWorld.js.includes("player/original-audio-guard.js"), "Autonomous original guard is missing");
+assert(isolatedWorld.js.includes("player/replacement-controller.js"), "ReplacementController is missing");
+assert(manifest.web_accessible_resources?.length === 1, "Only the demo audio resource may be exposed");
+assert(JSON.stringify(manifest.web_accessible_resources[0]) === JSON.stringify({ resources: ["assets/test-audio.mp3"], matches: ["https://music.yandex.ru/*"] }), "Unexpected public resource boundary");
 
 const referenced = [
   manifest.background.service_worker,
   manifest.action.default_popup,
-  ...manifest.content_scripts.flatMap((entry) => entry.js ?? [])
+  ...manifest.content_scripts.flatMap((entry) => entry.js ?? []),
+  ...manifest.web_accessible_resources.flatMap((entry) => entry.resources ?? [])
 ];
 
 for (const relative of referenced) {
