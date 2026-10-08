@@ -1,6 +1,24 @@
 # Changelog
 
-## Unreleased — repository foundation
+## 0.2.1 — 2026-10-08
+
+- Исправлена регрессия `CONNECTING`: production background автоматически запускает manifest-declared MAIN/ISOLATED scripts в уже открытой вкладке, как это делал принятый PoC.
+- Добавлено разрешение `scripting` только для packaged-script recovery на существующем host `music.yandex.ru`; новых host permissions нет.
+- Отказы доступа и ошибки запуска больше не превращаются в пустую диагностику: возвращаются `connection.error`, `connection.detail`, наличие controller и bridge health.
+- Повторное внедрение core idempotent; потерянный первоначальный INIT повторяется через heartbeat.
+- Content controller отвечает диагностикой даже при async startup error. При ошибке popup предлагает `Повторить`; permission failure не вызывает бесконечные фоновые попытки.
+- Добавлены bootstrap regressions и сквозная проверка собранных MAIN/ISOLATED scripts в двух изолированных test environments. Живой браузерный gate остаётся обязательным.
+
+## Unreleased — player integration
+
+- Добавлен production `ServiceAdapter` и изолированный `YandexMusicAdapter` для exact Track ID, metadata и master media state.
+- Добавлен версионированный MAIN-world ↔ ISOLATED `PlayerBridge` с session ID, monotonic sequence, heartbeat и отсечением stale events.
+- Нормализованы `TRACK_CHANGED`, `PLAY`, `PAUSE`, `SEEK`, `TIME_UPDATE`, `VOLUME_CHANGED`, `RATE_CHANGED`, `METADATA_CHANGED`, `ENDED` и `ERROR`.
+- Service-specific selectors, state patches и ограниченный пассивный JSON capture локализованы в одном адаптере.
+- Popup версии `0.2.0` показывает найденный трек и копирует диагностику; на Stage 2 звук не изменяется.
+- Добавлены fixture/contract/lifecycle тесты и ADR источников player state.
+
+## Stage 1 — repository foundation
 
 - Создан production-каркас Chromium MV3 расширения с TypeScript build без runtime-зависимостей.
 - Добавлен PHP 8.3/Composer-каркас API с локальным health endpoint и smoke test.

@@ -73,7 +73,28 @@ button:disabled {
   width: 100%;
 }
 
-p {
+.track {
+  min-height: 32px;
+  margin: 4px 2px 0;
+  color: #aab8be;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.track[data-detected="true"] {
+  color: #f4f7f8;
+}
+
+.diagnostics {
+  min-height: auto;
+  border: 0;
+  background: transparent;
+  color: #788991;
+  font-size: 11px;
+  text-align: left;
+}
+
+.stage {
   margin: 2px 2px 0;
   color: #788991;
   font-size: 11px;
