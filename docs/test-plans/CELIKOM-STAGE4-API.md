@@ -1,6 +1,6 @@
 # CELIKOM-STAGE4-API — 0.4.0
 
-Authority: master TZ v1.3 and work plan v1.4, Stage 4. This document records implementation acceptance boundaries, not new product requirements.
+Authority: master TZ v1.4 and work plan v1.5, Stage 4. The implementation was originally based on v1.3/v1.4; the updated masters preserve its requirements and record the deployed Stage 5 state. This document records implementation acceptance boundaries, not new product requirements.
 
 | Check | Automated evidence |
 | --- | --- |
