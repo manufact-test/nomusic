@@ -1,5 +1,5 @@
 {
-  "purpose": "stage5-live-yandex-audio-test",
-  "extension_version": "0.4.0",
+  "purpose": "stage5-safe-api-diagnostics-and-verified-access",
+  "extension_version": "0.4.1",
   "server": "darkred-camel-588676.hostingersite.com"
 }
