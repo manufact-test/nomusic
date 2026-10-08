@@ -5,7 +5,11 @@ export class ApiClient {
     const local = url.protocol === "http:" && ["127.0.0.1", "localhost"].includes(url.hostname);
     if ((!local && url.protocol !== "https:") || url.username || url.password || url.search || url.hash || url.pathname !== "/") throw new Error("invalid_api_origin");
     this.origin = url.origin;
-    this.fetch = options.fetch || globalThis.fetch;
+    // Browser-native fetch is a Web IDL method: preserve WorkerGlobalScope as
+    // its receiver. Calling it as this.fetch(...) with ApiClient as `this`
+    // can throw "Illegal invocation" before any network request is sent.
+    // Injected test fetchers remain unchanged.
+    this.fetch = options.fetch || globalThis.fetch.bind(globalThis);
     this.now = options.now || Date.now;
     this.accessToken = options.accessToken || "";
     this.clientVersion = options.clientVersion || "0.4.0";
