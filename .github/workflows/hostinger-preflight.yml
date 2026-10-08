@@ -33,3 +33,49 @@ jobs:
           path: hostinger-known-hosts.txt
           if-no-files-found: error
           retention-days: 7
+
+  ssh-authentication:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Verify the owner-configured deployment key and private-test paths
+        shell: bash
+        env:
+          HOSTINGER_SSH_KEY: ${{ secrets.HOSTINGER_SSH_KEY }}
+        run: |
+          set -euo pipefail
+          if [[ -z "$HOSTINGER_SSH_KEY" ]]; then
+            echo 'Authentication pending: add HOSTINGER_SSH_KEY to repository Actions secrets.'
+            exit 0
+          fi
+          umask 077
+          ssh_dir="$(mktemp -d)"
+          trap 'rm -f -- "$ssh_dir/key" "$ssh_dir/public" "$ssh_dir/known_hosts"; rmdir "$ssh_dir"' EXIT
+          printf '%s\n' "$HOSTINGER_SSH_KEY" | tr -d '\r' > "$ssh_dir/key"
+          ssh-keygen -y -P '' -f "$ssh_dir/key" > "$ssh_dir/public"
+          key_fingerprint="$(ssh-keygen -lf "$ssh_dir/public" | awk '{print $2}')"
+          if [[ "$key_fingerprint" != 'SHA256:Q6FyifXRq6garceQdIIjBmXhkk81Ic1p/x9JTSYHWUk' ]]; then
+            echo 'The configured key does not match the owner-provided CELIKOM public key.' >&2
+            exit 1
+          fi
+          # Pin the server key observed during the network preflight. Verify it
+          # against the owner's local connection before deploying files or secrets.
+          printf '%s\n' '[92.113.19.189]:65002 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAf8M2EVwq0oJI8I9KZ0NFE8P8yDOvDATEhkQti/Kk/0' > "$ssh_dir/known_hosts"
+          ssh -T -p 65002 -i "$ssh_dir/key" \
+            -o BatchMode=yes -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=yes -o "UserKnownHostsFile=$ssh_dir/known_hosts" \
+            -o GlobalKnownHostsFile=/dev/null \
+            -o ConnectTimeout=15 -o ServerAliveInterval=10 -o ServerAliveCountMax=2 \
+            u235811320@92.113.19.189 'bash -s' <<'REMOTE_CHECK'
+          set -euo pipefail
+          echo 'Authenticated with the CELIKOM key. Read-only checks:'
+          pwd
+          php -r 'echo "PHP ", PHP_VERSION, PHP_EOL; foreach (["pdo_mysql", "fileinfo"] as $extension) { echo $extension, ": ", extension_loaded($extension) ? "yes" : "no", PHP_EOL; }'
+          site_path="$(pwd)/domains/darkred-camel-588676.hostingersite.com"
+          if [[ -d "$site_path/public_html" ]]; then
+            printf 'CELIKOM document root: %s/public_html\n' "$site_path"
+          else
+            echo 'The expected CELIKOM document root was not found; inspect the hosting layout before deployment.' >&2
+            exit 1
+          fi
+          REMOTE_CHECK
