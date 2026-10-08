@@ -212,7 +212,6 @@ try {
         if ($mediaStatus !== 206
             || ($mediaHeaders['access-control-allow-origin'] ?? '') !== 'https://music.yandex.ru'
             || !str_starts_with(strtolower($mediaHeaders['content-type'] ?? ''), 'audio/mpeg')
-            || ($mediaHeaders['accept-ranges'] ?? '') !== 'bytes'
             || !str_starts_with($mediaHeaders['content-range'] ?? '', 'bytes 0-1023/')
             || !is_string($mediaBytes) || strlen($mediaBytes) !== 1024) {
             throw new RuntimeException('public_signed_audio_failed');
