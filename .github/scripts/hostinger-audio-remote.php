@@ -33,6 +33,7 @@ try {
     $request = json_decode((string) file_get_contents($requestPath), true, 8, JSON_THROW_ON_ERROR);
     $fields = [
         'inspect' => ['operation'],
+        'probe' => ['operation'],
         'import' => ['operation', 'track_id', 'duration_ms', 'confirm_reviewed'],
         'enable' => ['operation', 'track_id'],
         'disable' => ['operation'],
@@ -71,14 +72,15 @@ try {
         exit(0);
     }
 
-    if ($operation === 'import') {
-        if ($isOn || ($request['confirm_reviewed'] ?? null) !== true || !is_int($request['duration_ms'])
-            || $request['duration_ms'] < 1000 || $request['duration_ms'] > 86400000) {
+    if ($operation === 'probe' || $operation === 'import') {
+        if ($operation === 'import' && $isOn) {
             throw new RuntimeException('import_preconditions_failed');
         }
         $files = [];
         foreach (scandir($staging) ?: [] as $name) {
-            if (!preg_match('/^[a-zA-Z0-9][a-zA-Z0-9._-]{0,119}\.(?:mp3|wav)$/iD', $name)) {
+            // Filesystem basename only; allow the owner's Unicode song names.
+            if ($name === '.' || $name === '..' || str_starts_with($name, '.')
+                || !preg_match('/\\.(?:mp3|wav)$/iD', $name)) {
                 continue;
             }
             $candidate = $staging . '/' . $name;
@@ -96,6 +98,32 @@ try {
         $size = filesize($file);
         if ($size === false || $size < 1 || $size > (int) $config['max_audio_size']) {
             throw new RuntimeException('invalid_test_audio_size');
+        }
+        $mime = (new finfo(FILEINFO_MIME_TYPE))->file($file);
+        if (!in_array($mime, ['audio/mpeg', 'audio/wav', 'audio/x-wav'], true)) {
+            throw new RuntimeException('unsupported_test_audio');
+        }
+        if ($operation === 'probe') {
+            // The private file is streamed over pinned SSH into runner scratch only.
+            // Never echo its basename, audio data in logs, or signed URLs.
+            $handle = fopen($file, 'rb');
+            if ($handle === false) {
+                throw new RuntimeException('test_audio_unreadable');
+            }
+            while (!feof($handle)) {
+                $chunk = fread($handle, 65536);
+                if ($chunk === false || ($chunk === '' && !feof($handle))) {
+                    throw new RuntimeException('test_audio_unreadable');
+                }
+                echo $chunk;
+            }
+            fclose($handle);
+            exit(0);
+        }
+        if (($request['confirm_reviewed'] ?? null) !== true
+ || ($request['confirm_reviewed'] ?? null) !== true || !is_int($request['duration_ms'])
+            || $request['duration_ms'] < 1000 || $request['duration_ms'] > 86400000) {
+            throw new RuntimeException('import_preconditions_failed');
         }
         $storage = new Celikom\Storage\LocalStorageAdapter($config['storage_path']);
         $pdo = Celikom\Database\Connection::open($config);

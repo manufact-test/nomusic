@@ -5,10 +5,11 @@ The owner-reviewed single-file import and replacement flag are separate actions.
 ## Safety and trigger
 
 - Workflow: `.github/workflows/hostinger-audio.yml`; input: `.github/deploy/hostinger-audio-request.json`, on `feature/api-range` only.
-- Operations: `inspect`, `import`, `enable`, `disable`. Request JSON contains **no** credentials, song file, original filename or audio URL.
+- Operations: `inspect`, `probe`, `import`, `enable`, `disable`. Request JSON contains **no** credentials, song file, original filename or audio URL.
 - Existing pinned SSH identity and Hostinger Actions secret are reused; no secrets are printed or reset.
 - The remote tool is copied and executed only under `celikom/incoming`; it checks the dedicated website, active release and shared storage; PHP 8.3 is invoked explicitly.
 - The staging folder must contain **exactly one** regular, supported MP3/WAV file with an ASCII basename. Reject symlinks, public uploads and files larger than 30 MiB. The owner must confirm rights/review and supply measured file duration and exact Yandex Track ID before import.
+- The `probe` operation temporarily streams the private file over pinned SSH into runner scratch, validates real audio/codec with ffprobe and decodes every frame with ffmpeg, then prints measured duration in milliseconds. Its contents are deleted at job exit, not committed or uploaded as an artifact. Unicode and spaced file names are accepted; filenames are not logged.
 - On import the existing `TestAudioImporter` handles MIME, SHA-256, dedupe, DB mapping and storage. **The feature flag stays disabled.**
 - On enable an approved active mapping and an existing private storage object are required. Analytics must remain disabled. The single feature flag is replaced atomically in the shared private environment.
 - The workflow checks the public HTTPS config after completion and refuses a stale branch commit. Re-run an old request only after checking current state; stale revisions are refused.
@@ -20,6 +21,12 @@ Read-only validation:
 
 ```json
 {"operation":"inspect"}
+```
+
+To automatically measure the staged file **without importing or enabling it**:
+
+```json
+{"operation":"probe"}
 ```
 
 After the owner has uploaded exactly one reviewed file to private `celikom/shared/staging` and supplied its exact Track ID / measured duration:

@@ -13,6 +13,7 @@ const assert = (condition) => { if (!condition) throw new Error('invalid_private
 assert(value && typeof value === 'object' && !Array.isArray(value));
 const fields = {
   inspect: ['operation'],
+  probe: ['operation'],
   import: ['operation', 'track_id', 'duration_ms', 'confirm_reviewed'],
   enable: ['operation', 'track_id'],
   disable: ['operation'],
@@ -43,7 +44,35 @@ php_bin='/opt/alt/php83/usr/bin/php'
 
 ssh -T -p 65002 "${options[@]}" "$target" "test -d '$site/public_html' && test ! -L '$site/celikom' && umask 077 && mkdir -p '$incoming' && chmod 0700 '$incoming'"
 scp -P 65002 "${options[@]}" .github/scripts/hostinger-audio-remote.php .github/deploy/hostinger-audio-request.json "$target:$incoming/"
-ssh -T -p 65002 "${options[@]}" "$target" "'$php_bin' '$incoming/hostinger-audio-remote.php' '$incoming/hostinger-audio-request.json'"
+operation="$(node -p "require('./.github/deploy/hostinger-audio-request.json').operation")"
+if [[ "$operation" == "probe" ]]; then
+  ssh -T -p 65002 "${options[@]}" "$target" "'$php_bin' '$incoming/hostinger-audio-remote.php' '$incoming/hostinger-audio-request.json'" > "$work/staged-audio"
+  [[ -s "$work/staged-audio" ]] || { echo 'No private test media returned.' >&2; exit 1; }
+  command -v ffprobe >/dev/null && command -v ffmpeg >/dev/null || { echo 'Runner media verifier unavailable.' >&2; exit 1; }
+  if ! ffprobe -v error -show_streams -show_format -of json "$work/staged-audio" > "$work/metadata.json" 2> "$work/media-error"; then
+    echo 'Audio probing failed on temporary runner data.' >&2; exit 1
+  fi
+  if ! ffmpeg -nostdin -v error -xerror -i "$work/staged-audio" -f null - > /dev/null 2> "$work/media-error"; then
+    echo 'Audio decoding failed on temporary runner data.' >&2; exit 1
+  fi
+  MEDIA_METADATA="$work/metadata.json" MEDIA_AUDIO="$work/staged-audio" node --input-type=module <<'METADATA'
+import fs from 'node:fs';
+const metadata = JSON.parse(fs.readFileSync(process.env.MEDIA_METADATA, 'utf8'));
+const audio = metadata.streams?.find(x => x.codec_type === 'audio');
+const duration = Number(metadata.format?.duration);
+const bytes = fs.statSync(process.env.MEDIA_AUDIO).size;
+if (!audio || !['mp3','pcm_s16le','pcm_s24le','pcm_f32le','pcm_s32le','pcm_u8'].includes(audio.codec_name)
+    || !Number.isFinite(duration) || duration < 1 || duration > 86400 || bytes > 31457280) {
+  throw new Error('Unsupported or invalid private test audio.');
+}
+const durationMs = Math.round(duration * 1000);
+console.log('Private media verified. Codec: ' + audio.codec_name
+  + '; sample rate: ' + audio.sample_rate
+  + ' Hz; measured duration: ' + durationMs + ' ms; size: ' + bytes + ' bytes.');
+METADATA
+else
+  ssh -T -p 65002 "${options[@]}" "$target" "'$php_bin' '$incoming/hostinger-audio-remote.php' '$incoming/hostinger-audio-request.json'"
+fi
 ssh -T -p 65002 "${options[@]}" "$target" "rm -f '$incoming/hostinger-audio-remote.php' '$incoming/hostinger-audio-request.json' && rmdir '$incoming'"
 
 node --input-type=module <<'CHECK'
