@@ -222,7 +222,7 @@ test("native ReplacementPlayer cancels loads, rejects blocked play and stays pau
   player.destroy(); assert.equal(media.removed, true); assert.equal(media.muted, true);
   const loading = new Media(); loading.readyState = 0;
   const p2 = new ReplacementPlayer({ ...env, document: { ...env.document, createElement: () => loading } }, () => {});
-  const ready = p2.prepare({ url: "local", demoLoop: false }); p2.destroy(); await assert.rejects(ready, /cancelled/);
+  const ready = p2.prepare({ url: "local", demoLoop: true }); p2.destroy(); await assert.rejects(ready, /cancelled/);
 });
 
 test("long native pause keeps the guard and replacement available for resume", async () => {
@@ -278,4 +278,72 @@ test("track change during API resolve discards a late asset without muting the n
   f.engine.configure(true, ""); f.update(snapshot()); await settle(); f.update(snapshot("3"));
   await settle(); gate.resolve(remoteAsset()); await settle();
   assert.equal(f.players.length, 0); assert.equal(f.requests.some(r => r.type === "GUARD_ENGAGE"), false);
+});
+
+test("remote MP3 uses CSP-allowed MediaSource blob and bounded verified 206 byte ranges", async () => {
+  const media = new Media(); media.readyState = 0;
+  let source; let revoked = false; const calls = []; const chunks = []; const fatals = [];
+  class FakeSourceBuffer extends EventTarget {
+    constructor() { super(); this.buffered = { length: 0 }; }
+    appendBuffer(bytes) {
+      chunks.push(bytes.byteLength);
+      queueMicrotask(() => {
+        media.readyState = 4;
+        media.duration = source.duration;
+        media.dispatchEvent(new Event("canplay"));
+        this.dispatchEvent(new Event("updateend"));
+      });
+    }
+  }
+  class FakeMediaSource extends EventTarget {
+    static isTypeSupported(type) { return type === "audio/mpeg"; }
+    constructor() { super(); source = this; this.readyState = "closed"; }
+    addSourceBuffer(type) { assert.equal(type, "audio/mpeg"); return new FakeSourceBuffer(); }
+    endOfStream() { this.readyState = "ended"; }
+  }
+  media.load = () => {
+    if (source && source.readyState === "closed") queueMicrotask(() => {
+      source.readyState = "open"; source.dispatchEvent(new Event("sourceopen"));
+    });
+  };
+  const signed = "https://private.example/api/v1/audio/1?token=private-must-not-appear";
+  const bytesTotal = 600000;
+  const env = {
+    document: { createElement: () => media, documentElement: { append() {} } },
+    setTimeout, clearTimeout, AbortController, MediaSource: FakeMediaSource,
+    URL: {
+      createObjectURL(value) {
+        assert.equal(value, source);
+        return "blob:https://music.yandex.ru/media-source";
+      },
+      revokeObjectURL(value) { assert.equal(value, "blob:https://music.yandex.ru/media-source"); revoked = true; }
+    },
+    fetch: async (_url, options) => {
+      assert.equal(_url, signed);
+      assert.equal(options.redirect, "error");
+      const requested = /^bytes=(\d+)-(\d+)$/.exec(options.headers.Range);
+      assert(requested, "every request is a bounded HTTP Range");
+      const from = Number(requested[1]), to = Math.min(Number(requested[2]), bytesTotal - 1);
+      calls.push([from, to]);
+      const bytes = new Uint8Array(to - from + 1);
+      return {
+        status: 206,
+        headers: new Headers({ "Content-Type": "audio/mpeg", "Content-Range": "bytes " + from + "-" + to + "/" + bytesTotal }),
+        arrayBuffer: async () => bytes.buffer
+      };
+    }
+  };
+  const player = new ReplacementPlayer(env, reason => fatals.push(reason));
+  await player.prepare({ url: signed, demoLoop: false, durationMs: 180872 });
+  assert.equal(player.audio.src, "blob:https://music.yandex.ru/media-source");
+  assert.equal(player.audio.duration, 180.872);
+  await new Promise(resolve => setTimeout(resolve, 15));
+  assert.deepEqual(calls, [[0, 524287], [524288, 599999]]);
+  assert.deepEqual(chunks, [524288, 75712]);
+  assert.equal(source.readyState, "ended");
+  assert.deepEqual(fatals, []);
+  player.destroy();
+  assert.equal(revoked, true);
+  assert.equal(media.removed, true);
+  assert.equal(JSON.stringify(calls).includes("private-must-not-appear"), false);
 });
