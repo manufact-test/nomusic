@@ -1,0 +1,35 @@
+name: Hostinger connection preflight
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, develop, feature/api-range]
+    paths:
+      - .github/workflows/hostinger-preflight.yml
+
+permissions:
+  contents: read
+
+jobs:
+  ssh-reachability:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Read the private-test server's public SSH host keys
+        shell: bash
+        run: |
+          set -euo pipefail
+          ssh-keyscan -T 15 -p 65002 -t ed25519,rsa,ecdsa 92.113.19.189 > hostinger-known-hosts.txt
+          test -s hostinger-known-hosts.txt
+          echo 'SSH is reachable from GitHub Actions. No login or deployment was attempted.'
+          echo 'Observed public host keys (first-contact observation, not independent identity verification):'
+          cat hostinger-known-hosts.txt
+          ssh-keygen -lf hostinger-known-hosts.txt
+
+      - name: Preserve observed public host keys
+        uses: actions/upload-artifact@v4
+        with:
+          name: hostinger-observed-host-keys
+          path: hostinger-known-hosts.txt
+          if-no-files-found: error
+          retention-days: 7
