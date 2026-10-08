@@ -37,21 +37,21 @@ jobs:
           const config = JSON.parse(fs.readFileSync(root + '/api/config.json', 'utf8'));
           const manifest = JSON.parse(fs.readFileSync(root + '/manifest.json', 'utf8'));
           assert.equal(config.baseUrl, base);
-          assert.equal(manifest.version, '0.4.2');
+          assert.equal(manifest.version, '0.4.3');
           assert(manifest.host_permissions.includes(base + '/*'));
           assert(manifest.host_permissions.includes('https://music.yandex.ru/*'));
           assert.equal(manifest.background.service_worker, 'background/service-worker.js');
           assert.equal(manifest.manifest_version, 3);
-          console.log('CELIKOM 0.4.2 prepared for fixed private-test API origin. No server credentials in the build.');
+          console.log('CELIKOM 0.4.3 prepared for fixed private-test API origin. No server credentials in the build.');
           VERIFY
           cd extension/dist
-          sha256sum --check celikom-extension-0.4.2.zip.sha256
-          unzip -p celikom-extension-0.4.2.zip api/config.json | grep -F 'darkred-camel-588676.hostingersite.com'
+          sha256sum --check celikom-extension-0.4.3.zip.sha256
+          unzip -p celikom-extension-0.4.3.zip api/config.json | grep -F 'darkred-camel-588676.hostingersite.com'
       - uses: actions/upload-artifact@v4
         with:
           name: celikom-stage5-live-api-${{ github.sha }}
           path: |
-            extension/dist/celikom-extension-0.4.2.zip
-            extension/dist/celikom-extension-0.4.2.zip.sha256
+            extension/dist/celikom-extension-0.4.3.zip
+            extension/dist/celikom-extension-0.4.3.zip.sha256
           if-no-files-found: error
           retention-days: 14
