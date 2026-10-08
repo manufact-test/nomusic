@@ -1,0 +1,57 @@
+name: CELIKOM Stage 5 live API extension
+
+on:
+  push:
+    branches: [feature/api-range]
+    paths:
+      - .github/deploy/extension-stage5-request.json
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CELIKOM_API_BASE_URL: https://darkred-camel-588676.hostingersite.com
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Test extension and build for private Hostinger API
+        run: |
+          npm run test:extension
+          npm run build:extension
+      - name: Verify actual API host, manifest and ZIP checksum
+        run: |
+          node --input-type=module <<'VERIFY'
+          import assert from 'node:assert/strict';
+          import fs from 'node:fs';
+          const base = 'https://darkred-camel-588676.hostingersite.com';
+          const root = 'extension/dist/unpacked';
+          const config = JSON.parse(fs.readFileSync(root + '/api/config.json', 'utf8'));
+          const manifest = JSON.parse(fs.readFileSync(root + '/manifest.json', 'utf8'));
+          assert.equal(config.baseUrl, base);
+          assert.equal(manifest.version, '0.4.0');
+          assert(manifest.host_permissions.includes(base + '/*'));
+          assert(manifest.host_permissions.includes('https://music.yandex.ru/*'));
+          assert.equal(manifest.background.service_worker, 'background/service-worker.js');
+          assert.equal(manifest.manifest_version, 3);
+          console.log('CELIKOM 0.4.0 prepared for fixed private-test API origin. No server credentials in the build.');
+          VERIFY
+          cd extension/dist
+          sha256sum --check celikom-extension-0.4.0.zip.sha256
+          unzip -p celikom-extension-0.4.0.zip api/config.json | grep -F 'darkred-camel-588676.hostingersite.com'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: celikom-stage5-live-api-${{ github.sha }}
+          path: |
+            extension/dist/celikom-extension-0.4.0.zip
+            extension/dist/celikom-extension-0.4.0.zip.sha256
+          if-no-files-found: error
+          retention-days: 14
