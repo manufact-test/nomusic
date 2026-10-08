@@ -205,6 +205,9 @@ try {
         echo 'Public signed audio: HTTP ', $mediaStatus,
             '; content type ', ($mediaHeaders['content-type'] ?? 'missing'),
             '; CORS ', ($mediaHeaders['access-control-allow-origin'] ?? 'missing'),
+            '; accept ranges ', ($mediaHeaders['accept-ranges'] ?? 'missing'),
+            '; content range ', ($mediaHeaders['content-range'] ?? 'missing'),
+            '; content length ', ($mediaHeaders['content-length'] ?? 'missing'),
             '; bytes ', is_string($mediaBytes) ? strlen($mediaBytes) : 0, "\n";
         if ($mediaStatus !== 206
             || ($mediaHeaders['access-control-allow-origin'] ?? '') !== 'https://music.yandex.ru'
