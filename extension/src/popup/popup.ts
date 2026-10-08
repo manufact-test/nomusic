@@ -70,9 +70,26 @@ document.querySelector("[data-action='save-api-access']")?.addEventListener("cli
   const input = document.querySelector<HTMLInputElement>("[data-api-access]");
   const note = document.querySelector<HTMLElement>("[data-api-note]");
   if (!input || !note) return;
-  const response = await send<{ ok: boolean }>({ type: "CELIKOM_SET_API_ACCESS", token: input.value });
-  input.value = "";
-  note.textContent = response?.ok ? "Код сохранён" : "Проверьте код доступа";
+  note.textContent = "Проверяем доступ…";
+  try {
+    const response = await send<{ ok: boolean; error?: string }>({ type: "CELIKOM_SET_API_ACCESS", token: input.value });
+    if (response?.ok) {
+      input.value = "";
+      note.textContent = "Сервер подтвердил код";
+    } else {
+      const explanations: Record<string, string> = {
+        invalid_access_code: "Неверная длина кода",
+        api_access_denied: "Сервер отклонил код",
+        api_forbidden: "Доступ запрещён",
+        api_network_error: "Нет связи с сервером",
+        api_server_error: "Ошибка сервера",
+        api_http_error: "HTTP ошибка",
+        invalid_api_response: "Некорректный ответ API",
+        invalid_api_origin: "Неверный адрес API"
+      };
+      note.textContent = explanations[response?.error || ""] || "Не удалось проверить доступ";
+    }
+  } catch (_error) { note.textContent = "Не удалось проверить доступ"; }
 });
 
 stopButton?.addEventListener("click", async () => {
