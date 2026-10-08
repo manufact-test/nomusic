@@ -27,11 +27,15 @@ jobs:
         with:
           php-version: "8.3"
           coverage: none
-      - name: Install audio inspection utilities
+      - name: Install audio inspection utilities (probe only)
         run: |
-          sudo apt-get update -qq
-          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq ffmpeg
-          ffprobe -version | head -n 1
+          if [[ "$(node -p "require('./.github/deploy/hostinger-audio-request.json').operation")" == "probe" ]]; then
+            sudo apt-get update -qq
+            sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq ffmpeg
+            ffprobe -version | head -n 1
+          else
+            echo 'Audio tools are not needed for this server-only operation.'
+          fi
       - name: Validate operation scripts (no Hostinger mutations)
         run: |
           bash -n .github/scripts/hostinger-audio.sh
