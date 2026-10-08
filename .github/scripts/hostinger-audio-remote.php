@@ -120,8 +120,7 @@ try {
             fclose($handle);
             exit(0);
         }
-        if (($request['confirm_reviewed'] ?? null) !== true
- || ($request['confirm_reviewed'] ?? null) !== true || !is_int($request['duration_ms'])
+        if (($request['confirm_reviewed'] ?? null) !== true || !is_int($request['duration_ms'])
             || $request['duration_ms'] < 1000 || $request['duration_ms'] > 86400000) {
             throw new RuntimeException('import_preconditions_failed');
         }

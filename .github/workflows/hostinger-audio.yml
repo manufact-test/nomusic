@@ -27,6 +27,11 @@ jobs:
         with:
           php-version: "8.3"
           coverage: none
+      - name: Install audio inspection utilities
+        run: |
+          sudo apt-get update -qq
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq ffmpeg
+          ffprobe -version | head -n 1
       - name: Validate operation scripts (no Hostinger mutations)
         run: |
           bash -n .github/scripts/hostinger-audio.sh
