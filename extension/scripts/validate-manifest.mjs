@@ -1,6 +1,7 @@
 import { readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { contentScriptGroups } from "./content-script-groups.mjs";
 
 const extensionRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const unpackedRoot = path.join(extensionRoot, "dist", "unpacked");
@@ -26,11 +27,19 @@ const isolatedWorld = manifest.content_scripts.find((entry) => entry.world === "
 assert(manifest.content_scripts.length === 2, "Exactly MAIN and ISOLATED content-script groups are required");
 assert(mainWorld?.run_at === "document_start", "MAIN-world adapter must start at document_start");
 assert(isolatedWorld?.run_at === "document_start", "ISOLATED controller must start at document_start");
-assert(mainWorld.js.includes("adapters/yandex-music-adapter.js"), "YandexMusicAdapter is missing from MAIN world");
-assert(mainWorld.js.includes("player/main-world-entry.js"), "MAIN-world bridge entry is missing");
-assert(isolatedWorld.js.includes("player/player-bridge.js"), "PlayerBridge is missing from ISOLATED world");
-assert(mainWorld.js.includes("player/original-audio-guard.js"), "Autonomous original guard is missing");
-assert(isolatedWorld.js.includes("player/replacement-controller.js"), "ReplacementController is missing");
+for (const group of contentScriptGroups) {
+  const entry = manifest.content_scripts.find((script) => script.world === group.world);
+  assert(JSON.stringify(entry.js) === JSON.stringify([group.file]), `${group.world} must inject one complete dependency bundle`);
+  const bundle = await readFile(path.join(unpackedRoot, group.file), "utf8");
+  let offset = -1;
+  for (const file of group.modules) {
+    const marker = `// ${file}\n`;
+    const next = bundle.indexOf(marker);
+    assert(next > offset, `Missing/out-of-order ${file} in ${group.file}`);
+    assert(bundle.includes(await readFile(path.join(unpackedRoot, file), "utf8")), `Bundle differs from ${file}`);
+    offset = next;
+  }
+}
 assert(manifest.web_accessible_resources?.length === 1, "Only the demo audio resource may be exposed");
 assert(JSON.stringify(manifest.web_accessible_resources[0]) === JSON.stringify({ resources: ["assets/test-audio.mp3"], matches: ["https://music.yandex.ru/*"] }), "Unexpected public resource boundary");
 

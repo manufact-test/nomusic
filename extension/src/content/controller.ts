@@ -92,6 +92,7 @@
       if (areaName !== "local") return;
       if ("enabled" in changes) { this.enabled = changes.enabled.newValue === true; this.log(this.enabled ? "CELIKOM started" : "CELIKOM stopped"); }
       if ("testTrackId" in changes) this.testTrackId = changes.testTrackId.newValue || "";
+      if (this.startupError) return;
       this.engine.configure(this.enabled, this.testTrackId);
     }
 
@@ -108,6 +109,7 @@
         return false;
       }
       if (type === "CELIKOM_REPLACEMENT_RETRY") {
+        if (this.startupError) { sendResponse({ ok: false, error: this.startupError }); return false; }
         this.engine.configure(this.enabled, this.testTrackId, true);
         sendResponse({ ok: true });
         return false;
@@ -127,7 +129,7 @@
     getDiagnostics() {
       return {
         celikomVersion: chrome.runtime.getManifest().version,
-        buildVersion: root.__CELIKOM_PLAYER_CORE_V1__.VERSION,
+        buildVersion: root.__CELIKOM_PLAYER_CORE_V1__?.VERSION || null,
         stage: 3,
         enabled: this.enabled,
         phase: this.getPhase(),
@@ -155,7 +157,7 @@
     }
 
     wake() {
-      if (!this.destroyed) {
+      if (!this.destroyed && !this.startupError) {
         this.bridge.connect();
         void chrome.storage.local.get(["enabled", "testTrackId"]).then((stored) => {
           this.enabled = stored.enabled === true;

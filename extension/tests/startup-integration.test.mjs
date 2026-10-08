@@ -3,10 +3,11 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 import vm from "node:vm";
 import { createControllerBootstrap } from "../dist/unpacked/background/controller-bootstrap.js";
+import { contentScriptGroups } from "../scripts/content-script-groups.mjs";
 
 const unpacked = new URL("../dist/unpacked/", import.meta.url);
 const manifest = JSON.parse(await readFile(new URL("manifest.json", unpacked), "utf8"));
-const scriptFiles = [...new Set(manifest.content_scripts.flatMap((entry) => entry.js))];
+const scriptFiles = [...new Set([...manifest.content_scripts.flatMap((entry) => entry.js), ...contentScriptGroups.flatMap((group) => group.modules)])];
 const sources = new Map(await Promise.all(scriptFiles.map(async (file) => [file, await readFile(new URL(file, unpacked), "utf8")])));
 
 function browserFixture() {
@@ -169,6 +170,28 @@ test("packaged MAIN + ISOLATED scripts bootstrap an already-open tab end to end"
   assert.equal(fixture.timers.size, 0);
 });
 
+test("playback registration before core availability does not poison subsequent packaged startup", async () => {
+  for (const early of [["player/replacement-controller.js"], [
+    "player/sync-engine.js", "player/replacement-player.js", "player/fail-open-controller.js", "player/replacement-controller.js"
+  ]]) {
+    const f = browserFixture();
+    await f.api.scripting.executeScript({ world: "ISOLATED", files: early });
+    const result = await createControllerBootstrap(f.api, { wait: () => new Promise((resolve) => setTimeout(resolve, 5)) }).ensure(42);
+    assert.equal(result.status?.startupError, null, JSON.stringify(result));
+    assert.equal(result.error, null);
+    assert.equal(result.status.bridge.healthy, true);
+    assert.equal(result.status.track.id, "1944599");
+    for (const group of manifest.content_scripts) await f.api.scripting.executeScript({ world: group.world, files: group.js });
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    assert.equal(f.runtimeListeners.size, 1); assert.equal(f.storageListeners.size, 1);
+    assert.deepEqual(f.errors.map((error) => error.message), []);
+    vm.runInContext("__CELIKOM_CONTENT_CONTROLLER_V2__.destroy()", f.worlds.get("ISOLATED"));
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    vm.runInContext("__CELIKOM_MAIN_BRIDGE_V1__.destroy()", f.worlds.get("MAIN"));
+    assert.equal(f.timers.size, 0);
+  }
+});
+
 test("packaged playback guards exact master, follows controls, bypasses and independently restores on lost heartbeat", async () => {
   const f = browserFixture();
   const bootstrap = createControllerBootstrap(f.api, { wait: () => new Promise((resolve) => setTimeout(resolve, 5)) });
@@ -223,5 +246,10 @@ test("controller diagnostics still respond when async startup fails", async () =
   assert.equal(response.ok, true);
   assert.equal(response.status.startupError, "storage unavailable");
   assert.equal(response.status.bridge.ready, false);
+  const before = response.status.recentLog.length;
+  for (let i = 0; i < 5; i++) await fixture.api.scripting.executeScript({ files: group.js, world: "ISOLATED" });
+  await new Promise((resolve) => setTimeout(resolve, 5));
+  const after = await fixture.api.tabs.sendMessage(42, { type: "CELIKOM_CONTROLLER_STATUS_GET" });
+  assert.equal(after.status.recentLog.length, before, "reinjection must not flood a failed startup with settings errors");
   vm.runInContext("globalThis.__CELIKOM_CONTENT_CONTROLLER_V2__.destroy()", fixture.worlds.get("ISOLATED"));
 });

@@ -1,11 +1,11 @@
 # CELIKOM Stage 3 — live playback gate
 
-Version: `0.3.0`. Status: pending owner run. Stage 2 acceptance does not cover this new audio-changing implementation.
+Version: `0.3.1`. Status: pending owner run after fixing the reported 0.3.0 startup crash. Stage 2 acceptance does not cover this new audio-changing implementation.
 
 ## Setup
 
 1. Disable the old PoC and any second CELIKOM copy.
-2. Replace the loaded extension with the `0.3.0` unpacked build; reload it in `chrome://extensions`.
+2. Replace the loaded extension with the `0.3.1` unpacked build; reload it in `chrome://extensions`.
 3. Refresh Yandex Music once. This replaces the previous page-world globals; do not mix old and new scripts.
 4. Press `Старт`, play a track, open `Для разработчика` and press `Тестировать текущий трек`. Start at a low comfortable volume: the replacement is a synthetic signal, not a song.
 5. Expected: `REPLACEMENT_ACTIVE`, exact configured/current Track ID equality, `guardActive: true`, one replacement audio, no original music mixed with the test signal. Copy diagnostics from the developer section.

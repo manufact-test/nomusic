@@ -19,4 +19,6 @@ Manual original restoration stores a per-track bypass. It survives same-track st
 
 ## Gate
 
+0.3.0 failed the owner's first live launch with `normalizeTrackId` on a captured undefined core. This exact signature is reproducible by registering the engine before the core and then injecting the complete group. 0.3.1 resolves dependencies at construction and bundles each world into one ordered classic script; manifest and recovery injection cannot diverge in dependency order. Polling a failed startup does not re-inject it; a refreshed page creates new immutable globals.
+
 Unit, generation/race and compiled MAIN/ISOLATED mock integration tests are necessary but do not validate real browser decoding, autoplay, isolated DOM wrappers, CSP, timer throttling or audible sync. Stage 3 closes only after the separate live checklist. No Hostinger deployment or arbitrary-format support is implied by this stage.

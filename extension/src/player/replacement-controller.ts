@@ -2,12 +2,19 @@
   "use strict";
   const KEY = "__CELIKOM_REPLACEMENT_CONTROLLER_V1__";
   if (root[KEY]) return;
-  const { ReplacementPlayer } = root.__CELIKOM_REPLACEMENT_PLAYER_V1__;
-  const { SyncEngine } = root.__CELIKOM_SYNC_ENGINE_V1__;
-  const { FailOpenController } = root.__CELIKOM_FAIL_OPEN_V1__;
-  const core = root.__CELIKOM_PLAYER_CORE_V1__;
   class ReplacementController {
     constructor(bridge, environment, options = {}) {
+      // Registration can precede dependencies during recovery injection. Resolve
+      // them at construction, never capture an absent value in an immutable registry.
+      const core = root.__CELIKOM_PLAYER_CORE_V1__;
+      const ReplacementPlayer = root.__CELIKOM_REPLACEMENT_PLAYER_V1__?.ReplacementPlayer;
+      const SyncEngine = root.__CELIKOM_SYNC_ENGINE_V1__?.SyncEngine;
+      const FailOpenController = root.__CELIKOM_FAIL_OPEN_V1__?.FailOpenController;
+      if (typeof core?.normalizeTrackId !== "function" || !ReplacementPlayer || !SyncEngine || !FailOpenController) {
+        throw new Error("Playback runtime dependencies are not ready");
+      }
+      this.core = core;
+      this.SyncEngine = SyncEngine;
       this.bridge = bridge;
       this.environment = environment;
       this.log = options.log || (() => {});
@@ -27,7 +34,7 @@
       this.lastError = null;
     }
     configure(enabled, testTrackId, explicitStart = false) {
-      const id = core.normalizeTrackId(testTrackId);
+      const id = this.core.normalizeTrackId(testTrackId);
       const changed = this.testTrackId !== id || this.enabled !== enabled;
       this.enabled = enabled;
       this.testTrackId = id;
@@ -70,7 +77,7 @@
     }
     async prepare() {
       const snapshot = this.snapshot;
-      const operation = { generation: ++this.generation, token: `${this.bridge.sessionId}:${this.generation}`, trackId: snapshot.track.id, mediaId: snapshot.player.mediaId, sync: new SyncEngine(), player: null };
+      const operation = { generation: ++this.generation, token: `${this.bridge.sessionId}:${this.generation}`, trackId: snapshot.track.id, mediaId: snapshot.player.mediaId, sync: new this.SyncEngine(), player: null };
       this.operation = operation;
       this.phase = "PREPARING";
       this.log(`PREPARING · ${operation.trackId}`);

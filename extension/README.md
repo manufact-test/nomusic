@@ -1,6 +1,8 @@
 # CELIKOM extension
 
-Manifest V3 client. Stage 2 observation was accepted on `0.2.1`. Stage 3 (`0.3.0`) adds `ReplacementController`, `ReplacementPlayer`, `SyncEngine`, `OriginalAudioGuard` and `FailOpenController`, using an opt-in packaged synthetic fixture for one exact Track ID. Real files and backend resolution are not connected yet.
+Manifest V3 client. Stage 2 observation was accepted on `0.2.1`. Stage 3 (`0.3.1`) adds `ReplacementController`, `ReplacementPlayer`, `SyncEngine`, `OriginalAudioGuard` and `FailOpenController`, using an opt-in packaged synthetic fixture for one exact Track ID. Real files and backend resolution are not connected yet.
+
+0.3.1 fixes the reported 0.3.0 `normalizeTrackId` startup crash. Dependencies resolve at controller construction; manifest and recovery injection use the same single deterministic bundle per world. Polling does not reinject a failed controller. Refresh the music tab after updating so the old immutable page globals are discarded.
 
 ```bash
 npm run build

@@ -4,6 +4,7 @@ import { cp, mkdir, readFile, readdir, rm, stat, utimes, writeFile } from "node:
 import { stripTypeScriptTypes } from "node:module";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { contentScriptGroups } from "./content-script-groups.mjs";
 
 const extensionRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const sourceRoot = path.join(extensionRoot, "src");
@@ -47,6 +48,10 @@ async function normalizeTree(directory) {
 await rm(unpackedRoot, { recursive: true, force: true });
 await mkdir(unpackedRoot, { recursive: true });
 await compileSources();
+for (const group of contentScriptGroups) {
+  const parts = await Promise.all(group.modules.map(async (file) => `// ${file}\n${await readFile(path.join(unpackedRoot, file), "utf8")}`));
+  await writeFile(path.join(unpackedRoot, group.file), `// CELIKOM ${packageJson.version} ${group.world} dependency bundle\n${parts.join("\n;\n")}\n`, "utf8");
+}
 await cp(path.join(extensionRoot, "manifest", "manifest.json"), path.join(unpackedRoot, "manifest.json"));
 await cp(path.join(extensionRoot, "popup"), path.join(unpackedRoot, "popup"), { recursive: true });
 await cp(path.join(extensionRoot, "_locales"), path.join(unpackedRoot, "_locales"), { recursive: true });
@@ -55,6 +60,10 @@ await cp(path.join(extensionRoot, "assets"), path.join(unpackedRoot, "assets"), 
 const manifest = JSON.parse(await readFile(path.join(unpackedRoot, "manifest.json"), "utf8"));
 if (manifest.version !== packageJson.version) {
   throw new Error(`Manifest ${manifest.version} and package ${packageJson.version} versions differ`);
+}
+for (const group of contentScriptGroups) {
+  const entry = manifest.content_scripts.find((script) => script.world === group.world);
+  if (JSON.stringify(entry?.js) !== JSON.stringify([group.file])) throw new Error(`Invalid ${group.world} bundle entry`);
 }
 
 await normalizeTree(unpackedRoot);

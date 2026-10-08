@@ -103,6 +103,23 @@ test("a failed MAIN handshake and startup errors have distinct diagnostic codes"
   assert.equal((await bootstrap.ensure(42)).error, "controller-start-failed");
 });
 
+test("polling a failed controller does not reinject or repeatedly wake it", async () => {
+  const { state, api } = fixture({ stage: 3, buildVersion: manifest.version, startupError: "Cannot read properties of undefined (reading 'normalizeTrackId')", bridge: { ready: false, healthy: false } });
+  const bootstrap = createControllerBootstrap(api);
+  for (let i = 0; i < 10; i++) {
+    const result = await bootstrap.ensure(42);
+    assert.equal(result.error, "controller-start-failed"); assert.match(result.detail, /Обновите вкладку/);
+  }
+  assert.equal(state.injections.length, 0);
+  assert.equal((await bootstrap.ensure(42, true)).error, "controller-start-failed");
+  assert.equal(state.injections.length, 0, "Retry cannot repair already registered broken globals");
+  // A navigation destroys the page context and gives the ordinary bootstrap a
+  // fresh receiver. No permanent failure cache may block recovery after reload.
+  state.status = null;
+  assert.equal((await bootstrap.ensure(42)).error, null);
+  assert.equal(state.injections.length, 2);
+});
+
 test("bootstrap operates only within existing Yandex host permissions", async () => {
   for (const url of ["https://music.yandex.ru/landing/main", "https://music.yandex.ru/album/1/track/2"]) {
     assert.equal(isSupportedPage(url), true);

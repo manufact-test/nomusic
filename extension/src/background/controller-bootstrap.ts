@@ -19,7 +19,7 @@ export function createControllerBootstrap(api, options = {}) {
 
   function staleController(status) {
     const manifest = api.runtime.getManifest();
-    const replacementBuild = manifest.content_scripts?.some((group) => group.js?.includes("player/replacement-controller.js"));
+    const replacementBuild = manifest.content_scripts?.some((group) => group.js?.some((file) => ["player/replacement-controller.js", "content/controller-bundle.js"].includes(file)));
     const oldStage = replacementBuild && typeof status?.stage === "number" && status.stage < 3;
     const oldCore = manifest.version && status?.buildVersion && manifest.version !== status.buildVersion;
     const oldMain = manifest.version && status?.bridge?.bridgeVersion && manifest.version !== status.bridge.bridgeVersion;
@@ -43,7 +43,12 @@ export function createControllerBootstrap(api, options = {}) {
       return { status: null, error: "unsupported-page", detail: "Откройте вкладку Яндекс Музыки (music.yandex.ru)." };
     }
     const existing = await readStatus(tabId);
+    const stale = staleController(existing);
+    if (stale) return stale;
     if (existing?.bridge?.healthy) return staleController(existing) || { status: existing, error: null, recovered: false };
+    if (existing?.startupError && !existing.recoverableStartupError) {
+      return { status: existing, error: "controller-start-failed", detail: `${existing.startupError}. Обновите вкладку Яндекс Музыки для нового запуска.` };
+    }
 
     const groups = api.runtime.getManifest().content_scripts;
     const main = groups?.find((group) => group.world === "MAIN");

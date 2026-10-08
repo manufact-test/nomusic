@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.3.1 — 2026-10-08 (startup regression fix; live acceptance pending)
+
+- Воспроизведён присланный сбой `normalizeTrackId`: ранняя регистрация ReplacementController захватывала ещё отсутствующий core, затем immutable registry сохранял сломанный класс.
+- Зависимости разрешаются при создании контроллера и проверяются явно; ранняя регистрация больше не сохраняет undefined.
+- MAIN и ISOLATED получают по одному deterministic bundle с фиксированным порядком модулей и общей проверкой build/manifest.
+- Popup polling больше не внедряет повторно controller с startupError; wake/storage/retry не повторяют неуспешную инициализацию. Диагностика сохраняется, а обновление вкладки позволяет начать с чистого контекста.
+- Regression воспроизводит ошибку 0.3.0 до исправления, затем проверяет раннюю регистрацию, packaged startup, повторное внедрение и отсутствие log flood.
+
 ## 0.3.0 — 2026-10-08 (live playback acceptance pending)
 
 - Stage 2 принят по ручному прогону владельца на 0.2.1 и зелёному CI; PR #4 интегрирован в develop.
