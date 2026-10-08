@@ -71,6 +71,19 @@ jobs:
           echo 'Authenticated with the CELIKOM key. Read-only checks:'
           pwd
           php -r 'echo "PHP ", PHP_VERSION, PHP_EOL; foreach (["pdo_mysql", "fileinfo"] as $extension) { echo $extension, ": ", extension_loaded($extension) ? "yes" : "no", PHP_EOL; }'
+          php83_found=0
+          for php_candidate in /opt/alt/php83/usr/bin/php /usr/bin/php8.3 /usr/bin/php83 /usr/local/bin/php83; do
+            if [[ -x "$php_candidate" ]]; then
+              printf 'PHP 8.3 candidate: %s\n' "$php_candidate"
+              "$php_candidate" -r 'echo "Candidate PHP ", PHP_VERSION, PHP_EOL; foreach (["pdo_mysql", "fileinfo"] as $extension) { echo $extension, ": ", extension_loaded($extension) ? "yes" : "no", PHP_EOL; } if (PHP_VERSION_ID < 80300 || !extension_loaded("pdo_mysql") || !extension_loaded("fileinfo")) { exit(1); }'
+              php83_found=1
+              break
+            fi
+          done
+          if [[ "$php83_found" != 1 ]]; then
+            echo 'A PHP 8.3 CLI with the required extensions is still needed for deployment.' >&2
+            exit 1
+          fi
           site_path="$(pwd)/domains/darkred-camel-588676.hostingersite.com"
           if [[ -d "$site_path/public_html" ]]; then
             printf 'CELIKOM document root: %s/public_html\n' "$site_path"
