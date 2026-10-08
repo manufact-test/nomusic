@@ -33,6 +33,7 @@ try {
     $request = json_decode((string) file_get_contents($requestPath), true, 8, JSON_THROW_ON_ERROR);
     $fields = [
         'inspect' => ['operation'],
+        'selftest' => ['operation', 'track_id'],
         'probe' => ['operation'],
         'import' => ['operation', 'track_id', 'duration_ms', 'confirm_reviewed'],
         'enable' => ['operation', 'track_id'],
@@ -49,7 +50,7 @@ try {
     if ($names !== $allowed) {
         throw new RuntimeException('invalid_operation_request');
     }
-    if (in_array($operation, ['import', 'enable'], true)
+    if (in_array($operation, ['import', 'enable', 'selftest'], true)
         && (!is_string($request['track_id']) || !preg_match('/^[1-9][0-9]{0,23}$/D', $request['track_id']))) {
         throw new RuntimeException('invalid_track_id');
     }
@@ -69,6 +70,37 @@ try {
 
     if ($operation === 'inspect') {
         echo 'Private staging and configuration validated; replacements: ', $isOn ? 'enabled' : 'disabled', "; analytics: disabled.\n";
+        exit(0);
+    }
+
+    if ($operation === 'selftest') {
+        // Exercise the current release's real application, DB mapping, authorization
+        // and signed audio headers in-process. Do not print any credentials or URLs.
+        if (!$isOn || strlen((string) $config['test_api_token']) < 24) {
+            throw new RuntimeException('selftest_not_ready');
+        }
+        $service = new Celikom\\Application($config);
+        $res = $service->handle('GET', '/api/v1/resolve',
+            ['service' => 'yandex', 'track_id' => $request['track_id']],
+            ['authorization' => 'Bearer ' . $config['test_api_token']]);
+        $answer = json_decode($res->body, true, 8, JSON_THROW_ON_ERROR);
+        if ($res->status !== 200 || !is_array($answer)
+            || ($answer['found'] ?? false) !== true || ($answer['replacement_id'] ?? null) !== 1
+            || ($answer['duration_ms'] ?? null) !== 180872) {
+            throw new RuntimeException('selftest_resolve_failed');
+        }
+        $url = parse_url((string) ($answer['audio_url'] ?? ''));
+        if (!is_array($url) || !isset($url['path'], $url['query'])
+            || $url['path'] !== '/api/v1/audio/1') {
+            throw new RuntimeException('selftest_audio_url_failed');
+        }
+        parse_str($url['query'], $query);
+        $audio = $service->handle('HEAD', $url['path'], $query, []);
+        if ($audio->status !== 200 || ($audio->headers['Accept-Ranges'] ?? '') !== 'bytes'
+            || (int) ($audio->headers['Content-Length'] ?? 0) < 1000000) {
+            throw new RuntimeException('selftest_audio_headers_failed');
+        }
+        echo "Private authenticated resolve and signed audio HEAD verified; analytics remains disabled.\\n";
         exit(0);
     }
 
