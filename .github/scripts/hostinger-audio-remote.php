@@ -100,7 +100,51 @@ try {
             || (int) ($audio->headers['Content-Length'] ?? 0) < 1000000) {
             throw new RuntimeException('selftest_audio_headers_failed');
         }
-        echo "Private authenticated resolve and signed audio HEAD verified; analytics remains disabled.\n";
+        // Verify that the real HTTPS frontend forwards Authorization to PHP.
+        // The token stays in the PHP request header, never in stdout or GitHub.
+        $urlHttps = 'https://darkred-camel-588676.hostingersite.com/api/v1/resolve?service=yandex&track_id=' . rawurlencode($request['track_id']);
+        $publicBody = false;
+        $httpStatus = 0;
+        if (function_exists('curl_init')) {
+            $handle = curl_init($urlHttps);
+            curl_setopt_array($handle, [
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_TIMEOUT => 15,
+                CURLOPT_CONNECTTIMEOUT => 8,
+                CURLOPT_HTTPHEADER => ['Authorization: Bearer ' . $config['test_api_token']],
+                CURLOPT_FOLLOWLOCATION => false,
+                CURLOPT_MAXREDIRS => 0,
+                CURLOPT_SSL_VERIFYPEER => true,
+                CURLOPT_SSL_VERIFYHOST => 2,
+            ]);
+            $publicBody = curl_exec($handle);
+            $httpStatus = (int) curl_getinfo($handle, CURLINFO_RESPONSE_CODE);
+            curl_close($handle);
+        } else {
+            $context = stream_context_create([
+                'http' => [
+                    'method' => 'GET',
+                    'header' => 'Authorization: Bearer ' . $config['test_api_token'] . "\\r\\n",
+                    'timeout' => 15,
+                    'ignore_errors' => true,
+                    'follow_location' => 0,
+                ],
+            ]);
+            $publicBody = @file_get_contents($urlHttps, false, $context);
+            if (isset($http_response_header[0]) && preg_match('/^HTTP\\/\\S+\\s+(\\d{3})/', $http_response_header[0], $matched)) {
+                $httpStatus = (int) $matched[1];
+            }
+        }
+        if ($httpStatus !== 200 || !is_string($publicBody)) {
+            echo 'Public HTTPS authorized HTTP status: ' . $httpStatus . "\\n";
+            throw new RuntimeException('public_authorization_failed');
+        }
+        $publicResult = json_decode($publicBody, true, 8, JSON_THROW_ON_ERROR);
+        if (!is_array($publicResult) || ($publicResult['found'] ?? false) !== true
+            || ($publicResult['replacement_id'] ?? null) !== 1) {
+            throw new RuntimeException('public_authorization_response_invalid');
+        }
+        echo "Internal and public HTTPS authorized resolve + signed audio HEAD passed; analytics disabled.\\n";
         exit(0);
     }
 
