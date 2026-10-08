@@ -120,3 +120,22 @@ test("popup verifies real server authorization before storing a private token", 
   assert.deepEqual(valid, { ok: true, token });
   assert.deepEqual(await validateApiAccess(api, "too-short", base), { ok: false, error: "invalid_access_code" });
 });
+
+test("native worker fetch retains its Web IDL receiver (regression: silent api_network_error)", async () => {
+  const originalFetch = globalThis.fetch;
+  let calls = 0;
+  try {
+    globalThis.fetch = function strictWorkerFetch(_url, _options) {
+      assert.equal(this, globalThis, "native fetch must be bound to WorkerGlobalScope, not ApiClient");
+      calls += 1;
+      return Promise.resolve(new Response('{"error":"unauthorized"}', {
+        status: 401, headers: { "Content-Type": "application/json" }
+      }));
+    };
+    const client = new ApiClient("https://celikom.example", { accessToken: "fake-test-credential" });
+    await assert.rejects(client.request("/api/v1/resolve?service=yandex&track_id=1"), /api_access_denied/);
+    assert.equal(calls, 1, "request must reach fetch instead of throwing before a network call");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
