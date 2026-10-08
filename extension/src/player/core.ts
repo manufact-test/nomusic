@@ -12,7 +12,7 @@
 })(globalThis, function createCelikomPlayerCore() {
   "use strict";
 
-  const VERSION = "0.3.1";
+  const VERSION = "0.3.2";
   const PROTOCOL_VERSION = 1;
   const CHANNEL = "CELIKOM_PLAYER_V1";
   const PLAYER_EVENT_TYPES = Object.freeze([
@@ -277,8 +277,14 @@
     );
   }
 
+  function isUtilityMediaCandidate(candidate = {}) {
+    const audio = String(candidate.tag || "").toLocaleLowerCase() === "audio";
+    const dataSource = /^(?:data:|data$)/i.test(String(candidate.source || ""));
+    return audio && dataSource && finiteNumber(candidate.duration, 0) <= 1;
+  }
+
   function scoreMediaCandidate(candidate = {}) {
-    if (!candidate.isMedia || candidate.replacement || candidate.knownAd) return Number.NEGATIVE_INFINITY;
+    if (!candidate.isMedia || candidate.replacement || candidate.knownAd || candidate.knownUtility) return Number.NEGATIVE_INFINITY;
 
     const duration = finiteNumber(candidate.duration, 0);
     const currentTime = Math.max(0, finiteNumber(candidate.currentTime, 0));
@@ -329,6 +335,9 @@
       paused: snapshot?.player?.paused ?? true,
       ended: snapshot?.player?.ended ?? false,
       seeking: snapshot?.player?.seeking ?? false,
+      readyState: snapshot?.player?.readyState ?? 0,
+      duration: snapshot?.player?.duration ?? null,
+      playbackRate: snapshot?.player?.playbackRate ?? 1,
       timeBucket: Math.floor(finiteNumber(snapshot?.player?.currentTime, 0) * 2),
       volume: snapshot?.player?.volume ?? 1,
       muted: snapshot?.player?.muted ?? false,
@@ -345,6 +354,7 @@
     createSessionId,
     finiteNumber,
     isYandexAdMediaCandidate,
+    isUtilityMediaCandidate,
     metadataSimilarity,
     normalizeArtworkKey,
     normalizeNativeEventType,

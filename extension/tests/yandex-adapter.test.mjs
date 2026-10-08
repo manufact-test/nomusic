@@ -62,7 +62,7 @@ function createEnvironment(media) {
     hidden: false,
     querySelector: () => null,
     querySelectorAll(selector) {
-      if (selector === "audio,video") return [media];
+      if (selector === "audio,video") return Array.isArray(media) ? media : [media];
       return [];
     }
   };
@@ -184,4 +184,37 @@ test("YandexMusicAdapter mounts idempotently, follows SPA track changes and full
   assert.equal(events.at(-1).type, "PAUSE");
   adapter.unmount();
   assert.equal(media.listenerBalance, 0);
+});
+
+test("15 ms data audio cannot steal a paused master after a utility media event", () => {
+  const master = new FakeMedia(); master.paused = true;
+  const utility = new FakeMedia();
+  Object.assign(utility, { duration: 0.015, currentTime: 0, currentSrc: "data:audio/wav;base64,fixture", src: "data:audio/wav;base64,fixture", paused: true, isConnected: true });
+  const { environment } = createEnvironment([master, utility]);
+  const adapter = createAdapter(environment); const snapshots = [];
+  adapter.mount({ onSnapshot: (s) => snapshots.push(s), onPlayerEvent() {} });
+  const masterId = snapshots.at(-1).player.mediaId;
+  utility.dispatchEvent(new Event("volumechange"));
+  const next = adapter.getSnapshot();
+  assert.equal(next.player.mediaId, masterId);
+  assert.equal(next.track.id, "155343370");
+  const helper = next.mediaCandidates.find((candidate) => candidate.duration === 0.015);
+  assert.ok(helper, JSON.stringify(next.mediaCandidates));
+  assert.equal(helper.eligible, false); assert.equal(helper.rejectedReason, "utility-media");
+  assert.equal(adapter.getMediaElement(helper.mediaId), null);
+  utility.paused = false; utility.dispatchEvent(new Event("play"));
+  assert.equal(adapter.getSnapshot().player.mediaId, masterId);
+  adapter.unmount();
+});
+
+test("track duration stays independent of a mismatched native player clock", () => {
+  const master = new FakeMedia(); master.duration = 15;
+  const { environment } = createEnvironment(master);
+  const adapter = createAdapter(environment);
+  adapter.mount({ onSnapshot() {}, onPlayerEvent() {} });
+  const snapshot = adapter.getSnapshot();
+  assert.equal(snapshot.track.id, "155343370");
+  assert.equal(snapshot.track.metadata.durationMs, 193283);
+  assert.equal(snapshot.player.duration, 15);
+  adapter.unmount();
 });

@@ -159,6 +159,35 @@ test("seek + pause immediately positions and pauses replacement, then resume fol
   f.update(paused, "SEEK"); assert.equal(f.players[0].audio.currentTime, 2); assert.equal(f.players[0].audio.paused, true);
   paused.player.paused = false; f.update(paused, "PLAY"); assert.equal(f.players[0].audio.paused, false);
 });
+
+test("native seek with HAVE_METADATA keeps one guarded operation and pauses while buffering", async () => {
+  const f = fixture(); f.update(snapshot()); await settle(); const generation = f.engine.operation.generation;
+  const seeking = snapshot(); seeking.player.readyState = 1; seeking.player.seeking = true; seeking.player.currentTime = 80;
+  f.update(seeking, "SEEK"); await settle();
+  assert.equal(f.engine.phase, "REPLACEMENT_ACTIVE");
+  assert.equal(f.engine.operation.generation, generation);
+  assert.equal(f.players[0].audio.paused, true);
+  seeking.player.seeking = false; f.update(seeking, "SEEK"); await settle();
+  assert.equal(f.players.length, 1); assert.equal(f.engine.operation.generation, generation);
+  seeking.player.readyState = 4; f.update(seeking, "PLAY");
+  assert.equal(f.players[0].audio.paused, false);
+  assert.equal(f.engine.activationCount, 1); assert.equal(f.engine.restoreCount, 0);
+});
+test("metadata-only buffering keeps a lease only while track, media and duration remain bound", async () => {
+  for (const mutate of [s => { s.player.readyState = 0; }, s => { s.player.mediaId = "other"; }, s => { s.track.ambiguous = true; }, s => { s.player.duration = 15; }]) {
+    const f = fixture(); f.update(snapshot()); await settle();
+    const changed = snapshot(); changed.player.readyState = 1; mutate(changed);
+    f.update(changed); await settle();
+    assert.equal(f.players[0].destroyed, true);
+    assert.equal(f.engine.phase, "IDLE"); assert.equal(f.engine.restoreCount, 1);
+  }
+  const f = fixture(); const initial = snapshot(); initial.player.readyState = 1;
+  f.update(initial); await settle(); assert.equal(f.players.length, 0, "new admission needs playable data");
+  f.update(snapshot()); await settle();
+  const buffering = snapshot(); buffering.player.readyState = 1; buffering.observedAt -= 10000;
+  f.engine.snapshot = buffering; f.engine.tick();
+  assert.equal(f.engine.restoreCount, 0); assert.equal(f.players[0].audio.paused, true);
+});
 test("guard denial and player construction errors fail open without automatic retry storms", async () => {
   for (const options of [{ rejectGuard: true }, { playerThrows: true }]) {
     const f = fixture(options); f.update(snapshot()); await settle();

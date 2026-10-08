@@ -60,7 +60,7 @@
         if (event?.snapshot && (!this.snapshot || event.snapshot.observedAt >= this.snapshot.observedAt)) { this.snapshot = event.snapshot; this.engine.update(event.snapshot, event.type); }
       });
       this.bridge.on("GUARD_RELEASED", (event) => {
-        if (event.token === this.engine.operation?.token) this.engine.abort(`guard-lost:${event.reason}`, event.reason !== "master-binding-changed");
+        if (event.token === this.engine.operation?.token) this.engine.abort(`guard-lost:${event.reason}`, event.reason !== "master-binding-changed" || event.detail?.reason === "media-source-changed", event.detail);
       });
       this.bridge.on("BRIDGE_TIMEOUT", (payload) => {
         this.log(`bridge timeout · ${Math.round(payload?.elapsedMs || 0)} ms`);
@@ -140,6 +140,7 @@
         replacementError: this.engine.lastError,
         guardActive: Boolean(this.snapshot?.guard?.active),
         driftMs: this.engine.driftMs,
+        playback: { activationCount: this.engine.activationCount, restoreCount: this.engine.restoreCount, lastRestore: this.engine.lastRestore },
         track: this.snapshot?.track || null,
         player: this.snapshot?.player || null,
         mediaCandidates: this.snapshot?.mediaCandidates || [],

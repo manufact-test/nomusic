@@ -32,6 +32,9 @@
       this.destroyed = false;
       this.driftMs = null;
       this.lastError = null;
+      this.activationCount = 0;
+      this.restoreCount = 0;
+      this.lastRestore = null;
     }
     configure(enabled, testTrackId, explicitStart = false) {
       const id = this.core.normalizeTrackId(testTrackId);
@@ -41,11 +44,11 @@
       if (changed || explicitStart) { this.manualBypass = null; this.blockedTrackId = null; this.lastError = null; }
       this.reconcile();
     }
-    eligible(snapshot = this.snapshot) {
+    eligible(snapshot = this.snapshot, minimumReadyState = 2) {
       const track = snapshot?.track;
       const player = snapshot?.player;
       return this.enabled && this.bridge.isHealthy() && track?.id === this.testTrackId && !track?.ambiguous
-        && track?.confidence >= 100 && player && !player.ended && player.readyState >= 2
+        && track?.confidence >= 100 && player && !player.ended && player.readyState >= minimumReadyState
         && Number.isFinite(player.duration) && player.duration > 0
         && Math.abs(player.duration * 1000 - track.metadata?.durationMs) <= 1500
         && this.manualBypass?.trackId !== track.id && this.blockedTrackId !== track.id;
@@ -65,7 +68,11 @@
       if (this.destroyed || this.restorePending) return;
       const operation = this.operation;
       const matching = operation && operation.trackId === this.snapshot?.track?.id && operation.mediaId === this.snapshot?.player?.mediaId;
-      if (!this.eligible() || (operation && !matching)) {
+      // A bound, already guarded master can temporarily have only metadata while
+      // seeking/buffering. Keep the lease and pause replacement; admission still
+      // requires current data, and emptied/changed/ambiguous masters fail open.
+      const minimumReadyState = this.phase === "REPLACEMENT_ACTIVE" && matching ? 1 : 2;
+      if (!this.eligible(this.snapshot, minimumReadyState) || (operation && !matching)) {
         if (operation) this.abort("state-changed");
         return;
       }
@@ -92,15 +99,23 @@
         this.update(guard.snapshot);
         if (!this.current(operation) || !this.eligible()) { this.abort("guard-state-changed"); return; }
         this.phase = "REPLACEMENT_ACTIVE";
+        this.activationCount++;
         this.lastError = null;
         this.log(`REPLACEMENT_ACTIVE · ${operation.trackId}`);
         this.reconcile(true);
       } catch (error) { if (this.current(operation)) this.abort(error.message, true); }
     }
-    abort(reason, blockTrack = false) {
+    abort(reason, blockTrack = false, detail = null) {
       const operation = this.operation;
       if (blockTrack) { this.blockedTrackId = operation?.trackId || this.snapshot?.track?.id; this.lastError = reason; }
       if (!operation) return;
+      this.restoreCount++;
+      this.lastRestore = {
+        reason, detail, requestedAt: Date.now(), trackId: operation.trackId, mediaId: operation.mediaId,
+        detectedTrackId: this.snapshot?.track?.id || null, detectedMediaId: this.snapshot?.player?.mediaId || null,
+        readyState: this.snapshot?.player?.readyState ?? null, seeking: Boolean(this.snapshot?.player?.seeking),
+        snapshotReason: this.snapshot?.reason || null
+      };
       ++this.generation;
       this.operation = null;
       this.phase = "RESTORING";
@@ -123,7 +138,7 @@
     }
     tick() {
       if (!this.bridge.isHealthy() && this.operation) { this.abort("bridge-unhealthy", true); return; }
-      if (this.operation && !this.snapshot.player.paused && !this.snapshot.player.seeking
+      if (this.operation && this.snapshot.player.readyState >= 3 && !this.snapshot.player.paused && !this.snapshot.player.seeking
         && Date.now() - this.snapshot.observedAt > 3000 && !this.environment.document.hidden) {
         this.abort("snapshot-stale", true); return;
       }

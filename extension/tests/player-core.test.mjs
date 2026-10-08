@@ -7,7 +7,7 @@ const core = globalThis.__CELIKOM_PLAYER_CORE_V1__;
 const cases = JSON.parse(await readFile(new URL("./fixtures/yandex-player-cases.json", import.meta.url), "utf8"));
 
 test("production core exposes a versioned closed protocol", () => {
-  assert.equal(core.VERSION, "0.3.1");
+  assert.equal(core.VERSION, "0.3.2");
   assert.equal(core.PROTOCOL_VERSION, 1);
   assert.equal(core.CHANNEL, "CELIKOM_PLAYER_V1");
   assert.equal(Object.isFrozen(core), true);
@@ -89,4 +89,11 @@ test("native player events normalize to the stable PlayerEvent contract", () => 
     assert.equal(core.normalizeNativeEventType(nativeEvent), normalized);
   }
   assert.equal(core.normalizeNativeEventType("canplay"), null);
+});
+
+test("utility media exclusion leaves full-length data audio and short streamed audio available", () => {
+  assert.equal(core.isUtilityMediaCandidate({ tag: "audio", source: "data:audio/wav;base64,fixture", duration: 0.015 }), true);
+  assert.equal(core.isUtilityMediaCandidate({ tag: "audio", source: "data:audio/wav;base64,fixture", duration: NaN }), true);
+  assert.equal(core.isUtilityMediaCandidate({ tag: "audio", source: "data:audio/mp3;base64,fixture", duration: 201 }), false);
+  assert.equal(core.isUtilityMediaCandidate({ tag: "audio", source: "https://strm-rad-24.strm.yandex.net/track", duration: 0.5 }), false);
 });

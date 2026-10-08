@@ -69,6 +69,7 @@ function browserFixture() {
     eventListeners.set(name, listeners);
     const context = vm.createContext({
       URL,
+      Event,
       AbortController,
       fetch: async () => ({ ok: true, blob: async () => new Blob(["synthetic fixture"]) }),
       console,
@@ -252,4 +253,63 @@ test("controller diagnostics still respond when async startup fails", async () =
   const after = await fixture.api.tabs.sendMessage(42, { type: "CELIKOM_CONTROLLER_STATUS_GET" });
   assert.equal(after.status.recentLog.length, before, "reinjection must not flood a failed startup with settings errors");
   vm.runInContext("globalThis.__CELIKOM_CONTENT_CONTROLLER_V2__.destroy()", fixture.worlds.get("ISOLATED"));
+});
+
+test("packaged playback keeps one lease through utility events and metadata-only seek, then fails open on stream rebinding", async () => {
+  const f = browserFixture();
+  const main = f.worlds.get("MAIN"); const isolated = f.worlds.get("ISOLATED");
+  await createControllerBootstrap(f.api, { wait: () => new Promise((resolve) => setTimeout(resolve, 5)) }).ensure(42);
+  try {
+    vm.runInContext("globalThis.original = new HTMLMediaElement(); original.play();", main);
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    f.changeStorage({ testTrackId: { newValue: "1944599" } });
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    const status = async () => (await f.api.tabs.sendMessage(42, { type: "CELIKOM_CONTROLLER_STATUS_GET" })).status;
+    const initial = await status();
+    assert.equal(initial.phase, "REPLACEMENT_ACTIVE", JSON.stringify(initial));
+    const replacement = [...f.elements][0];
+    vm.runInContext("original.pause(); globalThis.utility = new HTMLMediaElement(); utility.src = 'data:audio/wav;base64,fixture'; utility.duration = 0.015; utility.currentTime = 0; utility.play(); utility.pause();", main);
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    let next = await status();
+    assert.equal(next.active?.generation, initial.active.generation, JSON.stringify(next));
+    assert.equal(next.player.mediaId, initial.player.mediaId);
+    const fresh = await vm.runInContext("__CELIKOM_CONTENT_CONTROLLER_V2__.bridge.getSnapshot()", isolated);
+    assert.equal(fresh.player.mediaId, initial.player.mediaId);
+    // Detached, paused utility media may already have been pruned.
+    assert.ok(fresh.mediaCandidates.filter(c => c.duration === 0.015).every(c => c.rejectedReason === "utility-media"));
+    assert.equal(replacement.paused, true); assert.equal(vm.runInContext("original.physicalMuted", main), true);
+    vm.runInContext("original.readyState = 1; original.seeking = true; original.currentTime = 80; original.dispatchEvent(new Event('seeking'));", main);
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    next = await status();
+    assert.equal(next.active?.generation, initial.active.generation, JSON.stringify(next));
+    assert.equal(replacement.paused, true);
+    vm.runInContext("original.seeking = false; original.readyState = 4; original.dispatchEvent(new Event('seeked')); original.play();", main);
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    next = await status();
+    assert.equal(next.active?.generation, initial.active.generation, JSON.stringify(next));
+    assert.equal(next.playback.activationCount, 1); assert.equal(next.playback.restoreCount, 0);
+    assert.equal(replacement.paused, false); assert.equal(f.elements.size, 1);
+
+    // Old metadata may outlive native stream rebinding: restore immediately and
+    // hold this Track ID until a new identity or explicit retry is observed.
+    vm.runInContext("original.src = 'https://strm-fra-04.strm.yandex.net/new?private_signature=secret'; original.dispatchEvent(new Event('loadedmetadata'));", main);
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    next = await status();
+    assert.equal(next.active, null, JSON.stringify(next));
+    assert.equal(next.playback.restoreCount, 1);
+    assert.equal(next.playback.lastRestore.detail.reason, "media-source-changed");
+    assert.equal(vm.runInContext("original.physicalMuted", main), false);
+    assert.equal(replacement.paused, true); assert.equal(f.elements.size, 0);
+    for (const callback of [...f.timers.values()]) callback();
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    next = await status();
+    assert.equal(next.active, null); assert.equal(next.playback.activationCount, 1);
+    assert.equal(JSON.stringify(next).includes("private_signature"), false);
+    assert.equal(JSON.stringify(next).includes("secret"), false);
+    assert.deepEqual(f.errors.map(error => error.message), []);
+  } finally {
+    vm.runInContext("__CELIKOM_CONTENT_CONTROLLER_V2__.destroy()", isolated);
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    vm.runInContext("__CELIKOM_MAIN_BRIDGE_V1__.destroy()", main);
+  }
 });

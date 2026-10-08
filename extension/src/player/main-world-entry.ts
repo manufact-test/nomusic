@@ -33,14 +33,14 @@
     }
   }
 
-  function release(reason, token = null) {
+  function release(reason, token = null, detail = null) {
     const oldToken = guard.current?.token;
     const releasedGeneration = leaseGeneration(token || oldToken);
     if (releasedGeneration) lastReleasedGeneration = Math.max(lastReleasedGeneration, releasedGeneration);
     if (token && guard.current?.token !== token) return { released: false };
     stopReplacement();
     const result = guard.release(token);
-    if (oldToken) post("GUARD_RELEASED", { reason, token: oldToken });
+    if (oldToken) post("GUARD_RELEASED", { reason, token: oldToken, detail });
     if (oldToken && adapter.mounted) post("PLAYER_SNAPSHOT", decorate(adapter.getSnapshot("guard-released")));
     return result;
   }
@@ -63,10 +63,21 @@
     const lease = guard.current;
     if (!lease) return;
     const player = snapshot.player;
-    if (snapshot.track?.id !== lease.trackId || snapshot.track?.ambiguous || player?.mediaId !== lease.mediaId
-      || player?.ended
-      || Math.abs(player.duration * 1000 - snapshot.track.metadata?.durationMs) > 1500) {
-      release("master-binding-changed", lease.token);
+    const element = adapter.getMediaElement(lease.mediaId);
+    let reason = null;
+    if (!snapshot.track?.id) reason = "track-unknown";
+    else if (snapshot.track.ambiguous) reason = "track-ambiguous";
+    else if (snapshot.track.id !== lease.trackId) reason = "track-changed";
+    else if (!element || player?.mediaId !== lease.mediaId) reason = "media-changed";
+    else if ((element.currentSrc || element.src || "") !== lease.source) reason = "media-source-changed";
+    else if (player.ended) reason = "master-ended";
+    else if (!Number.isFinite(player.duration) || player.readyState < 1) reason = "media-emptied";
+    else if (Math.abs(player.duration * 1000 - snapshot.track.metadata?.durationMs) > 1500) reason = "duration-mismatch";
+    if (reason) {
+      release("master-binding-changed", lease.token, {
+        reason, trackId: snapshot.track?.id || null, mediaId: player?.mediaId || null,
+        readyState: player?.readyState ?? null, seeking: Boolean(player?.seeking)
+      });
     }
   }
 
@@ -163,6 +174,8 @@
       guard.engage(element, payload.mediaId, payload.token);
       lastGuardGeneration = generation;
       guard.current.trackId = payload.trackId;
+      // Compare stream identity only inside MAIN; never serialize the raw URL.
+      guard.current.source = element.currentSrc || element.src || "";
       return { guard: guard.state(), snapshot: decorate(adapter.getSnapshot("guard-engaged")) };
     }
     throw new Error(`Unknown bridge request: ${type}`);
