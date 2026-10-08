@@ -13,6 +13,7 @@ const assert = (condition) => { if (!condition) throw new Error('invalid_private
 assert(value && typeof value === 'object' && !Array.isArray(value));
 const fields = {
   inspect: ['operation'],
+  selftest: ['operation', 'track_id'],
   probe: ['operation'],
   import: ['operation', 'track_id', 'duration_ms', 'confirm_reviewed'],
   enable: ['operation', 'track_id'],
@@ -20,7 +21,7 @@ const fields = {
 };
 assert(Object.hasOwn(fields, value.operation));
 assert(Object.keys(value).sort().join('|') === fields[value.operation].sort().join('|'));
-if (value.operation === 'import' || value.operation === 'enable') assert(typeof value.track_id === 'string' && /^[1-9][0-9]{0,23}$/.test(value.track_id));
+if (['import', 'enable', 'selftest'].includes(value.operation)) assert(typeof value.track_id === 'string' && /^[1-9][0-9]{0,23}$/.test(value.track_id));
 if (value.operation === 'import') assert(Number.isSafeInteger(value.duration_ms) && value.duration_ms >= 1000 && value.duration_ms <= 86400000 && value.confirm_reviewed === true);
 console.log('Private operation request validated; no credentials or private filenames are used.');
 VALIDATE
@@ -84,7 +85,7 @@ assert.equal(response.status, 200);
 const result = await response.json();
 assert.equal(result.api_version, 1);
 assert.equal(result.features.analytics, false);
-if (operation === 'enable') assert.equal(result.features.replacements, true);
+if (operation === 'enable' || operation === 'selftest') assert.equal(result.features.replacements, true);
 else assert.equal(result.features.replacements, false);
 console.log('Public HTTPS config matches the requested safe feature state.');
 CHECK
