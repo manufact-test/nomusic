@@ -26,7 +26,7 @@ for (const file of files) await utimes(file, new Date("1980-01-01T00:00:00Z"), n
 await mkdir(output, { recursive: true });
 const name = `celikom-server-${version}.zip`; const archive = path.join(output, name);
 await rm(archive, { force: true });
-const zip = spawnSync("zip", ["-X", "-9", "-q", archive, ...files.map(file => path.relative(stage, file))], { cwd: stage, stdio: "inherit" });
+const zip = spawnSync("zip", ["-X", "-9", "-q", archive, ...files.map(file => path.relative(stage, file))], { cwd: stage, stdio: "inherit", env: { ...process.env, TZ: "UTC" } });
 if (zip.status !== 0) throw new Error("Server package failed");
 const hash = createHash("sha256").update(await readFile(archive)).digest("hex");
 await writeFile(archive + ".sha256", `${hash}  ${name}\n`);

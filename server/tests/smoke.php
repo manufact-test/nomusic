@@ -159,6 +159,22 @@ try {
         }
         unlink($directory . '/linked');
     });
+    run('storage cannot be placed inside the actual hosting document root', function () use ($directory): void {
+        $previous = $_SERVER['DOCUMENT_ROOT'] ?? null;
+        $_SERVER['DOCUMENT_ROOT'] = $directory;
+        try {
+            new LocalStorageAdapter($directory . '/audio');
+            throw new RuntimeException('Public storage accepted');
+        } catch (RuntimeException $error) {
+            expect($error->getMessage() === 'storage_must_be_private', 'Hosting web root rejected');
+        } finally {
+            if ($previous === null) {
+                unset($_SERVER['DOCUMENT_ROOT']);
+            } else {
+                $_SERVER['DOCUMENT_ROOT'] = $previous;
+            }
+        }
+    });
     $batch = [
         'schema_version' => 1, 'installation_id' => '00000000-0000-4000-8000-000000000001',
         'client_version' => '0.4.0', 'platform' => 'chromium', 'events' => [[

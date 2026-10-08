@@ -80,7 +80,8 @@ if (!unpackedOnly) {
   const files = (await walk(unpackedRoot)).map((file) => path.relative(unpackedRoot, file));
   const zipped = spawnSync("zip", ["-X", "-9", "-q", archivePath, ...files], {
     cwd: unpackedRoot,
-    stdio: "inherit"
+    stdio: "inherit",
+    env: { ...process.env, TZ: "UTC" }
   });
   if (zipped.status !== 0) throw new Error("zip failed while building the extension artifact");
 

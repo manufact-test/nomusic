@@ -16,6 +16,8 @@ Authority: master TZ v1.3 and work plan v1.4, Stage 4. This document records imp
 
 Local PHP 8.3 unit tests and compiled extension checks run in the workspace. CI must run MySQL, real PHP HTTP and Chromium; tests fail in CI if DB/browser runtime is missing. Local environments without these runtimes explicitly defer integration checks. The synthetic 1-second WAV is generated at test time, never committed as user music. The old embedded test signal remains developer-only.
 
+Acceptance evidence: [CI run 15](https://github.com/manufact-test/nomusic/actions/runs/37815879164), 2026-10-08, success. It passed 17 PoC tests, 63 production extension tests, PHP unit contracts, seven actual MySQL checks, HTTP byte comparisons and native Chromium decode/seek/play. A later hardening change adds the hosting document-root rejection regression and UTC ZIP timestamps; final head must pass CI again before use.
+
 Headless Chromium allows autoplay for the decoder check. That proves native decode/seek of the actual endpoint, not normal autoplay permission. The fixture origin is explicitly enabled only in APP_ENV=test; production CORS permits only Yandex. Real MP3 codec/seek, HTTPS, server limits, Yandex CSP and normal gestures require Stage 5 on the chosen hosting domain.
 
 Live runbook: `docs/deployment/hostinger-private-test.md`. Stop the gate if drift oscillates, binding-change retries loop or original recovery fails. Keep sanitized diagnostics, use reviewed files with measured durations, and include a 2–3 minute same-track session after seek. No billing/admin/Android completion is inferred from these API tests.
