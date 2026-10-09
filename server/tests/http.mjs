@@ -142,7 +142,8 @@ try {
       mp3Browser.on("close", code => { clearTimeout(deadline); resolve(code); });
     });
     assert.equal(mp3Code, 0);
-    assert.match(mp3Dom, /data-audio-result="ok"/, "Native Chromium could not decode and seek synthetic Stage 7 MP3");
+    const mp3State = mp3Dom.match(/data-audio-result="([^"]+)"/)?.[1] || "missing-state";
+    assert.equal(mp3State, "ok", "Native Chromium MP3 fixture result: " + mp3State);
     console.log("PASS Stage 7 native Chromium decodes, seeks and plays synthetic MP3");
   } else if (process.env.REQUIRE_BROWSER_AUDIO === "1") {
     throw new Error("CI must provide a Chromium binary for native Audio seek");
