@@ -57,6 +57,12 @@ jobs:
           composer --working-dir=server validate --strict
           composer --working-dir=server dump-autoload --no-interaction
 
+      - name: Validate Stage 6 restricted library workflow
+        run: |
+          node --test .github/scripts/tests/hostinger-library-contract.test.mjs
+          node .github/scripts/hostinger-library-contract.mjs
+          bash -n .github/scripts/hostinger-library.sh
+          php -l .github/scripts/hostinger-library-remote.php
       - name: Verify repository
         run: npm run ci
 
