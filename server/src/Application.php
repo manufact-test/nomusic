@@ -8,6 +8,10 @@ use Celikom\Analytics\AnalyticsEventService;
 use Celikom\Analytics\PdoEventRepository;
 use Celikom\Application\AudioTokenService;
 use Celikom\Application\ResolveService;
+use Celikom\Application\UploadService;
+use Celikom\Application\DeferredFingerprintService;
+use Celikom\Application\UploadRateLimiter;
+use Celikom\Application\TrackRequestService;
 use Celikom\Application\ResolveCachePolicy;
 use Celikom\Database\Connection;
 use Celikom\Http\AudioController;
@@ -23,11 +27,11 @@ final class Application
     {
     }
 
-    public function handle(string $method, string $path, array $query = [], array $headers = [], string $body = ''): Response
+    public function handle(string $method, string $path, array $query = [], array $headers = [], string $body = '', array $fields = [], array $files = []): Response
     {
         $headers = array_change_key_case($headers, CASE_LOWER);
         try {
-            $response = $this->route($method, $path, $query, $headers, $body);
+            $response = $this->route($method, $path, $query, $headers, $body, $fields, $files);
         } catch (\InvalidArgumentException) {
             $response = Response::json(400, ['error' => 'invalid_request']);
         } catch (\Throwable) {
@@ -44,7 +48,7 @@ final class Application
         return $response;
     }
 
-    private function route(string $method, string $path, array $query, array $headers, string $body): Response
+    private function route(string $method, string $path, array $query, array $headers, string $body, array $fields, array $files): Response
     {
         if ($method === 'OPTIONS' && str_starts_with($path, '/api/v1/') && in_array($headers['origin'] ?? '', $this->config['allowed_origins'], true)) {
             return new Response(204, ['Access-Control-Allow-Methods' => 'GET, HEAD, POST, OPTIONS', 'Access-Control-Allow-Headers' => 'Authorization, Content-Type, Range', 'Access-Control-Max-Age' => '600']);
@@ -56,7 +60,7 @@ final class Application
             return Response::json(200, [
                 'api_version' => 1,
                 'minimum_extension_version' => $this->config['minimum_extension_version'],
-                'upload_enabled' => false,
+                'upload_enabled' => false, // Public uploads stay disabled until Stage 10.
                 'max_upload_size' => $this->config['max_audio_size'],
                 'allowed_audio_formats' => ['mp3', 'wav'],
                 'maintenance' => false,
@@ -64,6 +68,51 @@ final class Application
                 'resolve_cache_ttl_seconds' => ResolveCachePolicy::positive($this->config['resolve_cache_ttl_seconds'] ?? 120, $this->config['audio_token_ttl']),
                 'negative_cache_ttl_seconds' => ResolveCachePolicy::negative($this->config['negative_cache_ttl_seconds'] ?? 15),
             ]);
+        }
+        if ($method === 'POST' && in_array($path, ['/api/v1/uploads', '/api/v1/track-requests'], true)) {
+            // Separate non-public owner credential: API_TEST_TOKEN is read-only.
+            // No server-side writes are possible until the private gate is explicitly enabled.
+            $secret = (string) ($this->config['owner_upload_token'] ?? '');
+            if (!($this->config['owner_uploads_enabled'] ?? false) || strlen($secret) < 40) {
+                return Response::json(503, ['error' => 'uploads_disabled']);
+            }
+            if (!hash_equals('Bearer ' . $secret, (string) ($headers['authorization'] ?? ''))) {
+                return Response::json(401, ['error' => 'unauthorized']);
+            }
+            $pdo = Connection::open($this->config);
+            $ownerHash = hash('sha256', $secret);
+            $limiter = new UploadRateLimiter($pdo);
+            $isUpload = $path === '/api/v1/uploads';
+            if (!$limiter->check($ownerHash, $isUpload ? 'upload' : 'track_request', $isUpload ? 10 : 20)) {
+                return Response::json(429, ['error' => 'rate_limited']);
+            }
+            if ($isUpload && isset($headers['content-length'])
+                && ctype_digit((string) $headers['content-length'])
+                && (float) $headers['content-length'] > (int) $this->config['max_audio_size'] + 1048576) {
+                return Response::json(413, ['error' => 'upload_too_large']);
+            }
+            if (!str_starts_with(strtolower((string) ($headers['content-type'] ?? '')), 'multipart/form-data')) {
+                return Response::json(415, ['error' => 'multipart_required']);
+            }
+            try {
+                if ($isUpload) {
+                    $data = (new UploadService($pdo, $this->storage(),
+                        (int) $this->config['max_audio_size'], null, new DeferredFingerprintService($pdo)))
+                        ->upload($fields, $files['file'] ?? [], $ownerHash);
+                } else {
+                    $data = (new TrackRequestService($pdo))->submit($fields, $ownerHash);
+                }
+                return Response::json(202, $data);
+            } catch (\LengthException) {
+                return Response::json(413, ['error' => 'upload_too_large']);
+            } catch (\DomainException $error) {
+                $code = $error->getMessage();
+                return Response::json(in_array($code, ['idempotency_conflict', 'already_approved'], true) ? 409 : 415,
+                    ['error' => in_array($code, ['invalid_mp3', 'rights_declaration_required', 'idempotency_conflict', 'already_approved', 'asset_conflict'], true)
+                        ? $code : 'upload_rejected']);
+            } catch (\InvalidArgumentException) {
+                return Response::json(400, ['error' => 'invalid_upload']);
+            }
         }
         if (($method === 'GET' && $path === '/api/v1/resolve') || ($method === 'POST' && $path === '/api/v1/events/batch')) {
             if (!$this->authorized($headers)) {
