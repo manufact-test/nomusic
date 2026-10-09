@@ -609,10 +609,15 @@
     installNetworkHooks() {
       if (!this.nativeHooks.fetch && typeof this.environment.fetch === "function") {
         const adapter = this;
-        this.nativeHooks.fetch = this.environment.fetch;
+        const originalFetch = this.environment.fetch;
+        const lifecycle = { active: true };
+        this.nativeHooks.fetch = originalFetch;
+        this.nativeHooks.fetchLifecycle = lifecycle;
         this.nativeHooks.fetchWrapper = async function celikomObservedFetch(...args) {
-          const response = await Reflect.apply(adapter.nativeHooks.fetch, this, args);
-          adapter.captureJsonResponse(response, "fetch-json");
+          // An external wrapper may retain this function after unmount. Its
+          // original target must never be looked up in a reused hook registry.
+          const response = await Reflect.apply(originalFetch, this, args);
+          if (lifecycle.active) adapter.captureJsonResponse(response, "fetch-json");
           return response;
         };
         this.environment.fetch = this.nativeHooks.fetchWrapper;
@@ -621,15 +626,19 @@
       const prototype = this.environment.XMLHttpRequest?.prototype;
       if (!prototype || this.nativeHooks.xhrOpen) return;
       const adapter = this;
-      this.nativeHooks.xhrOpen = prototype.open;
-      this.nativeHooks.xhrSend = prototype.send;
+      const originalOpen = prototype.open;
+      const originalSend = prototype.send;
+      const lifecycle = { active: true };
+      this.nativeHooks.xhrOpen = originalOpen;
+      this.nativeHooks.xhrSend = originalSend;
+      this.nativeHooks.xhrLifecycle = lifecycle;
       this.nativeHooks.xhrOpenWrapper = function celikomObservedXhrOpen(method, url, ...args) {
-        adapter.safeCall(() => adapter.xhrUrls.set(this, String(url || "")));
-        return Reflect.apply(adapter.nativeHooks.xhrOpen, this, [method, url, ...args]);
+        if (lifecycle.active) adapter.safeCall(() => adapter.xhrUrls.set(this, String(url || "")));
+        return Reflect.apply(originalOpen, this, [method, url, ...args]);
       };
       this.nativeHooks.xhrSendWrapper = function celikomObservedXhrSend(...args) {
-        this.addEventListener("loadend", () => {
-          if (!adapter.isYandexNetworkUrl(adapter.xhrUrls.get(this))) return;
+        if (lifecycle.active) this.addEventListener("loadend", () => {
+          if (!lifecycle.active || !adapter.isYandexNetworkUrl(adapter.xhrUrls.get(this))) return;
           const contentType = adapter.safeCall(() => this.getResponseHeader("content-type"), "") || "";
           if (!/\bjson\b/i.test(contentType)) return;
           try {
@@ -639,13 +648,15 @@
             // Ignore inaccessible or non-JSON responses.
           }
         }, { once: true });
-        return Reflect.apply(adapter.nativeHooks.xhrSend, this, args);
+        return Reflect.apply(originalSend, this, args);
       };
       prototype.open = this.nativeHooks.xhrOpenWrapper;
       prototype.send = this.nativeHooks.xhrSendWrapper;
     }
 
     restoreNetworkHooks() {
+      if (this.nativeHooks.fetchLifecycle) this.nativeHooks.fetchLifecycle.active = false;
+      if (this.nativeHooks.xhrLifecycle) this.nativeHooks.xhrLifecycle.active = false;
       if (this.nativeHooks.fetch && this.environment.fetch === this.nativeHooks.fetchWrapper) {
         this.environment.fetch = this.nativeHooks.fetch;
       }
@@ -656,7 +667,7 @@
       if (prototype && this.nativeHooks.xhrSend && prototype.send === this.nativeHooks.xhrSendWrapper) {
         prototype.send = this.nativeHooks.xhrSend;
       }
-      for (const key of ["fetch", "fetchWrapper", "xhrOpen", "xhrSend", "xhrOpenWrapper", "xhrSendWrapper"]) {
+      for (const key of ["fetch", "fetchWrapper", "fetchLifecycle", "xhrOpen", "xhrSend", "xhrLifecycle", "xhrOpenWrapper", "xhrSendWrapper"]) {
         delete this.nativeHooks[key];
       }
     }
@@ -667,17 +678,20 @@
       const adapter = this;
       for (const name of ["play", "pause", "load"]) {
         if (this.nativeHooks[name] || typeof prototype[name] !== "function") continue;
-        this.nativeHooks[name] = prototype[name];
+        const original = prototype[name];
+        const lifecycle = { active: true };
+        this.nativeHooks[name] = original;
+        this.nativeHooks[`${name}Lifecycle`] = lifecycle;
         this.nativeHooks[`${name}Wrapper`] = function celikomObservedMediaMethod(...args) {
-          if (!adapter.isReplacementElement(this)) {
+          if (lifecycle.active && !adapter.isReplacementElement(this)) {
             adapter.registerMedia(this);
             if (name !== "load") {
               adapter.lastEventElement = this;
               adapter.lastEventAt = adapter.now();
             }
-            adapter.defer(() => adapter.emitSnapshot(`method:${name}`, true));
+            adapter.defer(() => { if (lifecycle.active) adapter.emitSnapshot(`method:${name}`, true); });
           }
-          return Reflect.apply(adapter.nativeHooks[name], this, args);
+          return Reflect.apply(original, this, args);
         };
         prototype[name] = this.nativeHooks[`${name}Wrapper`];
       }
@@ -687,11 +701,13 @@
       const prototype = this.environment.HTMLMediaElement?.prototype;
       if (!prototype) return;
       for (const name of ["play", "pause", "load"]) {
+        if (this.nativeHooks[`${name}Lifecycle`]) this.nativeHooks[`${name}Lifecycle`].active = false;
         if (this.nativeHooks[name] && prototype[name] === this.nativeHooks[`${name}Wrapper`]) {
           prototype[name] = this.nativeHooks[name];
         }
         delete this.nativeHooks[name];
         delete this.nativeHooks[`${name}Wrapper`];
+        delete this.nativeHooks[`${name}Lifecycle`];
       }
     }
 
@@ -701,10 +717,15 @@
       const adapter = this;
       for (const name of ["pushState", "replaceState"]) {
         if (this.nativeHooks[name] || typeof history[name] !== "function") continue;
-        this.nativeHooks[name] = history[name];
+        const original = history[name];
+        const lifecycle = { active: true };
+        this.nativeHooks[name] = original;
+        this.nativeHooks[`${name}Lifecycle`] = lifecycle;
         this.nativeHooks[`${name}Wrapper`] = function celikomObservedHistory(...args) {
-          const result = Reflect.apply(adapter.nativeHooks[name], this, args);
-          adapter.defer(() => adapter.emitSnapshot(`history:${name}`, true));
+          const result = Reflect.apply(original, this, args);
+          if (lifecycle.active) adapter.defer(() => {
+            if (lifecycle.active) adapter.emitSnapshot(`history:${name}`, true);
+          });
           return result;
         };
         history[name] = this.nativeHooks[`${name}Wrapper`];
@@ -715,11 +736,13 @@
       const history = this.environment.history;
       if (!history) return;
       for (const name of ["pushState", "replaceState"]) {
+        if (this.nativeHooks[`${name}Lifecycle`]) this.nativeHooks[`${name}Lifecycle`].active = false;
         if (this.nativeHooks[name] && history[name] === this.nativeHooks[`${name}Wrapper`]) {
           history[name] = this.nativeHooks[name];
         }
         delete this.nativeHooks[name];
         delete this.nativeHooks[`${name}Wrapper`];
+        delete this.nativeHooks[`${name}Lifecycle`];
       }
     }
 
