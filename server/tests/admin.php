@@ -201,12 +201,17 @@ try{
     $requestId=(new TrackRequestService($pdo))->submit([
         'service'=>'yandex','track_id'=>$track,'artist'=>'Synthetic','title'=>'Stage 8'
     ],$ownerHash)['request_id'];
-    run('Stage 8 requested songs are a separate no-MP3 queue',function()use($app,$sessionHeaders,$requestId,$mod,$adminId,$pdo):void{
+    run('Stage 8 requested songs are a separate no-MP3 queue',function()use($app,$sessionHeaders,$requestId,$mod,$adminId,$pdo,$ownerHash,$track):void{
         $view=$app->handle('GET','/admin',['tab'=>'requests'],$sessionHeaders);
         expect($view->status===200 && str_contains($view->body,'https://music.yandex.ru/track/'),'Canonical Yandex link');
         $mod->trackRequest($adminId,(int)$requestId,'reviewed','legal version search planned');
         $st=$pdo->prepare('SELECT status FROM track_requests WHERE id=?');$st->execute([$requestId]);
         expect($st->fetchColumn()==='reviewed','Request reviewed without audio upload');
+        $retry=(new TrackRequestService($pdo))->submit([
+            'service'=>'yandex','track_id'=>$track,'artist'=>'Synthetic','title'=>'Stage 8'
+        ],$ownerHash);
+        expect($retry['request_id']===$requestId && $retry['status']==='reviewed',
+            'Reviewed suggestion stays reviewed on retry');
     });
     run('Stage 8 all committed admin decisions include audit',function()use($pdo,$adminId):void{
         $q=$pdo->prepare('SELECT COUNT(*) FROM audit_log WHERE admin_id=?');$q->execute([$adminId]);
