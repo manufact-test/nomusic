@@ -431,78 +431,151 @@ final class AdminPanel
 
     private function requests(array $admin, string $csrf, array $query): string
     {
-        [$status,$page,$offset,$filter]=$this->queueOptions('requests',$query,['pending','reviewed','rejected']);
-        $stmt=$this->pdo->prepare("SELECT r.id,r.service,r.service_track_id,r.artist,r.title,r.status,r.created_at,
+        [$status,$page,$offset,$filter,$perPage] = $this->queueOptions('requests', $query,
+            ['pending','reviewed','rejected']);
+        $where = $status !== '' ? ' WHERE status = ? ' : ' ';
+        $params = $status !== '' ? [$status] : [];
+        $count = $this->pdo->prepare('SELECT COUNT(*) FROM track_requests ' . $where);
+        $count->execute($params);
+        $total = (int) $count->fetchColumn();
+        $stmt = $this->pdo->prepare("SELECT r.id,r.service,r.service_track_id,r.artist,r.title,r.status,r.created_at,
             (SELECT COUNT(DISTINCT x.uploader_hash) FROM track_requests x
               WHERE x.service = r.service AND x.service_track_id = r.service_track_id) AS proposal_count
-            FROM track_requests r ".($status!==''?' WHERE status = ? ':' ').
-            " ORDER BY FIELD(status,'pending','reviewed','rejected'),id DESC LIMIT 26 OFFSET ".$offset);
-        $stmt->execute($status!==''?[$status]:[]);
-        $rows=$stmt->fetchAll(\PDO::FETCH_ASSOC);
-        $hasNext=count($rows)>25;
-        $rows=array_slice($rows,0,25);
-        $html = '<h2>Предложенные песни · без MP3</h2>'.$filter;
+            FROM track_requests r " . ($status !== '' ? ' WHERE r.status = ? ' : ' ') .
+            " ORDER BY FIELD(r.status,'pending','reviewed','rejected'),r.id DESC LIMIT "
+            . $perPage . " OFFSET " . $offset);
+        $stmt->execute($params);
+        $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+        $html = '<div class="page-head"><div><div class="eyebrow">Обратная связь</div>'
+            . '<h1>Предложения песен</h1><p class="muted">'
+            . 'Запросы на замену без загрузки аудиофайлов и без подтверждения прав на MP3.'
+            . '</p></div></div>' . $filter . '<div class="cards">';
         foreach ($rows as $r) {
-            $id=(int)$r['id'];
-            // Never trust a submitted URL. Build a fixed-host URL from validated exact Track ID.
-            $trackId = (string)$r['service_track_id'];
-            $url = preg_match('/^[1-9]\d{0,23}$/D', $trackId)
-                ? 'https://music.yandex.ru/track/' . $trackId : '';
-            $html .= '<section class="panel"><h3>#'.$id.' · '.self::e($r['artist'])
-                .' — '.self::e($r['title']).'</h3><p>Track ID: '.self::e($trackId)
-                .' · '.self::e($r['status']).' · '.self::e($r['created_at'])
-                .' · Уникальных предложений: '.(int)$r['proposal_count'].'</p>'
-                .($url !== '' ? '<p><a href="'.self::e($url).'" target="_blank" rel="noopener noreferrer">Открыть в Яндекс Музыке</a></p>' : '');
-            if ($r['status']==='pending' && in_array($admin['role'],['owner','moderator'],true)) {
-                $html .= '<form method="post" action="/admin/action"><input type="hidden" name="csrf" value="'.$csrf.'">'
-                    .'<input type="hidden" name="kind" value="track_request"><input type="hidden" name="id" value="'.$id.'">'
-                    .'<label>Результат проверки <input name="reason" required maxlength="500"></label>'
-                    .'<button name="action" value="reviewed">Рассмотрено</button>'
-                    .'<button name="action" value="rejected">Отклонить</button></form>';
+            $id = (int) $r['id'];
+            $trackId = (string) $r['service_track_id'];
+            $html .= '<article class="track-card"><div class="track-top">'
+                . '<div class="track-heading"><span class="track-icon">♫</span><div>'
+                . '<h2 class="track-title">#' . $id . ' · '
+                . self::e(self::displayTitle($r['artist'], $r['title'])) . '</h2>'
+                . '<div class="track-subtitle">Яндекс Музыка · Track ID '
+                . self::e($trackId) . '</div>' . self::yandexLink($trackId)
+                . '</div></div>' . self::statusPill((string) $r['status'])
+                . '</div><div class="track-meta"><span>Уникальных предложений: '
+                . (int) $r['proposal_count'] . '</span><span>Получено: '
+                . self::e($r['created_at']) . ' UTC</span></div>';
+            if ($r['status'] === 'pending' && in_array($admin['role'], ['owner','moderator'], true)) {
+                $html .= '<div class="decision"><form method="post" action="/admin/action">'
+                    . '<input type="hidden" name="csrf" value="' . $csrf . '">'
+                    . '<input type="hidden" name="kind" value="track_request">'
+                    . '<input type="hidden" name="id" value="' . $id . '">'
+                    . '<label class="form-field">Результат проверки'
+                    . '<input name="reason" required maxlength="500" placeholder="Напишите результат"></label>'
+                    . '<button class="primary" name="action" value="reviewed">Отметить рассмотренным</button>'
+                    . '<button class="danger" name="action" value="rejected">Отклонить предложение</button>'
+                    . '</form></div>';
             }
-            $html .= '</section>';
+            $html .= '</article>';
         }
-        return $html.$this->queuePages('requests',$status,$page,$hasNext);
+        if (!$rows) $html .= '<section class="empty"><strong>Предложений пока нет</strong>'
+            . 'Когда пользователи предложат песни, они появятся здесь.</section>';
+        return $html . '</div>' . $this->queuePages('requests', $status, $page, $perPage, $total);
     }
 
     private function reports(array $admin, string $csrf, array $query): string
     {
-        [$status,$page,$offset,$filter]=$this->queueOptions('reports',$query,['pending','reviewed','dismissed']);
-        $stmt=$this->pdo->prepare('SELECT id,replacement_id,category,details,status,created_at FROM reports '
-            .($status!==''?' WHERE status = ? ':' ').' ORDER BY id DESC LIMIT 26 OFFSET '.$offset);
-        $stmt->execute($status!==''?[$status]:[]);
-        $rows=$stmt->fetchAll(\PDO::FETCH_ASSOC);
-        $hasNext=count($rows)>25;
-        $rows=array_slice($rows,0,25);
-        $html='<h2>Жалобы</h2>'.$filter.'<div class="panel"><table><tr><th>ID</th><th>Replacement</th><th>Категория</th><th>Описание</th><th>Статус / решение</th></tr>';
-        foreach($rows as $r) {
-            $html.='<tr><td>'.(int)$r['id'].'</td><td>'.(int)$r['replacement_id']
-                .'</td><td>'.self::e($r['category']).'</td><td>'.self::e($r['details']).'</td><td>'.self::e($r['status']);
-            if($r['status']==='pending' && in_array($admin['role'],['owner','moderator'],true)) {
-                $html.='<form method="post" action="/admin/action"><input type="hidden" name="csrf" value="'.$csrf.'">'
-                    .'<input type="hidden" name="kind" value="report"><input type="hidden" name="id" value="'.(int)$r['id'].'">'
-                    .'<input name="reason" required maxlength="500" placeholder="Результат проверки">'
-                    .'<button name="action" value="reviewed">Рассмотрено</button>'
-                    .'<button name="action" value="dismissed">Отклонить жалобу</button></form>';
+        [$status,$page,$offset,$filter,$perPage] = $this->queueOptions('reports', $query,
+            ['pending','reviewed','dismissed']);
+        $where = $status !== '' ? ' WHERE status = ? ' : ' ';
+        $params = $status !== '' ? [$status] : [];
+        $count = $this->pdo->prepare('SELECT COUNT(*) FROM reports ' . $where);
+        $count->execute($params);
+        $total = (int) $count->fetchColumn();
+        $stmt = $this->pdo->prepare('SELECT id,replacement_id,category,details,status,created_at FROM reports '
+            . $where . ' ORDER BY id DESC LIMIT ' . $perPage . ' OFFSET ' . $offset);
+        $stmt->execute($params);
+        $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+        $html = '<div class="page-head"><div><div class="eyebrow">Обратная связь</div>'
+            . '<h1>Жалобы на версии</h1><p class="muted">'
+            . 'Проверяйте обращения и фиксируйте решения. Жалоба сама не отключает подмену.'
+            . '</p></div></div>' . $filter
+            . '<div class="table-shell"><table><thead><tr><th>Жалоба</th>'
+            . '<th>Версия</th><th>Причина</th><th>Описание</th><th>Статус и решение</th>'
+            . '</tr></thead><tbody>';
+        foreach ($rows as $r) {
+            $category = match ($r['category']) {
+                'wrong_track' => 'Не тот трек', 'bad_quality' => 'Плохое качество',
+                'broken_audio' => 'Проблема с аудио', 'rights' => 'Нарушение прав',
+                'other' => 'Другое', default => 'Неизвестная причина'
+            };
+            $html .= '<tr><td>#' . (int) $r['id'] . '<div class="muted">'
+                . self::e($r['created_at']) . ' UTC</div></td>'
+                . '<td>№ ' . (int) $r['replacement_id'] . '</td>'
+                . '<td>' . self::e($category) . '</td>'
+                . '<td>' . self::e($r['details']) . '</td><td>'
+                . self::statusPill((string) $r['status']);
+            if ($r['status'] === 'pending' && in_array($admin['role'], ['owner','moderator'], true)) {
+                $html .= '<form method="post" action="/admin/action">'
+                    . '<input type="hidden" name="csrf" value="' . $csrf . '">'
+                    . '<input type="hidden" name="kind" value="report">'
+                    . '<input type="hidden" name="id" value="' . (int) $r['id'] . '">'
+                    . '<input name="reason" required maxlength="500" aria-label="Результат проверки"'
+                    . ' placeholder="Результат проверки">'
+                    . '<button class="primary" name="action" value="reviewed">Рассмотрено</button>'
+                    . '<button name="action" value="dismissed">Отклонить жалобу</button></form>';
             }
-            $html.='</td></tr>';
+            $html .= '</td></tr>';
         }
-        return $html.'</table></div>'.$this->queuePages('reports',$status,$page,$hasNext);
+        if (!$rows) $html .= '<tr><td colspan="5" class="muted">Жалоб с таким статусом нет.</td></tr>';
+        return $html . '</tbody></table></div>'
+            . $this->queuePages('reports', $status, $page, $perPage, $total);
     }
 
-    private function auditLog(): string
+    private function auditLog(array $query): string
     {
-        $rows=$this->pdo->query('SELECT l.created_at,a.login,l.action,l.entity_type,l.entity_id,l.reason
-            FROM audit_log l JOIN admins a ON a.id=l.admin_id ORDER BY l.id DESC LIMIT 100')
-            ->fetchAll(\PDO::FETCH_ASSOC);
-        $html='<h2>Журнал действий</h2><div class="panel"><table><tr><th>Когда</th><th>Кто</th><th>Действие</th><th>Объект</th><th>Причина</th></tr>';
-        foreach($rows as $r) $html.='<tr><td>'.self::e($r['created_at']).'</td><td>'.self::e($r['login'])
-            .'</td><td>'.self::e($r['action']).'</td><td>'.self::e($r['entity_type']).' #'.(int)$r['entity_id']
-            .'</td><td>'.self::e($r['reason']).'</td></tr>';
-        return $html.'</table></div>';
+        $p = $query['page'] ?? '1';
+        $page = is_string($p) && preg_match('/^[1-9]\d{0,2}$/D', $p) ? (int) $p : 1;
+        $perPage = $this->pageSize($query);
+        $offset = ($page - 1) * $perPage;
+        $total = (int) $this->pdo->query('SELECT COUNT(*) FROM audit_log')->fetchColumn();
+        $stmt = $this->pdo->query('SELECT l.created_at,a.login,a.role,l.action,l.entity_type,l.entity_id,l.reason
+            FROM audit_log l JOIN admins a ON a.id=l.admin_id ORDER BY l.id DESC LIMIT '
+            . $perPage . ' OFFSET ' . $offset);
+        $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+        $html = '<div class="page-head"><div><div class="eyebrow">Контроль</div>'
+            . '<h1>Журнал действий</h1><p class="muted">'
+            . 'История решений модераторов. Записи нельзя изменять из панели.</p></div></div>'
+            . '<div class="toolbar"><form method="get" action="/admin">'
+            . '<input type="hidden" name="tab" value="audit">'
+            . '<label class="form-field">На странице<select name="per_page">';
+        foreach ([10,25,50] as $size) {
+            $html .= '<option value="' . $size . '"' . ($size === $perPage ? ' selected' : '')
+                . '>' . $size . ' записей</option>';
+        }
+        $html .= '</select></label><button type="submit">Применить</button></form></div>'
+            . '<div class="table-shell"><table><thead><tr><th>Время (UTC)</th>'
+            . '<th>Сотрудник</th><th>Действие</th><th>Объект</th><th>Комментарий</th>'
+            . '</tr></thead><tbody>';
+        foreach ($rows as $r) {
+            $role = match ($r['role']) {
+                'owner' => 'Владелец','moderator' => 'Модератор',
+                'viewer' => 'Наблюдатель',default => 'Сотрудник'
+            };
+            $object = match ($r['entity_type']) {
+                'track_replacement' => 'Версия', 'track_request' => 'Предложение',
+                'report' => 'Жалоба', 'admin' => 'Администратор',
+                default => 'Объект'
+            };
+            $html .= '<tr><td>' . self::e($r['created_at']) . '</td><td>'
+                . self::e($role) . '</td><td>' . self::e(self::actionLabel((string)$r['action']))
+                . '</td><td>' . self::e($object) . ' № ' . (int) $r['entity_id']
+                . '</td><td>' . self::e($r['reason']) . '</td></tr>';
+        }
+        if (!$rows) $html .= '<tr><td colspan="5" class="muted">Записей пока нет.</td></tr>';
+        return $html . '</tbody></table></div>'
+            . $this->queuePages('audit', '', $page, $perPage, $total);
     }
 
-    /** Real period comparisons only; account/billing counters are intentionally unavailable. */
+    /** Real period comparisons only; account and payment counters are intentionally unavailable. */
     private function overview(array $query): string
     {
         $to = is_string($query['to'] ?? null) && preg_match('/^\d{4}-\d{2}-\d{2}$/D',$query['to'])
@@ -531,7 +604,8 @@ final class AdminPanel
             return $ret;
         };
         $date=function(\DateTimeImmutable $d):string{return $d->format('Y-m-d H:i:s');};
-        $html='<h2>Операционный обзор</h2><section class="panel"><form method="get" action="/admin">'
+        $html='<div class="page-head"><div><div class="eyebrow">Статистика</div><h1>Операционный обзор</h1>'
+            .'<p class="muted">Показатели на основе фактических данных</p></div></div><section class="panel"><form method="get" action="/admin">'
             .'<input type="hidden" name="tab" value="overview"><label>От <input type="date" name="from" value="'.self::e($from).'"></label>'
             .'<label>До <input type="date" name="to" value="'.self::e($to).'"></label>'
             .'<button type="submit">Показать</button></form>'
@@ -542,7 +616,7 @@ final class AdminPanel
             $prior=$counts($table,$date($beforeStart),$date($start));
             foreach(['pending','approved','rejected','disabled','reviewed'] as $status){
                 if(!isset($now[$status])&&!isset($prior[$status]))continue;
-                $html.='<tr><td>'.self::e($label.' / '.$status).'</td><td>'.($now[$status]??0)
+                $html.='<tr><td>'.self::e($label.' / '.self::statusLabel($status)).'</td><td>'.($now[$status]??0)
                     .'</td><td>'.($prior[$status]??0).'</td></tr>';
             }
         }
@@ -559,7 +633,7 @@ final class AdminPanel
         }else{
             $html.='<p>Агрегированная аналитика: данных за период нет. Нули не подставляются.</p>';
         }
-        $html.='<p><small>Новые/возвращающиеся пользователи и платежи появятся только с аккаунтами и billing на последующих этапах.</small></p>';
+        $html.='<p><small>Новые и возвращающиеся пользователи, а также платежи появятся после внедрения аккаунтов и подписок.</small></p>';
         return $html;
     }
 
