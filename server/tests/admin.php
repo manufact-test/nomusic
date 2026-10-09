@@ -188,6 +188,30 @@ try{
             && str_contains($view->body,'Подтвердить отклонение'),
             'Separate final confirmation steps');
     });
+
+    run('Stage 8 two-step approval audits optional comments and blocks missing rights',function()
+        use($pdo,$track,$assetId,$app,$csrf,$actionHeaders,$sessionHeaders,$catalog):void{
+        $trackName=$track.'74';
+        $pdo->prepare('INSERT INTO tracks(service,service_track_id,artist,title,duration_ms) VALUES(?,?,?,?,?)')
+            ->execute(['yandex',$trackName,'CI','Two step approval',2612]);
+        $trackDb=(int)$pdo->lastInsertId();
+        $pdo->prepare("INSERT INTO track_replacements(track_id,audio_asset_id,status,is_active) VALUES(?,?,'pending',0)")
+            ->execute([$trackDb,$assetId]);
+        $id=(int)$pdo->lastInsertId();
+        $payload=['csrf'=>$csrf,'kind'=>'replacement','id'=>(string)$id,'expected_active'=>'0',
+            'decision'=>'approval','action'=>'approve','review_note'=>'Комментарий после проверки'];
+        expect($app->handle('POST','/admin/action',headers:$actionHeaders,body:http_build_query($payload))->status===409,
+            'Checkbox mandatory server-side');
+        expect($catalog->findActive('yandex',$trackName)===null,'Not approved until rights confirmed');
+        $payload['rights_confirmed']='1';
+        expect($app->handle('POST','/admin/action',headers:$actionHeaders,body:http_build_query($payload))->status===303,
+            'Final approval accepted');
+        expect((int)$catalog->findActive('yandex',$trackName)['replacement_id']===$id,'Activated');
+        $card=$app->handle('GET','/admin',['tab'=>'uploads','status'=>'approved'],$sessionHeaders);
+        $journal=$app->handle('GET','/admin',['tab'=>'audit'],$sessionHeaders);
+        expect(str_contains($card->body,'Комментарий после проверки') && str_contains($journal->body,'Комментарий после проверки'),
+            'Comment shown in card and journal');
+    });
     run('Stage 8 admin audio: only session may stream pending with Range',function()use($app,$candidate,$sessionHeaders):void{
         $resp=$app->handle('GET','/admin/audio/'.$candidate,headers:$sessionHeaders+['Range'=>'bytes=0-3']);
         expect($resp->status===206 && bytes($resp)===hex2bin('fffb9064'),'Private Range playback');
