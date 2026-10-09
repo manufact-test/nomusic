@@ -1,5 +1,5 @@
 {
   "environment": "hostinger-private-test",
-  "request": "repeat-stage5-after-verified-private-snapshot-and-isolated-restore-2026-10-09",
+  "request": "owner-approved-stage6-7-private-server-upgrade-after-fresh-snapshot-and-restored-mysql-2026-10-09",
   "replacements": "preserve-existing-approved-audio-and-runtime-flags"
 }
