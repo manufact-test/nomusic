@@ -25,7 +25,7 @@ function callAuth(Application $app, string $method, string $endpoint, array $inp
 {
     $result = $app->handle($method, '/api/v1/auth/' . $endpoint, [],
         ['Content-Type' => 'application/json', 'Authorization' => 'Bearer ' . $access],
-        $method === 'GET' ? '' : json_encode($input, JSON_THROW_ON_ERROR));
+        $method === 'GET' ? '' : json_encode((object)$input, JSON_THROW_ON_ERROR));
     return [$result->status, json_decode($result->body, true, flags: JSON_THROW_ON_ERROR)];
 }
 run('Stage9 auth OFF by default and independent of admin/resolve', function () use ($config): void {
