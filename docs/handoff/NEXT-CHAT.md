@@ -10,9 +10,9 @@ Evidence: [Chrome private build](https://github.com/manufact-test/nomusic/action
 
 **Remaining Stage 9 gate:** security and owner acceptance for switching `FEATURE_USER_AUTH` ON in a closed test, live registration/login and account panel UX, two-device live session/revoke regression if needed. Account status administration and long-term email recovery/verification need separate deliberate scope decisions; do not claim them completed. **Do not start Stage 10 yet.** PR #6 OPEN/unmerged, Issue #7 OPEN. Mandatory Stage 10 public `Предложить песню` beside `Загрузить версию`: exact Track ID, NO MP3 or audio-rights checkbox. See `docs/deployment/stage9-auth-rollout.md`.
 
-> **START HERE — 10.10.2026: ЭТАП 8 ОФИЦИАЛЬНО ЗАКРЫТ; НАЧИНАЕМ ЭТАП 9 В НОВОМ ЧАТЕ.** Мастер-ТЗ v1.5 (Приложение H) и План работ MVP v1.6 (раздел 14) актуализированы и лежат в Library /CELIKOM. Первый шаг нового чата: проверить HEAD GitHub и составить Stage 9 technical plan, затем автономная поэтапная реализация. Не повторять Stage 8; PR #6 OPEN/UNMERGED и Issue #7 OPEN. Не пропустить Stage 10 публичную кнопку «Предложить песню» без MP3/rights-checkbox.
+> **АРХИВ ПЕРЕДАЧИ ЭТАПА 8:** Следующий текст описывает состояние ДО реализации Stage 9. Актуальный Status Stage 9 — в разделе выше.
 
-## Stage 9 CURRENT START POINT — 10.10.2026 (overrides dated Stage 8 instructions below)
+## Архив: Stage 9 первоначальная точка старта (до реализации)
 
 Stage 8 DONE / owner accepted. Last cosmetic polish removed the duplicate `Выберите причину` placeholder from the rejection dropdown choices while retaining it as the initially displayed prompt. `selected disabled hidden` plus `option[hidden]` scoped custom-picker CSS. [CI PASS](https://github.com/manufact-test/nomusic/actions/runs/37996852645), [16-table+5-audio backup](https://github.com/manufact-test/nomusic/actions/runs/37996978409), [isolated recovery](https://github.com/manufact-test/nomusic/actions/runs/37997098934), [protected deploy](https://github.com/manufact-test/nomusic/actions/runs/37997208947), [original media and DB integrity audit](https://github.com/manufact-test/nomusic/actions/runs/37997432216) PASS. Active release `0.4.4-495351f7697c2865e92053ffe860e426c6e96842`. No real song moderation or mapping changes.
 
