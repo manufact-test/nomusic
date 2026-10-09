@@ -51,9 +51,9 @@ try {
         $bytes = file_get_contents($path);
         $cases = [
             'truncated' => substr($bytes, 0, -80),
-            'corrupted-middle' => substr_replace($bytes, str_repeat("\\0", 417), 417 * 50, 417),
+            'corrupted-middle' => substr_replace($bytes, str_repeat("\0", 417), 417 * 50, 417),
             'fake-trailing-payload' => $bytes . '<?php harmless syntax text ?>',
-            'invalid-id3-size' => "ID3\\x04\\x00\\x00\\xff\\xff\\xff\\xff" . $bytes,
+            'invalid-id3-size' => "ID3\x04\x00\x00\xff\xff\xff\xff" . $bytes,
         ];
         foreach ($cases as $label => $damaged) {
             $tmp = tempnam(sys_get_temp_dir(), 'celikom-mp3-');
@@ -62,8 +62,8 @@ try {
             finally { unlink($tmp); }
         }
         $tagged = tempnam(sys_get_temp_dir(), 'celikom-id3-');
-        file_put_contents($tagged, "ID3\\x04\\x00\\x00\\x00\\x00\\x00\\x10"
-            . str_repeat("\\0", 16) . $bytes . 'TAG' . str_repeat("\\0", 125));
+        file_put_contents($tagged, "ID3\x04\x00\x00\x00\x00\x00\x10"
+            . str_repeat("\0", 16) . $bytes . 'TAG' . str_repeat("\0", 125));
         try { expect($inspector->durationMs($tagged) === 2612, 'Standard ID3 tags accepted'); }
         finally { unlink($tagged); }
     });
