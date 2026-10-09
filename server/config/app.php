@@ -24,6 +24,8 @@ return [
     'owner_upload_token' => $value('UPLOAD_OWNER_TOKEN'),
     'owner_uploads_enabled' => $boolean('FEATURE_OWNER_UPLOADS'),
     'admin_enabled' => $boolean('FEATURE_ADMIN'),
+    'owner_reports_enabled' => $boolean('FEATURE_OWNER_REPORTS'),
+    'owner_report_token' => $value('REPORT_OWNER_TOKEN'),
     'api_enabled' => $boolean('FEATURE_REPLACEMENTS'),
     'analytics_enabled' => $boolean('FEATURE_ANALYTICS'),
     'analytics_privacy_key' => $value('ANALYTICS_PRIVACY_KEY'),
