@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
-import { access, mkdtemp, writeFile, rm } from "node:fs/promises";
+import { access, mkdtemp, readFile, rm } from "node:fs/promises";
 import { createServer } from "node:net";
 import path from "node:path";
 import os from "node:os";
@@ -18,12 +18,11 @@ const scratch = await mkdtemp(path.join(os.tmpdir(), "celikom-stage7-http-"));
 const mp3Path = path.join(scratch, "tone.mp3");
 const ffmpeg = spawnSync("ffmpeg", ["-hide_banner", "-loglevel", "error", "-f", "lavfi",
   "-i", "sine=frequency=440:duration=2.5", "-ac", "2", "-ar", "44100",
-  "-c:a", "libmp3lame", "-b:a", "128k", "-f", "mp3", "pipe:1"],
+  "-c:a", "libmp3lame", "-b:a", "128k", "-f", "mp3", "-y", mp3Path],
   { maxBuffer: 1024 * 1024 });
 assert.equal(ffmpeg.status, 0, "Stage 7 CI needs FFmpeg for disposable, playable MP3 media");
-const syntheticMp3 = Buffer.from(ffmpeg.stdout);
+const syntheticMp3 = await readFile(mp3Path);
 assert.ok(syntheticMp3.length > 1024 && syntheticMp3.length < 31457280);
-await writeFile(mp3Path, syntheticMp3);
 const accessToken = randomBytes(24).toString("hex");
 const ownerUploadToken = randomBytes(40).toString("hex");
 const server = spawn("php", ["-S", `127.0.0.1:${port}`, "-t", path.join(root, "public"), path.join(root, "tests/http-router.php")], {
