@@ -164,6 +164,7 @@ uploadForm?.addEventListener("submit", async (event) => {
   uploadMessage("Проверяем трек и отправляем файл…", "checking");
 
   let origin: string;
+  let transferStarted = false;
   try {
     const now = uploadTargetFromStatus(await send<ExtensionState>({ type: COMMANDS.getStatus }));
     if (!now || now.id !== pinnedTrack.id) {
@@ -231,12 +232,13 @@ uploadForm?.addEventListener("submit", async (event) => {
       if (uploadButton) { uploadButton.textContent = "Повторить отправку"; uploadButton.disabled = false; }
     });
     xhr.send(data);
+    transferStarted = true;
   } catch (_error) {
     uploadMessage("Не удалось связаться с сервером. Повторите попытку.", "error");
   } finally {
     // The request completion handler is responsible for re-enabling the button
     // after xhr.send(). An early exit must never leave the UI stuck.
-    if (uploadStatus?.dataset.kind !== "checking" || !uploadProgress || uploadProgress.hidden) {
+    if (!transferStarted) {
       uploading = false;
       if (uploadButton && uploadForm && !uploadForm.hidden) {
         uploadButton.disabled = false;
