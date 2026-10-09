@@ -12,9 +12,21 @@ test("Stage7 upload accepts only confident exact currently observed track", () =
     assert.equal(uploadTargetFromStatus(state(bad)), null);
   }
   assert.equal(uploadTargetFromStatus(state("144530503", 50)), null);
+  assert.equal(uploadTargetFromStatus(state("144530503", undefined)), null);
+  assert.equal(uploadTargetFromStatus(state("144530503", NaN)), null);
+  assert.equal(uploadTargetFromStatus({track:{id:"144530503",confidence:200,metadata:{durationMs:180872}}}), null);
+  assert.equal(uploadTargetFromStatus({track:{id:"144530503",confidence:200,ambiguous:"false",metadata:{durationMs:180872}}}), null);
   assert.equal(uploadTargetFromStatus(state("144530503", 240, true)), null);
   assert.equal(uploadTargetFromStatus(state("144530503", 240, false, 0)), null);
   assert.equal(uploadTargetFromStatus(null), null);
+});
+test("Stage7 malformed media metadata cannot become multipart object strings", () => {
+  const input = state("144530503");
+  input.track.metadata.artist = {toString(){ throw new Error("untrusted"); }};
+  input.track.metadata.title = "z".repeat(2000);
+  const target = uploadTargetFromStatus(input);
+  assert.equal(target.artist, "");
+  assert.equal(target.title.length, 240);
 });
 test("Stage7 file chooser validates size and suffix; server still validates bytes", () => {
   assert.equal(validMp3Selection({ name: "track.MP3", size: 2048 }), true);
