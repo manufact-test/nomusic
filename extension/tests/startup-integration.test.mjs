@@ -20,6 +20,7 @@ function browserFixture() {
   const timers = new Map();
   const elements = new Set();
   const stored = { enabled: true, testTrackId: "" };
+  let installedWorkerAlive = true;
   const document = {
     documentElement: { dataset: {}, append: (element) => { elements.add(element); element.isConnected = true; } },
     hidden: false,
@@ -46,7 +47,13 @@ function browserFixture() {
     remove() { elements.delete(this); this.isConnected = false; }
   }
   const runtime = {
-    sendMessage: async () => ({ ok: true, configured: false, asset: { found: false, retryAfterMs: 60000 } }),
+    sendMessage: async (message) => {
+      if (message?.type === "CELIKOM_CONTEXT_PING") {
+        if (!installedWorkerAlive) throw new Error("Extension context invalidated");
+        return { ok: true, version: manifest.version };
+      }
+      return { ok: true, configured: false, asset: { found: false, retryAfterMs: 60000 } };
+    },
     getManifest: () => manifest,
     getURL: (file) => `chrome-extension://test/${file}`,
     onMessage: {
@@ -143,7 +150,8 @@ function browserFixture() {
     for (const [key, change] of Object.entries(changes)) stored[key] = change.newValue;
     for (const listener of storageListeners) listener(changes, "local");
   };
-  return { api, worlds, runtimeListeners, storageListeners, errors, timers, changeStorage, elements };
+  return { api, worlds, runtimeListeners, storageListeners, errors, timers, changeStorage, elements,
+    disableInstalledWorker: () => { installedWorkerAlive = false; } };
 }
 
 test("packaged MAIN + ISOLATED scripts bootstrap an already-open tab end to end", async () => {
@@ -311,6 +319,37 @@ test("packaged playback keeps one lease through utility events and metadata-only
   } finally {
     vm.runInContext("__CELIKOM_CONTENT_CONTROLLER_V2__.destroy()", isolated);
     await new Promise((resolve) => setTimeout(resolve, 5));
+    vm.runInContext("__CELIKOM_MAIN_BRIDGE_V1__.destroy()", main);
+  }
+});
+
+test("live replacement restores original on extension disable even while stale isolated timers keep running", async () => {
+  const f = browserFixture();
+  const main = f.worlds.get("MAIN"), isolated = f.worlds.get("ISOLATED");
+  await createControllerBootstrap(f.api, { wait: () => new Promise(resolve => setTimeout(resolve, 5)) }).ensure(42);
+  try {
+    vm.runInContext("globalThis.original = new HTMLMediaElement(); original.play();", main);
+    await new Promise(resolve => setTimeout(resolve, 5));
+    f.changeStorage({ testTrackId: { newValue: "1944599" } });
+    await new Promise(resolve => setTimeout(resolve, 5));
+    const replacement = [...f.elements][0];
+    assert.equal(vm.runInContext("original.physicalMuted", main), true);
+    assert.equal(replacement.paused, false);
+    // Simulate Chrome being disabled while an existing content script can still
+    // call its timers (the user's observed case); only background is invalidated.
+    f.disableInstalledWorker();
+    for (let i = 0; i < 2; i++) {
+      vm.runInContext("__CELIKOM_CONTENT_CONTROLLER_V2__.bridge.heartbeat()", isolated);
+      await new Promise(resolve => setTimeout(resolve, 5));
+    }
+    assert.equal(vm.runInContext("original.physicalMuted", main), false,
+      "original audio must immediately recover when installed worker disappears");
+    assert.equal(replacement.paused, true, "replacement is silent");
+    assert.equal(replacement.muted, true, "replacement cannot keep playing over original");
+    assert.equal(vm.runInContext("__CELIKOM_CONTENT_CONTROLLER_V2__.destroyed", isolated), true);
+    assert.deepEqual(f.errors.map(error => error.message), []);
+  } finally {
+    vm.runInContext("__CELIKOM_CONTENT_CONTROLLER_V2__.destroy()", isolated);
     vm.runInContext("__CELIKOM_MAIN_BRIDGE_V1__.destroy()", main);
   }
 });
