@@ -49,10 +49,10 @@ jobs:
           php-version: "8.3"
           extensions: pdo_mysql, fileinfo
           coverage: none
-      - name: Install CI-only MP3 encoder
+      - name: Verify hosted runner MP3 encoder
         run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y --no-install-recommends ffmpeg
+          command -v ffmpeg
+          ffmpeg -hide_banner -encoders | grep -F libmp3lame
       - name: Run complete disposable upload and browser regression
         run: |
           npm ci
