@@ -31,6 +31,8 @@ export interface ExtensionState {
     metadata?: {
       title?: string;
       artist?: string;
+      album?: string;
+      durationMs?: number;
     };
   } | null;
   bridge?: {
