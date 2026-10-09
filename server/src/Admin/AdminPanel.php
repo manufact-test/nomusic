@@ -30,7 +30,8 @@ final class AdminPanel
                     || !hash_equals($nonce, $form['csrf'])) {
                     return $this->page('<h1>Сессия входа истекла</h1><p><a href="/admin/login">Повторить вход</a></p>', status: 403);
                 }
-                $result = $auth->login((string)($form['login'] ?? ''), (string)($form['password'] ?? ''),
+                $result = $auth->login(is_string($form['login'] ?? null) ? $form['login'] : '',
+                    is_string($form['password'] ?? null) ? $form['password'] : '',
                     (string)($_SERVER['REMOTE_ADDR'] ?? 'unknown'));
                 if ($result === null) return $this->page('<h1>Вход не выполнен</h1><p><a href="/admin/login">Попробовать снова</a></p>', status: 401);
                 return new Response(303, ['Location'=>'/admin',
