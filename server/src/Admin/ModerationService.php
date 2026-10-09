@@ -18,7 +18,7 @@ final class ModerationService
     {
         if ($adminId < 1 || $id < 1 || $expectedActive < 0
             || !in_array($action, ['approve','reject','duplicate','wrong_track','bad_quality','disable'], true)
-            || mb_strlen($reason) > 500 || ($action !== 'approve' && trim($reason) === '')) {
+            || strlen($reason) > 500 || ($action !== 'approve' && trim($reason) === '')) {
             throw new \InvalidArgumentException('invalid_moderation_action');
         }
         if ($action === 'approve' && (!$rightsConfirmed || trim($reason) === '')) {
