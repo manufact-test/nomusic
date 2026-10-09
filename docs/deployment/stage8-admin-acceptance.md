@@ -1,6 +1,13 @@
 # CELIKOM — Stage 8 private moderation acceptance and rollback
 
-Status 2026-10-09: **DEPLOYED on Hostinger private test; technical/backup/restore gates PASS; Stage 8.7 owner manual UI acceptance PENDING**. Historical preparation steps below record safeguards, not outstanding deployment permission. Branch `feature/api-range`; master authorities: CELIKOM Master TZ MVP v1.5 (Appendix G), Work Plan MVP v1.6 (Section 13). Stage 7 owner acceptance remains final.
+Status 2026-10-10: **STAGE 8 OWNER ACCEPTED & CLOSED**. Owner explicitly allowed closure without further manual UI verification after final picker cosmetic fix. Technical gates PASS; Stage 9 paused until separate owner-requested document work. Historical deployment instructions below are reference only; do not re-run acceptance or change real tracks. Branch `feature/api-range`; PR #6 OPEN/UNMERGED and Issue #7 OPEN.
+
+
+## Formal Stage 8 closure (10.10.2026)
+
+Owner accepted the admin UI and authorized closing Stage 8 without repeat manual checks. Final change: rejection reason selector styled in CELIKOM mint using customizable native `select` CSS on compatible Chromium, with fallback and no outer focus halo. It does **not** alter approval/rejection rules, rights checks or audio. [Final gated deploy PASS](https://github.com/manufact-test/nomusic/actions/runs/37995952723), [pre-deploy backup](https://github.com/manufact-test/nomusic/actions/runs/37995694271), [isolated recovery PASS](https://github.com/manufact-test/nomusic/actions/runs/37995808661), [read-only postdeploy audit PASS](https://github.com/manufact-test/nomusic/actions/runs/37996133162). All original data and five audio hashes unchanged. Release: `0.4.4-6121a91b570e384095d65c9f9562347eb735e967`.
+
+**Do not begin Stage 9 until after the user's document task is handled.** Stage 10 public `Предложить песню` remains a required MVP feature; no audio / rights checkbox on a mere suggestion. Keep admin credentials private. No live moderation actions performed in closeout.
 
 ## Deployment verified on 2026-10-09
 
