@@ -24,7 +24,7 @@ Updated: 2026-10-09. Source of live results: owner's direct testing in Chrome/Ya
 
 For failures ask only for developer **Copy diagnostics** JSON from the active Yandex Music tab (never include `Authorization`, `API_TEST_TOKEN`, or signed `audio_url?token=...`). Playback counter changes after explicit control/track changes are expected; unexplained same-ID restores are not.
 
-## 2026-10-09: mandatory emergency-disable regression — BLOCKED pending fix verification
+## 2026-10-09: historical 0.4.3 emergency-disable regression — FIXED in 0.4.4
 
 The owner passed five of six extended live stability checks in 0.4.3:
 continuous playback, page refresh, rapid next/previous, 30–60s background tab, manual return-original persistence.
@@ -34,6 +34,14 @@ continuous playback, page refresh, rapid next/previous, 30–60s background tab,
 Cause indicated by code review: MAIN-world watchdog accepted `HEARTBEAT` from an injected ISOLATED-world script without confirming the actual enabled extension worker. After disabling, stale content timers can remain alive, preventing the 12s/120s watchdog from expiring. MAIN also renewed the lease on generic messages, not just heartbeats. The proposed **0.4.4** patch validates each heartbeat with `CELIKOM_CONTEXT_PING` answered by the real service worker, stops and releases after two misses and prevents generic messages from renewing the lease. Automated regression simulates worker gone while ISOLATED-world script timers still run.
 
 Acceptance condition (must be retested by owner, not inferred from tests): on real MP3, switching the extension off restores original and stops alternate audio automatically, with no page reload or permanent mute. After re-enable and page refresh, normal exact-ID replacement still works. Also recheck 30–60s background playback so liveness polling doesn't falsely abort. Keep Stage 5 open until this passes.
+
+## 2026-10-09: 0.4.4 owner retest — LIVE BROWSER GATE ACCEPTED
+
+The owner clarified that the apparent pause on disabling was normal playback-control behavior, **not** a stuck mute or irrecoverable original. The original track, pause, seeking and all other controls worked correctly. The extension-disable fail-open was confirmed fixed with CELIKOM 0.4.4. The owner reports all other scenarios operate correctly: **6/6 initial smoke and 6/6 extended live tests accepted**. Previous 0.4.3 failure is historical and superseded by this retest.
+
+**Known acceptable MVP limitation:** after disabling CELIKOM in `chrome://extensions/` and later re-enabling it, an already-open Yandex Music tab may lack the content-script controller. Pressing Start/Stop before refreshing yields a misleading "Open Yandex Music" / unsupported-page message; refresh Yandex Music once to inject scripts and reconnect. Record as UX enhancement (automatic reinjection/reconnection after re-enable); no further owner-side retesting required for this MVP gate.
+
+**Status:** real Chrome+Hostinger MP3 integration/live playback accepted. Remaining Stage 5 work is operational and infrastructure-related; client release not authorized.
 
 ## Remaining infrastructure gates
 
