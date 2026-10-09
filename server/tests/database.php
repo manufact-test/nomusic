@@ -8,6 +8,7 @@ use Celikom\Application;
 use Celikom\Application\TestAudioImporter;
 use Celikom\Application\AudioTokenService;
 use Celikom\Application\ResolveService;
+use Celikom\Application\LibraryManagementService;
 use Celikom\Analytics\AnalyticsEventService;
 use Celikom\Analytics\AnalyticsQueryService;
 use Celikom\Analytics\PdoEventRepository;
@@ -124,6 +125,83 @@ try {
         expect((int) $catalog->findActive('yandex', '1944599')['replacement_id'] === $candidate, 'Explicit selection');
         expect((int) $catalog->findActive('yandex', '999')['replacement_id'] === (int) $other['replacement_id'], 'Other Track unchanged');
         expect((int) $pdo->query('SELECT COUNT(*) FROM audio_assets')->fetchColumn() === 1, 'No extra file');
+    });
+    run('Stage 6 manager: owner-reviewed asset registration, pending link and explicit approval', function () use ($pdo, $catalog, $storage, $file): void {
+        $manager = new LibraryManagementService($pdo, $storage);
+        $track = $manager->addTrack('yandex', '600001', 1000, ['artist' => 'CI fixture']);
+        expect($manager->addTrack('yandex', '600001', 1000) === $track, 'Idempotent Track');
+        try {
+            $manager->addReviewedAsset($file, 1000, false);
+            throw new RuntimeException('Unreviewed fixture accepted');
+        } catch (InvalidArgumentException $error) {
+            expect($error->getMessage() === 'owner_review_required', 'Owner-reviewed flag required');
+        }
+        $asset = $manager->addReviewedAsset($file, 1000, true);
+        expect($manager->addReviewedAsset($file, 1000, true) === $asset, 'Exact hash dedup');
+        expect((int) $pdo->query('SELECT COUNT(*) FROM audio_assets')->fetchColumn() === 1, 'Existing asset reused');
+        $link = $manager->link($track, $asset);
+        expect($manager->link($track, $asset) === $link, 'Link idempotent');
+        expect($catalog->findActive('yandex', '600001') === null, 'Pending never published');
+        expect($catalog->findByReplacement($link) === null, 'Pending audio denied');
+        try {
+            $manager->activate($link, true);
+            throw new RuntimeException('Pending activated');
+        } catch (InvalidArgumentException $error) {
+            expect($error->getMessage() === 'library_candidate_not_approved', 'Approval required');
+        }
+        try {
+            $manager->approve($link, false);
+            throw new RuntimeException('Approved without owner');
+        } catch (InvalidArgumentException $error) {
+            expect($error->getMessage() === 'owner_review_required', 'Owner consent required');
+        }
+        $manager->approve($link, true);
+        expect($catalog->findActive('yandex', '600001') === null, 'Approved but inactive');
+        try {
+            $manager->activate($link, false);
+            throw new RuntimeException('Activated without owner');
+        } catch (InvalidArgumentException $error) {
+            expect($error->getMessage() === 'owner_activation_required', 'Explicit activation required');
+        }
+        $manager->activate($link, true);
+        $selected = $catalog->findActive('yandex', '600001');
+        expect((int) $selected['replacement_id'] === $link, 'Approved active selected');
+        $version = (int) $selected['version'];
+        $manager->activate($link, true);
+        expect((int) $catalog->findActive('yandex', '600001')['version'] === $version, 'Active retry does not bump version');
+    });
+    run('Stage 6 manager: switching a candidate revokes old signed version and disable fails open', function () use ($pdo, $catalog, $storage, $wave): void {
+        $manager = new LibraryManagementService($pdo, $storage);
+        $track = $manager->addTrack('yandex', '600001', 1000);
+        $first = $catalog->findActive('yandex', '600001');
+        expect($first !== null, 'First approved mapping available');
+        $oldId = (int) $first['replacement_id'];
+        $oldVersion = (int) $first['version'];
+        $otherFile = sys_get_temp_dir() . '/celikom-stage6-fixture-' . bin2hex(random_bytes(8)) . '.wav';
+        file_put_contents($otherFile, substr($wave, 0, -8000) . str_repeat("\x81", 8000));
+        try {
+            $otherAsset = $manager->addReviewedAsset($otherFile, 1000, true);
+            $candidate = $manager->link($track, $otherAsset);
+            expect($catalog->findActive('yandex', '600001')['replacement_id'] == $oldId, 'New candidate cannot override');
+            $manager->approve($candidate, true);
+            $manager->activate($candidate, true);
+            expect((int) $catalog->findActive('yandex', '600001')['replacement_id'] === $candidate, 'New approved mapping active');
+            expect($catalog->findByReplacement($oldId) === null, 'Old mapping revoked while inactive');
+            $manager->activate($oldId, true);
+            $reactivated = $catalog->findActive('yandex', '600001');
+            expect((int) $reactivated['replacement_id'] === $oldId, 'Can restore old approved mapping');
+            expect((int) $reactivated['version'] > $oldVersion, 'Reactivation bumps token-bound version');
+            $tokens = new AudioTokenService(str_repeat('stage6-test-signing-', 3));
+            $expiry = time() + 300;
+            $oldSignature = $tokens->sign($oldId, $oldVersion, $expiry);
+            expect(!$tokens->valid($oldId, (int) $reactivated['version'], (string) $expiry, $oldSignature), 'Old signed URL invalid');
+            $manager->disable($oldId, true);
+            expect($catalog->findActive('yandex', '600001') === null, 'Disable immediately fails open');
+            $manager->disable($oldId, true);
+            expect($catalog->findByReplacement($oldId) === null, 'Disabled mapping never streams');
+        } finally {
+            unlink($otherFile);
+        }
     });
     run('repository uses exact prepared service identity', function () use ($catalog): void {
         expect($catalog->findActive('yandex', "1944599' OR 1=1") === null, 'SQL injection rejected');
