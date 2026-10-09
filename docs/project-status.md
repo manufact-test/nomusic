@@ -1,6 +1,6 @@
 # CELIKOM — execution status
 
-Updated: 2026-10-09. Requirement authorities are `CELIKOM_Master_TZ_MVP_v1.4` and `CELIKOM_Plan_Rabot_MVP_v1.5`; this file records execution, not a replacement product specification. They supersede master v1.3 and plan v1.4 while retaining their product requirements. Stable document identities and the next-chat handoff are in [handoff/NEXT-CHAT.md](handoff/NEXT-CHAT.md).
+Updated: 2026-10-09. Requirement authorities are `CELIKOM_Master_TZ_MVP_v1.5` and `CELIKOM_Plan_Rabot_MVP_v1.6`; this file records execution, not a replacement product specification. They supersede master v1.4 and plan v1.5 while retaining their product requirements. Stable document identities and the next-chat handoff are in [handoff/NEXT-CHAT.md](handoff/NEXT-CHAT.md).
 
 | Stage | Status | Evidence / next gate |
 | --- | --- | --- |
@@ -13,4 +13,4 @@ Updated: 2026-10-09. Requirement authorities are `CELIKOM_Master_TZ_MVP_v1.4` an
 
 No accounts, user upload flow, moderation admin, billing, Android playback or client release are claimed complete. Stages 6–18 retain the order and scope of the authoritative plan. Public repository closure remains the mandatory Stage 18 gate before client release.
 
-Next action: Stage 5 private-test acceptance is recorded; begin Stage 6 shared audio library/upload architecture only after checking the authoritative master and Work Plan. Track optional off-host disaster-recovery backup, automatic tab reconnection after extension re-enable, and live rollback drill as future hardening—not as claims of already completed production readiness. Keep PR #6 open until an explicit merge review. Private snapshot and restore are verified and monitored; never publish backups, beta token or signed audio URLs. Do not merge PR #6 or mark Stage 5 complete until these gates are reviewed. The restricted Hostinger audio-operations workflow manages inspect/probe/import/enable/disable/selftest separately from normal deployment.
+Next action: Stage 5 private-test acceptance is complete; start Stage 6 shared replacements library. Read authoritative Master TZ v1.5 and Work Plan v1.6, audit existing code and produce the already-implemented/missing matrix before writing code. Keep off-host DR backup, automated tab reinjection after Chrome re-enable and live rollback drill as future hardening, not completed production features. Keep PR #6 open without merging. Snapshot, isolated restore and six-hour monitoring are verified. Restricted audio operations manage inspect/probe/import/enable/disable/selftest separately from deploy.
