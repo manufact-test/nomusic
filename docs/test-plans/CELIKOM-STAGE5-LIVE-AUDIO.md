@@ -9,7 +9,7 @@ Updated: 2026-10-09. Source of live results: owner's direct testing in Chrome/Ya
 - Live debugging established Yandex Music's `media-src` CSP blocks direct media URL from the Hostinger origin. The CSP permits `blob:`; extension 0.4.3 uses MediaSource audio/mpeg and bounded 512 KiB HTTPS Range fetches, no whole-file JS Blob.
 - Extension build/test [37848261630](https://github.com/manufact-test/nomusic/actions/runs/37848261630): **67 tests passed**; main CI [37848269651](https://github.com/manufact-test/nomusic/actions/runs/37848269651) succeeded.
 - Owner confirmed on 2026-10-09 that the **real** hosted version played in Chrome (not synthetic demo). Owner subsequently reported **6 of 6** first-round tests passed: (1) pause/play; (2) seek 30–60 seconds both ways; (3) seek near end; (4) volume/mute; (5) next track uses original; (6) manual Return Original works.
-- This is owner's functional smoke acceptance; the longer stress, refresh, disabled-extension watchdog and repeat-deploy gates below remain open. No general availability/client release is implied.
+- Owner originally completed the smoke gate first; the subsequent 0.4.4 stability retest and Stage 5 infrastructure verification also passed on 2026-10-09. This remains owner-only/private-test acceptance, not general availability.
 
 ## Owner's next live regression block (real MP3, empty Test Track ID)
 
@@ -29,11 +29,11 @@ For failures ask only for developer **Copy diagnostics** JSON from the active Ya
 The owner passed five of six extended live stability checks in 0.4.3:
 continuous playback, page refresh, rapid next/previous, 30–60s background tab, manual return-original persistence.
 
-**Test 6 failed:** the owner switched the CELIKOM extension OFF under `chrome://extensions/` during replacement, but the alternative audio continued and original did not restore. **Do not close Stage 5, issue client beta or deem safety watchdog accepted.** Immediate user workaround is to leave the extension off and refresh the Yandex Music tab, which discards the stuck DOM audio state.
+**Test 6 failed:** the owner switched the CELIKOM extension OFF under `chrome://extensions/` during replacement, but the alternative audio continued and original did not restore. **At that historical point the safety watchdog was not accepted.** Immediate user workaround is to leave the extension off and refresh the Yandex Music tab, which discards the stuck DOM audio state.
 
 Cause indicated by code review: MAIN-world watchdog accepted `HEARTBEAT` from an injected ISOLATED-world script without confirming the actual enabled extension worker. After disabling, stale content timers can remain alive, preventing the 12s/120s watchdog from expiring. MAIN also renewed the lease on generic messages, not just heartbeats. The proposed **0.4.4** patch validates each heartbeat with `CELIKOM_CONTEXT_PING` answered by the real service worker, stops and releases after two misses and prevents generic messages from renewing the lease. Automated regression simulates worker gone while ISOLATED-world script timers still run.
 
-Acceptance condition (must be retested by owner, not inferred from tests): on real MP3, switching the extension off restores original and stops alternate audio automatically, with no page reload or permanent mute. After re-enable and page refresh, normal exact-ID replacement still works. Also recheck 30–60s background playback so liveness polling doesn't falsely abort. Keep Stage 5 open until this passes.
+Acceptance condition (must be retested by owner, not inferred from tests): on real MP3, switching the extension off restores original and stops alternate audio automatically, with no page reload or permanent mute. After re-enable and page refresh, normal exact-ID replacement still works. Also recheck 30–60s background playback so liveness polling doesn't falsely abort. This was a blocking test until the successful 0.4.4 live retest described below.
 
 ## 2026-10-09: 0.4.4 owner retest — LIVE BROWSER GATE ACCEPTED
 
@@ -45,7 +45,7 @@ The owner clarified that the apparent pause on disabling was normal playback-con
 
 ## Remaining infrastructure gates
 
-- Repeat deployment while preserving `celikom/shared/env`, `celikom/shared/audio` and the approved mapping; current release is not automatically updated by extension build.
-- Validate rollback and documented backup/restore on safe dedicated environment; avoid disrupting the first working public test.
-- Health, HTTPS availability and error logging/monitoring, with secret-safe operation. Complete before formally closing Stage 5.
+- **Passed 2026-10-09:** repeat deployment preserved shared env/audio and approved mapping, with pre/post SHA-256 and six MySQL row-count comparisons; server release 0.4.4-0fee5892c82d01e8fe7936d76f064c48484f136d.
+- **Passed 2026-10-09:** private snapshot plus file restore in isolation and real SQL import to disposable MySQL 8. An intentional live outage/rollback was not run; activation rollback passed isolated fixtures. On-host backup is not an offsite disaster-recovery guarantee.
+- **Passed 2026-10-09:** private audit, HTTP health/config/CORS, authenticated signed audio 206/Range after deploy; six-hour public condition-watch is enabled and alerts only on confirmed failures. Production-grade observability/retention is future hardening.
 - PR #6 remains unmerged; don't assert later stages 6–18 complete.
