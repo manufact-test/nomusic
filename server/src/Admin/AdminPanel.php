@@ -423,10 +423,19 @@ final class AdminPanel
         $stmt = $this->pdo->prepare("SELECT r.id,r.status,r.is_active,r.version,r.track_id,
             t.service,t.service_track_id,t.artist,t.title,t.duration_ms AS original_duration_ms,
             a.duration_ms AS audio_duration_ms,a.mime_type,a.size_bytes,a.sha256,
+            d.action AS decision_action,d.reason AS decision_reason,d.created_at AS decision_at,
             (SELECT q.id FROM track_replacements q WHERE q.track_id=r.track_id
                 AND q.status='approved' AND q.is_active=1 AND q.disabled_at IS NULL LIMIT 1) AS active_id
             FROM track_replacements r JOIN tracks t ON t.id=r.track_id
-            JOIN audio_assets a ON a.id=r.audio_asset_id " . $where .
+            JOIN audio_assets a ON a.id=r.audio_asset_id
+            LEFT JOIN audit_log d ON d.id = (
+                SELECT l.id FROM audit_log l WHERE l.entity_type='track_replacement'
+                AND l.entity_id=r.id AND l.action IN
+                ('replacement_approve','replacement_reactivate','replacement_reject',
+                 'replacement_duplicate','replacement_wrong_track','replacement_bad_quality',
+                 'replacement_disable')
+                ORDER BY l.id DESC LIMIT 1
+            ) " . $where .
             " ORDER BY FIELD(r.status,'pending','approved','rejected','disabled'),r.id DESC LIMIT "
             . $perPage . " OFFSET " . $offset);
         $stmt->execute($params);
@@ -475,6 +484,13 @@ final class AdminPanel
                     . '<label class="form-field">Название песни'
                     . '<input name="title" maxlength="240" required value="' . self::e($r['title']) . '"></label>'
                     . '<button class="primary" type="submit">Сохранить подпись</button></form></details>';
+            }
+            if (is_string($r['decision_reason']) && trim($r['decision_reason']) !== '') {
+                $html .= '<div class="decision-history"><strong>'
+                    . self::e(self::actionLabel((string)$r['decision_action']))
+                    . '</strong><span>' . self::e($r['decision_reason']) . '</span>'
+                    . '<small>' . self::e($r['decision_at']) . ' UTC · Подробнее в журнале</small>'
+                    . '</div>';
             }
             if (in_array($admin['role'], ['owner','moderator'], true)
                 && ($r['status'] === 'pending'
