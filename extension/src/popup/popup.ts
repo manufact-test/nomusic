@@ -67,7 +67,7 @@ function uploadMessage(value: string): void {
 function currentUploadTrack(state: ExtensionState | null) {
   const candidate = state?.track;
   const durationMs = candidate?.metadata?.durationMs;
-  if (!candidate?.id || !/^[1-9]\\d{0,23}$/.test(candidate.id) ||
+  if (!candidate?.id || !/^[1-9]\d{0,23}$/.test(candidate.id) ||
       candidate.ambiguous || candidate.confidence < 100 ||
       !Number.isSafeInteger(durationMs) || !durationMs || durationMs < 1000 || durationMs > 86400000) return null;
   return { id: candidate.id, durationMs, artist: candidate.metadata?.artist || "",
@@ -92,7 +92,7 @@ document.querySelector<HTMLFormElement>("[data-upload-form]")?.addEventListener(
   event.preventDefault();
   if (uploading || !pinnedTrack || !uploadFile?.files?.[0] || !uploadRights?.checked || !uploadKey?.value) return;
   const file = uploadFile.files[0];
-  if (file.size < 1024 || file.size > 31457280 || !/\\.mp3$/i.test(file.name)) {
+  if (file.size < 1024 || file.size > 31457280 || !/\.mp3$/i.test(file.name)) {
     uploadMessage("Выберите MP3 не более 30 МиБ."); return;
   }
   const now = currentUploadTrack(await send<ExtensionState>({ type: COMMANDS.getStatus }));
