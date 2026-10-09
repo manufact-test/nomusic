@@ -6,7 +6,7 @@ await import("../dist/unpacked/player/core.js");
 const core = globalThis.__CELIKOM_PLAYER_CORE_V1__;
 const cases = JSON.parse(await readFile(new URL("./fixtures/yandex-player-cases.json", import.meta.url), "utf8"));
 
-test("production core exposes a versioned closed protocol", () => {
+test("production core exposes a versioned closed protocol", async () => {
   const manifest = JSON.parse(await readFile(new URL("../dist/unpacked/manifest.json", import.meta.url), "utf8"));
   assert.equal(core.VERSION, manifest.version);
   assert.equal(core.PROTOCOL_VERSION, 1);
