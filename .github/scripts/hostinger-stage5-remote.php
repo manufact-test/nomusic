@@ -64,7 +64,21 @@ try {
     $audio = $walk($shared . '/audio', $shared . '/audio');
     if (!$audio || array_sum(array_column($audio, 'size')) > 500 * 1024 * 1024) throw new RuntimeException('backup-size-limit');
     if ($operation === 'audit') {
-        echo "Stage 5 audit PASS: private config, approved exact-ID mapping, MP3 SHA-256, MySQL, feature flags and storage; audio objects: ", count($audio), ".\n";
+        $prior = glob($backupRoot . '/snapshot-*', GLOB_ONLYDIR) ?: [];
+        if (!$prior) throw new RuntimeException('no-snapshot');
+        rsort($prior, SORT_STRING);
+        if (is_link($prior[0]) || !is_file($prior[0] . '/manifest.json'))
+            throw new RuntimeException('snapshot-layout');
+        $baseline = json_decode((string) file_get_contents($prior[0] . '/manifest.json'), true, 16, JSON_THROW_ON_ERROR);
+        if (($baseline['format'] ?? null) !== 1 || !hash_equals((string) $baseline['env_sha256'], $envHash)
+            || ($baseline['files'] ?? null) !== $audio) throw new RuntimeException('state-changed-after-deploy');
+        foreach ($baseline['tables'] as $table => $beforeCount) {
+            if (!in_array($table, ['schema_migrations', 'tracks', 'audio_assets', 'track_replacements',
+                'analytics_events', 'analytics_daily_aggregates'], true)
+                || (int) $pdo->query('SELECT COUNT(*) FROM ' . chr(96) . $table . chr(96))->fetchColumn() !== $beforeCount)
+                throw new RuntimeException('database-row-count-changed');
+        }
+        echo "Stage 5 after-deploy audit PASS: shared private env SHA-256, all audio hashes, six MySQL table counts and approved mapping match pre-deployment snapshot; analytics off.\n";
         exit(0);
     }
     $copyAudio = static function(string $source, string $destination, array $index): void {
