@@ -1,5 +1,5 @@
 {
   "environment": "hostinger-private-test",
   "request": "owner-approved-stage8-admin-rollout-preserve-stage7-2026-10-09",
-  "replacements": "preserve-existing-approved-audio-and-runtime-flags-stage8-remove-repeated-reject-placeholder"
+  "replacements": "stage9-additive-identity-auth-default-off-preserve-stage8-admin-audio-and-upload-flags"
 }
