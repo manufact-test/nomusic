@@ -19,7 +19,14 @@
 
   class CelikomController {
     constructor() {
-      this.bridge = bridgeFactory.createPlayerBridge(root);
+      this.bridge = bridgeFactory.createPlayerBridge(root, {
+        confirmAlive: async () => {
+          // Unlike an isolated-world timer, an actual worker reply proves the
+          // extension is still installed/enabled. Never log response metadata.
+          const answer = await chrome.runtime.sendMessage({ type: "CELIKOM_CONTEXT_PING" });
+          return answer?.ok === true && answer.version === chrome.runtime.getManifest().version;
+        }
+      });
       this.enabled = false;
       this.snapshot = null;
       this.lastEvent = "startup";
@@ -81,6 +88,10 @@
       });
       this.bridge.on("GUARD_RELEASED", (event) => {
         if (event.token === this.engine.operation?.token) this.engine.abort(`guard-lost:${event.reason}`, event.reason !== "master-binding-changed" || event.detail?.reason === "media-source-changed", event.detail);
+      });
+      this.bridge.on("EXTENSION_UNAVAILABLE", () => {
+        this.log("Installed extension unavailable; emergency original restore");
+        this.destroy();
       });
       this.bridge.on("BRIDGE_TIMEOUT", (payload) => {
         this.log(`bridge timeout · ${Math.round(payload?.elapsedMs || 0)} ms`);
@@ -194,10 +205,12 @@
     destroy() {
       if (this.destroyed) return;
       this.destroyed = true;
-      this.engine.destroy();
+      // Never allow a dead Chrome extension context to interrupt fail-open.
+      // Cleanup must continue even if chrome.runtime.* throws on disable.
+      try { this.engine.destroy(); } catch (_error) { /* MAIN fallback below */ }
       root.clearInterval(this.syncTimer);
-      chrome.runtime.onMessage.removeListener(this.onRuntimeMessage);
-      chrome.storage.onChanged.removeListener(this.onStorageChanged);
+      try { chrome.runtime.onMessage.removeListener(this.onRuntimeMessage); } catch (_error) { /* invalidated */ }
+      try { chrome.storage.onChanged.removeListener(this.onStorageChanged); } catch (_error) { /* invalidated */ }
       this.bridge.destroy();
     }
   }
