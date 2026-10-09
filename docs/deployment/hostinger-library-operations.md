@@ -50,6 +50,6 @@ Potential future **reviewed** operations (do not copy IDs into production withou
 
 There are also `add-asset` (duration + both owner/review flags) and `disable` (replacement ID + expected active ID + both owner/disable flags). This runbook does not constitute authorization to run them. Keep the request in `validate` mode until a specific operation is approved.
 
-## Next steps
+## Current state / handoff (2026-10-09)
 
-Package 6.5: TTL/config/ApiClient/ReplacementController cache reconciliation. Package 6.6: disposable MySQL and extension security and concurrency regression. Package 6.7: controlled owner-only Hostinger and two-installation acceptance; no automatic import of new music. Stage 6 is not accepted until all gates pass.
+Stage 6.1–6.6 complete, Stage 6.7 Hostinger deployment and data integrity passed. The library request remains `{"operation":"validate"}` and no Stage 6 live library mutation has been authorized or performed. Stage 6 formal two-profile owner acceptance is pending. Chrome MAIN-world intermittent stack overflow recurred after hotfix and is tracked as [issue #7](https://github.com/manufact-test/nomusic/issues/7). Next development work is Stage 7 protected uploads + exact anti-duplicates on disposable test data; see [Stage 7 runbook](../test-plans/CELIKOM-STAGE7-UPLOAD-ANTIDUPES.md). Public uploads must remain OFF until Stage 10 entitlement, pending cannot become approved automatically. No new production mapping/audio/DB change without fresh owner permission.
