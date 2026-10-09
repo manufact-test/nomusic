@@ -1,6 +1,16 @@
 # CELIKOM — актуальная передача в новый чат
 
-> **АКТУАЛЬНЫЙ START HERE, 09.10.2026 — Stage 7 закрыт, старт Stage 8.** Нижние разделы этого документа — историческая передача Stage 6→7 и больше не задают следующую задачу. Приоритет: Library `/CELIKOM/CELIKOM_Master_TZ_MVP_v1.5_2026-10-09.docx` и `CELIKOM_Plan_Rabot_MVP_v1.6_2026-10-09.docx` (обновлённые датированные разделы), затем эта передача, [status](../project-status.md), [Stage 8 implementation plan](../test-plans/CELIKOM-STAGE8-MODERATION.md).
+> **START HERE — 09.10.2026, Stage 8 deployed, owner acceptance 8.7 pending.** Historical Stage 6→7/7→8 sections below are archival and not current work orders. Requirements: Library Master TZ MVP v1.5 Appendix G, Work Plan MVP v1.6 Section 13. Technical evidence: [status](../project-status.md), [Stage8 runbook](../deployment/stage8-admin-acceptance.md). Don't repeat Stage 7 manual tests. PR #6 stays OPEN/UNMERGED; issue #7 remains OPEN.
+
+## Current next action: Stage 8.7 owner login/acceptance (not Stage 8 implementation)
+
+Stage 8 code and additive `003_admin_moderation.sql` **deployed** to Hostinger with `FEATURE_ADMIN=1`, `FEATURE_OWNER_REPORTS=0`, public uploads OFF. URL: `https://darkred-camel-588676.hostingersite.com/admin/login`, login `owner`. The generated password is **not** in GitHub or conversation: owner can view it through private Hostinger File Manager/SSH in `celikom/shared/stage8-owner-login-once.txt` (0600, outside public_html). Delete this one-time plaintext copy after successfully securing admin access; SQL stores only password hash. PR #6 still open, Issue #7 still open. Existing owner-upload credential was not rotated.
+
+Verification evidence: [predeploy backup](https://github.com/manufact-test/nomusic/actions/runs/37984859454), [predeploy restore](https://github.com/manufact-test/nomusic/actions/runs/37985091060), [deployment PASS](https://github.com/manufact-test/nomusic/actions/runs/37985244995), [original-audio/config/data audit PASS](https://github.com/manufact-test/nomusic/actions/runs/37985609247), [owner bootstrap / HTTPS login 200 and no-cookie audio 403 PASS](https://github.com/manufact-test/nomusic/actions/runs/37985814317), [16-table postbootstrap snapshot](https://github.com/manufact-test/nomusic/actions/runs/37985992296) and [isolated restore](https://github.com/manufact-test/nomusic/actions/runs/37986120772). These are **automated gates**, NOT owner manual UI approval. Never change the approved #1 replacement or activate real pending #3 or synthetic #2 without explicit rights review.
+
+Owner checks login, two separate queues, authentic pending audio preview, status filters, audit and logout. Prefer using a separately authorized synthetic fixture for status-change workflows instead of moderating the real tracks. Follow [Stage8 acceptance](../deployment/stage8-admin-acceptance.md). After owner 8.7 PASS, close Stage8 and proceed Stage9 in proper order. **Mandatory MVP** Stage10: public `Предложить песню` button beside `Загрузить версию`, NO MP3 and NO rights checkbox, strict current Track ID; backend queue already exists. Do not forget it. User authorized self-directed, guarded technical maintenance/deploys with backup/rollback, not blind irreversible moderation or credential disclosure.
+
+
 
 ## Что завершено
 
