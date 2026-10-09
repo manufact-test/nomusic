@@ -176,6 +176,18 @@ try{
     run('Stage 8 pending is not publicly resolvable',function()use($catalog,$track):void{
         expect($catalog->findActive('yandex',$track)===null,'Pending remains hidden');
     });
+
+    run('Stage 8 two-step confirmation forms are separate',function()use($app,$sessionHeaders,$candidate):void{
+        $view=$app->handle('GET','/admin',['tab'=>'uploads','per_page'=>'50'],$sessionHeaders);
+        expect($view->status===200 && str_contains($view->body,'name="review-'.$candidate.'"'),
+            'Grouped review choices');
+        expect(str_contains($view->body,'name="decision" value="approval"')
+            && str_contains($view->body,'name="decision" value="rejection"'),
+            'Explicit independent forms');
+        expect(str_contains($view->body,'Подтвердить одобрение')
+            && str_contains($view->body,'Подтвердить отклонение'),
+            'Separate final confirmation steps');
+    });
     run('Stage 8 admin audio: only session may stream pending with Range',function()use($app,$candidate,$sessionHeaders):void{
         $resp=$app->handle('GET','/admin/audio/'.$candidate,headers:$sessionHeaders+['Range'=>'bytes=0-3']);
         expect($resp->status===206 && bytes($resp)===hex2bin('fffb9064'),'Private Range playback');
