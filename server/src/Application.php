@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Celikom;
 
+use Celikom\Admin\AdminPanel;
 use Celikom\Analytics\AnalyticsEventService;
 use Celikom\Analytics\PdoEventRepository;
 use Celikom\Application\AudioTokenService;
@@ -51,6 +52,13 @@ final class Application
 
     private function route(string $method, string $path, array $query, array $headers, string $body, array $fields, array $files): Response
     {
+        if ($path === '/admin' || str_starts_with($path, '/admin/')) {
+            if (!($this->config['admin_enabled'] ?? false)) {
+                return Response::json(404, ['error' => 'not_found']);
+            }
+            return (new AdminPanel(Connection::open($this->config), $this->storage()))
+                ->handle($method, $path, $query, $headers, $body);
+        }
         if ($method === 'OPTIONS' && str_starts_with($path, '/api/v1/') && in_array($headers['origin'] ?? '', $this->config['allowed_origins'], true)) {
             return new Response(204, ['Access-Control-Allow-Methods' => 'GET, HEAD, POST, OPTIONS', 'Access-Control-Allow-Headers' => 'Authorization, Content-Type, Range', 'Access-Control-Max-Age' => '600']);
         }
