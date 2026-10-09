@@ -251,6 +251,8 @@ try{
     run('Stage 8 requested songs are a separate no-MP3 queue',function()use($app,$sessionHeaders,$requestId,$mod,$adminId,$pdo,$ownerHash,$track):void{
         $view=$app->handle('GET','/admin',['tab'=>'requests'],$sessionHeaders);
         expect($view->status===200 && str_contains($view->body,'https://music.yandex.ru/track/'),'Canonical Yandex link');
+        expect(str_contains($view->body,'Уникальных предложений: 1')
+            && !str_contains($view->body,$ownerHash),'Private request count without identity leakage');
         $mod->trackRequest($adminId,(int)$requestId,'reviewed','legal version search planned');
         $st=$pdo->prepare('SELECT status FROM track_requests WHERE id=?');$st->execute([$requestId]);
         expect($st->fetchColumn()==='reviewed','Request reviewed without audio upload');
