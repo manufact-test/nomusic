@@ -28,8 +28,10 @@ final class AuthController
             }
             if (strlen($rawBody) > 8192) return Response::json(413, ['error' => 'request_too_large']);
             try {
-                $input = json_decode($rawBody, true, 8, JSON_THROW_ON_ERROR);
-                if (!is_array($input) || array_is_list($input)) throw new \InvalidArgumentException();
+                // Decode objects distinctly: an empty JSON object {} is valid for activate.
+                $object = json_decode($rawBody, false, 8, JSON_THROW_ON_ERROR);
+                if (!$object instanceof \stdClass) throw new \InvalidArgumentException();
+                $input = (array) $object;
             } catch (\JsonException|\InvalidArgumentException) {
                 return Response::json(400, ['error' => 'invalid_request']);
             }
