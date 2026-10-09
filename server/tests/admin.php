@@ -65,6 +65,29 @@ expect($page->status===200 && str_contains($page->body,'Предложить п�
 $token=AdminAuth::readCookie(['cookie'=>$sessionCookie],AdminAuth::COOKIE);
 $csrf=AdminAuth::csrfForToken($token);
 $actionHeaders=$formHeaders+$sessionHeaders;
+run('Stage 8 roles: viewer may inspect, never mutate or export',function()
+    use($app,$pdo,$auth,$formHeaders,$pass,$csrf):void{
+    $viewer='stage8viewer-'.bin2hex(random_bytes(4));
+    $pdo->prepare("INSERT INTO admins(login,password_hash,role) VALUES (?,?,'viewer')")
+        ->execute([$viewer,password_hash($pass,PASSWORD_DEFAULT)]);
+    $identity=$auth->login($viewer,$pass,'test-viewer-'.bin2hex(random_bytes(4)));
+    expect($identity!==null,'Viewer login');
+    $cookie=AdminAuth::COOKIE.'='.$identity['token'];
+    $headers=$formHeaders+['Cookie'=>$cookie];
+    expect($app->handle('GET','/admin',headers:['Cookie'=>$cookie])->status===200,'Viewer read access');
+    $writeBody=http_build_query(['csrf'=>AdminAuth::csrfForToken($identity['token']),
+        'kind'=>'replacement','id'=>'1','action'=>'approve','expected_active'=>'0','reason'=>'reviewed']);
+    expect($app->handle('POST','/admin/action',headers:$headers,body:$writeBody)->status===403,'Viewer write forbidden');
+    expect($app->handle('GET','/admin/export',headers:['Cookie'=>$cookie])->status===403,'Viewer export forbidden');
+    $pdo->prepare('UPDATE admin_sessions SET expires_at=DATE_SUB(UTC_TIMESTAMP(6),INTERVAL 1 SECOND)
+        WHERE token_hash=?')->execute([hash('sha256',$identity['token'])]);
+    expect($app->handle('GET','/admin',headers:['Cookie'=>$cookie])->status===303,'Expired viewer session');
+});
+run('Stage 8 login throttle is enforced even with the correct password',function()use($auth,$login,$pass):void{
+    $ip='test-bruteforce-'.bin2hex(random_bytes(6));
+    for($i=0;$i<9;$i++)$auth->login($login,'wrong-password-'.$i,$ip);
+    expect($auth->login($login,$pass,$ip)===null,'Login locked for current window');
+});
 run('Stage 8 CSRF rejection and private preview require authenticated session',function()use($app,$actionHeaders):void{
     expect($app->handle('POST','/admin/action',headers:$actionHeaders,body:'kind=replacement&id=1&action=approve')->status===403,'CSRF');
     expect($app->handle('GET','/admin/audio/123456789')->status===403,'Anonymous preview');
