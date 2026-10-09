@@ -18,6 +18,8 @@ for (const selector of ["[data-status]", "[data-action='start']", "[data-action=
   "[data-upload-rights]", "[data-upload-progress]", "[data-upload-status]", "[data-upload-submit]",
   "[data-action='add']", "[data-upload-form]"]) el(selector);
 const find = (selector) => events.get(selector);
+// Reflect the HTML 'hidden' attribute on the initially closed Add version panel.
+events.get("[data-upload-panel]").hidden = true;
 const selected = { track: { id: "144530503", confidence: 200, ambiguous: false,
   metadata: { durationMs: 180872, title: "Owner fixture", artist: "CI" } } };
 let current = selected, offline = false, requests = [];
