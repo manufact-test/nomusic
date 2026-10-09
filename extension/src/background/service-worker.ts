@@ -70,6 +70,20 @@ chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse) =>
     ? (message as { type?: unknown }).type
     : null;
 
+  if (type === "CELIKOM_CONTEXT_PING") {
+    // Respond only to the extension's own content script on Yandex Music.
+    // The actual installed worker, not an abandoned content script, is the
+    // authority for whether MAIN can keep the original audio muted.
+    let validOrigin = false;
+    try { validOrigin = new URL(sender?.url || "").origin === "https://music.yandex.ru"; }
+    catch (_error) { /* denied */ }
+    if (sender?.id !== chrome.runtime.id || !validOrigin) {
+      sendResponse({ ok: false }); return false;
+    }
+    sendResponse({ ok: true, version: VERSION });
+    return false;
+  }
+
   if (type === "CELIKOM_API_RESOLVE" || type === "CELIKOM_API_EVENT") {
     void resolveApi(message, sender).then(sendResponse).catch(() => sendResponse({ ok: false, error: "api_unavailable" }));
     return true;
