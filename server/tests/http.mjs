@@ -15,7 +15,7 @@ const origin = `http://127.0.0.1:${port}`;
 const accessToken = randomBytes(24).toString("hex");
 const ownerUploadToken = randomBytes(40).toString("hex");
 const server = spawn("php", ["-S", `127.0.0.1:${port}`, "-t", path.join(root, "public"), path.join(root, "tests/http-router.php")], {
-  env: { ...process.env, APP_ENV: "test", FEATURE_REPLACEMENTS: "1", AUDIO_SIGNING_KEY: randomBytes(32).toString("hex"), API_TEST_TOKEN: accessToken, FEATURE_OWNER_UPLOADS: "1", UPLOAD_OWNER_TOKEN: ownerUploadToken, CELIKOM_TEST_ORIGIN: origin }, stdio: ["ignore", "ignore", "pipe"]
+  env: { ...process.env, APP_ENV: "test", FEATURE_REPLACEMENTS: "1", AUDIO_SIGNING_KEY: randomBytes(32).toString("hex"), API_TEST_TOKEN: accessToken, FEATURE_OWNER_UPLOADS: "1", UPLOAD_OWNER_TOKEN: ownerUploadToken, CELIKOM_TEST_ORIGIN: origin, PHP_CLI_SERVER_WORKERS: "4" }, stdio: ["ignore", "ignore", "pipe"]
 });
 let diagnostics = "";
 server.stderr.on("data", chunk => { diagnostics = (diagnostics + chunk).slice(-4000); });
@@ -89,6 +89,22 @@ try {
     method: "POST", headers: ownerHeaders, body: request });
   assert.equal(suggestion.status, 202); assert.equal((await suggestion.json()).status, "pending");
   console.log("PASS Stage 7 real PHP multipart owner gate, MP3 validation, retry, multi-track pending isolation");
+  // Four separate PHP workers race on one exact Track ID with identical media.
+  // The test uses the same disposable MySQL; no user music or production data.
+  const races = await Promise.all(Array.from({ length: 4 }, () =>
+    fetch(origin + "/api/v1/uploads", { method: "POST", headers: ownerHeaders,
+      body: uploadBody("799104", randomUUID(), "parallel.mp3") })
+  ));
+  assert.deepEqual(races.map(r => r.status), [202, 202, 202, 202], "Parallel uploads must not deadlock");
+  const raceResults = await Promise.all(races.map(r => r.json()));
+  assert.equal(new Set(raceResults.map(r => r.replacement_id)).size, 1,
+    "Same track+SHA must serialize to exactly one pending replacement");
+  assert.equal(raceResults.filter(r => r.duplicate === false).length, 1,
+    "Only the first concurrent request creates a candidate");
+  assert.equal((await client.resolve("yandex", "799104")).found, false,
+    "Concurrent uploads cannot publish");
+  console.log("PASS Stage 7 four-worker contention: one pending mapping and no auto-approve");
+
 
   let browserBinary = null;
   for (const binary of [process.env.CELIKOM_BROWSER_BINARY, "/usr/bin/google-chrome", "/usr/bin/google-chrome-stable", "/usr/bin/chromium"]) {
