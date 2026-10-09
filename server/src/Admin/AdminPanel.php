@@ -73,10 +73,12 @@ final class AdminPanel
                         ($form['rights_confirmed'] ?? null) === '1');
                 } elseif ($kind === 'track_request') {
                     $moderation->trackRequest($admin['id'], $id, $action, $reason);
+                } elseif ($kind === 'report') {
+                    $moderation->report($admin['id'], $id, $action, $reason);
                 } else {
                     return Response::json(400, ['error'=>'invalid_action']);
                 }
-                return new Response(303, ['Location'=>'/admin?tab=' . ($kind === 'track_request' ? 'requests' : 'uploads'),
+                return new Response(303, ['Location'=>'/admin?tab=' . ($kind === 'report' ? 'reports' : ($kind === 'track_request' ? 'requests' : 'uploads')),
                     'Cache-Control'=>'no-store']);
             } catch (\InvalidArgumentException) {
                 return Response::json(400, ['error'=>'invalid_action']);
@@ -171,7 +173,7 @@ final class AdminPanel
             . ' · Жалобы — ' . (int)$counts['pending_reports'] . '</section>';
         return $html . match ($tab) {
             'requests' => $this->requests($admin, $csrf),
-            'reports' => $this->reports(),
+            'reports' => $this->reports($admin, $csrf),
             'audit' => $this->auditLog(),
             default => $this->uploads($admin, $csrf),
         };
@@ -249,14 +251,23 @@ final class AdminPanel
         return $html;
     }
 
-    private function reports(): string
+    private function reports(array $admin, string $csrf): string
     {
         $rows = $this->pdo->query('SELECT id,replacement_id,category,details,status,created_at FROM reports ORDER BY id DESC LIMIT 100')
             ->fetchAll(\PDO::FETCH_ASSOC);
-        $html='<h2>Жалобы</h2><div class="panel"><table><tr><th>ID</th><th>Replacement</th><th>Категория</th><th>Описание</th><th>Статус</th></tr>';
-        foreach($rows as $r) $html.='<tr><td>'.(int)$r['id'].'</td><td>'.(int)$r['replacement_id']
-            .'</td><td>'.self::e($r['category']).'</td><td>'.self::e($r['details'])
-            .'</td><td>'.self::e($r['status']).'</td></tr>';
+        $html='<h2>Жалобы</h2><div class="panel"><table><tr><th>ID</th><th>Replacement</th><th>Категория</th><th>Описание</th><th>Статус / решение</th></tr>';
+        foreach($rows as $r) {
+            $html.='<tr><td>'.(int)$r['id'].'</td><td>'.(int)$r['replacement_id']
+                .'</td><td>'.self::e($r['category']).'</td><td>'.self::e($r['details']).'</td><td>'.self::e($r['status']);
+            if($r['status']==='pending' && in_array($admin['role'],['owner','moderator'],true)) {
+                $html.='<form method="post" action="/admin/action"><input type="hidden" name="csrf" value="'.$csrf.'">'
+                    .'<input type="hidden" name="kind" value="report"><input type="hidden" name="id" value="'.(int)$r['id'].'">'
+                    .'<input name="reason" required maxlength="500" placeholder="Результат проверки">'
+                    .'<button name="action" value="reviewed">Рассмотрено</button>'
+                    .'<button name="action" value="dismissed">Отклонить жалобу</button></form>';
+            }
+            $html.='</td></tr>';
+        }
         return $html.'</table></div>';
     }
 
