@@ -63,6 +63,12 @@ jobs:
           node .github/scripts/hostinger-library-contract.mjs
           bash -n .github/scripts/hostinger-library.sh
           php -l .github/scripts/hostinger-library-remote.php
+      - name: Install CI-only synthetic MP3 encoder
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends ffmpeg
+          ffmpeg -hide_banner -encoders | grep -F libmp3lame
+
       - name: Verify repository
         run: npm run ci
 
