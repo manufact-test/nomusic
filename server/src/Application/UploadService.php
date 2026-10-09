@@ -91,6 +91,13 @@ final class UploadService
             return ['status' => 'pending', 'replacement_id' => (int) $existing['replacement_id'], 'duplicate' => true];
         }
 
+        // Fast path for an already queued track. We still repeat this under the
+        // row lock to serialize two concurrent uploads with different MP3s.
+        $priorTrack = $this->existingTrackUpload($service, $trackId, $sha);
+        if ($priorTrack !== null) {
+            return $priorTrack;
+        }
+
         // Avoid writing a second physical file for any already registered digest.
         $lookup = $this->pdo->prepare('SELECT * FROM audio_assets WHERE sha256 = ?');
         $lookup->execute([$sha]);
@@ -121,6 +128,11 @@ final class UploadService
             $stmt = $this->pdo->prepare('SELECT id FROM tracks WHERE id = ? FOR UPDATE');
             $stmt->execute([$track]);
             if ($stmt->fetchColumn() === false) throw new \RuntimeException('track_missing');
+            $priorTrack = $this->existingTrackUpload($service, $trackId, $sha);
+            if ($priorTrack !== null) {
+                $this->pdo->commit();
+                return $priorTrack;
+            }
             $stmt = $this->pdo->prepare('INSERT INTO audio_assets
                 (storage_driver, storage_key, sha256, mime_type, size_bytes, duration_ms)
                 VALUES (?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE id = LAST_INSERT_ID(id)');
@@ -173,6 +185,20 @@ final class UploadService
             }
             throw $error;
         }
+    }
+
+    /** @return array{status:string,replacement_id:int,duplicate:bool}|null */
+    private function existingTrackUpload(string $service, string $trackId, string $sha): ?array
+    {
+        $prior = (new TrackUploadStatusService($this->pdo))->get($service, $trackId);
+        if ($prior === null) return null;
+        if ($prior['status'] === 'approved') {
+            throw new \DomainException('track_already_approved');
+        }
+        if ($prior['sha256'] !== $sha) {
+            throw new \DomainException('track_pending');
+        }
+        return ['status' => 'pending', 'replacement_id' => (int) $prior['id'], 'duplicate' => true];
     }
 
     private function submission(string $owner, string $id): ?array
