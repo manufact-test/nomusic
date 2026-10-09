@@ -26,7 +26,6 @@
           <strong data-upload-result-title>Отправлено на проверку</strong>
           <p data-upload-result-note>Версия ожидает модерации.</p>
         </div>
-        <p class="upload-feedback" data-upload-status role="status" aria-live="polite" hidden></p>
         <form data-upload-form hidden>
           <label class="stage" for="upload-track">Track ID · только чтение</label>
           <input id="upload-track" data-upload-track readonly aria-readonly="true" required>
@@ -50,6 +49,7 @@
           <progress data-upload-progress max="100" value="0" hidden aria-label="Загрузка"></progress>
           <button class="primary wide" data-upload-submit type="submit">Отправить на проверку</button>
         </form>
+        <p class="upload-feedback" data-upload-status role="status" aria-live="polite" hidden></p>
       </section>
       <p class="track" data-track>Запустите трек в Яндекс Музыке</p>
       <details>
