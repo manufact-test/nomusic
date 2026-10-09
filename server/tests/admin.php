@@ -187,6 +187,13 @@ try{
         expect(str_contains($view->body,'Подтвердить одобрение')
             && str_contains($view->body,'Подтвердить отклонение'),
             'Separate final confirmation steps');
+        expect(str_contains($view->body,'select class="reject-category"')
+            && str_contains($view->body,'appearance:base-select')
+            && str_contains($view->body,'select.reject-category::picker(select)'),
+            'Custom browser-native picker CSS is present without JavaScript');
+        expect(str_contains($view->body,'.decision-body .reject-category:focus-visible')
+            && str_contains($view->body,'box-shadow:inset 0 0 0 1px #278d70'),
+            'Rejection picker uses restrained border-only focus');
     });
 
     run('Stage 8 two-step approval audits optional comments and blocks missing rights',function()
