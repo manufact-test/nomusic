@@ -107,6 +107,42 @@ try {
         $stmt->execute([$sha]);
         expect((int) $stmt->fetchColumn() === 1, 'No second physical AudioAsset row');
     });
+    run('Stage 7 blocks a different MP3 for a Track ID already in pending', function () use ($service, $fields, $file, $ownerHash, $path, $pdo): void {
+        $other = tempnam(sys_get_temp_dir(), 'celikom-different-');
+        $bytes = file_get_contents($path);
+        $bytes[100] = chr(ord($bytes[100]) ^ 0x4f);
+        file_put_contents($other, $bytes);
+        try {
+            $different = array_merge($fields, ['request_id' => '10000000-0000-4000-8000-000000000039']);
+            $input = array_merge($file, ['tmp_name' => $other, 'size' => filesize($other)]);
+            try {
+                $service->upload($different, $input, $ownerHash);
+                throw new RuntimeException('Second candidate for pending Track accepted');
+            } catch (DomainException $e) {
+                expect($e->getMessage() === 'track_pending', 'One pending candidate per Track');
+            }
+            $count = (int) $pdo->query("SELECT COUNT(*) FROM track_replacements r JOIN tracks t
+                ON t.id = r.track_id WHERE t.service_track_id='799001' AND r.status='pending'")->fetchColumn();
+            expect($count === 1, 'Only original candidate retained');
+        } finally { unlink($other); }
+    });
+    run('Stage 7 read-only track state detects pending across popup/browser sessions', function () use ($config): void {
+        $config['owner_uploads_enabled'] = true;
+        $app = new Application($config);
+        $pending = $app->handle('GET', '/api/v1/tracks/upload-status',
+            ['service' => 'yandex', 'track_id' => '799001']);
+        expect($pending->status === 200 &&
+            (json_decode($pending->body, true)['status'] ?? null) === 'pending',
+            'Pending status visible with no private metadata');
+        $none = $app->handle('GET', '/api/v1/tracks/upload-status',
+            ['service' => 'yandex', 'track_id' => '799888']);
+        expect($none->status === 200 &&
+            (json_decode($none->body, true)['status'] ?? null) === 'none', 'Fresh track accepted');
+        $config['owner_uploads_enabled'] = false;
+        expect((new Application($config))->handle('GET', '/api/v1/tracks/upload-status',
+            ['service' => 'yandex', 'track_id' => '799001'])->status === 404,
+            'Status endpoint unavailable when private upload is disabled');
+    });
     run('Stage 7 rejects conflicting HTTP retry', function () use ($service, $fields, $file, $ownerHash): void {
         try {
             $service->upload(array_merge($fields, ['track_id' => '799003']), $file, $ownerHash);
