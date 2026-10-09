@@ -17,11 +17,11 @@ final class ModerationService
     public function replacement(int $adminId, int $id, string $action, string $reason, int $expectedActive, bool $rightsConfirmed): void
     {
         if ($adminId < 1 || $id < 1 || $expectedActive < 0
-            || !in_array($action, ['approve','reject','duplicate','wrong_track','bad_quality','disable'], true)
-            || strlen($reason) > 500 || ($action !== 'approve' && trim($reason) === '')) {
+            || !in_array($action, ['approve','reactivate','reject','duplicate','wrong_track','bad_quality','disable'], true)
+            || strlen($reason) > 500 || (trim($reason) === '')) {
             throw new \InvalidArgumentException('invalid_moderation_action');
         }
-        if ($action === 'approve' && (!$rightsConfirmed || trim($reason) === '')) {
+        if (in_array($action, ['approve','reactivate'], true) && !$rightsConfirmed) {
             throw new \DomainException('approval_requires_rights_and_reason');
         }
         $this->pdo->beginTransaction();
@@ -45,9 +45,13 @@ final class ModerationService
             if ((int) ($current === false ? 0 : $current) !== $expectedActive) {
                 throw new \DomainException('stale_moderation_form');
             }
-            if ($action === 'approve') {
-                if ($before['status'] !== 'pending' || (int) $before['is_active'] !== 0) {
-                    throw new \DomainException('candidate_not_pending');
+            if (in_array($action, ['approve','reactivate'], true)) {
+                if ($action === 'reactivate' && $expectedActive !== 0) {
+                    throw new \DomainException('other_mapping_still_active');
+                }
+                $expectedStatus = $action === 'reactivate' ? 'disabled' : 'pending';
+                if ($before['status'] !== $expectedStatus || (int) $before['is_active'] !== 0) {
+                    throw new \DomainException('candidate_not_ready');
                 }
                 $asset = $this->pdo->prepare('SELECT storage_driver,storage_key,size_bytes,mime_type FROM audio_assets WHERE id=?');
                 $asset->execute([(int) $before['audio_asset_id']]);
