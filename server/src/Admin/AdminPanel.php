@@ -177,26 +177,58 @@ final class AdminPanel
             . (int)$counts['pending_uploads'] . ' · Предложения — ' . (int)$counts['pending_requests']
             . ' · Жалобы — ' . (int)$counts['pending_reports'] . '</section>';
         return $html . match ($tab) {
-            'requests' => $this->requests($admin, $csrf),
-            'reports' => $this->reports($admin, $csrf),
+            'requests' => $this->requests($admin, $csrf, $query),
+            'reports' => $this->reports($admin, $csrf, $query),
             'audit' => $this->auditLog(),
             'overview' => $this->overview($query),
-            default => $this->uploads($admin, $csrf),
+            default => $this->uploads($admin, $csrf, $query),
         };
     }
 
-    private function uploads(array $admin, string $csrf): string
+    /** Finite server-side page size; user input never becomes a raw SQL predicate. */
+    private function queueOptions(string $tab, array $query, array $statuses): array
     {
-        $rows = $this->pdo->query("SELECT r.id,r.status,r.is_active,r.version,r.track_id,
+        $status=is_string($query['status'] ?? null) && in_array($query['status'],$statuses,true)
+            ? $query['status'] : '';
+        $p=$query['page'] ?? '1';
+        $page=is_string($p) && preg_match('/^[1-9]\d{0,2}$/D',$p) ? (int)$p : 1;
+        $offset=($page-1)*25;
+        $form='<form method="get" action="/admin"><input type="hidden" name="tab" value="'.self::e($tab).'">'
+            .'<label>Статус <select name="status"><option value="">Все</option>';
+        foreach($statuses as $value){
+            $form.='<option value="'.self::e($value).'"'
+                .($status===$value?' selected':'').'>'.self::e($value).'</option>';
+        }
+        $form.='</select></label><button type="submit">Фильтровать</button></form>';
+        return [$status,$page,$offset,$form];
+    }
+
+    private function queuePages(string $tab, string $status, int $page, bool $hasNext): string
+    {
+        $url='/admin?tab='.rawurlencode($tab).'&status='.rawurlencode($status).'&page=';
+        $output='<nav class="panel">Страница '.$page.' · ';
+        if($page>1)$output.='<a href="'.self::e($url.($page-1)).'">Назад</a> ';
+        if($hasNext)$output.='<a href="'.self::e($url.($page+1)).'">Дальше</a>';
+        return $output.'</nav>';
+    }
+
+    private function uploads(array $admin, string $csrf, array $query): string
+    {
+        [$status,$page,$offset,$filter]=$this->queueOptions('uploads',$query,['pending','approved','rejected','disabled']);
+        $where=$status!=='' ? ' WHERE r.status = ? ' : ' ';
+        $stmt=$this->pdo->prepare("SELECT r.id,r.status,r.is_active,r.version,r.track_id,
             t.service,t.service_track_id,t.artist,t.title,t.duration_ms AS original_duration_ms,
             a.duration_ms AS audio_duration_ms,a.mime_type,a.size_bytes,a.sha256,
             (SELECT q.id FROM track_replacements q WHERE q.track_id=r.track_id
                 AND q.status='approved' AND q.is_active=1 AND q.disabled_at IS NULL LIMIT 1) AS active_id
             FROM track_replacements r JOIN tracks t ON t.id=r.track_id
-            JOIN audio_assets a ON a.id=r.audio_asset_id
-            ORDER BY FIELD(r.status,'pending','approved','rejected','disabled'),r.id DESC LIMIT 100")
-            ->fetchAll(\PDO::FETCH_ASSOC);
-        $html = '<h2>Загруженные версии</h2><p><small>Новые файлы не публикуются без ручного одобрения и проверки прав.</small></p>';
+            JOIN audio_assets a ON a.id=r.audio_asset_id ".$where."
+            ORDER BY FIELD(r.status,'pending','approved','rejected','disabled'),r.id DESC LIMIT 26 OFFSET ".$offset);
+        $stmt->execute($status!=='' ? [$status] : []);
+        $rows=$stmt->fetchAll(\PDO::FETCH_ASSOC);
+        $hasNext=count($rows)>25;
+        $rows=array_slice($rows,0,25);
+        $html = '<h2>Загруженные версии</h2>'.$filter;<p><small>Новые файлы не публикуются без ручного одобрения и проверки прав.</small></p>';
         foreach ($rows as $r) {
             $id = (int)$r['id'];
             $html .= '<section class="panel"><h3>#'.$id.' · '.self::e($r['artist']).' — '.self::e($r['title'])
@@ -226,15 +258,20 @@ final class AdminPanel
             }
             $html .= '</section>';
         }
-        return $html ?: '<p>Нет записей.</p>';
+        return $html.$this->queuePages('uploads',$status,$page,$hasNext);
     }
 
-    private function requests(array $admin, string $csrf): string
+    private function requests(array $admin, string $csrf, array $query): string
     {
-        $rows = $this->pdo->query("SELECT id,service,service_track_id,artist,title,status,created_at
-            FROM track_requests ORDER BY FIELD(status,'pending','reviewed','rejected'),id DESC LIMIT 100")
-            ->fetchAll(\PDO::FETCH_ASSOC);
-        $html = '<h2>Предложенные песни · без MP3</h2>';
+        [$status,$page,$offset,$filter]=$this->queueOptions('requests',$query,['pending','reviewed','rejected']);
+        $stmt=$this->pdo->prepare("SELECT id,service,service_track_id,artist,title,status,created_at
+            FROM track_requests ".($status!==''?' WHERE status = ? ':' ').
+            " ORDER BY FIELD(status,'pending','reviewed','rejected'),id DESC LIMIT 26 OFFSET ".$offset);
+        $stmt->execute($status!==''?[$status]:[]);
+        $rows=$stmt->fetchAll(\PDO::FETCH_ASSOC);
+        $hasNext=count($rows)>25;
+        $rows=array_slice($rows,0,25);
+        $html = '<h2>Предложенные песни · без MP3</h2>'.$filter;
         foreach ($rows as $r) {
             $id=(int)$r['id'];
             // Never trust a submitted URL. Build a fixed-host URL from validated exact Track ID.
@@ -254,14 +291,19 @@ final class AdminPanel
             }
             $html .= '</section>';
         }
-        return $html;
+        return $html.$this->queuePages('requests',$status,$page,$hasNext);
     }
 
-    private function reports(array $admin, string $csrf): string
+    private function reports(array $admin, string $csrf, array $query): string
     {
-        $rows = $this->pdo->query('SELECT id,replacement_id,category,details,status,created_at FROM reports ORDER BY id DESC LIMIT 100')
-            ->fetchAll(\PDO::FETCH_ASSOC);
-        $html='<h2>Жалобы</h2><div class="panel"><table><tr><th>ID</th><th>Replacement</th><th>Категория</th><th>Описание</th><th>Статус / решение</th></tr>';
+        [$status,$page,$offset,$filter]=$this->queueOptions('reports',$query,['pending','reviewed','dismissed']);
+        $stmt=$this->pdo->prepare('SELECT id,replacement_id,category,details,status,created_at FROM reports '
+            .($status!==''?' WHERE status = ? ':' ').' ORDER BY id DESC LIMIT 26 OFFSET '.$offset);
+        $stmt->execute($status!==''?[$status]:[]);
+        $rows=$stmt->fetchAll(\PDO::FETCH_ASSOC);
+        $hasNext=count($rows)>25;
+        $rows=array_slice($rows,0,25);
+        $html='<h2>Жалобы</h2>'.$filter.'<div class="panel"><table><tr><th>ID</th><th>Replacement</th><th>Категория</th><th>Описание</th><th>Статус / решение</th></tr>';
         foreach($rows as $r) {
             $html.='<tr><td>'.(int)$r['id'].'</td><td>'.(int)$r['replacement_id']
                 .'</td><td>'.self::e($r['category']).'</td><td>'.self::e($r['details']).'</td><td>'.self::e($r['status']);
@@ -274,7 +316,7 @@ final class AdminPanel
             }
             $html.='</td></tr>';
         }
-        return $html.'</table></div>';
+        return $html.'</table></div>'.$this->queuePages('reports',$status,$page,$hasNext);
     }
 
     private function auditLog(): string
