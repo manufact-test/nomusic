@@ -8,6 +8,7 @@ use Celikom\Analytics\AnalyticsEventService;
 use Celikom\Analytics\PdoEventRepository;
 use Celikom\Application\AudioTokenService;
 use Celikom\Application\ResolveService;
+use Celikom\Application\ResolveCachePolicy;
 use Celikom\Database\Connection;
 use Celikom\Http\AudioController;
 use Celikom\Http\Response;
@@ -60,8 +61,8 @@ final class Application
                 'allowed_audio_formats' => ['mp3', 'wav'],
                 'maintenance' => false,
                 'features' => ['replacements' => $this->config['api_enabled'], 'analytics' => $this->config['analytics_enabled']],
-                'resolve_cache_ttl_seconds' => 120,
-                'negative_cache_ttl_seconds' => 15,
+                'resolve_cache_ttl_seconds' => ResolveCachePolicy::positive($this->config['resolve_cache_ttl_seconds'] ?? 120, $this->config['audio_token_ttl']),
+                'negative_cache_ttl_seconds' => ResolveCachePolicy::negative($this->config['negative_cache_ttl_seconds'] ?? 15),
             ]);
         }
         if (($method === 'GET' && $path === '/api/v1/resolve') || ($method === 'POST' && $path === '/api/v1/events/batch')) {
@@ -75,7 +76,9 @@ final class Application
                 if (!is_string($query['service'] ?? null) || !is_string($query['track_id'] ?? null)) {
                     return Response::json(400, ['error' => 'invalid_track']);
                 }
-                return Response::json(200, (new ResolveService($this->catalog(), $this->storage(), $this->tokens()))->resolve($query['service'], $query['track_id']));
+                return Response::json(200, (new ResolveService($this->catalog(), $this->storage(), $this->tokens(),
+                    $this->config['resolve_cache_ttl_seconds'] ?? 120,
+                    $this->config['negative_cache_ttl_seconds'] ?? 15))->resolve($query['service'], $query['track_id']));
             }
             if (!$this->config['analytics_enabled']) {
                 return Response::json(503, ['error' => 'analytics_disabled']);

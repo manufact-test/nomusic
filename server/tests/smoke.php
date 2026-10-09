@@ -85,6 +85,28 @@ try {
         expect($config['api_version'] === 1 && $config['upload_enabled'] === false, 'Config contract');
         expect($app->handle('GET', '/missing')->status === 404, 'Unknown route');
     });
+    run('Stage 6.5 server TTL: config, found/missing resolve and signature lifetime agree', function () use ($config, $catalog, $storage, $analytics, $auth): void {
+        $changed = $config;
+        $changed['audio_token_ttl'] = 70;
+        $changed['resolve_cache_ttl_seconds'] = 90;
+        $changed['negative_cache_ttl_seconds'] = 5;
+        $app = new Application($changed, $catalog, $storage, $analytics);
+        $settings = json_decode($app->handle('GET', '/api/v1/config')->body, true, flags: JSON_THROW_ON_ERROR);
+        expect($settings['resolve_cache_ttl_seconds'] === 40, 'Token margin bounds positive TTL');
+        expect($settings['negative_cache_ttl_seconds'] === 5, 'Negative TTL configurable');
+        $known = json_decode($app->handle('GET', '/api/v1/resolve',
+            ['service' => 'yandex', 'track_id' => '1944599'], $auth)->body, true, flags: JSON_THROW_ON_ERROR);
+        $unknown = json_decode($app->handle('GET', '/api/v1/resolve',
+            ['service' => 'yandex', 'track_id' => '888888'], $auth)->body, true, flags: JSON_THROW_ON_ERROR);
+        expect($known['found'] === true && $known['cache_ttl_seconds'] === 40, 'Positive resolve uses server policy');
+        expect($unknown['found'] === false && $unknown['cache_ttl_seconds'] === 5, 'Negative resolve uses server policy');
+        $changed['audio_token_ttl'] = 600;
+        $changed['resolve_cache_ttl_seconds'] = 9999;
+        $changed['negative_cache_ttl_seconds'] = 1;
+        $bounds = json_decode((new Application($changed, $catalog, $storage, $analytics))
+            ->handle('GET', '/api/v1/config')->body, true, flags: JSON_THROW_ON_ERROR);
+        expect($bounds['resolve_cache_ttl_seconds'] === 120 && $bounds['negative_cache_ttl_seconds'] === 5, 'Hard TTL bounds');
+    });
     run('resolve private access, exact ID, found/not found and no filesystem exposure', function () use ($app, $auth): void {
         expect($app->handle('GET', '/api/v1/resolve', ['service' => 'yandex', 'track_id' => '1944599'])->status === 401, 'Anonymous catalog');
         $response = $app->handle('GET', '/api/v1/resolve', ['service' => 'yandex', 'track_id' => '1944599'], $auth);

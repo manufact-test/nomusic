@@ -13,6 +13,8 @@ final class ResolveService
         private readonly CatalogRepository $catalog,
         private readonly StorageAdapter $storage,
         private readonly AudioTokenService $tokens,
+        private readonly int $positiveTtlSeconds = 120,
+        private readonly int $negativeTtlSeconds = 15,
     ) {
     }
 
@@ -23,7 +25,7 @@ final class ResolveService
         }
         $row = $this->catalog->findActive($service, $trackId);
         if ($row === null || $row['storage_driver'] !== 'local' || !$this->storage->exists($row['storage_key'])) {
-            return ['found' => false, 'cache_ttl_seconds' => 15];
+            return ['found' => false, 'cache_ttl_seconds' => ResolveCachePolicy::negative($this->negativeTtlSeconds)];
         }
         $id = (int) $row['replacement_id'];
         $version = (int) $row['version'];
@@ -35,7 +37,7 @@ final class ResolveService
             'duration_ms' => (int) $row['duration_ms'],
             'version' => $version,
             'expires_at' => $expires,
-            'cache_ttl_seconds' => min(120, $this->tokens->ttl - 30),
+            'cache_ttl_seconds' => ResolveCachePolicy::positive($this->positiveTtlSeconds, $this->tokens->ttl),
         ];
     }
 }

@@ -57,3 +57,7 @@ Only after a later owner-approved request changes to a write operation will the 
 - First Actions `validate` (local-only, no SSH): https://github.com/manufact-test/nomusic/actions/runs/37916327886 — pass.
 - Actions `inspect` through pinned SSH and private remote read-only SQL: https://github.com/manufact-test/nomusic/actions/runs/37916411482 — pass: one Track, one AudioAsset and one TrackReplacement; public config shows replacements enabled, analytics disabled. No production database writes, no new audio and no deploy. The operation request returns to `validate` afterwards.
 - Real live write/activation/disable is **not tested and not authorized by this 6.4 gate**. The next deliverable is 6.5 cached resolve behavior followed by Stage 6.6 regression and 6.7 owner acceptance.
+
+## Stage 6.5 TTL integration (CI pending)
+
+The server accepts optional private `RESOLVE_CACHE_TTL_SECONDS` (default 120, bounded 5–120) and `NEGATIVE_CACHE_TTL_SECONDS` (default 15, bounded 5–60). `ResolveCachePolicy` keeps config and per-track responses consistent. Positive response caching cannot exceed the audio token lifetime minus 30s; this does not change token expiration or permissions. No live environment variable or Hostinger config changes are required for the defaults. Package 6.5 also updates ApiClient and ReplacementController with regression tests before acceptance.

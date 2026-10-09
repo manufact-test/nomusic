@@ -18,6 +18,8 @@ return [
     'storage_path' => $value('STORAGE_PATH', dirname(__DIR__) . '/storage/audio'),
     'audio_signing_key' => $value('AUDIO_SIGNING_KEY'),
     'audio_token_ttl' => (int) $value('AUDIO_TOKEN_TTL_SECONDS', '600'),
+    'resolve_cache_ttl_seconds' => (int) $value('RESOLVE_CACHE_TTL_SECONDS', '120'),
+    'negative_cache_ttl_seconds' => (int) $value('NEGATIVE_CACHE_TTL_SECONDS', '15'),
     'test_api_token' => $value('API_TEST_TOKEN'),
     'api_enabled' => $boolean('FEATURE_REPLACEMENTS'),
     'analytics_enabled' => $boolean('FEATURE_ANALYTICS'),
