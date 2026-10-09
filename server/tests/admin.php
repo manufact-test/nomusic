@@ -22,6 +22,7 @@ $pdo = Connection::open($config);
 (new MigrationRunner($pdo, dirname(__DIR__) . '/migrations'))->run();
 $storage = new LocalStorageAdapter($config['storage_path']);
 $config['admin_enabled'] = true;
+$config['api_enabled'] = true;
 $pass = 'test-' . bin2hex(random_bytes(16));
 $login = 'stage8-' . substr(bin2hex(random_bytes(8)), 0, 10);
 $pdo->prepare("INSERT INTO admins (login,password_hash,role) VALUES (?,?,'owner')")
