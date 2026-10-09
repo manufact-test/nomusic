@@ -77,15 +77,17 @@ try {
                 'analytics_events', 'analytics_daily_aggregates', 'audio_fingerprint_jobs',
                 'upload_submissions', 'track_requests', 'upload_rate_buckets',
                 'admins', 'admin_sessions', 'admin_login_attempts', 'audit_log',
-                'track_request_reviews', 'reports'], true)) throw new RuntimeException('unknown_table');
+                'track_request_reviews', 'reports', 'users', 'user_devices', 'user_sessions',
+                'user_auth_attempts', 'user_auth_events'], true)) throw new RuntimeException('unknown_table');
             $currentCount = (int) $pdo->query('SELECT COUNT(*) FROM ' . chr(96) . $table . chr(96))->fetchColumn();
             // The only permitted pre-deployment row-count increase is the
             // expected checksummed additive Stage 8 schema migration.
             if ($table === 'schema_migrations' && $currentCount === (int) $beforeCount + 1) {
                 $migration = $pdo->prepare('SELECT sha256 FROM schema_migrations WHERE version = ?');
-                $migration->execute(['003_admin_moderation.sql']);
+                $migrationFile = '004_user_identity.sql';
+                $migration->execute([$migrationFile]);
                 $checksum = $migration->fetchColumn();
-                $diskChecksum = hash_file('sha256', $release . '/migrations/003_admin_moderation.sql');
+                $diskChecksum = hash_file('sha256', $release . '/migrations/' . $migrationFile);
                 if (!is_string($checksum) || !is_string($diskChecksum)
                     || !hash_equals($checksum, $diskChecksum)) throw new RuntimeException('unexpected_migration');
                 continue;
@@ -93,7 +95,7 @@ try {
             if ($currentCount !== (int) $beforeCount)
                 throw new RuntimeException('database-row-count-changed');
         }
-        echo "Stage 5 after-deploy audit PASS: private env, audio hashes, original data row counts and approved mapping unchanged; Stage 8 migration recognized.\n";
+        echo "Stage 9 after-deploy audit PASS: private env, media and historic row counts preserved; additive Stage 9 migration verified.\n";
         exit(0);
     }
     $copyAudio = static function(string $source, string $destination, array $index): void {
@@ -155,7 +157,8 @@ try {
         // Later private snapshots also protect Stage 8 moderation state. Pre-deployment
         // snapshots correctly omit these tables until migration 003 exists.
         $optional = ['admins', 'admin_sessions', 'admin_login_attempts', 'audit_log',
-            'track_request_reviews', 'reports'];
+            'track_request_reviews', 'reports', 'users', 'user_devices', 'user_sessions',
+            'user_auth_attempts', 'user_auth_events'];
         $present = $pdo->prepare('SELECT COUNT(*) FROM information_schema.tables
             WHERE table_schema = DATABASE() AND table_name = ?');
         foreach ($optional as $extra) {
