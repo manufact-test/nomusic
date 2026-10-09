@@ -90,6 +90,15 @@ run('Stage 8 login throttle is enforced even with the correct password',function
     for($i=0;$i<9;$i++)$auth->login($login,'wrong-password-'.$i,$ip);
     expect($auth->login($login,$pass,$ip)===null,'Login locked for current window');
 });
+run('Stage 8 moderation queues: status and page filters never become SQL injection',function()use($app,$sessionHeaders):void{
+    foreach(['uploads','requests','reports'] as $tab) {
+        foreach(['pending','invalid','pending OR 1=1'] as $status) {
+            $response=$app->handle('GET','/admin',['tab'=>$tab,'status'=>$status,'page'=>'2'],$sessionHeaders);
+            expect($response->status===200 && str_contains($response->body,'Статус'),'Queue filter renders');
+            expect(!str_contains($response->body,'service_unavailable'),'No query injection');
+        }
+    }
+});
 run('Stage 8 CSRF rejection and private preview require authenticated session',function()use($app,$actionHeaders):void{
     expect($app->handle('POST','/admin/action',headers:$actionHeaders,body:'kind=replacement&id=1&action=approve')->status===403,'CSRF');
     expect($app->handle('GET','/admin/audio/123456789')->status===403,'Anonymous preview');
