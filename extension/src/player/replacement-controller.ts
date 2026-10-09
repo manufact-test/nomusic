@@ -105,7 +105,7 @@
           : await this.resolveAsset(operation.trackId);
         if (!this.current(operation)) return;
         if (!operation.asset?.found) {
-          this.negativeResolution = { trackId: operation.trackId, until: Date.now() + Math.min(60000, Math.max(15000, operation.asset?.retryAfterMs || 15000)) };
+          this.negativeResolution = { trackId: operation.trackId, until: Date.now() + Math.min(60000, Math.max(5000, operation.asset?.retryAfterMs || 15000)) };
           this.operation = null; this.phase = "IDLE"; return;
         }
         if (!operation.asset.demoLoop && (!Number.isFinite(operation.asset.durationMs)

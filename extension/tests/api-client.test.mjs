@@ -72,6 +72,70 @@ test("Stage 6: positive cache sees server-side active mapping switch after TTL",
   assert.equal(resolves, 2, "no unnecessary retry");
 });
 
+test("Stage 6.5: server TTL config governs negative approval discovery and positive refresh", async () => {
+  let time = now; let approved = false; let replacementId = 81; let calls = 0;
+  const updatedConfig = { ...config, resolve_cache_ttl_seconds: 7, negative_cache_ttl_seconds: 5 };
+  const server = async (url) => {
+    if (url.endsWith("/api/v1/config")) return response(updatedConfig);
+    calls++;
+    if (!approved) return response({ found: false, cache_ttl_seconds: 5 });
+    const expires = Math.floor(time / 1000) + 600;
+    return response({ found: true, replacement_id: replacementId, version: 1, duration_ms: 201000,
+      expires_at: expires, cache_ttl_seconds: 7,
+      audio_url: "/api/v1/audio/" + replacementId + "?token=" + "d".repeat(64) + "&expires=" + expires });
+  };
+  const client = new ApiClient("https://celikom.example", { now: () => time, fetch: server });
+  assert.equal((await client.resolve("yandex", "222")).retryAfterMs, 5000);
+  approved = true;
+  time += 4999;
+  assert.equal((await client.resolve("yandex", "222")).found, false);
+  assert.equal(calls, 1, "pending approval uses negative TTL, not polling");
+  time += 2;
+  assert.equal((await client.resolve("yandex", "222")).replacementId, 81);
+  assert.equal(calls, 2);
+  replacementId = 82;
+  time += 6999;
+  assert.equal((await client.resolve("yandex", "222")).replacementId, 81);
+  assert.equal(calls, 2);
+  time += 2;
+  assert.equal((await client.resolve("yandex", "222")).replacementId, 82);
+  assert.equal(calls, 3, "new approved mapping visible after server positive TTL");
+});
+test("Stage 6.5: signed expiry bounds positive cache and invalid TTLs cannot bypass validation", async () => {
+  let time = now; let calls = 0;
+  const validConfig = { ...config, resolve_cache_ttl_seconds: 120, negative_cache_ttl_seconds: 60 };
+  const client = new ApiClient("https://celikom.example", { now: () => time, fetch: async url => {
+    if (url.endsWith("/api/v1/config")) return response(validConfig);
+    calls++;
+    const expires = Math.floor(time / 1000) + 40;
+    return response({ found: true, replacement_id: 7, version: 1, duration_ms: 201000, expires_at: expires,
+      cache_ttl_seconds: 120,
+      audio_url: "/api/v1/audio/7?token=" + "e".repeat(64) + "&expires=" + expires });
+  } });
+  await client.resolve("yandex", "7");
+  time += 10001;
+  await client.resolve("yandex", "7");
+  assert.equal(calls, 2, "signed token 30s safety margin limits positive cache");
+  for (const ttl of ["15", null, 1.5]) {
+    const bad = new ApiClient("https://celikom.example", { now: () => now, fetch: async url =>
+      response(url.endsWith("/api/v1/config") ? config : { found: false, cache_ttl_seconds: ttl }) });
+    await assert.rejects(bad.resolve("yandex", "8"), /invalid_api_response/);
+  }
+  const badConfig = new ApiClient("https://celikom.example", { fetch: async () =>
+    response({ ...config, negative_cache_ttl_seconds: "5" }) });
+  await assert.rejects(badConfig.resolve("yandex", "8"), /invalid_api_config/);
+  let offline = true; let requests = 0;
+  const outage = new ApiClient("https://celikom.example", { now: () => now, fetch: async url => {
+    if (url.endsWith("/api/v1/config")) return response(config);
+    requests++;
+    if (offline) throw new Error("network disconnected");
+    return response({ found: false, cache_ttl_seconds: 15 });
+  } });
+  await assert.rejects(outage.resolve("yandex", "8"), /api_network_error/);
+  offline = false;
+  assert.equal((await outage.resolve("yandex", "8")).found, false);
+  assert.equal(requests, 2, "failure must not enter cache");
+});
 test("API URL validation rejects foreign origin, filesystem paths, forged IDs and stale tokens", async () => {
   for (const update of [
     { audio_url: "https://evil.example/api/v1/audio/7" },

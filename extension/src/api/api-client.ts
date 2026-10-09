@@ -1,4 +1,6 @@
 // API requests execute in the extension worker, never in the page's MAIN world.
+// Clamp server-controlled cache hints to prevent excessive polling and stale links.
+const boundedTtl = (value, fallback, maximum) => Math.max(5, Math.min(maximum, value ?? fallback));
 export class ApiClient {
   constructor(baseUrl, options = {}) {
     const url = new URL(baseUrl);
@@ -48,6 +50,8 @@ export class ApiClient {
   async config() {
     if (this.configCache?.until > this.now()) return this.configCache.value;
     const value = await this.request("/api/v1/config");
+    if (["resolve_cache_ttl_seconds", "negative_cache_ttl_seconds"].some((key) =>
+      value?.[key] !== undefined && !Number.isSafeInteger(value[key]))) throw new Error("invalid_api_config");
     if (value?.api_version !== 1 || typeof value.maintenance !== "boolean" || typeof value.features?.replacements !== "boolean"
       || !/^\d+\.\d+\.\d+$/.test(value.minimum_extension_version)) throw new Error("invalid_api_config");
     const parts = (s) => s.split(".").map(Number);
@@ -62,16 +66,20 @@ export class ApiClient {
     if (this.pending.has(key)) return this.pending.get(key);
     const pending = this.resolveUncached(service, trackId).then((value) => {
       if (this.cache.size >= 200) this.cache.delete(this.cache.keys().next().value);
-      const ttl = value.found ? Math.min(120000, value.expiresAt - this.now() - 30000) : 15000;
+      const ttl = value.found ? Math.min(value.cacheTtlMs, value.expiresAt - this.now() - 30000) : value.retryAfterMs;
       this.cache.set(key, { value, until: this.now() + Math.max(0, ttl) }); return value;
     }).finally(() => this.pending.delete(key));
     this.pending.set(key, pending); return pending;
   }
   async resolveUncached(service, trackId) {
     const config = await this.config();
-    if (config.maintenance || !config.features.replacements) return { found: false, retryAfterMs: 15000 };
+    const positiveTtlSeconds = boundedTtl(config.resolve_cache_ttl_seconds, 120, 120);
+    const negativeTtlSeconds = boundedTtl(config.negative_cache_ttl_seconds, 15, 60);
+    if (config.maintenance || !config.features.replacements) return { found: false, retryAfterMs: negativeTtlSeconds * 1000 };
     const result = await this.request(`/api/v1/resolve?service=${service}&track_id=${trackId}`);
-    if (result?.found === false) return { found: false, retryAfterMs: 15000 };
+    if (result?.cache_ttl_seconds !== undefined && !Number.isSafeInteger(result.cache_ttl_seconds)) throw new Error("invalid_api_response");
+    if (result?.found === false) return { found: false, retryAfterMs:
+      Math.min(negativeTtlSeconds, boundedTtl(result.cache_ttl_seconds, negativeTtlSeconds, 60)) * 1000 };
     if (result?.found !== true || !Number.isSafeInteger(result.replacement_id) || result.replacement_id <= 0
       || !Number.isSafeInteger(result.duration_ms) || result.duration_ms <= 0 || result.duration_ms > 86400000
       || !Number.isSafeInteger(result.version) || result.version < 1 || !Number.isSafeInteger(result.expires_at)
@@ -81,7 +89,10 @@ export class ApiClient {
     if (url.origin !== this.origin || url.username || url.password || url.hash || url.pathname !== `/api/v1/audio/${result.replacement_id}`
       || !/^[a-f0-9]{64}$/.test(url.searchParams.get("token") || "") || url.searchParams.get("expires") !== String(result.expires_at)
       || [...url.searchParams.keys()].length !== 2) throw new Error("invalid_audio_url");
-    return { found: true, url: url.href, durationMs: result.duration_ms, replacementId: result.replacement_id, version: result.version, expiresAt: result.expires_at * 1000, demoLoop: false };
+    return { found: true, url: url.href, durationMs: result.duration_ms, replacementId: result.replacement_id,
+      version: result.version, expiresAt: result.expires_at * 1000,
+      cacheTtlMs: Math.min(positiveTtlSeconds, boundedTtl(result.cache_ttl_seconds, positiveTtlSeconds, 120)) * 1000,
+      demoLoop: false };
   }
   async events(batch) {
     const result = await this.request("/api/v1/events/batch", { method: "POST", body: JSON.stringify(batch) });
