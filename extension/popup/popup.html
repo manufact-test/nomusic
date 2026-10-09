@@ -18,20 +18,32 @@
         <button type="button" data-action="stop">Стоп</button>
       </div>
       <button class="wide" type="button" data-action="restore">Вернуть оригинал</button>
-      <button class="wide" type="button" data-action="add">Добавить трек</button>
-      <section class="upload-panel" data-upload-panel hidden aria-label="Добавить версию">
+      <button class="wide add-track-action" type="button" data-action="add" aria-expanded="false" aria-controls="celikom-upload-panel">Добавить трек</button>
+      <section class="upload-panel" id="celikom-upload-panel" data-upload-panel hidden aria-label="Добавить версию">
         <strong>Добавить версию</strong>
         <p class="stage">Только закрытый тест. Новые файлы не публикуются без ручной проверки.</p>
         <div class="upload-result" data-upload-result hidden role="status" aria-live="polite">
           <strong data-upload-result-title>Отправлено на проверку</strong>
           <p data-upload-result-note>Версия ожидает модерации.</p>
         </div>
-        <p class="upload-feedback" data-upload-status role="status" aria-live="polite">Выберите трек в Яндекс Музыке.</p>
+        <p class="upload-feedback" data-upload-status role="status" aria-live="polite" hidden></p>
         <form data-upload-form hidden>
           <label class="stage" for="upload-track">Track ID · только чтение</label>
           <input id="upload-track" data-upload-track readonly aria-readonly="true" required>
-          <label class="stage" for="upload-file">MP3 · до 30 МиБ</label>
-          <input id="upload-file" data-upload-file type="file" accept=".mp3,audio/mpeg" required>
+          <label class="stage" for="upload-file">Аудиофайл · MP3 до 30 МиБ</label>
+          <input class="upload-file-native" id="upload-file" data-upload-file type="file" accept=".mp3,audio/mpeg" required>
+          <label class="upload-file-picker" data-file-picker for="upload-file">
+            <span class="upload-file-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 16V4m0 0-4 4m4-4 4 4"/>
+                <path d="M5 15v4a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-4"/>
+              </svg>
+            </span>
+            <span class="upload-file-copy">
+              <strong data-file-title>Выбрать MP3</strong>
+              <span data-file-name>Нажмите или перетащите файл сюда</span>
+            </span>
+          </label>
           <label class="stage" for="upload-key">Код владельца для приватной загрузки</label>
           <input id="upload-key" data-upload-key type="password" autocomplete="off" spellcheck="false" placeholder="Только owner-only тест" required>
           <label class="upload-rights"><input data-upload-rights type="checkbox" required> Подтверждаю, что имею необходимые права на этот аудиофайл.</label>
