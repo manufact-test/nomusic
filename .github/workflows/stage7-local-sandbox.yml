@@ -103,3 +103,31 @@ jobs:
         if: always()
         shell: bash
         run: docker compose -p celikom-stage7-ci -f stage7/compose.yaml down -v --remove-orphans || true
+
+  windows-powershell-launcher:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Exercise exact owner PowerShell startup and clean rollback
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          try {
+            & ./stage7/start-local.ps1 -Quiet
+            if (!(Test-Path "./extension/dist/unpacked/manifest.json")) { throw "Owner Chrome build missing." }
+            $health = Invoke-RestMethod "http://127.0.0.1:8787/api/v1/health" -TimeoutSec 5
+            if ($health.status -ne "ok") { throw "Owner startup API not healthy." }
+            Write-Host "PowerShell one-command startup, Chrome bundle and health: PASS."
+          } finally {
+            & ./stage7/stop-local.ps1 -Reset
+          }
+      - name: Attempt cleanup on any early failure
+        if: always()
+        shell: bash
+        run: |
+          if [[ -f stage7/.runtime/local.env ]]; then
+            docker compose -p celikom-stage7-local --env-file stage7/.runtime/local.env -f stage7/compose.yaml down -v --remove-orphans || true
+          fi
