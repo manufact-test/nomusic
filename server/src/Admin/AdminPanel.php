@@ -279,8 +279,10 @@ final class AdminPanel
     private function requests(array $admin, string $csrf, array $query): string
     {
         [$status,$page,$offset,$filter]=$this->queueOptions('requests',$query,['pending','reviewed','rejected']);
-        $stmt=$this->pdo->prepare("SELECT id,service,service_track_id,artist,title,status,created_at
-            FROM track_requests ".($status!==''?' WHERE status = ? ':' ').
+        $stmt=$this->pdo->prepare("SELECT r.id,r.service,r.service_track_id,r.artist,r.title,r.status,r.created_at,
+            (SELECT COUNT(DISTINCT x.uploader_hash) FROM track_requests x
+              WHERE x.service = r.service AND x.service_track_id = r.service_track_id) AS proposal_count
+            FROM track_requests r ".($status!==''?' WHERE status = ? ':' ').
             " ORDER BY FIELD(status,'pending','reviewed','rejected'),id DESC LIMIT 26 OFFSET ".$offset);
         $stmt->execute($status!==''?[$status]:[]);
         $rows=$stmt->fetchAll(\PDO::FETCH_ASSOC);
@@ -295,7 +297,8 @@ final class AdminPanel
                 ? 'https://music.yandex.ru/track/' . $trackId : '';
             $html .= '<section class="panel"><h3>#'.$id.' · '.self::e($r['artist'])
                 .' — '.self::e($r['title']).'</h3><p>Track ID: '.self::e($trackId)
-                .' · '.self::e($r['status']).' · '.self::e($r['created_at']).'</p>'
+                .' · '.self::e($r['status']).' · '.self::e($r['created_at'])
+                .' · Уникальных предложений: '.(int)$r['proposal_count'].'</p>'
                 .($url !== '' ? '<p><a href="'.self::e($url).'" target="_blank" rel="noopener noreferrer">Открыть в Яндекс Музыке</a></p>' : '');
             if ($r['status']==='pending' && in_array($admin['role'],['owner','moderator'],true)) {
                 $html .= '<form method="post" action="/admin/action"><input type="hidden" name="csrf" value="'.$csrf.'">'
