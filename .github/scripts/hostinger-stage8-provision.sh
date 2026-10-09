@@ -41,7 +41,12 @@ status="$(ssh -T -p 65002 "${opts[@]}" "$target" "curl --silent --show-error --m
 denied="$(ssh -T -p 65002 "${opts[@]}" "$target" "curl --silent --show-error --max-time 20 -o /dev/null -w '%{http_code}' 'https://darkred-camel-588676.hostingersite.com/admin/audio/1'")"
 [[ "$denied" == '403' ]] || { echo "Unauthenticated audio protection not confirmed." >&2; exit 1; }
 mkdir -p dist/stage8-admin-access
-{ printf '%s\n' 'CELIKOM private admin' 'URL: https://darkred-camel-588676.hostingersite.com/admin/login' 'Login: owner'
-  printf 'Password: '; cat "$scratch/password"; } > dist/stage8-admin-access/owner-credentials.txt
-chmod 0600 dist/stage8-admin-access/owner-credentials.txt
-echo "Stage 8 private admin HTTPS login 200 and anonymous audio 403 verified; one-day private GitHub artifact created."
+# Public GitHub Actions artifacts must never contain a plaintext password.
+openssl pkeyutl -encrypt -pubin -inkey .github/keys/stage7-owner-transport.pub.pem \
+  -pkeyopt rsa_padding_mode:oaep -pkeyopt rsa_oaep_md:sha256 \
+  -in "$scratch/password" -out dist/stage8-admin-access/owner-password.encrypted
+printf '%s\n' 'Encrypted credential. The same one-time login is stored in the private Hostinger' \
+  'file: celikom/shared/stage8-owner-login-once.txt (outside public_html, mode 0600).' \
+  'Login: owner' 'URL: https://darkred-camel-588676.hostingersite.com/admin/login' \
+  > dist/stage8-admin-access/README.txt
+echo "Stage 8 HTTPS login 200 and anonymous audio 403 verified. Only encrypted credential published."
