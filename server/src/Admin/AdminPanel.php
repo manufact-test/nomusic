@@ -86,6 +86,10 @@ final class AdminPanel
                 return Response::json(409, ['error'=>'moderation_conflict_or_unverified']);
             }
         }
+        if ($path === '/admin/export' && $method === 'GET') {
+            if (!in_array($admin['role'], ['owner','moderator'], true)) return Response::json(403,['error'=>'forbidden']);
+            return $this->exportAudit($admin);
+        }
         if (preg_match('~^/admin/audio/([1-9]\d{0,17})$~D', $path, $m)
             && in_array($method, ['GET','HEAD'], true)) {
             return $this->preview($method, (int)$m[1], $headers);
@@ -155,13 +159,14 @@ final class AdminPanel
     private function dashboard(array $admin, array $query): string
     {
         $tab = is_string($query['tab'] ?? null) ? $query['tab'] : 'uploads';
-        $allowed = ['uploads','requests','reports','audit'];
+        $allowed = ['uploads','requests','reports','audit','overview'];
         if (!in_array($tab, $allowed, true)) $tab = 'uploads';
         $csrf = self::e($admin['csrf']);
         $html = '<h1>CELIKOM · Модерация</h1><p>Администратор: ' . self::e($admin['login'])
             . ' (' . self::e($admin['role']) . ')</p><nav><a href="/admin?tab=uploads">MP3</a>'
             . '<a href="/admin?tab=requests">Предложить песню</a>'
-            . '<a href="/admin?tab=reports">Жалобы</a><a href="/admin?tab=audit">Журнал</a></nav>'
+            . '<a href="/admin?tab=reports">Жалобы</a><a href="/admin?tab=audit">Журнал</a>'
+            .'<a href="/admin?tab=overview">Обзор</a></nav>'
             . '<form method="post" action="/admin/logout"><input type="hidden" name="csrf" value="' . $csrf
             . '"><button type="submit">Выйти</button></form>';
         $counts = $this->pdo->query("SELECT
@@ -175,6 +180,7 @@ final class AdminPanel
             'requests' => $this->requests($admin, $csrf),
             'reports' => $this->reports($admin, $csrf),
             'audit' => $this->auditLog(),
+            'overview' => $this->overview($query),
             default => $this->uploads($admin, $csrf),
         };
     }
@@ -281,6 +287,88 @@ final class AdminPanel
             .'</td><td>'.self::e($r['action']).'</td><td>'.self::e($r['entity_type']).' #'.(int)$r['entity_id']
             .'</td><td>'.self::e($r['reason']).'</td></tr>';
         return $html.'</table></div>';
+    }
+
+    /** Real period comparisons only; account/billing counters are intentionally unavailable. */
+    private function overview(array $query): string
+    {
+        $to = is_string($query['to'] ?? null) && preg_match('/^\d{4}-\d{2}-\d{2}$/D',$query['to'])
+            ? $query['to'] : gmdate('Y-m-d');
+        $from = is_string($query['from'] ?? null) && preg_match('/^\d{4}-\d{2}-\d{2}$/D',$query['from'])
+            ? $query['from'] : gmdate('Y-m-d',time()-6*86400);
+        try {
+            $start=new \DateTimeImmutable($from,new \DateTimeZone('UTC'));
+            $finish=new \DateTimeImmutable($to,new \DateTimeZone('UTC'));
+            if ($start->format('Y-m-d')!==$from || $finish->format('Y-m-d')!==$to
+                || $start>$finish || $finish->getTimestamp()-$start->getTimestamp()>366*86400) {
+                throw new \InvalidArgumentException('invalid_dates');
+            }
+        } catch(\Exception) {
+            return '<section class="panel"><p>Неверный диапазон дат.</p></section>';
+        }
+        $endExclusive=$finish->modify('+1 day');
+        $days=(int)$start->diff($endExclusive)->days;
+        $beforeStart=$start->modify('-'.$days.' days');
+        $counts=function(string $table,string $left,string $right):array {
+            $sql="SELECT status,COUNT(*) AS amount FROM ".$table."
+                WHERE created_at >= ? AND created_at < ? GROUP BY status";
+            $stmt=$this->pdo->prepare($sql);$stmt->execute([$left,$right]);
+            $rows=$stmt->fetchAll(\PDO::FETCH_ASSOC);
+            $ret=[];foreach($rows as $r)$ret[$r['status']]=(int)$r['amount'];
+            return $ret;
+        };
+        $date=function(\DateTimeImmutable $d):string{return $d->format('Y-m-d H:i:s');};
+        $html='<h2>Операционный обзор</h2><section class="panel"><form method="get" action="/admin">'
+            .'<input type="hidden" name="tab" value="overview"><label>От <input type="date" name="from" value="'.self::e($from).'"></label>'
+            .'<label>До <input type="date" name="to" value="'.self::e($to).'"></label>'
+            .'<button type="submit">Показать</button></form>'
+            .'<p><small>Сравнение с предыдущим равным периодом. Текущие статусы заявок, созданных в диапазоне.</small></p>'
+            .'<table><tr><th>Тип / статус</th><th>Выбранный период</th><th>Предыдущий</th></tr>';
+        foreach([['MP3','track_replacements'],['Предложения','track_requests']] as [$label,$table]){
+            $now=$counts($table,$date($start),$date($endExclusive));
+            $prior=$counts($table,$date($beforeStart),$date($start));
+            foreach(['pending','approved','rejected','disabled','reviewed'] as $status){
+                if(!isset($now[$status])&&!isset($prior[$status]))continue;
+                $html.='<tr><td>'.self::e($label.' / '.$status).'</td><td>'.($now[$status]??0)
+                    .'</td><td>'.($prior[$status]??0).'</td></tr>';
+            }
+        }
+        $html.='</table></section>';
+        $aggregate=$this->pdo->prepare('SELECT metric,SUM(event_count) AS events
+            FROM analytics_daily_aggregates WHERE aggregate_date>=? AND aggregate_date<=?
+            GROUP BY metric ORDER BY metric');
+        $aggregate->execute([$from,$to]);
+        $rows=$aggregate->fetchAll(\PDO::FETCH_ASSOC);
+        if($rows) {
+            $html.='<section class="panel"><h3>Агрегированные события (фактические)</h3><table>';
+            foreach($rows as $r)$html.='<tr><td>'.self::e($r['metric']).'</td><td>'.(int)$r['events'].'</td></tr>';
+            $html.='</table></section>';
+        }else{
+            $html.='<p>Агрегированная аналитика: данных за период нет. Нули не подставляются.</p>';
+        }
+        $html.='<p><small>Новые/возвращающиеся пользователи и платежи появятся только с аккаунтами и billing на последующих этапах.</small></p>';
+        return $html;
+    }
+
+    /** CSV has no raw uploader hashes or storage keys. Export access is audited. */
+    private function exportAudit(array $admin): Response
+    {
+        $rows=$this->pdo->query('SELECT l.created_at,a.login,l.action,l.entity_type,l.entity_id,l.reason
+            FROM audit_log l JOIN admins a ON a.id=l.admin_id ORDER BY l.id DESC LIMIT 1000')
+            ->fetchAll(\PDO::FETCH_ASSOC);
+        $moderation = new ModerationService($this->pdo,$this->storage);
+        $moderation->audit($admin['id'],'audit_csv_export','admin',$admin['id'],
+            'export up to 1000 recent audit rows',[],['row_count'=>count($rows)]);
+        $escape=static function(mixed $v):string {
+            $s=(string)($v??'');
+            if(preg_match('/^[\s]*[=+\-@\t\r]/u',$s))$s="'".$s;
+            return '"'.str_replace('"','""',$s).'"';
+        };
+        $csv="created_at,admin,action,entity_type,entity_id,reason\r\n";
+        foreach($rows as $r)$csv.=implode(',',array_map($escape,array_values($r)))."\r\n";
+        return new Response(200,['Content-Type'=>'text/csv; charset=utf-8',
+            'Content-Disposition'=>'attachment; filename="celikom-audit.csv"',
+            'Cache-Control'=>'private, no-store'], "\xEF\xBB\xBF".$csv);
     }
 
     private function preview(string $method, int $id, array $headers): Response
