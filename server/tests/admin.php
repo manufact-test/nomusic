@@ -200,6 +200,20 @@ try{
         $mod->replacement($adminId,$candidate,'disable','rights withdrawn',$candidate,false);
         expect($catalog->findActive('yandex',$track)===null,'Disable removes public mapping');
     });
+    run('Stage 8 restore requires explicit fresh rights check, then can be disabled again',function()
+        use($mod,$adminId,$candidate,$catalog,$track):void{
+        try {
+            $mod->replacement($adminId,$candidate,'reactivate','not yet revalidated',0,false);
+            throw new RuntimeException('Reactivation accepted without renewed rights review');
+        } catch (DomainException $e) {
+            expect($e->getMessage()==='approval_requires_rights_and_reason','Rights check');
+        }
+        expect($catalog->findActive('yandex',$track)===null,'Still disabled without review');
+        $mod->replacement($adminId,$candidate,'reactivate','license rechecked manually',0,true);
+        expect((int)$catalog->findActive('yandex',$track)['replacement_id']===$candidate,'Explicit reactivation');
+        $mod->replacement($adminId,$candidate,'disable','private safety rollback',$candidate,false);
+        expect($catalog->findActive('yandex',$track)===null,'Safe subsequent disable');
+    });
     $otherTrack=$track.'7';
     $pdo->prepare('INSERT INTO tracks(service,service_track_id,artist,title,duration_ms) VALUES(?,?,?,?,?)')
         ->execute(['yandex',$otherTrack,'Stage8','Same asset',2612]);
