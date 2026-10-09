@@ -1,6 +1,6 @@
 # CELIKOM — актуальная передача в новый чат
 
-**Сверено: 09.10.2026.** Этот файл фиксирует факты исполнения; приоритет требований: Master ТЗ MVP v1.5, затем План работ MVP v1.6. Оба файла в Library /CELIKOM; канонические Library IDs: Master `libfile_af7d67f2cc848191947f897a5606675c`, Plan `libfile_4841b3eb31f0819186f49ff9c42cfe4b`. План следующего этапа: [Stage 7 uploads / anti-duplicates](../test-plans/CELIKOM-STAGE7-UPLOAD-ANTIDUPES.md).
+**Сверено: 09.10.2026.** Этот файл фиксирует факты исполнения; приоритет требований: Master ТЗ MVP v1.5, затем План работ MVP v1.6. Оба файла обновлены в Library /CELIKOM датированными дополнениями. Новый файл передачи: `CELIKOM_HANDOFF_STAGE7_2026-10-09.md` (`libfile_f798ed7dfd4c81918293e9e894d04edd`), план этапа 7: `CELIKOM_STAGE7_PLAN_2026-10-09.md` (`libfile_1a2c915a3c7c8191997ac58a54e48fce`). Канонические Library IDs: Master `libfile_af7d67f2cc848191947f897a5606675c`, Plan `libfile_4841b3eb31f0819186f49ff9c42cfe4b`. План следующего этапа: [Stage 7 uploads / anti-duplicates](../test-plans/CELIKOM-STAGE7-UPLOAD-ANTIDUPES.md).
 
 ## Проверенный результат
 
