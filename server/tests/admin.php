@@ -124,6 +124,55 @@ $candidate=(int)$pdo->lastInsertId();
 $catalog=new PdoCatalogRepository($pdo);
 $mod=new ModerationService($pdo,$storage);
 try{
+    run('Stage 8 redesign: Russian statuses, safe paging and no raw role/metadata clutter',function()
+        use($app,$sessionHeaders):void{
+        foreach(['uploads','requests','reports','audit'] as $tab) {
+            foreach(['10','25','50'] as $size) {
+                $resp=$app->handle('GET','/admin',['tab'=>$tab,'per_page'=>$size,'page'=>'1'],$sessionHeaders);
+                expect($resp->status===200,'Paged '.$tab.' '.$size.' available');
+                expect(str_contains($resp->body,'name="per_page"'),'Per page selector shown');
+                expect(str_contains($resp->body,'value="'.$size.'" selected'),'Page size remembered');
+                expect(str_contains($resp->body,'Страница 1 из'),'Numeric pager displayed');
+                expect(str_contains($resp->body,'CELIKOM'),'Brand present');
+            }
+        }
+        $page=$app->handle('GET','/admin',['tab'=>'uploads','status'=>'pending','per_page'=>'9 OR 1=1'],$sessionHeaders);
+        expect($page->status===200 && str_contains($page->body,'25 записей</option>'),
+            'Invalid page size falls back safely');
+        expect(str_contains($page->body,'На проверке'),'Russian status label');
+        expect(!str_contains($page->body,'active: 0'),'Internal status text not exposed');
+    });
+    run('Stage 8 legacy metadata: only owner, CSRF and exact Track ID can repair missing labels',function()
+        use($app,$pdo,$track,$assetId,$sessionHeaders,$actionHeaders,$csrf):void{
+        $oldTrack=$track.'55';
+        $pdo->prepare('INSERT INTO tracks(service,service_track_id,artist,title,duration_ms)
+            VALUES(?,?,?,?,?)')->execute(['yandex',$oldTrack,'','',2612]);
+        $trackDbId=(int)$pdo->lastInsertId();
+        $pdo->prepare("INSERT INTO track_replacements(track_id,audio_asset_id,status,is_active)
+            VALUES(?,?,'pending',0)")->execute([$trackDbId,$assetId]);
+        $view=$app->handle('GET','/admin',['tab'=>'uploads'],$sessionHeaders);
+        expect(str_contains($view->body,'Название не указано'),'Unknown labels are explicit');
+        expect(str_contains($view->body,'action="/admin/metadata"'),'Owner can correct missing labels');
+        $payload=['track'=>(string)$trackDbId,'expected_track_id'=>$oldTrack,
+            'artist'=>'Проверенный исполнитель','title'=>'Проверенная песня'];
+        expect($app->handle('POST','/admin/metadata',headers:$actionHeaders,
+            body:http_build_query($payload))->status===403,'Metadata requires CSRF');
+        expect($app->handle('POST','/admin/metadata',headers:$actionHeaders,
+            body:http_build_query($payload+['csrf'=>$csrf,'expected_track_id'=>'12345']))->status===409,
+            'Cannot relabel wrong Track ID');
+        $payload['csrf']=$csrf;
+        expect($app->handle('POST','/admin/metadata',headers:$actionHeaders,
+            body:http_build_query($payload))->status===303,'Owner may safely repair label');
+        $q=$pdo->prepare('SELECT artist,title,service_track_id FROM tracks WHERE id=?');
+        $q->execute([$trackDbId]);$row=$q->fetch(PDO::FETCH_ASSOC);
+        expect($row['artist']==='Проверенный исполнитель' && $row['title']==='Проверенная песня'
+            && $row['service_track_id']===$oldTrack,'Correct label without Track ID mutation');
+        $q=$pdo->prepare("SELECT COUNT(*) FROM audit_log WHERE entity_id=? AND action='track_metadata_labeled'");
+        $q->execute([$trackDbId]);
+        expect((int)$q->fetchColumn()===1,'Metadata change audited once');
+        expect($app->handle('POST','/admin/metadata',headers:$actionHeaders,
+            body:http_build_query($payload))->status===409,'Complete metadata not overwritable by quick repair');
+    });
     run('Stage 8 pending is not publicly resolvable',function()use($catalog,$track):void{
         expect($catalog->findActive('yandex',$track)===null,'Pending remains hidden');
     });
