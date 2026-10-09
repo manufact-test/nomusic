@@ -136,6 +136,74 @@ test("Stage 6.5: signed expiry bounds positive cache and invalid TTLs cannot byp
   assert.equal((await outage.resolve("yandex", "8")).found, false);
   assert.equal(requests, 2, "failure must not enter cache");
 });
+test("Stage 6.6: independent clients agree on shared approved mapping, then fail open after disable TTL", async () => {
+  let time = now; let active = true; let attempts = 0;
+  const configuration = { ...config, resolve_cache_ttl_seconds: 5, negative_cache_ttl_seconds: 5 };
+  const server = async (url) => {
+    if (url.endsWith("/api/v1/config")) return response(configuration);
+    attempts++;
+    if (!active) return response({ found: false, cache_ttl_seconds: 5 });
+    const expires = Math.floor(time / 1000) + 600;
+    return response({
+      found: true, replacement_id: 101, version: 8, duration_ms: 201000,
+      cache_ttl_seconds: 5, expires_at: expires,
+      audio_url: "/api/v1/audio/101?token=" + "c".repeat(64) + "&expires=" + expires
+    });
+  };
+  const alpha = new ApiClient("https://celikom.example", { now: () => time, fetch: server });
+  const beta = new ApiClient("https://celikom.example", { now: () => time, fetch: server });
+  const [first, second] = await Promise.all([
+    alpha.resolve("yandex", "900002"), beta.resolve("yandex", "900002")
+  ]);
+  assert.equal(first.replacementId, 101);
+  assert.equal(second.replacementId, 101, "same shared catalog mapping across installations");
+  assert.equal(attempts, 2, "one request per client, without shared local cache");
+  for (let i = 0; i < 20; i++) {
+    assert.equal((await alpha.resolve("yandex", "900002")).replacementId, 101);
+    assert.equal((await beta.resolve("yandex", "900002")).replacementId, 101);
+  }
+  assert.equal(attempts, 2, "no per-tick polling");
+  active = false;
+  time += 5001;
+  const [lostA, lostB] = await Promise.all([
+    alpha.resolve("yandex", "900002"), beta.resolve("yandex", "900002")
+  ]);
+  assert.equal(lostA.found, false, "disabled mapping falls back to original");
+  assert.equal(lostB.found, false, "other installation also falls back to original");
+  assert.equal(lostA.retryAfterMs, 5000);
+  assert.equal(attempts, 4, "one refresh per installation on expiry");
+  await Promise.all([alpha.resolve("yandex", "900002"), beta.resolve("yandex", "900002")]);
+  assert.equal(attempts, 4, "disabled mapping is negatively cached");
+});
+
+test("Stage 6.6: different exact Track IDs do not share cached resolution identity", async () => {
+  let time = now; const counts = new Map();
+  const server = async (url) => {
+    if (url.endsWith("/api/v1/config")) return response(config);
+    const id = new URL(url).searchParams.get("track_id");
+    counts.set(id, (counts.get(id) || 0) + 1);
+    if (id === "999998") return response({ found: false, cache_ttl_seconds: 15 });
+    const replacement = id === "900003" ? 103 : 104;
+    const expires = Math.floor(time / 1000) + 600;
+    return response({
+      found: true, replacement_id: replacement, version: 1, duration_ms: 201000,
+      cache_ttl_seconds: 30, expires_at: expires,
+      audio_url: "/api/v1/audio/" + replacement + "?token=" + "a".repeat(64) + "&expires=" + expires
+    });
+  };
+  const client = new ApiClient("https://celikom.example", { now: () => time, fetch: server });
+  const [a, b, unknown] = await Promise.all([
+    client.resolve("yandex", "900003"), client.resolve("yandex", "900004"), client.resolve("yandex", "999998")
+  ]);
+  assert.equal(a.replacementId, 103);
+  assert.equal(b.replacementId, 104);
+  assert.equal(unknown.found, false);
+  assert.deepEqual(Object.fromEntries(counts), { "900003": 1, "900004": 1, "999998": 1 });
+  assert.equal((await client.resolve("yandex", "900003")).replacementId, 103);
+  assert.equal((await client.resolve("yandex", "900004")).replacementId, 104);
+  assert.equal((await client.resolve("yandex", "999998")).found, false);
+  assert.deepEqual(Object.fromEntries(counts), { "900003": 1, "900004": 1, "999998": 1 }, "no cross-track cache poisoning");
+});
 test("API URL validation rejects foreign origin, filesystem paths, forged IDs and stale tokens", async () => {
   for (const update of [
     { audio_url: "https://evil.example/api/v1/audio/7" },

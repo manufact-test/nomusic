@@ -277,6 +277,125 @@ try {
             unlink($good);
         }
     });
+    run('Stage 6.6: two isolated API installations stream one shared asset by distinct signed mapping IDs', function () use ($config, $pdo, $storage, $wave): void {
+        $manager = new LibraryManagementService($pdo, $storage);
+        $assetId = (int) $pdo->query('SELECT id FROM audio_assets ORDER BY id LIMIT 1')->fetchColumn();
+        expect($assetId > 0, 'Shared fixture AudioAsset exists');
+        $tracks = [];
+        foreach (['600010', '600011'] as $serviceId) {
+            $trackId = $manager->addTrack('yandex', $serviceId, 1000);
+            $replacementId = $manager->link($trackId, $assetId);
+            $manager->approve($replacementId, true);
+            $manager->activate($replacementId, true, 0);
+            $tracks[$serviceId] = $replacementId;
+        }
+        expect($tracks['600010'] !== $tracks['600011'], 'Distinct TrackReplacement IDs');
+        $statement = $pdo->prepare('SELECT COUNT(DISTINCT audio_asset_id) FROM track_replacements WHERE id IN (?, ?)');
+        $statement->execute([$tracks['600010'], $tracks['600011']]);
+        expect((int) $statement->fetchColumn() === 1, 'One physical shared AudioAsset');
+
+        $appConfig = $config;
+        $appConfig['api_enabled'] = true;
+        $appConfig['analytics_enabled'] = false;
+        $appConfig['test_api_token'] = str_repeat('stage6-owner-test-', 3);
+        $appConfig['audio_signing_key'] = str_repeat('stage6-test-signing-', 3);
+        $appConfig['audio_token_ttl'] = 600;
+        $auth = ['Authorization' => 'Bearer ' . $appConfig['test_api_token']];
+        $one = new Application($appConfig, new PdoCatalogRepository(Connection::open($config)), $storage);
+        $two = new Application($appConfig, new PdoCatalogRepository(Connection::open($config)), $storage);
+        foreach ([['600010', $tracks['600010'], $one], ['600011', $tracks['600011'], $two]] as [$track, $replacement, $app]) {
+            $response = $app->handle('GET', '/api/v1/resolve', ['service' => 'yandex', 'track_id' => $track], $auth);
+            expect($response->status === 200, 'Authenticated resolve status');
+            $data = json_decode($response->body, true, flags: JSON_THROW_ON_ERROR);
+            expect($data['found'] === true && $data['replacement_id'] === $replacement, 'Only exact ID resolves');
+            expect(!str_contains($response->body, 'storage_key') && !str_contains($response->body, '/shared/'),
+                'No private file name or private path returned');
+            $route = parse_url($data['audio_url'], PHP_URL_PATH);
+            parse_str((string) parse_url($data['audio_url'], PHP_URL_QUERY), $query);
+            expect($route === '/api/v1/audio/' . $replacement, 'Version-signed private HTTP API route');
+            $partial = $app->handle('GET', $route, $query, [
+                'Range' => 'bytes=16-39', 'Origin' => 'https://music.yandex.ru',
+            ]);
+            expect($partial->status === 206 && bytes($partial) === substr($wave, 16, 24),
+                'Shared WAV asset returns byte-exact 206 in both installations');
+            expect($partial->headers['Content-Range'] === 'bytes 16-39/' . strlen($wave),
+                'RFC 9110 Content-Range and exact byte count');
+            expect($partial->headers['Cache-Control'] === 'private, no-store'
+                && $partial->headers['Access-Control-Allow-Origin'] === 'https://music.yandex.ru',
+                'Private HTTP caching and strict CORS');
+            $head = $app->handle('HEAD', $route, $query, ['Range' => 'bytes=16-39']);
+            expect($head->status === 200 && bytes($head) === ''
+                && $head->headers['Content-Length'] === (string) strlen($wave),
+                'HEAD ignores Range and never streams media');
+            $bad = $app->handle('GET', $route, $query, ['Range' => 'bytes=999999-']);
+            expect($bad->status === 416
+                && $bad->headers['Content-Range'] === 'bytes */' . strlen($wave),
+                '416 for unsatisfiable range');
+            $blocked = $app->handle('GET', $route, $query, ['Range' => 'bytes=0-3', 'Origin' => 'https://evil.example']);
+            expect($blocked->status === 206 && !isset($blocked->headers['Access-Control-Allow-Origin']),
+                'Unknown origin never obtains CORS permission');
+            expect($app->handle('GET', $route, ['expires' => $query['expires'], 'token' => str_repeat('f', 64)])->status === 403,
+                'Signed URL cannot be forged');
+            expect($app->handle('GET', '/api/v1/resolve', ['service' => 'yandex', 'track_id' => $track])->status === 401,
+                'Resolve requires token, even for already approved ID');
+        }
+
+        $unknown = $one->handle('GET', '/api/v1/resolve', ['service' => 'yandex', 'track_id' => '888001'], $auth);
+        expect(json_decode($unknown->body, true, flags: JSON_THROW_ON_ERROR)['found'] === false,
+            'Unmapped exact ID leaves original available');
+        $manager->disable($tracks['600010'], true, $tracks['600010']);
+        expect(json_decode($one->handle('GET', '/api/v1/resolve',
+            ['service' => 'yandex', 'track_id' => '600010'], $auth)->body, true, flags: JSON_THROW_ON_ERROR)['found'] === false,
+            'Disabling one shared mapping causes only that Track to fall back');
+        expect($one->handle('GET', '/api/v1/audio/' . $tracks['600010'], ['expires' => '1', 'token' => str_repeat('f', 64)])->status === 404,
+            'Disabled mapping cannot stream even with previously issued URL');
+        expect(json_decode($two->handle('GET', '/api/v1/resolve',
+            ['service' => 'yandex', 'track_id' => '600011'], $auth)->body, true, flags: JSON_THROW_ON_ERROR)['found'] === true,
+            'Other Track remains approved and playable');
+    });
+    run('Stage 6.6: simultaneous editors serialize on Track lock and stale activation refuses change', function () use ($config, $pdo, $catalog, $storage): void {
+        $manager = new LibraryManagementService($pdo, $storage);
+        $trackId = $manager->addTrack('yandex', '600012', 1000);
+        $assetIds = $pdo->query('SELECT id FROM audio_assets ORDER BY id LIMIT 2')->fetchAll(PDO::FETCH_COLUMN);
+        expect(count($assetIds) === 2, 'Two independently reviewed fixture assets');
+        $previous = $manager->link($trackId, (int) $assetIds[0]);
+        $next = $manager->link($trackId, (int) $assetIds[1]);
+        $manager->approve($previous, true);
+        $manager->approve($next, true);
+        $manager->activate($previous, true, 0);
+        $secondConnection = Connection::open($config);
+        $secondConnection->exec('SET SESSION innodb_lock_wait_timeout = 1');
+        $secondEditor = new LibraryManagementService($secondConnection, $storage);
+
+        $pdo->beginTransaction();
+        try {
+            $lock = $pdo->prepare('SELECT id FROM tracks WHERE id = ? FOR UPDATE');
+            $lock->execute([$trackId]);
+            expect($lock->fetchColumn() !== false, 'First editor holds Track row');
+            try {
+                $secondEditor->activate($next, true, $previous);
+                throw new RuntimeException('Second editor bypassed the Track row lock');
+            } catch (PDOException $error) {
+                expect((int) ($error->errorInfo[1] ?? 0) === 1205,
+                    'Competing connection times out on InnoDB row lock, without committing');
+            }
+            expect((int) $catalog->findActive('yandex', '600012')['replacement_id'] === $previous,
+                'Timed-out write has not changed active mapping');
+        } finally {
+            $pdo->rollBack();
+        }
+        $secondEditor->activate($next, true, $previous);
+        expect((int) $catalog->findActive('yandex', '600012')['replacement_id'] === $next,
+            'Second editor succeeds after Track lock released');
+        try {
+            $manager->activate($previous, true, $previous);
+            throw new RuntimeException('Accepted stale owner activation request');
+        } catch (InvalidArgumentException $error) {
+            expect($error->getMessage() === 'library_expected_active_mismatch', 'Stale compare-and-swap rejected');
+        }
+        expect((int) $catalog->findActive('yandex', '600012')['replacement_id'] === $next,
+            'Stale request leaves approved mapping intact');
+    });
     run('repository uses exact prepared service identity', function () use ($catalog): void {
         expect($catalog->findActive('yandex', "1944599' OR 1=1") === null, 'SQL injection rejected');
         expect($catalog->findActive('other', '1944599') === null, 'Exact service');
