@@ -237,7 +237,8 @@ final class AdminPanel
         $rows=$stmt->fetchAll(\PDO::FETCH_ASSOC);
         $hasNext=count($rows)>25;
         $rows=array_slice($rows,0,25);
-        $html = '<h2>Загруженные версии</h2>'.$filter;<p><small>Новые файлы не публикуются без ручного одобрения и проверки прав.</small></p>';
+        $html = '<h2>Загруженные версии</h2>'.$filter
+            .'<p><small>Новые файлы не публикуются без ручного одобрения и проверки прав.</small></p>';
         foreach ($rows as $r) {
             $id = (int)$r['id'];
             $html .= '<section class="panel"><h3>#'.$id.' · '.self::e($r['artist']).' — '.self::e($r['title'])
