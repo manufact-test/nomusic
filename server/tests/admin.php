@@ -67,7 +67,7 @@ run('Stage 8 CSRF rejection and private preview require authenticated session',f
     expect($app->handle('POST','/admin/action',headers:$actionHeaders,body:'kind=replacement&id=1&action=approve')->status===403,'CSRF');
     expect($app->handle('GET','/admin/audio/123456789')->status===403,'Anonymous preview');
 });
-$track='891' . substr(bin2hex(random_bytes(3)),0,5);
+$track='891' . (string) random_int(10000,99999);
 $path=sys_get_temp_dir().'/celikom-stage8-test-'.bin2hex(random_bytes(8)).'.mp3';
 $frame=hex2bin('fffb9064').str_repeat("\0",413);
 file_put_contents($path,str_repeat($frame,100));
