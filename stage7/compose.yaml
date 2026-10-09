@@ -2,7 +2,7 @@
 services:
   db:
     image: mysql:8.0
-    restart: unless-stopped
+    restart: "no"
     environment:
       MYSQL_ROOT_PASSWORD: ${STAGE7_ROOT_PASSWORD:?Required local sandbox credential}
       MYSQL_DATABASE: celikom_test_stage7
@@ -21,7 +21,7 @@ services:
     build:
       context: ../server
       dockerfile: ../stage7/local-api.Dockerfile
-    restart: unless-stopped
+    restart: "no"
     depends_on:
       db:
         condition: service_healthy
