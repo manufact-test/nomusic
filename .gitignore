@@ -15,3 +15,4 @@ server/storage/
 *.pfx
 .idea/
 .vscode/
+stage7/.runtime/
