@@ -40,3 +40,7 @@ The extension suite simulates two distinct `ApiClient` instances against one syn
 ## Safety
 
 Do not touch Hostinger deployment request JSON, live MySQL/audio, secrets, signed URLs or active extension 0.4.4 for this package. No real media or private backups in Git/CI artifacts. Keep PR #6 open and unmerged without explicit owner approval.
+
+## Stage 6.3 CLI implementation notes
+
+Added internal PHP 8.3 wrappers `bin/library-add-track.php`, `library-add-asset.php`, `library-link.php`, `library-approve.php`, `library-activate.php` and `library-disable.php`. They use `LibraryManagementService`, strict allowlisted `--arg=value` parsing, required explicit confirmation flags and sanitized failures. Asset source must be one regular file with a safe basename in private sibling `shared/staging`; an arbitrary path or symlink is rejected. No HTTP route was added. Stage 6.4 must build the restricted GitHub Actions runner before any owner-only Hostinger modification. The current live Stage 5 file and feature flags are unchanged.

@@ -203,6 +203,55 @@ try {
             unlink($otherFile);
         }
     });
+    run('Stage 6 CLI: strict arguments and private staging path guards', function () use ($directory): void {
+        require_once dirname(__DIR__) . '/bin/library-cli.php';
+        $track = celikomLibraryParse('add-track', ['cli', '--track-id=1234', '--duration-ms=1000', '--title=Fixture']);
+        expect($track['track-id'] === '1234' && $track['title'] === 'Fixture', 'Valid Track arguments');
+        $approve = celikomLibraryParse('approve', ['cli', '--replacement-id=15', '--confirm-reviewed']);
+        expect($approve['confirm-reviewed'] === true, 'Explicit confirmation accepted');
+        foreach ([
+            ['add-track', ['cli', '--track-id=1234']],
+            ['add-track', ['cli', '--track-id=0', '--duration-ms=1000']],
+            ['add-track', ['cli', '--track-id=1234', '--duration-ms=1000', '--unknown=1']],
+            ['add-track', ['cli', '--track-id=1234', '--track-id=1234', '--duration-ms=1000']],
+            ['add-asset', ['cli', '--staging-file=../outside.wav', '--duration-ms=1000', '--confirm-reviewed']],
+            ['add-asset', ['cli', '--staging-file=fixture.wav', '--duration-ms=1000']],
+            ['approve', ['cli', '--replacement-id=15']],
+            ['approve', ['cli', '--replacement-id=15', '--confirm-reviewed=false']],
+            ['activate', ['cli', '--replacement-id=15']],
+            ['disable', ['cli', '--replacement-id=15']],
+            ['link', ['cli', '--track-db-id=-1', '--asset-id=1']],
+        ] as [$operation, $arguments]) {
+            try {
+                celikomLibraryParse($operation, $arguments);
+                throw new RuntimeException('Unsafe CLI accepted');
+            } catch (InvalidArgumentException) {
+                // Expected: no credentials/database/filesystem have been accessed.
+            }
+        }
+        $staging = dirname($directory) . '/staging';
+        if (!is_dir($staging)) {
+            mkdir($staging, 0700, true);
+        }
+        $good = $staging . '/stage6-fixture.wav';
+        file_put_contents($good, 'safe fixture');
+        $link = $staging . '/stage6-link.wav';
+        symlink($good, $link);
+        try {
+            expect(celikomLibraryStagedFile($directory, 'stage6-fixture.wav') === realpath($good), 'Private file accepted');
+            foreach (['stage6-link.wav', '../fixture.wav', '.hidden.wav'] as $name) {
+                try {
+                    celikomLibraryStagedFile($directory, $name);
+                    throw new RuntimeException('Unsafe staging file accepted');
+                } catch (InvalidArgumentException) {
+                    // No symlinks or traversal outside shared staging.
+                }
+            }
+        } finally {
+            unlink($link);
+            unlink($good);
+        }
+    });
     run('repository uses exact prepared service identity', function () use ($catalog): void {
         expect($catalog->findActive('yandex', "1944599' OR 1=1") === null, 'SQL injection rejected');
         expect($catalog->findActive('other', '1944599') === null, 'Exact service');

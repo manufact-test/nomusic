@@ -17,3 +17,18 @@ Routes: GET `/api/v1/health`, GET `/api/v1/config`, GET `/api/v1/resolve?service
 Reviewed fixture import: `php bin/import-test-audio.php --file=/PRIVATE/audio.mp3 --track-id=ID --duration-ms=MEASURED --confirm-reviewed`. This owner-only preparation does not implement end-user uploads/moderation.
 
 Deploy layout and rollback: `HOSTINGER.md` in the package, or `docs/deployment/hostinger-private-test.md` in the repository. The server ZIP is built using an explicit allowlist and contains no `.env`, user audio or tests. Accounts, uploads, admin, billing and Android remain separate stages.
+
+## Stage 6 owner-only library CLI (no public upload endpoint)
+
+The library manager registers files without automatically publishing them. Commands run on PHP 8.3 inside the private application, with an existing private MySQL database and `STORAGE_PATH` configured. All IDs printed are internal database identifiers; the music service Track ID is a separate string. Commands do not reveal a private storage path or a signed URL.
+
+```bash
+php bin/library-add-track.php --track-id=123456 --duration-ms=201000 --title=ReviewedTitle
+php bin/library-add-asset.php --staging-file=owner-reviewed.mp3 --duration-ms=201000 --confirm-reviewed
+php bin/library-link.php --track-db-id=1 --asset-id=1
+php bin/library-approve.php --replacement-id=2 --confirm-reviewed
+php bin/library-activate.php --replacement-id=2 --confirm-activate
+php bin/library-disable.php --replacement-id=2 --confirm-disable
+```
+
+**Examples are placeholders, not instructions to execute on the current Hostinger.** Use only the measured duration and the owner's verified mapping. `library-add-asset` accepts a basename directly inside private `shared/staging` (derived as a sibling of `STORAGE_PATH`), rejects symlinks/traversal, enforces MIME/size/SHA-256 and never imports a browser upload. `link` creates a **pending** inactive candidate, `approve` records the reviewed decision while keeping it inactive, and only `activate` enables server-side selection. `disable` revokes it. Strict argument validation rejects unknown/duplicate options. Stage 6.4 will invoke these through a restricted GitHub Actions owner-only workflow; do not manually change live data before that gate. User moderation, accounts and public uploads remain later stages.
