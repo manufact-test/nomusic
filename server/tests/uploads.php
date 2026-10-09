@@ -164,6 +164,16 @@ try {
         $next = $requests->submit($params, $ownerHash);
         expect($first === $next && $first['status'] === 'pending', 'Same owner+Track returns existing');
     });
+    run('Stage 7 retry never misreports a moderated record as still pending', function () use ($pdo, $created, $service, $fields, $file, $ownerHash): void {
+        $pdo->prepare("UPDATE track_replacements SET status = 'rejected', is_active = 0 WHERE id = ?")
+            ->execute([$created['replacement_id']]);
+        try {
+            $service->upload($fields, $file, $ownerHash);
+            throw new RuntimeException('A rejected candidate was incorrectly reported pending');
+        } catch (DomainException $e) {
+            expect($e->getMessage() === 'idempotency_conflict', 'Moderation status is honored');
+        }
+    });
     fwrite(STDOUT, "CELIKOM Stage 7 isolated upload foundation passed.\n");
 } finally {
     unlink($path);
