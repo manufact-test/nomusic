@@ -1,131 +1,48 @@
-# CELIKOM — продолжение проекта в новом чате
+# CELIKOM — актуальная передача в новый чат
 
-## ПОСЛЕДНЕЕ СОСТОЯНИЕ: 9 октября 2026 — этап 5 принят для закрытого тестирования
+Дата сверки: **2026-10-09**. Этот файл — краткое текущее состояние, а не новое продуктовое ТЗ. Архивные прежние сообщения handoff не использовать в качестве очередного действия.
 
-**Этот раздел актуальнее всех предыдущих отметок о Stage 5 ниже. Не повторять уже пройденные тесты и настройку сервера.**
+## Авторитетные файлы и порядок
 
-- CELIKOM Chrome **0.4.4**, владелец подтвердил **6/6 функциональных и 6/6 стресс-тестов**, включая аварийное выключение через chrome://extensions с возвратом оригинала. После повторного включения Chrome может требовать один refresh открытой вкладки Яндекса; принято для MVP.
-- Hostinger: новое серверное развёртывание **0.4.4-0fee5892c82d01e8fe7936d76f064c48484f136d**, при этом внутренний API сообщает **0.4.0**, потому что это независимые версии. Приватная конфигурация и аудиофайл, approved MySQL mapping Track ID 144530503 → Replacement #1 сохранены.
-- Полный CI/повторное развёртывание и HTTPS: https://github.com/manufact-test/nomusic/actions/runs/37904158336 .
-- Серверный приватный snapshot конфигурации, аудио и SQL шести таблиц создан и проверен: https://github.com/manufact-test/nomusic/actions/runs/37903842547 .
-- **Тест восстановления прошёл:** конфигурация и MP3 восстановлены в изолированный каталог на Hostinger, SQL экспорт импортирован в отдельную одноразовую MySQL 8 на GitHub runner, track mapping подтверждён, рабочая MySQL не затрагивалась: https://github.com/manufact-test/nomusic/actions/runs/37903962631 .
-- **Аудит после повторного деплоя успешен:** SHA-256 env, всех аудиофайлов и количества записей шести таблиц соответствуют снимку до обновления: https://github.com/manufact-test/nomusic/actions/runs/37904416817 .
-- Авторизованный resolve и публичный HTTPS Range/206/CORS подписанного MP3 проверены повторно: https://github.com/manufact-test/nomusic/actions/runs/37904551511 .
-- Настроен внешний **мониторинг раз в 6 часов**: health 200, config 200 (replacements=1, analytics=0), анонимный resolve 401; уведомление только при подтверждённом сбое.
-- Подробная инструкция всех ops: [hostinger-stage5-operations.md](../deployment/hostinger-stage5-operations.md). Снимок расположен **на том же хостинге**, это ещё не независимый offsite backup. Настоящий live аварийный rollback не инициировался, unit/fixture rollback проверен.
-- **Весь Stage 5 принят только для приватного owner-only теста**, не готовность к коммерческому релизу. Последующие этапы учётных записей/платежей/модерации остаются по авторитетным Master TZ v1.4 и Work Plan v1.5.
-- Следующее действие: начать Stage 6 — общую библиотеку альтернативных версий, сначала по главному ТЗ и плану. Не загружать чужие песни без разрешения, не менять секреты и не мержить **PR #6**, пока отдельно не согласовано. Продолжаем на ветке feature/api-range.
+- **CELIKOM Master ТЗ MVP v1.5 (09.10.2026)** — основная спецификация, сохранена в Library /CELIKOM как CELIKOM_Master_TZ_MVP_v1.5_2026-10-09.docx (libfile_af7d67f2cc848191947f897a5606675c).
+- **CELIKOM План работ MVP v1.6 (09.10.2026)** — последовательный roadmap 0–18, сохранён в Library /CELIKOM как CELIKOM_Plan_Rabot_MVP_v1.6_2026-10-09.docx (libfile_4841b3eb31f0819186f49ff9c42cfe4b).
+- Развёрнутая передача: CELIKOM_HANDOFF_STAGE6_2026-10-09.md в Library /CELIKOM (libfile_9e57df9dff68819190bc0836ba16ee5a).
+- Выполнение: ../project-status.md; операции: ../deployment/hostinger-stage5-operations.md; протокол: ../test-plans/CELIKOM-STAGE5-LIVE-AUDIO.md. Если план расходится с Master ТЗ, приоритет за Master ТЗ.
 
-## ПОСЛЕДНЕЕ ОБНОВЛЕНИЕ: 9 октября 2026 — владелец принял живое воспроизведение 0.4.4
+## Реальное состояние на 09.10.2026
 
-- **Все 6 из 6 smoke-тестов и все 6 из 6 расширенных live-тестов пройдены**. Владелец уточнил, что при выключении расширения оригинал продолжает нормально управляться, пауза/seek/переключение работают; аварийный сценарий исправлен 0.4.4. Больше не задавать вопросы про это и не считать его блокером.
-- Особенность Chrome после выключения/включения CELIKOM через `chrome://extensions/`: уже открытая вкладка Яндекс Музыки не получает автоматически новые content scripts. Нужно один раз перезагрузить страницу Яндекса, после чего трек снова обнаруживается. **Для текущего MVP принято**; возможность автоинъекции и переподключения записана как позднее UX-улучшение, не блокер Stage 5.
-- **Ближайшее действие агента — самостоятельно завершить инфраструктурные проверки Stage 5:** repeat-deploy с сохранением private shared env/audio/MySQL mapping; безопасный backup/restore и мониторинг. Не мержить PR #6 и не объявлять весь Stage 5 закрытым, пока серверная часть не прошла.
-- Актуальный live-протокол: [CELIKOM-STAGE5-LIVE-AUDIO.md](../test-plans/CELIKOM-STAGE5-LIVE-AUDIO.md).
+- **Этапы 0–5 приняты в рамках owner-only private testing. Этап 6 — следующий, пока НЕ реализован.**
+- Extension **0.4.4**, активный Hostinger release **0.4.4-0fee5892c82d01e8fe7936d76f064c48484f136d**, независимый серверный API version **0.4.0**.
+- API origin https://darkred-camel-588676.hostingersite.com. FEATURE_REPLACEMENTS=1, FEATURE_ANALYTICS=0. Данные и .env в приватном celikom/shared (audio, staging); backups/stage5 вне public_html.
+- Первый одобренный владелецем MP3: Яндекс Track ID **144530503**, Replacement ID **1**, duration **180872 ms**. Расширение реально воспроизводит его через подписанные HTTP Range, MediaSource/blob и применяет fail-open.
+- Владелец подтвердил **6/6 функциональных** + **6/6 стабильностных** сценариев на 0.4.4. CSP Яндекс Музыки блокирует прямой host audio.src; нельзя регрессировать к прямому src. В 0.4.4 исправлено аварийное отключение с возвратом оригинала.
+- Не блокирующее UX-ограничение: после отключения и повторного включения расширения в chrome://extensions надо единожды обновить уже открытую вкладку Яндекс Музыки.
+- Приватный snapshot .env/audio/SQL создан; файлы восстановлены в отдельный каталог, SQL — в disposable MySQL, рабочие данные не менялись. При повторном deploy SHA-256 .env/audio и counts 6 таблиц совпали; подписанный MP3 и Range проверены. Внешний 6-часовой мониторинг API активен.
+- Это **не production readiness**: backup остаётся на Hostinger (нет независимого offsite), намеренный live outage и rollback не проводились; пользовательских uploads/админ-модерации, аккаунтов, trial, подписок, рефералов, Android playback ещё нет.
 
-## ОБНОВЛЕНИЕ: 9 октября 2026 — исправление аварийного отключения, сборка 0.4.4
+## GitHub / deployment
 
-- Владелец подтвердил **5 из 6** расширенных сценариев на 0.4.3: непрерывное воспроизведение, обновление Яндекса, быстрые переключения, фоновая вкладка, ручной возврат оригинала. Шестой сценарий **провален**: при выключении расширения через `chrome://extensions` продолжала звучать альтернативная версия.
-- В `feature/api-range` подготовлена 0.4.4: `PlayerBridge.heartbeat` спрашивает реальный Chrome service worker (`CELIKOM_CONTEXT_PING`) перед отправкой lease heartbeat. После двух отрицательных ответов content controller вызывает fail-open, а MAIN не обновляет lease на случайных сообщениях.
-- Build [37900547793](https://github.com/manufact-test/nomusic/actions/runs/37900547793) **70/70 тестов, successful**, SHA256 ZIP validated; регрессия `live replacement restores original on extension disable even while stale isolated timers keep running` passed в VM. Пакет для владельца `CELIKOM-0.4.4-Disable-Fix.zip` (отправляется в чат).
-- **Не объявлять Stage 5 завершённым до живого повторного теста!** Владелец должен заменить файлы распакованного расширения 0.4.3 на 0.4.4, включить (если выключено), нажать Refresh карточки в `chrome://extensions`, обновить вкладку Яндекса и проверить: сначала живая подмена, затем выключение самого расширения во время проигрывания, возврат оригинала без перезагрузки спустя несколько секунд, альтернативный звук отключён. Также повторить 30–60s фоновую вкладку, чтобы новые проверки работоспособности не дали ложный abort.
-- В текущем случае workaround для зависшего аудио 0.4.3: выключить расширение и обновить страницу Яндекс Музыки. Нет необходимости менять токен, сервер, MySQL и песню.
-- После принятия аварийного восстановления остаются инфраструктурные этапы 5: repeat-deploy с сохранением `shared/env` и `shared/audio`, резервное копирование/восстановление и мониторинг. PR #6 не сливать без приёмки.
+Repo https://github.com/manufact-test/nomusic
+Ветка feature/api-range. **PR #6 открыт к develop, НЕ СЛИТ**, не сливать без прямого разрешения владельца. Проверять актуальный branch HEAD перед изменениями. Не трогать другие сайты Hostinger.
+CI 0.4.4: https://github.com/manufact-test/nomusic/actions/runs/37900547793 (70 tests).
+Repeat deploy: https://github.com/manufact-test/nomusic/actions/runs/37904158336.
+Snapshot: https://github.com/manufact-test/nomusic/actions/runs/37903842547.
+Restore: https://github.com/manufact-test/nomusic/actions/runs/37903962631.
+Post-deploy integrity: https://github.com/manufact-test/nomusic/actions/runs/37904416817.
+Signed audio: https://github.com/manufact-test/nomusic/actions/runs/37904551511.
 
-## СРОЧНОЕ ОБНОВЛЕНИЕ: 9 октября 2026 — live audio 0.4.3
+Existing repository Actions secrets HOSTINGER_SSH_KEY, HOSTINGER_DB_PASSWORD are configured; do not request/reset/show them. Never expose beta token, signing key, private MP3, SQL dumps or signed URLs. PHP CLI 8.3 uses /opt/alt/php83/usr/bin/php. Use GitHub Actions for remote work; direct container SSH was previously restricted.
 
-**Этот раздел новее состояния от 8 октября ниже; старое "следующее действие" и старое состояние Stage 5 далее считать исторической записью.**
+## Exactly next: Stage 6 shared replacements library
 
-- Первый пользовательский MP3 (подтверждены права использования) загружен через File Manager в `celikom/shared/staging`; Track ID `144530503`, длительность `180872` ms, размер ~4.35 MB. Серверный импорт в private MySQL/audio approved mapping **replacement ID 1** выполнен. `FEATURE_REPLACEMENTS=1`, `FEATURE_ANALYTICS=0`. Бета-код владелец получил непосредственно из приватного Hostinger env; его нет в чате/Git/логах.
-- Прямой remote `audio.src` был заблокирован CSP `media-src` Яндекс Музыки (скрин DevTools владельца). `extension/src/player/replacement-player.ts` в **0.4.3** использует `MediaSource` + `blob:` + 512KiB signed HTTP Range chunks; не буферизует целиком файл в JS. GitHub extension build [37848261630](https://github.com/manufact-test/nomusic/actions/runs/37848261630) 67/67 tests pass; main CI [37848269651](https://github.com/manufact-test/nomusic/actions/runs/37848269651) success.
-- Авторизованный live HTTPS resolve, signed-audio CORS/Range smoke checked via restricted GitHub Actions [37846857378](https://github.com/manufact-test/nomusic/actions/runs/37846857378); edge не передаёт `Accept-Ranges`, но отвечает `206` с точным `Content-Range` и `audio/mpeg`.
-- Владелец сообщил, что **реальный MP3 с Hostinger заиграл** в 0.4.3 (не встроенный сигнал), и подтвердил **все шесть** функциональных тестов: пауза/воспроизведение, seek вперёд/назад, seek почти в конец, громкость/mute, следующий трек → оригинал, Return Original.
-- **Сейчас**: выполнить углублённый live-stability gate по [CELIKOM-STAGE5-LIVE-AUDIO.md](../test-plans/CELIKOM-STAGE5-LIVE-AUDIO.md). Затем закончить repeat-deploy с сохранением audio/env, backup/restore и monitoring. Не считать Stage 5 закрытым и **не мержить PR #6** без оценки gate. Серверный deployed app release остаётся 0.4.0-e0461f56..., хотя клиентское расширение 0.4.3 — это нормально.
-- Пользователь попросил объединять действия в удобные блоки, **не заставлять делать по одному микрошагу**, пока не возникнет непонятность. Никаких повторных проверок подключения/token или переустановок без необходимости. В Chrome при проблеме диагностика копируется из активной вкладки Яндекс Музыки, никогда не просить подписанные URL или реальный токен.
+1. Read BOTH DOCX master files, then inspect GitHub branch implementation, migrations, PdoCatalogRepository / ResolveService / LocalStorageAdapter, APIs, cache and current CLI. Show a concrete matrix of existing vs missing functionality. **Do not immediately write duplicative code.**
+2. Plan and implement safe internal library seed/management CLI and Track — AudioAsset — TrackReplacement relations. One audio object can link to multiple exact Track IDs; only one approved active replacement per Track.
+3. Validate server-driven switching without extension rebuild; positive/negative cache TTL, negative cache freshness after approve, absence of repeated resolve every second, fail-open for unmapped IDs.
+4. Cover two independent installations getting one approved replacement; two IDs sharing one physical AudioAsset; unknown Track original; cache and privacy regression.
+5. Run tests/CI and owner-only end-to-end gate. No client-facing upload/publishing before manual moderation stages. Only then mark Stage 6 accepted.
 
-Состояние на 8 октября 2026, 21:26 Europe/Warsaw. Это передача выполнения, а не отдельная спецификация. Сверить последующие изменения ветки и deployment перед новыми операциями.
+Work maximally autonomously through GitHub/Actions and ask the owner for Chrome actions only at real browser acceptance. Do not repeat server access setup, token retrieval, uploading first song or Stage 5 owner tests.
 
-## Основные документы
+## First-message template
 
-- Мастер-ТЗ: `CELIKOM_Master_TZ_MVP_v1.4.docx`. Постоянный идентификатор основного файла: `libfile_957c4af62ffc8191ab6b9ef4f370365d`.
-- Карта работ: `CELIKOM_Plan_Rabot_MVP_v1.5.docx`. Постоянный идентификатор: `libfile_2a8622d33d248191ba194b57e9c27567`.
-- Предыдущие master v1.3 / plan v1.4 заменены новыми версиями этих же основных документов.
-- Исполнение: [project-status.md](../project-status.md), [current-environment.md](../deployment/current-environment.md), [Hostinger runbook](../deployment/hostinger-private-test.md).
-
-## Как работать с владельцем
-
-Работать самостоятельно и принимать решения до реальной необходимости его помощи. Не повторять настройку уже работающих доступов. В Hostinger объяснять по одному простому действию и опираться на текущий экран. Пользователь предпочитает обычный чат; управление его локальным Chrome не настроено. Реальный Яндекс проверяет владелец, присылая результат и JSON. Код, сборки, CI и серверные операции выполняет агент.
-
-## Код и ветки
-
-- Репозиторий: https://github.com/manufact-test/nomusic . Сейчас public по решению владельца.
-- Текущая ветка: `feature/api-range`; открытый PR: https://github.com/manufact-test/nomusic/pull/6 . Не считать его слитым. `main`/`develop` ещё не содержат всех Stage 4–5 изменений.
-- PR #5 Stage 3 слит в develop: `b346ff2eee6486a48944cbf8eb35c2458c6108a7`.
-- Сервер развёрнут из `e0461f56b77e6fea86493e25c39af4a8eddbabb6`. Последующие commits этой ветки обновляют документы; они не означают новый deployment.
-- В предыдущем окружении shell git push не имел credentials; изменения публиковались через GitHub GitData create_tree → create_commit → update_ref с expected SHA. Локальные и удалённые commit metadata могут отличаться при одинаковом tree. Проверять remote head/tree; force push не нужен.
-- Локальная копия в предыдущем чате: `/workspace/scratch/c1a57beacbb6/celikom`. Если отсутствует в новом чате, получить актуальный checkout именно `feature/api-range`; старый scratch не гарантируется.
-
-## Что уже принято
-
-| Этап | Подтверждённое состояние |
-| --- | --- |
-| 0–1 | PoC и production foundation закрыты 7 октября |
-| 2 | Принят владельцем на 0.2.1; здоровые startup/bridge, Track ID и player events; PR #4 слит |
-| 3 | Принят владельцем на 0.3.2; local replacement и manual bypass; PR #5 слит |
-| 4 | 0.4.0 automated gate passed: реальный MySQL, exact-ID catalog, signed Range, native Chromium WAV decode/seek/play; PR #6 открыт |
-| 5 | API/MySQL/HTTPS развёрнуты; живой MP3/WAV и оставшиеся operations checks ещё впереди |
-
-Не превращать приёмку владельцем Stage 3 в утверждение независимого полного прогона. Старые `guard-lost:master-binding-changed` остаются наблюдениями без установленной причины; проверить в следующем живом тесте.
-
-## Hostinger уже работает
-
-- API origin: https://darkred-camel-588676.hostingersite.com . Health: `/api/v1/health`; config: `/api/v1/config`.
-- Отдельный PHP/HTML сайт CELIKOM. Другие сайты аккаунта не менять.
-- SSH ACTIVE: `92.113.19.189:65002`, user `u235811320`. Прямой SSH из прежней чат-среды возвращал `Network is unreachable`; GitHub Actions SSH работает.
-- MySQL database/user: `u235811320_celikom`.
-- Секреты Actions `HOSTINGER_SSH_KEY` и `HOSTINGER_DB_PASSWORD` уже добавлены владельцем. Не запрашивать заново и не пытаться читать их значения.
-- Серверные `.env`, подпись, privacy key и beta-код приватны. Не выводить в публичные logs/artifacts или чат. Ключи созданы на сервере, не в Git.
-- Приватная база приложения: `/home/u235811320/domains/darkred-camel-588676.hostingersite.com/celikom`.
-- Shared: `shared/env` 0600, `shared/audio` и `shared/staging` 0700, вне `public_html`. `current` — symlink на release.
-- Активный release: `0.4.0-e0461f56b77e6fea86493e25c39af4a8eddbabb6`.
-- CLI PHP проекта: `/opt/alt/php83/usr/bin/php` — 8.3.33. Default SSH PHP 8.2.33, использовать явный binary. HTTP PHP 8.3.33 выбран только в `.htaccess` CELIKOM.
-- **FEATURE_REPLACEMENTS=0, FEATURE_ANALYTICS=0. Первый реальный файл не импортирован.**
-
-Успешный deploy: https://github.com/manufact-test/nomusic/actions/runs/37824995803 . CI того же приложения: https://github.com/manufact-test/nomusic/actions/runs/37825005035 . Проверены реальные HTTP PDO/MySQL, миграция и no-op повтор, HTTPS health/config, Yandex CORS, unauthenticated resolve 401. Временный probe удалён. Host-side rollback проверен на изолированных filesystem/HTTP fixtures; deliberate live outage/rollback drill не проводился.
-
-## Автоматизация
-
-- `.github/workflows/hostinger-preflight.yml` — доступ/runtime checks.
-- `.github/workflows/hostinger-deploy.yml` — CI, immutable package, SSH/SFTP deploy, migration, HTTPS checks.
-- Запуск нового deploy: изменить `.github/deploy/hostinger-request.json` в `feature/api-range` или `develop`. После CI проверить actual deployment job/logs, а не только общий зелёный workflow.
-- `.github/scripts/hostinger-deploy.sh` и `hostinger-activate.sh` привязаны к отдельному CELIKOM site, pin server key и проверяют package checksum. Существующий shared/env сохраняется.
-- **Текущий workflow не импортирует песни, не переключает flags и не выдаёт владельцу beta-код.** Следующую необходимую операцию подготовить отдельным проверенным Actions шагом или приватной SSH-командой.
-- Серверный ED25519 fingerprint: `SHA256:Uiu45j1QLdnNz8eIZCkle9WexPRz8hdUUr3LLGyNR5Y`. Клиентский fingerprint: `SHA256:Q6FyifXRq6garceQdIIjBmXhkk81Ic1p/x9JTSYHWUk`. Не путать. Pin был получен при первом соединении с hPanel-confirmed endpoint, это не отдельная out-of-band проверка.
-
-## Немедленный следующий шаг
-
-Последняя инструкция владельцу: открыть **Hostinger → Files → File Manager** и прислать экран. Продолжать отсюда.
-
-1. Проверить доступ к приватному `celikom/shared/staging`, соседнему с `public_html`. Если File Manager заперт внутри web root, использовать SFTP с уже настроенным ключом; не класть аудио в публичный корень.
-2. Получить проверенный владельцем MP3/WAV, точный Яндекс Track ID и измеренную длительность. Существующие JSON с ID — примеры прошлого теста, а не выбранный файл для импорта. Не угадывать соответствие песни/ID или длительность.
-3. CLI import `current/bin/import-test-audio.php --file=ABS_PRIVATE_PATH --track-id=EXACT_ID --duration-ms=MEASURED_MS --confirm-reviewed` через PHP 8.3. MIME/size до 30 MiB/SHA dedup проверяет importer. Клиент допускает расхождение длительностей ±1500 ms. Автоматическая модерация и user upload UI отсутствуют.
-4. После успешного import проверить approved exact mapping и файл; включить `FEATURE_REPLACEMENTS=1`. Analytics оставить 0. Доступ beta-code дать владельцу приватным способом, без логов/Git/чат-публикации всего env.
-5. Установить 0.4.0 под наш API origin, обновить вкладку Яндекс, оставить testTrackId пустым, beta-код в developer details, Старт. Встроенный сигнал остаётся отдельным developer test; он не доказывает remote MP3.
-6. Пройти живой checklist, записать обезличенный результат. Затем закончить repeat deploy/shared preservation, backup/restore и monitoring этапа 5; только после приёмки переходить к этапу 6.
-
-## Сборка и живой gate
-
-```bash
-CELIKOM_API_BASE_URL=https://darkred-camel-588676.hostingersite.com npm run build:extension
-node extension/scripts/validate-manifest.mjs
-```
-
-ZIP в `extension/dist/celikom-extension-0.4.0.zip`; распакованная сборка в `extension/dist/unpacked`. В прошлом чате ZIP уже собран под этот origin и передан владельцу. Обычный `npm run validate`/CI может пересобрать extension без origin; перед передачей проверить `api/config.json` и API host permission, затем при необходимости выполнить команду выше. Секреты в bundle не включаются.
-
-Живой gate: mapped ID → реальный файл; unmapped → original; pause/resume/seek/volume/mute/rate; next/previous/SPA/reload; «Вернуть оригинал» держится до смены ID или явного Старт. Ошибка API, отсутствующий файл, autoplay rejection, истёкшая подпись → fail-open. Проверить реальный HTTPS Range и CSP страницы Яндекса, минимум 2–3 минуты стабильной подмены после seek. CI fixture не доказывает CSP/autoplay на Яндексе. Signed URL живёт 10 минут; истечение возвращает original, новую попытку инициирует Старт.
-
-## Дальнейший scope
-
-Минималистичный интерфейс: Старт, Стоп, Вернуть оригинал, Добавить трек; диагностика отдельно. Меню Подписка и друзья: оплата, promo/referral code, управление подпиской. Admin analytics: новые/активные/возвращающиеся, first paid/renewed/churn, full-price/discounted и источники скидок; финансовая истина из server billing ledger. Сейчас реализован только фундамент событий, аналитика выключена.
-
-Порядок этапов 6–18 сохраняется: общая библиотека → uploads/dedup → moderation/admin → accounts/devices → trial/entitlement → billing → referrals/rewards → incidents → hardening → closed Alpha → Android PoC → Android Beta APK с сайта → final source/infrastructure privacy gate. Перед клиентским релизом public GitHub закрыть либо перенести в private Git с проверенным backup. Production provider пока не выбран, Hostinger — текущий тестовый старт. Android playback внутри стороннего native app и Apple app не являются готовыми функциями.
+Продолжаем CELIKOM с этапа 6 — общая библиотека replacements. Авторитетные документы: CELIKOM Master ТЗ MVP v1.5 и План работ MVP v1.6 (09.10.2026). GitHub manufact-test/nomusic, branch feature/api-range, PR #6 открыт, не сливать. Этап 5 owner-only принят: extension 0.4.4 воспроизводит реальный MP3 через Hostinger, 6/6 + 6/6 живых тестов; repeat-deploy, приватный snapshot, отдельное восстановление SQL и мониторинг проверены. Не повторяй тесты и настройку. Сначала изучи документы, проверь актуальный код и дай точную матрицу уже реализованного и технический план Stage 6. Работай самостоятельно через GitHub Actions, сохраняй безопасность данных и не выдавай будущие функции за готовые.
