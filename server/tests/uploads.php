@@ -45,6 +45,28 @@ try {
     run('Stage 7 structural MP3 probe accepts synthetic frames', function () use ($path): void {
         expect((new Mp3Inspector())->check($path), 'Synthetic MPEG frames');
     });
+    run('Stage 7 MP3 measures full audio duration and rejects damaged endings', function () use ($path): void {
+        $inspector = new Mp3Inspector();
+        expect($inspector->durationMs($path) === 2612, 'Frame-derived duration');
+        $bytes = file_get_contents($path);
+        $cases = [
+            'truncated' => substr($bytes, 0, -80),
+            'corrupted-middle' => substr_replace($bytes, str_repeat("\\0", 417), 417 * 50, 417),
+            'fake-trailing-payload' => $bytes . '<?php harmless syntax text ?>',
+            'invalid-id3-size' => "ID3\\x04\\x00\\x00\\xff\\xff\\xff\\xff" . $bytes,
+        ];
+        foreach ($cases as $label => $damaged) {
+            $tmp = tempnam(sys_get_temp_dir(), 'celikom-mp3-');
+            file_put_contents($tmp, $damaged);
+            try { expect($inspector->durationMs($tmp) === null, $label . ' rejected'); }
+            finally { unlink($tmp); }
+        }
+        $tagged = tempnam(sys_get_temp_dir(), 'celikom-id3-');
+        file_put_contents($tagged, "ID3\\x04\\x00\\x00\\x00\\x00\\x00\\x10"
+            . str_repeat("\\0", 16) . $bytes . 'TAG' . str_repeat("\\0", 125));
+        try { expect($inspector->durationMs($tagged) === 2612, 'Standard ID3 tags accepted'); }
+        finally { unlink($tagged); }
+    });
     $created = $service->upload($fields, $file, $ownerHash);
     run('Stage 7 upload creates only pending candidate and fingerprint job', function () use ($pdo, $catalog, $created): void {
         expect($created['status'] === 'pending' && !$created['duplicate'], 'Only pending');
@@ -56,6 +78,9 @@ try {
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
         expect($row['status'] === 'pending' && (int) $row['is_active'] === 0 && $row['fingerprint_status'] === 'pending',
             'Pending and deferred fingerprint only');
+        $stmt = $pdo->prepare('SELECT a.duration_ms FROM audio_assets a JOIN track_replacements r ON r.audio_asset_id = a.id WHERE r.id = ?');
+        $stmt->execute([$created['replacement_id']]);
+        expect((int) $stmt->fetchColumn() === 2612, 'Asset uses inspected MP3 duration, not supplied Track duration');
     });
     run('Stage 7 byte-identical upload under different name and same request is idempotent', function () use ($service, $fields, $file, $ownerHash, $created, $pdo): void {
         $again = $service->upload($fields, array_merge($file, ['name' => 'renamed.mp3']), $ownerHash);
