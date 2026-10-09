@@ -11,8 +11,10 @@ $app = new Celikom\Application($config);
 $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 $path = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
 $headers = function_exists('getallheaders') ? getallheaders() : [];
-$body = $method === 'POST' ? file_get_contents('php://input', false, null, 0, 65537) : '';
-$response = $app->handle($method, $path, $_GET, $headers, $body === false ? '' : $body);
+$multipart = $method === 'POST' && str_starts_with(strtolower($_SERVER['CONTENT_TYPE'] ?? ''), 'multipart/form-data');
+$body = $method === 'POST' && !$multipart ? file_get_contents('php://input', false, null, 0, 65537) : '';
+
+$response = $app->handle($method, $path, $_GET, $headers, $body === false ? '' : $body, $multipart ? $_POST : [], $multipart ? $_FILES : []);
 
 while (ob_get_level() > 0) {
     ob_end_clean();
