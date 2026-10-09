@@ -232,6 +232,8 @@ tr:last-child td{border-bottom:0}td form{display:flex;gap:8px;align-items:center
     color:#294d3f;
     cursor:pointer;
   }
+  /* Placeholder belongs to the closed select, never to the expanded list. */
+  .decision-body select.reject-category::picker(select) option[hidden]{display:none!important}
   .decision-body select.reject-category option:hover,
   .decision-body select.reject-category option:focus{
     background:#eaf7ef;
