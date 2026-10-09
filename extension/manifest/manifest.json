@@ -3,7 +3,7 @@
   "name": "__MSG_extensionName__",
   "short_name": "CELIKOM",
   "description": "__MSG_extensionDescription__",
-  "version": "0.4.4",
+  "version": "0.4.5",
   "default_locale": "ru",
   "minimum_chrome_version": "120",
   "permissions": [
@@ -43,5 +43,14 @@
       "world": "ISOLATED"
     }
   ],
-  "web_accessible_resources": [{ "resources": ["assets/test-audio.mp3"], "matches": ["https://music.yandex.ru/*"] }]
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "assets/test-audio.mp3"
+      ],
+      "matches": [
+        "https://music.yandex.ru/*"
+      ]
+    }
+  ]
 }
