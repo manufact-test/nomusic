@@ -45,7 +45,7 @@ if (!$health) { throw "Local CELIKOM API did not become healthy." }
 
 Write-Host "Building a separate unpacked Chrome extension for local staging..."
 $mount = "type=bind,source=$root,target=/workspace"
-& docker run --rm --mount $mount -w /workspace -e "CELIKOM_API_BASE_URL=http://127.0.0.1:8787" node:24 sh -lc "npm ci && npm run build:extension"
+& docker run --rm --mount $mount -w /workspace -e "CELIKOM_API_BASE_URL=http://127.0.0.1:8787" node:24 sh -lc "npm ci && npm --prefix extension run build:unpacked"
 if ($LASTEXITCODE -ne 0) { throw "Local Chrome extension build failed." }
 
 $configFile = Join-Path $root "extension/dist/unpacked/api/config.json"
