@@ -69,7 +69,11 @@ document.querySelector("[data-action='add']")?.addEventListener("click", async (
   if (!uploadPanel || uploading) return;
   uploadPanel.hidden = !uploadPanel.hidden;
   if (uploadPanel.hidden) return;
-  pinnedTrack = uploadTargetFromStatus(await send<ExtensionState>({ type: COMMANDS.getStatus }));
+  try {
+    pinnedTrack = uploadTargetFromStatus(await send<ExtensionState>({ type: COMMANDS.getStatus }));
+  } catch (_error) {
+    pinnedTrack = null;
+  }
   if (uploadTrack) uploadTrack.value = pinnedTrack?.id || "";
   if (uploadButton) uploadButton.disabled = !pinnedTrack;
   uploadMessage(pinnedTrack ? "MP3 будет отправлен со статусом pending, без публикации." :
@@ -86,7 +90,12 @@ document.querySelector<HTMLFormElement>("[data-upload-form]")?.addEventListener(
   if (!validMp3Selection(file)) {
     uploadMessage("Выберите MP3 не более 30 МиБ."); return;
   }
-  const now = uploadTargetFromStatus(await send<ExtensionState>({ type: COMMANDS.getStatus }));
+  let now: ReturnType<typeof uploadTargetFromStatus>;
+  try {
+    now = uploadTargetFromStatus(await send<ExtensionState>({ type: COMMANDS.getStatus }));
+  } catch (_error) {
+    uploadMessage("Не удалось определить текущий трек. Повторите попытку."); return;
+  }
   if (!now || now.id !== pinnedTrack.id) {
     uploadMessage("Трек изменился. Откройте «Добавить трек» снова."); return;
   }
@@ -147,7 +156,13 @@ document.querySelector<HTMLFormElement>("[data-upload-form]")?.addEventListener(
     try { code = JSON.parse(xhr.responseText)?.error || ""; } catch (_error) { /* no-op */ }
     uploadMessage(errors[code] || "Загрузка не завершена. Повторите попытку.");
   });
-  xhr.send(data);
+  try {
+    xhr.send(data);
+  } catch (_error) {
+    uploading = false;
+    if (uploadButton) uploadButton.disabled = false;
+    uploadMessage("Не удалось начать загрузку. Повторите попытку.");
+  }
 });
 document.querySelector("[data-action='use-current']")?.addEventListener("click", async () => {
   if (lastState?.track?.id) render(await send<ExtensionState>({ type: COMMANDS.setTestTrack, trackId: lastState.track.id }));
