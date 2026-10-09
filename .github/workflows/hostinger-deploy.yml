@@ -54,6 +54,11 @@ jobs:
           bash -n .github/scripts/hostinger-activate.sh
           php server/tests/deployment-env.php
           node .github/scripts/tests/hostinger-activate.mjs
+      - name: Install CI-only MP3 encoder for Stage 7 regression
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends ffmpeg
+          ffmpeg -hide_banner -encoders | grep -F libmp3lame
       - name: Verify application and create the server package
         run: npm run ci
       - uses: actions/upload-artifact@v4
