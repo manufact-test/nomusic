@@ -80,7 +80,7 @@ run('Stage 8 roles: viewer may inspect, never mutate or export',function()
     $writeBody=http_build_query(['csrf'=>AdminAuth::csrfForToken($identity['token']),
         'kind'=>'replacement','id'=>'1','action'=>'approve','expected_active'=>'0','reason'=>'reviewed']);
     expect($app->handle('POST','/admin/action',headers:$headers,body:$writeBody)->status===403,'Viewer write forbidden');
-    expect($app->handle('GET','/admin/export',headers:['Cookie'=>$cookie])->status===403,'Viewer export forbidden');
+    expect($app->handle('POST','/admin/export',headers:$headers,body:http_build_query(['csrf'=>AdminAuth::csrfForToken($identity['token'])]))->status===403,'Viewer export forbidden');
     $pdo->prepare('UPDATE admin_sessions SET expires_at=DATE_SUB(UTC_TIMESTAMP(6),INTERVAL 1 SECOND)
         WHERE token_hash=?')->execute([hash('sha256',$identity['token'])]);
     expect($app->handle('GET','/admin',headers:['Cookie'=>$cookie])->status===303,'Expired viewer session');
@@ -231,13 +231,14 @@ try{
         $q=$pdo->prepare('SELECT COUNT(*) FROM audit_log WHERE admin_id=?');$q->execute([$adminId]);
         expect((int)$q->fetchColumn()>=4,'Audited approved, disabled, rejected and reviewed');
     });
-    run('Stage 8 operational overview and audited CSV use real data only',function()use($app,$sessionHeaders,$pdo,$adminId):void{
+    run('Stage 8 operational overview and audited CSV use real data only',function()use($app,$sessionHeaders,$actionHeaders,$csrf,$pdo,$adminId):void{
         $date=gmdate('Y-m-d');
         $overview=$app->handle('GET','/admin',['tab'=>'overview','from'=>$date,'to'=>$date],$sessionHeaders);
         expect($overview->status===200 && str_contains($overview->body,'Операционный обзор'),'Overview ready');
         expect(str_contains($overview->body,'Агрегированные события')
             || str_contains($overview->body,'Нули не подставляются'),'No fabricated metrics');
-        $csv=$app->handle('GET','/admin/export',headers:$sessionHeaders);
+        expect($app->handle('POST','/admin/export',headers:$actionHeaders,body:'csrf=bad')->status===403,'CSV CSRF required');
+        $csv=$app->handle('POST','/admin/export',headers:$actionHeaders,body:http_build_query(['csrf'=>$csrf]));
         expect($csv->status===200 && str_contains($csv->body,'created_at,admin,action'),'Private CSV');
         $q=$pdo->prepare("SELECT COUNT(*) FROM audit_log WHERE admin_id=? AND action='audit_csv_export'");
         $q->execute([$adminId]);
