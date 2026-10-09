@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Celikom;
 
 use Celikom\Admin\AdminPanel;
+use Celikom\Auth\AuthController;
+use Celikom\Auth\AuthService;
 use Celikom\Admin\ReportService;
 use Celikom\Analytics\AnalyticsEventService;
 use Celikom\Analytics\PdoEventRepository;
@@ -66,6 +68,13 @@ final class Application
         if ($method === 'GET' && in_array($path, ['/health', '/api/v1/health'], true)) {
             return Response::json(200, ['status' => 'ok', 'service' => 'celikom-api', 'version' => $this->config['version'], 'environment' => $this->config['environment']]);
         }
+        if (str_starts_with($path, '/api/v1/auth/')) {
+            if (!($this->config['auth_enabled'] ?? false)) {
+                return Response::json(404, ['error' => 'not_found']);
+            }
+            return (new AuthController(new AuthService(Connection::open($this->config))))
+                ->handle($method, $path, $headers, $body);
+        }
         if ($method === 'GET' && $path === '/api/v1/config') {
             return Response::json(200, [
                 'api_version' => 1,
@@ -74,7 +83,7 @@ final class Application
                 'max_upload_size' => $this->config['max_audio_size'],
                 'allowed_audio_formats' => ['mp3', 'wav'],
                 'maintenance' => false,
-                'features' => ['replacements' => $this->config['api_enabled'], 'analytics' => $this->config['analytics_enabled']],
+                'features' => ['replacements' => $this->config['api_enabled'], 'analytics' => $this->config['analytics_enabled'], 'auth' => (bool)($this->config['auth_enabled'] ?? false)],
                 'resolve_cache_ttl_seconds' => ResolveCachePolicy::positive($this->config['resolve_cache_ttl_seconds'] ?? 120, $this->config['audio_token_ttl']),
                 'negative_cache_ttl_seconds' => ResolveCachePolicy::negative($this->config['negative_cache_ttl_seconds'] ?? 15),
             ]);

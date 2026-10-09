@@ -46,8 +46,7 @@ final class AuthController
                 '/api/v1/auth/sessions/revoke' => $this->auth->revoke($access, $input),
                 '/api/v1/auth/activate' => $this->auth->activate($access),
             };
-            return Response::json(in_array($path, ['/api/v1/auth/register'], true) ? 201 : 200, $result,
-                ['Cache-Control' => 'no-store']);
+            return Response::json(in_array($path, ['/api/v1/auth/register'], true) ? 201 : 200, $result);
         } catch (\InvalidArgumentException) {
             return Response::json(400, ['error' => 'invalid_request']);
         } catch (\DomainException $error) {
@@ -61,7 +60,7 @@ final class AuthController
             };
             return Response::json($status, ['error' => in_array($code,
                 ['rate_limited','weak_password','account_unavailable','account_disabled','invalid_credentials'], true)
-                ? $code : 'invalid_session'], ['Cache-Control' => 'no-store']);
+                ? $code : 'invalid_session']);
         }
     }
 }
