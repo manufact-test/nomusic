@@ -1,0 +1,32 @@
+# CELIKOM Stage 5 — live MP3 stabilization and acceptance
+
+Updated: 2026-10-09. Source of live results: owner's direct testing in Chrome/Yandex Music; automated results are separate evidence. This document does not supersede the Master TZ MVP v1.4 or Work Plan MVP v1.5.
+
+## Verified so far
+
+- Approved user-supplied MP3 associated with Yandex Track ID `144530503`, measured duration 180872 ms (3:00.872); approved mapping replacement ID 1 in private Hostinger MySQL/audio store; analytics disabled and replacements enabled.
+- HTTPS `resolve` authentication, signed MP3 response, Content-Range byte response (`206`), audio/mpeg and allowed Yandex CORS confirmed in GitHub Actions run [37846857378](https://github.com/manufact-test/nomusic/actions/runs/37846857378). Hostinger edge may omit `Accept-Ranges` although actual range behavior works.
+- Live debugging established Yandex Music's `media-src` CSP blocks direct media URL from the Hostinger origin. The CSP permits `blob:`; extension 0.4.3 uses MediaSource audio/mpeg and bounded 512 KiB HTTPS Range fetches, no whole-file JS Blob.
+- Extension build/test [37848261630](https://github.com/manufact-test/nomusic/actions/runs/37848261630): **67 tests passed**; main CI [37848269651](https://github.com/manufact-test/nomusic/actions/runs/37848269651) succeeded.
+- Owner confirmed on 2026-10-09 that the **real** hosted version played in Chrome (not synthetic demo). Owner subsequently reported **6 of 6** first-round tests passed: (1) pause/play; (2) seek 30–60 seconds both ways; (3) seek near end; (4) volume/mute; (5) next track uses original; (6) manual Return Original works.
+- This is owner's functional smoke acceptance; the longer stress, refresh, disabled-extension watchdog and repeat-deploy gates below remain open. No general availability/client release is implied.
+
+## Owner's next live regression block (real MP3, empty Test Track ID)
+
+1. **Continuous playback**: start near 0:00 and listen at least 2 minutes (the test MP3 is only 3:00 long); no PREPARING/RESTORING loop, double sound, premature silence or unexplained status change. Capture diagnosis near end.
+2. **Refresh while active**: reload Yandex Music once with replacement active; expect no stuck mute, duplicate audio or stale bridge. Start explicitly if necessary and report whether it resumes automatically.
+3. **Rapid controls**: while the replacement is active, next → previous → next / change songs quickly. Only exact-ID track 144530503 gets the alternative audio; all others remain original. No unexpected replacement of another song.
+4. **Background tab**: switch away for 30–60 seconds, return; master and replacement remain aligned or fail open safely without doubled sound.
+5. **Extension-disable watchdog**: with replacement active, turn off CELIKOM in chrome://extensions, then return to Yandex Music; original must become audible without lasting forced mute (safety watchdog, nominal 12s plus scheduling). Re-enable extension and refresh once before continuing.
+6. **Manual bypass persistence**: Return Original; wait at least 10 seconds and reopen popup. It must *not* start replacing the same Track ID until explicit Start/new Track ID.
+7. **Failure safety** (optional, no credentials or network tampering): Stop/Start rapidly during PREPARING or close/reopen tab; no stuck mute or loop.
+8. **Expired audio URL** (developer/automated scenario): 10-minute signed-URL TTL expires and original is safely restored; new explicit Start obtains a fresh link. Do not require owner to watch for 10 minutes.
+
+For failures ask only for developer **Copy diagnostics** JSON from the active Yandex Music tab (never include `Authorization`, `API_TEST_TOKEN`, or signed `audio_url?token=...`). Playback counter changes after explicit control/track changes are expected; unexplained same-ID restores are not.
+
+## Remaining infrastructure gates
+
+- Repeat deployment while preserving `celikom/shared/env`, `celikom/shared/audio` and the approved mapping; current release is not automatically updated by extension build.
+- Validate rollback and documented backup/restore on safe dedicated environment; avoid disrupting the first working public test.
+- Health, HTTPS availability and error logging/monitoring, with secret-safe operation. Complete before formally closing Stage 5.
+- PR #6 remains unmerged; don't assert later stages 6–18 complete.
