@@ -535,7 +535,7 @@ final class AdminPanel
                         . '<input type="hidden" name="decision" value="rejection">'
                         . '<label class="form-field" for="reject-category-' . $id . '">'
                         . 'Причина отклонения<select class="reject-category" name="reject_category" id="reject-category-' . $id . '" required>'
-                        . '<option value="" selected disabled>Выберите причину</option>'
+                        . '<option value="" selected disabled hidden>Выберите причину</option>'
                         . '<option value="duplicate">Дубликат</option>'
                         . '<option value="wrong_track">Не тот трек</option>'
                         . '<option value="bad_quality">Плохое качество</option>'
