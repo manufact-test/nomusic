@@ -1,5 +1,16 @@
 # CELIKOM — продолжение проекта в новом чате
 
+## СРОЧНОЕ ОБНОВЛЕНИЕ: 9 октября 2026 — live audio 0.4.3
+
+**Этот раздел новее состояния от 8 октября ниже; старое "следующее действие" и старое состояние Stage 5 далее считать исторической записью.**
+
+- Первый пользовательский MP3 (подтверждены права использования) загружен через File Manager в `celikom/shared/staging`; Track ID `144530503`, длительность `180872` ms, размер ~4.35 MB. Серверный импорт в private MySQL/audio approved mapping **replacement ID 1** выполнен. `FEATURE_REPLACEMENTS=1`, `FEATURE_ANALYTICS=0`. Бета-код владелец получил непосредственно из приватного Hostinger env; его нет в чате/Git/логах.
+- Прямой remote `audio.src` был заблокирован CSP `media-src` Яндекс Музыки (скрин DevTools владельца). `extension/src/player/replacement-player.ts` в **0.4.3** использует `MediaSource` + `blob:` + 512KiB signed HTTP Range chunks; не буферизует целиком файл в JS. GitHub extension build [37848261630](https://github.com/manufact-test/nomusic/actions/runs/37848261630) 67/67 tests pass; main CI [37848269651](https://github.com/manufact-test/nomusic/actions/runs/37848269651) success.
+- Авторизованный live HTTPS resolve, signed-audio CORS/Range smoke checked via restricted GitHub Actions [37846857378](https://github.com/manufact-test/nomusic/actions/runs/37846857378); edge не передаёт `Accept-Ranges`, но отвечает `206` с точным `Content-Range` и `audio/mpeg`.
+- Владелец сообщил, что **реальный MP3 с Hostinger заиграл** в 0.4.3 (не встроенный сигнал), и подтвердил **все шесть** функциональных тестов: пауза/воспроизведение, seek вперёд/назад, seek почти в конец, громкость/mute, следующий трек → оригинал, Return Original.
+- **Сейчас**: выполнить углублённый live-stability gate по [CELIKOM-STAGE5-LIVE-AUDIO.md](../test-plans/CELIKOM-STAGE5-LIVE-AUDIO.md). Затем закончить repeat-deploy с сохранением audio/env, backup/restore и monitoring. Не считать Stage 5 закрытым и **не мержить PR #6** без оценки gate. Серверный deployed app release остаётся 0.4.0-e0461f56..., хотя клиентское расширение 0.4.3 — это нормально.
+- Пользователь попросил объединять действия в удобные блоки, **не заставлять делать по одному микрошагу**, пока не возникнет непонятность. Никаких повторных проверок подключения/token или переустановок без необходимости. В Chrome при проблеме диагностика копируется из активной вкладки Яндекс Музыки, никогда не просить подписанные URL или реальный токен.
+
 Состояние на 8 октября 2026, 21:26 Europe/Warsaw. Это передача выполнения, а не отдельная спецификация. Сверить последующие изменения ветки и deployment перед новыми операциями.
 
 ## Основные документы
