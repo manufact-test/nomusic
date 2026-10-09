@@ -1,29 +1,40 @@
-# CELIKOM — current test environment
+# CELIKOM — current private-test environment
 
-Recorded from the owner's hosting setup on 2026-10-08.
+Recorded: 2026-10-09. Source of truth for requirements remains CELIKOM Master TZ MVP v1.4 and Work Plan MVP v1.5. This file captures measured deployment facts, not a production-security approval.
 
-- Project: CELIKOM.
-- Provider: Hostinger, dedicated PHP/HTML website.
-- Temporary test/API origin: https://darkred-camel-588676.hostingersite.com
-- hPanel site dashboard: https://hpanel.hostinger.com/websites/darkred-camel-588676.hostingersite.com
-- Purpose: Stage 5 private live MP3/WAV tests. This is a temporary testing address; the final client domain is undecided.
-- MySQL database: `u235811320_celikom`; MySQL user: `u235811320_celikom`. Creation confirmed from the owner's hPanel screenshot.
-- SSH endpoint: `92.113.19.189:65002`; SSH user: `u235811320`. SSH status ACTIVE confirmed from the owner's hPanel screenshot.
-- The owner added the `CELIKOM GitHub Actions` public key in hPanel and configured the `HOSTINGER_SSH_KEY` repository Actions secret. Authenticated read-only checks passed: https://github.com/manufact-test/nomusic/actions/runs/37823014501
-- Confirmed site directory: `/home/u235811320/domains/darkred-camel-588676.hostingersite.com`; document root: its `public_html` directory.
-- Default SSH CLI: PHP 8.2.33. Project CLI: `/opt/alt/php83/usr/bin/php`, PHP 8.3.33 with `pdo_mysql` and `fileinfo`. The website's HTTP runtime also passed on PHP 8.3.33 with those extensions and an actual MySQL connection. PHP selection is scoped to this site's `.htaccess`.
-- Deployment passed on 2026-10-08: https://github.com/manufact-test/nomusic/actions/runs/37824995803 . Active release: `0.4.0-e0461f56b77e6fea86493e25c39af4a8eddbabb6`. CI for the same application revision passed: https://github.com/manufact-test/nomusic/actions/runs/37825005035 .
-- Database initialization and migration `001_catalog_and_analytics.sql` succeeded; the second migration pass was a no-op. Private shared configuration and audio/staging directories are outside `public_html`. Signing, privacy and beta-access keys were generated on the server and are not in Git or logs.
-- HTTPS health/config passed on the hosting side and from the external GitHub runner. The external runner also verified Yandex CORS and unauthenticated resolve rejection (401). The temporary runtime/DB probe was removed.
-- Current flags: replacements disabled, analytics disabled. No owner audio has been imported, and the live Yandex MP3/WAV gate is still pending.
-- Direct SSH from the chat runtime fails with `Network is unreachable`. Use GitHub Actions for remote execution. The connection-preflight workflow pins the server key observed at the owner-confirmed hPanel endpoint and verifies the client key fingerprint; it authenticates for read-only runtime/path checks and does not deploy. First-contact host-key observation is not independent identity verification.
-- The owner configured `HOSTINGER_DB_PASSWORD` as a repository Actions secret. Future deployments are requested through `.github/deploy/hostinger-request.json`; the workflow verifies the immutable revision before deployment. Public files and the previous release are restored if the hosting-side HTTPS gate fails; this rollback was exercised with isolated filesystem/HTTP fixtures, not a deliberate live outage.
-- Next dependency: owner-reviewed MP3/WAV in `celikom/shared/staging`, exact Yandex Track ID and duration. Import through the private CLI; then enable replacements and run the real-page playback checklist. The beta access code can be retrieved privately by the owner over SSH for the extension.
+## Hostinger / API
 
-Domain-specific extension build:
+- Dedicated Hostinger PHP website: https://darkred-camel-588676.hostingersite.com (temporary test hostname).
+- Hostinger hPanel: https://hpanel.hostinger.com/websites/darkred-camel-588676.hostingersite.com
+- Private application: /home/u235811320/domains/darkred-camel-588676.hostingersite.com/celikom
+- Public site document root: sibling public_html; release package, SQL migrations, credentials and user audio live outside web root.
+- SSH: 92.113.19.189:65002, account u235811320. GitHub Actions SSH key and DB password are already configured as secrets; do not ask user to reveal or rotate them.
+- Application CLI/runtime: PHP 8.3.33 with pdo_mysql and fileinfo. MySQL user/database: u235811320_celikom.
+- Active immutable server release: **0.4.4-0fee5892c82d01e8fe7936d76f064c48484f136d**. The server API reports version **0.4.0** by design; Chrome extension version is **0.4.4**. Deployment workflow was fixed to independently validate the API package version.
+- Feature flags: FEATURE_REPLACEMENTS=1, FEATURE_ANALYTICS=0. Signed audio and owner-only temporary API token stored privately; no secrets are in Git or artifacts.
 
-```bash
-CELIKOM_API_BASE_URL=https://darkred-camel-588676.hostingersite.com npm run build:extension
-```
+## Real audio and playback
 
-Deployment procedure: [Hostinger private-test runbook](hostinger-private-test.md). Keep database passwords, API access codes, signing keys and user audio outside Git. Update this execution record when deployment checks complete.
+- Reviewed private MP3 is stored under shared/audio and associated with exact Yandex Track ID 144530503 via approved MySQL replacement ID 1; measured duration 180872 ms; audio length 4345176 bytes.
+- Browser owner acceptance: 6 of 6 functional and 6 of 6 stability scenarios on 0.4.4. CSP-compatible MediaSource blob backed by 512 KiB HTTP Range streaming.
+- Re-enabling a disabled Chrome extension on an already-open Yandex Music tab can require refreshing that page once; accepted for current MVP. Does not block playback or safety.
+
+## Verified Hostinger operations on 2026-10-09
+
+- Read-only production integrity (private env, approved DB mapping, on-disk SHA-256, public health/config): https://github.com/manufact-test/nomusic/actions/runs/37903708919
+- On-host private recovery snapshot (private config + audio + SQL for six database tables): https://github.com/manufact-test/nomusic/actions/runs/37903842547
+- Isolated config/audio restoration and recovery of the same SQL schema/records into a disposable runner MySQL instance: https://github.com/manufact-test/nomusic/actions/runs/37903962631
+- Repeated immutable production-server deployment with migration idempotence, PHP/MySQL runtime and HTTPS checks: https://github.com/manufact-test/nomusic/actions/runs/37904158336
+- Post-deployment SHA-256 equality for original private env/audio and six MySQL row counts against the pre-deploy snapshot: https://github.com/manufact-test/nomusic/actions/runs/37904416817
+- Internal authorized resolve + public HTTPS signed-audio HEAD/Range/CORS/206: https://github.com/manufact-test/nomusic/actions/runs/37904551511
+- External public endpoint monitoring configured at a six-hour interval. Alert only on confirmed health/config/authorization failure; no tokens are needed.
+- New operations runbook: [Hostinger Stage 5 operations](hostinger-stage5-operations.md).
+
+## Limits and release safety
+
+- The snapshot is **on the same Hostinger account**, not an offsite disaster-recovery backup. Secure independent backup/rotation is future production hardening.
+- Restore was exercised for files in isolated storage and SQL on disposable MySQL; the live site's database was not overwritten. No intentional live outage/rollback drill was run; the activation rollback was previously validated on isolated fixtures.
+- Public client release is **not authorized**: accounts, billing, end-user upload/moderation, permissions hardening and repository privacy remain later stages.
+- PR #6 remains **open and unmerged**; project source work remains on feature/api-range. Separate future enhancement: auto reconnect after Chrome disable/re-enable.
+
+Never print, commit or attach private keys, database credentials, API bearer tokens, private backup contents or signed audio URLs.
