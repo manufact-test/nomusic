@@ -191,6 +191,9 @@ try{
             && str_contains($view->body,'appearance:base-select')
             && str_contains($view->body,'select.reject-category::picker(select)'),
             'Custom browser-native picker CSS is present without JavaScript');
+        expect(str_contains($view->body,'<option value="" selected disabled hidden>Выберите причину</option>')
+            && str_contains($view->body,'option[hidden]{display:none!important}'),
+            'Placeholder is displayed in the closed picker, not as a selectable menu row');
         expect(str_contains($view->body,'.decision-body .reject-category:focus-visible')
             && str_contains($view->body,'box-shadow:inset 0 0 0 1px #278d70'),
             'Rejection picker uses restrained border-only focus');
