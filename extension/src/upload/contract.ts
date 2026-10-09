@@ -5,10 +5,11 @@ export function uploadTargetFromStatus(state: ExtensionState | null) {
   const track = state?.track;
   const durationMs = track?.metadata?.durationMs;
   if (!track?.id || !/^[1-9]\d{0,23}$/.test(track.id) ||
-    track.ambiguous || track.confidence < 100 ||
+    track.ambiguous !== false || !Number.isFinite(track.confidence) || track.confidence < 100 ||
     !Number.isSafeInteger(durationMs) || !durationMs || durationMs < 1000 || durationMs > 86400000) return null;
-  return { id: track.id, durationMs, artist: track.metadata?.artist || "",
-    title: track.metadata?.title || "", album: track.metadata?.album || "" };
+  const safe = (value: unknown) => typeof value === "string" ? value.slice(0, 240) : "";
+  return { id: track.id, durationMs, artist: safe(track.metadata?.artist),
+    title: safe(track.metadata?.title), album: safe(track.metadata?.album) };
 }
 
 export function validMp3Selection(file: { name: string; size: number } | null, maxBytes = 31457280): boolean {
