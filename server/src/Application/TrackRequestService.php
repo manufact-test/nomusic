@@ -29,6 +29,14 @@ final class TrackRequestService
             (service, service_track_id, uploader_hash, artist, title, status)
             VALUES (?, ?, ?, ?, ?, 'pending') ON DUPLICATE KEY UPDATE id = LAST_INSERT_ID(id)");
         $stmt->execute([$service, $trackId, $uploaderHash, ...$metadata]);
-        return ['status' => 'pending', 'request_id' => (int) $this->pdo->lastInsertId()];
+        $id = (int) $this->pdo->lastInsertId();
+        // A repeat request must not falsely report pending after an admin decision.
+        $read = $this->pdo->prepare('SELECT status FROM track_requests WHERE id = ?');
+        $read->execute([$id]);
+        $status = $read->fetchColumn();
+        if (!in_array($status, ['pending', 'reviewed', 'rejected'], true)) {
+            throw new \RuntimeException('track_request_state_unavailable');
+        }
+        return ['status' => $status, 'request_id' => $id];
     }
 }
