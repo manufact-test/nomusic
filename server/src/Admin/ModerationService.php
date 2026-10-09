@@ -113,6 +113,28 @@ final class ModerationService
         }
     }
 
+    public function report(int $adminId, int $id, string $action, string $reason): void
+    {
+        if ($adminId < 1 || $id < 1 || !in_array($action, ['reviewed','dismissed'], true)
+            || trim($reason) === '' || strlen($reason) > 500) {
+            throw new \InvalidArgumentException('invalid_report_review');
+        }
+        $this->pdo->beginTransaction();
+        try {
+            $q=$this->pdo->prepare('SELECT status FROM reports WHERE id=? FOR UPDATE');
+            $q->execute([$id]);
+            $current=$q->fetchColumn();
+            if ($current !== 'pending') throw new \DomainException('report_not_pending');
+            $this->pdo->prepare('UPDATE reports SET status=? WHERE id=?')->execute([$action,$id]);
+            $this->audit($adminId,'report_' . $action,'report',$id,$reason,
+                ['status'=>'pending'],['status'=>$action]);
+            $this->pdo->commit();
+        } catch (\Throwable $error) {
+            if ($this->pdo->inTransaction()) $this->pdo->rollBack();
+            throw $error;
+        }
+    }
+
     public function audit(int $adminId, string $action, string $type, int $id, string $reason, array $before, array $after): void
     {
         $this->pdo->prepare('INSERT INTO audit_log
