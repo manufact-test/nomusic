@@ -50,10 +50,14 @@ startButton?.addEventListener("click", async () => {
   render(await send<ExtensionState>({ type: COMMANDS.setEnabled, enabled: true }));
 });
 
+const addTrackButton = document.querySelector<HTMLButtonElement>("[data-action='add']");
 const uploadPanel = document.querySelector<HTMLElement>("[data-upload-panel]");
 const uploadForm = document.querySelector<HTMLFormElement>("[data-upload-form]");
 const uploadTrack = document.querySelector<HTMLInputElement>("[data-upload-track]");
 const uploadFile = document.querySelector<HTMLInputElement>("[data-upload-file]");
+const uploadFilePicker = document.querySelector<HTMLElement>("[data-file-picker]");
+const uploadFileTitle = document.querySelector<HTMLElement>("[data-file-title]");
+const uploadFileName = document.querySelector<HTMLElement>("[data-file-name]");
 const uploadKey = document.querySelector<HTMLInputElement>("[data-upload-key]");
 const uploadRights = document.querySelector<HTMLInputElement>("[data-upload-rights]");
 const uploadProgress = document.querySelector<HTMLProgressElement>("[data-upload-progress]");
@@ -67,14 +71,37 @@ let uploadRequestId: string | null = null;
 let uploading = false;
 let opening = false;
 
+// Animate the old measured panel height to its finished size on the same frame.
+// Chrome popup resizes with this transition instead of snapping between layouts.
+// Without DOM animation support (or with reduced motion), content remains usable.
+function transitionUploadPanel(update: () => void): void {
+  const panel = uploadPanel;
+  if (!panel) { update(); return; }
+  const oldHeight = panel.hidden ? 0 : panel.getBoundingClientRect?.().height;
+  const entering = panel.hidden;
+  update();
+  const newHeight = panel.hidden ? 0 : panel.getBoundingClientRect?.().height;
+  if (typeof oldHeight !== "number" || typeof newHeight !== "number" ||
+      typeof panel.animate !== "function" || !panel.style ||
+      window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
+  panel.style.overflow = "hidden";
+  const anim = panel.animate([
+    { height: oldHeight + "px", opacity: entering ? 0 : 1 },
+    { height: newHeight + "px", opacity: panel.hidden ? 0 : 1 }
+  ], { duration: entering ? 300 : 290, easing: "cubic-bezier(.2,.75,.25,1)" });
+  const release = () => { panel.style.overflow = ""; };
+  anim.onfinish = release;
+  anim.oncancel = release;
+}
+
 function uploadMessage(value: string, kind = "info"): void {
   if (!uploadStatus) return;
   uploadStatus.textContent = value;
   uploadStatus.dataset.kind = kind;
-  uploadStatus.hidden = false;
+  uploadStatus.hidden = !value;
 }
 
-function showSubmitted(title: string, note: string): void {
+function setSubmittedView(title: string, note: string): void {
   if (uploadResultTitle) uploadResultTitle.textContent = title;
   if (uploadResultNote) uploadResultNote.textContent = note;
   if (uploadResult) uploadResult.hidden = false;
@@ -82,16 +109,34 @@ function showSubmitted(title: string, note: string): void {
   if (uploadStatus) uploadStatus.hidden = true;
   if (uploadButton) uploadButton.disabled = true;
   if (uploadKey) uploadKey.value = "";
-  // The private bearer is never persisted or returned to the web page.
+}
+
+function showSubmitted(title: string, note: string): void {
+  transitionUploadPanel(() => setSubmittedView(title, note));
+}
+
+function setPickerState(): void {
+  const file = uploadFile?.files?.[0];
+  if (uploadFilePicker) uploadFilePicker.dataset.selected = String(Boolean(file));
+  if (uploadFileTitle) uploadFileTitle.textContent = file ? "MP3 выбран" : "Выбрать MP3";
+  if (uploadFileName) {
+    uploadFileName.textContent = file
+      ? file.name + " · " + (file.size / 1048576).toFixed(1).replace(".", ",") + " МиБ"
+      : "Нажмите или перетащите файл сюда";
+  }
 }
 
 function resetUploadPanel(): void {
   if (uploadResult) uploadResult.hidden = true;
   if (uploadForm) uploadForm.hidden = true;
-  if (uploadButton) uploadButton.disabled = true;
+  if (uploadButton) { uploadButton.disabled = true; uploadButton.textContent = "Отправить на проверку"; }
   if (uploadProgress) { uploadProgress.hidden = true; uploadProgress.value = 0; }
+  if (uploadStatus) uploadStatus.hidden = true;
+  if (uploadFile) uploadFile.value = "";
+  if (uploadRights) uploadRights.checked = false;
   uploadRequestId = null;
   pinnedTrack = null;
+  setPickerState();
 }
 
 async function uploadApiOrigin(): Promise<string> {
@@ -101,7 +146,8 @@ async function uploadApiOrigin(): Promise<string> {
 
 async function trackUploadStatus(origin: string, trackId: string): Promise<"none" | "pending" | "approved"> {
   const response = await fetch(origin + "/api/v1/tracks/upload-status?service=yandex&track_id=" + encodeURIComponent(trackId), {
-    method: "GET", redirect: "error", credentials: "omit", cache: "no-store"
+    method: "GET", redirect: "error", credentials: "omit", cache: "no-store",
+    signal: AbortSignal.timeout(10000)
   });
   if (!response.ok) throw new Error("upload_status_unavailable");
   const value = await response.json();
@@ -111,36 +157,63 @@ async function trackUploadStatus(origin: string, trackId: string): Promise<"none
   return value.status;
 }
 
-document.querySelector("[data-action='add']")?.addEventListener("click", async () => {
+addTrackButton?.addEventListener("click", async () => {
   if (!uploadPanel || uploading || opening) return;
-  uploadPanel.hidden = !uploadPanel.hidden;
-  if (uploadPanel.hidden) return;
-  resetUploadPanel();
+  if (!uploadPanel.hidden) {
+    // Do not clear the accepted state until a new explicit open.
+    transitionUploadPanel(() => { uploadPanel.hidden = true; });
+    addTrackButton.setAttribute("aria-expanded", "false");
+    return;
+  }
   opening = true;
-  uploadMessage("Проверяем, добавлен ли трек…", "checking");
+  addTrackButton.disabled = true;
+  addTrackButton.dataset.loading = "true";
+  addTrackButton.textContent = "Проверяем трек…";
+  // Keep the panel hidden until the final server answer is ready.
+  // No intermediate fragment of a form is ever displayed.
+  resetUploadPanel();
+  let view: "form" | "result" | "error" = "error";
+  let title = "";
+  let note = "";
   try {
-    const state = await send<ExtensionState>({ type: COMMANDS.getStatus });
-    pinnedTrack = uploadTargetFromStatus(state);
+    pinnedTrack = uploadTargetFromStatus(await send<ExtensionState>({ type: COMMANDS.getStatus }));
     if (uploadTrack) uploadTrack.value = pinnedTrack?.id || "";
     if (!pinnedTrack) {
-      uploadMessage("Сначала включите песню и дождитесь определения Track ID.", "error");
-      return;
-    }
-    const origin = await uploadApiOrigin();
-    const status = await trackUploadStatus(origin, pinnedTrack.id);
-    if (status === "pending") {
-      showSubmitted("Трек уже добавлен", "Альтернативная версия ожидает проверки администратора. Повторная загрузка не требуется.");
-    } else if (status === "approved") {
-      showSubmitted("Версия уже доступна", "Для этой песни уже есть одобренная версия. Повторная отправка не требуется.");
+      note = "Сначала запустите песню в Яндекс Музыке и дождитесь определения Track ID.";
     } else {
-      if (uploadForm) uploadForm.hidden = false;
-      if (uploadButton) uploadButton.disabled = false;
-      uploadMessage("Выберите MP3 для отправки на проверку.");
+      const origin = await uploadApiOrigin();
+      const serverState = await trackUploadStatus(origin, pinnedTrack.id);
+      if (serverState === "pending") {
+        view = "result";
+        title = "Трек уже добавлен";
+        note = "Альтернативная версия ожидает проверки администратора. Повторная загрузка не требуется.";
+      } else if (serverState === "approved") {
+        view = "result";
+        title = "Версия уже доступна";
+        note = "Для этой песни уже есть одобренная версия. Повторная отправка не требуется.";
+      } else {
+        view = "form";
+      }
     }
   } catch (_error) {
-    uploadMessage("Не удалось проверить статус на сервере. Повторите попытку.", "error");
+    note = "Не удалось проверить трек на сервере. Закройте форму и попробуйте снова.";
   } finally {
+    transitionUploadPanel(() => {
+      if (view === "form") {
+        if (uploadForm) uploadForm.hidden = false;
+        if (uploadButton) uploadButton.disabled = false;
+      } else if (view === "result") {
+        setSubmittedView(title, note);
+      } else {
+        uploadMessage(note, "error");
+      }
+      uploadPanel.hidden = false;
+    });
     opening = false;
+    addTrackButton.disabled = false;
+    addTrackButton.dataset.loading = "false";
+    addTrackButton.textContent = "Добавить трек";
+    addTrackButton.setAttribute("aria-expanded", "true");
   }
   void send({ type: "CELIKOM_ADD_TRACK_OPENED" }).catch(() => {});
 });
@@ -148,6 +221,33 @@ document.querySelector("[data-action='add']")?.addEventListener("click", async (
 uploadFile?.addEventListener("change", () => {
   uploadRequestId = null;
   if (uploadProgress) uploadProgress.value = 0;
+  setPickerState();
+});
+
+// Native file picker via <label> and optional drag-and-drop share one validated input.
+uploadFilePicker?.addEventListener("dragover", (event) => {
+  event.preventDefault();
+  if (event.dataTransfer) event.dataTransfer.dropEffect = "copy";
+  uploadFilePicker.dataset.dragging = "true";
+});
+uploadFilePicker?.addEventListener("dragleave", () => {
+  uploadFilePicker.dataset.dragging = "false";
+});
+uploadFilePicker?.addEventListener("drop", (event) => {
+  event.preventDefault();
+  uploadFilePicker.dataset.dragging = "false";
+  const file = event.dataTransfer?.files?.[0];
+  if (!file || !uploadFile) return;
+  if (!validMp3Selection(file)) {
+    uploadMessage("Выберите MP3 не более 30 МиБ.", "error"); return;
+  }
+  const transfer = new DataTransfer();
+  transfer.items.add(file);
+  uploadFile.files = transfer.files;
+  uploadRequestId = null;
+  if (uploadProgress) uploadProgress.value = 0;
+  setPickerState();
+  uploadMessage("");
 });
 
 uploadForm?.addEventListener("submit", async (event) => {
