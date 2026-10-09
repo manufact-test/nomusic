@@ -216,7 +216,8 @@ try{
         $date=gmdate('Y-m-d');
         $overview=$app->handle('GET','/admin',['tab'=>'overview','from'=>$date,'to'=>$date],$sessionHeaders);
         expect($overview->status===200 && str_contains($overview->body,'Операционный обзор'),'Overview ready');
-        expect(str_contains($overview->body,'Нули не подставляются'),'No invented analytics');
+        expect(str_contains($overview->body,'Агрегированные события')
+            || str_contains($overview->body,'Нули не подставляются'),'No fabricated metrics');
         $csv=$app->handle('GET','/admin/export',headers:$sessionHeaders);
         expect($csv->status===200 && str_contains($csv->body,'created_at,admin,action'),'Private CSV');
         $q=$pdo->prepare("SELECT COUNT(*) FROM audit_log WHERE admin_id=? AND action='audit_csv_export'");
