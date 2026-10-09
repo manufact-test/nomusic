@@ -1,6 +1,12 @@
 # CELIKOM — актуальная передача в новый чат
 
-> **START HERE — 09.10.2026, Stage 8 deployed, owner acceptance 8.7 pending.** Historical Stage 6→7/7→8 sections below are archival and not current work orders. Requirements: Library Master TZ MVP v1.5 Appendix G, Work Plan MVP v1.6 Section 13. Technical evidence: [status](../project-status.md), [Stage8 runbook](../deployment/stage8-admin-acceptance.md). Don't repeat Stage 7 manual tests. PR #6 stays OPEN/UNMERGED; issue #7 remains OPEN.
+> **START HERE — 10.10.2026: STAGE 8 DONE / OWNER ACCEPTED, DEVELOPMENT PAUSED BEFORE STAGE 9.** User explicitly directed that after the final dropdown/outline tweak and its automated verification, Stage 8 be closed without further manual UI acceptance. Next interaction is **document work as directed by owner**, NOT Stage 9 implementation or renewed Stage 8 testing. PR #6 OPEN/UNMERGED; Issue #7 OPEN. Authority: Master TZ MVP v1.5 Appendix G and Work Plan MVP v1.6 Section 13; **do not modify DOCX before owner provides the document task.**
+
+## Final Stage 8 closeout — 10.10.2026
+
+**STOP development now; no Stage 9 code until the user's separate document instructions.** User approved Stage 8 and explicitly waived re-testing. Latest visual polish: rejection select styled with native CSS `appearance:base-select` + `::picker(select)` / `::picker-icon` and fallback, mint selected/hover rows, clean inner focus border instead of former halo. Tested and deployed in `feature/api-range`, active immutable release `0.4.4-6121a91b570e384095d65c9f9562347eb735e967`. [CI PASS](https://github.com/manufact-test/nomusic/actions/runs/37995677448), [backup](https://github.com/manufact-test/nomusic/actions/runs/37995694271), [isolated restore](https://github.com/manufact-test/nomusic/actions/runs/37995808661), [deploy](https://github.com/manufact-test/nomusic/actions/runs/37995952723), [independent data/media audit](https://github.com/manufact-test/nomusic/actions/runs/37996133162) PASS. No real track moderation performed or audio changed. Stage 8 UI (private admin auth, MP3, suggestions queue, reports, roles, audit, analytics, two-step moderated confirmation, comments, responsive pagination, green UI) **accepted**.
+
+Next user will ask **about project documents**; wait for specifics, then update appropriate project documentation and master DOCX only as asked. Never silently open Stage 9. PR #6 open/unmerged, Issue #7 open, public uploads OFF. Mandatory Stage 10 public `Предложить песню` action remains (NO MP3 upload and NO rights checkbox, separate from `Загрузить версию`). Owner access in Hostinger-private storage must not be exposed in GitHub/chat.
 
 ## Latest — Stage 8.7 two-step moderation UX shipped (09.10.2026)
 
