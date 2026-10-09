@@ -1,4 +1,5 @@
 import { COMMANDS, type ExtensionState } from "../shared/messages.js";
+import { uploadTargetFromStatus, validMp3Selection, privateUploadApiOrigin } from "../upload/contract.js";
 
 const status = document.querySelector<HTMLElement>("[data-status]");
 const startButton = document.querySelector<HTMLButtonElement>("[data-action='start']");
@@ -64,21 +65,11 @@ let uploading = false;
 function uploadMessage(value: string): void {
   if (uploadStatus) uploadStatus.textContent = value;
 }
-function currentUploadTrack(state: ExtensionState | null) {
-  const candidate = state?.track;
-  const durationMs = candidate?.metadata?.durationMs;
-  if (!candidate?.id || !/^[1-9]\d{0,23}$/.test(candidate.id) ||
-      candidate.ambiguous || candidate.confidence < 100 ||
-      !Number.isSafeInteger(durationMs) || !durationMs || durationMs < 1000 || durationMs > 86400000) return null;
-  return { id: candidate.id, durationMs, artist: candidate.metadata?.artist || "",
-    title: candidate.metadata?.title || "", album: candidate.metadata?.album || "" };
-}
-
 document.querySelector("[data-action='add']")?.addEventListener("click", async () => {
   if (!uploadPanel || uploading) return;
   uploadPanel.hidden = !uploadPanel.hidden;
   if (uploadPanel.hidden) return;
-  pinnedTrack = currentUploadTrack(await send<ExtensionState>({ type: COMMANDS.getStatus }));
+  pinnedTrack = uploadTargetFromStatus(await send<ExtensionState>({ type: COMMANDS.getStatus }));
   if (uploadTrack) uploadTrack.value = pinnedTrack?.id || "";
   if (uploadButton) uploadButton.disabled = !pinnedTrack;
   uploadMessage(pinnedTrack ? "MP3 будет отправлен со статусом pending, без публикации." :
@@ -92,10 +83,10 @@ document.querySelector<HTMLFormElement>("[data-upload-form]")?.addEventListener(
   event.preventDefault();
   if (uploading || !pinnedTrack || !uploadFile?.files?.[0] || !uploadRights?.checked || !uploadKey?.value) return;
   const file = uploadFile.files[0];
-  if (file.size < 1024 || file.size > 31457280 || !/\.mp3$/i.test(file.name)) {
+  if (!validMp3Selection(file)) {
     uploadMessage("Выберите MP3 не более 30 МиБ."); return;
   }
-  const now = currentUploadTrack(await send<ExtensionState>({ type: COMMANDS.getStatus }));
+  const now = uploadTargetFromStatus(await send<ExtensionState>({ type: COMMANDS.getStatus }));
   if (!now || now.id !== pinnedTrack.id) {
     uploadMessage("Трек изменился. Откройте «Добавить трек» снова."); return;
   }
@@ -104,10 +95,7 @@ document.querySelector<HTMLFormElement>("[data-upload-form]")?.addEventListener(
   let origin: string;
   try {
     const conf = await fetch(chrome.runtime.getURL("api/config.json")).then((r) => r.json());
-    const url = new URL(conf.baseUrl);
-    if ((url.protocol !== "https:" && !(url.protocol === "http:" && url.hostname === "127.0.0.1"))
-      || url.username || url.password || url.search || url.hash || url.pathname !== "/") throw Error("invalid");
-    origin = url.origin;
+    origin = privateUploadApiOrigin(conf.baseUrl);
   } catch (_error) { uploadMessage("Сервер загрузки не настроен."); return; }
 
   if (!uploadRequestId) uploadRequestId = crypto.randomUUID();
