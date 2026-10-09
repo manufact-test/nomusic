@@ -20,8 +20,6 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
-        with:
-          persist-credentials: false
       - name: Verify guarded one-time private operation
         run: |
           php -l .github/scripts/hostinger-stage8-provision-remote.php
