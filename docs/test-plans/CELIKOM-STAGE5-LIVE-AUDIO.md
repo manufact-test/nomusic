@@ -24,6 +24,17 @@ Updated: 2026-10-09. Source of live results: owner's direct testing in Chrome/Ya
 
 For failures ask only for developer **Copy diagnostics** JSON from the active Yandex Music tab (never include `Authorization`, `API_TEST_TOKEN`, or signed `audio_url?token=...`). Playback counter changes after explicit control/track changes are expected; unexplained same-ID restores are not.
 
+## 2026-10-09: mandatory emergency-disable regression — BLOCKED pending fix verification
+
+The owner passed five of six extended live stability checks in 0.4.3:
+continuous playback, page refresh, rapid next/previous, 30–60s background tab, manual return-original persistence.
+
+**Test 6 failed:** the owner switched the CELIKOM extension OFF under `chrome://extensions/` during replacement, but the alternative audio continued and original did not restore. **Do not close Stage 5, issue client beta or deem safety watchdog accepted.** Immediate user workaround is to leave the extension off and refresh the Yandex Music tab, which discards the stuck DOM audio state.
+
+Cause indicated by code review: MAIN-world watchdog accepted `HEARTBEAT` from an injected ISOLATED-world script without confirming the actual enabled extension worker. After disabling, stale content timers can remain alive, preventing the 12s/120s watchdog from expiring. MAIN also renewed the lease on generic messages, not just heartbeats. The proposed **0.4.4** patch validates each heartbeat with `CELIKOM_CONTEXT_PING` answered by the real service worker, stops and releases after two misses and prevents generic messages from renewing the lease. Automated regression simulates worker gone while ISOLATED-world script timers still run.
+
+Acceptance condition (must be retested by owner, not inferred from tests): on real MP3, switching the extension off restores original and stops alternate audio automatically, with no page reload or permanent mute. After re-enable and page refresh, normal exact-ID replacement still works. Also recheck 30–60s background playback so liveness polling doesn't falsely abort. Keep Stage 5 open until this passes.
+
 ## Remaining infrastructure gates
 
 - Repeat deployment while preserving `celikom/shared/env`, `celikom/shared/audio` and the approved mapping; current release is not automatically updated by extension build.
