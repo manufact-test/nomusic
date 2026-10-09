@@ -1,0 +1,102 @@
+name: CELIKOM Stage 7 upload UX hotfix
+
+on:
+  push:
+    branches: [feature/api-range]
+    paths:
+      - .github/workflows/hostinger-stage7-ux-hotfix.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: celikom-hostinger-private-test
+  cancel-in-progress: false
+
+jobs:
+  verify-and-deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: ci-disposable-mysql
+          MYSQL_DATABASE: celikom_test
+        ports: ["3306:3306"]
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -pci-disposable-mysql"
+          --health-interval=10s --health-timeout=5s --health-retries=10
+    env:
+      DB_HOST: 127.0.0.1
+      DB_PORT: "3306"
+      DB_NAME: celikom_test
+      DB_USER: root
+      DB_PASSWORD: ci-disposable-mysql
+      STORAGE_PATH: /tmp/celikom-ci-private-audio
+      REQUIRE_BROWSER_AUDIO: "1"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.3"
+          extensions: pdo_mysql, fileinfo
+          coverage: none
+      - name: Install CI-only MP3 encoder
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends ffmpeg
+      - name: Run complete disposable upload and browser regression
+        run: |
+          npm ci
+          npm run ci
+          php -l .github/scripts/hostinger-stage7-hotfix-check.php
+          bash -n .github/scripts/hostinger-deploy.sh
+      - name: Build owner Chrome ZIP pinned to existing HTTPS test server
+        env:
+          CELIKOM_API_BASE_URL: https://darkred-camel-588676.hostingersite.com
+        run: |
+          npm --prefix extension run build
+          cd extension/dist
+          sha256sum --check celikom-extension-0.4.4.zip.sha256
+      - name: Deploy server hotfix without rotating the existing private owner code
+        env:
+          HOSTINGER_SSH_KEY: ${{ secrets.HOSTINGER_SSH_KEY }}
+          HOSTINGER_DB_PASSWORD: ${{ secrets.HOSTINGER_DB_PASSWORD }}
+        run: bash .github/scripts/hostinger-deploy.sh
+      - name: Audit pending user MP3 and existing approved audio on Hostinger
+        env:
+          HOSTINGER_SSH_KEY: ${{ secrets.HOSTINGER_SSH_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          dir="$(mktemp -d)"
+          trap 'rm -rf "$dir"' EXIT
+          printf '%s\n' "$HOSTINGER_SSH_KEY" | tr -d '\r' > "$dir/key"
+          ssh-keygen -y -P '' -f "$dir/key" > "$dir/public"
+          [[ "$(ssh-keygen -lf "$dir/public" | awk '{print $2}')" == 'SHA256:Q6FyifXRq6garceQdIIjBmXhkk81Ic1p/x9JTSYHWUk' ]] || exit 1
+          printf '%s\n' '[92.113.19.189]:65002 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAf8M2EVwq0oJI8I9KZ0NFE8P8yDOvDATEhkQti/Kk/0' > "$dir/known_hosts"
+          opts=(-i "$dir/key" -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o "UserKnownHostsFile=$dir/known_hosts" -o GlobalKnownHostsFile=/dev/null -o ConnectTimeout=15)
+          target='u235811320@92.113.19.189'
+          remote='/home/u235811320/domains/darkred-camel-588676.hostingersite.com/celikom/incoming'
+          remote_php="$remote/stage7-ux-audit-${GITHUB_SHA}.php"
+          scp -P 65002 "${opts[@]}" .github/scripts/hostinger-stage7-hotfix-check.php "$target:$remote_php"
+          trap 'ssh -T -p 65002 "${opts[@]}" "$target" "rm -f '\''$remote_php'\''" || true; rm -rf "$dir"' EXIT
+          ssh -T -p 65002 "${opts[@]}" "$target" "/opt/alt/php83/usr/bin/php '$remote_php'"
+      - name: Attach ready-to-test Chrome ZIP (no owner credential embedded)
+        uses: actions/upload-artifact@v4
+        with:
+          name: celikom-stage7-upload-ux-fixed-${{ github.sha }}
+          path: |
+            extension/dist/celikom-extension-0.4.4.zip
+            extension/dist/celikom-extension-0.4.4.zip.sha256
+          retention-days: 14
+          if-no-files-found: error
