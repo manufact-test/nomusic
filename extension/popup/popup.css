@@ -119,3 +119,84 @@ summary { cursor: pointer; color: #aab8be; font-size: 11px; padding: 8px 2px; }
 details[open] { display: grid; gap: 8px; }
 input { box-sizing: border-box; width: 100%; margin: 6px 0; border: 1px solid #55666d; border-radius: 8px; padding: 10px; background: #141b1f; color: #f4f7f8; }
 button:focus-visible, input:focus-visible, summary:focus-visible { outline: 2px solid #66e0bf; outline-offset: 3px; }
+
+/* Stage 7: the popup never displays an unfinished form while awaiting the server. */
+.add-track-action { position: relative; transition: background-color .18s ease, border-color .18s ease; }
+.add-track-action[data-loading="true"] { color: #d6fff3; border-color: #3e8779; cursor: wait; }
+.add-track-action[data-loading="true"]::before {
+  content: ""; display: inline-block; vertical-align: -2px;
+  width: 11px; height: 11px; border: 2px solid #567a73;
+  border-top-color: #66e0bf; border-radius: 50%; margin-right: 8px;
+  animation: celikom-spin .75s linear infinite;
+}
+@keyframes celikom-spin { to { transform: rotate(360deg); } }
+
+.upload-panel {
+  overflow: hidden;
+  background: linear-gradient(160deg, #121c20, #0f1619);
+  border-color: #30474b;
+  will-change: auto;
+}
+.upload-panel > strong { font-size: 13px; line-height: 1.45; }
+.upload-panel > .stage { margin-bottom: 2px; }
+.upload-panel form { gap: 7px; }
+.upload-panel form > .stage { margin-top: 5px; color: #a0b0b7; font-size: 11px; }
+.upload-panel form > input:not([type="file"]) { margin: 1px 0 5px; }
+.upload-panel .upload-feedback { color: #c7d8d8; margin: 2px 0; }
+.upload-panel .upload-feedback[hidden] { display: none !important; }
+.upload-result {
+  background: linear-gradient(135deg, #123b31 0%, #102a26 100%);
+  border-color: #4bbd9b;
+  padding: 16px 13px;
+}
+.upload-result strong { color: #8affcf; font-size: 15px; }
+.upload-result p { font-size: 12px; line-height: 1.6; color: #e3f7ed; }
+
+/* Keep the native file input fully functional, but visually replace its OS widget. */
+.upload-file-native {
+  position: absolute !important;
+  width: 1px !important; height: 1px !important;
+  padding: 0 !important; margin: 0 !important;
+  opacity: 0 !important; overflow: hidden !important;
+  border: 0 !important; clip-path: inset(50%);
+}
+.upload-file-picker {
+  display: flex; align-items: center; gap: 12px;
+  min-height: 78px;
+  padding: 12px 13px;
+  border: 1px dashed #52756e;
+  border-radius: 11px;
+  background: #101f21;
+  cursor: pointer;
+  transition: border-color .18s ease, background-color .18s ease, box-shadow .18s ease;
+}
+.upload-file-picker:hover,
+.upload-file-picker[data-dragging="true"] {
+  border-color: #66e0bf;
+  background: #19302d;
+  box-shadow: inset 0 0 0 1px rgb(102 224 191 / 10%);
+}
+.upload-file-native:focus-visible + .upload-file-picker {
+  outline: 2px solid #66e0bf; outline-offset: 3px;
+}
+.upload-file-picker[data-selected="true"] {
+  border-style: solid; border-color: #54b99c;
+  background: #142e29;
+}
+.upload-file-icon {
+  display: grid; place-items: center; flex: 0 0 38px;
+  width: 38px; height: 38px; color: #78eac6;
+  background: #1c3b34; border-radius: 10px;
+}
+.upload-file-copy { display: grid; gap: 5px; min-width: 0; flex: 1; }
+.upload-file-copy strong { font-size: 13px; color: #f4f7f8; font-weight: 650; }
+.upload-file-copy [data-file-name] {
+  font-size: 11px; line-height: 1.4; color: #a8c4bf;
+  overflow-wrap: anywhere; max-height: 48px; overflow: hidden;
+}
+.upload-panel [data-upload-submit] { margin-top: 6px; min-height: 44px; }
+.upload-panel [data-upload-progress] { margin-top: 5px; }
+@media (prefers-reduced-motion: reduce) {
+  .add-track-action, .upload-file-picker { transition: none; }
+  .add-track-action[data-loading="true"]::before { animation: none; }
+}
