@@ -52,3 +52,15 @@
 `server/tests/uploads.php` расширен негативными MP3-вариантами (обрыв, испорченный средний кадр, посторонний хвост, неправильный ID3) и проверкой стандартного ID3. `server/tests/http.mjs` запускает четыре PHP-воркера с конкурентными одинаковыми Track/SHA запросами на disposable MySQL: создана ровно одна pending-связь. GitHub CI устанавливает FFmpeg **только в тестовый runner**, генерирует 2.5s synthetic MP3 в seekable file и с помощью изолированного `server/tests/http-router.php` проверяет Chromium decode/seek/play через HTTP Range. Ни одна тестовая медиа-страница не попадает в серверный deploy ZIP.
 
 **Последний подтверждённый полный CI:** [37945005475](https://github.com/manufact-test/nomusic/actions/runs/37945005475) — success, включая HTTP concurrency и native Chromium synthetic MP3. Состояние: код/CI ready; отдельная временная HTTPS/MySQL среда и владелецкий 10–15-минутный manual gate ещё не выполнены. Порядок, безопасность и ограничения: [Stage 7 isolated owner acceptance](../deployment/stage7-owner-upload-acceptance.md). Не редактировать production Hostinger, PR #6 не мёржить и не закрывать Issue #7.
+
+## РЕЗУЛЬТАТ: Stage 7 ПРИНЯТ владельцем (09.10.2026) — итоговое дополнение
+
+Этот блок замещает исторические пометки выше «не развёрнут / не принят»; они оставлены только как журнал реализации.
+
+- Hosted owner-only upload API/migrations были развёрнуты на выделенном сайте CELIKOM Hostinger; публичный `upload_enabled=false`, owner-only gate включён для закрытых тестов. Код владельца отделён от read-only API кода; значения секретов не сохранять в документах.
+- Владелец вручную подтвердил: read-only Track ID, отправку MP3, контрастное подтверждение, pending и блокировку повторов, в том числе после повторного открытия popup. Изолированное тестирование и CI прошли.
+- Системный read-only аудит Hostinger: «Вспышка» — Легенды Про, CENTR, Track ID 38436680, Replacement #3 pending, is_active=0, 6 486 945 байт, полный SHA-256 файла совпадает. Одобренный Replacement #1 / Track 144530503 сохранён.
+- После устранения задержек интерфейса стилизован MP3 chooser; косметическое дёргание при открытии полной формы исправлено отказом от height animation, сохранена только краткая анимация прозрачности. Пользователь разрешил завершить без новой ручной проверки. Финальная UI сборка: https://github.com/manufact-test/nomusic/actions/runs/37976314199 ; CI: https://github.com/manufact-test/nomusic/actions/runs/37976319421.
+- Владелец оставил исходное рабочее Chrome расширение и удалил три временные Stage 7 копии. Не предлагать новую инсталляцию Stage7.
+- **Stage 7 закрыт, следующий Stage 8.** Известные ограничения: без админской модерации новые MP3 остаются pending, публичных uploads нет до Stage 10, нет fingerprint-worker, unresolved Issue #7 и formal Stage 6.7 two-profile gate.
+- **Новое обязательное MVP требование «Предложить песню»:** без MP3, с точным текущим Track ID/ссылкой Яндекс Музыки; Stage 8 admin moderation queue, Stage 10 публичная кнопка рядом с «Загрузить версию». Подробности: [Stage 8 plan](CELIKOM-STAGE8-MODERATION.md). Это отдельный продуктовый сценарий, НЕ замена загрузкам.
