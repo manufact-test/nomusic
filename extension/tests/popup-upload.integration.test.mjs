@@ -6,7 +6,8 @@ const elements = new Map();
 function el(selector, values = {}) {
   const handlers = new Map();
   const node = { value: "", textContent: "", disabled: false, hidden: false, dataset: {},
-    files: [], checked: false, title: "", ...values,
+    files: [], checked: false, title: "", style: {}, ...values,
+    setAttribute(name, value) { this[name] = value; },
     addEventListener(name, fn) { handlers.set(name, fn); },
     async fire(name) { return handlers.get(name)?.({ preventDefault() {} }); } };
   elements.set(selector, node);
@@ -17,6 +18,7 @@ for (const selector of ["[data-status]", "[data-action='start']", "[data-action=
   "[data-upload-panel]", "[data-upload-track]", "[data-upload-file]", "[data-upload-key]",
   "[data-upload-rights]", "[data-upload-progress]", "[data-upload-status]", "[data-upload-submit]",
   "[data-upload-result]", "[data-upload-result-title]", "[data-upload-result-note]",
+  "[data-file-picker]", "[data-file-title]", "[data-file-name]",
   "[data-action='add']", "[data-upload-form]"]) el(selector);
 const find = (selector) => elements.get(selector);
 find("[data-upload-panel]").hidden = true;
@@ -91,9 +93,38 @@ test("Stage 7 Add version pins exact Track ID, checks server, then shows form", 
   await find("[data-action='add']").fire("click");
   assert.equal(find("[data-upload-panel]").hidden, false);
   assert.equal(find("[data-upload-track]").value, "144530503");
+  assert.equal(find("[data-action='add']").textContent, "Добавить трек");
+  assert.equal(find("[data-action='add']").disabled, false);
+  assert.equal(find("[data-action='add']").dataset.loading, "false");
   assert.equal(form().hidden, false);
   assert.equal(find("[data-upload-submit]").disabled, false);
   assert.ok(statusCalls.at(-1).includes("track_id=144530503"));
+});
+
+test("Stage 7 pending check does not reveal an incomplete panel while the network is waiting", async () => {
+  await find("[data-action='add']").fire("click"); // closes current form
+  const originalFetch = globalThis.fetch;
+  let complete;
+  globalThis.fetch = async (url, ...args) => {
+    if (String(url).includes("/api/v1/tracks/upload-status")) {
+      await new Promise((resolve) => { complete = resolve; });
+    }
+    return originalFetch(url, ...args);
+  };
+  try {
+    const pending = find("[data-action='add']").fire("click");
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(find("[data-upload-panel]").hidden, true, "no unfinished form while checking");
+    assert.equal(form().hidden, true);
+    assert.equal(find("[data-action='add']").dataset.loading, "true");
+    assert.equal(find("[data-action='add']").disabled, true);
+    complete();
+    await pending;
+    assert.equal(find("[data-upload-panel]").hidden, false);
+    assert.equal(form().hidden, false);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });
 
 test("Stage 7 changed track during preparation never sends audio", async () => {
