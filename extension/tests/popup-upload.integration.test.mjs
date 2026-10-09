@@ -26,7 +26,8 @@ find("[data-upload-progress]").hidden = true;
 
 const selected = { track: { id: "144530503", confidence: 200, ambiguous: false,
   metadata: { durationMs: 180872, title: "Owner fixture", artist: "CI" } } };
-let current = selected, offline = false, remoteState = "none";
+let current = selected, offline = false;
+const pendingTracks = new Set();
 const requests = [];
 const statusCalls = [];
 globalThis.document = { activeElement: null, querySelector: find };
@@ -44,7 +45,8 @@ globalThis.chrome = {
 globalThis.fetch = async (url) => {
   if (String(url).includes("/api/v1/tracks/upload-status")) {
     statusCalls.push(String(url));
-    return { ok: true, async json() { return { status: remoteState }; } };
+    const currentTrackId = new URL(String(url)).searchParams.get("track_id");
+    return { ok: true, async json() { return { status: pendingTracks.has(currentTrackId) ? "pending" : "none" }; } };
   }
   return { ok: true, async json() { return { baseUrl: "https://isolated-owner-test.example/" }; } };
 };
@@ -63,7 +65,7 @@ class FakeXHR {
     requests.push({ method: this.method, url: this.url, headers: this.headers, body });
     if (FakeXHR.throwOnSend) throw new Error("network startup denied");
     queueMicrotask(() => {
-      remoteState = "pending";
+      pendingTracks.add(String(body.get("track_id")));
       this.listeners.get("loadend")?.();
     });
   }
