@@ -195,6 +195,9 @@ final class AdminPanel
     {
         $artist = trim((string) $artist);
         $title = trim((string) $title);
+        if ($artist === 'celikom-ci' && str_starts_with($title, 'synthetic-')) {
+            return 'Тестовая запись — синтетическое аудио';
+        }
         if ($title === '' && $artist === '') return 'Название не указано';
         if ($title === '') return $artist . ' — название не указано';
         if ($artist === '') return $title . ' — исполнитель не указан';
