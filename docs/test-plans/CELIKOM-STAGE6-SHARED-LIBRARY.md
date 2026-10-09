@@ -1,3 +1,5 @@
+> **Current status (2026-10-09):** This is the historical incremental Stage 6 technical test plan. Packages 6.1–6.6 are completed with green CI; owner-authorized Hostinger server deployment, 206 audio and data-integrity tests passed. Full Stage 6.7 owner acceptance is still open (second independent Chrome profile not confirmed), and intermittent Chrome stack overflow remains [issue #7](https://github.com/manufact-test/nomusic/issues/7). Next development: [Stage 7 protected uploads + anti-duplicates](CELIKOM-STAGE7-UPLOAD-ANTIDUPES.md). **Historical TODO entries below should not be interpreted as unimplemented code.**
+
 # CELIKOM-STAGE6-SHARED-LIBRARY — controlled implementation gate
 
 **Authority:** CELIKOM Master ТЗ MVP v1.5 and CELIKOM План работ MVP v1.6 (2026-10-09). Master ТЗ prevails on conflict. **Status:** 6.1–6.6 green; Stage 6 NOT yet accepted. Next gate: 6.7 owner-only acceptance. PR #6 stays open.
