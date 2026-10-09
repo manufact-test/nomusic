@@ -1,5 +1,5 @@
 {
-  "purpose": "stage5-range-mse-blob-csp-safe",
-  "extension_version": "0.4.3",
+  "purpose": "stage5-extension-disable-original-restore-watchdog-fix",
+  "extension_version": "0.4.4",
   "server": "darkred-camel-588676.hostingersite.com"
 }
