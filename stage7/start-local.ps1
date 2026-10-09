@@ -1,3 +1,4 @@
+param([switch]$Quiet)
 # Windows PowerShell 5.1+/7. All operations are local-only; Hostinger is untouched.
 $ErrorActionPreference = "Stop"
 $root = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
@@ -62,7 +63,9 @@ Write-Host "API: http://127.0.0.1:8787"
 Write-Host "Chrome unpacked directory: $root/extension/dist/unpacked"
 Write-Host "Open chrome://extensions, turn on Developer mode and choose Load unpacked."
 Write-Host "Disable the previously installed CELIKOM extension while using this sandbox."
-Write-Host "Add version -> owner-only upload code: $($settings['STAGE7_UPLOAD_TOKEN'])"
-Write-Host "Developer access code (optional): $($settings['STAGE7_API_TOKEN'])"
+if (!$Quiet) {
+    Write-Host "Add version -> owner-only upload code: $($settings['STAGE7_UPLOAD_TOKEN'])"
+    Write-Host "Developer access code (optional): $($settings['STAGE7_API_TOKEN'])"
+}
 Write-Host "Keep both codes private and never share screenshots that contain them."
 Write-Host "After testing: .\stage7\stop-local.ps1 -Reset removes all isolated data and tokens."
