@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Celikom;
 
 use Celikom\Admin\AdminPanel;
+use Celikom\Admin\ReportService;
 use Celikom\Analytics\AnalyticsEventService;
 use Celikom\Analytics\PdoEventRepository;
 use Celikom\Application\AudioTokenService;
@@ -137,6 +138,26 @@ final class Application
                         ? $code : 'upload_rejected']);
             } catch (\InvalidArgumentException) {
                 return Response::json(400, ['error' => 'invalid_upload']);
+            }
+        }
+        if ($method === 'POST' && $path === '/api/v1/report') {
+            // Pre-account private test only; Stage 9 will replace this with user auth.
+            if (!$this->authorized($headers)) return Response::json(401, ['error' => 'unauthorized']);
+            if (strlen($body) > 4096) return Response::json(413, ['error' => 'report_too_large']);
+            if (!str_starts_with(strtolower((string)($headers['content-type'] ?? '')), 'application/json')) {
+                return Response::json(415, ['error' => 'json_required']);
+            }
+            try {
+                $data = json_decode($body, true, 16, JSON_THROW_ON_ERROR);
+                if (!is_array($data)) throw new \InvalidArgumentException('invalid_report');
+                $result = (new ReportService(Connection::open($this->config),
+                    (string) $this->config['analytics_privacy_key']))->submit($data);
+                return Response::json(202, $result);
+            } catch (\JsonException|\InvalidArgumentException) {
+                return Response::json(400, ['error' => 'invalid_report']);
+            } catch (\DomainException $error) {
+                return Response::json($error->getMessage() === 'report_rate_limited' ? 429 : 404,
+                    ['error' => 'report_unavailable']);
             }
         }
         if (($method === 'GET' && $path === '/api/v1/resolve') || ($method === 'POST' && $path === '/api/v1/events/batch')) {
