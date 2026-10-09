@@ -67,6 +67,9 @@ final class AdminPanel
             try {
                 $moderation = new ModerationService($this->pdo, $this->storage);
                 if ($kind === 'replacement') {
+                    if ($action === 'reactivate' && $admin['role'] !== 'owner') {
+                        return Response::json(403, ['error'=>'forbidden']);
+                    }
                     $expected = $this->nonnegativeInt($form['expected_active'] ?? null);
                     if ($expected === null) return Response::json(400, ['error'=>'invalid_action']);
                     $moderation->replacement($admin['id'], $id, $action, $reason, $expected,
@@ -245,7 +248,8 @@ final class AdminPanel
                 . ' · '.(int)$r['size_bytes'].' байт</p><p><small>SHA-256: '.self::e($r['sha256']).'</small></p>'
                 . '<audio controls preload="none" src="/admin/audio/'.$id.'"></audio>';
             if (in_array($admin['role'], ['owner','moderator'], true)
-                && ($r['status'] === 'pending' || ($r['status'] === 'approved' && (int)$r['is_active']===1))) {
+                && ($r['status'] === 'pending' || ($r['status'] === 'approved' && (int)$r['is_active']===1)
+                    || ($r['status'] === 'disabled' && $admin['role'] === 'owner' && !$r['active_id']))) {
                 $html .= '<form method="post" action="/admin/action"><input type="hidden" name="csrf" value="'.$csrf.'">'
                     . '<input type="hidden" name="kind" value="replacement"><input type="hidden" name="id" value="'.$id.'">'
                     . '<input type="hidden" name="expected_active" value="'.(int)($r['active_id'] ?? 0).'">'
@@ -257,6 +261,10 @@ final class AdminPanel
                         . '<button name="action" value="duplicate">Дубликат</button>'
                         . '<button name="action" value="wrong_track">Не тот трек</button>'
                         . '<button name="action" value="bad_quality">Плохое качество</button>';
+                } elseif ($r['status'] === 'disabled') {
+                    $html .= '<label><input type="checkbox" name="rights_confirmed" value="1">'
+                        . ' Права перепроверены</label><button name="action" value="reactivate">'
+                        . 'Восстановить после проверки</button>';
                 } else {
                     $html .= '<button name="action" value="disable">Отключить</button>';
                 }
