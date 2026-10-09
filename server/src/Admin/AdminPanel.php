@@ -86,8 +86,10 @@ final class AdminPanel
                 return Response::json(409, ['error'=>'moderation_conflict_or_unverified']);
             }
         }
-        if ($path === '/admin/export' && $method === 'GET') {
+        if ($path === '/admin/export' && $method === 'POST') {
             if (!in_array($admin['role'], ['owner','moderator'], true)) return Response::json(403,['error'=>'forbidden']);
+            $form=$this->form($headers,$body);
+            if (!AdminAuth::validCsrf($admin,$form['csrf'] ?? null)) return Response::json(403,['error'=>'csrf_failed']);
             return $this->exportAudit($admin);
         }
         if (preg_match('~^/admin/audio/([1-9]\d{0,17})$~D', $path, $m)
@@ -173,6 +175,10 @@ final class AdminPanel
             (SELECT COUNT(*) FROM track_replacements WHERE status='pending') AS pending_uploads,
             (SELECT COUNT(*) FROM track_requests WHERE status='pending') AS pending_requests,
             (SELECT COUNT(*) FROM reports WHERE status='pending') AS pending_reports")->fetch(\PDO::FETCH_ASSOC);
+        if (in_array($admin['role'],['owner','moderator'],true)) {
+            $html.='<form method="post" action="/admin/export"><input type="hidden" name="csrf" value="'.$csrf.'">'
+                .'<button type="submit">Скачать журнал CSV</button></form>';
+        }
         $html .= '<section class="panel"><strong>На проверке:</strong> MP3 — '
             . (int)$counts['pending_uploads'] . ' · Предложения — ' . (int)$counts['pending_requests']
             . ' · Жалобы — ' . (int)$counts['pending_reports'] . '</section>';
