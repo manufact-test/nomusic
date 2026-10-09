@@ -247,7 +247,7 @@ final class AdminPanel
             . '<input type="hidden" name="csrf" value="' . $csrf . '">'
             . '<button type="submit">Выйти ↗</button></form></div></header><nav class="nav" aria-label="Разделы">';
         foreach ([
-            'uploads'=>'Загруженные версии', 'requests'=>'Предложения песен',
+            'uploads'=>'Загруженные версии', 'requests'=>'Предложить песню',
             'reports'=>'Жалобы', 'audit'=>'Журнал действий', 'overview'=>'Обзор'
         ] as $key => $name) {
             $html .= '<a href="/admin?tab=' . $key . '&per_page=' . $size . '"'
