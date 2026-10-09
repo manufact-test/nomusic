@@ -82,9 +82,17 @@ final class AdminPanel
             $action = $form['action'] ?? null;
             $kind = $form['kind'] ?? null;
             $reason = $form['reason'] ?? null;
-            if (!$id || !is_string($action) || !is_string($kind) || !is_string($reason)) {
+            if (!$id || !is_string($action) || !is_string($kind)) {
                 return Response::json(400, ['error'=>'invalid_action']);
             }
+            // The new two-step disclosure forms are only selectors. The final POST
+            // carries an explicit decision type and is validated server-side.
+            if ($kind === 'replacement' && array_key_exists('decision', $form)) {
+                $choice = self::replacementDecision($form, $action);
+                if ($choice === null) return Response::json(400, ['error'=>'invalid_decision']);
+                [$action, $reason] = $choice;
+            }
+            if (!is_string($reason)) return Response::json(400, ['error'=>'invalid_action']);
             try {
                 $moderation = new ModerationService($this->pdo, $this->storage);
                 if ($kind === 'replacement') {
@@ -132,6 +140,45 @@ final class AdminPanel
             || strlen($body) > 8192) return [];
         parse_str($body, $params);
         return is_array($params) ? $params : [];
+    }
+
+    /**
+     * Converts the two explicit confirmation forms into the existing atomic
+     * moderation actions. The optional owner comment is stored in audit_log.
+     * Older guarded workflows using reason/action continue to function.
+     *
+     * @return array{string,string}|null
+     */
+    private static function replacementDecision(array $form, string $action): ?array
+    {
+        $decision = $form['decision'] ?? null;
+        $note = $form['review_note'] ?? '';
+        if (!is_string($decision) || !is_string($note)) return null;
+        $note = trim(str_replace(["\r\n", "\r"], "\n", $note));
+        if (mb_strlen($note, 'UTF-8') > 180
+            || preg_match('/[\x00-\x09\x0B-\x1F\x7F]/u', $note)) return null;
+        if ($decision === 'approval') {
+            if ($action !== 'approve') return null;
+            $reason = 'Аудио и права проверены'
+                . ($note !== '' ? ' · Комментарий: ' . $note : '');
+        } elseif ($decision === 'rejection') {
+            if ($action !== 'reject') return null;
+            $category = $form['reject_category'] ?? null;
+            if (!is_string($category)) return null;
+            $choices = [
+                'duplicate' => ['duplicate','Дубликат'],
+                'wrong_track' => ['wrong_track','Не тот трек'],
+                'bad_quality' => ['bad_quality','Плохое качество'],
+                'rights' => ['reject','Проблемы с правами'],
+                'other' => ['reject','Другая причина'],
+            ];
+            if (!isset($choices[$category]) || ($category === 'other' && $note === '')) return null;
+            [$action,$label] = $choices[$category];
+            $reason = $label . ($note !== '' ? ' · Комментарий: ' . $note : '');
+        } else {
+            return null;
+        }
+        return strlen($reason) <= 500 ? [$action,$reason] : null;
     }
 
     private function positiveInt(mixed $v): ?int
