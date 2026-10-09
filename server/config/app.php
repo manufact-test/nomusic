@@ -21,6 +21,8 @@ return [
     'resolve_cache_ttl_seconds' => (int) $value('RESOLVE_CACHE_TTL_SECONDS', '120'),
     'negative_cache_ttl_seconds' => (int) $value('NEGATIVE_CACHE_TTL_SECONDS', '15'),
     'test_api_token' => $value('API_TEST_TOKEN'),
+    'owner_upload_token' => $value('UPLOAD_OWNER_TOKEN'),
+    'owner_uploads_enabled' => $boolean('FEATURE_OWNER_UPLOADS'),
     'api_enabled' => $boolean('FEATURE_REPLACEMENTS'),
     'analytics_enabled' => $boolean('FEATURE_ANALYTICS'),
     'analytics_privacy_key' => $value('ANALYTICS_PRIVACY_KEY'),
