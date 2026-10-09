@@ -77,6 +77,14 @@ try {
   assert.equal(pendingResponse.status, 202, "Multipart accepted: " + pendingResponse.status);
   const pending = await pendingResponse.json();
   assert.equal(pending.status, "pending"); assert.equal(pending.duplicate, false);
+  const statusUrl = (id) => origin + "/api/v1/tracks/upload-status?service=yandex&track_id=" + id;
+  const currentState = await fetch(statusUrl("799101"));
+  assert.equal(currentState.status, 200);
+  assert.deepEqual(await currentState.json(), { status: "pending" },
+    "Anonymous status reports moderation presence only; no private file metadata");
+  const emptyState = await fetch(statusUrl("799105"));
+  assert.equal(emptyState.status, 200);
+  assert.deepEqual(await emptyState.json(), { status: "none" });
   const replay = await fetch(origin + "/api/v1/uploads", { method: "POST",
     headers: ownerHeaders, body: uploadBody("799101", requestId, "renamed.mp3") });
   assert.equal(replay.status, 202);
