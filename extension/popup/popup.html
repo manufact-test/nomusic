@@ -19,7 +19,22 @@
       </div>
       <button class="wide" type="button" data-action="restore">Вернуть оригинал</button>
       <button class="wide" type="button" data-action="add">Добавить трек</button>
-      <p class="stage" data-coming-soon hidden>Добавление треков появится в следующем этапе. Сейчас каталог наполняется для закрытого теста.</p>
+      <section class="upload-panel" data-upload-panel hidden aria-label="Добавить версию">
+        <strong>Добавить версию</strong>
+        <p class="stage">Только закрытый тест. Новые файлы не публикуются без ручной проверки.</p>
+        <form data-upload-form>
+          <label class="stage" for="upload-track">Track ID · только чтение</label>
+          <input id="upload-track" data-upload-track readonly aria-readonly="true" required>
+          <label class="stage" for="upload-file">MP3 · до 30 МиБ</label>
+          <input id="upload-file" data-upload-file type="file" accept=".mp3,audio/mpeg" required>
+          <label class="stage" for="upload-key">Код владельца для приватной загрузки</label>
+          <input id="upload-key" data-upload-key type="password" autocomplete="off" spellcheck="false" placeholder="Только owner-only тест" required>
+          <label class="upload-rights"><input data-upload-rights type="checkbox" required> Подтверждаю, что имею необходимые права на этот аудиофайл.</label>
+          <progress data-upload-progress max="100" value="0" hidden aria-label="Загрузка"></progress>
+          <button class="primary wide" data-upload-submit type="submit">Отправить на проверку</button>
+          <p class="stage" role="status" aria-live="polite" data-upload-status>Загрузка закрыта для обычных пользователей.</p>
+        </form>
+      </section>
       <p class="track" data-track>Запустите трек в Яндекс Музыке</p>
       <details>
         <summary>Для разработчика</summary>
