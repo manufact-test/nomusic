@@ -15,6 +15,11 @@
       this.sessionId = options.sessionId || core.createSessionId();
       this.requestTimeoutMs = options.requestTimeoutMs || 2000;
       this.heartbeatIntervalMs = options.heartbeatIntervalMs || 1000;
+      // A page-world heartbeat alone cannot prove that Chrome still has the
+      // extension enabled. Confirm the installed service worker on each tick.
+      this.confirmAlive = options.confirmAlive || null;
+      this.confirmPending = false;
+      this.failedAliveChecks = 0;
       this.ready = false;
       this.started = false;
       this.destroyed = false;
@@ -79,6 +84,31 @@
     }
 
     heartbeat() {
+      if (this.destroyed || !this.started || this.confirmPending) return;
+      if (!this.confirmAlive) { this.sendVerifiedHeartbeat(); return; }
+      this.confirmPending = true;
+      Promise.resolve().then(() => this.confirmAlive()).then((alive) => {
+        if (this.destroyed || !this.started) return;
+        if (alive === true) {
+          this.failedAliveChecks = 0;
+          this.sendVerifiedHeartbeat();
+        } else {
+          this.onFailedAliveCheck();
+        }
+      }).catch(() => {
+        if (!this.destroyed) this.onFailedAliveCheck();
+      }).finally(() => { this.confirmPending = false; });
+    }
+
+    onFailedAliveCheck() {
+      if (++this.failedAliveChecks < 2) return;
+      // Stop all further heartbeats and request an immediate MAIN-world
+      // fail-open. MAIN's own watchdog is the fallback if this world dies.
+      this.emit("EXTENSION_UNAVAILABLE", { reason: "worker-unreachable" });
+      this.destroy();
+    }
+
+    sendVerifiedHeartbeat() {
       if (this.destroyed || !this.started) return;
       if (!this.isHealthy() && Date.now() - this.lastInitAt >= this.heartbeatIntervalMs * 2) {
         this.ready = false;
