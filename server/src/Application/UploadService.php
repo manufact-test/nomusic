@@ -71,8 +71,11 @@ final class UploadService
             throw new \LengthException('upload_too_large');
         }
         // A .mp3 suffix and browser supplied MIME are never sufficient.
-        if ((new \finfo(FILEINFO_MIME_TYPE))->file($path) !== 'audio/mpeg'
-            || !(new Mp3Inspector())->check($path)) {
+        if ((new \finfo(FILEINFO_MIME_TYPE))->file($path) !== 'audio/mpeg') {
+            throw new \DomainException('invalid_mp3');
+        }
+        $measuredDuration = (new Mp3Inspector())->durationMs($path);
+        if ($measuredDuration === null) {
             throw new \DomainException('invalid_mp3');
         }
         $sha = hash_file('sha256', $path);
@@ -92,7 +95,8 @@ final class UploadService
         $knownAsset = $lookup->fetch(\PDO::FETCH_ASSOC) ?: null;
         $key = $knownAsset['storage_key'] ?? ('audio/' . substr($sha, 0, 2) . '/' . $sha . '.mp3');
         if ($knownAsset !== null && ($knownAsset['storage_driver'] !== 'local' || $knownAsset['mime_type'] !== 'audio/mpeg'
-            || (int) $knownAsset['size_bytes'] !== $size)) {
+            || (int) $knownAsset['size_bytes'] !== $size
+            || abs((int) $knownAsset['duration_ms'] - $measuredDuration) > 2000)) {
             throw new \DomainException('asset_conflict');
         }
         if (!$this->storage->exists($key)) {
@@ -118,14 +122,17 @@ final class UploadService
             $stmt = $this->pdo->prepare('INSERT INTO audio_assets
                 (storage_driver, storage_key, sha256, mime_type, size_bytes, duration_ms)
                 VALUES (?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE id = LAST_INSERT_ID(id)');
-            $stmt->execute(['local', $key, $sha, 'audio/mpeg', $size, (int) $duration]);
+            $stmt->execute(['local', $key, $sha, 'audio/mpeg', $size, $measuredDuration]);
             $assetId = (int) $this->pdo->lastInsertId();
             $stmt = $this->pdo->prepare('SELECT * FROM audio_assets WHERE id = ?');
             $stmt->execute([$assetId]);
             $asset = $stmt->fetch(\PDO::FETCH_ASSOC);
             if (!$asset || $asset['sha256'] !== $sha || $asset['storage_key'] !== $key
                 || $asset['storage_driver'] !== 'local' || $asset['mime_type'] !== 'audio/mpeg'
-                || (int) $asset['size_bytes'] !== $size) throw new \DomainException('asset_conflict');
+                || (int) $asset['size_bytes'] !== $size
+                || abs((int) $asset['duration_ms'] - $measuredDuration) > 2000) {
+                throw new \DomainException('asset_conflict');
+            }
 
             $stmt = $this->pdo->prepare("SELECT id, status FROM track_replacements
                 WHERE track_id = ? AND audio_asset_id = ? AND status IN ('pending', 'approved')
