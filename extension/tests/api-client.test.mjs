@@ -21,6 +21,57 @@ test("API cache coalesces exact-ID requests and bounds positive/negative expiry"
   time += 120000; await client.resolve("yandex", "7"); assert.equal(calls, 6);
 });
 
+test("Stage 6: two installations independently refresh negative cache after an approve", async () => {
+  let time = now; let approved = false; let resolveCalls = 0;
+  const server = async (url) => {
+    if (url.endsWith("/api/v1/config")) return response(config);
+    resolveCalls++;
+    assert.match(url, /track_id=888$/);
+    const expires = Math.floor(time / 1000) + 600;
+    return response(approved ? {
+      found: true, replacement_id: 31, version: 1, duration_ms: 201000,
+      expires_at: expires,
+      audio_url: "/api/v1/audio/31?token=" + "b".repeat(64) + "&expires=" + expires
+    } : { found: false, cache_ttl_seconds: 15 });
+  };
+  const first = new ApiClient("https://celikom.example", { now: () => time, fetch: server });
+  const second = new ApiClient("https://celikom.example", { now: () => time, fetch: server });
+  assert.equal((await first.resolve("yandex", "888")).found, false);
+  assert.equal((await second.resolve("yandex", "888")).found, false);
+  approved = true;
+  assert.equal((await first.resolve("yandex", "888")).found, false);
+  assert.equal((await second.resolve("yandex", "888")).found, false);
+  assert.equal(resolveCalls, 2, "no resolve polling within TTL");
+  time += 15001;
+  assert.equal((await first.resolve("yandex", "888")).replacementId, 31);
+  assert.equal((await second.resolve("yandex", "888")).replacementId, 31);
+  assert.equal(resolveCalls, 4, "both clients refresh once");
+});
+
+test("Stage 6: positive cache sees server-side active mapping switch after TTL", async () => {
+  let time = now; let current = 41; let resolves = 0;
+  const server = async (url) => {
+    if (url.endsWith("/api/v1/config")) return response(config);
+    resolves++;
+    assert.match(url, /track_id=777$/);
+    const expires = Math.floor(time / 1000) + 600;
+    return response({
+      found: true, replacement_id: current, version: 1, duration_ms: 201000,
+      expires_at: expires,
+      audio_url: "/api/v1/audio/" + current + "?token=" + "c".repeat(64) + "&expires=" + expires
+    });
+  };
+  const client = new ApiClient("https://celikom.example", { now: () => time, fetch: server });
+  assert.equal((await client.resolve("yandex", "777")).replacementId, 41);
+  current = 42;
+  assert.equal((await client.resolve("yandex", "777")).replacementId, 41);
+  assert.equal(resolves, 1);
+  time += 120001;
+  assert.equal((await client.resolve("yandex", "777")).replacementId, 42);
+  assert.equal((await client.resolve("yandex", "777")).replacementId, 42);
+  assert.equal(resolves, 2, "no unnecessary retry");
+});
+
 test("API URL validation rejects foreign origin, filesystem paths, forged IDs and stale tokens", async () => {
   for (const update of [
     { audio_url: "https://evil.example/api/v1/audio/7" },

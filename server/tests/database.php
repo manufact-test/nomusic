@@ -6,6 +6,8 @@ require __DIR__ . '/smoke.php';
 
 use Celikom\Application;
 use Celikom\Application\TestAudioImporter;
+use Celikom\Application\AudioTokenService;
+use Celikom\Application\ResolveService;
 use Celikom\Analytics\AnalyticsEventService;
 use Celikom\Analytics\AnalyticsQueryService;
 use Celikom\Analytics\PdoEventRepository;
@@ -67,6 +69,61 @@ try {
         } catch (PDOException $error) {
             expect(($error->errorInfo[1] ?? null) === 1062, 'Unique mapping constraint');
         }
+    });
+    run('Stage 6: two exact IDs share one AudioAsset and resolve independently', function () use ($pdo, $catalog, $storage, $id): void {
+        $statement = $pdo->query("SELECT t.service_track_id, r.id AS replacement_id, r.audio_asset_id, a.storage_key
+            FROM tracks t JOIN track_replacements r ON r.track_id = t.id
+            JOIN audio_assets a ON a.id = r.audio_asset_id
+            WHERE t.service = 'yandex' AND t.service_track_id IN ('1944599', '999')
+                AND r.status = 'approved' AND r.is_active = 1
+            ORDER BY t.service_track_id");
+        $rows = $statement->fetchAll(PDO::FETCH_ASSOC);
+        expect(count($rows) === 2, 'Both exact IDs mapped');
+        expect($rows[0]['audio_asset_id'] === $rows[1]['audio_asset_id'], 'Same AudioAsset');
+        expect($rows[0]['storage_key'] === $rows[1]['storage_key'], 'Same storage key');
+        expect((int) $rows[0]['replacement_id'] !== (int) $rows[1]['replacement_id'], 'Separate TrackReplacement IDs');
+        expect((int) $pdo->query('SELECT COUNT(*) FROM audio_assets')->fetchColumn() === 1, 'One stored AudioAsset');
+        $tokens = new AudioTokenService(str_repeat('stage6-test-signing-', 3));
+        $first = new ResolveService($catalog, $storage, $tokens);
+        $second = new ResolveService($catalog, $storage, $tokens);
+        $a = $first->resolve('yandex', '1944599');
+        $b = $second->resolve('yandex', '999');
+        expect($a['found'] === true && $b['found'] === true, 'Independent lookups');
+        expect($a['replacement_id'] === $id && $a['replacement_id'] !== $b['replacement_id'], 'Mapping identity');
+        $unknown = $first->resolve('yandex', '888888');
+        expect($unknown['found'] === false && $unknown['cache_ttl_seconds'] < $a['cache_ttl_seconds'], 'Short negative TTL');
+        expect(str_starts_with($a['audio_url'], '/api/v1/audio/'), 'Audio path is API-only');
+        expect(!str_contains(json_encode([$a, $b], JSON_THROW_ON_ERROR), $rows[0]['storage_key']), 'No private key exposed');
+    });
+    run('Stage 6: candidate stays private until explicitly selected; other Track stays intact', function () use ($pdo, $catalog, $id): void {
+        $other = $catalog->findActive('yandex', '999');
+        expect($catalog->findActive('yandex', '1944599') !== null && $other !== null, 'Precondition');
+        $insert = $pdo->prepare("INSERT INTO track_replacements (track_id, audio_asset_id, status, is_active)
+            SELECT track_id, audio_asset_id, 'pending', 0 FROM track_replacements WHERE id = ?");
+        $insert->execute([$id]);
+        $candidate = (int) $pdo->lastInsertId();
+        expect($candidate > 0 && $catalog->findByReplacement($candidate) === null, 'Pending not streamable');
+        expect((int) $catalog->findActive('yandex', '1944599')['replacement_id'] === $id, 'Pending cannot override');
+        $pdo->prepare("UPDATE track_replacements SET status = 'approved', approved_at = CURRENT_TIMESTAMP(6)
+            WHERE id = ?")->execute([$candidate]);
+        expect($catalog->findByReplacement($candidate) === null, 'Inactive approved not streamable');
+        $pdo->beginTransaction();
+        try {
+            // Disposable fixture transition only: a real management service comes in 6.2.
+            $lock = $pdo->prepare('SELECT id FROM tracks WHERE service = ? AND service_track_id = ? FOR UPDATE');
+            $lock->execute(['yandex', '1944599']);
+            expect($lock->fetchColumn() !== false, 'Track locked');
+            $pdo->prepare('UPDATE track_replacements SET is_active = 0 WHERE id = ?')->execute([$id]);
+            $pdo->prepare('UPDATE track_replacements SET is_active = 1 WHERE id = ?')->execute([$candidate]);
+            $pdo->commit();
+        } catch (Throwable $error) {
+            $pdo->rollBack();
+            throw $error;
+        }
+        expect($catalog->findByReplacement($id) === null, 'Old mapping cannot stream');
+        expect((int) $catalog->findActive('yandex', '1944599')['replacement_id'] === $candidate, 'Explicit selection');
+        expect((int) $catalog->findActive('yandex', '999')['replacement_id'] === (int) $other['replacement_id'], 'Other Track unchanged');
+        expect((int) $pdo->query('SELECT COUNT(*) FROM audio_assets')->fetchColumn() === 1, 'No extra file');
     });
     run('repository uses exact prepared service identity', function () use ($catalog): void {
         expect($catalog->findActive('yandex', "1944599' OR 1=1") === null, 'SQL injection rejected');
