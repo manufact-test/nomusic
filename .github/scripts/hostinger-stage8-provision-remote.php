@@ -56,7 +56,20 @@ try {
     try {
         $stmt=$pdo->prepare("INSERT INTO admins (login,password_hash,role,enabled) VALUES ('owner',?,'owner',1)");
         $stmt->execute([password_hash($password,PASSWORD_DEFAULT)]);
-        unset($password);
+        // Public GitHub repository: NEVER upload a plaintext password artifact.
+        // Deliver the one-time access copy only in this server-private, 0600 file.
+        $accessFile=$root.'/shared/stage8-owner-login-once.txt';
+        if (file_exists($accessFile) || is_link($accessFile)) throw new RuntimeException('access_exists');
+        $handle=@fopen($accessFile,'x');
+        if ($handle===false) throw new RuntimeException('access_file');
+        $accessText="CELIKOM private administrator\n"
+            ."URL: https://darkred-camel-588676.hostingersite.com/admin/login\n"
+            ."Login: owner\\nPassword: ".$password."\n";
+        try {
+            if (!chmod($accessFile,0600) || fwrite($handle,$accessText)!==strlen($accessText))
+                throw new RuntimeException('access_file');
+        } finally { fclose($handle); }
+        unset($password,$accessText);
         // Durable, private pre-change configuration copy; Stage 8 DB/media snapshot was
         // separately verified before migration and before this bootstrap action.
         $bak=$root.'/backups/stage8-owner-env-'.gmdate('YmdTHis').'-'.bin2hex(random_bytes(4));
