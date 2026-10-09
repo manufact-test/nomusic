@@ -1,6 +1,6 @@
 # CELIKOM-STAGE6-SHARED-LIBRARY — controlled implementation gate
 
-**Authority:** CELIKOM Master ТЗ MVP v1.5 and CELIKOM План работ MVP v1.6 (2026-10-09). Master ТЗ prevails on conflict. **Status:** 6.1–6.4 green; Stage 6 NOT yet accepted. Next gate: 6.5. PR #6 stays open.
+**Authority:** CELIKOM Master ТЗ MVP v1.5 and CELIKOM План работ MVP v1.6 (2026-10-09). Master ТЗ prevails on conflict. **Status:** 6.1–6.5 green; Stage 6 NOT yet accepted. Next gate: 6.6. PR #6 stays open.
 
 ## Current source-derived architecture
 
@@ -58,6 +58,10 @@ Only after a later owner-approved request changes to a write operation will the 
 - Actions `inspect` through pinned SSH and private remote read-only SQL: https://github.com/manufact-test/nomusic/actions/runs/37916411482 — pass: one Track, one AudioAsset and one TrackReplacement; public config shows replacements enabled, analytics disabled. No production database writes, no new audio and no deploy. The operation request returns to `validate` afterwards.
 - Real live write/activation/disable is **not tested and not authorized by this 6.4 gate**. The next deliverable is 6.5 cached resolve behavior followed by Stage 6.6 regression and 6.7 owner acceptance.
 
-## Stage 6.5 TTL integration (CI pending)
+## Stage 6.5 TTL integration (CI passed)
 
 The server accepts optional private `RESOLVE_CACHE_TTL_SECONDS` (default 120, bounded 5–120) and `NEGATIVE_CACHE_TTL_SECONDS` (default 15, bounded 5–60). `ResolveCachePolicy` keeps config and per-track responses consistent. Positive response caching cannot exceed the audio token lifetime minus 30s; this does not change token expiration or permissions. No live environment variable or Hostinger config changes are required for the defaults. Package 6.5 also updates ApiClient and ReplacementController with regression tests before acceptance.
+
+**6.5 evidence:** [CI run 37917754208](https://github.com/manufact-test/nomusic/actions/runs/37917754208) passed 75 JavaScript tests (0 failures), PHP TTL config/resolve contract and disposable MySQL integration. Exact cache fallback still uses the old 120s/15s defaults for legacy server responses; no signed URL is kept beyond the 30-second safety margin. Changing an approved mapping is observed after the relevant TTL **on a subsequent resolve**, not as an automatic mid-playback hot swap. No deployment or live library modification occurred.
+
+**Next:** 6.6 full security, multiple-installations and fallback regression; 6.7 owner-only host/browser gate. Keep PR #6 open.
