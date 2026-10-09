@@ -17,7 +17,7 @@ try {
        WHERE t.service='yandex' AND t.service_track_id=?
        GROUP BY t.service_track_id,r.id,r.status,r.is_active,a.sha256,a.size_bytes,a.duration_ms,a.storage_key
        ORDER BY r.id");
-  $stmt->execute(['41571386']);
+  $stmt->execute(['38436680']);
   $matches=$stmt->fetchAll(PDO::FETCH_ASSOC);
   $items=[];
   foreach($matches as $record) {
@@ -41,7 +41,7 @@ try {
         t.artist,t.title,r.created_at
       FROM track_replacements r JOIN tracks t ON t.id=r.track_id
       WHERE r.id<>1 AND t.service='yandex' ORDER BY r.id DESC LIMIT 8")->fetchAll(PDO::FETCH_ASSOC);
-  echo json_encode(['recent_replacements'=>$recent,'lookup_track_id'=>'41571386','matches'=>$items,
+  echo json_encode(['recent_replacements'=>$recent,'lookup_track_id'=>'38436680','matches'=>$items,
     'all_pending_count'=>$count,'original_approved_audio_intact'=>$approvedOk,
     'owner_uploads_enabled'=>$config['owner_uploads_enabled']], JSON_THROW_ON_ERROR|JSON_UNESCAPED_SLASHES),"\n";
   if (!$approvedOk) exit(1);
