@@ -141,12 +141,13 @@ final class LibraryManagementService
     }
 
     /** Serializes per Track. Increasing version revokes any older signed link on reactivation. */
-    public function activate(int $replacementId, bool $ownerConfirmed): void
+    public function activate(int $replacementId, bool $ownerConfirmed, ?int $expectedActiveId = null): void
     {
         if (!$ownerConfirmed) {
             throw new \InvalidArgumentException('owner_activation_required');
         }
-        $this->withLockedReplacement($replacementId, function (array $row): void {
+        $this->withLockedReplacement($replacementId, function (array $row) use ($expectedActiveId): void {
+            $this->assertExpectedActive((int) $row['track_id'], $expectedActiveId);
             if ($row['status'] !== 'approved' || $row['disabled_at'] !== null || $row['approved_at'] === null) {
                 throw new \InvalidArgumentException('library_candidate_not_approved');
             }
@@ -164,12 +165,13 @@ final class LibraryManagementService
         });
     }
 
-    public function disable(int $replacementId, bool $ownerConfirmed): void
+    public function disable(int $replacementId, bool $ownerConfirmed, ?int $expectedActiveId = null): void
     {
         if (!$ownerConfirmed) {
             throw new \InvalidArgumentException('owner_activation_required');
         }
-        $this->withLockedReplacement($replacementId, function (array $row): void {
+        $this->withLockedReplacement($replacementId, function (array $row) use ($expectedActiveId): void {
+            $this->assertExpectedActive((int) $row['track_id'], $expectedActiveId);
             if ($row['status'] === 'disabled') {
                 return;
             }
@@ -196,6 +198,27 @@ final class LibraryManagementService
             !$this->storage->exists($asset['storage_key']) ||
             $this->storage->getSize($asset['storage_key']) !== (int) $asset['size_bytes']) {
             throw new \RuntimeException('library_asset_unavailable');
+        }
+    }
+
+    /**
+     * Expected current mapping is checked under the Track lock, not before it:
+     * 0 means no active mapping. Null retains the internal legacy CLI behavior.
+     */
+    private function assertExpectedActive(int $trackId, ?int $expected): void
+    {
+        if ($expected === null) {
+            return;
+        }
+        if ($expected < 0) {
+            throw new \InvalidArgumentException('invalid_library_expected_active');
+        }
+        $query = $this->pdo->prepare("SELECT id FROM track_replacements
+            WHERE track_id = ? AND status = 'approved' AND is_active = 1 AND disabled_at IS NULL FOR UPDATE");
+        $query->execute([$trackId]);
+        $actual = $query->fetchColumn();
+        if ((int) ($actual === false ? 0 : $actual) !== $expected) {
+            throw new \InvalidArgumentException('library_expected_active_mismatch');
         }
     }
 

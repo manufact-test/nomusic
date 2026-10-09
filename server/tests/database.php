@@ -203,6 +203,31 @@ try {
             unlink($otherFile);
         }
     });
+    run('Stage 6 guarded activation rejects stale expected active mapping', function () use ($pdo, $catalog, $storage): void {
+        $manager = new LibraryManagementService($pdo, $storage);
+        $track = $manager->addTrack('yandex', '600004', 1000);
+        $asset = (int) $pdo->query('SELECT id FROM audio_assets ORDER BY id LIMIT 1')->fetchColumn();
+        $id = $manager->link($track, $asset);
+        $manager->approve($id, true);
+        try {
+            $manager->activate($id, true, 888888);
+            throw new RuntimeException('Accepted stale activation');
+        } catch (InvalidArgumentException $error) {
+            expect($error->getMessage() === 'library_expected_active_mismatch', 'Expected mapping enforced');
+        }
+        expect($catalog->findActive('yandex', '600004') === null, 'No mutation on expected mismatch');
+        $manager->activate($id, true, 0);
+        expect((int) $catalog->findActive('yandex', '600004')['replacement_id'] === $id, 'No-current guard accepted');
+        try {
+            $manager->disable($id, true, 0);
+            throw new RuntimeException('Accepted stale disable');
+        } catch (InvalidArgumentException $error) {
+            expect($error->getMessage() === 'library_expected_active_mismatch', 'Disable expected active enforced');
+        }
+        expect($catalog->findActive('yandex', '600004') !== null, 'Unchanged after denied disable');
+        $manager->disable($id, true, $id);
+        expect($catalog->findActive('yandex', '600004') === null, 'Correct guard permits disable');
+    });
     run('Stage 6 CLI: strict arguments and private staging path guards', function () use ($directory): void {
         require_once dirname(__DIR__) . '/bin/library-cli.php';
         $track = celikomLibraryParse('add-track', ['cli', '--track-id=1234', '--duration-ms=1000', '--title=Fixture']);
