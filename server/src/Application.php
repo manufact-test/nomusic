@@ -142,7 +142,14 @@ final class Application
         }
         if ($method === 'POST' && $path === '/api/v1/report') {
             // Pre-account private test only; Stage 9 will replace this with user auth.
-            if (!$this->authorized($headers)) return Response::json(401, ['error' => 'unauthorized']);
+            if (!($this->config['owner_reports_enabled'] ?? false)) {
+                return Response::json(404, ['error' => 'not_found']);
+            }
+            $reportToken = (string) ($this->config['owner_report_token'] ?? '');
+            if (strlen($reportToken) < 40 || !hash_equals('Bearer ' . $reportToken,
+                (string) ($headers['authorization'] ?? ''))) {
+                return Response::json(401, ['error' => 'unauthorized']);
+            }
             if (strlen($body) > 4096) return Response::json(413, ['error' => 'report_too_large']);
             if (!str_starts_with(strtolower((string)($headers['content-type'] ?? '')), 'application/json')) {
                 return Response::json(415, ['error' => 'json_required']);
