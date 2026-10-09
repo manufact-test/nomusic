@@ -1,7 +1,11 @@
 # CELIKOM — Stage 8 private moderation acceptance and rollback
 
-Status 2026-10-10: **STAGE 8 OWNER ACCEPTED & CLOSED**. Owner explicitly allowed closure without further manual UI verification after final picker cosmetic fix. Technical gates PASS; Stage 9 paused until separate owner-requested document work. Historical deployment instructions below are reference only; do not re-run acceptance or change real tracks. Branch `feature/api-range`; PR #6 OPEN/UNMERGED and Issue #7 OPEN.
+Status 2026-10-10: **STAGE 8 OWNER ACCEPTED & CLOSED; STAGE 9 NEXT**. The last duplicate rejection placeholder was suppressed in the native custom picker. CI, safe backup+restore, guarded deploy and postdeploy audio/DB audit all PASS. Stage 8 acceptance is historical now: do not repeat it. Master TZ v1.5 Appendix H and Work Plan MVP v1.6 §14 cover handoff; GitHub PR #6 OPEN/UNMERGED and Issue #7 OPEN.
 
+
+## Final Stage 8 UI addendum (10.10.2026)
+
+The `Выберите причину` placeholder remains visible only before a reason is selected; it is removed as a duplicate menu row by adding `hidden` to the initial disabled option and scoping `::picker(select) option[hidden]{display:none}` to the Chromium customizable select. A non-customizable native fallback remains available. No change to validation, recording decisions, audio permissions, or database. [CI](https://github.com/manufact-test/nomusic/actions/runs/37996852645), [snapshot](https://github.com/manufact-test/nomusic/actions/runs/37996978409), [isolated restore](https://github.com/manufact-test/nomusic/actions/runs/37997098934), [deploy](https://github.com/manufact-test/nomusic/actions/runs/37997208947), [after-deploy audio/DB audit](https://github.com/manufact-test/nomusic/actions/runs/37997432216) all PASS. Active release: `0.4.4-495351f7697c2865e92053ffe860e426c6e96842`. Owner instructs Stage 9 in NEXT CHAT. No music moderated in this step.
 
 ## Formal Stage 8 closure (10.10.2026)
 
