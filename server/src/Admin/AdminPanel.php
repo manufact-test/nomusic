@@ -89,7 +89,14 @@ final class AdminPanel
             // carries an explicit decision type and is validated server-side.
             if ($kind === 'replacement' && array_key_exists('decision', $form)) {
                 $choice = self::replacementDecision($form, $action);
-                if ($choice === null) return Response::json(400, ['error'=>'invalid_decision']);
+                if ($choice === null) {
+                    return $this->page('<section class="panel">'
+                        . '<h1>Проверьте решение</h1>'
+                        . '<p>Укажите причину отказа. Для варианта «Другая причина»'
+                        . ' обязательно напишите свой текст. Комментарий не должен превышать 180 символов.</p>'
+                        . '<a class="btn" href="/admin?tab=uploads">Вернуться к модерации</a>'
+                        . '</section>', status: 400);
+                }
                 [$action, $reason] = $choice;
             }
             if (!is_string($reason)) return Response::json(400, ['error'=>'invalid_action']);
@@ -155,7 +162,7 @@ final class AdminPanel
         $note = $form['review_note'] ?? '';
         if (!is_string($decision) || !is_string($note)) return null;
         $note = trim(str_replace(["\r\n", "\r"], "\n", $note));
-        if (mb_strlen($note, 'UTF-8') > 180
+        if (!mb_check_encoding($note, 'UTF-8') || mb_strlen($note, 'UTF-8') > 180
             || preg_match('/[\x00-\x09\x0B-\x1F\x7F]/u', $note)) return null;
         if ($decision === 'approval') {
             if ($action !== 'approve') return null;
