@@ -1,7 +1,12 @@
 -- Stage 7: additive, restartable schema. Never edits active approved records.
-ALTER TABLE audio_assets
-  ADD COLUMN fingerprint_status ENUM('not_processed','pending','ready','failed') NOT NULL DEFAULT 'not_processed',
-  ADD COLUMN fingerprint_updated_at DATETIME(6) NULL;
+CREATE TABLE IF NOT EXISTS audio_fingerprint_jobs (
+  audio_asset_id BIGINT UNSIGNED NOT NULL PRIMARY KEY,
+  status ENUM('not_processed','pending','ready','failed') NOT NULL DEFAULT 'not_processed',
+  attempts TINYINT UNSIGNED NOT NULL DEFAULT 0,
+  last_error_code VARCHAR(48) CHARACTER SET ascii COLLATE ascii_bin NULL,
+  updated_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
+  CONSTRAINT fingerprint_asset_fk FOREIGN KEY(audio_asset_id) REFERENCES audio_assets(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS upload_submissions (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
