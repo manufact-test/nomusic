@@ -158,7 +158,7 @@ try{
         expect($app->handle('POST','/admin/metadata',headers:$actionHeaders,
             body:http_build_query($payload))->status===403,'Metadata requires CSRF');
         expect($app->handle('POST','/admin/metadata',headers:$actionHeaders,
-            body:http_build_query($payload+['csrf'=>$csrf,'expected_track_id'=>'12345']))->status===409,
+            body:http_build_query(array_merge($payload,['csrf'=>$csrf,'expected_track_id'=>'12345'])))->status===409,
             'Cannot relabel wrong Track ID');
         $payload['csrf']=$csrf;
         expect($app->handle('POST','/admin/metadata',headers:$actionHeaders,
