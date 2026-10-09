@@ -88,11 +88,21 @@ jobs:
           HOSTINGER_SSH_KEY: ${{ secrets.HOSTINGER_SSH_KEY }}
           HOSTINGER_DB_PASSWORD: ${{ secrets.HOSTINGER_DB_PASSWORD }}
         run: bash .github/scripts/hostinger-deploy.sh
-      - name: Enable temporary owner upload without leaking credentials
+      - name: Preserve existing Stage 7 credentials during Stage 8 rollout
+        id: owner_gate
         env:
           HOSTINGER_SSH_KEY: ${{ secrets.HOSTINGER_SSH_KEY }}
-        run: bash .github/scripts/hostinger-stage7-owner.sh
+        run: |
+          request="$(node -p "require('./.github/deploy/hostinger-request.json').request")"
+          if [[ "$request" == "owner-approved-stage8-admin-rollout-preserve-stage7-2026-10-09" ]]; then
+            echo "skip_owner_rotation=true" >> "$GITHUB_OUTPUT"
+            echo "Stage 8 rollout: existing owner upload token and flags preserved."
+          else
+            bash .github/scripts/hostinger-stage7-owner.sh
+            echo "skip_owner_rotation=false" >> "$GITHUB_OUTPUT"
+          fi
       - name: Deliver only encrypted owner credential
+        if: ${{ steps.owner_gate.outputs.skip_owner_rotation == 'false' }}
         uses: actions/upload-artifact@v4
         with:
           name: stage7-owner-access-encrypted-${{ github.sha }}
