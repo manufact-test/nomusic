@@ -25,6 +25,8 @@ $config['admin_enabled'] = true;
 $config['api_enabled'] = true;
 $config['test_api_token'] = str_repeat('stage8-test-read-', 3);
 $config['analytics_privacy_key'] = str_repeat('stage8-private-hmac-', 3);
+$config['owner_reports_enabled'] = true;
+$config['owner_report_token'] = str_repeat('stage8-only-report-token-', 3);
 $pass = 'test-' . bin2hex(random_bytes(16));
 $login = 'stage8-' . substr(bin2hex(random_bytes(8)), 0, 10);
 $pdo->prepare("INSERT INTO admins (login,password_hash,role) VALUES (?,?,'owner')")
@@ -141,7 +143,10 @@ try{
         $body=json_encode($report,JSON_THROW_ON_ERROR);
         $endpointHeaders=['Content-Type'=>'application/json'];
         expect($app->handle('POST','/api/v1/report',headers:$endpointHeaders,body:$body)->status===401,'Protected intake');
-        $headers=$endpointHeaders+['Authorization'=>'Bearer '.$config['test_api_token']];
+        $readOnly=$endpointHeaders+['Authorization'=>'Bearer '.$config['test_api_token']];
+        expect($app->handle('POST','/api/v1/report',headers:$readOnly,body:$body)->status===401,
+            'Read-only API token must never authorize report mutations');
+        $headers=$endpointHeaders+['Authorization'=>'Bearer '.$config['owner_report_token']];
         $response=$app->handle('POST','/api/v1/report',headers:$headers,body:$body);
         expect($response->status===202,'Report accepted');
         $record=json_decode($response->body,true,flags:JSON_THROW_ON_ERROR);
