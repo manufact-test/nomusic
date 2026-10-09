@@ -1,6 +1,6 @@
 # CELIKOM-STAGE6-SHARED-LIBRARY — controlled implementation gate
 
-**Authority:** CELIKOM Master ТЗ MVP v1.5 and CELIKOM План работ MVP v1.6 (2026-10-09). Master ТЗ prevails on conflict. **Status:** Stage 6.1 baseline tests, Stage 6 NOT yet accepted. PR #6 stays open.
+**Authority:** CELIKOM Master ТЗ MVP v1.5 and CELIKOM План работ MVP v1.6 (2026-10-09). Master ТЗ prevails on conflict. **Status:** 6.1–6.4 green; Stage 6 NOT yet accepted. Next gate: 6.5. PR #6 stays open.
 
 ## Current source-derived architecture
 
@@ -30,9 +30,9 @@ PHP tests use a generated one-second WAV and disposable `celikom_test*` MySQL on
 
 The extension suite simulates two distinct `ApiClient` instances against one synthetic server. A new approve becomes visible after the existing 15-second negative TTL, not before. Server-side replacement switching becomes visible after the existing 120-second positive TTL. Requests are counted to guard against polling each tick. Existing tests continue to cover invalid tokens/URLs, authorization, fail-open and network errors.
 
-## Still required after 6.1
+## Remaining to finish Stage 6 after 6.4
 
-- Real management CLI/approval authority, concurrency-safe activation and explicit disable.
+- CLI/management implemented; production write operations have not been exercised, and owner-only release acceptance is still required in 6.7.
 - Server-driven cache policy, signed token expiry and the controller's extra retry guard.
 - Actual two-browser-installation owner-only gate after green CI; no new Track/music without approval.
 - User uploads, moderation admin, accounts, billing and Android remain later stages.
@@ -50,3 +50,10 @@ Added internal PHP 8.3 wrappers `bin/library-add-track.php`, `library-add-asset.
 New workflow `.github/workflows/hostinger-library.yml`, restricted input `.github/deploy/hostinger-library-request.json` and validator `.github/scripts/hostinger-library-contract.mjs`. The initial request is `{"operation":"validate"}` and **does not SSH, connect to production MySQL or edit audio**. Later owner-authorized operations include inspect, add-track, add-asset, link, approve, activate, disable. Each request has an exact allowlisted JSON schema, confirmed write intent, pinned repository/branch, a stale-HEAD check and a shared Hostinger concurrency group. Remote requests are verified again by PHP, and only the approved Stage 6 manager is loaded, never arbitrary commands. A per-commit remote one-time claim prevents workflow retries from repeating mutations. `activate` and `disable` require an exact expected active replacement ID, checked under the same Track row lock. No staging filenames, audio, credentials or signed URLs enter the request file. No changes to Stage 5 live server are performed by the first 6.4 commit.
 
 Only after a later owner-approved request changes to a write operation will the workflow attempt a controlled write; initial acceptance covers validation/CI and its runner wiring, not a real production database mutation. Actual Hostinger and owner-only browser acceptance remain 6.7.
+
+## Verified 6.4 evidence (2026-10-09)
+
+- All-source CI + new Action safety tests: https://github.com/manufact-test/nomusic/actions/runs/37916187759 — pass.
+- First Actions `validate` (local-only, no SSH): https://github.com/manufact-test/nomusic/actions/runs/37916327886 — pass.
+- Actions `inspect` through pinned SSH and private remote read-only SQL: https://github.com/manufact-test/nomusic/actions/runs/37916411482 — pass: one Track, one AudioAsset and one TrackReplacement; public config shows replacements enabled, analytics disabled. No production database writes, no new audio and no deploy. The operation request returns to `validate` afterwards.
+- Real live write/activation/disable is **not tested and not authorized by this 6.4 gate**. The next deliverable is 6.5 cached resolve behavior followed by Stage 6.6 regression and 6.7 owner acceptance.
