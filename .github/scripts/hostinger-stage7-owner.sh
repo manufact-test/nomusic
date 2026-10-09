@@ -33,3 +33,9 @@ const anonymous = await fetch(origin+'/api/v1/uploads',{method:'POST',signal:Abo
 assert.equal(anonymous.status,401,'owner gate enabled, but anonymous uploads forbidden');
 console.log('Private owner-only upload gate enabled, public endpoint protections verified.');
 VERIFY
+if [[ "${CELIKOM_DELIVER_STAGE7_CODE:-0}" == "1" ]]; then
+  # Deliberately short-lived artifact for the owner: credential never enters
+  # Git source, logs, shell arguments or Chrome extension package.
+  cp "$scratch/token" dist/stage7-owner-access/owner-code.txt
+  chmod 0600 dist/stage7-owner-access/owner-code.txt
+fi
