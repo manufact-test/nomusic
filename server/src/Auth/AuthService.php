@@ -53,8 +53,10 @@ final class AuthService
         }
         if ($row['status'] !== 'active') throw new \DomainException('account_disabled');
         $id = (int) $row['id'];
-        if (password_needs_rehash((string)$row['password_hash'], defined('PASSWORD_ARGON2ID') ? PASSWORD_ARGON2ID : PASSWORD_BCRYPT)) {
-            $newHash = password_hash($password, defined('PASSWORD_ARGON2ID') ? PASSWORD_ARGON2ID : PASSWORD_BCRYPT);
+        $argon = defined('PASSWORD_ARGON2ID');
+        $options = $argon ? ['memory_cost' => 32768, 'time_cost' => 3, 'threads' => 1] : ['cost' => 12];
+        if (password_needs_rehash((string)$row['password_hash'], $argon ? PASSWORD_ARGON2ID : PASSWORD_BCRYPT, $options)) {
+            $newHash = password_hash($password, $argon ? PASSWORD_ARGON2ID : PASSWORD_BCRYPT, $options);
             $this->pdo->prepare('UPDATE users SET password_hash = ? WHERE id = ?')->execute([$newHash, $id]);
         }
         $this->pdo->prepare('UPDATE users SET last_login_at = UTC_TIMESTAMP(6) WHERE id = ?')->execute([$id]);
@@ -159,6 +161,7 @@ final class AuthService
             WHERE id = ? AND first_activated_at IS NULL');
         $update->execute([$row['user_id']]);
         if ($update->rowCount() === 1) $this->event((int)$row['user_id'], 'first_activation');
+        $this->event((int)$row['user_id'], 'celikom_started');
         // Stage 9 does not start trial or change entitlements.
         return ['ok' => true];
     }
