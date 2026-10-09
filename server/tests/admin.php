@@ -133,6 +133,32 @@ try{
         $q=$pdo->prepare('SELECT status FROM reports WHERE id=?');$q->execute([$record['report_id']]);
         expect($q->fetchColumn()==='reviewed','Report reviewed in DB');
     });
+    run('Stage 8 concurrent approvals allow exactly one winner under MySQL Track lock',function()
+        use($pdo,$adminId,$track,$assetId,$catalog):void{
+        $raceTrack=$track.'9';
+        $pdo->prepare('INSERT INTO tracks(service,service_track_id,artist,title,duration_ms)
+            VALUES(?,?,?,?,?)')->execute(['yandex',$raceTrack,'Stage8','Approval race',2612]);
+        $id=(int)$pdo->lastInsertId();
+        $pdo->prepare("INSERT INTO track_replacements(track_id,audio_asset_id,status,is_active)
+            VALUES(?,?,'pending',0)")->execute([$id,$assetId]);
+        $candidateId=(int)$pdo->lastInsertId();
+        $children=[];
+        for($i=0;$i<4;$i++){
+            $proc=proc_open([PHP_BINARY,__DIR__.'/admin-race-worker.php',
+                (string)$adminId,(string)$candidateId],[0=>['pipe','r'],1=>['pipe','w'],2=>['pipe','w']],$pipes);
+            expect(is_resource($proc),'worker spawned');
+            fclose($pipes[0]);$children[]=[$proc,$pipes];
+        }
+        $codes=[];
+        foreach($children as [$proc,$pipes]){
+            stream_get_contents($pipes[1]);stream_get_contents($pipes[2]);
+            fclose($pipes[1]);fclose($pipes[2]);
+            $codes[]=proc_close($proc);
+        }
+        expect(count(array_filter($codes,static fn(int $code):bool=>$code===0))===1,'Exactly one approve');
+        expect(count(array_filter($codes,static fn(int $code):bool=>$code===3))===3,'Three stale/conflicting decisions');
+        expect((int)$catalog->findActive('yandex',$raceTrack)['replacement_id']===$candidateId,'One public winner');
+    });
     run('Stage 8 disable instantly removes resolved version',function()use($mod,$adminId,$candidate,$catalog,$track):void{
         $mod->replacement($adminId,$candidate,'disable','rights withdrawn',$candidate,false);
         expect($catalog->findActive('yandex',$track)===null,'Disable removes public mapping');
