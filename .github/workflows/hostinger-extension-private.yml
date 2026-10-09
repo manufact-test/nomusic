@@ -63,8 +63,9 @@ jobs:
           assert.ok(manifest.content_scripts.some(group=>group.world==='ISOLATED'));
           console.log('Private extension package: exact Hostinger API, Manifest V3 worlds and host permission verified.');
           CHECK
+          version="$(node -p "require('./extension/package.json').version")"
           cd extension/dist
-          sha256sum --check celikom-extension-0.4.4.zip.sha256
+          sha256sum --check "celikom-extension-$version.zip.sha256"
       - name: Upload private owner-only Chrome package
         uses: actions/upload-artifact@v4
         with:
