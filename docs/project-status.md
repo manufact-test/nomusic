@@ -1,5 +1,20 @@
 # CELIKOM — execution status
 
+> **ТЕКУЩЕЕ СОСТОЯНИЕ 09.10.2026, ПОСЛЕ РУЧНОЙ ПРИЁМКИ ЭТАПА 7.** Последние выводы ниже имеют приоритет над историческими срезами в этом журнале. **Stage 7 ПРИНЯТ владельцем**; следующий функциональный этап — **Stage 8: ручная модерация / admin + приём предложений песен**. Публичные загрузки по-прежнему выключены до разрешённого gate Stage 10. PR #6 не сливать; Issue #7 не закрывать автоматически.
+
+| Stage | Итоговый статус на 09.10.2026 | Подтверждение |
+| --- | --- | --- |
+| 7 — upload/anti-duplicates | **ACCEPTED / OWNER MANUAL PASS** | Рабочий Chrome upload MP3 → pending, точный read-only Track ID, SHA-256 дедупликация, запрет повторной отправки и повторное серверное чтение pending при новом открытии. На Hostinger подтверждена реальная «Вспышка» — Легенды Про, CENTR, Track ID `38436680`, Replacement ID `3`, 6 486 945 байт, `pending`, `is_active=0`, SHA-256 файла проверен. Approved Replacement #1 (`144530503`, 180872ms) не изменён. Деплой/hotfix [37971964370](https://github.com/manufact-test/nomusic/actions/runs/37971964370), UI-сборка [37974445565](https://github.com/manufact-test/nomusic/actions/runs/37974445565), последний косметический фикс [37976314199](https://github.com/manufact-test/nomusic/actions/runs/37976314199), финальный CI [37976319421](https://github.com/manufact-test/nomusic/actions/runs/37976319421) — success. |
+| 8 — moderation/admin | **NEXT / НЕ НАЧАТ** | Прослушивание private MP3, approve/reject/disable + audit trail и **очередь «Предложить песню»** (отдельно от очереди MP3), административная безопасность и аналитика без вымышленных метрик. |
+| 10 — клиентские публичные действия | **ПЛАН** | После account/entitlement gates вывести в popup два независимых сценария: «Загрузить версию» (с MP3 + заявлением о правах) и **«Предложить песню»** (только текущий точный Track ID, название/артист и ссылка на Яндекс Музыку, БЕЗ MP3 и БЕЗ галочки о правах на файл). Server rate-limit, anti-spam и повторные предложения. |
+
+**Обязательное продуктовое решение:** «Предложить песню» является частью MVP, НЕ необязательной идеей и НЕ заменяет пользовательскую загрузку. На Stage 8 админ просматривает заявки и меняет статусы; Stage 10 — публичный UI. Сами заявки **не** приводят к автоматическому поиску/публикации чужого аудио: администратор отдельно проверяет права на размещение.
+
+**Chrome:** во время приёмки существовали четыре распакованные установки версии 0.4.4. Пользователь самостоятельно установил, какая оригинальная, **сохранил её и удалил остальные три тестовые установки**. Идентификатор оригинальной установки НЕ подтверждён, придумывать его нельзя. Тестовые установки могли выдавать «ошибка подмены» из-за отсутствия сохранённого read-only `API_TEST_TOKEN`; это вероятная гипотеза, не доказанный root cause. По отдельным копиям исходную логику playback не признали сломанной. Не просить пользователя повторно устанавливать Stage 7 и не путать read-only API код с owner-upload кодом.
+
+**Carry-over:** периодический MAIN-world `RangeError: Maximum call stack size exceeded` (Issue #7) остаётся предметом наблюдения; формальный independent-two-Chrome-profile Stage 6.7 gate не подтверждён. Не считать проблему решённой и не закрывать issue без воспроизведения/проверки. Fingerprint worker (сходство перекодированных файлов) ещё не реализован; в Stage 7 только очередь/states, SHA-256 — строго побайтовый дубль.
+
+
 Updated: 2026-10-09. Requirement authorities are `CELIKOM_Master_TZ_MVP_v1.5` and `CELIKOM_Plan_Rabot_MVP_v1.6`; this file records execution, not a replacement product specification. They supersede master v1.4 and plan v1.5 while retaining their product requirements. Stable document identities and the next-chat handoff are in [handoff/NEXT-CHAT.md](handoff/NEXT-CHAT.md).
 
 | Stage | Status | Evidence / next gate |
