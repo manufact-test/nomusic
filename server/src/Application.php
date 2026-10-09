@@ -12,6 +12,7 @@ use Celikom\Application\UploadService;
 use Celikom\Application\DeferredFingerprintService;
 use Celikom\Application\UploadRateLimiter;
 use Celikom\Application\TrackRequestService;
+use Celikom\Application\TrackUploadStatusService;
 use Celikom\Application\ResolveCachePolicy;
 use Celikom\Database\Connection;
 use Celikom\Http\AudioController;
@@ -69,6 +70,22 @@ final class Application
                 'negative_cache_ttl_seconds' => ResolveCachePolicy::negative($this->config['negative_cache_ttl_seconds'] ?? 15),
             ]);
         }
+        if ($method === 'GET' && $path === '/api/v1/tracks/upload-status') {
+            // Only moderation presence, no asset or user data. Used to stop duplicate
+            // submissions after the popup closes or the browser restarts.
+            if (!($this->config['owner_uploads_enabled'] ?? false)) {
+                return Response::json(404, ['error' => 'not_found']);
+            }
+            if (!is_string($query['service'] ?? null) || !is_string($query['track_id'] ?? null)) {
+                return Response::json(400, ['error' => 'invalid_track']);
+            }
+            try {
+                return Response::json(200, (new TrackUploadStatusService(Connection::open($this->config)))
+                    ->state($query['service'], $query['track_id']));
+            } catch (\InvalidArgumentException) {
+                return Response::json(400, ['error' => 'invalid_track']);
+            }
+        }
         if ($method === 'POST' && in_array($path, ['/api/v1/uploads', '/api/v1/track-requests'], true)) {
             // Separate non-public owner credential: API_TEST_TOKEN is read-only.
             // No server-side writes are possible until the private gate is explicitly enabled.
@@ -107,8 +124,8 @@ final class Application
                 return Response::json(413, ['error' => 'upload_too_large']);
             } catch (\DomainException $error) {
                 $code = $error->getMessage();
-                return Response::json(in_array($code, ['idempotency_conflict', 'already_approved'], true) ? 409 : 415,
-                    ['error' => in_array($code, ['invalid_mp3', 'rights_declaration_required', 'idempotency_conflict', 'already_approved', 'asset_conflict'], true)
+                return Response::json(in_array($code, ['idempotency_conflict', 'already_approved', 'track_pending', 'track_already_approved'], true) ? 409 : 415,
+                    ['error' => in_array($code, ['invalid_mp3', 'rights_declaration_required', 'idempotency_conflict', 'already_approved', 'asset_conflict', 'track_pending', 'track_already_approved'], true)
                         ? $code : 'upload_rejected']);
             } catch (\InvalidArgumentException) {
                 return Response::json(400, ['error' => 'invalid_upload']);
