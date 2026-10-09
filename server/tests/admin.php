@@ -70,7 +70,7 @@ run('Stage 8 CSRF rejection and private preview require authenticated session',f
 $track='891' . (string) random_int(10000,99999);
 $path=sys_get_temp_dir().'/celikom-stage8-test-'.bin2hex(random_bytes(8)).'.mp3';
 $frame=hex2bin('fffb9064').str_repeat("\0",413);
-file_put_contents($path,str_repeat($frame,100));
+file_put_contents($path,str_repeat($frame,101));
 $hash=hash_file('sha256',$path);
 $key='audio/stage8-'.substr($hash,0,30).'.mp3';
 $stream=fopen($path,'rb');
