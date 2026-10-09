@@ -51,6 +51,7 @@ startButton?.addEventListener("click", async () => {
 });
 
 const uploadPanel = document.querySelector<HTMLElement>("[data-upload-panel]");
+const uploadForm = document.querySelector<HTMLFormElement>("[data-upload-form]");
 const uploadTrack = document.querySelector<HTMLInputElement>("[data-upload-track]");
 const uploadFile = document.querySelector<HTMLInputElement>("[data-upload-file]");
 const uploadKey = document.querySelector<HTMLInputElement>("[data-upload-key]");
@@ -58,110 +59,190 @@ const uploadRights = document.querySelector<HTMLInputElement>("[data-upload-righ
 const uploadProgress = document.querySelector<HTMLProgressElement>("[data-upload-progress]");
 const uploadStatus = document.querySelector<HTMLElement>("[data-upload-status]");
 const uploadButton = document.querySelector<HTMLButtonElement>("[data-upload-submit]");
-let pinnedTrack: { id: string; durationMs: number; artist: string; title: string; album: string } | null = null;
+const uploadResult = document.querySelector<HTMLElement>("[data-upload-result]");
+const uploadResultTitle = document.querySelector<HTMLElement>("[data-upload-result-title]");
+const uploadResultNote = document.querySelector<HTMLElement>("[data-upload-result-note]");
+let pinnedTrack: ReturnType<typeof uploadTargetFromStatus> = null;
 let uploadRequestId: string | null = null;
 let uploading = false;
+let opening = false;
 
-function uploadMessage(value: string): void {
-  if (uploadStatus) uploadStatus.textContent = value;
+function uploadMessage(value: string, kind = "info"): void {
+  if (!uploadStatus) return;
+  uploadStatus.textContent = value;
+  uploadStatus.dataset.kind = kind;
+  uploadStatus.hidden = false;
 }
+
+function showSubmitted(title: string, note: string): void {
+  if (uploadResultTitle) uploadResultTitle.textContent = title;
+  if (uploadResultNote) uploadResultNote.textContent = note;
+  if (uploadResult) uploadResult.hidden = false;
+  if (uploadForm) uploadForm.hidden = true;
+  if (uploadStatus) uploadStatus.hidden = true;
+  if (uploadButton) uploadButton.disabled = true;
+  if (uploadKey) uploadKey.value = "";
+  // The private bearer is never persisted or returned to the web page.
+}
+
+function resetUploadPanel(): void {
+  if (uploadResult) uploadResult.hidden = true;
+  if (uploadForm) uploadForm.hidden = true;
+  if (uploadButton) uploadButton.disabled = true;
+  if (uploadProgress) { uploadProgress.hidden = true; uploadProgress.value = 0; }
+  uploadRequestId = null;
+  pinnedTrack = null;
+}
+
+async function uploadApiOrigin(): Promise<string> {
+  const config = await fetch(chrome.runtime.getURL("api/config.json")).then((response) => response.json());
+  return privateUploadApiOrigin(config.baseUrl);
+}
+
+async function trackUploadStatus(origin: string, trackId: string): Promise<"none" | "pending" | "approved"> {
+  const response = await fetch(origin + "/api/v1/tracks/upload-status?service=yandex&track_id=" + encodeURIComponent(trackId), {
+    method: "GET", redirect: "error", credentials: "omit", cache: "no-store"
+  });
+  if (!response.ok) throw new Error("upload_status_unavailable");
+  const value = await response.json();
+  if (value?.status !== "none" && value?.status !== "pending" && value?.status !== "approved") {
+    throw new Error("invalid_upload_status");
+  }
+  return value.status;
+}
+
 document.querySelector("[data-action='add']")?.addEventListener("click", async () => {
-  if (!uploadPanel || uploading) return;
+  if (!uploadPanel || uploading || opening) return;
   uploadPanel.hidden = !uploadPanel.hidden;
   if (uploadPanel.hidden) return;
+  resetUploadPanel();
+  opening = true;
+  uploadMessage("Проверяем, добавлен ли трек…", "checking");
   try {
-    pinnedTrack = uploadTargetFromStatus(await send<ExtensionState>({ type: COMMANDS.getStatus }));
+    const state = await send<ExtensionState>({ type: COMMANDS.getStatus });
+    pinnedTrack = uploadTargetFromStatus(state);
+    if (uploadTrack) uploadTrack.value = pinnedTrack?.id || "";
+    if (!pinnedTrack) {
+      uploadMessage("Сначала включите песню и дождитесь определения Track ID.", "error");
+      return;
+    }
+    const origin = await uploadApiOrigin();
+    const status = await trackUploadStatus(origin, pinnedTrack.id);
+    if (status === "pending") {
+      showSubmitted("Трек уже добавлен", "Альтернативная версия ожидает проверки администратора. Повторная загрузка не требуется.");
+    } else if (status === "approved") {
+      showSubmitted("Версия уже доступна", "Для этой песни уже есть одобренная версия. Повторная отправка не требуется.");
+    } else {
+      if (uploadForm) uploadForm.hidden = false;
+      if (uploadButton) uploadButton.disabled = false;
+      uploadMessage("Выберите MP3 для отправки на проверку.");
+    }
   } catch (_error) {
-    pinnedTrack = null;
+    uploadMessage("Не удалось проверить статус на сервере. Повторите попытку.", "error");
+  } finally {
+    opening = false;
   }
-  if (uploadTrack) uploadTrack.value = pinnedTrack?.id || "";
-  if (uploadButton) uploadButton.disabled = !pinnedTrack;
-  uploadMessage(pinnedTrack ? "MP3 будет отправлен со статусом pending, без публикации." :
-    "Сначала запустите трек в Яндекс Музыке и дождитесь его точного определения.");
-  void send({ type: "CELIKOM_ADD_TRACK_OPENED" });
+  void send({ type: "CELIKOM_ADD_TRACK_OPENED" }).catch(() => {});
 });
 
-uploadFile?.addEventListener("change", () => { uploadRequestId = null; if (uploadProgress) uploadProgress.value = 0; });
+uploadFile?.addEventListener("change", () => {
+  uploadRequestId = null;
+  if (uploadProgress) uploadProgress.value = 0;
+});
 
-document.querySelector<HTMLFormElement>("[data-upload-form]")?.addEventListener("submit", async (event) => {
+uploadForm?.addEventListener("submit", async (event) => {
   event.preventDefault();
-  if (uploading || !pinnedTrack || !uploadFile?.files?.[0] || !uploadRights?.checked || !uploadKey?.value) return;
+  if (uploading || opening || !pinnedTrack || uploadForm.hidden ||
+    !uploadFile?.files?.[0] || !uploadRights?.checked || !uploadKey?.value) return;
+
   const file = uploadFile.files[0];
   if (!validMp3Selection(file)) {
-    uploadMessage("Выберите MP3 не более 30 МиБ."); return;
+    uploadMessage("Выберите MP3 не более 30 МиБ.", "error"); return;
   }
-  let now: ReturnType<typeof uploadTargetFromStatus>;
-  try {
-    now = uploadTargetFromStatus(await send<ExtensionState>({ type: COMMANDS.getStatus }));
-  } catch (_error) {
-    uploadMessage("Не удалось определить текущий трек. Повторите попытку."); return;
-  }
-  if (!now || now.id !== pinnedTrack.id) {
-    uploadMessage("Трек изменился. Откройте «Добавить трек» снова."); return;
-  }
-  // Requests execute from the trusted extension popup, not inside the music website.
-  // The owner key stays in memory for this popup lifetime, never chrome.storage.
+  uploading = true;
+  if (uploadButton) { uploadButton.disabled = true; uploadButton.textContent = "Отправляем…"; }
+  uploadMessage("Проверяем трек и отправляем файл…", "checking");
+
   let origin: string;
   try {
-    const conf = await fetch(chrome.runtime.getURL("api/config.json")).then((r) => r.json());
-    origin = privateUploadApiOrigin(conf.baseUrl);
-  } catch (_error) { uploadMessage("Сервер загрузки не настроен."); return; }
-
-  if (!uploadRequestId) uploadRequestId = crypto.randomUUID();
-  const data = new FormData();
-  data.append("service", "yandex");
-  data.append("track_id", pinnedTrack.id);
-  data.append("duration_ms", String(pinnedTrack.durationMs));
-  data.append("artist", pinnedTrack.artist);
-  data.append("title", pinnedTrack.title);
-  data.append("album", pinnedTrack.album);
-  data.append("declaration", "1");
-  data.append("request_id", uploadRequestId);
-  data.append("file", file, file.name);
-  uploading = true;
-  if (uploadButton) uploadButton.disabled = true;
-  if (uploadProgress) { uploadProgress.hidden = false; uploadProgress.value = 0; }
-  uploadMessage("Отправка…");
-  const xhr = new XMLHttpRequest();
-  xhr.open("POST", origin + "/api/v1/uploads");
-  xhr.timeout = 120000;
-  xhr.setRequestHeader("Authorization", "Bearer " + uploadKey.value);
-  xhr.upload.addEventListener("progress", (progress) => {
-    if (progress.lengthComputable && uploadProgress) uploadProgress.value = Math.floor(progress.loaded / progress.total * 100);
-  });
-  xhr.addEventListener("loadend", () => {
-    uploading = false;
-    if (uploadButton) uploadButton.disabled = !pinnedTrack;
-    if (xhr.status === 202) {
-      try {
-        const result = JSON.parse(xhr.responseText);
-        if (result.status === "pending" && Number.isSafeInteger(result.replacement_id)) {
-          uploadMessage(result.duplicate ? "Дубликат найден. Запись уже ожидает проверки." : "Загружено. Ожидает ручной проверки.");
-          uploadRequestId = null;
-          return;
-        }
-      } catch (_error) { /* safe generic message */ }
+    const now = uploadTargetFromStatus(await send<ExtensionState>({ type: COMMANDS.getStatus }));
+    if (!now || now.id !== pinnedTrack.id) {
+      uploadMessage("Трек изменился. Закройте и откройте «Добавить трек» заново.", "error");
+      return;
     }
-    const errors: Record<string, string> = {
-      uploads_disabled: "Приватный приём файлов пока выключен.",
-      unauthorized: "Неверный код владельца.",
-      rate_limited: "Слишком много попыток. Попробуйте позже.",
-      upload_too_large: "Файл превышает допустимый размер.",
-      invalid_mp3: "Файл не прошёл проверку MP3.",
-      already_approved: "Эта версия уже одобрена.",
-      idempotency_conflict: "Повтор запроса не совпадает с исходным.",
-      rights_declaration_required: "Подтвердите права на файл."
-    };
-    let code = "";
-    try { code = JSON.parse(xhr.responseText)?.error || ""; } catch (_error) { /* no-op */ }
-    uploadMessage(errors[code] || "Загрузка не завершена. Повторите попытку.");
-  });
-  try {
+    origin = await uploadApiOrigin();
+    const existing = await trackUploadStatus(origin, pinnedTrack.id);
+    if (existing !== "none") {
+      showSubmitted(existing === "pending" ? "Трек уже добавлен" : "Версия уже доступна",
+        "Заявка уже есть в CELIKOM. Повторно отправлять файл не нужно.");
+      return;
+    }
+
+    if (!uploadRequestId) uploadRequestId = crypto.randomUUID();
+    const data = new FormData();
+    data.append("service", "yandex");
+    data.append("track_id", pinnedTrack.id);
+    data.append("duration_ms", String(pinnedTrack.durationMs));
+    data.append("artist", pinnedTrack.artist);
+    data.append("title", pinnedTrack.title);
+    data.append("album", pinnedTrack.album);
+    data.append("declaration", "1");
+    data.append("request_id", uploadRequestId);
+    data.append("file", file, file.name);
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", origin + "/api/v1/uploads");
+    xhr.timeout = 120000;
+    xhr.setRequestHeader("Authorization", "Bearer " + uploadKey.value);
+    xhr.upload.addEventListener("progress", (progress) => {
+      if (progress.lengthComputable && uploadProgress) uploadProgress.value = Math.floor(progress.loaded / progress.total * 100);
+    });
+    if (uploadProgress) { uploadProgress.hidden = false; uploadProgress.value = 0; }
+    uploadMessage("Загружаем MP3…", "checking");
+    xhr.addEventListener("loadend", () => {
+      uploading = false;
+      if (xhr.status === 202) {
+        try {
+          const result = JSON.parse(xhr.responseText);
+          if (result.status === "pending" && Number.isSafeInteger(result.replacement_id)) {
+            showSubmitted(result.duplicate ? "Трек уже добавлен" : "Отправлено на проверку",
+              "MP3 получен CELIKOM. Статус: ожидает модерации. Дополнительных действий не требуется.");
+            uploadRequestId = null;
+            return;
+          }
+        } catch (_error) { /* display neutral error */ }
+      }
+      let code = "";
+      try { code = JSON.parse(xhr.responseText)?.error || ""; } catch (_error) { /* no-op */ }
+      if (code === "track_pending" || code === "track_already_approved" || code === "already_approved") {
+        showSubmitted(code === "track_pending" ? "Трек уже добавлен" : "Версия уже доступна",
+          "Заявка уже есть на сервере CELIKOM. Повторная отправка не требуется.");
+        return;
+      }
+      const errors: Record<string, string> = {
+        uploads_disabled: "Приватный приём файлов пока выключен.",
+        unauthorized: "Неверный код владельца.",
+        rate_limited: "Слишком много попыток. Попробуйте позже.",
+        upload_too_large: "Файл превышает допустимый размер.",
+        invalid_mp3: "Файл не прошёл проверку MP3.",
+        idempotency_conflict: "Повтор запроса не совпадает с исходным.",
+        rights_declaration_required: "Подтвердите права на файл."
+      };
+      uploadMessage(errors[code] || "Загрузка не завершена. Попробуйте ещё раз.", "error");
+      if (uploadButton) { uploadButton.textContent = "Повторить отправку"; uploadButton.disabled = false; }
+    });
     xhr.send(data);
   } catch (_error) {
-    uploading = false;
-    if (uploadButton) uploadButton.disabled = false;
-    uploadMessage("Не удалось начать загрузку. Повторите попытку.");
+    uploadMessage("Не удалось связаться с сервером. Повторите попытку.", "error");
+  } finally {
+    // The request completion handler is responsible for re-enabling the button
+    // after xhr.send(). An early exit must never leave the UI stuck.
+    if (uploadStatus?.dataset.kind !== "checking" || !uploadProgress || uploadProgress.hidden) {
+      uploading = false;
+      if (uploadButton && uploadForm && !uploadForm.hidden) {
+        uploadButton.disabled = false;
+        uploadButton.textContent = "Отправить на проверку";
+      }
+    }
   }
 });
 document.querySelector("[data-action='use-current']")?.addEventListener("click", async () => {
