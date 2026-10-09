@@ -12,7 +12,7 @@ test("Stage7 upload accepts only confident exact currently observed track", () =
     assert.equal(uploadTargetFromStatus(state(bad)), null);
   }
   assert.equal(uploadTargetFromStatus(state("144530503", 50)), null);
-  assert.equal(uploadTargetFromStatus(state("144530503", undefined)), null);
+  assert.equal(uploadTargetFromStatus({ track: {...state("144530503").track, confidence: undefined} }), null);
   assert.equal(uploadTargetFromStatus(state("144530503", NaN)), null);
   assert.equal(uploadTargetFromStatus({track:{id:"144530503",confidence:200,metadata:{durationMs:180872}}}), null);
   assert.equal(uploadTargetFromStatus({track:{id:"144530503",confidence:200,ambiguous:"false",metadata:{durationMs:180872}}}), null);
