@@ -37,7 +37,11 @@ try {
       is_file($root.'/shared/audio/'.$approved['storage_key']) &&
       hash_equals($approved['sha256'],hash_file('sha256',$root.'/shared/audio/'.$approved['storage_key']));
   $count=(int)$pdo->query("SELECT COUNT(*) FROM track_replacements WHERE status='pending' AND is_active=0")->fetchColumn();
-  echo json_encode(['lookup_track_id'=>'41571386','matches'=>$items,
+  $recent=$pdo->query("SELECT t.service_track_id,r.id replacement_id,r.status,r.is_active,
+        t.artist,t.title,r.created_at
+      FROM track_replacements r JOIN tracks t ON t.id=r.track_id
+      WHERE r.id<>1 AND t.service='yandex' ORDER BY r.id DESC LIMIT 8")->fetchAll(PDO::FETCH_ASSOC);
+  echo json_encode(['recent_replacements'=>$recent,'lookup_track_id'=>'41571386','matches'=>$items,
     'all_pending_count'=>$count,'original_approved_audio_intact'=>$approvedOk,
     'owner_uploads_enabled'=>$config['owner_uploads_enabled']], JSON_THROW_ON_ERROR|JSON_UNESCAPED_SLASHES),"\n";
   if (!$approvedOk) exit(1);
