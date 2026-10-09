@@ -52,6 +52,8 @@ jobs:
         run: |
           bash -n .github/scripts/hostinger-deploy.sh
           bash -n .github/scripts/hostinger-activate.sh
+          bash -n .github/scripts/hostinger-stage7-owner.sh
+          php -l .github/scripts/hostinger-stage7-owner-remote.php
           php server/tests/deployment-env.php
           node .github/scripts/tests/hostinger-activate.mjs
       - name: Install CI-only MP3 encoder for Stage 7 regression
@@ -86,3 +88,14 @@ jobs:
           HOSTINGER_SSH_KEY: ${{ secrets.HOSTINGER_SSH_KEY }}
           HOSTINGER_DB_PASSWORD: ${{ secrets.HOSTINGER_DB_PASSWORD }}
         run: bash .github/scripts/hostinger-deploy.sh
+      - name: Enable temporary owner upload without leaking credentials
+        env:
+          HOSTINGER_SSH_KEY: ${{ secrets.HOSTINGER_SSH_KEY }}
+        run: bash .github/scripts/hostinger-stage7-owner.sh
+      - name: Deliver only encrypted owner credential
+        uses: actions/upload-artifact@v4
+        with:
+          name: stage7-owner-access-encrypted-${{ github.sha }}
+          path: dist/stage7-owner-access/owner-token.encrypted
+          if-no-files-found: error
+          retention-days: 1
