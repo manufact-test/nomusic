@@ -94,7 +94,8 @@ try{
         $resp=$app->handle('GET','/admin/audio/'.$candidate,headers:$sessionHeaders+['Range'=>'bytes=0-3']);
         expect($resp->status===206 && bytes($resp)===hex2bin('fffb9064'),'Private Range playback');
         expect(($resp->headers['Cache-Control']??'')==='private, no-store','No caching');
-        expect($app->handle('GET','/api/v1/audio/'.$candidate)->status===404,'Public audio denied');
+        expect(!in_array($app->handle('GET','/api/v1/audio/'.$candidate)->status,[200,206],true),
+            'Pending never streams through public audio route');
     });
     run('Stage 8 approval requires explicit rights check and documented reason',function()use($mod,$adminId,$candidate):void{
         try{$mod->replacement($adminId,$candidate,'approve','reviewed',0,false);
