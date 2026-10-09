@@ -79,3 +79,59 @@ tr:last-child td{border-bottom:0}td form{display:flex;gap:8px;align-items:center
 
 .metadata-form{display:flex;align-items:end;gap:10px;flex-wrap:wrap;margin-top:12px}.metadata-form .form-field{flex:1 1 180px}.metadata-form input{width:100%}.metadata-form button{flex:0 0 auto}.detail-toggle .muted{font-size:12px;margin:10px 0 4px}
 @media(max-width:560px){.metadata-form button{width:100%}}
+
+
+/* Stage 8.7 polish: keep focused dropdowns inside their existing border.
+   The 2px inset stroke stays visible for keyboard users without a halo. */
+.toolbar select{transition:border-color .16s ease,box-shadow .16s ease}
+.toolbar select:focus,
+.toolbar select:focus-visible{
+  outline:none;
+  outline-offset:0;
+  border-color:#278d70;
+  box-shadow:inset 0 0 0 1px #278d70;
+}
+/* Native disclosure triangles are drawn outside the content box on Chromium.
+   Replace them with aligned, in-flow chevrons consistent across both rows. */
+.detail-toggle > summary{
+  display:inline-flex;
+  align-items:center;
+  gap:10px;
+  list-style:none;
+  list-style-position:inside;
+  padding:7px 0;
+  line-height:1.4;
+}
+.detail-toggle > summary::-webkit-details-marker{display:none}
+.detail-toggle > summary::before{
+  content:"";
+  display:block;
+  width:7px;
+  height:7px;
+  flex:0 0 7px;
+  border-right:1.7px solid currentColor;
+  border-bottom:1.7px solid currentColor;
+  transform:rotate(-45deg);
+  transition:transform .16s ease;
+}
+.detail-toggle[open] > summary::before{transform:rotate(45deg)}
+/* The secondary-action disclosure uses the same internal indicator. */
+.decision-toggle > summary{
+  list-style:none;
+  list-style-position:inside;
+}
+.decision-toggle > summary::-webkit-details-marker{display:none}
+.decision-toggle > summary::after{
+  content:"";
+  display:inline-block;
+  width:7px;
+  height:7px;
+  margin-left:5px;
+  border-right:1.7px solid currentColor;
+  border-bottom:1.7px solid currentColor;
+  transform:translateY(-2px) rotate(45deg);
+}
+.decision-toggle[open] > summary::after{transform:translateY(2px) rotate(225deg)}
+@media(prefers-reduced-motion:reduce){
+  .toolbar select,.detail-toggle > summary::before{transition:none}
+}
