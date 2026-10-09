@@ -9,6 +9,10 @@ on:
       - .github/deploy/hostinger-extension-request.json
       - extension/src/adapters/yandex-music-adapter.ts
       - extension/tests/yandex-adapter.test.mjs
+      - extension/tests/popup-upload.integration.test.mjs
+      - extension/src/popup/popup.ts
+      - extension/popup/popup.html
+      - extension/popup/popup.css
 
 permissions:
   contents: read
@@ -40,6 +44,8 @@ jobs:
           CHECK
       - name: Install workspace dependencies
         run: npm ci
+      - name: Verify popup transitions and existing player regressions
+        run: npm --prefix extension test
       - name: Build pinned API-targeted Chromium extension
         run: npm --prefix extension run build
       - name: Verify package origin, manifest permissions, and SHA-256
