@@ -23,6 +23,7 @@ return [
     'test_api_token' => $value('API_TEST_TOKEN'),
     'owner_upload_token' => $value('UPLOAD_OWNER_TOKEN'),
     'owner_uploads_enabled' => $boolean('FEATURE_OWNER_UPLOADS'),
+    'admin_enabled' => $boolean('FEATURE_ADMIN'),
     'api_enabled' => $boolean('FEATURE_REPLACEMENTS'),
     'analytics_enabled' => $boolean('FEATURE_ANALYTICS'),
     'analytics_privacy_key' => $value('ANALYTICS_PRIVACY_KEY'),
