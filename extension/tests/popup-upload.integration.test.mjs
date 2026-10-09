@@ -69,7 +69,9 @@ test("Stage 7 Add version pins the exact detected Track ID without an editable f
 });
 
 test("Stage 7 popup owner upload carries pinned metadata, rights, and a transient token", async () => {
-  find("[data-upload-file]").files = [{ name: "owner.mp3", size: 2500 }];
+  const file = new Blob([new Uint8Array(2500)], { type: "audio/mpeg" });
+  Object.defineProperty(file, "name", { value: "owner.mp3" });
+  find("[data-upload-file]").files = [file];
   find("[data-upload-rights]").checked = true;
   find("[data-upload-key]").value = "a-private-session-only-owner-token";
   await find("[data-upload-form]").fire("submit");
