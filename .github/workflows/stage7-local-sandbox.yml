@@ -1,0 +1,105 @@
+name: CELIKOM Stage 7 localhost sandbox
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [feature/api-range]
+    paths:
+      - stage7/**
+      - server/.dockerignore
+      - .github/workflows/stage7-local-sandbox.yml
+
+permissions:
+  contents: read
+
+jobs:
+  isolated:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+      - name: Generate disposable local-only credentials
+        shell: bash
+        run: |
+          for name in STAGE7_DB_PASSWORD STAGE7_ROOT_PASSWORD STAGE7_API_TOKEN STAGE7_UPLOAD_TOKEN STAGE7_SIGNING_KEY; do
+            printf '%s=%s\n' "$name" "$(openssl rand -hex 48)" >> "$GITHUB_ENV"
+          done
+      - name: Launch isolated Docker API and MySQL
+        run: |
+          docker compose -p celikom-stage7-ci -f stage7/compose.yaml config -q
+          docker compose -p celikom-stage7-ci -f stage7/compose.yaml up --build -d
+          docker compose -p celikom-stage7-ci -f stage7/compose.yaml exec -T api php bin/migrate.php
+          docker compose -p celikom-stage7-ci -f stage7/compose.yaml exec -T api php bin/migrate.php
+      - name: Verify local-only endpoint, no public uploads, and real pending MP3
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'CHECK'
+          import assert from 'node:assert/strict';
+          const base = 'http://127.0.0.1:8787';
+          const health = await fetch(base + '/api/v1/health');
+          assert.equal(health.status, 200);
+          const config = await (await fetch(base + '/api/v1/config')).json();
+          assert.equal(config.upload_enabled, false);
+          assert.equal(config.max_upload_size, 31457280);
+          const forbidden = await fetch(base + '/api/v1/uploads', {method:'POST'});
+          assert.equal(forbidden.status, 401);
+          console.log('Local API healthy; public uploads blocked.');
+          CHECK
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends ffmpeg
+          ffmpeg -hide_banner -loglevel error -f lavfi -i sine=frequency=440:duration=2.5 -ar 44100 -ac 2 -c:a libmp3lame -b:a 128k -y /tmp/stage7-ci.mp3
+          status="$(curl -sS -o /tmp/stage7-result.json -w '%{http_code}' \
+            -H "Authorization: Bearer $STAGE7_UPLOAD_TOKEN" \
+            -F service=yandex -F track_id=799130 -F duration_ms=2500 \
+            -F declaration=1 -F request_id=00000000-0000-4000-8000-000000000070 \
+            -F file=@/tmp/stage7-ci.mp3\;type=audio/mpeg \
+            http://127.0.0.1:8787/api/v1/uploads)"
+          test "$status" = "202"
+          node --input-type=module <<'CHECK'
+          import {readFileSync} from 'node:fs';
+          import assert from 'node:assert/strict';
+          const result=JSON.parse(readFileSync('/tmp/stage7-result.json'));
+          assert.equal(result.status,'pending');
+          assert.equal(result.duplicate,false);
+          assert.ok(Number.isSafeInteger(result.replacement_id));
+          const url='http://127.0.0.1:8787/api/v1/resolve?service=yandex&track_id=799130';
+          const response=await fetch(url,{headers:{Authorization:'Bearer '+process.env.STAGE7_API_TOKEN}});
+          assert.equal(response.status,200);
+          assert.equal((await response.json()).found,false);
+          console.log('Docker PHP owner upload is pending, inaccessible to /resolve.');
+          CHECK
+      - name: Produce exact loopback-only Chrome test build
+        run: |
+          npm ci
+          CELIKOM_API_BASE_URL=http://127.0.0.1:8787 npm run build:extension
+          cd extension/dist && sha256sum --check celikom-extension-*.zip.sha256
+          node --input-type=module <<'CHECK'
+          import fs from 'node:fs';
+          import assert from 'node:assert/strict';
+          const cfg=JSON.parse(fs.readFileSync('unpacked/api/config.json'));
+          const manifest=JSON.parse(fs.readFileSync('unpacked/manifest.json'));
+          assert.equal(cfg.baseUrl,'http://127.0.0.1:8787');
+          assert.ok(manifest.host_permissions.includes('http://127.0.0.1:8787/*'));
+          assert.ok(!manifest.host_permissions.some(s=>s.includes('darkred-camel-588676.hostingersite.com')));
+          console.log('Extension can connect only to loopback test API and Yandex Music.');
+          CHECK
+      - name: Upload isolated owner test extension
+        uses: actions/upload-artifact@v4
+        with:
+          name: celikom-stage7-localhost-chrome-${{ github.sha }}
+          path: |
+            extension/dist/celikom-extension-*.zip
+            extension/dist/celikom-extension-*.zip.sha256
+          if-no-files-found: error
+          retention-days: 14
+      - name: Destroy isolated CI volumes, even on failure
+        if: always()
+        shell: bash
+        run: docker compose -p celikom-stage7-ci -f stage7/compose.yaml down -v --remove-orphans || true
