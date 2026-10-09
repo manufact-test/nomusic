@@ -74,11 +74,14 @@ try {
             || ($baseline['files'] ?? null) !== $audio) throw new RuntimeException('state-changed-after-deploy');
         foreach ($baseline['tables'] as $table => $beforeCount) {
             if (!in_array($table, ['schema_migrations', 'tracks', 'audio_assets', 'track_replacements',
-                'analytics_events', 'analytics_daily_aggregates'], true)
+                'analytics_events', 'analytics_daily_aggregates', 'audio_fingerprint_jobs',
+                'upload_submissions', 'track_requests', 'upload_rate_buckets',
+                'admins', 'admin_sessions', 'admin_login_attempts', 'audit_log',
+                'track_request_reviews', 'reports'], true)
                 || (int) $pdo->query('SELECT COUNT(*) FROM ' . chr(96) . $table . chr(96))->fetchColumn() !== $beforeCount)
                 throw new RuntimeException('database-row-count-changed');
         }
-        echo "Stage 5 after-deploy audit PASS: shared private env SHA-256, all audio hashes, six MySQL table counts and approved mapping match pre-deployment snapshot; analytics off.\n";
+        echo "Stage 5 after-deploy audit PASS: shared private env SHA-256, all audio hashes, existing CELIKOM MySQL table counts and approved mapping match pre-deployment snapshot; analytics off.\n";
         exit(0);
     }
     $copyAudio = static function(string $source, string $destination, array $index): void {
@@ -133,8 +136,20 @@ try {
         $stream = fopen($staging . '/database.sql', 'xb');
         if ($stream === false) throw new RuntimeException('snapshot-sql');
         chmod($staging . '/database.sql', 0600);
+        // Include every existing Stage 7 table: the old six-table snapshot is insufficient.
         $tables = ['schema_migrations', 'tracks', 'audio_assets', 'track_replacements',
-            'analytics_events', 'analytics_daily_aggregates'];
+            'analytics_events', 'analytics_daily_aggregates', 'audio_fingerprint_jobs',
+            'upload_submissions', 'track_requests', 'upload_rate_buckets'];
+        // Later private snapshots also protect Stage 8 moderation state. Pre-deployment
+        // snapshots correctly omit these tables until migration 003 exists.
+        $optional = ['admins', 'admin_sessions', 'admin_login_attempts', 'audit_log',
+            'track_request_reviews', 'reports'];
+        $present = $pdo->prepare('SELECT COUNT(*) FROM information_schema.tables
+            WHERE table_schema = DATABASE() AND table_name = ?');
+        foreach ($optional as $extra) {
+            $present->execute([$extra]);
+            if ((int) $present->fetchColumn() === 1) $tables[] = $extra;
+        }
         $counts = [];
         $quoteName = static fn(string $value): string => chr(96) . $value . chr(96);
         $pdo->beginTransaction();
