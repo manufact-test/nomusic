@@ -128,21 +128,79 @@ final class AdminPanel
         return htmlspecialchars((string)($value ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
     }
 
+    private static function statusLabel(string $status): string
+    {
+        return match ($status) {
+            'pending' => 'На проверке', 'approved' => 'Одобрено',
+            'rejected' => 'Отклонено', 'disabled' => 'Отключено',
+            'reviewed' => 'Рассмотрено', 'dismissed' => 'Отклонена',
+            default => 'Неизвестный статус',
+        };
+    }
+
+    private static function actionLabel(string $action): string
+    {
+        return match ($action) {
+            'replacement_approve' => 'Подмена одобрена',
+            'replacement_reactivate' => 'Подмена восстановлена',
+            'replacement_reject' => 'Версия отклонена',
+            'replacement_duplicate' => 'Отмечен дубликат',
+            'replacement_wrong_track' => 'Неверный трек',
+            'replacement_bad_quality' => 'Плохое качество',
+            'replacement_disable' => 'Подмена отключена',
+            'track_request_reviewed' => 'Предложение рассмотрено',
+            'track_request_rejected' => 'Предложение отклонено',
+            'report_reviewed' => 'Жалоба рассмотрена',
+            'report_dismissed' => 'Жалоба отклонена',
+            'audit_csv_export' => 'Журнал скачан',
+            default => 'Другое действие',
+        };
+    }
+
+    private static function formatDuration(int $millis): string
+    {
+        $seconds = max(0, (int) round($millis / 1000));
+        $minutes = intdiv($seconds, 60);
+        return $minutes . ':' . str_pad((string) ($seconds % 60), 2, '0', STR_PAD_LEFT);
+    }
+
+    private static function formatSize(int $bytes): string
+    {
+        return number_format(max(0, $bytes) / 1048576, 2, ',', ' ') . ' МБ';
+    }
+
+    private static function displayTitle(mixed $artist, mixed $title): string
+    {
+        $artist = trim((string) $artist);
+        $title = trim((string) $title);
+        if ($title === '' && $artist === '') return 'Название не указано';
+        if ($title === '') return $artist . ' — название не указано';
+        if ($artist === '') return $title . ' — исполнитель не указан';
+        return $artist . ' — ' . $title;
+    }
+
+    private static function statusPill(string $status): string
+    {
+        $class = in_array($status, ['pending','approved','rejected','disabled','reviewed','dismissed'], true)
+            ? $status : 'disabled';
+        return '<span class="pill pill-' . $class . '">' . self::e(self::statusLabel($status)) . '</span>';
+    }
+
+    private static function yandexLink(string $trackId): string
+    {
+        if (!preg_match('/^[1-9]\d{0,23}$/D', $trackId)) return '';
+        return '<a href="https://music.yandex.ru/track/' . self::e($trackId)
+            . '" target="_blank" rel="noopener noreferrer">Открыть в Яндекс Музыке ↗</a>';
+    }
+
     private function page(string $inner, array $otherHeaders = [], int $status = 200): Response
     {
-        $css = 'body{font-family:system-ui,sans-serif;background:#f4f6fa;color:#14213a;margin:0;padding:24px}'
-            . 'main{max-width:1180px;margin:auto}.panel{background:white;border:1px solid #dfe4ee;'
-            . 'padding:18px;border-radius:12px;margin:14px 0;overflow-wrap:anywhere}'
-            . 'nav a{margin-right:16px}a{color:#2256a5}input,select,button,textarea{font:inherit;'
-            . 'padding:7px;margin:4px;max-width:100%;box-sizing:border-box}button{cursor:pointer}'
-            . 'label{display:inline-block;margin:4px}small{color:#53627c}audio{width:100%;max-width:500px}'
-            . 'table{border-collapse:collapse;width:100%}td,th{border-bottom:1px solid #e3e6ed;'
-            . 'padding:8px;text-align:left;vertical-align:top}form{margin:9px 0}'
-            . '@media(max-width:700px){body{padding:10px}table{display:block;overflow-x:auto}}';
+        $css = file_get_contents(__DIR__ . '/admin-style.css');
+        if ($css === false) throw new \RuntimeException('admin_style_not_found');
         $html = '<!doctype html><html lang="ru"><head><meta charset="utf-8">'
             . '<meta name="viewport" content="width=device-width,initial-scale=1">'
-            . '<title>CELIKOM · Admin</title><style>' . $css . '</style></head><body><main>'
-            . $inner . '</main></body></html>';
+            . '<meta name="theme-color" content="#f4f8f6"><title>CELIKOM · Панель управления</title><style>'
+            . $css . '</style></head><body><main>' . $inner . '</main></body></html>';
         return new Response($status, array_merge([
             'Content-Type'=>'text/html; charset=utf-8','Cache-Control'=>'no-store',
             'Content-Security-Policy'=>"default-src 'none'; style-src 'unsafe-inline'; media-src 'self';"
@@ -153,12 +211,16 @@ final class AdminPanel
 
     private function loginPage(string $csrf): string
     {
-        return '<section class="panel"><h1>CELIKOM · Вход администратора</h1>'
+        return '<div class="login-shell"><section class="panel login-card">'
+            . '<div class="brand"><span class="brand-mark">♫</span><span><strong>CELIKOM</strong>'
+            . '<small>Панель управления</small></span></div>'
+            . '<h1 style="margin-top:28px">Добро пожаловать</h1>'
+            . '<p class="muted">Войдите в закрытую панель модерации</p>'
             . '<form method="post" action="/admin/login">'
             . '<input type="hidden" name="csrf" value="' . self::e($csrf) . '">'
-            . '<label>Логин <input name="login" autocomplete="username" required></label>'
-            . '<label>Пароль <input type="password" name="password" autocomplete="current-password" required></label>'
-            . '<button type="submit">Войти</button></form></section>';
+            . '<label>Логин<input name="login" autocomplete="username" required></label>'
+            . '<label>Пароль<input type="password" name="password" autocomplete="current-password" required></label>'
+            . '<button class="primary" type="submit">Войти</button></form></section></div>';
     }
 
     private function dashboard(array $admin, array $query): string
@@ -167,113 +229,204 @@ final class AdminPanel
         $allowed = ['uploads','requests','reports','audit','overview'];
         if (!in_array($tab, $allowed, true)) $tab = 'uploads';
         $csrf = self::e($admin['csrf']);
-        $html = '<h1>CELIKOM · Модерация</h1><p>Администратор: ' . self::e($admin['login'])
-            . ' (' . self::e($admin['role']) . ')</p><nav><a href="/admin?tab=uploads">MP3</a>'
-            . '<a href="/admin?tab=requests">Предложить песню</a>'
-            . '<a href="/admin?tab=reports">Жалобы</a><a href="/admin?tab=audit">Журнал</a>'
-            .'<a href="/admin?tab=overview">Обзор</a></nav>'
-            . '<form method="post" action="/admin/logout"><input type="hidden" name="csrf" value="' . $csrf
-            . '"><button type="submit">Выйти</button></form>';
+        $size = $this->pageSize($query);
+        $role = match ($admin['role']) {
+            'owner' => 'Владелец', 'moderator' => 'Модератор',
+            'viewer' => 'Наблюдатель', default => 'Сотрудник'
+        };
+        $html = '<header class="header"><a class="brand" href="/admin">'
+            . '<span class="brand-mark" aria-hidden="true">♫</span><span><strong>CELIKOM</strong>'
+            . '<small>Панель управления</small></span></a><div class="header-actions">'
+            . '<span class="account" aria-label="Роль в системе">● ' . self::e($role) . '</span>';
+        if (in_array($admin['role'], ['owner','moderator'], true)) {
+            $html .= '<form class="head-form" method="post" action="/admin/export">'
+                . '<input type="hidden" name="csrf" value="' . $csrf . '">'
+                . '<button type="submit" title="Скачать журнал действий в CSV">↓ Скачать журнал</button></form>';
+        }
+        $html .= '<form class="head-form" method="post" action="/admin/logout">'
+            . '<input type="hidden" name="csrf" value="' . $csrf . '">'
+            . '<button type="submit">Выйти ↗</button></form></div></header><nav class="nav" aria-label="Разделы">';
+        foreach ([
+            'uploads'=>'Загруженные версии', 'requests'=>'Предложения песен',
+            'reports'=>'Жалобы', 'audit'=>'Журнал действий', 'overview'=>'Обзор'
+        ] as $key => $name) {
+            $html .= '<a href="/admin?tab=' . $key . '&per_page=' . $size . '"'
+                . ($tab === $key ? ' class="current" aria-current="page"' : '') . '>'
+                . self::e($name) . '</a>';
+        }
+        $html .= '</nav>';
         $counts = $this->pdo->query("SELECT
             (SELECT COUNT(*) FROM track_replacements WHERE status='pending') AS pending_uploads,
             (SELECT COUNT(*) FROM track_requests WHERE status='pending') AS pending_requests,
             (SELECT COUNT(*) FROM reports WHERE status='pending') AS pending_reports")->fetch(\PDO::FETCH_ASSOC);
-        if (in_array($admin['role'],['owner','moderator'],true)) {
-            $html.='<form method="post" action="/admin/export"><input type="hidden" name="csrf" value="'.$csrf.'">'
-                .'<button type="submit">Скачать журнал CSV</button></form>';
-        }
-        $html .= '<section class="panel"><strong>На проверке:</strong> MP3 — '
-            . (int)$counts['pending_uploads'] . ' · Предложения — ' . (int)$counts['pending_requests']
-            . ' · Жалобы — ' . (int)$counts['pending_reports'] . '</section>';
+        $html .= '<div class="stats">'
+            . '<a class="stat" href="/admin?tab=uploads&status=pending&per_page=' . $size
+            . '"><span>Версии на проверке<span class="sub">Загруженные аудиофайлы</span></span><strong>'
+            . (int) $counts['pending_uploads'] . '</strong></a>'
+            . '<a class="stat" href="/admin?tab=requests&status=pending&per_page=' . $size
+            . '"><span>Предложения песен<span class="sub">Без загрузки аудио</span></span><strong>'
+            . (int) $counts['pending_requests'] . '</strong></a>'
+            . '<a class="stat" href="/admin?tab=reports&status=pending&per_page=' . $size
+            . '"><span>Новые жалобы<span class="sub">Ожидают решения</span></span><strong>'
+            . (int) $counts['pending_reports'] . '</strong></a></div>';
         return $html . match ($tab) {
             'requests' => $this->requests($admin, $csrf, $query),
             'reports' => $this->reports($admin, $csrf, $query),
-            'audit' => $this->auditLog(),
+            'audit' => $this->auditLog($query),
             'overview' => $this->overview($query),
             default => $this->uploads($admin, $csrf, $query),
         };
     }
 
-    /** Finite server-side page size; user input never becomes a raw SQL predicate. */
-    private function queueOptions(string $tab, array $query, array $statuses): array
+    /** Validated, fixed page sizes prevent unbounded MySQL lists. */
+    private function pageSize(array $query): int
     {
-        $status=is_string($query['status'] ?? null) && in_array($query['status'],$statuses,true)
-            ? $query['status'] : '';
-        $p=$query['page'] ?? '1';
-        $page=is_string($p) && preg_match('/^[1-9]\d{0,2}$/D',$p) ? (int)$p : 1;
-        $offset=($page-1)*25;
-        $form='<form method="get" action="/admin"><input type="hidden" name="tab" value="'.self::e($tab).'">'
-            .'<label>Статус <select name="status"><option value="">Все</option>';
-        foreach($statuses as $value){
-            $form.='<option value="'.self::e($value).'"'
-                .($status===$value?' selected':'').'>'.self::e($value).'</option>';
-        }
-        $form.='</select></label><button type="submit">Фильтровать</button></form>';
-        return [$status,$page,$offset,$form];
+        $value = $query['per_page'] ?? '25';
+        return is_string($value) && in_array($value, ['10','25','50'], true)
+            ? (int) $value : 25;
     }
 
-    private function queuePages(string $tab, string $status, int $page, bool $hasNext): string
+    /** User-supplied values never become free-form SQL predicates or LIMITs. */
+    private function queueOptions(string $tab, array $query, array $statuses): array
     {
-        $url='/admin?tab='.rawurlencode($tab).'&status='.rawurlencode($status).'&page=';
-        $output='<nav class="panel">Страница '.$page.' · ';
-        if($page>1)$output.='<a href="'.self::e($url.($page-1)).'">Назад</a> ';
-        if($hasNext)$output.='<a href="'.self::e($url.($page+1)).'">Дальше</a>';
-        return $output.'</nav>';
+        $status = is_string($query['status'] ?? null) && in_array($query['status'], $statuses, true)
+            ? $query['status'] : '';
+        $p = $query['page'] ?? '1';
+        $page = is_string($p) && preg_match('/^[1-9]\d{0,2}$/D', $p) ? (int) $p : 1;
+        $perPage = $this->pageSize($query);
+        $offset = ($page - 1) * $perPage;
+        $form = '<div class="toolbar"><form method="get" action="/admin">'
+            . '<input type="hidden" name="tab" value="' . self::e($tab) . '">'
+            . '<label class="form-field">Статус<select name="status"><option value="">Все статусы</option>';
+        foreach ($statuses as $value) {
+            $form .= '<option value="' . self::e($value) . '"'
+                . ($status === $value ? ' selected' : '') . '>'
+                . self::e(self::statusLabel($value)) . '</option>';
+        }
+        $form .= '</select></label><label class="form-field">На странице<select name="per_page">';
+        foreach ([10,25,50] as $size) {
+            $form .= '<option value="' . $size . '"' . ($size === $perPage ? ' selected' : '')
+                . '>' . $size . ' записей</option>';
+        }
+        $form .= '</select></label><button type="submit">Применить</button></form></div>';
+        return [$status, $page, $offset, $form, $perPage];
+    }
+
+    private function queuePages(string $tab, string $status, int $page, int $perPage, int $total): string
+    {
+        $totalPages = max(1, (int) ceil($total / $perPage));
+        $base = '/admin?tab=' . rawurlencode($tab) . '&status=' . rawurlencode($status)
+            . '&per_page=' . $perPage . '&page=';
+        $view = '<nav class="pagination" aria-label="Страницы списка"><span>Всего: '
+            . $total . ' · Страница ' . $page . ' из ' . $totalPages . '</span><div class="pages">';
+        $link = static fn(int $i): string => $base . $i;
+        if ($page > 1) {
+            $view .= '<a href="' . self::e($link($page - 1)) . '" aria-label="Предыдущая страница">‹</a>';
+        } else {
+            $view .= '<span class="disabled" aria-hidden="true">‹</span>';
+        }
+        $start = max(1, min($page - 2, max(1, $totalPages - 4)));
+        $last = min($totalPages, $start + 4);
+        for ($i = $start; $i <= $last; $i++) {
+            $view .= $i === $page ? '<span class="current" aria-current="page">' . $i . '</span>'
+                : '<a href="' . self::e($link($i)) . '">' . $i . '</a>';
+        }
+        if ($page < $totalPages) {
+            $view .= '<a href="' . self::e($link($page + 1)) . '" aria-label="Следующая страница">›</a>';
+        } else {
+            $view .= '<span class="disabled" aria-hidden="true">›</span>';
+        }
+        return $view . '</div></nav>';
     }
 
     private function uploads(array $admin, string $csrf, array $query): string
     {
-        [$status,$page,$offset,$filter]=$this->queueOptions('uploads',$query,['pending','approved','rejected','disabled']);
-        $where=$status!=='' ? ' WHERE r.status = ? ' : ' ';
-        $stmt=$this->pdo->prepare("SELECT r.id,r.status,r.is_active,r.version,r.track_id,
+        [$status,$page,$offset,$filter,$perPage] = $this->queueOptions('uploads', $query,
+            ['pending','approved','rejected','disabled']);
+        $where = $status !== '' ? ' WHERE r.status = ? ' : ' ';
+        $params = $status !== '' ? [$status] : [];
+        $count = $this->pdo->prepare('SELECT COUNT(*) FROM track_replacements r ' . $where);
+        $count->execute($params);
+        $total = (int) $count->fetchColumn();
+        $stmt = $this->pdo->prepare("SELECT r.id,r.status,r.is_active,r.version,r.track_id,
             t.service,t.service_track_id,t.artist,t.title,t.duration_ms AS original_duration_ms,
             a.duration_ms AS audio_duration_ms,a.mime_type,a.size_bytes,a.sha256,
             (SELECT q.id FROM track_replacements q WHERE q.track_id=r.track_id
                 AND q.status='approved' AND q.is_active=1 AND q.disabled_at IS NULL LIMIT 1) AS active_id
             FROM track_replacements r JOIN tracks t ON t.id=r.track_id
-            JOIN audio_assets a ON a.id=r.audio_asset_id ".$where."
-            ORDER BY FIELD(r.status,'pending','approved','rejected','disabled'),r.id DESC LIMIT 26 OFFSET ".$offset);
-        $stmt->execute($status!=='' ? [$status] : []);
-        $rows=$stmt->fetchAll(\PDO::FETCH_ASSOC);
-        $hasNext=count($rows)>25;
-        $rows=array_slice($rows,0,25);
-        $html = '<h2>Загруженные версии</h2>'.$filter
-            .'<p><small>Новые файлы не публикуются без ручного одобрения и проверки прав.</small></p>';
+            JOIN audio_assets a ON a.id=r.audio_asset_id " . $where .
+            " ORDER BY FIELD(r.status,'pending','approved','rejected','disabled'),r.id DESC LIMIT "
+            . $perPage . " OFFSET " . $offset);
+        $stmt->execute($params);
+        $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+        $html = '<div class="page-head"><div><div class="eyebrow">Библиотека / модерация</div>'
+            . '<h1>Загруженные версии</h1><p class="muted">Новые песни появляются здесь только после загрузки. '
+            . 'Подмена включается вручную после проверки файла и прав.</p></div></div>' . $filter
+            . '<div class="cards">';
         foreach ($rows as $r) {
-            $id = (int)$r['id'];
-            $html .= '<section class="panel"><h3>#'.$id.' · '.self::e($r['artist']).' — '.self::e($r['title'])
-                . '</h3><p>Yandex Track ID: '.self::e($r['service_track_id'])
-                . ' · Статус: <strong>'.self::e($r['status']).'</strong> · active: '.(int)$r['is_active'].'</p>'
-                . '<p>Длительность трека: '.(int)$r['original_duration_ms']
-                . ' мс · MP3: '.(int)$r['audio_duration_ms'].' мс · '.self::e($r['mime_type'])
-                . ' · '.(int)$r['size_bytes'].' байт</p><p><small>SHA-256: '.self::e($r['sha256']).'</small></p>'
-                . '<audio controls preload="none" src="/admin/audio/'.$id.'"></audio>';
+            $id = (int) $r['id'];
+            $trackId = (string) $r['service_track_id'];
+            $html .= '<article class="track-card"><div class="track-top"><div class="track-heading">'
+                . '<span class="track-icon" aria-hidden="true">♫</span><div>'
+                . '<h2 class="track-title">#' . $id . ' · '
+                . self::e(self::displayTitle($r['artist'], $r['title'])) . '</h2>'
+                . '<div class="track-subtitle">Яндекс Музыка · Track ID ' . self::e($trackId) . '</div>'
+                . self::yandexLink($trackId) . '</div></div>'
+                . self::statusPill((string) $r['status']) . '</div>'
+                . '<div class="track-meta">'
+                . '<span>Длительность в Яндексе: <strong>'
+                . self::formatDuration((int) $r['original_duration_ms']) . '</strong></span>'
+                . '<span>Загруженное аудио: <strong>'
+                . self::formatDuration((int) $r['audio_duration_ms']) . '</strong></span>'
+                . '<span>Подмена: <strong>' . ((int) $r['is_active'] === 1 ? 'включена' : 'выключена')
+                . '</strong></span></div>'
+                . '<div class="player-wrap"><audio controls preload="none"'
+                . ' aria-label="Прослушать загруженную версию #' . $id . '"'
+                . ' src="/admin/audio/' . $id . '"></audio>'
+                . '<small>Прослушивание доступно только администратору</small></div>'
+                . '<details class="detail-toggle"><summary>Технические сведения</summary>'
+                . '<div class="technical">Размер: ' . self::formatSize((int) $r['size_bytes'])
+                . ' · Формат: ' . (in_array($r['mime_type'], ['audio/mpeg'], true) ? 'MP3' : 'Аудио')
+                . '<p style="margin:8px 0 0">Контрольная сумма SHA-256: '
+                . self::e($r['sha256']) . '</p></div></details>';
             if (in_array($admin['role'], ['owner','moderator'], true)
-                && ($r['status'] === 'pending' || ($r['status'] === 'approved' && (int)$r['is_active']===1)
+                && ($r['status'] === 'pending'
+                    || ($r['status'] === 'approved' && (int) $r['is_active'] === 1)
                     || ($r['status'] === 'disabled' && $admin['role'] === 'owner' && !$r['active_id']))) {
-                $html .= '<form method="post" action="/admin/action"><input type="hidden" name="csrf" value="'.$csrf.'">'
-                    . '<input type="hidden" name="kind" value="replacement"><input type="hidden" name="id" value="'.$id.'">'
-                    . '<input type="hidden" name="expected_active" value="'.(int)($r['active_id'] ?? 0).'">'
-                    . '<label>Причина/проверка <input name="reason" required maxlength="500"></label>';
+                $html .= '<div class="decision"><form method="post" action="/admin/action">'
+                    . '<input type="hidden" name="csrf" value="' . $csrf . '">'
+                    . '<input type="hidden" name="kind" value="replacement">'
+                    . '<input type="hidden" name="id" value="' . $id . '">'
+                    . '<input type="hidden" name="expected_active" value="'
+                    . (int) ($r['active_id'] ?? 0) . '">'
+                    . '<label class="form-field">Причина решения'
+                    . '<input name="reason" required maxlength="500" placeholder="Кратко опишите проверку"></label>';
                 if ($r['status'] === 'pending') {
-                    $html .= '<label><input type="checkbox" name="rights_confirmed" value="1"> Права проверены</label>'
-                        . '<button name="action" value="approve">Одобрить и активировать</button>'
-                        . '<button name="action" value="reject">Отклонить</button>'
+                    $html .= '<label><input type="checkbox" name="rights_confirmed" value="1">'
+                        . 'Права на аудио проверены</label>'
+                        . '<button class="primary" name="action" value="approve">Одобрить и включить</button>'
+                        . '<details class="decision-toggle"><summary>Другие решения</summary>'
+                        . '<div class="secondary-actions">'
+                        . '<button class="danger" name="action" value="reject">Отклонить</button>'
                         . '<button name="action" value="duplicate">Дубликат</button>'
                         . '<button name="action" value="wrong_track">Не тот трек</button>'
-                        . '<button name="action" value="bad_quality">Плохое качество</button>';
+                        . '<button name="action" value="bad_quality">Плохое качество</button>'
+                        . '</div></details>';
                 } elseif ($r['status'] === 'disabled') {
                     $html .= '<label><input type="checkbox" name="rights_confirmed" value="1">'
-                        . ' Права перепроверены</label><button name="action" value="reactivate">'
-                        . 'Восстановить после проверки</button>';
+                        . 'Права перепроверены</label>'
+                        . '<button class="primary" name="action" value="reactivate">Восстановить подмену</button>';
                 } else {
-                    $html .= '<button name="action" value="disable">Отключить</button>';
+                    $html .= '<button class="danger" name="action" value="disable">'
+                        . 'Отключить подмену</button>';
                 }
-                $html .= '</form>';
+                $html .= '</form></div>';
             }
-            $html .= '</section>';
+            $html .= '</article>';
         }
-        return $html.$this->queuePages('uploads',$status,$page,$hasNext);
+        if (!$rows) $html .= '<section class="empty"><strong>Записей пока нет</strong>'
+            . 'Попробуйте изменить фильтр статуса.</section>';
+        return $html . '</div>' . $this->queuePages('uploads', $status, $page, $perPage, $total);
     }
 
     private function requests(array $admin, string $csrf, array $query): string
