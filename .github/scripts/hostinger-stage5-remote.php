@@ -31,6 +31,15 @@ try {
     $approved = (new Celikom\Repositories\PdoCatalogRepository($pdo))->findActive('yandex', '144530503');
     if ($approved === null || (int) $approved['replacement_id'] !== 1
         || (int) $approved['duration_ms'] !== 180872) throw new RuntimeException('mapping');
+    // Stage 9 preservation gate: never auto-moderate the real or synthetic pending records.
+    $pendingCheck = $pdo->prepare("SELECT COUNT(*)
+        FROM track_replacements r JOIN tracks t ON t.id = r.track_id
+        WHERE r.id = ? AND r.status = 'pending' AND r.is_active = 0
+          AND t.service = 'yandex' AND t.service_track_id = ?");
+    foreach ([[2, '799133075'], [3, '38436680']] as [$replacementId, $serviceTrackId]) {
+        $pendingCheck->execute([$replacementId, $serviceTrackId]);
+        if ((int)$pendingCheck->fetchColumn() !== 1) throw new RuntimeException('protected-pending-changed');
+    }
     $key = (string) $approved['storage_key'];
     $store = new Celikom\Storage\LocalStorageAdapter($config['storage_path']);
     if (!$store->exists($key) || $store->getSize($key) !== (int) $approved['size_bytes']) throw new RuntimeException('missing-audio');
