@@ -54,7 +54,7 @@ CREATE TABLE IF NOT EXISTS user_auth_attempts (
 CREATE TABLE IF NOT EXISTS user_auth_events (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
   user_id BIGINT UNSIGNED NOT NULL,
-  event_name ENUM('user_registered','first_activation','login','account_disabled') NOT NULL,
+  event_name ENUM('user_registered','first_activation','login','account_disabled','celikom_started') NOT NULL,
   created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
   KEY auth_event_name_date (event_name, created_at),
   KEY auth_event_user_date (user_id, created_at),
