@@ -71,27 +71,19 @@ let uploadRequestId: string | null = null;
 let uploading = false;
 let opening = false;
 
-// Animate the old measured panel height to its finished size on the same frame.
-// Chrome popup resizes with this transition instead of snapping between layouts.
-// Without DOM animation support (or with reduced motion), content remains usable.
+// Chrome automatically sizes extension popups. Animating panel height caused
+// a visible expand-shrink bounce when the form exceeded the popup viewport.
+// Render only the final resolved content and softly fade it in without
+// animating layout size (including when result replaces the form).
 function transitionUploadPanel(update: () => void): void {
   const panel = uploadPanel;
-  if (!panel) { update(); return; }
-  const oldHeight = panel.hidden ? 0 : panel.getBoundingClientRect?.().height;
-  const entering = panel.hidden;
   update();
-  const newHeight = panel.hidden ? 0 : panel.getBoundingClientRect?.().height;
-  if (typeof oldHeight !== "number" || typeof newHeight !== "number" ||
-      typeof panel.animate !== "function" || !panel.style ||
+  if (!panel || panel.hidden || typeof panel.animate !== "function" ||
       window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
-  panel.style.overflow = "hidden";
-  const anim = panel.animate([
-    { height: oldHeight + "px", opacity: entering ? 0 : 1 },
-    { height: newHeight + "px", opacity: panel.hidden ? 0 : 1 }
-  ], { duration: entering ? 300 : 290, easing: "cubic-bezier(.2,.75,.25,1)" });
-  const release = () => { panel.style.overflow = ""; };
-  anim.onfinish = release;
-  anim.oncancel = release;
+  panel.animate([
+    { opacity: 0.72 },
+    { opacity: 1 }
+  ], { duration: 150, easing: "ease-out" });
 }
 
 function uploadMessage(value: string, kind = "info"): void {
