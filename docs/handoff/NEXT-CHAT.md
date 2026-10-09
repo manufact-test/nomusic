@@ -11,7 +11,7 @@
 
 ## Реальное состояние на 09.10.2026
 
-- **Этапы 0–5 приняты в рамках owner-only private testing. Этап 6 В РАЗРАБОТКЕ: пакеты 6.1–6.5 реализованы и проверены, весь этап НЕ принят.**
+- **Этапы 0–5 приняты в рамках owner-only private testing. Этап 6 В РАЗРАБОТКЕ: пакеты 6.1–6.6 реализованы и проверены, весь этап НЕ принят.**
 - Extension **0.4.4**, активный Hostinger release **0.4.4-0fee5892c82d01e8fe7936d76f064c48484f136d**, независимый серверный API version **0.4.0**.
 - API origin https://darkred-camel-588676.hostingersite.com. FEATURE_REPLACEMENTS=1, FEATURE_ANALYTICS=0. Данные и .env в приватном celikom/shared (audio, staging); backups/stage5 вне public_html.
 - Первый одобренный владелецем MP3: Яндекс Track ID **144530503**, Replacement ID **1**, duration **180872 ms**. Расширение реально воспроизводит его через подписанные HTTP Range, MediaSource/blob и применяет fail-open.
@@ -45,10 +45,12 @@ Existing repository Actions secrets HOSTINGER_SSH_KEY, HOSTINGER_DB_PASSWORD are
 
 **6.5 accepted by CI:** server `ResolveCachePolicy` and /config + resolve expose matching bounded TTLs (positive 5–120s, negative 5–60s, defaults 120/15). ApiClient respects server TTL, validates response types, caps positive cache by signed audio expiry minus 30s and doesn't cache network failures; ReplacementController permits negative retries from 5s instead of forcing 15s. CI: https://github.com/manufact-test/nomusic/actions/runs/37917754208 — **75/75 JavaScript tests**, PHP TTL contract and MySQL integration passed. No server deploy or new music; active 0.4.4 installation is unchanged. This enables server-side library changes to appear on **subsequent resolve calls after TTL**, not forced mid-song hot swap.
 
-**Exactly next: package 6.6.** Expand shared-library security/concurrency/Range/fail-open regressions on disposable MySQL and extension test fixtures. Then 6.7 controlled owner-only Hostinger/browser acceptance; ask the owner for browser-only steps when genuinely necessary. Do not repeat Stage 5 tests, upload new tracks or merge PR #6.
+**6.6 accepted by CI:** https://github.com/manufact-test/nomusic/actions/runs/37918863810 — 78/78 JavaScript tests; real disposable MySQL testing of one AudioAsset shared by two exact Track IDs via independent API instances, byte-exact HTTP 206/HEAD/416, CORS, signed tokens, isolated disable, real row-lock contention with two PDO connections and stale-active refusal, native Chromium signed Range audio and fail-open. No Hostinger deploy or new media. Commit 822b85107a24598a830d09c1f98874add2ade84d.
+
+**Exactly next: Stage 6.7.** Read-only Hostinger status 1/1/1 + config, artifact and restore readiness. Require express owner authorization for any live server/client upgrade or modification. Owner-only two-installation browser acceptance should use the existing reviewed Yandex Track ID 144530503, with unknown-original fallback, play/pause/seek/next, manual restore and bounded resolves. Old installed 0.4.4 browser acceptance cannot by itself certify new Stage 6.5 code. Do not merge PR #6 or upload additional music. Stage 6 not yet accepted.
 
 Keep PR #6 OPEN against develop until user explicitly approves merge. Branch `feature/api-range` current HEAD must always be refreshed. Stage 5 Hostinger remains on release `0.4.4-0fee5892c82d01e8fe7936d76f064c48484f136d` and extension 0.4.4.
 
 ## First-message template
 
-Продолжаем CELIKOM с этапа 6.6 — regression общей библиотеки replacements. Авторитетны мастер-ТЗ v1.5 и план v1.6. GitHub manufact-test/nomusic, branch feature/api-range, PR #6 открыт — не сливать. Этапы 0–5 owner-only приняты, этапы 6.1–6.5 прошли CI. 6.5 CI 37917754208: 75/75 JS, PHP TTL, MySQL — success. Library Action read-only inspect verified 1/1/1, no live modifications; GitHub request is validate. Проведи пакет 6.6 с тестами, затем согласуй отдельную 6.7 приёмку. Hostinger и существующий MP3 не изменять без отдельного разрешения.
+Продолжаем CELIKOM с этапа 6.7 — owner-only приёмка общей библиотеки. Master ТЗ v1.5, Plan v1.6, GitHub manufact-test/nomusic branch feature/api-range, PR #6 не сливать. Этапы 6.1–6.6 прошли CI; 6.6 CI 37918863810: 78/78 JS, MySQL/shared-assets/real lock contention, signed HTTP Range и Chromium. Live Hostinger release 0.4.4 и оригинальный MP3 пока нетронуты. Сначала read-only проверка live и подготовка rollback, затем только с явного согласия владельца деплой Stage 6 + browser acceptance. Не загружать новые треки.

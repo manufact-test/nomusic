@@ -1,6 +1,6 @@
 # CELIKOM-STAGE6-SHARED-LIBRARY — controlled implementation gate
 
-**Authority:** CELIKOM Master ТЗ MVP v1.5 and CELIKOM План работ MVP v1.6 (2026-10-09). Master ТЗ prevails on conflict. **Status:** 6.1–6.5 green; Stage 6 NOT yet accepted. Next gate: 6.6. PR #6 stays open.
+**Authority:** CELIKOM Master ТЗ MVP v1.5 and CELIKOM План работ MVP v1.6 (2026-10-09). Master ТЗ prevails on conflict. **Status:** 6.1–6.6 green; Stage 6 NOT yet accepted. Next gate: 6.7 owner-only acceptance. PR #6 stays open.
 
 ## Current source-derived architecture
 
@@ -65,3 +65,11 @@ The server accepts optional private `RESOLVE_CACHE_TTL_SECONDS` (default 120, bo
 **6.5 evidence:** [CI run 37917754208](https://github.com/manufact-test/nomusic/actions/runs/37917754208) passed 75 JavaScript tests (0 failures), PHP TTL config/resolve contract and disposable MySQL integration. Exact cache fallback still uses the old 120s/15s defaults for legacy server responses; no signed URL is kept beyond the 30-second safety margin. Changing an approved mapping is observed after the relevant TTL **on a subsequent resolve**, not as an automatic mid-playback hot swap. No deployment or live library modification occurred.
 
 **Next:** 6.6 full security, multiple-installations and fallback regression; 6.7 owner-only host/browser gate. Keep PR #6 open.
+
+## Stage 6.6 regression evidence (2026-10-09)
+
+[CI 37918863810](https://github.com/manufact-test/nomusic/actions/runs/37918863810) passed 78/78 JavaScript tests, PHP smoke and disposable MySQL integration, plus real native Chromium signed HTTP Range decoding.
+
+Two PDO-backed Applications serve two distinct exact IDs sharing one AudioAsset through different signed TrackReplacement URLs. New end-to-end tests verify byte-exact 206, HEAD without body, 416, CORS, no exposed storage key, 401 unauthorized resolve, 403 forged token and 404 after disable while the other Track remains playable. Two competing PDO editors exercise real InnoDB SELECT FOR UPDATE lock timeout; a later guarded activation succeeds, and a stale expected-active request is rejected. In the extension tests two independent clients converge on one approved mapping and observe disable after TTL; unknown Track does not engage GUARD or mute original. Tests use generated media and celikom_test MySQL only; neither Hostinger nor the installed extension changed.
+
+The test proves lock contention and correctness for controlled writes, not production-scale concurrency/load. Cache changes appear on a subsequent resolve after TTL, not as a forced mid-track swap. Next 6.7 owner-only gate.
