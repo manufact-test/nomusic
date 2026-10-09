@@ -34,3 +34,13 @@ Chrome показал `Uncaught RangeError: Maximum call stack size exceeded` в
 Сначала обновить PR HEAD, прочитать мастер-ТЗ §§11–13 и новый Stage7 runbook. Проверить фактическую схему данных, маршруты и текущий popup. Предложить точечный контракт 7.0 и начать реализацию на `feature/api-range` через GitHub только в изолированном CI. Сообщать фактический прогресс. Отдельно отслеживать issue #7. Не начинать с нового браузерного hotfix без диагностических оснований.
 
 **Нельзя утверждать, что Stage 6 полностью принят или что Stage 7 развёрнут в прод.**
+
+## 2026-10-09 — Stage 7.0–7.7 code handoff (newest entry; supersedes earlier NEXT work-order text)
+
+Latest source: `feature/api-range`. The Stage 7 server/private upload + Chrome UI foundation is committed and CI-green; do not confuse that with accepted/deployed. See `docs/test-plans/CELIKOM-STAGE7-UPLOAD-ANTIDUPES.md` and `docs/project-status.md`. CI: https://github.com/manufact-test/nomusic/actions/runs/37941932390 and https://github.com/manufact-test/nomusic/actions/runs/37942113245 (success). Check latest HEAD and new CI for subsequent documentation commits.
+
+New files: `server/migrations/002_pending_uploads.sql`; `server/src/Application/{UploadService,Mp3Inspector,AudioFingerprintService,DeferredFingerprintService,UploadRateLimiter,TrackRequestService}.php`; `server/tests/uploads.php`; `extension/src/upload/contract.ts`; `extension/tests/upload-contract.test.mjs`. Updated: `server/{src/Application.php,public/index.php,config/app.php,.env.example}`; `server/tests/http.mjs`; `scripts/test-server-foundation.mjs`; `extension/{src/popup/popup.ts,src/shared/messages.ts,popup/popup.html,popup/popup.css}`. Reuse Stage 6 library and private StorageAdapter; pending never resolves.
+
+**Next before owner manual acceptance:** review latest CI, ensure private extension artifact for owner test, prepare a disposable non-live upload API/DB/storage (without enabling uploads on active Hostinger). Test browser UI exact read-only ID, status pending, renamed duplicate and no public Resolve. Fingerprint worker not implemented; do not claim recompressed audio dedupe. Note PHP ini limits must support selected MP3 size in the future private test. Explicit user approval is required for any Hostinger/server/DB change, real upload, new live asset, deploy request, or merging PR #6. Public FEATURE_UPLOADS stays false to Stage 10; private FEATURE_OWNER_UPLOADS defaults off.
+
+**Carry-over issue:** https://github.com/manufact-test/nomusic/issues/7 — intermittent post-hotfix `RangeError: Maximum call stack size exceeded` in MAIN bundle around `restorePrototypeHooks()`. Root cause not reproduced; do not mark fixed or harmless. Stage 6.7 two-Chrome-profile check absent. Keep PR #6 open, main/develop untouched.
