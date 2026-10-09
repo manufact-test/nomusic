@@ -22,7 +22,12 @@
       <section class="upload-panel" data-upload-panel hidden aria-label="Добавить версию">
         <strong>Добавить версию</strong>
         <p class="stage">Только закрытый тест. Новые файлы не публикуются без ручной проверки.</p>
-        <form data-upload-form>
+        <div class="upload-result" data-upload-result hidden role="status" aria-live="polite">
+          <strong data-upload-result-title>Отправлено на проверку</strong>
+          <p data-upload-result-note>Версия ожидает модерации.</p>
+        </div>
+        <p class="upload-feedback" data-upload-status role="status" aria-live="polite">Выберите трек в Яндекс Музыке.</p>
+        <form data-upload-form hidden>
           <label class="stage" for="upload-track">Track ID · только чтение</label>
           <input id="upload-track" data-upload-track readonly aria-readonly="true" required>
           <label class="stage" for="upload-file">MP3 · до 30 МиБ</label>
@@ -32,7 +37,6 @@
           <label class="upload-rights"><input data-upload-rights type="checkbox" required> Подтверждаю, что имею необходимые права на этот аудиофайл.</label>
           <progress data-upload-progress max="100" value="0" hidden aria-label="Загрузка"></progress>
           <button class="primary wide" data-upload-submit type="submit">Отправить на проверку</button>
-          <p class="stage" role="status" aria-live="polite" data-upload-status>Загрузка закрыта для обычных пользователей.</p>
         </form>
       </section>
       <p class="track" data-track>Запустите трек в Яндекс Музыке</p>
