@@ -1,5 +1,6 @@
 import { COMMANDS, type ExtensionState } from "../shared/messages.js";
 import { uploadTargetFromStatus, validMp3Selection, privateUploadApiOrigin } from "../upload/contract.js";
+import { initAuthPanel } from "../auth/auth-popup.js";
 
 const status = document.querySelector<HTMLElement>("[data-status]");
 const startButton = document.querySelector<HTMLButtonElement>("[data-action='start']");
@@ -404,3 +405,6 @@ async function refresh(): Promise<void> {
 
 void refresh();
 window.setInterval(() => void refresh(), 1000);
+
+// Stage 9: independent account panel, never gates existing player or owner upload.
+initAuthPanel(send);

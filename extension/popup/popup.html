@@ -52,6 +52,24 @@
         <p class="upload-feedback" data-upload-status role="status" aria-live="polite" hidden></p>
       </section>
       <p class="track" data-track>Запустите трек в Яндекс Музыке</p>
+      <details class="account-panel" data-auth-panel hidden>
+        <summary data-auth-summary>Аккаунт</summary>
+        <form data-auth-form class="account-form">
+          <label for="auth-email">Email</label>
+          <input id="auth-email" data-auth-email type="email" maxlength="254" autocomplete="email" required>
+          <label for="auth-password">Пароль</label>
+          <input id="auth-password" data-auth-password type="password" minlength="12" maxlength="128" autocomplete="current-password" required>
+          <button class="primary wide" data-auth-submit type="submit">Войти</button>
+          <button class="quiet wide" data-auth-mode type="button">Создать аккаунт</button>
+        </form>
+        <div data-auth-signed hidden>
+          <p class="account-identity" data-auth-identity></p>
+          <button class="wide" type="button" data-auth-list-devices>Мои устройства</button>
+          <ul class="account-devices" data-auth-devices hidden></ul>
+          <button class="quiet wide" type="button" data-auth-logout>Выйти</button>
+        </div>
+        <p class="stage" data-auth-note role="status" aria-live="polite"></p>
+      </details>
       <details>
         <summary>Для разработчика</summary>
         <p class="stage">Stage 4 · серверный каталог. Тестовый ID включает встроенный сигнал; пустое поле включает API.</p>

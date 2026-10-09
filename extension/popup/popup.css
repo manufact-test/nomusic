@@ -200,3 +200,15 @@ button:focus-visible, input:focus-visible, summary:focus-visible { outline: 2px 
   .add-track-action, .upload-file-picker { transition: none; }
   .add-track-action[data-loading="true"]::before { animation: none; }
 }
+
+/* Stage 9: private customer identity lives below playback, never in main actions. */
+.account-panel { border: 1px solid #2a3439; border-radius: 10px; padding: 0 10px 10px; }
+.account-panel summary { font-size: 12px; color: #d6fff3; font-weight: 600; }
+.account-form { display: grid; gap: 5px; }
+.account-form label { font-size: 11px; color: #aab8be; }
+.account-form input { margin: 2px 0; }
+.account-panel .quiet { background: transparent; min-height: 34px; font-size: 12px; }
+.account-identity { overflow-wrap: anywhere; font-size: 12px; color: #8fffd2; }
+.account-devices { list-style: none; padding: 0; margin: 8px 0; display: grid; gap: 6px; }
+.account-devices li { display: flex; justify-content: space-between; gap: 8px; align-items: center; font-size: 11px; }
+.account-devices button { min-height: 30px; font-size: 11px; padding: 4px 8px; }

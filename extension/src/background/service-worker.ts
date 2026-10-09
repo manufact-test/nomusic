@@ -2,6 +2,7 @@ import { COMMANDS, normalizeEnabled, type ExtensionState } from "../shared/messa
 import { createControllerBootstrap } from "./controller-bootstrap.js";
 import { createApiBroker } from "../api/api-broker.js";
 import { validateApiAccess } from "../api/api-access-validation.js";
+import { createAuthBroker } from "../auth/auth-broker.js";
 
 const VERSION = chrome.runtime.getManifest().version;
 const DEFAULT_STATE: ExtensionState = Object.freeze({
@@ -11,6 +12,7 @@ const DEFAULT_STATE: ExtensionState = Object.freeze({
 });
 const bootstrap = createControllerBootstrap(chrome);
 const resolveApi = createApiBroker(chrome);
+const userAuth = createAuthBroker(chrome);
 
 async function readEnabled(): Promise<boolean> {
   const stored = await chrome.storage.local.get("enabled");
@@ -58,6 +60,7 @@ async function sendToActiveTab(message: object): Promise<unknown> {
 chrome.runtime.onInstalled.addListener(async () => {
   const stored = await chrome.storage.local.get("enabled");
   if (typeof stored.enabled !== "boolean") await chrome.storage.local.set({ enabled: DEFAULT_STATE.enabled });
+  await userAuth.installationId();
   await bootstrap.ensureOpenTabs();
 });
 
@@ -69,6 +72,17 @@ chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse) =>
   const type = typeof message === "object" && message !== null && "type" in message
     ? (message as { type?: unknown }).type
     : null;
+
+  if (type === "CELIKOM_AUTH") {
+    if (sender?.id !== chrome.runtime.id || sender?.url !== chrome.runtime.getURL("popup/popup.html")) {
+      sendResponse({ ok: false, error: "invalid_sender" }); return false;
+    }
+    const m = message as { action?: unknown };
+    if (typeof m.action !== "string") { sendResponse({ ok: false, error: "invalid_request" }); return false; }
+    void userAuth.perform(m.action, message as object).then(sendResponse)
+      .catch(() => sendResponse({ ok: false, error: "auth_unavailable" }));
+    return true;
+  }
 
   if (type === "CELIKOM_CONTEXT_PING") {
     // Respond only to the extension's own content script on Yandex Music.
@@ -109,7 +123,11 @@ chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse) =>
     const enabled = normalizeEnabled((message as { enabled?: unknown }).enabled);
     void chrome.storage.local.set({ enabled }).then(async () => {
       if (enabled) await sendToActiveTab({ type: COMMANDS.retryReplacement });
-      sendResponse(await readState(enabled));
+      const state = await readState(enabled);
+      if (enabled && (state.phase === "READY" || state.phase === "REPLACEMENT_ACTIVE")) {
+        void userAuth.perform("activate").catch(() => undefined);
+      }
+      sendResponse(state);
     });
     return true;
   }

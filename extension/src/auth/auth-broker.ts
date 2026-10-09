@@ -1,0 +1,175 @@
+// Customer tokens are kept in extension-origin IndexedDB, not shared chrome.storage.local.
+// Page/content scripts have no access to this extension-origin database.
+export function createSecretStore() {
+  const open = () => new Promise((resolve, reject) => {
+    const req = indexedDB.open("celikom-user-auth-v1", 1);
+    req.onupgradeneeded = () => req.result.createObjectStore("secrets");
+    req.onerror = () => reject(new Error("auth_storage_unavailable"));
+    req.onsuccess = () => resolve(req.result);
+  });
+  async function transact(mode, action) {
+    const db = await open();
+    try {
+      return await new Promise((resolve, reject) => {
+        const tx = db.transaction("secrets", mode);
+        const request = action(tx.objectStore("secrets"));
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(new Error("auth_storage_unavailable"));
+        tx.onerror = () => reject(new Error("auth_storage_unavailable"));
+      });
+    } finally { db.close(); }
+  }
+  return {
+    get: () => transact("readonly", (store) => store.get("active")),
+    set: (value) => transact("readwrite", (store) => store.put(value, "active")),
+    clear: () => transact("readwrite", (store) => store.delete("active"))
+  };
+}
+
+export function createAuthBroker(api, options = {}) {
+  const store = options.store || createSecretStore();
+  const request = options.fetch || globalThis.fetch.bind(globalThis);
+  const readConfig = options.readConfig || (async () => (await fetch(api.runtime.getURL("api/config.json"))).json());
+  let installationPromise = null;
+  let refreshPromise = null;
+
+  async function installationId() {
+    if (!installationPromise) {
+      installationPromise = (async () => {
+        const saved = await api.storage.local.get("celikomInstallationId");
+        if (typeof saved.celikomInstallationId === "string" &&
+          /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(saved.celikomInstallationId)) {
+          return saved.celikomInstallationId;
+        }
+        const id = crypto.randomUUID();
+        await api.storage.local.set({ celikomInstallationId: id });
+        return id;
+      })().catch((error) => { installationPromise = null; throw error; });
+    }
+    return installationPromise;
+  }
+
+  async function origin() {
+    const c = await readConfig();
+    const url = new URL(c.baseUrl);
+    if (url.protocol !== "https:" || url.username || url.password || url.search || url.hash || url.pathname !== "/") {
+      throw new Error("auth_unavailable");
+    }
+    return url.origin;
+  }
+
+  async function apiRequest(path, method = "GET", data = null, access = "") {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 8000);
+    try {
+      const response = await request((await origin()) + "/api/v1/" + path, {
+        method, credentials: "omit", redirect: "error", cache: "no-store", signal: ctrl.signal,
+        headers: { ...(data ? { "Content-Type": "application/json" } : {}), ...(access ? { Authorization: "Bearer " + access } : {}) },
+        body: data ? JSON.stringify(data) : undefined
+      });
+      if (!response.headers.get("content-type")?.startsWith("application/json")) throw new Error("auth_unavailable");
+      if (Number(response.headers.get("content-length")) > 16384) throw new Error("auth_unavailable");
+      const parsed = await response.text();
+      if (parsed.length > 16384) throw new Error("auth_unavailable");
+      const result = JSON.parse(parsed);
+      if (!response.ok) {
+        const safe = new Set(["invalid_credentials", "account_disabled", "account_unavailable", "weak_password", "rate_limited", "invalid_session", "invalid_request"]);
+        throw new Error(safe.has(result?.error) ? result.error : "auth_unavailable");
+      }
+      return result;
+    } finally { clearTimeout(timer); }
+  }
+
+  async function isAvailable() {
+    try {
+      const response = await apiRequest("config");
+      return response?.features?.auth === true;
+    } catch (_error) { return false; }
+  }
+
+  async function refresh(stored) {
+    if (!refreshPromise) {
+      refreshPromise = (async () => {
+        const data = await apiRequest("auth/refresh", "POST", {
+          refresh_token: stored.refresh_token, installation_id: await installationId()
+        });
+        if (!validAuth(data)) throw new Error("auth_unavailable");
+        await store.set(data);
+        return data;
+      })().finally(() => { refreshPromise = null; });
+    }
+    return refreshPromise;
+  }
+
+  function validAuth(value) {
+    return /^[0-9a-f]{64}$/.test(value?.access_token || "") &&
+      /^[0-9a-f]{64}$/.test(value?.refresh_token || "") &&
+      typeof value?.user?.id === "number" && typeof value?.user?.email === "string";
+  }
+
+  async function current() {
+    const saved = await store.get();
+    if (!saved) throw new Error("invalid_session");
+    try {
+      await apiRequest("auth/me", "GET", null, saved.access_token);
+      return saved;
+    } catch (error) {
+      if (error?.message !== "invalid_session" && error?.message !== "auth_unavailable") throw error;
+      // On server-side expiry, rotate once; network failures must not erase credentials.
+      return refresh(saved);
+    }
+  }
+
+  async function perform(action, message = {}) {
+    if (action === "installation") return { ok: true, installation_id: await installationId() };
+    if (action === "status") {
+      if (!await isAvailable()) return { ok: true, available: false, signedIn: false };
+      const saved = await store.get();
+      if (!saved) return { ok: true, available: true, signedIn: false };
+      try {
+        const active = await current();
+        return { ok: true, available: true, signedIn: true, user: active.user };
+      } catch (error) {
+        return { ok: true, available: true, signedIn: false, error: error?.message === "invalid_session" ? "session_expired" : "auth_unavailable" };
+      }
+    }
+    if (!await isAvailable()) return { ok: false, error: "auth_disabled" };
+    try {
+      if (action === "login" || action === "register") {
+        if (typeof message.email !== "string" || typeof message.password !== "string" ||
+            message.email.length > 254 || message.password.length > 128) return { ok: false, error: "invalid_request" };
+        const credentials = await apiRequest("auth/" + action, "POST", {
+          email: message.email, password: message.password, installation_id: await installationId()
+        });
+        if (!validAuth(credentials)) throw new Error("auth_unavailable");
+        await store.set(credentials);
+        return { ok: true, user: credentials.user };
+      }
+      if (action === "logout") {
+        const saved = await store.get();
+        if (saved) {
+          await apiRequest("auth/logout", "POST", {
+            refresh_token: saved.refresh_token, installation_id: await installationId()
+          });
+          await store.clear();
+        }
+        return { ok: true };
+      }
+      if (action === "sessions" || action === "activate" || action === "revoke") {
+        const saved = await current();
+        const endpoint = action === "sessions" ? "auth/sessions" : action === "activate" ? "auth/activate" : "auth/sessions/revoke";
+        const body = action === "revoke" ? { session_id: message.session_id } : {};
+        const data = await apiRequest(endpoint, action === "sessions" ? "GET" : "POST", action === "sessions" ? null : body, saved.access_token);
+        if (action === "revoke" && Number.isInteger(message.session_id)) {
+          // The server owns revocation; the client never assumes an unrelated device is revoked.
+        }
+        return { ok: true, ...data };
+      }
+      return { ok: false, error: "invalid_request" };
+    } catch (error) {
+      const safe = new Set(["invalid_credentials", "account_disabled", "account_unavailable", "weak_password", "rate_limited", "invalid_session", "invalid_request"]);
+      return { ok: false, error: safe.has(error?.message) ? error.message : "auth_unavailable" };
+    }
+  }
+  return { perform, installationId };
+}
