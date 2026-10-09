@@ -15,4 +15,6 @@ Updated: 2026-10-09. Requirement authorities are `CELIKOM_Master_TZ_MVP_v1.5` an
 
 No accounts, user upload flow, moderation admin, billing, Android playback or client release are claimed complete. Stages 7–18 retain the order and scope of the authoritative plan; Stage 6 remains incomplete until 6.5–6.7. Public repository closure remains the mandatory Stage 18 gate before client release.
 
+Stage 6.7 read-only baseline was reverified: [Hostinger inspect 37919329751](https://github.com/manufact-test/nomusic/actions/runs/37919329751) returned 1 Track, 1 Asset, 1 Mapping, replacements on, analytics off. No live writes.
+
 Next action: Stage 6.7 controlled owner-only acceptance. First recheck the live approved catalog and API read-only; prepare SHA-pinned artifacts and verify rollback plan; require explicit owner authorization before any installed-extension upgrade or Hostinger deployment. Owner then validates two independent installations against the existing approved Track and original fallback, normal controls and fail-open. Stage 6 is NOT accepted yet. Keep PR #6 open and library request in validate mode.

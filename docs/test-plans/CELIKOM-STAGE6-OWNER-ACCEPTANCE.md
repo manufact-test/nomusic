@@ -18,3 +18,7 @@ Authority: CELIKOM Master TZ MVP v1.5, Work Plan MVP v1.6. Stage 6 is not accept
 5. Verify no per-500ms resolution requests, no leaks, safe fail-open after disabled extension/API failure, and readiness to roll back to existing 0.4.4.
 
 Public uploads, account access, subscriptions and moderation admin remain later stages. Do not merge PR #6 without explicit permission.
+
+## Stage 6.7 read-only baseline (2026-10-09)
+
+[GitHub Actions 37919329751](https://github.com/manufact-test/nomusic/actions/runs/37919329751) completed successfully using pinned SSH and the read-only private library inspection: **1 Track, 1 AudioAsset, 1 TrackReplacement**; public API replacements enabled, analytics disabled. No database writes, music uploads or Hostinger deploy were performed. The workflow request has been returned to safe local-only `validate`. This alone does **not** constitute full 6.7 acceptance; private deployment/upgrade and owner-observed two-installation browser tests remain gated by express authorization.
