@@ -222,6 +222,7 @@ uploadFile?.addEventListener("change", () => {
   uploadRequestId = null;
   if (uploadProgress) uploadProgress.value = 0;
   setPickerState();
+  uploadMessage("");
 });
 
 // Native file picker via <label> and optional drag-and-drop share one validated input.
