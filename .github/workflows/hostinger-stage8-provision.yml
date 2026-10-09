@@ -40,6 +40,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: celikom-stage8-private-admin-access-${{ github.sha }}
-          path: dist/stage8-admin-access/owner-credentials.txt
+          path: dist/stage8-admin-access/owner-password.encrypted
           if-no-files-found: ignore
           retention-days: 1
