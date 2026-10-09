@@ -13,7 +13,7 @@ for (const failHealth of [false,true]) {
   try {
     const site=path.join(root,'site'), app=path.join(site,'celikom'), pub=path.join(site,'public_html');
     const incoming=path.join(app,'incoming',releaseId), fixture=path.join(root,'fixture'), bin=path.join(root,'bin');
-    for (const dir of [pub,incoming,bin,path.join(app,'releases','previous'),path.join(fixture,'public'),path.join(fixture,'deploy'),path.join(fixture,'bin')]) await mkdir(dir,{recursive:true});
+    for (const dir of [pub,incoming,bin,path.join(app,'releases','previous'),path.join(fixture,'public'),path.join(fixture,'deploy'),path.join(fixture,'bin'),path.join(fixture,'config')]) await mkdir(dir,{recursive:true});
     await symlink(path.join(app,'releases','previous'),path.join(app,'current'));
     await writeFile(path.join(pub,'index.php'),'previous public entry');
     await writeFile(path.join(pub,'.htaccess'),'previous rules');
@@ -22,6 +22,7 @@ for (const failHealth of [false,true]) {
     await writeFile(path.join(fixture,'deploy','public-entry.php'),'candidate public entry');
     await writeFile(path.join(fixture,'deploy','initialize-private-test.php'),'<?php stream_get_contents(STDIN); echo "Fixture configuration ready\\n";');
     await writeFile(path.join(fixture,'bin','migrate.php'),'<?php echo "Fixture schema ready\\n";');
+    await writeFile(path.join(fixture,'config','app.php'),"<?php return ['version' => '0.4.0'];");
     const zip=spawnSync('zip',['-q','-r',path.join(incoming,'package.zip'),'.'],{cwd:fixture}); assert.equal(zip.status,0);
     const checksum=spawnSync('sha256sum',['package.zip'],{cwd:incoming,encoding:'utf8'}); assert.equal(checksum.status,0);
     await writeFile(path.join(incoming,'package.zip.sha256'),checksum.stdout);
