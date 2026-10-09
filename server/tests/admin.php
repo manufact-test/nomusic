@@ -25,6 +25,7 @@ $config['admin_enabled'] = true;
 $config['api_enabled'] = true;
 $config['test_api_token'] = str_repeat('stage8-test-read-', 3);
 $config['analytics_privacy_key'] = str_repeat('stage8-private-hmac-', 3);
+$config['audio_signing_key'] = str_repeat('stage8-test-audio-key-', 3);
 $config['owner_reports_enabled'] = true;
 $config['owner_report_token'] = str_repeat('stage8-only-report-token-', 3);
 $pass = 'test-' . bin2hex(random_bytes(16));
@@ -145,6 +146,16 @@ try{
             throw new RuntimeException('Stale approval succeeded');}
         catch(DomainException $e){expect($e->getMessage()==='stale_moderation_form','Stale form guarded');}
     });
+    run('Stage 8: independent clients resolve only the explicitly approved version',function()
+        use($config,$track,$candidate):void{
+        $peer=new Application($config);
+        $readToken=['Authorization'=>'Bearer '.$config['test_api_token']];
+        $reply=$peer->handle('GET','/api/v1/resolve',
+            ['service'=>'yandex','track_id'=>$track],$readToken);
+        $result=json_decode($reply->body,true,flags:JSON_THROW_ON_ERROR);
+        expect($reply->status===200 && $result['found']===true
+            && (int)$result['replacement_id']===$candidate,'Independent read client sees approval');
+    });
     run('Stage 8 report endpoint: authenticated, duplicate-safe, admin-readable and audited',function()
         use($app,$config,$candidate,$sessionHeaders,$actionHeaders,$csrf,$pdo):void{
         $report=['replacement_id'=>$candidate,'category'=>'bad_quality','details'=>'synthetic report',
@@ -199,6 +210,14 @@ try{
     run('Stage 8 disable instantly removes resolved version',function()use($mod,$adminId,$candidate,$catalog,$track):void{
         $mod->replacement($adminId,$candidate,'disable','rights withdrawn',$candidate,false);
         expect($catalog->findActive('yandex',$track)===null,'Disable removes public mapping');
+    });
+    run('Stage 8: independent clients fail open after explicit disable',function()
+        use($config,$track):void{
+        $peer=new Application($config);
+        $reply=$peer->handle('GET','/api/v1/resolve',['service'=>'yandex','track_id'=>$track],
+            ['Authorization'=>'Bearer '.$config['test_api_token']]);
+        $result=json_decode($reply->body,true,flags:JSON_THROW_ON_ERROR);
+        expect($reply->status===200 && $result['found']===false,'No disabled mapping for independent client');
     });
     run('Stage 8 restore requires explicit fresh rights check, then can be disabled again',function()
         use($mod,$adminId,$candidate,$catalog,$track):void{
