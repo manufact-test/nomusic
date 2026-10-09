@@ -1,8 +1,9 @@
 import assert from "node:assert/strict";
-import { spawn } from "node:child_process";
-import { access } from "node:fs/promises";
+import { spawn, spawnSync } from "node:child_process";
+import { access, mkdtemp, writeFile, rm } from "node:fs/promises";
 import { createServer } from "node:net";
 import path from "node:path";
+import os from "node:os";
 import { fileURLToPath } from "node:url";
 import { randomBytes, randomUUID } from "node:crypto";
 import { ApiClient } from "../../extension/dist/unpacked/api/api-client.js";
@@ -12,10 +13,21 @@ const probe = createServer();
 await new Promise(resolve => probe.listen(0, "127.0.0.1", resolve));
 const port = probe.address().port; await new Promise(resolve => probe.close(resolve));
 const origin = `http://127.0.0.1:${port}`;
+// Playable, newly synthesized CI audio (no user songs, no third-party media).
+const scratch = await mkdtemp(path.join(os.tmpdir(), "celikom-stage7-http-"));
+const mp3Path = path.join(scratch, "tone.mp3");
+const ffmpeg = spawnSync("ffmpeg", ["-hide_banner", "-loglevel", "error", "-f", "lavfi",
+  "-i", "sine=frequency=440:duration=2.5", "-ac", "2", "-ar", "44100",
+  "-c:a", "libmp3lame", "-b:a", "128k", "-f", "mp3", "pipe:1"],
+  { maxBuffer: 1024 * 1024 });
+assert.equal(ffmpeg.status, 0, "Stage 7 CI needs FFmpeg for disposable, playable MP3 media");
+const syntheticMp3 = Buffer.from(ffmpeg.stdout);
+assert.ok(syntheticMp3.length > 1024 && syntheticMp3.length < 31457280);
+await writeFile(mp3Path, syntheticMp3);
 const accessToken = randomBytes(24).toString("hex");
 const ownerUploadToken = randomBytes(40).toString("hex");
 const server = spawn("php", ["-S", `127.0.0.1:${port}`, "-t", path.join(root, "public"), path.join(root, "tests/http-router.php")], {
-  env: { ...process.env, APP_ENV: "test", FEATURE_REPLACEMENTS: "1", AUDIO_SIGNING_KEY: randomBytes(32).toString("hex"), API_TEST_TOKEN: accessToken, FEATURE_OWNER_UPLOADS: "1", UPLOAD_OWNER_TOKEN: ownerUploadToken, CELIKOM_TEST_ORIGIN: origin, PHP_CLI_SERVER_WORKERS: "4" }, stdio: ["ignore", "ignore", "pipe"]
+  env: { ...process.env, APP_ENV: "test", FEATURE_REPLACEMENTS: "1", AUDIO_SIGNING_KEY: randomBytes(32).toString("hex"), API_TEST_TOKEN: accessToken, FEATURE_OWNER_UPLOADS: "1", UPLOAD_OWNER_TOKEN: ownerUploadToken, CELIKOM_TEST_ORIGIN: origin, PHP_CLI_SERVER_WORKERS: "4", CELIKOM_STAGE7_TEST_MP3: mp3Path }, stdio: ["ignore", "ignore", "pipe"]
 });
 let diagnostics = "";
 server.stderr.on("data", chunk => { diagnostics = (diagnostics + chunk).slice(-4000); });
@@ -48,8 +60,6 @@ try {
   console.log("PASS real PHP HTTP + MySQL resolve and byte-exact 200/206/416/HEAD");
 
   // Real PHP SAPI multipart: tests is_uploaded_file(), header gate, and pending isolation.
-  const frame = Buffer.concat([Buffer.from("fffb9064", "hex"), Buffer.alloc(413)]);
-  const syntheticMp3 = Buffer.concat(Array.from({ length: 100 }, () => frame));
   const ownerHeaders = { Authorization: "Bearer " + ownerUploadToken };
   const requestId = randomUUID();
   function uploadBody(trackId, id = requestId, filename = "synthetic.mp3") {
@@ -120,6 +130,20 @@ try {
     });
     assert.equal(code, 0); assert.match(dom, /data-audio-result="ok"/, "Native browser audio could not load/seek/play the signed WAV");
     console.log("PASS native Chromium HTMLAudioElement decodes, seeks and plays signed Range audio");
+    const mp3Browser = spawn(browserBinary, ["--headless=new", "--no-sandbox",
+      "--disable-dev-shm-usage", "--disable-gpu", "--autoplay-policy=no-user-gesture-required",
+      "--virtual-time-budget=12000", "--dump-dom", origin + "/stage7-browser-mp3-play"], {
+        stdio: ["ignore", "pipe", "ignore"]
+      });
+    let mp3Dom = ""; mp3Browser.stdout.on("data", (chunk) => { mp3Dom += chunk; });
+    const mp3Code = await new Promise((resolve, reject) => {
+      const deadline = setTimeout(() => { mp3Browser.kill("SIGKILL"); reject(new Error("MP3 decode timed out")); }, 45000);
+      mp3Browser.on("error", error => { clearTimeout(deadline); reject(error); });
+      mp3Browser.on("close", code => { clearTimeout(deadline); resolve(code); });
+    });
+    assert.equal(mp3Code, 0);
+    assert.match(mp3Dom, /data-audio-result="ok"/, "Native Chromium could not decode and seek synthetic Stage 7 MP3");
+    console.log("PASS Stage 7 native Chromium decodes, seeks and plays synthetic MP3");
   } else if (process.env.REQUIRE_BROWSER_AUDIO === "1") {
     throw new Error("CI must provide a Chromium binary for native Audio seek");
   } else {
@@ -135,4 +159,5 @@ try {
     const closed = new Promise(resolve => server.once("close", resolve));
     server.kill("SIGTERM"); await closed;
   }
+  await rm(scratch, { recursive: true, force: true });
 }
