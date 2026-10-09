@@ -83,7 +83,9 @@ final class UploadService
 
         $existing = $this->submission($uploaderHash, $requestId);
         if ($existing !== null) {
-            if ($existing['service'] !== $service || $existing['service_track_id'] !== $trackId || $existing['sha256'] !== $sha) {
+            if (($existing['replacement_status'] ?? null) !== 'pending'
+                || $existing['service'] !== $service || $existing['service_track_id'] !== $trackId
+                || $existing['sha256'] !== $sha) {
                 throw new \DomainException('idempotency_conflict');
             }
             return ['status' => 'pending', 'replacement_id' => (int) $existing['replacement_id'], 'duplicate' => true];
@@ -162,7 +164,9 @@ final class UploadService
             $this->pdo->rollBack();
             if ($error instanceof \PDOException && ($error->errorInfo[1] ?? null) === 1062) {
                 $retry = $this->submission($uploaderHash, $requestId);
-                if ($retry && $retry['sha256'] === $sha && $retry['service_track_id'] === $trackId && $retry['service'] === $service) {
+                if ($retry && ($retry['replacement_status'] ?? null) === 'pending' &&
+                    $retry['sha256'] === $sha && $retry['service_track_id'] === $trackId &&
+                    $retry['service'] === $service) {
                     return ['status' => 'pending', 'replacement_id' => (int) $retry['replacement_id'], 'duplicate' => true];
                 }
                 throw new \DomainException('idempotency_conflict');
@@ -173,7 +177,9 @@ final class UploadService
 
     private function submission(string $owner, string $id): ?array
     {
-        $stmt = $this->pdo->prepare('SELECT * FROM upload_submissions WHERE uploader_hash = ? AND request_id = ?');
+        $stmt = $this->pdo->prepare('SELECT u.*, r.status AS replacement_status
+            FROM upload_submissions u JOIN track_replacements r ON r.id = u.replacement_id
+            WHERE u.uploader_hash = ? AND u.request_id = ?');
         $stmt->execute([$owner, strtolower($id)]);
         return $stmt->fetch(\PDO::FETCH_ASSOC) ?: null;
     }
