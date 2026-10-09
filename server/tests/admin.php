@@ -212,6 +212,40 @@ try{
         expect(str_contains($card->body,'Комментарий после проверки') && str_contains($journal->body,'Комментарий после проверки'),
             'Comment shown in card and journal');
     });
+
+    run('Stage 8 rejection categories map to existing audited actions',function()
+        use($pdo,$track,$assetId,$app,$csrf,$actionHeaders,$sessionHeaders):void{
+        foreach ([['duplicate','','replacement_duplicate','Дубликат'],
+                  ['bad_quality','Звук с помехами','replacement_bad_quality','Плохое качество'],
+                  ['other','Моя отдельная причина','replacement_reject','Другая причина']] as $i=>$case) {
+            [$category,$comment,$expectedAction,$label]=$case;
+            $trackName=$track.'8'.($i+1);
+            $pdo->prepare('INSERT INTO tracks(service,service_track_id,artist,title,duration_ms) VALUES(?,?,?,?,?)')
+                ->execute(['yandex',$trackName,'CI','Two step rejection',2612]);
+            $dbTrack=(int)$pdo->lastInsertId();
+            $pdo->prepare("INSERT INTO track_replacements(track_id,audio_asset_id,status,is_active) VALUES(?,?,'pending',0)")
+                ->execute([$dbTrack,$assetId]);
+            $id=(int)$pdo->lastInsertId();
+            $form=['csrf'=>$csrf,'kind'=>'replacement','id'=>(string)$id,'expected_active'=>'0',
+                'decision'=>'rejection','action'=>'reject','reject_category'=>$category,'review_note'=>$comment];
+            if ($category==='other') {
+                expect($app->handle('POST','/admin/action',headers:$actionHeaders,
+                    body:http_build_query(array_merge($form,['review_note'=>''])))->status===400,
+                    'Custom reason cannot be blank');
+            }
+            expect($app->handle('POST','/admin/action',headers:$actionHeaders,
+                body:http_build_query($form))->status===303,'Rejection confirmed');
+            $q=$pdo->prepare('SELECT status,is_active FROM track_replacements WHERE id=?');$q->execute([$id]);
+            $state=$q->fetch(PDO::FETCH_ASSOC);
+            expect($state['status']==='rejected' && (int)$state['is_active']===0,'Not activated');
+            $q=$pdo->prepare('SELECT reason FROM audit_log WHERE entity_type=? AND entity_id=? AND action=? ORDER BY id DESC LIMIT 1');
+            $q->execute(['track_replacement',$id,$expectedAction]);$reason=$q->fetchColumn();
+            expect(is_string($reason) && str_contains($reason,$label)
+                && ($comment==='' || str_contains($reason,$comment)),'Saved rejection reason');
+        }
+        $view=$app->handle('GET','/admin',['tab'=>'uploads','status'=>'rejected'],$sessionHeaders);
+        expect(str_contains($view->body,'Моя отдельная причина'),'Reason appears in card');
+    });
     run('Stage 8 admin audio: only session may stream pending with Range',function()use($app,$candidate,$sessionHeaders):void{
         $resp=$app->handle('GET','/admin/audio/'.$candidate,headers:$sessionHeaders+['Range'=>'bytes=0-3']);
         expect($resp->status===206 && bytes($resp)===hex2bin('fffb9064'),'Private Range playback');
