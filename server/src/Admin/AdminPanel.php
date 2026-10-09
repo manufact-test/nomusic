@@ -496,34 +496,68 @@ final class AdminPanel
                 && ($r['status'] === 'pending'
                     || ($r['status'] === 'approved' && (int) $r['is_active'] === 1)
                     || ($r['status'] === 'disabled' && $admin['role'] === 'owner' && !$r['active_id']))) {
-                $html .= '<div class="decision"><form method="post" action="/admin/action">'
-                    . '<input type="hidden" name="csrf" value="' . $csrf . '">'
+                $common = '<input type="hidden" name="csrf" value="' . $csrf . '">'
                     . '<input type="hidden" name="kind" value="replacement">'
                     . '<input type="hidden" name="id" value="' . $id . '">'
                     . '<input type="hidden" name="expected_active" value="'
-                    . (int) ($r['active_id'] ?? 0) . '">'
-                    . '<label class="form-field">Причина решения'
-                    . '<input name="reason" required maxlength="500" placeholder="Кратко опишите проверку"></label>';
+                    . (int) ($r['active_id'] ?? 0) . '">';
                 if ($r['status'] === 'pending') {
-                    $html .= '<label><input type="checkbox" name="rights_confirmed" value="1">'
-                        . 'Права на аудио проверены</label>'
-                        . '<button class="primary" name="action" value="approve">Одобрить и включить</button>'
-                        . '<details class="decision-toggle"><summary>Другие решения</summary>'
-                        . '<div class="secondary-actions">'
-                        . '<button class="danger" name="action" value="reject">Отклонить</button>'
-                        . '<button name="action" value="duplicate">Дубликат</button>'
-                        . '<button name="action" value="wrong_track">Не тот трек</button>'
-                        . '<button name="action" value="bad_quality">Плохое качество</button>'
-                        . '</div></details>';
-                } elseif ($r['status'] === 'disabled') {
-                    $html .= '<label><input type="checkbox" name="rights_confirmed" value="1">'
-                        . 'Права перепроверены</label>'
-                        . '<button class="primary" name="action" value="reactivate">Восстановить подмену</button>';
+                    // Native details groups form a two-step confirmation without JS.
+                    $html .= '<section class="decision" aria-label="Решение по версии">'
+                        . '<div class="decision-heading">Решение по версии</div>'
+                        . '<div class="decision-options">'
+                        . '<details class="decision-choice choice-approval" name="review-' . $id . '">'
+                        . '<summary>✓ Одобрить</summary><div class="decision-body">'
+                        . '<p class="muted">Проверьте аудио и права. Открытие формы ничего не меняет.</p>'
+                        . '<form method="post" action="/admin/action">' . $common
+                        . '<input type="hidden" name="action" value="approve">'
+                        . '<input type="hidden" name="decision" value="approval">'
+                        . '<label class="rights-check"><input type="checkbox" name="rights_confirmed"'
+                        . ' value="1" required>Подтверждаю, что проверил аудио и права на его использование</label>'
+                        . '<label class="form-field" for="approve-note-' . $id . '">'
+                        . 'Комментарий (необязательно)'
+                        . '<textarea id="approve-note-' . $id . '" name="review_note" maxlength="180"'
+                        . ' rows="2" placeholder="При необходимости добавьте пояснение"></textarea></label>'
+                        . '<button class="primary" type="submit">Подтвердить одобрение</button>'
+                        . '</form></div></details>'
+                        . '<details class="decision-choice choice-rejection" name="review-' . $id . '">'
+                        . '<summary>✕ Отклонить</summary><div class="decision-body">'
+                        . '<p class="muted">Выберите причину отклонения и подтвердите решение.</p>'
+                        . '<form method="post" action="/admin/action">' . $common
+                        . '<input type="hidden" name="action" value="reject">'
+                        . '<input type="hidden" name="decision" value="rejection">'
+                        . '<label class="form-field" for="reject-category-' . $id . '">'
+                        . 'Причина отклонения<select name="reject_category" id="reject-category-' . $id . '" required>'
+                        . '<option value="" selected disabled>Выберите причину</option>'
+                        . '<option value="duplicate">Дубликат</option>'
+                        . '<option value="wrong_track">Не тот трек</option>'
+                        . '<option value="bad_quality">Плохое качество</option>'
+                        . '<option value="rights">Проблемы с правами</option>'
+                        . '<option value="other">Другая причина</option>'
+                        . '</select></label>'
+                        . '<label class="form-field" for="reject-note-' . $id . '">'
+                        . 'Комментарий (обязателен для «Другой причины»)'
+                        . '<textarea id="reject-note-' . $id . '" name="review_note" maxlength="180"'
+                        . ' rows="2" placeholder="Свой вариант причины или подробности"></textarea></label>'
+                        . '<button class="danger" type="submit">Подтвердить отклонение</button>'
+                        . '</form></div></details></div></section>';
                 } else {
-                    $html .= '<button class="danger" name="action" value="disable">'
-                        . 'Отключить подмену</button>';
+                    $html .= '<div class="decision"><form method="post" action="/admin/action">'
+                        . $common
+                        . '<label class="form-field">Причина решения'
+                        . '<input name="reason" required maxlength="500"'
+                        . ' placeholder="Кратко опишите проверку"></label>';
+                    if ($r['status'] === 'disabled') {
+                        $html .= '<label><input type="checkbox" name="rights_confirmed" value="1">'
+                            . ' Права перепроверены</label>'
+                            . '<button class="primary" name="action" value="reactivate">'
+                            . 'Восстановить подмену</button>';
+                    } else {
+                        $html .= '<button class="danger" name="action" value="disable">'
+                            . 'Отключить подмену</button>';
+                    }
+                    $html .= '</form></div>';
                 }
-                $html .= '</form></div>';
             }
             $html .= '</article>';
         }
