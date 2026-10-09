@@ -23,6 +23,8 @@ $pdo = Connection::open($config);
 $storage = new LocalStorageAdapter($config['storage_path']);
 $config['admin_enabled'] = true;
 $config['api_enabled'] = true;
+$config['test_api_token'] = str_repeat('stage8-test-read-', 3);
+$config['analytics_privacy_key'] = str_repeat('stage8-private-hmac-', 3);
 $pass = 'test-' . bin2hex(random_bytes(16));
 $login = 'stage8-' . substr(bin2hex(random_bytes(8)), 0, 10);
 $pdo->prepare("INSERT INTO admins (login,password_hash,role) VALUES (?,?,'owner')")
@@ -109,6 +111,28 @@ try{
             throw new RuntimeException('Stale approval succeeded');}
         catch(DomainException $e){expect($e->getMessage()==='stale_moderation_form','Stale form guarded');}
     });
+    run('Stage 8 report endpoint: authenticated, duplicate-safe, admin-readable and audited',function()
+        use($app,$config,$candidate,$sessionHeaders,$actionHeaders,$csrf,$pdo):void{
+        $report=['replacement_id'=>$candidate,'category'=>'bad_quality','details'=>'synthetic report',
+            'installation_id'=>'00000000-0000-4000-8000-000000000011'];
+        $body=json_encode($report,JSON_THROW_ON_ERROR);
+        $endpointHeaders=['Content-Type'=>'application/json'];
+        expect($app->handle('POST','/api/v1/report',headers:$endpointHeaders,body:$body)->status===401,'Protected intake');
+        $headers=$endpointHeaders+['Authorization'=>'Bearer '.$config['test_api_token']];
+        $response=$app->handle('POST','/api/v1/report',headers:$headers,body:$body);
+        expect($response->status===202,'Report accepted');
+        $record=json_decode($response->body,true,flags:JSON_THROW_ON_ERROR);
+        expect($record['status']==='pending' && $record['duplicate']===false,'Pending report');
+        $again=json_decode($app->handle('POST','/api/v1/report',headers:$headers,body:$body)->body,true);
+        expect($again['duplicate']===true && $again['report_id']===$record['report_id'],'No duplicate report');
+        $page=$app->handle('GET','/admin',['tab'=>'reports'],$sessionHeaders);
+        expect(str_contains($page->body,'synthetic report'),'Admin sees report');
+        $form=http_build_query(['csrf'=>$csrf,'kind'=>'report','id'=>$record['report_id'],
+            'action'=>'reviewed','reason'=>'checked synthetic report']);
+        expect($app->handle('POST','/admin/action',headers:$actionHeaders,body:$form)->status===303,'Admin report reviewed');
+        $q=$pdo->prepare('SELECT status FROM reports WHERE id=?');$q->execute([$record['report_id']]);
+        expect($q->fetchColumn()==='reviewed','Report reviewed in DB');
+    });
     run('Stage 8 disable instantly removes resolved version',function()use($mod,$adminId,$candidate,$catalog,$track):void{
         $mod->replacement($adminId,$candidate,'disable','rights withdrawn',$candidate,false);
         expect($catalog->findActive('yandex',$track)===null,'Disable removes public mapping');
@@ -138,6 +162,17 @@ try{
     run('Stage 8 all committed admin decisions include audit',function()use($pdo,$adminId):void{
         $q=$pdo->prepare('SELECT COUNT(*) FROM audit_log WHERE admin_id=?');$q->execute([$adminId]);
         expect((int)$q->fetchColumn()>=4,'Audited approved, disabled, rejected and reviewed');
+    });
+    run('Stage 8 operational overview and audited CSV use real data only',function()use($app,$sessionHeaders,$pdo,$adminId):void{
+        $date=gmdate('Y-m-d');
+        $overview=$app->handle('GET','/admin',['tab'=>'overview','from'=>$date,'to'=>$date],$sessionHeaders);
+        expect($overview->status===200 && str_contains($overview->body,'Операционный обзор'),'Overview ready');
+        expect(str_contains($overview->body,'Нули не подставляются'),'No invented analytics');
+        $csv=$app->handle('GET','/admin/export',headers:$sessionHeaders);
+        expect($csv->status===200 && str_contains($csv->body,'created_at,admin,action'),'Private CSV');
+        $q=$pdo->prepare("SELECT COUNT(*) FROM audit_log WHERE admin_id=? AND action='audit_csv_export'");
+        $q->execute([$adminId]);
+        expect((int)$q->fetchColumn()===1,'Export logged');
     });
     run('Stage 8 auth logout revokes session immediately',function()use($app,$sessionHeaders,$actionHeaders,$csrf):void{
         $resp=$app->handle('POST','/admin/logout',headers:$actionHeaders,body:http_build_query(['csrf'=>$csrf]));
