@@ -76,3 +76,6 @@ tr:last-child td{border-bottom:0}td form{display:flex;gap:8px;align-items:center
 @media(max-width:820px){main{width:min(100% - 24px,1240px)}.stats{grid-template-columns:1fr 1fr}.header{padding-top:16px}.track-card{padding:17px}.nav a{padding:9px 12px}}
 @media(max-width:560px){.stats{grid-template-columns:1fr}.header-actions{width:100%;justify-content:space-between}.nav{margin-bottom:19px}.page-head{align-items:flex-start}.toolbar{align-items:stretch}.toolbar form{width:100%}.toolbar .form-field{flex:1}.toolbar select{width:100%}.decision form{align-items:stretch}.decision form>button{flex:1}.track-meta{gap:6px 12px}.panel{padding:16px}.login-card{padding:25px}.pagination{align-items:flex-start}}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{transition:none!important;scroll-behavior:auto!important}}
+
+.metadata-form{display:flex;align-items:end;gap:10px;flex-wrap:wrap;margin-top:12px}.metadata-form .form-field{flex:1 1 180px}.metadata-form input{width:100%}.metadata-form button{flex:0 0 auto}.detail-toggle .muted{font-size:12px;margin:10px 0 4px}
+@media(max-width:560px){.metadata-form button{width:100%}}
