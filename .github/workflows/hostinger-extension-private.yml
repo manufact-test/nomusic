@@ -7,6 +7,8 @@ on:
     paths:
       - .github/workflows/hostinger-extension-private.yml
       - .github/deploy/hostinger-extension-request.json
+      - extension/src/adapters/yandex-music-adapter.ts
+      - extension/tests/yandex-adapter.test.mjs
 
 permissions:
   contents: read
