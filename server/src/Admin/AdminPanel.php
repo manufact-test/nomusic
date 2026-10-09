@@ -53,6 +53,27 @@ final class AdminPanel
                 'Set-Cookie'=>AdminAuth::cookie(AdminAuth::COOKIE, '', 0),
                 'Cache-Control'=>'no-store']);
         }
+        if ($path === '/admin/metadata' && $method === 'POST') {
+            if ($admin['role'] !== 'owner') return Response::json(403,['error'=>'forbidden']);
+            $form = $this->form($headers,$body);
+            if (!AdminAuth::validCsrf($admin,$form['csrf'] ?? null)) {
+                return Response::json(403,['error'=>'csrf_failed']);
+            }
+            $track = $this->positiveInt($form['track'] ?? null);
+            if (!$track || !is_string($form['expected_track_id'] ?? null)
+                || !is_string($form['artist'] ?? null) || !is_string($form['title'] ?? null)) {
+                return Response::json(400,['error'=>'invalid_metadata']);
+            }
+            try {
+                (new MetadataService($this->pdo))->update($admin['id'],$track,
+                    $form['expected_track_id'],$form['artist'],$form['title']);
+                return new Response(303,['Location'=>'/admin?tab=uploads','Cache-Control'=>'no-store']);
+            } catch (\InvalidArgumentException) {
+                return Response::json(400,['error'=>'invalid_metadata']);
+            } catch (\DomainException) {
+                return Response::json(409,['error'=>'metadata_conflict']);
+            }
+        }
         if ($path === '/admin/action' && $method === 'POST') {
             if (!in_array($admin['role'], ['owner','moderator'], true)) return Response::json(403, ['error'=>'forbidden']);
             $form = $this->form($headers, $body);
@@ -153,6 +174,7 @@ final class AdminPanel
             'report_reviewed' => 'Жалоба рассмотрена',
             'report_dismissed' => 'Жалоба отклонена',
             'audit_csv_export' => 'Журнал скачан',
+            'track_metadata_labeled' => 'Подпись трека уточнена',
             default => 'Другое действие',
         };
     }
@@ -389,6 +411,21 @@ final class AdminPanel
                 . ' · Формат: ' . (in_array($r['mime_type'], ['audio/mpeg'], true) ? 'MP3' : 'Аудио')
                 . '<p style="margin:8px 0 0">Контрольная сумма SHA-256: '
                 . self::e($r['sha256']) . '</p></div></details>';
+            if ($admin['role'] === 'owner'
+                && (trim((string) $r['artist']) === '' || trim((string) $r['title']) === '')) {
+                $html .= '<details class="detail-toggle"><summary>Уточнить название и исполнителя</summary>'
+                    . '<p class="muted">Проверьте оригинал по ссылке на Яндекс Музыку. '
+                    . 'Сохраняется только подпись — сам аудиофайл не меняется.</p>'
+                    . '<form class="metadata-form" method="post" action="/admin/metadata">'
+                    . '<input type="hidden" name="csrf" value="' . $csrf . '">'
+                    . '<input type="hidden" name="track" value="' . (int) $r['track_id'] . '">'
+                    . '<input type="hidden" name="expected_track_id" value="' . self::e($trackId) . '">'
+                    . '<label class="form-field">Исполнитель'
+                    . '<input name="artist" maxlength="240" value="' . self::e($r['artist']) . '"></label>'
+                    . '<label class="form-field">Название песни'
+                    . '<input name="title" maxlength="240" required value="' . self::e($r['title']) . '"></label>'
+                    . '<button class="primary" type="submit">Сохранить подпись</button></form></details>';
+            }
             if (in_array($admin['role'], ['owner','moderator'], true)
                 && ($r['status'] === 'pending'
                     || ($r['status'] === 'approved' && (int) $r['is_active'] === 1)
@@ -561,7 +598,7 @@ final class AdminPanel
                 'viewer' => 'Наблюдатель',default => 'Сотрудник'
             };
             $object = match ($r['entity_type']) {
-                'track_replacement' => 'Версия', 'track_request' => 'Предложение',
+                'track_replacement' => 'Версия', 'track_request' => 'Предложение', 'track' => 'Трек',
                 'report' => 'Жалоба', 'admin' => 'Администратор',
                 default => 'Объект'
             };
