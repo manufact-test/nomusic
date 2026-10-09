@@ -6,6 +6,7 @@ namespace Celikom\Admin;
 
 use Celikom\Http\ByteRange;
 use Celikom\Http\Response;
+use Celikom\Auth\UserMetrics;
 use Celikom\Storage\StorageAdapter;
 
 /** Minimal server-rendered, default-off Stage 8 operator console. */
@@ -719,7 +720,7 @@ final class AdminPanel
             . $this->queuePages('audit', '', $page, $perPage, $total);
     }
 
-    /** Real period comparisons only; account and payment counters are intentionally unavailable. */
+    /** Real period comparisons only; payment counters remain unavailable. */
     private function overview(array $query): string
     {
         $to = is_string($query['to'] ?? null) && preg_match('/^\d{4}-\d{2}-\d{2}$/D',$query['to'])
@@ -777,7 +778,24 @@ final class AdminPanel
         }else{
             $html.='<p>Агрегированная аналитика: данных за период нет. Нули не подставляются.</p>';
         }
-        $html.='<p><small>Новые и возвращающиеся пользователи, а также платежи появятся после внедрения аккаунтов и подписок.</small></p>';
+        $accounts = new UserMetrics($this->pdo);
+        if ($accounts->hasAccounts()) {
+            $current = $accounts->forPeriod($date($start), $date($endExclusive));
+            $previous = $accounts->forPeriod($date($beforeStart), $date($start));
+            $html .= '<section class="panel"><h3>Аккаунты и активность CELIKOM</h3><table>'
+                . '<tr><th>Метрика</th><th>Выбранный период</th><th>Предыдущий</th></tr>';
+            foreach (['new'=>'Новые аккаунты','first'=>'Первые активации',
+                'active'=>'Активные пользователи','returning'=>'Возвращающиеся пользователи'] as $key=>$label) {
+                $html .= '<tr><td>'.self::e($label).'</td><td>'.$current[$key]
+                    .'</td><td>'.$previous[$key].'</td></tr>';
+            }
+            $html .= '</table><p><small>Активность = подтверждённый запуск CELIKOM после входа. '
+                . 'Возвращающиеся = запускали CELIKOM раньше выбранного периода. '
+                . 'Анонимные установки не объединяются с аккаунтами.</small></p></section>';
+        } else {
+            $html .= '<p><small>Аккаунты ещё не создавались — пользовательские показатели пока недоступны.</small></p>';
+        }
+        $html .= '<p><small>Платежи и подписки подключаются на следующих этапах.</small></p>';
         return $html;
     }
 
