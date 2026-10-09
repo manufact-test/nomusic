@@ -90,7 +90,7 @@ try {
             expect($e->getMessage() === 'idempotency_conflict', 'Retry conflict');
         }
     });
-    run('Stage 7 rejects fake, malformed, oversize and rights-free files', function () use ($service, $fields, $file, $ownerHash, $path): void {
+    run('Stage 7 rejects fake, malformed, oversize and rights-free files', function () use ($service, $fields, $file, $ownerHash, $path, $pdo, $storage): void {
         $fake = $path . '.fake';
         file_put_contents($fake, str_repeat('not an mp3', 200));
         try {
@@ -108,7 +108,7 @@ try {
                     expect(get_class($e) === $expected, $expected . ' rejected');
                 }
             }
-            $limited = new UploadService(new PDO('sqlite::memory:'), new LocalStorageAdapter(sys_get_temp_dir() . '/celikom-stage7-size-' . bin2hex(random_bytes(4))), 1024, static fn (string $p): bool => is_file($p));
+            $limited = new UploadService($pdo, $storage, 1024, static fn (string $p): bool => is_file($p));
             try { $limited->upload($fields, $file, $ownerHash); throw new RuntimeException('Oversize accepted'); }
             catch (LengthException $e) { expect($e->getMessage() === 'upload_too_large', 'Oversize'); }
         } finally { unlink($fake); }
