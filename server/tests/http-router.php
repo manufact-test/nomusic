@@ -3,7 +3,36 @@
 declare(strict_types=1);
 
 // Only the local test server uses this router; excluded from deployment packages.
-if (parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) !== '/browser-fixture') {
+$fixturePath = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH);
+if ($fixturePath === '/stage7-browser-mp3') {
+    $file = getenv('CELIKOM_STAGE7_TEST_MP3');
+    if (!$file || !is_file($file)) { http_response_code(404); return; }
+    header('Content-Type: audio/mpeg');
+    header('X-Content-Type-Options: nosniff');
+    readfile($file);
+    return;
+}
+if ($fixturePath === '/stage7-browser-mp3-play') {
+    header('Content-Type: text/html; charset=utf-8');
+    echo '<!doctype html><html><body data-audio-result="pending"><script>
+const audio = new Audio(); audio.preload = "auto";
+audio.onerror = () => { document.body.dataset.audioResult = "decode-error"; };
+audio.addEventListener("loadedmetadata", () => {
+  if (!Number.isFinite(audio.duration) || audio.duration < 2 || audio.duration > 3) {
+    document.body.dataset.audioResult = "duration-error"; return;
+  }
+  audio.currentTime = 0.5;
+});
+audio.addEventListener("seeked", async () => {
+  try { await audio.play(); audio.pause();
+    document.body.dataset.audioResult = audio.paused && audio.currentTime >= 0.4 ? "ok" : "seek-error";
+  } catch (_) { document.body.dataset.audioResult = "play-error"; }
+}, {once: true});
+audio.src = "/stage7-browser-mp3"; audio.load();
+</script></body></html>';
+    return;
+}
+if ($fixturePath !== '/browser-fixture') {
     require dirname(__DIR__) . '/public/index.php';
     return;
 }
