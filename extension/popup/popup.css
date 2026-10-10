@@ -118,7 +118,12 @@ button:disabled {
 summary { cursor: pointer; color: #aab8be; font-size: 11px; padding: 8px 2px; }
 details[open] { display: grid; gap: 8px; }
 input { box-sizing: border-box; width: 100%; margin: 6px 0; border: 1px solid #55666d; border-radius: 8px; padding: 10px; background: #141b1f; color: #f4f7f8; }
-button:focus-visible, input:focus-visible, summary:focus-visible { outline: 2px solid #66e0bf; outline-offset: 3px; }
+button:focus-visible, input:focus-visible, summary:focus-visible {
+  outline: none;
+  border-color: #66e0bf;
+  box-shadow: inset 0 0 0 1px rgb(102 224 191 / 22%);
+}
+button:focus-visible { border-color: #66e0bf; }
 
 /* Stage 7: the popup never displays an unfinished form while awaiting the server. */
 .add-track-action { position: relative; transition: background-color .18s ease, border-color .18s ease; }
@@ -201,14 +206,91 @@ button:focus-visible, input:focus-visible, summary:focus-visible { outline: 2px 
   .add-track-action[data-loading="true"]::before { animation: none; }
 }
 
-/* Stage 9: private customer identity lives below playback, never in main actions. */
-.account-panel { border: 1px solid #2a3439; border-radius: 10px; padding: 0 10px 10px; }
-.account-panel summary { font-size: 12px; color: #d6fff3; font-weight: 600; }
-.account-form { display: grid; gap: 5px; }
-.account-form label { font-size: 11px; color: #aab8be; }
-.account-form input { margin: 2px 0; }
-.account-panel .quiet { background: transparent; min-height: 34px; font-size: 12px; }
-.account-identity { overflow-wrap: anywhere; font-size: 12px; color: #8fffd2; }
-.account-devices { list-style: none; padding: 0; margin: 8px 0; display: grid; gap: 6px; }
-.account-devices li { display: flex; justify-content: space-between; gap: 8px; align-items: center; font-size: 11px; }
-.account-devices button { min-height: 30px; font-size: 11px; padding: 4px 8px; }
+/* Stage 9: compact accessible account panel, aligned to the existing popup grid. */
+.account-panel {
+  width: 100%;
+  box-sizing: border-box;
+  min-width: 0;
+  border: 1px solid #2a3439;
+  border-radius: 10px;
+  padding: 0 10px;
+  background: #0b1013;
+}
+.account-panel > summary {
+  min-height: 42px;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  padding: 0 2px;
+  margin: 0;
+  color: #d6fff3;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.account-panel[open] { padding-bottom: 12px; }
+.account-content { display: grid; gap: 10px; min-width: 0; padding-top: 4px; }
+.account-form, .account-signed { display: grid; gap: 9px; min-width: 0; }
+.account-form[hidden], .account-signed[hidden] { display: none !important; }
+.account-form label { font-size: 11px; line-height: 1.3; color: #aab8be; }
+.account-form input {
+  min-width: 0;
+  width: 100%;
+  margin: -4px 0 2px;
+  box-sizing: border-box;
+  border: 1px solid #55666d;
+  border-radius: 9px;
+  background: #141b1f;
+  color: #f4f7f8;
+  min-height: 41px;
+}
+.account-form input:focus { border-color: #66e0bf; outline: 0; box-shadow: inset 0 0 0 1px rgb(102 224 191 / 12%); }
+.account-form input[aria-invalid="true"] { border-color: #ff918b; }
+.account-form button.primary { margin-top: 3px; }
+.account-form .quiet, .account-signed .quiet { min-height: 38px; background: transparent; font-size: 12px; }
+.account-form button + button { margin-top: 3px; }
+.auth-password-field { position: relative; min-width: 0; }
+.auth-password-field input { margin: -4px 0 2px; padding-right: 46px; }
+.auth-password-field .auth-eye {
+  position: absolute;
+  top: 0;
+  right: 3px;
+  width: 38px;
+  height: 36px;
+  min-height: 36px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #afc7c6;
+  display: grid;
+  place-items: center;
+}
+.auth-password-field .auth-eye:focus-visible { outline: none; color: #66e0bf; background: #20342f; }
+.auth-password-field .auth-eye:hover { color: #66e0bf; }
+.auth-link {
+  min-height: 26px;
+  border: 0;
+  background: none;
+  color: #91c7b9;
+  font-size: 11px;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.auth-link:focus-visible { box-shadow: none; text-decoration-color: #66e0bf; }
+.auth-caption { margin: 0 0 5px; font-size: 11px; line-height: 1.5; color: #bdcdd0; }
+.account-identity { margin: 0 0 4px; overflow-wrap: anywhere; font-size: 12px; color: #8fffd2; }
+.auth-feedback {
+  box-sizing: border-box;
+  margin: 2px 0 0;
+  border: 1px solid #44655f;
+  border-radius: 8px;
+  padding: 10px 11px;
+  font-size: 12px;
+  font-weight: 550;
+  line-height: 1.4;
+  background: #143329;
+  color: #b5f5d7;
+}
+.auth-feedback[data-kind="error"] { background: #301c20; border-color: #8f4b50; color: #ffbdb7; }
+.auth-feedback[data-kind="loading"] { background: #14272b; color: #c9e2df; border-color: #365a5c; }
+.account-panel .auth-feedback[hidden] { display: none !important; }
