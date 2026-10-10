@@ -1,7 +1,9 @@
 # CELIKOM — Этап 10: Trial + EntitlementService и ОДНА рабочая версия
 
-**Статус:** NEXT / NOT STARTED · 10.10.2026  
+**Статус:** STARTED / FIRST PACKAGE BRANCH-ONLY · 10.10.2026
 **Источники истины:** Master ТЗ MVP v1.5 (§§14–15,18,23,26, приложения G–I), План работ MVP v1.6 («Этап 10» и новый раздел 15), Issue #9 и актуальный HEAD `feature/api-range`. В случае расхождений продуктовая модель ТЗ сохраняется, актуальный статус исполнения определяется новым разделом handoff.
+
+**Progress 10.10.2026:** audit + atomic trial foundation added; [package audit](CELIKOM-STAGE10-AUDIT-ATOMIC-TRIAL.md). No deployment, no user-bearer playback yet; owner acceptance still required.
 
 ## 0. Главный нерушимый критерий
 

@@ -8,23 +8,19 @@ use PDO;
 
 final class EntitlementLedger
 {
-    public function __construct(private readonly PDO $pdo)
-    {
-    }
+    public function __construct(private readonly PDO $pdo) {}
 
-    public function recordTrial(int $userId, string $validUntil): void
+    /** Caller owns the account row lock and transaction. */
+    public function recordTrial(int $userId, string $validFrom, string $validUntil): int
     {
+        if (!$this->pdo->inTransaction()) {
+            throw new \LogicException('trial_transaction_required');
+        }
         $insert = $this->pdo->prepare(
-            'INSERT INTO entitlement_ledger
-                (user_id, source, reason, valid_from, valid_until)
-             VALUES (?, ?, ?, UTC_TIMESTAMP(6), ?)'
+            'INSERT INTO entitlement_ledger (user_id, source, reason, valid_from, valid_until)
+             VALUES (?, ?, ?, ?, ?)'
         );
-
-        $insert->execute([
-            $userId,
-            'trial',
-            'first_activation',
-            $validUntil,
-        ]);
+        $insert->execute([$userId, 'trial', 'first_activation', $validFrom, $validUntil]);
+        return (int)$this->pdo->lastInsertId();
     }
 }

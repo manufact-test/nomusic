@@ -1,3 +1,9 @@
+## 2026-10-10 — Stage10 STARTED: audit + atomic trial foundation (branch only)
+
+Audited HEAD `8a24929b4aa7bf72b4905a469f0a5d1384f6544b`; incomplete existing scaffolds referenced nonexistent trial columns and had no transactional ledger integration. First safe package adds account_trials + atomic verified-account five-day TrialService, database-clock EntitlementService and hardened bearer scaffold, with disposable MySQL/race/rollback tests in CI. [Audit, boundaries and next package](test-plans/CELIKOM-STAGE10-AUDIT-ATOMIC-TRIAL.md).
+
+**NOT deployed; unified playback not yet connected.** Existing auth activation remains Stage9-only. User-bearer Resolve, session-bound audio, public Upload/Suggest and clean-install owner playback acceptance remain outstanding. Stage9 is CLOSED; Stage10/Issue #9 OPEN, PR #6 OPEN/unmerged, Issue #7 OPEN. Live read-only config confirms replacements/auth ON, analytics/public uploads OFF. No live catalog/audio/session writes. Original Chrome 0.4.4 preserved. Historical status entries below are superseded by this block.
+
 ## ТЕКУЩЕЕ СОСТОЯНИЕ 10.10.2026 — ЭТАП 9 ЗАКРЫТ, ЭТАП 10 СЛЕДУЮЩИЙ
 
 **Stage 9 / Issue #8 — OWNER ACCEPTED / CLOSED 10.10.2026.** Пользователь подтвердил настоящие шестизначные письма, email verification, восстановление пароля, вход с новым паролем и финальные Chrome UI исправления версии 0.4.6. Серверные 90-day rolling sessions и two-device сессии внедрены, CI/Hostinger backup/restore/readonly integrity gate PASS. **Отдельный live-APK и физический тест двух устройств не заявлены**: многодевайсная логика протестирована серверными интеграционными тестами.

@@ -13,6 +13,11 @@ final readonly class EntitlementResult
         public string $reason,
     ) {}
 
+    public static function utc(string $databaseTime): string
+    {
+        return str_replace(" ", "T", $databaseTime) . "Z";
+    }
+
     public function json(): array
     {
         return [

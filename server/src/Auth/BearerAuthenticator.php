@@ -24,7 +24,10 @@ final class BearerAuthenticator
             return null;
         }
 
-        $stmt = $this->pdo->prepare('SELECT user_id FROM user_sessions WHERE access_hash = ? AND revoked_at IS NULL AND access_expires_at > UTC_TIMESTAMP(6) LIMIT 1');
+        $stmt = $this->pdo->prepare('SELECT s.user_id FROM user_sessions s JOIN users u ON u.id = s.user_id
+            JOIN user_email_security e ON e.user_id = u.id
+            WHERE s.access_hash = ? AND s.revoked_at IS NULL AND s.access_expires_at > UTC_TIMESTAMP(6)
+              AND u.status = \'active\' AND e.verified_at IS NOT NULL LIMIT 1');
         $stmt->execute([hash('sha256', $token)]);
         $id = $stmt->fetchColumn();
 

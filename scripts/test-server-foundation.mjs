@@ -49,6 +49,8 @@ if (process.env.DB_NAME) {
   if (admin.status !== 0) process.exit(admin.status || 1);
   const auth = spawnSync("php", [path.join(serverRoot, "tests", "auth.php")], { stdio: "inherit" });
   if (auth.status !== 0) process.exit(auth.status || 1);
+  const entitlement = spawnSync("php", [path.join(serverRoot, "tests", "entitlement.php")], { stdio: "inherit" });
+  if (entitlement.status !== 0) process.exit(entitlement.status || 1);
   const http = spawnSync(process.execPath, [path.join(serverRoot, "tests", "http.mjs")], { stdio: "inherit" });
   if (http.status !== 0) process.exit(http.status || 1);
 }

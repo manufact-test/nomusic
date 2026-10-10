@@ -1,3 +1,9 @@
+## 2026-10-10 — Stage10 STARTED: audit + atomic trial foundation (branch only)
+
+Audited HEAD `8a24929b4aa7bf72b4905a469f0a5d1384f6544b`; incomplete existing scaffolds referenced nonexistent trial columns and had no transactional ledger integration. First safe package adds account_trials + atomic verified-account five-day TrialService, database-clock EntitlementService and hardened bearer scaffold, with disposable MySQL/race/rollback tests in CI. [Audit, boundaries and next package](../test-plans/CELIKOM-STAGE10-AUDIT-ATOMIC-TRIAL.md).
+
+**NOT deployed; unified playback not yet connected.** Existing auth activation remains Stage9-only. User-bearer Resolve, session-bound audio, public Upload/Suggest and clean-install owner playback acceptance remain outstanding. Stage9 is CLOSED; Stage10/Issue #9 OPEN, PR #6 OPEN/unmerged, Issue #7 OPEN. Live read-only config confirms replacements/auth ON, analytics/public uploads OFF. No live catalog/audio/session writes. Original Chrome 0.4.4 preserved. Historical status entries below are superseded by this block.
+
 # CELIKOM — HANDOFF: СТАРТ ЭТАПА 10 (10.10.2026)
 
 **Обязательно начать с этого блока, не с исторических статусов ниже.** Stage 9 **официально принят и закрыт владельцем**. GitHub Issue #8 CLOSED, этап 10 Issue #9 OPEN, план: `docs/test-plans/CELIKOM-STAGE10-UNIFIED-TRIAL.md`.
