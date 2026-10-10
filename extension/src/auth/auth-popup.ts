@@ -1,100 +1,123 @@
-// Isolated customer account UX. No changes to the playback controller or owner upload flow.
+// Customer auth popup: no device list; server keeps per-device sessions.
 export function initAuthPanel(send) {
-  const root = document.querySelector("[data-auth-panel]");
-  const summary = document.querySelector("[data-auth-summary]");
-  const form = document.querySelector("[data-auth-form]");
-  const email = document.querySelector("[data-auth-email]");
-  const password = document.querySelector("[data-auth-password]");
-  const submit = document.querySelector("[data-auth-submit]");
-  const note = document.querySelector("[data-auth-note]");
-  const signed = document.querySelector("[data-auth-signed]");
-  const identity = document.querySelector("[data-auth-identity]");
-  const devices = document.querySelector("[data-auth-devices]");
-  const modeButton = document.querySelector("[data-auth-mode]");
-  let mode = "login";
+  const q = (name) => document.querySelector("[data-auth-" + name + "]");
+  const root = q("panel"), note = q("note"), email = q("email"), pass = q("password");
   if (!root) return;
-  const call = (action, props = {}) => send({ type: "CELIKOM_AUTH", action, ...props });
+  const views = { login: q("form"), verify: q("verify-form"), recovery: q("recovery-form"),
+    reset: q("new-password-form"), signed: q("signed") };
+  const call = (action, more = {}) => send({ type: "CELIKOM_AUTH", action, ...more });
+  let mode = "login", pendingEmail = "", pendingPassword = "", busy = false;
   const errors = {
-    invalid_credentials: "Неверный email или пароль.",
-    account_disabled: "Аккаунт ограничен. Обратитесь в поддержку.",
-    account_unavailable: "Этот email уже используется.",
+    invalid_credentials: "Не удалось войти. Проверьте email и пароль или создайте аккаунт.",
+    account_unavailable: "Этот email уже используется. Попробуйте войти.",
+    account_disabled: "Аккаунт ограничен.",
+    email_unavailable: "Отправка писем пока недоступна. Повторите позже.",
     weak_password: "Пароль должен содержать минимум 12 символов.",
-    rate_limited: "Слишком много попыток. Повторите позже.",
-    invalid_request: "Проверьте введённые данные.",
+    invalid_code: "Неверный или просроченный код.",
+    rate_limited: "Слишком много попыток. Подождите и повторите.",
     invalid_session: "Сессия истекла. Войдите снова.",
-    auth_unavailable: "Сервер недоступен. Попробуйте позже."
+    invalid_request: "Проверьте введённые данные.",
+    auth_unavailable: "Сервер недоступен. Повторите позже."
   };
-  function message(value) { if (note) note.textContent = value || ""; }
-  function render(value) {
-    form.hidden = value.signedIn === true;
-    signed.hidden = value.signedIn !== true;
-    if (identity) identity.textContent = value.user?.email || "";
-    if (summary) summary.textContent = value.signedIn ? "Аккаунт · подключён" : "Аккаунт";
-    if (devices) devices.hidden = true;
-    if (value.error) message(errors[value.error] || "Войдите в аккаунт.");
+  const show = (value = "", kind = "info") => {
+    note.textContent = value;
+    note.hidden = !value;
+    note.dataset.kind = kind;
+  };
+  function view(next, user) {
+    mode = next;
+    for (const [key, el] of Object.entries(views)) el.hidden =
+      key === "login" ? !["login", "register"].includes(next) : key !== next;
+    q("summary").textContent = next === "signed" ? "Аккаунт · подключён" : "Аккаунт";
+    q("identity").textContent = user?.email || "";
+    q("submit").textContent = next === "register" ? "Зарегистрироваться" : "Войти";
+    q("mode").textContent = next === "register" ? "У меня уже есть аккаунт" : "Создать аккаунт";
+    pass.autocomplete = next === "register" ? "new-password" : "current-password";
+    show();
   }
-  function renderMode() {
-    if (submit) submit.textContent = mode === "login" ? "Войти" : "Зарегистрироваться";
-    if (modeButton) modeButton.textContent = mode === "login" ? "Создать аккаунт" : "У меня уже есть аккаунт";
-    if (password) password.autocomplete = mode === "login" ? "current-password" : "new-password";
-    message("");
-  }
-  void call("status").then((value) => {
-    if (!value?.available) return;
-    root.hidden = false;
-    render(value);
-  }).catch(() => undefined);
-  modeButton?.addEventListener("click", () => {
-    mode = mode === "login" ? "register" : "login"; renderMode();
-  });
-  form?.addEventListener("submit", async (event) => {
-    event.preventDefault();
-    if (submit) submit.disabled = true;
-    message("Проверяем…");
+  const goodEmail = (v) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/u.test(v) && v.length <= 254;
+  const goodPass = (v) => [...v].length >= 12 && [...v].length <= 128;
+  async function act(action, data, done) {
+    if (busy) return;
+    busy = true;
+    show("Проверяем…", "loading");
     try {
-      const response = await call(mode, { email: email.value.trim(), password: password.value });
-      password.value = "";
-      if (response?.ok) {
-        message("Готово");
-        render({ signedIn: true, user: response.user });
-      } else message(errors[response?.error] || "Не удалось войти.");
-    } catch (_error) { message("Нет связи с сервером."); }
-    finally { if (submit) submit.disabled = false; }
-  });
-  root.querySelector("[data-auth-logout]")?.addEventListener("click", async () => {
-    message("Выходим…");
-    const result = await call("logout").catch(() => ({ ok: false }));
-    if (result?.ok) { render({ signedIn: false }); message("Вы вышли."); }
-    else message("Не удалось завершить серверную сессию. Повторите выход.");
-  });
-  root.querySelector("[data-auth-list-devices]")?.addEventListener("click", async () => {
-    message("Проверяем устройства…");
-    const result = await call("sessions").catch(() => ({ ok: false }));
-    if (!result?.ok || !Array.isArray(result.sessions)) { message("Не удалось получить устройства."); return; }
-    if (devices) {
-      devices.replaceChildren();
-      for (const session of result.sessions) {
-        const line = document.createElement("li");
-        const text = document.createElement("span");
-        text.textContent = session.current ? "Это устройство" : "Другое устройство";
-        line.append(text);
-        if (!session.current) {
-          const button = document.createElement("button");
-          button.textContent = "Отключить";
-          button.type = "button";
-          button.addEventListener("click", async () => {
-            button.disabled = true;
-            const res = await call("revoke", { session_id: session.id }).catch(() => ({ ok: false }));
-            if (res?.ok) line.remove();
-            else { button.disabled = false; message("Не удалось отключить устройство."); }
-          });
-          line.append(button);
-        }
-        devices.append(line);
-      }
-      devices.hidden = false;
+      const result = await call(action, data);
+      if (result?.ok) done(result);
+      else show(errors[result?.error] || "Не удалось выполнить действие.", "error");
+    } catch (_) { show("Нет связи с сервером.", "error"); }
+    finally { busy = false; }
+  }
+  function eye(input, control) {
+    control?.addEventListener("click", () => {
+      const visible = input.type === "password";
+      input.type = visible ? "text" : "password";
+      control.setAttribute("aria-pressed", String(visible));
+      control.setAttribute("aria-label", visible ? "Скрыть пароль" : "Показать пароль");
+      input.focus();
+    });
+  }
+  eye(pass, q("eye")); eye(q("reset-password"), q("reset-eye"));
+  void call("status").then((state) => {
+    if (!state?.available) return;
+    root.hidden = false;
+    view(state.signedIn ? "signed" : "login", state.user);
+  }).catch(() => {});
+  q("mode").addEventListener("click", () => view(mode === "login" ? "register" : "login"));
+  views.login.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const address = email.value.trim(), password = pass.value;
+    if (!goodEmail(address)) return show("Введите корректный email.", "error");
+    if (!password || (mode === "register" && !goodPass(password))) {
+      return show(mode === "register" ? "Пароль: минимум 12 символов." : "Введите пароль.", "error");
     }
-    message("");
+    void act(mode, { email: address, password }, (result) => {
+      if (result.verification_required) {
+        pendingEmail = address; pendingPassword = password;
+        pass.value = ""; view("verify"); show("Код отправлен на почту.");
+      } else {
+        pendingPassword = ""; pass.value = ""; view("signed", result.user);
+      }
+    });
   });
-  renderMode();
+  views.verify.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const code = q("code").value.trim();
+    if (!/^\d{6}$/.test(code)) return show("Введите шестизначный код.", "error");
+    void act("verify-email", { email: pendingEmail, code }, (result) => {
+      pendingPassword = ""; q("code").value = "";
+      view("signed", result.user);
+    });
+  });
+  q("resend").addEventListener("click", () => {
+    if (!pendingPassword) { view("login"); return show("Войдите с паролем, чтобы повторно получить код."); }
+    void act("resend-verification", { email: pendingEmail, password: pendingPassword }, () => show("Код отправлен повторно."));
+  });
+  q("back").addEventListener("click", () => { pendingPassword = ""; email.value = pendingEmail; view("login"); });
+  q("forgot").addEventListener("click", () => { q("recovery-email").value = email.value.trim(); view("recovery"); });
+  q("recovery-back").addEventListener("click", () => view("login"));
+  views.recovery.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const address = q("recovery-email").value.trim();
+    if (!goodEmail(address)) return show("Введите корректный email.", "error");
+    void act("request-reset", { email: address }, () => {
+      pendingEmail = address; view("reset");
+      show("Если почта зарегистрирована, код отправлен.");
+    });
+  });
+  views.reset.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const code = q("reset-code").value.trim(), password = q("reset-password").value;
+    if (!/^\d{6}$/.test(code)) return show("Введите шестизначный код.", "error");
+    if (!goodPass(password)) return show("Новый пароль: минимум 12 символов.", "error");
+    void act("reset-password", { email: pendingEmail, code, new_password: password }, () => {
+      q("reset-password").value = ""; email.value = pendingEmail;
+      view("login"); show("Пароль изменён. Войдите с новым паролем.");
+    });
+  });
+  q("reset-back").addEventListener("click", () => view("login"));
+  q("logout").addEventListener("click", () => {
+    void act("logout", {}, () => { view("login"); show("Вы вышли."); });
+  });
+  view("login");
 }
