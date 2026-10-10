@@ -33,7 +33,7 @@ function https10(string $path, string $method = 'GET', ?array $body = null, stri
     return [(int)substr($out,$pos+strlen($marker)),json_decode($text,true),$text];
 }
 function expect10(int $status, array $response): array {
-    guard10($response[0] === $status);
+    if ($response[0] !== $status) throw new RuntimeException('stage10_http_expected_'.$status.'_actual_'.$response[0].'_line_'.(debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS,1)[0]['line']??0));
     return is_array($response[1]) ? $response[1] : [];
 }
 function integrity10(PDO $db, array $config, string $root): array {
@@ -147,6 +147,6 @@ try {
         file_put_contents($env,$old,LOCK_EX); chmod($env,0600); throw $error;
     }
 } catch (Throwable $failure) {
-    $detail=$failure instanceof RuntimeException && preg_match('/^stage10_guard_line_[0-9]+$/D',$failure->getMessage()) ? $failure->getMessage() : get_class($failure);
+    $detail=$failure instanceof RuntimeException && preg_match('/^stage10_(?:guard_line_[0-9]+|http_expected_[0-9]+_actual_[0-9]+_line_[0-9]+)$/D',$failure->getMessage()) ? $failure->getMessage() : get_class($failure);
     fwrite(STDERR,"Stage10 guarded operation failed (".$detail."); no private data disclosed.\n"); exit(1);
 }
