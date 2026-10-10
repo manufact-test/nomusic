@@ -4,7 +4,7 @@ declare(strict_types=1);
 ini_set('display_errors','0');
 if (PHP_SAPI !== 'cli' || count($argv) !== 2) exit(2);
 
-function require9(bool $okay): void { if (!$okay) throw new RuntimeException('guard'); }
+function require9(bool $okay): void { if (!$okay) throw new RuntimeException('guard_at_'.(int)(debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS,1)[0]['line']??0)); }
 function https9(string $path, string $method='GET', ?array $body=null, string $bearer=''): array {
     require9(str_starts_with($path,'/api/v1/') || $path==='/admin/audio/1');
     $args=['curl','--silent','--show-error','--max-time','22','--connect-timeout','10',
@@ -213,7 +213,8 @@ try {
     }
     echo "Stage 9 private user auth ".($desired?'enabled':'disabled')
         ."; HTTPS, two devices, revocation, backup and protected media verified.\n";
-} catch (Throwable) {
-    fwrite(STDERR,"Stage 9 auth switch refused or reverted; private information not logged.\n");
+} catch (Throwable $error) {
+    $reason = preg_match('/^guard_at_[0-9]{1,4}$/D',$error->getMessage()) ? $error->getMessage() : 'other';
+    fwrite(STDERR,"Stage 9 auth switch refused or reverted: ".$reason."; private information not logged.\n");
     exit(1);
 }
