@@ -148,7 +148,13 @@ try {
         $db->beginTransaction();
         try {
             $clear=$db->prepare('DELETE FROM account_trials WHERE user_id=? AND ledger_id=? AND valid_from=? AND valid_until=?');
-            foreach ($saved['trials'] as $row) $clear->execute([$row['user_id'],$row['ledger_id'],$row['valid_from'],$row['valid_until']]);
+            $audit=$db->prepare("INSERT INTO entitlement_ledger (user_id,source,reason,valid_from,valid_until)
+                VALUES (?,'admin','owner_trial_reset',UTC_TIMESTAMP(6),UTC_TIMESTAMP(6))");
+            foreach ($saved['trials'] as $row) {
+                $clear->execute([$row['user_id'],$row['ledger_id'],$row['valid_from'],$row['valid_until']]);
+                // Zero-duration audit event grants no access; original history remains intact.
+                if ($clear->rowCount()===1) $audit->execute([$row['user_id']]);
+            }
             $db->commit();
         } catch (Throwable $error) { if($db->inTransaction())$db->rollBack();throw $error; }
         guard10(integrity10($db,$config,$root)===$before);
