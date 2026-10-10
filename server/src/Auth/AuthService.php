@@ -199,9 +199,10 @@ final class AuthService
         return $this->email->requestReset(self::emailField($input),$ip);
     }
 
-    public function resetPassword(array $input): array
+    public function resetPassword(array $input,string $ip): array
     {
         $email=self::emailField($input);
+        $this->email->throttle('finish-reset',$email,$ip,12);
         $code=$input['code']??null;
         $password=$input['new_password']??null;
         if(!is_string($code)||!is_string($password))throw new \InvalidArgumentException('invalid_request');
