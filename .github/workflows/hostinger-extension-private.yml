@@ -16,6 +16,10 @@ on:
       - extension/tests/auth-broker.test.mjs
       - extension/popup/popup.html
       - extension/popup/popup.css
+      - extension/manifest/manifest.json
+      - extension/package.json
+      - extension/tests/auth-popup-ui.test.mjs
+      - extension/tests/auth-popup-resume.test.mjs
 
 permissions:
   contents: read
