@@ -16,7 +16,9 @@ final class UserMetrics
 
     public function forPeriod(string $start, string $end): array
     {
-        $new = $this->count('SELECT COUNT(*) FROM users WHERE created_at >= ? AND created_at < ?', [$start,$end]);
+        $new = $this->count('SELECT COUNT(*) FROM user_email_security e
+            JOIN users u ON u.id=e.user_id
+            WHERE e.verified_at >= ? AND e.verified_at < ?', [$start,$end]);
         $first = $this->count('SELECT COUNT(*) FROM users WHERE first_activated_at >= ? AND first_activated_at < ?', [$start,$end]);
         $active = $this->count("SELECT COUNT(DISTINCT user_id) FROM user_auth_events
             WHERE event_name = 'celikom_started' AND created_at >= ? AND created_at < ?", [$start,$end]);
