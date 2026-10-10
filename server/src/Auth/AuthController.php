@@ -52,7 +52,7 @@ final class AuthController
                 '/api/v1/auth/verify-email' => $this->auth->verifyEmail($input),
                 '/api/v1/auth/resend-verification' => $this->auth->resendVerification($input, $_SERVER['REMOTE_ADDR'] ?? 'unknown'),
                 '/api/v1/auth/request-reset' => $this->auth->requestReset($input, $_SERVER['REMOTE_ADDR'] ?? 'unknown'),
-                '/api/v1/auth/reset-password' => $this->auth->resetPassword($input),
+                '/api/v1/auth/reset-password' => $this->auth->resetPassword($input, $_SERVER['REMOTE_ADDR'] ?? 'unknown'),
             };
             return Response::json(in_array($path, ['/api/v1/auth/register'], true) ? 201 : 200, $result);
         } catch (\InvalidArgumentException) {
