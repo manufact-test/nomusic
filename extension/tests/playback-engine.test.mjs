@@ -280,9 +280,9 @@ test("track change during API resolve discards a late asset without muting the n
   assert.equal(f.players.length, 0); assert.equal(f.requests.some(r => r.type === "GUARD_ENGAGE"), false);
 });
 
-test("remote MP3 uses CSP-allowed MediaSource blob and bounded verified 206 byte ranges", async () => {
+async function remoteStreamFixture(statuses = [], onRetry = null) {
   const media = new Media(); media.readyState = 0;
-  let source; let revoked = false; const calls = []; const chunks = []; const fatals = [];
+  let source; let revoked = false; let cancelledBodies = 0; const calls = []; const chunks = []; const fatals = [];
   class FakeSourceBuffer extends EventTarget {
     constructor() { super(); this.buffered = { length: 0 }; }
     appendBuffer(bytes) {
@@ -310,7 +310,13 @@ test("remote MP3 uses CSP-allowed MediaSource blob and bounded verified 206 byte
   const bytesTotal = 600000;
   const env = {
     document: { createElement: () => media, documentElement: { append() {} } },
-    setTimeout, clearTimeout, AbortController, MediaSource: FakeMediaSource,
+    setTimeout: (fn, delay) => {
+      if (delay === 500 || delay === 1000) {
+        onRetry?.();
+        return setTimeout(fn, 0);
+      }
+      return setTimeout(fn, delay);
+    }, clearTimeout, AbortController, MediaSource: FakeMediaSource,
     URL: {
       createObjectURL(value) {
         assert.equal(value, source);
@@ -325,6 +331,8 @@ test("remote MP3 uses CSP-allowed MediaSource blob and bounded verified 206 byte
       assert(requested, "every request is a bounded HTTP Range");
       const from = Number(requested[1]), to = Math.min(Number(requested[2]), bytesTotal - 1);
       calls.push([from, to]);
+      const status = statuses[calls.length - 1] ?? 206;
+      if (status !== 206) return { status, body: { cancel: async () => { cancelledBodies++; } } };
       const bytes = new Uint8Array(to - from + 1);
       return {
         status: 206,
@@ -333,8 +341,14 @@ test("remote MP3 uses CSP-allowed MediaSource blob and bounded verified 206 byte
       };
     }
   };
-  const player = new ReplacementPlayer(env, reason => fatals.push(reason));
+  const player = new ReplacementPlayer(env, (reason, detail) => fatals.push({ reason, detail }));
   await player.prepare({ url: signed, demoLoop: false, durationMs: 180872 });
+  return { player, calls, chunks, fatals, source, get revoked() { return revoked; }, get cancelledBodies() { return cancelledBodies; } };
+}
+
+test("remote MP3 uses CSP-allowed MediaSource blob and bounded verified 206 byte ranges", async () => {
+  const f = await remoteStreamFixture();
+  const { player, calls, chunks, fatals, source } = f;
   assert.equal(player.audio.src, "blob:https://music.yandex.ru/media-source");
   assert.equal(player.audio.duration, 180.872);
   await new Promise(resolve => setTimeout(resolve, 15));
@@ -343,7 +357,48 @@ test("remote MP3 uses CSP-allowed MediaSource blob and bounded verified 206 byte
   assert.equal(source.readyState, "ended");
   assert.deepEqual(fatals, []);
   player.destroy();
-  assert.equal(revoked, true);
-  assert.equal(media.removed, true);
+  assert.equal(f.revoked, true);
+  assert.equal(player.audio.removed, true);
   assert.equal(JSON.stringify(calls).includes("private-must-not-appear"), false);
+});
+
+
+test("transient 503 retries the SAME next range without discarding buffered audio", async () => {
+  const f = await remoteStreamFixture([206, 503, 503, 206]);
+  await f.player.streamTask;
+  assert.deepEqual(f.calls, [[0,524287], [524288,599999], [524288,599999], [524288,599999]]);
+  assert.deepEqual(f.chunks, [524288,75712]);
+  assert.equal(f.cancelledBodies, 2);
+  assert.deepEqual(f.fatals, []);
+  assert.equal(f.source.readyState, "ended");
+  f.player.destroy();
+});
+
+test("persistent 503 exhausts bounded retries with sanitized status and offset", async () => {
+  const f = await remoteStreamFixture([206,503,503,503]);
+  await f.player.streamTask;
+  assert.equal(f.calls.length,4);
+  assert.deepEqual(f.fatals,[{reason:'remote-stream-http',detail:{httpStatus:503,offset:524288,attempts:3}}]);
+  assert.deepEqual(f.chunks,[524288]);
+  f.player.destroy();
+});
+
+test("revoked 403 and unexpected 200 fail open immediately without retry", async () => {
+  for (const status of [403,200]) {
+    const f = await remoteStreamFixture([206,status]);
+    await f.player.streamTask;
+    assert.equal(f.calls.length,2);
+    assert.deepEqual(f.fatals,[{reason:'remote-stream-http',detail:{httpStatus:status,offset:524288,attempts:1}}]);
+    f.player.destroy();
+  }
+});
+
+test("destroy during retry cancels the delayed request and reports no late fatal", async () => {
+  let player;
+  const f = await remoteStreamFixture([206,503],()=>player.destroy());
+  player=f.player;
+  await f.player.streamTask;
+  assert.equal(f.calls.length,2);
+  assert.deepEqual(f.fatals,[]);
+  assert.equal(f.revoked,true);
 });

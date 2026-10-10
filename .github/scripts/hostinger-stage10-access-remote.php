@@ -134,7 +134,7 @@ function smoke10(PDO $db, array $config): void {
 try {
     $root='/home/u235811320/domains/darkred-camel-588676.hostingersite.com/celikom';
     $release=realpath($root.'/current'); $env=$root.'/shared/env';
-    guard10(is_link($root.'/current') && is_string($release) && str_starts_with($release,$root.'/releases/0.4.8-')
+    guard10(is_link($root.'/current') && is_string($release) && (str_starts_with($release,$root.'/releases/0.4.8-') || str_starts_with($release,$root.'/releases/0.4.9-'))
         && !is_link($root) && !is_link($root.'/shared') && !is_link($env) && is_file($env) && (fileperms($env)&0077)===0);
     $requestPath=realpath($argv[1]);
     guard10(is_string($requestPath) && str_starts_with($requestPath,$root.'/incoming/stage10-')
@@ -149,7 +149,7 @@ try {
         $hash=$q->fetchColumn(); guard10(is_string($hash) && hash_equals($hash,hash_file('sha256',$release.'/migrations/'.$file)));
     }
     if ($request['operation']==='reset-trials') {
-        guard10($config['entitlement_enabled']);
+        guard10($config['entitlement_enabled'] && str_starts_with($release,$root.'/releases/0.4.8-'));
         // Owner explicitly authorized restarting trial for existing private-test accounts.
         // Backup is immutable. Retry deletes only the ORIGINAL ledger bindings,
         // never a newly started trial. Passwords, verification and sessions untouched.

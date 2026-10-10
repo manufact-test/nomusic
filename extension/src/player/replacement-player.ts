@@ -83,14 +83,39 @@
         const lastRequested = total === null
           ? offset + chunkSize - 1 : Math.min(total - 1, offset + chunkSize - 1);
         let response;
-        try {
-          response = await this.environment.fetch(asset.url, {
-            method: "GET",
-            headers: { Range: "bytes=" + offset + "-" + lastRequested },
-            credentials: "omit", cache: "no-store", redirect: "error", signal: abort.signal
+        let attempt = 0;
+        // Hosting may reject short bursts. Retry only temporary HTTP failures,
+        // with the same signed URL/range; never bypass revoked/expired access.
+        for (;;) {
+          try {
+            response = await this.environment.fetch(asset.url, {
+              method: "GET",
+              headers: { Range: "bytes=" + offset + "-" + lastRequested },
+              credentials: "omit", cache: "no-store", redirect: "error", signal: abort.signal
+            });
+          } catch (_error) { throw new Error("remote-stream-network"); }
+          if (response.status === 206) break;
+          const retry = [429, 502, 503, 504].includes(response.status) && attempt < 2;
+          // Discard the error body without buffering or exposing server text.
+          try { await response.body?.cancel(); } catch (_error) { /* status remains authoritative */ }
+          if (!retry) {
+            const error = new Error("remote-stream-http");
+            error.streamDetail = { httpStatus: response.status, offset, attempts: attempt + 1 };
+            throw error;
+          }
+          attempt++;
+          await new Promise((resolve) => {
+            const done = () => {
+              this.environment.clearTimeout(timer);
+              abort.signal.removeEventListener("abort", done);
+              resolve();
+            };
+            const timer = this.environment.setTimeout(done, attempt * 500);
+            abort.signal.addEventListener("abort", done, { once: true });
+            if (abort.signal.aborted) done();
           });
-        } catch (_error) { throw new Error("remote-stream-network"); }
-        if (response.status !== 206) throw new Error("remote-stream-http");
+          if (this.destroyed || abort.signal.aborted) return;
+        }
         if (!(response.headers.get("content-type") || "").toLowerCase().startsWith("audio/mpeg")) {
           throw new Error("remote-stream-format");
         }
@@ -170,7 +195,7 @@
           const permitted = ["remote-stream-network", "remote-stream-http", "remote-stream-format",
             "remote-stream-range", "remote-stream-timeout", "remote-buffer-error", "remote-buffer-timeout"];
           const reason = permitted.includes(error?.message) ? error.message : "remote-stream-error";
-          this.onFatal(reason);
+          this.onFatal(reason, error.streamDetail || null);
         });
       }
       await ready;

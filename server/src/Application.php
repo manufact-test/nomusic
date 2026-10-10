@@ -31,6 +31,7 @@ use Celikom\Storage\StorageAdapter;
 
 final class Application
 {
+    private ?\PDO $database = null;
     public function __construct(private readonly array $config, private ?CatalogRepository $catalog = null, private ?StorageAdapter $storage = null, private ?AnalyticsEventService $analytics = null)
     {
     }
@@ -42,8 +43,13 @@ final class Application
             $response = $this->route($method, $path, $query, $headers, $body, $fields, $files);
         } catch (\InvalidArgumentException) {
             $response = Response::json(400, ['error' => 'invalid_request']);
-        } catch (\Throwable) {
-            error_log('CELIKOM service_unavailable');
+        } catch (\Throwable $error) {
+            // Codes only: no credentials, SQL, filesystem paths or signed URLs.
+            $code = $error instanceof \PDOException
+                ? '_sqlstate_' . preg_replace('/[^A-Z0-9]/', '', (string)($error->errorInfo[0] ?? ''))
+                    . '_driver_' . (int)($error->errorInfo[1] ?? 0)
+                : '';
+            error_log('CELIKOM service_unavailable' . $code);
             $response = Response::json(503, ['error' => 'service_unavailable']);
         }
         $response->headers['X-Content-Type-Options'] = 'nosniff';
@@ -62,7 +68,7 @@ final class Application
             if (!($this->config['admin_enabled'] ?? false)) {
                 return Response::json(404, ['error' => 'not_found']);
             }
-            return (new AdminPanel(Connection::open($this->config), $this->storage()))
+            return (new AdminPanel($this->database(), $this->storage()))
                 ->handle($method, $path, $query, $headers, $body);
         }
         if ($method === 'OPTIONS' && str_starts_with($path, '/api/v1/') && in_array($headers['origin'] ?? '', $this->config['allowed_origins'], true)) {
@@ -75,13 +81,13 @@ final class Application
             if (!($this->config['auth_enabled'] ?? false)) {
                 return Response::json(404, ['error' => 'not_found']);
             }
-            return (new AuthController(new AuthService(Connection::open($this->config), $this->config)))
+            return (new AuthController(new AuthService($this->database(), $this->config)))
                 ->handle($method, $path, $headers, $body);
         }
         if ($method === 'GET' && $path === '/api/v1/entitlement') {
             if (!($this->config['entitlement_enabled'] ?? false) || !($this->config['auth_enabled'] ?? false))
                 return Response::json(404, ['error' => 'not_found']);
-            $pdo = Connection::open($this->config);
+            $pdo = $this->database();
             $user = (new BearerAuthenticator($pdo))->session($headers);
             if ($user === null) return Response::json(401, ['error' => 'invalid_session']);
             return Response::json(200, (new EntitlementService($pdo))->check($user['user_id'])->json());
@@ -112,7 +118,7 @@ final class Application
                 return Response::json(400, ['error' => 'invalid_track']);
             }
             try {
-                return Response::json(200, (new TrackUploadStatusService(Connection::open($this->config)))
+                return Response::json(200, (new TrackUploadStatusService($this->database()))
                     ->state($query['service'], $query['track_id']));
             } catch (\InvalidArgumentException) {
                 return Response::json(400, ['error' => 'invalid_track']);
@@ -129,7 +135,7 @@ final class Application
                     ? Response::json(401, ['error' => 'unauthorized'])
                     : Response::json(503, ['error' => 'uploads_disabled']);
             }
-            $pdo = Connection::open($this->config);
+            $pdo = $this->database();
             if ($owner) {
                 $ownerHash = hash('sha256', $secret);
             } else {
@@ -189,7 +195,7 @@ final class Application
             try {
                 $data = json_decode($body, true, 16, JSON_THROW_ON_ERROR);
                 if (!is_array($data)) throw new \InvalidArgumentException('invalid_report');
-                $result = (new ReportService(Connection::open($this->config),
+                $result = (new ReportService($this->database(),
                     (string) $this->config['analytics_privacy_key']))->submit($data);
                 return Response::json(202, $result);
             } catch (\JsonException|\InvalidArgumentException) {
@@ -233,7 +239,7 @@ final class Application
             if (!is_array($batch)) {
                 return Response::json(400, ['error' => 'invalid_event_batch']);
             }
-            $this->analytics ??= new AnalyticsEventService(new PdoEventRepository(Connection::open($this->config)), $this->config['analytics_privacy_key']);
+            $this->analytics ??= new AnalyticsEventService(new PdoEventRepository($this->database()), $this->config['analytics_privacy_key']);
             return Response::json(202, $this->analytics->batch($batch));
         }
         if (in_array($method, ['GET', 'HEAD'], true) && preg_match('~^/api/v1/audio/([1-9]\d{0,17})$~D', $path, $match)) {
@@ -241,7 +247,7 @@ final class Application
                 return Response::json(503, ['error' => 'replacements_disabled']);
             }
             return (new AudioController($this->catalog(), $this->storage(), $this->tokens(),
-                ($this->config['entitlement_enabled'] ?? false) ? new AudioAccessService(Connection::open($this->config)) : null))->handle($method, (int) $match[1], $query, $headers);
+                ($this->config['entitlement_enabled'] ?? false) ? new AudioAccessService($this->database()) : null))->handle($method, (int) $match[1], $query, $headers);
         }
         return Response::json(404, ['error' => 'not_found']);
     }
@@ -250,7 +256,7 @@ final class Application
     {
         if (!($this->config['entitlement_enabled'] ?? false) || !($this->config['auth_enabled'] ?? false))
             return Response::json(401, ['error' => 'unauthorized']);
-        $pdo = Connection::open($this->config);
+        $pdo = $this->database();
         $session = (new BearerAuthenticator($pdo))->session($headers);
         if ($session === null) return Response::json(401, ['error' => 'invalid_session']);
         $entitlement = (new EntitlementService($pdo))->check($session['user_id']);
@@ -265,9 +271,16 @@ final class Application
         return strlen($token) >= 24 && hash_equals('Bearer ' . $token, $headers['authorization'] ?? '');
     }
 
+    // One database connection per application/request, shared by catalog,
+    // session and entitlement checks. Audio Range must not reconnect twice.
+    private function database(): \PDO
+    {
+        return $this->database ??= Connection::open($this->config);
+    }
+
     private function catalog(): CatalogRepository
     {
-        return $this->catalog ??= new PdoCatalogRepository(Connection::open($this->config));
+        return $this->catalog ??= new PdoCatalogRepository($this->database());
     }
 
     private function storage(): StorageAdapter
