@@ -6,7 +6,7 @@ declare(strict_types=1);
 ini_set('display_errors', '0');
 if (PHP_SAPI !== 'cli' || count($argv) !== 2) exit(2);
 function guard10(bool $condition): void {
-    if (!$condition) throw new RuntimeException('stage10_guard');
+    if (!$condition) throw new RuntimeException('stage10_guard_line_'.(debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS,1)[0]['line']??0));
 }
 function https10(string $path, string $method = 'GET', ?array $body = null, string $bearer = '', bool $range = false): array {
     guard10(str_starts_with($path, '/api/v1/'));
@@ -146,4 +146,7 @@ try {
     } catch (Throwable $error) {
         file_put_contents($env,$old,LOCK_EX); chmod($env,0600); throw $error;
     }
-} catch (Throwable) { fwrite(STDERR,"Stage10 guarded operation failed; no private data disclosed.\n"); exit(1); }
+} catch (Throwable $failure) {
+    $detail=$failure instanceof RuntimeException && preg_match('/^stage10_guard_line_[0-9]+$/D',$failure->getMessage()) ? $failure->getMessage() : get_class($failure);
+    fwrite(STDERR,"Stage10 guarded operation failed (".$detail."); no private data disclosed.\n"); exit(1);
+}
