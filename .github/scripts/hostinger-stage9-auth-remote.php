@@ -142,7 +142,7 @@ try {
         && !is_link($base.'/backups'));
     $requestPath=realpath($argv[1]);
     require9(is_string($requestPath) && str_starts_with($requestPath,$base.'/incoming/stage9-')
-        && basename($requestPath)==='stage9-auth-request.json'
+        && basename($requestPath)==='hostinger-stage9-auth-request.json'
         && filesize($requestPath)<1024);
     $request=json_decode((string)file_get_contents($requestPath),true,8,JSON_THROW_ON_ERROR);
     require9(is_array($request) && array_keys($request)===['operation','target']
