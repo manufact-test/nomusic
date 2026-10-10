@@ -4,7 +4,7 @@
 
 ## Implemented boundaries
 
-- Customer identity is not admin identity: `server/src/Auth/*` and `users/user_devices/user_sessions` are isolated from `admins/admin_sessions`. All user auth endpoints are under `/api/v1/auth/` and default 404 while `FEATURE_USER_AUTH=0`.
+- Customer identity is not admin identity: `server/src/Auth/*` and `users/user_devices/user_sessions` are isolated from `admins/admin_sessions`. All user auth endpoints are under `/api/v1/auth/`; they return 404 while `FEATURE_USER_AUTH=0`, and respond normally with the flag ON in the explicitly approved test environment.
 - `register`, `login`, `refresh`, `logout`, `me`, `sessions`, `sessions/revoke`, `activate`. Customer passwords via PHP strong password KDF; 256-bit CSPRNG opaque tokens, SHA-256 hashes only in MySQL, 15-minute access sessions and 30-day rolling refresh. Previous-token reuse revokes affected session; repeated login throttled per email hash and IP hash; session access denied for disabled/restricted users.
 - Chrome 0.4.5 generates v4 `installation_id`, stored independently of musical-service identity. Refresh/access credentials are in extension-origin IndexedDB controlled by background service worker (never page/content scripts), separate from existing private owner API access. Settings/player, owner upload and original 0.4.4 extension remain compatible.
 - Admin overview uses actual account creation, first activation and distinct authenticated `celikom_started` events; returning users require earlier authenticated start. Anonymous installations are not fingerprint-merged.
@@ -22,7 +22,7 @@
 | Post-deploy private backup: 21 tables and 5 audio objects | [Snapshot](https://github.com/manufact-test/nomusic/actions/runs/38001376977) | PASS |
 | Post-deploy SQL and files isolated restore | [Restore](https://github.com/manufact-test/nomusic/actions/runs/38001474957) | PASS |
 
-Server runtime: PHP 8.3 HTTPS; target `https://darkred-camel-588676.hostingersite.com`. Owner-only upload token and all existing private flags preserved. `FEATURE_USER_AUTH` defaults OFF. Never place credentials, customer email lists or token values in public source, artifacts, GH logs or reports.
+Server runtime: PHP 8.3 HTTPS; target `https://darkred-camel-588676.hostingersite.com`. Owner-only upload token and all existing private flags preserved. `FEATURE_USER_AUTH` defaults OFF for new instances but is ON in the owner-approved Hostinger test environment (10.10.2026); no email verification/recovery exists yet. Never place credentials, customer email lists or token values in public source, artifacts, GH logs or reports.
 
 ## Protected invariants
 
@@ -32,11 +32,14 @@ Server runtime: PHP 8.3 HTTPS; target `https://darkred-camel-588676.hostingersit
 - Public `FEATURE_UPLOADS` stays OFF; private owner upload state unchanged. Existing owner Chrome extension 0.4.4 is not overwritten.
 - No merge of PR #6. Issue #7 and unresolved two-independent-Chrome-profile Stage 6.7 gate remain open.
 
+
+**10.10.2026 Stage 9 test activation:** owner approved enabling test-domain registration. A mismatch in the SSH-staged request basename was corrected. [Protected enable and two-device HTTPS end-to-end smoke PASS](https://github.com/manufact-test/nomusic/actions/runs/38034929824): registration, credential validation, second independent installation, rotated refresh, revoked remote session, logout, anonymous resolve/admin audio denial, verified approved #1 audio hash and pending #2/#3, private environment backup with 0600 permissions. Temporary synthetic account cleaned from MySQL. No new deployment or Chrome 0.4.4 changes. **Stage 9 NOT formally accepted yet.**
+
 ## Next controlled test (Stage 9 only)
 
 1. Review live auth threat model, especially unverified email ownership and account recovery before opening registration to public traffic. Do not enable auth solely because the migration is present.
-2. Enable `FEATURE_USER_AUTH=1` through a separate approved, reversible Hostinger private-env operation only after gate; preserve every other flag and backup private `shared/env`.
-3. With a dedicated closed-test Chrome 0.4.5 installation, test register/login, refresh after expiry, logout and session revoke for two independent browser profiles. Do not replace the owner's existing working extension.
+2. **DONE 10.10.2026:** Owner approved `FEATURE_USER_AUTH=1`; SSH-only guarded toggle used private-env 0600 backup, HTTPS account smoke, and preservation checks. Rollback is the identical guarded request with operation `disable`.
+3. **REMAINING:** With a dedicated Chrome 0.4.5 installation, manually review account-popup UX and test register/login, refresh after expiry, logout and session revocation across two physical browser profiles. HTTPS server two-installation smoke already PASS. Do not replace the owner's existing working extension.
 4. Review email/login UX and status-change audit event handling before **formally accepting** Stage 9.
 5. If auth activation fails, revert only the new private auth flag, avoid destructive MySQL rollback. 004 is additive and old code ignores the new tables. The previous 0.4.4 server release is still available for code-only rollback. Retain 21-table snapshot for full restoration if required.
 
