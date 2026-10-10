@@ -83,6 +83,8 @@ export function initAuthPanel(send) {
       void clearPending();
       view("signed", state.user);
     } else if (pending) {
+      // After switching to the mailbox, reopen the confirmation panel automatically.
+      root.open = true;
       pendingEmail = pending.email;
       email.value = pending.email;
       if (pending.purpose === "reset") {
