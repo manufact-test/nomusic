@@ -1,4 +1,4 @@
 {
-    "operation": "build",
-    "target": "hostinger-private-test"
+  "operation": "build",
+  "target": "hostinger-private-test"
 }
