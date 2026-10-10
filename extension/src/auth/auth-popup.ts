@@ -7,6 +7,24 @@ export function initAuthPanel(send) {
     reset: q("new-password-form"), signed: q("signed") };
   const call = (action, more = {}) => send({ type: "CELIKOM_AUTH", action, ...more });
   let mode = "login", pendingEmail = "", pendingPassword = "", busy = false;
+  // The Chrome popup closes when users switch to their mailbox. Keep ONLY the
+  // pending email + purpose in extension storage; never persist a password/code.
+  const pendingKey = "celikom-auth-pending-email";
+  const mailStore = globalThis.chrome?.storage?.local;
+  async function savePending(purpose, address) {
+    if (!mailStore || !goodEmail(address)) return;
+    await mailStore.set({ [pendingKey]: { purpose, email: address } });
+  }
+  async function loadPending() {
+    if (!mailStore) return null;
+    const value = (await mailStore.get(pendingKey))[pendingKey];
+    if (!value || !["verify", "reset"].includes(value.purpose) || !goodEmail(value.email))
+      return null;
+    return value;
+  }
+  async function clearPending() {
+    if (mailStore) await mailStore.remove(pendingKey);
+  }
   const errors = {
     invalid_credentials: "Не удалось войти. Проверьте email и пароль или создайте аккаунт.",
     account_unavailable: "Этот email уже используется. Попробуйте войти.",
@@ -43,7 +61,7 @@ export function initAuthPanel(send) {
     show("Проверяем…", "loading");
     try {
       const result = await call(action, data);
-      if (result?.ok) done(result);
+      if (result?.ok) await done(result);
       else show(errors[result?.error] || "Не удалось выполнить действие.", "error");
     } catch (_) { show("Нет связи с сервером.", "error"); }
     finally { busy = false; }
@@ -58,10 +76,24 @@ export function initAuthPanel(send) {
     });
   }
   eye(pass, q("eye")); eye(q("reset-password"), q("reset-eye"));
-  void call("status").then((state) => {
+  void Promise.all([call("status"), loadPending()]).then(([state, pending]) => {
     if (!state?.available) return;
     root.hidden = false;
-    view(state.signedIn ? "signed" : "login", state.user);
+    if (state.signedIn) {
+      void clearPending();
+      view("signed", state.user);
+    } else if (pending) {
+      pendingEmail = pending.email;
+      email.value = pending.email;
+      if (pending.purpose === "reset") {
+        q("recovery-email").value = pending.email;
+        view("reset");
+        show("Введите код из письма. Можно закрыть окно и вернуться позже.");
+      } else {
+        view("verify");
+        show("Введите код из письма. Для повторной отправки войдите с паролем.");
+      }
+    } else view("login");
   }).catch(() => {});
   q("mode").addEventListener("click", () => view(mode === "login" ? "register" : "login"));
   views.login.addEventListener("submit", (e) => {
@@ -71,11 +103,13 @@ export function initAuthPanel(send) {
     if (!password || (mode === "register" && !goodPass(password))) {
       return show(mode === "register" ? "Пароль: минимум 12 символов." : "Введите пароль.", "error");
     }
-    void act(mode, { email: address, password }, (result) => {
+    void act(mode, { email: address, password }, async (result) => {
       if (result.verification_required) {
         pendingEmail = address; pendingPassword = password;
+        await savePending("verify", address);
         pass.value = ""; view("verify"); show("Код отправлен на почту.");
       } else {
+        await clearPending();
         pendingPassword = ""; pass.value = ""; view("signed", result.user);
       }
     });
@@ -84,7 +118,8 @@ export function initAuthPanel(send) {
     e.preventDefault();
     const code = q("code").value.trim();
     if (!/^\d{6}$/.test(code)) return show("Введите шестизначный код.", "error");
-    void act("verify-email", { email: pendingEmail, code }, (result) => {
+    void act("verify-email", { email: pendingEmail, code }, async (result) => {
+      await clearPending();
       pendingPassword = ""; q("code").value = "";
       view("signed", result.user);
     });
@@ -100,8 +135,10 @@ export function initAuthPanel(send) {
     e.preventDefault();
     const address = q("recovery-email").value.trim();
     if (!goodEmail(address)) return show("Введите корректный email.", "error");
-    void act("request-reset", { email: address }, () => {
-      pendingEmail = address; view("reset");
+    void act("request-reset", { email: address }, async () => {
+      pendingEmail = address;
+      await savePending("reset", address);
+      view("reset");
       show("Если почта зарегистрирована, код отправлен.");
     });
   });
@@ -110,14 +147,18 @@ export function initAuthPanel(send) {
     const code = q("reset-code").value.trim(), password = q("reset-password").value;
     if (!/^\d{6}$/.test(code)) return show("Введите шестизначный код.", "error");
     if (!goodPass(password)) return show("Новый пароль: минимум 12 символов.", "error");
-    void act("reset-password", { email: pendingEmail, code, new_password: password }, () => {
+    void act("reset-password", { email: pendingEmail, code, new_password: password }, async () => {
+      await clearPending();
       q("reset-password").value = ""; email.value = pendingEmail;
       view("login"); show("Пароль изменён. Войдите с новым паролем.");
     });
   });
   q("reset-back").addEventListener("click", () => view("login"));
   q("logout").addEventListener("click", () => {
-    void act("logout", {}, () => { view("login"); show("Вы вышли."); });
+    void act("logout", {}, async () => {
+      await clearPending();
+      view("login"); show("Вы вышли.");
+    });
   });
   view("login");
 }
