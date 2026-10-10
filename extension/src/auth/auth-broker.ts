@@ -114,8 +114,9 @@ export function createAuthBroker(api, options = {}) {
       await apiRequest("auth/me", "GET", null, saved.access_token);
       return saved;
     } catch (error) {
-      if (error?.message !== "invalid_session" && error?.message !== "auth_unavailable") throw error;
-      // On server-side expiry, rotate once; network failures must not erase credentials.
+      // Refresh only when the server explicitly rejects the access token.
+      // Transport errors must not rotate an otherwise valid session or lose credentials.
+      if (error?.message !== "invalid_session") throw error;
       return refresh(saved);
     }
   }
