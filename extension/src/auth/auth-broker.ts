@@ -181,7 +181,7 @@ export function createAuthBroker(api, options = {}) {
           error: "session_expired" };
       }
     }
-    if (!await isAvailable()) return { ok: false, error: "auth_disabled" };
+    if (action !== "contribution-access" && !await isAvailable()) return { ok: false, error: "auth_disabled" };
     try {
       if (action === "login" || action === "register") {
         if (typeof message.email !== "string" || typeof message.password !== "string" ||
@@ -234,11 +234,12 @@ export function createAuthBroker(api, options = {}) {
       if (action === "entitlement") return { ok: true, entitlement: await entitlement() };
       if (action === "contribution-access") {
         // Short-lived access only, to the verified extension popup. No refresh token.
-        return withAccess(async (saved) => {
+        return await withAccess(async (saved) => {
           const [access, config] = await Promise.all([
             apiRequest("entitlement", "GET", null, saved.access_token),
             apiRequest("config")
           ]);
+          if (config.features?.auth !== true) return { ok: false, error: "auth_disabled" };
           if (!validEntitlement(access)) throw new Error("auth_unavailable");
           if (!access.allowed) return { ok: false, error: "access_denied" };
           if (config.upload_enabled !== true) return { ok: false, error: "uploads_disabled" };
