@@ -52,7 +52,7 @@ function integrity10(PDO $db, array $config, string $root): array {
     }
     return $rows;
 }
-function smoke10(PDO $db): void {
+function smoke10(PDO $db, array $config): void {
     $email='stage10-check-'.bin2hex(random_bytes(12)).'@example.invalid';
     $id=null;
     try {
@@ -92,6 +92,10 @@ function smoke10(PDO $db): void {
         expect10(200,https10('/api/v1/auth/me','GET',null,$rotated['access_token']));
         expect10(200,https10('/api/v1/auth/logout','POST',['refresh_token'=>$rotated['refresh_token'],'installation_id'=>$tokens[0][2]]));
         expect10(403,https10($resolve['audio_url'],'GET',null,'',true));
+        // Invoke the same route in CLI to distinguish application errors from HTTP transport.
+        $route=new ReflectionMethod(Celikom\Application::class,'route');
+        $direct=$route->invoke(new Celikom\Application($config),'GET','/api/v1/entitlement',[],['authorization'=>'Bearer '.$tokens[1][0]],'',[],[]);
+        guard10($direct->status===200);
         $second=expect10(200,https10('/api/v1/entitlement','GET',null,$tokens[1][0])); guard10($second['allowed']===true);
         echo "Stage10 real HTTPS smoke PASS: account trial 5 days; independent devices; user-bearer approved resolve; signed HEAD/206; pending denied; refresh/logout revoke only one device.\n";
     } finally {
@@ -140,13 +144,13 @@ try {
         // Production bootstrap env was already loaded into this CLI process.
         putenv('FEATURE_USER_ENTITLEMENT=1'); $afterConfig=require $release.'/config/app.php';
         guard10($afterConfig['entitlement_enabled'] && integrity10($db,$afterConfig,$root)===$before);
-        smoke10($db);
+        smoke10($db,$afterConfig);
         guard10(integrity10($db,$afterConfig,$root)===$before);
         echo "Stage10 guarded enable PASS: only FEATURE_USER_ENTITLEMENT changed; historic credentials, admin, audio, pending and public upload gate preserved.\n";
     } catch (Throwable $error) {
         file_put_contents($env,$old,LOCK_EX); chmod($env,0600); throw $error;
     }
 } catch (Throwable $failure) {
-    $detail=$failure instanceof RuntimeException && preg_match('/^stage10_(?:guard_line_[0-9]+|http_expected_[0-9]+_actual_[0-9]+_line_[0-9]+)$/D',$failure->getMessage()) ? $failure->getMessage() : get_class($failure);
+    $detail=$failure instanceof RuntimeException && preg_match('/^stage10_(?:guard_line_[0-9]+|http_expected_[0-9]+_actual_[0-9]+_line_[0-9]+)$/D',$failure->getMessage()) ? $failure->getMessage() : get_class($failure).'_line_'.$failure->getLine();
     fwrite(STDERR,"Stage10 guarded operation failed (".$detail."); no private data disclosed.\n"); exit(1);
 }
