@@ -66,6 +66,7 @@ test("Stage9 email verification survives actual popup close/reopen without store
     globalThis.document = reopened.document;
     initAuthPanel(send);
     await tick();
+    assert.equal(reopened.nodes.get("panel").open, true, "verification panel should reopen automatically");
     assert.equal(reopened.nodes.get("verify-form").hidden, false);
     assert.equal(reopened.nodes.get("form").hidden, true);
     reopened.nodes.get("code").value = "123456";
@@ -109,6 +110,7 @@ test("Stage9 recovery email persists but one-time code and new password do not",
     globalThis.document = reopened.document;
     initAuthPanel(send);
     await tick();
+    assert.equal(reopened.nodes.get("panel").open,true, "reset panel should reopen automatically");
     assert.equal(reopened.nodes.get("new-password-form").hidden,false);
     reopened.nodes.get("reset-code").value = "123456";
     reopened.nodes.get("reset-password").value = "a strong new password";
