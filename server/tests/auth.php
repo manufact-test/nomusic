@@ -12,10 +12,17 @@ $config = require dirname(__DIR__) . '/config/app.php';
 if (!str_starts_with($config['db_name'], 'celikom_test')) throw new RuntimeException('disposable_test_only');
 $pdo = Connection::open($config);
 (new MigrationRunner($pdo, dirname(__DIR__) . '/migrations'))->run();
-foreach (['user_auth_events','user_sessions','user_devices','user_auth_attempts','users'] as $table) {
+foreach (['user_email_security','user_auth_events','user_sessions','user_devices','user_auth_attempts','users'] as $table) {
     $pdo->exec('DELETE FROM ' . $table);
 }
 $config['auth_enabled'] = true;
+$config['environment'] = 'test';
+$config['mail_code_pepper'] = str_repeat('test-email-pepper-', 3);
+$sentEmails = [];
+$config['mail_test_sink'] = static function (string $to, string $message, string $purpose) use (&$sentEmails): void {
+    preg_match('/([0-9]{6})/', $message, $m);
+    $sentEmails[$to . ':' . $purpose] = $m[1] ?? '';
+};
 $app = new Application($config);
 $install1 = '8de936d6-2af5-4ca7-973f-24cb5d355111';
 $install2 = '8de936d6-2af5-4ca7-973f-24cb5d355112';
@@ -34,6 +41,14 @@ run('Stage9 auth OFF by default and independent of admin/resolve', function () u
 });
 [$code, $first] = callAuth($app, 'POST', 'register',
     ['email' => $email, 'password' => $password, 'installation_id' => $install1]);
+expect($code === 201 && ($first['verification_required'] ?? false), 'pending email first');
+expect(callAuth($app, 'POST', 'login',
+    ['email'=>$email,'password'=>$password,'installation_id'=>$install1])[1]['verification_required'] ?? false, 'unverified login never grants session');
+[$verifiedStatus, $first] = callAuth($app, 'POST', 'verify-email', [
+    'email'=>$email, 'code'=>$sentEmails[$email.':verify'], 'installation_id'=>$install1
+]);
+$code = $verifiedStatus;
+
 run('Stage9 registration uses opaque tokens and hashed DB secrets', function () use ($pdo, $code, $first, $password): void {
     expect($code === 201 && isset($first['user']['id']) && strlen($first['refresh_token']) === 64, 'registered');
     $row = $pdo->query('SELECT u.password_hash, s.access_hash, s.refresh_hash
@@ -97,7 +112,12 @@ run('Stage9 expired access token rotates via valid refresh without waiting 15 mi
     [$registerCode, $registered] = callAuth($app, 'POST', 'register', [
         'email' => $email, 'password' => $password, 'installation_id' => $installation
     ]);
-    expect($registerCode === 201, 'expiry account created');
+    expect($registerCode === 201 && ($registered['verification_required'] ?? false), 'expiry pending account created');
+    $challenge = $GLOBALS['sentEmails'][$email . ':verify'];
+    [$verificationCode, $registered] = callAuth($app,'POST','verify-email',[
+        'email'=>$email,'code'=>$challenge,'installation_id'=>$installation
+    ]);
+    expect($verificationCode === 200, 'verified expiry account');
     $accessHash = hash('sha256', $registered['access_token']);
     $stmt = $pdo->prepare('UPDATE user_sessions
         SET access_expires_at = DATE_SUB(UTC_TIMESTAMP(6), INTERVAL 2 SECOND)
