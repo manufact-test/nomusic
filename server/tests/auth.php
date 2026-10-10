@@ -210,3 +210,14 @@ run('Stage9 reset request for unknown email is non-enumerating', function () use
     [$status,$reply]=callAuth($app,'POST','request-reset',['email'=>'unknown-stage9@example.org']);
     expect($status===200 && ($reply['ok']??false), 'generic reset response');
 });
+
+run('Stage9 12 Cyrillic letters are valid; digits and special characters are optional', function () use ($app,$install1): void {
+    $password='двенадцатьбукв';
+    [$status,$registered]=callAuth($app,'POST','register',[
+        'email'=>'stage9-unicode@example.org','password'=>$password,'installation_id'=>$install1
+    ]);
+    expect($status===201 && ($registered['verification_required']??false), 'Unicode password accepted by KDF');
+    expect(callAuth($app,'POST','register',[
+        'email'=>'stage9-short@example.org','password'=>'короткий','installation_id'=>$install1
+    ])[0]===422, 'too short Unicode password refused');
+});
