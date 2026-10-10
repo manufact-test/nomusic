@@ -144,7 +144,7 @@ try {
         // Production bootstrap env was already loaded into this CLI process.
         putenv('FEATURE_USER_ENTITLEMENT=1'); $afterConfig=require $release.'/config/app.php';
         guard10($afterConfig['entitlement_enabled'] && integrity10($db,$afterConfig,$root)===$before);
-        guard10(array_diff_assoc($afterConfig,$config)===['entitlement_enabled'=>true]);
+        $expected=$config; $expected['entitlement_enabled']=true; guard10($afterConfig===$expected);
         smoke10($db,$afterConfig);
         guard10(integrity10($db,$afterConfig,$root)===$before);
         echo "Stage10 guarded enable PASS: only FEATURE_USER_ENTITLEMENT changed; historic credentials, admin, audio, pending and public upload gate preserved.\n";
@@ -154,6 +154,7 @@ try {
 } catch (Throwable $failure) {
     $detail=$failure instanceof RuntimeException && preg_match('/^stage10_(?:guard_line_[0-9]+|http_expected_[0-9]+_actual_[0-9]+_line_[0-9]+)$/D',$failure->getMessage()) ? $failure->getMessage() : get_class($failure).'_line_'.$failure->getLine();
     if ($failure instanceof PDOException) $detail.='_sqlstate_'.preg_replace('/[^A-Z0-9]/','',(string)($failure->errorInfo[0]??'')).'_driver_'.(int)($failure->errorInfo[1]??0);
-    foreach (['Connection refused','No such file or directory','Permission denied','Resource temporarily unavailable','Connection timed out'] as $label) if(str_contains($failure->getMessage(),$label)) $detail.='_'.str_replace(' ','_',$label);
+    $detail.='_caller_'.implode('_',array_map(static fn(array $frame): string => basename((string)($frame['file']??'')).':'.(int)($frame['line']??0),array_slice($failure->getTrace(),0,3)));
+    foreach (['Name or service not known','Temporary failure in name resolution','php_network_getaddresses','Connection refused','No such file or directory','Permission denied','Resource temporarily unavailable','Connection timed out'] as $label) if(str_contains($failure->getMessage(),$label)) $detail.='_'.str_replace(' ','_',$label);
     fwrite(STDERR,"Stage10 guarded operation failed (".$detail."); no private data disclosed.\n"); exit(1);
 }
