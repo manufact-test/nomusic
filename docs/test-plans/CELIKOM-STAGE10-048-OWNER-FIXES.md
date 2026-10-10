@@ -1,3 +1,5 @@
+> Historical 0.4.8 package: owner playback FAILED with `remote-stream-http`. Superseded by [0.4.9 stream reliability](CELIKOM-STAGE10-049-STREAM-RELIABILITY.md); Stage10 remains OPEN.
+
 # CELIKOM 0.4.8 — owner corrections, 10.10.2026
 
 **Stage 10 / Issue #9 OPEN. Real Yandex playback NOT accepted.** Owner reported that 0.4.7 briefly displays active replacement, then restores original or stops with no actual substitution. Owner login worked after page reload; no evidence of account loss. A fixed empty area below the auth form was reported with screenshot. Owner explicitly changed trial from five to **three days** and authorized restarting existing private-test account trials.
