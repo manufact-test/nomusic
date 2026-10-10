@@ -19,7 +19,7 @@ target='u235811320@92.113.19.189'
 incoming="$site/celikom/incoming/stage9-$GITHUB_SHA"
 cleanup() {
   if [[ ${#opts[@]} -gt 0 ]]; then
-    ssh -T -p 65002 "${opts[@]}" "$target" "rm -f '$incoming/hostinger-stage9-auth-remote.php' '$incoming/stage9-auth-request.json' && rmdir '$incoming'" >/dev/null 2>&1 || true
+    ssh -T -p 65002 "${opts[@]}" "$target" "rm -f '$incoming/hostinger-stage9-auth-remote.php' '$incoming/hostinger-stage9-auth-request.json' && rmdir '$incoming'" >/dev/null 2>&1 || true
   fi
   rm -rf -- "$work"
 }
@@ -35,5 +35,5 @@ ssh -T -p 65002 "${opts[@]}" "$target" "test -d '$site/public_html' && test ! -L
 scp -P 65002 "${opts[@]}" .github/scripts/hostinger-stage9-auth-remote.php \
   .github/deploy/hostinger-stage9-auth-request.json "$target:$incoming/"
 ssh -T -p 65002 "${opts[@]}" "$target" \
-  "/opt/alt/php83/usr/bin/php '$incoming/hostinger-stage9-auth-remote.php' '$incoming/stage9-auth-request.json'"
+  "/opt/alt/php83/usr/bin/php '$incoming/hostinger-stage9-auth-remote.php' '$incoming/hostinger-stage9-auth-request.json'"
 echo 'Stage 9 guarded Hostinger customer authorization switch complete.'
