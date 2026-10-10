@@ -28,5 +28,19 @@
 4. Защищённый Hostinger rollout только после письма и полного CI, с private env backup, schema/checksum audit, rollback. Существующую рабочую Chrome 0.4.4 не трогать; собирать новый owner-only пакет с SHA-256.
 5. Ручная приёмка UI и живых писем в двух Chrome-профилях, с настоящим email; особое внимание Brave/Chrome autocomplete, copy/paste, double focus, password eye, error readability. Потом закрывать Issue #8 и этап 9.
 
+## Фактическое развёртывание — 10.10.2026
+
+**HOSTINGER TEST BACKEND РАЗВЁРНУТ И ПРОВЕРЕН.** Пользователь подтвердил получение настоящего тестового письма CELIKOM в Proton. Секреты Gmail SMTP хранятся только в приватном Hostinger env; токены и пароли не публиковались.
+
+- [Pre-deploy snapshot](https://github.com/manufact-test/nomusic/actions/runs/38054641908): 21 таблица, 5 аудио, private env — PASS.
+- [Isolated pre-deploy restore](https://github.com/manufact-test/nomusic/actions/runs/38054748599): PASS.
+- [Owner-approved protected deploy](https://github.com/manufact-test/nomusic/actions/runs/38054935718): релиз `0.4.5-bffd2c93df1ac0d3a45de385197a4c51b7c5df94`, миграция 005, PHP 8.3, HTTPS — PASS.
+- [Read-only Hostinger DB/audio/env audit](https://github.com/manufact-test/nomusic/actions/runs/38055294402): approved #1, pending #2/#3, original media hash and checksum 005 preserved — PASS. GitHub edge 403 accepted only after on-host audit without отключения защиты Hostinger.
+- [Post-deploy snapshot](https://github.com/manufact-test/nomusic/actions/runs/38055393728): **22 таблицы, 5 аудиофайлов** и private env — PASS.
+- [Isolated post-deploy restore](https://github.com/manufact-test/nomusic/actions/runs/38055485798): восстановление SQL и аудиофайлов — PASS.
+- [Private browser package](https://github.com/manufact-test/nomusic/actions/runs/38055111493): Chrome 0.4.5 с email verification/recovery; SHA256 `a3812e53678b27d2fa07a1f6f145dabb1bad7717ba5d37024cff7257b6d0835c`.
+
+**Незакрытая приёмка:** в настоящем Chrome проверить имеющийся аккаунт → письмо с кодом, регистрацию нового пользователя, сохранение ввода кода при закрытии popup, reset-by-email и ретест плеера. Серверная отправка из новых auth endpoint пользовательским сценарием **ещё не подтверждена**, подтверждена только доставка отдельного SMTP-теста. Stage 9 и Issue #8 остаются открытыми. Не трогать рабочую 0.4.4, PR #6 и Issue #7, не начинать Stage 10.
+
 ## Состояние
-**В разработке в feature/api-range.** На Hostinger пока прежний Stage9 API: `FEATURE_USER_AUTH=1`, подтверждения писем нет. **Это не безопасная публичная регистрация. Не выдавать за окончательный релиз.** PR #6 OPEN/unmerged, Issue #7 OPEN. Approved #1, pending #2/#3, private owner uploads и Stage8 admin сохранять.
+**Новая email-верификация включена на тестовом Hostinger**, публичный платный запуск ещё не разрешён: требуется ручная приёмка. PR #6 OPEN/unmerged, Issue #7 OPEN. Approved #1, pending #2/#3, private owner uploads и Stage8 admin сохранять.
