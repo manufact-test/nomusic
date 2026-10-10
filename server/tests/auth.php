@@ -135,3 +135,78 @@ run('Stage9 expired access token rotates via valid refresh without waiting 15 mi
         'installation_id' => $installation, 'refresh_token' => $rotated['refresh_token']
     ])[0] === 200, 'expired-access test logout');
 });
+
+run('Stage9 email reset revokes every active session and denies replayed code', function () use ($app, &$sentEmails, $install1, $install2): void {
+    $email='stage9-recovery@example.org';
+    $old='secure test old recovery password';
+    [$status,$pending]=callAuth($app,'POST','register',[
+        'email'=>$email,'password'=>$old,'installation_id'=>$install1
+    ]);
+    expect($status===201 && ($pending['verification_required']??false), 'recovery registration awaits email');
+    [$verifiedStatus,$first]=callAuth($app,'POST','verify-email',[
+        'email'=>$email,'code'=>$sentEmails[$email.':verify'],'installation_id'=>$install1
+    ]);
+    expect($verifiedStatus===200, 'email verified');
+    [$code,$second]=callAuth($app,'POST','login',[
+        'email'=>$email,'password'=>$old,'installation_id'=>$install2
+    ]);
+    expect($code===200 && isset($second['access_token']), 'second device signed in');
+    [$requestStatus,$requestResult]=callAuth($app,'POST','request-reset',['email'=>$email]);
+    expect($requestStatus===200 && ($requestResult['ok']??false), 'reset mail requested');
+    $challenge=$sentEmails[$email.':reset'];
+    expect(callAuth($app,'POST','reset-password',[
+        'email'=>$email,'code'=>'999999'===$challenge?'888888':'999999',
+        'new_password'=>'secure test new recovery password'
+    ])[0]===422, 'wrong reset challenge rejected');
+    expect(callAuth($app,'POST','reset-password',[
+        'email'=>$email,'code'=>$challenge,'new_password'=>'secure test new recovery password'
+    ])[0]===200, 'valid recovery completed');
+    expect(callAuth($app,'GET','me',[],$first['access_token'])[0]===401, 'device1 session revoked');
+    expect(callAuth($app,'GET','me',[],$second['access_token'])[0]===401, 'device2 session revoked');
+    expect(callAuth($app,'POST','reset-password',[
+        'email'=>$email,'code'=>$challenge,'new_password'=>'another new recovery password'
+    ])[0]===422, 'code replay rejected');
+    expect(callAuth($app,'POST','login',[
+        'email'=>$email,'password'=>$old,'installation_id'=>$install1
+    ])[0]===401, 'old password rejected');
+    expect(callAuth($app,'POST','login',[
+        'email'=>$email,'password'=>'secure test new recovery password','installation_id'=>$install1
+    ])[0]===200, 'new password accepted');
+});
+
+run('Stage9 real mailbox owner can reclaim unverified reserved email', function () use ($app, &$sentEmails, $pdo, $install1): void {
+    $email='stage9-takeover@example.org';
+    [$code,$pending]=callAuth($app,'POST','register',[
+        'email'=>$email,'password'=>'unverified-reservation-test','installation_id'=>$install1
+    ]);
+    expect($code===201 && ($pending['verification_required']??false), 'unverified pending row');
+    [$resetCode,$resetResult]=callAuth($app,'POST','request-reset',['email'=>$email]);
+    expect($resetCode===200 && ($resetResult['ok']??false), 'recovery available for unverified email');
+    expect(callAuth($app,'POST','reset-password',[
+        'email'=>$email,'code'=>$sentEmails[$email.':reset'],'new_password'=>'claimed mailbox owner password'
+    ])[0]===200, 'mailbox proof allows secure claim');
+    expect(callAuth($app,'POST','login',[
+        'email'=>$email,'password'=>'unverified-reservation-test','installation_id'=>$install1
+    ])[0]===401, 'unverified old password denied');
+    [$status,$auth]=callAuth($app,'POST','login',[
+        'email'=>$email,'password'=>'claimed mailbox owner password','installation_id'=>$install1
+    ]);
+    expect($status===200 && isset($auth['refresh_token']), 'verified mailbox owner signed in');
+});
+
+run('Stage9 missing SMTP credentials refuse new registration without issuing tokens', function () use ($config, $install1): void {
+    $off=$config;
+    unset($off['mail_test_sink']);
+    $off['mail_transport']='';
+    $appOff=new Application($off);
+    [$code,$reply]=callAuth($appOff,'POST','register',[
+        'email'=>'stage9-no-smtp@example.org',
+        'password'=>'correct horse battery staple',
+        'installation_id'=>$install1
+    ]);
+    expect($code===503 && ($reply['error']??'')==='email_unavailable', 'missing sender fails closed');
+});
+run('Stage9 reset request for unknown email is non-enumerating', function () use ($app): void {
+    [$status,$reply]=callAuth($app,'POST','request-reset',['email'=>'unknown-stage9@example.org']);
+    expect($status===200 && ($reply['ok']??false), 'generic reset response');
+});
