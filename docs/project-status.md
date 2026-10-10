@@ -1,3 +1,9 @@
+## Stage 9.1 — verified email and recovery (development only; 10.10.2026)
+
+Owner approved mandatory email confirmation, reset-by-email, no per-device OTP and removal of `Мои устройства` from compact popup. Code added in `feature/api-range`: `005_email_security.sql`, SMTP TLS mail sender with private env, six-digit email challenges, verified-only access/refresh and revoke-all-on-reset; account UI with code/recovery/eye/custom errors. [MVP amendment](https://github.com/manufact-test/nomusic/blob/feature/api-range/docs/deployment/stage9-verified-email.md) and [Issue #8](https://github.com/manufact-test/nomusic/issues/8). Current code CI PASS [38040057944](https://github.com/manufact-test/nomusic/actions/runs/38040057944).
+
+**NOT deployed:** no real SMTP sender or DNS configured; no email delivery tested. Existing public-reachable Hostinger remains the previous test account API; do not claim verified accounts or Stage9 acceptance. Chrome 0.4.4 unaffected. PR #6 and Issue #7 open.
+
 # CELIKOM — execution status
 
 ## Stage 9 — test auth enabled, awaiting owner UI acceptance (10.10.2026)
