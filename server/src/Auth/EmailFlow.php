@@ -99,15 +99,16 @@ final class EmailFlow
         $s->execute([$email,'active']);
         $user=$s->fetch(\PDO::FETCH_ASSOC);
         $message=['ok'=>true];
-        if (!$user || $user['verified_at']===null) return $message;
+        if (!$user) return $message;
+        $id=(int)$user['id'];
+        $this->db->prepare('INSERT IGNORE INTO user_email_security (user_id) VALUES (?)')->execute([$id]);
         if ($user['reset_sent_at']!==null && strtotime($user['reset_sent_at'].' UTC')>time()-60)
             return $message;
-        $id=(int)$user['id'];
         $code=$this->code();
         $hash=$this->digest($id,$code,'reset');
         $this->db->prepare('UPDATE user_email_security
           SET reset_hash=?,reset_expires_at=DATE_ADD(UTC_TIMESTAMP(6),INTERVAL 10 MINUTE),
-              reset_attempts=0,reset_sent_at=UTC_TIMESTAMP(6) WHERE user_id=? AND verified_at IS NOT NULL')
+              reset_attempts=0,reset_sent_at=UTC_TIMESTAMP(6) WHERE user_id=?')
             ->execute([$hash,$id]);
         try { $this->mail->sendCode($email,$code,'reset'); }
         catch (\Throwable) {
@@ -128,8 +129,7 @@ final class EmailFlow
                 WHERE u.email=? AND u.status=? FOR UPDATE');
             $s->execute([$email,'active']);
             $row=$s->fetch(\PDO::FETCH_ASSOC);
-            $valid=$row && $row['verified_at']!==null
-                && $row['reset_hash']!==null
+            $valid=$row && $row['reset_hash']!==null
                 && (int)$row['reset_attempts']<5
                 && strtotime($row['reset_expires_at'].' UTC')>time()
                 && hash_equals((string)$row['reset_hash'],$this->digest((int)$row['id'],$code,'reset'));
@@ -146,7 +146,10 @@ final class EmailFlow
             $this->db->prepare('UPDATE user_sessions SET revoked_at=UTC_TIMESTAMP(6)
                 WHERE user_id=? AND revoked_at IS NULL')->execute([$row['id']]);
             $this->db->prepare('UPDATE user_email_security
-                SET reset_hash=NULL,reset_expires_at=NULL,reset_sent_at=NULL,reset_attempts=0 WHERE user_id=?')
+                SET verified_at=COALESCE(verified_at,UTC_TIMESTAMP(6)),
+                    reset_hash=NULL,reset_expires_at=NULL,reset_sent_at=NULL,reset_attempts=0,
+                    verification_hash=NULL,verification_expires_at=NULL,verification_sent_at=NULL,
+                    verification_attempts=0 WHERE user_id=?')
                 ->execute([$row['id']]);
             $this->db->commit();
             return ['ok'=>true];
