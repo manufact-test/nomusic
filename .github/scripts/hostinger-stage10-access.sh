@@ -7,7 +7,7 @@ if [[ "$operation" == 'prepare' ]]; then
   echo 'Stage 10 customer auth switch prepared; server unchanged.'
   exit 0
 fi
-[[ "$operation" == 'enable' || "$operation" == 'audit' ]] || exit 1
+[[ "$operation" == 'enable' || "$operation" == 'audit' || "$operation" == 'reset-trials' ]] || exit 1
 [[ -n "${HOSTINGER_SSH_KEY:-}" ]] || exit 1
 remote_head="$(git ls-remote origin refs/heads/feature/api-range | cut -f1)"
 [[ "$remote_head" == "$GITHUB_SHA" ]] || { echo 'Stale Stage 10 switch refused.' >&2; exit 1; }

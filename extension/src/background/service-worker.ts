@@ -108,11 +108,14 @@ chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse) =>
     if (sender?.id !== chrome.runtime.id || !validOrigin) {
       sendResponse({ ok: false }); return false;
     }
+    // Worker liveness must not wait for network authorization. MAIN's safety
+    // lease continues only while this installed worker answers; denial still
+    // asynchronously disables the controller and restores original playback.
+    sendResponse({ ok: true, version: VERSION });
     void (async () => {
       if (await readEnabled() && !await playbackAccess()) await chrome.storage.local.set({ enabled: false });
-      sendResponse({ ok: true, version: VERSION });
-    })().catch(() => sendResponse({ ok: false }));
-    return true;
+    })().catch(() => { void chrome.storage.local.set({ enabled: false }); });
+    return false;
   }
 
   if (type === "CELIKOM_API_RESOLVE" || type === "CELIKOM_API_EVENT") {

@@ -40,10 +40,10 @@ try {
         expect($entitlement->check($id)->reason === 'trial_not_started', 'no automatic start');
         expect((int)$pdo->query('SELECT COUNT(*) FROM account_trials WHERE user_id = ' . $id)->fetchColumn() === 0, 'no writes');
         $result = $trial->activate($id);
-        expect($result['activated'] && $result['trial_seconds'] === 432000, 'explicit activation starts now');
+        expect($result['activated'] && $result['trial_seconds'] === 259200, 'explicit activation starts now');
         expect(str_ends_with($result['trial_ends_at'], 'Z'), 'unambiguous UTC');
         $row = $pdo->query('SELECT TIMESTAMPDIFF(MICROSECOND, valid_from, valid_until) AS duration FROM account_trials WHERE user_id = ' . $id)->fetch();
-        expect((int)$row['duration'] === 432000000000, 'exactly five days including microseconds');
+        expect((int)$row['duration'] === 259200000000, 'exactly three days including microseconds');
         $state = $entitlement->check($id);
         expect($state->allowed && $state->source === 'trial' && $state->validUntil === $result['trial_ends_at'], 'allowed canonical result');
         expect($trial->activate($id)['activated'] === false, 'reinstallation/retry does not reset trial');
@@ -74,7 +74,7 @@ try {
             expect(!$trial->activate($id)['activated'], 'expired cannot reactivate');
             $pdo->exec('SET timestamp = ' . ($future - 86400));
             // Create an exact boundary on the database clock, keeping ledger consistent.
-            $pdo->exec('UPDATE account_trials SET valid_from = DATE_SUB(UTC_TIMESTAMP(6), INTERVAL 432000 SECOND), valid_until = UTC_TIMESTAMP(6) WHERE user_id = ' . $id);
+            $pdo->exec('UPDATE account_trials SET valid_from = DATE_SUB(UTC_TIMESTAMP(6), INTERVAL 259200 SECOND), valid_until = UTC_TIMESTAMP(6) WHERE user_id = ' . $id);
             $pdo->exec('UPDATE entitlement_ledger l JOIN account_trials t ON t.ledger_id = l.id SET l.valid_from = t.valid_from, l.valid_until = t.valid_until WHERE t.user_id = ' . $id);
             expect(!$entitlement->check($id)->allowed, 'exclusive expiry boundary');
             $pdo->exec('SET timestamp = ' . ($future - 86400 - 1));

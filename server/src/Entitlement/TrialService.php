@@ -37,7 +37,7 @@ final class TrialService
 
             // One database-clock sample, with full DATETIME(6) precision.
             $window = $this->pdo->query('SELECT UTC_TIMESTAMP(6) AS valid_from,
-                DATE_ADD(UTC_TIMESTAMP(6), INTERVAL 432000 SECOND) AS valid_until')->fetch(PDO::FETCH_ASSOC);
+                DATE_ADD(UTC_TIMESTAMP(6), INTERVAL 259200 SECOND) AS valid_until')->fetch(PDO::FETCH_ASSOC);
             $ledgerId = (new EntitlementLedger($this->pdo))
                 ->recordTrial($userId, $window['valid_from'], $window['valid_until']);
             $insert = $this->pdo->prepare('INSERT INTO account_trials (user_id, ledger_id, valid_from, valid_until)
@@ -53,7 +53,7 @@ final class TrialService
 
     private static function result(bool $activated, array $window): array
     {
-        return ['activated' => $activated, 'trial_seconds' => 432000,
+        return ['activated' => $activated, 'trial_seconds' => 259200,
             'trial_started_at' => EntitlementResult::utc($window['valid_from']),
             'trial_ends_at' => EntitlementResult::utc($window['valid_until'])];
     }

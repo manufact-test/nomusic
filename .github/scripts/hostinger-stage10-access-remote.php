@@ -80,7 +80,7 @@ function smoke10(PDO $db, array $config): void {
         guard10(($one['trial']['activated']??false) && !($two['trial']['activated']??true)
             && $one['trial']['trial_ends_at']===$two['trial']['trial_ends_at']);
         $q=$db->prepare('SELECT TIMESTAMPDIFF(MICROSECOND,valid_from,valid_until) FROM account_trials WHERE user_id=?');
-        $q->execute([$id]); guard10((int)$q->fetchColumn()===432000000000);
+        $q->execute([$id]); guard10((int)$q->fetchColumn()===259200000000);
         $resolve=expect10(200,https10('/api/v1/resolve?service=yandex&track_id=144530503','GET',null,$tokens[0][0]));
         guard10(($resolve['found']??false) && $resolve['replacement_id']===1 && $resolve['duration_ms']===180872
             && str_starts_with($resolve['audio_url'],'/api/v1/audio/1?') && str_contains($resolve['audio_url'],'&sid='));
@@ -99,7 +99,7 @@ function smoke10(PDO $db, array $config): void {
         $direct=$route->invoke(new Celikom\Application($config),'GET','/api/v1/entitlement',[],['authorization'=>'Bearer '.$tokens[1][0]],'',[],[]);
         guard10($direct->status===200);
         $second=expect10(200,https10('/api/v1/entitlement','GET',null,$tokens[1][0])); guard10($second['allowed']===true);
-        echo "Stage10 real HTTPS smoke PASS: account trial 5 days; independent devices; user-bearer approved resolve; signed HEAD/206; pending denied; refresh/logout revoke only one device.\n";
+        echo "Stage10 real HTTPS smoke PASS: account trial 3 days; independent devices; user-bearer approved resolve; signed HEAD/206; pending denied; refresh/logout revoke only one device.\n";
     } finally {
         if ($id !== null) {
             guard10((bool)preg_match('/^stage10-check-[a-f0-9]{24}@example\\.invalid$/D',$email));
@@ -116,19 +116,45 @@ function smoke10(PDO $db, array $config): void {
 try {
     $root='/home/u235811320/domains/darkred-camel-588676.hostingersite.com/celikom';
     $release=realpath($root.'/current'); $env=$root.'/shared/env';
-    guard10(is_link($root.'/current') && is_string($release) && str_starts_with($release,$root.'/releases/0.4.7-')
+    guard10(is_link($root.'/current') && is_string($release) && str_starts_with($release,$root.'/releases/0.4.8-')
         && !is_link($root) && !is_link($root.'/shared') && !is_link($env) && is_file($env) && (fileperms($env)&0077)===0);
     $requestPath=realpath($argv[1]);
     guard10(is_string($requestPath) && str_starts_with($requestPath,$root.'/incoming/stage10-')
         && basename($requestPath)==='hostinger-stage10-access-request.json' && filesize($requestPath)<1024);
     $request=json_decode(file_get_contents($requestPath),true,8,JSON_THROW_ON_ERROR);
-    guard10(array_keys($request)===['operation','target'] && in_array($request['operation'],['enable','audit'],true)
+    guard10(array_keys($request)===['operation','target'] && in_array($request['operation'],['enable','audit','reset-trials'],true)
         && $request['target']==='hostinger-private-test');
     require $release.'/bootstrap.php'; $config=require $release.'/config/app.php'; $db=Celikom\Database\Connection::open($config);
     $before=integrity10($db,$config,$root);
-    foreach (['006_entitlements_ledger.sql','007_account_trials.sql'] as $file) {
+    foreach (['006_entitlements_ledger.sql','007_account_trials.sql','008_three_day_trial.sql'] as $file) {
         $q=$db->prepare('SELECT sha256 FROM schema_migrations WHERE version=?'); $q->execute([$file]);
         $hash=$q->fetchColumn(); guard10(is_string($hash) && hash_equals($hash,hash_file('sha256',$release.'/migrations/'.$file)));
+    }
+    if ($request['operation']==='reset-trials') {
+        guard10($config['entitlement_enabled']);
+        // Owner explicitly authorized restarting trial for existing private-test accounts.
+        // Backup is immutable. Retry deletes only the ORIGINAL ledger bindings,
+        // never a newly started trial. Passwords, verification and sessions untouched.
+        $backup=$root.'/backups/stage10-owner-trial-reset-'.basename($release).'.json';
+        guard10(!is_link($root.'/backups') && !is_link($backup));
+        if (!is_file($backup)) {
+            $saved=$db->query('SELECT user_id,ledger_id,valid_from,valid_until FROM account_trials ORDER BY user_id')->fetchAll(PDO::FETCH_ASSOC);
+            $data=json_encode(['release'=>basename($release),'trials'=>$saved],JSON_THROW_ON_ERROR);
+            $file=fopen($backup,'x'); guard10(is_resource($file)); chmod($backup,0600);
+            guard10(fwrite($file,$data)===strlen($data)); fclose($file);
+        }
+        $saved=json_decode(file_get_contents($backup),true,16,JSON_THROW_ON_ERROR);
+        guard10($saved['release']===basename($release) && is_array($saved['trials']));
+        $db->beginTransaction();
+        try {
+            $clear=$db->prepare('DELETE FROM account_trials WHERE user_id=? AND ledger_id=? AND valid_from=? AND valid_until=?');
+            foreach ($saved['trials'] as $row) $clear->execute([$row['user_id'],$row['ledger_id'],$row['valid_from'],$row['valid_until']]);
+            $db->commit();
+        } catch (Throwable $error) { if($db->inTransaction())$db->rollBack();throw $error; }
+        guard10(integrity10($db,$config,$root)===$before);
+        smoke10($db,$config);
+        echo "Stage10 authorized trial reset PASS: original trial bindings backed up and cleared; next Start grants 3 days; accounts/passwords/email/sessions and ledger history preserved.\n";
+        exit(0);
     }
     if ($request['operation']==='audit') {
         guard10($config['entitlement_enabled']);

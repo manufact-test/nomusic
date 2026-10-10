@@ -94,7 +94,7 @@ try {
             if ($table === 'schema_migrations' && $currentCount > (int)$beforeCount
                 && $currentCount <= (int)$beforeCount + 2) {
                 // Stage10 permits only the two checksummed additive migrations.
-                foreach (['006_entitlements_ledger.sql', '007_account_trials.sql'] as $migrationFile) {
+                foreach (['006_entitlements_ledger.sql', '007_account_trials.sql', '008_three_day_trial.sql'] as $migrationFile) {
                     $migration = $pdo->prepare('SELECT sha256 FROM schema_migrations WHERE version = ?');
                     $migration->execute([$migrationFile]);
                     $checksum = $migration->fetchColumn();

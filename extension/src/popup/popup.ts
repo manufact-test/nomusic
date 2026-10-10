@@ -454,7 +454,7 @@ async function refreshAccess(): Promise<void> {
     if (!state.ok || !access) { label.textContent = "Войдите в аккаунт, чтобы начать"; return; }
     if (access.allowed && access.valid_until) {
       label.textContent = "Пробный доступ до " + new Date(access.valid_until).toLocaleString("ru-RU", { day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" });
-    } else label.textContent = access.reason === "trial_not_started" ? "5 дней пробного доступа начнутся после «Старт»" : "Пробный доступ завершён";
+    } else label.textContent = access.reason === "trial_not_started" ? "3 дня пробного доступа начнутся после «Старт»" : "Пробный доступ завершён";
   } catch (_error) { label.textContent = "Нет связи. Оригинальная музыка доступна."; }
 }
 void refreshAccess();

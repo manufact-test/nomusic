@@ -299,8 +299,8 @@ button:focus-visible { border-color: #66e0bf; }
 /* Stage 9 final polish: prevent popup height oscillation between auth steps.
    Scroll only inside the open auth content, never reflow the whole browser popup. */
 .account-panel[open]:not([data-auth-screen="signed"]) .account-content {
-  height: 315px;
-  min-height: 315px;
+  height: auto;
+  min-height: 0;
   max-height: 315px;
   overflow-y: auto;
   overflow-x: hidden;

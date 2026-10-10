@@ -38,7 +38,7 @@ jobs:
           import fs from 'node:fs';
           const req = JSON.parse(fs.readFileSync('.github/deploy/hostinger-stage10-access-request.json','utf8'));
           assert.deepEqual(Object.keys(req), ['operation','target']);
-          assert.ok(['prepare','enable','audit'].includes(req.operation));
+          assert.ok(['prepare','enable','audit','reset-trials'].includes(req.operation));
           assert.equal(req.target, 'hostinger-private-test');
           assert.equal(process.env.GITHUB_REPOSITORY, 'manufact-test/nomusic');
           assert.equal(process.env.GITHUB_REF, 'refs/heads/feature/api-range');

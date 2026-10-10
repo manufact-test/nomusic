@@ -11,7 +11,7 @@ function fixture() {
  const auth={installationId:async()=>'',perform:async()=>({ok:true}),withEntitledAccess:async()=>{},entitlement:async activation=>{if(activation)trialStarted++;return {allowed,valid_until:new Date(Date.now()+432000000).toISOString(),reason:allowed?'trial_active':'trial_inactive'}}};
  vm.runInNewContext(source,{chrome,COMMANDS:commands,normalizeEnabled:v=>v===true,createAuthBroker:()=>auth,createApiBroker:()=>async()=>({ok:true}),createControllerBootstrap:()=>({ensure:async()=>({status:{track:{id:'144530503'},player:{mediaId:'1'},phase:'READY'}}),ensureOpenTabs:async()=>{}}),Date,URL,Promise});
  const send=(type,more={},sender={id:'worker',url:'chrome-extension://worker/popup/popup.html'})=>new Promise(resolve=>handler({type,...more},sender,resolve));
- return {send,local,sent,setAllowed:v=>allowed=v,get trials(){return trialStarted}};
+ return {send,local,sent,auth,setAllowed:v=>allowed=v,get trials(){return trialStarted}};
 }
 test('Stage10 verified Start activates trial before enabling the existing controller',async()=>{
  const f=fixture();const state=await f.send('CELIKOM_ENABLED_SET',{enabled:true});
@@ -26,7 +26,16 @@ test('Stage10 denied Start never mutes/enables; logout stops buffered playback',
 test('Stage10 context heartbeat fails open on revoked access; page cannot request popup credentials',async()=>{
  const f=fixture();await f.send('CELIKOM_ENABLED_SET',{enabled:true});f.setAllowed(false);
  const reply=await f.send('CELIKOM_CONTEXT_PING',{}, {id:'worker',url:'https://music.yandex.ru/album/1/track/144530503'});
- assert.equal(reply.ok,true);assert.equal(f.local.enabled,false);
+ assert.equal(reply.ok,true);await new Promise(resolve=>setImmediate(resolve));assert.equal(f.local.enabled,false);
  const forbidden=await f.send('CELIKOM_AUTH',{action:'contribution-access'},{id:'worker',url:'https://music.yandex.ru/'});
  assert.equal(forbidden.error,'invalid_sender');
+});
+
+test('worker heartbeat acknowledges before an unresolved server entitlement request',async()=>{
+ const f=fixture();f.local.enabled=true;let finish;
+ f.auth.entitlement=()=>new Promise(resolve=>{finish=resolve});
+ const reply=await f.send('CELIKOM_CONTEXT_PING',{}, {id:'worker',url:'https://music.yandex.ru/'});
+ assert.equal(reply.ok,true);assert.equal(f.local.enabled,true);
+ await new Promise(resolve=>setImmediate(resolve));finish({allowed:false});
+ await new Promise(resolve=>setImmediate(resolve));assert.equal(f.local.enabled,false);
 });
