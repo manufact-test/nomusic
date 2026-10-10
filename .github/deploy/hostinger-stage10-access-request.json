@@ -1,4 +1,4 @@
 {
-  "operation": "prepare",
+  "operation": "reset-trials",
   "target": "hostinger-private-test"
 }
