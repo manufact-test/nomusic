@@ -1,3 +1,9 @@
+## Итог этапа 9 — владелец ПРИНЯЛ 10.10.2026
+
+Последние исправления Chrome 0.4.6, email-верификация, пароль recovery и UI приняты. [Issue #8 CLOSED](https://github.com/manufact-test/nomusic/issues/8). Backend 90-day rolling refresh на тестовом Hostinger: [deploy PASS](https://github.com/manufact-test/nomusic/actions/runs/38058274439), [readonly audit PASS](https://github.com/manufact-test/nomusic/actions/runs/38058420995); перед ним [snapshot 22 tables/5 MP3 PASS](https://github.com/manufact-test/nomusic/actions/runs/38058096988) и [isolated restore PASS](https://github.com/manufact-test/nomusic/actions/runs/38058174200). Chrome [0.4.6 owner-only build PASS](https://github.com/manufact-test/nomusic/actions/runs/38057989522).
+
+**В Scope Stage 9 не входит подключение 0.4.6 к настоящему Resolve по пользовательскому entitlement; это явно перенесено владельцем в Stage 10, Issue #9.** Не считать рабочий музыкальный движок 0.4.4 сломанным, и не считать новую 0.4.6 live-playback verified. Защищённые медиа, approved/pending и актуальный Hostinger сохранены.
+
 ## Этап 9 — финальные правки 0.4.6 готовы, ожидание ручной приёмки (10.10.2026)
 
 Финальный пакет [Issue #8](https://github.com/manufact-test/nomusic/issues/8) реализован в `feature/api-range`:
