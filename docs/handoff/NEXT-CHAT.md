@@ -1,3 +1,9 @@
+## ФАКТИЧЕСКИЙ СТАТУС 10.10.2026 — подтверждение email развёрнуто
+
+После подтверждения владельцем получения тестового письма на Proton был развёрнут тестовый email-auth backend: PHP release `0.4.5-bffd2c93df1ac0d3a45de385197a4c51b7c5df94`, миграция 005 `user_email_security`, отправитель Gmail SMTP в приватном Hostinger env. [Deploy PASS](https://github.com/manufact-test/nomusic/actions/runs/38054935718), [on-host integrity audit PASS](https://github.com/manufact-test/nomusic/actions/runs/38055294402), [post-deploy snapshot 22 tables+5 audio PASS](https://github.com/manufact-test/nomusic/actions/runs/38055393728), [isolated restore PASS](https://github.com/manufact-test/nomusic/actions/runs/38055485798). Частный Chrome ZIP 0.4.5 с почтовыми формами: [GitHub artifact](https://github.com/manufact-test/nomusic/actions/runs/38055111493), SHA256 `a3812e53678b27d2fa07a1f6f145dabb1bad7717ba5d37024cff7257b6d0835c`.
+
+**Следующее:** владелец должен проверить в отдельном Chrome-профиле вход ранее созданным email (получение 6-значного кода), восстановление пароля, экран после повторного открытия popup и плеер. Реальная отправка кодов из backend-методов требует этой ручной приёмки; предыдущий тест подтвердил только SMTP. Старые не подтверждённые аккаунты нельзя автоматически доверять. **НЕ ЗАКРЫВАТЬ Stage9 / Issue #8**, PR #6 и Issue #7 оставить открытыми, Chrome 0.4.4 не трогать, Stage 10 не начинать.
+
 ## АКТУАЛЬНО 10.10.2026 — Stage 9.1: обязательное подтверждение email
 
 Владелец подтвердил: email verification шестизначным кодом, password recovery, НЕ подтверждать каждое устройство, убрать «Мои устройства» из компактного popup, но сохранить backend revoke. Код и аддитивная таблица `005_email_security.sql` созданы в ветке `feature/api-range`, тесты Disposable MySQL+Chrome пройдены. См. [спецификацию](../deployment/stage9-verified-email.md) и [Issue #8](https://github.com/manufact-test/nomusic/issues/8).
