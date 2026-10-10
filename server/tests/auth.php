@@ -221,3 +221,46 @@ run('Stage9 12 Cyrillic letters are valid; digits and special characters are opt
         'email'=>'stage9-short@example.org','password'=>'короткий','installation_id'=>$install1
     ])[0]===422, 'too short Unicode password refused');
 });
+
+run('Stage9 five wrong confirmation attempts lock the code until resend', function () use ($app,$pdo,&$sentEmails,$install1): void {
+    $email='stage9-code-lock@example.org';
+    [$created,$pending]=callAuth($app,'POST','register',[
+        'email'=>$email,'password'=>'long code lock password','installation_id'=>$install1
+    ]);
+    expect($created===201 && ($pending['verification_required']??false), 'pending verification');
+    $valid=$sentEmails[$email.':verify'];
+    $bad=$valid==='111111'?'222222':'111111';
+    for ($i=0;$i<5;$i++) {
+        expect(callAuth($app,'POST','verify-email',[
+            'email'=>$email,'code'=>$bad,'installation_id'=>$install1
+        ])[0]===422, 'wrong code refused');
+    }
+    expect(callAuth($app,'POST','verify-email',[
+        'email'=>$email,'code'=>$valid,'installation_id'=>$install1
+    ])[0]===422, 'valid code also blocked after attempts exhausted');
+    $pdo->prepare("UPDATE user_email_security SET verification_sent_at=DATE_SUB(UTC_TIMESTAMP(6),INTERVAL 65 SECOND)
+      WHERE user_id=(SELECT id FROM users WHERE email=?)")->execute([$email]);
+    [$sent,$again]=callAuth($app,'POST','resend-verification',[
+        'email'=>$email,'password'=>'long code lock password','installation_id'=>$install1
+    ]);
+    expect($sent===200 && ($again['verification_required']??false), 'new code allowed after cooldown');
+    expect(callAuth($app,'POST','verify-email',[
+        'email'=>$email,'code'=>$sentEmails[$email.':verify'],'installation_id'=>$install1
+    ])[0]===200, 'new code succeeds');
+});
+
+run('Stage9 pre-migration account is not trusted until email proof', function () use ($app,$pdo,&$sentEmails,$install1): void {
+    $email='stage9-legacy@example.org';
+    $oldHash=password_hash('legacy twelve character password',PASSWORD_BCRYPT);
+    $pdo->prepare('INSERT INTO users (email,password_hash) VALUES (?,?)')->execute([$email,$oldHash]);
+    [$status,$pending]=callAuth($app,'POST','login',[
+        'email'=>$email,'password'=>'legacy twelve character password','installation_id'=>$install1
+    ]);
+    expect($status===200 && ($pending['verification_required']??false), 'unverified legacy user must confirm');
+    $sessions=$pdo->prepare('SELECT COUNT(*) FROM user_sessions WHERE user_id=(SELECT id FROM users WHERE email=?)');
+    $sessions->execute([$email]);
+    expect((int)$sessions->fetchColumn()===0, 'legacy account has no authorized session');
+    expect(callAuth($app,'POST','verify-email',[
+        'email'=>$email,'code'=>$sentEmails[$email.':verify'],'installation_id'=>$install1
+    ])[0]===200, 'legacy email owner confirmed');
+});
