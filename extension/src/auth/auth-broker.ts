@@ -73,7 +73,7 @@ export function createAuthBroker(api, options = {}) {
       if (parsed.length > 16384) throw new Error("auth_unavailable");
       const result = JSON.parse(parsed);
       if (!response.ok) {
-        const safe = new Set(["invalid_credentials", "account_disabled", "account_unavailable", "weak_password", "rate_limited", "invalid_session", "invalid_request"]);
+        const safe = new Set(["invalid_credentials", "account_disabled", "account_unavailable", "weak_password", "rate_limited", "invalid_session", "invalid_request", "email_unverified", "email_unavailable", "invalid_code"]);
         throw new Error(safe.has(result?.error) ? result.error : "auth_unavailable");
       }
       return result;
@@ -142,9 +142,33 @@ export function createAuthBroker(api, options = {}) {
         const credentials = await apiRequest("auth/" + action, "POST", {
           email: message.email, password: message.password, installation_id: await installationId()
         });
+        if (credentials?.verification_required === true) {
+          return { ok: true, verification_required: true, email: credentials.email };
+        }
         if (!validAuth(credentials)) throw new Error("auth_unavailable");
         await store.set(credentials);
         return { ok: true, user: credentials.user };
+      }
+      if (action === "verify-email") {
+        const payload = await apiRequest("auth/verify-email", "POST", {
+          email: message.email, code: message.code, installation_id: await installationId()
+        });
+        if (!validAuth(payload)) throw new Error("auth_unavailable");
+        await store.set(payload);
+        return { ok: true, user: payload.user };
+      }
+      if (action === "resend-verification") {
+        const payload = await apiRequest("auth/resend-verification", "POST", {
+          email: message.email, password: message.password, installation_id: await installationId()
+        });
+        return { ok: true, verification_required: payload.verification_required === true };
+      }
+      if (action === "request-reset" || action === "reset-password") {
+        const payload = await apiRequest("auth/" + action, "POST",
+          action === "request-reset"
+            ? { email: message.email }
+            : { email: message.email, code: message.code, new_password: message.new_password });
+        return { ok: payload?.ok === true };
       }
       if (action === "logout") {
         const saved = await store.get();
@@ -168,7 +192,7 @@ export function createAuthBroker(api, options = {}) {
       }
       return { ok: false, error: "invalid_request" };
     } catch (error) {
-      const safe = new Set(["invalid_credentials", "account_disabled", "account_unavailable", "weak_password", "rate_limited", "invalid_session", "invalid_request"]);
+      const safe = new Set(["invalid_credentials", "account_disabled", "account_unavailable", "weak_password", "rate_limited", "invalid_session", "invalid_request", "email_unverified", "email_unavailable", "invalid_code"]);
       return { ok: false, error: safe.has(error?.message) ? error.message : "auth_unavailable" };
     }
   }
