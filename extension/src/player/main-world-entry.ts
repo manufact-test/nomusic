@@ -196,11 +196,14 @@
       return;
     }
     if (message.sessionId !== controllerSession) return;
-    lastHeartbeatAt = now();
 
     if (message.type === "RELEASE_NOW") { release(message.payload?.reason || "emergency-signal", message.payload?.token); return; }
 
     if (message.type === "HEARTBEAT") {
+      // Only heartbeats that the isolated-world bridge has verified against
+      // the installed Chrome service worker can renew an active audio lease.
+      // Generic requests (including stale snapshots) must NOT keep it alive.
+      lastHeartbeatAt = now();
       post("HEARTBEAT_ACK", {
         bridgeVersion: core.VERSION,
         hidden: Boolean(root.document?.hidden)

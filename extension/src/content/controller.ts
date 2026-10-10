@@ -19,7 +19,14 @@
 
   class CelikomController {
     constructor() {
-      this.bridge = bridgeFactory.createPlayerBridge(root);
+      this.bridge = bridgeFactory.createPlayerBridge(root, {
+        confirmAlive: async () => {
+          // Unlike an isolated-world timer, an actual worker reply proves the
+          // extension is still installed/enabled. Never log response metadata.
+          const answer = await chrome.runtime.sendMessage({ type: "CELIKOM_CONTEXT_PING" });
+          return answer?.ok === true && answer.version === chrome.runtime.getManifest().version;
+        }
+      });
       this.enabled = false;
       this.snapshot = null;
       this.lastEvent = "startup";
@@ -28,7 +35,22 @@
       this.startupError = null;
       this.mainVersion = null;
       this.testTrackId = "";
-      this.engine = new engineFactory.ReplacementController(this.bridge, root, { log: (message) => this.log(message) });
+      this.apiConfigured = null;
+      this.engine = new engineFactory.ReplacementController(this.bridge, root, {
+        log: (message) => this.log(message),
+        onEvent: (name, properties) => this.event(name, properties),
+        resolveAsset: async (trackId) => {
+          const response = await chrome.runtime.sendMessage({ type: "CELIKOM_API_RESOLVE", service: "yandex", trackId });
+          this.apiConfigured = response?.configured ?? this.apiConfigured;
+          if (!response?.ok) {
+            const permitted = ["api_access_missing", "api_access_denied", "api_forbidden", "api_network_error",
+              "api_server_error", "api_http_error", "invalid_api_response", "invalid_audio_url",
+              "invalid_api_config", "extension_update_required", "invalid_api_sender"];
+            throw new Error(permitted.includes(response?.error) ? response.error : "api_unavailable");
+          }
+          return response.asset;
+        }
+      });
       this.syncTimer = null;
       this.onRuntimeMessage = this.onRuntimeMessage.bind(this);
       this.onStorageChanged = this.onStorageChanged.bind(this);
@@ -37,6 +59,11 @@
     log(message) {
       this.logs.push(`${new Date().toISOString()} ${String(message)}`);
       this.logs = this.logs.slice(-40);
+    }
+
+    event(name, properties = {}) {
+      try { void chrome.runtime.sendMessage({ type: "CELIKOM_API_EVENT", name, properties }).catch(() => undefined); }
+      catch (_error) { /* telemetry must never interfere with playback */ }
     }
 
     async start() {
@@ -62,6 +89,10 @@
       this.bridge.on("GUARD_RELEASED", (event) => {
         if (event.token === this.engine.operation?.token) this.engine.abort(`guard-lost:${event.reason}`, event.reason !== "master-binding-changed" || event.detail?.reason === "media-source-changed", event.detail);
       });
+      this.bridge.on("EXTENSION_UNAVAILABLE", () => {
+        this.log("Installed extension unavailable; emergency original restore");
+        this.destroy();
+      });
       this.bridge.on("BRIDGE_TIMEOUT", (payload) => {
         this.log(`bridge timeout · ${Math.round(payload?.elapsedMs || 0)} ms`);
         this.engine.abort("bridge-timeout", true);
@@ -72,7 +103,7 @@
       }, 500);
       root.addEventListener("pagehide", () => this.destroy(), { once: true });
       this.markDocument();
-      this.log("Stage 3 controller started");
+      this.log("Stage 4 controller started");
     }
 
     markDocument() {
@@ -90,7 +121,7 @@
 
     onStorageChanged(changes, areaName) {
       if (areaName !== "local") return;
-      if ("enabled" in changes) { this.enabled = changes.enabled.newValue === true; this.log(this.enabled ? "CELIKOM started" : "CELIKOM stopped"); }
+      if ("enabled" in changes) { this.enabled = changes.enabled.newValue === true; this.log(this.enabled ? "CELIKOM started" : "CELIKOM stopped"); this.event(this.enabled ? "celikom_started" : "celikom_stopped"); }
       if ("testTrackId" in changes) this.testTrackId = changes.testTrackId.newValue || "";
       if (this.startupError) return;
       this.engine.configure(this.enabled, this.testTrackId);
@@ -105,9 +136,11 @@
       if (type === COMMANDS.restoreOriginal) {
         this.lastEvent = "ORIGINAL_RESTORED";
         this.engine.manualRestore();
+        this.event("manual_original");
         sendResponse({ ok: true, stage: 3 });
         return false;
       }
+      if (type === "CELIKOM_ADD_TRACK_OPENED") { this.event("add_track_opened"); sendResponse({ ok: true }); return false; }
       if (type === "CELIKOM_REPLACEMENT_RETRY") {
         if (this.startupError) { sendResponse({ ok: false, error: this.startupError }); return false; }
         this.engine.configure(this.enabled, this.testTrackId, true);
@@ -130,7 +163,7 @@
       return {
         celikomVersion: chrome.runtime.getManifest().version,
         buildVersion: root.__CELIKOM_PLAYER_CORE_V1__?.VERSION || null,
-        stage: 3,
+        stage: 4,
         enabled: this.enabled,
         phase: this.getPhase(),
         startupError: this.startupError,
@@ -141,6 +174,7 @@
         guardActive: Boolean(this.snapshot?.guard?.active),
         driftMs: this.engine.driftMs,
         playback: { activationCount: this.engine.activationCount, restoreCount: this.engine.restoreCount, lastRestore: this.engine.lastRestore },
+        api: { configured: this.apiConfigured, mode: this.testTrackId ? "synthetic-demo" : "remote", replacementId: this.engine.operation?.asset?.replacementId || null },
         track: this.snapshot?.track || null,
         player: this.snapshot?.player || null,
         mediaCandidates: this.snapshot?.mediaCandidates || [],
@@ -171,10 +205,12 @@
     destroy() {
       if (this.destroyed) return;
       this.destroyed = true;
-      this.engine.destroy();
+      // Never allow a dead Chrome extension context to interrupt fail-open.
+      // Cleanup must continue even if chrome.runtime.* throws on disable.
+      try { this.engine.destroy(); } catch (_error) { /* MAIN fallback below */ }
       root.clearInterval(this.syncTimer);
-      chrome.runtime.onMessage.removeListener(this.onRuntimeMessage);
-      chrome.storage.onChanged.removeListener(this.onStorageChanged);
+      try { chrome.runtime.onMessage.removeListener(this.onRuntimeMessage); } catch (_error) { /* invalidated */ }
+      try { chrome.storage.onChanged.removeListener(this.onStorageChanged); } catch (_error) { /* invalidated */ }
       this.bridge.destroy();
     }
   }

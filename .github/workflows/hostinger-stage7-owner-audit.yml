@@ -1,0 +1,47 @@
+name: CELIKOM Stage 7 owner upload audit
+
+on:
+  push:
+    branches: [feature/api-range]
+    paths:
+      - .github/workflows/hostinger-stage7-owner-audit.yml
+      - .github/scripts/hostinger-stage7-owner-audit.php
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: celikom-hostinger-private-test
+  cancel-in-progress: false
+
+jobs:
+  read-only:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Validate read-only SQL and file hash probe
+        run: php -l .github/scripts/hostinger-stage7-owner-audit.php
+      - name: Inspect submitted target track without changing live DB
+        shell: bash
+        env:
+          HOSTINGER_SSH_KEY: ${{ secrets.HOSTINGER_SSH_KEY }}
+        run: |
+          set -euo pipefail
+          umask 077
+          dir="$(mktemp -d)"
+          trap 'rm -rf "$dir"' EXIT
+          printf '%s\n' "$HOSTINGER_SSH_KEY" | tr -d '\r' > "$dir/key"
+          ssh-keygen -y -P '' -f "$dir/key" > "$dir/public"
+          [[ "$(ssh-keygen -lf "$dir/public" | awk '{print $2}')" == 'SHA256:Q6FyifXRq6garceQdIIjBmXhkk81Ic1p/x9JTSYHWUk' ]] || exit 1
+          printf '%s\n' '[92.113.19.189]:65002 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAf8M2EVwq0oJI8I9KZ0NFE8P8yDOvDATEhkQti/Kk/0' > "$dir/known_hosts"
+          opts=(-i "$dir/key" -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o "UserKnownHostsFile=$dir/known_hosts" -o GlobalKnownHostsFile=/dev/null -o ConnectTimeout=15)
+          target='u235811320@92.113.19.189'
+          remote='/home/u235811320/domains/darkred-camel-588676.hostingersite.com/celikom/incoming'
+          php="$remote/stage7-audit-${GITHUB_SHA}.php"
+          scp -P 65002 "${opts[@]}" .github/scripts/hostinger-stage7-owner-audit.php "$target:$php"
+          trap 'ssh -T -p 65002 "${opts[@]}" "$target" "rm -f '''$php'''" || true; rm -rf "$dir"' EXIT
+          ssh -T -p 65002 "${opts[@]}" "$target" "/opt/alt/php83/usr/bin/php '$php'"

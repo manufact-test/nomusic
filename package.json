@@ -1,13 +1,14 @@
 {
   "name": "celikom",
-  "version": "0.3.2",
+  "version": "0.4.8",
   "private": true,
   "description": "CELIKOM monorepository: browser extension, service foundation and validated playback PoC",
   "workspaces": [
     "extension"
   ],
   "scripts": {
-    "build": "npm run build:extension",
+    "build": "npm run build:extension && npm run build:server",
+    "build:server": "node scripts/build-server.mjs",
     "build:extension": "npm --prefix extension run build",
     "build:poc": "node scripts/build-poc.mjs",
     "ci": "npm run lint && npm test && npm run validate && npm run build",

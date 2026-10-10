@@ -186,6 +186,95 @@ test("YandexMusicAdapter mounts idempotently, follows SPA track changes and full
   assert.equal(media.listenerBalance, 0);
 });
 
+test("third-party History wrappers survive CELIKOM unmount and remount without recursion or stale snapshots", async () => {
+  const media = new FakeMedia();
+  const { environment } = createEnvironment(media);
+  const calls = { pushState: 0, replaceState: 0 };
+  for (const name of Object.keys(calls)) {
+    environment.history[name] = function nativeHistory(_state, label) {
+      calls[name]++;
+      return label;
+    };
+  }
+  const adapter = createAdapter(environment);
+  const snapshots = [];
+  const sink = { onSnapshot: (snapshot) => snapshots.push(snapshot), onPlayerEvent() {} };
+  adapter.mount(sink);
+  const externallyWrapped = {};
+  for (const name of Object.keys(calls)) {
+    const retainedOldWrapper = environment.history[name];
+    externallyWrapped[name] = function pageHistoryWrapper(...args) {
+      return Reflect.apply(retainedOldWrapper, this, args);
+    };
+    environment.history[name] = externallyWrapped[name];
+  }
+
+  adapter.unmount();
+  const whileUnmounted = snapshots.length;
+  for (const name of Object.keys(calls)) {
+    assert.equal(environment.history[name]({}, name, "/search"), name,
+      "retained CELIKOM wrapper must still call its captured original after unmount");
+  }
+  await Promise.resolve();
+  assert.equal(snapshots.length, whileUnmounted, "old wrappers must not schedule work after unmount");
+
+  adapter.mount(sink);
+  for (const name of Object.keys(calls)) {
+    const before = snapshots.length;
+    assert.equal(environment.history[name]({}, name, "/search"), name,
+      "new wrapper may delegate through external wrapper then inactive old CELIKOM wrapper");
+    await Promise.resolve();
+    assert.equal(snapshots.length, before + 1, "only current hook emits a snapshot");
+    assert.equal(calls[name], 2, "original browser history called exactly once per navigation");
+  }
+  adapter.unmount();
+  for (const name of Object.keys(calls)) {
+    assert.equal(environment.history[name], externallyWrapped[name],
+      "never overwrite the third-party History wrapper during cleanup");
+  }
+});
+
+test("retained media and fetch wrappers use stable originals across unmount and restart", async () => {
+  const media = new FakeMedia();
+  const { environment } = createEnvironment(media);
+  const initialPlay = FakeMedia.prototype.play;
+  let networkCalls = 0;
+  const nativeFetch = async (url) => {
+    networkCalls++;
+    return { url: "https://invalid.example/fixture", headers: { get: () => "" }, source: url };
+  };
+  environment.fetch = nativeFetch;
+  const adapter = createAdapter(environment);
+  const sink = { onSnapshot() {}, onPlayerEvent() {} };
+  try {
+    adapter.mount(sink);
+    const interceptedPlay = FakeMedia.prototype.play;
+    const interceptedFetch = environment.fetch;
+    const externalPlay = function pagePlay(...args) {
+      return Reflect.apply(interceptedPlay, this, args);
+    };
+    const externalFetch = function pageFetch(...args) {
+      return Reflect.apply(interceptedFetch, this, args);
+    };
+    FakeMedia.prototype.play = externalPlay;
+    environment.fetch = externalFetch;
+    adapter.unmount();
+    await media.play();
+    await environment.fetch("/fixture");
+    adapter.mount(sink);
+    await media.play();
+    await environment.fetch("/fixture");
+    assert.equal(networkCalls, 2, "one actual fetch per request across both lifecycles");
+    adapter.unmount();
+    assert.equal(FakeMedia.prototype.play, externalPlay);
+    assert.equal(environment.fetch, externalFetch);
+  } finally {
+    adapter.unmount();
+    FakeMedia.prototype.play = initialPlay;
+    environment.fetch = nativeFetch;
+  }
+});
+
 test("15 ms data audio cannot steal a paused master after a utility media event", () => {
   const master = new FakeMedia(); master.paused = true;
   const utility = new FakeMedia();

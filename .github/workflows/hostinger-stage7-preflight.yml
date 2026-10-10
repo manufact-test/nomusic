@@ -1,0 +1,49 @@
+name: CELIKOM Stage 7 Hostinger staging capability
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [feature/api-range]
+    paths:
+      - .github/workflows/hostinger-stage7-preflight.yml
+      - .github/scripts/hostinger-stage7-inspect.php
+
+permissions:
+  contents: read
+
+concurrency:
+  group: celikom-hostinger-private-test
+  cancel-in-progress: false
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Validate isolated preflight
+        run: php -l .github/scripts/hostinger-stage7-inspect.php
+      - name: Inspect hosting capabilities without database or website changes
+        env:
+          HOSTINGER_SSH_KEY: ${{ secrets.HOSTINGER_SSH_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "${GITHUB_REF}" == "refs/heads/feature/api-range" ]] || exit 1
+          [[ -n "${HOSTINGER_SSH_KEY:-}" ]] || exit 1
+          umask 077
+          scratch="$(mktemp -d)"
+          trap 'rm -rf "$scratch"' EXIT
+          printf '%s\n' "$HOSTINGER_SSH_KEY" | tr -d '\r' > "$scratch/key"
+          ssh-keygen -y -P '' -f "$scratch/key" > "$scratch/public"
+          [[ "$(ssh-keygen -lf "$scratch/public" | awk '{print $2}')" == 'SHA256:Q6FyifXRq6garceQdIIjBmXhkk81Ic1p/x9JTSYHWUk' ]] || exit 1
+          printf '%s\n' '[92.113.19.189]:65002 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAf8M2EVwq0oJI8I9KZ0NFE8P8yDOvDATEhkQti/Kk/0' > "$scratch/known_hosts"
+          sshopts=(-i "$scratch/key" -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o "UserKnownHostsFile=$scratch/known_hosts" -o GlobalKnownHostsFile=/dev/null -o ConnectTimeout=15)
+          target='u235811320@92.113.19.189'
+          remote='/home/u235811320/domains/darkred-camel-588676.hostingersite.com/celikom/incoming'
+          remote_file="$remote/stage7-inspect-${GITHUB_SHA}.php"
+          scp -P 65002 "${sshopts[@]}" .github/scripts/hostinger-stage7-inspect.php "$target:$remote_file"
+          trap 'ssh -T -p 65002 "${sshopts[@]}" "$target" "rm -f '''$remote_file'''" || true; rm -rf "$scratch"' EXIT
+          ssh -T -p 65002 "${sshopts[@]}" "$target" "/opt/alt/php83/usr/bin/php '$remote_file'"

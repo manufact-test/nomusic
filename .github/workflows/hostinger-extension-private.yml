@@ -1,0 +1,85 @@
+name: CELIKOM Stage 9 private Chrome package
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [feature/api-range]
+    paths:
+      - .github/workflows/hostinger-extension-private.yml
+      - .github/deploy/hostinger-extension-request.json
+      - extension/src/adapters/yandex-music-adapter.ts
+      - extension/tests/yandex-adapter.test.mjs
+      - extension/tests/popup-upload.integration.test.mjs
+      - extension/src/popup/popup.ts
+      - extension/src/auth/auth-broker.ts
+      - extension/src/auth/auth-popup.ts
+      - extension/src/player/core.ts
+      - extension/tests/auth-broker.test.mjs
+      - extension/popup/popup.html
+      - extension/popup/popup.css
+      - extension/manifest/manifest.json
+      - extension/package.json
+      - extension/tests/auth-popup-ui.test.mjs
+      - extension/tests/auth-popup-resume.test.mjs
+
+permissions:
+  contents: read
+
+jobs:
+  build-private:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CELIKOM_API_BASE_URL: https://darkred-camel-588676.hostingersite.com
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+      - name: Verify isolated private build request
+        run: |
+          node --input-type=module <<'CHECK'
+          import { readFileSync } from 'node:fs';
+          import assert from 'node:assert/strict';
+          assert.equal(process.env.GITHUB_REPOSITORY, 'manufact-test/nomusic');
+          assert.equal(process.env.GITHUB_REF, 'refs/heads/feature/api-range');
+          const request = JSON.parse(readFileSync('.github/deploy/hostinger-extension-request.json', 'utf8'));
+          assert.deepEqual(request, {operation:'build', target:'hostinger-private-test'});
+          console.log('Restricted owner-only package build; no SSH, secrets or server writes.');
+          CHECK
+      - name: Install workspace dependencies
+        run: npm ci
+      - name: Verify popup transitions and existing player regressions
+        run: npm --prefix extension test
+      - name: Build pinned API-targeted Chromium extension
+        run: npm --prefix extension run build
+      - name: Verify package origin, manifest permissions, and SHA-256
+        run: |
+          node --input-type=module <<'CHECK'
+          import { readFileSync } from 'node:fs';
+          import assert from 'node:assert/strict';
+          const api = JSON.parse(readFileSync('extension/dist/unpacked/api/config.json','utf8'));
+          const manifest = JSON.parse(readFileSync('extension/dist/unpacked/manifest.json','utf8'));
+          const version = JSON.parse(readFileSync('extension/package.json','utf8')).version;
+          assert.deepEqual(api, {baseUrl:'https://darkred-camel-588676.hostingersite.com'});
+          assert.equal(manifest.version,version);
+          assert.ok(manifest.host_permissions.includes('https://darkred-camel-588676.hostingersite.com/*'));
+          assert.ok(manifest.content_scripts.some(group=>group.world==='MAIN'));
+          assert.ok(manifest.content_scripts.some(group=>group.world==='ISOLATED'));
+          console.log('Private extension package: exact Hostinger API, Manifest V3 worlds and host permission verified.');
+          CHECK
+          version="$(node -p "require('./extension/package.json').version")"
+          cd extension/dist
+          sha256sum --check "celikom-extension-$version.zip.sha256"
+      - name: Upload private owner-only Chrome package
+        uses: actions/upload-artifact@v4
+        with:
+          name: celikom-stage9-private-chrome-${{ github.sha }}
+          path: |
+            extension/dist/celikom-extension-*.zip
+            extension/dist/celikom-extension-*.zip.sha256
+          if-no-files-found: error
+          retention-days: 14

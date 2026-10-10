@@ -40,6 +40,18 @@ for (const file of phpFiles) {
   if (lint.status !== 0) throw new Error(lint.stderr || lint.stdout);
 }
 
-const smoke = spawnSync("php", [path.join(serverRoot, "tests", "smoke.php")], { stdio: "inherit" });
+const smoke = spawnSync("php", [path.join(serverRoot, "tests", "database.php")], { stdio: "inherit" });
 if (smoke.status !== 0) process.exit(smoke.status || 1);
+if (process.env.DB_NAME) {
+  const uploads = spawnSync("php", [path.join(serverRoot, "tests", "uploads.php")], { stdio: "inherit" });
+  if (uploads.status !== 0) process.exit(uploads.status || 1);
+  const admin = spawnSync("php", [path.join(serverRoot, "tests", "admin.php")], { stdio: "inherit" });
+  if (admin.status !== 0) process.exit(admin.status || 1);
+  const auth = spawnSync("php", [path.join(serverRoot, "tests", "auth.php")], { stdio: "inherit" });
+  if (auth.status !== 0) process.exit(auth.status || 1);
+  const entitlement = spawnSync("php", [path.join(serverRoot, "tests", "entitlement.php")], { stdio: "inherit" });
+  if (entitlement.status !== 0) process.exit(entitlement.status || 1);
+  const http = spawnSync(process.execPath, [path.join(serverRoot, "tests", "http.mjs")], { stdio: "inherit" });
+  if (http.status !== 0) process.exit(http.status || 1);
+}
 console.log(`Server runtime validation passed with ${phpVersion.stdout.split("\n")[0]}.`);

@@ -1,0 +1,111 @@
+name: Deploy Hostinger private test
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [develop, feature/api-range]
+    paths:
+      - .github/deploy/hostinger-request.json
+
+permissions:
+  contents: read
+
+concurrency:
+  group: celikom-hostinger-private-test
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      mysql:
+        image: public.ecr.aws/docker/library/mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: ci-disposable-mysql
+          MYSQL_DATABASE: celikom_test
+        ports: ["3306:3306"]
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -pci-disposable-mysql"
+          --health-interval=10s --health-timeout=5s --health-retries=10
+    env:
+      DB_HOST: 127.0.0.1
+      DB_PORT: 3306
+      DB_NAME: celikom_test
+      DB_USER: root
+      DB_PASSWORD: ci-disposable-mysql
+      STORAGE_PATH: /tmp/celikom-ci-private-audio
+      REQUIRE_BROWSER_AUDIO: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.3"
+          extensions: pdo_mysql, fileinfo
+          coverage: none
+      - run: npm ci
+      - name: Check deployment syntax and configuration encoding
+        run: |
+          bash -n .github/scripts/hostinger-deploy.sh
+          bash -n .github/scripts/hostinger-activate.sh
+          bash -n .github/scripts/hostinger-stage7-owner.sh
+          php -l .github/scripts/hostinger-stage7-owner-remote.php
+          php server/tests/deployment-env.php
+          node .github/scripts/tests/hostinger-activate.mjs
+      - name: Install CI-only MP3 encoder for Stage 7 regression
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends ffmpeg
+          ffmpeg -hide_banner -encoders | grep -F libmp3lame
+      - name: Verify application and create the server package
+        run: npm run ci
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hostinger-server-${{ github.sha }}
+          path: dist/celikom-server-*.zip
+          if-no-files-found: error
+          retention-days: 7
+
+  deploy:
+    needs: verify
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - uses: actions/download-artifact@v4
+        with:
+          name: hostinger-server-${{ github.sha }}
+          path: dist
+      - name: Deploy only to the dedicated CELIKOM website
+        env:
+          HOSTINGER_SSH_KEY: ${{ secrets.HOSTINGER_SSH_KEY }}
+          HOSTINGER_DB_PASSWORD: ${{ secrets.HOSTINGER_DB_PASSWORD }}
+        run: bash .github/scripts/hostinger-deploy.sh
+      - name: Preserve existing Stage 7 credentials during Stage 8 rollout
+        id: owner_gate
+        env:
+          HOSTINGER_SSH_KEY: ${{ secrets.HOSTINGER_SSH_KEY }}
+        run: |
+          request="$(node -p "require('./.github/deploy/hostinger-request.json').request")"
+          if [[ "$request" == "owner-approved-stage8-admin-rollout-preserve-stage7-2026-10-09" ]]; then
+            echo "skip_owner_rotation=true" >> "$GITHUB_OUTPUT"
+            echo "Stage 8 rollout: existing owner upload token and flags preserved."
+          else
+            bash .github/scripts/hostinger-stage7-owner.sh
+            echo "skip_owner_rotation=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Deliver only encrypted owner credential
+        if: ${{ steps.owner_gate.outputs.skip_owner_rotation == 'false' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: stage7-owner-access-encrypted-${{ github.sha }}
+          path: dist/stage7-owner-access/owner-token.encrypted
+          if-no-files-found: error
+          retention-days: 1

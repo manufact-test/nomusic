@@ -19,6 +19,9 @@
       this.environment = environment;
       this.log = options.log || (() => {});
       this.createPlayer = options.createPlayer || ((onFatal) => new ReplacementPlayer(environment, onFatal));
+      this.resolveAsset = options.resolveAsset || null;
+      this.onEvent = options.onEvent || (() => {});
+      this.negativeResolution = null;
       this.failOpen = new FailOpenController(bridge, this.log);
       this.enabled = false;
       this.testTrackId = null;
@@ -41,13 +44,14 @@
       const changed = this.testTrackId !== id || this.enabled !== enabled;
       this.enabled = enabled;
       this.testTrackId = id;
-      if (changed || explicitStart) { this.manualBypass = null; this.blockedTrackId = null; this.lastError = null; }
+      if (changed || explicitStart) { this.manualBypass = null; this.blockedTrackId = null; this.lastError = null; this.negativeResolution = null; }
       this.reconcile();
     }
     eligible(snapshot = this.snapshot, minimumReadyState = 2) {
       const track = snapshot?.track;
       const player = snapshot?.player;
-      return this.enabled && this.bridge.isHealthy() && track?.id === this.testTrackId && !track?.ambiguous
+      const exactRoute = this.testTrackId ? track?.id === this.testTrackId : Boolean(this.resolveAsset && this.core.normalizeTrackId(track?.id));
+      return this.enabled && this.bridge.isHealthy() && exactRoute && !track?.ambiguous
         && track?.confidence >= 100 && player && !player.ended && player.readyState >= minimumReadyState
         && Number.isFinite(player.duration) && player.duration > 0
         && Math.abs(player.duration * 1000 - track.metadata?.durationMs) <= 1500
@@ -64,6 +68,10 @@
       this.reconcile(["SEEK", "PLAY", "RATE_CHANGED"].includes(eventType));
     }
     current(operation) { return !this.destroyed && this.operation === operation && this.generation === operation.generation; }
+    event(name, properties) {
+      try { Promise.resolve(this.onEvent(name, properties)).catch(() => undefined); }
+      catch (_error) { /* best-effort telemetry is not a playback dependency */ }
+    }
     reconcile(forceSync = false) {
       if (this.destroyed || this.restorePending) return;
       const operation = this.operation;
@@ -76,7 +84,10 @@
         if (operation) this.abort("state-changed");
         return;
       }
-      if (!operation) { void this.prepare(); return; }
+      if (!operation) {
+        if (this.negativeResolution?.trackId === this.snapshot.track.id && this.negativeResolution.until > Date.now()) return;
+        void this.prepare(); return;
+      }
       if (this.phase === "REPLACEMENT_ACTIVE") {
         try { this.driftMs = operation.sync.sync(operation.player, this.snapshot, forceSync); }
         catch (error) { this.abort(error.message, true); }
@@ -89,8 +100,22 @@
       this.phase = "PREPARING";
       this.log(`PREPARING · ${operation.trackId}`);
       try {
+        operation.asset = this.testTrackId
+          ? { found: true, url: this.environment.chrome.runtime.getURL("assets/test-audio.mp3"), demoLoop: true }
+          : await this.resolveAsset(operation.trackId);
+        if (!this.current(operation)) return;
+        if (!operation.asset?.found) {
+          this.negativeResolution = { trackId: operation.trackId, until: Date.now() + Math.min(60000, Math.max(5000, operation.asset?.retryAfterMs || 15000)) };
+          this.operation = null; this.phase = "IDLE"; return;
+        }
+        if (!operation.asset.demoLoop && (!Number.isFinite(operation.asset.durationMs)
+          || Math.abs(operation.asset.durationMs - snapshot.track.metadata.durationMs) > 1500 || operation.asset.expiresAt <= Date.now())) {
+          throw new Error("replacement_duration_or_token_invalid");
+        }
+        if (!operation.asset.demoLoop) this.event("replacement_available", { service: "yandex" });
         operation.player = this.createPlayer((reason) => { if (this.current(operation)) this.abort(reason, true); });
-        await operation.player.prepare({ url: this.environment.chrome.runtime.getURL("assets/test-audio.mp3"), demoLoop: true });
+        await operation.player.prepare(operation.asset);
+        if (!operation.asset.demoLoop && Math.abs(operation.player.audio.duration * 1000 - operation.asset.durationMs) > 1500) throw new Error("replacement_duration_mismatch");
         if (!this.current(operation)) return;
         this.update(await this.bridge.getSnapshot());
         if (!this.current(operation) || !this.eligible()) return;
@@ -100,6 +125,7 @@
         if (!this.current(operation) || !this.eligible()) { this.abort("guard-state-changed"); return; }
         this.phase = "REPLACEMENT_ACTIVE";
         this.activationCount++;
+        if (!operation.asset.demoLoop) this.event("replacement_started", { service: "yandex" });
         this.lastError = null;
         this.log(`REPLACEMENT_ACTIVE · ${operation.trackId}`);
         this.reconcile(true);
@@ -109,6 +135,9 @@
       const operation = this.operation;
       if (blockTrack) { this.blockedTrackId = operation?.trackId || this.snapshot?.track?.id; this.lastError = reason; }
       if (!operation) return;
+      const completed = reason === "master-ended" || detail?.reason === "master-ended";
+      if (operation.asset && !operation.asset.demoLoop && completed) this.event("replacement_completed", { service: "yandex" });
+      else if (operation.asset && !operation.asset.demoLoop && !["manual-original", "state-changed", "controller-destroyed"].includes(reason)) this.event("fail_open", { service: "yandex", error_code: reason === "api_unavailable" ? "api_unavailable" : reason.startsWith("guard-lost:") ? "binding_changed" : "unknown" });
       this.restoreCount++;
       this.lastRestore = {
         reason, detail, requestedAt: Date.now(), trackId: operation.trackId, mediaId: operation.mediaId,
@@ -138,6 +167,7 @@
     }
     tick() {
       if (!this.bridge.isHealthy() && this.operation) { this.abort("bridge-unhealthy", true); return; }
+      if (this.operation?.asset && !this.operation.asset.demoLoop && this.operation.asset.expiresAt <= Date.now()) { this.abort("audio-token-expired", true); return; }
       if (this.operation && this.snapshot.player.readyState >= 3 && !this.snapshot.player.paused && !this.snapshot.player.seeking
         && Date.now() - this.snapshot.observedAt > 3000 && !this.environment.document.hidden) {
         this.abort("snapshot-stale", true); return;

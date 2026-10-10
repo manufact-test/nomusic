@@ -7,6 +7,7 @@ vendor/
 dist/
 extension/dist/
 server/vendor/
+server/storage/
 *.log
 *.pem
 *.key
@@ -14,3 +15,4 @@ server/vendor/
 *.pfx
 .idea/
 .vscode/
+stage7/.runtime/

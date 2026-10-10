@@ -13,6 +13,24 @@ jobs:
   verify:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    services:
+      mysql:
+        image: public.ecr.aws/docker/library/mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: ci-disposable-mysql
+          MYSQL_DATABASE: celikom_test
+        ports: ["3306:3306"]
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -pci-disposable-mysql"
+          --health-interval=10s --health-timeout=5s --health-retries=10
+    env:
+      DB_HOST: 127.0.0.1
+      DB_PORT: 3306
+      DB_NAME: celikom_test
+      DB_USER: root
+      DB_PASSWORD: ci-disposable-mysql
+      STORAGE_PATH: /tmp/celikom-ci-private-audio
+      REQUIRE_BROWSER_AUDIO: "1"
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -27,6 +45,7 @@ jobs:
         uses: shivammathur/setup-php@v2
         with:
           php-version: "8.3"
+          extensions: pdo_mysql, fileinfo
           tools: composer:v2
           coverage: none
 
@@ -38,11 +57,20 @@ jobs:
           composer --working-dir=server validate --strict
           composer --working-dir=server dump-autoload --no-interaction
 
+      - name: Validate Stage 6 restricted library workflow
+        run: |
+          node --test .github/scripts/tests/hostinger-library-contract.test.mjs
+          node .github/scripts/hostinger-library-contract.mjs
+          bash -n .github/scripts/hostinger-library.sh
+          php -l .github/scripts/hostinger-library-remote.php
+      - name: Install CI-only synthetic MP3 encoder
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends ffmpeg
+          ffmpeg -hide_banner -encoders | grep -F libmp3lame
+
       - name: Verify repository
         run: npm run ci
-
-      - name: Verify PHP runtime
-        run: composer --working-dir=server test
 
       - name: Upload extension artifact
         uses: actions/upload-artifact@v4
@@ -51,5 +79,15 @@ jobs:
           path: |
             extension/dist/celikom-extension-*.zip
             extension/dist/celikom-extension-*.zip.sha256
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload private-test server package
+        uses: actions/upload-artifact@v4
+        with:
+          name: celikom-server-${{ github.sha }}
+          path: |
+            dist/celikom-server-*.zip
+            dist/celikom-server-*.zip.sha256
           if-no-files-found: error
           retention-days: 14

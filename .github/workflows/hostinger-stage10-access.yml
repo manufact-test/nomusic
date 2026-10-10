@@ -1,0 +1,49 @@
+name: CELIKOM Stage 10 guarded session playback access
+
+on:
+  push:
+    branches: [feature/api-range]
+    paths:
+      - .github/workflows/hostinger-stage10-access.yml
+      - .github/deploy/hostinger-stage10-access-request.json
+      - .github/scripts/hostinger-stage10-access.sh
+      - .github/scripts/hostinger-stage10-access-remote.php
+
+permissions:
+  contents: read
+
+concurrency:
+  group: celikom-hostinger-private-test
+  cancel-in-progress: false
+
+jobs:
+  guarded-access:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+      - name: Verify narrow request and PHP/SSH guards
+        run: |
+          bash -n .github/scripts/hostinger-stage10-access.sh
+          php -l .github/scripts/hostinger-stage10-access-remote.php
+          node --input-type=module <<'JS'
+          import assert from 'node:assert/strict';
+          import fs from 'node:fs';
+          const req = JSON.parse(fs.readFileSync('.github/deploy/hostinger-stage10-access-request.json','utf8'));
+          assert.deepEqual(Object.keys(req), ['operation','target']);
+          assert.ok(['prepare','enable','audit','reset-trials'].includes(req.operation));
+          assert.equal(req.target, 'hostinger-private-test');
+          assert.equal(process.env.GITHUB_REPOSITORY, 'manufact-test/nomusic');
+          assert.equal(process.env.GITHUB_REF, 'refs/heads/feature/api-range');
+          JS
+      - name: Enable only entitlement; preserve public uploads and historic credentials
+        env:
+          HOSTINGER_SSH_KEY: ${{ secrets.HOSTINGER_SSH_KEY }}
+        run: bash .github/scripts/hostinger-stage10-access.sh

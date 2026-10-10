@@ -5,6 +5,7 @@ import { stripTypeScriptTypes } from "node:module";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { contentScriptGroups } from "./content-script-groups.mjs";
+import { apiBuildConfig } from "./api-build-config.mjs";
 
 const extensionRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const sourceRoot = path.join(extensionRoot, "src");
@@ -52,7 +53,12 @@ for (const group of contentScriptGroups) {
   const parts = await Promise.all(group.modules.map(async (file) => `// ${file}\n${await readFile(path.join(unpackedRoot, file), "utf8")}`));
   await writeFile(path.join(unpackedRoot, group.file), `// CELIKOM ${packageJson.version} ${group.world} dependency bundle\n${parts.join("\n;\n")}\n`, "utf8");
 }
-await cp(path.join(extensionRoot, "manifest", "manifest.json"), path.join(unpackedRoot, "manifest.json"));
+const apiConfig = apiBuildConfig(process.env.CELIKOM_API_BASE_URL);
+await mkdir(path.join(unpackedRoot, "api"), { recursive: true });
+await writeFile(path.join(unpackedRoot, "api", "config.json"), JSON.stringify(apiConfig, null, 2) + "\n");
+const sourceManifest = JSON.parse(await readFile(path.join(extensionRoot, "manifest", "manifest.json"), "utf8"));
+if (apiConfig.baseUrl && apiConfig.baseUrl !== "https://music.yandex.ru") sourceManifest.host_permissions.push(`${apiConfig.baseUrl}/*`);
+await writeFile(path.join(unpackedRoot, "manifest.json"), JSON.stringify(sourceManifest, null, 2) + "\n");
 await cp(path.join(extensionRoot, "popup"), path.join(unpackedRoot, "popup"), { recursive: true });
 await cp(path.join(extensionRoot, "_locales"), path.join(unpackedRoot, "_locales"), { recursive: true });
 await cp(path.join(extensionRoot, "assets"), path.join(unpackedRoot, "assets"), { recursive: true });
@@ -74,7 +80,8 @@ if (!unpackedOnly) {
   const files = (await walk(unpackedRoot)).map((file) => path.relative(unpackedRoot, file));
   const zipped = spawnSync("zip", ["-X", "-9", "-q", archivePath, ...files], {
     cwd: unpackedRoot,
-    stdio: "inherit"
+    stdio: "inherit",
+    env: { ...process.env, TZ: "UTC" }
   });
   if (zipped.status !== 0) throw new Error("zip failed while building the extension artifact");
 
