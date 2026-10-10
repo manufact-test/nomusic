@@ -1,11 +1,11 @@
 # CELIKOM — Этап 10: Trial + EntitlementService и ОДНА рабочая версия
 
-**Статус:** UNIFIED 0.4.8 DEPLOYED / OWNER PLAYBACK GATE · 10.10.2026 · ЭТАП НЕ ЗАКРЫТ
+**Статус:** UNIFIED 0.4.9 DEPLOYED / OWNER PLAYBACK GATE · 10.10.2026 · ЭТАП НЕ ЗАКРЫТ
 **Источники истины:** Master ТЗ MVP v1.5 (§§14–15,18,23,26, приложения G–I), План работ MVP v1.6 («Этап 10» и новый раздел 15), Issue #9 и актуальный HEAD `feature/api-range`. В случае расхождений продуктовая модель ТЗ сохраняется, актуальный статус исполнения определяется новым разделом handoff.
 
-**Owner amendment 10.10.2026:** trial changed from 5 to **3 days** by explicit owner instruction; old trial bindings reset with backup, accounts/passwords/sessions preserved. This supersedes the five-day duration in the attached Master document. Owner reported 0.4.7 real playback failure, so Stage10 remains OPEN. See [0.4.8 corrections](CELIKOM-STAGE10-048-OWNER-FIXES.md).
+**Owner amendment 10.10.2026:** trial changed from 5 to **3 days** by explicit owner instruction; old trial bindings reset with backup, accounts/passwords/sessions preserved. This supersedes the five-day duration in the attached Master document. Owner reported 0.4.7 and 0.4.8 real playback failure, so Stage10 remains OPEN. See [0.4.9 corrections](CELIKOM-STAGE10-049-STREAM-RELIABILITY.md).
 
-**Progress 10.10.2026:** unified 0.4.8 and user-bearer + trial + session-bound streaming deployed; CI / real HTTPS / recovery evidence in [rollout](CELIKOM-STAGE10-UNIFIED-ROLLOUT.md). NEXT — [owner actual Chrome playback](CELIKOM-STAGE10-CHROME-ACCEPTANCE.md). Public Upload/Suggest implemented in same client, live writes OFF until playback/security gate. Stage10 and Issue #9 remain OPEN. Section 1 below describes the original gap, now connected in code; it is not the current rollout status.
+**Progress 10.10.2026:** unified 0.4.9 and user-bearer + trial + session-bound streaming deployed; CI / real HTTPS / recovery evidence in [rollout](CELIKOM-STAGE10-UNIFIED-ROLLOUT.md). NEXT — [owner actual Chrome playback](CELIKOM-STAGE10-CHROME-ACCEPTANCE.md). Public Upload/Suggest implemented in same client, live writes OFF until playback/security gate. Stage10 and Issue #9 remain OPEN. Section 1 below describes the original gap, now connected in code; it is not the current rollout status.
 
 ## 0. Главный нерушимый критерий
 
