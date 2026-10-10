@@ -286,3 +286,33 @@ run('Stage9 recovery response does not reveal whether SMTP failed for an existin
     expect($knownStatus===200 && $unknownStatus===200 && $knownBody===$unknownBody,
         'SMTP outage does not enumerate registered emails');
 });
+
+run('Stage9 refresh session has rolling 90-day inactivity window on all devices', function () use ($app,$pdo,$install1,$install2): void {
+    $a='stage9-90-day-one@example.org';
+    $b='stage9-90-day-two@example.org';
+    $dbh=$pdo->prepare('SELECT TIMESTAMPDIFF(SECOND,UTC_TIMESTAMP(6),refresh_expires_at)
+      FROM user_sessions WHERE user_id=(SELECT id FROM users WHERE email=?) ORDER BY id DESC LIMIT 1');
+    foreach ([$a,$b] as $email) {
+        // Create a disposable verified account and independently check its first session TTL.
+        [$code,$pending]=callAuth($app,'POST','register',[
+            'email'=>$email,'password'=>'long-enough-secret-password','installation_id'=>$install1
+        ]);
+        expect($code===201 && ($pending['verification_required']??false), 'email pending for TTL');
+        $GLOBALS['sentEmails'][$email.':verify'] ??= '';
+        $codeValue=$GLOBALS['sentEmails'][$email.':verify'];
+        [$verified,$session]=callAuth($app,'POST','verify-email',[
+            'email'=>$email,'code'=>$codeValue,'installation_id'=>$install1
+        ]);
+        expect($verified===200, 'email confirmed before TTL check');
+        $dbh->execute([$email]);
+        $remaining=(int)$dbh->fetchColumn();
+        expect($remaining >= 7775990 && $remaining <= 7776000, 'initial expiry near 90 days');
+        [$refreshCode,$rotated]=callAuth($app,'POST','refresh',[
+            'installation_id'=>$install1,'refresh_token'=>$session['refresh_token']
+        ]);
+        expect($refreshCode===200, 'rolling refresh valid');
+        $dbh->execute([$email]);
+        $remaining=(int)$dbh->fetchColumn();
+        expect($remaining >= 7775990 && $remaining <= 7776000, 'refresh expiry reset to 90 days');
+    }
+});

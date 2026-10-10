@@ -14,13 +14,13 @@ function fakePopup() {
       addEventListener(type, fn) { listeners.set(type, fn); },
       setAttribute(name, value) { this.attributes[name] = value; },
       focus() { this.focused = true; },
-      fire(type) { const listener = listeners.get(type); assert.ok(listener, name + ":" + type); return listener({ preventDefault() {} }); }
+      fire(type, additional = {}) { const listener = listeners.get(type); assert.ok(listener, name + ":" + type); return listener({ preventDefault() {}, ...additional }); }
     };
   }
   for (const name of ["panel","note","email","password","form","verify-form",
     "recovery-form","new-password-form","signed","summary","identity","submit",
     "mode","code","recovery-email","reset-code","reset-password","eye",
-    "reset-eye","resend","back","forgot","recovery-back","reset-back",
+    "reset-eye","email-suggestion","resend","back","forgot","recovery-back","reset-back",
     "logout"]) nodes.set(name,element(name));
   nodes.get("password").type = "password";
   nodes.get("reset-password").type = "password";
@@ -118,6 +118,45 @@ test("Stage9 recovery email persists but one-time code and new password do not",
     await tick();
     assert.equal(memory["celikom-auth-pending-email"],undefined);
     assert.equal(reopened.nodes.get("form").hidden,false);
+  } finally {
+    globalThis.document = oldDocument;
+    globalThis.chrome = oldChrome;
+  }
+});
+
+test("Stage9 last verified account email is offered and selectable in the next popup", async () => {
+  const oldDocument = globalThis.document;
+  const oldChrome = globalThis.chrome;
+  const memory = {};
+  globalThis.chrome = { storage: { local: {
+    async get(key) { return { [key]: memory[key] }; },
+    async set(values) { Object.assign(memory, values); },
+    async remove(key) { delete memory[key]; }
+  } } };
+  let signed = true;
+  const send = async ({ action }) => {
+    if (action === "status") return { available: true, signedIn: signed,
+      user: signed ? { email: "remembered@example.org" } : undefined };
+    if (action === "logout") return { ok: true };
+    throw new Error("Unexpected action " + action);
+  };
+  try {
+    const first = fakePopup(); globalThis.document = first.document;
+    initAuthPanel(send);
+    await tick();
+    assert.equal(memory["celikom-auth-remembered-email"], "remembered@example.org");
+    signed = false;
+    const next = fakePopup(); globalThis.document = next.document;
+    initAuthPanel(send);
+    await tick();
+    next.nodes.get("email").value = "rem";
+    next.nodes.get("email").fire("input");
+    assert.equal(next.nodes.get("email-suggestion").hidden, false);
+    next.nodes.get("email").fire("keydown", {key:"ArrowDown"});
+    // The keyboard shortcut must fill the field, not accidentally submit a form.
+    assert.equal(next.nodes.get("email").value, "remembered@example.org");
+    assert.equal(memory["celikom-auth-remembered-email"], "remembered@example.org");
+    assert.doesNotMatch(JSON.stringify(memory), /refresh_token|access_token|password/);
   } finally {
     globalThis.document = oldDocument;
     globalThis.chrome = oldChrome;

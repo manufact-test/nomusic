@@ -88,6 +88,8 @@ test("Stage9 transient network loss keeps the existing refresh token without rot
   assert.equal(status.available, true);
   assert.equal(status.signedIn, false);
   assert.equal(status.error, "auth_unavailable");
+  assert.equal(status.localSession, true);
+  assert.equal(status.user.email, "a@example.org");
   assert.equal((await fx.store.get()).refresh_token, existing.refresh_token);
   assert.equal(fx.calls.filter((c) => c.endpoint.endsWith("refresh")).length, 0);
   fx.setMeMode("ok");
@@ -129,4 +131,15 @@ test("Stage9 password recovery does not assume success on invalid confirmation",
     email:"a@example.org", code:"123456", new_password:"correct horse battery staple"
   })).ok, true);
   assert.equal(await fx.store.get(), null, "password reset must not sign a browser in implicitly");
+});
+
+test("Stage9 disabled network config preserves local account appearance without granting auth", async () => {
+  const fx = mock();
+  await fx.broker.perform("register",{email:"a@example.org",password:"correct horse battery staple"});
+  fx.setFlag(false);
+  const status = await fx.broker.perform("status");
+  assert.equal(status.signedIn,false);
+  assert.equal(status.localSession,true);
+  assert.equal(status.user.email,"a@example.org");
+  assert.ok((await fx.store.get()).refresh_token);
 });
