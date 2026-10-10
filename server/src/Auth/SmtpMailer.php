@@ -75,9 +75,8 @@ final class SmtpMailer
             $headers = "From: CELIKOM <".$from.">\r\nTo: <".$to.">\r\n"
                 ."Subject: =?UTF-8?B?".$subject."?=\r\n"
                 ."MIME-Version: 1.0\r\nContent-Type: text/plain; charset=UTF-8\r\n"
-                ."Content-Transfer-Encoding: 8bit\r\n";
-            $data = $headers."\r\n".str_replace("\n","\r\n",$message)."\r\n";
-            $data = preg_replace('/(?m)^\./','..',$data);
+                ."Content-Transfer-Encoding: base64\r\n";
+            $data = $headers."\r\n".chunk_split(base64_encode($message), 76, "\r\n");
             if (fwrite($socket,$data."\r\n.\r\n") === false) throw new \RuntimeException('smtp_unavailable');
             $read(250);
             $send('QUIT');
