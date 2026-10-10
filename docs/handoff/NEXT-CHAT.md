@@ -1,3 +1,16 @@
+## Этап 9 — финальные правки 0.4.6 готовы, ожидание ручной приёмки (10.10.2026)
+
+Финальный пакет [Issue #8](https://github.com/manufact-test/nomusic/issues/8) реализован в `feature/api-range`:
+- Адрес: `name="username"` и `autocomplete="username"` для Chrome, плюс **явный выбор последнего использованного email CELIKOM**, сохраняемого локально без паролей и токенов. Нативный менеджер Chrome может быть ограничен; вручную проверить ввод/выбор (мышью, стрелки/Enter) и вставку.
+- Заголовок `Аккаунт` / `Аккаунт · подключён` — белый. Для длинных auth-форм выделена стабильная внутренняя прокрутка и сброс scrollTop только при смене состояния. Одинаковые SVG-глазики на входе и восстановлении.
+- При временной потере связи локальная учётная запись не стирается; интерфейс показывает `Аккаунт · нет связи`, не выдавая ложного подтверждения сессии.
+- **90 дней скользящей неактивности** вместо 30: новые refresh-токены продлевают срок при реальном успешном обновлении; каждый девайс имеет собственную сессию; logout/revoke/reset по-прежнему работают.
+- Версия **Chrome extension 0.4.6**: [приватная Actions-сборка PASS](https://github.com/manufact-test/nomusic/actions/runs/38057989522), SHA-256 `a0fc68a92f1622d195a2e974ddeb940d1f8652720fb693557909b2ebbe238fc2`. [Full CI PASS](https://github.com/manufact-test/nomusic/actions/runs/38057992590) и [серверный CI PASS](https://github.com/manufact-test/nomusic/actions/runs/38058278438).
+- **Сервер 90 дней развёрнут на тестовом Hostinger**: [deploy PASS](https://github.com/manufact-test/nomusic/actions/runs/38058274439). Перед ним: [снимок 22 таблиц/5 MP3 PASS](https://github.com/manufact-test/nomusic/actions/runs/38058096988) и [изолированное восстановление PASS](https://github.com/manufact-test/nomusic/actions/runs/38058174200). После него [read-only аудит PASS](https://github.com/manufact-test/nomusic/actions/runs/38058420995); принятый #1 и ожидающие #2/#3, приватное аудио, admin/owner flags без изменения.
+
+**Этап 9 ЕЩЁ НЕ ПРИНЯТ владельцем:** новая 0.4.6 требует ручной проверки UI/paste/autocomplete/плавности глазиков и краткого ретеста Start/Stop/Return; Issue #8 остаётся OPEN. **PR #6 остаётся OPEN/unmerged, Issue #7 OPEN**, Chrome 0.4.4 не заменять; этап 10 пока не начинать. Публичные загрузки OFF.
+
+
 ## ФАКТИЧЕСКИЙ СТАТУС 10.10.2026 — подтверждение email развёрнуто
 
 После подтверждения владельцем получения тестового письма на Proton был развёрнут тестовый email-auth backend: PHP release `0.4.5-bffd2c93df1ac0d3a45de385197a4c51b7c5df94`, миграция 005 `user_email_security`, отправитель Gmail SMTP в приватном Hostinger env. [Deploy PASS](https://github.com/manufact-test/nomusic/actions/runs/38054935718), [on-host integrity audit PASS](https://github.com/manufact-test/nomusic/actions/runs/38055294402), [post-deploy snapshot 22 tables+5 audio PASS](https://github.com/manufact-test/nomusic/actions/runs/38055393728), [isolated restore PASS](https://github.com/manufact-test/nomusic/actions/runs/38055485798). Частный Chrome ZIP 0.4.5 с почтовыми формами: [GitHub artifact](https://github.com/manufact-test/nomusic/actions/runs/38055111493), SHA256 `a3812e53678b27d2fa07a1f6f145dabb1bad7717ba5d37024cff7257b6d0835c`.
