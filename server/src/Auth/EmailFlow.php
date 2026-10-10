@@ -115,7 +115,9 @@ final class EmailFlow
             $this->db->prepare('UPDATE user_email_security
               SET reset_hash=NULL,reset_sent_at=NULL,reset_expires_at=NULL
               WHERE user_id=? AND reset_hash=?')->execute([$id,$hash]);
-            throw new \DomainException('email_unavailable');
+            // Reset responses must remain indistinguishable for existing and
+            // missing mailboxes even if their SMTP delivery fails.
+            return $message;
         }
         return $message;
     }
