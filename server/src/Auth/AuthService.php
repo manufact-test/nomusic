@@ -13,22 +13,19 @@ final class AuthService
     private const ACCESS_SECONDS = 900;
     private const REFRESH_SECONDS = 2592000;
 
-    public function __construct(private readonly \PDO $pdo)
+    private readonly EmailFlow $email;
+
+    public function __construct(private readonly \PDO $pdo, array $config = [])
     {
+        $this->email = new EmailFlow($pdo, $config);
     }
 
     public function register(array $input, string $remoteAddress): array
     {
         [$email, $password, $installation] = $this->credentials($input);
         $this->throttle('register', $email, $remoteAddress);
-        if (strlen($password) < 12 || strlen($password) > 128 ||
-            (!defined('PASSWORD_ARGON2ID') && strlen($password) > 72)) {
-            throw new \DomainException('weak_password');
-        }
-        $passwordHash = defined('PASSWORD_ARGON2ID')
-            ? password_hash($password, PASSWORD_ARGON2ID, ['memory_cost' => 32768, 'time_cost' => 3, 'threads' => 1])
-            : password_hash($password, PASSWORD_BCRYPT, ['cost' => 12]);
-        if (!is_string($passwordHash)) throw new \RuntimeException('password_hash_failed');
+        if (!$this->email->ready()) throw new \DomainException('email_unavailable');
+        $passwordHash = self::strongHash($password);
         try {
             $insert = $this->pdo->prepare('INSERT INTO users (email, password_hash) VALUES (?, ?)');
             $insert->execute([$email, $passwordHash]);
@@ -38,7 +35,7 @@ final class AuthService
         }
         $userId = (int) $this->pdo->lastInsertId();
         $this->event($userId, 'user_registered');
-        return $this->newSession($userId, $installation, $email);
+        return $this->email->sendVerification($userId, $email);
     }
 
     public function login(array $input, string $remoteAddress): array
@@ -53,6 +50,9 @@ final class AuthService
         }
         if ($row['status'] !== 'active') throw new \DomainException('account_disabled');
         $id = (int) $row['id'];
+        if (!$this->email->isVerified($id)) {
+            return $this->email->sendVerification($id, $email);
+        }
         $argon = defined('PASSWORD_ARGON2ID');
         $options = $argon ? ['memory_cost' => 32768, 'time_cost' => 3, 'threads' => 1] : ['cost' => 12];
         if (password_needs_rehash((string)$row['password_hash'], $argon ? PASSWORD_ARGON2ID : PASSWORD_BCRYPT, $options)) {
@@ -85,6 +85,7 @@ final class AuthService
                 $row['status'] !== 'active' || strtotime($row['refresh_expires_at'] . ' UTC') <= time()) {
                 throw new \DomainException('invalid_session');
             }
+            if (!$this->email->isVerified((int)$row['user_id'])) throw new \DomainException('invalid_session');
             if (!hash_equals((string) $row['refresh_hash'], $hash)) {
                 $this->pdo->prepare('UPDATE user_sessions SET revoked_at = UTC_TIMESTAMP(6) WHERE id = ?')
                     ->execute([$row['id']]);
@@ -166,13 +167,79 @@ final class AuthService
         return ['ok' => true];
     }
 
+    /** Confirmation of email is the only path that activates a new account session. */
+    public function verifyEmail(array $input): array
+    {
+        $email = self::emailField($input);
+        $code = $input['code'] ?? null;
+        $installation = self::installation($input);
+        if (!is_string($code)) throw new \InvalidArgumentException('invalid_code');
+        $select = $this->pdo->prepare('SELECT id,status FROM users WHERE email=? LIMIT 1');
+        $select->execute([$email]);
+        $user = $select->fetch(\PDO::FETCH_ASSOC);
+        if (!$user || $user['status']!=='active') throw new \DomainException('invalid_code');
+        $this->email->verifyEmail((int)$user['id'],$code);
+        return $this->newSession((int)$user['id'],$installation,$email);
+    }
+
+    public function resendVerification(array $input,string $ip): array
+    {
+        [$email,$password] = $this->credentials($input);
+        $this->throttle('resend',$email,$ip);
+        $select = $this->pdo->prepare('SELECT id,password_hash,status FROM users WHERE email=? LIMIT 1');
+        $select->execute([$email]); $user=$select->fetch(\PDO::FETCH_ASSOC);
+        if (!$user || $user['status']!=='active' || !password_verify($password,$user['password_hash']))
+            throw new \DomainException('invalid_credentials');
+        if ($this->email->isVerified((int)$user['id'])) throw new \DomainException('invalid_request');
+        return $this->email->sendVerification((int)$user['id'],$email);
+    }
+
+    public function requestReset(array $input,string $ip): array
+    {
+        return $this->email->requestReset(self::emailField($input),$ip);
+    }
+
+    public function resetPassword(array $input): array
+    {
+        $email=self::emailField($input);
+        $code=$input['code']??null;
+        $password=$input['new_password']??null;
+        if(!is_string($code)||!is_string($password))throw new \InvalidArgumentException('invalid_request');
+        $hash=self::strongHash($password);
+        return $this->email->resetPassword($email,$code,$hash);
+    }
+
+    private static function emailField(array $input): string
+    {
+        $email=$input['email']??null;
+        if (!is_string($email) || strlen($email)>254 || strlen($email)<5 ||
+          !filter_var($email,FILTER_VALIDATE_EMAIL)) throw new \InvalidArgumentException('invalid_email');
+        return strtolower($email);
+    }
+
+    private static function strongHash(string $password): string
+    {
+        $count=preg_match_all('/./us',$password);
+        if ($count===false || $count<12 || $count>128 || strlen($password)>512 ||
+            str_contains($password,"\0") ||
+            (!defined('PASSWORD_ARGON2ID') && strlen($password)>72))
+            throw new \DomainException('weak_password');
+        $hash=defined('PASSWORD_ARGON2ID')
+            ? password_hash($password,PASSWORD_ARGON2ID,['memory_cost'=>32768,'time_cost'=>3,'threads'=>1])
+            : password_hash($password,PASSWORD_BCRYPT,['cost'=>12]);
+        if (!is_string($hash))throw new \RuntimeException('password_hash_failed');
+        return $hash;
+    }
+
     private function findAccess(string $token): array
     {
         if (!preg_match('/^[0-9a-f]{64}$/D', $token)) throw new \DomainException('invalid_session');
         $select = $this->pdo->prepare('SELECT s.id AS session_id, s.user_id, u.email, u.status
             FROM user_sessions s JOIN users u ON u.id = s.user_id
             WHERE s.access_hash = ? AND s.revoked_at IS NULL
-              AND s.access_expires_at > UTC_TIMESTAMP(6) AND u.status = ? LIMIT 1');
+              AND s.access_expires_at > UTC_TIMESTAMP(6) AND u.status = ?
+              AND EXISTS (SELECT 1 FROM user_email_security e WHERE e.user_id = u.id AND e.verified_at IS NOT NULL)
+              LIMIT 1');
         $select->execute([hash('sha256', $token), 'active']);
         $row = $select->fetch(\PDO::FETCH_ASSOC);
         if (!$row) throw new \DomainException('invalid_session');
@@ -181,6 +248,7 @@ final class AuthService
 
     private function newSession(int $userId, string $installation, string $email): array
     {
+        if (!$this->email->isVerified($userId)) throw new \DomainException('email_unverified');
         [$access, $refresh] = self::issueTokens();
         $this->pdo->beginTransaction();
         try {
@@ -221,7 +289,7 @@ final class AuthService
             !preg_match('/^[a-zA-Z0-9.!#$%&\x27*+\/=?^_\x60{|}~-]+@[a-zA-Z0-9-]+(?:\.[a-zA-Z0-9-]+)+$/D', $email)) {
             throw new \InvalidArgumentException('invalid_email');
         }
-        if (!is_string($password) || strlen($password) > 128 || str_contains($password, "\0")) {
+        if (!is_string($password) || strlen($password) > 512 || str_contains($password, "\0")) {
             throw new \InvalidArgumentException('invalid_password');
         }
         return [strtolower($email), $password, self::installation($input)];
