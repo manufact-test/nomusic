@@ -152,5 +152,6 @@ try {
     }
 } catch (Throwable $failure) {
     $detail=$failure instanceof RuntimeException && preg_match('/^stage10_(?:guard_line_[0-9]+|http_expected_[0-9]+_actual_[0-9]+_line_[0-9]+)$/D',$failure->getMessage()) ? $failure->getMessage() : get_class($failure).'_line_'.$failure->getLine();
+    if ($failure instanceof PDOException) $detail.='_sqlstate_'.preg_replace('/[^A-Z0-9]/','',(string)($failure->errorInfo[0]??'')).'_driver_'.(int)($failure->errorInfo[1]??0);
     fwrite(STDERR,"Stage10 guarded operation failed (".$detail."); no private data disclosed.\n"); exit(1);
 }
