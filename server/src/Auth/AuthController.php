@@ -16,7 +16,9 @@ final class AuthController
     {
         if (!in_array($path, ['/api/v1/auth/register', '/api/v1/auth/login',
             '/api/v1/auth/refresh', '/api/v1/auth/logout', '/api/v1/auth/me',
-            '/api/v1/auth/sessions', '/api/v1/auth/sessions/revoke', '/api/v1/auth/activate'], true)) {
+            '/api/v1/auth/sessions', '/api/v1/auth/sessions/revoke', '/api/v1/auth/activate',
+            '/api/v1/auth/verify-email', '/api/v1/auth/resend-verification',
+            '/api/v1/auth/request-reset', '/api/v1/auth/reset-password'], true)) {
             return Response::json(404, ['error' => 'not_found']);
         }
         $get = in_array($path, ['/api/v1/auth/me', '/api/v1/auth/sessions'], true);
@@ -47,6 +49,10 @@ final class AuthController
                 '/api/v1/auth/sessions' => $this->auth->sessions($access),
                 '/api/v1/auth/sessions/revoke' => $this->auth->revoke($access, $input),
                 '/api/v1/auth/activate' => $this->auth->activate($access),
+                '/api/v1/auth/verify-email' => $this->auth->verifyEmail($input),
+                '/api/v1/auth/resend-verification' => $this->auth->resendVerification($input, $_SERVER['REMOTE_ADDR'] ?? 'unknown'),
+                '/api/v1/auth/request-reset' => $this->auth->requestReset($input, $_SERVER['REMOTE_ADDR'] ?? 'unknown'),
+                '/api/v1/auth/reset-password' => $this->auth->resetPassword($input),
             };
             return Response::json(in_array($path, ['/api/v1/auth/register'], true) ? 201 : 200, $result);
         } catch (\InvalidArgumentException) {
@@ -57,11 +63,14 @@ final class AuthController
                 'rate_limited' => 429,
                 'weak_password' => 422,
                 'account_unavailable' => 409,
-                'account_disabled' => 403,
+                'account_disabled','email_unverified' => 403,
+                'email_unavailable' => 503,
+                'invalid_code' => 422,
                 default => 401
             };
             return Response::json($status, ['error' => in_array($code,
-                ['rate_limited','weak_password','account_unavailable','account_disabled','invalid_credentials'], true)
+                ['rate_limited','weak_password','account_unavailable','account_disabled','invalid_credentials',
+                 'email_unverified','email_unavailable','invalid_code'], true)
                 ? $code : 'invalid_session']);
         }
     }
