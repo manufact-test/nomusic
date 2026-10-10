@@ -1,4 +1,4 @@
--- Stage 9 email identity: additive only; old users start unverified, never silently trusted.
+-- Stage 9 email identity: additive only. Old users start unverified and cannot be silently trusted.
 CREATE TABLE IF NOT EXISTS user_email_security (
   user_id BIGINT UNSIGNED NOT NULL PRIMARY KEY,
   verified_at DATETIME(6) NULL,
