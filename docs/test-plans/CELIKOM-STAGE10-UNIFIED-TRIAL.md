@@ -1,3 +1,5 @@
+> 2026-10-11: unified0.4.10 ready; owner0.4.9 real playback/switch/seek confirmed; public Upload/Suggest ON under verified-user entitlement. [Current evidence](CELIKOM-STAGE10-PUBLIC-CONTRIBUTIONS.md). Stage10 remains OPEN pending owner form/remaining playback/device gates. Earlier OFF statements are historical.
+
 # CELIKOM — Этап 10: Trial + EntitlementService и ОДНА рабочая версия
 
 **Статус:** UNIFIED 0.4.9 DEPLOYED / OWNER PLAYBACK GATE · 10.10.2026 · ЭТАП НЕ ЗАКРЫТ
