@@ -69,6 +69,14 @@ try {
     require $release . '/bootstrap.php';
     $config = require $release . '/config/app.php';
     Celikom\Database\Connection::open($config)->query('SELECT 1')->fetchColumn();
+    // Fail BEFORE migration and public release swap if the Stage 9.1 email
+    // authority is not configured. Never log SMTP identities or secrets.
+    if (($config['auth_enabled'] ?? false)
+        && !(new Celikom\Auth\EmailFlow(
+            Celikom\Database\Connection::open($config), $config
+        ))->ready()) {
+        throw new RuntimeException('verified_email_sender_not_ready');
+    }
     fwrite(STDOUT, "Private configuration ready; database connection verified.\n");
 } catch (Throwable $error) {
     $known = ['invalid_private_layout', 'invalid_private_symlink', 'invalid_input', 'database_connection_failed', 'environment_creation_failed', 'environment_write_failed', 'environment_binding_failed'];
