@@ -6,6 +6,8 @@ on:
     paths:
       - .github/workflows/hostinger-stage10-access.yml
       - .github/deploy/hostinger-stage10-access-request.json
+      - .github/scripts/hostinger-stage10-access.sh
+      - .github/scripts/hostinger-stage10-access-remote.php
 
 permissions:
   contents: read
