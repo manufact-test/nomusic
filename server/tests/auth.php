@@ -47,7 +47,7 @@ expect(callAuth($app, 'POST', 'login',
 [$verifiedStatus, $first] = callAuth($app, 'POST', 'verify-email', [
     'email'=>$email, 'code'=>$sentEmails[$email.':verify'], 'installation_id'=>$install1
 ]);
-$code = $verifiedStatus;
+expect($verifiedStatus === 200, 'first email verified');
 
 run('Stage9 registration uses opaque tokens and hashed DB secrets', function () use ($pdo, $code, $first, $password): void {
     expect($code === 201 && isset($first['user']['id']) && strlen($first['refresh_token']) === 64, 'registered');
