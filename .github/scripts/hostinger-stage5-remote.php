@@ -87,13 +87,13 @@ try {
                 'upload_submissions', 'track_requests', 'upload_rate_buckets',
                 'admins', 'admin_sessions', 'admin_login_attempts', 'audit_log',
                 'track_request_reviews', 'reports', 'users', 'user_devices', 'user_sessions',
-                'user_auth_attempts', 'user_auth_events'], true)) throw new RuntimeException('unknown_table');
+                'user_auth_attempts', 'user_auth_events', 'user_email_security'], true)) throw new RuntimeException('unknown_table');
             $currentCount = (int) $pdo->query('SELECT COUNT(*) FROM ' . chr(96) . $table . chr(96))->fetchColumn();
             // The only permitted pre-deployment row-count increase is the
-            // expected checksummed additive Stage 8 schema migration.
+            // expected checksummed additive Stage 9 email security migration.
             if ($table === 'schema_migrations' && $currentCount === (int) $beforeCount + 1) {
                 $migration = $pdo->prepare('SELECT sha256 FROM schema_migrations WHERE version = ?');
-                $migrationFile = '004_user_identity.sql';
+                $migrationFile = '005_email_security.sql';
                 $migration->execute([$migrationFile]);
                 $checksum = $migration->fetchColumn();
                 $diskChecksum = hash_file('sha256', $release . '/migrations/' . $migrationFile);
@@ -104,7 +104,7 @@ try {
             if ($currentCount !== (int) $beforeCount)
                 throw new RuntimeException('database-row-count-changed');
         }
-        echo "Stage 9 after-deploy audit PASS: private env, media and historic row counts preserved; additive Stage 9 migration verified.\n";
+        echo "Stage 9 after-deploy audit PASS: private env, media and historic row counts preserved; additive Stage 9 email-security migration verified.\n";
         exit(0);
     }
     $copyAudio = static function(string $source, string $destination, array $index): void {
@@ -167,7 +167,7 @@ try {
         // snapshots correctly omit these tables until migration 003 exists.
         $optional = ['admins', 'admin_sessions', 'admin_login_attempts', 'audit_log',
             'track_request_reviews', 'reports', 'users', 'user_devices', 'user_sessions',
-            'user_auth_attempts', 'user_auth_events'];
+            'user_auth_attempts', 'user_auth_events', 'user_email_security'];
         $present = $pdo->prepare('SELECT COUNT(*) FROM information_schema.tables
             WHERE table_schema = DATABASE() AND table_name = ?');
         foreach ($optional as $extra) {
