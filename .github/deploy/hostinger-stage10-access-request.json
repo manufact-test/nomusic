@@ -1,4 +1,4 @@
 {
-  "operation": "prepare",
+  "operation": "enable",
   "target": "hostinger-private-test"
 }
