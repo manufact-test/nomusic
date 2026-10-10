@@ -1,9 +1,9 @@
 # CELIKOM — Этап 10: Trial + EntitlementService и ОДНА рабочая версия
 
-**Статус:** STARTED / FIRST PACKAGE BRANCH-ONLY · 10.10.2026
+**Статус:** UNIFIED 0.4.7 DEPLOYED / OWNER PLAYBACK GATE · 10.10.2026 · ЭТАП НЕ ЗАКРЫТ
 **Источники истины:** Master ТЗ MVP v1.5 (§§14–15,18,23,26, приложения G–I), План работ MVP v1.6 («Этап 10» и новый раздел 15), Issue #9 и актуальный HEAD `feature/api-range`. В случае расхождений продуктовая модель ТЗ сохраняется, актуальный статус исполнения определяется новым разделом handoff.
 
-**Progress 10.10.2026:** audit + atomic trial foundation added; [package audit](CELIKOM-STAGE10-AUDIT-ATOMIC-TRIAL.md). No deployment, no user-bearer playback yet; owner acceptance still required.
+**Progress 10.10.2026:** unified 0.4.7 and user-bearer + trial + session-bound streaming deployed; CI / real HTTPS / recovery evidence in [rollout](CELIKOM-STAGE10-UNIFIED-ROLLOUT.md). NEXT — [owner actual Chrome playback](CELIKOM-STAGE10-CHROME-ACCEPTANCE.md). Public Upload/Suggest implemented in same client, live writes OFF until playback/security gate. Stage10 and Issue #9 remain OPEN. Section 1 below describes the original gap, now connected in code; it is not the current rollout status.
 
 ## 0. Главный нерушимый критерий
 

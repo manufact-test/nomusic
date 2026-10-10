@@ -1,3 +1,11 @@
+## 2026-10-10 — Stage10: ONE Chrome 0.4.7 deployed; owner playback gate next
+
+**Stage 10 / Issue #9 OPEN — not accepted or closed.** Normal verified-user session now drives trial → EntitlementService → approved Resolve → session-bound signed Range audio in ONE extension. Five-day trial starts on explicit functional Start, account-level; independent devices / 90-day rolling sessions preserved. Server release `0.4.7-02c4b4f8073b4b76c407b7ed469e2500301ac665`; replacements/auth/entitlement ON, analytics/public uploads OFF. CI, guarded deploy, real two-device HTTPS smoke, integrity audits and pre/post recovery gates: see [rollout evidence](../test-plans/CELIKOM-STAGE10-UNIFIED-ROLLOUT.md).
+
+**NEXT: owner tests actual Yandex playback in clean Chrome profile**, using ZIP 0.4.7, ordinary email login, no apiTestToken and empty test Track ID. [Exact checklist](../test-plans/CELIKOM-STAGE10-CHROME-ACCEPTANCE.md). Keep original installed 0.4.4. Approved 144530503/#1 and pending 799133075/#2,38436680/#3 unchanged. Upload version + separate Suggest song are implemented/tested in SAME client; live FEATURE_UPLOADS stays OFF until playback/security gate, then enable and accept them here before Stage10 closure. No separate final account/playback clients.
+
+PR #6 OPEN/unmerged, Issue #7 OPEN (no proven RangeError fix). Stage9 accepted/closed. No billing or Android live acceptance claimed. Historical blocks below, including “branch only” / “do not start Stage10”, are superseded by this latest state. Do not restart the audit or retire legacy 0.4.4 access before owner acceptance.
+
 ## 2026-10-10 — Stage10 STARTED: audit + atomic trial foundation (branch only)
 
 Audited HEAD `8a24929b4aa7bf72b4905a469f0a5d1384f6544b`; incomplete existing scaffolds referenced nonexistent trial columns and had no transactional ledger integration. First safe package adds account_trials + atomic verified-account five-day TrialService, database-clock EntitlementService and hardened bearer scaffold, with disposable MySQL/race/rollback tests in CI. [Audit, boundaries and next package](../test-plans/CELIKOM-STAGE10-AUDIT-ATOMIC-TRIAL.md).
