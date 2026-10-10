@@ -87,24 +87,27 @@ try {
                 'upload_submissions', 'track_requests', 'upload_rate_buckets',
                 'admins', 'admin_sessions', 'admin_login_attempts', 'audit_log',
                 'track_request_reviews', 'reports', 'users', 'user_devices', 'user_sessions',
-                'user_auth_attempts', 'user_auth_events', 'user_email_security'], true)) throw new RuntimeException('unknown_table');
+                'user_auth_attempts', 'user_auth_events', 'user_email_security', 'entitlement_ledger', 'account_trials'], true)) throw new RuntimeException('unknown_table');
             $currentCount = (int) $pdo->query('SELECT COUNT(*) FROM ' . chr(96) . $table . chr(96))->fetchColumn();
             // The only permitted pre-deployment row-count increase is the
             // expected checksummed additive Stage 9 email security migration.
-            if ($table === 'schema_migrations' && $currentCount === (int) $beforeCount + 1) {
-                $migration = $pdo->prepare('SELECT sha256 FROM schema_migrations WHERE version = ?');
-                $migrationFile = '005_email_security.sql';
-                $migration->execute([$migrationFile]);
-                $checksum = $migration->fetchColumn();
-                $diskChecksum = hash_file('sha256', $release . '/migrations/' . $migrationFile);
-                if (!is_string($checksum) || !is_string($diskChecksum)
-                    || !hash_equals($checksum, $diskChecksum)) throw new RuntimeException('unexpected_migration');
+            if ($table === 'schema_migrations' && $currentCount > (int)$beforeCount
+                && $currentCount <= (int)$beforeCount + 2) {
+                // Stage10 permits only the two checksummed additive migrations.
+                foreach (['006_entitlements_ledger.sql', '007_account_trials.sql'] as $migrationFile) {
+                    $migration = $pdo->prepare('SELECT sha256 FROM schema_migrations WHERE version = ?');
+                    $migration->execute([$migrationFile]);
+                    $checksum = $migration->fetchColumn();
+                    $diskChecksum = hash_file('sha256', $release . '/migrations/' . $migrationFile);
+                    if (!is_string($checksum) || !is_string($diskChecksum)
+                        || !hash_equals($checksum, $diskChecksum)) throw new RuntimeException('unexpected_migration');
+                }
                 continue;
             }
             if ($currentCount !== (int) $beforeCount)
                 throw new RuntimeException('database-row-count-changed');
         }
-        echo "Stage 9 after-deploy audit PASS: private env, media and historic row counts preserved; additive Stage 9 email-security migration verified.\n";
+        echo "Stage 10 after-deploy audit PASS: private env, media and historic row counts preserved; additive trial/ledger migrations verified.\n";
         exit(0);
     }
     $copyAudio = static function(string $source, string $destination, array $index): void {
@@ -167,7 +170,7 @@ try {
         // snapshots correctly omit these tables until migration 003 exists.
         $optional = ['admins', 'admin_sessions', 'admin_login_attempts', 'audit_log',
             'track_request_reviews', 'reports', 'users', 'user_devices', 'user_sessions',
-            'user_auth_attempts', 'user_auth_events', 'user_email_security'];
+            'user_auth_attempts', 'user_auth_events', 'user_email_security', 'entitlement_ledger', 'account_trials'];
         $present = $pdo->prepare('SELECT COUNT(*) FROM information_schema.tables
             WHERE table_schema = DATABASE() AND table_name = ?');
         foreach ($optional as $extra) {
