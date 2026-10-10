@@ -10,6 +10,7 @@ function guard10(bool $condition): void {
 }
 function https10(string $path, string $method = 'GET', ?array $body = null, string $bearer = '', bool $range = false): array {
     guard10(str_starts_with($path, '/api/v1/'));
+    usleep(350000); // Avoid bursting local hosting workers/database connection establishment.
     $args = ['curl','--silent','--show-error','--max-time','22','--connect-timeout','10','--max-redirs','0','--proto','=https',
         '--header','Cache-Control: no-store','--header','Origin: https://music.yandex.ru'];
     if ($method === 'HEAD') $args[] = '--head';
@@ -33,7 +34,7 @@ function https10(string $path, string $method = 'GET', ?array $body = null, stri
     return [(int)substr($out,$pos+strlen($marker)),json_decode($text,true),$text];
 }
 function expect10(int $status, array $response): array {
-    if ($response[0] !== $status) throw new RuntimeException('stage10_http_expected_'.$status.'_actual_'.$response[0].'_line_'.(debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS,1)[0]['line']??0));
+    if ($response[0] !== $status) throw new RuntimeException('stage10_http_expected_'.$status.'_actual_'.$response[0].'_line_'.(debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS,1)[0]['line']??0).(is_array($response[1]) && ($response[1]['error']??'')==='service_unavailable'?'_app_unavailable':(is_array($response[1])?'_json':'_non_json')));
     return is_array($response[1]) ? $response[1] : [];
 }
 function integrity10(PDO $db, array $config, string $root): array {
@@ -71,6 +72,7 @@ function smoke10(PDO $db, array $config): void {
                 ->execute([$id,$device,hash('sha256',$access),hash('sha256',$refresh)]);
             $tokens[]=[$access,$refresh,$uuid];
         }
+        $initial=expect10(200,https10('/api/v1/entitlement','GET',null,$tokens[1][0])); guard10($initial['allowed']===false);
         expect10(401,https10('/api/v1/resolve?service=yandex&track_id=144530503'));
         expect10(403,https10('/api/v1/resolve?service=yandex&track_id=144530503','GET',null,$tokens[0][0]));
         $one=expect10(200,https10('/api/v1/auth/activate','POST',[],$tokens[0][0]));
@@ -152,7 +154,7 @@ try {
         file_put_contents($env,$old,LOCK_EX); chmod($env,0600); throw $error;
     }
 } catch (Throwable $failure) {
-    $detail=$failure instanceof RuntimeException && preg_match('/^stage10_(?:guard_line_[0-9]+|http_expected_[0-9]+_actual_[0-9]+_line_[0-9]+)$/D',$failure->getMessage()) ? $failure->getMessage() : get_class($failure).'_line_'.$failure->getLine();
+    $detail=$failure instanceof RuntimeException && preg_match('/^stage10_(?:guard_line_[0-9]+|http_expected_[0-9]+_actual_[0-9]+_line_[0-9]+(?:_app_unavailable|_json|_non_json)?)$/D',$failure->getMessage()) ? $failure->getMessage() : get_class($failure).'_line_'.$failure->getLine();
     if ($failure instanceof PDOException) $detail.='_sqlstate_'.preg_replace('/[^A-Z0-9]/','',(string)($failure->errorInfo[0]??'')).'_driver_'.(int)($failure->errorInfo[1]??0);
     $detail.='_caller_'.implode('_',array_map(static fn(array $frame): string => basename((string)($frame['file']??'')).':'.(int)($frame['line']??0),array_slice($failure->getTrace(),0,3)));
     foreach (['Name or service not known','Temporary failure in name resolution','php_network_getaddresses','Connection refused','No such file or directory','Permission denied','Resource temporarily unavailable','Connection timed out'] as $label) if(str_contains($failure->getMessage(),$label)) $detail.='_'.str_replace(' ','_',$label);
