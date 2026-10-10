@@ -1,5 +1,5 @@
 {
   "environment": "hostinger-private-test",
   "request": "owner-approved-stage8-admin-rollout-preserve-stage7-2026-10-09",
-  "replacements": "stage10-unified-0.4.7-account-trial-session-audio-preserve-owner-credentials-approved-pending-uploads-off"
+  "replacements": "stage10-owner-0.4.8-three-day-trial-nonblocking-heartbeat-compact-auth-preserve-credentials-media-before-reset"
 }
