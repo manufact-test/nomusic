@@ -264,3 +264,25 @@ run('Stage9 pre-migration account is not trusted until email proof', function ()
         'email'=>$email,'code'=>$sentEmails[$email.':verify'],'installation_id'=>$install1
     ])[0]===200, 'legacy email owner confirmed');
 });
+
+run('Stage9 recovery response does not reveal whether SMTP failed for an existing address', function () use ($app,$config,&$sentEmails,$install1): void {
+    $email='stage9-smtp-failure@example.org';
+    [$register,$pending]=callAuth($app,'POST','register',[
+        'email'=>$email,'password'=>'password for failed mail case','installation_id'=>$install1
+    ]);
+    expect($register===201 && ($pending['verification_required']??false), 'test account staged');
+    expect(callAuth($app,'POST','verify-email',[
+        'email'=>$email,'code'=>$sentEmails[$email.':verify'],'installation_id'=>$install1
+    ])[0]===200, 'test email verified before simulating delivery failure');
+    $unavailable=$config;
+    $unavailable['mail_test_sink']=static function(): void {
+        throw new RuntimeException('smtp-unavailable-synthetic-no-credentials');
+    };
+    $mailerDown=new Application($unavailable);
+    [$knownStatus,$knownBody]=callAuth($mailerDown,'POST','request-reset',['email'=>$email]);
+    [$unknownStatus,$unknownBody]=callAuth($mailerDown,'POST','request-reset',[
+        'email'=>'stage9-not-in-users@example.org'
+    ]);
+    expect($knownStatus===200 && $unknownStatus===200 && $knownBody===$unknownBody,
+        'SMTP outage does not enumerate registered emails');
+});
