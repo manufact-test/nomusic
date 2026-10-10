@@ -39,7 +39,7 @@ final class EmailFlow
         $row=$s->fetch(\PDO::FETCH_ASSOC);
         if (!$row || $row['verified_at'] !== null) throw new \DomainException('invalid_request');
         if ($row['verification_sent_at']!==null && strtotime($row['verification_sent_at'].' UTC')>time()-60) {
-            throw new \DomainException('rate_limited');
+            return ['verification_required'=>true,'email'=>$email];
         }
         $code=$this->code();
         $hash=$this->digest($id,$code,'verify');
