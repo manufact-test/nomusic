@@ -6,7 +6,7 @@ function mock() {
   const local = {};
   let secret = null;
   const calls = [];
-  let flag = true, nextId = 1, meMode = "ok";
+  let flag = true, nextId = 1, meMode = "ok", unverified = false;
   const api = {
     storage: { local: {
       get: async (key) => ({ [key]: local[key] }),
@@ -21,10 +21,17 @@ function mock() {
     calls.push({ endpoint, opts });
     if (endpoint === "/api/v1/config") return response({ features: { auth: flag } });
     if (endpoint.endsWith("register") || endpoint.endsWith("login")) {
+      if (unverified) return response({ verification_required:true, email:"a@example.org" },endpoint.endsWith("register")?201:200);
       nextId++;
       return response({ user: { id: 4, email: "a@example.org" }, access_token: "a".repeat(64),
         refresh_token: "b".repeat(64), token_type: "Bearer", expires_in: 900 }, endpoint.endsWith("register") ? 201 : 200);
     }
+    if (endpoint.endsWith("verify-email")) {
+      return response({ user: { id: 4, email: "a@example.org" }, access_token: "a".repeat(64),
+        refresh_token: "b".repeat(64), token_type: "Bearer", expires_in: 900 });
+    }
+    if (endpoint.endsWith("resend-verification")) return response({ verification_required:true, email:"a@example.org" });
+    if (endpoint.endsWith("request-reset") || endpoint.endsWith("reset-password")) return response({ ok: true });
     if (endpoint.endsWith("refresh")) {
       return response({ user: { id: 4, email: "a@example.org" }, access_token: "c".repeat(64),
         refresh_token: "d".repeat(64), token_type: "Bearer", expires_in: 900 });
@@ -40,7 +47,7 @@ function mock() {
     return response({ error: "invalid_request" }, 400);
   };
   const broker = createAuthBroker(api, { store, fetch, readConfig: async () => ({ baseUrl: "https://celikom.example" }) });
-  return { broker, local, calls, store, setFlag: (v) => { flag = v; }, setMeMode: (v) => { meMode = v; } };
+  return { broker, local, calls, store, setFlag: (v) => { flag = v; }, setMeMode: (v) => { meMode = v; }, setUnverified: (v) => { unverified = v; } };
 }
 test("Stage9 identity uses stable v4 installation and no music-service identifiers", async () => {
   const fx = mock();
@@ -95,4 +102,31 @@ test("Stage9 expired access token rotates only after explicit HTTP 401", async (
   assert.equal(result.signedIn, true);
   assert.equal((await fx.store.get()).refresh_token, "d".repeat(64));
   assert.equal(fx.calls.filter((c) => c.endpoint.endsWith("refresh")).length, 1);
+});
+
+test("Stage9 pending registration has no tokens before mailbox verification", async () => {
+  const fx = mock(); fx.setUnverified(true);
+  const pending = await fx.broker.perform("register", {
+    email:"a@example.org", password:"correct horse battery staple"
+  });
+  assert.equal(pending.ok, true);
+  assert.equal(pending.verification_required, true);
+  assert.equal(await fx.store.get(), null, "unverified users must never be given refresh tokens");
+  const resend = await fx.broker.perform("resend-verification", {
+    email:"a@example.org", password:"correct horse battery staple"
+  });
+  assert.equal(resend.ok, true);
+  const confirmed = await fx.broker.perform("verify-email", {
+    email:"a@example.org", code:"123456"
+  });
+  assert.equal(confirmed.ok, true);
+  assert.match((await fx.store.get()).refresh_token, /^[a-f0-9]{64}$/);
+});
+test("Stage9 password recovery does not assume success on invalid confirmation", async () => {
+  const fx = mock();
+  assert.equal((await fx.broker.perform("request-reset",{ email:"a@example.org" })).ok, true);
+  assert.equal((await fx.broker.perform("reset-password",{
+    email:"a@example.org", code:"123456", new_password:"correct horse battery staple"
+  })).ok, true);
+  assert.equal(await fx.store.get(), null, "password reset must not sign a browser in implicitly");
 });
