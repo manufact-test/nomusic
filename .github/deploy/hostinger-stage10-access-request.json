@@ -1,4 +1,4 @@
 {
-  "operation": "reset-trials",
+  "operation": "audit",
   "target": "hostinger-private-test"
 }
