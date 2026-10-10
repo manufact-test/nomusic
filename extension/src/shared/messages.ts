@@ -15,6 +15,7 @@ export interface ExtensionState {
   phase: "STOPPED" | "CONNECTING" | "OBSERVING" | "READY" | "ERROR" | "PREPARING" | "REPLACEMENT_ACTIVE" | "RESTORING";
   version: string;
   settings?: { testTrackId: string };
+  accessError?: string;
   manualBypass?: { trackId: string } | null;
   replacementError?: string | null;
   connection?: {

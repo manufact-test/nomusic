@@ -18,7 +18,7 @@ final class ResolveService
     ) {
     }
 
-    public function resolve(string $service, string $trackId): array
+    public function resolve(string $service, string $trackId, ?array $access = null): array
     {
         if ($service !== 'yandex' || !preg_match('/^[1-9]\d{0,23}$/D', $trackId)) {
             throw new \InvalidArgumentException('invalid_track');
@@ -30,14 +30,20 @@ final class ResolveService
         $id = (int) $row['replacement_id'];
         $version = (int) $row['version'];
         $expires = time() + $this->tokens->ttl;
+        if ($access !== null) {
+            $expires = min($expires, (int)strtotime($access['valid_until']),
+                (int)strtotime($access['refresh_expires_at'] . ' UTC'));
+            if ($expires <= time()) return ['found' => false, 'cache_ttl_seconds' => 0];
+        }
+        $sessionId = $access['session_id'] ?? null;
         return [
             'found' => true,
             'replacement_id' => $id,
-            'audio_url' => '/api/v1/audio/' . $id . '?token=' . $this->tokens->sign($id, $version, $expires) . '&expires=' . $expires,
+            'audio_url' => '/api/v1/audio/' . $id . '?token=' . $this->tokens->sign($id, $version, $expires, $sessionId) . '&expires=' . $expires . ($sessionId === null ? '' : '&sid=' . $sessionId),
             'duration_ms' => (int) $row['duration_ms'],
             'version' => $version,
             'expires_at' => $expires,
-            'cache_ttl_seconds' => ResolveCachePolicy::positive($this->positiveTtlSeconds, $this->tokens->ttl),
+            'cache_ttl_seconds' => min(ResolveCachePolicy::positive($this->positiveTtlSeconds, $this->tokens->ttl), max(0, $expires - time())),
         ];
     }
 }

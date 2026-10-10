@@ -48,7 +48,15 @@ async function send<T>(message: object): Promise<T> {
 }
 
 startButton?.addEventListener("click", async () => {
-  render(await send<ExtensionState>({ type: COMMANDS.setEnabled, enabled: true }));
+  const state = await send<ExtensionState>({ type: COMMANDS.setEnabled, enabled: true });
+  render(state);
+  const access = document.querySelector<HTMLElement>("[data-access-status]");
+  if (access && state.accessError) {
+    access.textContent = state.accessError === "track_required"
+      ? "Сначала запустите песню в Яндекс Музыке."
+      : state.accessError === "sign_in_required" ? "Войдите в аккаунт перед стартом."
+      : "Доступ недоступен. Проверьте аккаунт и соединение.";
+  } else await refreshAccess();
 });
 
 const addTrackButton = document.querySelector<HTMLButtonElement>("[data-action='add']");
@@ -59,7 +67,6 @@ const uploadFile = document.querySelector<HTMLInputElement>("[data-upload-file]"
 const uploadFilePicker = document.querySelector<HTMLElement>("[data-file-picker]");
 const uploadFileTitle = document.querySelector<HTMLElement>("[data-file-title]");
 const uploadFileName = document.querySelector<HTMLElement>("[data-file-name]");
-const uploadKey = document.querySelector<HTMLInputElement>("[data-upload-key]");
 const uploadRights = document.querySelector<HTMLInputElement>("[data-upload-rights]");
 const uploadProgress = document.querySelector<HTMLProgressElement>("[data-upload-progress]");
 const uploadStatus = document.querySelector<HTMLElement>("[data-upload-status]");
@@ -101,7 +108,6 @@ function setSubmittedView(title: string, note: string): void {
   if (uploadForm) uploadForm.hidden = true;
   if (uploadStatus) uploadStatus.hidden = true;
   if (uploadButton) uploadButton.disabled = true;
-  if (uploadKey) uploadKey.value = "";
 }
 
 function showSubmitted(title: string, note: string): void {
@@ -137,9 +143,23 @@ async function uploadApiOrigin(): Promise<string> {
   return privateUploadApiOrigin(config.baseUrl);
 }
 
+async function contributionAccess(): Promise<string> {
+  const result = await send<{ ok: boolean; access_token?: string; error?: string }>({ type: "CELIKOM_AUTH", action: "contribution-access" });
+  if (!result.ok || !/^[a-f0-9]{64}$/.test(result.access_token || "")) throw new Error(result.error || "invalid_session");
+  return result.access_token!;
+}
+function contributionError(error: unknown): string {
+  const code = (error as { message?: string })?.message;
+  if (code === "uploads_disabled") return "Приём версий и предложений пока выключен. Доступ к музыке работает отдельно.";
+  if (code === "invalid_session") return "Войдите в аккаунт, чтобы отправить версию или предложение.";
+  if (code === "access_denied") return "Доступ завершён. Проверьте статус аккаунта.";
+  return "Не удалось связаться с сервером. Повторите попытку.";
+}
+
 async function trackUploadStatus(origin: string, trackId: string): Promise<"none" | "pending" | "approved"> {
   const response = await fetch(origin + "/api/v1/tracks/upload-status?service=yandex&track_id=" + encodeURIComponent(trackId), {
     method: "GET", redirect: "error", credentials: "omit", cache: "no-store",
+    headers: { Authorization: "Bearer " + await contributionAccess() },
     signal: AbortSignal.timeout(10000)
   });
   if (!response.ok) throw new Error("upload_status_unavailable");
@@ -188,8 +208,8 @@ addTrackButton?.addEventListener("click", async () => {
         view = "form";
       }
     }
-  } catch (_error) {
-    note = "Не удалось проверить трек на сервере. Закройте форму и попробуйте снова.";
+  } catch (error) {
+    note = contributionError(error);
   } finally {
     transitionUploadPanel(() => {
       if (view === "form") {
@@ -205,7 +225,7 @@ addTrackButton?.addEventListener("click", async () => {
     opening = false;
     addTrackButton.disabled = false;
     addTrackButton.dataset.loading = "false";
-    addTrackButton.textContent = "Добавить трек";
+    addTrackButton.textContent = "Загрузить версию";
     addTrackButton.setAttribute("aria-expanded", "true");
   }
   void send({ type: "CELIKOM_ADD_TRACK_OPENED" }).catch(() => {});
@@ -247,7 +267,7 @@ uploadFilePicker?.addEventListener("drop", (event) => {
 uploadForm?.addEventListener("submit", async (event) => {
   event.preventDefault();
   if (uploading || opening || !pinnedTrack || uploadForm.hidden ||
-    !uploadFile?.files?.[0] || !uploadRights?.checked || !uploadKey?.value) return;
+    !uploadFile?.files?.[0] || !uploadRights?.checked) return;
 
   const file = uploadFile.files[0];
   if (!validMp3Selection(file)) {
@@ -262,7 +282,7 @@ uploadForm?.addEventListener("submit", async (event) => {
   try {
     const now = uploadTargetFromStatus(await send<ExtensionState>({ type: COMMANDS.getStatus }));
     if (!now || now.id !== pinnedTrack.id) {
-      uploadMessage("Трек изменился. Закройте и откройте «Добавить трек» заново.", "error");
+      uploadMessage("Трек изменился. Закройте и откройте «Загрузить версию» заново.", "error");
       return;
     }
     origin = await uploadApiOrigin();
@@ -287,7 +307,7 @@ uploadForm?.addEventListener("submit", async (event) => {
     const xhr = new XMLHttpRequest();
     xhr.open("POST", origin + "/api/v1/uploads");
     xhr.timeout = 120000;
-    xhr.setRequestHeader("Authorization", "Bearer " + uploadKey.value);
+    xhr.setRequestHeader("Authorization", "Bearer " + await contributionAccess());
     xhr.upload.addEventListener("progress", (progress) => {
       if (progress.lengthComputable && uploadProgress) uploadProgress.value = Math.floor(progress.loaded / progress.total * 100);
     });
@@ -314,8 +334,10 @@ uploadForm?.addEventListener("submit", async (event) => {
         return;
       }
       const errors: Record<string, string> = {
-        uploads_disabled: "Приватный приём файлов пока выключен.",
-        unauthorized: "Неверный код владельца.",
+        uploads_disabled: "Приём файлов пока выключен.",
+        access_denied: "Доступ завершён. Проверьте статус аккаунта.",
+        unauthorized: "Войдите в аккаунт ещё раз.",
+        invalid_session: "Войдите в аккаунт ещё раз.",
         rate_limited: "Слишком много попыток. Попробуйте позже.",
         upload_too_large: "Файл превышает допустимый размер.",
         invalid_mp3: "Файл не прошёл проверку MP3.",
@@ -341,6 +363,49 @@ uploadForm?.addEventListener("submit", async (event) => {
     }
   }
 });
+const suggestButton = document.querySelector<HTMLButtonElement>("[data-action='suggest']");
+const suggestPanel = document.querySelector<HTMLElement>("[data-suggest-panel]");
+const suggestSubmit = document.querySelector<HTMLButtonElement>("[data-suggest-submit]");
+const suggestNote = document.querySelector<HTMLElement>("[data-suggest-note]");
+let suggestTrack: ReturnType<typeof uploadTargetFromStatus> = null;
+let suggesting = false;
+suggestButton?.addEventListener("click", async () => {
+  if (!suggestPanel || suggesting) return;
+  if (!suggestPanel.hidden) { suggestPanel.hidden = true; suggestButton.setAttribute("aria-expanded", "false"); return; }
+  suggestTrack = uploadTargetFromStatus(await send<ExtensionState>({ type: COMMANDS.getStatus }));
+  const label = document.querySelector<HTMLElement>("[data-suggest-track]");
+  if (label) label.textContent = suggestTrack ? [suggestTrack.title || "Track ID " + suggestTrack.id, suggestTrack.artist].filter(Boolean).join(" — ") : "Сначала запустите песню в Яндекс Музыке.";
+  if (suggestSubmit) suggestSubmit.disabled = !suggestTrack;
+  if (suggestNote) suggestNote.hidden = true;
+  suggestPanel.hidden = false;
+  suggestButton.setAttribute("aria-expanded", "true");
+});
+suggestSubmit?.addEventListener("click", async () => {
+  if (!suggestTrack || suggesting || !suggestNote) return;
+  suggesting = true;
+  suggestSubmit.disabled = true;
+  suggestNote.hidden = false;
+  suggestNote.textContent = "Отправляем…";
+  try {
+    const current = uploadTargetFromStatus(await send<ExtensionState>({ type: COMMANDS.getStatus }));
+    if (!current || current.id !== suggestTrack.id) throw new Error("track_changed");
+    const body = new FormData();
+    for (const [name, value] of Object.entries({ service: "yandex", track_id: suggestTrack.id, artist: suggestTrack.artist, title: suggestTrack.title })) body.append(name, value);
+    const response = await fetch((await uploadApiOrigin()) + "/api/v1/track-requests", {
+      method: "POST", body, credentials: "omit", redirect: "error", cache: "no-store", signal: AbortSignal.timeout(15000),
+      headers: { Authorization: "Bearer " + await contributionAccess() }
+    });
+    const result = await response.json();
+    if (response.status !== 202 || !["pending", "reviewed", "rejected"].includes(result.status)) throw new Error(result.error || "request_failed");
+    suggestNote.textContent = result.status === "pending" ? "Предложение отправлено на рассмотрение." : "Это предложение уже рассмотрено.";
+    suggestTrack = null;
+  } catch (error) {
+    const code = (error as Error)?.message;
+    suggestNote.textContent = code === "track_changed" ? "Трек изменился. Закройте и откройте предложение заново." : code === "rate_limited" ? "Слишком много попыток. Попробуйте позже." : contributionError(error);
+    suggestSubmit.disabled = false;
+  } finally { suggesting = false; }
+});
+
 document.querySelector("[data-action='use-current']")?.addEventListener("click", async () => {
   if (lastState?.track?.id) render(await send<ExtensionState>({ type: COMMANDS.setTestTrack, trackId: lastState.track.id }));
 });
@@ -351,32 +416,6 @@ testInput?.addEventListener("change", async () => {
   if (testInput.value && !/^\d{1,24}$/.test(testInput.value.trim())) { testInput.setCustomValidity("Только цифры Track ID"); testInput.reportValidity(); return; }
   testInput.setCustomValidity("");
   render(await send<ExtensionState>({ type: COMMANDS.setTestTrack, trackId: testInput.value.trim() }));
-});
-
-document.querySelector("[data-action='save-api-access']")?.addEventListener("click", async () => {
-  const input = document.querySelector<HTMLInputElement>("[data-api-access]");
-  const note = document.querySelector<HTMLElement>("[data-api-note]");
-  if (!input || !note) return;
-  note.textContent = "Проверяем доступ…";
-  try {
-    const response = await send<{ ok: boolean; error?: string }>({ type: "CELIKOM_SET_API_ACCESS", token: input.value });
-    if (response?.ok) {
-      input.value = "";
-      note.textContent = "Сервер подтвердил код";
-    } else {
-      const explanations: Record<string, string> = {
-        invalid_access_code: "Неверная длина кода",
-        api_access_denied: "Сервер отклонил код",
-        api_forbidden: "Доступ запрещён",
-        api_network_error: "Нет связи с сервером",
-        api_server_error: "Ошибка сервера",
-        api_http_error: "HTTP ошибка",
-        invalid_api_response: "Некорректный ответ API",
-        invalid_api_origin: "Неверный адрес API"
-      };
-      note.textContent = explanations[response?.error || ""] || "Не удалось проверить доступ";
-    }
-  } catch (_error) { note.textContent = "Не удалось проверить доступ"; }
 });
 
 stopButton?.addEventListener("click", async () => {
@@ -406,5 +445,20 @@ async function refresh(): Promise<void> {
 void refresh();
 window.setInterval(() => void refresh(), 1000);
 
-// Stage 9: independent account panel, never gates existing player or owner upload.
+async function refreshAccess(): Promise<void> {
+  const label = document.querySelector<HTMLElement>("[data-access-status]");
+  if (!label) return;
+  try {
+    const state = await send<{ ok: boolean; entitlement?: { allowed: boolean; valid_until: string | null; reason: string } }>({ type: "CELIKOM_AUTH", action: "entitlement" });
+    const access = state.entitlement;
+    if (!state.ok || !access) { label.textContent = "Войдите в аккаунт, чтобы начать"; return; }
+    if (access.allowed && access.valid_until) {
+      label.textContent = "Пробный доступ до " + new Date(access.valid_until).toLocaleString("ru-RU", { day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" });
+    } else label.textContent = access.reason === "trial_not_started" ? "5 дней пробного доступа начнутся после «Старт»" : "Пробный доступ завершён";
+  } catch (_error) { label.textContent = "Нет связи. Оригинальная музыка доступна."; }
+}
+void refreshAccess();
+window.setInterval(() => void refreshAccess(), 15000);
+
+// Account UI retains the accepted email/recovery flow.
 initAuthPanel(send);

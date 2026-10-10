@@ -15,7 +15,7 @@ final class AuthService
 
     private readonly EmailFlow $email;
 
-    public function __construct(private readonly \PDO $pdo, array $config = [])
+    public function __construct(private readonly \PDO $pdo, private readonly array $config = [])
     {
         $this->email = new EmailFlow($pdo, $config);
     }
@@ -158,13 +158,15 @@ final class AuthService
     public function activate(string $accessToken): array
     {
         $row = $this->findAccess($accessToken);
+        $trial = ($this->config['entitlement_enabled'] ?? false)
+            ? (new \Celikom\Entitlement\TrialService($this->pdo))->activate((int)$row['user_id']) : null;
         $update = $this->pdo->prepare('UPDATE users SET first_activated_at = UTC_TIMESTAMP(6)
             WHERE id = ? AND first_activated_at IS NULL');
         $update->execute([$row['user_id']]);
         if ($update->rowCount() === 1) $this->event((int)$row['user_id'], 'first_activation');
         $this->event((int)$row['user_id'], 'celikom_started');
-        // Stage 9 does not start trial or change entitlements.
-        return ['ok' => true];
+        return ['ok' => true] + ($trial === null ? [] : ['trial' => $trial,
+            'entitlement' => (new \Celikom\Entitlement\EntitlementService($this->pdo))->check((int)$row['user_id'])->json()]);
     }
 
     /** Confirmation of email is the only path that activates a new account session. */

@@ -24,6 +24,8 @@ return [
     'owner_upload_token' => $value('UPLOAD_OWNER_TOKEN'),
     'owner_uploads_enabled' => $boolean('FEATURE_OWNER_UPLOADS'),
     'admin_enabled' => $boolean('FEATURE_ADMIN'),
+    'entitlement_enabled' => $boolean('FEATURE_USER_ENTITLEMENT'),
+    'user_uploads_enabled' => $boolean('FEATURE_UPLOADS'),
     'auth_enabled' => $boolean('FEATURE_USER_AUTH'),
     // Owner-supplied private mail credentials; default OFF until SMTP and DNS are verified.
     'mail_transport' => $value('CELIKOM_MAIL_TRANSPORT'),

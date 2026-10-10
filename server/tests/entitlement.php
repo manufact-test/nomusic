@@ -146,6 +146,73 @@ try {
         $pdo->exec("UPDATE user_sessions SET revoked_at = UTC_TIMESTAMP(6) WHERE user_id = $id");
         expect($bearer->userId($headers) === null, 'revoked bearer rejected');
     });
+    run('Stage10 user bearer activates trial, resolves approved-only signed Range and revokes audio', function () use ($pdo, &$ids, $config): void {
+        $id = fixtureUser($pdo, $ids);
+        $pdo->exec("INSERT INTO user_devices (user_id, installation_id) VALUES ($id, '8de936d6-2af5-4ca7-973f-24cb5d355198')");
+        $device = (int)$pdo->lastInsertId();
+        $access = bin2hex(random_bytes(32));
+        $stmt = $pdo->prepare('INSERT INTO user_sessions (user_id, device_id, access_hash, refresh_hash, access_expires_at, refresh_expires_at) VALUES (?, ?, ?, ?, DATE_ADD(UTC_TIMESTAMP(6), INTERVAL 900 SECOND), DATE_ADD(UTC_TIMESTAMP(6), INTERVAL 90 DAY))');
+        $stmt->execute([$id, $device, hash('sha256', $access), hash('sha256', random_bytes(32))]);
+        $sessionId = (int)$pdo->lastInsertId();
+        $cfg = $config; $cfg['api_enabled'] = true; $cfg['auth_enabled'] = true; $cfg['entitlement_enabled'] = true;
+        $cfg['test_api_token'] = str_repeat('private-legacy-test-', 3);
+        $cfg['audio_signing_key'] = str_repeat('stage10-test-signing-', 3);
+        $cfg['analytics_privacy_key'] = str_repeat('stage10-test-privacy-', 3);
+        $cfg['user_uploads_enabled'] = true;
+        $app = new Celikom\Application($cfg);
+        $headers = ['Authorization' => 'Bearer ' . $access, 'Content-Type' => 'application/json'];
+        $active = $pdo->query("SELECT t.service_track_id FROM tracks t JOIN track_replacements r ON r.track_id=t.id WHERE r.status='approved' AND r.is_active=1 LIMIT 1")->fetchColumn();
+        expect(is_string($active), 'approved synthetic fixture exists');
+        $query = ['service' => 'yandex', 'track_id' => $active];
+        expect($app->handle('GET', '/api/v1/resolve', $query)->status === 401, 'anonymous denied');
+        expect($app->handle('GET', '/api/v1/resolve', $query, $headers)->status === 403, 'no auto-start from resolve');
+        expect($app->handle('POST', '/api/v1/auth/activate', [], $headers, '{}')->status === 200, 'verified activation');
+        $decision = $app->handle('GET', '/api/v1/entitlement', [], $headers);
+        expect($decision->status === 200 && json_decode($decision->body, true)['allowed'], 'entitlement endpoint');
+        $resolved = $app->handle('GET', '/api/v1/resolve', $query, $headers);
+        $data = json_decode($resolved->body, true);
+        expect($resolved->status === 200 && $data['found'], 'approved fixture resolves');
+        parse_str((string)parse_url($data['audio_url'], PHP_URL_QUERY), $signed);
+        expect((int)$signed['sid'] === $sessionId, 'signed to this device');
+        $path = (string)parse_url($data['audio_url'], PHP_URL_PATH);
+        expect($app->handle('GET', $path, $signed, ['Range' => 'bytes=0-3'])->status === 206, 'real Range');
+        expect($app->handle('HEAD', $path, $signed)->status === 200, 'signed HEAD');
+        expect($app->handle('GET', $path, $signed, ['Range' => 'bytes=999999999-'])->status === 416, 'signed 416');
+        $tampered = $signed; $tampered['sid'] = (string)($sessionId + 1);
+        expect($app->handle('GET', $path, $tampered)->status === 403, 'cannot move capability to another session');
+        unset($tampered['sid']);
+        expect($app->handle('GET', $path, $tampered)->status === 403, 'cannot downgrade signature');
+        $suggestHeaders = ['Authorization' => 'Bearer ' . $access, 'Content-Type' => 'multipart/form-data; boundary=ci'];
+        $fields = ['service' => 'yandex', 'track_id' => '199999991', 'title' => 'Stage10 suggestion', 'artist' => 'CI'];
+        $suggest = $app->handle('POST', '/api/v1/track-requests', [], $suggestHeaders, fields: $fields);
+        expect($suggest->status === 202, 'suggestion without file or rights');
+        $first = json_decode($suggest->body, true);
+        $again = json_decode($app->handle('POST', '/api/v1/track-requests', [], $suggestHeaders, fields: $fields)->body, true);
+        expect($first['request_id'] === $again['request_id'], 'account suggestion retry deduplicated');
+        $hash = hash_hmac('sha256', 'contribution.user.' . $id, $cfg['analytics_privacy_key']);
+        $pdo->prepare('DELETE FROM track_requests WHERE uploader_hash = ?')->execute([$hash]);
+        $pdo->prepare('DELETE FROM upload_rate_buckets WHERE identity_hash = ?')->execute([$hash]);
+        $originalWindow = $pdo->query('SELECT valid_from, valid_until FROM account_trials WHERE user_id = ' . $id)->fetch();
+        $pdo->exec('UPDATE account_trials SET valid_from = DATE_SUB(UTC_TIMESTAMP(6), INTERVAL 432001 SECOND), valid_until = DATE_SUB(UTC_TIMESTAMP(6), INTERVAL 1 SECOND) WHERE user_id = ' . $id);
+        $pdo->exec('UPDATE entitlement_ledger l JOIN account_trials t ON t.ledger_id=l.id SET l.valid_from=t.valid_from, l.valid_until=t.valid_until WHERE t.user_id=' . $id);
+        expect($app->handle('GET', $path, $signed)->status === 403, 'expired trial invalidates unexpired signature');
+        expect($app->handle('GET', '/api/v1/resolve', $query, $headers)->status === 403, 'expired account denied');
+        $restore = $pdo->prepare('UPDATE account_trials SET valid_from=?, valid_until=? WHERE user_id=?');
+        $restore->execute([$originalWindow['valid_from'], $originalWindow['valid_until'], $id]);
+        $pdo->exec('UPDATE entitlement_ledger l JOIN account_trials t ON t.ledger_id=l.id SET l.valid_from=t.valid_from, l.valid_until=t.valid_until WHERE t.user_id=' . $id);
+        $missingRights = $app->handle('POST', '/api/v1/uploads', [], $suggestHeaders, fields: $fields);
+        expect($missingRights->status === 415 && json_decode($missingRights->body, true)['error'] === 'rights_declaration_required', 'MP3 upload still requires rights');
+        $pdo->prepare('DELETE FROM upload_rate_buckets WHERE identity_hash = ?')->execute([$hash]);
+        $pending = $pdo->query("SELECT t.service_track_id, r.id FROM tracks t JOIN track_replacements r ON r.track_id=t.id WHERE r.status='pending' LIMIT 1")->fetch();
+        if ($pending) {
+            $notApproved = $app->handle('GET', '/api/v1/resolve', ['service'=>'yandex', 'track_id'=>$pending['service_track_id']], $headers);
+            expect(!json_decode($notApproved->body, true)['found'], 'pending never resolves');
+            expect($app->handle('GET', '/api/v1/audio/' . $pending['id'], $signed)->status === 404, 'pending never streams');
+        }
+        $pdo->exec('UPDATE user_sessions SET revoked_at = UTC_TIMESTAMP(6) WHERE id = ' . $sessionId);
+        expect($app->handle('GET', $path, $signed)->status === 403, 'revoked session invalidates buffered seek/range');
+        expect($app->handle('GET', '/api/v1/resolve', $query, $headers)->status === 401, 'revoked resolve denied');
+    });
     run('Stage10 migration rerun preserves existing trial and catalog', function () use ($pdo, $runner, $catalogBefore): void {
         $before = $pdo->query('SELECT * FROM account_trials ORDER BY user_id')->fetchAll();
         expect($runner->run() === [], 'migration idempotent');
@@ -155,7 +222,7 @@ try {
 } finally {
     if ($pdo->inTransaction()) $pdo->rollBack();
     foreach ($ids as $id) {
-        foreach (['account_trials','entitlement_ledger','user_sessions','user_devices','user_email_security','users'] as $table) {
+        foreach (['account_trials','entitlement_ledger','user_auth_events','user_sessions','user_devices','user_email_security','users'] as $table) {
             $column = $table === 'users' ? 'id' : 'user_id';
             $pdo->exec('DELETE FROM ' . $table . ' WHERE ' . $column . ' = ' . $id);
         }

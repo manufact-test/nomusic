@@ -18,10 +18,10 @@
         <button type="button" data-action="stop">Стоп</button>
       </div>
       <button class="wide" type="button" data-action="restore">Вернуть оригинал</button>
-      <button class="wide add-track-action" type="button" data-action="add" aria-expanded="false" aria-controls="celikom-upload-panel">Добавить трек</button>
+      <button class="wide add-track-action" type="button" data-action="add" aria-expanded="false" aria-controls="celikom-upload-panel">Загрузить версию</button>
       <section class="upload-panel" id="celikom-upload-panel" data-upload-panel hidden aria-label="Добавить версию">
-        <strong>Добавить версию</strong>
-        <p class="stage">Только закрытый тест. Новые файлы не публикуются без ручной проверки.</p>
+        <strong>Загрузить версию</strong>
+        <p class="stage">Новые версии публикуются после ручной проверки.</p>
         <div class="upload-result" data-upload-result hidden role="status" aria-live="polite">
           <strong data-upload-result-title>Отправлено на проверку</strong>
           <p data-upload-result-note>Версия ожидает модерации.</p>
@@ -43,14 +43,21 @@
               <span data-file-name>Нажмите или перетащите файл сюда</span>
             </span>
           </label>
-          <label class="stage" for="upload-key">Код владельца для приватной загрузки</label>
-          <input id="upload-key" data-upload-key type="password" autocomplete="off" spellcheck="false" placeholder="Только owner-only тест" required>
           <label class="upload-rights"><input data-upload-rights type="checkbox" required> Подтверждаю, что имею необходимые права на этот аудиофайл.</label>
           <progress data-upload-progress max="100" value="0" hidden aria-label="Загрузка"></progress>
           <button class="primary wide" data-upload-submit type="submit">Отправить на проверку</button>
         </form>
         <p class="upload-feedback" data-upload-status role="status" aria-live="polite" hidden></p>
       </section>
+      <button class="wide" type="button" data-action="suggest" aria-expanded="false" aria-controls="celikom-suggest-panel">Предложить песню</button>
+      <section class="upload-panel" id="celikom-suggest-panel" data-suggest-panel hidden aria-label="Предложить песню">
+        <strong>Предложить песню</strong>
+        <p class="stage">Сообщите нам, для какой песни нужна альтернативная версия.</p>
+        <p class="track" data-suggest-track></p>
+        <button class="primary wide" type="button" data-suggest-submit>Отправить предложение</button>
+        <p class="upload-feedback" data-suggest-note role="status" aria-live="polite" hidden></p>
+      </section>
+      <p class="access-status" data-access-status role="status" aria-live="polite">Войдите в аккаунт, чтобы начать</p>
       <p class="track" data-track>Запустите трек в Яндекс Музыке</p>
       <details class="account-panel" data-auth-panel hidden>
         <summary data-auth-summary>Аккаунт</summary>
@@ -119,10 +126,6 @@
         <input id="test-track" data-test-track inputmode="numeric" pattern="[0-9]{1,24}" maxlength="24" placeholder="Пусто — серверный каталог">
         <button class="wide" type="button" data-action="use-current">Тестировать текущий трек</button>
         <button class="wide" type="button" data-action="clear-test">Убрать тестовую подмену</button>
-        <label class="stage" for="api-access">Код доступа к тестовому серверу</label>
-        <input id="api-access" data-api-access type="password" maxlength="512" autocomplete="off" placeholder="Только для закрытого теста">
-        <button class="wide" type="button" data-action="save-api-access">Сохранить код</button>
-        <p class="stage" data-api-note></p>
         <button class="diagnostics" type="button" data-action="diagnostics">Скопировать диагностику</button>
       </details>
     </main>

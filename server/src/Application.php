@@ -7,6 +7,9 @@ namespace Celikom;
 use Celikom\Admin\AdminPanel;
 use Celikom\Auth\AuthController;
 use Celikom\Auth\AuthService;
+use Celikom\Auth\BearerAuthenticator;
+use Celikom\Entitlement\EntitlementService;
+use Celikom\Entitlement\AudioAccessService;
 use Celikom\Admin\ReportService;
 use Celikom\Analytics\AnalyticsEventService;
 use Celikom\Analytics\PdoEventRepository;
@@ -75,15 +78,23 @@ final class Application
             return (new AuthController(new AuthService(Connection::open($this->config), $this->config)))
                 ->handle($method, $path, $headers, $body);
         }
+        if ($method === 'GET' && $path === '/api/v1/entitlement') {
+            if (!($this->config['entitlement_enabled'] ?? false) || !($this->config['auth_enabled'] ?? false))
+                return Response::json(404, ['error' => 'not_found']);
+            $pdo = Connection::open($this->config);
+            $user = (new BearerAuthenticator($pdo))->session($headers);
+            if ($user === null) return Response::json(401, ['error' => 'invalid_session']);
+            return Response::json(200, (new EntitlementService($pdo))->check($user['user_id'])->json());
+        }
         if ($method === 'GET' && $path === '/api/v1/config') {
             return Response::json(200, [
                 'api_version' => 1,
                 'minimum_extension_version' => $this->config['minimum_extension_version'],
-                'upload_enabled' => false, // Public uploads stay disabled until Stage 10.
+                'upload_enabled' => (bool)($this->config['user_uploads_enabled'] ?? false) && (bool)($this->config['entitlement_enabled'] ?? false),
                 'max_upload_size' => $this->config['max_audio_size'],
                 'allowed_audio_formats' => ['mp3', 'wav'],
                 'maintenance' => false,
-                'features' => ['replacements' => $this->config['api_enabled'], 'analytics' => $this->config['analytics_enabled'], 'auth' => (bool)($this->config['auth_enabled'] ?? false)],
+                'features' => ['replacements' => $this->config['api_enabled'], 'analytics' => $this->config['analytics_enabled'], 'auth' => (bool)($this->config['auth_enabled'] ?? false), 'entitlement' => (bool)($this->config['entitlement_enabled'] ?? false)],
                 'resolve_cache_ttl_seconds' => ResolveCachePolicy::positive($this->config['resolve_cache_ttl_seconds'] ?? 120, $this->config['audio_token_ttl']),
                 'negative_cache_ttl_seconds' => ResolveCachePolicy::negative($this->config['negative_cache_ttl_seconds'] ?? 15),
             ]);
@@ -91,7 +102,10 @@ final class Application
         if ($method === 'GET' && $path === '/api/v1/tracks/upload-status') {
             // Only moderation presence, no asset or user data. Used to stop duplicate
             // submissions after the popup closes or the browser restarts.
-            if (!($this->config['owner_uploads_enabled'] ?? false)) {
+            if ($this->config['user_uploads_enabled'] ?? false) {
+                $access = $this->userAccess($headers);
+                if ($access instanceof Response) return $access;
+            } elseif (!($this->config['owner_uploads_enabled'] ?? false)) {
                 return Response::json(404, ['error' => 'not_found']);
             }
             if (!is_string($query['service'] ?? null) || !is_string($query['track_id'] ?? null)) {
@@ -108,14 +122,23 @@ final class Application
             // Separate non-public owner credential: API_TEST_TOKEN is read-only.
             // No server-side writes are possible until the private gate is explicitly enabled.
             $secret = (string) ($this->config['owner_upload_token'] ?? '');
-            if (!($this->config['owner_uploads_enabled'] ?? false) || strlen($secret) < 40) {
-                return Response::json(503, ['error' => 'uploads_disabled']);
-            }
-            if (!hash_equals('Bearer ' . $secret, (string) ($headers['authorization'] ?? ''))) {
-                return Response::json(401, ['error' => 'unauthorized']);
+            $owner = ($this->config['owner_uploads_enabled'] ?? false) && strlen($secret) >= 40
+                && hash_equals('Bearer ' . $secret, (string)($headers['authorization'] ?? ''));
+            if (!$owner && !($this->config['user_uploads_enabled'] ?? false)) {
+                return ($this->config['owner_uploads_enabled'] ?? false) && strlen($secret) >= 40
+                    ? Response::json(401, ['error' => 'unauthorized'])
+                    : Response::json(503, ['error' => 'uploads_disabled']);
             }
             $pdo = Connection::open($this->config);
-            $ownerHash = hash('sha256', $secret);
+            if ($owner) {
+                $ownerHash = hash('sha256', $secret);
+            } else {
+                $access = $this->userAccess($headers);
+                if ($access instanceof Response) return $access;
+                // Stable account identity across refresh and independent devices.
+                $ownerHash = hash_hmac('sha256', 'contribution.user.' . $access['user_id'],
+                    $this->config['analytics_privacy_key']);
+            }
             $limiter = new UploadRateLimiter($pdo);
             $isUpload = $path === '/api/v1/uploads';
             if (!$limiter->check($ownerHash, $isUpload ? 'upload' : 'track_request', $isUpload ? 10 : 20)) {
@@ -177,8 +200,10 @@ final class Application
             }
         }
         if (($method === 'GET' && $path === '/api/v1/resolve') || ($method === 'POST' && $path === '/api/v1/events/batch')) {
+            $access = null;
             if (!$this->authorized($headers)) {
-                return Response::json(401, ['error' => 'unauthorized']);
+                $access = $this->userAccess($headers);
+                if ($access instanceof Response) return $access;
             }
             if ($path === '/api/v1/resolve') {
                 if (!$this->config['api_enabled']) {
@@ -189,7 +214,7 @@ final class Application
                 }
                 return Response::json(200, (new ResolveService($this->catalog(), $this->storage(), $this->tokens(),
                     $this->config['resolve_cache_ttl_seconds'] ?? 120,
-                    $this->config['negative_cache_ttl_seconds'] ?? 15))->resolve($query['service'], $query['track_id']));
+                    $this->config['negative_cache_ttl_seconds'] ?? 15))->resolve($query['service'], $query['track_id'], $access));
             }
             if (!$this->config['analytics_enabled']) {
                 return Response::json(503, ['error' => 'analytics_disabled']);
@@ -215,9 +240,22 @@ final class Application
             if (!$this->config['api_enabled']) {
                 return Response::json(503, ['error' => 'replacements_disabled']);
             }
-            return (new AudioController($this->catalog(), $this->storage(), $this->tokens()))->handle($method, (int) $match[1], $query, $headers);
+            return (new AudioController($this->catalog(), $this->storage(), $this->tokens(),
+                ($this->config['entitlement_enabled'] ?? false) ? new AudioAccessService(Connection::open($this->config)) : null))->handle($method, (int) $match[1], $query, $headers);
         }
         return Response::json(404, ['error' => 'not_found']);
+    }
+
+    private function userAccess(array $headers): array|Response
+    {
+        if (!($this->config['entitlement_enabled'] ?? false) || !($this->config['auth_enabled'] ?? false))
+            return Response::json(401, ['error' => 'unauthorized']);
+        $pdo = Connection::open($this->config);
+        $session = (new BearerAuthenticator($pdo))->session($headers);
+        if ($session === null) return Response::json(401, ['error' => 'invalid_session']);
+        $entitlement = (new EntitlementService($pdo))->check($session['user_id']);
+        if (!$entitlement->allowed) return Response::json(403, ['error' => 'access_denied', 'entitlement' => $entitlement->json()]);
+        return $session + ['valid_until' => $entitlement->validUntil];
     }
 
     private function authorized(array $headers): bool

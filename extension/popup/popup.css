@@ -343,3 +343,5 @@ button:focus-visible { border-color: #66e0bf; }
 @media (prefers-reduced-motion: reduce) {
   .account-panel, .account-form, .account-content { scroll-behavior: auto; transition: none; }
 }
+
+.access-status { margin: 10px 0; color: #bdcdd0; font-size: 11px; line-height: 1.4; }

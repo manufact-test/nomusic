@@ -13,12 +13,14 @@ final class AudioTokenService
         }
     }
 
-    public function sign(int $replacementId, int $version, int $expires): string
+    public function sign(int $replacementId, int $version, int $expires, ?int $sessionId = null): string
     {
-        return hash_hmac('sha256', "audio.v1\n$replacementId\n$version\n$expires", $this->key);
+        $message = $sessionId === null ? "audio.v1\n$replacementId\n$version\n$expires"
+            : "audio.v2\n$replacementId\n$version\n$expires\n$sessionId";
+        return hash_hmac('sha256', $message, $this->key);
     }
 
-    public function valid(int $replacementId, int $version, string $expires, string $token, ?int $now = null): bool
+    public function valid(int $replacementId, int $version, string $expires, string $token, ?int $now = null, ?int $sessionId = null): bool
     {
         $now ??= time();
         if (!preg_match('/^\d{1,12}$/D', $expires) || !preg_match('/^[a-f0-9]{64}$/D', $token)) {
@@ -26,6 +28,6 @@ final class AudioTokenService
         }
         $deadline = (int) $expires;
         return $deadline > $now && $deadline <= $now + $this->ttl
-            && hash_equals($this->sign($replacementId, $version, $deadline), $token);
+            && hash_equals($this->sign($replacementId, $version, $deadline, $sessionId), $token);
     }
 }

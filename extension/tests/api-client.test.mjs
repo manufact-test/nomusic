@@ -243,7 +243,7 @@ test("API body and content type are bounded before parsing", async () => {
 test("worker broker exposes no arbitrary fetch or access token to content", async () => {
   let calls = 0;
   const api = { runtime: { id: "extension-test", getManifest: () => ({ version: "0.4.0" }) }, storage: { local: { get: async () => ({ apiTestToken: "private-test-access" }) } } };
-  const broker = createApiBroker(api, { now: () => now, readConfig: async () => ({ baseUrl: "https://celikom.example" }), fetch: async (url, options) => { calls++; assert.equal(options.credentials, "omit"); assert.equal(options.headers.Authorization, "Bearer private-test-access"); return response(url.endsWith("config") ? config : found); } });
+  const broker = createApiBroker(api, { withAccess: async cb => cb({access_token:"private-test-access"}), now: () => now, readConfig: async () => ({ baseUrl: "https://celikom.example" }), fetch: async (url, options) => { calls++; assert.equal(options.credentials, "omit"); assert.equal(options.headers.Authorization, "Bearer private-test-access"); return response(url.endsWith("config") ? config : found); } });
   const message = { type: "CELIKOM_API_RESOLVE", service: "yandex", trackId: "7", url: "https://evil.example" };
   for (const sender of [{ id: "other", url: "https://music.yandex.ru" }, { id: "extension-test", url: "https://evil.example" }, { id: "extension-test", url: "invalid" }]) assert.equal((await broker(message, sender)).ok, false);
   assert.equal(calls, 0);
@@ -266,6 +266,7 @@ test("safe authentication diagnosis distinguishes a missing token, HTTP 401, and
 
   api.storage.local.get = async () => ({ apiTestToken: "a".repeat(40) });
   const unauthorized = createApiBroker(api, {
+    withAccess: async cb => cb({access_token:"a".repeat(64)}),
     readConfig: async () => ({ baseUrl: "https://celikom.example" }),
     fetch: async url => url.endsWith("config") ? response(config) : new Response('{"error":"unauthorized"}', { status: 401, headers: { "Content-Type": "application/json" } })
   });
@@ -274,6 +275,7 @@ test("safe authentication diagnosis distinguishes a missing token, HTTP 401, and
   assert.equal(JSON.stringify(denied).includes("a".repeat(40)), false);
 
   const unreachable = createApiBroker(api, {
+    withAccess: async cb => cb({access_token:"a".repeat(64)}),
     readConfig: async () => ({ baseUrl: "https://celikom.example" }),
     fetch: async () => { throw new Error("A SECRET THAT MUST NOT BE SENT TO PAGE"); }
   });

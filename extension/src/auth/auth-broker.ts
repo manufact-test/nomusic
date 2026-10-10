@@ -13,7 +13,10 @@ export function createSecretStore() {
       return await new Promise((resolve, reject) => {
         const tx = db.transaction("secrets", mode);
         const request = action(tx.objectStore("secrets"));
-        request.onsuccess = () => resolve(request.result);
+        let result;
+        request.onsuccess = () => { result = request.result; };
+        tx.oncomplete = () => resolve(result);
+        tx.onabort = () => reject(new Error("auth_storage_unavailable"));
         request.onerror = () => reject(new Error("auth_storage_unavailable"));
         tx.onerror = () => reject(new Error("auth_storage_unavailable"));
       });
@@ -32,6 +35,7 @@ export function createAuthBroker(api, options = {}) {
   const readConfig = options.readConfig || (async () => (await fetch(api.runtime.getURL("api/config.json"))).json());
   let installationPromise = null;
   let refreshPromise = null;
+  let sessionVersion = 0;
 
   async function installationId() {
     if (!installationPromise) {
@@ -73,7 +77,7 @@ export function createAuthBroker(api, options = {}) {
       if (parsed.length > 16384) throw new Error("auth_unavailable");
       const result = JSON.parse(parsed);
       if (!response.ok) {
-        const safe = new Set(["invalid_credentials", "account_disabled", "account_unavailable", "weak_password", "rate_limited", "invalid_session", "invalid_request", "email_unverified", "email_unavailable", "invalid_code"]);
+        const safe = new Set(["invalid_credentials", "account_disabled", "account_unavailable", "weak_password", "rate_limited", "invalid_session", "invalid_request", "email_unverified", "email_unavailable", "invalid_code", "access_denied", "uploads_disabled"]);
         throw new Error(safe.has(result?.error) ? result.error : "auth_unavailable");
       }
       return result;
@@ -89,11 +93,13 @@ export function createAuthBroker(api, options = {}) {
 
   async function refresh(stored) {
     if (!refreshPromise) {
+      const version = sessionVersion;
       refreshPromise = (async () => {
         const data = await apiRequest("auth/refresh", "POST", {
           refresh_token: stored.refresh_token, installation_id: await installationId()
         });
         if (!validAuth(data)) throw new Error("auth_unavailable");
+        if (version !== sessionVersion || (await store.get())?.refresh_token !== stored.refresh_token) throw new Error("invalid_session");
         await store.set(data);
         return data;
       })().finally(() => { refreshPromise = null; });
@@ -119,6 +125,39 @@ export function createAuthBroker(api, options = {}) {
       if (error?.message !== "invalid_session") throw error;
       return refresh(saved);
     }
+  }
+
+  // Only extension-owned callers receive credentials; never content/page messages.
+  async function withAccess(callback) {
+    const version = sessionVersion;
+    const saved = await current();
+    if (version !== sessionVersion) throw new Error("invalid_session");
+    const result = await callback(saved);
+    if (version !== sessionVersion) throw new Error("invalid_session");
+    return result;
+  }
+
+  function validEntitlement(value) {
+    return typeof value?.allowed === "boolean" && typeof value?.reason === "string"
+      && typeof value?.source === "string" && (value.valid_until === null ||
+        (typeof value.valid_until === "string" && /Z$/.test(value.valid_until) && Number.isFinite(Date.parse(value.valid_until))));
+  }
+  async function withEntitledAccess(callback) {
+    return withAccess(async (saved) => {
+      const access = await apiRequest("entitlement", "GET", null, saved.access_token);
+      if (!validEntitlement(access)) throw new Error("auth_unavailable");
+      if (!access.allowed) throw new Error("api_forbidden");
+      return callback(saved);
+    });
+  }
+  async function entitlement(activate = false) {
+    return withAccess(async (saved) => {
+      const response = activate
+        ? (await apiRequest("auth/activate", "POST", {}, saved.access_token)).entitlement
+        : await apiRequest("entitlement", "GET", null, saved.access_token);
+      if (!validEntitlement(response)) throw new Error("auth_unavailable");
+      return response;
+    });
   }
 
   async function perform(action, message = {}) {
@@ -154,6 +193,7 @@ export function createAuthBroker(api, options = {}) {
           return { ok: true, verification_required: true, email: credentials.email };
         }
         if (!validAuth(credentials)) throw new Error("auth_unavailable");
+        sessionVersion++;
         await store.set(credentials);
         return { ok: true, user: credentials.user };
       }
@@ -162,6 +202,7 @@ export function createAuthBroker(api, options = {}) {
           email: message.email, code: message.code, installation_id: await installationId()
         });
         if (!validAuth(payload)) throw new Error("auth_unavailable");
+        sessionVersion++;
         await store.set(payload);
         return { ok: true, user: payload.user };
       }
@@ -180,6 +221,8 @@ export function createAuthBroker(api, options = {}) {
       }
       if (action === "logout") {
         const saved = await store.get();
+        sessionVersion++;
+        await store.clear();
         if (saved) {
           await apiRequest("auth/logout", "POST", {
             refresh_token: saved.refresh_token, installation_id: await installationId()
@@ -187,6 +230,15 @@ export function createAuthBroker(api, options = {}) {
           await store.clear();
         }
         return { ok: true };
+      }
+      if (action === "entitlement") return { ok: true, entitlement: await entitlement() };
+      if (action === "contribution-access") {
+        // Short-lived access only, to the verified extension popup. No refresh token.
+        const access = await entitlement();
+        if (!access.allowed) return { ok: false, error: "access_denied" };
+        const config = await apiRequest("config");
+        if (config.upload_enabled !== true) return { ok: false, error: "uploads_disabled" };
+        return withAccess(async (saved) => ({ ok: true, access_token: saved.access_token }));
       }
       if (action === "sessions" || action === "activate" || action === "revoke") {
         const saved = await current();
@@ -200,9 +252,9 @@ export function createAuthBroker(api, options = {}) {
       }
       return { ok: false, error: "invalid_request" };
     } catch (error) {
-      const safe = new Set(["invalid_credentials", "account_disabled", "account_unavailable", "weak_password", "rate_limited", "invalid_session", "invalid_request", "email_unverified", "email_unavailable", "invalid_code"]);
+      const safe = new Set(["invalid_credentials", "account_disabled", "account_unavailable", "weak_password", "rate_limited", "invalid_session", "invalid_request", "email_unverified", "email_unavailable", "invalid_code", "access_denied", "uploads_disabled"]);
       return { ok: false, error: safe.has(error?.message) ? error.message : "auth_unavailable" };
     }
   }
-  return { perform, installationId };
+  return { perform, installationId, withAccess, withEntitledAccess, entitlement };
 }

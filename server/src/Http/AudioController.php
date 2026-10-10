@@ -10,7 +10,7 @@ use Celikom\Storage\StorageAdapter;
 
 final class AudioController
 {
-    public function __construct(private readonly CatalogRepository $catalog, private readonly StorageAdapter $storage, private readonly AudioTokenService $tokens)
+    public function __construct(private readonly CatalogRepository $catalog, private readonly StorageAdapter $storage, private readonly AudioTokenService $tokens, private readonly ?\Celikom\Entitlement\AudioAccessService $access = null)
     {
     }
 
@@ -20,8 +20,17 @@ final class AudioController
         if ($row === null) {
             return Response::json(404, ['error' => 'audio_not_found']);
         }
-        if (!$this->tokens->valid($id, (int) $row['version'], is_string($query['expires'] ?? null) ? $query['expires'] : '', is_string($query['token'] ?? null) ? $query['token'] : '')) {
+        $sessionId = null;
+        if (array_key_exists('sid', $query)) {
+            if (!is_string($query['sid']) || !preg_match('/^[1-9]\d{0,17}$/D', $query['sid']))
+                return Response::json(403, ['error' => 'invalid_audio_token']);
+            $sessionId = (int)$query['sid'];
+        }
+        if (!$this->tokens->valid($id, (int) $row['version'], is_string($query['expires'] ?? null) ? $query['expires'] : '', is_string($query['token'] ?? null) ? $query['token'] : '', sessionId: $sessionId)) {
             return Response::json(403, ['error' => 'invalid_audio_token']);
+        }
+        if ($sessionId !== null && !($this->access?->allowed($sessionId) ?? false)) {
+            return Response::json(403, ['error' => 'access_denied']);
         }
         if ($row['storage_driver'] !== 'local' || !$this->storage->exists($row['storage_key'])) {
             return Response::json(404, ['error' => 'audio_not_found']);

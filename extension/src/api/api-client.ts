@@ -83,12 +83,14 @@ export class ApiClient {
     if (result?.found !== true || !Number.isSafeInteger(result.replacement_id) || result.replacement_id <= 0
       || !Number.isSafeInteger(result.duration_ms) || result.duration_ms <= 0 || result.duration_ms > 86400000
       || !Number.isSafeInteger(result.version) || result.version < 1 || !Number.isSafeInteger(result.expires_at)
-      || result.expires_at * 1000 <= this.now() + 30000 || result.expires_at * 1000 > this.now() + 1800000
+      || result.expires_at * 1000 <= this.now() + 1000 || result.expires_at * 1000 > this.now() + 1800000
       || typeof result.audio_url !== "string") throw new Error("invalid_api_response");
     const url = new URL(result.audio_url, this.origin);
     if (url.origin !== this.origin || url.username || url.password || url.hash || url.pathname !== `/api/v1/audio/${result.replacement_id}`
       || !/^[a-f0-9]{64}$/.test(url.searchParams.get("token") || "") || url.searchParams.get("expires") !== String(result.expires_at)
-      || [...url.searchParams.keys()].length !== 2) throw new Error("invalid_audio_url");
+      || [...url.searchParams.keys()].length !== (url.searchParams.has("sid") ? 3 : 2)
+      || [...url.searchParams.keys()].some((key) => !["token", "expires", "sid"].includes(key))
+      || (url.searchParams.has("sid") && !/^[1-9]\d{0,17}$/.test(url.searchParams.get("sid")))) throw new Error("invalid_audio_url");
     return { found: true, url: url.href, durationMs: result.duration_ms, replacementId: result.replacement_id,
       version: result.version, expiresAt: result.expires_at * 1000,
       cacheTtlMs: Math.min(positiveTtlSeconds, boundedTtl(result.cache_ttl_seconds, positiveTtlSeconds, 120)) * 1000,

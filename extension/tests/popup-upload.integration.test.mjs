@@ -39,6 +39,7 @@ globalThis.chrome = {
     getURL: (p) => "chrome-extension://ci-test/" + p,
     async sendMessage(message) {
       if (offline) throw new Error("simulated extension disconnect");
+      if (message.type === "CELIKOM_AUTH" && message.action === "contribution-access") return {ok:true,access_token:"c".repeat(64)};
       if (message.type === "CELIKOM_STATUS_GET") return { ...current, phase: "READY", enabled: true };
       return { ok: true };
     }
@@ -93,7 +94,7 @@ test("Stage 7 Add version pins exact Track ID, checks server, then shows form", 
   await find("[data-action='add']").fire("click");
   assert.equal(find("[data-upload-panel]").hidden, false);
   assert.equal(find("[data-upload-track]").value, "144530503");
-  assert.equal(find("[data-action='add']").textContent, "Добавить трек");
+  assert.equal(find("[data-action='add']").textContent, "Загрузить версию");
   assert.equal(find("[data-action='add']").disabled, false);
   assert.equal(find("[data-action='add']").dataset.loading, "false");
   assert.equal(form().hidden, false);
@@ -159,7 +160,7 @@ test("Stage 7 accepted upload displays unmistakable confirmation and locks contr
   assert.equal(requests.length, 2);
   assert.equal(requests.at(-1).method, "POST");
   assert.equal(requests.at(-1).url, "https://isolated-owner-test.example/api/v1/uploads");
-  assert.equal(requests.at(-1).headers.get("Authorization"), "Bearer a-private-session-only-owner-token");
+  assert.equal(requests.at(-1).headers.get("Authorization"), "Bearer " + "c".repeat(64));
   assert.equal(requests.at(-1).body.get("track_id"), "144530503");
   assert.equal(requests.at(-1).body.get("duration_ms"), "180872");
   assert.equal(requests.at(-1).body.get("declaration"), "1");
@@ -169,7 +170,7 @@ test("Stage 7 accepted upload displays unmistakable confirmation and locks contr
   assert.equal(result().hidden, false);
   assert.match(find("[data-upload-result-title]").textContent, /Отправлено на проверку/);
   assert.equal(find("[data-upload-submit]").disabled, true);
-  assert.equal(find("[data-upload-key]").value, "", "owner token wiped from DOM");
+  assert.equal(elements.get("[data-upload-key]")?.value, "a-private-session-only-owner-token", "unused historical input is never read by user upload");
   await form().fire("submit");
   assert.equal(requests.length, 2, "click again cannot upload");
 });
