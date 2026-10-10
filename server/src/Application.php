@@ -72,7 +72,7 @@ final class Application
             if (!($this->config['auth_enabled'] ?? false)) {
                 return Response::json(404, ['error' => 'not_found']);
             }
-            return (new AuthController(new AuthService(Connection::open($this->config))))
+            return (new AuthController(new AuthService(Connection::open($this->config), $this->config)))
                 ->handle($method, $path, $headers, $body);
         }
         if ($method === 'GET' && $path === '/api/v1/config') {
