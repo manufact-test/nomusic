@@ -86,6 +86,24 @@ function smoke10(PDO $db, array $config): void {
             && str_starts_with($resolve['audio_url'],'/api/v1/audio/1?') && str_contains($resolve['audio_url'],'&sid='));
         $audio=https10($resolve['audio_url'],'GET',null,'',true); guard10($audio[0]===206 && strlen($audio[2])===4);
         expect10(200,https10($resolve['audio_url'],'HEAD'));
+        // Exercise every production-size range without the four-byte smoke's pacing.
+        $size=(int)$db->query('SELECT size_bytes FROM audio_assets WHERE id=(SELECT audio_asset_id FROM track_replacements WHERE id=1)')->fetchColumn();
+        $chunk=524288; $count=0;
+        for($offset=0;$offset<$size;$offset+=$chunk) {
+            $last=min($size-1,$offset+$chunk-1);
+            $args=['curl','--silent','--show-error','--max-time','22','--max-redirs','0','--proto','=https',
+                '--header','Origin: https://music.yandex.ru','--header','Cache-Control: no-store',
+                '--header','Range: bytes='.$offset.'-'.$last,'--output','/dev/null',
+                '--write-out','%{http_code} %{size_download}',
+                'https://darkred-camel-588676.hostingersite.com'.$resolve['audio_url']];
+            $proc=proc_open($args,[0=>['file','/dev/null','r'],1=>['pipe','w'],2=>['file','/dev/null','w']],$pipes);
+            guard10(is_resource($proc)); $result=stream_get_contents($pipes[1],100); fclose($pipes[1]);
+            guard10(proc_close($proc)===0);
+            if($result!=='206 '.($last-$offset+1)) throw new RuntimeException('stage10_http_expected_206_actual_'.(int)$result.'_line_'.__LINE__);
+            $count++;
+        }
+        echo "Stage10 complete signed MP3 sequential 512KiB ranges PASS: ".$count." chunks.\n";
+
         foreach (['38436680','799133075'] as $track) {
             $missing=expect10(200,https10('/api/v1/resolve?service=yandex&track_id='.$track,'GET',null,$tokens[0][0]));
             guard10(($missing['found']??true)===false);
@@ -164,6 +182,7 @@ try {
     }
     if ($request['operation']==='audit') {
         guard10($config['entitlement_enabled']);
+        smoke10($db,$config);
         echo "Stage10 read-only audit PASS: session playback flag ON, public uploads OFF, approved/pending mappings and private MP3 hashes intact.\n";
         exit(0);
     }
