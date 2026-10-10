@@ -89,3 +89,29 @@ run('Stage9 session expiry, revoked and cleanup do not alter catalog', function 
     expect(callAuth($app, 'POST', 'refresh', ['installation_id'=>$install2,'refresh_token'=>$second['refresh_token']])[0] === 401, 'expired refresh denied');
     expect((int)$pdo->query("SELECT COUNT(*) FROM user_auth_events WHERE event_name = 'user_registered'")->fetchColumn() === 1, 'registration event');
 });
+
+run('Stage9 expired access token rotates via valid refresh without waiting 15 minutes', function () use ($app, $pdo): void {
+    $installation = '8de936d6-2af5-4ca7-973f-24cb5d355113';
+    $email = 'stage9-expiry@example.org';
+    $password = 'correct horse battery staple expiry';
+    [$registerCode, $registered] = callAuth($app, 'POST', 'register', [
+        'email' => $email, 'password' => $password, 'installation_id' => $installation
+    ]);
+    expect($registerCode === 201, 'expiry account created');
+    $accessHash = hash('sha256', $registered['access_token']);
+    $stmt = $pdo->prepare('UPDATE user_sessions
+        SET access_expires_at = DATE_SUB(UTC_TIMESTAMP(6), INTERVAL 2 SECOND)
+        WHERE access_hash = ?');
+    $stmt->execute([$accessHash]);
+    expect($stmt->rowCount() === 1, 'access expiry simulated for only this session');
+    expect(callAuth($app, 'GET', 'me', [], $registered['access_token'])[0] === 401, 'expired access denied');
+    [$refreshCode, $rotated] = callAuth($app, 'POST', 'refresh', [
+        'installation_id' => $installation, 'refresh_token' => $registered['refresh_token']
+    ]);
+    expect($refreshCode === 200, 'valid refresh survives access expiry');
+    expect($rotated['access_token'] !== $registered['access_token'], 'new access');
+    expect(callAuth($app, 'GET', 'me', [], $rotated['access_token'])[0] === 200, 'rotated access accepted');
+    expect(callAuth($app, 'POST', 'logout', [
+        'installation_id' => $installation, 'refresh_token' => $rotated['refresh_token']
+    ])[0] === 200, 'expired-access test logout');
+});
