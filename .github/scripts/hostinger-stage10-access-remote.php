@@ -33,13 +33,68 @@ function https10(string $path, string $method = 'GET', ?array $body = null, stri
     $text=substr($out,0,$pos);
     return [(int)substr($out,$pos+strlen($marker)),json_decode($text,true),$text];
 }
+function contributions10(PDO $db, array $config, string $token, int $userId): void {
+    guard10($config['user_uploads_enabled'] && function_exists('curl_init'));
+    $pub=expect10(200,https10('/api/v1/config')); guard10($pub['upload_enabled']===true);
+    expect10(401,https10('/api/v1/track-requests','POST',[]));
+    $hash=hash_hmac('sha256','contribution.user.'.$userId,$config['analytics_privacy_key']);
+    $track='990'.random_int(100000000000,999999999999);
+    $q=$db->prepare('SELECT COUNT(*) FROM tracks WHERE service=? AND service_track_id=?');$q->execute(['yandex',$track]);guard10((int)$q->fetchColumn()===0);
+    $asset=$db->query("SELECT a.* FROM audio_assets a JOIN track_replacements r ON r.audio_asset_id=a.id WHERE r.id=2")->fetch(PDO::FETCH_ASSOC);
+    guard10(is_array($asset));
+    $path=$config['storage_path'].'/'.$asset['storage_key'];
+    guard10(is_file($path) && !is_link($path) && hash_equals($asset['sha256'],hash_file('sha256',$path)));
+    $job=$db->prepare('SELECT * FROM audio_fingerprint_jobs WHERE audio_asset_id=?');$job->execute([$asset['id']]);$beforeJob=$job->fetch(PDO::FETCH_ASSOC);
+    $post=static function(string $route,array $fields) use ($token): array {
+        usleep(350000);
+        $ch=curl_init('https://darkred-camel-588676.hostingersite.com/api/v1/'.$route);
+        curl_setopt_array($ch,[CURLOPT_POST=>true,CURLOPT_RETURNTRANSFER=>true,CURLOPT_POSTFIELDS=>$fields,
+            CURLOPT_HTTPHEADER=>['Authorization: Bearer '.$token,'Origin: https://music.yandex.ru'],
+            CURLOPT_TIMEOUT=>60,CURLOPT_CONNECTTIMEOUT=>10,CURLOPT_FOLLOWLOCATION=>false,CURLOPT_SSL_VERIFYPEER=>true]);
+        $text=curl_exec($ch);$code=(int)curl_getinfo($ch,CURLINFO_RESPONSE_CODE);curl_close($ch);
+        guard10(is_string($text) && strlen($text)<16384);
+        return [$code,json_decode($text,true),$text];
+    };
+    try {
+        $state=expect10(200,https10('/api/v1/tracks/upload-status?service=yandex&track_id='.$track,'GET',null,$token));guard10($state['status']==='none');
+        $fields=['service'=>'yandex','track_id'=>$track,'artist'=>'celikom-ci','title'=>'stage10-contribution-check'];
+        $suggest=expect10(202,$post('track-requests',$fields));guard10($suggest['status']==='pending');
+        $again=expect10(202,$post('track-requests',$fields));guard10($again['request_id']===$suggest['request_id']);
+        $fields+=['album'=>'','duration_ms'=>(string)$asset['duration_ms'],'declaration'=>'1','request_id'=>'00000000-0000-4000-8000-'.bin2hex(random_bytes(6)),
+            'file'=>new CURLFile($path,'audio/mpeg','synthetic-stage7.mp3')];
+        $upload=expect10(202,$post('uploads',$fields));guard10($upload['status']==='pending');
+        $repeat=expect10(202,$post('uploads',$fields));guard10($repeat['replacement_id']===$upload['replacement_id'] && $repeat['duplicate']===true);
+        $q=$db->prepare("SELECT r.status,r.is_active FROM track_replacements r JOIN tracks t ON t.id=r.track_id WHERE r.id=? AND t.service_track_id=?");
+        $q->execute([$upload['replacement_id'],$track]);$row=$q->fetch(PDO::FETCH_ASSOC);guard10($row && $row['status']==='pending' && (int)$row['is_active']===0);
+        $state=expect10(200,https10('/api/v1/tracks/upload-status?service=yandex&track_id='.$track,'GET',null,$token));guard10($state['status']==='pending');
+        $resolve=expect10(200,https10('/api/v1/resolve?service=yandex&track_id='.$track,'GET',null,$token));guard10($resolve['found']===false);
+        echo "Stage10 ordinary-user HTTPS contributions PASS: MP3 and separate no-file suggestion pending-only; dedupe; status; pending denied playback.\n";
+    } finally {
+        // Delete only random-track QA records, never existing pending #2/#3 or media.
+        $db->beginTransaction();
+        try {
+            $db->prepare('DELETE FROM upload_submissions WHERE uploader_hash=? AND service_track_id=?')->execute([$hash,$track]);
+            $q=$db->prepare('SELECT id FROM tracks WHERE service=? AND service_track_id=? FOR UPDATE');$q->execute(['yandex',$track]);$tid=$q->fetchColumn();
+            if($tid!==false) {
+                $db->prepare("DELETE FROM track_replacements WHERE track_id=? AND status='pending' AND is_active=0")->execute([$tid]);
+                $db->prepare('DELETE FROM tracks WHERE id=? AND service_track_id=?')->execute([$tid,$track]);
+            }
+            $db->prepare('DELETE FROM track_requests WHERE uploader_hash=? AND service_track_id=?')->execute([$hash,$track]);
+            $db->prepare('DELETE FROM upload_rate_buckets WHERE identity_hash=?')->execute([$hash]);
+            if($beforeJob===false)$db->prepare('DELETE FROM audio_fingerprint_jobs WHERE audio_asset_id=?')->execute([$asset['id']]);
+            $db->commit();
+        }catch(Throwable $e){if($db->inTransaction())$db->rollBack();throw $e;}
+        guard10(hash_equals($asset['sha256'],hash_file('sha256',$path)));
+    }
+}
+
 function expect10(int $status, array $response): array {
     if ($response[0] !== $status) throw new RuntimeException('stage10_http_expected_'.$status.'_actual_'.$response[0].'_line_'.(debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS,1)[0]['line']??0).(is_array($response[1]) && ($response[1]['error']??'')==='service_unavailable'?'_app_unavailable':(is_array($response[1])?'_json':'_non_json')));
     return is_array($response[1]) ? $response[1] : [];
 }
 function integrity10(PDO $db, array $config, string $root): array {
     guard10($config['db_name']==='u235811320_celikom' && $config['api_enabled'] && $config['auth_enabled']
-        && $config['admin_enabled'] && !$config['analytics_enabled'] && !$config['user_uploads_enabled']
+        && $config['admin_enabled'] && !$config['analytics_enabled'] 
         && realpath($config['storage_path'])===$root.'/shared/audio');
     $rows=$db->query("SELECT t.service_track_id, r.id, r.status, r.is_active, a.sha256, a.storage_key, a.size_bytes, a.duration_ms
         FROM tracks t JOIN track_replacements r ON r.track_id=t.id JOIN audio_assets a ON a.id=r.audio_asset_id
@@ -117,6 +172,7 @@ function smoke10(PDO $db, array $config): void {
         $direct=$route->invoke(new Celikom\Application($config),'GET','/api/v1/entitlement',[],['authorization'=>'Bearer '.$tokens[1][0]],'',[],[]);
         guard10($direct->status===200);
         $second=expect10(200,https10('/api/v1/entitlement','GET',null,$tokens[1][0])); guard10($second['allowed']===true);
+        if ($config['user_uploads_enabled']) contributions10($db,$config,$tokens[1][0],$id);
         echo "Stage10 real HTTPS smoke PASS: account trial 3 days; independent devices; user-bearer approved resolve; signed HEAD/206; pending denied; refresh/logout revoke only one device.\n";
     } finally {
         if ($id !== null) {
@@ -140,13 +196,32 @@ try {
     guard10(is_string($requestPath) && str_starts_with($requestPath,$root.'/incoming/stage10-')
         && basename($requestPath)==='hostinger-stage10-access-request.json' && filesize($requestPath)<1024);
     $request=json_decode(file_get_contents($requestPath),true,8,JSON_THROW_ON_ERROR);
-    guard10(array_keys($request)===['operation','target'] && in_array($request['operation'],['enable','audit','reset-trials'],true)
+    guard10(array_keys($request)===['operation','target'] && in_array($request['operation'],['enable','audit','reset-trials','enable-uploads'],true)
         && $request['target']==='hostinger-private-test');
     require $release.'/bootstrap.php'; $config=require $release.'/config/app.php'; $db=Celikom\Database\Connection::open($config);
     $before=integrity10($db,$config,$root);
     foreach (['006_entitlements_ledger.sql','007_account_trials.sql','008_three_day_trial.sql'] as $file) {
         $q=$db->prepare('SELECT sha256 FROM schema_migrations WHERE version=?'); $q->execute([$file]);
         $hash=$q->fetchColumn(); guard10(is_string($hash) && hash_equals($hash,hash_file('sha256',$release.'/migrations/'.$file)));
+    }
+    if ($request['operation']==='enable-uploads') {
+        guard10($config['entitlement_enabled'] && str_starts_with($release,$root.'/releases/0.4.9-'));
+        $old=file_get_contents($env); guard10(is_string($old));
+        $backup=$root.'/backups/stage10-contributions-env-'.gmdate('YmdTHis').'-'.bin2hex(random_bytes(6));
+        guard10(file_put_contents($backup,$old,LOCK_EX)===strlen($old)); chmod($backup,0600);
+        $content=preg_replace('/^FEATURE_UPLOADS=.*\\R?/m','',$old);
+        $content=rtrim($content)."\nFEATURE_UPLOADS=1\n";
+        try {
+            $temp=$env.'.uploads-'.bin2hex(random_bytes(6));
+            guard10(file_put_contents($temp,$content,LOCK_EX)===strlen($content)); chmod($temp,0600); guard10(rename($temp,$env));
+            putenv('FEATURE_UPLOADS=1'); $afterConfig=require $release.'/config/app.php';
+            $expected=$config; $expected['user_uploads_enabled']=true;
+            guard10($afterConfig===$expected && integrity10($db,$afterConfig,$root)===$before);
+            smoke10($db,$afterConfig);
+            guard10(integrity10($db,$afterConfig,$root)===$before);
+            echo "Stage10 public contributions enable PASS: only FEATURE_UPLOADS changed; accounts/trials/sessions/media/credentials preserved.\n";
+        } catch (Throwable $error) { file_put_contents($env,$old,LOCK_EX);chmod($env,0600);throw $error; }
+        exit(0);
     }
     if ($request['operation']==='reset-trials') {
         guard10($config['entitlement_enabled'] && str_starts_with($release,$root.'/releases/0.4.8-'));
@@ -183,7 +258,7 @@ try {
     if ($request['operation']==='audit') {
         guard10($config['entitlement_enabled']);
         smoke10($db,$config);
-        echo "Stage10 read-only audit PASS: session playback flag ON, public uploads OFF, approved/pending mappings and private MP3 hashes intact.\n";
+        echo "Stage10 read-only audit PASS: session playback flag ON, contribution gate checked, approved/pending mappings and private MP3 hashes intact.\n";
         exit(0);
     }
     $old=file_get_contents($env); guard10(is_string($old));

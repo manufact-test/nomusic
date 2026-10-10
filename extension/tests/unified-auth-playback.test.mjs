@@ -67,3 +67,16 @@ test('Stage10 an in-flight refresh cannot resurrect credentials after logout',as
   await f.auth.perform('logout');block.resolve();
   assert.equal((await pending).ok,false);assert.equal(await f.store.get(),null);
 });
+
+test('contribution preflight checks current session once and refuses revoked access',async()=>{
+ const f=fixture();await f.auth.perform('login',{email:'qa@example.org',password:'correct horse battery staple'});
+ f.calls.length=0;
+ const r=await f.auth.perform('contribution-access');
+ assert.equal(r.ok,true);assert.equal(r.access_token,'a'.repeat(64));
+ assert.equal(f.calls.filter(c=>c.path.endsWith('/me')).length,1);
+ assert.equal(f.calls.filter(c=>c.path.endsWith('/entitlement')).length,1);
+ assert.equal(f.calls.filter(c=>c.path.endsWith('/config')).length,1);
+ assert.equal(r.refresh_token,undefined);
+ f.setAllowed(false);assert.equal((await f.auth.perform('contribution-access')).error,'access_denied');
+ await f.auth.perform('logout');assert.equal((await f.auth.perform('contribution-access')).ok,false);
+});

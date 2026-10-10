@@ -234,11 +234,16 @@ export function createAuthBroker(api, options = {}) {
       if (action === "entitlement") return { ok: true, entitlement: await entitlement() };
       if (action === "contribution-access") {
         // Short-lived access only, to the verified extension popup. No refresh token.
-        const access = await entitlement();
-        if (!access.allowed) return { ok: false, error: "access_denied" };
-        const config = await apiRequest("config");
-        if (config.upload_enabled !== true) return { ok: false, error: "uploads_disabled" };
-        return withAccess(async (saved) => ({ ok: true, access_token: saved.access_token }));
+        return withAccess(async (saved) => {
+          const [access, config] = await Promise.all([
+            apiRequest("entitlement", "GET", null, saved.access_token),
+            apiRequest("config")
+          ]);
+          if (!validEntitlement(access)) throw new Error("auth_unavailable");
+          if (!access.allowed) return { ok: false, error: "access_denied" };
+          if (config.upload_enabled !== true) return { ok: false, error: "uploads_disabled" };
+          return { ok: true, access_token: saved.access_token };
+        });
       }
       if (action === "sessions" || action === "activate" || action === "revoke") {
         const saved = await current();
