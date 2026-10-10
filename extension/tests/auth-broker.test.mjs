@@ -6,7 +6,7 @@ function mock() {
   const local = {};
   let secret = null;
   const calls = [];
-  let flag = true, nextId = 1;
+  let flag = true, nextId = 1, meMode = "ok";
   const api = {
     storage: { local: {
       get: async (key) => ({ [key]: local[key] }),
@@ -29,14 +29,18 @@ function mock() {
       return response({ user: { id: 4, email: "a@example.org" }, access_token: "c".repeat(64),
         refresh_token: "d".repeat(64), token_type: "Bearer", expires_in: 900 });
     }
-    if (endpoint.endsWith("me")) return response({ user: { id: 4, email: "a@example.org" } });
+    if (endpoint.endsWith("me")) {
+      if (meMode === "offline") throw new Error("temporary_network_failure");
+      if (meMode === "expired") return response({ error: "invalid_session" }, 401);
+      return response({ user: { id: 4, email: "a@example.org" } });
+    }
     if (endpoint.endsWith("logout")) return response({ ok: true });
     if (endpoint.endsWith("sessions")) return response({ sessions: [{ id: 1, current: true }] });
     if (endpoint.endsWith("revoke") || endpoint.endsWith("activate")) return response({ ok: true });
     return response({ error: "invalid_request" }, 400);
   };
   const broker = createAuthBroker(api, { store, fetch, readConfig: async () => ({ baseUrl: "https://celikom.example" }) });
-  return { broker, local, calls, store, setFlag: (v) => { flag = v; } };
+  return { broker, local, calls, store, setFlag: (v) => { flag = v; }, setMeMode: (v) => { meMode = v; } };
 }
 test("Stage9 identity uses stable v4 installation and no music-service identifiers", async () => {
   const fx = mock();
@@ -65,4 +69,30 @@ test("Stage9 feature gate OFF prevents sending account credentials", async () =>
   const fx = mock(); fx.setFlag(false);
   assert.equal((await fx.broker.perform("register", { email: "a@example.org", password: "private" })).error, "auth_disabled");
   assert.equal(fx.calls.some((c) => c.endpoint.endsWith("register")), false);
+});
+
+test("Stage9 transient network loss keeps the existing refresh token without rotation", async () => {
+  const fx = mock();
+  const registration = await fx.broker.perform("register", { email: "a@example.org", password: "correct horse battery staple" });
+  assert.equal(registration.ok, true);
+  const existing = await fx.store.get();
+  fx.setMeMode("offline");
+  const status = await fx.broker.perform("status");
+  assert.equal(status.available, true);
+  assert.equal(status.signedIn, false);
+  assert.equal(status.error, "auth_unavailable");
+  assert.equal((await fx.store.get()).refresh_token, existing.refresh_token);
+  assert.equal(fx.calls.filter((c) => c.endpoint.endsWith("refresh")).length, 0);
+  fx.setMeMode("ok");
+  assert.equal((await fx.broker.perform("status")).signedIn, true);
+});
+
+test("Stage9 expired access token rotates only after explicit HTTP 401", async () => {
+  const fx = mock();
+  await fx.broker.perform("register", { email: "a@example.org", password: "correct horse battery staple" });
+  fx.setMeMode("expired");
+  const result = await fx.broker.perform("status");
+  assert.equal(result.signedIn, true);
+  assert.equal((await fx.store.get()).refresh_token, "d".repeat(64));
+  assert.equal(fx.calls.filter((c) => c.endpoint.endsWith("refresh")).length, 1);
 });
