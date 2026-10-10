@@ -1,3 +1,5 @@
+**HISTORICAL 0.4.7 evidence:** owner subsequently reported real playback failure. Latest deployed correction is 0.4.8, trial 3 days, explicit backed-up owner reset; see [current patch evidence](CELIKOM-STAGE10-048-OWNER-FIXES.md). Stage10 remains OPEN.
+
 # Stage 10 — unified 0.4.7 rollout evidence, 10.10.2026
 
 **State: OWNER PLAYBACK GATE / NOT COMPLETED.** Branch `feature/api-range`, implementation `efdb54d4ad6e53de9b09f8dbd675d24bf66ad25e`. Active private Hostinger release `0.4.7-02c4b4f8073b4b76c407b7ed469e2500301ac665`. Stage 9 accepted/closed; Issue #9 remains OPEN. Attached Master v1.5 / Work Plan v1.6 were read; original DOCX files were not changed.

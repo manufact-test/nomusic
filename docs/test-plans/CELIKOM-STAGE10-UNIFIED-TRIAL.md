@@ -1,13 +1,15 @@
 # CELIKOM — Этап 10: Trial + EntitlementService и ОДНА рабочая версия
 
-**Статус:** UNIFIED 0.4.7 DEPLOYED / OWNER PLAYBACK GATE · 10.10.2026 · ЭТАП НЕ ЗАКРЫТ
+**Статус:** UNIFIED 0.4.8 DEPLOYED / OWNER PLAYBACK GATE · 10.10.2026 · ЭТАП НЕ ЗАКРЫТ
 **Источники истины:** Master ТЗ MVP v1.5 (§§14–15,18,23,26, приложения G–I), План работ MVP v1.6 («Этап 10» и новый раздел 15), Issue #9 и актуальный HEAD `feature/api-range`. В случае расхождений продуктовая модель ТЗ сохраняется, актуальный статус исполнения определяется новым разделом handoff.
 
-**Progress 10.10.2026:** unified 0.4.7 and user-bearer + trial + session-bound streaming deployed; CI / real HTTPS / recovery evidence in [rollout](CELIKOM-STAGE10-UNIFIED-ROLLOUT.md). NEXT — [owner actual Chrome playback](CELIKOM-STAGE10-CHROME-ACCEPTANCE.md). Public Upload/Suggest implemented in same client, live writes OFF until playback/security gate. Stage10 and Issue #9 remain OPEN. Section 1 below describes the original gap, now connected in code; it is not the current rollout status.
+**Owner amendment 10.10.2026:** trial changed from 5 to **3 days** by explicit owner instruction; old trial bindings reset with backup, accounts/passwords/sessions preserved. This supersedes the five-day duration in the attached Master document. Owner reported 0.4.7 real playback failure, so Stage10 remains OPEN. See [0.4.8 corrections](CELIKOM-STAGE10-048-OWNER-FIXES.md).
+
+**Progress 10.10.2026:** unified 0.4.8 and user-bearer + trial + session-bound streaming deployed; CI / real HTTPS / recovery evidence in [rollout](CELIKOM-STAGE10-UNIFIED-ROLLOUT.md). NEXT — [owner actual Chrome playback](CELIKOM-STAGE10-CHROME-ACCEPTANCE.md). Public Upload/Suggest implemented in same client, live writes OFF until playback/security gate. Stage10 and Issue #9 remain OPEN. Section 1 below describes the original gap, now connected in code; it is not the current rollout status.
 
 ## 0. Главный нерушимый критерий
 
-**Этап 10 считается выполненным ТОЛЬКО после установки и ручной приёмки владельцем ОДНОГО расширения CELIKOM**, где подмена одобренной песни (ранее рабочая в оригинальной 0.4.4) и весь набор фич аккаунтов/загрузок (0.4.6) работают одновременно, включая 5-дневный trial, реальную проверку entitlement, управление доступом, загрузку MP3 и отдельное предложение трека без MP3.
+**Этап 10 считается выполненным ТОЛЬКО после установки и ручной приёмки владельцем ОДНОГО расширения CELIKOM**, где подмена одобренной песни (ранее рабочая в оригинальной 0.4.4) и весь набор фич аккаунтов/загрузок (0.4.6) работают одновременно, включая 3-дневный trial, реальную проверку entitlement, управление доступом, загрузку MP3 и отдельное предложение трека без MP3.
 
 Не откладывать «потом объединим» на этап 11. Не считать CI-only unit-тесты подтверждением playback в живом Yandex Music. Не удалять рабочее оригинальное Chrome 0.4.4 до независимой приёмки единой версии.
 
@@ -27,7 +29,7 @@
 3. Подготовить изолированный тестовый стенд, сохранить working Chrome 0.4.4. Не передавать `API_TEST_TOKEN` через публичный UI и не объединять владельческий upload token с пользовательской авторизацией.
 
 ### 10.1 — EntitlementService и trial на сервере
-1. По Master ТЗ реализовать trial **5 суток от первой фактической активации**, а не от скачивания, установки, регистрации или появления email в базе. Время и условия задаёт сервер, не системные часы пользователя.
+1. По Master ТЗ реализовать trial **3 суток от первой фактической активации**, а не от скачивания, установки, регистрации или появления email в базе. Время и условия задаёт сервер, не системные часы пользователя.
 2. Account-level trial, единый для двух устройств. Повторная регистрация / переустановка не должны бесконечно продлевать trial; сберечь privacy (без жёсткого fingerprinting).
 3. `EntitlementService`: решение `allowed/source/valid_until/reason`, объяснимый subscription/entitlement ledger; серверный denied после срока, admin grants и остальные источники ТЗ — по согласованной архитектуре. Отдельные payments/recurring billing относятся к **этапу 11**, не представлять их выполненными на 10.
 4. Миграции только аддитивные, idempotent, есть контроль прав и race/concurrency. Не сбрасывать действующие учётные записи/подтверждённые email.
@@ -44,14 +46,14 @@
 3. Обе публичные операции и entitlement не включать в тестовый Hostinger без security/QA gate. Никакой автоматической публикации на основании предложения.
 
 ### 10.4 — Тесты и изолированный интеграционный gate
-Проверить MySQL migrations/rollback, concurrency при двойном trial start; TTL ровно 5 суток; два устройства и logout/revoke; недоступный/истёкший trial; обычный bearer вместо API_TEST_TOKEN; approved / pending; short TTL, HTTP Range 206/HEAD/416, seek/pause/sync/next/return/fail-open; email verify/recovery не регрессируют; zero leaked secrets; XSS/CSRF/rate limiting как применимо.
+Проверить MySQL migrations/rollback, concurrency при двойном trial start; TTL ровно 3 суток; два устройства и logout/revoke; недоступный/истёкший trial; обычный bearer вместо API_TEST_TOKEN; approved / pending; short TTL, HTTP Range 206/HEAD/416, seek/pause/sync/next/return/fail-open; email verify/recovery не регрессируют; zero leaked secrets; XSS/CSRF/rate limiting как применимо.
 
 ### 10.5 — Защищённое включение на Hostinger
 Pre-snapshot всего private env + SQL + всех MP3, **disposable restore**, deploy по `feature/api-range` только после CI, post-deploy read-only audit + post-snapshot/restore. Не изменять approved #1, pending #2/#3, права на медиа, admin owner flag/credentials или public upload flag до gate.
 
 ### 10.6 — ОБЯЗАТЕЛЬНАЯ ручная приёмка владельца
 - Чистая установка единого релиза **без предварительного `apiTestToken`**.
-- Обычный подтверждённый email login → активный 5-day trial/entitlement → approved #1 реально заменяет музыку в Яндекс.Музыке; Play/Pause/Seek/Next/Stop/Return.
+- Обычный подтверждённый email login → активный 3-day trial/entitlement → approved #1 реально заменяет музыку в Яндекс.Музыке; Play/Pause/Seek/Next/Stop/Return.
 - Недоступный MP3/сеть/entitlement → оригинал без ошибок. Pending #2/#3 не заменяются и не раскрывают защищённое аудио.
 - 2 независимых профиля/устройства, вход/выход, refresh; нет требования «Мои устройства» в маленьком popup.
 - Upload MP3 и separate Suggest Song проверены, admin queue получает только pending.
