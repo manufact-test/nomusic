@@ -262,8 +262,9 @@ final class AdminPanel
 
     private static function statusPill(string $status): string
     {
-        $class = in_array($status, ['pending','approved','rejected','disabled','reviewed','dismissed'], true)
-            ? $status : 'disabled';
+        $statusClass = match ($status) { 'uploaded' => 'pending', 'fulfilled' => 'approved', default => $status };
+        $class = in_array($statusClass, ['pending','approved','rejected','disabled','reviewed','dismissed'], true)
+            ? $statusClass : 'disabled';
         return '<span class="pill pill-' . $class . '">' . self::e(self::statusLabel($status)) . '</span>';
     }
 
@@ -382,7 +383,7 @@ final class AdminPanel
         foreach ($statuses as $value) {
             $form .= '<option value="' . self::e($value) . '"'
                 . ($status === $value ? ' selected' : '') . '>'
-                . self::e(self::statusLabel($value)) . '</option>';
+                . self::e($tab === 'requests' && $value === 'pending' ? 'Ожидают загрузки' : self::statusLabel($value)) . '</option>';
         }
         $form .= '</select></label><label class="form-field">На странице<select name="per_page">';
         foreach ([10,25,50] as $size) {
@@ -626,8 +627,8 @@ final class AdminPanel
             }
             $html .= '</article>';
         }
-        if (!$rows) $html .= '<section class="empty"><strong>Предложений пока нет</strong>'
-            . 'Когда пользователи предложат песни, они появятся здесь.</section>';
+        if (!$rows) $html .= '<section class="empty"><strong>Нет предложений с выбранным статусом</strong>'
+            . 'Загруженные и выполненные предложения доступны через фильтр статуса.</section>';
         return $html . '</div>' . $this->queuePages('requests', $status, $page, $perPage, $total);
     }
 
