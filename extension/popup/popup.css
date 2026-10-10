@@ -223,11 +223,12 @@ button:focus-visible { border-color: #66e0bf; }
   align-items: center;
   padding: 0 2px;
   margin: 0;
-  color: #d6fff3;
+  color: #ffffff;
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
 }
+.account-panel > summary:hover, .account-panel > summary:focus-visible { color: #ffffff; }
 .account-panel[open] { padding-bottom: 12px; }
 .account-content { display: grid; gap: 10px; min-width: 0; padding-top: 4px; }
 .account-form, .account-signed { display: grid; gap: 9px; min-width: 0; }
@@ -294,3 +295,51 @@ button:focus-visible { border-color: #66e0bf; }
 .auth-feedback[data-kind="error"] { background: #301c20; border-color: #8f4b50; color: #ffbdb7; }
 .auth-feedback[data-kind="loading"] { background: #14272b; color: #c9e2df; border-color: #365a5c; }
 .account-panel .auth-feedback[hidden] { display: none !important; }
+
+/* Stage 9 final polish: prevent popup height oscillation between auth steps.
+   Scroll only inside the open auth content, never reflow the whole browser popup. */
+.account-panel[open]:not([data-auth-screen="signed"]) .account-content {
+  height: 315px;
+  min-height: 315px;
+  max-height: 315px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  align-content: start;
+  padding-right: 4px;
+}
+.account-panel[open] .account-content {
+  scroll-behavior: auto;
+}
+.account-panel > summary { color: #fff; }
+.account-form .auth-email-suggestion {
+  width: 100%;
+  min-height: 32px;
+  margin: -3px 0 4px;
+  padding: 6px 10px;
+  border: 1px solid #3b5f5a;
+  border-radius: 8px;
+  text-align: left;
+  background: #172824;
+  color: #e2fff6;
+  font-size: 11px;
+  font-weight: 550;
+  overflow-wrap: anywhere;
+}
+.account-form .auth-email-suggestion:hover,
+.account-form .auth-email-suggestion:focus-visible {
+  border-color: #66e0bf;
+  background: #1b3430;
+  outline: none;
+}
+.account-form .auth-email-suggestion[hidden] { display: none !important; }
+.auth-password-field .auth-eye svg {
+  display: block;
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .account-panel, .account-form, .account-content { scroll-behavior: auto; transition: none; }
+}

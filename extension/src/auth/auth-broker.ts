@@ -124,14 +124,22 @@ export function createAuthBroker(api, options = {}) {
   async function perform(action, message = {}) {
     if (action === "installation") return { ok: true, installation_id: await installationId() };
     if (action === "status") {
-      if (!await isAvailable()) return { ok: true, available: false, signedIn: false };
       const saved = await store.get();
+      if (!await isAvailable()) {
+        if (saved?.user?.email) return { ok: true, available: true, signedIn: false,
+          localSession: true, user: saved.user, error: "auth_unavailable" };
+        return { ok: true, available: false, signedIn: false };
+      }
       if (!saved) return { ok: true, available: true, signedIn: false };
       try {
         const active = await current();
         return { ok: true, available: true, signedIn: true, user: active.user };
       } catch (error) {
-        return { ok: true, available: true, signedIn: false, error: error?.message === "invalid_session" ? "session_expired" : "auth_unavailable" };
+        if (error?.message !== "invalid_session" && saved?.user?.email)
+          return { ok: true, available: true, signedIn: false, localSession: true,
+            user: saved.user, error: "auth_unavailable" };
+        return { ok: true, available: true, signedIn: false,
+          error: "session_expired" };
       }
     }
     if (!await isAvailable()) return { ok: false, error: "auth_disabled" };

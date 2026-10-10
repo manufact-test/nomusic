@@ -11,7 +11,7 @@ namespace Celikom\Auth;
 final class AuthService
 {
     private const ACCESS_SECONDS = 900;
-    private const REFRESH_SECONDS = 2592000;
+    private const REFRESH_SECONDS = 7776000;
 
     private readonly EmailFlow $email;
 
@@ -96,7 +96,7 @@ final class AuthService
             $update = $this->pdo->prepare('UPDATE user_sessions
                 SET previous_refresh_hash = refresh_hash, refresh_hash = ?, access_hash = ?,
                     access_expires_at = DATE_ADD(UTC_TIMESTAMP(6), INTERVAL 900 SECOND),
-                    refresh_expires_at = DATE_ADD(UTC_TIMESTAMP(6), INTERVAL 2592000 SECOND),
+                    refresh_expires_at = DATE_ADD(UTC_TIMESTAMP(6), INTERVAL 7776000 SECOND),
                     last_refreshed_at = UTC_TIMESTAMP(6) WHERE id = ?');
             $update->execute([hash('sha256', $refresh), hash('sha256', $access), $row['id']]);
             $this->pdo->prepare('UPDATE user_devices SET last_seen_at = UTC_TIMESTAMP(6)
@@ -260,7 +260,7 @@ final class AuthService
             $session = $this->pdo->prepare('INSERT INTO user_sessions
                 (user_id, device_id, access_hash, refresh_hash, access_expires_at, refresh_expires_at)
                 VALUES (?, ?, ?, ?, DATE_ADD(UTC_TIMESTAMP(6), INTERVAL 900 SECOND),
-                    DATE_ADD(UTC_TIMESTAMP(6), INTERVAL 2592000 SECOND))');
+                    DATE_ADD(UTC_TIMESTAMP(6), INTERVAL 7776000 SECOND))');
             $session->execute([$userId, $device, hash('sha256',$access), hash('sha256',$refresh)]);
             $this->pdo->commit();
         } catch (\Throwable $error) {

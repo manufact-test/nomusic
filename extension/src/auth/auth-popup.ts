@@ -10,6 +10,10 @@ export function initAuthPanel(send) {
   // The Chrome popup closes when users switch to their mailbox. Keep ONLY the
   // pending email + purpose in extension storage; never persist a password/code.
   const pendingKey = "celikom-auth-pending-email";
+  const rememberedKey = "celikom-auth-remembered-email";
+  const suggestion = q("email-suggestion");
+  let rememberedEmail = "";
+  let userEditingEmail = false;
   const mailStore = globalThis.chrome?.storage?.local;
   async function savePending(purpose, address) {
     if (!mailStore || !goodEmail(address)) return;
@@ -25,6 +29,48 @@ export function initAuthPanel(send) {
   async function clearPending() {
     if (mailStore) await mailStore.remove(pendingKey);
   }
+  async function remember(address) {
+    if (!goodEmail(address)) return;
+    rememberedEmail = address;
+    if (mailStore) await mailStore.set({ [rememberedKey]: address });
+    updateEmailSuggestion();
+  }
+  function updateEmailSuggestion() {
+    if (!suggestion) return;
+    const typed = email.value.trim().toLowerCase();
+    const match = rememberedEmail && (!typed || rememberedEmail.toLowerCase().startsWith(typed))
+      && typed !== rememberedEmail.toLowerCase();
+    suggestion.hidden = !match;
+    if (match) suggestion.textContent = rememberedEmail;
+  }
+  function chooseRememberedEmail() {
+    if (!rememberedEmail) return;
+    email.value = rememberedEmail;
+    userEditingEmail = true;
+    if (suggestion) suggestion.hidden = true;
+    // Browser field owns focus and paste/autofill; no synthetic keyboard event.
+    email.focus();
+  }
+  suggestion?.addEventListener("pointerdown", (event) => {
+    event.preventDefault();
+    chooseRememberedEmail();
+  });
+  suggestion?.addEventListener("click", chooseRememberedEmail);
+  email.addEventListener("input", () => {
+    userEditingEmail = true;
+    updateEmailSuggestion();
+  });
+  email.addEventListener("focus", updateEmailSuggestion);
+  email.addEventListener("keydown", (event) => {
+    if (suggestion?.hidden === false && ["ArrowDown", "Enter"].includes(event.key)) {
+      event.preventDefault();
+      chooseRememberedEmail();
+    }
+    if (event.key === "Escape" && suggestion) suggestion.hidden = true;
+  });
+  email.addEventListener("blur", () => {
+    if (suggestion) suggestion.hidden = true;
+  });
   const errors = {
     invalid_credentials: "Не удалось войти. Проверьте email и пароль или создайте аккаунт.",
     account_unavailable: "Этот email уже используется. Попробуйте войти.",
@@ -43,7 +89,9 @@ export function initAuthPanel(send) {
     note.dataset.kind = kind;
   };
   function view(next, user) {
+    const previous = mode;
     mode = next;
+    root.dataset.authScreen = next;
     for (const [key, el] of Object.entries(views)) el.hidden =
       key === "login" ? !["login", "register"].includes(next) : key !== next;
     q("summary").textContent = next === "signed" ? "Аккаунт · подключён" : "Аккаунт";
@@ -51,6 +99,12 @@ export function initAuthPanel(send) {
     q("submit").textContent = next === "register" ? "Зарегистрироваться" : "Войти";
     q("mode").textContent = next === "register" ? "У меня уже есть аккаунт" : "Создать аккаунт";
     pass.autocomplete = next === "register" ? "new-password" : "current-password";
+    // Form switching must not resize/jump the popup or erase a native autofill.
+    if (previous !== next) {
+      const content = root.querySelector?.(".account-content");
+      if (content) content.scrollTop = 0;
+    }
+    if (next !== "login" && next !== "register" && suggestion) suggestion.hidden = true;
     show();
   }
   const goodEmail = (v) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/u.test(v) && v.length <= 254;
@@ -76,12 +130,19 @@ export function initAuthPanel(send) {
     });
   }
   eye(pass, q("eye")); eye(q("reset-password"), q("reset-eye"));
-  void Promise.all([call("status"), loadPending()]).then(([state, pending]) => {
+  void Promise.all([call("status"), loadPending(),
+    mailStore ? mailStore.get(rememberedKey) : Promise.resolve({})]).then(([state, pending, known]) => {
+    rememberedEmail = goodEmail(known?.[rememberedKey]) ? known[rememberedKey] : "";
     if (!state?.available) return;
     root.hidden = false;
     if (state.signedIn) {
       void clearPending();
+      void remember(state.user?.email);
       view("signed", state.user);
+    } else if (state.localSession) {
+      view("signed", state.user);
+      q("summary").textContent = "Аккаунт · нет связи";
+      show("Нет соединения. Вход на этом устройстве сохранён.", "loading");
     } else if (pending) {
       // After switching to the mailbox, reopen the confirmation panel automatically.
       root.open = true;
@@ -95,7 +156,10 @@ export function initAuthPanel(send) {
         view("verify");
         show("Введите код из письма. Для повторной отправки войдите с паролем.");
       }
-    } else view("login");
+    } else {
+      view("login");
+      if (!userEditingEmail) updateEmailSuggestion();
+    }
   }).catch(() => {});
   q("mode").addEventListener("click", () => view(mode === "login" ? "register" : "login"));
   views.login.addEventListener("submit", (e) => {
@@ -106,6 +170,7 @@ export function initAuthPanel(send) {
       return show(mode === "register" ? "Пароль: минимум 12 символов." : "Введите пароль.", "error");
     }
     void act(mode, { email: address, password }, async (result) => {
+      await remember(address);
       if (result.verification_required) {
         pendingEmail = address; pendingPassword = password;
         await savePending("verify", address);
@@ -122,6 +187,7 @@ export function initAuthPanel(send) {
     if (!/^\d{6}$/.test(code)) return show("Введите шестизначный код.", "error");
     void act("verify-email", { email: pendingEmail, code }, async (result) => {
       await clearPending();
+      await remember(result.user?.email);
       pendingPassword = ""; q("code").value = "";
       view("signed", result.user);
     });
