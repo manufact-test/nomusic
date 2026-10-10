@@ -164,6 +164,12 @@ try {
         $active = $pdo->query("SELECT t.service_track_id FROM tracks t JOIN track_replacements r ON r.track_id=t.id WHERE r.status='approved' AND r.is_active=1 LIMIT 1")->fetchColumn();
         expect(is_string($active), 'approved synthetic fixture exists');
         $query = ['service' => 'yandex', 'track_id' => $active];
+        $presenceQuery=$query;
+        expect($app->handle('GET','/api/v1/tracks/version-status',$presenceQuery)->status===401,'Presence requires user session');
+        $presence=$app->handle('GET','/api/v1/tracks/version-status',$presenceQuery,$headers);
+        expect($presence->status===200 && json_decode($presence->body,true)===['status'=>'approved'], 'Only presence, before trial activation');
+        $readOnly=$cfg; $readOnly['user_uploads_enabled']=false;
+        expect((new Celikom\Application($readOnly))->handle('GET','/api/v1/tracks/version-status',$presenceQuery,$headers)->status===200,'Read-only status independent of upload switch');
         expect($app->handle('GET', '/api/v1/resolve', $query)->status === 401, 'anonymous denied');
         expect($app->handle('GET', '/api/v1/resolve', $query, $headers)->status === 403, 'no auto-start from resolve');
         expect($app->handle('POST', '/api/v1/auth/activate', [], $headers, '{}')->status === 200, 'verified activation');

@@ -31,7 +31,15 @@ final class TrackUploadStatusService
 
     public function state(string $service, string $trackId): array
     {
-        $record = $this->get($service, $trackId);
-        return ['status' => $record['status'] ?? 'none'];
+        if ($service !== 'yandex' || !preg_match('/^[1-9]\d{0,23}$/D', $trackId)) {
+            throw new \InvalidArgumentException('invalid_track');
+        }
+        $stmt = $this->pdo->prepare("SELECT r.status FROM tracks t
+            JOIN track_replacements r ON r.track_id=t.id
+            WHERE t.service=? AND t.service_track_id=? AND r.disabled_at IS NULL
+            AND (r.status='pending' OR (r.status='approved' AND r.is_active=1))
+            ORDER BY CASE WHEN r.status='approved' THEN 0 ELSE 1 END,r.id DESC LIMIT 1");
+        $stmt->execute([$service, $trackId]);
+        return ['status' => $stmt->fetchColumn() ?: 'none'];
     }
 }

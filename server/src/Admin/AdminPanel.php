@@ -210,6 +210,7 @@ final class AdminPanel
             'pending' => 'На проверке', 'approved' => 'Одобрено',
             'rejected' => 'Отклонено', 'disabled' => 'Отключено',
             'reviewed' => 'Рассмотрено', 'dismissed' => 'Отклонена',
+            'uploaded' => 'Версия на проверке', 'fulfilled' => 'Версия доступна',
             default => 'Неизвестный статус',
         };
     }
@@ -337,7 +338,7 @@ final class AdminPanel
         $html .= '</nav>';
         $counts = $this->pdo->query("SELECT
             (SELECT COUNT(*) FROM track_replacements WHERE status='pending') AS pending_uploads,
-            (SELECT COUNT(*) FROM track_requests WHERE status='pending') AS pending_requests,
+            (SELECT COUNT(*) FROM track_requests r WHERE " . \Celikom\Application\TrackRequestProgress::sql() . " = 'pending') AS pending_requests,
             (SELECT COUNT(*) FROM reports WHERE status='pending') AS pending_reports")->fetch(\PDO::FETCH_ASSOC);
         $html .= '<div class="stats">'
             . '<a class="stat" href="/admin?tab=uploads&status=pending&per_page=' . $size
@@ -444,7 +445,7 @@ final class AdminPanel
                  'replacement_disable')
                 ORDER BY l.id DESC LIMIT 1
             ) " . $where .
-            " ORDER BY FIELD(r.status,'pending','approved','rejected','disabled'),r.id DESC LIMIT "
+            " ORDER BY r.id DESC LIMIT "
             . $perPage . " OFFSET " . $offset);
         $stmt->execute($params);
         $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC);
@@ -576,26 +577,30 @@ final class AdminPanel
 
     private function requests(array $admin, string $csrf, array $query): string
     {
+        // Default queue contains only proposals still needing an audio upload.
+        if (!array_key_exists('status', $query)) $query['status'] = 'pending';
         [$status,$page,$offset,$filter,$perPage] = $this->queueOptions('requests', $query,
-            ['pending','reviewed','rejected']);
-        $where = $status !== '' ? ' WHERE status = ? ' : ' ';
+            ['pending','uploaded','fulfilled','reviewed','rejected']);
+        $progress = \Celikom\Application\TrackRequestProgress::sql();
+        $where = $status !== '' ? ' WHERE ' . $progress . ' = ? ' : ' ';
         $params = $status !== '' ? [$status] : [];
-        $count = $this->pdo->prepare('SELECT COUNT(*) FROM track_requests ' . $where);
+        $count = $this->pdo->prepare('SELECT COUNT(*) FROM track_requests r ' . $where);
         $count->execute($params);
         $total = (int) $count->fetchColumn();
-        $stmt = $this->pdo->prepare("SELECT r.id,r.service,r.service_track_id,r.artist,r.title,r.status,r.created_at,
+        $stmt = $this->pdo->prepare("SELECT r.id,r.service,r.service_track_id,r.artist,r.title,r.status,r.created_at," . $progress . " AS progress,
             (SELECT COUNT(DISTINCT x.uploader_hash) FROM track_requests x
               WHERE x.service = r.service AND x.service_track_id = r.service_track_id) AS proposal_count
-            FROM track_requests r " . ($status !== '' ? ' WHERE r.status = ? ' : ' ') .
-            " ORDER BY FIELD(r.status,'pending','reviewed','rejected'),r.id DESC LIMIT "
+            FROM track_requests r " . $where .
+            " ORDER BY r.id DESC LIMIT "
             . $perPage . " OFFSET " . $offset);
         $stmt->execute($params);
         $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC);
         $html = '<div class="page-head"><div><div class="eyebrow">Обратная связь</div>'
             . '<h1>Предложения песен</h1><p class="muted">'
-            . 'Запросы на замену без загрузки аудиофайлов и без подтверждения прав на MP3.'
+            . 'Ожидают загрузки MP3. Предложения с загруженной версией доступны через фильтр статуса; история сохраняется.'
             . '</p></div></div>' . $filter . '<div class="cards">';
         foreach ($rows as $r) {
+            $r['status'] = $r['progress'];
             $id = (int) $r['id'];
             $trackId = (string) $r['service_track_id'];
             $html .= '<article class="track-card"><div class="track-top">'

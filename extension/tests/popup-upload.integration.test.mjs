@@ -13,7 +13,7 @@ function el(selector, values = {}) {
   elements.set(selector, node);
   return node;
 }
-for (const selector of ["[data-status]", "[data-action='start']", "[data-action='stop']",
+for (const selector of ["[data-version-status]", "[data-status]", "[data-action='start']", "[data-action='stop']",
   "[data-action='restore']", "[data-action='diagnostics']", "[data-track]", "[data-test-track]",
   "[data-upload-panel]", "[data-upload-track]", "[data-upload-file]", "[data-upload-key]",
   "[data-upload-rights]", "[data-upload-progress]", "[data-upload-status]", "[data-upload-submit]",
@@ -29,16 +29,19 @@ find("[data-upload-progress]").hidden = true;
 const selected = { track: { id: "144530503", confidence: 200, ambiguous: false,
   metadata: { durationMs: 180872, title: "Owner fixture", artist: "CI" } } };
 let current = selected, offline = false;
+let version = "none";
+const intervals = [];
 const pendingTracks = new Set();
 const requests = [];
 const statusCalls = [];
 globalThis.document = { activeElement: null, querySelector: find };
-globalThis.window = { setInterval() { return 1; } };
+globalThis.window = { setInterval(fn) { intervals.push(fn); return 1; } };
 globalThis.chrome = {
   runtime: {
     getURL: (p) => "chrome-extension://ci-test/" + p,
     async sendMessage(message) {
       if (offline) throw new Error("simulated extension disconnect");
+      if (message.type === "CELIKOM_AUTH" && message.action === "track-status") return {ok:true,status:version};
       if (message.type === "CELIKOM_AUTH" && message.action === "contribution-access") return {ok:true,access_token:"c".repeat(64)};
       if (message.type === "CELIKOM_STATUS_GET") return { ...current, phase: "READY", enabled: true };
       return { ok: true };
@@ -194,4 +197,21 @@ test("Stage 7 on another Track ID remains eligible and rejects unconfirmed right
   find("[data-upload-rights]").checked = false;
   await form().fire("submit");
   assert.equal(requests.length, 2);
+});
+
+ test("popup separates detected track from available, pending and missing version", async () => {
+  current = selected;
+  for (const value of ["none", "pending", "approved"]) {
+    version = value;
+    // A new exact track forces a fresh presence check without waiting for polling.
+    current = {track: {...selected.track, id: selected.track.id + String(value.length)}};
+    intervals[0]();
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(find("[data-status]").textContent, "Трек определён");
+    const text = find("[data-version-status]").textContent;
+    assert.match(text, value === "none" ? /ещё не загружена/ : value === "pending" ? /на проверке/ : /доступна/);
+  }
+  current = {track: null}; intervals[0]();
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(find("[data-version-status]").hidden, true);
 });

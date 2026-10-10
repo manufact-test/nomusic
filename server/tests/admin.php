@@ -142,6 +142,40 @@ try{
         expect(str_contains($page->body,'На проверке'),'Russian status label');
         expect(!str_contains($page->body,'active: 0'),'Internal status text not exposed');
     });
+    run('Stage10 proposals follow pending/approved version without rewriting history; numeric queue order',function()
+        use($app,$pdo,$track,$candidate,$sessionHeaders):void{
+        (new TrackRequestService($pdo))->submit(['service'=>'yandex','track_id'=>$track,
+            'artist'=>'Stage10','title'=>'Linked proposal'],hash('sha256','stage10-progress'));
+        $proposal=(int)$pdo->query("SELECT MAX(id) FROM track_requests")->fetchColumn();
+        $marker='<h2 class="track-title">#'.$proposal.' ·';
+        $queue=$app->handle('GET','/admin',['tab'=>'requests'],$sessionHeaders);
+        expect(!str_contains($queue->body,$marker),'Uploaded proposal leaves default queue');
+        $history=$app->handle('GET','/admin',['tab'=>'requests','status'=>'uploaded'],$sessionHeaders);
+        expect(str_contains($history->body,$marker),'Pending audio remains in history');
+        $before=$app->handle('GET','/admin',['tab'=>'uploads','per_page'=>'50'],$sessionHeaders);
+        preg_match_all('/<h2 class="track-title">#(\d+) ·/u',$before->body,$idsBefore);
+        $pdo->prepare("UPDATE track_replacements SET status='approved',is_active=1 WHERE id=?")->execute([$candidate]);
+        try {
+            $history=$app->handle('GET','/admin',['tab'=>'requests','status'=>'fulfilled'],$sessionHeaders);
+            expect(str_contains($history->body,$marker),'Approved audio fulfills proposal');
+            $after=$app->handle('GET','/admin',['tab'=>'uploads','per_page'=>'50'],$sessionHeaders);
+            preg_match_all('/<h2 class="track-title">#(\d+) ·/u',$after->body,$idsAfter);
+            expect($idsBefore[1]===$idsAfter[1],'Status change does not reorder numbered versions');
+            $descending=$idsAfter[1]; rsort($descending,SORT_NUMERIC);
+            expect($descending===$idsAfter[1],'Newest numbered version first');
+            $q=$pdo->prepare('SELECT status FROM track_requests WHERE id=?');$q->execute([$proposal]);
+            expect($q->fetchColumn()==='pending','Original proposal decision retained');
+        } finally {
+            $pdo->prepare("UPDATE track_replacements SET status='pending',is_active=0 WHERE id=?")->execute([$candidate]);
+        }
+        $pdo->prepare("UPDATE track_replacements SET status='rejected' WHERE id=?")->execute([$candidate]);
+        try {
+            $queue=$app->handle('GET','/admin',['tab'=>'requests'],$sessionHeaders);
+            expect(str_contains($queue->body,$marker),'Rejected audio reopens still-unfulfilled proposal');
+        } finally {
+            $pdo->prepare("UPDATE track_replacements SET status='pending' WHERE id=?")->execute([$candidate]);
+        }
+    });
     run('Stage 8 legacy metadata: only owner, CSRF and exact Track ID can repair missing labels',function()
         use($app,$pdo,$track,$assetId,$sessionHeaders,$actionHeaders,$csrf):void{
         $oldTrack=$track.'55';

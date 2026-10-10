@@ -258,3 +258,7 @@ tr:last-child td{border-bottom:0}td form{display:flex;gap:8px;align-items:center
   .decision-body .reject-category,
   .decision-body select.reject-category::picker-icon{transition:none}
 }
+
+/* Field focus changes the existing border, without a second outer frame. */
+input:not([type=checkbox]):focus,select:focus,textarea:focus,
+input:not([type=checkbox]):focus-visible,select:focus-visible,textarea:focus-visible{outline:none;outline-offset:0;border-color:#278d70;box-shadow:none}

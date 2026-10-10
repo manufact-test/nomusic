@@ -23,6 +23,7 @@ function fixture() {
     }
     if(path.endsWith('/entitlement')) return response({allowed,source:'trial',valid_until:new Date(Date.now()+432000000).toISOString(),reason:allowed?'trial_active':'trial_inactive'});
     if(path.endsWith('/resolve')) return response({found:true,replacement_id:1,version:1,duration_ms:180872,expires_at:Math.floor(Date.now()/1000)+600,audio_url:'/api/v1/audio/1?token='+'f'.repeat(64)+'&expires='+(Math.floor(Date.now()/1000)+600)+'&sid=55'});
+    if(path.endsWith('/version-status')) return response({status:'pending'});
     if(path.endsWith('/logout')) return response({ok:true});
     return response({error:'invalid_request'},400);
   };
@@ -79,4 +80,13 @@ test('contribution preflight checks current session once and refuses revoked acc
  assert.equal(r.refresh_token,undefined);
  f.setAllowed(false);assert.equal((await f.auth.perform('contribution-access')).error,'access_denied');
  await f.auth.perform('logout');assert.equal((await f.auth.perform('contribution-access')).ok,false);
+});
+
+test('track presence is read-only, does not require trial and never returns credentials',async()=>{
+ const f=fixture();await f.auth.perform('login',{email:'qa@example.org',password:'correct horse battery staple'});
+ f.setAllowed(false);f.calls.length=0;
+ assert.deepEqual(await f.auth.perform('track-status',{track_id:'144530503'}),{ok:true,status:'pending'});
+ assert.equal(f.calls.some(c=>c.path.endsWith('/activate')||c.path.endsWith('/entitlement')),false);
+ assert.equal((await f.auth.perform('track-status',{track_id:'1&x=y'})).error,'invalid_request');
+ await f.auth.perform('logout');assert.equal((await f.auth.perform('track-status',{track_id:'144530503'})).ok,false);
 });

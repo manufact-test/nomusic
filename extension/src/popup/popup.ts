@@ -10,6 +10,52 @@ const diagnosticsButton = document.querySelector<HTMLButtonElement>("[data-actio
 const track = document.querySelector<HTMLElement>("[data-track]");
 const testInput = document.querySelector<HTMLInputElement>("[data-test-track]");
 let lastState: ExtensionState | null = null;
+const versionStatus = document.querySelector<HTMLElement>("[data-version-status]");
+let versionTrackId = "";
+let versionCheckedAt = 0;
+let versionRequest = 0;
+let versionLoading = false;
+
+async function refreshVersion(state: ExtensionState): Promise<void> {
+  if (!versionStatus) return;
+  const id = state.track?.id || "";
+  if (id !== versionTrackId) {
+    versionTrackId = id;
+    versionCheckedAt = 0;
+    versionLoading = false;
+    versionRequest++;
+    versionStatus.textContent = "Проверяем наличие версии CELIKOM…";
+  }
+  versionStatus.hidden = !id;
+  if (!id) return;
+  if (state.phase === "REPLACEMENT_ACTIVE") {
+    versionRequest++;
+    versionLoading = false;
+    versionStatus.textContent = "Версия CELIKOM доступна";
+    versionCheckedAt = Date.now();
+    return;
+  }
+  if (versionLoading || (versionCheckedAt && Date.now() - versionCheckedAt < 15000)) return;
+  const requestId = ++versionRequest;
+  versionLoading = true;
+  try {
+    const result = await send<{ ok: boolean; status?: string; error?: string }>({ type: "CELIKOM_AUTH", action: "track-status", track_id: id });
+    if (requestId !== versionRequest || versionTrackId !== id) return;
+    const labels: Record<string, string> = {
+      none: "Версия CELIKOM ещё не загружена",
+      pending: "Версия CELIKOM на проверке",
+      approved: "Версия CELIKOM доступна"
+    };
+    versionStatus.textContent = result.ok && result.status && labels[result.status]
+      ? labels[result.status] : result.error === "invalid_session"
+        ? "Войдите, чтобы проверить наличие версии CELIKOM"
+        : "Не удалось проверить наличие версии CELIKOM";
+  } catch (_error) {
+    if (requestId === versionRequest) versionStatus.textContent = "Не удалось проверить наличие версии CELIKOM";
+  } finally {
+    if (requestId === versionRequest) { versionLoading = false; versionCheckedAt = Date.now(); }
+  }
+}
 
 function render(state: ExtensionState): void {
   if (!status || !startButton || !stopButton) return;
@@ -18,7 +64,7 @@ function render(state: ExtensionState): void {
     STOPPED: "Остановлен",
     CONNECTING: "Подключение…",
     OBSERVING: "Ищем трек…",
-    READY: "Трек найден",
+    READY: "Трек определён",
     ERROR: "Ошибка подключения",
     PREPARING: "Готовим подмену…",
     REPLACEMENT_ACTIVE: "Подмена активна",
@@ -41,6 +87,7 @@ function render(state: ExtensionState): void {
       ? `Track ID ${state.track.id} · confidence ${state.track.confidence}`
       : "";
   }
+  void refreshVersion(state);
 }
 
 async function send<T>(message: object): Promise<T> {

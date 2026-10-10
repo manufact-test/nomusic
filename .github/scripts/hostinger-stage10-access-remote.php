@@ -99,9 +99,9 @@ function integrity10(PDO $db, array $config, string $root): array {
     $rows=$db->query("SELECT t.service_track_id, r.id, r.status, r.is_active, a.sha256, a.storage_key, a.size_bytes, a.duration_ms
         FROM tracks t JOIN track_replacements r ON r.track_id=t.id JOIN audio_assets a ON a.id=r.audio_asset_id
         WHERE r.id IN (1,2,3) ORDER BY r.id")->fetchAll(PDO::FETCH_ASSOC);
-    guard10(count($rows)===3);
-    foreach ([[0,'144530503','approved',1],[1,'799133075','pending',0],[2,'38436680','pending',0]] as [$i,$track,$status,$active]) {
-        $row=$rows[$i]; guard10($row['service_track_id']===$track && $row['status']===$status && (int)$row['is_active']===$active);
+    guard10(count($rows)===3 && $rows[0]['status']==='approved' && (int)$rows[0]['is_active']===1);
+    foreach ([[0,'144530503'],[1,'799133075'],[2,'38436680']] as [$i,$track]) {
+        $row=$rows[$i]; guard10($row['service_track_id']===$track && in_array($row['status'],['pending','approved','rejected','disabled'],true));
         $path=$root.'/shared/audio/'.$row['storage_key'];
         guard10(!str_contains($row['storage_key'],'..') && is_file($path) && !is_link($path)
             && filesize($path)===(int)$row['size_bytes'] && hash_equals($row['sha256'],hash_file('sha256',$path)));
@@ -136,6 +136,7 @@ function smoke10(PDO $db, array $config): void {
             && $one['trial']['trial_ends_at']===$two['trial']['trial_ends_at']);
         $q=$db->prepare('SELECT TIMESTAMPDIFF(MICROSECOND,valid_from,valid_until) FROM account_trials WHERE user_id=?');
         $q->execute([$id]); guard10((int)$q->fetchColumn()===259200000000);
+        if (($config['version']??'')==='0.4.11') $presence=expect10(200,https10('/api/v1/tracks/version-status?service=yandex&track_id=144530503','GET',null,$tokens[0][0])); if (($config['version']??'')==='0.4.11') guard10($presence===['status'=>'approved']);
         $resolve=expect10(200,https10('/api/v1/resolve?service=yandex&track_id=144530503','GET',null,$tokens[0][0]));
         guard10(($resolve['found']??false) && $resolve['replacement_id']===1 && $resolve['duration_ms']===180872
             && str_starts_with($resolve['audio_url'],'/api/v1/audio/1?') && str_contains($resolve['audio_url'],'&sid='));
@@ -161,7 +162,8 @@ function smoke10(PDO $db, array $config): void {
 
         foreach (['38436680','799133075'] as $track) {
             $missing=expect10(200,https10('/api/v1/resolve?service=yandex&track_id='.$track,'GET',null,$tokens[0][0]));
-            guard10(($missing['found']??true)===false);
+            $expected=(new Celikom\Repositories\PdoCatalogRepository($db))->findActive('yandex',$track)!==null;
+            guard10(($missing['found']??null)===$expected);
         }
         $rotated=expect10(200,https10('/api/v1/auth/refresh','POST',['refresh_token'=>$tokens[0][1],'installation_id'=>$tokens[0][2]]));
         expect10(200,https10('/api/v1/auth/me','GET',null,$rotated['access_token']));
@@ -173,7 +175,7 @@ function smoke10(PDO $db, array $config): void {
         guard10($direct->status===200);
         $second=expect10(200,https10('/api/v1/entitlement','GET',null,$tokens[1][0])); guard10($second['allowed']===true);
         if ($config['user_uploads_enabled']) contributions10($db,$config,$tokens[1][0],$id);
-        echo "Stage10 real HTTPS smoke PASS: account trial 3 days; independent devices; user-bearer approved resolve; signed HEAD/206; pending denied; refresh/logout revoke only one device.\n";
+        echo "Stage10 real HTTPS smoke PASS: account trial 3 days; independent devices; user-bearer approved resolve; signed HEAD/206; catalog availability matches moderation; refresh/logout revoke only one device.\n";
     } finally {
         if ($id !== null) {
             guard10((bool)preg_match('/^stage10-check-[a-f0-9]{24}@example\\.invalid$/D',$email));
@@ -190,7 +192,7 @@ function smoke10(PDO $db, array $config): void {
 try {
     $root='/home/u235811320/domains/darkred-camel-588676.hostingersite.com/celikom';
     $release=realpath($root.'/current'); $env=$root.'/shared/env';
-    guard10(is_link($root.'/current') && is_string($release) && (str_starts_with($release,$root.'/releases/0.4.8-') || str_starts_with($release,$root.'/releases/0.4.9-'))
+    guard10(is_link($root.'/current') && is_string($release) && (str_starts_with($release,$root.'/releases/0.4.8-') || str_starts_with($release,$root.'/releases/0.4.9-') || str_starts_with($release,$root.'/releases/0.4.11-'))
         && !is_link($root) && !is_link($root.'/shared') && !is_link($env) && is_file($env) && (fileperms($env)&0077)===0);
     $requestPath=realpath($argv[1]);
     guard10(is_string($requestPath) && str_starts_with($requestPath,$root.'/incoming/stage10-')

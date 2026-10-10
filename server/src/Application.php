@@ -105,6 +105,23 @@ final class Application
                 'negative_cache_ttl_seconds' => ResolveCachePolicy::negative($this->config['negative_cache_ttl_seconds'] ?? 15),
             ]);
         }
+        if ($method === 'GET' && $path === '/api/v1/tracks/version-status') {
+            // Read-only presence for signed-in users, independent of the upload
+            // switch and trial activation. Never provides playback credentials.
+            if (!($this->config['auth_enabled'] ?? false)) return Response::json(404, ['error' => 'not_found']);
+            $pdo = $this->database();
+            if ((new BearerAuthenticator($pdo))->session($headers) === null) {
+                return Response::json(401, ['error' => 'invalid_session']);
+            }
+            if (!is_string($query['service'] ?? null) || !is_string($query['track_id'] ?? null)) {
+                return Response::json(400, ['error' => 'invalid_track']);
+            }
+            try {
+                return Response::json(200, (new TrackUploadStatusService($pdo))->state($query['service'], $query['track_id']));
+            } catch (\InvalidArgumentException) {
+                return Response::json(400, ['error' => 'invalid_track']);
+            }
+        }
         if ($method === 'GET' && $path === '/api/v1/tracks/upload-status') {
             // Only moderation presence, no asset or user data. Used to stop duplicate
             // submissions after the popup closes or the browser restarts.

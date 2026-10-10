@@ -181,8 +181,18 @@ export function createAuthBroker(api, options = {}) {
           error: "session_expired" };
       }
     }
-    if (action !== "contribution-access" && !await isAvailable()) return { ok: false, error: "auth_disabled" };
+    if (action !== "contribution-access" && action !== "track-status" && !await isAvailable()) return { ok: false, error: "auth_disabled" };
     try {
+      if (action === "track-status") {
+        if (typeof message.track_id !== "string" || !/^[1-9]\d{0,23}$/.test(message.track_id)) {
+          return { ok: false, error: "invalid_request" };
+        }
+        return await withAccess(async (saved) => {
+          const result = await apiRequest("tracks/version-status?service=yandex&track_id=" + encodeURIComponent(message.track_id), "GET", null, saved.access_token);
+          if (!["none", "pending", "approved"].includes(result?.status)) throw new Error("auth_unavailable");
+          return { ok: true, status: result.status };
+        });
+      }
       if (action === "login" || action === "register") {
         if (typeof message.email !== "string" || typeof message.password !== "string" ||
             message.email.length > 254 || message.password.length > 128) return { ok: false, error: "invalid_request" };
