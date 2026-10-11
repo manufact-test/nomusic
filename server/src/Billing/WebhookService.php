@@ -113,8 +113,11 @@ final class WebhookService
                 || (int)$existing['amount_minor'] !== $event->amountMinor) throw new \DomainException('billing_adjustment_conflict');
             return;
         }
-        $q = $this->pdo->prepare('SELECT COALESCE(SUM(amount_minor),0) FROM billing_adjustments WHERE payment_id=?');
-        $q->execute([$payment['id']]); $total = (int)$q->fetchColumn() + $event->amountMinor;
+        // A locking read must see refunds committed while waiting for the account
+        // lock, even under MySQL REPEATABLE READ. A snapshot SUM could over-refund.
+        $q = $this->pdo->prepare('SELECT amount_minor FROM billing_adjustments WHERE payment_id=? FOR UPDATE');
+        $q->execute([$payment['id']]); $total = $event->amountMinor;
+        foreach ($q->fetchAll(PDO::FETCH_COLUMN) as $amount) $total += (int)$amount;
         if ($total > (int)$payment['amount_minor']) throw new \DomainException('billing_adjustment_exceeds_payment');
         $q = $this->pdo->prepare('INSERT INTO billing_adjustments(payment_id,event_id,provider,provider_adjustment_id,kind,amount_minor)
             VALUES(?,?,?,?,?,?)');

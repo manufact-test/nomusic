@@ -167,6 +167,30 @@ try {
             WHERE l.user_id=? AND p.provider_payment_id='charge-concurrent'");
         $q->execute([$ids[1]]);expect((int)$q->fetchColumn()===1,'One matching grant');
     });
+    run('Stage11 concurrent partial refunds cannot exceed the captured amount',function()use($pdo,$base,$send,$secret,$now):void{
+        $send(array_replace($base,['id'=>'evt-refund-race-payment','paymentId'=>'charge-refund-race']));
+        $workers=[];
+        for($i=0;$i<2;$i++) {
+            $event=['id'=>'evt-refund-race-'.$i,'subscriptionId'=>$base['subscriptionId'],'type'=>'refund',
+                'occurredAt'=>$now,'paymentId'=>'charge-refund-race','amountMinor'=>200,'currency'=>'USD',
+                'adjustmentId'=>'refund-race-'.$i];
+            $pipes=[];$process=proc_open([PHP_BINARY,__DIR__.'/billing-race-worker.php'],
+                [0=>['pipe','r'],1=>['pipe','w'],2=>['pipe','w']],$pipes);
+            expect(is_resource($process),'Refund worker started');
+            fwrite($pipes[0],json_encode(['secret'=>$secret,'body'=>json_encode($event,JSON_THROW_ON_ERROR)],JSON_THROW_ON_ERROR));
+            fclose($pipes[0]);$workers[]=[$process,$pipes];
+        }
+        $codes=[];
+        foreach($workers as [$process,$pipes]) {
+            stream_get_contents($pipes[1]);$error=stream_get_contents($pipes[2]);
+            fclose($pipes[1]);fclose($pipes[2]);$codes[]=proc_close($process);
+            expect($error==='','No unexpected refund error');
+        }
+        sort($codes);expect($codes===[0,3],'One refund accepted; excessive competing refund rejected');
+        $q=$pdo->query("SELECT SUM(a.amount_minor) FROM billing_adjustments a JOIN billing_payments p ON p.id=a.payment_id
+            WHERE p.provider='fixture' AND p.provider_payment_id='charge-refund-race'");
+        expect((int)$q->fetchColumn()===200,'Captured amount cannot be exceeded under concurrency');
+    });
     run('Stage11 expired paid period and failed renewal do not extend entitlement',function()use($pdo,$service,$send,$time,$ids,$plan,$base,$paid):void{
         $ref='expired-'.bin2hex(random_bytes(8));
         $service->registerPending($ids[2],'fixture',$ref,$plan);

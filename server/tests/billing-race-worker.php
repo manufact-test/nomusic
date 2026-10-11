@@ -15,6 +15,10 @@ try {
         ['signature'=>hash_hmac('sha256',$input['body'],$input['secret'])]);
     fwrite(STDOUT,"ok\n");
     exit(0);
+} catch (DomainException $error) {
+    if ($error->getMessage()==='billing_adjustment_exceeds_payment') exit(3);
+    fwrite(STDERR,$error->getMessage());
+    exit(9);
 } catch (Throwable $error) {
     fwrite(STDERR,get_class($error).': '.$error->getMessage());
     exit(9);
