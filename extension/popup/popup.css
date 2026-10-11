@@ -361,3 +361,14 @@ button:focus-visible { border-color: #66e0bf; }
 [data-benefits-panel][open] .benefits-content { animation: benefits-appear 160ms ease-out; }
 @keyframes benefits-appear { from { opacity: 0; } to { opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { [data-benefits-panel][open] .benefits-content { animation: none; } }
+/* Chromium interpolates the expanded content height instead of snapping it. */
+@supports (interpolate-size: allow-keywords) {
+  [data-benefits-panel] { interpolate-size: allow-keywords; }
+  [data-benefits-panel]::details-content {
+    block-size: 0; overflow: clip;
+    transition: block-size 180ms ease-out, content-visibility 180ms;
+    transition-behavior: allow-discrete;
+  }
+  [data-benefits-panel][open]::details-content { block-size: auto; }
+}
+@media (prefers-reduced-motion: reduce) { [data-benefits-panel]::details-content { transition: none; } }
