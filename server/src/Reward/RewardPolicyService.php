@@ -18,7 +18,7 @@ final class RewardPolicyService
         return array_map(static fn($value):int=>(int)$value,$row);
     }
 
-    public function configure(int $adminId, int $expectedVersion, array $values, string $reason): void
+    public function configure(int $adminId, int $expectedVersion, array $values, string $reason = 'Сохранение правил наград'): void
     {
         $bounds=['enabled'=>1,'upload_discount_percent'=>100,'max_discount_percent'=>100,
             'max_reward_per_month'=>10000,'validity_days'=>3660];

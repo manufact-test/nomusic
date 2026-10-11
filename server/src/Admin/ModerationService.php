@@ -27,6 +27,7 @@ final class ModerationService
         }
         $this->pdo->beginTransaction();
         try {
+            if ($action==='approve') $this->rewards?->lockPolicy();
             // The same lock order as LibraryManagementService prevents approval races.
             $find = $this->pdo->prepare('SELECT track_id FROM track_replacements WHERE id = ?');
             $find->execute([$id]);

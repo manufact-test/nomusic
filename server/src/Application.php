@@ -135,7 +135,7 @@ final class Application
                 'max_upload_size' => $this->config['max_audio_size'],
                 'allowed_audio_formats' => ['mp3', 'wav'],
                 'maintenance' => false,
-                'features' => ['replacements' => $this->config['api_enabled'], 'analytics' => $this->config['analytics_enabled'], 'auth' => (bool)($this->config['auth_enabled'] ?? false), 'entitlement' => (bool)($this->config['entitlement_enabled'] ?? false), 'billing_views'=>(bool)($this->config['billing_views_enabled'] ?? false), 'referrals'=>(bool)($this->config['referrals_enabled'] ?? false)],
+                'features' => ['replacements' => $this->config['api_enabled'], 'analytics' => $this->config['analytics_enabled'], 'auth' => (bool)($this->config['auth_enabled'] ?? false), 'entitlement' => (bool)($this->config['entitlement_enabled'] ?? false), 'billing_views'=>(bool)($this->config['billing_views_enabled'] ?? false), 'referrals'=>(bool)($this->config['referrals_enabled'] ?? false), 'rewards'=>(bool)($this->config['reward_eligibility_enabled'] ?? false)],
                 'resolve_cache_ttl_seconds' => ResolveCachePolicy::positive($this->config['resolve_cache_ttl_seconds'] ?? 120, $this->config['audio_token_ttl']),
                 'negative_cache_ttl_seconds' => ResolveCachePolicy::negative($this->config['negative_cache_ttl_seconds'] ?? 15),
             ]);

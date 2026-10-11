@@ -18,7 +18,7 @@ $pdo=Connection::open($config);$runner=new MigrationRunner($pdo,dirname(__DIR__)
 $policy=new RewardPolicyService($pdo);$originalPolicy=$policy->read();
 $catalogBefore=$pdo->query('SELECT id,status,is_active,version FROM track_replacements ORDER BY id')->fetchAll();
 $accessBefore=$pdo->query('SELECT * FROM entitlement_ledger ORDER BY id')->fetchAll();
-$storage=new LocalStorageAdapter($config['storage_path']);$reward=new RewardService($pdo);$decisions=new RewardDecisionService($pdo);
+$storage=new LocalStorageAdapter($config['storage_path']);$reward=new RewardService($pdo,false);$decisions=new RewardDecisionService($pdo);
 $admins=[];$users=[];$credits=[];$assets=[];$tracks=[];$replacements=[];$keys=[];$headers=[];$csrf=[];
 function rewardPolicyReject(callable $call,string $reason):void {
     try{$call();throw new RuntimeException('Expected '.$reason);}catch(DomainException $e){expect($e->getMessage()===$reason,'Exact rejection '.$reason);}
@@ -106,18 +106,18 @@ try {
     run('Stage12 administration is owner-only, gated, CSRF protected and escaped',function()use($config,$headers,$csrf,$policy,$admins,$b):void {
         $config['admin_enabled']=true;$config['reward_eligibility_enabled']=true;$app=new Celikom\Application($config);
         $page=$app->handle('GET','/admin',query:['tab'=>'rewards','page'=>'1 OR 1=1'],headers:$headers['owner']);
-        expect($page->status===200 && str_contains($page->body,'Правила начисления') && str_contains($page->body,'Ожидает решения'),'Real rules and contribution queue');
+        expect($page->status===200 && str_contains($page->body,'Настройки') && !str_contains($page->body,'Причина изменения'),'Real rules and contribution queue');
         expect(str_contains($page->body,'&lt;script&gt;fixture&lt;/script&gt;') && !str_contains($page->body,'<script>fixture</script>'),'Metadata escaped');
         foreach(['moderator','viewer'] as $role) {
             expect($app->handle('GET','/admin',query:['tab'=>'rewards'],headers:$headers[$role])->status===403,'No finance read for '.$role);
-            expect($app->handle('POST','/admin/rewards/action',headers:$headers[$role],body:'csrf='.$csrf[$role])->status===403,'No finance write for '.$role);
+            expect($app->handle('POST','/admin/rewards/action',headers:$headers[$role],body:'csrf='.$csrf[$role])->status===404,'No finance write for '.$role);
         }
-        expect($app->handle('POST','/admin/rewards/action',headers:$headers['owner'],body:'csrf=bad')->status===403,'CSRF required');
+        expect($app->handle('POST','/admin/rewards/action',headers:$headers['owner'],body:'csrf=bad')->status===404,'Manual route removed');
         $off=$config;$off['reward_eligibility_enabled']=false;
         expect((new Celikom\Application($off))->handle('GET','/admin',query:['tab'=>'rewards'],headers:$headers['owner'])->status===404,'No hidden gate bypass');
         $body=http_build_query(['csrf'=>$csrf['owner'],'id'=>$b,'version'=>1,'policy_version'=>$policy->read()['version'],'action'=>'approve','reason'=>'real admin form fixture']);
-        expect($app->handle('POST','/admin/rewards/action',headers:$headers['owner'],body:$body)->status===303,'Real owner POST grants credit');
-        expect($app->handle('POST','/admin/rewards/action',headers:$headers['owner'],body:$body)->status===409,'Repeat form cannot grant again');
+        expect($app->handle('POST','/admin/rewards/action',headers:$headers['owner'],body:$body)->status===404,'Manual grant removed');
+        expect($app->handle('POST','/admin/rewards/action',headers:$headers['owner'],body:$body)->status===404,'Repeat manual form cannot grant');
     });
     run('Stage12 parallel grants cannot exceed a monthly cap of one',function()use($create,$policy,$values,$admins,$decisions,$users,$reward):void {
         $race=[$create($users[2]),$create($users[2])];

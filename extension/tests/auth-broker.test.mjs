@@ -6,7 +6,7 @@ function mock() {
   const local = {};
   let secret = null;
   const calls = [];
-  let flag = true, referrals = false, nextId = 1, meMode = "ok", unverified = false;
+  let flag = true, referrals = false, rewards = false, nextId = 1, meMode = "ok", unverified = false;
   const api = {
     storage: { local: {
       get: async (key) => ({ [key]: local[key] }),
@@ -19,7 +19,10 @@ function mock() {
   const fetch = async (url, opts) => {
     const endpoint = new URL(url).pathname;
     calls.push({ endpoint, opts });
-    if (endpoint === "/api/v1/config") return response({ features: { auth: flag, referrals } });
+    if (endpoint === "/api/v1/config") return response({ features: { auth: flag, referrals, rewards } });
+    if (endpoint === "/api/v1/rewards") return response({ earned_contributions: 7, earned_discount_percent: 21,
+      available_discount_percent: 20, carried_discount_percent: 1, monthly_cap_percent: 20,
+      next_available_from: "2026-11-01", expiry_starts: "payment", application_available: false, discount_active: false });
     if (endpoint === "/api/v1/entitlement") return response({ allowed:false, source:"none",valid_until:null,reason:"trial_not_started" });
     if (endpoint === "/api/v1/referrals" || endpoint === "/api/v1/referrals/code") return response({code:endpoint.endsWith("code") ? "A".repeat(32) : null,
       registered_count:2,qualified_count:0,qualification_available:false,discount_active:false,reward_available:false,share_url:null});
@@ -50,7 +53,7 @@ function mock() {
     return response({ error: "invalid_request" }, 400);
   };
   const broker = createAuthBroker(api, { store, fetch, readConfig: async () => ({ baseUrl: "https://celikom.example" }) });
-  return { broker, local, calls, store, setFlag: (v) => { flag = v; }, setReferrals: (v) => { referrals = v; }, setMeMode: (v) => { meMode = v; }, setUnverified: (v) => { unverified = v; } };
+  return { broker, local, calls, store, setFlag: (v) => { flag = v; }, setReferrals: (v) => { referrals = v; }, setRewards: (v) => { rewards = v; }, setMeMode: (v) => { meMode = v; }, setUnverified: (v) => { unverified = v; } };
 }
 test("Stage9 identity uses stable v4 installation and no music-service identifiers", async () => {
   const fx = mock();
@@ -179,4 +182,18 @@ test("popup entitlement preview is account-scoped presentation without a network
   assert.equal(JSON.stringify(preview).includes("access_token"), false);
   await m.broker.perform("logout");
   assert.equal((await m.broker.perform("access-preview")).entitlement, null);
+});
+
+test("automatic contribution benefits use own bearer and do not need invitation feature", async () => {
+  const fx = mock();
+  await fx.broker.perform("login", { email: "a@example.org", password: "longpassword123" });
+  fx.setRewards(true);
+  const result = await fx.broker.perform("benefits");
+  assert.equal(result.ok, true); assert.equal(result.referrals_available, false); assert.equal(result.rewards_available, true);
+  assert.equal(result.rewards.earned_discount_percent, 21); assert.equal(result.rewards.carried_discount_percent, 1);
+  const call = fx.calls.find((c) => c.endpoint === "/api/v1/rewards");
+  assert.equal(call.opts.headers.Authorization, "Bearer " + "a".repeat(64));
+  assert.equal(JSON.stringify(result).includes("access_token"), false);
+  await fx.broker.perform("logout");
+  assert.equal((await fx.broker.perform("benefits")).ok, false);
 });

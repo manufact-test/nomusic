@@ -72,6 +72,8 @@ if (process.env.DB_NAME) {
   if (rewards.status !== 0) process.exit(rewards.status || 1);
   const rewardPolicy = spawnSync("php", [path.join(serverRoot, "tests", "reward-policy.php")], { stdio: "inherit" });
   if (rewardPolicy.status !== 0) process.exit(rewardPolicy.status || 1);
+  const automaticRewards = spawnSync("php", [path.join(serverRoot, "tests", "automatic-rewards.php")], { stdio: "inherit" });
+  if (automaticRewards.status !== 0) process.exit(automaticRewards.status || 1);
   const http = spawnSync(process.execPath, [path.join(serverRoot, "tests", "http.mjs")], { stdio: "inherit" });
   if (http.status !== 0) process.exit(http.status || 1);
 }

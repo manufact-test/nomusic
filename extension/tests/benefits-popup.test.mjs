@@ -5,7 +5,7 @@ import { initBenefitsPanel } from "../dist/unpacked/auth/benefits-popup.js";
 const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
 function fixture() {
   const nodes = new Map();
-  for (const key of ["access", "payment", "code", "progress", "note", "create", "copy", "share", "refresh"])
+  for (const key of ["rewards", "access", "payment", "code", "progress", "note", "create", "copy", "share", "refresh"])
     nodes.set(key, { textContent: "", hidden: false, handlers: {}, addEventListener(type, fn) { this.handlers[type] = fn; } });
   const root = { open: false, hidden: true, handlers: {},
     addEventListener(type, fn) { this.handlers[type] = fn; },
@@ -56,5 +56,21 @@ test("disabled benefits show one explanation without duplicate access or inactiv
     assert.equal(fx.nodes.get("progress").textContent, "Подписка и приглашения пока недоступны.");
     assert.equal(fx.root.hidden, true, "no empty section when all features are unavailable");
     for (const key of ["code", "note", "create", "copy", "share"]) assert.equal(fx.nodes.get(key).hidden, true);
+  } finally { globalThis.document = previous; }
+});
+
+test("automatic rewards show credited and carried percentages without promising a live payment discount", async () => {
+  const previous = globalThis.document, fx = fixture(); globalThis.document = fx.document;
+  try {
+    const panel = initBenefitsPanel(async () => ({ ok: true, referrals_available: false, referrals: null,
+      rewards_available: true, rewards: { earned_contributions: 7, earned_discount_percent: 21, available_discount_percent: 20, carried_discount_percent: 1 } }));
+    panel.signed(true); await tick();
+    assert.equal(fx.root.hidden, false); assert.equal(fx.nodes.get("progress").hidden, true);
+    assert.match(fx.nodes.get("rewards").textContent, /21%/);
+    assert.match(fx.nodes.get("rewards").textContent, /месяце: 20%/);
+    assert.match(fx.nodes.get("rewards").textContent, /следующих месяцев: 1%/);
+    assert.match(fx.nodes.get("rewards").textContent, /Срок скидки начнётся с оплаты/);
+    for (const key of ["create", "copy", "share"]) assert.equal(fx.nodes.get(key).hidden, true);
+    panel.signed(false); assert.equal(fx.nodes.get("rewards").textContent, ""); assert.equal(fx.root.hidden, true);
   } finally { globalThis.document = previous; }
 });

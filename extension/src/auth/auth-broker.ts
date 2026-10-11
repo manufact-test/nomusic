@@ -214,7 +214,16 @@ export function createAuthBroker(api, options = {}) {
                 referrals.discount_active !== false || referrals.reward_available !== false || referrals.share_url !== null)
               throw new Error("auth_unavailable");
           }
-          return { ok: true, referrals_available: available, referrals };
+          let rewards = null;
+          if (config.features?.rewards === true) {
+            rewards = await apiRequest("rewards", "GET", null, saved.access_token);
+            for (const key of ["earned_contributions", "earned_discount_percent", "available_discount_percent", "carried_discount_percent", "monthly_cap_percent"])
+              if (!Number.isSafeInteger(rewards[key]) || rewards[key] < 0) throw new Error("auth_unavailable");
+            if (rewards.available_discount_percent > 100 || rewards.monthly_cap_percent > 100 ||
+                rewards.expiry_starts !== "payment" || rewards.application_available !== false || rewards.discount_active !== false ||
+                !(rewards.next_available_from === null || /^\d{4}-\d{2}-\d{2}$/.test(rewards.next_available_from))) throw new Error("auth_unavailable");
+          }
+          return { ok: true, referrals_available: available, referrals, rewards_available: rewards !== null, rewards };
         });
       }
       if (action === "track-status") {

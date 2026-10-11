@@ -6,7 +6,7 @@ export function initBenefitsPanel(send) {
   let generation = 0, code = null, signedIn = false, busy = false, loaded = false;
   const note = (text) => { q("note").textContent = text; q("note").hidden = !text; };
   function render(data) {
-    root.hidden = !data.referrals_available;
+    root.hidden = !data.referrals_available && !data.rewards_available;
     const ref = data.referrals;
     code = ref?.code || null;
     q("code").textContent = code || "";
@@ -17,6 +17,17 @@ export function initBenefitsPanel(send) {
     q("progress").textContent = data.referrals_available
       ? "Зарегистрировались по коду: " + ref.registered_count + ". Бонусы за оплату пока недоступны."
       : "Подписка и приглашения пока недоступны.";
+    const rewards = data.rewards;
+    const rewardNode = q("rewards");
+    rewardNode.hidden = !data.rewards_available;
+    if (data.rewards_available) {
+      rewardNode.textContent = rewards.earned_contributions
+        ? "Вы получили за одобренные песни: " + rewards.earned_discount_percent + "%. Бонус для будущей оплаты в этом месяце: " + rewards.available_discount_percent + "%."
+        : "Загрузите версию песни. После одобрения бонус начислится автоматически.";
+      if (rewards.carried_discount_percent > 0) rewardNode.textContent += " Сохранено для следующих месяцев: " + rewards.carried_discount_percent + "% — бонусы не потеряются.";
+      if (rewards.earned_contributions) rewardNode.textContent += " Срок скидки начнётся с оплаты. Оплата пока недоступна.";
+    } else rewardNode.textContent = "";
+    q("progress").hidden = !data.referrals_available;
     note("");
   }
   async function load(create = false) {
@@ -47,6 +58,7 @@ export function initBenefitsPanel(send) {
   return { signed(value) {
     signedIn = value; generation++; busy = false; loaded = false; code = null;
     root.hidden = true; root.open = false;
+    q("rewards").textContent = ""; q("rewards").hidden = true;
     q("code").textContent = ""; q("code").hidden = true; note("");
     q("progress").textContent = value ? "Подписка и приглашения пока недоступны." : "";
     for (const key of ["create", "copy", "share"]) q(key).hidden = true;

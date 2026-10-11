@@ -77,39 +77,28 @@ final class AdminPanel
                 return Response::json(409,['error'=>'metadata_conflict']);
             }
         }
-        if (in_array($path,['/admin/rewards/policy','/admin/rewards/action'],true)) {
+        if ($path==='/admin/rewards/action') return Response::json(404,['error'=>'not_found']);
+        if ($path==='/admin/rewards/policy') {
             if (!$this->rewardEligibilityEnabled) return Response::json(404,['error'=>'not_found']);
             if ($admin['role']!=='owner') return Response::json(403,['error'=>'forbidden']);
             if ($method!=='POST') return Response::json(405,['error'=>'method_not_allowed']);
             $form=$this->form($headers,$body);
             if (!AdminAuth::validCsrf($admin,$form['csrf']??null)) return Response::json(403,['error'=>'csrf_failed']);
             $version=$this->positiveInt($form['version']??null);
-            if (!$version || !is_string($form['reason']??null)) return Response::json(400,['error'=>'invalid_reward_action']);
+            if (!$version) return Response::json(400,['error'=>'invalid_reward_policy']);
             try {
-                if ($path==='/admin/rewards/policy') {
-                    $values=['enabled'=>($form['enabled']??'0')==='1'?1:0];
-                    foreach(['upload_discount_percent','max_discount_percent','max_reward_per_month','validity_days'] as $key) {
-                        $value=$this->nonnegativeInt($form[$key]??null);
-                        if ($value===null) throw new \InvalidArgumentException('invalid_reward_policy');
-                        $values[$key]=$value;
-                    }
-                    (new \Celikom\Reward\RewardPolicyService($this->pdo))->configure($admin['id'],$version,$values,$form['reason']);
-                } else {
-                    $id=$this->positiveInt($form['id']??null);$policyVersion=$this->positiveInt($form['policy_version']??null);
-                    if (!$id || !$policyVersion || !is_string($form['action']??null)) throw new \InvalidArgumentException('invalid_reward_action');
-                    (new \Celikom\Reward\RewardDecisionService($this->pdo))->decide($admin['id'],$id,$version,$policyVersion,$form['action'],$form['reason']);
+                $values=['enabled'=>1,'max_reward_per_month'=>10000];
+                foreach(['upload_discount_percent','max_discount_percent','validity_days'] as $key) {
+                    $value=$this->nonnegativeInt($form[$key]??null);
+                    if ($value===null) throw new \InvalidArgumentException('invalid_reward_policy');
+                    $values[$key]=$value;
                 }
+                (new \Celikom\Reward\RewardPolicyService($this->pdo))->configure($admin['id'],$version,$values);
                 return new Response(303,['Location'=>'/admin?tab=rewards','Cache-Control'=>'no-store']);
             } catch (\InvalidArgumentException) {
-                return $this->page('<section class="panel"><h1>Проверьте правила и причину</h1><p>Укажите целые значения в пределах полей. Для начисления нужны ненулевые правила и причина решения.</p><a href="/admin?tab=rewards">Вернуться к наградам</a></section>',status:400);
-            } catch (\DomainException $error) {
-                $message=match($error->getMessage()) {
-                    'reward_monthly_limit'=>'Лимит начислений этому аккаунту за текущий месяц исчерпан.',
-                    'reward_policy_disabled'=>'Начисление наград выключено в правилах.',
-                    'reward_contribution_unavailable'=>'Версия песни или аккаунт больше не подходят для начисления.',
-                    default=>'Данные изменились. Обновите раздел и проверьте решение ещё раз.'
-                };
-                return $this->page('<section class="panel"><h1>Решение не сохранено</h1><p>'.self::e($message).'</p><a href="/admin?tab=rewards">Вернуться к наградам</a></section>',status:409);
+                return $this->page('<section class="panel"><h1>Проверьте настройки</h1><p>Укажите процент за песню, месячный предел не ниже этого процента и срок от 1 дня.</p><a href="/admin?tab=rewards">Вернуться</a></section>',status:400);
+            } catch (\DomainException) {
+                return $this->page('<section class="panel"><h1>Настройки уже изменились</h1><p>Обновите страницу и сохраните ещё раз.</p><a href="/admin?tab=rewards">Вернуться</a></section>',status:409);
             }
         }
         if ($path === '/admin/action' && $method === 'POST') {
@@ -275,7 +264,8 @@ final class AdminPanel
             'report_dismissed' => 'Жалоба отклонена',
             'audit_csv_export' => 'Журнал скачан',
             'track_metadata_labeled' => 'Подпись трека уточнена',
-            'reward_eligibility_recorded' => 'Вклад передан на рассмотрение награды',
+            'reward_eligibility_recorded' => 'Одобренный вклад учтён',
+            'reward_auto_granted' => 'Бонус за песню начислен автоматически',
             'reward_policy_changed' => 'Правила наград изменены',
             'reward_approve' => 'Скидочный бонус начислен',
             'reward_reject' => 'Награда отклонена',
@@ -417,7 +407,7 @@ final class AdminPanel
             'audit' => $this->auditLog($query),
             'overview' => $this->overview($query),
             'billing' => $this->billingOverview($query),
-            'rewards' => (new \Celikom\Reward\RewardAdminView($this->pdo))->render($admin['csrf'], $this->positiveInt($query['page']??null) ?: 1),
+            'rewards' => (new \Celikom\Reward\RewardAdminView($this->pdo))->render($admin['csrf'], $this->positiveInt($query['page']??null) ?: 1, ($query['edit']??null)==='1'),
             default => $this->uploads($admin, $csrf, $query),
         };
     }
