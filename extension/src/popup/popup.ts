@@ -2,6 +2,8 @@ import { COMMANDS, type ExtensionState } from "../shared/messages.js";
 import { uploadTargetFromStatus, validMp3Selection, privateUploadApiOrigin } from "../upload/contract.js";
 import { initAuthPanel } from "../auth/auth-popup.js";
 import { initAccessStatus } from "../auth/access-status.js";
+import { initVersionStatus } from "./version-status.js";
+import { readDisplay, writeDisplay, stableText } from "./display-cache.js";
 
 const status = document.querySelector<HTMLElement>("[data-status]");
 const startButton = document.querySelector<HTMLButtonElement>("[data-action='start']");
@@ -11,51 +13,11 @@ const diagnosticsButton = document.querySelector<HTMLButtonElement>("[data-actio
 const track = document.querySelector<HTMLElement>("[data-track]");
 const testInput = document.querySelector<HTMLInputElement>("[data-test-track]");
 let lastState: ExtensionState | null = null;
-const versionStatus = document.querySelector<HTMLElement>("[data-version-status]");
-let versionTrackId = "";
-let versionCheckedAt = 0;
-let versionRequest = 0;
-let versionLoading = false;
-
-async function refreshVersion(state: ExtensionState): Promise<void> {
-  if (!versionStatus) return;
-  const id = state.track?.id || "";
-  if (id !== versionTrackId) {
-    versionTrackId = id;
-    versionCheckedAt = 0;
-    versionLoading = false;
-    versionRequest++;
-    versionStatus.textContent = "Проверяем версию песни CELIKOM…";
-  }
-  versionStatus.hidden = !id;
-  if (!id) return;
-  if (state.phase === "REPLACEMENT_ACTIVE") {
-    versionRequest++;
-    versionLoading = false;
-    versionStatus.textContent = "Версия песни CELIKOM доступна для подмены";
-    versionCheckedAt = Date.now();
-    return;
-  }
-  if (versionLoading || (versionCheckedAt && Date.now() - versionCheckedAt < 15000)) return;
-  const requestId = ++versionRequest;
-  versionLoading = true;
-  try {
-    const result = await send<{ ok: boolean; status?: string; error?: string }>({ type: "CELIKOM_AUTH", action: "track-status", track_id: id });
-    if (requestId !== versionRequest || versionTrackId !== id) return;
-    const labels: Record<string, string> = {
-      none: "Версия песни CELIKOM ещё не загружена",
-      pending: "Версия песни CELIKOM на проверке",
-      approved: "Версия песни CELIKOM доступна для подмены"
-    };
-    versionStatus.textContent = result.ok && result.status && labels[result.status]
-      ? labels[result.status] : result.error === "invalid_session"
-        ? "Войдите, чтобы проверить версию песни CELIKOM"
-        : "Не удалось проверить версию песни CELIKOM";
-  } catch (_error) {
-    if (requestId === versionRequest) versionStatus.textContent = "Не удалось проверить версию песни CELIKOM";
-  } finally {
-    if (requestId === versionRequest) { versionLoading = false; versionCheckedAt = Date.now(); }
-  }
+const refreshVersion = initVersionStatus(send);
+const cachedTrack = readDisplay("track");
+if (/^[1-9]\d{0,23}$/.test(cachedTrack?.id || "") && typeof cachedTrack.label === "string" && cachedTrack.label.length <= 512) {
+  stableText(track, cachedTrack.label, false);
+  if (track) track.dataset.detected = "true";
 }
 
 function render(state: ExtensionState): void {
@@ -80,9 +42,11 @@ function render(state: ExtensionState): void {
   if (track) {
     const title = state.track?.metadata?.title?.trim();
     const artist = state.track?.metadata?.artist?.trim();
-    track.textContent = state.track?.id
+    const label = state.track?.id
       ? [title || `Track ID ${state.track.id}`, artist].filter(Boolean).join(" — ")
       : state.connection?.detail || (state.enabled ? "Запустите трек в Яндекс Музыке" : "CELIKOM остановлен");
+    stableText(track, label);
+    writeDisplay("track", state.track?.id ? { id: state.track.id, label: label.slice(0, 512) } : null);
     track.dataset.detected = String(Boolean(state.track?.id));
     track.title = state.track?.id
       ? `Track ID ${state.track.id} · confidence ${state.track.confidence}`

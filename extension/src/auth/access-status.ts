@@ -1,3 +1,4 @@
+import { readDisplay, writeDisplay, stableText } from "../popup/display-cache.js";
 export function accessLabel(access) {
   if (!access) return "";
   if (access.allowed && access.valid_until && Date.parse(access.valid_until) > Date.now()) {
@@ -13,8 +14,12 @@ export function accessLabel(access) {
 // Preview is presentation only. Start/audio still require a live server decision.
 export function initAccessStatus(send) {
   const label = document.querySelector("[data-access-status]");
-  let confirmed = false, latest = null, busy = false, generation = 0;
-  const text = (value) => { if (label && label.textContent !== value) label.textContent = value; };
+  const cached = readDisplay("access");
+  const valid = (a) => typeof a?.allowed === "boolean" && typeof a.reason === "string"
+    && typeof a.source === "string" && (a.valid_until === null || Number.isFinite(Date.parse(a.valid_until)));
+  let confirmed = false, latest = valid(cached?.access) ? cached.access : null, busy = false, generation = 0;
+  const text = (value) => stableText(label, value);
+  stableText(label, latest ? accessLabel(latest) : cached?.signedOut ? "Войдите в аккаунт, чтобы начать" : "Загрузка доступа…", false);
   void send({ type: "CELIKOM_AUTH", action: "access-preview" }).then((result) => {
     if (!confirmed && result?.entitlement) { latest = result.entitlement; text(accessLabel(latest)); }
   }).catch(() => {});
@@ -26,9 +31,9 @@ export function initAccessStatus(send) {
       const result = await send({ type: "CELIKOM_AUTH", action: "entitlement" });
       if (current !== generation) return;
       if (result?.ok && result.entitlement) {
-        confirmed = true; latest = result.entitlement; text(accessLabel(latest)); label.title = "";
-      } else if (["invalid_session", "auth_disabled"].includes(result?.error)) {
-        confirmed = true; latest = null; text("Войдите в аккаунт, чтобы начать");
+        confirmed = true; latest = result.entitlement; writeDisplay("access", { access: latest }); text(accessLabel(latest)); label.title = "";
+      } else if (result?.error === "invalid_session") {
+        confirmed = true; latest = null; writeDisplay("access", { signedOut: true }); text("Войдите в аккаунт, чтобы начать");
       } else if (!latest) text("Нет связи. Оригинальная музыка доступна.");
       else label.title = "Нет связи. Показан последний полученный срок; доступ проверяется сервером.";
     } catch (_) { if (current === generation && !latest) text("Нет связи. Оригинальная музыка доступна."); }
@@ -36,7 +41,7 @@ export function initAccessStatus(send) {
   }
   document.addEventListener?.("celikom-account-logout", () => {
     generation++; busy = false; confirmed = true; latest = null;
-    text("Войдите в аккаунт, чтобы начать");
+    writeDisplay("access", { signedOut: true }); text("Войдите в аккаунт, чтобы начать");
   });
   document.addEventListener?.("celikom-account-login", () => { generation++; busy = false; void refreshAccess(); });
   return refreshAccess;
