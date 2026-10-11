@@ -89,6 +89,7 @@ class MainActivity : ComponentActivity() {
                         }
                         if(accountOpen){
                             Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal=20.dp,vertical=12.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
+                                if(signedIn)Text(account.email,style=MaterialTheme.typography.titleMedium)
                                 Text(accountState)
                                 if(!signedIn){
                                     OutlinedTextField(email,{email=it},Modifier.fillMaxWidth(),label={Text("Почта")},singleLine=true,keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Email))

@@ -22,6 +22,7 @@ class MobileAccount(context: Context):PlaybackAccount {
     }
     private var session: JSONObject? = restore()
     val signedIn: Boolean get() = session != null
+    val email:String get()=session?.optJSONObject("user")?.optString("email")?:""
     var verificationEmail:String?=null; private set
     private fun key(): SecretKey {
         val store = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
@@ -82,7 +83,7 @@ class MobileAccount(context: Context):PlaybackAccount {
                     "invalid_code"->"Неверный или истёкший код из письма"
                     "account_disabled"->"Аккаунт заблокирован"
                     "invalid_promo","promo_unavailable"->"Промокод недоступен или уже использован"
-                    "promo_payment_pending"->"Скидка сохранена для будущей оплаты"
+                    "promo_payment_pending"->"Промокоды со скидкой станут доступны после подключения оплаты"
                     "promo_lifetime_active"->"У вас уже есть бессрочный доступ"
                     "email_unavailable"->"Отправка писем временно недоступна"
                     else->if(status==429) "Слишком много запросов. Попробуйте позже" else "Запрос не выполнен ($status)"
