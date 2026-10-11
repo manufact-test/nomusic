@@ -1,6 +1,14 @@
 package pro.celikom.spike
 
 import android.os.Bundle
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
+import android.media.AudioManager
+import androidx.core.content.ContextCompat
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.ui.graphics.Color
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.compose.BackHandler
@@ -23,6 +31,8 @@ class MainActivity : ComponentActivity() {
     private lateinit var surface:MobileSurface
     private lateinit var playback:MobilePlayback
     private var playbackState by mutableStateOf("Звучит оригинал")
+    private val noisy=object:BroadcastReceiver(){override fun onReceive(context:Context,intent:Intent){if(::playback.isInitialized)playback.stop("Наушники отключены — подмена остановлена")}}
+    private var noisyRegistered=false
     override fun onCreate(savedInstanceState:Bundle?){
         super.onCreate(savedInstanceState)
         val account=MobileAccount(this)
@@ -42,6 +52,8 @@ class MainActivity : ComponentActivity() {
                 var verification by remember{mutableStateOf(false)}
                 var recovery by remember{mutableStateOf(false)}
                 var emailCode by remember{mutableStateOf("")}
+                var incident by remember{mutableStateOf(false)}
+                var desktop by remember{mutableStateOf(false)}
                 val scope=rememberCoroutineScope()
                 fun task(work:suspend ()->String){
                     if(busy)return
@@ -52,6 +64,18 @@ class MainActivity : ComponentActivity() {
                     }
                 }
                 LaunchedEffect(Unit){if(signedIn)task{formatAccess(account.entitlement())}}
+                LaunchedEffect(Unit){
+                    while(true){
+                        runCatching{withContext(Dispatchers.IO){account.request("/api/v1/config",authenticated=false)}}.getOrNull()?.optJSONObject("incident")?.let {
+                            if(it.optString("service")=="yandex"&&it.has("active")){
+                                val active=it.getBoolean("active")
+                                if(active&&!incident)playback.stop("Подмена временно приостановлена")
+                                incident=active
+                            }
+                        }
+                        delay(10000)
+                    }
+                }
                 BackHandler(enabled=accountOpen||(!surface.closed&&surface.view.canGoBack())) {
                     if(accountOpen)accountOpen=false else {playback.stop();surface.view.goBack()}
                 }
@@ -99,11 +123,21 @@ class MainActivity : ComponentActivity() {
                                 Text("Android PoC 0.2.0 • даты по московскому времени",style=MaterialTheme.typography.bodySmall)
                             }
                         }else{
-                            Text(playbackState,Modifier.padding(horizontal=16.dp,vertical=4.dp))
-                            Row(Modifier.fillMaxWidth().padding(horizontal=16.dp,vertical=8.dp),horizontalArrangement=Arrangement.spacedBy(12.dp)) {
-                                Button(enabled=signedIn&&!busy,onClick={playback.start()}){Text("Подмена")}
-                                OutlinedButton(onClick={playback.stop()}){Text("Оригинал")}
+                            if(incident){
+                                Surface(Modifier.fillMaxWidth().padding(12.dp),border=BorderStroke(1.dp,Color(0xFFDC4444)),shape=MaterialTheme.shapes.medium){
+                                    Column(Modifier.padding(12.dp),verticalArrangement=Arrangement.spacedBy(6.dp)){
+                                        Text("Подмена временно приостановлена")
+                                        Text("Восстанавливаем интеграцию. Время действующего доступа заморожено. Аккаунт доступен.")
+                                    }
+                                }
+                            }else{
+                                Text(playbackState,Modifier.padding(horizontal=16.dp,vertical=4.dp))
+                                Row(Modifier.fillMaxWidth().padding(horizontal=16.dp,vertical=8.dp),horizontalArrangement=Arrangement.spacedBy(12.dp)) {
+                                    Button(enabled=signedIn&&!busy,onClick={playback.start()}){Text("Подмена")}
+                                    OutlinedButton(onClick={playback.stop()}){Text("Оригинал")}
+                                }
                             }
+                            TextButton(onClick={desktop=!desktop;surface.desktopMode(desktop)}){Text(if(desktop) "Вид сайта: компьютер" else "Вид сайта: мобильный")}
                             AndroidView(factory={surface.view},modifier=Modifier.weight(1f).fillMaxWidth())
                         }
                     }
@@ -112,8 +146,10 @@ class MainActivity : ComponentActivity() {
         }
         surface.open()
     }
-    override fun onStart(){super.onStart();if(::surface.isInitialized)surface.resume()}
-    override fun onStop(){if(::playback.isInitialized)playback.stop("Приложение в фоне — подмена остановлена");if(::surface.isInitialized)surface.suspend();super.onStop()}
+    override fun onStart(){super.onStart();if(::surface.isInitialized)surface.resume()
+        if(!noisyRegistered){ContextCompat.registerReceiver(this,noisy,IntentFilter(AudioManager.ACTION_AUDIO_BECOMING_NOISY),ContextCompat.RECEIVER_NOT_EXPORTED);noisyRegistered=true}
+    }
+    override fun onStop(){if(noisyRegistered){unregisterReceiver(noisy);noisyRegistered=false};if(::playback.isInitialized)playback.stop("Приложение в фоне — подмена остановлена");if(::surface.isInitialized)surface.suspend();super.onStop()}
     override fun onDestroy(){if(::playback.isInitialized)playback.close();if(::surface.isInitialized)surface.close();super.onDestroy()}
     companion object {
         fun formatAccess(e:JSONObject):String {

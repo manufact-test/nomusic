@@ -116,7 +116,7 @@ class MobilePlayback(private val account:MobileAccount,private val surface:Mobil
                     }
                     p.seekTo(target,MediaPlayer.SEEK_CLOSEST)
                 }
-                p.setDataSource(grant.url,mapOf("android-allow-cross-domain-redirect" to "0"));p.prepareAsync()
+                p.setDataSource(surface.view.context,android.net.Uri.parse(grant.url),mapOf("android-allow-cross-domain-redirect" to "0"));p.prepareAsync()
                 scope.launch{delay(12000);if(generation==epoch&&preparing)fail("Тайм-аут загрузки — звучит оригинал")}
             }catch(e:Exception){if(generation==epoch)fail(e.message?.takeIf{it.length<120}?:"Сбой связи — звучит оригинал")}
         }

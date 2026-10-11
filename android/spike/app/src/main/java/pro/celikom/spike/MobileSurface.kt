@@ -18,6 +18,7 @@ class MobileSurface(context:Context,private val changed:(String)->Unit,private v
             javaScriptEnabled=true; domStorageEnabled=true; allowFileAccess=false; allowContentAccess=false
             mixedContentMode=WebSettings.MIXED_CONTENT_NEVER_ALLOW; safeBrowsingEnabled=true
             mediaPlaybackRequiresUserGesture=true; setSupportMultipleWindows(false)
+            useWideViewPort=true;loadWithOverviewMode=true;builtInZoomControls=true;displayZoomControls=false
         }
         if(!WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)||!WebViewFeature.isFeatureSupported(WebViewFeature.WEB_MESSAGE_LISTENER)) {
             changed("Обновите Android System WebView: нет поддержки безопасного адаптера"); return
@@ -61,6 +62,13 @@ class MobileSurface(context:Context,private val changed:(String)->Unit,private v
         if(!closed&&SurfaceOrigin.allowed(view.url?:"")) view.evaluateJavascript("window.__CELIKOM_MOBILE__?.release(${token?.let{JSONObject.quote(it)}?:"null"})",null)
     }
     fun suspend() { release(); if(!closed){ view.evaluateJavascript("document.querySelectorAll('audio,video').forEach(e=>e.pause())",null);view.onPause() } }
+    fun desktopMode(enabled:Boolean){
+        if(closed||!SurfaceOrigin.allowed(view.url?:""))return
+        leaving()
+        val normal=WebSettings.getDefaultUserAgent(view.context)
+        view.settings.userAgentString=if(enabled)normal.replace(Regex("\\(Linux; Android.*?\\)"),"(X11; Linux x86_64)").replace(" Mobile "," ") else normal
+        view.reload()
+    }
     fun resume(){if(!closed)view.onResume()}
     fun close(){if(closed)return;release();closed=true;(view.parent as? android.view.ViewGroup)?.removeView(view);view.stopLoading();view.destroy()}
     companion object {

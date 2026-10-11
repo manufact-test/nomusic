@@ -40,13 +40,13 @@ class MobileAccount(context: Context) {
         JSONObject(String(cipher.doFinal(bytes.copyOfRange(12, bytes.size)), Charsets.UTF_8))
     }.getOrNull()
     private fun save(value: JSONObject?) {
-        session = value
-        if (value == null) { prefs.edit().remove("session").commit(); return }
+        if (value == null) { session=null; prefs.edit().remove("session").commit(); return }
         require(value.optString("access_token").matches(Regex("[0-9a-f]{64}")))
         require(value.optString("refresh_token").matches(Regex("[0-9a-f]{64}")))
         val cipher = Cipher.getInstance("AES/GCM/NoPadding"); cipher.init(Cipher.ENCRYPT_MODE, key())
         val data = cipher.iv + cipher.doFinal(value.toString().toByteArray(Charsets.UTF_8))
         check(prefs.edit().putString("session", Base64.encodeToString(data, Base64.NO_WRAP)).commit())
+        session=value
     }
     @Synchronized fun request(path: String, body: JSONObject? = null, authenticated: Boolean = true, retry: Boolean = true): JSONObject {
         require(path.startsWith("/api/v1/"))
