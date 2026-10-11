@@ -7,7 +7,8 @@ import org.json.JSONObject
 import kotlin.math.abs
 
 /** Native replacement follows exact WebView master; guard expires without native heartbeats. */
-class MobilePlayback(private val account:MobileAccount,private val surface:MobileSurface,private val state:(String)->Unit) {
+class MobilePlayback(private val account:PlaybackAccount,private val surface:PlaybackSurface,private val state:(String)->Unit,
+    private val loadAudio:(MediaPlayer,AudioGrant)->Unit={p,g->p.setDataSource(surface.context,android.net.Uri.parse(g.url),mapOf("android-allow-cross-domain-redirect" to "0"))}) {
     private val scope=CoroutineScope(SupervisorJob()+Dispatchers.Main.immediate)
     private var player:MediaPlayer?=null
     private var epoch=0L
@@ -26,7 +27,7 @@ class MobilePlayback(private val account:MobileAccount,private val surface:Mobil
     init { scope.launch { while(isActive){delay(250);tick()} } }
     fun start(){stop();enabled=true;state("Проверяем доступ и текущий трек…")}
     fun stop(message:String="Звучит оригинал") {
-        enabled=false;epoch++;preparing=false;latest=null
+        enabled=false;epoch++;preparing=false;polling=false;latest=null
         val old=token;token="";boundTrack="";boundMedia="";expiry=0;accessUntil=0;nextAttempt=0
         player?.let { runCatching{it.setVolume(0f,0f)};runCatching{it.release()} };player=null
         surface.release(old.ifEmpty{null});state(message)
@@ -43,8 +44,9 @@ class MobilePlayback(private val account:MobileAccount,private val surface:Mobil
         if(polling){if(System.currentTimeMillis()-pollAt>1200)fail("Нет ответа плеера — звучит оригинал");return}
         polling=true;pollAt=System.currentTimeMillis();val generation=epoch
         surface.snapshot { s ->
+            if(generation!=epoch)return@snapshot
             polling=false
-            if(!enabled||generation!=epoch)return@snapshot
+            if(!enabled)return@snapshot
             latest=s
             if(s==null||!s.optBoolean("valid")) { if(player!=null||preparing)fail("Плеер изменился — возвращён оригинал") else state("Включите трек в Яндекс Музыке");return@snapshot }
             if(s.optBoolean("paused")||s.optBoolean("seeking")) {
@@ -116,7 +118,7 @@ class MobilePlayback(private val account:MobileAccount,private val surface:Mobil
                     }
                     p.seekTo(target,MediaPlayer.SEEK_CLOSEST)
                 }
-                p.setDataSource(surface.view.context,android.net.Uri.parse(grant.url),mapOf("android-allow-cross-domain-redirect" to "0"));p.prepareAsync()
+                loadAudio(p,grant);p.prepareAsync()
                 scope.launch{delay(12000);if(generation==epoch&&preparing)fail("Тайм-аут загрузки — звучит оригинал")}
             }catch(e:Exception){if(generation==epoch)fail(e.message?.takeIf{it.length<120}?:"Сбой связи — звучит оригинал")}
         }
@@ -135,5 +137,8 @@ class MobilePlayback(private val account:MobileAccount,private val surface:Mobil
             }catch(_:Exception){if(epoch==generation)fail("Не удалось проверить доступ — звучит оригинал");return@launch}
         }
     }}
+    fun diagnostic():JSONObject=JSONObject().put("enabled",enabled).put("preparing",preparing)
+        .put("playing",runCatching{player?.isPlaying?:false}.getOrDefault(false))
+        .put("positionMs",runCatching{player?.currentPosition?:0}.getOrDefault(0)).put("trackId",boundTrack)
     fun close(){stop();scope.cancel()}
 }

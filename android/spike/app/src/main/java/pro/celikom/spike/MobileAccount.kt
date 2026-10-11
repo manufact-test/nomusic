@@ -15,7 +15,7 @@ import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
 
 /** Credentials stay in native storage; no bearer/refresh token goes to Yandex. */
-class MobileAccount(context: Context) {
+class MobileAccount(context: Context):PlaybackAccount {
     private val prefs = context.getSharedPreferences("celikom-account", Context.MODE_PRIVATE)
     private val installation = prefs.getString("installation", null) ?: UUID.randomUUID().toString().also {
         prefs.edit().putString("installation", it).commit()
@@ -48,7 +48,7 @@ class MobileAccount(context: Context) {
         check(prefs.edit().putString("session", Base64.encodeToString(data, Base64.NO_WRAP)).commit())
         session=value
     }
-    @Synchronized fun request(path: String, body: JSONObject? = null, authenticated: Boolean = true, retry: Boolean = true): JSONObject {
+    @Synchronized override fun request(path: String, body: JSONObject?, authenticated: Boolean, retry: Boolean): JSONObject {
         require(path.startsWith("/api/v1/"))
         val c = URI(ORIGIN + path).toURL().openConnection() as HttpURLConnection
         try {
@@ -113,7 +113,7 @@ class MobileAccount(context: Context) {
     @Synchronized fun resetPassword(email:String,code:String,password:String){
         request("/api/v1/auth/reset-password",JSONObject().put("email",email.trim()).put("code",code.trim()).put("new_password",password),false)
     }
-    @Synchronized fun entitlement(activate:Boolean=false):JSONObject = if(activate)
+    @Synchronized override fun entitlement(activate:Boolean):JSONObject = if(activate)
         request("/api/v1/auth/activate",JSONObject()).getJSONObject("entitlement") else request("/api/v1/entitlement")
     @Synchronized fun redeem(code:String):JSONObject {
         require(code.trim().matches(Regex("[A-Za-z0-9_-]{8,64}"))) { "Проверьте текст промокода" }

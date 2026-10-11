@@ -10,7 +10,7 @@ import org.json.JSONTokener
 import java.net.URI
 
 /** No JavascriptInterface; native tokens are never exposed to remote documents. */
-class MobileSurface(context:Context,private val changed:(String)->Unit,private val leaving:()->Unit,private val released:(String)->Unit) {
+class MobileSurface(override val context:Context,private val changed:(String)->Unit,private val leaving:()->Unit,private val released:(String)->Unit):PlaybackSurface {
     val view=WebView(context)
     var closed=false; private set
     @SuppressLint("SetJavaScriptEnabled") fun open() {
@@ -48,17 +48,17 @@ class MobileSurface(context:Context,private val changed:(String)->Unit,private v
         }
         view.loadUrl("https://music.yandex.ru/")
     }
-    fun snapshot(callback:(JSONObject?)->Unit) {
+    override fun snapshot(callback:(JSONObject?)->Unit) {
         if(closed||!SurfaceOrigin.allowed(view.url?:"")){callback(null);return}
         view.evaluateJavascript("window.__CELIKOM_MOBILE__?.snapshot() || null") { raw ->
             callback(runCatching { require(raw.length<=8192);JSONObject(JSONTokener(raw).nextValue() as String) }.getOrNull())
         }
     }
-    fun engage(track:String,media:String,token:String,callback:(Boolean)->Unit) {
+    override fun engage(track:String,media:String,token:String,callback:(Boolean)->Unit) {
         if(closed||!SurfaceOrigin.allowed(view.url?:"")){callback(false);return}
         view.evaluateJavascript("window.__CELIKOM_MOBILE__?.engage(${JSONObject.quote(track)},${JSONObject.quote(media)},${JSONObject.quote(token)}) === true") {callback(it=="true")}
     }
-    fun release(token:String?=null) {
+    override fun release(token:String?) {
         if(!closed&&SurfaceOrigin.allowed(view.url?:"")) view.evaluateJavascript("window.__CELIKOM_MOBILE__?.release(${token?.let{JSONObject.quote(it)}?:"null"})",null)
     }
     fun suspend() { release(); if(!closed){ view.evaluateJavascript("document.querySelectorAll('audio,video').forEach(e=>e.pause())",null);view.onPause() } }
