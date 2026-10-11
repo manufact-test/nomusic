@@ -6,7 +6,8 @@ export function initBenefitsPanel(send) {
   let generation = 0, code = null, signedIn = false, busy = false, loaded = false;
   const note = (text) => { q("note").textContent = text; q("note").hidden = !text; };
   function render(data) {
-    root.hidden = !data.referrals_available && !data.rewards_available;
+    const showRewards = Boolean(data.rewards_available && (data.rewards?.issuance_enabled || data.rewards?.earned_contributions));
+    root.hidden = !data.referrals_available && !showRewards;
     const ref = data.referrals;
     code = ref?.code || null;
     q("code").textContent = code || "";
@@ -19,8 +20,8 @@ export function initBenefitsPanel(send) {
       : "Подписка и приглашения пока недоступны.";
     const rewards = data.rewards;
     const rewardNode = q("rewards");
-    rewardNode.hidden = !data.rewards_available;
-    if (data.rewards_available) {
+    rewardNode.hidden = !showRewards;
+    if (showRewards) {
       rewardNode.textContent = rewards.earned_contributions
         ? "Вы получили за одобренные песни: " + rewards.earned_discount_percent + "%. Бонус для будущей оплаты в этом месяце: " + rewards.available_discount_percent + "%."
         : "Загрузите версию песни. После одобрения бонус начислится автоматически.";

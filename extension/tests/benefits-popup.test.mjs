@@ -74,3 +74,13 @@ test("automatic rewards show credited and carried percentages without promising 
     panel.signed(false); assert.equal(fx.nodes.get("rewards").textContent, ""); assert.equal(fx.root.hidden, true);
   } finally { globalThis.document = previous; }
 });
+
+test("unconfigured automatic rewards do not show another empty account section", async () => {
+  const previous = globalThis.document, fx = fixture(); globalThis.document = fx.document;
+  try {
+    const panel = initBenefitsPanel(async () => ({ ok: true, referrals_available: false, rewards_available: true,
+      rewards: { issuance_enabled: false, earned_contributions: 0, earned_discount_percent: 0, available_discount_percent: 0, carried_discount_percent: 0 } }));
+    panel.signed(true); await tick();
+    assert.equal(fx.root.hidden, true); assert.equal(fx.nodes.get("rewards").hidden, true);
+  } finally { globalThis.document = previous; }
+});
