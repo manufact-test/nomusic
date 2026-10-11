@@ -46,11 +46,14 @@ jobs:
           disable-animations: true
           script: |
             cd android/spike && gradle --no-daemon :app:connectedDebugAndroidTest
-            adb pull /sdcard/Android/data/pro.celikom.spike/files/surface-report.json /tmp/celikom-surface-report.json
+            adb pull /sdcard/Download/celikom-surface-report.json /tmp/celikom-surface-report.json
+            adb pull /sdcard/Download/celikom-surface.png /tmp/celikom-surface.png
             cat /tmp/celikom-surface-report.json
       - name: Encrypt diagnostic APK for closed delivery
         run: |
           openssl cms -encrypt -aes-256-gcm -binary -outform DER -in android/spike/app/build/outputs/apk/debug/app-debug.apk -out android/spike/app/build/outputs/apk/debug/app-debug.apk.cms android/spike/diagnostic-recipient.crt
+          openssl cms -encrypt -aes-256-gcm -binary -outform DER -in /tmp/celikom-surface.png -out android/spike/app/build/outputs/apk/debug/surface.png.cms android/spike/diagnostic-recipient.crt
+          openssl cms -encrypt -aes-256-gcm -binary -outform DER -in /tmp/celikom-surface-report.json -out android/spike/app/build/outputs/apk/debug/surface-report.json.cms android/spike/diagnostic-recipient.crt
       - name: Encrypted-only diagnostic APK
         uses: actions/upload-artifact@v4
         with:

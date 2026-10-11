@@ -13,6 +13,11 @@ import java.util.concurrent.TimeUnit
 import org.json.JSONObject
 import android.os.SystemClock
 import android.view.MotionEvent
+import android.content.ContentValues
+import android.os.Build
+import android.os.Environment
+import android.provider.MediaStore
+import android.graphics.Bitmap
 
 @RunWith(AndroidJUnit4::class)
 class YandexSurfaceProbeTest {
@@ -46,7 +51,21 @@ class YandexSurfaceProbeTest {
                 assertFalse("Passive probe never claims playback", report.getBoolean("playback_confirmed"))
                 val context = InstrumentationRegistry.getInstrumentation().targetContext
                 report.put("explicit_play_control_tapped",point!=null)
-                File(context.getExternalFilesDir(null), "surface-report.json").writeText(report.toString())
+                check(Build.VERSION.SDK_INT >= 29) // CI probe targets API 35.
+                fun output(name: String, mime: String, write: (java.io.OutputStream) -> Unit) {
+                    val values=ContentValues().apply {
+                        put(MediaStore.MediaColumns.DISPLAY_NAME,name)
+                        put(MediaStore.MediaColumns.MIME_TYPE,mime)
+                        put(MediaStore.MediaColumns.RELATIVE_PATH,Environment.DIRECTORY_DOWNLOADS)
+                    }
+                    val uri=checkNotNull(context.contentResolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI,values))
+                    checkNotNull(context.contentResolver.openOutputStream(uri)).use(write)
+                }
+                output("celikom-surface-report.json","application/json") { it.write(report.toString().toByteArray()) }
+                val screenshot=InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot()
+                checkNotNull(screenshot)
+                output("celikom-surface.png","image/png") { screenshot.compress(Bitmap.CompressFormat.PNG,100,it) }
+                screenshot.recycle()
             } finally { scenario.onActivity { probe.close() } }
         }
     }
