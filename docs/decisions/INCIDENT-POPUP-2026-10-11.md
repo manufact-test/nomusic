@@ -19,3 +19,9 @@
 Проверки: anonymous/stopped/no-tab; активный сбой и его завершение; сохранение последнего подтверждённого при network failure; malformed/other service не объявляет сбой; reopening cache; native Chromium реальный красный border, исчезновение музыкальных кнопок, доступный аккаунт и автоматический возврат без клика Start. Владелец не должен объявлять реальный outage ради проверки UI.
 
 Полный клиент, не отдельный UI patch. PR #6 OPEN/unmerged, Issue #7 OPEN. Первопричина исходного Yandex stall не доказана; 11/12 и коммерческие зависимости 13 остаются частичными.
+
+## Проверенный релиз
+
+[CI 38152299457 PASS](https://github.com/manufact-test/nomusic/actions/runs/38152299457): 168/168 клиентских тестов, native Chromium 340/560 px, серверные PHP/MySQL проверки. [Configured client build 38152296098 PASS](https://github.com/manufact-test/nomusic/actions/runs/38152296098). Ручная приёмка нового экрана владельцем ожидается.
+
+Полный настроенный клиент CELIKOM-0.4.24-full.zip, 2439236 bytes; SHA256 `c747e11f266c180ea4153aeeb9f35905d8a1e06d46876eb03019f1a4c1bff9d3`. API origin прежний. После замены папки расширения: Reload в Chrome и обновление вкладки Яндекс Музыки.
