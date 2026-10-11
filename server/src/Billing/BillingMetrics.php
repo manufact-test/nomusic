@@ -13,12 +13,12 @@ final class BillingMetrics
 
     public function forPeriod(string $from, string $to): array
     {
-        $start=\DateTimeImmutable::createFromFormat('!Y-m-d',$from,new \DateTimeZone('UTC'));
-        $end=\DateTimeImmutable::createFromFormat('!Y-m-d',$to,new \DateTimeZone('UTC'));
+        $start=\DateTimeImmutable::createFromFormat('!Y-m-d',$from,new \DateTimeZone('Europe/Moscow'));
+        $end=\DateTimeImmutable::createFromFormat('!Y-m-d',$to,new \DateTimeZone('Europe/Moscow'));
         if (!$start || !$end || $start->format('Y-m-d')!==$from || $end->format('Y-m-d')!==$to
             || $end<$start || $start->diff($end)->days>366) throw new \InvalidArgumentException('invalid_billing_dates');
-        $right=$end->modify('+1 day')->format('Y-m-d H:i:s');
-        $left=$start->format('Y-m-d H:i:s');
+        $right=\Celikom\Support\MoscowTime::utc($end->modify('+1 day'));
+        $left=\Celikom\Support\MoscowTime::utc($start);
         $q=$this->pdo->prepare("SELECT currency,SUM(gross_minor) AS gross_minor,
             SUM(refund_minor) AS refund_minor,SUM(chargeback_minor) AS chargeback_minor,
             SUM(payment_count) AS payment_count,SUM(first_count) AS first_count FROM (
@@ -41,7 +41,7 @@ final class BillingMetrics
             $row['renewal_count']=$row['payment_count']-$row['first_count'];
             $currencies[]=$row;
         }
-        return ['from'=>$from,'to'=>$to,'timezone'=>'UTC','currencies'=>$currencies,
+        return ['from'=>$from,'to'=>$to,'timezone'=>'Europe/Moscow','currencies'=>$currencies,
             'fees_available'=>false,'net_revenue_available'=>false];
     }
 }

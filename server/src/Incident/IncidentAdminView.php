@@ -22,9 +22,9 @@ final class IncidentAdminView
             FROM service_incidents i WHERE service='yandex' ORDER BY (ended_at IS NULL) DESC,id DESC LIMIT 100")->fetchAll(PDO::FETCH_ASSOC);
         if (!$rows) return $html.'<section class="panel"><p>Объявленных сбоев пока нет.</p></section>';
         foreach ($rows as $r) {
-            $html.='<section class="panel"><h2>Сбой №'.(int)$r['id'].' · '.($r['ended_at']===null?'Идёт':'Завершён').'</h2><p>'.self::e($r['reason']).'</p><p>Начало UTC: '.self::e($r['started_at']).'</p>';
+            $html.='<section class="panel"><h2>Сбой №'.(int)$r['id'].' · '.($r['ended_at']===null?'Идёт':'Завершён').'</h2><p>'.self::e($r['reason']).'</p><p>Начало (Москва): '.self::e(\Celikom\Support\MoscowTime::display($r['started_at'])).'</p>';
             if ($r['ended_at']===null) $html.='<form class="incident-actions" method="post" action="/admin/incidents/resolve">'.$token.'<input type="hidden" name="id" value="'.(int)$r['id'].'"><button type="submit" class="primary">Завершить и компенсировать время</button></form>';
-            else $html.='<p>Окончание UTC: '.self::e($r['ended_at']).'</p><p>Учтено сроков доступа: '.(int)$r['grants'].'. Суммарная компенсация: '.self::e(number_format((int)$r['compensated']/1000000,6,'.',' ')).' сек.</p>';
+            else $html.='<p>Окончание (Москва): '.self::e(\Celikom\Support\MoscowTime::display($r['ended_at'])).'</p><p>Учтено сроков доступа: '.(int)$r['grants'].'. Суммарная компенсация: '.self::e(number_format((int)$r['compensated']/1000000,6,'.',' ')).' сек.</p>';
             $html.='</section>';
         }
         return $html;

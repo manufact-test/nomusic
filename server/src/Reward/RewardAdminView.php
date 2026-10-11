@@ -27,7 +27,7 @@ final class RewardAdminView
         }
         if($editing) $html.='<button class="btn" type="submit">Сохранить</button></form>';
         else $html.='<a class="btn" href="/admin?tab=rewards&amp;edit=1">Изменить</a>';
-        $html.='<p><small>Предел считается за календарный месяц UTC. Перенесённые бонусы ждут своей очереди и не сгорают до оплаты. '
+        $html.='<p><small>Предел считается за календарный месяц по московскому времени. Перенесённые бонусы ждут своей очереди и не сгорают до оплаты. '
             .'Сохранённые настройки действуют для новых одобрений. Платежи пока не подключены.</small></p></section>';
         $count=(int)$this->pdo->query('SELECT COUNT(DISTINCT user_id) FROM reward_ledger')->fetchColumn();
         $pages=max(1,(int)ceil($count/25));$page=min(max(1,$page),$pages);$offset=($page-1)*25;
@@ -74,7 +74,7 @@ final class RewardAdminView
             $html.='<p>Начислено автоматически: <strong>'.(int)$row['discount_percent'].'%</strong></p>';
             foreach($q->fetchAll(PDO::FETCH_ASSOC) as $part) $html.='<p>'.self::e(substr($part['available_from'],0,7)).': '.(int)$part['discount_percent'].'% · '
                 .(int)$part['validity_days'].' дней после оплаты</p>';
-        } elseif($row['granted_at']!==null) $html.='<p>Ранее начисленный бонус: '.(int)$row['discount_percent'].'% · до '.self::e($row['expires_at']).' UTC</p>';
+        } elseif($row['granted_at']!==null) $html.='<p>Ранее начисленный бонус: '.(int)$row['discount_percent'].'% · до '.self::e(\Celikom\Support\MoscowTime::display($row['expires_at'])).' (Москва)</p>';
         return $html.'</article>';
     }
 }

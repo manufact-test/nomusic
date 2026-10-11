@@ -367,12 +367,24 @@ final class AdminPanel
     {
         $css = file_get_contents(__DIR__ . '/admin-style.css');
         if ($css === false) throw new \RuntimeException('admin_style_not_found');
-        $script='';$scriptPolicy='';
+        $script='';$scriptPolicy='';$sources=[];
         if(str_contains($inner,'data-reward-account="')) {
             $source=file_get_contents(dirname(__DIR__).'/Reward/reward-disclosure.js');
             if($source===false) throw new \RuntimeException('reward_script_not_found');
-            $script='<script>'.$source.'</script>';
-            $scriptPolicy=" script-src 'sha256-".base64_encode(hash('sha256',$source,true))."'; connect-src 'self';";
+            $sources[]=$source;
+        }
+        if(str_contains($inner,'data-promo-create')) {
+            $source=file_get_contents(dirname(__DIR__).'/Promo/promo-form.js');
+            if($source===false) throw new \RuntimeException('promo_script_not_found');
+            $sources[]=$source;
+        }
+        if($sources) {
+            $hashes=[];
+            foreach($sources as $source) {
+                $script.='<script>'.$source.'</script>';
+                $hashes[]="'sha256-".base64_encode(hash('sha256',$source,true))."'";
+            }
+            $scriptPolicy=' script-src '.implode(' ',$hashes)."; connect-src 'self';";
         }
         $html = '<!doctype html><html lang="ru"><head><meta charset="utf-8">'
             . '<meta name="viewport" content="width=device-width,initial-scale=1">'
@@ -605,7 +617,7 @@ final class AdminPanel
                 $html .= '<div class="decision-history"><strong>'
                     . self::e(self::actionLabel((string)$r['decision_action']))
                     . '</strong><span>' . self::e($r['decision_reason']) . '</span>'
-                    . '<small>' . self::e($r['decision_at']) . ' UTC · Подробнее в журнале</small>'
+                    . '<small>' . self::e(\Celikom\Support\MoscowTime::display($r['decision_at'])) . ' (Москва) · Подробнее в журнале</small>'
                     . '</div>';
             }
             if (in_array($admin['role'], ['owner','moderator'], true)
@@ -719,7 +731,7 @@ final class AdminPanel
                 . '</div></div>' . self::statusPill((string) $r['status'])
                 . '</div><div class="track-meta"><span>Уникальных предложений: '
                 . (int) $r['proposal_count'] . '</span><span>Получено: '
-                . self::e($r['created_at']) . ' UTC</span></div>';
+                . self::e(\Celikom\Support\MoscowTime::display($r['created_at'])) . ' (Москва)</span></div>';
             if ($r['status'] === 'pending' && in_array($admin['role'], ['owner','moderator'], true)) {
                 $html .= '<div class="decision"><form method="post" action="/admin/action">'
                     . '<input type="hidden" name="csrf" value="' . $csrf . '">'
@@ -765,7 +777,7 @@ final class AdminPanel
                 'other' => 'Другое', default => 'Неизвестная причина'
             };
             $html .= '<tr><td>#' . (int) $r['id'] . '<div class="muted">'
-                . self::e($r['created_at']) . ' UTC</div></td>'
+                . self::e(\Celikom\Support\MoscowTime::display($r['created_at'])) . ' (Москва)</div></td>'
                 . '<td>№ ' . (int) $r['replacement_id'] . '</td>'
                 . '<td>' . self::e($category) . '</td>'
                 . '<td>' . self::e($r['details']) . '</td><td>'
@@ -809,7 +821,7 @@ final class AdminPanel
                 . '>' . $size . ' записей</option>';
         }
         $html .= '</select></label><button type="submit">Применить</button></form></div>'
-            . '<div class="table-shell"><table><thead><tr><th>Время (UTC)</th>'
+            . '<div class="table-shell"><table><thead><tr><th>Время (Москва)</th>'
             . '<th>Сотрудник</th><th>Действие</th><th>Объект</th><th>Комментарий</th>'
             . '</tr></thead><tbody>';
         foreach ($rows as $r) {
@@ -823,7 +835,7 @@ final class AdminPanel
                 'promo_code' => 'Промокод', 'reward_ledger' => 'Награда', 'reward_policy' => 'Правила наград',
                 default => 'Объект'
             };
-            $html .= '<tr><td>' . self::e($r['created_at']) . '</td><td>'
+            $html .= '<tr><td>' . self::e(\Celikom\Support\MoscowTime::display($r['created_at'])) . '</td><td>'
                 . self::e($role) . '</td><td>' . self::e(self::actionLabel((string)$r['action']))
                 . '</td><td>' . self::e($object) . ' № ' . (int) $r['entity_id']
                 . '</td><td>' . self::e($r['reason']==='owner_promo'?'Промокод владельца':$r['reason']) . '</td></tr>';
@@ -836,8 +848,8 @@ final class AdminPanel
     /** Real period comparisons only; payment counters remain unavailable. */
     private function billingOverview(array $query): string
     {
-        $from=is_string($query['from'] ?? null) ? $query['from'] : gmdate('Y-m-01');
-        $to=is_string($query['to'] ?? null) ? $query['to'] : gmdate('Y-m-d');
+        $from=is_string($query['from'] ?? null) ? $query['from'] : \Celikom\Support\MoscowTime::today('Y-m-01');
+        $to=is_string($query['to'] ?? null) ? $query['to'] : \Celikom\Support\MoscowTime::today();
         try { $metrics=(new \Celikom\Billing\BillingMetrics($this->pdo))->forPeriod($from,$to); }
         catch (\InvalidArgumentException) { return '<section class="panel"><p>Неверный диапазон дат.</p></section>'; }
         $html='<section class="panel"><h1>Платежи и подписки</h1>'
@@ -854,7 +866,7 @@ final class AdminPanel
                 $html.='<td>'.self::e(self::billingAmount($row[$key],$row['currency'])).'</td>';
             $html.='</tr>';
         }
-        return $html.'</table><p><small>Даты событий — UTC. '
+        return $html.'</table><p><small>Даты событий — по московскому времени. '
             . 'Валюты не суммируются. Комиссии и чистая выручка пока недоступны.</small></p></section>';
     }
 
@@ -870,12 +882,12 @@ final class AdminPanel
     private function overview(array $query): string
     {
         $to = is_string($query['to'] ?? null) && preg_match('/^\d{4}-\d{2}-\d{2}$/D',$query['to'])
-            ? $query['to'] : gmdate('Y-m-d');
+            ? $query['to'] : \Celikom\Support\MoscowTime::today();
         $from = is_string($query['from'] ?? null) && preg_match('/^\d{4}-\d{2}-\d{2}$/D',$query['from'])
-            ? $query['from'] : gmdate('Y-m-d',time()-6*86400);
+            ? $query['from'] : \Celikom\Support\MoscowTime::today('Y-m-d',-6);
         try {
-            $start=new \DateTimeImmutable($from,new \DateTimeZone('UTC'));
-            $finish=new \DateTimeImmutable($to,new \DateTimeZone('UTC'));
+            $start=new \DateTimeImmutable($from,new \DateTimeZone('Europe/Moscow'));
+            $finish=new \DateTimeImmutable($to,new \DateTimeZone('Europe/Moscow'));
             if ($start->format('Y-m-d')!==$from || $finish->format('Y-m-d')!==$to
                 || $start>$finish || $finish->getTimestamp()-$start->getTimestamp()>366*86400) {
                 throw new \InvalidArgumentException('invalid_dates');
@@ -894,9 +906,9 @@ final class AdminPanel
             $ret=[];foreach($rows as $r)$ret[$r['status']]=(int)$r['amount'];
             return $ret;
         };
-        $date=function(\DateTimeImmutable $d):string{return $d->format('Y-m-d H:i:s');};
+        $date=function(\DateTimeImmutable $d):string{return \Celikom\Support\MoscowTime::utc($d);};
         $html='<div class="page-head"><div><div class="eyebrow">Статистика</div><h1>Операционный обзор</h1>'
-            .'<p class="muted">Показатели на основе фактических данных</p></div></div><section class="panel"><form method="get" action="/admin">'
+            .'<p class="muted">Показатели на основе фактических данных · московское время</p></div></div><section class="panel"><form method="get" action="/admin">'
             .'<input type="hidden" name="tab" value="overview"><label>От <input type="date" name="from" value="'.self::e($from).'"></label>'
             .'<label>До <input type="date" name="to" value="'.self::e($to).'"></label>'
             .'<button type="submit">Показать</button></form>'
@@ -912,10 +924,10 @@ final class AdminPanel
             }
         }
         $html.='</table></section>';
-        $aggregate=$this->pdo->prepare('SELECT metric,SUM(event_count) AS events
-            FROM analytics_daily_aggregates WHERE aggregate_date>=? AND aggregate_date<=?
-            GROUP BY metric ORDER BY metric');
-        $aggregate->execute([$from,$to]);
+        $aggregate=$this->pdo->prepare('SELECT event_name AS metric,COUNT(*) AS events
+            FROM analytics_events WHERE occurred_at>=? AND occurred_at<?
+            GROUP BY event_name ORDER BY event_name');
+        $aggregate->execute([$date($start),$date($endExclusive)]);
         $rows=$aggregate->fetchAll(\PDO::FETCH_ASSOC);
         if($rows) {
             $html.='<section class="panel"><h3>Агрегированные события (фактические)</h3><table>';
@@ -959,8 +971,8 @@ final class AdminPanel
             if(preg_match('/^[\s]*[=+\-@\t\r]/u',$s))$s="'".$s;
             return '"'.str_replace('"','""',$s).'"';
         };
-        $csv="created_at,admin,action,entity_type,entity_id,reason\r\n";
-        foreach($rows as $r)$csv.=implode(',',array_map($escape,array_values($r)))."\r\n";
+        $csv="created_at_moscow,admin,action,entity_type,entity_id,reason\r\n";
+        foreach($rows as $r){$r['created_at']=\Celikom\Support\MoscowTime::display($r['created_at']);$csv.=implode(',',array_map($escape,array_values($r)))."\r\n";}
         return new Response(200,['Content-Type'=>'text/csv; charset=utf-8',
             'Content-Disposition'=>'attachment; filename="celikom-audit.csv"',
             'Cache-Control'=>'private, no-store'], "\xEF\xBB\xBF".$csv);

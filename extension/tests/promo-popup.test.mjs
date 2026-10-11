@@ -35,3 +35,12 @@ test('lifetime and dated promo labels are explicit and incident still takes prec
  assert.match(accessLabel({allowed:true,source:'promo',valid_until:new Date(Date.now()+86400000).toISOString(),reason:'promo_active'}),/^Промокод до/);
  assert.match(accessLabel({allowed:false,source:'promo',valid_until:null,reason:'service_incident'}),/Сбой интеграции/);
 });
+
+ test('Access dates use Moscow even when the computer timezone differs', () => {
+  const saved=process.env.TZ;
+  try {
+    process.env.TZ='America/Los_Angeles';
+    const label=accessLabel({allowed:true,source:'promo',valid_until:'2035-10-31T21:00:00Z'});
+    assert.match(label,/1 ноября/);assert.match(label,/00:00/);assert.match(label,/Москва/);
+  } finally { if(saved===undefined) delete process.env.TZ; else process.env.TZ=saved; }
+});

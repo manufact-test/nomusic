@@ -284,3 +284,5 @@ input:not([type=checkbox]):focus-visible,select:focus-visible,textarea:focus-vis
 .promo-subnav{display:inline-flex;gap:4px;background:#eef4f1;border:1px solid #dce7e1;border-radius:10px;padding:4px;margin:0 0 20px}
 .promo-subnav a,.promo-subnav span{display:block;padding:9px 15px;border-radius:7px;font-weight:650;font-size:13px;text-decoration:none;color:#567466}
 .promo-subnav span{background:#fff;color:#155d46;box-shadow:0 2px 6px #244e3510}.promo-subnav a:hover{background:#e1ece5}
+
+.promo-duration,.promo-window{display:grid;gap:10px;align-content:start}.promo-forever{display:flex;align-items:center;gap:8px;font-size:13px;color:#5b7467}.promo-forever input{margin:0;flex:none}.promo-create-form [hidden]{display:none!important}.promo-create-form small{font-weight:400;line-height:1.5}

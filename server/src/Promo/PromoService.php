@@ -39,9 +39,9 @@ final class PromoService
         $values['forever']=$forever?1:0;
         $deadline=null;
         if (($input['activation_window']??null)==='fixed') {
-            $date=\DateTimeImmutable::createFromFormat('!Y-m-d\TH:i',(string)($input['activation_deadline']??''),new \DateTimeZone('UTC'));
+            $date=\DateTimeImmutable::createFromFormat('!Y-m-d\TH:i',(string)($input['activation_deadline']??''),new \DateTimeZone('Europe/Moscow'));
             if (!$date || $date->format('Y-m-d\TH:i')!==$input['activation_deadline']) throw new \InvalidArgumentException('invalid_promo');
-            $deadline=$date->format('Y-m-d H:i:s.000000');
+            $deadline=$date->setTimezone(new \DateTimeZone('UTC'))->format('Y-m-d H:i:s.000000');
         } elseif (($input['activation_window']??null)!=='unlimited') throw new \InvalidArgumentException('invalid_promo');
         $expected=['code'=>$code,'title'=>trim($title)]+$values+['activation_deadline'=>$deadline,'created_by'=>$actor];
         if($this->pdo->inTransaction())throw new \LogicException('transaction_already_active');$this->pdo->beginTransaction();

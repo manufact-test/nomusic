@@ -29,7 +29,7 @@ $service = new SubscriptionService($pdo);
 $hook = new WebhookService($pdo,$adapter);
 $paid = new PaidAccessService($pdo);
 $ids = [];
-$metricsBefore=(new Celikom\Billing\BillingMetrics($pdo))->forPeriod(gmdate('Y-m-d'),gmdate('Y-m-d'));
+$metricsBefore=(new Celikom\Billing\BillingMetrics($pdo))->forPeriod(Celikom\Support\MoscowTime::today(),Celikom\Support\MoscowTime::today());
 function billingExpectError(callable $call, string $expected): void {
     try { $call(); throw new RuntimeException('Expected '.$expected); }
     catch (DomainException $error) { expect($error->getMessage()===$expected,'Exact safe rejection'); }
@@ -209,7 +209,9 @@ try {
         $send(['id'=>'evt-euro-refund','subscriptionId'=>$ref,'type'=>'refund','occurredAt'=>$now,
             'paymentId'=>'charge-euro','amountMinor'=>100,'currency'=>'EUR','adjustmentId'=>'refund-euro']);
         $metrics=new Celikom\Billing\BillingMetrics($pdo);
-        $result=$metrics->forPeriod(substr($now,0,10),substr($now,0,10));
+        $localDay=(new DateTimeImmutable($now,new DateTimeZone('UTC')))->setTimezone(new DateTimeZone('Europe/Moscow'))->format('Y-m-d');
+        $result=$metrics->forPeriod($localDay,$localDay);
+        expect($result['timezone']==='Europe/Moscow','financial period uses Moscow');
         $currencies=array_column($result['currencies'],null,'currency');
         $prior=array_column($metricsBefore['currencies'],null,'currency');
         foreach(['gross_minor'=>2400,'refund_minor'=>800,'chargeback_minor'=>300,'payment_count'=>8,'first_count'=>2,'renewal_count'=>6,'after_adjustments_minor'=>1300] as $key=>$expected)

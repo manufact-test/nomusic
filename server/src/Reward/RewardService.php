@@ -76,7 +76,7 @@ final class RewardService
             JOIN users u ON u.id=l.user_id WHERE l.user_id=? AND l.status='approved'
             AND u.status='active' AND a.redeemed_at IS NULL ORDER BY a.available_from,a.id");
         $q->execute([$userId]);$allocations=$q->fetchAll(PDO::FETCH_ASSOC);
-        $today=$this->pdo->query('SELECT UTC_DATE()')->fetchColumn();$ready=0;$future=0;$next=null;
+        $today=$this->pdo->query('SELECT DATE(DATE_ADD(UTC_TIMESTAMP(),INTERVAL 3 HOUR))')->fetchColumn();$ready=0;$future=0;$next=null;
         $schedule=[];
         foreach($allocations as $a) {
             $amount=(int)$a['discount_percent'];$month=substr($a['available_from'],0,7);

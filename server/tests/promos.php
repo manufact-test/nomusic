@@ -61,7 +61,7 @@ try{
   expect($response->status===200&&str_contains($response->body,$code)&&str_contains($response->body,'/admin/promos/revoke-activation'),'activation and revoke rendered');
   foreach(['/admin/promos','/admin/promos/new','/admin/promos/activations'] as $route){
    $page=$panel->handle('GET',$route,[],$headers,'');expect($page->status===200,'promo path loads');
-   if($route==='/admin/promos/new')expect(str_contains($page->body,'name="request_key"')&&!str_contains($page->body,'<table>'),'creation isolated from lists');
+   if($route==='/admin/promos/new'){expect(str_contains($page->body,'name="request_key"')&&!str_contains($page->body,'<table>'),'creation isolated from lists');expect(str_contains($page->body,'data-promo-deadline hidden')&&str_contains($page->body,'московское время')&&!str_contains($page->body,'Дни добавляются'),'conditional deadline, Moscow and removed paragraph');expect(str_contains($page->headers['Content-Security-Policy'],"script-src 'sha256-"),'form script CSP hash');}
    else expect(str_contains($page->body,'class="promo-subnav"')&&str_contains($page->body,'aria-current="page"'),'selected submenu visible');
   }
   foreach([false,true] as $forever){
@@ -73,6 +73,20 @@ try{
    expect($savedRow!==false&&(int)$savedRow['forever']===($forever?1:0),'submitted finite/lifetime code exists');$codes[]=(int)$savedRow['id'];
   }
   $pdo->exec('DELETE FROM admin_sessions WHERE admin_id='.$owner);
+ });
+ run('Moscow deadline converts to UTC and expires at the exact instant',function()use($pdo,$user,$create,$service,$clock,$now):void{
+  $clock(0);$instant=$now+86400;
+  $local=(new DateTimeImmutable('@'.$instant))->setTimezone(new DateTimeZone('Europe/Moscow'))->format('Y-m-d\TH:i');
+  [$cid,$code]=$create(['activation_window'=>'fixed','activation_deadline'=>$local,'max_activations'=>2]);
+  $stored=$pdo->query('SELECT activation_deadline FROM promo_codes WHERE id='.$cid)->fetchColumn();
+  $expected=(new DateTimeImmutable($local,new DateTimeZone('Europe/Moscow')))->setTimezone(new DateTimeZone('UTC'))->format('Y-m-d H:i:s.000000');
+  expect($stored===$expected,'Moscow input stored as UTC without shifting duration');
+  expect(Celikom\Support\MoscowTime::display('2026-10-31 21:00:00')==='01.11.2026 00:00','Moscow day rollover');
+  expect(Celikom\Support\MoscowTime::utc(new DateTimeImmutable('2026-11-01',new DateTimeZone('Europe/Moscow')))==='2026-10-31 21:00:00','Moscow midnight query boundary');
+  $boundary=(new DateTimeImmutable($expected,new DateTimeZone('UTC')))->getTimestamp();
+  $clock($boundary-$now-1);expect($service->redeem($user(),$code)['entitlement']['allowed'],'usable before deadline');
+  $clock($boundary-$now);try{$service->redeem($user(),$code);throw new RuntimeException('expired accepted');}catch(DomainException $e){expect($e->getMessage()==='promo_unavailable','expired at Moscow instant');}
+  $clock(0);
  });
  run('Seven remaining days plus thirty promo days give thirty-seven',function()use($pdo,$user,$create,$service):void{
   $id=$user();[$a,$ca]=$create(['duration_days'=>7]);[$b,$cb]=$create(['duration_days'=>30]);$service->redeem($id,$ca);$r=$service->redeem($id,$cb);

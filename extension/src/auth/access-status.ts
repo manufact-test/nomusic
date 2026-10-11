@@ -4,7 +4,7 @@ export function accessLabel(access) {
   if (access.allowed && access.source === "promo" && access.valid_until === null) return "Промокод · доступ навсегда";
   if (access.allowed && access.valid_until && Date.parse(access.valid_until) > Date.now()) {
     const prefix = access.source === "promo" ? "Промокод до " : access.source === "subscription" ? "Подписка до " : "Пробный период до ";
-    return prefix + new Date(access.valid_until).toLocaleString("ru-RU", { day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" });
+    return prefix + new Date(access.valid_until).toLocaleString("ru-RU", { timeZone: "Europe/Moscow", day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" }) + " (Москва)";
   }
   if (access.reason === "trial_not_started") return "3 дня пробного периода начнутся после «Старт»";
   if (access.reason === "email_unverified") return "Подтвердите почту, чтобы начать";

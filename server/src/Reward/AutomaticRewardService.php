@@ -23,7 +23,8 @@ final class AutomaticRewardService
         if (!$q->fetchColumn()) throw new \DomainException('reward_account_missing');
         $cap=(int)$policy['max_discount_percent'];$remaining=(int)$policy['upload_discount_percent'];
         $now=$this->pdo->query('SELECT UTC_TIMESTAMP(6)')->fetchColumn();
-        $month=new \DateTimeImmutable(substr($now,0,7).'-01',new \DateTimeZone('UTC'));
+        $local=(new \DateTimeImmutable($now,new \DateTimeZone('UTC')))->setTimezone(\Celikom\Support\MoscowTime::zone());
+        $month=$local->modify('first day of this month')->setTime(0,0);
         // Current read, not a repeatable-read snapshot preceding a competing approval.
         $q=$this->pdo->prepare("SELECT a.available_from,a.discount_percent FROM reward_allocations a
             JOIN reward_ledger l ON l.id=a.reward_id WHERE l.user_id=? AND l.status IN ('approved','used') FOR UPDATE");

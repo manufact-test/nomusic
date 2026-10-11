@@ -41,6 +41,9 @@ for (const file of phpFiles) {
   }
 }
 
+const promoForm = spawnSync(process.execPath, ["--test", path.join(serverRoot, "tests", "promo-form.test.mjs")], { stdio: "inherit" });
+if (promoForm.status !== 0) process.exit(promoForm.status || 1);
+
 const disclosure = spawnSync(process.execPath, ["--test", path.join(serverRoot, "tests", "reward-disclosure.test.mjs")], { stdio: "inherit" });
 if (disclosure.status !== 0) process.exit(disclosure.status || 1);
 

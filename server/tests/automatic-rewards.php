@@ -52,7 +52,7 @@ try {
         $summary=$reward->summary($users[0]);
         expect($summary['earned_contributions']===7 && $summary['earned_discount_percent']===21,'Every approval earns immediately');
         expect($summary['available_discount_percent']===20 && $summary['carried_discount_percent']===1,'Overflow is preserved, including partial credit');
-        $next=$pdo->query("SELECT DATE_ADD(DATE_FORMAT(UTC_DATE(),'%Y-%m-01'),INTERVAL 1 MONTH)")->fetchColumn();
+        $next=$pdo->query("SELECT DATE_ADD(DATE_FORMAT(DATE(DATE_ADD(UTC_TIMESTAMP(),INTERVAL 3 HOUR)),'%Y-%m-01'),INTERVAL 1 MONTH)")->fetchColumn();
         expect($summary['next_available_from']===$next,'Overflow scheduled for next month');
         $q=$pdo->prepare("SELECT COUNT(*) FROM reward_ledger WHERE user_id=? AND status='approved' AND grant_mode='automatic' AND expires_at IS NULL");$q->execute([$users[0]]);
         expect((int)$q->fetchColumn()===7 && !$summary['application_available'] && !$summary['discount_active'],'Credit waits without expiry; payment still unavailable');
@@ -84,7 +84,7 @@ try {
         }
         foreach($workers as [$process,$pipes]) {$result=stream_get_contents($pipes[1]);$error=stream_get_contents($pipes[2]);fclose($pipes[1]);fclose($pipes[2]);expect(proc_close($process)===0 && $result==='ok' && $error==='','Concurrent grant succeeds');}
         $summary=$reward->summary($users[1]);expect($summary['earned_contributions']===2 && $summary['available_discount_percent']===5 && $summary['carried_discount_percent']===1,'Exactly two rewards, capped five and queued one');
-        $q=$pdo->prepare('SELECT SUM(a.discount_percent) FROM reward_allocations a JOIN reward_ledger l ON l.id=a.reward_id WHERE l.user_id=? AND a.available_from<=UTC_DATE()');$q->execute([$users[1]]);expect((int)$q->fetchColumn()===5,'No hidden over-allocation');
+        $q=$pdo->prepare('SELECT SUM(a.discount_percent) FROM reward_allocations a JOIN reward_ledger l ON l.id=a.reward_id WHERE l.user_id=? AND a.available_from<=DATE(DATE_ADD(UTC_TIMESTAMP(),INTERVAL 3 HOUR))');$q->execute([$users[1]]);expect((int)$q->fetchColumn()===5,'No hidden over-allocation');
     });
     run('Saved rule changes affect new awards and keep previous amounts, dates and lifetimes',function()use($pdo,$policy,$admin,$users,$create,$storage,$reward):void {
         $q=$pdo->prepare('SELECT l.id,l.discount_percent,l.policy_version,a.available_from,a.discount_percent AS part,a.validity_days FROM reward_ledger l JOIN reward_allocations a ON a.reward_id=l.id WHERE l.user_id=? ORDER BY a.id');$q->execute([$users[0]]);$before=$q->fetchAll();
@@ -146,6 +146,17 @@ try {
         $pdo->exec("DELETE FROM schema_migrations WHERE version='013_automatic_rewards.sql'");$runner->run();
         expect($pdo->query('SELECT * FROM reward_allocations ORDER BY id')->fetchAll()===$before && $policy->read()===$settings,'DDL retry preserves credits');
     });
+    run('New reward allocations follow Moscow month rollover without rewriting history',function()use($pdo,$create,$users,$storage,$reward,$admin):void {
+        $before=$pdo->query('SELECT * FROM reward_allocations ORDER BY id')->fetchAll(PDO::FETCH_ASSOC);
+        $pdo->exec('SET timestamp=1793483400'); // 2026-10-31 21:50 UTC, November in Moscow.
+        try {
+            $id=$create($users[1]);(new ModerationService($pdo,$storage,$reward))->replacement($admin,$id,'approve','Moscow boundary fixture',0,true);
+            $q=$pdo->prepare('SELECT a.available_from FROM reward_allocations a JOIN reward_ledger l ON l.id=a.reward_id WHERE l.replacement_id=? ORDER BY a.part_index');$q->execute([$id]);
+            expect($q->fetchColumn()==='2026-11-01','Moscow November chosen while UTC is October');
+            foreach($before as $row){$q=$pdo->prepare('SELECT * FROM reward_allocations WHERE id=?');$q->execute([$row['id']]);expect($q->fetch(PDO::FETCH_ASSOC)===$row,'prior allocation immutable');}
+        } finally {$pdo->exec('SET timestamp=0');}
+    });
+
 } finally {
     if($pdo->inTransaction()) $pdo->rollBack();
     $pdo->prepare('DELETE FROM audit_log WHERE admin_id=?')->execute([$admin]);$pdo->prepare('DELETE FROM admin_sessions WHERE admin_id=?')->execute([$admin]);
