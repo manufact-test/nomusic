@@ -1,3 +1,11 @@
+## 2026-10-11 — Этап 10 принят и закрыт владельцем
+
+Единый CELIKOM0.4.11 принят: реальная подмена, управление воспроизведением, аккаунт, загрузка MP3, отдельное предложение песни, модерация и четыре исправления интерфейса подтверждены владельцем. GitHub CI, одноразовая MySQL, резервная копия, изолированное восстановление, защищённый деплой и сохранность данных PASS. Пробный период —3дня; сессии независимы, срок обновляемой сессии90дней.
+
+По прямому решению владельца две ручные проверки перенесены, а не объявлены выполненными: компьютер+телефон после появления Android и реальное окончание пробного периода. Учёт: [Issue10](https://github.com/manufact-test/nomusic/issues/10). Это решение заменяет прежний запрет закрытия этапа до данных ручных проверок. Текущие решения владельца в админке сохраняются; старые утверждения о статусах#2/#3 являются историческими. PR6OPEN/unmerged, Issue7OPEN.
+
+Следующий этап — [Issue11](https://github.com/manufact-test/nomusic/issues/11): подписка, оплата и автоматическое продление. Разработка самостоятельная до следующего шага, где нужен выбор провайдера или ручная проверка. Первый пакет изолирован от действующего сервера, без реальных списаний и без тестового обхода платного доступа. Пользовательский термин — «пробный период».
+
 ## Current update — 2026-10-11, unified0.4.11
 
 Owner confirmed upload, moderation and playback. Four review fixes are deployed: admin field border focus, stable newest-number-first versions, separate popup version presence, and proposal progress linked to uploaded/approved versions. Update CURRENT extension folder in place toCELIKOM-0.4.11-stage10.zip, reload extension and Yandex tab; existing account. [Evidence/checklist](CELIKOM-STAGE10-0411-ADMIN-POLISH.md). Earlier0.4.10 package instructions are historical. Stage10 remains OPEN pending owner review; PR6OPEN/unmerged, Issue7OPEN. Trial3days,90day independent sessions, public contributions ON, existing data and current owner decisions preserved.

@@ -1,3 +1,17 @@
+> Этап 11: первый серверный пакет BillingAdapter / платёжный журнал / оплаченный
+> доступ подготовлен изолированно. Проверки и оставшаяся интеграция описаны в
+> [CELIKOM-STAGE11-BILLING.md](test-plans/CELIKOM-STAGE11-BILLING.md).
+> Реальные платежи не подключены; для выбора провайдера нужны данные получателя
+> денег и страны покупателей.
+
+## 2026-10-11 — Этап 10 принят и закрыт владельцем
+
+Единый CELIKOM0.4.11 принят: реальная подмена, управление воспроизведением, аккаунт, загрузка MP3, отдельное предложение песни, модерация и четыре исправления интерфейса подтверждены владельцем. GitHub CI, одноразовая MySQL, резервная копия, изолированное восстановление, защищённый деплой и сохранность данных PASS. Пробный период —3дня; сессии независимы, срок обновляемой сессии90дней.
+
+По прямому решению владельца две ручные проверки перенесены, а не объявлены выполненными: компьютер+телефон после появления Android и реальное окончание пробного периода. Учёт: [Issue10](https://github.com/manufact-test/nomusic/issues/10). Это решение заменяет прежний запрет закрытия этапа до данных ручных проверок. Текущие решения владельца в админке сохраняются; старые утверждения о статусах#2/#3 являются историческими. PR6OPEN/unmerged, Issue7OPEN.
+
+Следующий этап — [Issue11](https://github.com/manufact-test/nomusic/issues/11): подписка, оплата и автоматическое продление. Разработка самостоятельная до следующего шага, где нужен выбор провайдера или ручная проверка. Первый пакет изолирован от действующего сервера, без реальных списаний и без тестового обхода платного доступа. Пользовательский термин — «пробный период».
+
 ## 2026-10-11 — 0.4.11: owner review fixes; Stage10 OPEN
 
 Owner confirmed public upload, moderation and working playback, then authorized four fixes: admin input focus, numeric version ordering, accurate popup version presence and proposal/version progress. New unified client0.4.11 is ready; server0.4.11 deployed via38096832455 PASS; ordinary-account HTTPS smoke38097007526 PASS (read-only presence, complete signed MP3 ranges, public contributions, separate devices/logout); preservation audit38097007588 PASS: private env, media and table row counts unchanged. Existing proposal records are retained: default queue contains only those still needing MP3, uploaded/fulfilled history is available through filters. Exact service/Track ID linkage also covers existing uploads. No schema migration, audio replacement, account/session changes or trial reset. Current owner moderation decisions for legacy#2/#3 are preserved; no automated approval. Approved144530503/#1 retained.

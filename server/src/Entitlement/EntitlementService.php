@@ -6,10 +6,10 @@ namespace Celikom\Entitlement;
 
 use PDO;
 
-/** Read-only decision on the database clock. Billing/grants are future ledger sources. */
+/** Read-only decision on the database clock. Paid source is opt-in until provider acceptance. */
 final class EntitlementService
 {
-    public function __construct(private readonly PDO $pdo) {}
+    public function __construct(private readonly PDO $pdo, private readonly bool $billingEnabled = false) {}
 
     public function check(int $userId): EntitlementResult
     {
@@ -29,6 +29,10 @@ final class EntitlementService
         if (!$user) return new EntitlementResult(false, 'none', null, 'user_not_found');
         if ($user['status'] !== 'active') return new EntitlementResult(false, 'none', null, 'account_disabled');
         if ($user['verified_at'] === null) return new EntitlementResult(false, 'none', null, 'email_unverified');
+        if ($this->billingEnabled) {
+            $paidUntil = (new \Celikom\Billing\PaidAccessService($this->pdo))->validUntil($userId);
+            if ($paidUntil !== null) return new EntitlementResult(true, 'subscription', $paidUntil, 'subscription_active');
+        }
         if ($user['valid_until'] === null) return new EntitlementResult(false, 'none', null, 'trial_not_started');
         if (!(bool)$user['ledger_matches']) return new EntitlementResult(false, 'none', null, 'entitlement_inconsistent');
         $until = EntitlementResult::utc($user['valid_until']);
