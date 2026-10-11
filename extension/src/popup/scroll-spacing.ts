@@ -11,7 +11,7 @@ export function initScrollSpacing() {
       if (region.dataset.scrollOverflow !== value) region.dataset.scrollOverflow = value;
     }
   };
-  const schedule = () => { if (!pending) { pending = true; requestAnimationFrame(measure); } };
+  const schedule = () => { if (!pending) { pending = true; queueMicrotask(measure); } };
   const resize = new ResizeObserver(schedule);
   for (const region of regions) resize.observe(region);
   const mutation = new MutationObserver(schedule);
