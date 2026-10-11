@@ -106,16 +106,32 @@ try {
   expect((int)$row[0]===1 && (int)$row[1]===3600000000,'one hour credited once');
  });
  run('Stage13 admin endpoints enforce owner and CSRF; stored reasons are escaped',function()use($pdo,$config,$login,$password,$admin):void {
-  $config['admin_enabled']=true;$app=new Application($config);$identity=(new AdminAuth($pdo))->login($login,$password,'fixture-incidents');
+  $config['admin_enabled']=true;$config['billing_views_enabled']=true;$config['reward_eligibility_enabled']=true;
+  $app=new Application($config);$identity=(new AdminAuth($pdo))->login($login,$password,'fixture-incidents');
   $headers=['Cookie'=>AdminAuth::COOKIE.'='.$identity['token'],'Content-Type'=>'application/x-www-form-urlencoded'];
   $body=http_build_query(['reason'=>'<script>bad</script>','request_key'=>bin2hex(random_bytes(32)),'csrf'=>AdminAuth::csrfForToken($identity['token'])]);
   expect($app->handle('POST','/admin/incidents/start',headers:$headers,body:'reason=x')->status===403,'CSRF enforced');
   $pdo->exec("UPDATE admins SET role='moderator' WHERE id=$admin");
   expect($app->handle('POST','/admin/incidents/start',headers:$headers,body:$body)->status===403,'owner only');
   expect($app->handle('GET','/admin',query:['tab'=>'incidents'],headers:$headers)->status===403,'view owner only');
+  $moderator=$app->handle('GET','/admin',headers:$headers);
+  preg_match('/<nav class="nav".*?<\/nav>/s',$moderator->body,$nav);
+  expect(substr_count($moderator->body,'<nav class="nav"')===1,'one moderator menu');
+  foreach(['incidents','rewards','billing'] as $section) expect(!str_contains($nav[0],'tab='.$section),'owner section absent for moderator');
   $pdo->exec("UPDATE admins SET role='owner' WHERE id=$admin");
   expect($app->handle('POST','/admin/incidents/start',headers:$headers,body:$body)->status===303,'owner action');
   $view=$app->handle('GET','/admin',query:['tab'=>'incidents'],headers:$headers);expect(str_contains($view->body,'&lt;script&gt;bad&lt;/script&gt;'),'HTML escaped');
+  expect(substr_count($view->body,'<nav class="nav"')===1,'one owner menu');
+  preg_match('/<nav class="nav".*?<\/nav>/s',$view->body,$nav);
+  foreach(['incidents','rewards','billing'] as $section) expect(str_contains($nav[0],'tab='.$section),'owner section in unified menu');
+  $file=tempnam(sys_get_temp_dir(),'celikom-admin-layout-');
+  try {
+   file_put_contents($file,$view->body);$pipes=[];
+   $process=proc_open(['node',__DIR__.'/admin-layout-browser.mjs',$file],[0=>['file','/dev/null','r'],1=>['pipe','w'],2=>['pipe','w']],$pipes);
+   expect(is_resource($process),'layout verification started');
+   $output=stream_get_contents($pipes[1]);$error=stream_get_contents($pipes[2]);fclose($pipes[1]);fclose($pipes[2]);
+   expect(proc_close($process)===0,'layout verified: '.$error);fwrite(STDOUT,$output);
+  } finally {unlink($file);}
  });
 } finally {
  $pdo->exec('SET timestamp=0');

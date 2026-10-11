@@ -13,8 +13,8 @@ p{margin-bottom:11px}.muted,small{color:#62766d}small{font-size:12px;line-height
 .header-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .account{display:flex;align-items:center;gap:7px;padding:8px 12px;border-radius:24px;background:#e7f2ec;color:#24604b;font-size:13px;font-weight:650}
 .head-form{margin:0!important}
-.nav{display:flex;align-items:center;gap:5px;padding:6px;background:#e7eeea;border:1px solid #d9e7df;border-radius:13px;overflow-x:auto;white-space:nowrap;margin:1px 0 28px}
-.nav a{color:#4d6259;padding:10px 17px;border-radius:9px;text-decoration:none;font-size:13px;font-weight:650}
+.nav{display:flex;flex-wrap:wrap;align-items:center;gap:5px;padding:6px;background:#e7eeea;border:1px solid #d9e7df;border-radius:13px;margin:1px 0 28px}
+.nav a{white-space:nowrap;color:#4d6259;padding:10px 17px;border-radius:9px;text-decoration:none;font-size:13px;font-weight:650}
 .nav a:hover{background:#d9e8df}.nav a.current{color:#0e4937;background:#fff;box-shadow:0 2px 10px #1d5d3a12}
 .page-head{display:flex;align-items:end;justify-content:space-between;gap:16px;margin-bottom:17px;flex-wrap:wrap}
 .page-head h1{margin-bottom:5px}.eyebrow{font-size:12px;text-transform:uppercase;letter-spacing:1.3px;color:#34886e;font-weight:800;margin:0 0 8px}
@@ -271,3 +271,11 @@ input:not([type=checkbox]):focus-visible,select:focus-visible,textarea:focus-vis
 .reward-policy-form input:focus-visible,.reward-decision-form input:focus-visible{outline:none;border-color:#197d60;box-shadow:none}
 
 .reward-disclosure{overflow-anchor:none}.reward-disclosure > summary{margin-bottom:16px}.reward-disclosure [data-reward-content]{overflow-anchor:none}
+
+/* Incident actions share a readable vertical form on desktop and mobile. */
+.incident-form{display:grid;gap:16px;max-width:600px;margin-top:20px}
+.incident-form .form-field{font-size:13px;gap:8px}
+.incident-form textarea{width:100%;min-height:96px;resize:vertical}
+.incident-form button{justify-self:start}
+.incident-actions{margin-top:16px}
+@media(max-width:560px){.incident-form button,.incident-actions button{width:100%}}

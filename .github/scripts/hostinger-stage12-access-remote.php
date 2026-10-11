@@ -37,7 +37,7 @@ try {
     $request=json_decode((string)file_get_contents($requestPath),true,8,JSON_THROW_ON_ERROR);
     guard12(is_array($request) && array_keys($request)===['operation','target','expected_release']
         && $request['target']==='hostinger-private-test' && in_array($request['operation'],['enable','disable','audit'],true)
-        && is_string($request['expected_release']) && preg_match('/^0\.4\.(?:18|20|22)-[a-f0-9]{40}$/D',$request['expected_release'])===1);
+        && is_string($request['expected_release']) && preg_match('/^0\.4\.(?:18|20|22|23)-[a-f0-9]{40}$/D',$request['expected_release'])===1);
     $release=realpath($app.'/current');guard12($release===$app.'/releases/'.$request['expected_release']);
     require $release.'/bootstrap.php';$before=require $release.'/config/app.php';
     guard12($before['environment']==='production' && $before['auth_enabled'] && $before['admin_enabled']
@@ -80,7 +80,7 @@ try {
             $html=$view->render('read-only-audit',1,false,(int)$id);
             guard12(substr_count($html,'class="reward-card"')===min(25,$songs));
         }
-        if (str_starts_with($request['expected_release'],'0.4.22-')) {
+        if (preg_match('/^0\.4\.(?:22|23)-/',$request['expected_release'])===1) {
             guard12((int)$pdo->query("SELECT COUNT(*) FROM schema_migrations WHERE version='014_service_incidents.sql'")->fetchColumn()===1);
             guard12(!$before['billing_views_enabled'] && !$before['referrals_enabled']);
             $incidents=new Celikom\Incident\IncidentService($pdo);
@@ -88,6 +88,13 @@ try {
             foreach(['service_incidents','incident_compensations'] as $table) guard12((int)$pdo->query('SELECT COUNT(*) FROM '.$table)->fetchColumn()===0);
             $html=(new Celikom\Incident\IncidentAdminView($pdo))->render('read-only-audit');
             guard12(str_contains($html,'Объявленных сбоев пока нет.'));
+            if (str_starts_with($request['expected_release'],'0.4.23-')) {
+                guard12(str_contains($html,'class="incident-form"') && str_contains($html,'<textarea'));
+                $panel=new Celikom\Admin\AdminPanel($pdo,new Celikom\Storage\LocalStorageAdapter($before['storage_path']),$before['billing_views_enabled'],$before['reward_eligibility_enabled']);
+                $dashboard=(new ReflectionMethod($panel,'dashboard'))->invoke($panel,['role'=>'owner','csrf'=>'read-only-audit'],['tab'=>'incidents']);
+                guard12(substr_count($dashboard,'<nav class="nav"')===1 && str_contains($dashboard,'tab=rewards') && str_contains($dashboard,'tab=incidents'));
+                fwrite(STDOUT,"Unified admin navigation and spaced incident form read-only audit PASS.\n");
+            }
             fwrite(STDOUT,"Stage13 read-only audit PASS: migration, empty incident state and owner view; live outage not declared. Billing/referrals remain disabled.\n");
         }
         guard12(databaseDigest12($pdo)===$digest);

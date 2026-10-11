@@ -397,24 +397,19 @@ final class AdminPanel
         $html .= '<form class="head-form" method="post" action="/admin/logout">'
             . '<input type="hidden" name="csrf" value="' . $csrf . '">'
             . '<button type="submit">Выйти ↗</button></form></div></header><nav class="nav" aria-label="Разделы">';
-        foreach ([
+        $sections = [
             'uploads'=>'Загруженные версии', 'requests'=>'Предложить песню',
-            'reports'=>'Жалобы', 'audit'=>'Журнал действий', 'overview'=>'Обзор'
-        ] as $key => $name) {
+            'reports'=>'Жалобы', 'rewards'=>'Награды за вклад',
+            'billing'=>'Платежи и подписки', 'incidents'=>'Сбои интеграции',
+            'audit'=>'Журнал действий', 'overview'=>'Обзор'
+        ];
+        foreach ($sections as $key => $name) {
+            if (!in_array($key, $allowed, true)) continue;
             $html .= '<a href="/admin?tab=' . $key . '&per_page=' . $size . '"'
                 . ($tab === $key ? ' class="current" aria-current="page"' : '') . '>'
                 . self::e($name) . '</a>';
         }
         $html .= '</nav>';
-        if ($admin['role']==='owner') $html.='<nav class="nav"><a href="/admin?tab=incidents"'.($tab==='incidents'?' class="current" aria-current="page"':'').'>Сбои интеграции</a></nav>';
-        if ($this->rewardEligibilityEnabled && $admin['role']==='owner') {
-            $html.='<nav class="nav" aria-label="Награды"><a href="/admin?tab=rewards"'
-                .($tab==='rewards'?' class="current" aria-current="page"':'').'>Награды за вклад</a></nav>';
-        }
-        if ($this->billingViewsEnabled && $admin['role']==='owner') {
-            $html .= '<nav class="nav" aria-label="Финансы"><a href="/admin?tab=billing"'
-                . ($tab==='billing' ? ' class="current" aria-current="page"' : '') . '>Платежи и подписки</a></nav>';
-        }
         $counts = $this->pdo->query("SELECT
             (SELECT COUNT(*) FROM track_replacements WHERE status='pending') AS pending_uploads,
             (SELECT COUNT(*) FROM track_requests r WHERE " . \Celikom\Application\TrackRequestProgress::sql() . " = 'pending') AS pending_requests,
