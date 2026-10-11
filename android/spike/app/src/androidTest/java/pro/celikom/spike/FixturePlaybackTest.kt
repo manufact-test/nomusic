@@ -13,7 +13,11 @@ class FixturePlaybackTest {
     @Test fun nativePlayersSeekPauseRestoreAndSuspend() {
         ActivityScenario.launch(MainActivity::class.java).use { scenario ->
             lateinit var player: FixturePlayback
-            scenario.onActivity { player = FixturePlayback(it); player.start() }
+            scenario.onActivity {
+                player = FixturePlayback(it)
+                player.pause(); player.suspend() // Safe even before the first start.
+                player.start()
+            }
             Thread.sleep(400)
             scenario.onActivity {
                 assertTrue(player.policy.replacement)

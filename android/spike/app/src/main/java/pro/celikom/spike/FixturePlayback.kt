@@ -49,7 +49,9 @@ class FixturePlayback(context: Context) {
     }
     fun pause() {
         if (closed) return
-        original.pause(); runCatching { alternate.pause() }; policy.pause()
+        if (original.isPlaying) original.pause()
+        runCatching { if (alternate.isPlaying) alternate.pause() }
+        policy.pause()
     }
     fun resume() {
         if (closed || audio.requestAudioFocus(focus) != AudioManager.AUDIOFOCUS_REQUEST_GRANTED) return
@@ -66,7 +68,9 @@ class FixturePlayback(context: Context) {
     fun track(id: String) { original(); policy.changeTrack(id); seek(0) }
     fun suspend() {
         if (closed) return
-        failOpen(); original.pause(); policy.suspend(); audio.abandonAudioFocusRequest(focus)
+        failOpen()
+        if (original.isPlaying) original.pause()
+        policy.suspend(); audio.abandonAudioFocusRequest(focus)
     }
     fun close() {
         if (closed) return
