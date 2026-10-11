@@ -1,3 +1,12 @@
+> **11.10.2026 — текущая передача: клиент 0.4.24 установлен; далее этап 14.**
+> Независимая часть 13 реализована; real billing/checkout/recurring и платёжные части 11–13 не подключены.
+> Владелец исключил отдельную Alpha 15: текущее использование втроём, без новой кампании и gate.
+> Нумерация сохранена: после 14 Android PoC 16, Beta 17; приватизация 18 до выпуска клиентам.
+> Owner-промокоды бесплатного доступа — обязательная независимая задача 12, пока не реализована; провайдер не нужен.
+> Полная актуальная запись: [CHECKPOINT-2026-10-11.md](https://github.com/manufact-test/nomusic/blob/feature/api-range/docs/decisions/CHECKPOINT-2026-10-11.md).
+> Решение владельца: [ROADMAP-NO-ALPHA-2026-10-11.md](https://github.com/manufact-test/nomusic/blob/feature/api-range/docs/decisions/ROADMAP-NO-ALPHA-2026-10-11.md).
+> Эта запись имеет приоритет над историческими статусами ниже. PR #6 OPEN/unmerged, Issue #7 OPEN.
+
 # CELIKOM Stage 13 — Incident / freeze, 0.4.22
 
 Owner authorized this combined package on 11 October 2026: background-tab popup fix, automatic recovery and independent Stage 13. Owner acceptance of this version is pending. The previous 0.4.21 acceptance remains recorded.
