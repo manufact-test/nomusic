@@ -3,6 +3,7 @@ package pro.celikom.spike
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -11,73 +12,99 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.viewinterop.AndroidView
 import kotlinx.coroutines.*
+import org.json.JSONObject
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 
 class MainActivity : ComponentActivity() {
-    private lateinit var playback: FixturePlayback
-    override fun onCreate(savedInstanceState: Bundle?) {
+    private lateinit var surface:MobileSurface
+    private lateinit var playback:MobilePlayback
+    private var playbackState by mutableStateOf("Звучит оригинал")
+    override fun onCreate(savedInstanceState:Bundle?){
         super.onCreate(savedInstanceState)
-        playback = FixturePlayback(this)
+        val account=MobileAccount(this)
+        surface=MobileSurface(this,{playbackState=it},{if(::playback.isInitialized)playback.stop()},
+            {if(::playback.isInitialized)playback.guardReleased(it)})
+        playback=MobilePlayback(account,surface,{playbackState=it})
         setContent {
             MaterialTheme {
+                var accountOpen by remember{mutableStateOf(false)}
+                var email by remember{mutableStateOf("")}
+                var password by remember{mutableStateOf("")}
+                var code by remember{mutableStateOf("")}
+                var signedIn by remember{mutableStateOf(account.signedIn)}
+                var accountState by remember{mutableStateOf(if(signedIn) "Проверяем доступ…" else "Войдите в аккаунт CELIKOM")}
+                var busy by remember{mutableStateOf(false)}
+                var register by remember{mutableStateOf(false)}
+                val scope=rememberCoroutineScope()
+                fun task(work:suspend ()->String){
+                    if(busy)return
+                    busy=true
+                    scope.launch {
+                        accountState=try{withContext(Dispatchers.IO){work()}}catch(e:Exception){e.message?.takeIf{it.length<120}?:"Не удалось выполнить запрос. Повторите позже"}
+                        signedIn=account.signedIn;busy=false
+                    }
+                }
+                LaunchedEffect(Unit){if(signedIn)task{formatAccess(account.entitlement())}}
+                BackHandler(enabled=accountOpen||(!surface.closed&&surface.view.canGoBack())) {
+                    if(accountOpen)accountOpen=false else {playback.stop();surface.view.goBack()}
+                }
                 Surface(Modifier.fillMaxSize()) {
-                    val scope = rememberCoroutineScope()
-                    val account = remember { AccountProbe() }
-                    var email by remember { mutableStateOf("") }
-                    var password by remember { mutableStateOf("") }
-                    var accountState by remember { mutableStateOf("Вход необязателен для локальной диагностики") }
-                    var busy by remember { mutableStateOf(false) }
-                    var tick by remember { mutableIntStateOf(0) }
-                    LaunchedEffect(Unit) { while (true) { delay(250); tick++ } }
-                    Column(Modifier.safeDrawingPadding().padding(20.dp).verticalScroll(rememberScrollState()),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Text("CELIKOM • Android PoC", style = MaterialTheme.typography.headlineSmall)
-                        Text("Локальные тестовые звуки. Яндекс Музыка не подключена.")
-                        val position = tick.let { playback.position }
-                        Text("Трек: " + playback.policy.trackId + " · " + (position / 1000) + " с")
-                        Text(if (playback.policy.replacement) "Звучит тестовая подмена" else "Тестовый оригинал")
-                        Button(onClick = { playback.start(); tick++ }) { Text("Старт подмены") }
-                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                            OutlinedButton(onClick = { playback.pause(); tick++ }) { Text("Пауза") }
-                            OutlinedButton(onClick = { playback.resume(); tick++ }) { Text("Продолжить") }
+                    Column(Modifier.safeDrawingPadding()) {
+                        Row(Modifier.fillMaxWidth().padding(horizontal=16.dp,vertical=8.dp),horizontalArrangement=Arrangement.SpaceBetween) {
+                            Text("CELIKOM",style=MaterialTheme.typography.titleLarge)
+                            TextButton(onClick={if(!accountOpen)playback.stop();accountOpen=!accountOpen}){Text(if(accountOpen) "К плееру" else "Аккаунт")}
                         }
-                        OutlinedButton(onClick = { playback.original(); tick++ }) { Text("Вернуть оригинал") }
-                        Slider(value = playback.position.toFloat(), onValueChange = { playback.seek(it.toInt()); tick++ },
-                            valueRange = 0f..(playback.duration - 1).toFloat())
-                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                            OutlinedButton(onClick = { playback.track("fixture:1"); tick++ }) { Text("Предыдущий") }
-                            OutlinedButton(onClick = { playback.track("fixture:2"); tick++ }) { Text("Следующий") }
+                        if(accountOpen){
+                            Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal=20.dp,vertical=12.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
+                                Text(accountState)
+                                if(!signedIn){
+                                    OutlinedTextField(email,{email=it},Modifier.fillMaxWidth(),label={Text("Почта")},singleLine=true)
+                                    OutlinedTextField(password,{password=it},Modifier.fillMaxWidth(),label={Text("Пароль")},singleLine=true,visualTransformation=PasswordVisualTransformation())
+                                    Button(enabled=!busy&&email.isNotBlank()&&password.isNotEmpty(),onClick={
+                                        val submitted=password;password=""
+                                        task{account.login(email,submitted,register);formatAccess(account.entitlement())}
+                                    }){Text(if(register) "Зарегистрироваться" else "Войти")}
+                                    TextButton(onClick={register=!register},enabled=!busy){Text(if(register) "Уже есть аккаунт" else "Создать аккаунт")}
+                                }else{
+                                    OutlinedButton(enabled=!busy,onClick={task{formatAccess(account.entitlement())}}){Text("Обновить доступ")}
+                                    Text("Промокод",style=MaterialTheme.typography.titleMedium)
+                                    OutlinedTextField(code,{code=it},Modifier.fillMaxWidth(),label={Text("Введите промокод")},singleLine=true)
+                                    Button(enabled=!busy&&code.isNotBlank(),onClick={
+                                        playback.stop();val submitted=code;task{account.redeem(submitted);formatAccess(account.entitlement())}
+                                    }){Text("Активировать")}
+                                    OutlinedButton(enabled=!busy,onClick={playback.stop();task{account.logout();"Вы вышли из аккаунта CELIKOM"}}){Text("Выйти")}
+                                }
+                                Text("Вход в Яндекс находится в самом плеере и не связан с паролем CELIKOM.")
+                                Text("Android PoC 0.2.0 • даты по московскому времени",style=MaterialTheme.typography.bodySmall)
+                            }
+                        }else{
+                            Text(playbackState,Modifier.padding(horizontal=16.dp,vertical=4.dp))
+                            Row(Modifier.fillMaxWidth().padding(horizontal=16.dp,vertical=8.dp),horizontalArrangement=Arrangement.spacedBy(12.dp)) {
+                                Button(enabled=signedIn&&!busy,onClick={playback.start()}){Text("Подмена")}
+                                OutlinedButton(onClick={playback.stop()}){Text("Оригинал")}
+                            }
+                            AndroidView(factory={surface.view},modifier=Modifier.weight(1f).fillMaxWidth())
                         }
-                        OutlinedButton(onClick = { playback.failOpen(); tick++ }) { Text("Сбой подмены") }
-                        Text("Уход в фон и потеря аудиофокуса останавливают демо. Возобновление — вручную.")
-                        HorizontalDivider()
-                        Text("Проверка общего аккаунта", style = MaterialTheme.typography.titleMedium)
-                        OutlinedTextField(email, { email = it }, label = { Text("Почта") }, singleLine = true)
-                        OutlinedTextField(password, { password = it }, label = { Text("Пароль") },
-                            visualTransformation = PasswordVisualTransformation(), singleLine = true)
-                        Text(accountState)
-                        Button(enabled = !busy && email.isNotBlank() && password.isNotEmpty(), onClick = {
-                            busy = true
-                            val submitted = password; password = ""
-                            scope.launch {
-                                accountState = try { withContext(Dispatchers.IO) { account.login(email, submitted) } }
-                                    catch (_: Exception) { "Не удалось проверить вход. Повторите позже." }
-                                busy = false
-                            }
-                        }) { Text("Войти и проверить доступ") }
-                        OutlinedButton(enabled = !busy, onClick = {
-                            busy = true
-                            scope.launch {
-                                runCatching { withContext(Dispatchers.IO) { account.logout() } }
-                                accountState = "Локальный вход завершён"; busy = false
-                            }
-                        }) { Text("Выйти") }
-                        Text("Версия 0.1.0-spike. Вход не запускает trial. Пароль и токены не сохраняются.")
                     }
                 }
             }
         }
+        surface.open()
     }
-    override fun onStop() { playback.suspend(); super.onStop() }
-    override fun onDestroy() { playback.close(); super.onDestroy() }
+    override fun onStart(){super.onStart();if(::surface.isInitialized)surface.resume()}
+    override fun onStop(){if(::playback.isInitialized)playback.stop("Приложение в фоне — подмена остановлена");if(::surface.isInitialized)surface.suspend();super.onStop()}
+    override fun onDestroy(){if(::playback.isInitialized)playback.close();if(::surface.isInitialized)surface.close();super.onDestroy()}
+    companion object {
+        fun formatAccess(e:JSONObject):String {
+            if(e.optString("reason")=="service_incident")return "Подмена временно приостановлена. Время действующего доступа заморожено"
+            if(!e.optBoolean("allowed"))return "Доступ не активен. Пробные 3 дня начинаются при включении подмены"
+            if(e.isNull("valid_until"))return "Доступ: навсегда"
+            val until=runCatching{Instant.parse(e.getString("valid_until"))}.getOrNull()?:return "Доступ действует"
+            return "Доступ до "+DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm").withZone(ZoneId.of("Europe/Moscow")).format(until)+" (МСК)"
+        }
+    }
 }

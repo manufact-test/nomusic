@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.INTERNET" />
-    <application android:label="CELIKOM • диагностика" android:allowBackup="false"
+    <application android:label="CELIKOM" android:allowBackup="false"
         android:usesCleartextTraffic="false" android:allowAudioPlaybackCapture="false"
         android:supportsRtl="true" android:theme="@android:style/Theme.Material.NoActionBar">
         <activity android:name=".MainActivity" android:exported="true">
