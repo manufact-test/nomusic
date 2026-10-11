@@ -8,7 +8,7 @@ const source=(await readFile(new URL('../dist/unpacked/background/service-worker
 function fixture() {
  let handler,allowed=true,trialStarted=0,localSession=true;
  const local={enabled:false},sent=[],icons=[];
- const commands={getStatus:'CELIKOM_STATUS_GET',setEnabled:'CELIKOM_ENABLED_SET',retryReplacement:'CELIKOM_REPLACEMENT_RETRY',restoreOriginal:'CELIKOM_RESTORE_ORIGINAL'};
+ const commands={getStatus:'CELIKOM_STATUS_GET',setEnabled:'CELIKOM_ENABLED_SET',setTestTrack:'CELIKOM_TEST_TRACK_SET',retryReplacement:'CELIKOM_REPLACEMENT_RETRY',restoreOriginal:'CELIKOM_RESTORE_ORIGINAL'};
  const chrome={action:{setIcon:async value=>icons.push(value),setTitle:async()=>{}},runtime:{id:'worker',getManifest:()=>({version:'0.4.7'}),getURL:p=>'chrome-extension://worker/'+p,onInstalled:{addListener(){}},onStartup:{addListener(){}},onMessage:{addListener:fn=>{handler=fn}}},storage:{local:{get:async()=>({...local}),set:async x=>Object.assign(local,x)}},tabs:{query:async()=>[{id:1,url:'https://music.yandex.ru/'}],sendMessage:async(id,m)=>{sent.push(m);return {ok:true}}}};
  const auth={installationId:async()=>'',perform:async action=>action==='account-preview'?{ok:true,localSession}:{ok:true},withEntitledAccess:async()=>{},entitlement:async activation=>{if(activation)trialStarted++;return {allowed,valid_until:new Date(Date.now()+432000000).toISOString(),reason:allowed?'trial_active':'trial_inactive'}}};
  vm.runInNewContext(source,{chrome,COMMANDS:commands,normalizeEnabled:v=>v===true,createActionIcon,createMusicTabs,createAuthBroker:()=>auth,createApiBroker:()=>async()=>({ok:true}),createControllerBootstrap:()=>({ensure:async()=>({status:{track:{id:'144530503'},player:{mediaId:'1'},phase:'READY',bridge:{healthy:true}}}),ensureOpenTabs:async()=>{}}),Date,URL,Promise});
@@ -83,7 +83,7 @@ test('security: untrusted senders cannot read status, start trial or change play
  for(const sender of [{id:'other',url:'chrome-extension://worker/popup/popup.html'},
   {id:'worker',url:'https://music.yandex.ru/'}, {id:'worker',url:'chrome-extension://worker/popup/popup.html?spoof=1'}, {}]) {
   const f=fixture();
-  for(const type of ['CELIKOM_STATUS_GET','CELIKOM_ENABLED_SET','CELIKOM_RESTORE_ORIGINAL','CELIKOM_ADD_TRACK_OPENED','CELIKOM_AUTH']) {
+  for(const type of ['CELIKOM_STATUS_GET','CELIKOM_ENABLED_SET','CELIKOM_TEST_TRACK_SET','CELIKOM_RESTORE_ORIGINAL','CELIKOM_ADD_TRACK_OPENED','CELIKOM_AUTH']) {
    const result=await f.send(type,{enabled:true,action:'logout'},sender);
    assert.equal(result.error,'invalid_sender');
   }
@@ -92,13 +92,14 @@ test('security: untrusted senders cannot read status, start trial or change play
 });
 
 
-test('security: delayed Start cannot undo a later manual Stop or logout',async()=>{
- for(const later of ['stop','logout']) {
+test('security: delayed Start cannot undo a later manual Stop, Original or logout',async()=>{
+ for(const later of ['stop','original','logout']) {
   const f=fixture();let finish;
   f.auth.entitlement=()=>new Promise(resolve=>{finish=resolve});
   const start=f.send('CELIKOM_ENABLED_SET',{enabled:true});
   while(!finish) await new Promise(resolve=>setImmediate(resolve));
   if(later==='stop') await f.send('CELIKOM_ENABLED_SET',{enabled:false});
+  else if(later==='original') await f.send('CELIKOM_RESTORE_ORIGINAL');
   else await f.send('CELIKOM_AUTH',{action:'logout'});
   finish({allowed:true,valid_until:new Date(Date.now()+86400000).toISOString()});
   const result=await start;

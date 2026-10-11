@@ -186,6 +186,8 @@ chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse) =>
     return true;
   }
   if (type === COMMANDS.restoreOriginal) {
+    // Preserve the latest explicit bypass even if an earlier Start is awaiting access.
+    intentGeneration++;
     void sendToActiveTab({ type: COMMANDS.restoreOriginal }).then((result) => sendResponse(result || { ok: true }));
     return true;
   }

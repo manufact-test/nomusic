@@ -21,6 +21,9 @@ on:
       - extension/package.json
       - extension/tests/auth-popup-ui.test.mjs
       - extension/tests/auth-popup-resume.test.mjs
+      - extension/src/background/service-worker.ts
+      - extension/tests/unified-worker.test.mjs
+      - scripts/security-audit.mjs
 
 permissions:
   contents: read
@@ -56,6 +59,8 @@ jobs:
         run: npm --prefix extension test
       - name: Build pinned API-targeted Chromium extension
         run: npm --prefix extension run build
+      - name: Verify security boundary of the configured client
+        run: npm run security
       - name: Verify package origin, manifest permissions, and SHA-256
         run: |
           node --input-type=module <<'CHECK'
