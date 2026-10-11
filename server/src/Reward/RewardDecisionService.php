@@ -44,7 +44,7 @@ final class RewardDecisionService
                 // REPEATABLE READ snapshot before waiting for the policy lock.
                 $q=$this->pdo->prepare("SELECT id FROM reward_ledger WHERE user_id=?
                     AND granted_at>=DATE_SUB(DATE_FORMAT(DATE_ADD(UTC_TIMESTAMP(6),INTERVAL 3 HOUR),'%Y-%m-01'),INTERVAL 3 HOUR)
-                    AND granted_at<DATE_ADD(DATE_SUB(DATE_FORMAT(DATE_ADD(UTC_TIMESTAMP(6),INTERVAL 3 HOUR),'%Y-%m-01'),INTERVAL 3 HOUR),INTERVAL 1 MONTH) FOR UPDATE");
+                    AND granted_at<DATE_SUB(DATE_ADD(DATE_FORMAT(DATE_ADD(UTC_TIMESTAMP(6),INTERVAL 3 HOUR),'%Y-%m-01'),INTERVAL 1 MONTH),INTERVAL 3 HOUR) FOR UPDATE");
                 $q->execute([$before['user_id']]);
                 if (count($q->fetchAll(PDO::FETCH_COLUMN))>=(int)$policy['max_reward_per_month']) throw new \DomainException('reward_monthly_limit');
                 $this->pdo->prepare("UPDATE reward_ledger SET status='approved',discount_percent=?,granted_at=UTC_TIMESTAMP(6),

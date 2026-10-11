@@ -83,6 +83,7 @@ try{
   expect($stored===$expected,'Moscow input stored as UTC without shifting duration');
   expect(Celikom\Support\MoscowTime::display('2026-10-31 21:00:00')==='01.11.2026 00:00','Moscow day rollover');
   expect(Celikom\Support\MoscowTime::utc(new DateTimeImmutable('2026-11-01',new DateTimeZone('Europe/Moscow')))==='2026-10-31 21:00:00','Moscow midnight query boundary');
+  $end=$pdo->query("SELECT DATE_SUB(DATE_ADD(DATE_FORMAT(DATE_ADD('2026-03-15 12:00:00',INTERVAL 3 HOUR),'%Y-%m-01'),INTERVAL 1 MONTH),INTERVAL 3 HOUR)")->fetchColumn();expect($end==='2026-03-31 21:00:00','month end converted after calendar increment, not February 28 plus month');
   $boundary=(new DateTimeImmutable($expected,new DateTimeZone('UTC')))->getTimestamp();
   $clock($boundary-$now-1);expect($service->redeem($user(),$code)['entitlement']['allowed'],'usable before deadline');
   $clock($boundary-$now);try{$service->redeem($user(),$code);throw new RuntimeException('expired accepted');}catch(DomainException $e){expect($e->getMessage()==='promo_unavailable','expired at Moscow instant');}
