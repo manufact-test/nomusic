@@ -20,3 +20,4 @@ android/**/build/
 android/**/.gradle/
 android/**/local.properties
 android/spike/app/src/main/res/raw/*.wav
+android/spike/app/src/main/assets/shared-surface-probe.js
