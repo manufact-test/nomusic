@@ -21,7 +21,7 @@ try {
   window.chrome={storage:{session:{get:async()=>({}),set:async()=>{},remove:async()=>{}}},runtime:{getManifest:()=>({version:'0.4.30'}),getURL:()=>'/config'},tabs:{create:async({url})=>{opened=url}}};
   window.fetch=async()=>({ok:true,json:async()=>({supportEmail:'team@example.org'})});
   Object.defineProperty(navigator,'clipboard',{value:{writeText:async(t)=>{copied=t}},configurable:true});
-  await initSupport({send:async(m)=>{if(m.action==='support-send'){submitted.push(m);await new Promise(r=>setTimeout(r,50));return {ok:true,ticket_id:7}};if(m.action==='support-thread'){openCalls++;return {ok:true,messages:[{author:'support',body:'Ответ <script>SECRET</script>'}]}};return {ok:true,tickets:[{id:7,status:'answered'}]}},getState:()=>({phase:'ERROR',track:{id:'36116709'},token:'SECRET',account:{email:'PRIVATE'}})});
+  await initSupport({send:async(m)=>{if(m.action==='support-send'){submitted.push(m);await new Promise(r=>setTimeout(r,50));return {ok:true,ticket_id:7}};if(m.action==='support-thread'){openCalls++;return {ok:true,messages:[{author:'support',body:'Ответ '+String.fromCharCode(60)+'script>SECRET'+String.fromCharCode(60)+'/script>'}]}};return {ok:true,tickets:[{id:7,status:'answered'}]}},getState:()=>({phase:'ERROR',track:{id:'36116709'},token:'SECRET',account:{email:'PRIVATE'}})});
   const panel=document.querySelector('[data-support-panel]');panel.open=true;
   const description=document.querySelector('[data-support-description]');description.value='Ошибка воспроизведения';
   document.querySelector('[data-support-copy]').click();await new Promise(r=>setTimeout(r,100));

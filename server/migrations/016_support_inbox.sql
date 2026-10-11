@@ -1,4 +1,4 @@
--- Additive support inbox; existing accounts and access are untouched.
+-- Additive support inbox. Existing accounts and access are untouched.
 CREATE TABLE IF NOT EXISTS support_tickets (
  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
  user_id BIGINT UNSIGNED NOT NULL,
