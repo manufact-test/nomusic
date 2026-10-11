@@ -16,7 +16,7 @@ $pdo->prepare("INSERT INTO admins(login,password_hash,role) VALUES (?,?,'owner')
 $users=[];$codes=[];$service=new PromoService($pdo);$now=(int)$pdo->query('SELECT UNIX_TIMESTAMP(UTC_TIMESTAMP())')->fetchColumn();
 $clock=static function(int $s)use($pdo,$now):void{$pdo->exec('SET timestamp='.($now+$s));};
 $user=static function()use($pdo,&$users):int{$pdo->prepare('INSERT INTO users(email,password_hash) VALUES (?,?)')->execute(['promo-'.bin2hex(random_bytes(8)).'@example.invalid','fixture']);$id=(int)$pdo->lastInsertId();$users[]=$id;$pdo->prepare('INSERT INTO user_email_security(user_id,verified_at) VALUES (?,UTC_TIMESTAMP(6))')->execute([$id]);return $id;};
-$create=static function(array $more=[])use($service,$owner,&$codes):array{$input=$more+['code'=>'PROMO_'.bin2hex(random_bytes(8)),'title'=>'Fixture','discount_percent'=>100,'duration_days'=>30,'max_activations'=>1,'activation_window'=>'unlimited','request_key'=>bin2hex(random_bytes(32))];$id=$service->create($owner,$input);$codes[]=$id;return [$id,$input['code']];};
+$create=static function(array $more=[])use($service,$owner,&$codes):array{$input=$more+['code'=>'PROMO_'.bin2hex(random_bytes(8)),'title'=>'Fixture','discount_percent'=>100,'duration_days'=>30,'max_activations'=>1,'activation_window'=>'unlimited','request_key'=>bin2hex(random_bytes(32))];$id=$service->create($owner,$input);$codes[]=$id;return [$id,strtoupper($input['code'])];};
 try{
  $clock(0);
  run('Promo finite stacking, replay and individual revoke preserve original trial',function()use($pdo,$user,$create,$service,$owner):void{
@@ -44,6 +44,11 @@ try{
   [$partial,$discount]=$create(['discount_percent'=>20]);
   try{$service->redeem($user(),$discount);throw new RuntimeException('payment_missing');}catch(DomainException $e){expect($e->getMessage()==='promo_payment_pending','discount deferred');}
   expect((int)$pdo->query('SELECT used_activations FROM promo_codes WHERE id='.$partial)->fetchColumn()===0,'no use without payment');
+ });
+ run('Seven remaining days plus thirty promo days give thirty-seven',function()use($pdo,$user,$create,$service):void{
+  $id=$user();[$a,$ca]=$create(['duration_days'=>7]);[$b,$cb]=$create(['duration_days'=>30]);$service->redeem($id,$ca);$r=$service->redeem($id,$cb);
+  $now=(string)$pdo->query('SELECT UTC_TIMESTAMP(6)')->fetchColumn();
+  expect(IncidentService::micros($r['entitlement']['valid_until'])-IncidentService::micros($now)===37*86400000000,'37 days exact');
  });
  run('Concurrent promo claims respect global cap and account replay',function()use($pdo,$user,$create):void{
   $race=static function(array $ids,string $code):array{
@@ -77,7 +82,7 @@ try{
  });
 }finally{
  $pdo->exec('SET timestamp=0');
- foreach($users as $id){$pdo->exec('DELETE FROM promo_redemptions WHERE user_id='.$id);$pdo->exec('DELETE FROM account_trials WHERE user_id='.$id);$pdo->exec('DELETE FROM entitlement_ledger WHERE user_id='.$id);$pdo->exec('DELETE FROM users WHERE id='.$id);}
+ foreach($users as $id){$pdo->exec('DELETE FROM promo_redemptions WHERE user_id='.$id);$pdo->exec('DELETE FROM account_trials WHERE user_id='.$id);$pdo->exec('DELETE FROM entitlement_ledger WHERE user_id='.$id);$pdo->exec('DELETE FROM user_email_security WHERE user_id='.$id);$pdo->exec('DELETE FROM users WHERE id='.$id);}
  foreach($codes as $id)$pdo->exec('DELETE FROM promo_codes WHERE id='.$id);
  $pdo->exec('DELETE FROM audit_log WHERE admin_id='.$owner);$pdo->exec('DELETE FROM admins WHERE id='.$owner);
 }

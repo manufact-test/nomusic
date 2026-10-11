@@ -42,6 +42,7 @@ final class PromoAccessService
                 || $r['ledger_from']!==$r['valid_from'] || $r['ledger_until']!==$r['valid_until']
                 || ((int)$r['forever']===1 ? ($r['valid_until']!==null || $r['duration_days']!==null) : ($r['valid_until']===null || IncidentService::micros($r['valid_until'])-IncidentService::micros($r['valid_from']) !== (int)$r['duration_days']*86400000000))) continue;
             $parent = $windows[(int)($r['parent_ledger_id'] ?? 0)] ?? null;
+            if($r['parent_ledger_id']!==null && $parent===null)continue;
             $from = max($r['activated_at'],$parent['until'] ?? $r['activated_at']);
             if ($r['revoked_at']!==null) {
                 // Remove only this bonus. A later independently issued code retains its own days.
