@@ -40,7 +40,7 @@ jobs:
           assert.deepEqual(Object.keys(req), ['operation','target','expected_release']);
           assert.ok(['prepare','enable','audit','disable'].includes(req.operation));
           assert.equal(req.target, 'hostinger-private-test');
-          assert.ok(req.operation==='prepare' || /^0\.4\.(?:18|20)-[a-f0-9]{40}$/.test(req.expected_release));
+          assert.ok(req.operation==='prepare' || /^0\.4\.(?:18|20|22)-[a-f0-9]{40}$/.test(req.expected_release));
           assert.equal(process.env.GITHUB_REPOSITORY, 'manufact-test/nomusic');
           assert.equal(process.env.GITHUB_REF, 'refs/heads/feature/api-range');
           JS
