@@ -103,7 +103,8 @@ try {
             if ($table === 'schema_migrations' && $currentCount > (int)$beforeCount
                 && $currentCount <= (int)$beforeCount + 2) {
                 // Stage10 permits only the two checksummed additive migrations.
-                foreach (['006_entitlements_ledger.sql', '007_account_trials.sql', '008_three_day_trial.sql'] as $migrationFile) {
+                foreach (glob($release . '/migrations/*.sql') ?: [] as $migrationPath) {
+                    $migrationFile = basename($migrationPath);
                     $migration = $pdo->prepare('SELECT sha256 FROM schema_migrations WHERE version = ?');
                     $migration->execute([$migrationFile]);
                     $checksum = $migration->fetchColumn();
@@ -116,7 +117,14 @@ try {
             if ($currentCount !== (int) $beforeCount)
                 throw new RuntimeException('database-row-count-changed');
         }
-        echo "Stage 10 after-deploy audit PASS: private env, media and historic row counts preserved; additive trial/ledger migrations verified.\n";
+        foreach (['promo_codes','promo_redemptions','promo_attempt_buckets'] as $table) {
+            if (array_key_exists($table,$baseline['tables'])) continue;
+            $exists=$pdo->prepare('SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name=?');
+            $exists->execute([$table]);
+            if ((int)$exists->fetchColumn() && (int)$pdo->query('SELECT COUNT(*) FROM '.chr(96).$table.chr(96))->fetchColumn()!==0)
+                throw new RuntimeException('unexpected_new_promo_data');
+        }
+        echo "After-deploy audit PASS: private env, media and historic row counts preserved; additive migrations verified; newly introduced promo tables contain no real codes or grants.\n";
         exit(0);
     }
     $copyAudio = static function(string $source, string $destination, array $index): void {
