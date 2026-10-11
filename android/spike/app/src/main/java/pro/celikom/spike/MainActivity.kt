@@ -12,6 +12,8 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.graphics.Color
 import androidx.activity.ComponentActivity
+import androidx.activity.enableEdgeToEdge
+import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.*
@@ -37,12 +39,15 @@ class MainActivity : ComponentActivity() {
     private var noisyRegistered=false
     override fun onCreate(savedInstanceState:Bundle?){
         super.onCreate(savedInstanceState)
+        enableEdgeToEdge(statusBarStyle=SystemBarStyle.dark(android.graphics.Color.TRANSPARENT),navigationBarStyle=SystemBarStyle.dark(android.graphics.Color.TRANSPARENT))
         val account=MobileAccount(this)
         surface=MobileSurface(this,{playbackState=it},{if(::playback.isInitialized)playback.stop()},
             {if(::playback.isInitialized)playback.guardReleased(it)})
         playback=MobilePlayback(account,surface,{playbackState=it})
         setContent {
-            MaterialTheme {
+            MaterialTheme(colorScheme=darkColorScheme(primary=Color(0xFF66E0BF),onPrimary=Color(0xFF0B1013),
+                background=Color(0xFF0B1013),surface=Color(0xFF0B1013),surfaceVariant=Color(0xFF141B1F),
+                onSurface=Color(0xFFF4F7F8),outline=Color(0xFF55666D),secondary=Color(0xFF66E0BF))) {
                 var accountOpen by remember{mutableStateOf(false)}
                 var email by remember{mutableStateOf("")}
                 var password by remember{mutableStateOf("")}
@@ -123,7 +128,7 @@ class MainActivity : ComponentActivity() {
                                     OutlinedButton(enabled=!busy,onClick={playback.stop();task{account.logout();"Вы вышли из аккаунта CELIKOM"}}){Text("Выйти")}
                                 }
                                 Text("Вход в Яндекс находится в самом плеере и не связан с паролем CELIKOM.")
-                                Text("Android PoC 0.2.0 • даты по московскому времени",style=MaterialTheme.typography.bodySmall)
+                                Text("CELIKOM 0.2.0",style=MaterialTheme.typography.bodySmall)
                             }
                         }else{
                             if(incident){
