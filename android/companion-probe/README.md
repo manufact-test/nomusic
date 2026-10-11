@@ -1,4 +1,4 @@
-# CELIKOM native companion diagnostic 0.3.0-probe
+# CELIKOM native companion diagnostic 0.3.1-probe
 
 Read-only owner diagnostic for installed `ru.yandex.music`, prepared after the owner rejected the WebView product route. This is not Beta and does not implement replacement. It is an isolated diagnostic, not a separate final product client; future integration must use the common account/EntitlementService and catalog.
 
@@ -11,3 +11,5 @@ Owner Honor50; exact Android/Yandex versions unknown and reported automatically.
 Tests: spoofed broadcasts never imply verified caller/effect, bounded events, disabled observation, metadata sanitization, no audio/network permissions, native UI screenshot at font scale1.3. Emulator has no Yandex, so these tests are not service proof. API35 build/lint/native test; previous owned cross-app audio attenuation API29/35 is separate evidence. Physical background/routes and failure restoration are not accepted yet.
 
 CI uploads only encrypted CMS envelopes (public recipient cert, private key stays outside git); no plaintext APK/screenshot artifact. This diagnostic uses ephemeral CI debug signing, not production distribution signing. Does not replace the installed old `pro.celikom.spike` WebView APK: owner can remove that obsolete diagnostic separately. Do not uninstall/reset any extension/account/backend state. PR6 stays unmerged, Stage16 partial,17 not started,15 excluded.
+
+0.3.1 inspects only the current queue item and allowlisted numeric extras, records bounded state history, deduplicates broadcasts and keeps callbacks stable per session token. No real-Yandex effect or exact-ID acceptance is implied.

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.4.29 — 2026-10-12 (support and native Android checkpoint)
+
+- Popup support panel works independently of login and music incidents; manual copy uses a private allowlist. Email draft is ready for CELIKOM_SUPPORT_EMAIL, but no live recipient has been supplied.
+- One complete configured extension; accepted playback/account/upload/promo/reward features retained. Backend deployment and real data unchanged.
+- Android0.3.1 remains read-only diagnostic. Honor50 confirmed the actual Yandex AudioEffect panel call; native MEDIA_ID32 mismatches shared Track36116709. Current queue/extras candidate inspection and stable session callbacks require a new owner report; exact ID/replacement/physical routes remain unproven.
+- Stage15 excluded,16 partial,17 not started,18 required before external release; PR6 stays open/unmerged.
+
 ## 0.4.25 — 2026-10-11 (independent Stage 14 security)
 
 - Worker popup sender gate; delayed Start cannot undo later Stop/Original/logout.
