@@ -57,6 +57,9 @@ for (const group of contentScriptGroups) {
   await writeFile(path.join(unpackedRoot, group.file), `// CELIKOM ${packageJson.version} ${group.world} dependency bundle\n${parts.join("\n;\n")}\n`, "utf8");
 }
 const apiConfig = apiBuildConfig(process.env.CELIKOM_API_BASE_URL);
+const supportEmail = (process.env.CELIKOM_SUPPORT_EMAIL || "").trim();
+if (supportEmail && !/^[a-zA-Z0-9.!#$%&'*+\/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9.-]*[a-zA-Z0-9])?\.[a-zA-Z]{2,63}$/.test(supportEmail)) throw new Error("Invalid CELIKOM_SUPPORT_EMAIL");
+apiConfig.supportEmail = supportEmail;
 await mkdir(path.join(unpackedRoot, "api"), { recursive: true });
 await writeFile(path.join(unpackedRoot, "api", "config.json"), JSON.stringify(apiConfig, null, 2) + "\n");
 const sourceManifest = JSON.parse(await readFile(path.join(extensionRoot, "manifest", "manifest.json"), "utf8"));

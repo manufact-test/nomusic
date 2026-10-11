@@ -395,3 +395,8 @@ html{scrollbar-width:thin;scrollbar-color:#45565f transparent}
 [data-auth-promo-panel] input{width:100%;box-sizing:border-box;min-width:0}
 [data-auth-promo-panel] button{justify-self:start}
 [data-auth-promo-panel] [data-promo-note]{margin:8px 0 0;font-size:11px;line-height:1.5;overflow-wrap:anywhere}
+
+.support-content { display: grid; gap: 12px; padding-top: 12px; }
+.support-content p { margin: 0; line-height: 1.5; overflow-wrap: anywhere; }
+.support-content textarea { box-sizing: border-box; width: 100%; min-width: 0; resize: vertical; border: 1px solid #2a3439; border-radius: 10px; padding: 12px; color: inherit; background: #141b1f; font: inherit; }
+.support-content textarea:focus-visible { outline: 2px solid #66e0bf; outline-offset: 2px; }

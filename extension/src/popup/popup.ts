@@ -5,6 +5,7 @@ import { initAuthPanel } from "../auth/auth-popup.js";
 import { initAccessStatus } from "../auth/access-status.js";
 import { initVersionStatus } from "./version-status.js";
 import { readDisplay, writeDisplay, stableText } from "./display-cache.js";
+import { initSupport } from "./support.js";
 import { initIncidentStatus } from "./incident-status.js";
 
 const status = document.querySelector<HTMLElement>("[data-status]");
@@ -514,3 +515,5 @@ window.setInterval(() => void refreshAccess(), 15000);
 const accountPanel = initAuthPanel(send);
 
 initScrollSpacing();
+
+void initSupport({ getState: () => lastState });
