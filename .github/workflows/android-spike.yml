@@ -58,6 +58,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: celikom-android-spike-private-${{ github.sha }}
-          path: android/spike/app/build/outputs/apk/debug/*.apk.cms
+          path: android/spike/app/build/outputs/apk/debug/*.cms
           retention-days: 1
           if-no-files-found: error

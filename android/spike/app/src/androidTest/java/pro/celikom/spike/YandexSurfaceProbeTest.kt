@@ -51,7 +51,7 @@ class YandexSurfaceProbeTest {
                 assertFalse("Passive probe never claims playback", report.getBoolean("playback_confirmed"))
                 val context = InstrumentationRegistry.getInstrumentation().targetContext
                 report.put("explicit_play_control_tapped",point!=null)
-                check(Build.VERSION.SDK_INT >= 29) // CI probe targets API 35.
+                if (Build.VERSION.SDK_INT < 29) error("CI service probe requires API 29+")
                 fun output(name: String, mime: String, write: (java.io.OutputStream) -> Unit) {
                     val values=ContentValues().apply {
                         put(MediaStore.MediaColumns.DISPLAY_NAME,name)
