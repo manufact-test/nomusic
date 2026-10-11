@@ -3,6 +3,7 @@ SET @celikom_auto_columns = (SELECT IF(COUNT(*)=0, 'ALTER TABLE reward_ledger
     DROP CHECK reward_grant_dates,
     ADD COLUMN grant_mode ENUM(''manual'',''automatic'') NOT NULL DEFAULT ''manual'',
     ADD CONSTRAINT reward_grant_dates CHECK (granted_at IS NULL OR (discount_percent IS NOT NULL AND policy_version IS NOT NULL AND ((grant_mode=''manual'' AND expires_at IS NOT NULL AND expires_at>granted_at) OR (grant_mode=''automatic'' AND expires_at IS NULL))))', 'UPDATE reward_policy SET id=id WHERE id=1') FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='reward_ledger' AND column_name='grant_mode');
+SET @celikom_auto_columns = IF(INSTR(VERSION(),'MariaDB')>0, REPLACE(@celikom_auto_columns,'DROP CHECK reward_grant_dates','DROP CONSTRAINT reward_grant_dates'), @celikom_auto_columns);
 PREPARE celikom_auto_statement FROM @celikom_auto_columns;
 EXECUTE celikom_auto_statement;
 DEALLOCATE PREPARE celikom_auto_statement;

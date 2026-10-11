@@ -1,0 +1,47 @@
+name: Reward compatibility on MariaDB
+
+on:
+  push:
+    branches: [feature/api-range]
+    paths:
+      - .github/workflows/rewards-mariadb.yml
+      - server/migrations/**
+      - server/src/Reward/**
+      - server/tests/automatic-rewards.php
+      - server/tests/reward-policy.php
+
+permissions:
+  contents: read
+
+jobs:
+  verify-mariadb:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      mariadb:
+        image: public.ecr.aws/docker/library/mariadb:10.11
+        env:
+          MARIADB_ROOT_PASSWORD: ci-disposable-mariadb
+          MARIADB_DATABASE: celikom_test_mariadb
+        ports: ["3306:3306"]
+        options: >-
+          --health-cmd="mariadb-admin ping -h 127.0.0.1 -pci-disposable-mariadb"
+          --health-interval=10s --health-timeout=5s --health-retries=10
+    env:
+      DB_HOST: 127.0.0.1
+      DB_PORT: 3306
+      DB_NAME: celikom_test_mariadb
+      DB_USER: root
+      DB_PASSWORD: ci-disposable-mariadb
+      STORAGE_PATH: /tmp/celikom-ci-mariadb-audio
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.3"
+          extensions: pdo_mysql, fileinfo, mbstring
+          coverage: none
+      - name: Verify automatic carry, historical credits and restartable migrations
+        run: |
+          php server/tests/automatic-rewards.php
+          php server/tests/reward-policy.php
