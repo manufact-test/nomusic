@@ -192,7 +192,9 @@ function smoke10(PDO $db, array $config): void {
 try {
     $root='/home/u235811320/domains/darkred-camel-588676.hostingersite.com/celikom';
     $release=realpath($root.'/current'); $env=$root.'/shared/env';
-    guard10(is_link($root.'/current') && is_string($release) && (str_starts_with($release,$root.'/releases/0.4.8-') || str_starts_with($release,$root.'/releases/0.4.9-') || str_starts_with($release,$root.'/releases/0.4.11-'))
+    $legacyRelease=is_string($release) && (str_starts_with($release,$root.'/releases/0.4.8-') || str_starts_with($release,$root.'/releases/0.4.9-') || str_starts_with($release,$root.'/releases/0.4.11-'));
+    $stage12AuditRelease=$release===$root.'/releases/0.4.16-dd54afb774baefc90c2c059a6231c85a0442b9b6';
+    guard10(is_link($root.'/current') && ($legacyRelease || $stage12AuditRelease)
         && !is_link($root) && !is_link($root.'/shared') && !is_link($env) && is_file($env) && (fileperms($env)&0077)===0);
     $requestPath=realpath($argv[1]);
     guard10(is_string($requestPath) && str_starts_with($requestPath,$root.'/incoming/stage10-')
@@ -200,6 +202,9 @@ try {
     $request=json_decode(file_get_contents($requestPath),true,8,JSON_THROW_ON_ERROR);
     guard10(array_keys($request)===['operation','target'] && in_array($request['operation'],['enable','audit','reset-trials','enable-uploads'],true)
         && $request['target']==='hostinger-private-test');
+    // New release is permitted only for ephemeral HTTPS smoke and preservation
+    // checks. Historical trial resets and flag mutations remain legacy-only.
+    guard10($legacyRelease || ($stage12AuditRelease && $request['operation']==='audit'));
     require $release.'/bootstrap.php'; $config=require $release.'/config/app.php'; $db=Celikom\Database\Connection::open($config);
     $before=integrity10($db,$config,$root);
     foreach (['006_entitlements_ledger.sql','007_account_trials.sql','008_three_day_trial.sql'] as $file) {
