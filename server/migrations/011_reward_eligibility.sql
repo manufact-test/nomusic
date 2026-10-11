@@ -1,4 +1,4 @@
--- Stage12 contribution evidence only; no discount value, money or access grant.
+-- Stage12 contribution evidence only. No discount value, money or access grant.
 CREATE TABLE IF NOT EXISTS reward_ledger (
     id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     user_id BIGINT UNSIGNED NOT NULL,

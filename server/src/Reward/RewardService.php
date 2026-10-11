@@ -36,7 +36,9 @@ final class RewardService
             || (int)$row['is_active'] !== 1 || $row['disabled_at'] !== null
             || (int)$row['approved_by_admin_id'] !== $adminId || $row['approved_at'] === null
             || !$row['uploaded_by_user_id'] || $row['account_status'] !== 'active' || $row['verified_at'] === null) return;
-        $q = $this->pdo->prepare('SELECT id FROM reward_ledger WHERE audio_asset_id=?');
+        // Current read, including a previous issuer that committed while we waited
+        // for the asset lock (MySQL REPEATABLE READ must not reuse an old snapshot).
+        $q = $this->pdo->prepare('SELECT id FROM reward_ledger WHERE audio_asset_id=? FOR UPDATE');
         $q->execute([$assetId]);
         if ($q->fetchColumn()) return;
         $this->pdo->prepare('INSERT INTO reward_ledger(user_id,audio_asset_id,replacement_id,approved_by_admin_id)
