@@ -275,6 +275,12 @@ final class AdminPanel
             'report_dismissed' => 'Жалоба отклонена',
             'audit_csv_export' => 'Журнал скачан',
             'track_metadata_labeled' => 'Подпись трека уточнена',
+            'reward_eligibility_recorded' => 'Вклад передан на рассмотрение награды',
+            'reward_policy_changed' => 'Правила наград изменены',
+            'reward_approve' => 'Скидочный бонус начислен',
+            'reward_reject' => 'Награда отклонена',
+            'reward_revoke' => 'Начисление отменено',
+            'reward_expire' => 'Истечение бонуса подтверждено',
             default => 'Другое действие',
         };
     }
@@ -770,6 +776,7 @@ final class AdminPanel
             $object = match ($r['entity_type']) {
                 'track_replacement' => 'Версия', 'track_request' => 'Предложение', 'track' => 'Трек',
                 'report' => 'Жалоба', 'admin' => 'Администратор',
+                'reward_ledger' => 'Награда', 'reward_policy' => 'Правила наград',
                 default => 'Объект'
             };
             $html .= '<tr><td>' . self::e($r['created_at']) . '</td><td>'

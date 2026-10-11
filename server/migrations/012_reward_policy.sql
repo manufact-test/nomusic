@@ -25,7 +25,7 @@ SET @celikom_reward_columns = (SELECT IF(COUNT(*)=0, 'ALTER TABLE reward_ledger
     ADD CONSTRAINT reward_deciding_admin_fk FOREIGN KEY (decided_by_admin_id) REFERENCES admins(id),
     ADD CONSTRAINT reward_discount_bounds CHECK (discount_percent IS NULL OR discount_percent BETWEEN 1 AND 100),
     ADD CONSTRAINT reward_grant_dates CHECK (granted_at IS NULL OR (expires_at IS NOT NULL AND expires_at>granted_at AND discount_percent IS NOT NULL AND policy_version IS NOT NULL)),
-    ADD CONSTRAINT reward_approved_has_grant CHECK (status NOT IN (''approved'',''used'',''expired'') OR (granted_at IS NOT NULL AND decided_by_admin_id IS NOT NULL))', 'SELECT 1') FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='reward_ledger' AND column_name='discount_percent');
+    ADD CONSTRAINT reward_approved_has_grant CHECK (status NOT IN (''approved'',''used'',''expired'') OR (granted_at IS NOT NULL AND decided_by_admin_id IS NOT NULL))', 'UPDATE reward_policy SET id=id WHERE id=1') FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='reward_ledger' AND column_name='discount_percent');
 PREPARE celikom_reward_columns_statement FROM @celikom_reward_columns;
 EXECUTE celikom_reward_columns_statement;
 DEALLOCATE PREPARE celikom_reward_columns_statement;

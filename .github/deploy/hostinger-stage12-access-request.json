@@ -1,0 +1,5 @@
+{
+  "operation": "prepare",
+  "target": "hostinger-private-test",
+  "expected_release": ""
+}
