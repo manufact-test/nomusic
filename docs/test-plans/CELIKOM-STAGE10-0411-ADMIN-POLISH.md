@@ -18,7 +18,7 @@ SHA256 CELIKOM-0.4.11-stage10.zip: `5ce6708a60bf662b49aaaaaada6db5ed66223a1fa649
 
 Pre-rollout snapshot38096630329 PASS:24SQL tables /7audio objects, including owner uploads. Backup gates now respect the owner’s current moderation decisions for legacy#2/#3; operations never activate or change those records. Approved144530503/#1 remains protected.
 
-Pre-rollout isolated recovery38096739223 PASS: config and7audio restored and verified, actual MySQL schema and approved mapping recovered without touching live files/database. Rollout evidence pending.
+Pre-rollout isolated recovery38096739223 PASS: config and7audio restored and verified, actual MySQL schema and approved mapping recovered without touching live files/database. Rollout38096832455 PASS after full isolated PHP8.3/MySQL/browser verification; active release0.4.11-d565d032be2ac7073d8867e436597cbf81bfca9c. Existing shared config and credentials retained. Final preservation audit/live smoke pending.
 
 ## Owner check
 

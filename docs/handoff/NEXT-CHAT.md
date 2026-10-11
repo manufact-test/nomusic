@@ -1,3 +1,9 @@
+## 2026-10-11 — 0.4.11: owner review fixes; Stage10 OPEN
+
+Owner confirmed public upload, moderation and working playback, then authorized four fixes: admin input focus, numeric version ordering, accurate popup version presence and proposal/version progress. New unified client0.4.11 is ready; server0.4.11 deployed via38096832455 PASS; final live smoke pending. Existing proposal records are retained: default queue contains only those still needing MP3, uploaded/fulfilled history is available through filters. Exact service/Track ID linkage also covers existing uploads. No schema migration, audio replacement, account/session changes or trial reset. Current owner moderation decisions for legacy#2/#3 are preserved; no automated approval. Approved144530503/#1 retained.
+
+125extension +17PoC tests and PHP8.3/MySQL/browser CI38096633131 PASS; private Chrome package38096630320 PASS. Snapshot38096630329 (24tables/7audio) and isolated recovery38096739223 PASS. [Evidence and owner checklist](../test-plans/CELIKOM-STAGE10-0411-ADMIN-POLISH.md). PR6OPEN/unmerged, Issue7OPEN, Issue9OPEN. Update CURRENT extension folder in place, reload extension and Yandex tab; existing account.
+
 ## 2026-10-11 — Public Upload/Suggest ON; unified client0.4.10 ready; Stage10 still OPEN
 
 Owner confirmed actual0.4.9 music replacement, switching and seeking on2026-10-10. Return/Stop/logout, final two-device owner acceptance and public forms still await owner checks. On2026-10-11 owner requested unblocking disabled Upload Version / Suggest Song screens. Guarded enable38095162535 PASS: only FEATURE_UPLOADS changed with env backup/rollback and full config comparison; backend stays accepted0.4.9, no media/trial/session changes. Ordinary-user real HTTPS MP3 upload + separate no-file suggestion, duplicate retry/status/pending-only enforcement PASS; random QA records cleaned. Existing approved144530503/#1 and pending799133075/#2,38436680/#3 untouched.
