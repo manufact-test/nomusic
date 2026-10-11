@@ -107,3 +107,14 @@ test('security: delayed Start cannot undo a later manual Stop, Original or logou
   assert.equal(f.sent.some(m=>m.type==='CELIKOM_REPLACEMENT_RETRY'),false);
  }
 });
+
+test('lifetime promo authorizes heartbeat; redemption never overrides manual Stop',async()=>{
+ const f=fixture();f.local.enabled=true;
+ f.auth.entitlement=async()=>({allowed:true,source:'promo',valid_until:null,reason:'promo_active'});
+ await f.send('CELIKOM_CONTEXT_PING',{enabled:true,healthy:true},{id:'worker',url:'https://music.yandex.ru/',tab:{id:1}});
+ await new Promise(resolve=>setImmediate(resolve));
+ assert.equal(f.local.enabled,true);assert.equal(f.sent.at(-1).state,'allowed');
+ await f.send('CELIKOM_ENABLED_SET',{enabled:false});
+ await f.send('CELIKOM_AUTH',{action:'promo-redeem',code:'TEST_CODE'});
+ assert.equal(f.local.enabled,false);
+});
