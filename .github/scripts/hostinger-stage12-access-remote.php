@@ -31,7 +31,7 @@ try {
     $request=json_decode((string)file_get_contents($requestPath),true,8,JSON_THROW_ON_ERROR);
     guard12(is_array($request) && array_keys($request)===['operation','target','expected_release']
         && $request['target']==='hostinger-private-test' && in_array($request['operation'],['enable','disable','audit'],true)
-        && is_string($request['expected_release']) && preg_match('/^0\.4\.18-[a-f0-9]{40}$/D',$request['expected_release'])===1);
+        && is_string($request['expected_release']) && preg_match('/^0\.4\.(?:18|20)-[a-f0-9]{40}$/D',$request['expected_release'])===1);
     $release=realpath($app.'/current');guard12($release===$app.'/releases/'.$request['expected_release']);
     require $release.'/bootstrap.php';$before=require $release.'/config/app.php';
     guard12($before['environment']==='production' && $before['auth_enabled'] && $before['admin_enabled']
