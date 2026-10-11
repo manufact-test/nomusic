@@ -91,3 +91,12 @@ jobs:
             dist/celikom-server-*.zip.sha256
           if-no-files-found: error
           retention-days: 14
+
+      - name: Upload disposable UI layout proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: celikom-layout-${{ github.sha }}
+          path: dist/layout-proof/*.png
+          if-no-files-found: ignore
+          retention-days: 7

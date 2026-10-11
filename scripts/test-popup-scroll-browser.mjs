@@ -1,4 +1,4 @@
-import {access,readFile,writeFile,mkdtemp,rm} from 'node:fs/promises';
+import {access,readFile,writeFile,mkdtemp,rm,mkdir} from 'node:fs/promises';
 import {spawnSync} from 'node:child_process';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
@@ -11,7 +11,7 @@ try{
  const base=new URL('../extension/dist/unpacked/',import.meta.url);
  const css=await readFile(new URL('popup/popup.css',base),'utf8');
  const script=(await readFile(new URL('popup/scroll-spacing.js',base),'utf8')).replace(/^export /gm,'');
- let html=(await readFile(new URL('popup/popup.html',base),'utf8')).replace('<link rel="stylesheet" href="popup.css">',`<style>${css}</style>`).replace('<script type="module" src="popup.js"></script>','');
+ let html=(await readFile(new URL('popup/popup.html',base),'utf8')).replace('<link rel="stylesheet" href="popup.css">',`<style>${css} body{width:292px}</style>`).replace('<script type="module" src="popup.js"></script>','');
  html=html.replace('</body>',`<script>${script}\n(async()=>{try{
  const check=(value,message)=>{if(!value)throw Error(message)};
  const settle=()=>new Promise(r=>setTimeout(r,250));
@@ -41,10 +41,11 @@ try{
   check(document.documentElement.scrollWidth<=innerWidth,'no horizontal overflow '+screen);
  }
  check(parseFloat(getComputedStyle(document.querySelector('main')).paddingRight)===16,'outer scrollbar keeps popup padding');
- document.body.dataset.scrollResult='pass';
+ document.querySelector('[data-auth-identity]').textContent='admin@example.invalid';document.querySelector('[data-auth-promo-panel]').open=true;document.querySelector('[data-promo-note]').textContent='Сообщение о промокоде. '.repeat(12);await settle();document.body.dataset.scrollResult='pass';
  }catch(e){document.body.dataset.scrollResult=e.message}})();</script></body>`);
  const file=join(directory,'popup.html');await writeFile(file,html);
- const r=spawnSync(binary,['--headless=new','--no-sandbox','--disable-gpu','--window-size=340,600','--virtual-time-budget=7000','--dump-dom',pathToFileURL(file).href],{encoding:'utf8',timeout:30000,maxBuffer:2e6});
+ await mkdir('dist/layout-proof',{recursive:true});
+ const r=spawnSync(binary,['--headless=new','--no-sandbox','--disable-gpu','--window-size=340,600','--virtual-time-budget=7000','--dump-dom','--screenshot='+join(process.cwd(),'dist/layout-proof/popup-scroll.png'),pathToFileURL(file).href],{encoding:'utf8',timeout:30000,maxBuffer:2e6});
  if(r.status!==0||!r.stdout.includes('data-scroll-result="pass"'))throw Error('Popup scroll spacing: '+(r.stdout.match(/data-scroll-result="([^"]*)"/)?.[1]||'no result'));
  console.log('Popup scrollbar spacing across auth and expanded promo/benefits PASS');
 }finally{await rm(directory,{recursive:true,force:true});}

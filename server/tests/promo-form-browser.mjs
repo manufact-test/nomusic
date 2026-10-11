@@ -1,4 +1,4 @@
-import { readFile,writeFile,access,mkdtemp,rm } from 'node:fs/promises';
+import { readFile,writeFile,access,mkdtemp,rm,mkdir } from 'node:fs/promises';
 import { spawnSync } from 'node:child_process';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -33,12 +33,19 @@ try {
  const box=field('forever'),text=box.nextElementSibling;check(Math.abs(box.getBoundingClientRect().top-text.getBoundingClientRect().top)<12,'checkbox and label on same line');
  box.checked=true;box.dispatchEvent(new Event('change',{bubbles:true}));check(field('duration_days').disabled&&document.querySelector('[data-promo-days]').getBoundingClientRect().height===0,'lifetime hides days');
  field('discount_percent').value='20';field('discount_percent').dispatchEvent(new Event('input',{bubbles:true}));check(!box.checked&&box.disabled&&!field('duration_days').disabled,'partial discount cannot select lifetime');
- check(document.documentElement.scrollWidth<=innerWidth,'no page overflow');document.body.dataset.promoResult='pass';
+ check(document.documentElement.scrollWidth<=innerWidth,'no page overflow');field('title').value='Доступ для администрации';field('code').value='EXAMPLE-ADMIN';field('discount_percent').value='100';field('discount_percent').dispatchEvent(new Event('input',{bubbles:true}));field('duration_days').value='30';if(location.hash==='#forever'){box.checked=true;box.dispatchEvent(new Event('change',{bubbles:true}));}if(location.hash==='#deadline'){field('activation_window').value='fixed';field('activation_window').dispatchEvent(new Event('change',{bubbles:true}));}document.body.dataset.promoResult='pass';
  }catch(e){document.body.dataset.promoResult=e.message}},100);</script>`;
  const file=join(directory,'form.html');await writeFile(file,original.replace('</body>',check+'</body>'));
  for(const width of [1100,390]){
   const result=spawnSync(binary,['--headless=new','--no-sandbox','--disable-gpu',`--window-size=${width},900`,'--virtual-time-budget=1000','--dump-dom',pathToFileURL(file).href],{encoding:'utf8',timeout:30000,maxBuffer:2e6});
   if(result.status!==0||!result.stdout.includes('data-promo-result="pass"'))throw Error('Native promo form failed '+width+': '+(result.stdout.match(/data-promo-result="([^"]*)"/)?.[1]||result.error?.message||'no result'));
+ }
+ await mkdir('dist/layout-proof',{recursive:true});
+ if(original.includes('data-promo-create')){
+  for(const state of ['finite','forever','deadline'])spawnSync(binary,['--headless=new','--no-sandbox','--disable-gpu','--window-size=1100,1000','--virtual-time-budget=1000','--screenshot='+join(process.cwd(),'dist/layout-proof/admin-create-'+state+'.png'),pathToFileURL(file).href+'#'+state],{encoding:'utf8',timeout:30000});
+ }else{
+  const name=original.includes('<th>Аккаунт</th>')?'activations':'codes';
+  spawnSync(binary,['--headless=new','--no-sandbox','--disable-gpu','--window-size=1400,1000','--virtual-time-budget=1000','--screenshot='+join(process.cwd(),'dist/layout-proof/admin-'+name+'.png'),pathToFileURL(file).href],{encoding:'utf8',timeout:30000});
  }
  console.log('Native promo form desktop/mobile PASS');
 }finally{await rm(directory,{recursive:true,force:true});}
