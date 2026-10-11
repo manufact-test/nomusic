@@ -43,12 +43,16 @@ class MusicListener : NotificationListenerService() {
         ProbeStore.put(this, "listener", JSONObject().put("connected", false).put("error", e.javaClass.simpleName))
     }
     private fun bind(controllers: List<MediaController>) {
-        callbacks.forEach { (c, cb) -> c.unregisterCallback(cb) }; callbacks.clear()
-        if (!ProbeStore.enabled(this)) { save(); return }
-        controllers.filter { it.packageName == ProbeStore.YANDEX }.take(4).forEach { c ->
+        val selected = if (ProbeStore.enabled(this)) controllers.filter { it.packageName == ProbeStore.YANDEX }.take(4) else emptyList()
+        callbacks.keys.filter { old -> selected.none { it.sessionToken == old.sessionToken } }.toList().forEach { old ->
+            callbacks.remove(old)?.let { old.unregisterCallback(it) }
+        }
+        selected.filter { candidate -> callbacks.keys.none { it.sessionToken == candidate.sessionToken } }.forEach { c ->
             val cb = object : MediaController.Callback() {
                 override fun onMetadataChanged(metadata: MediaMetadata?) = save()
                 override fun onPlaybackStateChanged(state: PlaybackState?) = save()
+                override fun onQueueChanged(queue: MutableList<android.media.session.MediaSession.QueueItem>?) = save()
+                override fun onExtrasChanged(extras: android.os.Bundle?) = save()
                 override fun onSessionDestroyed() = refresh()
             }
             callbacks[c] = cb; c.registerCallback(cb, handler)
@@ -58,14 +62,27 @@ class MusicListener : NotificationListenerService() {
     private fun save() {
         if (!ProbeStore.enabled(this)) return
         val sessions = JSONArray()
-        callbacks.keys.forEach { c ->
+        try { callbacks.keys.forEach { c ->
             val state = c.playbackState
+            val queue = c.queue
+            val item = queue?.firstOrNull { it.queueId == state?.activeQueueItemId }
+            val description = item?.description
+            val current = JSONObject().put("found", item != null).put("queue_size", queue?.size ?: 0)
+                .put("active_queue_item_id", state?.activeQueueItemId ?: -1)
+                .put("media_id", ProbeStore.clean(description?.mediaId) ?: JSONObject.NULL)
+                .put("numeric_candidates", ProbeStore.numericCandidates(description?.extras))
+                .put("extra_keys", ProbeStore.keys(description?.extras))
+            val uri = description?.mediaUri
+            if (uri != null) current.put("media_uri", ProbeStore.clean("${uri.scheme ?: ""}://${uri.host ?: ""}${uri.path ?: ""}"))
             sessions.put(JSONObject().put("package", c.packageName).put("metadata", ProbeStore.metadata(c.metadata))
                 .put("state", state?.state ?: -1).put("position_ms", state?.position ?: -1)
                 .put("position_update_elapsed_ms", state?.lastPositionUpdateTime ?: -1)
-                .put("speed", state?.playbackSpeed ?: 0).put("actions", state?.actions ?: 0))
-        }
-        ProbeStore.put(this, "media", JSONObject().put("observed_at_ms", System.currentTimeMillis()).put("sessions", sessions))
+                .put("speed", state?.playbackSpeed ?: 0).put("actions", state?.actions ?: 0)
+                .put("playback_error", state?.state == PlaybackState.STATE_ERROR)
+                .put("current_queue_item", current).put("session_extra_keys", ProbeStore.keys(c.extras))
+                .put("session_numeric_candidates", ProbeStore.numericCandidates(c.extras)))
+        } } catch (e: SecurityException) { failure(e); return }
+        ProbeStore.media(this, JSONObject().put("observed_at_ms", System.currentTimeMillis()).put("sessions", sessions))
     }
     override fun onNotificationPosted(sbn: StatusBarNotification?) {
         if (sbn?.packageName == ProbeStore.YANDEX) refresh()

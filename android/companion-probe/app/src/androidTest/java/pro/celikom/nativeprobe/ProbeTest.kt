@@ -26,7 +26,9 @@ class ProbeTest {
         SessionReceiver().onReceive(context, spoof)
         val first = ProbeStore.report(context).getJSONArray("events").getJSONObject(0)
         assertFalse(first.getBoolean("verified_panel_caller")); assertFalse(first.getBoolean("effect_applied"))
-        repeat(40) { SessionReceiver().onReceive(context, spoof) }
+        assertEquals(1, ProbeStore.report(context).getJSONArray("events").length())
+        ProbeStore.clear(context)
+        repeat(40) { index -> ProbeStore.event(context, ProbeStore.effectEvent(Intent(spoof).putExtra(AudioEffect.EXTRA_AUDIO_SESSION, index + 1), null)) }
         assertEquals(30, ProbeStore.report(context).getJSONArray("events").length())
         ProbeStore.setEnabled(context, false); SessionReceiver().onReceive(context, spoof)
         assertEquals(30, ProbeStore.report(context).getJSONArray("events").length())
@@ -38,6 +40,10 @@ class ProbeTest {
             .putString("private.credentials", "secret").build()
         val safe = ProbeStore.metadata(metadata)
         assertFalse(safe.toString().contains("secret")); assertFalse(safe.getBoolean("exact_track_id_verified"))
+        val bundle = android.os.Bundle().apply { putString("trackId", "36116709"); putString("media_id", "-4"); putString("password", "secret") }
+        assertEquals("36116709", ProbeStore.numericCandidates(bundle).getString("trackId"))
+        assertFalse(ProbeStore.numericCandidates(bundle).toString().contains("secret"))
+        assertFalse(ProbeStore.numericCandidates(bundle).has("media_id"))
         ProbeStore.clear(context)
     }
     @Test fun nativeUiStartsWithoutYandexOrLoginAndProducesScreenshot() {

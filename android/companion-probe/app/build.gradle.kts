@@ -4,7 +4,7 @@ android {
     compileSdk = 36
     defaultConfig {
         applicationId = "pro.celikom.nativeprobe"; minSdk = 28; targetSdk = 36
-        versionCode = 1; versionName = "0.3.0-probe"
+        versionCode = 2; versionName = "0.3.1-probe"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     compileOptions { sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17 }

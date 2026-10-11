@@ -77,7 +77,7 @@ class MainActivity : Activity() {
             val launch = packageManager.getLaunchIntentForPackage(ProbeStore.YANDEX)
             if (launch == null) toast("Установленная Яндекс Музыка не найдена") else startActivity(launch)
         }
-        text("В Яндекс Музыке открой настройки эквалайзера. Если предложен выбор внешнего обработчика, выбери CELIKOM. Если его нет — просто продолжи: отсутствие подключения тоже важно. Запусти песню, переключи на следующую, поставь паузу и продолжи. Затем выключи экран на 30 секунд, вернись сюда и скопируй отчёт.")
+        text("Сначала запусти песню в Яндекс Музыке, затем открой настройки эквалайзера. Если предложен выбор внешнего обработчика, выбери CELIKOM. Если его нет — просто продолжи: отсутствие подключения тоже важно. Запусти песню, переключи на следующую, поставь паузу и продолжи. Затем выключи экран на 30 секунд, вернись сюда и скопируй отчёт.")
         summary = text("Проверяем состояние…", 17f)
         button("Скопировать отчёт") {
             getSystemService(ClipboardManager::class.java).setPrimaryClip(ClipData.newPlainText("CELIKOM diagnostic", report().toString(2)))
@@ -97,6 +97,8 @@ class MainActivity : Activity() {
         details = text("").apply { textSize = 13f; visibility = View.GONE }
         text("Состояние и сведения о песне — последние полученные события, а не доказательство готовой подмены. Отчёт может содержать название песни, исполнителя и её идентификатор. После проверки доступ к уведомлениям можно отключить в настройках Android.", 14f)
         setContentView(scroll)
+        if (android.os.Build.VERSION.SDK_INT >= 30) window.insetsController?.setSystemBarsAppearance(0,
+            android.view.WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS or android.view.WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS)
     }
     private fun access() = NotificationManagerCompat.getEnabledListenerPackages(this).contains(packageName)
     private fun report(): JSONObject = ProbeStore.report(this).put("notification_access_enabled", access())
