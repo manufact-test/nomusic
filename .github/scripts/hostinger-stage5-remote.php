@@ -33,7 +33,7 @@ try {
     $marker=(int)$pdo->query("SELECT COUNT(*) FROM schema_migrations WHERE version='013_automatic_rewards.sql'")->fetchColumn();
     $column=(int)$pdo->query("SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='reward_ledger' AND column_name='grant_mode'")->fetchColumn();
     $allocation=(int)$pdo->query("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name='reward_allocations'")->fetchColumn();
-    fwrite(STDOUT,"Reward schema diagnostic: engine=$engine marker=$marker grant_mode=$column allocations=$allocation\n");
+    if ($operation!=='restore-export') fwrite(STDOUT,"Reward schema diagnostic: engine=$engine marker=$marker grant_mode=$column allocations=$allocation\n");
     $approved = (new Celikom\Repositories\PdoCatalogRepository($pdo))->findActive('yandex', '144530503');
     if ($approved === null || (int) $approved['replacement_id'] !== 1
         || (int) $approved['duration_ms'] !== 180872) throw new RuntimeException('mapping');
