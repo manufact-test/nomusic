@@ -146,11 +146,13 @@ try {
         $pdo->exec("DELETE FROM schema_migrations WHERE version='013_automatic_rewards.sql'");$runner->run();
         expect($pdo->query('SELECT * FROM reward_allocations ORDER BY id')->fetchAll()===$before && $policy->read()===$settings,'DDL retry preserves credits');
     });
-    run('New reward allocations follow Moscow month rollover without rewriting history',function()use($pdo,$create,$users,$storage,$reward,$admin):void {
+    run('New reward allocations follow Moscow month rollover without rewriting history',function()use($pdo,$create,&$users,$storage,$reward,$admin):void {
         $before=$pdo->query('SELECT * FROM reward_allocations ORDER BY id')->fetchAll(PDO::FETCH_ASSOC);
         $pdo->exec('SET timestamp=1793483400'); // 2026-10-31 21:50 UTC, November in Moscow.
         try {
-            $id=$create($users[1]);(new ModerationService($pdo,$storage,$reward))->replacement($admin,$id,'approve','Moscow boundary fixture',0,true);
+            $pdo->prepare('INSERT INTO users(email,password_hash) VALUES(?,?)')->execute(['msk-'.bin2hex(random_bytes(12)).'@example.invalid','fixture']);$uid=(int)$pdo->lastInsertId();$users[]=$uid;
+            $pdo->prepare('INSERT INTO user_email_security(user_id,verified_at) VALUES(?,UTC_TIMESTAMP(6))')->execute([$uid]);
+            $id=$create($uid);(new ModerationService($pdo,$storage,$reward))->replacement($admin,$id,'approve','Moscow boundary fixture',0,true);
             $q=$pdo->prepare('SELECT a.available_from FROM reward_allocations a JOIN reward_ledger l ON l.id=a.reward_id WHERE l.replacement_id=? ORDER BY a.part_index');$q->execute([$id]);
             expect($q->fetchColumn()==='2026-11-01','Moscow November chosen while UTC is October');
             foreach($before as $row){$q=$pdo->prepare('SELECT * FROM reward_allocations WHERE id=?');$q->execute([$row['id']]);expect($q->fetch(PDO::FETCH_ASSOC)===$row,'prior allocation immutable');}
