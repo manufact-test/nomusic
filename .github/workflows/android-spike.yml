@@ -17,6 +17,8 @@ jobs:
           distribution: temurin
           java-version: "17"
       - uses: android-actions/setup-android@v3
+        with:
+          packages: "platform-tools platforms;android-36 build-tools;36.0.0"
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: "8.13"
@@ -38,11 +40,13 @@ jobs:
           profile: pixel_2
           disable-animations: true
           script: cd android/spike && gradle --no-daemon :app:connectedDebugAndroidTest
-      - name: Private-only diagnostic APK
-        if: github.event.repository.private == true
+      - name: Encrypt diagnostic APK for closed delivery
+        run: |
+          openssl cms -encrypt -aes-256-gcm -binary -outform DER -in android/spike/app/build/outputs/apk/debug/app-debug.apk -out android/spike/app/build/outputs/apk/debug/app-debug.apk.cms android/spike/diagnostic-recipient.crt
+      - name: Encrypted-only diagnostic APK
         uses: actions/upload-artifact@v4
         with:
           name: celikom-android-spike-private-${{ github.sha }}
-          path: android/spike/app/build/outputs/apk/debug/*.apk
-          retention-days: 3
+          path: android/spike/app/build/outputs/apk/debug/*.apk.cms
+          retention-days: 1
           if-no-files-found: error
