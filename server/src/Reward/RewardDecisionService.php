@@ -40,11 +40,13 @@ final class RewardDecisionService
                     || (int)$replacement['uploaded_by_user_id']!==(int)$before['user_id']
                     || (int)$replacement['audio_asset_id']!==(int)$before['audio_asset_id']) throw new \DomainException('reward_contribution_unavailable');
                 // UTC calendar-month cap counts all grants, even subsequently revoked/expired.
-                $q=$this->pdo->prepare("SELECT COUNT(*) FROM reward_ledger WHERE user_id=?
+                // Current read: owner validation may have established an earlier
+                // REPEATABLE READ snapshot before waiting for the policy lock.
+                $q=$this->pdo->prepare("SELECT id FROM reward_ledger WHERE user_id=?
                     AND granted_at>=DATE_FORMAT(UTC_TIMESTAMP(6),'%Y-%m-01')
-                    AND granted_at<DATE_ADD(DATE_FORMAT(UTC_TIMESTAMP(6),'%Y-%m-01'),INTERVAL 1 MONTH)");
+                    AND granted_at<DATE_ADD(DATE_FORMAT(UTC_TIMESTAMP(6),'%Y-%m-01'),INTERVAL 1 MONTH) FOR UPDATE");
                 $q->execute([$before['user_id']]);
-                if ((int)$q->fetchColumn()>=(int)$policy['max_reward_per_month']) throw new \DomainException('reward_monthly_limit');
+                if (count($q->fetchAll(PDO::FETCH_COLUMN))>=(int)$policy['max_reward_per_month']) throw new \DomainException('reward_monthly_limit');
                 $this->pdo->prepare("UPDATE reward_ledger SET status='approved',discount_percent=?,granted_at=UTC_TIMESTAMP(6),
                     expires_at=DATE_ADD(UTC_TIMESTAMP(6),INTERVAL ? DAY),policy_version=?,decided_by_admin_id=?,version=version+1 WHERE id=?")
                     ->execute([(int)$policy['upload_discount_percent'],(int)$policy['validity_days'],(int)$policy['version'],$adminId,$id]);
