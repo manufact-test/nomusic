@@ -23,6 +23,12 @@ if (/^[1-9]\d{0,23}$/.test(cachedTrack?.id || "") && typeof cachedTrack.label ==
 function render(state: ExtensionState): void {
   if (!status || !startButton || !stopButton) return;
   lastState = state;
+  // Retire the old song's form, selected file and request ID together.
+  if (pinnedTrack && pinnedTrack.id !== state.track?.id && !uploading && !opening) {
+    resetUploadPanel();
+    if (uploadPanel) uploadPanel.hidden = true;
+    addTrackButton?.setAttribute("aria-expanded", "false");
+  }
   const labels: Record<ExtensionState["phase"], string> = {
     STOPPED: "Остановлен",
     CONNECTING: "Подключение…",
@@ -162,6 +168,7 @@ async function contributionAccess(): Promise<string> {
 }
 function contributionError(error: unknown): string {
   const code = (error as { message?: string })?.message;
+  if (code === "track_changed") return "Песня сменилась во время проверки. Нажмите «Загрузить версию» для текущей песни.";
   if (code === "uploads_disabled") return "Приём версий и предложений пока выключен. Доступ к музыке работает отдельно.";
   if (code === "invalid_session") return "Войдите в аккаунт, чтобы отправить версию или предложение.";
   if (code === "access_denied") return "Доступ завершён. Проверьте статус аккаунта.";
@@ -174,7 +181,10 @@ async function trackUploadStatus(origin: string, trackId: string): Promise<"none
     headers: { Authorization: "Bearer " + await contributionAccess() },
     signal: AbortSignal.timeout(10000)
   });
-  if (!response.ok) throw new Error("upload_status_unavailable");
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error(error.error || "upload_status_unavailable");
+  }
   const value = await response.json();
   if (value?.status !== "none" && value?.status !== "pending" && value?.status !== "approved") {
     throw new Error("invalid_upload_status");
@@ -185,10 +195,23 @@ async function trackUploadStatus(origin: string, trackId: string): Promise<"none
 addTrackButton?.addEventListener("click", async () => {
   if (!uploadPanel || uploading || opening) return;
   if (!uploadPanel.hidden) {
-    // Do not clear the accepted state until a new explicit open.
-    transitionUploadPanel(() => { uploadPanel.hidden = true; });
-    addTrackButton.setAttribute("aria-expanded", "false");
-    return;
+    // Query first: a click immediately after a song switch must open the
+    // new song, even before the next one-second status poll.
+    opening = true;
+    try {
+      const current = await send<ExtensionState>({ type: COMMANDS.getStatus });
+      opening = false;
+      render(current);
+    } catch (error) {
+      opening = false;
+      uploadMessage(contributionError(error), "error");
+      return;
+    }
+    if (!uploadPanel.hidden) {
+      transitionUploadPanel(() => { uploadPanel.hidden = true; });
+      addTrackButton.setAttribute("aria-expanded", "false");
+      return;
+    }
   }
   opening = true;
   addTrackButton.disabled = true;
@@ -201,7 +224,9 @@ addTrackButton?.addEventListener("click", async () => {
   let title = "";
   let note = "";
   try {
-    pinnedTrack = uploadTargetFromStatus(await send<ExtensionState>({ type: COMMANDS.getStatus }));
+    const state = await send<ExtensionState>({ type: COMMANDS.getStatus });
+    render(state);
+    pinnedTrack = uploadTargetFromStatus(state);
     if (uploadTrack) uploadTrack.value = pinnedTrack?.id || "";
     if (!pinnedTrack) {
       note = "Сначала запустите песню в Яндекс Музыке и дождитесь определения Track ID.";
@@ -219,8 +244,11 @@ addTrackButton?.addEventListener("click", async () => {
       } else {
         view = "form";
       }
+      const current = uploadTargetFromStatus(await send<ExtensionState>({ type: COMMANDS.getStatus }));
+      if (current?.id !== pinnedTrack.id) throw new Error("track_changed");
     }
   } catch (error) {
+    view = "error";
     note = contributionError(error);
   } finally {
     transitionUploadPanel(() => {

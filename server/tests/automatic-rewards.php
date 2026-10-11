@@ -92,9 +92,36 @@ try {
         $q->execute([$users[0]]);expect($q->fetchAll()===$before,'Existing credits and waiting lifetimes preserved');
         $id=$create($users[0]);(new ModerationService($pdo,$storage,$reward))->replacement($admin,$id,'approve','new rules fixture',0,true);
         expect($reward->summary($users[0])['earned_discount_percent']===25,'New song gets new four percent');
-        $html=(new Celikom\Reward\RewardAdminView($pdo))->render('csrf',1);
+        $html=(new Celikom\Reward\RewardAdminView($pdo))->render('csrf',1,false,$users[0]);
         expect(str_contains($html,'&lt;script&gt;auto&lt;/script&gt;') && !str_contains($html,'<script>auto</script>'),'Metadata escaped');
         expect(!str_contains($html,'Начислить') && !str_contains($html,'Причина'),'Read-only grant history');
+    });
+    run('Reward history groups by account, orders newest first and paginates songs independently',function()use($pdo,$users,$create,$storage,$reward,$admin):void {
+        $view=new Celikom\Reward\RewardAdminView($pdo);
+        $before=$pdo->query('SELECT * FROM reward_ledger ORDER BY id')->fetchAll();
+        $html=$view->render('csrf',1);
+        expect(substr_count($html,'class="panel reward-account"')===2 && !str_contains($html,'class="reward-card"'),'One compact card per account, no song wall');
+        expect(strpos($html,'Аккаунт #'.$users[0].' ·')<strpos($html,'Аккаунт #'.$users[1].' ·'),'Latest contribution account is first');
+        expect(str_contains($html,'Учтено песен: 8') && str_contains($html,'<strong>25%</strong>'),'Account totals match earned rewards');
+        $unknown=$view->render('csrf',1,false,PHP_INT_MAX);
+        expect(!str_contains($unknown,'class="reward-card"'),'Unknown account cannot expand unrelated songs');
+        expect($pdo->query('SELECT * FROM reward_ledger ORDER BY id')->fetchAll()===$before,'Grouping is read-only');
+        for($i=0;$i<19;$i++) {
+            $id=$create($users[1]);(new ModerationService($pdo,$storage,$reward))->replacement($admin,$id,'approve','group pagination fixture',0,true);
+        }
+        $html=$view->render('csrf',1,false,$users[1]);
+        expect(strpos($html,'Аккаунт #'.$users[1].' ·')<strpos($html,'Аккаунт #'.$users[0].' ·'),'New contribution moves its account to top');
+        // 2 existing contributions + 19 new songs: bounded detail, exact own scope.
+        expect(substr_count($html,'class="reward-card"')===21,'Only selected account songs expand');
+        expect(!str_contains($html,'<script>auto</script>') && str_contains($html,'&lt;script&gt;auto&lt;/script&gt;'),'Song metadata remains escaped');
+        for($i=0;$i<6;$i++) {
+            $id=$create($users[1]);(new ModerationService($pdo,$storage,$reward))->replacement($admin,$id,'approve','song pagination fixture',0,true);
+        }
+        $first=$view->render('csrf',1,false,$users[1]);$second=$view->render('csrf',1,false,$users[1],2);
+        expect(substr_count($first,'class="reward-card"')===25 && substr_count($second,'class="reward-card"')===2,'Large account history uses 25 songs per page');
+        expect(str_contains($first,'song_page=2') && str_contains($second,'song_page=1'),'Song navigation preserves selected account');
+        $q=$pdo->prepare('SELECT id FROM reward_ledger WHERE user_id=? ORDER BY id DESC');$q->execute([$users[1]]);$ids=$q->fetchAll(PDO::FETCH_COLUMN);
+        expect(strpos($first,'<h3>#'.$ids[0].' ·')<strpos($first,'<h3>#'.$ids[1].' ·'),'Newest song is first within account');
     });
     run('Restartable automatic migration never resets allocations or configured policy',function()use($pdo,$runner,$policy):void {
         $before=$pdo->query('SELECT * FROM reward_allocations ORDER BY id')->fetchAll();$settings=$policy->read();

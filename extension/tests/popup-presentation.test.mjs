@@ -75,3 +75,25 @@ test('first use keeps explicit loading text; logout clears positive cached prese
   assert.match(reopen.version.textContent,/Загрузка/);
  }finally{globalThis.document=oldDocument;globalThis.localStorage=oldStorage}
 });
+test('sign-in refreshes the current song immediately and ignores a late signed-out response',async()=>{
+ const oldDocument=globalThis.document,oldStorage=globalThis.localStorage;
+ globalThis.localStorage={getItem:()=>null,setItem(){},removeItem(){}};
+ const fx=fixture();globalThis.document=fx.document;
+ try {
+  const replies=[];let calls=0;
+  const refresh=initVersionStatus(()=>{calls++;return new Promise(resolve=>replies.push(resolve))});
+  const first=refresh(state('144530503'));replies.shift()({ok:false,error:'invalid_session'});await first;
+  assert.match(fx.version.textContent,/Войдите/);
+  fx.listeners['celikom-account-login']();
+  assert.equal(calls,2,'login bypasses the 15-second cache without a reload');
+  replies.shift()({ok:true,status:'approved'});await tick();
+  assert.match(fx.version.textContent,/доступна/);
+  fx.listeners['celikom-account-logout']();
+  const stale=refresh(state('144530503'));
+  const oldReply=replies.shift();
+  fx.listeners['celikom-account-login']();
+  replies.shift()({ok:true,status:'pending'});await tick();
+  oldReply({ok:false,error:'invalid_session'});await stale;
+  assert.match(fx.version.textContent,/на проверке/,'old account response cannot overwrite sign-in');
+ } finally {globalThis.document=oldDocument;globalThis.localStorage=oldStorage}
+});

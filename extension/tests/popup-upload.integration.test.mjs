@@ -216,3 +216,36 @@ test("Stage 7 on another Track ID remains eligible and rejects unconfirmed right
   assert.equal(find("[data-version-status]").hidden, true, "no empty status row without a track");
   assert.equal(find("[data-version-status]").textContent, "");
 });
+
+test('two consecutive songs upload without reloading or Start/Stop and with separate request IDs',async()=>{
+ current={track:{...selected.track,id:'944530501'}};
+ intervals[0]();await new Promise(resolve=>setImmediate(resolve));
+ await find("[data-action='add']").fire('click');
+ assert.equal(form().hidden,false);
+ selection();await form().fire('submit');await new Promise(resolve=>setImmediate(resolve));
+ const first=requests.at(-1);
+ assert.equal(first.body.get('track_id'),'944530501');
+ assert.equal(result().hidden,false);
+ current={track:{...selected.track,id:'944530502'}};
+ intervals[0]();await new Promise(resolve=>setImmediate(resolve));
+ assert.equal(find('[data-upload-panel]').hidden,true,'old song result closes on track change');
+ assert.equal(find('[data-upload-rights]').checked,false);
+ assert.equal(find('[data-upload-file]').value,'');
+ await find("[data-action='add']").fire('click');
+ assert.equal(form().hidden,false,'one click opens the new song');
+ assert.equal(find('[data-upload-track]').value,'944530502');
+ selection();await form().fire('submit');await new Promise(resolve=>setImmediate(resolve));
+ const second=requests.at(-1);
+ assert.equal(second.body.get('track_id'),'944530502');
+ assert.notEqual(second.body.get('request_id'),first.body.get('request_id'));
+ assert.equal(result().hidden,false);
+});
+
+test('switching songs and clicking upload before polling opens the new form in one click',async()=>{
+ current={track:{...selected.track,id:'944530503'}};
+ await find("[data-action='add']").fire('click');
+ assert.equal(find('[data-upload-track]').value,'944530503');
+ assert.equal(form().hidden,false);
+ assert.equal(result().hidden,true);
+ assert.equal(find('[data-upload-rights]').checked,false);
+});

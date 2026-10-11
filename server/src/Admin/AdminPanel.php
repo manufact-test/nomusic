@@ -407,7 +407,7 @@ final class AdminPanel
             'audit' => $this->auditLog($query),
             'overview' => $this->overview($query),
             'billing' => $this->billingOverview($query),
-            'rewards' => (new \Celikom\Reward\RewardAdminView($this->pdo))->render($admin['csrf'], $this->positiveInt($query['page']??null) ?: 1, ($query['edit']??null)==='1'),
+            'rewards' => (new \Celikom\Reward\RewardAdminView($this->pdo))->render($admin['csrf'], $this->positiveInt($query['page']??null) ?: 1, ($query['edit']??null)==='1', $this->positiveInt($query['account']??null) ?: 0, $this->positiveInt($query['song_page']??null) ?: 1),
             default => $this->uploads($admin, $csrf, $query),
         };
     }

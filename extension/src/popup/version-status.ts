@@ -20,7 +20,13 @@ export function initVersionStatus(send) {
     request++; loading = false; checkedAt = 0; cached = null; clearDisplay("version");
     stableText(node, "Войдите, чтобы проверить версию песни CELIKOM");
   });
-  return async function refreshVersion(state) {
+  let latestState = null;
+  document.addEventListener?.("celikom-account-login", () => {
+    request++; loading = false; checkedAt = 0;
+    if (latestState) void refreshVersion(latestState);
+  });
+  async function refreshVersion(state) {
+    latestState = state;
     if (!node) return;
     const id = state.track?.id || "";
     if (id !== trackId) {
@@ -46,5 +52,6 @@ export function initVersionStatus(send) {
     } finally {
       if (current === request) { loading = false; checkedAt = Date.now(); }
     }
-  };
+  }
+  return refreshVersion;
 }
