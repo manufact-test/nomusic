@@ -23,6 +23,9 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import java.util.concurrent.atomic.AtomicReference
 import kotlin.math.sqrt
+import kotlin.math.cos
+import kotlin.math.sin
+import kotlin.math.PI
 
 @RunWith(AndroidJUnit4::class)
 class CrossAppEffectTest {
@@ -39,6 +42,7 @@ class CrossAppEffectTest {
         var visualizer: Visualizer? = null
         var alternate: MediaPlayer? = null
         var alternateVisualizer: Visualizer? = null
+        var outputVisualizer: Visualizer? = null
         val audioManager = context.getSystemService(AudioManager::class.java)
         val oldVolume = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC)
         val report = JSONObject().put("api", Build.VERSION.SDK_INT)
@@ -81,12 +85,24 @@ class CrossAppEffectTest {
             }
             val alternateBefore = rms(alternateVisualizer)
             assertTrue("Separate alternative must be measurable", alternateBefore > 0.5)
+            // AOSP session Visualizer is INSERT_FIRST, upstream of DynamicsProcessing.
+            // Only an owned laboratory output mix is measured; no effect is applied to session0.
+            outputVisualizer = Visualizer(0).apply {
+                captureSize = Visualizer.getCaptureSizeRange()[1]
+                scalingMode = Visualizer.SCALING_MODE_AS_PLAYED
+                enabled = true
+            }
+            val outputBefore = spectrum(outputVisualizer)
+            assertTrue("Output original must be measurable", outputBefore.first > 0.5)
+            assertTrue("Output alternative must be measurable", outputBefore.second > 0.5)
             effect = DynamicsProcessing(0, session, null)
             assertTrue("Effect must be controlled", effect.hasControl())
             effect.setInputGainAllChannelsTo(-100f)
             assertEquals(AudioEffect.SUCCESS, effect.setEnabled(true))
+            assertEquals(-100f, effect.getInputGainByChannelIndex(0), 0.01f)
             val muted = rms(visualizer)
             val alternateDuring = rms(alternateVisualizer)
+            val outputDuring = spectrum(outputVisualizer)
             val position = state.get().getIntExtra("position", -1)
             SystemClock.sleep(400)
             assertTrue(state.get().getBooleanExtra("playing", false))
@@ -96,15 +112,24 @@ class CrossAppEffectTest {
                 .put("alternate_before_rms", alternateBefore)
                 .put("alternate_during_rms", alternateDuring)
                 .put("alternate_unaffected", alternateDuring > alternateBefore * 0.5)
+                .put("output_original_before", outputBefore.first)
+                .put("output_alternate_before", outputBefore.second)
+                .put("output_original_during", outputDuring.first)
+                .put("output_alternate_during", outputDuring.second)
             effect.release()
             effect = null
             val restored = rms(visualizer)
+            val outputRestored = spectrum(outputVisualizer)
             report.put("restored_rms", restored)
+                .put("output_original_restored", outputRestored.first)
+                .put("output_alternate_restored", outputRestored.second)
             // A successful setter alone does not establish audible attenuation.
-            report.put("measured_attenuation", muted < before * 0.1)
-                .put("measured_restore", restored > before * 0.5)
-                .put("classification", if (muted < before * 0.1 && restored > before * 0.5
-                    && alternateDuring > alternateBefore * 0.5)
+            val attenuation = outputDuring.first < outputBefore.first * 0.1
+            val restore = outputRestored.first > outputBefore.first * 0.5
+            val separate = outputDuring.second > outputBefore.second * 0.5
+            report.put("measured_attenuation", attenuation)
+                .put("measured_restore", restore).put("output_alternate_unaffected", separate)
+                .put("classification", if (attenuation && restore && separate)
                     "owned_cross_app_candidate" else "effect_not_proven_by_waveform")
         } catch (failure: RuntimeException) {
             // Unsupported effects/permissions are research outcomes, not integration PASS.
@@ -115,6 +140,7 @@ class CrossAppEffectTest {
             effect?.release()
             visualizer?.release()
             alternateVisualizer?.release()
+            outputVisualizer?.release()
             alternate?.release()
             audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, oldVolume, 0)
             context.unregisterReceiver(receiver)
@@ -136,5 +162,33 @@ class CrossAppEffectTest {
             SystemClock.sleep(60)
         }
         return total / 8
+    }
+    private fun spectrum(visualizer: Visualizer): Pair<Double, Double> {
+        SystemClock.sleep(400)
+        val data = ByteArray(visualizer.captureSize)
+        val sampleRate = visualizer.samplingRate / 1000.0
+        var original = 0.0
+        var alternate = 0.0
+        repeat(8) {
+            assertEquals(Visualizer.SUCCESS, visualizer.getWaveForm(data))
+            fun tone(frequency: Double): Double {
+                var real = 0.0
+                var imaginary = 0.0
+                var weight = 0.0
+                for (index in data.indices) {
+                    val window = 0.5 - 0.5 * cos(2 * PI * index / (data.size - 1))
+                    val value = ((data[index].toInt() and 255) - 128) * window
+                    val phase = 2 * PI * frequency * index / sampleRate
+                    real += value * cos(phase)
+                    imaginary += value * sin(phase)
+                    weight += window
+                }
+                return 2 * sqrt(real * real + imaginary * imaginary) / weight
+            }
+            original += tone(220.0)
+            alternate += tone(440.0)
+            SystemClock.sleep(60)
+        }
+        return Pair(original / 8, alternate / 8)
     }
 }
