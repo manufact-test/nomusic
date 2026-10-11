@@ -103,9 +103,9 @@ try {
         $q=$pdo->prepare('SELECT status,discount_percent,granted_at,version FROM reward_ledger WHERE id=?');$q->execute([$b]);$row=$q->fetch(PDO::FETCH_ASSOC);
         expect($row['status']==='pending' && $row['discount_percent']===null && $row['granted_at']===null && (int)$row['version']===1,'No orphan grant');
     });
-    run('Stage12 administration is owner-only, gated, CSRF protected and escaped',function()use($config,$headers,$csrf,$policy,$admins,$b):void {
+    run('Stage12 administration is owner-only, gated, CSRF protected and escaped',function()use($config,$headers,$csrf,$policy,$admins,$b,$users):void {
         $config['admin_enabled']=true;$config['reward_eligibility_enabled']=true;$app=new Celikom\Application($config);
-        $page=$app->handle('GET','/admin',query:['tab'=>'rewards','page'=>'1 OR 1=1'],headers:$headers['owner']);
+        $page=$app->handle('GET','/admin',query:['tab'=>'rewards','page'=>'1 OR 1=1','account'=>(string)$users[0]],headers:$headers['owner']);
         expect($page->status===200 && str_contains($page->body,'Настройки') && !str_contains($page->body,'Причина изменения'),'Real rules and contribution queue');
         expect(str_contains($page->body,'&lt;script&gt;fixture&lt;/script&gt;') && !str_contains($page->body,'<script>fixture</script>'),'Metadata escaped');
         foreach(['moderator','viewer'] as $role) {

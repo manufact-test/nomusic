@@ -123,6 +123,19 @@ try {
         $q=$pdo->prepare('SELECT id FROM reward_ledger WHERE user_id=? ORDER BY id DESC');$q->execute([$users[1]]);$ids=$q->fetchAll(PDO::FETCH_COLUMN);
         expect(strpos($first,'<h3>#'.$ids[0].' ·')<strpos($first,'<h3>#'.$ids[1].' ·'),'Newest song is first within account');
     });
+    run('Reward account pagination stays compact beyond 25 accounts',function()use($pdo,&$users,$create,$storage,$reward,$admin):void {
+        // Cross the 25-account boundary with isolated fixtures; never change real users.
+        for($i=0;$i<25;$i++) {
+            $pdo->prepare('INSERT INTO users(email,password_hash) VALUES(?,?)')->execute(['group-'.bin2hex(random_bytes(12)).'@example.invalid','not-a-login']);
+            $user=(int)$pdo->lastInsertId();$users[]=$user;
+            $pdo->prepare('INSERT INTO user_email_security(user_id,verified_at) VALUES(?,UTC_TIMESTAMP(6))')->execute([$user]);
+            $id=$create($user);(new ModerationService($pdo,$storage,$reward))->replacement($admin,$id,'approve','account pagination fixture',0,true);
+        }
+        $view=new Celikom\Reward\RewardAdminView($pdo);$first=$view->render('csrf',1);$second=$view->render('csrf',2);
+        expect(substr_count($first,'class="panel reward-account"')===25 && substr_count($second,'class="panel reward-account"')===2,'Account pages are bounded independently from song pages');
+        expect(!str_contains($first,'class="reward-card"') && str_contains($first,'page=2'),'Large list stays collapsed and navigable');
+        expect(!str_contains($first,'Аккаунт #'.$users[0].' ·') && str_contains($second,'Аккаунт #'.$users[0].' ·'),'Oldest account appears once on second page');
+    });
     run('Restartable automatic migration never resets allocations or configured policy',function()use($pdo,$runner,$policy):void {
         $before=$pdo->query('SELECT * FROM reward_allocations ORDER BY id')->fetchAll();$settings=$policy->read();
         $pdo->exec("DELETE FROM schema_migrations WHERE version='013_automatic_rewards.sql'");$runner->run();
