@@ -1,3 +1,5 @@
+> 0.4.15: [CI 38126807827](https://github.com/manufact-test/nomusic/actions/runs/38126807827) — PASS; [приватная сборка 38126804749](https://github.com/manufact-test/nomusic/actions/runs/38126804749) — PASS. 140 тестов расширения, 17 тестов прототипа, PHP/MySQL и native Chromium. Код `e00ae05e5573d1d4376b36bf857ead0cf9bde0eb`. Полный ZIP SHA256 `d0868fb11eb90844d5b34a032f297e580fa42956c5a867af8b1181891a360571`. Ручная оценка отсутствия мигания владельцем ещё не выполнена.
+
 > **11.10.2026 — 0.4.15, стабильные строки доступа и версии песни.**
 > Повторное открытие окна синхронно восстанавливает последнее отображение из
 > extension-origin localStorage, не ожидая service worker/сеть. При первом открытии
