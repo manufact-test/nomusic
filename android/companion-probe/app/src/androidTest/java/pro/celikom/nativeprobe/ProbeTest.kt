@@ -10,7 +10,8 @@ import androidx.test.platform.app.InstrumentationRegistry
 import org.junit.Assert.*
 import org.junit.Test
 import org.junit.runner.RunWith
-import java.io.File
+import android.content.ContentValues
+import android.provider.MediaStore
 import android.graphics.Bitmap
 
 @RunWith(AndroidJUnit4::class)
@@ -45,8 +46,14 @@ class ProbeTest {
         val view = activity.window.decorView
         assertTrue(view.width > 0); assertTrue(view.height > 0)
         val image = instrumentation.uiAutomation.takeScreenshot()
-        val file = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "native-probe.png")
-        file.outputStream().use { image.compress(Bitmap.CompressFormat.PNG, 100, it) }
+        val values = ContentValues().apply {
+            put(MediaStore.MediaColumns.DISPLAY_NAME, "native-probe.png")
+            put(MediaStore.MediaColumns.MIME_TYPE, "image/png")
+            put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS)
+        }
+        val uri = context.contentResolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values) ?: error("Cannot save screenshot")
+        context.contentResolver.openOutputStream(uri)!!.use { assertTrue(image.compress(Bitmap.CompressFormat.PNG, 100, it)) }
+        image.recycle()
         instrumentation.runOnMainSync { activity.finish() }
     }
 }

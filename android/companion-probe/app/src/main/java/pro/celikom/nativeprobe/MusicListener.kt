@@ -24,6 +24,7 @@ class MusicListener : NotificationListenerService() {
     private val receiver = SessionReceiver()
     private var registered = false
     override fun onListenerConnected() {
+        if (registered) cleanup()
         ProbeStore.put(this, "listener", JSONObject().put("connected", true).put("at_ms", System.currentTimeMillis()))
         try {
             manager.addOnActiveSessionsChangedListener(sessionsChanged, ComponentName(this, MusicListener::class.java), handler)
