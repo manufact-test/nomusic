@@ -26,6 +26,9 @@ setTimeout(()=>{
   summary.click();if(scrollY!==y)throw new Error('collapse jumped');
   summary.click();summary.click();if(scrollY!==y)throw new Error('repeated collapse jumped');
   window.scrollTo(0,0);
+  // Virtual time can delay the native scroll event until after dump-dom.
+  // Dispatch it explicitly; layout and viewport checks above remain native.
+  window.dispatchEvent(new Event('scroll'));
   setTimeout(()=>{
    document.body.dataset.result=document.querySelector('body > div[aria-hidden="true"]').style.height==='0px'?'pass':'tail-not-released';
   },100);
