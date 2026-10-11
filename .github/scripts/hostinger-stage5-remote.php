@@ -36,41 +36,6 @@ try {
         }
     }
 
-    // Owner-authorized diagnostic: reuse the existing private owner credential,
-    // inspect GET routes only and remove only the temporary session we created.
-    if ($operation === 'snapshot' && function_exists('curl_init')) {
-        $accessFile=$shared.'/stage8-owner-login-once.txt';
-        if(is_file($accessFile) && !is_link($accessFile) && !(fileperms($accessFile)&0077)) {
-            $accessText=(string)file_get_contents($accessFile);
-            if(preg_match('/Password:\s*([a-f0-9]{64})/',$accessText,$credential)) {
-                $requestHttp=static function(string $path,?array $post=null,string $cookie=''):array {
-                    $ch=curl_init('https://darkred-camel-588676.hostingersite.com'.$path);
-                    curl_setopt_array($ch,[CURLOPT_RETURNTRANSFER=>true,CURLOPT_HEADER=>true,CURLOPT_TIMEOUT=>15,CURLOPT_CONNECTTIMEOUT=>5,CURLOPT_FOLLOWLOCATION=>false]);
-                    if($cookie!=='')curl_setopt($ch,CURLOPT_COOKIE,$cookie);
-                    if($post!==null){curl_setopt($ch,CURLOPT_POST,true);curl_setopt($ch,CURLOPT_POSTFIELDS,http_build_query($post));}
-                    $response=curl_exec($ch);$status=(int)curl_getinfo($ch,CURLINFO_RESPONSE_CODE);$time=(float)curl_getinfo($ch,CURLINFO_TOTAL_TIME);$headerSize=(int)curl_getinfo($ch,CURLINFO_HEADER_SIZE);curl_close($ch);
-                    return [$status,$time,is_string($response)?substr($response,0,$headerSize):''];
-                };
-                $cookieToken=null;
-                try {
-                    [$status,$time,$header]=$requestHttp('/admin/login');
-                    if($status===200 && preg_match('/Set-Cookie:\s*__Host-celikom_login=([a-f0-9]{64})/i',$header,$nonce)) {
-                        [$status,$time,$header]=$requestHttp('/admin/login',['csrf'=>$nonce[1],'login'=>'owner','password'=>$credential[1]],'__Host-celikom_login='.$nonce[1]);
-                        if($status===303 && preg_match('/Set-Cookie:\s*__Host-celikom_admin=([a-f0-9]{64})/i',$header,$session)) {
-                            $cookieToken=$session[1];
-                            foreach(['/admin?tab=promos','/admin?tab=promos&create=1','/admin?tab=promos&activations=1','/admin/promos','/admin/promos/new','/admin/promos/activations'] as $index=>$route){
-                                [$code,$elapsed]=$requestHttp($route,null,'__Host-celikom_admin='.$cookieToken);
-                                printf("Promo authenticated HTTPS diagnostic: route=%d status=%d seconds=%.3f\n",$index,$code,$elapsed);
-                            }
-                        } else echo "Promo HTTPS diagnostic: existing credential login unavailable; no credential changed.\n";
-                    }
-                } finally {
-                    if($cookieToken!==null){$delete=$pdo->prepare('DELETE FROM admin_sessions WHERE token_hash=?');$delete->execute([hash('sha256',$cookieToken)]);}
-                    unset($credential,$accessText,$cookieToken,$header,$session);
-                }
-            }
-        }
-    }
     // Read-only deployment diagnostics, never SQL, account data or credentials.
     $engine=str_contains((string)$pdo->query('SELECT VERSION()')->fetchColumn(),'MariaDB')?'MariaDB':'MySQL';
     $marker=(int)$pdo->query("SELECT COUNT(*) FROM schema_migrations WHERE version='013_automatic_rewards.sql'")->fetchColumn();
