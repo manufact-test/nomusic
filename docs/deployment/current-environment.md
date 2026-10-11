@@ -2,7 +2,7 @@
 > Backend `0.4.25-35428e3854769bf4e63c5c6f980fc5756a5581a8` развёрнут; полный единый клиент 0.4.25 подготовлен.
 > Последняя подтверждённая установка владельца — 0.4.24; установку 0.4.25 не приписывать владельцу.
 > Закрыты найденные пробелы worker sender/intent, bounded auth JSON, write quotas account/device/IP и build secret/dependency gate.
-> CI/MySQL/native Chromium 38155889035 PASS; MariaDB 38155439841 PASS; configured ZIP 38155884847 PASS.
+> CI/MySQL/native Chromium 38156426516 PASS; MariaDB 38156423107 PASS, включая четыре quota workers / 32 attempts; configured ZIP 38155884847 PASS.
 > Snapshot 38155683083, isolated restore 38155787902, deploy 38155884937, read-only integrity 38156091112 — PASS.
 > Новых миграций/reset/backfill/live incident нет; private env, аудио и исторические row counts сохранены.
 > Полное закрытие 14 не заявлено: offsite backup, provider-log redaction/rotation и capacity monitoring требуют операционной проверки.

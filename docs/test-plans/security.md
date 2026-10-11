@@ -43,6 +43,12 @@ is a deferred check, not PASS. MariaDB quota/auth tests must also pass before ro
 Rebuild pinned single client with exact existing Hostinger API; verify reproducibility,
 ZIP SHA256 and no privileged credentials. Preserve PR #6 OPEN/unmerged.
 
+Evidence now recorded: CI/MySQL/native Chromium 38156426516 PASS; MariaDB
+38156423107 PASS (including four independent quota workers / 32 attempts).
+Configured client/security 38155884847 PASS; snapshot 38155683083, isolated restore
+38155787902, rollout 38155884937 and read-only integrity 38156091112 PASS.
+Details and ZIP identity: ../decisions/STAGE14-2026-10-11.md.
+
 Run snapshot and isolated restore before backend rollout, then read-only integrity
 comparison. No real incident, live account/trial changes or real upload for tests.
 Commercial fixtures remain isolated; provider webhook/checkout/fraud checks remain
