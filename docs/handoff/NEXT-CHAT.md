@@ -1,3 +1,5 @@
+> **12.10.2026 МСК — native diagnostic0.3.0-probe подготовлен для Honor50 по согласованию владельца.** Нет WebView/login/подмены звука; read-only MediaSession + AudioEffect events, ручной отчёт, no INTERNET/microphone. Код9d50315, native CI38179310074 PASS (lint/build/2 API35 tests/font1.3), общий CI38179314385 PASS. Реальный Яндекс ещё НЕ проверен. [Шаги и границы](https://github.com/manufact-test/nomusic/blob/feature/api-range/docs/spikes/ANDROID-NATIVE-PROBE-OWNER-2026-10-12.md). Stage16partial/17notstarted/15excluded; PR6OPEN/unmerged, backend/extension/live data сохранены. Этот блок приоритетнее старой WebView-передачи.
+
 > Native research: owned cross-app attenuation, independent alternate playback and explicit-release restoration confirmed on API29/35, run38177741159. Real Yandex session/Track ID, crash restore and physical routes remain unproven; see docs/spikes/ANDROID-NATIVE-COMPANION-2026-10-12.md.
 
 > **12.10.2026 МСК — владелец отклонил Android WebView; нужен companion установленной Яндекс Музыки.**
