@@ -198,6 +198,27 @@ try {
         $hash = hash_hmac('sha256', 'contribution.user.' . $id, $cfg['analytics_privacy_key']);
         $pdo->prepare('DELETE FROM track_requests WHERE uploader_hash = ?')->execute([$hash]);
         $pdo->prepare('DELETE FROM upload_rate_buckets WHERE identity_hash = ?')->execute([$hash]);
+        // Stage14: device/IP ceilings cannot be reset by account/session identity
+        // or forged forwarded headers; audio Range remains outside write quotas.
+        $deviceHash = hash_hmac('sha256', 'contribution.device.8de936d6-2af5-4ca7-973f-24cb5d355198', $cfg['analytics_privacy_key']);
+        $ipHash = hash_hmac('sha256', 'contribution.ip.' . ($_SERVER['REMOTE_ADDR'] ?? 'unknown'), $cfg['analytics_privacy_key']);
+        $bucket = intdiv(time(),3600)*3600;
+        $setBucket = $pdo->prepare('INSERT INTO upload_rate_buckets (identity_hash,window_start,operation,attempts)
+            VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE attempts=VALUES(attempts)');
+        $beforeRequests = (int)$pdo->query('SELECT COUNT(*) FROM track_requests')->fetchColumn();
+        foreach ([[$deviceHash,40],[$ipHash,120]] as [$scopeHash,$limit]) {
+            $setBucket->execute([$scopeHash,$bucket,'track_request',$limit]);
+            $forgedHeaders = $suggestHeaders + ['X-Forwarded-For'=>'198.51.100.123'];
+            expect($app->handle('POST','/api/v1/track-requests',[], $forgedHeaders, fields:$fields)->status===429,
+                'shared device/IP ceiling enforced independently of account');
+            expect((int)$pdo->query('SELECT COUNT(*) FROM track_requests')->fetchColumn()===$beforeRequests,
+                'throttled request makes no contribution');
+            expect($app->handle('GET',$path,$signed,['Range'=>'bytes=0-3'])->status===206,
+                'contribution flood cannot throttle entitled audio');
+            $pdo->prepare('DELETE FROM upload_rate_buckets WHERE identity_hash=?')->execute([$scopeHash]);
+        }
+        foreach ([$hash,$deviceHash,$ipHash] as $scopeHash)
+            $pdo->prepare('DELETE FROM upload_rate_buckets WHERE identity_hash=?')->execute([$scopeHash]);
         $originalWindow = $pdo->query('SELECT valid_from, valid_until FROM account_trials WHERE user_id = ' . $id)->fetch();
         $pdo->exec('UPDATE account_trials SET valid_from = DATE_SUB(UTC_TIMESTAMP(6), INTERVAL 432001 SECOND), valid_until = DATE_SUB(UTC_TIMESTAMP(6), INTERVAL 1 SECOND) WHERE user_id = ' . $id);
         $pdo->exec('UPDATE entitlement_ledger l JOIN account_trials t ON t.ledger_id=l.id SET l.valid_from=t.valid_from, l.valid_until=t.valid_until WHERE t.user_id=' . $id);

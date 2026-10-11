@@ -29,14 +29,15 @@ final class BearerAuthenticator
             return null;
         }
 
-        $stmt = $this->pdo->prepare('SELECT s.id AS session_id, s.user_id, s.refresh_expires_at FROM user_sessions s JOIN users u ON u.id = s.user_id
+        $stmt = $this->pdo->prepare('SELECT s.id AS session_id, s.user_id, s.refresh_expires_at, d.installation_id FROM user_sessions s JOIN users u ON u.id = s.user_id
             JOIN user_email_security e ON e.user_id = u.id
+            JOIN user_devices d ON d.id = s.device_id AND d.user_id = u.id
             WHERE s.access_hash = ? AND s.revoked_at IS NULL AND s.access_expires_at > UTC_TIMESTAMP(6)
               AND u.status = \'active\' AND e.verified_at IS NOT NULL LIMIT 1');
         $stmt->execute([hash('sha256', $token)]);
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
         if (!$row) return null;
         return ['session_id' => (int)$row['session_id'], 'user_id' => (int)$row['user_id'],
-            'refresh_expires_at' => $row['refresh_expires_at']];
+            'refresh_expires_at' => $row['refresh_expires_at'], 'installation_id' => $row['installation_id']];
     }
 }

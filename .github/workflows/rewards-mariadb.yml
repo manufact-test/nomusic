@@ -8,6 +8,9 @@ on:
       - server/migrations/**
       - server/src/Reward/**
       - server/src/Incident/**
+      - server/src/Application.php
+      - server/src/Auth/**
+      - server/tests/entitlement.php
       - server/tests/incidents.php
       - server/tests/automatic-rewards.php
       - server/tests/reward-policy.php
@@ -45,6 +48,8 @@ jobs:
           coverage: none
       - name: Verify automatic carry, historical credits and restartable migrations
         run: |
+          php server/tests/database.php
+          php server/tests/entitlement.php
           php server/tests/incidents.php
           php server/tests/automatic-rewards.php
           php server/tests/reward-policy.php

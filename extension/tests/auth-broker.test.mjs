@@ -207,3 +207,17 @@ test('account presence preview is immediate, credential-free and cannot authoriz
  assert.equal(preview.localSession,true);assert.equal(fx.calls.length,calls);
  assert.deepEqual(Object.keys(preview).sort(),['localSession','ok']);
 });
+
+
+test('security: oversized chunked auth response is cancelled before buffering the rest',async()=>{
+ let cancelled=false,reads=0,secret=null;
+ const api={storage:{local:{get:async()=>({}),set:async()=>{}}},runtime:{getURL:p=>p}};
+ const broker=createAuthBroker(api,{readConfig:async()=>({baseUrl:'https://celikom.example'}),
+  store:{get:async()=>secret,set:async value=>{secret=value},clear:async()=>{secret=null}},
+  fetch:async()=>new Response(new ReadableStream({
+   pull(controller){reads++;controller.enqueue(new Uint8Array(8192));},
+   cancel(){cancelled=true;}
+  },{highWaterMark:0}),{headers:{'content-type':'application/json'}})});
+ const result=await broker.perform('login',{email:'a@example.org',password:'abcdefghijk'});
+ assert.equal(result.ok,false);assert.equal(cancelled,true);assert.equal(reads,3);assert.equal(secret,null);
+});

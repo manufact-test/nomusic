@@ -29,9 +29,12 @@ const files = await walk(root);
 for (const file of files) {
   const info = await stat(file);
   if (info.size > 5 * 1024 * 1024) failures.push(`${path.relative(root, file)} exceeds 5 MiB`);
+  const relative = path.relative(root, file);
+  if ([".env", "id_rsa", "id_ed25519"].includes(path.basename(file)) || /\.(?:p12|pfx|jks|keystore)$/.test(file)) {
+    failures.push(`${relative} must not contain private configuration or signing material`);
+  }
   if (!textExtensions.has(path.extname(file))) continue;
 
-  const relative = path.relative(root, file);
   const source = await readFile(file, "utf8");
   if (source.includes("\r\n")) failures.push(`${relative} uses CRLF`);
   if (source.length > 0 && !source.endsWith("\n")) failures.push(`${relative} has no final newline`);

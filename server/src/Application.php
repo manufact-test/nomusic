@@ -206,6 +206,19 @@ final class Application
             if (!$limiter->check($ownerHash, $isUpload ? 'upload' : 'track_request', $isUpload ? 10 : 20)) {
                 return Response::json(429, ['error' => 'rate_limited']);
             }
+            // Account limits survive session rotation. Independent device and IP
+            // ceilings prevent multi-account bypass without collecting raw IPs.
+            // REMOTE_ADDR is authoritative; forwarded headers are not trusted.
+            if (!$owner) {
+                $privacyKey = (string) $this->config['analytics_privacy_key'];
+                $operation = $isUpload ? 'upload' : 'track_request';
+                $deviceHash = hash_hmac('sha256', 'contribution.device.' . $access['installation_id'], $privacyKey);
+                $ipHash = hash_hmac('sha256', 'contribution.ip.' . ($_SERVER['REMOTE_ADDR'] ?? 'unknown'), $privacyKey);
+                if (!$limiter->check($deviceHash, $operation, $isUpload ? 20 : 40)
+                    || !$limiter->check($ipHash, $operation, $isUpload ? 60 : 120)) {
+                    return Response::json(429, ['error' => 'rate_limited']);
+                }
+            }
             if ($isUpload && isset($headers['content-length'])
                 && ctype_digit((string) $headers['content-length'])
                 && (float) $headers['content-length'] > (int) $this->config['max_audio_size'] + 1048576) {

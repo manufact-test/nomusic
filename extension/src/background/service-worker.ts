@@ -16,13 +16,16 @@ const musicTabs = createMusicTabs(chrome, bootstrap);
 const userAuth = createAuthBroker(chrome);
 const actionIcon = createActionIcon(chrome);
 const resolveApi = createApiBroker(chrome, { withAccess: userAuth.withEntitledAccess });
+let intentGeneration = 0;
 let accessCheck: Promise<string> | null = null;
 let accessValidUntil = 0;
 let accessRetryAt = 0;
 async function playbackAccess(): Promise<string> {
   if (accessValidUntil > Date.now()) return "allowed";
   if (accessRetryAt > Date.now()) return "unavailable";
+  const generation = intentGeneration;
   if (!accessCheck) accessCheck = userAuth.entitlement().then((result) => {
+    if (generation !== intentGeneration) return "unavailable";
     if (!result.allowed) return result.reason === "service_incident" ? "incident" : "denied";
     accessValidUntil = Math.min(Date.now() + 10000, Date.parse(result.valid_until));
     return accessValidUntil > Date.now() ? "allowed" : "denied";
@@ -83,6 +86,15 @@ chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse) =>
     ? (message as { type?: unknown }).type
     : null;
 
+  // Only the extension-owned popup may inspect or change user intent.
+  // Content scripts have a separate, narrowly scoped heartbeat/API channel.
+  const popupCommand = [COMMANDS.getStatus, COMMANDS.setEnabled, COMMANDS.setTestTrack,
+    COMMANDS.restoreOriginal, "CELIKOM_ADD_TRACK_OPENED", "CELIKOM_AUTH"].includes(type as string);
+  if (popupCommand && (sender?.id !== chrome.runtime.id
+    || sender?.url !== chrome.runtime.getURL("popup/popup.html"))) {
+    sendResponse({ ok: false, error: "invalid_sender" }); return false;
+  }
+
   if (type === "CELIKOM_AUTH") {
     if (sender?.id !== chrome.runtime.id || sender?.url !== chrome.runtime.getURL("popup/popup.html")) {
       sendResponse({ ok: false, error: "invalid_sender" }); return false;
@@ -90,6 +102,7 @@ chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse) =>
     const m = message as { action?: unknown };
     if (typeof m.action !== "string") { sendResponse({ ok: false, error: "invalid_request" }); return false; }
     if (m.action === "logout" || m.action === "login" || m.action === "verify-email") {
+      intentGeneration++;
       actionIcon.clear();
       accessValidUntil = 0;
       accessRetryAt = 0;
@@ -138,6 +151,7 @@ chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse) =>
   }
   if (type === COMMANDS.setEnabled) {
     const enabled = normalizeEnabled((message as { enabled?: unknown }).enabled);
+    const generation = ++intentGeneration;
     void (async () => {
       accessValidUntil = 0;
       accessRetryAt = 0;
@@ -156,6 +170,8 @@ chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse) =>
           if (result.reason === "service_incident") await musicTabs.send({ type: "CELIKOM_ACCESS_STATE", state: "incident" });
         } catch (error) { sendResponse({ ...await readState(), accessError: (error as Error)?.message === "invalid_session" ? "sign_in_required" : "auth_unavailable" }); return; }
       }
+      // A delayed Start must never undo a later Stop/login/logout.
+      if (generation !== intentGeneration) { sendResponse(await readState()); return; }
       await chrome.storage.local.set({ enabled });
       if (!enabled) actionIcon.clear();
       if (enabled) await sendToActiveTab({ type: COMMANDS.retryReplacement });

@@ -75,9 +75,22 @@ export function createAuthBroker(api, options = {}) {
       });
       if (!response.headers.get("content-type")?.startsWith("application/json")) throw new Error("auth_unavailable");
       if (Number(response.headers.get("content-length")) > 16384) throw new Error("auth_unavailable");
-      const parsed = await response.text();
-      if (parsed.length > 16384) throw new Error("auth_unavailable");
-      const result = JSON.parse(parsed);
+      // Enforce the byte limit while streaming, including chunked responses
+      // without Content-Length; never buffer an unlimited auth response.
+      if (!response.body) throw new Error("auth_unavailable");
+      const reader = response.body.getReader();
+      const chunks = []; let size = 0;
+      try {
+        for (;;) {
+          const { value, done } = await reader.read(); if (done) break;
+          size += value.byteLength;
+          if (size > 16384) throw new Error("auth_unavailable");
+          chunks.push(value);
+        }
+      } finally { await reader.cancel(); }
+      const bytes = new Uint8Array(size); let offset = 0;
+      for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }
+      const result = JSON.parse(new TextDecoder().decode(bytes));
       if (!response.ok) {
         const safe = new Set(["invalid_credentials", "account_disabled", "account_unavailable", "weak_password", "rate_limited", "invalid_session", "invalid_request", "email_unverified", "email_unavailable", "invalid_code", "access_denied", "uploads_disabled", "invalid_referral_code", "referrals_disabled"]);
         throw new Error(safe.has(result?.error) ? result.error : "auth_unavailable");

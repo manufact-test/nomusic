@@ -77,3 +77,32 @@ test('worker accepts green-icon heartbeats only from authorized enabled Yandex c
  const forbidden=await g.send('CELIKOM_CONTEXT_PING',{enabled:true,phase:'OBSERVING',healthy:true},{...sender,url:'https://example.org/'});
  assert.equal(forbidden.ok,false);assert.match(g.icons.at(-1).path[32],/gray/);
 });
+
+
+test('security: untrusted senders cannot read status, start trial or change playback intent',async()=>{
+ for(const sender of [{id:'other',url:'chrome-extension://worker/popup/popup.html'},
+  {id:'worker',url:'https://music.yandex.ru/'}, {id:'worker',url:'chrome-extension://worker/popup/popup.html?spoof=1'}, {}]) {
+  const f=fixture();
+  for(const type of ['CELIKOM_STATUS_GET','CELIKOM_ENABLED_SET','CELIKOM_RESTORE_ORIGINAL','CELIKOM_ADD_TRACK_OPENED','CELIKOM_AUTH']) {
+   const result=await f.send(type,{enabled:true,action:'logout'},sender);
+   assert.equal(result.error,'invalid_sender');
+  }
+  assert.equal(f.trials,0);assert.equal(f.local.enabled,false);assert.equal(f.sent.length,0);
+ }
+});
+
+
+test('security: delayed Start cannot undo a later manual Stop or logout',async()=>{
+ for(const later of ['stop','logout']) {
+  const f=fixture();let finish;
+  f.auth.entitlement=()=>new Promise(resolve=>{finish=resolve});
+  const start=f.send('CELIKOM_ENABLED_SET',{enabled:true});
+  while(!finish) await new Promise(resolve=>setImmediate(resolve));
+  if(later==='stop') await f.send('CELIKOM_ENABLED_SET',{enabled:false});
+  else await f.send('CELIKOM_AUTH',{action:'logout'});
+  finish({allowed:true,valid_until:new Date(Date.now()+86400000).toISOString()});
+  const result=await start;
+  assert.equal(f.local.enabled,false);assert.equal(result.enabled,false);
+  assert.equal(f.sent.some(m=>m.type==='CELIKOM_REPLACEMENT_RETRY'),false);
+ }
+});
