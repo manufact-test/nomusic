@@ -1,3 +1,7 @@
+## Current update — 2026-10-11, unified0.4.11
+
+Owner confirmed upload, moderation and playback. Four review fixes are deployed: admin field border focus, stable newest-number-first versions, separate popup version presence, and proposal progress linked to uploaded/approved versions. Update CURRENT extension folder in place toCELIKOM-0.4.11-stage10.zip, reload extension and Yandex tab; existing account. [Evidence/checklist](CELIKOM-STAGE10-0411-ADMIN-POLISH.md). Earlier0.4.10 package instructions are historical. Stage10 remains OPEN pending owner review; PR6OPEN/unmerged, Issue7OPEN. Trial3days,90day independent sessions, public contributions ON, existing data and current owner decisions preserved.
+
 > 2026-10-11: unified0.4.10 ready; owner0.4.9 real playback/switch/seek confirmed; public Upload/Suggest ON under verified-user entitlement. [Current evidence](CELIKOM-STAGE10-PUBLIC-CONTRIBUTIONS.md). Stage10 remains OPEN pending owner form/remaining playback/device gates. Earlier OFF statements are historical.
 
 # CELIKOM — Этап 10: Trial + EntitlementService и ОДНА рабочая версия
