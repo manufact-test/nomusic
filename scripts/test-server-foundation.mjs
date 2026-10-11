@@ -68,6 +68,8 @@ if (process.env.DB_NAME) {
   if (billing.status !== 0) process.exit(billing.status || 1);
   const referrals = spawnSync("php", [path.join(serverRoot, "tests", "referrals.php")], { stdio: "inherit" });
   if (referrals.status !== 0) process.exit(referrals.status || 1);
+  const rewards = spawnSync("php", [path.join(serverRoot, "tests", "rewards.php")], { stdio: "inherit" });
+  if (rewards.status !== 0) process.exit(rewards.status || 1);
   const http = spawnSync(process.execPath, [path.join(serverRoot, "tests", "http.mjs")], { stdio: "inherit" });
   if (http.status !== 0) process.exit(http.status || 1);
 }

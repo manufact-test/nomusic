@@ -68,7 +68,8 @@ final class Application
             if (!($this->config['admin_enabled'] ?? false)) {
                 return Response::json(404, ['error' => 'not_found']);
             }
-            return (new AdminPanel($this->database(), $this->storage(), (bool)($this->config['billing_views_enabled'] ?? false)))
+            return (new AdminPanel($this->database(), $this->storage(), (bool)($this->config['billing_views_enabled'] ?? false),
+                (bool)($this->config['reward_eligibility_enabled'] ?? false)))
                 ->handle($method, $path, $query, $headers, $body);
         }
         if ($method === 'OPTIONS' && str_starts_with($path, '/api/v1/') && in_array($headers['origin'] ?? '', $this->config['allowed_origins'], true)) {
@@ -83,6 +84,15 @@ final class Application
             }
             return (new AuthController(new AuthService($this->database(), $this->config)))
                 ->handle($method, $path, $headers, $body);
+        }
+        if ($path === '/api/v1/rewards') {
+            if (!($this->config['reward_eligibility_enabled'] ?? false) || !($this->config['auth_enabled'] ?? false))
+                return Response::json(404,['error'=>'not_found']);
+            if ($method !== 'GET') return Response::json(405,['error'=>'method_not_allowed']);
+            $pdo=$this->database();$session=(new BearerAuthenticator($pdo))->session($headers);
+            if ($session===null) return Response::json(401,['error'=>'invalid_session']);
+            $response=Response::json(200,(new \Celikom\Reward\RewardService($pdo))->summary($session['user_id']));
+            $response->headers['Cache-Control']='no-store';return $response;
         }
         if (in_array($path,['/api/v1/referrals','/api/v1/referrals/code'],true)) {
             if (!($this->config['referrals_enabled'] ?? false) || !($this->config['auth_enabled'] ?? false))
@@ -204,7 +214,7 @@ final class Application
                 if ($isUpload) {
                     $data = (new UploadService($pdo, $this->storage(),
                         (int) $this->config['max_audio_size'], null, new DeferredFingerprintService($pdo)))
-                        ->upload($fields, $files['file'] ?? [], $ownerHash);
+                        ->upload($fields, $files['file'] ?? [], $ownerHash, $owner ? null : $access['user_id']);
                 } else {
                     $data = (new TrackRequestService($pdo))->submit($fields, $ownerHash);
                 }

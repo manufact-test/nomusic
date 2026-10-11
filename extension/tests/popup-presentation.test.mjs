@@ -11,6 +11,22 @@ function fixture() {
 }
 const access = {allowed:true,source:'trial',reason:'trial_active',valid_until:new Date(Date.now()+86400000).toISOString()};
 const state = id => ({track:{id},phase:'READY'});
+test('known absence of a song collapses the version row immediately on reopen and a real song restores it',async()=>{
+ const oldDocument=globalThis.document,oldStorage=globalThis.localStorage,memory=new Map();
+ globalThis.localStorage={getItem:k=>memory.get(k),setItem:(k,v)=>memory.set(k,v),removeItem:k=>memory.delete(k)};
+ try {
+  memory.set('celikom-popup-display-v1:track',JSON.stringify({at:Date.now(),data:{id:null,label:'Откройте Яндекс Музыку'}}));
+  memory.set('celikom-popup-display-v1:version',JSON.stringify({at:Date.now(),data:{trackId:'144530503',status:'approved'}}));
+  const fx=fixture();globalThis.document=fx.document;
+  const refresh=initVersionStatus(async()=>({ok:true,status:'approved'}));
+  assert.equal(fx.version.hidden,true,'collapse before the first asynchronous response');
+  assert.equal(fx.version.textContent,'','old song cannot reserve an empty row');
+  await refresh({phase:'STOPPED',track:null});assert.equal(fx.version.hidden,true);
+  await refresh(state('144530503'));assert.equal(fx.version.hidden,false);
+  assert.match(fx.version.textContent,/доступна/);
+  await refresh({phase:'STOPPED',track:null});assert.equal(fx.version.hidden,true);
+ }finally{globalThis.document=oldDocument;globalThis.localStorage=oldStorage}
+});
 test('closing and reopening shows saved access and song version synchronously without a loading rewrite',async()=>{
  const oldDocument=globalThis.document, oldStorage=globalThis.localStorage, memory=new Map();
  globalThis.localStorage={getItem:k=>memory.get(k),setItem:(k,v)=>memory.set(k,v),removeItem:k=>memory.delete(k)};

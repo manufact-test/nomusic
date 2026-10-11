@@ -373,6 +373,6 @@ button:focus-visible { border-color: #66e0bf; }
 }
 @media (prefers-reduced-motion: reduce) { [data-benefits-panel]::details-content { transition: none; } }
 
-/* Both status rows retain two lines of space from the first paint. */
+/* Applicable status rows retain two lines; hidden song status takes no space. */
 .access-status { height: 32px; min-height: 32px; display: grid; align-content: center; }
 .version-status { height: 36px; min-height: 36px; display: grid; align-content: center; }

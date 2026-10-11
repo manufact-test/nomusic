@@ -46,7 +46,7 @@ function render(state: ExtensionState): void {
       ? [title || `Track ID ${state.track.id}`, artist].filter(Boolean).join(" — ")
       : state.connection?.detail || (state.enabled ? "Запустите трек в Яндекс Музыке" : "CELIKOM остановлен");
     stableText(track, label);
-    writeDisplay("track", state.track?.id ? { id: state.track.id, label: label.slice(0, 512) } : null);
+    writeDisplay("track", { id: state.track?.id || null, label: label.slice(0, 512) });
     track.dataset.detected = String(Boolean(state.track?.id));
     track.title = state.track?.id
       ? `Track ID ${state.track.id} · confidence ${state.track.confidence}`

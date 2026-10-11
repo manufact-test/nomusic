@@ -213,6 +213,6 @@ test("Stage 7 on another Track ID remains eligible and rejects unconfirmed right
   }
   current = {track: null}; intervals[0]();
   await new Promise(resolve => setImmediate(resolve));
-  assert.equal(find("[data-version-status]").hidden, false, "status row keeps its space without a track");
+  assert.equal(find("[data-version-status]").hidden, true, "no empty status row without a track");
   assert.equal(find("[data-version-status]").textContent, "");
 });

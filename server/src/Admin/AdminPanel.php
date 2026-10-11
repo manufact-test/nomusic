@@ -13,7 +13,8 @@ use Celikom\Storage\StorageAdapter;
 final class AdminPanel
 {
     public function __construct(private readonly \PDO $pdo, private readonly StorageAdapter $storage,
-        private readonly bool $billingViewsEnabled = false) {}
+        private readonly bool $billingViewsEnabled = false,
+        private readonly bool $rewardEligibilityEnabled = false) {}
 
     public function handle(string $method, string $path, array $query, array $headers, string $body): Response
     {
@@ -103,7 +104,8 @@ final class AdminPanel
             }
             if (!is_string($reason)) return Response::json(400, ['error'=>'invalid_action']);
             try {
-                $moderation = new ModerationService($this->pdo, $this->storage);
+                $moderation = new ModerationService($this->pdo, $this->storage,
+                    $this->rewardEligibilityEnabled ? new \Celikom\Reward\RewardService($this->pdo) : null);
                 if ($kind === 'replacement') {
                     if ($action === 'reactivate' && $admin['role'] !== 'owner') {
                         return Response::json(403, ['error'=>'forbidden']);

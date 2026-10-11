@@ -12,7 +12,8 @@ use Celikom\Storage\StorageAdapter;
  */
 final class ModerationService
 {
-    public function __construct(private readonly \PDO $pdo, private readonly StorageAdapter $storage) {}
+    public function __construct(private readonly \PDO $pdo, private readonly StorageAdapter $storage,
+        private readonly ?\Celikom\Reward\RewardService $rewards = null) {}
 
     public function replacement(int $adminId, int $id, string $action, string $reason, int $expectedActive, bool $rightsConfirmed): void
     {
@@ -84,6 +85,7 @@ final class ModerationService
             $after = $get;
             $after->execute([$id]);
             $result = $after->fetch(\PDO::FETCH_ASSOC);
+            if ($action === 'approve') $this->rewards?->recordApprovedUpload($id, $adminId);
             $this->audit($adminId, 'replacement_' . $action, 'track_replacement', $id, $reason,
                 self::snapshot($before), self::snapshot($result));
             $this->pdo->commit();

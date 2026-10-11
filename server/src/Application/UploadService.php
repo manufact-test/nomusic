@@ -25,9 +25,9 @@ final class UploadService
     }
 
     /** @param array<string, mixed> $fields @param array<string, mixed> $file */
-    public function upload(array $fields, array $file, string $uploaderHash): array
+    public function upload(array $fields, array $file, string $uploaderHash, ?int $userId = null): array
     {
-        if (!preg_match('/^[a-f0-9]{64}$/D', $uploaderHash)) {
+        if (!preg_match('/^[a-f0-9]{64}$/D', $uploaderHash) || ($userId !== null && $userId < 1)) {
             throw new \InvalidArgumentException('invalid_uploader');
         }
         if (($fields['declaration'] ?? null) !== '1') {
@@ -161,8 +161,8 @@ final class UploadService
                 $replacementId = (int) $prior['id'];
             } else {
                 $stmt = $this->pdo->prepare("INSERT INTO track_replacements
-                    (track_id, audio_asset_id, status, is_active) VALUES (?, ?, 'pending', 0)");
-                $stmt->execute([$track, $assetId]);
+                    (track_id, audio_asset_id, status, is_active, uploaded_by_user_id) VALUES (?, ?, 'pending', 0, ?)");
+                $stmt->execute([$track, $assetId, $userId]);
                 $replacementId = (int) $this->pdo->lastInsertId();
             }
             $this->fingerprints?->schedule($assetId);
