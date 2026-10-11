@@ -77,6 +77,7 @@ class FakeXHR {
   }
 }
 globalThis.XMLHttpRequest = FakeXHR;
+globalThis.document.querySelectorAll = () => [];
 await import("../dist/unpacked/popup/popup.js");
 await new Promise((resolve) => setImmediate(resolve));
 

@@ -12,12 +12,23 @@ const directory=await mkdtemp(join(tmpdir(),'celikom-promo-form-'));
 try {
  const original=await readFile(process.argv[2],'utf8');
  const check=`<script>setTimeout(()=>{try{
- const form=document.querySelector('[data-promo-create]'),field=n=>form.elements.namedItem(n),deadline=document.querySelector('[data-promo-deadline]');
+ const form=document.querySelector('[data-promo-create]');
  const check=(v,m)=>{if(!v)throw Error(m)};
+ if(!form){
+  const table=document.querySelector('.promo-table');check(!!table,'table exists');
+  const headings=[...table.querySelectorAll('th')].map(n=>n.textContent);check(headings.includes('Название')&&headings.includes('Промокод'),'separate name/code columns');
+  for(const row of table.querySelectorAll('tbody tr')){
+   check(!row.textContent.includes('НавсегдаНавсегда'),'no duplicate lifetime');
+   for(const button of row.querySelectorAll('button')){const b=button.getBoundingClientRect(),cell=button.closest('td').getBoundingClientRect();check(Math.abs((b.top+b.bottom)-(cell.top+cell.bottom))<2,'action vertically centered');}
+  }
+  check(document.documentElement.scrollWidth<=innerWidth,'tables stay inside scrolling shell');document.body.dataset.promoResult='pass';return;
+ }
+ const field=n=>form.elements.namedItem(n),deadline=document.querySelector('[data-promo-deadline]');
  check(deadline.getBoundingClientRect().height===0,'deadline initially hidden');
+ const nameRect=field('title').getBoundingClientRect(),codeRect=field('code').getBoundingClientRect();check(nameRect.height===40&&codeRect.height===40,'fixed input heights');if(getComputedStyle(form).gridTemplateColumns.split(' ').length===2)check(Math.abs(nameRect.top-codeRect.top)<1,'first-row aligned');
  field('activation_window').value='fixed';field('activation_window').dispatchEvent(new Event('change',{bubbles:true}));
  check(deadline.getBoundingClientRect().height>0&&field('activation_deadline').required,'deadline required and shown');
- check(deadline.getBoundingClientRect().top>field('activation_window').getBoundingClientRect().bottom,'deadline below selector');
+ check(deadline.getBoundingClientRect().top>field('activation_window').getBoundingClientRect().bottom,'deadline below selector');check(field('max_activations').getBoundingClientRect().height===40,'limit input does not stretch for deadline');
  field('activation_window').value='unlimited';field('activation_window').dispatchEvent(new Event('change',{bubbles:true}));check(deadline.getBoundingClientRect().height===0,'deadline hidden again');
  const box=field('forever'),text=box.nextElementSibling;check(Math.abs(box.getBoundingClientRect().top-text.getBoundingClientRect().top)<12,'checkbox and label on same line');
  box.checked=true;box.dispatchEvent(new Event('change',{bubbles:true}));check(field('duration_days').disabled&&document.querySelector('[data-promo-days]').getBoundingClientRect().height===0,'lifetime hides days');

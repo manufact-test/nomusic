@@ -1,3 +1,4 @@
+import { initScrollSpacing } from "./scroll-spacing.js";
 import { COMMANDS, type ExtensionState } from "../shared/messages.js";
 import { uploadTargetFromStatus, validMp3Selection, privateUploadApiOrigin } from "../upload/contract.js";
 import { initAuthPanel } from "../auth/auth-popup.js";
@@ -511,3 +512,5 @@ window.setInterval(() => void refreshAccess(), 15000);
 
 // Account UI retains the accepted email/recovery flow.
 const accountPanel = initAuthPanel(send);
+
+initScrollSpacing();

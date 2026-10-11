@@ -305,9 +305,7 @@ button:focus-visible { border-color: #66e0bf; }
   overflow-y: auto;
   overflow-x: hidden;
   overscroll-behavior: contain;
-  scrollbar-gutter: stable;
   align-content: start;
-  padding-right: 4px;
 }
 .account-panel[open] .account-content {
   scroll-behavior: auto;
@@ -386,3 +384,14 @@ button:focus-visible { border-color: #66e0bf; }
 .incident-banner{display:grid;gap:10px;padding:14px;border:2px solid #ff817a;border-radius:12px;background:#29191c;color:#ffe4e1}
 .incident-banner strong{font-size:14px;line-height:1.4}
 .incident-banner p{margin:0;font-size:12px;line-height:1.55}
+
+/* Match the gap on both sides of a visible inner scrollbar. */
+.account-panel[open] .account-content{box-sizing:border-box;padding-inline-end:0;scrollbar-width:thin;scrollbar-color:#45565f transparent}
+.account-panel[open] .account-content[data-scroll-overflow="true"]{padding-inline-end:10px}
+html{scrollbar-width:thin;scrollbar-color:#45565f transparent}
+[data-auth-promo-panel]>summary{cursor:pointer;font-size:12px;line-height:1.5}
+[data-auth-promo-panel]>form{display:grid;gap:8px;margin-top:10px}
+[data-auth-promo-panel] label{display:grid;gap:6px;font-size:11px;line-height:1.4;color:#aab8be}
+[data-auth-promo-panel] input{width:100%;box-sizing:border-box;min-width:0}
+[data-auth-promo-panel] button{justify-self:start}
+[data-auth-promo-panel] [data-promo-note]{margin:8px 0 0;font-size:11px;line-height:1.5;overflow-wrap:anywhere}

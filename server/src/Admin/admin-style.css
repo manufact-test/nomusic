@@ -285,4 +285,22 @@ input:not([type=checkbox]):focus-visible,select:focus-visible,textarea:focus-vis
 .promo-subnav a,.promo-subnav span{display:block;padding:9px 15px;border-radius:7px;font-weight:650;font-size:13px;text-decoration:none;color:#567466}
 .promo-subnav span{background:#fff;color:#155d46;box-shadow:0 2px 6px #244e3510}.promo-subnav a:hover{background:#e1ece5}
 
-.promo-duration,.promo-window{display:grid;gap:10px;align-content:start}.promo-forever{display:flex;align-items:center;gap:8px;font-size:13px;color:#5b7467}.promo-forever input{margin:0;flex:none}.promo-create-form [hidden]{display:none!important}.promo-create-form small{font-weight:400;line-height:1.5}
+/* Promo fields align to their own content instead of stretching to row height. */
+.promo-create-form{align-items:start;column-gap:24px;row-gap:20px}
+.promo-create-form .form-field{align-content:start;min-width:0}
+.promo-create-form input:not([type=hidden]):not([type=checkbox]),.promo-create-form select{height:40px;min-height:40px;width:100%}
+.promo-create-form small{font-weight:400;line-height:1.5}
+.promo-create-form>button{grid-column:1/-1;align-self:start;margin-top:4px}
+.promo-duration,.promo-window{display:grid;gap:5px;align-content:start;min-width:0}
+.promo-window{gap:12px}.promo-field-label{font-size:12px;color:#5b7467;font-weight:650}
+.promo-duration-controls{display:flex;align-items:center;gap:16px;min-height:40px;flex-wrap:wrap}
+.promo-duration-controls>[data-promo-days]{flex:1 1 120px;min-width:100px}
+.promo-forever{display:flex;align-items:center;gap:8px;min-height:40px;font-size:13px;color:#5b7467;white-space:nowrap}
+.promo-forever input{margin:0;flex:none}.promo-forever:has(input:disabled){opacity:.55}
+.promo-create-form [hidden]{display:none!important}
+.promo-table th{white-space:nowrap}.promo-table td{vertical-align:middle;padding-top:16px;padding-bottom:16px}
+.promo-table td:first-child{min-width:200px}.promo-table td:nth-child(2){min-width:170px}
+.promo-table td form{margin:0;align-items:center;flex-wrap:nowrap}
+.promo-table .promo-code-cell{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;white-space:nowrap}
+.promo-table .promo-action-cell{white-space:nowrap}.promo-table button{margin:0}
+.promo-access-state{color:#62766d}.promo-panel>.table-shell+p{margin-top:12px;font-size:13px;color:#62766d}

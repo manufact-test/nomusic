@@ -62,7 +62,7 @@ try{
   foreach(['/admin/promos','/admin/promos/new','/admin/promos/activations'] as $route){
    $page=$panel->handle('GET',$route,[],$headers,'');expect($page->status===200,'promo path loads');
    if($route==='/admin/promos/new'){expect(str_contains($page->body,'name="request_key"')&&!str_contains($page->body,'<table>'),'creation isolated from lists');expect(str_contains($page->body,'data-promo-deadline hidden')&&str_contains($page->body,'московское время')&&!str_contains($page->body,'Дни добавляются'),'conditional deadline, Moscow and removed paragraph');expect(str_contains($page->headers['Content-Security-Policy'],"script-src 'sha256-"),'form script CSP hash');$fixture=tempnam(sys_get_temp_dir(),'promo-form-');file_put_contents($fixture,$page->body);try{passthru('node '.escapeshellarg(__DIR__.'/promo-form-browser.mjs').' '.escapeshellarg($fixture),$exit);expect($exit===0,'native promo form desktop/mobile');}finally{unlink($fixture);}}
-   else expect(str_contains($page->body,'class="promo-subnav"')&&str_contains($page->body,'aria-current="page"'),'selected submenu visible');
+   else {expect(str_contains($page->body,'class="promo-subnav"')&&str_contains($page->body,'aria-current="page"'),'selected submenu visible');$fixture=tempnam(sys_get_temp_dir(),'promo-table-');file_put_contents($fixture,$page->body);try{passthru('node '.escapeshellarg(__DIR__.'/promo-form-browser.mjs').' '.escapeshellarg($fixture),$exit);expect($exit===0,'native promo table layout');}finally{unlink($fixture);}}
   }
   foreach([false,true] as $forever){
    $submitted=$form;$submitted['code']='CREATE_'.strtoupper(bin2hex(random_bytes(6)));$submitted['request_key']=bin2hex(random_bytes(32));
