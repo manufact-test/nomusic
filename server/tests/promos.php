@@ -45,7 +45,7 @@ try{
   try{$service->redeem($user(),$discount);throw new RuntimeException('payment_missing');}catch(DomainException $e){expect($e->getMessage()==='promo_payment_pending','discount deferred');}
   expect((int)$pdo->query('SELECT used_activations FROM promo_codes WHERE id='.$partial)->fetchColumn()===0,'no use without payment');
  });
- run('Admin lifetime confirmation does not create a code; activation view and CSRF are enforced',function()use($pdo,$config,$owner,$user,$create,$service):void{
+ run('Admin lifetime confirmation does not create a code; activation view and CSRF are enforced',function()use($pdo,$config,$owner,$user,$create,$service,&$codes):void{
   $token=bin2hex(random_bytes(32));$csrf=hash_hmac('sha256','celikom-admin-csrf-v1',$token);
   $pdo->prepare('INSERT INTO admin_sessions(token_hash,admin_id,csrf_hash,expires_at) VALUES (?,?,?,DATE_ADD(UTC_TIMESTAMP(6),INTERVAL 6 HOUR))')->execute([hash('sha256',$token),$owner,hash('sha256',$csrf)]);
   $panel=new Celikom\Admin\AdminPanel($pdo,new Celikom\Storage\LocalStorageAdapter($config['storage_path']));
@@ -63,6 +63,14 @@ try{
    $page=$panel->handle('GET',$route,[],$headers,'');expect($page->status===200,'promo path loads');
    if($route==='/admin/promos/new')expect(str_contains($page->body,'name="request_key"')&&!str_contains($page->body,'<table>'),'creation isolated from lists');
    else expect(str_contains($page->body,'class="promo-subnav"')&&str_contains($page->body,'aria-current="page"'),'selected submenu visible');
+  }
+  foreach([false,true] as $forever){
+   $submitted=$form;$submitted['code']='CREATE_'.strtoupper(bin2hex(random_bytes(6)));$submitted['request_key']=bin2hex(random_bytes(32));
+   $submitted['forever']=$forever?'1':'0';$submitted['confirm_forever']='1';$submitted['duration_days']='30';
+   $saved=$panel->handle('POST','/admin/promos/create',[],$headers,http_build_query($submitted));
+   expect($saved->status===303&&$saved->headers['Location']==='/admin/promos','form saves and returns to codes');
+   $q=$pdo->prepare('SELECT id,forever FROM promo_codes WHERE request_key=?');$q->execute([$submitted['request_key']]);$savedRow=$q->fetch(PDO::FETCH_ASSOC);
+   expect($savedRow!==false&&(int)$savedRow['forever']===($forever?1:0),'submitted finite/lifetime code exists');$codes[]=(int)$savedRow['id'];
   }
   $pdo->exec('DELETE FROM admin_sessions WHERE admin_id='.$owner);
  });
