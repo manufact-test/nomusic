@@ -1,3 +1,20 @@
+> **11.10.2026 — подготовлен функциональный пакет наград 0.4.16.**
+> [CI 38129250332 — PASS](https://github.com/manufact-test/nomusic/actions/runs/38129250332),
+> код `ddbc192d6855f2187c80f7692176eeb7b50c44fb`: 141 тест расширения,
+> 17 прототипа, PHP 8.3/MySQL, 7 evidence + 9 policy/decision сценариев,
+> native Chromium. Проверены cap/stacking, реальные owner POST/CSRF/roles,
+> revoke/expiry, audit rollback, два параллельных grant при лимите один,
+> повтор миграции после DDL без дублирования колонок/сброса правил.
+> Исправлены пойманные до live rollout гонка snapshot при cap и результат
+> no-op SQL при повторе миграции. [Snapshot 38129063156 — PASS](https://github.com/manufact-test/nomusic/actions/runs/38129063156):
+> 8 audio объектов, 24 SQL таблицы и env. [Restore drill 38129248062 — PASS](https://github.com/manufact-test/nomusic/actions/runs/38129248062):
+> файлы и SQL восстановлены изолированно, live MySQL не затронута.
+> Следом guarded deploy с сохранением всех прежних credentials и flags;
+> FEATURE_REWARD_ELIGIBILITY включить отдельным узким переключением после миграций,
+> policy оставить выключенной/нулевой до явной настройки владельца в админке.
+> Реальной оплаты, расходования бонусов и нового paid entitlement нет. Подробности:
+> [план наград](https://github.com/manufact-test/nomusic/blob/feature/api-range/docs/test-plans/CELIKOM-STAGE12-REWARDS.md).
+
 > Проверено: код `47fc63055c4070cfe296c6de275b9175f5f40fd9`,
 > [CI 38128021136 — PASS](https://github.com/manufact-test/nomusic/actions/runs/38128021136):
 > 141 тест расширения, 17 тестов прототипа, PHP 8.3/MySQL, семь сценариев reward
