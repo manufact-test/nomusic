@@ -3,8 +3,8 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const ignoredDirectories = new Set([".git", "dist", "node_modules", "vendor"]);
-const textExtensions = new Set([".cjs", ".css", ".html", ".js", ".json", ".md", ".mjs", ".php", ".ts", ".yaml", ".yml"]);
+const ignoredDirectories = new Set([".git", ".gradle", "build", "dist", "node_modules", "vendor"]);
+const textExtensions = new Set([".cjs", ".css", ".html", ".js", ".json", ".md", ".mjs", ".php", ".ts", ".yaml", ".yml", ".kt", ".kts", ".xml", ".properties", ".py", ".crt"]);
 const secretPatterns = [
   /-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----/,
   /\bghp_[A-Za-z0-9]{30,}\b/,
