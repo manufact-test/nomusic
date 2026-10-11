@@ -71,6 +71,8 @@ for (const file of phpFiles) {
 const smoke = spawnSync("php", [path.join(serverRoot, "tests", "database.php")], { stdio: "inherit" });
 if (smoke.status !== 0) process.exit(smoke.status || 1);
 if (process.env.DB_NAME) {
+  const support = spawnSync("php", [path.join(serverRoot, "tests", "support.php")], { stdio: "inherit" });
+  if (support.status !== 0) process.exit(support.status || 1);
   const promos = spawnSync("php", [path.join(serverRoot, "tests", "promos.php")], { stdio: "inherit" });
   if (promos.status !== 0) process.exit(promos.status || 1);
   const incidents = spawnSync("php", [path.join(serverRoot, "tests", "incidents.php")], { stdio: "inherit" });

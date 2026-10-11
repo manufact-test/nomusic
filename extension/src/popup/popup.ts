@@ -516,4 +516,4 @@ const accountPanel = initAuthPanel(send);
 
 initScrollSpacing();
 
-void initSupport({ getState: () => lastState });
+void initSupport({ send, getState: () => lastState });

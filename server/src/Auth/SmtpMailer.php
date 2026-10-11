@@ -28,6 +28,18 @@ final class SmtpMailer
         $message = $purpose === 'verify'
             ? "Код подтверждения почты CELIKOM: $code\nСрок действия — 10 минут.\nЕсли вы не регистрировались, проигнорируйте это письмо."
             : "Код восстановления пароля CELIKOM: $code\nСрок действия — 10 минут.\nЕсли вы не запрашивали восстановление, проигнорируйте это письмо.";
+        $this->deliver($to,$message,$purpose,$purpose==='verify'?'CELIKOM — подтверждение почты':'CELIKOM — восстановление пароля');
+    }
+
+    public function sendSupport(string $to,int $ticket,string $body,bool $incoming):void
+    {
+        if(!$this->ready()||!filter_var($to,FILTER_VALIDATE_EMAIL)||$ticket<1||strlen($body)>6000)throw new \RuntimeException('mail_unavailable');
+        $message=($incoming?'Новое обращение':'Ответ поддержки')." CELIKOM №$ticket\n\n".$body."\n\nОткрыть переписку и обратиться повторно можно в CELIKOM → Связь с поддержкой.";
+        $this->deliver($to,$message,'support',"CELIKOM — обращение №$ticket");
+    }
+
+    private function deliver(string $to,string $message,string $purpose,string $subjectText):void
+    {
         if (($this->config['environment'] ?? '') === 'test'
             && ($this->config['mail_test_sink'] ?? null) instanceof \Closure) {
             ($this->config['mail_test_sink'])($to, $message, $purpose);
@@ -37,12 +49,14 @@ final class SmtpMailer
         $port = (int)$this->config['mail_port'];
         $ssl = ['ssl'=>['verify_peer'=>true,'verify_peer_name'=>true,'peer_name'=>$host,'allow_self_signed'=>false]];
         $socket = @stream_socket_client(($port===465?'ssl://':'tcp://').$host.':'.$port,
-            $errno,$errstr,12,STREAM_CLIENT_CONNECT,stream_context_create($ssl));
+            $errno,$errstr,$purpose==='support'?2:12,STREAM_CLIENT_CONNECT,stream_context_create($ssl));
         if (!$socket) throw new \RuntimeException('mail_unavailable');
-        stream_set_timeout($socket, 12);
+        stream_set_timeout($socket, $purpose==='support'?2:12);
+        $deadline=microtime(true)+($purpose==='support'?6:120);
         try {
-            $read = static function(int $want) use ($socket): void {
+            $read = static function(int $want) use ($socket,$deadline): void {
                 do {
+                    if(microtime(true)>$deadline)throw new \RuntimeException('smtp_unavailable');
                     $line = fgets($socket, 1024);
                     if (!is_string($line) || !preg_match('/^([0-9]{3})([- ])/', $line, $m)) {
                         throw new \RuntimeException('smtp_unavailable');
@@ -52,7 +66,7 @@ final class SmtpMailer
                 } while (true);
                 if ($code !== $want) throw new \RuntimeException('smtp_unavailable');
             };
-            $send = static function(string $line) use ($socket): void {
+            $send = static function(string $line) use ($socket,$deadline): void {
                 if (fwrite($socket,$line."\r\n") === false) throw new \RuntimeException('smtp_unavailable');
             };
             $read(220);
@@ -71,7 +85,7 @@ final class SmtpMailer
             $send('MAIL FROM:<'.$from.'>'); $read(250);
             $send('RCPT TO:<'.$to.'>'); $read(250);
             $send('DATA'); $read(354);
-            $subject = base64_encode($purpose==='verify'?'CELIKOM — подтверждение почты':'CELIKOM — восстановление пароля');
+            $subject = base64_encode($subjectText);
             $headers = "From: CELIKOM <".$from.">\r\nTo: <".$to.">\r\n"
                 ."Subject: =?UTF-8?B?".$subject."?=\r\n"
                 ."MIME-Version: 1.0\r\nContent-Type: text/plain; charset=UTF-8\r\n"

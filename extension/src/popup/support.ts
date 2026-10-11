@@ -14,28 +14,65 @@ export function supportMessage(description: string, version: string, state: any)
 
 export async function initSupport(options: any = {}): Promise<void> {
   const doc = options.document || document;
+  const panel = doc.querySelector("[data-support-panel]");
   const copy = doc.querySelector("[data-support-copy]");
-  const emailButton = doc.querySelector("[data-support-email]");
-  const contact = doc.querySelector("[data-support-contact]");
+  const submit = doc.querySelector("[data-support-send]");
   const description = doc.querySelector("[data-support-description]");
   const note = doc.querySelector("[data-support-note]");
-  if (!copy || !emailButton || !description) return;
-  let email = "";
-  const message = () => supportMessage(description.value || "", chrome.runtime.getManifest().version, options.getState?.());
-  function feedback(text: string) { if (note) { note.hidden = false; note.textContent = text; } }
-  copy.addEventListener("click", async () => {
-    try { await navigator.clipboard.writeText(message()); feedback("Обращение скопировано. Вставьте его в сообщение поддержке."); }
-    catch (_) { feedback("Не удалось скопировать. Выделите описание проблемы и скопируйте его вручную."); }
-  });
-  emailButton.addEventListener("click", () => {
-    if (!email) return;
-    const url = `mailto:${encodeURIComponent(email)}?subject=${encodeURIComponent("CELIKOM — обращение в поддержку")}&body=${encodeURIComponent(message())}`;
-    void chrome.tabs.create({ url }).catch(() => feedback("Не удалось открыть почту. Скопируйте обращение и отправьте его на " + email));
-  });
+  const list = doc.querySelector("[data-support-tickets]");
+  if (!panel || !copy || !submit || !description || !list) return;
+  const send = options.send;
+  let key = crypto.randomUUID(); let busy = false; let pendingMessage = "";
+  const draftKey = "celikom-support-draft-v1";
   try {
-    const response = await fetch(chrome.runtime.getURL("api/config.json"));
-    if (!response.ok) return;
-    email = supportEmail((await response.json()).supportEmail);
-    if (email) { emailButton.disabled = false; if (contact) contact.textContent = email; }
-  } catch (_) { /* Copy remains available offline and without a configured recipient. */ }
+    const draft = (await chrome.storage.session?.get(draftKey))?.[draftKey];
+    if (draft && typeof draft.text === "string" && draft.text.length <= 2000 && /^[a-f0-9-]{36}$/.test(draft.key)) { description.value = draft.text; key = draft.key; pendingMessage = typeof draft.message === "string" && draft.message.length < 3000 ? draft.message : ""; }
+  } catch (_) {}
+  description.addEventListener("input", () => { key = crypto.randomUUID(); pendingMessage = ""; void chrome.storage.session?.set({ [draftKey]: { text: description.value.slice(0, 2000), key } }); });
+  const message = () => supportMessage(description.value || "", chrome.runtime.getManifest().version, options.getState?.());
+  function feedback(text: string) { note.hidden = false; note.textContent = text; }
+  const failure = (result: any) => feedback(result?.error === "rate_limited" ? "Слишком много обращений. Повторите позже." : result?.error === "invalid_session" ? "Войдите в аккаунт CELIKOM, чтобы отправить сообщение и получать ответы." : "Не удалось связаться с поддержкой. Текст сохранён в поле; повторите отправку.");
+  async function refresh() {
+    const result = await send({ type: "CELIKOM_AUTH", action: "support-list" });
+    list.replaceChildren();
+    if (!result?.ok) {
+      failure(result);
+      const contact = doc.querySelector("[data-support-contact]");
+      const address = supportEmail((await send({ type: "CELIKOM_AUTH", action: "support-contact" }))?.email);
+      if (contact && address) { contact.replaceChildren(); contact.hidden = false; contact.append("Если не получается войти, напишите: "); const link = doc.createElement("a"); link.textContent = address; link.href = "mailto:" + address; contact.append(link); }
+      return;
+    }
+    for (const ticket of result.tickets || []) {
+      const button = doc.createElement("button"); button.type = "button"; button.className = "quiet wide";
+      button.textContent = `Обращение №${ticket.id} — ${ticket.status === "answered" ? "есть ответ" : ticket.status === "closed" ? "закрыто" : "отправлено"}`;
+      button.addEventListener("click", async () => {
+        const thread = await send({ type: "CELIKOM_AUTH", action: "support-thread", ticket_id: ticket.id });
+        if (!thread?.ok) { failure(thread); return; }
+        const content = doc.createElement("div"); content.className = "support-thread";
+        for (const m of thread.messages || []) {
+          const p = doc.createElement("p"); p.style.whiteSpace = "pre-wrap"; p.style.overflowWrap = "anywhere";
+          p.textContent = `${m.author === "support" ? "Поддержка" : "Вы"}: ${m.body}`; content.append(p);
+        }
+        list.querySelector(".support-thread")?.remove(); button.after(content);
+      }); list.append(button);
+    }
+  }
+  panel.addEventListener("toggle", () => { if (panel.open) void refresh(); });
+  copy.addEventListener("click", async () => {
+    try { await navigator.clipboard.writeText(message()); feedback("Обращение скопировано."); }
+    catch (_) { feedback("Не удалось скопировать. Скопируйте описание вручную."); }
+  });
+  submit.addEventListener("click", async () => {
+    if (busy) return;
+    if (description.value.trim().length < 3) { feedback("Опишите проблему перед отправкой."); return; }
+    busy = true; submit.disabled = true; feedback("Отправляем…");
+    try {
+      if (!pendingMessage) pendingMessage = message();
+      await chrome.storage.session?.set({ [draftKey]: { text: description.value.slice(0, 2000), key, message: pendingMessage } });
+      const result = await send({ type: "CELIKOM_AUTH", action: "support-send", message: pendingMessage, request_key: key });
+      if (!result?.ok) { failure(result); return; }
+      key = crypto.randomUUID(); pendingMessage = ""; description.value = ""; await chrome.storage.session?.remove(draftKey); await chrome.storage.session?.remove(draftKey); feedback(`Обращение №${result.ticket_id} отправлено. Ответ появится здесь и придёт на почту аккаунта.`);
+      await refresh();
+    } catch (_) { failure(null); } finally { busy = false; submit.disabled = false; }
+  });
 }

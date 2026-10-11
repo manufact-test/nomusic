@@ -69,7 +69,7 @@ final class Application
                 return Response::json(404, ['error' => 'not_found']);
             }
             return (new AdminPanel($this->database(), $this->storage(), (bool)($this->config['billing_views_enabled'] ?? false),
-                (bool)($this->config['reward_eligibility_enabled'] ?? false)))
+                (bool)($this->config['reward_eligibility_enabled'] ?? false), $this->config))
                 ->handle($method, $path, $query, $headers, $body);
         }
         if ($method === 'OPTIONS' && str_starts_with($path, '/api/v1/') && in_array($headers['origin'] ?? '', $this->config['allowed_origins'], true)) {
@@ -84,6 +84,23 @@ final class Application
             }
             return (new AuthController(new AuthService($this->database(), $this->config)))
                 ->handle($method, $path, $headers, $body);
+        }
+        if ($path==='/api/v1/support' || preg_match('#^/api/v1/support/([1-9][0-9]{0,17})$#D',$path,$supportMatch)) {
+            if(!($this->config['auth_enabled']??false))return Response::json(404,['error'=>'not_found']);
+            $pdo=$this->database();$session=(new BearerAuthenticator($pdo))->session($headers);
+            if(!$session)return Response::json(401,['error'=>'invalid_session']);
+            $support=new \Celikom\Support\SupportService($pdo,$this->config);
+            try {
+                if($method==='GET')$data=isset($supportMatch[1])?$support->thread((int)$supportMatch[1],(int)$session['user_id']):['tickets'=>$support->listForUser((int)$session['user_id'])];
+                elseif($method==='POST'&&$path==='/api/v1/support'){
+                    if(strlen($body)>10000)throw new \InvalidArgumentException();
+                    $data=json_decode($body,true,8,JSON_THROW_ON_ERROR);
+                    if(!is_array($data)||!is_string($data['message']??null)||!is_string($data['request_key']??null))throw new \InvalidArgumentException();
+                    $data=['ticket_id'=>$support->create((int)$session['user_id'],$data['message'],$data['request_key'])];
+                }else return Response::json(405,['error'=>'method_not_allowed']);
+                $response=new Response(200,['Content-Type'=>'application/json; charset=utf-8','Cache-Control'=>'no-store'],json_encode($data,JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE));return $response;
+            }catch(\InvalidArgumentException|\JsonException){return Response::json(400,['error'=>'invalid_request']);}
+            catch(\DomainException $e){return Response::json($e->getMessage()==='rate_limited'?429:404,['error'=>$e->getMessage()==='rate_limited'?'rate_limited':'not_found']);}
         }
         if($path==='/api/v1/promos/redeem'){
             if(!($this->config['auth_enabled']??false)||!($this->config['entitlement_enabled']??false))return Response::json(404,['error'=>'not_found']);
@@ -150,6 +167,7 @@ final class Application
             return Response::json(200, [
                 'incident' => $incident,
                 'api_version' => 1,
+                'support_email' => filter_var($this->config['mail_from']??'',FILTER_VALIDATE_EMAIL) ? $this->config['mail_from'] : '',
                 'minimum_extension_version' => $this->config['minimum_extension_version'],
                 'upload_enabled' => (bool)($this->config['user_uploads_enabled'] ?? false) && (bool)($this->config['entitlement_enabled'] ?? false),
                 'max_upload_size' => $this->config['max_audio_size'],

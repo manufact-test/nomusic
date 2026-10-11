@@ -65,6 +65,7 @@ export function createAuthBroker(api, options = {}) {
   }
 
   async function apiRequest(path, method = "GET", data = null, access = "") {
+    const limit = path.startsWith("support") ? 65536 : 16384;
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), 8000);
     try {
@@ -74,7 +75,7 @@ export function createAuthBroker(api, options = {}) {
         body: data ? JSON.stringify(data) : undefined
       });
       if (!response.headers.get("content-type")?.startsWith("application/json")) throw new Error("auth_unavailable");
-      if (Number(response.headers.get("content-length")) > 16384) throw new Error("auth_unavailable");
+      if (Number(response.headers.get("content-length")) > limit) throw new Error("auth_unavailable");
       // Enforce the byte limit while streaming, including chunked responses
       // without Content-Length; never buffer an unlimited auth response.
       if (!response.body) throw new Error("auth_unavailable");
@@ -84,7 +85,7 @@ export function createAuthBroker(api, options = {}) {
         for (;;) {
           const { value, done } = await reader.read(); if (done) break;
           size += value.byteLength;
-          if (size > 16384) throw new Error("auth_unavailable");
+          if (size > limit) throw new Error("auth_unavailable");
           chunks.push(value);
         }
       } finally { await reader.cancel(); }
@@ -206,6 +207,9 @@ export function createAuthBroker(api, options = {}) {
           error: "session_expired" };
       }
     }
+    if (action === "support-contact") {
+      try { const config = await apiRequest("config"); return { ok: true, email: config.support_email || "" }; } catch (_) { return { ok: false }; }
+    }
     if (action === "account-preview") {
       // Presence only; never authority to start a trial, resolve or play audio.
       const saved = await store.get();
@@ -213,6 +217,13 @@ export function createAuthBroker(api, options = {}) {
     }
     if (action !== "contribution-access" && action !== "track-status" && !await isAvailable()) return { ok: false, error: "auth_disabled" };
     try {
+      if (action === "support-send" || action === "support-list" || action === "support-thread") {
+        if (action === "support-send" && (typeof message.message !== "string" || message.message.length > 3000 || typeof message.request_key !== "string" || !/^[a-f0-9-]{36}$/.test(message.request_key))) return { ok: false, error: "invalid_request" };
+        if (action === "support-thread" && !/^[1-9][0-9]{0,17}$/.test(String(message.ticket_id))) return { ok: false, error: "invalid_request" };
+        const path = action === "support-thread" ? "support/" + message.ticket_id : "support";
+        const data = await withAccess((saved) => apiRequest(path, action === "support-send" ? "POST" : "GET", action === "support-send" ? { message: message.message, request_key: message.request_key } : null, saved.access_token));
+        return { ok: true, ...data };
+      }
       if (action === "promo-redeem") {
         if (typeof message.code !== "string" || !/^[A-Za-z0-9_-]{8,64}$/.test(message.code.trim())) return { ok: false, error: "invalid_promo" };
         const result = await withAccess((saved) => apiRequest("promos/redeem", "POST", { code: message.code.trim() }, saved.access_token));

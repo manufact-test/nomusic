@@ -14,7 +14,7 @@ final class AdminPanel
 {
     public function __construct(private readonly \PDO $pdo, private readonly StorageAdapter $storage,
         private readonly bool $billingViewsEnabled = false,
-        private readonly bool $rewardEligibilityEnabled = false) {}
+        private readonly bool $rewardEligibilityEnabled = false, private readonly array $config = []) {}
 
     public function handle(string $method, string $path, array $query, array $headers, string $body): Response
     {
@@ -52,6 +52,19 @@ final class AdminPanel
             if (str_starts_with($path, '/admin/audio/')) return Response::json(403, ['error'=>'forbidden']);
             return new Response(303, ['Location'=>'/admin/login', 'Cache-Control'=>'no-store']);
         }
+        if(in_array($path,['/admin/support/reply','/admin/support/close'],true)){
+            if(!in_array($admin['role'],['owner','moderator'],true))return Response::json(403,['error'=>'forbidden']);
+            if($method!=='POST')return Response::json(405,['error'=>'method_not_allowed']);
+            $form=$this->form($headers,$body,32768);
+            if(!AdminAuth::validCsrf($admin,$form['csrf']??null))return Response::json(403,['error'=>'csrf_failed']);
+            try{
+                $id=$this->positiveInt($form['ticket']??null);if(!$id)throw new \InvalidArgumentException();
+                $service=new \Celikom\Support\SupportService($this->pdo,$this->config);
+                if($path==='/admin/support/reply')$service->reply((int)$admin['id'],$id,is_string($form['message']??null)?$form['message']:'',is_string($form['request_key']??null)?$form['request_key']:'');
+                else $service->close((int)$admin['id'],$id);
+                return new Response(303,['Location'=>'/admin?tab=support&ticket='.$id,'Cache-Control'=>'no-store']);
+            }catch(\InvalidArgumentException|\DomainException){return Response::json(400,['error'=>'invalid_request']);}
+        }
         if ($path === '/admin/logout' && $method === 'POST') {
             $form = $this->form($headers, $body);
             if (!AdminAuth::validCsrf($admin, $form['csrf'] ?? null)) return Response::json(403, ['error'=>'csrf_failed']);
@@ -63,7 +76,7 @@ final class AdminPanel
         if (in_array($path,['/admin/promos/create','/admin/promos/revoke','/admin/promos/revoke-activation'],true)) {
             if($admin['role']!=='owner')return Response::json(403,['error'=>'forbidden']);
             if($method!=='POST')return Response::json(405,['error'=>'method_not_allowed']);
-            $form=$this->form($headers,$body);
+            $form=$this->form($headers,$body,32768);
             if(!AdminAuth::validCsrf($admin,$form['csrf']??null))return Response::json(403,['error'=>'csrf_failed']);
             try {
                 $service=new \Celikom\Promo\PromoService($this->pdo);
@@ -218,10 +231,10 @@ final class AdminPanel
         return Response::json(404, ['error'=>'not_found']);
     }
 
-    private function form(array $headers, string $body): array
+    private function form(array $headers, string $body, int $limit=8192): array
     {
         if (!str_starts_with(strtolower((string)($headers['content-type'] ?? '')), 'application/x-www-form-urlencoded')
-            || strlen($body) > 8192) return [];
+            || strlen($body) > $limit) return [];
         parse_str($body, $params);
         return is_array($params) ? $params : [];
     }
@@ -416,6 +429,7 @@ final class AdminPanel
     {
         $tab = is_string($query['tab'] ?? null) ? $query['tab'] : 'uploads';
         $allowed = ['uploads','requests','reports','audit','overview'];
+        if(in_array($admin['role'],['owner','moderator'],true))$allowed[]='support';
         if ($admin['role']==='owner') { $allowed[]='incidents'; $allowed[]='promos'; }
         if ($this->billingViewsEnabled && $admin['role']==='owner') $allowed[]='billing';
         if ($this->rewardEligibilityEnabled && $admin['role']==='owner') $allowed[]='rewards';
@@ -442,7 +456,7 @@ final class AdminPanel
             'uploads'=>'Загруженные версии', 'requests'=>'Предложить песню',
             'reports'=>'Жалобы', 'rewards'=>'Награды за вклад',
             'promos'=>'Промокоды', 'billing'=>'Платежи и подписки', 'incidents'=>'Сбои интеграции',
-            'audit'=>'Журнал действий', 'overview'=>'Обзор'
+            'support'=>'Техподдержка', 'audit'=>'Журнал действий', 'overview'=>'Обзор'
         ];
         foreach ($sections as $key => $name) {
             if (!in_array($key, $allowed, true)) continue;
@@ -466,6 +480,7 @@ final class AdminPanel
             . '"><span>Новые жалобы<span class="sub">Ожидают решения</span></span><strong>'
             . (int) $counts['pending_reports'] . '</strong></a></div>';
         return $html . match ($tab) {
+            'support' => (new \Celikom\Support\SupportAdminView($this->pdo))->render($admin['csrf'],$this->positiveInt($query['ticket']??null) ?: 0,$this->positiveInt($query['page']??null) ?: 1),
             'promos' => (new \Celikom\Promo\PromoAdminView($this->pdo))->render($admin['csrf'],$this->positiveInt($query['page']??null) ?: 1,($query['create']??null)==='1',($query['activations']??null)==='1'),
             'incidents' => (new \Celikom\Incident\IncidentAdminView($this->pdo))->render($admin['csrf']),
             'requests' => $this->requests($admin, $csrf, $query),
