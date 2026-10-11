@@ -9,7 +9,7 @@ function guard12(bool $condition):void {if(!$condition) throw new RuntimeExcepti
 function databaseDigest12(PDO $pdo):string {
     $hash=hash_init('sha256');
     foreach(['users','user_devices','user_sessions','user_email_security','account_trials','entitlement_ledger',
-        'admins','tracks','audio_assets','track_replacements','reward_ledger','reward_policy','referrals','referral_codes'] as $table) {
+        'admins','tracks','audio_assets','track_replacements','reward_ledger','reward_policy','reward_allocations','referrals','referral_codes'] as $table) {
         $rows=$pdo->query('SELECT * FROM '.$table)->fetchAll(PDO::FETCH_ASSOC);
         $encoded=array_map(static fn($row)=>json_encode($row,JSON_THROW_ON_ERROR),$rows);sort($encoded,SORT_STRING);
         hash_update($hash,$table.json_encode($encoded,JSON_THROW_ON_ERROR));
@@ -31,13 +31,13 @@ try {
     $request=json_decode((string)file_get_contents($requestPath),true,8,JSON_THROW_ON_ERROR);
     guard12(is_array($request) && array_keys($request)===['operation','target','expected_release']
         && $request['target']==='hostinger-private-test' && in_array($request['operation'],['enable','disable','audit'],true)
-        && is_string($request['expected_release']) && preg_match('/^0\.4\.16-[a-f0-9]{40}$/D',$request['expected_release'])===1);
+        && is_string($request['expected_release']) && preg_match('/^0\.4\.17-[a-f0-9]{40}$/D',$request['expected_release'])===1);
     $release=realpath($app.'/current');guard12($release===$app.'/releases/'.$request['expected_release']);
     require $release.'/bootstrap.php';$before=require $release.'/config/app.php';
     guard12($before['environment']==='production' && $before['auth_enabled'] && $before['admin_enabled']
         && $before['entitlement_enabled'] && $before['user_uploads_enabled'] && $before['api_enabled'] && !$before['analytics_enabled']);
     $pdo=Celikom\Database\Connection::open($before);
-    $q=$pdo->prepare('SELECT COUNT(*) FROM schema_migrations WHERE version IN (?,?)');$q->execute(['011_reward_eligibility.sql','012_reward_policy.sql']);guard12((int)$q->fetchColumn()===2);
+    $q=$pdo->prepare('SELECT COUNT(*) FROM schema_migrations WHERE version IN (?,?,?)');$q->execute(['011_reward_eligibility.sql','012_reward_policy.sql','013_automatic_rewards.sql']);guard12((int)$q->fetchColumn()===3);
     $mapping=(new Celikom\Repositories\PdoCatalogRepository($pdo))->findActive('yandex','144530503');
     guard12($mapping!==null && (int)$mapping['replacement_id']===1 && (int)$mapping['duration_ms']===180872);
     $audio=$before['storage_path'].'/'.$mapping['storage_key'];guard12(is_file($audio) && !is_link($audio) && hash_equals($mapping['sha256'],hash_file('sha256',$audio)));

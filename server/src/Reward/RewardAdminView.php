@@ -31,13 +31,13 @@ final class RewardAdminView
             .'Сохранённые настройки действуют для новых одобрений. Платежи пока не подключены.</small></p></section>';
         $count=(int)$this->pdo->query('SELECT COUNT(*) FROM reward_ledger')->fetchColumn();$pages=max(1,(int)ceil($count/25));$page=min(max(1,$page),$pages);
         $offset=($page-1)*25;
-        $rows=$this->pdo->query("SELECT l.*,u.email,t.service_track_id,t.title,t.artist FROM reward_ledger l
+        $rows=$this->pdo->query("SELECT l.*,u.email,t.service_track_id,t.title,t.artist,(l.expires_at<=UTC_TIMESTAMP(6)) AS is_expired FROM reward_ledger l
             JOIN users u ON u.id=l.user_id JOIN track_replacements r ON r.id=l.replacement_id JOIN tracks t ON t.id=r.track_id
             ORDER BY l.id DESC LIMIT 25 OFFSET $offset")->fetchAll(PDO::FETCH_ASSOC);
         $html.='<section class="panel"><h2>Начисления за песни</h2><p>Всего: '.$count.' · Страница '.$page.' из '.$pages.'</p>';
         if(!$rows) $html.='<p>После одобрения новой пользовательской версии здесь появится её бонус.</p>';
         foreach($rows as $row) {
-            $label=match($row['status']) {'approved'=>'Бонус начислен','pending'=>'Ранее учтённый вклад без начисления',
+            $label=match($row['status']) {'approved'=>(bool)$row['is_expired']?'Срок бонуса истёк':'Бонус начислен','pending'=>'Ранее учтённый вклад без начисления',
                 'rejected'=>$row['granted_at']!==null?'Начисление отменено':'Без награды','used'=>'Использован','expired'=>'Срок бонуса истёк',default=>'Неизвестное состояние'};
             $html.='<article class="panel reward-card"><h2>#'.(int)$row['id'].' · '.self::e($label).'</h2><p>'.self::e($row['artist'].' — '.$row['title'])
                 .' · Track ID '.self::e($row['service_track_id']).'</p><p>Аккаунт #'.(int)$row['user_id'].' · '.self::e($row['email']).'</p>';
