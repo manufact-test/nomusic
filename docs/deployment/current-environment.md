@@ -1,3 +1,23 @@
+> **11.10.2026 — 0.4.22: два исправления и независимая часть этапа 13.**
+> Сервер `0.4.22-edf72f42112ac3b113942fe542710082d528243e` развёрнут: [Deploy PASS](https://github.com/manufact-test/nomusic/actions/runs/38148930467).
+> [CI/MySQL/Chromium PASS](https://github.com/manufact-test/nomusic/actions/runs/38148775909),
+> [MariaDB PASS](https://github.com/manufact-test/nomusic/actions/runs/38148772120),
+> [Snapshot PASS](https://github.com/manufact-test/nomusic/actions/runs/38148667363),
+> [изолированный restore PASS](https://github.com/manufact-test/nomusic/actions/runs/38148772114).
+> Popup работает с фактической вкладкой Яндекс Музыки, даже при другой активной вкладке/окне.
+> Временные сбои bridge/worker/сети/плеера: fail-open и восстановление без повторного Start;
+> ручные Original/Stop/logout сохраняются. Причина исходного зависания Яндекса не установлена.
+> Owner-only «Сбои интеграции»: start/resolve, CSRF, точная UTC компенсация trial/paid fixtures,
+> union пересечений, частичные сроки, повторные/параллельные resolve без второго начисления.
+> Миграция 014 добавляет три таблицы; старые trial/grants и аккаунты не сбрасываются.
+> Реальной платёжки/checkout/webhook/recurring pause-resume нет; этапы 11/12 остаются частичными.
+> Этап 13: независимая реализация готова, ручная приёмка владельца и коммерческие зависимости открыты.
+> Один полный клиент CELIKOM-0.4.22-full.zip: 2437844 bytes, SHA256 `df4deacdfb4bb97107b1dca3c0aeb6ce9e63a8f5c8dcb0d1b143577bec616eb8`.
+> Локальный финальный клиент: 164/164 теста; дополнительный CI и read-only audit нового release ожидаются.
+> PR #6 OPEN/unmerged, Issue #7 OPEN, прежняя 0.4.21 принята. Сохранять рабочую резервную 0.4.4.
+> [Поведение и единая проверка](https://github.com/manufact-test/nomusic/blob/feature/api-range/docs/test-plans/CELIKOM-STAGE13-INCIDENTS.md).
+> Эта запись имеет приоритет над историческими checkpoint ниже; не повторять принятую QA этапов 10/12.
+
 > **11.10.2026 — пакет автоматических наград принят; UI доработки 0.4.19 готовы.**
 > Владелец подтвердил две последовательные загрузки, появление версий в админке,
 > группировку аккаунтов, автоматические проценты и перенос остатка; выставил

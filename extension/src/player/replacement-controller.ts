@@ -47,11 +47,11 @@
       const changed = this.testTrackId !== id || this.enabled !== enabled;
       this.enabled = enabled;
       this.testTrackId = id;
-      if (changed || explicitStart) { this.manualBypass = null; this.blockedTrackId = null; this.retryBlock = null; this.masterClock = null; this.lastError = null; this.negativeResolution = null; }
+      if (changed || explicitStart) { this.manualBypass = null; this.blockedTrackId = null; this.retryBlock = null; this.masterClock = null; if (!this.suspended) this.lastError = null; this.negativeResolution = null; }
       this.reconcile();
     }
     suspendAccess(suspended, reason) {
-      if (this.suspended === suspended) return;
+      if (this.suspended === suspended) { if (suspended) this.lastError = reason; return; }
       this.suspended = suspended;
       if (suspended) { this.suspendedError = this.lastError; this.abort(reason); this.lastError = reason; }
       else {

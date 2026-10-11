@@ -39,7 +39,7 @@ function render(state: ExtensionState): void {
     REPLACEMENT_ACTIVE: "Подмена активна",
     RESTORING: "Возвращаем оригинал…"
   };
-  status.textContent = state.suspended ? state.replacementError === "service_incident" ? "Сбой интеграции" : "Восстанавливаем связь…" : state.manualBypass ? "Оригинал" : state.replacementError ? state.recovering ? "Оригинал · восстанавливаем связь" : "Оригинал · ошибка подмены" : labels[state.phase] || "Проверка…";
+  status.textContent = !state.enabled ? labels.STOPPED : state.suspended ? state.replacementError === "service_incident" ? "Сбой интеграции" : "Восстанавливаем связь…" : state.manualBypass ? "Оригинал" : state.replacementError ? state.recovering ? "Оригинал · восстанавливаем связь" : "Оригинал · ошибка подмены" : labels[state.phase] || "Проверка…";
   status.dataset.active = String(state.enabled);
   startButton.disabled = state.enabled && state.phase !== "ERROR" && !state.manualBypass && !state.replacementError;
   if (starting) startButton.disabled = true;

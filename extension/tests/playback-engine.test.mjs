@@ -125,6 +125,8 @@ test('transient access suspension releases audio but keeps desired enable and re
  f.engine.suspendAccess(true,'access_reconnecting');await settle();
  assert.equal(f.engine.enabled,true);assert.equal(f.engine.operation,null);assert.equal(f.players[0].destroyed,true);
  f.update(snapshot());await settle();assert.equal(f.engine.operation,null);
+ f.engine.suspendAccess(true,'service_incident');f.engine.configure(true,'2',true);
+ assert.equal(f.engine.lastError,'service_incident');assert.equal(f.engine.suspended,true);
  f.engine.suspendAccess(false);await settle();assert.equal(f.engine.phase,'REPLACEMENT_ACTIVE');
 });
 test('stalled master fails open and only recovers after its clock advances; Stop stays stopped',async()=>{
