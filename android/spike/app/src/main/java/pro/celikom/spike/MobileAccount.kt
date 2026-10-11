@@ -22,6 +22,7 @@ class MobileAccount(context: Context) {
     }
     private var session: JSONObject? = restore()
     val signedIn: Boolean get() = session != null
+    var verificationEmail:String?=null; private set
     private fun key(): SecretKey {
         val store = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
         (store.getKey("celikom-session", null) as? SecretKey)?.let { return it }
@@ -68,8 +69,25 @@ class MobileAccount(context: Context) {
                 catch (e: Exception) { if (e is AccessExpired) save(null); throw e }
                 return request(path,body,true,false)
             }
-            if (status==401) throw AccessExpired()
-            if (status !in 200..299) error(if(status==429) "Слишком много запросов. Попробуйте позже" else "Запрос не выполнен ($status)")
+            if (status==401 && (authenticated||path.endsWith("/refresh"))) throw AccessExpired()
+            if (status !in 200..299) {
+                val errorCode=runCatching { c.errorStream?.use { input ->
+                    val out=java.io.ByteArrayOutputStream();val buffer=ByteArray(1024)
+                    while(true){val n=input.read(buffer);if(n<0)break;require(out.size()+n<=8192);out.write(buffer,0,n)}
+                    JSONObject(out.toString("UTF-8")).optString("error")
+                } }.getOrNull()
+                error(when(errorCode){
+                    "invalid_credentials"->"Проверьте почту и пароль"
+                    "weak_password"->"Пароль должен содержать от 12 до 128 символов"
+                    "invalid_code"->"Неверный или истёкший код из письма"
+                    "account_disabled"->"Аккаунт заблокирован"
+                    "invalid_promo","promo_unavailable"->"Промокод недоступен или уже использован"
+                    "promo_payment_pending"->"Скидка сохранена для будущей оплаты"
+                    "promo_lifetime_active"->"У вас уже есть бессрочный доступ"
+                    "email_unavailable"->"Отправка писем временно недоступна"
+                    else->if(status==429) "Слишком много запросов. Попробуйте позже" else "Запрос не выполнен ($status)"
+                })
+            }
             require(c.contentType?.startsWith("application/json") == true)
             val bytes=c.inputStream.use { input ->
                 val out=java.io.ByteArrayOutputStream();val buffer=ByteArray(4096)
@@ -83,7 +101,17 @@ class MobileAccount(context: Context) {
         if(signedIn) logout()
         val result=request("/api/v1/auth/"+(if(register) "register" else "login"),JSONObject()
             .put("email",email.trim()).put("password",password).put("installation_id",installation),false)
-        save(result)
+        if(result.optBoolean("verification_required")){verificationEmail=email.trim();return}
+        save(result);verificationEmail=null
+    }
+    @Synchronized fun verify(code:String){
+        val email=verificationEmail?:error("Сначала запросите код при входе")
+        save(request("/api/v1/auth/verify-email",JSONObject().put("email",email).put("code",code.trim()).put("installation_id",installation),false))
+        verificationEmail=null
+    }
+    @Synchronized fun requestReset(email:String){request("/api/v1/auth/request-reset",JSONObject().put("email",email.trim()),false)}
+    @Synchronized fun resetPassword(email:String,code:String,password:String){
+        request("/api/v1/auth/reset-password",JSONObject().put("email",email.trim()).put("code",code.trim()).put("new_password",password),false)
     }
     @Synchronized fun entitlement(activate:Boolean=false):JSONObject = if(activate)
         request("/api/v1/auth/activate",JSONObject()).getJSONObject("entitlement") else request("/api/v1/entitlement")
