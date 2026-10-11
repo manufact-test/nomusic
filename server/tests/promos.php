@@ -59,6 +59,11 @@ try{
   [$cid,$code]=$create();$id=$user();$r=$service->redeem($id,$code);
   $response=$panel->handle('GET','/admin',['tab'=>'promos','activations'=>'1'],$headers,'');
   expect($response->status===200&&str_contains($response->body,$code)&&str_contains($response->body,'/admin/promos/revoke-activation'),'activation and revoke rendered');
+  foreach(['/admin/promos','/admin/promos/new','/admin/promos/activations'] as $route){
+   $page=$panel->handle('GET',$route,[],$headers,'');expect($page->status===200,'promo path loads');
+   if($route==='/admin/promos/new')expect(str_contains($page->body,'name="request_key"')&&!str_contains($page->body,'<table>'),'creation isolated from lists');
+   else expect(str_contains($page->body,'class="promo-subnav"')&&str_contains($page->body,'aria-current="page"'),'selected submenu visible');
+  }
   $pdo->exec('DELETE FROM admin_sessions WHERE admin_id='.$owner);
  });
  run('Seven remaining days plus thirty promo days give thirty-seven',function()use($pdo,$user,$create,$service):void{

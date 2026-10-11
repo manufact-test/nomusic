@@ -279,3 +279,8 @@ input:not([type=checkbox]):focus-visible,select:focus-visible,textarea:focus-vis
 .incident-form button{justify-self:start}
 .incident-actions{margin-top:16px}
 @media(max-width:560px){.incident-form button,.incident-actions button{width:100%}}
+
+.promo-page-head{display:flex;align-items:center;justify-content:space-between;gap:20px;flex-wrap:wrap;margin-bottom:18px}.promo-page-head h1{margin:0}
+.promo-subnav{display:inline-flex;gap:4px;background:#eef4f1;border:1px solid #dce7e1;border-radius:10px;padding:4px;margin:0 0 20px}
+.promo-subnav a,.promo-subnav span{display:block;padding:9px 15px;border-radius:7px;font-weight:650;font-size:13px;text-decoration:none;color:#567466}
+.promo-subnav span{background:#fff;color:#155d46;box-shadow:0 2px 6px #244e3510}.promo-subnav a:hover{background:#e1ece5}

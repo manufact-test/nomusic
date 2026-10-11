@@ -18,6 +18,10 @@ final class AdminPanel
 
     public function handle(string $method, string $path, array $query, array $headers, string $body): Response
     {
+        if($method==='GET' && in_array($path,['/admin/promos','/admin/promos/new','/admin/promos/activations'],true)) {
+            $query=['tab'=>'promos','page'=>$query['page']??'1','create'=>$path==='/admin/promos/new'?'1':'0','activations'=>$path==='/admin/promos/activations'?'1':'0'];
+            $path='/admin';
+        }
         $auth = new AdminAuth($this->pdo);
         if ($path === '/admin/login') {
             if ($method === 'GET') {
@@ -72,8 +76,8 @@ final class AdminPanel
                     if($path==='/admin/promos/revoke-activation')$service->revokeRedemption((int)$admin['id'],$id);
                     else $service->revoke((int)$admin['id'],$id,false);
                 }
-                return new Response(303,['Location'=>'/admin?tab=promos'.($path==='/admin/promos/revoke-activation'?'&activations=1':''),'Cache-Control'=>'no-store']);
-            }catch(\InvalidArgumentException){return $this->page('<h1>Проверьте параметры промокода</h1><p>Укажите код, процент, срок (или «Навсегда» при 100%), лимит и период активации.</p><a href="/admin?tab=promos&create=1">Вернуться</a>',status:400);}
+                return new Response(303,['Location'=>$path==='/admin/promos/revoke-activation'?'/admin/promos/activations':'/admin/promos','Cache-Control'=>'no-store']);
+            }catch(\InvalidArgumentException){return $this->page('<h1>Проверьте параметры промокода</h1><p>Укажите код, процент, срок (или «Навсегда» при 100%), лимит и период активации.</p><a href="/admin/promos/new">Вернуться</a>',status:400);}
             catch(\DomainException){return Response::json(409,['error'=>'promo_conflict']);}
         }
         if (in_array($path, ['/admin/incidents/start','/admin/incidents/resolve'], true)) {

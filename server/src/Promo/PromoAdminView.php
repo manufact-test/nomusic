@@ -14,12 +14,18 @@ final class PromoAdminView
         foreach(['csrf','code','title','discount_percent','duration_days','forever','max_activations','activation_window','activation_deadline','request_key'] as $key){
             if(is_string($form[$key]??null))$html.='<input type="hidden" name="'.$key.'" value="'.self::e($form[$key]).'">';
         }
-        return $html.'<input type="hidden" name="confirm_forever" value="1"><button type="submit">Да, создать бессрочный промокод</button> <a href="/admin?tab=promos&amp;create=1">Отмена</a></form></section>';
+        return $html.'<input type="hidden" name="confirm_forever" value="1"><button type="submit">Да, создать бессрочный промокод</button> <a href="/admin/promos/new">Отмена</a></form></section>';
     }
     public function render(string $csrf,int $page=1,bool $create=false,bool $activations=false): string
     {
         $hidden='<input type="hidden" name="csrf" value="'.self::e($csrf).'">';
-        $html='<section class="panel"><h1>Промокоды</h1><p><a class="btn" href="/admin?tab=promos&amp;create=1">Создать промокод</a> <a href="/admin?tab=promos">Все промокоды</a> <a href="/admin?tab=promos&amp;activations=1">Активации</a></p>';
+        $html='<section class="panel"><div class="promo-page-head"><h1>'.($create?'Создать промокод':'Промокоды').'</h1>';
+        if(!$create)$html.='<a class="btn" href="/admin/promos/new">Создать промокод</a>';
+        $html.='</div>';
+        if($create)$html.='<p><a href="/admin/promos">← Назад к промокодам</a></p>';
+        else $html.='<nav class="promo-subnav" aria-label="Просмотр промокодов">'
+            .($activations?'<a href="/admin/promos">Промокоды</a>':'<span aria-current="page">Промокоды</span>')
+            .($activations?'<span aria-current="page">Активации</span>':'<a href="/admin/promos/activations">Активации</a>').'</nav>';
         if($create){
             $html.='<form class="reward-policy-form" method="post" action="/admin/promos/create">'.$hidden.'<input type="hidden" name="request_key" value="'.bin2hex(random_bytes(32)).'">'
                 .'<label class="form-field">Название<input name="title" maxlength="120" required></label><label class="form-field">Текст кода<input name="code" minlength="8" maxlength="64" pattern="[A-Za-z0-9_-]{8,64}" autocomplete="off" required></label><p>От 8 до 64 латинских букв, цифр, дефисов или подчёркиваний. Регистр не имеет значения.</p>'
@@ -27,6 +33,7 @@ final class PromoAdminView
                 .'<label class="form-field">Лимит активаций<input type="number" name="max_activations" min="1" max="1000000" value="1" required></label><label class="form-field">Когда можно активировать<select name="activation_window" required><option value="">Выберите</option><option value="unlimited">Без ограничения даты</option><option value="fixed">До указанной даты</option></select></label><label class="form-field">Последний срок активации, UTC<input type="datetime-local" name="activation_deadline"></label>'
                 .'<p>100% выдаёт бесплатный доступ. Дни добавляются к остатку. Один аккаунт использует конкретный код один раз. Скидки меньше 100% начнут применяться после подключения оплаты.</p><button type="submit">Создать промокод</button></form>';
         }
+        if($create)return $html.'</section>';
         $page=max(1,min($page,1000000));$offset=($page-1)*25;
         if($activations){
             $q=$this->pdo->query("SELECT r.*,p.code,p.title,u.email FROM promo_redemptions r JOIN promo_codes p ON p.id=r.promo_id JOIN users u ON u.id=r.user_id ORDER BY r.id DESC LIMIT 26 OFFSET $offset");
@@ -42,6 +49,7 @@ final class PromoAdminView
                 if($row['revoked_at']===null)$html.='<form method="post" action="/admin/promos/revoke-activation">'.$hidden.'<input type="hidden" name="id" value="'.(int)$row['id'].'"><button type="submit">Отозвать</button></form>';
                 $html.='</td></tr>';
             }
+            if(!$rows)$html.='<tr><td colspan="5" class="muted">Пока никто не активировал промокод.</td></tr>';
             $html.='</tbody></table></div><p>Отзыв убирает только доступ этой активации. Другие источники доступа сохраняются; повторная активация того же кода запрещена.</p>';
         }else{
             $rows=$this->pdo->query("SELECT * FROM promo_codes ORDER BY id DESC LIMIT 26 OFFSET $offset")->fetchAll(PDO::FETCH_ASSOC);$more=count($rows)>25;$rows=array_slice($rows,0,25);
@@ -52,11 +60,12 @@ final class PromoAdminView
                 else $html.='Новые активации закрыты';
                 $html.='</td></tr>';
             }
+            if(!$rows)$html.='<tr><td colspan="5" class="muted">Промокодов пока нет.</td></tr>';
             $html.='</tbody></table></div><p>Закрытие кода запрещает новые активации. Для отзыва выданного доступа откройте «Активации».</p>';
         }
-        $base='/admin?tab=promos'.($activations?'&amp;activations=1':'');
-        if($page>1)$html.='<a href="'.$base.'&amp;page='.($page-1).'">Назад</a> ';
-        if($more)$html.='<a href="'.$base.'&amp;page='.($page+1).'">Далее</a>';
+        $base=$activations?'/admin/promos/activations?':'/admin/promos?';
+        if($page>1)$html.='<a href="'.$base.'page='.($page-1).'">Назад</a> ';
+        if($more)$html.='<a href="'.$base.'page='.($page+1).'">Далее</a>';
         return $html.'</section>';
     }
 }
