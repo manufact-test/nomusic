@@ -115,6 +115,23 @@ try {
         $pdo->prepare('UPDATE user_sessions SET revoked_at=UTC_TIMESTAMP(6) WHERE user_id=?')->execute([$users[0]]);
         expect($app->handle('GET','/api/v1/rewards',headers:$headers)->status===401,'Logout invalidates read');
     });
+    run('Stage12 concurrent server retries commit one contribution and one audit',function()use($create,$pdo,$storage,$admin,$reward,$users):void {
+        $id=$create($users[1]);
+        (new ModerationService($pdo,$storage))->replacement($admin,$id,'approve','isolated concurrency fixture',0,true);
+        $workers=[];
+        for($i=0;$i<4;$i++) {
+            $pipes=[];$process=proc_open([PHP_BINARY,__DIR__.'/reward-record-worker.php',(string)$id,(string)$admin],
+                [0=>['pipe','r'],1=>['pipe','w'],2=>['pipe','w']],$pipes);
+            expect(is_resource($process),'Worker started');fclose($pipes[0]);$workers[]=[$process,$pipes];
+        }
+        foreach($workers as [$process,$pipes]) {
+            $result=stream_get_contents($pipes[1]);$error=stream_get_contents($pipes[2]);fclose($pipes[1]);fclose($pipes[2]);
+            expect(proc_close($process)===0 && $result==='ok' && $error==='','Concurrent retry succeeds');
+        }
+        expect($reward->summary($users[1])['pending_contributions']===1,'One contribution');
+        $q=$pdo->prepare("SELECT COUNT(*) FROM audit_log WHERE admin_id=? AND action='reward_eligibility_recorded'");$q->execute([$admin]);
+        expect((int)$q->fetchColumn()===2,'One audit per distinct asset');
+    });
 } finally {
     if ($pdo->inTransaction()) $pdo->rollBack();
     $pdo->prepare('DELETE FROM audit_log WHERE admin_id=?')->execute([$admin]);
