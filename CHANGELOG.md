@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.30 — 2026-10-12 (support inbox)
+
+- Customer support form, authenticated private inbox and admin replies/close with CSRF/audit. Existing registration SMTP sends copies to MAIL_FROM and replies to verified customer email.
+- Additive migration016; account/request and ticket/request UUID idempotency, atomic hourly cap, no automatic resend after ambiguous SMTP, backup inventory covers support tables.
+- Native0.3.1 stays read-only pending owner exact-ID report; no real native replacement/route acceptance.
+
 ## 0.4.29 — 2026-10-12 (support and native Android checkpoint)
 
 - Popup support panel works independently of login and music incidents; manual copy uses a private allowlist. Email draft is ready for CELIKOM_SUPPORT_EMAIL, but no live recipient has been supplied.
