@@ -349,3 +349,15 @@ button:focus-visible { border-color: #66e0bf; }
 .version-status{margin:4px 0 12px;font-size:12px;line-height:1.45;color:var(--muted,#9cb9b2)}
 
 .referral-code { overflow-wrap: anywhere; user-select: text; font-family: monospace; }
+
+/* Reserve the access line while its background request completes. */
+.access-status { min-height: 31px; }
+.account-panel[open][data-auth-screen="signed"] .account-content {
+  max-height: 220px; overflow-y: auto; overflow-x: hidden;
+  overscroll-behavior: contain; align-content: start;
+}
+.benefits-content { display: grid; gap: 8px; padding-top: 8px; font-size: 12px; line-height: 1.5; }
+.benefits-content p { margin: 0; }
+[data-benefits-panel][open] .benefits-content { animation: benefits-appear 160ms ease-out; }
+@keyframes benefits-appear { from { opacity: 0; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { [data-benefits-panel][open] .benefits-content { animation: none; } }

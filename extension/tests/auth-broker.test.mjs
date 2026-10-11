@@ -167,3 +167,16 @@ test("Stage12 disabled invitations do not silently discard a registration code",
   assert.equal(result.error,"referrals_disabled");
   assert.equal(fx.calls.some(c=>c.endpoint.endsWith("register")),false);
 });
+
+test("popup entitlement preview is account-scoped presentation without a network request and clears on logout", async () => {
+  const m = mock();
+  await m.broker.perform("login", { email: "a@example.org", password: "longpassword123" });
+  await m.broker.perform("entitlement");
+  const count = m.calls.length;
+  const preview = await m.broker.perform("access-preview");
+  assert.equal(preview.entitlement.reason, "trial_not_started");
+  assert.equal(m.calls.length, count);
+  assert.equal(JSON.stringify(preview).includes("access_token"), false);
+  await m.broker.perform("logout");
+  assert.equal((await m.broker.perform("access-preview")).entitlement, null);
+});

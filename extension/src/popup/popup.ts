@@ -1,6 +1,7 @@
 import { COMMANDS, type ExtensionState } from "../shared/messages.js";
 import { uploadTargetFromStatus, validMp3Selection, privateUploadApiOrigin } from "../upload/contract.js";
 import { initAuthPanel } from "../auth/auth-popup.js";
+import { initAccessStatus } from "../auth/access-status.js";
 
 const status = document.querySelector<HTMLElement>("[data-status]");
 const startButton = document.querySelector<HTMLButtonElement>("[data-action='start']");
@@ -24,14 +25,14 @@ async function refreshVersion(state: ExtensionState): Promise<void> {
     versionCheckedAt = 0;
     versionLoading = false;
     versionRequest++;
-    versionStatus.textContent = "Проверяем наличие версии CELIKOM…";
+    versionStatus.textContent = "Проверяем версию песни CELIKOM…";
   }
   versionStatus.hidden = !id;
   if (!id) return;
   if (state.phase === "REPLACEMENT_ACTIVE") {
     versionRequest++;
     versionLoading = false;
-    versionStatus.textContent = "Версия CELIKOM доступна";
+    versionStatus.textContent = "Версия песни CELIKOM доступна для подмены";
     versionCheckedAt = Date.now();
     return;
   }
@@ -42,16 +43,16 @@ async function refreshVersion(state: ExtensionState): Promise<void> {
     const result = await send<{ ok: boolean; status?: string; error?: string }>({ type: "CELIKOM_AUTH", action: "track-status", track_id: id });
     if (requestId !== versionRequest || versionTrackId !== id) return;
     const labels: Record<string, string> = {
-      none: "Версия CELIKOM ещё не загружена",
-      pending: "Версия CELIKOM на проверке",
-      approved: "Версия CELIKOM доступна"
+      none: "Версия песни CELIKOM ещё не загружена",
+      pending: "Версия песни CELIKOM на проверке",
+      approved: "Версия песни CELIKOM доступна для подмены"
     };
     versionStatus.textContent = result.ok && result.status && labels[result.status]
       ? labels[result.status] : result.error === "invalid_session"
-        ? "Войдите, чтобы проверить наличие версии CELIKOM"
-        : "Не удалось проверить наличие версии CELIKOM";
+        ? "Войдите, чтобы проверить версию песни CELIKOM"
+        : "Не удалось проверить версию песни CELIKOM";
   } catch (_error) {
-    if (requestId === versionRequest) versionStatus.textContent = "Не удалось проверить наличие версии CELIKOM";
+    if (requestId === versionRequest) versionStatus.textContent = "Не удалось проверить версию песни CELIKOM";
   } finally {
     if (requestId === versionRequest) { versionLoading = false; versionCheckedAt = Date.now(); }
   }
@@ -492,18 +493,7 @@ async function refresh(): Promise<void> {
 void refresh();
 window.setInterval(() => void refresh(), 1000);
 
-async function refreshAccess(): Promise<void> {
-  const label = document.querySelector<HTMLElement>("[data-access-status]");
-  if (!label) return;
-  try {
-    const state = await send<{ ok: boolean; entitlement?: { allowed: boolean; valid_until: string | null; reason: string } }>({ type: "CELIKOM_AUTH", action: "entitlement" });
-    const access = state.entitlement;
-    if (!state.ok || !access) { label.textContent = "Войдите в аккаунт, чтобы начать"; return; }
-    if (access.allowed && access.valid_until) {
-      label.textContent = "Пробный доступ до " + new Date(access.valid_until).toLocaleString("ru-RU", { day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" });
-    } else label.textContent = access.reason === "trial_not_started" ? "3 дня пробного доступа начнутся после «Старт»" : "Пробный доступ завершён";
-  } catch (_error) { label.textContent = "Нет связи. Оригинальная музыка доступна."; }
-}
+const refreshAccess = initAccessStatus(send);
 void refreshAccess();
 window.setInterval(() => void refreshAccess(), 15000);
 

@@ -22,12 +22,13 @@ test("Stage12 account screen requires an explicit code action and does not promi
       calls.push(message.action);
       return message.action === "referral-code" ? { ...payload, referrals: { ...payload.referrals, code: "A".repeat(32) } } : payload;
     });
-    panel.signed(true); assert.equal(calls.length, 0, "signed in does not issue a code");
+    panel.signed(true); await tick(); assert.deepEqual(calls, ["benefits"], "signed in reads data without issuing a code");
     fx.root.open = true; fx.root.handlers.toggle(); await tick();
     assert.deepEqual(calls, ["benefits"]);
     assert.equal(fx.nodes.get("create").hidden, false);
     assert.match(fx.nodes.get("progress").textContent, /Зарегистрировались по коду: 2/);
-    assert.match(fx.nodes.get("note").textContent, /пока не начисляются/);
+    assert.equal(fx.nodes.get("note").hidden, true);
+    fx.root.handlers.toggle(); await tick(); assert.deepEqual(calls, ["benefits"], "reopening does not refetch or flash loading text");
     fx.nodes.get("create").handlers.click(); await tick();
     assert.deepEqual(calls, ["benefits", "referral-code"]);
     assert.equal(fx.nodes.get("code").textContent, "A".repeat(32));
@@ -45,5 +46,14 @@ test("Stage12 logout prevents a delayed benefits response from repopulating anot
     panel.signed(false); resolve(payload); await tick();
     assert.equal(fx.nodes.get("progress").textContent, "");
     assert.equal(fx.root.hidden, true);
+  } finally { globalThis.document = previous; }
+});
+test("disabled benefits show one explanation without duplicate access or inactive actions", async () => {
+  const previous = globalThis.document, fx = fixture(); globalThis.document = fx.document;
+  try {
+    const panel = initBenefitsPanel(async () => ({ ok: true, referrals_available: false, referrals: null }));
+    panel.signed(true); await tick();
+    assert.equal(fx.nodes.get("progress").textContent, "Подписка и приглашения пока недоступны.");
+    for (const key of ["code", "note", "create", "copy", "share"]) assert.equal(fx.nodes.get(key).hidden, true);
   } finally { globalThis.document = previous; }
 });

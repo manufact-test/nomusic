@@ -95,7 +95,11 @@ export function initAuthPanel(send) {
   function view(next, user) {
     const previous = mode;
     mode = next;
-    benefits.signed(next === "signed");
+    if (previous !== next) benefits.signed(next === "signed");
+    if (typeof document.dispatchEvent === "function" && previous !== next) {
+      if (previous === "signed") document.dispatchEvent(new Event("celikom-account-logout"));
+      else if (next === "signed") document.dispatchEvent(new Event("celikom-account-login"));
+    }
     const referralField = q("referral-field");
     if (referralField) referralField.hidden = next !== "register" || !invitationsAvailable;
     root.dataset.authScreen = next;

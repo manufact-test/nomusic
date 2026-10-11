@@ -36,6 +36,8 @@ export function createAuthBroker(api, options = {}) {
   let installationPromise = null;
   let refreshPromise = null;
   let sessionVersion = 0;
+  const previewKey = "celikom-entitlement-display-v1";
+  let displayPreview = null;
 
   async function installationId() {
     if (!installationPromise) {
@@ -151,16 +153,26 @@ export function createAuthBroker(api, options = {}) {
     });
   }
   async function entitlement(activate = false) {
-    return withAccess(async (saved) => {
+    const snapshot = await withAccess(async (saved) => {
       const response = activate
         ? (await apiRequest("auth/activate", "POST", {}, saved.access_token)).entitlement
         : await apiRequest("entitlement", "GET", null, saved.access_token);
       if (!validEntitlement(response)) throw new Error("auth_unavailable");
-      return response;
+      return { userId: saved.user.id, access: response, checkedAt: Date.now() };
     });
+    displayPreview = snapshot;
+    try { await api.storage.session?.set({ [previewKey]: snapshot }); } catch (_) {}
+    return snapshot.access;
   }
 
   async function perform(action, message = {}) {
+    if (action === "access-preview") {
+      const saved = await store.get();
+      let preview = displayPreview;
+      try { preview = (await api.storage.session?.get(previewKey))?.[previewKey] || preview; } catch (_) {}
+      return { ok: true, entitlement: saved?.user?.id === preview?.userId &&
+        validEntitlement(preview?.access) && Date.now() - preview.checkedAt < 86400000 ? preview.access : null };
+    }
     if (action === "installation") return { ok: true, installation_id: await installationId() };
     if (action === "status") {
       const saved = await store.get();
@@ -190,8 +202,6 @@ export function createAuthBroker(api, options = {}) {
       if (action === "benefits" || action === "referral-code") {
         return await withAccess(async (saved) => {
           const config = await apiRequest("config");
-          const access = await apiRequest("entitlement", "GET", null, saved.access_token);
-          if (!validEntitlement(access)) throw new Error("auth_unavailable");
           const available = config.features?.referrals === true;
           if (action === "referral-code" && !available) return { ok: false, error: "referrals_disabled" };
           let referrals = null;
@@ -204,7 +214,7 @@ export function createAuthBroker(api, options = {}) {
                 referrals.discount_active !== false || referrals.reward_available !== false || referrals.share_url !== null)
               throw new Error("auth_unavailable");
           }
-          return { ok: true, entitlement: access, referrals_available: available, referrals };
+          return { ok: true, referrals_available: available, referrals };
         });
       }
       if (action === "track-status") {
@@ -265,6 +275,8 @@ export function createAuthBroker(api, options = {}) {
         const saved = await store.get();
         sessionVersion++;
         await store.clear();
+        displayPreview = null;
+        try { await api.storage.session?.remove(previewKey); } catch (_) {}
         if (saved) {
           await apiRequest("auth/logout", "POST", {
             refresh_token: saved.refresh_token, installation_id: await installationId()

@@ -57,7 +57,7 @@
         <button class="primary wide" type="button" data-suggest-submit>Отправить предложение</button>
         <p class="upload-feedback" data-suggest-note role="status" aria-live="polite" hidden></p>
       </section>
-      <p class="access-status" data-access-status role="status" aria-live="polite">Войдите в аккаунт, чтобы начать</p>
+      <p class="access-status" data-access-status role="status" aria-live="polite"></p>
       <p class="track" data-track>Запустите трек в Яндекс Музыке</p>
       <p class="version-status" data-version-status aria-live="polite" hidden></p>
       <details class="account-panel" data-auth-panel hidden>
@@ -120,15 +120,14 @@
             <p class="account-identity" data-auth-identity></p>
             <details data-benefits-panel hidden>
               <summary>Подписка и друзья</summary>
-              <p data-benefits-access></p>
-              <p data-benefits-payment></p>
-              <p data-benefits-progress></p>
-              <p class="referral-code" data-benefits-code></p>
-              <button class="quiet wide" type="button" data-benefits-create hidden>Создать код приглашения</button>
-              <button class="quiet wide" type="button" data-benefits-copy hidden>Скопировать код</button>
-              <button class="quiet wide" type="button" data-benefits-share hidden>Поделиться</button>
-              <button class="quiet wide" type="button" data-benefits-refresh>Обновить</button>
-              <p data-benefits-note role="status" aria-live="polite"></p>
+              <div class="benefits-content">
+                <p data-benefits-progress>Подписка и приглашения пока недоступны.</p>
+                <p class="referral-code" data-benefits-code hidden></p>
+                <button class="quiet wide" type="button" data-benefits-create hidden>Создать код приглашения</button>
+                <button class="quiet wide" type="button" data-benefits-copy hidden>Скопировать код</button>
+                <button class="quiet wide" type="button" data-benefits-share hidden>Поделиться</button>
+                <p data-benefits-note role="status" aria-live="polite" hidden></p>
+              </div>
             </details>
             <button class="quiet wide" type="button" data-auth-logout>Выйти</button>
           </div>
