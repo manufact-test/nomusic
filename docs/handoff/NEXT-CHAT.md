@@ -1,6 +1,6 @@
 > **11.10.2026 — независимый security-пакет этапа 14: CELIKOM 0.4.25.**
 > Backend `0.4.25-35428e3854769bf4e63c5c6f980fc5756a5581a8` развёрнут; полный единый клиент 0.4.25 подготовлен.
-> Последняя подтверждённая установка владельца — 0.4.24; установку 0.4.25 не приписывать владельцу.
+> Владелец подтвердил установку 0.4.25 и работу: «Да, всё хорошо, установил, распаковал, всё работает, можно идти дальше».
 > Закрыты найденные пробелы worker sender/intent, bounded auth JSON, write quotas account/device/IP и build secret/dependency gate.
 > CI/MySQL/native Chromium 38156426516 PASS; MariaDB 38156423107 PASS, включая четыре quota workers / 32 attempts; configured ZIP 38155884847 PASS.
 > Snapshot 38155683083, isolated restore 38155787902, deploy 38155884937, read-only integrity 38156091112 — PASS.
