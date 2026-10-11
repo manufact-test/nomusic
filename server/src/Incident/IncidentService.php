@@ -66,7 +66,10 @@ final class IncidentService
     private function lock(string $service): void
     {
         if (!preg_match('/^[a-z][a-z0-9_]{0,39}$/D', $service)) throw new \InvalidArgumentException('invalid_service');
-        $q = $this->pdo->prepare('INSERT IGNORE INTO service_incident_locks(service) VALUES (?)'); $q->execute([$service]);
+        // Duplicate-key UPDATE obtains the exclusive mutex directly. INSERT
+        // IGNORE would retain shared locks then deadlock on simultaneous upgrades.
+        $q = $this->pdo->prepare('INSERT INTO service_incident_locks(service) VALUES (?)
+            ON DUPLICATE KEY UPDATE service=VALUES(service)'); $q->execute([$service]);
         $q = $this->pdo->prepare('SELECT service FROM service_incident_locks WHERE service=? FOR UPDATE'); $q->execute([$service]);
         $q->fetchColumn();
     }
