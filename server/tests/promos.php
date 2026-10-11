@@ -1,0 +1,70 @@
+<?php
+
+declare(strict_types=1);
+require __DIR__.'/smoke.php';
+use Celikom\Database\Connection;
+use Celikom\Database\MigrationRunner;
+use Celikom\Promo\PromoService;
+use Celikom\Promo\PromoAccessService;
+use Celikom\Entitlement\EntitlementService;
+use Celikom\Entitlement\TrialService;
+use Celikom\Incident\IncidentService;
+$config=require dirname(__DIR__).'/config/app.php';
+if(!str_starts_with($config['db_name'],'celikom_test'))throw new RuntimeException('disposable_promos_only');
+$pdo=Connection::open($config);(new MigrationRunner($pdo,dirname(__DIR__).'/migrations'))->run();
+$pdo->prepare("INSERT INTO admins(login,password_hash,role) VALUES (?,?,'owner')")->execute(['promo-'.bin2hex(random_bytes(8)),'fixture']);$owner=(int)$pdo->lastInsertId();
+$users=[];$codes=[];$service=new PromoService($pdo);$now=(int)$pdo->query('SELECT UNIX_TIMESTAMP(UTC_TIMESTAMP())')->fetchColumn();
+$clock=static function(int $s)use($pdo,$now):void{$pdo->exec('SET timestamp='.($now+$s));};
+$user=static function()use($pdo,&$users):int{$pdo->prepare('INSERT INTO users(email,password_hash) VALUES (?,?)')->execute(['promo-'.bin2hex(random_bytes(8)).'@example.invalid','fixture']);$id=(int)$pdo->lastInsertId();$users[]=$id;$pdo->prepare('INSERT INTO user_email_security(user_id,verified_at) VALUES (?,UTC_TIMESTAMP(6))')->execute([$id]);return $id;};
+$create=static function(array $more=[])use($service,$owner,&$codes):array{$input=$more+['code'=>'PROMO_'.bin2hex(random_bytes(8)),'title'=>'Fixture','discount_percent'=>100,'duration_days'=>30,'max_activations'=>1,'activation_window'=>'unlimited','request_key'=>bin2hex(random_bytes(32))];$id=$service->create($owner,$input);$codes[]=$id;return [$id,$input['code']];};
+try{
+ $clock(0);
+ run('Promo finite stacking, replay and individual revoke preserve original trial',function()use($pdo,$user,$create,$service,$owner):void{
+  $id=$user();(new TrialService($pdo))->activate($id);$base=(new EntitlementService($pdo))->check($id)->validUntil;
+  [$codeId,$code]=$create();$r=$service->redeem($id,$code);
+  expect($r['entitlement']['allowed']&&$r['entitlement']['source']==='promo','free access');
+  expect(IncidentService::micros($r['entitlement']['valid_until'])-IncidentService::micros($base)===30*86400000000,'30 days added to remainder');
+  expect($service->redeem($id,$code)['already_activated'],'retry idempotent');
+  expect((int)$pdo->query('SELECT used_activations FROM promo_codes WHERE id='.$codeId)->fetchColumn()===1,'one use');
+  $service->revokeRedemption($owner,$r['redemption_id']);$service->revokeRedemption($owner,$r['redemption_id']);
+  expect((new EntitlementService($pdo))->check($id)->validUntil===$base,'original trial retained');
+  expect($service->redeem($id,$code)['revoked'],'revoked cannot reactivate');
+ });
+ run('Promo lifetime requires explicit confirmation and can be revoked',function()use($pdo,$user,$create,$service,$owner):void{
+  try{$create(['forever'=>'1']);throw new RuntimeException('confirmation_missing');}catch(InvalidArgumentException $e){expect($e->getMessage()==='confirm_forever_required','confirmation required');}
+  [$codeId,$code]=$create(['forever'=>'1','confirm_forever'=>'1']);$id=$user();$r=$service->redeem($id,$code);
+  expect($r['entitlement']['allowed']&&$r['entitlement']['valid_until']===null,'forever');
+  expect(!(new TrialService($pdo))->activate($id)['activated'],'promo does not consume new trial');
+  expect((int)$pdo->query('SELECT COUNT(*) FROM account_trials WHERE user_id='.$id)->fetchColumn()===0,'unused trial retained');
+  $service->revokeRedemption($owner,$r['redemption_id']);expect(!(new EntitlementService($pdo))->check($id)->allowed,'revocation enforced');
+ });
+ run('Promo cap applies across accounts and partial discount is not free time',function()use($pdo,$user,$create,$service):void{
+  [$codeId,$code]=$create();$service->redeem($user(),$code);
+  try{$service->redeem($user(),$code);throw new RuntimeException('cap_missing');}catch(DomainException $e){expect($e->getMessage()==='promo_unavailable','cap enforced');}
+  [$partial,$discount]=$create(['discount_percent'=>20]);
+  try{$service->redeem($user(),$discount);throw new RuntimeException('payment_missing');}catch(DomainException $e){expect($e->getMessage()==='promo_payment_pending','discount deferred');}
+  expect((int)$pdo->query('SELECT used_activations FROM promo_codes WHERE id='.$partial)->fetchColumn()===0,'no use without payment');
+ });
+ run('Promo incident freeze is compensated with immutable grant dates',function()use($pdo,$user,$create,$service,$owner,$clock):void{
+  $clock(0);$id=$user();[$cid,$code]=$create();$r=$service->redeem($id,$code);$base=$r['entitlement']['valid_until'];
+  $incidentService=new IncidentService($pdo);$clock(3600);$incident=$incidentService->start($owner,'Disposable promo fixture',bin2hex(random_bytes(32)));
+  expect((new EntitlementService($pdo))->check($id)->reason==='service_incident','incident stops promo playback');
+  $clock(7200);$incidentService->resolve($owner,$incident);
+  $effective=(new EntitlementService($pdo))->check($id)->validUntil;
+  expect(IncidentService::micros($effective)-IncidentService::micros($base)===3600000000,'one hour compensated');
+  $q=$pdo->prepare('SELECT l.valid_until FROM entitlement_ledger l JOIN promo_redemptions r ON r.ledger_id=l.id WHERE r.id=?');$q->execute([$r['redemption_id']]);
+  expect(IncidentService::micros((string)$q->fetchColumn())===IncidentService::micros($base),'base immutable');
+  $pdo->exec('DELETE FROM incident_compensations WHERE incident_id='.$incident);$pdo->exec('DELETE FROM service_incidents WHERE id='.$incident);$clock(0);
+ });
+ run('Revoking earlier stacked promo removes only its days',function()use($pdo,$user,$create,$service,$owner):void{
+  $id=$user();[$a,$ca]=$create();[$b,$cb]=$create(['duration_days'=>10]);$first=$service->redeem($id,$ca);$second=$service->redeem($id,$cb);
+  $service->revokeRedemption($owner,$first['redemption_id']);$until=(new EntitlementService($pdo))->check($id)->validUntil;
+  expect(IncidentService::micros($second['entitlement']['valid_until'])-IncidentService::micros($until)===30*86400000000,'second keeps own ten days');
+ });
+}finally{
+ $pdo->exec('SET timestamp=0');
+ foreach($users as $id){$pdo->exec('DELETE FROM promo_redemptions WHERE user_id='.$id);$pdo->exec('DELETE FROM account_trials WHERE user_id='.$id);$pdo->exec('DELETE FROM entitlement_ledger WHERE user_id='.$id);$pdo->exec('DELETE FROM users WHERE id='.$id);}
+ foreach($codes as $id)$pdo->exec('DELETE FROM promo_codes WHERE id='.$id);
+ $pdo->exec('DELETE FROM audit_log WHERE admin_id='.$owner);$pdo->exec('DELETE FROM admins WHERE id='.$owner);
+}
+echo "Owner promo fixtures PASS\n";

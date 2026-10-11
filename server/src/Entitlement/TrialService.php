@@ -35,6 +35,12 @@ final class TrialService
                 return self::result(false, $existing);
             }
 
+            $promo=(new \Celikom\Promo\PromoAccessService($this->pdo))->best($userId);
+            if($promo!==null && $promo['source']==='promo'){
+                $this->pdo->commit();
+                return ['activated'=>false,'trial_seconds'=>259200,'trial_started_at'=>null,'trial_ends_at'=>null];
+            }
+
             // One database-clock sample, with full DATETIME(6) precision.
             $window = $this->pdo->query('SELECT UTC_TIMESTAMP(6) AS valid_from,
                 DATE_ADD(UTC_TIMESTAMP(6), INTERVAL 259200 SECOND) AS valid_until')->fetch(PDO::FETCH_ASSOC);

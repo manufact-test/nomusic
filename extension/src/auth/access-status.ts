@@ -1,8 +1,9 @@
 import { readDisplay, writeDisplay, stableText } from "../popup/display-cache.js";
 export function accessLabel(access) {
   if (!access) return "";
+  if (access.allowed && access.source === "promo" && access.valid_until === null) return "Промокод · доступ навсегда";
   if (access.allowed && access.valid_until && Date.parse(access.valid_until) > Date.now()) {
-    const prefix = access.source === "subscription" ? "Подписка до " : "Пробный период до ";
+    const prefix = access.source === "promo" ? "Промокод до " : access.source === "subscription" ? "Подписка до " : "Пробный период до ";
     return prefix + new Date(access.valid_until).toLocaleString("ru-RU", { day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" });
   }
   if (access.reason === "trial_not_started") return "3 дня пробного периода начнутся после «Старт»";
@@ -44,6 +45,7 @@ export function initAccessStatus(send) {
     generation++; busy = false; confirmed = true; latest = null;
     writeDisplay("access", { signedOut: true }); text("Войдите в аккаунт, чтобы начать");
   });
+  document.addEventListener?.("celikom-promo-activated", () => { generation++; busy = false; void refreshAccess(); });
   document.addEventListener?.("celikom-account-login", () => { generation++; busy = false; void refreshAccess(); });
   return refreshAccess;
 }

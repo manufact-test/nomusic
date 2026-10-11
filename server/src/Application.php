@@ -85,6 +85,22 @@ final class Application
             return (new AuthController(new AuthService($this->database(), $this->config)))
                 ->handle($method, $path, $headers, $body);
         }
+        if($path==='/api/v1/promos/redeem'){
+            if(!($this->config['auth_enabled']??false)||!($this->config['entitlement_enabled']??false))return Response::json(404,['error'=>'not_found']);
+            if($method!=='POST')return Response::json(405,['error'=>'method_not_allowed']);
+            $pdo=$this->database();$session=(new BearerAuthenticator($pdo))->session($headers);
+            if($session===null)return Response::json(401,['error'=>'invalid_session']);
+            if(!(new \Celikom\Promo\PromoAttemptLimiter($pdo,(string)$this->config['analytics_privacy_key']))->allow((int)$session['user_id'],(string)$session['installation_id'],(string)($_SERVER['REMOTE_ADDR']??'unknown')))
+                return Response::json(429,['error'=>'rate_limited']);
+            try{
+                if(strlen($body)>2048)throw new \InvalidArgumentException();
+                $data=json_decode($body,true,8,JSON_THROW_ON_ERROR);
+                if(!is_array($data)||array_keys($data)!==['code']||!is_string($data['code']))throw new \InvalidArgumentException();
+                $result=(new \Celikom\Promo\PromoService($pdo))->redeem((int)$session['user_id'],$data['code']);
+                $response=Response::json(200,$result);$response->headers['Cache-Control']='no-store';return $response;
+            }catch(\JsonException|\InvalidArgumentException){return Response::json(400,['error'=>'invalid_promo']);}
+            catch(\DomainException $e){return Response::json(409,['error'=>in_array($e->getMessage(),['promo_payment_pending','promo_lifetime_active','account_unavailable'],true)?$e->getMessage():'promo_unavailable']);}
+        }
         if ($path === '/api/v1/rewards') {
             if (!($this->config['reward_eligibility_enabled'] ?? false) || !($this->config['auth_enabled'] ?? false))
                 return Response::json(404,['error'=>'not_found']);

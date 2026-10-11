@@ -56,6 +56,26 @@ final class AdminPanel
                 'Set-Cookie'=>AdminAuth::cookie(AdminAuth::COOKIE, '', 0),
                 'Cache-Control'=>'no-store']);
         }
+        if (in_array($path,['/admin/promos/create','/admin/promos/revoke','/admin/promos/revoke-activation'],true)) {
+            if($admin['role']!=='owner')return Response::json(403,['error'=>'forbidden']);
+            if($method!=='POST')return Response::json(405,['error'=>'method_not_allowed']);
+            $form=$this->form($headers,$body);
+            if(!AdminAuth::validCsrf($admin,$form['csrf']??null))return Response::json(403,['error'=>'csrf_failed']);
+            try {
+                $service=new \Celikom\Promo\PromoService($this->pdo);
+                if($path==='/admin/promos/create'){
+                    if(($form['forever']??'')==='1' && ($form['confirm_forever']??'')!=='1')
+                        return $this->page(\Celikom\Promo\PromoAdminView::confirmation($form));
+                    $service->create((int)$admin['id'],$form);
+                }else{
+                    $id=$this->positiveInt($form['id']??null);if(!$id)throw new \InvalidArgumentException();
+                    if($path==='/admin/promos/revoke-activation')$service->revokeRedemption((int)$admin['id'],$id);
+                    else $service->revoke((int)$admin['id'],$id,false);
+                }
+                return new Response(303,['Location'=>'/admin?tab=promos'.($path==='/admin/promos/revoke-activation'?'&activations=1':''),'Cache-Control'=>'no-store']);
+            }catch(\InvalidArgumentException){return $this->page('<h1>Проверьте параметры промокода</h1><p>Укажите код, процент, срок (или «Навсегда» при 100%), лимит и период активации.</p><a href="/admin?tab=promos&create=1">Вернуться</a>',status:400);}
+            catch(\DomainException){return Response::json(409,['error'=>'promo_conflict']);}
+        }
         if (in_array($path, ['/admin/incidents/start','/admin/incidents/resolve'], true)) {
             if ($admin['role'] !== 'owner') return Response::json(403,['error'=>'forbidden']);
             if ($method !== 'POST') return Response::json(405,['error'=>'method_not_allowed']);
@@ -182,7 +202,7 @@ final class AdminPanel
             return $this->preview($method, (int)$m[1], $headers);
         }
         if (($path === '/admin' || $path === '/admin/') && $method === 'GET') {
-            if (($query['tab']??null)==='incidents' && $admin['role']!=='owner') return Response::json(403,['error'=>'forbidden']);
+            if (in_array($query['tab']??null,['incidents','promos'],true) && $admin['role']!=='owner') return Response::json(403,['error'=>'forbidden']);
             if (($query['tab']??null)==='rewards') {
                 if (!$this->rewardEligibilityEnabled) return Response::json(404,['error'=>'not_found']);
                 if ($admin['role']!=='owner') return Response::json(403,['error'=>'forbidden']);
@@ -375,7 +395,7 @@ final class AdminPanel
     {
         $tab = is_string($query['tab'] ?? null) ? $query['tab'] : 'uploads';
         $allowed = ['uploads','requests','reports','audit','overview'];
-        if ($admin['role']==='owner') $allowed[]='incidents';
+        if ($admin['role']==='owner') { $allowed[]='incidents'; $allowed[]='promos'; }
         if ($this->billingViewsEnabled && $admin['role']==='owner') $allowed[]='billing';
         if ($this->rewardEligibilityEnabled && $admin['role']==='owner') $allowed[]='rewards';
         if (!in_array($tab, $allowed, true)) $tab = 'uploads';
@@ -400,7 +420,7 @@ final class AdminPanel
         $sections = [
             'uploads'=>'Загруженные версии', 'requests'=>'Предложить песню',
             'reports'=>'Жалобы', 'rewards'=>'Награды за вклад',
-            'billing'=>'Платежи и подписки', 'incidents'=>'Сбои интеграции',
+            'promos'=>'Промокоды', 'billing'=>'Платежи и подписки', 'incidents'=>'Сбои интеграции',
             'audit'=>'Журнал действий', 'overview'=>'Обзор'
         ];
         foreach ($sections as $key => $name) {
@@ -425,6 +445,7 @@ final class AdminPanel
             . '"><span>Новые жалобы<span class="sub">Ожидают решения</span></span><strong>'
             . (int) $counts['pending_reports'] . '</strong></a></div>';
         return $html . match ($tab) {
+            'promos' => (new \Celikom\Promo\PromoAdminView($this->pdo))->render($admin['csrf'],$this->positiveInt($query['page']??null) ?: 1,($query['create']??null)==='1',($query['activations']??null)==='1'),
             'incidents' => (new \Celikom\Incident\IncidentAdminView($this->pdo))->render($admin['csrf']),
             'requests' => $this->requests($admin, $csrf, $query),
             'reports' => $this->reports($admin, $csrf, $query),

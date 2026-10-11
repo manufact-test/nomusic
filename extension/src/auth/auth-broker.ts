@@ -92,7 +92,7 @@ export function createAuthBroker(api, options = {}) {
       for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }
       const result = JSON.parse(new TextDecoder().decode(bytes));
       if (!response.ok) {
-        const safe = new Set(["invalid_credentials", "account_disabled", "account_unavailable", "weak_password", "rate_limited", "invalid_session", "invalid_request", "email_unverified", "email_unavailable", "invalid_code", "access_denied", "uploads_disabled", "invalid_referral_code", "referrals_disabled"]);
+        const safe = new Set(["invalid_credentials", "account_disabled", "account_unavailable", "weak_password", "rate_limited", "invalid_session", "invalid_request", "email_unverified", "email_unavailable", "invalid_code", "access_denied", "uploads_disabled", "invalid_referral_code", "referrals_disabled", "invalid_promo", "promo_unavailable", "promo_payment_pending", "promo_lifetime_active"]);
         throw new Error(safe.has(result?.error) ? result.error : "auth_unavailable");
       }
       return result;
@@ -213,6 +213,13 @@ export function createAuthBroker(api, options = {}) {
     }
     if (action !== "contribution-access" && action !== "track-status" && !await isAvailable()) return { ok: false, error: "auth_disabled" };
     try {
+      if (action === "promo-redeem") {
+        if (typeof message.code !== "string" || !/^[A-Za-z0-9_-]{8,64}$/.test(message.code.trim())) return { ok: false, error: "invalid_promo" };
+        const result = await withAccess((saved) => apiRequest("promos/redeem", "POST", { code: message.code.trim() }, saved.access_token));
+        if (!validEntitlement(result.entitlement)) throw new Error("auth_unavailable");
+        await entitlement();
+        return { ok: true, ...result };
+      }
       if (action === "referral-settings") {
         const config = await apiRequest("config");
         return { ok: true, enabled: config.features?.referrals === true };
@@ -339,7 +346,7 @@ export function createAuthBroker(api, options = {}) {
       }
       return { ok: false, error: "invalid_request" };
     } catch (error) {
-      const safe = new Set(["invalid_credentials", "account_disabled", "account_unavailable", "weak_password", "rate_limited", "invalid_session", "invalid_request", "email_unverified", "email_unavailable", "invalid_code", "access_denied", "uploads_disabled", "invalid_referral_code", "referrals_disabled"]);
+      const safe = new Set(["invalid_credentials", "account_disabled", "account_unavailable", "weak_password", "rate_limited", "invalid_session", "invalid_request", "email_unverified", "email_unavailable", "invalid_code", "access_denied", "uploads_disabled", "invalid_referral_code", "referrals_disabled", "invalid_promo", "promo_unavailable", "promo_payment_pending", "promo_lifetime_active"]);
       return { ok: false, error: safe.has(error?.message) ? error.message : "auth_unavailable" };
     }
   }

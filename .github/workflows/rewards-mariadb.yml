@@ -52,5 +52,6 @@ jobs:
           php server/tests/database.php
           php server/tests/entitlement.php
           php server/tests/incidents.php
+          php server/tests/promos.php
           php server/tests/automatic-rewards.php
           php server/tests/reward-policy.php

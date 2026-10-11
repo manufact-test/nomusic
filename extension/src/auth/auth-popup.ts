@@ -1,3 +1,4 @@
+import { initPromoPanel } from "./promo-popup.js";
 import { initBenefitsPanel } from "./benefits-popup.js";
 // Customer auth popup: no device list; server keeps per-device sessions.
 export function initAuthPanel(send) {
@@ -11,6 +12,7 @@ export function initAuthPanel(send) {
   try { previousLabel = globalThis.localStorage?.getItem(labelKey) || ""; } catch (_) {}
   const saveLabel = (value) => { try { globalThis.localStorage?.setItem(labelKey, value); } catch (_) {} };
   const benefits = initBenefitsPanel(send);
+  const promos = initPromoPanel(send);
   let invitationsAvailable = false;
   const views = { login: q("form"), verify: q("verify-form"), recovery: q("recovery-form"),
     reset: q("new-password-form"), signed: q("signed") };
@@ -102,7 +104,7 @@ export function initAuthPanel(send) {
     const previous = mode;
     mode = next;
     if (next === "signed") delete root.dataset.authRequired;
-    if (previous !== next) benefits.signed(next === "signed");
+    if (previous !== next) { benefits.signed(next === "signed"); promos.signed(next === "signed"); }
     if (typeof document.dispatchEvent === "function" && previous !== next) {
       if (previous === "signed") document.dispatchEvent(new Event("celikom-account-logout"));
       else if (next === "signed") document.dispatchEvent(new Event("celikom-account-login"));

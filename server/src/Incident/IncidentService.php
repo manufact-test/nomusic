@@ -111,14 +111,21 @@ final class IncidentService
             $q = $this->pdo->prepare('UPDATE service_incidents SET ended_at=UTC_TIMESTAMP(6),resolved_by=? WHERE id=?');
             $q->execute([$adminId,$id]);
             $intervals = $this->intervals($service, true);
-            $grants = $this->pdo->query("SELECT id,valid_from,valid_until FROM entitlement_ledger
-                WHERE source IN ('trial','subscription') AND valid_from IS NOT NULL AND valid_until IS NOT NULL
+            $grants = $this->pdo->query("SELECT id,user_id,source,valid_from,valid_until FROM entitlement_ledger
+                WHERE source IN ('trial','subscription','promo') AND valid_from IS NOT NULL AND valid_until IS NOT NULL
                 ORDER BY id FOR UPDATE")->fetchAll(PDO::FETCH_ASSOC);
             $sum = $this->pdo->prepare('SELECT COALESCE(SUM(c.microseconds),0) FROM incident_compensations c
                 JOIN service_incidents i ON i.id=c.incident_id WHERE c.ledger_id=? AND i.service=?');
             $insert = $this->pdo->prepare('INSERT INTO incident_compensations(incident_id,ledger_id,microseconds) VALUES (?,?,?)');
+            $promoWindows=[];
             foreach ($grants as $grant) {
-                $total = self::micros(self::extendedUntil($grant['valid_from'],$grant['valid_until'],$intervals)) - self::micros($grant['valid_until']);
+                if($grant['source']==='promo'){
+                    $user=(int)$grant['user_id'];
+                    $promoWindows[$user]??=(new \Celikom\Promo\PromoAccessService($this->pdo))->windows($user,$intervals);
+                    $window=$promoWindows[$user][(int)$grant['id']]??null;
+                    if($window===null || $window['revoked'] || $window['until']===null)continue;
+                    $total=max(0,self::micros($window['until'])-self::micros($grant['valid_until']));
+                }else $total = self::micros(self::extendedUntil($grant['valid_from'],$grant['valid_until'],$intervals)) - self::micros($grant['valid_until']);
                 $sum->execute([$grant['id'],$service]); $delta = $total - (int)$sum->fetchColumn();
                 if ($delta > 0) $insert->execute([$id,$grant['id'],$delta]);
             }

@@ -31,6 +31,9 @@ final class EntitlementService
         if ($user['verified_at'] === null) return new EntitlementResult(false, 'none', null, 'email_unverified');
         $incidents = new \Celikom\Incident\IncidentService($this->pdo);
         $incident = $incidents->state()['active'];
+        $promo=(new \Celikom\Promo\PromoAccessService($this->pdo,$this->billingEnabled))->best($userId);
+        if($promo!==null && $promo['source']==='promo')return new EntitlementResult(!$incident,'promo',
+            $promo['until']===null?null:EntitlementResult::utc($promo['until']),$incident?'service_incident':'promo_active');
         if ($this->billingEnabled) {
             $paidUntil = (new \Celikom\Billing\PaidAccessService($this->pdo))->validUntil($userId);
             if ($paidUntil !== null) return new EntitlementResult(!$incident, 'subscription', $paidUntil, $incident ? 'service_incident' : 'subscription_active');

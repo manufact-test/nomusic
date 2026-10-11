@@ -27,7 +27,7 @@ async function playbackAccess(): Promise<string> {
   if (!accessCheck) accessCheck = userAuth.entitlement().then((result) => {
     if (generation !== intentGeneration) return "unavailable";
     if (!result.allowed) return result.reason === "service_incident" ? "incident" : "denied";
-    accessValidUntil = Math.min(Date.now() + 10000, Date.parse(result.valid_until));
+    accessValidUntil = result.source === "promo" && result.valid_until === null ? Date.now() + 10000 : Math.min(Date.now() + 10000, Date.parse(result.valid_until));
     return accessValidUntil > Date.now() ? "allowed" : "denied";
   }).catch((error) => {
     if (["invalid_session", "account_disabled", "email_unverified", "access_denied"].includes(error?.message)) return "denied";
@@ -108,6 +108,7 @@ chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse) =>
       accessRetryAt = 0;
       void chrome.storage.local.set({ enabled: false });
     }
+    if (m.action === "promo-redeem") { accessValidUntil = 0; accessRetryAt = 0; }
     void userAuth.perform(m.action, message as object).then(sendResponse)
       .catch(() => sendResponse({ ok: false, error: "auth_unavailable" }));
     return true;
