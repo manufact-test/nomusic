@@ -23,12 +23,14 @@ final class SupportService
   }catch(\Throwable $e){if($this->pdo->inTransaction())$this->pdo->rollBack();throw $e;}
   $this->deliver($message);return $id;
  }
- public function listForUser(int $user):array {
-  $q=$this->pdo->prepare('SELECT id,status,created_at,updated_at FROM support_tickets WHERE user_id=? ORDER BY id DESC LIMIT 5');$q->execute([$user]);return $q->fetchAll(\PDO::FETCH_ASSOC);
+ public function listForUser(int $user,int $page=1):array {
+  $offset=(max(1,min(100000,$page))-1)*5;
+  $q=$this->pdo->prepare("SELECT id,status,created_at,updated_at FROM support_tickets WHERE user_id=? ORDER BY id DESC LIMIT 6 OFFSET $offset");$q->execute([$user]);return $q->fetchAll(\PDO::FETCH_ASSOC);
  }
- public function thread(int $id,?int $user=null):array {
+ public function thread(int $id,?int $user=null,int $page=1):array {
+  $page=max(1,min(100000,$page));$offset=($page-1)*5;
   $q=$this->pdo->prepare('SELECT id,status,created_at FROM support_tickets WHERE id=?'.($user!==null?' AND user_id=?':''));$q->execute($user!==null?[$id,$user]:[$id]);$ticket=$q->fetch(\PDO::FETCH_ASSOC);if(!$ticket)throw new \DomainException('not_found');
-  $q=$this->pdo->prepare("SELECT id,body,created_at,IF(admin_id IS NULL,'user','support') AS author FROM support_messages WHERE ticket_id=? ORDER BY id DESC LIMIT 5");$q->execute([$id]);$ticket['messages']=array_reverse($q->fetchAll(\PDO::FETCH_ASSOC));return $ticket;
+  $q=$this->pdo->prepare("SELECT id,body,created_at,IF(admin_id IS NULL,'user','support') AS author FROM support_messages WHERE ticket_id=? ORDER BY id DESC LIMIT 6 OFFSET $offset");$q->execute([$id]);$rows=$q->fetchAll(\PDO::FETCH_ASSOC);$ticket['has_more']=count($rows)>5;$ticket['message_page']=$page;$ticket['messages']=array_reverse(array_slice($rows,0,5));return $ticket;
  }
  public function reply(int $admin,int $id,string $body,string $key):void {
   $body=$this->validate($body,$key);$this->pdo->beginTransaction();
@@ -43,7 +45,7 @@ final class SupportService
  }
  public function close(int $admin,int $id):void {
   $q=$this->pdo->prepare("SELECT id FROM admins WHERE id=? AND enabled=1 AND role IN ('owner','moderator')");$q->execute([$admin]);if(!$q->fetchColumn())throw new \DomainException('forbidden');
-  $q=$this->pdo->prepare("UPDATE support_tickets SET status='closed',updated_at=UTC_TIMESTAMP(6) WHERE id=?");$q->execute([$id]);if($q->rowCount())$this->audit($admin,$id,'support_close');
+  $q=$this->pdo->prepare("UPDATE support_tickets SET status='closed',updated_at=UTC_TIMESTAMP(6) WHERE id=? AND status<>'closed'");$q->execute([$id]);if($q->rowCount())$this->audit($admin,$id,'support_close');
  }
  private function audit(int $admin,int $id,string $action):void {
   $this->pdo->prepare("INSERT INTO audit_log(admin_id,action,entity_type,entity_id,reason) VALUES (?,?,'support_ticket',?,'support_inbox')")->execute([$admin,$action,$id]);

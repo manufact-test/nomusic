@@ -41,6 +41,8 @@ try{
   $panel=new AdminPanel($pdo,new LocalStorageAdapter('/tmp/celikom-support-tests'),false,false,[]);
   $headers=['cookie'=>AdminAuth::COOKIE.'='.$token,'content-type'=>'application/x-www-form-urlencoded'];
   expect($panel->handle('POST','/admin/support/reply',[],$headers,http_build_query(['ticket'=>$id,'message'=>'Ответ без CSRF','request_key'=>$uuid()]))->status===403,'CSRF enforced');
+  for($i=0;$i<5;$i++)$service->reply($owner,$id,'Дополнительный ответ '.$i,$uuid());
+  expect($service->thread($id,$u)['has_more'],'message history paginated');expect($service->thread($id,$u,2)['messages'][0]['author']==='user','original request remains available');
   $service->close($owner,$id);expect($service->thread($id,$u)['status']==='closed','closed status');
  });
  run('Support mail failure does not lose ticket or resend ambiguous SMTP delivery',function()use($config,$pdo,$user,$uuid):void{

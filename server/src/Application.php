@@ -91,13 +91,14 @@ final class Application
             if(!$session)return Response::json(401,['error'=>'invalid_session']);
             $support=new \Celikom\Support\SupportService($pdo,$this->config);
             try {
-                if($method==='GET')$data=isset($supportMatch[1])?$support->thread((int)$supportMatch[1],(int)$session['user_id']):['tickets'=>$support->listForUser((int)$session['user_id'])];
+                if($method==='GET')$data=isset($supportMatch[1])?$support->thread((int)$supportMatch[1],(int)$session['user_id'],max(1,min(100000,(int)($query['message_page']??1)))):['tickets'=>$support->listForUser((int)$session['user_id'],max(1,min(100000,(int)($query['page']??1))))];
                 elseif($method==='POST'&&$path==='/api/v1/support'){
                     if(strlen($body)>10000)throw new \InvalidArgumentException();
                     $data=json_decode($body,true,8,JSON_THROW_ON_ERROR);
                     if(!is_array($data)||!is_string($data['message']??null)||!is_string($data['request_key']??null))throw new \InvalidArgumentException();
                     $data=['ticket_id'=>$support->create((int)$session['user_id'],$data['message'],$data['request_key'])];
                 }else return Response::json(405,['error'=>'method_not_allowed']);
+                if(isset($data['tickets'])){$data['has_more']=count($data['tickets'])>5;$data['tickets']=array_slice($data['tickets'],0,5);}
                 $response=new Response(200,['Content-Type'=>'application/json; charset=utf-8','Cache-Control'=>'no-store'],json_encode($data,JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE));return $response;
             }catch(\InvalidArgumentException|\JsonException){return Response::json(400,['error'=>'invalid_request']);}
             catch(\DomainException $e){return Response::json($e->getMessage()==='rate_limited'?429:404,['error'=>$e->getMessage()==='rate_limited'?'rate_limited':'not_found']);}

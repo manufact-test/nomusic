@@ -480,7 +480,7 @@ final class AdminPanel
             . '"><span>Новые жалобы<span class="sub">Ожидают решения</span></span><strong>'
             . (int) $counts['pending_reports'] . '</strong></a></div>';
         return $html . match ($tab) {
-            'support' => (new \Celikom\Support\SupportAdminView($this->pdo))->render($admin['csrf'],$this->positiveInt($query['ticket']??null) ?: 0,$this->positiveInt($query['page']??null) ?: 1),
+            'support' => (new \Celikom\Support\SupportAdminView($this->pdo))->render($admin['csrf'],$this->positiveInt($query['ticket']??null) ?: 0,$this->positiveInt($query['page']??null) ?: 1,$this->positiveInt($query['message_page']??null) ?: 1),
             'promos' => (new \Celikom\Promo\PromoAdminView($this->pdo))->render($admin['csrf'],$this->positiveInt($query['page']??null) ?: 1,($query['create']??null)==='1',($query['activations']??null)==='1'),
             'incidents' => (new \Celikom\Incident\IncidentAdminView($this->pdo))->render($admin['csrf']),
             'requests' => $this->requests($admin, $csrf, $query),

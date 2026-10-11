@@ -32,8 +32,8 @@ export async function initSupport(options: any = {}): Promise<void> {
   const message = () => supportMessage(description.value || "", chrome.runtime.getManifest().version, options.getState?.());
   function feedback(text: string) { note.hidden = false; note.textContent = text; }
   const failure = (result: any) => feedback(result?.error === "rate_limited" ? "Слишком много обращений. Повторите позже." : result?.error === "invalid_session" ? "Войдите в аккаунт CELIKOM, чтобы отправить сообщение и получать ответы." : "Не удалось связаться с поддержкой. Текст сохранён в поле; повторите отправку.");
-  async function refresh() {
-    const result = await send({ type: "CELIKOM_AUTH", action: "support-list" });
+  async function refresh(page = 1) {
+    const result = await send({ type: "CELIKOM_AUTH", action: "support-list", page });
     list.replaceChildren();
     if (!result?.ok) {
       failure(result);
@@ -45,17 +45,22 @@ export async function initSupport(options: any = {}): Promise<void> {
     for (const ticket of result.tickets || []) {
       const button = doc.createElement("button"); button.type = "button"; button.className = "quiet wide";
       button.textContent = `Обращение №${ticket.id} — ${ticket.status === "answered" ? "есть ответ" : ticket.status === "closed" ? "закрыто" : "отправлено"}`;
-      button.addEventListener("click", async () => {
-        const thread = await send({ type: "CELIKOM_AUTH", action: "support-thread", ticket_id: ticket.id });
+      const showThread = async (page = 1) => {
+        const thread = await send({ type: "CELIKOM_AUTH", action: "support-thread", ticket_id: ticket.id, message_page: page });
         if (!thread?.ok) { failure(thread); return; }
         const content = doc.createElement("div"); content.className = "support-thread";
         for (const m of thread.messages || []) {
           const p = doc.createElement("p"); p.style.whiteSpace = "pre-wrap"; p.style.overflowWrap = "anywhere";
           p.textContent = `${m.author === "support" ? "Поддержка" : "Вы"}: ${m.body}`; content.append(p);
         }
+        if (thread.has_more) { const older = doc.createElement("button"); older.type = "button"; older.className = "quiet wide"; older.textContent = "Предыдущие сообщения"; older.addEventListener("click", () => void showThread(page + 1)); content.append(older); }
+        if (page > 1) { const newer = doc.createElement("button"); newer.type = "button"; newer.className = "quiet wide"; newer.textContent = "Более новые сообщения"; newer.addEventListener("click", () => void showThread(page - 1)); content.append(newer); }
         list.querySelector(".support-thread")?.remove(); button.after(content);
-      }); list.append(button);
+      };
+      button.addEventListener("click", () => void showThread()); list.append(button);
     }
+    if (result.has_more) { const older = doc.createElement("button"); older.type = "button"; older.className = "quiet wide"; older.textContent = "Предыдущие обращения"; older.addEventListener("click", () => void refresh(page + 1)); list.append(older); }
+    if (page > 1) { const newer = doc.createElement("button"); newer.type = "button"; newer.className = "quiet wide"; newer.textContent = "Более новые обращения"; newer.addEventListener("click", () => void refresh(page - 1)); list.append(newer); }
   }
   panel.addEventListener("toggle", () => { if (panel.open) void refresh(); });
   copy.addEventListener("click", async () => {

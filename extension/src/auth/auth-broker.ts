@@ -220,7 +220,7 @@ export function createAuthBroker(api, options = {}) {
       if (action === "support-send" || action === "support-list" || action === "support-thread") {
         if (action === "support-send" && (typeof message.message !== "string" || message.message.length > 3000 || typeof message.request_key !== "string" || !/^[a-f0-9-]{36}$/.test(message.request_key))) return { ok: false, error: "invalid_request" };
         if (action === "support-thread" && !/^[1-9][0-9]{0,17}$/.test(String(message.ticket_id))) return { ok: false, error: "invalid_request" };
-        const path = action === "support-thread" ? "support/" + message.ticket_id : "support";
+        const path = action === "support-thread" ? "support/" + message.ticket_id + "?message_page=" + (Number.isSafeInteger(message.message_page) && message.message_page > 0 && message.message_page <= 100000 ? message.message_page : 1) : action === "support-list" ? "support?page=" + (Number.isSafeInteger(message.page) && message.page > 0 && message.page <= 100000 ? message.page : 1) : "support";
         const data = await withAccess((saved) => apiRequest(path, action === "support-send" ? "POST" : "GET", action === "support-send" ? { message: message.message, request_key: message.request_key } : null, saved.access_token));
         return { ok: true, ...data };
       }
