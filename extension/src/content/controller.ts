@@ -20,6 +20,11 @@
   class CelikomController {
     constructor() {
       this.bridge = bridgeFactory.createPlayerBridge(root, {
+        canRecoverAliveFailure: (error) => {
+          if (/extension context invalidated/i.test(error?.message || "")) return false;
+          try { return chrome.runtime.getManifest().version === root.__CELIKOM_PLAYER_CORE_V1__?.VERSION; }
+          catch (_error) { return false; }
+        },
         confirmAlive: async () => {
           // Unlike an isolated-world timer, an actual worker reply proves the
           // extension is still installed/enabled. Never log response metadata.
@@ -130,6 +135,10 @@
 
     onRuntimeMessage(message, _sender, sendResponse) {
       const type = message && typeof message === "object" ? message.type : null;
+      if (type === "CELIKOM_ACCESS_STATE" && _sender?.id === chrome.runtime.id) {
+        this.engine.suspendAccess(message.state !== "allowed", message.state === "incident" ? "service_incident" : "access_reconnecting");
+        sendResponse({ ok: true }); return false;
+      }
       if (type === COMMANDS.getControllerStatus || type === COMMANDS.controllerPing) {
         sendResponse({ ok: true, status: this.getDiagnostics() });
         return false;
@@ -172,6 +181,8 @@
         active: this.engine.operation ? { generation: this.engine.operation.generation, trackId: this.engine.operation.trackId, mediaId: this.engine.operation.mediaId } : null,
         manualBypass: this.engine.manualBypass,
         replacementError: this.engine.lastError,
+        suspended: this.engine.suspended,
+        recovering: Boolean(this.engine.retryBlock),
         guardActive: Boolean(this.snapshot?.guard?.active),
         driftMs: this.engine.driftMs,
         playback: { activationCount: this.engine.activationCount, restoreCount: this.engine.restoreCount, lastRestore: this.engine.lastRestore },

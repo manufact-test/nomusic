@@ -61,6 +61,18 @@ function message(bridge, type, sequence, payload = {}, overrides = {}) {
     ...overrides
   };
 }
+test('worker transport interruption releases original and preserves retry loop only for valid extension context',async()=>{
+ const target=new FakeWindow();let alive=false,valid=true;
+ const bridge=new PlayerBridge(target,{confirmAlive:async()=>alive,canRecoverAliveFailure:()=>valid});
+ bridge.start();
+ for(let i=0;i<2;i++){bridge.heartbeat();for(let j=0;j<10;j++)await Promise.resolve()}
+ assert.equal(bridge.destroyed,false);assert.equal(target.posts.at(-1).type,'RELEASE_NOW');
+ alive=true;bridge.lastInitAt=0;bridge.heartbeat();for(let j=0;j<10;j++)await Promise.resolve();
+ assert.equal(target.posts.at(-1).type,'INIT');
+ target.dispatch(message(bridge,'READY',1));assert.equal(bridge.isHealthy(),true);
+ alive=false;valid=false;for(let i=0;i<2;i++){bridge.heartbeat();for(let j=0;j<10;j++)await Promise.resolve()}
+ assert.equal(bridge.destroyed,true);assert.equal(target.intervals.size,0);
+});
 
 test("PlayerBridge starts once and ignores stale or foreign events", () => {
   const target = new FakeWindow();

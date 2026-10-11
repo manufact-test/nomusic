@@ -7,6 +7,7 @@ export function accessLabel(access) {
   }
   if (access.reason === "trial_not_started") return "3 дня пробного периода начнутся после «Старт»";
   if (access.reason === "email_unverified") return "Подтвердите почту, чтобы начать";
+  if (access.reason === "service_incident") return "Сбой интеграции · время доступа будет компенсировано";
   if (access.reason === "account_disabled") return "Доступ к аккаунту отключён";
   return access.source === "subscription" ? "Подписка завершена" : "Пробный период завершён";
 }

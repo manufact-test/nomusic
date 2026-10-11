@@ -62,6 +62,8 @@ for (const file of phpFiles) {
 const smoke = spawnSync("php", [path.join(serverRoot, "tests", "database.php")], { stdio: "inherit" });
 if (smoke.status !== 0) process.exit(smoke.status || 1);
 if (process.env.DB_NAME) {
+  const incidents = spawnSync("php", [path.join(serverRoot, "tests", "incidents.php")], { stdio: "inherit" });
+  if (incidents.status !== 0) process.exit(incidents.status || 1);
   const uploads = spawnSync("php", [path.join(serverRoot, "tests", "uploads.php")], { stdio: "inherit" });
   if (uploads.status !== 0) process.exit(uploads.status || 1);
   const admin = spawnSync("php", [path.join(serverRoot, "tests", "admin.php")], { stdio: "inherit" });

@@ -12,7 +12,7 @@
 })(globalThis, function createCelikomPlayerCore() {
   "use strict";
 
-  const VERSION = "0.4.21";
+  const VERSION = "0.4.22";
   const PROTOCOL_VERSION = 1;
   const CHANNEL = "CELIKOM_PLAYER_V1";
   const PLAYER_EVENT_TYPES = Object.freeze([

@@ -18,6 +18,8 @@ export interface ExtensionState {
   accessError?: string;
   manualBypass?: { trackId: string } | null;
   replacementError?: string | null;
+  suspended?: boolean;
+  recovering?: boolean;
   connection?: {
     controllerPresent: boolean;
     recovered: boolean;

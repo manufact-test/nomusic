@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
+import {createMusicTabs} from '../dist/unpacked/background/music-tabs.js';
 import {createActionIcon} from '../dist/unpacked/background/action-icon.js';
 import {readFile} from 'node:fs/promises';
 const source=(await readFile(new URL('../dist/unpacked/background/service-worker.js',import.meta.url),'utf8')).replace(/^import .*$/gm,'');
@@ -8,15 +9,26 @@ function fixture() {
  let handler,allowed=true,trialStarted=0,localSession=true;
  const local={enabled:false},sent=[],icons=[];
  const commands={getStatus:'CELIKOM_STATUS_GET',setEnabled:'CELIKOM_ENABLED_SET',retryReplacement:'CELIKOM_REPLACEMENT_RETRY',restoreOriginal:'CELIKOM_RESTORE_ORIGINAL'};
- const chrome={action:{setIcon:async value=>icons.push(value),setTitle:async()=>{}},runtime:{id:'worker',getManifest:()=>({version:'0.4.7'}),getURL:p=>'chrome-extension://worker/'+p,onInstalled:{addListener(){}},onStartup:{addListener(){}},onMessage:{addListener:fn=>{handler=fn}}},storage:{local:{get:async()=>({...local}),set:async x=>Object.assign(local,x)}},tabs:{query:async()=>[{id:1}],sendMessage:async(id,m)=>{sent.push(m);return {ok:true}}}};
+ const chrome={action:{setIcon:async value=>icons.push(value),setTitle:async()=>{}},runtime:{id:'worker',getManifest:()=>({version:'0.4.7'}),getURL:p=>'chrome-extension://worker/'+p,onInstalled:{addListener(){}},onStartup:{addListener(){}},onMessage:{addListener:fn=>{handler=fn}}},storage:{local:{get:async()=>({...local}),set:async x=>Object.assign(local,x)}},tabs:{query:async()=>[{id:1,url:'https://music.yandex.ru/'}],sendMessage:async(id,m)=>{sent.push(m);return {ok:true}}}};
  const auth={installationId:async()=>'',perform:async action=>action==='account-preview'?{ok:true,localSession}:{ok:true},withEntitledAccess:async()=>{},entitlement:async activation=>{if(activation)trialStarted++;return {allowed,valid_until:new Date(Date.now()+432000000).toISOString(),reason:allowed?'trial_active':'trial_inactive'}}};
- vm.runInNewContext(source,{chrome,COMMANDS:commands,normalizeEnabled:v=>v===true,createActionIcon,createAuthBroker:()=>auth,createApiBroker:()=>async()=>({ok:true}),createControllerBootstrap:()=>({ensure:async()=>({status:{track:{id:'144530503'},player:{mediaId:'1'},phase:'READY'}}),ensureOpenTabs:async()=>{}}),Date,URL,Promise});
+ vm.runInNewContext(source,{chrome,COMMANDS:commands,normalizeEnabled:v=>v===true,createActionIcon,createMusicTabs,createAuthBroker:()=>auth,createApiBroker:()=>async()=>({ok:true}),createControllerBootstrap:()=>({ensure:async()=>({status:{track:{id:'144530503'},player:{mediaId:'1'},phase:'READY',bridge:{healthy:true}}}),ensureOpenTabs:async()=>{}}),Date,URL,Promise});
  const send=(type,more={},sender={id:'worker',url:'chrome-extension://worker/popup/popup.html'})=>new Promise(resolve=>handler({type,...more},sender,resolve));
  return {send,local,sent,icons,auth,setAllowed:v=>allowed=v,setSignedIn:v=>localSession=v,get trials(){return trialStarted}};
 }
 test('Stage10 verified Start activates trial before enabling the existing controller',async()=>{
  const f=fixture();const state=await f.send('CELIKOM_ENABLED_SET',{enabled:true});
  assert.equal(f.trials,1);assert.equal(state.enabled,true);assert.equal(f.sent.at(-1).type,'CELIKOM_REPLACEMENT_RETRY');
+});
+test('network authorization failure suspends playback without turning off CELIKOM',async()=>{
+ const f=fixture();f.local.enabled=true;f.auth.entitlement=async()=>{throw Error('auth_unavailable')};
+ await f.send('CELIKOM_CONTEXT_PING',{enabled:true,healthy:true},{id:'worker',url:'https://music.yandex.ru/',tab:{id:1}});
+ await new Promise(resolve=>setImmediate(resolve));assert.equal(f.local.enabled,true);
+ assert.equal(f.sent.at(-1).state,'unavailable');
+});
+test('declared incident suspends playback and remains enabled for automatic recovery',async()=>{
+ const f=fixture();f.local.enabled=true;f.auth.entitlement=async()=>({allowed:false,reason:'service_incident'});
+ await f.send('CELIKOM_CONTEXT_PING',{enabled:true,healthy:true},{id:'worker',url:'https://music.yandex.ru/',tab:{id:1}});
+ await new Promise(resolve=>setImmediate(resolve));assert.equal(f.local.enabled,true);assert.equal(f.sent.at(-1).state,'incident');
 });
 test('Stage10 denied Start never mutes/enables; logout stops buffered playback',async()=>{
  const f=fixture();f.setAllowed(false);const state=await f.send('CELIKOM_ENABLED_SET',{enabled:true});

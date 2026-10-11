@@ -24,6 +24,9 @@
       this.negativeResolution = null;
       this.failOpen = new FailOpenController(bridge, this.log);
       this.enabled = false;
+      this.suspended = false;
+      this.retryBlock = null;
+      this.masterClock = null;
       this.testTrackId = null;
       this.snapshot = null;
       this.operation = null;
@@ -44,14 +47,23 @@
       const changed = this.testTrackId !== id || this.enabled !== enabled;
       this.enabled = enabled;
       this.testTrackId = id;
-      if (changed || explicitStart) { this.manualBypass = null; this.blockedTrackId = null; this.lastError = null; this.negativeResolution = null; }
+      if (changed || explicitStart) { this.manualBypass = null; this.blockedTrackId = null; this.retryBlock = null; this.masterClock = null; this.lastError = null; this.negativeResolution = null; }
       this.reconcile();
+    }
+    suspendAccess(suspended, reason) {
+      if (this.suspended === suspended) return;
+      this.suspended = suspended;
+      if (suspended) { this.suspendedError = this.lastError; this.abort(reason); this.lastError = reason; }
+      else {
+        if (["api_forbidden", "api_access_denied"].includes(this.suspendedError)) this.blockedTrackId = null;
+        this.lastError = null; this.negativeResolution = null; this.masterClock = null; this.reconcile();
+      }
     }
     eligible(snapshot = this.snapshot, minimumReadyState = 2) {
       const track = snapshot?.track;
       const player = snapshot?.player;
       const exactRoute = this.testTrackId ? track?.id === this.testTrackId : Boolean(this.resolveAsset && this.core.normalizeTrackId(track?.id));
-      return this.enabled && this.bridge.isHealthy() && exactRoute && !track?.ambiguous
+      return this.enabled && !this.suspended && this.bridge.isHealthy() && exactRoute && !track?.ambiguous
         && track?.confidence >= 100 && player && !player.ended && player.readyState >= minimumReadyState
         && Number.isFinite(player.duration) && player.duration > 0
         && Math.abs(player.duration * 1000 - track.metadata?.durationMs) <= 1500
@@ -63,7 +75,12 @@
       const previousId = this.snapshot?.track?.id;
       this.snapshot = snapshot;
       const id = snapshot.track?.id;
-      if (id && ((previousId && id !== previousId) || (this.manualBypass && id !== this.manualBypass.trackId) || (this.blockedTrackId && id !== this.blockedTrackId))) { this.manualBypass = null; this.blockedTrackId = null; this.lastError = null; }
+      const player = snapshot.player;
+      if (!this.masterClock || this.masterClock.id !== id || this.masterClock.mediaId !== player?.mediaId
+        || Math.abs((player?.currentTime || 0) - this.masterClock.time) > 0.01 || player?.paused || player?.seeking || player?.readyState < 3) {
+        this.masterClock = { id, mediaId: player?.mediaId, time: player?.currentTime || 0, advancedAt: Date.now() };
+      }
+      if (id && ((previousId && id !== previousId) || (this.manualBypass && id !== this.manualBypass.trackId) || (this.blockedTrackId && id !== this.blockedTrackId))) { this.manualBypass = null; this.blockedTrackId = null; this.retryBlock = null; this.lastError = null; }
       if (["ERROR", "ENDED"].includes(eventType)) { this.abort(`master-${eventType.toLowerCase()}`, true); return; }
       this.reconcile(["SEEK", "PLAY", "RATE_CHANGED"].includes(eventType));
     }
@@ -74,6 +91,11 @@
     }
     reconcile(forceSync = false) {
       if (this.destroyed || this.restorePending) return;
+      if (this.retryBlock && Date.now() >= this.retryBlock.at && this.snapshot?.observedAt > this.retryBlock.observedAt
+        && Date.now() - this.snapshot.observedAt < 3000 && this.bridge.isHealthy() && this.snapshot.player?.readyState >= 3
+        && (this.retryBlock.reason !== "master-clock-stalled" || Math.abs(this.snapshot.player.currentTime - this.retryBlock.time) > 0.01)) {
+        this.blockedTrackId = null; this.retryBlock = null; this.lastError = null;
+      }
       const operation = this.operation;
       const matching = operation && operation.trackId === this.snapshot?.track?.id && operation.mediaId === this.snapshot?.player?.mediaId;
       // A bound, already guarded master can temporarily have only metadata while
@@ -134,6 +156,10 @@
     abort(reason, blockTrack = false, detail = null) {
       const operation = this.operation;
       if (blockTrack) { this.blockedTrackId = operation?.trackId || this.snapshot?.track?.id; this.lastError = reason; }
+      if (blockTrack && ["bridge-timeout", "bridge-unhealthy", "snapshot-stale", "master-clock-stalled", "master-error", "audio-token-expired", "api_network_error", "api_server_error", "api_unavailable", "guard-lost:master-error"].includes(reason)
+        || (blockTrack && detail?.reason === "media-source-changed")) {
+        this.retryBlock = { at: Date.now() + 5000, observedAt: this.snapshot?.observedAt || 0, reason, time: this.snapshot?.player?.currentTime || 0 };
+      }
       if (!operation) return;
       const completed = reason === "master-ended" || detail?.reason === "master-ended";
       if (operation.asset && !operation.asset.demoLoop && completed) this.event("replacement_completed", { service: "yandex" });
@@ -166,6 +192,10 @@
       this.abort("manual-original");
     }
     tick() {
+      if (this.operation && this.masterClock && !this.snapshot.player.paused && !this.snapshot.player.seeking
+        && this.snapshot.player.readyState >= 3 && !this.environment.document.hidden && Date.now() - this.masterClock.advancedAt > 4000) {
+        this.abort("master-clock-stalled", true); return;
+      }
       if (!this.bridge.isHealthy() && this.operation) { this.abort("bridge-unhealthy", true); return; }
       if (this.operation?.asset && !this.operation.asset.demoLoop && this.operation.asset.expiresAt <= Date.now()) { this.abort("audio-token-expired", true); return; }
       if (this.operation && this.snapshot.player.readyState >= 3 && !this.snapshot.player.paused && !this.snapshot.player.seeking

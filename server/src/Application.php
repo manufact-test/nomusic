@@ -128,7 +128,11 @@ final class Application
             return Response::json(200, (new EntitlementService($pdo))->check($user['user_id'])->json());
         }
         if ($method === 'GET' && $path === '/api/v1/config') {
+            $incident = ($this->config['entitlement_enabled'] ?? false)
+                ? (new \Celikom\Incident\IncidentService($this->database()))->state()
+                : ['active'=>false,'service'=>'yandex'];
             return Response::json(200, [
+                'incident' => $incident,
                 'api_version' => 1,
                 'minimum_extension_version' => $this->config['minimum_extension_version'],
                 'upload_enabled' => (bool)($this->config['user_uploads_enabled'] ?? false) && (bool)($this->config['entitlement_enabled'] ?? false),

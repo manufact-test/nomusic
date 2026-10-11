@@ -108,6 +108,37 @@ function fixture({ loadGate, guardGate, rejectGuard = false, playerThrows = fals
   const update = (next, event) => { current = next; engine.update(next, event); };
   return { engine, bridge, players, requests, update, unhealthy: () => { healthy = false; } };
 }
+test('temporary master failure recovers same track from fresh healthy state without overriding manual original',async()=>{
+ const f=fixture();f.update(snapshot());await settle();
+ assert.equal(f.engine.phase,'REPLACEMENT_ACTIVE');
+ f.update(snapshot(),'ERROR');await settle();
+ assert.equal(f.engine.blockedTrackId,'2');assert.equal(f.players[0].destroyed,true);
+ f.engine.retryBlock.at=Date.now()-1;f.engine.retryBlock.observedAt=Date.now()-1;
+ f.update(snapshot());await settle();assert.equal(f.engine.phase,'REPLACEMENT_ACTIVE');
+ assert.equal(f.engine.activationCount,2);
+ f.engine.manualRestore();await settle();
+ f.engine.suspendAccess(true,'access_reconnecting');f.engine.suspendAccess(false);f.update(snapshot());await settle();
+ assert.equal(f.engine.operation,null);assert.equal(f.engine.manualBypass.trackId,'2');
+});
+test('transient access suspension releases audio but keeps desired enable and restarts on authorization',async()=>{
+ const f=fixture();f.update(snapshot());await settle();
+ f.engine.suspendAccess(true,'access_reconnecting');await settle();
+ assert.equal(f.engine.enabled,true);assert.equal(f.engine.operation,null);assert.equal(f.players[0].destroyed,true);
+ f.update(snapshot());await settle();assert.equal(f.engine.operation,null);
+ f.engine.suspendAccess(false);await settle();assert.equal(f.engine.phase,'REPLACEMENT_ACTIVE');
+});
+test('stalled master fails open and only recovers after its clock advances; Stop stays stopped',async()=>{
+ const f=fixture();f.update(snapshot());await settle();
+ f.engine.masterClock.advancedAt=Date.now()-5000;f.engine.tick();await settle();
+ assert.equal(f.engine.lastError,'master-clock-stalled');assert.equal(f.engine.operation,null);
+ f.engine.retryBlock.at=Date.now()-1;f.engine.retryBlock.observedAt=Date.now()-1;
+ f.update(snapshot());await settle();assert.equal(f.engine.operation,null,'fresh snapshot alone does not mean playback resumed');
+ const next=snapshot();next.player.currentTime=8;f.update(next);await settle();
+ assert.equal(f.engine.phase,'REPLACEMENT_ACTIVE');
+ f.engine.configure(false,'2');await settle();
+ f.engine.suspendAccess(true,'service_incident');f.engine.suspendAccess(false);f.update(snapshot());await settle();
+ assert.equal(f.engine.operation,null);assert.equal(f.engine.enabled,false);
+});
 test("A(original) → B(replacement) → C(original) uses exact ID and one player", async () => {
   const f = fixture(); f.update(snapshot("1")); await settle(); assert.equal(f.players.length, 0);
   f.update(snapshot("2")); await settle(); assert.equal(f.engine.phase, "REPLACEMENT_ACTIVE");

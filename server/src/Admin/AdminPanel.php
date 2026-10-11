@@ -56,6 +56,24 @@ final class AdminPanel
                 'Set-Cookie'=>AdminAuth::cookie(AdminAuth::COOKIE, '', 0),
                 'Cache-Control'=>'no-store']);
         }
+        if (in_array($path, ['/admin/incidents/start','/admin/incidents/resolve'], true)) {
+            if ($admin['role'] !== 'owner') return Response::json(403,['error'=>'forbidden']);
+            if ($method !== 'POST') return Response::json(405,['error'=>'method_not_allowed']);
+            $form = $this->form($headers,$body);
+            if (!AdminAuth::validCsrf($admin,$form['csrf']??null)) return Response::json(403,['error'=>'csrf_failed']);
+            try {
+                $service = new \Celikom\Incident\IncidentService($this->pdo);
+                if ($path === '/admin/incidents/start') {
+                    if (!is_string($form['reason']??null) || !is_string($form['request_key']??null)) throw new \InvalidArgumentException();
+                    $service->start($admin['id'],$form['reason'],$form['request_key']);
+                } else {
+                    $id = $this->positiveInt($form['id']??null); if (!$id) throw new \InvalidArgumentException();
+                    $service->resolve($admin['id'],$id);
+                }
+                return new Response(303,['Location'=>'/admin?tab=incidents','Cache-Control'=>'no-store']);
+            } catch (\InvalidArgumentException) { return Response::json(400,['error'=>'invalid_incident']); }
+            catch (\DomainException) { return Response::json(409,['error'=>'incident_conflict']); }
+        }
         if ($path === '/admin/metadata' && $method === 'POST') {
             if ($admin['role'] !== 'owner') return Response::json(403,['error'=>'forbidden']);
             $form = $this->form($headers,$body);
@@ -164,6 +182,7 @@ final class AdminPanel
             return $this->preview($method, (int)$m[1], $headers);
         }
         if (($path === '/admin' || $path === '/admin/') && $method === 'GET') {
+            if (($query['tab']??null)==='incidents' && $admin['role']!=='owner') return Response::json(403,['error'=>'forbidden']);
             if (($query['tab']??null)==='rewards') {
                 if (!$this->rewardEligibilityEnabled) return Response::json(404,['error'=>'not_found']);
                 if ($admin['role']!=='owner') return Response::json(403,['error'=>'forbidden']);
@@ -356,6 +375,7 @@ final class AdminPanel
     {
         $tab = is_string($query['tab'] ?? null) ? $query['tab'] : 'uploads';
         $allowed = ['uploads','requests','reports','audit','overview'];
+        if ($admin['role']==='owner') $allowed[]='incidents';
         if ($this->billingViewsEnabled && $admin['role']==='owner') $allowed[]='billing';
         if ($this->rewardEligibilityEnabled && $admin['role']==='owner') $allowed[]='rewards';
         if (!in_array($tab, $allowed, true)) $tab = 'uploads';
@@ -386,6 +406,7 @@ final class AdminPanel
                 . self::e($name) . '</a>';
         }
         $html .= '</nav>';
+        if ($admin['role']==='owner') $html.='<nav class="nav"><a href="/admin?tab=incidents"'.($tab==='incidents'?' class="current" aria-current="page"':'').'>Сбои интеграции</a></nav>';
         if ($this->rewardEligibilityEnabled && $admin['role']==='owner') {
             $html.='<nav class="nav" aria-label="Награды"><a href="/admin?tab=rewards"'
                 .($tab==='rewards'?' class="current" aria-current="page"':'').'>Награды за вклад</a></nav>';
@@ -409,6 +430,7 @@ final class AdminPanel
             . '"><span>Новые жалобы<span class="sub">Ожидают решения</span></span><strong>'
             . (int) $counts['pending_reports'] . '</strong></a></div>';
         return $html . match ($tab) {
+            'incidents' => (new \Celikom\Incident\IncidentAdminView($this->pdo))->render($admin['csrf']),
             'requests' => $this->requests($admin, $csrf, $query),
             'reports' => $this->reports($admin, $csrf, $query),
             'audit' => $this->auditLog($query),

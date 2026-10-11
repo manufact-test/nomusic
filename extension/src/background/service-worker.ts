@@ -3,6 +3,7 @@ import { createControllerBootstrap } from "./controller-bootstrap.js";
 import { createApiBroker } from "../api/api-broker.js";
 import { createAuthBroker } from "../auth/auth-broker.js";
 import { createActionIcon } from "./action-icon.js";
+import { createMusicTabs } from "./music-tabs.js";
 
 const VERSION = chrome.runtime.getManifest().version;
 const DEFAULT_STATE: ExtensionState = Object.freeze({
@@ -11,18 +12,24 @@ const DEFAULT_STATE: ExtensionState = Object.freeze({
   version: VERSION
 });
 const bootstrap = createControllerBootstrap(chrome);
+const musicTabs = createMusicTabs(chrome, bootstrap);
 const userAuth = createAuthBroker(chrome);
 const actionIcon = createActionIcon(chrome);
 const resolveApi = createApiBroker(chrome, { withAccess: userAuth.withEntitledAccess });
-let accessCheck: Promise<boolean> | null = null;
+let accessCheck: Promise<string> | null = null;
 let accessValidUntil = 0;
-async function playbackAccess(): Promise<boolean> {
-  if (accessValidUntil > Date.now()) return true;
+let accessRetryAt = 0;
+async function playbackAccess(): Promise<string> {
+  if (accessValidUntil > Date.now()) return "allowed";
+  if (accessRetryAt > Date.now()) return "unavailable";
   if (!accessCheck) accessCheck = userAuth.entitlement().then((result) => {
-    if (!result.allowed) return false;
+    if (!result.allowed) return result.reason === "service_incident" ? "incident" : "denied";
     accessValidUntil = Math.min(Date.now() + 10000, Date.parse(result.valid_until));
-    return accessValidUntil > Date.now();
-  }).catch(() => false).finally(() => { accessCheck = null; });
+    return accessValidUntil > Date.now() ? "allowed" : "denied";
+  }).catch((error) => {
+    if (["invalid_session", "account_disabled", "email_unverified", "access_denied"].includes(error?.message)) return "denied";
+    accessRetryAt = Date.now() + 5000; return "unavailable";
+  }).finally(() => { accessCheck = null; });
   return accessCheck;
 }
 
@@ -31,15 +38,8 @@ async function readEnabled(): Promise<boolean> {
   return normalizeEnabled(stored.enabled);
 }
 
-async function activeTabId(): Promise<number | null> {
-  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-  return tab?.id ?? null;
-}
-
 async function readControllerStatus(retry = false) {
-  const tabId = await activeTabId();
-  if (tabId === null) return { status: null, error: "no-active-tab", detail: "Откройте вкладку Яндекс Музыки." };
-  return bootstrap.ensure(tabId, retry);
+  return musicTabs.connection(retry);
 }
 
 async function readState(retry = false): Promise<ExtensionState> {
@@ -64,9 +64,7 @@ async function readState(retry = false): Promise<ExtensionState> {
 }
 
 async function sendToActiveTab(message: object): Promise<unknown> {
-  const tabId = await activeTabId();
-  if (!tabId) return null;
-  return chrome.tabs.sendMessage(tabId, message).catch(() => null);
+  return musicTabs.send(message);
 }
 
 chrome.runtime.onInstalled.addListener(async () => {
@@ -94,6 +92,7 @@ chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse) =>
     if (m.action === "logout" || m.action === "login" || m.action === "verify-email") {
       actionIcon.clear();
       accessValidUntil = 0;
+      accessRetryAt = 0;
       void chrome.storage.local.set({ enabled: false });
     }
     void userAuth.perform(m.action, message as object).then(sendResponse)
@@ -117,10 +116,14 @@ chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse) =>
     sendResponse({ ok: true, version: VERSION });
     void (async () => {
       if (!await readEnabled()) { actionIcon.clear(); return; }
-      if (!await playbackAccess()) { actionIcon.clear(); await chrome.storage.local.set({ enabled: false }); return; }
+      const access = await playbackAccess();
+      if (!await readEnabled()) return;
+      if (access === "denied") { actionIcon.clear(); await chrome.storage.local.set({ enabled: false }); return; }
+      await chrome.tabs.sendMessage(sender.tab?.id, { type: "CELIKOM_ACCESS_STATE", state: access }).catch(() => undefined);
+      if (access !== "allowed") { actionIcon.update(sender.tab?.id, false); return; }
       const pulse = message as { enabled?: unknown; healthy?: unknown };
       actionIcon.update(sender.tab?.id, pulse.enabled === true && pulse.healthy === true);
-    })().catch(() => { actionIcon.clear(); void chrome.storage.local.set({ enabled: false }); });
+    })().catch(() => actionIcon.update(sender.tab?.id, false));
     return false;
   }
 
@@ -137,6 +140,7 @@ chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse) =>
     const enabled = normalizeEnabled((message as { enabled?: unknown }).enabled);
     void (async () => {
       accessValidUntil = 0;
+      accessRetryAt = 0;
       if (enabled) {
         const preview = await userAuth.perform("account-preview", {});
         if (preview.localSession === false) {
@@ -148,7 +152,8 @@ chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse) =>
         }
         try {
           const result = await userAuth.entitlement(true);
-          if (!result.allowed) { sendResponse({ ...await readState(), accessError: result.reason }); return; }
+          if (!result.allowed && result.reason !== "service_incident") { sendResponse({ ...await readState(), accessError: result.reason }); return; }
+          if (result.reason === "service_incident") await musicTabs.send({ type: "CELIKOM_ACCESS_STATE", state: "incident" });
         } catch (error) { sendResponse({ ...await readState(), accessError: (error as Error)?.message === "invalid_session" ? "sign_in_required" : "auth_unavailable" }); return; }
       }
       await chrome.storage.local.set({ enabled });

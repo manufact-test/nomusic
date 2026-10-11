@@ -18,6 +18,7 @@
       // A page-world heartbeat alone cannot prove that Chrome still has the
       // extension enabled. Confirm the installed service worker on each tick.
       this.confirmAlive = options.confirmAlive || null;
+      this.canRecoverAliveFailure = options.canRecoverAliveFailure || null;
       this.confirmPending = false;
       this.failedAliveChecks = 0;
       this.ready = false;
@@ -95,13 +96,20 @@
         } else {
           this.onFailedAliveCheck();
         }
-      }).catch(() => {
-        if (!this.destroyed) this.onFailedAliveCheck();
+      }).catch((error) => {
+        if (!this.destroyed) this.onFailedAliveCheck(error);
       }).finally(() => { this.confirmPending = false; });
     }
 
-    onFailedAliveCheck() {
+    onFailedAliveCheck(error = null) {
       if (++this.failedAliveChecks < 2) return;
+      if (this.canRecoverAliveFailure?.(error) === true) {
+        this.post("RELEASE_NOW", { reason: "worker-reconnecting" });
+        this.ready = false;
+        this.lastSequence = 0;
+        this.emit("BRIDGE_TIMEOUT", { elapsedMs: Date.now() - this.lastSeenAt });
+        return;
+      }
       // Stop all further heartbeats and request an immediate MAIN-world
       // fail-open. MAIN's own watchdog is the fallback if this world dies.
       this.emit("EXTENSION_UNAVAILABLE", { reason: "worker-unreachable" });
