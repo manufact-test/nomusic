@@ -49,5 +49,4 @@ jobs:
           disable-animations: true
           script: |
             adb install android/native-research/source/build/outputs/apk/debug/source-debug.apk
-            cd android/native-research && gradle --no-daemon :controller:connectedDebugAndroidTest
-            adb logcat -d -s CELIKOM_NATIVE_RESEARCH:I '*:S'
+            cd android/native-research && sh -c 'probe_status=0; gradle --no-daemon :controller:connectedDebugAndroidTest || probe_status=$?; adb logcat -d -s CELIKOM_NATIVE_RESEARCH:I "*:S"; exit "$probe_status"'

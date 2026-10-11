@@ -7,6 +7,7 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.media.audiofx.AudioEffect
 import android.media.MediaPlayer
+import android.media.AudioManager
 import android.media.audiofx.DynamicsProcessing
 import android.media.audiofx.Visualizer
 import android.os.Build
@@ -38,6 +39,8 @@ class CrossAppEffectTest {
         var visualizer: Visualizer? = null
         var alternate: MediaPlayer? = null
         var alternateVisualizer: Visualizer? = null
+        val audioManager = context.getSystemService(AudioManager::class.java)
+        val oldVolume = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC)
         val report = JSONObject().put("api", Build.VERSION.SDK_INT)
             .put("yandex_tested", false).put("physical_routes_tested", false)
         try {
@@ -52,6 +55,10 @@ class CrossAppEffectTest {
             val session = initial.getIntExtra("session", 0)
             assertTrue(session > 0)
             report.put("distinct_uids", true).put("session_nonzero", true)
+            // Owned emulator only. Low default stream gain can quantize quiet 8-bit samples to zero.
+            audioManager.setStreamVolume(AudioManager.STREAM_MUSIC,
+                audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC), 0)
+            report.put("measurement_stream_volume", audioManager.getStreamVolume(AudioManager.STREAM_MUSIC))
             report.put("effects", AudioEffect.queryEffects().map { it.name }.joinToString(";"))
             instrumentation.uiAutomation.grantRuntimePermission(context.packageName,
                 "android.permission.RECORD_AUDIO")
@@ -109,6 +116,7 @@ class CrossAppEffectTest {
             visualizer?.release()
             alternateVisualizer?.release()
             alternate?.release()
+            audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, oldVolume, 0)
             context.unregisterReceiver(receiver)
             instrumentation.uiAutomation.executeShellCommand(
                 "am force-stop pro.celikom.researchsource").close()
