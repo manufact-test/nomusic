@@ -1,3 +1,10 @@
+> Native research: owned cross-app attenuation, independent alternate playback and explicit-release restoration confirmed on API29/35, run38177741159. Real Yandex session/Track ID, crash restore and physical routes remain unproven; see docs/spikes/ANDROID-NATIVE-COMPANION-2026-10-12.md.
+
+> **12.10.2026 МСК — владелец отклонил Android WebView; нужен companion установленной Яндекс Музыки.**
+> Android0.2.0 не решает требуемый сценарий и не принят. Владелец не продолжает проверку встроенного сайта. Требование: Яндекс Музыка остаётся своим приложением/master-плеером; CELIKOM работает рядом, включая screen-off/фон/наушники/автомобиль. Иконка, обрезание текста, ложные статусы и простой канал техподдержки зафиксированы.
+> Проверяется конкретный кандидат: штатное подключение стороннего обработчика аудиосессии (как эквалайзера) + MediaSession. Нет доказательства native Yandex Track ID/mute/sync/physical routes; два owned research APK не являются продуктовой поставкой или service PASS. [Исследование и актуальные границы](https://github.com/manufact-test/nomusic/blob/feature/api-range/docs/spikes/ANDROID-NATIVE-COMPANION-2026-10-12.md).
+> Stage16 частичный,17 не начат,15 исключён; никаких новых Alpha gates. Backend/extension0.4.28/live данные сохранены, PR6 OPEN/unmerged. Этот блок отменяет прежнее указание продолжать owner WebView playback check и имеет приоритет над историей ниже.
+
 # Этап 16 — Android PoC, 11.10.2026
 
 Владелец принял работу расширения/промокодов и разрешил следующий этап. Android playback/Beta ещё не приняты. Этап 15 исключён; провайдер оплаты не блокирует независимую работу. Chrome 0.4.28 остаётся единым клиентом.
