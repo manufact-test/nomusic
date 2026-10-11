@@ -444,14 +444,14 @@ try{
         expect((int)$q->fetchColumn()>=4,'Audited approved, disabled, rejected and reviewed');
     });
     run('Stage 8 operational overview and audited CSV use real data only',function()use($app,$sessionHeaders,$actionHeaders,$csrf,$pdo,$adminId):void{
-        $date=gmdate('Y-m-d');
+        $date=Celikom\Support\MoscowTime::today();
         $overview=$app->handle('GET','/admin',['tab'=>'overview','from'=>$date,'to'=>$date],$sessionHeaders);
         expect($overview->status===200 && str_contains($overview->body,'Операционный обзор'),'Overview ready');
         expect(str_contains($overview->body,'Агрегированные события')
             || str_contains($overview->body,'Нули не подставляются'),'No fabricated metrics');
         expect($app->handle('POST','/admin/export',headers:$actionHeaders,body:'csrf=bad')->status===403,'CSV CSRF required');
         $csv=$app->handle('POST','/admin/export',headers:$actionHeaders,body:http_build_query(['csrf'=>$csrf]));
-        expect($csv->status===200 && str_contains($csv->body,'created_at,admin,action'),'Private CSV');
+        expect($csv->status===200 && str_contains($csv->body,'created_at_moscow,admin,action'),'Private CSV');
         $q=$pdo->prepare("SELECT COUNT(*) FROM audit_log WHERE admin_id=? AND action='audit_csv_export'");
         $q->execute([$adminId]);
         expect((int)$q->fetchColumn()===1,'Export logged');
