@@ -1,5 +1,5 @@
 {
-  "operation": "prepare",
+  "operation": "audit",
   "target": "hostinger-private-test",
-  "expected_release": "0.4.17-4f926ea740d30dcf04703bf178e272e6922c516e"
+  "expected_release": "0.4.18-25e4982804b2235fd724ddc939d31d0dc8ccab8c"
 }

@@ -60,7 +60,23 @@ try {
         } catch(Throwable $error) {
             file_put_contents($env,$old,LOCK_EX);chmod($env,0600);if(is_file($temporary)) unlink($temporary);throw $error;
         }
-    } else {probe12('/api/v1/rewards',$desired?401:404);probe12('/api/v1/health',200);guard12(databaseDigest12($pdo)===$digest);}
+    } else {
+        probe12('/api/v1/rewards',$desired?401:404);probe12('/api/v1/health',200);
+        // Read-only render of real grouped history. No account emails or songs
+        // are logged; the integrity digest includes policy, ledger and portions.
+        $view=new Celikom\Reward\RewardAdminView($pdo);
+        $count=(int)$pdo->query('SELECT COUNT(DISTINCT user_id) FROM reward_ledger')->fetchColumn();
+        $html=$view->render('read-only-audit',1);
+        guard12(substr_count($html,'class="panel reward-account"')===min(25,$count) && !str_contains($html,'class="reward-card"'));
+        $id=$pdo->query('SELECT user_id FROM reward_ledger ORDER BY id DESC LIMIT 1')->fetchColumn();
+        if($id!==false) {
+            $q=$pdo->prepare('SELECT COUNT(*) FROM reward_ledger WHERE user_id=?');$q->execute([$id]);$songs=(int)$q->fetchColumn();
+            $html=$view->render('read-only-audit',1,false,(int)$id);
+            guard12(substr_count($html,'class="reward-card"')===min(25,$songs));
+        }
+        guard12(databaseDigest12($pdo)===$digest);
+        fwrite(STDOUT,"Grouped account reward history read-only audit PASS. Account and song pages bounded; ledger unchanged.\n");
+    }
     fwrite(STDOUT,"Stage12 guarded reward administration PASS. Only reward flag changed; account/device/trial/catalog/media/policy/credentials preserved. Payment application unavailable.\n");
 } catch(Throwable $error) {
     fwrite(STDERR,"Stage12 switch failed safely; no private data disclosed.\n");exit(1);
