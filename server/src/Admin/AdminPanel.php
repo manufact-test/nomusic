@@ -319,14 +319,21 @@ final class AdminPanel
     {
         $css = file_get_contents(__DIR__ . '/admin-style.css');
         if ($css === false) throw new \RuntimeException('admin_style_not_found');
+        $script='';$scriptPolicy='';
+        if(str_contains($inner,'data-reward-account="')) {
+            $source=file_get_contents(dirname(__DIR__).'/Reward/reward-disclosure.js');
+            if($source===false) throw new \RuntimeException('reward_script_not_found');
+            $script='<script>'.$source.'</script>';
+            $scriptPolicy=" script-src 'sha256-".base64_encode(hash('sha256',$source,true))."'; connect-src 'self';";
+        }
         $html = '<!doctype html><html lang="ru"><head><meta charset="utf-8">'
             . '<meta name="viewport" content="width=device-width,initial-scale=1">'
             . '<meta name="theme-color" content="#f4f8f6"><title>CELIKOM · Панель управления</title><style>'
-            . $css . '</style></head><body><main>' . $inner . '</main></body></html>';
+            . $css . '</style></head><body><main>' . $inner . '</main>'.$script.'</body></html>';
         return new Response($status, array_merge([
             'Content-Type'=>'text/html; charset=utf-8','Cache-Control'=>'no-store',
             'Content-Security-Policy'=>"default-src 'none'; style-src 'unsafe-inline'; media-src 'self';"
-                . " form-action 'self'; base-uri 'none'; frame-ancestors 'none'",
+                . " form-action 'self'; base-uri 'none'; frame-ancestors 'none';".$scriptPolicy,
             'X-Frame-Options'=>'DENY','X-Robots-Tag'=>'noindex, nofollow'
         ], $otherHeaders), $html);
     }

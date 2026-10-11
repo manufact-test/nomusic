@@ -41,20 +41,21 @@ final class RewardAdminView
             $id=(int)$user['user_id'];$base='/admin?tab=rewards&amp;page='.$page.'&amp;account='.$id;
             $html.='<article class="panel reward-account"><h2>Аккаунт #'.$id.' · '.self::e($user['email']).'</h2>'
                 .'<p>Учтено песен: '.(int)$user['songs'].' · Начислено: <strong>'.(int)$user['earned'].'%</strong></p>';
-            if($account!==$id) $html.='<a class="btn" href="'.$base.'">Песни и бонусы</a>';
+            $html.='<details class="reward-disclosure" data-reward-account="'.$id.'" data-reward-url="'.$base.'"'
+                .($account===$id?' open data-reward-loaded="1"':'').'><summary class="btn">'.($account===$id?'Свернуть':'Песни и бонусы').'</summary><div data-reward-content>';
+            if($account!==$id) $html.='<p>Загружаем песни и бонусы…</p><noscript><a href="'.$base.'">Открыть историю</a></noscript>';
             else {
-                $html.='<a href="/admin?tab=rewards&amp;page='.$page.'">Свернуть</a>';
                 $songPages=max(1,(int)ceil((int)$user['songs']/25));$selectedPage=min(max(1,$songPage),$songPages);$songOffset=($selectedPage-1)*25;
                 $q=$this->pdo->prepare("SELECT l.*,t.service_track_id,t.title,t.artist,(l.expires_at<=UTC_TIMESTAMP(6)) AS is_expired FROM reward_ledger l
                     JOIN track_replacements r ON r.id=l.replacement_id JOIN tracks t ON t.id=r.track_id
                     WHERE l.user_id=? ORDER BY l.id DESC LIMIT 25 OFFSET $songOffset");$q->execute([$id]);$rows=$q->fetchAll(PDO::FETCH_ASSOC);
                 foreach($rows as $row) $html.=$this->song($row);
                 $html.='<nav class="pagination" aria-label="Песни аккаунта"><span>Песни · Страница '.$selectedPage.' из '.$songPages.'</span> ';
-                if($selectedPage>1) $html.='<a href="'.$base.'&amp;song_page='.($selectedPage-1).'">Назад</a> ';
-                if($selectedPage<$songPages) $html.='<a href="'.$base.'&amp;song_page='.($selectedPage+1).'">Далее</a>';
+                if($selectedPage>1) $html.='<a data-reward-page href="'.$base.'&amp;song_page='.($selectedPage-1).'">Назад</a> ';
+                if($selectedPage<$songPages) $html.='<a data-reward-page href="'.$base.'&amp;song_page='.($selectedPage+1).'">Далее</a>';
                 $html.='</nav>';
             }
-            $html.='</article>';
+            $html.='</div></details></article>';
         }
         $html.='<nav class="pagination" aria-label="Страницы аккаунтов">';
         if($page>1) $html.='<a href="/admin?tab=rewards&amp;page='.($page-1).'">Назад</a> ';

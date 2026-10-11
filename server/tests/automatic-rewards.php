@@ -96,10 +96,15 @@ try {
         expect(str_contains($html,'&lt;script&gt;auto&lt;/script&gt;') && !str_contains($html,'<script>auto</script>'),'Metadata escaped');
         expect(!str_contains($html,'Начислить') && !str_contains($html,'Причина'),'Read-only grant history');
     });
-    run('Reward history groups by account, orders newest first and paginates songs independently',function()use($pdo,$users,$create,$storage,$reward,$admin):void {
+    run('Reward history groups by account, orders newest first and paginates songs independently',function()use($pdo,$users,$create,$storage,$reward,$admin,$config,$headers):void {
         $view=new Celikom\Reward\RewardAdminView($pdo);
         $before=$pdo->query('SELECT * FROM reward_ledger ORDER BY id')->fetchAll();
         $html=$view->render('csrf',1);
+        expect(substr_count($html,'<details class="reward-disclosure"')===2 && !str_contains($html,'>Свернуть</a>'),'Account controls are native disclosures, not page navigation');
+        $response=(new Celikom\Application(array_replace($config,['admin_enabled'=>true,'reward_eligibility_enabled'=>true])))->handle('GET','/admin',query:['tab'=>'rewards'],headers:$headers);
+        $script=(string)file_get_contents(dirname(__DIR__).'/src/Reward/reward-disclosure.js');
+        expect($response->status===200 && str_contains($response->headers['Content-Security-Policy'],"script-src 'sha256-".base64_encode(hash('sha256',$script,true))."'"),'Only exact disclosure script allowed by CSP');
+        expect(!str_contains($response->headers['Content-Security-Policy'],"script-src 'unsafe-inline'"),'No unrestricted inline script permission');
         expect(substr_count($html,'class="panel reward-account"')===2 && !str_contains($html,'class="reward-card"'),'One compact card per account, no song wall');
         expect(strpos($html,'Аккаунт #'.$users[0].' ·')<strpos($html,'Аккаунт #'.$users[1].' ·'),'Latest contribution account is first');
         expect(str_contains($html,'Учтено песен: 8') && str_contains($html,'<strong>25%</strong>'),'Account totals match earned rewards');
