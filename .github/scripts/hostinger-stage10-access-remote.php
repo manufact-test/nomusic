@@ -174,6 +174,15 @@ function smoke10(PDO $db, array $config): void {
         $direct=$route->invoke(new Celikom\Application($config),'GET','/api/v1/entitlement',[],['authorization'=>'Bearer '.$tokens[1][0]],'',[],[]);
         guard10($direct->status===200);
         $second=expect10(200,https10('/api/v1/entitlement','GET',null,$tokens[1][0])); guard10($second['allowed']===true);
+        $public=expect10(200,https10('/api/v1/config'));
+        if (($public['features']['rewards']??false)===true) {
+            $rewards=expect10(200,https10('/api/v1/rewards','GET',null,$tokens[1][0]));
+            guard10($rewards['earned_contributions']===0 && $rewards['available_discount_percent']===0
+                && $rewards['carried_discount_percent']===0 && $rewards['expiry_starts']==='payment'
+                && $rewards['application_available']===false && $rewards['discount_active']===false);
+            expect10(405,https10('/api/v1/rewards','POST',['discount'=>100],$tokens[1][0]));
+            echo "Stage12 live reward read PASS: own account only; credits await payment; client grant denied.\n";
+        }
         if ($config['user_uploads_enabled']) contributions10($db,$config,$tokens[1][0],$id);
         echo "Stage10 real HTTPS smoke PASS: account trial 3 days; independent devices; user-bearer approved resolve; signed HEAD/206; catalog availability matches moderation; refresh/logout revoke only one device.\n";
     } finally {
@@ -193,7 +202,7 @@ try {
     $root='/home/u235811320/domains/darkred-camel-588676.hostingersite.com/celikom';
     $release=realpath($root.'/current'); $env=$root.'/shared/env';
     $legacyRelease=is_string($release) && (str_starts_with($release,$root.'/releases/0.4.8-') || str_starts_with($release,$root.'/releases/0.4.9-') || str_starts_with($release,$root.'/releases/0.4.11-'));
-    $stage12AuditRelease=$release===$root.'/releases/0.4.16-dd54afb774baefc90c2c059a6231c85a0442b9b6';
+    $stage12AuditRelease=in_array($release,[$root.'/releases/0.4.16-dd54afb774baefc90c2c059a6231c85a0442b9b6',$root.'/releases/0.4.17-4f926ea740d30dcf04703bf178e272e6922c516e'],true);
     guard10(is_link($root.'/current') && ($legacyRelease || $stage12AuditRelease)
         && !is_link($root) && !is_link($root.'/shared') && !is_link($env) && is_file($env) && (fileperms($env)&0077)===0);
     $requestPath=realpath($argv[1]);
