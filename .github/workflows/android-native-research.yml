@@ -31,6 +31,8 @@ jobs:
           python3 android/spike/generate-fixtures.py
           mkdir -p android/native-research/source/src/main/res/raw
           cp android/spike/app/src/main/res/raw/original.wav android/native-research/source/src/main/res/raw/original.wav
+          mkdir -p android/native-research/controller/src/main/res/raw
+          cp android/spike/app/src/main/res/raw/alternate.wav android/native-research/controller/src/main/res/raw/alternate.wav
           cd android/native-research
           gradle --no-daemon :source:assembleDebug :controller:assembleDebug :controller:assembleDebugAndroidTest :source:lintDebug :controller:lintDebug
       - name: Enable KVM

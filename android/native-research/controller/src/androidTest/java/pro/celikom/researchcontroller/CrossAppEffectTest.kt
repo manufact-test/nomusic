@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.media.audiofx.AudioEffect
+import android.media.MediaPlayer
 import android.media.audiofx.DynamicsProcessing
 import android.media.audiofx.Visualizer
 import android.os.Build
@@ -13,6 +14,7 @@ import android.os.Process
 import android.os.SystemClock
 import android.util.Log
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.core.content.ContextCompat
 import androidx.test.platform.app.InstrumentationRegistry
 import org.json.JSONObject
 import org.junit.Assert.*
@@ -30,11 +32,12 @@ class CrossAppEffectTest {
         val receiver = object : BroadcastReceiver() {
             override fun onReceive(context: Context, intent: Intent) { state.set(intent) }
         }
-        if (Build.VERSION.SDK_INT >= 33) context.registerReceiver(receiver,
-            IntentFilter("pro.celikom.research.SNAPSHOT"), Context.RECEIVER_EXPORTED)
-        else context.registerReceiver(receiver, IntentFilter("pro.celikom.research.SNAPSHOT"))
+        ContextCompat.registerReceiver(context, receiver,
+            IntentFilter("pro.celikom.research.SNAPSHOT"), ContextCompat.RECEIVER_EXPORTED)
         var effect: DynamicsProcessing? = null
         var visualizer: Visualizer? = null
+        var alternate: MediaPlayer? = null
+        var alternateVisualizer: Visualizer? = null
         val report = JSONObject().put("api", Build.VERSION.SDK_INT)
             .put("yandex_tested", false).put("physical_routes_tested", false)
         try {
@@ -61,17 +64,31 @@ class CrossAppEffectTest {
             val before = rms(visualizer)
             report.put("baseline_rms", before)
             assertTrue("Owned baseline must be measurable", before > 0.5)
+            alternate = MediaPlayer.create(context, pro.celikom.researchcontroller.R.raw.alternate)
+                .apply { isLooping = true; start() }
+            assertNotEquals(session, alternate.audioSessionId)
+            alternateVisualizer = Visualizer(alternate.audioSessionId).apply {
+                captureSize = Visualizer.getCaptureSizeRange()[1]
+                scalingMode = Visualizer.SCALING_MODE_AS_PLAYED
+                enabled = true
+            }
+            val alternateBefore = rms(alternateVisualizer)
+            assertTrue("Separate alternative must be measurable", alternateBefore > 0.5)
             effect = DynamicsProcessing(0, session, null)
             assertTrue("Effect must be controlled", effect.hasControl())
             effect.setInputGainAllChannelsTo(-100f)
             assertEquals(AudioEffect.SUCCESS, effect.setEnabled(true))
             val muted = rms(visualizer)
+            val alternateDuring = rms(alternateVisualizer)
             val position = state.get().getIntExtra("position", -1)
             SystemClock.sleep(400)
             assertTrue(state.get().getBooleanExtra("playing", false))
             assertTrue(state.get().getIntExtra("position", -1) != position)
             report.put("effect_attached", true).put("attenuated_rms", muted)
                 .put("source_keeps_playing", true)
+                .put("alternate_before_rms", alternateBefore)
+                .put("alternate_during_rms", alternateDuring)
+                .put("alternate_unaffected", alternateDuring > alternateBefore * 0.5)
             effect.release()
             effect = null
             val restored = rms(visualizer)
@@ -79,7 +96,8 @@ class CrossAppEffectTest {
             // A successful setter alone does not establish audible attenuation.
             report.put("measured_attenuation", muted < before * 0.1)
                 .put("measured_restore", restored > before * 0.5)
-                .put("classification", if (muted < before * 0.1 && restored > before * 0.5)
+                .put("classification", if (muted < before * 0.1 && restored > before * 0.5
+                    && alternateDuring > alternateBefore * 0.5)
                     "owned_cross_app_candidate" else "effect_not_proven_by_waveform")
         } catch (failure: RuntimeException) {
             // Unsupported effects/permissions are research outcomes, not integration PASS.
@@ -89,6 +107,8 @@ class CrossAppEffectTest {
         } finally {
             effect?.release()
             visualizer?.release()
+            alternateVisualizer?.release()
+            alternate?.release()
             context.unregisterReceiver(receiver)
             instrumentation.uiAutomation.executeShellCommand(
                 "am force-stop pro.celikom.researchsource").close()
