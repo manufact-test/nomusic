@@ -53,7 +53,20 @@ final class RewardService
     {
         $q = $this->pdo->prepare("SELECT COUNT(*) FROM reward_ledger WHERE user_id=? AND status='pending'");
         $q->execute([$userId]);
-        return ['pending_contributions'=>(int)$q->fetchColumn(), 'reward_available'=>false,
-            'discount_active'=>false, 'policy_configured'=>false];
+        $pending=(int)$q->fetchColumn();
+        $policy=(new RewardPolicyService($this->pdo))->read();
+        $q=$this->pdo->prepare("SELECT COUNT(*) AS credits,COALESCE(SUM(l.discount_percent),0) AS total
+            FROM reward_ledger l JOIN track_replacements r ON r.id=l.replacement_id
+            JOIN users u ON u.id=l.user_id JOIN user_email_security e ON e.user_id=u.id
+            WHERE l.user_id=? AND l.status='approved' AND l.expires_at>UTC_TIMESTAMP(6)
+                AND u.status='active' AND e.verified_at IS NOT NULL
+                AND r.status='approved' AND r.is_active=1 AND r.disabled_at IS NULL
+                AND r.uploaded_by_user_id=l.user_id AND r.audio_asset_id=l.audio_asset_id");
+        $q->execute([$userId]);$credits=$q->fetch(PDO::FETCH_ASSOC);
+        return ['pending_contributions'=>$pending, 'approved_credits'=>(int)$credits['credits'],
+            'potential_discount_percent'=>min($policy['max_discount_percent'],(int)$credits['total']),
+            'reward_available'=>false,'discount_active'=>false,'application_available'=>false,
+            'policy_configured'=>$policy['upload_discount_percent']>0 && $policy['max_reward_per_month']>0 && $policy['validity_days']>0,
+            'issuance_enabled'=>(bool)$policy['enabled']];
     }
 }

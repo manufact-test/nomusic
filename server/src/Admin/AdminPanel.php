@@ -77,6 +77,41 @@ final class AdminPanel
                 return Response::json(409,['error'=>'metadata_conflict']);
             }
         }
+        if (in_array($path,['/admin/rewards/policy','/admin/rewards/action'],true)) {
+            if (!$this->rewardEligibilityEnabled) return Response::json(404,['error'=>'not_found']);
+            if ($admin['role']!=='owner') return Response::json(403,['error'=>'forbidden']);
+            if ($method!=='POST') return Response::json(405,['error'=>'method_not_allowed']);
+            $form=$this->form($headers,$body);
+            if (!AdminAuth::validCsrf($admin,$form['csrf']??null)) return Response::json(403,['error'=>'csrf_failed']);
+            $version=$this->positiveInt($form['version']??null);
+            if (!$version || !is_string($form['reason']??null)) return Response::json(400,['error'=>'invalid_reward_action']);
+            try {
+                if ($path==='/admin/rewards/policy') {
+                    $values=['enabled'=>($form['enabled']??'0')==='1'?1:0];
+                    foreach(['upload_discount_percent','max_discount_percent','max_reward_per_month','validity_days'] as $key) {
+                        $value=$this->nonnegativeInt($form[$key]??null);
+                        if ($value===null) throw new \InvalidArgumentException('invalid_reward_policy');
+                        $values[$key]=$value;
+                    }
+                    (new \Celikom\Reward\RewardPolicyService($this->pdo))->configure($admin['id'],$version,$values,$form['reason']);
+                } else {
+                    $id=$this->positiveInt($form['id']??null);$policyVersion=$this->positiveInt($form['policy_version']??null);
+                    if (!$id || !$policyVersion || !is_string($form['action']??null)) throw new \InvalidArgumentException('invalid_reward_action');
+                    (new \Celikom\Reward\RewardDecisionService($this->pdo))->decide($admin['id'],$id,$version,$policyVersion,$form['action'],$form['reason']);
+                }
+                return new Response(303,['Location'=>'/admin?tab=rewards','Cache-Control'=>'no-store']);
+            } catch (\InvalidArgumentException) {
+                return $this->page('<section class="panel"><h1>Проверьте правила и причину</h1><p>Укажите целые значения в пределах полей. Для начисления нужны ненулевые правила и причина решения.</p><a href="/admin?tab=rewards">Вернуться к наградам</a></section>',status:400);
+            } catch (\DomainException $error) {
+                $message=match($error->getMessage()) {
+                    'reward_monthly_limit'=>'Лимит начислений этому аккаунту за текущий месяц исчерпан.',
+                    'reward_policy_disabled'=>'Начисление наград выключено в правилах.',
+                    'reward_contribution_unavailable'=>'Версия песни или аккаунт больше не подходят для начисления.',
+                    default=>'Данные изменились. Обновите раздел и проверьте решение ещё раз.'
+                };
+                return $this->page('<section class="panel"><h1>Решение не сохранено</h1><p>'.self::e($message).'</p><a href="/admin?tab=rewards">Вернуться к наградам</a></section>',status:409);
+            }
+        }
         if ($path === '/admin/action' && $method === 'POST') {
             if (!in_array($admin['role'], ['owner','moderator'], true)) return Response::json(403, ['error'=>'forbidden']);
             $form = $this->form($headers, $body);
@@ -140,6 +175,10 @@ final class AdminPanel
             return $this->preview($method, (int)$m[1], $headers);
         }
         if (($path === '/admin' || $path === '/admin/') && $method === 'GET') {
+            if (($query['tab']??null)==='rewards') {
+                if (!$this->rewardEligibilityEnabled) return Response::json(404,['error'=>'not_found']);
+                if ($admin['role']!=='owner') return Response::json(403,['error'=>'forbidden']);
+            }
             if ($this->billingViewsEnabled && ($query['tab'] ?? null)==='billing' && $admin['role']!=='owner')
                 return Response::json(403,['error'=>'forbidden']);
             return $this->page($this->dashboard($admin, $query));
@@ -315,6 +354,7 @@ final class AdminPanel
         $tab = is_string($query['tab'] ?? null) ? $query['tab'] : 'uploads';
         $allowed = ['uploads','requests','reports','audit','overview'];
         if ($this->billingViewsEnabled && $admin['role']==='owner') $allowed[]='billing';
+        if ($this->rewardEligibilityEnabled && $admin['role']==='owner') $allowed[]='rewards';
         if (!in_array($tab, $allowed, true)) $tab = 'uploads';
         $csrf = self::e($admin['csrf']);
         $size = $this->pageSize($query);
@@ -343,6 +383,10 @@ final class AdminPanel
                 . self::e($name) . '</a>';
         }
         $html .= '</nav>';
+        if ($this->rewardEligibilityEnabled && $admin['role']==='owner') {
+            $html.='<nav class="nav" aria-label="Награды"><a href="/admin?tab=rewards"'
+                .($tab==='rewards'?' class="current" aria-current="page"':'').'>Награды за вклад</a></nav>';
+        }
         if ($this->billingViewsEnabled && $admin['role']==='owner') {
             $html .= '<nav class="nav" aria-label="Финансы"><a href="/admin?tab=billing"'
                 . ($tab==='billing' ? ' class="current" aria-current="page"' : '') . '>Платежи и подписки</a></nav>';
@@ -367,6 +411,7 @@ final class AdminPanel
             'audit' => $this->auditLog($query),
             'overview' => $this->overview($query),
             'billing' => $this->billingOverview($query),
+            'rewards' => (new \Celikom\Reward\RewardAdminView($this->pdo))->render($admin['csrf'], $this->positiveInt($query['page']??null) ?: 1),
             default => $this->uploads($admin, $csrf, $query),
         };
     }
