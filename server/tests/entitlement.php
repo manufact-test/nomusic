@@ -246,6 +246,35 @@ try {
         expect($pdo->query('SELECT * FROM account_trials ORDER BY user_id')->fetchAll() === $before, 'trial deadlines preserved');
         expect($pdo->query('SELECT id, status, is_active, version FROM track_replacements ORDER BY id')->fetchAll() === $catalogBefore, 'catalog unchanged');
     });
+    run('Stage14 shared quota remains bounded across four independent PHP processes', function () use ($pdo): void {
+        $identity = hash('sha256', 'isolated-security-' . bin2hex(random_bytes(16)));
+        $workers = [];
+        try {
+            for ($i = 0; $i < 4; $i++) {
+                $process = proc_open([PHP_BINARY, __DIR__ . '/security-rate-worker.php', $identity],
+                    [0 => ['pipe','r'], 1 => ['pipe','w'], 2 => ['pipe','w']], $pipes);
+                expect(is_resource($process), 'quota worker created');
+                stream_set_timeout($pipes[1], 15);
+                $workers[] = [$process, $pipes];
+                expect(trim((string) fgets($pipes[1])) === 'ready', 'quota worker connected');
+            }
+            foreach ($workers as [$process, $pipes]) { fwrite($pipes[0], "go\n"); fclose($pipes[0]); }
+            $allowed = 0;
+            foreach ($workers as [$process, $pipes]) {
+                $result = json_decode((string) stream_get_contents($pipes[1]), true, flags: JSON_THROW_ON_ERROR);
+                fclose($pipes[1]); $error = stream_get_contents($pipes[2]); fclose($pipes[2]);
+                expect(proc_close($process) === 0 && $error === '', 'quota worker succeeds');
+                $allowed += $result['allowed'];
+            }
+            $query = $pdo->prepare('SELECT COUNT(*) AS windows, SUM(attempts) AS attempts FROM upload_rate_buckets WHERE identity_hash = ?');
+            $query->execute([$identity]); $buckets = $query->fetch();
+            expect((int) $buckets['attempts'] === 32, 'all concurrent attempts accounted');
+            expect($allowed <= 3 * (int) $buckets['windows'], 'no concurrent worker bypasses fixed-hour ceiling');
+        } finally {
+            $cleanup = $pdo->prepare('DELETE FROM upload_rate_buckets WHERE identity_hash = ?');
+            $cleanup->execute([$identity]);
+        }
+    });
 } finally {
     if ($pdo->inTransaction()) $pdo->rollBack();
     foreach ($ids as $id) {

@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.4.25 — 2026-10-11 (independent Stage 14 security)
+
+- Worker popup sender gate; delayed Start cannot undo later Stop/Original/logout.
+- Bounded streamed auth JSON; contribution device/IP quotas with HMAC keys, audio excluded.
+- Explicit extension CSP, bundle credential/permission/dependency gate and nested signing/config lint.
+- No new migration/reset; protected snapshot, isolated restore, preserved-credential rollout and read-only integrity PASS.
+- Single full client/API package; Android 16/17 and operational offsite/log/capacity obligations remain separate.
+
 ## Documentation — 2026-10-08
 
 - Мастер-ТЗ обновлён до v1.4, карта работ до v1.5 с сохранением основных файлов и дальнейшего scope 0–18. Зафиксированы Stage 2/3 acceptance, автоматизированный Stage 4 gate и уже выполненный Hostinger API/MySQL deploy. Stage 5 остаётся активным до первого живого MP3/WAV и operational проверок.

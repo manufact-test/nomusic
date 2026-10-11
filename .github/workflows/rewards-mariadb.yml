@@ -11,6 +11,7 @@ on:
       - server/src/Application.php
       - server/src/Auth/**
       - server/tests/entitlement.php
+      - server/tests/security-rate-worker.php
       - server/tests/incidents.php
       - server/tests/automatic-rewards.php
       - server/tests/reward-policy.php

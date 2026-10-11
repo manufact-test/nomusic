@@ -1,3 +1,16 @@
+> **11.10.2026 — независимый security-пакет этапа 14: CELIKOM 0.4.25.**
+> Backend `0.4.25-35428e3854769bf4e63c5c6f980fc5756a5581a8` развёрнут; полный единый клиент 0.4.25 подготовлен.
+> Последняя подтверждённая установка владельца — 0.4.24; установку 0.4.25 не приписывать владельцу.
+> Закрыты найденные пробелы worker sender/intent, bounded auth JSON, write quotas account/device/IP и build secret/dependency gate.
+> CI/MySQL/native Chromium 38155889035 PASS; MariaDB 38155439841 PASS; configured ZIP 38155884847 PASS.
+> Snapshot 38155683083, isolated restore 38155787902, deploy 38155884937, read-only integrity 38156091112 — PASS.
+> Новых миграций/reset/backfill/live incident нет; private env, аудио и исторические row counts сохранены.
+> Полное закрытие 14 не заявлено: offsite backup, provider-log redaction/rotation и capacity monitoring требуют операционной проверки.
+> Далее разрешён Android PoC 16 без Alpha/провайдера; 15 исключён, Beta 17 и приватизация 18 сохраняются.
+> Owner-промокоды 12 остаются отдельной обязательной задачей: код/grants этим пакетом не созданы. Billing 11–13 частичные.
+> PR #6 OPEN/unmerged, Issue #7/#10/#11/#12/#13 OPEN. Подробно: [Stage14](https://github.com/manufact-test/nomusic/blob/feature/api-range/docs/decisions/STAGE14-2026-10-11.md).
+> Эта запись имеет приоритет над историческими статусами ниже.
+
 > **11.10.2026 — текущая передача: клиент 0.4.24 установлен; далее этап 14.**
 > Независимая часть 13 реализована; real billing/checkout/recurring и платёжные части 11–13 не подключены.
 > Владелец исключил отдельную Alpha 15: текущее использование втроём, без новой кампании и gate.
