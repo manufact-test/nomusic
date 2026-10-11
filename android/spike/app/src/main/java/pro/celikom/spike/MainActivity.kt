@@ -67,7 +67,7 @@ class MainActivity : ComponentActivity() {
                 LaunchedEffect(Unit){
                     while(true){
                         runCatching{withContext(Dispatchers.IO){account.request("/api/v1/config",authenticated=false)}}.getOrNull()?.optJSONObject("incident")?.let {
-                            if(it.optString("service")=="yandex"&&it.has("active")){
+                            if(it.optString("service")=="yandex"&&it.opt("active") is Boolean){
                                 val active=it.getBoolean("active")
                                 if(active&&!incident)playback.stop("Подмена временно приостановлена")
                                 incident=active

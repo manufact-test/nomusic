@@ -18,7 +18,7 @@ class MobilePlaybackTest {
         @Volatile var delayMs=0L
         override fun entitlement(activate:Boolean)=JSONObject().put("allowed",allowed)
         override fun request(path:String,body:JSONObject?,authenticated:Boolean,retry:Boolean):JSONObject {
-            if(path.endsWith("config"))return JSONObject().put("maintenance",false).put("features",JSONObject().put("replacements",true))
+            if(path.endsWith("config"))return JSONObject().put("api_version",1).put("minimum_extension_version","0.4.28").put("maintenance",false).put("features",JSONObject().put("replacements",true))
             Thread.sleep(delayMs)
             val expiry=System.currentTimeMillis()/1000+600
             return JSONObject().put("found",true).put("replacement_id",1).put("duration_ms",8000).put("version",1).put("expires_at",expiry)

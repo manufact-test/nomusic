@@ -39,6 +39,7 @@ class MobilePlayback(private val account:PlaybackAccount,private val surface:Pla
         enabled=resume
     }
     private fun fail(message:String){stop(message)}
+    private fun resetAuto(message:String){val resume=enabled;stop(message);enabled=resume}
     private fun tick(){
         if(!enabled)return
         if(polling){if(System.currentTimeMillis()-pollAt>1200)fail("Нет ответа плеера — звучит оригинал");return}
@@ -48,7 +49,7 @@ class MobilePlayback(private val account:PlaybackAccount,private val surface:Pla
             polling=false
             if(!enabled)return@snapshot
             latest=s
-            if(s==null||!s.optBoolean("valid")) { if(player!=null||preparing)fail("Плеер изменился — возвращён оригинал") else state("Включите трек в Яндекс Музыке");return@snapshot }
+            if(s==null||!s.optBoolean("valid")) { if(player!=null||preparing)resetAuto("Определяем текущий трек — звучит оригинал") else state("Включите трек в Яндекс Музыке");return@snapshot }
             if(s.optBoolean("paused")||s.optBoolean("seeking")) {
                 if(player!=null||preparing){stop("Пауза или перемотка — звучит оригинал");enabled=true}
                 return@snapshot
@@ -84,7 +85,12 @@ class MobilePlayback(private val account:PlaybackAccount,private val surface:Pla
             try {
                 val grant=withContext(Dispatchers.IO){
                     val config=account.request("/api/v1/config",authenticated=false)
-                    require(!config.optBoolean("maintenance")&&config.getJSONObject("features").optBoolean("replacements")){"Подмена временно приостановлена"}
+                    require(config.getInt("api_version")==1)
+                    val minimum=config.getString("minimum_extension_version").split(".").map{it.toInt()}
+                    require(minimum.size==3)
+                    val compatible=minimum.zip(listOf(0,4,28)).firstOrNull{it.first!=it.second}?.let{it.first<it.second}?:true
+                    require(compatible){"Обновите CELIKOM для совместимости с API"}
+                    require(!config.optBoolean("maintenance")&&config.getJSONObject("features").optBoolean("replacements")&&(config.optJSONObject("incident")?.optBoolean("active")!=true)){"Подмена временно приостановлена"}
                     val entitlement=account.entitlement(true)
                     require(entitlement.optBoolean("allowed")){if(entitlement.optString("reason")=="service_incident") "Подмена временно приостановлена" else "Нет действующего доступа"}
                     AudioGrant.parse(account.request("/api/v1/resolve?service=yandex&track_id=$requestedTrack"))
@@ -98,7 +104,7 @@ class MobilePlayback(private val account:PlaybackAccount,private val surface:Pla
                 p.setAudioAttributes(AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_MEDIA).setContentType(AudioAttributes.CONTENT_TYPE_MUSIC).build())
                 p.setVolume(0f,0f)
                 p.setOnErrorListener{_,_,_->if(player===p)fail("Не удалось воспроизвести подмену — звучит оригинал");true}
-                p.setOnCompletionListener{if(player===p)fail("Подмена закончилась — звучит оригинал")}
+                p.setOnCompletionListener{if(player===p)resetAuto("Подмена закончилась — звучит оригинал")}
                 p.setOnPreparedListener {
                     if(generation!=epoch||player!==p)return@setOnPreparedListener
                     val target=latest?.optDouble("position",0.0)?.times(1000)?.toLong()?:0L
@@ -120,7 +126,7 @@ class MobilePlayback(private val account:PlaybackAccount,private val surface:Pla
                 }
                 loadAudio(p,grant);p.prepareAsync()
                 scope.launch{delay(12000);if(generation==epoch&&preparing)fail("Тайм-аут загрузки — звучит оригинал")}
-            }catch(e:Exception){if(generation==epoch)fail(e.message?.takeIf{it.length<120}?:"Сбой связи — звучит оригинал")}
+            }catch(e:Exception){if(generation==epoch)fail(e.message?.takeIf{it in setOf("Подмена временно приостановлена","Нет действующего доступа","Войдите в аккаунт CELIKOM","Обновите CELIKOM для совместимости с API")}?:"Не удалось проверить доступ или загрузить подмену — звучит оригинал")}
         }
     }
     private fun refreshAccess(generation:Long){scope.launch{

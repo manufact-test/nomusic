@@ -7,7 +7,8 @@ import org.json.JSONObject
 data class AudioGrant(val url:String,val durationMs:Int,val expiresAt:Long) {
     companion object {
         fun parse(j:JSONObject,now:Long=System.currentTimeMillis()):AudioGrant? {
-            if(j.optBoolean("found")==false) return null
+            require(j.get("found") is Boolean)
+            if(!j.getBoolean("found")) return null
             val id=j.getLong("replacement_id"); require(id>0)
             val duration=j.getInt("duration_ms"); require(duration in 1..86400000)
             val expiry=j.getLong("expires_at")*1000

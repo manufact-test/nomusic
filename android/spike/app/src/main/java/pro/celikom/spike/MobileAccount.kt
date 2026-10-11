@@ -113,8 +113,12 @@ class MobileAccount(context: Context):PlaybackAccount {
     @Synchronized fun resetPassword(email:String,code:String,password:String){
         request("/api/v1/auth/reset-password",JSONObject().put("email",email.trim()).put("code",code.trim()).put("new_password",password),false)
     }
-    @Synchronized override fun entitlement(activate:Boolean):JSONObject = if(activate)
-        request("/api/v1/auth/activate",JSONObject()).getJSONObject("entitlement") else request("/api/v1/entitlement")
+    @Synchronized override fun entitlement(activate:Boolean):JSONObject {
+        val e=if(activate)request("/api/v1/auth/activate",JSONObject()).getJSONObject("entitlement") else request("/api/v1/entitlement")
+        require(e.get("allowed") is Boolean && e.get("reason") is String && e.get("source") is String && e.has("valid_until"))
+        if(!e.isNull("valid_until")){val until=e.getString("valid_until");require(until.endsWith("Z"));java.time.Instant.parse(until)}
+        return e
+    }
     @Synchronized fun redeem(code:String):JSONObject {
         require(code.trim().matches(Regex("[A-Za-z0-9_-]{8,64}"))) { "Проверьте текст промокода" }
         return request("/api/v1/promos/redeem",JSONObject().put("code",code.trim()))
