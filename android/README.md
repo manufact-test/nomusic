@@ -1,5 +1,3 @@
-# Android boundary
+# Android Stage 16
 
-This directory reserves the future Android client boundary defined by Stages 16–17.
-
-No Android playback implementation is included in the MVP promise. Stage 16 must first prove the playback mechanism against exact track state and fail-open requirements. A later companion app may expose account, subscription, referral, upload and status features without playback when product scope explicitly allows it.
+Diagnostic Kotlin/Compose implementation: [spike](spike/README.md). Surface decision and evidence: [android-playback](../docs/spikes/android-playback.md). Stage 16 remains partial; no Yandex Android playback acceptance or Beta release is claimed.

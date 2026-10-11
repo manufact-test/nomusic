@@ -16,3 +16,7 @@ server/storage/
 .idea/
 .vscode/
 stage7/.runtime/
+android/**/build/
+android/**/.gradle/
+android/**/local.properties
+android/spike/app/src/main/res/raw/*.wav
