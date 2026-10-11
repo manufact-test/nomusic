@@ -1,3 +1,40 @@
+> [Snapshot нового live schema 38129853027 — PASS](https://github.com/manufact-test/nomusic/actions/runs/38129853027):
+> 8 audio объектов, все 32 SQL таблицы (включая reward_ledger/reward_policy) и env.
+> [Restore нового schema 38129932202 — PASS](https://github.com/manufact-test/nomusic/actions/runs/38129932202):
+> закрытые файлы и SQL восстановлены изолированно, live данные не заменялись.
+> ZIP 0.4.16 готов к одной содержательной owner-проверке; результаты ещё не получены.
+
+> [Live unified audit 38129760860 — PASS](https://github.com/manufact-test/nomusic/actions/runs/38129760860):
+> обычный user bearer, трёхдневный trial, независимые устройства, refresh/logout
+> только одного устройства, signed HEAD/206 и полный MP3 девятью диапазонами,
+> загрузка MP3 и отдельное предложение без файла, dedupe, pending denied playback.
+> Проверка выполнена на новом live release, без отдельного API_TEST_TOKEN для клиента.
+> Сохранность прежних catalog/media/accounts/trials/sessions подтверждена после
+> удаления только временных QA-записей. Старый audit сначала отказал новой версии
+> по allowlist до каких-либо записей; разрешён только audit точного release SHA,
+> старые reset-trials/enable операции для этого release не разрешены.
+> [Stage12 audit 38129629193 — PASS](https://github.com/manufact-test/nomusic/actions/runs/38129629193).
+> Ручная проверка новых наград ещё ожидается; рабочий playback не считается
+> повторно принятым владельцем лишь по автоматическому HTTP smoke.
+
+> **11.10.2026 — Stage12 развёрнут, подготовка ручной проверки 0.4.16.**
+> Hostinger release `0.4.16-dd54afb774baefc90c2c059a6231c85a0442b9b6`,
+> [deploy 38129391202 — PASS](https://github.com/manufact-test/nomusic/actions/runs/38129391202).
+> Миграции 009–012 additive; старые owner credentials и flags сохранены, не ротированы.
+> [Enable 38129558574 — PASS](https://github.com/manufact-test/nomusic/actions/runs/38129558574):
+> изменён только FEATURE_REWARD_ELIGIBILITY=1, digest аккаунтов/устройств/сессий/
+> trials/catalog/media/policy сохранён, HTTPS rewards без bearer = 401.
+> Owner-раздел «Награды за вклад» включён; правила остаются выключенными/нулевыми.
+> FEATURE_BILLING_VIEWS=0, FEATURE_REFERRAL_ATTRIBUTION=0, реальные платежи/применение
+> скидки/списание бонуса/paid entitlement не включены. Исторические авторы не backfill.
+> Полный Chrome ZIP 0.4.16 SHA256 `5a89f46b17163d09479f561473a6a683d5f49d4d019bddbb52d64f3496e916eb`;
+> включает правку отступа без трека, pin на прежний Hostinger API, оба MV3 worlds.
+> Это одно расширение, установленную резервную 0.4.4 не удалять. Ручная проверка:
+> новая загрузка → approve версии → pending-вклад → grant/revoke/журнал в админке,
+> затем обычный playback/оригинал и отсутствие отступа. Не давать отдельный текст на QA.
+> Старые документы ниже — история, не актуальное «сервер 0.4.11 не обновлялся».
+> Этап 12 частичный; не закрывать до qualification/реальных скидок и owner acceptance.
+
 > **11.10.2026 — подготовлен функциональный пакет наград 0.4.16.**
 > [CI 38129250332 — PASS](https://github.com/manufact-test/nomusic/actions/runs/38129250332),
 > код `ddbc192d6855f2187c80f7692176eeb7b50c44fb`: 141 тест расширения,
