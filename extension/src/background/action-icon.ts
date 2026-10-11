@@ -1,0 +1,35 @@
+// Toolbar presentation only. Color never authorizes playback or extends access.
+export function createActionIcon(api, clock = {}) {
+  const schedule = clock.schedule || ((fn, delay) => setTimeout(fn, delay));
+  const cancel = clock.cancel || ((timer) => clearTimeout(timer));
+  const active = new Map();
+  let shown = null, pending = Promise.resolve();
+  function paint() {
+    const enabled = active.size > 0;
+    if (shown === enabled) return;
+    shown = enabled;
+    const color = enabled ? "green" : "gray";
+    const path = Object.fromEntries([16,32,48,128].map(size => [size, `assets/icons/${color}-${size}.png`]));
+    pending = pending.catch(() => {}).then(async () => {
+      await api.action?.setIcon({ path });
+      await api.action?.setTitle({ title: enabled ? "CELIKOM · подмена активна" : "CELIKOM · подмена не активна" });
+    }).catch(() => {});
+  }
+  function update(tabId, replacing) {
+    if (!Number.isInteger(tabId)) return;
+    if (active.has(tabId)) cancel(active.get(tabId));
+    active.delete(tabId);
+    if (replacing) {
+      const timer = schedule(() => { active.delete(tabId); paint(); }, 6000);
+      timer?.unref?.();
+      active.set(tabId, timer);
+    }
+    paint();
+  }
+  function clear() { for (const timer of active.values()) cancel(timer); active.clear(); paint(); }
+  paint();
+  api.tabs.onRemoved?.addListener(tabId => update(tabId, false));
+  api.tabs.onUpdated?.addListener((tabId, change) => { if (change.status === "loading") update(tabId, false); });
+  api.storage.onChanged?.addListener((changes, area) => { if (area === "local" && changes.enabled?.newValue === false) clear(); });
+  return { update, clear };
+}

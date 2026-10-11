@@ -6,6 +6,9 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { contentScriptGroups } from "./content-script-groups.mjs";
 import { apiBuildConfig } from "./api-build-config.mjs";
+import { buildIcons } from "./build-icons.mjs";
+
+await buildIcons();
 
 const extensionRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const sourceRoot = path.join(extensionRoot, "src");

@@ -42,6 +42,7 @@ function render(state: ExtensionState): void {
   status.textContent = state.manualBypass ? "Оригинал" : state.replacementError ? "Оригинал · ошибка подмены" : labels[state.phase] || "Проверка…";
   status.dataset.active = String(state.enabled);
   startButton.disabled = state.enabled && state.phase !== "ERROR" && !state.manualBypass && !state.replacementError;
+  if (starting) startButton.disabled = true;
   startButton.textContent = state.phase === "ERROR" ? "Повторить" : "Старт";
   stopButton.disabled = !state.enabled;
   if (testInput && document.activeElement !== testInput) testInput.value = state.settings?.testTrackId || "";
@@ -65,16 +66,30 @@ async function send<T>(message: object): Promise<T> {
   return chrome.runtime.sendMessage(message) as Promise<T>;
 }
 
+let starting = false;
 startButton?.addEventListener("click", async () => {
-  const state = await send<ExtensionState>({ type: COMMANDS.setEnabled, enabled: true });
-  render(state);
+  if (starting) return;
+  starting = true;
+  startButton.disabled = true;
   const access = document.querySelector<HTMLElement>("[data-access-status]");
-  if (access && state.accessError) {
-    access.textContent = state.accessError === "track_required"
-      ? "Сначала запустите песню в Яндекс Музыке."
-      : state.accessError === "sign_in_required" ? "Войдите в аккаунт перед стартом."
-      : "Доступ недоступен. Проверьте аккаунт и соединение.";
-  } else await refreshAccess();
+  if (access) { access.textContent = "Проверяем доступ…"; access.dataset.kind = "loading"; }
+  try {
+    const state = await send<ExtensionState>({ type: COMMANDS.setEnabled, enabled: true });
+    if (state.accessError === "sign_in_required") accountPanel?.requireLogin();
+    else render(state);
+    if (access && state.accessError) {
+      access.dataset.kind = "error";
+      access.textContent = state.accessError === "track_required"
+        ? "Сначала запустите песню в Яндекс Музыке."
+        : state.accessError === "sign_in_required" ? "Войдите в аккаунт, чтобы включить подмену музыки."
+        : "Доступ недоступен. Проверьте аккаунт и соединение.";
+    } else { if (access) delete access.dataset.kind; await refreshAccess(); }
+  } catch (_) {
+    if (access) { access.dataset.kind = "error"; access.textContent = "Нет связи с расширением. Попробуйте ещё раз."; }
+  } finally {
+    starting = false;
+    startButton.disabled = Boolean(lastState?.enabled && !lastState?.replacementError && !lastState?.manualBypass && lastState?.phase !== "ERROR");
+  }
 });
 
 const addTrackButton = document.querySelector<HTMLButtonElement>("[data-action='add']");
@@ -490,4 +505,4 @@ void refreshAccess();
 window.setInterval(() => void refreshAccess(), 15000);
 
 // Account UI retains the accepted email/recovery flow.
-initAuthPanel(send);
+const accountPanel = initAuthPanel(send);

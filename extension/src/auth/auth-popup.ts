@@ -101,6 +101,7 @@ export function initAuthPanel(send) {
   function view(next, user) {
     const previous = mode;
     mode = next;
+    if (next === "signed") delete root.dataset.authRequired;
     if (previous !== next) benefits.signed(next === "signed");
     if (typeof document.dispatchEvent === "function" && previous !== next) {
       if (previous === "signed") document.dispatchEvent(new Event("celikom-account-logout"));
@@ -124,7 +125,9 @@ export function initAuthPanel(send) {
       if (content) content.scrollTop = 0;
     }
     if (next !== "login" && next !== "register" && suggestion) suggestion.hidden = true;
-    show();
+    if (root.dataset.authRequired === "true" && ["login", "register"].includes(next))
+      show("Войдите в аккаунт, чтобы включить подмену музыки.", "error");
+    else show();
   }
   const goodEmail = (v) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/u.test(v) && v.length <= 254;
   const goodPass = (v) => [...v].length >= 12 && [...v].length <= 128;
@@ -260,4 +263,15 @@ export function initAuthPanel(send) {
   view("login");
   q("summary").textContent = previousLabel === "signed" ? "Аккаунт · подключён"
     : previousLabel === "login" ? "Аккаунт · войти" : "Аккаунт";
+  return {
+    requireLogin() {
+      if (mode === "signed") view("login");
+      root.open = true;
+      root.dataset.authRequired = "true";
+      q("summary").textContent = "Аккаунт · требуется вход";
+      show("Войдите в аккаунт, чтобы включить подмену музыки.", "error");
+      note.setAttribute("role", "alert");
+      email.focus();
+    }
+  };
 }

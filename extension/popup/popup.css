@@ -376,3 +376,8 @@ button:focus-visible { border-color: #66e0bf; }
 /* Applicable status rows retain two lines; hidden song status takes no space. */
 .access-status { height: 32px; min-height: 32px; display: grid; align-content: center; }
 .version-status { height: 36px; min-height: 36px; display: grid; align-content: center; }
+
+/* A denied Start makes the required account action visible immediately. */
+.account-panel[data-auth-required="true"] { border-color: #ff918b; }
+.account-panel[data-auth-required="true"] > summary,
+.access-status[data-kind="error"] { color: #ff918b; }

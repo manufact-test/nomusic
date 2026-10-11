@@ -197,3 +197,13 @@ test("automatic contribution benefits use own bearer and do not need invitation 
   await fx.broker.perform("logout");
   assert.equal((await fx.broker.perform("benefits")).ok, false);
 });
+
+test('account presence preview is immediate, credential-free and cannot authorize playback',async()=>{
+ const fx=mock();
+ const empty=await fx.broker.perform('account-preview');
+ assert.equal(empty.localSession,false);assert.equal(fx.calls.length,0,'no config or network request before missing-account feedback');
+ await fx.broker.perform('login',{email:'a@example.org',password:'longpassword123'});
+ const calls=fx.calls.length,preview=await fx.broker.perform('account-preview');
+ assert.equal(preview.localSession,true);assert.equal(fx.calls.length,calls);
+ assert.deepEqual(Object.keys(preview).sort(),['localSession','ok']);
+});

@@ -193,6 +193,11 @@ export function createAuthBroker(api, options = {}) {
           error: "session_expired" };
       }
     }
+    if (action === "account-preview") {
+      // Presence only; never authority to start a trial, resolve or play audio.
+      const saved = await store.get();
+      return { ok: true, localSession: Boolean(saved?.refresh_token && saved?.user?.email) };
+    }
     if (action !== "contribution-access" && action !== "track-status" && !await isAvailable()) return { ok: false, error: "auth_disabled" };
     try {
       if (action === "referral-settings") {

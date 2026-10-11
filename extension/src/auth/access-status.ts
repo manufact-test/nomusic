@@ -18,7 +18,7 @@ export function initAccessStatus(send) {
   const valid = (a) => typeof a?.allowed === "boolean" && typeof a.reason === "string"
     && typeof a.source === "string" && (a.valid_until === null || Number.isFinite(Date.parse(a.valid_until)));
   let confirmed = false, latest = valid(cached?.access) ? cached.access : null, busy = false, generation = 0;
-  const text = (value) => stableText(label, value);
+  const text = (value) => { if (label?.dataset) delete label.dataset.kind; stableText(label, value); };
   stableText(label, latest ? accessLabel(latest) : cached?.signedOut ? "Войдите в аккаунт, чтобы начать" : "Загрузка доступа…", false);
   void send({ type: "CELIKOM_AUTH", action: "access-preview" }).then((result) => {
     if (!confirmed && result?.entitlement) { latest = result.entitlement; text(accessLabel(latest)); }

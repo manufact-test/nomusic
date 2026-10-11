@@ -48,6 +48,9 @@ assert(manifest.web_accessible_resources?.length === 1, "Only the demo audio res
 assert(JSON.stringify(manifest.web_accessible_resources[0]) === JSON.stringify({ resources: ["assets/test-audio.mp3"], matches: ["https://music.yandex.ru/*"] }), "Unexpected public resource boundary");
 
 const referenced = [
+  ...Object.values(manifest.icons || {}),
+  ...Object.values(manifest.action.default_icon || {}),
+  ...[16,32,48,128].map(size => `assets/icons/green-${size}.png`),
   manifest.background.service_worker,
   manifest.action.default_popup,
   ...manifest.content_scripts.flatMap((entry) => entry.js ?? []),

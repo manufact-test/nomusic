@@ -194,3 +194,25 @@ test("explicit logout replaces cached account label, so reopening cannot show co
     assert.equal(reopened.nodes.get('panel').hidden, false);
   } finally { globalThis.document = oldDocument; globalThis.localStorage = oldStorage; }
 });
+
+test('denied Start opens a red account action immediately; delayed status keeps it and successful login clears it',async()=>{
+ const oldDocument=globalThis.document,oldChrome=globalThis.chrome;
+ const fx=fakePopup();globalThis.document=fx.document;globalThis.chrome={};
+ let finish;
+ try {
+  const panel=initAuthPanel(async({action})=>{
+   if(action==='status')return new Promise(resolve=>finish=resolve);
+   if(action==='login')return {ok:true,user:{email:'a@example.org'}};
+   return {ok:true,enabled:false};
+  });
+  panel.requireLogin();
+  assert.equal(fx.nodes.get('panel').open,true);assert.equal(fx.nodes.get('panel').dataset.authRequired,'true');
+  assert.match(fx.nodes.get('note').textContent,/Войдите.*подмену/);
+  finish({available:true,signedIn:false});await tick();
+  assert.match(fx.nodes.get('note').textContent,/Войдите.*подмену/,'initial status cannot erase Start feedback');
+  fx.nodes.get('email').value='a@example.org';fx.nodes.get('password').value='longpassword123';
+  fx.nodes.get('form').fire('submit');await tick();
+  assert.equal(fx.nodes.get('panel').dataset.authRequired,undefined);
+  assert.equal(fx.nodes.get('signed').hidden,false);
+ } finally {globalThis.document=oldDocument;globalThis.chrome=oldChrome}
+});

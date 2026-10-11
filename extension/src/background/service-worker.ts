@@ -2,6 +2,7 @@ import { COMMANDS, normalizeEnabled, type ExtensionState } from "../shared/messa
 import { createControllerBootstrap } from "./controller-bootstrap.js";
 import { createApiBroker } from "../api/api-broker.js";
 import { createAuthBroker } from "../auth/auth-broker.js";
+import { createActionIcon } from "./action-icon.js";
 
 const VERSION = chrome.runtime.getManifest().version;
 const DEFAULT_STATE: ExtensionState = Object.freeze({
@@ -11,6 +12,7 @@ const DEFAULT_STATE: ExtensionState = Object.freeze({
 });
 const bootstrap = createControllerBootstrap(chrome);
 const userAuth = createAuthBroker(chrome);
+const actionIcon = createActionIcon(chrome);
 const resolveApi = createApiBroker(chrome, { withAccess: userAuth.withEntitledAccess });
 let accessCheck: Promise<boolean> | null = null;
 let accessValidUntil = 0;
@@ -90,6 +92,7 @@ chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse) =>
     const m = message as { action?: unknown };
     if (typeof m.action !== "string") { sendResponse({ ok: false, error: "invalid_request" }); return false; }
     if (m.action === "logout" || m.action === "login" || m.action === "verify-email") {
+      actionIcon.clear();
       accessValidUntil = 0;
       void chrome.storage.local.set({ enabled: false });
     }
@@ -113,8 +116,11 @@ chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse) =>
     // asynchronously disables the controller and restores original playback.
     sendResponse({ ok: true, version: VERSION });
     void (async () => {
-      if (await readEnabled() && !await playbackAccess()) await chrome.storage.local.set({ enabled: false });
-    })().catch(() => { void chrome.storage.local.set({ enabled: false }); });
+      if (!await readEnabled()) { actionIcon.clear(); return; }
+      if (!await playbackAccess()) { actionIcon.clear(); await chrome.storage.local.set({ enabled: false }); return; }
+      const pulse = message as { phase?: unknown; healthy?: unknown };
+      actionIcon.update(sender.tab?.id, pulse.phase === "REPLACEMENT_ACTIVE" && pulse.healthy === true);
+    })().catch(() => { actionIcon.clear(); void chrome.storage.local.set({ enabled: false }); });
     return false;
   }
 
@@ -132,6 +138,10 @@ chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse) =>
     void (async () => {
       accessValidUntil = 0;
       if (enabled) {
+        const preview = await userAuth.perform("account-preview", {});
+        if (preview.localSession === false) {
+          sendResponse({ ...DEFAULT_STATE, accessError: "sign_in_required" }); return;
+        }
         const connection = await readControllerStatus(true);
         if (!connection.status?.track?.id || !connection.status?.player) {
           sendResponse({ ...await readState(), accessError: "track_required" }); return;
@@ -139,9 +149,10 @@ chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse) =>
         try {
           const result = await userAuth.entitlement(true);
           if (!result.allowed) { sendResponse({ ...await readState(), accessError: result.reason }); return; }
-        } catch (_error) { sendResponse({ ...await readState(), accessError: "sign_in_required" }); return; }
+        } catch (error) { sendResponse({ ...await readState(), accessError: (error as Error)?.message === "invalid_session" ? "sign_in_required" : "auth_unavailable" }); return; }
       }
       await chrome.storage.local.set({ enabled });
+      if (!enabled) actionIcon.clear();
       if (enabled) await sendToActiveTab({ type: COMMANDS.retryReplacement });
       sendResponse(await readState(enabled));
     })().catch(() => sendResponse({ ...DEFAULT_STATE, accessError: "auth_unavailable" }));
