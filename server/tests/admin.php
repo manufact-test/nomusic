@@ -63,6 +63,20 @@ expect($ok->status===303,'Login success');
 expect(str_contains($ok->headers['Set-Cookie'],'Secure; HttpOnly; SameSite=Strict'),'Secure cookie');
 $sessionCookie=explode(';',$ok->headers['Set-Cookie'])[0];
 $sessionHeaders=['Cookie'=>$sessionCookie];
+run('Stage11 finances require owner; default-off and empty state contain no invented totals',function()use($pdo,$config,$sessionHeaders,$adminId):void{
+    $default=(new Application($config))->handle('GET','/admin',query:['tab'=>'billing'],headers:$sessionHeaders);
+    expect(!str_contains($default->body,'<h1>Платежи и подписки</h1>'),'Disabled financial UI absent');
+    $config['billing_views_enabled']=true;$app=new Application($config);
+    $response=$app->handle('GET','/admin',query:['tab'=>'billing'],headers:$sessionHeaders);
+    expect($response->status===200 && str_contains($response->body,'Подтверждённых платежей за период пока нет.'),'Owner sees actual empty state');
+    try {
+        foreach(['moderator','viewer'] as $role) {
+            $pdo->prepare('UPDATE admins SET role=? WHERE id=?')->execute([$role,$adminId]);
+            expect($app->handle('GET','/admin',query:['tab'=>'billing'],headers:$sessionHeaders)->status===403,'Other operator cannot access money');
+        }
+    } finally { $pdo->prepare("UPDATE admins SET role='owner' WHERE id=?")->execute([$adminId]); }
+});
+
 $page=$app->handle('GET','/admin',headers:$sessionHeaders);
 expect($page->status===200 && str_contains($page->body,'Предложить песню'),'Two queues visible');
 $token=AdminAuth::readCookie(['cookie'=>$sessionCookie],AdminAuth::COOKIE);

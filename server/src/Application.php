@@ -68,7 +68,7 @@ final class Application
             if (!($this->config['admin_enabled'] ?? false)) {
                 return Response::json(404, ['error' => 'not_found']);
             }
-            return (new AdminPanel($this->database(), $this->storage()))
+            return (new AdminPanel($this->database(), $this->storage(), (bool)($this->config['billing_views_enabled'] ?? false)))
                 ->handle($method, $path, $query, $headers, $body);
         }
         if ($method === 'OPTIONS' && str_starts_with($path, '/api/v1/') && in_array($headers['origin'] ?? '', $this->config['allowed_origins'], true)) {
@@ -83,6 +83,16 @@ final class Application
             }
             return (new AuthController(new AuthService($this->database(), $this->config)))
                 ->handle($method, $path, $headers, $body);
+        }
+        if ($method === 'GET' && $path === '/api/v1/subscription') {
+            if (!($this->config['billing_views_enabled'] ?? false) || !($this->config['auth_enabled'] ?? false))
+                return Response::json(404, ['error'=>'not_found']);
+            $pdo=$this->database();
+            $session=(new BearerAuthenticator($pdo))->session($headers);
+            if ($session===null) return Response::json(401, ['error'=>'invalid_session']);
+            $response=Response::json(200,(new \Celikom\Billing\SubscriptionView($pdo))->forUser($session['user_id']));
+            $response->headers['Cache-Control']='no-store';
+            return $response;
         }
         if ($method === 'GET' && $path === '/api/v1/entitlement') {
             if (!($this->config['entitlement_enabled'] ?? false) || !($this->config['auth_enabled'] ?? false))

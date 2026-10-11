@@ -12,7 +12,8 @@ use Celikom\Storage\StorageAdapter;
 /** Minimal server-rendered, default-off Stage 8 operator console. */
 final class AdminPanel
 {
-    public function __construct(private readonly \PDO $pdo, private readonly StorageAdapter $storage) {}
+    public function __construct(private readonly \PDO $pdo, private readonly StorageAdapter $storage,
+        private readonly bool $billingViewsEnabled = false) {}
 
     public function handle(string $method, string $path, array $query, array $headers, string $body): Response
     {
@@ -137,6 +138,8 @@ final class AdminPanel
             return $this->preview($method, (int)$m[1], $headers);
         }
         if (($path === '/admin' || $path === '/admin/') && $method === 'GET') {
+            if ($this->billingViewsEnabled && ($query['tab'] ?? null)==='billing' && $admin['role']!=='owner')
+                return Response::json(403,['error'=>'forbidden']);
             return $this->page($this->dashboard($admin, $query));
         }
         return Response::json(404, ['error'=>'not_found']);
@@ -309,6 +312,7 @@ final class AdminPanel
     {
         $tab = is_string($query['tab'] ?? null) ? $query['tab'] : 'uploads';
         $allowed = ['uploads','requests','reports','audit','overview'];
+        if ($this->billingViewsEnabled && $admin['role']==='owner') $allowed[]='billing';
         if (!in_array($tab, $allowed, true)) $tab = 'uploads';
         $csrf = self::e($admin['csrf']);
         $size = $this->pageSize($query);
@@ -337,6 +341,10 @@ final class AdminPanel
                 . self::e($name) . '</a>';
         }
         $html .= '</nav>';
+        if ($this->billingViewsEnabled && $admin['role']==='owner') {
+            $html .= '<nav class="nav" aria-label="Финансы"><a href="/admin?tab=billing"'
+                . ($tab==='billing' ? ' class="current" aria-current="page"' : '') . '>Платежи и подписки</a></nav>';
+        }
         $counts = $this->pdo->query("SELECT
             (SELECT COUNT(*) FROM track_replacements WHERE status='pending') AS pending_uploads,
             (SELECT COUNT(*) FROM track_requests r WHERE " . \Celikom\Application\TrackRequestProgress::sql() . " = 'pending') AS pending_requests,
@@ -356,6 +364,7 @@ final class AdminPanel
             'reports' => $this->reports($admin, $csrf, $query),
             'audit' => $this->auditLog($query),
             'overview' => $this->overview($query),
+            'billing' => $this->billingOverview($query),
             default => $this->uploads($admin, $csrf, $query),
         };
     }
@@ -727,6 +736,39 @@ final class AdminPanel
     }
 
     /** Real period comparisons only; payment counters remain unavailable. */
+    private function billingOverview(array $query): string
+    {
+        $from=is_string($query['from'] ?? null) ? $query['from'] : gmdate('Y-m-01');
+        $to=is_string($query['to'] ?? null) ? $query['to'] : gmdate('Y-m-d');
+        try { $metrics=(new \Celikom\Billing\BillingMetrics($this->pdo))->forPeriod($from,$to); }
+        catch (\InvalidArgumentException) { return '<section class="panel"><p>Неверный диапазон дат.</p></section>'; }
+        $html='<section class="panel"><h1>Платежи и подписки</h1>'
+            . '<p>Подключение оплаты готовится. Показатели формируются только из подтверждённых событий.</p>'
+            . '<form method="get" action="/admin"><input type="hidden" name="tab" value="billing">'
+            . '<label>От <input type="date" name="from" value="'.self::e($from).'"></label>'
+            . '<label>До <input type="date" name="to" value="'.self::e($to).'"></label><button>Показать</button></form>';
+        if (!$metrics['currencies']) return $html.'<p>Подтверждённых платежей за период пока нет.</p></section>';
+        $html.='<table><tr><th>Валюта</th><th>Платежи / первые / повторные</th><th>Поступления</th>'
+            . '<th>Возвраты</th><th>Оспаривания</th><th>После возвратов и оспариваний</th></tr>';
+        foreach($metrics['currencies'] as $row) {
+            $html.='<tr><td>'.self::e($row['currency']).'</td><td>'.$row['payment_count'].' / '.$row['first_count'].' / '.$row['renewal_count'].'</td>';
+            foreach(['gross_minor','refund_minor','chargeback_minor','after_adjustments_minor'] as $key)
+                $html.='<td>'.self::e(self::billingAmount($row[$key],$row['currency'])).'</td>';
+            $html.='</tr>';
+        }
+        return $html.'</table><p><small>Даты событий — UTC. '
+            . 'Валюты не суммируются. Комиссии и чистая выручка пока недоступны.</small></p></section>';
+    }
+
+    private static function billingAmount(int $amount, string $currency): string
+    {
+        // Initial display currencies only; unknown scales are never guessed.
+        if (!in_array($currency,['USD','EUR','RUB','BYN'],true)) return $amount.' минимальных единиц';
+        $absolute=abs($amount);
+        return ($amount<0 ? '−' : '').number_format(intdiv($absolute,100),0,',',' ')
+            . ','.str_pad((string)($absolute%100),2,'0',STR_PAD_LEFT);
+    }
+
     private function overview(array $query): string
     {
         $to = is_string($query['to'] ?? null) && preg_match('/^\d{4}-\d{2}-\d{2}$/D',$query['to'])

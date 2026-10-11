@@ -29,6 +29,7 @@ $service = new SubscriptionService($pdo);
 $hook = new WebhookService($pdo,$adapter);
 $paid = new PaidAccessService($pdo);
 $ids = [];
+$metricsBefore=(new Celikom\Billing\BillingMetrics($pdo))->forPeriod(gmdate('Y-m-d'),gmdate('Y-m-d'));
 function billingExpectError(callable $call, string $expected): void {
     try { $call(); throw new RuntimeException('Expected '.$expected); }
     catch (DomainException $error) { expect($error->getMessage()===$expected,'Exact safe rejection'); }
@@ -201,6 +202,47 @@ try {
         $send(['id'=>'evt-expired-failure','subscriptionId'=>$ref,'type'=>'failed','occurredAt'=>$time('UTC_TIMESTAMP(6)')]);
         expect(!(new EntitlementService($pdo,true))->check($ids[2])->allowed,'Failed renewal cannot create a grant');
     });
+    run('Stage11 financial totals separate currencies and count immutable money once',function()use($pdo,$send,$base,$service,$plan,$ids,$now,$metricsBefore):void{
+        $ref='euro-'.bin2hex(random_bytes(8));
+        $service->registerPending($ids[2],'fixture',$ref,new BillingPlan('monthly','EUR',700));
+        $send(array_replace($base,['id'=>'evt-euro','subscriptionId'=>$ref,'paymentId'=>'charge-euro','amountMinor'=>700,'currency'=>'EUR']));
+        $send(['id'=>'evt-euro-refund','subscriptionId'=>$ref,'type'=>'refund','occurredAt'=>$now,
+            'paymentId'=>'charge-euro','amountMinor'=>100,'currency'=>'EUR','adjustmentId'=>'refund-euro']);
+        $metrics=new Celikom\Billing\BillingMetrics($pdo);
+        $result=$metrics->forPeriod(substr($now,0,10),substr($now,0,10));
+        $currencies=array_column($result['currencies'],null,'currency');
+        $prior=array_column($metricsBefore['currencies'],null,'currency');
+        foreach(['gross_minor'=>2400,'refund_minor'=>800,'chargeback_minor'=>300,'payment_count'=>8,'first_count'=>2,'renewal_count'=>6,'after_adjustments_minor'=>1300] as $key=>$expected)
+            expect($currencies['USD'][$key]-($prior['USD'][$key] ?? 0)===$expected,'USD money/count delta '.$key);
+        expect($currencies['EUR']['gross_minor']-($prior['EUR']['gross_minor'] ?? 0)===700,'EUR not merged into USD');
+        expect($currencies['EUR']['after_adjustments_minor']-($prior['EUR']['after_adjustments_minor'] ?? 0)===600,'Partial refund represented once');
+        expect(!$result['fees_available'] && !$result['net_revenue_available'],'Unknown provider fees not presented as net revenue');
+        try { $metrics->forPeriod('2026-02-30','2026-03-01');throw new RuntimeException('Invalid calendar accepted'); }
+        catch(InvalidArgumentException) {}
+    });
+    run('Stage11 read-only subscription API is default-off, private and cannot change access',function()use($pdo,$ids,$config):void{
+        $baseApp=new Application($config);
+        expect($baseApp->handle('GET','/api/v1/subscription')->status===404,'Read model default off');
+        $config['auth_enabled']=true;$config['billing_views_enabled']=true;
+        $app=new Application($config);
+        expect($app->handle('GET','/api/v1/subscription')->status===401,'Bearer required');
+        $pdo->prepare('INSERT INTO user_devices(user_id,installation_id) VALUES(?,?)')->execute([$ids[1],'billing-'.bin2hex(random_bytes(12))]);
+        $device=(int)$pdo->lastInsertId();$access=bin2hex(random_bytes(32));
+        $pdo->prepare('INSERT INTO user_sessions(user_id,device_id,access_hash,refresh_hash,access_expires_at,refresh_expires_at)
+            VALUES(?,?,?,?,DATE_ADD(UTC_TIMESTAMP(6),INTERVAL 15 MINUTE),DATE_ADD(UTC_TIMESTAMP(6),INTERVAL 90 DAY))')
+            ->execute([$ids[1],$device,hash('sha256',$access),hash('sha256',random_bytes(32))]);
+        $headers=['Authorization'=>'Bearer '.$access];
+        $response=$app->handle('GET','/api/v1/subscription',query:['user_id'=>(string)$ids[2]],headers:$headers);
+        expect($response->status===200 && $response->headers['Cache-Control']==='no-store','Private uncached response');
+        $data=json_decode($response->body,true,32,JSON_THROW_ON_ERROR);
+        expect(count($data['subscriptions'])===1 && $data['subscriptions'][0]['currency']==='USD','Query user ID cannot expose another account');
+        expect(!$data['payments_available'] && !array_filter($data['actions']),'No false pay/cancel/resume buttons');
+        expect(!$data['entitlement']['allowed'],'Read model never enables paid playback');
+        expect($data['subscriptions'][0]['next_payment_at']===null,'No invented next charge date');
+        expect(!str_contains($response->body,'charge-') && !str_contains($response->body,'evt-'),'Internal payment references remain private');
+        $pdo->prepare('UPDATE user_sessions SET revoked_at=UTC_TIMESTAMP(6) WHERE user_id=?')->execute([$ids[1]]);
+        expect($app->handle('GET','/api/v1/subscription',headers:$headers)->status===401,'Independent revoked session rejected');
+    });
     run('Stage11 ledger corruption cannot unlock access and HTTP billing remains unregistered',function()use($pdo,$ids,$config):void{
         $pdo->prepare("UPDATE entitlement_ledger SET user_id=? WHERE id IN
             (SELECT p.ledger_id FROM billing_payments p JOIN subscriptions s ON s.id=p.subscription_id WHERE s.user_id=?)")
@@ -220,6 +262,8 @@ try {
         $pdo->prepare('DELETE FROM subscriptions WHERE user_id=?')->execute([$id]);
         $pdo->prepare('DELETE FROM entitlement_ledger WHERE user_id=?')->execute([$id]);
         $pdo->prepare('DELETE FROM user_email_security WHERE user_id=?')->execute([$id]);
+        $pdo->prepare('DELETE FROM user_sessions WHERE user_id=?')->execute([$id]);
+        $pdo->prepare('DELETE FROM user_devices WHERE user_id=?')->execute([$id]);
         $pdo->prepare('DELETE FROM users WHERE id=?')->execute([$id]);
     }
 }
