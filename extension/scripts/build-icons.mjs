@@ -2,7 +2,7 @@
 import { deflateSync } from 'node:zlib';
 import { mkdir, writeFile } from 'node:fs/promises';
 const root = new URL('../assets/icons/', import.meta.url);
-const palettes = {gray:['#343a3e','#bdcdd0'],green:['#66e0bf','#0b1013']};
+const palettes = {gray:['#858b8e','#edf0f1'],green:['#66e0bf','#0b1013']};
 function crc(bytes) {let value=0xffffffff;for(const byte of bytes){value^=byte;for(let j=0;j<8;j++)value=(value>>>1)^((value&1)?0xedb88320:0);}return (value^0xffffffff)>>>0;}
 function chunk(type,data) {const tag=Buffer.from(type),size=Buffer.alloc(4),checksum=Buffer.alloc(4);size.writeUInt32BE(data.length);checksum.writeUInt32BE(crc(Buffer.concat([tag,data])));return Buffer.concat([size,tag,data,checksum]);}
 const rgb = hex => [1,3,5].map(i=>parseInt(hex.slice(i,i+2),16));

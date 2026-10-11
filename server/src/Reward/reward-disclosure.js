@@ -2,10 +2,33 @@
 // for the selected account. Responses never replace the page or reopen a card.
 // This script is authorized by its exact CSP hash on the owner rewards page.
 (() => {
+  // At the bottom of a long history, collapsing shortens the document below
+  // the viewport. Reserve only the missing space so Chrome cannot clamp scroll.
+  const tail = document.createElement('div');
+  tail.setAttribute('aria-hidden', 'true');
+  tail.style.height = '0px';
+  tail.style.overflowAnchor = 'none';
+  document.body.appendChild(tail);
+  window.addEventListener('scroll', () => {
+    const reserved = parseFloat(tail.style.height) || 0;
+    const naturalHeight = document.documentElement.scrollHeight - reserved;
+    if (reserved && window.scrollY + window.innerHeight <= naturalHeight) tail.style.height = '0px';
+  }, { passive: true });
   for (const card of document.querySelectorAll('[data-reward-account]')) {
     const content = card.querySelector('[data-reward-content]');
     const summary = card.querySelector('summary');
     let loading = false;
+    summary.addEventListener('click', event => {
+      if (!card.open) return;
+      event.preventDefault();
+      const y = window.scrollY;
+      const height = content.getBoundingClientRect().height;
+      const remaining = document.documentElement.scrollHeight - height;
+      const missing = Math.max(0, y + window.innerHeight - remaining);
+      tail.style.height = ((parseFloat(tail.style.height) || 0) + missing) + 'px';
+      card.open = false;
+      window.scrollTo({ top: y, behavior: 'instant' });
+    });
     async function load(raw) {
       if (loading) return;
       const url = new URL(raw, location.href);

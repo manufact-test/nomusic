@@ -24,7 +24,7 @@
           // Unlike an isolated-world timer, an actual worker reply proves the
           // extension is still installed/enabled. Never log response metadata.
           const answer = await chrome.runtime.sendMessage({ type: "CELIKOM_CONTEXT_PING",
-            phase: this.getPhase(), healthy: this.bridge.isHealthy() });
+            enabled: this.enabled, phase: this.getPhase(), healthy: this.bridge.isHealthy() });
           return answer?.ok === true && answer.version === chrome.runtime.getManifest().version;
         }
       });

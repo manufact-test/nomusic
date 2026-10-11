@@ -12,14 +12,14 @@ export function createActionIcon(api, clock = {}) {
     const path = Object.fromEntries([16,32,48,128].map(size => [size, `assets/icons/${color}-${size}.png`]));
     pending = pending.catch(() => {}).then(async () => {
       await api.action?.setIcon({ path });
-      await api.action?.setTitle({ title: enabled ? "CELIKOM · подмена активна" : "CELIKOM · подмена не активна" });
+      await api.action?.setTitle({ title: enabled ? "CELIKOM · включён и подключён к Яндекс Музыке" : "CELIKOM · не подключён" });
     }).catch(() => {});
   }
-  function update(tabId, replacing) {
+  function update(tabId, connected) {
     if (!Number.isInteger(tabId)) return;
     if (active.has(tabId)) cancel(active.get(tabId));
     active.delete(tabId);
-    if (replacing) {
+    if (connected) {
       const timer = schedule(() => { active.delete(tabId); paint(); }, 6000);
       timer?.unref?.();
       active.set(tabId, timer);

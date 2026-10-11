@@ -125,9 +125,7 @@ export function initAuthPanel(send) {
       if (content) content.scrollTop = 0;
     }
     if (next !== "login" && next !== "register" && suggestion) suggestion.hidden = true;
-    if (root.dataset.authRequired === "true" && ["login", "register"].includes(next))
-      show("Войдите в аккаунт, чтобы включить подмену музыки.", "error");
-    else show();
+    show();
   }
   const goodEmail = (v) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/u.test(v) && v.length <= 254;
   const goodPass = (v) => [...v].length >= 12 && [...v].length <= 128;
@@ -269,8 +267,7 @@ export function initAuthPanel(send) {
       root.open = true;
       root.dataset.authRequired = "true";
       q("summary").textContent = "Аккаунт · требуется вход";
-      show("Войдите в аккаунт, чтобы включить подмену музыки.", "error");
-      note.setAttribute("role", "alert");
+      show();
       email.focus();
     }
   };

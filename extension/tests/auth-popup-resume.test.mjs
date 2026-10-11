@@ -207,9 +207,11 @@ test('denied Start opens a red account action immediately; delayed status keeps 
   });
   panel.requireLogin();
   assert.equal(fx.nodes.get('panel').open,true);assert.equal(fx.nodes.get('panel').dataset.authRequired,'true');
-  assert.match(fx.nodes.get('note').textContent,/Войдите.*подмену/);
+  assert.equal(fx.nodes.get('note').textContent,'');
+  assert.match(fx.nodes.get('summary').textContent,/требуется вход/);
   finish({available:true,signedIn:false});await tick();
-  assert.match(fx.nodes.get('note').textContent,/Войдите.*подмену/,'initial status cannot erase Start feedback');
+  assert.equal(fx.nodes.get('note').textContent,'');
+  assert.equal(fx.nodes.get('panel').dataset.authRequired,'true');
   fx.nodes.get('email').value='a@example.org';fx.nodes.get('password').value='longpassword123';
   fx.nodes.get('form').fire('submit');await tick();
   assert.equal(fx.nodes.get('panel').dataset.authRequired,undefined);

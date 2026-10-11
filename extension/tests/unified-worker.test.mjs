@@ -48,16 +48,20 @@ test('Start without an account refuses immediately before track detection or tri
  assert.equal(f.local.enabled,false);assert.equal(f.sent.length,0);
 });
 
-test('worker accepts green-icon heartbeats only from authorized active Yandex replacement',async()=>{
+test('worker accepts green-icon heartbeats only from authorized enabled Yandex connection, including songs without replacements',async()=>{
  const f=fixture();f.local.enabled=true;
  const sender={id:'worker',url:'https://music.yandex.ru/',tab:{id:1}};
- await f.send('CELIKOM_CONTEXT_PING',{phase:'REPLACEMENT_ACTIVE',healthy:true},sender);
+ await f.send('CELIKOM_CONTEXT_PING',{enabled:true,phase:'OBSERVING',healthy:true},sender);
  await new Promise(resolve=>setImmediate(resolve));assert.match(f.icons.at(-1).path[32],/green/);
+ await f.send('CELIKOM_CONTEXT_PING',{enabled:true,phase:'READY',healthy:true},sender);
+ await new Promise(resolve=>setImmediate(resolve));assert.match(f.icons.at(-1).path[32],/green/);
+ await f.send('CELIKOM_CONTEXT_PING',{enabled:true,healthy:false},sender);
+ await new Promise(resolve=>setImmediate(resolve));assert.match(f.icons.at(-1).path[32],/gray/);
  await f.send('CELIKOM_AUTH',{action:'logout'});
  await new Promise(resolve=>setImmediate(resolve));assert.match(f.icons.at(-1).path[32],/gray/);
  const g=fixture();g.local.enabled=true;g.setAllowed(false);
- await g.send('CELIKOM_CONTEXT_PING',{phase:'REPLACEMENT_ACTIVE',healthy:true},sender);
+ await g.send('CELIKOM_CONTEXT_PING',{enabled:true,phase:'OBSERVING',healthy:true},sender);
  await new Promise(resolve=>setImmediate(resolve));assert.match(g.icons.at(-1).path[32],/gray/);
- const forbidden=await g.send('CELIKOM_CONTEXT_PING',{phase:'REPLACEMENT_ACTIVE',healthy:true},{...sender,url:'https://example.org/'});
+ const forbidden=await g.send('CELIKOM_CONTEXT_PING',{enabled:true,phase:'OBSERVING',healthy:true},{...sender,url:'https://example.org/'});
  assert.equal(forbidden.ok,false);assert.match(g.icons.at(-1).path[32],/gray/);
 });

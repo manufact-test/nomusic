@@ -44,6 +44,9 @@ for (const file of phpFiles) {
 const disclosure = spawnSync(process.execPath, ["--test", path.join(serverRoot, "tests", "reward-disclosure.test.mjs")], { stdio: "inherit" });
 if (disclosure.status !== 0) process.exit(disclosure.status || 1);
 
+const scrollBrowser = spawnSync(process.execPath, [path.join(serverRoot, "tests", "reward-disclosure-browser.mjs")], { stdio: "inherit" });
+if (scrollBrowser.status !== 0) process.exit(scrollBrowser.status || 1);
+
 const phpVersion = spawnSync("php", ["--version"], { encoding: "utf8" });
 if (phpVersion.error?.code === "ENOENT") {
   console.log(`Server structure validated (${phpFiles.length} PHP files); runtime test deferred to PHP 8.3 CI.`);

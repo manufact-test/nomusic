@@ -269,3 +269,5 @@ input:not([type=checkbox]):focus-visible,select:focus-visible,textarea:focus-vis
 .reward-decision-form{display:flex;align-items:end;gap:10px;flex-wrap:wrap;margin-top:14px}.reward-decision-form .form-field{flex:1 1 220px;max-width:500px}.reward-decision-form input{width:100%}
 @media(max-width:560px){.reward-policy-form{grid-template-columns:1fr}.reward-decision-form{align-items:stretch}.reward-decision-form>button{flex:1}}
 .reward-policy-form input:focus-visible,.reward-decision-form input:focus-visible{outline:none;border-color:#197d60;box-shadow:none}
+
+.reward-disclosure{overflow-anchor:none}.reward-disclosure > summary{margin-bottom:16px}.reward-disclosure [data-reward-content]{overflow-anchor:none}

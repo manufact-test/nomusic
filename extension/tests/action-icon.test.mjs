@@ -10,10 +10,10 @@ function fixture() {
  const icon=createActionIcon(api,{schedule:fn=>{timers.add(fn);return fn},cancel:fn=>timers.delete(fn)});
  return {icon,icons,titles,timers,events};
 }
-test('toolbar reflects actual replacement; another tab stays green until all replacements stop',async()=>{
+test('toolbar reflects connected activity; another tab stays green until all connections stop',async()=>{
  const f=fixture();await tick();assert.match(f.icons.at(-1).path[32],/gray/);
  f.icon.update(1,true);await tick();assert.match(f.icons.at(-1).path[32],/green/);
- assert.match(f.titles.at(-1).title,/подмена активна/);
+ assert.match(f.titles.at(-1).title,/включён и подключён/);
  f.icon.update(2,true);f.icon.update(1,false);await tick();assert.match(f.icons.at(-1).path[32],/green/);
  f.events.removed(2);await tick();assert.match(f.icons.at(-1).path[32],/gray/);
 });

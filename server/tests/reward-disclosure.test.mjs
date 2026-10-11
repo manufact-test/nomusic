@@ -9,15 +9,18 @@ function fixture(fetch) {
   const listeners = {}, attributes = {};
   const content = { children: [], setAttribute(k,v) {attributes[k]=v}, removeAttribute(k) {delete attributes[k]},
     replaceChildren(...nodes) {this.children=nodes}, addEventListener(k,fn) {listeners[k]=fn} };
-  const summary = { textContent: 'Песни и бонусы' };
+  const summary = { textContent: 'Песни и бонусы', addEventListener(k,fn) {listeners['summary-'+k]=fn} };
+  content.getBoundingClientRect=()=>({height:700});
+  const tail={style:{},setAttribute(){}};
+  const window={scrollY:900,innerHeight:600,addEventListener(k,fn){listeners['window-'+k]=fn},scrollTo({top}){this.scrollY=top}};
   const card = { open:false, dataset:{rewardAccount:'2',rewardUrl:'/admin?tab=rewards&page=1&account=2'},
     querySelector: selector => selector === 'summary' ? summary : content,
     addEventListener(k,fn) {listeners[k]=fn} };
-  const document = { querySelectorAll: () => [card], createElement: () => ({textContent:''}), importNode: node => ({...node}) };
-  const context = { document, location: { href:'https://example.test/admin?tab=rewards',origin:'https://example.test'},
+  const document = {body:{appendChild(){}},documentElement:{scrollHeight:1500}, querySelectorAll: () => [card], createElement: name => name==='div'?tail:({textContent:''}), importNode: node => ({...node}) };
+  const context = { document, window, location: { href:'https://example.test/admin?tab=rewards',origin:'https://example.test'},
     URL,AbortSignal,fetch, DOMParser:class { parseFromString(html) {return {querySelector:()=>html==='own history'?{childNodes:[{song:'own'}]}:null}}} };
   runInNewContext(source,context);
-  return {card,content,summary,listeners,context};
+  return {card,content,summary,listeners,context,tail,window};
 }
 const response = html => ({ok:true,headers:{get:()=> 'text/html; charset=utf-8'},text:async()=>html});
 
@@ -55,3 +58,12 @@ test('song pagination updates the same card; foreign links cannot request anothe
   click('https://foreign.test/admin?tab=rewards&account=2');await tick();
   assert.equal(urls.length,1);assert.equal(fx.context.location.href,'https://example.test/admin?tab=rewards');
 });
+
+ test('collapse near page bottom reserves only missing height and releases it after scrolling up',()=>{
+  const fx=fixture(async()=>response('own history'));fx.card.open=true;
+  let prevented=false;fx.listeners['summary-click']({preventDefault(){prevented=true}});
+  assert.equal(prevented,true);assert.equal(fx.card.open,false);
+  assert.equal(fx.window.scrollY,900);assert.equal(fx.tail.style.height,'700px');
+  fx.window.scrollY=100;fx.listeners['window-scroll']();
+  assert.equal(fx.tail.style.height,'0px');
+ });

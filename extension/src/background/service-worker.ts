@@ -118,8 +118,8 @@ chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse) =>
     void (async () => {
       if (!await readEnabled()) { actionIcon.clear(); return; }
       if (!await playbackAccess()) { actionIcon.clear(); await chrome.storage.local.set({ enabled: false }); return; }
-      const pulse = message as { phase?: unknown; healthy?: unknown };
-      actionIcon.update(sender.tab?.id, pulse.phase === "REPLACEMENT_ACTIVE" && pulse.healthy === true);
+      const pulse = message as { enabled?: unknown; healthy?: unknown };
+      actionIcon.update(sender.tab?.id, pulse.enabled === true && pulse.healthy === true);
     })().catch(() => { actionIcon.clear(); void chrome.storage.local.set({ enabled: false }); });
     return false;
   }
