@@ -3,7 +3,7 @@
   "name": "__MSG_extensionName__",
   "short_name": "CELIKOM",
   "description": "__MSG_extensionDescription__",
-  "version": "0.4.20",
+  "version": "0.4.21",
   "default_locale": "ru",
   "minimum_chrome_version": "120",
   "permissions": [
@@ -18,7 +18,7 @@
     "type": "module"
   },
   "action": {
-    "default_title": "CELIKOM · подмена не активна",
+    "default_title": "CELIKOM · не подключён",
     "default_popup": "popup/popup.html",
     "default_icon": {
       "16": "assets/icons/gray-16.png",

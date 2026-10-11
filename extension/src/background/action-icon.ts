@@ -6,14 +6,18 @@ export function createActionIcon(api, clock = {}) {
   let shown = null, pending = Promise.resolve();
   function paint() {
     const enabled = active.size > 0;
-    if (shown === enabled) return;
-    shown = enabled;
     const color = enabled ? "green" : "gray";
-    const path = Object.fromEntries([16,32,48,128].map(size => [size, `assets/icons/${color}-${size}.png`]));
+    const path = Object.fromEntries([16,32,48,128].map(size => [size, `/assets/icons/${color}-${size}.png`]));
     pending = pending.catch(() => {}).then(async () => {
+      if (shown === enabled) return;
+      // MV3 resolves paths against background/service-worker.js; root paths
+      // keep icon lookup out of the background/assets directory.
       await api.action?.setIcon({ path });
+      shown = enabled;
       await api.action?.setTitle({ title: enabled ? "CELIKOM · включён и подключён к Яндекс Музыке" : "CELIKOM · не подключён" });
-    }).catch(() => {});
+    }).catch(() => {
+      console.warn("CELIKOM: toolbar icon could not be loaded; next heartbeat will retry.");
+    });
   }
   function update(tabId, connected) {
     if (!Number.isInteger(tabId)) return;
