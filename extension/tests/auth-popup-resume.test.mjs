@@ -163,3 +163,34 @@ test("Stage9 last verified account email is offered and selectable in the next p
     globalThis.chrome = oldChrome;
   }
 });
+
+test("account frame and cached label are visible before any server response, including offline startup", async () => {
+  const oldDocument = globalThis.document, oldStorage = globalThis.localStorage;
+  const fx = fakePopup(); fx.nodes.get("panel").hidden = true;
+  globalThis.document = fx.document;
+  globalThis.localStorage = { getItem: () => "signed", setItem() {} };
+  let finish;
+  try {
+    initAuthPanel(({ action }) => action === "status" ? new Promise(resolve => { finish = resolve; }) : Promise.resolve({}));
+    assert.equal(fx.nodes.get("panel").hidden, false, "frame exists before network completion");
+    assert.equal(fx.nodes.get("summary").textContent, "Аккаунт · подключён");
+    finish({ available: false }); await tick();
+    assert.equal(fx.nodes.get("panel").hidden, false, "offline startup cannot remove the frame");
+    assert.equal(fx.nodes.get("summary").textContent, "Аккаунт · подключён");
+  } finally { globalThis.document = oldDocument; globalThis.localStorage = oldStorage; }
+});
+test("explicit logout replaces cached account label, so reopening cannot show connected", async () => {
+  const oldDocument = globalThis.document, oldStorage = globalThis.localStorage;
+  let label = "signed";
+  globalThis.localStorage = { getItem: () => label, setItem: (_, value) => { label = value; } };
+  const fx = fakePopup(); globalThis.document = fx.document;
+  try {
+    initAuthPanel(async ({ action }) => action === "status" ? {available:true,signedIn:true,user:{email:'a@example.org'}} : {ok:true});
+    await tick(); fx.nodes.get('logout').fire('click'); await tick();
+    assert.equal(label, 'login');
+    const reopened = fakePopup(); globalThis.document = reopened.document;
+    initAuthPanel(() => new Promise(() => {}));
+    assert.equal(reopened.nodes.get('summary').textContent, 'Аккаунт · войти');
+    assert.equal(reopened.nodes.get('panel').hidden, false);
+  } finally { globalThis.document = oldDocument; globalThis.localStorage = oldStorage; }
+});

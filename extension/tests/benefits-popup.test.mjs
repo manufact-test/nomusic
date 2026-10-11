@@ -54,6 +54,7 @@ test("disabled benefits show one explanation without duplicate access or inactiv
     const panel = initBenefitsPanel(async () => ({ ok: true, referrals_available: false, referrals: null }));
     panel.signed(true); await tick();
     assert.equal(fx.nodes.get("progress").textContent, "Подписка и приглашения пока недоступны.");
+    assert.equal(fx.root.hidden, true, "no empty section when all features are unavailable");
     for (const key of ["code", "note", "create", "copy", "share"]) assert.equal(fx.nodes.get(key).hidden, true);
   } finally { globalThis.document = previous; }
 });

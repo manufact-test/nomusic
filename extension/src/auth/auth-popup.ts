@@ -4,6 +4,12 @@ export function initAuthPanel(send) {
   const q = (name) => document.querySelector("[data-auth-" + name + "]");
   const root = q("panel"), note = q("note"), email = q("email"), pass = q("password");
   if (!root) return;
+  root.hidden = false;
+  // A label only: never a session, identity or authorization decision.
+  const labelKey = "celikom-account-label-v1";
+  let previousLabel = "";
+  try { previousLabel = globalThis.localStorage?.getItem(labelKey) || ""; } catch (_) {}
+  const saveLabel = (value) => { try { globalThis.localStorage?.setItem(labelKey, value); } catch (_) {} };
   const benefits = initBenefitsPanel(send);
   let invitationsAvailable = false;
   const views = { login: q("form"), verify: q("verify-form"), recovery: q("recovery-form"),
@@ -105,7 +111,9 @@ export function initAuthPanel(send) {
     root.dataset.authScreen = next;
     for (const [key, el] of Object.entries(views)) el.hidden =
       key === "login" ? !["login", "register"].includes(next) : key !== next;
-    q("summary").textContent = next === "signed" ? "Аккаунт · подключён" : "Аккаунт";
+    q("summary").textContent = next === "signed" ? "Аккаунт · подключён" : "Аккаунт · войти";
+    if (next === "signed") saveLabel("signed");
+    else if (previous === "signed") saveLabel("login");
     q("identity").textContent = user?.email || "";
     q("submit").textContent = next === "register" ? "Зарегистрироваться" : "Войти";
     q("mode").textContent = next === "register" ? "У меня уже есть аккаунт" : "Создать аккаунт";
@@ -144,7 +152,10 @@ export function initAuthPanel(send) {
   void Promise.all([call("status"), loadPending(),
     mailStore ? mailStore.get(rememberedKey) : Promise.resolve({})]).then(([state, pending, known]) => {
     rememberedEmail = goodEmail(known?.[rememberedKey]) ? known[rememberedKey] : "";
-    if (!state?.available) return;
+    if (!state?.available) {
+      show("Нет связи с сервером аккаунтов. Повторите позже.", "loading");
+      return;
+    }
     root.hidden = false;
     void call("referral-settings").then((result) => {
       invitationsAvailable = result?.enabled === true;
@@ -174,6 +185,7 @@ export function initAuthPanel(send) {
       }
     } else {
       view("login");
+      saveLabel("login");
       if (!userEditingEmail) updateEmailSuggestion();
     }
   }).catch(() => {});
@@ -246,4 +258,6 @@ export function initAuthPanel(send) {
     });
   });
   view("login");
+  q("summary").textContent = previousLabel === "signed" ? "Аккаунт · подключён"
+    : previousLabel === "login" ? "Аккаунт · войти" : "Аккаунт";
 }

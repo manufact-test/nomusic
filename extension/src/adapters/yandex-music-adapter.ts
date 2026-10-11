@@ -617,7 +617,8 @@
           // An external wrapper may retain this function after unmount. Its
           // original target must never be looked up in a reused hook registry.
           const response = await Reflect.apply(originalFetch, this, args);
-          if (lifecycle.active) adapter.captureJsonResponse(response, "fetch-json");
+          // Observation must never turn a successful page request into a rejection.
+          if (lifecycle.active) adapter.safeCall(() => adapter.captureJsonResponse(response, "fetch-json"));
           return response;
         };
         this.environment.fetch = this.nativeHooks.fetchWrapper;
@@ -637,7 +638,7 @@
         return Reflect.apply(originalOpen, this, [method, url, ...args]);
       };
       this.nativeHooks.xhrSendWrapper = function celikomObservedXhrSend(...args) {
-        if (lifecycle.active) this.addEventListener("loadend", () => {
+        if (lifecycle.active) adapter.safeCall(() => this.addEventListener("loadend", () => {
           if (!lifecycle.active || !adapter.isYandexNetworkUrl(adapter.xhrUrls.get(this))) return;
           const contentType = adapter.safeCall(() => this.getResponseHeader("content-type"), "") || "";
           if (!/\bjson\b/i.test(contentType)) return;
@@ -647,7 +648,7 @@
           } catch (_error) {
             // Ignore inaccessible or non-JSON responses.
           }
-        }, { once: true });
+        }, { once: true }));
         return Reflect.apply(originalSend, this, args);
       };
       prototype.open = this.nativeHooks.xhrOpenWrapper;

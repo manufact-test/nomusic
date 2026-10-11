@@ -307,3 +307,39 @@ test("track duration stays independent of a mismatched native player clock", () 
   assert.equal(snapshot.player.duration, 15);
   adapter.unmount();
 });
+
+test("network observation failures cannot alter the page fetch response, arguments or original rejection", async () => {
+  const { environment } = createEnvironment(new FakeMedia());
+  const response = new Response('unchanged page data');
+  const args = ['/page-request', {method:'GET'}], originalError = new TypeError('page network failure');
+  let calls = 0, reject = false;
+  environment.fetch = async function (...received) {
+    calls++; assert.equal(this, environment); assert.deepEqual(received, args);
+    if (reject) throw originalError;
+    return response;
+  };
+  const original = environment.fetch, adapter = createAdapter(environment);
+  adapter.captureJsonResponse = () => { throw new Error('CELIKOM observer failure'); };
+  try {
+    adapter.installNetworkHooks();
+    assert.equal(await environment.fetch(...args), response);
+    assert.equal(await response.text(), 'unchanged page data');
+    reject = true; await assert.rejects(environment.fetch(...args), error => error === originalError);
+    assert.equal(calls, 2, 'each page request reaches the native fetch exactly once');
+  } finally { adapter.restoreNetworkHooks(); }
+  assert.equal(environment.fetch, original);
+});
+test("XHR observer listener failure still invokes original send exactly once", () => {
+  const { environment } = createEnvironment(new FakeMedia());
+  let sent = 0;
+  class Xhr {
+    open() {}
+    send(body) { sent++; return body; }
+    addEventListener() { throw new Error('observer listener failure'); }
+  }
+  environment.XMLHttpRequest = Xhr;
+  const original = Xhr.prototype.send, adapter = createAdapter(environment);
+  try { adapter.installNetworkHooks(); assert.equal(new Xhr().send('body'), 'body'); assert.equal(sent, 1); }
+  finally { adapter.restoreNetworkHooks(); }
+  assert.equal(Xhr.prototype.send, original);
+});

@@ -6,6 +6,7 @@ export function initBenefitsPanel(send) {
   let generation = 0, code = null, signedIn = false, busy = false, loaded = false;
   const note = (text) => { q("note").textContent = text; q("note").hidden = !text; };
   function render(data) {
+    root.hidden = !data.referrals_available;
     const ref = data.referrals;
     code = ref?.code || null;
     q("code").textContent = code || "";
@@ -45,7 +46,7 @@ export function initBenefitsPanel(send) {
   });
   return { signed(value) {
     signedIn = value; generation++; busy = false; loaded = false; code = null;
-    root.hidden = !value; root.open = false;
+    root.hidden = true; root.open = false;
     q("code").textContent = ""; q("code").hidden = true; note("");
     q("progress").textContent = value ? "Подписка и приглашения пока недоступны." : "";
     for (const key of ["create", "copy", "share"]) q(key).hidden = true;
