@@ -4,6 +4,7 @@ import { initAuthPanel } from "../auth/auth-popup.js";
 import { initAccessStatus } from "../auth/access-status.js";
 import { initVersionStatus } from "./version-status.js";
 import { readDisplay, writeDisplay, stableText } from "./display-cache.js";
+import { initIncidentStatus } from "./incident-status.js";
 
 const status = document.querySelector<HTMLElement>("[data-status]");
 const startButton = document.querySelector<HTMLButtonElement>("[data-action='start']");
@@ -13,6 +14,7 @@ const diagnosticsButton = document.querySelector<HTMLButtonElement>("[data-actio
 const track = document.querySelector<HTMLElement>("[data-track]");
 const testInput = document.querySelector<HTMLInputElement>("[data-test-track]");
 let lastState: ExtensionState | null = null;
+const incidentStatus = initIncidentStatus({ onChange: () => { if (lastState) render(lastState); } });
 const refreshVersion = initVersionStatus(send);
 const cachedTrack = readDisplay("track");
 if (/^[1-9]\d{0,23}$/.test(cachedTrack?.id || "") && typeof cachedTrack.label === "string" && cachedTrack.label.length <= 512) {
@@ -23,6 +25,7 @@ if (/^[1-9]\d{0,23}$/.test(cachedTrack?.id || "") && typeof cachedTrack.label ==
 function render(state: ExtensionState): void {
   if (!status || !startButton || !stopButton) return;
   lastState = state;
+  incidentStatus.updateController(state);
   // Retire the old song's form, selected file and request ID together.
   if (pinnedTrack && pinnedTrack.id !== state.track?.id && !uploading && !opening) {
     resetUploadPanel();
@@ -39,8 +42,8 @@ function render(state: ExtensionState): void {
     REPLACEMENT_ACTIVE: "Подмена активна",
     RESTORING: "Возвращаем оригинал…"
   };
-  status.textContent = !state.enabled ? labels.STOPPED : state.suspended ? state.replacementError === "service_incident" ? "Сбой интеграции" : "Восстанавливаем связь…" : state.manualBypass ? "Оригинал" : state.replacementError ? state.recovering ? "Оригинал · восстанавливаем связь" : "Оригинал · ошибка подмены" : labels[state.phase] || "Проверка…";
-  status.dataset.active = String(state.enabled);
+  status.textContent = incidentStatus.active() ? "Сбой интеграции" : !state.enabled ? labels.STOPPED : state.suspended ? state.replacementError === "service_incident" ? "Сбой интеграции" : "Восстанавливаем связь…" : state.manualBypass ? "Оригинал" : state.replacementError ? state.recovering ? "Оригинал · восстанавливаем связь" : "Оригинал · ошибка подмены" : labels[state.phase] || "Проверка…";
+  status.dataset.active = String(state.enabled && !incidentStatus.active());
   startButton.disabled = state.enabled && state.phase !== "ERROR" && !state.manualBypass && !state.replacementError;
   if (starting) startButton.disabled = true;
   startButton.textContent = state.phase === "ERROR" ? "Повторить" : "Старт";
@@ -68,7 +71,7 @@ async function send<T>(message: object): Promise<T> {
 
 let starting = false;
 startButton?.addEventListener("click", async () => {
-  if (starting) return;
+  if (starting || incidentStatus.active()) return;
   starting = true;
   startButton.disabled = true;
   const access = document.querySelector<HTMLElement>("[data-access-status]");
@@ -208,7 +211,7 @@ async function trackUploadStatus(origin: string, trackId: string): Promise<"none
 }
 
 addTrackButton?.addEventListener("click", async () => {
-  if (!uploadPanel || uploading || opening) return;
+  if (incidentStatus.active() || !uploadPanel || uploading || opening) return;
   if (!uploadPanel.hidden) {
     // Query first: a click immediately after a song switch must open the
     // new song, even before the next one-second status poll.
@@ -425,7 +428,7 @@ const suggestNote = document.querySelector<HTMLElement>("[data-suggest-note]");
 let suggestTrack: ReturnType<typeof uploadTargetFromStatus> = null;
 let suggesting = false;
 suggestButton?.addEventListener("click", async () => {
-  if (!suggestPanel || suggesting) return;
+  if (incidentStatus.active() || !suggestPanel || suggesting) return;
   if (!suggestPanel.hidden) { suggestPanel.hidden = true; suggestButton.setAttribute("aria-expanded", "false"); return; }
   suggestTrack = uploadTargetFromStatus(await send<ExtensionState>({ type: COMMANDS.getStatus }));
   const label = document.querySelector<HTMLElement>("[data-suggest-track]");
@@ -499,6 +502,8 @@ async function refresh(): Promise<void> {
 
 void refresh();
 window.setInterval(() => void refresh(), 1000);
+void incidentStatus.refresh();
+window.setInterval(() => void incidentStatus.refresh(), 5000);
 
 const refreshAccess = initAccessStatus(send);
 void refreshAccess();

@@ -13,6 +13,12 @@
         <strong>CELIKOM</strong>
         <span class="status" data-status>Проверка…</span>
       </header>
+      <section class="incident-banner" data-incident-banner hidden role="status" aria-live="polite" aria-atomic="true">
+        <strong>Подмена временно приостановлена</strong>
+        <p>Интеграция с Яндекс Музыкой временно недоступна. Мы восстанавливаем её работу.</p>
+        <p>Время действующего доступа заморожено. Оригинальная музыка доступна.</p>
+      </section>
+      <div class="music-controls" data-music-controls>
       <div class="primary-actions" aria-label="Управление CELIKOM">
         <button class="primary" type="button" data-action="start">Старт</button>
         <button type="button" data-action="stop">Стоп</button>
@@ -57,9 +63,12 @@
         <button class="primary wide" type="button" data-suggest-submit>Отправить предложение</button>
         <p class="upload-feedback" data-suggest-note role="status" aria-live="polite" hidden></p>
       </section>
+      </div>
+      <div class="music-details" data-music-details>
       <p class="access-status" data-access-status role="status" aria-live="polite">Загрузка доступа…</p>
       <p class="track" data-track>Запустите трек в Яндекс Музыке</p>
       <p class="version-status" data-version-status aria-live="polite">Загрузка версии песни…</p>
+      </div>
       <details class="account-panel" data-auth-panel>
         <summary data-auth-summary>Аккаунт</summary>
         <div class="account-content">
@@ -135,7 +144,7 @@
           <p class="auth-feedback" data-auth-note role="status" aria-live="polite" hidden></p>
         </div>
       </details>
-      <details>
+      <details data-developer-controls>
         <summary>Для разработчика</summary>
         <p class="stage">Stage 4 · серверный каталог. Тестовый ID включает встроенный сигнал; пустое поле включает API.</p>
         <label class="stage" for="test-track">Тестовый Track ID</label>

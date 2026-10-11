@@ -381,3 +381,8 @@ button:focus-visible { border-color: #66e0bf; }
 .account-panel[data-auth-required="true"] { border-color: #ff918b; }
 .account-panel[data-auth-required="true"] > summary,
 .access-status[data-kind="error"] { color: #ff918b; }
+
+.music-controls,.music-details{display:contents}
+.incident-banner{display:grid;gap:10px;padding:14px;border:2px solid #ff817a;border-radius:12px;background:#29191c;color:#ffe4e1}
+.incident-banner strong{font-size:14px;line-height:1.4}
+.incident-banner p{margin:0;font-size:12px;line-height:1.55}
