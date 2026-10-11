@@ -14,6 +14,12 @@ function databaseDigest12(PDO $pdo):string {
         $encoded=array_map(static fn($row)=>json_encode($row,JSON_THROW_ON_ERROR),$rows);sort($encoded,SORT_STRING);
         hash_update($hash,$table.json_encode($encoded,JSON_THROW_ON_ERROR));
     }
+    foreach(['service_incident_locks','service_incidents','incident_compensations'] as $table) {
+        $q=$pdo->prepare('SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name=?');$q->execute([$table]);
+        if (!(int)$q->fetchColumn()) continue;
+        $encoded=array_map(static fn($row)=>json_encode($row,JSON_THROW_ON_ERROR),$pdo->query('SELECT * FROM '.$table)->fetchAll(PDO::FETCH_ASSOC));sort($encoded,SORT_STRING);
+        hash_update($hash,$table.json_encode($encoded,JSON_THROW_ON_ERROR));
+    }
     return hash_final($hash);
 }
 function probe12(string $path,int $expected):void {
@@ -31,7 +37,7 @@ try {
     $request=json_decode((string)file_get_contents($requestPath),true,8,JSON_THROW_ON_ERROR);
     guard12(is_array($request) && array_keys($request)===['operation','target','expected_release']
         && $request['target']==='hostinger-private-test' && in_array($request['operation'],['enable','disable','audit'],true)
-        && is_string($request['expected_release']) && preg_match('/^0\.4\.(?:18|20)-[a-f0-9]{40}$/D',$request['expected_release'])===1);
+        && is_string($request['expected_release']) && preg_match('/^0\.4\.(?:18|20|22)-[a-f0-9]{40}$/D',$request['expected_release'])===1);
     $release=realpath($app.'/current');guard12($release===$app.'/releases/'.$request['expected_release']);
     require $release.'/bootstrap.php';$before=require $release.'/config/app.php';
     guard12($before['environment']==='production' && $before['auth_enabled'] && $before['admin_enabled']
@@ -73,6 +79,16 @@ try {
             $q=$pdo->prepare('SELECT COUNT(*) FROM reward_ledger WHERE user_id=?');$q->execute([$id]);$songs=(int)$q->fetchColumn();
             $html=$view->render('read-only-audit',1,false,(int)$id);
             guard12(substr_count($html,'class="reward-card"')===min(25,$songs));
+        }
+        if (str_starts_with($request['expected_release'],'0.4.22-')) {
+            guard12((int)$pdo->query("SELECT COUNT(*) FROM schema_migrations WHERE version='014_service_incidents.sql'")->fetchColumn()===1);
+            guard12(!$before['billing_views_enabled'] && !$before['referrals_enabled']);
+            $incidents=new Celikom\Incident\IncidentService($pdo);
+            guard12(!$incidents->state()['active']);
+            foreach(['service_incidents','incident_compensations'] as $table) guard12((int)$pdo->query('SELECT COUNT(*) FROM '.$table)->fetchColumn()===0);
+            $html=(new Celikom\Incident\IncidentAdminView($pdo))->render('read-only-audit');
+            guard12(str_contains($html,'Объявленных сбоев пока нет.'));
+            fwrite(STDOUT,"Stage13 read-only audit PASS: migration, empty incident state and owner view; live outage not declared. Billing/referrals remain disabled.\n");
         }
         guard12(databaseDigest12($pdo)===$digest);
         fwrite(STDOUT,"Grouped account reward history read-only audit PASS. Account and song pages bounded; ledger unchanged.\n");
