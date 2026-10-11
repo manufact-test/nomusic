@@ -1,4 +1,4 @@
--- Independent owner promos; no changes to existing grants or financial journals.
+-- Independent owner promos. No changes to existing grants or financial journals.
 CREATE TABLE IF NOT EXISTS promo_codes (
  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
  code VARCHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,

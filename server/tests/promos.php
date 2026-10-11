@@ -45,6 +45,20 @@ try{
   try{$service->redeem($user(),$discount);throw new RuntimeException('payment_missing');}catch(DomainException $e){expect($e->getMessage()==='promo_payment_pending','discount deferred');}
   expect((int)$pdo->query('SELECT used_activations FROM promo_codes WHERE id='.$partial)->fetchColumn()===0,'no use without payment');
  });
+ run('Concurrent promo claims respect global cap and account replay',function()use($pdo,$user,$create):void{
+  $race=static function(array $ids,string $code):array{
+   $workers=[];$results=[];
+   foreach($ids as $id){$process=proc_open([PHP_BINARY,__DIR__.'/promo-race-worker.php',(string)$id,$code],[0=>['pipe','r'],1=>['pipe','w'],2=>['pipe','w']],$pipes);expect(is_resource($process),'worker started');$workers[]=[$process,$pipes];expect(trim((string)fgets($pipes[1]))==='ready','worker connected');}
+   foreach($workers as [$process,$pipes]){fwrite($pipes[0],"go\n");fclose($pipes[0]);}
+   foreach($workers as [$process,$pipes]){$out=stream_get_contents($pipes[1]);$err=stream_get_contents($pipes[2]);fclose($pipes[1]);fclose($pipes[2]);expect(proc_close($process)===0&&$err==='','race succeeds');$results[]=json_decode($out,true,8,JSON_THROW_ON_ERROR);}
+   return $results;
+  };
+  [$cid,$code]=$create();$results=$race([$user(),$user(),$user(),$user()],$code);
+  expect(count(array_filter($results,static fn($r)=>$r['ok']))===1,'global cap atomic');
+  [$cid2,$code2]=$create(['max_activations'=>4]);$id=$user();$results=$race([$id,$id,$id,$id],$code2);
+  expect(count(array_filter($results,static fn($r)=>$r['ok']))===4,'same-account retries succeed');
+  expect((int)$pdo->query('SELECT used_activations FROM promo_codes WHERE id='.$cid2)->fetchColumn()===1,'same account consumes once');
+ });
  run('Promo incident freeze is compensated with immutable grant dates',function()use($pdo,$user,$create,$service,$owner,$clock):void{
   $clock(0);$id=$user();[$cid,$code]=$create();$r=$service->redeem($id,$code);$base=$r['entitlement']['valid_until'];
   $incidentService=new IncidentService($pdo);$clock(3600);$incident=$incidentService->start($owner,'Disposable promo fixture',bin2hex(random_bytes(32)));
