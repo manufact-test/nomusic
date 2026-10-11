@@ -18,16 +18,16 @@ final class RewardAdminView
         $html='<section class="panel"><h1>Награды за вклад</h1><p>Награда рассматривается после одобрения версии песни. '
             .'Сейчас можно учитывать и начислять скидочные бонусы. Применение к оплате будет доступно после подключения платежей. '
             .'Бонус не продлевает пробный период и не открывает доступ.</p><h2>Правила начисления</h2>'
-            .'<form method="post" action="/admin/rewards/policy"><input type="hidden" name="csrf" value="'.$csrf.'">'
+            .'<form class="reward-policy-form" method="post" action="/admin/rewards/policy"><input type="hidden" name="csrf" value="'.$csrf.'">'
             .'<input type="hidden" name="version" value="'.$policy['version'].'">';
         foreach(['upload_discount_percent'=>['Скидочный бонус за одну одобренную загрузку, %',100],
             'max_discount_percent'=>['Максимальная суммарная скидка от этих бонусов, %',100],
             'max_reward_per_month'=>['Максимум начислений одному аккаунту за календарный месяц (UTC)',10000],
             'validity_days'=>['Срок действия начисленного бонуса, дней',3660]] as $key=>[$label,$max]) {
-            $html.='<label>'.self::e($label).'<input type="number" name="'.$key.'" min="0" max="'.$max.'" step="1" required value="'.$policy[$key].'"></label>';
+            $html.='<label class="form-field">'.self::e($label).'<input type="number" name="'.$key.'" min="0" max="'.$max.'" step="1" required value="'.$policy[$key].'"></label>';
         }
-        $html.='<label><input type="checkbox" name="enabled" value="1"'.($policy['enabled']?' checked':'').'> Разрешить ручное начисление</label>'
-            .'<label>Причина изменения<input name="reason" maxlength="500" required></label><button class="btn" type="submit">Сохранить правила</button>'
+        $html.='<label class="reward-enable"><input type="checkbox" name="enabled" value="1"'.($policy['enabled']?' checked':'').'> Разрешить ручное начисление</label>'
+            .'<label class="form-field">Причина изменения<input name="reason" maxlength="500" required></label><button class="btn" type="submit">Сохранить правила</button>'
             .'</form><p><small>Изменение правил не пересчитывает уже начисленный процент и срок. '
             .'Общий предел ограничивает возможную суммарную скидку. Отключение запрещает новые начисления; '
             .'отменённые и истёкшие начисления продолжают учитываться в лимите месяца.</small></p></section>';
@@ -43,15 +43,15 @@ final class RewardAdminView
         foreach($rows as $row) {
             $label=match($row['status']){'pending'=>'Ожидает решения по награде','approved'=>(bool)$row['is_expired']?'Срок бонуса истёк':'Бонус начислен',
                 'rejected'=>$row['granted_at']!==null?'Начисление отменено':'Без награды','used'=>'Использован','expired'=>'Срок бонуса истёк',default=>'Неизвестное состояние'};
-            $html.='<article class="card"><h2>#'.(int)$row['id'].' · '.self::e($label).'</h2><p>'.self::e($row['artist'].' — '.$row['title'])
+            $html.='<article class="panel reward-card"><h2>#'.(int)$row['id'].' · '.self::e($label).'</h2><p>'.self::e($row['artist'].' — '.$row['title'])
                 .' · Track ID '.self::e($row['service_track_id']).'</p><p>Аккаунт #'.(int)$row['user_id'].' · '.self::e($row['email']).'</p>';
             if($row['granted_at']!==null) $html.='<p>Бонус: '.(int)$row['discount_percent'].'% · действует до '.self::e($row['expires_at']).' UTC</p>';
             $actions=$row['status']==='pending' ? ($policy['enabled']?['approve'=>'Начислить '.$policy['upload_discount_percent'].'%','reject'=>'Не начислять']:['reject'=>'Не начислять'])
                 : ($row['status']==='approved' ? ((bool)$row['is_expired']?['expire'=>'Зафиксировать истечение']:['revoke'=>'Отменить начисление']):[]);
             if($actions) {
-                $html.='<form method="post" action="/admin/rewards/action"><input type="hidden" name="csrf" value="'.$csrf.'">'
+                $html.='<form class="reward-decision-form" method="post" action="/admin/rewards/action"><input type="hidden" name="csrf" value="'.$csrf.'">'
                     .'<input type="hidden" name="id" value="'.(int)$row['id'].'"><input type="hidden" name="version" value="'.(int)$row['version'].'">'
-                    .'<input type="hidden" name="policy_version" value="'.$policy['version'].'"><label>Причина решения<input name="reason" maxlength="500" required></label>';
+                    .'<input type="hidden" name="policy_version" value="'.$policy['version'].'"><label class="form-field">Причина решения<input name="reason" maxlength="500" required></label>';
                 foreach($actions as $action=>$title) $html.='<button class="btn" name="action" value="'.$action.'" type="submit">'.self::e($title).'</button> ';
                 $html.='</form>';
             }

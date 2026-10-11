@@ -262,3 +262,9 @@ tr:last-child td{border-bottom:0}td form{display:flex;gap:8px;align-items:center
 /* Field focus changes the existing border, without a second outer frame. */
 input:not([type=checkbox]):focus,select:focus,textarea:focus,
 input:not([type=checkbox]):focus-visible,select:focus-visible,textarea:focus-visible{outline:none;outline-offset:0;border-color:#278d70;box-shadow:none}
+
+.reward-policy-form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;max-width:800px;margin:18px 0}
+.reward-policy-form input:not([type=checkbox]){width:100%}.reward-enable{display:flex;align-items:center;gap:8px}
+.reward-policy-form>button{justify-self:start;align-self:end}.reward-card{box-shadow:none}.reward-card h2{font-size:18px}
+.reward-decision-form{display:flex;align-items:end;gap:10px;flex-wrap:wrap;margin-top:14px}.reward-decision-form .form-field{flex:1 1 220px;max-width:500px}.reward-decision-form input{width:100%}
+@media(max-width:560px){.reward-policy-form{grid-template-columns:1fr}.reward-decision-form{align-items:stretch}.reward-decision-form>button{flex:1}}
