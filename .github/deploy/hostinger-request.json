@@ -1,5 +1,5 @@
 {
   "environment": "hostinger-private-test",
   "request": "owner-approved-stage8-admin-rollout-preserve-stage7-2026-10-09",
-  "replacements": "stage14-security-0.4.25-account-device-IP-write-quotas-no-migrations-preserve-all-credentials-flags-accounts-sessions-trials-entitlements-audio-rewards-policy-ledger-and-allocations"
+  "replacements": "owner-promos-0.4.26-additive-015-finite-stacking-lifetime-confirmation-per-account-revoke-preserve-accepted-first-Start-trial-all-credentials-flags-accounts-sessions-audio-reward-policy-ledger-allocations-no-real-code-or-grant"
 }

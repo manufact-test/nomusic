@@ -34,9 +34,9 @@ try{
   try{$create(['forever'=>'1']);throw new RuntimeException('confirmation_missing');}catch(InvalidArgumentException $e){expect($e->getMessage()==='confirm_forever_required','confirmation required');}
   [$codeId,$code]=$create(['forever'=>'1','confirm_forever'=>'1']);$id=$user();$r=$service->redeem($id,$code);
   expect($r['entitlement']['allowed']&&$r['entitlement']['valid_until']===null,'forever');
-  expect(!(new TrialService($pdo))->activate($id)['activated'],'promo does not consume new trial');
-  expect((int)$pdo->query('SELECT COUNT(*) FROM account_trials WHERE user_id='.$id)->fetchColumn()===0,'unused trial retained');
+  expect((int)$pdo->query('SELECT COUNT(*) FROM account_trials WHERE user_id='.$id)->fetchColumn()===0,'redemption does not start trial');
   $service->revokeRedemption($owner,$r['redemption_id']);expect(!(new EntitlementService($pdo))->check($id)->allowed,'revocation enforced');
+  expect((new TrialService($pdo))->activate($id)['activated'],'first Start retains existing trial behavior');
  });
  run('Promo cap applies across accounts and partial discount is not free time',function()use($pdo,$user,$create,$service):void{
   [$codeId,$code]=$create();$service->redeem($user(),$code);
