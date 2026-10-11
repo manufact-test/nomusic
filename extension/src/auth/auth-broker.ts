@@ -77,7 +77,7 @@ export function createAuthBroker(api, options = {}) {
       if (parsed.length > 16384) throw new Error("auth_unavailable");
       const result = JSON.parse(parsed);
       if (!response.ok) {
-        const safe = new Set(["invalid_credentials", "account_disabled", "account_unavailable", "weak_password", "rate_limited", "invalid_session", "invalid_request", "email_unverified", "email_unavailable", "invalid_code", "access_denied", "uploads_disabled"]);
+        const safe = new Set(["invalid_credentials", "account_disabled", "account_unavailable", "weak_password", "rate_limited", "invalid_session", "invalid_request", "email_unverified", "email_unavailable", "invalid_code", "access_denied", "uploads_disabled", "invalid_referral_code", "referrals_disabled"]);
         throw new Error(safe.has(result?.error) ? result.error : "auth_unavailable");
       }
       return result;
@@ -183,6 +183,30 @@ export function createAuthBroker(api, options = {}) {
     }
     if (action !== "contribution-access" && action !== "track-status" && !await isAvailable()) return { ok: false, error: "auth_disabled" };
     try {
+      if (action === "referral-settings") {
+        const config = await apiRequest("config");
+        return { ok: true, enabled: config.features?.referrals === true };
+      }
+      if (action === "benefits" || action === "referral-code") {
+        return await withAccess(async (saved) => {
+          const config = await apiRequest("config");
+          const access = await apiRequest("entitlement", "GET", null, saved.access_token);
+          if (!validEntitlement(access)) throw new Error("auth_unavailable");
+          const available = config.features?.referrals === true;
+          if (action === "referral-code" && !available) return { ok: false, error: "referrals_disabled" };
+          let referrals = null;
+          if (available) {
+            referrals = await apiRequest(action === "referral-code" ? "referrals/code" : "referrals",
+              action === "referral-code" ? "POST" : "GET", action === "referral-code" ? {} : null, saved.access_token);
+            if (!(referrals.code === null || /^[A-F0-9]{32}$/.test(referrals.code || "")) ||
+                !Number.isSafeInteger(referrals.registered_count) || referrals.registered_count < 0 ||
+                referrals.qualification_available !== false || referrals.qualified_count !== 0 ||
+                referrals.discount_active !== false || referrals.reward_available !== false || referrals.share_url !== null)
+              throw new Error("auth_unavailable");
+          }
+          return { ok: true, entitlement: access, referrals_available: available, referrals };
+        });
+      }
       if (action === "track-status") {
         if (typeof message.track_id !== "string" || !/^[1-9]\d{0,23}$/.test(message.track_id)) {
           return { ok: false, error: "invalid_request" };
@@ -196,8 +220,16 @@ export function createAuthBroker(api, options = {}) {
       if (action === "login" || action === "register") {
         if (typeof message.email !== "string" || typeof message.password !== "string" ||
             message.email.length > 254 || message.password.length > 128) return { ok: false, error: "invalid_request" };
+        let referral = "";
+        if (action === "register" && message.referral_code) {
+          if (typeof message.referral_code !== "string" || !/^[A-F0-9]{32}$/.test(message.referral_code))
+            return { ok: false, error: "invalid_referral_code" };
+          if ((await apiRequest("config")).features?.referrals !== true) return { ok: false, error: "referrals_disabled" };
+          referral = message.referral_code;
+        }
         const credentials = await apiRequest("auth/" + action, "POST", {
-          email: message.email, password: message.password, installation_id: await installationId()
+          email: message.email, password: message.password, installation_id: await installationId(),
+          ...(referral ? { referral_code: referral } : {})
         });
         if (credentials?.verification_required === true) {
           return { ok: true, verification_required: true, email: credentials.email };
@@ -268,7 +300,7 @@ export function createAuthBroker(api, options = {}) {
       }
       return { ok: false, error: "invalid_request" };
     } catch (error) {
-      const safe = new Set(["invalid_credentials", "account_disabled", "account_unavailable", "weak_password", "rate_limited", "invalid_session", "invalid_request", "email_unverified", "email_unavailable", "invalid_code", "access_denied", "uploads_disabled"]);
+      const safe = new Set(["invalid_credentials", "account_disabled", "account_unavailable", "weak_password", "rate_limited", "invalid_session", "invalid_request", "email_unverified", "email_unavailable", "invalid_code", "access_denied", "uploads_disabled", "invalid_referral_code", "referrals_disabled"]);
       return { ok: false, error: safe.has(error?.message) ? error.message : "auth_unavailable" };
     }
   }

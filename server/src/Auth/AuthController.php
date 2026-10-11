@@ -66,11 +66,12 @@ final class AuthController
                 'account_disabled','email_unverified' => 403,
                 'email_unavailable' => 503,
                 'invalid_code' => 422,
+                'invalid_referral_code','referrals_disabled' => 422,
                 default => 401
             };
             return Response::json($status, ['error' => in_array($code,
                 ['rate_limited','weak_password','account_unavailable','account_disabled','invalid_credentials',
-                 'email_unverified','email_unavailable','invalid_code'], true)
+                 'email_unverified','email_unavailable','invalid_code','invalid_referral_code','referrals_disabled'], true)
                 ? $code : 'invalid_session']);
         }
     }

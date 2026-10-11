@@ -25,6 +25,7 @@ function fakePopup() {
   nodes.get("password").type = "password";
   nodes.get("reset-password").type = "password";
   return { nodes, document: { querySelector(selector) {
+    if (selector === "[data-benefits-panel]") return null;
     assert.match(selector, /^\[data-auth-[a-z-]+\]$/);
     return nodes.get(selector.slice(11,-1)) ?? null;
   } } };

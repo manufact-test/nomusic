@@ -77,6 +77,9 @@
                 </svg>
               </button>
             </div>
+            <label data-auth-referral-field hidden>Код приглашения (необязательно)
+              <input data-auth-referral maxlength="32" autocomplete="off" spellcheck="false">
+            </label>
             <button class="primary wide" data-auth-submit type="submit">Войти</button>
             <button class="quiet wide" data-auth-mode type="button">Создать аккаунт</button>
             <button class="auth-link" data-auth-forgot type="button">Забыли пароль?</button>
@@ -115,6 +118,18 @@
           </form>
           <div data-auth-signed class="account-signed" hidden>
             <p class="account-identity" data-auth-identity></p>
+            <details data-benefits-panel hidden>
+              <summary>Подписка и друзья</summary>
+              <p data-benefits-access></p>
+              <p data-benefits-payment></p>
+              <p data-benefits-progress></p>
+              <p class="referral-code" data-benefits-code></p>
+              <button class="quiet wide" type="button" data-benefits-create hidden>Создать код приглашения</button>
+              <button class="quiet wide" type="button" data-benefits-copy hidden>Скопировать код</button>
+              <button class="quiet wide" type="button" data-benefits-share hidden>Поделиться</button>
+              <button class="quiet wide" type="button" data-benefits-refresh>Обновить</button>
+              <p data-benefits-note role="status" aria-live="polite"></p>
+            </details>
             <button class="quiet wide" type="button" data-auth-logout>Выйти</button>
           </div>
           <p class="auth-feedback" data-auth-note role="status" aria-live="polite" hidden></p>

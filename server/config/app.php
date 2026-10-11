@@ -29,6 +29,7 @@ return [
     'auth_enabled' => $boolean('FEATURE_USER_AUTH'),
     // Read-only Stage11 views; never enables payments or subscription entitlement.
     'billing_views_enabled' => $boolean('FEATURE_BILLING_VIEWS'),
+    'referrals_enabled' => $boolean('FEATURE_REFERRAL_ATTRIBUTION'),
     // Owner-supplied private mail credentials; default OFF until SMTP and DNS are verified.
     'mail_transport' => $value('CELIKOM_MAIL_TRANSPORT'),
     'mail_host' => $value('CELIKOM_SMTP_HOST'),

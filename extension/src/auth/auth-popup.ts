@@ -1,8 +1,11 @@
+import { initBenefitsPanel } from "./benefits-popup.js";
 // Customer auth popup: no device list; server keeps per-device sessions.
 export function initAuthPanel(send) {
   const q = (name) => document.querySelector("[data-auth-" + name + "]");
   const root = q("panel"), note = q("note"), email = q("email"), pass = q("password");
   if (!root) return;
+  const benefits = initBenefitsPanel(send);
+  let invitationsAvailable = false;
   const views = { login: q("form"), verify: q("verify-form"), recovery: q("recovery-form"),
     reset: q("new-password-form"), signed: q("signed") };
   const call = (action, more = {}) => send({ type: "CELIKOM_AUTH", action, ...more });
@@ -81,7 +84,8 @@ export function initAuthPanel(send) {
     rate_limited: "Слишком много попыток. Подождите и повторите.",
     invalid_session: "Сессия истекла. Войдите снова.",
     invalid_request: "Проверьте введённые данные.",
-    auth_unavailable: "Сервер недоступен. Повторите позже."
+    auth_unavailable: "Сервер недоступен. Повторите позже.",
+    invalid_referral_code: "Проверьте код приглашения.", referrals_disabled: "Приглашения пока недоступны. Можно зарегистрироваться без кода."
   };
   const show = (value = "", kind = "info") => {
     note.textContent = value;
@@ -91,6 +95,9 @@ export function initAuthPanel(send) {
   function view(next, user) {
     const previous = mode;
     mode = next;
+    benefits.signed(next === "signed");
+    const referralField = q("referral-field");
+    if (referralField) referralField.hidden = next !== "register" || !invitationsAvailable;
     root.dataset.authScreen = next;
     for (const [key, el] of Object.entries(views)) el.hidden =
       key === "login" ? !["login", "register"].includes(next) : key !== next;
@@ -135,6 +142,11 @@ export function initAuthPanel(send) {
     rememberedEmail = goodEmail(known?.[rememberedKey]) ? known[rememberedKey] : "";
     if (!state?.available) return;
     root.hidden = false;
+    void call("referral-settings").then((result) => {
+      invitationsAvailable = result?.enabled === true;
+      const field = q("referral-field");
+      if (field) field.hidden = mode !== "register" || !invitationsAvailable;
+    }).catch(() => {});
     if (state.signedIn) {
       void clearPending();
       void remember(state.user?.email);
@@ -169,7 +181,8 @@ export function initAuthPanel(send) {
     if (!password || (mode === "register" && !goodPass(password))) {
       return show(mode === "register" ? "Пароль: минимум 12 символов." : "Введите пароль.", "error");
     }
-    void act(mode, { email: address, password }, async (result) => {
+    const referral = mode === "register" && invitationsAvailable ? q("referral")?.value.trim().toUpperCase() : "";
+    void act(mode, { email: address, password, ...(referral ? { referral_code: referral } : {}) }, async (result) => {
       await remember(address);
       if (result.verification_required) {
         pendingEmail = address; pendingPassword = password;

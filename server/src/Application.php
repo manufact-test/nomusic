@@ -84,6 +84,21 @@ final class Application
             return (new AuthController(new AuthService($this->database(), $this->config)))
                 ->handle($method, $path, $headers, $body);
         }
+        if (in_array($path,['/api/v1/referrals','/api/v1/referrals/code'],true)) {
+            if (!($this->config['referrals_enabled'] ?? false) || !($this->config['auth_enabled'] ?? false))
+                return Response::json(404,['error'=>'not_found']);
+            if (($path==='/api/v1/referrals' ? 'GET' : 'POST')!==$method)
+                return Response::json(405,['error'=>'method_not_allowed']);
+            $pdo=$this->database();$session=(new BearerAuthenticator($pdo))->session($headers);
+            if ($session===null) return Response::json(401,['error'=>'invalid_session']);
+            $service=new \Celikom\Referral\ReferralService($pdo);
+            if ($method==='POST') {
+                if ($body!=='' && $body!=='{}') return Response::json(400,['error'=>'invalid_request']);
+                $service->code($session['user_id']);
+            }
+            $response=Response::json(200,$service->summary($session['user_id']));
+            $response->headers['Cache-Control']='no-store';return $response;
+        }
         if ($method === 'GET' && $path === '/api/v1/subscription') {
             if (!($this->config['billing_views_enabled'] ?? false) || !($this->config['auth_enabled'] ?? false))
                 return Response::json(404, ['error'=>'not_found']);
@@ -110,7 +125,7 @@ final class Application
                 'max_upload_size' => $this->config['max_audio_size'],
                 'allowed_audio_formats' => ['mp3', 'wav'],
                 'maintenance' => false,
-                'features' => ['replacements' => $this->config['api_enabled'], 'analytics' => $this->config['analytics_enabled'], 'auth' => (bool)($this->config['auth_enabled'] ?? false), 'entitlement' => (bool)($this->config['entitlement_enabled'] ?? false)],
+                'features' => ['replacements' => $this->config['api_enabled'], 'analytics' => $this->config['analytics_enabled'], 'auth' => (bool)($this->config['auth_enabled'] ?? false), 'entitlement' => (bool)($this->config['entitlement_enabled'] ?? false), 'billing_views'=>(bool)($this->config['billing_views_enabled'] ?? false), 'referrals'=>(bool)($this->config['referrals_enabled'] ?? false)],
                 'resolve_cache_ttl_seconds' => ResolveCachePolicy::positive($this->config['resolve_cache_ttl_seconds'] ?? 120, $this->config['audio_token_ttl']),
                 'negative_cache_ttl_seconds' => ResolveCachePolicy::negative($this->config['negative_cache_ttl_seconds'] ?? 15),
             ]);

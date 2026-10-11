@@ -1,3 +1,8 @@
+> Следующий независимый пакет подготовлен: 0.4.12, экран «Подписка и друзья»,
+> коды приглашений и привязка нового аккаунта. Этап 12 — [Issue #13](https://github.com/manufact-test/nomusic/issues/13).
+> Реальная квалификация оплат/скидки/награды выключены. FEATURE_REFERRAL_ATTRIBUTION=0.
+> Hostinger не изменён. План/ограничения: docs/test-plans/CELIKOM-STAGE12-ATTRIBUTION.md.
+
 > Второй пакет этапа 11 опубликован и проверен: приватное чтение подписки и
 > финансовый раздел только для владельца, по валютам. CI [38101176015](https://github.com/manufact-test/nomusic/actions/runs/38101176015) — PASS
 > для кода `e27c871dfa6689210c0624bce47853609f05ba1b`. FEATURE_BILLING_VIEWS=0 по

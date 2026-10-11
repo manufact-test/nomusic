@@ -26,15 +26,30 @@ final class AuthService
         $this->throttle('register', $email, $remoteAddress);
         if (!$this->email->ready()) throw new \DomainException('email_unavailable');
         $passwordHash = self::strongHash($password);
+        $code=$input['referral_code'] ?? '';
+        if (!is_string($code)) throw new \InvalidArgumentException('invalid_referral_code');
+        $code=strtoupper(trim($code));
+        $referrals=new \Celikom\Referral\ReferralService($this->pdo);
+        if ($code!=='') {
+            if (!($this->config['referrals_enabled'] ?? false)) throw new \DomainException('referrals_disabled');
+            $referrals->validate($code);
+            $this->pdo->beginTransaction();
+        }
         try {
             $insert = $this->pdo->prepare('INSERT INTO users (email, password_hash) VALUES (?, ?)');
             $insert->execute([$email, $passwordHash]);
-        } catch (\PDOException $error) {
-            if (($error->errorInfo[1] ?? null) === 1062) throw new \DomainException('account_unavailable');
+            $userId = (int) $this->pdo->lastInsertId();
+            $this->event($userId, 'user_registered');
+            if ($code!=='') {
+                $referrals->bindRegistration($userId,$code);
+                $this->pdo->commit();
+            }
+        } catch (\Throwable $error) {
+            if ($code!=='' && $this->pdo->inTransaction()) $this->pdo->rollBack();
+            if ($error instanceof \PDOException && ($error->errorInfo[1] ?? null) === 1062)
+                throw new \DomainException('account_unavailable');
             throw $error;
         }
-        $userId = (int) $this->pdo->lastInsertId();
-        $this->event($userId, 'user_registered');
         return $this->email->sendVerification($userId, $email);
     }
 

@@ -171,7 +171,8 @@ try {
         // snapshots correctly omit these tables until migration 003 exists.
         $optional = ['admins', 'admin_sessions', 'admin_login_attempts', 'audit_log',
             'track_request_reviews', 'reports', 'users', 'user_devices', 'user_sessions',
-            'user_auth_attempts', 'user_auth_events', 'user_email_security', 'entitlement_ledger', 'account_trials'];
+            'user_auth_attempts', 'user_auth_events', 'user_email_security', 'entitlement_ledger', 'account_trials',
+            'subscriptions', 'billing_events', 'billing_payments', 'billing_adjustments', 'referral_codes', 'referrals'];
         $present = $pdo->prepare('SELECT COUNT(*) FROM information_schema.tables
             WHERE table_schema = DATABASE() AND table_name = ?');
         foreach ($optional as $extra) {

@@ -6,7 +6,7 @@ function mock() {
   const local = {};
   let secret = null;
   const calls = [];
-  let flag = true, nextId = 1, meMode = "ok", unverified = false;
+  let flag = true, referrals = false, nextId = 1, meMode = "ok", unverified = false;
   const api = {
     storage: { local: {
       get: async (key) => ({ [key]: local[key] }),
@@ -19,7 +19,10 @@ function mock() {
   const fetch = async (url, opts) => {
     const endpoint = new URL(url).pathname;
     calls.push({ endpoint, opts });
-    if (endpoint === "/api/v1/config") return response({ features: { auth: flag } });
+    if (endpoint === "/api/v1/config") return response({ features: { auth: flag, referrals } });
+    if (endpoint === "/api/v1/entitlement") return response({ allowed:false, source:"none",valid_until:null,reason:"trial_not_started" });
+    if (endpoint === "/api/v1/referrals" || endpoint === "/api/v1/referrals/code") return response({code:endpoint.endsWith("code") ? "A".repeat(32) : null,
+      registered_count:2,qualified_count:0,qualification_available:false,discount_active:false,reward_available:false,share_url:null});
     if (endpoint.endsWith("register") || endpoint.endsWith("login")) {
       if (unverified) return response({ verification_required:true, email:"a@example.org" },endpoint.endsWith("register")?201:200);
       nextId++;
@@ -47,7 +50,7 @@ function mock() {
     return response({ error: "invalid_request" }, 400);
   };
   const broker = createAuthBroker(api, { store, fetch, readConfig: async () => ({ baseUrl: "https://celikom.example" }) });
-  return { broker, local, calls, store, setFlag: (v) => { flag = v; }, setMeMode: (v) => { meMode = v; }, setUnverified: (v) => { unverified = v; } };
+  return { broker, local, calls, store, setFlag: (v) => { flag = v; }, setReferrals: (v) => { referrals = v; }, setMeMode: (v) => { meMode = v; }, setUnverified: (v) => { unverified = v; } };
 }
 test("Stage9 identity uses stable v4 installation and no music-service identifiers", async () => {
   const fx = mock();
@@ -142,4 +145,25 @@ test("Stage9 disabled network config preserves local account appearance without 
   assert.equal(status.localSession,true);
   assert.equal(status.user.email,"a@example.org");
   assert.ok((await fx.store.get()).refresh_token);
+});
+
+test("Stage12 benefits stay private and issuing a code is explicit and feature-gated", async () => {
+  const fx = mock();
+  await fx.broker.perform("login", {email:"a@example.org",password:"correct horse battery staple"});
+  const off = await fx.broker.perform("benefits");
+  assert.equal(off.ok,true); assert.equal(off.referrals_available,false);
+  assert.equal(fx.calls.some(c=>c.endpoint.includes("/referrals")),false);
+  assert.equal((await fx.broker.perform("referral-code")).error,"referrals_disabled");
+  fx.setReferrals(true);
+  const result=await fx.broker.perform("referral-code");
+  assert.equal(result.referrals.code,"A".repeat(32));
+  assert.equal("access_token" in result,false); assert.equal("refresh_token" in result,false);
+  const call=fx.calls.find(c=>c.endpoint==="/api/v1/referrals/code");
+  assert.equal(call.opts.method,"POST");assert.equal(call.opts.headers.Authorization,"Bearer "+"a".repeat(64));
+});
+test("Stage12 disabled invitations do not silently discard a registration code", async () => {
+  const fx = mock();
+  const result=await fx.broker.perform("register",{email:"a@example.org",password:"correct horse battery staple",referral_code:"A".repeat(32)});
+  assert.equal(result.error,"referrals_disabled");
+  assert.equal(fx.calls.some(c=>c.endpoint.endsWith("register")),false);
 });
