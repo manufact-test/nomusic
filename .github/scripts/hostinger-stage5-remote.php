@@ -28,6 +28,14 @@ try {
         || $config['analytics_enabled'] || $config['storage_driver'] !== 'local'
         || realpath($config['storage_path']) !== $shared . '/audio') throw new RuntimeException('flags');
     $pdo = Celikom\Database\Connection::open($config);
+    if ($operation === 'snapshot' && class_exists(Celikom\Promo\PromoAdminView::class)) {
+        foreach (['codes'=>[false,false],'create'=>[true,false],'activations'=>[false,true]] as $name=>[$create,$activations]) {
+            $started=microtime(true);
+            $html=(new Celikom\Promo\PromoAdminView($pdo))->render(str_repeat('0',64),1,$create,$activations);
+            printf("Promo read-only render diagnostic: %s %.3fs %d bytes\n",$name,microtime(true)-$started,strlen($html));
+        }
+    }
+
     // Read-only deployment diagnostics, never SQL, account data or credentials.
     $engine=str_contains((string)$pdo->query('SELECT VERSION()')->fetchColumn(),'MariaDB')?'MariaDB':'MySQL';
     $marker=(int)$pdo->query("SELECT COUNT(*) FROM schema_migrations WHERE version='013_automatic_rewards.sql'")->fetchColumn();
