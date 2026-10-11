@@ -59,7 +59,7 @@ class MobileSurface(override val context:Context,private val changed:(String)->U
         view.evaluateJavascript("window.__CELIKOM_MOBILE__?.engage(${JSONObject.quote(track)},${JSONObject.quote(media)},${JSONObject.quote(token)}) === true") {callback(it=="true")}
     }
     override fun release(token:String?) {
-        if(!closed&&SurfaceOrigin.allowed(view.url?:"")) view.evaluateJavascript("window.__CELIKOM_MOBILE__?.release(${token?.let{JSONObject.quote(it)}?:"null"})",null)
+        if(!closed&&SurfaceOrigin.allowed(view.url?:"")) runCatching{view.evaluateJavascript("window.__CELIKOM_MOBILE__?.release(${token?.let{JSONObject.quote(it)}?:"null"})",null)}
     }
     fun suspend() { release(); if(!closed){ view.evaluateJavascript("document.querySelectorAll('audio,video').forEach(e=>e.pause())",null);view.onPause() } }
     fun desktopMode(enabled:Boolean){

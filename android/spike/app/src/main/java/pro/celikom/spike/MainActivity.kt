@@ -8,6 +8,8 @@ import android.content.IntentFilter
 import android.media.AudioManager
 import androidx.core.content.ContextCompat
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.graphics.Color
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -89,8 +91,8 @@ class MainActivity : ComponentActivity() {
                             Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal=20.dp,vertical=12.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
                                 Text(accountState)
                                 if(!signedIn){
-                                    OutlinedTextField(email,{email=it},Modifier.fillMaxWidth(),label={Text("Почта")},singleLine=true)
-                                    OutlinedTextField(password,{password=it},Modifier.fillMaxWidth(),label={Text("Пароль")},singleLine=true,visualTransformation=PasswordVisualTransformation())
+                                    OutlinedTextField(email,{email=it},Modifier.fillMaxWidth(),label={Text("Почта")},singleLine=true,keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Email))
+                                    OutlinedTextField(password,{password=it},Modifier.fillMaxWidth(),label={Text("Пароль")},singleLine=true,keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Password),visualTransformation=PasswordVisualTransformation())
                                     Button(enabled=!busy&&email.isNotBlank()&&password.isNotEmpty(),onClick={
                                         val submitted=password;password=""
                                         task{account.login(email,submitted,register);if(account.signedIn)formatAccess(account.entitlement()) else "Введите код подтверждения из письма"}
