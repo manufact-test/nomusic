@@ -45,6 +45,22 @@ try{
   try{$service->redeem($user(),$discount);throw new RuntimeException('payment_missing');}catch(DomainException $e){expect($e->getMessage()==='promo_payment_pending','discount deferred');}
   expect((int)$pdo->query('SELECT used_activations FROM promo_codes WHERE id='.$partial)->fetchColumn()===0,'no use without payment');
  });
+ run('Admin lifetime confirmation does not create a code; activation view and CSRF are enforced',function()use($pdo,$config,$owner,$user,$create,$service):void{
+  $token=bin2hex(random_bytes(32));$csrf=hash_hmac('sha256','celikom-admin-csrf-v1',$token);
+  $pdo->prepare('INSERT INTO admin_sessions(token_hash,admin_id,csrf_hash,expires_at) VALUES (?,?,?,DATE_ADD(UTC_TIMESTAMP(6),INTERVAL 6 HOUR))')->execute([hash('sha256',$token),$owner,hash('sha256',$csrf)]);
+  $panel=new Celikom\Admin\AdminPanel($pdo,new Celikom\Storage\LocalStorageAdapter($config['storage_path']));
+  $headers=['cookie'=>Celikom\Admin\AdminAuth::COOKIE.'='.$token,'content-type'=>'application/x-www-form-urlencoded'];
+  $form=['csrf'=>$csrf,'code'=>'FOREVER_'.bin2hex(random_bytes(6)),'title'=>'<fixture>','discount_percent'=>'100','forever'=>'1','max_activations'=>'1','activation_window'=>'unlimited','request_key'=>bin2hex(random_bytes(32))];
+  $before=(int)$pdo->query('SELECT COUNT(*) FROM promo_codes')->fetchColumn();$response=$panel->handle('POST','/admin/promos/create',[],$headers,http_build_query($form));
+  expect($response->status===200&&str_contains($response->body,'Точно хотите выдать доступ навсегда?'),'separate confirmation');
+  expect((int)$pdo->query('SELECT COUNT(*) FROM promo_codes')->fetchColumn()===$before,'no code on first submit');
+  expect(!str_contains($response->body,'value="<fixture>"'),'confirmation escaped');
+  expect($panel->handle('POST','/admin/promos/revoke-activation',[],$headers,'id=1')->status===403,'csrf required');
+  [$cid,$code]=$create();$id=$user();$r=$service->redeem($id,$code);
+  $response=$panel->handle('GET','/admin',['tab'=>'promos','activations'=>'1'],$headers,'');
+  expect($response->status===200&&str_contains($response->body,$code)&&str_contains($response->body,'/admin/promos/revoke-activation'),'activation and revoke rendered');
+  $pdo->exec('DELETE FROM admin_sessions WHERE admin_id='.$owner);
+ });
  run('Seven remaining days plus thirty promo days give thirty-seven',function()use($pdo,$user,$create,$service):void{
   $id=$user();[$a,$ca]=$create(['duration_days'=>7]);[$b,$cb]=$create(['duration_days'=>30]);$service->redeem($id,$ca);$r=$service->redeem($id,$cb);
   $now=(string)$pdo->query('SELECT UTC_TIMESTAMP(6)')->fetchColumn();

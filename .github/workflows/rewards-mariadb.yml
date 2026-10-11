@@ -6,6 +6,9 @@ on:
     paths:
       - .github/workflows/rewards-mariadb.yml
       - server/migrations/**
+      - server/src/Promo/**
+      - server/tests/promos.php
+      - server/tests/promo-race-worker.php
       - server/src/Reward/**
       - server/src/Incident/**
       - server/src/Application.php

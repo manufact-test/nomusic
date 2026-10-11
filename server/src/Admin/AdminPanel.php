@@ -290,6 +290,11 @@ final class AdminPanel
     private static function actionLabel(string $action): string
     {
         return match ($action) {
+            'promo_created' => 'Промокод создан',
+            'promo_redeemed' => 'Промокод активирован пользователем',
+            'promo_revoked' => 'Новые активации промокода закрыты',
+            'promo_revoked_with_grants' => 'Промокод и его доступ отозваны',
+            'promo_redemption_revoked' => 'Активация промокода отозвана',
             'replacement_approve' => 'Подмена одобрена',
             'replacement_reactivate' => 'Подмена восстановлена',
             'replacement_reject' => 'Версия отклонена',
@@ -811,13 +816,13 @@ final class AdminPanel
             $object = match ($r['entity_type']) {
                 'track_replacement' => 'Версия', 'track_request' => 'Предложение', 'track' => 'Трек',
                 'report' => 'Жалоба', 'admin' => 'Администратор',
-                'reward_ledger' => 'Награда', 'reward_policy' => 'Правила наград',
+                'promo_code' => 'Промокод', 'reward_ledger' => 'Награда', 'reward_policy' => 'Правила наград',
                 default => 'Объект'
             };
             $html .= '<tr><td>' . self::e($r['created_at']) . '</td><td>'
                 . self::e($role) . '</td><td>' . self::e(self::actionLabel((string)$r['action']))
                 . '</td><td>' . self::e($object) . ' № ' . (int) $r['entity_id']
-                . '</td><td>' . self::e($r['reason']) . '</td></tr>';
+                . '</td><td>' . self::e($r['reason']==='owner_promo'?'Промокод владельца':$r['reason']) . '</td></tr>';
         }
         if (!$rows) $html .= '<tr><td colspan="5" class="muted">Записей пока нет.</td></tr>';
         return $html . '</tbody></table></div>'
