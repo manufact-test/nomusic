@@ -29,6 +29,7 @@ jobs:
         run: |
           python3 android/spike/generate-fixtures.py
           node android/spike/generate-surface-probe.mjs
+          node --test android/spike/playback-surface.test.mjs
       - name: Unit, lint and debug assembly
         working-directory: android/spike
         run: gradle --no-daemon :app:testDebugUnitTest :app:lintDebug :app:assembleDebug
