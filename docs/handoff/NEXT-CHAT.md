@@ -1,3 +1,45 @@
+> **11.10.2026 — 0.4.17 развёрнута: автоматические бонусы и перенос процентов.**
+> Рабочий release `0.4.17-4f926ea740d30dcf04703bf178e272e6922c516e`.
+> [Deploy 38135908903 — PASS](https://github.com/manufact-test/nomusic/actions/runs/38135908903).
+> На Hostinger подтверждена MariaDB. Первый rollout остановился до переключения:
+> синтаксис MySQL DROP CHECK не подошёл MariaDB, миграция 013 не применилась.
+> Read-only диагностика подтвердила marker/column/table=0. Только после этого
+> ещё не применённая миграция 013 исправлена на выбор DROP CONSTRAINT для MariaDB.
+> Миграции 011/012 не изменялись. После успешного rollout 013 также неизменяема.
+> [MariaDB 38135645996 — PASS](https://github.com/manufact-test/nomusic/actions/runs/38135645996):
+> 7 automatic/carry сценариев и исторические policy/grant тесты.
+> [CI финального клиента 38136181230 — PASS](https://github.com/manufact-test/nomusic/actions/runs/38136181230):
+> 144 теста расширения, 17 прототипа, PHP/MySQL регресс и native Chromium.
+> [Live user audit 38136070622 — PASS](https://github.com/manufact-test/nomusic/actions/runs/38136070622):
+> обычная сессия пользователя, полный MP3 девятью диапазонами, пробный доступ
+> 3 дня, независимые устройства/refresh/logout, HTTPS upload и отдельное предложение,
+> pending denied playback, GET rewards только собственного аккаунта, client grant 405.
+> Fixtures удалены, реальные accounts/trials/catalog/private audio сохранены.
+> [Reward integrity 38136178446 — PASS](https://github.com/manufact-test/nomusic/actions/runs/38136178446):
+> read-only audit точного release, policy/ledger/allocations/credentials сохранены.
+> [Snapshot 38136178450 — PASS](https://github.com/manufact-test/nomusic/actions/runs/38136178450):
+> все 33 SQL таблицы, env и 8 audio.
+> [Restore 38136300387 — PASS](https://github.com/manufact-test/nomusic/actions/runs/38136300387):
+> изолированно восстановлены файлы и полный SQL нового schema, live DB не заменялась.
+> Pre-retry [restore 38135778796 — PASS](https://github.com/manufact-test/nomusic/actions/runs/38135778796).
+> Дополнительный диагностический stdout сначала мешал SQL export при restore-drill;
+> диагностика исключена для restore-export, повтор успешно проверил чистый SQL поток.
+> Live DB при восстановлении не заменялась.
+> Полный ZIP `CELIKOM-0.4.17-full.zip`, SHA256
+> `7767edcfa0c1c937e92d44e473b9e2fcb6ae5d2eb5ae2670d5fa769eec637e2c`,
+> 2427015 bytes. Прежний Hostinger, оба MV3 worlds; аккаунт/сессии/пробный срок
+> не сбрасывались. Пустой раздел бонусов скрыт до настройки правил или начислений.
+> Ручная проверка: обновить текущую установку и админку, сохранить три настройки,
+> загрузить из пользовательского аккаунта новую уникальную версию и одобрить её.
+> Бонус должен появиться сразу без второй проверки. Для компактной проверки переноса
+> временно 3%/предел 5%/30 дней: две разные новые версии дают 5% сейчас + 1% далее.
+> После проверки сохранить коммерческий месячный предел, например 20%.
+> Начисленные проценты/сроки/очередь прежних бонусов не переписываются при настройке.
+> Применение к платежу, расходование/идемпотентность, повторные оплаты в месяце,
+> возвраты и финансовое сочетание с referral/promo остаются в #12 до платежей.
+> Stage12 открыт до оставшихся функций и owner acceptance; PR6 OPEN/unmerged,
+> Issue7 OPEN. Яндекс startup ошибку не расследуем по решению владельца.
+
 > **11.10.2026 — уточнение владельца: автоматические бонусы, пакет 0.4.17.**
 > Одобрение уникальной версии сразу начисляет автору бонус, без второго решения.
 > Настройки: процент за песню, максимальная скидка за календарный месяц UTC,
