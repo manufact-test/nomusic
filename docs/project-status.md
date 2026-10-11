@@ -1,3 +1,23 @@
+> **11.10.2026 — админка 0.4.23, клиент остаётся 0.4.22.**
+> Владелец подтвердил исправление popup с другой активной вкладки и наличие нового раздела.
+> По двум скриншотам три панели навигации объединены в одну, с переносом пунктов;
+> у формы сбоя подпись над textarea, кнопка ниже, отступы и мобильные размеры исправлены.
+> [CI/MySQL/Chromium PASS](https://github.com/manufact-test/nomusic/actions/runs/38150560659),
+> [MariaDB PASS](https://github.com/manufact-test/nomusic/actions/runs/38150557360):
+> nav по ролям/flags и реальные browser geometry на desktop/tablet/mobile.
+> [Snapshot PASS](https://github.com/manufact-test/nomusic/actions/runs/38150557356): 36 SQL таблиц, 12 audio.
+> [Deploy PASS, attempt 2](https://github.com/manufact-test/nomusic/actions/runs/38150746335/attempts/2),
+> release `0.4.23-df8bd247b9ae0a6ff1ecc75f453403fa84be8529`.
+> Первая попытка остановилась на SSH timeout до загрузки; повтор успешен.
+> [Read-only audit PASS](https://github.com/manufact-test/nomusic/actions/runs/38151006311):
+> опубликованные unified nav и incident form проверены, digest данных/наград не изменился.
+> Миграций и клиентских изменений нет; новые ZIP/Reload расширения не нужны.
+> Для UI приёмки только обновить админку. Объявлять live сбой ради теста не требуется:
+> это общий запрет подмены с сохранением времени доступа, start/resolve уже проверены на fixtures.
+> Реальная оплата отсутствует; 11/12 и коммерческая часть 13 остаются частичными, PR #6 OPEN/unmerged.
+> [Передача контекста](https://github.com/manufact-test/nomusic/blob/feature/api-range/docs/decisions/ADMIN-UI-2026-10-11.md).
+> Эта запись имеет приоритет над историческим состоянием ниже.
+
 > **11.10.2026 — 0.4.22: два исправления и независимая часть этапа 13.**
 > Сервер `0.4.22-edf72f42112ac3b113942fe542710082d528243e` развёрнут: [Deploy PASS](https://github.com/manufact-test/nomusic/actions/runs/38148930467).
 > [CI/MySQL/Chromium PASS](https://github.com/manufact-test/nomusic/actions/runs/38148775909),
