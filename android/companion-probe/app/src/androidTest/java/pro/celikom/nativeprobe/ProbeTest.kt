@@ -1,0 +1,52 @@
+package pro.celikom.nativeprobe
+
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.media.MediaMetadata
+import android.media.audiofx.AudioEffect
+import android.os.Environment
+import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.test.platform.app.InstrumentationRegistry
+import org.junit.Assert.*
+import org.junit.Test
+import org.junit.runner.RunWith
+import java.io.File
+import android.graphics.Bitmap
+
+@RunWith(AndroidJUnit4::class)
+class ProbeTest {
+    private val instrumentation = InstrumentationRegistry.getInstrumentation()
+    private val context = instrumentation.targetContext
+    @Test fun boundedReportRejectsSpoofAndDoesNotRequestAudioOrNetwork() {
+        ProbeStore.clear(context)
+        val spoof = Intent(AudioEffect.ACTION_OPEN_AUDIO_EFFECT_CONTROL_SESSION)
+            .putExtra(AudioEffect.EXTRA_PACKAGE_NAME, ProbeStore.YANDEX)
+            .putExtra(AudioEffect.EXTRA_AUDIO_SESSION, 42)
+        SessionReceiver().onReceive(context, spoof)
+        val first = ProbeStore.report(context).getJSONArray("events").getJSONObject(0)
+        assertFalse(first.getBoolean("verified_panel_caller")); assertFalse(first.getBoolean("effect_applied"))
+        repeat(40) { SessionReceiver().onReceive(context, spoof) }
+        assertEquals(30, ProbeStore.report(context).getJSONArray("events").length())
+        ProbeStore.setEnabled(context, false); SessionReceiver().onReceive(context, spoof)
+        assertEquals(30, ProbeStore.report(context).getJSONArray("events").length())
+        ProbeStore.setEnabled(context, true)
+        val permissions = context.packageManager.getPackageInfo(context.packageName, PackageManager.GET_PERMISSIONS).requestedPermissions?.toList() ?: emptyList()
+        for (name in listOf("android.permission.INTERNET", "android.permission.RECORD_AUDIO", "android.permission.MODIFY_AUDIO_SETTINGS")) assertFalse(permissions.contains(name))
+        val metadata = MediaMetadata.Builder().putString(MediaMetadata.METADATA_KEY_MEDIA_ID, "144530503")
+            .putString(MediaMetadata.METADATA_KEY_MEDIA_URI, "https://user:secret@example.org/track/144530503?token=secret#secret")
+            .putString("private.credentials", "secret").build()
+        val safe = ProbeStore.metadata(metadata)
+        assertFalse(safe.toString().contains("secret")); assertFalse(safe.getBoolean("exact_track_id_verified"))
+        ProbeStore.clear(context)
+    }
+    @Test fun nativeUiStartsWithoutYandexOrLoginAndProducesScreenshot() {
+        val activity = instrumentation.startActivitySync(Intent(context, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        instrumentation.waitForIdleSync()
+        val view = activity.window.decorView
+        assertTrue(view.width > 0); assertTrue(view.height > 0)
+        val image = instrumentation.uiAutomation.takeScreenshot()
+        val file = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "native-probe.png")
+        file.outputStream().use { image.compress(Bitmap.CompressFormat.PNG, 100, it) }
+        instrumentation.runOnMainSync { activity.finish() }
+    }
+}
