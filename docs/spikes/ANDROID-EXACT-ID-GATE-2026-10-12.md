@@ -1,5 +1,8 @@
 # Exact Android track identity is the next feasibility gate
 
+**Owner constraints, confirmed 2026-10-12:** exact source track ID only. Ynison/account-side integration is withdrawn; no OAuth developer dashboard, client registration or Music tokens should be requested. Artwork/title/artist/duration matching cannot satisfy current identity. The uncommitted 0.3.16 artwork experiment was fully reverted before any remote push or APK build. Android remains 0.3.15. Historical Ynison scripts below are unused engineering research and are not part of the APK.
+
+
 Owner explicitly prioritizes exact current identity before additional sound replacement or UI development. Suspend proposed synchronized-tone work. Existing 0.3.15 proves short background transition, a transition after an owner-reported 30-second screen-off interval, fresh paused state, a finger-selected seek to 145179 ms (owner confirms roughly 2:25, not requested 1:30), and resumed playing state at 156437 ms. These are state observations, not complete replacement proof. Physical precision of seek not independently measured.
 
 ## New channel found: account playback synchronization (Ynison)
@@ -46,3 +49,10 @@ Additional sources:
 - https://github.com/thedvxch/yandex-music/blob/main/src/ynison/client.ts
 - https://github.com/thedvxch/yandex-music/blob/main/src/ynison/messages.ts
 - https://websockets.readthedocs.io/en/stable/reference/asyncio/client.html
+
+
+## Desktop comparison after owner correction
+
+Inspected extension/src/player/core.ts and extension/src/adapters/yandex-music-adapter.ts. Browser bridge executes in the page main world, observes that page's fetch/XHR JSON responses and reads track objects with realId/id. The page also exposes track path links. Browser adapter ranks current candidates using current player evidence; artwork alone is not a supported exact-identity source. No change to accepted extension behavior.
+
+Native Android companion is a different process/UID and has no equivalent access to Yandex's internal JS/network client/player objects. In observed public Media3 data, queue IDs were short and unstable; actual catalog ID was not exposed in tested fields. Yandex using catalog IDs internally does not demonstrate third-party companion access to them. Android feasibility gate remains exact local source identification without server-side account integration or inference from mutable metadata. Do not promise a source exists, and do not continue replacement or UI development until live ID acquisition is proved.
