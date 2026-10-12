@@ -143,8 +143,8 @@ class MainActivity : Activity() {
                                     try {
                                         startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).setType("application/zip")
                                             .putExtra(Intent.EXTRA_STREAM, uri)
-                                            .setClipData(ClipData.newRawUri("Yandex program", uri))
-                                            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION), "Сохранить или передать архив программы"))
+                                            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                            .apply { clipData = ClipData.newRawUri("Yandex program", uri) }, "Сохранить или передать архив программы"))
                                     } catch (_: RuntimeException) { toast("Не удалось открыть передачу архива") }
                                 }
                             }

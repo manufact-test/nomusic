@@ -66,7 +66,7 @@ class LegacyIdentityProbe(private val context: Context, private val expectedPack
         try {
             val state = current.playbackState
             val activeId = state?.activeQueueItemId
-            val item = if (activeId == null || activeId == android.media.session.MediaSession.QueueItem.UNKNOWN_ID) null
+            val item = if (activeId == null || activeId == android.media.session.MediaSession.QueueItem.UNKNOWN_ID.toLong()) null
                 else current.queue?.firstOrNull { it.queueId == activeId }
             val description = item?.description
             record("connected", JSONObject().put("package", current.packageName)
