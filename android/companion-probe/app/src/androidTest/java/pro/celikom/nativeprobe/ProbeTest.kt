@@ -83,7 +83,7 @@ class ProbeTest {
             instrumentation.runOnMainSync { activity.finish() }
             android.os.SystemClock.sleep(4000)
             val active=ProbeStore.report(context).getJSONObject("attenuation_test")
-            assertEquals("attenuating",active.getString("status")); assertTrue(active.getBoolean("effect_attached"))
+            assertEquals(active.toString(),"attenuating",active.getString("status")); assertTrue(active.getBoolean("effect_attached"))
             val blocking = java.util.concurrent.CountDownLatch(1)
             val unblocked = java.util.concurrent.CountDownLatch(1)
             android.os.Handler(android.os.Looper.getMainLooper()).post {

@@ -27,9 +27,9 @@ class TestTone(private val sourceSession: Int) {
             .setTransferMode(AudioTrack.MODE_STATIC).setBufferSizeInBytes(samples.size*2).build()
         track = candidate
         session = candidate.audioSessionId
-        check(candidate.state == AudioTrack.STATE_INITIALIZED && session > 0 && session != sourceSession)
+        check(session > 0 && session != sourceSession)
         submitted = candidate.write(samples, 0, samples.size)
-        check(submitted == samples.size)
+        check(submitted == samples.size && candidate.state == AudioTrack.STATE_INITIALIZED)
         candidate.play()
     }
     fun snapshot(): JSONObject {
