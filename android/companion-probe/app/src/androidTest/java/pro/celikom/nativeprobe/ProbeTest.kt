@@ -18,6 +18,34 @@ import android.graphics.Bitmap
 class ProbeTest {
     private val instrumentation = InstrumentationRegistry.getInstrumentation()
     private val context = instrumentation.targetContext
+    @Test fun publicSnapshotsExpireAndRetainBoundedTrackTransitions() {
+        ProbeStore.clear(context)
+        fun snapshot(title: String)=org.json.JSONObject().put("sessions",org.json.JSONArray().put(org.json.JSONObject()
+            .put("media_id",title).put("metadata",org.json.JSONObject().put("title",title))))
+        ProbeStore.publicMedia(context,snapshot("one"))
+        var saved=org.json.JSONObject(context.getSharedPreferences("native_probe",0).getString("public_media","{}"))
+        val observed=saved.getLong("observed_elapsed_ms")
+        assertTrue(ProbeStore.freshPublicMedia(saved,observed+5000))
+        assertFalse(ProbeStore.freshPublicMedia(saved,observed+5001))
+        assertFalse(ProbeStore.freshPublicMedia(saved,observed-1))
+        saved.put("process_instance","previous-process")
+        assertFalse(ProbeStore.freshPublicMedia(saved,observed))
+        for (i in 0..24) ProbeStore.publicMedia(context,snapshot("track-$i"))
+        ProbeStore.publicMedia(context,snapshot("track-24"))
+        val history=org.json.JSONArray(context.getSharedPreferences("native_probe",0).getString("public_media_history","[]"))
+        assertEquals(20,history.length())
+        assertEquals("track-24",history.getJSONObject(19).getJSONArray("sessions").getJSONObject(0).getString("media_id"))
+        if (BuildConfig.PANEL_ONLY) {
+            ProbeStore.put(context,"public_browser",org.json.JSONObject().put("status","connected"))
+            ProbeStore.put(context,"public_media",saved)
+            ProbeStore.put(context,"catalog_match",org.json.JSONObject().put("status","unique_metadata_candidate_unverified").put("candidate_track_id","123"))
+            val report=ProbeStore.report(context)
+            assertEquals("data_stale",report.getJSONObject("public_browser").getString("status"))
+            assertFalse(report.getJSONObject("catalog_match").has("candidate_track_id"))
+            assertEquals("observation_stale",report.getJSONObject("catalog_match").getString("status"))
+        }
+        ProbeStore.clear(context)
+    }
     @Test fun catalogMatchRejectsAmbiguityRemixesMissingDataAndStaleSnapshots() {
         val now=System.currentTimeMillis()
         fun row(id: String, title: String="Здравствуй", album: String="BRATLAND")=org.json.JSONObject()

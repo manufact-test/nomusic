@@ -106,6 +106,15 @@ class PublicMediaProbe(private val context: Context) {
             }
         },7000)
     }
+    fun reconcileOnResume() {
+        if (leaseUntil>0 && android.os.SystemClock.elapsedRealtime()>=leaseUntil) {
+            stop();status("observation_window_finished",0)
+        } else if (leaseUntil==0L) {
+            stop();status("not_checked_in_current_process",0)
+        }
+        ProbeStore.put(context,"observation_window",JSONObject().put("lease_until_elapsed_ms",leaseUntil)
+            .put("resumed_at_ms",System.currentTimeMillis()).put("active_in_current_process",modern.active || controllers.isNotEmpty()))
+    }
     private fun renewLease() {
         leaseUntil = android.os.SystemClock.elapsedRealtime()+120000
         val run=generation
@@ -123,11 +132,12 @@ class PublicMediaProbe(private val context: Context) {
             val session = JSONObject().put("package", c.packageName).put("metadata", ProbeStore.metadata(c.metadata))
                 .put("state", state?.state ?: -1).put("position_ms", state?.position ?: -1).put("speed", state?.playbackSpeed ?: 0)
                 .put("current_queue_item", current).put("exact_track_id_verified", false)
-            ProbeStore.put(context, "public_media", JSONObject().put("observed_at_ms", System.currentTimeMillis()).put("sessions", JSONArray().put(session)))
+            ProbeStore.publicMedia(context, JSONObject().put("sessions", JSONArray().put(session)))
         } catch (_: RuntimeException) { status("metadata_unavailable") }
     }
     fun stop() {
         generation++
+        leaseUntil=0L
         modern.stop()
         handler.removeCallbacksAndMessages(null)
         controllers.forEach { (c, callback) -> try { c.unregisterCallback(callback) } catch (_: RuntimeException) { } }; controllers.clear()

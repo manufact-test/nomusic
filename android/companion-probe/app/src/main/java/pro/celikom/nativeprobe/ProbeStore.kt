@@ -11,6 +11,7 @@ import org.json.JSONObject
 
 object ProbeStore {
     const val YANDEX = "ru.yandex.music"
+    private val processInstance = java.util.UUID.randomUUID().toString()
     private fun prefs(c: Context) = c.getSharedPreferences("native_probe", Context.MODE_PRIVATE)
     @Synchronized fun put(c: Context, key: String, value: JSONObject) {
         prefs(c).edit().putString(key, value.toString()).apply()
@@ -78,9 +79,31 @@ object ProbeStore {
         }
         put(c, "media", value)
     }
+    @Synchronized fun publicMedia(c: Context, value: JSONObject) {
+        val previous = JSONObject(prefs(c).getString("public_media", "{}"))
+        val now = System.currentTimeMillis()
+        value.put("observed_at_ms", now).put("observed_elapsed_ms", android.os.SystemClock.elapsedRealtime())
+            .put("process_instance", processInstance)
+        fun identity(v: JSONObject): String {
+            val row=v.optJSONArray("sessions")?.optJSONObject(0)
+            return "${row?.optString("media_id")}|${row?.optJSONObject("metadata")?.optString("title")}|${row?.optJSONObject("metadata")?.optString("artist")}|${row?.optJSONObject("metadata")?.optString("album")}"
+        }
+        if (identity(previous)!=identity(value)) {
+            val history=JSONArray(prefs(c).getString("public_media_history", "[]"))
+            if (history.length()>=20) history.remove(0)
+            history.put(value)
+            prefs(c).edit().putString("public_media_history", history.toString()).apply()
+        }
+        put(c, "public_media", value)
+    }
+    fun freshPublicMedia(value: JSONObject, elapsed: Long = android.os.SystemClock.elapsedRealtime()): Boolean {
+        val observed=value.optLong("observed_elapsed_ms", -1)
+        return value.optString("process_instance")==processInstance && observed>=0 &&
+            elapsed-observed in 0..5000 && (value.optJSONArray("sessions")?.length() ?: 0)>0
+    }
     fun enabled(c: Context): Boolean = prefs(c).getBoolean("enabled", true)
     fun setEnabled(c: Context, enabled: Boolean) { prefs(c).edit().putBoolean("enabled", enabled).apply() }
-    fun clear(c: Context) { prefs(c).edit().remove("events").remove("media").remove("media_history").remove("shared_track").remove("public_media").remove("public_browser").remove("attenuation_test").remove("service_discovery").remove("browser_attempts").remove("media3_error").remove("track_identity").remove("session_identity").apply() }
+    fun clear(c: Context) { prefs(c).edit().remove("events").remove("media").remove("media_history").remove("shared_track").remove("public_media").remove("public_browser").remove("attenuation_test").remove("service_discovery").remove("browser_attempts").remove("media3_error").remove("track_identity").remove("session_identity").remove("catalog_match").remove("public_media_history").remove("observation_window").apply() }
     fun acceptSharedLink(c: Context, input: String?): Boolean {
         if (input == null || input.length > 2048) return false
         val raw = Regex("https://[^\\s]+").find(input)?.value ?: return false
@@ -95,10 +118,23 @@ object ProbeStore {
     fun report(c: Context): JSONObject {
         val version = try { c.packageManager.getPackageInfo(YANDEX, 0).versionName ?: "unknown" }
             catch (_: android.content.pm.PackageManager.NameNotFoundException) { "not_found" }
+        val publicMedia=JSONObject(prefs(c).getString("public_media", "{}"))
+        val fresh=freshPublicMedia(publicMedia)
+        val browser=JSONObject(prefs(c).getString("public_browser", "{}"))
+        if (browser.optString("status")=="connected" && !fresh) browser.put("status","data_stale")
+        val catalog=JSONObject(prefs(c).getString("catalog_match", "{}"))
+        if (BuildConfig.PANEL_ONLY && !fresh && catalog.length()>0) {
+            catalog.put("previous_status",catalog.optString("status")).put("status","observation_stale")
+            catalog.remove("candidate_track_id")
+        }
+        catalog.put("observation_fresh",fresh)
+        publicMedia.put("fresh",fresh)
         return JSONObject().put("schema", 1).put("probe_version", BuildConfig.VERSION_NAME)
             .put("track_identity",JSONObject(prefs(c).getString("track_identity","{}")))
             .put("session_identity",JSONObject(prefs(c).getString("session_identity","{}")))
-            .put("catalog_match",JSONObject(prefs(c).getString("catalog_match","{}")))
+            .put("catalog_match",catalog)
+            .put("process_instance",processInstance)
+            .put("observation_window",JSONObject(prefs(c).getString("observation_window","{}")))
             .put("generated_at_ms", System.currentTimeMillis()).put("manufacturer", Build.MANUFACTURER)
             .put("model", Build.MODEL).put("android_release", Build.VERSION.RELEASE).put("api", Build.VERSION.SDK_INT)
             .put("yandex_version", version).put("observation_enabled", enabled(c))
@@ -108,11 +144,11 @@ object ProbeStore {
             .put("media3_error",JSONObject(prefs(c).getString("media3_error","{}")))
             .put("browser_attempts",JSONObject(prefs(c).getString("browser_attempts","{}")))
             .put("service_discovery",JSONObject(prefs(c).getString("service_discovery","{}")))
-            .put("public_browser", JSONObject(prefs(c).getString("public_browser", "{}")))
+            .put("public_browser",browser)
             .put("attenuation_test", JSONObject(prefs(c).getString("attenuation_test", "{}")))
             .put("shared_track", JSONObject(prefs(c).getString("shared_track", "{}")))
-            .put("media", if (BuildConfig.PANEL_ONLY) JSONObject(prefs(c).getString("public_media", "{}")) else JSONObject(prefs(c).getString("media", "{}")))
-            .put("media_history", if (BuildConfig.PANEL_ONLY) JSONArray() else JSONArray(prefs(c).getString("media_history", "[]")))
+            .put("media", if (BuildConfig.PANEL_ONLY) publicMedia else JSONObject(prefs(c).getString("media", "{}")))
+            .put("media_history", if (BuildConfig.PANEL_ONLY) JSONArray(prefs(c).getString("public_media_history", "[]")) else JSONArray(prefs(c).getString("media_history", "[]")))
             .put("events", JSONArray(prefs(c).getString("events", "[]")))
             .put("yandex_replacement_tested", false).put("physical_routes_tested", false)
     }

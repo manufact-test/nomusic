@@ -151,7 +151,7 @@ class MainActivity : Activity() {
         toggle.text = if (ProbeStore.enabled(this)) "Остановить наблюдение" else "Возобновить наблюдение"
         if (details.visibility == View.VISIBLE) details.text = r.toString(2)
     }
-    override fun onResume() { super.onResume(); handler.post(refresh) }
+    override fun onResume() { super.onResume(); if (BuildConfig.PANEL_ONLY) publicProbe.reconcileOnResume(); handler.post(refresh) }
     override fun onPause() { handler.removeCallbacks(refresh); super.onPause() }
     override fun onDestroy() { handler.removeCallbacksAndMessages(null); super.onDestroy() }
     private fun toast(message: String) { Toast.makeText(this, message, Toast.LENGTH_LONG).show() }

@@ -196,7 +196,7 @@ class ModernMediaProbe(private val context: Context, private val event: (String,
                 .put("session_extras",SessionIdentity.extras(browser.sessionExtras))
                 .put("token_extras",SessionIdentity.extras(browser.connectedToken?.extras))
                 .put("available_commands",commands).put("commands_sent",0).put("exact_track_id_verified",false))
-            ProbeStore.put(context,"public_media",JSONObject().put("observed_at_ms",System.currentTimeMillis()).put("sessions",JSONArray().put(session)))
+            ProbeStore.publicMedia(context,JSONObject().put("sessions",JSONArray().put(session)))
             inspectIdentity(browser)
         } catch (error: RuntimeException) { event("media3","metadata_unavailable",error.javaClass.simpleName) }
     }
