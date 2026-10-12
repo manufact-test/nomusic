@@ -453,7 +453,7 @@ final class AdminPanel
             . '<button type="submit">Выйти ↗</button></form></div></header><nav class="nav" aria-label="Разделы">';
         $sections = [
             'uploads'=>'Загруженные версии', 'requests'=>'Предложить песню',
-            'reports'=>'Жалобы', 'rewards'=>'Награды за вклад',
+            'rewards'=>'Награды за вклад',
             'promos'=>'Промокоды', 'billing'=>'Платежи и подписки', 'incidents'=>'Сбои интеграции',
             'support'=>'Техподдержка', 'audit'=>'Журнал действий', 'overview'=>'Обзор'
         ];
@@ -475,9 +475,7 @@ final class AdminPanel
             . '<a class="stat" href="/admin?tab=requests&status=pending&per_page=' . $size
             . '"><span>Предложения песен<span class="sub">Без загрузки аудио</span></span><strong>'
             . (int) $counts['pending_requests'] . '</strong></a>'
-            . '<a class="stat" href="/admin?tab=reports&status=pending&per_page=' . $size
-            . '"><span>Новые жалобы<span class="sub">Ожидают решения</span></span><strong>'
-            . (int) $counts['pending_reports'] . '</strong></a></div>';
+            . '</div>';
         return $html . match ($tab) {
             'support' => (new \Celikom\Support\SupportAdminView($this->pdo))->render($admin['csrf'],$this->positiveInt($query['ticket']??null) ?: 0,$this->positiveInt($query['page']??null) ?: 1,$this->positiveInt($query['message_page']??null) ?: 1,$this->positiveInt($query['account']??null) ?: 0),
             'promos' => (new \Celikom\Promo\PromoAdminView($this->pdo))->render($admin['csrf'],$this->positiveInt($query['page']??null) ?: 1,($query['create']??null)==='1',($query['activations']??null)==='1'),
