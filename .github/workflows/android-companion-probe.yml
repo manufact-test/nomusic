@@ -24,7 +24,7 @@ jobs:
           gradle-version: "8.13"
       - name: Native probe lint and assembly
         working-directory: android/companion-probe
-        run: gradle --no-daemon :app:lintDebug :app:assembleDebug :app:assembleDebugAndroidTest
+        run: gradle --no-daemon :app:lintDebug :app:assembleDebug :app:assembleDebugAndroidTest :app:lintDistributionCandidate :app:assembleDistributionCandidate
       - name: Enable KVM
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
@@ -45,9 +45,13 @@ jobs:
         run: |
           openssl cms -encrypt -aes-256-gcm -binary -outform DER -in android/companion-probe/app/build/outputs/apk/debug/app-debug.apk -out /tmp/native-probe.apk.cms android/companion-probe/diagnostic-recipient.crt
           openssl cms -encrypt -aes-256-gcm -binary -outform DER -in /tmp/native-probe.png -out /tmp/native-probe.png.cms android/companion-probe/diagnostic-recipient.crt
+          openssl cms -encrypt -aes-256-gcm -binary -outform DER -in android/companion-probe/app/build/outputs/apk/distributionCandidate/app-distributionCandidate-unsigned.apk -out /tmp/native-probe-distribution.apk.cms android/companion-probe/diagnostic-recipient.crt
+          cp "$ANDROID_HOME/build-tools/36.0.0/lib/apksigner.jar" /tmp/apksigner.jar
       - uses: actions/upload-artifact@v4
         with:
           name: celikom-native-probe-private-${{ github.sha }}
-          path: /tmp/native-probe.*.cms
+          path: |
+            /tmp/native-probe*.cms
+            /tmp/apksigner.jar
           retention-days: 1
           if-no-files-found: error

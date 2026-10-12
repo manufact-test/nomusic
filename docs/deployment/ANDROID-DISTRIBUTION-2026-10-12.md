@@ -31,3 +31,11 @@ https://support.google.com/googleplay/android-developer/answer/9845334
 ## Draft: Play Protect classification review (not submitted)
 
 Our own diagnostic app, CELIKOM (package pro.celikom.nativeprobe), is blocked with “App blocked to protect your device”. It requests user-enabled notification listener access solely to inspect the MediaSession of the installed Yandex Music app. It does not read or store notification message bodies from other apps. It has no INTERNET, SMS, accessibility, microphone or audio-capture permissions. Reports stay on-device and are shared only by an explicit user action. The app does not modify audio or request account credentials. We verified APK v2 signatures and complete content integrity. Please review the classification and advise whether this intended permission use requires another distribution route. We understand that APK integrity alone does not establish policy compliance and that review does not guarantee approval.
+
+## Продолжение подготовки
+
+Создан отдельный постоянный ключ диагностики nativeprobe; зашифрованный password-protected keystore и данные восстановления сохранены приватно, вне репозитория. Ни ключ, ни пароль в GitHub/CI не передаются. CI строит non-debuggable unsigned distributionCandidate; только шифрованный APK экспортируется и подписывается вне CI официальным apksigner. Это не перенос приватного ключа на публичный runner.
+
+Версия0.3.3 включает disclosure перед настройками уведомлений. Разрешения и package сохранены; подпись не используется для обещания/обхода Play Protect. После успешного CI проверяются apksigner/content digest и сертификат. Только установка на устройстве покажет, допускает ли Play Protect этот выпуск.
+
+Форма Google https://support.google.com/googleplay/android-developer/contact/protectappeals открыта в cloud browser: Google показал «подозрительный трафик» и reCAPTCHA, форма не доступна и обращение НЕ отправлено. Требуется пользовательская проверка; не обходить CAPTCHA/сменой сети.

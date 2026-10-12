@@ -5,7 +5,7 @@ android {
     compileSdk = 36
     defaultConfig {
         applicationId = "pro.celikom.nativeprobe"; minSdk = 28; targetSdk = 36
-        versionCode = 3; versionName = "0.3.2-probe"
+        versionCode = 4; versionName = "0.3.3-probe"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     signingConfigs {
@@ -18,7 +18,14 @@ android {
             }
         }
     }
-    buildTypes { getByName("release") { signingConfig = signingConfigs.getByName("distribution") } }
+    buildTypes {
+        getByName("release") { signingConfig = signingConfigs.getByName("distribution") }
+        create("distributionCandidate") {
+            initWith(getByName("release"))
+            signingConfig = null
+            isDebuggable = false
+        }
+    }
     compileOptions { sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17 }
     kotlinOptions { jvmTarget = "17" }
 }
