@@ -22,6 +22,8 @@ class AttenuationService : Service() {
     private var startedElapsed = 0L
     private var attachedElapsed = 0L
     private var effect: DynamicsProcessing? = null
+    private var tone: TestTone? = null
+    private var playTone = false
     private var result = JSONObject()
     private var deadline = 0L
     private var stopped = false
@@ -45,7 +47,8 @@ class AttenuationService : Service() {
         if (deadline > 0) return START_NOT_STICKY
         val session = verifiedSession(ProbeStore.report(this), System.currentTimeMillis())
         if (!ProbeStore.enabled(this) || session == null) { stopSelf(); return START_NOT_STICKY }
-        result = JSONObject().put("status", "waiting").put("session_id", session)
+        playTone = intent?.getBooleanExtra("play_tone", false) == true
+        result = JSONObject().put("mode", if (playTone) "attenuation_with_test_tone" else "attenuation_only").put("status", "waiting").put("session_id", session)
             .put("started_at_ms", System.currentTimeMillis()).put("delay_ms", 3000).put("duration_ms", 7000)
             .put("effect_attached", false).put("released", false).put("audible_result_verified", false)
         val manager = getSystemService(NotificationManager::class.java)
@@ -83,8 +86,13 @@ class AttenuationService : Service() {
             result.put("status", "attenuating").put("effect_attached", true).put("gain_db", -100)
                 .put("attached_at_ms", System.currentTimeMillis()).put("attach_delay_ms", attachedElapsed-startedElapsed)
                 .put("wake_lock_held_at_attach", wakeLock?.isHeld == true)
+            if (playTone) {
+                tone = TestTone(session)
+                tone!!.start()
+                result.put("test_tone", tone!!.snapshot().put("started", true))
+            }
             ProbeStore.put(this, "attenuation_test", result)
-        } catch (_: RuntimeException) { finish("effect_unavailable") }
+        } catch (_: RuntimeException) { finish(if (playTone) "effect_or_tone_unavailable" else "effect_unavailable") }
     }
     private fun release(): Boolean {
         var released = true
@@ -94,7 +102,14 @@ class AttenuationService : Service() {
     }
     @Synchronized private fun finish(reason: String) {
         if (stopped) return
-        stopped = true; val released = release()
+        stopped = true
+        tone?.let { player ->
+            val snapshot = player.snapshot()
+            snapshot.put("released",player.release())
+            result.put("test_tone",snapshot)
+        }
+        tone = null
+        val released = release()
         val elapsed = if (startedElapsed > 0) SystemClock.elapsedRealtime()-startedElapsed else 0L
         val mutedElapsed = if (attachedElapsed > 0) SystemClock.elapsedRealtime()-attachedElapsed else 0L
         try { if (wakeLock?.isHeld == true) wakeLock?.release() } catch (_: RuntimeException) { }

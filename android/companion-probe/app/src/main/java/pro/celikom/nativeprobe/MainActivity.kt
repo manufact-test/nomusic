@@ -98,6 +98,16 @@ class MainActivity : Activity() {
                     catch (_: RuntimeException) { toast("Android не разрешил запустить тест") }
                 }.show()
         }
+        button("Проверить замену тестовым звуком") {
+            if (AttenuationService.verifiedSession(ProbeStore.report(this),System.currentTimeMillis()) == null)
+                toast("Сначала открой эквалайзер из Яндекса. Проверка доступна одну минуту после открытия.")
+            else AlertDialog.Builder(this).setTitle("Короткий тест замены звука")
+                .setMessage("Песня должна уже играть. Через 3 секунды CELIKOM приглушит Яндекс и включит тихий прерывистый сигнал примерно на 7 секунд. Затем сигнал остановится и оригинал вернётся. Вернись в Яндекс после запуска; не переключай песню во время теста. Это проверка звука, без синхронизации песни.")
+                .setNegativeButton("Отмена",null).setPositiveButton("Запустить") { _, _ ->
+                    try { startForegroundService(Intent(this,AttenuationService::class.java).putExtra("play_tone",true)) }
+                    catch (_: RuntimeException) { toast("Android не разрешил запустить тест") }
+                }.show()
+        }
         button("Остановить проверку звука") { stopService(Intent(this, AttenuationService::class.java)); render() }
         button("Открыть Яндекс Музыку") {
             val launch = packageManager.getLaunchIntentForPackage(ProbeStore.YANDEX)

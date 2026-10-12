@@ -77,7 +77,7 @@ class ProbeTest {
             track.write(ByteArray(16000),0,16000); track.setLoopPoints(0,8000,-1); track.play()
             ProbeStore.event(context, ProbeStore.effectEvent(Intent(AudioEffect.ACTION_DISPLAY_AUDIO_EFFECT_CONTROL_PANEL)
                 .putExtra(AudioEffect.EXTRA_AUDIO_SESSION,track.audioSessionId),ProbeStore.YANDEX))
-            instrumentation.runOnMainSync { context.startForegroundService(Intent(context,AttenuationService::class.java)) }
+            instrumentation.runOnMainSync { context.startForegroundService(Intent(context,AttenuationService::class.java).putExtra("play_tone",true)) }
             android.os.SystemClock.sleep(500)
             assertEquals("waiting",ProbeStore.report(context).getJSONObject("attenuation_test").getString("status"))
             instrumentation.runOnMainSync { activity.finish() }
@@ -95,6 +95,10 @@ class ProbeTest {
             val result=ProbeStore.report(context).getJSONObject("attenuation_test")
             assertEquals("finished",result.getString("status")); assertEquals("timeout",result.getString("reason")); assertTrue(result.getBoolean("released"))
             assertFalse(result.getBoolean("audible_result_verified"))
+            val tone=result.getJSONObject("test_tone")
+            assertEquals("local_test_tone",tone.getString("source"));assertTrue(tone.getBoolean("different_from_yandex_session"))
+            assertTrue(tone.getInt("played_frames")>16000);assertEquals(112000,tone.getInt("submitted_frames"))
+            assertTrue(tone.getBoolean("released"));assertFalse(tone.getBoolean("focus_requested"))
             assertTrue(result.getBoolean("wake_lock_held_at_attach")); assertTrue(result.getBoolean("wake_lock_released"))
             assertTrue(result.getLong("elapsed_ms") in 9500..11500)
             assertTrue(result.getLong("mute_elapsed_ms") in 6000..8500)
