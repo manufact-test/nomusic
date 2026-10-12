@@ -18,6 +18,15 @@ import android.graphics.Bitmap
 class ProbeTest {
     private val instrumentation = InstrumentationRegistry.getInstrumentation()
     private val context = instrumentation.targetContext
+    @Test fun trackIdentityRecordsOnlyPublicTrackPathAndNeverCredentials() {
+        val safe=MediaIdentity.uri(android.net.Uri.parse("https://music.yandex.ru/album/38763902/track/142820338?token=secret#secret"))
+        assertEquals("142820338",safe.getString("track_id_candidate"))
+        assertFalse(safe.toString().contains("secret"))
+        val credential=MediaIdentity.uri(android.net.Uri.parse("https://user:secret@music.yandex.ru/album/1/track/2"))
+        assertFalse(credential.has("track_id_candidate"));assertFalse(credential.toString().contains("secret"))
+        val stream=MediaIdentity.uri(android.net.Uri.parse("https://stream.example.org/private-secret?token=secret"))
+        assertFalse(stream.toString().contains("secret"));assertFalse(stream.has("public_track_url"))
+    }
     @Test fun modernConnectionRecoversThenReusesAndObservesTrackChanges() {
         ProbeStore.clear(context);ProbeStore.setEnabled(context,true)
         ProbeLibraryFixture.admissions=0
@@ -38,6 +47,15 @@ class ProbeTest {
         }
         try {
             awaitTitle("Probe one")
+            val identityDeadline=android.os.SystemClock.elapsedRealtime()+5000
+            var identity=ProbeStore.report(context).getJSONObject("track_identity")
+            while (identity.optString("status")!="current_item_received" && android.os.SystemClock.elapsedRealtime()<identityDeadline) {
+                android.os.SystemClock.sleep(100);identity=ProbeStore.report(context).getJSONObject("track_identity")
+            }
+            assertEquals("current_item_received",identity.optString("status"))
+            assertEquals("142820338",identity.getJSONObject("library_item").getJSONObject("request_uri").getString("track_id_candidate"))
+            assertFalse(identity.toString().contains("private-test"))
+            assertFalse(identity.getJSONObject("library_item").getBoolean("exact_track_id_verified"))
             assertTrue(ProbeLibraryFixture.admissions>=2)
             val admissions=ProbeLibraryFixture.admissions
             instrumentation.runOnMainSync { repeat(3) { probe.connect(component) } }

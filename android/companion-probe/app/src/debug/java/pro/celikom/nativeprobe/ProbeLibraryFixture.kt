@@ -19,7 +19,15 @@ class ProbeLibraryFixture : MediaLibraryService() {
         super.onCreate();instance=this
         player=ExoPlayer.Builder(this).build()
         change("Probe one","1")
-        session=MediaLibrarySession.Builder(this,player,object : MediaLibrarySession.Callback {}).build()
+        session=MediaLibrarySession.Builder(this,player,object : MediaLibrarySession.Callback {
+            override fun onGetItem(session: MediaLibrarySession, browser: MediaSession.ControllerInfo, mediaId: String): com.google.common.util.concurrent.ListenableFuture<androidx.media3.session.LibraryResult<MediaItem>> {
+                val item=MediaItem.Builder().setMediaId(mediaId)
+                    .setMediaMetadata(player.mediaMetadata.buildUpon().setIsBrowsable(false).setIsPlayable(true).build())
+                    .setRequestMetadata(MediaItem.RequestMetadata.Builder()
+                        .setMediaUri(android.net.Uri.parse("https://music.yandex.ru/album/38763902/track/142820338?token=private-test")).build()).build()
+                return com.google.common.util.concurrent.Futures.immediateFuture(androidx.media3.session.LibraryResult.ofItem(item,null))
+            }
+        }).build()
     }
     fun change(title: String, id: String) {
         player.setMediaItem(MediaItem.Builder().setMediaId(id).setUri("asset:///unused-test-only")

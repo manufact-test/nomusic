@@ -8,6 +8,9 @@ import androidx.media3.common.Player
 import androidx.media3.session.MediaBrowser
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
+import androidx.media3.session.SessionCommand
+import androidx.media3.session.LibraryResult
+import androidx.media3.common.MediaItem
 import com.google.common.util.concurrent.ListenableFuture
 import org.json.JSONArray
 import org.json.JSONObject
@@ -23,6 +26,47 @@ class ModernMediaProbe(private val context: Context, private val event: (String,
     private val tickets = mutableMapOf<String,Int>()
     private val retries = mutableMapOf<String,Int>()
     private var polling = false
+    private var identityKey: String? = null
+    private var identityQueries = 0
+    private var identityFuture: ListenableFuture<LibraryResult<MediaItem>>? = null
+    private fun identityKey(browser: MediaBrowser): String = listOf(browser.currentMediaItem?.mediaId,browser.mediaMetadata.title,browser.mediaMetadata.artist).joinToString("|")
+    private fun inspectIdentity(browser: MediaBrowser) {
+        val key=identityKey(browser)
+        if (identityKey==key) return
+        identityKey=key
+        identityFuture?.cancel(false);identityFuture=null
+        val run=generation
+        val item=browser.currentMediaItem
+        val evidence=JSONObject().put("observed_at_ms",System.currentTimeMillis()).put("current_item",MediaIdentity.item(item))
+        val allowed=browser.availableSessionCommands.contains(SessionCommand.COMMAND_CODE_LIBRARY_GET_ITEM)
+        evidence.put("get_item_allowed",allowed)
+        fun record(status: String) { ProbeStore.put(context,"track_identity",evidence.put("status",status)) }
+        if (!allowed) { record("get_item_not_allowed");return }
+        val id=item?.mediaId
+        if (id.isNullOrBlank()) { record("no_current_media_id");return }
+        if (identityQueries>=3) { record("query_limit_reached");return }
+        identityQueries++
+        evidence.put("query_number",identityQueries)
+        record("querying_current_item")
+        try {
+            val future=browser.getItem(id)
+            identityFuture=future
+            future.addListener({
+                if (run==generation && identityKey==key && browser.isConnected && identityKey(browser)==key && !future.isCancelled) {
+                    try {
+                        val result=future.get()
+                        evidence.put("result_code",result.resultCode).put("library_item",MediaIdentity.item(result.value))
+                        record(if (result.value!=null) "current_item_received" else "current_item_unavailable")
+                    } catch (error: Exception) {
+                        evidence.put("error_type",(error.cause ?: error).javaClass.simpleName);record("current_item_failed")
+                    }
+                }
+            },Executor { task -> handler.post(task) })
+            handler.postDelayed({ if (run==generation && identityKey==key && !future.isDone) {
+                future.cancel(false);record("current_item_timeout")
+            } },5000)
+        } catch (error: RuntimeException) { evidence.put("error_type",error.javaClass.simpleName);record("current_item_failed") }
+    }
     private fun failure(component: ComponentName, stage: String, error: Throwable, run: Int, retry: Boolean) {
         if (run != generation) return
         val root = generateSequence(error) { it.cause }.take(6).last()
@@ -85,6 +129,7 @@ class ModernMediaProbe(private val context: Context, private val event: (String,
                             override fun onEvents(player: Player, events: Player.Events) { if (run==generation) save(browser) }
                         })
                         event(name,"connected",null)
+                        ProbeStore.put(context,"media3_error",JSONObject())
                         save(browser)
                         if (!polling) { polling = true;poll(run) }
                     } catch (error: Exception) {
@@ -129,11 +174,14 @@ class ModernMediaProbe(private val context: Context, private val event: (String,
                 .put("can_read_current_item",browser.isCommandAvailable(Player.COMMAND_GET_CURRENT_MEDIA_ITEM))
                 .put("exact_track_id_verified",false)
             ProbeStore.put(context,"public_media",JSONObject().put("observed_at_ms",System.currentTimeMillis()).put("sessions",JSONArray().put(session)))
+            inspectIdentity(browser)
         } catch (error: RuntimeException) { event("media3","metadata_unavailable",error.javaClass.simpleName) }
     }
     fun stop() {
         generation++
         handler.removeCallbacksAndMessages(null)
+        identityFuture?.cancel(false);identityFuture=null;identityKey=null;identityQueries=0
+        ProbeStore.put(context,"track_identity",JSONObject())
         tickets.clear();retries.clear();polling=false
         futures.values.forEach { MediaController.releaseFuture(it) }; futures.clear()
         browsers.clear()
