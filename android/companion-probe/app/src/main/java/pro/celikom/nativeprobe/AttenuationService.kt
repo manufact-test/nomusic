@@ -8,15 +8,19 @@ import android.app.PendingIntent
 import android.content.Intent
 import android.media.audiofx.AudioEffect
 import android.media.audiofx.DynamicsProcessing
-import android.os.Handler
-import android.os.Looper
+import android.os.PowerManager
+import java.util.concurrent.ScheduledThreadPoolExecutor
+import java.util.concurrent.TimeUnit
 import android.os.IBinder
 import android.os.SystemClock
 import org.json.JSONObject
 
 /** Explicit short diagnostic; no global mixer, track commands or automatic attach. */
 class AttenuationService : Service() {
-    private val handler = Handler(Looper.getMainLooper())
+    private val scheduler = ScheduledThreadPoolExecutor(1) { runnable -> Thread(runnable, "celikom-audio-deadline") }
+    private var wakeLock: PowerManager.WakeLock? = null
+    private var startedElapsed = 0L
+    private var attachedElapsed = 0L
     private var effect: DynamicsProcessing? = null
     private var result = JSONObject()
     private var deadline = 0L
@@ -36,7 +40,7 @@ class AttenuationService : Service() {
         }
     }
     override fun onBind(intent: Intent?): IBinder? = null
-    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+    @Synchronized override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == STOP) { finish("user_stop"); return START_NOT_STICKY }
         if (deadline > 0) return START_NOT_STICKY
         val session = verifiedSession(ProbeStore.report(this), System.currentTimeMillis())
@@ -54,23 +58,33 @@ class AttenuationService : Service() {
             if (android.os.Build.VERSION.SDK_INT >= 29) startForeground(735, notification, android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK)
             else startForeground(735, notification)
         } catch (_: RuntimeException) { finish("foreground_denied"); return START_NOT_STICKY }
-        deadline = SystemClock.elapsedRealtime()+10000
+        try {
+            wakeLock = getSystemService(PowerManager::class.java).newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "CELIKOM:short-audio-test").apply {
+                setReferenceCounted(false); acquire(15000)
+            }
+        } catch (_: RuntimeException) { finish("wake_lock_denied"); return START_NOT_STICKY }
+        startedElapsed = SystemClock.elapsedRealtime()
+        deadline = startedElapsed+10000
+        result.put("timer", "worker_elapsed_with_bounded_wake_lock").put("started_elapsed_ms", startedElapsed)
         ProbeStore.put(this, "attenuation_test", result)
-        handler.postDelayed({ finish("timeout") }, 10000)
-        handler.postDelayed({
-            if (stopped || SystemClock.elapsedRealtime() >= deadline) return@postDelayed
-            if (!ProbeStore.enabled(this) || verifiedSession(ProbeStore.report(this), System.currentTimeMillis()) != session) { finish("session_changed"); return@postDelayed }
-            try {
-                val candidate = DynamicsProcessing(0, session, null); effect = candidate
-                if (!candidate.hasControl()) { finish("no_effect_control"); return@postDelayed }
-                candidate.setInputGainAllChannelsTo(-100f)
-                if (candidate.setEnabled(true) != AudioEffect.SUCCESS) { finish("enable_failed"); return@postDelayed }
-                result.put("status", "attenuating").put("effect_attached", true).put("gain_db", -100)
-                    .put("attached_at_ms", System.currentTimeMillis())
-                ProbeStore.put(this, "attenuation_test", result)
-            } catch (_: RuntimeException) { finish("effect_unavailable") }
-        }, 3000)
+        scheduler.schedule({ finish("timeout") }, 10000, TimeUnit.MILLISECONDS)
+        scheduler.schedule({ attach(session) }, 3000, TimeUnit.MILLISECONDS)
         return START_NOT_STICKY
+    }
+    @Synchronized private fun attach(session: Int) {
+        if (stopped || SystemClock.elapsedRealtime() >= deadline) { finish("deadline_before_attach"); return }
+        if (!ProbeStore.enabled(this) || verifiedSession(ProbeStore.report(this), System.currentTimeMillis()) != session) { finish("session_changed"); return }
+        try {
+            val candidate = DynamicsProcessing(0, session, null); effect = candidate
+            if (!candidate.hasControl()) { finish("no_effect_control"); return }
+            candidate.setInputGainAllChannelsTo(-100f)
+            if (candidate.setEnabled(true) != AudioEffect.SUCCESS) { finish("enable_failed"); return }
+            attachedElapsed = SystemClock.elapsedRealtime()
+            result.put("status", "attenuating").put("effect_attached", true).put("gain_db", -100)
+                .put("attached_at_ms", System.currentTimeMillis()).put("attach_delay_ms", attachedElapsed-startedElapsed)
+                .put("wake_lock_held_at_attach", wakeLock?.isHeld == true)
+            ProbeStore.put(this, "attenuation_test", result)
+        } catch (_: RuntimeException) { finish("effect_unavailable") }
     }
     private fun release(): Boolean {
         var released = true
@@ -78,15 +92,22 @@ class AttenuationService : Service() {
         effect = null
         return released
     }
-    private fun finish(reason: String) {
+    @Synchronized private fun finish(reason: String) {
         if (stopped) return
-        stopped = true; handler.removeCallbacksAndMessages(null); val released = release()
+        stopped = true; val released = release()
+        val elapsed = if (startedElapsed > 0) SystemClock.elapsedRealtime()-startedElapsed else 0L
+        val mutedElapsed = if (attachedElapsed > 0) SystemClock.elapsedRealtime()-attachedElapsed else 0L
+        try { if (wakeLock?.isHeld == true) wakeLock?.release() } catch (_: RuntimeException) { }
+        val wakeReleased = wakeLock?.isHeld != true
+        wakeLock = null
+        scheduler.shutdownNow()
         if (result.length() > 0) {
-            result.put("status", "finished").put("reason", reason).put("released", released).put("finished_at_ms", System.currentTimeMillis())
+            result.put("status", "finished").put("reason", reason).put("released", released).put("elapsed_ms", elapsed).put("mute_elapsed_ms", mutedElapsed)
+                .put("wake_lock_released", wakeReleased).put("finished_at_ms", System.currentTimeMillis())
             ProbeStore.put(this, "attenuation_test", result)
         }
         stopForeground(STOP_FOREGROUND_REMOVE); stopSelf()
     }
-    override fun onDestroy() { finish("service_destroyed"); release(); super.onDestroy() }
+    override fun onDestroy() { finish("service_destroyed"); super.onDestroy() }
     override fun onTaskRemoved(rootIntent: Intent?) { finish("task_removed"); super.onTaskRemoved(rootIntent) }
 }

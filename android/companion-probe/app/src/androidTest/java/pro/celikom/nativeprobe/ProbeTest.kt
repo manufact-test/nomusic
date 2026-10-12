@@ -84,10 +84,21 @@ class ProbeTest {
             android.os.SystemClock.sleep(4000)
             val active=ProbeStore.report(context).getJSONObject("attenuation_test")
             assertEquals("attenuating",active.getString("status")); assertTrue(active.getBoolean("effect_attached"))
+            val blocking = java.util.concurrent.CountDownLatch(1)
+            val unblocked = java.util.concurrent.CountDownLatch(1)
+            android.os.Handler(android.os.Looper.getMainLooper()).post {
+                blocking.countDown(); android.os.SystemClock.sleep(10000); unblocked.countDown()
+            }
+            assertTrue(blocking.await(2,java.util.concurrent.TimeUnit.SECONDS))
             android.os.SystemClock.sleep(7000)
+            assertEquals(1L,unblocked.count) // The effect must release while UI dispatch is stalled.
             val result=ProbeStore.report(context).getJSONObject("attenuation_test")
             assertEquals("finished",result.getString("status")); assertEquals("timeout",result.getString("reason")); assertTrue(result.getBoolean("released"))
             assertFalse(result.getBoolean("audible_result_verified"))
+            assertTrue(result.getBoolean("wake_lock_held_at_attach")); assertTrue(result.getBoolean("wake_lock_released"))
+            assertTrue(result.getLong("elapsed_ms") in 9500..11500)
+            assertTrue(result.getLong("mute_elapsed_ms") in 6000..8500)
+            assertTrue(unblocked.await(5,java.util.concurrent.TimeUnit.SECONDS))
             assertTrue(result.getLong("finished_at_ms")-result.getLong("started_at_ms")<12000)
         } finally { context.stopService(Intent(context,AttenuationService::class.java));track.stop();track.release();ProbeStore.clear(context) }
     }
