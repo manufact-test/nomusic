@@ -43,7 +43,7 @@ dependencies {
 
 // Never silently deliver a release signed by another ephemeral debug key.
 gradle.taskGraph.whenReady {
-    if (allTasks.any { it.name == "validateSigningRelease" }) {
+    if (allTasks.any { it.name.startsWith("validateSigning") && it.name.endsWith("Release") }) {
         check(!releaseKey.isNullOrBlank() && listOf("CELIKOM_ANDROID_STORE_PASSWORD", "CELIKOM_ANDROID_KEY_ALIAS", "CELIKOM_ANDROID_KEY_PASSWORD").all { !System.getenv(it).isNullOrBlank() }) {
             "Distribution requires the owner's persistent signing key in private build secrets"
         }

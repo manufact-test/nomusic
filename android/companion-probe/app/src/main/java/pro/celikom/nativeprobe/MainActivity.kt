@@ -4,14 +4,12 @@ import android.app.Activity
 import android.app.AlertDialog
 import android.content.ClipData
 import android.content.ClipboardManager
-import android.content.ComponentName
 import android.content.Intent
 import android.graphics.Color
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
-import android.service.notification.NotificationListenerService
 import android.view.View
 import android.view.WindowInsets
 import android.widget.Button
@@ -19,7 +17,6 @@ import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
-import androidx.core.app.NotificationManagerCompat
 import org.json.JSONObject
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -104,7 +101,7 @@ class MainActivity : Activity() {
         }
         toggle = button("Остановить наблюдение") {
             ProbeStore.setEnabled(this, !ProbeStore.enabled(this))
-            if (!BuildConfig.PANEL_ONLY) NotificationListenerService.requestRebind(ComponentName(this, MusicListener::class.java))
+            MusicObservation.rebind(this)
             render()
         }
         button("Очистить результаты") { ProbeStore.clear(this); render(); toast("Результаты очищены") }
@@ -115,7 +112,7 @@ class MainActivity : Activity() {
         if (android.os.Build.VERSION.SDK_INT >= 30) window.insetsController?.setSystemBarsAppearance(0,
             android.view.WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS or android.view.WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS)
     }
-    private fun access() = !BuildConfig.PANEL_ONLY && NotificationManagerCompat.getEnabledListenerPackages(this).contains(packageName)
+    private fun access() = MusicObservation.access(this)
     private fun report(): JSONObject = ProbeStore.report(this).put("notification_access_enabled", access())
     private fun render() {
         val r = report(); val media = r.getJSONObject("media"); val sessions = media.optJSONArray("sessions")
