@@ -50,7 +50,10 @@ class AttenuationService : Service() {
         val notification = Notification.Builder(this, "sound_test").setSmallIcon(android.R.drawable.ic_media_pause)
             .setContentTitle("CELIKOM: короткая проверка звука").setContentText("Автоматически закончится через 10 секунд")
             .setOngoing(true).addAction(Notification.Action.Builder(null, "Остановить", stop).build()).build()
-        try { startForeground(735, notification) } catch (_: RuntimeException) { finish("foreground_denied"); return START_NOT_STICKY }
+        try {
+            if (android.os.Build.VERSION.SDK_INT >= 29) startForeground(735, notification, android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK)
+            else startForeground(735, notification)
+        } catch (_: RuntimeException) { finish("foreground_denied"); return START_NOT_STICKY }
         deadline = SystemClock.elapsedRealtime()+10000
         ProbeStore.put(this, "attenuation_test", result)
         handler.postDelayed({ finish("timeout") }, 10000)
