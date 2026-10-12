@@ -31,3 +31,18 @@ Sources:
 - https://yandex.ru/dev/id/doc/ru/concepts/ya-oauth-intro
 - https://developer.android.com/develop/ui/compose/sharing/receive
 - https://developer.android.com/reference/android/accessibilityservice/AccessibilityService
+
+## Follow-up: bounded live transport prepared, authorization still gates live test
+
+tools/diagnostics/ynison_live_probe.py now implements redirect/state websocket handshake and the inactive registration frame using a distinct CELIKOM client name and randomly generated device ID. Owner-supplied already authorized Music token comes only from hidden terminal input or CELIKOM_YANDEX_MUSIC_TOKEN; no token/password is accepted in report, logged, saved, extracted from installed apps or obtained with borrowed OAuth client credentials. This is an engineering probe, not an Android deliverable and not live success. It registers a passive server device (not purely read-only on server) but has no sound/control commands.
+
+Incoming frames bounded to 1 MiB, report to 120 frames and runtime 120 seconds. TLS is enabled with normal certificate checks; protocol redirect hosts must be under music.yandex.ru with no port/userinfo/path, and all HTTP redirects are refused so Authorization cannot be forwarded cross-origin. Error reports contain class only. Device-discovery report exports truncated title/type and hashed device identity, not tokens, tickets, raw queue, media URLs or raw device IDs. No current ID is selected until expected active phone hash is explicitly bound. An idle account may emit no fresh state frames; observation_finished never asserts current identity. Network loss ends the probe rather than retaining a current-ID claim.
+
+Nine local tests passed for the decoder and fake transport: two IDs arrive on separate state frames without any playback command; own passive registration, mismatched device, stale/invalid state, injected content and wrong media types, secret stripping, host and HTTP redirect rejection. These are simulated frames, not evidence of authorized Music access. No new APK or server deploy. Generic Yandex OAuth docs explain registering API permissions, but do not advertise a usable Music/Ynison permission. The only next owner action needed is inspecting Music permissions in their own OAuth developer dashboard (no app creation required yet), or supplying an independently authorized existing Music session locally; never ask for secrets in chat.
+
+Additional sources:
+- https://yandex.ru/dev/id/doc/ru/register-api
+- https://yandex.ru/dev/id/doc/ru/concepts/ya-oauth-intro
+- https://github.com/thedvxch/yandex-music/blob/main/src/ynison/client.ts
+- https://github.com/thedvxch/yandex-music/blob/main/src/ynison/messages.ts
+- https://websockets.readthedocs.io/en/stable/reference/asyncio/client.html
