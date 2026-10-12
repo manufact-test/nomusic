@@ -52,7 +52,7 @@ final class AdminPanel
             if (str_starts_with($path, '/admin/audio/')) return Response::json(403, ['error'=>'forbidden']);
             return new Response(303, ['Location'=>'/admin/login', 'Cache-Control'=>'no-store']);
         }
-        if(in_array($path,['/admin/support/reply','/admin/support/close'],true)){
+        if($path==='/admin/support/reply'){
             if(!in_array($admin['role'],['owner','moderator'],true))return Response::json(403,['error'=>'forbidden']);
             if($method!=='POST')return Response::json(405,['error'=>'method_not_allowed']);
             $form=$this->form($headers,$body,32768);
@@ -60,8 +60,7 @@ final class AdminPanel
             try{
                 $id=$this->positiveInt($form['ticket']??null);if(!$id)throw new \InvalidArgumentException();
                 $service=new \Celikom\Support\SupportService($this->pdo,$this->config);
-                if($path==='/admin/support/reply')$service->reply((int)$admin['id'],$id,is_string($form['message']??null)?$form['message']:'',is_string($form['request_key']??null)?$form['request_key']:'');
-                else $service->close((int)$admin['id'],$id);
+                $service->reply((int)$admin['id'],$id,is_string($form['message']??null)?$form['message']:'',is_string($form['request_key']??null)?$form['request_key']:'');
                 return new Response(303,['Location'=>'/admin?tab=support&ticket='.$id,'Cache-Control'=>'no-store']);
             }catch(\InvalidArgumentException|\DomainException){return Response::json(400,['error'=>'invalid_request']);}
         }
@@ -480,7 +479,7 @@ final class AdminPanel
             . '"><span>Новые жалобы<span class="sub">Ожидают решения</span></span><strong>'
             . (int) $counts['pending_reports'] . '</strong></a></div>';
         return $html . match ($tab) {
-            'support' => (new \Celikom\Support\SupportAdminView($this->pdo))->render($admin['csrf'],$this->positiveInt($query['ticket']??null) ?: 0,$this->positiveInt($query['page']??null) ?: 1,$this->positiveInt($query['message_page']??null) ?: 1),
+            'support' => (new \Celikom\Support\SupportAdminView($this->pdo))->render($admin['csrf'],$this->positiveInt($query['ticket']??null) ?: 0,$this->positiveInt($query['page']??null) ?: 1,$this->positiveInt($query['message_page']??null) ?: 1,$this->positiveInt($query['account']??null) ?: 0),
             'promos' => (new \Celikom\Promo\PromoAdminView($this->pdo))->render($admin['csrf'],$this->positiveInt($query['page']??null) ?: 1,($query['create']??null)==='1',($query['activations']??null)==='1'),
             'incidents' => (new \Celikom\Incident\IncidentAdminView($this->pdo))->render($admin['csrf']),
             'requests' => $this->requests($admin, $csrf, $query),

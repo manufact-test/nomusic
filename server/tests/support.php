@@ -34,7 +34,7 @@ try{
   $u=$user();$owner=$admin('owner');$viewer=$admin('viewer');$id=$service->create($u,'Тестовое обращение',$uuid());$key=$uuid();$before=count($sent);
   try{$service->reply($viewer,$id,'Ответ наблюдателя',$key);throw new RuntimeException('viewer_reply');}catch(DomainException $e){expect($e->getMessage()==='forbidden','viewer forbidden');}
   $service->reply($owner,$id,'Ответ <script>alert(1)</script>',$key);$service->reply($owner,$id,'Ответ <script>alert(1)</script>',$key);
-  expect(count($sent)===$before+1,'one reply email');expect($service->thread($id,$u)['status']==='answered','reply visible');
+  expect(count($sent)===$before+1,'one reply email');expect($service->thread($id,$u)['status']==='closed','reply visible');
   expect((int)$pdo->query("SELECT COUNT(*) FROM audit_log WHERE entity_type='support_ticket' AND entity_id=$id AND action='support_reply'")->fetchColumn()===1,'one audit');
   $html=(new SupportAdminView($pdo))->render(str_repeat('a',64),$id);expect(str_contains($html,'&lt;script&gt;')&&!str_contains($html,'<script>alert'),'stored HTML escaped');
   $token=bin2hex(random_bytes(32));$csrf=AdminAuth::csrfForToken($token);$pdo->prepare('INSERT INTO admin_sessions(token_hash,admin_id,csrf_hash,expires_at) VALUES (?,?,?,UTC_TIMESTAMP()+INTERVAL 1 HOUR)')->execute([hash('sha256',$token),$owner,hash('sha256',$csrf)]);
@@ -44,6 +44,18 @@ try{
   for($i=0;$i<5;$i++)$service->reply($owner,$id,'Дополнительный ответ '.$i,$uuid());
   expect($service->thread($id,$u)['has_more'],'message history paginated');expect($service->thread($id,$u,2)['messages'][0]['author']==='user','original request remains available');
   $service->close($owner,$id);expect($service->thread($id,$u)['status']==='closed','closed status');
+ });
+ run('Support groups accounts and bounds ticket history, closing only the answered request',function()use($service,$user,$admin,$uuid,$pdo):void{
+  $u=$user();$owner=$admin('owner');$first=$service->create($u,'Первое сообщение',$uuid());$second=$service->create($u,'Новое сообщение',$uuid());
+  $service->reply($owner,$first,'Ответ на первое',$uuid());
+  expect($service->thread($first,$u)['status']==='closed','reply closes first');expect($service->thread($second,$u)['status']==='open','new request stays open');
+  $view=new SupportAdminView($pdo);$list=$view->render(str_repeat('a',64),0);expect(substr_count($list,'account='.$u.'"')===1,'one row per account');
+  $detail=$view->render(str_repeat('a',64),0,1,1,$u);expect(str_contains($detail,'Новое')&&str_contains($detail,'Закрыто'),'both statuses');
+  $closed=$view->render(str_repeat('a',64),$first);expect(!str_contains($closed,'/admin/support/close')&&!str_contains($closed,'/admin/support/reply'),'closed has no action forms');
+  // Older history is seeded only in the disposable DB to test page boundaries.
+  for($i=0;$i<12;$i++)$pdo->prepare('INSERT INTO support_tickets(user_id,request_key) VALUES (?,?)')->execute([$u,$uuid()]);
+  $page=$view->render(str_repeat('a',64),0,1,1,$u);expect(substr_count($page,'>Посмотреть</a>')===10&&str_contains($page,'page=2'),'bounded first page');
+  $page=$view->render(str_repeat('a',64),0,2,1,$u);expect(substr_count($page,'>Посмотреть</a>')===4&&!str_contains($page,'page=3'),'bounded last page');
  });
  run('Support saves and responds before deferred SMTP, with no duplicate scheduling',function()use($config,$pdo,$user,$uuid):void{
   $tasks=[];$calls=0;$deferred=$config;

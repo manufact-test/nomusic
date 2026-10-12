@@ -39,7 +39,7 @@ final class SupportService
    $q=$this->pdo->prepare('SELECT id FROM support_tickets WHERE id=? FOR UPDATE');$q->execute([$id]);if(!$q->fetchColumn())throw new \DomainException('not_found');
    $q=$this->pdo->prepare('SELECT id FROM support_messages WHERE ticket_id=? AND request_key=?');$q->execute([$id,$key]);if($messageId=$q->fetchColumn()){$q=$this->pdo->prepare('SELECT body,admin_id FROM support_messages WHERE id=?');$q->execute([$messageId]);$previous=$q->fetch(\PDO::FETCH_ASSOC);if($previous['body']!==$body||(int)$previous['admin_id']!==$admin)throw new \InvalidArgumentException('invalid_request');$this->pdo->commit();return;}
    $this->pdo->prepare('INSERT INTO support_messages(ticket_id,admin_id,request_key,body) VALUES (?,?,?,?)')->execute([$id,$admin,$key,$body]);$message=(int)$this->pdo->lastInsertId();
-   $this->pdo->prepare("UPDATE support_tickets SET status='answered',updated_at=UTC_TIMESTAMP(6) WHERE id=?")->execute([$id]);$this->audit($admin,$id,'support_reply');$this->pdo->commit();
+   $this->pdo->prepare("UPDATE support_tickets SET status='closed',updated_at=UTC_TIMESTAMP(6) WHERE id=?")->execute([$id]);$this->audit($admin,$id,'support_reply');$this->pdo->commit();
   }catch(\Throwable $e){if($this->pdo->inTransaction())$this->pdo->rollBack();throw $e;}
   $this->scheduleDelivery($message);
  }
