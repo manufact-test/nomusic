@@ -10,7 +10,6 @@ import android.media.MediaMetadata
 import android.media.session.PlaybackState
 import android.os.Handler
 import android.os.Looper
-import android.service.media.MediaBrowserService
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -21,7 +20,7 @@ class PublicMediaProbe(private val context: Context) {
     private val controllers = mutableMapOf<MediaController, MediaController.Callback>()
     private var generation = 0
     companion object {
-        fun eligible(s: ServiceInfo): Boolean = s.packageName == ProbeStore.YANDEX && s.exported && s.enabled && s.permission.isNullOrBlank()
+        fun eligible(s: ServiceInfo): Boolean = MediaServiceDiscovery.reason(s,ProbeStore.YANDEX) == "eligible"
     }
     private fun status(value: String, count: Int = browsers.size) {
         ProbeStore.put(context, "public_browser", JSONObject().put("status", value).put("attempted", count).put("at_ms", System.currentTimeMillis()))
@@ -30,9 +29,11 @@ class PublicMediaProbe(private val context: Context) {
         stop()
         if (!ProbeStore.enabled(context)) { status("observation_disabled"); return }
         val run = generation
-        @Suppress("DEPRECATION")
-        val services = context.packageManager.queryIntentServices(Intent(MediaBrowserService.SERVICE_INTERFACE).setPackage(ProbeStore.YANDEX), 0)
-            .mapNotNull { it.serviceInfo }.filter { eligible(it) }.take(3)
+        val discovery = try { MediaServiceDiscovery.scan(context) } catch (_: RuntimeException) {
+            status("discovery_failed"); return
+        }
+        ProbeStore.put(context,"service_discovery",discovery.report)
+        val services = discovery.candidates
         if (services.isEmpty()) { status("no_public_service"); return }
         status("connecting", services.size)
         services.forEach { s ->

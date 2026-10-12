@@ -87,7 +87,7 @@ class MainActivity : Activity() {
         } else {
             text("Этот режим не запрашивает доступ к уведомлениям. Он проверяет передачу аудиосессии через эквалайзер. Сведения о песне здесь возможны только если Яндекс разрешит подключение к своему публичному медиасервису. Автоматический точный ID пока не подтверждён. Ссылку на песню можно передать из Яндекса через «Поделиться» → CELIKOM; она не доказывает, что песня сейчас играет.")
         }
-        if (BuildConfig.PANEL_ONLY) button("Проверить медиасервис Яндекса") { publicProbe.start(); render() }
+        if (BuildConfig.PANEL_ONLY) button("Проверить состояние плеера Яндекса") { publicProbe.start(); render() }
         button("Проверить приглушение на 7 секунд") {
             val session = AttenuationService.verifiedSession(ProbeStore.report(this), System.currentTimeMillis())
             if (session == null) toast("Сначала открой эквалайзер из Яндекса. Проверка доступна одну минуту после открытия.")

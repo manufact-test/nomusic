@@ -123,6 +123,21 @@ class ProbeTest {
         assertFalse(service.exported)
         if (android.os.Build.VERSION.SDK_INT >= 29) assertEquals(android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK,service.foregroundServiceType)
     }
+    @Test fun manifestDiscoveryIsBoundedAndReportsProtectedDisabledAndModernServices() {
+        assertEquals(3,MediaServiceDiscovery.actions.size)
+        assertTrue(MediaServiceDiscovery.actions.contains("androidx.media3.session.MediaLibraryService"))
+        val service=android.content.pm.ServiceInfo().apply { packageName=ProbeStore.YANDEX;exported=true;enabled=true }
+        service.permission="protected";assertEquals("permission_protected",MediaServiceDiscovery.reason(service,ProbeStore.YANDEX))
+        service.permission=null;service.enabled=false;assertEquals("disabled",MediaServiceDiscovery.reason(service,ProbeStore.YANDEX))
+        service.enabled=true;service.exported=false;assertEquals("not_exported",MediaServiceDiscovery.reason(service,ProbeStore.YANDEX))
+        val discovery=MediaServiceDiscovery.scan(context,context.packageName)
+        assertTrue(discovery.report.getBoolean("installed"));assertTrue(discovery.report.getJSONArray("declared_services").length()<=60)
+        assertTrue(discovery.candidates.size<=3)
+        val services=discovery.report.getJSONArray("declared_services")
+        val privateService= (0 until services.length()).map { services.getJSONObject(it) }.first { it.getString("name").endsWith("AttenuationService") }
+        assertEquals("not_exported",privateService.getString("eligibility"))
+        assertFalse(discovery.candidates.any { it.name.endsWith("AttenuationService") })
+    }
     @Test fun publicBrowserRejectsForeignPrivateOrUnexportedServices() {
         val s = android.content.pm.ServiceInfo().apply { packageName = ProbeStore.YANDEX; exported = true; enabled = true }
         assertTrue(PublicMediaProbe.eligible(s))
