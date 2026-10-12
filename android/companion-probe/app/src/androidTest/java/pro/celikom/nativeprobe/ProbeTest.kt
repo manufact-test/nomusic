@@ -81,9 +81,12 @@ class ProbeTest {
             android.os.SystemClock.sleep(500)
             assertEquals("waiting",ProbeStore.report(context).getJSONObject("attenuation_test").getString("status"))
             instrumentation.runOnMainSync { activity.finish() }
-            android.os.SystemClock.sleep(11000)
+            android.os.SystemClock.sleep(4000)
+            val active=ProbeStore.report(context).getJSONObject("attenuation_test")
+            assertEquals("attenuating",active.getString("status")); assertTrue(active.getBoolean("effect_attached"))
+            android.os.SystemClock.sleep(7000)
             val result=ProbeStore.report(context).getJSONObject("attenuation_test")
-            assertEquals("finished",result.getString("status")); assertTrue(result.getBoolean("released"))
+            assertEquals("finished",result.getString("status")); assertEquals("timeout",result.getString("reason")); assertTrue(result.getBoolean("released"))
             assertFalse(result.getBoolean("audible_result_verified"))
             assertTrue(result.getLong("finished_at_ms")-result.getLong("started_at_ms")<12000)
         } finally { context.stopService(Intent(context,AttenuationService::class.java));track.stop();track.release();ProbeStore.clear(context) }
