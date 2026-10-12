@@ -34,7 +34,7 @@ class ProbeTest {
         assertEquals(30, ProbeStore.report(context).getJSONArray("events").length())
         ProbeStore.setEnabled(context, true)
         val permissions = context.packageManager.getPackageInfo(context.packageName, PackageManager.GET_PERMISSIONS).requestedPermissions?.toList() ?: emptyList()
-        for (name in listOf("android.permission.INTERNET", "android.permission.RECORD_AUDIO", "android.permission.MODIFY_AUDIO_SETTINGS")) assertFalse(permissions.contains(name))
+        for (name in listOf("android.permission.INTERNET", "android.permission.RECORD_AUDIO")) assertFalse(permissions.contains(name))
         val metadata = MediaMetadata.Builder().putString(MediaMetadata.METADATA_KEY_MEDIA_ID, "144530503")
             .putString(MediaMetadata.METADATA_KEY_MEDIA_URI, "https://user:secret@example.org/track/144530503?token=secret#secret")
             .putString("private.credentials", "secret").build()
@@ -63,6 +63,45 @@ class ProbeTest {
             assertEquals(0, report.getJSONObject("media").length())
         }
         ProbeStore.clear(context)
+    }
+    @Test fun shortAttenuationReleasesAfterActivityFinishes() {
+        ProbeStore.clear(context); ProbeStore.setEnabled(context,true)
+        val activity = instrumentation.startActivitySync(Intent(context, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        instrumentation.waitForIdleSync()
+        val track=android.media.AudioTrack.Builder().setAudioAttributes(android.media.AudioAttributes.Builder()
+            .setUsage(android.media.AudioAttributes.USAGE_MEDIA).setContentType(android.media.AudioAttributes.CONTENT_TYPE_MUSIC).build())
+            .setAudioFormat(android.media.AudioFormat.Builder().setEncoding(android.media.AudioFormat.ENCODING_PCM_16BIT)
+                .setSampleRate(8000).setChannelMask(android.media.AudioFormat.CHANNEL_OUT_MONO).build())
+            .setTransferMode(android.media.AudioTrack.MODE_STATIC).setBufferSizeInBytes(16000).build()
+        try {
+            track.write(ByteArray(16000),0,16000); track.setLoopPoints(0,8000,-1); track.play()
+            ProbeStore.event(context, ProbeStore.effectEvent(Intent(AudioEffect.ACTION_DISPLAY_AUDIO_EFFECT_CONTROL_PANEL)
+                .putExtra(AudioEffect.EXTRA_AUDIO_SESSION,track.audioSessionId),ProbeStore.YANDEX))
+            instrumentation.runOnMainSync { context.startForegroundService(Intent(context,AttenuationService::class.java)) }
+            android.os.SystemClock.sleep(500)
+            assertEquals("waiting",ProbeStore.report(context).getJSONObject("attenuation_test").getString("status"))
+            instrumentation.runOnMainSync { activity.finish() }
+            android.os.SystemClock.sleep(11000)
+            val result=ProbeStore.report(context).getJSONObject("attenuation_test")
+            assertEquals("finished",result.getString("status")); assertTrue(result.getBoolean("released"))
+            assertFalse(result.getBoolean("audible_result_verified"))
+            assertTrue(result.getLong("finished_at_ms")-result.getLong("started_at_ms")<12000)
+        } finally { context.stopService(Intent(context,AttenuationService::class.java));track.stop();track.release();ProbeStore.clear(context) }
+    }
+    @Test fun attenuationRequiresFreshVerifiedNonGlobalSession() {
+        val now = System.currentTimeMillis()
+        fun report(session: Int, verified: Boolean, age: Long) = org.json.JSONObject().put("events", org.json.JSONArray().put(
+            org.json.JSONObject().put("action", AudioEffect.ACTION_DISPLAY_AUDIO_EFFECT_CONTROL_PANEL)
+                .put("session_id", session).put("verified_panel_caller", verified).put("caller_package", ProbeStore.YANDEX)
+                .put("observed_at_ms", now-age)))
+        assertEquals(42, AttenuationService.verifiedSession(report(42,true,1000),now))
+        assertNull(AttenuationService.verifiedSession(report(0,true,0),now))
+        assertNull(AttenuationService.verifiedSession(report(-1,true,0),now))
+        assertNull(AttenuationService.verifiedSession(report(42,false,0),now))
+        assertNull(AttenuationService.verifiedSession(report(42,true,60001),now))
+        assertNull(AttenuationService.verifiedSession(report(42,true,-1),now))
+        val info=context.packageManager.getPackageInfo(context.packageName, PackageManager.GET_SERVICES)
+        assertFalse(info.services!!.first { it.name.endsWith("AttenuationService") }.exported)
     }
     @Test fun publicBrowserRejectsForeignPrivateOrUnexportedServices() {
         val s = android.content.pm.ServiceInfo().apply { packageName = ProbeStore.YANDEX; exported = true; enabled = true }

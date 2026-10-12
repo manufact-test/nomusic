@@ -88,6 +88,17 @@ class MainActivity : Activity() {
             text("Этот режим не запрашивает доступ к уведомлениям. Он проверяет передачу аудиосессии через эквалайзер. Сведения о песне здесь возможны только если Яндекс разрешит подключение к своему публичному медиасервису. Автоматический точный ID пока не подтверждён. Ссылку на песню можно передать из Яндекса через «Поделиться» → CELIKOM; она не доказывает, что песня сейчас играет.")
         }
         if (BuildConfig.PANEL_ONLY) button("Проверить медиасервис Яндекса") { publicProbe.start(); render() }
+        button("Проверить приглушение на 7 секунд") {
+            val session = AttenuationService.verifiedSession(ProbeStore.report(this), System.currentTimeMillis())
+            if (session == null) toast("Сначала открой эквалайзер из Яндекса. Проверка доступна одну минуту после открытия.")
+            else AlertDialog.Builder(this).setTitle("Короткая проверка звука")
+                .setMessage("Вернись в Яндекс сразу после запуска. Через 3 секунды CELIKOM попробует приглушить только переданную аудиосессию на 7 секунд, затем отпустит эффект. Громкость телефона не меняется. После теста скопируй отчёт и напиши, исчез ли звук и вернулся ли сам.")
+                .setNegativeButton("Отмена", null).setPositiveButton("Запустить") { _, _ ->
+                    try { startForegroundService(Intent(this, AttenuationService::class.java)) }
+                    catch (_: RuntimeException) { toast("Android не разрешил запустить тест") }
+                }.show()
+        }
+        button("Остановить проверку звука") { stopService(Intent(this, AttenuationService::class.java)); render() }
         button("Открыть Яндекс Музыку") {
             val launch = packageManager.getLaunchIntentForPackage(ProbeStore.YANDEX)
             if (launch == null) toast("Установленная Яндекс Музыка не найдена") else startActivity(launch)
@@ -105,13 +116,13 @@ class MainActivity : Activity() {
         toggle = button("Остановить наблюдение") {
             ProbeStore.setEnabled(this, !ProbeStore.enabled(this))
             MusicObservation.rebind(this)
-            if (!ProbeStore.enabled(this)) publicProbe.stop()
+            if (!ProbeStore.enabled(this)) { publicProbe.stop(); stopService(Intent(this, AttenuationService::class.java)) }
             render()
         }
-        button("Очистить результаты") { ProbeStore.clear(this); render(); toast("Результаты очищены") }
+        button("Очистить результаты") { stopService(Intent(this, AttenuationService::class.java)); ProbeStore.clear(this); render(); toast("Результаты очищены") }
         button("Показать / скрыть детали") { details.visibility = if (details.visibility == View.GONE) View.VISIBLE else View.GONE; render() }
         details = text("").apply { textSize = 13f; visibility = View.GONE }
-        text("Состояние и сведения о песне — последние полученные события, а не доказательство готовой подмены. Отчёт может содержать название песни, исполнителя и её идентификатор. После проверки доступ к уведомлениям можно отключить в настройках Android.", 14f)
+        text("Состояние и сведения о песне — последние полученные события, а не доказательство готовой подмены. Отчёт может содержать название песни, исполнителя и её идентификатор. Приглушение проверяется отдельной кнопкой и автоматически заканчивается.", 14f)
         setContentView(scroll)
         if (android.os.Build.VERSION.SDK_INT >= 30) window.insetsController?.setSystemBarsAppearance(0,
             android.view.WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS or android.view.WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS)
@@ -125,7 +136,7 @@ class MainActivity : Activity() {
         val browser = r.optJSONObject("public_browser")?.optString("status", "not_checked") ?: "not_checked"
         val time = media.optLong("observed_at_ms", 0)
         val formatter = SimpleDateFormat("dd.MM HH:mm:ss", Locale("ru")).apply { timeZone = TimeZone.getTimeZone("Europe/Moscow") }
-        summary.text = "Телефон: ${r.getString("manufacturer")} ${r.getString("model")}\nAndroid: ${r.getString("android_release")}\nЯндекс Музыка: ${r.getString("yandex_version")}\nДоступ к уведомлениям: ${if (BuildConfig.PANEL_ONLY) "не требуется" else if (access()) "разрешён" else "не разрешён"}\nНаблюдение: ${if (ProbeStore.enabled(this)) "включено" else "остановлено"}\nПубличный медиасервис: $browser\nСессий Яндекс Музыки: ${sessions?.length() ?: 0}\nПоследнее состояние: ${if (time > 0) formatter.format(Date(time)) + " МСК" else "ещё не получено"}\nСобытий эквалайзера: ${events.length()}\nПоследняя аудиосессия: ${last?.optInt("session_id", -1) ?: "не получена"}\nТочный ID песни: ещё не подтверждён\nПодмена: не включалась"
+        summary.text = "Телефон: ${r.getString("manufacturer")} ${r.getString("model")}\nAndroid: ${r.getString("android_release")}\nЯндекс Музыка: ${r.getString("yandex_version")}\nДоступ к уведомлениям: ${if (BuildConfig.PANEL_ONLY) "не требуется" else if (access()) "разрешён" else "не разрешён"}\nНаблюдение: ${if (ProbeStore.enabled(this)) "включено" else "остановлено"}\nПубличный медиасервис: $browser\nСессий Яндекс Музыки: ${sessions?.length() ?: 0}\nПоследнее состояние: ${if (time > 0) formatter.format(Date(time)) + " МСК" else "ещё не получено"}\nСобытий эквалайзера: ${events.length()}\nПоследняя аудиосессия: ${last?.optInt("session_id", -1) ?: "не получена"}\nТочный ID песни: ещё не подтверждён\nПроверка приглушения: ${r.optJSONObject("attenuation_test")?.optString("status", "не запускалась")}\nПодмена: не включалась"
         toggle.text = if (ProbeStore.enabled(this)) "Остановить наблюдение" else "Возобновить наблюдение"
         if (details.visibility == View.VISIBLE) details.text = r.toString(2)
     }

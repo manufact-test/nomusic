@@ -1,0 +1,9 @@
+# Android 0.3.5: user-requested short attenuation
+
+Honor NTH-NX9 / Android 13 / Yandex 2026.09.5: owner confirmed 0.3.4 installation with an overridable Play Protect warning. Public MediaBrowser probe returned no_public_service. Equalizer panel caller was verified as ru.yandex.music with sessions 28001 and 28009. Sharing a track delivered ID 142820338; manual reference only. Automatic track, position and play/pause remain unavailable.
+
+0.3.5 adds a seven-second DynamicsProcessing input attenuation test after a three-second delay. Explicit confirmation in the visible activity starts a non-exported, non-sticky foreground audio service. It requires a verified panel callback within 60 seconds and a positive session ID; never session zero, mixer volume or broadcast-only attachment. A foreground notification and stop action accompany the short lease. The service releases on timeout, destruction, task removal, user stop, observation stop, session close or a different session opening. Attachment errors release immediately. Killing the process releases its native effect handle; the report cannot claim a successful audible restoration after process death.
+
+Manifest adds ordinary MODIFY_AUDIO_SETTINGS, FOREGROUND_SERVICE and FOREGROUND_SERVICE_MEDIA_PLAYBACK. No notification listener in panelOnly, INTERNET, recording, accessibility or boot auto-start. Same diagnostic package and persistent certificate. Play Protect acceptance is not guaranteed.
+
+The emulator checks a synthetic application's silent AudioTrack, effect lease expiration after the activity finishes, non-exported service and session eligibility. This does not prove Honor/Yandex attenuation. Owner must open the Yandex equalizer, start the test, return to Yandex, listen and report whether original audio attenuated and restored. Audible results, route compatibility and replacement remain unverified. No replacement audio or synchronization is shipped.

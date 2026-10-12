@@ -13,5 +13,12 @@ class SessionReceiver : BroadcastReceiver() {
         if (intent.getStringExtra(AudioEffect.EXTRA_PACKAGE_NAME) != ProbeStore.YANDEX) return
         // Broadcast extras are claims, not proof of origin. Never attach an effect here.
         ProbeStore.event(context, ProbeStore.effectEvent(intent, null))
+        val test = ProbeStore.report(context).optJSONObject("attenuation_test")
+        if (test?.optString("status") in listOf("waiting", "attenuating")) {
+            val session = intent.getIntExtra(AudioEffect.EXTRA_AUDIO_SESSION, -1)
+            if ((intent.action == AudioEffect.ACTION_CLOSE_AUDIO_EFFECT_CONTROL_SESSION && session == test?.optInt("session_id")) ||
+                (intent.action == AudioEffect.ACTION_OPEN_AUDIO_EFFECT_CONTROL_SESSION && session != test?.optInt("session_id")))
+                context.stopService(Intent(context, AttenuationService::class.java))
+        }
     }
 }
