@@ -80,7 +80,7 @@ object ProbeStore {
     }
     fun enabled(c: Context): Boolean = prefs(c).getBoolean("enabled", true)
     fun setEnabled(c: Context, enabled: Boolean) { prefs(c).edit().putBoolean("enabled", enabled).apply() }
-    fun clear(c: Context) { prefs(c).edit().remove("events").remove("media").remove("media_history").remove("shared_track").remove("public_media").remove("public_browser").remove("attenuation_test").remove("service_discovery").apply() }
+    fun clear(c: Context) { prefs(c).edit().remove("events").remove("media").remove("media_history").remove("shared_track").remove("public_media").remove("public_browser").remove("attenuation_test").remove("service_discovery").remove("browser_attempts").apply() }
     fun acceptSharedLink(c: Context, input: String?): Boolean {
         if (input == null || input.length > 2048) return false
         val raw = Regex("https://[^\\s]+").find(input)?.value ?: return false
@@ -95,13 +95,14 @@ object ProbeStore {
     fun report(c: Context): JSONObject {
         val version = try { c.packageManager.getPackageInfo(YANDEX, 0).versionName ?: "unknown" }
             catch (_: android.content.pm.PackageManager.NameNotFoundException) { "not_found" }
-        return JSONObject().put("schema", 1).put("probe_version", "0.3.8-probe")
+        return JSONObject().put("schema", 1).put("probe_version", "0.3.9-probe")
             .put("generated_at_ms", System.currentTimeMillis()).put("manufacturer", Build.MANUFACTURER)
             .put("model", Build.MODEL).put("android_release", Build.VERSION.RELEASE).put("api", Build.VERSION.SDK_INT)
             .put("yandex_version", version).put("observation_enabled", enabled(c))
             .put("listener", if (BuildConfig.PANEL_ONLY) JSONObject().put("connected", false).put("available", false) else JSONObject(prefs(c).getString("listener", "{}")))
             .put("probe_mode", if (BuildConfig.PANEL_ONLY) "audio_session_only" else "media_session")
             .put("automatic_track_observation", !BuildConfig.PANEL_ONLY)
+            .put("browser_attempts",JSONObject(prefs(c).getString("browser_attempts","{}")))
             .put("service_discovery",JSONObject(prefs(c).getString("service_discovery","{}")))
             .put("public_browser", JSONObject(prefs(c).getString("public_browser", "{}")))
             .put("attenuation_test", JSONObject(prefs(c).getString("attenuation_test", "{}")))

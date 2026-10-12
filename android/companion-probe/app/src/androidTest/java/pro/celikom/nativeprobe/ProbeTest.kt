@@ -124,15 +124,23 @@ class ProbeTest {
         if (android.os.Build.VERSION.SDK_INT >= 29) assertEquals(android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK,service.foregroundServiceType)
     }
     @Test fun manifestDiscoveryIsBoundedAndReportsProtectedDisabledAndModernServices() {
+        assertEquals("connection_failed",PublicMediaProbe.connectionStatus(listOf("connection_failed_callback"),false))
+        assertEquals("connection_failed",PublicMediaProbe.connectionStatus(listOf("connect_exception"),false))
+        assertEquals("connection_timeout",PublicMediaProbe.connectionStatus(listOf("timeout_without_callback"),false))
+        assertEquals("connecting",PublicMediaProbe.connectionStatus(listOf("connection_failed_callback","connecting"),false))
+        assertEquals("connected",PublicMediaProbe.connectionStatus(listOf("connection_failed_callback"),true))
         assertEquals(3,MediaServiceDiscovery.actions.size)
         assertTrue(MediaServiceDiscovery.actions.contains("androidx.media3.session.MediaLibraryService"))
         val service=android.content.pm.ServiceInfo().apply { packageName=ProbeStore.YANDEX;exported=true;enabled=true }
+        assertEquals("disabled",MediaServiceDiscovery.reason(service,ProbeStore.YANDEX,false))
+        service.enabled=false;assertEquals("eligible",MediaServiceDiscovery.reason(service,ProbeStore.YANDEX,true));service.enabled=true
         service.permission="protected";assertEquals("permission_protected",MediaServiceDiscovery.reason(service,ProbeStore.YANDEX))
         service.permission=null;service.enabled=false;assertEquals("disabled",MediaServiceDiscovery.reason(service,ProbeStore.YANDEX))
         service.enabled=true;service.exported=false;assertEquals("not_exported",MediaServiceDiscovery.reason(service,ProbeStore.YANDEX))
         val discovery=MediaServiceDiscovery.scan(context,context.packageName)
         assertTrue(discovery.report.getBoolean("installed"));assertTrue(discovery.report.getJSONArray("declared_services").length()<=60)
         assertTrue(discovery.candidates.size<=3)
+        assertTrue(discovery.report.has("enabled_query_counts"))
         val services=discovery.report.getJSONArray("declared_services")
         val privateService= (0 until services.length()).map { services.getJSONObject(it) }.first { it.getString("name").endsWith("AttenuationService") }
         assertEquals("not_exported",privateService.getString("eligibility"))

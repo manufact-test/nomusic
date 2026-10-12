@@ -19,7 +19,25 @@ class PublicMediaProbe(private val context: Context) {
     private val browsers = mutableListOf<MediaBrowser>()
     private val controllers = mutableMapOf<MediaController, MediaController.Callback>()
     private var generation = 0
+    private val phases = linkedMapOf<String,String>()
+    private val attempts = JSONArray()
+    private fun attempt(name: String, phase: String, error: String? = null) {
+        phases[name] = phase
+        if (attempts.length()<12) attempts.put(JSONObject().put("component",ProbeStore.clean(name)).put("event",phase)
+            .put("at_ms",System.currentTimeMillis()).put("error_type",error ?: JSONObject.NULL))
+        ProbeStore.put(context,"browser_attempts",JSONObject().put("events",attempts))
+    }
+    private fun paintConnection() {
+        val phase = connectionStatus(phases.values,controllers.isNotEmpty())
+        status(phase)
+    }
     companion object {
+        fun connectionStatus(phases: Collection<String>, connected: Boolean): String = when {
+            connected -> "connected"
+            phases.any { it=="connecting" } -> "connecting"
+            phases.any { it=="timeout_without_callback" } -> "connection_timeout"
+            else -> "connection_failed"
+        }
         fun eligible(s: ServiceInfo): Boolean = MediaServiceDiscovery.reason(s,ProbeStore.YANDEX) == "eligible"
     }
     private fun status(value: String, count: Int = browsers.size) {
@@ -28,6 +46,9 @@ class PublicMediaProbe(private val context: Context) {
     fun start() {
         stop()
         if (!ProbeStore.enabled(context)) { status("observation_disabled"); return }
+        phases.clear()
+        while (attempts.length()>0) attempts.remove(0)
+        ProbeStore.put(context,"browser_attempts",JSONObject().put("events",attempts))
         val run = generation
         val discovery = try { MediaServiceDiscovery.scan(context) } catch (_: RuntimeException) {
             status("discovery_failed"); return
@@ -37,13 +58,14 @@ class PublicMediaProbe(private val context: Context) {
         if (services.isEmpty()) { status("no_public_service"); return }
         status("connecting", services.size)
         services.forEach { s ->
+            attempt(s.name,"connecting")
             lateinit var browser: MediaBrowser
             val callback = object : MediaBrowser.ConnectionCallback() {
                 override fun onConnected() {
                     if (run != generation || !ProbeStore.enabled(context)) { browser.disconnect(); return }
                     try {
                         val controller = MediaController(context, browser.sessionToken)
-                        if (controller.packageName != ProbeStore.YANDEX) { browser.disconnect(); status("unexpected_package"); return }
+                        if (controller.packageName != ProbeStore.YANDEX) { attempt(s.name,"unexpected_package");browser.disconnect();paintConnection();return }
                         val changes = object : MediaController.Callback() {
                             override fun onMetadataChanged(metadata: MediaMetadata?) = save(controller, run)
                             override fun onPlaybackStateChanged(state: PlaybackState?) = save(controller, run)
@@ -52,17 +74,23 @@ class PublicMediaProbe(private val context: Context) {
                         }
                         controllers[controller] = changes
                         controller.registerCallback(changes, handler)
-                        status("connected"); save(controller, run)
-                    } catch (_: RuntimeException) { status("connection_error") }
+                        attempt(s.name,"connected");paintConnection();save(controller, run)
+                    } catch (error: RuntimeException) { attempt(s.name,"connection_exception",error.javaClass.simpleName);paintConnection() }
                 }
-                override fun onConnectionFailed() { if (run == generation && controllers.isEmpty()) status("connection_denied") }
-                override fun onConnectionSuspended() { if (run == generation) { status("connection_suspended"); ProbeStore.put(context, "public_media", JSONObject()) } }
+                override fun onConnectionFailed() { if (run==generation) { attempt(s.name,"connection_failed_callback");paintConnection() } }
+                override fun onConnectionSuspended() { if (run == generation) { attempt(s.name,"connection_suspended_callback");status("connection_suspended"); ProbeStore.put(context, "public_media", JSONObject()) } }
             }
             browser = MediaBrowser(context, ComponentName(s.packageName, s.name), callback, null)
             browsers += browser
-            try { browser.connect() } catch (_: RuntimeException) { status("connection_denied") }
+            try { browser.connect() } catch (error: RuntimeException) { attempt(s.name,"connect_exception",error.javaClass.simpleName);paintConnection() }
         }
-        handler.postDelayed({ if (run == generation && controllers.isEmpty()) { browsers.forEach { try { it.disconnect() } catch (_: RuntimeException) { } }; status("not_connected") } }, 7000)
+        handler.postDelayed({
+            if (run==generation && controllers.isEmpty()) {
+                phases.filterValues { it=="connecting" }.keys.toList().forEach { attempt(it,"timeout_without_callback") }
+                browsers.forEach { try { it.disconnect() } catch (_: RuntimeException) { } }
+                paintConnection()
+            }
+        },7000)
     }
     private fun save(c: MediaController, run: Int) {
         if (run != generation || !ProbeStore.enabled(context)) return
