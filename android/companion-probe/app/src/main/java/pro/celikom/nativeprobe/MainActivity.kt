@@ -1,6 +1,7 @@
 package pro.celikom.nativeprobe
 
 import android.app.Activity
+import android.app.AlertDialog
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.ComponentName
@@ -69,8 +70,14 @@ class MainActivity : Activity() {
         text("Проверка Яндекс Музыки", 23f)
         text("Это диагностика подключения к установленному плееру. Подмена здесь ещё не включается. Вход в Яндекс и CELIKOM не нужен.")
         button("1. Разрешить доступ к уведомлениям") {
-            try { startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)) }
-            catch (_: android.content.ActivityNotFoundException) { toast("Открой настройки Android → Доступ к уведомлениям") }
+            AlertDialog.Builder(this)
+                .setTitle("Доступ к состоянию плеера")
+                .setMessage("Android выдаёт широкий доступ к уведомлениям. CELIKOM использует его только для состояния Яндекс Музыки: песни, позиции и команд плеера. Содержимое других уведомлений не читается и не сохраняется. Данные остаются на телефоне; отчёт передаётся только кнопками копирования или отправки. Доступ можно отключить в настройках Android.")
+                .setNegativeButton("Отмена", null)
+                .setPositiveButton("Перейти в настройки") { _, _ ->
+                    try { startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)) }
+                    catch (_: android.content.ActivityNotFoundException) { toast("Открой настройки Android → Доступ к уведомлениям") }
+                }.show()
         }
         text("В настройках выбери «CELIKOM: состояние Яндекс Музыки». Android даёт широкий доступ к уведомлениям, но эта сборка обрабатывает только состояние Яндекс Музыки. Другие уведомления не читаются и не сохраняются. Интернет и микрофон не используются. Отчёт передаётся только по твоему действию.")
         button("2. Открыть Яндекс Музыку") {
