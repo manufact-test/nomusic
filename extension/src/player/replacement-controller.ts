@@ -26,6 +26,7 @@
       this.enabled = false;
       this.suspended = false;
       this.retryBlock = null;
+      this.networkRetries = 0;
       this.masterClock = null;
       this.testTrackId = null;
       this.snapshot = null;
@@ -47,7 +48,7 @@
       const changed = this.testTrackId !== id || this.enabled !== enabled;
       this.enabled = enabled;
       this.testTrackId = id;
-      if (changed || explicitStart) { this.manualBypass = null; this.blockedTrackId = null; this.retryBlock = null; this.masterClock = null; if (!this.suspended) this.lastError = null; this.negativeResolution = null; }
+      if (changed || explicitStart) { this.networkRetries = 0; this.manualBypass = null; this.blockedTrackId = null; this.retryBlock = null; this.masterClock = null; if (!this.suspended) this.lastError = null; this.negativeResolution = null; }
       this.reconcile();
     }
     suspendAccess(suspended, reason) {
@@ -80,7 +81,7 @@
         || Math.abs((player?.currentTime || 0) - this.masterClock.time) > 0.01 || player?.paused || player?.seeking || player?.readyState < 3) {
         this.masterClock = { id, mediaId: player?.mediaId, time: player?.currentTime || 0, advancedAt: Date.now() };
       }
-      if (id && ((previousId && id !== previousId) || (this.manualBypass && id !== this.manualBypass.trackId) || (this.blockedTrackId && id !== this.blockedTrackId))) { this.manualBypass = null; this.blockedTrackId = null; this.retryBlock = null; this.lastError = null; }
+      if (id && ((previousId && id !== previousId) || (this.manualBypass && id !== this.manualBypass.trackId) || (this.blockedTrackId && id !== this.blockedTrackId))) { this.networkRetries = 0; this.manualBypass = null; this.blockedTrackId = null; this.retryBlock = null; this.lastError = null; }
       if (["ERROR", "ENDED"].includes(eventType)) { this.abort(`master-${eventType.toLowerCase()}`, true); return; }
       this.reconcile(["SEEK", "PLAY", "RATE_CHANGED"].includes(eventType));
     }
@@ -156,9 +157,13 @@
     abort(reason, blockTrack = false, detail = null) {
       const operation = this.operation;
       if (blockTrack) { this.blockedTrackId = operation?.trackId || this.snapshot?.track?.id; this.lastError = reason; }
-      if (blockTrack && ["bridge-timeout", "bridge-unhealthy", "snapshot-stale", "master-clock-stalled", "master-error", "audio-token-expired", "api_network_error", "api_server_error", "api_unavailable", "guard-lost:master-error"].includes(reason)
-        || (blockTrack && detail?.reason === "media-source-changed")) {
-        this.retryBlock = { at: Date.now() + 5000, observedAt: this.snapshot?.observedAt || 0, reason, time: this.snapshot?.player?.currentTime || 0 };
+      const transientNetwork = ["remote-stream-network", "remote-stream-timeout", "replacement-load-timeout", "api_network_error", "api_server_error", "api_unavailable"].includes(reason)
+        || (reason === "remote-stream-http" && [429, 500, 502, 503, 504].includes(detail?.httpStatus))
+        || (reason === "replacement-media-error" && detail?.mediaErrorCode === 2);
+      if (blockTrack && (["bridge-timeout", "bridge-unhealthy", "snapshot-stale", "master-clock-stalled", "master-error", "audio-token-expired", "guard-lost:master-error"].includes(reason)
+        || transientNetwork || detail?.reason === "media-source-changed")) {
+        const delay = transientNetwork ? Math.min(60000, 5000 * 2 ** Math.min(this.networkRetries++, 4)) : 5000;
+        this.retryBlock = { at: Date.now() + delay, observedAt: this.snapshot?.observedAt || 0, reason, time: this.snapshot?.player?.currentTime || 0 };
       }
       if (!operation) return;
       const completed = reason === "master-ended" || detail?.reason === "master-ended";

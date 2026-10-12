@@ -135,8 +135,8 @@ chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse) =>
       if (access === "denied") { actionIcon.clear(); await chrome.storage.local.set({ enabled: false }); return; }
       await chrome.tabs.sendMessage(sender.tab?.id, { type: "CELIKOM_ACCESS_STATE", state: access }).catch(() => undefined);
       if (access !== "allowed") { actionIcon.update(sender.tab?.id, false); return; }
-      const pulse = message as { enabled?: unknown; healthy?: unknown };
-      actionIcon.update(sender.tab?.id, pulse.enabled === true && pulse.healthy === true);
+      const pulse = message as { enabled?: unknown; healthy?: unknown; phase?: unknown; replacementError?: unknown };
+      actionIcon.update(sender.tab?.id, pulse.enabled === true && pulse.healthy === true && pulse.replacementError !== true && !["ERROR", "CONNECTING", "PREPARING", "RESTORING"].includes(String(pulse.phase)));
     })().catch(() => actionIcon.update(sender.tab?.id, false));
     return false;
   }

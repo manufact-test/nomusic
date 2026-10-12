@@ -20,7 +20,7 @@
       this.audio.hidden = true;
       this.audio.preload = "auto";
       this.audio.muted = true;
-      this.audio.addEventListener("error", () => { if (!this.destroyed) onFatal("replacement-media-error"); });
+      this.audio.addEventListener("error", () => { if (!this.destroyed) onFatal("replacement-media-error", { mediaErrorCode: this.audio.error?.code || 0 }); });
       this.audio.addEventListener("ended", () => { if (!this.destroyed && !this.demoLoop) onFatal("replacement-ended"); });
     }
     async pumpRemote(asset) {

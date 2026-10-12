@@ -435,3 +435,22 @@ test("destroy during retry cancels the delayed request and reports no late fatal
   assert.deepEqual(f.fatals,[]);
   assert.equal(f.revoked,true);
 });
+
+test('stream network loss retries same exact track with a newly resolved asset after restoration',async()=>{
+ let resolves=0;const f=fixture({resolveAsset:async()=>{resolves++;return remoteAsset();}});
+ f.engine.configure(true,'');f.update(snapshot());await settle();assert.equal(f.engine.phase,'REPLACEMENT_ACTIVE');
+ f.engine.abort('remote-stream-network',true);await settle();assert.equal(f.players[0].destroyed,true);assert.equal(f.engine.operation,null);
+ const first=f.engine.retryBlock.at-Date.now();assert.ok(first>4000&&first<=5000);
+ f.update(snapshot());await settle();assert.equal(resolves,1,'no immediate retry storm');
+ f.engine.retryBlock.at=Date.now()-1;f.engine.retryBlock.observedAt=Date.now()-1;
+ f.update(snapshot());await settle();assert.equal(resolves,2);assert.equal(f.engine.phase,'REPLACEMENT_ACTIVE');
+ f.engine.abort('remote-stream-network',true);await settle();assert.ok(f.engine.retryBlock.at-Date.now()>9000,'backoff increases');
+ f.engine.manualRestore();f.engine.retryBlock.at=Date.now()-1;f.engine.retryBlock.observedAt=Date.now()-1;
+ f.update(snapshot());await settle();assert.equal(resolves,2,'manual original remains authoritative');
+});
+test('network retry never includes forbidden HTTP or malformed audio',async()=>{
+ for(const [reason,detail] of [['remote-stream-http',{httpStatus:403}],['remote-stream-format',null],['replacement-media-error',{mediaErrorCode:3}]]){
+  const f=fixture();f.update(snapshot());await settle();f.engine.abort(reason,true,detail);await settle();
+  assert.equal(f.engine.retryBlock,null);assert.equal(f.engine.blockedTrackId,'2');
+ }
+});
