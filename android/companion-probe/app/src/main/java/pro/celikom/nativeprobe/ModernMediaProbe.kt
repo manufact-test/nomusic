@@ -103,6 +103,9 @@ class ModernMediaProbe(private val context: Context, private val event: (String,
             val token = SessionToken(context,component)
             check(token.packageName == expectedPackage)
             val listener = object : MediaBrowser.Listener {
+                override fun onExtrasChanged(controller: MediaController, extras: android.os.Bundle) {
+                    if (run==generation && tickets[name]==ticket && controller is MediaBrowser && controller.isConnected) save(controller)
+                }
                 override fun onDisconnected(controller: MediaController) {
                     if (run != generation || tickets[name]!=ticket || browsers[name] !== controller) return
                     browsers.remove(name)
@@ -173,6 +176,17 @@ class ModernMediaProbe(private val context: Context, private val event: (String,
                 .put("state",browser.playbackState).put("speed",browser.playbackParameters.speed)
                 .put("can_read_current_item",browser.isCommandAvailable(Player.COMMAND_GET_CURRENT_MEDIA_ITEM))
                 .put("exact_track_id_verified",false)
+            val commands=JSONArray()
+            browser.availableSessionCommands.commands.toList().sortedBy { it.commandCode.toString()+it.customAction }.take(24).forEach { command ->
+                commands.put(JSONObject().put("code",command.commandCode).put("action",ProbeStore.clean(command.customAction) ?: JSONObject.NULL)
+                    .put("extras",SessionIdentity.extras(command.customExtras)))
+            }
+            ProbeStore.put(context,"session_identity",JSONObject().put("observed_at_ms",System.currentTimeMillis())
+                .put("current_media_id",ProbeStore.clean(item?.mediaId) ?: JSONObject.NULL)
+                .put("current_title",ProbeStore.clean(metadata.title?.toString()) ?: JSONObject.NULL)
+                .put("session_extras",SessionIdentity.extras(browser.sessionExtras))
+                .put("token_extras",SessionIdentity.extras(browser.connectedToken?.extras))
+                .put("available_commands",commands).put("commands_sent",0).put("exact_track_id_verified",false))
             ProbeStore.put(context,"public_media",JSONObject().put("observed_at_ms",System.currentTimeMillis()).put("sessions",JSONArray().put(session)))
             inspectIdentity(browser)
         } catch (error: RuntimeException) { event("media3","metadata_unavailable",error.javaClass.simpleName) }
@@ -182,6 +196,7 @@ class ModernMediaProbe(private val context: Context, private val event: (String,
         handler.removeCallbacksAndMessages(null)
         identityFuture?.cancel(false);identityFuture=null;identityKey=null;identityQueries=0
         ProbeStore.put(context,"track_identity",JSONObject())
+        ProbeStore.put(context,"session_identity",JSONObject())
         tickets.clear();retries.clear();polling=false
         futures.values.forEach { MediaController.releaseFuture(it) }; futures.clear()
         browsers.clear()

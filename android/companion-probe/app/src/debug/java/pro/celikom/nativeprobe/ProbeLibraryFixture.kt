@@ -27,7 +27,7 @@ class ProbeLibraryFixture : MediaLibraryService() {
                         .setMediaUri(android.net.Uri.parse("https://music.yandex.ru/album/38763902/track/142820338?token=private-test")).build()).build()
                 return com.google.common.util.concurrent.Futures.immediateFuture(androidx.media3.session.LibraryResult.ofItem(item,null))
             }
-        }).build()
+        }).setSessionExtras(android.os.Bundle().apply { putString("com.example.track_id","141103805");putString("password","private-fixture") }).build()
     }
     fun change(title: String, id: String) {
         player.setMediaItem(MediaItem.Builder().setMediaId(id).setUri("asset:///unused-test-only")

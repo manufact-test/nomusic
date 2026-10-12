@@ -18,6 +18,19 @@ import android.graphics.Bitmap
 class ProbeTest {
     private val instrumentation = InstrumentationRegistry.getInstrumentation()
     private val context = instrumentation.targetContext
+    @Test fun sessionIdentityRejectsArbitraryExtrasAndStripsLinkSecrets() {
+        val extras=android.os.Bundle().apply {
+            putString("com.example.track_id","141103805")
+            putString("password","private-password")
+            putString("track_url","https://music.yandex.ru/album/37458189/track/141103805?token=private-token")
+            putString("duration","228000");putString("media_id","13")
+        }
+        val safe=SessionIdentity.extras(extras)
+        assertEquals("141103805",safe.getJSONObject("track_id_candidates").getString("com.example.track_id"))
+        assertEquals(1,safe.getJSONObject("track_id_candidates").length())
+        assertFalse(safe.toString().contains("private-password"));assertFalse(safe.toString().contains("private-token"))
+        assertFalse(safe.getBoolean("exact_track_id_verified"))
+    }
     @Test fun trackIdentityRecordsOnlyPublicTrackPathAndNeverCredentials() {
         val safe=MediaIdentity.uri(android.net.Uri.parse("https://music.yandex.ru/album/38763902/track/142820338?token=secret#secret"))
         assertEquals("142820338",safe.getString("track_id_candidate"))
@@ -47,6 +60,10 @@ class ProbeTest {
         }
         try {
             awaitTitle("Probe one")
+            val sessionEvidence=ProbeStore.report(context).getJSONObject("session_identity")
+            assertEquals("141103805",sessionEvidence.getJSONObject("session_extras").getJSONObject("track_id_candidates").getString("com.example.track_id"))
+            assertEquals(0,sessionEvidence.getInt("commands_sent"))
+            assertFalse(sessionEvidence.toString().contains("private-fixture"))
             val identityDeadline=android.os.SystemClock.elapsedRealtime()+5000
             var identity=ProbeStore.report(context).getJSONObject("track_identity")
             while (identity.optString("status")!="current_item_received" && android.os.SystemClock.elapsedRealtime()<identityDeadline) {

@@ -80,7 +80,7 @@ object ProbeStore {
     }
     fun enabled(c: Context): Boolean = prefs(c).getBoolean("enabled", true)
     fun setEnabled(c: Context, enabled: Boolean) { prefs(c).edit().putBoolean("enabled", enabled).apply() }
-    fun clear(c: Context) { prefs(c).edit().remove("events").remove("media").remove("media_history").remove("shared_track").remove("public_media").remove("public_browser").remove("attenuation_test").remove("service_discovery").remove("browser_attempts").remove("media3_error").remove("track_identity").apply() }
+    fun clear(c: Context) { prefs(c).edit().remove("events").remove("media").remove("media_history").remove("shared_track").remove("public_media").remove("public_browser").remove("attenuation_test").remove("service_discovery").remove("browser_attempts").remove("media3_error").remove("track_identity").remove("session_identity").apply() }
     fun acceptSharedLink(c: Context, input: String?): Boolean {
         if (input == null || input.length > 2048) return false
         val raw = Regex("https://[^\\s]+").find(input)?.value ?: return false
@@ -97,6 +97,7 @@ object ProbeStore {
             catch (_: android.content.pm.PackageManager.NameNotFoundException) { "not_found" }
         return JSONObject().put("schema", 1).put("probe_version", BuildConfig.VERSION_NAME)
             .put("track_identity",JSONObject(prefs(c).getString("track_identity","{}")))
+            .put("session_identity",JSONObject(prefs(c).getString("session_identity","{}")))
             .put("generated_at_ms", System.currentTimeMillis()).put("manufacturer", Build.MANUFACTURER)
             .put("model", Build.MODEL).put("android_release", Build.VERSION.RELEASE).put("api", Build.VERSION.SDK_INT)
             .put("yandex_version", version).put("observation_enabled", enabled(c))

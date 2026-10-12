@@ -38,3 +38,17 @@ Report (7): three immediate future_result/SecurityException/session_rejected fai
 0.3.12 inspects current MediaItem request metadata and publicly shared Yandex track URI fields. Non-Yandex stream/local paths, query, fragment and user info are never emitted. Candidate IDs remain exact_track_id_verified=false. If COMMAND_CODE_LIBRARY_GET_ITEM is granted, getItem requests ONLY the currently observed media ID, at most three requests per observation run with a five-second timeout each. No library traversal or transport commands. Generation/current-item key guards discard late results from an older track. The result may be unavailable or merely return a local queue ID; neither is silently upgraded to a catalog ID.
 
 Debug service returns an item URI containing a test token; instrumentation verifies ID extraction and token stripping and verifies candidate remains unconfirmed. URI tests also reject user-info credentials and arbitrary private stream paths. Successful connection clears obsolete media3_error; prior failures remain in bounded connection journal.
+
+
+## 0.3.12 physical exact-ID check and 0.3.13 remaining public channel
+
+Owner report: connected current «Здравствуй» / Три дня дождя, MACAN / BRATLAND, duration 228000 ms, media_id 13; user share link confirms catalog ID 141103805 and album 37458189. Request/local URI absent, request extras empty, metadata candidate IDs absent, get_item_allowed=false. Therefore getItem was correctly NOT sent. Same title previously had local ID 17; neither 13 nor 17 is accepted as catalog identity. Existing stale shared_track 142820338 is unrelated. Owner was listening over car Bluetooth; this proves state reading on that route, not attenuation/replacement there.
+
+Research: MediaController.getSessionExtras, SessionToken.getExtras and custom SessionCommand extras are separate public sources from MediaItem metadata. These channels were not inspected in earlier probes. 0.3.13 reads only keys and whitelisted positive track-ID candidates/public Yandex track links, with bounded declared command inventory; sends NO custom commands and no forbidden getItem. onExtrasChanged refreshes the evidence. Test includes namespaced track_id and a tokenized public URI and verifies secret values stripped and candidates remain unverified. No claim Yandex exposes ID through this channel before physical test.
+
+Primary API references:
+- https://developer.android.com/reference/androidx/media3/session/MediaController#getSessionExtras()
+- https://developer.android.com/reference/androidx/media3/session/SessionToken#getExtras()
+- https://developer.android.com/reference/androidx/media3/session/MediaController.Listener#onExtrasChanged(androidx.media3.session.MediaController,android.os.Bundle)
+
+Fallback research: CELIKOM tracks table stores album/title/artist/duration and service_track_id. Metadata matching can produce candidates, but uniqueness inside CELIKOM's incomplete catalogue cannot prove the externally playing Yandex ID. Such matching is not silently promoted to exact identity or used for automatic replacement under the current requirement. No server/API change deployed. No supported direct Yandex current-track-ID integration found in searched official sources; this search result is not proof none exists.
