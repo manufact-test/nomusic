@@ -41,7 +41,11 @@ jobs:
           catalog_target='u235811320@92.113.19.189'
           catalog_remote="/home/u235811320/domains/darkred-camel-588676.hostingersite.com/celikom/incoming/catalog-diagnostic-${GITHUB_SHA}.php"
           trap 'ssh -T -p 65002 "${catalog_opts[@]}" "$catalog_target" "rm -f '\''$catalog_remote'\''" || true; rm -rf "$catalog_work"' EXIT
-          scp -P 65002 "${catalog_opts[@]}" android/companion-probe/catalog-snapshot-remote.php "$catalog_target:$catalog_remote"
+          catalog_sent=false
+          for catalog_attempt in 1 2 3; do
+            if scp -P 65002 "${catalog_opts[@]}" android/companion-probe/catalog-snapshot-remote.php "$catalog_target:$catalog_remote"; then catalog_sent=true; break; fi
+          done
+          [[ "$catalog_sent" == true ]] || exit 1
           mkdir -p android/companion-probe/app/src/main/assets
           ssh -T -p 65002 "${catalog_opts[@]}" "$catalog_target" "/opt/alt/php83/usr/bin/php '$catalog_remote'" > android/companion-probe/app/src/main/assets/catalog-diagnostic.json
           python3 - <<'PY'
