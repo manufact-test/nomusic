@@ -80,7 +80,7 @@ object ProbeStore {
     }
     fun enabled(c: Context): Boolean = prefs(c).getBoolean("enabled", true)
     fun setEnabled(c: Context, enabled: Boolean) { prefs(c).edit().putBoolean("enabled", enabled).apply() }
-    fun clear(c: Context) { prefs(c).edit().remove("events").remove("media").remove("media_history").remove("shared_track").apply() }
+    fun clear(c: Context) { prefs(c).edit().remove("events").remove("media").remove("media_history").remove("shared_track").remove("public_media").remove("public_browser").apply() }
     fun acceptSharedLink(c: Context, input: String?): Boolean {
         if (input == null || input.length > 2048) return false
         val raw = Regex("https://[^\\s]+").find(input)?.value ?: return false
@@ -102,8 +102,9 @@ object ProbeStore {
             .put("listener", if (BuildConfig.PANEL_ONLY) JSONObject().put("connected", false).put("available", false) else JSONObject(prefs(c).getString("listener", "{}")))
             .put("probe_mode", if (BuildConfig.PANEL_ONLY) "audio_session_only" else "media_session")
             .put("automatic_track_observation", !BuildConfig.PANEL_ONLY)
+            .put("public_browser", JSONObject(prefs(c).getString("public_browser", "{}")))
             .put("shared_track", JSONObject(prefs(c).getString("shared_track", "{}")))
-            .put("media", if (BuildConfig.PANEL_ONLY) JSONObject() else JSONObject(prefs(c).getString("media", "{}")))
+            .put("media", if (BuildConfig.PANEL_ONLY) JSONObject(prefs(c).getString("public_media", "{}")) else JSONObject(prefs(c).getString("media", "{}")))
             .put("media_history", if (BuildConfig.PANEL_ONLY) JSONArray() else JSONArray(prefs(c).getString("media_history", "[]")))
             .put("events", JSONArray(prefs(c).getString("events", "[]")))
             .put("yandex_replacement_tested", false).put("physical_routes_tested", false)

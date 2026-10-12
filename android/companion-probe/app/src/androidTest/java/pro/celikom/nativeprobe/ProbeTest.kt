@@ -64,6 +64,13 @@ class ProbeTest {
         }
         ProbeStore.clear(context)
     }
+    @Test fun publicBrowserRejectsForeignPrivateOrUnexportedServices() {
+        val s = android.content.pm.ServiceInfo().apply { packageName = ProbeStore.YANDEX; exported = true; enabled = true }
+        assertTrue(PublicMediaProbe.eligible(s))
+        s.permission = "android.permission.MEDIA_CONTENT_CONTROL"; assertFalse(PublicMediaProbe.eligible(s))
+        s.permission = null; s.exported = false; assertFalse(PublicMediaProbe.eligible(s))
+        s.exported = true; s.packageName = "other.app"; assertFalse(PublicMediaProbe.eligible(s))
+    }
     @Test fun nativeUiStartsWithoutYandexOrLoginAndProducesScreenshot() {
         val activity = instrumentation.startActivitySync(Intent(context, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
         instrumentation.waitForIdleSync()

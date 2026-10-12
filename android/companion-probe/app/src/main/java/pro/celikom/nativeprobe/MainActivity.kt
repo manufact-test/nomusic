@@ -25,6 +25,7 @@ import java.util.TimeZone
 
 class MainActivity : Activity() {
     private val handler = Handler(Looper.getMainLooper())
+    private lateinit var publicProbe: PublicMediaProbe
     private lateinit var summary: TextView
     private lateinit var details: TextView
     private lateinit var toggle: Button
@@ -38,6 +39,7 @@ class MainActivity : Activity() {
             val link = intent.getStringExtra(Intent.EXTRA_TEXT)
             if (!ProbeStore.acceptSharedLink(this, link)) toast("Ссылка на песню Яндекса не распознана")
         }
+        publicProbe = PublicMediaProbe(applicationContext)
         val scroll = ScrollView(this).apply {
             isFillViewport = true; setBackgroundColor(Color.rgb(11, 16, 19));
             scrollBarStyle = View.SCROLLBARS_OUTSIDE_INSET; setPadding(dp(20), dp(16), dp(20), dp(24))
@@ -83,8 +85,9 @@ class MainActivity : Activity() {
         }
         text("В настройках выбери «CELIKOM: состояние Яндекс Музыки». Android даёт широкий доступ к уведомлениям, но эта сборка обрабатывает только состояние Яндекс Музыки. Другие уведомления не читаются и не сохраняются. Интернет и микрофон не используются. Отчёт передаётся только по твоему действию.")
         } else {
-            text("Этот режим не запрашивает доступ к уведомлениям. Он проверяет передачу аудиосессии через эквалайзер. Название песни, позиция и автоматический ID здесь недоступны. Ссылку на песню можно передать из Яндекса через «Поделиться» → CELIKOM; она не доказывает, что песня сейчас играет.")
+            text("Этот режим не запрашивает доступ к уведомлениям. Он проверяет передачу аудиосессии через эквалайзер. Сведения о песне здесь возможны только если Яндекс разрешит подключение к своему публичному медиасервису. Автоматический точный ID пока не подтверждён. Ссылку на песню можно передать из Яндекса через «Поделиться» → CELIKOM; она не доказывает, что песня сейчас играет.")
         }
+        if (BuildConfig.PANEL_ONLY) button("Проверить медиасервис Яндекса") { publicProbe.start(); render() }
         button("Открыть Яндекс Музыку") {
             val launch = packageManager.getLaunchIntentForPackage(ProbeStore.YANDEX)
             if (launch == null) toast("Установленная Яндекс Музыка не найдена") else startActivity(launch)
@@ -102,6 +105,7 @@ class MainActivity : Activity() {
         toggle = button("Остановить наблюдение") {
             ProbeStore.setEnabled(this, !ProbeStore.enabled(this))
             MusicObservation.rebind(this)
+            if (!ProbeStore.enabled(this)) publicProbe.stop()
             render()
         }
         button("Очистить результаты") { ProbeStore.clear(this); render(); toast("Результаты очищены") }
@@ -118,13 +122,15 @@ class MainActivity : Activity() {
         val r = report(); val media = r.getJSONObject("media"); val sessions = media.optJSONArray("sessions")
         val events = r.getJSONArray("events")
         val last = if (events.length() > 0) events.getJSONObject(events.length() - 1) else null
+        val browser = r.optJSONObject("public_browser")?.optString("status", "not_checked") ?: "not_checked"
         val time = media.optLong("observed_at_ms", 0)
         val formatter = SimpleDateFormat("dd.MM HH:mm:ss", Locale("ru")).apply { timeZone = TimeZone.getTimeZone("Europe/Moscow") }
-        summary.text = "Телефон: ${r.getString("manufacturer")} ${r.getString("model")}\nAndroid: ${r.getString("android_release")}\nЯндекс Музыка: ${r.getString("yandex_version")}\nДоступ к уведомлениям: ${if (BuildConfig.PANEL_ONLY) "не требуется" else if (access()) "разрешён" else "не разрешён"}\nНаблюдение: ${if (ProbeStore.enabled(this)) "включено" else "остановлено"}\nСессий Яндекс Музыки: ${sessions?.length() ?: 0}\nПоследнее состояние: ${if (time > 0) formatter.format(Date(time)) + " МСК" else "ещё не получено"}\nСобытий эквалайзера: ${events.length()}\nПоследняя аудиосессия: ${last?.optInt("session_id", -1) ?: "не получена"}\nТочный ID песни: ещё не подтверждён\nПодмена: не включалась"
+        summary.text = "Телефон: ${r.getString("manufacturer")} ${r.getString("model")}\nAndroid: ${r.getString("android_release")}\nЯндекс Музыка: ${r.getString("yandex_version")}\nДоступ к уведомлениям: ${if (BuildConfig.PANEL_ONLY) "не требуется" else if (access()) "разрешён" else "не разрешён"}\nНаблюдение: ${if (ProbeStore.enabled(this)) "включено" else "остановлено"}\nПубличный медиасервис: $browser\nСессий Яндекс Музыки: ${sessions?.length() ?: 0}\nПоследнее состояние: ${if (time > 0) formatter.format(Date(time)) + " МСК" else "ещё не получено"}\nСобытий эквалайзера: ${events.length()}\nПоследняя аудиосессия: ${last?.optInt("session_id", -1) ?: "не получена"}\nТочный ID песни: ещё не подтверждён\nПодмена: не включалась"
         toggle.text = if (ProbeStore.enabled(this)) "Остановить наблюдение" else "Возобновить наблюдение"
         if (details.visibility == View.VISIBLE) details.text = r.toString(2)
     }
     override fun onResume() { super.onResume(); handler.post(refresh) }
     override fun onPause() { handler.removeCallbacks(refresh); super.onPause() }
+    override fun onDestroy() { handler.removeCallbacksAndMessages(null); if (::publicProbe.isInitialized) publicProbe.stop(); super.onDestroy() }
     private fun toast(message: String) { Toast.makeText(this, message, Toast.LENGTH_LONG).show() }
 }
