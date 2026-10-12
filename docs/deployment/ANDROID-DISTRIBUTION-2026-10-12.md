@@ -39,3 +39,9 @@ Our own diagnostic app, CELIKOM (package pro.celikom.nativeprobe), is blocked wi
 Версия0.3.3 включает disclosure перед настройками уведомлений. Разрешения и package сохранены; подпись не используется для обещания/обхода Play Protect. После успешного CI проверяются apksigner/content digest и сертификат. Только установка на устройстве покажет, допускает ли Play Protect этот выпуск.
 
 Форма Google https://support.google.com/googleplay/android-developer/contact/protectappeals открыта в cloud browser: Google показал «подозрительный трафик» и reCAPTCHA, форма не доступна и обращение НЕ отправлено. Требуется пользовательская проверка; не обходить CAPTCHA/сменой сети.
+
+## Готовый результат0.3.3
+
+Native CI38231404987 PASS (debug/native tests+non-debuggable candidate lint/build), общий CI проверяется отдельно. APK4459305B SHA2567b94b16592edcd0e4683190147543d3dddd15258986bfed0deed7da3d74aff50. Официальный apksigner verify PASS, v3 RSA3072; certificate SHA25667fe81c56fac1c1d145344b69a0e3faf9005cf6607f4e26ca27d5926c3eefc4f. Ключ и восстановление сохранены приватно; никакой key материал в репозиторий не добавлен. Обновление последующих версий должно использовать этот диагностический ключ. Он не автоматически является ключом будущего финального клиента.
+
+Блокировка Play Protect НЕ снята и не проверена на Honor50; APK предоставляется как конкретный подписанный кандидат. Подмена/точный native Track ID остаются нерешёнными. Google appeal не подан: текущий браузер показывает reCAPTCHA.
