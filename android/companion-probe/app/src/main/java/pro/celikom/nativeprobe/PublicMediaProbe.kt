@@ -21,6 +21,7 @@ class PublicMediaProbe(private val context: Context) {
     private var generation = 0
     private val phases = linkedMapOf<String,String>()
     private val attempts = JSONArray()
+    private val modern = ModernMediaProbe(context) { name, phase, error -> attempt(name,phase,error);paintConnection() }
     private fun attempt(name: String, phase: String, error: String? = null) {
         phases[name] = phase
         if (attempts.length()<12) attempts.put(JSONObject().put("component",ProbeStore.clean(name)).put("event",phase)
@@ -28,7 +29,7 @@ class PublicMediaProbe(private val context: Context) {
         ProbeStore.put(context,"browser_attempts",JSONObject().put("events",attempts))
     }
     private fun paintConnection() {
-        val phase = connectionStatus(phases.values,controllers.isNotEmpty())
+        val phase = connectionStatus(phases.values,controllers.isNotEmpty() || modern.connected)
         status(phase)
     }
     companion object {
@@ -40,7 +41,7 @@ class PublicMediaProbe(private val context: Context) {
         }
         fun eligible(s: ServiceInfo): Boolean = MediaServiceDiscovery.reason(s,ProbeStore.YANDEX) == "eligible"
     }
-    private fun status(value: String, count: Int = browsers.size) {
+    private fun status(value: String, count: Int = phases.size) {
         ProbeStore.put(context, "public_browser", JSONObject().put("status", value).put("attempted", count).put("at_ms", System.currentTimeMillis()))
     }
     fun start() {
@@ -58,6 +59,11 @@ class PublicMediaProbe(private val context: Context) {
         if (services.isEmpty()) { status("no_public_service"); return }
         status("connecting", services.size)
         services.forEach { s ->
+            val rows = discovery.report.getJSONArray("declared_services")
+            val modernService = (0 until rows.length()).map { rows.getJSONObject(it) }.any {
+                it.optString("name")==s.name && it.getJSONArray("media_actions").toString().contains("androidx.media3.session.")
+            }
+            if (modernService) { modern.connect(ComponentName(s.packageName,s.name));return@forEach }
             attempt(s.name,"connecting")
             lateinit var browser: MediaBrowser
             val callback = object : MediaBrowser.ConnectionCallback() {
@@ -85,7 +91,7 @@ class PublicMediaProbe(private val context: Context) {
             try { browser.connect() } catch (error: RuntimeException) { attempt(s.name,"connect_exception",error.javaClass.simpleName);paintConnection() }
         }
         handler.postDelayed({
-            if (run==generation && controllers.isEmpty()) {
+            if (run==generation && controllers.isEmpty() && !modern.connected) {
                 phases.filterValues { it=="connecting" }.keys.toList().forEach { attempt(it,"timeout_without_callback") }
                 browsers.forEach { try { it.disconnect() } catch (_: RuntimeException) { } }
                 paintConnection()
@@ -109,6 +115,7 @@ class PublicMediaProbe(private val context: Context) {
     }
     fun stop() {
         generation++
+        modern.stop()
         handler.removeCallbacksAndMessages(null)
         controllers.forEach { (c, callback) -> try { c.unregisterCallback(callback) } catch (_: RuntimeException) { } }; controllers.clear()
         browsers.forEach { try { it.disconnect() } catch (_: RuntimeException) { } }; browsers.clear()
