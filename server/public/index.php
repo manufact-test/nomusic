@@ -7,6 +7,10 @@ ini_set('zlib.output_compression', '0');
 require dirname(__DIR__) . '/bootstrap.php';
 
 $config = require dirname(__DIR__) . '/config/app.php';
+$afterResponse = [];
+if (function_exists('fastcgi_finish_request') || function_exists('litespeed_finish_request')) {
+    $config['support_after_response'] = static function (Closure $task) use (&$afterResponse): void { $afterResponse[] = $task; };
+}
 $app = new Celikom\Application($config);
 $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 $path = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
@@ -25,4 +29,11 @@ foreach ($response->headers as $name => $value) {
 }
 if ($method !== 'HEAD') {
     $response->emitBody();
+}
+
+if ($afterResponse) {
+    ignore_user_abort(true);
+    if (function_exists('fastcgi_finish_request')) fastcgi_finish_request();
+    elseif (function_exists('litespeed_finish_request')) litespeed_finish_request();
+    foreach ($afterResponse as $task) $task();
 }

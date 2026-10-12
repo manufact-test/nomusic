@@ -400,3 +400,6 @@ html{scrollbar-width:thin;scrollbar-color:#45565f transparent}
 .support-content p { margin: 0; line-height: 1.5; overflow-wrap: anywhere; }
 .support-content textarea { box-sizing: border-box; width: 100%; min-width: 0; resize: vertical; border: 1px solid #2a3439; border-radius: 10px; padding: 12px; color: inherit; background: #141b1f; font: inherit; }
 .support-content textarea:focus-visible { outline: 2px solid #66e0bf; outline-offset: 2px; }
+
+[data-support-note] { color: #66e0bf; font-size: 13px; }
+[data-support-note][hidden], [data-developer-controls][hidden] { display: none !important; }

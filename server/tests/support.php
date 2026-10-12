@@ -45,6 +45,15 @@ try{
   expect($service->thread($id,$u)['has_more'],'message history paginated');expect($service->thread($id,$u,2)['messages'][0]['author']==='user','original request remains available');
   $service->close($owner,$id);expect($service->thread($id,$u)['status']==='closed','closed status');
  });
+ run('Support saves and responds before deferred SMTP, with no duplicate scheduling',function()use($config,$pdo,$user,$uuid):void{
+  $tasks=[];$calls=0;$deferred=$config;
+  $deferred['support_after_response']=static function(Closure $task)use(&$tasks):void{$tasks[]=$task;};
+  $deferred['mail_test_sink']=static function($to,$body)use(&$calls):void{$calls++;expect(str_contains($body,'С уважением, команда CELIKOM'),'mail signature');expect(!str_contains($body,'Открыть переписку'),'no technical footer');};
+  $s=new SupportService($pdo,$deferred);$u=$user();$key=$uuid();$id=$s->create($u,'Проверка быстрой отправки',$key);
+  expect($id>0&&$calls===0&&count($tasks)===1,'committed before mail');
+  $s->create($u,'Проверка быстрой отправки',$key);expect(count($tasks)===1,'retry does not schedule duplicate');
+  $tasks[0]();$tasks[0]();expect($calls===1,'one mail claim');
+ });
  run('Support mail failure does not lose ticket or resend ambiguous SMTP delivery',function()use($config,$pdo,$user,$uuid):void{
   $calls=0;$bad=$config;$bad['mail_test_sink']=static function()use(&$calls):void{$calls++;throw new RuntimeException('isolated_failure');};$s=new SupportService($pdo,$bad);$u=$user();$key=$uuid();$id=$s->create($u,'Почта недоступна',$key);expect($id>0,'ticket committed');$s->create($u,'Почта недоступна',$key);expect($calls===1,'no auto resend');
   expect($pdo->query('SELECT delivery FROM support_messages WHERE ticket_id='.$id)->fetchColumn()==='unknown','delivery uncertainty explicit');

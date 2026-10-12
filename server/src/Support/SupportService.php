@@ -21,7 +21,7 @@ final class SupportService
    $this->pdo->prepare('INSERT INTO support_tickets(user_id,request_key) VALUES (?,?)')->execute([$user,$key]);$id=(int)$this->pdo->lastInsertId();
    $this->pdo->prepare('INSERT INTO support_messages(ticket_id,request_key,body) VALUES (?,?,?)')->execute([$id,$key,$body]);$message=(int)$this->pdo->lastInsertId();$this->pdo->commit();
   }catch(\Throwable $e){if($this->pdo->inTransaction())$this->pdo->rollBack();throw $e;}
-  $this->deliver($message);return $id;
+  $this->scheduleDelivery($message);return $id;
  }
  public function listForUser(int $user,int $page=1):array {
   $offset=(max(1,min(100000,$page))-1)*5;
@@ -41,7 +41,7 @@ final class SupportService
    $this->pdo->prepare('INSERT INTO support_messages(ticket_id,admin_id,request_key,body) VALUES (?,?,?,?)')->execute([$id,$admin,$key,$body]);$message=(int)$this->pdo->lastInsertId();
    $this->pdo->prepare("UPDATE support_tickets SET status='answered',updated_at=UTC_TIMESTAMP(6) WHERE id=?")->execute([$id]);$this->audit($admin,$id,'support_reply');$this->pdo->commit();
   }catch(\Throwable $e){if($this->pdo->inTransaction())$this->pdo->rollBack();throw $e;}
-  $this->deliver($message);
+  $this->scheduleDelivery($message);
  }
  public function close(int $admin,int $id):void {
   $q=$this->pdo->prepare("SELECT id FROM admins WHERE id=? AND enabled=1 AND role IN ('owner','moderator')");$q->execute([$admin]);if(!$q->fetchColumn())throw new \DomainException('forbidden');
@@ -49,6 +49,11 @@ final class SupportService
  }
  private function audit(int $admin,int $id,string $action):void {
   $this->pdo->prepare("INSERT INTO audit_log(admin_id,action,entity_type,entity_id,reason) VALUES (?,?,'support_ticket',?,'support_inbox')")->execute([$admin,$action,$id]);
+ }
+ private function scheduleDelivery(int $message):void {
+  $defer=$this->config['support_after_response']??null;
+  if($defer instanceof \Closure)$defer(fn()=>$this->deliver($message));
+  else $this->deliver($message);
  }
  public function deliver(int $message):void {
   // Claim once, commit before SMTP. No automatic resend after uncertain delivery.

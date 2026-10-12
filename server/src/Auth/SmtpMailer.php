@@ -34,7 +34,7 @@ final class SmtpMailer
     public function sendSupport(string $to,int $ticket,string $body,bool $incoming):void
     {
         if(!$this->ready()||!filter_var($to,FILTER_VALIDATE_EMAIL)||$ticket<1||strlen($body)>6000)throw new \RuntimeException('mail_unavailable');
-        $message=($incoming?'Новое обращение':'Ответ поддержки')." CELIKOM №$ticket\n\n".$body."\n\nОткрыть переписку и обратиться повторно можно в CELIKOM → Связь с поддержкой.";
+        $message=($incoming?'Новое обращение':'Ответ поддержки')." CELIKOM №$ticket\n\n".$body."\n\nС уважением, команда CELIKOM\n\nЕсли остались вопросы, напишите нам через «Связь с поддержкой» в CELIKOM.";
         $this->deliver($to,$message,'support',"CELIKOM — обращение №$ticket");
     }
 
