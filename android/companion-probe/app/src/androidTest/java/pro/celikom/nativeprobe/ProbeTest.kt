@@ -276,7 +276,24 @@ class ProbeTest {
         instrumentation.waitForIdleSync()
         val view = activity.window.decorView
         assertTrue(view.width > 0); assertTrue(view.height > 0)
-        val image = instrumentation.uiAutomation.takeScreenshot()
+        // Idle Java messages do not guarantee the first Surface frame has been presented.
+        // Reject the blank launch frame and wait for the actual native screen background.
+        fun rendered(image: Bitmap): Boolean {
+            var dark = 0
+            for (y in 2..13) for (x in 1..14) {
+                val pixel = image.getPixel(image.width * x / 16, image.height * y / 16)
+                if (android.graphics.Color.red(pixel) in 8..14 && android.graphics.Color.green(pixel) in 13..19 &&
+                    android.graphics.Color.blue(pixel) in 16..22) dark++
+            }
+            return dark >= 20
+        }
+        var image = instrumentation.uiAutomation.takeScreenshot()
+        val drawDeadline = android.os.SystemClock.elapsedRealtime() + 5000
+        while (!rendered(image) && android.os.SystemClock.elapsedRealtime() < drawDeadline) {
+            image.recycle(); android.os.SystemClock.sleep(100)
+            image = instrumentation.uiAutomation.takeScreenshot()
+        }
+        assertTrue("Native screen must be drawn, not the blank launch window", rendered(image))
         val values = ContentValues().apply {
             put(MediaStore.MediaColumns.DISPLAY_NAME, "native-probe.png")
             put(MediaStore.MediaColumns.MIME_TYPE, "image/png")
