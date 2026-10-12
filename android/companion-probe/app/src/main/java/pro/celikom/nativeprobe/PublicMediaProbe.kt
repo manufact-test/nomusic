@@ -22,7 +22,7 @@ class PublicMediaProbe(private val context: Context) {
     private val phases = linkedMapOf<String,String>()
     private val attempts = JSONArray()
     private var leaseUntil = 0L
-    private val modern = ModernMediaProbe(context) { name, phase, error -> attempt(name,phase,error);paintConnection() }
+    private val modern = ModernMediaProbe(context, event = { name, phase, error -> attempt(name,phase,error);paintConnection() })
     private fun attempt(name: String, phase: String, error: String? = null) {
         phases[name] = phase
         if (attempts.length()>=30) attempts.remove(0)
