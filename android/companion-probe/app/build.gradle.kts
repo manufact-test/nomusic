@@ -5,7 +5,7 @@ android {
     compileSdk = 36
     defaultConfig {
         applicationId = "pro.celikom.nativeprobe"; minSdk = 28; targetSdk = 36
-        versionCode = 11; versionName = "0.3.10-probe"
+        versionCode = 12; versionName = "0.3.11-probe"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     buildFeatures { buildConfig = true }
@@ -38,6 +38,7 @@ android {
 dependencies {
     implementation("androidx.core:core:1.13.1")
     implementation("androidx.media3:media3-session:1.8.0")
+    debugImplementation("androidx.media3:media3-exoplayer:1.8.0")
     androidTestImplementation("androidx.test.ext:junit:1.3.0")
     androidTestImplementation("androidx.test:runner:1.7.0")
 }

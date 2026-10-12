@@ -21,10 +21,12 @@ class PublicMediaProbe(private val context: Context) {
     private var generation = 0
     private val phases = linkedMapOf<String,String>()
     private val attempts = JSONArray()
+    private var leaseUntil = 0L
     private val modern = ModernMediaProbe(context) { name, phase, error -> attempt(name,phase,error);paintConnection() }
     private fun attempt(name: String, phase: String, error: String? = null) {
         phases[name] = phase
-        if (attempts.length()<12) attempts.put(JSONObject().put("component",ProbeStore.clean(name)).put("event",phase)
+        if (attempts.length()>=30) attempts.remove(0)
+        attempts.put(JSONObject().put("component",ProbeStore.clean(name)).put("event",phase)
             .put("at_ms",System.currentTimeMillis()).put("error_type",error ?: JSONObject.NULL))
         ProbeStore.put(context,"browser_attempts",JSONObject().put("events",attempts))
     }
@@ -33,9 +35,11 @@ class PublicMediaProbe(private val context: Context) {
         status(phase)
     }
     companion object {
+        private var shared: PublicMediaProbe? = null
+        fun shared(context: Context): PublicMediaProbe = shared ?: PublicMediaProbe(context.applicationContext).also { shared = it }
         fun connectionStatus(phases: Collection<String>, connected: Boolean): String = when {
             connected -> "connected"
-            phases.any { it=="connecting" } -> "connecting"
+            phases.any { it=="connecting" || it=="retry_wait" } -> "connecting"
             phases.any { it=="timeout_without_callback" } -> "connection_timeout"
             else -> "connection_failed"
         }
@@ -45,7 +49,11 @@ class PublicMediaProbe(private val context: Context) {
         ProbeStore.put(context, "public_browser", JSONObject().put("status", value).put("attempted", count).put("at_ms", System.currentTimeMillis()))
     }
     fun start() {
+        if (ProbeStore.enabled(context) && (modern.active || controllers.isNotEmpty() || phases.values.any { it=="retry_wait" })) {
+            modern.refresh();controllers.keys.toList().forEach { save(it,generation) };paintConnection();renewLease();return
+        }
         stop()
+        renewLease()
         if (!ProbeStore.enabled(context)) { status("observation_disabled"); return }
         phases.clear()
         while (attempts.length()>0) attempts.remove(0)
@@ -92,11 +100,16 @@ class PublicMediaProbe(private val context: Context) {
         }
         handler.postDelayed({
             if (run==generation && controllers.isEmpty() && !modern.connected) {
-                phases.filterValues { it=="connecting" }.keys.toList().forEach { attempt(it,"timeout_without_callback") }
+                phases.filterValues { it=="connecting" && !modern.active }.keys.toList().forEach { attempt(it,"timeout_without_callback") }
                 browsers.forEach { try { it.disconnect() } catch (_: RuntimeException) { } }
                 paintConnection()
             }
         },7000)
+    }
+    private fun renewLease() {
+        leaseUntil = android.os.SystemClock.elapsedRealtime()+120000
+        val run=generation
+        handler.postDelayed({ if (run==generation && android.os.SystemClock.elapsedRealtime()>=leaseUntil) { stop();status("observation_window_finished",0) } },120000)
     }
     private fun save(c: MediaController, run: Int) {
         if (run != generation || !ProbeStore.enabled(context)) return

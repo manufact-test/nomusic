@@ -39,7 +39,7 @@ class MainActivity : Activity() {
             val link = intent.getStringExtra(Intent.EXTRA_TEXT)
             if (!ProbeStore.acceptSharedLink(this, link)) toast("Ссылка на песню Яндекса не распознана")
         }
-        publicProbe = PublicMediaProbe(applicationContext)
+        publicProbe = PublicMediaProbe.shared(applicationContext)
         val scroll = ScrollView(this).apply {
             isFillViewport = true; setBackgroundColor(Color.rgb(11, 16, 19));
             scrollBarStyle = View.SCROLLBARS_OUTSIDE_INSET; setPadding(dp(20), dp(16), dp(20), dp(24))
@@ -87,6 +87,7 @@ class MainActivity : Activity() {
         } else {
             text("Этот режим не запрашивает доступ к уведомлениям. Он проверяет передачу аудиосессии через эквалайзер. Сведения о песне здесь возможны только если Яндекс разрешит подключение к своему публичному медиасервису. Автоматический точный ID пока не подтверждён. Ссылку на песню можно передать из Яндекса через «Поделиться» → CELIKOM; она не доказывает, что песня сейчас играет.")
         }
+        if (BuildConfig.PANEL_ONLY) text("Проверка плеера сохраняет соединение до двух минут после нажатия. За это время можно вернуться в Яндекс, поставить паузу или сменить песню, затем вернуться и скопировать отчёт. Повторное нажатие обновляет данные без разрыва рабочего соединения.")
         if (BuildConfig.PANEL_ONLY) button("Проверить состояние плеера Яндекса") { publicProbe.start(); render() }
         button("Проверить приглушение на 7 секунд") {
             val session = AttenuationService.verifiedSession(ProbeStore.report(this), System.currentTimeMillis())
@@ -129,7 +130,7 @@ class MainActivity : Activity() {
             if (!ProbeStore.enabled(this)) { publicProbe.stop(); stopService(Intent(this, AttenuationService::class.java)) }
             render()
         }
-        button("Очистить результаты") { stopService(Intent(this, AttenuationService::class.java)); ProbeStore.clear(this); render(); toast("Результаты очищены") }
+        button("Очистить результаты") { publicProbe.stop();stopService(Intent(this, AttenuationService::class.java)); ProbeStore.clear(this); render(); toast("Результаты очищены") }
         button("Показать / скрыть детали") { details.visibility = if (details.visibility == View.GONE) View.VISIBLE else View.GONE; render() }
         details = text("").apply { textSize = 13f; visibility = View.GONE }
         text("Состояние и сведения о песне — последние полученные события, а не доказательство готовой подмены. Отчёт может содержать название песни, исполнителя и её идентификатор. Приглушение проверяется отдельной кнопкой и автоматически заканчивается.", 14f)
@@ -152,6 +153,6 @@ class MainActivity : Activity() {
     }
     override fun onResume() { super.onResume(); handler.post(refresh) }
     override fun onPause() { handler.removeCallbacks(refresh); super.onPause() }
-    override fun onDestroy() { handler.removeCallbacksAndMessages(null); if (::publicProbe.isInitialized) publicProbe.stop(); super.onDestroy() }
+    override fun onDestroy() { handler.removeCallbacksAndMessages(null); super.onDestroy() }
     private fun toast(message: String) { Toast.makeText(this, message, Toast.LENGTH_LONG).show() }
 }

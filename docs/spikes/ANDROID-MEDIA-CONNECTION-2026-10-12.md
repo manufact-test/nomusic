@@ -16,3 +16,16 @@ HONOR NTH-NX9 / Android 13 / Yandex 2026.09.5: MusicBrowserService is runtime di
 0.3.10 uses androidx.media3:media3-session:1.8.0 MediaBrowser with a SessionToken for the normally resolvable exported service. Real CELIKOM identity, no connection hints, no transport commands, no library enumeration, no new requested permissions. Read-only current metadata/playback snapshots, bounded connection wait, disconnect/release on teardown; manual shared track remains unverified.
 
 Install over 0.3.9, start music, open CELIKOM by its ordinary app icon, press player-state check, leave open 8 seconds, copy report. Equalizer and accepted tone test are unnecessary for this connection test. Physical admission and exact track ID remain unproven until that report.
+
+
+## 0.3.10 physical success and transient failure
+
+Reports (3) and (5) established a real Media3 connection on HONOR: playing «Я хочу быть с тобой» / Nautilus Pompilius (position 103887 ms, media_id 17), then paused «Урбан» / Баста (position 177722 ms, media_id 8). Names and pause are real current session data; small media IDs are not proven Yandex catalog IDs. Report (4) was a stale snapshot, not evidence of pause failure. Report (6) failed future completion with SecurityException after 27 ms, with media empty. Owner reports toggling VPN before this second report; causality remains unproven, because the recorded failure is local media-session connection admission.
+
+## 0.3.11 lifecycle and recovery
+
+Reuse an active connection when pressing check, preserve the same application-owned probe across Activity teardown, and keep observation bounded to a two-minute window renewed by explicit check. Disabling observation, clearing results, or window expiry releases the connection. No production background-service claim: system may still terminate the process; the report retains observed_at_ms to distinguish fresh from stale data.
+
+Immediate asynchronous connection failures retry at most three attempts (1 s then 3 s delay), pending connection timeout remains 7 s. Tickets invalidate canceled/old callbacks so timeout is not overwritten by late cancellation. A dropped established session clears its old snapshot before bounded reacquisition. Diagnostics retain sanitized exception types, failure stage, semantic session_rejected marker and client class/method frames; no raw messages or bundle values. Metadata reports only bounded extra key names and existing numeric whitelist. Exact_track_id_verified remains false. Version uses BuildConfig.VERSION_NAME instead of an obsolete literal.
+
+Debug-only local MediaLibraryService test refuses first connection, accepts retry, changes current item, and verifies repeated connect reuses the same admission. Fixture and ExoPlayer dependency excluded from distributionCandidate. Device test: ordinary icon, start one player check, switch between Yandex pause/play/next and CELIKOM within two minutes; check button may refresh without disconnecting. Send report after next track; no repeat sound test. Test VPN reconnect separately only after baseline passes.

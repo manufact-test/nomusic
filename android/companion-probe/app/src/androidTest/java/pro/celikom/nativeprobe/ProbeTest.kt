@@ -18,6 +18,38 @@ import android.graphics.Bitmap
 class ProbeTest {
     private val instrumentation = InstrumentationRegistry.getInstrumentation()
     private val context = instrumentation.targetContext
+    @Test fun modernConnectionRecoversThenReusesAndObservesTrackChanges() {
+        ProbeStore.clear(context);ProbeStore.setEnabled(context,true)
+        ProbeLibraryFixture.admissions=0
+        val component=android.content.ComponentName(context,ProbeLibraryFixture::class.java)
+        lateinit var probe: ModernMediaProbe
+        instrumentation.runOnMainSync {
+            probe=ModernMediaProbe(context,{ _, _, _ -> },context.packageName)
+            probe.connect(component)
+        }
+        fun awaitTitle(title: String) {
+            val deadline=android.os.SystemClock.elapsedRealtime()+10000
+            while (android.os.SystemClock.elapsedRealtime()<deadline) {
+                val data=org.json.JSONObject(context.getSharedPreferences("native_probe",0).getString("public_media","{}"))
+                if (data.optJSONArray("sessions")?.optJSONObject(0)?.optJSONObject("metadata")?.optString("title")==title) return
+                android.os.SystemClock.sleep(100)
+            }
+            fail("Expected current metadata: $title")
+        }
+        try {
+            awaitTitle("Probe one")
+            assertTrue(ProbeLibraryFixture.admissions>=2)
+            val admissions=ProbeLibraryFixture.admissions
+            instrumentation.runOnMainSync { repeat(3) { probe.connect(component) } }
+            assertEquals(admissions,ProbeLibraryFixture.admissions)
+            instrumentation.runOnMainSync { ProbeLibraryFixture.instance!!.change("Probe two","2") }
+            awaitTitle("Probe two")
+            assertEquals(BuildConfig.VERSION_NAME,ProbeStore.report(context).getString("probe_version"))
+        } finally {
+            instrumentation.runOnMainSync { probe.stop();context.stopService(Intent(context,ProbeLibraryFixture::class.java)) }
+            ProbeStore.clear(context)
+        }
+    }
     @Test fun boundedReportRejectsSpoofAndDoesNotRequestAudioOrNetwork() {
         ProbeStore.clear(context)
         val spoof = Intent(AudioEffect.ACTION_OPEN_AUDIO_EFFECT_CONTROL_SESSION)
