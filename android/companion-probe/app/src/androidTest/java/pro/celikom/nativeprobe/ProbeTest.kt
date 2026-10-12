@@ -177,7 +177,8 @@ class ProbeTest {
             assertFalse(report.getBoolean("automatic_track_observation"))
             val info = context.packageManager.getPackageInfo(context.packageName, PackageManager.GET_SERVICES)
             assertFalse(info.services?.any { it.name.endsWith("MusicListener") } ?: false)
-            assertEquals(0, report.getJSONObject("media").length())
+            assertFalse(report.getJSONObject("media").has("sessions"))
+            assertFalse(report.getJSONObject("media").getBoolean("fresh"))
         }
         ProbeStore.clear(context)
     }
