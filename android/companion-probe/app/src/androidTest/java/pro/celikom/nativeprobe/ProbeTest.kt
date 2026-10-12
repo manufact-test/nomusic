@@ -46,6 +46,24 @@ class ProbeTest {
         assertFalse(ProbeStore.numericCandidates(bundle).has("media_id"))
         ProbeStore.clear(context)
     }
+    @Test fun sharedLinkIsExplicitReferenceAndNeverClaimsCurrentTrack() {
+        ProbeStore.clear(context)
+        assertTrue(ProbeStore.acceptSharedLink(context, "https://music.yandex.ru/album/1777786/track/36116709?token=do-not-store"))
+        val report = ProbeStore.report(context)
+        assertEquals("36116709", report.getJSONObject("shared_track").getString("track_id"))
+        assertFalse(report.getJSONObject("shared_track").getBoolean("current_track_verified"))
+        assertFalse(report.toString().contains("do-not-store"))
+        assertFalse(ProbeStore.acceptSharedLink(context, "https://example.org/album/1/track/2"))
+        assertFalse(ProbeStore.acceptSharedLink(context, "https://music.yandex.ru/album/1/track/2evil"))
+        assertFalse(ProbeStore.acceptSharedLink(context, "https://user:secret@music.yandex.ru/album/1/track/2"))
+        if (BuildConfig.PANEL_ONLY) {
+            assertFalse(report.getBoolean("automatic_track_observation"))
+            val info = context.packageManager.getPackageInfo(context.packageName, PackageManager.GET_SERVICES)
+            assertFalse(info.services?.any { it.name.endsWith("MusicListener") } ?: false)
+            assertEquals(0, report.getJSONObject("media").length())
+        }
+        ProbeStore.clear(context)
+    }
     @Test fun nativeUiStartsWithoutYandexOrLoginAndProducesScreenshot() {
         val activity = instrumentation.startActivitySync(Intent(context, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
         instrumentation.waitForIdleSync()

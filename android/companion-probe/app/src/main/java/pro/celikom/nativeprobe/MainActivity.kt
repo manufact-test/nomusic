@@ -37,6 +37,10 @@ class MainActivity : Activity() {
     private fun dp(n: Int) = (n * resources.displayMetrics.density).toInt()
     override fun onCreate(state: Bundle?) {
         super.onCreate(state)
+        if (intent.action == Intent.ACTION_SEND && intent.type == "text/plain") {
+            val link = intent.getStringExtra(Intent.EXTRA_TEXT)
+            if (!ProbeStore.acceptSharedLink(this, link)) toast("Ссылка на песню Яндекса не распознана")
+        }
         val scroll = ScrollView(this).apply {
             isFillViewport = true; setBackgroundColor(Color.rgb(11, 16, 19));
             scrollBarStyle = View.SCROLLBARS_OUTSIDE_INSET; setPadding(dp(20), dp(16), dp(20), dp(24))
@@ -69,6 +73,7 @@ class MainActivity : Activity() {
         text("CELIKOM", 30f).setTextColor(Color.rgb(102, 224, 191))
         text("Проверка Яндекс Музыки", 23f)
         text("Это диагностика подключения к установленному плееру. Подмена здесь ещё не включается. Вход в Яндекс и CELIKOM не нужен.")
+        if (!BuildConfig.PANEL_ONLY) {
         button("1. Разрешить доступ к уведомлениям") {
             AlertDialog.Builder(this)
                 .setTitle("Доступ к состоянию плеера")
@@ -80,7 +85,10 @@ class MainActivity : Activity() {
                 }.show()
         }
         text("В настройках выбери «CELIKOM: состояние Яндекс Музыки». Android даёт широкий доступ к уведомлениям, но эта сборка обрабатывает только состояние Яндекс Музыки. Другие уведомления не читаются и не сохраняются. Интернет и микрофон не используются. Отчёт передаётся только по твоему действию.")
-        button("2. Открыть Яндекс Музыку") {
+        } else {
+            text("Этот режим не запрашивает доступ к уведомлениям. Он проверяет передачу аудиосессии через эквалайзер. Название песни, позиция и автоматический ID здесь недоступны. Ссылку на песню можно передать из Яндекса через «Поделиться» → CELIKOM; она не доказывает, что песня сейчас играет.")
+        }
+        button("Открыть Яндекс Музыку") {
             val launch = packageManager.getLaunchIntentForPackage(ProbeStore.YANDEX)
             if (launch == null) toast("Установленная Яндекс Музыка не найдена") else startActivity(launch)
         }
@@ -96,7 +104,7 @@ class MainActivity : Activity() {
         }
         toggle = button("Остановить наблюдение") {
             ProbeStore.setEnabled(this, !ProbeStore.enabled(this))
-            NotificationListenerService.requestRebind(ComponentName(this, MusicListener::class.java))
+            if (!BuildConfig.PANEL_ONLY) NotificationListenerService.requestRebind(ComponentName(this, MusicListener::class.java))
             render()
         }
         button("Очистить результаты") { ProbeStore.clear(this); render(); toast("Результаты очищены") }
@@ -107,7 +115,7 @@ class MainActivity : Activity() {
         if (android.os.Build.VERSION.SDK_INT >= 30) window.insetsController?.setSystemBarsAppearance(0,
             android.view.WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS or android.view.WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS)
     }
-    private fun access() = NotificationManagerCompat.getEnabledListenerPackages(this).contains(packageName)
+    private fun access() = !BuildConfig.PANEL_ONLY && NotificationManagerCompat.getEnabledListenerPackages(this).contains(packageName)
     private fun report(): JSONObject = ProbeStore.report(this).put("notification_access_enabled", access())
     private fun render() {
         val r = report(); val media = r.getJSONObject("media"); val sessions = media.optJSONArray("sessions")
@@ -115,7 +123,7 @@ class MainActivity : Activity() {
         val last = if (events.length() > 0) events.getJSONObject(events.length() - 1) else null
         val time = media.optLong("observed_at_ms", 0)
         val formatter = SimpleDateFormat("dd.MM HH:mm:ss", Locale("ru")).apply { timeZone = TimeZone.getTimeZone("Europe/Moscow") }
-        summary.text = "Телефон: ${r.getString("manufacturer")} ${r.getString("model")}\nAndroid: ${r.getString("android_release")}\nЯндекс Музыка: ${r.getString("yandex_version")}\nДоступ к уведомлениям: ${if (access()) "разрешён" else "не разрешён"}\nНаблюдение: ${if (ProbeStore.enabled(this)) "включено" else "остановлено"}\nСессий Яндекс Музыки: ${sessions?.length() ?: 0}\nПоследнее состояние: ${if (time > 0) formatter.format(Date(time)) + " МСК" else "ещё не получено"}\nСобытий эквалайзера: ${events.length()}\nПоследняя аудиосессия: ${last?.optInt("session_id", -1) ?: "не получена"}\nТочный ID песни: ещё не подтверждён\nПодмена: не включалась"
+        summary.text = "Телефон: ${r.getString("manufacturer")} ${r.getString("model")}\nAndroid: ${r.getString("android_release")}\nЯндекс Музыка: ${r.getString("yandex_version")}\nДоступ к уведомлениям: ${if (BuildConfig.PANEL_ONLY) "не требуется" else if (access()) "разрешён" else "не разрешён"}\nНаблюдение: ${if (ProbeStore.enabled(this)) "включено" else "остановлено"}\nСессий Яндекс Музыки: ${sessions?.length() ?: 0}\nПоследнее состояние: ${if (time > 0) formatter.format(Date(time)) + " МСК" else "ещё не получено"}\nСобытий эквалайзера: ${events.length()}\nПоследняя аудиосессия: ${last?.optInt("session_id", -1) ?: "не получена"}\nТочный ID песни: ещё не подтверждён\nПодмена: не включалась"
         toggle.text = if (ProbeStore.enabled(this)) "Остановить наблюдение" else "Возобновить наблюдение"
         if (details.visibility == View.VISIBLE) details.text = r.toString(2)
     }

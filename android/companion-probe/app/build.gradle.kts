@@ -5,8 +5,14 @@ android {
     compileSdk = 36
     defaultConfig {
         applicationId = "pro.celikom.nativeprobe"; minSdk = 28; targetSdk = 36
-        versionCode = 4; versionName = "0.3.3-probe"
+        versionCode = 5; versionName = "0.3.4-probe"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    }
+    buildFeatures { buildConfig = true }
+    flavorDimensions += "observation"
+    productFlavors {
+        create("full") { dimension = "observation"; buildConfigField("boolean", "PANEL_ONLY", "false") }
+        create("panelOnly") { dimension = "observation"; buildConfigField("boolean", "PANEL_ONLY", "true") }
     }
     signingConfigs {
         create("distribution") {
