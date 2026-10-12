@@ -57,7 +57,7 @@ class IdentitySourceTest {
             }
         }
         val base = source("base.apk", mapOf("classes.dex" to "code", "AndroidManifest.xml" to "manifest", "resources.arsc" to "resources",
-            "assets/token.txt" to "private-account", "shared_prefs/auth.xml" to "private-account", "../classes2.dex" to "private-account"))
+            "assets/token.txt" to "private-account", "shared_prefs/auth.xml" to "private-account", "nested/classes2.dex" to "private-account"))
         val split = source("feature.apk", mapOf("classes2.dex" to "split code", "res/raw/music.mp3" to "private-account"))
         val output = File(directory, "program.zip")
         try {
@@ -71,6 +71,7 @@ class IdentitySourceTest {
                 assertFalse(info.toString().contains("private-account"))
             }
             assertFalse(YandexPackageExport.allowed("lib/arm64-v8a/classes.dex"))
+            assertFalse(YandexPackageExport.allowed("../classes2.dex"))
             assertFalse(YandexPackageExport.allowed("classes1.dex")); assertTrue(YandexPackageExport.allowed("classes10.dex"))
         } finally { directory.deleteRecursively() }
     }
