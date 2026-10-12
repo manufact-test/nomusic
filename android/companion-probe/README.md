@@ -1,4 +1,4 @@
-# CELIKOM native companion diagnostic 0.3.1-probe
+# CELIKOM native companion diagnostic 0.3.2-probe
 
 Read-only owner diagnostic for installed `ru.yandex.music`, prepared after the owner rejected the WebView product route. This is not Beta and does not implement replacement. It is an isolated diagnostic, not a separate final product client; future integration must use the common account/EntitlementService and catalog.
 

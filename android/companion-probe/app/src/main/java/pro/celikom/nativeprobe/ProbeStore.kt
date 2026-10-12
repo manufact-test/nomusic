@@ -84,7 +84,7 @@ object ProbeStore {
     fun report(c: Context): JSONObject {
         val version = try { c.packageManager.getPackageInfo(YANDEX, 0).versionName ?: "unknown" }
             catch (_: android.content.pm.PackageManager.NameNotFoundException) { "not_found" }
-        return JSONObject().put("schema", 1).put("probe_version", "0.3.1-probe")
+        return JSONObject().put("schema", 1).put("probe_version", "0.3.2-probe")
             .put("generated_at_ms", System.currentTimeMillis()).put("manufacturer", Build.MANUFACTURER)
             .put("model", Build.MODEL).put("android_release", Build.VERSION.RELEASE).put("api", Build.VERSION.SDK_INT)
             .put("yandex_version", version).put("observation_enabled", enabled(c))

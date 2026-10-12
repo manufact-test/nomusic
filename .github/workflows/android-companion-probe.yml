@@ -43,8 +43,8 @@ jobs:
             adb pull /sdcard/Download/native-probe.png /tmp/native-probe.png
       - name: Encrypt closed diagnostic delivery
         run: |
-          openssl cms -encrypt -aes-256-gcm -binary -outform DER -in android/companion-probe/app/build/outputs/apk/debug/app-debug.apk -out /tmp/native-probe.apk.cms android/spike/diagnostic-recipient.crt
-          openssl cms -encrypt -aes-256-gcm -binary -outform DER -in /tmp/native-probe.png -out /tmp/native-probe.png.cms android/spike/diagnostic-recipient.crt
+          openssl cms -encrypt -aes-256-gcm -binary -outform DER -in android/companion-probe/app/build/outputs/apk/debug/app-debug.apk -out /tmp/native-probe.apk.cms android/companion-probe/diagnostic-recipient.crt
+          openssl cms -encrypt -aes-256-gcm -binary -outform DER -in /tmp/native-probe.png -out /tmp/native-probe.png.cms android/companion-probe/diagnostic-recipient.crt
       - uses: actions/upload-artifact@v4
         with:
           name: celikom-native-probe-private-${{ github.sha }}
