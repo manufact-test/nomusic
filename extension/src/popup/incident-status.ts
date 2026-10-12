@@ -7,7 +7,7 @@ export function initIncidentStatus(options = {}) {
   const doc = options.document || document;
   const banner = doc.querySelector("[data-incident-banner]");
   const controls = doc.querySelector("[data-music-controls]");
-  const hiddenDuringIncident = [controls, doc.querySelector("[data-music-details]"), doc.querySelector("[data-developer-controls]")];
+  const hiddenDuringIncident = [controls, doc.querySelector("[data-music-details]")];
   let serverActive = readDisplay("incident")?.active === true ? true : null;
   let controllerActive = false, active = false, busy = false;
   const request = options.fetch || globalThis.fetch.bind(globalThis);

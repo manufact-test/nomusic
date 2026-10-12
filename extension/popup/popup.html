@@ -155,15 +155,7 @@
           <p data-support-note role="status" aria-live="polite" hidden></p>
         </div>
       </details>
-      <details data-developer-controls hidden>
-        <summary>Для разработчика</summary>
-        <p class="stage">Stage 4 · серверный каталог. Тестовый ID включает встроенный сигнал; пустое поле включает API.</p>
-        <label class="stage" for="test-track">Тестовый Track ID</label>
-        <input id="test-track" data-test-track inputmode="numeric" pattern="[0-9]{1,24}" maxlength="24" placeholder="Пусто — серверный каталог">
-        <button class="wide" type="button" data-action="use-current">Тестировать текущий трек</button>
-        <button class="wide" type="button" data-action="clear-test">Убрать тестовую подмену</button>
-        <button class="diagnostics" type="button" data-action="diagnostics">Скопировать диагностику</button>
-      </details>
+      <button class="diagnostics" type="button" data-action="diagnostics">Скопировать диагностику</button>
     </main>
     <script type="module" src="popup.js"></script>
   </body>

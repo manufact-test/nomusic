@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { initIncidentStatus } from '../dist/unpacked/popup/incident-status.js';
 function fixture() {
-  const nodes=new Map(['[data-incident-banner]','[data-music-controls]','[data-music-details]','[data-developer-controls]','[data-auth-panel]'].map(s=>[s,{hidden:s==='[data-incident-banner]'}]));
+  const nodes=new Map(['[data-incident-banner]','[data-music-controls]','[data-music-details]','[data-auth-panel]'].map(s=>[s,{hidden:s==='[data-incident-banner]'}]));
   let value={incident:{service:'yandex',active:true}},fail=false,calls=0;
   const presentation=initIncidentStatus({document:{querySelector:s=>nodes.get(s)},readConfig:async()=>({baseUrl:'https://fixture.example/'}),fetch:async(url,options)=>{
     calls++;assert.equal(url,'https://fixture.example/api/v1/config');assert.equal(options.credentials,'omit');assert.equal(options.redirect,'error');assert.equal(options.headers,undefined);
@@ -13,7 +13,7 @@ function fixture() {
 test('global incident replaces music controls even when signed out, stopped and without a Yandex tab',async()=>{
   const f=fixture();f.presentation.updateController({enabled:false,track:null});await f.presentation.refresh();
   assert.equal(f.presentation.active(),true);assert.equal(f.nodes.get('[data-incident-banner]').hidden,false);
-  for(const s of ['[data-music-controls]','[data-music-details]','[data-developer-controls]'])assert.equal(f.nodes.get(s).hidden,true);
+  for(const s of ['[data-music-controls]','[data-music-details]'])assert.equal(f.nodes.get(s).hidden,true);
   assert.equal(f.nodes.get('[data-auth-panel]').hidden,false,'account stays accessible');
   f.presentation.updateController({enabled:false,suspended:false});assert.equal(f.presentation.active(),true);
   f.fail(true);await f.presentation.refresh();assert.equal(f.presentation.active(),true,'transport failure cannot clear a confirmed outage');

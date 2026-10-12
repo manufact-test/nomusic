@@ -14,7 +14,6 @@ const stopButton = document.querySelector<HTMLButtonElement>("[data-action='stop
 const restoreButton = document.querySelector<HTMLButtonElement>("[data-action='restore']");
 const diagnosticsButton = document.querySelector<HTMLButtonElement>("[data-action='diagnostics']");
 const track = document.querySelector<HTMLElement>("[data-track]");
-const testInput = document.querySelector<HTMLInputElement>("[data-test-track]");
 let lastState: ExtensionState | null = null;
 const incidentStatus = initIncidentStatus({ onChange: () => { if (lastState) render(lastState); } });
 const refreshVersion = initVersionStatus(send);
@@ -50,7 +49,6 @@ function render(state: ExtensionState): void {
   if (starting) startButton.disabled = true;
   startButton.textContent = state.phase === "ERROR" ? "Повторить" : "Старт";
   stopButton.disabled = !state.enabled;
-  if (testInput && document.activeElement !== testInput) testInput.value = state.settings?.testTrackId || "";
   if (track) {
     const title = state.track?.metadata?.title?.trim();
     const artist = state.track?.metadata?.artist?.trim();
@@ -464,18 +462,6 @@ suggestSubmit?.addEventListener("click", async () => {
     suggestNote.textContent = code === "track_changed" ? "Трек изменился. Закройте и откройте предложение заново." : code === "rate_limited" ? "Слишком много попыток. Попробуйте позже." : contributionError(error);
     suggestSubmit.disabled = false;
   } finally { suggesting = false; }
-});
-
-document.querySelector("[data-action='use-current']")?.addEventListener("click", async () => {
-  if (lastState?.track?.id) render(await send<ExtensionState>({ type: COMMANDS.setTestTrack, trackId: lastState.track.id }));
-});
-document.querySelector("[data-action='clear-test']")?.addEventListener("click", async () => {
-  render(await send<ExtensionState>({ type: COMMANDS.setTestTrack, trackId: "" }));
-});
-testInput?.addEventListener("change", async () => {
-  if (testInput.value && !/^\d{1,24}$/.test(testInput.value.trim())) { testInput.setCustomValidity("Только цифры Track ID"); testInput.reportValidity(); return; }
-  testInput.setCustomValidity("");
-  render(await send<ExtensionState>({ type: COMMANDS.setTestTrack, trackId: testInput.value.trim() }));
 });
 
 stopButton?.addEventListener("click", async () => {
