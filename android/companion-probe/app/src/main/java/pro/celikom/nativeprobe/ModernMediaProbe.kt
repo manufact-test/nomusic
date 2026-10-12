@@ -26,6 +26,9 @@ class ModernMediaProbe(private val context: Context, private val event: (String,
     private val tickets = mutableMapOf<String,Int>()
     private val retries = mutableMapOf<String,Int>()
     private var polling = false
+    private val catalogSnapshot: JSONObject? by lazy {
+        try { context.assets.open("catalog-diagnostic.json").bufferedReader().use { JSONObject(it.readText()) } } catch (_: Exception) { null }
+    }
     private var identityKey: String? = null
     private var identityQueries = 0
     private var identityFuture: ListenableFuture<LibraryResult<MediaItem>>? = null
@@ -163,6 +166,12 @@ class ModernMediaProbe(private val context: Context, private val event: (String,
         try {
             val metadata = browser.mediaMetadata
             val item = browser.currentMediaItem
+            val catalog=try {
+                catalogSnapshot?.let { CatalogMatcher.match(it,metadata.title?.toString() ?: "",metadata.artist?.toString() ?: "",
+                    metadata.albumTitle?.toString() ?: "",browser.duration,System.currentTimeMillis()) }
+                    ?: JSONObject().put("status","catalog_unavailable")
+            } catch (_: Exception) { JSONObject().put("status","catalog_invalid") }
+            ProbeStore.put(context,"catalog_match",catalog.put("exact_track_id_verified",false).put("replacement_started",false))
             val session = JSONObject().put("package",expectedPackage).put("protocol","media3")
                 .put("metadata",JSONObject().put("title",ProbeStore.clean(metadata.title?.toString()) ?: JSONObject.NULL)
                     .put("artist",ProbeStore.clean(metadata.artist?.toString()) ?: JSONObject.NULL)
@@ -197,6 +206,7 @@ class ModernMediaProbe(private val context: Context, private val event: (String,
         identityFuture?.cancel(false);identityFuture=null;identityKey=null;identityQueries=0
         ProbeStore.put(context,"track_identity",JSONObject())
         ProbeStore.put(context,"session_identity",JSONObject())
+        ProbeStore.put(context,"catalog_match",JSONObject())
         tickets.clear();retries.clear();polling=false
         futures.values.forEach { MediaController.releaseFuture(it) }; futures.clear()
         browsers.clear()

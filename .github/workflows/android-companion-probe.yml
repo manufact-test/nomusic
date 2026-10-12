@@ -22,6 +22,36 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: "8.13"
+      - name: Read-only owner catalog snapshot for offline diagnostics
+        shell: bash
+        env:
+          HOSTINGER_SSH_KEY: ${{ secrets.HOSTINGER_SSH_KEY }}
+        run: |
+          set -euo pipefail
+          umask 077
+          php -l android/companion-probe/catalog-snapshot-remote.php
+          [[ "$GITHUB_SHA" =~ ^[a-f0-9]{40}$ ]] || exit 1
+          catalog_work="$(mktemp -d)"
+          trap 'rm -rf "$catalog_work"' EXIT
+          printf '%s\n' "$HOSTINGER_SSH_KEY" | tr -d '\r' > "$catalog_work/key"
+          ssh-keygen -y -P '' -f "$catalog_work/key" > "$catalog_work/public"
+          [[ "$(ssh-keygen -lf "$catalog_work/public" | awk '{print $2}')" == 'SHA256:Q6FyifXRq6garceQdIIjBmXhkk81Ic1p/x9JTSYHWUk' ]] || exit 1
+          printf '%s\n' '[92.113.19.189]:65002 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAf8M2EVwq0oJI8I9KZ0NFE8P8yDOvDATEhkQti/Kk/0' > "$catalog_work/known_hosts"
+          catalog_opts=(-i "$catalog_work/key" -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o "UserKnownHostsFile=$catalog_work/known_hosts" -o GlobalKnownHostsFile=/dev/null -o ConnectTimeout=15)
+          catalog_target='u235811320@92.113.19.189'
+          catalog_remote="/home/u235811320/domains/darkred-camel-588676.hostingersite.com/celikom/incoming/catalog-diagnostic-${GITHUB_SHA}.php"
+          trap 'ssh -T -p 65002 "${catalog_opts[@]}" "$catalog_target" "rm -f '\''$catalog_remote'\''" || true; rm -rf "$catalog_work"' EXIT
+          scp -P 65002 "${catalog_opts[@]}" android/companion-probe/catalog-snapshot-remote.php "$catalog_target:$catalog_remote"
+          mkdir -p android/companion-probe/app/src/main/assets
+          ssh -T -p 65002 "${catalog_opts[@]}" "$catalog_target" "/opt/alt/php83/usr/bin/php '$catalog_remote'" > android/companion-probe/app/src/main/assets/catalog-diagnostic.json
+          python3 - <<'PY'
+          import json,pathlib
+          p=pathlib.Path('android/companion-probe/app/src/main/assets/catalog-diagnostic.json')
+          assert p.stat().st_size<10000000
+          d=json.loads(p.read_text())
+          assert d['schema']==1 and len(d['tracks'])<=5000
+          print('Catalog metadata snapshot validated; rows:',len(d['tracks']),'complete:',d['complete'])
+          PY
       - name: Native probe lint and assembly
         working-directory: android/companion-probe
         run: gradle --no-daemon :app:lintFullDebug :app:assembleFullDebug :app:assembleFullDebugAndroidTest :app:lintPanelOnlyDistributionCandidate :app:assemblePanelOnlyDistributionCandidate :app:assemblePanelOnlyDebug :app:assemblePanelOnlyDebugAndroidTest
@@ -46,6 +76,7 @@ jobs:
           openssl cms -encrypt -aes-256-gcm -binary -outform DER -in android/companion-probe/app/build/outputs/apk/full/debug/app-full-debug.apk -out /tmp/native-probe.apk.cms android/companion-probe/diagnostic-recipient.crt
           openssl cms -encrypt -aes-256-gcm -binary -outform DER -in /tmp/native-probe.png -out /tmp/native-probe.png.cms android/companion-probe/diagnostic-recipient.crt
           openssl cms -encrypt -aes-256-gcm -binary -outform DER -in android/companion-probe/app/build/outputs/apk/panelOnly/distributionCandidate/app-panelOnly-distributionCandidate-unsigned.apk -out /tmp/native-probe-distribution.apk.cms android/companion-probe/diagnostic-recipient.crt
+          openssl cms -encrypt -aes-256-gcm -binary -outform DER -in android/companion-probe/app/src/main/assets/catalog-diagnostic.json -out /tmp/native-probe-catalog.json.cms android/companion-probe/diagnostic-recipient.crt
           cp "$ANDROID_HOME/build-tools/36.0.0/lib/apksigner.jar" /tmp/apksigner.jar
       - uses: actions/upload-artifact@v4
         with:

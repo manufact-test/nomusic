@@ -52,3 +52,14 @@ Primary API references:
 - https://developer.android.com/reference/androidx/media3/session/MediaController.Listener#onExtrasChanged(androidx.media3.session.MediaController,android.os.Bundle)
 
 Fallback research: CELIKOM tracks table stores album/title/artist/duration and service_track_id. Metadata matching can produce candidates, but uniqueness inside CELIKOM's incomplete catalogue cannot prove the externally playing Yandex ID. Such matching is not silently promoted to exact identity or used for automatic replacement under the current requirement. No server/API change deployed. No supported direct Yandex current-track-ID integration found in searched official sources; this search result is not proof none exists.
+
+
+## 0.3.13 physical result and 0.3.14 catalog diagnostic
+
+Report (10): connected playing «Здравствуй», local media ID 13; session/token extras empty; declared commands only like/dislike plus rating, all command extras empty. No exact ID found in inspected public sources. No custom command was sent. Owner authorized a separate metadata-only catalog diagnostic, without automatic replacement.
+
+0.3.14 includes a private owner snapshot of CELIKOM track metadata captured during CI via existing pinned SSH; SELECT only under a read-only transaction. No HTTP endpoint, DB write, audio bytes/storage paths/user/session records or credentials exported. Snapshot generated outside Git (ignored asset), private encrypted one-day artifact and closed owner APK. No server deployment. At most 5000 rows with complete flag. APK requires no new network/notification/audio recording permissions.
+
+Matcher compares normalized title (remix/live qualifiers retained), order-independent artist set, album and original duration within 1500 ms. All four required for a strong candidate. Missing data, ambiguous candidates, incomplete/stale snapshot (seven days) prevent selecting a candidate. Even a unique full match is unique_metadata_candidate_unverified/exact_track_id_verified=false/replacement_started=false: catalogue membership is not proof of playing external ID. Report includes up to ten ranked candidates and field rejection reasons, active replacement availability, source age/size and missing metadata count.
+
+Instrumented cases: artist reordering, duplicate metadata across IDs, remix title, absent album, mismatched duration, stale/incomplete snapshot, missing current metadata; no sound replacement code enabled. Physical test should use a song with an approved CELIKOM version; compare diagnostic candidate ID to explicit Yandex share link. Negative controls are other editions and a song absent from CELIKOM. Full feasibility remains unresolved if candidates cannot be distinguished reliably.

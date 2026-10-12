@@ -18,6 +18,28 @@ import android.graphics.Bitmap
 class ProbeTest {
     private val instrumentation = InstrumentationRegistry.getInstrumentation()
     private val context = instrumentation.targetContext
+    @Test fun catalogMatchRejectsAmbiguityRemixesMissingDataAndStaleSnapshots() {
+        val now=System.currentTimeMillis()
+        fun row(id: String, title: String="Здравствуй", album: String="BRATLAND")=org.json.JSONObject()
+            .put("track_id",id).put("title",title).put("artist","MACAN, Три дня дождя").put("album",album)
+            .put("duration_ms",228000).put("replacement_available",true)
+        fun snapshot(vararg rows: org.json.JSONObject)=org.json.JSONObject().put("schema",1).put("generated_at_ms",now)
+            .put("complete",true).put("tracks",org.json.JSONArray(rows.toList()))
+        fun match(s: org.json.JSONObject)=CatalogMatcher.match(s,"Здравствуй","Три дня дождя, MACAN","BRATLAND",228000,now)
+        val unique=match(snapshot(row("141103805")))
+        assertEquals("unique_metadata_candidate_unverified",unique.getString("status"))
+        assertEquals("141103805",unique.getString("candidate_track_id"))
+        assertFalse(unique.getBoolean("exact_track_id_verified"));assertFalse(unique.getBoolean("replacement_started"))
+        val duplicate=match(snapshot(row("141103805"),row("141103806")))
+        assertEquals("ambiguous_metadata_candidates",duplicate.getString("status"));assertFalse(duplicate.has("candidate_track_id"))
+        assertEquals("no_complete_metadata_match",match(snapshot(row("1","Здравствуй (Remix)"))).getString("status"))
+        assertEquals("no_complete_metadata_match",match(snapshot(row("1",album=""))).getString("status"))
+        val mismatch=row("1").put("duration_ms",230000)
+        assertEquals("no_complete_metadata_match",match(snapshot(mismatch)).getString("status"))
+        assertEquals("catalog_snapshot_stale",match(snapshot(row("1")).put("generated_at_ms",now-8*86400000L)).getString("status"))
+        assertEquals("catalog_incomplete",match(snapshot(row("1")).put("complete",false)).getString("status"))
+        assertEquals("insufficient_current_metadata",CatalogMatcher.match(snapshot(row("1")),"Здравствуй","MACAN","",228000,now).getString("status"))
+    }
     @Test fun sessionIdentityRejectsArbitraryExtrasAndStripsLinkSecrets() {
         val extras=android.os.Bundle().apply {
             putString("com.example.track_id","141103805")

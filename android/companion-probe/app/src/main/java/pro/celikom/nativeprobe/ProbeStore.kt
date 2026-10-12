@@ -98,6 +98,7 @@ object ProbeStore {
         return JSONObject().put("schema", 1).put("probe_version", BuildConfig.VERSION_NAME)
             .put("track_identity",JSONObject(prefs(c).getString("track_identity","{}")))
             .put("session_identity",JSONObject(prefs(c).getString("session_identity","{}")))
+            .put("catalog_match",JSONObject(prefs(c).getString("catalog_match","{}")))
             .put("generated_at_ms", System.currentTimeMillis()).put("manufacturer", Build.MANUFACTURER)
             .put("model", Build.MODEL).put("android_release", Build.VERSION.RELEASE).put("api", Build.VERSION.SDK_INT)
             .put("yandex_version", version).put("observation_enabled", enabled(c))
