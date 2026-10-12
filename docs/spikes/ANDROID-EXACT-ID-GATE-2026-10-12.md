@@ -80,3 +80,9 @@ Primary sources:
 - https://developer.android.com/reference/android/view/accessibility/AccessibilityNodeInfo
 - https://developer.android.com/about/versions/10/privacy/changes#clipboard-data
 - https://developer.android.com/develop/ui/compose/sharing/receive
+
+## Follow-up implementation: 0.3.16 direct-source investigation
+
+After the owner requested continued work, implemented an independent framework MediaBrowser probe to the same genuinely eligible Media3 library service, plus a static installed-program export for source inspection of the owner's exact Yandex build. Standard Media3-to-legacy conversion remains insufficient as a claim of ID availability; the independent connection checks possible app-specific protocol differences instead. No app impersonation, custom control commands, disabled/private component activation, screenshot matching or additional dangerous permissions.
+
+The export contains only APK manifests, resources tables and DEX program code from base/splits returned by PackageManager. It excludes app private data, accounts, preferences, downloads, arbitrary ZIP paths and assets. Up to 200 MiB raw and 128 entries; failure deletes partial output. The owner explicitly shares the result through Android's standard share sheet. This supplies concrete source material without USB, app modification or remote account authorization. It is not itself exact-ID acquisition, and success reading files on HONOR still requires a physical run. The canceled artwork experiment also used the provisional number 0.3.16 but was never built; this build contains no such experiment.

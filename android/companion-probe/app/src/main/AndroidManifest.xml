@@ -6,6 +6,10 @@
     <queries><package android:name="ru.yandex.music" /></queries>
     <application android:label="CELIKOM — диагностика" android:icon="@drawable/celikom_icon"
         android:theme="@style/ProbeTheme" android:allowBackup="false" android:supportsRtl="true">
+        <provider android:name="androidx.core.content.FileProvider" android:authorities="${applicationId}.package-export"
+            android:exported="false" android:grantUriPermissions="true">
+            <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/package_export_paths" />
+        </provider>
         <activity android:name=".MainActivity" android:exported="true">
             <intent-filter><action android:name="android.intent.action.MAIN" /><category android:name="android.intent.category.LAUNCHER" /></intent-filter>
             <intent-filter><action android:name="android.intent.action.SEND" /><category android:name="android.intent.category.DEFAULT" /><data android:mimeType="text/plain" /></intent-filter>

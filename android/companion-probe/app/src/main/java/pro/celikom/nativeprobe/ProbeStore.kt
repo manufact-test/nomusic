@@ -11,7 +11,7 @@ import org.json.JSONObject
 
 object ProbeStore {
     const val YANDEX = "ru.yandex.music"
-    private val processInstance = java.util.UUID.randomUUID().toString()
+    internal val processInstance = java.util.UUID.randomUUID().toString()
     private fun prefs(c: Context) = c.getSharedPreferences("native_probe", Context.MODE_PRIVATE)
     @Synchronized fun put(c: Context, key: String, value: JSONObject) {
         prefs(c).edit().putString(key, value.toString()).apply()
@@ -40,7 +40,7 @@ object ProbeStore {
             MediaMetadata.METADATA_KEY_MEDIA_ID)) clean(m.getString(key))?.let { result.put(key, it) }
         for (key in listOf(MediaMetadata.METADATA_KEY_MEDIA_URI)) {
             val uri = m.getString(key)?.let { Uri.parse(it) }
-            if (uri != null) result.put(key, clean("${uri.scheme ?: ""}://${uri.host ?: ""}${uri.path ?: ""}"))
+            if (uri != null) result.put(key, MediaIdentity.uri(uri))
         }
         result.put("metadata_keys", JSONArray(m.keySet().sorted().take(32).map { clean(it)?.take(80) }))
         result.put("duration_ms", m.getLong(MediaMetadata.METADATA_KEY_DURATION))
@@ -103,7 +103,7 @@ object ProbeStore {
     }
     fun enabled(c: Context): Boolean = prefs(c).getBoolean("enabled", true)
     fun setEnabled(c: Context, enabled: Boolean) { prefs(c).edit().putBoolean("enabled", enabled).apply() }
-    fun clear(c: Context) { prefs(c).edit().remove("events").remove("media").remove("media_history").remove("shared_track").remove("public_media").remove("public_browser").remove("attenuation_test").remove("service_discovery").remove("browser_attempts").remove("media3_error").remove("track_identity").remove("session_identity").remove("catalog_match").remove("public_media_history").remove("observation_window").apply() }
+    fun clear(c: Context) { prefs(c).edit().remove("events").remove("media").remove("media_history").remove("shared_track").remove("public_media").remove("public_browser").remove("attenuation_test").remove("service_discovery").remove("browser_attempts").remove("media3_error").remove("track_identity").remove("session_identity").remove("catalog_match").remove("public_media_history").remove("observation_window").remove("legacy_identity").remove("package_export").apply() }
     fun acceptSharedLink(c: Context, input: String?): Boolean {
         if (input == null || input.length > 2048) return false
         val raw = Regex("https://[^\\s]+").find(input)?.value ?: return false
@@ -129,7 +129,14 @@ object ProbeStore {
         }
         catalog.put("observation_fresh",fresh)
         publicMedia.put("fresh",fresh)
+        val legacy = JSONObject(prefs(c).getString("legacy_identity", "{}"))
+        val legacyAge = android.os.SystemClock.elapsedRealtime() - legacy.optLong("observed_elapsed_ms", -1)
+        val legacyFresh = legacy.optString("status") == "connected" && legacy.optString("process_instance") == processInstance && legacyAge in 0..5000
+        legacy.put("fresh", legacyFresh)
+        if (legacy.optString("status") == "connected" && !legacyFresh) legacy.put("status", "data_stale")
         return JSONObject().put("schema", 1).put("probe_version", BuildConfig.VERSION_NAME)
+            .put("legacy_identity", legacy)
+            .put("package_export", JSONObject(prefs(c).getString("package_export", "{}")))
             .put("track_identity",JSONObject(prefs(c).getString("track_identity","{}")))
             .put("session_identity",JSONObject(prefs(c).getString("session_identity","{}")))
             .put("catalog_match",catalog)

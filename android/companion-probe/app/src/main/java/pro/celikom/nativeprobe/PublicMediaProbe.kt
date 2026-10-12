@@ -23,6 +23,7 @@ class PublicMediaProbe(private val context: Context) {
     private val attempts = JSONArray()
     private var leaseUntil = 0L
     private val modern = ModernMediaProbe(context, event = { name, phase, error -> attempt(name,phase,error);paintConnection() })
+    private val legacyIdentity = LegacyIdentityProbe(context)
     private fun attempt(name: String, phase: String, error: String? = null) {
         phases[name] = phase
         if (attempts.length()>=30) attempts.remove(0)
@@ -71,7 +72,13 @@ class PublicMediaProbe(private val context: Context) {
             val modernService = (0 until rows.length()).map { rows.getJSONObject(it) }.any {
                 it.optString("name")==s.name && it.getJSONArray("media_actions").toString().contains("androidx.media3.session.")
             }
-            if (modernService) { modern.connect(ComponentName(s.packageName,s.name));return@forEach }
+            if (modernService) {
+                val component = ComponentName(s.packageName,s.name)
+                modern.connect(component)
+                // Independent framework protocol, not a fabricated token or a private/disabled component.
+                if (services.firstOrNull()?.name == s.name) legacyIdentity.connect(component)
+                return@forEach
+            }
             attempt(s.name,"connecting")
             lateinit var browser: MediaBrowser
             val callback = object : MediaBrowser.ConnectionCallback() {
@@ -139,6 +146,7 @@ class PublicMediaProbe(private val context: Context) {
         generation++
         leaseUntil=0L
         modern.stop()
+        legacyIdentity.stop()
         handler.removeCallbacksAndMessages(null)
         controllers.forEach { (c, callback) -> try { c.unregisterCallback(callback) } catch (_: RuntimeException) { } }; controllers.clear()
         browsers.forEach { try { it.disconnect() } catch (_: RuntimeException) { } }; browsers.clear()

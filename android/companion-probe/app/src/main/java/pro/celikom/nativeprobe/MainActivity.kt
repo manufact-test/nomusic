@@ -124,6 +124,43 @@ class MainActivity : Activity() {
             startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).setType("text/plain")
                 .putExtra(Intent.EXTRA_TEXT, report().toString(2)), "Передать отчёт CELIKOM"))
         }
+        val exportButton = button("Подготовить код Яндекса для проверки ID") { }
+        exportButton.setOnClickListener {
+            AlertDialog.Builder(this).setTitle("Проверка источника ID")
+                .setMessage("Подготовим архив установленной версии Яндекс Музыки: только код и ресурсы программы, без аккаунта, скачанных песен и истории. После подготовки сохрани архив и прикрепи в наш чат. Новые разрешения не нужны.")
+                .setNegativeButton("Отмена", null).setPositiveButton("Подготовить") { _, _ ->
+                    exportButton.isEnabled = false
+                    toast("Готовим архив программы…")
+                    val appContext = applicationContext
+                    Thread {
+                        try {
+                            val file = YandexPackageExport.create(appContext)
+                            val uri = androidx.core.content.FileProvider.getUriForFile(appContext,
+                                "${BuildConfig.APPLICATION_ID}.package-export", file)
+                            runOnUiThread {
+                                if (!isFinishing && !isDestroyed) {
+                                    exportButton.isEnabled = true
+                                    try {
+                                        startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).setType("application/zip")
+                                            .putExtra(Intent.EXTRA_STREAM, uri)
+                                            .setClipData(ClipData.newRawUri("Yandex program", uri))
+                                            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION), "Сохранить или передать архив программы"))
+                                    } catch (_: RuntimeException) { toast("Не удалось открыть передачу архива") }
+                                }
+                            }
+                        } catch (error: Exception) {
+                            ProbeStore.put(appContext, "package_export", JSONObject().put("status", "failed")
+                                .put("error_type", error.javaClass.simpleName))
+                            runOnUiThread {
+                                if (!isFinishing && !isDestroyed) {
+                                    exportButton.isEnabled = true
+                                    toast("Не удалось прочитать код установленной программы. Скопируй отчёт.")
+                                }
+                            }
+                        }
+                    }.start()
+                }.show()
+        }
         toggle = button("Остановить наблюдение") {
             ProbeStore.setEnabled(this, !ProbeStore.enabled(this))
             MusicObservation.rebind(this)
