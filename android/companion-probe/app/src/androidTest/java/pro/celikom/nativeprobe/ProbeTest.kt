@@ -104,7 +104,9 @@ class ProbeTest {
         assertNull(AttenuationService.verifiedSession(report(42,true,60001),now))
         assertNull(AttenuationService.verifiedSession(report(42,true,-1),now))
         val info=context.packageManager.getPackageInfo(context.packageName, PackageManager.GET_SERVICES)
-        assertFalse(info.services!!.first { it.name.endsWith("AttenuationService") }.exported)
+        val service=info.services!!.first { it.name.endsWith("AttenuationService") }
+        assertFalse(service.exported)
+        if (android.os.Build.VERSION.SDK_INT >= 29) assertEquals(android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK,service.foregroundServiceType)
     }
     @Test fun publicBrowserRejectsForeignPrivateOrUnexportedServices() {
         val s = android.content.pm.ServiceInfo().apply { packageName = ProbeStore.YANDEX; exported = true; enabled = true }

@@ -1,1 +1,3 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android" />
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"><application>
+        <service android:name="pro.celikom.nativeprobe.AttenuationService" android:exported="false" android:foregroundServiceType="mediaPlayback" />
+</application></manifest>
