@@ -30,7 +30,7 @@ export function createApiBroker(api, options = {}) {
       return await withAccess(async (session) => {
         if (options.entitlement && !(await options.entitlement()).allowed) throw new Error("api_forbidden");
         const active = await getClient(session);
-        return { ok: true, configured: true, asset: await active.resolve(message.service, message.trackId) };
+        return { ok: true, configured: true, asset: await active.resolve(message.service, message.trackId, { forceRefresh: message.forceRefresh === true }) };
       });
     } catch (error) {
       const code = String(error?.message || "");

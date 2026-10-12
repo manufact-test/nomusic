@@ -364,8 +364,9 @@ async function remoteStreamFixture(statuses = [], onRetry = null) {
       assert(requested, "every request is a bounded HTTP Range");
       const from = Number(requested[1]), to = Math.min(Number(requested[2]), bytesTotal - 1);
       calls.push([from, to]);
-      const status = statuses[calls.length - 1] ?? 206;
-      if (status !== 206) return { status, body: { cancel: async () => { cancelledBodies++; } } };
+      const entry = statuses[calls.length - 1] ?? 206;
+      const status = typeof entry === "object" ? entry.status : entry;
+      if (status !== 206) return { status, headers: new Headers(typeof entry === "object" ? {"content-type":entry.contentType} : {}), body: { cancel: async () => { cancelledBodies++; } } };
       const bytes = new Uint8Array(to - from + 1);
       return {
         status: 206,
@@ -437,13 +438,13 @@ test("destroy during retry cancels the delayed request and reports no late fatal
 });
 
 test('stream network loss retries same exact track with a newly resolved asset after restoration',async()=>{
- let resolves=0;const f=fixture({resolveAsset:async()=>{resolves++;return remoteAsset();}});
+ let resolves=0;const requests=[];const f=fixture({resolveAsset:async(id,options)=>{resolves++;requests.push(options);return remoteAsset();}});
  f.engine.configure(true,'');f.update(snapshot());await settle();assert.equal(f.engine.phase,'REPLACEMENT_ACTIVE');
  f.engine.abort('remote-stream-network',true);await settle();assert.equal(f.players[0].destroyed,true);assert.equal(f.engine.operation,null);
  const first=f.engine.retryBlock.at-Date.now();assert.ok(first>4000&&first<=5000);
  f.update(snapshot());await settle();assert.equal(resolves,1,'no immediate retry storm');
  f.engine.retryBlock.at=Date.now()-1;f.engine.retryBlock.observedAt=Date.now()-1;
- f.update(snapshot());await settle();assert.equal(resolves,2);assert.equal(f.engine.phase,'REPLACEMENT_ACTIVE');
+ f.update(snapshot());await settle();assert.equal(resolves,2);assert.equal(requests.at(-1).fresh,true);assert.equal(f.engine.phase,'REPLACEMENT_ACTIVE');
  f.engine.abort('remote-stream-network',true);await settle();assert.ok(f.engine.retryBlock.at-Date.now()>9000,'backoff increases');
  f.engine.manualRestore();f.engine.retryBlock.at=Date.now()-1;f.engine.retryBlock.observedAt=Date.now()-1;
  f.update(snapshot());await settle();assert.equal(resolves,2,'manual original remains authoritative');
@@ -453,4 +454,9 @@ test('network retry never includes forbidden HTTP or malformed audio',async()=>{
   const f=fixture();f.update(snapshot());await settle();f.engine.abort(reason,true,detail);await settle();
   assert.equal(f.engine.retryBlock,null);assert.equal(f.engine.blockedTrackId,'2');
  }
+});
+
+test('HTML route block releases stream and is distinguished from revoked JSON access',async()=>{
+ const f=await remoteStreamFixture([206,{status:403,contentType:'text/html'}]);await f.player.streamTask;
+ assert.equal(f.calls.length,2);assert.equal(f.fatals[0].reason,'remote-stream-route-blocked');assert.equal(f.fatals[0].detail.httpStatus,403);f.player.destroy();
 });

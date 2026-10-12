@@ -38,6 +38,7 @@ export function createAuthBroker(api, options = {}) {
   let sessionVersion = 0;
   const previewKey = "celikom-entitlement-display-v1";
   let displayPreview = null;
+  const networkHistory = [];
 
   async function installationId() {
     if (!installationPromise) {
@@ -67,14 +68,18 @@ export function createAuthBroker(api, options = {}) {
   async function apiRequest(path, method = "GET", data = null, access = "") {
     const limit = path.startsWith("support") ? 65536 : 16384;
     const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), 8000);
+    const started = Date.now(); let httpStatus = null; let outcome = "ok";
+    const timeout = ["auth/register", "auth/login", "auth/resend-verification", "auth/request-reset"].includes(path) ? 20000 : 8000;
+    const timer = setTimeout(() => ctrl.abort(), timeout);
     try {
       const response = await request((await origin()) + "/api/v1/" + path, {
         method, credentials: "omit", redirect: "error", cache: "no-store", signal: ctrl.signal,
         headers: { ...(data ? { "Content-Type": "application/json" } : {}), ...(access ? { Authorization: "Bearer " + access } : {}) },
         body: data ? JSON.stringify(data) : undefined
       });
-      if (!response.headers.get("content-type")?.startsWith("application/json")) throw new Error("auth_unavailable");
+      httpStatus = response.status;
+      if (!response.headers.get("content-type")?.startsWith("application/json"))
+        throw new Error([401,403,429].includes(response.status) ? "auth_route_blocked" : "auth_unavailable");
       if (Number(response.headers.get("content-length")) > limit) throw new Error("auth_unavailable");
       // Enforce the byte limit while streaming, including chunked responses
       // without Content-Length; never buffer an unlimited auth response.
@@ -93,18 +98,23 @@ export function createAuthBroker(api, options = {}) {
       for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }
       const result = JSON.parse(new TextDecoder().decode(bytes));
       if (!response.ok) {
-        const safe = new Set(["invalid_credentials", "account_disabled", "account_unavailable", "weak_password", "rate_limited", "invalid_session", "invalid_request", "email_unverified", "email_unavailable", "invalid_code", "access_denied", "uploads_disabled", "invalid_referral_code", "referrals_disabled", "invalid_promo", "promo_unavailable", "promo_payment_pending", "promo_lifetime_active"]);
+        const safe = new Set(["auth_timeout", "auth_network_error", "auth_route_blocked", "invalid_credentials", "account_disabled", "account_unavailable", "weak_password", "rate_limited", "invalid_session", "invalid_request", "email_unverified", "email_unavailable", "invalid_code", "access_denied", "uploads_disabled", "invalid_referral_code", "referrals_disabled", "invalid_promo", "promo_unavailable", "promo_payment_pending", "promo_lifetime_active"]);
         throw new Error(safe.has(result?.error) ? result.error : "auth_unavailable");
       }
       return result;
-    } finally { clearTimeout(timer); }
+    } catch (error) {
+      outcome = ctrl.signal.aborted || error?.name === "AbortError" ? "auth_timeout" : error instanceof TypeError ? "auth_network_error" : error?.message || "auth_unavailable";
+      throw new Error(outcome);
+    } finally {
+      clearTimeout(timer);
+      networkHistory.push({ endpoint: path.split("?")[0], method, httpStatus, result: ["ok", "auth_timeout", "auth_network_error", "auth_route_blocked"].includes(outcome) ? outcome : "api_response_error", elapsedMs: Date.now() - started, at: Date.now() });
+      if (networkHistory.length > 8) networkHistory.shift();
+    }
   }
 
   async function isAvailable() {
-    try {
-      const response = await apiRequest("config");
-      return response?.features?.auth === true;
-    } catch (_error) { return false; }
+    const response = await apiRequest("config");
+    return response?.features?.auth === true;
   }
 
   async function refresh(stored) {
@@ -190,7 +200,10 @@ export function createAuthBroker(api, options = {}) {
     if (action === "installation") return { ok: true, installation_id: await installationId() };
     if (action === "status") {
       const saved = await store.get();
-      if (!await isAvailable()) {
+      let available;
+      try { available = await isAvailable(); }
+      catch (error) { return { ok: true, available: true, signedIn: false, localSession: Boolean(saved?.user?.email), ...(saved?.user ? { user: saved.user } : {}), error: error?.message || "auth_unavailable" }; }
+      if (!available) {
         if (saved?.user?.email) return { ok: true, available: true, signedIn: false,
           localSession: true, user: saved.user, error: "auth_unavailable" };
         return { ok: true, available: false, signedIn: false };
@@ -215,8 +228,8 @@ export function createAuthBroker(api, options = {}) {
       const saved = await store.get();
       return { ok: true, localSession: Boolean(saved?.refresh_token && saved?.user?.email) };
     }
-    if (action !== "contribution-access" && action !== "track-status" && !await isAvailable()) return { ok: false, error: "auth_disabled" };
     try {
+      if (action !== "contribution-access" && action !== "track-status" && !await isAvailable()) return { ok: false, error: "auth_disabled" };
       if (action === "support-send" || action === "support-list" || action === "support-thread") {
         if (action === "support-send" && (typeof message.message !== "string" || message.message.length > 3000 || typeof message.request_key !== "string" || !/^[a-f0-9-]{36}$/.test(message.request_key))) return { ok: false, error: "invalid_request" };
         if (action === "support-thread" && !/^[1-9][0-9]{0,17}$/.test(String(message.ticket_id))) return { ok: false, error: "invalid_request" };
@@ -357,9 +370,9 @@ export function createAuthBroker(api, options = {}) {
       }
       return { ok: false, error: "invalid_request" };
     } catch (error) {
-      const safe = new Set(["invalid_credentials", "account_disabled", "account_unavailable", "weak_password", "rate_limited", "invalid_session", "invalid_request", "email_unverified", "email_unavailable", "invalid_code", "access_denied", "uploads_disabled", "invalid_referral_code", "referrals_disabled", "invalid_promo", "promo_unavailable", "promo_payment_pending", "promo_lifetime_active"]);
+      const safe = new Set(["auth_timeout", "auth_network_error", "auth_route_blocked", "invalid_credentials", "account_disabled", "account_unavailable", "weak_password", "rate_limited", "invalid_session", "invalid_request", "email_unverified", "email_unavailable", "invalid_code", "access_denied", "uploads_disabled", "invalid_referral_code", "referrals_disabled", "invalid_promo", "promo_unavailable", "promo_payment_pending", "promo_lifetime_active"]);
       return { ok: false, error: safe.has(error?.message) ? error.message : "auth_unavailable" };
     }
   }
-  return { perform, installationId, withAccess, withEntitledAccess, entitlement };
+  return { perform, installationId, withAccess, withEntitledAccess, entitlement, networkDiagnostics: () => networkHistory.map(item => ({ ...item })) };
 }

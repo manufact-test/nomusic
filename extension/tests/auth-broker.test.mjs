@@ -221,3 +221,21 @@ test('security: oversized chunked auth response is cancelled before buffering th
  const result=await broker.perform('login',{email:'a@example.org',password:'abcdefghijk'});
  assert.equal(result.ok,false);assert.equal(cancelled,true);assert.equal(reads,3);assert.equal(secret,null);
 });
+
+test('transport errors are distinguished without retrying registration or exposing credentials',async()=>{
+ for(const [mode,expected] of [['network','auth_network_error'],['timeout','auth_timeout'],['edge','auth_route_blocked']]){
+  let calls=0;const api={storage:{local:{get:async()=>({}),set:async()=>{}}},runtime:{getURL:p=>p}};
+  const broker=createAuthBroker(api,{store:{get:async()=>null,set:async()=>{},clear:async()=>{}},readConfig:async()=>({baseUrl:'https://celikom.example'}),fetch:async()=>{
+   calls++;if(mode==='network')throw new TypeError('secret transport detail');if(mode==='timeout')throw new DOMException('secret detail','AbortError');return new Response('<html>private firewall</html>',{status:403,headers:{'content-type':'text/html'}});
+  }});
+  const result=await broker.perform('register',{email:'private@example.org',password:'private-password-123'});
+  assert.equal(result.error,expected);assert.equal(calls,1,'no unsafe POST retry');
+  const report=JSON.stringify(broker.networkDiagnostics());assert.ok(report.includes(expected));assert.doesNotMatch(report,/private|password|secret|Bearer/);
+ }
+});
+
+test('unreachable config leaves registration available for recovery rather than declaring auth disabled',async()=>{
+ const api={storage:{local:{get:async()=>({}),set:async()=>{}}},runtime:{getURL:p=>p}};
+ const broker=createAuthBroker(api,{store:{get:async()=>null,set:async()=>{},clear:async()=>{}},readConfig:async()=>({baseUrl:'https://celikom.example'}),fetch:async()=>{throw new TypeError('offline')}});
+ const result=await broker.perform('status');assert.equal(result.available,true);assert.equal(result.signedIn,false);assert.equal(result.error,'auth_network_error');
+});

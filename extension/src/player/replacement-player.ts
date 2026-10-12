@@ -99,7 +99,8 @@
           // Discard the error body without buffering or exposing server text.
           try { await response.body?.cancel(); } catch (_error) { /* status remains authoritative */ }
           if (!retry) {
-            const error = new Error("remote-stream-http");
+            const edgeBlock = [401,403,429].includes(response.status) && response.headers?.get?.("content-type")?.includes("text/html");
+            const error = new Error(edgeBlock ? "remote-stream-route-blocked" : "remote-stream-http");
             error.streamDetail = { httpStatus: response.status, offset, attempts: attempt + 1 };
             throw error;
           }
@@ -193,7 +194,7 @@
         this.streamTask = this.pumpRemote(asset).catch((error) => {
           if (this.destroyed) return;
           const permitted = ["remote-stream-network", "remote-stream-http", "remote-stream-format",
-            "remote-stream-range", "remote-stream-timeout", "remote-buffer-error", "remote-buffer-timeout"];
+            "remote-stream-route-blocked", "remote-stream-range", "remote-stream-timeout", "remote-buffer-error", "remote-buffer-timeout"];
           const reason = permitted.includes(error?.message) ? error.message : "remote-stream-error";
           this.onFatal(reason, error.streamDetail || null);
         });

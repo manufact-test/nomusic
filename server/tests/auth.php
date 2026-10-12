@@ -316,3 +316,12 @@ run('Stage9 refresh session has rolling 90-day inactivity window on all devices'
         expect($remaining >= 7775990 && $remaining <= 7776000, 'refresh expiry reset to 90 days');
     }
 });
+
+run('Registration resumes only an unverified account with its original password after response loss',function()use($app,$pdo,$install1):void{
+ $email='resume-after-network@example.org';$password='resume-network-test-password';
+ $body=['email'=>$email,'password'=>$password,'installation_id'=>$install1];
+ [$status,$first]=callAuth($app,'POST','register',$body);expect($status===201&&($first['verification_required']??false),'initial pending');
+ [$status,$retry]=callAuth($app,'POST','register',$body);expect($status===201&&($retry['verification_required']??false)&&!isset($retry['access_token']),'retry remains pending email');
+ expect((int)$pdo->query("SELECT COUNT(*) FROM users WHERE email='resume-after-network@example.org'")->fetchColumn()===1,'no duplicate user');
+ $body['password']='other-password-not-allowed';expect(callAuth($app,'POST','register',$body)[0]===409,'wrong password cannot resume');
+});

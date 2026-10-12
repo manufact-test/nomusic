@@ -29,6 +29,7 @@ export class ApiClient {
           headers: { ...(this.accessToken ? { Authorization: `Bearer ${this.accessToken}` } : {}), ...(options.body ? { "Content-Type": "application/json" } : {}) }
         });
       } catch (_error) { throw new Error("api_network_error"); }
+      if ([401,403,429].includes(response.status) && !response.headers.get("content-type")?.startsWith("application/json")) throw new Error("api_network_error");
       if (response.status === 401) throw new Error("api_access_denied");
       if (response.status === 403) throw new Error("api_forbidden");
       if (response.status >= 500) throw new Error("api_server_error");
@@ -59,9 +60,10 @@ export class ApiClient {
     for (let i = 0; i < 3; i++) { if (current[i] < required[i]) throw new Error("extension_update_required"); if (current[i] > required[i]) break; }
     this.configCache = { value, until: this.now() + 60000 }; return value;
   }
-  async resolve(service, trackId) {
+  async resolve(service, trackId, options = {}) {
     if (service !== "yandex" || !/^[1-9]\d{0,23}$/.test(trackId)) throw new Error("invalid_track");
     const key = `${service}:${trackId}`;
+    if (options.forceRefresh === true) { this.cache.delete(key); this.configCache = null; }
     if (this.cache.get(key)?.until > this.now()) return this.cache.get(key).value;
     if (this.pending.has(key)) return this.pending.get(key);
     const pending = this.resolveUncached(service, trackId).then((value) => {

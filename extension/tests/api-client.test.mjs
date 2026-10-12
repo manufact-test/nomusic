@@ -324,3 +324,13 @@ test("native worker fetch retains its Web IDL receiver (regression: silent api_n
     globalThis.fetch = originalFetch;
   }
 });
+
+test('network recovery bypasses cached resolve and configuration; HTML 403 is not account revocation',async()=>{
+ let resolveCalls=0,configCalls=0;const client=new ApiClient('https://celikom.example',{now:()=>now,fetch:async url=>{if(url.endsWith('/config')){configCalls++;return response(config)}resolveCalls++;return response(found)}});
+ await client.resolve('yandex','888');await client.resolve('yandex','888');assert.equal(resolveCalls,1);
+ await client.resolve('yandex','888',{forceRefresh:true});assert.equal(resolveCalls,2);assert.equal(configCalls,2);
+ const edge=new ApiClient('https://celikom.example',{fetch:async()=>new Response('<html>blocked</html>',{status:403,headers:{'content-type':'text/html'}})});
+ await assert.rejects(edge.request('/api/v1/resolve'),/api_network_error/);
+ const denied=new ApiClient('https://celikom.example',{fetch:async()=>new Response('{"error":"access_denied"}',{status:403,headers:{'content-type':'application/json'}})});
+ await assert.rejects(denied.request('/api/v1/resolve'),/api_forbidden/);
+});

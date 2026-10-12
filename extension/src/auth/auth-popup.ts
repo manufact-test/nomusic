@@ -17,6 +17,11 @@ export function initAuthPanel(send) {
   const views = { login: q("form"), verify: q("verify-form"), recovery: q("recovery-form"),
     reset: q("new-password-form"), signed: q("signed") };
   const call = (action, more = {}) => send({ type: "CELIKOM_AUTH", action, ...more });
+  const diagnostic = q("network-copy");
+  diagnostic?.addEventListener("click", async () => {
+    try { const state = await send({ type: "CELIKOM_STATUS_GET" }); await navigator.clipboard.writeText(JSON.stringify(state, null, 2)); diagnostic.textContent = "Скопировано"; }
+    catch (_) { diagnostic.textContent = "Не удалось скопировать"; }
+  });
   let mode = "login", pendingEmail = "", pendingPassword = "", busy = false;
   // The Chrome popup closes when users switch to their mailbox. Keep ONLY the
   // pending email + purpose in extension storage; never persist a password/code.
@@ -92,6 +97,9 @@ export function initAuthPanel(send) {
     rate_limited: "Слишком много попыток. Подождите и повторите.",
     invalid_session: "Сессия истекла. Войдите снова.",
     invalid_request: "Проверьте введённые данные.",
+    auth_network_error: "Соединение прервалось. Проверьте сеть или VPN и повторите с теми же данными.",
+    auth_timeout: "Сервер не ответил вовремя. После восстановления связи повторите с теми же данными.",
+    auth_route_blocked: "Сеть или VPN блокирует доступ к серверу CELIKOM. Попробуйте другое подключение.",
     auth_unavailable: "Сервер недоступен. Повторите позже.",
     invalid_referral_code: "Проверьте код приглашения.", referrals_disabled: "Приглашения пока недоступны. Можно зарегистрироваться без кода."
   };
@@ -134,11 +142,15 @@ export function initAuthPanel(send) {
   async function act(action, data, done) {
     if (busy) return;
     busy = true;
+    if (diagnostic) { diagnostic.hidden = true; diagnostic.textContent = "Скопировать диагностику"; }
     show("Проверяем…", "loading");
     try {
       const result = await call(action, data);
       if (result?.ok) await done(result);
-      else show(errors[result?.error] || "Не удалось выполнить действие.", "error");
+      else {
+        show(errors[result?.error] || "Не удалось выполнить действие.", "error");
+        if (diagnostic) diagnostic.hidden = !["auth_network_error", "auth_timeout", "auth_route_blocked", "auth_unavailable"].includes(result?.error);
+      }
     } catch (_) { show("Нет связи с сервером.", "error"); }
     finally { busy = false; }
   }

@@ -45,8 +45,8 @@
       this.engine = new engineFactory.ReplacementController(this.bridge, root, {
         log: (message) => this.log(message),
         onEvent: (name, properties) => this.event(name, properties),
-        resolveAsset: async (trackId) => {
-          const response = await chrome.runtime.sendMessage({ type: "CELIKOM_API_RESOLVE", service: "yandex", trackId });
+        resolveAsset: async (trackId, options = {}) => {
+          const response = await chrome.runtime.sendMessage({ type: "CELIKOM_API_RESOLVE", service: "yandex", trackId, forceRefresh: options.fresh === true });
           this.apiConfigured = response?.configured ?? this.apiConfigured;
           if (!response?.ok) {
             const permitted = ["api_access_missing", "api_access_denied", "api_forbidden", "api_network_error",

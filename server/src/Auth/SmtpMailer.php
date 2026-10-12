@@ -49,10 +49,10 @@ final class SmtpMailer
         $port = (int)$this->config['mail_port'];
         $ssl = ['ssl'=>['verify_peer'=>true,'verify_peer_name'=>true,'peer_name'=>$host,'allow_self_signed'=>false]];
         $socket = @stream_socket_client(($port===465?'ssl://':'tcp://').$host.':'.$port,
-            $errno,$errstr,$purpose==='support'?2:12,STREAM_CLIENT_CONNECT,stream_context_create($ssl));
+            $errno,$errstr,$purpose==='support'?2:4,STREAM_CLIENT_CONNECT,stream_context_create($ssl));
         if (!$socket) throw new \RuntimeException('mail_unavailable');
-        stream_set_timeout($socket, $purpose==='support'?2:12);
-        $deadline=microtime(true)+($purpose==='support'?6:120);
+        stream_set_timeout($socket, 2);
+        $deadline=microtime(true)+($purpose==='support'?6:12);
         try {
             $read = static function(int $want) use ($socket,$deadline): void {
                 do {

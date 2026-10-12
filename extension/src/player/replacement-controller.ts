@@ -125,7 +125,7 @@
       try {
         operation.asset = this.testTrackId
           ? { found: true, url: this.environment.chrome.runtime.getURL("assets/test-audio.mp3"), demoLoop: true }
-          : await this.resolveAsset(operation.trackId);
+          : await this.resolveAsset(operation.trackId, { fresh: this.networkRetries > 0 });
         if (!this.current(operation)) return;
         if (!operation.asset?.found) {
           this.negativeResolution = { trackId: operation.trackId, until: Date.now() + Math.min(60000, Math.max(5000, operation.asset?.retryAfterMs || 15000)) };
@@ -157,7 +157,7 @@
     abort(reason, blockTrack = false, detail = null) {
       const operation = this.operation;
       if (blockTrack) { this.blockedTrackId = operation?.trackId || this.snapshot?.track?.id; this.lastError = reason; }
-      const transientNetwork = ["remote-stream-network", "remote-stream-timeout", "replacement-load-timeout", "api_network_error", "api_server_error", "api_unavailable"].includes(reason)
+      const transientNetwork = ["remote-stream-route-blocked", "remote-stream-network", "remote-stream-timeout", "replacement-load-timeout", "api_network_error", "api_server_error", "api_unavailable"].includes(reason)
         || (reason === "remote-stream-http" && [429, 500, 502, 503, 504].includes(detail?.httpStatus))
         || (reason === "replacement-media-error" && detail?.mediaErrorCode === 2);
       if (blockTrack && (["bridge-timeout", "bridge-unhealthy", "snapshot-stale", "master-clock-stalled", "master-error", "audio-token-expired", "guard-lost:master-error"].includes(reason)

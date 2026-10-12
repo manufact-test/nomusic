@@ -55,6 +55,7 @@ async function readState(retry = false): Promise<ExtensionState> {
     enabled,
     phase: enabled ? connection.error ? "ERROR" : controller?.phase || "CONNECTING" : "STOPPED",
     version: VERSION,
+    network: userAuth.networkDiagnostics?.() || [],
     connection: {
       controllerPresent: Boolean(controller),
       recovered: connection.recovered || false,

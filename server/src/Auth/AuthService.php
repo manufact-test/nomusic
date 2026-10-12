@@ -46,8 +46,15 @@ final class AuthService
             }
         } catch (\Throwable $error) {
             if ($code!=='' && $this->pdo->inTransaction()) $this->pdo->rollBack();
-            if ($error instanceof \PDOException && ($error->errorInfo[1] ?? null) === 1062)
+            if ($error instanceof \PDOException && ($error->errorInfo[1] ?? null) === 1062) {
+                // A lost HTTP response must not strand an unverified account.
+                // Resume only with the original password; do not change referrals or issue a session.
+                $existing=$this->pdo->prepare('SELECT id,password_hash,status FROM users WHERE email=? LIMIT 1');
+                $existing->execute([$email]);$row=$existing->fetch(\PDO::FETCH_ASSOC);
+                if($row && $row['status']==='active' && password_verify($password,$row['password_hash']) && !$this->email->isVerified((int)$row['id']))
+                    return $this->email->sendVerification((int)$row['id'],$email);
                 throw new \DomainException('account_unavailable');
+            }
             throw $error;
         }
         return $this->email->sendVerification($userId, $email);

@@ -16,6 +16,7 @@ export interface ExtensionState {
   version: string;
   settings?: { testTrackId: string };
   accessError?: string;
+  network?: Array<{ endpoint: string; method: string; httpStatus: number | null; result: string; elapsedMs: number; at: number }>;
   manualBypass?: { trackId: string } | null;
   replacementError?: string | null;
   suspended?: boolean;
