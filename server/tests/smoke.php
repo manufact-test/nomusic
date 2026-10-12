@@ -79,6 +79,28 @@ $expires = time() + 600;
 $query = ['expires' => (string) $expires, 'token' => $tokens->sign(7, 2, $expires)];
 
 try {
+    run('lifetime promo resolve keeps signed URLs bounded by token TTL and session expiry', function () use ($catalog, $storage, $tokens): void {
+        $resolver = new Celikom\Application\ResolveService($catalog, $storage, $tokens);
+        $now = time();
+        $access = ['session_id' => 42, 'valid_until' => null, 'refresh_expires_at' => gmdate('Y-m-d H:i:s', $now + 3600)];
+        $result = $resolver->resolve('yandex', '1944599', $access);
+        expect($result['found'] === true, 'Lifetime access resolves');
+        expect($result['expires_at'] >= $now + 600 && $result['expires_at'] <= time() + 600, 'Lifetime does not make URL permanent');
+        parse_str(parse_url($result['audio_url'], PHP_URL_QUERY), $query);
+        expect($query['sid'] === '42' && $tokens->valid(7, 2, $query['expires'], $query['token'], sessionId: 42), 'Signature bound to session');
+        expect(!$tokens->valid(7, 2, $query['expires'], $query['token'], sessionId: 43), 'Other session rejected');
+        $access['refresh_expires_at'] = gmdate('Y-m-d H:i:s', $now + 90);
+        expect($resolver->resolve('yandex', '1944599', $access)['expires_at'] === $now + 90, 'Session bounds lifetime');
+        $access['valid_until'] = gmdate('Y-m-d\TH:i:s\Z', $now + 30);
+        expect($resolver->resolve('yandex', '1944599', $access)['expires_at'] === $now + 30, 'Finite access still bounds URL');
+        $access['valid_until'] = gmdate('Y-m-d\TH:i:s\Z', $now - 1);
+        expect($resolver->resolve('yandex', '1944599', $access)['found'] === false, 'Expired access denied');
+        $access['valid_until'] = null;
+        $access['refresh_expires_at'] = gmdate('Y-m-d H:i:s', $now - 1);
+        expect($resolver->resolve('yandex', '1944599', $access)['found'] === false, 'Expired lifetime session denied');
+        unset($access['valid_until']);
+        expect($resolver->resolve('yandex', '1944599', $access)['found'] === false, 'Missing deadline not lifetime access');
+    });
     run('versioned health/config and unknown routes', function () use ($app): void {
         expect($app->handle('GET', '/api/v1/health')->status === 200, 'Health');
         $config = json_decode($app->handle('GET', '/api/v1/config')->body, true, flags: JSON_THROW_ON_ERROR);

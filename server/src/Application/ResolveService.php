@@ -31,8 +31,14 @@ final class ResolveService
         $version = (int) $row['version'];
         $expires = time() + $this->tokens->ttl;
         if ($access !== null) {
-            $expires = min($expires, (int)strtotime($access['valid_until']),
-                (int)strtotime($access['refresh_expires_at'] . ' UTC'));
+            // A verified lifetime promo has no entitlement deadline. The URL
+            // remains short-lived and bound to the session, rechecked on Range.
+            $expires = min($expires, (int)strtotime($access['refresh_expires_at'] . ' UTC'));
+            if (!array_key_exists('valid_until', $access)) {
+                $expires = 0;
+            } elseif ($access['valid_until'] !== null) {
+                $expires = min($expires, (int)strtotime($access['valid_until']));
+            }
             if ($expires <= time()) return ['found' => false, 'cache_ttl_seconds' => 0];
         }
         $sessionId = $access['session_id'] ?? null;
