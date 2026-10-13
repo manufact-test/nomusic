@@ -82,3 +82,31 @@ Owner reports that Google Play Protect completely blocks the 0.1.0 sharing APK w
 The sharing flavor introduces BIND_ACCESSIBILITY_SERVICE. Google developer guidance explicitly lists accessibility declarations among sensitive permissions that can cause automatic blocking of internet-sideloaded APKs: https://developers.google.com/android/play-protect/warning-dev-guidance . This is the leading explanation, not a device-verdict attestation. The original accepted 0.3.16 APK remains available and byte-identical (SHA-256 ce162aed28ab7a56ef7c19f2dc4180c4a3de9c4c3f1ad33916fb4619f74eae06); it has no accessibility/notification listener.
 
 The visible auto-share route is blocked under the owner's ordinary sideloading constraints. Removing the accessibility service would also remove its UI-automation capability, so do not issue a permission-stripped APK as a working automated-ID fix. Do not disguise the service, mislabel isAccessibilityTool, rotate identities, suggest disabling Play Protect, or contact Google without authorization. Manual sharing is already established and does not pass the automatic-current-ID gate.
+
+## Post-block investigation: public source identity boundary
+
+Inspected the matching signed GPR base APK (SHA-256 a3e4d3aedd24ea0370ead4f25c4f0085a1f43b94e458ee949da86797df27fc61), not a substituted publisher variant. No new APK, permissions, account access or owner test was introduced.
+
+### Catalogue ID and public item alias are different fields
+
+The current Media3 metadata producer `aiz.s(int)` obtains the playable through `g0m`, derives NotificationMeta `qfk`, constructs whitelisted metadata with `qtb.g`, and constructs the public MediaItem using `g0m.b()`. The track implementation `oju` exposes the private song through `a()` and a separate `i` field through `b()`. Its own diagnostic string labels these fields `trackId` and `playableId`, respectively: catalogue ID is `jbu.a`; public alias is `oju.i`. The synthetic TrackPlayable constructor supplies this alias using `m0m.b()`, which increments an AtomicInteger and returns its decimal string. Thus the actual catalogue ID exists inside Yandex, but its mere existence does not make it readable from CELIKOM. This explicitly explains the short public IDs in the owner's reports without treating them as source catalogue IDs.
+
+`qfk` carries title, subtitle, album, artist, cover and duration, not catalogue identity. The inspected public metadata assembly adds rating and known boolean/duration extras; it does not publish the internal song object, source ID, source URI or hidden track-ID-bearing text.
+
+### Library commands are restricted by genuine caller identity
+
+The actual public service uses `q7i.a` and an `agi` callback. Its connection path delegates through `xli` to `wni.a(uid, package)`. This checks the package's UID, then distinguishes own/system UID, package+signing-certificate allowlist, platform signing certificate and granted privileged media/notification-binding permissions from an unknown caller. Unknown callers do not receive library access. Ordinary application declarations cannot grant those signature-level permissions. This supports the physical lack of getItem/search/root commands and does not justify another spelling/connection-hint experiment, caller spoof or allowlist impersonation. Granting library commands would not itself prove a catalogue-ID payload.
+
+### Widget and legacy conversion do not expose an independent current ID
+
+`WidgetRecentlyRectangleReceiver` and `WidgetRectangleReceiver` resolve the same `egx.k` / `fzo` implementation. Its current-player `shx` model contains a cover bitmap, title, subtitle, explicit type, button models and color type. `rhx` is the loading model, not a recent-track list. The button models examined contain state flags or singleton commands, not a current source song ID. The widget navigator `wfx.b()` opens MainScreenActivity with ACTION_OPEN_PLAYER and need_expand=true, without a song ID. Therefore do not build a widget host merely to extract its main-player PendingIntent or infer current identity from a recent-item ordering.
+
+Pinned AndroidX 1.8.0 MediaSessionLegacyStub copies current MediaItem.mediaId and requestMetadata.mediaUri; LegacyConversions maps the same values to framework metadata. Access to a framework token would not manufacture an independent source ID. The owner's already-rejected separate framework connection remains final evidence for that tested route.
+
+### Broadcast candidates classified
+
+DEX string and sendBroadcast-call-site scans were followed by source checks; byte-pattern hits are leads, not complete call-graph proof. `rjr.Q` sends OPEN_AUDIO_EFFECT_CONTROL_SESSION with session number and package only; `ybr` closes it with the same fields. `h4p` sends APP_READY under RELAY_PERMISSION with no song payload. `up2` and `fc4` send package-scoped VPN UI events. `bii` launches the SystemUI media-output dialog with package information. `ofz.r` forwards Cast control actions to an explicit component without a song payload; its separate media-button handler reads key events. `b4q.m` is a WhatsApp OTP SDK request, and `ttp` is a GMS registration RPC. Glance's `cwy.K` forwards widget action intents; it is not a song-change publisher. `jyj` was a scanner false positive: its static initializer is a network-subtype enum. No externally readable exact-current-track broadcast was identified in these inspected paths; this is not a proof that all possible future builds or runtime-generated channels are absent.
+
+### Current feasibility result
+
+The exact ID is located in Yandex's internal track model and direct sharing-link construction, but no automatic local channel accessible to an ordinary separately installed CELIKOM application has been demonstrated under the owner's current constraints. Manual sharing remains an actual source-ID channel; it does not meet automatic-current-track requirements. The Accessibility sharing prototype is withdrawn after physical installation rejection. Do not ship another build that merely renames the package or removes the capability and claims the identity problem fixed. Accepted audio/playback-state work remains intact; full replacement and client UI remain gated on source identity. No owner check is pending from this investigation.
