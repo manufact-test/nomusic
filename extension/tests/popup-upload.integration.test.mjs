@@ -290,17 +290,21 @@ test('song changes while checking do not display the previous song form',async()
  assert.equal(form().hidden,false);assert.equal(find('[data-upload-track]').value,'944530507');
 });
 
-test('active replacement and pause have explicit labels and returning original clears them',async()=>{
+test('active replacement label is stable across polls even when original audio is paused',async()=>{
  const send=chrome.runtime.sendMessage;
- chrome.runtime.sendMessage=async(message)=>message.type==='CELIKOM_STATUS_GET'
-  ?{...current,enabled:true,phase:'REPLACEMENT_ACTIVE',player:{paused:false}}:send(message);
- intervals[0]();await new Promise(resolve=>setImmediate(resolve));
- assert.equal(find('[data-version-status]').textContent,'Играет версия CELIKOM');
+ const node=find('[data-version-status]');let writes=[];let text=node.textContent;
+ Object.defineProperty(node,'textContent',{configurable:true,get:()=>text,set:value=>{writes.push(value);text=value;}});
  chrome.runtime.sendMessage=async(message)=>message.type==='CELIKOM_STATUS_GET'
   ?{...current,enabled:true,phase:'REPLACEMENT_ACTIVE',player:{paused:true}}:send(message);
- intervals[0]();await new Promise(resolve=>setImmediate(resolve));
- assert.equal(find('[data-version-status]').textContent,'Версия CELIKOM на паузе');
- chrome.runtime.sendMessage=send;
- intervals[0]();await new Promise(resolve=>setImmediate(resolve));
- assert.match(find('[data-version-status]').textContent,/доступна для подмены/);
+ try {
+  for(let i=0;i<4;i++) {intervals[0]();await new Promise(resolve=>setImmediate(resolve));}
+  assert.equal(node.textContent,'Подмена активна · версия CELIKOM');
+  assert.deepEqual(writes,['Подмена активна · версия CELIKOM'],'no intermediate availability or pause label on repeated polls');
+  chrome.runtime.sendMessage=send;
+  intervals[0]();await new Promise(resolve=>setImmediate(resolve));
+  assert.match(node.textContent,/доступна для подмены/);
+ } finally {
+  chrome.runtime.sendMessage=send;
+  Object.defineProperty(node,'textContent',{configurable:true,writable:true,value:text});
+ }
 });
