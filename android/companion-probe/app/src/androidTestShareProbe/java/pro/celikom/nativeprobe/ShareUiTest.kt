@@ -40,10 +40,12 @@ class ShareUiTest {
     @Test fun separateInstallHasNoEnabledEqualizerOrNotificationListener() {
         assertTrue(context.packageName.endsWith(".shareprobe"))
         val info=context.packageManager.getPackageInfo(context.packageName,PackageManager.GET_ACTIVITIES or PackageManager.GET_SERVICES or PackageManager.GET_RECEIVERS or PackageManager.MATCH_DISABLED_COMPONENTS)
-        assertFalse(info.activities.first { it.name.endsWith(".MainActivity") }.enabled)
-        assertFalse(info.activities.first { it.name.endsWith(".EffectPanelActivity") }.enabled)
-        assertFalse(info.services.any { it.name.endsWith(".AttenuationService") || it.name.endsWith(".MusicListener") })
-        val ui=info.services.first { it.name.endsWith(".ShareUiService") }
+        val activities=requireNotNull(info.activities)
+        val services=requireNotNull(info.services)
+        assertFalse(activities.first { it.name.endsWith(".MainActivity") }.enabled)
+        assertFalse(activities.first { it.name.endsWith(".EffectPanelActivity") }.enabled)
+        assertFalse(services.any { it.name.endsWith(".AttenuationService") || it.name.endsWith(".MusicListener") })
+        val ui=services.first { it.name.endsWith(".ShareUiService") }
         assertEquals("android.permission.BIND_ACCESSIBILITY_SERVICE",ui.permission)
     }
     @Test fun nativeShareUiOpensWithoutLaunchingOtherApps() {
