@@ -103,13 +103,13 @@ object ProbeStore {
     }
     fun enabled(c: Context): Boolean = prefs(c).getBoolean("enabled", true)
     fun setEnabled(c: Context, enabled: Boolean) { prefs(c).edit().putBoolean("enabled", enabled).apply() }
-    fun clear(c: Context) { prefs(c).edit().remove("events").remove("media").remove("media_history").remove("shared_track").remove("public_media").remove("public_browser").remove("attenuation_test").remove("service_discovery").remove("browser_attempts").remove("media3_error").remove("track_identity").remove("session_identity").remove("catalog_match").remove("public_media_history").remove("observation_window").remove("legacy_identity").remove("package_export").apply() }
+    fun clear(c: Context) { prefs(c).edit().remove("events").remove("media").remove("media_history").remove("shared_track").remove("public_media").remove("public_browser").remove("attenuation_test").remove("service_discovery").remove("browser_attempts").remove("media3_error").remove("track_identity").remove("session_identity").remove("catalog_match").remove("public_media_history").remove("observation_window").remove("legacy_identity").remove("package_export").remove("share_ui_test").remove("share_link_result").apply() }
     fun acceptSharedLink(c: Context, input: String?): Boolean {
         if (input == null || input.length > 2048) return false
         val raw = Regex("https://[^\\s]+").find(input)?.value ?: return false
         val uri = Uri.parse(raw)
         if (uri.host !in listOf("music.yandex.ru", "music.yandex.com") || uri.userInfo != null || uri.port != -1) return false
-        if (!Regex("/album/[1-9][0-9]*/track/[1-9][0-9]{0,23}").matches(uri.path ?: "")) return false
+        if (!Regex("(?:/album/[1-9][0-9]*)?/track/[1-9][0-9]{0,23}").matches(uri.path ?: "")) return false
         val id = uri.pathSegments.lastOrNull() ?: return false
         put(c, "shared_track", JSONObject().put("track_id", id).put("source", "user_shared_link")
             .put("observed_at_ms", System.currentTimeMillis()).put("current_track_verified", false))
@@ -136,6 +136,8 @@ object ProbeStore {
         if (legacy.optString("status") == "connected" && !legacyFresh) legacy.put("status", "data_stale")
         return JSONObject().put("schema", 1).put("probe_version", BuildConfig.VERSION_NAME)
             .put("legacy_identity", legacy)
+            .put("share_ui_test", JSONObject(prefs(c).getString("share_ui_test", "{}")))
+            .put("share_link_result", JSONObject(prefs(c).getString("share_link_result", "{}")))
             .put("package_export", JSONObject(prefs(c).getString("package_export", "{}")))
             .put("track_identity",JSONObject(prefs(c).getString("track_identity","{}")))
             .put("session_identity",JSONObject(prefs(c).getString("session_identity","{}")))

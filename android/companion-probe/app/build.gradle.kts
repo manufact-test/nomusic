@@ -13,6 +13,11 @@ android {
     productFlavors {
         create("full") { dimension = "observation"; buildConfigField("boolean", "PANEL_ONLY", "false") }
         create("panelOnly") { dimension = "observation"; buildConfigField("boolean", "PANEL_ONLY", "true") }
+        create("shareProbe") {
+            dimension = "observation"; applicationIdSuffix = ".shareprobe"
+            versionCode = 1; versionName = "0.1.0-share-probe"
+            buildConfigField("boolean", "PANEL_ONLY", "true")
+        }
     }
     signingConfigs {
         create("distribution") {
