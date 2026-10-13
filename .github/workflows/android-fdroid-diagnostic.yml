@@ -5,6 +5,7 @@ on:
     paths:
       - .github/workflows/android-fdroid-diagnostic.yml
       - tools/android-source-audit/fdroid-test-delivery.json
+      - tools/android-source-audit/fdroid-test-landing.html
 permissions:
   contents: read
 jobs:
@@ -38,6 +39,7 @@ jobs:
           assert apk.stat().st_size==8421566
           assert hashlib.sha256(apk.read_bytes()).hexdigest()=='e44cdd00cc527625ba3c7fa8603631168bdf640648ceeedd0ceca0a894501bd9'
           PY
+          cp tools/android-source-audit/fdroid-test-landing.html "$RUNNER_TEMP/public-test/index.html"
           for jar in index.jar index-v1.jar entry.jar; do
             jarsigner -verify "$RUNNER_TEMP/public-test/fdroid/repo/$jar"
           done
@@ -66,6 +68,7 @@ jobs:
           set -euo pipefail
           base=https://darkred-camel-588676.hostingersite.com/android-id-test
           curl --fail --retry 3 "$base/" -o "$RUNNER_TEMP/live.html"
+          cmp "$RUNNER_TEMP/live.html" "$RUNNER_TEMP/public-test/index.html"
           for file in entry.jar index-v1.jar verified-package.json; do
             curl --fail --retry 3 "$base/fdroid/repo/$file" -o "$RUNNER_TEMP/live-$file"
             cmp "$RUNNER_TEMP/live-$file" "$RUNNER_TEMP/public-test/fdroid/repo/$file"
