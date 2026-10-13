@@ -138,3 +138,9 @@ Also inspected MainScreenActivity.F incoming actions and the extra.fragment.on.c
 The exact-current-ID gate remains open. No new APK was built, no permissions were changed, and no owner checks are pending from this continuation. Preserve working 0.3.16 audio/state and the withdrawn status of the physically blocked Accessibility experiment.
 
 Primary API source: https://github.com/androidx/media/blob/1.8.0/libraries/session/src/main/java/androidx/media3/session/MediaController.java . Static evidence remains tied to the signed matching GPR APK recorded above.
+
+### Follow-through on registered URL patterns
+
+Extracted URI/current/share/player string references from the 52 static route-pattern holder classes named in dev's registration list. The scanner produced 113 references in those classes; none names a current/share/player route. This is a byte-pattern lead scan, not semantic validation of every parser. The direct dev-level sharelogs pattern remains diagnostic-only. Independently decompiled yxh's generic yandexmusic://open pattern and omu's ordinary /track/{value} patterns. These accept navigation inputs; no current-song-to-CELIKOM output channel was established. Dynamic registrations, query-driven behavior and the two helper-added route groups are not claimed exhausted. Do not describe arbitrary incoming /track/current text as an actual catalogue ID returned by the playing source.
+
+Confirmed the button builders separately: tq5 stores Bundle.EMPTY for button extras, rcq's media-control command factories also use Bundle.EMPTY, and xwq's media-control branch does not inject track identifiers. The read-only command-button hypothesis is closed for the inspected ordinary-track construction path. Current automatic identity remains unresolved.
