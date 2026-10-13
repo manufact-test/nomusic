@@ -17,7 +17,7 @@ import zipfile
 BASE_HASH = 'a3e4d3aedd24ea0370ead4f25c4f0085a1f43b94e458ee949da86797df27fc61'
 
 def run(adb, *args, timeout=45):
-    result = subprocess.run([adb, '-s', 'emulator-5554', *args], capture_output=True, text=True, timeout=timeout)
+    result = subprocess.run([adb, '-s', 'emulator-5554', *args], capture_output=True, text=True, timeout=timeout, stdin=subprocess.DEVNULL)
     if result.returncode:
         raise RuntimeError('adb_command_failed:' + args[0])
     return result.stdout
