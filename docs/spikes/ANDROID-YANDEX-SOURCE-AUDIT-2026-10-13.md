@@ -144,3 +144,18 @@ Primary API source: https://github.com/androidx/media/blob/1.8.0/libraries/sessi
 Extracted URI/current/share/player string references from the 52 static route-pattern holder classes named in dev's registration list. The scanner produced 113 references in those classes; none names a current/share/player route. This is a byte-pattern lead scan, not semantic validation of every parser. The direct dev-level sharelogs pattern remains diagnostic-only. Independently decompiled yxh's generic yandexmusic://open pattern and omu's ordinary /track/{value} patterns. These accept navigation inputs; no current-song-to-CELIKOM output channel was established. Dynamic registrations, query-driven behavior and the two helper-added route groups are not claimed exhausted. Do not describe arbitrary incoming /track/current text as an actual catalogue ID returned by the playing source.
 
 Confirmed the button builders separately: tq5 stores Bundle.EMPTY for button extras, rcq's media-control command factories also use Bundle.EMPTY, and xwq's media-control branch does not inject track identifiers. The read-only command-button hypothesis is closed for the inspected ordinary-track construction path. Current automatic identity remains unresolved.
+
+## Continuation: URI semantics, platform roles, timeline, and installation test
+
+Completed the helper-added route groups (qs1 artist screens and kjy communication patterns), query parsing (t2p/wdv), and 21 query-accessor callers from the matching signed GPR APK. Playback keys including play, playTrack, trackpos, shuffle, repeat, openPlayer, aliceSessionId and lyricsMode are incoming directives. The /track/{input} validator requires the supplied catalogue ID. UrlActivity forwards navigation inputs and finishes; no current-song ID result API was established. A parseResult track_id branch belongs to Passport authentication, not music identity. The GlagolCast current-track-ID helper reads internal state, not an ordinary application return channel. Failed large Java decompilations were inspected through DEX and SIMPLE output; no claim that all dynamic routes are exhausted.
+
+Checked pinned Android 13 permission/role sources: MEDIA_CONTENT_CONTROL is signature|privileged; declaring it or becoming the assistant does not grant it. Checked AndroidX Media3 1.8 Timeline serialization: Window uid/manifest and Period id/uid are omitted and restored with placeholders. These paths do not establish catalogue identity.
+
+A transparent, owner-hosted F-Droid diagnostic repository is now published:
+https://darkred-camel-588676.hostingersite.com/android-id-test/
+Repository fingerprint: 0937D8B0F51EF36ECF13DB27D70299491E1084FADF9B9D2BC95B35DE3A213385.
+This is a private test catalogue, not an officially reviewed F-Droid listing.
+The APK is unchanged from the blocked sharing prototype; package pro.celikom.nativeprobe.shareprobe, version 0.1.0-share-probe (1), SHA256 e44cdd00cc527625ba3c7fa8603631168bdf640648ceeedd0ceca0a894501bd9.
+The public archive contains no signing keys. Repository JARs were signed with SHA256withRSA and verified with the F-Droid parser; SHA1-generated output was rejected and replaced before distribution.
+GitHub workflow run 38415844790 successfully verified the archive, published only the isolated android-id-test directory, and byte-compared public indexes and APK.
+Physical F-Droid installation, source-ID extraction, background and locked-screen operation are still unverified. The phone test uses explicit Accessibility consent, a visible bounded Yandex menu/share operation and manual recipient selection. No Play Protect disabling, installer spoofing, caller impersonation or Google appeal is part of this test.
