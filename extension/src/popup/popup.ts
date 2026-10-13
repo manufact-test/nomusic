@@ -181,7 +181,7 @@ async function uploadApiOrigin(): Promise<string> {
 
 async function contributionAccess(): Promise<string> {
   const result = await send<{ ok: boolean; access_token?: string; error?: string }>({ type: "CELIKOM_AUTH", action: "contribution-access" });
-  if (!result.ok || !/^[a-f0-9]{64}$/.test(result.access_token || "")) throw new Error(result.error || "invalid_session");
+  if (!result?.ok || !/^[a-f0-9]{64}$/.test(result.access_token || "")) throw new Error(result.error || "invalid_session");
   return result.access_token!;
 }
 function contributionError(error: unknown): string {
@@ -194,20 +194,32 @@ function contributionError(error: unknown): string {
 }
 
 async function trackUploadStatus(origin: string, trackId: string): Promise<"none" | "pending" | "approved"> {
-  const response = await fetch(origin + "/api/v1/tracks/upload-status?service=yandex&track_id=" + encodeURIComponent(trackId), {
-    method: "GET", redirect: "error", credentials: "omit", cache: "no-store",
-    headers: { Authorization: "Bearer " + await contributionAccess() },
-    signal: AbortSignal.timeout(10000)
-  });
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({}));
-    throw new Error(error.error || "upload_status_unavailable");
+  // Retry only this read. Audio submission is never automatically replayed.
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const response = await fetch(origin + "/api/v1/tracks/upload-status?service=yandex&track_id=" + encodeURIComponent(trackId), {
+        method: "GET", redirect: "error", credentials: "omit", cache: "no-store",
+        headers: { Authorization: "Bearer " + await contributionAccess() },
+        signal: AbortSignal.timeout(10000)
+      });
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({}));
+        if (attempt === 0 && (response.status >= 500 || response.status === 401)) {
+          await new Promise(resolve => setTimeout(resolve, 250)); continue;
+        }
+        throw new Error(error.error || "upload_status_unavailable");
+      }
+      const value = await response.json();
+      if (!["none", "pending", "approved"].includes(value?.status)) throw new Error("invalid_upload_status");
+      return value.status;
+    } catch (error) {
+      const transient = error instanceof TypeError || (error as Error)?.name === "TimeoutError" ||
+        ["auth_timeout", "auth_network_error", "auth_unavailable"].includes((error as Error)?.message);
+      if (attempt || !transient) throw error;
+      await new Promise(resolve => setTimeout(resolve, 250));
+    }
   }
-  const value = await response.json();
-  if (value?.status !== "none" && value?.status !== "pending" && value?.status !== "approved") {
-    throw new Error("invalid_upload_status");
-  }
-  return value.status;
+  throw new Error("upload_status_unavailable");
 }
 
 addTrackButton?.addEventListener("click", async () => {
@@ -222,10 +234,11 @@ addTrackButton?.addEventListener("click", async () => {
       render(current);
     } catch (error) {
       opening = false;
+      resetUploadPanel();
       uploadMessage(contributionError(error), "error");
       return;
     }
-    if (!uploadPanel.hidden) {
+    if (!uploadPanel.hidden && (uploadStatus?.hidden || uploadStatus?.dataset.kind !== "error")) {
       transitionUploadPanel(() => { uploadPanel.hidden = true; });
       addTrackButton.setAttribute("aria-expanded", "false");
       return;
@@ -249,8 +262,9 @@ addTrackButton?.addEventListener("click", async () => {
     if (!pinnedTrack) {
       note = "Сначала запустите песню в Яндекс Музыке и дождитесь определения Track ID.";
     } else {
+      const target = pinnedTrack;
       const origin = await uploadApiOrigin();
-      const serverState = await trackUploadStatus(origin, pinnedTrack.id);
+      const serverState = await trackUploadStatus(origin, target.id);
       if (serverState === "pending") {
         view = "result";
         title = "Трек уже добавлен";
@@ -263,7 +277,7 @@ addTrackButton?.addEventListener("click", async () => {
         view = "form";
       }
       const current = uploadTargetFromStatus(await send<ExtensionState>({ type: COMMANDS.getStatus }));
-      if (current?.id !== pinnedTrack.id) throw new Error("track_changed");
+      if (current?.id !== target.id) throw new Error("track_changed");
     }
   } catch (error) {
     view = "error";
@@ -345,6 +359,8 @@ uploadForm?.addEventListener("submit", async (event) => {
     }
     origin = await uploadApiOrigin();
     const existing = await trackUploadStatus(origin, pinnedTrack.id);
+    const checkedTarget = uploadTargetFromStatus(await send<ExtensionState>({ type: COMMANDS.getStatus }));
+    if (checkedTarget?.id !== pinnedTrack.id) throw new Error("track_changed");
     if (existing !== "none") {
       showSubmitted(existing === "pending" ? "Трек уже добавлен" : "Версия уже доступна",
         "Заявка уже есть в CELIKOM. Повторно отправлять файл не нужно.");
@@ -366,6 +382,8 @@ uploadForm?.addEventListener("submit", async (event) => {
     xhr.open("POST", origin + "/api/v1/uploads");
     xhr.timeout = 120000;
     xhr.setRequestHeader("Authorization", "Bearer " + await contributionAccess());
+    const finalTarget = uploadTargetFromStatus(await send<ExtensionState>({ type: COMMANDS.getStatus }));
+    if (finalTarget?.id !== pinnedTrack.id) throw new Error("track_changed");
     xhr.upload.addEventListener("progress", (progress) => {
       if (progress.lengthComputable && uploadProgress) uploadProgress.value = Math.floor(progress.loaded / progress.total * 100);
     });
@@ -407,8 +425,8 @@ uploadForm?.addEventListener("submit", async (event) => {
     });
     xhr.send(data);
     transferStarted = true;
-  } catch (_error) {
-    uploadMessage("Не удалось связаться с сервером. Повторите попытку.", "error");
+  } catch (error) {
+    uploadMessage(contributionError(error), "error");
   } finally {
     // The request completion handler is responsible for re-enabling the button
     // after xhr.send(). An early exit must never leave the UI stuck.

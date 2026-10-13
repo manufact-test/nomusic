@@ -39,6 +39,7 @@ export interface ExtensionState {
       durationMs?: number;
     };
   } | null;
+  player?: { paused: boolean } | null;
   bridge?: {
     ready: boolean;
     healthy: boolean;

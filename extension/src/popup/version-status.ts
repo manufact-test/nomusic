@@ -36,8 +36,10 @@ export function initVersionStatus(send) {
     node.hidden = !id;
     if (!id) { cached = null; clearDisplay("version"); stableText(node, ""); return; }
     if (state.phase === "REPLACEMENT_ACTIVE") {
-      request++; loading = false; checkedAt = Date.now(); remember(id, "approved"); return;
+      request++; loading = false; checkedAt = Date.now(); remember(id, "approved");
+      stableText(node, state.player?.paused === true ? "Версия CELIKOM на паузе" : "Играет версия CELIKOM"); return;
     }
+    if (cached?.trackId === id) stableText(node, labels[cached.status]);
     if (loading || (checkedAt && Date.now() - checkedAt < 15000)) return;
     const current = ++request; loading = true;
     try {

@@ -250,3 +250,57 @@ test('switching songs and clicking upload before polling opens the new form in o
  assert.equal(result().hidden,true);
  assert.equal(find('[data-upload-rights]').checked,false);
 });
+
+test('search-selected song recovers a temporary status failure without reload or duplicate audio',async()=>{
+ current={track:{...selected.track,id:'944530504'}};
+ const originalFetch=globalThis.fetch;let calls=0;const before=requests.length;
+ globalThis.fetch=async(url,...args)=>{
+  if(String(url).includes('/tracks/upload-status') && ++calls===1) return {ok:false,status:503,json:async()=>({error:'temporarily_unavailable'})};
+  return originalFetch(url,...args);
+ };
+ try{
+  await find("[data-action='add']").fire('click');
+  assert.equal(calls,2);assert.equal(form().hidden,false);
+  assert.equal(find('[data-upload-track]').value,'944530504');
+  assert.equal(requests.length,before,'presence recovery never sends audio');
+ }finally{globalThis.fetch=originalFetch;}
+});
+
+test('failed opening is retried in one click rather than merely closing the error panel',async()=>{
+ current={track:{...selected.track,id:'944530505'}};
+ offline=true;await find("[data-action='add']").fire('click');offline=false;
+ assert.equal(form().hidden,true);
+ await find("[data-action='add']").fire('click');
+ assert.equal(form().hidden,false);
+ assert.equal(find('[data-upload-track]').value,'944530505');
+});
+
+test('song changes while checking do not display the previous song form',async()=>{
+ current={track:{...selected.track,id:'944530506'}};
+ const originalFetch=globalThis.fetch;
+ globalThis.fetch=async(url,...args)=>{
+  if(String(url).includes('/tracks/upload-status')) current={track:{...selected.track,id:'944530507'}};
+  return originalFetch(url,...args);
+ };
+ try{
+  await find("[data-action='add']").fire('click');
+  assert.equal(form().hidden,true);assert.match(find('[data-upload-status]').textContent,/Песня сменилась/);
+ }finally{globalThis.fetch=originalFetch;}
+ await find("[data-action='add']").fire('click');
+ assert.equal(form().hidden,false);assert.equal(find('[data-upload-track]').value,'944530507');
+});
+
+test('active replacement and pause have explicit labels and returning original clears them',async()=>{
+ const send=chrome.runtime.sendMessage;
+ chrome.runtime.sendMessage=async(message)=>message.type==='CELIKOM_STATUS_GET'
+  ?{...current,enabled:true,phase:'REPLACEMENT_ACTIVE',player:{paused:false}}:send(message);
+ intervals[0]();await new Promise(resolve=>setImmediate(resolve));
+ assert.equal(find('[data-version-status]').textContent,'Играет версия CELIKOM');
+ chrome.runtime.sendMessage=async(message)=>message.type==='CELIKOM_STATUS_GET'
+  ?{...current,enabled:true,phase:'REPLACEMENT_ACTIVE',player:{paused:true}}:send(message);
+ intervals[0]();await new Promise(resolve=>setImmediate(resolve));
+ assert.equal(find('[data-version-status]').textContent,'Версия CELIKOM на паузе');
+ chrome.runtime.sendMessage=send;
+ intervals[0]();await new Promise(resolve=>setImmediate(resolve));
+ assert.match(find('[data-version-status]').textContent,/доступна для подмены/);
+});

@@ -576,7 +576,7 @@ final class AdminPanel
                  'replacement_disable')
                 ORDER BY l.id DESC LIMIT 1
             ) " . $where .
-            " ORDER BY r.id DESC LIMIT "
+            " ORDER BY CASE WHEN r.status='pending' THEN 0 WHEN r.status='approved' THEN 2 ELSE 1 END, r.id DESC LIMIT "
             . $perPage . " OFFSET " . $offset);
         $stmt->execute($params);
         $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC);

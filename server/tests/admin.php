@@ -138,6 +138,25 @@ $candidate=(int)$pdo->lastInsertId();
 $catalog=new PdoCatalogRepository($pdo);
 $mod=new ModerationService($pdo,$storage);
 try{
+    run('Upload queue puts older pending before newer decisions and approved last',function()
+        use($pdo,$app,$sessionHeaders,$trackId,$assetId,$candidate):void{
+        $ids=[];
+        try {
+            foreach(['rejected','approved'] as $status) {
+                $pdo->prepare("INSERT INTO track_replacements(track_id,audio_asset_id,status,is_active) VALUES(?,?,?,0)")
+                    ->execute([$trackId,$assetId,$status]);
+                $ids[]=(int)$pdo->lastInsertId();
+            }
+            $body=$app->handle('GET','/admin',['tab'=>'uploads','per_page'=>'50'],$sessionHeaders)->body;
+            $positions=array_map(static fn($id)=>strpos($body,'#'.$id.' ·'),[$candidate,...$ids]);
+            expect(!in_array(false,$positions,true),'Fixture cards visible');
+            expect($positions[0]<$positions[1] && $positions[1]<$positions[2],'Pending first, approved last despite newer IDs');
+            $filtered=$app->handle('GET','/admin',['tab'=>'uploads','status'=>'approved'],$sessionHeaders)->body;
+            expect(str_contains($filtered,'#'.$ids[1].' ·') && !str_contains($filtered,'#'.$candidate.' ·'),'Status filter remains intact');
+        } finally {
+            foreach($ids as $id) $pdo->prepare('DELETE FROM track_replacements WHERE id=?')->execute([$id]);
+        }
+    });
     run('Stage 8 redesign: Russian statuses, safe paging and no raw role/metadata clutter',function()
         use($app,$sessionHeaders):void{
         foreach(['uploads','requests','reports','audit'] as $tab) {
