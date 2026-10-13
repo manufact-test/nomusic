@@ -175,7 +175,7 @@ try{
         expect(str_contains($page->body,'На проверке'),'Russian status label');
         expect(!str_contains($page->body,'active: 0'),'Internal status text not exposed');
     });
-    run('Stage10 proposals follow pending/approved version without rewriting history; numeric queue order',function()
+    run('Stage10 proposals follow pending/approved version without rewriting history; status-prioritized queue preserves records',function()
         use($app,$pdo,$track,$candidate,$sessionHeaders):void{
         (new TrackRequestService($pdo))->submit(['service'=>'yandex','track_id'=>$track,
             'artist'=>'Stage10','title'=>'Linked proposal'],hash('sha256','stage10-progress'));
@@ -193,9 +193,13 @@ try{
             expect(str_contains($history->body,$marker),'Approved audio fulfills proposal');
             $after=$app->handle('GET','/admin',['tab'=>'uploads','per_page'=>'50'],$sessionHeaders);
             preg_match_all('/<h2 class="track-title">#(\d+) ·/u',$after->body,$idsAfter);
-            expect($idsBefore[1]===$idsAfter[1],'Status change does not reorder numbered versions');
-            $descending=$idsAfter[1]; rsort($descending,SORT_NUMERIC);
-            expect($descending===$idsAfter[1],'Newest numbered version first');
+            $beforeIds=$idsBefore[1];$afterIds=$idsAfter[1];
+            sort($beforeIds,SORT_NUMERIC);sort($afterIds,SORT_NUMERIC);
+            expect($beforeIds===$afterIds,'Approval reorders cards without losing records');
+            $approved=$app->handle('GET','/admin',['tab'=>'uploads','status'=>'approved','per_page'=>'50'],$sessionHeaders);
+            preg_match_all('/<h2 class="track-title">#(\d+) ·/u',$approved->body,$approvedIds);
+            $descending=$approvedIds[1];rsort($descending,SORT_NUMERIC);
+            expect($descending===$approvedIds[1],'Newest numbered version first within one status');
             $q=$pdo->prepare('SELECT status FROM track_requests WHERE id=?');$q->execute([$proposal]);
             expect($q->fetchColumn()==='pending','Original proposal decision retained');
         } finally {
