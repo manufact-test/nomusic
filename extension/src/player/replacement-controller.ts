@@ -82,7 +82,11 @@
         this.masterClock = { id, mediaId: player?.mediaId, time: player?.currentTime || 0, advancedAt: Date.now() };
       }
       if (id && ((previousId && id !== previousId) || (this.manualBypass && id !== this.manualBypass.trackId) || (this.blockedTrackId && id !== this.blockedTrackId))) { this.networkRetries = 0; this.manualBypass = null; this.blockedTrackId = null; this.retryBlock = null; this.lastError = null; }
-      if (["ERROR", "ENDED"].includes(eventType)) { this.abort(`master-${eventType.toLowerCase()}`, true); return; }
+      if (eventType === "ENDED" && player?.ended === true) {
+        // Natural completion releases this lease; it must never block the next song.
+        this.abort("master-ended"); return;
+      }
+      if (eventType === "ERROR") { this.abort("master-error", true); return; }
       this.reconcile(["SEEK", "PLAY", "RATE_CHANGED"].includes(eventType));
     }
     current(operation) { return !this.destroyed && this.operation === operation && this.generation === operation.generation; }

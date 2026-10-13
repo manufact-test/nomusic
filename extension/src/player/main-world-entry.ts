@@ -112,7 +112,9 @@
     },
     onPlayerEvent(event) {
       checkBinding(event.snapshot);
-      if (["ENDED", "ERROR"].includes(event.type)) release(`master-${event.type.toLowerCase()}`);
+      if (event.type === "ERROR" || (event.type === "ENDED" && event.snapshot.player?.ended === true)) {
+        release(`master-${event.type.toLowerCase()}`);
+      }
       if (["PAUSE", "SEEK"].includes(event.type)) {
         for (const element of root.document?.querySelectorAll('audio[data-celikom-replacement="true"]') || []) {
           try { element.pause(); } catch (_error) { /* isolated controller also pauses */ }

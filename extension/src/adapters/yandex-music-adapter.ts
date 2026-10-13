@@ -568,6 +568,9 @@
       this.lastSnapshotSignature = core.snapshotSignature(snapshot);
       const type = core.normalizeNativeEventType(event.type);
       if (!type || snapshot.player?.mediaId !== mediaId) return;
+      // Yandex may reuse the element before a queued ended event is dispatched.
+      // Only the current media state can confirm that this master actually ended.
+      if (type === "ENDED" && snapshot.player?.ended !== true) return;
       this.sink?.onPlayerEvent({
         type,
         nativeEvent: event.type,

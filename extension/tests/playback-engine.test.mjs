@@ -460,3 +460,27 @@ test('HTML route block releases stream and is distinguished from revoked JSON ac
  const f=await remoteStreamFixture([206,{status:403,contentType:'text/html'}]);await f.player.streamTask;
  assert.equal(f.calls.length,2);assert.equal(f.fatals[0].reason,'remote-stream-route-blocked');assert.equal(f.fatals[0].detail.httpStatus,403);f.player.destroy();
 });
+
+test('late ENDED for a reused master cannot block the newly selected track',async()=>{
+ const f=fixture({resolveAsset:async()=>remoteAsset()});f.engine.configure(true,'');
+ f.update(snapshot('48592437'));await settle();assert.equal(f.engine.phase,'REPLACEMENT_ACTIVE');
+ f.engine.abort('guard-lost:master-binding-changed',false,{reason:'master-ended'});await settle();
+ f.update(snapshot('48591588'),'ENDED');await settle();
+ f.update(snapshot('48591588'),'PLAY');await settle();
+ assert.equal(f.engine.lastError,null);
+ assert.equal(f.engine.blockedTrackId,null);
+ assert.equal(f.engine.phase,'REPLACEMENT_ACTIVE');
+ assert.equal(f.engine.operation.trackId,'48591588');
+});
+
+test('six natural track endings advance automatically with no sticky master-ended error',async()=>{
+ const f=fixture({resolveAsset:async()=>remoteAsset()});f.engine.configure(true,'');
+ for(const id of ['61','62','63','64','65','66']) {
+  const playing=snapshot(id);f.update(playing,'PLAY');await settle();
+  assert.equal(f.engine.phase,'REPLACEMENT_ACTIVE',id);
+  const ended=snapshot(id);ended.player.ended=true;ended.player.currentTime=200;
+  f.update(ended,'ENDED');await settle();
+  assert.equal(f.engine.operation,null);assert.equal(f.engine.lastError,null,'natural ending is not an error');
+  assert.equal(f.engine.blockedTrackId,null);
+ }
+});

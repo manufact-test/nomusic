@@ -343,3 +343,14 @@ test("XHR observer listener failure still invokes original send exactly once", (
   finally { adapter.restoreNetworkHooks(); }
   assert.equal(Xhr.prototype.send, original);
 });
+
+test('late native ended after element reuse is not emitted as the new track ending',()=>{
+ const media=new FakeMedia();const {environment}=createEnvironment(media);const adapter=createAdapter(environment);
+ const events=[];adapter.mount({onSnapshot(){},onPlayerEvent:e=>events.push(e)});
+ try {
+  media.ended=false;media.dispatchEvent(new Event('ended'));
+  assert.equal(events.filter(e=>e.type==='ENDED').length,0);
+  media.ended=true;media.dispatchEvent(new Event('ended'));
+  assert.equal(events.filter(e=>e.type==='ENDED').length,1,'genuine selected-master ending is preserved');
+ }finally{adapter.unmount();}
+});

@@ -353,3 +353,27 @@ test("live replacement restores original on extension disable even while stale i
     vm.runInContext("__CELIKOM_MAIN_BRIDGE_V1__.destroy()", main);
   }
 });
+
+test('packaged bridge ignores late ended and rearms after genuine completion without Start or reload',async()=>{
+ const f=browserFixture();const main=f.worlds.get('MAIN'),isolated=f.worlds.get('ISOLATED');
+ await createControllerBootstrap(f.api,{wait:()=>new Promise(resolve=>setTimeout(resolve,5))}).ensure(42);
+ const wait=()=>new Promise(resolve=>setTimeout(resolve,5));
+ const status=async()=>(await f.api.tabs.sendMessage(42,{type:'CELIKOM_CONTROLLER_STATUS_GET'})).status;
+ try {
+  vm.runInContext('globalThis.original=new HTMLMediaElement();original.play();',main);await wait();
+  f.changeStorage({testTrackId:{newValue:'1944599'}});await wait();
+  const first=await status();assert.equal(first.phase,'REPLACEMENT_ACTIVE');
+  vm.runInContext("original.ended=false;original.dispatchEvent(new Event('ended'));",main);await wait();
+  const late=await status();assert.equal(late.phase,'REPLACEMENT_ACTIVE');
+  assert.equal(late.active.generation,first.active.generation,'late event preserves the current lease');
+  assert.equal(vm.runInContext('original.physicalMuted',main),true);
+  vm.runInContext("original.ended=true;original.paused=true;original.currentTime=201;original.dispatchEvent(new Event('ended'));",main);await wait();
+  const ended=await status();assert.equal(ended.active,null);assert.equal(ended.replacementError,null);
+  assert.equal(vm.runInContext('original.physicalMuted',main),false);
+  vm.runInContext('original.ended=false;original.currentTime=0;original.play();',main);await wait();
+  const next=await status();assert.equal(next.phase,'REPLACEMENT_ACTIVE');assert.equal(next.replacementError,null);
+ }finally{
+  vm.runInContext('__CELIKOM_CONTENT_CONTROLLER_V2__.destroy()',isolated);await wait();
+  vm.runInContext('__CELIKOM_MAIN_BRIDGE_V1__.destroy()',main);
+ }
+});
