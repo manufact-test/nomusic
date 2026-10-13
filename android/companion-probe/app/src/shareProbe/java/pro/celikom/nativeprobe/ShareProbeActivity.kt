@@ -28,8 +28,7 @@ class ShareProbeActivity : Activity() {
         val box = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(30, 65, 30, 45); setBackgroundColor(Color.rgb(11,16,19)) }
         fun text(value: String): TextView = TextView(this).apply { text=value; textSize=17f; setTextColor(Color.WHITE); setPadding(0,12,0,22); box.addView(this) }
         fun button(label: String, action: () -> Unit) { box.addView(Button(this).apply { text=label; isAllCaps=false; setOnClickListener { action() } }) }
-        text("CELIKOM — проверка ID
-0.1.0")
+        text("CELIKOM — проверка ID\n0.1.0")
         text("Одноразовый тест на открытом экране Яндекс Музыки. Музыка и эквалайзер не изменяются. Сначала включи песню и открой её полный плеер, затем открой это приложение.")
         button("1. Разрешить тест кнопок Яндекса") {
             AlertDialog.Builder(this).setTitle("Доступ к кнопкам Яндекса")
