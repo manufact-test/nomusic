@@ -19,6 +19,12 @@ android {
             buildConfigField("boolean", "PANEL_ONLY", "true")
         }
     }
+    sourceSets {
+        getByName("full").java.srcDir("src/audioShared/java")
+        getByName("panelOnly").java.srcDir("src/audioShared/java")
+        getByName("androidTestFull").java.srcDir("src/androidTestAudioShared/java")
+        getByName("androidTestPanelOnly").java.srcDir("src/androidTestAudioShared/java")
+    }
     signingConfigs {
         create("distribution") {
             if (!releaseKey.isNullOrBlank()) {
