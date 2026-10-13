@@ -1,13 +1,9 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android" xmlns:tools="http://schemas.android.com/tools">
- <uses-permission android:name="android.permission.WAKE_LOCK" tools:node="remove" />
- <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" tools:node="remove" />
- <uses-permission android:name="android.permission.FOREGROUND_SERVICE" tools:node="remove" />
- <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" tools:node="remove" />
  <application android:label="CELIKOM — проверка ID" tools:replace="android:label">
   <activity android:name=".MainActivity" android:enabled="false" />
   <activity android:name=".EffectPanelActivity" android:enabled="false" />
   <receiver android:name=".SessionReceiver" android:enabled="false" />
-  <service android:name=".AttenuationService" tools:node="remove" />
+  <service android:name=".AttenuationService" android:enabled="false" />
   <activity android:name=".ShareProbeActivity" android:exported="true">
    <intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter>
    <intent-filter><action android:name="android.intent.action.SEND"/><category android:name="android.intent.category.DEFAULT"/><data android:mimeType="text/plain"/></intent-filter>

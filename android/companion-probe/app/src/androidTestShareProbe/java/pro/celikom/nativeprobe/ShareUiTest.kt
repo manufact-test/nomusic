@@ -44,7 +44,8 @@ class ShareUiTest {
         val services=requireNotNull(info.services)
         assertFalse(activities.first { it.name.endsWith(".MainActivity") }.enabled)
         assertFalse(activities.first { it.name.endsWith(".EffectPanelActivity") }.enabled)
-        assertFalse(services.any { it.name.endsWith(".AttenuationService") || it.name.endsWith(".MusicListener") })
+        assertFalse(services.any { it.enabled && it.name.endsWith(".AttenuationService") })
+        assertFalse(services.any { it.name.endsWith(".MusicListener") })
         val ui=services.first { it.name.endsWith(".ShareUiService") }
         assertEquals("android.permission.BIND_ACCESSIBILITY_SERVICE",ui.permission)
     }
