@@ -1,6 +1,21 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android"><application>
-        <service android:name="pro.celikom.nativeprobe.AttenuationService" android:exported="false" android:foregroundServiceType="mediaPlayback" />
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+<application>
+        <activity android:name=".MainActivity" android:exported="true">
+            <intent-filter><action android:name="android.intent.action.MAIN" /><category android:name="android.intent.category.LAUNCHER" /></intent-filter>
+            <intent-filter><action android:name="android.intent.action.SEND" /><category android:name="android.intent.category.DEFAULT" /><data android:mimeType="text/plain" /></intent-filter>
+        </activity>
+        <activity android:name=".EffectPanelActivity" android:exported="true">
+            <intent-filter><action android:name="android.media.action.DISPLAY_AUDIO_EFFECT_CONTROL_PANEL" /><category android:name="android.intent.category.DEFAULT" /></intent-filter>
+        </activity>
 
+        <service android:name="pro.celikom.nativeprobe.AttenuationService" android:exported="false" android:foregroundServiceType="mediaPlayback" />
+        <receiver android:name=".SessionReceiver" android:exported="true">
+            <intent-filter><action android:name="android.media.action.OPEN_AUDIO_EFFECT_CONTROL_SESSION" /><action android:name="android.media.action.CLOSE_AUDIO_EFFECT_CONTROL_SESSION" /></intent-filter>
+        </receiver>
         <service android:name=".MusicListener" android:label="CELIKOM: состояние Яндекс Музыки"
             android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE" android:exported="true">
             <intent-filter><action android:name="android.service.notification.NotificationListenerService" /></intent-filter>
