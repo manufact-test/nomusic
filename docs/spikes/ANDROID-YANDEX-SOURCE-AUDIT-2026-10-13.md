@@ -110,3 +110,19 @@ DEX string and sendBroadcast-call-site scans were followed by source checks; byt
 ### Current feasibility result
 
 The exact ID is located in Yandex's internal track model and direct sharing-link construction, but no automatic local channel accessible to an ordinary separately installed CELIKOM application has been demonstrated under the owner's current constraints. Manual sharing remains an actual source-ID channel; it does not meet automatic-current-track requirements. The Accessibility sharing prototype is withdrawn after physical installation rejection. Do not ship another build that merely renames the package or removes the capability and claims the identity problem fixed. Accepted audio/playback-state work remains intact; full replacement and client UI remain gated on source identity. No owner check is pending from this investigation.
+
+## Continued investigation: Android assistant context
+
+Investigated a separate public mechanism after the owner asked to resume: Android AssistContent / AssistStructure delivered to the user-selected assistant. This is not an Accessibility service or notification listener, but it still requires assistant selection and foreground contextual collection; it is not a background ID API. No assistant APK was built or proposed for owner installation.
+
+An exhaustive DEX string/method-table pass over the matching GPR base found no AssistContent type, onProvideAssistContent/onProvideAssistData override, registerOnProvideAssistDataListener call, setWebUri/setStructuredData call, or onGetDirectActions/onPerformDirectAction implementation. The apparent setAppSearchData lead belongs to androidx.appcompat.widget.SearchView, not an AppSearch source-track index. These findings cover statically named implementations in this inspected binary, not hypothetical reflection, downloaded code, or all future releases.
+
+Pinned AOSP Android 13 ActivityThread.handleRequestAssistContextExtras first copies Activity.getIntent() into AssistContent with setDefaultIntent, then invokes onProvideAssistContent. The base Activity hook is empty. Yandex MainScreenActivity.onNewIntent stores the incoming launch intent with setIntent(intent); this is not a song-change-to-source-URI publisher. An incoming deep link may identify the item originally opened, but it is not verified current identity after queue transitions. A default AssistStructure can carry screen text; that cannot replace the owner's exact source-ID requirement with title matching. No current-ID-bearing assistant channel was established, and no owner test is pending.
+
+Primary platform references:
+- https://developer.android.com/training/articles/assistant
+- https://developer.android.com/reference/android/app/assist/AssistContent
+- https://github.com/aosp-mirror/platform_frameworks_base/blob/android-13.0.0_r1/core/java/android/app/ActivityThread.java
+- https://github.com/aosp-mirror/platform_frameworks_base/blob/android-13.0.0_r1/core/java/android/app/Activity.java
+
+Engineering limit remains explicit: finding the private catalogue ID in source does not grant a separately installed app access to the live object. Sound replacement and public playback-state feasibility remain accepted; automatic catalogue identity is not solved. Do not disguise protected access as a parser fix or keep creating owner test builds without an actual source-ID-bearing channel.
