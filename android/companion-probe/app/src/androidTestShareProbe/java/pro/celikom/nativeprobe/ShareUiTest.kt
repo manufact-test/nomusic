@@ -39,7 +39,7 @@ class ShareUiTest {
     }
     @Test fun separateInstallHasNoEnabledEqualizerOrNotificationListener() {
         assertTrue(context.packageName.endsWith(".shareprobe"))
-        val info=context.packageManager.getPackageInfo(context.packageName,PackageManager.GET_ACTIVITIES or PackageManager.GET_SERVICES or PackageManager.GET_RECEIVERS)
+        val info=context.packageManager.getPackageInfo(context.packageName,PackageManager.GET_ACTIVITIES or PackageManager.GET_SERVICES or PackageManager.GET_RECEIVERS or PackageManager.MATCH_DISABLED_COMPONENTS)
         assertFalse(info.activities.first { it.name.endsWith(".MainActivity") }.enabled)
         assertFalse(info.activities.first { it.name.endsWith(".EffectPanelActivity") }.enabled)
         assertFalse(info.services.any { it.name.endsWith(".AttenuationService") || it.name.endsWith(".MusicListener") })
