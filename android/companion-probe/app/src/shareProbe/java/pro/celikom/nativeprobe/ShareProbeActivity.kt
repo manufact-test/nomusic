@@ -73,12 +73,12 @@ class ShareProbeActivity : Activity() {
         val after = r.optJSONObject("media")
         val id = after?.optJSONArray("sessions")?.optJSONObject(0)?.optString("media_id")
         ProbeStore.put(this,"share_link_result", JSONObject().put("status",if (accepted) "source_link_received" else "invalid_link")
-            .put("source_track_id",r.optJSONObject("shared_track")?.optString("track_id"))
+            .put("source_track_id",if (accepted) r.optJSONObject("shared_track")?.optString("track_id") else JSONObject.NULL)
             .put("at_ms",System.currentTimeMillis()).put("before_media_id",before?.optString("before_media_id"))
             .put("after_media_id",id).put("player_observation_fresh",after?.optBoolean("fresh") == true)
             .put("automatic_current_track_verified",false))
     }
-    override fun onNewIntent(intent: Intent?) { super.onNewIntent(intent); setIntent(intent); accept(intent) }
+    override fun onNewIntent(intent: Intent) { super.onNewIntent(intent); setIntent(intent); accept(intent) }
     private fun report(): JSONObject = ProbeStore.report(this).put("share_probe_version","0.1.0")
     private fun render() {
         val r=report(); val media=r.optJSONObject("media"); val song=media?.optJSONArray("sessions")?.optJSONObject(0)

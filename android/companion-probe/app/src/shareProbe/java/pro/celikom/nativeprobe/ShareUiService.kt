@@ -38,6 +38,8 @@ class ShareUiService : AccessibilityService() {
         deadline = SystemClock.elapsedRealtime() + 45000
         step = 0; lastClick = 0
         while (evidence.length() > 0) evidence.remove(0)
+        ProbeStore.put(this, "share_ui_test", JSONObject())
+        ProbeStore.put(this, "share_link_result", JSONObject().put("status", "not_received"))
         record("waiting_for_player")
         handler.post(tick)
         return true
@@ -47,9 +49,13 @@ class ShareUiService : AccessibilityService() {
         deadline = 0L; handler.removeCallbacks(tick); record(status)
     }
     private fun record(status: String) {
-        ProbeStore.put(this, "share_ui_test", JSONObject().put("status", status).put("step", step)
+        val previous = ProbeStore.report(this).optJSONObject("share_ui_test")
+        val value = JSONObject().put("status", status).put("step", step)
             .put("before_media_id", beforeId).put("at_ms", System.currentTimeMillis())
-            .put("actions", JSONArray(evidence.toString())).put("exact_track_id_verified", false))
+            .put("actions", JSONArray(evidence.toString())).put("exact_track_id_verified", false)
+        previous?.optJSONArray("visible_control_ids")?.let { value.put("visible_control_ids", it) }
+        if (previous?.has("player_container_present") == true) value.put("player_container_present", previous.optBoolean("player_container_present"))
+        ProbeStore.put(this, "share_ui_test", value)
     }
     private fun inspect() {
         val root = rootInActiveWindow ?: return
