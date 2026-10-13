@@ -1,0 +1,74 @@
+name: Android ID diagnostic repository
+on:
+  push:
+    branches: [feature/api-range]
+    paths:
+      - .github/workflows/android-fdroid-diagnostic.yml
+      - tools/android-source-audit/fdroid-test-delivery.json
+permissions:
+  contents: read
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify and extract public payload
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh api repos/manufact-test/nomusic/git/blobs/1995ce746ee6daf327f2bd483f8ddb6edd862d20 > "$RUNNER_TEMP/payload.json"
+          python3 - <<'PY'
+          import base64,hashlib,json,os,pathlib,zipfile,io
+          data=base64.b64decode(json.load(open(os.environ['RUNNER_TEMP']+'/payload.json'))['content'])
+          assert len(data)==3142905
+          assert hashlib.sha256(data).hexdigest()=='48d60989d7098467e68b1d191e958117dfbe2c6089dc6e89ab1f90fde4b26cbc'
+          dest=pathlib.Path(os.environ['RUNNER_TEMP'])/'public-test'
+          dest.mkdir()
+          with zipfile.ZipFile(io.BytesIO(data)) as z:
+              for i in z.infolist():
+                  p=pathlib.PurePosixPath(i.filename)
+                  assert not p.is_absolute() and '..' not in p.parts
+                  assert i.filename in ('index.html','README.txt') or i.filename.startswith('fdroid/repo/')
+                  assert (i.external_attr >> 16) & 0o170000 != 0o120000
+                  assert not any(s in i.filename.lower() for s in ('.p12','key-state','config.yml','recipient.key'))
+              z.extractall(dest)
+          apk=dest/'fdroid/repo/pro.celikom.nativeprobe.shareprobe_1.apk'
+          assert apk.stat().st_size==8421566
+          assert hashlib.sha256(apk.read_bytes()).hexdigest()=='e44cdd00cc527625ba3c7fa8603631168bdf640648ceeedd0ceca0a894501bd9'
+          PY
+          for jar in index.jar index-v1.jar entry.jar; do
+            jarsigner -verify "$RUNNER_TEMP/public-test/fdroid/repo/$jar"
+          done
+      - name: Publish isolated diagnostic files
+        env:
+          HOSTINGER_SSH_KEY: ${{ secrets.HOSTINGER_SSH_KEY }}
+        run: |
+          set -euo pipefail
+          dir=$(mktemp -d)
+          trap 'rm -rf "$dir"' EXIT
+          printf '%s\n' "$HOSTINGER_SSH_KEY" | tr -d '\r' > "$dir/key"
+          chmod 600 "$dir/key"
+          ssh-keygen -y -P '' -f "$dir/key" > "$dir/key.pub"
+          test "$(ssh-keygen -lf "$dir/key.pub" -E sha256 | awk '{print $2}')" = 'SHA256:Q6FyifXRq6garceQdIIjBmXhkk81Ic1p/x9JTSYHWUk'
+          printf '%s\n' '[92.113.19.189]:65002 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAf8M2EVwq0oJI8I9KZ0NFE8P8yDOvDATEhkQti/Kk/0' > "$dir/known_hosts"
+          opts=(-i "$dir/key" -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o "UserKnownHostsFile=$dir/known_hosts" -o GlobalKnownHostsFile=/dev/null -o ConnectTimeout=15)
+          target=u235811320@92.113.19.189
+          root=/home/u235811320/domains/darkred-camel-588676.hostingersite.com/public_html
+          stage="$root/android-id-test-stage-${GITHUB_RUN_ID}"
+          ssh -p 65002 "${opts[@]}" "$target" "test -d '$root' && test ! -e '$stage' && mkdir '$stage'"
+          tar -C "$RUNNER_TEMP/public-test" -czf "$dir/public.tar.gz" .
+          scp -P 65002 "${opts[@]}" "$dir/public.tar.gz" "$target:$stage/public.tar.gz"
+          ssh -p 65002 "${opts[@]}" "$target" "set -eu; cd '$stage'; tar -xzf public.tar.gz; rm public.tar.gz; chmod -R a+rX .; if test -e '$root/android-id-test'; then mv '$root/android-id-test' '$root/android-id-test-backup-${GITHUB_RUN_ID}'; fi; mv '$stage' '$root/android-id-test'"
+      - name: Verify public delivery
+        run: |
+          set -euo pipefail
+          base=https://darkred-camel-588676.hostingersite.com/android-id-test
+          curl --fail --retry 3 "$base/" -o "$RUNNER_TEMP/live.html"
+          for file in entry.jar index-v1.jar verified-package.json; do
+            curl --fail --retry 3 "$base/fdroid/repo/$file" -o "$RUNNER_TEMP/live-$file"
+            cmp "$RUNNER_TEMP/live-$file" "$RUNNER_TEMP/public-test/fdroid/repo/$file"
+          done
+          curl --fail --retry 3 "$base/fdroid/repo/pro.celikom.nativeprobe.shareprobe_1.apk" -o "$RUNNER_TEMP/live.apk"
+          echo 'e44cdd00cc527625ba3c7fa8603631168bdf640648ceeedd0ceca0a894501bd9' "$RUNNER_TEMP/live.apk" | sha256sum -c -
