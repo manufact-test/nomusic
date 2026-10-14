@@ -51,3 +51,10 @@ Owner checks: ordinary support still sends an email reply; song reports arrive
 under the same account in the song section and can be resolved without email;
 local file duration warning; approved/pending green suggestion result; popularity
 sort when several different accounts request the same absent song.
+
+Initial full CI found a PHP SQL quoting error before any live deployment; it was
+fixed in a572177f059b59e9f3579014d8564bc342da3b46. Full CI 38599174983 passes,
+including ordinary support mail/retry/RBAC/CSRF regressions and new report/group
+cases. Private Chrome CI 38598656472 and MariaDB migration CI 38598656473 pass.
+Configured full extension ZIP SHA-256:
+`73cb928a9a067b72f5763ee190089581825e46119eb0172421b1337c9d1b66f5`.

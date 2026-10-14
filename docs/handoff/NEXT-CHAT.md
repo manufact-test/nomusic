@@ -1,3 +1,22 @@
+# Latest: 0.4.41 user feedback improvements (2026-10-14)
+
+Owner authorized four improvements. Implemented support kind general/song under
+each existing email/account: ordinary messages retain email reply, song reports
+have category, optional comment, pinned track and whitelist diagnostics and can
+be resolved without mandatory email. New 017 migration is additive; all earlier
+tickets default to general. Requested songs are grouped and sorted by unique
+account demand; group decisions preserve per-request review/audit. Upload shows
+local frame-count duration warning (>1500 ms, stronger text >5000 ms); warning
+only, no automatic trimming. Suggesting approved/pending songs is blocked in UI
+with green result and on server. Existing playback/VPN/tab recovery preserved.
+
+Local 224 extension tests/security/lint pass. Private Chrome CI 38598656472,
+MariaDB 38598656473 and full fixed-source CI 38599174983 SUCCESS. Initial CI found
+SQL quoting error in ordinary reply query; fixed before deploy and all server
+regressions passed. Backend deployment requested next; do not claim live until
+workflow/audit complete. See docs/decisions/USER-FEEDBACK-0.4.41-2026-10-14.md.
+Owner real checks pending; PR #6 and Issue #7 remain open.
+
 # Latest: 0.4.40 tab recovery (2026-10-14)
 
 Owner requested automatic reconnection when Yandex tabs open/reopen, restore from
