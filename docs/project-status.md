@@ -1,3 +1,17 @@
+# Latest admin refinement (2026-10-14, extension remains0.4.43)
+
+Gain control defaults collapsed in "Громкость версии", above technical details.
+Custom slider fills100% at maximum. AJAX Save confirms inline without page
+reload/hash navigation/scroll; duplicate sends blocked, optimistic prior gain
+renewed. Existing range and audio DSP unchanged, no real gain/music moderation
+writes. Owner rejected old replacement5/uploaded better recording; preserve that
+state, never require old5 active again. Native38629801212, CI38629807688,
+deploy38629801326 attempt2 PASS. Active0.4.43-d7c2ab8b6ce142a2595573dcfb34d673b377e68d;
+23-object/private-env preservation, isolated file/MySQL restore and live read-only
+UX audit PASS. First deploy initialization hit external ECR limit before SSH;
+unchanged retry succeeded. No new extension ZIP needed; refresh admin page.
+Owner acceptance pending. Details: docs/decisions/ADMIN-GAIN-UX-2026-10-14.md.
+
 # Latest: 0.4.43 admin loudness mixer / upload block / error icon (2026-10-14)
 
 Owner authorized manual admin volume adjustment; Papirosy gain intentionally0.
