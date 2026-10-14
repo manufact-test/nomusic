@@ -19,7 +19,7 @@ export class ApiClient {
   }
   async request(path, options = {}) {
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 6000);
+    const timer = setTimeout(() => controller.abort(), 20000);
     try {
       let response;
       try {

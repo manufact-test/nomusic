@@ -39,6 +39,7 @@ export function createAuthBroker(api, options = {}) {
   const previewKey = "celikom-entitlement-display-v1";
   let displayPreview = null;
   const networkHistory = [];
+  const pendingReads = new Map();
 
   async function installationId() {
     if (!installationPromise) {
@@ -65,11 +66,26 @@ export function createAuthBroker(api, options = {}) {
     return url.origin;
   }
 
-  async function apiRequest(path, method = "GET", data = null, access = "") {
+  function apiRequest(path, method = "GET", data = null, access = "") {
+    // Share only concurrent read checks; never cache authority or replay writes.
+    // Session generation and token prevent a login/logout/refresh crossing callers.
+    const key = method === "GET" && ["config", "auth/me", "entitlement"].includes(path)
+      ? `${sessionVersion}:${path}:${access}` : null;
+    if (key === null) return apiRequestOnce(path, method, data, access);
+    if (pendingReads.has(key)) return pendingReads.get(key);
+    const pending = apiRequestOnce(path, method, data, access).finally(() => {
+      if (pendingReads.get(key) === pending) pendingReads.delete(key);
+    });
+    pendingReads.set(key, pending);
+    return pending;
+  }
+
+  async function apiRequestOnce(path, method = "GET", data = null, access = "") {
     const limit = path.startsWith("support") ? 65536 : 16384;
     const ctrl = new AbortController();
     const started = Date.now(); let httpStatus = null; let outcome = "ok";
-    const timeout = ["auth/register", "auth/login", "auth/resend-verification", "auth/request-reset"].includes(path) ? 20000 : 8000;
+    // A cold HTTPS connection can exceed 8s even when PHP responds in milliseconds.
+    const timeout = 20000;
     const timer = setTimeout(() => ctrl.abort(), timeout);
     try {
       const response = await request((await origin()) + "/api/v1/" + path, {

@@ -239,3 +239,65 @@ test('unreachable config leaves registration available for recovery rather than 
  const broker=createAuthBroker(api,{store:{get:async()=>null,set:async()=>{},clear:async()=>{}},readConfig:async()=>({baseUrl:'https://celikom.example'}),fetch:async()=>{throw new TypeError('offline')}});
  const result=await broker.perform('status');assert.equal(result.available,true);assert.equal(result.signedIn,false);assert.equal(result.error,'auth_network_error');
 });
+
+function transportBroker(fetcher, store = { get:async()=>null, set:async()=>{}, clear:async()=>{} }) {
+  return createAuthBroker({storage:{local:{get:async()=>({}),set:async()=>{}}},runtime:{getURL:p=>p}},
+    {store,fetch:fetcher,readConfig:async()=>({baseUrl:'https://celikom.example'})});
+}
+
+test('a healthy response after a 10-second cold connection survives the old 8-second cutoff',async(t)=>{
+  t.mock.timers.enable({apis:['setTimeout']});
+  let signal;
+  const broker=transportBroker(async(_url,opts)=>new Promise((resolve,reject)=>{
+    signal=opts.signal;
+    signal.addEventListener('abort',()=>reject(new DOMException('timeout','AbortError')),{once:true});
+    setTimeout(()=>resolve(new Response(JSON.stringify({support_email:'support@example.org'}),{headers:{'content-type':'application/json'}})),10000);
+  }));
+  const pending=broker.perform('support-contact');
+  await new Promise(setImmediate);t.mock.timers.tick(9000);
+  assert.equal(signal.aborted,false);
+  t.mock.timers.tick(1000);
+  assert.deepEqual(await pending,{ok:true,email:'support@example.org'});
+});
+
+test('simultaneous config checks share transport, settle once and never cache a failure',async()=>{
+  let calls=0,release;
+  const broker=transportBroker(async()=>{
+    calls++;await new Promise(r=>release=r);
+    if(calls===1)throw new TypeError('offline');
+    return new Response('{"support_email":"support@example.org"}',{headers:{'content-type':'application/json'}});
+  });
+  const pending=Promise.all([broker.perform('support-contact'),broker.perform('support-contact'),broker.perform('support-contact')]);
+  await new Promise(setImmediate);assert.equal(calls,1);release();
+  assert.deepEqual(await pending,[{ok:false},{ok:false},{ok:false}]);
+  const recovered=broker.perform('support-contact');await new Promise(setImmediate);assert.equal(calls,2);release();
+  assert.equal((await recovered).ok,true);
+  assert.equal(broker.networkDiagnostics().length,2,'one diagnostic per physical request');
+});
+
+test('a dead connection is still bounded at 20 seconds and preserves local credentials',async(t)=>{
+  t.mock.timers.enable({apis:['setTimeout']});
+  const secret={user:{id:4,email:'a@example.org'},access_token:'a'.repeat(64),refresh_token:'b'.repeat(64)};
+  let cleared=0;
+  const broker=transportBroker(async(_url,opts)=>new Promise((_resolve,reject)=>{
+    opts.signal.addEventListener('abort',()=>reject(new DOMException('timeout','AbortError')),{once:true});
+  }),{get:async()=>secret,set:async()=>{},clear:async()=>{cleared++;}});
+  const pending=broker.withAccess(()=>true);await new Promise(setImmediate);
+  const checked=assert.rejects(pending,/auth_timeout/);t.mock.timers.tick(20000);await checked;
+  assert.equal(cleared,0);assert.equal(broker.networkDiagnostics()[0].result,'auth_timeout');
+});
+
+test('concurrent auth checks share only the same credential, without reusing a settled check',async()=>{
+  let secret={user:{id:4,email:'a@example.org'},access_token:'a'.repeat(64),refresh_token:'b'.repeat(64)};
+  const releases=[],calls=[];
+  const broker=transportBroker(async(_url,opts)=>{
+    calls.push(opts.headers.Authorization);await new Promise(r=>releases.push(r));
+    return new Response('{}',{headers:{'content-type':'application/json'}});
+  },{get:async()=>secret,set:async v=>{secret=v;},clear:async()=>{secret=null;}});
+  const a=broker.withAccess(s=>s.access_token),b=broker.withAccess(s=>s.access_token);
+  await new Promise(setImmediate);assert.equal(calls.length,1);
+  secret={...secret,access_token:'c'.repeat(64)};
+  const c=broker.withAccess(s=>s.access_token);await new Promise(setImmediate);assert.equal(calls.length,2);
+  releases.splice(0).forEach(r=>r());assert.deepEqual(await Promise.all([a,b,c]),['a'.repeat(64),'a'.repeat(64),'c'.repeat(64)]);
+  const again=broker.withAccess(()=>true);await new Promise(setImmediate);assert.equal(calls.length,3);releases.pop()();await again;
+});

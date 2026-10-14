@@ -334,3 +334,16 @@ test('network recovery bypasses cached resolve and configuration; HTML 403 is no
  const denied=new ApiClient('https://celikom.example',{fetch:async()=>new Response('{"error":"access_denied"}',{status:403,headers:{'content-type':'application/json'}})});
  await assert.rejects(denied.request('/api/v1/resolve'),/api_forbidden/);
 });
+
+test('catalog API accepts a slow healthy connection but still aborts an actual outage',async(t)=>{
+  t.mock.timers.enable({apis:['setTimeout']});
+  let signal;
+  const slow=new ApiClient('https://celikom.example',{fetch:async(_url,opts)=>new Promise((resolve,reject)=>{
+    signal=opts.signal;signal.addEventListener('abort',()=>reject(new DOMException('timeout','AbortError')),{once:true});
+    setTimeout(()=>resolve(response({found:false})),10000);
+  })});
+  const pending=slow.request('/api/v1/resolve');await new Promise(setImmediate);t.mock.timers.tick(9000);assert.equal(signal.aborted,false);
+  t.mock.timers.tick(1000);assert.equal((await pending).found,false);
+  const dead=new ApiClient('https://celikom.example',{fetch:async(_url,opts)=>new Promise((_resolve,reject)=>opts.signal.addEventListener('abort',()=>reject(new DOMException('timeout','AbortError')),{once:true}))});
+  const outage=dead.request('/api/v1/config');await new Promise(setImmediate);const checked=assert.rejects(outage,/api_network_error/);t.mock.timers.tick(20000);await checked;
+});
