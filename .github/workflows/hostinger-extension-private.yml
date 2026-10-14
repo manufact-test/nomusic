@@ -21,6 +21,11 @@ on:
       - extension/package.json
       - extension/tests/auth-popup-ui.test.mjs
       - extension/tests/auth-popup-resume.test.mjs
+      - extension/src/background/**
+      - extension/src/content/**
+      - extension/src/player/**
+      - extension/tests/startup-integration.test.mjs
+      - extension/tests/tab-recovery.test.mjs
       - extension/src/background/service-worker.ts
       - extension/tests/unified-worker.test.mjs
       - scripts/security-audit.mjs
