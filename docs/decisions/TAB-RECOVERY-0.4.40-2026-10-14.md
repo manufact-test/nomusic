@@ -46,3 +46,12 @@ playback; the extension connects automatically but does not start music for them
 
 No backend deployment, schema change, credential reset or additional Chrome
 permissions. PR #6 remains open; Issue #7 remains open.
+
+Final validation: private Chrome CI [38580994328](https://github.com/manufact-test/nomusic/actions/runs/38580994328)
+and full repository CI [38581003157](https://github.com/manufact-test/nomusic/actions/runs/38581003157)
+both SUCCESS for final source (workflow-only commit 3f41cbb06b9dd72a46e54415f8d5ef4b0ca2c619).
+Initial full CI failed before checkout on ECR MySQL download data limit; rerun
+38580604460 passed. This was CI infrastructure, not an application test failure.
+Final full ZIP SHA-256: `35fc3ec2d364c357f201f2305493556bc4132ce3b082e051e9bda7c94fdecd81`.
+214 tests pass including a five-minute frozen-cache watchdog interval. Physical
+owner close/reopen/Back/Forward/discard checks remain pending.

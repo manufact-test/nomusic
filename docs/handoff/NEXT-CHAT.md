@@ -5,8 +5,9 @@ memory discard, or return via Back/Forward. Implemented tab lifecycle bootstrap,
 per-document failure reset, BFCache-safe audio release/resume and stale settings
 read fencing. Explicit Stop and manual original remain respected. 0.4.39 VPN
 recovery retained. See docs/decisions/TAB-RECOVERY-0.4.40-2026-10-14.md.
-Local extension 214 tests, lint and security pass. Owner physical Chrome checks
-are pending; do not call them accepted automatically. CI results to be appended.
+Final private Chrome CI 38580994328 and full CI 38581003157 SUCCESS; source
+3f41cbb06b9dd72a46e54415f8d5ef4b0ca2c619. Local extension 214 tests, lint and security pass. Owner physical Chrome checks
+are pending; do not call them accepted automatically. Final ZIP SHA-256: 35fc3ec2d364c357f201f2305493556bc4132ce3b082e051e9bda7c94fdecd81.
 No backend deployment; active server remains 0.4.37-b05ddfc858940c0c86979e3af2056f3cafa7dada.
 PR #6 and Issue #7 remain open. Owner reported 0.4.39 working after VPN fixes;
 latest healthy snapshot confirms API connectivity, not replacement activation.
