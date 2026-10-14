@@ -304,3 +304,9 @@ input:not([type=checkbox]):focus-visible,select:focus-visible,textarea:focus-vis
 .promo-table .promo-code-cell{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;white-space:nowrap}
 .promo-table .promo-action-cell{white-space:nowrap}.promo-table button{margin:0}
 .promo-access-state{color:#62766d}.promo-panel>.table-shell+p{margin-top:12px;font-size:13px;color:#62766d}
+
+.duration-warning,.duration-summary{display:grid;gap:8px;padding:16px 18px;border:1px solid #eab970;border-radius:14px;background:#fff7e9;color:#70420c;margin:14px 0;overflow-wrap:anywhere}
+.duration-warning strong,.duration-summary strong{font-size:14px;line-height:1.5}
+.duration-warning span,.duration-summary span{font-size:13px;line-height:1.6}
+.duration-summary .btn{justify-self:start;max-width:100%;white-space:normal;text-align:center}
+@media(max-width:640px){.duration-warning,.duration-summary{padding:13px 14px;border-radius:12px}}

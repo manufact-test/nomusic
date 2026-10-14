@@ -337,9 +337,28 @@ final class AdminPanel
 
     private static function formatDuration(int $millis): string
     {
-        $seconds = max(0, (int) round($millis / 1000));
-        $minutes = intdiv($seconds, 60);
-        return $minutes . ':' . str_pad((string) ($seconds % 60), 2, '0', STR_PAD_LEFT);
+        $millis = max(0, $millis);
+        $seconds = intdiv($millis, 1000);
+        return intdiv($seconds, 60) . ':' . str_pad((string) ($seconds % 60), 2, '0', STR_PAD_LEFT)
+            . ',' . str_pad((string) ($millis % 1000), 3, '0', STR_PAD_LEFT);
+    }
+
+    private static function durationFilter(array $query): string
+    {
+        $value = $query['duration'] ?? '';
+        return is_string($value) && in_array($value, ['mismatch','compatible'], true) ? $value : '';
+    }
+
+    private static function durationWarning(int $originalMs, int $audioMs): string
+    {
+        $delta = $audioMs - $originalMs;
+        if (abs($delta) <= 1500) return '';
+        $difference = number_format(abs($delta) / 1000, 3, ',', '');
+        $relation = $delta > 0 ? 'длиннее' : 'короче';
+        return '<div class="duration-warning" role="note"><strong>Подмена не запустится: файл ' . $relation
+            . ' оригинала на ' . $difference . ' сек.</strong><span>Допустимая разница — не больше 1,5 секунды. '
+            . 'Проверьте начало и конец файла и подготовьте исправленную версию до одобрения. '
+            . 'Одобрение не устраняет расхождение. Автоматическая обрезка не выполняется.</span></div>';
     }
 
     private static function formatSize(int $bytes): string
@@ -515,7 +534,16 @@ final class AdminPanel
                 . ($status === $value ? ' selected' : '') . '>'
                 . self::e($tab === 'requests' && $value === 'pending' ? 'Ожидают загрузки' : self::statusLabel($value)) . '</option>';
         }
-        $form .= '</select></label><label class="form-field">На странице<select name="per_page">';
+        $form .= '</select></label>';
+        if ($tab === 'uploads') {
+            $duration = self::durationFilter($query);
+            $form .= '<label class="form-field">Длительность<select name="duration">';
+            foreach ([''=>'Все версии', 'mismatch'=>'С расхождением длительности', 'compatible'=>'В пределах допуска'] as $value=>$label) {
+                $form .= '<option value="' . $value . '"' . ($duration === $value ? ' selected' : '') . '>' . $label . '</option>';
+            }
+            $form .= '</select></label>';
+        }
+        $form .= '<label class="form-field">На странице<select name="per_page">';
         foreach ([10,25,50] as $size) {
             $form .= '<option value="' . $size . '"' . ($size === $perPage ? ' selected' : '')
                 . '>' . $size . ' записей</option>';
@@ -524,11 +552,11 @@ final class AdminPanel
         return [$status, $page, $offset, $form, $perPage];
     }
 
-    private function queuePages(string $tab, string $status, int $page, int $perPage, int $total): string
+    private function queuePages(string $tab, string $status, int $page, int $perPage, int $total, string $duration = ''): string
     {
         $totalPages = max(1, (int) ceil($total / $perPage));
         $base = '/admin?tab=' . rawurlencode($tab) . '&status=' . rawurlencode($status)
-            . '&per_page=' . $perPage . '&page=';
+            . '&per_page=' . $perPage . ($duration !== '' ? '&duration=' . rawurlencode($duration) : '') . '&page=';
         $view = '<nav class="pagination" aria-label="Страницы списка"><span>Всего: '
             . $total . ' · Страница ' . $page . ' из ' . $totalPages . '</span><div class="pages">';
         $link = static fn(int $i): string => $base . $i;
@@ -555,9 +583,16 @@ final class AdminPanel
     {
         [$status,$page,$offset,$filter,$perPage] = $this->queueOptions('uploads', $query,
             ['pending','approved','rejected','disabled']);
-        $where = $status !== '' ? ' WHERE r.status = ? ' : ' ';
+        $duration = self::durationFilter($query);
+        // Cast before subtraction: MySQL unsigned durations can be shorter as well as longer.
+        $difference = 'ABS(CAST(a.duration_ms AS SIGNED) - CAST(t.duration_ms AS SIGNED))';
+        $conditions = $status !== '' ? ['r.status = ?'] : [];
         $params = $status !== '' ? [$status] : [];
-        $count = $this->pdo->prepare('SELECT COUNT(*) FROM track_replacements r ' . $where);
+        if ($duration !== '') $conditions[] = $difference . ($duration === 'mismatch' ? ' > 1500' : ' <= 1500');
+        $where = $conditions ? ' WHERE ' . implode(' AND ', $conditions) . ' ' : ' ';
+        $joins = ' FROM track_replacements r JOIN tracks t ON t.id=r.track_id JOIN audio_assets a ON a.id=r.audio_asset_id ';
+        $mismatchCount = (int) $this->pdo->query('SELECT COUNT(*)' . $joins . ' WHERE ' . $difference . ' > 1500')->fetchColumn();
+        $count = $this->pdo->prepare('SELECT COUNT(*)' . $joins . $where);
         $count->execute($params);
         $total = (int) $count->fetchColumn();
         $stmt = $this->pdo->prepare("SELECT r.id,r.status,r.is_active,r.version,r.track_id,
@@ -582,8 +617,11 @@ final class AdminPanel
         $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC);
         $html = '<div class="page-head"><div><div class="eyebrow">Библиотека / модерация</div>'
             . '<h1>Загруженные версии</h1><p class="muted">Новые песни появляются здесь только после загрузки. '
-            . 'Подмена включается вручную после проверки файла и прав.</p></div></div>' . $filter
-            . '<div class="cards">';
+            . 'Подмена включается вручную после проверки файла и прав.</p></div></div>'
+            . ($mismatchCount > 0 ? '<div class="duration-summary"><strong>Версий с расхождением длительности: ' . $mismatchCount
+                . '</strong><span>Разница больше 1,5 секунды — расширение не запустит подмену.</span>'
+                . '<a class="btn" href="/admin?tab=uploads&amp;duration=mismatch&amp;per_page=' . $perPage . '">Показать проблемные версии</a></div>' : '')
+            . $filter . '<div class="cards">';
         foreach ($rows as $r) {
             $id = (int) $r['id'];
             $trackId = (string) $r['service_track_id'];
@@ -601,6 +639,7 @@ final class AdminPanel
                 . self::formatDuration((int) $r['audio_duration_ms']) . '</strong></span>'
                 . '<span>Подмена: <strong>' . ((int) $r['is_active'] === 1 ? 'включена' : 'выключена')
                 . '</strong></span></div>'
+                . self::durationWarning((int) $r['original_duration_ms'], (int) $r['audio_duration_ms'])
                 . '<div class="player-wrap"><audio controls preload="none"'
                 . ' aria-label="Прослушать загруженную версию #' . $id . '"'
                 . ' src="/admin/audio/' . $id . '"></audio>'
@@ -649,6 +688,7 @@ final class AdminPanel
                         . '<details class="decision-choice choice-approval" name="review-' . $id . '">'
                         . '<summary>✓ Одобрить</summary><div class="decision-body">'
                         . '<p class="muted">Проверьте аудио и права. Открытие формы ничего не меняет.</p>'
+                        . self::durationWarning((int) $r['original_duration_ms'], (int) $r['audio_duration_ms'])
                         . '<form method="post" action="/admin/action">' . $common
                         . '<input type="hidden" name="action" value="approve">'
                         . '<input type="hidden" name="decision" value="approval">'
@@ -702,8 +742,8 @@ final class AdminPanel
             $html .= '</article>';
         }
         if (!$rows) $html .= '<section class="empty"><strong>Записей пока нет</strong>'
-            . 'Попробуйте изменить фильтр статуса.</section>';
-        return $html . '</div>' . $this->queuePages('uploads', $status, $page, $perPage, $total);
+            . 'Попробуйте изменить фильтры статуса и длительности.</section>';
+        return $html . '</div>' . $this->queuePages('uploads', $status, $page, $perPage, $total, $duration);
     }
 
     private function requests(array $admin, string $csrf, array $query): string

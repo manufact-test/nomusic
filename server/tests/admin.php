@@ -138,6 +138,41 @@ $candidate=(int)$pdo->lastInsertId();
 $catalog=new PdoCatalogRepository($pdo);
 $mod=new ModerationService($pdo,$storage);
 try{
+    run('Duration warnings and queue filters match the player boundary in both directions',function()
+        use($pdo,$app,$sessionHeaders,$trackId,$assetId,$candidate):void{
+        $extra=[];
+        try {
+            foreach ([1111=>'длиннее',4113=>'короче'] as $original=>$relation) {
+                $pdo->prepare('UPDATE tracks SET duration_ms=? WHERE id=?')->execute([$original,$trackId]);
+                $page=$app->handle('GET','/admin',['tab'=>'uploads','status'=>'pending','duration'=>'mismatch','per_page'=>'50'],$sessionHeaders);
+                expect($page->status===200 && str_contains($page->body,'#'.$candidate.' ·'),'Both signed mismatches selected');
+                expect(str_contains($page->body,'файл '.$relation.' оригинала на 1,501 сек.'),'Precise difference and direction');
+                expect(str_contains($page->body,'Одобрение не устраняет расхождение.'),'Moderation cannot silently fix playback');
+                $compatible=$app->handle('GET','/admin',['tab'=>'uploads','status'=>'pending','duration'=>'compatible','per_page'=>'50'],$sessionHeaders);
+                expect(!str_contains($compatible->body,'#'.$candidate.' ·'),'Incompatible row excluded by compatibility filter');
+            }
+            foreach ([1112,4112] as $original) {
+                $pdo->prepare('UPDATE tracks SET duration_ms=? WHERE id=?')->execute([$original,$trackId]);
+                $mismatch=$app->handle('GET','/admin',['tab'=>'uploads','status'=>'pending','duration'=>'mismatch','per_page'=>'50'],$sessionHeaders);
+                expect(!str_contains($mismatch->body,'#'.$candidate.' ·'),'Exactly 1500ms accepted in both directions');
+                $compatible=$app->handle('GET','/admin',['tab'=>'uploads','status'=>'pending','duration'=>'compatible','per_page'=>'50'],$sessionHeaders);
+                expect(str_contains($compatible->body,'#'.$candidate.' ·'),'Boundary row remains available');
+            }
+            $pdo->prepare('UPDATE tracks SET duration_ms=1111 WHERE id=?')->execute([$trackId]);
+            for($i=0;$i<11;$i++){
+                $pdo->prepare("INSERT INTO track_replacements(track_id,audio_asset_id,status,is_active) VALUES(?,?,'pending',0)")->execute([$trackId,$assetId]);
+                $extra[]=(int)$pdo->lastInsertId();
+            }
+            $paged=$app->handle('GET','/admin',['tab'=>'uploads','status'=>'pending','duration'=>'mismatch','per_page'=>'10'],$sessionHeaders);
+            expect(str_contains($paged->body,'duration=mismatch&amp;page=2'),'Duration filter survives pagination');
+            expect(str_contains($paged->body,'value="mismatch" selected'),'Filter remains selected');
+            $bad=$app->handle('GET','/admin',['tab'=>'uploads','duration'=>['mismatch'],'per_page'=>'50'],$sessionHeaders);
+            expect($bad->status===200 && str_contains($bad->body,'#'.$candidate.' ·'),'Malformed filter normalized safely');
+        } finally {
+            foreach($extra as $id)$pdo->prepare('DELETE FROM track_replacements WHERE id=?')->execute([$id]);
+            $pdo->prepare('UPDATE tracks SET duration_ms=2612 WHERE id=?')->execute([$trackId]);
+        }
+    });
     run('Upload queue puts older pending before newer decisions and approved last',function()
         use($pdo,$app,$sessionHeaders,$trackId,$assetId,$candidate):void{
         $ids=[];
