@@ -4,6 +4,7 @@ import { createApiBroker } from "../api/api-broker.js";
 import { createAuthBroker } from "../auth/auth-broker.js";
 import { createActionIcon } from "./action-icon.js";
 import { createMusicTabs } from "./music-tabs.js";
+import { registerTabRecovery } from "./tab-recovery.js";
 
 const VERSION = chrome.runtime.getManifest().version;
 const DEFAULT_STATE: ExtensionState = Object.freeze({
@@ -65,6 +66,8 @@ async function readEnabled(): Promise<boolean> {
   const stored = await chrome.storage.local.get("enabled");
   return normalizeEnabled(stored.enabled);
 }
+
+registerTabRecovery(chrome, bootstrap, readEnabled);
 
 async function readControllerStatus(retry = false) {
   return musicTabs.connection(retry);

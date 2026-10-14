@@ -151,6 +151,7 @@ function browserFixture() {
     for (const listener of storageListeners) listener(changes, "local");
   };
   return { api, worlds, runtimeListeners, storageListeners, errors, timers, changeStorage, elements,
+    dispatchPage: (type, persisted) => { for (const name of ["MAIN", "ISOLATED"]) for (const fn of eventListeners.get(name).get(type) || []) fn({ persisted }); },
     disableInstalledWorker: () => { installedWorkerAlive = false; } };
 }
 
@@ -374,6 +375,71 @@ test('packaged bridge ignores late ended and rearms after genuine completion wit
   const next=await status();assert.equal(next.phase,'REPLACEMENT_ACTIVE');assert.equal(next.replacementError,null);
  }finally{
   vm.runInContext('__CELIKOM_CONTENT_CONTROLLER_V2__.destroy()',isolated);await wait();
+  vm.runInContext('__CELIKOM_MAIN_BRIDGE_V1__.destroy()',main);
+ }
+});
+
+
+test('cached page restores its bridge and replacement without reinjection; Stop while away wins',async()=>{
+ const f=browserFixture(),main=f.worlds.get('MAIN'),isolated=f.worlds.get('ISOLATED');
+ const wait=()=>new Promise(resolve=>setTimeout(resolve,5));
+ await createControllerBootstrap(f.api,{wait}).ensure(42);
+ try {
+  vm.runInContext('globalThis.original=new HTMLMediaElement();original.play();',main);await wait();
+  f.changeStorage({testTrackId:{newValue:'1944599'}});await wait();
+  assert.equal(vm.runInContext('original.physicalMuted',main),true);
+  f.dispatchPage('pagehide',true);await wait();
+  assert.equal(vm.runInContext('original.physicalMuted',main),false);
+  assert.equal(vm.runInContext('__CELIKOM_CONTENT_CONTROLLER_V2__.destroyed',isolated),false);
+  f.dispatchPage('pageshow',true);await wait();
+  // Access is revalidated via the worker, never granted by pageshow itself.
+  assert.equal(vm.runInContext('original.physicalMuted',main),false);
+  vm.runInContext("__CELIKOM_CONTENT_CONTROLLER_V2__.onRuntimeMessage({type:'CELIKOM_ACCESS_STATE',state:'allowed'},{id:chrome.runtime.id},()=>{});",isolated);await wait();
+  assert.equal(vm.runInContext('original.physicalMuted',main),true,JSON.stringify(vm.runInContext('__CELIKOM_CONTENT_CONTROLLER_V2__.getDiagnostics()',isolated)));
+  assert.equal(f.runtimeListeners.size,1);assert.equal(f.elements.size,1);
+  f.dispatchPage('pagehide',true);await wait();
+  f.changeStorage({enabled:{newValue:false}});
+  f.dispatchPage('pageshow',true);await wait();
+  vm.runInContext("__CELIKOM_CONTENT_CONTROLLER_V2__.onRuntimeMessage({type:'CELIKOM_ACCESS_STATE',state:'allowed'},{id:chrome.runtime.id},()=>{});",isolated);await wait();
+  assert.equal(vm.runInContext('original.physicalMuted',main),false);
+  assert.equal(vm.runInContext('__CELIKOM_CONTENT_CONTROLLER_V2__.enabled',isolated),false);
+  f.dispatchPage('pagehide',false);await wait();
+  assert.equal(vm.runInContext('__CELIKOM_CONTENT_CONTROLLER_V2__.destroyed',isolated),true);
+ } finally {
+  vm.runInContext('__CELIKOM_CONTENT_CONTROLLER_V2__.destroy()',isolated);
+  vm.runInContext('__CELIKOM_MAIN_BRIDGE_V1__.destroy()',main);
+ }
+});
+
+test('late persisted settings cannot undo Stop during controller wake',async()=>{
+ const f=browserFixture(),main=f.worlds.get('MAIN'),isolated=f.worlds.get('ISOLATED');
+ await createControllerBootstrap(f.api,{wait:()=>new Promise(resolve=>setTimeout(resolve,5))}).ensure(42);
+ try {
+  vm.runInContext('globalThis.finishSettings=null;chrome.storage.local.get=()=>new Promise(resolve=>finishSettings=resolve);__CELIKOM_CONTENT_CONTROLLER_V2__.wake();',isolated);
+  f.changeStorage({enabled:{newValue:false}});
+  vm.runInContext("finishSettings({enabled:true,testTrackId:''});",isolated);
+  await new Promise(resolve=>setTimeout(resolve,5));
+  assert.equal(vm.runInContext('__CELIKOM_CONTENT_CONTROLLER_V2__.enabled',isolated),false);
+ } finally {
+  vm.runInContext('__CELIKOM_CONTENT_CONTROLLER_V2__.destroy()',isolated);
+  vm.runInContext('__CELIKOM_MAIN_BRIDGE_V1__.destroy()',main);
+ }
+});
+
+test('Back/Forward preserves explicit original bypass instead of treating it as Start',async()=>{
+ const f=browserFixture(),main=f.worlds.get('MAIN'),isolated=f.worlds.get('ISOLATED');
+ const wait=()=>new Promise(resolve=>setTimeout(resolve,5));
+ await createControllerBootstrap(f.api,{wait}).ensure(42);
+ try {
+  vm.runInContext('globalThis.original=new HTMLMediaElement();original.play();',main);await wait();
+  f.changeStorage({testTrackId:{newValue:'1944599'}});await wait();
+  await f.api.tabs.sendMessage(42,{type:'CELIKOM_RESTORE_ORIGINAL'});await wait();
+  f.dispatchPage('pagehide',true);await wait();f.dispatchPage('pageshow',true);await wait();
+  vm.runInContext("__CELIKOM_CONTENT_CONTROLLER_V2__.onRuntimeMessage({type:'CELIKOM_ACCESS_STATE',state:'allowed'},{id:chrome.runtime.id},()=>{});",isolated);await wait();
+  assert.equal(vm.runInContext('original.physicalMuted',main),false);
+  assert.equal(vm.runInContext('__CELIKOM_CONTENT_CONTROLLER_V2__.engine.manualBypass.trackId',isolated),'1944599');
+ } finally {
+  vm.runInContext('__CELIKOM_CONTENT_CONTROLLER_V2__.destroy()',isolated);
   vm.runInContext('__CELIKOM_MAIN_BRIDGE_V1__.destroy()',main);
  }
 });

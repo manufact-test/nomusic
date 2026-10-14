@@ -85,10 +85,10 @@ export function createControllerBootstrap(api, options = {}) {
         const failure = { status: null, error: "script-injection-failed", detail: String(error?.message || error) };
         // Do not repeatedly probe a denied/protected page from popup polling.
         // A user-initiated Start/Retry permits a fresh attempt after changing access.
-        injectionFailures.set(tabId, failure);
+        if (pending.get(tabId) === promise) injectionFailures.set(tabId, failure);
         return failure;
       })
-      .finally(() => pending.delete(tabId));
+      .finally(() => { if (pending.get(tabId) === promise) pending.delete(tabId); });
     pending.set(tabId, promise);
     return promise;
   }
@@ -98,5 +98,10 @@ export function createControllerBootstrap(api, options = {}) {
     return Promise.all(tabs.filter((tab) => Number.isInteger(tab.id)).map((tab) => ensure(tab.id)));
   }
 
-  return Object.freeze({ ensure, ensureOpenTabs });
+  function forget(tabId) {
+    injectionFailures.delete(tabId);
+    pending.delete(tabId);
+  }
+
+  return Object.freeze({ ensure, ensureOpenTabs, forget });
 }

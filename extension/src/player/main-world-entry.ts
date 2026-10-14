@@ -266,7 +266,13 @@
 
   root.addEventListener("message", onWindowMessage);
   root.document?.addEventListener("visibilitychange", onVisibilityChange);
-  root.addEventListener("pagehide", () => destroy("pagehide"), { once: true, capture: true });
+  root.addEventListener("pagehide", (event) => {
+    // BFCache keeps these immutable globals. Release audio but retain a live
+    // bridge; destroying it here makes Back/Forward permanently disconnected.
+    if (event.persisted) release("page-cached");
+    else destroy("pagehide");
+  }, { capture: true });
+  root.addEventListener("pageshow", (event) => { if (event.persisted && !destroyed) announce(); });
   const watchdogTimer = root.setInterval(checkHeartbeat, 500);
 
   Object.defineProperty(root, BRIDGE_KEY, {

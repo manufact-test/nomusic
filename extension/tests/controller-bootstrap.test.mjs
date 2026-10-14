@@ -132,3 +132,11 @@ test("bootstrap operates only within existing Yandex host permissions", async ()
   assert.equal((await createControllerBootstrap(api).ensure(42)).error, "unsupported-page");
   assert.equal(state.injections.length, 0);
 });
+
+test('navigation removes cached injection denial without a manual Start', async () => {
+ const {state,api}=fixture();state.denied=true;
+ const bootstrap=createControllerBootstrap(api);
+ assert.equal((await bootstrap.ensure(42)).error,'script-injection-failed');
+ state.denied=false;bootstrap.forget(42);
+ assert.equal((await bootstrap.ensure(42)).error,null);
+});

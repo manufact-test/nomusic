@@ -1,3 +1,16 @@
+# Latest: 0.4.40 tab recovery (2026-10-14)
+
+Owner requested automatic reconnection when Yandex tabs open/reopen, restore from
+memory discard, or return via Back/Forward. Implemented tab lifecycle bootstrap,
+per-document failure reset, BFCache-safe audio release/resume and stale settings
+read fencing. Explicit Stop and manual original remain respected. 0.4.39 VPN
+recovery retained. See docs/decisions/TAB-RECOVERY-0.4.40-2026-10-14.md.
+Local extension 214 tests, lint and security pass. Owner physical Chrome checks
+are pending; do not call them accepted automatically. CI results to be appended.
+No backend deployment; active server remains 0.4.37-b05ddfc858940c0c86979e3af2056f3cafa7dada.
+PR #6 and Issue #7 remain open. Owner reported 0.4.39 working after VPN fixes;
+latest healthy snapshot confirms API connectivity, not replacement activation.
+
 > **14.10.2026 — текущий клиент 0.4.39: восстановление VPN/502–504.** Пользователь OpenVPN Connect (desktop), иногда переключает VPN во время музыки. 0.4.38 не устранила повторные 504; не объявлять первопричину доказанной. В 0.4.39 bounded GET retries (3 попытки в общей границе 20s), connection reset, stale-access fencing; POST не повторяется транспортом, offline authority не вводится. 206 клиентских тестов + full CI38559788504 + configured package38559780183 PASS; **реальная проверка OpenVPN владельцем ожидается**. [Доказательства и действия](../decisions/VPN-RECOVERY-0.4.39-2026-10-14.md). Backend0.4.37-b05ddfc858940c0c86979e3af2056f3cafa7dada (предупреждения/фильтр длительности) сохранён; новый deploy не выполнялся. Две исправленные песни50163040/48591588 приняты владельцем13:27МСК. PR6 OPEN/unmerged, Issue7 OPEN; Android и прежние ограничения этапов не менялись. Этот блок приоритетнее исторических записей ниже.
 
 > **12.10.2026 МСК — поддержка 0.4.30 развёрнута.** Форма CELIKOM → обращения в админке → ответ в приложении и через существующий SMTP регистрации; копии новых обращений на CELIKOM_MAIL_FROM. Backend release 0.4.30-c9b857776fed0fe80725c64d2091971de9c3583f; миграция016, snapshot/data audit/isolated restore PASS (38183803526). CI38183645111 и38183806786 PASS; configured extension38183641658 PASS. Android0.3.1 — read-only диагностика, Honor50 exact ID/native replacement/crash/physical routes ещё НЕ приняты. Owner пока установил0.4.28;0.4.30 требует только проверки нового обращения/ответа/email. PR6 OPEN/unmerged;15 исключён,16 частичный,17 не начат. [Приоритетная контрольная точка](https://github.com/manufact-test/nomusic/blob/feature/api-range/docs/decisions/CHECKPOINT-2026-10-12.md).

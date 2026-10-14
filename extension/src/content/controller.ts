@@ -34,6 +34,7 @@
         }
       });
       this.enabled = false;
+      this.settingsRevision = 0;
       this.snapshot = null;
       this.lastEvent = "startup";
       this.logs = [];
@@ -76,9 +77,12 @@
       // Expose diagnostics even if storage or bridge initialization fails.
       chrome.runtime.onMessage.addListener(this.onRuntimeMessage);
       chrome.storage.onChanged.addListener(this.onStorageChanged);
+      const revision = this.settingsRevision;
       const stored = await chrome.storage.local.get(["enabled", "testTrackId"]);
-      this.enabled = stored.enabled === true;
-      this.testTrackId = stored.testTrackId || "";
+      if (revision === this.settingsRevision) {
+        this.enabled = stored.enabled === true;
+        this.testTrackId = stored.testTrackId || "";
+      }
       this.engine.configure(this.enabled, this.testTrackId);
       this.bridge.on("READY", (payload) => {
         this.mainVersion = payload?.bridgeVersion || null;
@@ -107,7 +111,19 @@
       this.syncTimer = root.setInterval(() => {
         try { this.engine.tick(); } catch (error) { this.engine.abort(`sync-error:${error.message}`, true); }
       }, 500);
-      root.addEventListener("pagehide", () => this.destroy(), { once: true });
+      root.addEventListener("pagehide", (event) => {
+        if (event.persisted) {
+          this.engine.suspendAccess(true, "page_reconnecting");
+          this.bridge.post("RELEASE_NOW", { reason: "page-cached" });
+        } else this.destroy();
+      });
+      root.addEventListener("pageshow", (event) => {
+        if (event.persisted) {
+          this.bridge.ready = false;
+          this.bridge.lastSequence = 0;
+          this.wake(); this.bridge.heartbeat();
+        }
+      });
       this.markDocument();
       this.log("Stage 4 controller started");
     }
@@ -127,6 +143,7 @@
 
     onStorageChanged(changes, areaName) {
       if (areaName !== "local") return;
+      if ("enabled" in changes || "testTrackId" in changes) this.settingsRevision++;
       if ("enabled" in changes) { this.enabled = changes.enabled.newValue === true; this.log(this.enabled ? "CELIKOM started" : "CELIKOM stopped"); this.event(this.enabled ? "celikom_started" : "celikom_stopped"); }
       if ("testTrackId" in changes) this.testTrackId = changes.testTrackId.newValue || "";
       if (this.startupError) return;
@@ -206,7 +223,9 @@
     wake() {
       if (!this.destroyed && !this.startupError) {
         this.bridge.connect();
+        const revision = this.settingsRevision;
         void chrome.storage.local.get(["enabled", "testTrackId"]).then((stored) => {
+          if (this.destroyed || revision !== this.settingsRevision) return;
           this.enabled = stored.enabled === true;
           this.testTrackId = stored.testTrackId || "";
           this.engine.configure(this.enabled, this.testTrackId);

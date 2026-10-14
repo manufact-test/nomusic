@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
 import {createMusicTabs} from '../dist/unpacked/background/music-tabs.js';
+import {registerTabRecovery} from '../dist/unpacked/background/tab-recovery.js';
 import {createActionIcon} from '../dist/unpacked/background/action-icon.js';
 import {readFile} from 'node:fs/promises';
 const source=(await readFile(new URL('../dist/unpacked/background/service-worker.js',import.meta.url),'utf8')).replace(/^import .*$/gm,'');
@@ -12,7 +13,7 @@ function fixture() {
  const commands={getStatus:'CELIKOM_STATUS_GET',setEnabled:'CELIKOM_ENABLED_SET',setTestTrack:'CELIKOM_TEST_TRACK_SET',retryReplacement:'CELIKOM_REPLACEMENT_RETRY',restoreOriginal:'CELIKOM_RESTORE_ORIGINAL'};
  const chrome={action:{setIcon:async value=>icons.push(value),setTitle:async()=>{}},runtime:{id:'worker',getManifest:()=>({version:'0.4.7'}),getURL:p=>'chrome-extension://worker/'+p,onInstalled:{addListener(){}},onStartup:{addListener(){}},onMessage:{addListener:fn=>{handler=fn}}},storage:{local:{get:async()=>({...local}),set:async x=>Object.assign(local,x)}},tabs:{query:async()=>[{id:1,url:'https://music.yandex.ru/'}],sendMessage:async(id,m)=>{sent.push(m);return {ok:true}}}};
  const auth={installationId:async()=>'',perform:async action=>action==='account-preview'?{ok:true,localSession}:{ok:true},withEntitledAccess:async()=>{},entitlement:async activation=>{if(activation)trialStarted++;return {allowed,valid_until:new Date(Date.now()+432000000).toISOString(),reason:allowed?'trial_active':'trial_inactive'}}};
- vm.runInNewContext(source,{addEventListener:(name,fn)=>networkListeners.set(name,fn),chrome,COMMANDS:commands,normalizeEnabled:v=>v===true,createActionIcon,createMusicTabs,createAuthBroker:()=>auth,createApiBroker:()=>async()=>({ok:true}),createControllerBootstrap:()=>({ensure:async()=>({status:{track:{id:'144530503'},player:{mediaId:'1'},phase:'READY',bridge:{healthy:true}}}),ensureOpenTabs:async()=>{}}),Date,URL,Promise});
+ vm.runInNewContext(source,{addEventListener:(name,fn)=>networkListeners.set(name,fn),chrome,COMMANDS:commands,normalizeEnabled:v=>v===true,registerTabRecovery,createActionIcon,createMusicTabs,createAuthBroker:()=>auth,createApiBroker:()=>async()=>({ok:true}),createControllerBootstrap:()=>({ensure:async()=>({status:{track:{id:'144530503'},player:{mediaId:'1'},phase:'READY',bridge:{healthy:true}}}),ensureOpenTabs:async()=>{}}),Date,URL,Promise});
  const send=(type,more={},sender={id:'worker',url:'chrome-extension://worker/popup/popup.html'})=>new Promise(resolve=>handler({type,...more},sender,resolve));
  return {send,local,sent,icons,auth,network:(name)=>networkListeners.get(name)?.(),setAllowed:v=>allowed=v,setSignedIn:v=>localSession=v,get trials(){return trialStarted}};
 }
