@@ -278,7 +278,7 @@ final class Application
             } catch (\DomainException $error) {
                 $code = $error->getMessage();
                 return Response::json(in_array($code, ['idempotency_conflict', 'already_approved', 'track_pending', 'track_already_approved'], true) ? 409 : 415,
-                    ['error' => in_array($code, ['invalid_mp3', 'rights_declaration_required', 'idempotency_conflict', 'already_approved', 'asset_conflict', 'track_pending', 'track_already_approved'], true)
+                    ['error' => in_array($code, ['invalid_mp3', 'duration_mismatch', 'rights_declaration_required', 'idempotency_conflict', 'already_approved', 'asset_conflict', 'track_pending', 'track_already_approved'], true)
                         ? $code : 'upload_rejected']);
             } catch (\InvalidArgumentException) {
                 return Response::json(400, ['error' => 'invalid_upload']);

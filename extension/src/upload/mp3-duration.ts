@@ -38,5 +38,5 @@ export function durationNotice(originalMs, audioMs) {
   const description = `Оригинал: ${time(originalMs)} · файл: ${time(audioMs)}.`;
   if (difference <= 1500) return { kind: "ok", text: description + " Длительность подходит для подмены." };
   const mismatch = ` Файл ${delta > 0 ? "длиннее" : "короче"} на ${(difference / 1000).toFixed(3).replace(".", ",")} с.`;
-  return { kind: "warning", text: description + mismatch + (difference > 5000 ? " Разница больше 5 секунд: выберите подходящую версию." : "") + " Допуск подмены — 1,5 с; с этим файлом подмена не запустится. Перед публикацией потребуется исправление." };
+  return { blocked: difference > 5000, kind: difference > 5000 ? "error" : "warning", text: description + mismatch + (difference > 5000 ? " Разница больше 5 секунд: выберите подходящую версию." : "") + " Допуск подмены — 1,5 с; с этим файлом подмена не запустится. Выберите файл подходящей длительности." };
 }

@@ -78,6 +78,14 @@ final class UploadService
         if ($measuredDuration === null) {
             throw new \DomainException('invalid_mp3');
         }
+        $known = $this->pdo->prepare('SELECT duration_ms FROM tracks WHERE service=? AND service_track_id=?');
+        $known->execute([$service, $trackId]);
+        $knownDuration = $known->fetchColumn();
+        $originalDuration = $knownDuration === false ? (int) $duration : (int) $knownDuration;
+        if (abs($measuredDuration - $originalDuration) > 5000) {
+            throw new \DomainException('duration_mismatch');
+        }
+
         $sha = hash_file('sha256', $path);
         if ($sha === false) throw new \RuntimeException('upload_hash_failed');
 
@@ -125,9 +133,11 @@ final class UploadService
         try {
             $track = (new LibraryManagementService($this->pdo, $this->storage))
                 ->addTrack($service, $trackId, (int) $duration, $metadata);
-            $stmt = $this->pdo->prepare('SELECT id FROM tracks WHERE id = ? FOR UPDATE');
+            $stmt = $this->pdo->prepare('SELECT duration_ms FROM tracks WHERE id = ? FOR UPDATE');
             $stmt->execute([$track]);
-            if ($stmt->fetchColumn() === false) throw new \RuntimeException('track_missing');
+            $lockedDuration = $stmt->fetchColumn();
+            if ($lockedDuration === false) throw new \RuntimeException('track_missing');
+            if (abs($measuredDuration - (int) $lockedDuration) > 5000) throw new \DomainException('duration_mismatch');
             $priorTrack = $this->existingTrackUpload($service, $trackId, $sha);
             if ($priorTrack !== null) {
                 $this->pdo->commit();

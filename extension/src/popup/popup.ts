@@ -116,15 +116,18 @@ let uploadRequestId: string | null = null;
 let uploading = false;
 let opening = false;
 const durationNote=document.querySelector<HTMLElement>("[data-upload-duration]");
-let durationGeneration=0, measuredFile=null, durationPromise=null;
+let durationGeneration=0, measuredFile=null, durationPromise=null, durationBlocked=false;
 function checkFileDuration(){
   const file=uploadFile?.files?.[0], target=pinnedTrack, generation=++durationGeneration;
-  measuredFile=file;durationPromise=null;
+  measuredFile=file;durationPromise=null;durationBlocked=false;
   if(!durationNote||!file||!target){if(durationNote)durationNote.hidden=true;return Promise.resolve();}
+  if(uploadButton)uploadButton.disabled=true;
   durationNote.hidden=false;durationNote.dataset.kind="warning";durationNote.textContent="Проверяем длительность MP3…";
   durationPromise=Promise.resolve().then(()=>file.arrayBuffer()).then(mp3DurationMs).catch(()=>null).then(ms=>{
     if(generation!==durationGeneration||pinnedTrack?.id!==target.id||uploadFile?.files?.[0]!==file)return;
-    const notice=durationNotice(target.durationMs,ms);durationNote.textContent=notice.text;durationNote.dataset.kind=notice.kind;
+    const notice=durationNotice(target.durationMs,ms);durationNote.textContent=notice.text;durationNote.dataset.kind=notice.kind;durationBlocked=notice.blocked===true;
+    if(uploadButton&&!uploading)uploadButton.disabled=durationBlocked;
+    if(notice.kind!=="ok")durationNote.scrollIntoView?.({block:"nearest",behavior:"smooth"});
   });
   return durationPromise;
 }
@@ -177,7 +180,7 @@ function setPickerState(): void {
 }
 
 function resetUploadPanel(): void {
-  durationGeneration++;measuredFile=null;durationPromise=null;if(durationNote)durationNote.hidden=true;
+  durationGeneration++;measuredFile=null;durationPromise=null;durationBlocked=false;if(durationNote)durationNote.hidden=true;
   if (uploadResult) uploadResult.hidden = true;
   if (uploadForm) uploadForm.hidden = true;
   if (uploadButton) { uploadButton.disabled = true; uploadButton.textContent = "Отправить на проверку"; }
@@ -373,6 +376,7 @@ uploadForm?.addEventListener("submit", async (event) => {
   let transferStarted = false;
   try {
     if(measuredFile!==file)await checkFileDuration();else if(durationPromise)await durationPromise;
+    if(durationBlocked){uploadMessage("");durationNote?.scrollIntoView?.({block:"nearest",behavior:"smooth"});return;}
     const now = uploadTargetFromStatus(await send<ExtensionState>({ type: COMMANDS.getStatus }));
     if (!now || now.id !== pinnedTrack.id) {
       uploadMessage("Трек изменился. Закройте и откройте «Загрузить версию» заново.", "error");
@@ -439,6 +443,7 @@ uploadForm?.addEventListener("submit", async (event) => {
         rate_limited: "Слишком много попыток. Попробуйте позже.",
         upload_too_large: "Файл превышает допустимый размер.",
         invalid_mp3: "Файл не прошёл проверку MP3.",
+        duration_mismatch: "Разница длительности больше 5 секунд. Выберите подходящую версию.",
         idempotency_conflict: "Повтор запроса не совпадает с исходным.",
         rights_declaration_required: "Подтвердите права на файл."
       };
@@ -456,7 +461,7 @@ uploadForm?.addEventListener("submit", async (event) => {
       uploading = false;
       if(uploadFile)uploadFile.disabled=false;
       if (uploadButton && uploadForm && !uploadForm.hidden) {
-        uploadButton.disabled = false;
+        uploadButton.disabled = durationBlocked;
         uploadButton.textContent = "Отправить на проверку";
       }
     }

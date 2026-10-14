@@ -67,7 +67,19 @@ try {
         try { expect($inspector->durationMs($tagged) === 2612, 'Standard ID3 tags accepted'); }
         finally { unlink($tagged); }
     });
+    run('Uploads reject duration mismatch before creating a track or asset', function () use ($service,$fields,$file,$ownerHash,$pdo): void {
+        $bad=array_merge($fields,['track_id'=>'799999','duration_ms'=>'7613']);
+        try {$service->upload($bad,$file,$ownerHash);throw new RuntimeException('mismatch accepted');}
+        catch (DomainException $e) {expect($e->getMessage()==='duration_mismatch','Mismatch rejected');}
+        expect((int)$pdo->query("SELECT COUNT(*) FROM tracks WHERE service_track_id='799999'")->fetchColumn()===0,'No track created');
+    });
     $created = $service->upload($fields, $file, $ownerHash);
+    run('Upload uses stored original duration despite spoofed supplied duration',function() use($service,$fields,$file,$ownerHash,$pdo):void{
+        $pdo->exec("UPDATE tracks SET duration_ms=7613 WHERE service_track_id='799001'");
+        try {try{$service->upload($fields,$file,$ownerHash);throw new RuntimeException('stored mismatch accepted');}
+        catch(DomainException $e){expect($e->getMessage()==='duration_mismatch','Stored original authoritative');}}
+        finally{$pdo->exec("UPDATE tracks SET duration_ms=2606 WHERE service_track_id='799001'");}
+    });
     run('Stage 7 upload creates only pending candidate and fingerprint job', function () use ($pdo, $catalog, $created): void {
         expect($created['status'] === 'pending' && !$created['duplicate'], 'Only pending');
         expect($catalog->findActive('yandex', '799001') === null, 'No active replacement');

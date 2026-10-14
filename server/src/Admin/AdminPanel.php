@@ -589,10 +589,11 @@ final class AdminPanel
         $difference = 'ABS(CAST(a.duration_ms AS SIGNED) - CAST(t.duration_ms AS SIGNED))';
         $conditions = $status !== '' ? ['r.status = ?'] : [];
         $params = $status !== '' ? [$status] : [];
+        if ($duration === 'mismatch' && $status === '') $conditions[] = "(r.status='pending' OR (r.status='approved' AND r.is_active=1 AND r.disabled_at IS NULL))";
         if ($duration !== '') $conditions[] = $difference . ($duration === 'mismatch' ? ' > 1500' : ' <= 1500');
         $where = $conditions ? ' WHERE ' . implode(' AND ', $conditions) . ' ' : ' ';
         $joins = ' FROM track_replacements r JOIN tracks t ON t.id=r.track_id JOIN audio_assets a ON a.id=r.audio_asset_id ';
-        $mismatchCount = (int) $this->pdo->query('SELECT COUNT(*)' . $joins . ' WHERE ' . $difference . ' > 1500')->fetchColumn();
+        $mismatchCount = (int) $this->pdo->query('SELECT COUNT(*)' . $joins . ' WHERE ' . $difference . " > 1500 AND (r.status='pending' OR (r.status='approved' AND r.is_active=1 AND r.disabled_at IS NULL))")->fetchColumn();
         $count = $this->pdo->prepare('SELECT COUNT(*)' . $joins . $where);
         $count->execute($params);
         $total = (int) $count->fetchColumn();

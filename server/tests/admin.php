@@ -170,6 +170,14 @@ try{
             expect($bad->status===200 && str_contains($bad->body,'#'.$candidate.' ·'),'Malformed filter normalized safely');
         } finally {
             foreach($extra as $id)$pdo->prepare('DELETE FROM track_replacements WHERE id=?')->execute([$id]);
+            foreach(['rejected','disabled'] as $closedStatus){
+                $pdo->prepare('UPDATE track_replacements SET status=? WHERE id=?')->execute([$closedStatus,$candidate]);
+                $hidden=$app->handle('GET','/admin',['tab'=>'uploads','duration'=>'mismatch','per_page'=>'50'],$sessionHeaders);
+                expect(!str_contains($hidden->body,'#'.$candidate.' ·'),'Closed mismatch excluded from actionable list');
+                $history=$app->handle('GET','/admin',['tab'=>'uploads','status'=>$closedStatus,'duration'=>'mismatch','per_page'=>'50'],$sessionHeaders);
+                expect(str_contains($history->body,'#'.$candidate.' ·'),'Closed mismatch retained in explicit history');
+            }
+            $pdo->prepare("UPDATE track_replacements SET status='pending' WHERE id=?")->execute([$candidate]);
             $pdo->prepare('UPDATE tracks SET duration_ms=2612 WHERE id=?')->execute([$trackId]);
         }
     });

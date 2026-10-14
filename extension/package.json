@@ -1,6 +1,6 @@
 {
   "name": "@celikom/extension",
-  "version": "0.4.41",
+  "version": "0.4.42",
   "private": true,
   "type": "module",
   "description": "CELIKOM Chromium MV3 player integration",

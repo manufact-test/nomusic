@@ -18,7 +18,7 @@ final class SupportAdminView
  private static function status(string $status):string{return $status==='open'?'Новое':'Закрыто';}
  public function render(string $csrf,int $selected,int $page=1,int $messagePage=1,int $account=0,string $kind='general'):string{
   $kind=$kind==='song'?'song':'general';
-  $html='<section class="panel"><h1>Техподдержка</h1>';
+  $html='<section class="panel"><style>.support-unhandled{background:#fff5de;box-shadow:inset 4px 0 #d87d0e}.support-kinds .has-unhandled{box-shadow:inset 0 -3px #d87d0e;font-weight:700}</style><h1>Техподдержка</h1>';
   if($selected>0){
    try{$thread=(new SupportService($this->pdo))->thread($selected,null,$messagePage);}catch(\DomainException){return $html.'<p>Обращение не найдено.</p></section>';}
    $q=$this->pdo->prepare('SELECT u.id,u.email FROM users u JOIN support_tickets t ON t.user_id=u.id WHERE t.id=?');$q->execute([$selected]);$user=$q->fetch(\PDO::FETCH_ASSOC);
@@ -43,8 +43,8 @@ final class SupportAdminView
    $html.='<h2>'.self::e($email).'</h2>';
    $q=$this->pdo->prepare("SELECT kind,COUNT(*) AS total,SUM(status='open') AS pending FROM support_tickets WHERE user_id=? GROUP BY kind");$q->execute([$account]);$counts=[];foreach($q->fetchAll(\PDO::FETCH_ASSOC) as $row)$counts[$row['kind']]=$row;
    $html.='<nav class="support-kinds" aria-label="Виды обращений">';
-   foreach(['general'=>'Обычные обращения','song'=>'Проблемы с песнями'] as $type=>$label)$html.='<a class="btn'.($kind===$type?' primary':'').'" href="/admin?tab=support&amp;account='.$account.'&amp;support_kind='.$type.'"'.($kind===$type?' aria-current="page"':'').'>'.$label.' · '.(int)($counts[$type]['pending']??0).' новых / '.(int)($counts[$type]['total']??0).' всего</a> ';
-   $html.='</nav><p class="muted">'.($kind==='general'?'Обычные обращения: отправьте пользователю ответ по почте.':'Проблемы с песнями: проверьте отчёт и отметьте его решённым; ответ по почте не требуется.').'</p>';
+   foreach(['general'=>'Обычные обращения','song'=>'Проблемы с песнями'] as $type=>$label)$html.='<a class="btn'.($kind===$type?' primary':'').((int)($counts[$type]['pending']??0)>0?' has-unhandled':'').'" href="/admin?tab=support&amp;account='.$account.'&amp;support_kind='.$type.'"'.($kind===$type?' aria-current="page"':'').'>'.$label.'</a> ';
+   $html.='</nav><p>Новых: '.(int)($counts[$kind]['pending']??0).' · Всего: '.(int)($counts[$kind]['total']??0).'</p><p class="muted">'.($kind==='general'?'Обычные обращения: отправьте пользователю ответ по почте.':'Проблемы с песнями: проверьте отчёт и отметьте его решённым; ответ по почте не требуется.').'</p>';
    $offset=self::page($page,10);
    $q=$this->pdo->prepare("SELECT id,status,created_at FROM support_tickets WHERE user_id=? AND kind=? ORDER BY (status='open') DESC,id DESC LIMIT 11 OFFSET $offset");$q->execute([$account,$kind]);$rows=$q->fetchAll(\PDO::FETCH_ASSOC);$more=count($rows)>10;
    $html.='<div class="table-wrap"><table><thead><tr><th>Обращение</th><th>Статус</th><th></th></tr></thead><tbody>';
@@ -54,8 +54,8 @@ final class SupportAdminView
   }
   $offset=self::page($page,20);
   $rows=$this->pdo->query("SELECT u.id,u.email,COUNT(*) AS total,SUM(t.status='open') AS new_count,SUM(t.kind='song' AND t.status='open') AS song_count,SUM(t.kind='general' AND t.status='open') AS general_count,MAX(t.id) AS latest FROM support_tickets t JOIN users u ON u.id=t.user_id GROUP BY u.id,u.email ORDER BY (SUM(t.status='open')>0) DESC,MAX(t.id) DESC LIMIT 21 OFFSET $offset")->fetchAll(\PDO::FETCH_ASSOC);$more=count($rows)>20;
-  $html.='<div class="table-wrap"><table><thead><tr><th>Аккаунт</th><th>Обычные · новые</th><th>Песни · новые</th><th></th></tr></thead><tbody>';
-  foreach(array_slice($rows,0,20) as $row)$html.='<tr><td>'.self::e($row['email']).'</td><td>'.(int)$row['general_count'].'</td><td>'.(int)$row['song_count'].'</td><td><a class="button" href="/admin?tab=support&amp;account='.(int)$row['id'].'">Посмотреть</a></td></tr>';
+  $html.='<div class="table-wrap"><table><thead><tr><th>Аккаунт</th><th>Обращения</th><th></th></tr></thead><tbody>';
+  foreach(array_slice($rows,0,20) as $row)$html.='<tr'.((int)$row['new_count']>0?' class="support-unhandled"':'').'><td>'.self::e($row['email']).'</td><td>'.(int)$row['total'].'</td><td><a class="button" href="/admin?tab=support&amp;account='.(int)$row['id'].'">Посмотреть</a></td></tr>';
   $html.='</tbody></table></div>';
   if(!$rows)$html.='<p>Обращений пока нет.</p>';
   return $html.$this->pagination($page,$more,'').'</section>';

@@ -342,3 +342,19 @@ test('local MP3 duration warning is visible before any file upload',async()=>{
  const count=requests.length;await find('[data-upload-file]').fire('change');await new Promise(resolve=>setTimeout(resolve,10));
  assert.equal(find('[data-upload-duration]').hidden,false);assert.match(find('[data-upload-duration]').textContent,/Разница больше 5 секунд/);assert.equal(requests.length,count);
 });
+
+test('duration mismatch blocks submit even if called directly and selecting a compatible file unlocks',async()=>{
+ const bytes=await readFile(new URL('../assets/test-audio.mp3',import.meta.url));
+ const {mp3DurationMs}=await import('../dist/unpacked/upload/mp3-duration.js');
+ const duration=mp3DurationMs(bytes);
+ const input=find('[data-upload-file]'),button=find('[data-upload-submit]');
+ assert.equal(button.disabled,true);
+ find('[data-upload-rights]').checked=true;
+ const count=requests.length;await find('[data-upload-form]').fire('submit',{preventDefault(){}});
+ assert.equal(requests.length,count);assert.equal(button.disabled,true);
+ current={...selected,track:{...selected.track,id:'144530598',metadata:{...selected.track.metadata,durationMs:duration}}};
+ find('[data-upload-panel]').hidden=true;await find("[data-action='add']").fire('click');
+ const file=new Blob([bytes],{type:'audio/mpeg'});Object.defineProperty(file,'name',{value:'fits.mp3'});input.files=[file];
+ await input.fire('change');await new Promise(resolve=>setTimeout(resolve,10));
+ assert.equal(button.disabled,false);assert.equal(find('[data-upload-duration]').dataset.kind,'ok');
+});

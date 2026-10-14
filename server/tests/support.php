@@ -80,6 +80,12 @@ try{
   $general=$service->create($u,'Обычное сообщение',$uuid());expect(count($sent)===$before+1,'General email notification preserved');
   $view=new SupportAdminView($pdo);$account=$view->render(str_repeat('a',64),0,1,1,$u,'song');expect(str_contains($account,'Обычные обращения')&&str_contains($account,'Проблемы с песнями'),'Two account sections');expect(str_contains($account,'ticket='.$id.'"')&&!str_contains($account,'ticket='.$general.'"'),'Song list excludes general conversations');
   $html=$view->render(str_repeat('a',64),$id);expect(str_contains($html,'&lt;script&gt;song')&&!str_contains($html,'<script>song'),'Metadata escaped');expect(str_contains($html,'resolve-song')&&!str_contains($html,'support/reply'),'Song has resolution, no mandatory reply');
+  $list=$view->render(str_repeat('a',64),0);
+  expect(str_contains($list,'<th>Обращения</th>')&&!str_contains($list,'<th>Песни'),'Single total column');
+  expect(str_contains($list,'class="support-unhandled"'),'Open account highlighted');
+  $inside=$view->render(str_repeat('a',64),0,1,1,$u,'song');
+  expect(str_contains($inside,'>Обычные обращения</a>')&&str_contains($inside,'>Проблемы с песнями</a>'),'Labels without counters');
+  expect(str_contains($inside,'has-unhandled')&&str_contains($inside,'Новых: 1 · Всего: 1'),'Pending indicator and separate counts');
   try{$service->resolveSong($viewer,$id);throw new RuntimeException('viewer_resolved');}catch(DomainException $e){expect($e->getMessage()==='forbidden','Viewer denied');}
   try{$service->resolveSong($owner,$general);throw new RuntimeException('general_closed_without_reply');}catch(DomainException){}
   $service->resolveSong($owner,$id);$service->resolveSong($owner,$id);expect($service->thread($id,$u)['status']==='closed','Report resolved');expect($service->thread($general,$u)['status']==='open','Ordinary reply still required');expect(count($sent)===$before+1,'Resolution sends no email');
