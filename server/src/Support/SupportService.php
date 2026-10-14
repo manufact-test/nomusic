@@ -42,7 +42,7 @@ final class SupportService
   $body=$this->validate($body,$key);$this->pdo->beginTransaction();
   try{
    $q=$this->pdo->prepare("SELECT id FROM admins WHERE id=? AND enabled=1 AND role IN ('owner','moderator') FOR UPDATE");$q->execute([$admin]);if(!$q->fetchColumn())throw new \DomainException('forbidden');
-   $q=$this->pdo->prepare('SELECT id FROM support_tickets WHERE id=? AND kind='general' FOR UPDATE');$q->execute([$id]);if(!$q->fetchColumn())throw new \DomainException('not_found');
+   $q=$this->pdo->prepare("SELECT id FROM support_tickets WHERE id=? AND kind='general' FOR UPDATE");$q->execute([$id]);if(!$q->fetchColumn())throw new \DomainException('not_found');
    $q=$this->pdo->prepare('SELECT id FROM support_messages WHERE ticket_id=? AND request_key=?');$q->execute([$id,$key]);if($messageId=$q->fetchColumn()){$q=$this->pdo->prepare('SELECT body,admin_id FROM support_messages WHERE id=?');$q->execute([$messageId]);$previous=$q->fetch(\PDO::FETCH_ASSOC);if($previous['body']!==$body||(int)$previous['admin_id']!==$admin)throw new \InvalidArgumentException('invalid_request');$this->pdo->commit();return;}
    $this->pdo->prepare('INSERT INTO support_messages(ticket_id,admin_id,request_key,body) VALUES (?,?,?,?)')->execute([$id,$admin,$key,$body]);$message=(int)$this->pdo->lastInsertId();
    $this->pdo->prepare("UPDATE support_tickets SET status='closed',updated_at=UTC_TIMESTAMP(6) WHERE id=?")->execute([$id]);$this->audit($admin,$id,'support_reply');$this->pdo->commit();
