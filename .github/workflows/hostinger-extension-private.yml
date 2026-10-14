@@ -10,6 +10,9 @@ on:
       - extension/src/adapters/yandex-music-adapter.ts
       - extension/tests/yandex-adapter.test.mjs
       - extension/tests/popup-upload.integration.test.mjs
+      - extension/src/popup/**
+      - extension/src/upload/**
+      - scripts/test-support-browser.mjs
       - extension/src/popup/popup.ts
       - extension/src/auth/auth-broker.ts
       - extension/src/auth/auth-popup.ts
