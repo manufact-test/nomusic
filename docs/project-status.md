@@ -1,3 +1,34 @@
+# Latest: 0.4.42 owner review corrections (2026-10-14)
+
+Owner accepted grouped song requests and proposal presence behavior; requested
+support inbox simplification, visible duration notice, hard upload block >5s,
+and removal of rejected/disabled duration alerts. All implemented/deployed.
+Inside support: account total + open-row highlight; category labels without
+counts, open-category highlight, separate selected-category counts. Email reply
+and song resolution behavior retained. Upload notice follows picker before
+rights/submit, scrolls into view; local and server >5000ms rejection, known Track
+duration authoritative, file reselection unlocks. Playback tolerance stays 1500ms.
+Actionable duration count excludes rejected/disabled; explicit history retained.
+
+Owner explicitly requested Track1944599 replacement5 cut to200820ms. Decoded audit
+found sound throughout removed tail (disclosed in commentary). Original backed
+up and retained. Encoded frames/decoded kept prefix unchanged; new200829ms,
+asset28/version3, still approved/active. Audio workflow38618103286 PASS.
+
+225 client tests, private Chrome38617424550, MariaDB38617424456,
+final CI38618113737 PASS; deployment38618103269 attempt2 PASS. Active server
+0.4.42-ea0d2a4e928867665e096f173823264948cd5e28. Backup/22-object/isolated MySQL
+restore PASS. Live audit: 2 ordinary tickets retained, actionable alerts0,
+Papirosy200829ms, two earlier repaired versions preserved. Earlier attempts
+stopped on stale revision / external registry limit before live operations;
+unchanged retries pass. PR6 unmerged and Issue7 open.
+
+Owner package CELIKOM-0.4.42-full.zip saved; SHA256
+b2f63404f665c207e8384564a28454a2ee8a0ed6e393770b9e263cb6e6a565dc.
+Next: owner update extension in place/reload Yandex, verify inbox and mismatch
+block/unlock and listen to trimmed Papirosy. Owner acceptance PENDING.
+Details: docs/decisions/USER-FEEDBACK-CORRECTIONS-0.4.42-2026-10-14.md.
+
 > **12.10.2026 МСК — поддержка 0.4.30 развёрнута.** Форма CELIKOM → обращения в админке → ответ в приложении и через существующий SMTP регистрации; копии новых обращений на CELIKOM_MAIL_FROM. Backend release 0.4.30-c9b857776fed0fe80725c64d2091971de9c3583f; миграция016, snapshot/data audit/isolated restore PASS (38183803526). CI38183645111 и38183806786 PASS; configured extension38183641658 PASS. Android0.3.1 — read-only диагностика, Honor50 exact ID/native replacement/crash/physical routes ещё НЕ приняты. Owner пока установил0.4.28;0.4.30 требует только проверки нового обращения/ответа/email. PR6 OPEN/unmerged;15 исключён,16 частичный,17 не начат. [Приоритетная контрольная точка](https://github.com/manufact-test/nomusic/blob/feature/api-range/docs/decisions/CHECKPOINT-2026-10-12.md).
 
 > **12.10.2026 МСК — native diagnostic0.3.0-probe подготовлен для Honor50 по согласованию владельца.** Нет WebView/login/подмены звука; read-only MediaSession + AudioEffect events, ручной отчёт, no INTERNET/microphone. Код9d50315, native CI38179310074 PASS (lint/build/2 API35 tests/font1.3), общий CI38179314385 PASS. Реальный Яндекс ещё НЕ проверен. [Шаги и границы](https://github.com/manufact-test/nomusic/blob/feature/api-range/docs/spikes/ANDROID-NATIVE-PROBE-OWNER-2026-10-12.md). Stage16partial/17notstarted/15excluded; PR6OPEN/unmerged, backend/extension/live data сохранены. Этот блок приоритетнее старой WebView-передачи.

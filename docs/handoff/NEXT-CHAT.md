@@ -1,3 +1,34 @@
+# Latest: 0.4.42 owner review corrections (2026-10-14)
+
+Owner accepted grouped song requests and proposal presence behavior; requested
+support inbox simplification, visible duration notice, hard upload block >5s,
+and removal of rejected/disabled duration alerts. All implemented/deployed.
+Inside support: account total + open-row highlight; category labels without
+counts, open-category highlight, separate selected-category counts. Email reply
+and song resolution behavior retained. Upload notice follows picker before
+rights/submit, scrolls into view; local and server >5000ms rejection, known Track
+duration authoritative, file reselection unlocks. Playback tolerance stays 1500ms.
+Actionable duration count excludes rejected/disabled; explicit history retained.
+
+Owner explicitly requested Track1944599 replacement5 cut to200820ms. Decoded audit
+found sound throughout removed tail (disclosed in commentary). Original backed
+up and retained. Encoded frames/decoded kept prefix unchanged; new200829ms,
+asset28/version3, still approved/active. Audio workflow38618103286 PASS.
+
+225 client tests, private Chrome38617424550, MariaDB38617424456,
+final CI38618113737 PASS; deployment38618103269 attempt2 PASS. Active server
+0.4.42-ea0d2a4e928867665e096f173823264948cd5e28. Backup/22-object/isolated MySQL
+restore PASS. Live audit: 2 ordinary tickets retained, actionable alerts0,
+Papirosy200829ms, two earlier repaired versions preserved. Earlier attempts
+stopped on stale revision / external registry limit before live operations;
+unchanged retries pass. PR6 unmerged and Issue7 open.
+
+Owner package CELIKOM-0.4.42-full.zip saved; SHA256
+b2f63404f665c207e8384564a28454a2ee8a0ed6e393770b9e263cb6e6a565dc.
+Next: owner update extension in place/reload Yandex, verify inbox and mismatch
+block/unlock and listen to trimmed Papirosy. Owner acceptance PENDING.
+Details: docs/decisions/USER-FEEDBACK-CORRECTIONS-0.4.42-2026-10-14.md.
+
 # Latest: 0.4.41 user feedback improvements (2026-10-14)
 
 Owner authorized four improvements. Implemented support kind general/song under
