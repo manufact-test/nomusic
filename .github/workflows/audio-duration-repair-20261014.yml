@@ -1,0 +1,62 @@
+name: Audit two owner-reported duration failures
+on:
+  push:
+    branches: [feature/api-range]
+    paths: [.github/workflows/audio-duration-repair-20261014.yml]
+permissions:
+  contents: read
+concurrency:
+  group: celikom-hostinger-private-test
+  cancel-in-progress: false
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Read-only audio duration and silence audit
+        env:
+          HOSTINGER_SSH_KEY: ${{ secrets.HOSTINGER_SSH_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          work=$(mktemp -d)
+          target=u235811320@92.113.19.189
+          remote=/home/u235811320/domains/darkred-camel-588676.hostingersite.com/celikom/incoming/duration-audit-${GITHUB_RUN_ID}.php
+          printf '%s\n' "$HOSTINGER_SSH_KEY" | tr -d '\r' > "$work/key"
+          ssh-keygen -y -P '' -f "$work/key" > "$work/public"
+          test "$(ssh-keygen -lf "$work/public" -E sha256 | awk '{print $2}')" = 'SHA256:Q6FyifXRq6garceQdIIjBmXhkk81Ic1p/x9JTSYHWUk'
+          printf '%s\n' '[92.113.19.189]:65002 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAf8M2EVwq0oJI8I9KZ0NFE8P8yDOvDATEhkQti/Kk/0' > "$work/known_hosts"
+          opts=(-i "$work/key" -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o "UserKnownHostsFile=$work/known_hosts" -o GlobalKnownHostsFile=/dev/null -o ConnectTimeout=15)
+          trap 'ssh -p 65002 "${opts[@]}" "$target" "rm -f '\''$remote'\''" || true; rm -rf "$work"' EXIT
+          cat > "$work/audit.php" <<'PHP'
+          <?php
+          ini_set('display_errors','0');
+          try {
+          $app='/home/u235811320/domains/darkred-camel-588676.hostingersite.com/celikom';
+          require $app.'/current/bootstrap.php';$config=require $app.'/current/config/app.php';
+          $pdo=Celikom\Database\Connection::open($config);
+          $pdo->exec('SET TRANSACTION READ ONLY');$pdo->beginTransaction();
+          $q=$pdo->query("SELECT t.service_track_id,t.title,t.artist,t.duration_ms AS original_ms,r.id AS replacement_id,r.version,r.audio_asset_id,a.duration_ms,a.sha256,a.storage_key,a.size_bytes FROM tracks t JOIN track_replacements r ON r.track_id=t.id JOIN audio_assets a ON a.id=r.audio_asset_id WHERE t.service='yandex' AND t.service_track_id IN ('50163040','48591588') AND r.status='approved' AND r.is_active=1 AND r.disabled_at IS NULL ORDER BY t.service_track_id");
+          $rows=$q->fetchAll(PDO::FETCH_ASSOC);$pdo->commit();
+          if(count($rows)!==2)throw new RuntimeException('two_active_required');
+          $id=$argv[1]??'';
+          if($id==='inspect'){foreach($rows as &$r){unset($r['storage_key']);}echo json_encode($rows,JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR);exit;}
+          foreach($rows as $r){if($r['service_track_id']!==$id)continue;
+          $s=new Celikom\Storage\LocalStorageAdapter($config['storage_path']);$stream=$s->openStream($r['storage_key']);
+          if($s->getSize($r['storage_key'])!==(int)$r['size_bytes'])throw new RuntimeException('size');
+          fpassthru($stream);fclose($stream);exit;}
+          throw new RuntimeException('id');
+          }catch(Throwable $e){fwrite(STDERR,'Restricted audio audit failed: '.get_class($e)."\n");exit(1);}
+          PHP
+          scp -P 65002 "${opts[@]}" "$work/audit.php" "$target:$remote"
+          ssh -p 65002 "${opts[@]}" "$target" "/opt/alt/php83/usr/bin/php '$remote' inspect" > "$work/metadata.json"
+          cat "$work/metadata.json"
+          command -v ffmpeg || { sudo apt-get update -qq; sudo apt-get install -y -qq ffmpeg; }
+          for id in 50163040 48591588; do
+            ssh -p 65002 "${opts[@]}" "$target" "/opt/alt/php83/usr/bin/php '$remote' '$id'" > "$work/$id.mp3"
+            echo "Track $id decode and silence audit"
+            ffprobe -v error -show_entries format=duration -of json "$work/$id.mp3"
+            ffmpeg -hide_banner -nostats -i "$work/$id.mp3" -af silencedetect=noise=-45dB:d=0.15 -f null - 2>&1
+            python3 -c 'import json,hashlib,sys,pathlib; r=next(x for x in json.loads(pathlib.Path(sys.argv[1]).read_text()) if x["service_track_id"]==sys.argv[2]);assert hashlib.sha256(pathlib.Path(sys.argv[3]).read_bytes()).hexdigest()==r["sha256"];print("Stored SHA256 verified")' "$work/metadata.json" "$id" "$work/$id.mp3"
+          done
