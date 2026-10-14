@@ -28,8 +28,8 @@ header {
   width: 10px;
   height: 10px;
   border-radius: 50%;
-  background: #66e0bf;
-  box-shadow: 0 0 16px rgb(102 224 191 / 55%);
+  background: #858b8e;
+  box-shadow: none;
 }
 
 .status {
@@ -410,3 +410,5 @@ html{scrollbar-width:thin;scrollbar-color:#45565f transparent}
 .upload-duration-note[data-kind="ok"] { color: #9ceacb; border-color: #387459; background: #142b22; }
 
 .upload-duration-note[data-kind="error"]{background:#fff0ec;border:2px solid #d44832;color:#8c2417;font-weight:600;padding:12px;border-radius:12px}
+
+.mark[data-active="true"]{background:#66e0bf;box-shadow:0 0 16px rgb(102 224 191 / 55%)}

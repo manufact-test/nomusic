@@ -39,5 +39,5 @@ function createGainChain(context, audio, db) {
   slider.addEventListener('input',update);
   form.querySelector('[data-gain-reset]').addEventListener('click',()=>{slider.value='0';update();});
  }
- window.addEventListener('pagehide',()=>{for(const context of contexts.values())void context.close().catch(()=>{});contexts.clear();});
+ window.addEventListener('pagehide',event=>{if(event.persisted)return;for(const context of contexts.values())void context.close().catch(()=>{});contexts.clear();});
 })();
