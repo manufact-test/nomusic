@@ -1,3 +1,34 @@
+# Latest: 0.4.43 admin loudness mixer / upload block / error icon (2026-10-14)
+
+Owner authorized manual admin volume adjustment; Papirosy gain intentionally0.
+Per-replacement gain_db (-12..12dB) is non-destructive and defaults0, migration018.
+Admin: play audio, move slider, reset to0, Save. Owner/moderator write with CSRF,
+row lock/audit/stale-save guard; viewer previews only. Extension applies saved
+bounded gain with same limiter/makeup compensation/peak ceiling;0 preserves old
+media path. Media bytes/timing/moderation/token version not changed. Explicit
+Start refreshes Resolve; after Save restart replacement to apply immediately.
+Screenshot upload gap2848ms was below old5s hard block but above playback1.5s.
+Now reject >1500ms on client/server in either direction; exactly1500ms accepted;
+whole m:ss/whole-second UI, precision retained internally. Threshold change
+explained to owner before work. Toolbar + popup dot/status gray on selected-tab
+error/suspension; unhealthy pulse does not wait for auth network completion.
+
+228 client tests, measured actual audio gain/native media/slider/reset tests,
+MySQL admin save/security/media signature preservation tests PASS.
+Final CI38626650987 PASS, Chrome38626640919 attempt2 PASS (initial unchanged
+support harness timeout), MariaDB38624943927 PASS. Deploy38626641678 PASS;
+active0.4.43-ab704439fe3c108250a890172b93c32978ff27dc. Snapshot22audio/private env,
+file+MySQL restore PASS. Live audit: 2 ordinary tickets/1 song report retained,
+actionable duration alerts0, Papirosy200829ms/gain0, earlier repaired music intact.
+PR6 unmerged, Issue7 open; owner acceptance pending.
+
+CELIKOM-0.4.43-full.zip saved, SHA256
+625e9ecb744d796d8253505076127a2cad839b2ee2eca92c9c7aceb0e430d809.
+Owner next: update extension in place/reload Yandex; admin Papirosy Play → slider
+→ Save → restart replacement; test screenshot unsuitable file blocked and error
+icon gray/recovery green. No automated original Yandex comparison or real music
+boost claimed. Details: docs/decisions/AUDIO-GAIN-STRICT-UPLOAD-ICON-0.4.43-2026-10-14.md.
+
 # Latest: 0.4.42 owner review corrections (2026-10-14)
 
 Owner accepted grouped song requests and proposal presence behavior; requested
