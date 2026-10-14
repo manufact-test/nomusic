@@ -317,7 +317,9 @@ test('suggesting available or pending audio shows the green result and never pos
  current=selected;offline=false;
  for(const status of ['approved','pending']){
   version=status;find('[data-suggest-panel]').hidden=true;
-  const count=suggestionPosts.length;await find("[data-action='suggest']").fire('click');
+  const count=suggestionPosts.length;const opening=find("[data-action='suggest']").fire('click');
+  assert.equal(find("[data-action='suggest']").disabled,true);assert.equal(find("[data-action='suggest']").textContent,'Проверяем…');await opening;
+  assert.equal(find("[data-action='suggest']").disabled,false);
   assert.equal(find('[data-suggest-result]').hidden,false);assert.equal(find('[data-suggest-submit]').hidden,true);
   assert.match(find('[data-suggest-result-title]').textContent,status==='approved'?/доступна/:/проверке/);assert.equal(suggestionPosts.length,count);
  }

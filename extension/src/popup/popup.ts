@@ -487,7 +487,7 @@ async function suggestionStatus(id){
 suggestButton?.addEventListener("click",async()=>{
   if(incidentStatus.active()||!suggestPanel||suggesting||suggestOpening)return;
   if(!suggestPanel.hidden){suggestGeneration++;suggestPanel.hidden=true;suggestButton.setAttribute("aria-expanded","false");return;}
-  const generation=++suggestGeneration;suggestOpening=true;
+  const generation=++suggestGeneration;suggestOpening=true;suggestButton.disabled=true;suggestButton.textContent="Проверяем…";suggestButton.setAttribute("aria-busy","true");
   suggestSubmit&&(suggestSubmit.disabled=true);if(suggestSubmit)suggestSubmit.hidden=false;
   if(suggestResult)suggestResult.hidden=true;if(suggestNote)suggestNote.hidden=true;
   try {
@@ -502,7 +502,7 @@ suggestButton?.addEventListener("click",async()=>{
       if(!suggestPresence(presence)&&suggestSubmit)suggestSubmit.disabled=false;
     }
   }catch(error){if(suggestNote){suggestNote.hidden=false;suggestNote.textContent=(error as Error)?.message==="track_changed"?"Трек изменился. Откройте предложение заново.":contributionError(error);}}
-  finally{if(generation===suggestGeneration){suggestOpening=false;suggestPanel.hidden=false;suggestButton.setAttribute("aria-expanded","true");}}
+  finally{suggestOpening=false;suggestButton.disabled=false;suggestButton.textContent="Предложить песню";suggestButton.setAttribute("aria-busy","false");if(generation===suggestGeneration){suggestPanel.hidden=false;suggestButton.setAttribute("aria-expanded","true");}}
 });
 suggestSubmit?.addEventListener("click",async()=>{
   if(!suggestTrack||suggesting||suggestOpening||!suggestNote)return;
