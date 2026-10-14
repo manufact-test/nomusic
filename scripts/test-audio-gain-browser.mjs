@@ -38,6 +38,7 @@ try{
  }catch(e){document.body.dataset.gainResult=e.message}})();</script></body></html>`;
  const file=join(directory,'gain.html');await writeFile(file,html);await mkdir('dist/layout-proof',{recursive:true});
  const browser=spawn(binary,['--headless=new','--no-sandbox','--disable-gpu','--autoplay-policy=no-user-gesture-required','--window-size=420,600','--remote-debugging-port=0','--user-data-dir='+join(directory,'profile'),pathToFileURL(file).href],{stdio:['ignore','ignore','pipe']});
+ const exited=new Promise(resolve=>browser.once('exit',resolve));
  let socket;
  try{
   const pause=ms=>new Promise(r=>setTimeout(r,ms));let port;
@@ -54,6 +55,6 @@ try{
   }
   if(state?.result!=='pass')throw Error('Audio gain browser: '+(state?.result||'no result at '+state?.step));
   const shot=await call('Page.captureScreenshot',{format:'png'});await writeFile(join(process.cwd(),'dist/layout-proof/audio-gain.png'),Buffer.from(shot.data,'base64'));
- }finally{socket?.close();browser.kill('SIGTERM');}
+ }finally{socket?.close();browser.kill('SIGTERM');await Promise.race([exited,new Promise(resolve=>setTimeout(resolve,1500))]);}
  console.log('Native audio gain: actual decoded media, amplitude boost/attenuation/ceiling, volume/mute/cleanup and admin slider/reset PASS');
-}finally{await rm(directory,{recursive:true,force:true});}
+}finally{await rm(directory,{recursive:true,force:true,maxRetries:5,retryDelay:100});}
