@@ -26,7 +26,7 @@ try{
   createGainChain(facade,null,db);source.start();const audio=(await context.startRendering()).getChannelData(0);const kept=audio.slice(10000);return {rms:Math.sqrt(kept.reduce((n,x)=>n+x*x,0)/kept.length),peak:Math.max(...kept.map(Math.abs))};
  };
  const base=await render(0,0.03),boost=await render(6,0.03),quiet=await render(-6,0.03),loud=await render(12,0.95);
- check(boost.rms/base.rms>1.9&&boost.rms/base.rms<2.1,'quiet signal boost');check(quiet.rms/base.rms>0.49&&quiet.rms/base.rms<0.52,'attenuation');check(loud.peak<=0.9801,'peak ceiling');
+ check(boost.rms/base.rms>1.9&&boost.rms/base.rms<2.1,'quiet signal boost '+JSON.stringify({base,boost,quiet,loud,ratio:boost.rms/base.rms}));check(quiet.rms/base.rms>0.49&&quiet.rms/base.rms<0.52,'attenuation');check(loud.peak<=0.9801,'peak ceiling');
  document.body.dataset.gainStep='actual media';
  const {ReplacementPlayer}=globalThis.__CELIKOM_REPLACEMENT_PLAYER_V1__,fatal=[];
  const p=new ReplacementPlayer(window,r=>fatal.push(r));await p.prepare({url:'data:audio/mpeg;base64,${bytes.toString('base64')}',demoLoop:true,gainDb:6});

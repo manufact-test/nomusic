@@ -1,10 +1,13 @@
 function createGainChain(context, audio, db) {
   const source=context.createMediaElementSource(audio),gain=context.createGain();
-  const limiter=context.createDynamicsCompressor(),ceiling=context.createWaveShaper();
+  const limiter=context.createDynamicsCompressor(),compensation=context.createGain(),ceiling=context.createWaveShaper();
   limiter.threshold.value=-1;limiter.knee.value=0;limiter.ratio.value=20;limiter.attack.value=0.001;limiter.release.value=0.1;
+  // Web Audio fixed makeup gain: cancel it so the slider controls the actual quiet-signal gain.
+  // https://webaudio.github.io/web-audio-api/#computing-the-makeup-gain
+  compensation.gain.value=Math.pow(10,limiter.threshold.value*(1-1/limiter.ratio.value)*0.6/20);
   const curve=new Float32Array(4097);for(let i=0;i<curve.length;i++)curve[i]=Math.max(-0.98,Math.min(0.98,i*2/(curve.length-1)-1));
   ceiling.curve=curve;ceiling.oversample="none";
-  source.connect(gain);limiter.connect(ceiling);ceiling.connect(context.destination);
+  source.connect(gain);limiter.connect(compensation);compensation.connect(ceiling);ceiling.connect(context.destination);
   let positive=null;
   const set=(value)=>{
     if(!Number.isFinite(value)||value< -12||value>12)throw new Error("invalid_audio_gain");
@@ -13,7 +16,7 @@ function createGainChain(context, audio, db) {
     gain.gain.setTargetAtTime(Math.pow(10,value/20),context.currentTime,0.01);
   };
   set(db);
-  return {set,destroy(){for(const node of [source,gain,limiter,ceiling]){try{node.disconnect();}catch{}}}};
+  return {set,destroy(){for(const node of [source,gain,limiter,compensation,ceiling]){try{node.disconnect();}catch{}}}};
 }
 
 (()=>{
