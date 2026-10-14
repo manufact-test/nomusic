@@ -13,8 +13,15 @@ with green result and on server. Existing playback/VPN/tab recovery preserved.
 Local 224 extension tests/security/lint pass. Private Chrome CI 38598656472,
 MariaDB 38598656473 and full fixed-source CI 38599174983 SUCCESS. Initial CI found
 SQL quoting error in ordinary reply query; fixed before deploy and all server
-regressions passed. Backend deployment requested next; do not claim live until
-workflow/audit complete. See docs/decisions/USER-FEEDBACK-0.4.41-2026-10-14.md.
+regressions passed. Backend deployed and verified: release
+0.4.41-a430067da726db157a22f8f7d05c0882329a790a, deploy 38599602570 SUCCESS.
+Backup/data preservation/isolated restore pass (21 audio objects, 41 SQL tables).
+Live read-only audit: 2 ordinary tickets preserved, song section empty ready for
+owner test, grouped demand order and two repaired versions preserved.
+Final ZIP checksum: c0f348a9abb6d6da20947642d102cbe592d682b88a19b0886b540008d2c9e2fb.
+Final client source 2949e0bc3e220cc27b4e0adc4a474969f754d5b6; workflow coverage
+commit bb8070117d536dfc3162c67f34bb9366a0b6eeb9. Final private Chrome CI 38600975485 (retry) and full CI 38600986179 SUCCESS.
+Private native test first timed out with no DOM result; unchanged retry passed. See docs/decisions/USER-FEEDBACK-0.4.41-2026-10-14.md.
 Owner real checks pending; PR #6 and Issue #7 remain open.
 
 # Latest: 0.4.40 tab recovery (2026-10-14)

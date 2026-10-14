@@ -45,7 +45,7 @@ Local extension 224 tests, lint and client security gates pass. Added tests cove
 report privacy, identity pinning, retry/duplicate behavior, frame durations and
 both warning boundaries, already-present suggestion UI and catalog races.
 Server MySQL/CSRF/RBAC/mail tests and configured native Chrome UI checks run in CI.
-Deployment and preservation evidence will be appended after completion.
+Deployment and preservation evidence is recorded below.
 
 Owner checks: ordinary support still sends an email reply; song reports arrive
 under the same account in the song section and can be resolved without email;
@@ -57,4 +57,19 @@ fixed in a572177f059b59e9f3579014d8564bc342da3b46. Full CI 38599174983 passes,
 including ordinary support mail/retry/RBAC/CSRF regressions and new report/group
 cases. Private Chrome CI 38598656472 and MariaDB migration CI 38598656473 pass.
 Configured full extension ZIP SHA-256:
-`73cb928a9a067b72f5763ee190089581825e46119eb0172421b1337c9d1b66f5`.
+`c0f348a9abb6d6da20947642d102cbe592d682b88a19b0886b540008d2c9e2fb` (final client includes visible suggestion preflight loading).
+
+## Completed backend rollout
+
+Deploy 38599602570 SUCCESS, active release
+`0.4.41-a430067da726db157a22f8f7d05c0882329a790a`.
+Checksummed migration 017 applied and rerun cleanly. Private environment, media
+hashes and historic row counts preserved. Snapshot contains 21 audio objects and
+41 SQL tables; isolated filesystem and MySQL restore drills pass. Read-only live
+audit validates exact release/migration, both support sections, 2 earlier ordinary
+tickets, grouped requests in demand order, whitelist privacy and both repaired
+approved audio versions. No real support messages or emails sent during rollout.
+Final source UI includes visible suggestion preflight progress (2949e0b); server
+release is unchanged. Final private Chrome CI 38600975485 and full CI 38600986179 SUCCESS.
+First final native Chrome attempt timed out after 30 s with no DOM result;
+unchanged retry passed. No assertion or safety boundary was weakened.
