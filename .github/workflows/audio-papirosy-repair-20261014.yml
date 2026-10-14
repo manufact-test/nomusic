@@ -90,6 +90,7 @@ jobs:
             assert target<len(fs)
             original_pcm=pcm(src);sample_cut=target*1152
             tail=original_pcm[sample_cut*4:];values=struct.unpack('<'+'h'*(len(tail)//2),tail)
+            print(json.dumps({'tail_peak':max(map(abs,values),default=0),'tail_seconds':len(values)/88200,'first_seconds_peaks':[max(map(abs,values[i*88200:(i+1)*88200]),default=0) for i in range(5)],'last_40_seconds_peak':max(map(abs,values[88200:]),default=0)}))
             assert max(map(abs,values),default=0)<185,'Tail must stay below -45dBFS'
             fixed=b''.join(fs[:target]);kind='trim_trailing_silence'
            dst=work/(id+'-fixed.mp3');dst.write_bytes(fixed)
