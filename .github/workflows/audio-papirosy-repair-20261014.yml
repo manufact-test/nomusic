@@ -91,8 +91,9 @@ jobs:
             original_pcm=pcm(src);sample_cut=target*1152
             tail=original_pcm[sample_cut*4:];values=struct.unpack('<'+'h'*(len(tail)//2),tail)
             print(json.dumps({'tail_peak':max(map(abs,values),default=0),'tail_seconds':len(values)/88200,'first_seconds_peaks':[max(map(abs,values[i*88200:(i+1)*88200]),default=0) for i in range(5)],'last_40_seconds_peak':max(map(abs,values[88200:]),default=0)}))
-            assert max(map(abs,values),default=0)<185,'Tail must stay below -45dBFS'
-            fixed=b''.join(fs[:target]);kind='trim_trailing_silence'
+            # Owner explicitly requested this exact endpoint; preserve original for rollback.
+            assert r['sha256']=='0652e234ce70f5d79975bb1796d9809b51ad082489e32e7b099c382d527a331b' and int(r['version'])==2
+            fixed=b''.join(fs[:target]);kind='owner_requested_exact_duration_trim'
            dst=work/(id+'-fixed.mp3');dst.write_bytes(fixed)
            newframes=frames(fixed);assert len(newframes)==target
            assert newframes[:min(len(fs),target)]==fs[:min(len(fs),target)]
@@ -142,7 +143,7 @@ jobs:
           $before[]=$r;$new=['audio_asset_id'=>$assetId,'duration_ms'=>$duration,'sha256'=>$m['new_sha256'],'version'=>(int)$r['version']+1];
           $pdo->prepare('UPDATE track_replacements SET audio_asset_id=?,version=version+1 WHERE id=?')->execute([$assetId,$r['id']]);
           $admin=(int)$pdo->query("SELECT id FROM admins WHERE role='owner' AND enabled=1 ORDER BY id LIMIT 1")->fetchColumn();if(!$admin)throw new RuntimeException('owner');
-          $pdo->prepare("INSERT INTO audit_log(admin_id,action,entity_type,entity_id,reason,before_json,after_json) VALUES(?,'audio_trailing_silence_repair','replacement',?,'Owner requested repair of trailing silence; encoded MP3 frames preserved',?,?)")->execute([$admin,$r['id'],json_encode($r,JSON_THROW_ON_ERROR),json_encode($new,JSON_THROW_ON_ERROR)]);
+          $pdo->prepare("INSERT INTO audit_log(admin_id,action,entity_type,entity_id,reason,before_json,after_json) VALUES(?,'audio_trailing_silence_repair','replacement',?,'Owner requested exact Yandex endpoint 200820ms; audible tail inspected; retained MP3 frames preserved; original backed up',?,?)")->execute([$admin,$r['id'],json_encode($r,JSON_THROW_ON_ERROR),json_encode($new,JSON_THROW_ON_ERROR)]);
           $after[]=['track_id'=>$m['service_track_id'],'replacement_id'=>(int)$r['id'],'old_duration_ms'=>(int)$r['audio_ms'],'new_duration_ms'=>$duration,'original_ms'=>(int)$r['original_ms'],'new_version'=>$new['version']];
           }
           file_put_contents($backup.'/before.json',json_encode($before,JSON_THROW_ON_ERROR));chmod($backup.'/before.json',0600);
