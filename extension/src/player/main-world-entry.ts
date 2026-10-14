@@ -20,6 +20,7 @@
   let lastHeartbeatAt = 0;
   let sequence = 0;
   let destroyed = false;
+  let pageCached = false;
   let lastReleasedGeneration = 0;
   let lastGuardGeneration = 0;
   const adapter = adapterFactory.createAdapter(root);
@@ -161,6 +162,7 @@
   }
 
   function handleRequest(type, payload) {
+    if (pageCached && type === "GUARD_ENGAGE") throw new Error("Page is cached");
     if (type === "GET_SNAPSHOT") return decorate(adapter.getSnapshot("request"));
     if (type === "GUARD_RELEASE") return release(payload?.reason || "release-request", payload?.token);
     if (type === "GUARD_ENGAGE") {
@@ -241,6 +243,7 @@
   }
 
   function checkHeartbeat() {
+    if (pageCached) return;
     if (!controllerSession) return;
     const timeoutMs = root.document?.hidden ? HIDDEN_TIMEOUT_MS : VISIBLE_TIMEOUT_MS;
     const elapsedMs = now() - lastHeartbeatAt;
@@ -269,10 +272,12 @@
   root.addEventListener("pagehide", (event) => {
     // BFCache keeps these immutable globals. Release audio but retain a live
     // bridge; destroying it here makes Back/Forward permanently disconnected.
-    if (event.persisted) release("page-cached");
+    if (event.persisted) { pageCached = true; release("page-cached"); }
     else destroy("pagehide");
   }, { capture: true });
-  root.addEventListener("pageshow", (event) => { if (event.persisted && !destroyed) announce(); });
+  root.addEventListener("pageshow", (event) => {
+    if (event.persisted && !destroyed) { pageCached = false; lastHeartbeatAt = now(); announce(); }
+  });
   const watchdogTimer = root.setInterval(checkHeartbeat, 500);
 
   Object.defineProperty(root, BRIDGE_KEY, {

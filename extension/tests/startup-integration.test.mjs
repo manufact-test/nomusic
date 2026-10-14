@@ -391,6 +391,10 @@ test('cached page restores its bridge and replacement without reinjection; Stop 
   f.dispatchPage('pagehide',true);await wait();
   assert.equal(vm.runInContext('original.physicalMuted',main),false);
   assert.equal(vm.runInContext('__CELIKOM_CONTENT_CONTROLLER_V2__.destroyed',isolated),false);
+  // Cached pages may resume timers before pageshow after a long frozen interval.
+  vm.runInContext('globalThis.realDate=Date;Date={now:()=>realDate.now()+300000};',main);
+  for(const callback of [...f.timers.values()]) callback();await wait();
+  vm.runInContext('Date=realDate;',main);
   f.dispatchPage('pageshow',true);await wait();
   // Access is revalidated via the worker, never granted by pageshow itself.
   assert.equal(vm.runInContext('original.physicalMuted',main),false);
