@@ -20,20 +20,45 @@ let intentGeneration = 0;
 let accessCheck: Promise<string> | null = null;
 let accessValidUntil = 0;
 let accessRetryAt = 0;
+let accessEpoch = 0;
 async function playbackAccess(): Promise<string> {
   if (accessValidUntil > Date.now()) return "allowed";
   if (accessRetryAt > Date.now()) return "unavailable";
   const generation = intentGeneration;
-  if (!accessCheck) accessCheck = userAuth.entitlement().then((result) => {
-    if (generation !== intentGeneration) return "unavailable";
+  const epoch = accessEpoch;
+  if (!accessCheck) {
+    const pending = userAuth.entitlement().then((result) => {
+    if (generation !== intentGeneration || epoch !== accessEpoch) return "unavailable";
     if (!result.allowed) return result.reason === "service_incident" ? "incident" : "denied";
     accessValidUntil = result.source === "promo" && result.valid_until === null ? Date.now() + 10000 : Math.min(Date.now() + 10000, Date.parse(result.valid_until));
     return accessValidUntil > Date.now() ? "allowed" : "denied";
   }).catch((error) => {
+    if (generation !== intentGeneration || epoch !== accessEpoch) return "unavailable";
     if (["invalid_session", "account_disabled", "email_unverified", "access_denied"].includes(error?.message)) return "denied";
     accessRetryAt = Date.now() + 5000; return "unavailable";
-  }).finally(() => { accessCheck = null; });
+  }).finally(() => { if (accessCheck === pending) accessCheck = null; });
+    accessCheck = pending;
+  }
   return accessCheck;
+}
+
+function resetConnectivity() {
+  accessEpoch++; accessValidUntil = 0; accessRetryAt = 0; accessCheck = null;
+  userAuth.resetTransport?.(); resolveApi.resetTransport?.();
+  const epoch = accessEpoch;
+  void (async () => {
+    if (!await readEnabled() || epoch !== accessEpoch) return;
+    await musicTabs.send({ type: "CELIKOM_ACCESS_STATE", state: "unavailable" }).catch(() => undefined);
+    const access = await playbackAccess();
+    if (epoch !== accessEpoch || !await readEnabled()) return;
+    if (access === "denied") { actionIcon.clear(); await chrome.storage.local.set({ enabled: false }); return; }
+    await musicTabs.send({ type: "CELIKOM_ACCESS_STATE", state: access }).catch(() => undefined);
+  })().catch(() => undefined);
+}
+// Connectivity events are hints to revalidate, never permission to play offline.
+if (typeof globalThis.addEventListener === "function") {
+  globalThis.addEventListener("online", resetConnectivity);
+  globalThis.addEventListener("offline", resetConnectivity);
 }
 
 async function readEnabled(): Promise<boolean> {
@@ -131,8 +156,9 @@ chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse) =>
     sendResponse({ ok: true, version: VERSION });
     void (async () => {
       if (!await readEnabled()) { actionIcon.clear(); return; }
+      const epoch = accessEpoch;
       const access = await playbackAccess();
-      if (!await readEnabled()) return;
+      if (epoch !== accessEpoch || !await readEnabled()) return;
       if (access === "denied") { actionIcon.clear(); await chrome.storage.local.set({ enabled: false }); return; }
       await chrome.tabs.sendMessage(sender.tab?.id, { type: "CELIKOM_ACCESS_STATE", state: access }).catch(() => undefined);
       if (access !== "allowed") { actionIcon.update(sender.tab?.id, false); return; }

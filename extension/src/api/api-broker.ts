@@ -16,7 +16,7 @@ export function createApiBroker(api, options = {}) {
   }
   const analytics = new AnalyticsEventService(api, async () => ({ config: () => withAccess(async (session) => (await getClient(session))?.config()), events: (batch) =>
     withAccess(async (session) => (await getClient(session))?.events(batch)) }));
-  return async (message, sender) => {
+  const handle = async (message, sender) => {
     let senderOrigin = null;
     try { senderOrigin = new URL(sender?.url).origin; } catch (_error) { /* reject */ }
     if (sender?.id !== api.runtime.id || senderOrigin !== "https://music.yandex.ru") return { ok: false, error: "invalid_api_sender" };
@@ -40,4 +40,5 @@ export function createApiBroker(api, options = {}) {
       return { ok: false, error: safeErrors.has(code) ? code : "api_unavailable" };
     }
   };
+  return Object.assign(handle, { resetTransport: () => client?.resetTransport() });
 }

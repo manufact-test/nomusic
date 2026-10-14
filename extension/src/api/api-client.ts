@@ -1,3 +1,4 @@
+import { createReadRecovery } from "../shared/read-recovery.js";
 // API requests execute in the extension worker, never in the page's MAIN world.
 // Clamp server-controlled cache hints to prevent excessive polling and stale links.
 const boundedTtl = (value, fallback, maximum) => Math.max(5, Math.min(maximum, value ?? fallback));
@@ -16,23 +17,33 @@ export class ApiClient {
     this.accessToken = options.accessToken || "";
     this.clientVersion = options.clientVersion || "0.4.0";
     this.cache = new Map(); this.pending = new Map(); this.configCache = null;
+    this.recovery = createReadRecovery(); this.transportEpoch = 0;
+  }
+  resetTransport() {
+    this.transportEpoch++; this.recovery.reset();
+    this.cache.clear(); this.pending.clear(); this.configCache = null;
   }
   async request(path, options = {}) {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 20000);
+    try { return await this.recovery.run(signal => this.requestOnce(path, options, signal), options.method || "GET"); }
+    catch (error) { if (["network_changed","request_timeout"].includes(error?.message)) throw new Error("api_network_error"); throw error; }
+  }
+  async requestOnce(path, options, signal) {
     try {
       let response;
       try {
         response = await this.fetch(this.origin + path, {
-          credentials: "omit", redirect: "error", cache: "no-store", signal: controller.signal,
+          credentials: "omit", redirect: "error", cache: "no-store", signal,
           method: options.method || "GET", body: options.body,
           headers: { ...(this.accessToken ? { Authorization: `Bearer ${this.accessToken}` } : {}), ...(options.body ? { "Content-Type": "application/json" } : {}) }
         });
-      } catch (_error) { throw new Error("api_network_error"); }
+      } catch (_error) { throw Object.assign(new Error("api_network_error"), { retryable: signal.reason !== "network_changed" }); }
       if ([401,403,429].includes(response.status) && !response.headers.get("content-type")?.startsWith("application/json")) throw new Error("api_network_error");
       if (response.status === 401) throw new Error("api_access_denied");
       if (response.status === 403) throw new Error("api_forbidden");
-      if (response.status >= 500) throw new Error("api_server_error");
+      if (response.status >= 500) {
+        try { await response.body?.cancel(); } catch (_) { /* response is unusable */ }
+        throw Object.assign(new Error("api_server_error"), { retryable: [502,503,504].includes(response.status) });
+      }
       if (!response.ok) throw new Error("api_http_error");
       if (!response.headers.get("content-type")?.startsWith("application/json")) throw new Error("invalid_api_response");
       // Bound the body before parsing; do not buffer an untrusted response whole.
@@ -46,7 +57,11 @@ export class ApiClient {
       const merged = new Uint8Array(size); let offset = 0;
       for (const chunk of chunks) { merged.set(chunk, offset); offset += chunk.byteLength; }
       return JSON.parse(new TextDecoder().decode(merged));
-    } finally { clearTimeout(timer); }
+    } catch (error) {
+      if (error?.name === "AbortError" || error instanceof TypeError)
+        throw Object.assign(new Error("api_network_error"), { retryable: signal.reason !== "network_changed" });
+      throw error;
+    }
   }
   async config() {
     if (this.configCache?.until > this.now()) return this.configCache.value;
@@ -66,11 +81,13 @@ export class ApiClient {
     if (options.forceRefresh === true) { this.cache.delete(key); this.configCache = null; }
     if (this.cache.get(key)?.until > this.now()) return this.cache.get(key).value;
     if (this.pending.has(key)) return this.pending.get(key);
+    const generation = this.transportEpoch;
     const pending = this.resolveUncached(service, trackId).then((value) => {
+      if (generation !== this.transportEpoch) throw new Error("api_network_error");
       if (this.cache.size >= 200) this.cache.delete(this.cache.keys().next().value);
       const ttl = value.found ? Math.min(value.cacheTtlMs, value.expiresAt - this.now() - 30000) : value.retryAfterMs;
       this.cache.set(key, { value, until: this.now() + Math.max(0, ttl) }); return value;
-    }).finally(() => this.pending.delete(key));
+    }).finally(() => { if (this.pending.get(key) === pending) this.pending.delete(key); });
     this.pending.set(key, pending); return pending;
   }
   async resolveUncached(service, trackId) {

@@ -1,3 +1,4 @@
+import { createReadRecovery } from "../shared/read-recovery.js";
 // Customer tokens are kept in extension-origin IndexedDB, not shared chrome.storage.local.
 // Page/content scripts have no access to this extension-origin database.
 export function createSecretStore() {
@@ -40,6 +41,8 @@ export function createAuthBroker(api, options = {}) {
   let displayPreview = null;
   const networkHistory = [];
   const pendingReads = new Map();
+  const recovery = createReadRecovery();
+  let transportEpoch = 0;
 
   async function installationId() {
     if (!installationPromise) {
@@ -70,30 +73,42 @@ export function createAuthBroker(api, options = {}) {
     // Share only concurrent read checks; never cache authority or replay writes.
     // Session generation and token prevent a login/logout/refresh crossing callers.
     const key = method === "GET" && ["config", "auth/me", "entitlement"].includes(path)
-      ? `${sessionVersion}:${path}:${access}` : null;
-    if (key === null) return apiRequestOnce(path, method, data, access);
+      ? `${transportEpoch}:${sessionVersion}:${path}:${access}` : null;
+    if (key === null) return sendRequest(path, method, data, access);
     if (pendingReads.has(key)) return pendingReads.get(key);
-    const pending = apiRequestOnce(path, method, data, access).finally(() => {
+    const pending = sendRequest(path, method, data, access).finally(() => {
       if (pendingReads.get(key) === pending) pendingReads.delete(key);
     });
     pendingReads.set(key, pending);
     return pending;
   }
 
-  async function apiRequestOnce(path, method = "GET", data = null, access = "") {
+  async function sendRequest(path, method, data, access) {
+    try { return await recovery.run(signal => apiRequestOnce(path, method, data, access, signal), method); }
+    catch (error) { if (error?.message === "network_changed") throw new Error("auth_network_error");
+      if (error?.message === "request_timeout") throw new Error("auth_timeout"); throw error; }
+  }
+
+  function resetTransport() {
+    transportEpoch++;
+    pendingReads.clear();
+    recovery.reset();
+  }
+
+  async function apiRequestOnce(path, method, data, access, signal) {
     const limit = path.startsWith("support") ? 65536 : 16384;
-    const ctrl = new AbortController();
     const started = Date.now(); let httpStatus = null; let outcome = "ok";
-    // A cold HTTPS connection can exceed 8s even when PHP responds in milliseconds.
-    const timeout = 20000;
-    const timer = setTimeout(() => ctrl.abort(), timeout);
     try {
       const response = await request((await origin()) + "/api/v1/" + path, {
-        method, credentials: "omit", redirect: "error", cache: "no-store", signal: ctrl.signal,
+        method, credentials: "omit", redirect: "error", cache: "no-store", signal,
         headers: { ...(data ? { "Content-Type": "application/json" } : {}), ...(access ? { Authorization: "Bearer " + access } : {}) },
         body: data ? JSON.stringify(data) : undefined
       });
       httpStatus = response.status;
+      if ([502,503,504].includes(httpStatus)) {
+        try { await response.body?.cancel(); } catch (_) { /* response is unusable */ }
+        throw new Error("auth_unavailable");
+      }
       if (!response.headers.get("content-type")?.startsWith("application/json"))
         throw new Error([401,403,429].includes(response.status) ? "auth_route_blocked" : "auth_unavailable");
       if (Number(response.headers.get("content-length")) > limit) throw new Error("auth_unavailable");
@@ -119,10 +134,10 @@ export function createAuthBroker(api, options = {}) {
       }
       return result;
     } catch (error) {
-      outcome = ctrl.signal.aborted || error?.name === "AbortError" ? "auth_timeout" : error instanceof TypeError ? "auth_network_error" : error?.message || "auth_unavailable";
-      throw new Error(outcome);
+      outcome = signal.reason === "network_changed" ? "auth_network_error" : signal.aborted || error?.name === "AbortError" ? "auth_timeout" : error instanceof TypeError ? "auth_network_error" : error?.message || "auth_unavailable";
+      throw Object.assign(new Error(outcome), { retryable: signal.reason !== "network_changed"
+        && ([502,503,504].includes(httpStatus) || outcome === "auth_network_error" || outcome === "auth_timeout") });
     } finally {
-      clearTimeout(timer);
       networkHistory.push({ endpoint: path.split("?")[0], method, httpStatus, result: ["ok", "auth_timeout", "auth_network_error", "auth_route_blocked"].includes(outcome) ? outcome : "api_response_error", elapsedMs: Date.now() - started, at: Date.now() });
       if (networkHistory.length > 8) networkHistory.shift();
     }
@@ -390,5 +405,5 @@ export function createAuthBroker(api, options = {}) {
       return { ok: false, error: safe.has(error?.message) ? error.message : "auth_unavailable" };
     }
   }
-  return { perform, installationId, withAccess, withEntitledAccess, entitlement, networkDiagnostics: () => networkHistory.map(item => ({ ...item })) };
+  return { perform, installationId, withAccess, withEntitledAccess, entitlement, resetTransport, networkDiagnostics: () => networkHistory.map(item => ({ ...item })) };
 }

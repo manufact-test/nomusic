@@ -134,7 +134,7 @@ test("Stage 6.5: signed expiry bounds positive cache and invalid TTLs cannot byp
   await assert.rejects(outage.resolve("yandex", "8"), /api_network_error/);
   offline = false;
   assert.equal((await outage.resolve("yandex", "8")).found, false);
-  assert.equal(requests, 2, "failure must not enter cache");
+  assert.equal(requests, 4, "three bounded failed attempts must not cache a failure; a fresh request recovers");
 });
 test("Stage 6.6: independent clients agree on shared approved mapping, then fail open after disable TTL", async () => {
   let time = now; let active = true; let attempts = 0;
@@ -336,7 +336,7 @@ test('network recovery bypasses cached resolve and configuration; HTML 403 is no
 });
 
 test('catalog API accepts a slow healthy connection but still aborts an actual outage',async(t)=>{
-  t.mock.timers.enable({apis:['setTimeout']});
+  t.mock.timers.enable({apis:['setTimeout','Date']});
   let signal;
   const slow=new ApiClient('https://celikom.example',{fetch:async(_url,opts)=>new Promise((resolve,reject)=>{
     signal=opts.signal;signal.addEventListener('abort',()=>reject(new DOMException('timeout','AbortError')),{once:true});
@@ -346,4 +346,14 @@ test('catalog API accepts a slow healthy connection but still aborts an actual o
   t.mock.timers.tick(1000);assert.equal((await pending).found,false);
   const dead=new ApiClient('https://celikom.example',{fetch:async(_url,opts)=>new Promise((_resolve,reject)=>opts.signal.addEventListener('abort',()=>reject(new DOMException('timeout','AbortError')),{once:true}))});
   const outage=dead.request('/api/v1/config');await new Promise(setImmediate);const checked=assert.rejects(outage,/api_network_error/);t.mock.timers.tick(20000);await checked;
+});
+
+test('a route failure during streamed JSON is retried within the same bounded read deadline',async(t)=>{
+ t.mock.timers.enable({apis:['setTimeout','Date']});let calls=0;
+ const client=new ApiClient('https://celikom.example',{fetch:async()=>{
+  if(++calls===1)return new Response(new ReadableStream({start(controller){controller.error(new TypeError('route changed'));}}),{headers:{'content-type':'application/json'}});
+  return response({found:false});
+ }});
+ const pending=client.request('/api/v1/resolve');await new Promise(setImmediate);t.mock.timers.tick(500);
+ assert.equal((await pending).found,false);assert.equal(calls,2);
 });

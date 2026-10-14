@@ -225,7 +225,8 @@ test('security: oversized chunked auth response is cancelled before buffering th
 test('transport errors are distinguished without retrying registration or exposing credentials',async()=>{
  for(const [mode,expected] of [['network','auth_network_error'],['timeout','auth_timeout'],['edge','auth_route_blocked']]){
   let calls=0;const api={storage:{local:{get:async()=>({}),set:async()=>{}}},runtime:{getURL:p=>p}};
-  const broker=createAuthBroker(api,{store:{get:async()=>null,set:async()=>{},clear:async()=>{}},readConfig:async()=>({baseUrl:'https://celikom.example'}),fetch:async()=>{
+  const broker=createAuthBroker(api,{store:{get:async()=>null,set:async()=>{},clear:async()=>{}},readConfig:async()=>({baseUrl:'https://celikom.example'}),fetch:async(url)=>{
+   if(new URL(url).pathname==='/api/v1/config')return new Response('{"features":{"auth":true}}',{headers:{'content-type':'application/json'}});
    calls++;if(mode==='network')throw new TypeError('secret transport detail');if(mode==='timeout')throw new DOMException('secret detail','AbortError');return new Response('<html>private firewall</html>',{status:403,headers:{'content-type':'text/html'}});
   }});
   const result=await broker.perform('register',{email:'private@example.org',password:'private-password-123'});
@@ -246,7 +247,7 @@ function transportBroker(fetcher, store = { get:async()=>null, set:async()=>{}, 
 }
 
 test('a healthy response after a 10-second cold connection survives the old 8-second cutoff',async(t)=>{
-  t.mock.timers.enable({apis:['setTimeout']});
+  t.mock.timers.enable({apis:['setTimeout','Date']});
   let signal;
   const broker=transportBroker(async(_url,opts)=>new Promise((resolve,reject)=>{
     signal=opts.signal;
@@ -260,23 +261,26 @@ test('a healthy response after a 10-second cold connection survives the old 8-se
   assert.deepEqual(await pending,{ok:true,email:'support@example.org'});
 });
 
-test('simultaneous config checks share transport, settle once and never cache a failure',async()=>{
+test('simultaneous config checks share bounded retries and never cache a failure',async(t)=>{
+  t.mock.timers.enable({apis:['setTimeout','Date']});
   let calls=0,release;
   const broker=transportBroker(async()=>{
     calls++;await new Promise(r=>release=r);
-    if(calls===1)throw new TypeError('offline');
+    if(calls<=3)throw new TypeError('offline');
     return new Response('{"support_email":"support@example.org"}',{headers:{'content-type':'application/json'}});
   });
   const pending=Promise.all([broker.perform('support-contact'),broker.perform('support-contact'),broker.perform('support-contact')]);
   await new Promise(setImmediate);assert.equal(calls,1);release();
+  await new Promise(setImmediate);t.mock.timers.tick(500);await new Promise(setImmediate);assert.equal(calls,2);release();
+  await new Promise(setImmediate);t.mock.timers.tick(1000);await new Promise(setImmediate);assert.equal(calls,3);release();
   assert.deepEqual(await pending,[{ok:false},{ok:false},{ok:false}]);
-  const recovered=broker.perform('support-contact');await new Promise(setImmediate);assert.equal(calls,2);release();
+  const recovered=broker.perform('support-contact');await new Promise(setImmediate);assert.equal(calls,4);release();
   assert.equal((await recovered).ok,true);
-  assert.equal(broker.networkDiagnostics().length,2,'one diagnostic per physical request');
+  assert.equal(broker.networkDiagnostics().length,4,'one diagnostic per physical request');
 });
 
 test('a dead connection is still bounded at 20 seconds and preserves local credentials',async(t)=>{
-  t.mock.timers.enable({apis:['setTimeout']});
+  t.mock.timers.enable({apis:['setTimeout','Date']});
   const secret={user:{id:4,email:'a@example.org'},access_token:'a'.repeat(64),refresh_token:'b'.repeat(64)};
   let cleared=0;
   const broker=transportBroker(async(_url,opts)=>new Promise((_resolve,reject)=>{
@@ -300,4 +304,23 @@ test('concurrent auth checks share only the same credential, without reusing a s
   const c=broker.withAccess(s=>s.access_token);await new Promise(setImmediate);assert.equal(calls.length,2);
   releases.splice(0).forEach(r=>r());assert.deepEqual(await Promise.all([a,b,c]),['a'.repeat(64),'a'.repeat(64),'c'.repeat(64)]);
   const again=broker.withAccess(()=>true);await new Promise(setImmediate);assert.equal(calls.length,3);releases.pop()();await again;
+});
+
+test('an HTML 504 during config is retried as a read, not reported as a lost account',async(t)=>{
+ t.mock.timers.enable({apis:['setTimeout','Date']});let calls=0;
+ const broker=transportBroker(async()=>++calls===1?new Response('<html>gateway</html>',{status:504,headers:{'content-type':'text/html'}}):new Response('{"support_email":"support@example.org"}',{headers:{'content-type':'application/json'}}));
+ const pending=broker.perform('support-contact');await new Promise(setImmediate);t.mock.timers.tick(500);
+ assert.equal((await pending).ok,true);assert.equal(calls,2);assert.equal(broker.networkDiagnostics()[0].httpStatus,504);
+});
+test('connection reset releases stale shared checks without clearing stored credentials or poisoning fresh checks',async()=>{
+ const saved={user:{id:4,email:'a@example.org'},access_token:'a'.repeat(64),refresh_token:'b'.repeat(64)};
+ let calls=0,oldSignal,finish,cleared=0;
+ const broker=transportBroker(async(_url,opts)=>{
+  calls++;if(calls===1){oldSignal=opts.signal;await new Promise(r=>finish=r);}
+  return new Response('{}',{headers:{'content-type':'application/json'}});
+ },{get:async()=>saved,set:async()=>{},clear:async()=>{cleared++;}});
+ const old=broker.withAccess(()=>true);const rejected=assert.rejects(old,/auth_network_error/);await new Promise(setImmediate);
+ broker.resetTransport();assert.equal(oldSignal.aborted,true);
+ assert.equal(await broker.withAccess(()=>true),true);finish();await rejected;
+ assert.equal(await broker.withAccess(()=>true),true);assert.equal(calls,3);assert.equal(cleared,0);
 });
