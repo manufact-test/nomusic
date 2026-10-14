@@ -52,7 +52,7 @@ final class AdminPanel
             if (str_starts_with($path, '/admin/audio/')) return Response::json(403, ['error'=>'forbidden']);
             return new Response(303, ['Location'=>'/admin/login', 'Cache-Control'=>'no-store']);
         }
-        if($path==='/admin/support/reply'){
+        if(in_array($path,['/admin/support/reply','/admin/support/resolve-song'],true)){
             if(!in_array($admin['role'],['owner','moderator'],true))return Response::json(403,['error'=>'forbidden']);
             if($method!=='POST')return Response::json(405,['error'=>'method_not_allowed']);
             $form=$this->form($headers,$body,32768);
@@ -60,7 +60,8 @@ final class AdminPanel
             try{
                 $id=$this->positiveInt($form['ticket']??null);if(!$id)throw new \InvalidArgumentException();
                 $service=new \Celikom\Support\SupportService($this->pdo,$this->config);
-                $service->reply((int)$admin['id'],$id,is_string($form['message']??null)?$form['message']:'',is_string($form['request_key']??null)?$form['request_key']:'');
+                if($path==='/admin/support/resolve-song')$service->resolveSong((int)$admin['id'],$id);
+                else $service->reply((int)$admin['id'],$id,is_string($form['message']??null)?$form['message']:'',is_string($form['request_key']??null)?$form['request_key']:'');
                 return new Response(303,['Location'=>'/admin?tab=support&ticket='.$id,'Cache-Control'=>'no-store']);
             }catch(\InvalidArgumentException|\DomainException){return Response::json(400,['error'=>'invalid_request']);}
         }
@@ -496,7 +497,7 @@ final class AdminPanel
             . (int) $counts['pending_requests'] . '</strong></a>'
             . '</div>';
         return $html . match ($tab) {
-            'support' => (new \Celikom\Support\SupportAdminView($this->pdo))->render($admin['csrf'],$this->positiveInt($query['ticket']??null) ?: 0,$this->positiveInt($query['page']??null) ?: 1,$this->positiveInt($query['message_page']??null) ?: 1,$this->positiveInt($query['account']??null) ?: 0),
+            'support' => (new \Celikom\Support\SupportAdminView($this->pdo))->render($admin['csrf'],$this->positiveInt($query['ticket']??null) ?: 0,$this->positiveInt($query['page']??null) ?: 1,$this->positiveInt($query['message_page']??null) ?: 1,$this->positiveInt($query['account']??null) ?: 0,is_string($query['support_kind']??null)?$query['support_kind']:'general'),
             'promos' => (new \Celikom\Promo\PromoAdminView($this->pdo))->render($admin['csrf'],$this->positiveInt($query['page']??null) ?: 1,($query['create']??null)==='1',($query['activations']??null)==='1'),
             'incidents' => (new \Celikom\Incident\IncidentAdminView($this->pdo))->render($admin['csrf']),
             'requests' => $this->requests($admin, $csrf, $query),
@@ -755,20 +756,19 @@ final class AdminPanel
         $progress = \Celikom\Application\TrackRequestProgress::sql();
         $where = $status !== '' ? ' WHERE ' . $progress . ' = ? ' : ' ';
         $params = $status !== '' ? [$status] : [];
-        $count = $this->pdo->prepare('SELECT COUNT(*) FROM track_requests r ' . $where);
+        $grouped="SELECT MAX(r.id) AS id FROM track_requests r $where GROUP BY r.service,r.service_track_id";
+        $count=$this->pdo->prepare("SELECT COUNT(*) FROM ($grouped) grouped_requests");
         $count->execute($params);
-        $total = (int) $count->fetchColumn();
-        $stmt = $this->pdo->prepare("SELECT r.id,r.service,r.service_track_id,r.artist,r.title,r.status,r.created_at," . $progress . " AS progress,
-            (SELECT COUNT(DISTINCT x.uploader_hash) FROM track_requests x
-              WHERE x.service = r.service AND x.service_track_id = r.service_track_id) AS proposal_count
-            FROM track_requests r " . $where .
-            " ORDER BY r.id DESC LIMIT "
-            . $perPage . " OFFSET " . $offset);
+        $total=(int)$count->fetchColumn();
+        $stmt=$this->pdo->prepare("SELECT r.id,r.service,r.service_track_id,r.artist,r.title,r.status,r.created_at,".$progress." AS progress,
+            (SELECT COUNT(DISTINCT x.uploader_hash) FROM track_requests x WHERE x.service=r.service AND x.service_track_id=r.service_track_id) AS proposal_count
+            FROM track_requests r JOIN ($grouped) grouped_requests ON grouped_requests.id=r.id
+            ORDER BY proposal_count DESC,r.id DESC LIMIT ".$perPage." OFFSET ".$offset);
         $stmt->execute($params);
         $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC);
         $html = '<div class="page-head"><div><div class="eyebrow">Обратная связь</div>'
             . '<h1>Предложения песен</h1><p class="muted">'
-            . 'Ожидают загрузки MP3. Предложения с загруженной версией доступны через фильтр статуса; история сохраняется.'
+            . 'Одна карточка на песню. Чем больше уникальных пользователей её запросили, тем выше она в списке. История сохраняется.'
             . '</p></div></div>' . $filter . '<div class="cards">';
         foreach ($rows as $r) {
             $r['status'] = $r['progress'];
@@ -792,7 +792,7 @@ final class AdminPanel
                     . '<label class="form-field">Результат проверки'
                     . '<input name="reason" required maxlength="500" placeholder="Напишите результат"></label>'
                     . '<button class="primary" name="action" value="reviewed">Отметить рассмотренным</button>'
-                    . '<button class="danger" name="action" value="rejected">Отклонить предложение</button>'
+                    . '<button class="danger" name="action" value="rejected">Отклонить предложения</button>'
                     . '</form></div>';
             }
             $html .= '</article>';

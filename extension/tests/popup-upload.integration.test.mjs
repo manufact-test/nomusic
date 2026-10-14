@@ -17,11 +17,12 @@ for (const selector of ["[data-version-status]", "[data-status]", "[data-action=
   "[data-action='restore']", "[data-action='diagnostics']", "[data-track]", "[data-test-track]",
   "[data-upload-panel]", "[data-upload-track]", "[data-upload-file]", "[data-upload-key]",
   "[data-upload-rights]", "[data-upload-progress]", "[data-upload-status]", "[data-upload-submit]",
-  "[data-upload-result]", "[data-upload-result-title]", "[data-upload-result-note]",
+  "[data-upload-duration]", "[data-upload-result]", "[data-upload-result-title]", "[data-upload-result-note]",
   "[data-file-picker]", "[data-file-title]", "[data-file-name]",
-  "[data-action='add']", "[data-upload-form]"]) el(selector);
+  "[data-action='add']", "[data-upload-form]", "[data-action='suggest']", "[data-suggest-panel]", "[data-suggest-submit]", "[data-suggest-note]", "[data-suggest-track]", "[data-suggest-result]", "[data-suggest-result-title]", "[data-suggest-result-note]"]) el(selector);
 const find = (selector) => elements.get(selector);
 find("[data-upload-panel]").hidden = true;
+find("[data-suggest-panel]").hidden = true;
 find("[data-upload-form]").hidden = true;
 find("[data-upload-result]").hidden = true;
 find("[data-upload-progress]").hidden = true;
@@ -34,6 +35,7 @@ const intervals = [];
 const pendingTracks = new Set();
 const requests = [];
 const statusCalls = [];
+const suggestionPosts=[];let suggestionRace=null;
 globalThis.document = { activeElement: null, querySelector: find };
 globalThis.window = { setInterval(fn) { intervals.push(fn); return 1; } };
 globalThis.chrome = {
@@ -48,7 +50,8 @@ globalThis.chrome = {
     }
   }
 };
-globalThis.fetch = async (url) => {
+globalThis.fetch = async (url,options={}) => {
+  if(String(url).includes("/api/v1/track-requests")){suggestionPosts.push(options);return {status:suggestionRace?409:202,json:async()=>suggestionRace?{error:suggestionRace}:{status:"pending",request_id:123}};}
   if (String(url).includes("/api/v1/tracks/upload-status")) {
     statusCalls.push(String(url));
     const currentTrackId = new URL(String(url)).searchParams.get("track_id");
@@ -307,4 +310,33 @@ test('active replacement label is stable across polls even when original audio i
   chrome.runtime.sendMessage=send;
   Object.defineProperty(node,'textContent',{configurable:true,writable:true,value:text});
  }
+});
+
+
+test('suggesting available or pending audio shows the green result and never posts a request',async()=>{
+ current=selected;offline=false;
+ for(const status of ['approved','pending']){
+  version=status;find('[data-suggest-panel]').hidden=true;
+  const count=suggestionPosts.length;await find("[data-action='suggest']").fire('click');
+  assert.equal(find('[data-suggest-result]').hidden,false);assert.equal(find('[data-suggest-submit]').hidden,true);
+  assert.match(find('[data-suggest-result-title]').textContent,status==='approved'?/доступна/:/проверке/);assert.equal(suggestionPosts.length,count);
+ }
+ version='none';
+});
+test('a catalog race on suggestion submit is handled as already available, not an error or repeated post',async()=>{
+ current=selected;version='none';find('[data-suggest-panel]').hidden=true;
+ await find("[data-action='suggest']").fire('click');assert.equal(find('[data-suggest-submit]').disabled,false);
+ suggestionRace='track_already_approved';await find('[data-suggest-submit]').fire('click');
+ assert.equal(find('[data-suggest-result]').hidden,false);assert.match(find('[data-suggest-result-title]').textContent,/доступна/);
+ assert.equal(find('[data-suggest-note]').hidden,true);suggestionRace=null;
+});
+test('local MP3 duration warning is visible before any file upload',async()=>{
+ const {mp3DurationMs}=await import('../dist/unpacked/upload/mp3-duration.js');
+ const bytes=await readFile(new URL('../assets/test-audio.mp3',import.meta.url));
+ const duration=mp3DurationMs(bytes);assert.ok(duration>1000);
+ current={...selected,track:{...selected.track,id:'144530599',metadata:{...selected.track.metadata,durationMs:duration+5001}}};
+ find('[data-upload-panel]').hidden=true;version='none';await find("[data-action='add']").fire('click');
+ const file=new Blob([bytes],{type:'audio/mpeg'});Object.defineProperty(file,'name',{value:'local.mp3'});find('[data-upload-file]').files=[file];
+ const count=requests.length;await find('[data-upload-file]').fire('change');await new Promise(resolve=>setTimeout(resolve,10));
+ assert.equal(find('[data-upload-duration]').hidden,false);assert.match(find('[data-upload-duration]').textContent,/Разница больше 5 секунд/);assert.equal(requests.length,count);
 });

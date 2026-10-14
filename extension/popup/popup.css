@@ -403,3 +403,8 @@ html{scrollbar-width:thin;scrollbar-color:#45565f transparent}
 
 [data-support-note] { color: #66e0bf; font-size: 13px; }
 [data-support-note][hidden], [data-developer-controls][hidden] { display: none !important; }
+
+.support-content { display: grid; gap: 8px; }
+.support-content select { width: 100%; box-sizing: border-box; border: 1px solid #55666d; border-radius: 8px; padding: 10px; background: #141b1f; color: #f4f7f8; font: inherit; font-size: 12px; }
+.upload-duration-note { margin: 4px 0; padding: 10px; border: 1px solid #ad873f; border-radius: 8px; color: #ffe1a1; background: #30291b; font-size: 12px; line-height: 1.45; }
+.upload-duration-note[data-kind="ok"] { color: #9ceacb; border-color: #387459; background: #142b22; }

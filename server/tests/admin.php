@@ -212,8 +212,9 @@ try{
     });
     run('Stage10 proposals follow pending/approved version without rewriting history; status-prioritized queue preserves records',function()
         use($app,$pdo,$track,$candidate,$sessionHeaders):void{
-        (new TrackRequestService($pdo))->submit(['service'=>'yandex','track_id'=>$track,
-            'artist'=>'Stage10','title'=>'Linked proposal'],hash('sha256','stage10-progress'));
+        try{(new TrackRequestService($pdo))->submit(['service'=>'yandex','track_id'=>$track,'artist'=>'Stage10','title'=>'Linked proposal'],hash('sha256','stage10-progress'));throw new RuntimeException('pending_song_proposed');}catch(DomainException $e){expect($e->getMessage()==='track_pending','Pending audio cannot be newly proposed');}
+        // Historical proposals predate the upload; preserve and derive their progress.
+        $pdo->prepare("INSERT INTO track_requests(service,service_track_id,uploader_hash,artist,title) VALUES ('yandex',?,?,?,?)")->execute([$track,hash('sha256','stage10-progress'),'Stage10','Linked proposal']);
         $proposal=(int)$pdo->query("SELECT MAX(id) FROM track_requests")->fetchColumn();
         $marker='<h2 class="track-title">#'.$proposal.' ·';
         $queue=$app->handle('GET','/admin',['tab'=>'requests'],$sessionHeaders);
@@ -480,10 +481,11 @@ try{
         expect($storage->exists($key),'Shared asset survives');
     });
     $ownerHash=hash('sha256','stage8-request-'.bin2hex(random_bytes(5)));
+    $requestTrack='899'.(string)random_int(100000,999999);
     $requestId=(new TrackRequestService($pdo))->submit([
-        'service'=>'yandex','track_id'=>$track,'artist'=>'Synthetic','title'=>'Stage 8'
+        'service'=>'yandex','track_id'=>$requestTrack,'artist'=>'Synthetic','title'=>'Stage 8'
     ],$ownerHash)['request_id'];
-    run('Stage 8 requested songs are a separate no-MP3 queue',function()use($app,$sessionHeaders,$requestId,$mod,$adminId,$pdo,$ownerHash,$track):void{
+    run('Stage 8 requested songs are a separate no-MP3 queue',function()use($app,$sessionHeaders,$requestId,$mod,$adminId,$pdo,$ownerHash,$requestTrack):void{
         $view=$app->handle('GET','/admin',['tab'=>'requests'],$sessionHeaders);
         expect($view->status===200 && str_contains($view->body,'https://music.yandex.ru/track/'),'Canonical Yandex link');
         expect(str_contains($view->body,'Уникальных предложений: 1')
@@ -492,10 +494,23 @@ try{
         $st=$pdo->prepare('SELECT status FROM track_requests WHERE id=?');$st->execute([$requestId]);
         expect($st->fetchColumn()==='reviewed','Request reviewed without audio upload');
         $retry=(new TrackRequestService($pdo))->submit([
-            'service'=>'yandex','track_id'=>$track,'artist'=>'Synthetic','title'=>'Stage 8'
+            'service'=>'yandex','track_id'=>$requestTrack,'artist'=>'Synthetic','title'=>'Stage 8'
         ],$ownerHash);
         expect($retry['request_id']===$requestId && $retry['status']==='reviewed',
             'Reviewed suggestion stays reviewed on retry');
+    });
+    run('Grouped proposals use unique accounts, popularity order and one atomic group decision',function()use($app,$sessionHeaders,$pdo,$mod,$adminId):void{
+        $requests=new TrackRequestService($pdo);$popular='897'.random_int(100000,999999);$other='898'.random_int(100000,999999);
+        $fields=['service'=>'yandex','track_id'=>$popular,'artist'=>'Priority','title'=>'Popular'];$last=0;
+        for($i=0;$i<3;$i++){$who=hash('sha256','priority-'.$popular.'-'.$i);$r=$requests->submit($fields,$who);$last=$r['request_id'];expect($requests->submit($fields,$who)===$r,'Repeat does not add account');}
+        $newer=$requests->submit(['service'=>'yandex','track_id'=>$other,'artist'=>'Priority','title'=>'Newer'],hash('sha256','priority-'.$other))['request_id'];
+        $page=$app->handle('GET','/admin',['tab'=>'requests','per_page'=>'50'],$sessionHeaders)->body;
+        expect(substr_count($page,'<h2 class="track-title">#'.$last.' ·')===1,'One card per requested track');
+        expect(str_contains($page,'Уникальных предложений: 3'),'Distinct account demand displayed');
+        expect(strpos($page,'<h2 class="track-title">#'.$last.' ·')<strpos($page,'<h2 class="track-title">#'.$newer.' ·'),'Demand outranks recency');
+        $mod->trackRequest($adminId,$last,'reviewed','Group reviewed');
+        $q=$pdo->prepare("SELECT COUNT(*) FROM track_requests WHERE service_track_id=? AND status='reviewed'");$q->execute([$popular]);expect((int)$q->fetchColumn()===3,'All pending requests reviewed');
+        $q=$pdo->prepare('SELECT COUNT(*) FROM track_request_reviews v JOIN track_requests r ON r.id=v.track_request_id WHERE r.service_track_id=?');$q->execute([$popular]);expect((int)$q->fetchColumn()===3,'History for each requester preserved');
     });
     run('Stage 8 all committed admin decisions include audit',function()use($pdo,$adminId):void{
         $q=$pdo->prepare('SELECT COUNT(*) FROM audit_log WHERE admin_id=?');$q->execute([$adminId]);

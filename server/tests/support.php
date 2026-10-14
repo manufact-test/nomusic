@@ -70,6 +70,22 @@ try{
   $calls=0;$bad=$config;$bad['mail_test_sink']=static function()use(&$calls):void{$calls++;throw new RuntimeException('isolated_failure');};$s=new SupportService($pdo,$bad);$u=$user();$key=$uuid();$id=$s->create($u,'Почта недоступна',$key);expect($id>0,'ticket committed');$s->create($u,'Почта недоступна',$key);expect($calls===1,'no auto resend');
   expect($pdo->query('SELECT delivery FROM support_messages WHERE ticket_id='.$id)->fetchColumn()==='unknown','delivery uncertainty explicit');
  });
+ run('Song support is separate, sanitized, deduplicated, resolvable without email and cannot close general correspondence',function()use($service,$user,$admin,$uuid,$pdo,&$sent):void{
+  $u=$user();$owner=$admin('owner');$viewer=$admin('viewer');$before=count($sent);
+  $report=['category'=>'audio_issue','track'=>['id'=>'50163040','artist'=>'SLIMUS','title'=>'<script>song</script>','album'=>'Album','access_token'=>'SECRET'],'version'=>'0.4.41','diagnostics'=>['phase'=>'READY','enabled'=>true,'bridgeHealthy'=>true,'replacementError'=>'api_unavailable','network'=>[['endpoint'=>'config','httpStatus'=>504,'result'=>'api_response_error','elapsedMs'=>10000,'authorization'=>'SECRET']],'token'=>'SECRET','recentLog'=>['SECRET'],'source'=>'https://private.example/SECRET']];
+  $id=$service->create($u,'',$uuid(),$report);expect(count($sent)===$before,'Song report sends no email');
+  expect($service->create($u,'',$uuid(),$report)===$id,'Same open song/category/comment deduplicates across request keys');
+  $thread=$service->thread($id,$u);expect($thread['kind']==='song','Typed report');expect(!str_contains(json_encode($thread),'SECRET'),'Unknown diagnostic keys never stored or returned');
+  $service->deliver((int)$pdo->query('SELECT id FROM support_messages WHERE ticket_id='.$id)->fetchColumn());expect(count($sent)===$before,'Song message cannot be delivered later');
+  $general=$service->create($u,'Обычное сообщение',$uuid());expect(count($sent)===$before+1,'General email notification preserved');
+  $view=new SupportAdminView($pdo);$account=$view->render(str_repeat('a',64),0,1,1,$u,'song');expect(str_contains($account,'Обычные обращения')&&str_contains($account,'Проблемы с песнями'),'Two account sections');expect(str_contains($account,'ticket='.$id.'"')&&!str_contains($account,'ticket='.$general.'"'),'Song list excludes general conversations');
+  $html=$view->render(str_repeat('a',64),$id);expect(str_contains($html,'&lt;script&gt;song')&&!str_contains($html,'<script>song'),'Metadata escaped');expect(str_contains($html,'resolve-song')&&!str_contains($html,'support/reply'),'Song has resolution, no mandatory reply');
+  try{$service->resolveSong($viewer,$id);throw new RuntimeException('viewer_resolved');}catch(DomainException $e){expect($e->getMessage()==='forbidden','Viewer denied');}
+  try{$service->resolveSong($owner,$general);throw new RuntimeException('general_closed_without_reply');}catch(DomainException){}
+  $service->resolveSong($owner,$id);$service->resolveSong($owner,$id);expect($service->thread($id,$u)['status']==='closed','Report resolved');expect($service->thread($general,$u)['status']==='open','Ordinary reply still required');expect(count($sent)===$before+1,'Resolution sends no email');
+  expect((int)$pdo->query("SELECT COUNT(*) FROM audit_log WHERE entity_type='support_ticket' AND entity_id=$id AND action='support_close'")->fetchColumn()===1,'Resolution audit idempotent');
+  try{\Celikom\Support\SongReport::normalize(['category'=>[]]);throw new RuntimeException('bad_report_accepted');}catch(InvalidArgumentException){}
+ });
 }finally{
  foreach($users as $u){$pdo->exec('DELETE m FROM support_messages m JOIN support_tickets t ON t.id=m.ticket_id WHERE t.user_id='.$u);$pdo->exec('DELETE FROM audit_log WHERE entity_type=\'support_ticket\' AND entity_id IN (SELECT id FROM support_tickets WHERE user_id='.$u.')');$pdo->exec('DELETE FROM support_tickets WHERE user_id='.$u);$pdo->exec('DELETE FROM users WHERE id='.$u);}
  foreach($admins as $a){$pdo->exec('DELETE FROM admin_sessions WHERE admin_id='.$a);$pdo->exec('DELETE FROM audit_log WHERE admin_id='.$a);$pdo->exec('DELETE FROM admins WHERE id='.$a);}

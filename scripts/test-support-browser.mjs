@@ -12,7 +12,7 @@ const directory = await mkdtemp(join(tmpdir(), 'celikom-support-'));
 try {
   const root = new URL('../extension/dist/unpacked/', import.meta.url);
   const css = await readFile(new URL('popup/popup.css', root), 'utf8');
-  const code = (await readFile(new URL('popup/support.js', root), 'utf8')).replace(/^export /gm, '');
+  const code = (await Promise.all(['upload/contract.js','popup/song-report.js','popup/support.js'].map(async p=>(await readFile(new URL(p,root),'utf8')).replace(/^import .*$/gm,'').replace(/^export /gm,'')))).join('\n');
   let html = (await readFile(new URL('popup/popup.html', root), 'utf8')).replace('<link rel="stylesheet" href="popup.css">', `<style>${css}body{width:292px}</style>`).replace('<script type="module" src="popup.js"></script>', '');
   html = html.replace('</body>', `<script>${code}
   (async()=>{try{
@@ -21,7 +21,7 @@ try {
   window.chrome={storage:{session:{get:async()=>({}),set:async()=>{},remove:async()=>{}}},runtime:{getManifest:()=>({version:'0.4.31'}),getURL:()=>'/config'},tabs:{create:async({url})=>{opened=url}}};
   window.fetch=async()=>({ok:true,json:async()=>({supportEmail:'team@example.org'})});
   Object.defineProperty(navigator,'clipboard',{value:{writeText:async(t)=>{copied=t}},configurable:true});
-  await initSupport({send:async(m)=>{if(m.action==='support-send'){submitted.push(m);await new Promise(r=>setTimeout(r,50));return {ok:true,ticket_id:7}};if(m.action==='support-thread'){openCalls++;return {ok:true,messages:[{author:'support',body:'Ответ '+String.fromCharCode(60)+'script>SECRET'+String.fromCharCode(60)+'/script>'}]}};return {ok:true,tickets:[{id:7,status:'answered'}]}},getState:()=>({phase:'ERROR',track:{id:'36116709'},token:'SECRET',account:{email:'PRIVATE'}})});
+  await initSupport({send:async(m)=>{if(m.type==='CELIKOM_STATUS_GET')return {enabled:true,phase:'ERROR',track:{id:'50163040',confidence:260,ambiguous:false,metadata:{durationMs:187520,title:'Холодно',artist:'SLIMUS'}},token:'SECRET',account:{email:'PRIVATE'},network:[{endpoint:'config',httpStatus:504,result:'api_response_error',elapsedMs:10000,Authorization:'SECRET'}]};if(m.action==='support-send'){submitted.push(m);await new Promise(r=>setTimeout(r,50));return {ok:true,ticket_id:7}};if(m.action==='support-thread'){openCalls++;return {ok:true,messages:[{author:'support',body:'Ответ '+String.fromCharCode(60)+'script>SECRET'+String.fromCharCode(60)+'/script>'}]}};return {ok:true,tickets:[{id:7,status:'answered'}]}},getState:()=>({phase:'ERROR',track:{id:'36116709'},token:'SECRET',account:{email:'PRIVATE'}})});
   const panel=document.querySelector('[data-support-panel]');panel.open=true;
   const description=document.querySelector('[data-support-description]');description.value='Ошибка воспроизведения';
   document.querySelector('[data-support-send]').click();document.querySelector('[data-support-send]').click();await new Promise(r=>setTimeout(r,150));
@@ -29,6 +29,13 @@ try {
   check(!submitted[0].message.includes('SECRET')&&!submitted[0].message.includes('PRIVATE'),'request privacy');
   check(document.querySelector('[data-support-note]').textContent==='Сообщение отправлено' && !document.querySelector('[data-support-note]').hidden,'visible confirmation');
   check(!document.querySelector('[data-support-copy]') && !document.querySelector('[data-support-tickets]'),'simple support form');
+  const kind=document.querySelector('[data-support-kind]');kind.value='song';kind.dispatchEvent(new Event('change'));await new Promise(r=>setTimeout(r,50));
+  check(!document.querySelector('[data-support-song-fields]').hidden && document.querySelector('[data-support-track]').textContent.includes('Холодно'),'song fields and pinned identity');
+  description.value='';document.querySelector('[data-support-category]').value='audio_issue';
+  document.querySelector('[data-support-send]').click();document.querySelector('[data-support-send]').click();await new Promise(r=>setTimeout(r,150));
+  check(submitted.length===2&&submitted[1].kind==='song'&&submitted[1].report.track.id==='50163040','one song report with optional comment');
+  check(!JSON.stringify(submitted[1]).includes('SECRET')&&!JSON.stringify(submitted[1]).includes('PRIVATE'),'song diagnostic privacy');
+  check(document.querySelector('[data-support-note]').textContent==='Сообщение о проблеме с песней отправлено','song confirmation');
   check(document.documentElement.scrollWidth<=innerWidth,'horizontal overflow');
   panel.scrollIntoView();await new Promise(r=>setTimeout(r,200));
   document.body.dataset.supportResult='pass';

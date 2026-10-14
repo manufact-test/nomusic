@@ -25,6 +25,9 @@ final class TrackRequestService
                 || preg_match('/[\x00-\x1F]/', $value)) throw new \InvalidArgumentException('invalid_track_request');
             $metadata[] = trim($value);
         }
+        $presence=(new TrackUploadStatusService($this->pdo))->state($service,$trackId)['status'];
+        if($presence==='approved')throw new \DomainException('track_already_approved');
+        if($presence==='pending')throw new \DomainException('track_pending');
         $stmt = $this->pdo->prepare("INSERT INTO track_requests
             (service, service_track_id, uploader_hash, artist, title, status)
             VALUES (?, ?, ?, ?, ?, 'pending') ON DUPLICATE KEY UPDATE id = LAST_INSERT_ID(id)");

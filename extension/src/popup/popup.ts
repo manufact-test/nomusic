@@ -1,3 +1,4 @@
+import { mp3DurationMs, durationNotice } from "../upload/mp3-duration.js";
 import { initScrollSpacing } from "./scroll-spacing.js";
 import { COMMANDS, type ExtensionState } from "../shared/messages.js";
 import { uploadTargetFromStatus, validMp3Selection, privateUploadApiOrigin } from "../upload/contract.js";
@@ -114,6 +115,19 @@ let pinnedTrack: ReturnType<typeof uploadTargetFromStatus> = null;
 let uploadRequestId: string | null = null;
 let uploading = false;
 let opening = false;
+const durationNote=document.querySelector<HTMLElement>("[data-upload-duration]");
+let durationGeneration=0, measuredFile=null, durationPromise=null;
+function checkFileDuration(){
+  const file=uploadFile?.files?.[0], target=pinnedTrack, generation=++durationGeneration;
+  measuredFile=file;durationPromise=null;
+  if(!durationNote||!file||!target){if(durationNote)durationNote.hidden=true;return Promise.resolve();}
+  durationNote.hidden=false;durationNote.dataset.kind="warning";durationNote.textContent="Проверяем длительность MP3…";
+  durationPromise=Promise.resolve().then(()=>file.arrayBuffer()).then(mp3DurationMs).catch(()=>null).then(ms=>{
+    if(generation!==durationGeneration||pinnedTrack?.id!==target.id||uploadFile?.files?.[0]!==file)return;
+    const notice=durationNotice(target.durationMs,ms);durationNote.textContent=notice.text;durationNote.dataset.kind=notice.kind;
+  });
+  return durationPromise;
+}
 
 // Chrome automatically sizes extension popups. Animating panel height caused
 // a visible expand-shrink bounce when the form exceeded the popup viewport.
@@ -138,6 +152,7 @@ function uploadMessage(value: string, kind = "info"): void {
 }
 
 function setSubmittedView(title: string, note: string): void {
+  if(durationNote)durationNote.hidden=true;
   if (uploadResultTitle) uploadResultTitle.textContent = title;
   if (uploadResultNote) uploadResultNote.textContent = note;
   if (uploadResult) uploadResult.hidden = false;
@@ -162,6 +177,7 @@ function setPickerState(): void {
 }
 
 function resetUploadPanel(): void {
+  durationGeneration++;measuredFile=null;durationPromise=null;if(durationNote)durationNote.hidden=true;
   if (uploadResult) uploadResult.hidden = true;
   if (uploadForm) uploadForm.hidden = true;
   if (uploadButton) { uploadButton.disabled = true; uploadButton.textContent = "Отправить на проверку"; }
@@ -308,6 +324,7 @@ uploadFile?.addEventListener("change", () => {
   if (uploadProgress) uploadProgress.value = 0;
   setPickerState();
   uploadMessage("");
+  void checkFileDuration();
 });
 
 // Native file picker via <label> and optional drag-and-drop share one validated input.
@@ -322,6 +339,7 @@ uploadFilePicker?.addEventListener("dragleave", () => {
 uploadFilePicker?.addEventListener("drop", (event) => {
   event.preventDefault();
   uploadFilePicker.dataset.dragging = "false";
+  if(uploading||opening)return;
   const file = event.dataTransfer?.files?.[0];
   if (!file || !uploadFile) return;
   if (!validMp3Selection(file)) {
@@ -334,6 +352,7 @@ uploadFilePicker?.addEventListener("drop", (event) => {
   if (uploadProgress) uploadProgress.value = 0;
   setPickerState();
   uploadMessage("");
+  void checkFileDuration();
 });
 
 uploadForm?.addEventListener("submit", async (event) => {
@@ -346,12 +365,14 @@ uploadForm?.addEventListener("submit", async (event) => {
     uploadMessage("Выберите MP3 не более 30 МиБ.", "error"); return;
   }
   uploading = true;
+  if(uploadFile)uploadFile.disabled=true;
   if (uploadButton) { uploadButton.disabled = true; uploadButton.textContent = "Отправляем…"; }
   uploadMessage("Проверяем трек и отправляем файл…", "checking");
 
   let origin: string;
   let transferStarted = false;
   try {
+    if(measuredFile!==file)await checkFileDuration();else if(durationPromise)await durationPromise;
     const now = uploadTargetFromStatus(await send<ExtensionState>({ type: COMMANDS.getStatus }));
     if (!now || now.id !== pinnedTrack.id) {
       uploadMessage("Трек изменился. Закройте и откройте «Загрузить версию» заново.", "error");
@@ -391,6 +412,7 @@ uploadForm?.addEventListener("submit", async (event) => {
     uploadMessage("Загружаем MP3…", "checking");
     xhr.addEventListener("loadend", () => {
       uploading = false;
+      if(uploadFile)uploadFile.disabled=false;
       if (xhr.status === 202) {
         try {
           const result = JSON.parse(xhr.responseText);
@@ -432,6 +454,7 @@ uploadForm?.addEventListener("submit", async (event) => {
     // after xhr.send(). An early exit must never leave the UI stuck.
     if (!transferStarted) {
       uploading = false;
+      if(uploadFile)uploadFile.disabled=false;
       if (uploadButton && uploadForm && !uploadForm.hidden) {
         uploadButton.disabled = false;
         uploadButton.textContent = "Отправить на проверку";
@@ -444,42 +467,62 @@ const suggestPanel = document.querySelector<HTMLElement>("[data-suggest-panel]")
 const suggestSubmit = document.querySelector<HTMLButtonElement>("[data-suggest-submit]");
 const suggestNote = document.querySelector<HTMLElement>("[data-suggest-note]");
 let suggestTrack: ReturnType<typeof uploadTargetFromStatus> = null;
-let suggesting = false;
-suggestButton?.addEventListener("click", async () => {
-  if (incidentStatus.active() || !suggestPanel || suggesting) return;
-  if (!suggestPanel.hidden) { suggestPanel.hidden = true; suggestButton.setAttribute("aria-expanded", "false"); return; }
-  suggestTrack = uploadTargetFromStatus(await send<ExtensionState>({ type: COMMANDS.getStatus }));
-  const label = document.querySelector<HTMLElement>("[data-suggest-track]");
-  if (label) label.textContent = suggestTrack ? [suggestTrack.title || "Track ID " + suggestTrack.id, suggestTrack.artist].filter(Boolean).join(" — ") : "Сначала запустите песню в Яндекс Музыке.";
-  if (suggestSubmit) suggestSubmit.disabled = !suggestTrack;
-  if (suggestNote) suggestNote.hidden = true;
-  suggestPanel.hidden = false;
-  suggestButton.setAttribute("aria-expanded", "true");
-});
-suggestSubmit?.addEventListener("click", async () => {
-  if (!suggestTrack || suggesting || !suggestNote) return;
-  suggesting = true;
-  suggestSubmit.disabled = true;
-  suggestNote.hidden = false;
-  suggestNote.textContent = "Отправляем…";
+let suggesting = false, suggestOpening=false, suggestGeneration=0;
+const suggestResult=document.querySelector<HTMLElement>("[data-suggest-result]");
+function suggestPresence(status){
+  if(!["approved","pending"].includes(status))return false;
+  if(suggestResult)suggestResult.hidden=false;
+  const title=document.querySelector<HTMLElement>("[data-suggest-result-title]"),note=document.querySelector<HTMLElement>("[data-suggest-result-note]");
+  if(title)title.textContent=status==="approved"?"Версия уже доступна":"Версия уже на проверке";
+  if(note)note.textContent=status==="approved"?"Версия песни CELIKOM уже загружена и доступна. Предлагать её повторно не нужно.":"Версия песни уже отправлена на модерацию. Предлагать её повторно не нужно.";
+  if(suggestSubmit)suggestSubmit.hidden=true;
+  if(suggestNote)suggestNote.hidden=true;
+  return true;
+}
+async function suggestionStatus(id){
+  const result=await send<any>({type:"CELIKOM_AUTH",action:"track-status",track_id:id});
+  if(!result?.ok||!["none","pending","approved"].includes(result.status))throw new Error(result?.error||"auth_unavailable");
+  return result.status;
+}
+suggestButton?.addEventListener("click",async()=>{
+  if(incidentStatus.active()||!suggestPanel||suggesting||suggestOpening)return;
+  if(!suggestPanel.hidden){suggestGeneration++;suggestPanel.hidden=true;suggestButton.setAttribute("aria-expanded","false");return;}
+  const generation=++suggestGeneration;suggestOpening=true;
+  suggestSubmit&&(suggestSubmit.disabled=true);if(suggestSubmit)suggestSubmit.hidden=false;
+  if(suggestResult)suggestResult.hidden=true;if(suggestNote)suggestNote.hidden=true;
   try {
-    const current = uploadTargetFromStatus(await send<ExtensionState>({ type: COMMANDS.getStatus }));
-    if (!current || current.id !== suggestTrack.id) throw new Error("track_changed");
-    const body = new FormData();
-    for (const [name, value] of Object.entries({ service: "yandex", track_id: suggestTrack.id, artist: suggestTrack.artist, title: suggestTrack.title })) body.append(name, value);
-    const response = await fetch((await uploadApiOrigin()) + "/api/v1/track-requests", {
-      method: "POST", body, credentials: "omit", redirect: "error", cache: "no-store", signal: AbortSignal.timeout(15000),
-      headers: { Authorization: "Bearer " + await contributionAccess() }
-    });
-    const result = await response.json();
-    if (response.status !== 202 || !["pending", "reviewed", "rejected"].includes(result.status)) throw new Error(result.error || "request_failed");
-    suggestNote.textContent = result.status === "pending" ? "Предложение отправлено на рассмотрение." : "Это предложение уже рассмотрено.";
-    suggestTrack = null;
-  } catch (error) {
-    const code = (error as Error)?.message;
-    suggestNote.textContent = code === "track_changed" ? "Трек изменился. Закройте и откройте предложение заново." : code === "rate_limited" ? "Слишком много попыток. Попробуйте позже." : contributionError(error);
-    suggestSubmit.disabled = false;
-  } finally { suggesting = false; }
+    suggestTrack=uploadTargetFromStatus(await send<ExtensionState>({type:COMMANDS.getStatus}));
+    const label=document.querySelector<HTMLElement>("[data-suggest-track]");
+    if(label)label.textContent=suggestTrack?[suggestTrack.title||"Track ID "+suggestTrack.id,suggestTrack.artist].filter(Boolean).join(" — "):"Сначала запустите песню в Яндекс Музыке.";
+    if(suggestTrack){
+      const presence=await suggestionStatus(suggestTrack.id);
+      const current=uploadTargetFromStatus(await send<ExtensionState>({type:COMMANDS.getStatus}));
+      if(current?.id!==suggestTrack.id)throw new Error("track_changed");
+      if(generation!==suggestGeneration)return;
+      if(!suggestPresence(presence)&&suggestSubmit)suggestSubmit.disabled=false;
+    }
+  }catch(error){if(suggestNote){suggestNote.hidden=false;suggestNote.textContent=(error as Error)?.message==="track_changed"?"Трек изменился. Откройте предложение заново.":contributionError(error);}}
+  finally{if(generation===suggestGeneration){suggestOpening=false;suggestPanel.hidden=false;suggestButton.setAttribute("aria-expanded","true");}}
+});
+suggestSubmit?.addEventListener("click",async()=>{
+  if(!suggestTrack||suggesting||suggestOpening||!suggestNote)return;
+  suggesting=true;suggestSubmit.disabled=true;suggestNote.hidden=false;suggestNote.textContent="Отправляем…";
+  try {
+    const current=uploadTargetFromStatus(await send<ExtensionState>({type:COMMANDS.getStatus}));
+    if(!current||current.id!==suggestTrack.id)throw new Error("track_changed");
+    if(suggestPresence(await suggestionStatus(suggestTrack.id)))return;
+    const body=new FormData();
+    for(const [name,value] of Object.entries({service:"yandex",track_id:suggestTrack.id,artist:suggestTrack.artist,title:suggestTrack.title}))body.append(name,value);
+    const origin=await uploadApiOrigin(),access=await contributionAccess();
+    const final=uploadTargetFromStatus(await send<ExtensionState>({type:COMMANDS.getStatus}));
+    if(final?.id!==suggestTrack.id)throw new Error("track_changed");
+    const response=await fetch(origin+"/api/v1/track-requests",{method:"POST",body,credentials:"omit",redirect:"error",cache:"no-store",signal:AbortSignal.timeout(15000),headers:{Authorization:"Bearer "+access}});
+    const result=await response.json();
+    if(response.status===409&&["track_pending","track_already_approved"].includes(result.error)){suggestPresence(result.error==="track_pending"?"pending":"approved");return;}
+    if(response.status!==202||!["pending","reviewed","rejected"].includes(result.status))throw new Error(result.error||"request_failed");
+    suggestNote.textContent=result.status==="pending"?"Предложение отправлено на рассмотрение.":"Это предложение уже рассмотрено.";suggestTrack=null;
+  }catch(error){const code=(error as Error)?.message;suggestNote.textContent=code==="track_changed"?"Трек изменился. Закройте и откройте предложение заново.":code==="rate_limited"?"Слишком много попыток. Попробуйте позже.":contributionError(error);suggestSubmit.disabled=false;}
+  finally{suggesting=false;}
 });
 
 stopButton?.addEventListener("click", async () => {

@@ -53,6 +53,7 @@
           <progress data-upload-progress max="100" value="0" hidden aria-label="Загрузка"></progress>
           <button class="primary wide" data-upload-submit type="submit">Отправить на проверку</button>
         </form>
+        <p class="upload-duration-note" data-upload-duration hidden role="status" aria-live="polite"></p>
         <p class="upload-feedback" data-upload-status role="status" aria-live="polite" hidden></p>
       </section>
       <button class="wide" type="button" data-action="suggest" aria-expanded="false" aria-controls="celikom-suggest-panel">Предложить песню</button>
@@ -60,6 +61,7 @@
         <strong>Предложить песню</strong>
         <p class="stage">Сообщите нам, для какой песни нужна альтернативная версия.</p>
         <p class="track" data-suggest-track></p>
+        <div class="upload-result" data-suggest-result hidden role="status" aria-live="polite"><strong data-suggest-result-title></strong><p data-suggest-result-note></p></div>
         <button class="primary wide" type="button" data-suggest-submit>Отправить предложение</button>
         <p class="upload-feedback" data-suggest-note role="status" aria-live="polite" hidden></p>
       </section>
@@ -149,7 +151,15 @@
       <details data-support-panel>
         <summary>Связь с поддержкой</summary>
         <div class="support-content">
-          <label for="support-description">Опишите проблему</label>
+          <label for="support-kind">Вид обращения</label>
+          <select id="support-kind" data-support-kind><option value="general">Обычное обращение · ответ по почте</option><option value="song">Проблема с текущей песней</option></select>
+          <div data-support-song-fields hidden>
+            <p class="track" data-support-track></p>
+            <label for="support-category">Что произошло?</label>
+            <select id="support-category" data-support-category><option value="not_replacing">Не включается версия CELIKOM</option><option value="wrong_version">Играет неправильная версия</option><option value="audio_issue">Звук обрывается или рассинхронизируется</option><option value="other">Другая проблема</option></select>
+            <p class="stage">Песня и техническая диагностика приложатся автоматически. Ответ по почте не требуется.</p>
+          </div>
+          <label for="support-description" data-support-label>Опишите проблему</label>
           <textarea id="support-description" data-support-description maxlength="2000" rows="4"></textarea>
           <button class="quiet wide" type="button" data-support-send>Отправить</button>
           <p data-support-note role="status" aria-live="polite" hidden></p>

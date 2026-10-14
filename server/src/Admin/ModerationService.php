@@ -104,15 +104,17 @@ final class ModerationService
         }
         $this->pdo->beginTransaction();
         try {
-            $find = $this->pdo->prepare('SELECT id,status FROM track_requests WHERE id=? FOR UPDATE');
-            $find->execute([$id]);
-            $before = $find->fetch(\PDO::FETCH_ASSOC);
-            if (!$before || $before['status'] !== 'pending') throw new \DomainException('request_not_pending');
-            $this->pdo->prepare('UPDATE track_requests SET status=? WHERE id=?')->execute([$action,$id]);
-            $this->pdo->prepare('INSERT INTO track_request_reviews (track_request_id,admin_id,reason)
-                VALUES (?,?,?)')->execute([$id,$adminId,$reason]);
-            $this->audit($adminId,'track_request_' . $action,'track_request',$id,$reason,
-                ['status'=>'pending'],['status'=>$action]);
+            $find=$this->pdo->prepare('SELECT id,status,service,service_track_id FROM track_requests WHERE id=?');
+            $find->execute([$id]);$before=$find->fetch(\PDO::FETCH_ASSOC);
+            if(!$before||$before['status']!=='pending')throw new \DomainException('request_not_pending');
+            $find=$this->pdo->prepare("SELECT id FROM track_requests WHERE service=? AND service_track_id=? AND status='pending' ORDER BY id FOR UPDATE");
+            $find->execute([$before['service'],$before['service_track_id']]);$ids=$find->fetchAll(\PDO::FETCH_COLUMN);
+            if(!$ids)throw new \DomainException('request_not_pending');
+            foreach($ids as $requestId){
+                $this->pdo->prepare('UPDATE track_requests SET status=? WHERE id=?')->execute([$action,$requestId]);
+                $this->pdo->prepare('INSERT INTO track_request_reviews(track_request_id,admin_id,reason) VALUES (?,?,?)')->execute([$requestId,$adminId,$reason]);
+                $this->audit($adminId,'track_request_'.$action,'track_request',(int)$requestId,$reason,['status'=>'pending'],['status'=>$action]);
+            }
             $this->pdo->commit();
         } catch (\Throwable $error) {
             if ($this->pdo->inTransaction()) $this->pdo->rollBack();
