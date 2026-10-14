@@ -17,7 +17,7 @@ try{
  if(canonical(deployed)!==canonical(dsp))throw Error('Admin/player DSP mismatch');
  const bytes=await readFile('extension/assets/test-audio.mp3');
  const css=await readFile('server/src/Admin/admin-style.css','utf8');
- const html=`<!doctype html><html><head><style>${css}</style></head><body><main><div class="player-wrap" id="audio-version-5"><audio data-gain-audio data-gain-db="0" controls></audio></div><form class="audio-gain-form" data-audio-gain data-audio-id="audio-version-5"><label>Громкость версии <output data-gain-value>0 дБ</output></label><div class="audio-gain-controls"><span>Тише</span><input name="gain_db" type="range" min="-12" max="12" step="0.5" value="0"><span>Громче</span></div><button type="button" data-gain-reset>Исходная громкость</button><button>Сохранить громкость</button><p data-gain-note>Прослушайте и сохраните</p></form></main><script>${ui}\n${player}\n(async()=>{try{
+ const html=`<!doctype html><html><head><style>${css}</style></head><body><main><div class="player-wrap" id="audio-version-5"><audio data-gain-audio data-gain-db="0" controls></audio></div><details class="detail-toggle" data-gain-toggle><summary>Громкость версии</summary><form class="audio-gain-form" method="post" action="/admin/audio-gain" data-audio-gain data-audio-id="audio-version-5"><input type="hidden" name="csrf" value="fixture"><input type="hidden" name="gain_before" value="0"><label>Громкость версии <output data-gain-value>0 дБ</output></label><div class="audio-gain-controls"><span>Тише</span><input name="gain_db" type="range" min="-12" max="12" step="0.5" value="0"><span>Громче</span></div><button type="button" data-gain-reset>Исходная громкость</button><button type="submit">Сохранить громкость</button><p data-gain-note>Прослушайте и сохраните</p><p data-gain-save-status hidden></p></form></details><details><summary>Технические сведения</summary></details></main><script>${ui}\n${player}\n(async()=>{try{
  const check=(v,m)=>{if(!v)throw Error(m)};
  const render=async(db,amplitude)=>{document.body.dataset.gainStep='offline '+db;
   const context=new OfflineAudioContext(1,44100,44100),source=context.createBufferSource(),buffer=context.createBuffer(1,44100,44100),signal=buffer.getChannelData(0);
@@ -32,8 +32,15 @@ try{
  const p=new ReplacementPlayer(window,r=>fatal.push(r));await p.prepare({url:'data:audio/mpeg;base64,${bytes.toString('base64')}',demoLoop:true,gainDb:6});
  check(p.gainContext.state==='running','real media gain context');p.applyState({volume:.4,muted:false,playbackRate:1});p.play();await new Promise(r=>setTimeout(r,150));check(!p.audio.paused&&p.audio.volume===.4,'real amplified media playback and volume sync');
  p.applyState({volume:.3,muted:true,playbackRate:1});check(p.audio.muted,'mute sync');const context=p.gainContext;p.destroy();await new Promise(r=>setTimeout(r,50));check(context.state==='closed'&&!p.audio.isConnected,'gain cleanup');check(fatal.length===0,'no media errors');
+ const toggle=document.querySelector('[data-gain-toggle]');check(!toggle.open,'gain collapsed initially');toggle.open=true;
  const input=document.querySelector('[name=gain_db]');input.value='6';input.dispatchEvent(new Event('input'));await new Promise(r=>setTimeout(r,50));check(document.querySelector('[data-gain-value]').textContent==='+6 дБ','slider display');
  document.querySelector('[data-gain-reset]').click();check(input.value==='0','reset');
+ input.value='12';input.dispatchEvent(new Event('input'));check(input.style.getPropertyValue('--gain-fill')==='100%','max fills entire track');
+ let saves=0;const oldFetch=window.fetch;window.fetch=async(url,options)=>{if(options?.method==='POST'){saves++;return new Response(JSON.stringify({saved:true,gain_db:12}),{headers:{'Content-Type':'application/json'}});}return oldFetch(url,options);};
+ const position=scrollY,address=location.href,form=document.querySelector('[data-audio-gain]');
+ form.requestSubmit();form.dispatchEvent(new Event('submit',{cancelable:true}));await new Promise(r=>setTimeout(r,100));
+ check(saves===1,'one save');check(document.querySelector('[data-gain-save-status]').textContent==='Громкость сохранена.','inline confirmation');check(document.querySelector('[name=gain_before]').value==='12','next-save lease');check(scrollY===position&&location.href===address&&toggle.open,'save preserves scroll, URL and disclosure');window.fetch=oldFetch;
+
  check(document.documentElement.scrollWidth<=innerWidth,'mixer horizontal layout');document.body.dataset.gainResult='pass';
  }catch(e){document.body.dataset.gainResult=e.message}})();</script></body></html>`;
  const file=join(directory,'gain.html');await writeFile(file,html);await mkdir('dist/layout-proof',{recursive:true});

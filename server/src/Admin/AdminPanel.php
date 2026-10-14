@@ -119,6 +119,7 @@ final class AdminPanel
             try{
                 $id=$this->positiveInt($form['replacement']??null)?:0;
                 (new AudioGainService($this->pdo))->save($admin,$id,$form['gain_db']??null,$form['gain_before']??null);
+                if(($headers['accept']??'')==='application/json')return Response::json(200,['saved'=>true,'gain_db'=>AudioGainService::value($form['gain_db'])]);
                 return new Response(303,['Location'=>'/admin?tab=uploads&gain_saved='.$id.'#audio-version-'.$id,'Cache-Control'=>'no-store']);
             }catch(\InvalidArgumentException){return $this->page('<h1>Проверьте громкость</h1><p>Допустимый диапазон — от −12 до +12 дБ.</p><a href="/admin?tab=uploads">Вернуться</a>',status:400);}
             catch(\DomainException){return $this->page('<h1>Настройка не сохранена</h1><p>Обновите страницу и повторите настройку: версия могла измениться в другом окне.</p><a href="/admin?tab=uploads">Вернуться</a>',status:409);}
@@ -662,23 +663,24 @@ final class AdminPanel
                 . '<div class="player-wrap" id="audio-version-' . $id . '"><audio controls preload="none" data-gain-audio data-gain-db="' . self::e($r['gain_db']) . '"'
                 . ' aria-label="Прослушать загруженную версию #' . $id . '"'
                 . ' src="/admin/audio/' . $id . '"></audio>'
-                . '<small>Прослушивание доступно только администратору</small></div>'
-                . '<details class="detail-toggle"><summary>Технические сведения</summary>'
-                . '<div class="technical">Размер: ' . self::formatSize((int) $r['size_bytes'])
-                . ' · Формат: ' . (in_array($r['mime_type'], ['audio/mpeg'], true) ? 'MP3' : 'Аудио')
-                . '<p style="margin:8px 0 0">Контрольная сумма SHA-256: '
-                . self::e($r['sha256']) . '</p></div></details>';
+                . '<small>Прослушивание доступно только администратору</small></div>';
             if(in_array($admin['role'],['owner','moderator'],true)){
                 $gain=self::e($r['gain_db']);
-                $html.='<form class="audio-gain-form" data-audio-gain method="post" action="/admin/audio-gain" data-audio-id="audio-version-'.$id.'">'
+                $html.='<details class="detail-toggle audio-gain-toggle" data-gain-toggle><summary>Громкость версии</summary><form class="audio-gain-form" data-audio-gain method="post" action="/admin/audio-gain" data-audio-id="audio-version-'.$id.'">'
                     .'<input type="hidden" name="csrf" value="'.$csrf.'"><input type="hidden" name="replacement" value="'.$id.'">'
                     .'<input type="hidden" name="gain_before" value="'.$gain.'">'
                     .'<label for="gain-'.$id.'">Громкость версии <output data-gain-value>'.$gain.' дБ</output></label>'
                     .'<div class="audio-gain-controls"><span>Тише</span><input id="gain-'.$id.'" aria-label="Громкость версии" type="range" name="gain_db" min="-12" max="12" step="0.5" value="'.$gain.'"><span>Громче</span></div>'
                     .'<div class="audio-gain-actions"><button type="button" class="btn" data-gain-reset>Исходная громкость</button><button type="submit">Сохранить громкость</button></div>'
-                    .'<p class="muted" data-gain-note role="status">Ползунок меняет звук в плеере выше. Сохраните настройку, чтобы применить её для слушателей. После сохранения перезапустите подмену в расширении.</p></form>';
+                    .'<p class="muted" data-gain-note role="status">Ползунок меняет звук в плеере выше. Сохраните настройку, чтобы применить её для слушателей. После сохранения перезапустите подмену в расширении.</p><p data-gain-save-status class="muted" role="status" hidden></p></form></details>';
                 if(($query['gain_saved']??'')===(string)$id)$html.='<p class="notice">Громкость сохранена.</p>';
             }
+            $html.='<details class="detail-toggle"><summary>Технические сведения</summary>'
+                . '<div class="technical">Размер: ' . self::formatSize((int) $r['size_bytes'])
+                . ' · Формат: ' . (in_array($r['mime_type'], ['audio/mpeg'], true) ? 'MP3' : 'Аудио')
+                . '<p style="margin:8px 0 0">Контрольная сумма SHA-256: '
+                . self::e($r['sha256']) . '</p></div></details>';
+
             if ($admin['role'] === 'owner'
                 && (trim((string) $r['artist']) === '' || trim((string) $r['title']) === '')) {
                 $html .= '<details class="detail-toggle"><summary>Уточнить название и исполнителя</summary>'

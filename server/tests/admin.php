@@ -151,8 +151,14 @@ try{
         try{$pdo->prepare("UPDATE admins SET role='viewer' WHERE id=?")->execute([$adminId]);expect($app->handle('POST',$url,headers:$actionHeaders,body:http_build_query($fields))->status===403,'Viewer read-only');}
         finally{$pdo->prepare("UPDATE admins SET role='owner' WHERE id=?")->execute([$adminId]);}
         expect($app->handle('POST',$url,headers:$actionHeaders,body:http_build_query($fields))->status===303,'Reset to original');
+        $fields['gain_before']='0.0';$fields['gain_db']='1.5';
+        $saved=$app->handle('POST',$url,headers:['accept'=>'application/json']+$actionHeaders,body:http_build_query($fields));
+        expect($saved->status===200&&!isset($saved->headers['Location'])&&json_decode($saved->body,true)['saved']===true,'AJAX save never redirects');
+        $fields['gain_before']='1.5';$fields['gain_db']='0.0';
+        expect($app->handle('POST',$url,headers:$actionHeaders,body:http_build_query($fields))->status===303,'Fallback reset');
         $page=$app->handle('GET','/admin',['tab'=>'uploads'],$actionHeaders);
         expect(str_contains($page->body,'data-audio-gain')&&str_contains($page->body,'Сохранить громкость'),'Mixer rendered');
+        expect(str_contains($page->body,'data-gain-toggle><summary>Громкость версии')&&strpos($page->body,'<summary>Громкость версии')<strpos($page->body,'<summary>Технические сведения'),'Collapsed gain before technical details');
         expect(str_contains($page->headers['Content-Security-Policy'],'sha256-'),'DSP script allowed by exact CSP hash');
     });
     run('Duration warnings and queue filters match the player boundary in both directions',function()

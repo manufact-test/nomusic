@@ -38,9 +38,27 @@ function createGainChain(context, audio, db) {
   const failure=()=>{audio.pause();if(note)note.textContent='Не удалось включить прослушивание громкости. Попробуйте в Chrome и нажмите воспроизведение ещё раз.';};
   audio.addEventListener('play',()=>{void control.set(wanted).catch(failure);});
   if(!form)continue;
-  const update=()=>{wanted=Number(slider.value);output.textContent=(wanted>0?'+':'')+wanted.toLocaleString('ru-RU')+' дБ';void control.set(wanted).catch(failure);};
+  const paint=()=>slider.style.setProperty('--gain-fill',((Number(slider.value)-Number(slider.min))/(Number(slider.max)-Number(slider.min))*100)+'%');
+  paint();
+  const update=()=>{paint();wanted=Number(slider.value);output.textContent=(wanted>0?'+':'')+wanted.toLocaleString('ru-RU')+' дБ';void control.set(wanted).catch(failure);};
   slider.addEventListener('input',update);
   form.querySelector('[data-gain-reset]').addEventListener('click',()=>{slider.value='0';update();});
+  let saving=false;
+  form.addEventListener('submit',async event=>{
+   event.preventDefault();if(saving)return;saving=true;
+   const data=new URLSearchParams(new FormData(form)),saved=data.get('gain_db');
+   const controls=[...form.querySelectorAll('input,button')],button=form.querySelector('[type=submit]'),label=button?.textContent,status=form.querySelector('[data-gain-save-status]');
+   controls.forEach(c=>c.disabled=true);if(button)button.textContent='Сохраняем…';
+   if(status){status.hidden=false;status.textContent='Сохраняем громкость…';}
+   try{
+    const response=await fetch(form.action,{method:'POST',body:data,credentials:'same-origin',redirect:'error',headers:{Accept:'application/json'},signal:AbortSignal.timeout(15000)});
+    if(!response.ok)throw Error(response.status===409?'changed':'save_failed');
+    const result=await response.json();if(result.saved!==true||Number(result.gain_db)!==Number(saved))throw Error('save_failed');
+    form.querySelector('[name=gain_before]').value=String(result.gain_db);audio.dataset.gainDb=String(result.gain_db);
+    if(status)status.textContent='Громкость сохранена.';
+   }catch(error){if(status)status.textContent=error.message==='changed'?'Настройка изменена в другом окне. Обновите страницу перед сохранением.':'Не удалось сохранить громкость. Попробуйте ещё раз.';}
+   finally{saving=false;controls.forEach(c=>c.disabled=false);if(button)button.textContent=label;}
+  });
  }
  window.addEventListener('pagehide',event=>{if(event.persisted)return;for(const context of contexts.values())void context.close().catch(()=>{});contexts.clear();});
 })();

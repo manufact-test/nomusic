@@ -56,6 +56,8 @@ jobs:
           php -l .github/scripts/hostinger-stage7-owner-remote.php
           bash -n .github/scripts/hostinger-user-feedback-audit.sh
           php -l .github/scripts/hostinger-user-feedback-audit.php
+          bash -n .github/scripts/hostinger-admin-gain-ux-audit.sh
+          php -l .github/scripts/hostinger-admin-gain-ux-audit.php
           php server/tests/deployment-env.php
           node .github/scripts/tests/hostinger-activate.mjs
       - name: Install CI-only MP3 encoder for Stage 7 regression
@@ -138,5 +140,9 @@ jobs:
           if node --input-type=module -e "import fs from 'node:fs';process.exit(JSON.parse(fs.readFileSync('.github/deploy/hostinger-request.json')).request.startsWith('user-feedback')?0:1)"; then
             bash .github/scripts/hostinger-user-feedback-audit.sh
           else
-            echo 'Feedback-specific read-only audit not selected for this deployment.'
+            if node --input-type=module -e "import fs from 'node:fs';process.exit(JSON.parse(fs.readFileSync('.github/deploy/hostinger-request.json')).request.startsWith('admin-gain-ux')?0:1)"; then
+              bash .github/scripts/hostinger-admin-gain-ux-audit.sh
+            else
+              echo 'Feedback-specific read-only audit not selected for this deployment.'
+            fi
           fi
