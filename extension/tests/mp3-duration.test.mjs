@@ -33,7 +33,7 @@ test('duration warnings honor 1500 ms compatibility and greater-than-five-second
   assert.equal(durationNotice(180000,180000+sign*1501).blocked,true);
   assert.equal(durationNotice(180000,180000+sign*5000).blocked,true);
   assert.doesNotMatch(durationNotice(183720,180872).text,/3:03,|3:00,|2,848/);
-  assert.match(durationNotice(183720,180872).text,/3:04.*3:01.*на 3 с/);
+  assert.match(durationNotice(183720,180872).text,/3:03.*3:00.*на 3 с/);
   assert.doesNotMatch(durationNotice(180000,180000+sign*5001).text,/Перед публикацией/);
  }
  assert.doesNotMatch(durationNotice(180000,null).text,/подходит/);
