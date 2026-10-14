@@ -56,6 +56,8 @@ if (incidentBrowser.status !== 0) process.exit(incidentBrowser.status || 1);
 const popupScroll = spawnSync(process.execPath, [path.join(root, "scripts", "test-popup-scroll-browser.mjs")], { stdio: "inherit" });
 if (popupScroll.status !== 0) process.exit(popupScroll.status || 1);
 
+const gainBrowser = spawnSync(process.execPath,[path.join(root,"scripts","test-audio-gain-browser.mjs")],{stdio:"inherit"});
+if(gainBrowser.status!==0)process.exit(gainBrowser.status||1);
 const phpVersion = spawnSync("php", ["--version"], { encoding: "utf8" });
 if (phpVersion.error?.code === "ENOENT") {
   console.log(`Server structure validated (${phpFiles.length} PHP files); runtime test deferred to PHP 8.3 CI.`);

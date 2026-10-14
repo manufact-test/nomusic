@@ -48,6 +48,7 @@ final class ResolveService
             'audio_url' => '/api/v1/audio/' . $id . '?token=' . $this->tokens->sign($id, $version, $expires, $sessionId) . '&expires=' . $expires . ($sessionId === null ? '' : '&sid=' . $sessionId),
             'duration_ms' => (int) $row['duration_ms'],
             'version' => $version,
+            'gain_db' => max(-12.0, min(12.0, (float) ($row['gain_db'] ?? 0))),
             'expires_at' => $expires,
             'cache_ttl_seconds' => min(ResolveCachePolicy::positive($this->positiveTtlSeconds, $this->tokens->ttl), max(0, $expires - time())),
         ];

@@ -312,3 +312,5 @@ input:not([type=checkbox]):focus-visible,select:focus-visible,textarea:focus-vis
 @media(max-width:640px){.duration-warning,.duration-summary{padding:13px 14px;border-radius:12px}}
 
 .support-kinds { display:flex; flex-wrap:wrap; gap:8px; margin:16px 0; }
+
+.audio-gain-form{padding:16px;margin:12px 0 18px;border:1px solid #dce8e2;border-radius:14px;background:#f6faf8}.audio-gain-form>label{display:flex;justify-content:space-between;gap:12px;font-weight:600}.audio-gain-controls{display:flex;align-items:center;gap:12px;margin:12px 0}.audio-gain-controls input[type=range]{flex:1;min-width:0;width:auto;accent-color:#159f78}.audio-gain-actions{display:flex;flex-wrap:wrap;gap:10px}.audio-gain-form .muted{margin-bottom:0}

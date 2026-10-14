@@ -443,7 +443,7 @@ uploadForm?.addEventListener("submit", async (event) => {
         rate_limited: "Слишком много попыток. Попробуйте позже.",
         upload_too_large: "Файл превышает допустимый размер.",
         invalid_mp3: "Файл не прошёл проверку MP3.",
-        duration_mismatch: "Разница длительности больше 5 секунд. Выберите подходящую версию.",
+        duration_mismatch: "Длительность файла не подходит для подмены. Выберите подходящую версию.",
         idempotency_conflict: "Повтор запроса не совпадает с исходным.",
         rights_declaration_required: "Подтвердите права на файл."
       };

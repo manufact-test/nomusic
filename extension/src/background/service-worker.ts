@@ -44,6 +44,7 @@ async function playbackAccess(): Promise<string> {
 }
 
 function resetConnectivity() {
+  actionIcon.clear();
   accessEpoch++; accessValidUntil = 0; accessRetryAt = 0; accessCheck = null;
   userAuth.resetTransport?.(); resolveApi.resetTransport?.();
   const epoch = accessEpoch;
@@ -77,7 +78,7 @@ async function readState(retry = false): Promise<ExtensionState> {
   const enabled = await readEnabled();
   const connection = await readControllerStatus(retry);
   const controller = connection.status;
-  return {
+  const state: ExtensionState = {
     ...DEFAULT_STATE,
     ...controller,
     enabled,
@@ -93,6 +94,8 @@ async function readState(retry = false): Promise<ExtensionState> {
     bridge: controller?.bridge || { ready: false, healthy: false },
     track: controller?.track || null
   };
+  actionIcon.showFor(connection.tabId,enabled && !connection.error && state.bridge?.healthy===true && !state.startupError && !state.replacementError && !state.suspended && !["ERROR","CONNECTING","PREPARING","RESTORING"].includes(state.phase));
+  return state;
 }
 
 async function sendToActiveTab(message: object): Promise<unknown> {
@@ -157,6 +160,10 @@ chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse) =>
     // lease continues only while this installed worker answers; denial still
     // asynchronously disables the controller and restores original playback.
     sendResponse({ ok: true, version: VERSION });
+    const pulse = message as { enabled?: unknown; healthy?: unknown; phase?: unknown; replacementError?: unknown; suspended?: unknown; startupError?: unknown };
+    const connected=pulse.enabled === true && pulse.healthy === true && pulse.replacementError !== true && pulse.suspended !== true && !pulse.startupError && !["ERROR","CONNECTING","PREPARING","RESTORING"].includes(String(pulse.phase));
+    // An unhealthy page must turn gray immediately, even while auth is pending.
+    if(!connected)actionIcon.update(sender.tab?.id,false);
     void (async () => {
       if (!await readEnabled()) { actionIcon.clear(); return; }
       const epoch = accessEpoch;
@@ -165,8 +172,7 @@ chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse) =>
       if (access === "denied") { actionIcon.clear(); await chrome.storage.local.set({ enabled: false }); return; }
       await chrome.tabs.sendMessage(sender.tab?.id, { type: "CELIKOM_ACCESS_STATE", state: access }).catch(() => undefined);
       if (access !== "allowed") { actionIcon.update(sender.tab?.id, false); return; }
-      const pulse = message as { enabled?: unknown; healthy?: unknown; phase?: unknown; replacementError?: unknown };
-      actionIcon.update(sender.tab?.id, pulse.enabled === true && pulse.healthy === true && pulse.replacementError !== true && !["ERROR", "CONNECTING", "PREPARING", "RESTORING"].includes(String(pulse.phase)));
+      actionIcon.update(sender.tab?.id, connected);
     })().catch(() => actionIcon.update(sender.tab?.id, false));
     return false;
   }

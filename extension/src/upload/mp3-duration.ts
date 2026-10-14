@@ -34,9 +34,9 @@ export function mp3DurationMs(buffer): number | null {
 export function durationNotice(originalMs, audioMs) {
   if (!Number.isFinite(originalMs) || !Number.isFinite(audioMs)) return { kind: "warning", text: "Не удалось сравнить длительность MP3. Файл дополнительно проверит сервер." };
   const delta = audioMs - originalMs, difference = Math.abs(delta);
-  const time = ms => `${Math.floor(ms / 60000)}:${String(Math.floor(ms / 1000) % 60).padStart(2, "0")},${String(Math.round(ms % 1000)).padStart(3, "0")}`;
+  const time = ms => { const seconds=Math.round(ms/1000);return `${Math.floor(seconds/60)}:${String(seconds%60).padStart(2,"0")}`; };
   const description = `Оригинал: ${time(originalMs)} · файл: ${time(audioMs)}.`;
   if (difference <= 1500) return { kind: "ok", text: description + " Длительность подходит для подмены." };
-  const mismatch = ` Файл ${delta > 0 ? "длиннее" : "короче"} на ${(difference / 1000).toFixed(3).replace(".", ",")} с.`;
-  return { blocked: difference > 5000, kind: difference > 5000 ? "error" : "warning", text: description + mismatch + (difference > 5000 ? " Разница больше 5 секунд: выберите подходящую версию." : "") + " Допуск подмены — 1,5 с; с этим файлом подмена не запустится. Выберите файл подходящей длительности." };
+  const mismatch = ` Файл ${delta > 0 ? "длиннее" : "короче"} на ${Math.round(difference / 1000)} с.`;
+  return { blocked: true, kind: "error", text: description + mismatch + (difference > 5000 ? " Разница больше 5 секунд: выберите подходящую версию." : "") + " Допуск подмены — 1,5 с; с этим файлом подмена не запустится. Выберите файл подходящей длительности." };
 }

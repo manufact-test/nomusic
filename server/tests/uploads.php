@@ -68,14 +68,14 @@ try {
         finally { unlink($tagged); }
     });
     run('Uploads reject duration mismatch before creating a track or asset', function () use ($service,$fields,$file,$ownerHash,$pdo): void {
-        $bad=array_merge($fields,['track_id'=>'799999','duration_ms'=>'7613']);
+        $bad=array_merge($fields,['track_id'=>'799999','duration_ms'=>'4113']);
         try {$service->upload($bad,$file,$ownerHash);throw new RuntimeException('mismatch accepted');}
         catch (DomainException $e) {expect($e->getMessage()==='duration_mismatch','Mismatch rejected');}
         expect((int)$pdo->query("SELECT COUNT(*) FROM tracks WHERE service_track_id='799999'")->fetchColumn()===0,'No track created');
     });
     $created = $service->upload($fields, $file, $ownerHash);
     run('Upload uses stored original duration despite spoofed supplied duration',function() use($service,$fields,$file,$ownerHash,$pdo):void{
-        $pdo->exec("UPDATE tracks SET duration_ms=7613 WHERE service_track_id='799001'");
+        $pdo->exec("UPDATE tracks SET duration_ms=4113 WHERE service_track_id='799001'");
         try {try{$service->upload($fields,$file,$ownerHash);throw new RuntimeException('stored mismatch accepted');}
         catch(DomainException $e){expect($e->getMessage()==='duration_mismatch','Stored original authoritative');}}
         finally{$pdo->exec("UPDATE tracks SET duration_ms=2606 WHERE service_track_id='799001'");}

@@ -3,9 +3,10 @@ export function createActionIcon(api, clock = {}) {
   const schedule = clock.schedule || ((fn, delay) => setTimeout(fn, delay));
   const cancel = clock.cancel || ((timer) => clearTimeout(timer));
   const active = new Map();
+  let target = null;
   let shown = null, pending = Promise.resolve();
   function paint() {
-    const enabled = active.size > 0;
+    const enabled = target === null ? active.size > 0 : active.has(target);
     const color = enabled ? "green" : "gray";
     const path = Object.fromEntries([16,32,48,128].map(size => [size, `/assets/icons/${color}-${size}.png`]));
     pending = pending.catch(() => {}).then(async () => {
@@ -30,10 +31,11 @@ export function createActionIcon(api, clock = {}) {
     }
     paint();
   }
+  function showFor(tabId, connected) { target=Number.isInteger(tabId)?tabId:null; if(target===null){clear();return;}update(target,connected); }
   function clear() { for (const timer of active.values()) cancel(timer); active.clear(); paint(); }
   paint();
-  api.tabs.onRemoved?.addListener(tabId => update(tabId, false));
+  api.tabs.onRemoved?.addListener(tabId => {if(target===tabId)target=null;update(tabId,false);});
   api.tabs.onUpdated?.addListener((tabId, change) => { if (change.status === "loading") update(tabId, false); });
   api.storage.onChanged?.addListener((changes, area) => { if (area === "local" && changes.enabled?.newValue === false) clear(); });
-  return { update, clear };
+  return { update, clear, showFor };
 }

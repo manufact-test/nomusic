@@ -111,6 +111,18 @@ final class AdminPanel
             } catch (\InvalidArgumentException) { return Response::json(400,['error'=>'invalid_incident']); }
             catch (\DomainException) { return Response::json(409,['error'=>'incident_conflict']); }
         }
+        if ($path === '/admin/audio-gain') {
+            if(!in_array($admin['role'],['owner','moderator'],true))return Response::json(403,['error'=>'forbidden']);
+            if($method!=='POST')return Response::json(405,['error'=>'method_not_allowed']);
+            $form=$this->form($headers,$body);
+            if(!AdminAuth::validCsrf($admin,$form['csrf']??null))return Response::json(403,['error'=>'csrf_failed']);
+            try{
+                $id=$this->positiveInt($form['replacement']??null)?:0;
+                (new AudioGainService($this->pdo))->save($admin,$id,$form['gain_db']??null,$form['gain_before']??null);
+                return new Response(303,['Location'=>'/admin?tab=uploads&gain_saved='.$id.'#audio-version-'.$id,'Cache-Control'=>'no-store']);
+            }catch(\InvalidArgumentException){return $this->page('<h1>Проверьте громкость</h1><p>Допустимый диапазон — от −12 до +12 дБ.</p><a href="/admin?tab=uploads">Вернуться</a>',status:400);}
+            catch(\DomainException){return $this->page('<h1>Настройка не сохранена</h1><p>Обновите страницу и повторите настройку: версия могла измениться в другом окне.</p><a href="/admin?tab=uploads">Вернуться</a>',status:409);}
+        }
         if ($path === '/admin/metadata' && $method === 'POST') {
             if ($admin['role'] !== 'owner') return Response::json(403,['error'=>'forbidden']);
             $form = $this->form($headers,$body);
@@ -410,6 +422,11 @@ final class AdminPanel
             if($source===false) throw new \RuntimeException('promo_script_not_found');
             $sources[]=$source;
         }
+        if(str_contains($inner,'data-gain-audio')) {
+            $source=file_get_contents(__DIR__.'/audio-gain.js');
+            if($source===false)throw new \RuntimeException('audio_gain_script_not_found');
+            $sources[]=$source;
+        }
         if($sources) {
             $hashes=[];
             foreach($sources as $source) {
@@ -597,7 +614,7 @@ final class AdminPanel
         $count = $this->pdo->prepare('SELECT COUNT(*)' . $joins . $where);
         $count->execute($params);
         $total = (int) $count->fetchColumn();
-        $stmt = $this->pdo->prepare("SELECT r.id,r.status,r.is_active,r.version,r.track_id,
+        $stmt = $this->pdo->prepare("SELECT r.id,r.status,r.is_active,r.version,r.track_id,r.gain_db,
             t.service,t.service_track_id,t.artist,t.title,t.duration_ms AS original_duration_ms,
             a.duration_ms AS audio_duration_ms,a.mime_type,a.size_bytes,a.sha256,
             d.action AS decision_action,d.reason AS decision_reason,d.created_at AS decision_at,
@@ -642,7 +659,7 @@ final class AdminPanel
                 . '<span>Подмена: <strong>' . ((int) $r['is_active'] === 1 ? 'включена' : 'выключена')
                 . '</strong></span></div>'
                 . self::durationWarning((int) $r['original_duration_ms'], (int) $r['audio_duration_ms'])
-                . '<div class="player-wrap"><audio controls preload="none"'
+                . '<div class="player-wrap" id="audio-version-' . $id . '"><audio controls preload="none" data-gain-audio data-gain-db="' . self::e($r['gain_db']) . '"'
                 . ' aria-label="Прослушать загруженную версию #' . $id . '"'
                 . ' src="/admin/audio/' . $id . '"></audio>'
                 . '<small>Прослушивание доступно только администратору</small></div>'
@@ -651,6 +668,17 @@ final class AdminPanel
                 . ' · Формат: ' . (in_array($r['mime_type'], ['audio/mpeg'], true) ? 'MP3' : 'Аудио')
                 . '<p style="margin:8px 0 0">Контрольная сумма SHA-256: '
                 . self::e($r['sha256']) . '</p></div></details>';
+            if(in_array($admin['role'],['owner','moderator'],true)){
+                $gain=self::e($r['gain_db']);
+                $html.='<form class="audio-gain-form" data-audio-gain method="post" action="/admin/audio-gain" data-audio-id="audio-version-'.$id.'">'
+                    .'<input type="hidden" name="csrf" value="'.$csrf.'"><input type="hidden" name="replacement" value="'.$id.'">'
+                    .'<input type="hidden" name="gain_before" value="'.$gain.'">'
+                    .'<label for="gain-'.$id.'">Громкость версии <output data-gain-value>'.$gain.' дБ</output></label>'
+                    .'<div class="audio-gain-controls"><span>Тише</span><input id="gain-'.$id.'" aria-label="Громкость версии" type="range" name="gain_db" min="-12" max="12" step="0.5" value="'.$gain.'"><span>Громче</span></div>'
+                    .'<div class="audio-gain-actions"><button type="button" class="btn" data-gain-reset>Исходная громкость</button><button type="submit">Сохранить громкость</button></div>'
+                    .'<p class="muted" data-gain-note role="status">Ползунок меняет звук в плеере выше. Сохраните настройку, чтобы применить её для слушателей. После сохранения перезапустите подмену в расширении.</p></form>';
+                if(($query['gain_saved']??'')===(string)$id)$html.='<p class="notice">Громкость сохранена.</p>';
+            }
             if ($admin['role'] === 'owner'
                 && (trim((string) $r['artist']) === '' || trim((string) $r['title']) === '')) {
                 $html .= '<details class="detail-toggle"><summary>Уточнить название и исполнителя</summary>'

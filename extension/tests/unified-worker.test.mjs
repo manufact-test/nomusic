@@ -8,14 +8,14 @@ import {readFile} from 'node:fs/promises';
 const source=(await readFile(new URL('../dist/unpacked/background/service-worker.js',import.meta.url),'utf8')).replace(/^import .*$/gm,'');
 function fixture() {
  const networkListeners=new Map();
- let handler,allowed=true,trialStarted=0,localSession=true;
+ let handler,allowed=true,trialStarted=0,localSession=true,controller={track:{id:"144530503"},player:{mediaId:"1"},phase:"READY",bridge:{healthy:true}},connectionError=null;
  const local={enabled:false},sent=[],icons=[];
  const commands={getStatus:'CELIKOM_STATUS_GET',setEnabled:'CELIKOM_ENABLED_SET',setTestTrack:'CELIKOM_TEST_TRACK_SET',retryReplacement:'CELIKOM_REPLACEMENT_RETRY',restoreOriginal:'CELIKOM_RESTORE_ORIGINAL'};
  const chrome={action:{setIcon:async value=>icons.push(value),setTitle:async()=>{}},runtime:{id:'worker',getManifest:()=>({version:'0.4.7'}),getURL:p=>'chrome-extension://worker/'+p,onInstalled:{addListener(){}},onStartup:{addListener(){}},onMessage:{addListener:fn=>{handler=fn}}},storage:{local:{get:async()=>({...local}),set:async x=>Object.assign(local,x)}},tabs:{query:async()=>[{id:1,url:'https://music.yandex.ru/'}],sendMessage:async(id,m)=>{sent.push(m);return {ok:true}}}};
  const auth={installationId:async()=>'',perform:async action=>action==='account-preview'?{ok:true,localSession}:{ok:true},withEntitledAccess:async()=>{},entitlement:async activation=>{if(activation)trialStarted++;return {allowed,valid_until:new Date(Date.now()+432000000).toISOString(),reason:allowed?'trial_active':'trial_inactive'}}};
- vm.runInNewContext(source,{addEventListener:(name,fn)=>networkListeners.set(name,fn),chrome,COMMANDS:commands,normalizeEnabled:v=>v===true,registerTabRecovery,createActionIcon,createMusicTabs,createAuthBroker:()=>auth,createApiBroker:()=>async()=>({ok:true}),createControllerBootstrap:()=>({ensure:async()=>({status:{track:{id:'144530503'},player:{mediaId:'1'},phase:'READY',bridge:{healthy:true}}}),ensureOpenTabs:async()=>{}}),Date,URL,Promise});
+ vm.runInNewContext(source,{addEventListener:(name,fn)=>networkListeners.set(name,fn),chrome,COMMANDS:commands,normalizeEnabled:v=>v===true,registerTabRecovery,createActionIcon,createMusicTabs,createAuthBroker:()=>auth,createApiBroker:()=>async()=>({ok:true}),createControllerBootstrap:()=>({ensure:async()=>({status:controller,error:connectionError}),ensureOpenTabs:async()=>{}}),Date,URL,Promise});
  const send=(type,more={},sender={id:'worker',url:'chrome-extension://worker/popup/popup.html'})=>new Promise(resolve=>handler({type,...more},sender,resolve));
- return {send,local,sent,icons,auth,network:(name)=>networkListeners.get(name)?.(),setAllowed:v=>allowed=v,setSignedIn:v=>localSession=v,get trials(){return trialStarted}};
+ return {setController:(value,error=null)=>{controller=value;connectionError=error},send,local,sent,icons,auth,network:(name)=>networkListeners.get(name)?.(),setAllowed:v=>allowed=v,setSignedIn:v=>localSession=v,get trials(){return trialStarted}};
 }
 test('Stage10 verified Start activates trial before enabling the existing controller',async()=>{
  const f=fixture();const state=await f.send('CELIKOM_ENABLED_SET',{enabled:true});
@@ -144,4 +144,12 @@ test('online hints never enable stopped playback or authorize a revoked account'
  f.network('online');await new Promise(setImmediate);assert.equal(calls,0);assert.equal(f.local.enabled,false);
  f.local.enabled=true;f.network('online');await new Promise(setImmediate);await new Promise(setImmediate);
  assert.equal(calls,1);assert.equal(f.local.enabled,false);
+});
+
+test('popup-authoritative connection failure clears green immediately and healthy status restores it',async()=>{
+ const f=fixture();f.local.enabled=true;
+ await f.send('CELIKOM_STATUS_GET');await new Promise(r=>setImmediate(r));assert.match(f.icons.at(-1).path[32],/green/);
+ f.setController({phase:'READY',bridge:{healthy:true}},'receiver-missing');
+ const state=await f.send('CELIKOM_STATUS_GET');await new Promise(r=>setImmediate(r));assert.equal(state.phase,'ERROR');assert.match(f.icons.at(-1).path[32],/gray/);
+ f.setController({phase:'READY',bridge:{healthy:true}});await f.send('CELIKOM_STATUS_GET');await new Promise(r=>setImmediate(r));assert.match(f.icons.at(-1).path[32],/green/);
 });

@@ -48,7 +48,7 @@
       const changed = this.testTrackId !== id || this.enabled !== enabled;
       this.enabled = enabled;
       this.testTrackId = id;
-      if (changed || explicitStart) { this.networkRetries = 0; this.manualBypass = null; this.blockedTrackId = null; this.retryBlock = null; this.masterClock = null; if (!this.suspended) this.lastError = null; this.negativeResolution = null; }
+      if (changed || explicitStart) { this.networkRetries = 0; this.freshResolve = true; this.manualBypass = null; this.blockedTrackId = null; this.retryBlock = null; this.masterClock = null; if (!this.suspended) this.lastError = null; this.negativeResolution = null; }
       this.reconcile();
     }
     suspendAccess(suspended, reason) {
@@ -129,7 +129,8 @@
       try {
         operation.asset = this.testTrackId
           ? { found: true, url: this.environment.chrome.runtime.getURL("assets/test-audio.mp3"), demoLoop: true }
-          : await this.resolveAsset(operation.trackId, { fresh: this.networkRetries > 0 });
+          : await this.resolveAsset(operation.trackId, { fresh: this.networkRetries > 0 || this.freshResolve === true });
+        this.freshResolve = false;
         if (!this.current(operation)) return;
         if (!operation.asset?.found) {
           this.negativeResolution = { trackId: operation.trackId, until: Date.now() + Math.min(60000, Math.max(5000, operation.asset?.retryAfterMs || 15000)) };

@@ -6,7 +6,7 @@ namespace Celikom\Repositories;
 
 final class PdoCatalogRepository implements CatalogRepository
 {
-    private const SELECT = "SELECT r.id AS replacement_id, r.version, a.storage_driver, a.storage_key,
+    private const SELECT = "SELECT r.id AS replacement_id, r.version, r.gain_db, a.storage_driver, a.storage_key,
         a.sha256, a.mime_type, a.size_bytes, a.duration_ms FROM track_replacements r
         JOIN tracks t ON t.id = r.track_id JOIN audio_assets a ON a.id = r.audio_asset_id
         WHERE r.status = 'approved' AND r.is_active = 1 AND r.disabled_at IS NULL";

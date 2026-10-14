@@ -2,6 +2,23 @@
   "use strict";
   const KEY = "__CELIKOM_REPLACEMENT_PLAYER_V1__";
   if (root[KEY]) return;
+function createGainChain(context, audio, db) {
+  const source=context.createMediaElementSource(audio),gain=context.createGain();
+  const limiter=context.createDynamicsCompressor(),ceiling=context.createWaveShaper();
+  limiter.threshold.value=-1;limiter.knee.value=0;limiter.ratio.value=20;limiter.attack.value=0.001;limiter.release.value=0.1;
+  const curve=new Float32Array(4097);for(let i=0;i<curve.length;i++)curve[i]=Math.max(-0.98,Math.min(0.98,i*2/(curve.length-1)-1));
+  ceiling.curve=curve;ceiling.oversample="none";
+  source.connect(gain);limiter.connect(ceiling);ceiling.connect(context.destination);
+  let positive=null;
+  const set=(value)=>{
+    if(!Number.isFinite(value)||value< -12||value>12)throw new Error("invalid_audio_gain");
+    const next=value>0;
+    if(next!==positive){gain.disconnect();gain.connect(next?limiter:context.destination);positive=next;}
+    gain.gain.setTargetAtTime(Math.pow(10,value/20),context.currentTime,0.01);
+  };
+  set(db);
+  return {set,destroy(){for(const node of [source,gain,limiter,ceiling]){try{node.disconnect();}catch{}}}};
+}
   class ReplacementPlayer {
     constructor(environment, onFatal) {
       this.environment = environment;
@@ -12,6 +29,7 @@
       this.wantPlay = false;
       this.blobUrl = null;
       this.fetchAbort = null;
+      this.gainContext = null;this.gainChain = null;
       this.mediaSource = null;
       this.sourceBuffer = null;
       this.streamTask = null;
@@ -200,6 +218,17 @@
         });
       }
       await ready;
+      const gainDb=asset.gainDb??0;
+      if(!Number.isFinite(gainDb)||gainDb< -12||gainDb>12)throw new Error("invalid_audio_gain");
+      if(gainDb!==0){
+        const AudioContext=this.environment.AudioContext||this.environment.webkitAudioContext;
+        if(!AudioContext)throw new Error("audio_gain_unavailable");
+        this.gainContext=new AudioContext();this.gainChain=createGainChain(this.gainContext,this.audio,gainDb);
+        let timeout;
+        try{await Promise.race([this.gainContext.resume(),new Promise((_,reject)=>{timeout=this.environment.setTimeout(()=>reject(new Error("audio_gain_blocked")),2500)})]);}
+        finally{this.environment.clearTimeout(timeout);}
+        if(this.gainContext.state!=="running")throw new Error("audio_gain_blocked");
+      }
       if (this.destroyed) throw new Error("Replacement cancelled");
     }
     applyState(player) {
@@ -211,7 +240,11 @@
       this.wantPlay = true;
       if (this.destroyed || this.playPending || !this.audio.paused) return;
       this.playPending = true;
-      Promise.resolve(this.audio.play()).then(() => {
+      Promise.resolve().then(async()=>{
+        if(this.gainContext && this.gainContext.state!=="running")await this.gainContext.resume();
+        if(this.destroyed||!this.wantPlay)return;
+        return this.audio.play();
+      }).then(() => {
         if (this.destroyed || !this.wantPlay) this.audio.pause();
       }).catch(() => {
         // pause() can legitimately reject an in-flight play() with AbortError.
@@ -228,6 +261,8 @@
       this.sourceBuffer = null;
       this.mediaSource = null;
       this.audio.muted = true;
+      this.gainChain?.destroy();this.gainChain=null;
+      if(this.gainContext){void this.gainContext.close().catch(()=>{});this.gainContext=null;}
       this.pause();
       this.audio.removeAttribute("src");
       this.audio.load();

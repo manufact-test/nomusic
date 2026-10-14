@@ -82,7 +82,7 @@ final class UploadService
         $known->execute([$service, $trackId]);
         $knownDuration = $known->fetchColumn();
         $originalDuration = $knownDuration === false ? (int) $duration : (int) $knownDuration;
-        if (abs($measuredDuration - $originalDuration) > 5000) {
+        if (abs($measuredDuration - $originalDuration) > 1500) {
             throw new \DomainException('duration_mismatch');
         }
 
@@ -137,7 +137,7 @@ final class UploadService
             $stmt->execute([$track]);
             $lockedDuration = $stmt->fetchColumn();
             if ($lockedDuration === false) throw new \RuntimeException('track_missing');
-            if (abs($measuredDuration - (int) $lockedDuration) > 5000) throw new \DomainException('duration_mismatch');
+            if (abs($measuredDuration - (int) $lockedDuration) > 1500) throw new \DomainException('duration_mismatch');
             $priorTrack = $this->existingTrackUpload($service, $trackId, $sha);
             if ($priorTrack !== null) {
                 $this->pdo->commit();

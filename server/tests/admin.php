@@ -138,6 +138,23 @@ $candidate=(int)$pdo->lastInsertId();
 $catalog=new PdoCatalogRepository($pdo);
 $mod=new ModerationService($pdo,$storage);
 try{
+    run('Audio gain saves per version with audit, CSRF/RBAC/range checks and stable media signatures',function() use($app,$pdo,$candidate,$actionHeaders,$csrf,$adminId):void{
+        $url='/admin/audio-gain';$fields=['csrf'=>$csrf,'replacement'=>(string)$candidate,'gain_before'=>'0.0','gain_db'=>'6.0'];
+        $old=$pdo->query('SELECT version,audio_asset_id FROM track_replacements WHERE id='.$candidate)->fetch(PDO::FETCH_ASSOC);
+        expect($app->handle('POST',$url,headers:$actionHeaders,body:http_build_query($fields))->status===303,'Saved gain');
+        $row=$pdo->query('SELECT version,audio_asset_id,gain_db FROM track_replacements WHERE id='.$candidate)->fetch(PDO::FETCH_ASSOC);
+        expect((float)$row['gain_db']===6.0&&$row['version']===$old['version']&&$row['audio_asset_id']===$old['audio_asset_id'],'Only metadata changes');
+        expect($app->handle('POST',$url,headers:$actionHeaders,body:http_build_query($fields))->status===409,'Stale save rejected');
+        $fields['gain_before']='6.0';$fields['gain_db']='12.1';expect($app->handle('POST',$url,headers:$actionHeaders,body:http_build_query($fields))->status===400,'Gain range');
+        $fields['gain_db']='0.0';$fields['csrf']='bad';expect($app->handle('POST',$url,headers:$actionHeaders,body:http_build_query($fields))->status===403,'CSRF');
+        $fields['csrf']=$csrf;
+        try{$pdo->prepare("UPDATE admins SET role='viewer' WHERE id=?")->execute([$adminId]);expect($app->handle('POST',$url,headers:$actionHeaders,body:http_build_query($fields))->status===403,'Viewer read-only');}
+        finally{$pdo->prepare("UPDATE admins SET role='owner' WHERE id=?")->execute([$adminId]);}
+        expect($app->handle('POST',$url,headers:$actionHeaders,body:http_build_query($fields))->status===303,'Reset to original');
+        $page=$app->handle('GET','/admin',['tab'=>'uploads'],$actionHeaders);
+        expect(str_contains($page->body,'data-audio-gain')&&str_contains($page->body,'Сохранить громкость'),'Mixer rendered');
+        expect(str_contains($page->headers['Content-Security-Policy'],'sha256-'),'DSP script allowed by exact CSP hash');
+    });
     run('Duration warnings and queue filters match the player boundary in both directions',function()
         use($pdo,$app,$sessionHeaders,$trackId,$assetId,$candidate):void{
         $extra=[];

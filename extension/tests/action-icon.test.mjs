@@ -71,3 +71,11 @@ test('failed setIcon retries on the next connected heartbeat rather than caching
  assert.equal(attempts,before+1);assert.match(loaded.at(-1)[32],/green/);
  icon.clear();
 });
+
+test('selected failed tab overrides a different healthy tab and recovery restores green',async()=>{
+ const f=fixture();f.icon.update(1,true);f.icon.update(2,true);await tick();
+ f.icon.showFor(1,false);await tick();assert.match(f.icons.at(-1).path[32],/gray/);
+ f.icon.update(2,true);await tick();assert.match(f.icons.at(-1).path[32],/gray/);
+ f.icon.update(1,true);await tick();assert.match(f.icons.at(-1).path[32],/green/);
+ f.icon.showFor(null,false);await tick();assert.match(f.icons.at(-1).path[32],/gray/);
+});

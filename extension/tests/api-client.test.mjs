@@ -357,3 +357,13 @@ test('a route failure during streamed JSON is retried within the same bounded re
  const pending=client.request('/api/v1/resolve');await new Promise(setImmediate);t.mock.timers.tick(500);
  assert.equal((await pending).found,false);assert.equal(calls,2);
 });
+
+test('API gain setting is bounded, preserved and absent legacy gain defaults to unity',async()=>{
+ let gain=6;
+ const now=Date.now(),expires=Math.floor(now/1000)+300;
+ const fetch=async url=>response(url.endsWith('/config')?{api_version:1,maintenance:false,minimum_extension_version:'0.4.0',features:{replacements:true}}:{found:true,replacement_id:31,duration_ms:180000,version:1,expires_at:expires,audio_url:'/api/v1/audio/31?token='+'b'.repeat(64)+'&expires='+expires,...(gain===undefined?{}:{gain_db:gain})});
+ const api=new ApiClient('https://celikom.example',{fetch,now:()=>now});
+ assert.equal((await api.resolve('yandex','888')).gainDb,6);
+ gain=undefined;assert.equal((await api.resolve('yandex','888',{forceRefresh:true})).gainDb,0);
+ for(const value of [-12.1,12.1,'6',null]){gain=value;await assert.rejects(api.resolve('yandex','888',{forceRefresh:true}),/invalid_api_response/);}
+});
