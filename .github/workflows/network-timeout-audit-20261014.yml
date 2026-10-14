@@ -1,4 +1,4 @@
-name: Diagnose intermittent extension API timeout
+name: Diagnose repeated 504 from extension API
 on:
   push:
     branches: [feature/api-range]
@@ -36,14 +36,19 @@ jobs:
           try {
           $app='/home/u235811320/domains/darkred-camel-588676.hostingersite.com/celikom';
           $release=realpath($app.'/current');require $release.'/bootstrap.php';$config=require $release.'/config/app.php';
+          echo json_encode(['phase'=>'connected_to_host','release'=>basename($release),'load'=>sys_getloadavg()],JSON_THROW_ON_ERROR),"\n";
           $start=microtime(true);$pdo=Celikom\Database\Connection::open($config);$pdo->query('SELECT 1')->fetchColumn();$dbMs=round((microtime(true)-$start)*1000,2);
           $service=new Celikom\Application($config);$internal=[];
           foreach(['/api/v1/health','/api/v1/config','/api/v1/auth/me'] as $path){$start=microtime(true);$res=$service->handle('GET',$path,[],[]);$internal[]=['endpoint'=>$path,'status'=>$res->status,'elapsed_ms'=>round((microtime(true)-$start)*1000,2)];}
+          echo json_encode(['phase'=>'php_database_probe','db_connect_query_ms'=>$dbMs,'internal'=>$internal],JSON_THROW_ON_ERROR),"\n";
           $external=[];
-          for($i=0;$i<3;$i++)foreach(['/api/v1/health','/api/v1/config','/api/v1/auth/me'] as $path){
-          $c=curl_init('https://darkred-camel-588676.hostingersite.com'.$path);curl_setopt_array($c,[CURLOPT_RETURNTRANSFER=>true,CURLOPT_CONNECTTIMEOUT=>8,CURLOPT_TIMEOUT=>12,CURLOPT_FOLLOWLOCATION=>false]);curl_exec($c);$info=curl_getinfo($c);$error=curl_errno($c);curl_close($c);$external[]=['endpoint'=>$path,'status'=>$info['http_code'],'curl_errno'=>$error,'tls_ms'=>round($info['appconnect_time']*1000,2),'first_byte_ms'=>round($info['starttransfer_time']*1000,2),'total_ms'=>round($info['total_time']*1000,2)];}
+          for($i=0;$i<2;$i++)foreach(['/api/v1/health','/api/v1/config','/api/v1/auth/me'] as $path){
+          $c=curl_init('https://darkred-camel-588676.hostingersite.com'.$path);curl_setopt_array($c,[CURLOPT_RETURNTRANSFER=>true,CURLOPT_CONNECTTIMEOUT=>8,CURLOPT_TIMEOUT=>12,CURLOPT_FOLLOWLOCATION=>false]);curl_exec($c);$info=curl_getinfo($c);$error=curl_errno($c);curl_close($c);$external[]=['endpoint'=>$path,'status'=>$info['http_code'],'curl_errno'=>$error,'tls_ms'=>round(($info['appconnect_time']??0)*1000,2),'first_byte_ms'=>round($info['starttransfer_time']*1000,2),'total_ms'=>round($info['total_time']*1000,2)];}
           echo json_encode(['read_only'=>true,'release'=>basename($release),'db_connect_query_ms'=>$dbMs,'internal'=>$internal,'on_host_https'=>$external,'auth_enabled'=>(bool)$config['auth_enabled'],'entitlement_enabled'=>(bool)$config['entitlement_enabled']],JSON_THROW_ON_ERROR),"\n";
           }catch(Throwable $e){fwrite(STDERR,'Read-only connectivity diagnostic failed: '.get_class($e)."\n");exit(1);}
           PHP
           scp -P 65002 "${opts[@]}" "$work/audit.php" "$target:$remote"
           ssh -p 65002 "${opts[@]}" "$target" "/opt/alt/php83/usr/bin/php '$remote'"
+          for path in health config auth/me; do
+            curl --silent --show-error --max-time 22 -o "$work/probe-body" -w "runner $path HTTP %{http_code} TLS %{time_appconnect} first %{time_starttransfer} total %{time_total}\\n" "https://darkred-camel-588676.hostingersite.com/api/v1/$path" || true
+          done
