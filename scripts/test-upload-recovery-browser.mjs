@@ -17,7 +17,7 @@ try{
  const state={enabled:false,phase:'STOPPED',bridge:{healthy:true},track:{id:'1944599',confidence:260,ambiguous:false,metadata:{title:'Папиросы',artist:'Зануда',durationMs:200820}}};
  let blockStart=false,blockVersion=false,finishStart,posts=0;
  const access={allowed:true,source:'promo',reason:'promo_active',valid_until:null};
- window.chrome={runtime:{getURL:p=>new URL('../'+p,location.href).href,getManifest:()=>({version:'0.4.45'}),sendMessage:async m=>{
+ window.chrome={runtime:{getURL:p=>new URL('../'+p,location.href).href,getManifest:()=>({version:'0.4.47'}),sendMessage:async m=>{
   if(m.type==='CELIKOM_STATUS_GET')return structuredClone(state);
   if(m.type==='CELIKOM_ENABLED_SET'){
    if(m.enabled&&blockStart)return new Promise(resolve=>finishStart=resolve);
@@ -47,7 +47,10 @@ try{
   check(!q('[data-action=start]').disabled&&q('[data-status]').textContent==='Остановлен','late Start cannot overwrite Stop');
   q('[data-action=start]').click();await until(()=>!q('[data-action=start]').disabled&&q('[data-access-status]').textContent.includes('Проверка не завершена'),'Start timeout');
   check(!q('[data-action=start]').disabled&&q('[data-access-status]').textContent.includes('Проверка не завершена'),'stalled Start timeout unlocks');
-  blockStart=false;q('[data-action=start]').click();await until(()=>state.enabled&&q('[data-status]').textContent==='Трек определён','fresh Start');check(state.enabled&&q('[data-status]').textContent==='Трек определён','fresh Start works');
+  blockStart=false;q('[data-action=start]').click();await until(()=>state.enabled&&q('[data-status]').textContent==='Включён · играет оригинал','fresh Start');check(state.enabled&&q('[data-status]').textContent==='Включён · играет оригинал','fresh Start works');
+  state.phase='PREPARING';state.preparation={stage:'loading',elapsedMs:10001};
+  await until(()=>!q('[data-action=start]').disabled&&q('[data-action=start]').textContent==='Повторить'&&q('[data-status]').textContent==='Загружаем аудио…','stalled preparation exposes Retry');
+  q('[data-action=start]').click();await until(()=>state.phase==='READY'&&q('[data-status]').textContent==='Включён · играет оригинал','manual retry takes effect');
   q('[data-action=stop]').click();await wait(20);
   document.body.dataset.recoveryStep='version timeout';blockVersion=true;state.track.id='1944612';await until(()=>q('[data-version-status]').textContent.includes('Не удалось проверить'),'version timeout');
   check(q('[data-version-status]').textContent.includes('Не удалось проверить'),'stalled version check leaves loading state');
