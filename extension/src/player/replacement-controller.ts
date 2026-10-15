@@ -135,6 +135,8 @@
         if (!this.current(operation)) return;
         if (!operation.asset?.found) {
           this.negativeResolution = { trackId: operation.trackId, until: Date.now() + Math.min(60000, Math.max(5000, operation.asset?.retryAfterMs || 15000)) };
+          if (this.snapshot?.guard?.transitioning) await this.bridge.request("GUARD_TRANSITION_END", {token:operation.token,trackId:operation.trackId,mediaId:operation.mediaId});
+          if (!this.current(operation)) return;
           this.operation = null; this.phase = "IDLE"; this.log(`NO_REPLACEMENT · ${operation.trackId}`); return;
         }
         if (!operation.asset.demoLoop && (!Number.isFinite(operation.asset.durationMs)
@@ -142,6 +144,10 @@
           throw new Error("replacement_duration_or_token_invalid");
         }
         if (!operation.asset.demoLoop) this.event("replacement_available", { service: "yandex" });
+        if (this.snapshot?.guard?.transitioning) {
+          await this.bridge.request("GUARD_ENGAGE", {token:operation.token,trackId:operation.trackId,mediaId:operation.mediaId,preparing:true});
+          if (!this.current(operation)) { this.bridge.post("RELEASE_NOW", {token:operation.token}); return; }
+        }
         operation.stage="loading";
         operation.player = this.createPlayer((reason, detail) => { if (this.current(operation)) this.abort(reason, true, detail); });
         if(operation.player.audio?.dataset)operation.player.audio.dataset.celikomTrackId=operation.trackId;

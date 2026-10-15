@@ -541,3 +541,18 @@ test('A stalled later MP3 range is bounded and fails open with network progress'
  assert.equal(f.fatals[0]?.reason,'remote-stream-timeout');assert.equal(f.fatals[0].detail.offset,524288);
  assert.equal(f.fatals[0].detail.receivedBytes,524288);assert.equal(f.fatals[0].detail.phase,'timeout');f.player.destroy();
 });
+
+test('verified transition reserves existing silence while loading; Stop cancels the reservation and late completion',async()=>{
+ const gate=deferred(),f=fixture({loadGate:gate,resolveAsset:async()=>remoteAsset()});
+ f.engine.configure(true,'');f.update(snapshot('2',{guard:{transitioning:true}}));await settle();
+ assert.equal(f.engine.phase,'PREPARING');assert.equal(f.requests.find(r=>r.preparing)?.type,'GUARD_ENGAGE');
+ assert.equal(f.players[0].audio.paused,true);
+ f.engine.configure(false,'');await settle();
+ assert.equal(f.requests.at(-1).type,'GUARD_RELEASE');assert.equal(f.players[0].destroyed,true);
+ gate.resolve();await settle();assert.equal(f.engine.operation,null);assert.equal(f.players[0].audio.paused,true);
+});
+test('negative transition verdict releases the temporary native mute without loading or acquiring a lease',async()=>{
+ const f=fixture({resolveAsset:async()=>({found:false})});f.engine.configure(true,'');
+ f.update(snapshot('2',{guard:{transitioning:true}}));await settle();
+ assert.equal(f.requests.at(-1).type,'GUARD_TRANSITION_END');assert.equal(f.players.length,0);assert.equal(f.engine.phase,'IDLE');
+});

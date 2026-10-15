@@ -94,7 +94,7 @@ async function readState(retry = false): Promise<ExtensionState> {
     bridge: controller?.bridge || { ready: false, healthy: false },
     track: controller?.track || null
   };
-  actionIcon.showFor(connection.tabId,enabled && !connection.error && state.bridge?.healthy===true && !state.startupError && !state.replacementError && !state.suspended && !["ERROR","CONNECTING","PREPARING","RESTORING"].includes(state.phase));
+  actionIcon.showFor(connection.tabId,enabled && !connection.error && state.bridge?.healthy===true && !state.startupError && !state.replacementError && !state.suspended && !["ERROR","CONNECTING"].includes(state.phase));
   return state;
 }
 
@@ -161,7 +161,7 @@ chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse) =>
     // asynchronously disables the controller and restores original playback.
     sendResponse({ ok: true, version: VERSION });
     const pulse = message as { enabled?: unknown; healthy?: unknown; phase?: unknown; replacementError?: unknown; suspended?: unknown; startupError?: unknown };
-    const connected=pulse.enabled === true && pulse.healthy === true && pulse.replacementError !== true && pulse.suspended !== true && !pulse.startupError && !["ERROR","CONNECTING","PREPARING","RESTORING"].includes(String(pulse.phase));
+    const connected=pulse.enabled === true && pulse.healthy === true && pulse.replacementError !== true && pulse.suspended !== true && !pulse.startupError && !["ERROR","CONNECTING"].includes(String(pulse.phase));
     // An unhealthy page must turn gray immediately, even while auth is pending.
     if(!connected)actionIcon.update(sender.tab?.id,false);
     void (async () => {

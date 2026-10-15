@@ -300,7 +300,7 @@ test("packaged playback keeps one lease through utility events and metadata-only
     assert.equal(next.playback.activationCount, 1); assert.equal(next.playback.restoreCount, 0);
     assert.equal(replacement.paused, false); assert.equal(f.elements.size, 1);
 
-    // Old metadata may outlive native stream rebinding: restore immediately and
+    // Old metadata may outlive native stream rebinding: stop replacement and
     // hold this Track ID until a new identity or explicit retry is observed.
     vm.runInContext("original.src = 'https://strm-fra-04.strm.yandex.net/new?private_signature=secret'; original.dispatchEvent(new Event('loadedmetadata'));", main);
     await new Promise((resolve) => setTimeout(resolve, 5));
@@ -308,7 +308,7 @@ test("packaged playback keeps one lease through utility events and metadata-only
     assert.equal(next.active, null, JSON.stringify(next));
     assert.equal(next.playback.restoreCount, 1);
     assert.equal(next.playback.lastRestore.detail.reason, "media-source-changed");
-    assert.equal(vm.runInContext("original.physicalMuted", main), false);
+    assert.equal(vm.runInContext("original.physicalMuted", main), true, "transition stays silent through resource rebinding");
     assert.equal(replacement.paused, true); assert.equal(f.elements.size, 0);
     for (const callback of [...f.timers.values()]) callback();
     await new Promise((resolve) => setTimeout(resolve, 5));
@@ -462,6 +462,9 @@ test("metadata-first transition silences previous ORIGINAL as well as replacemen
     assert.equal(previous.paused,true);assert.equal(f.elements.size,0);
     assert.equal(vm.runInContext("original.paused",main),false,"Yandex retains control of its clock");
     assert.equal(vm.runInContext("original.physicalMuted",main),true,"old original must remain inaudible after old replacement teardown");
+    vm.runInContext("original.src='https://strm-fra-04.strm.yandex.net/new';original.readyState=0;original.dispatchEvent(new Event('emptied'));original.readyState=4;original.play();",main);
+    await new Promise(r=>setTimeout(r,5));
+    assert.equal(vm.runInContext("original.physicalMuted",main),true,"new native stream cannot leak while next replacement is resolving");
     f.changeStorage({enabled:{newValue:false}});await new Promise(r=>setTimeout(r,5));
     assert.equal(vm.runInContext("original.physicalMuted",main),false,"explicit Stop cancels the short transition mute immediately");
   } finally {vm.runInContext("__CELIKOM_CONTENT_CONTROLLER_V2__.destroy()",isolated);vm.runInContext("__CELIKOM_MAIN_BRIDGE_V1__.destroy()",main);}

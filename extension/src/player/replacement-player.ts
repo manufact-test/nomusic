@@ -2,6 +2,8 @@
   "use strict";
   const KEY = "__CELIKOM_REPLACEMENT_PLAYER_V1__";
   if (root[KEY]) return;
+  // One verified native asset per content-script lifetime; never persisted.
+  let nativeCache = null;
 function createGainChain(context, audio, db) {
   const source=context.createMediaElementSource(audio),gain=context.createGain();
   const limiter=context.createDynamicsCompressor(),compensation=context.createGain(),ceiling=context.createWaveShaper();
@@ -175,45 +177,57 @@ function createGainChain(context, audio, db) {
       }
     }
     async fetchNativeAsset(asset) {
-      const abort = this.fetchAbort, parts = []; let offset = 0, total = null;
+      const abort = this.fetchAbort;
+      let total = null, etag = null, received = 0;
       const timer = this.environment.setTimeout(() => {this.streamState.phase="timeout";abort.abort();}, 30000);
-      try {
-        while (total === null || offset < total) {
-          const requestedEnd = Math.min(offset + 524287, total === null ? 31457279 : total - 1);
-          Object.assign(this.streamState,{phase:"headers",offset,httpStatus:null,requestAt:Date.now()});
-          const response = await this.environment.fetch(asset.url, {
-            method: "GET", headers: { Range: `bytes=${offset}-${requestedEnd}` },
-            credentials: "omit", cache: "no-store", redirect: "error", signal: abort.signal
-          });
-          this.streamState.httpStatus=response.status;
-          if (response.status !== 206) { await response.body?.cancel();throw new Error([401,403,429].includes(response.status)&&response.headers.get("content-type")?.includes("text/html")?"remote-stream-route-blocked":"remote-stream-http"); }
-          if ((response.headers.get("content-type") || "").split(";")[0].trim().toLowerCase() !== asset.mimeType) throw new Error("remote-stream-format");
-          const match = /^bytes ([0-9]+)-([0-9]+)\/([0-9]+)$/.exec(response.headers.get("content-range") || "");
-          if (!match) throw new Error("remote-stream-range");
-          const from=Number(match[1]), last=Number(match[2]), size=Number(match[3]);
-          if (!Number.isSafeInteger(size) || size < 1024 || size > 31457280 || from!==offset || last<from || last>requestedEnd || last>=size || (total!==null && size!==total)) throw new Error("remote-stream-range");
-          total=size;
-          // Bound each body while reading, not after allocating an untrusted body.
-          this.streamState.phase="body";
-          const reader=response.body.getReader(); let count=0;
-          try {
-            for (;;) {
-              const {value,done}=await reader.read(); if(done)break;
-              count+=value.byteLength;
-              if(count>last-from+1)throw new Error("remote-stream-range");
-              parts.push(value);
-            }
-          } finally { await reader.cancel(); }
-          if(count!==last-from+1)throw new Error("remote-stream-range");
-          if(this.destroyed || abort.signal.aborted)throw new Error("Replacement cancelled");
-          offset=last+1;Object.assign(this.streamState,{phase:"streaming",receivedBytes:offset});
-        }
-        this.streamState.phase="complete";
-        return new Blob(parts, {type:asset.mimeType});
-      } catch(error) {
+      const readRange = async (offset, requestedEnd) => {
+        Object.assign(this.streamState,{phase:"headers",offset,httpStatus:null,requestAt:Date.now()});
+        const response = await this.environment.fetch(asset.url, {
+          method:"GET",headers:{Range:`bytes=${offset}-${requestedEnd}`},
+          credentials:"omit",cache:"no-store",redirect:"error",signal:abort.signal
+        });
+        this.streamState.httpStatus=response.status;
+        if(response.status!==206){await response.body?.cancel();throw new Error([401,403,429].includes(response.status)&&response.headers.get("content-type")?.includes("text/html")?"remote-stream-route-blocked":"remote-stream-http");}
+        const match=/^bytes ([0-9]+)-([0-9]+)\/([0-9]+)$/.exec(response.headers.get("content-range")||"");
+        const responseEtag=response.headers.get("etag");
+        const size=match?Number(match[3]):0,from=match?Number(match[1]):-1,last=match?Number(match[2]):-1;
+        let problem=null;
+        if((response.headers.get("content-type")||"").split(";")[0].trim().toLowerCase()!==asset.mimeType)problem="remote-stream-format";
+        else if(!Number.isSafeInteger(size)||size<1024||size>31457280||from!==offset||last!==Math.min(requestedEnd,size-1)||(total!==null&&size!==total)||(total!==null&&responseEtag!==etag))problem="remote-stream-range";
+        if(problem){await response.body?.cancel();throw new Error(problem);}
+        if(total===null){total=size;etag=responseEtag;}
+        const parts=[],reader=response.body.getReader();let count=0;
+        this.streamState.phase="body";
+        try{
+          for(;;){const {value,done}=await reader.read();if(done)break;count+=value.byteLength;if(count>last-from+1)throw new Error("remote-stream-range");parts.push(value);}
+        }finally{await reader.cancel();}
+        if(count!==last-from+1)throw new Error("remote-stream-range");
+        if(this.destroyed||abort.signal.aborted)throw new Error("Replacement cancelled");
+        received+=count;Object.assign(this.streamState,{phase:"streaming",receivedBytes:received});
+        return parts;
+      };
+      try{
+        // A real signed range is required on EVERY use, including a cache hit.
+        // Its strong content hash/version ETag also fences deleted/replaced files.
+        const first=await readRange(0,524287);
+        const cacheKey=etag&&/^"[a-f0-9]{64}-[0-9]+"$/.test(etag)
+          ?JSON.stringify([new URL(asset.url).origin,new URL(asset.url).pathname,asset.replacementId,asset.version,asset.mimeType,total,etag]):null;
+        if(cacheKey&&nativeCache?.key===cacheKey){this.streamState.phase="cached";return nativeCache.blob;}
+        nativeCache=null;
+        const chunks=[first];let next=524288;
+        // Four bounded readers remove the per-range round-trip waterfall.
+        await Promise.all(Array.from({length:Math.min(4,Math.ceil(Math.max(0,total-next)/524288))},async()=>{
+          while(next<total){const offset=next;next+=524288;chunks[offset/524288]=await readRange(offset,Math.min(offset+524287,total-1));}
+        }));
+        if(this.destroyed||abort.signal.aborted)throw new Error("Replacement cancelled");
+        const blob=new Blob(chunks.flat(),{type:asset.mimeType});
+        if(blob.size!==total)throw new Error("remote-stream-range");
+        if(cacheKey)nativeCache={key:cacheKey,blob};
+        this.streamState.phase="complete";return blob;
+      }catch(error){
         const reason=this.streamState.phase==="timeout"?"remote-stream-timeout":error instanceof TypeError?"remote-stream-network":error.message;
-        const failure=new Error(reason);failure.streamDetail={...this.streamState};throw failure;
-      } finally { this.environment.clearTimeout(timer); }
+        const failure=new Error(reason);failure.streamDetail={...this.streamState};abort.abort();throw failure;
+      }finally{this.environment.clearTimeout(timer);}
     }
     async prepare(asset) {
       this.demoLoop = asset.demoLoop === true;

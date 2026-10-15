@@ -49,7 +49,7 @@ function render(state: ExtensionState): void {
     RESTORING: "Возвращаем оригинал…"
   };
   status.textContent = incidentStatus.active() ? "Сбой интеграции" : !state.enabled ? labels.STOPPED : state.suspended ? state.replacementError === "service_incident" ? "Сбой интеграции" : "Восстанавливаем связь…" : state.manualBypass ? "Оригинал" : state.replacementError ? state.recovering ? "Оригинал · восстанавливаем связь" : "Оригинал · ошибка подмены" : presentation.label || labels[state.phase] || "Проверка…";
-  const connected=state.enabled && !incidentStatus.active() && state.phase!=="ERROR" && !state.connection?.error && state.bridge?.healthy===true && !state.suspended && !state.replacementError && !state.startupError && !["PREPARING","RESTORING"].includes(state.phase);
+  const connected=state.enabled && !incidentStatus.active() && state.phase!=="ERROR" && !state.connection?.error && state.bridge?.healthy===true && !state.suspended && !state.replacementError && !state.startupError && !["CONNECTING"].includes(state.phase);
   status.dataset.active = String(connected);
   document.querySelector<HTMLElement>(".mark")?.setAttribute("data-active",String(connected));
   startButton.disabled = presentation.startDisabled;

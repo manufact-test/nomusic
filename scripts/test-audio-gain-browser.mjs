@@ -108,10 +108,23 @@ try{
  navigator.mediaSession.metadata=new MediaMetadata({title:'Fixture B',artist:'CELIKOM'});
  check(old.audio.paused&&old.audio.muted,'native old replacement silenced');check(physicalMute(),'native OLD ORIGINAL stays silent while metadata is ahead of stream');
  await exchange('GUARD_RELEASE',{token:sessionId+':1',reason:'guard-lost:master-binding-changed'});check(physicalMute(),'old controller acknowledgement does not unmute old original');
+ const nextSource=URL.createObjectURL(blob);let audibleEvents=[];
+ const verifySilent=e=>{if(!physicalMute())audibleEvents.push(e.type)};
+ for(const event of ['emptied','loadstart','loadedmetadata','canplay','play','playing'])original.addEventListener(event,verifySilent);
+ const nextLoaded=new Promise((resolve,reject)=>{original.addEventListener('loadeddata',resolve,{once:true});original.addEventListener('error',reject,{once:true})});
+ original.src=nextSource;original.load();await nextLoaded;await original.play();
+ check(physicalMute()&&audibleEvents.length===0,'new native source stays silent through actual play before preparation');
+ await exchange('GUARD_ENGAGE',{trackId:'12',mediaId:snapshot.player.mediaId,token:sessionId+':3',preparing:true});
+ await new Promise(r=>setTimeout(r,80));check(physicalMute(),'verified preparation reserves transition silence');
+ for(const event of ['emptied','loadstart','loadedmetadata','canplay','play','playing'])original.removeEventListener(event,verifySilent);
  original.volume=.23;
  await exchange('GUARD_ENGAGE',{trackId:'12',mediaId:snapshot.player.mediaId,token:sessionId+':3'});check(physicalMute(),'handoff has no unmuted interval');
  await exchange('GUARD_RELEASE',{token:sessionId+':3',reason:'manual-original'});check(!physicalMute()&&original.volume===.23,'manual restore preserves intent');
- old.destroy();__CELIKOM_MAIN_BRIDGE_V1__.destroy();original.pause();original.remove();URL.revokeObjectURL(source);
+ await exchange('GUARD_ENGAGE',{trackId:'12',mediaId:snapshot.player.mediaId,token:sessionId+':4'});
+ navigator.mediaSession.metadata=new MediaMetadata({title:'Fixture A',artist:'CELIKOM'});
+ check(physicalMute(),'next transition protected before negative verdict');
+ await exchange('GUARD_TRANSITION_END',{token:sessionId+':5',trackId:'11',mediaId:snapshot.player.mediaId});check(!physicalMute(),'unmapped song immediately restores original');
+ old.destroy();__CELIKOM_MAIN_BRIDGE_V1__.destroy();original.pause();original.remove();URL.revokeObjectURL(source);URL.revokeObjectURL(nextSource);
 
  const toggle=document.querySelector('[data-gain-toggle]');check(!toggle.open,'gain collapsed initially');toggle.open=true;
  const input=document.querySelector('[name=gain_db]');input.value='6';input.dispatchEvent(new Event('input'));await new Promise(r=>setTimeout(r,50));check(document.querySelector('[data-gain-value]').textContent==='+6 дБ','slider display');

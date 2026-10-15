@@ -1,6 +1,6 @@
 {
   "name": "celikom",
-  "version": "0.4.47",
+  "version": "0.4.48",
   "private": true,
   "description": "CELIKOM monorepository: browser extension, service foundation and validated playback PoC",
   "workspaces": [

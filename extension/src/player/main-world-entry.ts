@@ -24,6 +24,7 @@
   let lastReleasedGeneration = 0;
   let lastGuardGeneration = 0;
   let handoff = null;
+  let preparationTimer = null;
   const transitionTrace = []; let tracePrevious = null;
   function trace(snapshot, event) {
     const player=snapshot?.player, track=snapshot?.track;
@@ -50,6 +51,7 @@
     // Keep only the bounded MAIN lease while Yandex still plays the old stream.
     if (handoff && token === handoff.token && reason === "guard-lost:master-binding-changed") return { released: true, transitioning: true };
     if (token && guard.current?.token !== token) return { released: false };
+    if (preparationTimer !== null) { root.clearTimeout(preparationTimer); preparationTimer = null; }
     if (handoff) { root.clearTimeout(handoff.timer); handoff = null; }
     const oldToken = guard.current?.token;
     const releasedGeneration = leaseGeneration(token || oldToken);
@@ -83,7 +85,7 @@
     const player = snapshot.player;
     const element = adapter.getMediaElement(lease.mediaId);
     if (handoff) {
-      if (!element || player?.mediaId !== lease.mediaId || (element.currentSrc || element.src || "") !== lease.source || player?.ended) release("transition-stream-ready", lease.token);
+      if (!element || player?.mediaId !== lease.mediaId || player?.ended) release("transition-master-lost", lease.token);
       return;
     }
     let reason = null;
@@ -98,7 +100,7 @@
     else if (!Number.isFinite(player.duration) || player.readyState < 1) reason = "media-emptied";
     else if (Math.abs(player.duration * 1000 - snapshot.track.metadata?.durationMs) > 1500) reason = "duration-mismatch";
     if (reason) {
-      if (["track-unknown", "track-ambiguous", "track-changed"].includes(reason) && element && player?.mediaId === lease.mediaId && !player.ended) {
+      if (["track-unknown", "track-ambiguous", "track-changed", "media-source-changed", "media-emptied"].includes(reason) && element && player?.mediaId === lease.mediaId && !player.ended) {
         // Metadata may change before the native stream. Releasing here would
         // unmute the previous ORIGINAL recording for the transition interval.
         stopReplacement();
@@ -199,6 +201,12 @@
     if (pageCached && type === "GUARD_ENGAGE") throw new Error("Page is cached");
     if (type === "GET_SNAPSHOT") return decorate(adapter.getSnapshot("request"));
     if (type === "GUARD_RELEASE") return release(payload?.reason || "release-request", payload?.token);
+    if (type === "GUARD_TRANSITION_END") {
+      const snapshot = adapter.getSnapshot("transition-verdict");
+      const generation = leaseGeneration(payload?.token);
+      if (generation >= lastGuardGeneration && generation > lastReleasedGeneration && handoff && snapshot.track?.id === payload?.trackId && snapshot.player?.mediaId === payload?.mediaId) return release("no-replacement", handoff.token);
+      return { released: false };
+    }
     if (type === "GUARD_ENGAGE") {
       const generation = leaseGeneration(payload?.token);
       if (!generation || generation <= lastReleasedGeneration || generation < lastGuardGeneration) throw new Error("Invalid or cancelled guard lease");
@@ -209,6 +217,8 @@
         || player?.mediaId !== payload.mediaId || player?.ended || player?.readyState < 2
         || !Number.isFinite(player.duration) || !snapshot.track.metadata?.durationMs
         || Math.abs(player.duration * 1000 - snapshot.track.metadata.durationMs) > 1500) throw new Error("Master changed before guard");
+      if (payload.preparing && !handoff) return { reserved: false };
+      if (preparationTimer !== null) { root.clearTimeout(preparationTimer); preparationTimer = null; }
       if (handoff && guard.current?.element === element) {
         const pending = handoff;
         guard.transfer(element, payload.mediaId, pending.token, payload.token);
@@ -221,6 +231,9 @@
       guard.current.trackId = payload.trackId;
       // Compare stream identity only inside MAIN; never serialize the raw URL.
       guard.current.source = element.currentSrc || element.src || "";
+      // Only an existing transition mute can be reserved while a verified
+      // replacement loads. This cannot mute an unrelated initial playback.
+      if (payload.preparing) preparationTimer = root.setTimeout(() => release("preparation-timeout", payload.token), 10000);
       return { guard: guard.state(), snapshot: decorate(adapter.getSnapshot("guard-engaged")) };
     }
     throw new Error(`Unknown bridge request: ${type}`);

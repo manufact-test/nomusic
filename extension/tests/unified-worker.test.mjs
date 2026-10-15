@@ -74,7 +74,7 @@ test('worker accepts green-icon heartbeats only from authorized enabled Yandex c
  await f.send('CELIKOM_CONTEXT_PING',{enabled:true,phase:'READY',healthy:true,replacementError:true},sender);
  await new Promise(resolve=>setImmediate(resolve));assert.match(f.icons.at(-1).path[32],/gray/);
  await f.send('CELIKOM_CONTEXT_PING',{enabled:true,phase:'PREPARING',healthy:true},sender);
- await new Promise(resolve=>setImmediate(resolve));assert.match(f.icons.at(-1).path[32],/gray/);
+ await new Promise(resolve=>setImmediate(resolve));assert.match(f.icons.at(-1).path[32],/green/);
  await f.send('CELIKOM_CONTEXT_PING',{enabled:true,phase:'REPLACEMENT_ACTIVE',healthy:true,replacementError:false},sender);
  await new Promise(resolve=>setImmediate(resolve));assert.match(f.icons.at(-1).path[32],/green/);
  await f.send('CELIKOM_AUTH',{action:'logout'});
