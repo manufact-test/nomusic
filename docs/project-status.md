@@ -1,3 +1,15 @@
+## 2026-10-15 — 0.4.48: M4A preparation and native transition mute
+
+Owner confirms .47 starts/works and direct M4A upload/admin is good. Remaining issues: every M4A switch appears disconnected for 1–1.5 s; 1944611 still has a foreign intro. Three .47 traces show healthy bridge/HTTP200, M4A full-file sequential preparation 2.691/2.242 s and a 100–402 ms unguarded native intro for 1944611 after the old replacement was already disposed. Do not claim the previous wrong-song fixes were accepted.
+
+.48 keeps the existing mute across a changed native source, transfers only that existing transition lease after a verified positive resolve with a ten-second decoding deadline, releases matching negative verdict immediately, preserves one-second unresolved fallback and immediate Stop/Original. M4A uses at most four bounded signed readers and one in-memory complete Blob; every cache hit still requires an authorized signed range with exact strong content/version ETag. Healthy authorized preparation/restoration no longer turns the connection icon gray. See docs/decisions/TRANSITION-AND-M4A-STARTUP-0.4.48-2026-10-15.md.
+
+Source commit 580b7bbe48cff59c8bd344999e79ac68a953cb42. 258 extension tests PASS; lint/validate/security PASS; actual native Chrome package run 38750893789 PASS. Full CI run 38750900764 attempt 2 PASS on unchanged source; first attempt stopped in unchanged reward-disclosure browser driver with no DOM result. Native package and complete repository checks now pass.
+
+Owner ZIP outputs/CELIKOM-0.4.48-full.zip, 2467099 bytes, SHA-256 f79f51ca5c869cd7b4c901c1becd0c8c82b416e8ad940c79e1bf49fe2d9a8ae1. All 39 compiled source modules and both dependency bundles verified in ZIP; configured production API. Library libfile_2e635fe7454c81919a4e18cde4a291a4 version 0. Update/reload extension AND Yandex tab. Audible user-case still awaits owner check; do not call synthetic tests owner acceptance.
+
+Extension-only change: backend remains .46-f2d1cc31f598a983c46660688b453392faf0fc8d; preserve owner-approved M4A 1944599/replacement 27 and all audio/mappings/gain/accounts. No backend deployment. PR #6 verified OPEN/unmerged and issue #7 OPEN; preserve concurrent Android work.
+
 ## 2026-10-15 — 0.4.47: startup/retry control, availability diagnosis
 
 Owner's .46 reports are enabled=true with healthy MAIN bridge. First report: actual replacement-load-timeout on approved MP3 48591518 (Моя игра); network origin of that intermittent failure is unknown. Later reports: repeated 15 s negative resolutions for absent mappings, not extension disabling. Read-only audit 38746323131 verified no replacement for 34139530 (Романс), 39013770 (Муза), 48592008 or 105553785. Do not invent mappings. Approved Моя игра asset exists (13,398,804 bytes, ID3 15,751); follow-up audit 38747488424 served its first 524,288 bytes via actual signed HTTPS Range, HTTP 206/audio-mpeg in 39 ms on-host. Preserve newly owner-approved M4A Papirosy 1944599 and all other audio.
