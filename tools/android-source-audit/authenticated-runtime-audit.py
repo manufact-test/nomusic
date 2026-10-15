@@ -61,14 +61,22 @@ def authenticate():
  adb('shell','-n','am','start','-W','-n','ru.yandex.music/ru.yandex.music.main.MainScreenActivity')
  time.sleep(5);link('142820338');time.sleep(4)
  history=[];mail=False;password=False;status='unresolved'
- for step in range(12):
+ for step in range(18):
   nodes=ui();history.append({'step':step,'nodes':nodes})
   text=' '.join(n['text']+' '+n['content-desc'] for n in nodes).lower()
+  password_choice=next((n for n in nodes if n['text'].strip().lower() in ('log in with a password','log in with password','use password','войти с паролем','войти по паролю')),None)
+  if password_choice and mail and not password:tap(password_choice);time.sleep(3);continue
   if any(x in text for x in ('аккаунт не найден','такого аккаунта нет','account not found','неверный пароль','incorrect password','wrong password','неправильный пароль')):
    status='account_or_password_rejected';break
   if any(x in text for x in ('я не робот','not a robot','введите код','enter the code','код из смс','подтвердите, что вы')):
    status='owner_verification_required';break
   edits=[n for n in nodes if n['class']=='android.widget.EditText']
+  deny=next((n for n in nodes if n['resource-id'].endswith(':id/permission_deny_button')),None)
+  if deny:tap(deny);time.sleep(2);continue
+  if not edits and not any(n['text'] or n['content-desc'] for n in nodes) and any(n['class']=='android.webkit.WebView' for n in nodes):
+   time.sleep(5);continue
+  onboarding=next((n for n in nodes if n['class']=='android.widget.Button' and n['content-desc'].strip().lower()=='next' and not n['text'] and not edits),None)
+  if onboarding:tap(onboarding);time.sleep(3);continue
   pwd=next((n for n in edits if n['password']=='true'),None)
   if pwd and not password:
    tap(pwd);input_value(account['password']);password=True
@@ -89,7 +97,7 @@ def authenticate():
    time.sleep(5);continue
   if password and not edits:
    status='password_submitted_no_auth_fields';break
-  safe=next((n for n in nodes if n['text'].strip().lower() in ('другие способы входа','other login methods','other ways to sign in','продолжить','continue','понятно','ok')),None)
+  safe=next((n for n in nodes if n['text'].strip().lower() in ('другие способы входа','other login methods','other ways to sign in','продолжить','continue','понятно','ok','log in','sign in','войти','log in with yandex','войти через яндекс')),None)
   if safe:tap(safe);time.sleep(3);continue
   status='unrecognized_auth_screen';break
  save('auth-report.json',{'status':status,'mail_submitted':mail,'password_submitted':password,'history':history,'nodes':ui(),'automatic_catalogue_id_verified':False})

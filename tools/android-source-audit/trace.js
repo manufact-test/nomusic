@@ -6,6 +6,10 @@ Java.perform(function () {
   const List = Java.use('java.util.List');
   const Oju = Java.use('oju');
   const Track = Java.use('jbu');
+  const contextField=Aiz.class.getDeclaredField('c'); contextField.setAccessible(true);
+  const selectedField=R63.class.getDeclaredField('b'); selectedField.setAccessible(true);
+  const playablesField=R63.class.getDeclaredField('f'); playablesField.setAccessible(true);
+  const catalogueField=Track.class.getDeclaredField('a'); catalogueField.setAccessible(true);
   const meta = Aiz.s.overload('int');
   let currentId = null;
   let lastPair = null;
@@ -19,13 +23,13 @@ Java.perform(function () {
   meta.implementation = function(index) {
     const result = meta.call(this,index);
     try {
-      const state = Java.cast(this.c.value,R63);
-      const selected = state.b.value;
+      const state = Java.cast(contextField.get(this),R63);
+      const selected = selectedField.getInt(state);
       if (index !== selected) return result;
-      const playable = Java.cast(state.f.value,List).get(index);
+      const playable = Java.cast(playablesField.get(state),List).get(index);
       if (String(playable.getClass().getName()) !== 'oju') return result;
       const song = Java.cast(playable,Oju);
-      const id = String(Java.cast(song.a(),Track).a.value);
+      const id = String(catalogueField.get(Java.cast(song.a(),Track)));
       const alias = String(song.b());
       if (!/^[1-9][0-9]{0,23}$/.test(id)) return result;
       currentId = id;
