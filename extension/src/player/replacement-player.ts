@@ -182,12 +182,25 @@ function createGainChain(context, audio, db) {
       const timer = this.environment.setTimeout(() => {this.streamState.phase="timeout";abort.abort();}, 30000);
       const readRange = async (offset, requestedEnd) => {
         Object.assign(this.streamState,{phase:"headers",offset,httpStatus:null,requestAt:Date.now()});
-        const response = await this.environment.fetch(asset.url, {
-          method:"GET",headers:{Range:`bytes=${offset}-${requestedEnd}`},
-          credentials:"omit",cache:"no-store",redirect:"error",signal:abort.signal
-        });
-        this.streamState.httpStatus=response.status;
-        if(response.status!==206){await response.body?.cancel();throw new Error([401,403,429].includes(response.status)&&response.headers.get("content-type")?.includes("text/html")?"remote-stream-route-blocked":"remote-stream-http");}
+        let response;
+        for (let attempt=0;;attempt++) {
+          if(this.destroyed||abort.signal.aborted)throw new Error("Replacement cancelled");
+          Object.assign(this.streamState,{phase:"headers",offset,attempt:attempt+1,requestAt:Date.now()});
+          response=await this.environment.fetch(asset.url, {
+            method:"GET",headers:{Range:`bytes=${offset}-${requestedEnd}`},
+            credentials:"omit",cache:"no-store",redirect:"error",signal:abort.signal
+          });
+          this.streamState.httpStatus=response.status;
+          if(response.status===206)break;
+          await response.body?.cancel();
+          if(![429,502,503,504].includes(response.status)||attempt>=2)throw new Error([401,403,429].includes(response.status)&&response.headers.get("content-type")?.includes("text/html")?"remote-stream-route-blocked":"remote-stream-http");
+          this.streamState.phase="retry-wait";
+          await new Promise(resolve=>{
+            const done=()=>{this.environment.clearTimeout(wait);abort.signal.removeEventListener("abort",done);resolve();};
+            const wait=this.environment.setTimeout(done,(attempt+1)*500);
+            abort.signal.addEventListener("abort",done,{once:true});if(abort.signal.aborted)done();
+          });
+        }
         const match=/^bytes ([0-9]+)-([0-9]+)\/([0-9]+)$/.exec(response.headers.get("content-range")||"");
         const responseEtag=response.headers.get("etag");
         const size=match?Number(match[3]):0,from=match?Number(match[1]):-1,last=match?Number(match[2]):-1;
@@ -214,11 +227,10 @@ function createGainChain(context, audio, db) {
           ?JSON.stringify([new URL(asset.url).origin,new URL(asset.url).pathname,asset.replacementId,asset.version,asset.mimeType,total,etag]):null;
         if(cacheKey&&nativeCache?.key===cacheKey){this.streamState.phase="cached";return nativeCache.blob;}
         nativeCache=null;
-        const chunks=[first];let next=524288;
-        // Four bounded readers remove the per-range round-trip waterfall.
-        await Promise.all(Array.from({length:Math.min(4,Math.ceil(Math.max(0,total-next)/524288))},async()=>{
-          while(next<total){const offset=next;next+=524288;chunks[offset/524288]=await readRange(offset,Math.min(offset+524287,total-1));}
-        }));
+        // One sequential continuation avoids triggering hosting burst limits.
+        // The total and every streamed body remain bounded to 30 MiB.
+        const chunks=[first];
+        if(total>524288)chunks.push(await readRange(524288,total-1));
         if(this.destroyed||abort.signal.aborted)throw new Error("Replacement cancelled");
         const blob=new Blob(chunks.flat(),{type:asset.mimeType});
         if(blob.size!==total)throw new Error("remote-stream-range");

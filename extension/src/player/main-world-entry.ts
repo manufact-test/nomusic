@@ -25,6 +25,8 @@
   let lastGuardGeneration = 0;
   let handoff = null;
   let preparationTimer = null;
+  let playbackPolicy = {revision:0,enabled:false};
+  let lastAdmission = null, admissionSequence = 0;
   const transitionTrace = []; let tracePrevious = null;
   function trace(snapshot, event) {
     const player=snapshot?.player, track=snapshot?.track;
@@ -79,13 +81,44 @@
     return snapshot;
   }
 
+  function admitBeforePlay(snapshot) {
+    const player=snapshot.player,track=snapshot.track;
+    if(snapshot.reason!=="before-method:play"||!playbackPolicy.enabled||pageCached||!controllerSession
+      ||now()-lastHeartbeatAt>VISIBLE_TIMEOUT_MS||!player||snapshot.triggerMediaId!==player.mediaId||!player.paused||player.ended||player.readyState<2
+      ||!track?.id||track.ambiguous||track.confidence<100||!track.metadata?.durationMs
+      ||!Number.isFinite(player.duration)||Math.abs(player.duration*1000-track.metadata.durationMs)>1500
+      ||(playbackPolicy.testTrackId&&playbackPolicy.testTrackId!==track.id)
+      ||playbackPolicy.bypassTrackId===track.id||playbackPolicy.blockedTrackId===track.id
+      ||(playbackPolicy.negative?.trackId===track.id&&playbackPolicy.negative.until>now()))return;
+    const element=adapter.getMediaElement(player.mediaId);if(!element)return;
+    const source=element.currentSrc||element.src||"";
+    if(lastAdmission?.element===element&&lastAdmission.trackId===track.id&&lastAdmission.source===source)return;
+    lastAdmission={element,trackId:track.id,source};
+    const token=`${controllerSession}:admission:${++admissionSequence}`;
+    try{
+      guard.engage(element,player.mediaId,token);guard.current.trackId=track.id;guard.current.source=source;
+      handoff={token,admission:true,startedAt:now(),timer:root.setTimeout(()=>release("admission-timeout",token),1000)};
+      trace(snapshot,"admission-guarded");
+    }catch(_error){release("admission-unavailable",token);}
+  }
+
   function checkBinding(snapshot) {
     const lease = guard.current;
-    if (!lease) return;
+    if (!lease) { admitBeforePlay(snapshot); return; }
     const player = snapshot.player;
     const element = adapter.getMediaElement(lease.mediaId);
     if (handoff) {
       if (!element || player?.mediaId !== lease.mediaId || player?.ended) release("transition-master-lost", lease.token);
+      else if(snapshot.reason==="before-method:play"&&snapshot.triggerMediaId===player.mediaId&&!handoff.admission
+        &&snapshot.track?.id&&!snapshot.track.ambiguous&&snapshot.track.confidence>=100
+        &&player.readyState>=2&&Number.isFinite(player.duration)
+        &&Math.abs(player.duration*1000-snapshot.track.metadata?.durationMs)<=1500
+        &&(snapshot.track.id!==lease.trackId||(element.currentSrc||element.src||"")!==lease.source)){
+        // Metadata can lead resource readiness by almost the entire old deadline.
+        // Give this fresh native play one bounded lookup window, never a poll renewal.
+        const token=lease.token,remaining=Math.min(1000,handoff.startedAt+2000-now());
+        if(remaining>0){root.clearTimeout(handoff.timer);handoff.admission=true;handoff.timer=root.setTimeout(()=>release("transition-timeout",token),remaining);}
+      }
       return;
     }
     let reason = null;
@@ -105,7 +138,7 @@
         // unmute the previous ORIGINAL recording for the transition interval.
         stopReplacement();
         const token = lease.token;
-        handoff = { token, timer: root.setTimeout(() => release("transition-timeout", token), 1000) };
+        handoff = { token, startedAt:now(), timer: root.setTimeout(() => release("transition-timeout", token), 1000) };
         post("GUARD_RELEASED", { reason: "master-binding-changed", token, detail: { reason, transitioning: true, trackId: snapshot.track?.id || null, mediaId: player.mediaId, readyState: player.readyState, seeking: Boolean(player.seeking) } });
         return;
       }
@@ -173,6 +206,7 @@
     }
     if (controllerSession && controllerSession !== sessionId) { release("session-changed"); adapter.unmount(); }
     controllerSession = sessionId;
+    playbackPolicy={revision:0,enabled:false};lastAdmission=null;
     lastReleasedGeneration = 0;
     lastGuardGeneration = 0;
     lastHeartbeatAt = now();
@@ -192,6 +226,7 @@
     release(reason);
     adapter.unmount();
     controllerSession = null;
+    playbackPolicy={revision:0,enabled:false};lastAdmission=null;
     lastHeartbeatAt = 0;
     sequence = 0;
     return { detached: true, reason, sessionId: previousSession };
@@ -255,6 +290,16 @@
     }
     if (message.sessionId !== controllerSession) return;
 
+    if(message.type==="POLICY_UPDATE"){
+      const policy=message.payload;
+      if(!Number.isSafeInteger(policy?.revision)||policy.revision<=playbackPolicy.revision)return;
+      playbackPolicy={...policy,enabled:policy.enabled===true};
+      if(policy.reset===true)lastAdmission=null;
+      if(!playbackPolicy.enabled){lastAdmission=null;release("policy-disabled");}
+      else if(guard.current&&(policy.bypassTrackId===guard.current.trackId||policy.blockedTrackId===guard.current.trackId
+        ||(policy.negative?.trackId===guard.current.trackId&&policy.negative.until>now())))release("policy-original");
+      return;
+    }
     if (message.type === "RELEASE_NOW") { release(message.payload?.reason || "emergency-signal", message.payload?.token); return; }
 
     if (message.type === "HEARTBEAT") {

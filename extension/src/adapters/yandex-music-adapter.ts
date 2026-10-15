@@ -581,9 +581,10 @@
       });
     }
 
-    emitSnapshot(reason, force = false) {
+    emitSnapshot(reason, force = false, triggerMediaId = null) {
       if (!this.mounted) return null;
       const snapshot = this.getSnapshot(reason);
+      if(triggerMediaId)snapshot.triggerMediaId=triggerMediaId;
       this.emitTrackTransition(snapshot, reason);
       const signature = core.snapshotSignature(snapshot);
       if (force || signature !== this.lastSnapshotSignature) {
@@ -755,12 +756,12 @@
         this.nativeHooks[`${name}Lifecycle`] = lifecycle;
         this.nativeHooks[`${name}Wrapper`] = function celikomObservedMediaMethod(...args) {
           if (lifecycle.active && !adapter.isReplacementElement(this)) {
-            adapter.registerMedia(this);
+            const triggerMediaId=adapter.registerMedia(this);
             if (name !== "load") {
               adapter.lastEventElement = this;
               adapter.lastEventAt = adapter.now();
             }
-            if (name === "play" || name === "load") adapter.safeCall(() => adapter.emitSnapshot(`before-method:${name}`, true));
+            if (name === "play" || name === "load") adapter.safeCall(() => adapter.emitSnapshot(`before-method:${name}`, true, triggerMediaId));
             adapter.defer(() => { if (lifecycle.active) adapter.emitSnapshot(`method:${name}`, true); });
           }
           return Reflect.apply(original, this, args);

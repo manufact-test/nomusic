@@ -39,9 +39,15 @@
       this.destroyed = false;
       this.driftMs = null;
       this.lastError = null;
+      this.policyRevision = 0;
       this.activationCount = 0;
       this.restoreCount = 0;
       this.lastRestore = null;
+    }
+    publishPolicy(reset = false) {
+      this.bridge.post?.("POLICY_UPDATE", {revision:++this.policyRevision,enabled:this.enabled&&!this.suspended&&!this.destroyed,reset:reset===true,
+        testTrackId:this.testTrackId,bypassTrackId:this.manualBypass?.trackId||null,blockedTrackId:this.blockedTrackId,
+        negative:this.negativeResolution});
     }
     configure(enabled, testTrackId, explicitStart = false) {
       const id = this.core.normalizeTrackId(testTrackId);
@@ -50,15 +56,17 @@
       this.testTrackId = id;
       if(explicitStart && this.operation)this.abort("explicit-retry");
       if (changed || explicitStart) { this.networkRetries = 0; this.freshResolve = true; this.manualBypass = null; this.blockedTrackId = null; this.retryBlock = null; this.masterClock = null; if (!this.suspended) this.lastError = null; this.negativeResolution = null; }
+      this.publishPolicy(changed||explicitStart);
       this.reconcile();
     }
     suspendAccess(suspended, reason) {
-      if (this.suspended === suspended) { if (suspended) this.lastError = reason; return; }
+      if (this.suspended === suspended) { if (suspended) this.lastError = reason; this.publishPolicy(); return; }
       this.suspended = suspended;
+      this.publishPolicy();
       if (suspended) { this.suspendedError = this.lastError; this.abort(reason); this.lastError = reason; }
       else {
         if (["api_forbidden", "api_access_denied"].includes(this.suspendedError)) this.blockedTrackId = null;
-        this.lastError = null; this.negativeResolution = null; this.masterClock = null; this.reconcile();
+        this.lastError = null; this.negativeResolution = null; this.masterClock = null; this.publishPolicy(); this.reconcile();
       }
     }
     eligible(snapshot = this.snapshot, minimumReadyState = 2) {
@@ -82,7 +90,7 @@
         || Math.abs((player?.currentTime || 0) - this.masterClock.time) > 0.01 || player?.paused || player?.seeking || player?.readyState < 3) {
         this.masterClock = { id, mediaId: player?.mediaId, time: player?.currentTime || 0, advancedAt: Date.now() };
       }
-      if (id && ((previousId && id !== previousId) || (this.manualBypass && id !== this.manualBypass.trackId) || (this.blockedTrackId && id !== this.blockedTrackId))) { this.networkRetries = 0; this.manualBypass = null; this.blockedTrackId = null; this.retryBlock = null; this.lastError = null; }
+      if (id && ((previousId && id !== previousId) || (this.manualBypass && id !== this.manualBypass.trackId) || (this.blockedTrackId && id !== this.blockedTrackId))) { this.networkRetries = 0; this.manualBypass = null; this.blockedTrackId = null; this.retryBlock = null; this.lastError = null; this.publishPolicy(); }
       if (eventType === "ENDED" && player?.ended === true) {
         // Natural completion releases this lease; it must never block the next song.
         this.abort("master-ended"); return;
@@ -100,7 +108,7 @@
       if (this.retryBlock && Date.now() >= this.retryBlock.at && this.snapshot?.observedAt > this.retryBlock.observedAt
         && Date.now() - this.snapshot.observedAt < 3000 && this.bridge.isHealthy() && this.snapshot.player?.readyState >= 3
         && (this.retryBlock.reason !== "master-clock-stalled" || Math.abs(this.snapshot.player.currentTime - this.retryBlock.time) > 0.01)) {
-        this.blockedTrackId = null; this.retryBlock = null; this.lastError = null;
+        this.blockedTrackId = null; this.retryBlock = null; this.lastError = null; this.publishPolicy();
       }
       const operation = this.operation;
       const matching = operation && operation.trackId === this.snapshot?.track?.id && operation.mediaId === this.snapshot?.player?.mediaId;
@@ -135,6 +143,7 @@
         if (!this.current(operation)) return;
         if (!operation.asset?.found) {
           this.negativeResolution = { trackId: operation.trackId, until: Date.now() + Math.min(60000, Math.max(5000, operation.asset?.retryAfterMs || 15000)) };
+          this.publishPolicy();
           if (this.snapshot?.guard?.transitioning) await this.bridge.request("GUARD_TRANSITION_END", {token:operation.token,trackId:operation.trackId,mediaId:operation.mediaId});
           if (!this.current(operation)) return;
           this.operation = null; this.phase = "IDLE"; this.log(`NO_REPLACEMENT · ${operation.trackId}`); return;
@@ -171,7 +180,7 @@
     }
     abort(reason, blockTrack = false, detail = null) {
       const operation = this.operation;
-      if (blockTrack) { this.blockedTrackId = operation?.trackId || this.snapshot?.track?.id; this.lastError = reason; }
+      if (blockTrack) { this.blockedTrackId = operation?.trackId || this.snapshot?.track?.id; this.lastError = reason; this.publishPolicy(); }
       const transientNetwork = ["remote-stream-route-blocked", "remote-stream-network", "remote-stream-timeout", "replacement-load-timeout", "api_network_error", "api_server_error", "api_unavailable"].includes(reason)
         || (reason === "remote-stream-http" && [429, 500, 502, 503, 504].includes(detail?.httpStatus))
         || (reason === "replacement-media-error" && detail?.mediaErrorCode === 2);
@@ -209,6 +218,7 @@
     manualRestore() {
       const trackId = this.snapshot?.track?.id || this.operation?.trackId;
       if (trackId) this.manualBypass = { trackId, requestedAt: Date.now() };
+      this.publishPolicy();
       this.abort("manual-original");
     }
     tick() {
@@ -224,7 +234,7 @@
       }
       this.reconcile();
     }
-    destroy() { this.destroyed = true; this.abort("controller-destroyed"); }
+    destroy() { this.destroyed = true; this.publishPolicy(); this.abort("controller-destroyed"); }
   }
   Object.defineProperty(root, KEY, { value: Object.freeze({ ReplacementController }), writable: false });
 })(globalThis);

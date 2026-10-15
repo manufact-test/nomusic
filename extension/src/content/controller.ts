@@ -91,6 +91,7 @@
       this.bridge.on("READY", (payload) => {
         this.mainVersion = payload?.bridgeVersion || null;
         this.log("MAIN-world bridge ready");
+        this.engine.publishPolicy();
         this.bridge.getSnapshot()
           .then((snapshot) => this.handleSnapshot(snapshot, "request"))
           .catch((error) => this.log(error.message));

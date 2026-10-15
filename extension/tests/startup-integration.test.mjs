@@ -308,7 +308,7 @@ test("packaged playback keeps one lease through utility events and metadata-only
     assert.equal(next.active, null, JSON.stringify(next));
     assert.equal(next.playback.restoreCount, 1);
     assert.equal(next.playback.lastRestore.detail.reason, "media-source-changed");
-    assert.equal(vm.runInContext("original.physicalMuted", main), true, "transition stays silent through resource rebinding");
+    assert.equal(vm.runInContext("original.physicalMuted", main), false, "a blocked stale identity restores native playback immediately");
     assert.equal(replacement.paused, true); assert.equal(f.elements.size, 0);
     for (const callback of [...f.timers.values()]) callback();
     await new Promise((resolve) => setTimeout(resolve, 5));
@@ -480,4 +480,36 @@ test("transition mute fails open after its one-second deadline when no fresh bin
     await new Promise(r=>setTimeout(r,5));assert.equal(vm.runInContext("original.physicalMuted",main),true);
     await new Promise(r=>setTimeout(r,1050));assert.equal(vm.runInContext("original.physicalMuted",main),false);
   } finally {vm.runInContext("__CELIKOM_CONTENT_CONTROLLER_V2__.destroy()",isolated);vm.runInContext("__CELIKOM_MAIN_BRIDGE_V1__.destroy()",main);}
+});
+
+test('first native play after page load is muted synchronously until the resolver verdict; negative and Stop fail open',async()=>{
+ const f=browserFixture(),main=f.worlds.get('MAIN'),isolated=f.worlds.get('ISOLATED');
+ const wait=()=>new Promise(r=>setTimeout(r,5));
+ await createControllerBootstrap(f.api,{wait}).ensure(42);
+ try{
+  vm.runInContext('__CELIKOM_CONTENT_CONTROLLER_V2__.engine.resolveAsset=()=>new Promise(r=>globalThis.finishAsset=r)',isolated);
+  vm.runInContext("globalThis.original=new HTMLMediaElement();original.pause();globalThis.utility=new HTMLMediaElement();utility.src='data:audio/wav;base64,fixture';utility.duration=.015;utility.play()",main);
+  assert.equal(vm.runInContext('original.physicalMuted',main),false,'utility playback cannot admit a different paused original');
+  vm.runInContext('original.play()',main);
+  assert.equal(vm.runInContext('original.physicalMuted',main),true,'guard applies before native play returns, without a previous replacement');
+  await wait();assert.equal(vm.runInContext('original.physicalMuted',main),true);
+  vm.runInContext('finishAsset({found:false,retryAfterMs:15000})',isolated);await wait();
+  assert.equal(vm.runInContext('original.physicalMuted',main),false);assert.equal(f.elements.size,0);
+  vm.runInContext('original.pause();original.play()',main);
+  assert.equal(vm.runInContext('original.physicalMuted',main),false,'known negative and ordinary pause/resume do not remute');
+  f.changeStorage({enabled:{newValue:false}});await wait();
+  vm.runInContext("original.src='https://strm-fra-03.strm.yandex.net/second';original.play()",main);
+  assert.equal(vm.runInContext('original.physicalMuted',main),false,'Stop disables future admission');
+ }finally{vm.runInContext('__CELIKOM_CONTENT_CONTROLLER_V2__.destroy()',isolated);vm.runInContext('__CELIKOM_MAIN_BRIDGE_V1__.destroy()',main);}
+});
+test('first-play admission fails open on its deadline and does not remute on repeated play',async()=>{
+ const f=browserFixture(),main=f.worlds.get('MAIN'),isolated=f.worlds.get('ISOLATED');const wait=()=>new Promise(r=>setTimeout(r,5));
+ await createControllerBootstrap(f.api,{wait}).ensure(42);
+ try{
+  vm.runInContext('__CELIKOM_CONTENT_CONTROLLER_V2__.engine.resolveAsset=()=>new Promise(()=>{})',isolated);
+  vm.runInContext('globalThis.original=new HTMLMediaElement();original.play()',main);
+  assert.equal(vm.runInContext('original.physicalMuted',main),true);
+  await new Promise(r=>setTimeout(r,1050));assert.equal(vm.runInContext('original.physicalMuted',main),false);
+  vm.runInContext('original.pause();original.play()',main);assert.equal(vm.runInContext('original.physicalMuted',main),false);
+ }finally{vm.runInContext('__CELIKOM_CONTENT_CONTROLLER_V2__.destroy()',isolated);vm.runInContext('__CELIKOM_MAIN_BRIDGE_V1__.destroy()',main);}
 });
