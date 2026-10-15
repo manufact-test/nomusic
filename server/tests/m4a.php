@@ -36,5 +36,10 @@ $auth=['Authorization'=>'Bearer '.str_repeat('m4a-test-',8)];$config['test_api_t
 parse_str(parse_url($resolved['audio_url'],PHP_URL_QUERY),$query);
 $app=new Celikom\Application($config);$response=$app->handle('GET','/api/v1/audio/'.$id,$query,['Range'=>'bytes=0-1023']);
 expect($response->status===206 && $response->headers['Content-Type']==='audio/mp4' && bytes($response)===substr(file_get_contents($path),0,1024),'Signed M4A Range serves exact source bytes');
-// All fixtures stay in the disposable CI database, like the existing upload suite.
+// Remove only this test's rows before the legacy database suite resets its fixtures.
+$pdo->prepare('DELETE FROM upload_submissions WHERE replacement_id=?')->execute([$id]);
+$pdo->prepare('DELETE FROM track_replacements WHERE id=?')->execute([$id]);
+$pdo->prepare('DELETE FROM tracks WHERE service=? AND service_track_id=?')->execute(['yandex','799461']);
+$pdo->prepare('DELETE FROM audio_assets WHERE id=?')->execute([$asset['id']]);
+$storage->delete($asset['storage_key']);
 fwrite(STDOUT,"PASS M4A upload, moderation, duplicate, duration gate, backward compatibility and signed Range\n");

@@ -162,7 +162,7 @@ function createGainChain(context, audio, db) {
         source.endOfStream();
       }
     }
-    async fetchM4a(asset) {
+    async fetchNativeAsset(asset) {
       const abort = this.fetchAbort, parts = []; let offset = 0, total = null;
       const timer = this.environment.setTimeout(() => abort.abort(), 30000);
       try {
@@ -173,7 +173,7 @@ function createGainChain(context, audio, db) {
             credentials: "omit", cache: "no-store", redirect: "error", signal: abort.signal
           });
           if (response.status !== 206) { await response.body?.cancel(); throw new Error("remote-stream-http"); }
-          if ((response.headers.get("content-type") || "").split(";")[0].trim().toLowerCase() !== "audio/mp4") throw new Error("remote-stream-format");
+          if ((response.headers.get("content-type") || "").split(";")[0].trim().toLowerCase() !== asset.mimeType) throw new Error("remote-stream-format");
           const match = /^bytes ([0-9]+)-([0-9]+)\/([0-9]+)$/.exec(response.headers.get("content-range") || "");
           if (!match) throw new Error("remote-stream-range");
           const from=Number(match[1]), last=Number(match[2]), size=Number(match[3]);
@@ -193,7 +193,7 @@ function createGainChain(context, audio, db) {
           if(this.destroyed || abort.signal.aborted)throw new Error("Replacement cancelled");
           offset=last+1;
         }
-        return new Blob(parts, {type:"audio/mp4"});
+        return new Blob(parts, {type:asset.mimeType});
       } finally { this.environment.clearTimeout(timer); }
     }
     async prepare(asset) {
@@ -203,10 +203,10 @@ function createGainChain(context, audio, db) {
       if (!parent) throw new Error("Document root is unavailable");
       parent.append(this.audio);
       let sourceUrl = asset.url;
-      if (!this.demoLoop && asset.mimeType === "audio/mp4") {
-        if (!this.audio.canPlayType('audio/mp4; codecs="mp4a.40.2"')) throw new Error("remote-format-unsupported");
+      if (!this.demoLoop && ["audio/mp4","audio/wav","audio/x-wav"].includes(asset.mimeType)) {
+        if (!this.audio.canPlayType(asset.mimeType === 'audio/mp4' ? 'audio/mp4; codecs="mp4a.40.2"' : asset.mimeType)) throw new Error("remote-format-unsupported");
         this.fetchAbort = new this.environment.AbortController();
-        const blob = await this.fetchM4a(asset);
+        const blob = await this.fetchNativeAsset(asset);
         if (this.destroyed) throw new Error("Replacement cancelled");
         this.blobUrl = this.environment.URL.createObjectURL(blob);
         sourceUrl = this.blobUrl;

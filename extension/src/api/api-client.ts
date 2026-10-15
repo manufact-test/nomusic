@@ -105,7 +105,7 @@ export class ApiClient {
       || result.expires_at * 1000 <= this.now() + 1000 || result.expires_at * 1000 > this.now() + 1800000
       || typeof result.audio_url !== "string") throw new Error("invalid_api_response");
     const mimeType=result.mime_type??"audio/mpeg";
-    if(!["audio/mpeg","audio/mp4"].includes(mimeType))throw new Error("invalid_api_response");
+    if(!["audio/mpeg","audio/mp4","audio/wav","audio/x-wav"].includes(mimeType))throw new Error("invalid_api_response");
     const gainDb=result.gain_db===undefined?0:result.gain_db;
     if(typeof gainDb!=="number"||!Number.isFinite(gainDb)||gainDb< -12||gainDb>12)throw new Error("invalid_api_response");
     const url = new URL(result.audio_url, this.origin);
