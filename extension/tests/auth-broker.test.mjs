@@ -323,4 +323,5 @@ test('connection reset releases stale shared checks without clearing stored cred
  broker.resetTransport();assert.equal(oldSignal.aborted,true);
  assert.equal(await broker.withAccess(()=>true),true);finish();await rejected;
  assert.equal(await broker.withAccess(()=>true),true);assert.equal(calls,3);assert.equal(cleared,0);
+ assert.ok(broker.networkDiagnostics().some(item=>item.result==="request_cancelled"),"manual reset is not diagnosed as a server/network failure");
 });

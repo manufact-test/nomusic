@@ -67,7 +67,7 @@ try{
  }},r=>fatal.push(r));
  await streaming.prepare({url:'https://private.example/audio',mimeType:'audio/mpeg',durationMs:3030});
  check(streaming.audio.readyState>=2&&streaming.mediaSource,'actual MP3 MSE decoder loads');
- streaming.applyState({volume:1,muted:false,playbackRate:1});streaming.play();await new Promise(r=>setTimeout(r,100));
+ streaming.applyState({volume:1,muted:false,playbackRate:1});streaming.play();for(let i=0;i<40&&(streaming.audio.paused||streaming.audio.currentTime<=0);i++)await new Promise(r=>setTimeout(r,50));
  check(streaming.audio.currentTime>0&&!streaming.audio.paused,'actual MP3 MSE plays');streaming.destroy();
 
  document.body.dataset.gainStep='native stream transition';

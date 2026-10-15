@@ -138,7 +138,7 @@ export function createAuthBroker(api, options = {}) {
       throw Object.assign(new Error(outcome), { retryable: signal.reason !== "network_changed"
         && ([502,503,504].includes(httpStatus) || outcome === "auth_network_error" || outcome === "auth_timeout") });
     } finally {
-      networkHistory.push({ endpoint: path.split("?")[0], method, httpStatus, result: ["ok", "auth_timeout", "auth_network_error", "auth_route_blocked"].includes(outcome) ? outcome : "api_response_error", elapsedMs: Date.now() - started, at: Date.now() });
+      networkHistory.push({ endpoint: path.split("?")[0], method, httpStatus, result: signal.reason === "network_changed" ? "request_cancelled" : ["ok", "auth_timeout", "auth_network_error", "auth_route_blocked"].includes(outcome) ? outcome : "api_response_error", elapsedMs: Date.now() - started, at: Date.now() });
       if (networkHistory.length > 8) networkHistory.shift();
     }
   }

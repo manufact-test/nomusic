@@ -381,3 +381,10 @@ test('API network history retains status and timing without signed URLs or track
  await client.resolve('yandex','7');assert.equal(entries.at(-1).endpoint,'resolve');assert.equal(entries.at(-1).httpStatus,200);
  assert.equal(entries.at(-1).result,'ok');assert.ok(!JSON.stringify(entries).includes('token='));assert.ok(!JSON.stringify(entries).includes('track_id='));
 });
+
+test('Manual transport reset is diagnosed as cancellation rather than a network timeout',async()=>{
+ const entries=[];
+ const client=new ApiClient('https://private.example',{onNetwork:item=>entries.push(item),fetch:(_url,options)=>new Promise((_,reject)=>options.signal.addEventListener('abort',()=>reject(Object.assign(Error('aborted'),{name:'AbortError'})),{once:true}))});
+ const pending=client.config();const rejected=assert.rejects(pending,/api_network_error/);await new Promise(setImmediate);
+ client.resetTransport();await rejected;await new Promise(setImmediate);assert.equal(entries.at(-1).result,'request_cancelled');
+});

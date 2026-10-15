@@ -60,7 +60,7 @@ export class ApiClient {
       for (const chunk of chunks) { merged.set(chunk, offset); offset += chunk.byteLength; }
       return JSON.parse(new TextDecoder().decode(merged));
     } catch (error) {
-      outcome=signal.aborted?"api_timeout":error?.message==="api_server_error"?"api_server_error":"api_request_error";
+      outcome=signal.reason==="network_changed"?"request_cancelled":signal.aborted?"api_timeout":error?.message==="api_server_error"?"api_server_error":"api_request_error";
       if (error?.name === "AbortError" || error instanceof TypeError)
         throw Object.assign(new Error("api_network_error"), { retryable: signal.reason !== "network_changed" });
       throw error;
