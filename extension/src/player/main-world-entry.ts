@@ -66,11 +66,13 @@
     const player = snapshot.player;
     const element = adapter.getMediaElement(lease.mediaId);
     let reason = null;
-    if (!snapshot.track?.id) reason = "track-unknown";
+    // Resource identity remains authoritative while the adapter deliberately
+    // withholds stale track metadata during a stream transition.
+    if (element && (element.currentSrc || element.src || "") !== lease.source) reason = "media-source-changed";
+    else if (!snapshot.track?.id) reason = "track-unknown";
     else if (snapshot.track.ambiguous) reason = "track-ambiguous";
     else if (snapshot.track.id !== lease.trackId) reason = "track-changed";
     else if (!element || player?.mediaId !== lease.mediaId) reason = "media-changed";
-    else if ((element.currentSrc || element.src || "") !== lease.source) reason = "media-source-changed";
     else if (player.ended) reason = "master-ended";
     else if (!Number.isFinite(player.duration) || player.readyState < 1) reason = "media-emptied";
     else if (Math.abs(player.duration * 1000 - snapshot.track.metadata?.durationMs) > 1500) reason = "duration-mismatch";

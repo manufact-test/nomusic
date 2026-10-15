@@ -139,7 +139,7 @@ test("YandexMusicAdapter mounts idempotently, follows SPA track changes and full
   assert.equal(adapter.mounted, true);
   assert.equal(intervals.size, 1);
   assert.equal(windowListeners.get("popstate").size, 1);
-  assert.equal(media.listenerBalance, 13);
+  assert.equal(media.listenerBalance, 14);
   assert.notEqual(FakeMedia.prototype.play, originalPlay);
   assert.notEqual(environment.history.pushState, originalPushState);
   assert.equal(snapshots.at(-1).track.id, "155343370");
@@ -179,7 +179,7 @@ test("YandexMusicAdapter mounts idempotently, follows SPA track changes and full
   assert.equal(environment.history.pushState, originalPushState);
 
   adapter.mount(sink);
-  assert.equal(media.listenerBalance, 13);
+  assert.equal(media.listenerBalance, 14);
   media.dispatchEvent(new Event("pause"));
   assert.equal(events.at(-1).type, "PAUSE");
   adapter.unmount();
@@ -353,4 +353,144 @@ test('late native ended after element reuse is not emitted as the new track endi
   media.ended=true;media.dispatchEvent(new Event('ended'));
   assert.equal(events.filter(e=>e.type==='ENDED').length,1,'genuine selected-master ending is preserved');
  }finally{adapter.unmount();}
+});
+
+test("reused stream cannot identify a new song from the previous Media Session metadata", () => {
+  const media = new FakeMedia();
+  const { environment } = createEnvironment(media);
+  const adapter = createAdapter(environment);
+  adapter.mount({ onSnapshot() {}, onPlayerEvent() {} });
+  try {
+    assert.equal(adapter.getSnapshot().track.id, "155343370");
+    media.currentSrc = media.src = "https://strm-rad-25.strm.yandex.net/next-track";
+    media.currentTime = 0;
+    // The next recording can have the same duration. A duration check cannot
+    // establish its identity while Yandex still exposes the previous title.
+    const pending = adapter.getSnapshot();
+    assert.equal(pending.track.id, null);
+    assert.equal(pending.track.evidence, "awaiting-track-refresh");
+    assert.equal(adapter.getSnapshot().track.id, null, "polling cannot make stale metadata fresh");
+    adapter.ingestTrackPayload({ id: "1944611", title: "Всё пиздато", artists: [{name:"Зануда"}], durationMs: 193283 }, "fixture");
+    Object.assign(environment.navigator.mediaSession.metadata, {title:"Всё пиздато",artist:"Зануда",album:"Папиросы",artwork:[]});
+    assert.equal(adapter.getSnapshot().track.id, "1944611");
+  } finally { adapter.unmount(); }
+});
+
+test("conflicting player and Media Session identities suspend replacement until both agree", () => {
+  const media = new FakeMedia();
+  const { environment } = createEnvironment(media);
+  const adapter = createAdapter(environment);
+  adapter.mount({ onSnapshot() {}, onPlayerEvent() {} });
+  try {
+    adapter.ingestTrackPayload({id:"1944611",title:"Всё пиздато",artists:[{name:"Зануда"}],durationMs:193283}, "fixture");
+    adapter.playerDomMetadata = () => ({title:"Всё пиздато",artist:"Зануда",album:"",coverUri:"",durationMs:193283});
+    assert.equal(adapter.getSnapshot().track.id, null);
+    assert.equal(adapter.getSnapshot().track.evidence, "playback-metadata-conflict");
+    Object.assign(environment.navigator.mediaSession.metadata, {title:"Всё пиздато",artist:"Зануда",album:"",artwork:[]});
+    assert.equal(adapter.getSnapshot().track.id, "1944611");
+  } finally { adapter.unmount(); }
+});
+
+test("ordinary seek keeps identity; refreshing the same song metadata permits a new stream", () => {
+  const media = new FakeMedia();
+  const { environment } = createEnvironment(media);
+  const adapter = createAdapter(environment);
+  adapter.mount({ onSnapshot() {}, onPlayerEvent() {} });
+  try {
+    media.currentTime = 0; media.seeking = true;
+    assert.equal(adapter.getSnapshot().track.id, "155343370");
+    media.seeking = false;
+    media.currentSrc = media.src = "https://strm-rad-25.strm.yandex.net/refreshed-stream";
+    assert.equal(adapter.getSnapshot().track.id, null);
+    environment.navigator.mediaSession.metadata = {...environment.navigator.mediaSession.metadata};
+    assert.equal(adapter.getSnapshot().track.id, "155343370");
+  } finally { adapter.unmount(); }
+});
+
+test("metadata setter and native play release stale identity before the next poll", async () => {
+  const media = new FakeMedia();
+  const { environment } = createEnvironment(media);
+  let metadata = environment.navigator.mediaSession.metadata;
+  const session = environment.navigator.mediaSession;
+  const descriptor = {configurable:true,enumerable:true,get(){return metadata;},set(value){metadata=value;}};
+  Object.defineProperty(session, "metadata", descriptor);
+  const adapter = createAdapter(environment), seen = [];
+  adapter.mount({onSnapshot:s=>seen.push(s),onPlayerEvent(){}});
+  try {
+    adapter.ingestTrackPayload({id:"1944611",title:"Всё пиздато",artists:[{name:"Зануда"}],durationMs:193283}, "fixture");
+    media.currentSrc = media.src = "https://strm-rad-25.strm.yandex.net/next";
+    media.currentTime = 0;
+    const playing = media.play();
+    assert.equal(seen.at(-1).track.id, null, "stale identity is invalidated synchronously before play returns");
+    session.metadata = {title:"Всё пиздато",artist:"Зануда",album:"",artwork:[]};
+    assert.equal(seen.at(-1).track.id, "1944611", "metadata update does not wait for 500 ms polling");
+    await playing;
+  } finally { adapter.unmount(); }
+  assert.equal(Object.getOwnPropertyDescriptor(session,"metadata").set, descriptor.set);
+});
+
+test("duration-only changes cannot refresh the previous identity on a new stream", () => {
+  const media = new FakeMedia();
+  const { environment } = createEnvironment(media);
+  const adapter = createAdapter(environment);
+  let durationMs = 193283;
+  adapter.playerDomMetadata = () => ({title:"",artist:"",album:"",coverUri:"",durationMs});
+  adapter.mount({onSnapshot(){},onPlayerEvent(){}});
+  try {
+    media.currentSrc = media.src = "https://strm-rad-25.strm.yandex.net/next";
+    assert.equal(adapter.getSnapshot().track.id, null);
+    durationMs = 193515; media.duration = 193.515;
+    assert.equal(adapter.getSnapshot().track.id, null);
+    assert.equal(adapter.getSnapshot().track.evidence, "awaiting-track-refresh");
+  } finally { adapter.unmount(); }
+});
+
+test("A replacement is destroyed before reused native play; only fresh B can start", async () => {
+  for (const name of ["sync-engine","replacement-player","fail-open-controller","replacement-controller"]) await import(`../dist/unpacked/player/${name}.js`);
+  const {ReplacementController} = globalThis.__CELIKOM_REPLACEMENT_CONTROLLER_V1__;
+  const media = new FakeMedia();
+  const {environment} = createEnvironment(media);
+  let metadata = environment.navigator.mediaSession.metadata;
+  Object.defineProperty(environment.navigator.mediaSession,"metadata",{configurable:true,get:()=>metadata,set:value=>{metadata=value;}});
+  const adapter = createAdapter(environment), players = [];
+  const bridge = {sessionId:"transition-session",isHealthy:()=>true,getSnapshot:async()=>adapter.getSnapshot(),request:async()=>({snapshot:adapter.getSnapshot()}),post(){}};
+  const engine = new ReplacementController(bridge,environment,{
+    resolveAsset:async id=>({found:true,trackId:id,durationMs:193283,expiresAt:Date.now()+60000}),
+    createPlayer:()=>{
+      const player = {audio:{duration:193.283,currentTime:0},destroyed:false,
+        async prepare(asset){this.trackId=asset.trackId;},applyState(){},play(){this.playing=true;},pause(){this.playing=false;},destroy(){this.destroyed=true;this.playing=false;}};
+      players.push(player);return player;
+    }
+  });
+  const settle = async()=>{for(let i=0;i<40;i++)await Promise.resolve();};
+  engine.configure(true, "");
+  adapter.mount({onSnapshot:s=>engine.update(s),onPlayerEvent:e=>engine.update(e.snapshot,e.type)});
+  try {
+    await settle(); assert.equal(players[0].playing,true);
+    adapter.ingestTrackPayload({id:"1944611",title:"Всё пиздато",artists:[{name:"Зануда"}],durationMs:193283},"fixture");
+    media.currentSrc = media.src = "https://strm-rad-25.strm.yandex.net/next"; media.currentTime=0;
+    const started=media.play();
+    assert.equal(players[0].destroyed,true, "old replacement stops synchronously at the stream transition");
+    await started; await settle();
+    assert.equal(players.length,1,"old metadata cannot launch another copy of A");
+    environment.navigator.mediaSession.metadata = {title:"Всё пиздато",artist:"Зануда",album:"",artwork:[]};
+    await settle();
+    assert.equal(players.length,2);assert.equal(players[1].trackId,"1944611");assert.equal(players[1].playing,true);
+    assert.equal(engine.activationCount,2);
+  } finally {engine.destroy();await settle();adapter.unmount();}
+});
+
+test("fresh metadata arriving before its stream is not mistaken for stale metadata", () => {
+  const media = new FakeMedia();
+  const {environment} = createEnvironment(media);
+  const adapter = createAdapter(environment);
+  adapter.mount({onSnapshot(){},onPlayerEvent(){}});
+  try {
+    adapter.ingestTrackPayload({id:"1944611",title:"Всё пиздато",artists:[{name:"Зануда"}],durationMs:193283},"fixture");
+    Object.assign(environment.navigator.mediaSession.metadata,{title:"Всё пиздато",artist:"Зануда",album:"",artwork:[]});
+    assert.equal(adapter.getSnapshot().track.id,"1944611");
+    media.currentSrc = media.src = "https://strm-rad-25.strm.yandex.net/next";
+    media.currentTime=0;
+    assert.equal(adapter.getSnapshot().track.id,"1944611");
+  } finally {adapter.unmount();}
 });

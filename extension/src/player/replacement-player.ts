@@ -29,6 +29,7 @@ function createGainChain(context, audio, db) {
       this.onFatal = onFatal;
       this.destroyed = false;
       this.cancelLoad = null;
+      this.playRevision = 0;
       this.playPending = false;
       this.wantPlay = false;
       this.blobUrl = null;
@@ -244,18 +245,20 @@ function createGainChain(context, audio, db) {
       this.wantPlay = true;
       if (this.destroyed || this.playPending || !this.audio.paused) return;
       this.playPending = true;
+      const revision = this.playRevision;
       Promise.resolve().then(async()=>{
         if(this.gainContext && this.gainContext.state!=="running")await this.gainContext.resume();
-        if(this.destroyed||!this.wantPlay)return;
+        if(this.destroyed||!this.wantPlay||revision!==this.playRevision)return;
         return this.audio.play();
       }).then(() => {
         if (this.destroyed || !this.wantPlay) this.audio.pause();
-      }).catch(() => {
-        // pause() can legitimately reject an in-flight play() with AbortError.
-        if (!this.destroyed && this.wantPlay) this.onFatal("replacement-play-blocked");
+      }).catch((error) => {
+        // MAIN may pause synchronously on seek/track change before its snapshot
+        // reaches this world. A cancelled play is not an autoplay rejection.
+        if (!this.destroyed && this.wantPlay && revision === this.playRevision && error?.name !== "AbortError") this.onFatal("replacement-play-blocked");
       }).finally(() => { this.playPending = false; });
     }
-    pause() { this.wantPlay = false; this.audio.pause(); }
+    pause() { ++this.playRevision; this.wantPlay = false; this.audio.pause(); }
     destroy() {
       if (this.destroyed) return;
       this.destroyed = true;

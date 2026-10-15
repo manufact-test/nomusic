@@ -17,6 +17,7 @@
     "ended",
     "ratechange",
     "volumechange",
+    "loadstart",
     "loadedmetadata",
     "durationchange",
     "emptied",
@@ -47,6 +48,7 @@
       this.sink = null;
       this.knownMedia = new Map();
       this.mediaIds = new WeakMap();
+      this.mediaIdentities = new WeakMap();
       this.mediaHandlers = new Map();
       this.trackCatalog = new Map();
       this.xhrUrls = new WeakMap();
@@ -498,12 +500,43 @@
       // Guard validation needs independent catalog duration, not a copy of the
       // selected media duration which would make a mismatch check tautological.
       const canonicalDuration = this.trackCatalog.get(result.selected?.id)?.durationMs;
+      const session = this.mediaSessionMetadata();
+      const visible = this.playerDomMetadata();
+      const sessionMatch = core.pickTrackFromCatalog([...this.trackCatalog.values()], { ...session, durationMs: metadata.durationMs }, 100).selected;
+      const visibleMatch = core.pickTrackFromCatalog([...this.trackCatalog.values()], visible, 100).selected;
+      const conflict = sessionMatch && visibleMatch && sessionMatch.id !== visibleMatch.id;
+      let awaitingRefresh = false;
+      if (master) {
+        const source = master.currentSrc || master.src || "";
+        const sessionObject = this.safeCall(() => this.environment.navigator?.mediaSession?.metadata, null);
+        const fingerprint = JSON.stringify({ session, visible: { title: visible.title, artist: visible.artist, album: visible.album, coverUri: visible.coverUri } });
+        const previous = this.mediaIdentities.get(master);
+        // Stream and metadata updates are independent. Never re-admit the old
+        // recording on a new stream merely because their durations are close.
+        let pending = previous?.pending || null;
+        const sourceChanged = Boolean(previous?.source && source && previous.source !== source);
+        if (sourceChanged && previous.id
+            && result.selected?.id === previous.id && previous.fingerprint === fingerprint && previous.sessionObject === sessionObject) {
+          pending = { id: previous.id, fingerprint, sessionObject };
+        }
+        if (pending && ((result.selected && result.selected.id !== pending.id) || fingerprint !== pending.fingerprint || sessionObject !== pending.sessionObject)) pending = null;
+        awaitingRefresh = Boolean(pending);
+        this.mediaIdentities.set(master, {
+          source: source || previous?.source || "",
+          // Metadata can also arrive before the stream. Keep the identity that
+          // first accompanied this resource rather than relabeling it early.
+          id: !previous || sourceChanged || (previous.pending && !pending)
+            ? result.selected?.id || previous?.id || null : previous.id || result.selected?.id || null,
+          fingerprint, sessionObject, pending
+        });
+      }
+      const identityIssue = conflict ? "playback-metadata-conflict" : awaitingRefresh ? "awaiting-track-refresh" : null;
       return {
-        id: result.selected?.id || null,
+        id: identityIssue ? null : result.selected?.id || null,
         confidence: result.selected?.score || 0,
         source: result.selected?.source || null,
-        evidence: result.selected?.evidence || "",
-        ambiguous: result.ambiguous,
+        evidence: identityIssue || result.selected?.evidence || "",
+        ambiguous: Boolean(identityIssue) || result.ambiguous,
         candidates: result.ranked,
         metadata: { ...metadata, durationMs: canonicalDuration > 0 ? canonicalDuration : metadata.durationMs },
         catalogSize: this.trackCatalog.size
@@ -676,6 +709,34 @@
       }
     }
 
+    installMediaSessionHook() {
+      const session = this.safeCall(() => this.environment.navigator?.mediaSession, null);
+      if (!session || this.nativeHooks.metadataOwner) return;
+      for (let owner = session; owner; owner = Object.getPrototypeOf(owner)) {
+        const descriptor = Object.getOwnPropertyDescriptor(owner, "metadata");
+        if (!descriptor) continue;
+        if (!descriptor.set || !descriptor.configurable) return;
+        const adapter = this;
+        const lifecycle = { active: true };
+        const setter = function celikomObservedMetadata(value) {
+          Reflect.apply(descriptor.set, this, [value]);
+          if (lifecycle.active && this === session) adapter.safeCall(() => adapter.emitSnapshot("media-session-metadata", true));
+        };
+        Object.defineProperty(owner, "metadata", { ...descriptor, set: setter });
+        Object.assign(this.nativeHooks, { metadataOwner: owner, metadataDescriptor: descriptor, metadataSetter: setter, metadataLifecycle: lifecycle });
+        return;
+      }
+    }
+
+    restoreMediaSessionHook() {
+      const hooks = this.nativeHooks;
+      if (hooks.metadataLifecycle) hooks.metadataLifecycle.active = false;
+      if (hooks.metadataOwner && Object.getOwnPropertyDescriptor(hooks.metadataOwner, "metadata")?.set === hooks.metadataSetter) {
+        Object.defineProperty(hooks.metadataOwner, "metadata", hooks.metadataDescriptor);
+      }
+      for (const key of ["metadataOwner", "metadataDescriptor", "metadataSetter", "metadataLifecycle"]) delete hooks[key];
+    }
+
     installPrototypeHooks() {
       const prototype = this.environment.HTMLMediaElement?.prototype;
       if (!prototype) return;
@@ -693,6 +754,7 @@
               adapter.lastEventElement = this;
               adapter.lastEventAt = adapter.now();
             }
+            if (name === "play" || name === "load") adapter.safeCall(() => adapter.emitSnapshot(`before-method:${name}`, true));
             adapter.defer(() => { if (lifecycle.active) adapter.emitSnapshot(`method:${name}`, true); });
           }
           return Reflect.apply(original, this, args);
@@ -762,6 +824,7 @@
       this.sink = sink;
       this.mounted = true;
       this.installPrototypeHooks();
+      this.safeCall(() => this.installMediaSessionHook());
       this.installHistoryHooks();
       this.installNetworkHooks();
       this.window.addEventListener?.("popstate", this.onNavigation);
@@ -805,6 +868,7 @@
       this.catalogRefreshTimer = null;
       this.snapshotTimer = null;
       this.restorePrototypeHooks();
+      this.restoreMediaSessionHook();
       this.restoreHistoryHooks();
       this.restoreNetworkHooks();
       for (const [id, element] of this.knownMedia) this.unregisterMedia(id, element);

@@ -484,3 +484,27 @@ test('six natural track endings advance automatically with no sticky master-ende
   assert.equal(f.engine.blockedTrackId,null);
  }
 });
+
+test("cancelled native play and an old rejection after pause/resume do not block replacement", async () => {
+  const media = new Media(), fatal = [];
+  const env = {document:{createElement:()=>media,documentElement:{append(){}}},setTimeout,clearTimeout,AbortController,URL,fetch:async()=>({ok:true,blob:async()=>new Blob(["fixture"])})};
+  const player = new ReplacementPlayer(env,reason=>fatal.push(reason));
+  await player.prepare({url:"local",demoLoop:true});
+  try {
+    // MAIN can pause before the corresponding isolated snapshot arrives.
+    media.play = () => Promise.reject(new DOMException("interrupted by pause", "AbortError"));
+    player.play(); await settle();
+    assert.deepEqual(fatal, []);
+    const pending = deferred(); media.play = () => pending.promise;
+    player.play(); await settle();
+    player.pause(); player.play();
+    pending.reject(new DOMException("old attempt", "NotAllowedError")); await settle();
+    assert.deepEqual(fatal, [], "a previous play attempt cannot fail the resumed intent");
+    media.play = Media.prototype.play;
+    player.play(); await settle(); assert.equal(media.paused,false);
+    player.pause();
+    media.play = () => Promise.reject(new DOMException("real autoplay denial", "NotAllowedError"));
+    player.play(); await settle();
+    assert.deepEqual(fatal,["replacement-play-blocked"], "actual current autoplay failures still fail open");
+  } finally { player.destroy(); }
+});
