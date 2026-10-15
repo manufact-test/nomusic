@@ -383,11 +383,15 @@ test("conflicting player and Media Session identities suspend replacement until 
   adapter.mount({ onSnapshot() {}, onPlayerEvent() {} });
   try {
     adapter.ingestTrackPayload({id:"1944611",title:"Всё пиздато",artists:[{name:"Зануда"}],durationMs:193283}, "fixture");
+    media.currentSrc = media.src = "https://strm-rad-25.strm.yandex.net/transition-b";
+    assert.equal(adapter.getSnapshot().track.id, null);
     adapter.playerDomMetadata = () => ({title:"Всё пиздато",artist:"Зануда",album:"",coverUri:"",durationMs:193283});
     assert.equal(adapter.getSnapshot().track.id, null);
     assert.equal(adapter.getSnapshot().track.evidence, "playback-metadata-conflict");
     Object.assign(environment.navigator.mediaSession.metadata, {title:"Всё пиздато",artist:"Зануда",album:"",artwork:[]});
     assert.equal(adapter.getSnapshot().track.id, "1944611");
+    media.currentSrc = media.src = "https://strm-rad-25.strm.yandex.net/transition-c";
+    assert.equal(adapter.getSnapshot().track.id, null, "B is now the preceding identity, including after a conflict during A to B");
   } finally { adapter.unmount(); }
 });
 

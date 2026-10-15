@@ -516,10 +516,10 @@
         let pending = previous?.pending || null;
         const sourceChanged = Boolean(previous?.source && source && previous.source !== source);
         if (sourceChanged && previous.id
-            && result.selected?.id === previous.id && previous.fingerprint === fingerprint && previous.sessionObject === sessionObject) {
+            && (!result.selected || result.selected.id === previous.id) && previous.fingerprint === fingerprint && previous.sessionObject === sessionObject) {
           pending = { id: previous.id, fingerprint, sessionObject };
         }
-        if (pending && ((result.selected && result.selected.id !== pending.id) || fingerprint !== pending.fingerprint || sessionObject !== pending.sessionObject)) pending = null;
+        if (pending && !conflict && ((result.selected && result.selected.id !== pending.id) || fingerprint !== pending.fingerprint || sessionObject !== pending.sessionObject)) pending = null;
         awaitingRefresh = Boolean(pending);
         this.mediaIdentities.set(master, {
           source: source || previous?.source || "",
