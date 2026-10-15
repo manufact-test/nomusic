@@ -114,7 +114,7 @@ def authenticate():
   mail_choice=next((n for n in nodes if n['text'].strip().lower() in ('почта','почта или логин','логин','email','email or username','username','войти по логину')),None)
   if not mail and mail_choice:
    tap(mail_choice);time.sleep(2);nodes=ui();edits=[n for n in nodes if n['class']=='android.widget.EditText']
-  if edits and not mail and not pwd:
+  if edits and not mail and not pwd and not any(s in text for s in ('enter your phone number','введите номер телефона')):
    tap(edits[0]);input_value(account['login']);mail=True
    nodes=ui()
    buttons=[n for n in nodes if n['class']=='android.widget.Button' and n['text'].strip().lower() in ('войти','продолжить','sign in','log in','continue','next','далее')]
@@ -197,4 +197,9 @@ if __name__=='__main__':
   else:command(a.seq)
  except Exception as e:
   save('failure-'+a.mode+'.json',{'error_type':type(e).__name__,'detail':clean(str(e))[:200]})
+  if a.mode=='auth':
+   try:
+    save('auth-failure-ui.json',{'nodes':ui(),'automatic_catalogue_id_verified':False})
+    screenshot('auth-checkpoint')
+   except Exception:pass
   print('Laboratory step failed:',type(e).__name__);sys.exit(1)
