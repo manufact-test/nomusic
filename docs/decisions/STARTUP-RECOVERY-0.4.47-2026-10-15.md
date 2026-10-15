@@ -15,3 +15,13 @@ Changes:
 - Diagnostics expose stage/elapsed time/stream progress, network status and offset. API request history includes resolve status/timing without query strings, track history, signed URLs or tokens. Auth transport failures preserve network error meaning across the API broker. Negative resolution is logged as NO_REPLACEMENT.
 
 Actual external cause of the intermittent connection loss is still unknown; do not attribute it to the owner's VPN/provider or claim it fixed. Added user control and bounded recovery fix verified software gaps. No backend deploy or library mutation is necessary; backend remains .46. Preserve MP3/M4A behavior and .46 assigned/current resource identity guard. Wrong-song fragment remains awaiting owner acceptance. PR #6 and issue #7 stay open.
+
+## Follow-up findings and checks
+
+A second read-only probe (run 38747488424) served the actual approved “Моя игра” MP3 range bytes 0–524287 with HTTP 206 / audio/mpeg in 39 ms from the hosting network. This verifies current origin delivery, not the owner's route or conditions at the earlier failure. The old auth diagnostics can also label an explicit transport reset as auth_network_error; .47 separately records request_cancelled without changing auth failure handling.
+
+254 extension tests PASS, including old resolution/decoder fencing, stalled later MP3 range deadline, and cancellation classification. Native package run 38748211155 PASS, including actual MP3 through MSE, M4A native playback, volume controls, pending source identity transition, popup file-picker cancellation/Start-Stop fencing, and actual popup Retry during stalled preparation. Wait conditions assert real clock progress rather than a fixed 100 ms hardware startup expectation.
+
+Configured ZIP: outputs/CELIKOM-0.4.47-full.zip, 2465638 bytes, SHA-256 2fce51b7e52653b01dd730cceb1c5b2b785107195589e90c4a772a6f06e586dd. Library libfile_e758b22a97308191956d99cea39e3e6f version 1. Backend remains .46; source release .47 is extension-only. Owner should update the extension and reload Yandex Music. Network-origin diagnosis and the old audible transition symptom still require real-world acceptance; don't claim an external network issue resolved.
+
+Full CI 38748219246 PASS at source 563fca2ba738abc9e8775bd4e659da7d5b41bfae. No backend deployment.

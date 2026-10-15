@@ -1,3 +1,13 @@
+## 2026-10-15 — 0.4.47: startup/retry control, availability diagnosis
+
+Owner's .46 reports are enabled=true with healthy MAIN bridge. First report: actual replacement-load-timeout on approved MP3 48591518 (Моя игра); network origin of that intermittent failure is unknown. Later reports: repeated 15 s negative resolutions for absent mappings, not extension disabling. Read-only audit 38746323131 verified no replacement for 34139530 (Романс), 39013770 (Муза), 48592008 or 105553785. Do not invent mappings. Approved Моя игра asset exists (13,398,804 bytes, ID3 15,751); follow-up audit 38747488424 served its first 524,288 bytes via actual signed HTTPS Range, HTTP 206/audio-mpeg in 39 ms on-host. Preserve newly owner-approved M4A Papirosy 1944599 and all other audio.
+
+New extension .47: explicit retry disposes old pending resolution/decoder and fences late completion; worker playback transport reset, overall resolve-message deadline, bounded MP3 ongoing range wait and typed native-container failures. PREPARING shows resolution versus download; after 10 s Retry is enabled. READY explicitly says enabled/original. Cancellation is logged distinctly from network timeout. Diagnostics include resolver HTTP/timing and decoder/network progress; no URLs or secrets. See docs/decisions/STARTUP-RECOVERY-0.4.47-2026-10-15.md.
+
+254 extension tests PASS; native Chrome package run 38748211155 PASS (actual MP3/MSE, M4A, gain/transition, picker cancel, Start/Stop fencing and actual popup retry). Full CI 38748219246 PASS. Backend remains .46-f2d1cc31f598a983c46660688b453392faf0fc8d; no server rollout or music/account/mapping changes for .47. Wrong-song fragment still awaits owner acceptance; do not call it proven fixed.
+
+ZIP outputs/CELIKOM-0.4.47-full.zip, 2465638 bytes; SHA-256 2fce51b7e52653b01dd730cceb1c5b2b785107195589e90c4a772a6f06e586dd. Library libfile_e758b22a97308191956d99cea39e3e6f version 1. User must update extension and reload Yandex tab. PR #6 remains OPEN/unmerged; issue #7 OPEN.
+
 ## 2026-10-15 — 0.4.46 delivered: direct M4A, pending-source guard, owner check next
 
 Server deployed successfully: `0.4.46-f2d1cc31f598a983c46660688b453392faf0fc8d`; deployment run `38719703727` PASS. Full CI `38719708808` PASS; actual native Chrome package/player run `38719703847` PASS. 247 extension tests pass; independent PHP AAC inspector, malformed-container cases, MySQL upload/idempotency/duration/moderation gate, legacy-client fallback, signed M4A ranges, actual browser playback/seek/pause/gain all pass. Snapshot/after-deploy audit and isolated SQL/media restoration pass (41 tables, 23 media objects preserved). Existing exact-head deployment guard retained; first stale attempt was refused before remote mutation and retry succeeded.
