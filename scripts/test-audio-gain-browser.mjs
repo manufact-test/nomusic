@@ -41,7 +41,7 @@ try{
  document.body.dataset.gainStep='M4A direct playback';
  const m4aBytes=Uint8Array.from(atob('${m4a.toString('base64')}'),c=>c.charCodeAt(0));
  let m4aRequests=0;
- const m4aEnvironment={document,URL,AbortController,AudioContext,setTimeout,clearTimeout,fetch:async(url,options)=>{
+ const m4aEnvironment={document,URL,AbortController,AudioContext,setTimeout:window.setTimeout.bind(window),clearTimeout:window.clearTimeout.bind(window),fetch:async(url,options)=>{
   m4aRequests++;const range=/^bytes=(\\d+)-(\\d+)$/.exec(options.headers.Range);check(Boolean(range),'M4A signed Range');
   const from=Number(range[1]),last=Math.min(Number(range[2]),m4aBytes.length-1);
   return new Response(m4aBytes.slice(from,last+1),{status:206,headers:{'Content-Type':'audio/mp4','Content-Range':'bytes '+from+'-'+last+'/'+m4aBytes.length}});
@@ -107,7 +107,7 @@ try{
  check(saves===1,'one save');check(document.querySelector('[data-gain-save-status]').textContent==='Громкость сохранена.','inline confirmation');check(document.querySelector('[name=gain_before]').value==='12','next-save lease');check(scrollY===position&&location.href===address&&toggle.open,'save preserves scroll, URL and disclosure');window.fetch=oldFetch;
 
  check(document.documentElement.scrollWidth<=innerWidth,'mixer horizontal layout');document.body.dataset.gainResult='pass';
- }catch(e){document.body.dataset.gainResult=e.message}})();</script></body></html>`;
+ }catch(e){document.body.dataset.gainResult=e.message+' at '+document.body.dataset.gainStep+' '+e.stack}})();</script></body></html>`;
  const file=join(directory,'gain.html');await writeFile(file,html);await mkdir('dist/layout-proof',{recursive:true});
  const browser=spawn(binary,['--headless=new','--no-sandbox','--disable-gpu','--autoplay-policy=no-user-gesture-required','--window-size=420,600','--remote-debugging-port=0','--user-data-dir='+join(directory,'profile'),pathToFileURL(file).href],{stdio:['ignore','ignore','pipe']});
  const exited=new Promise(resolve=>browser.once('exit',resolve));
