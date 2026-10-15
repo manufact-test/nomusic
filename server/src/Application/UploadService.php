@@ -70,14 +70,13 @@ final class UploadService
         if ($size > $this->maxBytes) {
             throw new \LengthException('upload_too_large');
         }
-        // A .mp3 suffix and browser supplied MIME are never sufficient.
-        if ((new \finfo(FILEINFO_MIME_TYPE))->file($path) !== 'audio/mpeg') {
-            throw new \DomainException('invalid_mp3');
-        }
-        $measuredDuration = (new Mp3Inspector())->durationMs($path);
-        if ($measuredDuration === null) {
-            throw new \DomainException('invalid_mp3');
-        }
+        // Inspect actual bytes independently of filename and browser MIME.
+        $isM4a = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION)) === 'm4a';
+        $mime = $isM4a ? 'audio/mp4' : 'audio/mpeg';
+        $extension = $isM4a ? 'm4a' : 'mp3';
+        $measuredDuration = $isM4a ? (new M4aInspector())->durationMs($path)
+            : ((new \finfo(FILEINFO_MIME_TYPE))->file($path) === 'audio/mpeg' ? (new Mp3Inspector())->durationMs($path) : null);
+        if ($measuredDuration === null) throw new \DomainException($isM4a ? 'invalid_m4a' : 'invalid_mp3');
         $known = $this->pdo->prepare('SELECT duration_ms FROM tracks WHERE service=? AND service_track_id=?');
         $known->execute([$service, $trackId]);
         $knownDuration = $known->fetchColumn();
@@ -110,8 +109,8 @@ final class UploadService
         $lookup = $this->pdo->prepare('SELECT * FROM audio_assets WHERE sha256 = ?');
         $lookup->execute([$sha]);
         $knownAsset = $lookup->fetch(\PDO::FETCH_ASSOC) ?: null;
-        $key = $knownAsset['storage_key'] ?? ('audio/' . substr($sha, 0, 2) . '/' . $sha . '.mp3');
-        if ($knownAsset !== null && ($knownAsset['storage_driver'] !== 'local' || $knownAsset['mime_type'] !== 'audio/mpeg'
+        $key = $knownAsset['storage_key'] ?? ('audio/' . substr($sha, 0, 2) . '/' . $sha . '.' . $extension);
+        if ($knownAsset !== null && ($knownAsset['storage_driver'] !== 'local' || $knownAsset['mime_type'] !== $mime
             || (int) $knownAsset['size_bytes'] !== $size
             || abs((int) $knownAsset['duration_ms'] - $measuredDuration) > 2000)) {
             throw new \DomainException('asset_conflict');
@@ -146,13 +145,13 @@ final class UploadService
             $stmt = $this->pdo->prepare('INSERT INTO audio_assets
                 (storage_driver, storage_key, sha256, mime_type, size_bytes, duration_ms)
                 VALUES (?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE id = LAST_INSERT_ID(id)');
-            $stmt->execute(['local', $key, $sha, 'audio/mpeg', $size, $measuredDuration]);
+            $stmt->execute(['local', $key, $sha, $mime, $size, $measuredDuration]);
             $assetId = (int) $this->pdo->lastInsertId();
             $stmt = $this->pdo->prepare('SELECT * FROM audio_assets WHERE id = ?');
             $stmt->execute([$assetId]);
             $asset = $stmt->fetch(\PDO::FETCH_ASSOC);
             if (!$asset || $asset['sha256'] !== $sha || $asset['storage_key'] !== $key
-                || $asset['storage_driver'] !== 'local' || $asset['mime_type'] !== 'audio/mpeg'
+                || $asset['storage_driver'] !== 'local' || $asset['mime_type'] !== $mime
                 || (int) $asset['size_bytes'] !== $size
                 || abs((int) $asset['duration_ms'] - $measuredDuration) > 2000) {
                 throw new \DomainException('asset_conflict');

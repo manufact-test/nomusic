@@ -218,6 +218,7 @@
         },
         lastEvent: this.lastEvent,
         page: `${location.origin}${location.pathname}`,
+        transitionTrace: this.snapshot?.transitionTrace || [],
         recentLog: this.logs.slice(-20)
       };
     }

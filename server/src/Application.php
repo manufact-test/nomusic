@@ -278,7 +278,7 @@ final class Application
             } catch (\DomainException $error) {
                 $code = $error->getMessage();
                 return Response::json(in_array($code, ['idempotency_conflict', 'already_approved', 'track_pending', 'track_already_approved'], true) ? 409 : 415,
-                    ['error' => in_array($code, ['invalid_mp3', 'duration_mismatch', 'rights_declaration_required', 'idempotency_conflict', 'already_approved', 'asset_conflict', 'track_pending', 'track_already_approved'], true)
+                    ['error' => in_array($code, ['invalid_mp3', 'invalid_m4a', 'duration_mismatch', 'rights_declaration_required', 'idempotency_conflict', 'already_approved', 'asset_conflict', 'track_pending', 'track_already_approved'], true)
                         ? $code : 'upload_rejected']);
             } catch (\InvalidArgumentException) {
                 return Response::json(400, ['error' => 'invalid_upload']);
@@ -326,7 +326,7 @@ final class Application
                 }
                 return Response::json(200, (new ResolveService($this->catalog(), $this->storage(), $this->tokens(),
                     $this->config['resolve_cache_ttl_seconds'] ?? 120,
-                    $this->config['negative_cache_ttl_seconds'] ?? 15))->resolve($query['service'], $query['track_id'], $access));
+                    $this->config['negative_cache_ttl_seconds'] ?? 15))->resolve($query['service'], $query['track_id'], $access, ($query['audio_formats'] ?? '') === 'mp3,m4a'));
             }
             if (!$this->config['analytics_enabled']) {
                 return Response::json(503, ['error' => 'analytics_disabled']);

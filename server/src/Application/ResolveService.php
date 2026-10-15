@@ -18,13 +18,13 @@ final class ResolveService
     ) {
     }
 
-    public function resolve(string $service, string $trackId, ?array $access = null): array
+    public function resolve(string $service, string $trackId, ?array $access = null, bool $supportsM4a = false): array
     {
         if ($service !== 'yandex' || !preg_match('/^[1-9]\d{0,23}$/D', $trackId)) {
             throw new \InvalidArgumentException('invalid_track');
         }
         $row = $this->catalog->findActive($service, $trackId);
-        if ($row === null || $row['storage_driver'] !== 'local' || !$this->storage->exists($row['storage_key'])) {
+        if ($row === null || (($row['mime_type'] ?? 'audio/mpeg') === 'audio/mp4' && !$supportsM4a) || $row['storage_driver'] !== 'local' || !$this->storage->exists($row['storage_key'])) {
             return ['found' => false, 'cache_ttl_seconds' => ResolveCachePolicy::negative($this->negativeTtlSeconds)];
         }
         $id = (int) $row['replacement_id'];
@@ -47,6 +47,7 @@ final class ResolveService
             'replacement_id' => $id,
             'audio_url' => '/api/v1/audio/' . $id . '?token=' . $this->tokens->sign($id, $version, $expires, $sessionId) . '&expires=' . $expires . ($sessionId === null ? '' : '&sid=' . $sessionId),
             'duration_ms' => (int) $row['duration_ms'],
+            'mime_type' => $row['mime_type'] ?? 'audio/mpeg',
             'version' => $version,
             'gain_db' => max(-12.0, min(12.0, (float) ($row['gain_db'] ?? 0))),
             'expires_at' => $expires,

@@ -24,6 +24,16 @@
   let lastReleasedGeneration = 0;
   let lastGuardGeneration = 0;
   let handoff = null;
+  const transitionTrace = []; let tracePrevious = null;
+  function trace(snapshot, event) {
+    const player=snapshot?.player, track=snapshot?.track;
+    const replacements=Array.from(root.document?.querySelectorAll('audio[data-celikom-replacement="true"]') || []).slice(0,3).map(a=>({trackId:a.dataset.celikomTrackId||null,time:Math.round((a.currentTime||0)*1000),paused:a.paused,muted:a.muted,seeking:a.seeking,readyState:a.readyState}));
+    const state={trackId:track?.id||null,mediaId:player?.mediaId||null,time:Math.round((player?.currentTime||0)*1000),duration:player?.duration||null,paused:player?.paused,seeking:player?.seeking,readyState:player?.readyState,guard:guard.state().active,handoff:Boolean(handoff),replacements};
+    const previous=tracePrevious; tracePrevious=state;
+    const shape=x=>JSON.stringify({...x,time:0,replacements:x.replacements.map(a=>({...a,time:0}))});
+    if(previous&&shape(previous)===shape(state)&&Math.abs(state.time-previous.time)<800&&!/seek|metadata|load|emptied|playing|source|transition/.test(event||''))return;
+    transitionTrace.push({at:now(),event,...state});if(transitionTrace.length>48)transitionTrace.shift();
+  }
   const adapter = adapterFactory.createAdapter(root);
   const guard = new guardFactory.OriginalAudioGuard(() => {
     post("PLAYER_SNAPSHOT", decorate(adapter.getSnapshot("volume-intent")));
@@ -63,6 +73,7 @@
     const state = guard.state();
     if (snapshot.player) snapshot.player.guarded = state.active && state.mediaId === snapshot.player.mediaId;
     snapshot.guard = { ...state, transitioning: Boolean(handoff) };
+    snapshot.transitionTrace = transitionTrace.slice();
     return snapshot;
   }
 
@@ -129,10 +140,12 @@
 
   const sink = Object.freeze({
     onSnapshot(snapshot) {
+      trace(snapshot, snapshot.reason);
       checkBinding(snapshot);
       post("PLAYER_SNAPSHOT", decorate(snapshot));
     },
     onPlayerEvent(event) {
+      trace(event.snapshot, event.nativeEvent || event.type);
       checkBinding(event.snapshot);
       if (event.type === "ERROR" || (event.type === "ENDED" && event.snapshot.player?.ended === true)) {
         release(`master-${event.type.toLowerCase()}`);

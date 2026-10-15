@@ -142,6 +142,7 @@
         }
         if (!operation.asset.demoLoop) this.event("replacement_available", { service: "yandex" });
         operation.player = this.createPlayer((reason, detail) => { if (this.current(operation)) this.abort(reason, true, detail); });
+        if(operation.player.audio?.dataset)operation.player.audio.dataset.celikomTrackId=operation.trackId;
         await operation.player.prepare(operation.asset);
         if (!operation.asset.demoLoop && Math.abs(operation.player.audio.duration * 1000 - operation.asset.durationMs) > 1500) throw new Error("replacement_duration_mismatch");
         if (!this.current(operation)) return;

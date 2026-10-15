@@ -1,6 +1,6 @@
 # CELIKOM server
 
-Stage 4 PHP 8.3/MySQL API. Enable PDO MySQL and fileinfo. The private catalog returns only exact service/Track ID approved active replacements. Signed versioned audio endpoints stream private MP3/WAV with 200/206/416 and HEAD; no filesystem keys or paths are exposed.
+Stage 4 PHP 8.3/MySQL API. Enable PDO MySQL and fileinfo. The private catalog returns only exact service/Track ID approved active replacements. Signed versioned audio endpoints stream private MP3/M4A (AAC)/WAV with 200/206/416 and HEAD; no filesystem keys or paths are exposed.
 
 ```bash
 composer install

@@ -16,6 +16,10 @@ export function validMp3Selection(file: { name: string; size: number } | null, m
   return Boolean(file && file.size >= 1024 && file.size <= maxBytes && /\.mp3$/i.test(file.name));
 }
 
+export function validAudioSelection(file: { name: string; size: number } | null, maxBytes = 31457280): boolean {
+  return Boolean(file && file.size >= 1024 && file.size <= maxBytes && /\.(?:mp3|m4a)$/i.test(file.name));
+}
+
 export function privateUploadApiOrigin(raw: unknown): string {
   if (typeof raw !== "string") throw new Error("invalid_upload_origin");
   const url = new URL(raw);

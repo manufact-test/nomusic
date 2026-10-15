@@ -1,8 +1,9 @@
 import { withDeadline } from "../shared/request-deadline.js";
+import { inspectM4a } from "../upload/m4a.js";
 import { mp3DurationMs, durationNotice } from "../upload/mp3-duration.js";
 import { initScrollSpacing } from "./scroll-spacing.js";
 import { COMMANDS, type ExtensionState } from "../shared/messages.js";
-import { uploadTargetFromStatus, validMp3Selection, privateUploadApiOrigin } from "../upload/contract.js";
+import { uploadTargetFromStatus, validAudioSelection, privateUploadApiOrigin } from "../upload/contract.js";
 import { initAuthPanel } from "../auth/auth-popup.js";
 import { initAccessStatus } from "../auth/access-status.js";
 import { initVersionStatus } from "./version-status.js";
@@ -133,8 +134,8 @@ function checkFileDuration(){
   measuredFile=file;durationPromise=null;durationBlocked=false;
   if(!durationNote||!file||!target){if(durationNote)durationNote.hidden=true;return Promise.resolve();}
   if(uploadButton)uploadButton.disabled=true;
-  durationNote.hidden=false;durationNote.dataset.kind="warning";durationNote.textContent="Проверяем длительность MP3…";
-  durationPromise=withDeadline(()=>file.arrayBuffer(),10000).then(mp3DurationMs).catch(()=>null).then(ms=>{
+  durationNote.hidden=false;durationNote.dataset.kind="warning";durationNote.textContent="Проверяем длительность файла…";
+  durationPromise=withDeadline(()=>file.arrayBuffer(),10000).then(bytes=>/\.m4a$/i.test(file.name)?inspectM4a(bytes).durationMs:mp3DurationMs(bytes)).catch(()=>null).then(ms=>{
     if(generation!==durationGeneration||pinnedTrack?.id!==target.id||uploadFile?.files?.[0]!==file)return;
     const notice=durationNotice(target.durationMs,ms);durationNote.textContent=notice.text;durationNote.dataset.kind=notice.kind;durationBlocked=notice.blocked===true;
     if(uploadButton&&!uploading)uploadButton.disabled=durationBlocked;
@@ -182,7 +183,7 @@ function showSubmitted(title: string, note: string): void {
 function setPickerState(): void {
   const file = uploadFile?.files?.[0];
   if (uploadFilePicker) uploadFilePicker.dataset.selected = String(Boolean(file));
-  if (uploadFileTitle) uploadFileTitle.textContent = file ? "MP3 выбран" : "Выбрать MP3";
+  if (uploadFileTitle) uploadFileTitle.textContent = file ? "Файл выбран" : "Выбрать MP3 или M4A";
   if (uploadFileName) {
     uploadFileName.textContent = file
       ? file.name + " · " + (file.size / 1048576).toFixed(1).replace(".", ",") + " МиБ"
@@ -367,8 +368,8 @@ uploadFilePicker?.addEventListener("drop", (event) => {
   if(uploading||opening)return;
   const file = event.dataTransfer?.files?.[0];
   if (!file || !uploadFile) return;
-  if (!validMp3Selection(file)) {
-    uploadMessage("Выберите MP3 не более 30 МиБ.", "error"); return;
+  if (!validAudioSelection(file)) {
+    uploadMessage("Выберите MP3 или M4A не более 30 МиБ.", "error"); return;
   }
   const transfer = new DataTransfer();
   transfer.items.add(file);
@@ -386,8 +387,8 @@ uploadForm?.addEventListener("submit", async (event) => {
     !uploadFile?.files?.[0] || !uploadRights?.checked) return;
 
   const file = uploadFile.files[0];
-  if (!validMp3Selection(file)) {
-    uploadMessage("Выберите MP3 не более 30 МиБ.", "error"); return;
+  if (!validAudioSelection(file)) {
+    uploadMessage("Выберите MP3 или M4A не более 30 МиБ.", "error"); return;
   }
   uploading = true;
   if(uploadFile)uploadFile.disabled=true;
@@ -435,7 +436,7 @@ uploadForm?.addEventListener("submit", async (event) => {
       if (progress.lengthComputable && uploadProgress) uploadProgress.value = Math.floor(progress.loaded / progress.total * 100);
     });
     if (uploadProgress) { uploadProgress.hidden = false; uploadProgress.value = 0; }
-    uploadMessage("Загружаем MP3…", "checking");
+    uploadMessage("Загружаем аудиофайл…", "checking");
     xhr.addEventListener("loadend", () => {
       uploading = false;
       if(uploadFile)uploadFile.disabled=false;
@@ -444,7 +445,7 @@ uploadForm?.addEventListener("submit", async (event) => {
           const result = JSON.parse(xhr.responseText);
           if (result.status === "pending" && Number.isSafeInteger(result.replacement_id)) {
             showSubmitted(result.duplicate ? "Трек уже добавлен" : "Отправлено на проверку",
-              "MP3 получен CELIKOM. Статус: ожидает модерации. Дополнительных действий не требуется.");
+              "Аудиофайл получен CELIKOM. Статус: ожидает модерации. Дополнительных действий не требуется.");
             uploadRequestId = null;
             return;
           }
@@ -465,6 +466,7 @@ uploadForm?.addEventListener("submit", async (event) => {
         rate_limited: "Слишком много попыток. Попробуйте позже.",
         upload_too_large: "Файл превышает допустимый размер.",
         invalid_mp3: "Файл не прошёл проверку MP3.",
+        invalid_m4a: "M4A не поддерживается или повреждён. Нужен M4A с кодеком AAC без защиты DRM.",
         duration_mismatch: "Длительность файла не подходит для подмены. Выберите подходящую версию.",
         idempotency_conflict: "Повтор запроса не совпадает с исходным.",
         rights_declaration_required: "Подтвердите права на файл."

@@ -1,5 +1,5 @@
 import {access,readFile,writeFile,mkdtemp,rm,mkdir} from 'node:fs/promises';
-import {spawn} from 'node:child_process';
+import {spawn,spawnSync} from 'node:child_process';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {pathToFileURL} from 'node:url';
@@ -17,6 +17,10 @@ try{
  const deployed=player.slice(player.indexOf('function createGainChain'),player.indexOf('class ReplacementPlayer'));
  const canonical=s=>stripTypeScriptTypes(s,{mode:'transform'}).trim();
  if(canonical(deployed)!==canonical(dsp))throw Error('Admin/player DSP mismatch');
+ const m4aFile=join(directory,'synthetic.m4a');
+ const encoded=spawnSync('ffmpeg',['-v','error','-f','lavfi','-i','sine=frequency=660:duration=3','-c:a','aac','-b:a','128k',m4aFile]);
+ if(encoded.status!==0)throw Error('Synthetic M4A encoder required');
+ const m4a=await readFile(m4aFile);
  const bytes=await readFile('extension/assets/test-audio.mp3');
  const css=await readFile('server/src/Admin/admin-style.css','utf8');
  const html=`<!doctype html><html><head><style>${css}</style></head><body><main><div class="player-wrap" id="audio-version-5"><audio data-gain-audio data-gain-db="0" controls></audio></div><details class="detail-toggle" data-gain-toggle><summary>Громкость версии</summary><form class="audio-gain-form" method="post" action="/admin/audio-gain" data-audio-gain data-audio-id="audio-version-5"><input type="hidden" name="csrf" value="fixture"><input type="hidden" name="gain_before" value="0"><label>Громкость версии <output data-gain-value>0 дБ</output></label><div class="audio-gain-controls"><span>Тише</span><input name="gain_db" type="range" min="-12" max="12" step="0.5" value="0"><span>Громче</span></div><button type="button" data-gain-reset>Исходная громкость</button><button type="submit">Сохранить громкость</button><p data-gain-note>Прослушайте и сохраните</p><p data-gain-save-status hidden></p></form></details><details><summary>Технические сведения</summary></details></main><script>${ui}\n${core}\n${adapterCode}\n${guardCode}\n${mainCode}\n${player}\n(async()=>{try{
@@ -34,6 +38,22 @@ try{
  const p=new ReplacementPlayer(window,r=>fatal.push(r));await p.prepare({url:'data:audio/mpeg;base64,${bytes.toString('base64')}',demoLoop:true,gainDb:6});
  check(p.gainContext.state==='running','real media gain context');p.applyState({volume:.4,muted:false,playbackRate:1});p.play();await new Promise(r=>setTimeout(r,150));check(!p.audio.paused&&p.audio.volume===.4,'real amplified media playback and volume sync');
  p.applyState({volume:.3,muted:true,playbackRate:1});check(p.audio.muted,'mute sync');const context=p.gainContext;p.destroy();await new Promise(r=>setTimeout(r,50));check(context.state==='closed'&&!p.audio.isConnected,'gain cleanup');check(fatal.length===0,'no media errors');
+ document.body.dataset.gainStep='M4A direct playback';
+ const m4aBytes=Uint8Array.from(atob('${m4a.toString('base64')}'),c=>c.charCodeAt(0));
+ let m4aRequests=0;
+ const m4aEnvironment={document,URL,AbortController,AudioContext,setTimeout,clearTimeout,fetch:async(url,options)=>{
+  m4aRequests++;const range=/^bytes=(\\d+)-(\\d+)$/.exec(options.headers.Range);check(Boolean(range),'M4A signed Range');
+  const from=Number(range[1]),last=Math.min(Number(range[2]),m4aBytes.length-1);
+  return new Response(m4aBytes.slice(from,last+1),{status:206,headers:{'Content-Type':'audio/mp4','Content-Range':'bytes '+from+'-'+last+'/'+m4aBytes.length}});
+ }};
+ const direct=new ReplacementPlayer(m4aEnvironment,r=>fatal.push(r));
+ await direct.prepare({url:'https://private.example/audio',mimeType:'audio/mp4',durationMs:3023,gainDb:6});
+ check(!direct.mediaSource&&direct.audio.src.startsWith('blob:'),'M4A original container through native decoder');
+ check(Math.abs(direct.audio.duration-3)<.1&&m4aRequests>0,'M4A duration');
+ direct.applyState({volume:1,muted:false,playbackRate:1});direct.play();await new Promise(r=>setTimeout(r,100));
+ check(!direct.audio.paused&&direct.audio.currentTime>0,'M4A native plays');direct.audio.currentTime=1;
+ await new Promise(r=>direct.audio.addEventListener('seeked',r,{once:true}));check(Math.abs(direct.audio.currentTime-1)<.3,'M4A native seeks');direct.pause();check(direct.audio.paused,'M4A pauses');direct.destroy();check(direct.audio.muted&&!direct.audio.getAttribute('src'),'M4A destroy releases local source');
+
  document.body.dataset.gainStep='native stream transition';
  const blob=await fetch('data:audio/mpeg;base64,${bytes.toString('base64')}').then(r=>r.blob());
  const master=document.createElement('audio');master.hidden=true;master.muted=true;document.body.append(master);

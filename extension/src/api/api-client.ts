@@ -95,7 +95,7 @@ export class ApiClient {
     const positiveTtlSeconds = boundedTtl(config.resolve_cache_ttl_seconds, 120, 120);
     const negativeTtlSeconds = boundedTtl(config.negative_cache_ttl_seconds, 15, 60);
     if (config.maintenance || !config.features.replacements) return { found: false, retryAfterMs: negativeTtlSeconds * 1000 };
-    const result = await this.request(`/api/v1/resolve?service=${service}&track_id=${trackId}`);
+    const result = await this.request(`/api/v1/resolve?audio_formats=mp3,m4a&service=${service}&track_id=${trackId}`);
     if (result?.cache_ttl_seconds !== undefined && !Number.isSafeInteger(result.cache_ttl_seconds)) throw new Error("invalid_api_response");
     if (result?.found === false) return { found: false, retryAfterMs:
       Math.min(negativeTtlSeconds, boundedTtl(result.cache_ttl_seconds, negativeTtlSeconds, 60)) * 1000 };
@@ -104,6 +104,8 @@ export class ApiClient {
       || !Number.isSafeInteger(result.version) || result.version < 1 || !Number.isSafeInteger(result.expires_at)
       || result.expires_at * 1000 <= this.now() + 1000 || result.expires_at * 1000 > this.now() + 1800000
       || typeof result.audio_url !== "string") throw new Error("invalid_api_response");
+    const mimeType=result.mime_type??"audio/mpeg";
+    if(!["audio/mpeg","audio/mp4"].includes(mimeType))throw new Error("invalid_api_response");
     const gainDb=result.gain_db===undefined?0:result.gain_db;
     if(typeof gainDb!=="number"||!Number.isFinite(gainDb)||gainDb< -12||gainDb>12)throw new Error("invalid_api_response");
     const url = new URL(result.audio_url, this.origin);
@@ -113,7 +115,7 @@ export class ApiClient {
       || [...url.searchParams.keys()].some((key) => !["token", "expires", "sid"].includes(key))
       || (url.searchParams.has("sid") && !/^[1-9]\d{0,17}$/.test(url.searchParams.get("sid")))) throw new Error("invalid_audio_url");
     return { found: true, url: url.href, durationMs: result.duration_ms, replacementId: result.replacement_id,
-      gainDb, version: result.version, expiresAt: result.expires_at * 1000,
+      mimeType, gainDb, version: result.version, expiresAt: result.expires_at * 1000,
       cacheTtlMs: Math.min(positiveTtlSeconds, boundedTtl(result.cache_ttl_seconds, positiveTtlSeconds, 120)) * 1000,
       demoLoop: false };
   }

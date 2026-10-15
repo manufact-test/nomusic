@@ -36,7 +36,7 @@ final class AudioController
             return Response::json(404, ['error' => 'audio_not_found']);
         }
         $size = $this->storage->getSize($row['storage_key']);
-        if ($size <= 0 || $size !== (int) $row['size_bytes'] || !in_array($row['mime_type'], ['audio/mpeg', 'audio/wav', 'audio/x-wav'], true)) {
+        if ($size <= 0 || $size !== (int) $row['size_bytes'] || !in_array($row['mime_type'], ['audio/mpeg', 'audio/mp4', 'audio/wav', 'audio/x-wav'], true)) {
             return Response::json(404, ['error' => 'audio_not_found']);
         }
         $etag = '"' . $row['sha256'] . '-' . $row['version'] . '"';

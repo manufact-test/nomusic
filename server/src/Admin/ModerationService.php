@@ -59,7 +59,7 @@ final class ModerationService
                 $asset->execute([(int) $before['audio_asset_id']]);
                 $a = $asset->fetch(\PDO::FETCH_ASSOC);
                 if (!$a || $a['storage_driver'] !== 'local' ||
-                    !in_array($a['mime_type'], ['audio/mpeg','audio/wav','audio/x-wav'], true) ||
+                    !in_array($a['mime_type'], ['audio/mpeg','audio/mp4','audio/wav','audio/x-wav'], true) ||
                     !$this->storage->exists($a['storage_key']) ||
                     $this->storage->getSize($a['storage_key']) !== (int) $a['size_bytes']) {
                     throw new \DomainException('candidate_audio_unavailable');

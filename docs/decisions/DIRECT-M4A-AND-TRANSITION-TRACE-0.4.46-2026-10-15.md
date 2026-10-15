@@ -1,0 +1,11 @@
+# CELIKOM 0.4.46 — direct M4A uploads and transition evidence
+
+Owner requested MP3 + M4A directly, with no mandatory conversion. Store original bytes; no encoder dependency in the extension or production PHP. M4A support is single-track, local, unencrypted AAC-LC (mono/stereo 8–48 kHz), <=30 MiB. Server independently checks BMFF bounds, codec descriptors, duration/sample tables and all media chunk offsets. MP3 inspection remains unchanged. The 1500 ms duration gate, rights declaration, duplicate handling and manual moderation remain mandatory.
+
+Picker, upload progress, duration hints and documentation mention MP3/M4A or generic audio. Admin workflow and gain remain the same, with format M4A displayed. Approved M4A uses the existing signed, session-checked Range endpoint with audio/mp4. New clients announce audio_formats=mp3,m4a; older clients safely receive found:false for M4A and keep the original. New clients also accept older MP3-only server responses. Native playback collects verified, bounded signed ranges into a <=30 MiB local Blob because ordinary M4A is not an MPEG audio MSE stream; original bytes, no transcoding. MP3 streaming is unchanged.
+
+Owner accepted the 0.4.45 file-picker cancellation / stuck popup fix. Owner rejected the audio-transition fix: wrong-song fragment remains reproducible in 0.4.45. Do not mark the latter resolved. Add bounded MAIN-world transitionTrace (48 relevant records, no source URL/token): native event, track/media identity, time/duration/ready state, guard/handoff state and replacement track/time/pause/mute/seek state. Diagnostics expose it to capture the fraction of a second missing from previous reports. No additional unverified mute-delay adjustment.
+
+Read-only live audit 38715400937: actual replacement 10 is version 2 / asset 11, MP3 size 9035630, ID3 99536 bytes, measured 223399 ms versus canonical 221930 ms. Initial 500 ms did not strongly correlate with the first 20 s of three other active replacements. This does not rule out a transition leak and is not proof of a fix. Owner removed Papirosy mapping; never reactivate it.
+
+Keep PR #6 and issue #7 open. Preserve concurrent Android laboratory work. No live music, mappings, moderation decisions, accounts, entitlements or volume changes are authorized by this update.

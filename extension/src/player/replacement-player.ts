@@ -162,6 +162,40 @@ function createGainChain(context, audio, db) {
         source.endOfStream();
       }
     }
+    async fetchM4a(asset) {
+      const abort = this.fetchAbort, parts = []; let offset = 0, total = null;
+      const timer = this.environment.setTimeout(() => abort.abort(), 30000);
+      try {
+        while (total === null || offset < total) {
+          const requestedEnd = Math.min(offset + 524287, total === null ? 31457279 : total - 1);
+          const response = await this.environment.fetch(asset.url, {
+            method: "GET", headers: { Range: `bytes=${offset}-${requestedEnd}` },
+            credentials: "omit", cache: "no-store", redirect: "error", signal: abort.signal
+          });
+          if (response.status !== 206) { await response.body?.cancel(); throw new Error("remote-stream-http"); }
+          if ((response.headers.get("content-type") || "").split(";")[0].trim().toLowerCase() !== "audio/mp4") throw new Error("remote-stream-format");
+          const match = /^bytes ([0-9]+)-([0-9]+)\/([0-9]+)$/.exec(response.headers.get("content-range") || "");
+          if (!match) throw new Error("remote-stream-range");
+          const from=Number(match[1]), last=Number(match[2]), size=Number(match[3]);
+          if (!Number.isSafeInteger(size) || size < 1024 || size > 31457280 || from!==offset || last<from || last>requestedEnd || last>=size || (total!==null && size!==total)) throw new Error("remote-stream-range");
+          total=size;
+          // Bound each body while reading, not after allocating an untrusted body.
+          const reader=response.body.getReader(); let count=0;
+          try {
+            for (;;) {
+              const {value,done}=await reader.read(); if(done)break;
+              count+=value.byteLength;
+              if(count>last-from+1)throw new Error("remote-stream-range");
+              parts.push(value);
+            }
+          } finally { await reader.cancel(); }
+          if(count!==last-from+1)throw new Error("remote-stream-range");
+          if(this.destroyed || abort.signal.aborted)throw new Error("Replacement cancelled");
+          offset=last+1;
+        }
+        return new Blob(parts, {type:"audio/mp4"});
+      } finally { this.environment.clearTimeout(timer); }
+    }
     async prepare(asset) {
       this.demoLoop = asset.demoLoop === true;
       this.audio.loop = this.demoLoop;
@@ -169,7 +203,14 @@ function createGainChain(context, audio, db) {
       if (!parent) throw new Error("Document root is unavailable");
       parent.append(this.audio);
       let sourceUrl = asset.url;
-      if (!this.demoLoop) {
+      if (!this.demoLoop && asset.mimeType === "audio/mp4") {
+        if (!this.audio.canPlayType('audio/mp4; codecs="mp4a.40.2"')) throw new Error("remote-format-unsupported");
+        this.fetchAbort = new this.environment.AbortController();
+        const blob = await this.fetchM4a(asset);
+        if (this.destroyed) throw new Error("Replacement cancelled");
+        this.blobUrl = this.environment.URL.createObjectURL(blob);
+        sourceUrl = this.blobUrl;
+      } else if (!this.demoLoop) {
         const MediaSource = this.environment.MediaSource;
         if (!MediaSource || !MediaSource.isTypeSupported("audio/mpeg")
             || !Number.isFinite(asset.durationMs) || asset.durationMs <= 0) {
@@ -223,6 +264,7 @@ function createGainChain(context, audio, db) {
         });
       }
       await ready;
+      if (asset.mimeType === "audio/mp4" && Math.abs(this.audio.duration*1000-asset.durationMs)>1500) throw new Error("duration-mismatch");
       const gainDb=asset.gainDb??0;
       if(!Number.isFinite(gainDb)||gainDb< -12||gainDb>12)throw new Error("invalid_audio_gain");
       if(gainDb!==0){

@@ -677,7 +677,7 @@ final class AdminPanel
             }
             $html.='<details class="detail-toggle"><summary>Технические сведения</summary>'
                 . '<div class="technical">Размер: ' . self::formatSize((int) $r['size_bytes'])
-                . ' · Формат: ' . (in_array($r['mime_type'], ['audio/mpeg'], true) ? 'MP3' : 'Аудио')
+                . ' · Формат: ' . (in_array($r['mime_type'], ['audio/mpeg'], true) ? 'MP3' : ($r['mime_type'] === 'audio/mp4' ? 'M4A' : 'Аудио'))
                 . '<p style="margin:8px 0 0">Контрольная сумма SHA-256: '
                 . self::e($r['sha256']) . '</p></div></details>';
 
@@ -997,7 +997,7 @@ final class AdminPanel
             .'<button type="submit">Показать</button></form>'
             .'<p><small>Сравнение с предыдущим равным периодом. Текущие статусы заявок, созданных в диапазоне.</small></p>'
             .'<table><tr><th>Тип / статус</th><th>Выбранный период</th><th>Предыдущий</th></tr>';
-        foreach([['MP3','track_replacements'],['Предложения','track_requests']] as [$label,$table]){
+        foreach([['Аудиоверсии','track_replacements'],['Предложения','track_requests']] as [$label,$table]){
             $now=$counts($table,$date($start),$date($endExclusive));
             $prior=$counts($table,$date($beforeStart),$date($start));
             foreach(['pending','approved','rejected','disabled','reviewed'] as $status){
@@ -1068,7 +1068,7 @@ final class AdminPanel
         $q->execute([$id]);
         $a=$q->fetch(\PDO::FETCH_ASSOC);
         if (!$a || $a['storage_driver']!=='local'
-            || !in_array($a['mime_type'],['audio/mpeg','audio/wav','audio/x-wav'],true)
+            || !in_array($a['mime_type'],['audio/mpeg','audio/mp4','audio/wav','audio/x-wav'],true)
             || !$this->storage->exists($a['storage_key'])) return Response::json(404,['error'=>'audio_not_found']);
         $size=$this->storage->getSize($a['storage_key']);
         if ($size<1 || $size !== (int)$a['size_bytes']) return Response::json(404,['error'=>'audio_not_found']);

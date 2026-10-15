@@ -32,7 +32,7 @@ export function mp3DurationMs(buffer): number | null {
 }
 
 export function durationNotice(originalMs, audioMs) {
-  if (!Number.isFinite(originalMs) || !Number.isFinite(audioMs)) return { kind: "warning", text: "Не удалось сравнить длительность MP3. Файл дополнительно проверит сервер." };
+  if (!Number.isFinite(originalMs) || !Number.isFinite(audioMs)) return { kind: "warning", text: "Не удалось сравнить длительность файла. Файл дополнительно проверит сервер." };
   const delta = audioMs - originalMs, difference = Math.abs(delta);
   const time = ms => { const seconds=Math.floor(ms/1000);return `${Math.floor(seconds/60)}:${String(seconds%60).padStart(2,"0")}`; };
   const description = `Оригинал: ${time(originalMs)} · файл: ${time(audioMs)}.`;

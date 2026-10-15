@@ -60,6 +60,8 @@ const gainBrowser = spawnSync(process.execPath,[path.join(root,"scripts","test-a
 if(gainBrowser.status!==0)process.exit(gainBrowser.status||1);
 const uploadRecoveryBrowser = spawnSync(process.execPath,[path.join(root,"scripts","test-upload-recovery-browser.mjs")],{stdio:"inherit"});
 if(uploadRecoveryBrowser.status!==0)process.exit(uploadRecoveryBrowser.status||1);
+const m4a = spawnSync(process.execPath,[path.join(root,"scripts","test-m4a.mjs")],{stdio:"inherit"});
+if(m4a.status!==0)process.exit(m4a.status||1);
 const phpVersion = spawnSync("php", ["--version"], { encoding: "utf8" });
 if (phpVersion.error?.code === "ENOENT") {
   console.log(`Server structure validated (${phpFiles.length} PHP files); runtime test deferred to PHP 8.3 CI.`);

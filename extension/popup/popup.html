@@ -35,8 +35,8 @@
         <form data-upload-form hidden>
           <label class="stage" for="upload-track">Track ID · только чтение</label>
           <input id="upload-track" data-upload-track readonly aria-readonly="true" required>
-          <label class="stage" for="upload-file">Аудиофайл · MP3 до 30 МиБ</label>
-          <input class="upload-file-native" id="upload-file" data-upload-file type="file" accept=".mp3,audio/mpeg" required>
+          <label class="stage" for="upload-file">Аудиофайл · MP3 или M4A (AAC) до 30 МиБ</label>
+          <input class="upload-file-native" id="upload-file" data-upload-file type="file" accept=".mp3,.m4a,audio/mpeg,audio/mp4,audio/x-m4a" required>
           <label class="upload-file-picker" data-file-picker for="upload-file">
             <span class="upload-file-icon" aria-hidden="true">
               <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
@@ -45,7 +45,7 @@
               </svg>
             </span>
             <span class="upload-file-copy">
-              <strong data-file-title>Выбрать MP3</strong>
+              <strong data-file-title>Выбрать MP3 или M4A</strong>
               <span data-file-name>Нажмите или перетащите файл сюда</span>
             </span>
           </label>
