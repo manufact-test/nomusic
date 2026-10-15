@@ -58,7 +58,15 @@ Native Chrome checks extended for actual decoded media and actual MAIN guard
 lease transfer. A new real-popup module fixture exercises input cancel, another
 song, Start/Stop/late reply, finite timeout and fresh retry (test clock shortens
 the30/60s waits only inside the fixture). It does not automate the OS dialog.
-CI/native results and final ZIP checksum recorded after execution.
+Private Chrome38711342254 PASS, including decoded media old-original handoff
+and actual popup-module recovery. The initial new fixture's30ms form assumption
+failed; condition-based waits passed without changing product code. Full
+CI38711349564 attempt2 PASS, including PHP/MySQL and native signed Range.
+The initial attempt hit external ECR Data limit exceeded before tests; an
+unchanged retry succeeded.
+
+Complete configured CELIKOM-0.4.45-full.zip saved; SHA256
+acb6c7024a902c700a385c68d419d2588c188a577304c721f2641de03fb75088.
 
 Client-only update, live server remains0.4.43-d7c2ab8b6ce142a2595573dcfb34d673b377e68d.
 PR6 open/unmerged; Issue7 open. Owner listening/real picker acceptance pending.

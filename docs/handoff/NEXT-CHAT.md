@@ -1,3 +1,34 @@
+# Latest: popup recovery + old-original handoff — client0.4.45 (2026-10-15)
+
+Owner explicitly reports0.4.44 did NOT resolve the audible fragment. Reproduced
+another leak: guard release during metadata-first transition unmutes the old
+native ORIGINAL stream.0.4.45 keeps its mute for bounded1000ms, releases on new
+source or transfers lease to the next verified replacement without unmuting.
+Stop/Return/shutdown release immediately; independent timeout fails open.
+0.4.44 baseline fails the new physical-mute test; updated code passes.
+
+Screenshot stuck text is version availability READ + Start access check, not a
+confirmed file upload. Picker cancellation itself persists no upload lock;
+exact cause of stuck requests remains unproven. Added hard read/reset deadlines
+(even with ignored AbortSignal), finite popup message/presentation waits, retry
+unlock, generation-fenced Start/Stop, explicit Start read reset and empty picker
+cancel cleanup. No write replay. Clearer version-check wording. Normal upload,
+anti-duplicate/duration/moderation and prior gain behavior retained.
+
+245 client tests/local validation/lint/security PASS. Native private Chrome
+38711342254 PASS: decoded MP3 old-original handoff + actual popup modules/cancel/
+next song/Start/Stop/late reply/timeout/fresh retry. Initial new fixture used an
+unreliable30ms form wait; condition-based wait passes. Full CI38711349564
+attempt2 PASS (including PHP/MySQL/native Range). Initial attempt hit external
+ECR Data limit exceeded before code/tests/SSH; unchanged retry succeeded.
+Client source7027863279f1190ca388c96fd44b6fe44e7ca3e6; fixture3c5d3d84028915fe50abd42ceebf3a43f3015895.
+CELIKOM-0.4.45-full.zip saved; SHA256
+acb6c7024a902c700a385c68d419d2588c188a577304c721f2641de03fb75088.
+Live server remains0.4.43-d7c2ab8b6ce142a2595573dcfb34d673b377e68d;
+no live music/gain/moderation/DB/deploy mutation. PR6 unmerged, Issue7 open.
+Owner0.4.45 real OS picker/listening acceptance pending; do not claim accepted.
+Details: docs/decisions/POPUP-AND-ORIGINAL-HANDOFF-0.4.45-2026-10-15.md.
+
 # Latest: track transition audio — client0.4.44 (2026-10-15)
 
 Owner reports a short other-song fragment on entering1944611/replacement10.
