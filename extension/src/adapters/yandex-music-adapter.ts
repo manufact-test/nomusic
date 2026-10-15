@@ -506,8 +506,14 @@
       const visibleMatch = core.pickTrackFromCatalog([...this.trackCatalog.values()], visible, 100).selected;
       const conflict = sessionMatch && visibleMatch && sessionMatch.id !== visibleMatch.id;
       let awaitingRefresh = false;
+      let awaitingSource = false;
       if (master) {
-        const source = master.currentSrc || master.src || "";
+        const assignedSource = master.src || "";
+        const currentSource = master.currentSrc || "";
+        const source = assignedSource || currentSource;
+        // src changes before currentSrc during HTML's asynchronous resource
+        // selection. Neither the old nor the next track may bind this gap.
+        awaitingSource = Boolean(assignedSource && currentSource && assignedSource !== currentSource);
         const sessionObject = this.safeCall(() => this.environment.navigator?.mediaSession?.metadata, null);
         const fingerprint = JSON.stringify({ session, visible: { title: visible.title, artist: visible.artist, album: visible.album, coverUri: visible.coverUri } });
         const previous = this.mediaIdentities.get(master);
@@ -530,7 +536,7 @@
           fingerprint, sessionObject, pending
         });
       }
-      const identityIssue = conflict ? "playback-metadata-conflict" : awaitingRefresh ? "awaiting-track-refresh" : null;
+      const identityIssue = awaitingSource ? "awaiting-media-source" : conflict ? "playback-metadata-conflict" : awaitingRefresh ? "awaiting-track-refresh" : null;
       return {
         id: identityIssue ? null : result.selected?.id || null,
         confidence: result.selected?.score || 0,

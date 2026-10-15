@@ -28,7 +28,7 @@
   function trace(snapshot, event) {
     const player=snapshot?.player, track=snapshot?.track;
     const replacements=Array.from(root.document?.querySelectorAll('audio[data-celikom-replacement="true"]') || []).slice(0,3).map(a=>({trackId:a.dataset.celikomTrackId||null,time:Math.round((a.currentTime||0)*1000),paused:a.paused,muted:a.muted,seeking:a.seeking,readyState:a.readyState}));
-    const state={trackId:track?.id||null,mediaId:player?.mediaId||null,time:Math.round((player?.currentTime||0)*1000),duration:player?.duration||null,paused:player?.paused,seeking:player?.seeking,readyState:player?.readyState,guard:guard.state().active,handoff:Boolean(handoff),replacements};
+    const state={trackId:track?.id||null,evidence:track?.evidence||null,mediaId:player?.mediaId||null,time:Math.round((player?.currentTime||0)*1000),duration:player?.duration||null,paused:player?.paused,seeking:player?.seeking,readyState:player?.readyState,guard:guard.state().active,handoff:Boolean(handoff),replacements};
     const previous=tracePrevious; tracePrevious=state;
     const shape=x=>JSON.stringify({...x,time:0,replacements:x.replacements.map(a=>({...a,time:0}))});
     if(previous&&shape(previous)===shape(state)&&Math.abs(state.time-previous.time)<800&&!/seek|metadata|load|emptied|playing|source|transition/.test(event||''))return;

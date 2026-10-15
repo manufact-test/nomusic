@@ -68,8 +68,8 @@ try{
  try{
   check(latest.track.id==='11','native initial identity');
   previous=new ReplacementPlayer(window,r=>fatal.push(r));await previous.prepare({url:urls[0],demoLoop:true});previous.applyState({volume:.4,muted:false,playbackRate:1});previous.play();await new Promise(r=>setTimeout(r,50));check(!previous.audio.paused,'native previous replacement plays');
-  loaded=ready();master.src=urls[1];master.load();await loaded;
-  const playing=master.play();check(previous.destroyed&&previous.audio.paused&&previous.audio.muted,'native old replacement silent before new play');await playing;
+  loaded=ready();master.src=urls[1];
+  const playing=master.play();check(previous.destroyed&&previous.audio.paused&&previous.audio.muted,'native old replacement silent before new play');await loaded;await playing;
   check(adapter.getSnapshot().track.id===null,'native stale metadata cannot restart previous recording');
   navigator.mediaSession.metadata=new MediaMetadata({title:'Fixture B',artist:'CELIKOM'});
   check(latest.track.id==='12','native metadata setter refresh is synchronous');

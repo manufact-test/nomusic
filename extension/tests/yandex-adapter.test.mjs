@@ -452,6 +452,7 @@ test("duration-only changes cannot refresh the previous identity on a new stream
 test("A replacement is destroyed before reused native play; only fresh B can start", async () => {
   for (const name of ["sync-engine","replacement-player","fail-open-controller","replacement-controller"]) await import(`../dist/unpacked/player/${name}.js`);
   const {ReplacementController} = globalThis.__CELIKOM_REPLACEMENT_CONTROLLER_V1__;
+  for (const delayedCurrentSource of [false,true]) {
   const media = new FakeMedia();
   const {environment} = createEnvironment(media);
   let metadata = environment.navigator.mediaSession.metadata;
@@ -472,16 +473,23 @@ test("A replacement is destroyed before reused native play; only fresh B can sta
   try {
     await settle(); assert.equal(players[0].playing,true);
     adapter.ingestTrackPayload({id:"1944611",title:"Всё пиздато",artists:[{name:"Зануда"}],durationMs:193283},"fixture");
-    media.currentSrc = media.src = "https://strm-rad-25.strm.yandex.net/next"; media.currentTime=0;
+    media.src = "https://strm-rad-25.strm.yandex.net/next";
+    if(!delayedCurrentSource)media.currentSrc=media.src;
+    media.currentTime=0;
     const started=media.play();
     assert.equal(players[0].destroyed,true, "old replacement stops synchronously at the stream transition");
     await started; await settle();
     assert.equal(players.length,1,"old metadata cannot launch another copy of A");
+    if(delayedCurrentSource){
+      assert.equal(adapter.getSnapshot().track.evidence,"awaiting-media-source");
+      media.currentSrc=media.src;
+    }
     environment.navigator.mediaSession.metadata = {title:"Всё пиздато",artist:"Зануда",album:"",artwork:[]};
     await settle();
     assert.equal(players.length,2);assert.equal(players[1].trackId,"1944611");assert.equal(players[1].playing,true);
     assert.equal(engine.activationCount,2);
   } finally {engine.destroy();await settle();adapter.unmount();}
+  }
 });
 
 test("fresh metadata arriving before its stream is not mistaken for stale metadata", () => {
