@@ -13,7 +13,7 @@ try{
  let html=await readFile(file,'utf8');
  html=html.replace('<script type="module" src="popup.js"></script>',`<script>
  const nativeTimeout=window.setTimeout.bind(window);
- window.setTimeout=(fn,ms,...args)=>nativeTimeout(fn,ms===30000||ms===60000?80:ms,...args);
+ window.setTimeout=(fn,ms,...args)=>nativeTimeout(fn,ms===30000||ms===60000?500:ms,...args);
  const state={enabled:false,phase:'STOPPED',bridge:{healthy:true},track:{id:'1944599',confidence:260,ambiguous:false,metadata:{title:'Папиросы',artist:'Зануда',durationMs:200820}}};
  let blockStart=false,blockVersion=false,finishStart,posts=0;
  const access={allowed:true,source:'promo',reason:'promo_active',valid_until:null};
@@ -34,23 +34,24 @@ try{
  (async()=>{try{
   await import('./popup.js');
   const wait=ms=>new Promise(resolve=>nativeTimeout(resolve,ms)),check=(v,m)=>{if(!v)throw Error(m)},q=s=>document.querySelector(s);
+  const until=async(test,label)=>{for(let i=0;i<150;i++){if(test())return;await wait(20);}throw Error(label+' / '+q('[data-upload-status]').textContent+' / add='+q('[data-action=add]').textContent);};
   await wait(30);document.body.dataset.recoveryStep='picker cancel';
-  q('[data-action=add]').click();await wait(30);
+  q('[data-action=add]').click();await until(()=>!q('[data-upload-form]').hidden,'initial form');
   const input=q('[data-upload-file]');check(!q('[data-upload-form]').hidden,'initial form');input.dispatchEvent(new Event('cancel'));
   check(!input.disabled&&!q('[data-action=add]').disabled,'cancel keeps picker available');check(posts===0,'cancel sends no file');
-  state.track.id='1944611';q('[data-action=add]').click();await wait(30);
+  state.track.id='1944611';q('[data-action=add]').click();await until(()=>q('[data-upload-track]').value==='1944611'&&!q('[data-upload-form]').hidden,'another song');
   check(q('[data-upload-track]').value==='1944611'&&!q('[data-upload-form]').hidden,'another song opens after cancel');
   document.body.dataset.recoveryStep='pending Start/Stop';blockStart=true;
   q('[data-action=start]').click();await wait(10);check(!q('[data-action=stop]').disabled,'Stop available during Start');
   q('[data-action=stop]').click();await wait(10);finishStart({...structuredClone(state),enabled:true,phase:'READY'});await wait(10);
   check(!q('[data-action=start]').disabled&&q('[data-status]').textContent==='Остановлен','late Start cannot overwrite Stop');
-  q('[data-action=start]').click();await wait(120);
+  q('[data-action=start]').click();await until(()=>!q('[data-action=start]').disabled&&q('[data-access-status]').textContent.includes('Проверка не завершена'),'Start timeout');
   check(!q('[data-action=start]').disabled&&q('[data-access-status]').textContent.includes('Проверка не завершена'),'stalled Start timeout unlocks');
-  blockStart=false;q('[data-action=start]').click();await wait(30);check(state.enabled&&q('[data-status]').textContent==='Трек определён','fresh Start works');
+  blockStart=false;q('[data-action=start]').click();await until(()=>state.enabled&&q('[data-status]').textContent==='Трек определён','fresh Start');check(state.enabled&&q('[data-status]').textContent==='Трек определён','fresh Start works');
   q('[data-action=stop]').click();await wait(20);
-  document.body.dataset.recoveryStep='version timeout';blockVersion=true;state.track.id='1944612';await wait(1200);
+  document.body.dataset.recoveryStep='version timeout';blockVersion=true;state.track.id='1944612';await until(()=>q('[data-version-status]').textContent.includes('Не удалось проверить'),'version timeout');
   check(q('[data-version-status]').textContent.includes('Не удалось проверить'),'stalled version check leaves loading state');
-  blockVersion=false;state.track.id='1944613';await wait(1200);check(q('[data-version-status]').textContent.includes('ещё не загружена'),'fresh song recovers version check');
+  blockVersion=false;state.track.id='1944613';await until(()=>q('[data-version-status]').textContent.includes('ещё не загружена'),'fresh version');check(q('[data-version-status]').textContent.includes('ещё не загружена'),'fresh song recovers version check');
   check(posts===0,'no unintended POST');document.body.dataset.recoveryResult='pass';
  }catch(e){document.body.dataset.recoveryResult=e.message}})();
  </script>`);
