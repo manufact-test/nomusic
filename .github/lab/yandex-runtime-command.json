@@ -1,13 +1,17 @@
 {
-  "run_id": 38718071552,
-  "seq": 4,
+  "run_id": 38765567080,
+  "seq": 1,
   "ops": [
     {
-      "op": "capture",
-      "wait": 5
+      "op": "key",
+      "code": 4,
+      "wait": 2
     },
     {
-      "op": "stop"
+      "op": "tap",
+      "x": 375,
+      "y": 1107,
+      "wait": 10
     }
   ]
 }
