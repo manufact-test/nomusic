@@ -367,3 +367,17 @@ test('API gain setting is bounded, preserved and absent legacy gain defaults to 
  gain=undefined;assert.equal((await api.resolve('yandex','888',{forceRefresh:true})).gainDb,0);
  for(const value of [-12.1,12.1,'6',null]){gain=value;await assert.rejects(api.resolve('yandex','888',{forceRefresh:true}),/invalid_api_response/);}
 });
+
+test('Broker preserves auth transport failures as retryable API network failures',async()=>{
+ const api={runtime:{id:'fixture',getManifest:()=>({version:'0.4.47'})}};
+ for(const reason of ['auth_network_error','auth_timeout','auth_route_blocked']){
+  const broker=createApiBroker(api,{readConfig:async()=>({baseUrl:'https://private.example'}),withAccess:async()=>{throw Error(reason);}});
+  assert.equal((await broker({type:'CELIKOM_API_RESOLVE',service:'yandex',trackId:'7'},{id:'fixture',url:'https://music.yandex.ru/'})).error,'api_network_error');
+ }
+});
+test('API network history retains status and timing without signed URLs or track identifiers',async()=>{
+ const entries=[];
+ const client=new ApiClient('https://private.example',{now:()=>now,onNetwork:item=>entries.push(item),fetch:async url=>response(url.endsWith('/config')?config:found)});
+ await client.resolve('yandex','7');assert.equal(entries.at(-1).endpoint,'resolve');assert.equal(entries.at(-1).httpStatus,200);
+ assert.equal(entries.at(-1).result,'ok');assert.ok(!JSON.stringify(entries).includes('token='));assert.ok(!JSON.stringify(entries).includes('track_id='));
+});

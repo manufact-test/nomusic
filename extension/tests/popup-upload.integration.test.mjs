@@ -211,7 +211,7 @@ test("Stage 7 on another Track ID remains eligible and rejects unconfirmed right
     current = {track: {...selected.track, id: selected.track.id + String(value.length)}};
     intervals[0]();
     await new Promise(resolve => setImmediate(resolve));
-    assert.equal(find("[data-status]").textContent, "Трек определён");
+    assert.equal(find("[data-status]").textContent, "Включён · играет оригинал");
     const text = find("[data-version-status]").textContent;
     assert.match(text, value === "none" ? /ещё не загружена/ : value === "pending" ? /на проверке/ : /доступна/);
   }

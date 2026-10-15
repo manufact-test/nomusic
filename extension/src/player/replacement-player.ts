@@ -38,6 +38,7 @@ function createGainChain(context, audio, db) {
       this.mediaSource = null;
       this.sourceBuffer = null;
       this.streamTask = null;
+      this.streamState={phase:"idle",offset:0,receivedBytes:0,httpStatus:null};
       this.audio = environment.document.createElement("audio");
       this.audio.dataset.celikomReplacement = "true";
       this.audio.hidden = true;
@@ -66,6 +67,7 @@ function createGainChain(context, audio, db) {
           abort.signal.addEventListener("abort", cancelled, { once: true });
         });
       };
+      this.streamState.phase="source-open";
       await waitForSourceOpen();
       if (this.destroyed || abort.signal.aborted) return;
       const buffer = source.addSourceBuffer("audio/mpeg");
@@ -103,9 +105,12 @@ function createGainChain(context, audio, db) {
           });
           continue;
         }
+        const rangeTimer=this.environment.setTimeout(()=>{this.streamState.phase="timeout";abort.abort();},15000);
+        try {
         const lastRequested = total === null
           ? offset + chunkSize - 1 : Math.min(total - 1, offset + chunkSize - 1);
         let response;
+        Object.assign(this.streamState,{phase:"headers",offset,httpStatus:null,requestAt:Date.now()});
         let attempt = 0;
         // Hosting may reject short bursts. Retry only temporary HTTP failures,
         // with the same signed URL/range; never bypass revoked/expired access.
@@ -116,7 +121,8 @@ function createGainChain(context, audio, db) {
               headers: { Range: "bytes=" + offset + "-" + lastRequested },
               credentials: "omit", cache: "no-store", redirect: "error", signal: abort.signal
             });
-          } catch (_error) { throw new Error("remote-stream-network"); }
+          } catch (_error) { throw new Error(this.streamState.phase==="timeout"?"remote-stream-timeout":"remote-stream-network"); }
+          this.streamState.httpStatus=response.status;
           if (response.status === 206) break;
           const retry = [429, 502, 503, 504].includes(response.status) && attempt < 2;
           // Discard the error body without buffering or exposing server text.
@@ -150,29 +156,37 @@ function createGainChain(context, audio, db) {
             || from !== offset || last < from || last > lastRequested
             || (total !== null && length !== total)) throw new Error("remote-stream-range");
         total = length;
+        this.streamState.phase="body";
         const bytes = await response.arrayBuffer();
         if (bytes.byteLength !== last - from + 1 || bytes.byteLength > chunkSize) {
           throw new Error("remote-stream-range");
         }
         if (this.destroyed || abort.signal.aborted) return;
+        this.streamState.phase="buffering";
         await append(bytes);
         offset = last + 1;
+        Object.assign(this.streamState,{phase:"streaming",receivedBytes:offset});
+        } finally { this.environment.clearTimeout(rangeTimer); }
+
       }
       if (!this.destroyed && !abort.signal.aborted && source.readyState === "open") {
+        this.streamState.phase="complete";
         source.endOfStream();
       }
     }
     async fetchNativeAsset(asset) {
       const abort = this.fetchAbort, parts = []; let offset = 0, total = null;
-      const timer = this.environment.setTimeout(() => abort.abort(), 30000);
+      const timer = this.environment.setTimeout(() => {this.streamState.phase="timeout";abort.abort();}, 30000);
       try {
         while (total === null || offset < total) {
           const requestedEnd = Math.min(offset + 524287, total === null ? 31457279 : total - 1);
+          Object.assign(this.streamState,{phase:"headers",offset,httpStatus:null,requestAt:Date.now()});
           const response = await this.environment.fetch(asset.url, {
             method: "GET", headers: { Range: `bytes=${offset}-${requestedEnd}` },
             credentials: "omit", cache: "no-store", redirect: "error", signal: abort.signal
           });
-          if (response.status !== 206) { await response.body?.cancel(); throw new Error("remote-stream-http"); }
+          this.streamState.httpStatus=response.status;
+          if (response.status !== 206) { await response.body?.cancel();throw new Error([401,403,429].includes(response.status)&&response.headers.get("content-type")?.includes("text/html")?"remote-stream-route-blocked":"remote-stream-http"); }
           if ((response.headers.get("content-type") || "").split(";")[0].trim().toLowerCase() !== asset.mimeType) throw new Error("remote-stream-format");
           const match = /^bytes ([0-9]+)-([0-9]+)\/([0-9]+)$/.exec(response.headers.get("content-range") || "");
           if (!match) throw new Error("remote-stream-range");
@@ -180,6 +194,7 @@ function createGainChain(context, audio, db) {
           if (!Number.isSafeInteger(size) || size < 1024 || size > 31457280 || from!==offset || last<from || last>requestedEnd || last>=size || (total!==null && size!==total)) throw new Error("remote-stream-range");
           total=size;
           // Bound each body while reading, not after allocating an untrusted body.
+          this.streamState.phase="body";
           const reader=response.body.getReader(); let count=0;
           try {
             for (;;) {
@@ -191,9 +206,13 @@ function createGainChain(context, audio, db) {
           } finally { await reader.cancel(); }
           if(count!==last-from+1)throw new Error("remote-stream-range");
           if(this.destroyed || abort.signal.aborted)throw new Error("Replacement cancelled");
-          offset=last+1;
+          offset=last+1;Object.assign(this.streamState,{phase:"streaming",receivedBytes:offset});
         }
+        this.streamState.phase="complete";
         return new Blob(parts, {type:asset.mimeType});
+      } catch(error) {
+        const reason=this.streamState.phase==="timeout"?"remote-stream-timeout":error instanceof TypeError?"remote-stream-network":error.message;
+        const failure=new Error(reason);failure.streamDetail={...this.streamState};throw failure;
       } finally { this.environment.clearTimeout(timer); }
     }
     async prepare(asset) {
@@ -246,7 +265,7 @@ function createGainChain(context, audio, db) {
           cleanup(); resolve();
         };
         const onError = () => { cleanup(); reject(new Error("replacement-media-error")); };
-        const timer = this.environment.setTimeout(() => { cleanup(); reject(new Error("replacement-load-timeout")); }, 10000);
+        const timer = this.environment.setTimeout(() => { cleanup(); const error=new Error("replacement-load-timeout");error.streamDetail={...this.streamState};reject(error); }, 10000);
         this.cancelLoad = () => { cleanup(); reject(new Error("Replacement cancelled")); };
         for (const event of ["loadedmetadata", "canplay"]) this.audio.addEventListener(event, onReady);
         this.audio.addEventListener("error", onError);
@@ -259,8 +278,8 @@ function createGainChain(context, audio, db) {
           if (this.destroyed) return;
           const permitted = ["remote-stream-network", "remote-stream-http", "remote-stream-format",
             "remote-stream-route-blocked", "remote-stream-range", "remote-stream-timeout", "remote-buffer-error", "remote-buffer-timeout"];
-          const reason = permitted.includes(error?.message) ? error.message : "remote-stream-error";
-          this.onFatal(reason, error.streamDetail || null);
+          const reason = this.streamState.phase==="timeout"?"remote-stream-timeout":permitted.includes(error?.message) ? error.message : "remote-stream-error";
+          this.onFatal(reason, error.streamDetail || {...this.streamState});
         });
       }
       await ready;

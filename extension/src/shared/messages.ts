@@ -20,6 +20,8 @@ export interface ExtensionState {
   network?: Array<{ endpoint: string; method: string; httpStatus: number | null; result: string; elapsedMs: number; at: number }>;
   manualBypass?: { trackId: string } | null;
   replacementError?: string | null;
+  preparation?: {stage: string; elapsedMs: number; stream?: unknown} | null;
+  availability?: string;
   suspended?: boolean;
   recovering?: boolean;
   connection?: {

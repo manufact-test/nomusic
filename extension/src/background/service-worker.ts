@@ -84,7 +84,7 @@ async function readState(retry = false): Promise<ExtensionState> {
     enabled,
     phase: enabled ? connection.error ? "ERROR" : controller?.phase || "CONNECTING" : "STOPPED",
     version: VERSION,
-    network: userAuth.networkDiagnostics?.() || [],
+    network: [...(userAuth.networkDiagnostics?.() || []),...(resolveApi.networkDiagnostics?.() || [])].sort((a,b)=>a.at-b.at).slice(-24),
     connection: {
       controllerPresent: Boolean(controller),
       recovered: connection.recovered || false,
@@ -196,7 +196,7 @@ chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse) =>
         // Explicit retry discards stale read checks retained by the worker
         // after a popup closes; existing POSTs are never automatically replayed.
         accessEpoch++; accessCheck = null;
-        userAuth.resetTransport?.();
+        userAuth.resetTransport?.(); resolveApi.resetTransport?.();
         const preview = await userAuth.perform("account-preview", {});
         if (preview.localSession === false) {
           sendResponse({ ...DEFAULT_STATE, accessError: "sign_in_required" }); return;

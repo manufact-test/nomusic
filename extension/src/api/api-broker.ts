@@ -2,7 +2,7 @@ import { ApiClient } from "./api-client.js";
 import { AnalyticsEventService } from "./analytics-event-service.js";
 
 export function createApiBroker(api, options = {}) {
-  let client = null; let accessToken = null;
+  let client = null; let accessToken = null; const networkHistory=[];
   const readConfig = options.readConfig || (async () => (await fetch(api.runtime.getURL("api/config.json"))).json());
   const withAccess = options.withAccess || (async () => { throw new Error("invalid_session"); });
   async function getClient(session) {
@@ -10,7 +10,7 @@ export function createApiBroker(api, options = {}) {
     if (!config.baseUrl) return null;
     if (!client || accessToken !== session.access_token) {
       accessToken = session.access_token;
-      client = new ApiClient(config.baseUrl, { ...options, accessToken, clientVersion: api.runtime.getManifest().version });
+      client = new ApiClient(config.baseUrl, { ...options, onNetwork:item=>{networkHistory.push(item);if(networkHistory.length>16)networkHistory.shift();}, accessToken, clientVersion: api.runtime.getManifest().version });
     }
     return client;
   }
@@ -33,12 +33,14 @@ export function createApiBroker(api, options = {}) {
         return { ok: true, configured: true, asset: await active.resolve(message.service, message.trackId, { forceRefresh: message.forceRefresh === true }) };
       });
     } catch (error) {
-      const code = String(error?.message || "");
+      let code = String(error?.message || "");
+      if(["auth_network_error","auth_timeout","auth_route_blocked"].includes(code))code="api_network_error";
+      else if(code==="auth_unavailable")code="api_server_error";
       if (code === "invalid_session") return { ok: false, error: "api_access_missing" };
       const safeErrors = new Set(["api_access_denied", "api_forbidden", "api_network_error", "api_server_error",
         "api_http_error", "invalid_api_response", "invalid_audio_url", "invalid_api_config", "extension_update_required"]);
       return { ok: false, error: safeErrors.has(code) ? code : "api_unavailable" };
     }
   };
-  return Object.assign(handle, { resetTransport: () => client?.resetTransport() });
+  return Object.assign(handle, { networkDiagnostics:()=>networkHistory.map(item=>({...item})), resetTransport: () => client?.resetTransport() });
 }

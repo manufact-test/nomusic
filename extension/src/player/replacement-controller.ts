@@ -48,6 +48,7 @@
       const changed = this.testTrackId !== id || this.enabled !== enabled;
       this.enabled = enabled;
       this.testTrackId = id;
+      if(explicitStart && this.operation)this.abort("explicit-retry");
       if (changed || explicitStart) { this.networkRetries = 0; this.freshResolve = true; this.manualBypass = null; this.blockedTrackId = null; this.retryBlock = null; this.masterClock = null; if (!this.suspended) this.lastError = null; this.negativeResolution = null; }
       this.reconcile();
     }
@@ -122,7 +123,7 @@
     }
     async prepare() {
       const snapshot = this.snapshot;
-      const operation = { generation: ++this.generation, token: `${this.bridge.sessionId}:${this.generation}`, trackId: snapshot.track.id, mediaId: snapshot.player.mediaId, sync: new this.SyncEngine(), player: null };
+      const operation = { startedAt:Date.now(),stage:"resolving",generation: ++this.generation, token: `${this.bridge.sessionId}:${this.generation}`, trackId: snapshot.track.id, mediaId: snapshot.player.mediaId, sync: new this.SyncEngine(), player: null };
       this.operation = operation;
       this.phase = "PREPARING";
       this.log(`PREPARING · ${operation.trackId}`);
@@ -134,13 +135,14 @@
         if (!this.current(operation)) return;
         if (!operation.asset?.found) {
           this.negativeResolution = { trackId: operation.trackId, until: Date.now() + Math.min(60000, Math.max(5000, operation.asset?.retryAfterMs || 15000)) };
-          this.operation = null; this.phase = "IDLE"; return;
+          this.operation = null; this.phase = "IDLE"; this.log(`NO_REPLACEMENT · ${operation.trackId}`); return;
         }
         if (!operation.asset.demoLoop && (!Number.isFinite(operation.asset.durationMs)
           || Math.abs(operation.asset.durationMs - snapshot.track.metadata.durationMs) > 1500 || operation.asset.expiresAt <= Date.now())) {
           throw new Error("replacement_duration_or_token_invalid");
         }
         if (!operation.asset.demoLoop) this.event("replacement_available", { service: "yandex" });
+        operation.stage="loading";
         operation.player = this.createPlayer((reason, detail) => { if (this.current(operation)) this.abort(reason, true, detail); });
         if(operation.player.audio?.dataset)operation.player.audio.dataset.celikomTrackId=operation.trackId;
         await operation.player.prepare(operation.asset);
@@ -148,6 +150,7 @@
         if (!this.current(operation)) return;
         this.update(await this.bridge.getSnapshot());
         if (!this.current(operation) || !this.eligible()) return;
+        operation.stage="guarding";
         const guard = await this.bridge.request("GUARD_ENGAGE", { token: operation.token, trackId: operation.trackId, mediaId: operation.mediaId });
         if (!this.current(operation)) { this.bridge.post("RELEASE_NOW", { token: operation.token }); return; }
         this.update(guard.snapshot);
@@ -158,7 +161,7 @@
         this.lastError = null;
         this.log(`REPLACEMENT_ACTIVE · ${operation.trackId}`);
         this.reconcile(true);
-      } catch (error) { if (this.current(operation)) this.abort(error.message, true); }
+      } catch (error) { if (this.current(operation)) this.abort(error.message, true, error.streamDetail || null); }
     }
     abort(reason, blockTrack = false, detail = null) {
       const operation = this.operation;
@@ -174,7 +177,7 @@
       if (!operation) return;
       const completed = reason === "master-ended" || detail?.reason === "master-ended";
       if (operation.asset && !operation.asset.demoLoop && completed) this.event("replacement_completed", { service: "yandex" });
-      else if (operation.asset && !operation.asset.demoLoop && !["manual-original", "state-changed", "controller-destroyed"].includes(reason)) this.event("fail_open", { service: "yandex", error_code: reason === "api_unavailable" ? "api_unavailable" : reason.startsWith("guard-lost:") ? "binding_changed" : "unknown" });
+      else if (operation.asset && !operation.asset.demoLoop && !["manual-original", "state-changed", "controller-destroyed", "explicit-retry"].includes(reason)) this.event("fail_open", { service: "yandex", error_code: reason === "api_unavailable" ? "api_unavailable" : reason.startsWith("guard-lost:") ? "binding_changed" : "unknown" });
       this.restoreCount++;
       this.lastRestore = {
         reason, detail, requestedAt: Date.now(), trackId: operation.trackId, mediaId: operation.mediaId,

@@ -1,3 +1,4 @@
+import { playbackPresentation } from "./playback-presentation.js";
 import { withDeadline } from "../shared/request-deadline.js";
 import { inspectM4a } from "../upload/m4a.js";
 import { mp3DurationMs, durationNotice } from "../upload/mp3-duration.js";
@@ -36,6 +37,7 @@ function render(state: ExtensionState): void {
     if (uploadPanel) uploadPanel.hidden = true;
     addTrackButton?.setAttribute("aria-expanded", "false");
   }
+  const presentation=playbackPresentation(state);
   const labels: Record<ExtensionState["phase"], string> = {
     STOPPED: "Остановлен",
     CONNECTING: "Подключение…",
@@ -46,13 +48,13 @@ function render(state: ExtensionState): void {
     REPLACEMENT_ACTIVE: "Подмена активна",
     RESTORING: "Возвращаем оригинал…"
   };
-  status.textContent = incidentStatus.active() ? "Сбой интеграции" : !state.enabled ? labels.STOPPED : state.suspended ? state.replacementError === "service_incident" ? "Сбой интеграции" : "Восстанавливаем связь…" : state.manualBypass ? "Оригинал" : state.replacementError ? state.recovering ? "Оригинал · восстанавливаем связь" : "Оригинал · ошибка подмены" : labels[state.phase] || "Проверка…";
-  const connected=state.enabled && !incidentStatus.active() && state.phase!=="ERROR" && !state.connection?.error && state.bridge?.healthy===true && !state.suspended && !state.replacementError && !state.startupError;
+  status.textContent = incidentStatus.active() ? "Сбой интеграции" : !state.enabled ? labels.STOPPED : state.suspended ? state.replacementError === "service_incident" ? "Сбой интеграции" : "Восстанавливаем связь…" : state.manualBypass ? "Оригинал" : state.replacementError ? state.recovering ? "Оригинал · восстанавливаем связь" : "Оригинал · ошибка подмены" : presentation.label || labels[state.phase] || "Проверка…";
+  const connected=state.enabled && !incidentStatus.active() && state.phase!=="ERROR" && !state.connection?.error && state.bridge?.healthy===true && !state.suspended && !state.replacementError && !state.startupError && !["PREPARING","RESTORING"].includes(state.phase);
   status.dataset.active = String(connected);
   document.querySelector<HTMLElement>(".mark")?.setAttribute("data-active",String(connected));
-  startButton.disabled = state.enabled && state.phase !== "ERROR" && !state.manualBypass && !state.replacementError;
+  startButton.disabled = presentation.startDisabled;
   if (starting) startButton.disabled = true;
-  startButton.textContent = state.phase === "ERROR" ? "Повторить" : "Старт";
+  startButton.textContent = presentation.startLabel;
   stopButton.disabled = !state.enabled && !starting;
   if (track) {
     const title = state.track?.metadata?.title?.trim();
@@ -102,7 +104,7 @@ startButton?.addEventListener("click", async () => {
   } finally {
     if (generation === startGeneration) {
       starting = false;
-      startButton.disabled = Boolean(lastState?.enabled && !lastState?.replacementError && !lastState?.manualBypass && lastState?.phase !== "ERROR");
+      startButton.disabled = Boolean(lastState && playbackPresentation(lastState).startDisabled);
       if (stopButton) stopButton.disabled = !lastState?.enabled;
     }
   }

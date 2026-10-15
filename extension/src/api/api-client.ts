@@ -13,7 +13,7 @@ export class ApiClient {
     // can throw "Illegal invocation" before any network request is sent.
     // Injected test fetchers remain unchanged.
     this.fetch = options.fetch || globalThis.fetch.bind(globalThis);
-    this.now = options.now || Date.now;
+    this.now = options.now || Date.now; this.onNetwork=options.onNetwork||(()=>{});
     this.accessToken = options.accessToken || "";
     this.clientVersion = options.clientVersion || "0.4.0";
     this.cache = new Map(); this.pending = new Map(); this.configCache = null;
@@ -28,6 +28,7 @@ export class ApiClient {
     catch (error) { if (["network_changed","request_timeout"].includes(error?.message)) throw new Error("api_network_error"); throw error; }
   }
   async requestOnce(path, options, signal) {
+    const started=this.now();let httpStatus=null,outcome="ok";
     try {
       let response;
       try {
@@ -37,6 +38,7 @@ export class ApiClient {
           headers: { ...(this.accessToken ? { Authorization: `Bearer ${this.accessToken}` } : {}), ...(options.body ? { "Content-Type": "application/json" } : {}) }
         });
       } catch (_error) { throw Object.assign(new Error("api_network_error"), { retryable: signal.reason !== "network_changed" }); }
+      httpStatus=response.status;
       if ([401,403,429].includes(response.status) && !response.headers.get("content-type")?.startsWith("application/json")) throw new Error("api_network_error");
       if (response.status === 401) throw new Error("api_access_denied");
       if (response.status === 403) throw new Error("api_forbidden");
@@ -58,9 +60,12 @@ export class ApiClient {
       for (const chunk of chunks) { merged.set(chunk, offset); offset += chunk.byteLength; }
       return JSON.parse(new TextDecoder().decode(merged));
     } catch (error) {
+      outcome=signal.aborted?"api_timeout":error?.message==="api_server_error"?"api_server_error":"api_request_error";
       if (error?.name === "AbortError" || error instanceof TypeError)
         throw Object.assign(new Error("api_network_error"), { retryable: signal.reason !== "network_changed" });
       throw error;
+    } finally {
+      try{this.onNetwork({endpoint:path.split("?")[0].replace("/api/v1/",""),method:options.method||"GET",httpStatus,result:outcome,elapsedMs:Math.max(0,this.now()-started),at:this.now()});}catch{/* diagnostics never block playback */}
     }
   }
   async config() {

@@ -344,6 +344,7 @@ async function remoteStreamFixture(statuses = [], onRetry = null) {
   const env = {
     document: { createElement: () => media, documentElement: { append() {} } },
     setTimeout: (fn, delay) => {
+      if(delay===15000&&statuses.includes("stall"))return setTimeout(fn,0);
       if (delay === 500 || delay === 1000) {
         onRetry?.();
         return setTimeout(fn, 0);
@@ -365,6 +366,7 @@ async function remoteStreamFixture(statuses = [], onRetry = null) {
       const from = Number(requested[1]), to = Math.min(Number(requested[2]), bytesTotal - 1);
       calls.push([from, to]);
       const entry = statuses[calls.length - 1] ?? 206;
+      if(entry==="stall")return new Promise((_,reject)=>options.signal.addEventListener("abort",()=>reject(Object.assign(new Error("aborted"),{name:"AbortError"})),{once:true}));
       const status = typeof entry === "object" ? entry.status : entry;
       if (status !== 206) return { status, headers: new Headers(typeof entry === "object" ? {"content-type":entry.contentType} : {}), body: { cancel: async () => { cancelledBodies++; } } };
       const bytes = new Uint8Array(to - from + 1);
@@ -514,4 +516,28 @@ test("guard lease handoff never unmutes native audio and preserves latest user i
   guard.transfer(media,"m","s:1","s:3");assert.equal(media.physicalMuted,true);assert.equal(media.muted,false);
   assert.equal(guard.release("s:1").released,false);assert.equal(media.physicalMuted,true);
   guard.release("s:3");assert.equal(media.physicalMuted,false);assert.equal(media.volume,.2);
+});
+
+test('Explicit retry cancels loading immediately and fences a late previous resolution',async()=>{
+ const old=deferred();let count=0;
+ const f=fixture({resolveAsset:()=>++count===1?old.promise:Promise.resolve({found:true,durationMs:200000,expiresAt:Date.now()+60000})});
+ f.engine.configure(false,'');f.update(snapshot());f.engine.configure(true,'');await settle();
+ assert.equal(f.engine.phase,'PREPARING');const first=f.engine.operation;
+ f.engine.configure(true,'',true);await settle();
+ assert.notEqual(f.engine.operation,first);assert.equal(f.engine.activationCount,1);
+ const current=f.engine.operation;old.resolve({found:true,durationMs:200000,expiresAt:Date.now()+60000});await settle();
+ assert.equal(f.engine.operation,current);assert.equal(f.engine.activationCount,1);f.engine.destroy();await settle();
+});
+
+test('Manual retry disposes the pending decoder; late readiness cannot reactivate it',async()=>{
+ const gate=deferred(),f=fixture({loadGate:gate});f.update(snapshot());await settle();
+ assert.equal(f.engine.phase,'PREPARING');const previous=f.players[0];
+ f.engine.configure(true,'2',true);assert.equal(previous.destroyed,true);await settle();
+ gate.resolve();await settle();assert.equal(f.engine.activationCount,1);assert.equal(f.players.length,2);assert.notEqual(f.engine.operation.player,previous);
+ f.engine.destroy();await settle();
+});
+test('A stalled later MP3 range is bounded and fails open with network progress',async()=>{
+ const f=await remoteStreamFixture([206,'stall']);await new Promise(resolve=>setTimeout(resolve,25));
+ assert.equal(f.fatals[0]?.reason,'remote-stream-timeout');assert.equal(f.fatals[0].detail.offset,524288);
+ assert.equal(f.fatals[0].detail.receivedBytes,524288);assert.equal(f.fatals[0].detail.phase,'timeout');f.player.destroy();
 });

@@ -47,7 +47,11 @@
         log: (message) => this.log(message),
         onEvent: (name, properties) => this.event(name, properties),
         resolveAsset: async (trackId, options = {}) => {
-          const response = await chrome.runtime.sendMessage({ type: "CELIKOM_API_RESOLVE", service: "yandex", trackId, forceRefresh: options.fresh === true });
+          let timer;
+          const response = await Promise.race([
+            chrome.runtime.sendMessage({ type: "CELIKOM_API_RESOLVE", service: "yandex", trackId, forceRefresh: options.fresh === true }),
+            new Promise((_,reject)=>{timer=root.setTimeout(()=>reject(new Error("api_network_error")),30000);})
+          ]).finally(()=>root.clearTimeout(timer));
           this.apiConfigured = response?.configured ?? this.apiConfigured;
           if (!response?.ok) {
             const permitted = ["api_access_missing", "api_access_denied", "api_forbidden", "api_network_error",
@@ -204,6 +208,8 @@
         recovering: Boolean(this.engine.retryBlock),
         guardActive: Boolean(this.snapshot?.guard?.active),
         driftMs: this.engine.driftMs,
+        preparation: this.engine.phase === "PREPARING" && this.engine.operation ? { stage:this.engine.operation.stage, elapsedMs:Math.max(0,Date.now()-this.engine.operation.startedAt), stream:this.engine.operation.player?.streamState || null } : null,
+        availability: this.engine.negativeResolution?.trackId === this.snapshot?.track?.id ? "unavailable" : this.engine.operation?.asset?.found ? "available" : "unknown",
         playback: { activationCount: this.engine.activationCount, restoreCount: this.engine.restoreCount, lastRestore: this.engine.lastRestore },
         api: { configured: this.apiConfigured, mode: this.testTrackId ? "synthetic-demo" : "remote", replacementId: this.engine.operation?.asset?.replacementId || null },
         track: this.snapshot?.track || null,
