@@ -1,3 +1,23 @@
+# Latest: track transition audio — client0.4.44 (2026-10-15)
+
+Owner reports a short other-song fragment on entering1944611/replacement10.
+Reproduced stale previous identity after native stream reuse; duration alone
+cannot prove identity. Synchronous native play/load observation + Media Session
+setter observation stop the old replacement without waiting for polling.
+New stream with unchanged identity and conflicting known DOM/session identities
+withhold replacement until refreshed. Metadata-before-stream and ordinary seeks
+covered. AbortError/superseded play rejection no longer falsely block playback;
+real autoplay denial still fails open. No audio/gain/moderation/server changes.
+
+236 client tests,17 PoC and local lint/validation/security PASS. Native Chrome
+38709031363 PASS, including decoded MP3 transition and actual metadata setter.
+Full CI38709036919 PASS (PHP/MySQL/native signed Range). Client source1057ef863615585cd8b2a03443f4514fa03ef34d.
+Complete CELIKOM-0.4.44-full.zip saved; SHA256
+7a72f4a9763d529eabdfb3a37471ed9ce7681f65ccbe906ed1259fc37fca6e99.
+Live server stays0.4.43-d7c2ab8b6ce142a2595573dcfb34d673b377e68d. PR6 open/unmerged.
+Owner accepted previous admin refinements;0.4.44 listening acceptance pending.
+Details: docs/decisions/TRACK-TRANSITION-AUDIO-0.4.44-2026-10-15.md.
+
 # Latest admin refinement (2026-10-14, extension remains0.4.43)
 
 Gain control defaults collapsed in "Громкость версии", above technical details.

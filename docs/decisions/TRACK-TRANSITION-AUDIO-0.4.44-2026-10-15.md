@@ -20,7 +20,8 @@ native loadstart in the normalized metadata events. New stream + unchanged old
 identity is withheld until identity metadata refreshes; player DOM and Media
 Session resolving to different known tracks also withhold admission. Duration
 changes alone are not identity refresh. Metadata arriving before the new stream
-is covered separately. Raw resource URLs stay inside MAIN and are not added to
+is covered separately. The pending resource identity survives intermediate
+DOM/session conflicts and is renewed for the next transition (A to B to C). Raw resource URLs stay inside MAIN and are not added to
 diagnostics. Resource-change guard reason retains precedence over deliberately
 withheld track identity, preserving existing recovery behavior.
 
@@ -41,7 +42,14 @@ real autoplay failures, and the existing two-world packaged recovery cases.
 New native Chromium regression uses decoded MP3, a real Media Session setter
 and two blob resources to verify the previous replacement is muted/destroyed
 before new native play and that fresh identity is delivered synchronously.
-CI/native result and final artifact are recorded after execution.
+Private Chrome workflow38709031363 PASS, including the real native transition
+regression, saved gain DSP/admin and support flow. Local lint/validation/security
+and17 PoC tests PASS. Full PHP/MySQL CI38709036919 PASS, including signed Range native playback.
+
+Complete configured archive CELIKOM-0.4.44-full.zip saved; SHA256
+7a72f4a9763d529eabdfb3a37471ed9ce7681f65ccbe906ed1259fc37fca6e99.
+Install in place over the existing unpacked extension, reload it and the Yandex
+page, then test entering1944611 from several other songs.
 
 Client-only update; live backend remains0.4.43-d7c2ab8b6ce142a2595573dcfb34d673b377e68d.
 No server deployment, migration, music/gain/moderation mutation. PR6 remains open.
