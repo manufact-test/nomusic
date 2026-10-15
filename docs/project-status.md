@@ -1,3 +1,15 @@
+## 2026-10-15 — 0.4.49: first-play leak and actual M4A 503
+
+Owner rejects full acceptance of .48: foreign intro now rarer (~1/6), M4A cold load sometimes gray/reconnecting for many seconds. Two .48 diagnostics and screenshot inspected. First is a NEW controller, generation1/activation1: no previous lease, unguarded native time100–460ms. Second proves two M4A503 failures, 5/10s whole-file backoff and success only at ~18.5s. Another trace shows metadata-first handoff expiry127ms into the new native play. Exact hosting503 cause unproven; .48 four-reader bursts removed.
+
+.49 adds synchronous first-native-play admission for a confident exact master with independent matching duration, current session/heartbeat and enabled/not-suspended revisioned policy. One-second maximum lookup mute, negative TTL/Stop/Original/suspension/unload immediate fallback, one attempt per resource (no repeated resume mute), actual utility trigger excluded. Verified positive resolve reserves the existing bounded loading lease. Fresh native play can renew an old transition once, at most2s total before positive reserve. M4A now uses first signed512KiB plus ONE sequential remainder request, no parallel burst; retries transient failed range twice500/1000ms retaining first bytes, never401/403. Complete cache still requires fresh signed access and strong ETag. First uncached nativeBlob requires download/decoder; do not promise zero startup silence.
+
+Source commit6f74d310ea8bb35829a06109ce37ce2869199c2d. 262 extension testsPASS; lint/validate/securityPASS. Native Chrome package38755004451 PASS: real M4A503 recovery/decode/play/seek, first-play physical mute before native execution, slow metadata-first transition past former deadline, MP3MSE/gain/popup cancel and retry. Full CI38755015137 PASS on first attempt (complete repository, PHP/MySQL, native Chrome and packaging).
+
+Owner ZIP outputs/CELIKOM-0.4.49-full.zip,2468975bytes,SHA256 5df6cfccaaa6a435ce0dae0fa99ed4d90644ef940bda506d9bf6e3c75a963d02. All39 compiled modules+both bundles matched current source; configured production API. Library libfile_86863c13fec481918174c4d9b71e0dc8 version0. Update extension AND reload Yandex tab. Owner audible-case acceptance still pending; never call synthetic checks acceptance.
+
+Decision docs/decisions/FIRST-PLAY-AND-M4A-503-0.4.49-2026-10-15.md. Extension-only; backend remains .46-f2d1cc31f598a983c46660688b453392faf0fc8d. Do not change audio/mappings/moderation/gain/accounts, preserve1944599/replacement27. PR6 staysOPEN/unmerged; issue7OPEN. Preserve concurrent Android work.
+
 ## 2026-10-15 — 0.4.48: M4A preparation and native transition mute
 
 Owner confirms .47 starts/works and direct M4A upload/admin is good. Remaining issues: every M4A switch appears disconnected for 1–1.5 s; 1944611 still has a foreign intro. Three .47 traces show healthy bridge/HTTP200, M4A full-file sequential preparation 2.691/2.242 s and a 100–402 ms unguarded native intro for 1944611 after the old replacement was already disposed. Do not claim the previous wrong-song fixes were accepted.

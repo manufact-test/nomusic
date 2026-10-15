@@ -20,6 +20,6 @@ First ever uncached M4A still requires its bytes and decoding. Zero cold-start s
 
 ## Verification
 
-262 extension tests PASS locally, including first play without previous replacement, immediate negative restore, no repeated mute, Stop, deadline fallback, exact byte continuation, transient 503 recovery and bounded/no-revocation retry. Lint/validate/security PASS. Native Chrome and full CI results recorded in handoff before delivery. Native test now injects actual M4A first-range 503, checks native decode/play/seek and physical original mute synchronously before first play plus slow metadata-first transition extending past the previous deadline.
+262 extension tests PASS locally, including first play without previous replacement, immediate negative restore, no repeated mute, Stop, deadline fallback, exact byte continuation, transient 503 recovery and bounded/no-revocation retry. Lint/validate/security PASS. Native Chrome package 38755004451 PASS; full CI 38755015137 PASS on first attempt (complete PHP/MySQL/native browser/build/security checks). Native test now injects actual M4A first-range 503, checks native decode/play/seek and physical original mute synchronously before first play plus slow metadata-first transition extending past the previous deadline.
 
 Extension-only .49. Backend unchanged .46; no audio, mapping, moderation, gain or account changes. Preserve owner M4A 1944599/replacement 27, PR #6 OPEN/unmerged and issue #7 OPEN. Owner validation pending.
