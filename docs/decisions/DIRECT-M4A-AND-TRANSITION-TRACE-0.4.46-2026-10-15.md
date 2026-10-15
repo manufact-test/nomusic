@@ -9,3 +9,9 @@ Owner accepted the 0.4.45 file-picker cancellation / stuck popup fix. Owner reje
 Read-only live audit 38715400937: actual replacement 10 is version 2 / asset 11, MP3 size 9035630, ID3 99536 bytes, measured 223399 ms versus canonical 221930 ms. Initial 500 ms did not strongly correlate with the first 20 s of three other active replacements. This does not rule out a transition leak and is not proof of a fix. Owner removed Papirosy mapping; never reactivate it.
 
 Keep PR #6 and issue #7 open. Preserve concurrent Android laboratory work. No live music, mappings, moderation decisions, accounts, entitlements or volume changes are authorized by this update.
+
+## Verified delivery
+
+Full CI 38719708808 PASS; native Chrome 38719703847 PASS; deployment 38719703727 PASS to release 0.4.46-f2d1cc31f598a983c46660688b453392faf0fc8d. 247 extension tests; independent AAC PHP inspection and corruption cases; M4A MySQL upload/idempotency/strict duration/pending gate; signed Range source-byte equality; old-client found:false; actual Chrome native AAC playback/seek/pause/gain. Live after-deploy preservation and isolated restore checks PASS for 41 tables and 23 media objects. Existing exact-head remote-operation guard retained; rejected stale run made no remote changes and a fresh run succeeded.
+
+ZIP 2463347 bytes; SHA-256 19598e24ac7a4e8383697f78c7997e6bdf26bccaf1c78ee9f124be69408a8afb; saved original deliverable identity libfile_0b1cedf0ecd481918c0a8fe97821f0ad (version 0). Owner's real Yandex symptom still needs acceptance.

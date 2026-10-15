@@ -1,3 +1,11 @@
+## 2026-10-15 — 0.4.46 delivered: direct M4A, pending-source guard, owner check next
+
+Server deployed successfully: `0.4.46-f2d1cc31f598a983c46660688b453392faf0fc8d`; deployment run `38719703727` PASS. Full CI `38719708808` PASS; actual native Chrome package/player run `38719703847` PASS. 247 extension tests pass; independent PHP AAC inspector, malformed-container cases, MySQL upload/idempotency/duration/moderation gate, legacy-client fallback, signed M4A ranges, actual browser playback/seek/pause/gain all pass. Snapshot/after-deploy audit and isolated SQL/media restoration pass (41 tables, 23 media objects preserved). Existing exact-head deployment guard retained; first stale attempt was refused before remote mutation and retry succeeded.
+
+Owner ZIP: `outputs/CELIKOM-0.4.46-full.zip`, 2463347 bytes, SHA-256 `19598e24ac7a4e8383697f78c7997e6bdf26bccaf1c78ee9f124be69408a8afb`, Library `libfile_0b1cedf0ecd481918c0a8fe97821f0ad` version 0. Configured production API; direct MP3/M4A AAC upload, no conversion. Admin same workflow, M4A format label.
+
+Wrong-song fragment is **awaiting owner acceptance**, not proven resolved on Yandex. Added verified delayed-currentSrc admission fix: existing .45/current previous implementation fails new counterexample; .46 passes, including real Chrome test without explicit load(). Never bind an assigned/current resource mismatch. Diagnostics include bounded 48-record transitionTrace with replacement identity/time/mute/pause and native evidence. If symptom persists, request fresh .46 diagnostics immediately after playback transition. Popup cancellation fix .45 is accepted by owner. Preserve PR #6 OPEN/unmerged and issue #7 OPEN. Preserve concurrent Android work.
+
 ## 2026-10-15 — 0.4.46 in verification
 
 Direct M4A/AAC support alongside MP3, no conversion. See `docs/decisions/DIRECT-M4A-AND-TRANSITION-TRACE-0.4.46-2026-10-15.md`. Owner confirmed popup cancellation fixed in .45; wrong-song fragment still OPEN. .46 adds bounded transition evidence, not a confirmed audio fix. Preserve concurrent Android commits; PR #6 remains open.
