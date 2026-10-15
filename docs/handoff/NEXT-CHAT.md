@@ -1,3 +1,7 @@
+## 2026-10-15 — 0.4.46 in verification
+
+Direct M4A/AAC support alongside MP3, no conversion. See `docs/decisions/DIRECT-M4A-AND-TRANSITION-TRACE-0.4.46-2026-10-15.md`. Owner confirmed popup cancellation fixed in .45; wrong-song fragment still OPEN. .46 adds bounded transition evidence, not a confirmed audio fix. Preserve concurrent Android commits; PR #6 remains open.
+
 # Latest: popup recovery + old-original handoff — client0.4.45 (2026-10-15)
 
 Owner explicitly reports0.4.44 did NOT resolve the audible fragment. Reproduced

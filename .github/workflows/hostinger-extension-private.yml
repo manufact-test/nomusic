@@ -69,6 +69,10 @@ jobs:
         run: npm --prefix extension test
       - name: Native Chromium support flow
         run: REQUIRE_BROWSER_AUDIO=1 node scripts/test-support-browser.mjs
+      - name: Install CI-only AAC encoder for disposable M4A playback fixture
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends ffmpeg
       - name: Native Chromium saved audio gain
         run: REQUIRE_BROWSER_AUDIO=1 node scripts/test-audio-gain-browser.mjs
       - name: Native Chromium cancelled upload and stalled popup recovery
