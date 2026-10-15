@@ -13,7 +13,9 @@ permissions:
 jobs:
   observe:
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 45
+    env:
+      LAB_SCREEN_RECIPIENT: age1qwwfumdms2q9d7l9z2ndqr2wkuy8ql5u8qxptguahjupmujhs33qnkls62
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -126,7 +128,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: yandex-auth-checkpoint-${{ github.run_id }}
-          path: ${{ runner.temp }}/yandex-lab/*.json
+          path: |
+            ${{ runner.temp }}/yandex-lab/*.json
+            ${{ runner.temp }}/yandex-lab/auth-checkpoint.png.age
           retention-days: 1
       - name: Bounded laboratory round 1
         env:
@@ -140,6 +144,7 @@ jobs:
           name: yandex-lab-round-1-${{ github.run_id }}
           path: |
             ${{ runner.temp }}/yandex-lab/round-1.json
+            ${{ runner.temp }}/yandex-lab/round-1-*.png.age
             ${{ runner.temp }}/yandex-lab/trace.jsonl
             ${{ runner.temp }}/yandex-lab/failure-command.json
           if-no-files-found: warn
@@ -156,6 +161,7 @@ jobs:
           name: yandex-lab-round-2-${{ github.run_id }}
           path: |
             ${{ runner.temp }}/yandex-lab/round-2.json
+            ${{ runner.temp }}/yandex-lab/round-2-*.png.age
             ${{ runner.temp }}/yandex-lab/trace.jsonl
             ${{ runner.temp }}/yandex-lab/failure-command.json
           if-no-files-found: warn
@@ -172,6 +178,7 @@ jobs:
           name: yandex-lab-round-3-${{ github.run_id }}
           path: |
             ${{ runner.temp }}/yandex-lab/round-3.json
+            ${{ runner.temp }}/yandex-lab/round-3-*.png.age
             ${{ runner.temp }}/yandex-lab/trace.jsonl
             ${{ runner.temp }}/yandex-lab/failure-command.json
           if-no-files-found: warn
@@ -188,6 +195,7 @@ jobs:
           name: yandex-lab-round-4-${{ github.run_id }}
           path: |
             ${{ runner.temp }}/yandex-lab/round-4.json
+            ${{ runner.temp }}/yandex-lab/round-4-*.png.age
             ${{ runner.temp }}/yandex-lab/trace.jsonl
             ${{ runner.temp }}/yandex-lab/failure-command.json
           if-no-files-found: warn
@@ -204,6 +212,7 @@ jobs:
           name: yandex-lab-round-5-${{ github.run_id }}
           path: |
             ${{ runner.temp }}/yandex-lab/round-5.json
+            ${{ runner.temp }}/yandex-lab/round-5-*.png.age
             ${{ runner.temp }}/yandex-lab/trace.jsonl
             ${{ runner.temp }}/yandex-lab/failure-command.json
           if-no-files-found: warn
@@ -220,10 +229,81 @@ jobs:
           name: yandex-lab-round-6-${{ github.run_id }}
           path: |
             ${{ runner.temp }}/yandex-lab/round-6.json
+            ${{ runner.temp }}/yandex-lab/round-6-*.png.age
+            ${{ runner.temp }}/yandex-lab/trace.jsonl
+            ${{ runner.temp }}/yandex-lab/failure-command.json
+          if-no-files-found: warn
+          retention-days: 1
+      - name: Bounded laboratory round 7
+        env:
+          INPUT_GITHUB_TOKEN: ${{ github.token }}
+          CELIKOM_LAB_OUTPUT: ${{ runner.temp }}/yandex-lab
+        run: python3 tools/android-source-audit/authenticated-runtime-audit.py command --seq 7
+      - name: Save sanitized round 7
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: yandex-lab-round-7-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/yandex-lab/round-7.json
+            ${{ runner.temp }}/yandex-lab/round-7-*.png.age
+            ${{ runner.temp }}/yandex-lab/trace.jsonl
+            ${{ runner.temp }}/yandex-lab/failure-command.json
+          if-no-files-found: warn
+          retention-days: 1
+      - name: Bounded laboratory round 8
+        env:
+          INPUT_GITHUB_TOKEN: ${{ github.token }}
+          CELIKOM_LAB_OUTPUT: ${{ runner.temp }}/yandex-lab
+        run: python3 tools/android-source-audit/authenticated-runtime-audit.py command --seq 8
+      - name: Save sanitized round 8
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: yandex-lab-round-8-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/yandex-lab/round-8.json
+            ${{ runner.temp }}/yandex-lab/round-8-*.png.age
+            ${{ runner.temp }}/yandex-lab/trace.jsonl
+            ${{ runner.temp }}/yandex-lab/failure-command.json
+          if-no-files-found: warn
+          retention-days: 1
+      - name: Bounded laboratory round 9
+        env:
+          INPUT_GITHUB_TOKEN: ${{ github.token }}
+          CELIKOM_LAB_OUTPUT: ${{ runner.temp }}/yandex-lab
+        run: python3 tools/android-source-audit/authenticated-runtime-audit.py command --seq 9
+      - name: Save sanitized round 9
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: yandex-lab-round-9-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/yandex-lab/round-9.json
+            ${{ runner.temp }}/yandex-lab/round-9-*.png.age
+            ${{ runner.temp }}/yandex-lab/trace.jsonl
+            ${{ runner.temp }}/yandex-lab/failure-command.json
+          if-no-files-found: warn
+          retention-days: 1
+      - name: Bounded laboratory round 10
+        env:
+          INPUT_GITHUB_TOKEN: ${{ github.token }}
+          CELIKOM_LAB_OUTPUT: ${{ runner.temp }}/yandex-lab
+        run: python3 tools/android-source-audit/authenticated-runtime-audit.py command --seq 10
+      - name: Save sanitized round 10
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: yandex-lab-round-10-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/yandex-lab/round-10.json
+            ${{ runner.temp }}/yandex-lab/round-10-*.png.age
             ${{ runner.temp }}/yandex-lab/trace.jsonl
             ${{ runner.temp }}/yandex-lab/failure-command.json
           if-no-files-found: warn
           retention-days: 1
       - name: Destroy laboratory session
         if: always()
-        run: adb -s emulator-5554 emu kill || true
+        run: |
+          timeout 20 adb -s emulator-5554 emu kill || true
+          rm -f "$RUNNER_TEMP/celikom-lab-auth-identity" "$RUNNER_TEMP/yandex-lab/session-auth.age"

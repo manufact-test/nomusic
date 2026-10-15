@@ -5,6 +5,22 @@ import argparse,base64,hashlib,json,os,pathlib,re,subprocess,sys,tempfile,time,u
 OUT=pathlib.Path(os.environ['CELIKOM_LAB_OUTPUT']);OUT.mkdir(parents=True,exist_ok=True)
 ADB=os.environ['ANDROID_HOME']+'/platform-tools/adb'
 REDACTIONS=[]
+def age():return os.environ['RUNNER_TEMP']+'/age/age'
+def cache_credentials(account):
+ key=pathlib.Path(os.environ['RUNNER_TEMP'])/'celikom-lab-auth-identity'
+ generated=subprocess.run([os.environ['RUNNER_TEMP']+'/age/age-keygen'],capture_output=True,check=True)
+ with os.fdopen(os.open(key,os.O_WRONLY|os.O_CREAT|os.O_TRUNC,0o600),'wb') as handle:handle.write(generated.stdout)
+ public=subprocess.run([os.environ['RUNNER_TEMP']+'/age/age-keygen','-y',str(key)],capture_output=True,check=True).stdout.decode().strip()
+ subprocess.run([age(),'-r',public,'-o',str(OUT/'session-auth.age')],input=json.dumps(account).encode(),capture_output=True,check=True)
+def cached_credentials():
+ p=subprocess.run([age(),'-d','-i',os.environ['RUNNER_TEMP']+'/celikom-lab-auth-identity',str(OUT/'session-auth.age')],capture_output=True,check=True)
+ account=json.loads(p.stdout)
+ REDACTIONS.extend(account.values())
+ return account
+def screenshot(name):
+ p=subprocess.run([ADB,'-s','emulator-5554','exec-out','screencap','-p'],capture_output=True,timeout=60)
+ if p.returncode:raise RuntimeError('screenshot_failed')
+ subprocess.run([age(),'-r',os.environ['LAB_SCREEN_RECIPIENT'],'-o',str(OUT/(name+'.png.age'))],input=p.stdout,capture_output=True,check=True)
 def adb(*args,timeout=90):
  p=subprocess.run([ADB,'-s','emulator-5554',*args],capture_output=True,text=True,stdin=subprocess.DEVNULL,timeout=timeout)
  if p.returncode:raise RuntimeError('adb_failed:'+args[0])
@@ -23,7 +39,7 @@ def ui():
  rows=[]
  for n in root.iter('node'):
   a=n.attrib
-  row={k:clean(a.get(k,'')) for k in ('resource-id','class','text','content-desc','clickable','bounds','password')}
+  row={k:clean(a.get(k,'')) for k in ('package','resource-id','class','text','content-desc','clickable','bounds','password')}
   if a.get('password')=='true':row['text']='[password field]'
   rows.append(row)
  return rows
@@ -31,7 +47,7 @@ def save(name,data):
  (OUT/name).write_text(clean(json.dumps(data,ensure_ascii=False,indent=2))+'\n')
 def tap(n):
  v=list(map(int,re.findall(r'\d+',n['bounds'])))
- if len(v)!=4:raise ValueError('invalid_bounds')
+ if len(v)!=4 or v[2]<=v[0] or v[3]<=v[1]:raise ValueError('offscreen_control')
  adb('shell','-n','input','tap',str((v[0]+v[2])//2),str((v[1]+v[3])//2))
 def input_value(value):
  if not re.fullmatch(r'[A-Za-z0-9@._+%-]+',value):raise ValueError('unsupported_input_characters')
@@ -56,6 +72,7 @@ def credentials():
  return account
 def authenticate():
  account=credentials()
+ cache_credentials(account)
  paths=[str(pathlib.Path(os.environ['RUNNER_TEMP'])/'yandex-source'/n) for n in ('ru.yandex.music.apk','config.arm64_v8a.apk','config.en.apk','config.ru.apk','config.xhdpi.apk')]
  adb('install-multiple','-r',*paths,timeout=180)
  adb('shell','-n','am','start','-W','-n','ru.yandex.music/ru.yandex.music.main.MainScreenActivity')
@@ -80,27 +97,37 @@ def authenticate():
   pwd=next((n for n in edits if n['password']=='true'),None)
   if pwd and not password:
    tap(pwd);input_value(account['password']);password=True
-   buttons=[n for n in nodes if n['text'].strip().lower() in ('войти','продолжить','sign in','log in','continue','next','далее')]
+   nodes=ui()
+   buttons=[n for n in nodes if n['class']=='android.widget.Button' and n['text'].strip().lower() in ('войти','продолжить','sign in','log in','continue','next','далее')]
    if buttons:tap(buttons[-1])
    else:adb('shell','-n','input','keyevent','66')
    time.sleep(6);continue
   authorize=next((n for n in nodes if n['resource-id'].endswith(':id/authorize')),None)
   if authorize:tap(authorize);time.sleep(4);continue
+  more=next((n for n in nodes if n['text'].strip().lower() in ('more','ещё','еще')),None)
+  if more and not mail and any(s in text for s in ('enter your phone number','введите номер телефона')):
+   bounds=list(map(int,re.findall(r'\d+',more['bounds'])))
+   if len(bounds)!=4 or bounds[3]<=bounds[1]:
+    adb('shell','-n','input','keyevent','4');time.sleep(1);nodes=ui()
+    more=next((n for n in nodes if n['text'].strip().lower() in ('more','ещё','еще')),None)
+   if more:tap(more);time.sleep(2);continue
   mail_choice=next((n for n in nodes if n['text'].strip().lower() in ('почта','почта или логин','логин','email','email or username','username','войти по логину')),None)
   if not mail and mail_choice:
    tap(mail_choice);time.sleep(2);nodes=ui();edits=[n for n in nodes if n['class']=='android.widget.EditText']
   if edits and not mail and not pwd:
    tap(edits[0]);input_value(account['login']);mail=True
-   buttons=[n for n in nodes if n['text'].strip().lower() in ('войти','продолжить','sign in','log in','continue','next','далее')]
+   nodes=ui()
+   buttons=[n for n in nodes if n['class']=='android.widget.Button' and n['text'].strip().lower() in ('войти','продолжить','sign in','log in','continue','next','далее')]
    if buttons:tap(buttons[-1])
    else:adb('shell','-n','input','keyevent','66')
    time.sleep(5);continue
   if password and not edits:
    status='password_submitted_no_auth_fields';break
-  safe=next((n for n in nodes if n['text'].strip().lower() in ('другие способы входа','other login methods','other ways to sign in','продолжить','continue','понятно','ok','log in','sign in','войти','log in with yandex','войти через яндекс')),None)
+  safe=next((n for n in nodes if n['class']=='android.widget.Button' and n['text'].strip().lower() in ('другие способы входа','other login methods','other ways to sign in','продолжить','continue','понятно','ok','log in','sign in','войти','log in with yandex','войти через яндекс')),None)
   if safe:tap(safe);time.sleep(3);continue
   status='unrecognized_auth_screen';break
- save('auth-report.json',{'status':status,'mail_submitted':mail,'password_submitted':password,'history':history,'nodes':ui(),'automatic_catalogue_id_verified':False})
+ save('auth-report.json',{'status':status,'mail_entered':mail,'password_entered':password,'history':history,'nodes':ui(),'automatic_catalogue_id_verified':False})
+ screenshot('auth-checkpoint')
  print(json.dumps({'auth_status':status,'password_submitted':password,'automatic_catalogue_id_verified':False}))
 def observer_report():
  try:
@@ -119,6 +146,17 @@ def execute(op):
  elif kind=='observer':
   adb('install','-r',os.environ['RUNNER_TEMP']+'/observer.apk',timeout=90)
   adb('shell','-n','am','start','-W','-n','pro.celikom.nativeprobe/.MainActivity')
+ elif kind in ('fill_login','fill_password'):
+  account=cached_credentials();nodes=ui();pwd=kind=='fill_password'
+  fields=[n for n in nodes if n['package']=='ru.yandex.music' and n['class']=='android.widget.EditText' and (n['password']=='true')==pwd]
+  if not fields:raise RuntimeError('expected_yandex_input_missing')
+  if not pwd and any('enter your phone number' in n['text'].lower() for n in nodes):raise RuntimeError('phone_method_still_selected')
+  tap(fields[0]);input_value(account['password' if pwd else 'login'])
+  if op.get('submit'):
+   nodes=ui();buttons=[n for n in nodes if n['class']=='android.widget.Button' and n['text'].strip().lower() in ('войти','продолжить','sign in','log in','continue','next','далее')]
+   if buttons:tap(buttons[-1])
+   else:adb('shell','-n','input','keyevent','66')
+ elif kind=='swipe':adb('shell','-n','input','swipe',str(int(op['x1'])),str(int(op['y1'])),str(int(op['x2'])),str(int(op['y2'])),'300')
  elif kind=='trace':
   adb('root');adb('wait-for-device');adb('push',os.environ['RUNNER_TEMP']+'/frida-server','/data/local/tmp/celikom-lab-frida')
   adb('shell','-n','chmod','700','/data/local/tmp/celikom-lab-frida')
@@ -140,7 +178,13 @@ def command(seq):
     ops=c['ops']
     if len(ops)>8:raise ValueError('operation_limit')
     results=[]
-    for op in ops:results.append(execute(op))
+    for index,op in enumerate(ops):
+     try:
+      results.append(execute(op))
+      if op['op']!='stop':screenshot('round-'+str(seq)+'-op-'+str(index))
+     except Exception as error:
+      results.append({'operation':op.get('op'),'error_type':type(error).__name__,'detail':clean(str(error))[:200]})
+      break
     save('round-'+str(seq)+'.json',{'seq':seq,'results':results,'automatic_catalogue_id_verified':False});return
   except urllib.error.HTTPError as e:
    if e.code!=404:raise
