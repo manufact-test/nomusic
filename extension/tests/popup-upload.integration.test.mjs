@@ -13,7 +13,7 @@ function el(selector, values = {}) {
   elements.set(selector, node);
   return node;
 }
-for (const selector of ["[data-version-status]", "[data-status]", "[data-action='start']", "[data-action='stop']",
+for (const selector of ["[data-access-status]", "[data-version-status]", "[data-status]", "[data-action='start']", "[data-action='stop']",
   "[data-action='restore']", "[data-action='diagnostics']", "[data-track]", "[data-test-track]",
   "[data-upload-panel]", "[data-upload-track]", "[data-upload-file]", "[data-upload-key]",
   "[data-upload-rights]", "[data-upload-progress]", "[data-upload-status]", "[data-upload-submit]",
@@ -357,4 +357,36 @@ test('duration mismatch blocks submit even if called directly and selecting a co
  const file=new Blob([bytes],{type:'audio/mpeg'});Object.defineProperty(file,'name',{value:'fits.mp3'});input.files=[file];
  await input.fire('change');await new Promise(resolve=>setTimeout(resolve,10));
  assert.equal(button.disabled,false);assert.equal(find('[data-upload-duration]').dataset.kind,'ok');
+});
+
+test('cancelled empty picker does not send a file or lock another song form',async()=>{
+ current={track:{...selected.track,id:'944530520'}};find('[data-upload-panel]').hidden=true;
+ await find("[data-action='add']").fire('click');
+ const before=requests.length,input=find('[data-upload-file]');input.files=[];
+ await input.fire('cancel');assert.equal(input.disabled,false);assert.equal(requests.length,before);
+ current={track:{...selected.track,id:'944530521'}};
+ await find("[data-action='add']").fire('click');assert.equal(find('[data-upload-track]').value,'944530521');assert.equal(form().hidden,false);
+});
+
+test('Stop interrupts a pending Start and its late response cannot disable a fresh retry',async()=>{
+ const original=chrome.runtime.sendMessage;let complete;
+ chrome.runtime.sendMessage=message=>message.type==='CELIKOM_ENABLED_SET'&&message.enabled?new Promise(r=>complete=r):message.type==='CELIKOM_ENABLED_SET'?Promise.resolve({...current,phase:'STOPPED',enabled:false}):original(message);
+ try {
+  const start=find("[data-action='start']"),stop=find("[data-action='stop']");
+  const pending=start.fire('click');await Promise.resolve();assert.equal(stop.disabled,false);
+  await stop.fire('click');assert.equal(start.disabled,false);
+  complete({...current,enabled:true,phase:'READY'});await pending;
+  assert.equal(start.disabled,false,'old Start response cannot overwrite Stop');
+ }finally{chrome.runtime.sendMessage=original;}
+});
+
+test('a Start message that never returns releases the button after its deadline',async(t)=>{
+ t.mock.timers.enable({apis:['setTimeout','Date']});
+ const original=chrome.runtime.sendMessage;
+ chrome.runtime.sendMessage=m=>m.type==='CELIKOM_ENABLED_SET'?new Promise(()=>{}):original(m);
+ try {
+  const start=find("[data-action='start']"),pending=start.fire('click');assert.equal(start.disabled,true);
+  t.mock.timers.tick(60000);await pending;
+  assert.equal(start.disabled,false);assert.match(find('[data-access-status]').textContent,/Проверка не завершена/);
+ }finally{chrome.runtime.sendMessage=original;}
 });

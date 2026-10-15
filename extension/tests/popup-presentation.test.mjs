@@ -54,7 +54,7 @@ test('a changed track cannot borrow the old approved version and delayed old res
  try {
   const pending=new Map(),refresh=initVersionStatus(m=>new Promise(r=>pending.set(m.track_id,r)));
   const old=refresh(state('144530503')),fresh=refresh(state('38436680'));
-  assert.match(fx.version.textContent,/Загрузка/);
+  assert.match(fx.version.textContent,/Проверяем наличие/);
   pending.get('38436680')({ok:true,status:'pending'});await fresh;
   pending.get('144530503')({ok:true,status:'approved'});await old;
   assert.match(fx.version.textContent,/на проверке/);
@@ -67,12 +67,12 @@ test('first use keeps explicit loading text; logout clears positive cached prese
  try {
   const refresh=initAccessStatus(async m=>m.action==='access-preview'?{}:{ok:true,entitlement:access});
   const version=initVersionStatus(async()=>({ok:true,status:'approved'}));
-  assert.match(fx.access.textContent,/Загрузка/);assert.match(fx.version.textContent,/Загрузка/);
+  assert.match(fx.access.textContent,/Загрузка/);assert.match(fx.version.textContent,/Проверяем наличие/);
   await refresh();await version(state('144530503'));
   fx.listeners['celikom-account-logout']();
   const reopen=fixture();globalThis.document=reopen.document;initVersionStatus(()=>new Promise(()=>{}));initAccessStatus(()=>new Promise(()=>{}));
   assert.match(reopen.access.textContent,/Войдите/);
-  assert.match(reopen.version.textContent,/Загрузка/);
+  assert.match(reopen.version.textContent,/Проверяем наличие/);
  }finally{globalThis.document=oldDocument;globalThis.localStorage=oldStorage}
 });
 test('sign-in refreshes the current song immediately and ignores a late signed-out response',async()=>{
@@ -96,4 +96,21 @@ test('sign-in refreshes the current song immediately and ignores a late signed-o
   oldReply({ok:false,error:'invalid_session'});await stale;
   assert.match(fx.version.textContent,/на проверке/,'old account response cannot overwrite sign-in');
  } finally {globalThis.document=oldDocument;globalThis.localStorage=oldStorage}
+});
+
+test('stalled version and access checks time out, release their flags and recover on retry',async(t)=>{
+ t.mock.timers.enable({apis:['setTimeout','Date']});
+ const oldDocument=globalThis.document,oldStorage=globalThis.localStorage;
+ globalThis.localStorage={getItem:()=>null,setItem(){},removeItem(){}};
+ const fx=fixture();globalThis.document=fx.document;
+ try {
+  let stalled=true,finishOld;const transport=m=>stalled?new Promise(r=>{finishOld=r;}):Promise.resolve(m.action==='entitlement'?{ok:true,entitlement:access}:{ok:true,status:'none'});
+  const v=initVersionStatus(transport),a=initAccessStatus(transport);
+  const version=v(state('1944599')),auth=a();
+  t.mock.timers.tick(30000);await Promise.all([version,auth]);
+  assert.match(fx.version.textContent,/Не удалось проверить/);assert.match(fx.access.textContent,/Нет связи/);
+  stalled=false;t.mock.timers.tick(15000);await v(state('1944599'));await a();
+  assert.match(fx.version.textContent,/ещё не загружена/);assert.match(fx.access.textContent,/Пробный период/);
+  finishOld?.({ok:true,status:'approved'});await Promise.resolve();assert.match(fx.version.textContent,/ещё не загружена/);
+ }finally{globalThis.document=oldDocument;globalThis.localStorage=oldStorage}
 });

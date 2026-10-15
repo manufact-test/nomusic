@@ -17,14 +17,22 @@ export function createReadRecovery() {
       const timer = setTimeout(() => controller.abort(), remaining);
       active.set(controller, method);
       let failed;
+      let onAbort;
+      const cancelled = new Promise((_, reject) => {
+        onAbort = () => reject(new Error(controller.signal.reason === "network_changed" ? "network_changed" : "request_timeout"));
+        controller.signal.addEventListener("abort", onAbort, { once: true });
+      });
       try {
-        const value = await operation(controller.signal);
+        // Aborting fetch is insufficient if config/body/cleanup is itself
+        // stalled or ignores AbortSignal. Always settle the public request.
+        const value = await Promise.race([operation(controller.signal), cancelled]);
         if (method === "GET" && generation !== epoch) throw new Error("network_changed");
         return value;
       } catch (error) {
         failed = error;
       } finally {
         clearTimeout(timer);
+        controller.signal.removeEventListener("abort", onAbort);
         active.delete(controller);
       }
       if (method !== "GET" || generation !== epoch || !failed?.retryable || attempt >= 2

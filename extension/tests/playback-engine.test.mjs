@@ -508,3 +508,10 @@ test("cancelled native play and an old rejection after pause/resume do not block
     assert.deepEqual(fatal,["replacement-play-blocked"], "actual current autoplay failures still fail open");
   } finally { player.destroy(); }
 });
+
+test("guard lease handoff never unmutes native audio and preserves latest user intent", () => {
+  const media=new Media(),guard=new OriginalAudioGuard();guard.engage(media,"m","s:1");media.volume=.2;
+  guard.transfer(media,"m","s:1","s:3");assert.equal(media.physicalMuted,true);assert.equal(media.muted,false);
+  assert.equal(guard.release("s:1").released,false);assert.equal(media.physicalMuted,true);
+  guard.release("s:3");assert.equal(media.physicalMuted,false);assert.equal(media.volume,.2);
+});

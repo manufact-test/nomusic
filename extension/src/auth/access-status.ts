@@ -1,3 +1,4 @@
+import { withDeadline } from "../shared/request-deadline.js";
 import { readDisplay, writeDisplay, stableText } from "../popup/display-cache.js";
 export function accessLabel(access) {
   if (!access) return "";
@@ -14,7 +15,8 @@ export function accessLabel(access) {
 }
 
 // Preview is presentation only. Start/audio still require a live server decision.
-export function initAccessStatus(send) {
+export function initAccessStatus(transport) {
+  const send = message => withDeadline(() => transport(message));
   const label = document.querySelector("[data-access-status]");
   const cached = readDisplay("access");
   const valid = (a) => typeof a?.allowed === "boolean" && typeof a.reason === "string"

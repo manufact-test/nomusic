@@ -23,6 +23,7 @@
   let pageCached = false;
   let lastReleasedGeneration = 0;
   let lastGuardGeneration = 0;
+  let handoff = null;
   const adapter = adapterFactory.createAdapter(root);
   const guard = new guardFactory.OriginalAudioGuard(() => {
     post("PLAYER_SNAPSHOT", decorate(adapter.getSnapshot("volume-intent")));
@@ -35,6 +36,11 @@
   }
 
   function release(reason, token = null, detail = null) {
+    // The isolated controller acknowledges disposal of its old replacement.
+    // Keep only the bounded MAIN lease while Yandex still plays the old stream.
+    if (handoff && token === handoff.token && reason === "guard-lost:master-binding-changed") return { released: true, transitioning: true };
+    if (token && guard.current?.token !== token) return { released: false };
+    if (handoff) { root.clearTimeout(handoff.timer); handoff = null; }
     const oldToken = guard.current?.token;
     const releasedGeneration = leaseGeneration(token || oldToken);
     if (releasedGeneration) lastReleasedGeneration = Math.max(lastReleasedGeneration, releasedGeneration);
@@ -56,7 +62,7 @@
   function decorate(snapshot) {
     const state = guard.state();
     if (snapshot.player) snapshot.player.guarded = state.active && state.mediaId === snapshot.player.mediaId;
-    snapshot.guard = state;
+    snapshot.guard = { ...state, transitioning: Boolean(handoff) };
     return snapshot;
   }
 
@@ -65,6 +71,10 @@
     if (!lease) return;
     const player = snapshot.player;
     const element = adapter.getMediaElement(lease.mediaId);
+    if (handoff) {
+      if (!element || player?.mediaId !== lease.mediaId || (element.currentSrc || element.src || "") !== lease.source || player?.ended) release("transition-stream-ready", lease.token);
+      return;
+    }
     let reason = null;
     // Resource identity remains authoritative while the adapter deliberately
     // withholds stale track metadata during a stream transition.
@@ -77,6 +87,15 @@
     else if (!Number.isFinite(player.duration) || player.readyState < 1) reason = "media-emptied";
     else if (Math.abs(player.duration * 1000 - snapshot.track.metadata?.durationMs) > 1500) reason = "duration-mismatch";
     if (reason) {
+      if (["track-unknown", "track-ambiguous", "track-changed"].includes(reason) && element && player?.mediaId === lease.mediaId && !player.ended) {
+        // Metadata may change before the native stream. Releasing here would
+        // unmute the previous ORIGINAL recording for the transition interval.
+        stopReplacement();
+        const token = lease.token;
+        handoff = { token, timer: root.setTimeout(() => release("transition-timeout", token), 1000) };
+        post("GUARD_RELEASED", { reason: "master-binding-changed", token, detail: { reason, transitioning: true, trackId: snapshot.track?.id || null, mediaId: player.mediaId, readyState: player.readyState, seeking: Boolean(player.seeking) } });
+        return;
+      }
       release("master-binding-changed", lease.token, {
         reason, trackId: snapshot.track?.id || null, mediaId: player?.mediaId || null,
         readyState: player?.readyState ?? null, seeking: Boolean(player?.seeking)
@@ -177,7 +196,14 @@
         || player?.mediaId !== payload.mediaId || player?.ended || player?.readyState < 2
         || !Number.isFinite(player.duration) || !snapshot.track.metadata?.durationMs
         || Math.abs(player.duration * 1000 - snapshot.track.metadata.durationMs) > 1500) throw new Error("Master changed before guard");
-      guard.engage(element, payload.mediaId, payload.token);
+      if (handoff && guard.current?.element === element) {
+        const pending = handoff;
+        guard.transfer(element, payload.mediaId, pending.token, payload.token);
+        root.clearTimeout(pending.timer); handoff = null;
+      } else {
+        if (handoff) release("transition-master-changed", handoff.token);
+        guard.engage(element, payload.mediaId, payload.token);
+      }
       lastGuardGeneration = generation;
       guard.current.trackId = payload.trackId;
       // Compare stream identity only inside MAIN; never serialize the raw URL.

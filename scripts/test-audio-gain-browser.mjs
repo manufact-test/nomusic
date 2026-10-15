@@ -12,13 +12,14 @@ try{
  const ui=await readFile('server/src/Admin/audio-gain.js','utf8');
  const player=await readFile('extension/dist/unpacked/player/replacement-player.js','utf8');
  const core=await readFile('extension/dist/unpacked/player/core.js','utf8'),adapterCode=await readFile('extension/dist/unpacked/adapters/yandex-music-adapter.js','utf8');
+ const guardCode=await readFile('extension/dist/unpacked/player/original-audio-guard.js','utf8'),mainCode=await readFile('extension/dist/unpacked/player/main-world-entry.js','utf8');
  const dsp=ui.slice(0,ui.indexOf('\n(()=>'));
  const deployed=player.slice(player.indexOf('function createGainChain'),player.indexOf('class ReplacementPlayer'));
  const canonical=s=>stripTypeScriptTypes(s,{mode:'transform'}).trim();
  if(canonical(deployed)!==canonical(dsp))throw Error('Admin/player DSP mismatch');
  const bytes=await readFile('extension/assets/test-audio.mp3');
  const css=await readFile('server/src/Admin/admin-style.css','utf8');
- const html=`<!doctype html><html><head><style>${css}</style></head><body><main><div class="player-wrap" id="audio-version-5"><audio data-gain-audio data-gain-db="0" controls></audio></div><details class="detail-toggle" data-gain-toggle><summary>Громкость версии</summary><form class="audio-gain-form" method="post" action="/admin/audio-gain" data-audio-gain data-audio-id="audio-version-5"><input type="hidden" name="csrf" value="fixture"><input type="hidden" name="gain_before" value="0"><label>Громкость версии <output data-gain-value>0 дБ</output></label><div class="audio-gain-controls"><span>Тише</span><input name="gain_db" type="range" min="-12" max="12" step="0.5" value="0"><span>Громче</span></div><button type="button" data-gain-reset>Исходная громкость</button><button type="submit">Сохранить громкость</button><p data-gain-note>Прослушайте и сохраните</p><p data-gain-save-status hidden></p></form></details><details><summary>Технические сведения</summary></details></main><script>${ui}\n${core}\n${adapterCode}\n${player}\n(async()=>{try{
+ const html=`<!doctype html><html><head><style>${css}</style></head><body><main><div class="player-wrap" id="audio-version-5"><audio data-gain-audio data-gain-db="0" controls></audio></div><details class="detail-toggle" data-gain-toggle><summary>Громкость версии</summary><form class="audio-gain-form" method="post" action="/admin/audio-gain" data-audio-gain data-audio-id="audio-version-5"><input type="hidden" name="csrf" value="fixture"><input type="hidden" name="gain_before" value="0"><label>Громкость версии <output data-gain-value>0 дБ</output></label><div class="audio-gain-controls"><span>Тише</span><input name="gain_db" type="range" min="-12" max="12" step="0.5" value="0"><span>Громче</span></div><button type="button" data-gain-reset>Исходная громкость</button><button type="submit">Сохранить громкость</button><p data-gain-note>Прослушайте и сохраните</p><p data-gain-save-status hidden></p></form></details><details><summary>Технические сведения</summary></details></main><script>${ui}\n${core}\n${adapterCode}\n${guardCode}\n${mainCode}\n${player}\n(async()=>{try{
  const check=(v,m)=>{if(!v)throw Error(m)};
  const render=async(db,amplitude)=>{document.body.dataset.gainStep='offline '+db;
   const context=new OfflineAudioContext(1,44100,44100),source=context.createBufferSource(),buffer=context.createBuffer(1,44100,44100),signal=buffer.getChannelData(0);
@@ -54,6 +55,28 @@ try{
   check(latest.track.id==='12','native metadata setter refresh is synchronous');
  }finally{previous?.destroy();adapter.unmount();master.pause();master.remove();for(const url of urls)URL.revokeObjectURL(url);}
 
+ document.body.dataset.gainStep='native original handoff';
+ const original=document.createElement('audio');original.hidden=true;document.body.append(original);
+ const source=URL.createObjectURL(blob),loadedOriginal=new Promise((resolve,reject)=>{original.addEventListener('loadeddata',resolve,{once:true});original.addEventListener('error',reject,{once:true});});original.src=source;original.load();await loadedOriginal;await original.play();
+ navigator.mediaSession.metadata=new MediaMetadata({title:'Fixture A',artist:'CELIKOM'});
+ window.__STATE_PATCHES__=[[...['Fixture A','Fixture B'].map((title,index)=>({id:String(11+index),title,artists:[{name:'CELIKOM'}],durationMs:Math.round(original.duration*1000)}))]];
+ const channel=__CELIKOM_PLAYER_CORE_V1__.CHANNEL,sessionId='native-handoff-session';let requestId=0;
+ const message=(type,payload={},id=null)=>window.postMessage({channel,protocolVersion:1,direction:'to-main',sessionId,type,payload,requestId:id},'*');
+ const exchange=(type,payload={})=>new Promise((resolve,reject)=>{const id=String(++requestId);const timer=setTimeout(()=>{window.removeEventListener('message',listener);reject(Error('native handoff response timeout'));},3000);const listener=e=>{if(e.source===window&&e.data?.direction==='from-main'&&e.data?.sessionId===sessionId&&e.data?.requestId===id){clearTimeout(timer);window.removeEventListener('message',listener);if(e.data.payload.ok)resolve(e.data.payload.result);else reject(Error(e.data.payload.error));}};window.addEventListener('message',listener);message('REQUEST',{type,payload},id);});
+ message('INIT');await new Promise(r=>setTimeout(r,30));
+ const snapshot=await exchange('GET_SNAPSHOT');
+ await exchange('GUARD_ENGAGE',{trackId:'11',mediaId:snapshot.player.mediaId,token:sessionId+':1'});
+ const physicalMute=()=>Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype,'muted').get.call(original);
+ check(physicalMute(),'native original guard');
+ const old=new ReplacementPlayer(window,r=>fatal.push(r));await old.prepare({url:source,demoLoop:true});old.applyState({volume:.4,muted:false,playbackRate:1});old.play();await new Promise(r=>setTimeout(r,30));
+ navigator.mediaSession.metadata=new MediaMetadata({title:'Fixture B',artist:'CELIKOM'});
+ check(old.audio.paused&&old.audio.muted,'native old replacement silenced');check(physicalMute(),'native OLD ORIGINAL stays silent while metadata is ahead of stream');
+ await exchange('GUARD_RELEASE',{token:sessionId+':1',reason:'guard-lost:master-binding-changed'});check(physicalMute(),'old controller acknowledgement does not unmute old original');
+ original.volume=.23;
+ await exchange('GUARD_ENGAGE',{trackId:'12',mediaId:snapshot.player.mediaId,token:sessionId+':3'});check(physicalMute(),'handoff has no unmuted interval');
+ await exchange('GUARD_RELEASE',{token:sessionId+':3',reason:'manual-original'});check(!physicalMute()&&original.volume===.23,'manual restore preserves intent');
+ old.destroy();__CELIKOM_MAIN_BRIDGE_V1__.destroy();original.pause();original.remove();URL.revokeObjectURL(source);
+
  const toggle=document.querySelector('[data-gain-toggle]');check(!toggle.open,'gain collapsed initially');toggle.open=true;
  const input=document.querySelector('[name=gain_db]');input.value='6';input.dispatchEvent(new Event('input'));await new Promise(r=>setTimeout(r,50));check(document.querySelector('[data-gain-value]').textContent==='+6 дБ','slider display');
  document.querySelector('[data-gain-reset]').click();check(input.value==='0','reset');
@@ -85,5 +108,5 @@ try{
   if(state?.result!=='pass')throw Error('Audio gain browser: '+(state?.result||'no result at '+state?.step));
   const shot=await call('Page.captureScreenshot',{format:'png'});await writeFile(join(process.cwd(),'dist/layout-proof/audio-gain.png'),Buffer.from(shot.data,'base64'));
  }finally{socket?.close();browser.kill('SIGTERM');await Promise.race([exited,new Promise(resolve=>setTimeout(resolve,1500))]);}
- console.log('Native audio gain: actual decoded media, amplitude boost/attenuation/ceiling, volume/mute/cleanup, native stale-track transition and admin slider/reset PASS');
+ console.log('Native audio gain: actual decoded media, amplitude boost/attenuation/ceiling, volume/mute/cleanup, native stale-track transition/old-original mute handoff and admin slider/reset PASS');
 }finally{await rm(directory,{recursive:true,force:true,maxRetries:5,retryDelay:100});}

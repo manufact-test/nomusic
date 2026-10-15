@@ -148,6 +148,7 @@
       if ("testTrackId" in changes) this.testTrackId = changes.testTrackId.newValue || "";
       if (this.startupError) return;
       this.engine.configure(this.enabled, this.testTrackId);
+      if (!this.enabled) this.bridge.post("RELEASE_NOW", { reason: "celikom-stopped" });
     }
 
     onRuntimeMessage(message, _sender, sendResponse) {
@@ -163,6 +164,7 @@
       if (type === COMMANDS.restoreOriginal) {
         this.lastEvent = "ORIGINAL_RESTORED";
         this.engine.manualRestore();
+        this.bridge.post("RELEASE_NOW", { reason: "manual-original" });
         this.event("manual_original");
         sendResponse({ ok: true, stage: 3 });
         return false;

@@ -14,6 +14,7 @@ on:
       - extension/src/upload/**
       - scripts/test-support-browser.mjs
       - scripts/test-audio-gain-browser.mjs
+      - scripts/test-upload-recovery-browser.mjs
       - extension/src/popup/popup.ts
       - extension/src/auth/auth-broker.ts
       - extension/src/auth/auth-popup.ts
@@ -70,6 +71,8 @@ jobs:
         run: REQUIRE_BROWSER_AUDIO=1 node scripts/test-support-browser.mjs
       - name: Native Chromium saved audio gain
         run: REQUIRE_BROWSER_AUDIO=1 node scripts/test-audio-gain-browser.mjs
+      - name: Native Chromium cancelled upload and stalled popup recovery
+        run: REQUIRE_BROWSER_AUDIO=1 node scripts/test-upload-recovery-browser.mjs
       - name: Build pinned API-targeted Chromium extension
         run: npm --prefix extension run build
       - name: Verify security boundary of the configured client

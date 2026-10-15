@@ -193,6 +193,10 @@ chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse) =>
       accessValidUntil = 0;
       accessRetryAt = 0;
       if (enabled) {
+        // Explicit retry discards stale read checks retained by the worker
+        // after a popup closes; existing POSTs are never automatically replayed.
+        accessEpoch++; accessCheck = null;
+        userAuth.resetTransport?.();
         const preview = await userAuth.perform("account-preview", {});
         if (preview.localSession === false) {
           sendResponse({ ...DEFAULT_STATE, accessError: "sign_in_required" }); return;

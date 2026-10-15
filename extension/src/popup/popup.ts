@@ -1,3 +1,4 @@
+import { withDeadline } from "../shared/request-deadline.js";
 import { mp3DurationMs, durationNotice } from "../upload/mp3-duration.js";
 import { initScrollSpacing } from "./scroll-spacing.js";
 import { COMMANDS, type ExtensionState } from "../shared/messages.js";
@@ -51,7 +52,7 @@ function render(state: ExtensionState): void {
   startButton.disabled = state.enabled && state.phase !== "ERROR" && !state.manualBypass && !state.replacementError;
   if (starting) startButton.disabled = true;
   startButton.textContent = state.phase === "ERROR" ? "Повторить" : "Старт";
-  stopButton.disabled = !state.enabled;
+  stopButton.disabled = !state.enabled && !starting;
   if (track) {
     const title = state.track?.metadata?.title?.trim();
     const artist = state.track?.metadata?.artist?.trim();
@@ -69,18 +70,23 @@ function render(state: ExtensionState): void {
 }
 
 async function send<T>(message: object): Promise<T> {
-  return chrome.runtime.sendMessage(message) as Promise<T>;
+  const intent = message as { type?: string; enabled?: boolean };
+  const startingPlayback = intent.type === COMMANDS.setEnabled && intent.enabled === true;
+  return withDeadline(() => chrome.runtime.sendMessage(message) as Promise<T>, startingPlayback ? 60000 : 30000);
 }
 
-let starting = false;
+let starting = false, startGeneration = 0;
 startButton?.addEventListener("click", async () => {
   if (starting || incidentStatus.active()) return;
+  const generation = ++startGeneration;
   starting = true;
   startButton.disabled = true;
+  if (stopButton) stopButton.disabled = false;
   const access = document.querySelector<HTMLElement>("[data-access-status]");
   if (access) { access.textContent = "Проверяем доступ…"; access.dataset.kind = "loading"; }
   try {
     const state = await send<ExtensionState>({ type: COMMANDS.setEnabled, enabled: true });
+    if (generation !== startGeneration) return;
     if (state.accessError === "sign_in_required") accountPanel?.requireLogin();
     else render(state);
     if (access && state.accessError) {
@@ -91,10 +97,13 @@ startButton?.addEventListener("click", async () => {
         : "Доступ недоступен. Проверьте аккаунт и соединение.";
     } else { if (access) delete access.dataset.kind; await refreshAccess(); }
   } catch (_) {
-    if (access) { access.dataset.kind = "error"; access.textContent = "Нет связи с расширением. Попробуйте ещё раз."; }
+    if (generation === startGeneration && access) { access.dataset.kind = "error"; access.textContent = "Проверка не завершена. Повторите «Старт»."; }
   } finally {
-    starting = false;
-    startButton.disabled = Boolean(lastState?.enabled && !lastState?.replacementError && !lastState?.manualBypass && lastState?.phase !== "ERROR");
+    if (generation === startGeneration) {
+      starting = false;
+      startButton.disabled = Boolean(lastState?.enabled && !lastState?.replacementError && !lastState?.manualBypass && lastState?.phase !== "ERROR");
+      if (stopButton) stopButton.disabled = !lastState?.enabled;
+    }
   }
 });
 
@@ -125,7 +134,7 @@ function checkFileDuration(){
   if(!durationNote||!file||!target){if(durationNote)durationNote.hidden=true;return Promise.resolve();}
   if(uploadButton)uploadButton.disabled=true;
   durationNote.hidden=false;durationNote.dataset.kind="warning";durationNote.textContent="Проверяем длительность MP3…";
-  durationPromise=Promise.resolve().then(()=>file.arrayBuffer()).then(mp3DurationMs).catch(()=>null).then(ms=>{
+  durationPromise=withDeadline(()=>file.arrayBuffer(),10000).then(mp3DurationMs).catch(()=>null).then(ms=>{
     if(generation!==durationGeneration||pinnedTrack?.id!==target.id||uploadFile?.files?.[0]!==file)return;
     const notice=durationNotice(target.durationMs,ms);durationNote.textContent=notice.text;durationNote.dataset.kind=notice.kind;durationBlocked=notice.blocked===true;
     if(uploadButton&&!uploading)uploadButton.disabled=durationBlocked;
@@ -196,7 +205,7 @@ function resetUploadPanel(): void {
 }
 
 async function uploadApiOrigin(): Promise<string> {
-  const config = await fetch(chrome.runtime.getURL("api/config.json")).then((response) => response.json());
+  const config = await withDeadline(() => fetch(chrome.runtime.getURL("api/config.json")).then((response) => response.json()), 10000);
   return privateUploadApiOrigin(config.baseUrl);
 }
 
@@ -330,6 +339,17 @@ uploadFile?.addEventListener("change", () => {
   setPickerState();
   uploadMessage("");
   void checkFileDuration();
+});
+
+uploadFile?.addEventListener("cancel", () => {
+  if (uploading) return;
+  setPickerState();
+  if (!uploadFile.files?.[0]) {
+    uploadRequestId = null;
+    if (uploadProgress) { uploadProgress.hidden = true; uploadProgress.value = 0; }
+    uploadMessage("");
+    void checkFileDuration();
+  }
 });
 
 // Native file picker via <label> and optional drag-and-drop share one validated input.
@@ -533,7 +553,17 @@ suggestSubmit?.addEventListener("click",async()=>{
 });
 
 stopButton?.addEventListener("click", async () => {
-  render(await send<ExtensionState>({ type: COMMANDS.setEnabled, enabled: false }));
+  const generation = ++startGeneration; starting = false;
+  const access = document.querySelector<HTMLElement>("[data-access-status]");
+  if (startButton) startButton.disabled = false;
+  try {
+    const state = await send<ExtensionState>({ type: COMMANDS.setEnabled, enabled: false });
+    if (generation !== startGeneration) return;
+    render(state);
+    if (access?.textContent === "Проверяем доступ…") access.textContent = "Проверка остановлена. Можно нажать «Старт» снова.";
+  } catch (_) {
+    if (status) status.textContent = "Нет связи. Обновите расширение.";
+  }
 });
 
 restoreButton?.addEventListener("click", async () => {
@@ -548,12 +578,15 @@ diagnosticsButton?.addEventListener("click", async () => {
   if (diagnosticsButton) diagnosticsButton.textContent = "Скопировано";
 });
 
+let refreshing = false;
 async function refresh(): Promise<void> {
+  if (refreshing) return;
+  refreshing = true;
   try {
     render(await send<ExtensionState>({ type: COMMANDS.getStatus }));
   } catch (_error) {
     if (status) status.textContent = "Нет связи";
-  }
+  } finally { refreshing = false; }
 }
 
 void refresh();

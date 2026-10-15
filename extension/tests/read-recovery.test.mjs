@@ -16,7 +16,7 @@ test('GET retry count and total deadline are bounded, while POST is never replay
  await flush();t.mock.timers.tick(500);await flush();t.mock.timers.tick(1000);await checked;assert.equal(calls,3);
  calls=0;await assert.rejects(recovery.run(async()=>{calls++;throw transient();},'POST'),/gateway/);assert.equal(calls,1);
  let signal;const dead=recovery.run(signalValue=>new Promise((_resolve,reject)=>{signal=signalValue;signal.addEventListener('abort',()=>reject(transient()),{once:true});}));
- const expired=assert.rejects(dead,/gateway/);await flush();t.mock.timers.tick(20000);await expired;assert.equal(signal.aborted,true);
+ const expired=assert.rejects(dead,/request_timeout/);await flush();t.mock.timers.tick(20000);await expired;assert.equal(signal.aborted,true);
 });
 test('reset aborts reads from the old connection and rejects late success without cancelling a write',async()=>{
  const recovery=createReadRecovery();let finish,signal;
@@ -28,4 +28,16 @@ test('reset aborts reads from the old connection and rejects late success withou
 });
 test('non-retryable account denials are immediate and remain denials',async()=>{
  let calls=0;await assert.rejects(createReadRecovery().run(async()=>{calls++;throw Error('invalid_session');}),/invalid_session/);assert.equal(calls,1);
+});
+
+test('deadline settles even when the underlying operation ignores abort; a new check can run',async(t)=>{
+ t.mock.timers.enable({apis:['setTimeout','Date']});
+ const recovery=createReadRecovery();let finish;
+ const stuck=recovery.run(()=>new Promise(r=>finish=r));const checked=assert.rejects(stuck,/request_timeout/);
+ t.mock.timers.tick(20000);await checked;
+ assert.equal(await recovery.run(async()=> 'fresh'),'fresh');finish('late');
+});
+test('reset rejects a stuck GET immediately even if it ignores AbortSignal',async()=>{
+ const recovery=createReadRecovery();let finish;const old=recovery.run(()=>new Promise(r=>finish=r));
+ const checked=assert.rejects(old,/network_changed/);recovery.reset();await checked;finish('late');
 });

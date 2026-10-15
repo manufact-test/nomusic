@@ -1,10 +1,12 @@
+import { withDeadline } from "../shared/request-deadline.js";
 import { readDisplay, writeDisplay, clearDisplay, stableText } from "./display-cache.js";
 const labels = {
   none: "Версия песни CELIKOM ещё не загружена",
   pending: "Версия песни CELIKOM на проверке",
   approved: "Версия песни CELIKOM доступна для подмены"
 };
-export function initVersionStatus(send) {
+export function initVersionStatus(transport) {
+  const send = message => withDeadline(() => transport(message));
   const node = document.querySelector("[data-version-status]");
   let cached = readDisplay("version");
   if (!/^[1-9]\d{0,23}$/.test(cached?.trackId || "") || !labels[cached?.status]) cached = null;
@@ -14,7 +16,7 @@ export function initVersionStatus(send) {
   if (rememberedTrack?.id && rememberedTrack.id !== cached?.trackId) cached = null;
   let trackId = cached?.trackId || "", checkedAt = 0, request = 0, loading = false;
   if (node) node.hidden = noTrack;
-  stableText(node, noTrack ? "" : cached ? labels[cached.status] : "Загрузка версии песни…", false);
+  stableText(node, noTrack ? "" : cached ? labels[cached.status] : "Проверяем наличие версии CELIKOM…", false);
   const remember = (id, status) => { cached = { trackId: id, status }; writeDisplay("version", cached); stableText(node, labels[status]); };
   document.addEventListener?.("celikom-account-logout", () => {
     request++; loading = false; checkedAt = 0; cached = null; clearDisplay("version");
@@ -31,7 +33,7 @@ export function initVersionStatus(send) {
     const id = state.track?.id || "";
     if (id !== trackId) {
       trackId = id; checkedAt = 0; loading = false; request++;
-      stableText(node, id ? cached?.trackId === id ? labels[cached.status] : "Загрузка версии песни…" : "");
+      stableText(node, id ? cached?.trackId === id ? labels[cached.status] : "Проверяем наличие версии CELIKOM…" : "");
     }
     node.hidden = !id;
     if (!id) { cached = null; clearDisplay("version"); stableText(node, ""); return; }

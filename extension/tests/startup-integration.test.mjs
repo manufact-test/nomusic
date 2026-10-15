@@ -447,3 +447,34 @@ test('Back/Forward preserves explicit original bypass instead of treating it as 
   vm.runInContext('__CELIKOM_MAIN_BRIDGE_V1__.destroy()',main);
  }
 });
+
+test("metadata-first transition silences previous ORIGINAL as well as replacement; Stop releases immediately", async () => {
+  const f=browserFixture(),main=f.worlds.get("MAIN"),isolated=f.worlds.get("ISOLATED");
+  await createControllerBootstrap(f.api,{wait:()=>new Promise(r=>setTimeout(r,5))}).ensure(42);
+  try {
+    vm.runInContext("globalThis.original=new HTMLMediaElement();original.play();",main);
+    await new Promise(r=>setTimeout(r,5));f.changeStorage({testTrackId:{newValue:"1944599"}});await new Promise(r=>setTimeout(r,5));
+    const previous=[...f.elements][0];assert.equal(previous.paused,false);assert.equal(vm.runInContext("original.physicalMuted",main),true);
+    // A queued metadata update describes B, but the native A recording is
+    // still running on its old source. 0.4.44 unmuted A at this exact point.
+    vm.runInContext("navigator.mediaSession.metadata.title='Next song';original.dispatchEvent(new Event('timeupdate'));",main);
+    await new Promise(r=>setTimeout(r,5));
+    assert.equal(previous.paused,true);assert.equal(f.elements.size,0);
+    assert.equal(vm.runInContext("original.paused",main),false,"Yandex retains control of its clock");
+    assert.equal(vm.runInContext("original.physicalMuted",main),true,"old original must remain inaudible after old replacement teardown");
+    f.changeStorage({enabled:{newValue:false}});await new Promise(r=>setTimeout(r,5));
+    assert.equal(vm.runInContext("original.physicalMuted",main),false,"explicit Stop cancels the short transition mute immediately");
+  } finally {vm.runInContext("__CELIKOM_CONTENT_CONTROLLER_V2__.destroy()",isolated);vm.runInContext("__CELIKOM_MAIN_BRIDGE_V1__.destroy()",main);}
+});
+
+test("transition mute fails open after its one-second deadline when no fresh binding arrives", async () => {
+  const f=browserFixture(),main=f.worlds.get("MAIN"),isolated=f.worlds.get("ISOLATED");
+  await createControllerBootstrap(f.api,{wait:()=>new Promise(r=>setTimeout(r,5))}).ensure(42);
+  try {
+    vm.runInContext("globalThis.original=new HTMLMediaElement();original.play();",main);
+    await new Promise(r=>setTimeout(r,5));f.changeStorage({testTrackId:{newValue:"1944599"}});await new Promise(r=>setTimeout(r,5));
+    vm.runInContext("navigator.mediaSession.metadata.title='Unknown';original.dispatchEvent(new Event('timeupdate'));",main);
+    await new Promise(r=>setTimeout(r,5));assert.equal(vm.runInContext("original.physicalMuted",main),true);
+    await new Promise(r=>setTimeout(r,1050));assert.equal(vm.runInContext("original.physicalMuted",main),false);
+  } finally {vm.runInContext("__CELIKOM_CONTENT_CONTROLLER_V2__.destroy()",isolated);vm.runInContext("__CELIKOM_MAIN_BRIDGE_V1__.destroy()",main);}
+});
