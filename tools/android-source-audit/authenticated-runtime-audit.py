@@ -83,11 +83,11 @@ def authenticate():
   text=' '.join(n['text']+' '+n['content-desc'] for n in nodes).lower()
   password_choice=next((n for n in nodes if n['text'].strip().lower() in ('log in with a password','log in with password','use password','войти с паролем','войти по паролю')),None)
   if password_choice and mail and not password:tap(password_choice);time.sleep(3);continue
-  if any(x in text for x in ('аккаунт не найден','такого аккаунта нет','account not found','неверный пароль','incorrect password','wrong password','неправильный пароль')):
+  if any(x in text for x in ("couldn't find your google account",'аккаунт не найден','такого аккаунта нет','account not found','неверный пароль','incorrect password','wrong password','неправильный пароль')):
    status='account_or_password_rejected';break
   if any(x in text for x in ('я не робот','not a robot','введите код','enter the code','код из смс','подтвердите, что вы')):
    status='owner_verification_required';break
-  edits=[n for n in nodes if n['class']=='android.widget.EditText']
+  edits=[n for n in nodes if n['package'] in ('ru.yandex.music','com.google.android.gms') and n['class']=='android.widget.EditText']
   deny=next((n for n in nodes if n['resource-id'].endswith(':id/permission_deny_button')),None)
   if deny:tap(deny);time.sleep(2);continue
   if not edits and not any(n['text'] or n['content-desc'] for n in nodes) and any(n['class']=='android.webkit.WebView' for n in nodes):
@@ -104,13 +104,11 @@ def authenticate():
    time.sleep(6);continue
   authorize=next((n for n in nodes if n['resource-id'].endswith(':id/authorize')),None)
   if authorize:tap(authorize);time.sleep(4);continue
-  more=next((n for n in nodes if n['text'].strip().lower() in ('more','ещё','еще')),None)
-  if more and not mail and any(s in text for s in ('enter your phone number','введите номер телефона')):
-   bounds=list(map(int,re.findall(r'\d+',more['bounds'])))
-   if len(bounds)!=4 or bounds[3]<=bounds[1]:
-    adb('shell','-n','input','keyevent','4');time.sleep(1);nodes=ui()
-    more=next((n for n in nodes if n['text'].strip().lower() in ('more','ещё','еще')),None)
-   if more:tap(more);time.sleep(2);continue
+  # This owner supplied a Google test account. Use the offered provider button;
+  # do not put its password into the separate Yandex-password form.
+  google=next((n for n in nodes if n['package']=='ru.yandex.music' and n['class']=='android.widget.Button' and n['text'].strip()=='Google'),None)
+  if google and not mail and any(s in text for s in ('enter your phone number','введите номер телефона')):
+   tap(google);time.sleep(10);continue
   mail_choice=next((n for n in nodes if n['text'].strip().lower() in ('почта','почта или логин','логин','email','email or username','username','войти по логину')),None)
   if not mail and mail_choice:
    tap(mail_choice);time.sleep(2);nodes=ui();edits=[n for n in nodes if n['class']=='android.widget.EditText']
@@ -148,8 +146,8 @@ def execute(op):
   adb('shell','-n','am','start','-W','-n','pro.celikom.nativeprobe/.MainActivity')
  elif kind in ('fill_login','fill_password'):
   account=cached_credentials();nodes=ui();pwd=kind=='fill_password'
-  fields=[n for n in nodes if n['package']=='ru.yandex.music' and n['class']=='android.widget.EditText' and (n['password']=='true')==pwd]
-  if not fields:raise RuntimeError('expected_yandex_input_missing')
+  fields=[n for n in nodes if n['package'] in ('ru.yandex.music','com.google.android.gms') and n['class']=='android.widget.EditText' and (n['password']=='true')==pwd]
+  if not fields:raise RuntimeError('expected_login_provider_input_missing')
   if not pwd and any('enter your phone number' in n['text'].lower() for n in nodes):raise RuntimeError('phone_method_still_selected')
   tap(fields[0]);input_value(account['password' if pwd else 'login'])
   if op.get('submit'):
