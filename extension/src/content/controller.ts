@@ -40,6 +40,7 @@
       this.logs = [];
       this.destroyed = false;
       this.startupError = null;
+      this.recoveryHintPending=false;this.lastRecoveryHint=null;
       this.mainVersion = null;
       this.testTrackId = "";
       this.apiConfigured = null;
@@ -113,6 +114,11 @@
         this.engine.abort("bridge-timeout", true);
       });
       this.bridge.start();
+      this.connectionHint("document");
+      this.onlineWake=()=>this.connectionHint("online");
+      this.visibleWake=()=>{if(!document.hidden)this.connectionHint("visible");};
+      root.addEventListener("online",this.onlineWake);
+      document.addEventListener("visibilitychange",this.visibleWake);
       this.syncTimer = root.setInterval(() => {
         try { this.engine.tick(); } catch (error) { this.engine.abort(`sync-error:${error.message}`, true); }
       }, 500);
@@ -160,6 +166,7 @@
       const type = message && typeof message === "object" ? message.type : null;
       if (type === "CELIKOM_ACCESS_STATE" && _sender?.id === chrome.runtime.id) {
         this.engine.suspendAccess(message.state !== "allowed", message.state === "incident" ? "service_incident" : "access_reconnecting");
+        if(message.state==="allowed"&&message.recovered===true)this.engine.recoverConnection();
         sendResponse({ ok: true }); return false;
       }
       if (type === COMMANDS.getControllerStatus || type === COMMANDS.controllerPing) {
@@ -224,10 +231,26 @@
           bridgeVersion: this.mainVersion
         },
         lastEvent: this.lastEvent,
+        lastRecoveryHint:this.lastRecoveryHint,
         page: `${location.origin}${location.pathname}`,
         transitionTrace: this.snapshot?.transitionTrace || [],
         recentLog: this.logs.slice(-20)
       };
+    }
+
+    connectionHint(reason) {
+      if(this.destroyed||!this.enabled||this.startupError)return;
+      if(reason!=="document")this.wake();
+      if(this.recoveryHintPending)return;
+      this.recoveryHintPending=true;
+      let timer;
+      Promise.race([
+        Promise.resolve().then(()=>chrome.runtime.sendMessage({type:"CELIKOM_RECOVERY_HINT",reason,
+          needsRecovery:this.engine.suspended||this.engine.canRecoverConnection()})),
+        new Promise((_,reject)=>{timer=root.setTimeout(()=>reject(new Error("recovery-hint-timeout")),3000);})
+      ]).then(reply=>{
+          if(!this.destroyed&&reply?.rechecking){this.lastRecoveryHint={reason,at:Date.now()};this.log(`Connection recheck · ${reason}`);}
+        }).catch(()=>undefined).finally(()=>{root.clearTimeout(timer);this.recoveryHintPending=false;if(!this.destroyed&&reason!=="document")this.bridge.heartbeat();});
     }
 
     wake() {
@@ -246,6 +269,8 @@
     destroy() {
       if (this.destroyed) return;
       this.destroyed = true;
+      root.removeEventListener("online",this.onlineWake);
+      document.removeEventListener("visibilitychange",this.visibleWake);
       // Never allow a dead Chrome extension context to interrupt fail-open.
       // Cleanup must continue even if chrome.runtime.* throws on disable.
       try { this.engine.destroy(); } catch (_error) { /* MAIN fallback below */ }

@@ -153,3 +153,42 @@ test('popup-authoritative connection failure clears green immediately and health
  const state=await f.send('CELIKOM_STATUS_GET');await new Promise(r=>setImmediate(r));assert.equal(state.phase,'ERROR');assert.match(f.icons.at(-1).path[32],/gray/);
  f.setController({phase:'READY',bridge:{healthy:true}});await f.send('CELIKOM_STATUS_GET');await new Promise(r=>setImmediate(r));assert.match(f.icons.at(-1).path[32],/green/);
 });
+
+test('new document after idle or VPN return resets stale GET transport and verifies access without Start',async(t)=>{
+ t.mock.timers.enable({apis:['Date'],now:1000000});
+ const f=fixture();f.local.enabled=true;let resets=0,calls=0;f.auth.resetTransport=()=>resets++;
+ f.auth.entitlement=async()=>{calls++;return {allowed:true,source:'promo',valid_until:null};};
+ const sender={id:'worker',url:'https://music.yandex.ru/',tab:{id:1}};
+ await f.send('CELIKOM_CONTEXT_PING',{enabled:true,phase:'READY',healthy:true},sender);await new Promise(setImmediate);
+ await f.send('CELIKOM_RECOVERY_HINT',{reason:'visible',needsRecovery:false},sender);await new Promise(setImmediate);
+ assert.equal(resets,0,'healthy ordinary focus does not interrupt playback');assert.equal(calls,1);
+ t.mock.timers.tick(6000);
+ const reply=await f.send('CELIKOM_RECOVERY_HINT',{reason:'document',needsRecovery:false},sender);await new Promise(setImmediate);await new Promise(setImmediate);
+ assert.equal(reply.rechecking,true);assert.equal(resets,1);assert.equal(calls,2);
+ assert.ok(f.sent.some(m=>m.type==='CELIKOM_ACCESS_STATE'&&m.state==='allowed'&&m.recovered===true));assert.equal(f.local.enabled,true);assert.equal(f.trials,0);
+});
+test('page online recovery replaces an unresolved old check; late denial and duplicate hint cannot override it',async()=>{
+ const f=fixture();f.local.enabled=true;let finish,calls=0,resets=0;f.auth.resetTransport=()=>resets++;
+ f.auth.entitlement=async()=>{if(++calls===1)return new Promise(r=>finish=r);return {allowed:true,source:'promo',valid_until:null};};
+ const sender={id:'worker',url:'https://music.yandex.ru/',tab:{id:1}};
+ await f.send('CELIKOM_CONTEXT_PING',{},sender);await new Promise(setImmediate);
+ assert.equal((await f.send('CELIKOM_RECOVERY_HINT',{reason:'online'},sender)).rechecking,true);
+ await new Promise(setImmediate);await new Promise(setImmediate);assert.equal(resets,1);assert.equal(calls,2);assert.equal(f.sent.at(-1).state,'allowed');
+ assert.equal((await f.send('CELIKOM_RECOVERY_HINT',{reason:'online'},sender)).rechecking,false);
+ const before=f.sent.length;finish({allowed:false});await new Promise(setImmediate);assert.equal(f.sent.length,before);assert.equal(f.local.enabled,true);
+});
+test('recovery hints never authorize an untrusted sender, enable Stop, or replay trial activation',async()=>{
+ const f=fixture();let resets=0;f.auth.resetTransport=()=>resets++;
+ const sender={id:'worker',url:'https://music.yandex.ru/',tab:{id:1}};
+ await f.send('CELIKOM_RECOVERY_HINT',{reason:'online',needsRecovery:true},sender);assert.equal(resets,0);assert.equal(f.local.enabled,false);
+ f.local.enabled=true;
+ for(const invalid of [{...sender,url:'https://example.org/'},{...sender,id:'other'}])assert.equal((await f.send('CELIKOM_RECOVERY_HINT',{reason:'online'},invalid)).ok,false);
+ assert.equal(resets,0);assert.equal(f.trials,0);
+});
+test('Stop while fresh recovery authorization is pending prevents a late allowed response from resuming',async()=>{
+ const f=fixture();f.local.enabled=true;let finish;f.auth.entitlement=()=>new Promise(r=>finish=r);
+ const sender={id:'worker',url:'https://music.yandex.ru/',tab:{id:1}};
+ await f.send('CELIKOM_RECOVERY_HINT',{reason:'online'},sender);await new Promise(setImmediate);
+ await f.send('CELIKOM_ENABLED_SET',{enabled:false});const count=f.sent.length;finish({allowed:true,source:'promo',valid_until:null});await new Promise(setImmediate);await new Promise(setImmediate);
+ assert.equal(f.local.enabled,false);assert.equal(f.sent.length,count);
+});

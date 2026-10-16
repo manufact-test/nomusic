@@ -12,6 +12,7 @@ const sources = new Map(await Promise.all(scriptFiles.map(async (file) => [file,
 
 function browserFixture() {
   const runtimeListeners = new Set();
+  const runtimeMessages=[],documentListeners=new Map();
   const storageListeners = new Set();
   const errors = [];
   const worlds = new Map();
@@ -29,8 +30,8 @@ function browserFixture() {
     querySelectorAll: (selector) => selector.includes("data-celikom-replacement")
       ? [...elements].filter((element) => element.dataset.celikomReplacement === "true") : [...elements],
     createElement: () => new FakeMedia(),
-    addEventListener() {},
-    removeEventListener() {}
+    addEventListener(type,fn) {if(!documentListeners.has(type))documentListeners.set(type,new Set());documentListeners.get(type).add(fn);},
+    removeEventListener(type,fn) {documentListeners.get(type)?.delete(fn);}
   };
   class FakeMedia extends EventTarget {
     constructor() {
@@ -48,6 +49,7 @@ function browserFixture() {
   }
   const runtime = {
     sendMessage: async (message) => {
+      runtimeMessages.push(message);
       if (message?.type === "CELIKOM_CONTEXT_PING") {
         if (!installedWorkerAlive) throw new Error("Extension context invalidated");
         return { ok: true, version: manifest.version };
@@ -150,7 +152,7 @@ function browserFixture() {
     for (const [key, change] of Object.entries(changes)) stored[key] = change.newValue;
     for (const listener of storageListeners) listener(changes, "local");
   };
-  return { api, worlds, runtimeListeners, storageListeners, errors, timers, changeStorage, elements,
+  return { api, worlds, runtimeMessages,document,dispatchDocument:type=>{for(const fn of documentListeners.get(type)||[])fn();},runtimeListeners, storageListeners, errors, timers, changeStorage, elements,
     dispatchPage: (type, persisted) => { for (const name of ["MAIN", "ISOLATED"]) for (const fn of eventListeners.get(name).get(type) || []) fn({ persisted }); },
     disableInstalledWorker: () => { installedWorkerAlive = false; } };
 }
@@ -511,5 +513,22 @@ test('first-play admission fails open on its deadline and does not remute on rep
   assert.equal(vm.runInContext('original.physicalMuted',main),true);
   await new Promise(r=>setTimeout(r,1050));assert.equal(vm.runInContext('original.physicalMuted',main),false);
   vm.runInContext('original.pause();original.play()',main);assert.equal(vm.runInContext('original.physicalMuted',main),false);
+ }finally{vm.runInContext('__CELIKOM_CONTENT_CONTROLLER_V2__.destroy()',isolated);vm.runInContext('__CELIKOM_MAIN_BRIDGE_V1__.destroy()',main);}
+});
+
+test('page online and visible returns request fresh recovery without clearing manual Original; Stop suppresses hints',async()=>{
+ const f=browserFixture(),main=f.worlds.get('MAIN'),isolated=f.worlds.get('ISOLATED');const wait=()=>new Promise(r=>setTimeout(r,5));
+ await createControllerBootstrap(f.api,{wait}).ensure(42);
+ try{
+  assert.ok(f.runtimeMessages.some(m=>m.type==='CELIKOM_RECOVERY_HINT'&&m.reason==='document'));
+  vm.runInContext('globalThis.original=new HTMLMediaElement();original.play()',main);await wait();
+  f.changeStorage({testTrackId:{newValue:'1944599'}});await wait();await f.api.tabs.sendMessage(42,{type:'CELIKOM_RESTORE_ORIGINAL'});await wait();
+  f.dispatchPage('online');await wait();f.dispatchDocument('visibilitychange');await wait();
+  assert.ok(f.runtimeMessages.some(m=>m.type==='CELIKOM_RECOVERY_HINT'&&m.reason==='online'));
+  assert.ok(f.runtimeMessages.some(m=>m.type==='CELIKOM_RECOVERY_HINT'&&m.reason==='visible'));
+  assert.equal(vm.runInContext('__CELIKOM_CONTENT_CONTROLLER_V2__.engine.manualBypass.trackId',isolated),'1944599');
+  assert.equal(vm.runInContext('original.physicalMuted',main),false);
+  f.document.hidden=true;const count=()=>f.runtimeMessages.filter(m=>m.type==='CELIKOM_RECOVERY_HINT').length;const hidden=count();f.dispatchDocument('visibilitychange');await wait();assert.equal(count(),hidden);
+  f.changeStorage({enabled:{newValue:false}});await wait();const stopped=count();f.document.hidden=false;f.dispatchPage('online');f.dispatchDocument('visibilitychange');await wait();assert.equal(count(),stopped);
  }finally{vm.runInContext('__CELIKOM_CONTENT_CONTROLLER_V2__.destroy()',isolated);vm.runInContext('__CELIKOM_MAIN_BRIDGE_V1__.destroy()',main);}
 });

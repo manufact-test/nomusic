@@ -9,6 +9,7 @@ if(!binary){if(process.env.REQUIRE_BROWSER_AUDIO==='1')throw Error('Chromium req
 const directory=await mkdtemp(join(tmpdir(),'celikom-upload-recovery-'));
 try{
  await cp('extension/dist/unpacked',join(directory,'runtime'),{recursive:true});
+ const runtimeVersion=JSON.parse(await readFile(join(directory,'runtime/manifest.json'),'utf8')).version;
  const file=join(directory,'runtime/popup/popup.html');
  let html=await readFile(file,'utf8');
  html=html.replace('<script type="module" src="popup.js"></script>',`<script>
@@ -55,7 +56,33 @@ try{
   document.body.dataset.recoveryStep='version timeout';blockVersion=true;state.track.id='1944612';await until(()=>q('[data-version-status]').textContent.includes('Не удалось проверить'),'version timeout');
   check(q('[data-version-status]').textContent.includes('Не удалось проверить'),'stalled version check leaves loading state');
   blockVersion=false;state.track.id='1944613';await until(()=>q('[data-version-status]').textContent.includes('ещё не загружена'),'fresh version');check(q('[data-version-status]').textContent.includes('ещё не загружена'),'fresh song recovers version check');
-  check(posts===0,'no unintended POST');document.body.dataset.recoveryResult='pass';
+  check(posts===0,'no unintended POST');
+  document.body.dataset.recoveryStep='native connection return';
+  const storageListeners=new Set(),runtimeListeners=new Set(),hints=[],stored={enabled:true,testTrackId:''};
+  const previousSend=chrome.runtime.sendMessage;
+  chrome.runtime.getManifest=()=>({version:'${runtimeVersion}'});
+  chrome.runtime.onMessage={addListener:fn=>runtimeListeners.add(fn),removeListener:fn=>runtimeListeners.delete(fn)};
+  chrome.storage.onChanged={addListener:fn=>storageListeners.add(fn),removeListener:fn=>storageListeners.delete(fn)};
+  chrome.storage.local.get=async()=>({...stored});
+  chrome.runtime.sendMessage=async m=>{
+   if(m.type==='CELIKOM_CONTEXT_PING')return {ok:true,version:'${runtimeVersion}'};
+   if(m.type==='CELIKOM_RECOVERY_HINT'){hints.push(m.reason);return {ok:true,rechecking:true};}
+   if(m.type==='CELIKOM_API_RESOLVE')return {ok:true,configured:true,asset:{found:false,retryAfterMs:60000}};
+   if(m.type==='CELIKOM_API_EVENT')return {ok:true};
+   return previousSend(m);
+  };
+  await import('../player/main-world-bundle.js');await import('../content/controller-bundle.js');
+  const controller=window.__CELIKOM_CONTENT_CONTROLLER_V2__;
+  await until(()=>controller?.bridge.isHealthy()&&hints.includes('document'),'content bridge startup');
+  controller.engine.manualBypass={trackId:'1944599'};
+  window.dispatchEvent(new Event('online'));await until(()=>hints.includes('online'),'online return hint');await wait(20);
+  document.dispatchEvent(new Event('visibilitychange'));await until(()=>hints.includes('visible'),'visible return hint');
+  check(controller.engine.manualBypass.trackId==='1944599','network return preserves Original bypass');
+  stored.enabled=false;for(const fn of storageListeners)fn({enabled:{newValue:false}},'local');await wait(20);
+  const stoppedHints=hints.length;window.dispatchEvent(new Event('online'));document.dispatchEvent(new Event('visibilitychange'));await wait(50);
+  check(!controller.engine.enabled&&hints.length===stoppedHints,'native return cannot undo explicit Stop');
+  controller.destroy();window.__CELIKOM_MAIN_BRIDGE_V1__.destroy();
+  document.body.dataset.recoveryResult='pass';
  }catch(e){document.body.dataset.recoveryResult=e.message}})();
  </script>`);
  await writeFile(file,html);await mkdir('dist/layout-proof',{recursive:true});
@@ -78,5 +105,5 @@ try{
   if(state?.result!=='pass')throw Error('Upload recovery browser: '+(state?.result||'no result at '+state?.step));
   const shot=await call('Page.captureScreenshot',{format:'png'});await writeFile(join(process.cwd(),'dist/layout-proof/upload-recovery.png'),Buffer.from(shot.data,'base64'));
  }finally{socket?.close();browser.kill('SIGTERM');await Promise.race([exited,new Promise(resolve=>setTimeout(resolve,1500))]);}
- console.log('Native popup recovery: cancelled picker, another song, pending Start/Stop, stale reply, deadline unlock and fresh retry PASS');
+ console.log('Native popup recovery: cancelled picker, another song, pending Start/Stop, stale reply, deadline unlock, fresh retry and actual content online/visible return with Stop/Original preservation PASS');
 }finally{await rm(directory,{recursive:true,force:true,maxRetries:5,retryDelay:100});}

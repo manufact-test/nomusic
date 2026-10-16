@@ -140,3 +140,22 @@ test('navigation removes cached injection denial without a manual Start', async 
  state.denied=false;bootstrap.forget(42);
  assert.equal((await bootstrap.ensure(42)).error,null);
 });
+
+test('a transient removed-frame injection is not cached like a denied permission',async()=>{
+ const {api,state}=fixture();let calls=0;const inject=api.scripting.executeScript;
+ api.scripting.executeScript=async value=>{if(++calls===1)throw Error('Frame was removed while navigating');return inject(value);};
+ const bootstrap=createControllerBootstrap(api);
+ assert.equal((await bootstrap.ensure(42)).retryable,true);
+ assert.equal((await bootstrap.ensure(42)).error,null,'ordinary automatic attempt can recover without explicit Start');
+ assert.equal(state.injections.length,2);
+});
+test('a stuck receiver has a deadline; its late result cannot inject into a newer navigation',async(t)=>{
+ t.mock.timers.enable({apis:['setTimeout']});
+ const {api,state}=fixture();let finish;api.tabs.sendMessage=()=>new Promise(resolve=>finish=resolve);
+ const bootstrap=createControllerBootstrap(api,{timeoutMs:500});
+ const old=bootstrap.ensure(42);await new Promise(setImmediate);t.mock.timers.tick(500);
+ assert.equal((await old).retryable,true);
+ api.tabs.sendMessage=async()=>({ok:true,status:connected});
+ assert.equal((await bootstrap.ensure(42)).error,null);
+ finish({ok:false});await new Promise(setImmediate);assert.equal(state.injections.length,0);
+});

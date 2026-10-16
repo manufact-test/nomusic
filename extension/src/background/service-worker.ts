@@ -22,6 +22,7 @@ let accessCheck: Promise<string> | null = null;
 let accessValidUntil = 0;
 let accessRetryAt = 0;
 let accessEpoch = 0;
+let lastPagePulseAt = 0, lastRecoveryHintAt = 0, lastRecoveryHintReason = "";
 async function playbackAccess(): Promise<string> {
   if (accessValidUntil > Date.now()) return "allowed";
   if (accessRetryAt > Date.now()) return "unavailable";
@@ -43,18 +44,21 @@ async function playbackAccess(): Promise<string> {
   return accessCheck;
 }
 
-function resetConnectivity() {
+function resetConnectivity(tabId = null) {
+  const notify = state => Number.isInteger(tabId)
+    ? chrome.tabs.sendMessage(tabId,{type:"CELIKOM_ACCESS_STATE",state,recovered:state==="allowed"}).catch(()=>undefined)
+    : musicTabs.send({type:"CELIKOM_ACCESS_STATE",state,recovered:state==="allowed"}).catch(()=>undefined);
   actionIcon.clear();
   accessEpoch++; accessValidUntil = 0; accessRetryAt = 0; accessCheck = null;
   userAuth.resetTransport?.(); resolveApi.resetTransport?.();
   const epoch = accessEpoch;
   void (async () => {
     if (!await readEnabled() || epoch !== accessEpoch) return;
-    await musicTabs.send({ type: "CELIKOM_ACCESS_STATE", state: "unavailable" }).catch(() => undefined);
+    await notify("unavailable");
     const access = await playbackAccess();
     if (epoch !== accessEpoch || !await readEnabled()) return;
     if (access === "denied") { actionIcon.clear(); await chrome.storage.local.set({ enabled: false }); return; }
-    await musicTabs.send({ type: "CELIKOM_ACCESS_STATE", state: access }).catch(() => undefined);
+    await notify(access);
   })().catch(() => undefined);
 }
 // Connectivity events are hints to revalidate, never permission to play offline.
@@ -146,6 +150,21 @@ chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse) =>
     return true;
   }
 
+  if(type==="CELIKOM_RECOVERY_HINT"){
+    let valid=false;try{valid=sender?.id===chrome.runtime.id&&new URL(sender?.url||"").origin==="https://music.yandex.ru";}catch{}
+    const hint=message as {reason?:unknown;needsRecovery?:unknown};
+    if(!valid||!["document","visible","online"].includes(String(hint.reason))){sendResponse({ok:false});return false;}
+    const receivedAt=Date.now(),idle=lastPagePulseAt>0&&receivedAt-lastPagePulseAt>5000;
+    void (async()=>{
+      if(!await readEnabled()){sendResponse({ok:true,rechecking:false});return;}
+      const now=Date.now();
+      const needed=hint.reason==="online"||hint.needsRecovery===true||idle||accessRetryAt>now;
+      const duplicate=hint.reason===lastRecoveryHintReason&&now-lastRecoveryHintAt<1000;
+      if(needed&&!duplicate){lastRecoveryHintAt=now;lastRecoveryHintReason=String(hint.reason);resetConnectivity(sender.tab?.id);}
+      lastPagePulseAt=now;sendResponse({ok:true,rechecking:needed&&!duplicate});
+    })().catch(()=>sendResponse({ok:false}));return true;
+  }
+
   if (type === "CELIKOM_CONTEXT_PING") {
     // Respond only to the extension's own content script on Yandex Music.
     // The actual installed worker, not an abandoned content script, is the
@@ -160,6 +179,7 @@ chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse) =>
     // lease continues only while this installed worker answers; denial still
     // asynchronously disables the controller and restores original playback.
     sendResponse({ ok: true, version: VERSION });
+    lastPagePulseAt=Date.now();
     const pulse = message as { enabled?: unknown; healthy?: unknown; phase?: unknown; replacementError?: unknown; suspended?: unknown; startupError?: unknown };
     const connected=pulse.enabled === true && pulse.healthy === true && pulse.replacementError !== true && pulse.suspended !== true && !pulse.startupError && !["ERROR","CONNECTING"].includes(String(pulse.phase));
     // An unhealthy page must turn gray immediately, even while auth is pending.

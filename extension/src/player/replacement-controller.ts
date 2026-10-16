@@ -221,6 +221,17 @@
       this.publishPolicy();
       this.abort("manual-original");
     }
+    canRecoverConnection() {
+      const reason=this.retryBlock?.reason||this.lastError;
+      return ["api_network_error","api_server_error","api_unavailable","remote-stream-network","remote-stream-route-blocked",
+        "remote-stream-timeout","replacement-load-timeout","bridge-timeout","bridge-unhealthy","snapshot-stale"].includes(reason)
+        ||(reason==="remote-stream-http"&&Boolean(this.retryBlock));
+    }
+    recoverConnection() {
+      if(!this.enabled||this.suspended||this.destroyed||this.operation||this.manualBypass||!this.bridge.isHealthy()||!this.canRecoverConnection())return;
+      this.blockedTrackId=null;this.retryBlock=null;this.lastError=null;this.networkRetries=0;this.freshResolve=true;
+      this.publishPolicy();this.reconcile();
+    }
     tick() {
       if (this.operation && this.masterClock && !this.snapshot.player.paused && !this.snapshot.player.seeking
         && this.snapshot.player.readyState >= 3 && !this.environment.document.hidden && Date.now() - this.masterClock.advancedAt > 4000) {

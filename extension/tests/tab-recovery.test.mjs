@@ -1,14 +1,15 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {registerTabRecovery} from '../dist/unpacked/background/tab-recovery.js';
-function fixture() {
- const listeners={},calls=[],forgot=[];
+function fixture(result = null) {
+ const listeners={},calls=[],forgot=[],scheduled=[];
+ const clock={schedule:(fn,ms)=>{const task={fn,ms,cancelled:false};scheduled.push(task);return task;},cancel:task=>task.cancelled=true};
  let enabled=true;
  const tabs=new Map([[1,{id:1,url:'https://music.yandex.ru/',status:'complete'}]]);
  const api={tabs:{get:async id=>{if(!tabs.has(id))throw Error('closed');return tabs.get(id)}}};
  for(const event of ['onCreated','onUpdated','onActivated','onRemoved','onReplaced']) api.tabs[event]={addListener:fn=>listeners[event]=fn};
- registerTabRecovery(api,{ensure:async id=>calls.push(id),forget:id=>forgot.push(id)},async()=>enabled);
- return {tabs,calls,forgot,setEnabled:v=>enabled=v,emit:async(name,...args)=>{listeners[name](...args);await new Promise(resolve=>setImmediate(resolve))}};
+ registerTabRecovery(api,{ensure:async id=>{calls.push(id);return result;},forget:id=>forgot.push(id)},async()=>enabled,clock);
+ return {tabs,calls,forgot,scheduled,setResult:value=>result=value,runNext:async()=>{const task=scheduled.shift();if(task&&!task.cancelled)task.fn();await new Promise(setImmediate);},setEnabled:v=>enabled=v,emit:async(name,...args)=>{listeners[name](...args);await new Promise(resolve=>setImmediate(resolve))}};
 }
 test('new, background, restored and activated Yandex tabs reconnect without popup or Start',async()=>{
  const f=fixture();await f.emit('onCreated',f.tabs.get(1));
@@ -41,4 +42,26 @@ test('Stop during tab lookup wins over automatic recovery',async()=>{
  registerTabRecovery(api,{ensure:async()=>calls++},async()=>enabled);
  listeners.activate({tabId:1});await new Promise(resolve=>setImmediate(resolve));enabled=false;
  finish({id:1,url:'https://music.yandex.ru/'});await new Promise(resolve=>setImmediate(resolve));assert.equal(calls,0);
+});
+
+test('a transient first opening retries automatically and coalesces duplicate tab events',async()=>{
+ const f=fixture({error:'script-injection-failed',retryable:true});
+ await f.emit('onCreated',f.tabs.get(1));await f.emit('onActivated',{tabId:1});
+ assert.equal(f.calls.length,1);assert.equal(f.scheduled[0].ms,500);
+ f.setResult({error:null});await f.runNext();assert.equal(f.calls.length,2);assert.equal(f.scheduled.length,0);
+});
+test('automatic retries are bounded; permission denial is never retried as a transient failure',async()=>{
+ const f=fixture({error:'bridge-connect-timeout'});await f.emit('onActivated',{tabId:1});
+ const delays=[];while(f.scheduled.length){delays.push(f.scheduled[0].ms);await f.runNext();}
+ assert.deepEqual(delays,[500,1500,4000]);assert.equal(f.calls.length,4);
+ const denied=fixture({error:'script-injection-failed',retryable:false});await denied.emit('onActivated',{tabId:1});assert.equal(denied.scheduled.length,0);
+});
+test('Stop, closure and navigation cancel queued recovery without resurrecting old document jobs',async()=>{
+ for(const kind of ['stop','close','navigate']){
+  const f=fixture({error:'controller-start-timeout'});await f.emit('onActivated',{tabId:1});
+  if(kind==='stop')f.setEnabled(false);
+  if(kind==='close')await f.emit('onRemoved',1);
+  if(kind==='navigate')await f.emit('onUpdated',1,{status:'loading'},f.tabs.get(1));
+  await f.runNext();assert.equal(f.calls.length,1,kind);
+ }
 });

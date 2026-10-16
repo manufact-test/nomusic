@@ -556,3 +556,17 @@ test('negative transition verdict releases the temporary native mute without loa
  f.update(snapshot('2',{guard:{transitioning:true}}));await settle();
  assert.equal(f.requests.at(-1).type,'GUARD_TRANSITION_END');assert.equal(f.players.length,0);assert.equal(f.engine.phase,'IDLE');
 });
+
+test('fresh verified connection clears transient network backoff immediately while preserving manual bypass and Stop',async()=>{
+ const f=fixture({resolveAsset:async()=>remoteAsset()});f.engine.configure(true,'');f.update(snapshot());await settle();
+ f.engine.abort('api_network_error',true);await settle();assert.ok(f.engine.retryBlock.at>Date.now());
+ f.engine.recoverConnection();await settle();assert.equal(f.engine.phase,'REPLACEMENT_ACTIVE');assert.equal(f.engine.activationCount,2);
+ f.engine.manualRestore();await settle();const count=f.players.length;f.engine.recoverConnection();await settle();assert.equal(f.players.length,count);assert.equal(f.engine.manualBypass.trackId,'2');
+ f.engine.configure(false,'');await settle();f.engine.recoverConnection();assert.equal(f.engine.operation,null);assert.equal(f.engine.enabled,false);
+});
+test('connection hints cannot bypass duration or signed access failure blocks',async()=>{
+ for(const reason of ['replacement_duration_or_token_invalid','remote-stream-http','api_forbidden']){
+  const f=fixture({resolveAsset:async()=>remoteAsset()});f.engine.configure(true,'');f.update(snapshot());await settle();
+  f.engine.abort(reason,true);await settle();const count=f.players.length;f.engine.recoverConnection();await settle();assert.equal(f.players.length,count,reason);assert.equal(f.engine.blockedTrackId,'2');
+ }
+});

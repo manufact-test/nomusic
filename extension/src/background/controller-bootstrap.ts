@@ -37,12 +37,15 @@ export function createControllerBootstrap(api, options = {}) {
     return null;
   }
 
-  async function bootstrap(tabId) {
+  async function bootstrap(tabId, live) {
+    live();
     const tab = await api.tabs.get(tabId);
     if (!isSupportedPage(tab.url)) {
       return { status: null, error: "unsupported-page", detail: "Откройте вкладку Яндекс Музыки (music.yandex.ru)." };
     }
+    live();
     const existing = await readStatus(tabId);
+    live();
     const stale = staleController(existing);
     if (stale) return stale;
     if (existing?.bridge?.healthy) return staleController(existing) || { status: existing, error: null, recovered: false };
@@ -59,14 +62,18 @@ export function createControllerBootstrap(api, options = {}) {
 
     // The MAIN listener must be present before the isolated client sends INIT.
     await api.scripting.executeScript({ target: { tabId }, files: main.js, world: "MAIN" });
+    live();
     await api.scripting.executeScript({ target: { tabId }, files: isolated.js, world: "ISOLATED" });
+    live();
     for (let attempt = 0; attempt < attempts; attempt += 1) {
       const status = await readStatus(tabId);
+      live();
       if (status?.bridge?.healthy) return staleController(status) || { status, error: null, recovered: true };
       if (status?.startupError) return { status, error: "controller-start-failed", detail: status.startupError };
       await wait(75);
     }
     const status = await readStatus(tabId);
+      live();
     return {
       status,
       error: status ? "bridge-connect-timeout" : "controller-start-timeout",
@@ -80,15 +87,19 @@ export function createControllerBootstrap(api, options = {}) {
     if (pending.has(tabId)) return pending.get(tabId);
     if (retry) injectionFailures.delete(tabId);
     if (injectionFailures.has(tabId)) return Promise.resolve(injectionFailures.get(tabId));
-    const promise = bootstrap(tabId)
-      .catch((error) => {
-        const failure = { status: null, error: "script-injection-failed", detail: String(error?.message || error) };
-        // Do not repeatedly probe a denied/protected page from popup polling.
-        // A user-initiated Start/Retry permits a fresh attempt after changing access.
-        if (pending.get(tabId) === promise) injectionFailures.set(tabId, failure);
+    let timer;
+    const promise = Promise.race([
+      Promise.resolve().then(() => bootstrap(tabId, () => {if(pending.get(tabId)!==promise)throw new Error("Bootstrap superseded");})),
+      new Promise((_,reject)=>{timer=setTimeout(()=>reject(new Error("Controller bootstrap timed out")),options.timeoutMs||5000);})
+    ]).catch((error) => {
+        const detail=String(error?.message||error);
+        const denied=/cannot access contents|cannot access a chrome|missing.*permission|permission denied|extensions gallery/i.test(detail);
+        const failure = { status: null, error: "script-injection-failed", detail, retryable:!denied };
+        // Cache actual permission denial only. A removed frame, navigation or
+        // stalled local message must not disable recovery for this document.
+        if (denied && pending.get(tabId) === promise) injectionFailures.set(tabId, failure);
         return failure;
-      })
-      .finally(() => { if (pending.get(tabId) === promise) pending.delete(tabId); });
+      }).finally(() => { clearTimeout(timer);if (pending.get(tabId) === promise) pending.delete(tabId); });
     pending.set(tabId, promise);
     return promise;
   }
