@@ -1,3 +1,15 @@
+## 2026-10-16 — 0.4.50: tab reopen and VPN recovery
+
+Owner on 2026-10-15 18:26 MSK confirmed .49 appears to fix audio/format issues and continues testing. New report: one missed automatic reconnect after closing Yandex, working elsewhere/changing VPN and reopening; later reopens worked. No diagnostics for that specific failure, so exact cause remains unproven.
+
+.50 fixes reproducible paths: transient bootstrap faults are no longer permanently cached as permission denial; bounded five-second bootstrap with late-work fencing; coalesced per-tab retries500/1500/4000ms cancelled on Stop/closure/navigation. Content document/online/visible hints refresh stale GET transport after idle/failure/network return and revalidate actual sender-tab access. Healthy ordinary focus does not reset working transport. Fresh verified recovery clears only transient backoff; manual Original, Stop, revocation/duration/token blocks remain. No extra permissions or replayed writes/trial activation.
+
+Source bf3a8070b72b88315b4de88530a2d0d9a7f35ddd, based on remote Android head02cbfafb7aa94b85a4226460925c7671c8c6916a (all unrelated Android work preserved). 274 extension testsPASS; lint/validate/securityPASS. Native Chrome package38892414527 PASS, including actual imported content/MAIN online+visible events, Stop/Original preservation, MP3/M4A/gain/first-play/slow-transition/popup recovery. Full CI38892422097 PASS on first attempt (complete repository/PHP/MySQL/native browser/build/security checks).
+
+Owner ZIP outputs/CELIKOM-0.4.50-full.zip,2470906bytes,SHA256 a2404a5831693324f239cbc0303489b819625c8f80a5cb78f75e3f6ddbd2d358. All39 source modules+both bundles matched; configured API. Library libfile_1bb25ea2c9d48191bd163473d1a1b0fc version0. Update extension and reload Yandex tab once. Real owner VPN/reopen acceptance remains pending; cannot promise connectivity while network/access is unavailable.
+
+Decision docs/decisions/TAB-AND-VPN-RECOVERY-0.4.50-2026-10-16.md. Extension-only, backend remains .46-f2d1cc31f598a983c46660688b453392faf0fc8d; no audio/mapping/moderation/gain/account writes. Preserve replacement27. PR6 remainsOPEN/unmerged and issue7OPEN. Continue preserving concurrent Android work.
+
 ## 2026-10-15 — 0.4.49: first-play leak and actual M4A 503
 
 Owner rejects full acceptance of .48: foreign intro now rarer (~1/6), M4A cold load sometimes gray/reconnecting for many seconds. Two .48 diagnostics and screenshot inspected. First is a NEW controller, generation1/activation1: no previous lease, unguarded native time100–460ms. Second proves two M4A503 failures, 5/10s whole-file backoff and success only at ~18.5s. Another trace shows metadata-first handoff expiry127ms into the new native play. Exact hosting503 cause unproven; .48 four-reader bursts removed.

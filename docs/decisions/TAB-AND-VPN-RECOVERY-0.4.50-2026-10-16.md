@@ -18,7 +18,7 @@ Owner confirmed .49 playback/format fixes appear correct on 2026-10-15 18:26 MSK
 
 ## Validation / limits
 
-274 extension tests pass locally: removed-frame retry without Start, cached permission denial, stalled receiver deadline/late result, bounded/coalesced retries, navigation/closure/Stop cancellation, idle/VPN hints, late stale authorization, no unauthorized hint, Stop during fresh authorization, manual Original and semantic failure preservation. Native Chrome fixture imports actual MAIN/content bundles and dispatches online/visibility return events with real browser message loop; verifies hint delivery and Stop/Original preservation. Native Chrome/full CI results recorded in handoff before delivery.
+274 extension tests pass locally: removed-frame retry without Start, cached permission denial, stalled receiver deadline/late result, bounded/coalesced retries, navigation/closure/Stop cancellation, idle/VPN hints, late stale authorization, no unauthorized hint, Stop during fresh authorization, manual Original and semantic failure preservation. Native Chrome fixture imports actual MAIN/content bundles and dispatches online/visibility return events with real browser message loop; verifies hint delivery and Stop/Original preservation. Native Chrome package 38892414527 PASS; full CI 38892422097 PASS on first attempt.
 
 This does not simulate an actual commercial VPN change on the owner's device. Genuine network outage or denied permission/access still fails open and cannot be guaranteed to reconnect before network/access is restored.
 
