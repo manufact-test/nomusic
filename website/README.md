@@ -81,3 +81,21 @@ mouse/keyboard switching and CTA navigation. Verified specialized CI:
 [PR 39064383865](https://github.com/manufact-test/nomusic/actions/runs/39064383865).
 See `docs/website/checkpoints/2026-10-17-STAGE4-DEMO-STATES-QA.md`.
 **No public CMS, publication or Stage 3/4 formal acceptance yet.**
+
+## Stage 4 content contracts / 17 October 2026 (v3.7)
+
+The private `FirstScreenFieldCatalog` exposes 27 typed slots (19 text,
+7 approved links, 1 demo state) tied to the authoritative v10 manifest.
+`FirstScreenDraft` enforces section-specific length limits. The
+CLI-only `tools/list-first-screen-fields.php` exports this read-only contract
+for a **future**, authenticated Stage 9 editor; it is not an admin route.
+
+Browser QA with valid, longer strings exposed an edited header chip outside
+the 320px viewport. `assets/css/v10/editor-copy-safety.css` now prevents
+clipped mobile Header and Hero labels **only in a nonempty developer draft**.
+The five original v10 CSS and two JS files and the no-edit v10 HTML stay
+unchanged. Tests cover 1440/1024/768/390/320 and font/editor security.
+CI verified push [39065255480](https://github.com/manufact-test/nomusic/actions/runs/39065255480)
+and PR [39065258327](https://github.com/manufact-test/nomusic/actions/runs/39065258327)
+on commit `96e844627d44124b295d76179383e6df8fb626fe`.
+Stage 3 owner sign-off, real CMS and approved site+CMS release are still pending.
