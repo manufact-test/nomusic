@@ -1,0 +1,48 @@
+name: CELIKOM website Stage 3 checks
+
+on:
+  push:
+    branches: [feature/api-range]
+    paths:
+      - 'website/**'
+      - '.github/workflows/celikom-website-checks.yml'
+  pull_request:
+    paths:
+      - 'website/**'
+      - '.github/workflows/celikom-website-checks.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  foundation:
+    name: PHP syntax and content safeguards (no deployment)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: website
+          sparse-checkout-cone-mode: true
+          persist-credentials: false
+      - name: PHP 8.3
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          tools: none
+          coverage: none
+      - name: Verify PHP syntax
+        run: |
+          set -euo pipefail
+          find website -type f -name '*.php' -print0 | xargs -0 -r -n1 php -l
+      - name: Validate Stage 3 content/security rules
+        run: php website/tests/Stage3FoundationTest.php
+      - name: Prevent accidental screenshot and private asset publication
+        shell: bash
+        run: |
+          set -euo pipefail
+          test ! -e website/RELEASE_READY || { echo 'Unexpected release marker in development branch'; exit 1; }
+          test -z "$(find website/public -type f \( -name '.env*' -o -name '*.sql' -o -name '*.key' -o -name '*.pem' -o -name '*.bak' \) -print -quit)"
+          if grep -R -E -l 'data:image/png;base64|data:image/jpeg;base64' website/public website/app; then
+            echo 'Embedded raster data must not be committed to the website'; exit 1
+          fi
