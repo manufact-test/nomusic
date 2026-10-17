@@ -169,7 +169,8 @@ def main():
                         # from a guarded test fixture, never from a public route.
                         page.goto(origin + "/audit/draft", wait_until="networkidle")
                         assert page.locator("header nav").inner_text().find("Зачем CELIKOM") >= 0
-                        assert "Как работает демонстрация" in page.locator("#sound").inner_text()
+                        assert "Как работает демонстрация" in page.locator("#sound").text_content(), (
+                            "Demo draft text missing from HTML DOM")
                         assert page.locator(".hero-lead").inner_text().startswith(
                             "Демо предпросмотра первого экрана.")
                         assert page.locator("script:not([src])").count() == 0, (
