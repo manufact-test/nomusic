@@ -1,4 +1,4 @@
-name: CELIKOM website Stage 3 checks
+name: CELIKOM website CI (no deploy)
 
 on:
   push:
@@ -95,6 +95,47 @@ jobs:
           if grep -R -E -l 'data:image/png;base64|data:image/jpeg;base64' website/public website/app; then
             echo 'Embedded raster data must not be committed to the website'; exit 1
           fi
+
+  cms-core-mysql:
+    name: Stage 9 CMS core — isolated MySQL and auth contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_DATABASE: celikom_site_test
+          MYSQL_ROOT_PASSWORD: ci-website-temporary-only
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd "mysqladmin ping -h 127.0.0.1 -uroot -pci-website-temporary-only"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 15
+    env:
+      CELIKOM_SITE_DB_HOST: 127.0.0.1
+      CELIKOM_SITE_DB_NAME: celikom_site_test
+      CELIKOM_SITE_DB_USER: root
+      CELIKOM_SITE_DB_PASSWORD: ci-website-temporary-only
+      CELIKOM_SITE_AUTH_HMAC_KEY: ci-ephemeral-site-only-auth-secret-2026-never-deploy
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: website
+          sparse-checkout-cone-mode: true
+          persist-credentials: false
+      - name: PHP 8.3 with MySQL
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: pdo_mysql
+          tools: none
+          coverage: none
+      - name: Assert website CMS login, rate limits and isolated conflict-safe drafts
+        run: php website/tests/Stage9CmsCoreTest.php
+      - name: Production release gate cannot be bypassed
+        run: python3 website/tests/Stage9ReleaseGateTest.py
 
   browser-audit:
     name: Chromium UI-kit parity and accessibility (offline)
