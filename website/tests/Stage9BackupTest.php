@@ -70,6 +70,8 @@ try {
     backupCheck(CmsBackup::inspect($file)['media_rows']===1,'good backup mutated');
     echo "Stage9: private CMS content backup, media integrity, atomic snapshot, 0600, no auth secrets — PASS\n";
 } finally {
+    $pdo->prepare('DELETE FROM media_assets WHERE storage_key=?')
+        ->execute(['site-private/'.$key]);
     if(isset($file) && is_file($file))unlink($file);
     if(is_file($backup.'/tampered.json'))unlink($backup.'/tampered.json');
     if(is_file($asset))unlink($asset);
