@@ -43,6 +43,8 @@ jobs:
         run: php website/tests/Stage3FaqRendererTest.php
       - name: Verify Stage 4 first-screen editorial boundaries
         run: php website/tests/Stage4FirstScreenTest.php
+      - name: Verify Stage 4 scoped CLI preview rejects unsafe edits
+        run: python3 website/tests/Stage4FirstScreenCliTest.py
       - name: Verify CLI-only draft preview (not deployed)
         shell: bash
         run: |
