@@ -1,0 +1,68 @@
+name: Deploy CELIKOM website to Hostinger
+
+on:
+  push:
+    branches:
+      - feature/api-range
+    paths:
+      - "website/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: celikom-website-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Upload website only
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      SSH_HOST: "92.113.19.189"
+      SSH_PORT: "65002"
+      SSH_USER: "u235811320"
+      DEPLOY_PATH: "/home/u235811320/domains/lemonchiffon-narwhal-791953.hostingersite.com/public_html"
+      HOSTINGER_DEPLOY_KEY: ${{ secrets.CELIKOM_HOSTINGER_SSH_KEY }}
+      HOSTINGER_KNOWN_HOSTS: ${{ secrets.CELIKOM_HOSTINGER_KNOWN_HOSTS }}
+
+    steps:
+      - name: Check out website source
+        uses: actions/checkout@v4
+        with:
+          sparse-checkout: website
+          sparse-checkout-cone-mode: true
+          persist-credentials: false
+
+      - name: Verify files and configure SSH
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f website/index.html || { echo 'Missing website/index.html'; exit 1; }
+          test -n "$HOSTINGER_DEPLOY_KEY" || { echo 'Missing CELIKOM_HOSTINGER_SSH_KEY secret'; exit 1; }
+          test -n "$HOSTINGER_KNOWN_HOSTS" || { echo 'Missing CELIKOM_HOSTINGER_KNOWN_HOSTS secret'; exit 1; }
+          umask 077
+          mkdir -p "$HOME/.ssh"
+          printf '%s\n' "$HOSTINGER_DEPLOY_KEY" > "$HOME/.ssh/id_celikom_deploy"
+          printf '%s\n' "$HOSTINGER_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          chmod 600 "$HOME/.ssh/id_celikom_deploy" "$HOME/.ssh/known_hosts"
+
+      - name: Verify target website directory
+        shell: bash
+        run: |
+          set -euo pipefail
+          ssh -p "$SSH_PORT" \
+            -i "$HOME/.ssh/id_celikom_deploy" \
+            -o BatchMode=yes -o StrictHostKeyChecking=yes \
+            "$SSH_USER@$SSH_HOST" "test -d '$DEPLOY_PATH'"
+
+      - name: Publish website assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          scp -r -P "$SSH_PORT" \
+            -i "$HOME/.ssh/id_celikom_deploy" \
+            -o BatchMode=yes -o StrictHostKeyChecking=yes \
+            website/. "$SSH_USER@$SSH_HOST:$DEPLOY_PATH/"
