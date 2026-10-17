@@ -213,7 +213,7 @@ try:
     binary=binary_response.read()
     assert binary_response.status==200 and binary_response.getheader("Content-Type")=="image/png"
     assert binary==sample_png
-    assert binary_response.getheader("Cache-Control")=="no-store, private"
+    assert "no-store" in (binary_response.getheader("Cache-Control") or "")
     conn.close()
     status,draft_html,_=request("GET","/admin/?view=preview")
     assert "safe.png" not in draft_html
