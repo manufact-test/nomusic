@@ -50,7 +50,7 @@ def exercise_authenticated_admin(page, base):
     # Avoid a second copy of the credential and never query production.
     import re
     fixture = (ROOT/'tests'/'Stage9CmsCoreTest.php').read_text()
-    match = re.search(r"password_hash\\('([^']+)'", fixture)
+    match = re.search(r"password_hash\('([^']+)'", fixture)
     assert match, 'Disposable CI owner fixture missing'
     password = match.group(1)
     page.get_by_label('Логин').fill('owner')
