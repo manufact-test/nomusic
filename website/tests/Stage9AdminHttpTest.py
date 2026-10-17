@@ -204,7 +204,7 @@ try:
     assert 'view=media&amp;id=' in editor
     assert editor.count('class="section-editor"') >= 10
     # The private image is available only to the authenticated editor:
-    media_id=re.search(r'view=media&amp;id=(\\d+)',editor)
+    media_id=re.search(r'view=media&amp;id=(\d+)',editor)
     assert media_id,editor[-4000:]
     conn=http.client.HTTPConnection("127.0.0.1",port,timeout=5)
     conn.request("GET","/admin/?view=media&id="+media_id.group(1),
