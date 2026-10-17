@@ -34,6 +34,8 @@ with tempfile.TemporaryDirectory() as folder:
     for bad in [
         '{"rewards.text.03":"100% discount for everyone"}',
         '{"rewards.text.04":"Pay now"}',
+        '{"contribute.text.08":"Загружай любые записи без ограничений"}',
+        '{"contribute.text.08":"Есть права на запись, можно сразу опубликовать."}',
         '{"media.popup.alt":"screenshot"}',
         '{"contribute.text.05":"javascript:alert(1)", "faq.text.01":"oops"}',
         '{"contribute.text.05":["not plain text"]}',

@@ -96,6 +96,14 @@ final class CommunityFieldCatalog
             strlen($value) > $field['max_chars'] * 4) {
             throw new InvalidArgumentException('Community text exceeds v10 layout budget');
         }
+        // A flexible sentence must still explain upload permission AND moderation.
+        // The owner-approved copy contains both; prevent an editor from
+        // accidentally publishing an offer to upload arbitrary recordings.
+        if ($key === 'contribute.text.08' &&
+            (preg_match('/прав[а-яё]*|разрешен[а-яё]*/iu', $value) !== 1 ||
+             preg_match('/проверк[а-яё]*|одобрен[а-яё]*|модерац[а-яё]*/iu', $value) !== 1)) {
+            throw new InvalidArgumentException('Upload explanation must retain rights and moderation');
+        }
     }
 
     private static function label(string $key): string

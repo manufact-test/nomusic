@@ -49,5 +49,8 @@ foreach (['rewards.text.03','rewards.text.04','faq.text.01',
 communityReject(fn()=>CommunityDraft::render($html,$schema,['contribute.text.05'=>str_repeat('Т',41)]),'layout budget');
 communityReject(fn()=>CommunityDraft::render($html,$schema,['contribute.text.06'=>"\x01"]),'control');
 communityReject(fn()=>CommunityDraft::render($html,$schema,['rewards.text.01'=>['bad']]),'array');
+communityReject(fn()=>CommunityDraft::render($html,$schema,['contribute.text.08'=>'Загружай любые песни без ограничений.']),'rights and review missing');
+communityReject(fn()=>CommunityDraft::render($html,$schema,['contribute.text.08'=>'Можно загрузить песню после проверки без других условий.']),'rights missing');
+communityReject(fn()=>CommunityDraft::render($html,$schema,['contribute.text.08'=>'Есть необходимые права на использование записи, загружай сразу.']),'moderation missing');
 communityReject(fn()=>CommunityDraft::render($html.' ',$schema,[]),'source blob mismatch');
 echo "Stage6: 10 editable v10 community/reward headings; 2%/20% and pending payments locked — PASS\n";
