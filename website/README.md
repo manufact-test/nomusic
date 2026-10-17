@@ -44,3 +44,7 @@ In local PHP built-in server preview only, set \`CELIKOM_LOCAL_PREVIEW=1\`, use 
 - Test user-visible 2%/20% reward terms against actual production reward policy in a separate CELIKOM app task before public release. Payments are not live.
 
 **Do not add \`RELEASE_READY\` or \`release-approved.php\` before Stage 10.**
+
+## Update — original v10 implementation parity
+
+The real v10 page is now split into 5 unchanged CSS assets and 2 unchanged JavaScript assets. \`app/Templates/site-v10.html\` loads them in the original order, and \`tests/Stage3MarkupTest.py\` asserts exact source equality after substitution. \`database/seeds/faq-v10.json\` preserves all 28 FAQ questions and answers; \`database/migrations/001_website_cms.sql\` is a future, **not-yet-run**, separate database migration. \`tests/Stage3SeedContractTest.py\` checks both data and schema structure. Pixel-identical local Chromium comparisons passed at 1440, 1024, 768, 390 and 320px with the same fallback fonts; full hosting/font tests are still pending. Stage 3 is **not** owner-accepted. Details: \`docs/website/checkpoints/2026-10-17-STAGE3-PROGRESS.md\`.
