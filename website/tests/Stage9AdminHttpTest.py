@@ -157,6 +157,59 @@ try:
     assert "Ответы редакции CELIKOM." in merged_preview
     assert "Как связаться с поддержкой проекта?" in merged_preview
     assert merged_preview.count('class="faq-item"')==29
+    # Publication/restore require CSRF, explicit consent and fresh version.
+    status,editor,_=request("GET","/admin/")
+    version=hidden(editor,"version")
+    assert 'id="revision-editor"' in editor and "Публикация и история" in editor
+    status,rejected,_=request("POST","/admin/",{
+        "action":"publish","csrf":csrf,"version":version,"note":"Без согласия"
+    })
+    assert status==422 and "подтверждение" in rejected
+    status,_,headers=request("POST","/admin/",{
+        "action":"publish","csrf":csrf,"version":version,
+        "note":"Первая локальная публикация","confirm":"yes"
+    })
+    assert status==303 and "saved=published" in headers.get("Location","")
+    status,history,_=request("GET","/admin/")
+    assert "Текущая опубликованная редакция:" in history
+    assert "№1" in history
+    status,_,_=request("POST","/admin/",{
+        "action":"publish","csrf":csrf,"version":"999999",
+        "note":"Старая вкладка","confirm":"yes"
+    })
+    assert status==409
+    # Save a second content state, publish it and restore the first revision.
+    status,editor,_=request("GET","/admin/")
+    version=hidden(editor,"version")
+    current_fields={}
+    for name,value in re.findall(
+        r'<textarea id="([^"]+)" name="text\[[^"]+\]" maxlength="\d+">(.*?)</textarea>',
+        editor,re.S
+    ):
+        current_fields["text["+name+"]"]=unescape(value)
+    current_fields["text[faq.text.02]"]="Новая редакция FAQ."
+    status,_,_=request("POST","/admin/",{
+        "action":"save","csrf":csrf,"version":version,**current_fields
+    })
+    assert status==303,status
+    status,editor,_=request("GET","/admin/")
+    version=hidden(editor,"version")
+    status,_,_=request("POST","/admin/",{
+        "action":"publish","csrf":csrf,"version":version,
+        "note":"Вторая локальная публикация","confirm":"yes"
+    })
+    assert status==303,status
+    status,_,_=request("POST","/admin/",{
+        "action":"restore","csrf":csrf,"version":"2","target_revision":"1",
+        "note":"Вернуть первую","confirm":"yes"
+    })
+    assert status==303,status
+    status,history,_=request("GET","/admin/")
+    assert "№3" in history and "№2" in history and "№1" in history
+    assert "Вернуть первую" in history
+    # Publication does not clear the current draft even after restoration.
+    status,preview,_=request("GET","/admin/?view=preview")
+    assert "Новая редакция FAQ." in preview
     status,_,_=request("POST","/admin/",{
         "action":"logout","csrf":csrf
     })
