@@ -61,6 +61,8 @@ jobs:
         run: php website/tests/Stage7TrustTest.php
       - name: Verify Stage 7 CLI preview and protected FAQ policies
         run: python3 website/tests/Stage7TrustCliTest.py
+      - name: Stage 9 safe SEO and private image checks
+        run: php website/tests/Stage9MediaSeoTest.php
       - name: Stage 9 all-section editor and protected FAQ model
         run: php website/tests/Stage9CmsFaqTest.php
       - name: Verify Stage 8 installation and footer safety contracts
