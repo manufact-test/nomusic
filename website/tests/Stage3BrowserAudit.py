@@ -373,7 +373,7 @@ def main():
                             "#transparency h2", "#transparency p",
                             "#transparency h3", "#transparency li",
                             "#faq .section-heading", "#faq .section-body",
-                            "#faq details.faq-item summary", "#faq .answer"
+                            "#faq details.faq-item .answer p"
                           ]) {
                             for (const el of document.querySelectorAll(selector)) {
                               const rect = el.getBoundingClientRect();
