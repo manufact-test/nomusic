@@ -866,28 +866,28 @@
       "label": "Ссылка 5"
     },
     {
-      "key": "top.link.01",
+      "key": "hero.primary.href",
       "section": "top",
       "element_ordinal": 6,
       "attribute": "href",
       "default": "#how",
-      "label": "Ссылка 1"
+      "label": "Основная кнопка первого экрана"
     },
     {
-      "key": "top.link.02",
+      "key": "hero.secondary.href",
       "section": "top",
       "element_ordinal": 7,
       "attribute": "href",
       "default": "#features",
-      "label": "Ссылка 2"
+      "label": "Дополнительная кнопка первого экрана"
     },
     {
-      "key": "closing.link.01",
+      "key": "closing.cta.href",
       "section": "closing",
       "element_ordinal": 8,
       "attribute": "href",
       "default": "#top",
-      "label": "Ссылка 1"
+      "label": "Ссылка финального призыва"
     },
     {
       "key": "footer.link.01",
