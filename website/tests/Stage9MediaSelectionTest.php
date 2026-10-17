@@ -63,8 +63,10 @@ try {
         'media node duplicated');
     selectAssert(CmsRevisions::publishedPage($pdo,$html,$manifest,$faq)===$original,
         'private selection changed published snapshot');
-    selectReject(fn()=>CmsMediaAssignment::privatePage($page,$id,
-        '" onerror="alert(1)'), 'malicious attr');
+    $injection=CmsMediaAssignment::privatePage($page,$id, '" onerror="alert(1)');
+    selectAssert(!str_contains($injection,'alt="" onerror=') &&
+        str_contains($injection,'&quot; onerror=&quot;alert(1)'),
+        'Untrusted ALT escaped without executing attributes');
     selectReject(fn()=>CmsMediaAssignment::privatePage(
         str_replace('data-managed-media="celikom.popup.approved"','data-managed-media="evil"',$page),
         $id,'Safe title'
