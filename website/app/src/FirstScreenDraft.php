@@ -14,6 +14,7 @@ final class FirstScreenDraft
     private const SECTIONS = ['header' => true, 'top' => true, 'sound' => true];
     private const DYNAMIC_KEY = 'sound.result.restored';
     private const ADAPTER = '<script src="/assets/js/v10/demo-editorial-preview.js"></script>';
+    private const EDITOR_CSS = '<link rel="stylesheet" href="/assets/css/v10/editor-copy-safety.css"/>';
 
     /** @param array<string,mixed> $overrides */
     public static function render(string $trustedTemplate, string $schemaJson, array $overrides): string
@@ -42,6 +43,15 @@ final class FirstScreenDraft
         }
         // Verify canonical template SHA, slot positions, URL rules and escaping.
         $html = V10Renderer::render($trustedTemplate, $schemaJson, $contentOverrides);
+        if ($overrides !== []) {
+            // Additive wrapping rules are scoped to edited previews only.
+            // Without edits, the original HTML remains byte-for-byte equal.
+            if (substr_count($html, '</head>') !== 1 ||
+                str_contains($html, self::EDITOR_CSS)) {
+                throw new RuntimeException('Unexpected editor preview HTML head');
+            }
+            $html = str_replace('</head>', self::EDITOR_CSS . '</head>', $html);
+        }
         if (!array_key_exists('sound.text.07', $contentOverrides) && !$hasRestoredOverride) {
             return $html;
         }
