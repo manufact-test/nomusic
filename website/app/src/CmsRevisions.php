@@ -101,6 +101,23 @@ final class CmsRevisions
         }
     }
 
+    /**
+     * Revision list contains metadata only, never raw snapshot or secrets.
+     * @return list<array{id:int,note:string,at:string}>
+     */
+    public static function history(PDO $pdo,int $limit=15):array
+    {
+        if($limit<1 || $limit>50)throw new InvalidArgumentException('Invalid history limit');
+        $stmt=$pdo->query('SELECT id,change_note,created_at FROM content_revisions ' .
+            'ORDER BY id DESC LIMIT '.(int)$limit);
+        $list=[];
+        while($row=$stmt->fetch(PDO::FETCH_ASSOC)) {
+            $list[]=['id'=>(int)$row['id'],'note'=>(string)$row['change_note'],
+                'at'=>(string)$row['created_at']];
+        }
+        return $list;
+    }
+
     /** Read the pointer and snapshot in ONE SQL statement; no draft mixing. */
     public static function publishedPage(
         PDO $pdo,string $template,string $manifest,string $faqSeed
