@@ -62,3 +62,22 @@ See `docs/website/checkpoints/2026-10-17-STAGE3-UIKIT-QA.md` and
 `docs/website/04-MEDIA-AND-ACCESSIBILITY-POLICY.md`.
 Older sections describing font work as outstanding are historical.
 **Technical QA complete != Stage 3 owner acceptance; no deploy or CMS.**
+
+## Stage 4 first-screen editing safety — update 17.10.2026
+
+Private `FirstScreenDraft.php` supports controlled Header/Hero/demo edits only.
+In a **local CLI preview** the two demo state labels may be changed through
+`sound.text.07` and `sound.result.restored`. The trusted additive
+`public/assets/js/v10/demo-editorial-preview.js` reads escaped
+`data-editorial-*` attributes and only writes `textContent`; it cannot
+be configured to execute HTML/JavaScript from the editor. The original v10
+demo script, FAQ script and all five CSS cascades are unchanged, and untouched
+previews still match the approved HTML byte for byte.
+
+Bad local `#hash` targets in Header/Hero are rejected. Tests cover script
+injection, URL validation, Unicode/control bytes, five Chromium breakpoints,
+mouse/keyboard switching and CTA navigation. Verified specialized CI:
+[push 39064380466](https://github.com/manufact-test/nomusic/actions/runs/39064380466),
+[PR 39064383865](https://github.com/manufact-test/nomusic/actions/runs/39064383865).
+See `docs/website/checkpoints/2026-10-17-STAGE4-DEMO-STATES-QA.md`.
+**No public CMS, publication or Stage 3/4 formal acceptance yet.**
