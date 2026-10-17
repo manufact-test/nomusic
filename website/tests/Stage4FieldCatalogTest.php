@@ -11,7 +11,7 @@ $template = file_get_contents($base . '/app/Templates/site-v10.html');
 if (!is_string($manifest) || !is_string($template)) throw new RuntimeException('Missing approved Stage4 inputs');
 $fields = Catalog::fields($manifest);
 if (count($fields) !== 27) throw new RuntimeException('Stage4 field count changed: ' . count($fields));
-$sections = array_unique(array_column($fields, 'section'));
+$sections = array_values(array_unique(array_column($fields, 'section')));
 if ($sections !== ['header','top','sound']) throw new RuntimeException('Unexpected Stage4 editable section group');
 foreach ($fields as $key => $field) {
     Catalog::check($key, $field['default'], $field);
