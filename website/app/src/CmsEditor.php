@@ -24,7 +24,7 @@ final class CmsEditor
         $trust = TrustFieldCatalog::fields($manifest);
         $finish = InstallFooterFieldCatalog::fields($manifest);
         $all = [];
-        foreach ([$first,$principle,$community,$trust,$finish['texts'],$finish['links']] as $bucket) {
+        foreach ([$first,$principle,$community,$trust,$finish['texts'],$finish['links'],CmsSeoCatalog::fields($manifest)] as $bucket) {
             foreach ($bucket as $key => $field) {
                 if (isset($all[$key])) {
                     throw new \RuntimeException('Duplicate CMS catalog key');
@@ -58,7 +58,9 @@ final class CmsEditor
             if (!is_string($key) || !isset($fields[$key]) || !is_string($value)) {
                 throw new InvalidArgumentException('Unapproved CMS field');
             }
-            if (str_starts_with($key,'header.') ||
+            if (($fields[$key]['type']??null)==='metadata') {
+                CmsSeoCatalog::check($key,$value,$fields[$key]);
+            } elseif (str_starts_with($key,'header.') ||
                 str_starts_with($key,'hero.') ||
                 str_starts_with($key,'sound.')) {
                 FirstScreenFieldCatalog::check($key,$value,$fields[$key]);
