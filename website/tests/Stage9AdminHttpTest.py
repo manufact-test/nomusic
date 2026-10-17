@@ -5,6 +5,9 @@ CI provides a disposable dedicated MySQL service. No external requests.
 from html import unescape
 import http.client
 import os
+import base64
+import shutil
+import tempfile
 from pathlib import Path
 import re
 import socket
@@ -18,6 +21,8 @@ with socket.socket() as sock:
     port=sock.getsockname()[1]
 env=dict(os.environ)
 env["CELIKOM_LOCAL_ADMIN"]="1"
+private_media=tempfile.mkdtemp(prefix="celikom-ci-private-media-")
+env["CELIKOM_SITE_MEDIA_DIR"]=private_media
 env.pop("CELIKOM_LOCAL_PREVIEW",None)
 server=subprocess.Popen(["php","-S",f"127.0.0.1:{port}","-t",str(ROOT/"public")],
     env=env,stdout=subprocess.DEVNULL,stderr=subprocess.PIPE,text=True)
@@ -40,6 +45,30 @@ def request(method,path,form=None):
     headers_out=dict(reply.getheaders())
     conn.close()
     return status,result,headers_out
+def upload_image(csrf,alt,data,mime,filename):
+    boundary="CelikomPrivateAssetBoundaryStage9"
+    def part(name,value):
+        return (
+            f"--{boundary}\r\nContent-Disposition: form-data; name=\"{name}\"\r\n\r\n{value}\r\n"
+        ).encode("utf-8")
+    body=part("csrf",csrf)+part("action","media_upload")+part("alt",alt)
+    body+=(
+        f"--{boundary}\r\nContent-Disposition: form-data; name=\"image\"; filename=\"{filename}\"\r\n"
+        f"Content-Type: {mime}\r\n\r\n"
+    ).encode("utf-8")+data+b"\r\n"+f"--{boundary}--\r\n".encode("ascii")
+    conn=http.client.HTTPConnection("127.0.0.1",port,timeout=6)
+    conn.request("POST","/admin/",body=body,headers={
+        "Cookie":cookie,
+        "Content-Type":f"multipart/form-data; boundary={boundary}",
+        "Content-Length":str(len(body))
+    })
+    response=conn.getresponse()
+    status=response.status
+    response_body=response.read().decode("utf-8")
+    location=response.getheader("Location") or ""
+    conn.close()
+    return status,response_body,location
+
 def hidden(html,name):
     m=re.search(r'name="'+re.escape(name)+r'" value="([^"]*)"',html)
     assert m,(name,html[:800])
@@ -157,6 +186,20 @@ try:
     assert "Ответы редакции CELIKOM." in merged_preview
     assert "Как связаться с поддержкой проекта?" in merged_preview
     assert merged_preview.count('class="faq-item"')==29
+    # An uploaded image remains private, and content-type spoofing is refused.
+    sample_png=base64.b64decode(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+pS1kAAAAASUVORK5CYII="
+    )
+    status,body,_=upload_image(csrf,"Логотип для теста",
+        b'<svg onload="alert(1)"></svg>',"image/png","spoof.png")
+    assert status==422,(status,body[:500])
+    status,body,location=upload_image(csrf,"Тестовая картинка",
+        sample_png,"image/png","safe.png")
+    assert status==303 and "saved=media" in location,(status,body[:500],location)
+    status,editor,_=request("GET","/admin/")
+    assert "Тестовая картинка" in editor and "safe.png" in editor
+    assert "На сайте оно пока не используется" in editor
+    assert len(os.listdir(private_media))==1
     # Publication/restore require CSRF, explicit consent and fresh version.
     status,editor,_=request("GET","/admin/")
     version=hidden(editor,"version")
@@ -227,3 +270,4 @@ finally:
         server.wait()
     if server.returncode not in (0,-15,None):
         print(server.stderr.read()[-1500:])
+    shutil.rmtree(private_media,ignore_errors=True)
