@@ -39,6 +39,8 @@ jobs:
         run: php website/tests/Stage3FoundationTest.php
       - name: Verify approved v10 markup and preserved FAQ
         run: python3 website/tests/Stage3MarkupTest.py
+      - name: Verify CMS FAQ seed and isolated database contract
+        run: python3 website/tests/Stage3SeedContractTest.py
       - name: Prevent accidental screenshot and private asset publication
         shell: bash
         run: |
