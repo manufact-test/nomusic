@@ -52,4 +52,24 @@ verifyFirstScreen(str_contains($safe, '&lt;img onerror=alert(1)&gt;'), 'Hero eye
 
 rejectFirstScreen(static fn() => FirstScreenDraft::render($template, $manifest, ['hero.title.first' => str_repeat('X', 2000)]), 'text length');
 rejectFirstScreen(static fn() => FirstScreenDraft::render($template . ' ', $manifest, []), 'mutated trusted template');
+// Dynamic demo mode strings: no user HTML or inline JavaScript.
+$dynamic = FirstScreenDraft::render($template, $manifest, [
+    'sound.text.07' => 'Оригинал & плеер',
+    'sound.result.restored' => 'Проверенная версия <script>alert(1)</script>',
+]);
+verifyFirstScreen(str_contains($dynamic, 'data-editorial-service="Оригинал &amp; плеер"'), 'Escaped service state not found');
+verifyFirstScreen(str_contains($dynamic, 'data-editorial-restored="Проверенная версия &lt;script&gt;alert(1)&lt;/script&gt;"'), 'Escaped restored state not found');
+verifyFirstScreen(str_contains($dynamic, '<script src="/assets/js/v10/demo-editorial-preview.js"></script></body>'), 'Fixed external adapter missing');
+verifyFirstScreen(!str_contains($dynamic, '<script>alert(1)</script>'), 'Raw malicious script in demo');
+verifyFirstScreen(substr_count($dynamic, '<script src="/assets/js/v10/sound-demo.js"></script>') === 1, 'Original v10 JS modified');
+verifyFirstScreen(substr_count($dynamic, '<details') === 28, 'FAQ drift on dynamic draft');
+$onlyRestored = FirstScreenDraft::render($template, $manifest, ['sound.result.restored' => 'Другая версия']);
+verifyFirstScreen(str_contains($onlyRestored, 'data-editorial-service='), 'Missing initial service state');
+verifyFirstScreen(str_contains($onlyRestored, 'data-editorial-restored="Другая версия"'), 'Missing restored state');
+rejectFirstScreen(static fn() => FirstScreenDraft::render($template, $manifest, ['sound.result.restored' => '']), 'Empty restored state');
+rejectFirstScreen(static fn() => FirstScreenDraft::render($template, $manifest, ['sound.result.restored' => str_repeat('X', 121)]), 'Oversized restored state');
+rejectFirstScreen(static fn() => FirstScreenDraft::render($template, $manifest, ['sound.result.restored' => "\x01"]), 'Control byte in restored state');
+rejectFirstScreen(static fn() => FirstScreenDraft::render($template, $manifest, ['sound.result.restored' => ['array']]), 'Non-string restored state');
+rejectFirstScreen(static fn() => FirstScreenDraft::render($template, $manifest, ['sound.result.hidden' => 'x']), 'Unknown dynamic key');
+
 echo "Stage 4 first-screen scope: Header, Hero, demo edit guard and unchanged v10 — PASS\n";
