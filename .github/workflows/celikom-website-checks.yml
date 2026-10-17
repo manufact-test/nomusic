@@ -39,6 +39,8 @@ jobs:
         run: php website/tests/Stage3FoundationTest.php
       - name: Verify safe v10 content rendering and metadata
         run: php website/tests/Stage3RendererTest.php
+      - name: Verify 28 FAQ server-rendering and safe edits
+        run: php website/tests/Stage3FaqRendererTest.php
       - name: Verify CLI-only draft preview (not deployed)
         shell: bash
         run: |
