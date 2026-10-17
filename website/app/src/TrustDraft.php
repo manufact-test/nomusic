@@ -35,6 +35,11 @@ final class TrustDraft
         'faq-question-25' => true,
     ];
 
+    public static function isProtectedFaqId(string $id): bool
+    {
+        return isset(self::PROTECTED_FAQ[$id]);
+    }
+
     /**
      * @param array<string,mixed> $texts
      * @param array<string,mixed> $faqDraft
