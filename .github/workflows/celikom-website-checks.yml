@@ -43,6 +43,8 @@ jobs:
         run: php website/tests/Stage3FaqRendererTest.php
       - name: Verify Stage 4 typed editorial catalog and compact-layout budgets
         run: php website/tests/Stage4FieldCatalogTest.php
+      - name: Verify exported Stage 4 editor field contract
+        run: python3 website/tests/Stage4CatalogCliTest.py
       - name: Verify Stage 4 first-screen editorial boundaries
         run: php website/tests/Stage4FirstScreenTest.php
       - name: Verify Stage 4 scoped CLI preview rejects unsafe edits
