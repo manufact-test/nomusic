@@ -34,9 +34,15 @@ class Handler(http.server.SimpleHTTPRequestHandler):
 
     def do_GET(self):
         route = urlsplit(self.path).path
-        if route not in ("/audit/reference", "/audit/runtime", "/audit/draft", "/audit/stress", "/audit/principle", "/audit/community", "/audit/trust"):
+        if route not in ("/audit/reference", "/audit/runtime", "/audit/draft", "/audit/stress", "/audit/principle", "/audit/community", "/audit/trust", "/audit/install-footer"):
             return super().do_GET()
-        if route.endswith("/trust"):
+        if route.endswith("/install-footer"):
+            preview = subprocess.run(
+                ["php", str(BASE / "tools/render-install-footer-preview.php"),
+                 str(BASE / "tests/fixtures/preview-stage8-install-footer.json")],
+                capture_output=True, text=True, timeout=10, check=True)
+            html = preview.stdout
+        elif route.endswith("/trust"):
             preview = subprocess.run(
                 ["php", str(BASE / "tools/render-trust-preview.php"),
                  str(BASE / "tests/fixtures/preview-stage7-trust.json")],
@@ -387,6 +393,51 @@ def main():
                         }""")
                         assert not trust_bounds, f"Stage 7 content overflow at {width}px: {trust_bounds}"
                         result["stage7TrustFaq"] = "PASS"
+
+                        # Stage 8: closed-install status is unchanged, while
+                        # closing copy and footer hash navigation are editable.
+                        page.goto(origin + "/audit/install-footer", wait_until="networkidle")
+                        assert "Скоро можно будет подключиться." in page.locator("#install").inner_text()
+                        assert "Идёт тестирование" in page.locator("#install").inner_text()
+                        assert "Пока установка закрыта" in page.locator("#install").inner_text()
+                        assert "Установка после запуска" in page.locator("#install").inner_text()
+                        assert "Песни, которые хочется слышать снова." in page.locator(
+                            "#closing h2").inner_text()
+                        assert page.locator("#closing .closing-link").get_attribute("href") == "#top"
+                        assert page.locator("footer .footer-links a").count() == 4
+                        assert page.locator("footer .footer-links a").nth(0).get_attribute(
+                            "href") == "#how"
+                        assert page.locator("footer .footer-links a").nth(2).get_attribute(
+                            "href") == "#faq"
+                        assert page.locator("#install a[href*='download']").count() == 0
+                        assert page.locator("#install form").count() == 0
+                        assert page.locator("#faq details.faq-item").count() == 28
+                        assert page.locator("script:not([src])").count() == 0
+                        page.locator("#closing .closing-link").focus()
+                        page.keyboard.press("Enter")
+                        assert page.evaluate("location.hash") == "#top"
+                        bounds_install = page.evaluate("""() => {
+                          const bad = [];
+                          for (const selector of [
+                            "#install h2", "#install h3", "#install p",
+                            "#install .install-status", "#install .install-future",
+                            "#closing h2", "#closing p", "#closing a",
+                            "footer .footer-links a", "footer .footer-brand"
+                          ]) {
+                            for (const el of document.querySelectorAll(selector)) {
+                              const rect = el.getBoundingClientRect();
+                              if (el.scrollWidth > el.clientWidth + 2 ||
+                                  rect.left < -2 || rect.right > innerWidth + 2) {
+                                bad.push(selector + " " + rect.left + ".." + rect.right +
+                                  " text=" + el.textContent.slice(0,45));
+                              }
+                            }
+                          }
+                          return bad;
+                        }""")
+                        assert not bounds_install, (
+                            f"Stage 8 edited install/footer overflow at {width}px: {bounds_install}")
+                        result["stage8InstallFooter"] = "PASS"
                         result["font"] = fs
                         results.append(result)
                     finally:
