@@ -63,11 +63,26 @@ try {
     if (!is_string($trustedHtml) || !is_string($contentSchema) || !is_string($faqSeed)) {
         throw new RuntimeException('Missing trusted template and content schema');
     }
-    // No public content overrides until Stage 9 MySQL atomic publication is
-    // implemented, authenticated, tested and accepted. Empty overrides render
-    // the approved v10 byte-for-byte.
-    $verifiedPage = \Celikom\Website\V10Renderer::render($trustedHtml, $contentSchema, []);
-    echo \Celikom\Website\FaqV10Renderer::render($verifiedPage, $faqSeed, []);
+    if ($localPreview) {
+        // Explicit developer-only preview remains canonical v10 and requires
+        // neither a database nor a release approval marker.
+        $verifiedPage = \Celikom\Website\V10Renderer::render($trustedHtml, $contentSchema, []);
+        echo \Celikom\Website\FaqV10Renderer::render($verifiedPage, $faqSeed, []);
+    } else {
+        // Only AFTER the separate Stage 10 release-approved marker exists,
+        // read a single immutable MySQL revision. A missing database, empty
+        // publication pointer, corrupt snapshot or incompatible v10 schema
+        // must fail closed, not leak a draft or silently fall back.
+        $pdo = \Celikom\Website\Database::connect(
+            \Celikom\Website\CmsConfig::databaseSettings()
+        );
+        if (\Celikom\Website\CmsRevisions::publishedId($pdo) === null) {
+            throw new RuntimeException('No reviewed CMS revision has been published');
+        }
+        echo \Celikom\Website\CmsRevisions::publishedPage(
+            $pdo, $trustedHtml, $contentSchema, $faqSeed
+        );
+    }
 } catch (\Throwable $error) {
     error_log('CELIKOM website: protected content render failed');
     http_response_code(503);
