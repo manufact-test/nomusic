@@ -10,6 +10,7 @@ import http.server
 import json
 from pathlib import Path
 import re
+import subprocess
 import threading
 from urllib.parse import urlsplit
 
@@ -33,9 +34,15 @@ class Handler(http.server.SimpleHTTPRequestHandler):
 
     def do_GET(self):
         route = urlsplit(self.path).path
-        if route not in ("/audit/reference", "/audit/runtime"):
+        if route not in ("/audit/reference", "/audit/runtime", "/audit/draft"):
             return super().do_GET()
-        if route.endswith("/runtime"):
+        if route.endswith("/draft"):
+            draft = subprocess.run(
+                ["php", str(BASE / "tools/render-first-screen-preview.php"),
+                 str(BASE / "tests/fixtures/preview-stage4-first-screen.json")],
+                capture_output=True, text=True, timeout=10, check=True)
+            html = draft.stdout
+        elif route.endswith("/runtime"):
             html = RUNTIME.read_text(encoding="utf-8")
         else:
             html = REFERENCE.read_text(encoding="utf-8")
@@ -157,6 +164,19 @@ def main():
                             "inspect CSS/JS extraction before accepting UI-kit.")
                         result = state_checks(page, width)
                         result["pngParity"] = True
+
+                        # Stage 4 first-screen editor preview runs server-side
+                        # from a guarded test fixture, never from a public route.
+                        page.goto(origin + "/audit/draft", wait_until="networkidle")
+                        assert page.locator("header nav").inner_text().find("Зачем CELIKOM") >= 0
+                        assert "Как работает демонстрация" in page.locator("#sound").inner_text()
+                        assert page.locator(".hero-lead").inner_text().startswith(
+                            "Демо предпросмотра первого экрана.")
+                        assert page.locator("script:not([src])").count() == 0, (
+                            "Injected script appeared in draft HTML")
+                        draft_result = state_checks(page, width)
+                        assert draft_result["geometry"]["documentWidth"] <= width + 1
+                        result["firstScreenDraft"] = "PASS"
                         result["font"] = fs
                         results.append(result)
                     finally:
@@ -168,7 +188,7 @@ def main():
         server.server_close()
     print(json.dumps(results, ensure_ascii=False, indent=2))
     print("CELIKOM Stage 3: five widths, real local Manrope, pixel parity, "
-          "responsive container, keyboard FAQ, buttons, filters and anchors PASS")
+          "responsive container, keyboard FAQ, buttons, filters, first-screen draft and anchors PASS")
     if not all(item["summaryFocusVisible"] for item in results):
         print("ACCESSIBILITY FOLLOW-UP: summary focus-visible may need a "
               "small additive CSS rule; retain owner-approved default-state appearance.")
