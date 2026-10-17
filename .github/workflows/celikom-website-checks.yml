@@ -69,3 +69,23 @@ jobs:
           if grep -R -E -l 'data:image/png;base64|data:image/jpeg;base64' website/public website/app; then
             echo 'Embedded raster data must not be committed to the website'; exit 1
           fi
+
+  browser-audit:
+    name: Chromium UI-kit parity and accessibility (offline)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: website
+          sparse-checkout-cone-mode: true
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install pinned Playwright and Chromium
+        run: |
+          python -m pip install playwright==1.56.0
+          python -m playwright install --with-deps chromium
+      - name: Audit approved v10 on five breakpoints using self-hosted Manrope
+        run: python website/tests/Stage3BrowserAudit.py
