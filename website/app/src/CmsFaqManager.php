@@ -137,6 +137,15 @@ final class CmsFaqManager
             !is_bool($form['is_visible'])) {
             throw new InvalidArgumentException('Invalid FAQ form type');
         }
+        foreach (['question'=>400, 'answer'=>3000] as $key=>$max) {
+            $value=trim($form[$key]);
+            if($value==='' || preg_match('//u',$value)!==1 ||
+                strlen($value)>$max*4 ||
+                preg_match('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/',$value) ||
+                preg_match_all('/./us',$value)>$max) {
+                throw new InvalidArgumentException('FAQ text exceeds approved budget');
+            }
+        }
         return $form;
     }
 }
