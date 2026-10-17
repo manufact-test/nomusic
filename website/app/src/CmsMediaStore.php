@@ -100,8 +100,12 @@ final class CmsMediaStore
         if(!move_uploaded_file($file['tmp_name'],$destination)) {
             throw new RuntimeException('Cannot move the image to protected storage');
         }
-        @chmod($destination,0600);
+        if(!@chmod($destination,0600)) {
+            @unlink($destination);
+            throw new RuntimeException('Could not protect private image permissions');
+        }
         try {
+            $pdo->beginTransaction();
             $pdo->prepare(
                 'INSERT INTO media_assets(storage_key,original_filename,mime_type,' .
                 'sha256,pixel_width,pixel_height,alt_text,created_by) VALUES(?,?,?,?,?,?,?,?)'
@@ -116,8 +120,10 @@ final class CmsMediaStore
                 ' VALUES(?,?,?,?)'
             )->execute([$admin,'cms.media.stored',(string)$id,
                 json_encode(['mime'=>$meta['mime'],'size'=>$meta['size']],JSON_THROW_ON_ERROR)]);
+            $pdo->commit();
             return $id;
         } catch (\Throwable $e) {
+            if($pdo->inTransaction())$pdo->rollBack();
             @unlink($destination);
             throw $e;
         }
