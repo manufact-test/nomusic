@@ -194,6 +194,15 @@ def main():
                             "Проверенная версия <только если доступна>")
                         assert page.locator("#sound-panel").get_attribute("data-mode") == "restored"
                         assert page.locator("#sound-result script").count() == 0
+                        # Header/Hero actions are real, keyboard-reachable
+                        # in the narrowest viewport, and their hash exists.
+                        primary = page.locator(".hero .btn.primary")
+                        assert primary.get_attribute("href") == "#sound"
+                        primary.focus()
+                        assert primary.evaluate("(e) => document.activeElement === e")
+                        page.keyboard.press("Enter")
+                        assert page.evaluate("location.hash") == "#sound"
+                        assert page.locator("#sound").count() == 1
                         result["firstScreenDraft"] = "PASS"
                         result["font"] = fs
                         results.append(result)
