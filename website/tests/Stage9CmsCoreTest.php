@@ -76,7 +76,7 @@ $manifest=file_get_contents($base.'/app/Config/content-fields-v10.json');
 $seed=file_get_contents($base.'/database/seeds/faq-v10.json');
 if(!is_string($template)||!is_string($manifest)||!is_string($seed)) throw new RuntimeException('v10 missing');
 $fields=CmsEditor::fields($manifest);
-cmsAssert(count($fields)===21,'Stage 9 first-slice 21 safely editable fields');
+cmsAssert(count($fields)===84,'Stage 9 safe copy/link fields across sections');
 $draft=['content'=>['faq.text.02'=>'Вопросы CELIKOM сегодня.'],'faq'=>[]];
 $page=CmsEditor::validate($template,$manifest,$seed,$draft);
 cmsAssert(str_contains($page,'Вопросы CELIKOM сегодня.'),'Editor does not render draft');
