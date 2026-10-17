@@ -129,6 +129,48 @@ final class CmsMediaStore
         }
     }
 
+    /**
+     * View a previously checked-in private image ONLY through an authenticated
+     * /admin/ request. There is intentionally no public /media/ endpoint.
+     * @return array{mime:string,body:string,alt:string}
+     */
+    public static function privatePreview(
+        PDO $pdo,int $assetId,string $storageDirectory,string $publicDirectory
+    ):array {
+        if($assetId<1)throw new InvalidArgumentException('Invalid image ID');
+        $storage=realpath($storageDirectory);
+        $public=realpath($publicDirectory);
+        if($storage===false || $public===false ||
+            $storage===$public ||
+            str_starts_with($storage,$public.'/') ||
+            str_starts_with($public,$storage.'/')) {
+            throw new RuntimeException('Media preview storage is not isolated');
+        }
+        $q=$pdo->prepare('SELECT storage_key,mime_type,sha256,alt_text FROM media_assets ' .
+            'WHERE id=? AND is_active=1 LIMIT 1');
+        $q->execute([$assetId]);
+        $asset=$q->fetch(PDO::FETCH_ASSOC);
+        if(!$asset)throw new InvalidArgumentException('Unknown or inactive image');
+        $key=(string)$asset['storage_key'];
+        if(!preg_match('~^site-private/([a-f0-9]{40}\.(png|jpg|webp))$~D',$key,$found) ||
+            !isset(self::ALLOWED[$asset['mime_type']]) ||
+            $found[2]!==self::ALLOWED[$asset['mime_type']]) {
+            throw new RuntimeException('Invalid private media reference');
+        }
+        $path=$storage.'/'.$found[1];
+        if(!is_file($path) || is_link($path) ||
+            ($size=filesize($path))===false || $size<30 || $size>self::MAX_BYTES) {
+            throw new RuntimeException('Private media file unavailable');
+        }
+        $bytes=file_get_contents($path);
+        if(!is_string($bytes) || strlen($bytes)!==$size ||
+            !hash_equals((string)$asset['sha256'],hash('sha256',$bytes))) {
+            throw new RuntimeException('Private image integrity failed');
+        }
+        return ['mime'=>(string)$asset['mime_type'],
+            'body'=>$bytes,'alt'=>(string)$asset['alt_text']];
+    }
+
     /** @return list<array<string,mixed>> */
     public static function recent(PDO $pdo):array
     {
