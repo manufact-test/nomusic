@@ -119,3 +119,24 @@ and [PR 39066172269](https://github.com/manufact-test/nomusic/actions/runs/39066
 both PASS at `4f1017fe3d6033b28614a44c23a98ed1b960b9d6`.
 Checkpoint: `docs/website/checkpoints/2026-10-17-STAGE5-PRINCIPLE-SLICE.md`.
 No live editor, database migration, deployment or formal owner signoff.
+
+## Stage 6 private community and reward copy preview (checkpoint v3.9)
+
+Stage 6 adds `CommunityFieldCatalog` and `CommunityDraft`, permitting
+only 8 community text fields and 2 rewards headings. The reward money policy
+and pending-payment statement (`rewards.text.03/.04`) are deliberately locked
+for this **developer-only** slice; Stage 9 must later implement the owner's
+authorized, policy-reviewed management of these values. The upload description
+must preserve required rights and moderation. A CLI-only preview at
+`tools/render-community-preview.php` validates JSON and outputs escaped,
+unpublished HTML. No backend operations, storage, public upload, or payments.
+Tests: `Stage6CommunityTest.php`, `Stage6CommunityCliTest.py`, and browser
+`Stage3BrowserAudit.py` at 320/390/768/1024/1440; all original v10 files
+stay unchanged. Full code CI [push](https://github.com/manufact-test/nomusic/actions/runs/39067165645),
+[PR](https://github.com/manufact-test/nomusic/actions/runs/39067169564), both SUCCESS.
+Detailed checkpoint `docs/website/checkpoints/2026-10-17-STAGE6-COMMUNITY-SLICE.md`.
+
+**Owner's new documentation rhythm:** checkpoint updates happen on explicit
+request, at a planned chat handoff, or after a genuinely substantial piece of
+work. Regular source commits can happen as needed, but don't rewrite
+NEXT-CHAT/ROADMAP after every minor engineering task.
