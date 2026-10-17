@@ -176,7 +176,7 @@ try:
         editor,re.S
     ):
         all_fields["text["+name+"]"]=unescape(value)
-    assert len(all_fields)==84,len(all_fields)
+    assert len(all_fields)==87,len(all_fields)
     all_fields["text[faq.text.02]"]="Ответы редакции CELIKOM."
     status,_,_=request("POST","/admin/",{
         "action":"save","csrf":csrf,"version":latest_version,**all_fields
