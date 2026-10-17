@@ -134,6 +134,8 @@ jobs:
           coverage: none
       - name: Assert website CMS login, rate limits and isolated conflict-safe drafts
         run: php website/tests/Stage9CmsCoreTest.php
+      - name: Exercise owner admin HTTP flow
+        run: python3 website/tests/Stage9AdminHttpTest.py
       - name: Production release gate cannot be bypassed
         run: python3 website/tests/Stage9ReleaseGateTest.py
 
