@@ -140,6 +140,10 @@ jobs:
         run: php website/tests/Stage9CmsCoreTest.php
       - name: Verify private CMS content backup, integrity and restoration safety
         run: php website/tests/Stage9BackupTest.php
+      - name: Rehearse CMS backup recovery in disposable MySQL
+        env:
+          CELIKOM_SITE_SANDBOX_RESTORE: '1'
+        run: php website/tests/Stage9BackupRestoreRehearsalTest.php
       - name: Stage 9 private popup preview assignment never changes live revisions
         run: php website/tests/Stage9MediaSelectionTest.php
       - name: Stage 9 private metadata-stripped popup derivative and negative safety cases
