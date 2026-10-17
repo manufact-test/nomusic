@@ -199,6 +199,25 @@ try:
     status,editor,_=request("GET","/admin/?saved=media")
     assert "Тестовая картинка" in editor and "safe.png" in editor
     assert "На сайте оно пока не используется" in editor
+    assert 'class="section-editor"' in editor
+    assert "Публикации и откат" in editor and "История редакций" in editor
+    assert 'view=media&amp;id=' in editor
+    assert editor.count('class="section-editor"') >= 10
+    # The private image is available only to the authenticated editor:
+    media_id=re.search(r'view=media&amp;id=(\\d+)',editor)
+    assert media_id,editor[-4000:]
+    conn=http.client.HTTPConnection("127.0.0.1",port,timeout=5)
+    conn.request("GET","/admin/?view=media&id="+media_id.group(1),
+        headers={"Cookie":cookie})
+    binary_response=conn.getresponse()
+    binary=binary_response.read()
+    assert binary_response.status==200 and binary_response.getheader("Content-Type")=="image/png"
+    assert binary==sample_png
+    assert binary_response.getheader("Cache-Control")=="no-store, private"
+    conn.close()
+    status,draft_html,_=request("GET","/admin/?view=preview")
+    assert "safe.png" not in draft_html
+    assert "Тестовая картинка" not in draft_html
     assert len(os.listdir(private_media))==1
     # Publication/restore require CSRF, explicit consent and fresh version.
     status,editor,_=request("GET","/admin/")
@@ -263,6 +282,8 @@ try:
         "action":"logout","csrf":csrf
     })
     assert status==303,status
+    status,denied_preview,_=request("GET","/admin/?view=media&id="+media_id.group(1))
+    assert status==200 and "Вход администратора" in denied_preview
     status,closed,_=request("GET","/admin/?view=preview")
     assert status==200 and "Вход администратора" in closed
     assert "Поддержка и ответы CELIKOM." not in closed
