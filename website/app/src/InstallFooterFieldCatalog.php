@@ -155,7 +155,16 @@ final class InstallFooterFieldCatalog
                 throw new InvalidArgumentException('Back-to-top destination is immutable');
             }
         }
-        if (substr_count($template, 'id="' . substr($value, 1) . '"') !== 1) {
+        // Footer navigation is section-level only: never target arbitrary
+        // FAQ items, image widgets, admin URLs or private functionality.
+        $approvedSections = [
+            '#top' => true, '#features' => true, '#how' => true,
+            '#sound' => true, '#player' => true, '#contribute' => true,
+            '#transparency' => true, '#faq' => true, '#rewards' => true,
+            '#install' => true, '#closing' => true,
+        ];
+        if (!isset($approvedSections[$value]) ||
+            substr_count($template, 'id="' . substr($value, 1) . '"') !== 1) {
             throw new InvalidArgumentException('Stage 8 navigation points to a missing target');
         }
     }
