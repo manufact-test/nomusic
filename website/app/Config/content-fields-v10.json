@@ -940,5 +940,27 @@
       "editable": false,
       "reason": "Verified CMS media reference only; separate permission/format checks in Stage 9"
     }
+  ],
+  "attribute_fields": [
+    {
+      "key": "seo.description",
+      "section": "head",
+      "tag": "meta",
+      "element_ordinal": 4,
+      "attribute": "content",
+      "default": "CELIKOM помогает вновь услышать знакомое звучание любимых песен, если нужная проверенная версия доступна.",
+      "label": "SEO — описание страницы",
+      "max_chars": 320
+    },
+    {
+      "key": "media.popup.alt",
+      "section": "top",
+      "tag": "img",
+      "element_ordinal": 3,
+      "attribute": "alt",
+      "default": "Фрагмент настоящего интерфейса расширения: Повторить, Стоп, Вернуть оригинал, Загрузить версию, Предложить песню, статус аккаунта и поддержка",
+      "label": "Доступное описание настоящего интерфейса расширения",
+      "max_chars": 300
+    }
   ]
 }
