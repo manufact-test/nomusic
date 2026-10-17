@@ -21,13 +21,34 @@ try {
     if (!is_array($overrides) || (array_is_list($overrides) && $overrides !== [])) {
         throw new InvalidArgumentException('Overrides must be a JSON object keyed by approved CMS field IDs');
     }
+    // Supports the existing bare content-key object plus a combined Stage 3
+    // draft snapshot: {"content": {...}, "faq": {"updates":...}}.
+    if (array_key_exists('content', $overrides) || array_key_exists('faq', $overrides)) {
+        foreach (array_keys($overrides) as $key) {
+            if ($key !== 'content' && $key !== 'faq') {
+                throw new InvalidArgumentException('Mixed preview payload format');
+            }
+        }
+        $contentDraft = $overrides['content'] ?? [];
+        $faqDraft = $overrides['faq'] ?? [];
+        if (!is_array($contentDraft) || !is_array($faqDraft) ||
+            (array_is_list($contentDraft) && $contentDraft !== []) ||
+            (array_is_list($faqDraft) && $faqDraft !== [])) {
+            throw new InvalidArgumentException('Invalid combined draft payload');
+        }
+    } else {
+        $contentDraft = $overrides;
+        $faqDraft = [];
+    }
     $template = file_get_contents($base . '/app/Templates/site-v10.html');
     $registry = file_get_contents($base . '/app/Config/content-fields-v10.json');
-    if (!is_string($template) || !is_string($registry)) {
+    $faqSeed = file_get_contents($base . '/database/seeds/faq-v10.json');
+    if (!is_string($template) || !is_string($registry) || !is_string($faqSeed)) {
         throw new RuntimeException('Missing template/registry');
     }
     // Prints HTML to stdout; no file/database/hosting mutation.
-    echo \Celikom\Website\V10Renderer::render($template, $registry, $overrides);
+    $page = \Celikom\Website\V10Renderer::render($template, $registry, $contentDraft);
+    echo \Celikom\Website\FaqV10Renderer::render($page, $faqSeed, $faqDraft);
 } catch (\Throwable $exception) {
     // Avoid dumping content or sensitive stack traces into CI logs.
     fwrite(STDERR, "Invalid local preview data, content or template\n");
