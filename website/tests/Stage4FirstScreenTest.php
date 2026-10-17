@@ -47,6 +47,11 @@ rejectFirstScreen(static fn() => FirstScreenDraft::render($template, $manifest, 
 rejectFirstScreen(static fn() => FirstScreenDraft::render($template, $manifest, ['rewards.text.01' => 'Fake']), 'other section');
 rejectFirstScreen(static fn() => FirstScreenDraft::render($template, $manifest, ['hero.primary.href' => '//evil.example']), 'protocol-relative URL');
 rejectFirstScreen(static fn() => FirstScreenDraft::render($template, $manifest, ['hero.primary.href' => 'javascript:alert(1)']), 'script URL');
+rejectFirstScreen(static fn() => FirstScreenDraft::render($template, $manifest, ['hero.primary.href' => '#nonexistent-section']), 'Dead Hero anchor');
+rejectFirstScreen(static fn() => FirstScreenDraft::render($template, $manifest, ['header.link.02' => '#no-such-target']), 'Dead Header anchor');
+verifyFirstScreen(str_contains(
+    FirstScreenDraft::render($template, $manifest, ['hero.primary.href' => '#sound']),
+    'class="btn primary" href="#sound"'), 'Real demo section anchor unexpectedly blocked');
 $safe = FirstScreenDraft::render($template, $manifest, ['hero.eyebrow' => '<img onerror=alert(1)>']);
 verifyFirstScreen(str_contains($safe, '&lt;img onerror=alert(1)&gt;'), 'Hero eyebrow was not escaped');
 
