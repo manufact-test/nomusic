@@ -82,7 +82,7 @@ try:
         editor,re.S
     ):
         fields["text["+name+"]"]=unescape(value)
-    assert len(fields)==84,len(fields)
+    assert len(fields)==87,len(fields)
     fields["text[faq.text.02]"]="Поддержка и ответы CELIKOM."
     status,_,_=request("POST","/admin/",{
         "action":"save","csrf":csrf,"version":version,**fields
