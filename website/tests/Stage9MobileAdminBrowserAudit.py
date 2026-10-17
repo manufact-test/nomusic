@@ -46,9 +46,13 @@ def assert_layout(page, width):
 
 def exercise_authenticated_admin(page, base):
     """Actual mobile browser interactions, not only HTTP response inspection."""
-    # The credential is CI-only and seeded by Stage9CmsCoreTest.php.
-    # It is not read from a production secret or connected Hostinger.
-    password = os.environ['CELIKOM_CI_OWNER_PASSWORD']
+    # Recover the deliberately disposable test fixture from its seed script.
+    # Avoid a second copy of the credential and never query production.
+    import re
+    fixture = (ROOT/'tests'/'Stage9CmsCoreTest.php').read_text()
+    match = re.search(r"password_hash\\('([^']+)'", fixture)
+    assert match, 'Disposable CI owner fixture missing'
+    password = match.group(1)
     page.get_by_label('Логин').fill('owner')
     page.get_by_label('Пароль').fill(password)
     page.get_by_role('button', name='Войти').click()
