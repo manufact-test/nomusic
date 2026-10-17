@@ -33,8 +33,12 @@ final class V10Renderer
 
         $textMap = self::indexedFields($manifest['text_fields'] ?? null, 'ordinal');
         $linkMap = self::indexedFields($manifest['link_fields'] ?? null, 'element_ordinal');
+        $attributeFields = $manifest['attribute_fields'] ?? [];
+        if (!is_array($attributeFields) || count($attributeFields) !== 2) {
+            throw new RuntimeException('Missing SEO and accessible media metadata');
+        }
         $allowed = [];
-        foreach (array_merge(array_values($textMap), array_values($linkMap)) as $field) {
+        foreach (array_merge(array_values($textMap), array_values($linkMap), $attributeFields) as $field) {
             $allowed[$field['key']] = $field;
         }
         foreach ($overrides as $key => $value) {
@@ -47,7 +51,7 @@ final class V10Renderer
         }
         if ($overrides === []) {
             // Still run template/schema compatibility guards on first read.
-            self::verifyFields($html, $textMap, $linkMap);
+            self::verifyFields($html, $textMap, $linkMap, $attributeFields);
             return $html;
         }
 
@@ -113,7 +117,8 @@ final class V10Renderer
             $newTag = str_replace($needle, 'href="' . Content::escape($value) . '"', $raw);
             $replacements[] = ['offset' => $byteOffset, 'length' => strlen($raw), 'html' => $newTag];
         }
-        if (count($seen) !== count($textMap) + count($linkMap)) {
+        self::applyAttributes($html, $attributeFields, $overrides, $seen, $replacements);
+        if (count($seen) !== count($textMap) + count($linkMap) + count($attributeFields)) {
             throw new RuntimeException('CMS registry and template token positions differ');
         }
         usort($replacements, static fn(array $a, array $b): int => $b['offset'] <=> $a['offset']);
@@ -121,6 +126,67 @@ final class V10Renderer
             $html = substr_replace($html, $change['html'], $change['offset'], $change['length']);
         }
         return $html;
+    }
+
+
+    /**
+     * Only two literal-approved attribute types are editable in Stage 3:
+     * SEO description and popup accessibility text. Never render arbitrary
+     * tag names, CSS, media URLs or event attributes from a CMS schema.
+     *
+     * @param array<int,array<string,mixed>> $attributeFields
+     * @param array<string,mixed> $overrides
+     * @param array<string,bool> $seen
+     * @param array<int,array<string,int|string>> $replacements
+     */
+    private static function applyAttributes(
+        string $html,
+        array $attributeFields,
+        array $overrides,
+        array &$seen,
+        array &$replacements
+    ): void {
+        $allowed = [
+            'seo.description' => ['meta', 4, 'content'],
+            'media.popup.alt' => ['img', 3, 'alt'],
+        ];
+        foreach ($attributeFields as $field) {
+            $key = $field['key'] ?? null;
+            $spec = $allowed[$key] ?? null;
+            if ($spec === null || ($field['tag'] ?? null) !== $spec[0] ||
+                ($field['element_ordinal'] ?? null) !== $spec[1] ||
+                ($field['attribute'] ?? null) !== $spec[2] ||
+                !is_string($field['default'] ?? null)) {
+                throw new RuntimeException('Unapproved editable attribute');
+            }
+            $tag = $spec[0];
+            preg_match_all('~<' . $tag . '\b[^>]*>~u', $html, $tags, PREG_OFFSET_CAPTURE);
+            if (!isset($tags[0][$spec[1] - 1])) {
+                throw new RuntimeException('Missing editable metadata tag');
+            }
+            [$original, $offset] = $tags[0][$spec[1] - 1];
+            $needle = $spec[2] . '="' . $field['default'] . '"';
+            if (substr_count($original, $needle) !== 1) {
+                throw new RuntimeException('Metadata content has changed');
+            }
+            $seen[$key] = true;
+            if (!array_key_exists($key, $overrides)) {
+                continue;
+            }
+            $new = self::validText($overrides[$key], (int) $field['max_chars']);
+            if ($new === $field['default']) {
+                continue;
+            }
+            $replacements[] = [
+                'offset' => $offset,
+                'length' => strlen($original),
+                'html' => str_replace(
+                    $needle,
+                    $spec[2] . '="' . Content::escape($new) . '"',
+                    $original
+                ),
+            ];
+        }
     }
 
     /** @return array<int,array<string,mixed>> */
@@ -168,7 +234,7 @@ final class V10Renderer
      * @param array<int,array<string,mixed>> $textMap
      * @param array<int,array<string,mixed>> $linkMap
      */
-    private static function verifyFields(string $html, array $textMap, array $linkMap): void
+    private static function verifyFields(string $html, array $textMap, array $linkMap, array $attributeFields): void
     {
         $n = preg_match_all('~<!--[\s\S]*?-->|<![^>]*>|</?[A-Za-z][^>]*>|[^<]+~u', $html, $matches);
         if ($n === false) {
@@ -198,5 +264,8 @@ final class V10Renderer
                 throw new RuntimeException('Link registry mismatch');
             }
         }
+        $seen = [];
+        $unused = [];
+        self::applyAttributes($html, $attributeFields, [], $seen, $unused);
     }
 }
