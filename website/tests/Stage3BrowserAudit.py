@@ -34,9 +34,15 @@ class Handler(http.server.SimpleHTTPRequestHandler):
 
     def do_GET(self):
         route = urlsplit(self.path).path
-        if route not in ("/audit/reference", "/audit/runtime", "/audit/draft", "/audit/stress", "/audit/principle", "/audit/community"):
+        if route not in ("/audit/reference", "/audit/runtime", "/audit/draft", "/audit/stress", "/audit/principle", "/audit/community", "/audit/trust"):
             return super().do_GET()
-        if route.endswith("/community"):
+        if route.endswith("/trust"):
+            preview = subprocess.run(
+                ["php", str(BASE / "tools/render-trust-preview.php"),
+                 str(BASE / "tests/fixtures/preview-stage7-trust.json")],
+                capture_output=True, text=True, timeout=10, check=True)
+            html = preview.stdout
+        elif route.endswith("/community"):
             preview = subprocess.run(
                 ["php", str(BASE / "tools/render-community-preview.php"),
                  str(BASE / "tests/fixtures/preview-stage6-community.json")],
@@ -338,6 +344,49 @@ def main():
                         assert not community_bounds, (
                             f"Stage 6 mobile copy overflow at {width}px: {community_bounds}")
                         result["stage6Community"] = "PASS"
+
+                        # Stage 7: combined trust+FAQ editorial preview reuses
+                        # approved v10 without new visual assets or scripts.
+                        page.goto(origin + "/audit/trust", wait_until="networkidle")
+                        assert "Как работает CELIKOM." in page.locator("#transparency").inner_text()
+                        assert "Поможем разобраться." in page.locator("#faq").inner_text()
+                        trust = page.locator("#transparency").inner_text().replace("\u00a0", " ")
+                        assert "не гарантируем неизменность" in trust
+                        assert "не будет подменять" in trust
+                        assert "Мобильная версия — отдельная разработка" in trust
+                        assert page.locator("#faq details.faq-item").count() == 28
+                        assert "Проверь, что расширение включено" in page.locator(
+                            "#faq-question-27").inner_text()
+                        assert page.locator("#faq button.faq-filter").count() == 5
+                        page.locator('#faq button[data-filter="help"]').click()
+                        assert page.locator('#faq details.faq-item:not([hidden])').count() == 3
+                        page.locator('#faq button[data-filter="all"]').click()
+                        assert page.locator('#faq details.faq-item:not([hidden])').count() == 28
+                        faq_summary = page.locator("#faq-question-27 summary")
+                        faq_summary.focus()
+                        page.keyboard.press("Enter")
+                        assert page.locator("#faq-question-27").get_attribute("open") is not None
+                        assert page.locator("script:not([src])").count() == 0
+                        trust_bounds = page.evaluate("""() => {
+                          const bad = [];
+                          for (const selector of [
+                            "#transparency h2", "#transparency p",
+                            "#transparency h3", "#transparency li",
+                            "#faq .section-heading", "#faq .section-body",
+                            "#faq details.faq-item summary", "#faq .answer"
+                          ]) {
+                            for (const el of document.querySelectorAll(selector)) {
+                              const rect = el.getBoundingClientRect();
+                              if (el.scrollWidth > el.clientWidth + 2 ||
+                                  rect.left < -2 || rect.right > innerWidth + 2) {
+                                bad.push(selector + " at " + rect.left + ".." + rect.right);
+                              }
+                            }
+                          }
+                          return bad;
+                        }""")
+                        assert not trust_bounds, f"Stage 7 content overflow at {width}px: {trust_bounds}"
+                        result["stage7TrustFaq"] = "PASS"
                         result["font"] = fs
                         results.append(result)
                     finally:
