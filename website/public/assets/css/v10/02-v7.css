@@ -1,0 +1,21 @@
+
+/* FAQ: two explicit grid children, so search and answers cannot overlap the heading. */
+.faq { display:grid; grid-template-columns:minmax(0,.78fr) minmax(0,1.22fr); gap:clamp(30px,4.7vw,68px); align-items:start; }
+.faq-intro { position:static; top:auto; max-height:none; overflow:visible; padding:0; align-self:auto; min-width:0; }
+.faq-content { display:flex; flex-direction:column; min-width:0; width:100%; }
+.faq-search { position:relative; display:block; width:100%; margin:0 0 17px; min-height:0; }
+.faq-search input { display:block; width:100%; }
+.faq-list { display:grid; gap:12px; min-width:0; }
+.faq-item { min-width:0; }
+.faq-item[hidden], .faq-empty[hidden] { display:none !important; }
+@media (max-width:800px) {
+  .faq { grid-template-columns:minmax(0,1fr); gap:24px; }
+  .faq-intro { position:static; max-height:none; overflow:visible; }
+}
+@media (max-width:540px) {
+  .faq { gap:22px; }
+  .faq-search { margin-bottom:14px; }
+}
+/* The visual layout has no animations. Motion will be designed for the real site later. */
+*,*::before,*::after { animation:none !important; transition:none !important; }
+html { scroll-behavior:auto !important; }
