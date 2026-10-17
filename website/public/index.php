@@ -46,7 +46,10 @@ if (!is_file($bootstrap) || !is_file($template)) {
     exit;
 }
 $manifestPath = $privateApp . '/Config/content-fields-v10.json';
-if (!is_file($manifestPath)) {
+$faqSeedPath = $localPreview
+    ? dirname(__DIR__) . '/database/seeds/faq-v10.json'
+    : $domainRoot . '/celikom-private/database/seeds/faq-v10.json';
+if (!is_file($manifestPath) || !is_file($faqSeedPath)) {
     error_log('CELIKOM website: verified CMS content schema is unavailable');
     http_response_code(503);
     echo 'CELIKOM временно недоступен.';
@@ -56,13 +59,15 @@ require_once $bootstrap;
 try {
     $trustedHtml = file_get_contents($template);
     $contentSchema = file_get_contents($manifestPath);
-    if (!is_string($trustedHtml) || !is_string($contentSchema)) {
+    $faqSeed = file_get_contents($faqSeedPath);
+    if (!is_string($trustedHtml) || !is_string($contentSchema) || !is_string($faqSeed)) {
         throw new RuntimeException('Missing trusted template and content schema');
     }
     // No public content overrides until Stage 9 MySQL atomic publication is
     // implemented, authenticated, tested and accepted. Empty overrides render
     // the approved v10 byte-for-byte.
-    echo \Celikom\Website\V10Renderer::render($trustedHtml, $contentSchema, []);
+    $verifiedPage = \Celikom\Website\V10Renderer::render($trustedHtml, $contentSchema, []);
+    echo \Celikom\Website\FaqV10Renderer::render($verifiedPage, $faqSeed, []);
 } catch (\Throwable $error) {
     error_log('CELIKOM website: protected content render failed');
     http_response_code(503);
