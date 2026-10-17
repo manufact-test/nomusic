@@ -279,6 +279,30 @@ function cmsEscape(string $text): string
     return Content::escape($text);
 }
 $csrf = Security::csrfToken();
+if ($admin !== null && $_SERVER['REQUEST_METHOD'] === 'GET' &&
+    ($_GET['view'] ?? '') === 'media') {
+    try {
+        $id=filter_var($_GET['id']??null,FILTER_VALIDATE_INT);
+        $folder=getenv('CELIKOM_SITE_MEDIA_DIR');
+        if(!is_int($id) || $id<1 || !is_string($folder) || $folder==='') {
+            throw new InvalidArgumentException('Unknown private image');
+        }
+        $image=CmsMediaStore::privatePreview($pdo,$id,$folder,$root.'/public');
+        header('Content-Type: '.$image['mime']);
+        header('Content-Length: '.strlen($image['body']));
+        header('Content-Disposition: inline; filename="celikom-private-preview"');
+        header('Cross-Origin-Resource-Policy: same-origin');
+        echo $image['body'];
+    } catch (\InvalidArgumentException $e) {
+        http_response_code(404);
+        echo 'Изображение не найдено.';
+    } catch (\Throwable $e) {
+        error_log('CELIKOM CMS: private media preview unavailable');
+        http_response_code(503);
+        echo 'Изображение временно недоступно.';
+    }
+    exit;
+}
 if ($admin !== null && $_SERVER['REQUEST_METHOD'] === 'GET' && ($_GET['view'] ?? '') === 'preview') {
     try {
         $saved = CmsDraftStore::get($pdo);
@@ -343,7 +367,13 @@ input,textarea{display:block;width:100%;padding:12px;color:#111;background:#F7F8
 textarea{min-height:92px;resize:vertical}
 button,.action{display:inline-block;cursor:pointer;margin-top:14px;padding:12px 20px;border:0;border-radius:999px;background:#66E0BF;color:#071814;font-weight:700;text-decoration:none;font:inherit}
 .action{margin-left:10px}.muted{color:#B8CAC4;font-size:14px}.error{color:#FFC7BF}.ok{color:#9BE8CE}
-fieldset{border:0;padding:0;margin:0}fieldset+fieldset{margin-top:32px}
+.section-editor{margin:12px 0;border:1px solid #375048;border-radius:12px;padding:0 14px}
+.section-editor summary{cursor:pointer;padding:16px 0;font-weight:700;font-size:18px;list-style:revert}
+.section-editor[open] summary{border-bottom:1px solid #375048}
+.section-editor label:last-child{margin-bottom:18px}
+.section-editor summary:focus-visible,.faq-entry summary:focus-visible{outline:2px solid #66E0BF;outline-offset:4px}
+.panel{min-width:0}input,textarea,select{max-width:100%;min-width:0}
+
 select{display:block;width:100%;padding:10px;border-radius:9px;font:inherit}
 .faq-entry{padding:12px 0;border-bottom:1px solid #375048}
 .faq-entry summary{cursor:pointer;font-weight:600}
@@ -365,7 +395,22 @@ padding:12px 0;border-bottom:1px solid #375048}
 
 @media(max-width:600px){.faq-fields{grid-template-columns:1fr}}
 
-@media(max-width:600px){body{padding:12px}.panel{padding:16px}.action{margin-left:0}}
+@media(max-width:600px){
+body{padding:12px;padding-bottom:calc(16px + env(safe-area-inset-bottom))}
+main{width:100%;min-width:0}
+.panel{padding:16px}
+.section-editor{margin:10px 0;padding:0 10px}
+button,.action{width:100%;margin-left:0;text-align:center}
+.revision-row,.revision-row form{width:100%;align-items:stretch;flex-direction:column}
+header{align-items:center}
+header form{flex:0 0 auto}
+header button{width:auto}
+.secnav{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.secnav a{display:block;min-height:44px;padding:10px;border:1px solid #375048;border-radius:10px}
+label.inline-check{min-height:44px}
+.faq-fields{grid-template-columns:1fr}
+}
+
 </style></head><body><main><header><h1>CELIKOM · сайт</h1>
 <?php if ($admin !== null): ?>
 <form method="post" action="/admin/"><input type="hidden" name="csrf" value="<?=cmsEscape($csrf)?>"/><input type="hidden" name="action" value="logout"/><button type="submit">Выйти</button></form>
@@ -401,15 +446,15 @@ padding:12px 0;border-bottom:1px solid #375048}
 <?php $previousSection=''; foreach($fields as $key=>$field):
 $section=(string)$field['section'];
 if ($section!==$previousSection):
-    if ($previousSection!=='') echo '</fieldset>';
-    echo '<fieldset><h2>'.cmsEscape($section).'</h2>';
+    if ($previousSection!=='') echo '</div></details>';
+    echo '<details class="section-editor"'.($previousSection===''?' open':'').'><summary>'.cmsEscape((string)($field['section_label']??$section)).'</summary><div>';
     $previousSection=$section;
 endif;
 $value=$current['content'][$key]??$field['default'];
 ?>
 <label for="<?=cmsEscape($key)?>"><?=cmsEscape((string)$field['label'])?></label>
 <textarea id="<?=cmsEscape($key)?>" name="text[<?=cmsEscape($key)?>]" maxlength="<?= (int)($field['max_chars']??100)?>"><?=cmsEscape((string)$value)?></textarea>
-<?php endforeach; if($previousSection!=='')echo '</fieldset>'; ?>
+<?php endforeach; if($previousSection!=='')echo '</div></details>'; ?>
 <button type="submit">Сохранить черновик</button>
 <a class="action" href="/admin/?view=preview" target="_blank" rel="noopener">Предпросмотр сохранённого</a>
 </form></section>
@@ -503,7 +548,7 @@ $value=$current['content'][$key]??$field['default'];
 <section class="panel" id="media-editor" style="margin-top:24px">
 <h2>Библиотека медиа</h2>
 <p class="muted">Изображения только в отдельное защищённое хранилище, не в public_html.
-Пока файлы нельзя назначать на публичные блоки: сначала требуется отдельная проверка прав, публикации и безопасности.</p>
+Просмотр загруженных файлов доступен только администратору. Замена изображения на публичном сайте потребует отдельной проверки прав и подтверждения запуска.</p>
 <?php if($mediaEnabled): ?>
 <form method="post" action="/admin/#media-editor" enctype="multipart/form-data">
 <input type="hidden" name="csrf" value="<?=cmsEscape($csrf)?>"/>
@@ -520,6 +565,7 @@ $value=$current['content'][$key]??$field['default'];
 <?php if($mediaFiles===[]): ?><p class="muted">Файлы ещё не загружены.</p><?php endif; ?>
 <?php foreach($mediaFiles as $asset): ?>
 <div class="revision-row">
+<img src="/admin/?view=media&amp;id=<?=(int)$asset['id']?>" alt="<?=cmsEscape((string)$asset['alt_text'])?>" loading="lazy" width="140" height="90" style="width:140px;height:auto;max-height:110px;object-fit:contain;border:1px solid #375048;border-radius:8px"/>
 <strong>#<?=(int)$asset['id']?></strong>
 <span><?=cmsEscape((string)$asset['original_filename'])?></span>
 <span class="small-note"><?=cmsEscape((string)$asset['mime_type'])?> ·
