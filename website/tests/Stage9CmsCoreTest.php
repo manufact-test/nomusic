@@ -62,6 +62,7 @@ cmsAssert(!Security::verifyCsrf('wrong') && !Security::verifyCsrf([]),'CSRF vali
 AdminAuth::finishLogin($id);
 cmsAssert(!Security::verifyCsrf($csrf),'Old CSRF survives privilege transition');
 cmsAssert(AdminAuth::checkSession($pdo,$now)===null,'Suspicious future timestamp session accepted');
+AdminAuth::finishLogin($id);
 $_SESSION['authenticated_at']=$now;
 $_SESSION['last_seen_at']=$now;
 cmsAssert(AdminAuth::checkSession($pdo,$now)===$id,'Valid owner session rejected');
