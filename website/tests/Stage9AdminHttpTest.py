@@ -138,6 +138,25 @@ try:
     assert status==422 and "Проверьте данные FAQ" in refused,(status,refused[:1000])
     status,still_public,_=request("GET","/admin/?view=preview")
     assert still_public.count('class="faq-item"')==29
+    # Saving website copy later must preserve all FAQ draft operations.
+    status,editor,_=request("GET","/admin/")
+    latest_version=hidden(editor,"version")
+    all_fields={}
+    for name,value in re.findall(
+        r'<textarea id="([^"]+)" name="text\\[[^"]+\\]" maxlength="\\d+">(.*?)</textarea>',
+        editor,re.S
+    ):
+        all_fields["text["+name+"]"]=unescape(value)
+    assert len(all_fields)==84,len(all_fields)
+    all_fields["text[faq.text.02]"]="Ответы редакции CELIKOM."
+    status,_,_=request("POST","/admin/",{
+        "action":"save","csrf":csrf,"version":latest_version,**all_fields
+    })
+    assert status==303,status
+    status,merged_preview,_=request("GET","/admin/?view=preview")
+    assert "Ответы редакции CELIKOM." in merged_preview
+    assert "Как связаться с поддержкой проекта?" in merged_preview
+    assert merged_preview.count('class="faq-item"')==29
     status,_,_=request("POST","/admin/",{
         "action":"logout","csrf":csrf
     })
