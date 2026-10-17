@@ -42,6 +42,7 @@ use Celikom\Website\CmsEditor;
 use Celikom\Website\CmsFaqManager;
 use Celikom\Website\CmsRevisions;
 use Celikom\Website\CmsMediaStore;
+use Celikom\Website\CmsMediaAssignment;
 use Celikom\Website\Content;
 use Celikom\Website\Database;
 use Celikom\Website\Security;
@@ -269,6 +270,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             http_response_code(503);
             $error='Медиафайл не сохранён в защищённое хранилище.';
         }
+    } elseif ($action === 'media_select' && $admin !== null) {
+        try {
+            $folder=getenv('CELIKOM_SITE_MEDIA_DIR');
+            if(!is_string($folder) || $folder==='') {
+                throw new RuntimeException('Private media storage not configured');
+            }
+            $expected=filter_var($_POST['selection_version']??null,FILTER_VALIDATE_INT);
+            $inputId=$_POST['asset_id']??null;
+            if(!is_int($expected) || $expected<0 || !is_string($inputId)) {
+                throw new InvalidArgumentException('Invalid image selection');
+            }
+            $chosen=$inputId==='original' ? null : filter_var($inputId,FILTER_VALIDATE_INT);
+            if($chosen===false || ($chosen!==null && $chosen<1)) {
+                throw new InvalidArgumentException('Unknown image selection');
+            }
+            $new=CmsMediaAssignment::choose($pdo,$admin,$expected,$chosen,
+                $folder,$root.'/public');
+            if($new===null) {
+                http_response_code(409);
+                $error='Изображение уже выбрано в другой вкладке. Обновите страницу.';
+            } else {
+                header('Location: /admin/?saved=media-choice#media-editor',true,303);
+                exit;
+            }
+        } catch (\InvalidArgumentException $e) {
+            http_response_code(422);
+            $error='Выберите доступное изображение из библиотеки.';
+        } catch (\Throwable $e) {
+            error_log('CELIKOM CMS: private media selection unavailable');
+            http_response_code(503);
+            $error='Предварительный выбор изображения не сохранён.';
+        }
     } else {
         http_response_code(403);
         $error = 'Операция недоступна.';
@@ -314,9 +347,22 @@ if ($admin !== null && $_SERVER['REQUEST_METHOD'] === 'GET' && ($_GET['view'] ??
         if (!is_string($manifest) || !is_string($html) || !is_string($seed)) {
             throw new RuntimeException('Missing approved preview files');
         }
-        echo CmsEditor::validate($html,$manifest,$seed,[
+        $preview=CmsEditor::validate($html,$manifest,$seed,[
             'content'=>$saved['content'],'faq'=>$saved['faq']
         ]);
+        $selection=CmsMediaAssignment::get($pdo);
+        if($selection['asset_id']!==null) {
+            $folder=getenv('CELIKOM_SITE_MEDIA_DIR');
+            if(!is_string($folder) || $folder==='') {
+                throw new RuntimeException('Selected image requires private storage');
+            }
+            $media=CmsMediaStore::privatePreview($pdo,$selection['asset_id'],
+                $folder,$root.'/public');
+            $preview=CmsMediaAssignment::privatePage(
+                $preview,$selection['asset_id'],$media['alt']
+            );
+        }
+        echo $preview;
     } catch (\Throwable $e) {
         error_log('CELIKOM CMS: preview failed');
         http_response_code(503);
@@ -330,6 +376,7 @@ $faqItems=[];
 $history=[];
 $published=null;
 $mediaFiles=[];
+$mediaSelection=['version'=>0,'asset_id'=>null];
 $mediaEnabled=is_string(getenv('CELIKOM_SITE_MEDIA_DIR')) &&
     is_dir((string)getenv('CELIKOM_SITE_MEDIA_DIR'));
 if ($admin !== null) {
@@ -346,6 +393,7 @@ if ($admin !== null) {
         $history=CmsRevisions::history($pdo);
         $published=CmsRevisions::publishedId($pdo);
         $mediaFiles=CmsMediaStore::recent($pdo);
+        $mediaSelection=CmsMediaAssignment::get($pdo);
     } catch (\Throwable $e) {
         error_log('CELIKOM CMS: draft could not be loaded');
         http_response_code(503);
@@ -438,6 +486,7 @@ label.inline-check{min-height:44px}
 </nav>
 <?php if (in_array($_GET['saved'] ?? '', ['1','faq'], true)): ?><p class="ok" role="status">Черновик сохранён в базе данных.</p><?php endif; ?>
 <?php if (($_GET['saved']??'')==='published'): ?><p class="ok" role="status">Редакция опубликована в MySQL. Публичный сайт не открыт.</p><?php endif; ?>
+<?php if (($_GET['saved']??'')==='media-choice'): ?><p class="ok" role="status">Для закрытого предпросмотра выбрано изображение. Публичный сайт и редакции не изменены.</p><?php endif; ?>
 <?php if (($_GET['saved']??'')==='media'): ?><p class="ok" role="status">Изображение сохранено приватно. На сайте оно пока не используется.</p><?php endif; ?>
 <?php if (($_GET['saved']??'')==='restored'): ?><p class="ok" role="status">Предыдущая редакция восстановлена в MySQL. Черновик не изменился.</p><?php endif; ?>
 <form method="post" action="/admin/">
@@ -547,6 +596,23 @@ $value=$current['content'][$key]??$field['default'];
 </section>
 <section class="panel" id="media-editor" style="margin-top:24px">
 <h2>Библиотека медиа</h2>
+<p class="muted">Можно назначить изображение только для закрытого предпросмотра popup. Публичный макет и опубликованные редакции сохраняют исходный проверенный скриншот.</p>
+<?php if($mediaEnabled): ?>
+<form method="post" action="/admin/#media-editor">
+<input type="hidden" name="csrf" value="<?=cmsEscape($csrf)?>"/>
+<input type="hidden" name="action" value="media_select"/>
+<input type="hidden" name="selection_version" value="<?=(int)$mediaSelection['version']?>"/>
+<label for="media-pending-id">Изображение для закрытого предпросмотра</label>
+<select id="media-pending-id" name="asset_id">
+<option value="original" <?=$mediaSelection['asset_id']===null?'selected':''?>>Исходный скриншот v10</option>
+<?php foreach($mediaFiles as $item): ?>
+<option value="<?=(int)$item['id']?>" <?=$mediaSelection['asset_id']===(int)$item['id']?'selected':''?>>#<?=(int)$item['id']?> · <?=cmsEscape((string)$item['original_filename'])?></option>
+<?php endforeach; ?>
+</select>
+<button type="submit">Сохранить выбор только для предпросмотра</button>
+<a class="action" href="/admin/?view=preview" target="_blank" rel="noopener">Открыть закрытый предпросмотр</a>
+</form>
+<?php endif; ?>
 <p class="muted">Изображения только в отдельное защищённое хранилище, не в public_html.
 Просмотр загруженных файлов доступен только администратору. Замена изображения на публичном сайте потребует отдельной проверки прав и подтверждения запуска.</p>
 <?php if($mediaEnabled): ?>
