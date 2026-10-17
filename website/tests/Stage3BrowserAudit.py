@@ -34,9 +34,15 @@ class Handler(http.server.SimpleHTTPRequestHandler):
 
     def do_GET(self):
         route = urlsplit(self.path).path
-        if route not in ("/audit/reference", "/audit/runtime", "/audit/draft", "/audit/stress", "/audit/principle", "/audit/community", "/audit/trust", "/audit/install-footer"):
+        if route not in ("/audit/reference", "/audit/runtime", "/audit/draft", "/audit/stress", "/audit/principle", "/audit/community", "/audit/trust", "/audit/install-footer", "/audit/cms-editor"):
             return super().do_GET()
-        if route.endswith("/install-footer"):
+        if route.endswith("/cms-editor"):
+            preview = subprocess.run(
+                ["php", str(BASE / "tools/render-cms-editor-preview.php"),
+                 str(BASE / "tests/fixtures/preview-stage9-composite.json")],
+                capture_output=True, text=True, timeout=10, check=True)
+            html = preview.stdout
+        elif route.endswith("/install-footer"):
             preview = subprocess.run(
                 ["php", str(BASE / "tools/render-install-footer-preview.php"),
                  str(BASE / "tests/fixtures/preview-stage8-install-footer.json")],
@@ -438,6 +444,53 @@ def main():
                         assert not bounds_install, (
                             f"Stage 8 edited install/footer overflow at {width}px: {bounds_install}")
                         result["stage8InstallFooter"] = "PASS"
+
+                        # Stage 9: a single real CMS-approved snapshot combines
+                        # many text catalogs AND a safe FAQ update. Keep the
+                        # canonical v10 layout at every required viewport.
+                        page.goto(origin + "/audit/cms-editor", wait_until="networkidle")
+                        assert "Возвращаем знакомые песни." in page.locator("h1").inner_text()
+                        assert "Только проверенные версии" in page.locator("#features").inner_text()
+                        assert "Подключение за три шага" in page.locator("#how").inner_text()
+                        assert "Твой привычный плеер." in page.locator("#player").inner_text()
+                        assert "Помоги вернуть знакомое" in page.locator("#contribute").inner_text()
+                        assert "Бонусы за одобренные песни" in page.locator("#rewards").inner_text()
+                        assert "Как CELIKOM работает со звуком." in page.locator("#transparency").inner_text()
+                        assert "Ответы редакции CELIKOM." in page.locator("#faq").inner_text()
+                        assert "Скоро подключение в браузере." in page.locator("#install").inner_text()
+                        assert "Музыка, которую помнишь." in page.locator("#closing").inner_text()
+                        assert "Как получить ответ от поддержки?" in page.locator("#faq-question-27").inner_text()
+                        assert page.locator("#faq .faq-item").count() == 28
+                        assert page.locator("#faq button.faq-filter").count() == 5
+                        assert page.locator("script:not([src])").count() == 0
+                        assert page.locator("#install a[href*='download']").count() == 0
+                        assert page.locator('link[href$="editor-copy-safety.css"]').count() == 1
+                        assert page.evaluate("document.documentElement.scrollWidth") <= width + 1
+                        page.locator('#faq button[data-filter="help"]').click()
+                        assert page.locator('#faq .faq-item:not([hidden])').count() == 3
+                        page.locator('#faq button[data-filter="all"]').click()
+                        cms_bounds = page.evaluate("""() => {
+                          const bad = [];
+                          for (const selector of [
+                              "header .wrap a", "#top h1", "#top p",
+                              "#features h3", "#how h2", "#player h2",
+                              "#contribute h2", "#rewards h2",
+                              "#transparency h2", "#faq h2", "#install h2",
+                              "#closing h2", "#closing p", "footer .footer-links a"
+                          ]) {
+                            for (const el of document.querySelectorAll(selector)) {
+                              const rect = el.getBoundingClientRect();
+                              if (el.scrollWidth > el.clientWidth + 2 ||
+                                  rect.left < -2 || rect.right > innerWidth + 2) {
+                                bad.push(selector + " " + rect.left + ".." + rect.right);
+                              }
+                            }
+                          }
+                          return bad;
+                        }""")
+                        assert not cms_bounds, (
+                            f"Stage 9 composed CMS content overflows at {width}px: {cms_bounds}")
+                        result["stage9CMSComposite"] = "PASS"
                         result["font"] = fs
                         results.append(result)
                     finally:
