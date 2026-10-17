@@ -39,6 +39,7 @@ use Celikom\Website\AdminAuth;
 use Celikom\Website\CmsConfig;
 use Celikom\Website\CmsDraftStore;
 use Celikom\Website\CmsEditor;
+use Celikom\Website\CmsFaqManager;
 use Celikom\Website\Content;
 use Celikom\Website\Database;
 use Celikom\Website\Security;
@@ -121,13 +122,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $edited[$key] = $value;
                 }
             }
-            $snapshot = ['content'=>$edited,'faq'=>[]];
+            $previous=CmsDraftStore::get($pdo);
+            $snapshot = ['content'=>$edited,'faq'=>$previous['faq']];
             CmsEditor::validate($template,$manifest,$seed,$snapshot);
             $expected = filter_var($_POST['version'] ?? null,FILTER_VALIDATE_INT);
             if (!is_int($expected) || $expected < 0) {
                 throw new InvalidArgumentException('Missing draft version');
             }
-            $newVersion = CmsDraftStore::save($pdo,$admin,$expected,$snapshot);
+            $newVersion = $previous['version'] === $expected
+                ? CmsDraftStore::save($pdo,$admin,$expected,$snapshot) : null;
             if ($newVersion === null) {
                 http_response_code(409);
                 $error = 'Черновик изменён в другой вкладке. Обновите страницу.';
@@ -142,6 +145,60 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             error_log('CELIKOM CMS: draft save failed');
             http_response_code(503);
             $error = 'Черновик не сохранён. Повторите позже.';
+        }
+    } elseif (($action === 'faq_update' || $action === 'faq_create') && $admin !== null) {
+        try {
+            $manifest=file_get_contents($app.'/Config/content-fields-v10.json');
+            $template=file_get_contents($app.'/Templates/site-v10.html');
+            $seed=file_get_contents($dev
+                ? $root.'/database/seeds/faq-v10.json'
+                : $root.'/celikom-private/database/seeds/faq-v10.json');
+            if(!is_string($manifest)||!is_string($template)||!is_string($seed)) {
+                throw new RuntimeException('Missing approved FAQ source');
+            }
+            $expected=filter_var($_POST['version']??null,FILTER_VALIDATE_INT);
+            if(!is_int($expected)||$expected<0) {
+                throw new InvalidArgumentException('Invalid draft version');
+            }
+            $previous=CmsDraftStore::get($pdo);
+            if($expected!==$previous['version']) {
+                http_response_code(409);
+                $error='Черновик изменён в другой вкладке. Обновите страницу.';
+            } else {
+                $fields=[
+                    'category'=>$_POST['category']??null,
+                    'question'=>$_POST['question']??null,
+                    'answer'=>$_POST['answer']??null,
+                    'sort_order'=>$action==='faq_update'
+                        ? filter_var($_POST['sort_order']??null,FILTER_VALIDATE_INT)
+                        : 0,
+                    'is_visible'=>isset($_POST['visible']) && $_POST['visible']==='1',
+                ];
+                if($action==='faq_create') {
+                    $nextFaq=CmsFaqManager::create($seed,$previous['faq'],$fields);
+                } else {
+                    $id=$_POST['faq_id']??null;
+                    if(!is_string($id))throw new InvalidArgumentException('Invalid FAQ ID');
+                    $nextFaq=CmsFaqManager::change($seed,$previous['faq'],$id,$fields);
+                }
+                $next=['content'=>$previous['content'],'faq'=>$nextFaq];
+                CmsEditor::validate($template,$manifest,$seed,$next);
+                $saved=CmsDraftStore::save($pdo,$admin,$expected,$next);
+                if($saved===null) {
+                    http_response_code(409);
+                    $error='Черновик изменён в другой вкладке. Обновите страницу.';
+                } else {
+                    header('Location: /admin/?saved=faq#faq-editor',true,303);
+                    exit;
+                }
+            }
+        } catch (\InvalidArgumentException $e) {
+            http_response_code(422);
+            $error='Проверьте данные FAQ: длину, категорию и доступность правки.';
+        } catch (\Throwable $e) {
+            error_log('CELIKOM CMS: FAQ draft save failed');
+            http_response_code(503);
+            $error='FAQ не сохранён. Повторите позже.';
         }
     } else {
         http_response_code(403);
@@ -176,12 +233,18 @@ if ($admin !== null && $_SERVER['REQUEST_METHOD'] === 'GET' && ($_GET['view'] ??
 }
 $fields = [];
 $current = ['version'=>0,'content'=>[],'faq'=>[]];
+$faqItems=[];
 if ($admin !== null) {
     try {
         $manifest = file_get_contents($app.'/Config/content-fields-v10.json');
         if (!is_string($manifest)) throw new RuntimeException('Missing manifest');
         $fields = CmsEditor::fields($manifest);
         $current = CmsDraftStore::get($pdo);
+        $faqSeed=file_get_contents($dev
+            ? $root.'/database/seeds/faq-v10.json'
+            : $root.'/celikom-private/database/seeds/faq-v10.json');
+        if(!is_string($faqSeed))throw new RuntimeException('FAQ seed missing');
+        $faqItems=CmsFaqManager::rows($faqSeed,$current['faq']);
     } catch (\Throwable $e) {
         error_log('CELIKOM CMS: draft could not be loaded');
         http_response_code(503);
@@ -204,6 +267,19 @@ textarea{min-height:92px;resize:vertical}
 button,.action{display:inline-block;cursor:pointer;margin-top:14px;padding:12px 20px;border:0;border-radius:999px;background:#66E0BF;color:#071814;font-weight:700;text-decoration:none;font:inherit}
 .action{margin-left:10px}.muted{color:#B8CAC4;font-size:14px}.error{color:#FFC7BF}.ok{color:#9BE8CE}
 fieldset{border:0;padding:0;margin:0}fieldset+fieldset{margin-top:32px}
+select{display:block;width:100%;padding:10px;border-radius:9px;font:inherit}
+.faq-entry{padding:12px 0;border-bottom:1px solid #375048}
+.faq-entry summary{cursor:pointer;font-weight:600}
+.faq-entry form{padding:14px 0}
+.faq-fields{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.faq-fields label{margin-top:0}
+.faq-fields .wide{grid-column:1/-1}
+.inline-check{display:flex;align-items:center;gap:8px}
+.inline-check input{width:auto}
+.secnav{display:flex;flex-wrap:wrap;gap:16px;margin:14px 0 24px}
+.secnav a{color:#9BE8CE}
+@media(max-width:600px){.faq-fields{grid-template-columns:1fr}}
+
 @media(max-width:600px){body{padding:12px}.panel{padding:16px}.action{margin-left:0}}
 </style></head><body><main><header><h1>CELIKOM · сайт</h1>
 <?php if ($admin !== null): ?>
@@ -219,9 +295,13 @@ fieldset{border:0;padding:0;margin:0}fieldset+fieldset{margin-top:32px}
 <label for="password">Пароль</label><input id="password" type="password" name="password" autocomplete="current-password" required/>
 <button type="submit">Войти</button></form></section>
 <?php else: ?>
-<section class="panel"><h2>Черновик текстов</h2>
-<p class="muted">Редактируются только безопасные заголовки и пояснения доверия, FAQ, установки и футера. Версия <?= (int)$current['version']?>. Публикация пока недоступна.</p>
-<?php if (($_GET['saved'] ?? null) === '1'): ?><p class="ok" role="status">Черновик сохранён в базе данных.</p><?php endif; ?>
+<section class="panel" id="text-editor"><h2>Черновик текстов</h2>
+<p class="muted">Безопасные тексты и ссылки всех секций v10, плюс черновики FAQ. Версия <?= (int)$current['version']?>. Публикация пока недоступна.</p>
+<nav class="secnav" aria-label="Разделы редактора">
+<a href="#text-editor">Секции сайта</a><a href="#faq-editor">Вопросы FAQ</a>
+<a href="/admin/?view=preview" target="_blank" rel="noopener">Предпросмотр</a>
+</nav>
+<?php if (in_array($_GET['saved'] ?? '', ['1','faq'], true)): ?><p class="ok" role="status">Черновик сохранён в базе данных.</p><?php endif; ?>
 <form method="post" action="/admin/">
 <input type="hidden" name="csrf" value="<?=cmsEscape($csrf)?>"/><input type="hidden" name="action" value="save"/>
 <input type="hidden" name="version" value="<?= (int)$current['version']?>"/>
@@ -235,10 +315,60 @@ endif;
 $value=$current['content'][$key]??$field['default'];
 ?>
 <label for="<?=cmsEscape($key)?>"><?=cmsEscape((string)$field['label'])?></label>
-<textarea id="<?=cmsEscape($key)?>" name="text[<?=cmsEscape($key)?>]" maxlength="<?= (int)$field['max_chars']?>"><?=cmsEscape((string)$value)?></textarea>
+<textarea id="<?=cmsEscape($key)?>" name="text[<?=cmsEscape($key)?>]" maxlength="<?= (int)($field['max_chars']??100)?>"><?=cmsEscape((string)$value)?></textarea>
 <?php endforeach; if($previousSection!=='')echo '</fieldset>'; ?>
 <button type="submit">Сохранить черновик</button>
 <a class="action" href="/admin/?view=preview" target="_blank" rel="noopener">Предпросмотр сохранённого</a>
 </form></section>
+<section class="panel" id="faq-editor" style="margin-top:24px">
+<h2>FAQ · вопросы и ответы</h2>
+<p class="muted">Защищённые продуктовые условия доступны только для чтения. Новые вопросы создаются скрытыми — их нужно проверить перед показом на сайте. Все изменения сначала сохраняются как черновик.</p>
+<?php foreach ($faqItems as $faqItem): ?>
+<details class="faq-entry"><summary>
+<?=cmsEscape((string)$faqItem['question'])?>
+<?php if($faqItem['protected']): ?>(защищённый текст)<?php elseif(!$faqItem['is_visible']): ?>(скрыт)<?php endif; ?>
+</summary>
+<?php if($faqItem['protected']): ?>
+<p class="muted">Факты о продукте, праве и оплате зафиксированы до отдельного согласования.</p>
+<?php else: ?>
+<form method="post" action="/admin/#faq-editor">
+<input type="hidden" name="csrf" value="<?=cmsEscape($csrf)?>"/>
+<input type="hidden" name="action" value="faq_update"/>
+<input type="hidden" name="version" value="<?= (int)$current['version']?>"/>
+<input type="hidden" name="faq_id" value="<?=cmsEscape((string)$faqItem['id'])?>"/>
+<div class="faq-fields">
+<label class="wide">Вопрос
+<input name="question" required maxlength="400" value="<?=cmsEscape((string)$faqItem['question'])?>"/></label>
+<label class="wide">Ответ
+<textarea name="answer" required maxlength="3000"><?=cmsEscape((string)$faqItem['answer'])?></textarea></label>
+<label>Категория<select name="category">
+<?php foreach (['start'=>'Установка и работа','rewards'=>'Бонусы и стоимость','music'=>'Песни и модерация','help'=>'Аккаунт и помощь'] as $cat=>$catName): ?>
+<option value="<?=cmsEscape($cat)?>" <?= $faqItem['category']===$cat?'selected':''?>><?=cmsEscape($catName)?></option>
+<?php endforeach; ?>
+</select></label>
+<label>Порядок<input type="number" name="sort_order" min="0" max="100000" required value="<?= (int)$faqItem['sort_order']?>"/></label>
+<label class="inline-check wide"><input type="checkbox" name="visible" value="1" <?= $faqItem['is_visible']?'checked':''?>/>Показывать вопрос</label>
+</div>
+<button type="submit">Сохранить вопрос в черновик</button>
+</form>
+<?php endif; ?>
+</details>
+<?php endforeach; ?>
+<h2>Добавить вопрос</h2>
+<form method="post" action="/admin/#faq-editor">
+<input type="hidden" name="csrf" value="<?=cmsEscape($csrf)?>"/>
+<input type="hidden" name="action" value="faq_create"/>
+<input type="hidden" name="version" value="<?= (int)$current['version']?>"/>
+<label>Вопрос<input name="question" required maxlength="400"/></label>
+<label>Ответ<textarea name="answer" required maxlength="3000"></textarea></label>
+<label>Категория<select name="category">
+<option value="help">Аккаунт и помощь</option>
+<option value="start">Установка и работа</option>
+<option value="music">Песни и модерация</option>
+<option value="rewards">Бонусы и стоимость</option>
+</select></label>
+<button type="submit">Добавить скрытый вопрос в черновик</button>
+</form>
+</section>
 <?php endif; ?>
 </main></body></html>
