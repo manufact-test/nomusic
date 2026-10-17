@@ -63,7 +63,7 @@ try {
         $id,$png,'image/jpeg','Valid'
     ),'MIME spoof of real PNG');
     selectReject(fn()=>CmsMediaReleasePreflight::analyze(
-        $id,$png,'image/png',"Unsafe\\x00ALT"
+        $id,$png,'image/png','Unsafe'.chr(0).'ALT'
     ),'Unsafe ALT was accepted by release report');
 
     selectAssert(CmsMediaAssignment::choose($pdo,1,0,null,$dir,$base.'/public')===null,
