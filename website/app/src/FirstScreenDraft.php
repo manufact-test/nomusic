@@ -24,6 +24,7 @@ final class FirstScreenDraft
             throw new RuntimeException('Invalid v10 content registry');
         }
         $allowed = [];
+        $linkKeys = [];
         $serviceDefault = null;
         foreach (['text_fields', 'link_fields'] as $bucket) {
             if (!is_array($schema[$bucket] ?? null)) {
@@ -36,6 +37,9 @@ final class FirstScreenDraft
                 }
                 if (isset(self::SECTIONS[$field['section']])) {
                     $allowed[$field['key']] = true;
+                    if ($bucket === 'link_fields') {
+                        $linkKeys[$field['key']] = true;
+                    }
                 }
                 if ($bucket === 'text_fields' && ($field['key'] ?? null) === 'sound.text.07') {
                     $serviceDefault = $field['default'] ?? null;
@@ -60,6 +64,12 @@ final class FirstScreenDraft
                 $restoredOverride = self::validModeResult($value);
                 $hasRestoredOverride = true;
             } else {
+                // Internal navigation cannot point to an absent on-page ID.
+                // This is extra UX validation atop canonical safeHref/XSS rules.
+                if (isset($linkKeys[$key]) && str_starts_with($value, '#') &&
+                    !str_contains($trustedTemplate, 'id="' . substr($value, 1) . '"')) {
+                    throw new InvalidArgumentException('Unknown local navigation target');
+                }
                 $contentOverrides[$key] = $value;
             }
         }
