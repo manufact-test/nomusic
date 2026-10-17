@@ -44,6 +44,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             font_links = re.findall(r'<link\b[^>]*(?:fonts\.googleapis|fonts\.gstatic)[^>]*/>', html)
             assert len(font_links) == 3, "Original font declaration contract changed"
             html = html.replace(font_links[0], FONT_LINK, 1)
+            html = html.replace("</head>", '<link rel="stylesheet" href="/assets/css/v10/focus-visible.css"/></head>', 1)
             for link in font_links[1:]:
                 html = html.replace(link, "", 1)
         payload = html.encode("utf-8")
@@ -114,6 +115,9 @@ def state_checks(page, width):
     page.keyboard.press("Enter")
     assert page.locator("#faq details.faq-item").first.get_attribute("open") is not None
     summary.focus()
+    page.keyboard.press("Tab")
+    page.keyboard.press("Shift+Tab")
+    assert summary.evaluate("(el) => document.activeElement === el"), "Keyboard focus escaped FAQ summary"
     focus = summary.evaluate("""el => {
       const s = getComputedStyle(el);
       return {outlineStyle:s.outlineStyle,outlineWidth:s.outlineWidth,boxShadow:s.boxShadow};
@@ -121,6 +125,7 @@ def state_checks(page, width):
     has_focus = ((focus["outlineStyle"] not in ("none", "hidden")
                   and float(focus["outlineWidth"].replace("px", "")) >= 1.5)
                  or focus["boxShadow"] != "none")
+    assert has_focus, f"FAQ summary missing visible keyboard focus at {width}: {focus}"
     return {"width": width, "geometry": geometry, "font": fs,
             "summaryFocusVisible": has_focus, "summaryFocusCss": focus}
 

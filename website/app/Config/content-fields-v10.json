@@ -1,7 +1,7 @@
 {
   "version": 1,
   "source": "CELIKOM_SITE_CLEAN_v10.html",
-  "template_git_blob_sha": "bb44af9620ec001083e1e16dc201d30e3c11dd84",
+  "template_git_blob_sha": "ece0795ff0a007fd41f361af1838837b7efd2d71",
   "description": "Canonical v10 text/link editing schema; preserve HTML markup and trusted CSS; FAQ separate",
   "text_fields": [
     {

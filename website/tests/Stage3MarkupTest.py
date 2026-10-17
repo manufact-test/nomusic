@@ -52,6 +52,11 @@ original_google_head = "<link href=\"https://fonts.googleapis.com\" rel=\"precon
 local_font_link = "<link rel=\"stylesheet\" href=\"/assets/css/v10/manrope-local.css\"/>"
 assert reference.count(original_google_head) == 1, "Original font declarations drifted"
 reconstructed = reconstructed.replace(original_google_head, local_font_link, 1)
+# Focus-visible accessibility refinement is additive and only affects keyboard
+# interaction states; all five accepted v10 styles are still byte-identical.
+focus_link = "<link rel=\"stylesheet\" href=\"/assets/css/v10/focus-visible.css\"/>"
+reconstructed = reconstructed.replace("</head>", focus_link + "</head>", 1)
+assert focus_link in runtime
 assert local_font_link in runtime, "Local Manrope must be linked before v10 styles"
 assert "fonts.googleapis.com" not in runtime and "fonts.gstatic.com" not in runtime
 font_css = (BASE / "public/assets/css/v10/manrope-local.css").read_text(encoding="utf-8")
