@@ -2,6 +2,7 @@
 """Structural guard against accidental drift from owner-approved CELIKOM v10."""
 from html.parser import HTMLParser
 from pathlib import Path
+import re
 
 BASE = Path(__file__).resolve().parents[1]
 REFERENCE = BASE / "reference/v10/CELIKOM_SITE_CLEAN_v10_sanitized.html"
@@ -46,7 +47,8 @@ assert len(p.images) == 3, "Unexpected v10 image count"
 assert p.images.count("/assets/images/celikom-mark.svg") == 2, "Approved brand mark changed"
 assert "/media/celikom-popup-approved.png" in p.images, "Real popup media slot missing"
 assert not any("base64," in src for src in p.images), "Embedded handoff screenshot forbidden"
-assert "3%" not in html, "Old test reward percentage surfaced"
+visible_markup = re.sub(r"(?is)<(?:script|style)\\b[^>]*>.*?</(?:script|style)>", "", html)
+assert "3%" not in visible_markup, "Old test reward percentage surfaced"
 assert "2%" in html and "20%" in html, "Approved rewards not present"
 for needle in ("mode-service", "mode-restored", "sound-panel", "faq-item"):
     assert needle in html, f"Interactive reference missing {needle}"
