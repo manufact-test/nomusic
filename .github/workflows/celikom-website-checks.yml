@@ -144,6 +144,15 @@ jobs:
         run: php website/tests/Stage9MediaSelectionTest.php
       - name: Exercise owner admin HTTP flow
         run: python3 website/tests/Stage9AdminHttpTest.py
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install pinned Chromium for Stage 9 mobile CMS browser audit
+        run: |
+          python -m pip install playwright==1.56.0
+          python -m playwright install --with-deps chromium
+      - name: Mobile CMS 320-1024px — login, text, FAQ and private media
+        run: python website/tests/Stage9MobileAdminBrowserAudit.py
       - name: Production release gate cannot be bypassed
         run: python3 website/tests/Stage9ReleaseGateTest.py
 
