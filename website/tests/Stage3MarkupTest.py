@@ -46,6 +46,23 @@ assert len(inline_js) == len(JS_NAMES), "Approved interactive scripts have chang
 
 # Source-to-runtime transformation MUST be an exact substitution, not a redraw:
 reconstructed = reference
+# Approved Stage 3 infrastructure substitution: local, licensed Manrope, with
+# the original v10 layout cascade and DOM otherwise kept exactly as-is.
+original_google_head = "<link href=\"https://fonts.googleapis.com\" rel=\"preconnect\"/>\n<link crossorigin=\"\" href=\"https://fonts.gstatic.com\" rel=\"preconnect\"/>\n<link href=\"https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&amp;display=swap\" rel=\"stylesheet\"/>"
+local_font_link = "<link rel=\"stylesheet\" href=\"/assets/css/v10/manrope-local.css\"/>"
+assert reference.count(original_google_head) == 1, "Original font declarations drifted"
+reconstructed = reconstructed.replace(original_google_head, local_font_link, 1)
+assert local_font_link in runtime, "Local Manrope must be linked before v10 styles"
+assert "fonts.googleapis.com" not in runtime and "fonts.gstatic.com" not in runtime
+font_css = (BASE / "public/assets/css/v10/manrope-local.css").read_text(encoding="utf-8")
+assert font_css.count("@font-face") == 4, "Latin/Cyrillic Manrope subsets expected"
+assert font_css.count("font-family: 'Manrope';") == 4
+assert "font-weight: 200 800;" in font_css
+assert (BASE / "public/assets/fonts/OFL-Manrope.txt").is_file()
+for subset in ("cyrillic-ext", "cyrillic", "latin-ext", "latin"):
+    font = BASE / "public/assets/fonts" / f"manrope-{subset}-wght-normal.woff2"
+    assert font.read_bytes()[:4] == b"wOF2", f"Invalid WOFF2: {font}"
+
 for name, original in zip(CSS_NAMES, inline_css):
     extracted = (BASE / "public/assets/css/v10" / name).read_text(encoding="utf-8")
     assert extracted == original, f"v10 CSS content modified: {name}"
