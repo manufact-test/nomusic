@@ -60,7 +60,7 @@ check(str_contains($joint, '<h1>Те самые версии<br/>'), 'Hero bindi
 check(str_contains($joint, '<p>Содержание FAQ из будущей админки</p>'), 'FAQ binding lost');
 check(FaqV10Renderer::render($copyChanged, $seed) === $copyChanged, 'Unchanged FAQ must not alter edited content');
 
-rejected(static fn()=>FaqV10Renderer::render($html . '<details>extra</details>', $seed), 'unapproved template mutation');
+rejected(static fn()=>FaqV10Renderer::render(str_replace('id="faq-list"', 'id="other-faq-list"', $html), $seed), 'FAQ list wrapper mutation');
 // Alter the source FAQ itself to simulate unexpectedly changed publisher template.
 rejected(static fn()=>FaqV10Renderer::render(str_replace('Что такое CELIKOM?', 'Иная версия?', $html), $seed), 'unapproved FAQ markup');
 rejected(static fn()=>FaqV10Renderer::render($html, $seed, ['updates'=>['faq-question-99'=>['question'=>'oops']]]), 'unknown FAQ ID');
