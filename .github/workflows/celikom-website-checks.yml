@@ -39,6 +39,14 @@ jobs:
         run: php website/tests/Stage3FoundationTest.php
       - name: Verify safe v10 content rendering and metadata
         run: php website/tests/Stage3RendererTest.php
+      - name: Verify CLI-only draft preview (not deployed)
+        shell: bash
+        run: |
+          set -euo pipefail
+          php website/tools/render-local-preview.php website/tests/fixtures/preview-v10-overrides.json > "$RUNNER_TEMP/celikom-v10-preview.html"
+          grep -Fq 'Тестируем знакомую музыку.' "$RUNNER_TEMP/celikom-v10-preview.html"
+          grep -Fq 'Демонстрационный фрагмент интерфейса CELIKOM' "$RUNNER_TEMP/celikom-v10-preview.html"
+          grep -Fq '/assets/css/v10/04-v10.css' "$RUNNER_TEMP/celikom-v10-preview.html"
       - name: Verify approved v10 markup and preserved FAQ
         run: python3 website/tests/Stage3MarkupTest.py
       - name: Verify CMS FAQ seed and isolated database contract
