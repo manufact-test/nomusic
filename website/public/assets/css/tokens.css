@@ -1,65 +1,47 @@
 /*
- * CELIKOM website design tokens — Stage 3 foundation (2026-10-17).
- * Brand colors/typeface/logo are approved; geometric measurements MUST be
- * reconciled against accepted CELIKOM_SITE_CLEAN_v10.html before Stage 4.
- * Do not interpret this file as the approved page implementation.
+ * CELIKOM / accepted v10 geometry, verified against CELIKOM_SITE_CLEAN_v10.html.
+ * Stage 3 tokens. The v10 CSS cascade remains the visual source of truth.
+ * Do not adjust tokens for a redesign without explicit approval.
  */
 :root {
-  color-scheme: light;
   --ck-ink: #0B1013;
   --ck-mint: #66E0BF;
   --ck-paper: #F7F8F4;
-  --ck-white: #FFFFFF;
   --ck-muted: #556368;
   --ck-stroke: #DCE8E3;
   --ck-link: #14594D;
-
-  --ck-font: "Manrope", system-ui, -apple-system, "Segoe UI", sans-serif;
-  --ck-font-body: 400;
-  --ck-font-medium: 500;
-  --ck-font-semibold: 600;
-  --ck-font-bold: 700;
-  --ck-font-heavy: 800;
-  --ck-text-xs: 0.8125rem;
-  --ck-text-sm: 0.875rem;
-  --ck-text-base: 1rem;
-  --ck-text-lg: clamp(1.0625rem, 0.98rem + 0.38vw, 1.25rem);
-  --ck-h1: clamp(2.375rem, 1.3rem + 4.8vw, 5.125rem);
-  --ck-h2: clamp(2rem, 1.5rem + 2.25vw, 3.5rem);
-  --ck-h3: clamp(1.25rem, 1.08rem + 0.8vw, 1.75rem);
-  --ck-leading-body: 1.65;
-  --ck-leading-head: 1.09;
-
+  --ck-white: #FFFFFF;
+  --ck-font: "Manrope", Arial, sans-serif;
   --ck-container-max: 1240px;
-  --ck-page-gutter: clamp(18px, 3.1vw, 44px);
-  --ck-section-space: clamp(76px, 8vw, 128px);
-  --ck-space-1: 4px;
-  --ck-space-2: 8px;
-  --ck-space-3: 12px;
-  --ck-space-4: 16px;
-  --ck-space-5: 20px;
-  --ck-space-6: 24px;
-  --ck-space-8: 32px;
-  --ck-space-10: 40px;
-  --ck-space-12: 48px;
-  --ck-radius-small: 12px;
-  --ck-radius-medium: 20px;
-  --ck-radius-card: 28px;
-  --ck-radius-pill: 999px;
-  --ck-shadow-card: 0 18px 50px rgb(11 16 19 / 5%);
-  --ck-outline: 3px solid #14594D;
-
-  --ck-motion-fast: 140ms;
-  --ck-motion-base: 220ms;
-  --ck-motion-ease: cubic-bezier(.2,.7,.2,1);
+  --ck-gutter: 44px;
+  --ck-section-gap: 82px;
+  --ck-button-radius: 14px;
+  --ck-button-height: 58px;
+  --ck-card-radius: 26px;
+  --ck-board-radius: 35px;
+  --ck-faq-card-radius: 23px;
+  --ck-heading-hero: clamp(48px, 5.3vw, 76px);
+  --ck-heading-letter-spacing: -.075em;
+  --ck-body-size: 16px;
+  --ck-motion-base: 200ms;
 }
-@media (max-width: 767px) {
+@media (max-width: 1050px) {
+  :root { --ck-gutter: 30px; --ck-section-gap: 64px; }
+}
+@media (max-width: 800px) {
+  :root { --ck-section-gap: 54px; }
+}
+@media (max-width: 540px) {
   :root {
-    --ck-page-gutter: 18px;
-    --ck-section-space: 76px;
-    --ck-radius-card: 24px;
+    --ck-gutter: 18px;
+    --ck-section-gap: 48px;
+    --ck-heading-hero: clamp(34px, 9.5vw, 39px);
+    --ck-button-height: 54px;
   }
 }
+@media (max-width: 350px) {
+  :root { --ck-gutter: 14px; --ck-heading-hero: 33px; }
+}
 @media (prefers-reduced-motion: reduce) {
-  :root { --ck-motion-fast: 0ms; --ck-motion-base: 0ms; }
+  :root { --ck-motion-base: 0ms; }
 }
