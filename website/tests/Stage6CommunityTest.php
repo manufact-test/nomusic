@@ -34,7 +34,8 @@ communityCheck(str_contains($draft,'>Сообщить о песне</h3>'),'Offe
 communityCheck(str_contains($draft,'Бонусы за помощь с музыкой'),'Rewards heading failed');
 communityCheck(str_contains($draft,'2% скидки') && str_contains($draft,'20%') &&
     str_contains($draft,'10 песен'),'Earned-percent rule mutated');
-communityCheck(str_contains($draft,'до запуска оплаты'),'Payment-not-live disclaimer mutated');
+$normal = preg_replace('/\s+/u', ' ', $draft);
+communityCheck(str_contains($normal,'до запуска оплаты'),'Payment-not-live disclaimer mutated');
 communityCheck(substr_count($draft,'<details')===28,'FAQ was modified');
 communityCheck(str_contains($draft,'/assets/js/v10/sound-demo.js'),'Original JS gone');
 $unsafe=CommunityDraft::render($html,$schema,['contribute.text.05'=>'<script>run()</script>']);
