@@ -14,7 +14,7 @@ require dirname(__DIR__).'/app/bootstrap.php';
 try {
     $source = file_get_contents($argv[1]);
     $draft = json_decode($source, true, 512, JSON_THROW_ON_ERROR);
-    if (!is_array($draft) || (array_is_list($draft) && $draft !== [])) {
+    if (!is_array($draft) || (ltrim($source)[0] ?? '') !== '{' || array_is_list($draft) && $draft !== []) {
         throw new InvalidArgumentException('Expected JSON object');
     }
     $base = dirname(__DIR__);
