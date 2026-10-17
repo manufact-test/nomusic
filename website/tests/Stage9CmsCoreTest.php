@@ -6,6 +6,7 @@ use Celikom\Website\AdminAuth;
 use Celikom\Website\CmsConfig;
 use Celikom\Website\CmsDraftStore;
 use Celikom\Website\CmsEditor;
+use Celikom\Website\CmsRevisions;
 use Celikom\Website\Database;
 use Celikom\Website\Security;
 
@@ -110,4 +111,47 @@ cmsAssert((int)$pdo->query("SELECT COUNT(*) FROM audit_log WHERE event_name='cms
 $audit=(string)$pdo->query('SELECT GROUP_CONCAT(CONCAT(event_name,":",COALESCE(subject_key,""))) FROM audit_log')->fetchColumn();
 cmsAssert(!str_contains($audit,'198.51.100.') && !str_contains($audit,'valid-Admin!'),
     'Audit stored IP/password');
-echo "Stage9: MySQL 11 tables, auth throttling, secure sessions/CSRF, draft conflicts, no publish — PASS\n";
+// Stage 9G: all publication state changes are an atomic pointer swap to
+// immutable whole-page snapshots. This never releases the public website.
+cmsAssert(CmsRevisions::publishedId($pdo)===null,'Unpublished site has a revision ID');
+cmsAssert(CmsRevisions::publishedPage($pdo,$template,$manifest,$seed)===$template,
+    'Pre-publication v10 is not canonical');
+$first=CmsRevisions::publish($pdo,$id,2,'Первый снимок',$template,$manifest,$seed);
+cmsAssert(is_int($first) && $first>0,'First revision not created');
+cmsAssert(CmsRevisions::publishedId($pdo)===$first,'Published pointer mismatch');
+cmsAssert(str_contains(CmsRevisions::publishedPage($pdo,$template,$manifest,$seed),
+    'Ответы на вопросы CELIKOM.'),'Published page lost complete saved draft');
+cmsAssert(CmsRevisions::publish($pdo,$id,1,'Старый черновик',$template,$manifest,$seed)===null,
+    'Old draft version published');
+cmsAssert(CmsRevisions::publishedId($pdo)===$first,'Stale publish switched pointer');
+cmsAssert(CmsDraftStore::save($pdo,$id,2,[
+    'content'=>['faq.text.02'=>'Справка CELIKOM: изменения.'],'faq'=>[]
+])===3,'New draft cannot be saved after publication');
+cmsAssert(CmsRevisions::publishedId($pdo)===$first &&
+    str_contains(CmsRevisions::publishedPage($pdo,$template,$manifest,$seed),
+        'Ответы на вопросы CELIKOM.'),
+    'Unpublished draft leaked into public snapshot');
+$second=CmsRevisions::publish($pdo,$id,3,'Второй снимок',$template,$manifest,$seed);
+cmsAssert(is_int($second) && $second>$first,'Second revision invalid');
+cmsAssert(str_contains(CmsRevisions::publishedPage($pdo,$template,$manifest,$seed),
+    'Справка CELIKOM: изменения.'),'Second snapshot not loaded');
+cmsAssert(CmsRevisions::restore($pdo,$id,$first,$first,'Устаревшая вкладка',$template,$manifest,$seed)===null,
+    'Concurrent rollback succeeded');
+$restore=CmsRevisions::restore($pdo,$id,$first,$second,'Откат редакции',$template,$manifest,$seed);
+cmsAssert(is_int($restore) && $restore>$second && CmsRevisions::publishedId($pdo)===$restore,
+    'Restore did not create a new immutable revision');
+cmsAssert(str_contains(CmsRevisions::publishedPage($pdo,$template,$manifest,$seed),
+    'Ответы на вопросы CELIKOM.'),'Restore did not recover first snapshot');
+cmsAssert((int)$pdo->query('SELECT COUNT(*) FROM content_revisions')->fetchColumn()===3,
+    'Revision history mutated or missing');
+cmsAssert(CmsDraftStore::get($pdo)['version']===3,'Publishing changed editable draft');
+cmsReject(fn()=>CmsRevisions::restore(
+    $pdo,$id,999999,$restore,'Missing revision',$template,$manifest,$seed
+),'Invalid restore target');
+cmsReject(fn()=>CmsRevisions::publish(
+    $pdo,$id,3,"Note\x00bad",$template,$manifest,$seed
+),'Control character in revision note');
+cmsAssert(CmsRevisions::publishedId($pdo)===$restore,'Rejected revision changed publication');
+cmsAssert((int)$pdo->query("SELECT COUNT(*) FROM audit_log WHERE event_name LIKE 'cms.revision.%'")->fetchColumn()===3,
+    'Publish/rollback audit count');
+echo "Stage9: MySQL auth, sessions, safe drafts, immutable atomic publish and rollback — PASS\n";
