@@ -41,6 +41,7 @@ use Celikom\Website\CmsDraftStore;
 use Celikom\Website\CmsEditor;
 use Celikom\Website\CmsFaqManager;
 use Celikom\Website\CmsRevisions;
+use Celikom\Website\CmsMediaStore;
 use Celikom\Website\Content;
 use Celikom\Website\Database;
 use Celikom\Website\Security;
@@ -245,6 +246,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             http_response_code(503);
             $error='Операция с редакцией не выполнена.';
         }
+    } elseif ($action === 'media_upload' && $admin !== null) {
+        try {
+            $directory=getenv('CELIKOM_SITE_MEDIA_DIR');
+            if(!is_string($directory) || $directory==='') {
+                throw new RuntimeException('Private media path is not configured');
+            }
+            $uploaded=$_FILES['image']??null;
+            $alt=$_POST['alt']??null;
+            if(!is_array($uploaded) || !is_string($alt)) {
+                throw new InvalidArgumentException('Invalid media upload form');
+            }
+            CmsMediaStore::accept($pdo,$admin,$uploaded,$alt,
+                $directory,$root.'/public');
+            header('Location: /admin/?saved=media#media-editor',true,303);
+            exit;
+        } catch (\InvalidArgumentException $e) {
+            http_response_code(422);
+            $error='Изображение отклонено: проверьте формат PNG/JPEG/WebP, размер до 2 МБ, размеры и alt.';
+        } catch (\Throwable $e) {
+            error_log('CELIKOM CMS: private media upload unavailable');
+            http_response_code(503);
+            $error='Медиафайл не сохранён в защищённое хранилище.';
+        }
     } else {
         http_response_code(403);
         $error = 'Операция недоступна.';
@@ -281,6 +305,9 @@ $current = ['version'=>0,'content'=>[],'faq'=>[]];
 $faqItems=[];
 $history=[];
 $published=null;
+$mediaFiles=[];
+$mediaEnabled=is_string(getenv('CELIKOM_SITE_MEDIA_DIR')) &&
+    is_dir((string)getenv('CELIKOM_SITE_MEDIA_DIR'));
 if ($admin !== null) {
     try {
         $manifest = file_get_contents($app.'/Config/content-fields-v10.json');
@@ -294,6 +321,7 @@ if ($admin !== null) {
         $faqItems=CmsFaqManager::rows($faqSeed,$current['faq']);
         $history=CmsRevisions::history($pdo);
         $published=CmsRevisions::publishedId($pdo);
+        $mediaFiles=CmsMediaStore::recent($pdo);
     } catch (\Throwable $e) {
         error_log('CELIKOM CMS: draft could not be loaded');
         http_response_code(503);
@@ -360,10 +388,12 @@ padding:12px 0;border-bottom:1px solid #375048}
 <nav class="secnav" aria-label="Разделы редактора">
 <a href="#text-editor">Секции сайта</a><a href="#faq-editor">Вопросы FAQ</a>
 <a href="#revision-editor">Публикации и откат</a>
+<a href="#media-editor">Медиа</a>
 <a href="/admin/?view=preview" target="_blank" rel="noopener">Предпросмотр</a>
 </nav>
 <?php if (in_array($_GET['saved'] ?? '', ['1','faq'], true)): ?><p class="ok" role="status">Черновик сохранён в базе данных.</p><?php endif; ?>
 <?php if (($_GET['saved']??'')==='published'): ?><p class="ok" role="status">Редакция опубликована в MySQL. Публичный сайт не открыт.</p><?php endif; ?>
+<?php if (($_GET['saved']??'')==='media'): ?><p class="ok" role="status">Изображение сохранено приватно. На сайте оно пока не используется.</p><?php endif; ?>
 <?php if (($_GET['saved']??'')==='restored'): ?><p class="ok" role="status">Предыдущая редакция восстановлена в MySQL. Черновик не изменился.</p><?php endif; ?>
 <form method="post" action="/admin/">
 <input type="hidden" name="csrf" value="<?=cmsEscape($csrf)?>"/><input type="hidden" name="action" value="save"/>
@@ -467,6 +497,34 @@ $value=$current['content'][$key]??$field['default'];
 <button type="submit">Восстановить №<?=(int)$revision['id']?></button>
 </form>
 <?php endif; ?>
+</div>
+<?php endforeach; ?>
+</section>
+<section class="panel" id="media-editor" style="margin-top:24px">
+<h2>Библиотека медиа</h2>
+<p class="muted">Изображения только в отдельное защищённое хранилище, не в public_html.
+Пока файлы нельзя назначать на публичные блоки: сначала требуется отдельная проверка прав, публикации и безопасности.</p>
+<?php if($mediaEnabled): ?>
+<form method="post" action="/admin/#media-editor" enctype="multipart/form-data">
+<input type="hidden" name="csrf" value="<?=cmsEscape($csrf)?>"/>
+<input type="hidden" name="action" value="media_upload"/>
+<label>Изображение (PNG/JPEG/WebP, до 2 МБ)
+<input type="file" name="image" accept="image/png,image/jpeg,image/webp" required/></label>
+<label>Описание изображения для доступности
+<input name="alt" type="text" required maxlength="300"/></label>
+<button type="submit">Сохранить приватно</button>
+</form>
+<?php else: ?>
+<p class="muted">Загрузка отключена: каталог приватного хранения не настроен.</p>
+<?php endif; ?>
+<?php if($mediaFiles===[]): ?><p class="muted">Файлы ещё не загружены.</p><?php endif; ?>
+<?php foreach($mediaFiles as $asset): ?>
+<div class="revision-row">
+<strong>#<?=(int)$asset['id']?></strong>
+<span><?=cmsEscape((string)$asset['original_filename'])?></span>
+<span class="small-note"><?=cmsEscape((string)$asset['mime_type'])?> ·
+<?=(int)$asset['pixel_width']?>×<?=(int)$asset['pixel_height']?></span>
+<span><?=cmsEscape((string)$asset['alt_text'])?></span>
 </div>
 <?php endforeach; ?>
 </section>
