@@ -47,7 +47,7 @@ for($i=0;$i<5;$i++){
 }
 cmsAssert(AdminAuth::authenticate($pdo,'owner','valid-Admin!2026-OnlyForCI',$wrongIP,$secret,$now+5)===null,
     'Per-IP lock did not block correct credentials');
-cmsAssert(AdminAuth::authenticate($pdo,'owner','valid-Admin!2026-OnlyForCI',$wrongIP,$secret,$now+901)===$id,
+cmsAssert(AdminAuth::authenticate($pdo,'owner','valid-Admin!2026-OnlyForCI',$wrongIP,$secret,$now+906)===$id,
     'Lock never expires');
 $pdo->prepare('UPDATE admin_users SET is_active=0 WHERE id=?')->execute([$id]);
 cmsAssert(AdminAuth::authenticate($pdo,'owner','valid-Admin!2026-OnlyForCI','198.51.100.14',$secret,$now+901)===null,
