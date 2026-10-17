@@ -22,7 +22,7 @@ final class PrincipleFieldCatalog
         'how.text.10' => 52, 'how.text.11' => 238,
         'player.text.01' => 36, 'player.text.02' => 48,
         'player.text.03' => 48, 'player.text.04' => 312,
-        'player.text.05' => 22, 'player.text.06' => 22,
+        'player.text.05' => 22, 'player.text.06' => 24,
         'player.text.07' => 22, 'player.text.08' => 22,
     ];
     private const FIXED_STEP_NUMBERS = ['how.text.03' => '01', 'how.text.06' => '02', 'how.text.09' => '03'];

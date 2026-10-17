@@ -34,9 +34,15 @@ class Handler(http.server.SimpleHTTPRequestHandler):
 
     def do_GET(self):
         route = urlsplit(self.path).path
-        if route not in ("/audit/reference", "/audit/runtime", "/audit/draft", "/audit/stress"):
+        if route not in ("/audit/reference", "/audit/runtime", "/audit/draft", "/audit/stress", "/audit/principle"):
             return super().do_GET()
-        if route.endswith("/stress"):
+        if route.endswith("/principle"):
+            preview = subprocess.run(
+                ["php", str(BASE / "tools/render-principle-preview.php"),
+                 str(BASE / "tests/fixtures/preview-stage5-principle.json")],
+                capture_output=True, text=True, timeout=10, check=True)
+            html = preview.stdout
+        elif route.endswith("/stress"):
             preview = subprocess.run(
                 ["php", str(BASE / "tools/render-first-screen-preview.php"),
                  str(BASE / "tests/fixtures/preview-stage4-layout-stress.json")],
@@ -250,6 +256,40 @@ def main():
                         assert not problematic, (
                             f"Editor text overflow at {width}px: {problematic}")
                         result["longCopyStress"] = "PASS"
+
+                        # Stage 5 strictly scoped developer preview reuses
+                        # v10 components; three step numbers stay immutable.
+                        page.goto(origin + "/audit/principle", wait_until="networkidle")
+                        assert page.locator("#features article.benefit").count() == 3
+                        assert page.locator("#how .step").count() == 3
+                        assert page.locator("#how .num").all_inner_texts() == ["01", "02", "03"]
+                        assert "Знакомые песни и версии" in page.locator("#features").inner_text()
+                        assert "Как подключиться после запуска" in page.locator("#how").inner_text()
+                        assert "Плеер остаётся твоим." in page.locator("#player").inner_text()
+                        assert page.locator("#player .familiar-features > div").count() == 4
+                        assert page.locator("#faq details.faq-item").count() == 28
+                        assert page.locator("script:not([src])").count() == 0
+                        bounds = page.evaluate("""() => {
+                          const bad = [];
+                          for (const selector of [
+                            "#features .benefit h3", "#features .benefit p",
+                            "#how h2", "#how .step h3", "#how .step p",
+                            "#player h2", "#player .section-body",
+                            "#player .familiar-features > div"
+                          ]) {
+                            for (const el of document.querySelectorAll(selector)) {
+                              const rect = el.getBoundingClientRect();
+                              if (el.scrollWidth > el.clientWidth + 2 ||
+                                  rect.left < -2 || rect.right > innerWidth + 2) {
+                                bad.push(selector + ": " + rect.left + "..." + rect.right +
+                                  " scroll=" + el.scrollWidth + "/" + el.clientWidth);
+                              }
+                            }
+                          }
+                          return bad;
+                        }""")
+                        assert not bounds, f"Stage5 text overflow at {width}px: {bounds}"
+                        result["stage5Principle"] = "PASS"
                         result["font"] = fs
                         results.append(result)
                     finally:
