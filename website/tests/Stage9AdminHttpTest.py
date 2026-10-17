@@ -143,7 +143,7 @@ try:
     latest_version=hidden(editor,"version")
     all_fields={}
     for name,value in re.findall(
-        r'<textarea id="([^"]+)" name="text\\[[^"]+\\]" maxlength="\\d+">(.*?)</textarea>',
+        r'<textarea id="([^"]+)" name="text\[[^"]+\]" maxlength="\d+">(.*?)</textarea>',
         editor,re.S
     ):
         all_fields["text["+name+"]"]=unescape(value)
