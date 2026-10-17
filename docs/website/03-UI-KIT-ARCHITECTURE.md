@@ -94,3 +94,12 @@ Hostinger target:
 5. The old deployment workflow has been made **manual-only**, requires a release approval marker, blocks private-looking files in the web tree, deploys \`website/public/\` and private application separately. It has **not** been run. Its remaining backup/migration/rollback/health checks are a hard Stage 9–10 release gate.
 
 Do not touch \`extension/\`, \`server/\`, \`android/\` or PR #6. Actual reward policy 2%/20% still requires a separate product review; legacy 3% is obsolete and not to be used in site copy. No live checkout; $2.99 is an announced planned price.
+
+## 6. Update: exact CSS/JS extraction and CMS groundwork — 17.10.2026
+
+- The runtime HTML \`website/app/Templates/site-v10.html\` now references five **byte-for-byte original** stylesheets in \`website/public/assets/css/v10/\` (00-base, 01-v6, 02-v7, 03-v8, 04-v10) and two original JS files \`website/public/assets/js/v10/\` (sound-demo, faq). The sanitized source file is retained unchanged for regression comparison.
+- \`website/tests/Stage3MarkupTest.py\` reconstructs the runtime markup from original source and checks exact equality, preserving all 11 section IDs, 28 questions, five filter controls and approved mark/media slot.
+- \`website/database/seeds/faq-v10.json\` preserves all 28 FAQ entries and their original answer HTML. Four real data categories are stored; "Все вопросы" is a UI-only filter.
+- \`website/database/migrations/001_website_cms.sql\` proposes a **separate** website database (11 tables) including a single atomic published revision pointer; migration is **not applied** and must be confirmed on Hostinger after a backup.
+- Offline Playwright/Chromium: original sanitized v10 vs externalized CSS/JS were pixel-identical at 1440/1024/768/390/320, with real popup raster served locally from the owner-supplied archive for comparison only; no horizontal overflow. Both demo and FAQ category interactions work. Fonts from Google were equally blocked offline, so actual Manrope/browser QA remains to be done.
+- No public release, no verified GitHub CI success, no live CMS or checkout. Full status: [2026-10-17-STAGE3-PROGRESS.md](checkpoints/2026-10-17-STAGE3-PROGRESS.md).
