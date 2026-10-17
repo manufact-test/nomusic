@@ -1,0 +1,119 @@
+name: CELIKOM website Stage 3 checks
+
+on:
+  push:
+    branches: [feature/api-range]
+    paths:
+      - 'website/**'
+      - '.github/workflows/celikom-website-checks.yml'
+  pull_request:
+    paths:
+      - 'website/**'
+      - '.github/workflows/celikom-website-checks.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  foundation:
+    name: PHP syntax and content safeguards (no deployment)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: website
+          sparse-checkout-cone-mode: true
+          persist-credentials: false
+      - name: PHP 8.3
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          tools: none
+          coverage: none
+      - name: Verify PHP syntax
+        run: |
+          set -euo pipefail
+          find website -type f -name '*.php' -print0 | xargs -0 -r -n1 php -l
+      - name: Validate Stage 3 content/security rules
+        run: php website/tests/Stage3FoundationTest.php
+      - name: Verify safe v10 content rendering and metadata
+        run: php website/tests/Stage3RendererTest.php
+      - name: Verify 28 FAQ server-rendering and safe edits
+        run: php website/tests/Stage3FaqRendererTest.php
+      - name: Verify Stage 4 typed editorial catalog and compact-layout budgets
+        run: php website/tests/Stage4FieldCatalogTest.php
+      - name: Verify exported Stage 4 editor field contract
+        run: python3 website/tests/Stage4CatalogCliTest.py
+      - name: Verify Stage 4 first-screen editorial boundaries
+        run: php website/tests/Stage4FirstScreenTest.php
+      - name: Verify Stage 4 scoped CLI preview rejects unsafe edits
+        run: python3 website/tests/Stage4FirstScreenCliTest.py
+      - name: Verify Stage 5 immutable three steps, benefits and player contract
+        run: php website/tests/Stage5PrincipleTest.php
+      - name: Verify isolated Stage 5 CLI preview rejects unauthorized fields
+        run: python3 website/tests/Stage5PrincipleCliTest.py
+      - name: Verify Stage 6 community editor boundaries and locked payment facts
+        run: php website/tests/Stage6CommunityTest.php
+      - name: Verify Stage 6 CLI developer preview and disallowed policy edits
+        run: python3 website/tests/Stage6CommunityCliTest.py
+      - name: Verify Stage 7 trust and FAQ guarded composition
+        run: php website/tests/Stage7TrustTest.php
+      - name: Verify Stage 7 CLI preview and protected FAQ policies
+        run: python3 website/tests/Stage7TrustCliTest.py
+      - name: Verify first-screen demo state safe rendering and original v10 parity
+        run: php website/tests/Stage4DemoContractTest.php
+      - name: Verify CLI-only draft preview (not deployed)
+        shell: bash
+        run: |
+          set -euo pipefail
+          php website/tools/render-local-preview.php website/tests/fixtures/preview-v10-overrides.json > "$RUNNER_TEMP/celikom-v10-preview.html"
+          grep -Fq 'Тестируем знакомую музыку.' "$RUNNER_TEMP/celikom-v10-preview.html"
+          grep -Fq 'Демонстрационный фрагмент интерфейса CELIKOM' "$RUNNER_TEMP/celikom-v10-preview.html"
+          grep -Fq '/assets/css/v10/04-v10.css' "$RUNNER_TEMP/celikom-v10-preview.html"
+          php website/tools/render-local-preview.php website/tests/fixtures/preview-v10-faq-overrides.json > "$RUNNER_TEMP/celikom-v10-faq-preview.html"
+          grep -Fq 'Пример с вопросами CELIKOM.' "$RUNNER_TEMP/celikom-v10-faq-preview.html"
+          grep -Fq 'Тестовый вопрос о CELIKOM?' "$RUNNER_TEMP/celikom-v10-faq-preview.html"
+          grep -Fq 'id="faq-question-29"' "$RUNNER_TEMP/celikom-v10-faq-preview.html"
+          if grep -Fq 'id="faq-question-02"' "$RUNNER_TEMP/celikom-v10-faq-preview.html"; then
+            echo 'Hidden FAQ item unexpectedly present in the rendered draft'; exit 1
+          fi
+      - name: Verify approved v10 markup and preserved FAQ
+        run: python3 website/tests/Stage3MarkupTest.py
+      - name: Verify CMS FAQ seed and isolated database contract
+        run: python3 website/tests/Stage3SeedContractTest.py
+      - name: Prevent accidental screenshot and private asset publication
+        shell: bash
+        run: |
+          set -euo pipefail
+          test ! -e website/RELEASE_READY || { echo 'Unexpected release marker in development branch'; exit 1; }
+          test -z "$(find website/public -type f \( -name '.env*' -o -name '*.sql' -o -name '*.key' -o -name '*.pem' -o -name '*.bak' \) -print -quit)"
+          if grep -R -E -l 'data:image/png;base64|data:image/jpeg;base64' website/public website/app; then
+            echo 'Embedded raster data must not be committed to the website'; exit 1
+          fi
+
+  browser-audit:
+    name: Chromium UI-kit parity and accessibility (offline)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: website
+          sparse-checkout-cone-mode: true
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: PHP 8.3 for verified local Stage 4 draft rendering
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          tools: none
+          coverage: none
+      - name: Install pinned Playwright and Chromium
+        run: |
+          python -m pip install playwright==1.56.0
+          python -m playwright install --with-deps chromium
+      - name: Audit approved v10 on five breakpoints using self-hosted Manrope
+        run: python website/tests/Stage3BrowserAudit.py

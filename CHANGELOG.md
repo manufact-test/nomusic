@@ -1,5 +1,41 @@
 # Changelog
 
+## 0.4.30 — 2026-10-12 (support inbox)
+
+- Customer support form, authenticated private inbox and admin replies/close with CSRF/audit. Existing registration SMTP sends copies to MAIL_FROM and replies to verified customer email.
+- Additive migration016; account/request and ticket/request UUID idempotency, atomic hourly cap, no automatic resend after ambiguous SMTP, backup inventory covers support tables.
+- Native0.3.1 stays read-only pending owner exact-ID report; no real native replacement/route acceptance.
+
+## 0.4.29 — 2026-10-12 (support and native Android checkpoint)
+
+- Popup support panel works independently of login and music incidents; manual copy uses a private allowlist. Email draft is ready for CELIKOM_SUPPORT_EMAIL, but no live recipient has been supplied.
+- One complete configured extension; accepted playback/account/upload/promo/reward features retained. Backend deployment and real data unchanged.
+- Android0.3.1 remains read-only diagnostic. Honor50 confirmed the actual Yandex AudioEffect panel call; native MEDIA_ID32 mismatches shared Track36116709. Current queue/extras candidate inspection and stable session callbacks require a new owner report; exact ID/replacement/physical routes remain unproven.
+- Stage15 excluded,16 partial,17 not started,18 required before external release; PR6 stays open/unmerged.
+
+## 0.4.25 — 2026-10-11 (independent Stage 14 security)
+
+- Worker popup sender gate; delayed Start cannot undo later Stop/Original/logout.
+- Bounded streamed auth JSON; contribution device/IP quotas with HMAC keys, audio excluded.
+- Explicit extension CSP, bundle credential/permission/dependency gate and nested signing/config lint.
+- No new migration/reset; protected snapshot, isolated restore, preserved-credential rollout and read-only integrity PASS.
+- Single full client/API package; Android 16/17 and operational offsite/log/capacity obligations remain separate.
+
+## Documentation — 2026-10-08
+
+- Мастер-ТЗ обновлён до v1.4, карта работ до v1.5 с сохранением основных файлов и дальнейшего scope 0–18. Зафиксированы Stage 2/3 acceptance, автоматизированный Stage 4 gate и уже выполненный Hostinger API/MySQL deploy. Stage 5 остаётся активным до первого живого MP3/WAV и operational проверок.
+- Добавлена передача проекта `docs/handoff/NEXT-CHAT.md`: активная ветка/PR, окружение, выполненные проверки, оставшиеся задачи и рабочие предпочтения владельца. Секреты и реальные песни в документах отсутствуют; deployment и приложение этим обновлением не меняются.
+
+## 0.4.0 — 2026-10-08 (API foundation; Hostinger live gate pending)
+
+- Stage 3 принят по сообщению владельца и диагностике 0.3.2; PR #5 объединён. Два guard-lost в истории сохранены как наблюдения с неизвестной причиной, без обещания независимого полного live-прогона.
+- Добавлены PHP 8.3/MySQL migrations, exact service/Track ID resolve, только approved/active mappings, LocalStorageAdapter и приватное хранилище с SHA-256 дедупликацией assets.
+- Подписанные versioned audio URLs истекают через 10 минут; выдача потоковая, поддерживает GET/HEAD, 200/206/416, Content-Range и byte-seek. Пути файлов не выдаются клиенту.
+- Worker ApiClient получает только фиксированные endpoints, проверяет origin, ID, duration/expiry, кэширует config/resolve. Один API origin добавляется в manifest при сборке. Загрузка реального файла завершается до заглушения оригинала; ошибки и stale операции возвращают оригинал.
+- Добавлен временный код доступа для закрытого теста и owner-reviewed CLI импорт MP3/WAV; аккаунты, entitlements и пользовательская загрузка остаются будущими этапами.
+- Добавлены schema-v1 события, безопасные batch retries/dedup, ключевой hash installation ID, дневные UTC агрегаты и retention; сбор выключен по умолчанию. Админка/подписки/финансовые метрики пока не реализованы.
+- Подготовлены server ZIP без секретов/аудиофайлов и Hostinger runbook с приватным web-root layout и откатом. Автоматические проверки включают MySQL, настоящий PHP HTTP Range и native Chromium WAV decode/seek; live HTTPS/Yandex gate остаётся Stage 5.
+
 ## 0.3.2 — 2026-10-08 (same-track stability fix; live acceptance pending)
 
 - Живой JSON 0.3.1 подтвердил исправленный запуск, healthy bridge и активную подмену с drift −1 ms, но показал частые возвраты и generation 49 на одном треке. Stage 3 пока не принят.

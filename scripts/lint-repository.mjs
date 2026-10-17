@@ -3,8 +3,8 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const ignoredDirectories = new Set([".git", "dist", "node_modules", "vendor"]);
-const textExtensions = new Set([".cjs", ".css", ".html", ".js", ".json", ".md", ".mjs", ".php", ".ts", ".yaml", ".yml"]);
+const ignoredDirectories = new Set([".git", ".gradle", "build", "dist", "node_modules", "vendor"]);
+const textExtensions = new Set([".cjs", ".css", ".html", ".js", ".json", ".md", ".mjs", ".php", ".ts", ".yaml", ".yml", ".kt", ".kts", ".xml", ".properties", ".py", ".crt"]);
 const secretPatterns = [
   /-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----/,
   /\bghp_[A-Za-z0-9]{30,}\b/,
@@ -29,9 +29,12 @@ const files = await walk(root);
 for (const file of files) {
   const info = await stat(file);
   if (info.size > 5 * 1024 * 1024) failures.push(`${path.relative(root, file)} exceeds 5 MiB`);
+  const relative = path.relative(root, file);
+  if ([".env", "id_rsa", "id_ed25519"].includes(path.basename(file)) || /\.(?:p12|pfx|jks|keystore)$/.test(file)) {
+    failures.push(`${relative} must not contain private configuration or signing material`);
+  }
   if (!textExtensions.has(path.extname(file))) continue;
 
-  const relative = path.relative(root, file);
   const source = await readFile(file, "utf8");
   if (source.includes("\r\n")) failures.push(`${relative} uses CRLF`);
   if (source.length > 0 && !source.endsWith("\n")) failures.push(`${relative} has no final newline`);

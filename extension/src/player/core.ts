@@ -12,7 +12,7 @@
 })(globalThis, function createCelikomPlayerCore() {
   "use strict";
 
-  const VERSION = "0.3.2";
+  const VERSION = "0.4.50";
   const PROTOCOL_VERSION = 1;
   const CHANNEL = "CELIKOM_PLAYER_V1";
   const PLAYER_EVENT_TYPES = Object.freeze([
@@ -320,7 +320,7 @@
     if (type === "timeupdate") return "TIME_UPDATE";
     if (type === "volumechange") return "VOLUME_CHANGED";
     if (type === "ratechange") return "RATE_CHANGED";
-    if (type === "loadedmetadata" || type === "durationchange" || type === "emptied") return "METADATA_CHANGED";
+    if (type === "loadstart" || type === "loadedmetadata" || type === "durationchange" || type === "emptied") return "METADATA_CHANGED";
     if (type === "ended") return "ENDED";
     if (type === "error") return "ERROR";
     return null;

@@ -1,20 +1,52 @@
-# CELIKOM extension
+# CELIKOM — единый Chrome-клиент 0.4.25
 
-Manifest V3 client. Stage 2 observation was accepted on `0.2.1`. Stage 3 (`0.3.2`) adds `ReplacementController`, `ReplacementPlayer`, `SyncEngine`, `OriginalAudioGuard` and `FailOpenController`, using an opt-in packaged synthetic fixture for one exact Track ID. Real files and backend resolution are not connected yet.
+Одна Manifest V3 сборка содержит подмену музыки, аккаунт, доступ, загрузку MP3 и M4A (AAC),
+отдельное предложение песни и награды. Общий API:
+https://darkred-camel-588676.hostingersite.com.
+Обычному пользователю не нужен отдельный API_TEST_TOKEN.
 
-0.3.1 fixes the reported 0.3.0 `normalizeTrackId` startup crash. Dependencies resolve at controller construction; manifest and recovery injection use the same single deterministic bundle per world. Polling does not reinject a failed controller. Refresh the music tab after updating so the old immutable page globals are discarded.
+## Обновление существующей установки
 
-0.3.2 excludes short data-audio utility elements from master selection and preserves an existing exact guard during metadata-only seek/buffering while pausing replacement. New guards still require playable data. Catalog duration independently validates the native clock; changing a guarded stream restores original and holds the stale Track ID until an exact different ID or explicit Start. Diagnostics add `playback.activationCount`, `restoreCount` and `lastRestore` with safe binding reasons. The owner's 0.3.1 run confirmed startup and active replacement, but same-track restore loops keep the stability gate open.
+1. Сохранить резервную 0.4.4. Распаковать полный `CELIKOM-0.4.25-full.zip`.
+2. Закрыть popup и заменить файлы в прежней папке распакованного расширения.
+   Не удалять установленное расширение: это сохраняет его идентичность и локальную сессию.
+3. В `chrome://extensions` нажать «Обновить» (Reload) у существующего CELIKOM.
+4. Один раз обновить открытую вкладку Яндекс Музыки, чтобы убрать старый MAIN bundle.
+
+Новая установка: включить режим разработчика в `chrome://extensions`, выбрать
+«Загрузить распакованное» и папку с `manifest.json`. Войти в свой подтверждённый
+CELIKOM аккаунт. Trial — три дня на аккаунт с первой активации, без сброса при
+переустановке; refresh-сессии устройств независимы. Наличие сессии не продлевает доступ.
+Не создавать дополнительные временные копии ради проверки прежних принятых этапов.
+
+## Поведение и ограничения
+
+«Стоп» сохраняет выключение; «Вернуть оригинал» оставляет bypass текущего Track ID
+до смены трека или нового явного «Старт». Задержанный ответ на прежний Start не
+отменяет последующий Stop, Original или logout. Ошибки сети/плеера возвращают
+оригинальный звук, а временные сбои допускают восстановление при сохранённом intent.
+При объявленном владельцем incident музыкальные кнопки скрыты, аккаунт доступен;
+время действующего доступа компенсируется сервером. Потеря сети не объявляет incident.
+
+Зелёная C означает работающую связь с Яндексом, включая треки без approved версии.
+Подмена доступна только для точной одобренной активной версии и разрешённого доступа.
+Upload остаётся pending до ручной модерации; предложение песни не загружает аудиофайл.
+Платёжный провайдер и owner-промокоды этим security-пакетом не подключены.
+Issue #7 остаётся открытым; исходная причина Yandex stall/RangeError не доказана.
+
+## Сборка и проверки
+
+Node 24+, из корня монорепозитория:
 
 ```bash
-npm run build
-npm test
+npm ci
+npm run ci
+CELIKOM_API_BASE_URL=https://darkred-camel-588676.hostingersite.com npm run build:extension
+npm run security
 ```
 
-Load `dist/unpacked` through `chrome://extensions` and refresh the Yandex Music tab once after updating. Press `Старт` and play a track. Open the collapsed developer section and press `Тестировать текущий трек` to bind the synthetic demo. Leave the test ID empty for original-only playback. `Вернуть оригинал` bypasses the current ID until an exact different track or an explicit Start; `Стоп` persists globally in local storage. Developer details are collapsed by default; `Добавить трек` only opens a coming-soon message and uploads nothing.
-
-Bootstrap uses `chrome.scripting` with the existing Yandex host permission. If Chrome denies site access, the popup reports `connection.error` and `connection.detail` instead of waiting forever. Give the extension access to `music.yandex.ru` in Chrome's extension settings, then press `Повторить`. There is no alternate access path or remote script loading.
-
-Service-specific DOM, network and route knowledge stays in `src/adapters/yandex-music-adapter.ts`. Guard commands require an exact current track/media binding and a session-generation lease. MAIN independently stops CELIKOM media and restores the latest logical volume/mute on heartbeat loss (12 s visible / 120 s hidden), pagehide or session replacement. A new generation cannot be released by a stale lease.
-
-Tests execute compiled scripts in VM/mock browser environments; this is not proof of real Chromium media behavior. Complete `../docs/test-plans/CELIKOM-STAGE3-PLAYBACK.md` before accepting Stage 3. The next stages connect the API/MySQL contract, then Hostinger and authorized real MP3 fixtures.
+Полный ZIP и SHA-256: `extension/dist/`. Общий CI проверяет PHP/MySQL и native
+Chromium; отдельный MariaDB job — совместимость backend. VM-тесты сами по себе
+не являются приёмкой реального музыкального сервиса или Android.
+Отчёт security: `docs/test-plans/security.md`; recovery: `docs/runbooks/stage14-hardening.md`.
+Этап 15 исключён. Android 16/17 требует отдельного PoC; APK не создан этим пакетом.
