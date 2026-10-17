@@ -53,7 +53,14 @@ try {
     exit;
 }
 $now = time();
-$admin = AdminAuth::checkSession($pdo, $now);
+try {
+    $admin = AdminAuth::checkSession($pdo, $now);
+} catch (\Throwable $e) {
+    error_log('CELIKOM CMS: session verification unavailable');
+    http_response_code(503);
+    echo 'Панель временно недоступна.';
+    exit;
+}
 $error = null;
 $notice = null;
 $action = $_POST['action'] ?? null;
@@ -68,8 +75,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         try {
             $found = AdminAuth::authenticate(
                 $pdo,
-                (string)($_POST['username'] ?? ''),
-                (string)($_POST['password'] ?? ''),
+                is_string($_POST['username'] ?? null) ? $_POST['username'] : '',
+                is_string($_POST['password'] ?? null) ? $_POST['password'] : '',
                 (string)($_SERVER['REMOTE_ADDR'] ?? ''),
                 CmsConfig::rateSecret(),
                 $now
@@ -117,7 +124,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $snapshot = ['content'=>$edited,'faq'=>[]];
             CmsEditor::validate($template,$manifest,$seed,$snapshot);
             $expected = filter_var($_POST['version'] ?? null,FILTER_VALIDATE_INT);
-            if ($expected === false || $expected < 0) {
+            if (!is_int($expected) || $expected < 0) {
                 throw new InvalidArgumentException('Missing draft version');
             }
             $newVersion = CmsDraftStore::save($pdo,$admin,$expected,$snapshot);
