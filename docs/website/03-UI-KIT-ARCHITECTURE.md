@@ -103,3 +103,26 @@ Do not touch `extension/`, `server/`, `android/` or PR #6. Actual reward policy 
 - `website/database/migrations/001_website_cms.sql` proposes a **separate** website database (11 tables) including a single atomic published revision pointer; migration is **not applied** and must be confirmed on Hostinger after a backup.
 - Offline Playwright/Chromium: original sanitized v10 vs externalized CSS/JS were pixel-identical at 1440/1024/768/390/320, with real popup raster served locally from the owner-supplied archive for comparison only; no horizontal overflow. Both demo and FAQ category interactions work. Fonts from Google were equally blocked offline, so actual Manrope/browser QA remains to be done.
 - No public release, no verified GitHub CI success, no live CMS or checkout. Full status: [2026-10-17-STAGE3-PROGRESS.md](checkpoints/2026-10-17-STAGE3-PROGRESS.md).
+
+## 7. Verified Stage 3 UI-kit QA — 17.10.2026
+
+The runtime now uses self-hosted Manrope instead of external Google Fonts:
+`public/assets/css/v10/manrope-local.css` and four redistributable
+woff2 subsets under `public/assets/fonts/` (SIL OFL-1.1 license included).
+`focus-visible.css` adds a keyboard-only 3px FAQ summary outline.
+The five original v10 CSS files and two original scripts remain byte-identical.
+
+CI `Stage3BrowserAudit.py` compares original inline-v10 and extracted
+runtime in headless Chromium with the **same local Manrope font** at
+1440, 1024, 768, 390, 320. All five widths pass exact screenshot parity,
+no horizontal overflow, expected container geometry, demo / FAQ interactions,
+keyboard summary opening, focus visibility and valid in-page anchors.
+PHP renderer/FAQ tests also pass. Evidence: [UI-kit checkpoint](checkpoints/2026-10-17-STAGE3-UIKIT-QA.md)
+and workflow runs [push](https://github.com/manufact-test/nomusic/actions/runs/39062848524)
+and [PR](https://github.com/manufact-test/nomusic/actions/runs/39062851976).
+
+[Controlled media, licensing, security and accessibility policy](04-MEDIA-AND-ACCESSIBILITY-POLICY.md)
+is the forward contract for Stage 9. No real popup raster in GitHub.
+Offline tests do not prove production media rendering or Safari/mobile
+accessibility. **Stage 3 technical QA is complete, but owner acceptance is
+outstanding and the stage is not formally closed.**

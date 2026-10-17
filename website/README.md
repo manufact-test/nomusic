@@ -48,3 +48,17 @@ In local PHP built-in server preview only, set `CELIKOM_LOCAL_PREVIEW=1`, use do
 ## Update — original v10 implementation parity
 
 The real v10 page is now split into 5 unchanged CSS assets and 2 unchanged JavaScript assets. `app/Templates/site-v10.html` loads them in the original order, and `tests/Stage3MarkupTest.py` asserts exact source equality after substitution. `database/seeds/faq-v10.json` preserves all 28 FAQ questions and answers; `database/migrations/001_website_cms.sql` is a future, **not-yet-run**, separate database migration. `tests/Stage3SeedContractTest.py` checks both data and schema structure. Pixel-identical local Chromium comparisons passed at 1440, 1024, 768, 390 and 320px with the same fallback fonts; full hosting/font tests are still pending. Stage 3 is **not** owner-accepted. Details: `docs/website/checkpoints/2026-10-17-STAGE3-PROGRESS.md`.
+
+## 17.10.2026 UI-kit verification update
+
+Self-hosted Manrope WOFF2 with OFL license and a keyboard-only FAQ focus ring
+are now present; original five v10 CSS and two JS remain untouched.
+Offline browser audit: `python website/tests/Stage3BrowserAudit.py`
+(after installing pinned Playwright Chromium). CI now runs this along
+with PHP/security/rendering tests. Five sizes (1440/1024/768/390/320)
+passed in [push run 39062848524](https://github.com/manufact-test/nomusic/actions/runs/39062848524)
+and [PR run 39062851976](https://github.com/manufact-test/nomusic/actions/runs/39062851976).
+See `docs/website/checkpoints/2026-10-17-STAGE3-UIKIT-QA.md` and
+`docs/website/04-MEDIA-AND-ACCESSIBILITY-POLICY.md`.
+Older sections describing font work as outstanding are historical.
+**Technical QA complete != Stage 3 owner acceptance; no deploy or CMS.**

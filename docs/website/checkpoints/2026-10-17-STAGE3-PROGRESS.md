@@ -54,3 +54,13 @@ Project canonical state: `docs/website/NEXT-CHAT.md`; source specification `docs
 - **Evidence:** `website/tests/Stage3FaqRendererTest.php` plus both local preview fixtures checked by specialized GitHub Actions; runs [39061066048](https://github.com/manufact-test/nomusic/actions/runs/39061066048) and [39061062241](https://github.com/manufact-test/nomusic/actions/runs/39061062241) passed at commit `c93d42b23...`.
 - **Full technical handoff:** [2026-10-17-FAQ-VERTICAL-SLICE.md](2026-10-17-FAQ-VERTICAL-SLICE.md).
 - **Important:** FAQ renderer complete **as technical component**, NOT admin UI, not database persistence, not publicly deployed website and NOT Stage 3 acceptance. Remain on `feature/api-range`, never merge PR #6 or modify CELIKOM app directories from website work.
+
+## Latest Stage 3 update — read before older open-item list
+
+On 17.10.2026 the open Manrope and isolated Chromium UI-kit technical checks
+were resolved. See [2026-10-17-STAGE3-UIKIT-QA.md](2026-10-17-STAGE3-UIKIT-QA.md):
+local OFL-licensed Manrope, focus-visible FAQ accessibility enhancement,
+five responsive widths, unchanged visual baseline and both CI jobs green.
+Older references above to missing font files and unverified CI are historical.
+**Owner sign-off, approved real popup media, full CMS and joint release remain
+pending.** Stage 3 is not officially marked accepted.
