@@ -1,0 +1,49 @@
+<?php
+declare(strict_types=1);
+
+/**
+ * CELIKOM website (Stage 3 shell).
+ *
+ * The approved v10 page is kept in the private app template, not copied to
+ * public_html with screenshot data. The live web entry is intentionally
+ * blocked until the small CMS and owner-approved joint release are ready.
+ */
+header('Content-Type: text/html; charset=utf-8');
+header('X-Content-Type-Options: nosniff');
+header('Referrer-Policy: strict-origin-when-cross-origin');
+header('X-Frame-Options: DENY');
+header('X-Robots-Tag: noindex, nofollow, noarchive');
+header('Cache-Control: no-store');
+
+$domainRoot = dirname(__DIR__);
+$privateApp = $domainRoot . '/celikom-private/app';
+
+// Explicit *local* preview only (PHP built-in server + env switch).
+$localPreview = PHP_SAPI === 'cli-server'
+    && getenv('CELIKOM_LOCAL_PREVIEW') === '1';
+if ($localPreview) {
+    $privateApp = dirname(__DIR__) . '/app';
+}
+
+// Production always requires an approved CMS and protected release state.
+$approved = !$localPreview
+    && is_file($privateApp . '/release-approved.php')
+    && is_file(__DIR__ . '/admin/index.php');
+
+if (!$localPreview && !$approved) {
+    http_response_code(503);
+    header('Retry-After: 86400');
+    echo '<!doctype html><html lang="ru"><meta charset="utf-8"><title>CELIKOM — подготовка сайта</title><p>CELIKOM готовится к запуску.</p></html>';
+    exit;
+}
+
+$bootstrap = $privateApp . '/bootstrap.php';
+$template = $privateApp . '/Templates/site-v10.html';
+if (!is_file($bootstrap) || !is_file($template)) {
+    error_log('CELIKOM website: required private application files are missing');
+    http_response_code(503);
+    echo 'CELIKOM временно недоступен.';
+    exit;
+}
+require_once $bootstrap;
+readfile($template);
