@@ -34,9 +34,15 @@ class Handler(http.server.SimpleHTTPRequestHandler):
 
     def do_GET(self):
         route = urlsplit(self.path).path
-        if route not in ("/audit/reference", "/audit/runtime", "/audit/draft"):
+        if route not in ("/audit/reference", "/audit/runtime", "/audit/draft", "/audit/stress"):
             return super().do_GET()
-        if route.endswith("/draft"):
+        if route.endswith("/stress"):
+            preview = subprocess.run(
+                ["php", str(BASE / "tools/render-first-screen-preview.php"),
+                 str(BASE / "tests/fixtures/preview-stage4-layout-stress.json")],
+                capture_output=True, text=True, timeout=10, check=True)
+            html = preview.stdout
+        elif route.endswith("/draft"):
             draft = subprocess.run(
                 ["php", str(BASE / "tools/render-first-screen-preview.php"),
                  str(BASE / "tests/fixtures/preview-stage4-first-screen.json")],
@@ -204,6 +210,46 @@ def main():
                         assert page.evaluate("location.hash") == "#sound"
                         assert page.locator("#sound").count() == 1
                         result["firstScreenDraft"] = "PASS"
+
+                        # Stage 4 content stress test: long but valid first-
+                        # screen copy must remain readable and navigable.
+                        page.goto(origin + "/audit/stress", wait_until="networkidle")
+                        assert "Верни любимое звучание музыки." in page.locator(".hero h1").inner_text()
+                        assert page.locator("#sound-result").inner_text() == (
+                            "Сейчас воспроизводится исходный трек")
+                        page.locator("#mode-restored").click()
+                        assert page.locator("#sound-result").inner_text().startswith(
+                            "Если проверенная версия доступна")
+                        problematic = page.evaluate("""() => {
+                          const selectors = [
+                            "header .brand", "header nav", "header .header-chip",
+                            ".hero-copy h1", ".hero-lead", ".hero .actions",
+                            ".hero .actions .btn", "#sound .section-heading",
+                            "#sound .section-body", "#sound .mode-btn",
+                            "#sound-result", "#sound .demo-board-foot"
+                          ];
+                          const failures = [];
+                          for (const selector of selectors) {
+                            for (const el of document.querySelectorAll(selector)) {
+                              const style = getComputedStyle(el);
+                              if (style.display === "none" || style.visibility === "hidden") continue;
+                              const rect = el.getBoundingClientRect();
+                              if (rect.width < 2 || rect.height < 2) continue;
+                              if (el.scrollWidth > el.clientWidth + 2) {
+                                failures.push(selector + ": inner text overflows " +
+                                  el.scrollWidth + ">" + el.clientWidth);
+                              }
+                              if (rect.left < -2 || rect.right > innerWidth + 2) {
+                                failures.push(selector + ": beyond viewport " +
+                                  rect.left + ".." + rect.right);
+                              }
+                            }
+                          }
+                          return failures;
+                        }""")
+                        assert not problematic, (
+                            f"Editor text overflow at {width}px: {problematic}")
+                        result["longCopyStress"] = "PASS"
                         result["font"] = fs
                         results.append(result)
                     finally:
