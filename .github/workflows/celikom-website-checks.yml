@@ -45,6 +45,8 @@ jobs:
         run: php website/tests/Stage4FirstScreenTest.php
       - name: Verify Stage 4 scoped CLI preview rejects unsafe edits
         run: python3 website/tests/Stage4FirstScreenCliTest.py
+      - name: Verify first-screen demo state safe rendering and original v10 parity
+        run: php website/tests/Stage4DemoContractTest.php
       - name: Verify CLI-only draft preview (not deployed)
         shell: bash
         run: |
