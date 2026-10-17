@@ -2,6 +2,7 @@
 declare(strict_types=1);
 require dirname(__DIR__).'/app/bootstrap.php';
 use Celikom\Website\CmsMediaAssignment;
+use Celikom\Website\CmsMediaReleasePreflight;
 use Celikom\Website\CmsMediaStore;
 use Celikom\Website\CmsRevisions;
 use Celikom\Website\CmsConfig;
@@ -43,6 +44,28 @@ try {
     selectAssert($selection===1,'first private selection');
     selectAssert(CmsMediaAssignment::get($pdo)===['version'=>1,'asset_id'=>$id],
         'persisted private selection');
+    // Future-release preflight is read-only and MUST NEVER self-approve assets.
+    $report=CmsMediaReleasePreflight::pending($pdo,$dir,$base.'/public');
+    selectAssert($report['asset_id']===$id &&
+        $report['sha256']===hash('sha256',$png) &&
+        $report['mime']==='image/png' &&
+        $report['width']===1 && $report['height']===1 &&
+        $report['public_ready']===false &&
+        count($report['stage10_required'])===4,
+        'private preflight approved or misread a pending image');
+    selectAssert(!array_key_exists('body',$report) &&
+        !array_key_exists('src',$report),
+        'release report leaked image bytes or a public URL');
+    selectReject(fn()=>CmsMediaReleasePreflight::analyze(
+        $id,'<svg onload="alert(1)"></svg>','image/png','Valid'
+    ),'SVG masquerading as popup');
+    selectReject(fn()=>CmsMediaReleasePreflight::analyze(
+        $id,$png,'image/jpeg','Valid'
+    ),'MIME spoof of real PNG');
+    selectReject(fn()=>CmsMediaReleasePreflight::analyze(
+        $id,$png,'image/png','" onerror="alert(1)'
+    ),'Unsafe ALT was accepted by release report');
+
     selectAssert(CmsMediaAssignment::choose($pdo,1,0,null,$dir,$base.'/public')===null,
         'stale selection overwrote owner');
     selectReject(fn()=>CmsMediaAssignment::choose($pdo,1,1,$id+999999,$dir,$base.'/public'),
@@ -77,6 +100,9 @@ try {
         'original screenshot selection missing');
     selectAssert(CmsMediaAssignment::privatePage($page,null,'')===$page,
         'unselected asset modified preview');
+    selectReject(fn()=>CmsMediaReleasePreflight::pending(
+        $pdo,$dir,$base.'/public'
+    ),'original placeholder incorrectly accepted as pending release candidate');
     selectAssert((int)$pdo->query(
         "SELECT COUNT(*) FROM audit_log WHERE event_name='cms.media.preview.selected'"
     )->fetchColumn()===2,'selection audit missing');
