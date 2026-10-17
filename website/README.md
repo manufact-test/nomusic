@@ -99,3 +99,23 @@ CI verified push [39065255480](https://github.com/manufact-test/nomusic/actions/
 and PR [39065258327](https://github.com/manufact-test/nomusic/actions/runs/39065258327)
 on commit `96e844627d44124b295d76179383e6df8fb626fe`.
 Stage 3 owner sign-off, real CMS and approved site+CMS release are still pending.
+
+## Stage 5: benefits, three steps and familiar player (v3.8)
+
+A new Stage 5 technical editorial slice reuses approved v10 structure:
+`PrincipleFieldCatalog.php` provides exactly 22 scoped text fields,
+`PrincipleDraft.php` validates and renders only these fields, with step
+numbers `01/02/03` non-editable. This is **not an authenticated CMS**.
+`tools/render-principle-preview.php` provides CLI-only preview from
+`tests/fixtures/preview-stage5-principle.json` with no writes.
+The fixture is intentionally non-public draft copy, not a change to the
+approved website. `Stage5PrincipleTest.php` and
+`Stage5PrincipleCliTest.py` check exact default HTML parity,
+injection protection and blocked unrelated fields. The browser audit
+checks principle text, 3 benefit cards, 3 steps and 4 controls on
+1440/1024/768/390/320 while original CSS, JS and FAQ remain unchanged.
+CI: [push 39066168991](https://github.com/manufact-test/nomusic/actions/runs/39066168991)
+and [PR 39066172269](https://github.com/manufact-test/nomusic/actions/runs/39066172269),
+both PASS at `4f1017fe3d6033b28614a44c23a98ed1b960b9d6`.
+Checkpoint: `docs/website/checkpoints/2026-10-17-STAGE5-PRINCIPLE-SLICE.md`.
+No live editor, database migration, deployment or formal owner signoff.
