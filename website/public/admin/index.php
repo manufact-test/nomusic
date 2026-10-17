@@ -40,6 +40,7 @@ use Celikom\Website\CmsConfig;
 use Celikom\Website\CmsDraftStore;
 use Celikom\Website\CmsEditor;
 use Celikom\Website\CmsFaqManager;
+use Celikom\Website\CmsRevisions;
 use Celikom\Website\Content;
 use Celikom\Website\Database;
 use Celikom\Website\Security;
@@ -200,6 +201,50 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             http_response_code(503);
             $error='FAQ не сохранён. Повторите позже.';
         }
+    } elseif (($action === 'publish' || $action === 'restore') && $admin !== null) {
+        try {
+            $expected=filter_var($_POST['version']??null,FILTER_VALIDATE_INT);
+            if(!is_int($expected) || $expected<1 ||
+                ($_POST['confirm']??null)!=='yes') {
+                throw new InvalidArgumentException('Confirm the revision and current version');
+            }
+            $manifest=file_get_contents($app.'/Config/content-fields-v10.json');
+            $template=file_get_contents($app.'/Templates/site-v10.html');
+            $seed=file_get_contents($dev
+                ? $root.'/database/seeds/faq-v10.json'
+                : $root.'/celikom-private/database/seeds/faq-v10.json');
+            if(!is_string($manifest)||!is_string($template)||!is_string($seed)) {
+                throw new RuntimeException('Approved source unavailable');
+            }
+            $note=$_POST['note']??null;
+            if(!is_string($note))throw new InvalidArgumentException('Invalid revision note');
+            // Same release gate as entire /admin/: offline tests do not open
+            // the public endpoint, even after publishing a DB snapshot.
+            if($action==='publish') {
+                $updated=CmsRevisions::publish($pdo,$admin,$expected,$note,
+                    $template,$manifest,$seed);
+            } else {
+                $target=filter_var($_POST['target_revision']??null,FILTER_VALIDATE_INT);
+                if(!is_int($target)||$target<1)throw new InvalidArgumentException('Unknown revision');
+                $updated=CmsRevisions::restore($pdo,$admin,$target,$expected,$note,
+                    $template,$manifest,$seed);
+            }
+            if($updated===null) {
+                http_response_code(409);
+                $error='Состояние изменилось в другой вкладке. Обновите страницу.';
+            } else {
+                header('Location: /admin/?saved='.($action==='publish'?'published':'restored').'#revision-editor',
+                    true,303);
+                exit;
+            }
+        } catch (\InvalidArgumentException $e) {
+            http_response_code(422);
+            $error='Проверьте выбранную редакцию, комментарий и подтверждение.';
+        } catch (\Throwable $e) {
+            error_log('CELIKOM CMS: revision operation failed');
+            http_response_code(503);
+            $error='Операция с редакцией не выполнена.';
+        }
     } else {
         http_response_code(403);
         $error = 'Операция недоступна.';
@@ -234,6 +279,8 @@ if ($admin !== null && $_SERVER['REQUEST_METHOD'] === 'GET' && ($_GET['view'] ??
 $fields = [];
 $current = ['version'=>0,'content'=>[],'faq'=>[]];
 $faqItems=[];
+$history=[];
+$published=null;
 if ($admin !== null) {
     try {
         $manifest = file_get_contents($app.'/Config/content-fields-v10.json');
@@ -245,6 +292,8 @@ if ($admin !== null) {
             : $root.'/celikom-private/database/seeds/faq-v10.json');
         if(!is_string($faqSeed))throw new RuntimeException('FAQ seed missing');
         $faqItems=CmsFaqManager::rows($faqSeed,$current['faq']);
+        $history=CmsRevisions::history($pdo);
+        $published=CmsRevisions::publishedId($pdo);
     } catch (\Throwable $e) {
         error_log('CELIKOM CMS: draft could not be loaded');
         http_response_code(503);
@@ -278,6 +327,14 @@ select{display:block;width:100%;padding:10px;border-radius:9px;font:inherit}
 .inline-check input{width:auto}
 .secnav{display:flex;flex-wrap:wrap;gap:16px;margin:14px 0 24px}
 .secnav a{color:#9BE8CE}
+.revision-row{display:flex;gap:14px;align-items:center;flex-wrap:wrap;
+padding:12px 0;border-bottom:1px solid #375048}
+.revision-row form{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.revision-row label{margin:0}
+.revision-row input[type="checkbox"]{width:auto}
+.revision-current{font-weight:700;color:#9BE8CE}
+.small-note{font-size:13px;color:#B8CAC4}
+
 @media(max-width:600px){.faq-fields{grid-template-columns:1fr}}
 
 @media(max-width:600px){body{padding:12px}.panel{padding:16px}.action{margin-left:0}}
@@ -296,12 +353,18 @@ select{display:block;width:100%;padding:10px;border-radius:9px;font:inherit}
 <button type="submit">Войти</button></form></section>
 <?php else: ?>
 <section class="panel" id="text-editor"><h2>Черновик текстов</h2>
-<p class="muted">Безопасные тексты и ссылки всех секций v10, плюс черновики FAQ. Версия <?= (int)$current['version']?>. Публикация пока недоступна.</p>
+<p class="muted">Редактор v10: тексты, ссылки, SEO и FAQ. Черновик №<?= (int)$current['version']?>.
+<?php if($dev): ?>Тестовая публикация сохраняется только в отдельную MySQL, сайт посетителям закрыт.
+<?php else: ?>Публикация доступна только после подтверждённого выпуска сайта.
+<?php endif; ?></p>
 <nav class="secnav" aria-label="Разделы редактора">
 <a href="#text-editor">Секции сайта</a><a href="#faq-editor">Вопросы FAQ</a>
+<a href="#revision-editor">Публикации и откат</a>
 <a href="/admin/?view=preview" target="_blank" rel="noopener">Предпросмотр</a>
 </nav>
 <?php if (in_array($_GET['saved'] ?? '', ['1','faq'], true)): ?><p class="ok" role="status">Черновик сохранён в базе данных.</p><?php endif; ?>
+<?php if (($_GET['saved']??'')==='published'): ?><p class="ok" role="status">Редакция опубликована в MySQL. Публичный сайт не открыт.</p><?php endif; ?>
+<?php if (($_GET['saved']??'')==='restored'): ?><p class="ok" role="status">Предыдущая редакция восстановлена в MySQL. Черновик не изменился.</p><?php endif; ?>
 <form method="post" action="/admin/">
 <input type="hidden" name="csrf" value="<?=cmsEscape($csrf)?>"/><input type="hidden" name="action" value="save"/>
 <input type="hidden" name="version" value="<?= (int)$current['version']?>"/>
@@ -369,6 +432,43 @@ $value=$current['content'][$key]??$field['default'];
 </select></label>
 <button type="submit">Добавить скрытый вопрос в черновик</button>
 </form>
+</section>
+<section class="panel" id="revision-editor" style="margin-top:24px">
+<h2>Публикация и история</h2>
+<p class="muted">Текущая опубликованная редакция:
+<?= $published===null?'отсутствует':'№'.(int)$published ?>.
+Публикация создаёт неизменяемый снимок. Черновик остаётся отдельно. В тестовой среде публичный сайт остаётся закрытым независимо от публикации.</p>
+<form method="post" action="/admin/#revision-editor">
+<input type="hidden" name="csrf" value="<?=cmsEscape($csrf)?>"/>
+<input type="hidden" name="action" value="publish"/>
+<input type="hidden" name="version" value="<?=(int)$current['version']?>"/>
+<label for="publication-note">Комментарий к публикации</label>
+<input id="publication-note" name="note" maxlength="255" value="" placeholder="Что изменилось?"/>
+<label class="inline-check"><input type="checkbox" name="confirm" value="yes" required/>
+Подтверждаю публикацию сохранённого черновика №<?= (int)$current['version']?></label>
+<button type="submit" <?= $current['version']<1?'disabled':''?>>Опубликовать редакцию в базе</button>
+</form>
+<h2>История редакций</h2>
+<?php if ($history===[]): ?><p class="muted">Публикаций ещё не было.</p><?php endif; ?>
+<?php foreach ($history as $revision): ?>
+<div class="revision-row">
+<div><strong>№<?=(int)$revision['id']?></strong>
+<?php if($published===$revision['id']): ?><span class="revision-current"> · текущая</span><?php endif; ?>
+<div class="small-note"><?=cmsEscape($revision['at'])?> · <?=cmsEscape($revision['note'])?></div></div>
+<?php if ($published!==null && $published!==$revision['id']): ?>
+<form method="post" action="/admin/#revision-editor">
+<input type="hidden" name="csrf" value="<?=cmsEscape($csrf)?>"/>
+<input type="hidden" name="action" value="restore"/>
+<input type="hidden" name="version" value="<?=(int)$published?>"/>
+<input type="hidden" name="target_revision" value="<?=(int)$revision['id']?>"/>
+<input type="hidden" name="note" value="Восстановление редакции №<?=(int)$revision['id']?>"/>
+<label class="inline-check"><input type="checkbox" name="confirm" value="yes" required/>
+Подтверждаю откат</label>
+<button type="submit">Восстановить №<?=(int)$revision['id']?></button>
+</form>
+<?php endif; ?>
+</div>
+<?php endforeach; ?>
 </section>
 <?php endif; ?>
 </main></body></html>
