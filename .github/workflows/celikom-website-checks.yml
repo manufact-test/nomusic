@@ -57,6 +57,10 @@ jobs:
         run: php website/tests/Stage6CommunityTest.php
       - name: Verify Stage 6 CLI developer preview and disallowed policy edits
         run: python3 website/tests/Stage6CommunityCliTest.py
+      - name: Verify Stage 7 trust and FAQ guarded composition
+        run: php website/tests/Stage7TrustTest.php
+      - name: Verify Stage 7 CLI preview and protected FAQ policies
+        run: python3 website/tests/Stage7TrustCliTest.py
       - name: Verify first-screen demo state safe rendering and original v10 parity
         run: php website/tests/Stage4DemoContractTest.php
       - name: Verify CLI-only draft preview (not deployed)
