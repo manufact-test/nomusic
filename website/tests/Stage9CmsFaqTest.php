@@ -19,7 +19,7 @@ $seed=file_get_contents($base.'/database/seeds/faq-v10.json');
 if(!is_string($template)||!is_string($manifest)||!is_string($seed))
     throw new RuntimeException('Trusted v10 missing');
 $fields=CmsEditor::fields($manifest);
-faqMust(count($fields)===84,'Combined registry count');
+faqMust(count($fields)===87,'Combined registry count');
 foreach(['hero.title.first','header.link.01','features.text.01','how.text.02',
     'player.text.02','contribute.text.06','rewards.text.02',
     'transparency.text.02','faq.text.02','install.text.02',
