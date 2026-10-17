@@ -49,6 +49,13 @@ jobs:
           grep -Fq 'Тестируем знакомую музыку.' "$RUNNER_TEMP/celikom-v10-preview.html"
           grep -Fq 'Демонстрационный фрагмент интерфейса CELIKOM' "$RUNNER_TEMP/celikom-v10-preview.html"
           grep -Fq '/assets/css/v10/04-v10.css' "$RUNNER_TEMP/celikom-v10-preview.html"
+          php website/tools/render-local-preview.php website/tests/fixtures/preview-v10-faq-overrides.json > "$RUNNER_TEMP/celikom-v10-faq-preview.html"
+          grep -Fq 'Пример с вопросами CELIKOM.' "$RUNNER_TEMP/celikom-v10-faq-preview.html"
+          grep -Fq 'Тестовый вопрос о CELIKOM?' "$RUNNER_TEMP/celikom-v10-faq-preview.html"
+          grep -Fq 'id="faq-question-29"' "$RUNNER_TEMP/celikom-v10-faq-preview.html"
+          if grep -Fq 'id="faq-question-02"' "$RUNNER_TEMP/celikom-v10-faq-preview.html"; then
+            echo 'Hidden FAQ item unexpectedly present in the rendered draft'; exit 1
+          fi
       - name: Verify approved v10 markup and preserved FAQ
         run: python3 website/tests/Stage3MarkupTest.py
       - name: Verify CMS FAQ seed and isolated database contract
