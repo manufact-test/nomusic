@@ -1,42 +1,46 @@
-# CELIKOM website — implementation workspace
+# CELIKOM website — Stage 3 foundation (17.10.2026)
 
-**Status 2026-10-17:** Stage 3 foundation only. **NOT deployable.** The accepted visual source is the independent HTML v10 viewer, which must be supplied/verified before detailed section implementation. Do not redraw the accepted design.
+**Status:** Stage 3 IN PROGRESS; no public launch, no real CMS UI, no database migrations. Site and admin must be completed and released together. Master: \`docs/website/MASTER-TZ.md\` v1.2; detailed implementation contract: \`docs/website/03-UI-KIT-ARCHITECTURE.md\`.
 
-## Boundaries
-- All site work is isolated under `website/` and `docs/website/`.
-- Do not change `extension/`, `server/`, `android/` or merge PR #6.
-- Website and small protected PHP/MySQL content CMS are one release. There is no public site until both are accepted.
-- Main requirements: `docs/website/MASTER-TZ.md` v1.2; latest transfer `docs/website/NEXT-CHAT.md`.
+## Source of visual truth
 
-## Planned structure
-```
-website/
-  public/
-    index.php                 # Stage 4+, not created yet
-    admin/index.php           # Stage 9, authenticated PHP entry point
-    assets/css/tokens.css     # Stage 3
-    assets/css/components.css # Stage 3
-    assets/                   # approved fonts, safe SVG, images, JS
-  app/
-    bootstrap.php             # Stage 9, server-only code (outside document root)
-    templates/                # controlled PHP sections
-    auth/                     # session, roles, CSRF, rate limits
-    content/                  # rendering, revisions, publishing
-  database/
-    migrations/               # Stage 9; NEVER public
-  tests/
-    ...                       # checks for UI, security, deployment
-  RELEASE_READY               # NOT present until owner-approved Stage 10
-```
+\`website/reference/v10/CELIKOM_SITE_CLEAN_v10_sanitized.html\` is the vetted visual source from the owner-approved handoff ZIP (11 HTML sections, 28 FAQ, five categories, full v10 CSS and JS, Manrope/brand colors). \`website/app/Templates/site-v10.html\` is its matching private runtime template. This is **not a redesign**. Reference/template both exclude the uploaded popup PNG, which must be supplied as owner-approved CMS media \`/media/celikom-popup-approved.png\` only after secure media handling exists.
 
-## Deployment boundary
-`.github/workflows/deploy-celikom-website.yml` is manual-only and gated. It deploys ONLY `website/public/.` to the Hostinger domain's `public_html/`; `website/app/.` and `website/database/.` go to sibling `celikom-private/` outside the web root. Missing PHP/CMS and `RELEASE_READY` block every deploy. It has NOT run. Before final release, test PHP private-path resolution, backups, migrations, rollback, production file permissions, and Hostinger constraints. Never commit credentials or user screenshot/real popup image from the v10 archive.
+- All 11 major section IDs and their ordering are preserved.
+- \`website/public/assets/css/tokens.css\` and \`components.css\` contain v10-derived implementation primitives for progressive migration, **not** a replacement of all v10 CSS.
+- \`website/public/assets/js/v10-interactions.js\` preserves the original two interactions for later extraction from inline scripts.
+- \`website/public/assets/images/celikom-mark.svg\` is the already-approved mark.
+- No screenshot or personal user data from the handoff is committed.
 
-## Content model
-The CMS edits allowlisted content keys (`hero.title`, `hero.cta.label`, etc.), media refs, FAQ items/categories and SEO; it does not permit arbitrary HTML/CSS/JS or page layout changes. Public reads use a single atomically published version; draft previews require an admin session. Content survives code deployments.
+## Layout on Hostinger
 
-## Working rules
-1. Compare each implemented section visually to **v10** on 320/390/768/1024/1440 px before calling it done.
-2. UI tokens in `tokens.css` are initial technical values; refine measurements against the approved v10 HTML, not a new design.
-3. Keep FAQ at 28 approved questions in five horizontal categories; desktop two columns / mobile one. Payment is NOT active. Reward rate is **2%** per approved unique uploaded version, **20%** monthly cap with carry-forward.
-4. Final owner copy review is a last-stage gate, followed by site + CMS QA and joint publication.
+\`\`\`text
+DOMAIN_ROOT/
+  public_html/            <- website/public/ (web-accessible)
+    index.php             <- gated PHP entry point
+    admin/index.php       <- Stage 9, does NOT exist yet
+    assets/               <- public assets
+  celikom-private/        <- OUTSIDE document root
+    app/                  <- website/app/ (private templates and business logic)
+    database/             <- website/database/ (future migrations)
+    release-approved.php  <- Stage 10 private release state, NOT present
+\`\`\`
+
+In local PHP built-in server preview only, set \`CELIKOM_LOCAL_PREVIEW=1\`, use docroot \`website/public\`, and PHP CLI server. Production \`index.php\` returns 503/noindex until an authorized release state and CMS entry are installed. Work in \`feature/api-range\`, do not change \`extension/\`, \`server/\`, \`android/\`, or merge PR #6.
+
+## Work done in Stage 3
+1. Parsed the exact v10 ZIP + Excel checkpoint; audited sections, FAQ, image payloads, CSS cascade and breakpoints (1440,1024,768,390,320).
+2. Corrected the provisional UI tokens/primitives against actual v10 geometry; no new art direction.
+3. Stored screenshot-free v10 reference + private page template.
+4. Added private PHP bootstrap, typed content allowlist and output escaping, safe link validation, session/CSRF primitives and PDO factory. **They are foundations, NOT a finished CMS.**
+5. Added manual-only deploy with a hard approval gate, plus CI syntax/content/image safeguards. Deployment has **not** run.
+6. Added \`website/tests/Stage3FoundationTest.php\` and \`Stage3MarkupTest.py\` for future verification.
+
+## Still mandatory
+- Stage 3 final component parity check against original v10, real Manrope loaded locally and interaction/browser tests.
+- Stage 4–8 section-by-section CMS-aware PHP templates preserving v10, no public site-only release.
+- Stage 9 MySQL schema, real owner login + rate limiting, content/FAQ/media CRUD, draft, preview, atomic publish, revision history, restore, protected upload API; ensure no layout editing.
+- Stage 10 deploy rehearsal with backup, migrations, health check, rollback; verify admin and private routes cannot be accessed without authentication; upload approved popup via CMS; review all copy/FAQ and rewards with owner; joint launch.
+- Test user-visible 2%/20% reward terms against actual production reward policy in a separate CELIKOM app task before public release. Payments are not live.
+
+**Do not add \`RELEASE_READY\` or \`release-approved.php\` before Stage 10.**
