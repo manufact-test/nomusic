@@ -98,7 +98,7 @@ final class FirstScreenDraft
     private static function validModeResult(string $value): string
     {
         if (preg_match('//u', $value) !== 1 ||
-            preg_match('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/', $value)) {
+            preg_match('/[\x00-\x1F\x7F]/', $value)) {
             throw new InvalidArgumentException('Invalid encoding or control characters in demo result');
         }
         $value = trim($value);
