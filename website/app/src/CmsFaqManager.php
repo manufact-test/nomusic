@@ -80,14 +80,13 @@ final class CmsFaqManager
             $next['updates'][$id]=$values;
         } else {
             $replaced=false;
-            foreach($next['new_items']??[] as &$item) {
+            foreach($next['new_items']??[] as $index=>$item) {
                 if($item['id']===$id) {
-                    $item=array_merge($item,$values);
+                    $next['new_items'][$index]=array_merge($item,$values);
                     $replaced=true;
                     break;
                 }
             }
-            unset($item);
             if(!$replaced)throw new InvalidArgumentException('Missing new FAQ');
         }
         return $next;
