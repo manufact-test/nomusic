@@ -34,3 +34,12 @@
 ## Transfer rule
 
 Project canonical state: `docs/website/NEXT-CHAT.md`; source specification `docs/website/03-UI-KIT-ARCHITECTURE.md`; accepted visual basis remains the v10 ZIP. **Stage 3 is not closed.** Next action: finish CMS content registry, then implement site data-rendering contract and guarded preview, before UI-kit acceptance and Stage 4.
+
+## Stage 3 continuation — CMS field contract and protected preview (17.10.2026)
+
+- Added `website/app/Config/content-fields-v10.json`: **91 editable text slots**, **13 allowlisted links** and **2 text attributes** (SEO description and accessible real-popup alt). The popup **image src is not arbitrarily editable**: it remains a trusted media slot requiring controlled CMS upload/validation in Stage 9. All 28 FAQ entries still live in `website/database/seeds/faq-v10.json`.
+- Added `website/app/src/V10Renderer.php`: verifies the SHA-1 of the canonical Git HTML blob, validates allowed content keys, rejects invalid URLs and control bytes, HTML-escapes dynamic text and attributes, and applies replacements without DOM serializing or modifying approved CSS/HTML geometry. Empty overrides are byte-for-byte identical to v10.
+- `website/public/index.php` now routes its **local preview** through the verified renderer. Production remains **503/noindex** until the actual CMS and a separately authorized release state exist. It does not read editor content from MySQL yet.
+- `website/tools/render-local-preview.php` is an explicit CLI-only draft preview, plus harmless fixture under `website/tests/fixtures/`, not accessible through the public PHP document root.
+- CI now actually executes `Stage3RendererTest.php` (content XSS, disallowed keys, unsafe links, SEO/alt escaping, unchanged template parity), additional structural tests and the CLI fixture. Website CI passes at commit `f364c969...` before the last CLI addition; final workflow status should be checked after all edits.
+- **Stage 3 remains IN PROGRESS**: complete media policy, check Manrope loading/real-browser fonts, integrate real draft/preview/publish on dedicated MySQL in Stage 9, and receive owner acceptance before Stage 4. No site/admin release performed, PR #6 left open.
