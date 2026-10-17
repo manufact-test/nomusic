@@ -28,7 +28,7 @@ assert "data-managed-media=\"celikom.popup.approved\"" in s
 assert re.findall(r'<script src="([^"]+)"',s)==(re.findall(r'<script src="([^"]+)"',TEMPLATE) + ["/assets/js/v10/demo-editorial-preview.js"])
 assert 'data-editorial-service="Обычный режим &amp; знакомый плеер"' in s
 assert 'data-editorial-restored="Проверенная версия &lt;только если доступна&gt;"' in s
-assert re.findall(r'<link rel="stylesheet" href="([^"]+)"',s)==re.findall(r'<link rel="stylesheet" href="([^"]+)"',TEMPLATE)
+assert re.findall(r'<link rel="stylesheet" href="([^"]+)"',s)==(re.findall(r'<link rel="stylesheet" href="([^"]+)"',TEMPLATE) + ["/assets/css/v10/editor-copy-safety.css"])
 assert len(re.findall(r'<section\b',s)) == len(re.findall(r'<section\b',TEMPLATE))
 with tempfile.TemporaryDirectory() as tmp:
     path=Path(tmp)/"bad.json"

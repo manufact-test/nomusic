@@ -38,6 +38,7 @@ $withoutAttrs = preg_replace(
 );
 checkDemo($withoutAttrs !== null && $count === 1, 'Expected one trusted pair of data attributes');
 $restoredOriginal = str_replace('<script src="/assets/js/v10/demo-editorial-preview.js"></script>', '', $withoutAttrs);
+$restoredOriginal = str_replace('<link rel="stylesheet" href="/assets/css/v10/editor-copy-safety.css"/>', '', $restoredOriginal);
 checkDemo($restoredOriginal === $template, 'Dynamic-only draft unexpectedly modified v10 HTML');
 
 $emoji = FirstScreenDraft::render($template, $manifest, ['sound.result.restored' => 'Тест 🎵 — версия доступна']);

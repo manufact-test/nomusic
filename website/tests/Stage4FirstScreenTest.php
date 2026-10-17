@@ -20,6 +20,7 @@ function rejectFirstScreen(callable $callback, string $message): void {
 
 // Initial approved HTML cannot be serialized, reformatted or redrawn.
 verifyFirstScreen(FirstScreenDraft::render($template, $manifest, []) === $template, 'Default draft drifted from v10');
+verifyFirstScreen(!str_contains($template, 'editor-copy-safety.css'), 'Editor CSS in canonical v10');
 
 // Isolated Header+Hero+Demo edits, with the original CSS, JS and FAQ untouched.
 $draft = FirstScreenDraft::render($template, $manifest, [
