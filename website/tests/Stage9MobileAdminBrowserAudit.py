@@ -95,6 +95,57 @@ def exercise_authenticated_admin(page, base):
     assert question in page.content()
     page.goto(base + '/admin/')
 
+    # Upload in the real mobile form. The media remains outside public_html.
+    import base64
+    png = base64.b64decode(
+        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+pS1kAAAAASUVORK5CYII='
+    )
+    upload = page.locator('#media-editor form[enctype="multipart/form-data"]')
+    upload.locator('input[type="file"]').set_input_files({
+        'name': 'mobile-check.png', 'mimeType': 'image/png', 'buffer': png
+    })
+    upload.locator('input[name="alt"]').fill('Тестовый popup мобильной админки')
+    upload.get_by_role('button', name='Сохранить приватно').click()
+    assert page.get_by_text('Изображение сохранено приватно.', exact=False).is_visible()
+    select = page.locator('#media-pending-id')
+    # Latest asset is first after "original". Previous HTTP test temp files
+    # were removed, so using an older stored ID would correctly fail SHA checks.
+    newest = select.locator('option').nth(1).get_attribute('value')
+    assert newest and newest.isdecimal()
+    select.select_option(newest)
+    page.get_by_role('button', name='Сохранить выбор только для предпросмотра').click()
+    assert page.get_by_text(
+        'Для закрытого предпросмотра выбрано изображение.', exact=False
+    ).is_visible()
+    assert_layout(page, 320)
+
+    response = page.goto(base + '/admin/?view=preview')
+    assert response.status == 200
+    image = page.locator('img[data-managed-media="celikom.popup.approved"]')
+    assert image.count() == 1
+    assert image.get_attribute('src') == f'/admin/?view=media&id={newest}'
+    assert image.get_attribute('alt') == 'Тестовый popup мобильной админки'
+    image.scroll_into_view_if_needed()
+    assert image.evaluate('(el) => el.complete && el.naturalWidth === 1')
+
+    # Explicit owner action restores the original for the private preview.
+    page.goto(base + '/admin/')
+    page.locator('#media-pending-id').select_option('original')
+    page.get_by_role('button', name='Сохранить выбор только для предпросмотра').click()
+    page.goto(base + '/admin/?view=preview')
+    assert page.locator('img[data-managed-media="celikom.popup.approved"]').get_attribute(
+        'src'
+    ) == '/media/celikom-popup-approved.png'
+
+    page.goto(base + '/admin/')
+    page.get_by_role('button', name='Выйти').click()
+    assert page.get_by_role('heading', name='Вход администратора').is_visible()
+    response = page.goto(base + '/admin/?view=preview')
+    assert response.status == 200
+    assert page.get_by_role('heading', name='Вход администратора').is_visible()
+    print('Stage9 mobile browser: 320/390/768/1024, login, controls, draft, '
+          'FAQ, private popup media, restore original and logout — PASS')
+
 
 def main():
     with socket.socket() as sock:
