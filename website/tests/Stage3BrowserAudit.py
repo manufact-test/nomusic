@@ -34,9 +34,15 @@ class Handler(http.server.SimpleHTTPRequestHandler):
 
     def do_GET(self):
         route = urlsplit(self.path).path
-        if route not in ("/audit/reference", "/audit/runtime", "/audit/draft", "/audit/stress", "/audit/principle"):
+        if route not in ("/audit/reference", "/audit/runtime", "/audit/draft", "/audit/stress", "/audit/principle", "/audit/community"):
             return super().do_GET()
-        if route.endswith("/principle"):
+        if route.endswith("/community"):
+            preview = subprocess.run(
+                ["php", str(BASE / "tools/render-community-preview.php"),
+                 str(BASE / "tests/fixtures/preview-stage6-community.json")],
+                capture_output=True, text=True, timeout=10, check=True)
+            html = preview.stdout
+        elif route.endswith("/principle"):
             preview = subprocess.run(
                 ["php", str(BASE / "tools/render-principle-preview.php"),
                  str(BASE / "tests/fixtures/preview-stage5-principle.json")],
@@ -290,6 +296,48 @@ def main():
                         }""")
                         assert not bounds, f"Stage5 text overflow at {width}px: {bounds}"
                         result["stage5Principle"] = "PASS"
+
+                        # Stage 6 read-only community draft. Financial wording
+                        # stays canonical; copy may change only in approved
+                        # nonfinancial slots. No upload or payment widgets.
+                        page.goto(origin + "/audit/community", wait_until="networkidle")
+                        assert page.locator("#contribute .community-card").count() == 2
+                        assert "Нет нужной версии?" in page.locator("#contribute").inner_text()
+                        assert "Расскажи сообществу." in page.locator("#contribute").inner_text()
+                        assert "Загрузить запись" in page.locator("#contribute").inner_text()
+                        rewards = page.locator("#rewards").inner_text().replace("\u00a0", " ")
+                        assert "2% скидки" in rewards
+                        assert "20%" in rewards and "10 песен" in rewards
+                        assert "следующие месяцы" in rewards
+                        assert "до запуска оплаты" in rewards
+                        assert page.locator("#rewards a[href*='pay']").count() == 0
+                        assert page.locator("form").count() == 0
+                        assert page.locator("script:not([src])").count() == 0
+                        assert page.locator("#faq details.faq-item").count() == 28
+                        community_bounds = page.evaluate("""() => {
+                            const bad = [];
+                            for (const selector of [
+                              "#contribute .community-header h2",
+                              "#contribute .community-header p",
+                              "#contribute .community-card h3",
+                              "#contribute .community-card p",
+                              "#rewards .reward-copy h2",
+                              "#rewards .reward-copy .section-body",
+                              "#rewards .reward-notice"
+                            ]) {
+                              for (const el of document.querySelectorAll(selector)) {
+                                const rect=el.getBoundingClientRect();
+                                if (el.scrollWidth > el.clientWidth+2 ||
+                                    rect.left < -2 || rect.right > innerWidth+2) {
+                                  bad.push(selector + " " + rect.left + ".." + rect.right);
+                                }
+                              }
+                            }
+                            return bad;
+                        }""")
+                        assert not community_bounds, (
+                            f"Stage 6 mobile copy overflow at {width}px: {community_bounds}")
+                        result["stage6Community"] = "PASS"
                         result["font"] = fs
                         results.append(result)
                     finally:

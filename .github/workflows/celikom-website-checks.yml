@@ -53,6 +53,10 @@ jobs:
         run: php website/tests/Stage5PrincipleTest.php
       - name: Verify isolated Stage 5 CLI preview rejects unauthorized fields
         run: python3 website/tests/Stage5PrincipleCliTest.py
+      - name: Verify Stage 6 community editor boundaries and locked payment facts
+        run: php website/tests/Stage6CommunityTest.php
+      - name: Verify Stage 6 CLI developer preview and disallowed policy edits
+        run: python3 website/tests/Stage6CommunityCliTest.py
       - name: Verify first-screen demo state safe rendering and original v10 parity
         run: php website/tests/Stage4DemoContractTest.php
       - name: Verify CLI-only draft preview (not deployed)
