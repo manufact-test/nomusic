@@ -177,6 +177,23 @@ def main():
                             "Injected script appeared in draft HTML")
                         draft_result = state_checks(page, width)
                         assert draft_result["geometry"]["documentWidth"] <= width + 1
+                        # The approved v10 click handlers still own data-mode
+                        # and aria-pressed; the Stage4 adapter only syncs text.
+                        page.locator("#mode-restored").click()
+                        assert page.locator("#sound-result").inner_text() == (
+                            "Проверенная версия <только если доступна>")
+                        assert page.locator("#sound-panel").get_attribute("data-mode") == "restored"
+                        assert page.locator("#mode-restored").get_attribute("aria-pressed") == "true"
+                        page.locator("#mode-service").click()
+                        assert page.locator("#sound-result").inner_text() == (
+                            "Обычный режим & знакомый плеер")
+                        assert page.locator("#mode-restored").get_attribute("aria-pressed") == "false"
+                        page.locator("#mode-restored").focus()
+                        page.keyboard.press("Enter")
+                        assert page.locator("#sound-result").inner_text() == (
+                            "Проверенная версия <только если доступна>")
+                        assert page.locator("#sound-panel").get_attribute("data-mode") == "restored"
+                        assert page.locator("#sound-result script").count() == 0
                         result["firstScreenDraft"] = "PASS"
                         result["font"] = fs
                         results.append(result)
