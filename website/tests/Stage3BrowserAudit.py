@@ -356,7 +356,7 @@ def main():
                         assert "Мобильная версия — отдельная разработка" in trust
                         assert page.locator("#faq details.faq-item").count() == 28
                         assert "Проверь, что расширение включено" in page.locator(
-                            "#faq-question-27").inner_text()
+                            "#faq-question-27 .answer").text_content()
                         assert page.locator("#faq button.faq-filter").count() == 5
                         page.locator('#faq button[data-filter="help"]').click()
                         assert page.locator('#faq details.faq-item:not([hidden])').count() == 3
