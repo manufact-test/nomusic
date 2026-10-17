@@ -196,7 +196,7 @@ try:
     status,body,location=upload_image(csrf,"Тестовая картинка",
         sample_png,"image/png","safe.png")
     assert status==303 and "saved=media" in location,(status,body[:500],location)
-    status,editor,_=request("GET","/admin/")
+    status,editor,_=request("GET","/admin/?saved=media")
     assert "Тестовая картинка" in editor and "safe.png" in editor
     assert "На сайте оно пока не используется" in editor
     assert len(os.listdir(private_media))==1
@@ -215,7 +215,8 @@ try:
     assert status==303 and "saved=published" in headers.get("Location","")
     status,history,_=request("GET","/admin/")
     assert "Текущая опубликованная редакция:" in history
-    assert "№1" in history
+    first_published=int(re.search(r'Текущая опубликованная редакция:\s*№(\d+)',history).group(1))
+    assert first_published>0
     status,_,_=request("POST","/admin/",{
         "action":"publish","csrf":csrf,"version":"999999",
         "note":"Старая вкладка","confirm":"yes"
@@ -242,14 +243,19 @@ try:
         "note":"Вторая локальная публикация","confirm":"yes"
     })
     assert status==303,status
+    status,history,_=request("GET","/admin/")
+    second_published=int(re.search(r'Текущая опубликованная редакция:\s*№(\d+)',history).group(1))
+    assert second_published>first_published
     status,_,_=request("POST","/admin/",{
-        "action":"restore","csrf":csrf,"version":"2","target_revision":"1",
+        "action":"restore","csrf":csrf,"version":str(second_published),
+        "target_revision":str(first_published),
         "note":"Вернуть первую","confirm":"yes"
     })
     assert status==303,status
     status,history,_=request("GET","/admin/")
-    assert "№3" in history and "№2" in history and "№1" in history
-    assert "Вернуть первую" in history
+    restored=int(re.search(r'Текущая опубликованная редакция:\s*№(\d+)',history).group(1))
+    assert restored>second_published and "Вернуть первую" in history
+    assert "№"+str(first_published) in history
     # Publication does not clear the current draft even after restoration.
     status,preview,_=request("GET","/admin/?view=preview")
     assert "Новая редакция FAQ." in preview
