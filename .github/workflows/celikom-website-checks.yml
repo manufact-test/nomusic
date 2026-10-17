@@ -41,6 +41,8 @@ jobs:
         run: php website/tests/Stage3RendererTest.php
       - name: Verify 28 FAQ server-rendering and safe edits
         run: php website/tests/Stage3FaqRendererTest.php
+      - name: Verify Stage 4 first-screen editorial boundaries
+        run: php website/tests/Stage4FirstScreenTest.php
       - name: Verify CLI-only draft preview (not deployed)
         shell: bash
         run: |
