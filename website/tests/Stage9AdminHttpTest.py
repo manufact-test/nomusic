@@ -102,7 +102,7 @@ try:
     assert status==303 and headers.get("Location")=="/admin/",status
     status,editor,headers=request("GET","/admin/")
     assert status==200 and "Сохранить черновик" in editor,(status,editor[:1000])
-    assert "Публикация пока недоступна" in editor
+    assert "Тестовая публикация сохраняется только в отдельную MySQL" in editor
     csrf=hidden(editor,"csrf")
     version=hidden(editor,"version")
     fields={}
