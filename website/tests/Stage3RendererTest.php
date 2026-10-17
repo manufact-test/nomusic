@@ -37,7 +37,7 @@ $rendered = V10Renderer::render($template, $schema, [
     'hero.title.first' => 'Знакомые песни',
     'hero.title.accent' => 'И снова вместе!',
     'hero.lead' => 'Тест <script>alert(1)</script> и & знак',
-    'top.link.01' => 'https://example.org/help',
+    'hero.primary.href' => 'https://example.org/help',
     'seo.title' => 'CELIKOM <новый> тест',
     'seo.description' => 'Коротко & понятно <script>',
     'media.popup.alt' => 'Новая подпись "интерфейса"',
@@ -58,8 +58,8 @@ refuses(static fn() => V10Renderer::render($template, $schema, ['unknown.field' 
 refuses(static fn() => V10Renderer::render($template, $schema, ['media.popup.approved' => 'https://evil.invalid/evil.svg']), 'Direct media injection');
 refuses(static fn() => V10Renderer::render($template, $schema, ['seo.description' => '']), 'Empty SEO description');
 refuses(static fn() => V10Renderer::render($template, $schema, ['media.popup.alt' => str_repeat('X', 400)]), 'Oversized alt text');
-refuses(static fn() => V10Renderer::render($template, $schema, ['top.link.01' => 'javascript:alert(1)']), 'Unsafe scheme');
-refuses(static fn() => V10Renderer::render($template, $schema, ['top.link.01' => '//evil.example']), 'Protocol relative URL');
+refuses(static fn() => V10Renderer::render($template, $schema, ['hero.primary.href' => 'javascript:alert(1)']), 'Unsafe scheme');
+refuses(static fn() => V10Renderer::render($template, $schema, ['hero.primary.href' => '//evil.example']), 'Protocol relative URL');
 refuses(static fn() => V10Renderer::render($template, $schema, ['hero.eyebrow' => str_repeat('X', 1000)]), 'Oversized text');
 refuses(static fn() => V10Renderer::render($template . ' ', $schema), 'Unapproved template mutation');
 
