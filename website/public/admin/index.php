@@ -421,10 +421,12 @@ button,.action{display:inline-block;cursor:pointer;margin-top:14px;padding:12px 
 .section-editor label:last-child{margin-bottom:18px}
 .section-editor summary:focus-visible,.faq-entry summary:focus-visible{outline:2px solid #66E0BF;outline-offset:4px}
 .panel{min-width:0}input,textarea,select{max-width:100%;min-width:0}
+/* Owner-only CMS: comfortable touch targets, including native mobile selects. */
+button,.action,select,input:not([type="checkbox"]):not([type="hidden"]){min-height:44px}
 
 select{display:block;width:100%;padding:10px;border-radius:9px;font:inherit}
 .faq-entry{padding:12px 0;border-bottom:1px solid #375048}
-.faq-entry summary{cursor:pointer;font-weight:600}
+.faq-entry summary{cursor:pointer;font-weight:600;display:flex;align-items:center;min-height:44px}
 .faq-entry form{padding:14px 0}
 .faq-fields{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .faq-fields label{margin-top:0}
