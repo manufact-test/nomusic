@@ -66,12 +66,13 @@ try:
                             else resolve();
                         }requestAnimationFrame(frame)
                     });
+                    const closed=!d.open, collapsedHeight=d.getBoundingClientRect().height;
                     sum.click();
                     await new Promise(r=>setTimeout(r,410));
                     const reopened=d.open;
                     const reopenedGap=a.getBoundingClientRect().bottom-p.getBoundingClientRect().bottom;
-                    return {opened,closed:true,reopened,before,heights,bottomPadding,
-                            visibleGap,reopenedGap,final:d.getBoundingClientRect().height};
+                    return {opened,closed,reopened,before,heights,bottomPadding,
+                            visibleGap,reopenedGap,final:collapsedHeight};
                 }""")
                 assert result["opened"] and result["closed"] and result["reopened"], result
                 expected_pad = 19 if width <= 540 else 23
