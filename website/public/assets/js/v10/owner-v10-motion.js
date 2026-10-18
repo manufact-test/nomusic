@@ -39,60 +39,87 @@ if(smooth()&&'IntersectionObserver'in window){
   observer.observe(element)
  }
 }
+// Closing animation modifies the answer's content HEIGHT and BOTTOM PADDING
+// at the same time. Native details is collapsed only after both reach zero.
+// The previous whole-card clipping made the answer disappear first, leaving
+// an apparently separate closing step.
 for(const detail of document.querySelectorAll('#faq details.faq-item')){
  const summary=detail.querySelector('summary');
- if(!summary)continue;
- let animation=null;
+ const answer=detail.querySelector('.answer');
+ if(!summary||!answer)continue;
+ let active=null;
  let desiredOpen=detail.open;
- const reset=()=>{
-  detail.classList.remove('celikom-faq-animating');
-  detail.style.removeProperty('height');
-  detail.style.removeProperty('overflow');
+ let naturalContent=0;
+ let naturalPadding=0;
+ const cleanup=()=>{
+  answer.classList.remove('celikom-answer-animating');
+  for(const property of ['height','paddingBottom','overflow','opacity']){
+   answer.style.removeProperty(property)
+  }
  };
  summary.addEventListener('click',event=>{
-  if(!smooth()||typeof detail.animate!=='function')return;
+  if(!smooth()||typeof answer.animate!=='function')return;
   event.preventDefault();
-  // A fast second click reverses the current animation smoothly.
-  // Measure the rendered intermediate height BEFORE cancelling WAAPI.
-  const from=detail.getBoundingClientRect().height;
+  // Read the current interpolated values for rapid repeated clicks.
+  let fromHeight=0,fromPadding=0,fromOpacity=0;
+  if(active){
+   const cs=getComputedStyle(answer);
+   fromHeight=parseFloat(cs.height)||0;
+   fromPadding=parseFloat(cs.paddingBottom)||0;
+   fromOpacity=parseFloat(cs.opacity)||0;
+   const was=active;
+   active=null;
+   was.onfinish=null;
+   was.oncancel=null;
+   was.cancel();
+   answer.style.height=fromHeight+'px';
+   answer.style.paddingBottom=fromPadding+'px';
+   answer.style.opacity=String(fromOpacity)
+  }else if(detail.open){
+   const cs=getComputedStyle(answer);
+   fromHeight=parseFloat(cs.height)||0;
+   fromPadding=parseFloat(cs.paddingBottom)||0;
+   fromOpacity=1
+  }
   const opening=!desiredOpen;
   desiredOpen=opening;
-  if(animation){
-   animation.onfinish=null;
-   animation.cancel();
-   animation=null;
+  if(opening && !detail.open){
+   detail.open=true;
+   // Detect full natural dimensions before setting an explicit height.
+   const cs=getComputedStyle(answer);
+   naturalPadding=parseFloat(cs.paddingBottom)||0;
+   naturalContent=Math.max(0,answer.scrollHeight-naturalPadding)
+  }else if(!naturalContent){
+   const cs=getComputedStyle(answer);
+   naturalPadding=parseFloat(cs.paddingBottom)||0;
+   naturalContent=Math.max(0,answer.scrollHeight-naturalPadding)
   }
-  if(opening)detail.open=true;
-  const computed=getComputedStyle(detail);
-  const border=(parseFloat(computed.borderTopWidth)||0)
-              +(parseFloat(computed.borderBottomWidth)||0);
-  const closedHeight=summary.getBoundingClientRect().height+border;
-  const expandedHeight=detail.scrollHeight+border;
-  const to=opening?expandedHeight:closedHeight;
-  if(Math.abs(to-from)<.5){
-   detail.open=opening;
-   reset();
-   return;
-  }
-  detail.classList.add('celikom-faq-animating');
-  detail.style.height=from+'px';
-  detail.style.overflow='hidden';
-  const current=detail.animate(
-   [{height:from+'px'},{height:to+'px'}],
-   {duration:opening?270:260,easing:'cubic-bezier(.22,.7,.22,1)',fill:'forwards'}
-  );
-  animation=current;
+  const toHeight=opening?naturalContent:0;
+  const toPadding=opening?naturalPadding:0;
+  const toOpacity=opening?1:0;
+  answer.classList.add('celikom-answer-animating');
+  answer.style.height=fromHeight+'px';
+  answer.style.paddingBottom=fromPadding+'px';
+  answer.style.opacity=String(fromOpacity);
+  answer.style.overflow='hidden';
+  const current=answer.animate([
+   {height:fromHeight+'px',paddingBottom:fromPadding+'px',opacity:fromOpacity},
+   {height:toHeight+'px',paddingBottom:toPadding+'px',opacity:toOpacity}
+  ],{duration:opening?290:260,easing:'cubic-bezier(.4,0,.2,1)',fill:'forwards'});
+  active=current;
   current.onfinish=()=>{
-   if(animation!==current)return;
-   // Close only after the whole card, including its padding, has collapsed.
-   detail.open=desiredOpen;
+   if(active!==current)return;
+   active=null;
+   current.oncancel=null;
    current.cancel();
-   animation=null;
-   reset();
+   if(!desiredOpen)detail.open=false;
+   cleanup()
   };
   current.oncancel=()=>{
-   if(animation===current){animation=null;reset()}
-  };
- })
+   if(active!==current)return;
+   active=null;
+   cleanup()
+  }
+ });
 }
 })();
