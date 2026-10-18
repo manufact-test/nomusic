@@ -40,7 +40,8 @@ final class CmsFullDbBackup
     }
 
     public static function export(
-        PDO $pdo,string $targetDir,string $publicDir,string $key
+        PDO $pdo,string $targetDir,string $publicDir,string $key,
+        bool $existingSnapshot=false
     ):string {
         self::checkKey($key);
         $out=realpath($targetDir);
@@ -61,8 +62,14 @@ final class CmsFullDbBackup
             if(!chmod($temp,0600))throw new RuntimeException('Cannot protect backup file');
             [$state,$header]=sodium_crypto_secretstream_xchacha20poly1305_init_push($key);
             self::writeAll($fp,self::MAGIC.$header);
-            $pdo->exec('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ');
-            $pdo->beginTransaction();
+            if ($existingSnapshot) {
+                if (!$pdo->inTransaction()) {
+                    throw new RuntimeException('An active caller-owned DB snapshot is required');
+                }
+            } else {
+                $pdo->exec('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ');
+                $pdo->beginTransaction();
+            }
             try {
                 $counts=array_fill_keys(self::TABLES,0);
                 self::writeRecord($fp,$state,[
@@ -87,9 +94,9 @@ final class CmsFullDbBackup
                 if(!fflush($fp) || ftell($fp)>self::MAX_BYTES) {
                     throw new RuntimeException('Encrypted CMS DB backup exceeds size limit');
                 }
-                $pdo->commit();
+                if (!$existingSnapshot) $pdo->commit();
             } catch(\Throwable $error) {
-                if($pdo->inTransaction())$pdo->rollBack();
+                if (!$existingSnapshot && $pdo->inTransaction()) $pdo->rollBack();
                 throw $error;
             }
         } catch(\Throwable $error) {
