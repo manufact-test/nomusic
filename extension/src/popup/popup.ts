@@ -306,6 +306,9 @@ addTrackButton?.addEventListener("click", async () => {
     opening = true;
     try {
       const current = await send<ExtensionState>({type: COMMANDS.getStatus});
+      // Rendering after opening=false permits retirement of the *previous*
+      // song's form before we decide whether to close or open the new song.
+      opening = false;
       render(current);
     } catch (_error) {
       uploadManuallyCollapsed = true;
