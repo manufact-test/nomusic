@@ -57,8 +57,12 @@ jobs:
           clips="$app/demo-audio/clips"
           test -f "$app/app/staging-approved.php"
           test ! -e "$app/app/release-approved.php"
-          test -f "$clips/restored.mp3" && test ! -L "$clips/restored.mp3"
-          test -f "$clips/service.mp3" && test ! -L "$clips/service.mp3"
+          test -f "$clips/restored.mp3"
+          test ! -L "$clips/restored.mp3"
+          if test ! -f "$clips/service.mp3" || test -L "$clips/service.mp3"; then
+            echo 'BLOCKED_MISSING_GENUINE_YANDEX_ORIGINAL; nothing installed'
+            exit 12
+          fi
           restored=$(sha256sum "$clips/restored.mp3" | cut -d' ' -f1)
           service=$(sha256sum "$clips/service.mp3" | cut -d' ' -f1)
           test "$restored" = d14e926aa506ec8ad3112cd73c516e935be1dca612e83dc46bca8c0f5a8342b5
