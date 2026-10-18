@@ -177,6 +177,10 @@ jobs:
         env:
           CELIKOM_SITE_SANDBOX_RESTORE: '1'
         run: php website/tests/Stage10SandboxRecoveryTest.php
+      - name: Stage 10 versioned MySQL migration and isolated generation rollback
+        env:
+          CELIKOM_SITE_SANDBOX_RESTORE: '1'
+        run: php website/tests/Stage10VersionedGenerationTest.php
       - name: Stage 9 private popup preview assignment never changes live revisions
         run: php website/tests/Stage9MediaSelectionTest.php
       - name: Stage 9 private metadata-stripped popup derivative and negative safety cases
