@@ -1,5 +1,29 @@
 # CELIKOM — сайт: NEXT-CHAT / переносимая контрольная точка
 
+**Версия:** 4.3 · **Контрольная точка:** 18.10.2026 · **Приоритет — текущий блок v4.3.** Ниже v4.2 и старше — архив.
+
+## v4.3 — АКТУАЛЬНЫЙ STAGE 10 CHECKPOINT
+
+**Проект:** manuf​act-test/nomusic (без скрытого пробела: `manufact-test/nomusic`), ветка `feature/api-range`; сайт `website/`, документы `docs/website/`. **Последний успешно проверенный код до сохранения документов:** `e126d0b178099699df4d3bb274352e555b230360`, [Website CI 39118799310 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/39118799310), [общая CI 39118799222 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/39118799222). **HEAD после документационных коммитов обязательно перепроверять!** PR #6 оставлен открытым, не сливать.
+
+**Прочесть сначала:** [подробный checkpoint v4.3](checkpoints/2026-10-18-STAGE10-WRITE-QUIESCENCE.md), затем [checkpoint v4.2](checkpoints/2026-10-18-STAGE10-CONSISTENT-RELEASE-MODEL.md), MASTER-TZ.md, ROADMAP.md, актуальный код `website/`, текущую CI.
+
+### Сделан один новый крупный блок
+
+1. **CmsWriteQuiescence.php**: приватный владелецкий POSIX flock-файл, разделяемые блокировки на все CMS HTTP POST (включая авторизацию, аудит, редактирование, FAQ, публикации, изображения) и CLI создание owner/приватный derivative; исключительная блокировка для совместного MySQL+медиа backup. Проверки приватной директории/0600/ссылок/инода/таймаута. Во время snapshot новый POST возвращает 503 и Retry-After, а не нарушает архив.
+2. **CmsConsistentBackup::capture** теперь требует активную exclusive lease, иначе fail-closed. Новый `website/tools/backup-coordinated-cms.php` использует владельческий ключ из environment, lock, одну InnoDB транзакцию, оба бэкапа и проверенный manifest, умеет `--verify`. **Контент JSON с медиа остаётся не зашифрован; offsite требует шифрования.**
+3. **Тестирование:** `Stage10WriteQuiescenceTest.py` запускает несколько PHP процессов и проверяет writer↔backup взаимное исключение, shared concurrency, аварийное освобождение locks, отказ плохим путям/правам. `Stage9AdminHttpTest.py` проверяет реальный POST во время чужого эксклюзивного lock; HTTP 503, затем обычный полноценный CMS поток. `Stage10ConsistentSnapshotTest.php` запускает даже реальный CLI полного coordinated backup и повторный CLI verify на disposable MySQL. Старые mobile/HTTP/rollback/recovery тесты не удалены.
+4. Эталон v10, 5 CSS, 2 JS, `extension/`, `server/`, `android/` не изменять, PR #6 не сливать; отключённый deployment workflow с `&& false` не изменён.
+
+### Остаётся обязательным
+
+- **Hostinger, production, SSH и любые живые базы не трогать** без следующего прямого согласия владельца и проверенного релизного дизайна. Сайт и CMS по-прежнему 503/noindex, owner approval отсутствует. Stage 9 и Stage 10 НЕ приняты и НЕ закрыты.
+- Advisory file-lock даёт согласованность **только для исполняющих этот протокол writers на одном проверенном файловом окружении**. Прямые SQL операции, cron, GC и другие серверы не блокируются автоматически — необходим coverage audit всех writers и среды Hostinger перед любым выводом о production readiness.
+- Нет настоящего Server-side безопасного механизма выкладки и отката реального MySQL/медиа, а старая offline модель использует **синтетическую логическую БД JSON**. Не выполнены шифрование offsite медиа, миграционный sandbox SQL rollback, SSL/legal/rights review, разрешённая popup PNG и финальная приёмка.
+- **Следующее:** offline-only прогнать реальный MySQL restore/migration failure protocol и media recovery вместе с эксклюзивной блокировкой, отделить административные миграции от сетевого деплоя. Обновлять документацию редко — только после крупного пакета или по просьбе пользователя.
+
+---
+
 **Версия:** 4.2 · **Контрольная точка:** 18.10.2026 · **Приоритет — этот раздел v4.2.** Всё ниже, включая v4.1, история.
 
 ## v4.2 — АКТУАЛЬНАЯ КОНТРОЛЬНАЯ ТОЧКА / STAGE 10
