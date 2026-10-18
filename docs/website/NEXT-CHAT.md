@@ -4,7 +4,7 @@
 
 ## v4.5 — АКТУАЛЬНАЯ КОНТРОЛЬНАЯ ТОЧКА / STAGE 10
 
-**Repo:** `manufact-test/nomusic`, branch `feature/api-range`. **Последний успешно проверенный CODE HEAD перед docs:** `d0a710424253e549145cd4c5bf9b5c985b63a2ae`; [Website CI 39121031991 — SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/39121031991). Общая CI на этом коммите при сохранении milestone была in_progress; проверить свежий статус на фактическом GitHub HEAD, включая последующие docs. **PR #6 открыт и не сливать**.
+**Repo:** `manufact-test/nomusic`, branch `feature/api-range`. **Последний успешно проверенный CODE HEAD перед docs:** `d0a710424253e549145cd4c5bf9b5c985b63a2ae`; [Website CI 39121031991 — SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/39121031991). Общая CI на этом коде [39121032008 — SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/39121032008). Сверить статус CI на фактическом HEAD после последующих docs. **PR #6 открыт и не сливать**.
 
 **Изучить первым:** [v4.5 подробный checkpoint](checkpoints/2026-10-18-STAGE10-VERSIONED-GENERATIONS.md), затем [v4.4 real MySQL восстановление](checkpoints/2026-10-18-STAGE10-MYSQL-SANDBOX-RECOVERY.md), v4.3 quiescence, MASTER-TZ.md, ROADMAP.md, текущий `website/` и CI.
 
@@ -13,7 +13,7 @@
 1. `website/tests/fixtures/002_ci_generation_only.sql` — реальная версия v2 таблиц: дополнительная `cms_schema_versions` и отдельная колонка `site_settings.release_generation`. Миграция применяется **только к восстановленной одноразовой MySQL**, существующий оригинальный CMS SQL не меняется. Идентичность SQL проверяется по allowlist, подмена SQL-файла запрещена.
 2. `website/app/src/CmsSandboxGeneration.php`: две приватные версии `gen-baseline` (старый снимок) и `gen-<id>` (новая восстановленная SQL/медиа). Приватный JSON pointer по atomic rename переключает **только offline CI selector**, public routes его не читают. Каждая версия проверяется по живой MySQL (owner, site_state, schema marker) и приватным файлам (SHA/количество/байты). Предыдущая версия сохраняется для возврата, **SQL down-migrations не применяются**.
 3. `website/tests/Stage10VersionedGenerationTest.php`: реальный v1→v2 SQL миграционный прогон после verified restore, SQL/медиа сохранность, одинаковый рендер v10, отказ неправильному migration path/DB, 1-я неполная DDL, повторный reject, пересоздание новой тестовой БД, повреждённые медиа, tampered pointer, авария до переключения, удачное переключение и откат, SIGKILL после pointer rename и **SIGKILL после настоящего ALTER TABLE** с восстановлением лишь из verified backup. Всё работает под private exclusive `flock`; Stage9 regressions, 503/noindex и Chromium сохраняются в CI.
-4. `website/. .` НЕ вводить никаких живых release flags: целевой CI workflow `.github/workflows/celikom-website-checks.yml`, никакого auto-release. PR #6 не сливать, Hostinger/production/SSH никогда не трогали, эталонный v10 и 5 CSS+2 JS, server/extension/android не менялись.
+4. **Не включать никаких release flags и production-действий:** целевой CI workflow `.github/workflows/celikom-website-checks.yml`, никакого auto-release. PR #6 не сливать, Hostinger/production/SSH никогда не трогали, эталонный v10 и 5 CSS+2 JS, server/extension/android не менялись.
 
 ### Важные остаточные ограничения
 
