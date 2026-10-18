@@ -143,6 +143,7 @@ let opening = false;
 // Respect an explicit user close within this popup instance. The one-second
 // background status poll must never reopen a panel the user just collapsed.
 let uploadManuallyCollapsed = false;
+let uploadOpenGeneration = 0;
 const durationNote=document.querySelector<HTMLElement>("[data-upload-duration]");
 let durationGeneration=0, measuredFile=null, durationPromise=null, durationBlocked=false;
 function checkFileDuration(){
@@ -275,7 +276,17 @@ async function trackUploadStatus(trackId: string): Promise<"none" | "pending" | 
 }
 
 addTrackButton?.addEventListener("click", async () => {
-  if (incidentStatus.active() || !uploadPanel || opening) return;
+  if (incidentStatus.active() || !uploadPanel) return;
+  // A second click while checking is a real Close. The old response must
+  // not reopen the panel later, even when its network request completes.
+  if (opening) {
+    uploadManuallyCollapsed = true;
+    ++uploadOpenGeneration;
+    opening = false;
+    uploadPanel.hidden = true;
+    addTrackButton.setAttribute("aria-expanded", "false");
+    return;
+  }
   if (!uploadPanel.hidden) {
     // The in-flight POST belongs to the offscreen worker, not the popup.
     // Closing its UI must be immediate and must never cancel the request.
@@ -320,12 +331,15 @@ addTrackButton?.addEventListener("click", async () => {
     return;
   }
   opening = true;
-  addTrackButton.disabled = true;
-  addTrackButton.dataset.loading = "true";
-  addTrackButton.textContent = "Проверяем трек…";
-  // Keep the panel hidden until the final server answer is ready.
-  // No intermediate fragment of a form is ever displayed.
+  const openGeneration = ++uploadOpenGeneration;
+  // Open immediately in a neutral checking state: no spinner on the action,
+  // and never flash the previous song's result or an unverified form.
   resetUploadPanel();
+  uploadMessage("Проверяем возможность загрузки…", "checking");
+  uploadPanel.hidden = false;
+  addTrackButton.setAttribute("aria-expanded", "true");
+  addTrackButton.disabled = false;
+  addTrackButton.dataset.loading = "false";
   let view: "form" | "result" | "error" = "error";
   let title = "";
   let note = "";
@@ -357,7 +371,10 @@ addTrackButton?.addEventListener("click", async () => {
     view = "error";
     note = contributionError(error);
   } finally {
+    if (openGeneration !== uploadOpenGeneration || uploadManuallyCollapsed) return;
     transitionUploadPanel(() => {
+      // Only the final verified result may replace the neutral checking state.
+      uploadMessage("");
       if (view === "form") {
         if (uploadForm) uploadForm.hidden = false;
         if (uploadButton) uploadButton.disabled = false;
@@ -768,7 +785,11 @@ async function syncBackgroundUpload(): Promise<void> {
   let saved;
   try { saved = (await chrome.storage.local.get(BACKGROUND_UPLOAD_KEY))?.[BACKGROUND_UPLOAD_KEY]; }
   catch { return; }
-  if (!saved || typeof saved.id !== "string" || Date.now()-saved.at > 600000) return;
+  if (!saved || typeof saved.id !== "string" || Date.now()-saved.at > 600000 || opening) return;
+  // A stored success may have been removed/rejected since the last session.
+  // Never turn the local historical "completed" flag into a fresh claim:
+  // re-opening queries the server instead.
+  if (["completed", "duplicate"].includes(saved.phase) && !backgroundUploadMode) return;
   const target = uploadTargetFromStatus(lastState);
   if (!target || target.id !== saved.trackId) return;
   const active = ["connecting","waiting","transferring","server_wait"].includes(saved.phase);
