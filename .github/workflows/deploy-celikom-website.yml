@@ -1,6 +1,8 @@
 name: Deploy CELIKOM website and CMS to Hostinger
 
-# No automatic deploys. Stage 10 approval is required before the first release.
+# HARD DISABLED until Stage 10 has a tested full DB backup, migration,
+# server-side staging, health checks and actual rollback; owner consent alone
+# must never activate the old in-place scp workflow.
 on:
   workflow_dispatch:
     inputs:
@@ -19,7 +21,9 @@ concurrency:
 jobs:
   deploy:
     name: Deploy public and private website trees separately
-    if: ${{ github.ref == 'refs/heads/feature/api-range' && inputs.release_gate == 'PUBLISH-CELIKOM-SITE-WITH-CMS' }}
+    # Deliberate hard stop: even a committed marker and manual input cannot deploy.
+    # Remove ONLY when Stage 10's real backup/restore/rollback pipeline is tested.
+    if: ${{ github.ref == 'refs/heads/feature/api-range' && inputs.release_gate == 'PUBLISH-CELIKOM-SITE-WITH-CMS' && false }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
