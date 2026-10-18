@@ -87,7 +87,7 @@ export function initVersionStatus(transport) {
   // Callers may await an existing in-flight check. An already verified status
   // is returned immediately without a second request or any transient UI.
   refreshVersion.lookup = async id => {
-    if (!/^[1-9]\\d{0,23}$/.test(id)) throw new Error("invalid_track");
+    if (!/^[1-9]\d{0,23}$/.test(id)) throw new Error("invalid_track");
     if (latestState?.phase === "REPLACEMENT_ACTIVE" && latestState.track?.id === id) return "approved";
     if (cached?.trackId === id && verifiedAt > 0 && Date.now() - verifiedAt < FRESH_FOR_MS)
       return cached.status;
