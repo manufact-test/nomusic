@@ -41,11 +41,6 @@ final class CmsV10OwnerMotion
         }
         $html=$next;
 
-        // Keep the original v10 artwork, but serve the owner's original PNG
-        // via an authenticated staging PHP endpoint rather than a public static URL.
-        // A selected CMS preview media item already has its own private route.
-        $html=str_replace('src="/media/celikom-popup-approved.png"',
-            'src="/media/celikom-popup.php"',$html);
         $css='<link rel="stylesheet" href="/assets/css/v10/owner-v10-motion.css"/>';
         $js='<script defer src="/assets/js/v10/owner-v10-motion.js"></script>';
         if (str_contains($html,$css)||str_contains($html,$js)) {
