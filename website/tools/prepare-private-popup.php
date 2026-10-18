@@ -13,6 +13,8 @@ if($argc!==4) {
     exit(2);
 }
 try {
+    // Treat private review PNG generation as a writer for shared backup freeze.
+    $lease=\Celikom\Website\CmsWriteQuiescence::writer($argv[3]);
     $pdo=\Celikom\Website\Database::connect(
         \Celikom\Website\CmsConfig::databaseSettings()
     );
