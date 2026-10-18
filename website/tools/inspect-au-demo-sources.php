@@ -18,6 +18,8 @@ try {
     $q=$pdo->prepare("SELECT t.service_track_id,t.title,t.artist,t.duration_ms original_ms,r.id replacement_id,r.version,a.sha256,a.size_bytes,a.duration_ms replacement_ms FROM tracks t JOIN track_replacements r ON r.track_id=t.id JOIN audio_assets a ON a.id=r.audio_asset_id WHERE t.service='yandex' AND t.service_track_id=? AND r.status='approved' AND r.is_active=1 AND r.disabled_at IS NULL");
     $q->execute([$id]);
     $found=$q->fetchAll(PDO::FETCH_ASSOC);
+    $all=$pdo->prepare("SELECT t.service_track_id,t.title,r.id replacement_id,r.version,r.status,r.is_active,r.disabled_at,a.sha256,a.size_bytes FROM tracks t JOIN track_replacements r ON r.track_id=t.id JOIN audio_assets a ON a.id=r.audio_asset_id WHERE t.service='yandex' AND t.service_track_id=? ORDER BY r.version DESC LIMIT 25");
+    $all->execute([$id]);$allRows=$all->fetchAll(PDO::FETCH_ASSOC);
     $originalHash='5dfdfaa97ee6f1168964a1a49a101bebb20bd5dca7147c41c1d2df366a2a00d8';
     $q=$pdo->prepare("SELECT COUNT(*) FROM audio_assets WHERE sha256=?");
     $q->execute([$originalHash]);$matchedAssets=(int)$q->fetchColumn();
@@ -36,6 +38,7 @@ try {
     }
     echo json_encode([
       'candidate_track'=>$found,
+      'all_replacement_versions'=>$allRows,
       'exact_user_original_present_in_audio_assets'=>$matchedAssets>0,
       'exact_user_original_present_in_staging'=>$sameNameOrSha,
       'staging_audio_count'=>$stagingFiles,
