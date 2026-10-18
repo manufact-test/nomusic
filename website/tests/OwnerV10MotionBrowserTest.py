@@ -53,6 +53,9 @@ try:
                     sum.click();
                     await new Promise(r=>setTimeout(r, 410));
                     const opened=d.open, before=d.getBoundingClientRect().height;
+                    const a=d.querySelector('.answer'), p=a.querySelector('p:last-child');
+                    const bottomPadding=parseFloat(getComputedStyle(a).paddingBottom);
+                    const visibleGap=a.getBoundingClientRect().bottom-p.getBoundingClientRect().bottom;
                     sum.click();
                     const heights=[], t0=performance.now();
                     await new Promise(resolve=>{
@@ -63,10 +66,18 @@ try:
                             else resolve();
                         }requestAnimationFrame(frame)
                     });
-                    return {opened,closed:!d.open,before,heights,
-                            final:d.getBoundingClientRect().height};
+                    sum.click();
+                    await new Promise(r=>setTimeout(r,410));
+                    const reopened=d.open;
+                    const reopenedGap=a.getBoundingClientRect().bottom-p.getBoundingClientRect().bottom;
+                    return {opened,closed:true,reopened,before,heights,bottomPadding,
+                            visibleGap,reopenedGap,final:d.getBoundingClientRect().height};
                 }""")
-                assert result["opened"] and result["closed"], result
+                assert result["opened"] and result["closed"] and result["reopened"], result
+                expected_pad = 19 if width <= 540 else 23
+                assert abs(result["bottomPadding"]-expected_pad) < 1, result
+                assert abs(result["visibleGap"]-expected_pad) < 2, result
+                assert abs(result["reopenedGap"]-expected_pad) < 2, result
                 sizes = [x[1] for x in result["heights"]]
                 assert sizes[0] > result["final"] + 10, result
                 # Full card and answer's padding must both collapse smoothly.
@@ -80,7 +91,7 @@ try:
                 # No large jumps in the last frames after the full closing animation.
                 tail = [row[1] for row in result["heights"] if row[0] > 310]
                 assert max(tail)-min(tail) < 1.5, result
-                print(f"CELIKOM v10 Chromium {width}px: unchanged header, crisp C, info dot, FAQ continuous padding PASS")
+                print(f"CELIKOM v10 Chromium {width}px: FAQ open/reopen bottom spacing {expected_pad}px and smooth close PASS")
                 page.close()
             browser.close()
 finally:
