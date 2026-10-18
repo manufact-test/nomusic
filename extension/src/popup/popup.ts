@@ -225,8 +225,10 @@ function resetUploadPanel(): void {
   durationGeneration++;measuredFile=null;durationPromise=null;durationBlocked=false;if(durationNote)durationNote.hidden=true;
   if (uploadResult) uploadResult.hidden = true;
   if (uploadForm) uploadForm.hidden = true;
-  if (uploadButton) { uploadButton.disabled = true; uploadButton.textContent = "Отправить на проверку"; }
-  if (uploadProgress) { uploadProgress.hidden = true; uploadProgress.value = 0; }
+  uploadAction("submit");
+  if (uploadButton) uploadButton.disabled = true;
+  uploadProgressVisible(false);
+  if (uploadProgress) uploadProgress.value = 0;
   if (uploadStatus) uploadStatus.hidden = true;
   if (uploadFile) uploadFile.value = "";
   if (uploadRights) uploadRights.checked = false;
@@ -379,7 +381,8 @@ uploadFile?.addEventListener("cancel", () => {
   setPickerState();
   if (!uploadFile.files?.[0]) {
     uploadRequestId = null;
-    if (uploadProgress) { uploadProgress.hidden = true; uploadProgress.value = 0; }
+    uploadProgressVisible(false);
+    if (uploadProgress) uploadProgress.value = 0;
     uploadMessage("");
     void checkFileDuration();
   }
@@ -458,7 +461,7 @@ uploadForm?.addEventListener("submit", async (event) => {
   uploading = true;
   manualUploadCancel = false;
   if(uploadFile)uploadFile.disabled=true;
-  if (uploadButton) { uploadButton.disabled = true; uploadButton.textContent = "Отправляем…"; }
+  uploadAction("preparing");
   uploadMessage("Проверяем трек и отправляем файл…", "checking");
 
   let origin: string;
@@ -516,8 +519,9 @@ uploadForm?.addEventListener("submit", async (event) => {
       }
       backgroundUploadMode = true;
       transferStarted = true;
-      if (uploadCancel) uploadCancel.hidden = false;
-      if (uploadProgress) { uploadProgress.hidden = false; uploadProgress.value = 0; }
+      uploadAction("cancel");
+      uploadProgressVisible(true);
+      if (uploadProgress) uploadProgress.value = 0;
       uploadMessage("Загрузка продолжается в фоне. Можно закрыть окно CELIKOM.", "checking");
       void syncBackgroundUpload();
       return;
@@ -573,13 +577,14 @@ uploadForm?.addEventListener("submit", async (event) => {
     xhr.addEventListener("error", () => { failure = "network_error"; });
     xhr.addEventListener("timeout", () => { failure = "timeout"; });
     xhr.addEventListener("abort", () => { failure ||= "interrupted"; });
-    if (uploadProgress) { uploadProgress.hidden = false; uploadProgress.value = 0; }
+    uploadProgressVisible(true);
+    if (uploadProgress) uploadProgress.value = 0;
     uploadMessage("Подключаемся и загружаем аудиофайл…", "checking");
     void uploadJournal.record(attemptId, "connecting");
     xhr.addEventListener("loadend", () => {
       clearInterval(watchdog);
       activeUploadXHR = null;
-      if (uploadCancel) uploadCancel.hidden = true;
+      uploadProgressVisible(false);
       if (uploadConfirm) uploadConfirm.hidden = true;
       uploading = false;
       if(uploadFile)uploadFile.disabled=false;
@@ -624,14 +629,14 @@ uploadForm?.addEventListener("submit", async (event) => {
         : xhr.status >= 500 ? "Сервер временно недоступен. Повторите позже."
         : errors[code] || "Загрузка не завершена. Попробуйте ещё раз.";
       uploadMessage(guidance + " Код: " + attemptId.slice(0, 8).toUpperCase(), "error");
-      if (uploadButton) { uploadButton.textContent = "Повторить отправку"; uploadButton.disabled = false; }
+      uploadAction("retry");
     });
     activeUploadXHR = xhr;
-    if (uploadCancel) uploadCancel.hidden = false;
+    uploadAction("cancel");
     try { xhr.send(data); } catch (error) {
       clearInterval(watchdog);
       activeUploadXHR = null;
-      if (uploadCancel) uploadCancel.hidden = true;
+      uploadProgressVisible(false);
       throw error;
     }
     transferStarted = true;
@@ -645,13 +650,12 @@ uploadForm?.addEventListener("submit", async (event) => {
     // after xhr.send(). An early exit must never leave the UI stuck.
     if (!transferStarted) {
       activeUploadXHR = null;
-      if (uploadCancel) uploadCancel.hidden = true;
+      uploadProgressVisible(false);
       if (uploadConfirm) uploadConfirm.hidden = true;
       uploading = false;
       if(uploadFile)uploadFile.disabled=false;
       if (uploadButton && uploadForm && !uploadForm.hidden) {
-        uploadButton.disabled = durationBlocked;
-        uploadButton.textContent = "Отправить на проверку";
+        uploadAction("submit");
       }
     }
   }
