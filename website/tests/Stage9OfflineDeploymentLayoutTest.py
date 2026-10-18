@@ -86,15 +86,17 @@ with tempfile.TemporaryDirectory(prefix="celikom-dry-domain-") as directory:
            not (public / "celikom-private").exists(),
            "private PHP or database copied into web root")
     for rel in (
-        "index.php", "admin/index.php", "assets/css/v10/01-v10.css",
-        "assets/css/v10/05-v10.css", "assets/js/v10/01-v10.js",
+        "index.php", "admin/index.php", "assets/css/v10/00-base.css",
+        "assets/css/v10/01-v6.css", "assets/css/v10/02-v7.css",
+        "assets/css/v10/03-v8.css", "assets/css/v10/04-v10.css",
+        "assets/js/v10/faq.js", "assets/js/v10/sound-demo.js",
     ):
         original = SITE / rel
-        # The JS path may vary; only enforce parity for real approved files.
-        if original.exists():
-            ensure(hashlib.sha256(original.read_bytes()).digest() ==
-                   hashlib.sha256((public / rel).read_bytes()).digest(),
-                   f"public code or v10 asset modified in copy: {rel}")
+        ensure(original.is_file() and (public / rel).is_file(),
+               f"approved source asset missing: {rel}")
+        ensure(hashlib.sha256(original.read_bytes()).digest() ==
+               hashlib.sha256((public / rel).read_bytes()).digest(),
+               f"public code or v10 asset modified in copy: {rel}")
     ensure((app / "Templates/site-v10.html").read_bytes() ==
            (PRIVATE / "Templates/site-v10.html").read_bytes(),
            "approved template changed by staging copy")
@@ -135,7 +137,7 @@ with tempfile.TemporaryDirectory(prefix="celikom-dry-domain-") as directory:
         ):
             response = get(port, target)
             ensure(response[0] == 404, f"private file leaked via {target}")
-        asset = get(port, "/assets/css/v10/01-v10.css")
+        asset = get(port, "/assets/css/v10/00-base.css")
         ensure(asset[0] == 200 and len(asset[2]) > 100,
                "approved v10 CSS missing after deploy-style staging")
         ensure(not (domain / "celikom-private/app/release-approved.php").exists(),
