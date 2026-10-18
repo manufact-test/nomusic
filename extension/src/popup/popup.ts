@@ -3,6 +3,7 @@ import { withDeadline } from "../shared/request-deadline.js";
 import { inspectM4a } from "../upload/m4a.js";
 import { mp3DurationMs, durationNotice } from "../upload/mp3-duration.js";
 import { createUploadJournal } from "../upload/upload-journal.js";
+import { stageUploadFile, deleteStagedUpload } from "../upload/staging.js";
 import { initScrollSpacing } from "./scroll-spacing.js";
 import { COMMANDS, type ExtensionState } from "../shared/messages.js";
 import { uploadTargetFromStatus, validAudioSelection, privateUploadApiOrigin } from "../upload/contract.js";
@@ -129,6 +130,8 @@ const uploadContinue = document.querySelector<HTMLButtonElement>("[data-upload-c
 const uploadStop = document.querySelector<HTMLButtonElement>("[data-upload-stop]");
 let activeUploadXHR: XMLHttpRequest | null = null;
 let manualUploadCancel = false;
+let backgroundUploadMode = false;
+const BACKGROUND_UPLOAD_KEY = "celikom_background_upload_v1";
 const uploadResult = document.querySelector<HTMLElement>("[data-upload-result]");
 const uploadResultTitle = document.querySelector<HTMLElement>("[data-upload-result-title]");
 const uploadResultNote = document.querySelector<HTMLElement>("[data-upload-result-note]");
@@ -231,6 +234,8 @@ function contributionError(error: unknown): string {
   if (code === "uploads_disabled") return "Приём версий и предложений пока выключен. Доступ к музыке работает отдельно.";
   if (code === "invalid_session") return "Войдите в аккаунт, чтобы отправить версию или предложение.";
   if (code === "access_denied") return "Доступ завершён. Проверьте статус аккаунта.";
+  if (code === "upload_busy") return "Другая песня уже загружается. Дождитесь завершения предыдущей отправки.";
+  if (["upload_staging_unavailable","upload_background_unavailable","upload_staging_expired"].includes(code)) return "Не удалось подготовить фоновую загрузку. Закройте окно и попробуйте ещё раз.";
   return "Не удалось связаться с сервером. Повторите попытку.";
 }
 
@@ -265,15 +270,6 @@ async function trackUploadStatus(origin: string, trackId: string): Promise<"none
 
 addTrackButton?.addEventListener("click", async () => {
   if (incidentStatus.active() || !uploadPanel || uploading || opening) return;
-  // The Chrome action popup closes when focus changes. Keep POST in a full
-  // extension tab; clicking outside the tab cannot cancel the request.
-  if (chrome.tabs?.getCurrent && chrome.tabs?.create && globalThis.location?.hash !== "#upload") {
-    const current = await chrome.tabs.getCurrent();
-    if (!current) {
-      await chrome.tabs.create({url: chrome.runtime.getURL("popup/popup.html#upload")});
-      return;
-    }
-  }
   if (!uploadPanel.hidden) {
     // Query first: a click immediately after a song switch must open the
     // new song, even before the next one-second status poll.
@@ -401,7 +397,7 @@ uploadFilePicker?.addEventListener("drop", (event) => {
 });
 
 uploadCancel?.addEventListener("click", () => {
-  if (!uploading || !activeUploadXHR || !uploadConfirm) return;
+  if (!uploading || (!activeUploadXHR && !backgroundUploadMode) || !uploadConfirm) return;
   uploadConfirm.hidden = false;
   uploadContinue?.focus();
 });
@@ -410,10 +406,14 @@ uploadContinue?.addEventListener("click", () => {
   uploadCancel?.focus();
 });
 uploadStop?.addEventListener("click", () => {
-  if (!uploading || !activeUploadXHR) return;
+  if (!uploading || (!activeUploadXHR && !backgroundUploadMode)) return;
   if (uploadConfirm) uploadConfirm.hidden = true;
   manualUploadCancel = true;
-  activeUploadXHR.abort();
+  if (activeUploadXHR) activeUploadXHR.abort();
+  else if (backgroundUploadMode && uploadRequestId) {
+    void chrome.runtime.sendMessage({type:"CELIKOM_UPLOAD_CANCEL", id:uploadRequestId});
+    uploadMessage("Отменяем загрузку…", "checking");
+  }
 });
 
 uploadForm?.addEventListener("submit", async (event) => {
@@ -461,6 +461,42 @@ uploadForm?.addEventListener("submit", async (event) => {
       void uploadJournal.record(attemptId, "duplicate", {code: existing});
       showSubmitted(existing === "pending" ? "Трек уже добавлен" : "Версия уже доступна",
         "Заявка уже есть в CELIKOM. Повторно отправлять файл не нужно.");
+      return;
+    }
+
+    // Chrome MV3 action popups are destroyed when focus changes. Stage the
+    // Blob in extension-private IndexedDB, then delegate POST to an offscreen
+    // document so blur/close never cancels an already accepted upload.
+    if (chrome.runtime.getManifest?.().permissions?.includes("offscreen")) {
+      const access = await contributionAccess();
+      const finalTarget = uploadTargetFromStatus(await send<ExtensionState>({type:COMMANDS.getStatus}));
+      if (finalTarget?.id !== pinnedTrack.id) throw new Error("track_changed");
+      uploadMessage("Подготавливаем файл для фоновой загрузки…", "checking");
+      await stageUploadFile(attemptId, file);
+      let response;
+      try {
+        response = await chrome.runtime.sendMessage({
+          type:"CELIKOM_UPLOAD_BEGIN",
+          task:{
+            id:attemptId, trackId:pinnedTrack.id, durationMs:pinnedTrack.durationMs,
+            artist:pinnedTrack.artist, title:pinnedTrack.title, album:pinnedTrack.album,
+            filename:file.name, origin, token:access
+          }
+        });
+      } catch (error) {
+        await deleteStagedUpload(attemptId).catch(()=>{});
+        throw error;
+      }
+      if (!response?.ok) {
+        await deleteStagedUpload(attemptId).catch(()=>{});
+        throw new Error(response?.error || "upload_background_unavailable");
+      }
+      backgroundUploadMode = true;
+      transferStarted = true;
+      if (uploadCancel) uploadCancel.hidden = false;
+      if (uploadProgress) { uploadProgress.hidden = false; uploadProgress.value = 0; }
+      uploadMessage("Загрузка продолжается в фоне. Можно закрыть окно CELIKOM.", "checking");
+      void syncBackgroundUpload();
       return;
     }
 
@@ -689,12 +725,63 @@ diagnosticsButton?.addEventListener("click", async () => {
   if (diagnosticsButton) diagnosticsButton.textContent = "Скопировано";
 });
 
+// Reopened popup reconstructs progress from the offscreen uploader's small,
+// sanitized status record. No original File or credentials leave IndexedDB.
+async function syncBackgroundUpload(): Promise<void> {
+  if (!chrome.storage?.local) return;
+  let saved;
+  try { saved = (await chrome.storage.local.get(BACKGROUND_UPLOAD_KEY))?.[BACKGROUND_UPLOAD_KEY]; }
+  catch { return; }
+  if (!saved || typeof saved.id !== "string" || Date.now()-saved.at > 600000) return;
+  const target = uploadTargetFromStatus(lastState);
+  if (!target || target.id !== saved.trackId) return;
+  const active = ["connecting","waiting","transferring","server_wait"].includes(saved.phase);
+  if (!active && !["completed","duplicate","failed","cancelled"].includes(saved.phase)) return;
+  // Do not overwrite an unrelated newly selected file with an older result.
+  if (!active && !backgroundUploadMode && uploadFile?.files?.length) return;
+  pinnedTrack = target;
+  uploadRequestId = saved.id;
+  backgroundUploadMode = active;
+  uploading = active;
+  if(uploadPanel) uploadPanel.hidden = false;
+  if(addTrackButton) addTrackButton.setAttribute("aria-expanded","true");
+  if(uploadTrack) uploadTrack.value = target.id;
+  if(uploadProgress) {
+    uploadProgress.hidden = !active;
+    uploadProgress.value = Number.isInteger(saved.percent) ? saved.percent : 0;
+  }
+  if(uploadCancel) uploadCancel.hidden = !active;
+  if(uploadConfirm && !active) uploadConfirm.hidden = true;
+  if(uploadFile) uploadFile.disabled = active;
+  if(saved.phase==="completed" || saved.phase==="duplicate") {
+    showSubmitted(saved.phase==="completed"?"Отправлено на проверку":"Трек уже добавлен",
+      "Аудиофайл получен CELIKOM. Версия ожидает модерации.");
+    return;
+  }
+  if(uploadForm) uploadForm.hidden = active;
+  if(uploadButton) {uploadButton.disabled = active;uploadButton.textContent = active?"Отправляем…":"Повторить отправку";}
+  const descriptions = {
+    connecting:"Подключаемся к серверу. Загрузка продолжается в фоне.",
+    waiting:"Ожидаем начала передачи. Проверяем соединение…",
+    transferring:"Загружаем аудиофайл: "+(saved.percent||0)+"%. Можно закрыть окно CELIKOM.",
+    server_wait:"Файл передан. Ждём подтверждения сервера…",
+    cancelled:"Загрузка отменена по вашему запросу.",
+    failed: saved.code==="stalled"?"Соединение зависло. Проверьте интернет или VPN."
+      : saved.code==="timeout"?"Сервер не ответил за две минуты. Проверьте статус трека."
+      : saved.code==="invalid_mp3"?"Файл не прошёл проверку MP3."
+      : "Загрузка не завершена. Попробуйте ещё раз."
+  };
+  uploadMessage((descriptions[saved.phase] || "Проверяем загрузку…") +
+    (["failed","cancelled"].includes(saved.phase)?" Код: "+saved.id.slice(0,8).toUpperCase():""),
+    ["failed","cancelled"].includes(saved.phase)?"error":"checking");
+}
 let refreshing = false;
 async function refresh(): Promise<void> {
   if (refreshing) return;
   refreshing = true;
   try {
     render(await send<ExtensionState>({ type: COMMANDS.getStatus }));
+    await syncBackgroundUpload();
   } catch (_error) {
     if (status) status.textContent = "Нет связи";
   } finally { refreshing = false; }
@@ -713,10 +800,5 @@ window.setInterval(() => void refreshAccess(), 15000);
 const accountPanel = initAuthPanel(send);
 
 initScrollSpacing();
-if (globalThis.location?.hash === "#upload") {
-  document.body?.classList?.add("upload-page");
-  // The new tab must wait for Chrome's player lookup before opening the form.
-  setTimeout(() => addTrackButton?.click(), 300);
-}
 
 void initSupport({ send, getState: () => lastState });

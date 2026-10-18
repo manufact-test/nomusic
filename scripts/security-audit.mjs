@@ -21,7 +21,7 @@ const manifest = JSON.parse(await readFile(path.join(root, "manifest.json"), "ut
 assert.equal(manifest.manifest_version, 3);
 assert.ok(!manifest.externally_connectable);
 assert.ok(!manifest.content_security_policy.extension_pages.includes("unsafe-eval"));
-assert.ok(manifest.permissions.every(value => ["storage", "scripting"].includes(value)));
+assert.ok(manifest.permissions.every(value => ["storage", "scripting", "offscreen"].includes(value)));
 assert.ok(manifest.host_permissions.every(value => value === "https://music.yandex.ru/*"
   || value === "https://darkred-camel-588676.hostingersite.com/*"));
 const forbidden = [/-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----/,
