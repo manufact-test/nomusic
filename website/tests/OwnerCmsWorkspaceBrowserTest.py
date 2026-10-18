@@ -61,6 +61,12 @@ with tempfile.TemporaryDirectory(prefix='celikom-workspace-ui-') as storage:
                 assert page.locator('details.section-editor:not([hidden])').count()==1
                 assert page.locator('textarea[name="text[faq.text.02]"]').is_visible()
                 page.locator('.cms-side-menu a[data-cms-link="faq-editor"]').click()
+                assert page.get_by_role('link',name='Посмотреть результат FAQ на сайте').count()==1
+                assert page.get_by_role('link',name='Посмотреть результат FAQ на сайте').get_attribute('href')=='/admin/?view=preview#faq'
+                assert page.locator('#faq-editor .faq-entry .cms-faq-actions a.action').count()>=28
+                first_link=page.locator('#faq-editor .faq-entry .cms-faq-actions a.action').first
+                assert first_link.get_attribute('href')=='/admin/?view=preview#faq-question-01'
+                assert first_link.get_attribute('target')=='_blank'
                 page.get_by_label('Найти вопрос FAQ').fill('Что такое CELIKOM')
                 assert page.locator('#faq-editor details.faq-entry:not([hidden])').count()==1
                 page.get_by_label('Найти вопрос FAQ').fill('')
