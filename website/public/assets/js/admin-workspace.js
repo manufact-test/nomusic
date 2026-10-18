@@ -21,6 +21,9 @@
   return recognized.has(id)?id:null;
  };
  const groupFromParams=new URLSearchParams(location.search).get('group');
+ let rememberedGroup=null;
+ try{rememberedGroup=sessionStorage.getItem('celikom_cms_editor_group')}catch{}
+
  const show=(target,updateHash)=>{
   if(!recognized.has(target))target='overview';
   document.body.classList.add('cms-ui-ready');
@@ -48,6 +51,7 @@
    groups[i].hidden=!selected;
    groups[i].open=selected;
   }
+  try{sessionStorage.setItem('celikom_cms_editor_group',groups[index].dataset.cmsGroup)}catch{}
   for(const button of groupButtons){
    const on=button.dataset.cmsGroupSelect===groups[index].dataset.cmsGroup;
    button.classList.toggle('is-active',on);
@@ -101,7 +105,7 @@
    (saved==='media'||saved==='media-choice')?'media-editor':
    (saved==='published'||saved==='restored')?'revision-editor':'overview';
  }
- const preferred=groups.findIndex(group=>group.dataset.cmsGroup===groupFromParams);
+ const preferred=groups.findIndex(group=>group.dataset.cmsGroup===(groupFromParams||rememberedGroup));
  chooseGroup(preferred>=0?preferred:0);
  filterFaq();
  show(initial,false);
