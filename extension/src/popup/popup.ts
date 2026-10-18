@@ -301,6 +301,14 @@ addTrackButton?.addEventListener("click", async () => {
     return;
   }
   uploadManuallyCollapsed = false;
+  // Reopen the same operation without resetting its request ID/file.
+  // A user may collapse the panel while the hidden offscreen POST runs.
+  if (uploading || backgroundUploadMode) {
+    uploadPanel.hidden = false;
+    addTrackButton.setAttribute("aria-expanded", "true");
+    await syncBackgroundUpload();
+    return;
+  }
   opening = true;
   addTrackButton.disabled = true;
   addTrackButton.dataset.loading = "true";
