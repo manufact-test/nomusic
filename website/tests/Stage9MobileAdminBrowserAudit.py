@@ -56,7 +56,7 @@ def exercise_authenticated_admin(page, base):
     page.get_by_label('Логин').fill('owner')
     page.get_by_label('Пароль').fill(password)
     page.get_by_role('button', name='Войти').click()
-    assert page.get_by_role('heading', name='Черновик текстов').is_visible()
+    assert page.get_by_role('heading', name='Тексты сайта').is_visible()
     assert page.locator('#text-editor textarea').count() == 87
 
     for width in (320, 390, 768, 1024):
@@ -73,7 +73,7 @@ def exercise_authenticated_admin(page, base):
         section.locator('summary').click()
     field.fill('Ответы на вопросы CELIKOM — мобильный QA.')
     page.locator('#text-editor').get_by_role('button', name='Сохранить черновик').click()
-    assert page.get_by_text('Черновик сохранён в базе данных.').is_visible()
+    assert page.get_by_text('Изменения сохранены.').is_visible()
     assert_layout(page, 320)
 
     response = page.goto(base + '/admin/?view=preview')
@@ -89,7 +89,7 @@ def exercise_authenticated_admin(page, base):
     )
     new_faq.locator('select[name="category"]').select_option('help')
     new_faq.get_by_role('button', name='Добавить скрытый вопрос в черновик').click()
-    assert page.get_by_text('Черновик сохранён в базе данных.').is_visible()
+    assert page.get_by_text('Изменения сохранены.').is_visible()
     entry = page.locator('#faq-editor details.faq-entry').filter(has_text=question)
     assert entry.count() == 1
     entry.locator('summary').click()
@@ -109,17 +109,17 @@ def exercise_authenticated_admin(page, base):
         'name': 'mobile-check.png', 'mimeType': 'image/png', 'buffer': png
     })
     upload.locator('input[name="alt"]').fill('Тестовый popup мобильной админки')
-    upload.get_by_role('button', name='Сохранить приватно').click()
-    assert page.get_by_text('Изображение сохранено приватно.', exact=False).is_visible()
+    upload.get_by_role('button', name='Загрузить изображение').click()
+    assert page.get_by_text('Изображение добавлено в медиатеку.', exact=False).is_visible()
     select = page.locator('#media-pending-id')
     # Latest asset is first after "original". Previous HTTP test temp files
     # were removed, so using an older stored ID would correctly fail SHA checks.
     newest = select.locator('option').nth(1).get_attribute('value')
     assert newest and newest.isdecimal()
     select.select_option(newest)
-    page.get_by_role('button', name='Сохранить выбор только для предпросмотра').click()
+    page.get_by_role('button', name='Сохранить выбор').click()
     assert page.get_by_text(
-        'Для закрытого предпросмотра выбрано изображение.', exact=False
+        'Изображение выбрано для предпросмотра.', exact=False
     ).is_visible()
     assert_layout(page, 320)
 
@@ -135,7 +135,7 @@ def exercise_authenticated_admin(page, base):
     # Explicit owner action restores the original for the private preview.
     page.goto(base + '/admin/')
     page.locator('#media-pending-id').select_option('original')
-    page.get_by_role('button', name='Сохранить выбор только для предпросмотра').click()
+    page.get_by_role('button', name='Сохранить выбор').click()
     page.goto(base + '/admin/?view=preview')
     assert page.locator('img[data-managed-media="celikom.popup.approved"]').get_attribute(
         'src'
