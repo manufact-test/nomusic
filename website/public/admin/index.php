@@ -208,13 +208,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     http_response_code(409);
                     $error='Черновик изменён в другой вкладке. Обновите страницу.';
                 } else {
-                    header('Location: /admin/?saved=faq#faq-editor',true,303);
+                    header('Location: /admin/?saved=faq'.($action==='faq_update'
+                        ? '&focus='.rawurlencode($id) : '').'#faq-editor',true,303);
                     exit;
                 }
             }
         } catch (\InvalidArgumentException $e) {
             http_response_code(422);
-            $error='Проверьте данные FAQ: длину, категорию и доступность правки.';
+            $error='Проверьте текст вопроса, ответ и категорию.';
         } catch (\Throwable $e) {
             error_log('CELIKOM CMS: FAQ draft save failed');
             http_response_code(503);
@@ -582,7 +583,7 @@ $value=$current['content'][$key]??$field['default'];
 </form></div></div></section>
 <section class="panel admin-view" data-cms-view="faq-editor" id="faq-editor">
 <h2>Вопросы и ответы</h2>
-<p class="muted">Найди нужный вопрос или добавь новый. Некоторые ответы нельзя менять без согласования. Новые вопросы сначала скрыты.</p>
+<p class="muted">Выбери вопрос, чтобы изменить название, ответ или категорию. Изменения сначала сохраняются в черновике.</p>
 <div class="cms-faq-tools">
 <div class="cms-faq-tabs" role="group" aria-label="Категории FAQ">
 <button class="cms-faq-tab" type="button" data-faq-filter="all" aria-pressed="true">Все</button>
@@ -592,15 +593,13 @@ $value=$current['content'][$key]??$field['default'];
 <button class="cms-faq-tab" type="button" data-faq-filter="help" aria-pressed="false">Помощь</button>
 </div><div class="cms-faq-search-row">
 <input id="cms-faq-search" type="search" aria-label="Найти вопрос FAQ" placeholder="Найти вопрос по названию…" autocomplete="off"/>
-<span id="cms-faq-count" role="status">Вопросов: <?=count($faqItems)?></span></div></div>
+<span id="cms-faq-count" role="status" aria-live="polite">Показано вопросов: <?=count($faqItems)?></span></div></div>
 <?php foreach ($faqItems as $faqItem): ?>
 <details class="faq-entry" data-faq-category="<?=cmsEscape((string)$faqItem['category'])?>"><summary>
 <?=cmsEscape((string)$faqItem['question'])?>
-<?php if($faqItem['protected']): ?> · только просмотр<?php elseif(!$faqItem['is_visible']): ?>(скрыт)<?php endif; ?>
+<?php if(!$faqItem['is_visible']): ?><span class="cms-faq-hidden-label">Скрыт</span><?php endif; ?>
 </summary>
-<?php if($faqItem['protected']): ?>
-<p class="muted">Этот ответ пока нельзя редактировать.</p>
-<?php else: ?>
+
 <form method="post" action="/admin/#faq-editor">
 <input type="hidden" name="csrf" value="<?=cmsEscape($csrf)?>"/>
 <input type="hidden" name="action" value="faq_update"/>
@@ -621,7 +620,6 @@ $value=$current['content'][$key]??$field['default'];
 </div>
 <button type="submit">Сохранить вопрос в черновик</button>
 </form>
-<?php endif; ?>
 </details>
 <?php endforeach; ?>
 <div class="cms-create-faq"><h2>Добавить вопрос</h2>
