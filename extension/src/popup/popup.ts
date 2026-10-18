@@ -123,6 +123,11 @@ const uploadRights = document.querySelector<HTMLInputElement>("[data-upload-righ
 const uploadProgress = document.querySelector<HTMLProgressElement>("[data-upload-progress]");
 const uploadStatus = document.querySelector<HTMLElement>("[data-upload-status]");
 const uploadButton = document.querySelector<HTMLButtonElement>("[data-upload-submit]");
+const uploadCancel = document.querySelector<HTMLButtonElement>("[data-upload-cancel]");
+const uploadConfirm = document.querySelector<HTMLElement>("[data-upload-confirm]");
+const uploadContinue = document.querySelector<HTMLButtonElement>("[data-upload-continue]");
+const uploadStop = document.querySelector<HTMLButtonElement>("[data-upload-stop]");
+let activeUploadXHR: XMLHttpRequest | null = null;
 const uploadResult = document.querySelector<HTMLElement>("[data-upload-result]");
 const uploadResultTitle = document.querySelector<HTMLElement>("[data-upload-result-title]");
 const uploadResultNote = document.querySelector<HTMLElement>("[data-upload-result-note]");
@@ -392,6 +397,21 @@ uploadFilePicker?.addEventListener("drop", (event) => {
   setPickerState();
   uploadMessage("");
   void checkFileDuration();
+});
+
+uploadCancel?.addEventListener("click", () => {
+  if (!uploading || !activeUploadXHR || !uploadConfirm) return;
+  uploadConfirm.hidden = false;
+  uploadContinue?.focus();
+});
+uploadContinue?.addEventListener("click", () => {
+  if (uploadConfirm) uploadConfirm.hidden = true;
+  uploadCancel?.focus();
+});
+uploadStop?.addEventListener("click", () => {
+  if (!uploading || !activeUploadXHR) return;
+  if (uploadConfirm) uploadConfirm.hidden = true;
+  activeUploadXHR.abort();
 });
 
 uploadForm?.addEventListener("submit", async (event) => {
