@@ -1,4 +1,5 @@
 name: CELIKOM website owner edits staging
+# Repeat owner review update after CMS-edited footer links validation.
 on:
   push:
     branches: [feature/api-range]
