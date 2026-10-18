@@ -396,11 +396,25 @@ $mediaFiles=[];
 $mediaSelection=['version'=>0,'asset_id'=>null];
 $mediaEnabled=is_string(getenv('CELIKOM_SITE_MEDIA_DIR')) &&
     is_dir((string)getenv('CELIKOM_SITE_MEDIA_DIR'));
+$cmsGroupLabels=[
+    'head'=>'SEO и метаданные','header'=>'Шапка сайта',
+    'top'=>'Первый экран','features'=>'Преимущества',
+    'how'=>'Как работает','sound'=>'Сравнение звука',
+    'player'=>'Плеер','contribute'=>'Участие',
+    'transparency'=>'Прозрачность','faq'=>'FAQ на странице',
+    'rewards'=>'Бонусы и награды','install'=>'Установка',
+    'closing'=>'Финальный блок','footer'=>'Подвал сайта'
+];
+$cmsGroups=[];
 if ($admin !== null) {
     try {
         $manifest = file_get_contents($app.'/Config/content-fields-v10.json');
         if (!is_string($manifest)) throw new RuntimeException('Missing manifest');
         $fields = CmsEditor::fields($manifest);
+        foreach($fields as $field) {
+            $section=(string)$field['section'];
+            $cmsGroups[$section]=($cmsGroups[$section]??0)+1;
+        }
         $current = CmsDraftStore::get($pdo);
         $faqSeed=file_get_contents($dev
             ? $root.'/database/seeds/faq-v10.json'
@@ -478,13 +492,17 @@ label.inline-check{min-height:44px}
 .faq-fields{grid-template-columns:1fr}
 }
 
-</style></head><body><main><header><h1>CELIKOM · сайт</h1>
+</style>
+<link rel="stylesheet" href="/assets/css/admin-workspace.css?v=514"/>
+<script defer src="/assets/js/admin-workspace.js?v=514"></script>
+</head><body class="<?= $admin!==null?'cms-authenticated':'cms-login' ?>"><main>
+<header class="cms-topbar"><div><h1>CELIKOM <span style="color:#55bf96">/</span> Управление</h1><span class="cms-top-meta">Система управления сайтом</span></div>
 <?php if ($admin !== null): ?>
 <form method="post" action="/admin/"><input type="hidden" name="csrf" value="<?=cmsEscape($csrf)?>"/><input type="hidden" name="action" value="logout"/><button type="submit">Выйти</button></form>
 <?php endif; ?></header>
 <?php if ($error !== null): ?><p role="alert" class="error"><?=cmsEscape($error)?></p><?php endif; ?>
 <?php if ($admin === null): ?>
-<section class="panel"><h2>Вход администратора</h2>
+<section class="panel cms-login-wrap"><h2>Вход администратора</h2>
 <p class="muted">Управление сайтом доступно только владельцу.</p>
 <form method="post" action="/admin/">
 <input type="hidden" name="csrf" value="<?=cmsEscape($csrf)?>"/><input type="hidden" name="action" value="login"/>
@@ -492,7 +510,38 @@ label.inline-check{min-height:44px}
 <label for="password">Пароль</label><input id="password" type="password" name="password" autocomplete="current-password" required/>
 <button type="submit">Войти</button></form></section>
 <?php else: ?>
-<section class="panel" id="text-editor"><h2>Черновик текстов</h2>
+<div class="cms-shell">
+<aside class="cms-sidebar" aria-label="Навигация административной панели">
+<div><div class="cms-side-tag">Панель владельца</div><div class="cms-side-heading">Управление контентом</div></div>
+<nav class="cms-side-menu" aria-label="Разделы CMS">
+<a href="#overview" data-cms-link="overview"><span class="cms-menu-icon">⌂</span>Обзор</a>
+<a href="#text-editor" data-cms-link="text-editor"><span class="cms-menu-icon">✎</span>Тексты сайта</a>
+<a href="#faq-editor" data-cms-link="faq-editor"><span class="cms-menu-icon">?</span>FAQ</a>
+<a href="#media-editor" data-cms-link="media-editor"><span class="cms-menu-icon">▧</span>Медиатека</a>
+<a href="#revision-editor" data-cms-link="revision-editor"><span class="cms-menu-icon">↺</span>Публикации</a>
+</nav>
+<p class="cms-nav-note">Выбирай раздел — остальные настройки не мешают работе.</p>
+<div class="cms-side-footer"><a href="/" target="_blank" rel="noopener">↗ Открыть сайт CELIKOM</a><small>Сайт доступен только по паролю до отдельного согласования запуска.</small></div>
+</aside>
+<div class="cms-main">
+<section class="cms-overview" data-cms-view="overview" id="overview">
+<div class="cms-page-heading"><div><div class="cms-kicker">Рабочий стол</div><h2>Обзор сайта</h2><p>Здесь только главное. Выбери, что нужно изменить, — откроется отдельный редактор.</p></div><span class="cms-pill">Закрытый доступ</span></div>
+<div class="cms-status-summary">
+<div class="cms-stat"><strong>№<?=(int)$current['version']?></strong><span>Версия черновика</span></div>
+<div class="cms-stat"><strong><?=$published===null?'—':'№'.(int)$published?></strong><span>Опубликовано в CMS</span></div>
+<div class="cms-stat"><strong><?=count($faqItems)?></strong><span>Вопросов FAQ</span></div>
+</div>
+<div class="cms-block-label">Что будем редактировать?</div>
+<div class="cms-card-grid">
+<a class="cms-home-card" href="#text-editor" data-cms-link="text-editor"><span class="cms-card-arrow">↗</span><span class="cms-card-icon">✎</span><strong>Тексты сайта</strong><span>Заголовки, блоки, кнопки, ссылки и SEO — по разделам, без лишней прокрутки.</span></a>
+<a class="cms-home-card" href="#faq-editor" data-cms-link="faq-editor"><span class="cms-card-arrow">↗</span><span class="cms-card-icon">?</span><strong>Вопросы и ответы</strong><span>Поиск по вопросам, категории и редактирование нужного ответа.</span></a>
+<a class="cms-home-card" href="#media-editor" data-cms-link="media-editor"><span class="cms-card-arrow">↗</span><span class="cms-card-icon">▧</span><strong>Медиатека</strong><span>Просмотр и загрузка изображений для защищённого предпросмотра.</span></a>
+<a class="cms-home-card" href="#revision-editor" data-cms-link="revision-editor"><span class="cms-card-arrow">↗</span><span class="cms-card-icon">↺</span><strong>Публикации</strong><span>Сохранённые версии, история и безопасное восстановление редакций.</span></a>
+</div>
+<p class="cms-info-strip">Сначала сохраняй изменения в черновике. Для публикации в базе есть отдельный раздел и подтверждение. Публичный запуск сайта здесь не включается.</p>
+</section>
+<section class="panel admin-view" data-cms-view="text-editor" id="text-editor">
+<div class="cms-workspace-header"><div class="cms-kicker">Контент</div><h2>Черновик текстов</h2></div>
 <p class="muted">Редактор v10: тексты, ссылки, SEO и FAQ. Черновик №<?= (int)$current['version']?>.
 <?php if($dev): ?>Тестовая публикация сохраняется только в отдельную MySQL, сайт посетителям закрыт.
 <?php else: ?>Публикация доступна только после подтверждённого выпуска сайта.
@@ -508,6 +557,12 @@ label.inline-check{min-height:44px}
 <?php if (($_GET['saved']??'')==='media-choice'): ?><p class="ok" role="status">Для закрытого предпросмотра выбрано изображение. Публичный сайт и редакции не изменены.</p><?php endif; ?>
 <?php if (($_GET['saved']??'')==='media'): ?><p class="ok" role="status">Изображение сохранено приватно. На сайте оно пока не используется.</p><?php endif; ?>
 <?php if (($_GET['saved']??'')==='restored'): ?><p class="ok" role="status">Предыдущая редакция восстановлена в MySQL. Черновик не изменился.</p><?php endif; ?>
+<div class="cms-editor-summary"><strong><?=count($cmsGroups)?> разделов</strong> · <?=count($fields)?> редактируемых полей. Выбери нужный раздел слева; другие разделы не показываются.</div>
+<div class="cms-group-layout"><nav class="cms-groups-nav" aria-label="Секции сайта"><div class="cms-groups-caption">Разделы страницы</div>
+<?php foreach($cmsGroups as $cmsGroup=>$cmsCount): ?>
+<button class="cms-group-button" type="button" data-cms-group-select="<?=cmsEscape($cmsGroup)?>" aria-pressed="false"><span><?=cmsEscape($cmsGroupLabels[$cmsGroup]??$cmsGroup)?></span><span><?=$cmsCount?></span></button>
+<?php endforeach; ?>
+</nav><div class="cms-groups-fields">
 <form method="post" action="/admin/">
 <input type="hidden" name="csrf" value="<?=cmsEscape($csrf)?>"/><input type="hidden" name="action" value="save"/>
 <input type="hidden" name="version" value="<?= (int)$current['version']?>"/>
@@ -515,7 +570,7 @@ label.inline-check{min-height:44px}
 $section=(string)$field['section'];
 if ($section!==$previousSection):
     if ($previousSection!=='') echo '</div></details>';
-    echo '<details class="section-editor"'.($previousSection===''?' open':'').'><summary>'.cmsEscape((string)($field['section_label']??$section)).'</summary><div>';
+    echo '<details class="section-editor" data-cms-group="'.cmsEscape($section).'"'.($previousSection===''?' open':'').'><summary>'.cmsEscape($cmsGroupLabels[$section]??(string)($field['section_label']??$section)).'</summary><div>';
     $previousSection=$section;
 endif;
 $value=$current['content'][$key]??$field['default'];
@@ -523,14 +578,24 @@ $value=$current['content'][$key]??$field['default'];
 <label for="<?=cmsEscape($key)?>"><?=cmsEscape((string)$field['label'])?></label>
 <textarea id="<?=cmsEscape($key)?>" name="text[<?=cmsEscape($key)?>]" maxlength="<?= (int)($field['max_chars']??100)?>"><?=cmsEscape((string)$value)?></textarea>
 <?php endforeach; if($previousSection!=='')echo '</div></details>'; ?>
-<button type="submit">Сохранить черновик</button>
-<a class="action" href="/admin/?view=preview" target="_blank" rel="noopener">Предпросмотр сохранённого</a>
-</form></section>
-<section class="panel" id="faq-editor" style="margin-top:24px">
+<div class="cms-save-line"><button type="submit">Сохранить черновик</button>
+<a class="action" href="/admin/?view=preview" target="_blank" rel="noopener">Предпросмотр сохранённого</a></div>
+</form></div></div></section>
+<section class="panel admin-view" data-cms-view="faq-editor" id="faq-editor">
 <h2>FAQ · вопросы и ответы</h2>
 <p class="muted">Защищённые продуктовые условия доступны только для чтения. Новые вопросы создаются скрытыми — их нужно проверить перед показом на сайте. Все изменения сначала сохраняются как черновик.</p>
+<div class="cms-faq-tools">
+<div class="cms-faq-tabs" role="group" aria-label="Категории FAQ">
+<button class="cms-faq-tab" type="button" data-faq-filter="all" aria-pressed="true">Все</button>
+<button class="cms-faq-tab" type="button" data-faq-filter="start" aria-pressed="false">Установка и работа</button>
+<button class="cms-faq-tab" type="button" data-faq-filter="rewards" aria-pressed="false">Бонусы</button>
+<button class="cms-faq-tab" type="button" data-faq-filter="music" aria-pressed="false">Песни</button>
+<button class="cms-faq-tab" type="button" data-faq-filter="help" aria-pressed="false">Помощь</button>
+</div><div class="cms-faq-search-row">
+<input id="cms-faq-search" type="search" aria-label="Найти вопрос FAQ" placeholder="Найти вопрос по названию…" autocomplete="off"/>
+<span id="cms-faq-count" role="status">Вопросов: <?=count($faqItems)?></span></div></div>
 <?php foreach ($faqItems as $faqItem): ?>
-<details class="faq-entry"><summary>
+<details class="faq-entry" data-faq-category="<?=cmsEscape((string)$faqItem['category'])?>"><summary>
 <?=cmsEscape((string)$faqItem['question'])?>
 <?php if($faqItem['protected']): ?>(защищённый текст)<?php elseif(!$faqItem['is_visible']): ?>(скрыт)<?php endif; ?>
 </summary>
@@ -560,7 +625,7 @@ $value=$current['content'][$key]??$field['default'];
 <?php endif; ?>
 </details>
 <?php endforeach; ?>
-<h2>Добавить вопрос</h2>
+<div class="cms-create-faq"><h2>Добавить вопрос</h2>
 <form method="post" action="/admin/#faq-editor">
 <input type="hidden" name="csrf" value="<?=cmsEscape($csrf)?>"/>
 <input type="hidden" name="action" value="faq_create"/>
@@ -574,9 +639,9 @@ $value=$current['content'][$key]??$field['default'];
 <option value="rewards">Бонусы и стоимость</option>
 </select></label>
 <button type="submit">Добавить скрытый вопрос в черновик</button>
-</form>
+</form></div>
 </section>
-<section class="panel" id="revision-editor" style="margin-top:24px">
+<section class="panel admin-view" data-cms-view="revision-editor" id="revision-editor">
 <h2>Публикация и история</h2>
 <p class="muted">Текущая опубликованная редакция:
 <?= $published===null?'отсутствует':'№'.(int)$published ?>.
@@ -613,7 +678,7 @@ $value=$current['content'][$key]??$field['default'];
 </div>
 <?php endforeach; ?>
 </section>
-<section class="panel" id="media-editor" style="margin-top:24px">
+<section class="panel admin-view" data-cms-view="media-editor" id="media-editor">
 <h2>Библиотека медиа</h2>
 <p class="muted">Можно назначить изображение только для закрытого предпросмотра popup. Публичный макет и опубликованные редакции сохраняют исходный проверенный скриншот.</p>
 <?php if($mediaEnabled): ?>
@@ -659,5 +724,6 @@ $value=$current['content'][$key]??$field['default'];
 </div>
 <?php endforeach; ?>
 </section>
+</div></div><!-- cms-main / cms-shell -->
 <?php endif; ?>
 </main></body></html>
