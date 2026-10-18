@@ -532,3 +532,27 @@ test('page online and visible returns request fresh recovery without clearing ma
   f.changeStorage({enabled:{newValue:false}});await wait();const stopped=count();f.document.hidden=false;f.dispatchPage('online');f.dispatchDocument('visibilitychange');await wait();assert.equal(count(),stopped);
  }finally{vm.runInContext('__CELIKOM_CONTENT_CONTROLLER_V2__.destroy()',isolated);vm.runInContext('__CELIKOM_MAIN_BRIDGE_V1__.destroy()',main);}
 });
+
+
+test("stale extension context cannot throw from controller wake/storage or leave its timers running",async()=>{
+  for(const failure of ["missing-storage","sync-context-invalidation","async-context-invalidation"]) {
+    const f=browserFixture(),isolated=f.worlds.get("ISOLATED"),main=f.worlds.get("MAIN");
+    await createControllerBootstrap(f.api,{wait:()=>new Promise(resolve=>setTimeout(resolve,5))}).ensure(42);
+    try {
+      if(failure==="missing-storage") {
+        vm.runInContext("chrome.storage = undefined; __CELIKOM_CONTENT_CONTROLLER_V2__.wake();",isolated);
+      } else if(failure==="sync-context-invalidation") {
+        vm.runInContext("chrome.storage.local.get=()=>{throw new Error('Extension context invalidated.')}; __CELIKOM_CONTENT_CONTROLLER_V2__.wake();",isolated);
+      } else {
+        vm.runInContext("chrome.storage.local.get=()=>Promise.reject(new Error('Extension context invalidated.')); __CELIKOM_CONTENT_CONTROLLER_V2__.wake();",isolated);
+        await new Promise(resolve=>setTimeout(resolve,5));
+      }
+      assert.equal(vm.runInContext("__CELIKOM_CONTENT_CONTROLLER_V2__.destroyed",isolated),true);
+      assert.equal(f.runtimeListeners.size,0);
+      assert.equal(f.errors.length,0);
+    } finally {
+      vm.runInContext("__CELIKOM_CONTENT_CONTROLLER_V2__.destroy()",isolated);
+      vm.runInContext("__CELIKOM_MAIN_BRIDGE_V1__.destroy()",main);
+    }
+  }
+});

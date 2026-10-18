@@ -124,7 +124,7 @@ const uploadRights = document.querySelector<HTMLInputElement>("[data-upload-righ
 const uploadProgress = document.querySelector<HTMLProgressElement>("[data-upload-progress]");
 const uploadStatus = document.querySelector<HTMLElement>("[data-upload-status]");
 const uploadButton = document.querySelector<HTMLButtonElement>("[data-upload-submit]");
-const uploadCancel = document.querySelector<HTMLButtonElement>("[data-upload-cancel]");
+const uploadTransferSlot = document.querySelector<HTMLElement>("[data-upload-transfer-slot]");
 const uploadConfirm = document.querySelector<HTMLElement>("[data-upload-confirm]");
 const uploadContinue = document.querySelector<HTMLButtonElement>("[data-upload-continue]");
 const uploadStop = document.querySelector<HTMLButtonElement>("[data-upload-stop]");
@@ -140,6 +140,9 @@ let uploadRequestId: string | null = null;
 const uploadJournal = createUploadJournal(chrome.storage?.local);
 let uploading = false;
 let opening = false;
+// Respect an explicit user close within this popup instance. The one-second
+// background status poll must never reopen a panel the user just collapsed.
+let uploadManuallyCollapsed = false;
 const durationNote=document.querySelector<HTMLElement>("[data-upload-duration]");
 let durationGeneration=0, measuredFile=null, durationPromise=null, durationBlocked=false;
 function checkFileDuration(){
@@ -170,6 +173,23 @@ function transitionUploadPanel(update: () => void): void {
     { opacity: 0.72 },
     { opacity: 1 }
   ], { duration: 150, easing: "ease-out" });
+}
+
+// Keep the same full-width action in place throughout the operation.
+function uploadAction(mode: "submit" | "preparing" | "cancel" | "complete" | "retry"): void {
+  if (!uploadButton) return;
+  uploadButton.dataset.uploadMode = mode;
+  uploadButton.type = mode === "cancel" ? "button" : "submit";
+  uploadButton.disabled = mode === "preparing" || mode === "complete"
+    || ((mode === "submit" || mode === "retry") && durationBlocked);
+  uploadButton.textContent = mode === "cancel" ? "Отменить загрузку"
+    : mode === "preparing" ? "Подготавливаем загрузку…"
+    : mode === "complete" ? "Отправлено на проверку"
+    : mode === "retry" ? "Повторить отправку" : "Отправить на проверку";
+}
+function uploadProgressVisible(visible: boolean): void {
+  if (uploadTransferSlot) uploadTransferSlot.hidden = !visible;
+  if (uploadProgress) uploadProgress.hidden = !visible;
 }
 
 function uploadMessage(value: string, kind = "info"): void {
@@ -208,8 +228,10 @@ function resetUploadPanel(): void {
   durationGeneration++;measuredFile=null;durationPromise=null;durationBlocked=false;if(durationNote)durationNote.hidden=true;
   if (uploadResult) uploadResult.hidden = true;
   if (uploadForm) uploadForm.hidden = true;
-  if (uploadButton) { uploadButton.disabled = true; uploadButton.textContent = "Отправить на проверку"; }
-  if (uploadProgress) { uploadProgress.hidden = true; uploadProgress.value = 0; }
+  uploadAction("submit");
+  if (uploadButton) uploadButton.disabled = true;
+  uploadProgressVisible(false);
+  if (uploadProgress) uploadProgress.value = 0;
   if (uploadStatus) uploadStatus.hidden = true;
   if (uploadFile) uploadFile.value = "";
   if (uploadRights) uploadRights.checked = false;
@@ -269,26 +291,49 @@ async function trackUploadStatus(origin: string, trackId: string): Promise<"none
 }
 
 addTrackButton?.addEventListener("click", async () => {
-  if (incidentStatus.active() || !uploadPanel || uploading || opening) return;
+  if (incidentStatus.active() || !uploadPanel || opening) return;
   if (!uploadPanel.hidden) {
-    // Query first: a click immediately after a song switch must open the
-    // new song, even before the next one-second status poll.
-    opening = true;
-    try {
-      const current = await send<ExtensionState>({ type: COMMANDS.getStatus });
-      opening = false;
-      render(current);
-    } catch (error) {
-      opening = false;
-      resetUploadPanel();
-      uploadMessage(contributionError(error), "error");
-      return;
-    }
-    if (!uploadPanel.hidden && (uploadStatus?.hidden || uploadStatus?.dataset.kind !== "error")) {
-      transitionUploadPanel(() => { uploadPanel.hidden = true; });
+    // The in-flight POST belongs to the offscreen worker, not the popup.
+    // Closing its UI must be immediate and must never cancel the request.
+    if (uploading || backgroundUploadMode) {
+      uploadManuallyCollapsed = true;
+      uploadPanel.hidden = true;
       addTrackButton.setAttribute("aria-expanded", "false");
       return;
     }
+    // A song may have changed before the next poll. Preserve the existing
+    // one-click switch to the new song, while a normal Close stays closed.
+    opening = true;
+    try {
+      const current = await send<ExtensionState>({type: COMMANDS.getStatus});
+      // Rendering after opening=false permits retirement of the *previous*
+      // song's form before we decide whether to close or open the new song.
+      opening = false;
+      render(current);
+    } catch (_error) {
+      opening = false;
+      uploadManuallyCollapsed = true;
+      resetUploadPanel();
+      uploadPanel.hidden = true;
+      addTrackButton.setAttribute("aria-expanded", "false");
+      return;
+    }
+    opening = false;
+    if (!uploadPanel.hidden && (uploadStatus?.hidden || uploadStatus?.dataset.kind !== "error")) {
+      uploadManuallyCollapsed = true;
+      uploadPanel.hidden = true;
+      addTrackButton.setAttribute("aria-expanded", "false");
+      return;
+    }
+  }
+  uploadManuallyCollapsed = false;
+  // Reopen the same operation without resetting its request ID/file.
+  // A user may collapse the panel while the hidden offscreen POST runs.
+  if (uploading || backgroundUploadMode) {
+    uploadPanel.hidden = false;
+    addTrackButton.setAttribute("aria-expanded", "true");
+    await syncBackgroundUpload();
+    return;
   }
   opening = true;
   addTrackButton.disabled = true;
@@ -362,7 +407,8 @@ uploadFile?.addEventListener("cancel", () => {
   setPickerState();
   if (!uploadFile.files?.[0]) {
     uploadRequestId = null;
-    if (uploadProgress) { uploadProgress.hidden = true; uploadProgress.value = 0; }
+    uploadProgressVisible(false);
+    if (uploadProgress) uploadProgress.value = 0;
     uploadMessage("");
     void checkFileDuration();
   }
@@ -396,14 +442,16 @@ uploadFilePicker?.addEventListener("drop", (event) => {
   void checkFileDuration();
 });
 
-uploadCancel?.addEventListener("click", () => {
+uploadButton?.addEventListener("click", (event) => {
+  if (uploadButton?.dataset.uploadMode !== "cancel") return;
+  event.preventDefault();
   if (!uploading || (!activeUploadXHR && !backgroundUploadMode) || !uploadConfirm) return;
   uploadConfirm.hidden = false;
   uploadContinue?.focus();
 });
 uploadContinue?.addEventListener("click", () => {
   if (uploadConfirm) uploadConfirm.hidden = true;
-  uploadCancel?.focus();
+  uploadButton?.focus();
 });
 uploadStop?.addEventListener("click", () => {
   if (!uploading || (!activeUploadXHR && !backgroundUploadMode)) return;
@@ -439,7 +487,7 @@ uploadForm?.addEventListener("submit", async (event) => {
   uploading = true;
   manualUploadCancel = false;
   if(uploadFile)uploadFile.disabled=true;
-  if (uploadButton) { uploadButton.disabled = true; uploadButton.textContent = "Отправляем…"; }
+  uploadAction("preparing");
   uploadMessage("Проверяем трек и отправляем файл…", "checking");
 
   let origin: string;
@@ -497,8 +545,9 @@ uploadForm?.addEventListener("submit", async (event) => {
       }
       backgroundUploadMode = true;
       transferStarted = true;
-      if (uploadCancel) uploadCancel.hidden = false;
-      if (uploadProgress) { uploadProgress.hidden = false; uploadProgress.value = 0; }
+      uploadAction("cancel");
+      uploadProgressVisible(true);
+      if (uploadProgress) uploadProgress.value = 0;
       uploadMessage("Загрузка продолжается в фоне. Можно закрыть окно CELIKOM.", "checking");
       void syncBackgroundUpload();
       return;
@@ -554,13 +603,14 @@ uploadForm?.addEventListener("submit", async (event) => {
     xhr.addEventListener("error", () => { failure = "network_error"; });
     xhr.addEventListener("timeout", () => { failure = "timeout"; });
     xhr.addEventListener("abort", () => { failure ||= "interrupted"; });
-    if (uploadProgress) { uploadProgress.hidden = false; uploadProgress.value = 0; }
+    uploadProgressVisible(true);
+    if (uploadProgress) uploadProgress.value = 0;
     uploadMessage("Подключаемся и загружаем аудиофайл…", "checking");
     void uploadJournal.record(attemptId, "connecting");
     xhr.addEventListener("loadend", () => {
       clearInterval(watchdog);
       activeUploadXHR = null;
-      if (uploadCancel) uploadCancel.hidden = true;
+      uploadProgressVisible(false);
       if (uploadConfirm) uploadConfirm.hidden = true;
       uploading = false;
       if(uploadFile)uploadFile.disabled=false;
@@ -605,14 +655,14 @@ uploadForm?.addEventListener("submit", async (event) => {
         : xhr.status >= 500 ? "Сервер временно недоступен. Повторите позже."
         : errors[code] || "Загрузка не завершена. Попробуйте ещё раз.";
       uploadMessage(guidance + " Код: " + attemptId.slice(0, 8).toUpperCase(), "error");
-      if (uploadButton) { uploadButton.textContent = "Повторить отправку"; uploadButton.disabled = false; }
+      uploadAction("retry");
     });
     activeUploadXHR = xhr;
-    if (uploadCancel) uploadCancel.hidden = false;
+    uploadAction("cancel");
     try { xhr.send(data); } catch (error) {
       clearInterval(watchdog);
       activeUploadXHR = null;
-      if (uploadCancel) uploadCancel.hidden = true;
+      uploadProgressVisible(false);
       throw error;
     }
     transferStarted = true;
@@ -626,13 +676,12 @@ uploadForm?.addEventListener("submit", async (event) => {
     // after xhr.send(). An early exit must never leave the UI stuck.
     if (!transferStarted) {
       activeUploadXHR = null;
-      if (uploadCancel) uploadCancel.hidden = true;
+      uploadProgressVisible(false);
       if (uploadConfirm) uploadConfirm.hidden = true;
       uploading = false;
       if(uploadFile)uploadFile.disabled=false;
       if (uploadButton && uploadForm && !uploadForm.hidden) {
-        uploadButton.disabled = durationBlocked;
-        uploadButton.textContent = "Отправить на проверку";
+        uploadAction("submit");
       }
     }
   }
@@ -743,6 +792,10 @@ async function syncBackgroundUpload(): Promise<void> {
   if (!active && !["completed","duplicate","failed","cancelled"].includes(saved.phase)) return;
   // Do not overwrite an unrelated newly selected file with an older result.
   if (!active && !backgroundUploadMode && uploadFile?.files?.length) return;
+  // Neither a completed upload nor a periodic poll can reopen a panel the
+  // user closed. A completed attempt in a fresh popup is shown on demand by
+  // the server status check when "Загрузить версию" is clicked.
+  if (uploadManuallyCollapsed || (uploadPanel?.hidden && !active && !backgroundUploadMode)) return;
   pinnedTrack = target;
   uploadRequestId = saved.id;
   backgroundUploadMode = active;
@@ -750,22 +803,17 @@ async function syncBackgroundUpload(): Promise<void> {
   if(uploadPanel) uploadPanel.hidden = false;
   if(addTrackButton) addTrackButton.setAttribute("aria-expanded","true");
   if(uploadTrack) uploadTrack.value = target.id;
-  if(uploadProgress) {
-    uploadProgress.hidden = !active;
-    uploadProgress.value = Number.isInteger(saved.percent) ? saved.percent : 0;
-  }
-  if(uploadCancel) uploadCancel.hidden = !active;
+  uploadProgressVisible(active);
+  if(uploadProgress) uploadProgress.value = Number.isInteger(saved.percent) ? saved.percent : 0;
   if(uploadConfirm && !active) uploadConfirm.hidden = true;
   if(uploadFile) uploadFile.disabled = active;
   // Never collapse the form during the transfer or when it finishes:
   // the small Chrome popup must keep its layout and scroll position.
   if(uploadResult) uploadResult.hidden = true;
   if(uploadForm) uploadForm.hidden = false;
-  if(uploadButton) {
-    uploadButton.disabled = active || ["completed","duplicate"].includes(saved.phase);
-    uploadButton.textContent = active ? "Отправляем…"
-      : ["completed","duplicate"].includes(saved.phase) ? "Отправлено на проверку" : "Повторить отправку";
-  }
+  uploadAction(active ? "cancel" :
+    ["completed","duplicate"].includes(saved.phase) ? "complete" :
+    ["failed","cancelled"].includes(saved.phase) ? "retry" : "submit");
   if(saved.phase==="completed" || saved.phase==="duplicate") {
     uploadMessage(saved.phase==="completed"?"Аудиофайл получен CELIKOM. Версия отправлена на модерацию."
       :"Версия уже есть на сервере. Повторная отправка не нужна.","success");

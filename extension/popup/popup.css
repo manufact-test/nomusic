@@ -436,36 +436,40 @@ html{scrollbar-width:thin;scrollbar-color:#45565f transparent}
 .celikom-confirm .danger:hover { background: #693438; }
 @media (prefers-reduced-motion: reduce) { .celikom-confirm { transition: none; } }
 
-/* Upload controls occupy the same area before/during/after submission.
-   Chrome's action popup must never change its scroll position on progress. */
+/* A single full-width primary action changes to Cancel only during upload.
+   The progress row collapses completely when no transfer is in progress. */
+.upload-panel [data-upload-submit][data-upload-mode="cancel"] {
+  color: #fff2f0;
+  background: #ba3f45;
+  border-color: #db6266;
+  font-weight: 700;
+  opacity: 1;
+}
+.upload-panel [data-upload-submit][data-upload-mode="cancel"]:hover {
+  background: #c74b51;
+  border-color: #ec7d81;
+}
+.upload-panel [data-upload-submit][data-upload-mode="cancel"]:focus-visible {
+  outline: 2px solid #ffa1a3; outline-offset: 2px;
+}
 .upload-transfer-slot {
-  height: 82px;
-  min-height: 82px;
+  display: grid;
   min-width: 0;
-  display: grid;
-  grid-template-rows: 36px 1fr;
-  gap: 5px;
-  overflow: hidden;
+  gap: 0;
+  padding: 0;
+  margin: 0;
 }
-.upload-transfer-row {
-  display: grid;
-  grid-template-columns: minmax(0,1fr) auto;
-  align-items: center;
-  min-height: 36px;
-  gap: 8px;
+.upload-transfer-slot[hidden] { display: none !important; }
+.upload-transfer-slot progress {
+  display: block;
+  width: 100%;
+  height: 9px;
+  margin: 2px 0 0;
+  accent-color: #66e0bf;
 }
-.upload-transfer-row progress { height: 7px; min-width: 0; }
-.upload-transfer-row .upload-cancel {
-  min-height: 32px; margin: 0; padding: 0 10px;
-  font-size: 11px; white-space: nowrap;
+.upload-transfer-slot progress[hidden] { display: none !important; }
+.upload-panel [data-upload-status] { margin: 0; }
+.upload-panel [data-upload-status][data-kind="success"] { color: #9ceacb; }
+@media (prefers-reduced-motion: reduce) {
+  .upload-panel [data-upload-submit] { transition: none; }
 }
-.upload-transfer-slot .upload-feedback {
-  margin: 0; min-height: 0; max-height: 41px; overflow-y: auto;
-  font-size: 11px; line-height: 1.4;
-  scrollbar-width: thin; scrollbar-color: #3d6460 transparent;
-}
-.upload-transfer-slot .upload-feedback[data-kind="error"],
-.upload-transfer-slot .upload-feedback[data-kind="checking"] {
-  padding: 3px 7px; border-radius: 6px;
-}
-.upload-transfer-slot .upload-feedback[data-kind="success"] {color:#88ebc4;}
