@@ -159,6 +159,10 @@ jobs:
         env:
           CELIKOM_SITE_SANDBOX_RESTORE: '1'
         run: php website/tests/Stage10FullDbBackupTest.php
+      - name: Stage 10 joint encrypted database and private-media recovery drill
+        env:
+          CELIKOM_SITE_SANDBOX_RESTORE: '1'
+        run: php website/tests/Stage10JointRecoveryTest.php
       - name: Stage 9 private popup preview assignment never changes live revisions
         run: php website/tests/Stage9MediaSelectionTest.php
       - name: Stage 9 private metadata-stripped popup derivative and negative safety cases
