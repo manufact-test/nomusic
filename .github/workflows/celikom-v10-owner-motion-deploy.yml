@@ -1,0 +1,107 @@
+name: CELIKOM owner-approved v10 interactions staging installation
+on:
+  push:
+    branches: [feature/api-range]
+    paths:
+      - .github/workflows/celikom-v10-owner-motion-deploy.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: celikom-website-staging
+  cancel-in-progress: false
+jobs:
+  install:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          tools: none
+          coverage: none
+      - name: Validate exact approved v10 before touching Hostinger
+        shell: bash
+        run: |
+          set -euo pipefail
+          php website/tests/CmsV10OwnerMotionTest.php
+          node --check website/public/assets/js/v10/owner-v10-motion.js
+          test ! -e website/RELEASE_READY
+          grep -Fq '&& false' .github/workflows/deploy-celikom-website.yml
+      - name: Stage five reviewed PHP/CSS/JS files and retain one-click rollback
+        shell: bash
+        env:
+          SSH_KEY: ${{ secrets.CELIKOM_HOSTINGER_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.CELIKOM_HOSTINGER_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REPOSITORY" = manufact-test/nomusic
+          test "$GITHUB_REF" = refs/heads/feature/api-range
+          umask 077
+          temp=$(mktemp -d)
+          trap 'rm -rf "$temp"' EXIT
+          printf '%s\n' "$SSH_KEY" > "$temp/id"
+          printf '%s\n' "$KNOWN_HOSTS" > "$temp/known"
+          chmod 600 "$temp/id" "$temp/known"
+          so=(-T -p 65002 -i "$temp/id" -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$temp/known")
+          sc=(-P 65002 -i "$temp/id" -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$temp/known")
+          host=u235811320@92.113.19.189
+          root=/home/u235811320/domains/lemonchiffon-narwhal-791953.hostingersite.com
+          stage="$root/celikom-private/v10-motion-$GITHUB_SHA"
+          ssh "${so[@]}" "$host" "test -f '$root/celikom-private/app/staging-approved.php' && test ! -e '$root/celikom-private/app/release-approved.php' && test -f '$root/public_html/index.php' && test -f '$root/public_html/admin/index.php' && test ! -e '$stage' && mkdir -m 700 '$stage'"
+          scp "${sc[@]}" website/app/src/CmsV10OwnerMotion.php "$host:$stage/CmsV10OwnerMotion.php"
+          scp "${sc[@]}" website/public/index.php "$host:$stage/index.php"
+          scp "${sc[@]}" website/public/admin/index.php "$host:$stage/admin-index.php"
+          scp "${sc[@]}" website/public/assets/css/v10/owner-v10-motion.css "$host:$stage/owner-v10-motion.css"
+          scp "${sc[@]}" website/public/assets/js/v10/owner-v10-motion.js "$host:$stage/owner-v10-motion.js"
+          ssh "${so[@]}" "$host" "bash -se" <<REMOTE
+          set -euo pipefail
+          root='$root'
+          stage='$stage'
+          backup="\$root/celikom-private/v10-motion-backup-$GITHUB_SHA"
+          test -f "\$root/celikom-private/app/staging-approved.php"
+          test ! -e "\$backup"
+          /opt/alt/php83/usr/bin/php -l "\$stage/CmsV10OwnerMotion.php"
+          /opt/alt/php83/usr/bin/php -l "\$stage/index.php"
+          /opt/alt/php83/usr/bin/php -l "\$stage/admin-index.php"
+          mkdir -m 700 "\$backup"
+          cp -p "\$root/public_html/index.php" "\$backup/index.php"
+          cp -p "\$root/public_html/admin/index.php" "\$backup/admin-index.php"
+          revert() {
+            cp -p "\$backup/index.php" "\$root/public_html/index.php"
+            cp -p "\$backup/admin-index.php" "\$root/public_html/admin/index.php"
+            echo 'ROLLED_BACK_SITE_ENTRYPOINTS'
+          }
+          trap revert ERR
+          cp -p "\$stage/CmsV10OwnerMotion.php" "\$root/celikom-private/app/src/CmsV10OwnerMotion.php"
+          cp -p "\$stage/owner-v10-motion.css" "\$root/public_html/assets/css/v10/owner-v10-motion.css"
+          cp -p "\$stage/owner-v10-motion.js" "\$root/public_html/assets/js/v10/owner-v10-motion.js"
+          cp -p "\$stage/index.php" "\$root/public_html/index.php"
+          cp -p "\$stage/admin-index.php" "\$root/public_html/admin/index.php"
+          secret="\$root/celikom-private/staging-owner-credentials.txt"
+          pass=\$(sed -n 's/^HTTP Basic password: //p' "\$secret")
+          test -n "\$pass"
+          base='https://lemonchiffon-narwhal-791953.hostingersite.com'
+          check=\$(mktemp)
+          trap 'rm -f "\$check"' EXIT
+          good=false
+          for n in 1 2 3 4 5; do
+            code=\$(curl -sS --max-time 25 -u "review:\$pass" -o "\$check" -w '%{http_code}' "\$base/?v10verify=$GITHUB_SHA-\$n")
+            if test "\$code" = 200 &&
+               grep -q 'owner-v10-motion.css' "\$check" &&
+               grep -q 'class="demo-stage"' "\$check" &&
+               grep -q 'class="reward-illustration"' "\$check" &&
+               ! grep -q 'owner-art-core' "\$check"; then good=true;break;fi
+            sleep 3
+          done
+          if test "\$good" != true; then revert; echo 'OWNER_MOTION_VERIFICATION_FAILED';exit 1;fi
+          trap - ERR
+          echo 'OWNER_V10_MOTION_LIVE: approved original sections retained'
+          REMOTE
+          a=$(curl -sS --max-time 20 -o /dev/null -w '%{http_code}' 'https://lemonchiffon-narwhal-791953.hostingersite.com/?check=closed')
+          b=$(curl -sS --max-time 20 -o /dev/null -w '%{http_code}' 'https://lemonchiffon-narwhal-791953.hostingersite.com/admin/?check=closed')
+          test "$a" = 401 && test "$b" = 401
+          echo 'STAGING_REMAINS_PASSWORD_PROTECTED'
