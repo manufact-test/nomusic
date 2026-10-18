@@ -1,5 +1,5 @@
 name: CELIKOM owner-approved v10 interactions staging installation
-# Owner review v5.8: only FAQ padding cleanup and source v10 resting spacing; unchanged header/other visuals.
+# Owner review v5.10: continuous FAQ opening and globally exclusive questions; no v10 redesign.
 on:
   push:
     branches: [feature/api-range]
@@ -109,8 +109,10 @@ jobs:
                grep -Fq 'class="celikom-info-dot"' "\$check" &&
                ! grep -Fq 'class="familiar-orbit"><img' "\$check" &&
                grep -Fq '<circle cx="32" cy="32" r="21"></circle>' "\$check" &&
-               grep -Fq 'owner-v10-motion.js?v=58' "\$check" &&
-               grep -Fq 'owner-v10-motion.css?v=58' "\$check" &&
+               grep -Fq 'owner-v10-motion.js?v=510' "\$check" &&
+               grep -Fq 'owner-v10-motion.css?v=510' "\$check" &&
+               grep -Fq 'const box=state.answer.getBoundingClientRect().height' "\$root/public_html/assets/js/v10/owner-v10-motion.js" &&
+               grep -Fq 'queued=detail;' "\$root/public_html/assets/js/v10/owner-v10-motion.js" &&
                grep -Fq "['height','padding-bottom','overflow','opacity']" "\$root/public_html/assets/js/v10/owner-v10-motion.js" &&
                grep -Fq 'padding-bottom:23px' "\$root/public_html/assets/css/v10/owner-v10-motion.css" &&
                ! grep -q 'owner-art-core' "\$check"; then good=true;break;fi
