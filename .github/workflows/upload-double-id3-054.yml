@@ -54,5 +54,6 @@ jobs:
           path: |
             extension/dist/celikom-extension-0.4.54.zip
             extension/dist/celikom-extension-0.4.54.zip.sha256
+            server/src/Application/Mp3Inspector.php
           if-no-files-found: error
           retention-days: 14
