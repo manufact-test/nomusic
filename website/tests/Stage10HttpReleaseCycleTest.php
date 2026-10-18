@@ -164,6 +164,21 @@ try {
     httpCycleAssert(CmsSandboxGeneration::currentRecord(
         $config,$generations,$public,$lease
     )['generation']==='gen-baseline','early exception changed active pointer');
+    httpCycleReject(fn()=>CmsSandboxReleaseCycle::confirm(
+        $config,$generations,$public,$lease
+    ),'unfinished release confirmed');
+    $beforeTamper=(string)file_get_contents($journal);
+    $malicious=json_decode($beforeTamper,true,16,JSON_THROW_ON_ERROR);
+    $malicious['candidate']='gen-baseline';
+    file_put_contents($journal,json_encode($malicious,JSON_THROW_ON_ERROR));
+    httpCycleReject(fn()=>CmsSandboxReleaseCycle::reconcile(
+        $config,$generations,$public,$lease
+    ),'tampered recovery journal was followed');
+    httpCycleAssert(CmsSandboxGeneration::currentRecord(
+        $config,$generations,$public,$lease
+    )['generation']==='gen-baseline','tampered journal changed MySQL selection');
+    file_put_contents($journal,$beforeTamper);
+    chmod($journal,0600);
     CmsSandboxReleaseCycle::reconcile($config,$generations,$public,$lease);
     httpCycleAssert(!file_exists($journal),'prepared release journal not reconciled');
     $lease->release();
@@ -196,6 +211,29 @@ try {
     httpCycleRead($port,'gen-baseline',1,$hash);
     file_put_contents($candidateMedia,$saved);
     chmod($candidateMedia,0600);
+
+    // The journal itself has already reached 'activated', but its worker
+    // crashes before returning to the caller. Still require explicit owner
+    // confirmation; unattended restart rolls back this unconfirmed release.
+    $lease=CmsWriteQuiescence::snapshot($public);
+    CmsSandboxReleaseCycle::prepare($config,$generations,$public,$candidate,$lease);
+    httpCycleReject(fn()=>CmsSandboxReleaseCycle::activate(
+        $config,$generations,$public,$lease,
+        static function(string $stage):void {
+            if ($stage==='after-journal-commit') {
+                throw new RuntimeException('Crash after release journal phase write');
+            }
+        }),
+        'fault after journal activation');
+    $confirmedPhase=json_decode((string)file_get_contents($journal),true,16,JSON_THROW_ON_ERROR);
+    httpCycleAssert($confirmedPhase['phase']==='activated',
+        'journal phase did not survive committed release switch');
+    $lease->release();
+    httpCycleRead($port,$candidate,2,$hash);
+    $lease=CmsWriteQuiescence::snapshot($public);
+    CmsSandboxReleaseCycle::reconcile($config,$generations,$public,$lease);
+    $lease->release();
+    httpCycleRead($port,'gen-baseline',1,$hash);
 
     // A healthy acknowledged release can be confirmed; a confirmed pointer
     // stays current if the intent file is removed. Rollback still uses v1.
