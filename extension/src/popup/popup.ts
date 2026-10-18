@@ -292,13 +292,35 @@ async function trackUploadStatus(origin: string, trackId: string): Promise<"none
 
 addTrackButton?.addEventListener("click", async () => {
   if (incidentStatus.active() || !uploadPanel || opening) return;
-  // Close immediately, regardless of success/error/upload state. No network
-  // request, validation reset, or async completion is allowed to reopen it.
   if (!uploadPanel.hidden) {
-    uploadManuallyCollapsed = true;
-    uploadPanel.hidden = true;
-    addTrackButton.setAttribute("aria-expanded", "false");
-    return;
+    // The in-flight POST belongs to the offscreen worker, not the popup.
+    // Closing its UI must be immediate and must never cancel the request.
+    if (uploading || backgroundUploadMode) {
+      uploadManuallyCollapsed = true;
+      uploadPanel.hidden = true;
+      addTrackButton.setAttribute("aria-expanded", "false");
+      return;
+    }
+    // A song may have changed before the next poll. Preserve the existing
+    // one-click switch to the new song, while a normal Close stays closed.
+    opening = true;
+    try {
+      const current = await send<ExtensionState>({type: COMMANDS.getStatus});
+      render(current);
+    } catch (_error) {
+      uploadManuallyCollapsed = true;
+      uploadPanel.hidden = true;
+      addTrackButton.setAttribute("aria-expanded", "false");
+      opening = false;
+      return;
+    }
+    opening = false;
+    if (!uploadPanel.hidden && (uploadStatus?.hidden || uploadStatus?.dataset.kind !== "error")) {
+      uploadManuallyCollapsed = true;
+      uploadPanel.hidden = true;
+      addTrackButton.setAttribute("aria-expanded", "false");
+      return;
+    }
   }
   uploadManuallyCollapsed = false;
   // Reopen the same operation without resetting its request ID/file.
