@@ -75,7 +75,12 @@ final class CmsSandboxGeneration
             if (!chmod($tmp, 0600) || fwrite($fp, $raw) !== strlen($raw) || !fflush($fp)) {
                 throw new RuntimeException('Cannot persist release state');
             }
-        } finally { fclose($fp); }
+        } catch (\\Throwable $error) {
+            fclose($fp);
+            @unlink($tmp);
+            throw $error;
+        }
+        fclose($fp);
         if (!rename($tmp, $path)) {
             @unlink($tmp);
             throw new RuntimeException('Cannot atomically commit release state');
@@ -174,9 +179,14 @@ final class CmsSandboxGeneration
         $record=['format'=>self::FORMAT,'generation'=>'gen-baseline',
             'database'=>'celikom_site_test','schema_version'=>1];
         self::stageFiles($config,$dir,$public,$record,$source);
-        $result=self::health($config,$dir,$public,$record);
-        self::writeRecord($dir.'/'.self::ACTIVE,$record,false);
-        return $result;
+        try {
+            $result=self::health($config,$dir,$public,$record);
+            self::writeRecord($dir.'/'.self::ACTIVE,$record,false);
+            return $result;
+        } catch (\\Throwable $error) {
+            self::deleteStage($dir,$record['generation']);
+            throw $error;
+        }
     }
 
     /** Copy bytes into an isolated immutable folder, verify against SQL. */
