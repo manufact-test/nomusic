@@ -1,5 +1,5 @@
 name: CELIKOM owner-approved v10 interactions staging installation
-# Re-apply minimal PHP files to serve exact owner-approved media from private CMS.
+# Review round: unique header destinations, official C icon, round check and seamless FAQ.
 on:
   push:
     branches: [feature/api-range]
@@ -95,6 +95,12 @@ jobs:
                grep -q 'owner-v10-motion.css' "\$check" &&
                grep -q 'class="demo-stage"' "\$check" &&
                grep -q 'class="reward-illustration"' "\$check" &&
+               grep -Fq 'href="#contribute">Участие</a>' "\$check" &&
+               grep -Fq 'href="#faq">Вопросы</a>' "\$check" &&
+               grep -Fq 'class="header-chip" href="#install">Установка' "\$check" &&
+               grep -Fq 'class="familiar-orbit"><img src="/assets/images/celikom-mark.svg"' "\$check" &&
+               grep -Fq '<circle cx="32" cy="32" r="21"></circle>' "\$check" &&
+               grep -q 'owner-v10-motion.js' "\$check" &&
                ! grep -q 'owner-art-core' "\$check"; then good=true;break;fi
             sleep 3
           done
