@@ -55,6 +55,32 @@ with tempfile.TemporaryDirectory(prefix='celikom-workspace-ui-') as storage:
                 assert page.locator('#faq-editor details.faq-entry:not([hidden])').count()<28
                 page.locator('.cms-side-menu a[data-cms-link="media-editor"]').click()
                 assert page.locator('#media-editor').is_visible()
+                if width==320:
+                    import base64
+                    png=base64.b64decode(
+                        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+pS1kAAAAASUVORK5CYII=')
+                    upload=page.locator('#media-editor form[enctype="multipart/form-data"]')
+                    upload.locator('input[type="file"]').set_input_files({
+                        'name':'cms-owner-demo.png','mimeType':'image/png','buffer':png})
+                    upload.locator('input[name="alt"]').fill('Тест приватного изображения')
+                    upload.get_by_role('button',name='Сохранить приватно').click()
+                    assert page.get_by_text('Изображение сохранено приватно.',exact=False).is_visible()
+                    sel=page.locator('#media-pending-id')
+                    asset=sel.locator('option').nth(1).get_attribute('value')
+                    assert asset and asset.isdecimal()
+                    sel.select_option(asset)
+                    page.get_by_role('button',name='Сохранить выбор только для предпросмотра').click()
+                    assert page.get_by_text('Для закрытого предпросмотра выбрано изображение.',exact=False).is_visible()
+                    preview=page.goto(f'http://127.0.0.1:{port}/admin/?view=preview')
+                    assert preview.status==200
+                    img=page.locator('img[data-managed-media="celikom.popup.approved"]')
+                    assert img.get_attribute('src')==f'/admin/?view=media&id={asset}'
+                    page.goto(f'http://127.0.0.1:{port}/admin/')
+                    page.locator('.cms-side-menu a[data-cms-link="media-editor"]').click()
+                    page.locator('#media-pending-id').select_option('original')
+                    page.get_by_role('button',name='Сохранить выбор только для предпросмотра').click()
+                    assert page.get_by_text('Для закрытого предпросмотра выбрано изображение.',exact=False).is_visible()
+                    print('CELIKOM admin: private upload, preview choice, original restore PASS',flush=True)
                 dims=page.evaluate('''()=>({
                   doc:document.documentElement.scrollWidth,
                   body:document.body.scrollWidth,
