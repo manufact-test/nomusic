@@ -6,6 +6,7 @@ import { createActionIcon } from "./action-icon.js";
 import { createMusicTabs } from "./music-tabs.js";
 import { registerTabRecovery } from "./tab-recovery.js";
 import { createUploadBroker } from "./upload-broker.js";
+import { createUploadJournal } from "../upload/upload-journal.js";
 
 const VERSION = chrome.runtime.getManifest().version;
 const DEFAULT_STATE: ExtensionState = Object.freeze({
@@ -19,6 +20,9 @@ const userAuth = createAuthBroker(chrome);
 const actionIcon = createActionIcon(chrome);
 const resolveApi = createApiBroker(chrome, { withAccess: userAuth.withEntitledAccess });
 const uploadBroker = createUploadBroker(chrome);
+const uploadJournal = createUploadJournal(chrome.storage.local);
+const UPLOAD_STATE_KEY = "celikom_background_upload_v1";
+let uploadStatusQueue = Promise.resolve();
 let intentGeneration = 0;
 let accessCheck: Promise<string> | null = null;
 let accessValidUntil = 0;
@@ -134,6 +138,35 @@ chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse) =>
     COMMANDS.restoreOriginal, "CELIKOM_ADD_TRACK_OPENED", "CELIKOM_AUTH"].includes(type as string);
   if (popupCommand && !trustedUi) {
     sendResponse({ ok: false, error: "invalid_sender" }); return false;
+  }
+
+  if (type === "CELIKOM_UPLOAD_STATUS") {
+    if (sender?.id !== chrome.runtime.id ||
+        sender?.url !== chrome.runtime.getURL("popup/upload-worker.html")) {
+      sendResponse({ok:false,error:"invalid_sender"}); return false;
+    }
+    const report = message as {id?:unknown;trackId?:unknown;phase?:unknown;percent?:unknown;code?:unknown;sent?:unknown;httpStatus?:unknown};
+    const phases = ["connecting","waiting","transferring","server_wait","completed","duplicate","failed","cancelled"];
+    if (typeof report.id !== "string" ||
+        !/^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(report.id) ||
+        typeof report.trackId !== "string" || !/^[1-9]\d{0,23}$/.test(report.trackId) ||
+        !phases.includes(String(report.phase))) {
+      sendResponse({ok:false,error:"invalid_report"}); return false;
+    }
+    const data = {
+      id: report.id, trackId: report.trackId, phase: String(report.phase),
+      percent: Number.isInteger(report.percent) ? Math.min(100,Math.max(0,Number(report.percent))) : 0,
+      code: typeof report.code === "string" && /^[a-z0-9_]{2,40}$/.test(report.code) ? report.code : "",
+      at: Date.now()
+    };
+    uploadStatusQueue = uploadStatusQueue.catch(()=>{}).then(async()=>{
+      await chrome.storage.local.set({[UPLOAD_STATE_KEY]:data});
+      await uploadJournal.record(data.id,data.phase,{trackId:data.trackId,percent:data.percent,
+        code:data.code,httpStatus:Number(report.httpStatus)||0,
+        sent:Number.isSafeInteger(report.sent)?Number(report.sent):0});
+    });
+    void uploadStatusQueue.then(()=>sendResponse({ok:true})).catch(()=>sendResponse({ok:false,error:"upload_journal_unavailable"}));
+    return true;
   }
 
   if (type === "CELIKOM_UPLOAD_BEGIN" || type === "CELIKOM_UPLOAD_CANCEL") {
