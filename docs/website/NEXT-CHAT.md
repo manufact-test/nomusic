@@ -4,7 +4,7 @@
 
 ## v4.3 — АКТУАЛЬНЫЙ STAGE 10 CHECKPOINT
 
-**Проект:** manuf​act-test/nomusic (без скрытого пробела: `manufact-test/nomusic`), ветка `feature/api-range`; сайт `website/`, документы `docs/website/`. **Последний успешно проверенный код до сохранения документов:** `e126d0b178099699df4d3bb274352e555b230360`, [Website CI 39118799310 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/39118799310), [общая CI 39118799222 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/39118799222). **HEAD после документационных коммитов обязательно перепроверять!** PR #6 оставлен открытым, не сливать.
+**Проект:** `manufact-test/nomusic`, ветка `feature/api-range`; сайт `website/`, документы `docs/website/`. **Последний успешно проверенный код до сохранения документов:** `e126d0b178099699df4d3bb274352e555b230360`, [Website CI 39118799310 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/39118799310), [общая CI 39118799222 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/39118799222). **HEAD после документационных коммитов обязательно перепроверять!** PR #6 оставлен открытым, не сливать.
 
 **Прочесть сначала:** [подробный checkpoint v4.3](checkpoints/2026-10-18-STAGE10-WRITE-QUIESCENCE.md), затем [checkpoint v4.2](checkpoints/2026-10-18-STAGE10-CONSISTENT-RELEASE-MODEL.md), MASTER-TZ.md, ROADMAP.md, актуальный код `website/`, текущую CI.
 
