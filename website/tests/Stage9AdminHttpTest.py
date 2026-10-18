@@ -148,7 +148,7 @@ try:
     status,editor,_=request("GET","/admin/")
     assert status==200 and 'id="faq-editor"' in editor
     assert 'name="faq_id" value="faq-question-27"' in editor
-    assert "защищённый текст" in editor
+    assert "только просмотр" in editor
     faq_version=hidden(editor,"version")
     status,_,headers=request("POST","/admin/",{
         "action":"faq_create","csrf":csrf,"version":faq_version,
@@ -215,9 +215,9 @@ try:
     assert status==303 and "saved=media" in location,(status,body[:500],location)
     status,editor,_=request("GET","/admin/?saved=media")
     assert "Тестовая картинка" in editor and "safe.png" in editor
-    assert "На сайте оно пока не используется" in editor
+    assert "Изображение добавлено в медиатеку" in editor
     assert 'class="section-editor"' in editor
-    assert "Публикации и откат" in editor and "История редакций" in editor
+    assert "Публикации и откат" in editor and "История версий" in editor
     assert 'view=media&amp;id=' in editor
     assert editor.count('class="section-editor"') >= 10
     # The private image is available only to the authenticated editor:
@@ -240,7 +240,7 @@ try:
     # Publication/restore require CSRF, explicit consent and fresh version.
     status,editor,_=request("GET","/admin/")
     version=hidden(editor,"version")
-    assert 'id="revision-editor"' in editor and "Публикация и история" in editor
+    assert 'id="revision-editor"' in editor and "Публикации" in editor
     status,rejected,_=request("POST","/admin/",{
         "action":"publish","csrf":csrf,"version":version,"note":"Без согласия"
     })
