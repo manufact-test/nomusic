@@ -159,6 +159,7 @@ def main():
         env = dict(os.environ)
         env['CELIKOM_LOCAL_ADMIN'] = '1'
         env['CELIKOM_SITE_MEDIA_DIR'] = storage
+        env['CELIKOM_SITE_WRITE_GATE_FILE'] = storage+'/.celikom-cms-writes.lock'
         server = subprocess.Popen(['php', '-S', f'127.0.0.1:{port}', '-t', str(ROOT/'public')], env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         try:
             time.sleep(0.5)
