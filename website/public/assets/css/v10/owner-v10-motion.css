@@ -32,6 +32,16 @@ body .closing::before{
 /* Height animation is managed by JavaScript. */
 #faq .faq-item[open] .answer{animation:none!important}
 #faq .faq-item .answer{overflow:hidden}
+/* Keep the original familiar-player circle, use its existing CELIKOM mark. */
+.familiar-orbit img{
+ width:80px;height:80px;display:block;object-fit:contain;border-radius:18px
+}
+@media(max-width:540px){
+ .familiar-orbit img{width:56px;height:56px;border-radius:13px}
+}
+/* Animate the entire FAQ card (including bottom spacing), not just its text.
+   This eliminates the two-stage closing caused by snapping the native details. */
+#faq .faq-item.celikom-faq-animating{overflow:hidden}
 /* Progressive enhancement: no JS, no hidden content. */
 @media(prefers-reduced-motion:no-preference){
  .celikom-reveal{
