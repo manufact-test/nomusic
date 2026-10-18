@@ -27,8 +27,12 @@ if ($localPreview) {
 
 // Production always requires an approved CMS and protected release state.
 $approved = !$localPreview
-    && is_file($privateApp . '/release-approved.php')
+    && is_file($privateApp . '/bootstrap.php')
     && is_file(__DIR__ . '/admin/index.php');
+if ($approved) {
+    require_once $privateApp . '/bootstrap.php';
+    $approved = \Celikom\Website\CmsReleaseGate::approved($privateApp);
+}
 
 if (!$localPreview && !$approved) {
     http_response_code(503);
