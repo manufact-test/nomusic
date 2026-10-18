@@ -46,6 +46,46 @@ if (!$localPreview && !$approved) {
     exit;
 }
 
+// Exact approved v10 popup, served only within password-protected staging.
+// The original screenshot stays in the CMS private media store, never public_html.
+if (!$localPreview && $approved && ($_GET['v10_popup'] ?? '') === 'approved') {
+    try {
+        if (!$stagingApproved || $productionApproved) {
+            throw new RuntimeException('Private v10 media is staging-only');
+        }
+        $storage = getenv('CELIKOM_SITE_MEDIA_DIR');
+        if (!is_string($storage) || $storage === '') {
+            throw new RuntimeException('Private media storage not configured');
+        }
+        $pdo = \Celikom\Website\Database::connect(
+            \Celikom\Website\CmsConfig::databaseSettings()
+        );
+        $query = $pdo->prepare(
+            "SELECT id FROM media_assets WHERE sha256=? AND mime_type='image/png' AND is_active=1 ORDER BY id DESC LIMIT 1"
+        );
+        $query->execute(['0366d4f32b0edf67c2300b372202e5604999fa9e9dbb8f2ebfd295aed6fcf1fc']);
+        $imageId = $query->fetchColumn();
+        if ($imageId === false) {
+            http_response_code(404);
+            exit;
+        }
+        $image = \Celikom\Website\CmsMediaStore::privatePreview(
+            $pdo, (int)$imageId, $storage, __DIR__
+        );
+        if ($image['mime'] !== 'image/png') {
+            throw new RuntimeException('Original popup MIME mismatch');
+        }
+        header('Content-Type: image/png');
+        header('Content-Length: '.strlen($image['body']));
+        header('Cache-Control: private, no-store');
+        echo $image['body'];
+    } catch (\Throwable $error) {
+        error_log('CELIKOM: approved private v10 popup unavailable');
+        http_response_code(404);
+    }
+    exit;
+}
+
 $bootstrap = $privateApp . '/bootstrap.php';
 $template = $privateApp . '/Templates/site-v10.html';
 if (!is_file($bootstrap) || !is_file($template)) {
