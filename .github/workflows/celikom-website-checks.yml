@@ -139,7 +139,7 @@ jobs:
         uses: shivammathur/setup-php@v2
         with:
           php-version: '8.3'
-          extensions: pdo_mysql, gd
+          extensions: pdo_mysql, gd, sodium
           tools: none
           coverage: none
       - name: Assert website CMS login, rate limits and isolated conflict-safe drafts
@@ -155,6 +155,10 @@ jobs:
         env:
           CELIKOM_SITE_SANDBOX_RESTORE: '1'
         run: php website/tests/Stage9BackupRestoreRehearsalTest.php
+      - name: Stage 10 encrypted complete CMS database backup and isolated restore
+        env:
+          CELIKOM_SITE_SANDBOX_RESTORE: '1'
+        run: php website/tests/Stage10FullDbBackupTest.php
       - name: Stage 9 private popup preview assignment never changes live revisions
         run: php website/tests/Stage9MediaSelectionTest.php
       - name: Stage 9 private metadata-stripped popup derivative and negative safety cases
