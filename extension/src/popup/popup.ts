@@ -311,10 +311,11 @@ addTrackButton?.addEventListener("click", async () => {
       opening = false;
       render(current);
     } catch (_error) {
+      opening = false;
       uploadManuallyCollapsed = true;
+      resetUploadPanel();
       uploadPanel.hidden = true;
       addTrackButton.setAttribute("aria-expanded", "false");
-      opening = false;
       return;
     }
     opening = false;
