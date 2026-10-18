@@ -169,7 +169,7 @@ jobs:
         env:
           CELIKOM_SITE_SANDBOX_RESTORE: '1'
         run: php website/tests/Stage10JointRecoveryTest.php
-      - name: Stage 10 coordinated single MVCC snapshot and signed recovery bundle
+      - name: Stage 10 coordinated MVCC snapshot and verified recovery manifest
         env:
           CELIKOM_SITE_SANDBOX_RESTORE: '1'
         run: php website/tests/Stage10ConsistentSnapshotTest.php
