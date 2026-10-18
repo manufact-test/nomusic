@@ -423,3 +423,24 @@ test("Explicit cancel uses CELIKOM's own dialog and records no silent interrupti
     assert.equal(find("[data-upload-submit]").disabled, false);
   } finally { FakeXHR.hold = false; }
 });
+
+test("upload form displays CELIKOM-styled required-field feedback", async () => {
+  const markup = await readFile(new URL("../popup/popup.html", import.meta.url), "utf8");
+  assert.match(markup, /<form data-upload-form hidden novalidate>/);
+  assert.match(markup, /data-upload-confirm/);
+  current = {track: {...selected.track, id: "944530598"}};
+  find("[data-upload-panel]").hidden = true;
+  await find("[data-action='add']").fire("click");
+  const baseline = requests.length;
+  find("[data-upload-file]").files = [];
+  find("[data-upload-rights]").checked = true;
+  await form().fire("submit");
+  assert.match(find("[data-upload-status]").textContent, /Выберите MP3 или M4A/);
+  assert.equal(find("[data-upload-status]").dataset.kind, "error");
+  assert.equal(requests.length, baseline);
+  selection();
+  find("[data-upload-rights]").checked = false;
+  await form().fire("submit");
+  assert.match(find("[data-upload-status]").textContent, /Подтвердите/);
+  assert.equal(requests.length, baseline);
+});
