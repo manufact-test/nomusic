@@ -31,8 +31,12 @@ $approved = !$localPreview
     && is_file(__DIR__ . '/admin/index.php');
 if ($approved) {
     require_once $privateApp . '/bootstrap.php';
-    $approved = \Celikom\Website\CmsReleaseGate::approved($privateApp)
-        || \Celikom\Website\CmsStagingGate::approved($privateApp);
+    $productionApproved = \Celikom\Website\CmsReleaseGate::approved($privateApp);
+    $stagingApproved = \Celikom\Website\CmsStagingGate::approved($privateApp);
+    $approved = $productionApproved || $stagingApproved;
+    if ($stagingApproved && !$productionApproved) {
+        \Celikom\Website\CmsStagingHttpAuth::enforce($privateApp);
+    }
 }
 
 if (!$localPreview && !$approved) {
