@@ -93,5 +93,10 @@ export function initVersionStatus(transport) {
       return cached.status;
     return presenceRead(id);
   };
+  refreshVersion.invalidate = id => {
+    if (id && id !== trackId) return;
+    request++; checkedAt = 0; verifiedAt = 0; cached = null;
+    loading = false; pendingRead = null;
+  };
   return refreshVersion;
 }
