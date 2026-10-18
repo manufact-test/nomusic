@@ -46,6 +46,34 @@ if(smooth()&&'IntersectionObserver'in window){
 // Previously subtracting padding from scrollHeight caused a 23/19px jump.
 const faqRoot=document.getElementById('faq');
 if(faqRoot){
+ // Mobile FAQ: brand-coloured native-independent scrolling indicator.
+ const faqCategories=faqRoot.querySelector('.faq-nav');
+ if(faqCategories){
+  const track=document.createElement('div');
+  track.className='celikom-faq-track';
+  track.setAttribute('aria-hidden','true');
+  const thumb=document.createElement('span');
+  thumb.className='celikom-faq-thumb';
+  track.append(thumb);
+  faqCategories.insertAdjacentElement('afterend',track);
+  const progress=()=>{
+   const all=faqCategories.scrollWidth,visible=faqCategories.clientWidth;
+   const overflow=Math.max(0,all-visible);
+   track.hidden=overflow<2;
+   if(overflow<2)return;
+   const ratio=Math.min(1,visible/all);
+   thumb.style.width=(ratio*100).toFixed(2)+'%';
+   const relative=(faqCategories.scrollLeft/overflow*(1-ratio)/ratio*100);
+   thumb.style.transform='translateX('+relative.toFixed(2)+'%)';
+  };
+  faqCategories.addEventListener('scroll',progress,{passive:true});
+  if('ResizeObserver'in window){
+   const watcher=new ResizeObserver(progress);
+   watcher.observe(faqCategories);
+   for(const button of faqCategories.children)watcher.observe(button)
+  }else window.addEventListener('resize',progress,{passive:true});
+  requestAnimationFrame(progress)
+ }
  const records=new Map();
  const items=[...faqRoot.querySelectorAll('details.faq-item')];
  for(const detail of items){
