@@ -1,3 +1,23 @@
+# CELIKOM website — v5.0 РЕАЛЬНЫЙ ЗАКРЫТЫЙ HOSTINGER STAGING / 18.10.2026
+
+**ЖИВОЙ РЕЗУЛЬТАТ ПОЛУЧЕН.** Первая реальная установка сайта v10 и маленькой PHP/MySQL CMS на Hostinger выполнена по явному разрешению владельца через GitHub Actions. Доступно по HTTPS:
+
+- Сайт: https://lemonchiffon-narwhal-791953.hostingersite.com/
+- Админка: https://lemonchiffon-narwhal-791953.hostingersite.com/admin/
+- Обе PHP-страницы требуют специальный пароль закрытого стенда: **неавторизованные запросы 401**. После Basic входа в CMS есть отдельная авторизация owner.
+- Отдельная MySQL создана владельцем, установщик проверил пустоту, применил `001_website_cms.sql`, создал owner и первую неизменённую опубликованную редакцию v10.
+- Подтверждённая настоящая end-to-end проверка: [GitHub Actions run 39132317804](https://github.com/manufact-test/nomusic/actions/runs/39132317804) — authenticated GET сайта 200, CMS login 303, authorized editor 200, preview 200. Предварительная проверка защиты: [run 39132127227](https://github.com/manufact-test/nomusic/actions/runs/39132127227) — 401 сайт и admin без пароля.
+
+**Критически важная находка/исправление:** стандартный `.htaccess` Basic Auth на Hostinger НЕ применился: первый install [run 39131636495](https://github.com/manufact-test/nomusic/actions/runs/39131636495) корректно остановился после неожиданного публичного HTTP 200. В отдельном аварийном [run 39131834946](https://github.com/manufact-test/nomusic/actions/runs/39131834946) staging marker был временно отключён, страницы стали 503. Затем добавлен `CmsStagingHttpAuth.php` и PHP-проверка в обоих entrypoints; только после подтверждения 401 marker вновь активирован. Статические CSS/JS и другие публичные assets продолжают быть веб-доступны (не являются приватным контентом). Для полноценной защиты всех файлов Hostinger можно дополнительно настроить hPanel password protection, но у PHP-страниц отдельная работающая защита.
+
+**Получение данных входа владельцем без передачи паролей в чат или GitHub:** файл `/home/u235811320/domains/lemonchiffon-narwhal-791953.hostingersite.com/celikom-private/staging-owner-credentials.txt` — в закрытом каталоге на Hostinger, права 0600. Доступен владельцу через Hostinger File Manager/SSH. В нём две пары логинов: внешний Basic `review` и внутренний CMS `owner`. После сохранения в менеджере паролей удалить plaintext-файл вручную через hPanel/SSH. **Не писать его содержимое в чат, GitHub или CI-артефакты.**
+
+**Контроль выпуска:** production workflow `.github/workflows/deploy-celikom-website.yml` остаётся жёстко disabled `&& false`; `website/RELEASE_READY` нет; PR #6 открыт, не сливать. Запрос staging installer `.github/deploy/celikom-site-staging-request.json` возвращён на `prepare` после успешной установки. Крупные проекты `extension/`, `server/`, `android/` не тронуты. Изображения можно загружать/выбирать и просматривать в закрытом редакторе, но отдельная публичная публикация новых изображений НЕ реализована и требует узкой доработки после первой ручной проверки. **Публичный запуск не согласован и не проведён**.
+
+**Дальнейший приоритет:** владелец лично заходит по двум URL, проверяет тексты, FAQ, медиа, черновик, preview и публикацию/откат внутри password-protected стенда. Устранить реальные замечания и довести выбор медиа до публикации (с проверкой прав). Не начинать новые теоретические release/backup исследования или строить универсальную AI Site CMS. После приёмки получить отдельное согласие на публичный выпуск.
+
+---
+
 # CELIKOM website — оперативный checkpoint v4.9 / 18.10.2026
 
 **Важно:** владелец разрешил размещать ЗАКРЫТЫЙ staging через существующие GitHub Actions + SSH. Плагины/сторонние сервисы не нужны. **Хостинг пока НЕ изменён, сайт и /admin/ ещё НЕ установлены**, публичный production workflow по-прежнему hard-disabled (`&& false`), PR #6 открыт. Следующие шаги — закончить установку, не возвращаться к визуальным пакетам.
