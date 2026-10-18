@@ -96,11 +96,56 @@ final class CmsV10OwnerMotion
         }
         $html=str_replace($oldInfo,$newInfo,$html);
 
+        // Owner-approved sound panel is enhanced after CMS render. Source v10
+        // template, 11-section layout and original artwork remain untouched.
+        $sourceLabel='<div class="demo-board-label">Схема звучания</div>';
+        $soundLabel='<div class="demo-board-label">Рамиль — Ау</div>';
+        if (substr_count($html,$sourceLabel)!==1) {
+            throw new \RuntimeException('Original v10 sound label not found');
+        }
+        $html=str_replace($sourceLabel,$soundLabel,$html);
+        $sourceFoot='<div><div aria-live="polite" class="demo-board-result" id="sound-result">Звучит версия из плеера</div><p class="demo-board-foot">Песни и плейлисты остаются в привычном сервисе.</p></div>';
+        $clipDir=dirname(__DIR__,2).'/demo-audio/clips';
+        $ready=is_file($clipDir.'/service.mp3') &&
+            is_file($clipDir.'/restored.mp3') &&
+            filesize($clipDir.'/service.mp3')>1000 &&
+            filesize($clipDir.'/restored.mp3')>1000;
+        $readyValue=$ready?'true':'false';
+        $playDisabled=$ready?'':' disabled';
+        $newFoot='<div class="celikom-audio-controls">'
+            .'<div class="celikom-audio-row">'
+            .'<button type="button" class="celikom-audio-play" id="celikom-demo-play" '
+            .'aria-label="Воспроизвести фрагмент" aria-pressed="false"'.$playDisabled.'>▶</button>'
+            .'<div class="celikom-audio-timeline"><label class="celikom-visually-hidden" '
+            .'for="celikom-demo-seek">Позиция воспроизведения</label>'
+            .'<input type="range" id="celikom-demo-seek" min="0" max="11" '
+            .'value="0" step="0.05" aria-label="Позиция воспроизведения" />'
+            .'<span class="celikom-audio-time" id="celikom-demo-time">0:00 / 0:11</span></div>'
+            .'</div><p class="celikom-audio-error" id="sound-result" aria-live="polite" hidden></p>'
+            .'<audio id="celikom-demo-service" preload="none" src="/?demo_audio=service"></audio>'
+            .'<audio id="celikom-demo-restored" preload="none" src="/?demo_audio=restored"></audio>'
+            .'</div>';
+        if (substr_count($html,$sourceFoot)!==1) {
+            throw new \RuntimeException('Original v10 sound panel footer not found');
+        }
+        $html=str_replace($sourceFoot,$newFoot,$html);
+        $html=str_replace('class="demo-board" data-mode="service" id="sound-panel"',
+            'class="demo-board" data-mode="service" data-demo-ready="'.$readyValue.
+            '" data-playing="false" id="sound-panel"',$html);
+        $html=str_replace('aria-label="Визуальная схема принципа замены звука"',
+            'aria-label="Сравнение звучания Ау"',$html);
+        $oldDemoScript='<script src="/assets/js/v10/sound-demo.js"></script>';
+        if (substr_count($html,$oldDemoScript)!==1) {
+            throw new \RuntimeException('Source sound script not found');
+        }
+        $html=str_replace($oldDemoScript,
+            '<script defer src="/assets/js/v10/owner-sound-player.js?v=511"></script>',$html);
+
         // Never expose the screenshot as an unprotected static file.
         // The exact uploaded original SHA is served by the protected home route.
         $html=str_replace('src="/media/celikom-popup-approved.png"',
             'src="/?v10_popup=approved"',$html);
-        $css='<link rel="stylesheet" href="/assets/css/v10/owner-v10-motion.css?v=510"/>';
+        $css='<link rel="stylesheet" href="/assets/css/v10/owner-v10-motion.css?v=511"/>';
         $js='<script defer src="/assets/js/v10/owner-v10-motion.js?v=510"></script>';
         if (str_contains($html,$css)||str_contains($html,$js)) {
             throw new \RuntimeException('Duplicate owner motion assets');
