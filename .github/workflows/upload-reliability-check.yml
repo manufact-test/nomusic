@@ -1,0 +1,42 @@
+name: Upload reliability verification
+
+on:
+  push:
+    branches:
+      - fix/upload-reliability-20261018
+
+permissions:
+  contents: read
+
+jobs:
+  extension:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm --prefix extension test
+      - run: npm --prefix extension run validate
+      - run: npm run security
+      - name: Build configured Chrome package
+        env:
+          CELIKOM_API_BASE_URL: https://darkred-camel-588676.hostingersite.com
+        run: npm --prefix extension run build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: celikom-upload-reliability-0.4.51
+          path: |
+            extension/dist/celikom-extension-0.4.51.zip
+            extension/dist/celikom-extension-0.4.51.zip.sha256
+          if-no-files-found: error
+          retention-days: 14
+  php:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: php -l server/src/Application.php
