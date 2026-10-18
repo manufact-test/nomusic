@@ -57,7 +57,7 @@ HTML;
         }
         $html = str_replace('aria-label="CELIKOM — наверх"', 'aria-label="CELIKOM — на главную"', $html);
         // There is no call to action in the closing statement: keep it editorial.
-        $pattern = '~<a class="closing-link" href="#top">.*?</a>~su';
+        $pattern = '~<a class="closing-link" href="[^"]*">.*?</a>~su';
         $updated = preg_replace($pattern, '', $html, 1, $count);
         if (!is_string($updated) || $count !== 1) {
             throw new \RuntimeException('Owner polish: closing CTA missing');
@@ -71,18 +71,11 @@ HTML;
         $html = str_replace('</head>', $css.'</head>', $html);
         $html = str_replace('</body>', $js.'</body>', $html);
 
-        // Without the TWO *approved* comparison files we refuse to suggest a
-        // playable real-song demo exists. The original switch remains a clearly
-        // labeled visual diagram. This does not replace or imitate real audio.
-        $audioReady = is_string($publicDirectory)
-            && is_file($publicDirectory.'/assets/audio/demo-before.mp3')
-            && is_file($publicDirectory.'/assets/audio/demo-after.mp3');
-        if (!$audioReady) {
-            $html = str_replace('class="demo-options" role="group">',
-                'class="demo-options" role="group">', $html);
-            $html = str_replace('<div class="demo-board-label">Схема звучания</div>',
-                '<div class="demo-board-label">Схема звучания · аудиопример готовится</div>', $html);
-        }
+        // This is a visual scheme, not a playable licensed audio comparison.
+        // An approved two-source audio player is a separate owner review task.
+        $html = str_replace('<div class="demo-board-label">Схема звучания</div>',
+            '<div class="demo-board-label">Схема звучания · аудиопример готовится</div>',
+            $html);
         return $html;
     }
 }
