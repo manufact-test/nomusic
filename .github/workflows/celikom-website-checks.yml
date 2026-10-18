@@ -238,7 +238,7 @@ jobs:
           python -m playwright install --with-deps chromium
       - name: Audit approved v10 on five breakpoints using self-hosted Manrope
         run: python website/tests/Stage3BrowserAudit.py
- 
+
   owner-visual-review:
     name: Owner visual review — website and simple CMS (offline artifact)
     if: github.event_name != 'pull_request'
@@ -264,7 +264,7 @@ jobs:
       CELIKOM_SITE_DB_USER: root
       CELIKOM_SITE_DB_PASSWORD: ci-website-temporary-only
       CELIKOM_SITE_AUTH_HMAC_KEY: ci-ephemeral-site-only-auth-secret-2026-never-deploy
-      CELIKOM_REVIEW_OUTPUT: ${{ runner.temp }}/celikom-owner-review
+      CELIKOM_REVIEW_OUTPUT: ${{ github.workspace }}/celikom-owner-review
     steps:
       - uses: actions/checkout@v4
         with:
