@@ -51,7 +51,7 @@ final class CmsV10OwnerMotion
         $count=0;
         $next=preg_replace($navPattern,$newNav,$html,1,$count);
         if (!is_string($next)||$count!==1) {
-            throw new \\RuntimeException('Approved header navigation not found');
+            throw new \RuntimeException('Approved header navigation not found');
         }
         $html=$next;
 
@@ -62,7 +62,7 @@ final class CmsV10OwnerMotion
         $mark='<div class="familiar-orbit">'
             .'<img src="/assets/images/celikom-mark.svg" alt=""/></div>';
         if (substr_count($html,$wave)!==1) {
-            throw new \\RuntimeException('Approved familiar-player icon not found');
+            throw new \RuntimeException('Approved familiar-player icon not found');
         }
         $html=str_replace($wave,$mark,$html);
 
@@ -75,7 +75,7 @@ final class CmsV10OwnerMotion
             .'<circle cx="32" cy="32" r="21"></circle>'
             .'<path d="m22 32 7 7 14-15"></path></svg></div>';
         if (substr_count($html,$oval)!==1) {
-            throw new \\RuntimeException('Approved reward checkmark missing');
+            throw new \RuntimeException('Approved reward checkmark missing');
         }
         $html=str_replace($oval,$circle,$html);
 
