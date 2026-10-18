@@ -63,14 +63,14 @@ with tempfile.TemporaryDirectory(prefix='celikom-workspace-ui-') as storage:
                     upload.locator('input[type="file"]').set_input_files({
                         'name':'cms-owner-demo.png','mimeType':'image/png','buffer':png})
                     upload.locator('input[name="alt"]').fill('Тест приватного изображения')
-                    upload.get_by_role('button',name='Сохранить приватно').click()
-                    assert page.get_by_text('Изображение сохранено приватно.',exact=False).is_visible()
+                    upload.get_by_role('button',name='Загрузить изображение').click()
+                    assert page.get_by_text('Изображение добавлено в медиатеку.',exact=False).is_visible()
                     sel=page.locator('#media-pending-id')
                     asset=sel.locator('option').nth(1).get_attribute('value')
                     assert asset and asset.isdecimal()
                     sel.select_option(asset)
-                    page.get_by_role('button',name='Сохранить выбор только для предпросмотра').click()
-                    assert page.get_by_text('Для закрытого предпросмотра выбрано изображение.',exact=False).is_visible()
+                    page.get_by_role('button',name='Сохранить выбор').click()
+                    assert page.get_by_text('Изображение выбрано для предпросмотра.',exact=False).is_visible()
                     preview=page.goto(f'http://127.0.0.1:{port}/admin/?view=preview')
                     assert preview.status==200
                     img=page.locator('img[data-managed-media="celikom.popup.approved"]')
@@ -78,8 +78,8 @@ with tempfile.TemporaryDirectory(prefix='celikom-workspace-ui-') as storage:
                     page.goto(f'http://127.0.0.1:{port}/admin/')
                     page.locator('.cms-side-menu a[data-cms-link="media-editor"]').click()
                     page.locator('#media-pending-id').select_option('original')
-                    page.get_by_role('button',name='Сохранить выбор только для предпросмотра').click()
-                    assert page.get_by_text('Для закрытого предпросмотра выбрано изображение.',exact=False).is_visible()
+                    page.get_by_role('button',name='Сохранить выбор').click()
+                    assert page.get_by_text('Изображение выбрано для предпросмотра.',exact=False).is_visible()
                     print('CELIKOM admin: private upload, preview choice, original restore PASS',flush=True)
                 dims=page.evaluate('''()=>({
                   doc:document.documentElement.scrollWidth,
@@ -94,7 +94,7 @@ with tempfile.TemporaryDirectory(prefix='celikom-workspace-ui-') as storage:
                     field=page.locator('textarea[name="text[faq.text.02]"]')
                     field.fill('Ответы на вопросы CELIKOM — тест единого редактора.')
                     page.locator('#text-editor button[type="submit"]').click()
-                    assert page.get_by_text('Черновик сохранён в базе данных.').is_visible()
+                    assert page.get_by_text('Изменения сохранены.').is_visible()
                     assert page.locator('#text-editor').is_visible()
                     preview=page.goto(f'http://127.0.0.1:{port}/admin/?view=preview')
                     assert preview.status==200
