@@ -144,6 +144,7 @@ let opening = false;
 // background status poll must never reopen a panel the user just collapsed.
 let uploadManuallyCollapsed = false;
 let uploadOpenGeneration = 0;
+let lastTerminalUploadId = "";
 const durationNote=document.querySelector<HTMLElement>("[data-upload-duration]");
 let durationGeneration=0, measuredFile=null, durationPromise=null, durationBlocked=false;
 function checkFileDuration(){
@@ -211,6 +212,7 @@ function setSubmittedView(title: string, note: string): void {
 }
 
 function showSubmitted(title: string, note: string): void {
+  refreshVersion.invalidate(pinnedTrack?.id);
   transitionUploadPanel(() => setSubmittedView(title, note));
 }
 
@@ -351,12 +353,14 @@ addTrackButton?.addEventListener("click", async () => {
   }
   opening = true;
   const openGeneration = ++uploadOpenGeneration;
-  // Open immediately in a neutral checking state: no spinner on the action,
-  // and never flash the previous song's result or an unverified form.
+  // The version badge starts the presence check as soon as the detected
+  // song appears. Reuse that answer rather than flashing a green checking
+  // banner. If the song changed before prefetch completed, leave the panel
+  // closed for the brief outstanding read, then render the final view once.
   resetUploadPanel();
-  uploadMessage("Проверяем возможность загрузки…", "checking");
-  uploadPanel.hidden = false;
-  addTrackButton.setAttribute("aria-expanded", "true");
+  uploadMessage("");
+  uploadPanel.hidden = true;
+  addTrackButton.setAttribute("aria-expanded", "false");
   addTrackButton.disabled = false;
   addTrackButton.dataset.loading = "false";
   let view: "form" | "result" | "error" = "error";
@@ -371,7 +375,7 @@ addTrackButton?.addEventListener("click", async () => {
       note = "Сначала запустите песню в Яндекс Музыке и дождитесь определения Track ID.";
     } else {
       const target = pinnedTrack;
-      const serverState = await trackUploadStatus(target.id);
+      const serverState = await refreshVersion.lookup(target.id);
       if (serverState === "pending") {
         view = "result";
         title = "Трек уже добавлен";
@@ -391,19 +395,18 @@ addTrackButton?.addEventListener("click", async () => {
     note = contributionError(error);
   } finally {
     if (openGeneration !== uploadOpenGeneration || uploadManuallyCollapsed) return;
-    transitionUploadPanel(() => {
-      // Only the final verified result may replace the neutral checking state.
-      uploadMessage("");
-      if (view === "form") {
-        if (uploadForm) uploadForm.hidden = false;
-        if (uploadButton) uploadButton.disabled = false;
-      } else if (view === "result") {
-        setSubmittedView(title, note);
-      } else {
-        uploadMessage(note, "error");
-      }
-      uploadPanel.hidden = false;
-    });
+    // Do not animate or resize a placeholder: the correct panel appears
+    // exactly once, after the current track and server response are verified.
+    uploadMessage("");
+    if (view === "form") {
+      if (uploadForm) uploadForm.hidden = false;
+      if (uploadButton) uploadButton.disabled = false;
+    } else if (view === "result") {
+      setSubmittedView(title, note);
+    } else {
+      uploadMessage(note, "error");
+    }
+    uploadPanel.hidden = false;
     opening = false;
     addTrackButton.disabled = false;
     addTrackButton.dataset.loading = "false";
@@ -837,6 +840,10 @@ async function syncBackgroundUpload(): Promise<void> {
     ["completed","duplicate"].includes(saved.phase) ? "complete" :
     ["failed","cancelled"].includes(saved.phase) ? "retry" : "submit");
   if(saved.phase==="completed" || saved.phase==="duplicate") {
+    if (lastTerminalUploadId !== saved.id) {
+      lastTerminalUploadId = saved.id;
+      refreshVersion.invalidate(saved.trackId);
+    }
     uploadMessage(saved.phase==="completed"?"Аудиофайл получен CELIKOM. Версия отправлена на модерацию."
       :"Версия уже есть на сервере. Повторная отправка не нужна.","success");
     return;
