@@ -21,7 +21,7 @@ final class CmsStagingHttpAuth
             self::deny(503);
         }
         $entry = trim((string)file_get_contents($passwd));
-        if (!preg_match('/^review:(\\$2[aby]\\$[0-9]{2}\\$[.\/A-Za-z0-9]{53})$/D', $entry, $found)) {
+        if (!preg_match('/^review:(\$2[aby]\$[0-9]{2}\$[.\/A-Za-z0-9]{53})$/D', $entry, $found)) {
             self::deny(503);
         }
         $username = $_SERVER['PHP_AUTH_USER'] ?? null;
