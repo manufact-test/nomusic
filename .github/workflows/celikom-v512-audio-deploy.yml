@@ -1,4 +1,4 @@
-name: CELIKOM v5.12 protected real A-B sound staging gate
+name: CELIKOM v5.13 protected real A-B sound staging gate
 on:
   push:
     branches: [feature/api-range]
@@ -66,6 +66,7 @@ jobs:
           restored=$(sha256sum "$clips/restored.mp3" | cut -d' ' -f1)
           service=$(sha256sum "$clips/service.mp3" | cut -d' ' -f1)
           test "$restored" = d14e926aa506ec8ad3112cd73c516e935be1dca612e83dc46bca8c0f5a8342b5
+          test "$service" = 3f826bb0ef3fa6b8faf07857616b5202ce00aa3a7d1e47dc47d6dc611a4c22e0
           test "$service" != "$restored"
           for f in "$clips/restored.mp3" "$clips/service.mp3"; do
             test "$(stat -c '%a' "$f")" = 600
