@@ -79,13 +79,47 @@ final class Mp3Inspector
                     return null;
                 }
             }
-            // Allow only an ID3v1 trailer and small all-zero encoder padding.
-            $tail = $size - $position;
-            if ($tail >= 128 && fseek($stream, $position) === 0 && fread($stream, 3) === 'TAG') {
-                $position += 128;
-                $tail -= 128;
+            // ID3v1 and APEv2 are real metadata, not damaged audio frames.
+            // Validate their exact bounds; do not allow arbitrary trailing data.
+            $tailEnd = $size;
+            if ($tailEnd - $position >= 128 && fseek($stream, $tailEnd - 128) === 0 &&
+                fread($stream, 3) === 'TAG') {
+                $tailEnd -= 128;
             }
-            if ($tail > 4096 || $frames < 2 || $sampleRate === null ||
+            if ($tailEnd - $position >= 32 && fseek($stream, $tailEnd - 32) === 0) {
+                $footer = fread($stream, 32);
+                if ($footer !== false && strlen($footer) === 32 && substr($footer, 0, 8) === 'APETAGEX') {
+                    $header = unpack('Vversion/Vbytes/Vitems', substr($footer, 8, 12));
+                    $apeVersion = $header['version'];
+                    $apeBytes = $header['bytes'];
+                    if ($apeVersion !== 2000 || $apeBytes < 32 || $apeBytes > 1048576 ||
+                        $header['items'] > 128 || $apeBytes > $tailEnd - $position) {
+                        return null;
+                    }
+                    $tailEnd -= $apeBytes;
+                    if ($tailEnd - $position >= 32 && fseek($stream, $tailEnd - 32) === 0) {
+                        $apeHeader = fread($stream, 32);
+                        if ($apeHeader !== false && strlen($apeHeader) === 32 &&
+                            substr($apeHeader, 0, 8) === 'APETAGEX') {
+                            $parts = unpack('Vversion/Vbytes', substr($apeHeader, 8, 8));
+                            if ($parts['version'] !== $apeVersion || $parts['bytes'] !== $apeBytes) {
+                                return null;
+                            }
+                            $tailEnd -= 32;
+                        }
+                    }
+                }
+            }
+            if ($tailEnd - $position >= 128 && fseek($stream, $tailEnd - 128) === 0 &&
+                fread($stream, 3) === 'TAG') {
+                $tailEnd -= 128;
+            }
+            if ($tailEnd - $position >= 128 && fseek($stream, $position) === 0 &&
+                fread($stream, 3) === 'TAG') {
+                $position += 128;
+            }
+            $tail = $tailEnd - $position;
+            if ($tail < 0 || $tail > 4096 || $frames < 2 || $sampleRate === null ||
                 fseek($stream, $position) !== 0) {
                 return null;
             }

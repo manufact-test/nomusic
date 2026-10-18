@@ -38,3 +38,31 @@ test('duration warnings honor 1500 ms compatibility and greater-than-five-second
  }
  assert.doesNotMatch(durationNotice(180000,null).text,/подходит/);
 });
+
+function withApeTail(data, invalid=false) {
+  const item = new Uint8Array([4,0,0,0, 0,0,0,0, 84,105,116,108,101,0, 84,101,115,116]);
+  const footer = new Uint8Array(32);
+  footer.set(new TextEncoder().encode("APETAGEX"),0);
+  const view = new DataView(footer.buffer);
+  view.setUint32(8,invalid?1234:2000,true);
+  view.setUint32(12,32+item.length,true);
+  view.setUint32(16,1,true);
+  const tagged = new Uint8Array(data.length+item.length+footer.length);
+  tagged.set(data);tagged.set(item,data.length);tagged.set(footer,data.length+item.length);
+  return tagged;
+}
+test('real-world bounded APEv2 metadata is accepted but malformed trailers remain blocked',()=>{
+ const original=mp3(3,100,true);
+ assert.equal(mp3DurationMs(withApeTail(original)),mp3DurationMs(original));
+ assert.equal(mp3DurationMs(withApeTail(original,true)),null);
+ const evil=new Uint8Array(original.length+32);evil.set(original);
+ evil.set(new TextEncoder().encode("APETAGEX"),original.length);
+ assert.equal(mp3DurationMs(evil),null);
+});
+test('unreadable duration is a blocking, user-readable preflight, never server-guess warning',()=>{
+ const issue=durationNotice(277900,null);
+ assert.equal(issue.blocked,true);
+ assert.equal(issue.kind,'error');
+ assert.match(issue.text,/Не удалось прочитать аудиофайл/);
+ assert.doesNotMatch(issue.text,/Файл дополнительно проверит сервер/);
+});

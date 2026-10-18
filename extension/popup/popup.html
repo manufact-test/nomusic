@@ -53,8 +53,13 @@
           <label class="upload-rights"><input data-upload-rights type="checkbox" required> Подтверждаю, что имею необходимые права на этот аудиофайл.</label>
           <button class="primary wide" data-upload-submit type="submit">Отправить на проверку</button>
         </form>
-          <progress data-upload-progress max="100" value="0" hidden aria-label="Загрузка"></progress>
-          <button class="quiet wide upload-cancel" type="button" data-upload-cancel hidden>Отменить загрузку</button>
+          <div class="upload-transfer-slot" data-upload-transfer-slot aria-label="Ход загрузки">
+            <div class="upload-transfer-row">
+              <progress data-upload-progress max="100" value="0" hidden aria-label="Загрузка"></progress>
+              <button class="quiet upload-cancel" type="button" data-upload-cancel hidden>Отменить</button>
+            </div>
+    
+          </div>
           <section class="celikom-confirm" data-upload-confirm hidden role="alertdialog" aria-labelledby="upload-confirm-title" aria-modal="true">
             <strong id="upload-confirm-title">Отменить загрузку?</strong>
             <p>Передача файла остановится. Уже отправленные данные не получится продолжить с того же места.</p>

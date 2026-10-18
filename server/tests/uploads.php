@@ -67,6 +67,27 @@ try {
         try { expect($inspector->durationMs($tagged) === 2612, 'Standard ID3 tags accepted'); }
         finally { unlink($tagged); }
     });
+    run('Tagged MP3 with ordinary APEv2 footer is measured and accepted into pending moderation', function () use ($path, $service, $fields, $file, $ownerHash): void {
+        $item = pack('V2', 4, 0) . "Title\0Test";
+        $footer = 'APETAGEX' . pack('V4', 2000, 32 + strlen($item), 1, 0) . str_repeat("\0", 8);
+        $tagged = tempnam(sys_get_temp_dir(), 'celikom-ape-');
+        $audio = file_get_contents($path);
+        file_put_contents($tagged, $audio . $item . $footer);
+        try {
+            expect((new Mp3Inspector())->durationMs($tagged) === 2612, 'Bounded APEv2 accepted');
+            $request = array_merge($fields, [
+                'track_id' => '799081',
+                'request_id' => '10000000-0000-4000-8000-000000000081'
+            ]);
+            $result = $service->upload($request, array_merge($file, [
+                'tmp_name' => $tagged, 'size' => filesize($tagged)
+            ]), $ownerHash);
+            expect($result['status'] === 'pending', 'Tagged audio staged for moderation');
+            $bad = $audio . $item . substr_replace($footer, pack('V', 1234), 8, 4);
+            file_put_contents($tagged, $bad);
+            expect((new Mp3Inspector())->durationMs($tagged) === null, 'Malformed APE footer rejected');
+        } finally { unlink($tagged); }
+    });
     run('Uploads reject duration mismatch before creating a track or asset', function () use ($service,$fields,$file,$ownerHash,$pdo): void {
         $bad=array_merge($fields,['track_id'=>'799999','duration_ms'=>'4113']);
         try {$service->upload($bad,$file,$ownerHash);throw new RuntimeException('mismatch accepted');}

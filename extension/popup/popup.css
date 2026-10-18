@@ -435,3 +435,37 @@ html{scrollbar-width:thin;scrollbar-color:#45565f transparent}
 .celikom-confirm .danger { background: #572c31; color: #ffdcd7; border: 1px solid #b75d59; }
 .celikom-confirm .danger:hover { background: #693438; }
 @media (prefers-reduced-motion: reduce) { .celikom-confirm { transition: none; } }
+
+/* Upload controls occupy the same area before/during/after submission.
+   Chrome's action popup must never change its scroll position on progress. */
+.upload-transfer-slot {
+  height: 82px;
+  min-height: 82px;
+  min-width: 0;
+  display: grid;
+  grid-template-rows: 36px 1fr;
+  gap: 5px;
+  overflow: hidden;
+}
+.upload-transfer-row {
+  display: grid;
+  grid-template-columns: minmax(0,1fr) auto;
+  align-items: center;
+  min-height: 36px;
+  gap: 8px;
+}
+.upload-transfer-row progress { height: 7px; min-width: 0; }
+.upload-transfer-row .upload-cancel {
+  min-height: 32px; margin: 0; padding: 0 10px;
+  font-size: 11px; white-space: nowrap;
+}
+.upload-transfer-slot .upload-feedback {
+  margin: 0; min-height: 0; max-height: 41px; overflow-y: auto;
+  font-size: 11px; line-height: 1.4;
+  scrollbar-width: thin; scrollbar-color: #3d6460 transparent;
+}
+.upload-transfer-slot .upload-feedback[data-kind="error"],
+.upload-transfer-slot .upload-feedback[data-kind="checking"] {
+  padding: 3px 7px; border-radius: 6px;
+}
+.upload-transfer-slot .upload-feedback[data-kind="success"] {color:#88ebc4;}
