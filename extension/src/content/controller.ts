@@ -259,7 +259,7 @@
       // but its timers/callbacks may still execute until the page is reloaded.
       // An unavailable storage API is not a recoverable playback failure.
       try {
-        if (!chrome.runtime?.id || !chrome.storage?.local?.get) {
+        if (!chrome.storage?.local?.get) {
           this.destroy();
           return;
         }
