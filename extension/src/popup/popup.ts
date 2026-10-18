@@ -152,7 +152,7 @@ function checkFileDuration(){
     if(generation!==durationGeneration||pinnedTrack?.id!==target.id||uploadFile?.files?.[0]!==file)return;
     const notice=durationNotice(target.durationMs,ms);durationNote.textContent=notice.text;durationNote.dataset.kind=notice.kind;durationBlocked=notice.blocked===true;
     if(uploadButton&&!uploading)uploadButton.disabled=durationBlocked;
-    if(notice.kind!=="ok")durationNote.scrollIntoView?.({block:"nearest",behavior:"smooth"});
+    // Never scroll the popup on background validation: the user controls the viewport.
   });
   return durationPromise;
 }
@@ -421,7 +421,7 @@ uploadForm?.addEventListener("submit", async (event) => {
   if (uploading || opening || !pinnedTrack || uploadForm.hidden) return;
   if (!uploadFile?.files?.[0]) {
     uploadMessage("Выберите MP3 или M4A перед отправкой.", "error");
-    uploadFilePicker?.scrollIntoView?.({block: "nearest", behavior: "smooth"});
+    // Keep the popup at its current scroll position.
     return;
   }
   if (!uploadRights?.checked) {
@@ -446,7 +446,11 @@ uploadForm?.addEventListener("submit", async (event) => {
   let transferStarted = false;
   try {
     if(measuredFile!==file)await checkFileDuration();else if(durationPromise)await durationPromise;
-    if(durationBlocked){void uploadJournal.record(attemptId, "rejected", {code: "duration_mismatch"});uploadMessage("");durationNote?.scrollIntoView?.({block:"nearest",behavior:"smooth"});return;}
+    if(durationBlocked){
+      void uploadJournal.record(attemptId, "rejected", {code: "invalid_or_mismatched_audio"});
+      uploadMessage("");
+      return;
+    }
     const now = uploadTargetFromStatus(await send<ExtensionState>({ type: COMMANDS.getStatus }));
     if (!now || now.id !== pinnedTrack.id) {
       void uploadJournal.record(attemptId, "rejected", {code: "track_changed"});
@@ -753,13 +757,20 @@ async function syncBackgroundUpload(): Promise<void> {
   if(uploadCancel) uploadCancel.hidden = !active;
   if(uploadConfirm && !active) uploadConfirm.hidden = true;
   if(uploadFile) uploadFile.disabled = active;
+  // Never collapse the form during the transfer or when it finishes:
+  // the small Chrome popup must keep its layout and scroll position.
+  if(uploadResult) uploadResult.hidden = true;
+  if(uploadForm) uploadForm.hidden = false;
+  if(uploadButton) {
+    uploadButton.disabled = active || ["completed","duplicate"].includes(saved.phase);
+    uploadButton.textContent = active ? "Отправляем…"
+      : ["completed","duplicate"].includes(saved.phase) ? "Отправлено на проверку" : "Повторить отправку";
+  }
   if(saved.phase==="completed" || saved.phase==="duplicate") {
-    showSubmitted(saved.phase==="completed"?"Отправлено на проверку":"Трек уже добавлен",
-      "Аудиофайл получен CELIKOM. Версия ожидает модерации.");
+    uploadMessage(saved.phase==="completed"?"Аудиофайл получен CELIKOM. Версия отправлена на модерацию."
+      :"Версия уже есть на сервере. Повторная отправка не нужна.","success");
     return;
   }
-  if(uploadForm) uploadForm.hidden = active;
-  if(uploadButton) {uploadButton.disabled = active;uploadButton.textContent = active?"Отправляем…":"Повторить отправку";}
   const descriptions = {
     connecting:"Подключаемся к серверу. Загрузка продолжается в фоне.",
     waiting:"Ожидаем начала передачи. Проверяем соединение…",
