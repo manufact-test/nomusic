@@ -8,6 +8,7 @@ import http.server
 import io
 import math
 import pathlib
+import re
 import socketserver
 import struct
 import subprocess
@@ -34,6 +35,22 @@ def tone(hz):
         writer.writeframesraw(chunk)
     return memory.getvalue()
 
+def serve_audio(route, payload):
+    # Chromium may use HTTP byte ranges for seeking. Match production's
+    # documented Range behavior; non-range WAV mocks cannot seek reliably.
+    range_header=route.request.headers.get("range")
+    headers={"Accept-Ranges":"bytes","Content-Type":"audio/wav"}
+    if range_header:
+        match=re.fullmatch(r"bytes=(\d+)-(\d*)",range_header)
+        assert match,range_header
+        start=int(match.group(1))
+        end=min(len(payload)-1,int(match.group(2)) if match.group(2) else len(payload)-1)
+        assert start<=end and start<len(payload)
+        headers["Content-Range"]=f"bytes {start}-{end}/{len(payload)}"
+        route.fulfill(status=206,headers=headers,body=payload[start:end+1])
+    else:
+        route.fulfill(status=200,headers=headers,body=payload)
+
 class Quiet(http.server.SimpleHTTPRequestHandler):
     def log_message(self,*args): pass
 
@@ -50,8 +67,8 @@ try:
                 page=browser.new_page(viewport={"width":width,"height":height})
                 a=tone(250)
                 b=tone(390)
-                page.route("**/?demo_audio=service",lambda route:route.fulfill(status=200,content_type="audio/wav",body=a))
-                page.route("**/?demo_audio=restored",lambda route:route.fulfill(status=200,content_type="audio/wav",body=b))
+                page.route("**/?demo_audio=service",lambda route:serve_audio(route,a))
+                page.route("**/?demo_audio=restored",lambda route:serve_audio(route,b))
                 page.goto(f"http://127.0.0.1:{srv.server_address[1]}/owner-audio-review.html",wait_until="networkidle")
                 assert page.locator("#sound-panel .wave-bar").count()==30
                 assert page.locator("#celikom-demo-play").count()==1
