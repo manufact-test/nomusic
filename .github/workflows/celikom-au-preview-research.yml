@@ -8,29 +8,28 @@ permissions:
 jobs:
   preview:
     runs-on: ubuntu-latest
-    timeout-minutes: 8
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
         with: {persist-credentials: false}
-      - name: Inspect two official song previews without redistribution
+      - name: Install media inspection tools
+        run: |
+          sudo apt-get update -qq
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq ffmpeg
+          python3 -m pip install --disable-pip-version-check numpy scipy
+      - name: Compare official previews to unchanged CELIKOM library source
         shell: bash
+        env:
+          SSH_KEY: ${{ secrets.CELIKOM_HOSTINGER_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.CELIKOM_HOSTINGER_KNOWN_HOSTS }}
         run: |
           set -euo pipefail
-          python3 - <<'PY'
-          import json,urllib.request,urllib.error,subprocess,tempfile,pathlib
-          for track in [1747791012,1853026725]:
-            url=f'https://itunes.apple.com/lookup?id={track}&country=us&entity=song'
-            try:
-              req=urllib.request.Request(url,headers={'User-Agent':'CELIKOM-Owner-Audio-Research/1.0'})
-              with urllib.request.urlopen(req,timeout=25) as r: data=json.load(r)
-              a=(data.get('results') or [{}])[-1]
-              print(json.dumps({'trackId':track,'title':a.get('trackName'),'artist':a.get('artistName'),'length_ms':a.get('trackTimeMillis'),'preview_available':bool(a.get('previewUrl'))},ensure_ascii=False))
-              preview=a.get('previewUrl')
-              if preview and preview.startswith('https://'):
-                with tempfile.TemporaryDirectory() as d:
-                  out=pathlib.Path(d)/'preview'
-                  urllib.request.urlretrieve(preview,out)
-                  meta=subprocess.check_output(['ffprobe','-v','error','-show_entries','format=duration,size:stream=codec_name','-of','json',str(out)])
-                  print(json.dumps({'trackId':track,'downloaded_preview':json.loads(meta)},ensure_ascii=False))
-            except Exception as e:print(json.dumps({'trackId':track,'unavailable':type(e).__name__,'detail':str(e)[:180]}))
-          PY
+          umask 077
+          temp=$(mktemp -d)
+          trap 'rm -rf "$temp"' EXIT
+          printf '%s\n' "$SSH_KEY" > "$temp/id"
+          printf '%s\n' "$KNOWN_HOSTS" > "$temp/known"
+          chmod 600 "$temp/id" "$temp/known"
+          ssh -T -p 65002 -i "$temp/id" -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$temp/known" u235811320@92.113.19.189 /opt/alt/php83/usr/bin/php < website/tools/export-au-restored-readonly.php > "$temp/original-source.mp3"
+          echo "5dfdfaa97ee6f1168964a1a49a101bebb20bd5dca7147c41c1d2df366a2a00d8  $temp/original-source.mp3" | sha256sum -c
+          python3 website/tools/audio-preview-match.py "$temp/original-source.mp3"
