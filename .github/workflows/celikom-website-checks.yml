@@ -181,6 +181,10 @@ jobs:
         env:
           CELIKOM_SITE_SANDBOX_RESTORE: '1'
         run: php website/tests/Stage10VersionedGenerationTest.php
+      - name: Stage 10 local HTTP generation release and journal recovery drill
+        env:
+          CELIKOM_SITE_SANDBOX_RESTORE: '1'
+        run: php website/tests/Stage10HttpReleaseCycleTest.php
       - name: Stage 9 private popup preview assignment never changes live revisions
         run: php website/tests/Stage9MediaSelectionTest.php
       - name: Stage 9 private metadata-stripped popup derivative and negative safety cases
