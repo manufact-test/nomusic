@@ -32,16 +32,25 @@ body .closing::before{
 /* Height animation is managed by JavaScript. */
 #faq .faq-item[open] .answer{animation:none!important}
 #faq .faq-item .answer{overflow:hidden}
-/* Keep the original familiar-player circle, use its existing CELIKOM mark. */
-.familiar-orbit img{
- width:80px;height:80px;display:block;object-fit:contain;border-radius:18px
+/* Keep the original pale circle. Draw ONLY the sharp vector C from
+   the approved CELIKOM mark, avoiding an unnecessary black square. */
+.familiar-orbit svg.celikom-familiar-c{
+ width:80px;height:80px;display:block;
+ stroke:#14594d;stroke-width:17;fill:none;
+ stroke-linecap:round;stroke-linejoin:round
 }
 @media(max-width:540px){
- .familiar-orbit img{width:56px;height:56px;border-radius:13px}
+ .familiar-orbit svg.celikom-familiar-c{width:56px;height:56px}
 }
-/* Animate the entire FAQ card (including bottom spacing), not just its text.
-   This eliminates the two-stage closing caused by snapping the native details. */
-#faq .faq-item.celikom-faq-animating{overflow:hidden}
+/* The information dot has its own actual filled SVG circle. */
+.reward-notice svg .celikom-info-dot{
+ fill:#18886d;stroke:none
+}
+/* FAQ: content height AND bottom padding collapse in unison;
+   native details remain open until the animation has fully ended. */
+#faq .faq-item .answer.celikom-answer-animating{
+ overflow:hidden
+}
 /* Progressive enhancement: no JS, no hidden content. */
 @media(prefers-reduced-motion:no-preference){
  .celikom-reveal{
