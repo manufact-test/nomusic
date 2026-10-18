@@ -2,6 +2,7 @@ import { playbackPresentation } from "./playback-presentation.js";
 import { withDeadline } from "../shared/request-deadline.js";
 import { inspectM4a } from "../upload/m4a.js";
 import { mp3DurationMs, durationNotice } from "../upload/mp3-duration.js";
+import { createUploadJournal } from "../upload/upload-journal.js";
 import { initScrollSpacing } from "./scroll-spacing.js";
 import { COMMANDS, type ExtensionState } from "../shared/messages.js";
 import { uploadTargetFromStatus, validAudioSelection, privateUploadApiOrigin } from "../upload/contract.js";
@@ -127,6 +128,7 @@ const uploadResultTitle = document.querySelector<HTMLElement>("[data-upload-resu
 const uploadResultNote = document.querySelector<HTMLElement>("[data-upload-result-note]");
 let pinnedTrack: ReturnType<typeof uploadTargetFromStatus> = null;
 let uploadRequestId: string | null = null;
+const uploadJournal = createUploadJournal(chrome.storage?.local);
 let uploading = false;
 let opening = false;
 const durationNote=document.querySelector<HTMLElement>("[data-upload-duration]");
@@ -257,6 +259,15 @@ async function trackUploadStatus(origin: string, trackId: string): Promise<"none
 
 addTrackButton?.addEventListener("click", async () => {
   if (incidentStatus.active() || !uploadPanel || uploading || opening) return;
+  // The Chrome action popup closes when focus changes. Keep POST in a full
+  // extension tab; clicking outside the tab cannot cancel the request.
+  if (chrome.tabs?.getCurrent && chrome.tabs?.create && !location.hash.includes("upload")) {
+    const current = await chrome.tabs.getCurrent();
+    if (!current) {
+      await chrome.tabs.create({url: chrome.runtime.getURL("popup/popup.html#upload")});
+      return;
+    }
+  }
   if (!uploadPanel.hidden) {
     // Query first: a click immediately after a song switch must open the
     // new song, even before the next one-second status poll.
@@ -578,7 +589,10 @@ restoreButton?.addEventListener("click", async () => {
 diagnosticsButton?.addEventListener("click", async () => {
   const state = await send<ExtensionState>({ type: COMMANDS.getStatus });
   lastState = state;
-  await navigator.clipboard.writeText(JSON.stringify(lastState, null, 2));
+  await navigator.clipboard.writeText(JSON.stringify({
+    ...lastState,
+    uploadAttempts: await uploadJournal.snapshot()
+  }, null, 2));
   if (diagnosticsButton) diagnosticsButton.textContent = "Скопировано";
 });
 
@@ -606,5 +620,10 @@ window.setInterval(() => void refreshAccess(), 15000);
 const accountPanel = initAuthPanel(send);
 
 initScrollSpacing();
+if (location.hash === "#upload") {
+  document.body?.classList?.add("upload-page");
+  // The new tab must wait for Chrome's player lookup before opening the form.
+  setTimeout(() => addTrackButton?.click(), 300);
+}
 
 void initSupport({ send, getState: () => lastState });
