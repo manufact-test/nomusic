@@ -123,7 +123,7 @@ try {
                 pairedAssert($cols!==[],'empty imported row');
                 foreach($cols as $col) {
                     pairedAssert(is_string($col) &&
-                        preg_match('/^[a-z_]+$/D',$col)===1,
+                        preg_match('/^[a-z][a-z0-9_]*$/D',$col)===1,
                         'unsafe imported column identifier');
                 }
                 $stmt=$restored->prepare('INSERT INTO '.$table.' ('.
