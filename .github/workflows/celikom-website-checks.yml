@@ -159,6 +159,8 @@ jobs:
           python -m playwright install --with-deps chromium
       - name: Mobile CMS 320-1024px — login, text, FAQ and private media
         run: python website/tests/Stage9MobileAdminBrowserAudit.py
+      - name: Stage 9 offline Hostinger-style layout and private-path isolation
+        run: python3 website/tests/Stage9OfflineDeploymentLayoutTest.py
       - name: Production release gate cannot be bypassed
         run: python3 website/tests/Stage9ReleaseGateTest.py
 
