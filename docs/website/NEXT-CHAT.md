@@ -1,5 +1,28 @@
 # CELIKOM — сайт: NEXT-CHAT / переносимая контрольная точка
 
+**Версия:** 4.7 · **Контрольная точка:** 18.10.2026. **Текущая:** v4.7; ниже v4.6 и старше — история.
+
+## v4.7 — АКТУАЛЬНАЯ КОНТРОЛЬНАЯ ТОЧКА STAGE 10
+
+**GitHub:** `manufact-test/nomusic`, ветка `feature/api-range`. **Последний полностью проверенный код до документов:** `88da7aac1c0e241f9569a1ae3aff8594bffe0c06`; [Website CI 39123754127 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/39123754127). Общая CI [39123754040](https://github.com/manufact-test/nomusic/actions/runs/39123754040) на момент записи ещё шла; перепроверять по последнему HEAD. PR #6 остаётся открытым, **не сливать**.
+
+**Начать с:** [полный checkpoint v4.7](checkpoints/2026-10-18-STAGE10-OFFSITE-OPERATOR-PREFLIGHT.md), затем [v4.6 HTTP/cutover journal](checkpoints/2026-10-18-STAGE10-HTTP-RELEASE-CYCLE.md), [v4.5 SQL generations](checkpoints/2026-10-18-STAGE10-VERSIONED-GENERATIONS.md), Master ТЗ, ROADMAP, текущий `website/` и GitHub Actions.
+
+### Следующий крупный блок выполнен
+
+1. **Отдельно зашифрована полная копия контента + медиа + всей SQL базы.** `website/app/src/CmsOffsiteEnvelope.php` собирает уже согласованный архив из encrypted MySQL `.sbox`, content/private-media `.json` и restore manifest в **один новый `celikom-offsite-*.sbox`** по libsodium XChaCha20-Poly1305 secretstream c конечным auth-тегом. Offsite-ключ `CELIKOM_SITE_OFFSITE_KEY` обязан отличаться от полного DB ключа. В транспортной папке нет plaintext; после unseal все три части проверяются исходным `CmsConsistentBackup::inspect` до какого-либо доверия содержимому.
+2. **`Stage10OffsiteEnvelopeTest.php` в disposable MySQL CI** проверяет полный путь snapshot→seal→decrypt→inspect→**реальное MySQL+приватное PNG восстановление**, неверные ключи, reuse ключа, tamper/truncate/append, symlink, плохие 0644/0755 permissions, выход в webroot, очистку partial decrypt, недопустимость запуска без CI. Это **локальная симуляция шифрования для offsite** — реальной отправки файла в удалённое хранилище пока нет.
+3. **Отдельный audit известных writers и release blockers.** `website/tests/Stage10OperatorBoundaryTest.py` описывает реальные входные пути: админ POST (login/rate-limit/audit, drafts/FAQ/revisions/публикации/картинки), CLI owner provisioning, derivative image, read-only review; cooperative `CmsWriteQuiescence` shared для writer и exclusive для coordinated snapshot. Сканирует source guardrails, CI-only encryption/SQL generations/router и навсегда заблокированный workflow; делает мутации кода для проверки fail-closed. **`production_ready=false` ВСЕГДА** — CI безопасность не равна owner approval или live release.
+4. `docs/website/checkpoints/2026-10-18-STAGE10-OFFSITE-OPERATOR-PREFLIGHT.md` — операторский preflight и ручная матрица блокеров: owner, лицензии и popup, SSL/legal, реальный Hostinger topology/flock/fsync, cron/direct SQL/media GC, remote encrypted storage, восстановление с remote, единый production release ledger, мониторинг и откат.
+
+### Ограничения и следующий приоритет
+
+- **Никакого Hostinger/production/SSH/живой MySQL.** Это исключительно CI-only crypto drill, реальный offsite upload/download НЕ реализован. Plaintext content JSON всё ещё существует внутри оригинального owner-only локального snapshot; защита transport НЕ устраняет необходимость безопасного хранения и удаления исходника. Нет KMS/key escrow/rotation/retention, remote restore, доказанной Hostinger durability, инвентаризации внешних SQL/cron/GC workers и подписанного owner change-window.
+- PR #6 не сливать; `.github/workflows/deploy-celikom-website.yml` оставить **HARD DISABLED `&& false`**. Утверждённый v10, 5 CSS, 2 JS, `server/`, `extension/`, `android/` не менять. Настоящий `/` и `/admin/` остаются 503/noindex. **Stage 9 НЕ принят, Stage 10 НЕ закрыт.**
+- **Дальше:** offline-only модель безопасного retention и проверенного intake скачанного encrypted archive, ключевые политики и настоящий operator evidence contract, без живого деплоя. Документы обновлять только после большого куска либо по запросу.
+
+---
+
 **Версия:** 4.6 · **Контрольная точка:** 18.10.2026. Это главный действующий раздел. Ниже v4.5 и старше — архив.
 
 ## v4.6 — АКТУАЛЬНЫЙ STAGE 10 CHECKPOINT
