@@ -143,6 +143,35 @@ try {
     chmod($manifest, 0600);
 
     $lease->release();
+    // Run the same guarded owner CLI entrypoint that a future operator
+    // would invoke, but only against this disposable CI database and media.
+    putenv('CELIKOM_SITE_FULL_BACKUP_KEY='.base64_encode($key));
+    $command=[PHP_BINARY,$base.'/tools/backup-coordinated-cms.php',
+        $bundle,$media,$base.'/public'];
+    $pipes=[];
+    $process=proc_open($command,[1=>['pipe','w'],2=>['pipe','w']],$pipes);
+    snapshotAssert(is_resource($process),'coordinated CLI did not start');
+    $cliOutput=stream_get_contents($pipes[1]);
+    $cliError=stream_get_contents($pipes[2]);
+    fclose($pipes[1]);
+    fclose($pipes[2]);
+    snapshotAssert(proc_close($process)===0 && is_string($cliOutput) &&
+        is_string($cliError) && $cliError==='', 'guarded CLI export failed');
+    $cli=json_decode($cliOutput,true,16,JSON_THROW_ON_ERROR);
+    snapshotAssert($cli['verified']===true && $cli['media_files']===1 &&
+        isset($cli['manifest']) && is_file($bundle.'/'.$cli['manifest']),
+        'CLI did not create a complete private recovery manifest');
+    $pipes=[];
+    $verify=proc_open([PHP_BINARY,$base.'/tools/backup-coordinated-cms.php',
+        '--verify',$bundle.'/'.$cli['manifest'],$base.'/public'],
+        [1=>['pipe','w'],2=>['pipe','w']],$pipes);
+    snapshotAssert(is_resource($verify),'CLI verifier did not start');
+    $verifyOutput=stream_get_contents($pipes[1]);
+    fclose($pipes[1]);
+    fclose($pipes[2]);
+    snapshotAssert(proc_close($verify)===0 &&
+        json_decode((string)$verifyOutput,true,16,JSON_THROW_ON_ERROR)['consistent']===true,
+        'guarded CLI re-verification failed');
     snapshotReject(fn()=>CmsConsistentBackup::capture(
         $pdo, $bundle, $media, $base.'/public', $key, $lease
     ), 'released exclusive gate reused');
@@ -150,6 +179,7 @@ try {
 } finally {
     if (isset($lease)) $lease->release();
     putenv('CELIKOM_SITE_WRITE_GATE_FILE');
+    putenv('CELIKOM_SITE_FULL_BACKUP_KEY');
     if ($pdo->inTransaction()) $pdo->rollBack();
     if ($oldVersion !== null) {
         $writer->prepare('UPDATE content_drafts SET optimistic_version=? WHERE id=1')
