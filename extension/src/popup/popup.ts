@@ -351,12 +351,14 @@ addTrackButton?.addEventListener("click", async () => {
   }
   opening = true;
   const openGeneration = ++uploadOpenGeneration;
-  // Open immediately in a neutral checking state: no spinner on the action,
-  // and never flash the previous song's result or an unverified form.
+  // The version badge starts the presence check as soon as the detected
+  // song appears. Reuse that answer rather than flashing a green checking
+  // banner. If the song changed before prefetch completed, leave the panel
+  // closed for the brief outstanding read, then render the final view once.
   resetUploadPanel();
-  uploadMessage("Проверяем возможность загрузки…", "checking");
-  uploadPanel.hidden = false;
-  addTrackButton.setAttribute("aria-expanded", "true");
+  uploadMessage("");
+  uploadPanel.hidden = true;
+  addTrackButton.setAttribute("aria-expanded", "false");
   addTrackButton.disabled = false;
   addTrackButton.dataset.loading = "false";
   let view: "form" | "result" | "error" = "error";
@@ -371,7 +373,7 @@ addTrackButton?.addEventListener("click", async () => {
       note = "Сначала запустите песню в Яндекс Музыке и дождитесь определения Track ID.";
     } else {
       const target = pinnedTrack;
-      const serverState = await trackUploadStatus(target.id);
+      const serverState = await refreshVersion.lookup(target.id);
       if (serverState === "pending") {
         view = "result";
         title = "Трек уже добавлен";
@@ -391,19 +393,18 @@ addTrackButton?.addEventListener("click", async () => {
     note = contributionError(error);
   } finally {
     if (openGeneration !== uploadOpenGeneration || uploadManuallyCollapsed) return;
-    transitionUploadPanel(() => {
-      // Only the final verified result may replace the neutral checking state.
-      uploadMessage("");
-      if (view === "form") {
-        if (uploadForm) uploadForm.hidden = false;
-        if (uploadButton) uploadButton.disabled = false;
-      } else if (view === "result") {
-        setSubmittedView(title, note);
-      } else {
-        uploadMessage(note, "error");
-      }
-      uploadPanel.hidden = false;
-    });
+    // Do not animate or resize a placeholder: the correct panel appears
+    // exactly once, after the current track and server response are verified.
+    uploadMessage("");
+    if (view === "form") {
+      if (uploadForm) uploadForm.hidden = false;
+      if (uploadButton) uploadButton.disabled = false;
+    } else if (view === "result") {
+      setSubmittedView(title, note);
+    } else {
+      uploadMessage(note, "error");
+    }
+    uploadPanel.hidden = false;
     opening = false;
     addTrackButton.disabled = false;
     addTrackButton.dataset.loading = "false";
