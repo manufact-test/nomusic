@@ -293,6 +293,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: celikom-owner-review-website-and-admin
-          path: ${{ runner.temp }}/celikom-owner-review/
+          path: ${{ github.workspace }}/celikom-owner-review/
           retention-days: 7
           if-no-files-found: error
