@@ -1,4 +1,5 @@
 name: CELIKOM owner-approved v10 interactions staging installation
+# Re-apply minimal PHP files to serve exact owner-approved media from private CMS.
 on:
   push:
     branches: [feature/api-range]
