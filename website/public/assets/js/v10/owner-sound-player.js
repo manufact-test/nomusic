@@ -11,9 +11,16 @@ const sounds={service:document.getElementById('celikom-demo-service'),restored:d
 if(!board||!toggle||!seek||!time||!status||Object.values(sounds).some(x=>!x))return;
 const length=11;
 let mode='service',token=0,frame=null;
+const requested=new WeakMap(),pending=new WeakSet();
+const seekAudio=(audio,position)=>{
+ requested.set(audio,position);pending.add(audio);
+ const apply=()=>{try{audio.currentTime=requested.get(audio)}catch{pending.delete(audio)}};
+ if(audio.readyState>=1)apply();
+ else{audio.addEventListener('loadedmetadata',apply,{once:true});audio.load()}
+};
 const visibleSeconds=n=>'0:'+String(Math.max(0,Math.min(length,Math.floor(n)))).padStart(2,'0');
 const current=()=>sounds[mode];
-const display=(at=current().currentTime||0)=>{
+const display=(at=pending.has(current()) ? (requested.get(current())||0) : (current().currentTime||0))=>{
  const position=Math.max(0,Math.min(length,at));
  seek.value=String(position);
  seek.style.setProperty('--progress',(position/length*100).toFixed(3)+'%');
@@ -79,7 +86,8 @@ for(const [name,button] of Object.entries(modes)){
  button.addEventListener('click',()=>{
   if(name===mode)return;
   const former=current(),wasPlaying=!former.paused&&!former.ended;
-  const position=Math.min(length-.03,Math.max(0,former.currentTime||0));
+  const position=Math.min(length-.03,Math.max(0,pending.has(former)?(requested.get(former)||0):(former.currentTime||0)));
+  pending.delete(former);
   const stamp=++token;
   former.pause();former.volume=1;
   mode=name;board.dataset.mode=name;
@@ -87,7 +95,7 @@ for(const [name,button] of Object.entries(modes)){
    if(element)element.setAttribute('aria-pressed',String(key===name))
   }
   const replacement=current();
-  try{replacement.currentTime=position}catch{}
+  seekAudio(replacement,position)
   display(position);updateButton();
   if(!wasPlaying||!sourceReady())return;
   replacement.volume=0;
@@ -102,7 +110,7 @@ seek.addEventListener('input',()=>{
  if(!sourceReady())return;
  const position=Number(seek.value),stamp=++token;
  for(const audio of Object.values(sounds)){
-  try{audio.currentTime=position}catch{}
+  seekAudio(audio,position);
   audio.volume=1
  }
  if(!current().paused){
@@ -113,7 +121,8 @@ seek.addEventListener('input',()=>{
  display(position)
 });
 for(const sound of Object.values(sounds)){
- sound.addEventListener('timeupdate',()=>{if(sound===current())display()});
+ sound.addEventListener('timeupdate',()=>{if(sound===current()&&!pending.has(sound))display()});
+ sound.addEventListener('seeked',()=>{pending.delete(sound);if(sound===current())display()});
  sound.addEventListener('error',()=>{if(sound===current()&&board.dataset.demoReady==='true')fail()});
  sound.addEventListener('ended',()=>{
   if(sound!==current())return;
