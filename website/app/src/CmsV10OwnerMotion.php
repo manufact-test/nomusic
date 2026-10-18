@@ -41,6 +41,10 @@ final class CmsV10OwnerMotion
         }
         $html=$next;
 
+        // Never expose the screenshot as an unprotected static file.
+        // The exact uploaded original SHA is served by the protected home route.
+        $html=str_replace('src="/media/celikom-popup-approved.png"',
+            'src="/?v10_popup=approved"',$html);
         $css='<link rel="stylesheet" href="/assets/css/v10/owner-v10-motion.css"/>';
         $js='<script defer src="/assets/js/v10/owner-v10-motion.js"></script>';
         if (str_contains($html,$css)||str_contains($html,$js)) {
