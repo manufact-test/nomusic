@@ -2,7 +2,14 @@ name: CELIKOM owner admin and FAQ mobile v5.14 private installation
 on:
   push:
     branches: [feature/api-range]
-    paths: [.github/workflows/celikom-owner-ui-v514-deploy.yml]
+    paths:
+      - .github/workflows/celikom-owner-ui-v514-deploy.yml
+      - website/public/admin/index.php
+      - website/public/assets/css/admin-workspace.css
+      - website/public/assets/js/admin-workspace.js
+      - website/app/src/CmsV10OwnerMotion.php
+      - website/public/assets/css/v10/owner-v10-motion.css
+      - website/public/assets/js/v10/owner-v10-motion.js
   workflow_dispatch:
 permissions:
   contents: read
@@ -106,7 +113,7 @@ jobs:
                grep -Fq 'owner-sound-player.js?v=511' "$landing" &&
                grep -Fq 'data-demo-ready="true"' "$landing" &&
                grep -Fq '/assets/css/admin-workspace.css?v=514' "$admin" &&
-               grep -Fq '/assets/js/admin-workspace.js?v=514' "$admin" &&
+               grep -Fq '/assets/js/admin-workspace.js?v=515' "$admin" &&
                grep -Fq 'Вход администратора' "$admin" &&
                grep -Fq 'class="faq-item"' "$landing" &&
                test -f "$root/public_html/assets/css/admin-workspace.css" &&
