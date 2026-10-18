@@ -53,7 +53,7 @@ for(const detail of document.querySelectorAll('#faq details.faq-item')){
  let naturalPadding=0;
  const cleanup=()=>{
   answer.classList.remove('celikom-answer-animating');
-  for(const property of ['height','paddingBottom','overflow','opacity']){
+  for(const property of ['height','padding-bottom','overflow','opacity']){
    answer.style.removeProperty(property)
   }
  };
