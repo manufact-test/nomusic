@@ -1,0 +1,168 @@
+name: CELIKOM v5.12 protected real A-B sound staging gate
+on:
+  push:
+    branches: [feature/api-range]
+    paths: [.github/workflows/celikom-v512-audio-deploy.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: celikom-website-staging
+  cancel-in-progress: false
+jobs:
+  install:
+    runs-on: ubuntu-latest
+    timeout-minutes: 19
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - uses: shivammathur/setup-php@v2
+        with: {php-version: '8.3', tools: none, coverage: none}
+      - name: Verify exact approved v10 and sound player before any SSH work
+        run: |
+          set -euo pipefail
+          php website/tests/CmsV10OwnerMotionTest.php
+          php -l website/public/index.php
+          node --check website/public/assets/js/v10/owner-v10-motion.js
+          node --check website/public/assets/js/v10/owner-sound-player.js
+          test ! -e website/RELEASE_READY
+          grep -Fq '&& false' .github/workflows/deploy-celikom-website.yml
+      - name: Verify private audio, install reviewed website and run real Chromium smoke
+        shell: bash
+        env:
+          SSH_KEY: ${{ secrets.CELIKOM_HOSTINGER_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.CELIKOM_HOSTINGER_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REPOSITORY" = manufact-test/nomusic
+          test "$GITHUB_REF" = refs/heads/feature/api-range
+          umask 077
+          temp=$(mktemp -d)
+          trap 'rm -rf "$temp"' EXIT
+          printf '%s\n' "$SSH_KEY" > "$temp/id"
+          printf '%s\n' "$KNOWN_HOSTS" > "$temp/known"
+          chmod 600 "$temp/id" "$temp/known"
+          so=(-T -p 65002 -i "$temp/id" -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$temp/known")
+          sc=(-P 65002 -i "$temp/id" -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$temp/known")
+          host=u235811320@92.113.19.189
+          root=/home/u235811320/domains/lemonchiffon-narwhal-791953.hostingersite.com
+          stage="$root/celikom-private/v512-audio-$GITHUB_SHA"
+          backup="$root/celikom-private/v512-audio-backup-$GITHUB_SHA"
+          # Fail safely BEFORE any modification of site or music library if
+          # current Yandex original is not separately present and different.
+          ssh "${so[@]}" "$host" "bash -se" <<'PREFLIGHT'
+          set -euo pipefail
+          root=/home/u235811320/domains/lemonchiffon-narwhal-791953.hostingersite.com
+          app="$root/celikom-private"
+          clips="$app/demo-audio/clips"
+          test -f "$app/app/staging-approved.php"
+          test ! -e "$app/app/release-approved.php"
+          test -f "$clips/restored.mp3" && test ! -L "$clips/restored.mp3"
+          test -f "$clips/service.mp3" && test ! -L "$clips/service.mp3"
+          restored=$(sha256sum "$clips/restored.mp3" | cut -d' ' -f1)
+          service=$(sha256sum "$clips/service.mp3" | cut -d' ' -f1)
+          test "$restored" = d14e926aa506ec8ad3112cd73c516e935be1dca612e83dc46bca8c0f5a8342b5
+          test "$service" != "$restored"
+          for f in "$clips/restored.mp3" "$clips/service.mp3"; do
+            test "$(stat -c '%a' "$f")" = 600
+            size=$(stat -c '%s' "$f")
+            test "$size" -gt 1000 && test "$size" -lt 2097152
+          done
+          echo 'TWO_PRIVATE_DISTINCT_APPROVED_DEMO_SOURCES_PRESENT'
+          PREFLIGHT
+          ssh "${so[@]}" "$host" "test ! -e '$stage' && mkdir -m 700 '$stage'"
+          scp "${sc[@]}" website/app/src/CmsV10OwnerMotion.php "$host:$stage/CmsV10OwnerMotion.php"
+          scp "${sc[@]}" website/public/index.php "$host:$stage/index.php"
+          scp "${sc[@]}" website/public/assets/css/v10/owner-v10-motion.css "$host:$stage/owner-v10-motion.css"
+          scp "${sc[@]}" website/public/assets/js/v10/owner-v10-motion.js "$host:$stage/owner-v10-motion.js"
+          scp "${sc[@]}" website/public/assets/js/v10/owner-sound-player.js "$host:$stage/owner-sound-player.js"
+          ssh "${so[@]}" "$host" "env DEPLOY_SHA='$GITHUB_SHA' bash -se" <<'INSTALL'
+          set -euo pipefail
+          root=/home/u235811320/domains/lemonchiffon-narwhal-791953.hostingersite.com
+          stage="$root/celikom-private/v512-audio-$DEPLOY_SHA"
+          backup="$root/celikom-private/v512-audio-backup-$DEPLOY_SHA"
+          test ! -e "$backup"
+          test -f "$root/celikom-private/app/staging-approved.php"
+          test ! -e "$root/celikom-private/app/release-approved.php"
+          for f in index.php CmsV10OwnerMotion.php; do
+            /opt/alt/php83/usr/bin/php -l "$stage/$f"
+          done
+          mkdir -m 700 "$backup"
+          cp -p "$root/public_html/index.php" "$backup/index.php"
+          cp -p "$root/celikom-private/app/src/CmsV10OwnerMotion.php" "$backup/CmsV10OwnerMotion.php"
+          cp -p "$root/public_html/assets/css/v10/owner-v10-motion.css" "$backup/owner-v10-motion.css"
+          cp -p "$root/public_html/assets/js/v10/owner-v10-motion.js" "$backup/owner-v10-motion.js"
+          if test -f "$root/public_html/assets/js/v10/owner-sound-player.js"; then
+            cp -p "$root/public_html/assets/js/v10/owner-sound-player.js" "$backup/owner-sound-player.js"
+          fi
+          rollback() {
+            cp -p "$backup/index.php" "$root/public_html/index.php"
+            cp -p "$backup/CmsV10OwnerMotion.php" "$root/celikom-private/app/src/CmsV10OwnerMotion.php"
+            cp -p "$backup/owner-v10-motion.css" "$root/public_html/assets/css/v10/owner-v10-motion.css"
+            cp -p "$backup/owner-v10-motion.js" "$root/public_html/assets/js/v10/owner-v10-motion.js"
+            if test -f "$backup/owner-sound-player.js"; then
+              cp -p "$backup/owner-sound-player.js" "$root/public_html/assets/js/v10/owner-sound-player.js"
+            else
+              rm -f "$root/public_html/assets/js/v10/owner-sound-player.js"
+            fi
+            echo 'SITE_V512_ROLLED_BACK'
+          }
+          trap rollback ERR
+          cp -p "$stage/CmsV10OwnerMotion.php" "$root/celikom-private/app/src/CmsV10OwnerMotion.php"
+          cp -p "$stage/owner-v10-motion.css" "$root/public_html/assets/css/v10/owner-v10-motion.css"
+          cp -p "$stage/owner-v10-motion.js" "$root/public_html/assets/js/v10/owner-v10-motion.js"
+          cp -p "$stage/owner-sound-player.js" "$root/public_html/assets/js/v10/owner-sound-player.js"
+          cp -p "$stage/index.php" "$root/public_html/index.php"
+          secret="$root/celikom-private/staging-owner-credentials.txt"
+          pass=$(sed -n 's/^HTTP Basic password: //p' "$secret")
+          test -n "$pass"
+          base=https://lemonchiffon-narwhal-791953.hostingersite.com
+          page=$(mktemp)
+          trap 'rm -f "$page"' EXIT
+          good=false
+          for attempt in 1 2 3 4 5; do
+            code=$(curl -sS --max-time 25 -u "review:$pass" -o "$page" -w '%{http_code}' "$base/?audit=$DEPLOY_SHA-$attempt")
+            if test "$code" = 200 &&
+               grep -Fq 'data-demo-ready="true"' "$page" &&
+               grep -Fq 'owner-sound-player.js?v=511' "$page" &&
+               grep -Fq 'owner-v10-motion.css?v=511' "$page" &&
+               grep -Fq 'owner-v10-motion.js?v=510' "$page" &&
+               grep -Fq 'id="celikom-demo-play"' "$page" &&
+               grep -Fq 'id="faq-question-28"' "$page" &&
+               grep -Fq 'class="reward-illustration"' "$page" &&
+               ! grep -Fq 'Наверх страницы' "$page"; then good=true;break;fi
+            sleep 3
+          done
+          if test "$good" != true; then rollback;echo 'AUDIO_PAGE_NOT_VERIFIED';exit 1;fi
+          for mode in service restored; do
+            code=$(curl -sS --max-time 25 -u "review:$pass" -H 'Range: bytes=0-1023' -o /dev/null -w '%{http_code}' "$base/?demo_audio=$mode")
+            if test "$code" != 206; then rollback;echo 'AUDIO_RANGE_FAILED';exit 1;fi
+          done
+          trap - ERR
+          echo 'TWO_REAL_PRIVATE_AUDIO_ROUTES_LIVE_AND_RANGE_ENABLED'
+          INSTALL
+          pass=$(ssh "${so[@]}" "$host" "sed -n 's/^HTTP Basic password: //p' '$root/celikom-private/staging-owner-credentials.txt'")
+          test -n "$pass"
+          unauthorized=$(curl -sS --max-time 20 -o /dev/null -w '%{http_code}' 'https://lemonchiffon-narwhal-791953.hostingersite.com/?demo_audio=restored')
+          test "$unauthorized" = 401
+          python3 -m pip install --disable-pip-version-check playwright==1.56.0
+          python3 -m playwright install --with-deps chromium
+          if ! CELIKOM_STAGING_BASIC_PASS="$pass" python3 website/tests/OwnerV10LiveSoundBrowserTest.py; then
+            ssh "${so[@]}" "$host" "env DEPLOY_SHA='$GITHUB_SHA' bash -se" <<'ROLLBACK'
+          set -euo pipefail
+          root=/home/u235811320/domains/lemonchiffon-narwhal-791953.hostingersite.com
+          backup="$root/celikom-private/v512-audio-backup-$DEPLOY_SHA"
+          cp -p "$backup/index.php" "$root/public_html/index.php"
+          cp -p "$backup/CmsV10OwnerMotion.php" "$root/celikom-private/app/src/CmsV10OwnerMotion.php"
+          cp -p "$backup/owner-v10-motion.css" "$root/public_html/assets/css/v10/owner-v10-motion.css"
+          cp -p "$backup/owner-v10-motion.js" "$root/public_html/assets/js/v10/owner-v10-motion.js"
+          if test -f "$backup/owner-sound-player.js"; then
+            cp -p "$backup/owner-sound-player.js" "$root/public_html/assets/js/v10/owner-sound-player.js"
+          else
+            rm -f "$root/public_html/assets/js/v10/owner-sound-player.js"
+          fi
+          echo 'CHROMIUM_FAILURE_STAGING_ROLLED_BACK'
+          ROLLBACK
+            exit 1
+          fi
+          echo 'V512_STAGING_OWNER_REVIEW_READY; NOT PUBLIC'
