@@ -523,7 +523,13 @@ uploadForm?.addEventListener("submit", async (event) => {
         idempotency_conflict: "Повтор запроса не совпадает с исходным.",
         rights_declaration_required: "Подтвердите права на файл."
       };
-      uploadMessage(errors[code] || "Загрузка не завершена. Попробуйте ещё раз.", "error");
+      void uploadJournal.record(attemptId, "failed", {httpStatus: xhr.status, code: failure || code || "http_error"});
+      const guidance = failure === "stalled" ? "Передача не началась за 45 секунд. Проверьте интернет или VPN."
+        : failure === "timeout" ? "Сервер не ответил за две минуты. Проверьте статус песни."
+        : xhr.status === 0 ? "Соединение прервалось. Проверьте сеть или VPN."
+        : xhr.status >= 500 ? "Сервер временно недоступен. Повторите позже."
+        : errors[code] || "Загрузка не завершена. Попробуйте ещё раз.";
+      uploadMessage(guidance + " Код: " + attemptId.slice(0, 8).toUpperCase(), "error");
       if (uploadButton) { uploadButton.textContent = "Повторить отправку"; uploadButton.disabled = false; }
     });
     xhr.send(data);
