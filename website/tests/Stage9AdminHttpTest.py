@@ -87,6 +87,22 @@ try:
     assert "Сохранить черновик" not in landing
     assert headers.get("X-Robots-Tag","").startswith("noindex")
     csrf=hidden(landing,"csrf")
+    # Freeze must reject a real valid-CSRF login BEFORE it can write rate
+    # limits or audit; neither login nor editorial changes may cross snapshot.
+    import fcntl
+    gate_path=Path(env["CELIKOM_SITE_WRITE_GATE_FILE"])
+    gate_fd=os.open(gate_path,os.O_CREAT|os.O_EXCL|os.O_RDWR,0o600)
+    try:
+        fcntl.flock(gate_fd,fcntl.LOCK_EX|fcntl.LOCK_NB)
+        frozen_status,_,frozen_headers=request("POST","/admin/",{
+            "action":"login","csrf":csrf,"username":"owner","password":"invalid password"
+        })
+        assert frozen_status==503 and frozen_headers.get("Retry-After")=="5", (
+            "blocked CMS POST executed during protected snapshot",frozen_status
+        )
+    finally:
+        fcntl.flock(gate_fd,fcntl.LOCK_UN)
+        os.close(gate_fd)
     bad_status,bad_html,_=request("POST","/admin/",{
         "action":"login","csrf":"wrong","username":"owner","password":"wrong"
     })
