@@ -1,4 +1,4 @@
 {
-  "operation": "install",
+  "operation": "prepare",
   "target": "hostinger-owner-review"
 }
