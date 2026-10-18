@@ -379,7 +379,7 @@ if ($admin !== null && $_SERVER['REQUEST_METHOD'] === 'GET' && ($_GET['view'] ??
                 $preview,$selection['asset_id'],$media['alt']
             );
         }
-        echo $preview;
+        echo $dev ? $preview : \Celikom\Website\CmsOwnerPolish::apply($preview, $root.'/public_html');
     } catch (\Throwable $e) {
         error_log('CELIKOM CMS: preview failed');
         http_response_code(503);
