@@ -132,7 +132,7 @@ PHP;
         [1=>['pipe','w'],2=>['pipe','w']],$migrationPipes);
     genAssert(is_resource($crashed),'migration crash worker unavailable');
     stream_set_timeout($migrationPipes[1],9);
-    genAssert(fgets($migrationPipes[1])==="DDL_COMMITTED\\n",
+    genAssert(fgets($migrationPipes[1])==="DDL_COMMITTED\n",
         'real ALTER TABLE was not reached before SIGKILL');
     proc_terminate($crashed,9);
     fclose($migrationPipes[1]);fclose($migrationPipes[2]);proc_close($crashed);
