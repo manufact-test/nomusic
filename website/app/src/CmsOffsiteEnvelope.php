@@ -178,7 +178,10 @@ final class CmsOffsiteEnvelope
         self::requireCi();
         self::checkKey($key);
         $dir=realpath(dirname($path));
-        if (!is_string($dir) || !self::privateFile($path,$dir) ||
+        if (!is_string($dir) || is_link(dirname($path)) ||
+            (fileperms($dir)&0077)!==0 ||
+            !self::privateFile($path,$dir) ||
+            (filesize($path)?:0)>2*self::MAX_INPUT ||
             !preg_match('/^celikom-offsite-[0-9]{8}-[0-9]{6}-[a-f0-9]{24}\\.sbox$/D',basename($path))) {
             throw new RuntimeException('Sealed archive path or permissions invalid');
         }
