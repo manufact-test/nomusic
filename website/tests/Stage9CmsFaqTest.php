@@ -57,12 +57,23 @@ foreach([
 }
 $rows=CmsFaqManager::rows($seed,[]);
 faqMust(count($rows)===28,'FAQ seed rows missing');
-$protected=array_values(array_filter($rows,static fn($item)=>$item['protected']));
-faqMust(count($protected)===18,'Product terms FAQ protection registry changed');
+faqMust(count(array_filter($rows,static fn($item)=>$item['protected']))===0,
+    'Owner must be able to edit all 28 existing FAQ entries');
+$ownerChange=CmsFaqManager::change($seed,[],'faq-question-04',[
+    'question'=>'Как работает пробный период?',
+    'answer'=>'Проверь условия пробного периода перед началом.',
+    'category'=>'start','sort_order'=>40,'is_visible'=>true,
+]);
+$ownerPage=CmsEditor::validate($template,$manifest,$seed,['content'=>[],'faq'=>$ownerChange]);
+faqMust(str_contains($ownerPage,'Как работает пробный период?'),'Original FAQ title not editable');
+faqMust(str_contains($ownerPage,'Проверь условия пробного периода'),
+    'Original FAQ answer not editable');
+faqMust(CmsFaqManager::rows($seed,$ownerChange)[3]['question']==='Как работает пробный период?',
+    'Updated title must load back into owner form');
 faqDenied(static fn()=>CmsFaqManager::change($seed,[],'faq-question-04',[
-    'question'=>'Сколько пробный период?','answer'=>'Всегда бесплатно',
-    'category'=>'start','sort_order'=>40,'is_visible'=>false,
-]),'Protected FAQ terms hidden');
+    'question'=>'','answer'=>'',
+    'category'=>'start','sort_order'=>40,'is_visible'=>true,
+]),'Empty existing title/answer rejected');
 $original=array_values(array_filter($rows,static fn($item)=>$item['id']==='faq-question-27'))[0];
 $changed=CmsFaqManager::change($seed,[],'faq-question-27',[
     'question'=>'Как получить ответ поддержки?',
@@ -96,10 +107,19 @@ $public=CmsEditor::validate($template,$manifest,$seed,['content'=>[],'faq'=>$vis
 faqMust(str_contains($public,'Мой новый вопрос?'),'New FAQ not visible');
 faqMust(str_contains($public,'Тест &amp; &lt;&gt;'),'FAQ escaping failed');
 faqMust(substr_count($public,'class="faq-item"')===29,'FAQ count wrong after creation');
-faqDenied(static fn()=>CmsEditor::validate($template,$manifest,$seed,[
-    'content'=>[],'faq'=>['updates'=>['faq-question-08'=>['answer'=>'Новый тариф']]]
-]),'Protected policy FAQ update bypass');
+$oldPolicy=CmsFaqManager::change($seed,[],'faq-question-08',[
+    'question'=>'Какой вариант музыки доступен?',
+    'answer'=>'Обновлённое пояснение от владельца.',
+    'category'=>'start','sort_order'=>80,'is_visible'=>true,
+]);
+$oldPolicyPage=CmsEditor::validate($template,$manifest,$seed,['content'=>[],'faq'=>$oldPolicy]);
+faqMust(str_contains($oldPolicyPage,'Какой вариант музыки доступен?'),
+    'Previously locked FAQ item must be editable for owner');
+faqDenied(static fn()=>CmsFaqManager::change($seed,[],'faq-question-08',[
+    'question'=>'<script>alert(1)</script>','answer'=>'',
+    'category'=>'start','sort_order'=>80,'is_visible'=>true,
+]),'Invalid/empty policy FAQ answer rejected');
 faqDenied(static fn()=>CmsFaqManager::create($seed,$new,[
     'category'=>'help','question'=>'','answer'=>'','sort_order'=>0,'is_visible'=>false,
 ]),'An invalid empty FAQ should fail at validation');
-echo "Stage9: 84 safe section fields, protected FAQ, create/edit/hide/order, v10 parity — PASS\n";
+echo "Stage9: 87 safe section fields, all 28 owner-editable FAQ, create/edit/hide/order, v10 parity — PASS\n";
