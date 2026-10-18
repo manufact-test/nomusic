@@ -109,6 +109,20 @@
  chooseGroup(preferred>=0?preferred:0);
  filterFaq();
  show(initial,false);
+ // After saving an individual FAQ, return the owner to the exact question
+ // rather than collapsing the whole editor back to an anonymous list.
+ const focusId=new URLSearchParams(location.search).get('focus');
+ if(initial==='faq-editor' && focusId && /^faq-question-[0-9]{2,4}$/.test(focusId)){
+  const entry=faqEntries.find(item=>item.querySelector('input[name="faq_id"]')?.value===focusId);
+  if(entry){
+   for(const tab of faqTabs)tab.setAttribute('aria-pressed',String(tab.dataset.faqFilter==='all'));
+   if(faqSearch)faqSearch.value='';
+   filterFaq();
+   entry.open=true;
+   requestAnimationFrame(()=>entry.scrollIntoView({block:'center',behavior:'instant'}));
+  }
+ }
+
  window.addEventListener('hashchange',()=>{
   const section=areaFromHash();
   if(section)show(section,false)
