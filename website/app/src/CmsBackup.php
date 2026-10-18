@@ -14,7 +14,8 @@ use RuntimeException;
 final class CmsBackup
 {
     public static function export(
-        PDO $pdo,string $backupDirectory,string $mediaDirectory,string $publicDirectory
+        PDO $pdo,string $backupDirectory,string $mediaDirectory,string $publicDirectory,
+        bool $existingSnapshot=false
     ): string {
         $output=realpath($backupDirectory);
         $storage=realpath($mediaDirectory);
@@ -26,8 +27,14 @@ final class CmsBackup
             $output===$storage) {
             throw new RuntimeException('CMS backup requires separate private directories');
         }
-        $pdo->exec("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ");
-        $pdo->beginTransaction();
+        if ($existingSnapshot) {
+            if (!$pdo->inTransaction()) {
+                throw new RuntimeException('An active caller-owned DB snapshot is required');
+            }
+        } else {
+            $pdo->exec('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ');
+            $pdo->beginTransaction();
+        }
         try {
             $snapshot=[];
             foreach([
@@ -69,7 +76,7 @@ final class CmsBackup
                 $files[$key]=base64_encode($bytes);
                 $total+=$size;
             }
-            $pdo->commit();
+            if (!$existingSnapshot) $pdo->commit();
             $snapshot=['format'=>'celikom-site-content-backup-v1',
                 'exported_utc'=>gmdate('Y-m-d\TH:i:s\Z'),
                 'tables'=>$snapshot,'media_data'=>$files];
@@ -99,7 +106,7 @@ final class CmsBackup
             }
             return $target;
         } catch (\Throwable $e) {
-            if($pdo->inTransaction())$pdo->rollBack();
+            if (!$existingSnapshot && $pdo->inTransaction()) $pdo->rollBack();
             throw $e;
         }
     }
