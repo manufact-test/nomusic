@@ -46,8 +46,15 @@ body .closing::before{
 .reward-notice svg .celikom-info-dot{
  fill:#18886d;stroke:none
 }
-/* FAQ: content height AND bottom padding collapse in unison;
-   native details remain open until the animation has fully ended. */
+/* Restore the source v10 resting-state breathing room. The original
+   answer's padding must remain 23px desktop / 19px on narrow screens.
+   Animate these values only while the answer is transitioning. */
+#faq .faq-item .answer{
+ padding-bottom:23px;
+}
+@media(max-width:540px){
+ #faq .faq-item .answer{padding-bottom:19px}
+}
 #faq .faq-item .answer.celikom-answer-animating{
  overflow:hidden
 }
