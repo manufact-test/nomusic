@@ -107,6 +107,32 @@ try {
             'partial SQL/media recovery survived '.$point);
     }
 
+    // Real DDL mismatch: a conflicting preexisting target table must not
+    // be silently accepted because the migration uses IF NOT EXISTS.
+    $badSchema=static function(string $step) use ($sandbox,$config):void {
+        if ($step!=='database-created') return;
+        $record=json_decode((string)file_get_contents(
+            $sandbox.'/.celikom-ci-mysql-recovery.json'),true,16,JSON_THROW_ON_ERROR);
+        $target=Database::connect([...$config,'dbname'=>$record['database']]);
+        $target->exec('CREATE TABLE admin_users (id INT PRIMARY KEY) ENGINE=InnoDB');
+    };
+    replayReject(fn()=>$replay($badSchema),'conflicting restored SQL schema');
+    replayAssert(scandir($sandbox)===['.','..'],
+        'schema mismatch left partial MySQL/media generation');
+
+    // Corrupted staged image after an otherwise valid snapshot must fail and
+    // discard the new DB, even if all source backup checksums still pass.
+    $badMedia=static function(string $step) use ($sandbox,$filename):void {
+        if ($step!=='media-staged') return;
+        $record=json_decode((string)file_get_contents(
+            $sandbox.'/.celikom-ci-mysql-recovery.json'),true,16,JSON_THROW_ON_ERROR);
+        file_put_contents($sandbox.'/'.$record['media_folder'].'/'.$filename,
+            'corrupted private image');
+    };
+    replayReject(fn()=>$replay($badMedia),'corrupted staged binary media');
+    replayAssert(scandir($sandbox)===['.','..'],
+        'media tamper left a partial recovered state');
+
     $lease=CmsWriteQuiescence::snapshot($public);
     $restored=CmsSandboxRecovery::replay(
         $config,$manifest,$key,$public,$sandbox,$migration,$lease
