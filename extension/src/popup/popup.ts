@@ -450,12 +450,44 @@ uploadForm?.addEventListener("submit", async (event) => {
     xhr.setRequestHeader("X-Celikom-Upload-Attempt", attemptId);
     const finalTarget = uploadTargetFromStatus(await send<ExtensionState>({ type: COMMANDS.getStatus }));
     if (finalTarget?.id !== pinnedTrack.id) throw new Error("track_changed");
+    let failure = "";
+    let lastActivityAt = Date.now();
+    let bytesMoved = false, waitNotice = false, lastPercent = -1;
+    const watchdog = setInterval(() => {
+      if (!uploading || bytesMoved) return;
+      const idle = Date.now() - lastActivityAt;
+      if (idle > 15000 && !waitNotice) {
+        waitNotice = true;
+        uploadMessage("Ожидаем начала передачи. Проверяем соединение…", "checking");
+        void uploadJournal.record(attemptId, "waiting");
+      }
+      if (idle > 45000) { failure = "stalled"; xhr.abort(); }
+    }, 3000);
+    watchdog?.unref?.();
     xhr.upload.addEventListener("progress", (progress) => {
-      if (progress.lengthComputable && uploadProgress) uploadProgress.value = Math.floor(progress.loaded / progress.total * 100);
+      lastActivityAt = Date.now();
+      bytesMoved ||= progress.loaded > 0;
+      const percent = progress.lengthComputable && progress.total > 0
+        ? Math.floor(progress.loaded / progress.total * 100) : 0;
+      if (uploadProgress && progress.lengthComputable) uploadProgress.value = percent;
+      if (Math.floor(percent / 10) !== Math.floor(lastPercent / 10)) {
+        lastPercent = percent;
+        void uploadJournal.record(attemptId, "transferring", {sent: progress.loaded, percent});
+      }
     });
+    xhr.upload.addEventListener("load", () => {
+      bytesMoved = true;
+      void uploadJournal.record(attemptId, "server_wait");
+      uploadMessage("Файл отправлен. Ждём подтверждения сервера…", "checking");
+    });
+    xhr.addEventListener("error", () => { failure = "network_error"; });
+    xhr.addEventListener("timeout", () => { failure = "timeout"; });
+    xhr.addEventListener("abort", () => { failure ||= "interrupted"; });
     if (uploadProgress) { uploadProgress.hidden = false; uploadProgress.value = 0; }
-    uploadMessage("Загружаем аудиофайл…", "checking");
+    uploadMessage("Подключаемся и загружаем аудиофайл…", "checking");
+    void uploadJournal.record(attemptId, "connecting");
     xhr.addEventListener("loadend", () => {
+      clearInterval(watchdog);
       uploading = false;
       if(uploadFile)uploadFile.disabled=false;
       if (xhr.status === 202) {
