@@ -192,3 +192,20 @@ test('Stop while fresh recovery authorization is pending prevents a late allowed
  await f.send('CELIKOM_ENABLED_SET',{enabled:false});const count=f.sent.length;finish({allowed:true,source:'promo',valid_until:null});await new Promise(setImmediate);await new Promise(setImmediate);
  assert.equal(f.local.enabled,false);assert.equal(f.sent.length,count);
 });
+
+test("security: only the real CELIKOM upload tab can issue authenticated popup commands", async () => {
+ const f=fixture();
+ const legitimate={id:"worker",url:"chrome-extension://worker/popup/popup.html#upload"};
+ const state=await f.send("CELIKOM_STATUS_GET",{},legitimate);
+ assert.equal(state.version,"0.4.7");
+ const auth=await f.send("CELIKOM_AUTH",{action:"contribution-access"},legitimate);
+ assert.equal(auth.ok,true);
+ for(const url of [
+  "chrome-extension://worker/popup/popup.html#upload-spoof",
+  "chrome-extension://worker/popup/popup.html?skip=1#upload",
+  "chrome-extension://worker/other.html#upload"
+ ]) {
+  const denied=await f.send("CELIKOM_AUTH",{action:"contribution-access"},{id:"worker",url});
+  assert.equal(denied.error,"invalid_sender");
+ }
+});
