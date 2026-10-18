@@ -444,3 +444,19 @@ test("upload form displays CELIKOM-styled required-field feedback", async () => 
   assert.match(find("[data-upload-status]").textContent, /Подтвердите/);
   assert.equal(requests.length, baseline);
 });
+
+test("background uploader keeps the form stable and never forces popup scroll", async()=>{
+ const source=await readFile(new URL("../src/popup/popup.ts",import.meta.url),"utf8");
+ const html=await readFile(new URL("../popup/popup.html",import.meta.url),"utf8");
+ const css=await readFile(new URL("../popup/popup.css",import.meta.url),"utf8");
+ assert.doesNotMatch(source,/scrollIntoView\s*\(/,"No involuntary scroll during preflight or upload");
+ assert.match(source,/if\(uploadForm\) uploadForm\.hidden = false;/,
+   "Popup form stays rendered when checking background status");
+ assert.doesNotMatch(source,/uploadForm\.hidden\s*=\s*active/,
+   "Background transfer must not collapse the form");
+ assert.match(html,/class="upload-transfer-slot"/);
+ assert.match(html,/data-upload-progress/);
+ assert.match(html,/data-upload-cancel/);
+ assert.match(css,/\.upload-transfer-slot\s*\{[\s\S]*?height:\s*82px/);
+ assert.equal((html.match(/data-upload-status/g)||[]).length,1);
+});
