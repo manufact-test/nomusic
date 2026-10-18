@@ -773,22 +773,17 @@ async function syncBackgroundUpload(): Promise<void> {
   if(uploadPanel) uploadPanel.hidden = false;
   if(addTrackButton) addTrackButton.setAttribute("aria-expanded","true");
   if(uploadTrack) uploadTrack.value = target.id;
-  if(uploadProgress) {
-    uploadProgress.hidden = !active;
-    uploadProgress.value = Number.isInteger(saved.percent) ? saved.percent : 0;
-  }
-  if(uploadCancel) uploadCancel.hidden = !active;
+  uploadProgressVisible(active);
+  if(uploadProgress) uploadProgress.value = Number.isInteger(saved.percent) ? saved.percent : 0;
   if(uploadConfirm && !active) uploadConfirm.hidden = true;
   if(uploadFile) uploadFile.disabled = active;
   // Never collapse the form during the transfer or when it finishes:
   // the small Chrome popup must keep its layout and scroll position.
   if(uploadResult) uploadResult.hidden = true;
   if(uploadForm) uploadForm.hidden = false;
-  if(uploadButton) {
-    uploadButton.disabled = active || ["completed","duplicate"].includes(saved.phase);
-    uploadButton.textContent = active ? "Отправляем…"
-      : ["completed","duplicate"].includes(saved.phase) ? "Отправлено на проверку" : "Повторить отправку";
-  }
+  uploadAction(active ? "cancel" :
+    ["completed","duplicate"].includes(saved.phase) ? "complete" :
+    ["failed","cancelled"].includes(saved.phase) ? "retry" : "submit");
   if(saved.phase==="completed" || saved.phase==="duplicate") {
     uploadMessage(saved.phase==="completed"?"Аудиофайл получен CELIKOM. Версия отправлена на модерацию."
       :"Версия уже есть на сервере. Повторная отправка не нужна.","success");
