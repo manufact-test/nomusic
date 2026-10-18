@@ -254,7 +254,15 @@
     }
 
     wake() {
-      if (!this.destroyed && !this.startupError) {
+      if (this.destroyed || this.startupError) return;
+      // On extension reload Chrome invalidates the old isolated-world APIs,
+      // but its timers/callbacks may still execute until the page is reloaded.
+      // An unavailable storage API is not a recoverable playback failure.
+      try {
+        if (!chrome.runtime?.id || !chrome.storage?.local?.get) {
+          this.destroy();
+          return;
+        }
         this.bridge.connect();
         const revision = this.settingsRevision;
         void chrome.storage.local.get(["enabled", "testTrackId"]).then((stored) => {
@@ -262,7 +270,17 @@
           this.enabled = stored.enabled === true;
           this.testTrackId = stored.testTrackId || "";
           this.engine.configure(this.enabled, this.testTrackId);
-        }).catch((error) => this.log(`settings failed: ${error.message}`));
+        }).catch((error) => {
+          if (/extension context invalidated/i.test(String(error?.message || ""))) {
+            this.destroy();
+            return;
+          }
+          this.log(`settings failed: ${error?.message || "unavailable"}`);
+        });
+      } catch (error) {
+        // Chrome can throw synchronously from chrome.storage.local.get() even
+        // when the property still exists but its old extension context died.
+        this.destroy();
       }
     }
 
@@ -277,7 +295,7 @@
       root.clearInterval(this.syncTimer);
       try { chrome.runtime.onMessage.removeListener(this.onRuntimeMessage); } catch (_error) { /* invalidated */ }
       try { chrome.storage.onChanged.removeListener(this.onStorageChanged); } catch (_error) { /* invalidated */ }
-      this.bridge.destroy();
+      try { this.bridge.destroy(); } catch (_error) { /* stale Chrome context */ }
     }
   }
 
