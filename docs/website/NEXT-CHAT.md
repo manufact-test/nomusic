@@ -1,5 +1,29 @@
 # CELIKOM — сайт: NEXT-CHAT / переносимая контрольная точка
 
+**Версия:** 4.2 · **Контрольная точка:** 18.10.2026 · **Приоритет — этот раздел v4.2.** Всё ниже, включая v4.1, история.
+
+## v4.2 — АКТУАЛЬНАЯ КОНТРОЛЬНАЯ ТОЧКА / STAGE 10
+
+**Код/ветка:** manufact-test/nomusic, feature/api-range. **Последний проверенный кодовый коммит:** 77592c2797efe1bd53293f2d930050492108645c. **Не считать его текущим HEAD**: после проверки внесены документы. Каждый новый чат обязан проверить HEAD и CI непосредственно в GitHub. PR #6 не сливать.
+
+**Главный новый отчёт:** [2026-10-18-STAGE10-CONSISTENT-RELEASE-MODEL.md](checkpoints/2026-10-18-STAGE10-CONSISTENT-RELEASE-MODEL.md). Обязательно прочитать его вместе с предыдущим [Stage10 Joint Recovery](checkpoints/2026-10-18-STAGE10-JOINT-RECOVERY.md), MASTER-TZ.md, ROADMAP.md.
+
+### Новый крупный технический блок
+
+1. **Единая согласованная MySQL точка чтения:** оба существующих экспортера умеют работать внутри одного caller-owned REPEATABLE READ snapshot без самостоятельного COMMIT. Новый CmsConsistentBackup.php создаёт зашифрованный полный MySQL-архив, контент/медиа JSON и owner-only manifest с SHA256; cross-check сверяет записи и изображения, manifest появляется **последним**, обрыв очищается. Это единый InnoDB snapshot, но **не автоматический freeze физических файлов**; снимок медиа необходимо защищать от concurrent GC/замен. JSON контента НЕ шифрован, для offsite требуется дополнительное шифрование. Manifest с хэшами НЕ цифровая подпись.
+2. **Контроль реального параллельного редактирования CMS в CI:** Stage10ConsistentSnapshotTest.php открывает 2 отдельных MySQL соединения. Второе успевает изменить draft после экспорта полной базы, но до экспорта контента; обе копии читают одинаковые значения прежнего MVCC-снимка. Проверены неверные ключи, права, поддельные хэши, удаление media, отсутствие незавершённого restore point.
+3. **Жизненный цикл релиза только offline:** Stage10ReleaseLifecycleTest.py моделирует stateful код+логическую БД JSON+приватные медиа, stage → snapshot → операции → HTTP healthcheck двух маршрутов → recovery по записанному на диск журналу. Проверены 6 аварийных остановок, испорченные артефакты, сбой healthcheck и восстановление старых байтов. PHP локально отвечает **503/noindex**. **Это не настоящий MySQL live rollback и не рабочий Hostinger deployer**.
+4. **CI зелёная на проверенном коде:** [Website CI 39117243995](https://github.com/manufact-test/nomusic/actions/runs/39117243995) и [общая CI 39117244004](https://github.com/manufact-test/nomusic/actions/runs/39117244004) — SUCCESS. На commit compare с исходным v4.1 HEAD 9800f384... изменились только 3 PHP backup файла, два теста и Website CI. Эталонный v10, 5 CSS, 2 JS, extension/server/android не изменены.
+
+### Всё ещё не готово и НЕ разрешено
+
+- **Hostinger и production никогда не трогать в этой работе.** В .github/workflows/deploy-celikom-website.yml всё ещё обязательное && false. Не включать без отдельной проверенной server-side схемы миграций SQL/файлов/медиа, отката, monitoring, owner release permission. НЕ выпускать сайт и CMS, public 503/noindex сохранять.
+- Нет реального stop-the-world/quiescence для всех CMS writers и приватного media GC, нет production-grade crash-durable общего выпуска/отката (тестовый JSON нельзя выдавать за SQL), не решён encrypted offsite контент/media, не утверждён правомерный публичный popup PNG, нет owner acceptance. Stage 9 НЕ принят официально, Stage 10 НЕ закрыт.
+- Главные продуктовые факты: 3 дня trial, плановая цена $2.99/месяц (платежи не подключены), 2% за одобренную уникальную версию, max 20% в месяц, остаток переносится. Не менять без согласования. Дизайн v10 строго неизменен.
+- **Дальше:** безопасно спроектировать quiescence barrier/maintenance для реальных редакторских записей и media, затем связать SQL restore/migration, healthchecks и rollback с offline поколениями релиза. Никакого подключения к production до явного разрешения. Документацию обновлять редко — после значимого пакета либо по просьбе владельца.
+
+---
+
 **Версия:** 4.1 · **Контрольная точка:** 18.10.2026 · **Приоритет — ЭТОТ РАЗДЕЛ v4.1.** Все разделы v4.0/v3.9 ниже оставлены как история.
 **Исходная последняя успешная техническая точка:** `a49816f2115b96966c88dcb8c6f99108d0786585`; [Website CI — SUCCESS 39114822080](https://github.com/manufact-test/nomusic/actions/runs/39114822080) и [общая CI — SUCCESS 39114822075](https://github.com/manufact-test/nomusic/actions/runs/39114822075). После этого внесены только docs и необходимо проверить фактический HEAD ветки, а не воспринимать исходный SHA как последний.
 
