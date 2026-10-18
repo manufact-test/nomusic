@@ -51,13 +51,20 @@ use Celikom\Website\CmsMediaAssignment;
 use Celikom\Website\Content;
 use Celikom\Website\Database;
 use Celikom\Website\Security;
+use Celikom\Website\CmsWriteQuiescence;
 
 try {
     $pdo = Database::connect(CmsConfig::databaseSettings());
     Security::startAdminSession($https || $dev);
+    // Hold across the entire POST, including login throttles, revisions, media
+    // file placement and final MySQL commit. Releases on redirect/exit too.
+    if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
+        $cmsWriteLease = CmsWriteQuiescence::writer($root.'/public');
+    }
 } catch (\Throwable $e) {
     error_log('CELIKOM CMS: unavailable (configuration/session)');
     http_response_code(503);
+    header('Retry-After: 5');
     echo 'Панель временно недоступна.';
     exit;
 }
