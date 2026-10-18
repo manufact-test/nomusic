@@ -98,7 +98,9 @@ async function execute(task) {
   }
 }
 chrome.runtime.onMessage.addListener((message,sender,respond)=>{
-  if(sender?.id!==chrome.runtime.id || sender?.url!==chrome.runtime.getURL("background/service-worker.js") || !message || typeof message!=="object") return false;
+  const fromWorker = sender?.id===chrome.runtime.id && !sender?.tab &&
+    (!sender?.url || sender.url===chrome.runtime.getURL("background/service-worker.js"));
+  if(!fromWorker || !message || typeof message!=="object") return false;
   if(message.type==="CELIKOM_UPLOAD_EXECUTE"){
     if(active){respond({ok:false,error:"upload_busy"});return false;}
     if(!message.task || typeof message.task.id!=="string"){respond({ok:false,error:"invalid_request"});return false;}
