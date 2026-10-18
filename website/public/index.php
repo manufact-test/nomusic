@@ -91,7 +91,7 @@ try {
         $publishedHtml = \Celikom\Website\CmsRevisions::publishedPage(
             $pdo, $trustedHtml, $contentSchema, $faqSeed
         );
-        echo \Celikom\Website\CmsOwnerPolish::apply($publishedHtml, __DIR__);
+        echo \Celikom\Website\CmsV10OwnerMotion::apply($publishedHtml);
     }
 } catch (\Throwable $error) {
     error_log('CELIKOM website: protected content render failed');
