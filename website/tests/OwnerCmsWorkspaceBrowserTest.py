@@ -35,6 +35,21 @@ with tempfile.TemporaryDirectory(prefix='celikom-workspace-ui-') as storage:
                 assert page.locator('#text-editor textarea').count()==87
                 links=page.locator('.cms-side-menu a[data-cms-link]')
                 assert links.count()==5
+                assert page.locator('.cms-home-card .cms-card-icon svg').count()==4
+                icon=page.locator('.cms-home-card .cms-card-icon').first
+                box=icon.bounding_box()
+                assert box and box['width']>=47 and box['height']>=47,(width,box)
+                family=page.locator('body').evaluate('(el)=>getComputedStyle(el).fontFamily')
+                assert 'Manrope' in family,(width,family)
+                page.locator('.cms-side-menu a[data-cms-link="revision-editor"]').click()
+                assert page.get_by_role('heading',name='Публикации',exact=True).is_visible()
+                save_button=page.get_by_role('button',name='Опубликовать версию')
+                history_title=page.get_by_role('heading',name='История версий')
+                if save_button.is_visible():
+                    b=save_button.bounding_box()
+                    h=history_title.bounding_box()
+                    assert b and h and h['y']-b['y']-b['height']>=28,(width,b,h)
+                page.locator('.cms-side-menu a[data-cms-link="overview"]').click()
                 for area in ['text-editor','faq-editor','media-editor','revision-editor','overview']:
                     page.locator(f'.cms-side-menu a[data-cms-link="{area}"]').click()
                     assert page.locator('#'+area).is_visible(),(area,width)
