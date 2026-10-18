@@ -55,6 +55,10 @@ jobs:
           printf 'mysql_cli='
           command -v mysql || true
           printf 'staging_htaccess=%s\n' "$(test -f "$root/public_html/.htaccess" && echo exists || echo none)"
+          printf 'mysql_current_user_login='
+          if mysql --connect-timeout=3 --batch --skip-column-names -e 'SELECT 1' >/dev/null 2>&1; then echo yes; else echo no; fi
+          printf 'mysql_defaults_file='
+          if test -f "$HOME/.my.cnf"; then echo present; else echo none; fi
           REMOTE
       - name: Check intended domain HTTPS without bypassing certificate validation
         shell: bash
