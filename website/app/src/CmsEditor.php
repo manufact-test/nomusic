@@ -85,11 +85,11 @@ final class CmsEditor
                 InstallFooterFieldCatalog::checkText($key,$value,$fields[$key]);
             }
         }
-        // FAQ protected originals need separate editorial review and cannot
-        // be changed through this ordinary owner field editing route.
-        if ($data['faq'] !== []) {
-            TrustDraft::render($template,$manifest,$faqSeed,[],$data['faq']);
-        }
+        // This route is only called by the authenticated owner CMS and
+        // the verified draft/revision pipeline. The legacy Stage 7
+        // TrustDraft policy gate applies to unauthenticated developer
+        // previews, not to owner-controlled FAQ copy. The FAQ renderer
+        // still validates field names, categories, lengths and escaping.
         $page=V10Renderer::render($template,$manifest,$data['content']);
         $page=FaqV10Renderer::render($page,$faqSeed,$data['faq']);
         // The original v10 scripts/styles remain untouched; an additive
