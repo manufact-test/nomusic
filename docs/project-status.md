@@ -1,3 +1,11 @@
+## 2026-10-18 — CELIKOM website v5.18: owner-accepted staging closed, production later (WEBSITE ONLY)
+
+Владелец завершил ручную приёмку закрытого сайта CELIKOM и временной PHP/MySQL админки; разработка сайта **приостановлена до возвращения владельца для публичного подключения**. Сайт работает на HTTPS `lemonchiffon-narwhal-791953.hostingersite.com`, админка — `/admin/` под HTTP Basic + логином CMS, отдельная MySQL. Приняты approved v10 UI, два независимых 11s аудио «Ау», FAQ с 28 редактируемыми вопросами/ответами, мятный мобильный скролл, 87 контентных полей/14 групп, медиа, черновики/preview/publish/history. **Последняя доработка v5.17:** у каждого FAQ и в шапке раздела «Посмотреть результат» в новой вкладке, после сохранения черновика. [Website CI PASS 39160824291](https://github.com/manufact-test/nomusic/actions/runs/39160824291), [repo CI PASS 39160824250](https://github.com/manufact-test/nomusic/actions/runs/39160824250), [protected deploy PASS 39160583061](https://github.com/manufact-test/nomusic/actions/runs/39160583061). Кодовая точка `37d7af25d75d50cff3f1a88d375f047e3ba00cdd`, документация затем обновлена без изменения кода. [Подробный checkpoint v5.18](website/checkpoints/2026-10-18-V5-18-FINAL-STAGING-CLOSEOUT.md).
+
+**Это НЕ публичный выпуск и НЕ приёмка production release pipeline.** Перед будущим запуском: постоянный домен/DNS/HTTPS, финальные CTA/контакты/правовые документы/права на музыкальные фрагменты, проверенный на Hostinger backup + восстановление + rollback, явное решение владельца об открытии сайта. `deploy-celikom-website.yml` жёстко выключен `&& false`; PR #6 не сливать. Универсальная AI Site CMS — отдельный проект, не требуется до запуска. **Никаких изменений в расширении, активной музыке, сервере, Android:** данная запись относится только к сайту. История расширения ниже не менялась.
+
+---
+
 ## 2026-10-16 — 0.4.50: tab reopen and VPN recovery
 
 Owner on 2026-10-15 18:26 MSK confirmed .49 appears to fix audio/format issues and continues testing. New report: one missed automatic reconnect after closing Yandex, working elsewhere/changing VPN and reopening; later reopens worked. No diagnostics for that specific failure, so exact cause remains unproven.
