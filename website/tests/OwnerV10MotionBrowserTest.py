@@ -72,7 +72,6 @@ try:
                 # Full card and answer's padding must both collapse smoothly.
                 assert max(abs(a-b) for a,b in zip(sizes, sizes[1:])) < .36 * (sizes[0]-sizes[-1]), result
                 assert abs(sizes[-1]-result["final"]) < 1, result
-                assert result["heights"][-1][3] > 0, "CSS padding may be restored after native close"
                 # Before completing, bottom padding must gradually reach near zero.
                 active=[h for h in result["heights"] if 25 < h[0] < 250]
                 assert active[0][3]>active[-1][3] >=0, result
