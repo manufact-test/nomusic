@@ -185,6 +185,7 @@ PHP;
     echo "Stage10: real isolated MySQL rows + binary media replay, faults, tamper, wrong schema, SIGKILL journal recovery — PASS\n";
 } finally {
     if ($gate instanceof CmsWriteQuiescence) $gate->release();
+    if (isset($lease) && $lease instanceof CmsWriteQuiescence) $lease->release();
     $lease=CmsWriteQuiescence::snapshot($public);
     try {CmsSandboxRecovery::cleanup($config,$public,$sandbox,$lease);}
     finally {$lease->release();}
