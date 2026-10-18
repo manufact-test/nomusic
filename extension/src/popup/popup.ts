@@ -535,7 +535,10 @@ uploadForm?.addEventListener("submit", async (event) => {
     xhr.send(data);
     transferStarted = true;
   } catch (error) {
-    uploadMessage(contributionError(error), "error");
+    void uploadJournal.record(attemptId, "failed", {
+      code: (error as Error)?.message === "track_changed" ? "track_changed" : "preflight_failed"
+    });
+    uploadMessage(contributionError(error) + " Код: " + attemptId.slice(0, 8).toUpperCase(), "error");
   } finally {
     // The request completion handler is responsible for re-enabling the button
     // after xhr.send(). An early exit must never leave the UI stuck.
