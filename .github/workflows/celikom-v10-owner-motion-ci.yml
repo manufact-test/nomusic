@@ -9,6 +9,8 @@ on:
       - website/public/index.php
       - website/public/admin/index.php
       - website/tests/CmsV10OwnerMotionTest.php
+      - website/tests/OwnerV10MotionBrowserTest.py
+      - website/tests/OwnerV10MotionFixture.php
       - .github/workflows/celikom-v10-owner-motion-ci.yml
   workflow_dispatch:
 permissions:
@@ -16,7 +18,7 @@ permissions:
 jobs:
   approved-v10:
     runs-on: ubuntu-latest
-    timeout-minutes: 6
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
         with:
@@ -36,3 +38,12 @@ jobs:
           node --check website/public/assets/js/v10/owner-v10-motion.js
           php website/tests/CmsV10OwnerMotionTest.php
           python3 website/tests/Stage3MarkupTest.py
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install Chromium interaction testing
+        run: |
+          python -m pip install playwright==1.56.0
+          python -m playwright install --with-deps chromium
+      - name: Check actual FAQ closing animation and header in Chromium
+        run: python website/tests/OwnerV10MotionBrowserTest.py
