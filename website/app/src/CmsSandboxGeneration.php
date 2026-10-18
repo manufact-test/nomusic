@@ -246,8 +246,10 @@ final class CmsSandboxGeneration
         )),static fn(string $x):bool=>$x!==''));
         // No freeform SQL from environment, users or arbitrary migration files.
         if (count($commands)!==3 ||
-            !str_starts_with($commands[0],'CREATE TABLE cms_schema_versions (') ||
-            !str_contains($commands[0], 'ENGINE=InnoDB') ||
+            $commands[0] !== "CREATE TABLE cms_schema_versions (\n".
+                "  version INT UNSIGNED NOT NULL PRIMARY KEY,\n".
+                "  migration_name VARCHAR(80) NOT NULL\n".
+                ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci" ||
             $commands[1] !== "ALTER TABLE site_settings ADD COLUMN release_generation VARCHAR(16) NOT NULL DEFAULT 'v2'" ||
             $commands[2] !== "INSERT INTO cms_schema_versions(version,migration_name) VALUES(2,'ci-offline-generation-v2')") {
             throw new RuntimeException('Unsupported versioned SQL migration');
