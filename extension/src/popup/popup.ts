@@ -140,6 +140,9 @@ let uploadRequestId: string | null = null;
 const uploadJournal = createUploadJournal(chrome.storage?.local);
 let uploading = false;
 let opening = false;
+// Respect an explicit user close within this popup instance. The one-second
+// background status poll must never reopen a panel the user just collapsed.
+let uploadManuallyCollapsed = false;
 const durationNote=document.querySelector<HTMLElement>("[data-upload-duration]");
 let durationGeneration=0, measuredFile=null, durationPromise=null, durationBlocked=false;
 function checkFileDuration(){
@@ -288,27 +291,16 @@ async function trackUploadStatus(origin: string, trackId: string): Promise<"none
 }
 
 addTrackButton?.addEventListener("click", async () => {
-  if (incidentStatus.active() || !uploadPanel || uploading || opening) return;
+  if (incidentStatus.active() || !uploadPanel || opening) return;
+  // Close immediately, regardless of success/error/upload state. No network
+  // request, validation reset, or async completion is allowed to reopen it.
   if (!uploadPanel.hidden) {
-    // Query first: a click immediately after a song switch must open the
-    // new song, even before the next one-second status poll.
-    opening = true;
-    try {
-      const current = await send<ExtensionState>({ type: COMMANDS.getStatus });
-      opening = false;
-      render(current);
-    } catch (error) {
-      opening = false;
-      resetUploadPanel();
-      uploadMessage(contributionError(error), "error");
-      return;
-    }
-    if (!uploadPanel.hidden && (uploadStatus?.hidden || uploadStatus?.dataset.kind !== "error")) {
-      transitionUploadPanel(() => { uploadPanel.hidden = true; });
-      addTrackButton.setAttribute("aria-expanded", "false");
-      return;
-    }
+    uploadManuallyCollapsed = true;
+    uploadPanel.hidden = true;
+    addTrackButton.setAttribute("aria-expanded", "false");
+    return;
   }
+  uploadManuallyCollapsed = false;
   opening = true;
   addTrackButton.disabled = true;
   addTrackButton.dataset.loading = "true";
@@ -766,6 +758,10 @@ async function syncBackgroundUpload(): Promise<void> {
   if (!active && !["completed","duplicate","failed","cancelled"].includes(saved.phase)) return;
   // Do not overwrite an unrelated newly selected file with an older result.
   if (!active && !backgroundUploadMode && uploadFile?.files?.length) return;
+  // Neither a completed upload nor a periodic poll can reopen a panel the
+  // user closed. A completed attempt in a fresh popup is shown on demand by
+  // the server status check when "Загрузить версию" is clicked.
+  if (uploadManuallyCollapsed || (uploadPanel?.hidden && !active && !backgroundUploadMode)) return;
   pinnedTrack = target;
   uploadRequestId = saved.id;
   backgroundUploadMode = active;
