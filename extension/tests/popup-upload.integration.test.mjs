@@ -8,6 +8,7 @@ function el(selector, values = {}) {
   const node = { value: "", textContent: "", disabled: false, hidden: false, dataset: {},
     files: [], checked: false, title: "", style: {}, ...values,
     setAttribute(name, value) { this[name] = value; },
+    focus() { this.focused = true; },
     addEventListener(name, fn) { handlers.set(name, fn); },
     async fire(name) { return handlers.get(name)?.({ preventDefault() {} }); } };
   elements.set(selector, node);
