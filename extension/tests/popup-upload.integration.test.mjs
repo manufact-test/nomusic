@@ -16,6 +16,7 @@ function el(selector, values = {}) {
 for (const selector of ["[data-access-status]", "[data-version-status]", "[data-status]", "[data-action='start']", "[data-action='stop']",
   "[data-action='restore']", "[data-action='diagnostics']", "[data-track]", "[data-test-track]",
   "[data-upload-panel]", "[data-upload-track]", "[data-upload-file]", "[data-upload-key]",
+  "[data-upload-cancel]", "[data-upload-confirm]", "[data-upload-continue]", "[data-upload-stop]",
   "[data-upload-rights]", "[data-upload-progress]", "[data-upload-status]", "[data-upload-submit]",
   "[data-upload-duration]", "[data-upload-result]", "[data-upload-result-title]", "[data-upload-result-note]",
   "[data-file-picker]", "[data-file-title]", "[data-file-name]",
@@ -26,6 +27,8 @@ find("[data-suggest-panel]").hidden = true;
 find("[data-upload-form]").hidden = true;
 find("[data-upload-result]").hidden = true;
 find("[data-upload-progress]").hidden = true;
+find("[data-upload-confirm]").hidden = true;
+find("[data-upload-cancel]").hidden = true;
 
 const selected = { track: { id: "144530503", confidence: 200, ambiguous: false,
   metadata: { durationMs: 180872, title: "Owner fixture", artist: "CI" } } };
@@ -61,6 +64,7 @@ globalThis.fetch = async (url,options={}) => {
 };
 class FakeXHR {
   static throwOnSend = false;
+  static hold = false;
   constructor() {
     this.status = 202;
     this.responseText = JSON.stringify({ status: "pending", replacement_id: 71, duplicate: false });
@@ -73,10 +77,16 @@ class FakeXHR {
   send(body) {
     requests.push({ method: this.method, url: this.url, headers: this.headers, body });
     if (FakeXHR.throwOnSend) throw new Error("network startup denied");
+    if (FakeXHR.hold) return;
     queueMicrotask(() => {
       pendingTracks.add(String(body.get("track_id")));
       this.listeners.get("loadend")?.();
     });
+  }
+  abort() {
+    this.status = 0;
+    this.listeners.get("abort")?.();
+    this.listeners.get("loadend")?.();
   }
 }
 globalThis.XMLHttpRequest = FakeXHR;
@@ -389,4 +399,26 @@ test('a Start message that never returns releases the button after its deadline'
   t.mock.timers.tick(60000);await pending;
   assert.equal(start.disabled,false);assert.match(find('[data-access-status]').textContent,/Проверка не завершена/);
  }finally{chrome.runtime.sendMessage=original;}
+});
+
+test("Explicit cancel uses CELIKOM's own dialog and records no silent interruption", async () => {
+  version = "none";
+  current = { track: {...selected.track, id: "944530599"} };
+  find("[data-upload-panel]").hidden = true;
+  await find("[data-action='add']").fire("click");
+  selection();
+  FakeXHR.hold = true;
+  try {
+    await form().fire("submit");
+    assert.equal(find("[data-upload-cancel]").hidden, false);
+    await find("[data-upload-cancel]").fire("click");
+    assert.equal(find("[data-upload-confirm]").hidden, false);
+    await find("[data-upload-continue]").fire("click");
+    assert.equal(find("[data-upload-confirm]").hidden, true);
+    await find("[data-upload-cancel]").fire("click");
+    await find("[data-upload-stop]").fire("click");
+    assert.equal(find("[data-upload-cancel]").hidden, true);
+    assert.match(find("[data-upload-status]").textContent, /отменена/);
+    assert.equal(find("[data-upload-submit]").disabled, false);
+  } finally { FakeXHR.hold = false; }
 });
