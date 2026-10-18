@@ -25,6 +25,8 @@ try {
     if (strlen($password)<16 || strlen($password)>256) {
         throw new RuntimeException('Owner password length invalid');
     }
+    $websiteRoot=dirname(__DIR__).'/public';
+    $lease=\Celikom\Website\CmsWriteQuiescence::writer($websiteRoot);
     $pdo=\Celikom\Website\Database::connect(\Celikom\Website\CmsConfig::databaseSettings());
     // Provisioning is additive, never reset or overwrite existing accounts.
     $hash=password_hash($password, defined('PASSWORD_ARGON2ID') ? PASSWORD_ARGON2ID : PASSWORD_DEFAULT);
