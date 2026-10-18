@@ -241,9 +241,12 @@ class DisposableRelease:
         demand(state["format"] == 1 and state["phase"] in
                ("prepared", "applying", "completed-in-test-only"),
                "unrecognized rollback state")
+        # Validate the ENTIRE recovery source before touching any active tree.
+        # A corrupt later artifact must not allow earlier partial restoration.
+        demand(all(digest(self.backup / kind) == state["backup_digests"][kind]
+                   for kind in self.paths),
+               "backup damaged; stop instead of risking destructive restore")
         for kind, path in self.paths.items():
-            demand(digest(self.backup / kind) == state["backup_digests"][kind],
-                   "backup damaged; stop instead of risking destructive restore")
             remove(path)
             clone(self.backup / kind, path)
             demand(digest(path) == state["backup_digests"][kind],
