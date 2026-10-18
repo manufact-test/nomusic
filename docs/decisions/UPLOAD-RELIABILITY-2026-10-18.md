@@ -15,6 +15,9 @@ the incident to the user, the VPN, or to PHP without correlated evidence.
   server-side resumable/chunked uploading.
 - The service-worker message gate allows exactly the old popup URL plus
   the new hash URL, and still refuses untrusted extension/pages/foreign tabs.
+- The upload form disables Chrome's native constraint-validation bubbles.
+  Required file and rights errors render through CELIKOM dark-theme feedback,
+  without native orange system tooltips. Tests cover both cases.
 - The upload form has a branded CELIKOM cancellation panel. The user must
   deliberately choose Cancel and then confirm; no native `confirm()` /
   `alert()` is used. Error banners use the current CELIKOM dark palette.
