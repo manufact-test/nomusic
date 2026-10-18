@@ -2,7 +2,7 @@ name: CELIKOM Au readonly source check
 on:
   push:
     branches: [feature/api-range]
-    paths: [.github/workflows/celikom-au-readonly.yml]
+    paths: [.github/workflows/celikom-au-readonly.yml, website/tools/inspect-au-demo-sources.php]
 permissions:
   contents: read
 jobs:
