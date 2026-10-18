@@ -167,9 +167,10 @@ final class CmsSandboxRecovery
             }
             self::checkpoint($onCheckpoint,'rows-committed');
             // Verify actual restored MySQL rows, not just backup metadata.
+            $expectedCounts=CmsFullDbBackup::inspect($encrypted,$key)['tables'];
             foreach (self::TABLES as $table) {
                 $count=(int)$target->query('SELECT COUNT(*) FROM '.$table)->fetchColumn();
-                if ($count!==($report['rows'][$table]??-1)) {
+                if ($count!==($expectedCounts[$table]??-1)) {
                     throw new RuntimeException('Restored MySQL row count mismatch');
                 }
             }
