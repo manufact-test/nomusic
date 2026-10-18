@@ -20,7 +20,16 @@ export function createUploadBroker(api) {
     if(!api.offscreen?.createDocument || !api.runtime?.getContexts)
       return {ok:false,error:"upload_background_unavailable"};
     await ensureDocument();
-    return api.runtime.sendMessage({type:"CELIKOM_UPLOAD_EXECUTE",task});
+    // The offscreen document may exist before its module installs the runtime
+    // listener. Retry only message delivery, never the HTTP POST itself.
+    for (let i=0;i<6;i++) {
+      try {
+        const reply = await api.runtime.sendMessage({type:"CELIKOM_UPLOAD_EXECUTE",task});
+        if (reply?.ok || reply?.error) return reply;
+      } catch { /* listener may still be initializing */ }
+      await new Promise(resolve=>setTimeout(resolve,100));
+    }
+    return {ok:false,error:"upload_background_unavailable"};
   }
   async function cancel(id) {
     if(!api.offscreen?.createDocument) return {ok:false,error:"upload_background_unavailable"};
