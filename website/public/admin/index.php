@@ -59,7 +59,7 @@ try {
     // Hold across the entire POST, including login throttles, revisions, media
     // file placement and final MySQL commit. Releases on redirect/exit too.
     if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
-        $cmsWriteLease = CmsWriteQuiescence::writer($root.'/public');
+        $cmsWriteLease = CmsWriteQuiescence::writer($dev ? $root.'/public' : $root.'/public_html');
     }
 } catch (\Throwable $e) {
     error_log('CELIKOM CMS: unavailable (configuration/session)');
