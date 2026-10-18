@@ -19,7 +19,8 @@ $app = $dev ? $root.'/app' : $root.'/celikom-private/app';
 $releaseApproved = $dev;
 if (!$dev && is_file($app.'/bootstrap.php')) {
     require_once $app.'/bootstrap.php';
-    $releaseApproved = \Celikom\Website\CmsReleaseGate::approved($app);
+    $releaseApproved = \Celikom\Website\CmsReleaseGate::approved($app)
+        || \Celikom\Website\CmsStagingGate::approved($app);
 }
 if (!$releaseApproved) {
     http_response_code(503);
