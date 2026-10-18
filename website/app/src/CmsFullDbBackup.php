@@ -181,7 +181,8 @@ final class CmsFullDbBackup
                 }
                 if(($record['kind']??null)==='final' && $stage==='rows' &&
                     $tag===SODIUM_CRYPTO_SECRETSTREAM_XCHACHA20POLY1305_TAG_FINAL &&
-                    ($record['counts']??null)===$counts && feof($fp)) {
+                    ($record['counts']??null)===$counts &&
+                    fread($fp,1)==='' && feof($fp)) {
                     $ended=true;
                     break;
                 }
