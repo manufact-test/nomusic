@@ -106,10 +106,17 @@ final class CmsV10OwnerMotion
         $html=str_replace($sourceLabel,$soundLabel,$html);
         $sourceFoot='<div><div aria-live="polite" class="demo-board-result" id="sound-result">Звучит версия из плеера</div><p class="demo-board-foot">Песни и плейлисты остаются в привычном сервисе.</p></div>';
         $clipDir=dirname(__DIR__,2).'/demo-audio/clips';
-        $ready=is_file($clipDir.'/service.mp3') &&
-            is_file($clipDir.'/restored.mp3') &&
-            filesize($clipDir.'/service.mp3')>1000 &&
-            filesize($clipDir.'/restored.mp3')>1000;
+        // Never offer two independently labelled buttons backed by a
+        // duplicated/incorrect demo source. The replacement's exact digest
+        // comes from the separately cropped, verified live CELIKOM asset.
+        $service=$clipDir.'/service.mp3';
+        $restored=$clipDir.'/restored.mp3';
+        $restoredDigest='d14e926aa506ec8ad3112cd73c516e935be1dca612e83dc46bca8c0f5a8342b5';
+        $ready=is_file($service) && !is_link($service) &&
+            is_file($restored) && !is_link($restored) &&
+            filesize($service)>1000 && filesize($restored)>1000 &&
+            hash_file('sha256',$restored)===$restoredDigest &&
+            hash_file('sha256',$service)!==$restoredDigest;
         $readyValue=$ready?'true':'false';
         $playDisabled=$ready?'':' disabled';
         $newFoot='<div class="celikom-audio-controls">'
