@@ -98,6 +98,8 @@ jobs:
         env:
           CELIKOM_SITE_SANDBOX_RELEASE: '1'
         run: python3 website/tests/Stage10ReleaseLifecycleTest.py
+      - name: Stage 10 CMS write lock tests
+        run: python3 website/tests/Stage10WriteQuiescenceTest.py
       - name: Prevent accidental screenshot and private asset publication
         shell: bash
         run: |
