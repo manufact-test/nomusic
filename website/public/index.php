@@ -46,6 +46,77 @@ if (!$localPreview && !$approved) {
     exit;
 }
 
+// Isolated A/B clips for the password-protected owner-review site only.
+// Fixed private paths: no user-provided filename, no media DB, no writes,
+// and nothing in the live CELIKOM extension/replacement library.
+if (!$localPreview && $approved && isset($_GET['demo_audio'])) {
+    try {
+        if (!$stagingApproved || $productionApproved ||
+            !in_array($_SERVER['REQUEST_METHOD'] ?? '', ['GET','HEAD'], true)) {
+            throw new RuntimeException('Audio demo is staging-only');
+        }
+        $names = ['service'=>'service.mp3', 'restored'=>'restored.mp3'];
+        $mode=$_GET['demo_audio'];
+        if (!is_string($mode) || !isset($names[$mode])) {
+            throw new RuntimeException('Unknown demo audio variant');
+        }
+        $path=$domainRoot.'/celikom-private/demo-audio/clips/'.$names[$mode];
+        if (!is_file($path) || is_link($path) || !is_readable($path)) {
+            throw new RuntimeException('Demo clip unavailable');
+        }
+        $size=filesize($path);
+        if (!is_int($size) || $size<1000 || $size>2097152) {
+            throw new RuntimeException('Invalid demo clip size');
+        }
+        $start=0;
+        $end=$size-1;
+        $partial=false;
+        if (isset($_SERVER['HTTP_RANGE'])) {
+            $range=$_SERVER['HTTP_RANGE'];
+            if (!is_string($range) ||
+                !preg_match('/^bytes=(\d+)-(\d*)$/D',$range,$match)) {
+                header('Content-Range: bytes */'.$size);
+                http_response_code(416);
+                exit;
+            }
+            $start=(int)$match[1];
+            $end=$match[2]==='' ? $end : min($end,(int)$match[2]);
+            if ($start>$end || $start>=$size) {
+                header('Content-Range: bytes */'.$size);
+                http_response_code(416);
+                exit;
+            }
+            $partial=true;
+        }
+        $stream=fopen($path,'rb');
+        if ($stream===false || fseek($stream,$start)!==0) {
+            throw new RuntimeException('Cannot read demo clip');
+        }
+        header('Content-Type: audio/mpeg');
+        header('Accept-Ranges: bytes');
+        header('Content-Length: '.($end-$start+1));
+        header('Cache-Control: private, no-store');
+        if ($partial) {
+            http_response_code(206);
+            header('Content-Range: bytes '.$start.'-'.$end.'/'.$size);
+        }
+        if (($_SERVER['REQUEST_METHOD'] ?? '')==='GET') {
+            $remaining=$end-$start+1;
+            while ($remaining>0 && !feof($stream)) {
+                $chunk=fread($stream,min(65536,$remaining));
+                if ($chunk===false || $chunk==='')break;
+                echo $chunk;
+                $remaining-=strlen($chunk);
+            }
+        }
+        fclose($stream);
+    } catch (\Throwable $error) {
+        error_log('CELIKOM: private demo audio unavailable');
+        http_response_code(404);
+    }
+    exit;
+}
+
 // Exact approved v10 popup, served only within password-protected staging.
 // The original screenshot stays in the CMS private media store, never public_html.
 if (!$localPreview && $approved && ($_GET['v10_popup'] ?? '') === 'approved') {
