@@ -95,8 +95,14 @@ globalThis.document.querySelectorAll = () => [];
 await import("../dist/unpacked/popup/popup.js");
 await new Promise((resolve) => setImmediate(resolve));
 
+// Full-length synthetic 128 kbps MPEG-1 Layer III, never a copyrighted file.
+// Prior all-zero "MP3" fixture bypassed content checks and masked validation.
+const fixtureFrames = 6924;
+const fixtureAudio = new Uint8Array(fixtureFrames * 417);
+for (let offset = 0; offset < fixtureAudio.length; offset += 417)
+  fixtureAudio.set([0xff, 0xfb, 0x90, 0x64], offset);
 function selection() {
-  const file = new Blob([new Uint8Array(2500)], { type: "audio/mpeg" });
+  const file = new Blob([fixtureAudio], { type: "audio/mpeg" });
   Object.defineProperty(file, "name", { value: "owner.mp3" });
   find("[data-upload-file]").files = [file];
   find("[data-upload-rights]").checked = true;
