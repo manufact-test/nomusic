@@ -1,20 +1,15 @@
 import { readStagedUpload, deleteStagedUpload } from "../upload/staging.js";
-import { createUploadJournal } from "../upload/upload-journal.js";
-
-export const UPLOAD_STATE_KEY = "celikom_background_upload_v1";
-const journal = createUploadJournal(chrome.storage.local);
+// Offscreen documents have chrome.runtime but not chrome.storage. The service
+// worker owns all status persistence and sanitizes reports from this document.
 let active = null;
-let stateWrites = Promise.resolve();
 function update(task, phase, extras = {}) {
-  const publicState = {
-    id:task.id, trackId:task.trackId, phase,
-    percent: Number.isInteger(extras.percent) ? extras.percent : 0,
-    code: typeof extras.code === "string" ? extras.code.slice(0,40) : "",
-    at: Date.now()
-  };
-  stateWrites = stateWrites.catch(() => {}).then(() =>
-    chrome.storage.local.set({[UPLOAD_STATE_KEY]:publicState})).catch(() => {});
-  return stateWrites;
+  return chrome.runtime.sendMessage({
+    type:"CELIKOM_UPLOAD_STATUS",id:task.id,trackId:task.trackId,
+    phase,percent:Number.isInteger(extras.percent)?extras.percent:0,
+    code:typeof extras.code==="string"?extras.code.slice(0,40):"",
+    sent:Number.isSafeInteger(extras.sent)?extras.sent:0,
+    httpStatus:Number.isInteger(extras.httpStatus)?extras.httpStatus:0
+  }).catch(()=>{});
 }
 async function execute(task) {
   let xhr = null, watchdog = null;
@@ -33,7 +28,6 @@ async function execute(task) {
     }
     const file = await readStagedUpload(task.id);
     await update(task, "connecting");
-    void journal.record(task.id, "connecting");
     const data = new FormData();
     data.append("service","yandex");
     data.append("track_id",task.trackId);
@@ -55,16 +49,14 @@ async function execute(task) {
       const percent = event.lengthComputable && event.total ? Math.floor(event.loaded/event.total*100) : 0;
       if (Math.floor(percent/10) !== Math.floor(lastPercent/10)) {
         lastPercent = percent;
-        void journal.record(task.id,"transferring",{sent,percent});
       }
       if (percent !== active.lastPercent) {
         active.lastPercent = percent;
-        void update(task,"transferring",{percent});
+        void update(task,"transferring",{percent,sent});
       }
     });
     xhr.upload.addEventListener("load",()=>{
       firstByte=true;
-      void journal.record(task.id,"server_wait");
       void update(task,"server_wait",{percent:100});
     });
     xhr.addEventListener("timeout",()=>{failure="timeout";});
@@ -75,7 +67,6 @@ async function execute(task) {
       const elapsed = Date.now()-startAt;
       if (elapsed > 15000 && !active.waitNoted) {
         active.waitNoted=true;
-        void journal.record(task.id,"waiting");
         void update(task,"waiting");
       }
       if (elapsed > 45000) {failure="stalled";xhr.abort();}
@@ -92,15 +83,12 @@ async function execute(task) {
     const duplicate = ["track_pending","track_already_approved","already_approved"].includes(code);
     if (success || duplicate) {
       const phase=success?"completed":"duplicate";
-      void journal.record(task.id,phase,{httpStatus:xhr.status,code:duplicate?code:"accepted"});
-      await update(task,phase,{percent:100,code:duplicate?code:""});
+      await update(task,phase,{percent:100,code:duplicate?code:"",httpStatus:xhr.status});
     } else {
       const reason=failure||code||(xhr.status>=500?"server_unavailable":"http_error");
-      void journal.record(task.id,"failed",{httpStatus:xhr.status,code:reason});
-      await update(task,reason==="cancelled"?"cancelled":"failed",{percent:Math.max(0,lastPercent),code:reason});
+      await update(task,reason==="cancelled"?"cancelled":"failed",{percent:Math.max(0,lastPercent),code:reason,httpStatus:xhr.status});
     }
   } catch {
-    void journal.record(task.id,"failed",{code:"upload_background_error"});
     await update(task,"failed",{code:"upload_background_error"});
   } finally {
     done=true;
