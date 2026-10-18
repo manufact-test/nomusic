@@ -37,6 +37,14 @@ $asserts=[
  'reward info icon has visible circle dot'=>str_contains($page,'class="celikom-info-dot" cx="12" cy="7.8" r="1.45"'),
  'reward SVG circle'=>str_contains($page,'<circle cx="32" cy="32" r="21"></circle>'),
  'reward retains original black square'=>str_contains($page,'class="reward-symbol"'),
+ 'owner-reviewed audio song title'=>str_contains($page,'class="demo-board-label">Рамиль — Ау</div>'),
+ 'real audio play button'=>str_contains($page,'id="celikom-demo-play"'),
+ 'real audio range slider'=>str_contains($page,'id="celikom-demo-seek"'),
+ 'two isolated clip sources'=>str_contains($page,'/?demo_audio=service') && str_contains($page,'/?demo_audio=restored'),
+ 'audio playback script replaces visual-only demo handler'=>str_contains($page,'owner-sound-player.js?v=511') && !str_contains($page,'<script src="/assets/js/v10/sound-demo.js"></script>'),
+ 'no duplicated selected version caption'=>!str_contains($page,'Звучит версия из плеера'),
+ 'audio not falsely marked ready before clips exist'=>str_contains($page,'data-demo-ready="false"') || str_contains($page,'data-demo-ready="true"'),
+ 'approved v10 sound structure still present'=>str_contains($page,'class="wave"') && str_contains($page,'id="mode-service"') && str_contains($page,'id="mode-restored"'),
  'base v10 source remains untouched'=>str_contains($template,'Наверх страницы') && str_contains($template,'/media/celikom-popup-approved.png'),
 ];
 foreach($asserts as $name=>$ok){
