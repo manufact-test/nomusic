@@ -25,8 +25,9 @@ final class CmsConsistentBackup
     /** @return array{manifest:string,report:array} */
     public static function capture(
         PDO $pdo, string $bundleDirectory, string $mediaDirectory,
-        string $publicDirectory, string $key
+        string $publicDirectory, string $key, CmsWriteQuiescence $lease
     ): array {
+        $lease->assertExclusive();
         $dir = self::safeBundleDir($bundleDirectory, $publicDirectory);
         if ($pdo->inTransaction()) {
             throw new RuntimeException('Capture must own an independent database transaction');
