@@ -47,10 +47,18 @@ $manifest=null;
 $originalRowCount=(int)$pdo->query('SELECT COUNT(*) FROM audit_log')->fetchColumn();
 $migration=$base.'/database/migrations/001_website_cms.sql';
 $public=$base.'/public';
-$replay=static fn(?callable $fault=null):array=>CmsSandboxRecovery::replay(
-    $config,$manifest,$key,$public,$sandbox,$migration,
-    CmsWriteQuiescence::snapshot($public),$fault
-);
+$replay=static function(?callable $fault=null) use (
+    $config,&$manifest,$key,$public,$sandbox,$migration
+):array {
+    $lock=CmsWriteQuiescence::snapshot($public);
+    try {
+        return CmsSandboxRecovery::replay(
+            $config,$manifest,$key,$public,$sandbox,$migration,$lock,$fault
+        );
+    } finally {
+        $lock->release();
+    }
+};
 try {
     file_put_contents($media.'/'.$filename,$fixture);
     chmod($media.'/'.$filename,0600);
