@@ -16,7 +16,7 @@ final class CmsV10OwnerMotion
             substr_count($html,'</body>') !== 1 ||
             !str_contains($html,'id="sound"') ||
             !str_contains($html,'id="faq"') ||
-            !str_contains($html,'class="closing"')) {
+            !str_contains($html,'id="closing"')) {
             throw new \RuntimeException('Unexpected CELIKOM v10 rendered markup');
         }
         // Both logo anchors navigate to the homepage, never "#top".
