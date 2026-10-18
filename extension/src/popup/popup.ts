@@ -418,8 +418,16 @@ uploadStop?.addEventListener("click", () => {
 
 uploadForm?.addEventListener("submit", async (event) => {
   event.preventDefault();
-  if (uploading || opening || !pinnedTrack || uploadForm.hidden ||
-    !uploadFile?.files?.[0] || !uploadRights?.checked) return;
+  if (uploading || opening || !pinnedTrack || uploadForm.hidden) return;
+  if (!uploadFile?.files?.[0]) {
+    uploadMessage("Выберите MP3 или M4A перед отправкой.", "error");
+    uploadFilePicker?.scrollIntoView?.({block: "nearest", behavior: "smooth"});
+    return;
+  }
+  if (!uploadRights?.checked) {
+    uploadMessage("Подтвердите, что у вас есть необходимые права на аудиофайл.", "error");
+    return;
+  }
 
   const file = uploadFile.files[0];
   if (!validAudioSelection(file)) {
