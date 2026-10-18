@@ -1,8 +1,16 @@
-# CELIKOM website — Stage 3 foundation (17.10.2026)
+# CELIKOM — сайт и временная CMS (утверждённый закрытый staging, v5.18)
 
-> **АКТУАЛЬНО 18.10.2026 — v4.8 / ручной просмотр сайта и админки.** Этот README содержит историческую информацию начиная с Stage 3, поэтому утверждения ниже вида «CMS ещё нет» УСТАРЕЛИ. Сейчас сайт v10 и маленькая PHP+MySQL CMS (87 полей, FAQ, приватные медиа, публикации и откат) уже реализованы и протестированы в CI, но **не запускались публично и не проходили личную приёмку владельцем**. Для первого просмотра создан GitHub Actions artifact `celikom-owner-review-website-and-admin`: [успешный run с 9 скриншотами](https://github.com/manufact-test/nomusic/actions/runs/39124539486); скачать ZIP в разделе Artifacts и открыть `ОТКРЫТЬ-ПРОСМОТР.html`. **Следующий приоритет — закрытое интерактивное staging для ручных правок, а не дальнейшее усложнение архитектуры Stage 10.** Цели и статус — [контрольная точка v4.8](../docs/website/checkpoints/2026-10-18-OWNER-REVIEW-PIVOT.md). Production/Hostinger не тронуты; PR #6 открыт; deploy выключен; эталон v10 неизменён. Отдельная универсальная AI Site CMS находится в другом репозитории и НЕ является частью текущего MVP сайта CELIKOM.
+> **СОСТОЯНИЕ НА 18.10.2026: ЗАКРЫТЫЙ САЙТ И ВРЕМЕННАЯ АДМИНКА ПРИНЯТЫ ВЛАДЕЛЬЦЕМ. ДАЛЬНЕЙШАЯ РАЗРАБОТКА ПРИОСТАНОВЛЕНА ДО ЕГО ВОЗВРАЩЕНИЯ ДЛЯ ПУБЛИЧНОГО ПОДКЛЮЧЕНИЯ.** Это реально доступный по HTTPS сайт и редактируемая PHP/MySQL CMS, а не старый Stage 3 прототип или только скриншоты. Публичный релиз **не** выполнен и пока запрещён. Все исторические этапы далее читать как журнал, не как текущий статус.
+>
+> Закрытый [сайт](https://lemonchiffon-narwhal-791953.hostingersite.com/) и [панель управления](https://lemonchiffon-narwhal-791953.hostingersite.com/admin/) на Hostinger работают под HTTP Basic; вход администратора — отдельно. Дизайн HTML v10 (утверждён владельцем) не переделывался. В CMS есть 87 текстовых/ссылочных полей в 14 группах, **28/28** FAQ доступны для владельческого редактирования, отдельное добавление скрытых вопросов, кнопки «Посмотреть результат» у каждого вопроса, приватные медиа, черновик/preview/publish/history/restore. Две настоящие дорожки «Ау» по 11 секунд сравниваются в аудиоблоке без изменения файлов расширения.
+>
+> **CI:** [website — PASS](https://github.com/manufact-test/nomusic/actions/runs/39160824291), [repo CI — PASS](https://github.com/manufact-test/nomusic/actions/runs/39160824250), [последний закрытый deploy — PASS](https://github.com/manufact-test/nomusic/actions/runs/39160583061). Техническая контрольная точка кода перед финальным документальным закрытием `37d7af25d75d50cff3f1a88d375f047e3ba00cdd`; ветка `feature/api-range`.
+>
+> **Остались отдельные задачи перед публичным запуском**, не порученные сейчас: собственный домен/DNS/HTTPS, CTA/контакты/правовые страницы и публичное разрешение на музыку, реальный Hostinger backup/restore/rollback, финальная приёмка на основном домене, явное согласие владельца снять запрет на public release. Production workflow содержит `&& false`; не менять и не создавать release-ready marker до разрешённого процесса. PR #6 оставить открытым и не сливать; extension/server/android не трогать. Отдельная универсальная AI Site CMS может заменить временную систему позже, **не блокирует** запуск нынешнего сайта. Подробности в [чекпоинте v5.18](../docs/website/checkpoints/2026-10-18-V5-18-FINAL-STAGING-CLOSEOUT.md) и [NEXT-CHAT](../docs/website/NEXT-CHAT.md).
 
-**Status:** Stage 3 IN PROGRESS; no public launch, no real CMS UI, no database migrations. Site and admin must be completed and released together. Master: `docs/website/MASTER-TZ.md` v1.2; detailed implementation contract: `docs/website/03-UI-KIT-ARCHITECTURE.md`.
+---
+
+## Историческая архитектура и этапы разработки (не текущий статус)
 
 ## Source of visual truth
 
