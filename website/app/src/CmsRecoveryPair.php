@@ -144,6 +144,7 @@ final class CmsRecoveryPair
 
     private static function privateFile(string $path,string|false $public):string
     {
+        clearstatcache(true,$path);
         if(!is_string($public) || !is_dir($public) || is_link($path) ||
             !is_file($path) || ($real=realpath($path))===false ||
             $real===$public || str_starts_with($real,$public.'/') ||
