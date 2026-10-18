@@ -90,6 +90,8 @@ jobs:
         run: python3 website/tests/Stage3MarkupTest.py
       - name: Verify CMS FAQ seed and isolated database contract
         run: python3 website/tests/Stage3SeedContractTest.py
+      - name: Stage 10 rehearsal — rollback after partial file swaps; no deployment
+        run: python3 website/tests/Stage10FilesystemRollbackRehearsalTest.py
       - name: Prevent accidental screenshot and private asset publication
         shell: bash
         run: |
