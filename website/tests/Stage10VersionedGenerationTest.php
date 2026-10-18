@@ -105,6 +105,47 @@ try {
     $restored=CmsSandboxRecovery::replay(
         $config,$manifest,$key,$public,$recovery,$baseMigration,$lease
     );
+
+    // A separate PHP worker is killed after ALTER TABLE has committed.
+    // MySQL DDL is non-transactional: never reuse this partially upgraded DB.
+    $lease->release();
+    $migrationWorker=<<<'PHP'
+require $argv[1];
+$cfg=\\Celikom\\Website\\CmsConfig::databaseSettings();
+$gate=\\Celikom\\Website\\CmsWriteQuiescence::snapshot($argv[3]);
+\\Celikom\\Website\\CmsSandboxGeneration::migrateAndStage(
+    $cfg,$argv[2],$argv[3],
+    ['database'=>$argv[4],'media_directory'=>$argv[5],'isolated'=>true],
+    $argv[6],$gate,
+    static function(string $step):void {
+        if ($step==='migration-step-2') {
+            echo "DDL_COMMITTED\\n";
+            fflush(STDOUT);
+            sleep(20);
+        }
+    }
+);
+PHP;
+    $crashed=proc_open([PHP_BINARY,'-r',$migrationWorker,
+        $root.'/app/bootstrap.php',$generations,$public,
+        $restored['database'],$restored['media_directory'],$sql],
+        [1=>['pipe','w'],2=>['pipe','w']],$migrationPipes);
+    genAssert(is_resource($crashed),'migration crash worker unavailable');
+    stream_set_timeout($migrationPipes[1],9);
+    genAssert(fgets($migrationPipes[1])==="DDL_COMMITTED\\n",
+        'real ALTER TABLE was not reached before SIGKILL');
+    proc_terminate($crashed,9);
+    fclose($migrationPipes[1]);fclose($migrationPipes[2]);proc_close($crashed);
+    $lease=CmsWriteQuiescence::snapshot($public);
+    genAssert(CmsSandboxGeneration::active($config,$generations,$public,$lease)
+        ['record']['generation']==='gen-baseline',
+        'crashed migration accidentally published version 2');
+    $orphan='gen-'.substr($restored['database'],strlen('celikom_site_ci_replay_'));
+    CmsSandboxGeneration::discard($config,$generations,$public,$orphan,$lease);
+    CmsSandboxRecovery::cleanup($config,$public,$recovery,$lease);
+    $restored=CmsSandboxRecovery::replay(
+        $config,$manifest,$key,$public,$recovery,$baseMigration,$lease
+    );
     $candidate=CmsSandboxGeneration::migrateAndStage(
         $config,$generations,$public,$restored,$sql,$lease
     );
