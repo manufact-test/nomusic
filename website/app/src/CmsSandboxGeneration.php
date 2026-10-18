@@ -293,6 +293,19 @@ final class CmsSandboxGeneration
         return ['record'=>$record,'health'=>self::health($config,$dir,$public,$record)];
     }
 
+    /**
+     * Read-only inspection of an UNSELECTED disposable release generation.
+     * Still requires the CI-only exclusive lock; never authorizes public HTTP.
+     */
+    public static function inspectCandidate(
+        array $config,string $root,string $public,string $generation,
+        CmsWriteQuiescence $lease
+    ):array {
+        $dir=self::guard($config,$root,$public,$lease);
+        [$record]=self::generation($dir,$generation);
+        return ['record'=>$record,'health'=>self::health($config,$dir,$public,$record)];
+    }
+
     /** Atomic offline selector: when interrupted, either old or new pointer survives. */
     public static function select(
         array $config,string $root,string $public,string $generation,
