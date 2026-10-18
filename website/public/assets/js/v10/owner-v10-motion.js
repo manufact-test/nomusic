@@ -41,29 +41,58 @@ if(smooth()&&'IntersectionObserver'in window){
 }
 for(const detail of document.querySelectorAll('#faq details.faq-item')){
  const summary=detail.querySelector('summary');
- const answer=detail.querySelector('.answer');
- if(!summary||!answer)continue;
- let active=null;
+ if(!summary)continue;
+ let animation=null;
+ let desiredOpen=detail.open;
+ const reset=()=>{
+  detail.classList.remove('celikom-faq-animating');
+  detail.style.removeProperty('height');
+  detail.style.removeProperty('overflow');
+ };
  summary.addEventListener('click',event=>{
-  if(!smooth()||typeof answer.animate!=='function')return;
+  if(!smooth()||typeof detail.animate!=='function')return;
   event.preventDefault();
-  if(active){active.finish();active=null}
-  const opening=!detail.open;
+  // A fast second click reverses the current animation smoothly.
+  // Measure the rendered intermediate height BEFORE cancelling WAAPI.
+  const from=detail.getBoundingClientRect().height;
+  const opening=!desiredOpen;
+  desiredOpen=opening;
+  if(animation){
+   animation.onfinish=null;
+   animation.cancel();
+   animation=null;
+  }
   if(opening)detail.open=true;
-  const height=answer.scrollHeight;
-  const start=opening?0:height;
-  const end=opening?height:0;
-  const animation=answer.animate([
-   {height:start+'px',opacity:opening?0:1},
-   {height:end+'px',opacity:opening?1:0}
-  ],{duration:opening?240:180,easing:'cubic-bezier(.22,.7,.22,1)'});
-  active=animation;
-  animation.onfinish=()=>{
-   if(active!==animation)return;
-   if(!opening)detail.open=false;
-   active=null
+  const computed=getComputedStyle(detail);
+  const border=(parseFloat(computed.borderTopWidth)||0)
+              +(parseFloat(computed.borderBottomWidth)||0);
+  const closedHeight=summary.getBoundingClientRect().height+border;
+  const expandedHeight=detail.scrollHeight+border;
+  const to=opening?expandedHeight:closedHeight;
+  if(Math.abs(to-from)<.5){
+   detail.open=opening;
+   reset();
+   return;
+  }
+  detail.classList.add('celikom-faq-animating');
+  detail.style.height=from+'px';
+  detail.style.overflow='hidden';
+  const current=detail.animate(
+   [{height:from+'px'},{height:to+'px'}],
+   {duration:opening?270:260,easing:'cubic-bezier(.22,.7,.22,1)',fill:'forwards'}
+  );
+  animation=current;
+  current.onfinish=()=>{
+   if(animation!==current)return;
+   // Close only after the whole card, including its padding, has collapsed.
+   detail.open=desiredOpen;
+   current.cancel();
+   animation=null;
+   reset();
   };
-  animation.oncancel=()=>{if(active===animation)active=null}
+  current.oncancel=()=>{
+   if(animation===current){animation=null;reset()}
+  };
  })
 }
 })();
