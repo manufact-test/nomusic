@@ -52,7 +52,7 @@ export function mp3DurationMs(buffer): number | null {
 }
 
 export function durationNotice(originalMs, audioMs) {
-  if (!Number.isFinite(originalMs) || !Number.isFinite(audioMs)) return { kind: "warning", text: "Не удалось сравнить длительность файла. Файл дополнительно проверит сервер." };
+  if (!Number.isFinite(originalMs) || !Number.isFinite(audioMs)) return { blocked: true, kind: "error", text: "Не удалось прочитать аудиофайл и проверить его длительность. Проверьте, что это настоящий MP3 или M4A (AAC), либо выберите другой файл. Непроверенный файл не отправляется." };
   const delta = audioMs - originalMs, difference = Math.abs(delta);
   const time = ms => { const seconds=Math.floor(ms/1000);return `${Math.floor(seconds/60)}:${String(seconds%60).padStart(2,"0")}`; };
   const description = `Оригинал: ${time(originalMs)} · файл: ${time(audioMs)}.`;
