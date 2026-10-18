@@ -100,7 +100,7 @@ try {
         (fileperms($manifest) & 0777) === 0600 &&
         $capture['report']['consistent'] &&
         $capture['report']['media_files'] === 1 &&
-        $capture['report']['rows']['audit_log'] >= 1,
+        $capture['report']['rows']['content_revisions'] >= 1,
         'complete restore point lacks DB, history or binary private media');
     snapshotAssert(CmsConsistentBackup::inspect(
         $manifest, $key, $base.'/public'
