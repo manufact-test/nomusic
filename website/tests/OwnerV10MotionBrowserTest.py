@@ -32,7 +32,9 @@ try:
                     "es=>es.map(x=>[x.textContent.trim(),x.getAttribute('href')])"
                 ) == [["Участие","#contribute"],["Вопросы","#faq"]]
                 assert page.locator(".header-chip").get_attribute("href") == "#install"
-                assert page.locator(".familiar-orbit img").get_attribute("src") == "/assets/images/celikom-mark.svg"
+                assert page.locator(".familiar-orbit svg.celikom-familiar-c path").get_attribute("d") == "M92 40 A36 36 0 1 0 92 88"
+                assert page.locator(".familiar-orbit img").count() == 0
+                assert page.locator(".reward-notice svg circle.celikom-info-dot").count() == 1
                 assert page.locator(".reward-symbol svg circle").count() == 1
                 assert page.locator("#faq details.faq-item").count() == 28
                 assert page.locator(".closing-link").count() == 0
@@ -55,7 +57,8 @@ try:
                     const heights=[], t0=performance.now();
                     await new Promise(resolve=>{
                         function frame(){
-                            heights.push([performance.now()-t0,d.getBoundingClientRect().height]);
+                            const a=d.querySelector('.answer');
+                            heights.push([performance.now()-t0,d.getBoundingClientRect().height,a.getBoundingClientRect().height,parseFloat(getComputedStyle(a).paddingBottom)]);
                             if(performance.now()-t0 < 450)requestAnimationFrame(frame);
                             else resolve();
                         }requestAnimationFrame(frame)
@@ -66,14 +69,18 @@ try:
                 assert result["opened"] and result["closed"], result
                 sizes = [x[1] for x in result["heights"]]
                 assert sizes[0] > result["final"] + 10, result
-                # No second snap / sudden disappearance at end of close.
-                # A fast first 16ms ease is allowed; a late snap is not.
-                assert max(abs(a-b) for a,b in zip(sizes, sizes[1:])) < .27 * (sizes[0]-sizes[-1]), result
+                # Full card and answer's padding must both collapse smoothly.
+                assert max(abs(a-b) for a,b in zip(sizes, sizes[1:])) < .36 * (sizes[0]-sizes[-1]), result
                 assert abs(sizes[-1]-result["final"]) < 1, result
+                assert result["heights"][-1][3] > 0, "CSS padding may be restored after native close"
+                # Before completing, bottom padding must gradually reach near zero.
+                active=[h for h in result["heights"] if 25 < h[0] < 250]
+                assert active[0][3]>active[-1][3] >=0, result
+                assert all(active[i][3]+.75 >= active[i+1][3] for i in range(len(active)-1)), result
                 # No large jumps in the last frames after the full closing animation.
                 tail = [h for t,h in result["heights"] if t > 310]
                 assert max(tail)-min(tail) < 1.5, result
-                print(f"CELIKOM v10 Chromium {width}px: unique header, logo, round check, FAQ no snap PASS")
+                print(f"CELIKOM v10 Chromium {width}px: unchanged header, crisp C, info dot, FAQ continuous padding PASS")
                 page.close()
             browser.close()
 finally:
