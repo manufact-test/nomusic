@@ -152,8 +152,8 @@ final class CmsV10OwnerMotion
         // The exact uploaded original SHA is served by the protected home route.
         $html=str_replace('src="/media/celikom-popup-approved.png"',
             'src="/?v10_popup=approved"',$html);
-        $css='<link rel="stylesheet" href="/assets/css/v10/owner-v10-motion.css?v=511"/>';
-        $js='<script defer src="/assets/js/v10/owner-v10-motion.js?v=510"></script>';
+        $css='<link rel="stylesheet" href="/assets/css/v10/owner-v10-motion.css?v=514"/>';
+        $js='<script defer src="/assets/js/v10/owner-v10-motion.js?v=514"></script>';
         if (str_contains($html,$css)||str_contains($html,$js)) {
             throw new \RuntimeException('Duplicate owner motion assets');
         }
