@@ -805,14 +805,12 @@ async function syncBackgroundUpload(): Promise<void> {
   try { saved = (await chrome.storage.local.get(BACKGROUND_UPLOAD_KEY))?.[BACKGROUND_UPLOAD_KEY]; }
   catch { return; }
   if (!saved || typeof saved.id !== "string" || Date.now()-saved.at > 600000 || opening) return;
-  // Historical terminal results (success, duplicate, failure or cancel)
-  // cannot override the authoritative server presence check in a fresh popup.
-  // Only this popup's own just-started background operation may show its
-  // terminal result immediately; a reopened panel rechecks the server.
-  if (!active && !backgroundUploadMode) return;
   const target = uploadTargetFromStatus(lastState);
   if (!target || target.id !== saved.trackId) return;
   const active = ["connecting","waiting","transferring","server_wait"].includes(saved.phase);
+  // Historical terminal results (success, duplicate, failure or cancel)
+  // cannot override a fresh server presence check after the popup reopens.
+  if (!active && !backgroundUploadMode) return;
   if (!active && !["completed","duplicate","failed","cancelled"].includes(saved.phase)) return;
   // Do not overwrite an unrelated newly selected file with an older result.
   if (!active && !backgroundUploadMode && uploadFile?.files?.length) return;
