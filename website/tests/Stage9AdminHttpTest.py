@@ -119,7 +119,7 @@ try:
     assert status==303 and headers.get("Location")=="/admin/",status
     status,editor,headers=request("GET","/admin/")
     assert status==200 and "Сохранить черновик" in editor,(status,editor[:1000])
-    assert "Тестовая публикация сохраняется только в отдельную MySQL" in editor
+    assert "Выбери блок, измени текст и сохрани." in editor
     csrf=hidden(editor,"csrf")
     version=hidden(editor,"version")
     fields={}
@@ -251,8 +251,8 @@ try:
     })
     assert status==303 and "saved=published" in headers.get("Location","")
     status,history,_=request("GET","/admin/")
-    assert "Текущая опубликованная редакция:" in history
-    first_published=int(re.search(r'Текущая опубликованная редакция:\s*№(\d+)',history).group(1))
+    assert "Текущая версия:" in history
+    first_published=int(re.search(r'Текущая версия:\s*<strong>№(\d+)</strong>',history).group(1))
     assert first_published>0
     status,_,_=request("POST","/admin/",{
         "action":"publish","csrf":csrf,"version":"999999",
@@ -281,7 +281,7 @@ try:
     })
     assert status==303,status
     status,history,_=request("GET","/admin/")
-    second_published=int(re.search(r'Текущая опубликованная редакция:\s*№(\d+)',history).group(1))
+    second_published=int(re.search(r'Текущая версия:\s*<strong>№(\d+)</strong>',history).group(1))
     assert second_published>first_published
     status,_,_=request("POST","/admin/",{
         "action":"restore","csrf":csrf,"version":str(second_published),
@@ -290,7 +290,7 @@ try:
     })
     assert status==303,status
     status,history,_=request("GET","/admin/")
-    restored=int(re.search(r'Текущая опубликованная редакция:\s*№(\d+)',history).group(1))
+    restored=int(re.search(r'Текущая версия:\s*<strong>№(\d+)</strong>',history).group(1))
     assert restored>second_published and "Вернуть первую" in history
     assert "№"+str(first_published) in history
     # Publication does not clear the current draft even after restoration.
