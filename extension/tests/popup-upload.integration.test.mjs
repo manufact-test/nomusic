@@ -172,6 +172,9 @@ test("Closing during presence check never reopens after late response",async()=>
   assert.equal(find("[data-upload-panel]").hidden,true);
   assert.equal(result().hidden,true);
  }finally{trackStatusResponder=null;}
+ // The following tests use the original track form.
+ await action.fire("click");
+ assert.equal(form().hidden,false);
 });
 
 test("Stage 7 changed track during preparation never sends audio", async () => {
