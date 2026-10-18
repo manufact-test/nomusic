@@ -805,10 +805,11 @@ async function syncBackgroundUpload(): Promise<void> {
   try { saved = (await chrome.storage.local.get(BACKGROUND_UPLOAD_KEY))?.[BACKGROUND_UPLOAD_KEY]; }
   catch { return; }
   if (!saved || typeof saved.id !== "string" || Date.now()-saved.at > 600000 || opening) return;
-  // A stored success may have been removed/rejected since the last session.
-  // Never turn the local historical "completed" flag into a fresh claim:
-  // re-opening queries the server instead.
-  if (["completed", "duplicate"].includes(saved.phase) && !backgroundUploadMode) return;
+  // Historical terminal results (success, duplicate, failure or cancel)
+  // cannot override the authoritative server presence check in a fresh popup.
+  // Only this popup's own just-started background operation may show its
+  // terminal result immediately; a reopened panel rechecks the server.
+  if (!active && !backgroundUploadMode) return;
   const target = uploadTargetFromStatus(lastState);
   if (!target || target.id !== saved.trackId) return;
   const active = ["connecting","waiting","transferring","server_wait"].includes(saved.phase);
