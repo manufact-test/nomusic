@@ -50,6 +50,9 @@ def check_tree():
            "test -f website/RELEASE_READY" in workflow and
            "SITE_AND_CMS_ACCEPTED" in workflow,
            "manual joint release gate is missing")
+    ensure("&& false" in workflow and
+           "Remove ONLY when Stage 10" in workflow,
+           "unsafe Hostinger in-place deployment was accidentally enabled")
     ensure("scp -r" in workflow and "website/public/." in workflow and
            "website/app/." in workflow and
            "website/database/." in workflow,
