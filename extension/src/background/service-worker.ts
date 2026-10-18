@@ -5,6 +5,7 @@ import { createAuthBroker } from "../auth/auth-broker.js";
 import { createActionIcon } from "./action-icon.js";
 import { createMusicTabs } from "./music-tabs.js";
 import { registerTabRecovery } from "./tab-recovery.js";
+import { createUploadBroker } from "./upload-broker.js";
 
 const VERSION = chrome.runtime.getManifest().version;
 const DEFAULT_STATE: ExtensionState = Object.freeze({
@@ -17,6 +18,7 @@ const musicTabs = createMusicTabs(chrome, bootstrap);
 const userAuth = createAuthBroker(chrome);
 const actionIcon = createActionIcon(chrome);
 const resolveApi = createApiBroker(chrome, { withAccess: userAuth.withEntitledAccess });
+const uploadBroker = createUploadBroker(chrome);
 let intentGeneration = 0;
 let accessCheck: Promise<string> | null = null;
 let accessValidUntil = 0;
@@ -122,10 +124,9 @@ chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse) =>
     ? (message as { type?: unknown }).type
     : null;
 
-  // Only the extension-owned popup or its dedicated upload tab may act.
-  // In particular, do not grant the same permission to other extension URLs.
+  // Only the original extension popup can perform privileged UI actions.
   const trustedUi = sender?.id === chrome.runtime.id &&
-    [chrome.runtime.getURL("popup/popup.html"), chrome.runtime.getURL("popup/popup.html#upload")].includes(sender?.url || "");
+    sender?.url === chrome.runtime.getURL("popup/popup.html");
 
   // Only the extension-owned popup may inspect or change user intent.
   // Content scripts have a separate, narrowly scoped heartbeat/API channel.
@@ -133,6 +134,17 @@ chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse) =>
     COMMANDS.restoreOriginal, "CELIKOM_ADD_TRACK_OPENED", "CELIKOM_AUTH"].includes(type as string);
   if (popupCommand && !trustedUi) {
     sendResponse({ ok: false, error: "invalid_sender" }); return false;
+  }
+
+  if (type === "CELIKOM_UPLOAD_BEGIN" || type === "CELIKOM_UPLOAD_CANCEL") {
+    if (!trustedUi) { sendResponse({ok:false,error:"invalid_sender"}); return false; }
+    const data = message as {task?:{id?:unknown};id?:unknown};
+    const action = type === "CELIKOM_UPLOAD_BEGIN"
+      ? uploadBroker.begin(data.task)
+      : uploadBroker.cancel(data.id);
+    void action.then(sendResponse).catch(() =>
+      sendResponse({ok:false,error:"upload_background_unavailable"}));
+    return true;
   }
 
   if (type === "CELIKOM_AUTH") {
