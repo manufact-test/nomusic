@@ -14,6 +14,7 @@ use Celikom\Website\CmsConsistentBackup;
 use Celikom\Website\CmsFullDbBackup;
 use Celikom\Website\CmsRecoveryPair;
 use Celikom\Website\Database;
+use Celikom\Website\CmsWriteQuiescence;
 
 function snapshotAssert(bool $test, string $why): void {
     if (!$test) throw new RuntimeException('Coordinated snapshot: '.$why);
@@ -46,6 +47,7 @@ $png = base64_decode(
 );
 snapshotAssert(is_string($png), 'synthetic PNG is missing');
 $key = random_bytes(32);
+putenv('CELIKOM_SITE_WRITE_GATE_FILE='.$temp.'/.celikom-cms-writes.lock');
 try {
     file_put_contents($assetPath, $png);
     chmod($assetPath, 0600);
@@ -92,8 +94,13 @@ try {
     unlink($full);
     unlink($content);
 
+    snapshotReject(fn()=>CmsConsistentBackup::capture(
+        $pdo, $bundle, $media, $base.'/public', $key,
+        CmsWriteQuiescence::writer($base.'/public')
+    ), 'coordinated export without exclusive gate');
+    $lease = CmsWriteQuiescence::snapshot($base.'/public');
     $capture = CmsConsistentBackup::capture(
-        $pdo, $bundle, $media, $base.'/public', $key
+        $pdo, $bundle, $media, $base.'/public', $key, $lease
     );
     $manifest = $capture['manifest'];
     snapshotAssert(is_file($manifest) &&
@@ -109,12 +116,12 @@ try {
         $manifest, random_bytes(32), $base.'/public'
     ), 'wrong encrypted DB key');
     snapshotReject(fn() => CmsConsistentBackup::capture(
-        $pdo, $base.'/public', $media, $base.'/public', $key
+        $pdo, $base.'/public', $media, $base.'/public', $key, $lease
     ), 'backup written under public_html');
     $before = glob($bundle.'/*');
     unlink($assetPath);
     snapshotReject(fn() => CmsConsistentBackup::capture(
-        $pdo, $bundle, $media, $base.'/public', $key
+        $pdo, $bundle, $media, $base.'/public', $key, $lease
     ), 'missing immutable image during snapshot');
     snapshotAssert(glob($bundle.'/*') === $before,
         'failed export left an incomplete restore point');
@@ -135,8 +142,14 @@ try {
     ), 'world-readable restore point manifest');
     chmod($manifest, 0600);
 
+    $lease->release();
+    snapshotReject(fn()=>CmsConsistentBackup::capture(
+        $pdo, $bundle, $media, $base.'/public', $key, $lease
+    ), 'released exclusive gate reused');
     echo "Stage10: single InnoDB snapshot despite concurrent CMS edit, authenticated complete restore point, broken media/permissions/digests rejected — PASS\n";
 } finally {
+    if (isset($lease)) $lease->release();
+    putenv('CELIKOM_SITE_WRITE_GATE_FILE');
     if ($pdo->inTransaction()) $pdo->rollBack();
     if ($oldVersion !== null) {
         $writer->prepare('UPDATE content_drafts SET optimistic_version=? WHERE id=1')
@@ -145,6 +158,7 @@ try {
     if ($assetId !== null) {
         $pdo->prepare('DELETE FROM media_assets WHERE id=?')->execute([$assetId]);
     }
+    @unlink($temp.'/.celikom-cms-writes.lock');
     foreach ([$bundle, $media] as $directory) {
         foreach (glob($directory.'/*') ?: [] as $item) {
             if (is_file($item) || is_link($item)) unlink($item);
