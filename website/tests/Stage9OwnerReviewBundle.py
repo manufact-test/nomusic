@@ -180,7 +180,7 @@ def main():
                     page.locator("#text-editor").get_by_role(
                         "button", name="Сохранить черновик"
                     ).click()
-                    assert page.get_by_text("Черновик сохранён в базе данных.").is_visible()
+                    assert page.get_by_text("Изменения сохранены.").is_visible()
                     response = page.goto(base + "/admin/?view=preview", wait_until="networkidle")
                     assert response.status == 200
                     assert "демонстрация изменения текста через небольшую CMS." in page.content()
