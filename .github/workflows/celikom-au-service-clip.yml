@@ -1,0 +1,87 @@
+name: CELIKOM original Au 11s private staging transfer
+on:
+  push:
+    branches: [feature/api-range]
+    paths: [.github/workflows/celikom-au-service-clip.yml]
+permissions:
+  contents: read
+concurrency:
+  group: celikom-website-staging
+  cancel-in-progress: false
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Receive owner-supplied exact 11s original from private Git blob and install on protected website
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          SSH_KEY: ${{ secrets.CELIKOM_HOSTINGER_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.CELIKOM_HOSTINGER_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REPOSITORY" = manufact-test/nomusic
+          test "$GITHUB_REF" = refs/heads/feature/api-range
+          umask 077
+          work=$(mktemp -d)
+          trap 'rm -rf "$work"' EXIT
+          printf '%s\n' "$SSH_KEY" > "$work/id"
+          printf '%s\n' "$KNOWN_HOSTS" > "$work/known"
+          chmod 600 "$work/id" "$work/known"
+          so=(-T -p 65002 -i "$work/id" -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$work/known")
+          sc=(-P 65002 -i "$work/id" -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$work/known")
+          host=u235811320@92.113.19.189
+          root=/home/u235811320/domains/lemonchiffon-narwhal-791953.hostingersite.com
+          app="$root/celikom-private"
+          blob=5b9cbce17fcf01d9af3663775e4c577d46c9d598
+          expected=3f826bb0ef3fa6b8faf07857616b5202ce00aa3a7d1e47dc47d6dc611a4c22e0
+          # Repository private blob is user-provided audio fragment, not a
+          # song download. Its original source remains outside the Git tree.
+          curl --fail --silent --show-error --max-time 40 \
+            -H "Authorization: Bearer $GITHUB_TOKEN" \
+            -H 'Accept: application/vnd.github+json' \
+            "https://api.github.com/repos/manufact-test/nomusic/git/blobs/$blob" \
+            -o "$work/blob.json"
+          python3 - "$work/blob.json" "$work/service.mp3" <<'PY'
+          import base64,hashlib,json,pathlib,sys
+          item=json.loads(pathlib.Path(sys.argv[1]).read_text())
+          assert item['sha']=='5b9cbce17fcf01d9af3663775e4c577d46c9d598'
+          assert item['encoding']=='base64' and item['size']==266015
+          body=base64.b64decode(item['content'],validate=False)
+          assert len(body)==266015
+          assert hashlib.sha256(body).hexdigest()=='3f826bb0ef3fa6b8faf07857616b5202ce00aa3a7d1e47dc47d6dc611a4c22e0'
+          pathlib.Path(sys.argv[2]).write_bytes(body)
+          print('Owner downloaded Yandex version verified: SHA-256 and byte count PASS')
+          PY
+          stage="$app/demo-audio/incoming-service-$GITHUB_SHA"
+          ssh "${so[@]}" "$host" "test -f '$app/app/staging-approved.php' && test ! -e '$app/app/release-approved.php' && test -f '$app/demo-audio/clips/restored.mp3' && test ! -e '$stage' && mkdir -m 700 '$stage'"
+          scp "${sc[@]}" "$work/service.mp3" "$host:$stage/service.mp3"
+          ssh "${so[@]}" "$host" "env DEMO_INCOMING='$stage' DEMO_EXPECTED='$expected' bash -se" <<'REMOTE'
+          set -euo pipefail
+          root=/home/u235811320/domains/lemonchiffon-narwhal-791953.hostingersite.com
+          app="$root/celikom-private"
+          restored="$app/demo-audio/clips/restored.mp3"
+          dest="$app/demo-audio/clips/service.mp3"
+          incoming="$DEMO_INCOMING/service.mp3"
+          test -f "$incoming" && test ! -L "$incoming"
+          test "$(sha256sum "$incoming" | cut -d' ' -f1)" = "$DEMO_EXPECTED"
+          test "$(sha256sum "$restored" | cut -d' ' -f1)" = d14e926aa506ec8ad3112cd73c516e935be1dca612e83dc46bca8c0f5a8342b5
+          test "$DEMO_EXPECTED" != "$(sha256sum "$restored" | cut -d' ' -f1)"
+          if test -e "$dest"; then
+            test ! -L "$dest"
+            test "$(sha256sum "$dest" | cut -d' ' -f1)" = "$DEMO_EXPECTED"
+          else
+            cp -p "$incoming" "$dest"
+            chmod 600 "$dest"
+          fi
+          rm -f "$incoming"
+          rmdir "$DEMO_INCOMING"
+          echo 'OWNER_ORIGINAL_CLIP_INSTALLED_PRIVATE; REPLACEMENT_LIBRARY_UNCHANGED'
+          REMOTE
+          status=$(curl -sS --max-time 20 -o /dev/null -w '%{http_code}' 'https://lemonchiffon-narwhal-791953.hostingersite.com/?demo_audio=service')
+          test "$status" = 401
+          echo 'CLOSED_DEMO_REQUIRES_AUTH'
