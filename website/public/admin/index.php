@@ -582,8 +582,11 @@ $value=$current['content'][$key]??$field['default'];
 <a class="action" href="/admin/?view=preview" target="_blank" rel="noopener">Посмотреть результат</a></div>
 </form></div></div></section>
 <section class="panel admin-view" data-cms-view="faq-editor" id="faq-editor">
-<h2>Вопросы и ответы</h2>
-<p class="muted">Выбери вопрос, чтобы изменить название, ответ или категорию. Изменения сначала сохраняются в черновике.</p>
+<div class="cms-faq-page-head">
+<div><h2>Вопросы и ответы</h2>
+<p class="muted">Выбери вопрос, чтобы изменить название, ответ или категорию. Изменения сначала сохраняются в черновике.</p></div>
+<a class="action cms-faq-preview" href="/admin/?view=preview#faq" target="_blank" rel="noopener" aria-label="Посмотреть результат FAQ на сайте">Посмотреть результат</a>
+</div>
 <div class="cms-faq-tools">
 <div class="cms-faq-tabs" role="group" aria-label="Категории FAQ">
 <button class="cms-faq-tab" type="button" data-faq-filter="all" aria-pressed="true">Все</button>
@@ -618,7 +621,10 @@ $value=$current['content'][$key]??$field['default'];
 <label>Порядок<input type="number" name="sort_order" min="0" max="100000" required value="<?= (int)$faqItem['sort_order']?>"/></label>
 <label class="inline-check wide"><input type="checkbox" name="visible" value="1" <?= $faqItem['is_visible']?'checked':''?>/>Показывать вопрос</label>
 </div>
+<div class="cms-save-line cms-faq-actions">
 <button type="submit">Сохранить вопрос в черновик</button>
+<a class="action" href="/admin/?view=preview#<?=cmsEscape((string)$faqItem['id'])?>" target="_blank" rel="noopener" aria-label="Посмотреть сохранённый вопрос в предпросмотре">Посмотреть результат</a>
+</div>
 </form>
 </details>
 <?php endforeach; ?>
@@ -635,7 +641,10 @@ $value=$current['content'][$key]??$field['default'];
 <option value="music">Песни и модерация</option>
 <option value="rewards">Бонусы и стоимость</option>
 </select></label>
+<div class="cms-save-line cms-faq-actions">
 <button type="submit">Добавить скрытый вопрос в черновик</button>
+<a class="action" href="/admin/?view=preview#faq" target="_blank" rel="noopener" aria-label="Посмотреть FAQ на сайте">Посмотреть результат</a>
+</div>
 </form></div>
 </section>
 <section class="panel admin-view" data-cms-view="revision-editor" id="revision-editor">
