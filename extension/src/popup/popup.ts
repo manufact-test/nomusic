@@ -266,13 +266,32 @@ function contributionError(error: unknown): string {
 // separate config, bearer-token and /upload-status round trips before opening
 // the panel. Failure is NOT interpreted as "none".
 async function trackUploadStatus(trackId: string): Promise<"none" | "pending" | "approved"> {
-  const value = await send<{ok: boolean; status?: string; error?: string}>({
-    type: "CELIKOM_AUTH", action: "track-status", track_id: trackId
-  });
-  if (!value?.ok || !["none", "pending", "approved"].includes(value.status || "")) {
-    throw new Error(value?.error || "upload_status_unavailable");
+  // Authentication and the API origin are already managed by the service
+  // worker. Retry only a transient *read*, never an upload POST.
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const value = await send<{ok: boolean; status?: string; error?: string}>({
+        type: "CELIKOM_AUTH", action: "track-status", track_id: trackId
+      });
+      if (value?.ok && ["none", "pending", "approved"].includes(value.status || "")) {
+        return value.status as "none" | "pending" | "approved";
+      }
+      const code = value?.error || "upload_status_unavailable";
+      if (attempt === 0 && ["auth_unavailable", "auth_network_error", "auth_timeout",
+                             "upload_status_unavailable"].includes(code)) {
+        await new Promise(resolve => setTimeout(resolve, 150));
+        continue;
+      }
+      throw new Error(code);
+    } catch (error) {
+      if (attempt === 0 && ((error as Error)?.name === "TimeoutError" || error instanceof TypeError)) {
+        await new Promise(resolve => setTimeout(resolve, 150));
+        continue;
+      }
+      throw error;
+    }
   }
-  return value.status as "none" | "pending" | "approved";
+  throw new Error("upload_status_unavailable");
 }
 
 addTrackButton?.addEventListener("click", async () => {
