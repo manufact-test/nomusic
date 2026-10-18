@@ -1,5 +1,7 @@
 # CELIKOM website — Stage 3 foundation (17.10.2026)
 
+> **АКТУАЛЬНО 18.10.2026 — v4.8 / ручной просмотр сайта и админки.** Этот README содержит историческую информацию начиная с Stage 3, поэтому утверждения ниже вида «CMS ещё нет» УСТАРЕЛИ. Сейчас сайт v10 и маленькая PHP+MySQL CMS (87 полей, FAQ, приватные медиа, публикации и откат) уже реализованы и протестированы в CI, но **не запускались публично и не проходили личную приёмку владельцем**. Для первого просмотра создан GitHub Actions artifact `celikom-owner-review-website-and-admin`: [успешный run с 9 скриншотами](https://github.com/manufact-test/nomusic/actions/runs/39124539486); скачать ZIP в разделе Artifacts и открыть `ОТКРЫТЬ-ПРОСМОТР.html`. **Следующий приоритет — закрытое интерактивное staging для ручных правок, а не дальнейшее усложнение архитектуры Stage 10.** Цели и статус — [контрольная точка v4.8](../docs/website/checkpoints/2026-10-18-OWNER-REVIEW-PIVOT.md). Production/Hostinger не тронуты; PR #6 открыт; deploy выключен; эталон v10 неизменён. Отдельная универсальная AI Site CMS находится в другом репозитории и НЕ является частью текущего MVP сайта CELIKOM.
+
 **Status:** Stage 3 IN PROGRESS; no public launch, no real CMS UI, no database migrations. Site and admin must be completed and released together. Master: `docs/website/MASTER-TZ.md` v1.2; detailed implementation contract: `docs/website/03-UI-KIT-ARCHITECTURE.md`.
 
 ## Source of visual truth
