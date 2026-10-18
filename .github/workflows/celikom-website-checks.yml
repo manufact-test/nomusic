@@ -144,6 +144,11 @@ jobs:
           coverage: none
       - name: Assert website CMS login, rate limits and isolated conflict-safe drafts
         run: php website/tests/Stage9CmsCoreTest.php
+      - name: Stage 10 read-only CMS readiness, rights checksum and fail-closed release prerequisites
+        run: |
+          php website/tests/Stage10ReleaseReadinessTest.php
+          php website/tools/check-release-readiness.php > "$RUNNER_TEMP/celikom-site-readiness.json"
+          python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); assert d["ready"] is False and len(d["blockers"])>=3' "$RUNNER_TEMP/celikom-site-readiness.json"
       - name: Verify private CMS content backup, integrity and restoration safety
         run: php website/tests/Stage9BackupTest.php
       - name: Rehearse CMS backup recovery in disposable MySQL
