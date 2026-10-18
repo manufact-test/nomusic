@@ -148,7 +148,9 @@ try:
     status,editor,_=request("GET","/admin/")
     assert status==200 and 'id="faq-editor"' in editor
     assert 'name="faq_id" value="faq-question-27"' in editor
-    assert "только просмотр" in editor
+    assert 'name="faq_id" value="faq-question-01"' in editor
+    assert 'name="faq_id" value="faq-question-04"' in editor
+    assert "Этот ответ пока нельзя редактировать" not in editor
     faq_version=hidden(editor,"version")
     status,_,headers=request("POST","/admin/",{
         "action":"faq_create","csrf":csrf,"version":faq_version,
@@ -172,18 +174,32 @@ try:
     status,visible_preview,_=request("GET","/admin/?view=preview")
     assert status==200 and "Как связаться с поддержкой проекта?" in visible_preview
     assert visible_preview.count('class="faq-item"')==29
-    # Protected payment/trial conditions are read-only, even for logged-in owner.
+    # Owner can edit the title and answer of a formerly locked canonical FAQ.
     status,editor,_=request("GET","/admin/")
     faq_version=hidden(editor,"version")
-    status,refused,_=request("POST","/admin/",{
+    status,_,headers=request("POST","/admin/",{
         "action":"faq_update","csrf":csrf,"version":faq_version,
-        "faq_id":"faq-question-04","question":"Пробный период",
-        "answer":"Бесплатно всегда!","category":"start",
-        "sort_order":"40","visible":"1"
+        "faq_id":"faq-question-04",
+        "question":"Как проверить условия пробного периода?",
+        "answer":"Условия пробного периода указаны в аккаунте.",
+        "category":"start","sort_order":"40","visible":"1"
     })
-    assert status==422 and "Проверьте данные FAQ" in refused,(status,refused[:1000])
+    assert status==303 and "focus=faq-question-04" in headers.get("Location",""),(status,headers)
+    status,owner_editor,_=request("GET","/admin/?saved=faq&focus=faq-question-04")
+    assert "Как проверить условия пробного периода?" in owner_editor
+    assert "Условия пробного периода указаны в аккаунте." in owner_editor
     status,still_public,_=request("GET","/admin/?view=preview")
     assert still_public.count('class="faq-item"')==29
+    assert "Как проверить условия пробного периода?" in still_public
+    assert "Условия пробного периода указаны в аккаунте." in still_public
+    status,editor,_=request("GET","/admin/")
+    faq_version=hidden(editor,"version")
+    status,rejected,_=request("POST","/admin/",{
+        "action":"faq_update","csrf":csrf,"version":faq_version,
+        "faq_id":"faq-question-04","question":"","answer":"",
+        "category":"start","sort_order":"40","visible":"1"
+    })
+    assert status==422 and "Проверьте текст вопроса" in rejected,(status,rejected[:500])
     # Saving website copy later must preserve all FAQ draft operations.
     status,editor,_=request("GET","/admin/")
     latest_version=hidden(editor,"version")
