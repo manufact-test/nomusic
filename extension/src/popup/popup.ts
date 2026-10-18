@@ -3,6 +3,7 @@ import { withDeadline } from "../shared/request-deadline.js";
 import { inspectM4a } from "../upload/m4a.js";
 import { mp3DurationMs, durationNotice } from "../upload/mp3-duration.js";
 import { createUploadJournal } from "../upload/upload-journal.js";
+import { stageUploadFile, deleteStagedUpload } from "../upload/staging.js";
 import { initScrollSpacing } from "./scroll-spacing.js";
 import { COMMANDS, type ExtensionState } from "../shared/messages.js";
 import { uploadTargetFromStatus, validAudioSelection, privateUploadApiOrigin } from "../upload/contract.js";
@@ -129,6 +130,8 @@ const uploadContinue = document.querySelector<HTMLButtonElement>("[data-upload-c
 const uploadStop = document.querySelector<HTMLButtonElement>("[data-upload-stop]");
 let activeUploadXHR: XMLHttpRequest | null = null;
 let manualUploadCancel = false;
+let backgroundUploadMode = false;
+const BACKGROUND_UPLOAD_KEY = "celikom_background_upload_v1";
 const uploadResult = document.querySelector<HTMLElement>("[data-upload-result]");
 const uploadResultTitle = document.querySelector<HTMLElement>("[data-upload-result-title]");
 const uploadResultNote = document.querySelector<HTMLElement>("[data-upload-result-note]");
@@ -265,15 +268,6 @@ async function trackUploadStatus(origin: string, trackId: string): Promise<"none
 
 addTrackButton?.addEventListener("click", async () => {
   if (incidentStatus.active() || !uploadPanel || uploading || opening) return;
-  // The Chrome action popup closes when focus changes. Keep POST in a full
-  // extension tab; clicking outside the tab cannot cancel the request.
-  if (chrome.tabs?.getCurrent && chrome.tabs?.create && globalThis.location?.hash !== "#upload") {
-    const current = await chrome.tabs.getCurrent();
-    if (!current) {
-      await chrome.tabs.create({url: chrome.runtime.getURL("popup/popup.html#upload")});
-      return;
-    }
-  }
   if (!uploadPanel.hidden) {
     // Query first: a click immediately after a song switch must open the
     // new song, even before the next one-second status poll.
@@ -401,7 +395,7 @@ uploadFilePicker?.addEventListener("drop", (event) => {
 });
 
 uploadCancel?.addEventListener("click", () => {
-  if (!uploading || !activeUploadXHR || !uploadConfirm) return;
+  if (!uploading || (!activeUploadXHR && !backgroundUploadMode) || !uploadConfirm) return;
   uploadConfirm.hidden = false;
   uploadContinue?.focus();
 });
@@ -410,10 +404,14 @@ uploadContinue?.addEventListener("click", () => {
   uploadCancel?.focus();
 });
 uploadStop?.addEventListener("click", () => {
-  if (!uploading || !activeUploadXHR) return;
+  if (!uploading || (!activeUploadXHR && !backgroundUploadMode)) return;
   if (uploadConfirm) uploadConfirm.hidden = true;
   manualUploadCancel = true;
-  activeUploadXHR.abort();
+  if (activeUploadXHR) activeUploadXHR.abort();
+  else if (backgroundUploadMode && uploadRequestId) {
+    void chrome.runtime.sendMessage({type:"CELIKOM_UPLOAD_CANCEL", id:uploadRequestId});
+    uploadMessage("Отменяем загрузку…", "checking");
+  }
 });
 
 uploadForm?.addEventListener("submit", async (event) => {
@@ -713,10 +711,5 @@ window.setInterval(() => void refreshAccess(), 15000);
 const accountPanel = initAuthPanel(send);
 
 initScrollSpacing();
-if (globalThis.location?.hash === "#upload") {
-  document.body?.classList?.add("upload-page");
-  // The new tab must wait for Chrome's player lookup before opening the form.
-  setTimeout(() => addTrackButton?.click(), 300);
-}
 
 void initSupport({ send, getState: () => lastState });
