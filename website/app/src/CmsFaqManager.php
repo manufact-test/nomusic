@@ -6,9 +6,9 @@ use InvalidArgumentException;
 use RuntimeException;
 
 /**
- * FAQ controller model for Stage 9. Existing protected product/legal answers
- * cannot be edited/hidden/reordered. Category definitions stay canonical.
- * Converts simple admin forms into the approved FaqV10Renderer draft format.
+ * Owner-authenticated CMS FAQ editor. All existing canonical questions can
+ * be edited by the owner, while input validation and category IDs stay fixed.
+ * Separate legacy TrustDraft developer preview retains its policy guard.
  */
 final class CmsFaqManager
 {
@@ -38,11 +38,11 @@ final class CmsFaqManager
                 'answer'=>substr((string)$seedItem['answer_html'],3,-4),
                 'sort_order'=>$seedItem['sort_order'],
                 'is_visible'=>$seedItem['is_visible'],
-                'protected'=>TrustDraft::isProtectedFaqId($id),
+                'protected'=>false,
             ];
             if(isset($updates[$id])) {
-                if (!is_array($updates[$id]) || $row['protected']) {
-                    throw new InvalidArgumentException('Protected or malformed FAQ update');
+                if (!is_array($updates[$id])) {
+                    throw new InvalidArgumentException('Malformed FAQ update');
                 }
                 $row=array_merge($row,$updates[$id]);
             }
@@ -68,8 +68,7 @@ final class CmsFaqManager
         $exists=false;
         foreach($rows as $item) {
             if($item['id']===$id) {
-                if($item['protected'])throw new InvalidArgumentException('Protected FAQ');
-                $exists=true;
+                 $exists=true;
                 break;
             }
         }
