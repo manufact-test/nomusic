@@ -318,17 +318,20 @@ test('failed opening is retried in one click rather than merely closing the erro
  assert.equal(find('[data-upload-track]').value,'944530505');
 });
 
-test('song changes during live check never reveal previous song form',async()=>{
+test('song changes after presence read never reveal previous song form',async()=>{
  current={track:{...selected.track,id:'944530506'}};
- trackStatusResponder=async()=>{
-  current={track:{...selected.track,id:'944530507'}};
-  return {ok:true,status:"none"};
+ const original=chrome.runtime.sendMessage;
+ let statusReads=0;
+ chrome.runtime.sendMessage=async message=>{
+  if(message.type==="CELIKOM_STATUS_GET" && ++statusReads===3)
+    current={track:{...selected.track,id:'944530507'}};
+  return original(message);
  };
- try{
+ try {
   await find("[data-action='add']").fire('click');
   assert.equal(form().hidden,true);
   assert.match(find('[data-upload-status]').textContent,/Песня сменилась/);
- }finally{trackStatusResponder=null;}
+ } finally {chrome.runtime.sendMessage=original;}
  await find("[data-action='add']").fire('click');
  assert.equal(form().hidden,false);
  assert.equal(find('[data-upload-track]').value,'944530507');
@@ -356,6 +359,7 @@ test('active replacement label is stable across polls even when original audio i
 
 test('suggesting available or pending audio shows the green result and never posts a request',async()=>{
  current=selected;offline=false;
+ pendingTracks.delete(selected.track.id); // tests must not borrow a previous synthetic submission
  for(const status of ['approved','pending']){
   version=status;find('[data-suggest-panel]').hidden=true;
   const count=suggestionPosts.length;const opening=find("[data-action='suggest']").fire('click');
