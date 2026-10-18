@@ -78,7 +78,7 @@ try:
                 assert active[0][2] > active[-1][2] >= 0, result
                 assert all(active[i][2]+.75 >= active[i+1][2] for i in range(len(active)-1)), result
                 # No large jumps in the last frames after the full closing animation.
-                tail = [h for t,h in result["heights"] if t > 310]
+                tail = [row[1] for row in result["heights"] if row[0] > 310]
                 assert max(tail)-min(tail) < 1.5, result
                 print(f"CELIKOM v10 Chromium {width}px: unchanged header, crisp C, info dot, FAQ continuous padding PASS")
                 page.close()
