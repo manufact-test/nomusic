@@ -495,7 +495,7 @@ label.inline-check{min-height:44px}
 
 </style>
 <link rel="stylesheet" href="/assets/css/v10/manrope-local.css"/>
-<link rel="stylesheet" href="/assets/css/admin-workspace.css?v=517"/>
+<link rel="stylesheet" href="/assets/css/admin-workspace.css?v=518"/>
 <script defer src="/assets/js/admin-workspace.js?v=517"></script>
 </head><body class="<?= $admin!==null?'cms-authenticated':'cms-login' ?>"><main>
 <header class="cms-topbar"><div><h1>CELIKOM <span style="color:#55bf96">/</span> Панель сайта</h1><span class="cms-top-meta">Редактирование и публикация</span></div>
