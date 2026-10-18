@@ -128,6 +128,7 @@ const uploadConfirm = document.querySelector<HTMLElement>("[data-upload-confirm]
 const uploadContinue = document.querySelector<HTMLButtonElement>("[data-upload-continue]");
 const uploadStop = document.querySelector<HTMLButtonElement>("[data-upload-stop]");
 let activeUploadXHR: XMLHttpRequest | null = null;
+let manualUploadCancel = false;
 const uploadResult = document.querySelector<HTMLElement>("[data-upload-result]");
 const uploadResultTitle = document.querySelector<HTMLElement>("[data-upload-result-title]");
 const uploadResultNote = document.querySelector<HTMLElement>("[data-upload-result-note]");
@@ -411,6 +412,7 @@ uploadContinue?.addEventListener("click", () => {
 uploadStop?.addEventListener("click", () => {
   if (!uploading || !activeUploadXHR) return;
   if (uploadConfirm) uploadConfirm.hidden = true;
+  manualUploadCancel = true;
   activeUploadXHR.abort();
 });
 
@@ -427,6 +429,7 @@ uploadForm?.addEventListener("submit", async (event) => {
   const attemptId = uploadRequestId;
   void uploadJournal.record(attemptId, "checking", {trackId: pinnedTrack.id, bytes: file.size});
   uploading = true;
+  manualUploadCancel = false;
   if(uploadFile)uploadFile.disabled=true;
   if (uploadButton) { uploadButton.disabled = true; uploadButton.textContent = "Отправляем…"; }
   uploadMessage("Проверяем трек и отправляем файл…", "checking");
