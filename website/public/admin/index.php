@@ -16,7 +16,12 @@ header("Content-Security-Policy: default-src 'none'; base-uri 'none'; frame-ance
 $root = dirname(__DIR__, 2);
 $dev = PHP_SAPI === 'cli-server' && getenv('CELIKOM_LOCAL_ADMIN') === '1';
 $app = $dev ? $root.'/app' : $root.'/celikom-private/app';
-if (!$dev && !is_file($app.'/release-approved.php')) {
+$releaseApproved = $dev;
+if (!$dev && is_file($app.'/bootstrap.php')) {
+    require_once $app.'/bootstrap.php';
+    $releaseApproved = \Celikom\Website\CmsReleaseGate::approved($app);
+}
+if (!$releaseApproved) {
     http_response_code(503);
     header('Retry-After: 86400');
     echo 'Панель CELIKOM пока недоступна.';
