@@ -22,7 +22,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          sparse-checkout: website
+          sparse-checkout: |
+            website
+            .github
           sparse-checkout-cone-mode: true
           persist-credentials: false
       - name: PHP 8.3
