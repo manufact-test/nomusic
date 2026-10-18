@@ -75,7 +75,7 @@ final class CmsSandboxGeneration
             if (!chmod($tmp, 0600) || fwrite($fp, $raw) !== strlen($raw) || !fflush($fp)) {
                 throw new RuntimeException('Cannot persist release state');
             }
-        } catch (\\Throwable $error) {
+        } catch (\Throwable $error) {
             fclose($fp);
             @unlink($tmp);
             throw $error;
@@ -183,7 +183,7 @@ final class CmsSandboxGeneration
             $result=self::health($config,$dir,$public,$record);
             self::writeRecord($dir.'/'.self::ACTIVE,$record,false);
             return $result;
-        } catch (\\Throwable $error) {
+        } catch (\Throwable $error) {
             self::deleteStage($dir,$record['generation']);
             throw $error;
         }
