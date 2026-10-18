@@ -234,6 +234,8 @@ function contributionError(error: unknown): string {
   if (code === "uploads_disabled") return "Приём версий и предложений пока выключен. Доступ к музыке работает отдельно.";
   if (code === "invalid_session") return "Войдите в аккаунт, чтобы отправить версию или предложение.";
   if (code === "access_denied") return "Доступ завершён. Проверьте статус аккаунта.";
+  if (code === "upload_busy") return "Другая песня уже загружается. Дождитесь завершения предыдущей отправки.";
+  if (["upload_staging_unavailable","upload_background_unavailable","upload_staging_expired"].includes(code)) return "Не удалось подготовить фоновую загрузку. Закройте окно и попробуйте ещё раз.";
   return "Не удалось связаться с сервером. Повторите попытку.";
 }
 
