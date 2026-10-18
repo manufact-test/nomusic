@@ -124,7 +124,7 @@ const uploadRights = document.querySelector<HTMLInputElement>("[data-upload-righ
 const uploadProgress = document.querySelector<HTMLProgressElement>("[data-upload-progress]");
 const uploadStatus = document.querySelector<HTMLElement>("[data-upload-status]");
 const uploadButton = document.querySelector<HTMLButtonElement>("[data-upload-submit]");
-const uploadCancel = document.querySelector<HTMLButtonElement>("[data-upload-cancel]");
+const uploadTransferSlot = document.querySelector<HTMLElement>("[data-upload-transfer-slot]");
 const uploadConfirm = document.querySelector<HTMLElement>("[data-upload-confirm]");
 const uploadContinue = document.querySelector<HTMLButtonElement>("[data-upload-continue]");
 const uploadStop = document.querySelector<HTMLButtonElement>("[data-upload-stop]");
@@ -170,6 +170,23 @@ function transitionUploadPanel(update: () => void): void {
     { opacity: 0.72 },
     { opacity: 1 }
   ], { duration: 150, easing: "ease-out" });
+}
+
+// Keep the same full-width action in place throughout the operation.
+function uploadAction(mode: "submit" | "preparing" | "cancel" | "complete" | "retry"): void {
+  if (!uploadButton) return;
+  uploadButton.dataset.uploadMode = mode;
+  uploadButton.type = mode === "cancel" ? "button" : "submit";
+  uploadButton.disabled = mode === "preparing" || mode === "complete"
+    || ((mode === "submit" || mode === "retry") && durationBlocked);
+  uploadButton.textContent = mode === "cancel" ? "Отменить загрузку"
+    : mode === "preparing" ? "Подготавливаем загрузку…"
+    : mode === "complete" ? "Отправлено на проверку"
+    : mode === "retry" ? "Повторить отправку" : "Отправить на проверку";
+}
+function uploadProgressVisible(visible: boolean): void {
+  if (uploadTransferSlot) uploadTransferSlot.hidden = !visible;
+  if (uploadProgress) uploadProgress.hidden = !visible;
 }
 
 function uploadMessage(value: string, kind = "info"): void {
@@ -396,14 +413,16 @@ uploadFilePicker?.addEventListener("drop", (event) => {
   void checkFileDuration();
 });
 
-uploadCancel?.addEventListener("click", () => {
+uploadButton?.addEventListener("click", (event) => {
+  if (uploadButton?.dataset.uploadMode !== "cancel") return;
+  event.preventDefault();
   if (!uploading || (!activeUploadXHR && !backgroundUploadMode) || !uploadConfirm) return;
   uploadConfirm.hidden = false;
   uploadContinue?.focus();
 });
 uploadContinue?.addEventListener("click", () => {
   if (uploadConfirm) uploadConfirm.hidden = true;
-  uploadCancel?.focus();
+  uploadButton?.focus();
 });
 uploadStop?.addEventListener("click", () => {
   if (!uploading || (!activeUploadXHR && !backgroundUploadMode)) return;
