@@ -1,0 +1,49 @@
+name: CELIKOM private Hostinger website staging installation
+
+# Never deploys production. A 'prepare' request runs only validation.
+# 'install' is one-time and refuses occupied roots/nonempty database.
+on:
+  push:
+    branches: [feature/api-range]
+    paths:
+      - .github/deploy/celikom-site-staging-request.json
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: celikom-website-staging
+  cancel-in-progress: false
+
+jobs:
+  install:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Verify staging source code syntax and strict production separation
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash -n .github/scripts/celikom-site-staging-install.sh
+          php -l website/app/bootstrap.php
+          php -l website/app/src/CmsStagingGate.php
+          php -l website/public/index.php
+          php -l website/public/admin/index.php
+          php -l website/tools/staging-initialize.php
+          test ! -e website/RELEASE_READY
+          grep -Fq '&& false' .github/workflows/deploy-celikom-website.yml
+          test "$GITHUB_REPOSITORY" = manufact-test/nomusic
+          test "$GITHUB_REF" = refs/heads/feature/api-range
+      - name: Install closed review site only when explicit install request and DB secrets are present
+        shell: bash
+        env:
+          CELIKOM_HOSTINGER_SSH_KEY: ${{ secrets.CELIKOM_HOSTINGER_SSH_KEY }}
+          CELIKOM_HOSTINGER_KNOWN_HOSTS: ${{ secrets.CELIKOM_HOSTINGER_KNOWN_HOSTS }}
+          CELIKOM_STAGING_DB_NAME: ${{ secrets.CELIKOM_STAGING_DB_NAME }}
+          CELIKOM_STAGING_DB_USER: ${{ secrets.CELIKOM_STAGING_DB_USER }}
+          CELIKOM_STAGING_DB_PASSWORD: ${{ secrets.CELIKOM_STAGING_DB_PASSWORD }}
+        run: bash .github/scripts/celikom-site-staging-install.sh
