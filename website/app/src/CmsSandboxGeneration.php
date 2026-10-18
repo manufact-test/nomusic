@@ -306,6 +306,18 @@ final class CmsSandboxGeneration
         return ['record'=>$record,'health'=>self::health($config,$dir,$public,$record)];
     }
 
+    /**
+     * Inspect the private generation pointer WITHOUT requiring healthy media.
+     * Recovery must still be able to identify an unhealthy current candidate
+     * and select the untouched v1 generation. This never allows public routes.
+     */
+    public static function currentRecord(
+        array $config,string $root,string $public,CmsWriteQuiescence $lease
+    ):array {
+        $dir=self::guard($config,$root,$public,$lease);
+        return self::readRecord($dir.'/'.self::ACTIVE);
+    }
+
     /** Atomic offline selector: when interrupted, either old or new pointer survives. */
     public static function select(
         array $config,string $root,string $public,string $generation,
