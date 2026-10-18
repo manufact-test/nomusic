@@ -1,0 +1,48 @@
+/* v10 owner UX: original illustration and spacing are untouched. */
+html{scroll-behavior:smooth!important;scroll-padding-top:24px}
+section[id],#idea{scroll-margin-top:24px}
+body .btn,body .header-chip,body .closing-link,body .mode-btn,body .faq-filter{
+ transition:transform .22s cubic-bezier(.2,.7,.2,1),box-shadow .22s cubic-bezier(.2,.7,.2,1),
+ background-color .22s ease,border-color .22s ease,color .22s ease
+}
+@media(hover:hover){
+ body .btn:hover,body .header-chip:hover,body .closing-link:hover,
+ body .mode-btn:hover,body .faq-filter:hover{
+  transform:translateY(1px) scale(.987)!important;
+  box-shadow:inset 0 3px 9px #10221d24,0 4px 12px #10221d0d!important
+ }
+}
+body .btn:active,body .header-chip:active,body .closing-link:active,
+body .mode-btn:active,body .faq-filter:active{
+ transform:translateY(2px) scale(.975)!important;
+ box-shadow:inset 0 4px 13px #10221d30!important
+}
+/* Only the final block's already owner-approved background is changed. */
+body .closing{
+ background:radial-gradient(ellipse 60% 110% at 92% 7%,#173a32 0,transparent 78%),
+ radial-gradient(ellipse 45% 95% at 0% 110%,#152d2a 0,transparent 79%),#0b1013;
+ box-shadow:inset 0 0 0 1px #c3fbe412
+}
+body .closing .closing-halo{border-color:#62deb51c}
+body .closing::before{
+ content:"";position:absolute;inset:auto -10% -80% auto;
+ width:540px;aspect-ratio:1;border:1px solid #63dfb82c;
+ border-radius:50%;pointer-events:none
+}
+/* Height animation is managed by JavaScript. */
+#faq .faq-item[open] .answer{animation:none!important}
+#faq .faq-item .answer{overflow:hidden}
+/* Progressive enhancement: no JS, no hidden content. */
+@media(prefers-reduced-motion:no-preference){
+ .celikom-reveal{
+  opacity:0;transform:translate3d(0,20px,0);
+  transition:opacity .72s cubic-bezier(.18,.7,.22,1),
+  transform .72s cubic-bezier(.18,.7,.22,1)!important;
+  will-change:opacity,transform
+ }
+ .celikom-reveal.celikom-visible{opacity:1;transform:translate3d(0,0,0)}
+}
+@media(prefers-reduced-motion:reduce){
+ html{scroll-behavior:auto!important}
+ .celikom-reveal{opacity:1!important;transform:none!important;transition:none!important}
+}
