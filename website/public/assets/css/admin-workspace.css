@@ -250,3 +250,29 @@ body .revision-current{font-size:12px;font-weight:770}
  .cms-topbar .cms-top-meta{font-size:11px}
  body .admin-view>.muted{font-size:12.5px}
 }
+
+/* v5.16 — FAQ editor alignment: one coherent search/control row. */
+#faq-editor .cms-faq-search-row{align-items:stretch;gap:12px;margin:4px 0 24px}
+#faq-editor #cms-faq-search{box-sizing:border-box;min-height:48px;height:48px;max-width:420px;flex:0 1 420px;line-height:22px;margin:0}
+#faq-editor #cms-faq-count{
+ display:inline-flex;align-items:center;justify-content:center;
+ box-sizing:border-box;min-height:48px;height:48px;line-height:22px;
+ margin:0;padding:0 18px;border-radius:12px;
+ font-size:13px;font-weight:650;color:#426b58;
+ background:#e6f4ed;white-space:nowrap;
+}
+#faq-editor .cms-faq-hidden-label{
+ display:inline-flex;align-items:center;margin-left:9px;
+ color:#6e8578;background:#edf4ef;border-radius:6px;
+ font-size:11px;font-weight:700;padding:3px 8px;
+}
+#faq-editor .faq-entry[open]{background:#fff;border-color:#b6e3d0}
+#faq-editor .faq-entry[open] summary{font-weight:780}
+#faq-editor .faq-entry .faq-fields{padding-top:8px}
+#faq-editor .faq-entry .faq-fields input,
+#faq-editor .faq-entry .faq-fields textarea{margin-top:7px}
+@media(max-width:620px){
+ #faq-editor .cms-faq-search-row{display:grid;grid-template-columns:1fr;gap:8px}
+ #faq-editor #cms-faq-search{max-width:none;min-width:0;width:100%;flex:auto}
+ #faq-editor #cms-faq-count{width:100%;justify-content:flex-start}
+}
