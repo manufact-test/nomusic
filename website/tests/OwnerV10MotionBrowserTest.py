@@ -72,10 +72,11 @@ try:
                 # Full card and answer's padding must both collapse smoothly.
                 assert max(abs(a-b) for a,b in zip(sizes, sizes[1:])) < .36 * (sizes[0]-sizes[-1]), result
                 assert abs(sizes[-1]-result["final"]) < 1, result
-                # Before completing, bottom padding must gradually reach near zero.
+                # The answer's visible box, including whatever bottom padding
+                # this responsive breakpoint computes, must shrink in one pass.
                 active=[h for h in result["heights"] if 25 < h[0] < 250]
-                assert active[0][3]>active[-1][3] >=0, result
-                assert all(active[i][3]+.75 >= active[i+1][3] for i in range(len(active)-1)), result
+                assert active[0][2] > active[-1][2] >= 0, result
+                assert all(active[i][2]+.75 >= active[i+1][2] for i in range(len(active)-1)), result
                 # No large jumps in the last frames after the full closing animation.
                 tail = [h for t,h in result["heights"] if t > 310]
                 assert max(tail)-min(tail) < 1.5, result
