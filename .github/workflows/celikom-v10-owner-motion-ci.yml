@@ -6,10 +6,12 @@ on:
       - website/app/src/CmsV10OwnerMotion.php
       - website/public/assets/css/v10/owner-v10-motion.css
       - website/public/assets/js/v10/owner-v10-motion.js
+      - website/public/assets/js/v10/owner-sound-player.js
       - website/public/index.php
       - website/public/admin/index.php
       - website/tests/CmsV10OwnerMotionTest.php
       - website/tests/OwnerV10MotionBrowserTest.py
+      - website/tests/OwnerV10AudioBrowserTest.py
       - website/tests/OwnerV10MotionFixture.php
       - .github/workflows/celikom-v10-owner-motion-ci.yml
   workflow_dispatch:
@@ -36,6 +38,7 @@ jobs:
           php -l website/public/index.php
           php -l website/public/admin/index.php
           node --check website/public/assets/js/v10/owner-v10-motion.js
+          node --check website/public/assets/js/v10/owner-sound-player.js
           php website/tests/CmsV10OwnerMotionTest.php
           python3 website/tests/Stage3MarkupTest.py
       - uses: actions/setup-python@v5
@@ -46,4 +49,6 @@ jobs:
           python -m pip install playwright==1.56.0
           python -m playwright install --with-deps chromium
       - name: Check actual FAQ closing animation and header in Chromium
-        run: python website/tests/OwnerV10MotionBrowserTest.py
+        run: |
+          python website/tests/OwnerV10MotionBrowserTest.py
+          python website/tests/OwnerV10AudioBrowserTest.py
