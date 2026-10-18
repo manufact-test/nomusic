@@ -144,6 +144,7 @@ let opening = false;
 // background status poll must never reopen a panel the user just collapsed.
 let uploadManuallyCollapsed = false;
 let uploadOpenGeneration = 0;
+let lastTerminalUploadId = "";
 const durationNote=document.querySelector<HTMLElement>("[data-upload-duration]");
 let durationGeneration=0, measuredFile=null, durationPromise=null, durationBlocked=false;
 function checkFileDuration(){
@@ -211,6 +212,7 @@ function setSubmittedView(title: string, note: string): void {
 }
 
 function showSubmitted(title: string, note: string): void {
+  refreshVersion.invalidate(pinnedTrack?.id);
   transitionUploadPanel(() => setSubmittedView(title, note));
 }
 
@@ -838,6 +840,10 @@ async function syncBackgroundUpload(): Promise<void> {
     ["completed","duplicate"].includes(saved.phase) ? "complete" :
     ["failed","cancelled"].includes(saved.phase) ? "retry" : "submit");
   if(saved.phase==="completed" || saved.phase==="duplicate") {
+    if (lastTerminalUploadId !== saved.id) {
+      lastTerminalUploadId = saved.id;
+      refreshVersion.invalidate(saved.trackId);
+    }
     uploadMessage(saved.phase==="completed"?"Аудиофайл получен CELIKOM. Версия отправлена на модерацию."
       :"Версия уже есть на сервере. Повторная отправка не нужна.","success");
     return;
