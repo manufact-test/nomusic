@@ -159,3 +159,94 @@ body .revision-current{color:#208558}
 .cms-topbar{position:relative;z-index:3;min-height:82px;height:auto}
 .cms-shell{position:relative;z-index:1}
 @media(max-width:760px){.cms-topbar{min-height:76px;height:auto}}
+
+/* v5.15 — final owner CMS typography and rhythm polish. */
+:root,body,button,input,textarea,select{font-family:'Manrope',system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif!important}
+body{font-size:14px;line-height:1.65;font-weight:450;font-kerning:normal;text-rendering:optimizeLegibility;-webkit-font-smoothing:antialiased}
+.cms-main{padding-top:clamp(28px,3.1vw,46px)}
+.cms-topbar h1{font-size:18px;font-weight:780;letter-spacing:-.035em}
+.cms-topbar .cms-top-meta{font-size:12px;font-weight:500;letter-spacing:0}
+.cms-side-heading{font-size:18px;font-weight:750;line-height:1.4;letter-spacing:-.025em;margin-top:7px}
+.cms-side-tag{letter-spacing:.12em}
+.cms-side-menu a{font-size:13px;font-weight:690;line-height:1.35;gap:12px;min-height:50px}
+.cms-menu-icon{width:29px;height:29px;border-radius:9px;padding:6px}
+.cms-menu-icon svg,.cms-card-icon svg{display:block;width:100%;height:100%;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;fill:none}
+.cms-menu-icon svg{stroke-width:1.85}
+.cms-side-menu a.is-active .cms-menu-icon{background:#0f553b13;border-color:#18573c19}
+.cms-side-footer{padding-top:20px}
+.cms-side-footer small{font-size:12px;line-height:1.65;max-width:20ch;margin-top:15px;color:#aac6b7}
+.cms-side-footer a{font-size:12px}
+.cms-page-heading h2,.admin-view>h2,.cms-workspace-header h2{font-size:clamp(25px,2.5vw,30px);line-height:1.26;font-weight:770;letter-spacing:-.035em;text-wrap:balance}
+.cms-page-heading p{font-size:13px;line-height:1.75;max-width:580px}
+.cms-kicker{font-weight:800;letter-spacing:.13em}
+.cms-home-card{padding:24px;min-height:173px}
+.cms-home-card .cms-card-icon{width:52px;height:52px;padding:13px;border-radius:16px;font-size:24px;margin-bottom:18px;color:#128460;background:#def6e9;box-shadow:inset 0 0 0 1px #c8ead9}
+.cms-home-card .cms-card-icon svg{stroke-width:1.8}
+.cms-home-card strong{font-size:17px;line-height:1.45;letter-spacing:-.02em;font-weight:790}
+.cms-home-card span:not(.cms-card-icon):not(.cms-card-arrow){font-size:12.5px;line-height:1.7}
+.cms-home-card .cms-card-arrow{font-size:19px;line-height:1.4}
+.cms-home-card:hover .cms-card-icon{background:#c9f3dd}
+.cms-stat strong{font-size:27px;font-weight:780;letter-spacing:-.03em}
+.cms-stat span{font-size:12px;font-weight:600;line-height:1.45}
+.cms-block-label{font-size:16px;line-height:1.4;font-weight:770;margin:24px 0 16px}
+.cms-info-strip{font-size:13px;line-height:1.7}
+body .panel{padding:clamp(25px,3vw,34px)}
+body .admin-view>h2{margin:0 0 14px!important}
+body .admin-view>.muted{max-width:780px;font-size:13px;line-height:1.85;margin:0 0 29px!important;color:#72877b}
+body .admin-view>h2+.muted{margin-top:2px!important}
+body .admin-view>h2:not(:first-of-type){margin-top:45px!important}
+body #revision-editor>form{display:block;margin-top:8px}
+body #revision-editor>form>label:first-of-type{margin-top:21px}
+body #revision-editor>form>input[type=text],body #revision-editor>form>input:not([type=checkbox]):not([type=hidden]){margin-bottom:23px}
+body #revision-editor>form>.inline-check{margin:19px 0 8px}
+body #revision-editor>form>button[type=submit]{margin-top:21px!important}
+body #revision-editor>h2:nth-of-type(2){padding-top:35px;border-top:1px solid #e8eee9;margin-top:42px!important;margin-bottom:14px!important}
+body #revision-editor>.revision-row{padding:18px 0;align-items:center}
+body #revision-editor .revision-row strong{font-weight:790}
+body #revision-editor .revision-row .small-note{font-size:12px;line-height:1.75;margin-top:5px}
+body #revision-editor .revision-row form{gap:10px}
+body #revision-editor .revision-row form button{margin:0!important}
+body .inline-check{gap:12px;font-size:13px;line-height:1.65;font-weight:680;min-height:44px;margin-top:17px}
+body .inline-check input[type=checkbox]{flex:0 0 auto;width:17px;height:17px;accent-color:#38bf92;margin:0}
+body label{font-size:13px;line-height:1.5;letter-spacing:0;font-weight:700}
+body button:not(.cms-group-button):not(.cms-faq-tab),body a.action{font-size:13px;line-height:1.4;font-weight:750;letter-spacing:0;padding:13px 20px;min-height:46px}
+body input:not([type=checkbox]):not([type=hidden]),body textarea,body select{font-size:13px;line-height:1.6;font-weight:500;letter-spacing:0}
+body .small-note,body .muted{line-height:1.75;letter-spacing:0}
+body .cms-editor-summary{font-size:13px;line-height:1.7;padding:13px 16px;margin:21px 0 23px}
+body .section-editor summary{font-size:20px;line-height:1.4;font-weight:770}
+body .faq-entry summary{font-size:13px;line-height:1.6;font-weight:680}
+body .cms-create-faq>h2{font-size:20px;font-weight:770;line-height:1.4;margin:0 0 20px!important}
+body .cms-create-faq{margin-top:34px;padding-top:29px}
+body .cms-faq-tools{margin:24px 0}
+body #media-editor>form{margin-bottom:25px}
+body #media-editor>form label{margin-top:18px}
+body #media-editor>form .action{display:inline-flex;align-items:center;justify-content:center;vertical-align:middle;margin-top:14px}
+body #media-editor>.muted:not(:first-of-type){border-top:1px solid #e8eee9;padding-top:21px;margin-top:24px!important}
+body .cms-workspace-header{margin-bottom:8px}
+body .cms-workspace-header h2{margin:0!important}
+body .cms-workspace-header+.muted{margin:10px 0 22px}
+body #faq-editor .cms-faq-tools+details{margin-top:7px}
+body .cms-faq-search-row input{min-height:46px}
+body .revision-current{font-size:12px;font-weight:770}
+.cms-overview .cms-page-heading{margin-bottom:29px}
+.cms-login-wrap h2{font-weight:760}
+@media(max-width:760px){
+ .cms-sidebar{gap:12px}
+ .cms-side-menu a{min-height:48px;gap:9px}
+ .cms-menu-icon{width:26px;height:26px;padding:5px}
+ .cms-home-card{min-height:180px}
+ .cms-home-card .cms-card-icon{width:48px;height:48px;padding:11px;border-radius:14px}
+ .cms-main{padding:24px 16px 48px}
+ body .panel{padding:22px!important}
+ body .admin-view>h2{font-size:25px!important;line-height:1.35}
+ body #revision-editor>h2:nth-of-type(2){margin-top:35px!important;padding-top:27px}
+ body #revision-editor .revision-row{align-items:stretch;padding:17px 0}
+ body #revision-editor .revision-row form button{width:100%}
+}
+@media(max-width:440px){
+ .cms-home-card{min-height:0;padding:20px}
+ .cms-home-card .cms-card-icon{margin-bottom:15px}
+ .cms-home-card strong{font-size:16px}
+ .cms-topbar .cms-top-meta{font-size:11px}
+ body .admin-view>.muted{font-size:12.5px}
+}
