@@ -412,3 +412,31 @@ html{scrollbar-width:thin;scrollbar-color:#45565f transparent}
 .upload-duration-note[data-kind="error"]{background:#fff0ec;border:2px solid #d44832;color:#8c2417;font-weight:600;padding:12px;border-radius:12px}
 
 .mark[data-active="true"]{background:#66e0bf;box-shadow:0 0 16px rgb(102 224 191 / 55%)}
+
+/* Full-tab upload survives losing focus, unlike the browser-action popup. */
+body.upload-page { width: min(100%, 640px); max-width: 640px; margin: 24px auto; }
+body.upload-page main { gap: 14px; padding: 24px; }
+body.upload-page .upload-panel { min-width: 0; }
+.upload-panel .upload-feedback[data-kind="error"] {
+  color: #ffdad4; background: #321d20; border: 1px solid #a44d47;
+  border-radius: 12px; padding: 12px; overflow-wrap: anywhere;
+}
+.upload-panel .upload-feedback[data-kind="checking"] {
+  color: #d5eee7; background: #152a28; border: 1px solid #305951;
+  border-radius: 10px; padding: 10px;
+}
+.upload-cancel { margin-top: 4px; border-color: #9b6464; color: #ffb8b2; }
+.celikom-confirm {
+  padding: 15px; border: 1px solid #a45c55; border-radius: 12px;
+  background: #231c20; box-shadow: 0 15px 32px rgb(0 0 0 / 22%);
+  display: grid; gap: 10px; color: #f4f7f8;
+}
+.celikom-confirm[hidden] { display: none !important; }
+.celikom-confirm strong { font-size: 15px; }
+.celikom-confirm p { margin: 0; color: #c9c4c7; font-size: 12px; line-height: 1.55; }
+.celikom-confirm-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.celikom-confirm-actions button { flex: 1 1 160px; }
+.celikom-confirm .danger { background: #572c31; color: #ffdcd7; border: 1px solid #b75d59; }
+.celikom-confirm .danger:hover { background: #693438; }
+@media (max-width: 640px) { body.upload-page { margin: 0 auto; } body.upload-page main { padding: 16px; } }
+@media (prefers-reduced-motion: reduce) { .celikom-confirm { transition: none; } }

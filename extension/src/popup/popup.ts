@@ -2,6 +2,7 @@ import { playbackPresentation } from "./playback-presentation.js";
 import { withDeadline } from "../shared/request-deadline.js";
 import { inspectM4a } from "../upload/m4a.js";
 import { mp3DurationMs, durationNotice } from "../upload/mp3-duration.js";
+import { createUploadJournal } from "../upload/upload-journal.js";
 import { initScrollSpacing } from "./scroll-spacing.js";
 import { COMMANDS, type ExtensionState } from "../shared/messages.js";
 import { uploadTargetFromStatus, validAudioSelection, privateUploadApiOrigin } from "../upload/contract.js";
@@ -122,11 +123,18 @@ const uploadRights = document.querySelector<HTMLInputElement>("[data-upload-righ
 const uploadProgress = document.querySelector<HTMLProgressElement>("[data-upload-progress]");
 const uploadStatus = document.querySelector<HTMLElement>("[data-upload-status]");
 const uploadButton = document.querySelector<HTMLButtonElement>("[data-upload-submit]");
+const uploadCancel = document.querySelector<HTMLButtonElement>("[data-upload-cancel]");
+const uploadConfirm = document.querySelector<HTMLElement>("[data-upload-confirm]");
+const uploadContinue = document.querySelector<HTMLButtonElement>("[data-upload-continue]");
+const uploadStop = document.querySelector<HTMLButtonElement>("[data-upload-stop]");
+let activeUploadXHR: XMLHttpRequest | null = null;
+let manualUploadCancel = false;
 const uploadResult = document.querySelector<HTMLElement>("[data-upload-result]");
 const uploadResultTitle = document.querySelector<HTMLElement>("[data-upload-result-title]");
 const uploadResultNote = document.querySelector<HTMLElement>("[data-upload-result-note]");
 let pinnedTrack: ReturnType<typeof uploadTargetFromStatus> = null;
 let uploadRequestId: string | null = null;
+const uploadJournal = createUploadJournal(chrome.storage?.local);
 let uploading = false;
 let opening = false;
 const durationNote=document.querySelector<HTMLElement>("[data-upload-duration]");
@@ -257,6 +265,15 @@ async function trackUploadStatus(origin: string, trackId: string): Promise<"none
 
 addTrackButton?.addEventListener("click", async () => {
   if (incidentStatus.active() || !uploadPanel || uploading || opening) return;
+  // The Chrome action popup closes when focus changes. Keep POST in a full
+  // extension tab; clicking outside the tab cannot cancel the request.
+  if (chrome.tabs?.getCurrent && chrome.tabs?.create && globalThis.location?.hash !== "#upload") {
+    const current = await chrome.tabs.getCurrent();
+    if (!current) {
+      await chrome.tabs.create({url: chrome.runtime.getURL("popup/popup.html#upload")});
+      return;
+    }
+  }
   if (!uploadPanel.hidden) {
     // Query first: a click immediately after a song switch must open the
     // new song, even before the next one-second status poll.
@@ -383,6 +400,22 @@ uploadFilePicker?.addEventListener("drop", (event) => {
   void checkFileDuration();
 });
 
+uploadCancel?.addEventListener("click", () => {
+  if (!uploading || !activeUploadXHR || !uploadConfirm) return;
+  uploadConfirm.hidden = false;
+  uploadContinue?.focus();
+});
+uploadContinue?.addEventListener("click", () => {
+  if (uploadConfirm) uploadConfirm.hidden = true;
+  uploadCancel?.focus();
+});
+uploadStop?.addEventListener("click", () => {
+  if (!uploading || !activeUploadXHR) return;
+  if (uploadConfirm) uploadConfirm.hidden = true;
+  manualUploadCancel = true;
+  activeUploadXHR.abort();
+});
+
 uploadForm?.addEventListener("submit", async (event) => {
   event.preventDefault();
   if (uploading || opening || !pinnedTrack || uploadForm.hidden ||
@@ -392,7 +425,11 @@ uploadForm?.addEventListener("submit", async (event) => {
   if (!validAudioSelection(file)) {
     uploadMessage("Выберите MP3 или M4A не более 30 МиБ.", "error"); return;
   }
+  if (!uploadRequestId) uploadRequestId = crypto.randomUUID();
+  const attemptId = uploadRequestId;
+  void uploadJournal.record(attemptId, "checking", {trackId: pinnedTrack.id, bytes: file.size});
   uploading = true;
+  manualUploadCancel = false;
   if(uploadFile)uploadFile.disabled=true;
   if (uploadButton) { uploadButton.disabled = true; uploadButton.textContent = "Отправляем…"; }
   uploadMessage("Проверяем трек и отправляем файл…", "checking");
@@ -401,9 +438,10 @@ uploadForm?.addEventListener("submit", async (event) => {
   let transferStarted = false;
   try {
     if(measuredFile!==file)await checkFileDuration();else if(durationPromise)await durationPromise;
-    if(durationBlocked){uploadMessage("");durationNote?.scrollIntoView?.({block:"nearest",behavior:"smooth"});return;}
+    if(durationBlocked){void uploadJournal.record(attemptId, "rejected", {code: "duration_mismatch"});uploadMessage("");durationNote?.scrollIntoView?.({block:"nearest",behavior:"smooth"});return;}
     const now = uploadTargetFromStatus(await send<ExtensionState>({ type: COMMANDS.getStatus }));
     if (!now || now.id !== pinnedTrack.id) {
+      void uploadJournal.record(attemptId, "rejected", {code: "track_changed"});
       uploadMessage("Трек изменился. Закройте и откройте «Загрузить версию» заново.", "error");
       return;
     }
@@ -412,12 +450,12 @@ uploadForm?.addEventListener("submit", async (event) => {
     const checkedTarget = uploadTargetFromStatus(await send<ExtensionState>({ type: COMMANDS.getStatus }));
     if (checkedTarget?.id !== pinnedTrack.id) throw new Error("track_changed");
     if (existing !== "none") {
+      void uploadJournal.record(attemptId, "duplicate", {code: existing});
       showSubmitted(existing === "pending" ? "Трек уже добавлен" : "Версия уже доступна",
         "Заявка уже есть в CELIKOM. Повторно отправлять файл не нужно.");
       return;
     }
 
-    if (!uploadRequestId) uploadRequestId = crypto.randomUUID();
     const data = new FormData();
     data.append("service", "yandex");
     data.append("track_id", pinnedTrack.id);
@@ -432,20 +470,57 @@ uploadForm?.addEventListener("submit", async (event) => {
     xhr.open("POST", origin + "/api/v1/uploads");
     xhr.timeout = 120000;
     xhr.setRequestHeader("Authorization", "Bearer " + await contributionAccess());
+    xhr.setRequestHeader("X-Celikom-Upload-Attempt", attemptId);
     const finalTarget = uploadTargetFromStatus(await send<ExtensionState>({ type: COMMANDS.getStatus }));
     if (finalTarget?.id !== pinnedTrack.id) throw new Error("track_changed");
+    let failure = "";
+    let lastActivityAt = Date.now();
+    let bytesMoved = false, waitNotice = false, lastPercent = -1;
+    const watchdog = setInterval(() => {
+      if (!uploading || bytesMoved) return;
+      const idle = Date.now() - lastActivityAt;
+      if (idle > 15000 && !waitNotice) {
+        waitNotice = true;
+        uploadMessage("Ожидаем начала передачи. Проверяем соединение…", "checking");
+        void uploadJournal.record(attemptId, "waiting");
+      }
+      if (idle > 45000) { failure = "stalled"; xhr.abort(); }
+    }, 3000);
+    watchdog?.unref?.();
     xhr.upload.addEventListener("progress", (progress) => {
-      if (progress.lengthComputable && uploadProgress) uploadProgress.value = Math.floor(progress.loaded / progress.total * 100);
+      lastActivityAt = Date.now();
+      bytesMoved ||= progress.loaded > 0;
+      const percent = progress.lengthComputable && progress.total > 0
+        ? Math.floor(progress.loaded / progress.total * 100) : 0;
+      if (uploadProgress && progress.lengthComputable) uploadProgress.value = percent;
+      if (Math.floor(percent / 10) !== Math.floor(lastPercent / 10)) {
+        lastPercent = percent;
+        void uploadJournal.record(attemptId, "transferring", {sent: progress.loaded, percent});
+      }
     });
+    xhr.upload.addEventListener("load", () => {
+      bytesMoved = true;
+      void uploadJournal.record(attemptId, "server_wait");
+      uploadMessage("Файл отправлен. Ждём подтверждения сервера…", "checking");
+    });
+    xhr.addEventListener("error", () => { failure = "network_error"; });
+    xhr.addEventListener("timeout", () => { failure = "timeout"; });
+    xhr.addEventListener("abort", () => { failure ||= "interrupted"; });
     if (uploadProgress) { uploadProgress.hidden = false; uploadProgress.value = 0; }
-    uploadMessage("Загружаем аудиофайл…", "checking");
+    uploadMessage("Подключаемся и загружаем аудиофайл…", "checking");
+    void uploadJournal.record(attemptId, "connecting");
     xhr.addEventListener("loadend", () => {
+      clearInterval(watchdog);
+      activeUploadXHR = null;
+      if (uploadCancel) uploadCancel.hidden = true;
+      if (uploadConfirm) uploadConfirm.hidden = true;
       uploading = false;
       if(uploadFile)uploadFile.disabled=false;
       if (xhr.status === 202) {
         try {
           const result = JSON.parse(xhr.responseText);
           if (result.status === "pending" && Number.isSafeInteger(result.replacement_id)) {
+            void uploadJournal.record(attemptId, "completed", {httpStatus: 202});
             showSubmitted(result.duplicate ? "Трек уже добавлен" : "Отправлено на проверку",
               "Аудиофайл получен CELIKOM. Статус: ожидает модерации. Дополнительных действий не требуется.");
             uploadRequestId = null;
@@ -456,6 +531,7 @@ uploadForm?.addEventListener("submit", async (event) => {
       let code = "";
       try { code = JSON.parse(xhr.responseText)?.error || ""; } catch (_error) { /* no-op */ }
       if (code === "track_pending" || code === "track_already_approved" || code === "already_approved") {
+        void uploadJournal.record(attemptId, "duplicate", {code, httpStatus: xhr.status});
         showSubmitted(code === "track_pending" ? "Трек уже добавлен" : "Версия уже доступна",
           "Заявка уже есть на сервере CELIKOM. Повторная отправка не требуется.");
         return;
@@ -473,17 +549,37 @@ uploadForm?.addEventListener("submit", async (event) => {
         idempotency_conflict: "Повтор запроса не совпадает с исходным.",
         rights_declaration_required: "Подтвердите права на файл."
       };
-      uploadMessage(errors[code] || "Загрузка не завершена. Попробуйте ещё раз.", "error");
+      void uploadJournal.record(attemptId, "failed", {httpStatus: xhr.status, code: failure || code || "http_error"});
+      const guidance = manualUploadCancel ? "Загрузка отменена по вашему запросу."
+        : failure === "stalled" ? "Передача не началась за 45 секунд. Проверьте интернет или VPN."
+        : failure === "timeout" ? "Сервер не ответил за две минуты. Проверьте статус песни."
+        : xhr.status === 0 ? "Соединение прервалось. Проверьте сеть или VPN."
+        : xhr.status >= 500 ? "Сервер временно недоступен. Повторите позже."
+        : errors[code] || "Загрузка не завершена. Попробуйте ещё раз.";
+      uploadMessage(guidance + " Код: " + attemptId.slice(0, 8).toUpperCase(), "error");
       if (uploadButton) { uploadButton.textContent = "Повторить отправку"; uploadButton.disabled = false; }
     });
-    xhr.send(data);
+    activeUploadXHR = xhr;
+    if (uploadCancel) uploadCancel.hidden = false;
+    try { xhr.send(data); } catch (error) {
+      clearInterval(watchdog);
+      activeUploadXHR = null;
+      if (uploadCancel) uploadCancel.hidden = true;
+      throw error;
+    }
     transferStarted = true;
   } catch (error) {
-    uploadMessage(contributionError(error), "error");
+    void uploadJournal.record(attemptId, "failed", {
+      code: (error as Error)?.message === "track_changed" ? "track_changed" : "preflight_failed"
+    });
+    uploadMessage(contributionError(error) + " Код: " + attemptId.slice(0, 8).toUpperCase(), "error");
   } finally {
     // The request completion handler is responsible for re-enabling the button
     // after xhr.send(). An early exit must never leave the UI stuck.
     if (!transferStarted) {
+      activeUploadXHR = null;
+      if (uploadCancel) uploadCancel.hidden = true;
+      if (uploadConfirm) uploadConfirm.hidden = true;
       uploading = false;
       if(uploadFile)uploadFile.disabled=false;
       if (uploadButton && uploadForm && !uploadForm.hidden) {
@@ -578,7 +674,10 @@ restoreButton?.addEventListener("click", async () => {
 diagnosticsButton?.addEventListener("click", async () => {
   const state = await send<ExtensionState>({ type: COMMANDS.getStatus });
   lastState = state;
-  await navigator.clipboard.writeText(JSON.stringify(lastState, null, 2));
+  await navigator.clipboard.writeText(JSON.stringify({
+    ...lastState,
+    uploadAttempts: await uploadJournal.snapshot()
+  }, null, 2));
   if (diagnosticsButton) diagnosticsButton.textContent = "Скопировано";
 });
 
@@ -606,5 +705,10 @@ window.setInterval(() => void refreshAccess(), 15000);
 const accountPanel = initAuthPanel(send);
 
 initScrollSpacing();
+if (globalThis.location?.hash === "#upload") {
+  document.body?.classList?.add("upload-page");
+  // The new tab must wait for Chrome's player lookup before opening the form.
+  setTimeout(() => addTrackButton?.click(), 300);
+}
 
 void initSupport({ send, getState: () => lastState });

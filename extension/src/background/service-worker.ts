@@ -122,17 +122,21 @@ chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse) =>
     ? (message as { type?: unknown }).type
     : null;
 
+  // Only the extension-owned popup or its dedicated upload tab may act.
+  // In particular, do not grant the same permission to other extension URLs.
+  const trustedUi = sender?.id === chrome.runtime.id &&
+    [chrome.runtime.getURL("popup/popup.html"), chrome.runtime.getURL("popup/popup.html#upload")].includes(sender?.url || "");
+
   // Only the extension-owned popup may inspect or change user intent.
   // Content scripts have a separate, narrowly scoped heartbeat/API channel.
   const popupCommand = [COMMANDS.getStatus, COMMANDS.setEnabled, COMMANDS.setTestTrack,
     COMMANDS.restoreOriginal, "CELIKOM_ADD_TRACK_OPENED", "CELIKOM_AUTH"].includes(type as string);
-  if (popupCommand && (sender?.id !== chrome.runtime.id
-    || sender?.url !== chrome.runtime.getURL("popup/popup.html"))) {
+  if (popupCommand && !trustedUi) {
     sendResponse({ ok: false, error: "invalid_sender" }); return false;
   }
 
   if (type === "CELIKOM_AUTH") {
-    if (sender?.id !== chrome.runtime.id || sender?.url !== chrome.runtime.getURL("popup/popup.html")) {
+    if (!trustedUi) {
       sendResponse({ ok: false, error: "invalid_sender" }); return false;
     }
     const m = message as { action?: unknown };
