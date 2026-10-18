@@ -118,6 +118,10 @@ try {
     offsiteDeny(fn()=>CmsOffsiteEnvelope::inspect($sealed,$offsiteKey),
         'world-readable transport');
     chmod($sealed,0600);
+    chmod($transport,0755);
+    offsiteDeny(fn()=>CmsOffsiteEnvelope::inspect($sealed,$offsiteKey),
+        'world-accessible ciphertext staging directory');
+    chmod($transport,0700);
     $target=$transport.'/poison';
     file_put_contents($target,'untouched');chmod($target,0600);
     $sym=$transport.'/celikom-offsite-20261018-120000-'.bin2hex(random_bytes(12)).'.sbox';
