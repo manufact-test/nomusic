@@ -27,7 +27,7 @@ test('known absence of a song collapses the version row immediately on reopen an
   await refresh({phase:'STOPPED',track:null});assert.equal(fx.version.hidden,true);
  }finally{globalThis.document=oldDocument;globalThis.localStorage=oldStorage}
 });
-test('closing and reopening shows saved access and song version synchronously without a loading rewrite',async()=>{
+test('reopen keeps saved access but does not present an unverified cached song version',async()=>{
  const oldDocument=globalThis.document, oldStorage=globalThis.localStorage, memory=new Map();
  globalThis.localStorage={getItem:k=>memory.get(k),setItem:(k,v)=>memory.set(k,v),removeItem:k=>memory.delete(k)};
  try {
@@ -39,12 +39,14 @@ test('closing and reopening shows saved access and song version synchronously wi
   let finishAccess,finishVersion;
   const refreshAccess=initAccessStatus(m=>m.action==='access-preview'?Promise.resolve({}):new Promise(r=>finishAccess=r));
   const refreshVersion=initVersionStatus(()=>new Promise(r=>finishVersion=r));
-  assert.equal(reopened.access.textContent,expectedAccess,'no await before painting the saved expiry');
-  assert.equal(reopened.version.textContent,expectedVersion,'no await before painting the saved version');
+  assert.equal(reopened.access.textContent,expectedAccess,'persisted account expiry may be shown immediately');
+  assert.match(reopened.version.textContent,/Проверяем наличие/,'unverified old presence is never claimed');
   const a=refreshAccess(),v=refreshVersion(state('144530503'));await tick();
-  assert.equal(reopened.access.textContent,expectedAccess);assert.equal(reopened.version.textContent,expectedVersion);
+  assert.equal(reopened.access.textContent,expectedAccess);
+  assert.match(reopened.version.textContent,/Проверяем наличие/);
   finishAccess({ok:true,entitlement:access});finishVersion({ok:true,status:'approved'});await Promise.all([a,v]);
-  assert.deepEqual(reopened.changes,[],'identical fresh responses must not animate or rewrite text');
+  assert.equal(reopened.version.textContent,expectedVersion,'live server status is authoritative');
+  assert.deepEqual(reopened.changes,['version'],'only the verified version needs an update');
  }finally{globalThis.document=oldDocument;globalThis.localStorage=oldStorage}
 });
 test('a changed track cannot borrow the old approved version and delayed old responses cannot overwrite it',async()=>{

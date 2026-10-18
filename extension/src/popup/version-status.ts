@@ -8,15 +8,16 @@ const labels = {
 export function initVersionStatus(transport) {
   const send = message => withDeadline(() => transport(message));
   const node = document.querySelector("[data-version-status]");
-  let cached = readDisplay("version");
-  if (!/^[1-9]\d{0,23}$/.test(cached?.trackId || "") || !labels[cached?.status]) cached = null;
+  // The previous UI persisted "pending"/"approved" for 24 hours. A track
+  // can be moderated or revoked meanwhile, so never present that cached
+  // presence as a current fact. Only this popup's fresh server response or
+  // the actual active playback state may authoritatively set a label.
+  let cached = null;
   const rememberedTrack = readDisplay("track");
   const noTrack = rememberedTrack?.id === null;
-  if (noTrack) cached = null;
-  if (rememberedTrack?.id && rememberedTrack.id !== cached?.trackId) cached = null;
   let trackId = cached?.trackId || "", checkedAt = 0, request = 0, loading = false;
   if (node) node.hidden = noTrack;
-  stableText(node, noTrack ? "" : cached ? labels[cached.status] : "Проверяем наличие версии CELIKOM…", false);
+  stableText(node, noTrack ? "" : "Проверяем наличие версии CELIKOM…", false);
   const remember = (id, status) => { cached = { trackId: id, status }; writeDisplay("version", cached); stableText(node, labels[status]); };
   document.addEventListener?.("celikom-account-logout", () => {
     request++; loading = false; checkedAt = 0; cached = null; clearDisplay("version");
@@ -33,7 +34,8 @@ export function initVersionStatus(transport) {
     const id = state.track?.id || "";
     if (id !== trackId) {
       trackId = id; checkedAt = 0; loading = false; request++;
-      stableText(node, id ? cached?.trackId === id ? labels[cached.status] : "Проверяем наличие версии CELIKOM…" : "");
+      cached = null;
+      stableText(node, id ? "Проверяем наличие версии CELIKOM…" : "");
     }
     node.hidden = !id;
     if (!id) { cached = null; clearDisplay("version"); stableText(node, ""); return; }
