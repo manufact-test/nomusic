@@ -23,6 +23,7 @@ env=dict(os.environ)
 env["CELIKOM_LOCAL_ADMIN"]="1"
 private_media=tempfile.mkdtemp(prefix="celikom-ci-private-media-")
 env["CELIKOM_SITE_MEDIA_DIR"]=private_media
+env["CELIKOM_SITE_WRITE_GATE_FILE"]=private_media+"/.celikom-cms-writes.lock"
 env.pop("CELIKOM_LOCAL_PREVIEW",None)
 server=subprocess.Popen(["php","-S",f"127.0.0.1:{port}","-t",str(ROOT/"public")],
     env=env,stdout=subprocess.DEVNULL,stderr=subprocess.PIPE,text=True)
