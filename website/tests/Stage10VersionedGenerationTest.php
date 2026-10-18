@@ -111,15 +111,15 @@ try {
     $lease->release();
     $migrationWorker=<<<'PHP'
 require $argv[1];
-$cfg=\\Celikom\\Website\\CmsConfig::databaseSettings();
-$gate=\\Celikom\\Website\\CmsWriteQuiescence::snapshot($argv[3]);
-\\Celikom\\Website\\CmsSandboxGeneration::migrateAndStage(
+$cfg=\Celikom\Website\CmsConfig::databaseSettings();
+$gate=\Celikom\Website\CmsWriteQuiescence::snapshot($argv[3]);
+\Celikom\Website\CmsSandboxGeneration::migrateAndStage(
     $cfg,$argv[2],$argv[3],
     ['database'=>$argv[4],'media_directory'=>$argv[5],'isolated'=>true],
     $argv[6],$gate,
     static function(string $step):void {
         if ($step==='migration-step-2') {
-            echo "DDL_COMMITTED\\n";
+            echo "DDL_COMMITTED\n";
             fflush(STDOUT);
             sleep(20);
         }
