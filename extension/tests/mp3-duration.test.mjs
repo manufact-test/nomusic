@@ -66,3 +66,38 @@ test('unreadable duration is a blocking, user-readable preflight, never server-g
  assert.match(issue.text,/Не удалось прочитать аудиофайл/);
  assert.doesNotMatch(issue.text,/Файл дополнительно проверит сервер/);
 });
+
+
+function id3v24(body) {
+  const tag = new Uint8Array(10 + body.length);
+  tag.set([73,68,51,4,0,0,(body.length>>>21)&127,(body.length>>>14)&127,
+    (body.length>>>7)&127,body.length&127]);
+  tag.set(body,10);
+  return tag;
+}
+function concatenate(...chunks) {
+  const all=new Uint8Array(chunks.reduce((length,chunk)=>length+chunk.length,0));
+  let p=0; for(const chunk of chunks){all.set(chunk,p);p+=chunk.length;}return all;
+}
+test("double ID3v2.4 headers before MPEG frames remain a valid MP3",()=>{
+  const audio=mp3(3,100,true);
+  const first=id3v24(new Uint8Array(35).fill(0x41));
+  const second=id3v24(new Uint8Array(34).fill(0x42));
+  const tagged=concatenate(first,second,audio);
+  assert.equal(mp3DurationMs(tagged),mp3DurationMs(audio));
+  assert.equal(durationNotice(277900,277969).kind,"ok");
+});
+test("malformed or excessive consecutive ID3 headers cannot bypass frame validation",()=>{
+  const audio=mp3(3,100);
+  const first=id3v24(new Uint8Array(35));
+  const second=id3v24(new Uint8Array(34));
+  const malformed=concatenate(first,second,audio);
+  malformed[first.length+6]=0xff; // synchsafe sizes cannot set high bits
+  assert.equal(mp3DurationMs(malformed),null);
+  const truncated=concatenate(first,second.slice(0,7),audio);
+  assert.equal(mp3DurationMs(truncated),null);
+  const excessive=concatenate(...Array.from({length:5},()=>first),audio);
+  assert.equal(mp3DurationMs(excessive),null);
+  const fake=concatenate(first,second,new Uint8Array(2000).fill(0x40));
+  assert.equal(mp3DurationMs(fake),null);
+});
