@@ -14,7 +14,7 @@ $rendered=CmsEditor::validate($template,$manifest,$faq,['content'=>[],'faq'=>[]]
 $page=CmsV10OwnerMotion::apply($rendered);
 $asserts=[
  'all 11 v10 sections unchanged'=>substr_count($page,'<section')===substr_count($rendered,'<section'),
- 'approved original popup reference unchanged'=>str_contains($page,'/media/celikom-popup-approved.png'),
+ 'original popup is protected by private PHP media'=>str_contains($page,'/media/celikom-popup.php'),
  'original desktop illustration unchanged'=>str_contains($page,'class="demo-stage"'),
  'original familiar-player art unchanged'=>str_contains($page,'class="familiar-visual"'),
  'original rewards art unchanged'=>str_contains($page,'class="reward-illustration"'),
@@ -25,6 +25,7 @@ $asserts=[
  'CSS loaded'=>str_contains($page,'/assets/css/v10/owner-v10-motion.css'),
  'JS loaded'=>str_contains($page,'/assets/js/v10/owner-v10-motion.js'),
  'CSS file exists'=>is_file($root.'/public/assets/css/v10/owner-v10-motion.css'),
+ 'private media PHP exists'=>is_file($root.'/public/media/celikom-popup.php'),
  'JS file exists'=>is_file($root.'/public/assets/js/v10/owner-v10-motion.js'),
  'base v10 source remains untouched'=>str_contains($template,'Наверх страницы'),
 ];
