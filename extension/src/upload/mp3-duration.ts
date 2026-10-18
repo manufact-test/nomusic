@@ -3,11 +3,22 @@ export function mp3DurationMs(buffer): number | null {
   const data = new Uint8Array(buffer), size = data.length;
   if (size < 1024 || size > 31457280) return null;
   const marker = (offset, text) => [...text].every((char, i) => data[offset + i] === char.charCodeAt(0));
-  let position = 0;
-  if (marker(0, "ID3")) {
-    const version = data[3], flags = data[5];
-    if (![2, 3, 4].includes(version) || data[4] === 255 || (flags & (version === 2 ? 0x3f : version === 3 ? 0x1f : 0x0f)) || data.slice(6, 10).some(byte => byte & 128)) return null;
-    position = 10 + (data[6] << 21) + (data[7] << 14) + (data[8] << 7) + data[9] + (version === 4 && flags & 16 ? 10 : 0);
+  // Downloaded/transcoded files may contain multiple consecutive ID3v2
+  // headers (the reported user file contains two valid ID3v2.4 blocks).
+  // Limit count/total metadata bytes, validate every synchsafe size and
+  // inspect *all* MPEG frames after metadata. Never skip arbitrary bytes.
+  let position = 0, leadingTags = 0;
+  while (position + 10 <= size && marker(position, "ID3")) {
+    if (++leadingTags > 4) return null;
+    const version = data[position + 3], revision = data[position + 4], flags = data[position + 5];
+    if (![2, 3, 4].includes(version) || revision === 255 ||
+        (flags & (version === 2 ? 0x3f : version === 3 ? 0x1f : 0x0f)) ||
+        data.slice(position + 6, position + 10).some(byte => byte & 128)) return null;
+    const tagSize = (data[position + 6] << 21) + (data[position + 7] << 14)
+      + (data[position + 8] << 7) + data[position + 9];
+    const next = position + 10 + tagSize + (version === 4 && (flags & 16) ? 10 : 0);
+    if (next > size - 1024 || next > 8 * 1024 * 1024 || next <= position) return null;
+    position = next;
   }
   if (position >= size - 1024) return null;
   let frames = 0, samples = 0, sampleRate = 0, mpegVersion = -1;

@@ -23,12 +23,25 @@ final class Mp3Inspector
             if ($size === false || $size < 1024) {
                 return null;
             }
-            $head = fread($stream, 10);
-            if ($head === false || strlen($head) < 10) {
-                return null;
-            }
+            // Some valid transcoded MP3s start with consecutive ID3v2
+            // blocks. Validate each bounded header before MPEG frame parsing,
+            // never by searching for arbitrary frame-like bytes.
             $offset = 0;
-            if (substr($head, 0, 3) === 'ID3') {
+            $leadingTags = 0;
+            while ($offset + 10 <= $size) {
+                if (fseek($stream, $offset) !== 0) {
+                    return null;
+                }
+                $head = fread($stream, 10);
+                if ($head === false || strlen($head) !== 10) {
+                    return null;
+                }
+                if (substr($head, 0, 3) !== 'ID3') {
+                    break;
+                }
+                if (++$leadingTags > 4) {
+                    return null;
+                }
                 $version = ord($head[3]);
                 $flags = ord($head[5]);
                 if (!in_array($version, [2, 3, 4], true) || ord($head[4]) === 255 ||
@@ -42,7 +55,11 @@ final class Mp3Inspector
                 }
                 $tagSize = (ord($head[6]) << 21) | (ord($head[7]) << 14)
                     | (ord($head[8]) << 7) | ord($head[9]);
-                $offset = 10 + $tagSize + ($version === 4 && ($flags & 0x10) ? 10 : 0);
+                $next = $offset + 10 + $tagSize + ($version === 4 && ($flags & 0x10) ? 10 : 0);
+                if ($next > $size - 1024 || $next > 8 * 1024 * 1024 || $next <= $offset) {
+                    return null;
+                }
+                $offset = $next;
             }
             if ($offset < 0 || $offset >= $size - 1024) {
                 return null;
