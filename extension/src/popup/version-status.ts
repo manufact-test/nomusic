@@ -91,7 +91,29 @@ export function initVersionStatus(transport) {
     if (latestState?.phase === "REPLACEMENT_ACTIVE" && latestState.track?.id === id) return "approved";
     if (cached?.trackId === id && verifiedAt > 0 && Date.now() - verifiedAt < FRESH_FOR_MS)
       return cached.status;
-    return presenceRead(id);
+    const generation = request;
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const status = await presenceRead(id);
+        // A logout, song switch or explicit invalidation may occur while
+        // awaiting the server; never publish that older response afterward.
+        if (generation !== request || latestState?.track?.id !== id) throw new Error("track_changed");
+        remember(id, status);
+        checkedAt = Date.now();
+        return status;
+      } catch (error) {
+        const code = String(error?.message || "");
+        if (code === "track_changed") throw error;
+        if (attempt === 0 && ["auth_unavailable", "auth_network_error", "auth_timeout",
+             "upload_status_unavailable", "request_timeout"].includes(code)) {
+          await new Promise(resolve => setTimeout(resolve, 150));
+          if (generation !== request || latestState?.track?.id !== id) throw new Error("track_changed");
+          continue;
+        }
+        throw error;
+      }
+    }
+    throw new Error("upload_status_unavailable");
   };
   refreshVersion.invalidate = id => {
     if (id && id !== trackId) return;
