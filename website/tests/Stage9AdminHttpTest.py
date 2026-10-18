@@ -235,7 +235,8 @@ try:
     status,draft_html,_=request("GET","/admin/?view=preview")
     assert "safe.png" not in draft_html
     assert "Тестовая картинка" not in draft_html
-    assert len(os.listdir(private_media))==1
+    assert len([name for name in os.listdir(private_media)
+                if name != '.celikom-cms-writes.lock'])==1
     # Publication/restore require CSRF, explicit consent and fresh version.
     status,editor,_=request("GET","/admin/")
     version=hidden(editor,"version")
