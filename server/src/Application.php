@@ -39,6 +39,7 @@ final class Application
     public function handle(string $method, string $path, array $query = [], array $headers = [], string $body = '', array $fields = [], array $files = []): Response
     {
         $headers = array_change_key_case($headers, CASE_LOWER);
+        $startedAt = microtime(true);
         try {
             $response = $this->route($method, $path, $query, $headers, $body, $fields, $files);
         } catch (\InvalidArgumentException) {
@@ -51,6 +52,16 @@ final class Application
                 : '';
             error_log('CELIKOM service_unavailable' . $code);
             $response = Response::json(503, ['error' => 'service_unavailable']);
+        }
+        // Only a validated opaque attempt UUID is logged: never credentials,
+        // filenames, request content, user identifiers or audio.
+        if ($method === 'POST' && $path === '/api/v1/uploads') {
+            $id = $headers['x-celikom-upload-attempt'] ?? '';
+            if (is_string($id) && preg_match('/^[a-f0-9-]{36}$/iD', $id)) {
+                error_log(sprintf('CELIKOM upload_attempt=%s status=%d elapsed_ms=%d',
+                    strtolower($id), $response->status,
+                    max(0, (int) round((microtime(true) - $startedAt) * 1000))));
+            }
         }
         $response->headers['X-Content-Type-Options'] = 'nosniff';
         $response->headers['Referrer-Policy'] = 'no-referrer';
@@ -73,7 +84,7 @@ final class Application
                 ->handle($method, $path, $query, $headers, $body);
         }
         if ($method === 'OPTIONS' && str_starts_with($path, '/api/v1/') && in_array($headers['origin'] ?? '', $this->config['allowed_origins'], true)) {
-            return new Response(204, ['Access-Control-Allow-Methods' => 'GET, HEAD, POST, OPTIONS', 'Access-Control-Allow-Headers' => 'Authorization, Content-Type, Range', 'Access-Control-Max-Age' => '600']);
+            return new Response(204, ['Access-Control-Allow-Methods' => 'GET, HEAD, POST, OPTIONS', 'Access-Control-Allow-Headers' => 'Authorization, Content-Type, Range, X-Celikom-Upload-Attempt', 'Access-Control-Max-Age' => '600']);
         }
         if ($method === 'GET' && in_array($path, ['/health', '/api/v1/health'], true)) {
             return Response::json(200, ['status' => 'ok', 'service' => 'celikom-api', 'version' => $this->config['version'], 'environment' => $this->config['environment']]);
