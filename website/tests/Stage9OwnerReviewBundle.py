@@ -143,24 +143,24 @@ def main():
                     page.get_by_label("Логин").fill("owner")
                     page.get_by_label("Пароль").fill(password)
                     page.get_by_role("button", name="Войти").click()
-                    assert page.get_by_role("heading", name="Черновик текстов").is_visible()
+                    assert page.get_by_role("heading", name="Обзор сайта").is_visible()
                     assert page.locator("#text-editor textarea").count() == 87
                     # Clear password from memory-backed form by navigating after login.
                     page.reload(wait_until="domcontentloaded")
                     take(page, "04-редактор-десктоп.png")
-                    names.append(("04-редактор-десктоп.png", "4. Редактор сайта: 87 доступных текстовых полей"))
+                    names.append(("04-редактор-десктоп.png", "4. Рабочий стол новой CELIKOM CMS"))
 
                     page.set_viewport_size({"width": 390, "height": 844})
                     page.reload()
                     assert page.locator("#text-editor").count() == 1
                     take(page, "05-редактор-телефон.png")
-                    names.append(("05-редактор-телефон.png", "5. Редактор CMS на телефоне"))
+                    names.append(("05-редактор-телефон.png", "5. Адаптивный рабочий стол CMS на телефоне"))
                     page.set_viewport_size({"width": 1440, "height": 900})
                     page.reload()
-                    page.locator("#faq-editor").scroll_into_view_if_needed()
+                    page.locator('.cms-side-menu a[data-cms-link="faq-editor"]').click()
                     take(page, "06-редактор-faq.png")
                     names.append(("06-редактор-faq.png", "6. Раздел управления FAQ"))
-                    page.locator("#media-editor").scroll_into_view_if_needed()
+                    page.locator('.cms-side-menu a[data-cms-link="media-editor"]').click()
                     take(page, "07-редактор-изображений.png")
                     names.append(("07-редактор-изображений.png", "7. Управление приватными изображениями"))
 
@@ -169,12 +169,13 @@ def main():
                     take(page, "08-предпросмотр-до.png", full=True)
                     names.append(("08-предпросмотр-до.png", "8. Закрытый предпросмотр до изменения"))
                     page.goto(base + "/admin/")
+                    page.locator('.cms-side-menu a[data-cms-link="text-editor"]').click()
+                    page.locator('button[data-cms-group-select="faq"]').click()
                     field = page.locator('textarea[name="text[faq.text.02]"]')
                     assert field.count() == 1
                     detail = page.locator("details.section-editor").filter(has=field)
                     assert detail.count() == 1
-                    if detail.get_attribute("open") is None:
-                        detail.locator("summary").click()
+                    assert detail.is_visible() and detail.get_attribute("open") is not None
                     field.fill("CELIKOM — демонстрация изменения текста через небольшую CMS.")
                     page.locator("#text-editor").get_by_role(
                         "button", name="Сохранить черновик"
