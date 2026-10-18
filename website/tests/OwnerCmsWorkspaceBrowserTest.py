@@ -70,7 +70,9 @@ with tempfile.TemporaryDirectory(prefix='celikom-workspace-ui-') as storage:
                 assert page.locator('#faq-editor details.faq-entry:not([hidden])').count()<28
                 # Every seeded FAQ entry must be editable, including former
                 # protected copy. Counter and search have identical heights.
-                assert page.locator('#faq-editor details.faq-entry form[action*="faq"]').count()==28
+                total=page.locator('#faq-editor details.faq-entry').count()
+                assert total>=28
+                assert page.locator('#faq-editor details.faq-entry form[action*="faq"]').count()==total
                 first=page.locator('#faq-editor details.faq-entry').first
                 assert first.locator('input[name="question"]').count()==1
                 assert first.locator('textarea[name="answer"]').count()==1
