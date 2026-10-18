@@ -530,3 +530,27 @@ test("upload panel respects explicit Close despite repeated background status po
   assert.match(find("[data-upload-result-title]").textContent,/Трек уже добавлен/);
   delete localValues[key];
 });
+
+test("progress bar is between checkbox and the green/red primary action",async()=>{
+ const html=await readFile(new URL("../popup/popup.html",import.meta.url),"utf8");
+ const rights=html.indexOf("data-upload-rights"),progress=html.indexOf("data-upload-transfer-slot"),button=html.indexOf("data-upload-submit");
+ assert.ok(rights>=0&&rights<progress&&progress<button,"progress must be under the checkbox and above button");
+ const between=html.slice(rights,button);
+ assert.match(between,/data-upload-progress/);
+ assert.match(between,/data-upload-transfer-slot hidden/);
+});
+
+test("stale local completed attempt cannot replace fresh server result with a false pending claim",async()=>{
+ const action=find("[data-action='add']"),id="944530611",key="celikom_background_upload_v1";
+ current={track:{...selected.track,id}};
+ version="none";pendingTracks.delete(id);
+ find("[data-upload-panel]").hidden=true;
+ localValues[key]={id:"123e4567-e89b-42d3-a456-426614174000",trackId:id,phase:"completed",percent:100,at:Date.now()};
+ await intervals[0]();await new Promise(resolve=>setImmediate(resolve));
+ assert.equal(find("[data-upload-panel]").hidden,true,"historical local completed must not auto-open");
+ await action.fire("click");
+ assert.equal(find("[data-upload-panel]").hidden,false);
+ assert.equal(result().hidden,true,"no false already-uploaded result from old storage");
+ assert.equal(form().hidden,false,"live server none authorizes fresh form");
+ delete localValues[key];
+});
