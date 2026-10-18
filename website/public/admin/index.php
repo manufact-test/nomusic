@@ -524,6 +524,11 @@ label.inline-check{min-height:44px}
 <div class="cms-side-footer"><a href="/" target="_blank" rel="noopener">↗ Открыть сайт CELIKOM</a><small>Сайт доступен только по паролю до отдельного согласования запуска.</small></div>
 </aside>
 <div class="cms-main">
+<?php if (in_array($_GET['saved'] ?? '', ['1','faq'], true)): ?><p class="ok" role="status">Черновик сохранён в базе данных.</p><?php endif; ?>
+<?php if (($_GET['saved']??'')==='published'): ?><p class="ok" role="status">Редакция опубликована в MySQL. Публичный сайт не открыт.</p><?php endif; ?>
+<?php if (($_GET['saved']??'')==='media-choice'): ?><p class="ok" role="status">Для закрытого предпросмотра выбрано изображение. Публичный сайт и редакции не изменены.</p><?php endif; ?>
+<?php if (($_GET['saved']??'')==='media'): ?><p class="ok" role="status">Изображение сохранено приватно. На сайте оно пока не используется.</p><?php endif; ?>
+<?php if (($_GET['saved']??'')==='restored'): ?><p class="ok" role="status">Предыдущая редакция восстановлена в MySQL. Черновик не изменился.</p><?php endif; ?>
 <section class="cms-overview" data-cms-view="overview" id="overview">
 <div class="cms-page-heading"><div><div class="cms-kicker">Рабочий стол</div><h2>Обзор сайта</h2><p>Здесь только главное. Выбери, что нужно изменить, — откроется отдельный редактор.</p></div><span class="cms-pill">Закрытый доступ</span></div>
 <div class="cms-status-summary">
@@ -552,11 +557,7 @@ label.inline-check{min-height:44px}
 <a href="#media-editor">Медиа</a>
 <a href="/admin/?view=preview" target="_blank" rel="noopener">Предпросмотр</a>
 </nav>
-<?php if (in_array($_GET['saved'] ?? '', ['1','faq'], true)): ?><p class="ok" role="status">Черновик сохранён в базе данных.</p><?php endif; ?>
-<?php if (($_GET['saved']??'')==='published'): ?><p class="ok" role="status">Редакция опубликована в MySQL. Публичный сайт не открыт.</p><?php endif; ?>
-<?php if (($_GET['saved']??'')==='media-choice'): ?><p class="ok" role="status">Для закрытого предпросмотра выбрано изображение. Публичный сайт и редакции не изменены.</p><?php endif; ?>
-<?php if (($_GET['saved']??'')==='media'): ?><p class="ok" role="status">Изображение сохранено приватно. На сайте оно пока не используется.</p><?php endif; ?>
-<?php if (($_GET['saved']??'')==='restored'): ?><p class="ok" role="status">Предыдущая редакция восстановлена в MySQL. Черновик не изменился.</p><?php endif; ?>
+
 <div class="cms-editor-summary"><strong><?=count($cmsGroups)?> разделов</strong> · <?=count($fields)?> редактируемых полей. Выбери нужный раздел слева; другие разделы не показываются.</div>
 <div class="cms-group-layout"><nav class="cms-groups-nav" aria-label="Секции сайта"><div class="cms-groups-caption">Разделы страницы</div>
 <?php foreach($cmsGroups as $cmsGroup=>$cmsCount): ?>
