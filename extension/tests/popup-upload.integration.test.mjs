@@ -136,35 +136,64 @@ test("Stage 7 Add version pins exact Track ID, checks server, then shows form", 
   assert.ok(statusCalls.includes("144530503"));
 });
 
-test("Panel opens immediately in neutral state and never flashes stale form/pending", async () => {
-  await find("[data-action='add']").fire("click");
-  let release;
-  trackStatusResponder=()=>new Promise(resolve=>{release=resolve;});
-  try {
-    const action=find("[data-action='add']");
-    const pending=action.fire("click");
-    await new Promise(resolve=>setImmediate(resolve));
-    assert.equal(find("[data-upload-panel]").hidden,false);
-    assert.equal(form().hidden,true);
-    assert.equal(result().hidden,true);
-    assert.equal(action.dataset.loading,"false");
-    assert.equal(action.disabled,false);
-    assert.match(find("[data-upload-status]").textContent,/Проверяем возможность загрузки/);
-    release({ok:true,status:"none"});
-    await pending;
-    assert.equal(form().hidden,false);
-    assert.equal(find("[data-upload-status]").hidden,true);
-  } finally {trackStatusResponder=null;}
+test("Warm verified track presence opens the final form without a second HTTP check or intermediate banner",async()=>{
+ const action=find("[data-action='add']");
+ await action.fire("click"); // close initial form
+ const before=statusCalls.filter(id=>id==="144530503").length;
+ await action.fire("click");
+ assert.equal(find("[data-upload-panel]").hidden,false);
+ assert.equal(form().hidden,false);
+ assert.equal(result().hidden,true);
+ assert.equal(find("[data-upload-status]").hidden,true);
+ assert.equal(action.dataset.loading,"false");
+ assert.equal(statusCalls.filter(id=>id==="144530503").length,before,
+   "already fetched live song status is reused");
 });
 
-test("Closing during presence check never reopens after late response",async()=>{
+test("Cold song prefetch is shared by upload opening and never flashes the green checking panel",async()=>{
  const action=find("[data-action='add']");
- await action.fire("click");
- let release;trackStatusResponder=()=>new Promise(resolve=>{release=resolve;});
- try {
+ await action.fire("click"); // close
+ const id="944530591";
+ let release;
+ trackStatusResponder=()=>new Promise(resolve=>{release=resolve;});
+ current={track:{...selected.track,id}};
+ try{
+  await intervals[0]();await new Promise(resolve=>setImmediate(resolve));
+  const before=statusCalls.filter(value=>value===id).length;
+  assert.equal(before,1,"song detection prefetched its status");
   const pending=action.fire("click");
   await new Promise(resolve=>setImmediate(resolve));
+  assert.equal(find("[data-upload-panel]").hidden,true,"no checking-only panel");
+  assert.equal(form().hidden,true);
+  assert.equal(result().hidden,true);
+  assert.equal(find("[data-upload-status]").textContent,"","no transient green message");
+  assert.equal(action.dataset.loading,"false");
+  release({ok:true,status:"none"});
+  await pending;
+  assert.equal(statusCalls.filter(value=>value===id).length,1,"same in-flight request was reused");
   assert.equal(find("[data-upload-panel]").hidden,false);
+  assert.equal(form().hidden,false);
+  assert.equal(find("[data-upload-track]").value,id);
+ }finally{trackStatusResponder=null;}
+ await action.fire("click"); // close
+ current=selected;
+ await intervals[0]();await new Promise(resolve=>setImmediate(resolve));
+ await action.fire("click"); // restore initial fixture
+ assert.equal(form().hidden,false);
+});
+
+test("Closing while a cold prefetch is pending cannot later reopen the panel",async()=>{
+ const action=find("[data-action='add']");
+ await action.fire("click"); // close
+ const id="944530592";
+ let release;
+ trackStatusResponder=()=>new Promise(resolve=>{release=resolve;});
+ current={track:{...selected.track,id}};
+ try{
+  await intervals[0]();await new Promise(resolve=>setImmediate(resolve));
+  const pending=action.fire("click");
+  await new Promise(resolve=>setImmediate(resolve));
+  assert.equal(find("[data-upload-panel]").hidden,true);
   await action.fire("click");
   assert.equal(find("[data-upload-panel]").hidden,true);
   release({ok:true,status:"pending"});
@@ -172,7 +201,8 @@ test("Closing during presence check never reopens after late response",async()=>
   assert.equal(find("[data-upload-panel]").hidden,true);
   assert.equal(result().hidden,true);
  }finally{trackStatusResponder=null;}
- // The following tests use the original track form.
+ current=selected;
+ await intervals[0]();await new Promise(resolve=>setImmediate(resolve));
  await action.fire("click");
  assert.equal(form().hidden,false);
 });
