@@ -88,6 +88,40 @@ try {
             expect((new Mp3Inspector())->durationMs($tagged) === null, 'Malformed APE footer rejected');
         } finally { unlink($tagged); }
     });
+    run('Consecutive ID3v2.4 tags are accepted as MP3 without weakening frame validation', function () use ($path,$service,$fields,$file,$ownerHash): void {
+        // Synthetic reproduction of an actual user file: ID3v2.4 tag at 0,
+        // another at offset 45, MPEG audio starts at offset 89.
+        $header = static function (int $length): string {
+            return "ID3\x04\x00\x00" . chr(($length >> 21) & 127)
+                . chr(($length >> 14) & 127) . chr(($length >> 7) & 127)
+                . chr($length & 127);
+        };
+        $prefix = $header(35) . str_repeat('A', 35)
+            . $header(34) . str_repeat('B', 34);
+        $audio = file_get_contents($path);
+        $tagged = tempnam(sys_get_temp_dir(), 'celikom-id3-double-');
+        file_put_contents($tagged, $prefix . $audio);
+        try {
+            $inspector = new Mp3Inspector();
+            expect($inspector->durationMs($tagged) === 2612, 'Double ID3v2 tags preserve MPEG duration');
+            $data = array_merge($fields, [
+                'track_id' => '799082',
+                'request_id' => '10000000-0000-4000-8000-000000000082',
+            ]);
+            $result = $service->upload($data, array_merge($file, [
+                'tmp_name' => $tagged, 'size' => filesize($tagged)
+            ]), $ownerHash);
+            expect($result['status'] === 'pending', 'Double-tagged MP3 accepted for moderation');
+            // A malformed second ID3 tag must still be rejected.
+            $bad = $prefix . $audio;
+            $bad[45 + 6] = chr(255);
+            file_put_contents($tagged, $bad);
+            expect($inspector->durationMs($tagged) === null, 'Malformed second ID3 rejected');
+            $fiveTags = str_repeat($header(35) . str_repeat('A', 35), 5);
+            file_put_contents($tagged, $fiveTags . $audio);
+            expect($inspector->durationMs($tagged) === null, 'Excessive tags rejected');
+        } finally { unlink($tagged); }
+    });
     run('Uploads reject duration mismatch before creating a track or asset', function () use ($service,$fields,$file,$ownerHash,$pdo): void {
         $bad=array_merge($fields,['track_id'=>'799999','duration_ms'=>'4113']);
         try {$service->upload($bad,$file,$ownerHash);throw new RuntimeException('mismatch accepted');}
