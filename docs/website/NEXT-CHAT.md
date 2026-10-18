@@ -1,3 +1,16 @@
+# CELIKOM website — оперативный checkpoint v4.9 / 18.10.2026
+
+**Важно:** владелец разрешил размещать ЗАКРЫТЫЙ staging через существующие GitHub Actions + SSH. Плагины/сторонние сервисы не нужны. **Хостинг пока НЕ изменён, сайт и /admin/ ещё НЕ установлены**, публичный production workflow по-прежнему hard-disabled (`&& false`), PR #6 открыт. Следующие шаги — закончить установку, не возвращаться к визуальным пакетам.
+
+- **Реальный Hostinger SSH preflight прошёл:** [run 39127210261](https://github.com/manufact-test/nomusic/actions/runs/39127210261). Целевой домен `lemonchiffon-narwhal-791953.hostingersite.com`, `public_html` содержит только `default.php`, PHP 8.3.35 с `pdo_mysql`/fileinfo, HTTPS валиден; существующего `celikom-private` нет. Read-only MySQL проверка через обычный SSH логин НЕ даёт прав БД, `~/.my.cnf` отсутствует: базу нужно создать через Hostinger hPanel.
+- **В GitHub подготовлен безопасный однократный staging-инсталлятор:** `.github/workflows/celikom-website-staging-install.yml`, `.github/scripts/celikom-site-staging-install.sh`, `website/tools/staging-initialize.php`. Отдельный gate `CmsStagingGate` и PRIVATE config, не включается production marker и не меняет оригинальные v10 assets. При установке скрипт откажется менять занятый хостинг-каталог или использовать непустую тестовую БД; создаёт закрытый BasicAuth + MySQL schema + owner + первую v10 редакцию, noindex, закрытую /admin/ и выполняет реальный HTTPS smoke. Пароли хранятся только в защищённом файле на самом Hostinger и никогда не попадают в GitHub лог.
+- **Установочный pipeline проверен, но НЕ запущен на Hostinger:** [run 39128121861](https://github.com/manufact-test/nomusic/actions/runs/39128121861), request `.github/deploy/celikom-site-staging-request.json` содержит `operation: prepare`. Это только проверка PHP/сценария. **НЕЛЬЗЯ считать рабочими URL**, пока не будет успешного `operation: install` + двух HTTPS проверок.
+- **Единственный внешний блокер:** владелец должен создать в Hostinger hPanel НОВУЮ отдельную БД `celikom_stage` с username `celikom_stage` (ожидаемые полные имена `u235811320_celikom_stage`) и сохранить её пароль в GitHub Actions repository secret `CELIKOM_STAGING_DB_PASSWORD`. НЕ присылать пароль в чат/репозиторий. Если Hostinger создал другой полный DB name/user, перед install скорректировать GitHub secrets `CELIKOM_STAGING_DB_NAME`, `CELIKOM_STAGING_DB_USER`.
+- Как только секрет и БД готовы, изменить в `.github/deploy/celikom-site-staging-request.json` `operation: prepare` → `install` и дождаться run. При неудаче прочитать GitHub Actions job log, устранить реальный блокер без переустановки других сайтов. **Сценарий намеренно one-time; не пытаться повторно запускать install после частичного создания файлов или миграций без безопасной диагностики.** Владелец получает оба пароля из приватного файла `.../celikom-private/staging-owner-credentials.txt` по своему SSH (не через публичные GitHub artifacts).
+- Проверить не только curl, но и владелецкий вход, text edit/FAQ/media → draft → preview → staging publish → restore. Исходный сайт v10, `server/`, `extension/`, `android/` не менялись. Публичный запуск только по отдельному согласию.
+
+---
+
 # CELIKOM — NEXT-CHAT / единственная актуальная контрольная точка
 
 **v4.8 · уточнение результата 18.10.2026 · GitHub: `manufact-test/nomusic` · branch `feature/api-range`.**
