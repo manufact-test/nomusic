@@ -723,12 +723,63 @@ diagnosticsButton?.addEventListener("click", async () => {
   if (diagnosticsButton) diagnosticsButton.textContent = "Скопировано";
 });
 
+// Reopened popup reconstructs progress from the offscreen uploader's small,
+// sanitized status record. No original File or credentials leave IndexedDB.
+async function syncBackgroundUpload(): Promise<void> {
+  if (!chrome.storage?.local) return;
+  let saved;
+  try { saved = (await chrome.storage.local.get(BACKGROUND_UPLOAD_KEY))?.[BACKGROUND_UPLOAD_KEY]; }
+  catch { return; }
+  if (!saved || typeof saved.id !== "string" || Date.now()-saved.at > 600000) return;
+  const target = uploadTargetFromStatus(lastState);
+  if (!target || target.id !== saved.trackId) return;
+  const active = ["connecting","waiting","transferring","server_wait"].includes(saved.phase);
+  if (!active && !["completed","duplicate","failed","cancelled"].includes(saved.phase)) return;
+  // Do not overwrite an unrelated newly selected file with an older result.
+  if (!active && !backgroundUploadMode && uploadFile?.files?.length) return;
+  pinnedTrack = target;
+  uploadRequestId = saved.id;
+  backgroundUploadMode = active;
+  uploading = active;
+  if(uploadPanel) uploadPanel.hidden = false;
+  if(addTrackButton) addTrackButton.setAttribute("aria-expanded","true");
+  if(uploadTrack) uploadTrack.value = target.id;
+  if(uploadProgress) {
+    uploadProgress.hidden = !active;
+    uploadProgress.value = Number.isInteger(saved.percent) ? saved.percent : 0;
+  }
+  if(uploadCancel) uploadCancel.hidden = !active;
+  if(uploadConfirm && !active) uploadConfirm.hidden = true;
+  if(uploadFile) uploadFile.disabled = active;
+  if(saved.phase==="completed" || saved.phase==="duplicate") {
+    showSubmitted(saved.phase==="completed"?"Отправлено на проверку":"Трек уже добавлен",
+      "Аудиофайл получен CELIKOM. Версия ожидает модерации.");
+    return;
+  }
+  if(uploadForm) uploadForm.hidden = active;
+  if(uploadButton) {uploadButton.disabled = active;uploadButton.textContent = active?"Отправляем…":"Повторить отправку";}
+  const descriptions = {
+    connecting:"Подключаемся к серверу. Загрузка продолжается в фоне.",
+    waiting:"Ожидаем начала передачи. Проверяем соединение…",
+    transferring:"Загружаем аудиофайл: "+(saved.percent||0)+"%. Можно закрыть окно CELIKOM.",
+    server_wait:"Файл передан. Ждём подтверждения сервера…",
+    cancelled:"Загрузка отменена по вашему запросу.",
+    failed: saved.code==="stalled"?"Соединение зависло. Проверьте интернет или VPN."
+      : saved.code==="timeout"?"Сервер не ответил за две минуты. Проверьте статус трека."
+      : saved.code==="invalid_mp3"?"Файл не прошёл проверку MP3."
+      : "Загрузка не завершена. Попробуйте ещё раз."
+  };
+  uploadMessage((descriptions[saved.phase] || "Проверяем загрузку…") +
+    (["failed","cancelled"].includes(saved.phase)?" Код: "+saved.id.slice(0,8).toUpperCase():""),
+    ["failed","cancelled"].includes(saved.phase)?"error":"checking");
+}
 let refreshing = false;
 async function refresh(): Promise<void> {
   if (refreshing) return;
   refreshing = true;
   try {
     render(await send<ExtensionState>({ type: COMMANDS.getStatus }));
+    await syncBackgroundUpload();
   } catch (_error) {
     if (status) status.textContent = "Нет связи";
   } finally { refreshing = false; }
