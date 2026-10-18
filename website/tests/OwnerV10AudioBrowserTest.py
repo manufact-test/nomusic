@@ -81,7 +81,12 @@ try:
                     x.value='6';
                     x.dispatchEvent(new Event('input',{bubbles:true}));
                 }""")
-                assert page.locator("#celikom-demo-time").inner_text().startswith("0:06")
+                page.wait_for_timeout(200)
+                displayed=page.locator("#celikom-demo-time").inner_text()
+                state=page.evaluate("""()=>[document.getElementById('celikom-demo-service').currentTime,
+                    document.getElementById('celikom-demo-restored').currentTime,
+                    document.getElementById('celikom-demo-seek').value]""")
+                assert displayed.startswith("0:06"),(displayed,state)
                 page.locator("#celikom-demo-play").click()
                 page.wait_for_function("document.getElementById('celikom-demo-service').currentTime>6",timeout=10000)
                 print(f"CELIKOM synthetic-audio Chromium {width}px: play/pause/swap/seek PASS")
