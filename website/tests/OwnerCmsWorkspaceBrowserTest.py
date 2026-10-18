@@ -68,6 +68,37 @@ with tempfile.TemporaryDirectory(prefix='celikom-workspace-ui-') as storage:
                 assert page.locator('button[data-faq-filter="music"]').get_attribute('aria-pressed')=='true'
                 assert page.locator('#faq-editor details.faq-entry:not([hidden])').count()>0
                 assert page.locator('#faq-editor details.faq-entry:not([hidden])').count()<28
+                # Every seeded FAQ entry must be editable, including former
+                # protected copy. Counter and search have identical heights.
+                assert page.locator('#faq-editor details.faq-entry form[action*="faq"]').count()==28
+                first=page.locator('#faq-editor details.faq-entry').first
+                assert first.locator('input[name="question"]').count()==1
+                assert first.locator('textarea[name="answer"]').count()==1
+                sizes=page.evaluate("""()=>{
+                  const search=document.getElementById('cms-faq-search').getBoundingClientRect();
+                  const count=document.getElementById('cms-faq-count').getBoundingClientRect();
+                  return {search:search.height,count:count.height};
+                }""")
+                assert abs(sizes['search']-sizes['count'])<=1,(width,sizes)
+                if width==320:
+                    page.locator('button[data-faq-filter="all"]').click()
+                    first=page.locator('#faq-editor details.faq-entry').first
+                    first.locator('summary').click()
+                    title=first.locator('input[name="question"]')
+                    original=title.input_value()
+                    updated=original+' — проверка'
+                    title.fill(updated)
+                    first.locator('textarea[name="answer"]').fill('Отредактированный ответ для проверки.')
+                    first.get_by_role('button',name='Сохранить вопрос в черновик').click()
+                    assert page.locator('#faq-editor').is_visible()
+                    assert page.locator('#faq-editor details.faq-entry').first.get_attribute('open') is not None
+                    assert page.locator('#faq-editor details.faq-entry').first.locator('input[name="question"]').input_value()==updated
+                    preview=page.goto(f'http://127.0.0.1:{port}/admin/?view=preview')
+                    assert preview.status==200
+                    assert updated in page.content()
+                    assert 'Отредактированный ответ для проверки.' in page.content()
+                    page.goto(f'http://127.0.0.1:{port}/admin/')
+                    page.locator('.cms-side-menu a[data-cms-link="faq-editor"]').click()
                 page.locator('.cms-side-menu a[data-cms-link="media-editor"]').click()
                 assert page.locator('#media-editor').is_visible()
                 if width==320:
