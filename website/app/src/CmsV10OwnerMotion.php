@@ -59,8 +59,11 @@ final class CmsV10OwnerMotion
         // circle with the existing CELIKOM C mark. No artwork redraw.
         $wave='<div class="familiar-orbit"><svg aria-hidden="true" viewbox="0 0 24 24">'
             .'<path d="M2 12c3.5 0 3.5-8 7-8s3.5 16 7 16 3.5-8 6-8"></path></svg></div>';
+        // Use the exact C path from the approved SVG, not its dark tile.
+        // This remains sharp at every DPI and fits the existing pale orbit.
         $mark='<div class="familiar-orbit">'
-            .'<img src="/assets/images/celikom-mark.svg" alt=""/></div>';
+            .'<svg class="celikom-familiar-c" aria-hidden="true" viewBox="0 0 128 128">'
+            .'<path d="M92 40 A36 36 0 1 0 92 88"/></svg></div>';
         if (substr_count($html,$wave)!==1) {
             throw new \RuntimeException('Approved familiar-player icon not found');
         }
@@ -78,6 +81,20 @@ final class CmsV10OwnerMotion
             throw new \RuntimeException('Approved reward checkmark missing');
         }
         $html=str_replace($oval,$circle,$html);
+
+        // v10 info icon's tiny implied dot was almost invisible at 20px.
+        // Preserve the existing info circle and text but draw a real dot.
+        $oldInfo='<div class="reward-notice"><svg aria-hidden="true" viewbox="0 0 24 24">'
+            .'<circle cx="12" cy="12" r="9"></circle>'
+            .'<path d="M12 11v5m0-8h.01"></path></svg>';
+        $newInfo='<div class="reward-notice"><svg aria-hidden="true" viewbox="0 0 24 24">'
+            .'<circle cx="12" cy="12" r="9"></circle>'
+            .'<path d="M12 11v5"></path>'
+            .'<circle class="celikom-info-dot" cx="12" cy="7.8" r="1.45"></circle></svg>';
+        if (substr_count($html,$oldInfo)!==1) {
+            throw new \RuntimeException('Approved information badge not found');
+        }
+        $html=str_replace($oldInfo,$newInfo,$html);
 
         // Never expose the screenshot as an unprotected static file.
         // The exact uploaded original SHA is served by the protected home route.
