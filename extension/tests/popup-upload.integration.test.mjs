@@ -17,7 +17,7 @@ function el(selector, values = {}) {
 for (const selector of ["[data-access-status]", "[data-version-status]", "[data-status]", "[data-action='start']", "[data-action='stop']",
   "[data-action='restore']", "[data-action='diagnostics']", "[data-track]", "[data-test-track]",
   "[data-upload-panel]", "[data-upload-track]", "[data-upload-file]", "[data-upload-key]",
-  "[data-upload-cancel]", "[data-upload-confirm]", "[data-upload-continue]", "[data-upload-stop]",
+  "[data-upload-transfer-slot]", "[data-upload-confirm]", "[data-upload-continue]", "[data-upload-stop]",
   "[data-upload-rights]", "[data-upload-progress]", "[data-upload-status]", "[data-upload-submit]",
   "[data-upload-duration]", "[data-upload-result]", "[data-upload-result-title]", "[data-upload-result-note]",
   "[data-file-picker]", "[data-file-title]", "[data-file-name]",
@@ -29,7 +29,7 @@ find("[data-upload-form]").hidden = true;
 find("[data-upload-result]").hidden = true;
 find("[data-upload-progress]").hidden = true;
 find("[data-upload-confirm]").hidden = true;
-find("[data-upload-cancel]").hidden = true;
+find("[data-upload-transfer-slot]").hidden = true;
 
 const selected = { track: { id: "144530503", confidence: 200, ambiguous: false,
   metadata: { durationMs: 180872, title: "Owner fixture", artist: "CI" } } };
@@ -42,7 +42,12 @@ const statusCalls = [];
 const suggestionPosts=[];let suggestionRace=null;
 globalThis.document = { activeElement: null, querySelector: find };
 globalThis.window = { setInterval(fn) { intervals.push(fn); return 1; } };
+const localValues = {};
 globalThis.chrome = {
+  storage: {local: {
+    async get(key) { return {[key]:localValues[key]}; },
+    async set(values) { Object.assign(localValues,values); }
+  }},
   runtime: {
     getURL: (p) => "chrome-extension://ci-test/" + p,
     async sendMessage(message) {
@@ -408,7 +413,7 @@ test('a Start message that never returns releases the button after its deadline'
  }finally{chrome.runtime.sendMessage=original;}
 });
 
-test("Explicit cancel uses CELIKOM's own dialog and records no silent interruption", async () => {
+test("full-width green Submit becomes red Cancel; explicit confirmation restores the primary action", async () => {
   version = "none";
   current = { track: {...selected.track, id: "944530599"} };
   find("[data-upload-panel]").hidden = true;
@@ -417,16 +422,21 @@ test("Explicit cancel uses CELIKOM's own dialog and records no silent interrupti
   FakeXHR.hold = true;
   try {
     await form().fire("submit");
-    assert.equal(find("[data-upload-cancel]").hidden, false);
-    await find("[data-upload-cancel]").fire("click");
+    const action = find("[data-upload-submit]");
+    assert.equal(action.dataset.uploadMode, "cancel");
+    assert.equal(action.type, "button");
+    assert.equal(action.textContent, "Отменить загрузку");
+    assert.equal(find("[data-upload-transfer-slot]").hidden, false);
+    await action.fire("click");
     assert.equal(find("[data-upload-confirm]").hidden, false);
     await find("[data-upload-continue]").fire("click");
     assert.equal(find("[data-upload-confirm]").hidden, true);
-    await find("[data-upload-cancel]").fire("click");
+    await action.fire("click");
     await find("[data-upload-stop]").fire("click");
-    assert.equal(find("[data-upload-cancel]").hidden, true);
+    assert.equal(find("[data-upload-transfer-slot]").hidden, true);
     assert.match(find("[data-upload-status]").textContent, /отменена/);
-    assert.equal(find("[data-upload-submit]").disabled, false);
+    assert.equal(action.dataset.uploadMode, "retry");
+    assert.equal(action.disabled, false);
   } finally { FakeXHR.hold = false; }
 });
 
@@ -462,7 +472,45 @@ test("background uploader keeps the form stable and never forces popup scroll", 
    "Background transfer must not collapse the form");
  assert.match(html,/class="upload-transfer-slot"/);
  assert.match(html,/data-upload-progress/);
- assert.match(html,/data-upload-cancel/);
- assert.match(css,/\.upload-transfer-slot\s*\{[\s\S]*?height:\s*82px/);
+ assert.doesNotMatch(html,/data-upload-cancel/);
+ assert.match(css,/data-upload-mode="cancel"/);
+ assert.match(css,/\.upload-transfer-slot\[hidden\]/);
+ assert.doesNotMatch(css,/height:\s*82px/);
  assert.equal((html.match(/data-upload-status/g)||[]).length,1);
+});
+
+test("upload panel respects explicit Close despite repeated background status polls", async () => {
+  const id="944530597", key="celikom_background_upload_v1", action=find("[data-action='add']");
+  current={track:{...selected.track,id}};
+  version="none";
+  find("[data-upload-panel]").hidden=true;
+  await action.fire("click");
+  assert.equal(find("[data-upload-panel]").hidden,false);
+  localValues[key]={id:"123e4567-e89b-42d3-a456-426614174000",trackId:id,phase:"transferring",percent:65,at:Date.now()};
+  await intervals[0]();await new Promise(resolve=>setImmediate(resolve));
+  assert.equal(find("[data-upload-submit]").dataset.uploadMode,"cancel");
+  assert.equal(find("[data-upload-progress]").value,65);
+  await action.fire("click");
+  assert.equal(find("[data-upload-panel]").hidden,true);
+  assert.equal(action["aria-expanded"],"false");
+  for(let n=0;n<4;n++){await intervals[0]();await new Promise(resolve=>setImmediate(resolve));}
+  assert.equal(find("[data-upload-panel]").hidden,true,"closed must stay closed");
+  await action.fire("click");
+  assert.equal(find("[data-upload-panel]").hidden,false,"open returns to same upload");
+  assert.equal(find("[data-upload-submit]").dataset.uploadMode,"cancel");
+  localValues[key]={...localValues[key],phase:"completed",percent:100,at:Date.now()};
+  await intervals[0]();await new Promise(resolve=>setImmediate(resolve));
+  assert.equal(find("[data-upload-submit]").dataset.uploadMode,"complete");
+  assert.equal(find("[data-upload-transfer-slot]").hidden,true);
+  assert.match(find("[data-upload-status]").textContent,/отправлена на модерацию/);
+  await action.fire("click");
+  assert.equal(find("[data-upload-panel]").hidden,true);
+  for(let n=0;n<3;n++){await intervals[0]();await new Promise(resolve=>setImmediate(resolve));}
+  assert.equal(find("[data-upload-panel]").hidden,true,"completed poll cannot resurrect the form");
+  pendingTracks.add(id);
+  await action.fire("click");
+  assert.equal(result().hidden,false);
+  assert.equal(form().hidden,true,"completed song must not offer a fresh form");
+  assert.match(find("[data-upload-result-title]").textContent,/Трек уже добавлен/);
+  delete localValues[key];
 });
