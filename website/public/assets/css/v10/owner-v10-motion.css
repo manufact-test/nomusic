@@ -115,3 +115,24 @@ body .closing::before{
 @media(prefers-reduced-motion:reduce){
  #sound .celikom-audio-play{transition:none}
 }
+
+/* v5.14 mobile FAQ: hide browser-native bar and show branded progress rail. */
+@media(max-width:540px){
+ #faq .faq-nav{scrollbar-width:none!important;-ms-overflow-style:none;padding-bottom:5px!important;margin-bottom:4px!important}
+ #faq .faq-nav::-webkit-scrollbar{display:none!important;width:0!important;height:0!important}
+ #faq .celikom-faq-track{
+  height:4px;max-width:140px;width:41%;border-radius:99px;
+  margin:6px auto 18px;background:#d6e9df;overflow:hidden;
+  position:relative;pointer-events:none
+ }
+ #faq .celikom-faq-thumb{
+  display:block;height:100%;border-radius:inherit;background:#53d4ae;
+  width:42%;transform:translateX(0);
+  will-change:transform
+ }
+ #faq .celikom-faq-track[hidden]{display:none!important}
+}
+@media(min-width:541px){#faq .celikom-faq-track{display:none!important}}
+@media(prefers-reduced-motion:reduce){
+ #faq .celikom-faq-thumb{transition:none!important}
+}
