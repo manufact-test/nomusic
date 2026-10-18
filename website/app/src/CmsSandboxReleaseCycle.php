@@ -102,8 +102,11 @@ final class CmsSandboxReleaseCycle
         $dir=self::directory($config,$root,$public,$lease);
         $path=$dir.'/'.self::NAME;
         $entry=self::load($path);
-        $active=CmsSandboxGeneration::active($config,$dir,$public,$lease);
-        $name=$active['record']['generation'];
+        // An interrupted candidate may have corrupt/missing media. Read the
+        // pointer alone first; do not require broken v2 health to roll back.
+        $name=CmsSandboxGeneration::currentRecord(
+            $config,$dir,$public,$lease
+        )['generation'];
         if ($name===$entry['candidate']) {
             CmsSandboxGeneration::select(
                 $config,$dir,$public,$entry['previous'],$lease
