@@ -57,6 +57,26 @@ file_put_contents($argv[1],"<?php\nreturn ".var_export($vars,true).";\n",LOCK_EX
 chmod($argv[1],0600);
 ' "$scratch/staging-config.php"
 
+# Fail BEFORE touching the website if the separate MySQL credentials are wrong,
+# inaccessible, or point to a database that already has tables.
+remote_preflight="/home/u235811320/.celikom-site-db-check-$(openssl rand -hex 10).php"
+ssh "${sshopt[@]}" "$target" "test ! -e '$remote_preflight'"
+scp "${scpopt[@]}" "$scratch/staging-config.php" "$target:$remote_preflight"
+ssh "${sshopt[@]}" "$target" "bash -s '$remote_preflight'" <<'REMOTE_DB'
+set -euo pipefail
+private_file="$1"
+trap 'rm -f "$private_file"' EXIT
+/opt/alt/php83/usr/bin/php -r '
+$c=require $argv[1];
+$db=new PDO("mysql:host=".$c["CELIKOM_SITE_DB_HOST"].";dbname=".$c["CELIKOM_SITE_DB_NAME"].";charset=utf8mb4",
+$c["CELIKOM_SITE_DB_USER"],$c["CELIKOM_SITE_DB_PASSWORD"],
+[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION]);
+$tables=(int)$db->query("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE()")->fetchColumn();
+if($tables!==0)throw new RuntimeException("Staging DB not empty");
+echo "STAGING_DB_CONNECTED_EMPTY\n";
+' "$private_file"
+REMOTE_DB
+
 cat > "$scratch/.htaccess" <<'HTACCESS'
 DirectoryIndex index.php
 Options -Indexes
