@@ -74,8 +74,11 @@ final class UploadService
         $isM4a = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION)) === 'm4a';
         $mime = $isM4a ? 'audio/mp4' : 'audio/mpeg';
         $extension = $isM4a ? 'm4a' : 'mp3';
+        // The strict frame inspector, not finfo's platform-dependent guess,
+        // is the authoritative MP3 content check. Some valid tagged MP3s
+        // report application/octet-stream or application/x-id3.
         $measuredDuration = $isM4a ? (new M4aInspector())->durationMs($path)
-            : ((new \finfo(FILEINFO_MIME_TYPE))->file($path) === 'audio/mpeg' ? (new Mp3Inspector())->durationMs($path) : null);
+            : (new Mp3Inspector())->durationMs($path);
         if ($measuredDuration === null) throw new \DomainException($isM4a ? 'invalid_m4a' : 'invalid_mp3');
         $known = $this->pdo->prepare('SELECT duration_ms FROM tracks WHERE service=? AND service_track_id=?');
         $known->execute([$service, $trackId]);
