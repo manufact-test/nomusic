@@ -272,7 +272,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 throw new InvalidArgumentException('Invalid media upload form');
             }
             CmsMediaStore::accept($pdo,$admin,$uploaded,$alt,
-                $directory,$root.'/public');
+                $directory,$dev ? $root.'/public' : $root.'/public_html');
             header('Location: /admin/?saved=media#media-editor',true,303);
             exit;
         } catch (\InvalidArgumentException $e) {
@@ -299,7 +299,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 throw new InvalidArgumentException('Unknown image selection');
             }
             $new=CmsMediaAssignment::choose($pdo,$admin,$expected,$chosen,
-                $folder,$root.'/public');
+                $folder,$dev ? $root.'/public' : $root.'/public_html');
             if($new===null) {
                 http_response_code(409);
                 $error='Изображение уже выбрано в другой вкладке. Обновите страницу.';
@@ -333,7 +333,7 @@ if ($admin !== null && $_SERVER['REQUEST_METHOD'] === 'GET' &&
         if(!is_int($id) || $id<1 || !is_string($folder) || $folder==='') {
             throw new InvalidArgumentException('Unknown private image');
         }
-        $image=CmsMediaStore::privatePreview($pdo,$id,$folder,$root.'/public');
+        $image=CmsMediaStore::privatePreview($pdo,$id,$folder,$dev ? $root.'/public' : $root.'/public_html');
         header('Content-Type: '.$image['mime']);
         header('Content-Length: '.strlen($image['body']));
         header('Content-Disposition: inline; filename="celikom-private-preview"');
@@ -370,7 +370,7 @@ if ($admin !== null && $_SERVER['REQUEST_METHOD'] === 'GET' && ($_GET['view'] ??
                 throw new RuntimeException('Selected image requires private storage');
             }
             $media=CmsMediaStore::privatePreview($pdo,$selection['asset_id'],
-                $folder,$root.'/public');
+                $folder,$dev ? $root.'/public' : $root.'/public_html');
             $preview=CmsMediaAssignment::privatePage(
                 $preview,$selection['asset_id'],$media['alt']
             );
