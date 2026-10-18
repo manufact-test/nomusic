@@ -39,6 +39,7 @@ const intervals = [];
 const pendingTracks = new Set();
 const requests = [];
 const statusCalls = [];
+let trackStatusResponder = null;
 const suggestionPosts=[];let suggestionRace=null;
 globalThis.document = { activeElement: null, querySelector: find };
 globalThis.window = { setInterval(fn) { intervals.push(fn); return 1; } };
@@ -52,7 +53,11 @@ globalThis.chrome = {
     getURL: (p) => "chrome-extension://ci-test/" + p,
     async sendMessage(message) {
       if (offline) throw new Error("simulated extension disconnect");
-      if (message.type === "CELIKOM_AUTH" && message.action === "track-status") return {ok:true,status:version};
+      if (message.type === "CELIKOM_AUTH" && message.action === "track-status") {
+        statusCalls.push(message.track_id);
+        if (trackStatusResponder) return trackStatusResponder(message.track_id);
+        return {ok:true,status:pendingTracks.has(message.track_id) ? "pending" : version};
+      }
       if (message.type === "CELIKOM_AUTH" && message.action === "contribution-access") return {ok:true,access_token:"c".repeat(64)};
       if (message.type === "CELIKOM_STATUS_GET") return { ...current, phase: "READY", enabled: true };
       return { ok: true };
@@ -128,33 +133,45 @@ test("Stage 7 Add version pins exact Track ID, checks server, then shows form", 
   assert.equal(find("[data-action='add']").dataset.loading, "false");
   assert.equal(form().hidden, false);
   assert.equal(find("[data-upload-submit]").disabled, false);
-  assert.ok(statusCalls.at(-1).includes("track_id=144530503"));
+  assert.ok(statusCalls.includes("144530503"));
 });
 
-test("Stage 7 pending check does not reveal an incomplete panel while the network is waiting", async () => {
-  await find("[data-action='add']").fire("click"); // closes current form
-  const originalFetch = globalThis.fetch;
-  let complete;
-  globalThis.fetch = async (url, ...args) => {
-    if (String(url).includes("/api/v1/tracks/upload-status")) {
-      await new Promise((resolve) => { complete = resolve; });
-    }
-    return originalFetch(url, ...args);
-  };
+test("Panel opens immediately in neutral state and never flashes stale form/pending", async () => {
+  await find("[data-action='add']").fire("click");
+  let release;
+  trackStatusResponder=()=>new Promise(resolve=>{release=resolve;});
   try {
-    const pending = find("[data-action='add']").fire("click");
-    await new Promise((resolve) => setImmediate(resolve));
-    assert.equal(find("[data-upload-panel]").hidden, true, "no unfinished form while checking");
-    assert.equal(form().hidden, true);
-    assert.equal(find("[data-action='add']").dataset.loading, "true");
-    assert.equal(find("[data-action='add']").disabled, true);
-    complete();
+    const action=find("[data-action='add']");
+    const pending=action.fire("click");
+    await new Promise(resolve=>setImmediate(resolve));
+    assert.equal(find("[data-upload-panel]").hidden,false);
+    assert.equal(form().hidden,true);
+    assert.equal(result().hidden,true);
+    assert.equal(action.dataset.loading,"false");
+    assert.equal(action.disabled,false);
+    assert.match(find("[data-upload-status]").textContent,/Проверяем возможность загрузки/);
+    release({ok:true,status:"none"});
     await pending;
-    assert.equal(find("[data-upload-panel]").hidden, false);
-    assert.equal(form().hidden, false);
-  } finally {
-    globalThis.fetch = originalFetch;
-  }
+    assert.equal(form().hidden,false);
+    assert.equal(find("[data-upload-status]").hidden,true);
+  } finally {trackStatusResponder=null;}
+});
+
+test("Closing during presence check never reopens after late response",async()=>{
+ const action=find("[data-action='add']");
+ await action.fire("click");
+ let release;trackStatusResponder=()=>new Promise(resolve=>{release=resolve;});
+ try {
+  const pending=action.fire("click");
+  await new Promise(resolve=>setImmediate(resolve));
+  assert.equal(find("[data-upload-panel]").hidden,false);
+  await action.fire("click");
+  assert.equal(find("[data-upload-panel]").hidden,true);
+  release({ok:true,status:"pending"});
+  await pending;
+  assert.equal(find("[data-upload-panel]").hidden,true);
+  assert.equal(result().hidden,true);
+ }finally{trackStatusResponder=null;}
 });
 
 test("Stage 7 changed track during preparation never sends audio", async () => {
@@ -237,6 +254,7 @@ test("Stage 7 on another Track ID remains eligible and rejects unconfirmed right
     const text = find("[data-version-status]").textContent;
     assert.match(text, value === "none" ? /ещё не загружена/ : value === "pending" ? /на проверке/ : /доступна/);
   }
+  version="none";
   current = {track: null}; intervals[0]();
   await new Promise(resolve => setImmediate(resolve));
   assert.equal(find("[data-version-status]").hidden, true, "no empty status row without a track");
@@ -276,19 +294,16 @@ test('switching songs and clicking upload before polling opens the new form in o
  assert.equal(find('[data-upload-rights]').checked,false);
 });
 
-test('search-selected song recovers a temporary status failure without reload or duplicate audio',async()=>{
+test('a temporary auth status failure retries once without sending an upload',async()=>{
  current={track:{...selected.track,id:'944530504'}};
- const originalFetch=globalThis.fetch;let calls=0;const before=requests.length;
- globalThis.fetch=async(url,...args)=>{
-  if(String(url).includes('/tracks/upload-status') && ++calls===1) return {ok:false,status:503,json:async()=>({error:'temporarily_unavailable'})};
-  return originalFetch(url,...args);
- };
+ let calls=0;const before=requests.length;
+ trackStatusResponder=async()=>++calls===1?{ok:false,error:"auth_unavailable"}:{ok:true,status:"none"};
  try{
   await find("[data-action='add']").fire('click');
   assert.equal(calls,2);assert.equal(form().hidden,false);
   assert.equal(find('[data-upload-track]').value,'944530504');
-  assert.equal(requests.length,before,'presence recovery never sends audio');
- }finally{globalThis.fetch=originalFetch;}
+  assert.equal(requests.length,before,'status recovery must not POST audio');
+ }finally{trackStatusResponder=null;}
 });
 
 test('failed opening is retried in one click rather than merely closing the error panel',async()=>{
@@ -300,19 +315,20 @@ test('failed opening is retried in one click rather than merely closing the erro
  assert.equal(find('[data-upload-track]').value,'944530505');
 });
 
-test('song changes while checking do not display the previous song form',async()=>{
+test('song changes during live check never reveal previous song form',async()=>{
  current={track:{...selected.track,id:'944530506'}};
- const originalFetch=globalThis.fetch;
- globalThis.fetch=async(url,...args)=>{
-  if(String(url).includes('/tracks/upload-status')) current={track:{...selected.track,id:'944530507'}};
-  return originalFetch(url,...args);
+ trackStatusResponder=async()=>{
+  current={track:{...selected.track,id:'944530507'}};
+  return {ok:true,status:"none"};
  };
  try{
   await find("[data-action='add']").fire('click');
-  assert.equal(form().hidden,true);assert.match(find('[data-upload-status]').textContent,/Песня сменилась/);
- }finally{globalThis.fetch=originalFetch;}
+  assert.equal(form().hidden,true);
+  assert.match(find('[data-upload-status]').textContent,/Песня сменилась/);
+ }finally{trackStatusResponder=null;}
  await find("[data-action='add']").fire('click');
- assert.equal(form().hidden,false);assert.equal(find('[data-upload-track]').value,'944530507');
+ assert.equal(form().hidden,false);
+ assert.equal(find('[data-upload-track]').value,'944530507');
 });
 
 test('active replacement label is stable across polls even when original audio is paused',async()=>{
