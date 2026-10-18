@@ -261,7 +261,7 @@ addTrackButton?.addEventListener("click", async () => {
   if (incidentStatus.active() || !uploadPanel || uploading || opening) return;
   // The Chrome action popup closes when focus changes. Keep POST in a full
   // extension tab; clicking outside the tab cannot cancel the request.
-  if (chrome.tabs?.getCurrent && chrome.tabs?.create && !location.hash.includes("upload")) {
+  if (chrome.tabs?.getCurrent && chrome.tabs?.create && globalThis.location?.hash !== "#upload") {
     const current = await chrome.tabs.getCurrent();
     if (!current) {
       await chrome.tabs.create({url: chrome.runtime.getURL("popup/popup.html#upload")});
@@ -403,6 +403,9 @@ uploadForm?.addEventListener("submit", async (event) => {
   if (!validAudioSelection(file)) {
     uploadMessage("Выберите MP3 или M4A не более 30 МиБ.", "error"); return;
   }
+  if (!uploadRequestId) uploadRequestId = crypto.randomUUID();
+  const attemptId = uploadRequestId;
+  void uploadJournal.record(attemptId, "checking", {trackId: pinnedTrack.id, bytes: file.size});
   uploading = true;
   if(uploadFile)uploadFile.disabled=true;
   if (uploadButton) { uploadButton.disabled = true; uploadButton.textContent = "Отправляем…"; }
@@ -412,9 +415,10 @@ uploadForm?.addEventListener("submit", async (event) => {
   let transferStarted = false;
   try {
     if(measuredFile!==file)await checkFileDuration();else if(durationPromise)await durationPromise;
-    if(durationBlocked){uploadMessage("");durationNote?.scrollIntoView?.({block:"nearest",behavior:"smooth"});return;}
+    if(durationBlocked){void uploadJournal.record(attemptId, "rejected", {code: "duration_mismatch"});uploadMessage("");durationNote?.scrollIntoView?.({block:"nearest",behavior:"smooth"});return;}
     const now = uploadTargetFromStatus(await send<ExtensionState>({ type: COMMANDS.getStatus }));
     if (!now || now.id !== pinnedTrack.id) {
+      void uploadJournal.record(attemptId, "rejected", {code: "track_changed"});
       uploadMessage("Трек изменился. Закройте и откройте «Загрузить версию» заново.", "error");
       return;
     }
@@ -423,12 +427,12 @@ uploadForm?.addEventListener("submit", async (event) => {
     const checkedTarget = uploadTargetFromStatus(await send<ExtensionState>({ type: COMMANDS.getStatus }));
     if (checkedTarget?.id !== pinnedTrack.id) throw new Error("track_changed");
     if (existing !== "none") {
+      void uploadJournal.record(attemptId, "duplicate", {code: existing});
       showSubmitted(existing === "pending" ? "Трек уже добавлен" : "Версия уже доступна",
         "Заявка уже есть в CELIKOM. Повторно отправлять файл не нужно.");
       return;
     }
 
-    if (!uploadRequestId) uploadRequestId = crypto.randomUUID();
     const data = new FormData();
     data.append("service", "yandex");
     data.append("track_id", pinnedTrack.id);
@@ -443,6 +447,7 @@ uploadForm?.addEventListener("submit", async (event) => {
     xhr.open("POST", origin + "/api/v1/uploads");
     xhr.timeout = 120000;
     xhr.setRequestHeader("Authorization", "Bearer " + await contributionAccess());
+    xhr.setRequestHeader("X-Celikom-Upload-Attempt", attemptId);
     const finalTarget = uploadTargetFromStatus(await send<ExtensionState>({ type: COMMANDS.getStatus }));
     if (finalTarget?.id !== pinnedTrack.id) throw new Error("track_changed");
     xhr.upload.addEventListener("progress", (progress) => {
@@ -457,6 +462,7 @@ uploadForm?.addEventListener("submit", async (event) => {
         try {
           const result = JSON.parse(xhr.responseText);
           if (result.status === "pending" && Number.isSafeInteger(result.replacement_id)) {
+            void uploadJournal.record(attemptId, "completed", {httpStatus: 202});
             showSubmitted(result.duplicate ? "Трек уже добавлен" : "Отправлено на проверку",
               "Аудиофайл получен CELIKOM. Статус: ожидает модерации. Дополнительных действий не требуется.");
             uploadRequestId = null;
@@ -467,6 +473,7 @@ uploadForm?.addEventListener("submit", async (event) => {
       let code = "";
       try { code = JSON.parse(xhr.responseText)?.error || ""; } catch (_error) { /* no-op */ }
       if (code === "track_pending" || code === "track_already_approved" || code === "already_approved") {
+        void uploadJournal.record(attemptId, "duplicate", {code, httpStatus: xhr.status});
         showSubmitted(code === "track_pending" ? "Трек уже добавлен" : "Версия уже доступна",
           "Заявка уже есть на сервере CELIKOM. Повторная отправка не требуется.");
         return;
@@ -620,7 +627,7 @@ window.setInterval(() => void refreshAccess(), 15000);
 const accountPanel = initAuthPanel(send);
 
 initScrollSpacing();
-if (location.hash === "#upload") {
+if (globalThis.location?.hash === "#upload") {
   document.body?.classList?.add("upload-page");
   // The new tab must wait for Chrome's player lookup before opening the form.
   setTimeout(() => addTrackButton?.click(), 300);
