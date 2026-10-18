@@ -462,6 +462,42 @@ uploadForm?.addEventListener("submit", async (event) => {
       return;
     }
 
+    // Chrome MV3 action popups are destroyed when focus changes. Stage the
+    // Blob in extension-private IndexedDB, then delegate POST to an offscreen
+    // document so blur/close never cancels an already accepted upload.
+    if (chrome.runtime.getManifest?.().permissions?.includes("offscreen")) {
+      const access = await contributionAccess();
+      const finalTarget = uploadTargetFromStatus(await send<ExtensionState>({type:COMMANDS.getStatus}));
+      if (finalTarget?.id !== pinnedTrack.id) throw new Error("track_changed");
+      uploadMessage("Подготавливаем файл для фоновой загрузки…", "checking");
+      await stageUploadFile(attemptId, file);
+      let response;
+      try {
+        response = await chrome.runtime.sendMessage({
+          type:"CELIKOM_UPLOAD_BEGIN",
+          task:{
+            id:attemptId, trackId:pinnedTrack.id, durationMs:pinnedTrack.durationMs,
+            artist:pinnedTrack.artist, title:pinnedTrack.title, album:pinnedTrack.album,
+            filename:file.name, origin, token:access
+          }
+        });
+      } catch (error) {
+        await deleteStagedUpload(attemptId).catch(()=>{});
+        throw error;
+      }
+      if (!response?.ok) {
+        await deleteStagedUpload(attemptId).catch(()=>{});
+        throw new Error(response?.error || "upload_background_unavailable");
+      }
+      backgroundUploadMode = true;
+      transferStarted = true;
+      if (uploadCancel) uploadCancel.hidden = false;
+      if (uploadProgress) { uploadProgress.hidden = false; uploadProgress.value = 0; }
+      uploadMessage("Загрузка продолжается в фоне. Можно закрыть окно CELIKOM.", "checking");
+      void syncBackgroundUpload();
+      return;
+    }
+
     const data = new FormData();
     data.append("service", "yandex");
     data.append("track_id", pinnedTrack.id);
