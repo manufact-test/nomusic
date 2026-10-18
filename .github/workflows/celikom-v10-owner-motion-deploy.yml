@@ -1,5 +1,5 @@
 name: CELIKOM owner-approved v10 interactions staging installation
-# Review round: unique header destinations, official C icon, round check and seamless FAQ.
+# Owner review v5.7: leave header unchanged, fix sharp C, information dot and FAQ close.
 on:
   push:
     branches: [feature/api-range]
@@ -71,10 +71,16 @@ jobs:
           mkdir -m 700 "\$backup"
           cp -p "\$root/public_html/index.php" "\$backup/index.php"
           cp -p "\$root/public_html/admin/index.php" "\$backup/admin-index.php"
+          cp -p "\$root/celikom-private/app/src/CmsV10OwnerMotion.php" "\$backup/CmsV10OwnerMotion.php"
+          cp -p "\$root/public_html/assets/css/v10/owner-v10-motion.css" "\$backup/owner-v10-motion.css"
+          cp -p "\$root/public_html/assets/js/v10/owner-v10-motion.js" "\$backup/owner-v10-motion.js"
           revert() {
             cp -p "\$backup/index.php" "\$root/public_html/index.php"
             cp -p "\$backup/admin-index.php" "\$root/public_html/admin/index.php"
-            echo 'ROLLED_BACK_SITE_ENTRYPOINTS'
+            cp -p "\$backup/CmsV10OwnerMotion.php" "\$root/celikom-private/app/src/CmsV10OwnerMotion.php"
+            cp -p "\$backup/owner-v10-motion.css" "\$root/public_html/assets/css/v10/owner-v10-motion.css"
+            cp -p "\$backup/owner-v10-motion.js" "\$root/public_html/assets/js/v10/owner-v10-motion.js"
+            echo 'ROLLED_BACK_ALL_OWNER_V10_FILES'
           }
           trap revert ERR
           cp -p "\$stage/CmsV10OwnerMotion.php" "\$root/celikom-private/app/src/CmsV10OwnerMotion.php"
@@ -98,7 +104,10 @@ jobs:
                grep -Fq 'href="#contribute">Участие</a>' "\$check" &&
                grep -Fq 'href="#faq">Вопросы</a>' "\$check" &&
                grep -Fq 'class="header-chip" href="#install">Установка' "\$check" &&
-               grep -Fq 'class="familiar-orbit"><img src="/assets/images/celikom-mark.svg"' "\$check" &&
+               grep -Fq 'class="familiar-orbit"><svg class="celikom-familiar-c"' "\$check" &&
+               grep -Fq 'M92 40 A36 36 0 1 0 92 88' "\$check" &&
+               grep -Fq 'class="celikom-info-dot"' "\$check" &&
+               ! grep -Fq 'class="familiar-orbit"><img' "\$check" &&
                grep -Fq '<circle cx="32" cy="32" r="21"></circle>' "\$check" &&
                grep -q 'owner-v10-motion.js' "\$check" &&
                ! grep -q 'owner-art-core' "\$check"; then good=true;break;fi
