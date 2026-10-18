@@ -88,9 +88,10 @@ try {
         if (\Celikom\Website\CmsRevisions::publishedId($pdo) === null) {
             throw new RuntimeException('No reviewed CMS revision has been published');
         }
-        echo \Celikom\Website\CmsRevisions::publishedPage(
+        $publishedHtml = \Celikom\Website\CmsRevisions::publishedPage(
             $pdo, $trustedHtml, $contentSchema, $faqSeed
         );
+        echo \Celikom\Website\CmsOwnerPolish::apply($publishedHtml, __DIR__);
     }
 } catch (\Throwable $error) {
     error_log('CELIKOM website: protected content render failed');
