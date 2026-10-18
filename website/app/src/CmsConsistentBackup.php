@@ -99,6 +99,7 @@ final class CmsConsistentBackup
     public static function inspect(
         string $manifest, string $key, string $publicDirectory
     ): array {
+        clearstatcache(true, $manifest);
         $public = realpath($publicDirectory);
         if (!is_string($public) || is_link($manifest) ||
             !is_file($manifest) || (fileperms($manifest) & 0077) !== 0 ||
