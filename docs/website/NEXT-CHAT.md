@@ -1,5 +1,28 @@
 # CELIKOM — сайт: NEXT-CHAT / переносимая контрольная точка
 
+**Версия:** 4.6 · **Контрольная точка:** 18.10.2026. Это главный действующий раздел. Ниже v4.5 и старше — архив.
+
+## v4.6 — АКТУАЛЬНЫЙ STAGE 10 CHECKPOINT
+
+**Репозиторий:** `manufact-test/nomusic`, ветка `feature/api-range`. **Последний полностью проверенный кодовый коммит:** `6fc26ba87d1e5cd7d76f010d55855590a5e8e0eb`; [Website CI 39122585098 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/39122585098), [общая CI 39122585168 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/39122585168). После документальных коммитов **проверять реальный HEAD и CI заново**. PR #6 открыт, не сливать.
+
+**Обязательно сначала прочесть:** [подробный checkpoint v4.6](checkpoints/2026-10-18-STAGE10-HTTP-RELEASE-CYCLE.md), затем [v4.5 версии схемы и поколения](checkpoints/2026-10-18-STAGE10-VERSIONED-GENERATIONS.md), [v4.4 MySQL recovery](checkpoints/2026-10-18-STAGE10-MYSQL-SANDBOX-RECOVERY.md), MASTER-TZ.md, ROADMAP.md и актуальный `website/`.
+
+### Реализован ещё один большой блок
+
+1. **HTTP на двух поколениях настоящей одноразовой MySQL.** Новый `website/tests/fixtures/offline-generation-router.php` обслуживает только `GET /__ci/health` и `GET /__ci/page` через локальный PHP сервер, c CI env allowlist, loopback IP/Host, noindex и no-store. Реальный approved v10 HTML из активной v1 или v2 MySQL сверяется по SHA256; приватные медиа проверяются перед ответом. Настоящие `/` и `/admin/` по-прежнему HTTP 503/noindex, пользовательские сайты эти `/__ci/` маршруты **не содержат**.
+2. **Приватный журнал выпуска.** Новый `CmsSandboxReleaseCycle.php`: `prepare` (проверка неактивного кандидата и запись intent), `activate` (atomic rename private pointer, отметка phase), `confirm` (проверка здоровья и явное подтверждение) и `reconcile` (при любом неподтверждённом выпуске возвращаем прежнюю здоровую версию). Испорченный journal не исполняется. Даже повреждённое активное v2 медиа не мешает `currentRecord()` определить указатель и откатиться на сохранённую v1.
+3. **`Stage10HttpReleaseCycleTest.php` в GitHub Actions:** полноценный MySQL backup→restore→v2 SQL migrate→HTTP сервер; одинаковый HTML hash на двух поколениях, реальные 503 у public/admin, запрет POST и чужого Host, HTTP 503 при занятом exclusive lock, ошибки перед и после pointer rename, сбой после записи `activated`, запрет второго журнала, подменённый journal, порча активного приватного PNG, явный confirm, возврат к v1, **SIGKILL отдельного PHP worker после переключения** с восстановлением через journal новым процессом. Все предыдущие CMS/Browser/v10 тесты сохранены.
+4. **Ограничение:** это CI-only private pointer + отдельный HTTP fixture; **не механизм production переключения PHP/SQL/медиа**, не доказательство durability при отключении питания, не проверка Hostinger/NFS, не реальный публичный роутер. Внешние writers/cron, offsite encryption, реальные SSL/legal, права на публичное изображение, мониторинг и owner release approval остаются нерешёнными.
+
+### Сохранить наши ограничения
+
+- **Ни одного действия на Hostinger, production, SSH, действующих SQL и реальных доменах.** `.github/workflows/deploy-celikom-website.yml` HARD DISABLED (`&& false`), PR #6 открыт / не сливать; утверждённый v10, его 5 CSS + 2 JS, `server/`, `extension/`, `android/` не менять.
+- Production public/admin до официальной приёмки остаются 503/noindex. **Stage 9 не принят, Stage 10 не закрыт.** Ни offline CI, ни зелёная проверка не дают разрешения выпускать сайт.
+- **Дальше:** собственный CI-only чек-лист оператора и release-readiness matrix, шифрование отдельного offsite content+media snapshot, inventory всех SQL/media writers, crash/fsync/Hostinger assumptions — без включения деплоя. Сохранять документы после одного большого блока или по просьбе, а не после каждой мелочи.
+
+---
+
 **Версия:** 4.5 · **Контрольная точка:** 18.10.2026. **ДЕЙСТВУЮЩАЯ:** этот блок, всё ниже — история.
 
 ## v4.5 — АКТУАЛЬНАЯ КОНТРОЛЬНАЯ ТОЧКА / STAGE 10
