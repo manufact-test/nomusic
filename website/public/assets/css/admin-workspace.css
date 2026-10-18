@@ -154,3 +154,8 @@ body .revision-current{color:#208558}
  .cms-faq-tab{width:100%}
  body .cms-save-line>*{width:100%;text-align:center}
 }
+
+/* Mobile top bar remains clickable above the horizontal section rail. */
+.cms-topbar{position:relative;z-index:3;min-height:82px;height:auto}
+.cms-shell{position:relative;z-index:1}
+@media(max-width:760px){.cms-topbar{min-height:76px;height:auto}}
