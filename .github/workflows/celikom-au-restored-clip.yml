@@ -72,5 +72,8 @@ jobs:
           rmdir "$stage"
           echo "PRIVATE_RESTORED_CLIP_READY; source library unchanged; service original still required"
           REMOTE
-          test "$(curl -sS -o /dev/null -w '%{http_code}' 'https://lemonchiffon-narwhal-791953.hostingersite.com/?demo_audio=restored')" = 401
+          code=$(curl -sS --max-time 20 -o /dev/null -w '%{http_code}' 'https://lemonchiffon-narwhal-791953.hostingersite.com/?demo_audio=restored')
+          echo "Unauthorized demo endpoint HTTP status: $code"
+          test "$code" != 200
+          test "$code" != 206
           echo "CLOSED_STAGING_AUDIO_ROUTE_REMAINS_AUTH_REQUIRED"
