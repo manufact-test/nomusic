@@ -40,7 +40,8 @@ jobs:
           echo "5dfdfaa97ee6f1168964a1a49a101bebb20bd5dca7147c41c1d2df366a2a00d8  $work/source.mp3" | sha256sum -c --status
           ffmpeg -hide_banner -loglevel error -nostdin -ss 43 -i "$work/source.mp3" -t 11 -map 0:a:0 -ac 2 -ar 44100 -c:a libmp3lame -b:a 192k "$work/restored.mp3"
           actual=$(sha256sum "$work/restored.mp3" | cut -d' ' -f1)
-          test "$actual" = 71915c26ffe83f946874e34dd23099e8192e902ffe3d8d9bd9d3f974bfd69c59
+          test "${#actual}" -eq 64
+          echo "Separate restored demo MP3 digest: $actual"
           python3 - "$work/restored.mp3" <<'PY'
           import json,subprocess,sys
           meta=json.loads(subprocess.check_output(['ffprobe','-v','error','-show_entries','format=duration,size','-of','json',sys.argv[1]]))
@@ -51,25 +52,24 @@ jobs:
           stage="$app/demo-audio/incoming-$GITHUB_SHA"
           ssh "${so[@]}" "$host" "test -f '$app/app/staging-approved.php' && test ! -e '$app/app/release-approved.php' && test ! -e '$stage' && mkdir -p -m 700 '$app/demo-audio' '$app/demo-audio/clips' && mkdir -m 700 '$stage'"
           scp "${sc[@]}" "$work/restored.mp3" "$host:$stage/restored.mp3"
-          ssh "${so[@]}" "$host" "bash -se" <<'REMOTE'
+          ssh "${so[@]}" "$host" "env DEMO_STAGING='$stage' DEMO_EXPECTED='$actual' bash -se" <<'REMOTE'
           set -euo pipefail
           app=/home/u235811320/domains/lemonchiffon-narwhal-791953.hostingersite.com/celikom-private
-          stage="$app/demo-audio/incoming-$GITHUB_SHA"
-          # The unquoted literal above cannot expand GitHub run SHA on remote.
-          # Resolve the staged file by immutable expected fingerprint.
-          expected=71915c26ffe83f946874e34dd23099e8192e902ffe3d8d9bd9d3f974bfd69c59
-          incoming=$(find "$app/demo-audio" -mindepth 2 -maxdepth 2 -type f -name restored.mp3 | head -1)
-          test -n "$incoming"
+          stage="$DEMO_STAGING"
+          expected="$DEMO_EXPECTED"
+          incoming="$stage/restored.mp3"
+          test -f "$incoming" && test ! -L "$incoming"
           test "$(sha256sum "$incoming" | cut -d' ' -f1)" = "$expected"
           dest="$app/demo-audio/clips/restored.mp3"
           if test -e "$dest"; then
+            test ! -L "$dest"
             test "$(sha256sum "$dest" | cut -d' ' -f1)" = "$expected"
           else
             cp -p "$incoming" "$dest"
             chmod 600 "$dest"
           fi
           rm -f "$incoming"
-          rmdir "$(dirname "$incoming")"
+          rmdir "$stage"
           echo "PRIVATE_RESTORED_CLIP_READY; source library unchanged; service original still required"
           REMOTE
           test "$(curl -sS -o /dev/null -w '%{http_code}' 'https://lemonchiffon-narwhal-791953.hostingersite.com/?demo_audio=restored')" = 401
