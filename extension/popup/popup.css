@@ -413,10 +413,6 @@ html{scrollbar-width:thin;scrollbar-color:#45565f transparent}
 
 .mark[data-active="true"]{background:#66e0bf;box-shadow:0 0 16px rgb(102 224 191 / 55%)}
 
-/* Full-tab upload survives losing focus, unlike the browser-action popup. */
-body.upload-page { width: min(100%, 640px); max-width: 640px; margin: 24px auto; }
-body.upload-page main { gap: 14px; padding: 24px; }
-body.upload-page .upload-panel { min-width: 0; }
 .upload-panel .upload-feedback[data-kind="error"] {
   color: #ffdad4; background: #321d20; border: 1px solid #a44d47;
   border-radius: 12px; padding: 12px; overflow-wrap: anywhere;
@@ -438,5 +434,4 @@ body.upload-page .upload-panel { min-width: 0; }
 .celikom-confirm-actions button { flex: 1 1 160px; }
 .celikom-confirm .danger { background: #572c31; color: #ffdcd7; border: 1px solid #b75d59; }
 .celikom-confirm .danger:hover { background: #693438; }
-@media (max-width: 640px) { body.upload-page { margin: 0 auto; } body.upload-page main { padding: 16px; } }
 @media (prefers-reduced-motion: reduce) { .celikom-confirm { transition: none; } }
