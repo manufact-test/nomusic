@@ -1,0 +1,29 @@
+name: CELIKOM Au readonly source check
+on:
+  push:
+    branches: [feature/api-range]
+    paths: [.github/workflows/celikom-au-readonly.yml]
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Read metadata only from existing private library
+        shell: bash
+        env:
+          SSH_KEY: ${{ secrets.CELIKOM_HOSTINGER_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.CELIKOM_HOSTINGER_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          umask 077
+          temp=$(mktemp -d)
+          trap 'rm -rf "$temp"' EXIT
+          printf '%s\n' "$SSH_KEY" > "$temp/id"
+          printf '%s\n' "$KNOWN_HOSTS" > "$temp/known"
+          chmod 600 "$temp/id" "$temp/known"
+          ssh -T -p 65002 -i "$temp/id" -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$temp/known" u235811320@92.113.19.189 /opt/alt/php83/usr/bin/php < website/tools/inspect-au-demo-sources.php
