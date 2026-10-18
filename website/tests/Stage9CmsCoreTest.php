@@ -91,9 +91,14 @@ cmsReject(fn()=>CmsEditor::validate($template,$manifest,$seed,[
 cmsReject(fn()=>CmsEditor::validate($template,$manifest,$seed,[
     'content'=>['faq.text.02'=>''],'faq'=>[]
 ]),'CMS allowed empty headline');
+$ownerFaqPreview=CmsEditor::validate($template,$manifest,$seed,[
+    'content'=>[],'faq'=>['updates'=>['faq-question-08'=>['answer'=>'Пояснение, обновлённое владельцем.']]]
+]);
+cmsAssert(str_contains($ownerFaqPreview,'Пояснение, обновлённое владельцем.'),
+    'Owner FAQ edit missing from validated preview');
 cmsReject(fn()=>CmsEditor::validate($template,$manifest,$seed,[
-    'content'=>[],'faq'=>['updates'=>['faq-question-08'=>['answer'=>'Pay now']]]
-]),'FAQ bypassed guarded scope');
+    'content'=>[],'faq'=>['updates'=>['faq-question-08'=>['category'=>'unknown-category']]]
+]),'Invalid FAQ category bypassed validation');
 cmsAssert(CmsDraftStore::get($pdo)['version']===0,'Draft must begin empty');
 cmsAssert(CmsDraftStore::save($pdo,$id,0,$draft)===1,'Draft save v1');
 cmsAssert(CmsDraftStore::get($pdo)['content']===$draft['content'],'Draft round trip');
