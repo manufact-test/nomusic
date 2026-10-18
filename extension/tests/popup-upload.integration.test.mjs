@@ -551,6 +551,8 @@ test("upload panel respects explicit Close despite repeated background status po
   await action.fire("click");
   assert.equal(find("[data-upload-panel]").hidden,false,"open returns to same upload");
   assert.equal(find("[data-upload-submit]").dataset.uploadMode,"cancel");
+  // A completed POST means the server has already created moderation status.
+  pendingTracks.add(id);
   localValues[key]={...localValues[key],phase:"completed",percent:100,at:Date.now()};
   await intervals[0]();await new Promise(resolve=>setImmediate(resolve));
   assert.equal(find("[data-upload-submit]").dataset.uploadMode,"complete");
@@ -560,7 +562,6 @@ test("upload panel respects explicit Close despite repeated background status po
   assert.equal(find("[data-upload-panel]").hidden,true);
   for(let n=0;n<3;n++){await intervals[0]();await new Promise(resolve=>setImmediate(resolve));}
   assert.equal(find("[data-upload-panel]").hidden,true,"completed poll cannot resurrect the form");
-  pendingTracks.add(id);
   await action.fire("click");
   assert.equal(result().hidden,false);
   assert.equal(form().hidden,true,"completed song must not offer a fresh form");
