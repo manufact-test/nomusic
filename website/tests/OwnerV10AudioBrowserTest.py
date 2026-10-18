@@ -77,7 +77,10 @@ try:
                 assert page.locator("#sound-panel").get_attribute("data-playing")=="false"
                 page.locator("#mode-service").click()
                 assert page.locator("#sound-panel").get_attribute("data-playing")=="false"
-                page.locator("#celikom-demo-seek").fill("6")
+                page.locator("#celikom-demo-seek").evaluate("""x=>{
+                    x.value='6';
+                    x.dispatchEvent(new Event('input',{bubbles:true}));
+                }""")
                 assert page.locator("#celikom-demo-time").inner_text().startswith("0:06")
                 page.locator("#celikom-demo-play").click()
                 page.wait_for_function("document.getElementById('celikom-demo-service').currentTime>6",timeout=10000)
