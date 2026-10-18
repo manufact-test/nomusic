@@ -10,8 +10,9 @@ if [[ "$request" == "prepare" ]]; then
 fi
 : "${CELIKOM_HOSTINGER_SSH_KEY:?GitHub SSH key missing}"
 : "${CELIKOM_HOSTINGER_KNOWN_HOSTS:?GitHub verified known_hosts missing}"
-: "${CELIKOM_STAGING_DB_NAME:?Dedicated Hostinger MySQL name missing}"
-: "${CELIKOM_STAGING_DB_USER:?Dedicated Hostinger MySQL user missing}"
+CELIKOM_STAGING_DB_NAME="${CELIKOM_STAGING_DB_NAME:-u235811320_celikom_stage}"
+CELIKOM_STAGING_DB_USER="${CELIKOM_STAGING_DB_USER:-u235811320_celikom_stage}"
+export CELIKOM_STAGING_DB_NAME CELIKOM_STAGING_DB_USER
 : "${CELIKOM_STAGING_DB_PASSWORD:?Dedicated Hostinger MySQL password missing}"
 [[ "$CELIKOM_STAGING_DB_NAME" =~ ^u235811320_celikom_stage[a-zA-Z0-9_]*$ ]] || { echo 'Use a dedicated u235811320_celikom_stage* database'; exit 1; }
 [[ "$CELIKOM_STAGING_DB_USER" =~ ^u235811320_[a-zA-Z0-9_]+$ ]] || { echo 'Expected own Hostinger-prefixed website DB user'; exit 1; }
