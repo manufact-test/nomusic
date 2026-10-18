@@ -511,6 +511,9 @@ uploadForm?.addEventListener("submit", async (event) => {
     void uploadJournal.record(attemptId, "connecting");
     xhr.addEventListener("loadend", () => {
       clearInterval(watchdog);
+      activeUploadXHR = null;
+      if (uploadCancel) uploadCancel.hidden = true;
+      if (uploadConfirm) uploadConfirm.hidden = true;
       uploading = false;
       if(uploadFile)uploadFile.disabled=false;
       if (xhr.status === 202) {
@@ -547,7 +550,8 @@ uploadForm?.addEventListener("submit", async (event) => {
         rights_declaration_required: "Подтвердите права на файл."
       };
       void uploadJournal.record(attemptId, "failed", {httpStatus: xhr.status, code: failure || code || "http_error"});
-      const guidance = failure === "stalled" ? "Передача не началась за 45 секунд. Проверьте интернет или VPN."
+      const guidance = manualUploadCancel ? "Загрузка отменена по вашему запросу."
+        : failure === "stalled" ? "Передача не началась за 45 секунд. Проверьте интернет или VPN."
         : failure === "timeout" ? "Сервер не ответил за две минуты. Проверьте статус песни."
         : xhr.status === 0 ? "Соединение прервалось. Проверьте сеть или VPN."
         : xhr.status >= 500 ? "Сервер временно недоступен. Повторите позже."
@@ -555,7 +559,14 @@ uploadForm?.addEventListener("submit", async (event) => {
       uploadMessage(guidance + " Код: " + attemptId.slice(0, 8).toUpperCase(), "error");
       if (uploadButton) { uploadButton.textContent = "Повторить отправку"; uploadButton.disabled = false; }
     });
-    xhr.send(data);
+    activeUploadXHR = xhr;
+    if (uploadCancel) uploadCancel.hidden = false;
+    try { xhr.send(data); } catch (error) {
+      clearInterval(watchdog);
+      activeUploadXHR = null;
+      if (uploadCancel) uploadCancel.hidden = true;
+      throw error;
+    }
     transferStarted = true;
   } catch (error) {
     void uploadJournal.record(attemptId, "failed", {
@@ -566,6 +577,9 @@ uploadForm?.addEventListener("submit", async (event) => {
     // The request completion handler is responsible for re-enabling the button
     // after xhr.send(). An early exit must never leave the UI stuck.
     if (!transferStarted) {
+      activeUploadXHR = null;
+      if (uploadCancel) uploadCancel.hidden = true;
+      if (uploadConfirm) uploadConfirm.hidden = true;
       uploading = false;
       if(uploadFile)uploadFile.disabled=false;
       if (uploadButton && uploadForm && !uploadForm.hidden) {
