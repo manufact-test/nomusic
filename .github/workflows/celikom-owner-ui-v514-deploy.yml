@@ -112,7 +112,7 @@ jobs:
                grep -Fq 'owner-v10-motion.js?v=514' "$landing" &&
                grep -Fq 'owner-sound-player.js?v=511' "$landing" &&
                grep -Fq 'data-demo-ready="true"' "$landing" &&
-               grep -Fq '/assets/css/admin-workspace.css?v=514' "$admin" &&
+               grep -Fq '/assets/css/admin-workspace.css?v=516' "$admin" &&
                grep -Fq '/assets/js/admin-workspace.js?v=515' "$admin" &&
                grep -Fq 'Вход администратора' "$admin" &&
                grep -Fq 'class="faq-item"' "$landing" &&
