@@ -261,33 +261,17 @@ function contributionError(error: unknown): string {
   return "Не удалось связаться с сервером. Повторите попытку.";
 }
 
-async function trackUploadStatus(origin: string, trackId: string): Promise<"none" | "pending" | "approved"> {
-  // Retry only this read. Audio submission is never automatically replayed.
-  for (let attempt = 0; attempt < 2; attempt++) {
-    try {
-      const response = await fetch(origin + "/api/v1/tracks/upload-status?service=yandex&track_id=" + encodeURIComponent(trackId), {
-        method: "GET", redirect: "error", credentials: "omit", cache: "no-store",
-        headers: { Authorization: "Bearer " + await contributionAccess() },
-        signal: AbortSignal.timeout(10000)
-      });
-      if (!response.ok) {
-        const error = await response.json().catch(() => ({}));
-        if (attempt === 0 && (response.status >= 500 || response.status === 401)) {
-          await new Promise(resolve => setTimeout(resolve, 250)); continue;
-        }
-        throw new Error(error.error || "upload_status_unavailable");
-      }
-      const value = await response.json();
-      if (!["none", "pending", "approved"].includes(value?.status)) throw new Error("invalid_upload_status");
-      return value.status;
-    } catch (error) {
-      const transient = error instanceof TypeError || (error as Error)?.name === "TimeoutError" ||
-        ["auth_timeout", "auth_network_error", "auth_unavailable"].includes((error as Error)?.message);
-      if (attempt || !transient) throw error;
-      await new Promise(resolve => setTimeout(resolve, 250));
-    }
+// One authoritative status path is shared with the version badge. Avoid
+// separate config, bearer-token and /upload-status round trips before opening
+// the panel. Failure is NOT interpreted as "none".
+async function trackUploadStatus(trackId: string): Promise<"none" | "pending" | "approved"> {
+  const value = await send<{ok: boolean; status?: string; error?: string}>({
+    type: "CELIKOM_AUTH", action: "track-status", track_id: trackId
+  });
+  if (!value?.ok || !["none", "pending", "approved"].includes(value.status || "")) {
+    throw new Error(value?.error || "upload_status_unavailable");
   }
-  throw new Error("upload_status_unavailable");
+  return value.status as "none" | "pending" | "approved";
 }
 
 addTrackButton?.addEventListener("click", async () => {
@@ -354,8 +338,7 @@ addTrackButton?.addEventListener("click", async () => {
       note = "Сначала запустите песню в Яндекс Музыке и дождитесь определения Track ID.";
     } else {
       const target = pinnedTrack;
-      const origin = await uploadApiOrigin();
-      const serverState = await trackUploadStatus(origin, target.id);
+      const serverState = await trackUploadStatus(target.id);
       if (serverState === "pending") {
         view = "result";
         title = "Трек уже добавлен";
@@ -505,8 +488,8 @@ uploadForm?.addEventListener("submit", async (event) => {
       uploadMessage("Трек изменился. Закройте и откройте «Загрузить версию» заново.", "error");
       return;
     }
+    const existing = await trackUploadStatus(pinnedTrack.id);
     origin = await uploadApiOrigin();
-    const existing = await trackUploadStatus(origin, pinnedTrack.id);
     const checkedTarget = uploadTargetFromStatus(await send<ExtensionState>({ type: COMMANDS.getStatus }));
     if (checkedTarget?.id !== pinnedTrack.id) throw new Error("track_changed");
     if (existing !== "none") {
