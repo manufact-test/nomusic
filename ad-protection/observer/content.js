@@ -90,6 +90,11 @@
     if (sender.id !== chrome.runtime.id || !message || typeof message !== 'object') return false;
     if (message.type === 'CELIKOM_OBSERVER_GET') reply(session.snapshot());
     else if (message.type === 'CELIKOM_OBSERVER_RESET') reply(reset());
+    else if (message.type === 'CELIKOM_OBSERVER_MARK') {
+      if (typeof message.kind !== 'string' || !core.MARKER_KINDS.includes(message.kind)) return false;
+      session.recordMarker(message.kind);
+      reply(session.snapshot());
+    }
     return false;
   });
   window.addEventListener('pagehide', () => {

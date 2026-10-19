@@ -76,3 +76,19 @@ test('large capture output is bounded, deterministic, and no raw URL escape',()=
   assert.equal(report.windows[0].droppedPreviewEvents,31);
   assert.equal(JSON.stringify(report).includes('AAA'),false);
 });
+
+test('malformed response headers, null marker and invalid content MIME fail safely',()=>{
+  const unsafe={log:{entries:[{...make({time:1}),response:{status:200,headers:{find:'not a function'},content:{mimeType:42}}}]}};
+  const report=summarizeHar(unsafe);
+  assert.equal(report.parsedEntries,1);
+  assert.equal(report.counts.mime.unknown,1);
+  for(const value of [null,'',false,true,[],{},'12']) assert.throws(()=>summarizeHar(input,{markers:[value]}));
+});
+
+test('large input parsing does not rely on variable argument spreading',()=>{
+  const har={log:{entries:Array.from({length:50000},(_,i)=>make({time:i%300}))}};
+  const out=summarizeHar(har);
+  assert.equal(out.inputEntries,50000);
+  assert.equal(out.parsedEntries,50000);
+  assert.equal(out.counts.status['200'],50000);
+});

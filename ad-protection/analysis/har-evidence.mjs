@@ -67,7 +67,9 @@ function normalize(entry, originMs) {
   const timestamp = Date.parse(entry.startedDateTime);
   if (!Number.isFinite(timestamp)) return null;
   const seconds = Math.max(0, Math.round((timestamp - originMs) / 1000));
-  const mime = mimeBucket(entry.response?.content?.mimeType || entry.response?.headers?.find?.(h => h?.name?.toLowerCase?.() === 'content-type')?.value);
+  const headers = Array.isArray(entry.response.headers) ? entry.response.headers : [];
+  const contentType = headers.find(h => h && typeof h.name === 'string' && h.name.toLowerCase() === 'content-type');
+  const mime = mimeBucket(entry.response?.content?.mimeType || contentType?.value);
   const resource = resourceType(entry, mime);
   const rawStatus = entry.response.status;
   const status = Number.isInteger(rawStatus) && rawStatus >= 0 && rawStatus <= 599 ? rawStatus : null;
@@ -94,8 +96,10 @@ function normalize(entry, originMs) {
 function normalizeMarkers(markers) {
   if (!Array.isArray(markers) || markers.length > MAX_WINDOWS) throw Error('Too many observation markers');
   return markers.map((value) => {
-    const n = typeof value === 'number' ? value : Number(value);
-    if (!Number.isFinite(n) || n < 0 || n > 86400) throw Error('Invalid marker second');
+    // Do not silently coerce empty strings, booleans, null or arrays to a time.
+    if (typeof value !== 'number' || !Number.isFinite(value) || value < 0 || value > 86400)
+      throw Error('Invalid marker second');
+    const n = value;
     return Math.round(n);
   });
 }
@@ -131,8 +135,13 @@ export function summarizeHar(document, options = {}) {
   const marks = normalizeMarkers(options.markers ?? []);
   const radius = finiteNumber(options.radiusSeconds ?? 12, 1, 120);
   if (radius === null) throw Error('Invalid window radius');
-  const timestamps = entries.map(e => Date.parse(e?.startedDateTime)).filter(Number.isFinite);
-  const first = timestamps.length ? Math.min(...timestamps) : 0;
+  // Avoid spreading up to 50,000 timestamps as function arguments.
+  let first = Infinity;
+  for (const entry of entries) {
+    const ms = Date.parse(entry?.startedDateTime);
+    if (Number.isFinite(ms) && ms < first) first = ms;
+  }
+  if (!Number.isFinite(first)) first = 0;
   // No request URL, path, query, header value or token can enter output.
   const events = entries.map(e => normalize(e, first)).filter(Boolean);
   events.sort((a, b) => a.second - b.second);

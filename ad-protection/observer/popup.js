@@ -11,7 +11,9 @@
     banner: 'Баннер (кандидат)', overlay: 'Окно (кандидат)',
     video: 'Видео (кандидат)', audio: 'Аудио (кандидат)',
     play: 'старт', playing: 'проигрывание', pause: 'пауза',
-    ended: 'завершение', waiting: 'ожидание', stalled: 'зависание', error: 'ошибка'
+    ended: 'завершение', waiting: 'ожидание', stalled: 'зависание', error: 'ошибка',
+    'ad-heard': 'отмечена звуковая реклама', 'normal-music': 'отмечена обычная музыка',
+    'video-ad-seen': 'отмечена видеореклама', 'popup-ad-seen': 'отмечено рекламное окно'
   };
   let last = null;
 
@@ -38,10 +40,12 @@
     }
     row(media, 'Пропущенные узлы (лимит нагрузки)', data.droppedRoots || 0);
     seconds.textContent = '(' + data.ageSeconds + ' с)';
+    document.getElementById('marker-count').textContent = 'Ручных отметок: ' + (data.markers?.length || 0);
     for (const item of data.recent.slice(-12).reverse()) {
       const li = document.createElement('li');
       const description = item.category === 'candidate'
         ? 'найден кандидат: ' + (labels[item.kind] || item.kind)
+        : item.category === 'marker' ? (labels[item.kind] || 'отметка')
         : item.kind + ': ' + (labels[item.event] || 'событие');
       li.textContent = '+' + item.s + ' с — ' + description;
       events.appendChild(li);
@@ -55,11 +59,11 @@
     reset.disabled = false;
     status.textContent = 'Подключено. Режим только для наблюдения.';
   }
-  async function send(type) {
+  async function send(type, kind) {
     // Query tab ID only: do not request/read tab URL, title or favicon.
     const [tab] = await chrome.tabs.query({active: true, currentWindow: true});
     if (!tab || !Number.isInteger(tab.id)) throw Error('No active tab');
-    return chrome.tabs.sendMessage(tab.id, {type});
+    return chrome.tabs.sendMessage(tab.id, kind === undefined ? {type} : {type, kind});
   }
   async function refresh(type = 'CELIKOM_OBSERVER_GET') {
     status.textContent = 'Обновляю счётчики…';
@@ -71,6 +75,16 @@
       last = null; copy.disabled = true; reset.disabled = true;
       status.textContent = 'Открой music.yandex.ru и перезагрузи вкладку. Наблюдатель работает только там.';
     }
+  }
+  for (const button of document.querySelectorAll('[data-marker]')) {
+    button.addEventListener('click', async () => {
+      const kind = button.getAttribute('data-marker');
+      try {
+        const response = await send('CELIKOM_OBSERVER_MARK', kind);
+        if (response?.schema !== 'celikom-ad-observer-v1') throw Error('No observer');
+        render(response);
+      } catch (_) { status.textContent = 'Не удалось записать отметку: открой вкладку Яндекс Музыки.'; }
+    });
   }
   document.getElementById('refresh').addEventListener('click', () => refresh());
   reset.addEventListener('click', () => refresh('CELIKOM_OBSERVER_RESET'));

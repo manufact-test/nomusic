@@ -10,6 +10,7 @@
   const KINDS = Object.freeze(Object.keys(RULES));
   const MEDIA_EVENTS = Object.freeze(['play', 'playing', 'pause', 'ended', 'waiting', 'stalled', 'error']);
   const MEDIA_KINDS = Object.freeze(['audio', 'video']);
+  const MARKER_KINDS = Object.freeze(['ad-heard', 'normal-music', 'video-ad-seen', 'popup-ad-seen']);
   function classifyClassValue(value) {
     if (typeof value !== 'string' || value.length > 8192) return [];
     const tokens = value.trim().split(/\s+/).slice(0, 128);
@@ -22,7 +23,7 @@
   }
   function createSession(clock = () => performance.now(), limit = 80) {
     const cap = Number.isInteger(limit) && limit >= 1 && limit <= 250 ? limit : 80;
-    let start = clock(), droppedRoots = 0, events = [];
+    let start = clock(), droppedRoots = 0, events = [], markers = [];
     let candidates, media;
     function clearCounters() {
       candidates = Object.fromEntries(KINDS.map(kind => [kind, 0]));
@@ -46,6 +47,14 @@
       append({category: 'media', kind, event});
       return true;
     }
+    function recordMarker(kind) {
+      if (!MARKER_KINDS.includes(kind)) return false;
+      const s = Math.max(0, Math.floor((clock() - start) / 1000));
+      markers.push({s, kind});
+      if (markers.length > 24) markers.shift();
+      append({category: 'marker', kind});
+      return true;
+    }
     function dropRoots(amount = 1) {
       if (Number.isSafeInteger(amount) && amount > 0) droppedRoots += amount;
     }
@@ -57,6 +66,7 @@
         candidates: {...candidates},
         media: Object.fromEntries(MEDIA_KINDS.map(kind => [kind, {...media[kind]}])),
         droppedRoots,
+        markers: markers.map(item => ({...item})),
         recent: events.map(event => ({...event}))
       };
     }
@@ -64,12 +74,13 @@
       start = clock();
       droppedRoots = 0;
       events = [];
+      markers = [];
       clearCounters();
       return snapshot();
     }
-    return Object.freeze({recordCandidate, recordMedia, dropRoots, snapshot, reset});
+    return Object.freeze({recordCandidate, recordMedia, recordMarker, dropRoots, snapshot, reset});
   }
   globalThis.CELIKOM_AD_OBSERVER_CORE = Object.freeze({
-    classifyClassValue, classifyElement, createSession, KINDS, MEDIA_EVENTS, MEDIA_KINDS
+    classifyClassValue, classifyElement, createSession, KINDS, MEDIA_EVENTS, MEDIA_KINDS, MARKER_KINDS
   });
 })();

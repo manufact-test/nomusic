@@ -23,6 +23,17 @@
       <p class="hint">События play/ended/stalled сами по себе не означают рекламу.</p>
       <dl id="media"></dl>
     </section>
+    <section aria-label="Ручные отметки наблюдений">
+      <h2>Что произошло сейчас?</h2>
+      <p class="hint">Отметь увиденную или услышанную рекламу. Отметка фиксирует только относительное время, без названий песен.</p>
+      <div class="actions">
+        <button type="button" data-marker="ad-heard">🔊 Звуковая реклама</button>
+        <button type="button" data-marker="normal-music">♫ Обычная музыка</button>
+        <button type="button" data-marker="video-ad-seen">▣ Видеореклама</button>
+        <button type="button" data-marker="popup-ad-seen">▤ Рекламное окно</button>
+      </div>
+      <p id="marker-count" class="hint">Ручных отметок: 0</p>
+    </section>
     <section>
       <h2>Последние события <span id="session-time"></span></h2>
       <ol id="events"></ol>
