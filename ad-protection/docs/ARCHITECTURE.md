@@ -43,3 +43,10 @@ No site access, request modification or background service is active in Stage 0.
 ## Third-party source policy
 
 Research references and design ideas may be studied. Do not paste code from repos lacking explicit licenses; MIT notices must be maintained; GPL/AGPL code requires careful compliance analysis and is not a default source for proprietary CELIKOM.
+
+
+## Stage 1 research amendments — 2026-10-20
+
+Architecture decision **for later prototypes only**: ISOLATED-world DOM adapter for verified visual ad nodes; optionally tightly constrained DNR for independently confirmed ad-only network requests. No MAIN-world patching, no broad fetch/XHR interception, no externally executed code, no automatic disabling of subscription/policy dialogs. Audio handling is currently UNKNOWN and is the highest release blocker.
+
+Do not request all_urls or install host/permission changes in Stage 1. Never assume a blocked first-party media request is safe. Keep module fail-open, disable-able and entirely local. Details: docs/STAGE1-FEASIBILITY-2026-10-20.md.

@@ -27,3 +27,14 @@ This is a **plan**, not test execution evidence. Mark actual observations after 
 ## Hard gate
 
 No "fully blocks advertising" release claim unless all ad categories encountered in the defined target Chrome test environment have passed actual end-to-end playback tests. Android and other platforms require independent validation.
+
+
+## Stage 1 research checkpoint — 2026-10-20
+
+Desk review only. No live ad session or playback test was performed, so the above cases remain PLANNED and none is PASS.
+
+Detailed research ledger: STAGE1-EVIDENCE-MATRIX.md.
+Reproducible authorized test recipe: STAGE1-BROWSER-TEST-PROTOCOL.md.
+Technical constraints and decision: STAGE1-FEASIBILITY-2026-10-20.md.
+
+**Additional mandatory negative controls:** Never hide functional login/paywall/consent dialogs, break first-party audio/CDN/HTTP Range, mute actual songs, silently skip a song, or claim video blocking merely because its DOM layer disappeared. Audio pass requires actual audible ad suppressed without silence/stall while original music continues.

@@ -1,7 +1,7 @@
 # CELIKOM · Ad Protection (isolated R&D)
 
-**Status:** Stage 0 COMPLETE · Stage 1 NEXT  
-**Date:** 2026-10-19  
+**Status:** Stage 0 COMPLETE · Stage 1 IN PROGRESS (desk research complete, live tests pending)  
+**Date:** 2026-10-20  
 **Repository:** manufact-test/nomusic · **branch:** feature/api-range  
 **Scope today:** standalone browser extension for Yandex Music; NO integration with CELIKOM.
 
@@ -44,4 +44,4 @@ From repository root:
 
 On a test machine you can load ad-protection/standalone as an unpacked extension. At Stage 0 it intentionally does nothing. Do not install it expecting to block advertising.
 
-**Next action:** Stage 1 only: investigate ads + policy feasibility; update documents in this folder when evidence has been collected. No production integration.
+**Stage 1 research:** read docs/STAGE1-FEASIBILITY-2026-10-20.md, docs/STAGE1-EVIDENCE-MATRIX.md and docs/STAGE1-BROWSER-TEST-PROTOCOL.md. No ad blocking is implemented or live-tested. The Stage 1 gate is HOLD pending real authorized non-Plus Yandex Music advertising evidence. No production integration.
