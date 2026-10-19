@@ -63,6 +63,12 @@ export function alignObservation(observer, har, options={}) {
     radiusSeconds:radius,
     parsedEntries:harReport.parsedEntries,
     invalidEntries:harReport.omittedInvalidEntries,
+    alignmentQuality:{
+      synchronization:'manual-offset-not-independently-verified',
+      emptyWindows:alignedWindows.filter(item=>item.requests===0).length,
+      partialContentWindows:alignedWindows.filter(item=>item.counts.partial206>0).length,
+      requestCorrelationProvesAdvertising:false
+    },
     markers:alignedWindows
   };
 }

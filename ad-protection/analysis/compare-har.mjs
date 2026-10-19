@@ -9,6 +9,7 @@ import {stat,readFile} from 'node:fs/promises';
 import {resolve} from 'node:path';
 import {pathToFileURL} from 'node:url';
 import {correlateCaptures} from './evidence-correlation.mjs';
+import {assessAudioSafety} from './audio-safety.mjs';
 
 export function parseCompareArgs(args) {
   if (!Array.isArray(args) || args.length === 0) throw Error('Usage: --ad=FILE.har@SECONDS --normal=FILE.har@SECONDS [--radius=12]');
@@ -49,6 +50,7 @@ export async function runCompare(args) {
     captures.push({role:s.role,markers:[s.second],har});
   }
   const result=correlateCaptures(captures,{radiusSeconds});
+  result.safety=assessAudioSafety(result);
   process.stdout.write(JSON.stringify(result,null,2)+'\n');
   return result;
 }
