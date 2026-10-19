@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CELIKOM Observation Lab</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <main>
+    <header>
+      <strong>CELIKOM <span>Ad Observation</span></strong>
+      <small>Исследование • блокировка выключена и не реализована</small>
+    </header>
+    <p id="status" role="status" aria-live="polite">Читаю данные активной вкладки…</p>
+    <section>
+      <h2>Возможные рекламные компоненты</h2>
+      <p class="hint">Найденные CSS-маркеры — гипотезы, а не подтверждённая реклама.</p>
+      <dl id="candidates"></dl>
+    </section>
+    <section>
+      <h2>События HTML-аудио и видео</h2>
+      <p class="hint">События play/ended/stalled сами по себе не означают рекламу.</p>
+      <dl id="media"></dl>
+    </section>
+    <section>
+      <h2>Последние события <span id="session-time"></span></h2>
+      <ol id="events"></ol>
+    </section>
+    <div class="actions">
+      <button id="refresh" type="button">Обновить</button>
+      <button id="copy" type="button" disabled>Копировать отчёт</button>
+      <button id="reset" type="button" disabled>Сбросить</button>
+    </div>
+    <p class="hint foot">Данные только в памяти вкладки. Нет записи музыки, cookies, имён песен, URL, аккаунтов, сбора трафика и отправки статистики. Для анализа аудиорекламы нужен отдельный сетевой тест.</p>
+  </main>
+  <script src="popup.js"></script>
+</body>
+</html>
