@@ -82,3 +82,43 @@ test('dynamic element and class removal trigger reversible classification',()=>{
   assert.equal(ad.style.getPropertyValue('display'),'');
   c.dispose();
 });
+
+test('removed banner subtree is restored immediately, does not leak retained map entries',()=>{
+  const banner=element('TopAdvertBanner_dynamic');
+  const root=element('',[banner]);root.fixture=true;
+  const c=createController(root,MutationObserver);
+  c.enable();
+  assert.equal(c.snapshot().hiddenBannerCandidates,1);
+  assert.equal(banner.style.getPropertyValue('display'),'none');
+  observerCallback([{type:'childList',addedNodes:[],removedNodes:[banner]}]);
+  assert.equal(c.snapshot().hiddenBannerCandidates,0);
+  assert.equal(banner.style.getPropertyValue('display'),'');
+  c.dispose();
+});
+
+test('if site changes display while hidden, turning off does not override site choice',()=>{
+  const banner=element('TopAdvertBanner_dynamic');
+  const root=element('',[banner]);root.fixture=true;
+  const c=createController(root,MutationObserver);
+  c.enable();
+  banner.style.setProperty('display','grid','important');
+  c.disable();
+  assert.equal(banner.style.getPropertyValue('display'),'grid');
+  assert.equal(banner.style.getPropertyPriority('display'),'important');
+  c.dispose();
+});
+
+test('multiple enable disable cycles leave no retained elements or changed inline styles',()=>{
+  const banner=element('TopAdvertBanner_repeatable');
+  banner.style.setProperty('display','flex','');
+  const root=element('',[banner]);root.fixture=true;
+  const c=createController(root,MutationObserver);
+  for(let i=0;i<50;i++){
+    c.enable();c.enable();
+    assert.equal(c.snapshot().hiddenBannerCandidates,1);
+    c.disable();c.disable();
+    assert.equal(c.snapshot().hiddenBannerCandidates,0);
+    assert.equal(banner.style.getPropertyValue('display'),'flex');
+  }
+  c.dispose();
+});

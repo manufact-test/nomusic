@@ -34,9 +34,20 @@
     function restore(node) {
       if (!original.has(node)) return;
       const prev = original.get(node);
+      original.delete(node);
+      // If the page changed display after our suppression, never overwrite it.
+      if (node.style.getPropertyValue('display') !== 'none' ||
+          node.style.getPropertyPriority('display') !== 'important') return;
       if (prev.value) node.style.setProperty('display', prev.value, prev.priority);
       else node.style.removeProperty('display');
-      original.delete(node);
+    }
+
+    function restoreSubtree(node) {
+      if (!node || node.nodeType !== 1) return;
+      restore(node);
+      if (typeof node.querySelectorAll === 'function') {
+        for (const child of node.querySelectorAll('*')) restore(child);
+      }
     }
 
     function inspect(node) {
@@ -68,6 +79,8 @@
       for (const record of records) {
         if (record.type === 'attributes') inspect(record.target);
         else if (record.type === 'childList') {
+          // Removed nodes must not stay referenced for the entire listening session.
+          for (const node of record.removedNodes || []) restoreSubtree(node);
           for (const node of record.addedNodes) scan(node);
         }
       }
@@ -77,6 +90,7 @@
     return Object.freeze({
       enable() {
         if (disposed) throw Error('Controller disposed');
+        if (enabled) return;
         enabled = true;
         scan(root);
       },
