@@ -141,6 +141,26 @@ test('network reconnect revalidates immediately and a stale result cannot suspen
  assert.equal(f.local.enabled,true);assert.equal(f.sent.length,before,'old denial cannot disable or suspend new connection');
  await f.send('CELIKOM_CONTEXT_PING',{},sender);await new Promise(setImmediate);assert.equal(calls,2,'fresh verification remains reusable');
 });
+test('VPN route change without online event resets stale GET transport and auto-resumes after verified access',async(t)=>{
+ t.mock.timers.enable({apis:['Date'],now:1000000});
+ const f=fixture();f.local.enabled=true;let calls=0,resets=0,staleRoute=true;
+ f.auth.resetTransport=()=>{resets++;staleRoute=false;};
+ f.auth.entitlement=async()=>{calls++;if(staleRoute)throw Error('auth_timeout');
+   return {allowed:true,source:'promo',valid_until:null,reason:'promo_active'};};
+ const sender={id:'worker',url:'https://music.yandex.ru/',tab:{id:1}};
+ await f.send('CELIKOM_CONTEXT_PING',{enabled:true,healthy:true,suspended:true},sender);
+ await new Promise(setImmediate);
+ assert.equal(f.sent.at(-1).state,'unavailable');
+ assert.equal(resets,0,'ordinary check failure does not thrash transport before cooldown');
+ t.mock.timers.tick(5001);
+ await f.send('CELIKOM_CONTEXT_PING',{enabled:true,healthy:true,suspended:true},sender);
+ await new Promise(setImmediate);await new Promise(setImmediate);
+ assert.equal(calls,2);assert.equal(resets,1,'next heartbeat retry resets stale VPN transport');
+ assert.ok(f.sent.some(m=>m.type==='CELIKOM_ACCESS_STATE'&&m.state==='allowed'&&m.recovered===true));
+ assert.equal(f.local.enabled,true,'verified recovery must not toggle user intent');
+ assert.equal(f.trials,0,'recovery never restarts trial');
+});
+
 test('online hints never enable stopped playback or authorize a revoked account',async()=>{
  const f=fixture();let calls=0;f.auth.entitlement=async()=>{calls++;return {allowed:false};};
  f.network('online');await new Promise(setImmediate);assert.equal(calls,0);assert.equal(f.local.enabled,false);
