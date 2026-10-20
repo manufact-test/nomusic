@@ -62,7 +62,9 @@
     copy.disabled = false;
     reset.disabled = false;
     download.disabled = false;
-    status.textContent = 'Подключено. Режим только для наблюдения.';
+    status.textContent = data.droppedRoots > 0
+      ? 'Наблюдения неполные: превышен лимит DOM. Сохрани отчёт и повтори короткий сеанс.'
+      : 'Подключено. Режим только для наблюдения.';
   }
   async function send(type, kind) {
     // Query tab ID only: do not request/read tab URL, title or favicon.

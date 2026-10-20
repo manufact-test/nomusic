@@ -56,3 +56,21 @@ Code: `d7ca9cb95724f2f9124269421971539ae92e4e42`. New `observer/export-core.js` 
 **Use `observer/` for the research extension, not `standalone/`.** See `docs/LIVE-CHROME-TEST-HANDBOOK.md` for clean-profile installation and careful authorized testing. See `docs/STAGE1-OPERATIONAL-CHECKPOINT-2026-10-20.md` and `NEXT-CHAT.md` for full status. The locally shared evidence-viewer ZIP from a previous conversation was not committed to GitHub; provide the ZIP again if the next chat needs it.
 
 From `ad-protection/`: `npm test`. Seven new stress/privacy cases passed an isolated V8 mock run in the latest development chunk. The **full final repository suite and live Chrome Yandex playback are not verified in this checkpoint**; perform them next. Do not treat earlier synthetic test passes as actual ad-blocking coverage.
+
+## Offline quality check for actual observer exports
+
+After separate, consented Chrome observation runs (NOT synthetic proof), save each
+`celikom-observation.json` under a distinct local filename. From `ad-protection/`:
+
+```sh
+node analysis/assess-session-set.mjs --ad=audio-1.json --ad=audio-2.json --normal=music-1.json --normal=music-2.json
+```
+
+The standalone tool reads **only local observer JSON**, never raw HAR, and emits
+allowlisted counts, missing controls, DOM overload warnings and cap warnings.
+A negative control must contain an explicit `normal-music` manual mark and no
+manual ad marks. A positive ad capture requires a manual ad mark; CSS candidates
+alone cannot qualify. Two independently captured audio-ad and ordinary-music
+sessions are the minimum for **manual comparison only**. Even a complete result
+always remains `UNKNOWN / HOLD` and allows **zero blocking rules**. The
+separate local HAR tools remain essential for audio, Range/206 and causal checks.

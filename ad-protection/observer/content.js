@@ -35,6 +35,20 @@
     }
     known.set(node, current);
   }
+  function visitDocumentCandidates(trackNew = true) {
+    // DOM-wide scans have a fixed evidence cap, including startup and bfcache.
+    const matches = document.querySelectorAll(MATCH);
+    const limit = Math.min(matches.length, MAX_MATCHES_PER_SCAN);
+    for (let i = 0; i < limit; i++) {
+      const node = matches[i];
+      if (trackNew) inspect(node);
+      else {
+        const kinds = core.classifyElement(node);
+        if (kinds.length) known.set(node, new Set(kinds));
+      }
+    }
+    if (matches.length > limit) session.dropRoots(matches.length - limit);
+  }
   function scan(node) {
     if (!node || node.nodeType !== 1) return;
     inspect(node);
@@ -83,7 +97,7 @@
   });
   const options = {childList: true, subtree: true, attributes: true, attributeFilter: ['class']};
   mutationObserver.observe(document.documentElement, options);
-  for (const node of document.querySelectorAll(MATCH)) inspect(node);
+  visitDocumentCandidates();
 
   // No media URL, audio samples, title, source, account identifier or tokens are read.
   for (const eventName of core.MEDIA_EVENTS) {
@@ -96,12 +110,13 @@
   }
   function reset() {
     pending.clear();
+    if (timer !== null) clearTimeout(timer);
+    timer = null;
     known = new WeakMap();
-    for (const node of document.querySelectorAll(MATCH)) {
-      const kinds = core.classifyElement(node);
-      if (kinds.length) known.set(node, new Set(kinds));
-    }
-    return session.reset();
+    session.reset();
+    // Existing matches form the baseline, not new candidate events.
+    visitDocumentCandidates(false);
+    return session.snapshot();
   }
   chrome.runtime.onMessage.addListener((message, sender, reply) => {
     if (sender?.id !== chrome.runtime.id || !message || typeof message !== 'object') return false;
@@ -124,6 +139,6 @@
   window.addEventListener('pageshow', () => {
     paused = false;
     mutationObserver.observe(document.documentElement, options);
-    for (const node of document.querySelectorAll(MATCH)) inspect(node);
+    visitDocumentCandidates();
   });
 })();

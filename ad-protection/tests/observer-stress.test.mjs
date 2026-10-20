@@ -9,7 +9,7 @@ const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const code=(name)=>readFileSync(path.join(root,'observer',name),'utf8');
 const events=['play','playing','pause','ended','waiting','stalled','error'];
 
-function setup(){
+function setup({initial=[]}={}){
   let mutation,receiver,now=1000;
   let observed=0,disconnected=0;
   const timers=[];
@@ -21,7 +21,7 @@ function setup(){
   });
   const root=el('');
   const contentDocument={
-    documentElement:root,querySelectorAll(){return []},
+    documentElement:root,querySelectorAll(){return initial},
     addEventListener(){}
   };
   const window={addEventListener(name,fn){winListeners.set(name,fn)}};
@@ -40,7 +40,7 @@ function setup(){
   });
   vm.runInContext(code('core.js'),scope);
   vm.runInContext(code('content.js'),scope);
-  const read=()=>{let result;receiver({type:'CELIKOM_OBSERVER_GET'},{id:'our-extension'},v=>result=v);return result};
+  const read=(type='CELIKOM_OBSERVER_GET')=>{let result;receiver({type},{id:'our-extension'},v=>result=v);return result};
   const flush=()=>{let max=100;while(timers.length&&max-->0)timers.shift()();if(max<=0)throw Error('Nonterminating scheduler')};
   return {el,root,read,flush,emit(records){mutation(records)},lifecycle(name){winListeners.get(name)()},get observed(){return observed},get disconnected(){return disconnected}};
 }
@@ -137,4 +137,22 @@ test('popup loads sanitizer before presentation and performs no ad request filte
   assert.ok(!Object.hasOwn(manifest,'permissions'));
   assert.ok(!Object.hasOwn(manifest,'host_permissions'));
   assert.ok(!Object.hasOwn(manifest,'declarative_net_request'));
+});
+
+test('document-wide scans report missing candidates on startup, reset and resume',()=>{
+  const initial=Array.from({length:500},()=>({
+    nodeType:1,isConnected:true,
+    getAttribute(key){return key==='class'?'TopAdvertBanner_entry':null},
+    querySelectorAll(){return []}
+  }));
+  const r=setup({initial});
+  assert.equal(r.read().candidates.banner,120);
+  assert.equal(r.read().droppedRoots,380);
+  const reset=r.read('CELIKOM_OBSERVER_RESET');
+  assert.equal(reset.candidates.banner,0);
+  assert.equal(reset.droppedRoots,380);
+  r.lifecycle('pagehide');
+  r.lifecycle('pageshow');
+  assert.equal(r.read().candidates.banner,0);
+  assert.equal(r.read().droppedRoots,760);
 });
