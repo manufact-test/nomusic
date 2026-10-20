@@ -27,6 +27,9 @@ let intentGeneration = 0;
 let accessCheck: Promise<string> | null = null;
 let accessValidUntil = 0;
 let accessRetryAt = 0;
+// A VPN route may change without a Chrome online/visibility event. The next
+// bounded authorization retry must discard GET transport from the old route.
+let resetTransportOnRetry = false;
 let accessEpoch = 0;
 let lastPagePulseAt = 0, lastRecoveryHintAt = 0, lastRecoveryHintReason = "";
 async function playbackAccess(): Promise<string> {
@@ -35,14 +38,26 @@ async function playbackAccess(): Promise<string> {
   const generation = intentGeneration;
   const epoch = accessEpoch;
   if (!accessCheck) {
+    if (resetTransportOnRetry) {
+      resetTransportOnRetry = false;
+      userAuth.resetTransport?.(); resolveApi.resetTransport?.();
+    }
     const pending = userAuth.entitlement().then((result) => {
     if (generation !== intentGeneration || epoch !== accessEpoch) return "unavailable";
     if (!result.allowed) return result.reason === "service_incident" ? "incident" : "denied";
     accessValidUntil = result.source === "promo" && result.valid_until === null ? Date.now() + 10000 : Math.min(Date.now() + 10000, Date.parse(result.valid_until));
-    return accessValidUntil > Date.now() ? "allowed" : "denied";
+    if (accessValidUntil <= Date.now()) return "denied";
+    // A confirmed server decision, not a browser online hint, releases an
+    // access suspension. The existing heartbeat continues to enforce auth.
+    if (accessRetryAt > 0) {
+      accessRetryAt = 0;
+      void musicTabs.send({ type: "CELIKOM_ACCESS_STATE", state: "allowed", recovered: true }).catch(() => undefined);
+    }
+    return "allowed";
   }).catch((error) => {
     if (generation !== intentGeneration || epoch !== accessEpoch) return "unavailable";
     if (["invalid_session", "account_disabled", "email_unverified", "access_denied"].includes(error?.message)) return "denied";
+    resetTransportOnRetry = true;
     accessRetryAt = Date.now() + 5000; return "unavailable";
   }).finally(() => { if (accessCheck === pending) accessCheck = null; });
     accessCheck = pending;
@@ -55,7 +70,7 @@ function resetConnectivity(tabId = null) {
     ? chrome.tabs.sendMessage(tabId,{type:"CELIKOM_ACCESS_STATE",state,recovered:state==="allowed"}).catch(()=>undefined)
     : musicTabs.send({type:"CELIKOM_ACCESS_STATE",state,recovered:state==="allowed"}).catch(()=>undefined);
   actionIcon.clear();
-  accessEpoch++; accessValidUntil = 0; accessRetryAt = 0; accessCheck = null;
+  accessEpoch++; accessValidUntil = 0; accessRetryAt = 0; accessCheck = null; resetTransportOnRetry = false;
   userAuth.resetTransport?.(); resolveApi.resetTransport?.();
   const epoch = accessEpoch;
   void (async () => {
@@ -264,7 +279,7 @@ chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse) =>
       if (enabled) {
         // Explicit retry discards stale read checks retained by the worker
         // after a popup closes; existing POSTs are never automatically replayed.
-        accessEpoch++; accessCheck = null;
+        accessEpoch++; accessCheck = null; resetTransportOnRetry = false;
         userAuth.resetTransport?.(); resolveApi.resetTransport?.();
         const preview = await userAuth.perform("account-preview", {});
         if (preview.localSession === false) {
