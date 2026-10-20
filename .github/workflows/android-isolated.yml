@@ -1,0 +1,29 @@
+name: Android isolation guard
+on:
+  push:
+    branches: [feature/android-isolated]
+  pull_request:
+    branches: [feature/android-isolated]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  isolation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      BASELINE: 7ebdbd4bd60f6f61a7a6b051a6c92206dc81e456
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Run pinned guard and its negative cases
+        shell: bash
+        run: |
+          set -euo pipefail
+          git show "$BASELINE:.github/scripts/android-isolation.mjs" > "$RUNNER_TEMP/android-isolation.mjs"
+          node "$RUNNER_TEMP/android-isolation.mjs" --self-test
+          node "$RUNNER_TEMP/android-isolation.mjs" "$BASELINE" HEAD
