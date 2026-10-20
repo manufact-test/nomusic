@@ -1,0 +1,13 @@
+{
+  "version": "0.3.23",
+  "version_code": 24,
+  "apk_sha256": "969633e67bc7f0b960b3250ef97a24ceebe50e57465782d6eedb6f246bcc5f24",
+  "base_apk_sha256": "170b1883e292570d28a3b5c619cf000eaccd9d11ee85ca6f6c08f7b50e5f72c9",
+  "signer_sha256": "67fe81c56fac1c1d145344b69a0e3faf9005cf6607f4e26ca27d5926c3eefc4f",
+  "addon_dex_sha256": "243c2f42f634c30cd926e9290c05d6bddcf1dfc7defe494b86a64fccf2c00698",
+  "signing_continuity": true,
+  "manifest_unchanged": true,
+  "original_catalogue_assets_unchanged": true,
+  "source_archive_verified": true,
+  "physical_phone_playback_verified": false
+}

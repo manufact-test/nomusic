@@ -1,0 +1,19 @@
+{
+  "sdk_api": 36,
+  "jdk": 17,
+  "apktool": "2.11.1",
+  "base_apk_sha256": "170b1883e292570d28a3b5c619cf000eaccd9d11ee85ca6f6c08f7b50e5f72c9",
+  "dependencies": {
+    "annotation.jar": "1e343917ebf27ba96fe4dc52b1cad7fd32b738fbc6355bb6cd5b3b305d7212d0",
+    "common.jar": "0b5c16eb4ef834579e3f2bb9bccfe766cee19c7a550284c4051de0e87dbb97af",
+    "guava.jar": "2c3e41d1b380f2044d257947a3aa82dabf3ae4b978622745254aa18b6cf89ab0",
+    "json.jar": "3cf6cd6892e32e2b4c1c39e0f52f5248a2f5b37646fdfbb79a66b46b618414ed",
+    "session.jar": "9c976d7552a1d7400a349c7e705afccc34e09147cca18c79a5f8f138209e04d7"
+  },
+  "coordinates": {
+    "common.jar": "androidx.media3:media3-common:1.8.0",
+    "session.jar": "androidx.media3:media3-session:1.8.0",
+    "guava.jar": "com.google.guava:guava:33.3.1-android",
+    "annotation.jar": "androidx.annotation:annotation-jvm:1.9.1"
+  }
+}

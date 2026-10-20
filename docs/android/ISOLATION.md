@@ -1,7 +1,6 @@
-# Android isolation checkpoint — 2026-10-20
+# Android isolation checkpoint — 2026-10-21
 
-Desktop checkpoint: `checkpoint/desktop-0.4.60-2026-10-20`, commit `a9f3b60ed42d3b4a2b2a07fd9be6834dbc0ecdf5`.
-The owner confirmed desktop 0.4.60 playback works. Intermittent initial connection remains unresolved; the owner will provide the saved diagnostic separately.
+Desktop working release: **0.4.61**, commit `3a037e5fd5c1d09cd811dbf12dc80c7a12ed5e2e` on `feature/api-range`. The owner confirmed playback works after the startup timeout correction. The earlier 0.4.60 checkpoint remains historical, not the current working release.
 
 Android work branch: `feature/android-isolated`. This branch deliberately removes every inherited GitHub Actions workflow, including production deployment, catalog SSH, desktop packaging and historical repair jobs. Only the isolation guard is reintroduced. The original desktop branch and its workflows remain unchanged.
 
@@ -9,10 +8,10 @@ The pinned guard permits subsequent changes only under `android/**` and `docs/an
 
 This is a CI check, not an enforced GitHub branch protection rule or a separate secret store. Do not merge this Android workspace branch wholesale into the desktop branch. Production credentials still exist at repository level; no Android workflow references or uses them. This branch does not build an APK or access the production API.
 
-## Required source recovery before the next APK
+## Current native source and accepted scope
 
-The repository contains companion-probe 0.3.16, not the exact 0.3.22 source used for the installed APK. The latest source and signing working files are in the currently unavailable execution environment. Do not rebuild 0.3.16 and label it a successor of 0.3.22. Recover the exact source, import it under android/, record its hash, then establish a reproducible baseline before functional edits. Private signing material must stay outside Git.
+Exact Android 0.3.22 source has been recovered from the installed APK's embedded ZIP and committed at `a40a27cb29c539f7a795a13fbdf565d810d44494` under `android/native-companion/`. Recompilation gave a byte-identical classes2.dex. Hashes are recorded in `android/native-companion/RECOVERED-0.3.22.json`. Private signing material remains outside Git.
 
-The installed 0.3.22 still uses the production API. Branch separation does not change the installed APK or isolate shared accounts, sessions, catalog, storage or API behavior. Before experiments that change shared behavior, provision and verify a separate API origin, database, storage and test account. Do not deploy mobile experiments to the production server. No staging environment is claimed to exist yet.
+The owner explicitly accepted continuing client-only Android fixes without staging setup, new hosting, migration or repeated manual tests. Do not require a staging environment for these client fixes. Do not modify/deploy shared API, session policy, catalogue, database, storage, desktop or website in this work. Builds and automated tests do not contact production. The installed Android app retains the existing API origin and its independent installation/session; separate folders and branches are code isolation, not a claim that an installed client has no shared service dependency.
 
-Next mobile work after source recovery: inspect the short resynchronization jump after headphone resume, and trace early track termination against the native player's timeline. Keep the deferred call test optional. Batch verification into a single candidate APK after automated checks rather than repeated owner reinstalls.
+Current candidate changes and offline build instructions are in `android/native-companion/README.md`. The design stage is still pending. Calls remain deferred. Deliver one candidate APK after automated checks and ask for one combined physical playback check, rather than another installation for every minor issue.
