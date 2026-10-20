@@ -1,0 +1,1 @@
+package android.media.audiofx;public class LoudnessEnhancer {public LoudnessEnhancer(int s){}public void setTargetGain(int g){}public void setEnabled(boolean b){}public void release(){}}

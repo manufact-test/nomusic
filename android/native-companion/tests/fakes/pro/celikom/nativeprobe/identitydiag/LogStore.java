@@ -1,0 +1,1 @@
+package pro.celikom.nativeprobe.identitydiag;import java.util.*;public class LogStore {static List<String> events=new ArrayList<>();static void log(String event,Object data){events.add(event);}static Map<String,Object> map(Object...v){Map<String,Object> m=new LinkedHashMap<>();for(int i=0;i<v.length;i+=2)m.put((String)v[i],v[i+1]);return m;}}

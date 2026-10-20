@@ -1,0 +1,1 @@
+package pro.celikom.nativeprobe;import org.json.JSONObject;public class AttenuationService {public static final Companion Companion=new Companion();public static class Companion {public Integer session=101;public Integer verifiedSession(JSONObject j,long now){return session;}}}

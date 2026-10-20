@@ -1,0 +1,9 @@
+/addon/build/
+/tests/classes/
+/deps/
+/private/
+/decoded/build/
+/decoded/dist/
+*.apk
+*.idsig
+__pycache__/

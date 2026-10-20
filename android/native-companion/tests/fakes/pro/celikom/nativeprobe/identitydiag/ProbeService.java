@@ -1,0 +1,1 @@
+package pro.celikom.nativeprobe.identitydiag;import android.content.Context;import android.os.Handler;public class ProbeService extends Context {Handler handler=new Handler();volatile PlaybackSource current;int pauseRequests;void pauseForRouteLoss(){pauseRequests++;}boolean alive(){return true;}}

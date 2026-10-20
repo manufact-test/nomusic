@@ -1,0 +1,1 @@
+package pro.celikom.nativeprobe;import android.content.Context;import org.json.JSONObject;public class ProbeStore {public static final ProbeStore INSTANCE=new ProbeStore();public boolean enabled(Context c){return true;}public JSONObject report(Context c){return new JSONObject();}}

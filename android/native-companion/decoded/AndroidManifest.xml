@@ -1,0 +1,66 @@
+<?xml version='1.0' encoding='utf-8'?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" android:compileSdkVersion="36" android:compileSdkVersionCodename="16" package="pro.celikom.nativeprobe" platformBuildVersionCode="36" platformBuildVersionName="16">
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+    <queries>
+        <package android:name="ru.yandex.music" />
+    </queries>
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <permission android:name="pro.celikom.nativeprobe.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION" android:protectionLevel="signature" />
+    <uses-permission android:name="pro.celikom.nativeprobe.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION" />
+    <application android:allowBackup="false" android:appComponentFactory="androidx.core.app.CoreComponentFactory" android:extractNativeLibs="false" android:icon="@drawable/celikom_icon" android:label="CELIKOM — диагностика" android:supportsRtl="true" android:theme="@style/ProbeTheme" android:usesCleartextTraffic="false">
+        <service android:exported="false" android:foregroundServiceType="mediaPlayback" android:name="pro.celikom.nativeprobe.AttenuationService" />
+        <provider android:authorities="pro.celikom.nativeprobe.package-export" android:exported="false" android:grantUriPermissions="true" android:name="androidx.core.content.FileProvider">
+            <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/package_export_paths" />
+        </provider>
+        <activity android:exported="true" android:name="pro.celikom.nativeprobe.MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/plain" />
+            </intent-filter>
+        </activity>
+        <activity android:exported="true" android:name="pro.celikom.nativeprobe.EffectPanelActivity">
+            <intent-filter>
+                <action android:name="android.media.action.DISPLAY_AUDIO_EFFECT_CONTROL_PANEL" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+        <receiver android:exported="true" android:name="pro.celikom.nativeprobe.SessionReceiver">
+            <intent-filter>
+                <action android:name="android.media.action.OPEN_AUDIO_EFFECT_CONTROL_SESSION" />
+                <action android:name="android.media.action.CLOSE_AUDIO_EFFECT_CONTROL_SESSION" />
+            </intent-filter>
+        </receiver>
+        <provider android:authorities="pro.celikom.nativeprobe.androidx-startup" android:exported="false" android:name="androidx.startup.InitializationProvider">
+            <meta-data android:name="androidx.profileinstaller.ProfileInstallerInitializer" android:value="androidx.startup" />
+        </provider>
+        <receiver android:directBootAware="false" android:enabled="true" android:exported="true" android:name="androidx.profileinstaller.ProfileInstallReceiver" android:permission="android.permission.DUMP">
+            <intent-filter>
+                <action android:name="androidx.profileinstaller.action.INSTALL_PROFILE" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="androidx.profileinstaller.action.SKIP_FILE" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="androidx.profileinstaller.action.SAVE_PROFILE" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="androidx.profileinstaller.action.BENCHMARK_OPERATION" />
+            </intent-filter>
+        </receiver>
+        <activity android:exported="false" android:launchMode="singleTop" android:name="pro.celikom.nativeprobe.identitydiag.RecorderActivity" android:theme="@android:style/Theme.Material.Light.NoActionBar" />
+        <service android:exported="false" android:foregroundServiceType="specialUse|mediaPlayback" android:name="pro.celikom.nativeprobe.identitydiag.ProbeService">
+            <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE" android:value="Owner initiated bounded current-song observation, server availability check and owner enabled automatic audio replacement within a bounded foreground run" />
+        </service>
+    </application>
+</manifest>
