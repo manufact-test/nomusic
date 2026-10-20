@@ -1,37 +1,39 @@
-# NEXT CHAT — CELIKOM Ad Protection
+# NEXT CHAT — CELIKOM Ad Protection (CURRENT HANDOFF · 2026-10-20)
 
-Checkpoint: **2026-10-20 · Stage 0 COMPLETE · Stage 1 IN PROGRESS (desk research complete / live experiments not done)**.
-Existing branch: feature/api-range · repo: https://github.com/manufact-test/nomusic · isolated directory: ad-protection/.
+**Repo:** https://github.com/manufact-test/nomusic
+**Branch:** `feature/api-range`. **Last CODE commit:** `d7ca9cb95724f2f9124269421971539ae92e4e42` (newer docs commit on same branch: read GitHub HEAD).
+**Stage:** Stage 0 COMPLETE; Stage 1 feasibility HOLD — research observation tools implemented, but live Yandex Music ad/network evidence missing. Stage 2–7 NOT ACCEPTED; no blocking or integration.
+**Boundary:** Only `ad-protection/`. Do not alter `extension/`, `android/`, `server/`, `website/`, root manifests/workflows, PR #6 status or unrelated CELIKOM code.
 
-## Required reading
-1. ad-protection/README.md and MASTER.md
-2. ad-protection/ROADMAP.md
-3. ad-protection/docs/STAGE1-FEASIBILITY-2026-10-20.md
-4. ad-protection/docs/STAGE1-EVIDENCE-MATRIX.md
-5. ad-protection/docs/STAGE1-BROWSER-TEST-PROTOCOL.md
-6. ad-protection/docs/ARCHITECTURE.md
-7. ad-protection/docs/TEST-MATRIX.md
-8. ad-protection/docs/RESEARCH-SOURCES.md
-9. ad-protection/standalone/manifest.json and ad-protection/tests/stage0.test.mjs
+## Mandatory first reads (in order)
 
-## Research result
-- Stage 0 has an inert no-op independent MV3 extension. **No advertising is blocked today.**
-- Chrome MV3 DNR and ISOLATED DOM content scripts are credible candidates for separately identifiable visual ads; request rules cannot decode in-stream audio, and ordinary MV3 cannot use webRequestBlocking.
-- Historical third-party Yandex-specific selectors exist, but their current functionality is NOT proven. YaBlocker does not even declare a music.yandex.ru page match. A desktop MIT WebView project globally patches fetch/XHR; do not copy that architecture.
-- All relevant licenses/policy notes and exact links are in research docs. No third-party code or lists were copied.
-- **Audio advertising architecture D1 separate / D2 player-state / D3 in-stream / UNKNOWN is unclassified.** This blocks a responsible GO for complete ad suppression.
-- No live authenticated Yandex Music free/non-Plus account, ad session or Chrome runtime test was available in the Stage 1 desk pass. No claims of full coverage, no Stage 1 final GO, no Store readiness, no integration.
-- Chrome Web Store minimum functionality, narrow permissions, MV3 local code, privacy and Yandex terms need fresh review before shipping.
+1. `ad-protection/docs/STAGE1-OPERATIONAL-CHECKPOINT-2026-10-20.md` (newest complete implementation snapshot).
+2. `ad-protection/README.md`, `MASTER.md`, `ROADMAP.md`.
+3. `ad-protection/docs/LIVE-CHROME-TEST-HANDBOOK.md`, `STAGE1-BROWSER-TEST-PROTOCOL.md`, `TEST-MATRIX.md`.
+4. `ad-protection/docs/STAGE1-EVIDENCE-MATRIX.md`, `STAGE1-FEASIBILITY-2026-10-20.md`, `RESEARCH-SOURCES.md`, `ARCHITECTURE.md`.
+5. Current code: `observer/core.js`, `observer/content.js`, `observer/export-core.js`, `observer/popup.*`, `observer/manifest.json`; `analysis/*.mjs`; `visual-lab/`; `tests/` and `standalone/manifest.json`.
 
-## Next substantial work block
-1. Establish **authorized** Chrome non-Plus/Plus comparison and collect redacted baseline observations as described in the browser test protocol. Do not commit cookies/tokens/signed URLs or raw HAR.
-2. Categorize each real visual/video/audio ad; especially prove whether sound is a separate ad-only request versus player state or an in-stream segment.
-3. Document independent LIVE events in evidence ledger, including at least one genuine audio insertion if it occurs.
-4. If safe separation is proven, move to a tightly scoped, standalone, default-off observation/prototype with fail-open and exact-domain permissions. Do not modify CELIKOM engine or parent manifests.
-5. If audio cannot be safely distinguished, declare NO-GO for **full** Chrome ad protection; do not quietly ship banner-only.
-6. Only after meaningful batches, update documentation. Work within ad-protection/ exclusively; no PR merges.
+## Implemented and verified versus unverified
 
-## Absolute boundary
-Do not edit extension/, android/, server/, website/, root docs, workflows, parent manifests, PR #6 or any unrelated code. No separate repo. CELIKOM integration remains Stage 7 and requires explicit owner authorization.
+- MV3 `observer/` matches Yandex Music, ISOLATED page observation, native HTMLMediaElement lifecycle counts, candidate classes, manual labels for real audio/video/window and ordinary tracks, limited JSON download/copy.
+- Observer state: **20 manual markers**, recent event cap 80, capped mutation processing (1000 records/callback, 160 added/record, 160 pending roots, 40/flush, 120 subtree matches). Dropped observation is counted in `droppedRoots`; absence of candidates means nothing if droppedRoots >0. Pagehide/pageshow handled. Export-core strips unapproved strings and invalid fields.
+- Local offline HAR CLI summarizes requests, manually aligns observer marks using explicit offset, compares ad/control windows via random keyed fingerprints, flags audio Range/206 risks. **No DNR, no network interception, no actual audio-ad suppression.** Always UNKNOWN/HOLD.
+- Visual lab only hides **synthetic** banners in a separate fixture; not Yandex Music implementation.
+- **Latest code-run checks:** seven observer stress, lifecycle and export cases passed an isolated V8 mock on 2026-10-20. Previously generated Node/synthetic test sources exist, but the **full final npm test/Chrome run is not yet verified**. Do not report live blocking success.
+- A previous chat attached a local report-viewer ZIP, **not committed as source** in GitHub. It is optional. If needed, request ZIP reattachment rather than pretending it is available in repo.
 
-Current independent test command: from ad-protection/ run npm test. The standalone shell and Stage 0 tests remain unchanged; no claim that they ran during desk review.
+## Next substantial block
+
+1. On current HEAD run `cd ad-protection && npm test`; fix regressions. Recheck no scope escape via GitHub compare.
+2. Verify clean-profile Chrome MV3 `observer/` installation, popup tab messaging, download, counters, pagehide/pageshow, multi-tab and SPA navigation. Do NOT test unauthorized accounts or bypass subscriptions/georestrictions.
+3. Obtain authorized real non-Plus audio and visual ad observations, with normal playback negative controls. Capture sanitized notes and local-only HAR if permitted. Use documented CLI and exact timing offsets. No raw HAR, tokens, cookies or signed media URLs in chat or GitHub.
+4. Classify genuine audio insertion as separate request (D1), player state (D2), in-stream (D3), or UNKNOWN; ensure no music/HTTP Range breakage. If separation fails, recommend NO-GO for full ad protection instead of declaring banner-only done.
+5. Work **in batches** (several coherent tasks before reporting). The owner specifically wants documents updated when requesting chat handoff or after an exceptionally large block, not after every small task.
+
+## Absolute safety / PR
+
+PR #6 remains open and unmerged. It has head branch `feature/api-range`; commits on that branch naturally update its diff, even when files are isolated. Do not merge/close/rebase the PR without consent. No modification outside `ad-protection/`. Do not claim production readiness or Store permission.
+
+## Definition of progress
+
+Stage 1 research tooling is real; Stage 1 GO is **not** granted. The crucial next evidence is real authorized audio ad behavior, plus ordinary audio/queue/seek negatives. Only subsequent independently approved standalone stages may consider visual/audio suppression; final CELIKOM integration is Stage 7 and requires user approval.

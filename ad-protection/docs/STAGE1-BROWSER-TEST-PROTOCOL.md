@@ -53,3 +53,9 @@ Forbidden in GitHub: authorization headers, cookies, Yandex OAuth tokens, signed
 Immediate stop and disable standalone rules if a song stalls, ad classification cannot be separated from music, requests to music CDN are blocked, player controls/paywall are corrupted, or extension asks for overly broad/undisclosed permissions.
 
 No publication or integration without an explicit stage decision with real reproduced evidence. This protocol is NOT evidence of execution.
+
+## Observer Lab quick-start amendment — 2026-10-20
+
+The standalone passive browser instrument now lives at `ad-protection/observer/`, separate from the no-op `standalone/` shell. Use **Load unpacked** in a clean Chrome profile, reset its counters, mark truly audible/visible ads and ordinary playback explicitly, and download its allowlisted JSON (at most 20 markers). Beware `droppedRoots`: DOM changes exceeding observation limits may go unrecorded. Browser and account auth tests are still outstanding.
+
+Full operator commands and privacy handling: `docs/LIVE-CHROME-TEST-HANDBOOK.md`. Only run CLI HAR comparisons locally; never upload raw HAR, unredacted DevTools exports or account identifiers. Treat the output `UNKNOWN/HOLD` as evidence uncertainty, not ad-block success.

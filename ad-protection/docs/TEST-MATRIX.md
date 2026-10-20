@@ -38,3 +38,11 @@ Reproducible authorized test recipe: STAGE1-BROWSER-TEST-PROTOCOL.md.
 Technical constraints and decision: STAGE1-FEASIBILITY-2026-10-20.md.
 
 **Additional mandatory negative controls:** Never hide functional login/paywall/consent dialogs, break first-party audio/CDN/HTTP Range, mute actual songs, silently skip a song, or claim video blocking merely because its DOM layer disappeared. Audio pass requires actual audible ad suppressed without silence/stall while original music continues.
+
+## Additional synthetic / code-level tests — 2026-10-20
+
+Read-only research test sources currently include `tests/observer.test.mjs`, `tests/observer-lifecycle.test.mjs`, `tests/observer-stress.test.mjs`, `tests/manual-markers.test.mjs`, `tests/har-evidence.test.mjs`, `tests/evidence-correlation.test.mjs`, `tests/align-observation.test.mjs`, `tests/align-quality.test.mjs`, `tests/audio-safety.test.mjs`, `tests/lab-end-to-end.test.mjs`, `tests/visual-fixture.test.mjs`, `tests/research-boundary.test.mjs`, and `tests/stage0.test.mjs`.
+
+Seven new observer stress/privacy cases were executed in a V8 mocked runtime and passed: callback flood bounds; 400-node descendant scan cap; pagehide/pageshow; 20 retained markers; URL/token field stripping; malformed export refusal; safe script order and manifest. This is **not a Chrome test and not equivalent to executing the final full Node suite**.
+
+Mandatory next checks: locally run `cd ad-protection && npm test` against exact new branch HEAD; load `observer/` unpacked in clean Chrome profile, confirm user-visible popup and tab messaging; exercise DOM/SPA navigation and repeated reload; compare observed ads with normal playback and count skipped roots; long real session and Chrome permission-policy review. All existing visual/audio/playback cases in the table remain PLANNED / NOT LIVE TESTED, not PASS.

@@ -1,6 +1,6 @@
 # CELIKOM · Ad Protection (isolated R&D)
 
-**Status:** Stage 0 COMPLETE · Stage 1 IN PROGRESS (desk research complete, live tests pending)  
+**Status:** Stage 0 COMPLETE · Stage 1 IN PROGRESS / HOLD (observer and offline lab available; live ad tests pending)  
 **Date:** 2026-10-20  
 **Repository:** manufact-test/nomusic · **branch:** feature/api-range  
 **Scope today:** standalone browser extension for Yandex Music; NO integration with CELIKOM.
@@ -32,7 +32,10 @@ Do **not** promise 100% coverage before real testing. The official Android appli
 - docs/TEST-MATRIX.md — observations and regression scenarios
 - docs/RESEARCH-SOURCES.md — source/licensing inventory
 - standalone/ — installable, inert Manifest V3 research shell (NO blocking in Stage 0)
-- tests/ — Stage 0 smoke tests, local only
+- observer/ — independent read-only MV3 observation extension with popup and safe JSON export; not an ad blocker
+- analysis/ — local read-only HAR analysis, marker alignment, ad/normal comparison and HOLD safety diagnostics
+- visual-lab/ — synthetic reversible banner fixture; never injected into Yandex Music
+- tests/ — Stage 0, observation, privacy, synthetic analysis, CLI and UI/fixture tests
 - package.json — independent npm scripts; not added to root workspaces
 
 ## Verify Stage 0
@@ -45,3 +48,11 @@ From repository root:
 On a test machine you can load ad-protection/standalone as an unpacked extension. At Stage 0 it intentionally does nothing. Do not install it expecting to block advertising.
 
 **Stage 1 research:** read docs/STAGE1-FEASIBILITY-2026-10-20.md, docs/STAGE1-EVIDENCE-MATRIX.md and docs/STAGE1-BROWSER-TEST-PROTOCOL.md. No ad blocking is implemented or live-tested. The Stage 1 gate is HOLD pending real authorized non-Plus Yandex Music advertising evidence. No production integration.
+
+## Operational Stage 1 checkpoint — 2026-10-20
+
+Code: `d7ca9cb95724f2f9124269421971539ae92e4e42`. New `observer/export-core.js` strictly allowlists downloaded/copied observations; 20 retained manual markers (consistent with HAR 20-window cap), up to 80 recent events. Observer DOM mutation processing has explicit per-batch, per-root and per-scan limits, with `droppedRoots` indicating potentially incomplete observations. Manual events are not proof of advertisements.
+
+**Use `observer/` for the research extension, not `standalone/`.** See `docs/LIVE-CHROME-TEST-HANDBOOK.md` for clean-profile installation and careful authorized testing. See `docs/STAGE1-OPERATIONAL-CHECKPOINT-2026-10-20.md` and `NEXT-CHAT.md` for full status. The locally shared evidence-viewer ZIP from a previous conversation was not committed to GitHub; provide the ZIP again if the next chat needs it.
+
+From `ad-protection/`: `npm test`. Seven new stress/privacy cases passed an isolated V8 mock run in the latest development chunk. The **full final repository suite and live Chrome Yandex playback are not verified in this checkpoint**; perform them next. Do not treat earlier synthetic test passes as actual ad-blocking coverage.

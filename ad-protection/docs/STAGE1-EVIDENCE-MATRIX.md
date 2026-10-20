@@ -34,3 +34,15 @@ Use an entry with:
 - Result: UNTESTED / OBSERVED / PASS / FAIL / BLOCKED; link to separate local test log or permitted sanitized fixture.
 
 Never infer that an ad class does not exist because it was absent in a short test. Never copy third-party source into the project merely to make a prototype.
+
+## Research tooling evidence added after desk review
+
+| ID | Claim / tool result | Evidence | Confidence | LIVE state | Gate / next measurement |
+|---|---|---|---|---|---|
+| TOOL-01 | A standalone `observer/` MV3 content script can count *candidate* CSS elements and native HTMLMediaElement lifecycle events; manual user labels are bounded to 20 | `observer/core.js`, `observer/content.js`, `tests/observer-stress.test.mjs` | Mock verified only | **NO LIVE AD OBSERVATION** | Load in authorized Chrome; verify real popup and event fidelity |
+| TOOL-02 | 1000/callback, 160 added/record, 160 queued, 40/flush, 120/scan protect observation throughput; skipped elements are counted, not proof of zero ads | `observer/content.js`; seven isolated V8 tests | Mock verified only | **NO LIVE STRESS** | Verify CPU/memory and coverage on actual site |
+| TOOL-03 | Export sanitizer keeps only known numeric counters and event/marker enums, drops unexpected URL/title/token fields | `observer/export-core.js`, `tests/observer-stress.test.mjs` | Mock verified only | **NO REAL PRIVACY CAPTURE** | Check browser file/clipboard round-trip |
+| TOOL-04 | Local HAR analyzer outputs redacted timeline and HMAC comparison; audio safety warns about Range/206 and always HOLD | `analysis/`, `tests/har-evidence.test.mjs`, `tests/audio-safety.test.mjs` | Code/synthetic only | **NO LIVE AD NETWORK ID** | Compare independently confirmed ad vs normal sessions |
+| TOOL-05 | Visual fixture can reversibly hide artificial banner nodes and leave protected dialogs unchanged | `visual-lab/`, `tests/visual-fixture.test.mjs` | Synthetic fixture | **NO LIVE VISUAL BLOCK** | Determine current Yandex real selectors |
+
+**Important:** TOOL IDs are **not LIVE IDs**. D1/D2/D3 remains UNKNOWN and every unverified case HYP-V/A remains unchanged. New test instructions: `docs/LIVE-CHROME-TEST-HANDBOOK.md`; latest checkpoint: `docs/STAGE1-OPERATIONAL-CHECKPOINT-2026-10-20.md`.

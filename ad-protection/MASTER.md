@@ -51,3 +51,9 @@ Work through ROADMAP.md stages sequentially. There are hard gates before impleme
 ## Document policy
 
 Stage 0 creates these documents. Starting at Stage 1, update **ad-protection/** research and checkpoints after meaningful chunks or when the user requests handoff. Do not update unrelated CELIKOM documentation during this isolated effort.
+
+## Research implementation status — 2026-10-20
+
+The Stage 1 evidence collection instruments (`observer/`, `analysis/`, `visual-lab/`) now exist and are **read-only or synthetic fixture-only**. They do not implement nor authorize an ad blocker, nor complete Stage 2's full prototype acceptance bar. Observer permits only manual ad/normal labels and passive native media/CSS candidate counts; local HAR analyzers do not block and issue a conservative HOLD. New cap: 20 manual markers, 80 recent events; observer overload increments dropped-root count. Popups export a strict whitelist only.
+
+**Hard gate unchanged:** need evidence from authorized real Yandex Music non-Plus sessions, including audible inserts and negative controls, before audio architecture D1/D2/D3 can be classified. Stage 7 integration and any changes to parent apps remain forbidden without separate approval. See the operational checkpoint, live-browser handbook and NEXT-CHAT.

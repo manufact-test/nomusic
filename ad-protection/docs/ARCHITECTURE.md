@@ -50,3 +50,14 @@ Research references and design ideas may be studied. Do not paste code from repo
 Architecture decision **for later prototypes only**: ISOLATED-world DOM adapter for verified visual ad nodes; optionally tightly constrained DNR for independently confirmed ad-only network requests. No MAIN-world patching, no broad fetch/XHR interception, no externally executed code, no automatic disabling of subscription/policy dialogs. Audio handling is currently UNKNOWN and is the highest release blocker.
 
 Do not request all_urls or install host/permission changes in Stage 1. Never assume a blocked first-party media request is safe. Keep module fail-open, disable-able and entirely local. Details: docs/STAGE1-FEASIBILITY-2026-10-20.md.
+
+## Actual isolated Stage 1 research implementation — 2026-10-20
+
+- `observer/`: separate MV3 extension, `music.yandex.ru` URL match only, content `world: ISOLATED`; no explicit permissions, background, DNR, webRequest, server or production imports. Passive CSS candidate/HTMLMediaElement event observation, manually timestamped ad/normal events, popup export.
+- `observer/core.js`: bounded last 20 manual markers, 80 recent events; cumulative counters. `observer/content.js`: no page monkeypatching; limits 1000 mutation records per callback, 160 added nodes per record, 160 queued roots, 40 roots/flush and 120 matches/scan. Skipped work increments `droppedRoots` (incomplete evidence warning). Observation disconnects on pagehide, reconnects on pageshow.
+- `observer/export-core.js`: allowlisted numeric counts and event labels only, rejects raw URLs, unknown kinds, unexpected event shapes, invalid data and oversized payloads; loaded before popup.js. JSON download and clipboard expose only normalized object.
+- `analysis/`: offline Node scripts analyzing local HAR, correlating manually marked windows using explicit clock offset and non-reversible ephemeral HMAC fingerprints, and producing a `HOLD` safety assessment. They cannot propose network block rules or prove audio causation.
+- `visual-lab/`: opt-in synthetic HTML fixture for reversible DOM hiding only, never injected on live Yandex. No claim that selectors are current.
+- Stage 0 `standalone/` no-op manifest remains intact. Tests and all docs are isolated under `ad-protection/`.
+
+**Important:** Research observer is not a Stage 2 usable ad-blocking prototype. Actual audio D1/D2/D3 behavior remains unknown; safe control of music/CDN/Range requests is unproven. All integration, including permissions and manifest wiring, remains strictly future-gated. See `docs/STAGE1-OPERATIONAL-CHECKPOINT-2026-10-20.md`.
