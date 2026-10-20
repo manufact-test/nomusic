@@ -1,0 +1,14 @@
+{
+  "manifest_version": 3,
+  "name": "CELIKOM Ad Protection — Observation Lab",
+  "version": "0.1.0",
+  "description": "Local read-only Yandex Music DOM/media research; does not block ads.",
+  "action": {"default_title": "CELIKOM Observation (no blocking)", "default_popup": "popup.html"},
+  "content_scripts": [{
+    "matches": ["https://music.yandex.ru/*"],
+    "js": ["core.js", "content.js"],
+    "run_at": "document_idle",
+    "world": "ISOLATED",
+    "all_frames": false
+  }]
+}

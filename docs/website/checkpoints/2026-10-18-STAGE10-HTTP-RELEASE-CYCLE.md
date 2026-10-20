@@ -1,0 +1,34 @@
+# CELIKOM website — Stage 10 v4.6: real HTTP generations and journaled cutover
+
+**Date:** 2026-10-18. **Location:** `website/`, `docs/website/` and website no-deploy CI. **Scope:** GitHub runner-local disposable PHP+MySQL+private media. **Approval:** not accepted, not live, not deployable.
+
+## Previous state
+
+v4.5 restored two actual MySQL generations (baseline v1; restored CI-only v2 with `cms_schema_versions` and `site_settings.release_generation`), staged private image bytes into separate owner-only directories, and selected generations through a private JSON pointer atomically renamed under an exclusive advisory `flock`. No live HTTP route consumed the pointer. A syntax-only/synthetic mock would not validate the full HTTP response for a switch or a broken staged image.
+
+## v4.6: changes
+
+1. **`CmsSandboxGeneration::currentRecord()`** deliberately reads and validates the *offline private pointer only*. A failed/partial new generation may be too unhealthy for normal `active()`; recovery still needs to identify it and roll back to a verified baseline. `inspectCandidate()` permits validating an inactive generation, without activating it. Both enforce CI-only environment, root paths, and an exclusive CMS lease.
+2. **`CmsSandboxReleaseCycle.php`** adds a private release intent journal `.celikom-ci-release-cycle.json`, owner-only `0600` and strict generation name/id/phase schema. `prepare()` requires v1 selected, validates candidate SQL and every private media image, refuses a second pending journal, and publishes `prepared` *before* any pointer change. `activate()` requires that state, calls the existing atomic private pointer selector, and then marks `activated`. `confirm()` requires healthy active v2 and removes the intent. `reconcile()` reverts any unconfirmed switch to the fully validated old generation, then deletes the intent. A malformed or tampered journal is rejected before any switch. Candidate MySQL and private media are retained until separate explicit cleanup.
+3. **`website/tests/fixtures/offline-generation-router.php`** runs solely under PHP's built-in `cli-server` on a GitHub-runner loopback socket. It requires `CI=true`, `CELIKOM_SITE_SANDBOX_RESTORE=1`, `CELIKOM_SITE_HTTP_SANDBOX=1`, exact canonical document root, loopback peer and localhost Host header. Only GET `/__ci/health` and `/__ci/page` are implemented. The former returns current generation/schema/media count and the SHA256 digest of actual **published MySQL-backed approved v10** HTML; the latter returns the same verified HTML. Both are noindex, no-store and controlled by the protected generation pointer and exclusive file lock. No public route or CMS HTTP code was changed.
+4. **`Stage10HttpReleaseCycleTest.php`**, wired to existing website MySQL CI job: prepares consistent encrypted MySQL + private image backup, restores disposable DB, migrates v1 → v2, launches real PHP server, and checks repeated loopback HTTP requests against the actual v1 and v2 SQL databases. Compares full rendered HTML SHA256 across generations. Asserts production-like `/` and `/admin/` still return 503 with noindex headers, POST probe returns 405, unknown probes 404, incorrect host/disabled gate 503, and competing exclusive writer lock prevents HTTP diagnostic reading.
+5. **Failure matrix**: duplicate journal denied; exception *before* atomic pointer rename leaves baseline selected; exception *after* pointer rename but *before* journal phase commits causes explicit safe rollback; crash after phase commits still requires explicit confirmation or rollback; confirmed v2 can be selected without a lingering journal and baseline remains available for recovery; corruption of an active v2 private PNG produces HTTP 503, but pointer-only recovery restores v1 and original HTML; a journal forged to name baseline as candidate is refused; a separate PHP worker is actually **SIGKILLed** after committing the generation pointer and before journal commit, then a different worker reconciles and HTTP confirms restored v1. Read-only health does not release production.
+6. New code and test files remain outside production deploy paths. Production release workflow remains hard-disabled. No changes to approved v10 template, 5 CSS, 2 JS, `server/`, `extension/`, or `android/`. PR #6 remains open/unmerged.
+
+## Evidence
+
+- Initial new full website test [39122461181](https://github.com/manufact-test/nomusic/actions/runs/39122461181) **SUCCESS**, and matching general CI [39122465104](https://github.com/manufact-test/nomusic/actions/runs/39122465104) **SUCCESS** on code HEAD `062e0adab2806bc07f89bbf298ce66c0196505c9`.
+- Extended tampering / post-journal-fault test on HEAD `6fc26ba87d1e5cd7d76f010d55855590a5e8e0eb`: [website CI 39122585098](https://github.com/manufact-test/nomusic/actions/runs/39122585098), [general CI 39122585168](https://github.com/manufact-test/nomusic/actions/runs/39122585168). Check run conclusions at the time of latest HEAD; do not claim completion until confirmed.
+
+## What this DOES NOT prove
+
+- **NOT a production cutover.** The `/__ci/` router is a test fixture, inaccessible through normal production deployment and never used by real public routes. It only demonstrates a controlled loopback HTTP read of two real disposable MySQL generations. The website's production index/admin continue to require separate explicit approval and remain 503/noindex.
+- **NOT a power-loss-durable two-phase distributed commit.** PHP `fflush` + filesystem `rename` and process-kill recovery do NOT establish fsync-to-durable-storage semantics, and database, media and PHP generations are not jointly transacted. A real Hostinger filesystem, NFS or multi-host behavior is untested.
+- **NOT authorized production release:** there is no approval token, operator-reviewed runbook, production secrets management, audited external writes/cron/GC, true webserver routing of generations, authenticated encrypted offsite content+images, tested restore from a remote encrypted copy, SSL/legal/rights/popup approval or operator acceptance.
+- The cleanup journal of v4.4 (isolated SQL/media allocation) and release-intent journal of v4.6 are still separate CI simulation mechanisms. Production requires an integrated operator-owned recovery ledger with cancellation, retention, fsync, host-specific checks and explicit rollback policy.
+
+## Next engineering priority
+
+Design a CI-only operator runbook / release readiness matrix and encrypted offsite content+media bundle, with explicit inventory of all database/media writers and fail-closed release invariants. Explore real server-generation routing only after rights, deployment environment details and owner approval are settled. Do NOT enable deploy or touch Hostinger until then.
+
+**Invariants:** PR #6 open; deployment workflow `&& false`; v10 source preserved; Stage 9 and Stage 10 unaccepted; `/` and `/admin/` protected and unpublished.

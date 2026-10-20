@@ -1,0 +1,138 @@
+/* v10 owner UX: original illustration and spacing are untouched. */
+html{scroll-behavior:smooth!important;scroll-padding-top:24px}
+section[id],#idea{scroll-margin-top:24px}
+body .btn,body .header-chip,body .closing-link,body .mode-btn,body .faq-filter{
+ transition:transform .22s cubic-bezier(.2,.7,.2,1),box-shadow .22s cubic-bezier(.2,.7,.2,1),
+ background-color .22s ease,border-color .22s ease,color .22s ease
+}
+@media(hover:hover){
+ body .btn:hover,body .header-chip:hover,body .closing-link:hover,
+ body .mode-btn:hover,body .faq-filter:hover{
+  transform:translateY(1px) scale(.987)!important;
+  box-shadow:inset 0 3px 9px #10221d24,0 4px 12px #10221d0d!important
+ }
+}
+body .btn:active,body .header-chip:active,body .closing-link:active,
+body .mode-btn:active,body .faq-filter:active{
+ transform:translateY(2px) scale(.975)!important;
+ box-shadow:inset 0 4px 13px #10221d30!important
+}
+/* Only the final block's already owner-approved background is changed. */
+body .closing{
+ background:radial-gradient(ellipse 60% 110% at 92% 7%,#173a32 0,transparent 78%),
+ radial-gradient(ellipse 45% 95% at 0% 110%,#152d2a 0,transparent 79%),#0b1013;
+ box-shadow:inset 0 0 0 1px #c3fbe412
+}
+body .closing .closing-halo{border-color:#62deb51c}
+body .closing::before{
+ content:"";position:absolute;inset:auto -10% -80% auto;
+ width:540px;aspect-ratio:1;border:1px solid #63dfb82c;
+ border-radius:50%;pointer-events:none
+}
+/* Height animation is managed by JavaScript. */
+#faq .faq-item[open] .answer{animation:none!important}
+#faq .faq-item .answer{overflow:hidden}
+/* Keep the original pale circle. Draw ONLY the sharp vector C from
+   the approved CELIKOM mark, avoiding an unnecessary black square. */
+.familiar-orbit svg.celikom-familiar-c{
+ width:80px;height:80px;display:block;
+ stroke:#14594d;stroke-width:17;fill:none;
+ stroke-linecap:round;stroke-linejoin:round
+}
+@media(max-width:540px){
+ .familiar-orbit svg.celikom-familiar-c{width:56px;height:56px}
+}
+/* The information dot has its own actual filled SVG circle. */
+.reward-notice svg .celikom-info-dot{
+ fill:#18886d;stroke:none
+}
+/* Restore the source v10 resting-state breathing room. The original
+   answer's padding must remain 23px desktop / 19px on narrow screens.
+   Animate these values only while the answer is transitioning. */
+#faq .faq-item .answer{
+ padding-bottom:23px;
+}
+@media(max-width:540px){
+ #faq .faq-item .answer{padding-bottom:19px}
+}
+#faq .faq-item .answer.celikom-answer-animating{
+ overflow:hidden
+}
+/* Progressive enhancement: no JS, no hidden content. */
+@media(prefers-reduced-motion:no-preference){
+ .celikom-reveal{
+  opacity:0;transform:translate3d(0,20px,0);
+  transition:opacity .72s cubic-bezier(.18,.7,.22,1),
+  transform .72s cubic-bezier(.18,.7,.22,1)!important;
+  will-change:opacity,transform
+ }
+ .celikom-reveal.celikom-visible{opacity:1;transform:translate3d(0,0,0)}
+}
+@media(prefers-reduced-motion:reduce){
+ html{scroll-behavior:auto!important}
+ .celikom-reveal{opacity:1!important;transform:none!important;transition:none!important}
+}
+
+/* A/B audio controls live inside the existing black v10 sound board. */
+#sound .celikom-audio-controls{position:relative;z-index:2}
+#sound .celikom-audio-row{display:flex;align-items:center;gap:20px;min-height:54px}
+#sound .celikom-audio-play{
+ flex:0 0 52px;width:52px;height:52px;border:0;border-radius:50%;
+ background:#66e0bf;color:#0b1013;cursor:pointer;font-size:23px;
+ display:grid;place-items:center;padding:0 0 0 2px;
+ transition:transform .18s ease,background-color .18s ease
+}
+#sound .celikom-audio-play[aria-pressed="true"]{font-size:21px;padding:0}
+#sound .celikom-audio-play:disabled{opacity:.45;cursor:not-allowed}
+#sound .celikom-audio-play:not(:disabled):hover{transform:scale(1.05)}
+#sound .celikom-audio-play:focus-visible,#sound #celikom-demo-seek:focus-visible{
+ outline:3px solid #fff;outline-offset:4px
+}
+#sound .celikom-audio-timeline{display:flex;flex:1;flex-direction:column;gap:7px;min-width:0}
+#sound #celikom-demo-seek{
+ -webkit-appearance:none;appearance:none;width:100%;height:7px;
+ border:0;border-radius:99px;margin:7px 0 2px;
+ background:linear-gradient(to right,#66e0bf var(--progress,0%),#667e78 var(--progress,0%));
+ cursor:pointer;outline-offset:5px
+}
+#sound #celikom-demo-seek::-webkit-slider-thumb{
+ -webkit-appearance:none;appearance:none;background:#66e0bf;
+ width:14px;height:14px;border-radius:50%;border:2px solid #0b1013
+}
+#sound #celikom-demo-seek::-moz-range-thumb{
+ background:#66e0bf;width:12px;height:12px;border-radius:50%;
+ border:2px solid #0b1013
+}
+#sound .celikom-audio-time{text-align:right;color:#b6cbc4;font-size:12px;font-variant-numeric:tabular-nums}
+#sound .celikom-audio-error{margin:9px 0 0;color:#f7c8b3;font-size:12px}
+#sound .celikom-audio-error[hidden]{display:none}
+#sound .celikom-visually-hidden{position:absolute;width:1px;height:1px;
+ padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+@media(max-width:540px){
+ #sound .celikom-audio-row{gap:14px}
+ #sound .celikom-audio-play{width:46px;height:46px;flex-basis:46px}
+}
+@media(prefers-reduced-motion:reduce){
+ #sound .celikom-audio-play{transition:none}
+}
+
+/* v5.14 mobile FAQ: hide browser-native bar and show branded progress rail. */
+@media(max-width:540px){
+ #faq .faq-nav{scrollbar-width:none!important;-ms-overflow-style:none;padding-bottom:5px!important;margin-bottom:4px!important}
+ #faq .faq-nav::-webkit-scrollbar{display:none!important;width:0!important;height:0!important}
+ #faq .celikom-faq-track{
+  height:4px;max-width:140px;width:41%;border-radius:99px;
+  margin:6px auto 18px;background:#d6e9df;overflow:hidden;
+  position:relative;pointer-events:none
+ }
+ #faq .celikom-faq-thumb{
+  display:block;height:100%;border-radius:inherit;background:#53d4ae;
+  width:42%;transform:translateX(0);
+  will-change:transform
+ }
+ #faq .celikom-faq-track[hidden]{display:none!important}
+}
+@media(min-width:541px){#faq .celikom-faq-track{display:none!important}}
+@media(prefers-reduced-motion:reduce){
+ #faq .celikom-faq-thumb{transition:none!important}
+}

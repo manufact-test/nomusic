@@ -1,6 +1,6 @@
 # Repository layout
 
-Status: Stage 2 accepted; Stage 3 implementation pending live playback acceptance on 2026-10-08.
+Status on 2026-10-08: Stage 2 accepted on 0.2.1; Stage 3 accepted by the owner on 0.3.2. Stage 4 automated API/MySQL/Range gate passed on 0.4.0; Stage 5 API is deployed and live MP3/WAV acceptance remains pending. See `docs/project-status.md` for the evidence boundaries.
 
 ## Boundaries
 

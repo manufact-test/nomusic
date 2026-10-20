@@ -1,0 +1,112 @@
+name: Deploy CELIKOM website and CMS to Hostinger
+
+# HARD DISABLED until Stage 10 has a tested full DB backup, migration,
+# server-side staging, health checks and actual rollback; owner consent alone
+# must never activate the old in-place scp workflow.
+on:
+  workflow_dispatch:
+    inputs:
+      release_gate:
+        description: "Type PUBLISH-CELIKOM-SITE-WITH-CMS after joint acceptance"
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: celikom-website-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy public and private website trees separately
+    # Deliberate hard stop: even a committed marker and manual input cannot deploy.
+    # Remove ONLY when Stage 10's real backup/restore/rollback pipeline is tested.
+    if: ${{ github.ref == 'refs/heads/feature/api-range' && inputs.release_gate == 'PUBLISH-CELIKOM-SITE-WITH-CMS' && false }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      SSH_HOST: "92.113.19.189"
+      SSH_PORT: "65002"
+      SSH_USER: "u235811320"
+      DOMAIN_ROOT: "/home/u235811320/domains/lemonchiffon-narwhal-791953.hostingersite.com"
+      HOSTINGER_DEPLOY_KEY: ${{ secrets.CELIKOM_HOSTINGER_SSH_KEY }}
+      HOSTINGER_KNOWN_HOSTS: ${{ secrets.CELIKOM_HOSTINGER_KNOWN_HOSTS }}
+
+    steps:
+      - name: Check out website source only
+        uses: actions/checkout@v4
+        with:
+          sparse-checkout: website
+          sparse-checkout-cone-mode: true
+          persist-credentials: false
+
+      - name: Release and public-tree safety checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          # This file must only be created as part of the final, explicit Stage 10 approval.
+          test -f website/RELEASE_READY || { echo 'Release approval marker missing'; exit 1; }
+          grep -Fxq 'SITE_AND_CMS_ACCEPTED' website/RELEASE_READY || { echo 'Invalid release marker'; exit 1; }
+          test -f website/public/index.php || { echo 'Missing public PHP entry'; exit 1; }
+          test -f website/public/admin/index.php || { echo 'Missing CMS entry'; exit 1; }
+          test -f website/app/bootstrap.php || { echo 'Missing private bootstrap'; exit 1; }
+          test -d website/database || { echo 'Missing private database folder'; exit 1; }
+          test -z "$(find website/public -type l -print -quit)" || { echo 'Symlinks forbidden in public tree'; exit 1; }
+          # Never allow these kinds of files to be copied into the public web root.
+          if find website/public -type f \( -name '.env*' -o -name '*.sql' -o -name '*.sqlite*' -o -name '*.bak' -o -name '*.log' -o -name '*.key' -o -name '*.pem' -o -name '*.zip' -o -name '*.yml' -o -name '*.yaml' -o -name 'composer.json' -o -name 'composer.lock' \) -print | grep -q .; then
+            echo 'Blocked private-looking file in website/public'; exit 1
+          fi
+          if find website -type f \( -name '.env' -o -name '.env.production' -o -name '*.key' -o -name '*.pem' \) -print | grep -q .; then
+            echo 'Secret-like files must not be committed to website'; exit 1
+          fi
+          test -n "$HOSTINGER_DEPLOY_KEY" || { echo 'SSH key secret missing'; exit 1; }
+          test -n "$HOSTINGER_KNOWN_HOSTS" || { echo 'Known-hosts secret missing'; exit 1; }
+          umask 077
+          mkdir -p "$HOME/.ssh"
+          printf '%s\n' "$HOSTINGER_DEPLOY_KEY" > "$HOME/.ssh/id_celikom_deploy"
+          printf '%s\n' "$HOSTINGER_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          chmod 600 "$HOME/.ssh/id_celikom_deploy" "$HOME/.ssh/known_hosts"
+
+      - name: Check Hostinger layout and refuse unsafe remnants
+        shell: bash
+        run: |
+          set -euo pipefail
+          ssh -p "$SSH_PORT" -i "$HOME/.ssh/id_celikom_deploy" \
+            -o BatchMode=yes -o StrictHostKeyChecking=yes "$SSH_USER@$SSH_HOST" \
+            "test -d '$DOMAIN_ROOT/public_html' && test -d '$DOMAIN_ROOT' && \
+             test ! -e '$DOMAIN_ROOT/public_html/app' && \
+             test ! -e '$DOMAIN_ROOT/public_html/database' && \
+             test ! -e '$DOMAIN_ROOT/public_html/.env'"
+
+      - name: Prepare private folders outside public_html
+        shell: bash
+        run: |
+          set -euo pipefail
+          ssh -p "$SSH_PORT" -i "$HOME/.ssh/id_celikom_deploy" \
+            -o BatchMode=yes -o StrictHostKeyChecking=yes "$SSH_USER@$SSH_HOST" \
+            "umask 077; mkdir -p '$DOMAIN_ROOT/celikom-private/app' '$DOMAIN_ROOT/celikom-private/database'"
+
+      - name: Deploy private PHP application and migrations outside web root FIRST
+        shell: bash
+        run: |
+          set -euo pipefail
+          scp -r -P "$SSH_PORT" -i "$HOME/.ssh/id_celikom_deploy" \
+            -o BatchMode=yes -o StrictHostKeyChecking=yes \
+            website/app/. "$SSH_USER@$SSH_HOST:$DOMAIN_ROOT/celikom-private/app/"
+          scp -r -P "$SSH_PORT" -i "$HOME/.ssh/id_celikom_deploy" \
+            -o BatchMode=yes -o StrictHostKeyChecking=yes \
+            website/database/. "$SSH_USER@$SSH_HOST:$DOMAIN_ROOT/celikom-private/database/"
+
+      - name: Deploy ONLY public website entrypoints and assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          scp -r -P "$SSH_PORT" -i "$HOME/.ssh/id_celikom_deploy" \
+            -o BatchMode=yes -o StrictHostKeyChecking=yes \
+            website/public/. "$SSH_USER@$SSH_HOST:$DOMAIN_ROOT/public_html/"
+
+# This workflow is intentionally disabled for normal development pushes.
+# Stage 9/10 must add tested migration, backup, health-check and rollback steps
+# before the release marker is committed. No deployment has been performed here.
