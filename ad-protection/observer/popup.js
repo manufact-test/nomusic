@@ -7,6 +7,7 @@
   const seconds = document.getElementById('session-time');
   const copy = document.getElementById('copy');
   const reset = document.getElementById('reset');
+  const download = document.getElementById('download');
   const labels = {
     banner: 'Баннер (кандидат)', overlay: 'Окно (кандидат)',
     video: 'Видео (кандидат)', audio: 'Аудио (кандидат)',
@@ -57,6 +58,7 @@
     }
     copy.disabled = false;
     reset.disabled = false;
+    download.disabled = false;
     status.textContent = 'Подключено. Режим только для наблюдения.';
   }
   async function send(type, kind) {
@@ -72,7 +74,7 @@
       if (!data || data.schema !== 'celikom-ad-observer-v1') throw Error('Observer missing');
       render(data);
     } catch (_) {
-      last = null; copy.disabled = true; reset.disabled = true;
+      last = null; copy.disabled = true; reset.disabled = true; download.disabled = true;
       status.textContent = 'Открой music.yandex.ru и перезагрузи вкладку. Наблюдатель работает только там.';
     }
   }
@@ -88,6 +90,31 @@
   }
   document.getElementById('refresh').addEventListener('click', () => refresh());
   reset.addEventListener('click', () => refresh('CELIKOM_OBSERVER_RESET'));
+  download.addEventListener('click', () => {
+    if (!last || last.schema !== 'celikom-ad-observer-v1') return;
+    // Only data generated in the isolated observer is exported. Never export
+    // tab URLs, media src, cookies, network requests, or account identifiers.
+    const safe = {
+      schema: last.schema,
+      ageSeconds: last.ageSeconds,
+      candidates: last.candidates,
+      media: last.media,
+      droppedRoots: last.droppedRoots,
+      markers: last.markers,
+      recent: last.recent
+    };
+    const blob = new Blob([JSON.stringify(safe, null, 2)], {type: 'application/json'});
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = 'celikom-observation.json';
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    // Allow browser to start local file save before revoking temporary blob URL.
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    status.textContent = 'Локальный JSON-отчёт сохранён без адресов потоков и токенов.';
+  });
   copy.addEventListener('click', async () => {
     if (!last) return;
     try {

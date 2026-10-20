@@ -19,15 +19,19 @@
 
   function inspect(node) {
     const kinds = core.classifyElement(node);
-    if (!kinds.length) return;
-    let found = known.get(node);
-    if (!found) found = new Set();
-    for (const kind of kinds) {
-      if (found.has(kind)) continue;
-      found.add(kind);
-      session.recordCandidate(kind);
+    // Each candidate appearance is counted once per continuous class-state.
+    // Reset the seen kinds when a SPA removes a marker, otherwise a later
+    // reappearance on the same element would be silently missed.
+    if (!kinds.length) {
+      known.delete(node);
+      return;
     }
-    known.set(node, found);
+    const before = known.get(node);
+    const current = new Set(kinds);
+    for (const kind of kinds) {
+      if (!before || !before.has(kind)) session.recordCandidate(kind);
+    }
+    known.set(node, current);
   }
   function scan(node) {
     if (!node || node.nodeType !== 1) return;
@@ -87,7 +91,7 @@
     return session.reset();
   }
   chrome.runtime.onMessage.addListener((message, sender, reply) => {
-    if (sender.id !== chrome.runtime.id || !message || typeof message !== 'object') return false;
+    if (sender?.id !== chrome.runtime.id || !message || typeof message !== 'object') return false;
     if (message.type === 'CELIKOM_OBSERVER_GET') reply(session.snapshot());
     else if (message.type === 'CELIKOM_OBSERVER_RESET') reply(reset());
     else if (message.type === 'CELIKOM_OBSERVER_MARK') {
