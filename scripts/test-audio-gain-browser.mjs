@@ -12,6 +12,7 @@ try{
  const ui=await readFile('server/src/Admin/audio-gain.js','utf8');
  const player=await readFile('extension/dist/unpacked/player/replacement-player.js','utf8');
  const syncCode=await readFile('extension/dist/unpacked/player/sync-engine.js','utf8');
+ const failOpenCode=await readFile('extension/dist/unpacked/player/fail-open-controller.js','utf8'),controllerCode=await readFile('extension/dist/unpacked/player/replacement-controller.js','utf8');
  const core=await readFile('extension/dist/unpacked/player/core.js','utf8'),adapterCode=await readFile('extension/dist/unpacked/adapters/yandex-music-adapter.js','utf8');
  const guardCode=await readFile('extension/dist/unpacked/player/original-audio-guard.js','utf8'),mainCode=await readFile('extension/dist/unpacked/player/main-world-entry.js','utf8');
  const dsp=ui.slice(0,ui.indexOf('\n(()=>'));
@@ -32,7 +33,7 @@ try{
  const seekMp3=await readFile(seekFile);
  const bytes=await readFile('extension/assets/test-audio.mp3');
  const css=await readFile('server/src/Admin/admin-style.css','utf8');
- const html=`<!doctype html><html><head><style>${css}</style></head><body><main><div class="player-wrap" id="audio-version-5"><audio data-gain-audio data-gain-db="0" controls></audio></div><details class="detail-toggle" data-gain-toggle><summary>Громкость версии</summary><form class="audio-gain-form" method="post" action="/admin/audio-gain" data-audio-gain data-audio-id="audio-version-5"><input type="hidden" name="csrf" value="fixture"><input type="hidden" name="gain_before" value="0"><label>Громкость версии <output data-gain-value>0 дБ</output></label><div class="audio-gain-controls"><span>Тише</span><input name="gain_db" type="range" min="-12" max="12" step="0.5" value="0"><span>Громче</span></div><button type="button" data-gain-reset>Исходная громкость</button><button type="submit">Сохранить громкость</button><p data-gain-note>Прослушайте и сохраните</p><p data-gain-save-status hidden></p></form></details><details><summary>Технические сведения</summary></details></main><script>${ui}\n${core}\n${adapterCode}\n${guardCode}\n${mainCode}\n${player}\n${syncCode}\n(async()=>{try{
+ const html=`<!doctype html><html><head><style>${css}</style></head><body><main><div class="player-wrap" id="audio-version-5"><audio data-gain-audio data-gain-db="0" controls></audio></div><details class="detail-toggle" data-gain-toggle><summary>Громкость версии</summary><form class="audio-gain-form" method="post" action="/admin/audio-gain" data-audio-gain data-audio-id="audio-version-5"><input type="hidden" name="csrf" value="fixture"><input type="hidden" name="gain_before" value="0"><label>Громкость версии <output data-gain-value>0 дБ</output></label><div class="audio-gain-controls"><span>Тише</span><input name="gain_db" type="range" min="-12" max="12" step="0.5" value="0"><span>Громче</span></div><button type="button" data-gain-reset>Исходная громкость</button><button type="submit">Сохранить громкость</button><p data-gain-note>Прослушайте и сохраните</p><p data-gain-save-status hidden></p></form></details><details><summary>Технические сведения</summary></details></main><script>${ui}\n${core}\n${adapterCode}\n${guardCode}\n${mainCode}\n${player}\n${syncCode}\n${failOpenCode}\n${controllerCode}\n(async()=>{try{
  const check=(v,m)=>{if(!v)throw Error(m)};
  const render=async(db,amplitude)=>{document.body.dataset.gainStep='offline '+db;
   const context=new OfflineAudioContext(1,44100,44100),source=context.createBufferSource(),buffer=context.createBuffer(1,44100,44100),signal=buffer.getChannelData(0);
@@ -98,6 +99,29 @@ try{
  check(!delayed.audio.seeking&&!delayed.audio.paused&&delayed.audio.currentTime>50,'actual buffered seek resumes playback');
  check(!delayed.diagnostics().seeking&&delayed.diagnostics().stream.phase==='complete','active decoder diagnostics');
  delayed.destroy();check(fatal.length===0,'no delayed-seek fatal');
+
+ document.body.dataset.gainStep='seeks during controller download';
+ const waitUntil=async(fn,label)=>{for(let i=0;i<100;i++){if(fn())return;await new Promise(r=>setTimeout(r,30));}throw Error(label);};
+ let unlockFirst,markFirst;const firstGate=new Promise(r=>unlockFirst=r),firstStarted=new Promise(r=>markFirst=r);let firstReads=0;
+ const incidentEnvironment={...m4aEnvironment,MediaSource,fetch:async(url,options)=>{
+  const range=/^bytes=(\\d+)-(\\d+)$/.exec(options.headers.Range);
+  const from=Number(range[1]),last=Math.min(Number(range[2]),seekBytes.length-1);
+  if(from===0){firstReads++;markFirst();await firstGate;}
+  return new Response(seekBytes.slice(from,last+1),{status:206,headers:{'content-type':'audio/mpeg','content-range':'bytes '+from+'-'+last+'/'+seekBytes.length}});
+ }};
+ let incidentSnapshot={observedAt:Date.now(),track:{id:'101',confidence:260,ambiguous:false,metadata:{durationMs:60030}},player:{mediaId:'incident-master',currentTime:.1,duration:60.03,paused:false,seeking:false,ended:false,readyState:4,volume:1,muted:false,playbackRate:1}};
+ const incidentBridge={sessionId:'incident-test',isHealthy:()=>true,getSnapshot:async()=>incidentSnapshot,post(){},request:async(type)=>type==='GUARD_ENGAGE'?{snapshot:incidentSnapshot}:{released:true}};
+ const incident=new __CELIKOM_REPLACEMENT_CONTROLLER_V1__.ReplacementController(incidentBridge,incidentEnvironment,{resolveAsset:async()=>({found:true,url:'https://private.example/controller-seek',mimeType:'audio/mpeg',durationMs:60030,expiresAt:Date.now()+60000,replacementId:101,version:1})});
+ const incidentUpdate=(time,seeking)=>{incidentSnapshot={...incidentSnapshot,observedAt:Date.now(),player:{...incidentSnapshot.player,currentTime:time,seeking,readyState:seeking?1:4}};incident.update(incidentSnapshot,'SEEK');};
+ incident.configure(true,'');incident.update(incidentSnapshot);await firstStarted;const operation=incident.operation;
+ incidentUpdate(20,true);incidentUpdate(38,true);check(incident.operation===operation,'loading survives repeated same-track seeks');
+ unlockFirst();await waitUntil(()=>operation.loaded,'native preparation finishes during source seek');
+ check(incident.phase==='PREPARING'&&incident.operation===operation,'prepared decoder waits for source readiness');
+ incidentUpdate(38,false);await waitUntil(()=>incident.phase==='REPLACEMENT_ACTIVE','prepared operation activates after source seek');
+ await waitUntil(()=>!operation.player.audio.seeking&&!operation.player.audio.paused&&operation.player.audio.currentTime>38,'native replacement resumes at final seek target');
+ check(firstReads===1&&incident.restoreCount===0&&incident.activationCount===1,'one native download; no preparation cancellation');
+ incident.configure(false,'');await waitUntil(()=>incident.phase==='IDLE','Stop releases native replacement');
+ incident.destroy();
 
  document.body.dataset.gainStep='native stream transition';
  const blob=await fetch('data:audio/mpeg;base64,${bytes.toString('base64')}').then(r=>r.blob());

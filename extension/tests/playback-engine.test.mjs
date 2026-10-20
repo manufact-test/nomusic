@@ -570,3 +570,28 @@ test('connection hints cannot bypass duration or signed access failure blocks',a
   f.engine.abort(reason,true);await settle();const count=f.players.length;f.engine.recoverConnection();await settle();assert.equal(f.players.length,count,reason);assert.equal(f.engine.blockedTrackId,'2');
  }
 });
+
+test('incident: seeks during loading retain one download and activate at the final position', async()=>{
+ const gate=deferred();const f=fixture({loadGate:gate});f.update(snapshot());await settle();
+ const first=f.engine.operation;
+ for(const time of [20,38]){const seeking=snapshot();Object.assign(seeking.player,{currentTime:time,seeking:true,readyState:1});f.update(seeking,'SEEK');assert.equal(f.engine.operation,first);}
+ gate.resolve();await settle();assert.equal(f.engine.phase,'PREPARING');assert.equal(f.players.length,1);assert.equal(f.engine.activationCount,0);
+ const ready=snapshot();ready.player.currentTime=38;f.update(ready,'SEEK');await settle();
+ assert.equal(f.engine.phase,'REPLACEMENT_ACTIVE');assert.equal(f.players.length,1);assert.equal(f.engine.restoreCount,0);assert.equal(f.engine.activationCount,1);
+ assert.equal(f.players[0].audio.currentTime,2);
+});
+test('incident: seeking finishes before loading without restarting preparation',async()=>{
+ const gate=deferred();const f=fixture({loadGate:gate});f.update(snapshot());await settle();const op=f.engine.operation;
+ const seeking=snapshot();Object.assign(seeking.player,{currentTime:20,seeking:true,readyState:1});f.update(seeking,'SEEK');
+ const ready=snapshot();ready.player.currentTime=20;f.update(ready,'SEEK');assert.equal(f.engine.operation,op);
+ gate.resolve();await settle();assert.equal(f.engine.phase,'REPLACEMENT_ACTIVE');assert.equal(f.players.length,1);assert.equal(f.engine.restoreCount,0);
+});
+test('incident: Stop or new track while prepared master is seeking prevents late activation',async()=>{
+ for(const stop of [true,false]){
+ const gate=deferred();const f=fixture({loadGate:gate});f.update(snapshot());await settle();
+ const seeking=snapshot();Object.assign(seeking.player,{currentTime:20,seeking:true,readyState:1});f.update(seeking,'SEEK');gate.resolve();await settle();
+ if(stop)f.engine.configure(false,'2');else f.update(snapshot('3'));await settle();
+ if(stop)f.update(snapshot());await settle();assert.equal(f.players[0].destroyed,true);assert.equal(f.engine.activationCount,0);
+ assert.equal(f.requests.filter(x=>x.type==='GUARD_ENGAGE').length,0);
+ }
+});

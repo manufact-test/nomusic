@@ -115,7 +115,7 @@
       // A bound, already guarded master can temporarily have only metadata while
       // seeking/buffering. Keep the lease and pause replacement; admission still
       // requires current data, and emptied/changed/ambiguous masters fail open.
-      const minimumReadyState = this.phase === "REPLACEMENT_ACTIVE" && matching ? 1 : 2;
+      const minimumReadyState = operation && matching ? 1 : 2;
       if (!this.eligible(this.snapshot, minimumReadyState) || (operation && !matching)) {
         if (operation) this.abort("state-changed");
         return;
@@ -123,6 +123,9 @@
       if (!operation) {
         if (this.negativeResolution?.trackId === this.snapshot.track.id && this.negativeResolution.until > Date.now()) return;
         void this.prepare(); return;
+      }
+      if (this.phase === "PREPARING" && operation.loaded && !operation.activating && this.eligible()) {
+        void this.activate(operation);
       }
       if (this.phase === "REPLACEMENT_ACTIVE") {
         try { this.driftMs = operation.sync.sync(operation.player, this.snapshot, forceSync); }
@@ -163,13 +166,23 @@
         await operation.player.prepare(operation.asset);
         if (!operation.asset.demoLoop && Math.abs(operation.player.audio.duration * 1000 - operation.asset.durationMs) > 1500) throw new Error("replacement_duration_mismatch");
         if (!this.current(operation)) return;
+        operation.loaded = true;
+        await this.activate(operation);
+      } catch (error) { if (this.current(operation)) this.abort(error.message, true, error.streamDetail || null); }
+    }
+    async activate(operation) {
+      // A seek changes readiness while preserving this track/media binding.
+      // Retain its in-flight download and activate once a fresh master is ready.
+      if (!this.current(operation) || operation.activating || !this.eligible()) return;
+      operation.activating = true;
+      try {
         this.update(await this.bridge.getSnapshot());
         if (!this.current(operation) || !this.eligible()) return;
         operation.stage="guarding";
         const guard = await this.bridge.request("GUARD_ENGAGE", { token: operation.token, trackId: operation.trackId, mediaId: operation.mediaId });
         if (!this.current(operation)) { this.bridge.post("RELEASE_NOW", { token: operation.token }); return; }
         this.update(guard.snapshot);
-        if (!this.current(operation) || !this.eligible()) { this.abort("guard-state-changed"); return; }
+        if (!this.current(operation) || !this.eligible(this.snapshot, 1)) { this.abort("guard-state-changed"); return; }
         this.phase = "REPLACEMENT_ACTIVE";
         this.activationCount++;
         if (!operation.asset.demoLoop) this.event("replacement_started", { service: "yandex" });
@@ -177,6 +190,7 @@
         this.log(`REPLACEMENT_ACTIVE · ${operation.trackId}`);
         this.reconcile(true);
       } catch (error) { if (this.current(operation)) this.abort(error.message, true, error.streamDetail || null); }
+      finally { operation.activating = false; }
     }
     abort(reason, blockTrack = false, detail = null) {
       const operation = this.operation;
