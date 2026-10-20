@@ -11,6 +11,7 @@ const directory=await mkdtemp(join(tmpdir(),'celikom-gain-'));
 try{
  const ui=await readFile('server/src/Admin/audio-gain.js','utf8');
  const player=await readFile('extension/dist/unpacked/player/replacement-player.js','utf8');
+ const syncCode=await readFile('extension/dist/unpacked/player/sync-engine.js','utf8');
  const core=await readFile('extension/dist/unpacked/player/core.js','utf8'),adapterCode=await readFile('extension/dist/unpacked/adapters/yandex-music-adapter.js','utf8');
  const guardCode=await readFile('extension/dist/unpacked/player/original-audio-guard.js','utf8'),mainCode=await readFile('extension/dist/unpacked/player/main-world-entry.js','utf8');
  const dsp=ui.slice(0,ui.indexOf('\n(()=>'));
@@ -25,9 +26,13 @@ try{
  const encodedMp3=spawnSync('ffmpeg',['-v','error','-f','lavfi','-i','sine=frequency=440:duration=3','-c:a','libmp3lame','-b:a','128k',mp3File]);
  if(encodedMp3.status!==0)throw Error('Synthetic MP3 encoder required');
  const mp3=await readFile(mp3File);
+ const seekFile=join(directory,'seek.mp3');
+ const seekEncoded=spawnSync('ffmpeg',['-v','error','-f','lavfi','-i','sine=frequency=440:duration=60','-c:a','libmp3lame','-b:a','128k',seekFile]);
+ if(seekEncoded.status!==0)throw Error('Long synthetic MP3 encoder required');
+ const seekMp3=await readFile(seekFile);
  const bytes=await readFile('extension/assets/test-audio.mp3');
  const css=await readFile('server/src/Admin/admin-style.css','utf8');
- const html=`<!doctype html><html><head><style>${css}</style></head><body><main><div class="player-wrap" id="audio-version-5"><audio data-gain-audio data-gain-db="0" controls></audio></div><details class="detail-toggle" data-gain-toggle><summary>Громкость версии</summary><form class="audio-gain-form" method="post" action="/admin/audio-gain" data-audio-gain data-audio-id="audio-version-5"><input type="hidden" name="csrf" value="fixture"><input type="hidden" name="gain_before" value="0"><label>Громкость версии <output data-gain-value>0 дБ</output></label><div class="audio-gain-controls"><span>Тише</span><input name="gain_db" type="range" min="-12" max="12" step="0.5" value="0"><span>Громче</span></div><button type="button" data-gain-reset>Исходная громкость</button><button type="submit">Сохранить громкость</button><p data-gain-note>Прослушайте и сохраните</p><p data-gain-save-status hidden></p></form></details><details><summary>Технические сведения</summary></details></main><script>${ui}\n${core}\n${adapterCode}\n${guardCode}\n${mainCode}\n${player}\n(async()=>{try{
+ const html=`<!doctype html><html><head><style>${css}</style></head><body><main><div class="player-wrap" id="audio-version-5"><audio data-gain-audio data-gain-db="0" controls></audio></div><details class="detail-toggle" data-gain-toggle><summary>Громкость версии</summary><form class="audio-gain-form" method="post" action="/admin/audio-gain" data-audio-gain data-audio-id="audio-version-5"><input type="hidden" name="csrf" value="fixture"><input type="hidden" name="gain_before" value="0"><label>Громкость версии <output data-gain-value>0 дБ</output></label><div class="audio-gain-controls"><span>Тише</span><input name="gain_db" type="range" min="-12" max="12" step="0.5" value="0"><span>Громче</span></div><button type="button" data-gain-reset>Исходная громкость</button><button type="submit">Сохранить громкость</button><p data-gain-note>Прослушайте и сохраните</p><p data-gain-save-status hidden></p></form></details><details><summary>Технические сведения</summary></details></main><script>${ui}\n${core}\n${adapterCode}\n${guardCode}\n${mainCode}\n${player}\n${syncCode}\n(async()=>{try{
  const check=(v,m)=>{if(!v)throw Error(m)};
  const render=async(db,amplitude)=>{document.body.dataset.gainStep='offline '+db;
   const context=new OfflineAudioContext(1,44100,44100),source=context.createBufferSource(),buffer=context.createBuffer(1,44100,44100),signal=buffer.getChannelData(0);
@@ -69,6 +74,30 @@ try{
  check(streaming.audio.readyState>=2&&streaming.mediaSource,'actual MP3 MSE decoder loads');
  streaming.applyState({volume:1,muted:false,playbackRate:1});streaming.play();for(let i=0;i<40&&(streaming.audio.paused||streaming.audio.currentTime<=0);i++)await new Promise(r=>setTimeout(r,50));
  check(streaming.audio.currentTime>0&&!streaming.audio.paused,'actual MP3 MSE plays');streaming.destroy();
+
+ document.body.dataset.gainStep='delayed MP3 seek completion';
+ const seekBytes=Uint8Array.from(atob('${seekMp3.toString('base64')}'),c=>c.charCodeAt(0));
+ let releaseTail;const tailGate=new Promise(r=>releaseTail=r);
+ const delayed=new ReplacementPlayer({...m4aEnvironment,MediaSource,fetch:async(url,options)=>{
+  const range=/^bytes=(\\d+)-(\\d+)$/.exec(options.headers.Range);
+  const from=Number(range[1]),last=Math.min(Number(range[2]),seekBytes.length-1);
+  if(from>0)await tailGate;
+  return new Response(seekBytes.slice(from,last+1),{status:206,headers:{'content-type':'audio/mpeg','content-range':'bytes '+from+'-'+last+'/'+seekBytes.length}});
+ }},r=>fatal.push(r));
+ await delayed.prepare({url:'https://private.example/seek',mimeType:'audio/mpeg',durationMs:60030});
+ const timeProperty=Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype,'currentTime');let seekWrites=0;
+ Object.defineProperty(delayed.audio,'currentTime',{configurable:true,get(){return timeProperty.get.call(this)},set(value){seekWrites++;timeProperty.set.call(this,value)}});
+ const seekSync=new __CELIKOM_SYNC_ENGINE_V1__.SyncEngine(),seekStart=Date.now();
+ const seekSnapshot={observedAt:seekStart,player:{currentTime:50,duration:60,paused:false,ended:false,seeking:false,readyState:4,playbackRate:1,volume:1,muted:false}};
+ seekSync.sync(delayed,seekSnapshot,true,seekStart);
+ check(delayed.audio.seeking,'actual MP3 seek waits for missing bytes');
+ for(let i=0;i<12;i++){await new Promise(r=>setTimeout(r,100));seekSync.sync(delayed,seekSnapshot,false,Date.now());}
+ check(seekWrites===1,'pending native decoder seek is not restarted by drift ticks: '+seekWrites);
+ releaseTail();await delayed.streamTask;
+ for(let i=0;i<60&&(delayed.audio.seeking||delayed.audio.currentTime<=50);i++)await new Promise(r=>setTimeout(r,50));
+ check(!delayed.audio.seeking&&!delayed.audio.paused&&delayed.audio.currentTime>50,'actual buffered seek resumes playback');
+ check(!delayed.diagnostics().seeking&&delayed.diagnostics().stream.phase==='complete','active decoder diagnostics');
+ delayed.destroy();check(fatal.length===0,'no delayed-seek fatal');
 
  document.body.dataset.gainStep='native stream transition';
  const blob=await fetch('data:audio/mpeg;base64,${bytes.toString('base64')}').then(r=>r.blob());

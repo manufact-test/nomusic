@@ -323,6 +323,18 @@ function createGainChain(context, audio, db) {
       }
       if (this.destroyed) throw new Error("Replacement cancelled");
     }
+    diagnostics() {
+      const audio = this.audio;
+      const buffered = [];
+      for (let i = 0; i < Math.min(audio.buffered?.length || 0, 8); i++) {
+        buffered.push([audio.buffered.start(i), audio.buffered.end(i)]);
+      }
+      return { currentTime:audio.currentTime, duration:Number.isFinite(audio.duration)?audio.duration:null,
+        paused:audio.paused, seeking:Boolean(audio.seeking), readyState:audio.readyState,
+        networkState:audio.networkState, muted:audio.muted, volume:audio.volume,
+        playPending:this.playPending, wantPlay:this.wantPlay, buffered,
+        gainContext:this.gainContext?.state || null, stream:{...this.streamState} };
+    }
     applyState(player) {
       this.audio.volume = Math.min(1, Math.max(0, player.volume));
       this.audio.muted = Boolean(player.muted);
@@ -366,3 +378,4 @@ function createGainChain(context, audio, db) {
   }
   Object.defineProperty(root, KEY, { value: Object.freeze({ ReplacementPlayer }), writable: false });
 })(globalThis);
+

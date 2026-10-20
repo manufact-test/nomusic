@@ -96,7 +96,7 @@
         this.abort("master-ended"); return;
       }
       if (eventType === "ERROR") { this.abort("master-error", true); return; }
-      this.reconcile(["SEEK", "PLAY", "RATE_CHANGED"].includes(eventType));
+      this.reconcile(eventType === "SEEK");
     }
     current(operation) { return !this.destroyed && this.operation === operation && this.generation === operation.generation; }
     event(name, properties) {
@@ -249,3 +249,4 @@
   }
   Object.defineProperty(root, KEY, { value: Object.freeze({ ReplacementController }), writable: false });
 })(globalThis);
+

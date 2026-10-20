@@ -152,6 +152,14 @@ export function createAuthBroker(api, options = {}) {
     if (!refreshPromise) {
       const version = sessionVersion;
       refreshPromise = (async () => {
+        // A late auth/me rejection can arrive after another caller rotated this
+        // session. Never replay its old refresh token: the server revokes replays.
+        const latest = await store.get();
+        if (version !== sessionVersion || !validAuth(latest)) throw new Error("invalid_session");
+        if (latest.refresh_token !== stored.refresh_token) {
+          if (latest.user.id !== stored.user.id) throw new Error("invalid_session");
+          return latest;
+        }
         const data = await apiRequest("auth/refresh", "POST", {
           refresh_token: stored.refresh_token, installation_id: await installationId()
         });
@@ -409,3 +417,4 @@ export function createAuthBroker(api, options = {}) {
   }
   return { perform, installationId, withAccess, withEntitledAccess, entitlement, resetTransport, networkDiagnostics: () => networkHistory.map(item => ({ ...item })) };
 }
+
