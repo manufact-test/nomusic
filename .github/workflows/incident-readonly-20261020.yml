@@ -13,6 +13,24 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 4db00c23cfa148d62837ae0789619a80187357c6
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - name: Rebuild the deployed historical server package for byte comparison
+        run: |
+          node scripts/build-server.mjs
+          node --input-type=module <<'JS'
+          import {readdir,readFile,writeFile} from 'node:fs/promises';
+          import {createHash} from 'node:crypto';
+          import path from 'node:path';
+          const expected={};
+          async function walk(dir,prefix=''){for(const e of await readdir(dir,{withFileTypes:true})){const p=path.join(dir,e.name),rel=prefix+e.name;if(e.isDirectory())await walk(p,rel+'/');else expected[rel]=createHash('sha256').update(await readFile(p)).digest('hex');}}
+          await walk('dist/server-package');await writeFile('expected.json',JSON.stringify(expected));
+          JS
       - name: Inspect release, session timeline and approved audio without mutation
         env:
           HOSTINGER_SSH_KEY: ${{ secrets.HOSTINGER_SSH_KEY }}
@@ -26,6 +44,19 @@ jobs:
           ssh-keygen -y -P '' -f "$work/key" > "$work/public"
           test "$(ssh-keygen -lf "$work/public" -E sha256 | awk '{print $2}')" = 'SHA256:Q6FyifXRq6garceQdIIjBmXhkk81Ic1p/x9JTSYHWUk'
           printf '%s\n' '[92.113.19.189]:65002 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAf8M2EVwq0oJI8I9KZ0NFE8P8yDOvDATEhkQti/Kk/0' > "$work/known_hosts"
+          python3 - <<'PY' > "$work/integrity.php"
+          import pathlib,base64
+          expected=base64.b64encode(pathlib.Path('expected.json').read_bytes()).decode()
+          print("<?php $expected=json_decode(base64_decode('"+expected+"'),true,512,JSON_THROW_ON_ERROR);")
+          print(r"""
+          ini_set('display_errors','0');
+          $app='/home/u235811320/domains/darkred-camel-588676.hostingersite.com/celikom';
+          $root=realpath($app.'/current');$bad=[];$checked=0;
+          foreach($expected as $relative=>$hash){$p=$root.'/'.$relative;$checked++;if(!is_file($p)||!hash_equals($hash,hash_file('sha256',$p)))$bad[]=$relative;}
+          echo json_encode(['type'=>'complete_release_integrity','release'=>basename($root),'checked'=>$checked,'mismatches'=>$bad],JSON_THROW_ON_ERROR),"\n";
+          """)
+          PY
+          ssh -T -p 65002 -i "$work/key" -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o "UserKnownHostsFile=$work/known_hosts" -o GlobalKnownHostsFile=/dev/null -o ConnectTimeout=15 u235811320@92.113.19.189 '/opt/alt/php83/usr/bin/php' < "$work/integrity.php"
           ssh -T -p 65002 -i "$work/key" -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o "UserKnownHostsFile=$work/known_hosts" -o GlobalKnownHostsFile=/dev/null -o ConnectTimeout=15 u235811320@92.113.19.189 '/opt/alt/php83/usr/bin/php' <<'PHP'
           <?php
           ini_set('display_errors','0');
