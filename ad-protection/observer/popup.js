@@ -8,6 +8,8 @@
   const copy = document.getElementById('copy');
   const reset = document.getElementById('reset');
   const download = document.getElementById('download');
+  const normalize = globalThis.CELIKOM_OBSERVER_EXPORT?.normalize;
+  if (typeof normalize !== 'function') return;
   const labels = {
     banner: 'Баннер (кандидат)', overlay: 'Окно (кандидат)',
     video: 'Видео (кандидат)', audio: 'Аудио (кандидат)',
@@ -23,7 +25,8 @@
     dt.textContent = title; dd.textContent = String(value);
     parent.append(dt, dd);
   }
-  function render(data) {
+  function render(input) {
+    const data = normalize(input);
     last = data;
     candidates.replaceChildren();
     media.replaceChildren();
@@ -71,7 +74,6 @@
     status.textContent = 'Обновляю счётчики…';
     try {
       const data = await send(type);
-      if (!data || data.schema !== 'celikom-ad-observer-v1') throw Error('Observer missing');
       render(data);
     } catch (_) {
       last = null; copy.disabled = true; reset.disabled = true; download.disabled = true;
@@ -83,7 +85,6 @@
       const kind = button.getAttribute('data-marker');
       try {
         const response = await send('CELIKOM_OBSERVER_MARK', kind);
-        if (response?.schema !== 'celikom-ad-observer-v1') throw Error('No observer');
         render(response);
       } catch (_) { status.textContent = 'Не удалось записать отметку: открой вкладку Яндекс Музыки.'; }
     });
@@ -94,15 +95,7 @@
     if (!last || last.schema !== 'celikom-ad-observer-v1') return;
     // Only data generated in the isolated observer is exported. Never export
     // tab URLs, media src, cookies, network requests, or account identifiers.
-    const safe = {
-      schema: last.schema,
-      ageSeconds: last.ageSeconds,
-      candidates: last.candidates,
-      media: last.media,
-      droppedRoots: last.droppedRoots,
-      markers: last.markers,
-      recent: last.recent
-    };
+    const safe = normalize(last);
     const blob = new Blob([JSON.stringify(safe, null, 2)], {type: 'application/json'});
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement('a');

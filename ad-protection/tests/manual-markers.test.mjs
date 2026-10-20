@@ -25,7 +25,7 @@ test('manual markers are explicit, finite, bounded, private and resettable',()=>
   assert.equal(data.recent.at(-1).category,'marker');
   assert.equal(JSON.stringify(data).includes('SECRET-TOKEN'),false);
   for(let i=0;i<40;i++)s.recordMarker('ad-heard');
-  assert.equal(s.snapshot().markers.length,24);
+  assert.equal(s.snapshot().markers.length,20);
   s.reset();
   assert.equal(s.snapshot().markers.length,0);
 });

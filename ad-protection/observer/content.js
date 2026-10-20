@@ -16,6 +16,8 @@
   const pending = new Set();
   let timer = null;
   const MAX_QUEUED = 160, MAX_PER_FLUSH = 40, DELAY = 180;
+  const MAX_RECORDS_PER_CALLBACK = 1000, MAX_ADDED_PER_RECORD = 160, MAX_MATCHES_PER_SCAN = 120;
+  let paused = false;
 
   function inspect(node) {
     const kinds = core.classifyElement(node);
@@ -37,11 +39,15 @@
     if (!node || node.nodeType !== 1) return;
     inspect(node);
     if (typeof node.querySelectorAll === 'function') {
-      for (const match of node.querySelectorAll(MATCH)) inspect(match);
+      const matches = node.querySelectorAll(MATCH);
+      const limit = Math.min(matches.length, MAX_MATCHES_PER_SCAN);
+      for (let i = 0; i < limit; i++) inspect(matches[i]);
+      if (matches.length > limit) session.dropRoots(matches.length - limit);
     }
   }
   function flush() {
     timer = null;
+    if (paused) { pending.clear(); return; }
     let handled = 0;
     for (const node of pending) {
       pending.delete(node);
@@ -52,7 +58,7 @@
   }
   function schedule() { if (timer === null) timer = setTimeout(flush, DELAY); }
   function enqueue(node) {
-    if (!node || node.nodeType !== 1) return;
+    if (paused || !node || node.nodeType !== 1) return;
     if (pending.size >= MAX_QUEUED && !pending.has(node)) {
       session.dropRoots();
       return;
@@ -61,10 +67,17 @@
     schedule();
   }
   const mutationObserver = new MutationObserver(records => {
-    for (const record of records) {
+    if (paused) return;
+    const count = Math.min(records.length, MAX_RECORDS_PER_CALLBACK);
+    if (records.length > count) session.dropRoots(records.length - count);
+    for (let i = 0; i < count; i++) {
+      const record = records[i];
       if (record.type === 'attributes') enqueue(record.target);
       else if (record.type === 'childList') {
-        for (const node of record.addedNodes) enqueue(node);
+        const added = record.addedNodes || [];
+        const limit = Math.min(added.length, MAX_ADDED_PER_RECORD);
+        for (let j = 0; j < limit; j++) enqueue(added[j]);
+        if (added.length > limit) session.dropRoots(added.length - limit);
       }
     }
   });
@@ -102,12 +115,14 @@
     return false;
   });
   window.addEventListener('pagehide', () => {
+    paused = true;
     mutationObserver.disconnect();
     if (timer !== null) clearTimeout(timer);
     timer = null;
     pending.clear();
   });
   window.addEventListener('pageshow', () => {
+    paused = false;
     mutationObserver.observe(document.documentElement, options);
     for (const node of document.querySelectorAll(MATCH)) inspect(node);
   });

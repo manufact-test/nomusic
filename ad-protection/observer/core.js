@@ -51,7 +51,7 @@
       if (!MARKER_KINDS.includes(kind)) return false;
       const s = Math.max(0, Math.floor((clock() - start) / 1000));
       markers.push({s, kind});
-      if (markers.length > 24) markers.shift();
+      if (markers.length > 20) markers.shift();
       append({category: 'marker', kind});
       return true;
     }
