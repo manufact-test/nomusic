@@ -166,6 +166,9 @@ function createGainChain(context, audio, db) {
         if (this.destroyed || abort.signal.aborted) return;
         this.streamState.phase="buffering";
         await append(bytes);
+        // Network/source-open deadlines own transport. Start the decoder's
+        // readiness deadline only once the first verified bytes were appended.
+        if (offset === 0) this.initialBufferAppended?.();
         offset = last + 1;
         Object.assign(this.streamState,{phase:"streaming",receivedBytes:offset});
         } finally { this.environment.clearTimeout(rangeTimer); }
@@ -279,9 +282,12 @@ function createGainChain(context, audio, db) {
         } finally { this.environment.clearTimeout(fetchTimer); this.fetchAbort = null; }
       }
       if (this.destroyed) throw new Error("Replacement cancelled");
+      let rejectReady;
       const ready = new Promise((resolve, reject) => {
+        let timer = null;
         const cleanup = () => {
           this.environment.clearTimeout(timer);
+          this.initialBufferAppended = null;
           for (const event of ["loadedmetadata", "canplay"]) this.audio.removeEventListener(event, onReady);
           this.audio.removeEventListener("error", onError);
           this.cancelLoad = null;
@@ -291,7 +297,13 @@ function createGainChain(context, audio, db) {
           cleanup(); resolve();
         };
         const onError = () => { cleanup(); reject(new Error("replacement-media-error")); };
-        const timer = this.environment.setTimeout(() => { cleanup(); const error=new Error("replacement-load-timeout");error.streamDetail={...this.streamState};reject(error); }, 10000);
+        const startDecoderDeadline = () => {
+          if (timer !== null) return;
+          timer = this.environment.setTimeout(() => { cleanup(); const error=new Error("replacement-load-timeout");error.streamDetail={...this.streamState};reject(error); }, 10000);
+        };
+        rejectReady = (error) => { cleanup(); reject(error); };
+        if (this.mediaSource) this.initialBufferAppended = startDecoderDeadline;
+        else startDecoderDeadline();
         this.cancelLoad = () => { cleanup(); reject(new Error("Replacement cancelled")); };
         for (const event of ["loadedmetadata", "canplay"]) this.audio.addEventListener(event, onReady);
         this.audio.addEventListener("error", onError);
@@ -305,7 +317,10 @@ function createGainChain(context, audio, db) {
           const permitted = ["remote-stream-network", "remote-stream-http", "remote-stream-format",
             "remote-stream-route-blocked", "remote-stream-range", "remote-stream-timeout", "remote-buffer-error", "remote-buffer-timeout"];
           const reason = this.streamState.phase==="timeout"?"remote-stream-timeout":permitted.includes(error?.message) ? error.message : "remote-stream-error";
-          this.onFatal(reason, error.streamDetail || {...this.streamState});
+          const detail = error.streamDetail || {...this.streamState};
+          const failure = new Error(reason); failure.streamDetail = detail;
+          rejectReady(failure);
+          this.onFatal(reason, detail);
         });
       }
       await ready;

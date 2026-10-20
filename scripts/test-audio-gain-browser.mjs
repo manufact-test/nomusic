@@ -76,6 +76,24 @@ try{
  streaming.applyState({volume:1,muted:false,playbackRate:1});streaming.play();for(let i=0;i<40&&(streaming.audio.paused||streaming.audio.currentTime<=0);i++)await new Promise(r=>setTimeout(r,50));
  check(streaming.audio.currentTime>0&&!streaming.audio.paused,'actual MP3 MSE plays');streaming.destroy();
 
+ document.body.dataset.gainStep='eleven-second first MP3 headers';
+ let slowCalls=0;const slowStart=performance.now();
+ const slow=new ReplacementPlayer({...m4aEnvironment,MediaSource,fetch:async(url,options)=>{
+  slowCalls++;await new Promise((resolve,reject)=>{
+   const timer=setTimeout(resolve,11000);
+   options.signal.addEventListener('abort',()=>{clearTimeout(timer);reject(new DOMException('Aborted','AbortError'));},{once:true});
+  });
+  return new Response(mp3Bytes,{status:206,headers:{'content-type':'audio/mpeg','content-range':'bytes 0-'+(mp3Bytes.length-1)+'/'+mp3Bytes.length}});
+ }},r=>fatal.push(r));
+ try{
+  await slow.prepare({url:'https://private.example/slow',mimeType:'audio/mpeg',durationMs:3030});
+  check(performance.now()-slowStart>=10500,'real transport wait exceeded old deadline');
+  check(slowCalls===1&&slow.audio.readyState>=2&&slow.audio.muted,'delayed first request decodes without a retry and remains muted until activation');
+  slow.applyState({volume:1,muted:false,playbackRate:1});slow.play();
+  for(let i=0;i<40&&(slow.audio.paused||slow.audio.currentTime<=0);i++)await new Promise(r=>setTimeout(r,50));
+  check(!slow.audio.paused&&slow.audio.currentTime>0,'delayed native MP3 actually plays');
+ }finally{slow.destroy();}
+
  document.body.dataset.gainStep='delayed MP3 seek completion';
  const seekBytes=Uint8Array.from(atob('${seekMp3.toString('base64')}'),c=>c.charCodeAt(0));
  let releaseTail;const tailGate=new Promise(r=>releaseTail=r);
@@ -207,7 +225,7 @@ try{
   let id=0;const pending=new Map();socket.onmessage=event=>{const m=JSON.parse(event.data);if(pending.has(m.id)){const {resolve,reject}=pending.get(m.id);pending.delete(m.id);if(m.error)reject(Error(m.error.message));else resolve(m.result);}};
   const call=(method,params={})=>new Promise((resolve,reject)=>{const seq=++id;pending.set(seq,{resolve,reject});socket.send(JSON.stringify({id:seq,method,params}));});
   let state;
-  for(let i=0;i<200;i++){
+  for(let i=0;i<400;i++){
    const r=await call('Runtime.evaluate',{expression:'JSON.stringify({result:document.body?.dataset.gainResult,step:document.body?.dataset.gainStep})',returnByValue:true});
    state=JSON.parse(r.result.value||'{}');if(state.result)break;await pause(100);
   }
