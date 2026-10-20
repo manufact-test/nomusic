@@ -1,0 +1,49 @@
+name: CELIKOM incident 2026-10-20 read-only audit
+on:
+  push:
+    branches: [feature/api-range]
+    paths: [.github/workflows/incident-readonly-20261020.yml]
+permissions:
+  contents: read
+concurrency:
+  group: celikom-hostinger-private-test
+  cancel-in-progress: false
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Inspect release, session timeline and approved audio without mutation
+        env:
+          HOSTINGER_SSH_KEY: ${{ secrets.HOSTINGER_SSH_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          work=$(mktemp -d)
+          trap 'rm -rf "$work"' EXIT
+          printf '%s\n' "$HOSTINGER_SSH_KEY" | tr -d '\r' > "$work/key"
+          ssh-keygen -y -P '' -f "$work/key" > "$work/public"
+          test "$(ssh-keygen -lf "$work/public" -E sha256 | awk '{print $2}')" = 'SHA256:Q6FyifXRq6garceQdIIjBmXhkk81Ic1p/x9JTSYHWUk'
+          printf '%s\n' '[92.113.19.189]:65002 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAf8M2EVwq0oJI8I9KZ0NFE8P8yDOvDATEhkQti/Kk/0' > "$work/known_hosts"
+          ssh -T -p 65002 -i "$work/key" -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o "UserKnownHostsFile=$work/known_hosts" -o GlobalKnownHostsFile=/dev/null -o ConnectTimeout=15 u235811320@92.113.19.189 '/opt/alt/php83/usr/bin/php' <<'PHP'
+          <?php
+          ini_set('display_errors','0');
+          try {
+            $app='/home/u235811320/domains/darkred-camel-588676.hostingersite.com/celikom';
+            $out=function($type,$data){echo json_encode(['type'=>$type,'data'=>$data],JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR),"\n";};
+            $out('release',['utc'=>gmdate('c'),'current'=>basename(realpath($app.'/current'))]);
+            foreach(['src/Auth/AuthService.php','src/Auth/AuthController.php','src/Application.php','public/index.php'] as $relative){$p=$app.'/current/'.$relative;$out('deployed_file',['file'=>$relative,'sha256'=>is_file($p)?hash_file('sha256',$p):null,'mtime'=>is_file($p)?gmdate('c',filemtime($p)):null]);}
+            foreach(['shared/env','shared/.env'] as $relative){$p=$app.'/'.$relative;if(is_file($p))$out('configuration_timestamp',['file'=>$relative,'mtime'=>gmdate('c',filemtime($p))]);}
+            require $app.'/current/bootstrap.php';$config=require $app.'/current/config/app.php';
+            $pdo=Celikom\Database\Connection::open($config);
+            $pdo->exec('SET TRANSACTION READ ONLY');$pdo->beginTransaction();
+            $sessions=$pdo->query("SELECT s.id,s.user_id,d.installation_id,s.created_at,s.last_refreshed_at,s.revoked_at FROM user_sessions s JOIN user_devices d ON d.id=s.device_id WHERE s.created_at >= '2026-10-20 00:00:00' OR s.last_refreshed_at >= '2026-10-20 00:00:00' OR s.revoked_at >= '2026-10-20 00:00:00' ORDER BY s.id DESC LIMIT 100")->fetchAll(PDO::FETCH_ASSOC);
+            foreach($sessions as $s){$out('session_timeline',['session'=>substr(hash('sha256','session:'.$s['id']),0,12),'account'=>substr(hash('sha256','user:'.$s['user_id']),0,12),'installation'=>substr(hash('sha256','device:'.$s['installation_id']),0,12),'created_at'=>$s['created_at'],'last_refreshed_at'=>$s['last_refreshed_at'],'revoked_at'=>$s['revoked_at']]);}
+            $rows=$pdo->query("SELECT t.service_track_id,r.id,r.version,r.status,r.is_active,r.disabled_at,a.mime_type,a.size_bytes,a.storage_key,a.duration_ms FROM tracks t LEFT JOIN track_replacements r ON r.track_id=t.id LEFT JOIN audio_assets a ON a.id=r.audio_asset_id WHERE t.service='yandex' AND t.service_track_id IN ('144530503','38436680') ORDER BY t.service_track_id,r.id")->fetchAll(PDO::FETCH_ASSOC);
+            $pdo->commit();
+            $storage=new Celikom\Storage\LocalStorageAdapter($config['storage_path']);
+            foreach($rows as $row){$key=$row['storage_key'];unset($row['storage_key']);$row['stored_bytes']=$key&&$storage->exists($key)?$storage->getSize($key):null;if($key&&$row['stored_bytes']){$stream=$storage->openStream($key);$hash=hash_init('sha256');hash_update_stream($hash,$stream);fclose($stream);$row['sha256']=hash_final($hash);}$out('focus_audio',$row);}
+            echo "READ_ONLY_INCIDENT_AUDIT_PASS; no SQL writes, deploy, logout, token refresh or audio writes\n";
+          }catch(Throwable $e){fwrite(STDERR,'Incident audit failed: '.get_class($e)."\n");exit(1);}
+          PHP
