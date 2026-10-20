@@ -1,3 +1,10 @@
+## 2026-10-20 — CELIKOM 0.4.58: VPN recovery without browser online event (OWNER RETEST PENDING)
+
+Owner reported installed **0.4.57** failed to auto-reconnect after switching VPN; manual reconnection worked. Diagnostic evidence: repeated `auth/me` `auth_timeout` (~20 s), then `auth_network_error`; fail-open restored original (`api_network_error`), bridge remained healthy, while `replacementError=access_reconnecting`, `suspended=true`, `recovering=false`, `player.connected=false`. Actual VPN/server route cause unproven; `online` event was not evidenced at return.
+
+**0.4.58** adds worker retry transport reset even when Chrome does not fire online/visibility hints, then resumes only after verified server entitlement (`allowed,recovered=true`). Existing 5 s retry cooldown, safe fail-open, Stop/Original, no offline authorization and no replay of POST/trial remain. Regression test added. Source: `e1a5be2` + `fb03386`, release commit `32914c86589b5f8833053925273695c4eb2e29e0`. [Full CI PASS](https://github.com/manufact-test/nomusic/actions/runs/39405622654), [private Chrome build PASS](https://github.com/manufact-test/nomusic/actions/runs/39405617786) (artifact contains `celikom-extension-0.4.58.zip` + checksum); website no-deploy CI PASS. ZIP delivered directly to owner. **Owner is currently testing, live VPN recovery NOT YET ACCEPTED.** No backend/DB/audio/Android deployment; PR #6 OPEN/unmerged. Exact evidence/next checks: [VPN 0.4.58 decision](../decisions/VPN-NO-ONLINE-RECOVERY-0.4.58-2026-10-20.md).
+
+---
 ## 2026-10-16 — 0.4.50: tab reopen and VPN recovery
 
 Owner on 2026-10-15 18:26 MSK confirmed .49 appears to fix audio/format issues and continues testing. New report: one missed automatic reconnect after closing Yandex, working elsewhere/changing VPN and reopening; later reopens worked. No diagnostics for that specific failure, so exact cause remains unproven.

@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.4.58 — 2026-10-20 (автовосстановление после переключения VPN)
+
+- Исправлен путь восстановления после обрыва сети без события `online`: после временного `auth_timeout`/`auth_network_error` следующий ограниченный повторный GET сбрасывает старый сетевой транспорт.
+- После успешной новой серверной проверки доступа контроллер получает подтверждённое `allowed/recovered` и может выйти из `access_reconnecting` без ручного Start; при недоступности сети продолжает играть оригинал (fail-open).
+- Сохранены правила: не повторять POST и старт trial, не считать `online` разрешением, не отменять явный Stop/Original и запреты доступа. Добавлен регрессионный тест отсутствия события online.
+- Источник: `e1a5be2`, `fb03386`, версия `32914c8`. [CI PASS](https://github.com/manufact-test/nomusic/actions/runs/39405622654), [private package PASS](https://github.com/manufact-test/nomusic/actions/runs/39405617786). ZIP передан владельцу; **реальная проверка переключений VPN ещё идёт — приёмка не заявлена**. Сервер и БД не разворачивались/не менялись.
+- [Детали и ручной gate](docs/decisions/VPN-NO-ONLINE-RECOVERY-0.4.58-2026-10-20.md).
+
+
 ## 0.4.30 — 2026-10-12 (support inbox)
 
 - Customer support form, authenticated private inbox and admin replies/close with CSRF/audit. Existing registration SMTP sends copies to MAIL_FROM and replies to verified customer email.
