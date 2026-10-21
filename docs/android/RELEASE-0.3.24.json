@@ -1,0 +1,28 @@
+{
+  "version": "0.3.24",
+  "version_code": 25,
+  "apk_sha256": "afbe1a1a188fbfa99a63666f2777dc5e78c0fbd21979d95bbdad44d3e9250401",
+  "base_apk_sha256": "170b1883e292570d28a3b5c619cf000eaccd9d11ee85ca6f6c08f7b50e5f72c9",
+  "signer_sha256": "67fe81c56fac1c1d145344b69a0e3faf9005cf6607f4e26ca27d5926c3eefc4f",
+  "addon_dex_sha256": "2fc259b95f4f564b305af01a4132706261a2b2d3d94577c6b8f15035dcd2d81f",
+  "signing_continuity": true,
+  "manifest_matches_approved_changes": true,
+  "permissions_components_unchanged": true,
+  "original_catalogue_assets_unchanged": true,
+  "source_archive_verified": true,
+  "physical_phone_playback_verified": false,
+  "apk_bytes": 8702109,
+  "library_file_id": "libfile_1bf5f08bb718819182184b0ea4b10384",
+  "owner_check_pending": true,
+  "host_validation": {
+    "engine_checks": 108,
+    "resume_clock_checks": 28,
+    "long_run_checks": 604,
+    "long_run_virtual_hours": 15,
+    "long_run_track_changes": 300,
+    "contribution_journal_budget_checks": 95,
+    "api_contract_checks": 28,
+    "phone_replay_events": 53
+  },
+  "scope": "Android native UI and foreground-session lifetime only; no desktop, backend or website edits/deploys"
+}

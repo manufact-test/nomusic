@@ -31,6 +31,15 @@ def main():
     android = "{http://schemas.android.com/apk/res/android}"
     current = ET.parse(args.decoded / "AndroidManifest.xml").getroot()
     baseline = ET.parse(ROOT / "decoded/AndroidManifest.xml").getroot()
+    # Only the approved app label, native UI theme and service description change.
+    expected_app = baseline.find("application")
+    expected_app.set(android + "label", "CELIKOM")
+    for activity in expected_app.findall("activity"):
+        if activity.get(android + "name") == "pro.celikom.nativeprobe.identitydiag.RecorderActivity":
+            activity.set(android + "theme", "@android:style/Theme.Material.NoActionBar")
+    for service in expected_app.findall("service"):
+        if service.get(android + "name") == "pro.celikom.nativeprobe.identitydiag.ProbeService":
+            service.find("property").set(android + "value", "User initiated current-song observation and automatic audio replacement; foreground playback continues until the user stops it")
     def structure(node):
         # Apktool may reorder names in a flags bitmask without changing it.
         attributes = [(key, "|".join(sorted(value.split("|"))) if key == android + "foregroundServiceType" else value) for key, value in node.attrib.items()]
@@ -43,7 +52,7 @@ def main():
     denied = ("BIND_NOTIFICATION_LISTENER_SERVICE", "BIND_ACCESSIBILITY_SERVICE", "RECORD_AUDIO", "READ_SMS", "READ_CONTACTS", "QUERY_ALL_PACKAGES")
     assert not any(any(key in value for key in denied) for node in current.iter() for value in node.attrib.values())
     badging = subprocess.check_output([str(args.build_tools / "aapt"), "dump", "badging", str(args.apk)], text=True)
-    assert "versionCode='24'" in badging and "versionName='0.3.23-probe'" in badging
+    assert "versionCode='25'" in badging and "versionName='0.3.24'" in badging
     assert "sdkVersion:'28'" in badging and "targetSdkVersion:'36'" in badging
     with zipfile.ZipFile(args.apk) as built, zipfile.ZipFile(args.base_apk) as base:
         assert len(built.namelist()) == len(set(built.namelist())), "Duplicate APK entry"
@@ -58,22 +67,23 @@ def main():
             assert any(n.endswith("/verify_release.py") for n in names)
             for name in names:
                 path = Path(name)
-                assert path.parts[0] == "CELIKOM-0.3.23-source" and ".." not in path.parts
+                assert path.parts[0] == "CELIKOM-0.3.24-source" and ".." not in path.parts
                 assert not any(part in ("private", "deps", "classes", "build") for part in path.parts)
                 relative = Path(*path.parts[1:])
                 assert source.read(name) == (ROOT / relative).read_bytes(), "Stale embedded source: " + name
     proof = {
-        "version": "0.3.23", "version_code": 24,
+        "version": "0.3.24", "version_code": 25,
         "apk_sha256": hashlib.sha256(args.apk.read_bytes()).hexdigest(),
         "base_apk_sha256": hashlib.sha256(args.base_apk.read_bytes()).hexdigest(),
         "signer_sha256": cert,
         "addon_dex_sha256": hashlib.sha256(args.compiled_dex.read_bytes()).hexdigest(),
-        "signing_continuity": True, "manifest_unchanged": True,
+        "signing_continuity": True, "manifest_matches_approved_changes": True,
+        "permissions_components_unchanged": True,
         "original_catalogue_assets_unchanged": True, "source_archive_verified": True,
         "physical_phone_playback_verified": False,
     }
     args.apk.with_suffix(".verification.json").write_text(json.dumps(proof, indent=2) + "\n")
-    print("PASS: same signing identity; APK v2/v3 signature; alignment; version/API; unchanged manifest and catalogue assets; exact compiled DEX and embedded source")
+    print("PASS: same signing identity; APK v2/v3 signature; alignment; version/API; approved manifest boundary and unchanged catalogue assets; exact compiled DEX and embedded source")
 
 
 if __name__ == "__main__":

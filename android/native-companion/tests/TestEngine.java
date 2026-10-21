@@ -17,7 +17,7 @@ public class TestEngine {
   p.current=source("2",0,true);e.update(p.current);ok(first.released&&e.player==null&&e.effect==null,"track change restores original");
   reset("ALBUM");e.arm();NativeApi.Result old=api.resolved;p.current=source("2",0,true);old.done(found(),null);ok(api.downloads==0&&e.effect==null,"old resolve callback cannot play for new track");
   reset("ALBUM");e.arm();resolve();NativeApi.AudioResult oldDownload=api.downloaded;e.stop("owner_stop");File stale=File.createTempFile("engine-test", ".audio");oldDownload.done(stale,null);ok(!stale.exists()&&e.player==null,"late download after stop is discarded");
-  playing();first=e.player;SystemClock.now=e.armedUntil+1;e.update(p.current);ok(!e.armed()&&first.released&&e.effect==null,"foreground run limit restores original");
+  playing();first=e.player;SystemClock.now+=13*60*1000;p.current=source("1",1000,true);e.update(p.current);ok(e.armed()&&!first.released&&e.effect!=null,"replacement remains enabled past the former twelve-minute limit");
   playing();first=e.player;e.update(null);ok(first.released&&e.effect==null,"lost source restores original");
   playing();first=e.player;DynamicsProcessing effect=e.effect;effect.listener.onControlStatusChange(effect,false);ok(!e.armed()&&first.released&&e.effect==null,"effect control loss stops replacement");
   playing();first=e.player;first.error.onError(first,1,2);ok(e.armed()&&first.released&&e.effect==null,"media error restores original and retains automatic mode");

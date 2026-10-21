@@ -14,10 +14,11 @@ import shutil
 import subprocess
 import tempfile
 import zipfile
+import xml.etree.ElementTree as ET
 
 ROOT = Path(__file__).resolve().parent
-VERSION = "0.3.23"
-VERSION_CODE = 24
+VERSION = "0.3.24"
+VERSION_CODE = 25
 
 
 def run(args, **kwargs):
@@ -37,6 +38,7 @@ def main():
     args = parser.parse_args()
     inputs = json.loads((ROOT / "build-inputs.json").read_text())
     assert sha(args.base_apk) == inputs["base_apk_sha256"], "Unexpected baseline APK"
+    assert ('NAME="' + VERSION + '"') in (ROOT / "addon/src/pro/celikom/nativeprobe/identitydiag/AppVersion.java").read_text(), "Source version mismatch"
     for name, digest in inputs["dependencies"].items():
         assert sha(args.deps_dir / name) == digest, "Dependency mismatch: " + name
     private = args.signing_dir.resolve()
@@ -51,11 +53,24 @@ def main():
     yml = decoded / "apktool.yml"
     config = yml.read_text()
     config = re.sub(r"versionCode: \d+", "versionCode: " + str(VERSION_CODE), config)
-    config = re.sub(r"versionName: [^\n]+", "versionName: " + VERSION + "-probe", config)
+    config = re.sub(r"versionName: [^\n]+", "versionName: " + VERSION, config)
     yml.write_text(config)
+    manifest = decoded / "AndroidManifest.xml"
+    ET.register_namespace("android", "http://schemas.android.com/apk/res/android")
+    tree = ET.parse(manifest)
+    android_attr = "{http://schemas.android.com/apk/res/android}"
+    application = tree.getroot().find("application")
+    application.set(android_attr + "label", "CELIKOM")
+    for activity in application.findall("activity"):
+        if activity.get(android_attr + "name") == "pro.celikom.nativeprobe.identitydiag.RecorderActivity":
+            activity.set(android_attr + "theme", "@android:style/Theme.Material.NoActionBar")
+    for service in application.findall("service"):
+        if service.get(android_attr + "name") == "pro.celikom.nativeprobe.identitydiag.ProbeService":
+            service.find("property").set(android_attr + "value", "User initiated current-song observation and automatic audio replacement; foreground playback continues until the user stops it")
+    tree.write(manifest, encoding="utf-8", xml_declaration=True)
     for p in (decoded / "smali/pro/celikom/nativeprobe").rglob("*.smali"):
         source = p.read_text()
-        updated = source.replace("0.3.22-probe", VERSION + "-probe")
+        updated = source.replace("0.3.22-probe", VERSION)
         if p.name == "BuildConfig.smali":
             updated = re.sub(r"(\.field public static final VERSION_CODE:I = )0x[0-9a-f]+", lambda m: m[1] + hex(VERSION_CODE), updated)
         if source != updated:
@@ -72,7 +87,7 @@ def main():
     tests.mkdir(exist_ok=True)
     test_cp = os.pathsep.join(map(str, [args.deps_dir / "json.jar", classes, android]))
     run(["java", "com.sun.tools.javac.Main", "-encoding", "UTF-8", "-source", "8", "-target", "8", "-cp", test_cp, "-d", tests, *sorted((ROOT / "addon").glob("Test*.java"))])
-    for test in ("TestPure", "TestHybrid", "TestContracts"):
+    for test in ("TestPure", "TestHybrid", "TestContracts", "TestMobileActions"):
         run(["java", "-cp", os.pathsep.join(map(str, [args.deps_dir / "json.jar", classes, tests, android])), "pro.celikom.nativeprobe.identitydiag." + test])
     addon_jar = work / "addon.jar"
     run(["java", "sun.tools.jar.Main", "--create", "--file", addon_jar, "-C", classes, "."])

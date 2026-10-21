@@ -6,9 +6,9 @@ import android.content.Context;
 import org.json.*;
 import java.io.*;
 import java.util.*;
-/** Owner-enabled automatic replacement within the foreground diagnostic run. */
+/** User-enabled automatic replacement within the foreground service lifetime. */
 final class ReplacementEngine {
- static final long RUN_MS=720000, PREPARED_MS=60000, SEEK_TIMEOUT_MS=2000, FADE_MS=140, PAUSE_GRACE_MS=350;
+ static final long PREPARED_MS=60000, SEEK_TIMEOUT_MS=2000, FADE_MS=140, PAUSE_GRACE_MS=350;
  final ProbeService owner; final NativeApi api;
  String status="Замена выключена",identityKey,trackId,method="NONE",lookupKey;
  JSONObject descriptor; long descriptorUntil,nextLookup,armedUntil,preparedAt,seekStarted,fadeStarted,transition,settleUntil,pausedAt=-1;
@@ -28,9 +28,9 @@ final class ReplacementEngine {
  void arm(){if(closed)return;if(returning)stop("rearm_during_return");if(!api.signedIn()){status="Сначала войди в свой аккаунт CELIKOM";return;}
   Integer session=verifiedSession(owner);
   if(session!=null&&session>0){if(trustedSession>0&&trustedSession!=session){generation++;preparing=false;release("session_rearmed");descriptor=null;lookupKey=null;}trustedSession=session;}
-  preloadAllowed=true;armedUntil=SystemClock.elapsedRealtime()+RUN_MS;
-  status=trustedSession>0?"Автозамена включена до конца общей проверки":"Автозамена ожидает подключения: открой эквалайзер Яндекса → CELIKOM один раз";
-  LogStore.log("replacement_trial_start",LogStore.map("durationMs",RUN_MS,"verifiedAudioSession",trustedSession,"waitingForVerifiedSession",trustedSession<=0,"automaticNextTracks",true,"preparedBeforeArm",ready));update(owner.current);
+  preloadAllowed=true;armedUntil=Long.MAX_VALUE;
+  status=trustedSession>0?"Автозамена включена":"Открой эквалайзер Яндекс Музыки и выбери CELIKOM";
+  LogStore.log("replacement_trial_start",LogStore.map("durationLimited",false,"verifiedAudioSession",trustedSession,"waitingForVerifiedSession",trustedSession<=0,"automaticNextTracks",true,"preparedBeforeArm",ready));update(owner.current);
  }
  void attachPendingSession(){if(!armed()||trustedSession>0)return;Integer session=verifiedSession(owner);if(session!=null&&session>0){trustedSession=session;status="Подключение получено; автозамена включена";LogStore.log("replacement_session_attached",LogStore.map("sessionId",session,"source","verified_yandex_panel"));}}
  void headphonesDisconnected(){
@@ -47,9 +47,9 @@ final class ReplacementEngine {
  void confirm(){if(identityKey!=null&&trackId!=null){confirmed.add(confirmationKey());LogStore.log("metadata_candidate_confirmed",LogStore.map("trackId",trackId,"identityKey",identityKey));lookupKey=null;nextLookup=0;update(owner.current);}}
  void identity(Map<String,Object> o,Map<String,Object> decision){String key=PlaybackSource.key(String.valueOf(o.get("mediaAlias")),o.get("albumId"),String.valueOf(o.get("title")),String.valueOf(o.get("artist")),((Number)o.get("durationMs")).longValue());PlaybackSource s=owner.current;if(s==null||!s.key.equals(key))return;String id=(String)decision.get("candidateTrackId");String nextMethod=String.valueOf(decision.get("method"));if(!Objects.equals(identityKey,key)||!Objects.equals(trackId,id)){generation++;preparing=false;release("identity_changed");nextLookup=0;failures=0;descriptor=null;lookupKey=null;}identityKey=key;trackId=id;method=nextMethod;if(id==null){status="Песня пока не определена однозначно; играет оригинал";return;}update(s);}
  boolean current(String key){PlaybackSource s=owner.current;return !closed&&owner.alive()&&s!=null&&ApiContract.current(key,s.key,SystemClock.elapsedRealtime()-s.observed,s.connected);}
- boolean armed(){return armedUntil>SystemClock.elapsedRealtime();}
+ boolean armed(){return !closed&&armedUntil!=0;}
  long position(PlaybackSource s){long extra=s.playing?Math.max(0,SystemClock.elapsedRealtime()-s.observed):0;return Math.min(s.duration,Math.max(0,s.position+extra));}
- void update(PlaybackSource s){if(closed||returning)return;attachPendingSession();if(armedUntil!=0&&!armed()){stop("run_limit");return;}
+ void update(PlaybackSource s){if(closed||returning)return;attachPendingSession();
   if(s==null||!s.connected||SystemClock.elapsedRealtime()-s.observed>1500){if(player!=null||preparing||lookupKey!=null)suspend("source_unavailable",1000);status="Ожидаем подключение к Яндексу; играет оригинал";return;}
   if(waitingForRouteResume){if(!s.playing){routePauseObserved=true;status="Наушники отключены. Нажми ▶ в Яндексе для продолжения";return;}if(!routePauseObserved){status="Ждём паузу Яндекса после отключения наушников";return;}waitingForRouteResume=false;pausedAt=-1;aligned=false;LogStore.log("replacement_route_resume",LogStore.map("sessionId",trustedSession,"sourcePlaying",true));}
   if(!s.key.equals(identityKey)){if(player!=null||preparing){generation++;preparing=false;release("track_changed");descriptor=null;lookupKey=null;}return;}
