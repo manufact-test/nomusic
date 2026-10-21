@@ -27,7 +27,7 @@ public class RecorderActivity extends Activity {
  final Handler handler=new Handler(Looper.getMainLooper());
  final ExecutorService files=Executors.newSingleThreadExecutor();
  TextView status,mark,access,track,version,accountNote,reportNote;
- Button start,stop,restore,confirm,loginButton,logoutButton,accountToggle,uploadButton,suggestButton;
+ Button start,stop,restore,confirm,loginButton,logoutButton,accountToggle,uploadButton,suggestButton,notificationPermission;
  final StartIntent startIntent=new StartIntent();LinearLayout accountBody;boolean authBusy,accessBusy,pendingStart,exportBusy,presenceBusy,contributionBusy;String serverStatus="",uiProblem="",presenceId="",presenceStatus="";JSONObject accountAccess;long presenceChecked,uiAccountGeneration=-1,permissionIntent=-1,permissionAccount=-1;
  MobileActions.Target pickerTarget;File exportSnapshot;AlertDialog uploadDialog;
  int dp(float value){return Math.round(value*getResources().getDisplayMetrics().density);}
@@ -47,6 +47,7 @@ public class RecorderActivity extends Activity {
   accountBody=section(box,"Аккаунт");accountNote=label(accountBody,"",13,MUTED);loginButton=button(accountBody,"Войти",this::login,false);logoutButton=button(accountBody,"Выйти",this::logout,false);
   support(section(box,"Связь с поддержкой"));
   Button save=button(box,"Сохранить диагностику",this::export,false);save.setBackgroundColor(Color.TRANSPARENT);save.setTextColor(0xff8fa0a8);save.setTextSize(12);save.setGravity(Gravity.START|Gravity.CENTER_VERTICAL);save.setPadding(dp(2),0,0,0);
+  notificationPermission=button(box,"Включить уведомления CELIKOM",this::enableNotifications,false);notificationPermission.setTextSize(12);
   reportNote=label(box,"",12,MUTED);label(box,"CELIKOM · "+AppVersion.NAME,11,0xff788991);
   if(saved!=null){try{if(saved.containsKey("pickerId"))pickerTarget=new MobileActions.Target(saved.getString("pickerId"),saved.getString("pickerKey"),saved.getString("pickerTitle"),saved.getString("pickerArtist"),saved.getLong("pickerDuration"));String report=saved.getString("reportSnapshot");if(report!=null){File candidate=new File(report);if(candidate.getCanonicalFile().getParentFile().equals(getCacheDir().getCanonicalFile())&&candidate.getName().startsWith("diagnostics-"))exportSnapshot=candidate;}}catch(Exception ignored){}}
   receive(getIntent());render();if(api().signedIn())checkServer();
@@ -68,11 +69,9 @@ public class RecorderActivity extends Activity {
   ProbeService p=ProbeService.instance;ReplacementEngine e=p==null?null:p.replacement;boolean running=p!=null&&p.alive(),armed=e!=null&&e.armed(),signed=api().signedIn();
   if(uiAccountGeneration!=api().accountGeneration){uiAccountGeneration=api().accountGeneration;presenceId="";presenceStatus="";presenceChecked=0;accountAccess=null;serverStatus="";}
   PlaybackSource source=running?p.current:null;
-  AppPresentation.Input input=new AppPresentation.Input();input.signed=signed;input.starting=pendingStart;input.running=running;input.enabled=armed;input.source=source!=null&&source.connected&&SystemClock.elapsedRealtime()-source.observed<=1500;input.session=e!=null&&e.trustedSession>0;input.playing=source!=null&&source.playing;input.seeking=e!=null&&e.seeking;input.preparing=e!=null&&e.preparing;input.identified=e!=null&&source!=null&&source.key.equals(e.identityKey)&&e.trackId!=null;
-  input.confirmation=input.identified&&!"ALBUM".equals(e.method)&&!e.confirmed.contains(e.confirmationKey());input.missing=e!=null&&e.descriptor!=null&&!e.descriptor.optBoolean("found");input.problem=uiProblem;
-  if(input.problem.isEmpty()&&e!=null){if(e.status.startsWith("Яндекс сменил"))input.problem="Яндекс Музыка отключилась. Нажмите «Старт» и выберите CELIKOM в её эквалайзере.";else if(e.status.startsWith("Android не")||e.status.startsWith("Телефон не"))input.problem=e.status;else if(e.status.startsWith("Сервер:")||e.status.startsWith("Сеть недоступна"))input.problem="Не удалось получить версию CELIKOM. Играет оригинал; повторим автоматически.";}
-  try{input.replacing=e!=null&&e.effect!=null&&e.player!=null&&e.ready&&!e.returning&&(e.player.isPlaying()||!input.playing);}catch(RuntimeException ignored){}
+  AppPresentation.Input input=PlaybackUi.capture(p,signed,pendingStart,uiProblem);
   AppPresentation presentation=AppPresentation.of(input);
+  notificationPermission.setVisibility(getSystemService(NotificationManager.class).areNotificationsEnabled()?View.GONE:View.VISIBLE);
   set(status,presentation.header);status.setTextColor(presentation.connected?MINT:0xff8fa0a8);mark.setTextColor(presentation.connected?MINT:0xff858b8e);enable(start,!armed&&!pendingStart&&!authBusy&&(p==null||!p.stopping));enable(stop,running||pendingStart);enable(restore,running&&armed);
   set(access,presentation.instruction);access.setTextColor(presentation.connected?MINT:MUTED);
   track.setVisibility(presentation.showTrack?View.VISIBLE:View.GONE);set(track,presentation.showTrack&&source!=null?source.title+(source.artist.isEmpty()?"":" — "+source.artist):"");
@@ -90,7 +89,7 @@ public class RecorderActivity extends Activity {
  void stop(){pendingStart=false;startIntent.cancel();uiProblem="";ProbeService p=ProbeService.instance;if(p!=null)p.finish("user_stop");render();}
  void openYandex(){Intent intent=getPackageManager().getLaunchIntentForPackage(LogStore.PKG);if(intent==null){toast("Яндекс Музыка не найдена");return;}try{startActivity(intent);}catch(RuntimeException e){toast("Не удалось открыть Яндекс Музыку");}}
  void confirmTrack(){ProbeService p=ProbeService.instance;if(p==null||p.replacement==null||p.current==null)return;ReplacementEngine e=p.replacement;String key=p.current.key,id=e.trackId;if(id==null||!key.equals(e.identityKey))return;new AlertDialog.Builder(this).setTitle("Это нужная песня?").setMessage(p.current.title+" — "+p.current.artist).setNegativeButton("Отмена",null).setPositiveButton("Подтвердить",(d,w)->{if(p.current!=null&&key.equals(p.current.key)&&id.equals(e.trackId))e.confirm();}).show();}
- MobileActions.Target target(){try{ProbeService p=ProbeService.instance;if(p==null||!p.alive()||p.current==null||p.replacement==null)return null;ReplacementEngine e=p.replacement;if(!p.current.key.equals(e.identityKey)||!"ALBUM".equals(e.method))return null;return new MobileActions.Target(e.trackId,p.current.key,p.current.title,p.current.artist,p.current.duration);}catch(Exception e){return null;}}
+ MobileActions.Target target(){return PlaybackUi.target(ProbeService.instance);}
  boolean current(MobileActions.Target t){MobileActions.Target now=target();return now!=null&&now.id.equals(t.id)&&now.key.equals(t.key);}
  void login(){if(authBusy)return;LinearLayout form=column();form.setPadding(dp(20),dp(8),dp(20),0);EditText email=input(form,"Email",InputType.TYPE_CLASS_TEXT|InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS),password=input(form,"Пароль",InputType.TYPE_CLASS_TEXT|InputType.TYPE_TEXT_VARIATION_PASSWORD);
   AlertDialog dialog=new AlertDialog.Builder(this).setTitle("Вход в CELIKOM").setView(form).setNegativeButton("Отмена",(d,w)->pendingStart=false).setPositiveButton("Войти",null).create();dialog.setOnCancelListener(d->pendingStart=false);
@@ -114,7 +113,21 @@ public class RecorderActivity extends Activity {
  void export(){if(exportBusy)return;if(!LogStore.hasReport()){toast("Диагностика пока пуста. Сначала нажмите «Старт».");return;}exportBusy=true;files.execute(()->{File snapshot=null;try{snapshot=File.createTempFile("diagnostics-",".txt",getCacheDir());LogStore.snapshot(snapshot);}catch(Exception e){if(snapshot!=null)snapshot.delete();snapshot=null;}final File result=snapshot;handler.post(()->{if(!visible()||result==null){if(result!=null)result.delete();exportBusy=false;if(visible())toast("Не удалось подготовить диагностику");return;}exportSnapshot=result;try{startActivityForResult(new Intent(Intent.ACTION_CREATE_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("text/plain").putExtra(Intent.EXTRA_TITLE,"CELIKOM-combined-"+new SimpleDateFormat("yyyyMMdd-HHmmss",Locale.ROOT).format(new Date())+".txt"),20);}catch(RuntimeException e){result.delete();exportSnapshot=null;exportBusy=false;toast("Не удалось открыть сохранение TXT");}});});}
  @Override protected void onActivityResult(int request,int result,Intent data){super.onActivityResult(request,result,data);if(request==30){MobileActions.Target t=pickerTarget;pickerTarget=null;if(result==RESULT_OK&&data!=null&&data.getData()!=null)stage(data.getData(),t);return;}if(request!=20)return;File snapshot=exportSnapshot;exportSnapshot=null;exportBusy=false;if(snapshot==null)return;if(result!=RESULT_OK||data==null||data.getData()==null){snapshot.delete();return;}Uri uri=data.getData();files.execute(()->{boolean ok=false;try(OutputStream out=getContentResolver().openOutputStream(uri,"wt")){if(out==null)throw new IOException();DiagnosticJournal.copy(snapshot,out);ok=true;}catch(Exception ignored){}finally{snapshot.delete();}final boolean success=ok;handler.post(()->{if(visible())set(reportNote,success?"Диагностика сохранена":"Не удалось сохранить диагностику");});});}
  @Override protected void onNewIntent(Intent i){super.onNewIntent(i);setIntent(i);receive(i);}
- void receive(Intent i){if(i==null||!Intent.ACTION_SEND.equals(i.getAction()))return;CharSequence value=i.getCharSequenceExtra(Intent.EXTRA_TEXT);List<Object> links=ShareLinks.parse(value==null?"":value.toString());ProbeService p=ProbeService.instance;if(p!=null&&p.alive()&&!links.isEmpty()){LogStore.log("share_reference",LogStore.map("links",links));if(p.albumProbe!=null)p.albumProbe.reference(links);toast("Ссылка добавлена в диагностику");}setIntent(new Intent(this,RecorderActivity.class));}
+ void receive(Intent i){
+  if(i==null)return;
+  if(NotificationTarget.ACTION.equals(i.getAction())){
+   setIntent(new Intent(this,RecorderActivity.class));
+   NotificationTarget requested=new NotificationTarget(i.getStringExtra("notification_run"),i.getStringExtra("notification_track"),i.getStringExtra("notification_key"),i.getLongExtra("notification_account",-1));ProbeService p=ProbeService.instance;MobileActions.Target t=target();
+   if(p==null||t==null||!requested.matches(p.notificationRun,t.id,t.key,api().accountGeneration)){toast("Песня или подключение уже изменились. Выберите текущую песню в CELIKOM.");return;}
+   contributionCheck(t,()->showSuggestion(t));return;
+  }
+  if(!Intent.ACTION_SEND.equals(i.getAction()))return;CharSequence value=i.getCharSequenceExtra(Intent.EXTRA_TEXT);List<Object> links=ShareLinks.parse(value==null?"":value.toString());ProbeService p=ProbeService.instance;if(p!=null&&p.alive()&&!links.isEmpty()){LogStore.log("share_reference",LogStore.map("links",links));if(p.albumProbe!=null)p.albumProbe.reference(links);toast("Ссылка добавлена в диагностику");}setIntent(new Intent(this,RecorderActivity.class));
+ }
+ void enableNotifications(){
+  if(Build.VERSION.SDK_INT>=33&&checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)!=PackageManager.PERMISSION_GRANTED&&!shouldShowRequestPermissionRationale(Manifest.permission.POST_NOTIFICATIONS)&&!getPreferences(0).getBoolean("notificationAsked",false)){getPreferences(0).edit().putBoolean("notificationAsked",true).apply();requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS},11);return;}
+  try{startActivity(new Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(android.provider.Settings.EXTRA_APP_PACKAGE,getPackageName()));}catch(RuntimeException e){toast("Откройте настройки уведомлений CELIKOM в настройках Android.");}
+ }
+
  void toast(String text){Toast.makeText(this,text,Toast.LENGTH_LONG).show();}
  @Override protected void onSaveInstanceState(Bundle out){super.onSaveInstanceState(out);if(pickerTarget!=null){out.putString("pickerId",pickerTarget.id);out.putString("pickerKey",pickerTarget.key);out.putString("pickerTitle",pickerTarget.title);out.putString("pickerArtist",pickerTarget.artist);out.putLong("pickerDuration",pickerTarget.duration);}if(exportSnapshot!=null)out.putString("reportSnapshot",exportSnapshot.getPath());}
  @Override protected void onDestroy(){startIntent.cancel();pendingStart=false;handler.removeCallbacksAndMessages(null);if(uploadDialog!=null)uploadDialog.dismiss();if(exportSnapshot!=null&&isFinishing())exportSnapshot.delete();files.shutdown();super.onDestroy();}

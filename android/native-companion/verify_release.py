@@ -52,7 +52,7 @@ def main():
     denied = ("BIND_NOTIFICATION_LISTENER_SERVICE", "BIND_ACCESSIBILITY_SERVICE", "RECORD_AUDIO", "READ_SMS", "READ_CONTACTS", "QUERY_ALL_PACKAGES")
     assert not any(any(key in value for key in denied) for node in current.iter() for value in node.attrib.values())
     badging = subprocess.check_output([str(args.build_tools / "aapt"), "dump", "badging", str(args.apk)], text=True)
-    assert "versionCode='26'" in badging and "versionName='0.3.25'" in badging
+    assert "versionCode='27'" in badging and "versionName='0.3.26'" in badging
     assert "sdkVersion:'28'" in badging and "targetSdkVersion:'36'" in badging
     with zipfile.ZipFile(args.apk) as built, zipfile.ZipFile(args.base_apk) as base:
         assert len(built.namelist()) == len(set(built.namelist())), "Duplicate APK entry"
@@ -67,12 +67,12 @@ def main():
             assert any(n.endswith("/verify_release.py") for n in names)
             for name in names:
                 path = Path(name)
-                assert path.parts[0] == "CELIKOM-0.3.25-source" and ".." not in path.parts
+                assert path.parts[0] == "CELIKOM-0.3.26-source" and ".." not in path.parts
                 assert not any(part in ("private", "deps", "classes", "build") for part in path.parts)
                 relative = Path(*path.parts[1:])
                 assert source.read(name) == (ROOT / relative).read_bytes(), "Stale embedded source: " + name
     proof = {
-        "version": "0.3.25", "version_code": 26,
+        "version": "0.3.26", "version_code": 27,
         "apk_sha256": hashlib.sha256(args.apk.read_bytes()).hexdigest(),
         "base_apk_sha256": hashlib.sha256(args.base_apk.read_bytes()).hexdigest(),
         "signer_sha256": cert,

@@ -1,0 +1,29 @@
+{
+  "version": "0.3.26",
+  "version_code": 27,
+  "apk_sha256": "90a67a9066dcfee77013ad7aa88038343526468d05bc7b936309c330af3e77d8",
+  "base_apk_sha256": "170b1883e292570d28a3b5c619cf000eaccd9d11ee85ca6f6c08f7b50e5f72c9",
+  "signer_sha256": "67fe81c56fac1c1d145344b69a0e3faf9005cf6607f4e26ca27d5926c3eefc4f",
+  "addon_dex_sha256": "6424025b83ee590259df89a2a7b16b27d32bf5da3811ef24c94b4b8c350bc727",
+  "signing_continuity": true,
+  "manifest_matches_approved_changes": true,
+  "permissions_components_unchanged": true,
+  "original_catalogue_assets_unchanged": true,
+  "source_archive_verified": true,
+  "physical_phone_playback_verified": false,
+  "apk_bytes": 8726685,
+  "library_file_id": "libfile_daac0ba6edf881919e471f5dffb21cfc",
+  "owner_check_pending": true,
+  "host_validation": {
+    "notification_state_and_pinned_action_checks": 33,
+    "ui_state_and_start_stop_checks": 25,
+    "engine_checks": 108,
+    "resume_clock_checks": 28,
+    "long_run_checks": 604,
+    "long_run_virtual_hours": 15,
+    "contribution_journal_budget_checks": 95,
+    "api_contract_checks": 28,
+    "phone_replay_events": 53
+  },
+  "scope": "Android foreground notification, pinned suggestion activity action and shared read-only UI snapshot; no playback engine, desktop/backend/website changes"
+}
