@@ -1,0 +1,43 @@
+{
+  "version": "0.3.27",
+  "version_code": 28,
+  "apk_sha256": "ed85a3f298999ab65549fa005273de5ac01b4be6f3ba0c3f46486a366fda6e3d",
+  "base_apk_sha256": "170b1883e292570d28a3b5c619cf000eaccd9d11ee85ca6f6c08f7b50e5f72c9",
+  "signer_sha256": "67fe81c56fac1c1d145344b69a0e3faf9005cf6607f4e26ca27d5926c3eefc4f",
+  "addon_dex_sha256": "edf21f1e5435beb81c5dff029a2cae7d29d61f637ea7f941255a2376f2d2f416",
+  "signing_continuity": true,
+  "manifest_matches_approved_changes": true,
+  "permissions_components_unchanged": true,
+  "original_catalogue_assets_unchanged": true,
+  "source_archive_verified": true,
+  "physical_phone_playback_verified": false,
+  "apk_bytes": 8738973,
+  "library_file_id": "libfile_d9eb70ae0b0c8191951866f08da9fa83",
+  "owner_check_pending": true,
+  "host_validation": {
+    "car_clock_recovery_checks": 42,
+    "previous_run_archive_checks": 106,
+    "engine_checks": 109,
+    "resume_clock_checks": 28,
+    "long_run_checks": 604,
+    "long_run_virtual_hours": 15,
+    "notification_checks": 33,
+    "ui_state_checks": 25,
+    "contribution_journal_budget_checks": 95,
+    "api_contract_checks": 28,
+    "phone_replay_events": 53
+  },
+  "evidence": {
+    "reports": [
+      "CELIKOM-combined-20261021-190655.txt",
+      "CELIKOM-combined-20261021-191256.txt"
+    ],
+    "same_run_prefix": true,
+    "observed_unrequested_seek": {
+      "elapsed_ms": 375345,
+      "drift_ms": 550
+    },
+    "earlier_dropout_captured": false
+  },
+  "scope": "Android playback synchronization, source transition/recovery fences, retained validated audio on reconnect and bounded diagnostic history; no desktop/backend/auth/deployment changes"
+}
