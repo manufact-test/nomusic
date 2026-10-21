@@ -1,0 +1,28 @@
+{
+  "version": "0.3.25",
+  "version_code": 26,
+  "apk_sha256": "a0238942b4187382fed9eaf15285ebff063553525b5d55c1d4300701d1eaca46",
+  "base_apk_sha256": "170b1883e292570d28a3b5c619cf000eaccd9d11ee85ca6f6c08f7b50e5f72c9",
+  "signer_sha256": "67fe81c56fac1c1d145344b69a0e3faf9005cf6607f4e26ca27d5926c3eefc4f",
+  "addon_dex_sha256": "ad7eaa7b32e99368145ba07b271ccf6b81240894f47f4729f116324d54106503",
+  "signing_continuity": true,
+  "manifest_matches_approved_changes": true,
+  "permissions_components_unchanged": true,
+  "original_catalogue_assets_unchanged": true,
+  "source_archive_verified": true,
+  "physical_phone_playback_verified": false,
+  "apk_bytes": 8714397,
+  "library_file_id": "libfile_095f36d7fa348191a297fb11594d9026",
+  "owner_check_pending": true,
+  "host_validation": {
+    "ui_state_and_start_stop_checks": 25,
+    "engine_checks": 108,
+    "resume_clock_checks": 28,
+    "long_run_checks": 604,
+    "long_run_virtual_hours": 15,
+    "contribution_journal_budget_checks": 95,
+    "api_contract_checks": 28,
+    "phone_replay_events": 53
+  },
+  "scope": "Android UI presentation and explicit Start access flow only; synchronization, desktop/backend/website unchanged"
+}

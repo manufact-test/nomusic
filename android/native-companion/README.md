@@ -1,8 +1,10 @@
-# CELIKOM Android native companion — 0.3.24 candidate
+# CELIKOM Android native companion — 0.3.25 candidate
 
 This directory owns the current native application addon. The exact 0.3.22 Java source was recovered from its embedded source ZIP. Recompiling it produced a byte-identical `classes2.dex`: SHA-256 `650e8af017f98a9a016fb9b71386bb4774498eb6ca4a49606f16c8000ca57280`. `RECOVERED-0.3.22.json` preserves all recovered source hashes and the APK hash. The older `android/companion-probe` project is not the current installed application source.
 
 0.3.23 playback was accepted by the owner on 2026-10-21. This candidate retains its synchronization/route handling and implements the agreed simple native UI based on the desktop popup: Start/Stop, Restore original, Upload version, Suggest song, access/song/version labels, collapsed Account/Support, and local diagnostic export. Connection instructions appear in the status area only when needed; no permanent setup section, promotional card or bottom tabs. Start now starts the service and arms replacement in one action; fallback identity confirmation remains explicit. Yandex notification access is not required.
+
+0.3.25 corrects the owner-reported UI confusion: the Account summary explicitly says connected/not connected, with only login/logout inside it. Removed the separate access-check and activation buttons. The existing activation/entitlement operation now runs only after explicit Start, as in the desktop extension; simply opening the app or logging in does not start a trial. Account entitlement and expiry appear inside Account. Connection readiness is based on a current connected Yandex source and verified audio session, not merely an armed mode. While setup is required, the UI shows only the actionable instruction, with no prior song title. Once connected, it shows readiness, the actual identified song and the actual audio state separately. Late access/permission callbacks are fenced against Stop, logout, another Start and activity destruction. Audio synchronization and long-run behavior remain unchanged.
 
 0.3.24 removes the former twelve-minute playback/service timers. The foreground service retains playback after the app task is swiped away, keeps a renewable 90-second wake-lock lease, and releases resources on explicit Stop or service destruction. This is not an auto-start/auto-resurrection feature: Android can still stop the process. The persistent notification provides Stop.
 
@@ -10,7 +12,7 @@ Long-session safeguards: two rotating local diagnostic segments of at most 8 MiB
 
 Native contribution actions use existing server contracts only, after the user selects the exact current song, chooses a local MP3/M4A, confirms rights and explicitly submits. Upload/suggest use the desktop presence check first; track/account changes invalidate an unsubmitted target. Upload transfers run separately from serialized token refresh/playback downloads, have byte/time bounds and preserve a request UUID on retry. Support submits only typed text and, for song reports, the pinned identity/category/version; it does not attach raw diagnostics or send anything automatically. No real contribution or support message is sent by the offline checks. Desktop registration/recovery/promo/referral flows are not part of this native candidate.
 
-The APK uses the same package and signing key, versionCode 25 / versionName 0.3.24, to update the accepted installation. Only app label, native activity theme and foreground-service description change in the manifest; permissions/components and original catalogue assets remain identical. Calls remain a deferred owner test. Hardware playback, Android background scheduling and real server submissions need physical/owner verification; host tests do not certify them.
+The APK uses the same package and signing key, versionCode 26 / versionName 0.3.25, to update the accepted installation. Only app label, native activity theme and foreground-service description change in the manifest; permissions/components and original catalogue assets remain identical. Calls remain a deferred owner test. Hardware playback, Android background scheduling and real server submissions need physical/owner verification; host tests do not certify them.
 
 ## Isolated work
 
@@ -29,7 +31,7 @@ python3 build_release.py \
   --apktool /absolute/apktool.jar \
   --base-apk /absolute/CELIKOM-0.3.22-install.apk \
   --signing-dir /absolute/private-signing-directory \
-  --output /absolute/CELIKOM-0.3.24-install.apk
+  --output /absolute/CELIKOM-0.3.25-install.apk
 ```
 
 The script compiles actual Android source, executes deterministic engine/phone replay/parser/API tests, creates addon DEX, packages an exact source snapshot, signs with the existing key, and verifies package/signature/version/permissions/assets/embedded source. Host audio adapters are test code only and are never sent to D8. Build output includes a verification JSON with `physical_phone_playback_verified: false`; it cannot certify headphone hardware behavior.
