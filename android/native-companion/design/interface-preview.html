@@ -1,162 +1,94 @@
-<div id="celikom-android-design" class="viz-dotted-background">
+<div id="celikom-simple" class="viz-dotted-background">
   <style>
-    #celikom-android-design{padding:20px 12px;display:flex;justify-content:center}
-    #celikom-android-design *{box-sizing:border-box}
-    #celikom-android-design .cm-phone{width:100%;max-width:410px;background:#0b1013;color:#edf1f0;border:1px solid #2b383c;border-radius:30px;overflow:hidden;font-family:Arial,Helvetica,sans-serif;box-shadow:0 16px 45px #0003}
-    #celikom-android-design .cm-status{display:flex;justify-content:space-between;align-items:center;padding:15px 25px 7px;font-size:12px;color:#bbc5c6}
-    #celikom-android-design .cm-status-icons{display:flex;gap:7px}
-    #celikom-android-design .cm-status-icons i{width:14px;height:14px}
-    #celikom-android-design .cm-header{display:flex;align-items:center;justify-content:space-between;padding:18px 24px 22px}
-    #celikom-android-design .cm-brand{display:flex;align-items:center;gap:10px;font-size:18px;font-weight:600;letter-spacing:2px}
-    #celikom-android-design .cm-mark{background:#66e0bf;color:#0b1013;width:33px;height:33px;border-radius:11px;display:grid;place-items:center;font-size:25px;letter-spacing:0;font-weight:600}
-    #celikom-android-design .cm-ready{color:#a9bbb5;display:flex;align-items:center;gap:6px;font-size:12px}
-    #celikom-android-design .cm-dot{width:6px;height:6px;background:#66e0bf;border-radius:50%;display:inline-block;flex-shrink:0}
-    #celikom-android-design .cm-screen{padding:0 24px 24px;min-height:535px}
-    #celikom-android-design [hidden]{display:none!important}
-    #celikom-android-design h1{font-size:27px;font-weight:500;letter-spacing:-.9px;line-height:1.2;margin:4px 0 9px}
-    #celikom-android-design h2{font-size:17px;font-weight:500;margin:0}
-    #celikom-android-design p{font-size:13px;line-height:1.55;color:#a7b5b8;margin:0}
-    #celikom-android-design .cm-subtitle{margin-bottom:24px}
-    #celikom-android-design .cm-auto{padding:20px;border-radius:20px;background:linear-gradient(130deg,#18352d,#11231f);border:1px solid #25483d;margin:24px 0}
-    #celikom-android-design .cm-auto-heading{display:flex;align-items:center;justify-content:space-between;gap:12px}
-    #celikom-android-design .cm-auto-label{display:flex;flex-direction:column;gap:5px;font-size:16px;font-weight:500}
-    #celikom-android-design .cm-auto-label small{color:#77d9bd;font-size:12px;font-weight:400}
-    #celikom-android-design .cm-auto p{color:#acc2bb;margin-top:14px;font-size:12px;max-width:245px}
-    #celikom-android-design .cm-switch{appearance:none;-webkit-appearance:none;width:49px;height:30px;border:0;border-radius:20px;background:#344449;position:relative;flex-shrink:0;margin:0;transition:background .15s}
-    #celikom-android-design .cm-switch:before{content:"";position:absolute;top:4px;left:4px;background:#d3dedb;width:22px;height:22px;border-radius:50%;transition:transform .15s}
-    #celikom-android-design .cm-switch:checked{background:#66e0bf}
-    #celikom-android-design .cm-switch:checked:before{transform:translateX(19px);background:#10271f}
-    #celikom-android-design .cm-eyebrow{font-size:11px;letter-spacing:1.4px;text-transform:uppercase;color:#85989c;margin-bottom:13px}
-    #celikom-android-design .cm-track{border:1px solid #243035;background:#10181b;border-radius:20px;padding:18px;margin-bottom:20px}
-    #celikom-android-design .cm-track-top{display:flex;align-items:center;gap:15px;min-width:0}
-    #celikom-android-design .cm-art{width:76px;height:82px;flex-shrink:0;border-radius:12px;background:linear-gradient(150deg,#606b64,#c5b2a0);color:#1a2723;display:flex;align-items:center;justify-content:center;transform:rotate(-2deg);font-family:Georgia,serif;font-size:31px;letter-spacing:-3px;font-style:italic;box-shadow:0 6px 15px #0003}
-    #celikom-android-design .cm-track-name{font-size:23px;font-weight:500;letter-spacing:-.4px;margin-bottom:6px}
-    #celikom-android-design .cm-artist{font-size:12px;color:#a7b5b8;line-height:1.5;overflow-wrap:anywhere}
-    #celikom-android-design .cm-version{display:inline-flex;gap:6px;align-items:center;font-size:11px;margin-top:10px;color:#8ee6cb}
-    #celikom-android-design .cm-version i{width:13px;height:13px}
-    #celikom-android-design .cm-progress{height:3px;background:#29383b;border-radius:4px;margin:23px 0 8px;overflow:hidden}
-    #celikom-android-design .cm-progress span{display:block;width:35%;height:100%;background:#66e0bf}
-    #celikom-android-design .cm-time{display:flex;justify-content:space-between;font-size:11px;color:#92a4a8;font-variant-numeric:tabular-nums}
-    #celikom-android-design .cm-button{width:100%;min-height:48px;border:1px solid #2a393e;border-radius:13px;background:transparent;color:#dfe8e6;font-family:inherit;font-size:13px;display:flex;gap:9px;justify-content:center;align-items:center;padding:12px 14px;text-decoration:none}
-    #celikom-android-design .cm-button i{width:17px;height:17px}
-    #celikom-android-design .cm-button-primary{background:#66e0bf;color:#0b211b;border-color:#66e0bf;font-weight:500}
-    #celikom-android-design .cm-button + .cm-button{margin-top:10px}
-    #celikom-android-design .cm-note{text-align:center;font-size:11px;margin-top:14px;color:#82969a;line-height:1.5}
-    #celikom-android-design .cm-nav{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));padding:9px 14px 11px;border-top:1px solid #202b30;background:#0e1518;gap:3px}
-    #celikom-android-design .cm-nav button{display:flex;align-items:center;justify-content:center;gap:6px;flex-direction:column;border:0;background:transparent;color:#83969b;font-family:inherit;font-size:10px;min-height:50px;border-radius:12px;padding:7px 3px}
-    #celikom-android-design .cm-nav button[aria-current="page"]{color:#83e7c9;background:#162a24}
-    #celikom-android-design .cm-nav i{width:19px;height:19px}
-    #celikom-android-design .cm-home-line{background:#b1c0be;border-radius:3px;width:94px;height:3px;margin:1px auto 9px}
-    #celikom-android-design .cm-account{padding:23px 0 25px;display:flex;align-items:center;gap:15px}
-    #celikom-android-design .cm-avatar{width:55px;height:55px;border-radius:50%;display:grid;place-items:center;background:#1c2d2b;color:#91e6ce;flex-shrink:0}
-    #celikom-android-design .cm-avatar i{width:24px;height:24px}
-    #celikom-android-design .cm-account h2{margin-bottom:5px}
-    #celikom-android-design .cm-access{padding:18px;border-radius:17px;background:#14231f;border:1px solid #244238;margin-bottom:22px}
-    #celikom-android-design .cm-access h2{font-size:15px;margin-bottom:8px;display:flex;align-items:center;gap:8px;color:#9be9d1}
-    #celikom-android-design .cm-access p{font-size:12px}
-    #celikom-android-design .cm-divider{height:1px;background:#233036;margin:23px 0}
-    #celikom-android-design .cm-plain{border:0;background:transparent;color:#9daeb2;font-family:inherit;font-size:12px;padding:15px 0;min-height:44px}
-    #celikom-android-design .cm-form{margin-top:26px}
-    #celikom-android-design .cm-field{display:block;font-size:12px;color:#b5c3c5;margin-bottom:18px}
-    #celikom-android-design .cm-field input{display:block;width:100%;min-height:49px;border:1px solid #304147;background:#121c20;color:#edf1f0;border-radius:12px;font-size:16px;font-family:inherit;margin-top:9px;padding:12px 14px}
-    #celikom-android-design .cm-field input::placeholder{color:#6e858b}
-    #celikom-android-design .cm-error{color:#efb2a2;font-size:12px;margin:0 0 12px}
-    #celikom-android-design .cm-settings{margin-top:27px}
-    #celikom-android-design .cm-row{display:flex;align-items:center;gap:13px;padding:18px 0;border:0;border-bottom:1px solid #243136;width:100%;background:transparent;text-align:left;color:#e4ecea;font-family:inherit;min-height:70px}
-    #celikom-android-design .cm-row>i{width:20px;height:20px;color:#93aaa9;flex-shrink:0}
-    #celikom-android-design .cm-row-text{flex:1;min-width:0}
-    #celikom-android-design .cm-row-text strong{display:block;font-weight:400;font-size:13px;line-height:1.5}
-    #celikom-android-design .cm-row-text small{display:block;font-size:11px;color:#859ca1;margin-top:4px;line-height:1.5}
-    #celikom-android-design .cm-row>span:last-child:not(.cm-row-text){font-size:18px;color:#60797d}
-    #celikom-android-design .cm-details{margin-top:23px;border-top:1px solid #243136;padding-top:17px}
-    #celikom-android-design .cm-details summary{font-size:12px;color:#9ab0b5;min-height:40px;padding:6px 0}
-    #celikom-android-design .cm-details p{font-size:12px;margin:0 0 15px}
-    #celikom-android-design .cm-steps{padding:18px 0 8px;display:grid;gap:19px}
-    #celikom-android-design .cm-step{display:flex;gap:13px;align-items:flex-start}
-    #celikom-android-design .cm-step-number{background:#192d28;color:#9ae9d2;border-radius:50%;width:28px;height:28px;display:grid;place-items:center;font-size:12px;flex-shrink:0}
-    #celikom-android-design .cm-step p{font-size:13px;color:#bccacb;padding-top:3px}
-    #celikom-android-design .cm-toast{margin:0 24px 16px;padding:12px 14px;border-radius:12px;background:#1c302a;color:#c5e9df;font-size:12px;line-height:1.5}
-    @media(max-width:360px){#celikom-android-design{padding:8px 0}#celikom-android-design .cm-phone{border-radius:22px}#celikom-android-design .cm-screen{padding:0 19px 20px}#celikom-android-design .cm-header{padding-left:19px;padding-right:19px}#celikom-android-design .cm-ready{font-size:11px}#celikom-android-design .cm-auto{padding:17px}}
-    @media(prefers-reduced-motion:reduce){#celikom-android-design .cm-switch,#celikom-android-design .cm-switch:before{transition:none}}
+    #celikom-simple{padding:20px 12px;display:flex;justify-content:center}
+    #celikom-simple *{box-sizing:border-box}
+    #celikom-simple .phone{width:100%;max-width:390px;background:#0b1013;color:#f4f7f8;border:1px solid #2a3439;border-radius:24px;font-family:Inter,ui-sans-serif,system-ui,sans-serif;overflow:hidden;color-scheme:dark}
+    #celikom-simple .system{display:flex;justify-content:space-between;padding:15px 22px 4px;font-size:12px;color:#aab8be}
+    #celikom-simple main{display:grid;gap:10px;padding:22px 20px 26px}
+    #celikom-simple header{display:flex;align-items:center;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+    #celikom-simple .mark{width:10px;height:10px;border-radius:50%;background:#66e0bf;flex-shrink:0}
+    #celikom-simple strong{font-size:17px;font-weight:600;letter-spacing:.7px}
+    #celikom-simple .status{margin-left:auto;font-size:12px;color:#66e0bf}
+    #celikom-simple .pair{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+    #celikom-simple button{width:100%;min-height:46px;padding:10px 12px;border:1px solid #2a3439;border-radius:10px;background:#141b1f;color:#f4f7f8;font:inherit;font-size:14px}
+    #celikom-simple .primary{background:#66e0bf;border-color:#66e0bf;color:#07110e;font-weight:600}
+    #celikom-simple button:disabled{opacity:.42}
+    #celikom-simple .info{display:grid;gap:7px;padding:10px 2px 14px}
+    #celikom-simple p{margin:0;font-size:13px;line-height:1.5;color:#aab8be;overflow-wrap:anywhere}
+    #celikom-simple .track{font-size:16px;color:#f4f7f8}
+    #celikom-simple .version{color:#66e0bf;font-size:12px}
+    #celikom-simple details{border-top:1px solid #202b30}
+    #celikom-simple summary{min-height:44px;padding:13px 2px;color:#aab8be;font-size:13px}
+    #celikom-simple .inside{display:grid;gap:10px;padding:0 2px 14px}
+    #celikom-simple label{display:grid;gap:6px;font-size:13px;color:#aab8be}
+    #celikom-simple input,#celikom-simple textarea,#celikom-simple select{width:100%;min-width:0;padding:10px;border:1px solid #55666d;border-radius:8px;background:#141b1f;color:#f4f7f8;font:inherit;font-size:16px}
+    #celikom-simple input[type=checkbox]{width:18px;height:18px;margin:0;flex-shrink:0}
+    #celikom-simple .check{display:flex;align-items:flex-start;gap:9px;line-height:1.5}
+    #celikom-simple textarea{resize:vertical;min-height:85px}
+    #celikom-simple .quiet{font-size:12px;color:#8fa0a8}
+    #celikom-simple .text-button{background:transparent;border:0;min-height:44px;text-align:left;color:#8fa0a8;padding:10px 2px;font-size:12px}
+    #celikom-simple .panel{display:grid;gap:10px;padding:4px 2px 12px}
+    #celikom-simple [hidden]{display:none!important}
+    #celikom-simple .home{height:4px;width:96px;border-radius:4px;background:#55666d;margin:0 auto 10px}
   </style>
-  <div class="cm-phone" aria-label="Предложение интерфейса CELIKOM для Android">
-    <div class="cm-status"><span>10:40</span><span class="cm-status-icons"><i data-lucide="wifi" aria-hidden="true"></i><i data-lucide="battery-full" aria-hidden="true"></i></span></div>
-    <header class="cm-header"><div class="cm-brand"><span class="cm-mark" aria-hidden="true">C</span>CELIKOM</div><span class="cm-ready"><span class="cm-dot"></span>Яндекс подключён</span></header>
+  <section class="phone" aria-label="CELIKOM для Android — макет">
+    <div class="system" aria-hidden="true"><span>9:41</span><span>LTE · 100%</span></div>
     <main>
-      <section class="cm-screen" data-cm-screen="music" aria-label="Музыка">
-        <h1>Музыка по-твоему.</h1><p>Твои версии любимых песен.</p>
-        <div class="cm-auto">
-          <div class="cm-auto-heading"><label class="cm-auto-label" for="cm-auto-switch">Автозамена<small id="cm-auto-status" aria-live="polite">Включена</small></label><input id="cm-auto-switch" class="cm-switch cursor-interaction" type="checkbox" role="switch" checked aria-label="Автозамена песен"></div>
-          <p>Замены подключаются сами, когда песня есть в CELIKOM.</p>
-        </div>
-        <div class="cm-eyebrow">Сейчас звучит</div>
-        <div class="cm-track">
-          <div class="cm-track-top"><div class="cm-art" aria-hidden="true">Ау</div><div><div class="cm-track-name">Ау</div><div class="cm-artist">10AGE, Ramil’</div><span class="cm-version" id="cm-track-version"><i data-lucide="audio-lines" aria-hidden="true"></i><span>Версия CELIKOM</span></span></div></div>
-          <div class="cm-progress" role="progressbar" aria-label="Позиция песни в Яндекс Музыке" aria-valuemin="0" aria-valuemax="181" aria-valuenow="64"><span></span></div><div class="cm-time"><span>1:04</span><span>3:01</span></div>
-        </div>
-        <button type="button" class="cm-button cm-button-primary cursor-interaction" data-cm-action="yandex">Открыть Яндекс Музыку<i data-lucide="arrow-up-right" aria-hidden="true"></i></button>
-        <button type="button" class="cm-button cursor-interaction" data-cm-action="original">Вернуть оригинал</button>
-        <p class="cm-note">Пауза, перемотка и выбор песни — в Яндекс Музыке.</p>
+      <header><span class="mark"></span><strong>CELIKOM</strong><span class="status" aria-live="polite">Работает</span></header>
+      <div class="pair"><button type="button" class="primary cursor-interaction" data-action="start" disabled>Старт</button><button type="button" class="cursor-interaction" data-action="stop">Стоп</button></div>
+      <button type="button" class="cursor-interaction" data-action="restore">Вернуть оригинал</button>
+      <button type="button" class="cursor-interaction" data-panel="upload" aria-expanded="false" aria-controls="cs-upload">Загрузить версию</button>
+      <section class="panel" id="cs-upload" hidden>
+        <p>Версия появится после проверки.</p>
+        <label>Аудиофайл<input type="file" accept="audio/mpeg,audio/mp4,.mp3,.m4a"></label>
+        <p class="quiet">MP3 или M4A (AAC), до 30 МБ</p>
+        <label class="check"><input type="checkbox">У меня есть права на загрузку этой версии</label>
+        <button type="button" class="cursor-interaction" data-demo="В макете файл не отправляется.">Отправить на проверку</button>
       </section>
-      <section class="cm-screen" data-cm-screen="account" aria-label="Аккаунт" hidden>
-        <h1>Твой CELIKOM</h1><p>Один аккаунт на телефоне и компьютере.</p>
-        <div id="cm-signed-in">
-          <div class="cm-account"><div class="cm-avatar"><i data-lucide="user-round" aria-hidden="true"></i></div><div><h2>Аккаунт подключён</h2><p>Вход выполнен на этом устройстве</p></div></div>
-          <div class="cm-access"><h2><span class="cm-dot"></span>Доступ активен</h2><p>Можно слушать версии песен из каталога CELIKOM.</p></div>
-          <button type="button" class="cm-button cursor-interaction" data-cm-action="access">Проверить доступ<i data-lucide="refresh-cw" aria-hidden="true"></i></button>
-          <div class="cm-divider"></div><p>Выход на телефоне сохраняет вход на других устройствах.</p>
-          <button type="button" class="cm-plain cursor-interaction" data-cm-action="logout">Выйти на этом устройстве</button>
-        </div>
-        <form id="cm-login" class="cm-form" hidden autocomplete="off">
-          <label class="cm-field" for="cm-email">Почта CELIKOM<input id="cm-email" type="email" placeholder="Твоя почта" autocomplete="off" required></label>
-          <label class="cm-field" for="cm-password">Пароль<input id="cm-password" type="password" placeholder="Пароль CELIKOM" autocomplete="off" required minlength="1"></label>
-          <p class="cm-error" id="cm-login-error" role="alert" hidden>Заполни почту и пароль.</p>
-          <button type="submit" class="cm-button cm-button-primary cursor-interaction">Войти в CELIKOM<i data-lucide="arrow-right" aria-hidden="true"></i></button>
-          <p class="cm-note">Пароль от Яндекса здесь не нужен.</p>
-        </form>
-      </section>
-      <section class="cm-screen" data-cm-screen="settings" aria-label="Настройки" hidden>
-        <h1>Всё под контролем.</h1><p>Подключение и помощь — в одном месте.</p>
-        <div class="cm-settings">
-          <button type="button" class="cm-row cursor-interaction" data-cm-action="connection"><i data-lucide="link" aria-hidden="true"></i><span class="cm-row-text"><strong>Подключение к Яндексу</strong><small>Как подключить управление звуком</small></span><span aria-hidden="true">›</span></button>
-          <button type="button" class="cm-row cursor-interaction" data-cm-action="network"><i data-lucide="wifi" aria-hidden="true"></i><span class="cm-row-text"><strong>Повторить подключение</strong><small>После смены сети или VPN</small></span><span aria-hidden="true">›</span></button>
-        </div>
-        <details class="cm-details"><summary class="cursor-interaction">Диагностика и отчёт</summary><p>Отчёт сохраняется на телефоне. В нём нет паролей и аудиозаписей.</p><button type="button" class="cm-button cursor-interaction" data-cm-action="report">Остановить и сохранить TXT</button></details>
-        <details class="cm-details"><summary class="cursor-interaction">О приложении</summary><p>Текущая тестовая сборка: сеанс до 12 минут. Работа с выключенным экраном поддерживается в пределах сеанса.</p><p>CELIKOM не запрашивает доступ к микрофону, SMS или чтению уведомлений.</p></details>
-      </section>
-      <section class="cm-screen" data-cm-screen="connection" aria-label="Подключение звука" hidden>
-        <h1>Подключим звук.</h1><p class="cm-subtitle">Это нужно сделать один раз для текущего подключения к Яндексу.</p>
-        <div class="cm-steps"><div class="cm-step"><span class="cm-step-number">1</span><p>Открой Яндекс Музыку и включи песню.</p></div><div class="cm-step"><span class="cm-step-number">2</span><p>В настройках Яндекс Музыки открой эквалайзер и выбери CELIKOM.</p></div><div class="cm-step"><span class="cm-step-number">3</span><p>Вернись сюда и включи автозамену. Для следующих песен она подключится сама.</p></div></div>
-        <div class="cm-divider"></div><button type="button" class="cm-button cm-button-primary cursor-interaction" data-cm-action="yandex">Открыть Яндекс Музыку<i data-lucide="arrow-up-right" aria-hidden="true"></i></button><button type="button" class="cm-button cursor-interaction" data-cm-action="back">Назад к настройкам</button>
-      </section>
+      <button type="button" class="cursor-interaction" data-panel="suggest" aria-expanded="false" aria-controls="cs-suggest">Предложить песню</button>
+      <section class="panel" id="cs-suggest" hidden><p>AU</p><button type="button" class="cursor-interaction" data-demo="В макете предложение не отправляется.">Отправить предложение</button></section>
+      <div class="info"><p>Доступ активен</p><p class="track">AU</p><p class="version" aria-live="polite">Играет наша версия</p></div>
+      <details><summary class="cursor-interaction">Аккаунт</summary><div class="inside"><p>Вы вошли в аккаунт</p><button type="button" class="cursor-interaction" data-demo="В макете доступ не проверяется через сервер.">Проверить доступ</button><button type="button" class="cursor-interaction" data-demo="Это макет. Выход из аккаунта не выполняется.">Выйти</button></div></details>
+      <details><summary class="cursor-interaction">Связь с поддержкой</summary><div class="inside"><label>Вид обращения<select><option>Обычное обращение</option><option>Проблема с текущей песней</option></select></label><label>Сообщение<textarea placeholder="Опишите проблему"></textarea></label><button type="button" class="cursor-interaction" data-demo="В макете сообщение не отправляется.">Отправить</button></div></details>
+      <details><summary class="cursor-interaction">Подключение к Яндекс Музыке</summary><div class="inside"><p>Разрешите CELIKOM доступ к уведомлениям, включите песню в Яндекс Музыке и нажмите «Старт».</p><p class="quiet">Текущая проверочная версия: сеанс до 12 минут.</p></div></details>
+      <button type="button" class="text-button cursor-interaction" data-demo="В приложении здесь будет сохранение текущей диагностики в TXT.">Сохранить диагностику</button>
+      <p class="quiet" role="status" data-feedback hidden></p>
     </main>
-    <div class="cm-toast" id="cm-toast" role="status" aria-live="polite" hidden></div>
-    <nav class="cm-nav" aria-label="Разделы CELIKOM"><button type="button" class="cursor-interaction" data-cm-tab="music" aria-current="page"><i data-lucide="audio-lines" aria-hidden="true"></i>Музыка</button><button type="button" class="cursor-interaction" data-cm-tab="account"><i data-lucide="user-round" aria-hidden="true"></i>Аккаунт</button><button type="button" class="cursor-interaction" data-cm-tab="settings"><i data-lucide="sliders-horizontal" aria-hidden="true"></i>Настройки</button></nav>
-    <div class="cm-home-line" aria-hidden="true"></div>
-  </div>
+    <div class="home" aria-hidden="true"></div>
+  </section>
   <script>
-    (()=>{
-      const root=document.getElementById('celikom-android-design');
-      const toggle=root.querySelector('#cm-auto-switch'),toast=root.querySelector('#cm-toast');
-      let signedIn=true;
-      function show(screen){root.querySelectorAll('[data-cm-screen]').forEach(el=>{el.hidden=el.dataset.cmScreen!==screen});root.querySelectorAll('[data-cm-tab]').forEach(el=>{if(el.dataset.cmTab===(screen==='connection'?'settings':screen))el.setAttribute('aria-current','page');else el.removeAttribute('aria-current')});toast.hidden=true;}
-      function notify(message){toast.textContent=message;toast.hidden=false;}
-      function update(){root.querySelector('#cm-auto-status').textContent=toggle.checked?'Включена':'Выключена';root.querySelector('#cm-track-version span').textContent=toggle.checked?'Версия CELIKOM':'Оригинал Яндекса';root.querySelector('#cm-track-version').style.color=toggle.checked?'#8ee6cb':'#a7b5b8';root.querySelector('#cm-signed-in').hidden=!signedIn;root.querySelector('#cm-login').hidden=signedIn;}
-      root.querySelectorAll('[data-cm-tab]').forEach(el=>el.addEventListener('click',()=>show(el.dataset.cmTab)));
-      toggle.addEventListener('change',()=>{if(toggle.checked&&!signedIn){toggle.checked=false;show('account');notify('Для автозамены нужен вход в CELIKOM.');}update();});
-      root.querySelectorAll('[data-cm-action]').forEach(el=>el.addEventListener('click',()=>{
-        const action=el.dataset.cmAction;
-        if(action==='original'){toggle.checked=false;update();notify('Автозамена выключена. Звучит оригинал.');}
-        if(action==='yandex')notify('В приложении эта кнопка откроет Яндекс Музыку.');
-        if(action==='access')notify('Вариант состояния: доступ CELIKOM активен.');
-        if(action==='logout'){signedIn=false;toggle.checked=false;root.querySelector('#cm-email').value='';root.querySelector('#cm-password').value='';update();}
-        if(action==='connection')show('connection');
-        if(action==='back')show('settings');
-        if(action==='network')notify('В приложении здесь повторится проверка подключения.');
-        if(action==='report'){toggle.checked=false;update();notify('В приложении сеанс остановится и откроется сохранение TXT.');}
+    (() => {
+      const root = document.getElementById('celikom-simple');
+      const start = root.querySelector('[data-action="start"]');
+      const stop = root.querySelector('[data-action="stop"]');
+      const status = root.querySelector('.status');
+      const version = root.querySelector('.version');
+      const mark = root.querySelector('.mark');
+      function setMode(active, original) {
+        start.disabled = active;
+        stop.disabled = !active;
+        status.textContent = active ? 'Работает' : 'Остановлено';
+        status.style.color = active ? '#66e0bf' : '#8fa0a8';
+        mark.style.background = active ? '#66e0bf' : '#858b8e';
+        version.textContent = original || !active ? 'Играет оригинал' : 'Играет наша версия';
+        version.style.color = original || !active ? '#aab8be' : '#66e0bf';
+      }
+      start.addEventListener('click', () => setMode(true, false));
+      stop.addEventListener('click', () => setMode(false, false));
+      root.querySelector('[data-action="restore"]').addEventListener('click', () => {
+        version.textContent = 'Играет оригинал';
+        version.style.color = '#aab8be';
+      });
+      root.querySelectorAll('[data-panel]').forEach(button => button.addEventListener('click', () => {
+        const panel = root.querySelector('#' + button.getAttribute('aria-controls'));
+        panel.hidden = !panel.hidden;
+        button.setAttribute('aria-expanded', String(!panel.hidden));
       }));
-      root.querySelector('#cm-login').addEventListener('submit',event=>{event.preventDefault();const email=root.querySelector('#cm-email'),password=root.querySelector('#cm-password');if(!email.validity.valid||!password.value){root.querySelector('#cm-login-error').hidden=false;return;}signedIn=true;email.value='';password.value='';root.querySelector('#cm-login-error').hidden=true;update();notify('Вариант экрана после успешного входа.');});
-      update();
+      root.querySelectorAll('[data-demo]').forEach(button => button.addEventListener('click', () => {
+        const feedback = root.querySelector('[data-feedback]');
+        feedback.textContent = button.dataset.demo;
+        feedback.hidden = false;
+      }));
     })();
   </script>
 </div>

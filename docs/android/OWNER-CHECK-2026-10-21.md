@@ -8,9 +8,11 @@ Desktop remains the accepted 0.4.61; its branch, backend and website are outside
 
 ## Design proposal
 
-`android/native-companion/design/interface-preview.html` contains a local interactive proposal for Music, Account, Settings and connection instructions. It has no network calls, real login, persistent credentials, live playback control or automatic report transmission. Brand direction follows the existing dark CELIKOM surface and mint accents.
+`android/native-companion/design/interface-preview.html` contains the revised single-screen proposal based on the accepted desktop extension's popup HTML/CSS. It has no network calls, real login, persistent credentials, live playback control or automatic report transmission. It retains the desktop dark background (#0b1013), neutral buttons and mint Start action (#66e0bf).
 
-The main screen exposes automatic replacement, current song, a return-to-original action and an entry to Yandex Music. Transport remains in Yandex. Account actions stay separate from playback; diagnostics and report export move into Settings. The proposal discloses the existing 12-minute test-session limit rather than implying an already implemented unlimited background release.
+Owner feedback: keep the desktop interface and settings, simplify the mobile design, and avoid inventing features. Removed the marketing heading, automatic-replacement switch/card, artwork/progress card and bottom navigation. The screen follows the desktop order: Start/Stop, Restore original, Upload version, Suggest song, access/song/version labels, Account, Support and diagnostics. Android connection help is collapsed. The proposal discloses the existing 12-minute test-session limit rather than implying an already implemented unlimited background release.
+
+Upload, suggestions and support are existing desktop actions shown for interface continuity; their native Android integrations are not implemented by this design change. The preview explicitly reports that submissions are not sent. Account shows only the current basic native actions; desktop registration, recovery, promo and referral flows are not silently added. Porting any missing flow needs a separate implementation using the existing contract, not new server behavior. This change modifies no Java, APK, playback, authentication or desktop files.
 
 Next: owner design feedback, then native UI implementation in this same Android directory. Preserve playback/session behavior and signing identity. Do not rebuild or reinstall the app solely to view the proposal. Design does not authorize silently removing the current foreground-run limit or changing shared service contracts. Calls remain deferred.
 
