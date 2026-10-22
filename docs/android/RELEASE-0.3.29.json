@@ -1,0 +1,41 @@
+{
+  "version": "0.3.29",
+  "version_code": 30,
+  "apk_sha256": "ad157e8d559baf404dd120219bdba4d6ed1109e40c466f6ffd8379f2bc3582da",
+  "base_apk_sha256": "170b1883e292570d28a3b5c619cf000eaccd9d11ee85ca6f6c08f7b50e5f72c9",
+  "signer_sha256": "67fe81c56fac1c1d145344b69a0e3faf9005cf6607f4e26ca27d5926c3eefc4f",
+  "addon_dex_sha256": "690f9cd190fb5e8e95f3e67144d0d92eaefd1da82c373a48a554a279c3f981e9",
+  "signing_continuity": true,
+  "manifest_matches_approved_changes": true,
+  "permissions_components_unchanged": true,
+  "original_catalogue_assets_unchanged": true,
+  "source_archive_verified": true,
+  "physical_phone_playback_verified": false,
+  "library_file_id": "libfile_31e437b447188191ad9364fabbf74a7a",
+  "apk_bytes": 8767645,
+  "owner_check_pending": true,
+  "scope": "Android only: progressive private range-backed decoder input, bounded prefetch, source/account cancellation, buffer recovery and full-file fallback; desktop/backend/auth/deployment untouched",
+  "evidence": {
+    "report": "CELIKOM-combined-20261022-211910.txt",
+    "current_run_version": "0.3.28",
+    "current_run_events": 365,
+    "successful_full_downloads_ms": [
+      4150,
+      6719,
+      8719,
+      4762
+    ],
+    "current_run_media3_disconnects": 0,
+    "current_run_download_failures": 0,
+    "owner_confirmed_per_track_switch_delay": true
+  },
+  "host_validation": {
+    "progressive_byte_accuracy_seek_and_cancellation_checks": 4114,
+    "actual_streaming_engine_checks": 8,
+    "actual_engine_checks": 109,
+    "car_recovery_checks": 43,
+    "long_run_checks": 604,
+    "resume_clock_checks": 28,
+    "transport_checks": 22
+  }
+}

@@ -1,0 +1,39 @@
+package pro.celikom.nativeprobe.identitydiag;
+import java.io.*;
+import java.net.*;
+import java.nio.file.*;
+import java.util.*;
+import java.util.concurrent.*;
+import java.util.concurrent.atomic.*;
+public class TestBufferedAudio {
+ static int checks;static void check(boolean b,String why){checks++;if(!b)throw new AssertionError(why);}
+ static class Server implements BufferedAudio.Open {
+  byte[] data=new byte[BufferedAudio.BLOCK*8+27];AtomicInteger requests=new AtomicInteger();boolean badRange,changedTag,deny,shortOnce,ignoreRange,blockRead;volatile boolean disconnected;
+  Server(){for(int i=0;i<data.length;i++)data[i]=(byte)(i*31);}
+  public HttpURLConnection open()throws Exception{return new HttpURLConnection(new URL("https://localhost/audio")){
+   int first,last;boolean fail;volatile boolean closed;
+   public int getResponseCode(){requests.incrementAndGet();String[] range=getRequestProperty("Range").substring(6).split("-");first=Integer.parseInt(range[0]);last=Math.min(data.length-1,Integer.parseInt(range[1]));fail=shortOnce;shortOnce=false;return deny?403:ignoreRange?200:206;}
+   public String getHeaderField(String key){if(key.equals("ETag"))return changedTag&&first>0?"\"v2\"":"\"v1\"";if(key.equals("Content-Range"))return "bytes "+(badRange?first+1:first)+"-"+last+"/"+data.length;return null;}
+   public long getContentLengthLong(){return last-first+1;}
+   public InputStream getInputStream(){if(blockRead)return new InputStream(){public int read()throws IOException{while(!closed){try{Thread.sleep(10);}catch(InterruptedException e){throw new IOException(e);}}throw new IOException("disconnected");}};return new ByteArrayInputStream(data,first,fail?10:last-first+1);}
+   public void disconnect(){closed=true;disconnected=true;}public boolean usingProxy(){return false;}public void connect(){}
+  };}
+ }
+ static BufferedAudio audio(Server s,AtomicBoolean valid,CountDownLatch cached)throws Exception{return new BufferedAudio(File.createTempFile("celikom-range-",".test"),s,valid::get,()->System.nanoTime()/1000000,(event,bytes)->{if(event.equals("replacement_stream_cached"))cached.countDown();});}
+ static void rejected(Server s,String reason)throws Exception{BufferedAudio a=audio(s,new AtomicBoolean(true),new CountDownLatch(1));try{a.initialize();throw new AssertionError("accepted "+reason);}catch(IOException e){check(e.getMessage().equals(reason),reason);}finally{a.close();}}
+ public static void main(String[] args)throws Exception{
+  Server server=new Server();AtomicBoolean valid=new AtomicBoolean(true);CountDownLatch cached=new CountDownLatch(1);BufferedAudio a=audio(server,valid,cached);File file=a.file;
+  try{
+   a.initialize();check(server.requests.get()==1&&a.cachedBytes()==BufferedAudio.BLOCK&&!a.complete(),"startup publishes one validated block, never waits for full song");
+   byte[] buffer=new byte[4096];check(a.readAt(10,buffer,0,buffer.length)==4096,"read initial buffer");for(int i=0;i<buffer.length;i++)check(buffer[i]==server.data[i+10],"exact cached byte "+i);check(server.requests.get()==1,"cached reads do not request network");
+   long seek=(long)BufferedAudio.BLOCK*7+5;check(a.readAt(seek,buffer,0,buffer.length)==4096&&server.requests.get()==2,"seek fetches target block directly, skipping unavailable middle");check(buffer[0]==server.data[(int)seek],"seek bytes correct");
+   check(a.readAt(a.size,buffer,0,1)==-1&&a.readAt(0,buffer,0,0)==0,"decoder EOF and zero-size semantics");
+   a.prefetch();check(cached.await(5,TimeUnit.SECONDS)&&a.complete(),"background fills complete audio");check(Arrays.equals(Files.readAllBytes(file.toPath()),server.data),"sparse cache becomes byte-exact full file");check(a.retainComplete()==file,"only completed file can enter existing cache");
+  }finally{a.close();}check(file.exists(),"completed detached file retained");file.delete();
+  server=new Server();server.shortOnce=true;a=audio(server,new AtomicBoolean(true),new CountDownLatch(1));try{a.initialize();check(server.requests.get()==2&&a.cachedBytes()==BufferedAudio.BLOCK,"truncated block retries without exposing corrupt prefix");check(a.retainComplete()==null,"partial cache cannot be treated as a complete file");}finally{file=a.file;a.close();}check(!file.exists(),"closing deletes incomplete cache");
+  server=new Server();server.badRange=true;rejected(server,"invalid_audio_range");server=new Server();server.deny=true;rejected(server,"audio_range_unavailable");server=new Server();server.ignoreRange=true;rejected(server,"audio_range_unavailable");
+  server=new Server();server.changedTag=true;a=audio(server,new AtomicBoolean(true),new CountDownLatch(1));try{a.initialize();try{a.readAt(BufferedAudio.BLOCK,new byte[4],0,4);throw new AssertionError("mixed version accepted");}catch(IOException e){check(e.getMessage().equals("audio_version_changed"),"changed validator never mixes editions");}}finally{a.close();}
+  server=new Server();server.blockRead=true;valid=new AtomicBoolean(true);a=audio(server,valid,new CountDownLatch(1));final BufferedAudio cancelled=a;AtomicReference<Throwable> error=new AtomicReference<>();Thread reader=new Thread(()->{try{cancelled.initialize();}catch(Throwable e){error.set(e);}});reader.start();Thread.sleep(150);valid.set(false);reader.join(2000);check(!reader.isAlive()&&error.get()!=null&&server.disconnected,"Stop/account/track cancellation interrupts blocked network promptly");a.close();
+  System.out.println("PASS: "+checks+" progressive startup, byte accuracy, random seek, cache completion, malformed range and cancellation checks");
+ }
+}

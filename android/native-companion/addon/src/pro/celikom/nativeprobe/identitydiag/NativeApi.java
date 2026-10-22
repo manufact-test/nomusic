@@ -62,6 +62,15 @@ final class NativeApi {
   });}catch(Exception e){main.post(()->result.done(null,"login_required"));}});
  }
  void resolve(String id,Result r){submit("resolve",()->{if(id==null||!id.matches("[1-9][0-9]{0,23}"))throw new Exception("invalid_track");ApiContract.config(request("config",null,null));JSONObject j=authenticated("resolve?audio_formats=mp3,m4a&service=yandex&track_id="+id,null);if(j.optBoolean("found"))ApiContract.audio(j,System.currentTimeMillis());return j;},r);}
+ interface StreamResult {void done(BufferedAudio source,String error);}
+ void stream(JSONObject descriptor,java.util.function.BooleanSupplier valid,StreamResult result){final long account=accountGeneration;audioWork.execute(()->{BufferedAudio source=null;String error=null;long start=SystemClock.elapsedRealtime();try{
+  java.util.function.BooleanSupplier allowed=()->!revoking&&account==accountGeneration&&valid.getAsBoolean();
+  if(!allowed.getAsBoolean())throw new Exception("audio_cancelled");
+  File file=File.createTempFile("buffered-",".audio",context.getCacheDir());
+  source=new BufferedAudio(file,()->(HttpsURLConnection)new URL(ApiContract.audio(descriptor,System.currentTimeMillis())).openConnection(),allowed,SystemClock::elapsedRealtime,(name,bytes)->LogStore.log(name,LogStore.map("cachedBytes",bytes,"elapsedMs",SystemClock.elapsedRealtime()-start)));
+  source.initialize();if(!allowed.getAsBoolean())throw new Exception("audio_cancelled");
+ }catch(Exception e){if(source!=null)source.close();source=null;error="audio_stream_unavailable";LogStore.log("replacement_stream_failure",LogStore.map("type",e.getClass().getSimpleName(),"elapsedMs",SystemClock.elapsedRealtime()-start));}
+ final BufferedAudio out=source;final String fail=error;main.post(()->result.done(out,fail));});}
  interface AudioResult{void done(File file,String error);}
  void download(JSONObject descriptor,java.util.function.BooleanSupplier valid,AudioResult r){final long account=accountGeneration;audioWork.execute(()->{File file=null;String error=null;long started=SystemClock.elapsedRealtime();java.util.function.BooleanSupplier allowed=()->!revoking&&account==accountGeneration&&valid.getAsBoolean();try{
   if(!allowed.getAsBoolean())throw new Exception("download_cancelled");

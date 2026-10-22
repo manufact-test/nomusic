@@ -1,0 +1,1 @@
+package android.media; public abstract class MediaDataSource implements java.io.Closeable {public abstract long getSize() throws java.io.IOException;public abstract int readAt(long p,byte[] b,int o,int s)throws java.io.IOException;}
