@@ -1,0 +1,35 @@
+{
+  "version": "0.3.28",
+  "version_code": 29,
+  "apk_sha256": "2dedd12c5cad39f308b977bf74754c2af4acb8afa748c3fc07645a5b8cc4ca78",
+  "base_apk_sha256": "170b1883e292570d28a3b5c619cf000eaccd9d11ee85ca6f6c08f7b50e5f72c9",
+  "signer_sha256": "67fe81c56fac1c1d145344b69a0e3faf9005cf6607f4e26ca27d5926c3eefc4f",
+  "addon_dex_sha256": "7e9052fdbd2b2e56a0ce3e41dd8ca06a0130cd6f6c3f21231a74e3babd309e2b",
+  "signing_continuity": true,
+  "manifest_matches_approved_changes": true,
+  "permissions_components_unchanged": true,
+  "original_catalogue_assets_unchanged": true,
+  "source_archive_verified": true,
+  "physical_phone_playback_verified": false,
+  "library_file_id": "libfile_abc5459f2bf48191bd7a1138f9ad5989",
+  "apk_bytes": 8751261,
+  "owner_check_pending": true,
+  "scope": "Android only: resumable separate-worker audio transfer, bounded network retries/cancellation, retained pause clock offset; no desktop/backend/auth/deployment changes",
+  "evidence": {
+    "report": "CELIKOM-combined-20261022-191450.txt",
+    "current_run_version": "0.3.27",
+    "current_run_events": 391,
+    "download_failure_events": 4,
+    "current_run_media3_disconnects": 0,
+    "vpn_observed": false,
+    "captured_pause_resume_seek_ms": 452
+  },
+  "host_validation": {
+    "transport_checks": 22,
+    "car_recovery_checks": 43,
+    "engine_checks": 109,
+    "resume_clock_checks": 28,
+    "long_run_checks": 604,
+    "previous_run_archive_checks": 106
+  }
+}

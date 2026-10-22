@@ -17,8 +17,8 @@ import zipfile
 import xml.etree.ElementTree as ET
 
 ROOT = Path(__file__).resolve().parent
-VERSION = "0.3.27"
-VERSION_CODE = 28
+VERSION = "0.3.28"
+VERSION_CODE = 29
 
 
 def run(args, **kwargs):
@@ -87,7 +87,7 @@ def main():
     tests.mkdir(exist_ok=True)
     test_cp = os.pathsep.join(map(str, [args.deps_dir / "json.jar", classes, android]))
     run(["java", "com.sun.tools.javac.Main", "-encoding", "UTF-8", "-source", "8", "-target", "8", "-cp", test_cp, "-d", tests, *sorted((ROOT / "addon").glob("Test*.java"))])
-    for test in ("TestPure", "TestHybrid", "TestContracts", "TestMobileActions", "TestAppPresentation", "TestNotifications", "TestDiagnosticArchive"):
+    for test in ("TestPure", "TestHybrid", "TestContracts", "TestMobileActions", "TestAppPresentation", "TestNotifications", "TestDiagnosticArchive", "TestAudioTransfer"):
         run(["java", "-cp", os.pathsep.join(map(str, [args.deps_dir / "json.jar", classes, tests, android])), "pro.celikom.nativeprobe.identitydiag." + test])
     addon_jar = work / "addon.jar"
     run(["java", "sun.tools.jar.Main", "--create", "--file", addon_jar, "-C", classes, "."])

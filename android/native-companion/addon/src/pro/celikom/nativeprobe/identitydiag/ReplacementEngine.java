@@ -15,7 +15,7 @@ final class ReplacementEngine {
  volatile long generation; int trustedSession=-1,failures,seekCorrections;
  MediaPlayer player; DynamicsProcessing effect; LoudnessEnhancer loudness; File audioFile;
  float originalMix=1f; boolean ready,closed,preparing,seeking,fading,aligned,returning,preloadAllowed=true,waitingForRouteResume,routePauseObserved,resumePositionRetained; String lastSync="";
- final SyncPolicy syncPolicy=new SyncPolicy();PlaybackSource previousSource;boolean explicitSourceSeek;long unavailableSince=-1,lastSyncAt=-1,lastLoggedDrift;String completedKey;long completedPosition;
+ final SyncPolicy syncPolicy=new SyncPolicy();PlaybackSource previousSource;boolean explicitSourceSeek;long unavailableSince=-1,lastSyncAt=-1,lastLoggedDrift;String completedKey;long completedPosition,resumeDrift;
  final Set<String> confirmed=new HashSet<>();
  // Private, bounded to this foreground run. Every reuse requires a new live resolve.
  static final long CACHE_BYTES=62914560;
@@ -82,7 +82,7 @@ final class ReplacementEngine {
    long target=position(s);if(target>=s.duration){suspend("source_end",30000);return;}if(target>=player.getDuration()){suspend("replacement_end",30000);return;}
    long drift=target-player.getCurrentPosition();
    // A retained paused decoder already at the native position needs no seek.
-   if(!aligned&&resumePositionRetained&&Math.abs(drift)<=350){aligned=true;resumePositionRetained=false;LogStore.log("replacement_resume_aligned",LogStore.map("trackId",trackId,"driftMs",drift,"seekSkipped",true));}
+   if(!aligned&&resumePositionRetained&&!sourceJump&&(Math.abs(drift)<=350||Math.abs(drift-resumeDrift)<=350)){aligned=true;resumePositionRetained=false;LogStore.log("replacement_resume_aligned",LogStore.map("trackId",trackId,"driftMs",drift,"seekSkipped",true));}
    if(syncPolicy.correct(aligned,drift,sourceJump,clock)){seek(s,target,drift);return;}
    if(effect==null&&!mute())return;
    if(!effect.hasControl()||!effect.getEnabled()){stop("effect_control_lost");return;}
@@ -103,7 +103,7 @@ final class ReplacementEngine {
  }
  void pauseSource(PlaybackSource s){
   if(player==null)return;
-  if(pausedAt<0){resumePositionRetained=ready&&aligned&&!seeking;pausedAt=SystemClock.elapsedRealtime();transition++;fading=false;aligned=false;player.setVolume(0,0);if(player.isPlaying())player.pause();final MediaPlayer p=player;final long token=transition;
+  if(pausedAt<0){resumeDrift=position(s)-player.getCurrentPosition();resumePositionRetained=ready&&aligned&&!seeking;pausedAt=SystemClock.elapsedRealtime();transition++;fading=false;aligned=false;player.setVolume(0,0);if(player.isPlaying())player.pause();final MediaPlayer p=player;final long token=transition;
    owner.handler.postDelayed(()->{if(player==p&&token==transition&&current(identityKey)&&!owner.current.playing)unmute();},PAUSE_GRACE_MS);
   }
   if(SystemClock.elapsedRealtime()-pausedAt>=PAUSE_GRACE_MS)unmute();
