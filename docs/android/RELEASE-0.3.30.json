@@ -1,0 +1,43 @@
+{
+  "version": "0.3.30",
+  "version_code": 31,
+  "apk_sha256": "189ad2a7a33ee77b5ab06adc67ca528ee00d1460e515262a5b6197589feffcac",
+  "base_apk_sha256": "170b1883e292570d28a3b5c619cf000eaccd9d11ee85ca6f6c08f7b50e5f72c9",
+  "signer_sha256": "67fe81c56fac1c1d145344b69a0e3faf9005cf6607f4e26ca27d5926c3eefc4f",
+  "addon_dex_sha256": "a0a22cce35417898dbb247528a109c3b8e60829465a3032e830247d32c7636ae",
+  "signing_continuity": true,
+  "manifest_matches_approved_changes": true,
+  "permissions_components_unchanged": true,
+  "original_catalogue_assets_unchanged": true,
+  "source_archive_verified": true,
+  "physical_phone_playback_verified": false,
+  "library_file_id": "libfile_5673b0ca206481919a455173a5aff783",
+  "apk_bytes": 8775837,
+  "owner_check_pending": true,
+  "scope": "Android only: smooth complementary original/replacement handover, bounded silent streaming seek correction, cancel obsolete read-only lookup jobs. Desktop/backend/auth/deployment unchanged.",
+  "evidence": {
+    "report": "CELIKOM-combined-20261022-215642.txt",
+    "current_run_version": "0.3.29",
+    "current_run_events": 336,
+    "initial_stream_seek_residual_ms": [
+      382,
+      16,
+      179,
+      168
+    ],
+    "former_ramp_ms": 140,
+    "new_handover_ramp_ms": 360,
+    "captured_native_disconnect": true,
+    "captured_native_audio_session_change": true,
+    "unverified_audio_session_safety_stop_preserved": true
+  },
+  "host_validation": {
+    "curve_and_read_cancellation_checks": 43,
+    "actual_streaming_engine_checks": 15,
+    "actual_engine_checks": 109,
+    "car_recovery_checks": 43,
+    "long_run_checks": 604,
+    "resume_clock_checks": 28,
+    "progressive_byte_accuracy_checks": 4114
+  }
+}

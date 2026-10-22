@@ -15,13 +15,14 @@ final class NativeApi {
  NativeApi(Context c){context=c.getApplicationContext();session=new SecureSession(c);}
  boolean signedIn(){return !revoking&&!session.read().optString("refresh_token").isEmpty();}
  void submit(String task,Callable<JSONObject> action,Result result){work.execute(()->{JSONObject j=null;String error=null;try{j=action.call();}catch(Exception e){error=e.getMessage();if(error==null||!error.matches("[a-z0-9_]{1,80}"))error="network_or_response_error";}final JSONObject out=j;final String fail=error;LogStore.log("backend_result",LogStore.map("operation",task,"ok",fail==null,"errorCode",fail));main.post(()->result.done(out,fail));});}
- JSONObject request(String path,JSONObject body,String access)throws Exception {
+ JSONObject request(String path,JSONObject body,String access)throws Exception {return request(path,body,access,null);}
+ JSONObject request(String path,JSONObject body,String access,java.util.function.BooleanSupplier valid)throws Exception {
   HttpsURLConnection c=(HttpsURLConnection)new URL(ApiContract.ORIGIN+"/api/v1/"+path).openConnection();long start=SystemClock.elapsedRealtime();
-  try{c.setConnectTimeout(7000);c.setReadTimeout(8000);c.setInstanceFollowRedirects(false);c.setRequestProperty("Accept","application/json");c.setRequestProperty("Cache-Control","no-store");if(access!=null&&!access.isEmpty())c.setRequestProperty("Authorization","Bearer "+access);
+  try(ReadFence fence=new ReadFence(c,valid)){fence.check();c.setConnectTimeout(7000);c.setReadTimeout(8000);c.setInstanceFollowRedirects(false);c.setRequestProperty("Accept","application/json");c.setRequestProperty("Cache-Control","no-store");if(access!=null&&!access.isEmpty())c.setRequestProperty("Authorization","Bearer "+access);
    if(body!=null){byte[] data=body.toString().getBytes(StandardCharsets.UTF_8);if(data.length>8192)throw new Exception("invalid_request");c.setRequestMethod("POST");c.setRequestProperty("Content-Type","application/json");c.setDoOutput(true);c.setFixedLengthStreamingMode(data.length);try(OutputStream out=c.getOutputStream()){out.write(data);}}
    int code=c.getResponseCode();if(code>=300&&code<400)throw new Exception("redirect_rejected");String type=c.getContentType();if(type==null||!type.toLowerCase().startsWith("application/json"))throw new Exception("invalid_api_response");InputStream stream=code>=200&&code<300?c.getInputStream():c.getErrorStream();JSONObject j;
-   try(InputStream in=stream;ByteArrayOutputStream out=new ByteArrayOutputStream()){if(in==null)throw new Exception("empty_api_response");byte[] b=new byte[4096];int n;while((n=in.read(b))!=-1){if(out.size()+n>65536||SystemClock.elapsedRealtime()-start>18000)throw new Exception("response_limit");out.write(b,0,n);}j=new JSONObject(new String(out.toByteArray(),StandardCharsets.UTF_8));}
-   LogStore.log("backend_http",LogStore.map("endpoint",path.split("\\?")[0],"httpCode",code,"elapsedMs",SystemClock.elapsedRealtime()-start));
+   try(InputStream in=stream;ByteArrayOutputStream out=new ByteArrayOutputStream()){if(in==null)throw new Exception("empty_api_response");byte[] b=new byte[4096];int n;while((n=in.read(b))!=-1){fence.check();if(out.size()+n>65536||SystemClock.elapsedRealtime()-start>18000)throw new Exception("response_limit");out.write(b,0,n);}j=new JSONObject(new String(out.toByteArray(),StandardCharsets.UTF_8));}
+   fence.check();LogStore.log("backend_http",LogStore.map("endpoint",path.split("\\?")[0],"httpCode",code,"elapsedMs",SystemClock.elapsedRealtime()-start));
    if(code<200||code>=300){String e=j.optString("error","api_http_error");throw new Exception(e.matches("[a-z0-9_]{1,80}")?e:"api_http_error");}return j;
   }finally{c.disconnect();}
  }
@@ -61,7 +62,12 @@ final class NativeApi {
    final JSONObject out=response;final String fail=error;LogStore.log("backend_result",LogStore.map("operation",file==null?"track_request":"upload","ok",fail==null,"errorCode",fail));main.post(()->result.done(out,fail));
   });}catch(Exception e){main.post(()->result.done(null,"login_required"));}});
  }
- void resolve(String id,Result r){submit("resolve",()->{if(id==null||!id.matches("[1-9][0-9]{0,23}"))throw new Exception("invalid_track");ApiContract.config(request("config",null,null));JSONObject j=authenticated("resolve?audio_formats=mp3,m4a&service=yandex&track_id="+id,null);if(j.optBoolean("found"))ApiContract.audio(j,System.currentTimeMillis());return j;},r);}
+ void resolve(String id,Result r){resolve(id,()->true,r);}
+ void resolve(String id,java.util.function.BooleanSupplier current,Result result){final long account=accountGeneration;java.util.function.BooleanSupplier valid=()->!revoking&&account==accountGeneration&&current.getAsBoolean();
+  submit("resolve",()->{if(!valid.getAsBoolean())throw new Exception("lookup_cancelled");if(id==null||!id.matches("[1-9][0-9]{0,23}"))throw new Exception("invalid_track");ApiContract.config(request("config",null,null,valid));if(!valid.getAsBoolean())throw new Exception("lookup_cancelled");
+   // Refresh token rotation remains serialized and must finish even if the song changes.
+   String token=access();if(!valid.getAsBoolean())throw new Exception("lookup_cancelled");JSONObject j=request("resolve?audio_formats=mp3,m4a&service=yandex&track_id="+id,null,token,valid);if(j.optBoolean("found"))ApiContract.audio(j,System.currentTimeMillis());return j;},result);
+ }
  interface StreamResult {void done(BufferedAudio source,String error);}
  void stream(JSONObject descriptor,java.util.function.BooleanSupplier valid,StreamResult result){final long account=accountGeneration;audioWork.execute(()->{BufferedAudio source=null;String error=null;long start=SystemClock.elapsedRealtime();try{
   java.util.function.BooleanSupplier allowed=()->!revoking&&account==accountGeneration&&valid.getAsBoolean();

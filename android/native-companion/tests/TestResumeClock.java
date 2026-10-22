@@ -9,7 +9,7 @@ public class TestResumeClock {
  static void sample(long position,boolean playing){TestEngine.p.current=TestEngine.source("1",position,playing);TestEngine.e.update(TestEngine.p.current);}
  public static void main(String[] args)throws Exception {
   TestEngine.playing();ReplacementEngine e=TestEngine.e;MediaPlayer player=e.player;
-  SystemClock.now+=160;sample(1160,true);TestEngine.p.handler.drain();
+  SystemClock.now+=ReplacementEngine.FADE_MS+20;sample(1160,true);TestEngine.p.handler.drain();
   int downloads=TestEngine.api.downloads,resolves=TestEngine.api.resolves;
   e.headphonesDisconnected();sample(1160,false);SystemClock.now+=400;
   player.asyncSeek=true;sample(60000,true);int primary=player.seekCalls;
@@ -27,7 +27,7 @@ public class TestResumeClock {
   e.close();
 
   TestEngine.playing();e=TestEngine.e;player=e.player;
-  SystemClock.now+=160;sample(1160,true);TestEngine.p.handler.drain();
+  SystemClock.now+=ReplacementEngine.FADE_MS+20;sample(1160,true);TestEngine.p.handler.drain();
   int beforeRoute=player.seekCalls;player.position=1160;e.headphonesDisconnected();sample(1160,false);
   SystemClock.now+=1000;sample(1160,true);
   check(player.playing&&player.seekCalls==beforeRoute,"unchanged route-resume position reuses decoder without any seek");
@@ -37,7 +37,7 @@ public class TestResumeClock {
 
   TestEngine.playing();e=TestEngine.e;player=e.player;
   // The native song has not ended. The last 100ms are still valid audio.
-  SystemClock.now+=160;sample(119900,true);player.position=119900;
+  SystemClock.now+=ReplacementEngine.FADE_MS+20;sample(119900,true);player.position=119900;
   // Complete a synchronous source seek at the tail, then continue normal play.
   e.update(TestEngine.p.current);
   check(e.player==player&&!player.released,"do not discard the last 150ms before the file or source ends");
