@@ -1,3 +1,9 @@
+## 0.3.32 — current-song lookup pacing
+
+The owner's 2026-10-24 23:26:43 diagnostic confirms a separate Android lookup quota failure without VPN: 182 successful album responses, then 24 requests consumed in the final 12-minute window, last at elapsed 12230344ms; later current songs have no album request through elapsed 12738498ms. This release replaces that cumulative quota with a 1500ms global request interval and the existing 30-second same-album retry cooldown. The existing service sampling retries the current uncached album automatically. Two concurrent lookups, response size/deadline checks, exact album matching and fresh server authorization remain in force. Cache hits do not consume requests. Network recovery clears per-album cooldowns while retaining global pacing.
+
+This is not a fix for upstream HTTP 451: the report also contains four such responses. No Hostinger-origin lookup or server fallback has been verified or deployed. All 194 successful resolve replies in this run report found=false: available song identity does not imply a replacement exists in the CELIKOM catalogue. Desktop/backend/auth/deployment are unchanged. Physical owner verification remains necessary.
+
 # CELIKOM Android native companion — 0.3.31 candidate
 
 This directory owns the current native application addon. The exact 0.3.22 Java source was recovered from its embedded source ZIP. Recompiling it produced a byte-identical `classes2.dex`: SHA-256 `650e8af017f98a9a016fb9b71386bb4774498eb6ca4a49606f16c8000ca57280`. `RECOVERED-0.3.22.json` preserves all recovered source hashes and the APK hash. The older `android/companion-probe` project is not the current installed application source.
@@ -46,7 +52,7 @@ Long-session safeguards: two rotating local diagnostic segments of at most 8 MiB
 
 Native contribution actions use existing server contracts only, after the user selects the exact current song, chooses a local MP3/M4A, confirms rights and explicitly submits. Upload/suggest use the desktop presence check first; track/account changes invalidate an unsubmitted target. Upload transfers run separately from serialized token refresh/playback downloads, have byte/time bounds and preserve a request UUID on retry. Support submits only typed text and, for song reports, the pinned identity/category/version; it does not attach raw diagnostics or send anything automatically. No real contribution or support message is sent by the offline checks. Desktop registration/recovery/promo/referral flows are not part of this native candidate.
 
-The APK uses the same package and signing key, versionCode 32 / versionName 0.3.31, to update the accepted installation. Only app label, native activity theme and foreground-service description change in the manifest; permissions/components and original catalogue assets remain identical. Calls remain a deferred owner test. Hardware playback, Android background scheduling and real server submissions need physical/owner verification; host tests do not certify them.
+The APK uses the same package and signing key, versionCode 33 / versionName 0.3.32, to update the accepted installation. Only app label, native activity theme and foreground-service description change in the manifest; permissions/components and original catalogue assets remain identical. Calls remain a deferred owner test. Hardware playback, Android background scheduling and real server submissions need physical/owner verification; host tests do not certify them.
 
 ## Isolated work
 

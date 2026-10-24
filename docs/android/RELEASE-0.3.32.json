@@ -1,0 +1,22 @@
+{
+  "version": "0.3.32",
+  "version_code": 33,
+  "apk_sha256": "5a842a2b5ebb3dc7e8de4688a7b6d740c9547f80daa31365b1cd01af899aeac8",
+  "base_apk_sha256": "170b1883e292570d28a3b5c619cf000eaccd9d11ee85ca6f6c08f7b50e5f72c9",
+  "signer_sha256": "67fe81c56fac1c1d145344b69a0e3faf9005cf6607f4e26ca27d5926c3eefc4f",
+  "addon_dex_sha256": "eaae1b0669a0691f3faf0479fea9be97889883a373390cd128029825436cb367",
+  "signing_continuity": true,
+  "manifest_matches_approved_changes": true,
+  "permissions_components_unchanged": true,
+  "original_catalogue_assets_unchanged": true,
+  "source_archive_verified": true,
+  "physical_phone_playback_verified": false,
+  "date": "2026-10-24",
+  "branch": "feature/android-isolated",
+  "library_file_id": "libfile_e6d24a0e0c408191a7907214b4899a5b",
+  "change": "Replace cumulative 24 album requests / 12 minutes with 1500ms global pacing and 30s same-album cooldown; current source automatically retries through service sampling.",
+  "regression_checks": 332,
+  "upstream_451_fixed": false,
+  "hostinger_origin_probe_verified": false,
+  "desktop_backend_deployment_changed": false
+}
