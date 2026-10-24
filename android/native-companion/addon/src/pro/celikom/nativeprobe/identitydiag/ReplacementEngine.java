@@ -13,7 +13,7 @@ final class ReplacementEngine {
  String status="Замена выключена",identityKey,trackId,method="NONE",lookupKey;
  JSONObject descriptor; long descriptorUntil,nextLookup,armedUntil,preparedAt,seekStarted,fadeStarted,transition,pausedAt=-1;
  volatile long generation; int trustedSession=-1,failures,seekCorrections;
- BufferedAudio streaming;boolean bufferWaiting;String streamFallbackKey;
+ final BufferRecoveryGate bufferGate=new BufferRecoveryGate();BufferedAudio streaming;boolean bufferWaiting;String streamFallbackKey;
  MediaPlayer player; DynamicsProcessing effect; LoudnessEnhancer loudness; File audioFile;
  float originalMix=1f; boolean ready,closed,preparing,seeking,fading,aligned,returning,preloadAllowed=true,waitingForRouteResume,routePauseObserved,resumePositionRetained; String lastSync="";
  final SyncPolicy syncPolicy=new SyncPolicy();PlaybackSource previousSource;boolean explicitSourceSeek;long unavailableSince=-1,lastSyncAt=-1,lastLoggedDrift;String completedKey;long completedPosition,resumeDrift;
@@ -80,11 +80,14 @@ final class ReplacementEngine {
    if(!s.playing){pauseSource(s);return;}
    pausedAt=-1;
    if(streaming!=null&&streaming.closed){suspend("stream_interrupted",1000);return;}
-   if(streaming!=null&&streaming.stalled()){
+   boolean waiting=streaming!=null&&streaming.stalled();
+   // While a seek is waiting, restore the original without cancelling/repeating that seek.
+   if(waiting&&seeking&&effect!=null)unmute();
+   if(streaming!=null&&bufferGate.recover(waiting,aligned&&!bufferWaiting,seeking,player.getCurrentPosition(),clock)){
     if(!bufferWaiting){bufferWaiting=true;transition++;fading=false;aligned=false;seeking=false;resumePositionRetained=false;unmute();player.setVolume(0,0);if(player.isPlaying())player.pause();LogStore.log("replacement_buffer_wait",LogStore.map("trackId",trackId,"cachedBytes",streaming.cachedBytes()));}
     status="Связь замедлилась; играет оригинал, подгружаем замену";return;
    }
-   if(bufferWaiting){bufferWaiting=false;aligned=false;LogStore.log("replacement_buffer_resumed",LogStore.map("trackId",trackId));}
+   if(bufferWaiting){if(waiting)return;bufferGate.reset();bufferWaiting=false;aligned=false;LogStore.log("replacement_buffer_resumed",LogStore.map("trackId",trackId));}
    if(seeking){if(clock-seekStarted>SEEK_TIMEOUT_MS)suspend("seek_timeout",retryDelay());return;}
    long target=position(s);if(target>=s.duration){suspend("source_end",30000);return;}if(target>=player.getDuration()){suspend("replacement_end",30000);return;}
    long drift=target-player.getCurrentPosition();
@@ -110,7 +113,7 @@ final class ReplacementEngine {
  }
  void pauseSource(PlaybackSource s){
   if(player==null)return;
-  if(pausedAt<0){resumeDrift=position(s)-player.getCurrentPosition();resumePositionRetained=ready&&aligned&&!seeking;pausedAt=SystemClock.elapsedRealtime();transition++;fading=false;aligned=false;player.setVolume(0,0);if(player.isPlaying())player.pause();final MediaPlayer p=player;final long token=transition;
+  if(pausedAt<0){bufferGate.reset();resumeDrift=position(s)-player.getCurrentPosition();resumePositionRetained=ready&&aligned&&!seeking;pausedAt=SystemClock.elapsedRealtime();transition++;fading=false;aligned=false;player.setVolume(0,0);if(player.isPlaying())player.pause();final MediaPlayer p=player;final long token=transition;
    owner.handler.postDelayed(()->{if(player==p&&token==transition&&current(identityKey)&&!owner.current.playing)unmute();},PAUSE_GRACE_MS);
   }
   if(SystemClock.elapsedRealtime()-pausedAt>=PAUSE_GRACE_MS)unmute();
@@ -162,7 +165,7 @@ final class ReplacementEngine {
  void fade(){final long token=++transition;final MediaPlayer p=player;final DynamicsProcessing fx=effect;final float initialOriginal=originalMix;final long rampDuration=initialOriginal<=0.001f?80:FADE_MS;fadeStarted=SystemClock.elapsedRealtime();fading=true;Runnable ramp=new Runnable(){public void run(){if(closed||token!=transition||p!=player||fx!=effect||!armed())return;try{if(!current(identityKey)){suspend("fade_source_unavailable",1000);return;}if(!owner.current.playing){pauseSource(owner.current);return;}float mix=TransitionMix.progress(SystemClock.elapsedRealtime()-fadeStarted,rampDuration);originalMix=initialOriginal*(1f-mix);fx.setInputGainAllChannelsTo(originalMix<=0.001f?-100f:(float)(20*Math.log10(originalMix)));applyVolume(mix);if(mix<1f)owner.handler.postDelayed(this,20);else{fading=false;LogStore.log("replacement_transition_complete",LogStore.map("trackId",trackId,"rampMs",SystemClock.elapsedRealtime()-fadeStarted));}}catch(RuntimeException e){suspend("fade_failed",retryDelay());}}};ramp.run();}
  void applyVolume(float mix){double gain=descriptor==null?0:descriptor.optDouble("gain_db",0);float volume=mix*(float)Math.min(1,Math.pow(10,Math.min(0,gain)/20));player.setVolume(volume,volume);if(gain>0&&loudness==null)try{loudness=new LoudnessEnhancer(player.getAudioSessionId());loudness.setTargetGain((int)Math.round(gain*100));loudness.setEnabled(true);}catch(RuntimeException ignored){LogStore.log("replacement_gain","positive gain unavailable");}}
  void unmute(){if(effect!=null){DynamicsProcessing fx=effect;effect=null;boolean gainReset=false,disabled=false,released=false;try{fx.setControlStatusListener(null);}catch(RuntimeException ignored){}try{fx.setInputGainAllChannelsTo(0f);gainReset=true;}catch(RuntimeException ignored){}try{disabled=fx.setEnabled(false)==AudioEffect.SUCCESS;}catch(RuntimeException ignored){}try{fx.release();released=true;}catch(RuntimeException ignored){}originalMix=1f;LogStore.log("replacement_original_restored",LogStore.map("reason","effect_released","gainReset",gainReset,"disabled",disabled,"released",released,"hardwareAudibilityVerified",false));}}
- void release(String reason){if("identity_changed".equals(reason)||"track_changed".equals(reason)||"replacement_end".equals(reason)||"replacement_completed".equals(reason)||"source_end".equals(reason)||"source_unavailable".equals(reason)||"source_disconnected".equals(reason))rememberAudio();returning=false;pausedAt=-1;bufferWaiting=false;if(streaming!=null){streaming.close();streaming=null;}boolean had=player!=null||effect!=null;transition++;ready=false;seeking=false;fading=false;aligned=false;resumePositionRetained=false;if(player!=null){try{player.setOnErrorListener(null);player.setOnPreparedListener(null);player.setOnCompletionListener(null);player.setOnSeekCompleteListener(null);player.release();}catch(RuntimeException ignored){}player=null;}if(loudness!=null){try{loudness.release();}catch(RuntimeException ignored){}loudness=null;}unmute();if(audioFile!=null){audioFile.delete();audioFile=null;}if(had)LogStore.log("replacement_released",LogStore.map("reason",reason));}
+ void release(String reason){if("identity_changed".equals(reason)||"track_changed".equals(reason)||"replacement_end".equals(reason)||"replacement_completed".equals(reason)||"source_end".equals(reason)||"source_unavailable".equals(reason)||"source_disconnected".equals(reason))rememberAudio();returning=false;pausedAt=-1;bufferGate.reset();bufferWaiting=false;if(streaming!=null){streaming.close();streaming=null;}boolean had=player!=null||effect!=null;transition++;ready=false;seeking=false;fading=false;aligned=false;resumePositionRetained=false;if(player!=null){try{player.setOnErrorListener(null);player.setOnPreparedListener(null);player.setOnCompletionListener(null);player.setOnSeekCompleteListener(null);player.release();}catch(RuntimeException ignored){}player=null;}if(loudness!=null){try{loudness.release();}catch(RuntimeException ignored){}loudness=null;}unmute();if(audioFile!=null){audioFile.delete();audioFile=null;}if(had)LogStore.log("replacement_released",LogStore.map("reason",reason));}
  void suspend(String reason,long delay){if(streaming!=null&&Arrays.asList("prepare_timeout","prepare_failed","duration_or_session_invalid","seek_timeout","media_player_error").contains(reason)){streamFallbackKey=identityKey;delay=1000;LogStore.log("replacement_stream_fallback",LogStore.map("reason",reason));}if("replacement_completed".equals(reason)||"replacement_end".equals(reason)||"source_end".equals(reason)){completedKey=identityKey;completedPosition=owner.current==null?0:position(owner.current);}generation++;preparing=false;release(reason);descriptor=null;lookupKey=null;nextLookup=SystemClock.elapsedRealtime()+delay;LogStore.log("replacement_recovery",LogStore.map("reason",reason,"automaticModeRetained",armed(),"retryMs",delay));}
  void returnOriginal(){
   if(player==null||effect==null||!ready||!current(identityKey)||!owner.current.playing){stop("owner_return_original");return;}

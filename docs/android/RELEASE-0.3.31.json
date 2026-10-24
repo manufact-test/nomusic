@@ -1,0 +1,44 @@
+{
+  "version": "0.3.31",
+  "version_code": 32,
+  "apk_sha256": "b1b480ee9ad4aa77e6faef6fe9201f80d933772d15dcd5f7447da15e59c76ac8",
+  "base_apk_sha256": "170b1883e292570d28a3b5c619cf000eaccd9d11ee85ca6f6c08f7b50e5f72c9",
+  "signer_sha256": "67fe81c56fac1c1d145344b69a0e3faf9005cf6607f4e26ca27d5926c3eefc4f",
+  "addon_dex_sha256": "2b6416f4a181de012e7ce459ccd3a66e71c09d0ce8f30a091dfffdd02f9ac206",
+  "signing_continuity": true,
+  "manifest_matches_approved_changes": true,
+  "permissions_components_unchanged": true,
+  "original_catalogue_assets_unchanged": true,
+  "source_archive_verified": true,
+  "physical_phone_playback_verified": false,
+  "library_file_id": "libfile_3154a117304c8191a53370149b265e02",
+  "apk_bytes": 8779933,
+  "owner_check_pending": true,
+  "scope": "Android only: bounded transition snapshot wait, position-aware range prefetch, decoder-progress buffer recovery and buffered-seek retention; desktop/backend/auth/deployment unchanged",
+  "evidence": {
+    "report": "CELIKOM-combined-20261024-180434.txt",
+    "first_run_start": "2026-10-24T17:56:38+03:00",
+    "initial_source_alias": "9",
+    "transition_alias": "1",
+    "transition_elapsed_ms": 3939,
+    "user_stop_elapsed_ms": 135090,
+    "restart_buffer_waits_ms": [
+      [
+        6389,
+        6896
+      ],
+      [
+        9974,
+        10741
+      ]
+    ],
+    "freeze_root_cause_confidence": "code-supported leading explanation; post-event snapshot was not logged"
+  },
+  "host_validation": {
+    "recorded_transition_and_progress_checks": 20,
+    "streaming_engine_checks": 30,
+    "engine_checks": 109,
+    "progressive_transport_checks": 4117,
+    "physical_phone_playback_verified": false
+  }
+}

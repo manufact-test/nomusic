@@ -12,12 +12,13 @@ class BufferedAudio implements Closeable {
  final File file;final Open open;final BooleanSupplier valid;final LongSupplier clock;final Events events;
  final BitSet present=new BitSet(),loading=new BitSet();final Set<HttpURLConnection> connections=new HashSet<>();
  final ScheduledExecutorService watcher=Executors.newSingleThreadScheduledExecutor();final ExecutorService background=Executors.newSingleThreadExecutor();
- volatile long size=-1,waitingSince=-1;volatile boolean closed;String etag;boolean detached;IOException fatal;
+ volatile int playbackBlock;volatile long size=-1,waitingSince=-1;volatile boolean closed;String etag;boolean detached;IOException fatal;
  BufferedAudio(File file,Open open,BooleanSupplier valid,LongSupplier clock,Events events){this.file=file;this.open=open;this.valid=valid;this.clock=clock;this.events=events;
   watcher.scheduleAtFixedRate(()->{if(!valid.getAsBoolean())close();},100,100,TimeUnit.MILLISECONDS);
  }
  void initialize()throws IOException{fetch(0);events.event("replacement_stream_ready",cachedBytes());}
- void prefetch(){background.execute(()->{try{for(int b=1;!closed&&b<blocks();b++)fetch(b);if(complete())events.event("replacement_stream_cached",size);}catch(IOException e){events.event("replacement_stream_prefetch_wait",cachedBytes());}});}
+ void prefetch(){background.execute(()->{try{while(!closed){int b=nextPrefetchBlock();if(b<0)break;fetch(b);}if(complete())events.event("replacement_stream_cached",size);}catch(IOException e){events.event("replacement_stream_prefetch_wait",cachedBytes());}});}
+ synchronized int nextPrefetchBlock(){int count=blocks();if(count==0)return -1;int cursor=Math.max(0,Math.min(count-1,playbackBlock));for(int b=cursor;b<count;b++)if(!present.get(b))return b;for(int b=0;b<cursor;b++)if(!present.get(b))return b;return -1;}
  int blocks(){return size<0?0:(int)((size+BLOCK-1)/BLOCK);}
  synchronized boolean complete(){return size>0&&present.cardinality()==blocks();}
  synchronized long cachedBytes(){long total=0;for(int b=present.nextSetBit(0);b>=0;b=present.nextSetBit(b+1))total+=Math.min(BLOCK,size-(long)b*BLOCK);return total;}
@@ -27,7 +28,7 @@ class BufferedAudio implements Closeable {
   if(position<0||offset<0||length<0||offset>buffer.length-length)throw new IOException("invalid_audio_read");if(length==0)return 0;
   synchronized(this){check();if(size<0)throw new IOException("audio_not_initialized");if(position>=size)return -1;}
   int block=(int)(position/BLOCK),count=(int)Math.min(Math.min(length,BLOCK-position%BLOCK),size-position);
-  synchronized(this){if(!present.get(block))waitingSince=clock.getAsLong();}
+  synchronized(this){playbackBlock=block;if(!present.get(block))waitingSince=clock.getAsLong();}
   try{fetch(block);synchronized(this){check();try(RandomAccessFile in=new RandomAccessFile(file,"r")){in.seek(position);in.readFully(buffer,offset,count);}}return count;}
   finally{waitingSince=-1;}
  }
