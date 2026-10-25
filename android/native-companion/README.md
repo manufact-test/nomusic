@@ -1,3 +1,11 @@
+## 0.3.35 — stable screen reopening
+
+Support-button geometry is reserved independently of the async diagnostics grant. A private, account-ID-scoped presentation hint may restore the button immediately, but it stays disabled until the existing fresh, generation-bound diagnostics lease is valid; all recording/export gates are unchanged. A network error cannot create/extend authority. Login/logout clear the hint.
+
+PresencePreview keeps up to32 recent server presence labels for five minutes in this process, keyed by song and account generation. Reopening the activity paints a known same-song label immediately and performs a fresh presence read in the background. Suggest/upload calls still always perform their live network presence checks; the preview is not an entitlement, Track ID proof or contribution authority. Invalid status, other account/song and expired/future timestamps are rejected. Engine clocks, source watchdog, audio transfer and auth/session rotation are unchanged.
+
+Automated Android compile/engine/presentation/security/package checks passed, including nine preview boundary checks. No physical Android/Chrome visual assertion is claimed: the local Chromium browser binary was unavailable and its download failed. The owner's ordinary reopening/listening is the remaining physical validation.
+
 ## 0.3.34 — distribution and support-export boundary
 
 Removed the recoverable source ZIP from the APK. Git remains the source of truth. No signing files, source archives, source maps or test source files may be distributed. The legacy MainActivity launcher now unconditionally forwards into RecorderActivity; the old legacy_tools extra no longer exposes the prototype tool UI.
@@ -70,7 +78,7 @@ Long-session safeguards: two rotating local diagnostic segments of at most 8 MiB
 
 Native contribution actions use existing server contracts only, after the user selects the exact current song, chooses a local MP3/M4A, confirms rights and explicitly submits. Upload/suggest use the desktop presence check first; track/account changes invalidate an unsubmitted target. Upload transfers run separately from serialized token refresh/playback downloads, have byte/time bounds and preserve a request UUID on retry. Support submits only typed text and, for song reports, the pinned identity/category/version; it does not attach raw diagnostics or send anything automatically. No real contribution or support message is sent by the offline checks. Desktop registration/recovery/promo/referral flows are not part of this native candidate.
 
-The APK uses the same package and signing key, versionCode 35 / versionName 0.3.34, to update the accepted installation. Only app label, native activity theme and foreground-service description change in the manifest; permissions/components and original catalogue assets remain identical. Calls remain a deferred owner test. Hardware playback, Android background scheduling and real server submissions need physical/owner verification; host tests do not certify them.
+The APK uses the same package and signing key, versionCode 36 / versionName 0.3.35, to update the accepted installation. Only app label, native activity theme and foreground-service description change in the manifest; permissions/components and original catalogue assets remain identical. Calls remain a deferred owner test. Hardware playback, Android background scheduling and real server submissions need physical/owner verification; host tests do not certify them.
 
 ## Isolated work
 

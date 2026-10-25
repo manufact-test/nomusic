@@ -14,13 +14,17 @@ final class NativeApi {
  static synchronized NativeApi get(Context c){if(singleton==null)singleton=new NativeApi(c);return singleton;}
  NativeApi(Context c){context=c.getApplicationContext();session=new SecureSession(c);}
  volatile long diagnosticUntil,diagnosticGeneration=-1,nextDiagnosticCheck;volatile boolean diagnosticBusy;
+ final PresencePreview presencePreview=new PresencePreview();
+ boolean diagnosticHint(){JSONObject u=session.read().optJSONObject("user");long id=u==null?0:u.optLong("id",0);return signedIn()&&id>0&&context.getSharedPreferences("diagnostic-ui",0).getLong("verified-user",0)==id;}
+ void rememberDiagnosticHint(boolean grant){JSONObject u=session.read().optJSONObject("user");context.getSharedPreferences("diagnostic-ui",0).edit().putLong("verified-user",grant&&u!=null?u.optLong("id",0):0).apply();}
+ String presenceHint(String id){return presencePreview.get(id,accountGeneration,SystemClock.elapsedRealtime());}
  boolean fullDiagnostics(){return DiagnosticAccess.lease(signedIn(),diagnosticGeneration,accountGeneration,SystemClock.elapsedRealtime(),diagnosticUntil);}
  synchronized void refreshDiagnostics(){long now=SystemClock.elapsedRealtime();if(diagnosticBusy||now<nextDiagnosticCheck||!signedIn())return;diagnosticBusy=true;nextDiagnosticCheck=now+45000;final long generation=accountGeneration;
   work.execute(()->{boolean allowed=false,answered=false;try{allowed=DiagnosticAccess.user(authenticated("auth/me",null));answered=true;}catch(Exception ignored){}final boolean grant=allowed,known=answered;
-   main.post(()->{diagnosticBusy=false;if(generation!=accountGeneration||!signedIn())return;if(known){diagnosticGeneration=generation;diagnosticUntil=grant?SystemClock.elapsedRealtime()+60000:0;if(!grant)LogStore.clearPrivate();else if(ProbeService.instance!=null&&ProbeService.instance.alive()&&!LogStore.active)LogStore.begin();}});
+   main.post(()->{diagnosticBusy=false;if(generation!=accountGeneration||!signedIn())return;if(known){rememberDiagnosticHint(grant);diagnosticGeneration=generation;diagnosticUntil=grant?SystemClock.elapsedRealtime()+60000:0;if(!grant)LogStore.clearPrivate();else if(ProbeService.instance!=null&&ProbeService.instance.alive()&&!LogStore.active)LogStore.begin();}});
   });
  }
- void resetDiagnostics(){diagnosticUntil=0;diagnosticGeneration=-1;nextDiagnosticCheck=0;LogStore.clearPrivate();}
+ void resetDiagnostics(){rememberDiagnosticHint(false);presencePreview.clear();diagnosticUntil=0;diagnosticGeneration=-1;nextDiagnosticCheck=0;LogStore.clearPrivate();}
  boolean signedIn(){return !revoking&&!session.read().optString("refresh_token").isEmpty();}
  void submit(String task,Callable<JSONObject> action,Result result){work.execute(()->{JSONObject j=null;String error=null;try{j=action.call();}catch(Exception e){error=e.getMessage();if(error==null||!error.matches("[a-z0-9_]{1,80}"))error="network_or_response_error";}final JSONObject out=j;final String fail=error;LogStore.log("backend_result",LogStore.map("operation",task,"ok",fail==null,"errorCode",fail));main.post(()->result.done(out,fail));});}
  JSONObject request(String path,JSONObject body,String access)throws Exception {return request(path,body,access,null);}
@@ -42,7 +46,7 @@ final class NativeApi {
  void startAccess(Result r){final long generation=accountGeneration;submit("start_access",()->{if(generation!=accountGeneration)throw new Exception("login_required");ApiContract.config(request("config",null,null));JSONObject j=authenticated("auth/activate",new JSONObject());JSONObject entitlement=j.optJSONObject("entitlement");if(entitlement==null||!(entitlement.opt("allowed") instanceof Boolean))throw new Exception("invalid_api_response");return entitlement;},r);}
  void logout(Result r){revoking=true;accountGeneration++;resetDiagnostics();submit("logout",()->{try{JSONObject s=session.read();if(s.has("refresh_token"))request("auth/logout",new JSONObject().put("refresh_token",s.getString("refresh_token")).put("installation_id",session.installation()),null);}finally{session.clear();}return new JSONObject().put("ok",true);},r);}
  void support(JSONObject body,Result r){final long generation=accountGeneration;submit("support",()->{if(generation!=accountGeneration)throw new Exception("login_required");return authenticated("support",body);},r);}
- void presence(String id,Result r){submit("track_status",()->authenticated("tracks/upload-status?service=yandex&track_id="+id,null),r);}
+ void presence(String id,Result r){final long generation=accountGeneration;submit("track_status",()->{JSONObject j=authenticated("tracks/upload-status?service=yandex&track_id="+id,null);if(generation==accountGeneration)presencePreview.put(id,j.optString("status"),generation,SystemClock.elapsedRealtime());return j;},r);}
  interface Progress {void update(int percent);}
  void contribute(MobileActions.Target target,File file,String extension,String requestId,Progress progress,Result result){
   final long generation=accountGeneration;

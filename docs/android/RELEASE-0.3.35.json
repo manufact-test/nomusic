@@ -1,0 +1,21 @@
+{
+  "version": "0.3.35",
+  "version_code": 36,
+  "apk_sha256": "a8f61a2ef7025a5d8e075864d5040c2bdd9c4c9792aff0752726018b46c40ce6",
+  "base_apk_sha256": "170b1883e292570d28a3b5c619cf000eaccd9d11ee85ca6f6c08f7b50e5f72c9",
+  "signer_sha256": "67fe81c56fac1c1d145344b69a0e3faf9005cf6607f4e26ca27d5926c3eefc4f",
+  "addon_dex_sha256": "b6597485849fe6e76c98e99eafb8f51e073b70974cf058a8a57dffc83a6f9b83",
+  "signing_continuity": true,
+  "manifest_matches_approved_changes": true,
+  "permissions_components_unchanged": true,
+  "original_catalogue_assets_unchanged": true,
+  "source_archive_absent": true,
+  "legacy_launcher_gated": true,
+  "physical_phone_playback_verified": false,
+  "date": "2026-10-25",
+  "scope": "stable diagnostics footer and account/song-scoped presence presentation preview only",
+  "preview_checks": 9,
+  "playback_logic_changed": false,
+  "diagnostics_authority_changed": false,
+  "visual_hardware_verified": false
+}

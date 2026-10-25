@@ -46,7 +46,7 @@ public class RecorderActivity extends Activity {
   confirm=button(box,"Подтвердить найденную песню",this::confirmTrack,false);confirm.setVisibility(View.GONE);
   accountBody=section(box,"Аккаунт");accountNote=label(accountBody,"",13,MUTED);loginButton=button(accountBody,"Войти",this::login,false);logoutButton=button(accountBody,"Выйти",this::logout,false);
   support(section(box,"Связь с поддержкой"));
-  save=button(box,"Сохранить диагностику",this::export,false);save.setBackgroundColor(Color.TRANSPARENT);save.setTextColor(0xff8fa0a8);save.setTextSize(12);save.setGravity(Gravity.START|Gravity.CENTER_VERTICAL);save.setPadding(dp(2),0,0,0);
+  save=button(box,"Сохранить диагностику",this::export,false);save.setBackgroundColor(Color.TRANSPARENT);save.setTextColor(0xff8fa0a8);save.setTextSize(12);save.setMinHeight(dp(28));save.setMinimumHeight(dp(28));save.getLayoutParams().height=dp(28);save.setGravity(Gravity.START|Gravity.CENTER_VERTICAL);save.setPadding(dp(2),0,0,0);
   notificationPermission=button(box,"Включить уведомления CELIKOM",this::enableNotifications,false);notificationPermission.setTextSize(12);
   reportNote=label(box,"",12,MUTED);label(box,"CELIKOM · "+AppVersion.NAME,11,0xff788991);
   if(saved!=null){try{if(saved.containsKey("pickerId"))pickerTarget=new MobileActions.Target(saved.getString("pickerId"),saved.getString("pickerKey"),saved.getString("pickerTitle"),saved.getString("pickerArtist"),saved.getLong("pickerDuration"));String report=saved.getString("reportSnapshot");if(report!=null){File candidate=new File(report);if(candidate.getCanonicalFile().getParentFile().equals(getCacheDir().getCanonicalFile())&&candidate.getName().startsWith("diagnostics-"))exportSnapshot=candidate;}}catch(Exception ignored){}}
@@ -66,7 +66,7 @@ public class RecorderActivity extends Activity {
  @Override protected void onStart(){super.onStart();handler.removeCallbacks(update);handler.post(update);}
  @Override protected void onStop(){handler.removeCallbacks(update);super.onStop();}
  void render(){
-  if(save!=null)save.setVisibility(api().fullDiagnostics()?View.VISIBLE:View.GONE);if(reportNote!=null)reportNote.setVisibility(api().fullDiagnostics()?View.VISIBLE:View.GONE);
+  if(save!=null){save.setVisibility(api().diagnosticHint()?View.VISIBLE:View.INVISIBLE);save.setEnabled(api().fullDiagnostics());}if(reportNote!=null)reportNote.setVisibility(api().fullDiagnostics()?View.VISIBLE:View.INVISIBLE);
   ProbeService p=ProbeService.instance;ReplacementEngine e=p==null?null:p.replacement;boolean running=p!=null&&p.alive(),armed=e!=null&&e.armed(),signed=api().signedIn();
   if(uiAccountGeneration!=api().accountGeneration){uiAccountGeneration=api().accountGeneration;presenceId="";presenceStatus="";presenceChecked=0;accountAccess=null;serverStatus="";}
   PlaybackSource source=running?p.current:null;
@@ -77,7 +77,7 @@ public class RecorderActivity extends Activity {
   set(access,presentation.instruction);access.setTextColor(presentation.connected?MINT:MUTED);
   track.setVisibility(presentation.showTrack?View.VISIBLE:View.GONE);set(track,presentation.showTrack&&source!=null?source.title+(source.artist.isEmpty()?"":" — "+source.artist):"");
   MobileActions.Target target=target();boolean exact=target!=null;enable(uploadButton,signed&&presentation.showTrack&&exact&&!contributionBusy);enable(suggestButton,signed&&presentation.showTrack&&exact&&!contributionBusy);
-  if(exact&&signed&&presentation.showTrack){if(!target.id.equals(presenceId)){presenceId=target.id;presenceStatus="";presenceChecked=0;}if(!presenceBusy&&(presenceChecked==0||SystemClock.elapsedRealtime()-presenceChecked>=15000)){presenceBusy=true;presenceChecked=SystemClock.elapsedRealtime();String id=target.id;long account=api().accountGeneration;api().presence(id,(j,error)->{presenceBusy=false;if(account!=api().accountGeneration||!id.equals(presenceId))return;if(error==null)presenceStatus=j.optString("status");});}}
+  if(exact&&signed&&presentation.showTrack){if(!target.id.equals(presenceId)){presenceId=target.id;presenceStatus=api().presenceHint(target.id);presenceChecked=0;}if(!presenceBusy&&(presenceChecked==0||SystemClock.elapsedRealtime()-presenceChecked>=15000)){presenceBusy=true;presenceChecked=SystemClock.elapsedRealtime();String id=target.id;long account=api().accountGeneration;api().presence(id,(j,error)->{presenceBusy=false;if(account!=api().accountGeneration||!id.equals(presenceId))return;if(error==null)presenceStatus=j.optString("status");});}}
   else{presenceId="";presenceStatus="";}
   String detail=presentation.version;if(presentation.showTrack&&!input.replacing&&!input.seeking&&!input.confirmation&&input.problem.isEmpty()){if("pending".equals(presenceStatus))detail="Версия песни CELIKOM на проверке";else if("approved".equals(presenceStatus)&&!input.preparing&&"Играет оригинал".equals(detail))detail="Версия песни CELIKOM доступна для подмены";}
   set(version,detail);version.setVisibility(detail.isEmpty()?View.GONE:View.VISIBLE);version.setTextColor(detail.equals("Играет версия CELIKOM")?MINT:MUTED);confirm.setVisibility(presentation.connected&&input.confirmation?View.VISIBLE:View.GONE);
