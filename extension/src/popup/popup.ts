@@ -1,3 +1,4 @@
+import { initDiagnosticsButton } from "./diagnostics-button.js";
 import { playbackPresentation } from "./playback-presentation.js";
 import { withDeadline } from "../shared/request-deadline.js";
 import { inspectM4a } from "../upload/m4a.js";
@@ -18,7 +19,6 @@ const status = document.querySelector<HTMLElement>("[data-status]");
 const startButton = document.querySelector<HTMLButtonElement>("[data-action='start']");
 const stopButton = document.querySelector<HTMLButtonElement>("[data-action='stop']");
 const restoreButton = document.querySelector<HTMLButtonElement>("[data-action='restore']");
-const diagnosticsButton = document.querySelector<HTMLButtonElement>("[data-action='diagnostics']");
 const track = document.querySelector<HTMLElement>("[data-track]");
 let lastState: ExtensionState | null = null;
 const incidentStatus = initIncidentStatus({ onChange: () => { if (lastState) render(lastState); } });
@@ -790,22 +790,7 @@ restoreButton?.addEventListener("click", async () => {
   if (status) status.textContent = "Оригинал восстановлен";
 });
 
-async function refreshDiagnosticsAccess() {
-  if (!diagnosticsButton) return;
-  diagnosticsButton.hidden = true;
-  try { const result = await send<any>({type:"CELIKOM_AUTH",action:"diagnostics-access"}); diagnosticsButton.hidden = !(result?.ok && result.allowed === true); }
-  catch { diagnosticsButton.hidden = true; }
-}
-void refreshDiagnosticsAccess();
-document.addEventListener?.("celikom-account-logout", () => {if(diagnosticsButton)diagnosticsButton.hidden=true;});
-document.addEventListener?.("celikom-account-login", () => {void refreshDiagnosticsAccess();});
-
-diagnosticsButton?.addEventListener("click", async () => {
-  const result = await send<any>({ type: "CELIKOM_DIAGNOSTICS_GET" });
-  if (!result?.ok || !result.state) {diagnosticsButton.hidden=true;return;}
-  await navigator.clipboard.writeText(JSON.stringify(result.state, null, 2));
-  diagnosticsButton.textContent = "Скопировано";
-});
+initDiagnosticsButton(send);
 
 // Reopened popup reconstructs progress from the offscreen uploader's small,
 // sanitized status record. No original File or credentials leave IndexedDB.

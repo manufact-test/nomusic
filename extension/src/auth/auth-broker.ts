@@ -238,8 +238,8 @@ export function createAuthBroker(api, options = {}) {
 
   async function perform(action, message = {}) {
     if (action === "diagnostics-access") {
-      try { await withDiagnosticsAccess(() => true); return { ok: true, allowed: true }; }
-      catch { return { ok: true, allowed: false }; }
+      try { await withDiagnosticsAccess(() => true); return { ok: true, allowed: true, verified: true }; }
+      catch (error) { return { ok: true, allowed: false, verified: ["access_denied","invalid_session","account_disabled"].includes(error?.message) }; }
     }
     if (action === "access-preview") {
       const saved = await store.get();

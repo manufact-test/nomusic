@@ -473,3 +473,7 @@ html{scrollbar-width:thin;scrollbar-color:#45565f transparent}
 @media (prefers-reduced-motion: reduce) {
   .upload-panel [data-upload-submit] { transition: none; }
 }
+
+/* Async support-right checks must never resize the popup footer. */
+.diagnostics-slot { height: 28px; min-height: 28px; overflow: hidden; }
+.diagnostics-slot .diagnostics { height: 28px; min-height: 28px; width: 100%; }

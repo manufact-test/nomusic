@@ -12,10 +12,10 @@ test("old persisted pending is not shown before a fresh authoritative lookup",as
  globalThis.document={querySelector:()=>node,addEventListener:()=>{}};
  let release;const transport=()=>new Promise(resolve=>{release=resolve;});
  const refresh=initVersionStatus(transport);
- assert.match(node.textContent,/Проверяем наличие/);
+ assert.match(node.textContent,/^Версия песни CELIKOM$/);
  assert.doesNotMatch(node.textContent,/на проверке|доступна/);
  const pending=refresh({track:{id:"48591846"},phase:"READY"});
- assert.match(node.textContent,/Проверяем наличие/);
+ assert.match(node.textContent,/^Версия песни CELIKOM$/);
  release({ok:true,status:"none"});
  await pending;
  assert.match(node.textContent,/ещё не загружена/);
@@ -51,4 +51,17 @@ test("detected song prefetch is reused by Upload and invalidated after completed
   globalThis.document=previousDocument;
   globalThis.localStorage=previousStorage;
  }
+});
+
+test('fresh same-song display preview never authorizes upload and expires after five minutes',async()=>{
+ const now=Date.now(),data=new Map(),node={hidden:false,textContent:''};
+ const put=(key,value)=>data.set('celikom-popup-display-v1:'+key,JSON.stringify({at:now,data:value}));
+ put('track',{id:'48591846'});put('version',{trackId:'48591846',status:'pending',displayCheckedAt:now});
+ globalThis.localStorage={getItem:k=>data.get(k)||null,setItem:(k,v)=>data.set(k,v),removeItem:k=>data.delete(k)};
+ globalThis.document={querySelector:()=>node,addEventListener:()=>{}};
+ let finish,calls=0;const refresh=initVersionStatus(()=>{calls++;return new Promise(r=>finish=r)});
+ assert.match(node.textContent,/на проверке/);
+ const view=refresh({track:{id:'48591846'},phase:'READY'}),lookup=refresh.lookup('48591846');let settled=false;lookup.then(()=>settled=true);await Promise.resolve();assert.equal(settled,false);assert.equal(calls,1);
+ finish({ok:true,status:'none'});await view;assert.equal(await lookup,'none');assert.match(node.textContent,/ещё не загружена/);
+ put('version',{trackId:'48591846',status:'approved',displayCheckedAt:now-300001});initVersionStatus(()=>new Promise(()=>{}));assert.equal(node.textContent,'Версия песни CELIKOM');
 });
