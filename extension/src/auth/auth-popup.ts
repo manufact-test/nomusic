@@ -19,7 +19,7 @@ export function initAuthPanel(send) {
   const call = (action, more = {}) => send({ type: "CELIKOM_AUTH", action, ...more });
   const diagnostic = q("network-copy");
   diagnostic?.addEventListener("click", async () => {
-    try { const state = await send({ type: "CELIKOM_STATUS_GET" }); await navigator.clipboard.writeText(JSON.stringify(state, null, 2)); diagnostic.textContent = "Скопировано"; }
+    try { const result = await send({ type: "CELIKOM_DIAGNOSTICS_GET" }); if (!result?.ok) return; await navigator.clipboard.writeText(JSON.stringify(result.state, null, 2)); diagnostic.textContent = "Скопировано"; }
     catch (_) { diagnostic.textContent = "Не удалось скопировать"; }
   });
   let mode = "login", pendingEmail = "", pendingPassword = "", busy = false;
@@ -149,7 +149,7 @@ export function initAuthPanel(send) {
       if (result?.ok) await done(result);
       else {
         show(errors[result?.error] || "Не удалось выполнить действие.", "error");
-        if (diagnostic) diagnostic.hidden = !["auth_network_error", "auth_timeout", "auth_route_blocked", "auth_unavailable"].includes(result?.error);
+        if (diagnostic) diagnostic.hidden = true;
       }
     } catch (_) { show("Нет связи с сервером.", "error"); }
     finally { busy = false; }

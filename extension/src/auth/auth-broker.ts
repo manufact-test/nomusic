@@ -1,3 +1,4 @@
+import { diagnosticsIdentity } from "./diagnostic-access.js";
 import { createReadRecovery } from "../shared/read-recovery.js";
 // Customer tokens are kept in extension-origin IndexedDB, not shared chrome.storage.local.
 // Page/content scripts have no access to this extension-origin database.
@@ -202,6 +203,13 @@ export function createAuthBroker(api, options = {}) {
     return result;
   }
 
+  async function withDiagnosticsAccess(callback) {
+    return withAccess(async saved => {
+      const response = await apiRequest("auth/me", "GET", null, saved.access_token);
+      if (response?.user?.id !== saved.user.id || !await diagnosticsIdentity(response?.user)) throw new Error("access_denied");
+      return callback();
+    });
+  }
   function validEntitlement(value) {
     return typeof value?.allowed === "boolean" && typeof value?.reason === "string"
       && typeof value?.source === "string" && (value.valid_until === null ||
@@ -229,6 +237,10 @@ export function createAuthBroker(api, options = {}) {
   }
 
   async function perform(action, message = {}) {
+    if (action === "diagnostics-access") {
+      try { await withDiagnosticsAccess(() => true); return { ok: true, allowed: true }; }
+      catch { return { ok: true, allowed: false }; }
+    }
     if (action === "access-preview") {
       const saved = await store.get();
       let preview = displayPreview;
@@ -415,6 +427,6 @@ export function createAuthBroker(api, options = {}) {
       return { ok: false, error: safe.has(error?.message) ? error.message : "auth_unavailable" };
     }
   }
-  return { perform, installationId, withAccess, withEntitledAccess, entitlement, resetTransport, networkDiagnostics: () => networkHistory.map(item => ({ ...item })) };
+  return { perform, installationId, withDiagnosticsAccess, withAccess, withEntitledAccess, entitlement, resetTransport, networkDiagnostics: () => networkHistory.map(item => ({ ...item })) };
 }
 

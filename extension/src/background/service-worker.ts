@@ -1,3 +1,4 @@
+import { redactDiagnostics, publicPlaybackState } from "../auth/diagnostic-access.js";
 import { COMMANDS, normalizeEnabled, type ExtensionState } from "../shared/messages.js";
 import { createControllerBootstrap } from "./controller-bootstrap.js";
 import { createApiBroker } from "../api/api-broker.js";
@@ -99,7 +100,7 @@ async function readControllerStatus(retry = false) {
   return musicTabs.connection(retry);
 }
 
-async function readState(retry = false): Promise<ExtensionState> {
+async function readState(retry = false, full = false): Promise<ExtensionState> {
   const enabled = await readEnabled();
   const connection = await readControllerStatus(retry);
   const controller = connection.status;
@@ -120,7 +121,7 @@ async function readState(retry = false): Promise<ExtensionState> {
     track: controller?.track || null
   };
   actionIcon.showFor(connection.tabId,enabled && !connection.error && state.bridge?.healthy===true && !state.startupError && !state.replacementError && !state.suspended && !["ERROR","CONNECTING"].includes(state.phase));
-  return state;
+  return full ? state : publicPlaybackState(state) as ExtensionState;
 }
 
 async function sendToActiveTab(message: object): Promise<unknown> {
@@ -150,7 +151,7 @@ chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse) =>
   // Only the extension-owned popup may inspect or change user intent.
   // Content scripts have a separate, narrowly scoped heartbeat/API channel.
   const popupCommand = [COMMANDS.getStatus, COMMANDS.setEnabled, COMMANDS.setTestTrack,
-    COMMANDS.restoreOriginal, "CELIKOM_ADD_TRACK_OPENED", "CELIKOM_AUTH"].includes(type as string);
+    COMMANDS.restoreOriginal, "CELIKOM_DIAGNOSTICS_GET", "CELIKOM_ADD_TRACK_OPENED", "CELIKOM_AUTH"].includes(type as string);
   if (popupCommand && !trustedUi) {
     sendResponse({ ok: false, error: "invalid_sender" }); return false;
   }
@@ -266,6 +267,11 @@ chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse) =>
     return true;
   }
 
+  if (type === "CELIKOM_DIAGNOSTICS_GET") {
+    void userAuth.withDiagnosticsAccess(async () => redactDiagnostics(await readState(false,true)))
+      .then(state => sendResponse({ok:true,state})).catch(() => sendResponse({ok:false,error:"access_denied"}));
+    return true;
+  }
   if (type === COMMANDS.getStatus) {
     void readState().then(sendResponse);
     return true;

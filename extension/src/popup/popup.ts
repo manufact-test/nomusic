@@ -790,14 +790,21 @@ restoreButton?.addEventListener("click", async () => {
   if (status) status.textContent = "Оригинал восстановлен";
 });
 
+async function refreshDiagnosticsAccess() {
+  if (!diagnosticsButton) return;
+  diagnosticsButton.hidden = true;
+  try { const result = await send<any>({type:"CELIKOM_AUTH",action:"diagnostics-access"}); diagnosticsButton.hidden = !(result?.ok && result.allowed === true); }
+  catch { diagnosticsButton.hidden = true; }
+}
+void refreshDiagnosticsAccess();
+document.addEventListener?.("celikom-account-logout", () => {if(diagnosticsButton)diagnosticsButton.hidden=true;});
+document.addEventListener?.("celikom-account-login", () => {void refreshDiagnosticsAccess();});
+
 diagnosticsButton?.addEventListener("click", async () => {
-  const state = await send<ExtensionState>({ type: COMMANDS.getStatus });
-  lastState = state;
-  await navigator.clipboard.writeText(JSON.stringify({
-    ...lastState,
-    uploadAttempts: await uploadJournal.snapshot()
-  }, null, 2));
-  if (diagnosticsButton) diagnosticsButton.textContent = "Скопировано";
+  const result = await send<any>({ type: "CELIKOM_DIAGNOSTICS_GET" });
+  if (!result?.ok || !result.state) {diagnosticsButton.hidden=true;return;}
+  await navigator.clipboard.writeText(JSON.stringify(result.state, null, 2));
+  diagnosticsButton.textContent = "Скопировано";
 });
 
 // Reopened popup reconstructs progress from the offscreen uploader's small,
