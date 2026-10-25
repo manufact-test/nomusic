@@ -477,3 +477,7 @@ html{scrollbar-width:thin;scrollbar-color:#45565f transparent}
 /* Async support-right checks must never resize the popup footer. */
 .diagnostics-slot { height: 28px; min-height: 28px; overflow: hidden; }
 .diagnostics-slot .diagnostics { height: 28px; min-height: 28px; width: 100%; }
+
+/* Permission checks must not alter the diagnostics label appearance. */
+.diagnostics-slot .diagnostics,
+.diagnostics-slot .diagnostics:disabled { opacity: 1; color: #788991; cursor: pointer; transition: none; }
