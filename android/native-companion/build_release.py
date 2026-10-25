@@ -17,8 +17,8 @@ import zipfile
 import xml.etree.ElementTree as ET
 
 ROOT = Path(__file__).resolve().parent
-VERSION = "0.3.33"
-VERSION_CODE = 34
+VERSION = "0.3.34"
+VERSION_CODE = 35
 
 
 def run(args, **kwargs):
@@ -75,6 +75,22 @@ def main():
             updated = re.sub(r"(\.field public static final VERSION_CODE:I = )0x[0-9a-f]+", lambda m: m[1] + hex(VERSION_CODE), updated)
         if source != updated:
             p.write_text(updated)
+    legacy = decoded / "smali/pro/celikom/nativeprobe/MainActivity.smali"
+    legacy_text = legacy.read_text()
+    redirect = """.method protected onCreate(Landroid/os/Bundle;)V
+    .locals 2
+    invoke-super {p0, p1}, Landroid/app/Activity;->onCreate(Landroid/os/Bundle;)V
+    invoke-virtual {p0}, Lpro/celikom/nativeprobe/MainActivity;->getIntent()Landroid/content/Intent;
+    move-result-object v0
+    const-class v1, Lpro/celikom/nativeprobe/identitydiag/RecorderActivity;
+    invoke-virtual {v0, p0, v1}, Landroid/content/Intent;->setClass(Landroid/content/Context;Ljava/lang/Class;)Landroid/content/Intent;
+    invoke-virtual {p0, v0}, Lpro/celikom/nativeprobe/MainActivity;->startActivity(Landroid/content/Intent;)V
+    invoke-virtual {p0}, Lpro/celikom/nativeprobe/MainActivity;->finish()V
+    return-void
+.end method"""
+    legacy_text, count = re.subn(r"\.method protected onCreate\(Landroid/os/Bundle;\)V.*?\.end method", lambda m: redirect, legacy_text, flags=re.S)
+    assert count == 1, "Unexpected legacy launcher layout"
+    legacy.write_text(legacy_text)
     classes = work / "classes"
     shutil.rmtree(classes, ignore_errors=True)
     classes.mkdir()
@@ -87,7 +103,7 @@ def main():
     tests.mkdir(exist_ok=True)
     test_cp = os.pathsep.join(map(str, [args.deps_dir / "json.jar", classes, android]))
     run(["java", "com.sun.tools.javac.Main", "-encoding", "UTF-8", "-source", "8", "-target", "8", "-cp", test_cp, "-d", tests, *sorted((ROOT / "addon").glob("Test*.java"))])
-    for test in ("TestPure", "TestHybrid", "TestContracts", "TestMobileActions", "TestAppPresentation", "TestNotifications", "TestDiagnosticArchive", "TestAudioTransfer", "TestBufferedAudio", "TestTransitionReadFence", "TestTransitionRecovery", "TestRequestPacing", "TestSourceStateWatchdog"):
+    for test in ("TestPure", "TestHybrid", "TestContracts", "TestMobileActions", "TestAppPresentation", "TestNotifications", "TestDiagnosticArchive", "TestAudioTransfer", "TestBufferedAudio", "TestTransitionReadFence", "TestTransitionRecovery", "TestRequestPacing", "TestSourceStateWatchdog", "TestDiagnosticAccess"):
         run(["java", "-cp", os.pathsep.join(map(str, [args.deps_dir / "json.jar", classes, tests, android])), "pro.celikom.nativeprobe.identitydiag." + test])
     addon_jar = work / "addon.jar"
     run(["java", "sun.tools.jar.Main", "--create", "--file", addon_jar, "-C", classes, "."])
@@ -98,14 +114,8 @@ def main():
     for jar in jars:
         d8.extend(["--classpath", jar])
     run([*d8, addon_jar])
-    bundle = io.BytesIO()
-    source_files = [*sorted((ROOT / "addon/src").rglob("*.java")), *sorted((ROOT / "addon").glob("Test*.java")), ROOT / "build_release.py", ROOT / "verify_release.py", ROOT / "build-inputs.json", ROOT / "RECOVERED-0.3.22.json", ROOT / "README.md", *[p for p in sorted((ROOT / "tests").rglob("*")) if p.is_file() and p.suffix in (".java", ".py", ".tsv")]]
-    with zipfile.ZipFile(bundle, "w", compression=zipfile.ZIP_DEFLATED) as z:
-        for p in source_files:
-            info = zipfile.ZipInfo("CELIKOM-" + VERSION + "-source/" + str(p.relative_to(ROOT)), (1980, 1, 1, 0, 0, 0))
-            info.compress_type = zipfile.ZIP_DEFLATED
-            z.writestr(info, p.read_bytes())
-    (decoded / "assets/identity-integration-source.zip").write_bytes(bundle.getvalue())
+    # Owner recovery sources belong in Git, never in a distributed APK.
+    (decoded / "assets/identity-integration-source.zip").unlink(missing_ok=True)
     unsigned, aligned = work / "unsigned.apk", work / "aligned.apk"
     run(["java", "-jar", args.apktool, "b", decoded, "-o", unsigned])
     # Recreate, rather than append, so an Apktool-restored addon entry cannot
