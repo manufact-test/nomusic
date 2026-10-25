@@ -1,0 +1,23 @@
+{
+  "version": "0.3.33",
+  "version_code": 34,
+  "apk_sha256": "335609e749c7a3b9cd8a7c019a6ae964210f713c8170af52395d5cb0d38bb278",
+  "base_apk_sha256": "170b1883e292570d28a3b5c619cf000eaccd9d11ee85ca6f6c08f7b50e5f72c9",
+  "signer_sha256": "67fe81c56fac1c1d145344b69a0e3faf9005cf6607f4e26ca27d5926c3eefc4f",
+  "addon_dex_sha256": "474bb7c5a4fcd6ab3a75bc7be7bb99a5a999bb1e3d430a48e4f090c7012f6fac",
+  "signing_continuity": true,
+  "manifest_matches_approved_changes": true,
+  "permissions_components_unchanged": true,
+  "original_catalogue_assets_unchanged": true,
+  "source_archive_verified": true,
+  "physical_phone_playback_verified": false,
+  "date": "2026-10-25",
+  "branch": "feature/android-isolated",
+  "library_file_id": "libfile_e441b4fdaf74819190ad6e5978278c51",
+  "change": "Read-only MediaController reconnect after quiet STATE_BUFFERING/isPlaying=false for 3s, at most once per30s. READY pauses and healthy playing sources do not trigger it.",
+  "owner_confirmed_real_pause": "Танцуй сама at elapsed 1137248ms; excluded from faults and recovery policy.",
+  "watchdog_regression_checks": 416,
+  "upstream_451_fixed": false,
+  "diagnostics_visibility_changed": false,
+  "desktop_backend_deployment_changed": false
+}
