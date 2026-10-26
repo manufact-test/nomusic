@@ -17,6 +17,9 @@ class BufferedAudio implements Closeable {
   watcher.scheduleAtFixedRate(()->{if(!valid.getAsBoolean())close();},100,100,TimeUnit.MILLISECONDS);
  }
  void initialize()throws IOException{fetch(0);events.event("replacement_stream_ready",cachedBytes());}
+ // Cache decoder metadata at the end and a second prefix block before publishing.
+ // Android may inspect both ends during prepare; background reads must not race startup.
+ void initializeForPlayback()throws IOException{fetch(0);int last=blocks()-1;if(last>0)fetch(last);if(last>1)fetch(1);events.event("replacement_stream_ready",cachedBytes());}
  void prefetch(){background.execute(()->{try{while(!closed){int b=nextPrefetchBlock();if(b<0)break;fetch(b);}if(complete())events.event("replacement_stream_cached",size);}catch(IOException e){events.event("replacement_stream_prefetch_wait",cachedBytes());}});}
  synchronized int nextPrefetchBlock(){int count=blocks();if(count==0)return -1;int cursor=Math.max(0,Math.min(count-1,playbackBlock));for(int b=cursor;b<count;b++)if(!present.get(b))return b;for(int b=0;b<cursor;b++)if(!present.get(b))return b;return -1;}
  int blocks(){return size<0?0:(int)((size+BLOCK-1)/BLOCK);}

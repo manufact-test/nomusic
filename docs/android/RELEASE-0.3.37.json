@@ -1,0 +1,21 @@
+{
+  "version": "0.3.37",
+  "version_code": 38,
+  "apk_sha256": "48c654ee0584310a8653edb80bda0d90bc4d7896cde0e26dfb29e6e58a488be9",
+  "base_apk_sha256": "170b1883e292570d28a3b5c619cf000eaccd9d11ee85ca6f6c08f7b50e5f72c9",
+  "signer_sha256": "67fe81c56fac1c1d145344b69a0e3faf9005cf6607f4e26ca27d5926c3eefc4f",
+  "addon_dex_sha256": "db80b2e7ca73f5374924cc90ce93b37f9b1a5a7f58266ee71025358d6fe18694",
+  "signing_continuity": true,
+  "manifest_matches_approved_changes": true,
+  "permissions_components_unchanged": true,
+  "original_catalogue_assets_unchanged": true,
+  "source_archive_absent": true,
+  "legacy_launcher_gated": true,
+  "physical_phone_playback_verified": false,
+  "date": "2026-10-26",
+  "scope": "decoder startup cache, advancing-clock handover guard, diagnostic button padding",
+  "owner_report": "CELIKOM-combined-20261026-211526.txt",
+  "security_regression_fully_explained": false,
+  "desktop_changed": false,
+  "server_changed": false
+}

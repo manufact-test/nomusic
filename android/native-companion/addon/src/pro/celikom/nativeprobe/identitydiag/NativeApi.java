@@ -96,7 +96,7 @@ final class NativeApi {
   if(!allowed.getAsBoolean())throw new Exception("audio_cancelled");
   File file=File.createTempFile("buffered-",".audio",context.getCacheDir());
   source=new BufferedAudio(file,()->(HttpsURLConnection)new URL(ApiContract.audio(descriptor,System.currentTimeMillis())).openConnection(),allowed,SystemClock::elapsedRealtime,(name,bytes)->LogStore.log(name,LogStore.map("cachedBytes",bytes,"elapsedMs",SystemClock.elapsedRealtime()-start)));
-  source.initialize();if(!allowed.getAsBoolean())throw new Exception("audio_cancelled");
+  source.initializeForPlayback();if(!allowed.getAsBoolean())throw new Exception("audio_cancelled");
  }catch(Exception e){if(source!=null)source.close();source=null;error="audio_stream_unavailable";LogStore.log("replacement_stream_failure",LogStore.map("type",e.getClass().getSimpleName(),"elapsedMs",SystemClock.elapsedRealtime()-start));}
  final BufferedAudio out=source;final String fail=error;main.post(()->result.done(out,fail));});}
  interface AudioResult{void done(File file,String error);}

@@ -1,3 +1,13 @@
+## 0.3.37 — startup buffering and diagnostics button padding
+
+Includes 12dp horizontal padding inside the diagnostic export button.
+
+The owner's 2026-10-26 21:15 report contains runs 0.3.35 and 0.3.36. In the latest run, Метамир joins at ~1.55s and Вспышка at ~0.67s after source playback starts. Легко ли быть молодым resolves successfully, publishes 128KiB, but does not prepare before the 10s decoder timeout (262KiB cached). Папиросы includes ~4.4s source buffering, album lookup, ~2s config request and ~1.4s initial seek before handover. The log records no repeated recovery on Вспышка; hardware audibility is not captured. Diagnostic lease expiry leaves a recording gap later in the run, so absence of events is not proof of uninterrupted playback.
+
+Security regression review: 0.3.34 put auth/me in the playback/auth queue; 0.3.36 moves its network wait to a support worker. The 0.3.33 and 0.3.36 ReplacementEngine, BufferedAudio, AudioTransfer, SyncPolicy and SourceTransitionGate source files are byte-identical. This narrows the changes, but does not rule out interaction from the changed service, auth, logging, UI or packaging. No physical comparison with the owner's previously working build has been performed; do not claim complete root-cause closure.
+
+This release prepares a validated second prefix block and tail block before handing streaming audio to Android's decoder. Startup/tail metadata reads no longer need to race background prefetch. Original playback stays available during preparation. Streaming handover waits for at least 40ms of actual replacement position advancement before reducing original gain; a frozen startup falls back after 2s without leaving the original muted. New host tests cover cached tail inspection, frozen/advancing decoder handover and bounded recovery; these are not physical audio proof. Protection and exact-identity export gates remain. No desktop/server/auth-rotation changes.
+
 ## 0.3.36 — isolate support checks from playback
 
 Diagnostic identity requests now acquire tokens through the existing serialized auth queue, then perform auth/me on a separate support worker. A slow support response cannot hold song resolution. Token rotation remains serialized. An expired diagnostic grant no longer leaves a silently disabled footer: the administrator button can recheck access and report a network/denial error before exporting. The existing exact-identity, account-generation and fresh-lease export checks remain enforced.
@@ -86,7 +96,7 @@ Long-session safeguards: two rotating local diagnostic segments of at most 8 MiB
 
 Native contribution actions use existing server contracts only, after the user selects the exact current song, chooses a local MP3/M4A, confirms rights and explicitly submits. Upload/suggest use the desktop presence check first; track/account changes invalidate an unsubmitted target. Upload transfers run separately from serialized token refresh/playback downloads, have byte/time bounds and preserve a request UUID on retry. Support submits only typed text and, for song reports, the pinned identity/category/version; it does not attach raw diagnostics or send anything automatically. No real contribution or support message is sent by the offline checks. Desktop registration/recovery/promo/referral flows are not part of this native candidate.
 
-The APK uses the same package and signing key, versionCode 37 / versionName 0.3.36, to update the accepted installation. Only app label, native activity theme and foreground-service description change in the manifest; permissions/components and original catalogue assets remain identical. Calls remain a deferred owner test. Hardware playback, Android background scheduling and real server submissions need physical/owner verification; host tests do not certify them.
+The APK uses the same package and signing key, versionCode 38 / versionName 0.3.37, to update the accepted installation. Only app label, native activity theme and foreground-service description change in the manifest; permissions/components and original catalogue assets remain identical. Calls remain a deferred owner test. Hardware playback, Android background scheduling and real server submissions need physical/owner verification; host tests do not certify them.
 
 ## Isolated work
 
