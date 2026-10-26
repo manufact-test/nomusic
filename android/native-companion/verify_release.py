@@ -52,7 +52,7 @@ def main():
     denied = ("BIND_NOTIFICATION_LISTENER_SERVICE", "BIND_ACCESSIBILITY_SERVICE", "RECORD_AUDIO", "READ_SMS", "READ_CONTACTS", "QUERY_ALL_PACKAGES")
     assert not any(any(key in value for key in denied) for node in current.iter() for value in node.attrib.values())
     badging = subprocess.check_output([str(args.build_tools / "aapt"), "dump", "badging", str(args.apk)], text=True)
-    assert "versionCode='36'" in badging and "versionName='0.3.35'" in badging
+    assert "versionCode='37'" in badging and "versionName='0.3.36'" in badging
     assert "sdkVersion:'28'" in badging and "targetSdkVersion:'36'" in badging
     with zipfile.ZipFile(args.apk) as built, zipfile.ZipFile(args.base_apk) as base:
         assert len(built.namelist()) == len(set(built.namelist())), "Duplicate APK entry"
@@ -68,7 +68,7 @@ def main():
         method = re.search(r"\.method protected onCreate\(Landroid/os/Bundle;\)V(.*?)\.end method", legacy, re.S).group(1)
         assert "identitydiag/RecorderActivity" in method and "->finish()V" in method and "setContentView" not in method
     proof = {
-        "version": "0.3.35", "version_code": 36,
+        "version": "0.3.36", "version_code": 37,
         "apk_sha256": hashlib.sha256(args.apk.read_bytes()).hexdigest(),
         "base_apk_sha256": hashlib.sha256(args.base_apk.read_bytes()).hexdigest(),
         "signer_sha256": cert,

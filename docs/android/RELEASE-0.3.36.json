@@ -1,0 +1,21 @@
+{
+  "version": "0.3.36",
+  "version_code": 37,
+  "apk_sha256": "ea8b4d524cc954af02583c846f334667d41a96366233162ae1c31e42b746702a",
+  "base_apk_sha256": "170b1883e292570d28a3b5c619cf000eaccd9d11ee85ca6f6c08f7b50e5f72c9",
+  "signer_sha256": "67fe81c56fac1c1d145344b69a0e3faf9005cf6607f4e26ca27d5926c3eefc4f",
+  "addon_dex_sha256": "3758e898632847d661802736b3c3e2b216702c4155055aa5c80b7fc4255839ba",
+  "signing_continuity": true,
+  "manifest_matches_approved_changes": true,
+  "permissions_components_unchanged": true,
+  "original_catalogue_assets_unchanged": true,
+  "source_archive_absent": true,
+  "legacy_launcher_gated": true,
+  "physical_phone_playback_verified": false,
+  "date": "2026-10-26",
+  "scope": "isolate diagnostic network checks from playback queue; retryable privileged export button",
+  "stalled_diagnostic_request_regression": true,
+  "desktop_changed": false,
+  "server_changed": false,
+  "all_owner_song_failures_reproduced": false
+}

@@ -17,8 +17,8 @@ import zipfile
 import xml.etree.ElementTree as ET
 
 ROOT = Path(__file__).resolve().parent
-VERSION = "0.3.35"
-VERSION_CODE = 36
+VERSION = "0.3.36"
+VERSION_CODE = 37
 
 
 def run(args, **kwargs):
@@ -103,7 +103,7 @@ def main():
     tests.mkdir(exist_ok=True)
     test_cp = os.pathsep.join(map(str, [args.deps_dir / "json.jar", classes, android]))
     run(["java", "com.sun.tools.javac.Main", "-encoding", "UTF-8", "-source", "8", "-target", "8", "-cp", test_cp, "-d", tests, *sorted((ROOT / "addon").glob("Test*.java"))])
-    for test in ("TestPure", "TestHybrid", "TestContracts", "TestMobileActions", "TestAppPresentation", "TestNotifications", "TestDiagnosticArchive", "TestAudioTransfer", "TestBufferedAudio", "TestTransitionReadFence", "TestTransitionRecovery", "TestRequestPacing", "TestSourceStateWatchdog", "TestDiagnosticAccess", "TestPresencePreview"):
+    for test in ("TestPure", "TestHybrid", "TestContracts", "TestMobileActions", "TestAppPresentation", "TestNotifications", "TestDiagnosticArchive", "TestAudioTransfer", "TestBufferedAudio", "TestTransitionReadFence", "TestTransitionRecovery", "TestRequestPacing", "TestSourceStateWatchdog", "TestDiagnosticAccess", "TestPresencePreview", "TestDiagnosticRequest"):
         run(["java", "-cp", os.pathsep.join(map(str, [args.deps_dir / "json.jar", classes, tests, android])), "pro.celikom.nativeprobe.identitydiag." + test])
     addon_jar = work / "addon.jar"
     run(["java", "sun.tools.jar.Main", "--create", "--file", addon_jar, "-C", classes, "."])
@@ -124,7 +124,7 @@ def main():
     with zipfile.ZipFile(unsigned) as source_apk, zipfile.ZipFile(addon_apk, "w") as z:
         assert len(source_apk.namelist()) == len(set(source_apk.namelist()))
         for info in source_apk.infolist():
-            if info.filename != "classes2.dex":
+            if info.filename not in ("classes2.dex", "assets/identity-integration-source.zip"):
                 z.writestr(info, source_apk.read(info.filename))
         assert len(list(dex.glob("*.dex"))) == 1, "Unexpected additional addon DEX"
         z.write(dex / "classes.dex", "classes2.dex")

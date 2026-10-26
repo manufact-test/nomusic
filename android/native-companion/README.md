@@ -1,3 +1,11 @@
+## 0.3.36 — isolate support checks from playback
+
+Diagnostic identity requests now acquire tokens through the existing serialized auth queue, then perform auth/me on a separate support worker. A slow support response cannot hold song resolution. Token rotation remains serialized. An expired diagnostic grant no longer leaves a silently disabled footer: the administrator button can recheck access and report a network/denial error before exporting. The existing exact-identity, account-generation and fresh-lease export checks remain enforced.
+
+Regression coverage blocks an actual DiagnosticRequest network call and verifies the shared playback executor can process the next song; it also checks auth and network failure completion. The current live config and health endpoints answered successfully on 2026-10-26; no owner-authenticated or physical playback reproduction was available. This fixes a confirmed queue coupling introduced in 0.3.34, but does not establish that it explains every reported song failure. Existing Yandex anonymous album HTTP 451 failures remain a separate unresolved limitation.
+
+Packaging also excludes the recovery-source archive when recreating the final APK, including when Apktool restores it through its unknown-file list. The package verifier rejects development/signing material. Update over the existing installation with the same signer; no desktop or server changes.
+
 ## 0.3.35 — stable screen reopening
 
 Support-button geometry is reserved independently of the async diagnostics grant. A private, account-ID-scoped presentation hint may restore the button immediately, but it stays disabled until the existing fresh, generation-bound diagnostics lease is valid; all recording/export gates are unchanged. A network error cannot create/extend authority. Login/logout clear the hint.
@@ -78,7 +86,7 @@ Long-session safeguards: two rotating local diagnostic segments of at most 8 MiB
 
 Native contribution actions use existing server contracts only, after the user selects the exact current song, chooses a local MP3/M4A, confirms rights and explicitly submits. Upload/suggest use the desktop presence check first; track/account changes invalidate an unsubmitted target. Upload transfers run separately from serialized token refresh/playback downloads, have byte/time bounds and preserve a request UUID on retry. Support submits only typed text and, for song reports, the pinned identity/category/version; it does not attach raw diagnostics or send anything automatically. No real contribution or support message is sent by the offline checks. Desktop registration/recovery/promo/referral flows are not part of this native candidate.
 
-The APK uses the same package and signing key, versionCode 36 / versionName 0.3.35, to update the accepted installation. Only app label, native activity theme and foreground-service description change in the manifest; permissions/components and original catalogue assets remain identical. Calls remain a deferred owner test. Hardware playback, Android background scheduling and real server submissions need physical/owner verification; host tests do not certify them.
+The APK uses the same package and signing key, versionCode 37 / versionName 0.3.36, to update the accepted installation. Only app label, native activity theme and foreground-service description change in the manifest; permissions/components and original catalogue assets remain identical. Calls remain a deferred owner test. Hardware playback, Android background scheduling and real server submissions need physical/owner verification; host tests do not certify them.
 
 ## Isolated work
 

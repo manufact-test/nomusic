@@ -15,14 +15,24 @@ final class NativeApi {
  NativeApi(Context c){context=c.getApplicationContext();session=new SecureSession(c);}
  volatile long diagnosticUntil,diagnosticGeneration=-1,nextDiagnosticCheck;volatile boolean diagnosticBusy;
  final PresencePreview presencePreview=new PresencePreview();
+ final DiagnosticRequest diagnosticRequest=new DiagnosticRequest();final java.util.ArrayList<Result> diagnosticWaiters=new java.util.ArrayList<>();
  boolean diagnosticHint(){JSONObject u=session.read().optJSONObject("user");long id=u==null?0:u.optLong("id",0);return signedIn()&&id>0&&context.getSharedPreferences("diagnostic-ui",0).getLong("verified-user",0)==id;}
  void rememberDiagnosticHint(boolean grant){JSONObject u=session.read().optJSONObject("user");context.getSharedPreferences("diagnostic-ui",0).edit().putLong("verified-user",grant&&u!=null?u.optLong("id",0):0).apply();}
  String presenceHint(String id){return presencePreview.get(id,accountGeneration,SystemClock.elapsedRealtime());}
  boolean fullDiagnostics(){return DiagnosticAccess.lease(signedIn(),diagnosticGeneration,accountGeneration,SystemClock.elapsedRealtime(),diagnosticUntil);}
- synchronized void refreshDiagnostics(){long now=SystemClock.elapsedRealtime();if(diagnosticBusy||now<nextDiagnosticCheck||!signedIn())return;diagnosticBusy=true;nextDiagnosticCheck=now+45000;final long generation=accountGeneration;
-  work.execute(()->{boolean allowed=false,answered=false;try{allowed=DiagnosticAccess.user(authenticated("auth/me",null));answered=true;}catch(Exception ignored){}final boolean grant=allowed,known=answered;
-   main.post(()->{diagnosticBusy=false;if(generation!=accountGeneration||!signedIn())return;if(known){rememberDiagnosticHint(grant);diagnosticGeneration=generation;diagnosticUntil=grant?SystemClock.elapsedRealtime()+60000:0;if(!grant)LogStore.clearPrivate();else if(ProbeService.instance!=null&&ProbeService.instance.alive()&&!LogStore.active)LogStore.begin();}});
-  });
+ void refreshDiagnostics(){refreshDiagnostics(null);}
+ synchronized void refreshDiagnostics(Result result){
+  if(!signedIn()){if(result!=null)main.post(()->result.done(null,"login_required"));return;}
+  if(result!=null)diagnosticWaiters.add(result);
+  long now=SystemClock.elapsedRealtime();if(diagnosticBusy)return;if(result==null&&now<nextDiagnosticCheck)return;
+  diagnosticBusy=true;nextDiagnosticCheck=now+45000;final long generation=accountGeneration;
+  diagnosticRequest.submit(work,()->{if(generation!=accountGeneration||!signedIn())throw new Exception("login_required");return access();},token->{if(generation!=accountGeneration||!signedIn())throw new Exception("login_required");return request("auth/me",null,token);},(response,error)->main.post(()->{
+   java.util.ArrayList<Result> waiters; synchronized(NativeApi.this){diagnosticBusy=false;waiters=new java.util.ArrayList<>(diagnosticWaiters);diagnosticWaiters.clear();}
+   String fail=error;
+   if(generation!=accountGeneration||!signedIn())fail="login_required";
+   else if(error==null){boolean grant=DiagnosticAccess.user(response);rememberDiagnosticHint(grant);diagnosticGeneration=generation;diagnosticUntil=grant?SystemClock.elapsedRealtime()+60000:0;if(!grant){LogStore.clearPrivate();fail="diagnostics_forbidden";}else if(ProbeService.instance!=null&&ProbeService.instance.alive()&&!LogStore.active)LogStore.begin();}
+   for(Result waiter:waiters)waiter.done(response,fail);
+  }));
  }
  void resetDiagnostics(){rememberDiagnosticHint(false);presencePreview.clear();diagnosticUntil=0;diagnosticGeneration=-1;nextDiagnosticCheck=0;LogStore.clearPrivate();}
  boolean signedIn(){return !revoking&&!session.read().optString("refresh_token").isEmpty();}
