@@ -8,7 +8,7 @@ import java.io.*;
 import java.util.*;
 /** User-enabled automatic replacement within the foreground service lifetime. */
 final class ReplacementEngine {
- static final long PREPARED_MS=60000, SEEK_TIMEOUT_MS=2000, STREAM_SEEK_TIMEOUT_MS=12000, FADE_MS=360, PAUSE_GRACE_MS=350;
+ static final long PREPARED_MS=60000, SEEK_TIMEOUT_MS=2000, HANDOVER_DRIFT_MS=350, STREAM_SEEK_TIMEOUT_MS=12000, FADE_MS=360, PAUSE_GRACE_MS=350;
  final ProbeService owner; final NativeApi api;
  String status="Замена выключена",identityKey,trackId,method="NONE",lookupKey;
  JSONObject descriptor; long descriptorUntil,nextLookup,armedUntil,preparedAt,seekStarted,seekBudget=SEEK_TIMEOUT_MS,fadeStarted,transition,pausedAt=-1;
@@ -155,7 +155,7 @@ final class ReplacementEngine {
      alignment and then correct it audibly after handover. Allow two measured
      corrections, then keep the original if the decoder cannot settle. */
   if(streaming!=null&&!waitingForRouteResume&&now.playing&&!mp.isPlaying()
-    &&Math.abs(residual)>(seekCorrections==0?80:350)){
+    &&Math.abs(residual)>(seekCorrections==0?80:HANDOVER_DRIFT_MS)){
    if(seekCorrections>=2||target>=mp.getDuration()-150){
     LogStore.log("replacement_alignment_rejected",LogStore.map("trackId",trackId,"residualMs",residual,"correctionPass",seekCorrections));suspend("alignment_unstable",retryDelay());return;
    }
@@ -188,7 +188,7 @@ final class ReplacementEngine {
       owner.handler.postDelayed(this,20);return;
      }
      long target=position(owner.current),drift=target-position;
-     if(Math.abs(drift)>80){
+     if(Math.abs(drift)>HANDOVER_DRIFT_MS){
       if(corrections[0]>=2||target>=p.getDuration()-150){suspend("alignment_unstable",retryDelay());return;}
       corrections[0]++;baseline[0]=target;phaseStarted[0]=now;warmSeekTransition=token;
       LogStore.log("replacement_warm_alignment",LogStore.map("trackId",trackId,"driftMs",drift,"pass",corrections[0],"replacementAudible",false));
