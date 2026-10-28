@@ -12,6 +12,7 @@ final class ReplacementEngine {
  final ProbeService owner; final NativeApi api;
  String status="Замена выключена",identityKey,trackId,method="NONE",lookupKey;
  JSONObject descriptor; long descriptorUntil,nextLookup,armedUntil,preparedAt,seekStarted,seekBudget=SEEK_TIMEOUT_MS,fadeStarted,transition,pausedAt=-1;
+ long warmSeekTransition=-1;boolean handoverPending;
  volatile long generation; int trustedSession=-1,failures,seekCorrections;
  final BufferRecoveryGate bufferGate=new BufferRecoveryGate();BufferedAudio streaming;boolean bufferWaiting;String streamFallbackKey;
  MediaPlayer player; DynamicsProcessing effect; LoudnessEnhancer loudness; File audioFile;
@@ -38,7 +39,7 @@ final class ReplacementEngine {
  void headphonesDisconnected(){
   if(!armed()&&!returning&&effect==null)return;
   if(returning){stop("headphones_disconnected_during_return");return;}
-  resumePositionRetained=player!=null&&ready&&aligned&&!seeking;waitingForRouteResume=true;routePauseObserved=false;transition++;fading=false;aligned=false;pausedAt=-1;
+  resumePositionRetained=player!=null&&ready&&aligned&&!seeking;waitingForRouteResume=true;routePauseObserved=false;transition++;fading=false;handoverPending=false;warmSeekTransition=-1;aligned=false;pausedAt=-1;
   try{if(player!=null&&ready){player.setVolume(0,0);if(player.isPlaying())player.pause();}}catch(RuntimeException ex){suspend("route_pause_failed",0);}
   unmute();
   status="Наушники отключены. Пауза; нажми ▶ в Яндексе, чтобы продолжить с автозаменой";
@@ -54,7 +55,7 @@ final class ReplacementEngine {
  void update(PlaybackSource s){if(closed||returning)return;attachPendingSession();
   if(s!=null&&(!s.connected||SystemClock.elapsedRealtime()-s.observed>1500)){if(player!=null||preparing||lookupKey!=null)suspend("source_unavailable",1000);status="Ожидаем подключение к Яндексу; играет оригинал";return;}
   if(s==null){
-   long now=SystemClock.elapsedRealtime();if(unavailableSince<0){unavailableSince=now;transition++;fading=false;seeking=false;resumePositionRetained=ready&&aligned;aligned=false;syncPolicy.reset();try{if(player!=null&&ready){player.setVolume(0,0);if(player.isPlaying())player.pause();}}catch(RuntimeException ignored){}unmute();LogStore.log("replacement_source_wait",LogStore.map("decoderRetained",player!=null&&ready,"graceMs",1500));}
+   long now=SystemClock.elapsedRealtime();if(unavailableSince<0){unavailableSince=now;transition++;fading=false;handoverPending=false;warmSeekTransition=-1;seeking=false;resumePositionRetained=ready&&aligned;aligned=false;syncPolicy.reset();try{if(player!=null&&ready){player.setVolume(0,0);if(player.isPlaying())player.pause();}}catch(RuntimeException ignored){}unmute();LogStore.log("replacement_source_wait",LogStore.map("decoderRetained",player!=null&&ready,"graceMs",1500));}
    if(now-unavailableSince>=1500&&(player!=null||preparing||lookupKey!=null))suspend("source_unavailable",1000);status="Ожидаем подключение к Яндексу; играет оригинал";return;
   }
   unavailableSince=-1;
@@ -84,13 +85,14 @@ final class ReplacementEngine {
    // While a seek is waiting, restore the original without cancelling/repeating that seek.
    if(waiting&&seeking&&effect!=null)unmute();
    if(streaming!=null&&bufferGate.recover(waiting,aligned&&!bufferWaiting,seeking,player.getCurrentPosition(),clock)){
-    if(!bufferWaiting){bufferWaiting=true;transition++;fading=false;aligned=false;seeking=false;resumePositionRetained=false;unmute();player.setVolume(0,0);if(player.isPlaying())player.pause();LogStore.log("replacement_buffer_wait",LogStore.map("trackId",trackId,"cachedBytes",streaming.cachedBytes()));}
+    if(!bufferWaiting){bufferWaiting=true;transition++;fading=false;handoverPending=false;warmSeekTransition=-1;aligned=false;seeking=false;resumePositionRetained=false;unmute();player.setVolume(0,0);if(player.isPlaying())player.pause();LogStore.log("replacement_buffer_wait",LogStore.map("trackId",trackId,"cachedBytes",streaming.cachedBytes()));}
     status="Связь замедлилась; играет оригинал, подгружаем замену";return;
    }
    if(bufferWaiting){if(waiting)return;bufferGate.reset();bufferWaiting=false;aligned=false;LogStore.log("replacement_buffer_resumed",LogStore.map("trackId",trackId));}
    if(seeking){if(clock-seekStarted>seekBudget)suspend("seek_timeout",retryDelay());return;}
    long target=position(s);if(target>=s.duration){suspend("source_end",30000);return;}if(target>=player.getDuration()){suspend("replacement_end",30000);return;}
    long drift=target-player.getCurrentPosition();
+   if(fading&&handoverPending&&!sourceJump)return;
    // A retained paused decoder already at the native position needs no seek.
    if(!aligned&&resumePositionRetained&&!sourceJump&&(Math.abs(drift)<=350||Math.abs(drift-resumeDrift)<=350)){aligned=true;resumePositionRetained=false;LogStore.log("replacement_resume_aligned",LogStore.map("trackId",trackId,"driftMs",drift,"seekSkipped",true));}
    if(syncPolicy.correct(aligned,drift,sourceJump,clock)){seek(s,target,drift);return;}
@@ -113,7 +115,7 @@ final class ReplacementEngine {
  }
  void pauseSource(PlaybackSource s){
   if(player==null)return;
-  if(pausedAt<0){bufferGate.reset();resumeDrift=position(s)-player.getCurrentPosition();resumePositionRetained=ready&&aligned&&!seeking;pausedAt=SystemClock.elapsedRealtime();transition++;fading=false;aligned=false;player.setVolume(0,0);if(player.isPlaying())player.pause();final MediaPlayer p=player;final long token=transition;
+  if(pausedAt<0){bufferGate.reset();resumeDrift=position(s)-player.getCurrentPosition();resumePositionRetained=ready&&aligned&&!seeking;pausedAt=SystemClock.elapsedRealtime();transition++;fading=false;handoverPending=false;warmSeekTransition=-1;aligned=false;player.setVolume(0,0);if(player.isPlaying())player.pause();final MediaPlayer p=player;final long token=transition;
    owner.handler.postDelayed(()->{if(player==p&&token==transition&&current(identityKey)&&!owner.current.playing)unmute();},PAUSE_GRACE_MS);
   }
   if(SystemClock.elapsedRealtime()-pausedAt>=PAUSE_GRACE_MS)unmute();
@@ -121,7 +123,7 @@ final class ReplacementEngine {
  }
  long retryDelay(){failures++;return Math.min(30000,5000L*(1L<<Math.min(3,failures-1)));}
  void seek(PlaybackSource s,long target,long drift){seek(s,target,drift,false);}
- void seek(PlaybackSource s,long target,long drift,boolean correction){explicitSourceSeek=false;syncPolicy.reset();resumePositionRetained=false;seekCorrections=correction?seekCorrections+1:0;seeking=true;aligned=true;seekStarted=SystemClock.elapsedRealtime();seekBudget=streaming!=null&&!streaming.complete()?STREAM_SEEK_TIMEOUT_MS:SEEK_TIMEOUT_MS;transition++;fading=false;player.setVolume(0,0);if(player.isPlaying())player.pause();status="Синхронизация позиции…";LogStore.log("replacement_sync",LogStore.map("state","seek","trackId",trackId,"sourcePositionMs",target,"driftMs",drift,"originalStillMuted",effect!=null,"inaudibleCorrection",correction));final MediaPlayer p=player;final long t=transition;p.seekTo(target,MediaPlayer.SEEK_CLOSEST);owner.handler.postDelayed(()->{if(player==p&&seeking&&transition==t)suspend("seek_timeout",retryDelay());},seekBudget);}
+ void seek(PlaybackSource s,long target,long drift,boolean correction){explicitSourceSeek=false;syncPolicy.reset();resumePositionRetained=false;seekCorrections=correction?seekCorrections+1:0;seeking=true;aligned=true;seekStarted=SystemClock.elapsedRealtime();seekBudget=streaming!=null&&!streaming.complete()?STREAM_SEEK_TIMEOUT_MS:SEEK_TIMEOUT_MS;transition++;fading=false;handoverPending=false;warmSeekTransition=-1;player.setVolume(0,0);if(player.isPlaying())player.pause();status="Синхронизация позиции…";LogStore.log("replacement_sync",LogStore.map("state","seek","trackId",trackId,"sourcePositionMs",target,"driftMs",drift,"originalStillMuted",effect!=null,"inaudibleCorrection",correction));final MediaPlayer p=player;final long t=transition;p.seekTo(target,MediaPlayer.SEEK_CLOSEST);owner.handler.postDelayed(()->{if(player==p&&seeking&&transition==t)suspend("seek_timeout",retryDelay());},seekBudget);}
  void prepare(String key,JSONObject j,long g){if(preparing||!current(key)||!api.signedIn())return;PlaybackSource s=owner.current;if(Math.abs(s.duration-j.optLong("duration_ms"))>5000){status="Длительности различаются — играет оригинал";descriptor=null;return;}preparing=true;status="Готовим аудио заранее; оригинал продолжает играть";
   File cached=recentAudio.remove(audioKey(j));
   if(cached!=null&&cached.isFile()){LogStore.log("replacement_audio_reused",LogStore.map("trackId",trackId,"liveResolveRequired",true));acceptAudio(key,j,g,cached,null);return;}
@@ -140,7 +142,9 @@ final class ReplacementEngine {
    }catch(Exception e){suspend("prepare_failed",retryDelay());status="Не удалось подготовить аудио; играет оригинал";}
  }
  void completeSeek(MediaPlayer mp,String key){
-  if(mp!=player||!seeking)return;
+  if(mp!=player)return;
+  if(warmSeekTransition==transition){warmSeekTransition=-1;return;}
+  if(!seeking)return;
   seeking=false;
   long clock=SystemClock.elapsedRealtime(),elapsed=clock-seekStarted;
   if(!ready||!armed()||!current(key))return;
@@ -167,24 +171,56 @@ final class ReplacementEngine {
   update(now);
  }
  boolean mute(){try{if(trustedSession<=0||player==null||player.getAudioSessionId()==trustedSession)throw new IllegalStateException();DynamicsProcessing candidate=new DynamicsProcessing(0,trustedSession,null);effect=candidate;candidate.setControlStatusListener((e,control)->{if(!control)owner.handler.post(()->{if(effect==candidate)stop("effect_control_lost");});});if(!candidate.hasControl())throw new IllegalStateException();originalMix=1f;candidate.setInputGainAllChannelsTo(0f);if(candidate.setEnabled(true)!=AudioEffect.SUCCESS)throw new IllegalStateException();LogStore.log("replacement_original_muted",LogStore.map("sessionId",trustedSession,"globalVolumeChanged",false,"rampMs",FADE_MS));return true;}catch(RuntimeException e){stop("cannot_mute_original");status="Телефон не разрешил приглушить Яндекс; замена остановлена";return false;}}
- void fade(){final long token=++transition;final MediaPlayer p=player;final DynamicsProcessing fx=effect;final float initialOriginal=originalMix;final long startPosition=p.getCurrentPosition();final long startWait=SystemClock.elapsedRealtime();final boolean waitForClock=streaming!=null&&initialOriginal>0.001f;final boolean[] clockReady={false};final long rampDuration=initialOriginal<=0.001f?80:FADE_MS;fadeStarted=SystemClock.elapsedRealtime();fading=true;Runnable ramp=new Runnable(){public void run(){if(closed||token!=transition||p!=player||fx!=effect||!armed())return;try{if(!current(identityKey)){suspend("fade_source_unavailable",1000);return;}if(!owner.current.playing){pauseSource(owner.current);return;}if(waitForClock&&!clockReady[0]){if(p.getCurrentPosition()-startPosition<40){if(SystemClock.elapsedRealtime()-startWait>=2000){suspend("decoder_start_timeout",1000);return;}owner.handler.postDelayed(this,20);return;}clockReady[0]=true;fadeStarted=SystemClock.elapsedRealtime();LogStore.log("replacement_decoder_advancing",LogStore.map("trackId",trackId,"waitMs",fadeStarted-startWait));}float mix=TransitionMix.progress(SystemClock.elapsedRealtime()-fadeStarted,rampDuration);originalMix=initialOriginal*(1f-mix);fx.setInputGainAllChannelsTo(originalMix<=0.001f?-100f:(float)(20*Math.log10(originalMix)));applyVolume(mix);if(mix<1f)owner.handler.postDelayed(this,20);else{fading=false;LogStore.log("replacement_transition_complete",LogStore.map("trackId",trackId,"rampMs",SystemClock.elapsedRealtime()-fadeStarted));}}catch(RuntimeException e){suspend("fade_failed",retryDelay());}}};ramp.run();}
+ void fade(){
+  final long token=++transition;final MediaPlayer p=player;final DynamicsProcessing fx=effect;final float initialOriginal=originalMix;
+  final long rampDuration=initialOriginal<=0.001f?80:FADE_MS;final boolean alignLive=streaming!=null&&initialOriginal>0.001f;
+  final long[] baseline={p.getCurrentPosition()},phaseStarted={SystemClock.elapsedRealtime()};final int[] corrections={0};
+  fadeStarted=SystemClock.elapsedRealtime();fading=true;handoverPending=alignLive;warmSeekTransition=-1;
+  Runnable ramp=new Runnable(){public void run(){
+   if(closed||token!=transition||p!=player||fx!=effect||!armed())return;
+   try{
+    if(!current(identityKey)){suspend("fade_source_unavailable",1000);return;}
+    if(!owner.current.playing){pauseSource(owner.current);return;}
+    if(handoverPending){
+     long now=SystemClock.elapsedRealtime(),position=p.getCurrentPosition();
+     if(warmSeekTransition==token||position-baseline[0]<40){
+      if(now-phaseStarted[0]>=2000){suspend("decoder_start_timeout",1000);return;}
+      owner.handler.postDelayed(this,20);return;
+     }
+     long target=position(owner.current),drift=target-position;
+     if(Math.abs(drift)>80){
+      if(corrections[0]>=2||target>=p.getDuration()-150){suspend("alignment_unstable",retryDelay());return;}
+      corrections[0]++;baseline[0]=target;phaseStarted[0]=now;warmSeekTransition=token;
+      LogStore.log("replacement_warm_alignment",LogStore.map("trackId",trackId,"driftMs",drift,"pass",corrections[0],"replacementAudible",false));
+      /* Seek the running muted decoder. A pause/start would recreate its startup lag. */
+      p.seekTo(Math.max(0,target),MediaPlayer.SEEK_CLOSEST);owner.handler.postDelayed(this,20);return;
+     }
+     handoverPending=false;fadeStarted=now;
+     LogStore.log("replacement_decoder_advancing",LogStore.map("trackId",trackId,"driftMs",drift,"corrections",corrections[0],"waitMs",now-phaseStarted[0]));
+    }
+    float mix=TransitionMix.progress(SystemClock.elapsedRealtime()-fadeStarted,rampDuration);originalMix=initialOriginal*(1f-mix);
+    fx.setInputGainAllChannelsTo(originalMix<=0.001f?-100f:(float)(20*Math.log10(originalMix)));applyVolume(mix);
+    if(mix<1f)owner.handler.postDelayed(this,20);else{fading=false;handoverPending=false;warmSeekTransition=-1;LogStore.log("replacement_transition_complete",LogStore.map("trackId",trackId,"rampMs",SystemClock.elapsedRealtime()-fadeStarted));}
+   }catch(RuntimeException e){suspend("fade_failed",retryDelay());}
+  }};ramp.run();
+ }
  void applyVolume(float mix){double gain=descriptor==null?0:descriptor.optDouble("gain_db",0);float volume=mix*(float)Math.min(1,Math.pow(10,Math.min(0,gain)/20));player.setVolume(volume,volume);if(gain>0&&loudness==null)try{loudness=new LoudnessEnhancer(player.getAudioSessionId());loudness.setTargetGain((int)Math.round(gain*100));loudness.setEnabled(true);}catch(RuntimeException ignored){LogStore.log("replacement_gain","positive gain unavailable");}}
  void unmute(){if(effect!=null){DynamicsProcessing fx=effect;effect=null;boolean gainReset=false,disabled=false,released=false;try{fx.setControlStatusListener(null);}catch(RuntimeException ignored){}try{fx.setInputGainAllChannelsTo(0f);gainReset=true;}catch(RuntimeException ignored){}try{disabled=fx.setEnabled(false)==AudioEffect.SUCCESS;}catch(RuntimeException ignored){}try{fx.release();released=true;}catch(RuntimeException ignored){}originalMix=1f;LogStore.log("replacement_original_restored",LogStore.map("reason","effect_released","gainReset",gainReset,"disabled",disabled,"released",released,"hardwareAudibilityVerified",false));}}
  /* Invalidate ramps and silence output before cache, network or diagnostic cleanup.
     HttpURLConnection.disconnect and effect release may block on the old route. */
- MediaPlayer silenceBeforeCleanup(){transition++;fading=false;MediaPlayer old=player;player=null;if(old!=null){boolean zero=false,paused=false;try{old.setVolume(0,0);zero=true;}catch(RuntimeException ignored){}try{if(old.isPlaying())old.pause();paused=!old.isPlaying();}catch(RuntimeException ignored){}LogStore.log("replacement_output_silenced",LogStore.map("trackId",trackId,"gainZero",zero,"paused",paused,"beforeTransportCleanup",true));}unmute();return old;}
+ MediaPlayer silenceBeforeCleanup(){transition++;fading=false;handoverPending=false;warmSeekTransition=-1;MediaPlayer old=player;player=null;if(old!=null){boolean zero=false,paused=false;try{old.setVolume(0,0);zero=true;}catch(RuntimeException ignored){}try{if(old.isPlaying())old.pause();paused=!old.isPlaying();}catch(RuntimeException ignored){}LogStore.log("replacement_output_silenced",LogStore.map("trackId",trackId,"gainZero",zero,"paused",paused,"beforeTransportCleanup",true));}unmute();return old;}
  void release(String reason){
   boolean had=player!=null||effect!=null;MediaPlayer old=silenceBeforeCleanup();
   if("identity_changed".equals(reason)||"track_changed".equals(reason)||"replacement_end".equals(reason)||"replacement_completed".equals(reason)||"source_end".equals(reason)||"source_unavailable".equals(reason)||"source_disconnected".equals(reason))rememberAudio();
   /* Detach a completed file before MediaPlayer.release closes its MediaDataSource. */
   if(old!=null){try{old.setOnErrorListener(null);old.setOnPreparedListener(null);old.setOnCompletionListener(null);old.setOnSeekCompleteListener(null);}catch(RuntimeException ignored){}try{old.release();}catch(RuntimeException ignored){}}
-  returning=false;pausedAt=-1;bufferGate.reset();bufferWaiting=false;if(streaming!=null){streaming.close();streaming=null;}ready=false;seeking=false;fading=false;aligned=false;resumePositionRetained=false;
+  returning=false;pausedAt=-1;bufferGate.reset();bufferWaiting=false;if(streaming!=null){streaming.close();streaming=null;}ready=false;seeking=false;fading=false;handoverPending=false;warmSeekTransition=-1;aligned=false;resumePositionRetained=false;
   if(loudness!=null){try{loudness.release();}catch(RuntimeException ignored){}loudness=null;}if(audioFile!=null){audioFile.delete();audioFile=null;}if(had)LogStore.log("replacement_released",LogStore.map("reason",reason));
  }
  void suspend(String reason,long delay){if(streaming!=null&&Arrays.asList("prepare_timeout","prepare_failed","duration_or_session_invalid","seek_timeout","media_player_error","decoder_start_timeout").contains(reason)){streamFallbackKey=identityKey;delay=1000;LogStore.log("replacement_stream_fallback",LogStore.map("reason",reason));}if("replacement_completed".equals(reason)||"replacement_end".equals(reason)||"source_end".equals(reason)){completedKey=identityKey;completedPosition=owner.current==null?0:position(owner.current);}generation++;preparing=false;release(reason);descriptor=null;lookupKey=null;nextLookup=SystemClock.elapsedRealtime()+delay;LogStore.log("replacement_recovery",LogStore.map("reason",reason,"automaticModeRetained",armed(),"retryMs",delay));}
  void returnOriginal(){
   if(player==null||effect==null||!ready||!current(identityKey)||!owner.current.playing){stop("owner_return_original");return;}
-  preloadAllowed=false;armedUntil=0;returning=true;fading=false;seeking=false;final long token=++transition;final MediaPlayer p=player;final DynamicsProcessing fx=effect;final long start=SystemClock.elapsedRealtime();final float initialOriginal=originalMix;
+  preloadAllowed=false;armedUntil=0;returning=true;fading=false;handoverPending=false;warmSeekTransition=-1;seeking=false;final long token=++transition;final MediaPlayer p=player;final DynamicsProcessing fx=effect;final long start=SystemClock.elapsedRealtime();final float initialOriginal=originalMix;
   status="Плавно возвращаем оригинал…";
   Runnable ramp=new Runnable(){public void run(){if(token!=transition||p!=player||fx!=effect)return;try{if(!current(identityKey)||!owner.current.playing){stop("return_source_changed");return;}float mix=TransitionMix.progress(SystemClock.elapsedRealtime()-start,FADE_MS);originalMix=initialOriginal+(1f-initialOriginal)*mix;fx.setInputGainAllChannelsTo(originalMix<=0.001f?-100f:(float)(20*Math.log10(originalMix)));applyVolume(1f-mix);if(mix<1f)owner.handler.postDelayed(this,20);else stop("owner_return_original");}catch(RuntimeException ex){stop("return_failed");}}};ramp.run();
  }
