@@ -1,3 +1,13 @@
+## 0.3.40 — reject stale alignment before audible streaming handover
+
+The latest 0.3.39 run in CELIKOM-combined-20261028-201326.txt records a concrete Было давно double-seek failure. At elapsed 333505ms the initial seek starts at source position 5607ms. Its callback takes 3400ms, yielding residual 3402ms; the corrective seek at 336911ms takes another 1784ms and leaves residual 1788ms. The engine nevertheless begins output, completes handover at 339353ms, and seeks audibly again at 339817ms with drift 2097ms. The former single-correction assumption was unsafe on this network.
+
+Streaming completion now requires a bounded position correction before audibility: the initial residual above80ms triggers correction as before; a later residual above350ms is not accepted. Up to two corrections are permitted, with the same decoder and validated data, then alignment_unstable restores/releases and retries through the existing backoff. A decoder that cannot settle never enters audible handover just to be corrected again. Local-file compensation and the accepted steady Bluetooth drift tolerance are unchanged; the guard concerns a stopped streaming decoder completing a seek, not a running output-clock offset. Source pause/Stop/account/track fences and the 0.3.39 release ordering remain.
+
+A host test using the report's 3400/1784ms callback delays fails before the fix and passes after it; a final53ms cached correction joins without another seek over eight subsequent ticks. Another case checks bounded failure after three slow seeks. Existing tail, route, cancellation, source and long-run checks remain. This reproduces the faulty state sequence with host adapters; it does not certify physical audio or all carrier/Bluetooth symptoms.
+
+The latest report also confirms all three observed track boundaries logged gainZero:true and paused:true before transport cleanup (18ms,19ms,7ms after the native boundary). This verifies the new ordering observations, not hardware audibility. No stream timeout, server, desktop or diagnostics-authority changes in this release.
+
 ## 0.3.39 — stop retired audio before transport cleanup
 
 Investigated the owner's recurring Папиросы/transition report in CELIKOM-combined-20261028-194648.txt. In its 0.3.38 run, Папиросы starts at source position 133218ms; the next source boundary occurs at elapsed 6821ms. Replacement output is only recorded released at 6888ms. The report contains no natural end of Папиросы in that run and no seek/prepare timeout. It does not identify the audible contents or establish a full cause for every reported dropout. Do not claim the user's report is disproven by these omissions.
@@ -114,7 +124,7 @@ Long-session safeguards: two rotating local diagnostic segments of at most 8 MiB
 
 Native contribution actions use existing server contracts only, after the user selects the exact current song, chooses a local MP3/M4A, confirms rights and explicitly submits. Upload/suggest use the desktop presence check first; track/account changes invalidate an unsubmitted target. Upload transfers run separately from serialized token refresh/playback downloads, have byte/time bounds and preserve a request UUID on retry. Support submits only typed text and, for song reports, the pinned identity/category/version; it does not attach raw diagnostics or send anything automatically. No real contribution or support message is sent by the offline checks. Desktop registration/recovery/promo/referral flows are not part of this native candidate.
 
-The APK uses the same package and signing key, versionCode 40 / versionName 0.3.39, to update the accepted installation. Only app label, native activity theme and foreground-service description change in the manifest; permissions/components and original catalogue assets remain identical. Calls remain a deferred owner test. Hardware playback, Android background scheduling and real server submissions need physical/owner verification; host tests do not certify them.
+The APK uses the same package and signing key, versionCode 41 / versionName 0.3.40, to update the accepted installation. Only app label, native activity theme and foreground-service description change in the manifest; permissions/components and original catalogue assets remain identical. Calls remain a deferred owner test. Hardware playback, Android background scheduling and real server submissions need physical/owner verification; host tests do not certify them.
 
 ## Isolated work
 

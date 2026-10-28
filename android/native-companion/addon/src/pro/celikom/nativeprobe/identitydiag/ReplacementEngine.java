@@ -121,7 +121,7 @@ final class ReplacementEngine {
  }
  long retryDelay(){failures++;return Math.min(30000,5000L*(1L<<Math.min(3,failures-1)));}
  void seek(PlaybackSource s,long target,long drift){seek(s,target,drift,false);}
- void seek(PlaybackSource s,long target,long drift,boolean correction){explicitSourceSeek=false;syncPolicy.reset();resumePositionRetained=false;seekCorrections=correction?1:0;seeking=true;aligned=true;seekStarted=SystemClock.elapsedRealtime();seekBudget=streaming!=null&&!streaming.complete()?STREAM_SEEK_TIMEOUT_MS:SEEK_TIMEOUT_MS;transition++;fading=false;player.setVolume(0,0);if(player.isPlaying())player.pause();status="Синхронизация позиции…";LogStore.log("replacement_sync",LogStore.map("state","seek","trackId",trackId,"sourcePositionMs",target,"driftMs",drift,"originalStillMuted",effect!=null,"inaudibleCorrection",correction));final MediaPlayer p=player;final long t=transition;p.seekTo(target,MediaPlayer.SEEK_CLOSEST);owner.handler.postDelayed(()->{if(player==p&&seeking&&transition==t)suspend("seek_timeout",retryDelay());},seekBudget);}
+ void seek(PlaybackSource s,long target,long drift,boolean correction){explicitSourceSeek=false;syncPolicy.reset();resumePositionRetained=false;seekCorrections=correction?seekCorrections+1:0;seeking=true;aligned=true;seekStarted=SystemClock.elapsedRealtime();seekBudget=streaming!=null&&!streaming.complete()?STREAM_SEEK_TIMEOUT_MS:SEEK_TIMEOUT_MS;transition++;fading=false;player.setVolume(0,0);if(player.isPlaying())player.pause();status="Синхронизация позиции…";LogStore.log("replacement_sync",LogStore.map("state","seek","trackId",trackId,"sourcePositionMs",target,"driftMs",drift,"originalStillMuted",effect!=null,"inaudibleCorrection",correction));final MediaPlayer p=player;final long t=transition;p.seekTo(target,MediaPlayer.SEEK_CLOSEST);owner.handler.postDelayed(()->{if(player==p&&seeking&&transition==t)suspend("seek_timeout",retryDelay());},seekBudget);}
  void prepare(String key,JSONObject j,long g){if(preparing||!current(key)||!api.signedIn())return;PlaybackSource s=owner.current;if(Math.abs(s.duration-j.optLong("duration_ms"))>5000){status="Длительности различаются — играет оригинал";descriptor=null;return;}preparing=true;status="Готовим аудио заранее; оригинал продолжает играть";
   File cached=recentAudio.remove(audioKey(j));
   if(cached!=null&&cached.isFile()){LogStore.log("replacement_audio_reused",LogStore.map("trackId",trackId,"liveResolveRequired",true));acceptAudio(key,j,g,cached,null);return;}
@@ -147,15 +147,20 @@ final class ReplacementEngine {
   PlaybackSource now=owner.current;
   long target=position(now),residual=target-mp.getCurrentPosition();
   LogStore.log("replacement_seek_complete",LogStore.map("elapsedMs",elapsed,"trackId",trackId,"residualMs",residual,"correctionPass",seekCorrections));
-  // Android seeks to the requested position but reports completion later. A
-  // slow seek or codec rounding must be corrected before the fade becomes
-  // audible, rather than causing another stop/seek shortly after playback.
-  // One bounded measured correction; never chase callbacks in an endless loop.
-  if(!waitingForRouteResume&&now.playing&&!mp.isPlaying()&&seekCorrections==0
-    &&Math.abs(residual)>(streaming==null?500:80)&&Math.abs(residual)<=(streaming==null?1500:STREAM_SEEK_TIMEOUT_MS)){
-   // A streaming seek can wait for a block; the next seek uses that cached block.
-   // Do not assume the second seek repeats the first network delay.
-   long compensated=Math.max(0,Math.min(mp.getDuration()-1,target+(streaming==null?residual:0)));
+  /* A second streaming seek can also wait for data. Never publish that stale
+     alignment and then correct it audibly after handover. Allow two measured
+     corrections, then keep the original if the decoder cannot settle. */
+  if(streaming!=null&&!waitingForRouteResume&&now.playing&&!mp.isPlaying()
+    &&Math.abs(residual)>(seekCorrections==0?80:350)){
+   if(seekCorrections>=2||target>=mp.getDuration()-150){
+    LogStore.log("replacement_alignment_rejected",LogStore.map("trackId",trackId,"residualMs",residual,"correctionPass",seekCorrections));suspend("alignment_unstable",retryDelay());return;
+   }
+   seek(now,Math.max(0,Math.min(mp.getDuration()-1,target)),residual,true);return;
+  }
+  /* Preserve the accepted local-file compensation; no network wait is involved. */
+  if(streaming==null&&!waitingForRouteResume&&now.playing&&!mp.isPlaying()&&seekCorrections==0
+    &&Math.abs(residual)>500&&Math.abs(residual)<=1500){
+   long compensated=Math.max(0,Math.min(mp.getDuration()-1,target+residual));
    if(compensated<mp.getDuration()-150){seek(now,compensated,residual,true);return;}
   }
   if(!now.playing&&Math.abs(residual)<=350){aligned=true;resumePositionRetained=true;}

@@ -1,0 +1,23 @@
+{
+  "version": "0.3.40",
+  "version_code": 41,
+  "apk_sha256": "ea36ad4d8212572162b4ed5421b13eaabcb70d0ec5652364e16d3aff7b18df48",
+  "base_apk_sha256": "170b1883e292570d28a3b5c619cf000eaccd9d11ee85ca6f6c08f7b50e5f72c9",
+  "signer_sha256": "67fe81c56fac1c1d145344b69a0e3faf9005cf6607f4e26ca27d5926c3eefc4f",
+  "addon_dex_sha256": "ce3435a1306d4c04a00e3ef81f9346f8aecf2459c0b90a4c2af3454c1eb9fc61",
+  "signing_continuity": true,
+  "manifest_matches_approved_changes": true,
+  "permissions_components_unchanged": true,
+  "original_catalogue_assets_unchanged": true,
+  "source_archive_absent": true,
+  "legacy_launcher_gated": true,
+  "physical_phone_playback_verified": false,
+  "date": "2026-10-28",
+  "scope": "bounded streaming alignment before audible handover",
+  "owner_report": "CELIKOM-combined-20261028-201326.txt",
+  "recorded_double_slow_seek_failed_before": true,
+  "recorded_double_slow_seek_passed_after": true,
+  "all_incident_causes_proven": false,
+  "desktop_changed": false,
+  "server_changed": false
+}

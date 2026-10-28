@@ -43,6 +43,16 @@ public class TestStreamingEngine {
   audio=start();e=TestEngine.e;player=e.player;final MediaPlayer retiring=player;final ReplacementEngine engine=e;final boolean[] safe={false};
   Buffer checking=audio;checking.beforeClose=()->{safe[0]=retiring.volume==0f&&!retiring.playing&&retiring.released&&engine.player==null&&engine.effect==null;};e.sourceBoundary("recorded_papirosy_next");check(safe[0],"track boundary silences old player and restores original BEFORE stream cancellation");e.close();
   audio=start();e=TestEngine.e;audio.present.set(1);try(java.io.RandomAccessFile output=new java.io.RandomAccessFile(audio.file,"rw")){output.setLength(audio.size);}java.io.File retained=audio.file;e.sourceBoundary("completed_stream_boundary");check(audio.closed&&retained.exists()&&e.recentAudio.containsValue(retained),"real MediaDataSource-close semantics preserve completed audio before releasing decoder");e.close();check(!retained.exists(),"Stop still deletes retained private audio");
+  /* Report 20:13: Было давно: 3400ms initial seek + 1784ms correction.
+     Previously the second residual became audible, then caused another seek. */
+  TestEngine.reset("ALBUM");TestEngine.api.useStreaming=true;e=TestEngine.e;e.arm();TestEngine.resolve();audio=new Buffer();TestEngine.api.streamed.done(audio,null);player=e.player;player.asyncSeek=true;player.prepared.onPrepared(player);requested=player.position;
+  SystemClock.now+=3400;TestEngine.p.current=TestEngine.source("1",requested+3400,true);player.seek.onSeekComplete(player);
+  SystemClock.now+=1784;TestEngine.p.current=TestEngine.source("1",requested+5184,true);player.seek.onSeekComplete(player);check(!player.playing&&e.effect==null&&e.seeking&&player.seekCalls==3,"recorded second slow correction cannot expose 1784ms-late replacement");
+  SystemClock.now+=53;TestEngine.p.current=TestEngine.source("1",requested+5237,true);player.seek.onSeekComplete(player);check(player.playing&&player.seekCalls==3,"cached final correction starts aligned within 53ms");
+  for(int i=1;i<=8;i++){SystemClock.now+=250;player.position+=250;TestEngine.p.current=TestEngine.source("1",requested+5237+i*250,true);e.update(TestEngine.p.current);TestEngine.p.handler.drain();check(player.seekCalls==3&&player.playing,"aligned report replay cannot create an audible follow-up seek at tick "+i);}e.close();
+  TestEngine.reset("ALBUM");TestEngine.api.useStreaming=true;e=TestEngine.e;e.arm();TestEngine.resolve();audio=new Buffer();TestEngine.api.streamed.done(audio,null);player=e.player;player.asyncSeek=true;player.prepared.onPrepared(player);requested=player.position;
+  for(int i=1;i<=3;i++){SystemClock.now+=1800;TestEngine.p.current=TestEngine.source("1",requested+i*1800,true);player.seek.onSeekComplete(player);}
+  check(player.released&&e.effect==null&&e.armed()&&player.seekCalls==3,"unsteady alignment has a bounded silent retry count and keeps original available");e.close();
   System.out.println("PASS: "+checks+" actual engine progressive playback, buffering recovery, fallback and cancellation checks");
  }
 }
