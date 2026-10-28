@@ -18,5 +18,13 @@
   "handover_and_artist_host_checks": 13,
   "all_incident_causes_proven": false,
   "desktop_changed": false,
-  "server_changed": false
+  "server_changed": false,
+  "delivered_artifact_audit": {
+    "date": "2026-10-28",
+    "artistKey_method_present": false,
+    "normalization_invoked_by_match": false,
+    "source_fix_missing_from_delivered_apk": true,
+    "audit_basis": "Independent decode of Library APK matching recorded SHA256 and addon DEX SHA256",
+    "superseded_by": "0.3.42"
+  }
 }

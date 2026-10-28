@@ -6,6 +6,7 @@ import io
 import json
 import re
 import subprocess
+import tempfile
 import xml.etree.ElementTree as ET
 import zipfile
 
@@ -22,7 +23,7 @@ def certificate(apk, tools):
 
 def main():
     p = argparse.ArgumentParser(description=__doc__)
-    for arg in ("apk", "base-apk", "build-tools", "decoded", "compiled-dex"):
+    for arg in ("apk", "base-apk", "build-tools", "decoded", "compiled-dex", "apktool"):
         p.add_argument("--" + arg, type=Path, required=True)
     args = p.parse_args()
     cert = certificate(args.apk, args.build_tools)
@@ -52,7 +53,7 @@ def main():
     denied = ("BIND_NOTIFICATION_LISTENER_SERVICE", "BIND_ACCESSIBILITY_SERVICE", "RECORD_AUDIO", "READ_SMS", "READ_CONTACTS", "QUERY_ALL_PACKAGES")
     assert not any(any(key in value for key in denied) for node in current.iter() for value in node.attrib.values())
     badging = subprocess.check_output([str(args.build_tools / "aapt"), "dump", "badging", str(args.apk)], text=True)
-    assert "versionCode='42'" in badging and "versionName='0.3.41'" in badging
+    assert "versionCode='43'" in badging and "versionName='0.3.42'" in badging
     assert "sdkVersion:'28'" in badging and "targetSdkVersion:'36'" in badging
     with zipfile.ZipFile(args.apk) as built, zipfile.ZipFile(args.base_apk) as base:
         assert len(built.namelist()) == len(set(built.namelist())), "Duplicate APK entry"
@@ -67,8 +68,22 @@ def main():
         legacy = (args.decoded / "smali/pro/celikom/nativeprobe/MainActivity.smali").read_text()
         method = re.search(r"\.method protected onCreate\(Landroid/os/Bundle;\)V(.*?)\.end method", legacy, re.S).group(1)
         assert "identitydiag/RecorderActivity" in method and "->finish()V" in method and "setContentView" not in method
+    # Inspect the signed deliverable independently, not just an intermediate DEX hash.
+    with tempfile.TemporaryDirectory(prefix="celikom-final-apk-") as directory:
+        extracted = Path(directory) / "decoded"
+        subprocess.run(["java", "-jar", str(args.apktool), "d", str(args.apk), "-r", "-f", "-o", str(extracted)], check=True, stdout=subprocess.DEVNULL)
+        addon = extracted / "smali_classes2/pro/celikom/nativeprobe/identitydiag"
+        matcher = (addon / "AlbumMatch.smali").read_text()
+        match_body = re.search(r"\.method static match\(.*?\.end method", matcher, re.S).group(0)
+        assert ".method static artistKey(" in matcher and "quest pistols show" in matcher, "Signed APK is missing the artist-pair fix"
+        assert match_body.count("->artistKey(") >= 2, "Signed APK matcher bypasses artist normalization"
+        engine = (addon / "ReplacementEngine.smali").read_text()
+        assert "handoverPending" in engine and "warmSeekTransition" in engine, "Signed APK lacks the live-clock handover guard"
+        version = (addon / "AppVersion.smali").read_text()
+        assert '"0.3.42"' in version, "Signed APK addon version mismatch"
+    source_digests = {str(p.relative_to(ROOT)): hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted((ROOT / "addon/src").rglob("*.java"))}
     proof = {
-        "version": "0.3.41", "version_code": 42,
+        "version": "0.3.42", "version_code": 43,
         "apk_sha256": hashlib.sha256(args.apk.read_bytes()).hexdigest(),
         "base_apk_sha256": hashlib.sha256(args.base_apk.read_bytes()).hexdigest(),
         "signer_sha256": cert,
@@ -77,6 +92,8 @@ def main():
         "permissions_components_unchanged": True,
         "original_catalogue_assets_unchanged": True, "source_archive_absent": True, "legacy_launcher_gated": True,
         "physical_phone_playback_verified": False,
+        "final_apk_artist_matcher_verified": True, "final_apk_handover_guard_verified": True,
+        "source_fingerprint": hashlib.sha256(json.dumps(source_digests, sort_keys=True).encode()).hexdigest(),
     }
     args.apk.with_suffix(".verification.json").write_text(json.dumps(proof, indent=2) + "\n")
     print("PASS: same signing identity; APK v2/v3 signature; alignment; version/API; approved manifest boundary and unchanged catalogue assets; exact compiled addon DEX; no recovery sources or signing files; legacy launcher redirects to gated UI")

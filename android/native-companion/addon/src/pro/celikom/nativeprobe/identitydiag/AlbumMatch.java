@@ -5,6 +5,7 @@ import java.text.Normalizer;
 import java.util.*;
 import java.util.regex.*;
 final class AlbumMatch {
+ static final int REVISION=2;
  static String albumId(String cover){try{URI u=new URI(cover);if(!"https".equalsIgnoreCase(u.getScheme())||!"avatars.yandex.net".equalsIgnoreCase(u.getHost())||!u.getPath().startsWith("/get-music-content/"))return null;Matcher m=Pattern.compile("\\.a\\.(\\d{1,15})(?:-|/)").matcher(u.getPath());return m.find()?m.group(1):null;}catch(Exception e){return null;}}
  static String norm(String s){return Normalizer.normalize(s==null?"":s,Normalizer.Form.NFKC).toLowerCase(Locale.ROOT).replaceAll("\\s+"," ").trim();}
  /* Only collapse the duplicated pair seen in Yandex's display metadata.

@@ -17,8 +17,8 @@ import zipfile
 import xml.etree.ElementTree as ET
 
 ROOT = Path(__file__).resolve().parent
-VERSION = "0.3.41"
-VERSION_CODE = 42
+VERSION = "0.3.42"
+VERSION_CODE = 43
 
 
 def run(args, **kwargs):
@@ -34,7 +34,7 @@ def main():
     for name in ("sdk", "build-tools", "apktool", "base-apk", "signing-dir", "output"):
         parser.add_argument("--" + name, type=Path, required=True)
     parser.add_argument("--deps-dir", type=Path, default=ROOT / "deps")
-    parser.add_argument("--work-dir", type=Path, default=ROOT / "addon/build/package")
+    parser.add_argument("--work-dir", type=Path, default=None)
     args = parser.parse_args()
     inputs = json.loads((ROOT / "build-inputs.json").read_text())
     assert sha(args.base_apk) == inputs["base_apk_sha256"], "Unexpected baseline APK"
@@ -43,8 +43,12 @@ def main():
         assert sha(args.deps_dir / name) == digest, "Dependency mismatch: " + name
     private = args.signing_dir.resolve()
     assert not private.is_relative_to(ROOT), "Keep signing files outside source tree"
-    work = args.work_dir.resolve()
+    build_root = ROOT / "addon/build"
+    build_root.mkdir(parents=True, exist_ok=True)
+    work = args.work_dir.resolve() if args.work_dir else Path(tempfile.mkdtemp(prefix="package-" + VERSION + "-", dir=build_root))
     work.mkdir(parents=True, exist_ok=True)
+    source_inputs = sorted((ROOT / "addon/src").rglob("*.java"))
+    source_digests = {str(p.relative_to(ROOT)): sha(p) for p in source_inputs}
     decoded = work / "decoded"
     if decoded.exists():
         shutil.rmtree(decoded)
@@ -105,6 +109,7 @@ def main():
     run(["java", "com.sun.tools.javac.Main", "-encoding", "UTF-8", "-source", "8", "-target", "8", "-cp", test_cp, "-d", tests, *sorted((ROOT / "addon").glob("Test*.java"))])
     for test in ("TestPure", "TestHybrid", "TestContracts", "TestMobileActions", "TestAppPresentation", "TestNotifications", "TestDiagnosticArchive", "TestAudioTransfer", "TestBufferedAudio", "TestTransitionReadFence", "TestTransitionRecovery", "TestRequestPacing", "TestSourceStateWatchdog", "TestDiagnosticAccess", "TestPresencePreview", "TestDiagnosticRequest"):
         run(["java", "-cp", os.pathsep.join(map(str, [args.deps_dir / "json.jar", classes, tests, android])), "pro.celikom.nativeprobe.identitydiag." + test])
+    assert source_digests == {str(p.relative_to(ROOT)): sha(p) for p in source_inputs}, "Sources changed during compile/tests"
     addon_jar = work / "addon.jar"
     run(["java", "sun.tools.jar.Main", "--create", "--file", addon_jar, "-C", classes, "."])
     dex = work / "dex"
@@ -138,7 +143,8 @@ def main():
             p.write_text(signing[key])
             p.chmod(0o600)
         run(["java", "-jar", args.build_tools / "lib/apksigner.jar", "sign", "--ks", private / "celikom-native-probe.p12", "--ks-key-alias", signing["alias"], "--ks-pass", "file:" + str(tmp / "store-password"), "--key-pass", "file:" + str(tmp / "key-password"), "--out", args.output, aligned])
-    run(["python3", ROOT / "verify_release.py", "--apk", args.output, "--base-apk", args.base_apk, "--build-tools", args.build_tools, "--decoded", decoded, "--compiled-dex", dex / "classes.dex"])
+    run(["python3", ROOT / "verify_release.py", "--apk", args.output, "--base-apk", args.base_apk, "--build-tools", args.build_tools, "--decoded", decoded, "--compiled-dex", dex / "classes.dex", "--apktool", args.apktool])
+    assert source_digests == {str(p.relative_to(ROOT)): sha(p) for p in source_inputs}, "Sources changed during packaging"
     print("APK", args.output, "BYTES", args.output.stat().st_size, "SHA256", sha(args.output))
 
 

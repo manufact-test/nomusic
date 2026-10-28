@@ -32,6 +32,9 @@ public class TestPure {
   album=new org.json.JSONObject("{\"id\":43573492,\"volumes\":[[{\"id\":123,\"title\":\"Alone 2\",\"version\":\"Live\",\"durationMs\":178380,\"artists\":[{\"name\":\"Edgars Bukovskis\"}]}]]}");
   tracks=AlbumMatch.tracks(album,"43573492");check("NO_MATCH".equals(AlbumMatch.match("Alone 2","Edgars Bukovskis",178380,tracks).get("status")),"version mismatch rejected");
   check("UNIQUE_CANDIDATE".equals(AlbumMatch.match("Alone 2 (Live)","Edgars Bukovskis",178380,tracks).get("status")),"explicit matching version accepted");
+  /* Execute against the actual compiled Android addon, including a disk-cache round trip. */
+  java.io.File cacheFile=java.io.File.createTempFile("artist-cache-", ".json");cacheFile.delete();
+  try{IdentityCache cache=new IdentityCache(cacheFile);List<Map<String,Object>> recorded=new ArrayList<>();recorded.add(LogStore.map("catalogueTrackId","89285816","displayTitle","Он рядом","title","Он рядом","version","","artist","Quest Pistols","durationMs",224520L));cache.save("17497301",recorded);List<Map<String,Object>> cached=new IdentityCache(cacheFile).load().get("17497301");check("89285816".equals(AlbumMatch.match("Он рядом","Quest Pistols Show, Quest Pistols",224520,cached).get("catalogueTrackId")),"installed-cache path resolves the recorded artist pair");}finally{cacheFile.delete();}
   System.out.println("PASS: redaction, shared links, album URI parsing, strict matching, ambiguity, duration, album response and version validation");
  }
 }
