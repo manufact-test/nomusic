@@ -8,10 +8,10 @@ import java.io.*;
 import java.util.*;
 /** User-enabled automatic replacement within the foreground service lifetime. */
 final class ReplacementEngine {
- static final long PREPARED_MS=60000, SEEK_TIMEOUT_MS=2000, FADE_MS=360, PAUSE_GRACE_MS=350;
+ static final long PREPARED_MS=60000, SEEK_TIMEOUT_MS=2000, STREAM_SEEK_TIMEOUT_MS=12000, FADE_MS=360, PAUSE_GRACE_MS=350;
  final ProbeService owner; final NativeApi api;
  String status="Замена выключена",identityKey,trackId,method="NONE",lookupKey;
- JSONObject descriptor; long descriptorUntil,nextLookup,armedUntil,preparedAt,seekStarted,fadeStarted,transition,pausedAt=-1;
+ JSONObject descriptor; long descriptorUntil,nextLookup,armedUntil,preparedAt,seekStarted,seekBudget=SEEK_TIMEOUT_MS,fadeStarted,transition,pausedAt=-1;
  volatile long generation; int trustedSession=-1,failures,seekCorrections;
  final BufferRecoveryGate bufferGate=new BufferRecoveryGate();BufferedAudio streaming;boolean bufferWaiting;String streamFallbackKey;
  MediaPlayer player; DynamicsProcessing effect; LoudnessEnhancer loudness; File audioFile;
@@ -88,7 +88,7 @@ final class ReplacementEngine {
     status="Связь замедлилась; играет оригинал, подгружаем замену";return;
    }
    if(bufferWaiting){if(waiting)return;bufferGate.reset();bufferWaiting=false;aligned=false;LogStore.log("replacement_buffer_resumed",LogStore.map("trackId",trackId));}
-   if(seeking){if(clock-seekStarted>SEEK_TIMEOUT_MS)suspend("seek_timeout",retryDelay());return;}
+   if(seeking){if(clock-seekStarted>seekBudget)suspend("seek_timeout",retryDelay());return;}
    long target=position(s);if(target>=s.duration){suspend("source_end",30000);return;}if(target>=player.getDuration()){suspend("replacement_end",30000);return;}
    long drift=target-player.getCurrentPosition();
    // A retained paused decoder already at the native position needs no seek.
@@ -121,7 +121,7 @@ final class ReplacementEngine {
  }
  long retryDelay(){failures++;return Math.min(30000,5000L*(1L<<Math.min(3,failures-1)));}
  void seek(PlaybackSource s,long target,long drift){seek(s,target,drift,false);}
- void seek(PlaybackSource s,long target,long drift,boolean correction){explicitSourceSeek=false;syncPolicy.reset();resumePositionRetained=false;seekCorrections=correction?1:0;seeking=true;aligned=true;seekStarted=SystemClock.elapsedRealtime();transition++;fading=false;player.setVolume(0,0);if(player.isPlaying())player.pause();status="Синхронизация позиции…";LogStore.log("replacement_sync",LogStore.map("state","seek","trackId",trackId,"sourcePositionMs",target,"driftMs",drift,"originalStillMuted",effect!=null,"inaudibleCorrection",correction));final MediaPlayer p=player;final long t=transition;p.seekTo(target,MediaPlayer.SEEK_CLOSEST);owner.handler.postDelayed(()->{if(player==p&&seeking&&transition==t)suspend("seek_timeout",retryDelay());},SEEK_TIMEOUT_MS);}
+ void seek(PlaybackSource s,long target,long drift,boolean correction){explicitSourceSeek=false;syncPolicy.reset();resumePositionRetained=false;seekCorrections=correction?1:0;seeking=true;aligned=true;seekStarted=SystemClock.elapsedRealtime();seekBudget=streaming!=null&&!streaming.complete()?STREAM_SEEK_TIMEOUT_MS:SEEK_TIMEOUT_MS;transition++;fading=false;player.setVolume(0,0);if(player.isPlaying())player.pause();status="Синхронизация позиции…";LogStore.log("replacement_sync",LogStore.map("state","seek","trackId",trackId,"sourcePositionMs",target,"driftMs",drift,"originalStillMuted",effect!=null,"inaudibleCorrection",correction));final MediaPlayer p=player;final long t=transition;p.seekTo(target,MediaPlayer.SEEK_CLOSEST);owner.handler.postDelayed(()->{if(player==p&&seeking&&transition==t)suspend("seek_timeout",retryDelay());},seekBudget);}
  void prepare(String key,JSONObject j,long g){if(preparing||!current(key)||!api.signedIn())return;PlaybackSource s=owner.current;if(Math.abs(s.duration-j.optLong("duration_ms"))>5000){status="Длительности различаются — играет оригинал";descriptor=null;return;}preparing=true;status="Готовим аудио заранее; оригинал продолжает играть";
   File cached=recentAudio.remove(audioKey(j));
   if(cached!=null&&cached.isFile()){LogStore.log("replacement_audio_reused",LogStore.map("trackId",trackId,"liveResolveRequired",true));acceptAudio(key,j,g,cached,null);return;}
@@ -152,7 +152,7 @@ final class ReplacementEngine {
   // audible, rather than causing another stop/seek shortly after playback.
   // One bounded measured correction; never chase callbacks in an endless loop.
   if(!waitingForRouteResume&&now.playing&&!mp.isPlaying()&&seekCorrections==0
-    &&Math.abs(residual)>(streaming==null?500:80)&&Math.abs(residual)<=1500){
+    &&Math.abs(residual)>(streaming==null?500:80)&&Math.abs(residual)<=(streaming==null?1500:STREAM_SEEK_TIMEOUT_MS)){
    // A streaming seek can wait for a block; the next seek uses that cached block.
    // Do not assume the second seek repeats the first network delay.
    long compensated=Math.max(0,Math.min(mp.getDuration()-1,target+(streaming==null?residual:0)));

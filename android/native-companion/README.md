@@ -1,3 +1,11 @@
+## 0.3.38 — keep a partial stream through slow network seeks
+
+Owner report CELIKOM-combined-20261028-192957.txt, latest 0.3.37 run 19:22:54+03, mobile data, HONOR 50 Android 13. Confirmed Монпасье timeline (elapsed milliseconds): resolve 128347; streaming ready 132612; seek 132683; premature timeout 134686; repeated config request 4950ms; full-file fallback 141027–193895 (9,534,566 bytes, 52,864ms); replacement handover complete 194400. Total source boundary to replacement ~66.4s. The same trusted session 59265 remains; no effect-control/session-loss stop occurs at this failure. Other source pauses, rapid song skips and route observations in the report are not automatically classified as application failures.
+
+A partial streaming seek now has a bounded 12s budget, shared by the update-loop check and scheduled deadline. Completed/local files retain the existing 2s timeout. No extra seek, resolve or full-file transfer is started at the old 2s boundary. A slow completed stream seek may receive one inaudible correction to the latest source position, including when the network delay exceeded the old 1500ms correction cap. The source remains available until the existing decoder-progress and fade guards permit handover. A genuine 12s stall still restores/releases and uses the existing fallback. This reduces premature 53s full downloads, not a guarantee of instant playback on every network.
+
+Host regression replay verifies a 2.5s partial seek survives both deadline paths without a new download or repeated seek, a 3s completion gets one current-position correction, cached correction resumes the same decoder, and a 12s stall remains bounded. Existing full-file timeout, stop, cancellation, source/account fences, Bluetooth clock replay and package checks remain. No desktop/server/diagnostic authority changes. Physical phone playback requires verification; these tests do not reproduce carrier latency or Bluetooth hardware.
+
 ## 0.3.37 — startup buffering and diagnostics button padding
 
 Includes 12dp horizontal padding inside the diagnostic export button.
@@ -96,7 +104,7 @@ Long-session safeguards: two rotating local diagnostic segments of at most 8 MiB
 
 Native contribution actions use existing server contracts only, after the user selects the exact current song, chooses a local MP3/M4A, confirms rights and explicitly submits. Upload/suggest use the desktop presence check first; track/account changes invalidate an unsubmitted target. Upload transfers run separately from serialized token refresh/playback downloads, have byte/time bounds and preserve a request UUID on retry. Support submits only typed text and, for song reports, the pinned identity/category/version; it does not attach raw diagnostics or send anything automatically. No real contribution or support message is sent by the offline checks. Desktop registration/recovery/promo/referral flows are not part of this native candidate.
 
-The APK uses the same package and signing key, versionCode 38 / versionName 0.3.37, to update the accepted installation. Only app label, native activity theme and foreground-service description change in the manifest; permissions/components and original catalogue assets remain identical. Calls remain a deferred owner test. Hardware playback, Android background scheduling and real server submissions need physical/owner verification; host tests do not certify them.
+The APK uses the same package and signing key, versionCode 39 / versionName 0.3.38, to update the accepted installation. Only app label, native activity theme and foreground-service description change in the manifest; permissions/components and original catalogue assets remain identical. Calls remain a deferred owner test. Hardware playback, Android background scheduling and real server submissions need physical/owner verification; host tests do not certify them.
 
 ## Isolated work
 
