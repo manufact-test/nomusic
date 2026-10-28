@@ -5,6 +5,7 @@ import java.io.*;
 public class TestStreamingEngine {
  static int checks;static void check(boolean b,String why){checks++;if(!b)throw new AssertionError(why);}
  static class Buffer extends BufferedAudio {
+  Runnable beforeClose;public void close(){if(beforeClose!=null){Runnable r=beforeClose;beforeClose=null;r.run();}super.close();}
   boolean waiting;Buffer()throws Exception{super(File.createTempFile("celikom-stream-engine-",".test"),()->{throw new IOException("unused fake transport");},()->true,()->SystemClock.now,(n,b)->{});size=BLOCK*2;present.set(0);}
   public void prefetch(){}boolean stalled(){return waiting;}
  }
@@ -37,6 +38,11 @@ public class TestStreamingEngine {
   SystemClock.now+=500;TestEngine.p.current=TestEngine.source("1",requested+3000,true);player.seek.onSeekComplete(player);check(player.seekCalls==issued+1&&e.effect==null&&player.position==requested+3000,"3s network wait gets one current-position correction while inaudible");
   SystemClock.now+=20;TestEngine.p.current=TestEngine.source("1",requested+3020,true);player.seek.onSeekComplete(player);check(player.playing&&e.player==player&&TestEngine.api.downloads==0,"cached correction resumes same stream without restarting download");e.close();
   TestEngine.reset("ALBUM");TestEngine.api.useStreaming=true;e=TestEngine.e;e.arm();TestEngine.resolve();audio=new Buffer();TestEngine.api.streamed.done(audio,null);player=e.player;player.asyncSeek=true;player.prepared.onPrepared(player);SystemClock.now+=12001;TestEngine.p.current=TestEngine.source("1",13001,true);TestEngine.p.handler.drain();check(player.released&&audio.closed&&e.effect==null&&e.armed(),"a genuinely stuck partial seek still has a bounded timeout and restores original");e.close();
+  // Cancellation can wait inside disconnect/stream cleanup. Old output must
+  // already be inaudible before entering that potentially blocking work.
+  audio=start();e=TestEngine.e;player=e.player;final MediaPlayer retiring=player;final ReplacementEngine engine=e;final boolean[] safe={false};
+  Buffer checking=audio;checking.beforeClose=()->{safe[0]=retiring.volume==0f&&!retiring.playing&&retiring.released&&engine.player==null&&engine.effect==null;};e.sourceBoundary("recorded_papirosy_next");check(safe[0],"track boundary silences old player and restores original BEFORE stream cancellation");e.close();
+  audio=start();e=TestEngine.e;audio.present.set(1);try(java.io.RandomAccessFile output=new java.io.RandomAccessFile(audio.file,"rw")){output.setLength(audio.size);}java.io.File retained=audio.file;e.sourceBoundary("completed_stream_boundary");check(audio.closed&&retained.exists()&&e.recentAudio.containsValue(retained),"real MediaDataSource-close semantics preserve completed audio before releasing decoder");e.close();check(!retained.exists(),"Stop still deletes retained private audio");
   System.out.println("PASS: "+checks+" actual engine progressive playback, buffering recovery, fallback and cancellation checks");
  }
 }
