@@ -49,6 +49,12 @@ jobs:
         run: npm run test:extension
       - name: Support API/DB and RBAC tests
         run: php server/tests/support.php
+      - name: Install CI-only audio encoder
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends ffmpeg
+      - name: Full repository regression suite
+        run: npm run ci
       - name: Build versioned extension package
         run: npm run build:extension
       - uses: actions/upload-artifact@v4
