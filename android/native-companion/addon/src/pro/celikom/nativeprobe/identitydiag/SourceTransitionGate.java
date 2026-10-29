@@ -26,5 +26,10 @@ final class SourceTransitionGate {
  static boolean repeatAtBeginning(long oldPosition,long newPosition,long livePosition){
   return oldPosition>5000&&newPosition>=0&&newPosition<1500&&livePosition>=0&&livePosition<2000;
  }
+ static boolean outgoingItemReset(String oldAlias,String liveAlias,long oldPositionMs,long durationMs,long newPositionMs,boolean oldPlaying,boolean newPlaying,boolean wantsToPlay,boolean buffering){
+  return oldAlias!=null&&Objects.equals(oldAlias,liveAlias)&&oldPlaying&&!newPlaying
+    &&wantsToPlay&&buffering&&durationMs>0&&oldPositionMs>10000
+    &&durationMs-oldPositionMs>=0&&durationMs-oldPositionMs<=15000&&newPositionMs>=0&&newPositionMs<1000;
+ }
  void clear(){pending=false;expected=null;since=0;}
 }
