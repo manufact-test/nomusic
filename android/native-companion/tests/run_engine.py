@@ -27,3 +27,6 @@ subprocess.run(['java','-cp',str(out)+os.pathsep+str(json),'pro.celikom.nativepr
 
 # One clock decision point: real HONOR drift, small BT offsets and bounded stalls.
 subprocess.run(['java','-cp',str(out)+os.pathsep+str(json),'pro.celikom.nativeprobe.identitydiag.TestClockSupervisor'],check=True)
+
+# Android application tests, not just fake audio engine. Fail GitHub CI if missing SDK.
+subprocess.run(['python3',r/'run_addon_host.py'],check=True)
