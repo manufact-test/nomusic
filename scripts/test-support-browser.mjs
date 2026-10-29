@@ -21,7 +21,7 @@ try {
   window.chrome={storage:{session:{get:async()=>({}),set:async()=>{},remove:async()=>{}}},runtime:{getManifest:()=>({version:'0.4.31'}),getURL:()=>'/config'},tabs:{create:async({url})=>{opened=url}}};
   window.fetch=async()=>({ok:true,json:async()=>({supportEmail:'team@example.org'})});
   Object.defineProperty(navigator,'clipboard',{value:{writeText:async(t)=>{copied=t}},configurable:true});
-  await initSupport({send:async(m)=>{if(m.type==='CELIKOM_STATUS_GET')return {enabled:true,phase:'ERROR',track:{id:'50163040',confidence:260,ambiguous:false,metadata:{durationMs:187520,title:'Холодно',artist:'SLIMUS'}},token:'SECRET',account:{email:'PRIVATE'},network:[{endpoint:'config',httpStatus:504,result:'api_response_error',elapsedMs:10000,Authorization:'SECRET'}]};if(m.action==='support-send'){submitted.push(m);await new Promise(r=>setTimeout(r,50));return {ok:true,ticket_id:7}};if(m.action==='support-thread'){openCalls++;return {ok:true,messages:[{author:'support',body:'Ответ '+String.fromCharCode(60)+'script>SECRET'+String.fromCharCode(60)+'/script>'}]}};return {ok:true,tickets:[{id:7,status:'answered'}]}},getState:()=>({phase:'ERROR',track:{id:'36116709'},token:'SECRET',account:{email:'PRIVATE'}})});
+  await initSupport({send:async(m)=>{if(m.type==='CELIKOM_STATUS_GET'||m.type==='CELIKOM_SUPPORT_STATUS_GET')return {enabled:true,phase:'ERROR',track:{id:'50163040',confidence:260,ambiguous:false,metadata:{durationMs:187520,title:'Холодно',artist:'SLIMUS'}},token:'SECRET',account:{email:'PRIVATE'},network:[{endpoint:'config',httpStatus:504,result:'api_response_error',elapsedMs:10000,Authorization:'SECRET'}]};if(m.action==='support-send'){submitted.push(m);await new Promise(r=>setTimeout(r,50));return {ok:true,ticket_id:7}};if(m.action==='support-thread'){openCalls++;return {ok:true,messages:[{author:'support',body:'Ответ '+String.fromCharCode(60)+'script>SECRET'+String.fromCharCode(60)+'/script>'}]}};return {ok:true,tickets:[{id:7,status:'answered'}]}},getState:()=>({phase:'ERROR',track:{id:'36116709'},token:'SECRET',account:{email:'PRIVATE'}})});
   const panel=document.querySelector('[data-support-panel]');panel.open=true;
   const description=document.querySelector('[data-support-description]');description.value='Ошибка воспроизведения';
   document.querySelector('[data-support-send]').click();document.querySelector('[data-support-send]').click();await new Promise(r=>setTimeout(r,150));
@@ -35,6 +35,7 @@ try {
   document.querySelector('[data-support-send]').click();document.querySelector('[data-support-send]').click();await new Promise(r=>setTimeout(r,150));
   check(submitted.length===2&&submitted[1].kind==='song'&&submitted[1].report.track.id==='50163040','one song report with optional comment');
   check(!JSON.stringify(submitted[1]).includes('SECRET')&&!JSON.stringify(submitted[1]).includes('PRIVATE'),'song diagnostic privacy');
+  check(submitted[1].report.diagnostics.trace.some(e=>e.event==='backend_http'&&e.httpCode===504),'song diagnostic network trace');
   check(document.querySelector('[data-support-note]').textContent==='Сообщение о проблеме с песней отправлено','song confirmation');
   check(document.documentElement.scrollWidth<=innerWidth,'horizontal overflow');
   panel.scrollIntoView();await new Promise(r=>setTimeout(r,200));
