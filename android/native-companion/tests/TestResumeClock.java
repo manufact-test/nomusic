@@ -40,9 +40,9 @@ public class TestResumeClock {
   player.position=1160;sample(1160,false);SystemClock.now+=ReplacementEngine.PAUSE_GRACE_MS+20;sample(1160,false);TestEngine.p.handler.drain();
   // Replayed CELIKOM 0.3.45 phone: ~210-254ms mismatch after a paused source.
   int beforeResume=player.seekCalls;sample(1380,true);
-  check(player.seekCalls==beforeResume,"existing Bluetooth-sized 220ms offset does not add a risky seek");
+  check(player.seekCalls==beforeResume+1,"old 220ms playback offset is resynchronized rather than replayed audibly");
   check(e.effect!=null&&player.playing,"source remains under the verified replacement effect during resume");
-  check(e.fadeStarted>=0&&!e.resumeFadePending,"resume takes the bounded 180ms fade, not the initial 360ms fade");
+  check(e.fadeStarted>=0&&!e.resumeFadePending,"resumed decoder remains under audio ownership after position correction");
   int afterResume=player.seekCalls;SystemClock.now+=ReplacementEngine.PAUSE_RESUME_FADE_MS+20;
   sample(1580,true);TestEngine.p.handler.drain();
   check(player.seekCalls==afterResume&&e.player==player,"resume stays stable without disruptive reseek");
@@ -60,7 +60,7 @@ public class TestResumeClock {
   sample(1175,true);
   check(e.player==player&&player.playing&&e.effect==original,"813ms resume keeps same decoder and effect");
   check(android.media.audiofx.DynamicsProcessing.enabledCount==enabledBefore,"813ms resume does not reattach Android effect");
-  check(e.fadeStarted>=0&&!e.resumeFadePending,"813ms resume uses bounded fade");
+  check(!e.fading&&player.volume>0.99f&&!e.resumeFadePending,"aligned 813ms resume uses immediate retained-effect output without a second fade");
   SystemClock.now+=ReplacementEngine.PAUSE_RESUME_FADE_MS+35;
   sample(1390,true);TestEngine.p.handler.drain();
   check(player.volume>0.99f&&!e.fading,"short resume returns to full volume");

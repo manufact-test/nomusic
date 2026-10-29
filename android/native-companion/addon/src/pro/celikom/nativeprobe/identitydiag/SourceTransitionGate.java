@@ -18,5 +18,13 @@ final class SourceTransitionGate {
       ? livePositionMs-eventNewPositionMs<=SEEK_EVENT_MAX_SKEW_MS
       : eventNewPositionMs-livePositionMs<=SEEK_EVENT_MAX_SKEW_MS;
  }
+ /** Fence stale Media3 boundary callbacks against authoritative live media item. */
+ static boolean currentItemBoundary(String currentAlias,String liveAlias,String eventNextAlias,boolean confirmedRepeat){
+  if(eventNextAlias==null||!Objects.equals(liveAlias,eventNextAlias))return false;
+  return !Objects.equals(currentAlias,eventNextAlias)||confirmedRepeat;
+ }
+ static boolean repeatAtBeginning(long oldPosition,long newPosition,long livePosition){
+  return oldPosition>5000&&newPosition>=0&&newPosition<1500&&livePosition>=0&&livePosition<2000;
+ }
  void clear(){pending=false;expected=null;since=0;}
 }

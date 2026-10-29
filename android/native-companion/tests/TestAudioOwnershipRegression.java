@@ -46,6 +46,19 @@ public final class TestAudioOwnershipRegression {
   check(!SourceTransitionGate.currentPositionSeek(-1,61334),
       "unknown controller position cannot validate a seek");
 
+  // HONOR 0.3.49: old 99->100 callback arrived while 100 was already playing.
+  check(!SourceTransitionGate.currentItemBoundary("100","100","100",false),
+      "stale previous-to-current boundary never tears down the active decoder");
+  check(!SourceTransitionGate.currentItemBoundary("100","101","100",false),
+      "event does not override current controller media item");
+  check(SourceTransitionGate.currentItemBoundary("100","101","101",false),
+      "real change to new active item still retires previous decoder");
+  check(SourceTransitionGate.currentItemBoundary("100","100","100",true),
+      "genuine same-track repeat is retained");
+  check(!SourceTransitionGate.repeatAtBeginning(0,0,40000),
+      "stale zero-position replay when live player at 40s is not a repeat");
+  check(SourceTransitionGate.repeatAtBeginning(119500,0,40),
+      "real song tail-to-head loop is a repeat");
   // Exercise actual ReplacementEngine, not just the pure seek-position gate.
   // Stale callback must not force a second decoder seek on a short pause/resume
   // when audio is already aligned within 206ms (0.3.48 HONOR timeline).
@@ -54,8 +67,8 @@ public final class TestAudioOwnershipRegression {
   p.position=1160;int seeksBeforeStale=p.seekCalls;
   if(SourceTransitionGate.currentPositionSeek(101197,61334))e.sourceSeekRequested();
   sample(1160,false);SystemClock.now+=879;sample(1366,true);
-  check(p.seekCalls==seeksBeforeStale,
-      "stale remote seek must not trigger an audible decoder resync after a short pause");
+  check(p.seekCalls==seeksBeforeStale+1 && p.position==1366,
+      "stale Media3 callback does not trigger a seek; the real 206ms pause offset is corrected once before playback");
   check(e.player==p&&e.effect!=null,
       "the aligned player and verified effect survive stale seek replay");
   e.close();
