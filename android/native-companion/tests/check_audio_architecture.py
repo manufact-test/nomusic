@@ -13,8 +13,11 @@ for label,pattern in [
     found=re.search(pattern,engine)
     if found:raise AssertionError(label+': '+engine[max(0,found.start()-60):found.end()+50])
 for required in ['void prepareSourceEffect(', 'void startDecoder(', 'void pauseDecoder(',
-                 'void seekDecoder(', 'void grantReplacement(', 'RestoreResult restoreSource(']:
+                 'void seekDecoder(', 'void grantReplacement(', 'RestoreResult restoreSource(',
+                 'void retireDecoder(']:
     if required not in owner:raise AssertionError('missing audio authority: '+required)
+if 'audioOwner.retireDecoder();' not in engine:
+    raise AssertionError('decoder release must revoke ownership lease on same song')
 if 'SourceTransitionGate.currentItemBoundary(' in service or 'SourceTransitionGate.currentPositionSeek(' in service:
     raise AssertionError('Media3 boundary bypasses SourceEventArbiter')
 if 'syncPolicy.correct(' in engine or 'driftGuard.confirmed(' in engine:

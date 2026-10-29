@@ -30,7 +30,18 @@ public final class TestAudioCommandGateway {
   owner.seekDecoder(decoder,5000,"first",generation);
   ok(decoder.position==5000,"muted decoder may resynchronize");
   owner.pauseDecoder(decoder);ok(!decoder.playing,"pause command always silences safely");
-  owner.restoreSource(decoder,effect);owner.invalidate("media3_boundary");
+  owner.restoreSource(decoder,effect);
+  // Same-track recovery must revoke an old player's epoch without revoking arm.
+  owner.retireDecoder();
+  ok(!owner.current(generation,"first"),"retiring decoder invalidates old same-song callback generation");
+  long fresh=owner.epoch();MediaPlayer freshDecoder=new MediaPlayer();
+  DynamicsProcessing freshFx=new DynamicsProcessing(0,102,null);
+  owner.prepareSourceEffect(freshFx);owner.volume(freshDecoder,0f,null);
+  owner.startDecoder(freshDecoder,freshFx,"first",fresh);
+  ok(freshDecoder.playing,"new decoder on same song uses fresh lease");
+  rejected(()->owner.startDecoder(decoder,effect,"first",generation),"retired decoder cannot restart after same-song retry");
+  rejected(()->owner.seekDecoder(decoder,4000,"first",generation),"retired decoder cannot seek after same-song retry");
+  owner.restoreSource(freshDecoder,freshFx);owner.invalidate("media3_boundary");
   rejected(()->owner.startDecoder(decoder,effect,"first",generation),"stale callback cannot restart previous song");
   rejected(()->owner.seekDecoder(decoder,100,"first",generation),"stale callback cannot seek previous song");
   owner.stopped();owner.track("other");

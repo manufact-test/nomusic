@@ -34,6 +34,9 @@ final class AudioOwnership {
   if(state!=State.STOPPED)state=State.SOURCE_ONLY;
   reason=why;
  }
+ /** Retire decoder callbacks even when recovery retries the exact same song.
+  * Source gain restoration on a long pause does NOT retire the decoder. */
+ void retireDecoder(){generation++;pauseEpoch++;reason="decoder_retired";}
  void preparing(){state=State.PREPARING;reason="preparing";}
  /** Attach the current source effect only after the previous effect has retired. */
  void prepareSourceEffect(DynamicsProcessing candidate){
