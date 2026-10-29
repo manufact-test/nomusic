@@ -56,3 +56,10 @@ for text in ["versionCode: 23\nunrelated: value\n", "versionCode: 23\nversionCod
     else:
         raise AssertionError("Ambiguous/incomplete Apktool metadata was accepted")
 print("PASS: Apktool version substitution preserves metadata and rejects ambiguity")
+
+# Real Apktool 2.11.1 decoded source uses two-space indentation in versionInfo.
+real_apktool_yaml = "versionInfo:\n  versionCode: 23\n  versionName: 0.3.22-probe\n"
+want_yaml = "versionInfo:\n  versionCode: 53\n  versionName: 0.3.52\n"
+assert patch_apktool_metadata(real_apktool_yaml, "0.3.52", 53) == want_yaml
+assert patch_apktool_metadata(want_yaml, "0.3.52", 53) == want_yaml
+print("PASS: actual Apktool 2.11.1 indented versionInfo and idempotence")

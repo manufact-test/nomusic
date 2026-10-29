@@ -40,8 +40,10 @@ def load_release(root=ROOT):
 
 def patch_apktool_metadata(text, version, code):
     """Update exactly one versionCode and one versionName, preserving line breaks."""
-    text, n_code = re.subn(r"(?m)^versionCode: [0-9]+[ \t]*$", "versionCode: " + str(code), text)
-    text, n_name = re.subn(r"(?m)^versionName: [^\n]+$", "versionName: " + version, text)
+    text, n_code = re.subn(r"(?m)^([ \t]*)versionCode: [0-9]+[ \t]*$",
+                           lambda m: m.group(1) + "versionCode: " + str(code), text)
+    text, n_name = re.subn(r"(?m)^([ \t]*)versionName: [^\n]+$",
+                           lambda m: m.group(1) + "versionName: " + version, text)
     if n_code != 1 or n_name != 1:
         raise ValueError("Unexpected baseline Apktool version metadata")
     return text
