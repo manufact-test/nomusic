@@ -16,6 +16,7 @@ import tempfile
 import zipfile
 import xml.etree.ElementTree as ET
 from release_contract import load_release, patch_apktool_metadata
+from ci_provenance import validate_provenance
 
 ROOT = Path(__file__).resolve().parent
 VERSION, VERSION_CODE, SIGNER_CERT_SHA256 = load_release()
@@ -37,6 +38,7 @@ def main():
     parser.add_argument("--unsigned-inspection", action="store_true", help="structural smoke, NEVER a signed installable APK")
     parser.add_argument("--inspection-ci-dex", type=Path, default=None)
     parser.add_argument("--inspection-ci-dex-sha256", default=None)
+    parser.add_argument("--inspection-ci-provenance", type=Path, default=None)
     parser.add_argument("--deps-dir", type=Path, default=ROOT / "deps")
     parser.add_argument("--work-dir", type=Path, default=None)
     args = parser.parse_args()
@@ -45,6 +47,8 @@ def main():
     if inspection:
         if args.signing_dir is not None:
             parser.error("unsigned inspection MUST NOT receive a signing directory")
+        if args.inspection_ci_provenance is None:
+            parser.error("unsigned inspection requires the source-to-DEX CI provenance JSON")
         if args.inspection_ci_dex is None or args.inspection_ci_dex_sha256 is None:
             parser.error("unsigned inspection requires a CI DEX and its trusted SHA256")
         if not args.output.name.endswith("-INSPECTION-UNSIGNED.apk"):
@@ -56,7 +60,7 @@ def main():
     else:
         if args.signing_dir is None:
             parser.error("signed release requires original --signing-dir")
-        if args.inspection_ci_dex is not None or args.inspection_ci_dex_sha256 is not None:
+        if args.inspection_ci_dex is not None or args.inspection_ci_dex_sha256 is not None or args.inspection_ci_provenance is not None:
             parser.error("prebuilt DEX is forbidden in real signed releases")
         if "UNSIGNED" in args.output.name.upper() or "INSPECTION" in args.output.name.upper():
             parser.error("signed release output cannot be named an inspection")
@@ -83,6 +87,12 @@ def main():
     work.mkdir(parents=True, exist_ok=True)
     source_inputs = sorted((ROOT / "addon/src").rglob("*.java"))
     source_digests = {str(p.relative_to(ROOT)): sha(p) for p in source_inputs}
+    if inspection:
+        ci_record = json.loads(args.inspection_ci_provenance.read_text())
+        ci_commit = validate_provenance(ci_record, ROOT, args.inspection_ci_dex)
+        if ci_record["dex_sha256"] != args.inspection_ci_dex_sha256:
+            raise ValueError("CI DEX provenance conflicts with explicitly expected DEX SHA")
+        print("Trusted CI evidence: Java sources and JDK17 DEX correspond to commit", ci_commit)
     decoded = work / "decoded"
     if decoded.exists():
         shutil.rmtree(decoded)
@@ -198,7 +208,8 @@ def main():
         run(["python3", ROOT / "verify_unsigned_inspection.py",
              "--apk", args.output, "--base-apk", args.base_apk,
              "--compiled-dex", dex / "classes.dex", "--build-tools", args.build_tools,
-             "--expected-dex-sha256", args.inspection_ci_dex_sha256])
+             "--expected-dex-sha256", args.inspection_ci_dex_sha256,
+             "--ci-provenance", args.inspection_ci_provenance])
         assert source_digests == {str(p.relative_to(ROOT)): sha(p) for p in source_inputs}, "Sources changed during inspection"
         print("UNSIGNED INSPECTION ONLY; NOT INSTALLABLE:", args.output, "SHA256", sha(args.output))
         return

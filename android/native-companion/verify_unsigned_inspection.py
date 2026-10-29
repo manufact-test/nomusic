@@ -12,6 +12,7 @@ import re
 import subprocess
 from release_archive import inspect_zip
 from release_contract import load_release
+from ci_provenance import validate_provenance
 
 ROOT = Path(__file__).resolve().parent
 
@@ -25,6 +26,7 @@ def main():
     for name in ("apk", "base-apk", "compiled-dex", "build-tools"):
         p.add_argument("--" + name, type=Path, required=True)
     p.add_argument("--expected-dex-sha256", required=True)
+    p.add_argument("--ci-provenance", type=Path, required=True)
     args = p.parse_args()
     version, code, signer = load_release()
     inputs = json.loads((ROOT / "build-inputs.json").read_text())
@@ -36,6 +38,10 @@ def main():
         raise ValueError("Baseline APK SHA256 mismatch")
     if digest(args.compiled_dex) != args.expected_dex_sha256:
         raise ValueError("Supplied DEX differs from expected CI artifact SHA256")
+    record = json.loads(args.ci_provenance.read_text())
+    ci_commit = validate_provenance(record, ROOT, args.compiled_dex)
+    if record["dex_sha256"] != args.expected_dex_sha256:
+        raise ValueError("Expected CI DEX SHA differs from provenance file")
     check = subprocess.run(["java", "-jar", str(args.build_tools / "lib/apksigner.jar"),
                             "verify", "--verbose", str(args.apk)],
                            capture_output=True, text=True)
@@ -53,7 +59,8 @@ def main():
     data = inspect_zip(args.apk, args.base_apk, args.compiled_dex)
     result = {
         "status": "UNSIGNED_INSPECTION_ONLY_NOT_INSTALLABLE",
-        "version": version, "version_code": code,
+        "version": version, "version_code": code, "source_commit": ci_commit,
+        "ci_java_source_fingerprint": record["java_source_fingerprint"],
         "apk_sha256": digest(args.apk), "ci_dex_sha256": digest(args.compiled_dex),
         "original_assets_unchanged": True,
         "archive_entries": data["archive_entries"], "asset_count": data["asset_count"],

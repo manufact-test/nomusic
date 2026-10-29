@@ -31,6 +31,8 @@ assert 'parser.error("prebuilt DEX is forbidden in real signed releases")' in or
 assert 'args.signing_dir is None' in original
 assert 'shutil.copyfile(aligned, args.output)' in original
 assert '"--expected-dex-sha256", args.inspection_ci_dex_sha256' in original
+assert '"--ci-provenance", args.inspection_ci_provenance' in original
+assert 'ci_commit = validate_provenance' in original
 assert 'verify_unsigned_inspection.py' in original
 assert 'signing = json.loads((private / "signing.json").read_text())' in original
 assert 'run(["python3", ROOT / "verify_release.py"' in original
