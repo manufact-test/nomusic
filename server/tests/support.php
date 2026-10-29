@@ -75,11 +75,23 @@ try{
   $report=['category'=>'audio_issue','track'=>['id'=>'50163040','artist'=>'SLIMUS','title'=>'<script>song</script>','album'=>'Album','access_token'=>'SECRET'],'version'=>'0.4.41','diagnostics'=>['phase'=>'READY','enabled'=>true,'bridgeHealthy'=>true,'replacementError'=>'api_unavailable','network'=>[['endpoint'=>'config','httpStatus'=>504,'result'=>'api_response_error','elapsedMs'=>10000,'authorization'=>'SECRET']],'token'=>'SECRET','recentLog'=>['SECRET'],'source'=>'https://private.example/SECRET']];
   $id=$service->create($u,'',$uuid(),$report);expect(count($sent)===$before,'Song report sends no email');
   expect($service->create($u,'',$uuid(),$report)===$id,'Same open song/category/comment deduplicates across request keys');
+  // New report with its own trace must not be lost in the old same-song dedupe.
+  $withTrace=$report;
+  $withTrace['diagnostics']['trace']=[
+    ['event'=>'replacement_recovery','ageMs'=>50,'reason'=>'alignment_unstable','driftMs'=>210,'token'=>'SECRET'],
+    ['event'=>'backend_http','endpoint'=>'resolve','httpCode'=>200,'elapsedMs'=>83,'authorization'=>'SECRET'],
+    ['event'=>'not_whitelisted','reason'=>'ignored'],
+  ];
+  $second=$service->create($u,'',$uuid(),$withTrace);
+  expect($second!==$id,'Repeated song problem with diagnostic trace gets separate ticket');
+  $trace=$service->thread($second,$u)['report']['diagnostics']['trace'];
+  expect(count($trace)===2,'Only recognized bounded events persist');
+  expect(!str_contains(json_encode($trace),'SECRET'),'Trace strips private values');
   $thread=$service->thread($id,$u);expect($thread['kind']==='song','Typed report');expect(!str_contains(json_encode($thread),'SECRET'),'Unknown diagnostic keys never stored or returned');
   $service->deliver((int)$pdo->query('SELECT id FROM support_messages WHERE ticket_id='.$id)->fetchColumn());expect(count($sent)===$before,'Song message cannot be delivered later');
   $general=$service->create($u,'Обычное сообщение',$uuid());expect(count($sent)===$before+1,'General email notification preserved');
   $view=new SupportAdminView($pdo);$account=$view->render(str_repeat('a',64),0,1,1,$u,'song');expect(str_contains($account,'Обычные обращения')&&str_contains($account,'Проблемы с песнями'),'Two account sections');expect(str_contains($account,'ticket='.$id.'"')&&!str_contains($account,'ticket='.$general.'"'),'Song list excludes general conversations');
-  $html=$view->render(str_repeat('a',64),$id);expect(str_contains($html,'&lt;script&gt;song')&&!str_contains($html,'<script>song'),'Metadata escaped');expect(str_contains($html,'resolve-song')&&!str_contains($html,'support/reply'),'Song has resolution, no mandatory reply');
+  $html=$view->render(str_repeat('a',64),$id);expect(str_contains($html,'&lt;script&gt;song')&&!str_contains($html,'<script>song'),'Metadata escaped');expect(str_contains($html,'resolve-song')&&!str_contains($html,'support/reply'),'Song has resolution, no mandatory reply');expect(str_contains($html,'Скачать диагностику JSON'),'Download link available in song ticket');
   $list=$view->render(str_repeat('a',64),0);
   expect(str_contains($list,'<th>Обращения</th>')&&!str_contains($list,'<th>Песни'),'Single total column');
   expect(str_contains($list,'class="support-unhandled"'),'Open account highlighted');
