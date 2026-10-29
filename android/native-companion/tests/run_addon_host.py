@@ -32,7 +32,10 @@ with tempfile.TemporaryDirectory(prefix='celikom-android-full-host-') as temp:
     unit_cp=os.pathsep.join(str(x) for x in [json,classes,ANDROID])
     subprocess.run(['java','com.sun.tools.javac.Main','-encoding','UTF-8','-source','8','-target','8','-cp',unit_cp,'-d',str(tests),*map(str,check_sources)],check=True)
     run_cp=os.pathsep.join(str(x) for x in [json,classes,tests,ANDROID])
-    for item in check_sources:
-        clazz='pro.celikom.nativeprobe.identitydiag.'+item.stem
+    # TestReportReplay requires a private diagnostic fixture and is not a no-argument gate.
+    # Match the release builder's tested runnable suite exactly; compile all test classes.
+    runnable=['TestPure','TestHybrid','TestContracts','TestMobileActions','TestAppPresentation','TestNotifications','TestDiagnosticArchive','TestAudioTransfer','TestBufferedAudio','TestTransitionReadFence','TestTransitionRecovery','TestRequestPacing','TestSourceStateWatchdog','TestDiagnosticAccess','TestPresencePreview','TestDiagnosticRequest']
+    for name in runnable:
+        clazz='pro.celikom.nativeprobe.identitydiag.'+name
         subprocess.run(['java','-cp',run_cp,clazz],check=True)
-    print('PASS: '+str(len(check_sources))+' native addon/Test*.java host gates, full Android source compile')
+    print('PASS: '+str(len(runnable))+' native addon/Test*.java host gates, full Android source compile')
