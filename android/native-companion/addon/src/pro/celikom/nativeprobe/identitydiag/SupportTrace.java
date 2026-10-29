@@ -17,8 +17,8 @@ final class SupportTrace {
    "elapsedMs","driftMs","residualMs","sourcePositionMs","cachedBytes",
    "correctionPass","pass","rampMs","retryMs","httpCode"));
  private static final Set<String> FLAGS=new HashSet<>(Arrays.asList(
-   "gainZero","paused","found","replacementAudible","beforeTransportCleanup"));
- private static final Set<String> CODES=new HashSet<>(Arrays.asList("reason","state","phase","result"));
+   "gainZero","paused","found","replacementAudible","beforeTransportCleanup","ok"));
+ private static final Set<String> CODES=new HashSet<>(Arrays.asList("reason","state","phase","result","errorCode","operation"));
  private static final Set<String> ENDPOINTS=new HashSet<>(Arrays.asList(
    "config","auth/me","entitlement","resolve","tracks/upload-status","tracks/version-status","rewards"));
  static synchronized void record(String event,Object source) {
