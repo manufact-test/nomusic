@@ -36,6 +36,19 @@ public class TestResumeClock {
   e.close();
 
   TestEngine.playing();e=TestEngine.e;player=e.player;
+  SystemClock.now+=ReplacementEngine.FADE_MS+20;sample(1160,true);TestEngine.p.handler.drain();
+  player.position=1160;sample(1160,false);SystemClock.now+=450;sample(1160,false);TestEngine.p.handler.drain();
+  // Replayed CELIKOM 0.3.45 phone: ~210-254ms mismatch after a paused source.
+  int beforeResume=player.seekCalls;sample(1380,true);
+  check(player.seekCalls==beforeResume,"existing Bluetooth-sized 220ms offset does not add a risky seek");
+  check(e.effect!=null&&player.playing,"source remains under the verified replacement effect during resume");
+  check(e.fadeStarted>=0&&!e.resumeFadePending,"resume takes the bounded 180ms fade, not the initial 360ms fade");
+  int afterResume=player.seekCalls;SystemClock.now+=ReplacementEngine.PAUSE_RESUME_FADE_MS+20;
+  sample(1580,true);TestEngine.p.handler.drain();
+  check(player.seekCalls==afterResume&&e.player==player,"resume stays stable without disruptive reseek");
+  e.close();
+
+  TestEngine.playing();e=TestEngine.e;player=e.player;
   // The native song has not ended. The last 100ms are still valid audio.
   SystemClock.now+=ReplacementEngine.FADE_MS+20;sample(119900,true);player.position=119900;
   // Complete a synchronous source seek at the tail, then continue normal play.
