@@ -16,7 +16,7 @@ final class SupportService
   if($report!==null&&trim($body)==='')$body=SongReport::CATEGORIES[$report['category']];
   $body=$this->validate($body,$key);
   $json=$report===null?null:json_encode($report,JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE);
-  $hash=$report===null?null:hash('sha256',json_encode([$report['track']['id'],$report['category'],$body],JSON_THROW_ON_ERROR));$this->pdo->beginTransaction();
+  $hash=$report===null?null:hash('sha256',json_encode([$report['track']['id'],$report['category'],$body,!empty($report['diagnostics']['trace'])?$key:null],JSON_THROW_ON_ERROR));$this->pdo->beginTransaction();
   try {
    // Per-account lock makes rate limits and duplicate handling atomic.
    $q=$this->pdo->prepare("SELECT id FROM users WHERE id=? AND status='active' FOR UPDATE");$q->execute([$user]);if(!$q->fetchColumn())throw new \DomainException('invalid_session');

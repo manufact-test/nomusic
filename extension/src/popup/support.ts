@@ -61,7 +61,7 @@ export async function initSupport(options: any = {}): Promise<void> {
     try {
       if(!pendingPayload){
         if(song()){
-          const state=await send({type:"CELIKOM_STATUS_GET"});
+          const state=await send({type:"CELIKOM_SUPPORT_STATUS_GET"});
           if(!pinned||state.track?.id!==pinned.id){feedback("Трек изменился. Выберите вид обращения заново, чтобы сообщить о текущей песне.");return;}
           pendingPayload={kind:'song',message:message(),report:buildSongReport(state,category.value,chrome.runtime.getManifest().version)};
         }else {if(!pendingMessage)pendingMessage=message();pendingPayload={kind:'general',message:pendingMessage};}

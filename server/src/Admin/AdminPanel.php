@@ -52,6 +52,21 @@ final class AdminPanel
             if (str_starts_with($path, '/admin/audio/')) return Response::json(403, ['error'=>'forbidden']);
             return new Response(303, ['Location'=>'/admin/login', 'Cache-Control'=>'no-store']);
         }
+        // Owner/moderator-only export of a bounded song diagnostic JSON; no public file URL.
+        if($path==='/admin/support/diagnostics'){
+            if(!in_array($admin['role'],['owner','moderator'],true))return Response::json(403,['error'=>'forbidden']);
+            if($method!=='GET')return Response::json(405,['error'=>'method_not_allowed']);
+            $ticket=$this->positiveInt($query['ticket']??null);
+            if(!$ticket)return Response::json(400,['error'=>'invalid_request']);
+            try{$thread=(new \Celikom\Support\SupportService($this->pdo,$this->config))->thread($ticket);}
+            catch(\DomainException){return Response::json(404,['error'=>'not_found']);}
+            if($thread['kind']!=='song'||!is_array($thread['report']))return Response::json(404,['error'=>'not_found']);
+            $payload=json_encode(['schema'=>'celikom-song-diagnostic-v1','ticket'=>$ticket,
+              'report'=>$thread['report']],JSON_PRETTY_PRINT|JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR);
+            return new Response(200,['Content-Type'=>'application/json; charset=utf-8',
+             'Content-Disposition'=>'attachment; filename="CELIKOM-song-'.$ticket.'-diagnostics.json"',
+             'X-Content-Type-Options'=>'nosniff','Cache-Control'=>'no-store'], $payload);
+        }
         if(in_array($path,['/admin/support/reply','/admin/support/resolve-song'],true)){
             if(!in_array($admin['role'],['owner','moderator'],true))return Response::json(403,['error'=>'forbidden']);
             if($method!=='POST')return Response::json(405,['error'=>'method_not_allowed']);

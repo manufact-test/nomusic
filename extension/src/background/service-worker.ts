@@ -151,7 +151,7 @@ chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse) =>
   // Only the extension-owned popup may inspect or change user intent.
   // Content scripts have a separate, narrowly scoped heartbeat/API channel.
   const popupCommand = [COMMANDS.getStatus, COMMANDS.setEnabled, COMMANDS.setTestTrack,
-    COMMANDS.restoreOriginal, "CELIKOM_DIAGNOSTICS_GET", "CELIKOM_ADD_TRACK_OPENED", "CELIKOM_AUTH"].includes(type as string);
+    COMMANDS.restoreOriginal, "CELIKOM_DIAGNOSTICS_GET", "CELIKOM_SUPPORT_STATUS_GET", "CELIKOM_ADD_TRACK_OPENED", "CELIKOM_AUTH"].includes(type as string);
   if (popupCommand && !trustedUi) {
     sendResponse({ ok: false, error: "invalid_sender" }); return false;
   }
@@ -267,6 +267,17 @@ chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse) =>
     return true;
   }
 
+  if (type === "CELIKOM_SUPPORT_STATUS_GET") {
+    // Popup-only limited snapshot: private full diagnostic access is NOT granted.
+    void readState(false,true).then(state => sendResponse({
+      ...publicPlaybackState(state),
+      network: (state.network || []).filter(row =>
+        ["config","auth/me","entitlement","tracks/version-status","resolve","rewards"].includes(row.endpoint)
+      ).slice(-20).map(row => ({endpoint:row.endpoint,httpStatus:row.httpStatus,
+        result:row.result,elapsedMs:row.elapsedMs,at:row.at}))
+    })).catch(() => sendResponse({ok:false,error:"status_unavailable"}));
+    return true;
+  }
   if (type === "CELIKOM_DIAGNOSTICS_GET") {
     void userAuth.withDiagnosticsAccess(async () => redactDiagnostics(await readState(false,true)))
       .then(state => sendResponse({ok:true,state})).catch(() => sendResponse({ok:false,error:"access_denied"}));
