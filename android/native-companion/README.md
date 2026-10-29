@@ -1,3 +1,7 @@
+> **Текущий Android-кандидат: 0.3.48 / versionCode 49 (29.10.2026)**. Исправлен конфликт pause/seek callback и одновременное ненулевое усиление оригинала/подмены через `AudioOwnership.java`; обязательный тест `tests/TestAudioOwnershipRegression.java` (зелёный после исправления, красный на 0.3.47). Полная подписанная проверка пройдена, физическое звучание на HONOR ещё НЕ подтверждено. Подробности: `docs/android/NEXT-CHAT.md`, `docs/android/REGRESSION-GATES-2026-10-29.md`, `docs/android/RELEASE-0.3.48.json`. Старые примеры версий ниже относятся к истории. База/сертификат/сервер/десктоп не менялись.
+
+---
+
 ## 0.3.43 — undo the overstrict handover rejection loop
 
 The 0.3.42 run in CELIKOM-combined-20261028-235327.txt has matcherRevision2. All three observed songs resolve successfully: Он рядом89285816, Легко ли быть молодым38788303, Розовое вино69125202, with approved replacements39/8/23. The regression is in the new warm handover guard: it required80ms clock agreement while the previous stopped-decoder completion accepted350ms. Легко ли быть молодым is discarded twice (at9079/15806ms) before succeeding23407ms. Розовое вино is discarded five times at29123/36361/43771/51107/57930ms, despite warm drifts around96–117ms. All five resolve attempts in this observed interval end in alignment_unstable. This is the assistant-introduced overstrict gate, not failure of song identification or proof of a carrier outage.
