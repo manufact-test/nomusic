@@ -8,3 +8,10 @@ CREATE TABLE IF NOT EXISTS admin_navigation_seen (
  PRIMARY KEY(admin_id,section),
  CONSTRAINT admin_navigation_seen_admin_fk FOREIGN KEY(admin_id) REFERENCES admins(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Existing historical activations have already been administratively available.
+-- Start unread notifications at rollout; do not label old activity as new.
+INSERT INTO admin_navigation_seen(admin_id,section,last_seen_id)
+SELECT a.id,'promos',COALESCE((SELECT MAX(id) FROM promo_redemptions),0)
+FROM admins a WHERE a.role='owner'
+ON DUPLICATE KEY UPDATE last_seen_id=GREATEST(last_seen_id,VALUES(last_seen_id));
