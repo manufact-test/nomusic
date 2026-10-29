@@ -34,7 +34,7 @@ final class NativeApi {
    for(Result waiter:waiters)waiter.done(response,fail);
   }));
  }
- void resetDiagnostics(){rememberDiagnosticHint(false);presencePreview.clear();diagnosticUntil=0;diagnosticGeneration=-1;nextDiagnosticCheck=0;LogStore.clearPrivate();}
+ void resetDiagnostics(){SupportTrace.clear();rememberDiagnosticHint(false);presencePreview.clear();diagnosticUntil=0;diagnosticGeneration=-1;nextDiagnosticCheck=0;LogStore.clearPrivate();}
  boolean signedIn(){return !revoking&&!session.read().optString("refresh_token").isEmpty();}
  void submit(String task,Callable<JSONObject> action,Result result){work.execute(()->{JSONObject j=null;String error=null;try{j=action.call();}catch(Exception e){error=e.getMessage();if(error==null||!error.matches("[a-z0-9_]{1,80}"))error="network_or_response_error";}final JSONObject out=j;final String fail=error;LogStore.log("backend_result",LogStore.map("operation",task,"ok",fail==null,"errorCode",fail));main.post(()->result.done(out,fail));});}
  JSONObject request(String path,JSONObject body,String access)throws Exception {return request(path,body,access,null);}

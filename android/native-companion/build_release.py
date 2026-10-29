@@ -17,8 +17,8 @@ import zipfile
 import xml.etree.ElementTree as ET
 
 ROOT = Path(__file__).resolve().parent
-VERSION = "0.3.43"
-VERSION_CODE = 44
+VERSION = "0.3.45"
+VERSION_CODE = 46
 
 
 def run(args, **kwargs):
@@ -81,13 +81,32 @@ def main():
             p.write_text(updated)
     legacy = decoded / "smali/pro/celikom/nativeprobe/MainActivity.smali"
     legacy_text = legacy.read_text()
+    # Fresh explicit Intent for launcher: do not inherit MAIN/LAUNCHER task flags.
+    # Preserve only the supported ACTION_SEND text contract.
     redirect = """.method protected onCreate(Landroid/os/Bundle;)V
-    .locals 2
+    .locals 5
     invoke-super {p0, p1}, Landroid/app/Activity;->onCreate(Landroid/os/Bundle;)V
-    invoke-virtual {p0}, Lpro/celikom/nativeprobe/MainActivity;->getIntent()Landroid/content/Intent;
-    move-result-object v0
+    new-instance v0, Landroid/content/Intent;
     const-class v1, Lpro/celikom/nativeprobe/identitydiag/RecorderActivity;
-    invoke-virtual {v0, p0, v1}, Landroid/content/Intent;->setClass(Landroid/content/Context;Ljava/lang/Class;)Landroid/content/Intent;
+    invoke-direct {v0, p0, v1}, Landroid/content/Intent;-><init>(Landroid/content/Context;Ljava/lang/Class;)V
+    invoke-virtual {p0}, Lpro/celikom/nativeprobe/MainActivity;->getIntent()Landroid/content/Intent;
+    move-result-object v1
+    if-eqz v1, :launch
+    invoke-virtual {v1}, Landroid/content/Intent;->getAction()Ljava/lang/String;
+    move-result-object v2
+    const-string v3, "android.intent.action.SEND"
+    invoke-virtual {v3, v2}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
+    move-result v2
+    if-eqz v2, :launch
+    const-string v2, "android.intent.extra.TEXT"
+    invoke-virtual {v1, v2}, Landroid/content/Intent;->getCharSequenceExtra(Ljava/lang/String;)Ljava/lang/CharSequence;
+    move-result-object v4
+    if-eqz v4, :launch
+    invoke-virtual {v0, v3}, Landroid/content/Intent;->setAction(Ljava/lang/String;)Landroid/content/Intent;
+    const-string v3, "text/plain"
+    invoke-virtual {v0, v3}, Landroid/content/Intent;->setType(Ljava/lang/String;)Landroid/content/Intent;
+    invoke-virtual {v0, v2, v4}, Landroid/content/Intent;->putExtra(Ljava/lang/String;Ljava/lang/CharSequence;)Landroid/content/Intent;
+    :launch
     invoke-virtual {p0, v0}, Lpro/celikom/nativeprobe/MainActivity;->startActivity(Landroid/content/Intent;)V
     invoke-virtual {p0}, Lpro/celikom/nativeprobe/MainActivity;->finish()V
     return-void

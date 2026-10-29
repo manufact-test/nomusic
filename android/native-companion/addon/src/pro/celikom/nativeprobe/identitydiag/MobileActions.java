@@ -36,6 +36,20 @@ final class MobileActions {
   uuid(requestKey);String text=message==null?"":message.trim();if(text.length()>2000||text.getBytes(StandardCharsets.UTF_8).length>6000||text.matches("(?s).*[\\x00-\\x08\\x0b\\x0c\\x0e-\\x1f].*"))throw new Exception("invalid_message");
   if(target==null&&text.getBytes(StandardCharsets.UTF_8).length<3)throw new Exception("message_required");
   JSONObject j=new JSONObject().put("kind",target==null?"general":"song").put("message",text).put("request_key",requestKey);
-  if(target!=null){if(!Arrays.asList("not_replacing","wrong_version","audio_issue","other").contains(category))throw new Exception("invalid_request");j.put("report",new JSONObject().put("category",category).put("version",AppVersion.NAME).put("track",new JSONObject().put("id",target.id).put("title",target.title).put("artist",target.artist).put("album","")).put("diagnostics",new JSONObject()));}return j;
+  if(target!=null){
+   if(!Arrays.asList("not_replacing","wrong_version","audio_issue","other").contains(category))throw new Exception("invalid_request");
+   JSONObject diagnostics=SupportTrace.snapshot(target.id);
+   j.put("report",new JSONObject().put("category",category).put("version",AppVersion.NAME)
+    .put("track",new JSONObject().put("id",target.id).put("title",target.title).put("artist",target.artist).put("album",""))
+    .put("diagnostics",diagnostics));
+   // NativeApi rejects bodies over 8 KiB. Remove oldest trace entries, not the ticket.
+   // Keep the freshest symptoms and the user's message even during a noisy failure.
+   JSONArray trace=diagnostics.getJSONArray("trace");
+   while(j.toString().getBytes(StandardCharsets.UTF_8).length>7500&&trace.length()>0){
+    JSONArray newest=new JSONArray();for(int n=1;n<trace.length();n++)newest.put(trace.get(n));
+    trace=newest;diagnostics.put("trace",trace);
+   }
+   if(j.toString().getBytes(StandardCharsets.UTF_8).length>8192)throw new Exception("invalid_request");
+  }return j;
  }
 }

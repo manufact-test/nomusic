@@ -53,7 +53,7 @@ def main():
     denied = ("BIND_NOTIFICATION_LISTENER_SERVICE", "BIND_ACCESSIBILITY_SERVICE", "RECORD_AUDIO", "READ_SMS", "READ_CONTACTS", "QUERY_ALL_PACKAGES")
     assert not any(any(key in value for key in denied) for node in current.iter() for value in node.attrib.values())
     badging = subprocess.check_output([str(args.build_tools / "aapt"), "dump", "badging", str(args.apk)], text=True)
-    assert "versionCode='44'" in badging and "versionName='0.3.43'" in badging
+    assert "versionCode='46'" in badging and "versionName='0.3.45'" in badging
     assert "sdkVersion:'28'" in badging and "targetSdkVersion:'36'" in badging
     with zipfile.ZipFile(args.apk) as built, zipfile.ZipFile(args.base_apk) as base:
         assert len(built.namelist()) == len(set(built.namelist())), "Duplicate APK entry"
@@ -68,11 +68,17 @@ def main():
         legacy = (args.decoded / "smali/pro/celikom/nativeprobe/MainActivity.smali").read_text()
         method = re.search(r"\.method protected onCreate\(Landroid/os/Bundle;\)V(.*?)\.end method", legacy, re.S).group(1)
         assert "identitydiag/RecorderActivity" in method and "->finish()V" in method and "setContentView" not in method
+        assert "new-instance v0, Landroid/content/Intent;" in method and "->setClass(" not in method, "Launcher still forwards untrusted task flags"
+        assert "android.intent.action.SEND" in method, "Shared text links no longer forwarded"
     # Inspect the signed deliverable independently, not just an intermediate DEX hash.
     with tempfile.TemporaryDirectory(prefix="celikom-final-apk-") as directory:
         extracted = Path(directory) / "decoded"
         subprocess.run(["java", "-jar", str(args.apktool), "d", str(args.apk), "-r", "-f", "-o", str(extracted)], check=True, stdout=subprocess.DEVNULL)
         addon = extracted / "smali_classes2/pro/celikom/nativeprobe/identitydiag"
+        support = (addon / "SupportTrace.smali").read_text()
+        assert "replacement_recovery" in support and "trace" in support, "Signed APK lacks bounded support trace"
+        launcher = (extracted / "smali/pro/celikom/nativeprobe/MainActivity.smali").read_text()
+        assert "new-instance v0, Landroid/content/Intent;" in launcher and "->setClass(" not in launcher, "Signed launcher still reuses task Intent"
         matcher = (addon / "AlbumMatch.smali").read_text()
         match_body = re.search(r"\.method static match\(.*?\.end method", matcher, re.S).group(0)
         assert ".method static artistKey(" in matcher and "quest pistols show" in matcher, "Signed APK is missing the artist-pair fix"
@@ -83,10 +89,10 @@ def main():
         ramp = (addon / "ReplacementEngine$1.smali").read_text()
         assert re.search(r"const-wide/16[^\n]*0x15e", ramp), "Signed APK fade bypasses shared 350ms tolerance"
         version = (addon / "AppVersion.smali").read_text()
-        assert '"0.3.43"' in version, "Signed APK addon version mismatch"
+        assert '"0.3.45"' in version, "Signed APK addon version mismatch"
     source_digests = {str(p.relative_to(ROOT)): hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted((ROOT / "addon/src").rglob("*.java"))}
     proof = {
-        "version": "0.3.43", "version_code": 44,
+        "version": "0.3.45", "version_code": 46,
         "apk_sha256": hashlib.sha256(args.apk.read_bytes()).hexdigest(),
         "base_apk_sha256": hashlib.sha256(args.base_apk.read_bytes()).hexdigest(),
         "signer_sha256": cert,
