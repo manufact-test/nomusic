@@ -59,7 +59,7 @@ def main():
     denied = ("BIND_NOTIFICATION_LISTENER_SERVICE", "BIND_ACCESSIBILITY_SERVICE", "RECORD_AUDIO", "READ_SMS", "READ_CONTACTS", "QUERY_ALL_PACKAGES")
     assert not any(any(key in value for key in denied) for node in current.iter() for value in node.attrib.values())
     badging = subprocess.check_output([str(args.build_tools / "aapt"), "dump", "badging", str(args.apk)], text=True)
-    assert "versionCode='51'" in badging and "versionName='0.3.50'" in badging
+    assert "versionCode='52'" in badging and "versionName='0.3.51'" in badging
     assert "sdkVersion:'28'" in badging and "targetSdkVersion:'36'" in badging
     with zipfile.ZipFile(args.apk) as built, zipfile.ZipFile(args.base_apk) as base:
         assert len(built.namelist()) == len(set(built.namelist())), "Duplicate APK entry"
@@ -83,7 +83,7 @@ def main():
         dex = signed.read("classes2.dex")
         assert dex.startswith(b"dex" + bytes([10])), "Signed addon has no DEX header"
         markers = (
-            b"0.3.50", b"ReplacementEngine", b"AudioOwnership",
+            b"0.3.51", b"ReplacementEngine", b"AudioOwnership",
             b"SourceTransitionGate", b"AudioContinuityMonitor",
             b"audio_command_anomaly", b"audio_decoder_start",
             b"replacement_resume_fast", b"replacement_duration_mismatch",
@@ -104,7 +104,7 @@ def main():
     assert "AudioContinuityMonitor" in (addon / "AudioContinuityMonitor.java").read_text()
     source_digests = {str(p.relative_to(ROOT)): hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted((ROOT / "addon/src").rglob("*.java"))}
     proof = {
-        "version": "0.3.50", "version_code": 51,
+        "version": "0.3.51", "version_code": 52,
         "apk_sha256": hashlib.sha256(args.apk.read_bytes()).hexdigest(),
         "base_apk_sha256": hashlib.sha256(args.base_apk.read_bytes()).hexdigest(),
         "signer_sha256": cert,
