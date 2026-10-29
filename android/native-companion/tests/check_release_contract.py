@@ -40,7 +40,12 @@ must_reject(data, java.replace('NAME="0.3.52"', 'NAME="0.3.51"'), "stale AppVers
 must_reject(data, java.replace('NAME="0.3.52"', 'NAME="0.3.52"; static final String NAME="0.3.52"'), "duplicate AppVersion")
 assert "from release_contract import load_release" in (ROOT / "build_release.py").read_text()
 assert "from release_contract import load_release" in (ROOT / "verify_release.py").read_text()
-assert "/private/" in (ROOT / ".gitignore").read_text()
+# GitHub artifact ZIP strips hidden files by default. Ship the ignore POLICY
+# as a non-hidden text file, never any ignored signing/private material.
+policy = ROOT / ".gitignore"
+if not policy.exists():
+    policy = ROOT / "source-gitignore.txt"
+assert "/private/" in policy.read_text()
 count += 3
 print("PASS:", count, "negative release version, signing identity and code-source contract checks")
 
