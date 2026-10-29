@@ -28,6 +28,7 @@ final class SupportTrace {
   String impliedReason=null;
   switch(event){
    case "replacement_alignment_rejected": event="replacement_recovery";impliedReason="alignment_unstable";break;
+   case "replacement_duration_mismatch":event="replacement_recovery";impliedReason="duration_mismatch";break;
    case "replacement_stream_failure": event="replacement_recovery";impliedReason="stream_failure";break;
    case "replacement_download_failure": event="replacement_recovery";impliedReason="download_failed";break;
    case "replacement_stream_fallback":event="replacement_recovery";break;
