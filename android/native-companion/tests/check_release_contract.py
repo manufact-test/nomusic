@@ -63,3 +63,12 @@ want_yaml = "versionInfo:\n  versionCode: 53\n  versionName: 0.3.52\n"
 assert patch_apktool_metadata(real_apktool_yaml, "0.3.52", 53) == want_yaml
 assert patch_apktool_metadata(want_yaml, "0.3.52", 53) == want_yaml
 print("PASS: actual Apktool 2.11.1 indented versionInfo and idempotence")
+
+
+# An actual release may not use an unpinned Apktool binary or a different JDK.
+inputs = json.loads((ROOT / "build-inputs.json").read_text())
+assert inputs["sdk_api"] == 36
+assert inputs["jdk"] == 17
+assert inputs["apktool"] == "2.11.1"
+assert inputs["apktool_sha256"] == "56d59c524fc764263ba8d345754d8daf55b1887818b15cd3b594f555d249e2db"
+print("PASS: Android SDK/JDK/Apktool toolchain release pin")

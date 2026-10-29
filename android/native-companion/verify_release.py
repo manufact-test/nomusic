@@ -28,6 +28,8 @@ def main():
     for arg in ("apk", "base-apk", "build-tools", "decoded", "compiled-dex", "apktool"):
         p.add_argument("--" + arg, type=Path, required=True)
     args = p.parse_args()
+    pinned_inputs = json.loads((ROOT / "build-inputs.json").read_text())
+    assert hashlib.sha256(args.apktool.read_bytes()).hexdigest() == pinned_inputs["apktool_sha256"], "Verifier Apktool mismatch"
     cert = certificate(args.apk, args.build_tools)
     assert cert == certificate(args.base_apk, args.build_tools) == SIGNER_CERT_SHA256, "Signer differs from installed baseline or pinned certificate"
     subprocess.run([str(args.build_tools / "zipalign"), "-c", "4", str(args.apk)], check=True)

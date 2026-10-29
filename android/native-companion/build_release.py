@@ -38,6 +38,13 @@ def main():
     args = parser.parse_args()
     inputs = json.loads((ROOT / "build-inputs.json").read_text())
     assert sha(args.base_apk) == inputs["base_apk_sha256"], "Unexpected baseline APK"
+    assert sha(args.apktool) == inputs["apktool_sha256"], "Wrong Apktool binary"
+    for name in ("aapt", "zipalign", "lib/d8.jar", "lib/apksigner.jar"):
+        assert (args.build_tools / name).is_file(), "Missing Android Build Tool: " + name
+    assert (args.sdk / "platforms/android-36/android.jar").is_file(), "Missing Android API 36"
+    java_info = subprocess.check_output(["java", "-version"], stderr=subprocess.STDOUT, text=True)
+    java_match = re.search(r'\bversion "([0-9]+)', java_info)
+    assert java_match and int(java_match.group(1)) == inputs["jdk"], "Release requires pinned JDK 17"
     for name, digest in inputs["dependencies"].items():
         assert sha(args.deps_dir / name) == digest, "Dependency mismatch: " + name
     assert VERSION in args.output.name, "Output filename must include target release version"
