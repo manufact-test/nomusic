@@ -8,7 +8,7 @@ import java.io.*;
 import java.util.*;
 /** User-enabled automatic replacement within the foreground service lifetime. */
 final class ReplacementEngine {
- static final long PREPARED_MS=60000, SEEK_TIMEOUT_MS=2000, HANDOVER_DRIFT_MS=350, STREAM_SEEK_TIMEOUT_MS=12000, FADE_MS=360, PAUSE_GRACE_MS=30000, PAUSE_RESUME_FADE_MS=180, PAUSE_ALIGN_DELAY_MS=160, PAUSE_ALIGN_TOLERANCE_MS=85;
+ static final long PREPARED_MS=60000, SEEK_TIMEOUT_MS=2000, HANDOVER_DRIFT_MS=350, STREAM_SEEK_TIMEOUT_MS=12000, FADE_MS=360, PAUSE_GRACE_MS=30000, PAUSE_RESUME_FADE_MS=180, PAUSE_ALIGN_DELAY_MS=160, PAUSE_ALIGN_TOLERANCE_MS=85, NEW_TRACK_JOIN_MS=60;
  final ProbeService owner; final NativeApi api;
  String status="Замена выключена",identityKey,trackId,method="NONE",lookupKey;
  JSONObject descriptor; long descriptorUntil,nextLookup,armedUntil,preparedAt,seekStarted,seekBudget=SEEK_TIMEOUT_MS,fadeStarted,transition,pausedAt=-1;
@@ -112,6 +112,12 @@ final class ReplacementEngine {
    status="Играет замена · автопереход включён";logSync("playing",s,drift);
   }catch(RuntimeException e){suspend("playback_exception",retryDelay());status="Ошибка звука — оригинал восстановлен; повторим автоматически";LogStore.log("replacement_failure",LogStore.map("reason","playback_exception","type",e.getClass().getSimpleName()));}
  }
+ void outgoingTrackReset(PlaybackSource previous){
+  if(player==null&&effect==null)return;
+  long projected=position(previous);
+  LogStore.log("replacement_outgoing_reset",LogStore.map("trackId",trackId,"previousAlias",previous.alias,"previousPositionMs",projected,"previousDurationMs",previous.duration,"remainingMs",Math.max(0,previous.duration-projected),"oldDecoderPlaying",player!=null&&player.isPlaying(),"oldOriginalMuted",effect!=null&&originalMix<=0.001f));
+  suspend("source_end",30000);
+ }
  void sourceSeekRequested(){if(armed())explicitSourceSeek=true;}
  void sourceBoundary(String reason){
   if(closed)return;generation++;preparing=false;release("track_changed");identityKey=null;trackId=null;method="NONE";descriptor=null;lookupKey=null;nextLookup=0;failures=0;previousSource=null;completedKey=null;explicitSourceSeek=false;unavailableSince=-1;syncPolicy.reset();status="Определяем новую песню; играет оригинал";LogStore.log("replacement_source_boundary",LogStore.map("reason",reason,"originalRestoredBeforeLookup",true));
@@ -192,7 +198,7 @@ final class ReplacementEngine {
   final long token=++transition;final MediaPlayer p=player;final DynamicsProcessing fx=effect;final float initialOriginal=originalMix;
   final boolean shortResume=resumeFadePending;
   audioOwner.aligning();
-  final long rampDuration=shortResume?PAUSE_RESUME_FADE_MS:(initialOriginal<=0.001f?80:FADE_MS);resumeFadePending=false;
+  final long rampDuration=shortResume?PAUSE_RESUME_FADE_MS:(initialOriginal<=0.001f?80:NEW_TRACK_JOIN_MS);resumeFadePending=false;
   // When attenuation stays attached through a short pause, validate decoder's advancing clock before raising replacement volume.
   final boolean alignLive=streaming!=null&&(initialOriginal>0.001f||shortResume);
   final long[] baseline={p.getCurrentPosition()},phaseStarted={SystemClock.elapsedRealtime()};final int[] corrections={0};
