@@ -52,6 +52,9 @@ jobs:
         run: php server/tests/promos.php
       - name: Admin general regressions
         run: php server/tests/admin.php
+      - name: Reset disposable CI-only MySQL before independent full suite
+        run: |
+          php -r '$pdo=new PDO("mysql:host=127.0.0.1;port=3306","root",getenv("DB_PASSWORD"));$pdo->exec("DROP DATABASE IF EXISTS celikom_test");$pdo->exec("CREATE DATABASE celikom_test CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");'
       - name: Full offline regression suite
         run: |
           sudo apt-get update -qq
