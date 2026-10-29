@@ -1,3 +1,28 @@
+# Актуальная матрица для архитектурной переработки ПОСЛЕ Android 0.3.51
+
+> **29.10.2026, supersedes historical 0.3.48 instructions below.** Полный источник статуса, бэкапов и архитектуры: [ARCHITECTURE-RESET-CHECKPOINT-2026-10-29.md](ARCHITECTURE-RESET-CHECKPOINT-2026-10-29.md). Пользователь не принял 0.3.51. **Не выпускать кандидат после маленькой правки таймера; пока только переработка архитектуры.**
+
+## Обязательные новые gates
+
+| Реальный случай / риск | Обязательное поведение | Проверка |
+| --- | --- | --- |
+| Источник alias106 «Есть вопросы», drift держался 1,156–1,166 сек более 80 сек | Нельзя показывать здоровую работающую подмену, если управляемые часы длительно расходятся; восстановить оригинал, не зациклить seek/fade; указать причину | `TestRealFailures`, новые replay/instrumentation проверки после рефакторинга, исходный комбинированный лог |
+| Alias108 «Всё пиздато», native 221930 мс, replacement 223399 мс (1469 мс разницы) | **Не** проигрывать потенциально другую редакцию; native играет, причина понятна на экране; следующий трек автоматически может подменяться, без нового Start | `TestRealFailures`, UI/status test, E2E run |
+| 0.3.51 alias105→106 и последующие переходы; пользователь слышал смесь песен и скачки | Старый decoder всегда глушится до восстановления нативного аудио; stale callbacks не оживляют старый трек; истечение/zero position не считать достаточным доказательством boundary | `TestAudioOwnershipRegression`, `TestHandoverClock`, детерминированный replay реального перехода, телефон |
+| `outgoingItemReset` в 0.3.51, не зарегистрировал ни одного `replacement_outgoing_reset` | Не считать эту защиту проверенной: доказать срабатывание на реальном lifecycle и перепроверить на ложные срабатывания | Media3 transition/read fence + запись точных state snapshots |
+| Возобновление и seek на 0.3.50 улучшились, drift 3–11 мс после prealign | Не потерять это поведение при новой state machine; разнести seek/pause/route и таймеры по поколениям | `TestResumeClock`, `TestCarRecovery`, `TestAudioOwnershipRegression`, hardware |
+| Потеря audio effect / stream / callback / source / ручной Stop | Безопасный fail-open: secondary mute, исходный gain восстановлен; не запустить устаревший decoder | Existing full engine/stream/boundary/security tests, negative cases |
+| Разный маршрут Android, Bluetooth, выключенный экран | Не обещать акустический результат по fake API или available-device list; с согласия владельца отдельно проверить физический output | Инструментация и единый объединённый owner test после полного рефакторинга |
+| Release integrity | Из конкретного HEAD собирается signed APK, DEX в APK соответствует CI-компиляции, versionCode >52, старый сертификат, никаких secret assets | GitHub CI + `verify_release.py` + SHA256 APK и backup |
+
+Обязательный host suite: `python3 android/native-companion/tests/run_engine.py`, `android/native-companion/addon/Test*.java`, isolation guard. **CI 40915407643 PASS подтверждает 16 дополнительных тестов и компиляцию промежуточного кода, но не закрывает ни один аппаратный дефект.** Работа по архитектуре должна дать новый красный/зелёный replay и проверку восстановления во всех переходах.
+
+**Сохранено до переделки:** `backup/android-0351-last-signed-20261029` и `backup/android-pre-architecture-refactor-20261029`. Проверенный 0.3.51 установщик и ZIP лежат в Library пользователя; см. checkpoint. PR #22 остаётся черновиком.
+
+---
+
+## Историческая матрица 0.3.48 (НЕ текущая инструкция к выпуску)
+
 # CELIKOM Android — регрессионная матрица и правила выпуска (29.10.2026)
 
 **Актуально для кандидата 0.3.48; не является пользовательской приёмкой.**
