@@ -83,7 +83,13 @@ def main():
         match_body = re.search(r"\.method static match\(.*?\.end method", matcher, re.S).group(0)
         assert ".method static artistKey(" in matcher and "quest pistols show" in matcher, "Signed APK is missing the artist-pair fix"
         assert match_body.count("->artistKey(") >= 2, "Signed APK matcher bypasses artist normalization"
+        duration = (addon / "PlaybackDuration.smali").read_text()
+        assert "MAX_TAIL_DIFFERENCE_MS:J = 0x1f4L" in duration, "Final APK duration guard is not 500ms"
+        support = (addon / "SupportTrace.smali").read_text()
+        assert "replacement_duration_mismatch" in support, "Final APK does not report duration failures"
         engine = (addon / "ReplacementEngine.smali").read_text()
+        assert "PlaybackDuration;->safe" in engine, "Final APK audio engine bypasses duration guard"
+        assert "PAUSE_RESUME_FADE_MS:J = 0xb4L" in engine, "Final APK does not shorten pause resume fade"
         assert "handoverPending" in engine and "warmSeekTransition" in engine, "Signed APK lacks the live-clock handover guard"
         assert re.search(r"HANDOVER_DRIFT_MS:J = 0x15eL", engine), "Signed APK handover tolerance is not 350ms"
         ramp = (addon / "ReplacementEngine$1.smali").read_text()
