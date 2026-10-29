@@ -64,6 +64,36 @@ public final class TestAudioLifecycle {
   MediaPlayer restarted=TestEngine.prepare();
   ok(restarted.isPlaying()&&e.effect!=null,"Stop and Start on the same song can play without reselecting a track");
   e.close();
+  // A same-song decoder retry changes its lease. A retired completion callback
+  // must not stop its successor, even though both belong to the same track key.
+  TestEngine.playing();e=TestEngine.e;
+  MediaPlayer stale=e.player;
+  MediaPlayer.OnCompletionListener staleCompletion=stale.completed;
+  long retiredTicket=e.audioOwner.epoch();
+  e.suspend("media_player_error",0);
+  ok(!e.audioOwner.current(retiredTicket,e.identityKey),"decoder recovery revokes old owner ticket on same song");
+  e.update(TestEngine.p.current);
+  MediaPlayer successor=TestEngine.prepare();
+  ok(successor!=stale&&successor.isPlaying(),"same-song recovery attaches a fresh decoder");
+  staleCompletion.onCompletion(stale);
+  ok(e.player==successor&&!successor.released,"retired completion cannot release successor on same song");
+  e.close();
+  // Restoring source during a long pause is NOT decoder retirement. Its
+  // retained listener must still handle early end after resume.
+  TestEngine.playing();e=TestEngine.e;
+  MediaPlayer retained=e.player;
+  long retainedTicket=e.audioOwner.epoch();
+  TestEngine.p.current=TestEngine.source("1",1000,false);e.update(TestEngine.p.current);
+  SystemClock.now+=ReplacementEngine.PAUSE_GRACE_MS+50;
+  TestEngine.p.current=TestEngine.source("1",1000,false);e.update(TestEngine.p.current);
+  TestEngine.p.handler.drain();
+  ok(e.player==retained&&!retained.released&&e.audioOwner.current(retainedTicket,e.identityKey),
+    "long pause retains prepared decoder and its completion lease");
+  TestEngine.p.current=TestEngine.source("1",1000,true);e.update(TestEngine.p.current);
+  retained.completed.onCompletion(retained);
+  ok(retained.released&&e.completedReason!=null&&e.completedReason.contains("раньше"),
+    "retained decoder still handles early completion after long pause");
+  e.close();
   System.out.println("PASS: "+count+" lifecycle state and real-engine failure gates");
  }
 }
