@@ -1,6 +1,7 @@
 package pro.celikom.nativeprobe.identitydiag;
 import android.media.MediaPlayer;
 import android.media.audiofx.DynamicsProcessing;
+import android.media.audiofx.AudioEffect;
 import java.util.Objects;
 /** Authoritative audio output permission and lifecycle state, confined to service handler. */
 final class AudioOwnership {
@@ -65,6 +66,19 @@ final class AudioOwnership {
   try{player.setVolume(0f,0f);muted=true;}catch(RuntimeException ignored){}
   try{if(player.isPlaying())player.pause();paused=true;}catch(RuntimeException ignored){}
   if(!muted||!paused)try{player.release();}catch(RuntimeException ignored){}
+ }
+ static final class RestoreResult { boolean gainReset,disabled,released; }
+ /** Secondary decoder must be silent or released before resetting native gain. */
+ RestoreResult restoreSource(MediaPlayer secondary,DynamicsProcessing effect){
+  silenceReplacement(secondary);
+  RestoreResult r=new RestoreResult();
+  if(effect!=null){
+   try{effect.setControlStatusListener(null);}catch(RuntimeException ignored){}
+   try{effect.setInputGainAllChannelsTo(0f);r.gainReset=true;}catch(RuntimeException ignored){}
+   try{r.disabled=effect.setEnabled(false)==AudioEffect.SUCCESS;}catch(RuntimeException ignored){}
+   try{effect.release();r.released=true;}catch(RuntimeException ignored){}
+  }
+  source();return r;
  }
  static boolean exclusive(float original,float secondary){return original<=0.001f||secondary<=0.001f;}
 }
