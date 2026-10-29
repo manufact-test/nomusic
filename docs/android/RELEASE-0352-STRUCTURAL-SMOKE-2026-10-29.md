@@ -24,3 +24,22 @@ There is **no available original `celikom-native-probe.p12` and `signing.json`**
 
 Backup before work: `backup/android-before-0352-release-pipeline-20261029` (`351d9cac`). Green code snapshot: `backup/android-0352-release-contract-green-20261029` (`04a583a5`). Historical protected backups remain intact.
 
+
+## Дополнение: воспроизводимая проверка с оригинальным CI provenance (последний результат)
+
+Кодовый checkpoint: `7e49152d6a17cbf3d31e7b247b5e074f1fb215ac`. GitHub Actions https://github.com/manufact-test/nomusic/actions/runs/40941509415 **SUCCESS**, включая 16 негативных тестов структуры APK, 11 негативных тестов provenance и остальные release + audio gates.
+
+**Два безопасных режима одного сборщика:**
+- Обычный `build_release.py` по-прежнему требует оригинальные файлы подписи, JDK 17 и компилирует всё из текущих исходников; подмена DEX готовым артефактом запрещена.
+- `build_release.py --unsigned-inspection --inspection-ci-dex <file> --inspection-ci-dex-sha256 <sha256> --inspection-ci-provenance <CI-json>` повторяет сборку оригинального APK 0.3.22 и присоединение CI DEX, но НЕ использует ключи и имеет обязательное имя `CELIKOM-0.3.52-INSPECTION-UNSIGNED.apk`. `verify_unsigned_inspection.py` проверяет version/minSDK/targetSDK, zipalign, отсутствие подписи, состав ZIP и каталог; подписанные/чужие пакеты отвергает. Это отдельный smoke, не пользовательский установщик.
+
+**Точное доказательство локального реального smoke на kit из CI `40941110725`:**
+- CI commit, к которому привязан DEX: `67b48d77b86be6cf23447d9a490092492baee9c2` (изменения до `7e49152d` касались только тестов/офлайн-комплекта, не Java-файлов).
+- Все Java-файлы fingerprint: `60f0f7383a4ee382c5211f5856632770ec1a0f801eecce049053085b5ae64b97`.
+- CI/D8 classes2.dex SHA-256: `8683a9f50fc2d1171206e0a803fe9f730c8e67f709909dcacecd67fa916ade98`.
+- Готовый **неподписанный** APK inspection SHA-256: `dcc2cf36133f70d5bc60071a1802631997095d279541119358f2dff64ab6c1b4`, version `0.3.52`, versionCode `53`, ровно 2 DEX/3 разрешённых assets/200 ZIP entries, каталог не изменён. У исходного и новой версии нет доказанного acoustic zero-overlap.
+- `verify_release.py` на реальном неподписанном smoke **отказал** на apksigner verification (правильный fail closed).
+- После последнего workflow скачан новый offline-kit, локально прошли `check_release_contract.py`, `check_release_archive.py`, `check_release_modes.py`, `check_ci_provenance.py`. В комплекте `ci-dex-provenance.json`, `source-gitignore.txt`, `ci-android-validation-workflow.yml`; самих ключей нет.
+
+**ОГРАНИЧЕНИЯ:** JSON provenance связывает исходники и DEX в конкретном пакете CI, но сам по себе НЕ криптографическая attestation GitHub. APK smoke НЕ подписан, НЕ готов для установки, НЕ отправлен пользователю. `signing.json` + приватный `.p12` не обнаружены в доступном окружении. Лишь после их безопасного восстановления пройти полный signed build/verifier и затем телефон/BT реальные тесты. Бэкап: `backup/android-0352-provenance-and-archive-verified-20261029` при `7e49152d`.
+

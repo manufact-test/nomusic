@@ -1,3 +1,11 @@
+## Release audit update: archive strictness, CI provenance and explicit unsigned inspection
+
+Reviewed complete CI `40941509415` PASS on `7e49152d`. The signed `verify_release.py` now calls the same `release_archive.inspect_zip` used by the unsigned structure tool; it rejects additional, missing or changed catalogue assets, duplicate ZIP members, unexpected DEX files, source/signing material and archive traversal. `check_release_archive.py` contains 16 positive/negative cases. `ci_provenance.py` records the SHA-256 of every Java source and the corresponding DEX, together with the CI Git commit; `check_ci_provenance.py` contains 11 cases, and the offline inspector rejects mismatched code/DEX.
+
+A real APK 0.3.52 was rebuilt from the original base and exact CI DEX with the **same official assembly path** in explicit `--unsigned-inspection` mode. The offline kit was downloaded and its four release gates run successfully without Git checkout. The inspection report is `UNSIGNED_INSPECTION_ONLY_NOT_INSTALLABLE`; it does NOT prove signed-release completion or acoustic playback. Original signing key remains unavailable; PR #22 remains draft. Full report: `RELEASE-0352-STRUCTURAL-SMOKE-2026-10-29.md`.
+
+---
+
 ## 29.10.2026 — new 0.3.52 structural package evidence supersedes previous "no package" statement
 
 Code revision `04a583a5` + CI https://github.com/manufact-test/nomusic/actions/runs/40937933292 both passed. A LOCAL **UNSIGNED smoke APK** now exists for structural inspection (do not distribute). Apktool 2.11.1, real baseline 0.3.22, exact pinned JARs and API36 were used. The compiled DEX from the JDK17 GitHub CI artifact was injected exactly byte-for-byte, and `zipalign`, `aapt` versionCode 53/0.3.52, assets catalogue equivalence, absence of source/secret packages, and two DEX entries all passed. This was an inspection-only local variation of the release builder (no key, no signature). The official signed release path was NOT completed. `verify_release.py` correctly rejected the unsigned output.

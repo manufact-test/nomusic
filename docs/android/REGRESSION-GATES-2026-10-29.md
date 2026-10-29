@@ -1,3 +1,18 @@
+## Новый обязательный gate — APK integrity / CI provenance (29.10.2026)
+
+| Область | Инвариант и фактическая проверка |
+| --- | --- |
+| Подмена или удаление ресурсов каталога | `release_archive.inspect_zip`: идентичные имена и байты original assets; в реальном APK — 3 исходных assets, без добавлений; 16 отрицательных тестов |
+| Лишние DEX, обманная подпись, исходники/ключи | Только `classes.dex` и `classes2.dex`, 2-й DEX byte-identical от GitHub CI, ZIP paths/duplicate/name защита; signed gate всегда выполняет `apksigner verify` |
+| Устаревший compiled DEX при новом Android-коде | `ci_provenance.py`: CI commit + digest ВСЕХ Java-файлов + DEX SHA, неправильный commit/source/Dex reject; 11 negative cases |
+| Ошибочный выпуск unsigned | Только `--unsigned-inspection` + явное имя `*-INSPECTION-UNSIGNED.apk`; запрет --signing-dir; signed path не принимает CI-prebuilt DEX |
+| Реальный переносимый kit | Скачать ZIP GitHub Actions; запустить все четыре contract/archive/mode/provenance теста без Git checkout; в ZIP отсутствует signing |
+| Физический HONOR / BT | **Не проверено**; host и APK smoke не подтверждают реальный акустический результат |
+
+Полный CI `7e49152d` — **PASS**, https://github.com/manufact-test/nomusic/actions/runs/40941509415. См. последнюю секцию [NEXT-CHAT.md](NEXT-CHAT.md) и практический [RELEASE-0352-STRUCTURAL-SMOKE-2026-10-29.md](RELEASE-0352-STRUCTURAL-SMOKE-2026-10-29.md). Старую матрицу ниже сохраняем.
+
+---
+
 ## Android 0.3.52: дополнительные обязательные release gates · 29.10.2026
 
 | Gate | Доказательство и запрет |
