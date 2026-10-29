@@ -16,5 +16,5 @@ subprocess.run(['java','-cp',str(out)+os.pathsep+str(json),'pro.celikom.nativepr
 
 subprocess.run(['java','-cp',str(out)+os.pathsep+str(json),'pro.celikom.nativeprobe.identitydiag.TestHandoverClock'],check=True)
 
-# Mandatory exclusive-audio / stale-callback gate. RED on 0.3.47 and GREEN only after owner-first stabilization.
+# Non-negotiable regression gate for user-reported HONOR overlapping audio and stale pause callbacks.
 subprocess.run(['java','-cp',str(out)+os.pathsep+str(json),'pro.celikom.nativeprobe.identitydiag.TestAudioOwnershipRegression'],check=True)
