@@ -62,6 +62,9 @@ jobs:
       - name: Reject altered or injected APK structures (negative regression cases)
         shell: bash
         run: python3 android/native-companion/tests/check_release_archive.py
+      - name: Assert unsigned inspection can never bypass signing
+        shell: bash
+        run: python3 android/native-companion/tests/check_release_modes.py
       - name: Run full Android native host regression suite
         shell: bash
         run: python3 android/native-companion/tests/run_engine.py
