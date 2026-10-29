@@ -20,7 +20,7 @@ public final class TestSourceEventArbiter {
    "stale 3648->61334 seek cannot override live 101197ms position");
   check(arb.discontinuity("106","106","106","106",23,23,101000,101150,101151,false,true)==SourceEventArbiter.Action.SEEK,
    "fresh same-item seek must reach replacement alignment");
-  check(arb.discontinuity("106","106","106","106",23,23,119500,0,40,false,false)==SourceEventArbiter.Action.BOUNDARY,
+  check(arb.discontinuity("106","106","106","106",23,23,119500,0,40,true,false)==SourceEventArbiter.Action.BOUNDARY,
    "confirmed same-alias repeat at beginning is a boundary");
   check(arb.mediaItem("106","107","106",false,4000)==SourceEventArbiter.Action.IGNORE,
    "old event alias cannot stop a newer live track");
