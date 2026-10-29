@@ -59,6 +59,27 @@ public final class TestAudioOwnershipRegression {
       "stale zero-position replay when live player at 40s is not a repeat");
   check(SourceTransitionGate.repeatAtBeginning(119500,0,40),
       "real song tail-to-head loop is a repeat");
+  // HONOR 0.3.50: outgoing alias briefly went to zero position while
+  // buffering, before Media3 published the next song alias.
+  check(SourceTransitionGate.outgoingItemReset("102","102",272537,276750,0,true,false,true,true),
+      "recognize true near-tail outgoing reset");
+  check(SourceTransitionGate.outgoingItemReset("103","103",263461,270480,0,true,false,true,true),
+      "recognize second HONOR outgoing reset");
+  check(!SourceTransitionGate.outgoingItemReset("102","102",272537,276750,0,true,false,false,true),
+      "ordinary pause cannot retire a song");
+  check(!SourceTransitionGate.outgoingItemReset("102","102",272537,276750,0,true,false,true,false),
+      "seek to start while not buffering cannot retire a song");
+  check(!SourceTransitionGate.outgoingItemReset("102","103",272537,276750,0,true,false,true,true),
+      "stale alias cannot retire current song");
+  check(!SourceTransitionGate.outgoingItemReset("102","102",10200,276750,0,true,false,true,true),
+      "early song reset is not a terminal transition");
+  TestEngine.playing();ReplacementEngine outgoing=TestEngine.e;MediaPlayer outgoingPlayer=outgoing.player;
+  outgoing.outgoingTrackReset(TestEngine.source("1",116000,true));
+  check(outgoingPlayer.released&&outgoingPlayer.volume==0f&&!outgoingPlayer.playing&&outgoing.effect==null,
+      "near-tail reset silences and releases outgoing source before next starts");
+  check(outgoing.completedKey!=null&&outgoing.player==null,
+      "old alias cannot reprepare a decoder while waiting for next item");
+  outgoing.close();
   // Exercise actual ReplacementEngine, not just the pure seek-position gate.
   // Stale callback must not force a second decoder seek on a short pause/resume
   // when audio is already aligned within 206ms (0.3.48 HONOR timeline).
