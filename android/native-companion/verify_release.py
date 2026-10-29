@@ -81,7 +81,7 @@ def main():
     # this artifact; repeated full Apktool decompilation can stall on Android 16.
     with zipfile.ZipFile(args.apk) as signed:
         dex = signed.read("classes2.dex")
-        assert dex.startswith(b"dex\\n"), "Signed addon has no DEX header"
+        assert dex.startswith(b"dex" + bytes([10])), "Signed addon has no DEX header"
         markers = (
             b"0.3.49", b"ReplacementEngine", b"AudioOwnership",
             b"SourceTransitionGate", b"AudioContinuityMonitor",
