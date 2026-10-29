@@ -13,9 +13,9 @@ public final class TestAudioCommandGateway {
  public static void main(String[] args)throws Exception {
   AudioOwnership owner=new AudioOwnership();owner.track("first");
   long generation=owner.epoch();MediaPlayer decoder=new MediaPlayer();
-  DynamicsProcessing effect=new DynamicsProcessing(0,101,null);effect.setEnabled(true);
+  DynamicsProcessing effect=new DynamicsProcessing(0,101,null);
   rejected(()->owner.startDecoder(decoder,effect,"first",generation),"source only cannot start secondary decoder");
-  owner.preparing();owner.volume(decoder,0f,null);owner.startDecoder(decoder,effect,"first",generation);
+  owner.prepareSourceEffect(effect);owner.volume(decoder,0f,null);owner.startDecoder(decoder,effect,"first",generation);
   ok(decoder.playing&&decoder.volume==0f,"preparing decoder runs silently");
   rejected(()->owner.seekDecoder(decoder,3000,"first",generation),"preparation without alignment cannot seek audibly");
   owner.aligning();owner.seekDecoder(decoder,1000,"first",generation);

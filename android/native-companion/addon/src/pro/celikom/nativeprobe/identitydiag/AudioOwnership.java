@@ -10,6 +10,7 @@ final class AudioOwnership {
  private String key,reason="initial";
  private long generation=1,pauseEpoch;
  private boolean originalMuted;
+ private DynamicsProcessing attachedEffect;
  private float commandedSecondary;
  State state(){return state;}
  String reason(){return reason;}
@@ -33,19 +34,31 @@ final class AudioOwnership {
   reason=why;
  }
  void preparing(){state=State.PREPARING;reason="preparing";}
+ /** Attach the current source effect only after the previous effect has retired. */
+ void prepareSourceEffect(DynamicsProcessing candidate){
+  if(key==null||state==State.STOPPED||candidate==null||!candidate.hasControl())
+   throw new IllegalStateException("unverified source session");
+  if(attachedEffect!=null||commandedSecondary>0.001f)
+   throw new IllegalStateException("audio effect still owned by previous transition");
+  candidate.setInputGainAllChannelsTo(0f);
+  if(candidate.setEnabled(true)!=AudioEffect.SUCCESS)
+   throw new IllegalStateException("cannot enable original attenuation");
+  attachedEffect=candidate;
+  preparing();
+ }
  void aligning(){state=State.ALIGNING;reason="aligning";}
  void replacement(){if(!originalMuted)throw new IllegalStateException("source not muted");state=State.REPLACEMENT;reason="replacement";}
  void paused(){state=State.PAUSED;reason="paused";pauseEpoch++;}
  long pauseLease(){return pauseEpoch;}
  boolean validPause(long lease){return state==State.PAUSED && pauseEpoch==lease;}
  void cancelPause(){pauseEpoch++;if(state==State.PAUSED){state=State.ALIGNING;reason="resume";}}
- void source(){state=State.SOURCE_ONLY;originalMuted=false;pauseEpoch++;reason="source_restored";}
+ void source(){state=State.SOURCE_ONLY;originalMuted=false;attachedEffect=null;commandedSecondary=0f;pauseEpoch++;reason="source_restored";}
  void recovering(String why){state=State.RECOVERING;pauseEpoch++;reason=why;}
  void unsupported(String why){state=State.TRACK_UNSUPPORTED;pauseEpoch++;reason=why;}
- void stopped(){generation++;pauseEpoch++;key=null;originalMuted=false;state=State.STOPPED;reason="stopped";}
+ void stopped(){generation++;pauseEpoch++;key=null;originalMuted=false;attachedEffect=null;commandedSecondary=0f;state=State.STOPPED;reason="stopped";}
  void grantReplacement(DynamicsProcessing effect){
   if(key==null||(state!=State.ALIGNING&&state!=State.REPLACEMENT))throw new IllegalStateException("handover requires current aligning track");
-  if(effect==null||!effect.hasControl()||!effect.getEnabled())
+  if(effect==null||effect!=attachedEffect||!effect.hasControl()||!effect.getEnabled())
    throw new IllegalStateException("no verified source attenuation");
   effect.setInputGainAllChannelsTo(-100f);
   originalMuted=true;state=State.REPLACEMENT;reason="exclusive_grant";
@@ -55,7 +68,7 @@ final class AudioOwnership {
   if(player==null)throw new IllegalStateException("no decoder");
   if(!Float.isFinite(value)||value<0f||value>1f)throw new IllegalArgumentException("invalid decoder volume");
   if(value>0.001f && (state!=State.REPLACEMENT || !originalMuted ||
-     effect==null || !effect.hasControl() || !effect.getEnabled()))
+     effect==null || effect!=attachedEffect || !effect.hasControl() || !effect.getEnabled()))
    throw new IllegalStateException("secondary gain without exclusive owner");
   player.setVolume(value,value);
   commandedSecondary=value;
@@ -74,7 +87,7 @@ final class AudioOwnership {
   if(player==null||!current(ticket,identity))throw new IllegalStateException("stale decoder start");
   if(state!=State.PREPARING&&state!=State.ALIGNING&&state!=State.REPLACEMENT)
    throw new IllegalStateException("decoder start outside active lifecycle");
-  if(effect==null||!effect.hasControl()||!effect.getEnabled())
+  if(effect==null||effect!=attachedEffect||!effect.hasControl()||!effect.getEnabled())
    throw new IllegalStateException("cannot start decoder without verified session effect");
   if(commandedSecondary>0.001f&&state!=State.REPLACEMENT)
    throw new IllegalStateException("cannot start audible decoder before exclusive grant");

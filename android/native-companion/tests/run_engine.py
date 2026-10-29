@@ -39,3 +39,6 @@ subprocess.run(['java','-cp',str(out)+os.pathsep+str(json),'pro.celikom.nativepr
 
 # Sanitized latest 0.3.51 HONOR clock journal; observe safe per-track fallback.
 subprocess.run(['java','-cp',str(out)+os.pathsep+str(json),'pro.celikom.nativeprobe.identitydiag.TestHonor051Journal',str(r/'honor-0.3.51-clock-replay.tsv')],check=True)
+
+# Structural regression: no direct decoder or source FX commands can bypass ownership.
+subprocess.run(['python3',r/'check_audio_architecture.py'],check=True)

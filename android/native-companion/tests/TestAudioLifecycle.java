@@ -12,7 +12,7 @@ public final class TestAudioLifecycle {
   MediaPlayer mp=new MediaPlayer();
   boolean rejected=false;try{a.volume(mp,0.5f,null);}catch(IllegalStateException expected){rejected=true;}
   ok(rejected&&mp.volume==0f,"secondary cannot play before source is muted");
-  DynamicsProcessing fx=new DynamicsProcessing(0,101,null);fx.setEnabled(true);
+  DynamicsProcessing fx=new DynamicsProcessing(0,101,null);a.prepareSourceEffect(fx);
   rejected=false;try{a.grantReplacement(fx);}catch(IllegalStateException expected){rejected=true;}
   ok(rejected,"prepare alone cannot grant audible output");
   a.aligning();a.grantReplacement(fx);a.volume(mp,0.75f,fx);
@@ -37,7 +37,7 @@ public final class TestAudioLifecycle {
    }
   };
   AudioOwnership sequence=new AudioOwnership();sequence.track("ordered");sequence.aligning();
-  orderedEffect.setEnabled(true);sequence.grantReplacement(orderedEffect);
+  sequence.prepareSourceEffect(orderedEffect);sequence.aligning();sequence.grantReplacement(orderedEffect);
   sequence.volume(ordered,0.8f,orderedEffect);
   AudioOwnership.RestoreResult outcome=sequence.restoreSource(ordered,orderedEffect);
   ok(outcome.gainReset&&outcome.disabled&&outcome.released,"source restoration closes audio effect");
