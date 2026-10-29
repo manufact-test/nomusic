@@ -1,0 +1,39 @@
+name: CELIKOM read-only network diagnosis 2026-10-29
+on:
+  push:
+    branches: [feature/diagnose-desktop-0465-outage-20261029]
+permissions:
+  contents: read
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate packaged API origin and public health/config responses
+        shell: bash
+        run: |
+          set +e
+          echo '--- extension API config (public URL only) ---'
+          find extension -name config.json | head -10
+          cat extension/public/api/config.json 2>/dev/null || true
+          echo '--- DNS ---'
+          getent hosts darkred-camel-588676.hostingersite.com || true
+          echo '--- config HTTP response, no credentials ---'
+          curl -sS --max-time 15 -D /tmp/celikom-http-config -o /tmp/celikom-body-config 'https://darkred-camel-588676.hostingersite.com/api/v1/config'
+          head -20 /tmp/celikom-http-config 2>/dev/null
+          head -c 900 /tmp/celikom-body-config 2>/dev/null
+          echo ''
+          echo '--- health HTTP response, no credentials ---'
+          curl -sS --max-time 15 -D /tmp/celikom-http-health -o /tmp/celikom-body-health 'https://darkred-camel-588676.hostingersite.com/api/v1/health'
+          head -20 /tmp/celikom-http-health 2>/dev/null
+          head -c 900 /tmp/celikom-body-health 2>/dev/null
+          echo ''
+          echo '--- auth/me without authorization header ---'
+          curl -sS --max-time 15 -D /tmp/celikom-http-auth -o /tmp/celikom-body-auth 'https://darkred-camel-588676.hostingersite.com/api/v1/auth/me'
+          head -15 /tmp/celikom-http-auth 2>/dev/null
+          head -c 500 /tmp/celikom-body-auth 2>/dev/null
+          echo ''
+          echo '--- CORS check ---'
+          curl -sS --max-time 15 -H 'Origin: chrome-extension://ci-readonly-test' -D /tmp/celikom-cors -o /dev/null 'https://darkred-camel-588676.hostingersite.com/api/v1/config'
+          grep -iE 'HTTP/|access-control|content-type|location:' /tmp/celikom-cors 2>/dev/null || true
