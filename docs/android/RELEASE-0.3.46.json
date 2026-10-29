@@ -1,0 +1,60 @@
+{
+  "version": "0.3.46",
+  "version_code": 47,
+  "release_date": "2026-10-29",
+  "source_branch": "feature/android-0346-pause-duration-ui",
+  "source_head": "1f668d99930bb37c0841aba9c1bdc647a641e920",
+  "filename": "CELIKOM-0.3.46-install.apk",
+  "apk_sha256": "fe0c2ef41dca6bef321262d02baba962302d85eb1b654c2e3db748f84400c8da",
+  "signer_sha256": "67fe81c56fac1c1d145344b69a0e3faf9005cf6607f4e26ca27d5926c3eefc4f",
+  "base_apk_sha256": "170b1883e292570d28a3b5c619cf000eaccd9d11ee85ca6f6c08f7b50e5f72c9",
+  "addon_dex_sha256": "25ac2d2cba5c33b7b7daa7e8e3b05082ba976cea804384a73ab9cffd112d5f49",
+  "source_fingerprint": "75c165b0e0d932bfa82b97a5c8814fb1b560ba0253d6ec6115b5e53851a245d6",
+  "inputs": [
+    "CELIKOM-combined-20261029-124951.txt",
+    "CELIKOM-song-6-diagnostics.json"
+  ],
+  "observed": {
+    "song": "Монпасье",
+    "report_category": "audio_issue",
+    "support_reports_accepted": true,
+    "pause_cycles": 3,
+    "connection_status": "backend requests HTTP 200 in captured scenario",
+    "duration_mismatch_examples": [
+      {
+        "title": "Биг сити лайф",
+        "replacement_shorter_ms": 1354
+      },
+      {
+        "title": "Крылья",
+        "replacement_shorter_ms": 582
+      }
+    ]
+  },
+  "fixes": [
+    "Support ticket confirms success in persistent green text; failed submissions appear red",
+    "Reduce repeat fade after confirmed resume from 360ms to 180ms while retaining existing stable Bluetooth clock-offset guard",
+    "Reject replacement if server or decoded replacement differs in duration from native by more than 500ms; leave original playing without muting",
+    "Send sanitized duration mismatch diagnostic reason to existing server-compatible trace"
+  ],
+  "unchanged": [
+    "API origin, authentication, permissions and component inventory",
+    "Original signing certificate and package name",
+    "Original audio assets and catalogue",
+    "Automatic next-track detection, metadata matching, output route protections and 350ms handover drift guard",
+    "Desktop extension 0.4.65, server and admin"
+  ],
+  "verification": {
+    "complete_host_and_regression_suite": "pass",
+    "recorded_bluetooth_car_resume": "pass",
+    "hundreds_of_transitions_and_extended_virtual_playback": "pass",
+    "native_support_submission_tests": "pass",
+    "private_source_and_signing_material_absent": "pass",
+    "signed_apk_v2_v3_and_signing_continuity": "pass",
+    "android_manifest_and_api_origin": "pass",
+    "signed_dex_has_500ms_duration_guard": "pass",
+    "signed_dex_has_180ms_pause_resume_fade": "pass",
+    "zip_integrity": "pass",
+    "physical_phone_sound_validation": "not yet performed"
+  }
+}

@@ -16,6 +16,11 @@ public class TestEngine {
   playing();MediaPlayer first=e.player;p.current=source("1",1000,false);e.update(p.current);ok(!first.playing&&e.effect!=null,"brief source pause keeps prepared audio and attenuation");p.current=source("1",1000,true);e.update(p.current);ok(first.playing&&e.effect!=null,"resume reattaches source effect and resumes replacement");p.current=source("1",60000,true);e.update(p.current);ok(first.position==60000&&first.playing&&e.effect!=null,"seek follows current source without fixed offset");
   p.current=source("2",0,true);e.update(p.current);ok(first.released&&e.player==null&&e.effect==null,"track change restores original");
   reset("ALBUM");e.arm();NativeApi.Result old=api.resolved;p.current=source("2",0,true);old.done(found(),null);ok(api.downloads==0&&e.effect==null,"old resolve callback cannot play for new track");
+  ok(PlaybackDuration.safe(180880,180872)&&PlaybackDuration.safe(236090,236173),"matching audio durations keep playing");
+  ok(!PlaybackDuration.safe(232450,231096)&&!PlaybackDuration.safe(272700,272118),"short replacement tracks cannot cut off originals");
+  ok(PlaybackDuration.safe(120000,120500)&&!PlaybackDuration.safe(120000,120501),"the tail guard has a deterministic 500ms limit");
+  reset("ALBUM");e.arm();api.resolved.done(new JSONObject().put("found",true).put("replacement_id",7).put("duration_ms",119418),null);
+  ok(e.player==null&&!e.preparing&&api.downloads==0&&e.effect==null,"early-ending 582ms replacement never mutes native source");
   reset("ALBUM");e.arm();resolve();NativeApi.AudioResult oldDownload=api.downloaded;e.stop("owner_stop");File stale=File.createTempFile("engine-test", ".audio");oldDownload.done(stale,null);ok(!stale.exists()&&e.player==null,"late download after stop is discarded");
   playing();first=e.player;SystemClock.now+=13*60*1000;p.current=source("1",1000,true);e.update(p.current);ok(e.armed()&&!first.released&&e.effect!=null,"replacement remains enabled past the former twelve-minute limit");
   playing();first=e.player;e.update(null);ok(!first.playing&&e.effect==null&&!first.released,"brief lost source silences replacement and restores original while retaining decoder");SystemClock.now+=1600;e.update(null);ok(first.released&&e.effect==null,"sustained source loss releases retained decoder");

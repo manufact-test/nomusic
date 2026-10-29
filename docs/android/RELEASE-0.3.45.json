@@ -1,0 +1,39 @@
+{
+  "version": "0.3.45",
+  "version_code": 46,
+  "release_date": "2026-10-29",
+  "source_branch": "feature/android-audit-0345-support-20261029",
+  "source_head": "ccb883059d17514acf10e00d480dac6360fe4686",
+  "filename": "CELIKOM-0.3.45-install.apk",
+  "apk_sha256": "a9a4a118351c215bf5682fd809203581daae5dde17a3fc1d0111f50f2e724a03",
+  "signing_certificate_sha256": "67fe81c56fac1c1d145344b69a0e3faf9005cf6607f4e26ca27d5926c3eefc4f",
+  "package_name": "pro.celikom.nativeprobe",
+  "baseline": "CELIKOM-0.3.22-install.apk",
+  "baseline_sha256": "170b1883e292570d28a3b5c619cf000eaccd9d11ee85ca6f6c08f7b50e5f72c9",
+  "change_scope": [
+    "SupportTrace: map privacy-safe native streaming/alignment failures to existing server trace event schema",
+    "MobileActions: keep song support JSON under 8 KiB by dropping oldest trace events, preserving message and newest events",
+    "AppVersion/build/verification bumped to 0.3.45 / versionCode 46"
+  ],
+  "unchanged": [
+    "Audio replacement engine",
+    "Launcher redirect and share handling from 0.3.44",
+    "App permissions and components",
+    "API origin",
+    "Original audio/catalogue assets",
+    "Signing certificate",
+    "Private admin full-diagnostics gating"
+  ],
+  "verification": {
+    "native_engine_and_regression_tests": "pass",
+    "stress_test_support_trace_request_size": "pass",
+    "signed_apk_v3": "pass",
+    "same_original_signer": "pass",
+    "signed_apk_independent_dex_check": "pass",
+    "api_origin_inside_signed_dex": "pass",
+    "zip_integrity": "pass",
+    "manifest_boundary": "pass",
+    "installed_device_validation": "not yet performed"
+  },
+  "signing_note": "Original private owner key remained local; no signing material committed to GitHub. Device-only launcher fix still requires physical-phone confirmation."
+}
