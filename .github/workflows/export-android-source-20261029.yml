@@ -1,0 +1,29 @@
+name: Export isolated Android source for offline owner build
+on:
+  push:
+    branches: [feature/android-source-transfer-20261029]
+permissions:
+  contents: read
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/android-support-diagnostics-20261029
+          persist-credentials: false
+      - name: Package exact Android-only source and metadata
+        run: |
+          set -euo pipefail
+          git rev-parse HEAD > android-source-commit.txt
+          tar -czf celikom-android-source-0.3.44.tgz android/native-companion docs/android
+          sha256sum celikom-android-source-0.3.44.tgz > celikom-android-source-0.3.44.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: celikom-android-source-0.3.44-offline
+          path: |
+            celikom-android-source-0.3.44.tgz
+            celikom-android-source-0.3.44.sha256
+            android-source-commit.txt
+          retention-days: 3
