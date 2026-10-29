@@ -5,7 +5,7 @@ function node(value=''){const listeners=new Map();return {value,textContent:'',h
 function fixture(){
  const nodes=new Map(['panel','send','description','note','kind','category','song-fields','track','label'].map(k=>[k,node()]));nodes.get('kind').value='general';nodes.get('category').value='audio_issue';
  const requests=[];let fail=false,state={enabled:true,phase:'READY',track:{id:'50163040',confidence:260,ambiguous:false,metadata:{durationMs:187520,title:'Холодно',artist:'SLIMUS'}},token:'SECRET'};
- const send=async m=>{if(m.type==='CELIKOM_STATUS_GET')return state;requests.push(m);if(fail)throw Error('network');return {ok:true,ticket_id:5};};
+ const send=async m=>{if(m.type==='CELIKOM_STATUS_GET'||m.type==='CELIKOM_SUPPORT_STATUS_GET')return state;requests.push(m);if(fail)throw Error('network');return {ok:true,ticket_id:5};};
  let draft={};globalThis.chrome={runtime:{getManifest:()=>({version:'0.4.41'})},storage:{session:{get:async()=>draft,set:async v=>Object.assign(draft,v),remove:async k=>delete draft[k]}}};
  return {nodes,requests,send,doc:{querySelector:s=>nodes.get(s.match(/data-support-([^\]]+)/)[1])},setFail:v=>fail=v,setTrack:id=>state={...state,track:{...state.track,id}}};
 }
