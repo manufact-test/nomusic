@@ -147,15 +147,3 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
-      - uses: actions/upload-artifact@v4
-        with:
-          name: celikom-android-offline-kit
-          path: android-native-offline-kit/
-          if-no-files-found: error
-          retention-days: 2
-      - uses: actions/upload-artifact@v4
-        with:
-          name: celikom-android-0352-dex-unsigned
-          path: android/native-companion/android-native-classes2.dex
-          if-no-files-found: error
-          retention-days: 7
