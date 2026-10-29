@@ -68,11 +68,17 @@ def main():
         legacy = (args.decoded / "smali/pro/celikom/nativeprobe/MainActivity.smali").read_text()
         method = re.search(r"\.method protected onCreate\(Landroid/os/Bundle;\)V(.*?)\.end method", legacy, re.S).group(1)
         assert "identitydiag/RecorderActivity" in method and "->finish()V" in method and "setContentView" not in method
+        assert "new-instance v0, Landroid/content/Intent;" in method and "->setClass(" not in method, "Launcher still forwards untrusted task flags"
+        assert "android.intent.action.SEND" in method, "Shared text links no longer forwarded"
     # Inspect the signed deliverable independently, not just an intermediate DEX hash.
     with tempfile.TemporaryDirectory(prefix="celikom-final-apk-") as directory:
         extracted = Path(directory) / "decoded"
         subprocess.run(["java", "-jar", str(args.apktool), "d", str(args.apk), "-r", "-f", "-o", str(extracted)], check=True, stdout=subprocess.DEVNULL)
         addon = extracted / "smali_classes2/pro/celikom/nativeprobe/identitydiag"
+        support = (addon / "SupportTrace.smali").read_text()
+        assert "replacement_recovery" in support and "trace" in support, "Signed APK lacks bounded support trace"
+        launcher = (extracted / "smali/pro/celikom/nativeprobe/MainActivity.smali").read_text()
+        assert "new-instance v0, Landroid/content/Intent;" in launcher and "->setClass(" not in launcher, "Signed launcher still reuses task Intent"
         matcher = (addon / "AlbumMatch.smali").read_text()
         match_body = re.search(r"\.method static match\(.*?\.end method", matcher, re.S).group(0)
         assert ".method static artistKey(" in matcher and "quest pistols show" in matcher, "Signed APK is missing the artist-pair fix"
