@@ -68,6 +68,16 @@ final class AudioOwnership {
   if(!originalMuted)effect.setInputGainAllChannelsTo(-100f);
   originalMuted=true;state=State.REPLACEMENT;reason="exclusive_grant";
  }
+ /* Fade the original only while the replacement remains silent.
+    Grant exclusive replacement only at the final -100 dB step. */
+ void fadeSourceBeforeGrant(DynamicsProcessing effect,float progress){
+  if(state!=State.ALIGNING||originalMuted||effect==null||effect!=attachedEffect
+      ||!effect.hasControl()||!effect.getEnabled()||commandedSecondary>0.001f)
+   throw new IllegalStateException("source fade requires silent current replacement");
+  if(!Float.isFinite(progress)||progress<0f||progress>1f)
+   throw new IllegalArgumentException("invalid source fade progress");
+  effect.setInputGainAllChannelsTo(-100f*progress);
+ }
  /** No code may send a positive secondary volume without the verified grant. */
  void volume(MediaPlayer player,float value,DynamicsProcessing effect){
   if(player==null)throw new IllegalStateException("no decoder");

@@ -19,10 +19,16 @@ public final class TestRealFailures {
   ReplacementEngine e=TestEngine.e;e.arm();
   TestEngine.api.resolved.done(new JSONObject()
     .put("found",true).put("replacement_id",10).put("duration_ms",121469),null);
-  check(e.player==null&&e.effect==null&&!e.preparing,
-      "wrong-duration audio must not be decoded or mute native playback");
+  check(e.player==null&&e.effect==null&&e.preparing,
+      "the recorded 1469ms metadata difference can only begin an inaudible verification");
+  java.io.File wrongFile=java.io.File.createTempFile("honor-wrong-edition", ".audio");
+  TestEngine.api.downloaded.done(wrongFile,null);
+  check(e.player!=null&&e.effect==null,"no original attenuation before measuring the replacement decoder");
+  e.player.duration=121469;e.player.prepared.onPrepared(e.player);
+  check(e.player==null&&e.effect==null&&!e.preparing&&!wrongFile.exists(),
+      "recorded 1469ms measured wrong edition must never become audible");
   check(e.identityKey.equals(e.completedKey)&&e.status.contains("длительности"),
-      "duration mismatch remains visible as a per-track skip, not an unexplained disappearance");
+      "measured mismatch remains a per-track skip, not an unexplained disappearance");
   int lookups=TestEngine.api.resolves;
   SystemClock.now+=10000;sample(e,11000);
   check(TestEngine.api.resolves==lookups&&e.status.contains("длительности"),

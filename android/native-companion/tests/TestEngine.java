@@ -19,8 +19,14 @@ public class TestEngine {
   ok(PlaybackDuration.safe(180880,180872)&&PlaybackDuration.safe(236090,236173),"matching audio durations keep playing");
   ok(!PlaybackDuration.safe(232450,231096)&&!PlaybackDuration.safe(272700,272118),"short replacement tracks cannot cut off originals");
   ok(PlaybackDuration.safe(120000,120500)&&!PlaybackDuration.safe(120000,120501),"the tail guard has a deterministic 500ms limit");
+  /* Metadata discrepancy is silently probed; the actual file gate stays strict. */
   reset("ALBUM");e.arm();api.resolved.done(new JSONObject().put("found",true).put("replacement_id",7).put("duration_ms",119418),null);
-  ok(e.player==null&&!e.preparing&&api.downloads==0&&e.effect==null,"early-ending 582ms replacement never mutes native source");
+  ok(e.player==null&&e.preparing&&api.downloads==1&&e.effect==null,"582ms metadata discrepancy may be measured without muting the original");
+  File measuredFile=File.createTempFile("engine-measured", ".audio");api.downloaded.done(measuredFile,null);
+  e.player.duration=120000;e.player.prepared.onPrepared(e.player);
+  ok(e.ready&&e.effect!=null,"correct 120000ms measured file plays despite misleading 119418ms server metadata");
+  reset("ALBUM");e.arm();api.resolved.done(new JSONObject().put("found",true).put("replacement_id",7).put("duration_ms",118000),null);
+  ok(!e.preparing&&api.downloads==0&&e.effect==null,"metadata discrepancy beyond bounded probe never downloads or mutes");
   reset("ALBUM");e.arm();resolve();NativeApi.AudioResult oldDownload=api.downloaded;e.stop("owner_stop");File stale=File.createTempFile("engine-test", ".audio");oldDownload.done(stale,null);ok(!stale.exists()&&e.player==null,"late download after stop is discarded");
   playing();first=e.player;SystemClock.now+=13*60*1000;p.current=source("1",1000,true);e.update(p.current);ok(e.armed()&&!first.released&&e.effect!=null,"replacement remains enabled past the former twelve-minute limit");
   playing();first=e.player;e.update(null);ok(!first.playing&&e.effect==null&&!first.released,"brief lost source silences replacement and restores original while retaining decoder");SystemClock.now+=1600;e.update(null);ok(first.released&&e.effect==null,"sustained source loss releases retained decoder");
