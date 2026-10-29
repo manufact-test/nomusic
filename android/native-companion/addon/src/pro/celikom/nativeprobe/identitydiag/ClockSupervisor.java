@@ -4,7 +4,7 @@ package pro.celikom.nativeprobe.identitydiag;
  */
 final class ClockSupervisor {
  enum Decision { KEEP, SEEK, RESTORE_SOURCE }
- static final long WARN_DRIFT_MS=700, CONFIRM_MS=1500, CORRECTION_DRIFT_MS=1500, CORRECTION_CONFIRM_MS=1000;
+ static final long WARN_DRIFT_MS=700, CONFIRM_MS=1500, CORRECTION_DRIFT_MS=1500, CORRECTION_CONFIRM_MS=500;
  private long unstableSince=-1,severeSince=-1;
  private int severeCorrections;
  Decision assess(boolean aligned,boolean live,boolean sourceJump,long drift,long now){
