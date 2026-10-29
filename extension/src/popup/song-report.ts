@@ -30,5 +30,19 @@ export function buildSongReport(state, category, version) {
     .filter(row => ["config", "auth/me", "entitlement", "tracks/version-status", "resolve", "rewards"].includes(row.endpoint) && /^[a-z_]{1,64}$/.test(row.result))
     .map(row => ({ endpoint: row.endpoint, httpStatus: Number.isInteger(row.httpStatus) && row.httpStatus >= 100 && row.httpStatus <= 599 ? row.httpStatus : null,
       result: row.result, elapsedMs: Number.isFinite(row.elapsedMs) && row.elapsedMs >= 0 && row.elapsedMs <= 300000 ? Math.round(row.elapsedMs) : null }));
+  // Short, explicitly submitted support timeline; never include console logs or URLs.
+  const now = Date.now();
+  const trace = (Array.isArray(state.network) ? state.network : []).slice(-20)
+    .filter(row => ["config","auth/me","entitlement","tracks/version-status","resolve","rewards"].includes(row?.endpoint))
+    .map(row => ({
+      event: "backend_http", endpoint: row.endpoint,
+      ageMs: Number.isFinite(row.at) ? Math.max(0, Math.min(86400000, Math.round(now - row.at))) : 0,
+      elapsedMs: Number.isFinite(row.elapsedMs) ? Math.max(0, Math.min(86400000, Math.round(row.elapsedMs))) : 0,
+      httpCode: Number.isInteger(row.httpStatus) && row.httpStatus>=100 && row.httpStatus<=599 ? row.httpStatus : undefined,
+      result: code(row.result) || undefined
+    }));
+  trace.push({event:"status",ageMs:0,phase:code(state.phase) || undefined,
+    reason:code(state.replacementError) || undefined});
+  diagnostics.trace=trace.slice(-48);
   return { category, version, track: { id: target.id, title: target.title, artist: target.artist, album: target.album }, diagnostics };
 }
