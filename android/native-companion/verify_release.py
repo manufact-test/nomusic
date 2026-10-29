@@ -10,6 +10,7 @@ import tempfile
 import xml.etree.ElementTree as ET
 import zipfile
 from release_contract import load_release
+from release_archive import inspect_zip
 
 ROOT = Path(__file__).resolve().parent
 VERSION, VERSION_CODE, SIGNER_CERT_SHA256 = load_release()
@@ -65,21 +66,14 @@ def main():
     badging = subprocess.check_output([str(args.build_tools / "aapt"), "dump", "badging", str(args.apk)], text=True)
     assert "versionCode='" + str(VERSION_CODE) + "'" in badging and "versionName='" + VERSION + "'" in badging
     assert "sdkVersion:'28'" in badging and "targetSdkVersion:'36'" in badging
-    with zipfile.ZipFile(args.apk) as built, zipfile.ZipFile(args.base_apk) as base:
-        assert len(built.namelist()) == len(set(built.namelist())), "Duplicate APK entry"
-        assert sorted(n for n in built.namelist() if re.fullmatch(r"classes\d*\.dex", n)) == ["classes.dex", "classes2.dex"]
-        assert built.read("classes2.dex") == args.compiled_dex.read_bytes()
-        for name in base.namelist():
-            if name.startswith("assets/") and name != "assets/identity-integration-source.zip":
-                assert built.read(name) == base.read(name), "Unexpected asset/catalogue change: " + name
-        assert "assets/identity-integration-source.zip" not in built.namelist(), "Recovery source archive in public APK"
-        assert not any(n.endswith((".java", ".py", ".ts", ".map", ".p12", ".jks", ".pem", ".zip")) for n in built.namelist()), "Development/signing material in public APK"
-        assert app.get(android + "debuggable", "false") == "false"
-        legacy = (args.decoded / "smali/pro/celikom/nativeprobe/MainActivity.smali").read_text()
-        method = re.search(r"\.method protected onCreate\(Landroid/os/Bundle;\)V(.*?)\.end method", legacy, re.S).group(1)
-        assert "identitydiag/RecorderActivity" in method and "->finish()V" in method and "setContentView" not in method
-        assert "new-instance v0, Landroid/content/Intent;" in method and "->setClass(" not in method, "Launcher still forwards untrusted task flags"
-        assert "android.intent.action.SEND" in method, "Shared text links no longer forwarded"
+    archive_proof = inspect_zip(args.apk, args.base_apk, args.compiled_dex)
+    assert archive_proof["original_assets_unchanged"]
+    assert app.get(android + "debuggable", "false") == "false"
+    legacy = (args.decoded / "smali/pro/celikom/nativeprobe/MainActivity.smali").read_text()
+    method = re.search(r"\.method protected onCreate\(Landroid/os/Bundle;\)V(.*?)\.end method", legacy, re.S).group(1)
+    assert "identitydiag/RecorderActivity" in method and "->finish()V" in method and "setContentView" not in method
+    assert "new-instance v0, Landroid/content/Intent;" in method and "->setClass(" not in method, "Launcher still forwards untrusted task flags"
+    assert "android.intent.action.SEND" in method, "Shared text links no longer forwarded"
     # Inspect the *signed* DEX directly instead of decompiling the entire APK.
     # The byte-for-byte compiled DEX comparison above binds all source/tests to
     # this artifact; repeated full Apktool decompilation can stall on Android 16.
@@ -117,6 +111,7 @@ def main():
         "signing_continuity": True, "manifest_matches_approved_changes": True,
         "permissions_components_unchanged": True,
         "original_catalogue_assets_unchanged": True, "source_archive_absent": True, "legacy_launcher_gated": True,
+        "archive_integrity_verified": True, "asset_count": archive_proof["asset_count"],
         "physical_phone_playback_verified": False,
         "final_apk_artist_matcher_verified": True, "final_apk_handover_guard_verified": True, "final_apk_exclusive_audio_gate_verified": True, "final_apk_handover_tolerance_ms": 350,
         "source_fingerprint": hashlib.sha256(json.dumps(source_digests, sort_keys=True).encode()).hexdigest(),

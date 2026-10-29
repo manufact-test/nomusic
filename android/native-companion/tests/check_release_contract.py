@@ -72,3 +72,13 @@ assert inputs["jdk"] == 17
 assert inputs["apktool"] == "2.11.1"
 assert inputs["apktool_sha256"] == "56d59c524fc764263ba8d345754d8daf55b1887818b15cd3b594f555d249e2db"
 print("PASS: Android SDK/JDK/Apktool toolchain release pin")
+
+
+# All signed release verifiers must run the strict shared archive guard.
+from pathlib import Path as _Path
+v = (ROOT / "verify_release.py").read_text()
+assert "from release_archive import inspect_zip" in v
+assert 'archive_proof = inspect_zip(args.apk, args.base_apk, args.compiled_dex)' in v
+workflow = (_Path(__file__).resolve().parents[3] / ".github/workflows/android-0348-validation.yml").read_text()
+assert "tests/check_release_archive.py" in workflow
+print("PASS: strict archive guard is wired to signed release and CI")
