@@ -36,3 +36,12 @@ def load_release(root=ROOT):
     metadata = json.loads((root / "release-spec.json").read_text(encoding="utf-8"))
     java = (root / "addon/src/pro/celikom/nativeprobe/identitydiag/AppVersion.java").read_text(encoding="utf-8")
     return validate_release(metadata, java)
+
+
+def patch_apktool_metadata(text, version, code):
+    """Update exactly one versionCode and one versionName, preserving line breaks."""
+    text, n_code = re.subn(r"(?m)^versionCode: [0-9]+[ \t]*$", "versionCode: " + str(code), text)
+    text, n_name = re.subn(r"(?m)^versionName: [^\n]+$", "versionName: " + version, text)
+    if n_code != 1 or n_name != 1:
+        raise ValueError("Unexpected baseline Apktool version metadata")
+    return text

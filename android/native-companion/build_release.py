@@ -15,7 +15,7 @@ import subprocess
 import tempfile
 import zipfile
 import xml.etree.ElementTree as ET
-from release_contract import load_release
+from release_contract import load_release, patch_apktool_metadata
 
 ROOT = Path(__file__).resolve().parent
 VERSION, VERSION_CODE, SIGNER_CERT_SHA256 = load_release()
@@ -58,9 +58,7 @@ def main():
     shutil.rmtree(decoded / "smali_classes2")
     yml = decoded / "apktool.yml"
     config = yml.read_text()
-    config, code_count = re.subn(r"(?m)^versionCode: \\d+\\s*$", "versionCode: " + str(VERSION_CODE), config)
-    config, name_count = re.subn(r"(?m)^versionName: [^\\n]+$", "versionName: " + VERSION, config)
-    assert code_count == name_count == 1, "Unexpected baseline Apktool version metadata"
+    config = patch_apktool_metadata(config, VERSION, VERSION_CODE)
     yml.write_text(config)
     manifest = decoded / "AndroidManifest.xml"
     ET.register_namespace("android", "http://schemas.android.com/apk/res/android")
