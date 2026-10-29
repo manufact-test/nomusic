@@ -21,6 +21,10 @@ public final class TestAudioCommandGateway {
   owner.aligning();owner.seekDecoder(decoder,1000,"first",generation);
   ok(decoder.seekCalls==1,"silent alignment seeks current decoder");
   owner.grantReplacement(effect);owner.volume(decoder,1f,effect);
+  int gainWrites=effect.gainWrites,volumeWrites=decoder.volumeWrites;
+  for(int poll=0;poll<80;poll++){owner.grantReplacement(effect);owner.volume(decoder,1f,effect);}
+  ok(effect.gainWrites==gainWrites,"steady playback does not rewrite original effect gain");
+  ok(decoder.volumeWrites==volumeWrites,"steady playback does not rewrite decoder volume");
   rejected(()->owner.seekDecoder(decoder,5000,"first",generation),"audible decoder cannot seek without silencing");
   owner.volume(decoder,0f,effect);owner.aligning();
   owner.seekDecoder(decoder,5000,"first",generation);

@@ -22,7 +22,12 @@ final class SourceEventArbiter {
    return SourceTransitionGate.currentItemBoundary(previousAlias,liveAlias,eventAlias,repeated)
      ?Action.BOUNDARY:Action.IGNORE;
   }
-  return userSeek&&SourceTransitionGate.currentPositionSeek(livePosition,newPosition)
+  // Matching timestamps do not authorize a stale track's seek.
+  if(!userSeek||previousAlias==null||liveAlias==null||eventAlias==null
+     ||!Objects.equals(previousAlias,liveAlias)
+     ||!Objects.equals(eventAlias,liveAlias)
+     ||(oldAlias!=null&&!Objects.equals(oldAlias,liveAlias)))return Action.IGNORE;
+  return SourceTransitionGate.currentPositionSeek(livePosition,newPosition)
     ?Action.SEEK:Action.IGNORE;
  }
 }

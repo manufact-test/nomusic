@@ -12,6 +12,7 @@ final class AudioOwnership {
  private boolean originalMuted;
  private DynamicsProcessing attachedEffect;
  private float commandedSecondary;
+ private MediaPlayer lastVolumePlayer;
  State state(){return state;}
  String reason(){return reason;}
  long epoch(){return generation;}
@@ -52,15 +53,16 @@ final class AudioOwnership {
  long pauseLease(){return pauseEpoch;}
  boolean validPause(long lease){return state==State.PAUSED && pauseEpoch==lease;}
  void cancelPause(){pauseEpoch++;if(state==State.PAUSED){state=State.ALIGNING;reason="resume";}}
- void source(){state=State.SOURCE_ONLY;originalMuted=false;attachedEffect=null;commandedSecondary=0f;pauseEpoch++;reason="source_restored";}
+ void source(){state=State.SOURCE_ONLY;originalMuted=false;attachedEffect=null;commandedSecondary=0f;lastVolumePlayer=null;pauseEpoch++;reason="source_restored";}
  void recovering(String why){state=State.RECOVERING;pauseEpoch++;reason=why;}
  void unsupported(String why){state=State.TRACK_UNSUPPORTED;pauseEpoch++;reason=why;}
- void stopped(){generation++;pauseEpoch++;key=null;originalMuted=false;attachedEffect=null;commandedSecondary=0f;state=State.STOPPED;reason="stopped";}
+ void stopped(){generation++;pauseEpoch++;key=null;originalMuted=false;attachedEffect=null;commandedSecondary=0f;lastVolumePlayer=null;state=State.STOPPED;reason="stopped";}
  void grantReplacement(DynamicsProcessing effect){
   if(key==null||(state!=State.ALIGNING&&state!=State.REPLACEMENT))throw new IllegalStateException("handover requires current aligning track");
   if(effect==null||effect!=attachedEffect||!effect.hasControl()||!effect.getEnabled())
    throw new IllegalStateException("no verified source attenuation");
-  effect.setInputGainAllChannelsTo(-100f);
+  // Avoid repeated DSP writes during stable playback polling.
+  if(!originalMuted)effect.setInputGainAllChannelsTo(-100f);
   originalMuted=true;state=State.REPLACEMENT;reason="exclusive_grant";
  }
  /** No code may send a positive secondary volume without the verified grant. */
@@ -70,8 +72,10 @@ final class AudioOwnership {
   if(value>0.001f && (state!=State.REPLACEMENT || !originalMuted ||
      effect==null || effect!=attachedEffect || !effect.hasControl() || !effect.getEnabled()))
    throw new IllegalStateException("secondary gain without exclusive owner");
-  player.setVolume(value,value);
-  commandedSecondary=value;
+  // Always send emergency silence; coalesce only unchanged verified gain.
+  if(value<=0.001f||player!=lastVolumePlayer||Float.compare(commandedSecondary,value)!=0)
+   player.setVolume(value,value);
+  commandedSecondary=value;lastVolumePlayer=player;
  }
  /** Silence or force-release secondary before the caller can restore source gain. */
  void silenceReplacement(MediaPlayer player){
