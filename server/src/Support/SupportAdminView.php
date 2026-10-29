@@ -16,8 +16,8 @@ final class SupportAdminView
  private static function uuid():string{$b=random_bytes(16);$b[6]=chr((ord($b[6])&15)|64);$b[8]=chr((ord($b[8])&63)|128);$h=bin2hex($b);return substr($h,0,8).'-'.substr($h,8,4).'-'.substr($h,12,4).'-'.substr($h,16,4).'-'.substr($h,20);}
  private static function page(int $page,int $size):int{return (max(1,min(100000,$page))-1)*$size;}
  private static function status(string $status):string{return $status==='open'?'Новое':'Закрыто';}
- public function render(string $csrf,int $selected,int $page=1,int $messagePage=1,int $account=0,string $kind='general'):string{
-  $kind=$kind==='song'?'song':'general';
+ public function render(string $csrf,int $selected,int $page=1,int $messagePage=1,int $account=0,string $kind='all'):string{
+  $kind=in_array($kind,['all','general','song'],true)?$kind:'all';
   $html='<section class="panel"><style>.support-unhandled{background:#fff5de;box-shadow:inset 4px 0 #d87d0e}.support-kinds .has-unhandled{box-shadow:inset 0 -3px #d87d0e;font-weight:700}</style><h1>Техподдержка</h1>';
   if($selected>0){
    try{$thread=(new SupportService($this->pdo))->thread($selected,null,$messagePage);}catch(\DomainException){return $html.'<p>Обращение не найдено.</p></section>';}
@@ -36,20 +36,22 @@ final class SupportAdminView
    if($messagePage>1)$html.='<p><a href="/admin?tab=support&amp;ticket='.$selected.'&amp;message_page='.($messagePage-1).'">Более новые сообщения</a></p>';
    if($thread['status']==='open'&&$kind==='general')$html.='<form method="post" action="/admin/support/reply" style="margin-top:20px"><input type="hidden" name="csrf" value="'.self::e($csrf).'"><input type="hidden" name="ticket" value="'.$selected.'"><input type="hidden" name="request_key" value="'.self::uuid().'"><label>Ответ пользователю<textarea name="message" maxlength="2000" rows="5" required style="display:block;width:100%;box-sizing:border-box;margin:12px 0"></textarea></label><button type="submit">Отправить</button></form>';
    if($thread['status']==='open'&&$kind==='song')$html.='<form method="post" action="/admin/support/resolve-song" style="margin-top:20px"><input type="hidden" name="csrf" value="'.self::e($csrf).'"><input type="hidden" name="ticket" value="'.$selected.'"><button type="submit">Отметить решённым</button></form><p class="muted">Отчёт о песне не требует ответа по почте.</p>';
-   return $html.'<p style="margin:20px 0"><a href="/admin?tab=support&amp;account='.(int)$user['id'].'&amp;support_kind='.$kind.'">Все обращения аккаунта</a></p></section>';
+   return $html.'<p style="margin:20px 0"><a href="/admin?tab=support&amp;account='.(int)$user['id'].'&amp;support_kind=all">Все обращения аккаунта</a></p></section>';
   }
   if($account>0){
    $q=$this->pdo->prepare('SELECT email FROM users WHERE id=?');$q->execute([$account]);$email=$q->fetchColumn();
    if($email===false)return $html.'<p>Аккаунт не найден.</p></section>';
    $html.='<h2>'.self::e($email).'</h2>';
    $q=$this->pdo->prepare("SELECT kind,COUNT(*) AS total,SUM(status='open') AS pending FROM support_tickets WHERE user_id=? GROUP BY kind");$q->execute([$account]);$counts=[];foreach($q->fetchAll(\PDO::FETCH_ASSOC) as $row)$counts[$row['kind']]=$row;
+   $counts['all']=['total'=>(int)($counts['general']['total']??0)+(int)($counts['song']['total']??0),'pending'=>(int)($counts['general']['pending']??0)+(int)($counts['song']['pending']??0)];
    $html.='<nav class="support-kinds" aria-label="Виды обращений">';
-   foreach(['general'=>'Обычные обращения','song'=>'Проблемы с песнями'] as $type=>$label)$html.='<a class="btn'.($kind===$type?' primary':'').((int)($counts[$type]['pending']??0)>0?' has-unhandled':'').'" href="/admin?tab=support&amp;account='.$account.'&amp;support_kind='.$type.'"'.($kind===$type?' aria-current="page"':'').'>'.$label.'</a> ';
-   $html.='</nav><p>Новых: '.(int)($counts[$kind]['pending']??0).' · Всего: '.(int)($counts[$kind]['total']??0).'</p><p class="muted">'.($kind==='general'?'Обычные обращения: отправьте пользователю ответ по почте.':'Проблемы с песнями: проверьте отчёт и отметьте его решённым; ответ по почте не требуется.').'</p>';
+   foreach(['all'=>'Все','general'=>'Обычные обращения','song'=>'Проблемы с песнями'] as $type=>$label)$html.='<a class="btn'.($kind===$type?' primary':'').((int)($counts[$type]['pending']??0)>0?' has-unhandled':'').'" href="/admin?tab=support&amp;account='.$account.'&amp;support_kind='.$type.'"'.($kind===$type?' aria-current="page"':'').'>'.$label.'</a> ';
+   $html.='</nav><p>Новых: '.(int)($counts[$kind]['pending']??0).' · Всего: '.(int)($counts[$kind]['total']??0).'</p><p class="muted">'.($kind==='general'?'Обычные обращения: отправьте пользователю ответ по почте.':($kind==='song'?'Проблемы с песнями: проверьте отчёт и отметьте его решённым; ответ по почте не требуется.':'Все обращения: обычные сообщения и проблемы с песнями в одном списке.')).'</p>';
    $offset=self::page($page,10);
-   $q=$this->pdo->prepare("SELECT id,status,created_at FROM support_tickets WHERE user_id=? AND kind=? ORDER BY (status='open') DESC,id DESC LIMIT 11 OFFSET $offset");$q->execute([$account,$kind]);$rows=$q->fetchAll(\PDO::FETCH_ASSOC);$more=count($rows)>10;
-   $html.='<div class="table-wrap"><table><thead><tr><th>Обращение</th><th>Статус</th><th></th></tr></thead><tbody>';
-   foreach(array_slice($rows,0,10) as $row)$html.='<tr><td>№'.(int)$row['id'].'</td><td>'.self::status($row['status']).'</td><td><a class="button" href="/admin?tab=support&amp;ticket='.(int)$row['id'].'">Посмотреть</a></td></tr>';
+   $sql="SELECT id,kind,status,created_at FROM support_tickets WHERE user_id=?".($kind==='all'?'':' AND kind=?')." ORDER BY (status='open') DESC,id DESC LIMIT 11 OFFSET $offset";
+   $q=$this->pdo->prepare($sql);$q->execute($kind==='all'?[$account]:[$account,$kind]);$rows=$q->fetchAll(\PDO::FETCH_ASSOC);$more=count($rows)>10;
+   $html.='<div class="table-wrap"><table><thead><tr><th>Обращение</th><th>Тип</th><th>Статус</th><th></th></tr></thead><tbody>';
+   foreach(array_slice($rows,0,10) as $row)$html.='<tr><td>№'.(int)$row['id'].'</td><td>'.($row['kind']==='song'?'Проблема с песней':'Обычное обращение').'</td><td>'.self::status($row['status']).'</td><td><a class="button" href="/admin?tab=support&amp;ticket='.(int)$row['id'].'">Посмотреть</a></td></tr>';
    $html.='</tbody></table></div>'.$this->pagination($page,$more,'&amp;account='.$account.'&amp;support_kind='.$kind);
    return $html.'<p style="margin:20px 0"><a href="/admin?tab=support">Все аккаунты</a></p></section>';
   }
