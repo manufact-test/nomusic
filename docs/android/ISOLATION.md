@@ -1,3 +1,7 @@
+> **СУПЕРСЕДЕД: ЗА ТЕКУЩИМ СТАТУСОМ СМОТРИ** [HANDOFF-2026-10-29-ANDROID-0352.md](HANDOFF-2026-10-29-ANDROID-0352.md). Новое: только Android, desktop 0.4.65 не менять, CI 40942060340 PASS, версия 0.3.52 готова только как НЕПОДПИСАННЫЙ structural smoke, оригинальный приватный ключ подписи отсутствует.
+
+---
+
 > **Обновление 29.10.2026.** Нижеследующее описание desktop 0.4.61 и ранней ветки `feature/android-isolated` историческое; актуальное разделение: desktop **0.4.65** на `feature/api-range` — НЕ МЕНЯТЬ; Android на `feature/android-0348-audio-ownership-stabilization`, PR #22 (DRAFT), issue #20 (OPEN). Сначала читать [ARCHITECTURE-RESET-CHECKPOINT-2026-10-29.md](ARCHITECTURE-RESET-CHECKPOINT-2026-10-29.md). Сохранённые архивные ветки: `backup/android-0351-last-signed-20261029` (последняя подписанная 0.3.51) и `backup/android-pre-architecture-refactor-20261029` (промежуточный код до переделки). Все будущие изменения только Android+docs/android (и утверждённый Android CI); не изменять/деплоить сервер, desktop, сайт, CMS, общие credentials или продуктивные workflows. Резервные ветки не обновлять.
 
 ---

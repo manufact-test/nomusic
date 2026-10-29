@@ -1,3 +1,7 @@
+> **ГЛАВНЫЙ АКТУАЛЬНЫЙ ДОКУМЕНТ НА ПЕРЕДАЧУ В НОВЫЙ ЧАТ:** [HANDOFF-2026-10-29-ANDROID-0352.md](HANDOFF-2026-10-29-ANDROID-0352.md). **Готовое первое сообщение:** [START-NEXT-CHAT-2026-10-29.md](START-NEXT-CHAT-2026-10-29.md). Последний код `25767ce3`, CI https://github.com/manufact-test/nomusic/actions/runs/40942060340 PASS; последний signed 0.3.51 НЕ принят; 0.3.52 только unsigned inspection, оригинальный signing key отсутствует. Desktop 0.4.65/feature/api-range НЕ ТРОГАТЬ. Нижеследующие контрольные точки исторические.
+
+---
+
 # Последний Android checkpoint: архив, DEX-provenance и переносимая проверка 0.3.52 · 29.10.2026
 
 **Последний проверенный код:** `7e49152d6a17cbf3d31e7b247b5e074f1fb215ac`. Полный CI **PASS**: https://github.com/manufact-test/nomusic/actions/runs/40941509415. Рабочая ветка `feature/android-0348-audio-ownership-stabilization`; PR #22 остаётся OPEN/DRAFT, Issue #20 OPEN. Перед работой сверяй HEAD: следующий docs commit изменит хеш.
