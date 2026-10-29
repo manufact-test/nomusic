@@ -17,14 +17,32 @@ public class TestEngine {
   p.current=source("2",0,true);e.update(p.current);ok(first.released&&e.player==null&&e.effect==null,"track change restores original");
   reset("ALBUM");e.arm();NativeApi.Result old=api.resolved;p.current=source("2",0,true);old.done(found(),null);ok(api.downloads==0&&e.effect==null,"old resolve callback cannot play for new track");
   ok(PlaybackDuration.safe(180880,180872)&&PlaybackDuration.safe(236090,236173),"matching audio durations keep playing");
-  ok(!PlaybackDuration.safe(232450,231096)&&!PlaybackDuration.safe(272700,272118),"short replacement tracks cannot cut off originals");
+  ok(PlaybackDuration.compatible(232450,231120,231096,true)&&
+     PlaybackDuration.compatible(272700,272144,272118,true)&&
+     PlaybackDuration.compatible(286730,286067,286067,true),
+     "recorded 0.3.53 files pass a verified measured-duration tail check");
+  ok(!PlaybackDuration.compatible(232450,231120,231096,false)&&
+     !PlaybackDuration.compatible(120000,117000,117000,true),
+     "unverified candidate or large edition difference cannot bypass safety");
+  ok(PlaybackDuration.expectedTail(232450,231096,1354)&&
+     !PlaybackDuration.expectedTail(232450,231096,4000),
+     "bounded short outro is distinct from unexpected early decoder completion");
   ok(PlaybackDuration.safe(120000,120500)&&!PlaybackDuration.safe(120000,120501),"the tail guard has a deterministic 500ms limit");
-  /* Metadata discrepancy is silently probed; the actual file gate stays strict. */
+  /* A strong album match can accept a bounded measured codec/outro tail. */
   reset("ALBUM");e.arm();api.resolved.done(new JSONObject().put("found",true).put("replacement_id",7).put("duration_ms",119418),null);
   ok(e.player==null&&e.preparing&&api.downloads==1&&e.effect==null,"582ms metadata discrepancy may be measured without muting the original");
   File measuredFile=File.createTempFile("engine-measured", ".audio");api.downloaded.done(measuredFile,null);
   e.player.duration=120000;e.player.prepared.onPrepared(e.player);
   ok(e.ready&&e.effect!=null,"correct 120000ms measured file plays despite misleading 119418ms server metadata");
+  reset("ALBUM");e.arm();api.resolved.done(new JSONObject().put("found",true).put("replacement_id",7).put("duration_ms",118646),null);
+  File shortFile=File.createTempFile("engine-short-outro", ".audio");api.downloaded.done(shortFile,null);
+  e.player.duration=118646;e.player.prepared.onPrepared(e.player);
+  ok(e.ready&&e.player!=null&&e.effect!=null,
+     "verified 1354ms measured tail becomes a playable replacement, not a pre-play skip");
+  MediaPlayer shortDecoder=e.player;p.current=source("1",118646,true);
+  shortDecoder.completed.onCompletion(shortDecoder);
+  ok(e.player==null&&e.effect==null&&e.completedReason==null,
+     "expected short outro restores the original without a wrong-edition warning");
   reset("ALBUM");e.arm();api.resolved.done(new JSONObject().put("found",true).put("replacement_id",7).put("duration_ms",118000),null);
   ok(!e.preparing&&api.downloads==0&&e.effect==null,"metadata discrepancy beyond bounded probe never downloads or mutes");
   reset("ALBUM");e.arm();resolve();NativeApi.AudioResult oldDownload=api.downloaded;e.stop("owner_stop");File stale=File.createTempFile("engine-test", ".audio");oldDownload.done(stale,null);ok(!stale.exists()&&e.player==null,"late download after stop is discarded");

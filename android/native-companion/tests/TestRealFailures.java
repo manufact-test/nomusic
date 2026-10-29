@@ -13,8 +13,10 @@ public final class TestRealFailures {
   TestEngine.p.handler.drain();
  }
  public static void main(String[] args)throws Exception {
-  check(!PlaybackDuration.safe(221930,223399),
-      "HONOR wrong-edition replacement must never be forced on a shorter native song");
+  check(PlaybackDuration.compatible(221930,223399,223399,true),
+      "recorded 1469ms measured edition can be a bounded verified outro");
+  check(!PlaybackDuration.compatible(221930,223399,223399,false),
+      "unverified 1469ms title-only match must not be forced on native playback");
   TestEngine.reset("ALBUM");
   ReplacementEngine e=TestEngine.e;e.arm();
   TestEngine.api.resolved.done(new JSONObject()
@@ -25,20 +27,18 @@ public final class TestRealFailures {
   TestEngine.api.downloaded.done(wrongFile,null);
   check(e.player!=null&&e.effect==null,"no original attenuation before measuring the replacement decoder");
   e.player.duration=121469;e.player.prepared.onPrepared(e.player);
-  check(e.player==null&&e.effect==null&&!e.preparing&&!wrongFile.exists(),
-      "recorded 1469ms measured wrong edition must never become audible");
-  check(e.identityKey.equals(e.completedKey)&&e.status.contains("длительности"),
-      "measured mismatch remains a per-track skip, not an unexplained disappearance");
+  check(e.ready&&e.effect!=null&&e.player!=null,
+      "recorded 1469ms album-verified song must not be rejected before playback");
   int lookups=TestEngine.api.resolves;
   SystemClock.now+=10000;sample(e,11000);
-  check(TestEngine.api.resolves==lookups&&e.status.contains("длительности"),
-      "same bad edition must not repeatedly download or silently clear rejection reason");
+  check(TestEngine.api.resolves==lookups&&e.ready,
+      "same accepted song must not repeatedly download while playing");
   TestEngine.p.current=TestEngine.source("2",0,true);
   e.identity(LogStore.map("mediaAlias","2","albumId","42",
      "title","Песня","artist","Артист","durationMs",120000L),
      LogStore.map("candidateTrackId","8","method","ALBUM"));
   check(e.completedKey==null&&TestEngine.api.resolves==lookups+1,
-      "next native song automatically resets the per-track mismatch, no rearm needed");
+      "next native song automatically begins its own verified lookup, no rearm needed");
   e.close();
 
   DriftGuard guard=new DriftGuard();

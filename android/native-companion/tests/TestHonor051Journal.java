@@ -42,8 +42,11 @@ public final class TestHonor051Journal {
   check(restoredAt.get("B")<=177730L,"1.16s drift is restored by the next recorded diagnostic sample");
   check(retainedNativeSamples>=8,"subsequent bad-track samples cannot start extra decoder corrections");
   check(!restored.contains("A")&&!restored.contains("C")&&!restored.contains("D"),"normal 240ms/90ms/200ms offsets retained");
-  check(!PlaybackDuration.safe(221930,223399),"recorded 1469ms edition mismatch must reject before decoding");
+  check(PlaybackDuration.compatible(221930,223399,223399,true),
+        "recorded 1469ms can play as bounded outro for strong album identity");
+  check(!PlaybackDuration.compatible(221930,223399,223399,false),
+        "same duration stays blocked for unverified candidate");
   check(PlaybackDuration.safe(120000,120500),"duration policy remains strict but not over-restrictive");
-  System.out.println("PASS: "+checks+" recorded HONOR 0.3.51 clock and wrong-edition replay checks");
+  System.out.println("PASS: "+checks+" recorded HONOR 0.3.51 clock and bounded duration replay checks");
  }
 }
