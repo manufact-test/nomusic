@@ -1,0 +1,30 @@
+{
+  "version": "0.3.44",
+  "version_code": 45,
+  "release_date": "2026-10-29",
+  "source_branch": "feature/android-support-diagnostics-20261029",
+  "source_code_commit": "de010c482e950d5c50bc683925e13bd498ae62ef",
+  "verifier_fix_commit": "895c28e543c92686ed73cff3ee780b0c70976d9e",
+  "apk_filename": "CELIKOM-0.3.44-install.apk",
+  "apk_sha256": "2d8f6006569dfb50c0338db2b6df75b0e3f4cf0b0d2845d8192754099e62c725",
+  "signing_certificate_sha256": "67fe81c56fac1c1d145344b69a0e3faf9005cf6607f4e26ca27d5926c3eefc4f",
+  "package_name": "pro.celikom.nativeprobe",
+  "baseline_apk": "CELIKOM-0.3.22-install.apk",
+  "baseline_sha256": "170b1883e292570d28a3b5c619cf000eaccd9d11ee85ca6f6c08f7b50e5f72c9",
+  "changes": [
+    "in-memory privacy-bounded per-song diagnostic trace in explicit support reports",
+    "new launcher Intent for icon entry, preserving supported text-share entry",
+    "no playback-engine changes"
+  ],
+  "results": {
+    "host_tests": "pass",
+    "final_signed_apk_verify": "pass",
+    "apk_v3_signature": "pass",
+    "signer_continuity": "pass",
+    "manifest_boundary": "pass",
+    "final_dex_identity": "pass",
+    "private_source_absence": "pass",
+    "physical_phone_validation": "not yet performed"
+  },
+  "build_note": "Built offline with verified 2026-10-29 Android SDK/Build Tools 36.0.0, Apktool 2.11.1, locked 5 JAR, private original signing backup, Java 21. Verifier bug expecting versionCode 44 fixed to versionCode 45; signed APK unchanged after verifier correction. No key or secrets committed."
+}
