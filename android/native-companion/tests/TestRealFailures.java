@@ -58,7 +58,7 @@ public final class TestRealFailures {
   }
   check(e.player==null&&e.effect==null&&e.armed()&&mp.released,
       "sustained drift restores original and releases unsafe decoder without stopping auto mode");
-  check(e.status.contains("рассинхрон")&&e.completedKey!=null,
+  check(e.status.contains("рассинхрон")&&e.completedKey!=null&&e.audioOwner.state()==AudioOwnership.State.TRACK_UNSUPPORTED,
       "unsafe drift reports specific reason and only blocks this track");
   e.close();
 

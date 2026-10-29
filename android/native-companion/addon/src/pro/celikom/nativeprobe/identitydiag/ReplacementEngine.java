@@ -104,7 +104,7 @@ final class ReplacementEngine {
    ClockSupervisor.Decision clockDecision=clockSupervisor.assess(aligned,!seeking&&!handoverPending,sourceJump,drift,clock);
    if(clockDecision==ClockSupervisor.Decision.RESTORE_SOURCE){
     String key=identityKey;LogStore.log("replacement_drift_unstable",LogStore.map("trackId",trackId,"sourcePositionMs",target,"driftMs",drift,"fallback","original_until_next_track","clockSupervisor","confirmed"));
-    suspend("drift_unstable",30000);completedKey=key;completedPosition=target;completedReason="Большой рассинхрон замены — играет оригинал до следующей песни";status=completedReason;return;
+    suspend("drift_unstable",30000);completedKey=key;completedPosition=target;completedReason="Большой рассинхрон замены — играет оригинал до следующей песни";audioOwner.unsupported("drift_unstable");status=completedReason;ownerEvent("drift_unsupported");return;
    }
    if(clockDecision==ClockSupervisor.Decision.SEEK){seek(s,target,drift);return;}
    boolean seamlessResume=resumed&&effect!=null&&originalMix<=0.001f&&!sourceJump&&Math.abs(drift)<=PAUSE_ALIGN_TOLERANCE_MS;
