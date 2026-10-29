@@ -28,6 +28,20 @@ public final class TestAudioLifecycle {
   a.unsupported("duration_mismatch");ok(a.state()==AudioOwnership.State.TRACK_UNSUPPORTED,"mismatch is terminal per track");
   a.track("107");ok(a.state()==AudioOwnership.State.SOURCE_ONLY,"new track unblocks replacement");
   a.recovering("drift_unstable");ok(a.state()==AudioOwnership.State.RECOVERING,"drift recovery is observable");
+  MediaPlayer ordered=new MediaPlayer();ordered.start();ordered.setVolume(0.8f,0.8f);
+  DynamicsProcessing orderedEffect=new DynamicsProcessing(0,101,null){
+   @Override public void setInputGainAllChannelsTo(float gain){
+    if(gain==0f&&(ordered.volume>0.001f||ordered.playing))
+     throw new AssertionError("native gain was restored before secondary was silenced");
+    super.setInputGainAllChannelsTo(gain);
+   }
+  };
+  AudioOwnership sequence=new AudioOwnership();sequence.track("ordered");sequence.aligning();
+  orderedEffect.setEnabled(true);sequence.grantReplacement(orderedEffect);
+  sequence.volume(ordered,0.8f,orderedEffect);
+  AudioOwnership.RestoreResult outcome=sequence.restoreSource(ordered,orderedEffect);
+  ok(outcome.gainReset&&outcome.disabled&&outcome.released,"source restoration closes audio effect");
+  ok(ordered.volume==0f&&!ordered.playing&&orderedEffect.gain==0f,"restoration always mutes secondary first");
   a.stopped();ok(a.state()==AudioOwnership.State.STOPPED,"Stop revokes output");
   a.track("108");ok(a.state()==AudioOwnership.State.STOPPED&&!a.current(a.epoch(),"108"),"new observation cannot rearm Stop");
   a.activate();ok(a.current(a.epoch(),"108")&&a.state()==AudioOwnership.State.SOURCE_ONLY,"user arm explicitly reopens transport");
