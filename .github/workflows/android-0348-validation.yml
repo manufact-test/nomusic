@@ -19,11 +19,12 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
-      - uses: android-actions/setup-android@v3
       - name: Install Android API 36 and D8 build tools
         shell: bash
         run: |
           set -euo pipefail
+          echo "Android SDK: ${ANDROID_HOME:-${ANDROID_SDK_ROOT:-unset}}"
+          sdkmanager --version
           yes | sdkmanager --licenses >/dev/null || true
           sdkmanager --install "platforms;android-36" "build-tools;36.0.0"
       - name: Fetch exactly pinned dependencies
