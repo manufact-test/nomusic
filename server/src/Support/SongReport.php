@@ -49,9 +49,9 @@ final class SongReport
     $v=$row[$k]??null;
     if(is_int($v)&&$v>=($k==='driftMs'||$k==='residualMs'?-86400000:0)&&$v<=86400000)$entry[$k]=$v;
    }
-   foreach(['gainZero','paused','found','replacementAudible','beforeTransportCleanup'] as $k)
+   foreach(['gainZero','paused','found','replacementAudible','beforeTransportCleanup','ok'] as $k)
     if(isset($row[$k])&&is_bool($row[$k]))$entry[$k]=$row[$k];
-   foreach(['reason','state','phase','result'] as $k){
+   foreach(['reason','state','phase','result','errorCode','operation'] as $k){
     $v=$row[$k]??null;
     if(is_string($v)&&preg_match('/^[a-zA-Z0-9_.:-]{1,64}$/D',$v))$entry[$k]=$v;
    }
