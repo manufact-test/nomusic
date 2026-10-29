@@ -31,7 +31,7 @@ final class ReplacementEngine {
  ReplacementEngine(ProbeService owner){this.owner=owner;api=NativeApi.get(owner);}
  static Integer verifiedSession(Context c){try{Class<?> store=Class.forName("pro.celikom.nativeprobe.ProbeStore");Object instance=store.getField("INSTANCE").get(null);if(!Boolean.TRUE.equals(store.getMethod("enabled",Context.class).invoke(instance,c)))return null;JSONObject report=(JSONObject)store.getMethod("report",Context.class).invoke(instance,c);Class<?> cls=Class.forName("pro.celikom.nativeprobe.AttenuationService");Object companion=cls.getField("Companion").get(null);return (Integer)companion.getClass().getMethod("verifiedSession",JSONObject.class,long.class).invoke(companion,report,System.currentTimeMillis());}catch(Exception e){return null;}}
  void arm(){if(closed)return;if(returning)stop("rearm_during_return");if(!api.signedIn()){status="Сначала войди в свой аккаунт CELIKOM";return;}
-  audioOwner.activate();Integer session=verifiedSession(owner);
+  audioOwner.activate();if(identityKey!=null)audioOwner.track(identityKey);Integer session=verifiedSession(owner);
   if(session!=null&&session>0){if(trustedSession>0&&trustedSession!=session){generation++;preparing=false;release("session_rearmed");descriptor=null;lookupKey=null;}trustedSession=session;}
   preloadAllowed=true;armedUntil=Long.MAX_VALUE;
   status=trustedSession>0?"Автозамена включена":"Открой эквалайзер Яндекс Музыки и выбери CELIKOM";

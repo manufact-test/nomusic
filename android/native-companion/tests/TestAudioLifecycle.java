@@ -54,6 +54,16 @@ public final class TestAudioLifecycle {
   ok(shortPlayer.released&&e.effect==null,"early decoder completion restores original");
   ok(e.completedReason!=null&&e.completedReason.contains("раньше"),"early decoder ending has clear track reason");
   e.close();
+  TestEngine.playing();engine=TestEngine.e;
+  String sameKey=engine.identityKey;long previousGeneration=engine.audioOwner.epoch();
+  engine.stop("owner_stop");
+  ok(engine.audioOwner.state()==AudioOwnership.State.STOPPED,"explicit Stop revokes audio");
+  engine.arm();
+  ok(engine.audioOwner.current(engine.audioOwner.epoch(),sameKey)&&engine.audioOwner.epoch()!=previousGeneration,
+     "rearming same current song restores identity lease without stale callbacks");
+  MediaPlayer restarted=TestEngine.prepare();
+  ok(restarted.isPlaying()&&engine.effect!=null,"Stop and Start on the same song can play without reselecting a track");
+  engine.close();
   System.out.println("PASS: "+count+" lifecycle state and real-engine failure gates");
  }
 }
