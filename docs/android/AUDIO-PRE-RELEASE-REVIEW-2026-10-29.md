@@ -1,3 +1,11 @@
+## 29.10.2026 — new 0.3.52 structural package evidence supersedes previous "no package" statement
+
+Code revision `04a583a5` + CI https://github.com/manufact-test/nomusic/actions/runs/40937933292 both passed. A LOCAL **UNSIGNED smoke APK** now exists for structural inspection (do not distribute). Apktool 2.11.1, real baseline 0.3.22, exact pinned JARs and API36 were used. The compiled DEX from the JDK17 GitHub CI artifact was injected exactly byte-for-byte, and `zipalign`, `aapt` versionCode 53/0.3.52, assets catalogue equivalence, absence of source/secret packages, and two DEX entries all passed. This was an inspection-only local variation of the release builder (no key, no signature). The official signed release path was NOT completed. `verify_release.py` correctly rejected the unsigned output.
+
+The old signed 0.3.22 and 0.3.51 share the same pinned signer. The original signing .p12 and config are not present in the recovered build environment and have not been supplied here. No signed installable 0.3.52 exists, no device playback test has been run, and PR #22 remains draft. Review the full, exact checksum record at [RELEASE-0352-STRUCTURAL-SMOKE-2026-10-29.md](RELEASE-0352-STRUCTURAL-SMOKE-2026-10-29.md).
+
+---
+
 # CELIKOM Android — static pre-release review · 29 October 2026
 
 This review is an **architecture and CI checkpoint**, not an approval of actual acoustic playback. The last code commit reviewed is `ce52b178c9101835619ceb8ee4a66b8784477f45` on `feature/android-0348-audio-ownership-stabilization`. Complete workflow PASS: https://github.com/manufact-test/nomusic/actions/runs/40931276362. PR #22 remains OPEN/DRAFT, Issue #20 remains OPEN.

@@ -1,3 +1,16 @@
+# АКТУАЛЬНО: Android 0.3.52 — проверены API36/D8, упаковка и структурный APK · 29.10.2026
+
+**Последняя зелёная кодовая точка: `04a583a5d32a29aa96f5a61aebd8bbbe892b92c9`**. Полный GitHub CI **PASS**: https://github.com/manufact-test/nomusic/actions/runs/40937933292. Рабочая ветка `feature/android-0348-audio-ownership-stabilization`, PR #22 **OPEN/DRAFT**; ничего не сливать. Сверить HEAD перед следующей работой: документационный коммит может изменить SHA.
+
+- **Код Android 0.3.52 / versionCode 53 подготовлен.** `release-spec.json` — единый контракт, `release_contract.py` — защита от возврата к проблемной 0.3.51 и подмены сертификата. `build_release.py` и `verify_release.py` синхронизированы; JDK17, SDK API36, SHA Apktool2.11.1, все 5 JAR, исходный APK и подписывающий сертификат закреплены. `check_release_contract.py` запускает отрицательные тесты в CI.
+- **Практическая упаковка проверена:** локально Apktool 2.11.1 пересобрал реальный SHA-проверенный оригинал 0.3.22 в структурный **НЕПОДПИСАННЫЙ** пакет 0.3.52. `aapt` видит versionCode 53/0.3.52, `zipalign` PASS, каталог/assets неизменны, классы2.dex побайтово равен результату **JDK17 CI** (не локальной JDK21 компиляции), лишних исходников и ключей нет. `verify_release.py` отказался принимать неподписанный пакет, как и должен.
+- **БЛОКЕР:** нет доступного здесь старого приватного файла `celikom-native-probe.p12` + `signing.json`; архив сохранённого build-окружения ПРЯМО заявляет, что не содержит signing. Никакого нового ключа не создавать и не пытаться выдавать структурный файл за installable. **НОВОГО ПОДПИСАННОГО APK 0.3.52 НЕТ.**
+- Базовый APK 0.3.22 и отвергнутый установленный 0.3.51 проверены через `apksigner`: одинаковая v3 сертификатная идентичность SHA-256 `67fe81c56fac1c1d145344b69a0e3faf9005cf6607f4e26ca27d5926c3eefc4f`. Лишь после получения исходного приватного ключа в безопасном offline runtime разрешена одна подписанная сборка и `verify_release.py`; затем физический тест HONOR и Bluetooth.
+- **Новый подробный отчёт:** [RELEASE-0352-STRUCTURAL-SMOKE-2026-10-29.md](RELEASE-0352-STRUCTURAL-SMOKE-2026-10-29.md). Предыдущая архитектура, реальные 0.3.51 сбои, тесты, история и старые бэкапы остаются ниже.
+- Новый backup `backup/android-before-0352-release-pipeline-20261029` указывает на `351d9cac`; зелёный backup версии `backup/android-0352-release-contract-green-20261029` указывает на `04a583a5`. Не трогать прошлые backup-ветки. Никакой Desktop, Backend, CMS или каталог не изменён.
+
+---
+
 # Дополнительный зелёный Android checkpoint · 29.10.2026, после ревизии гонок
 
 **Последний ПРОВЕРЕННЫЙ код:** `ce52b178c9101835619ceb8ee4a66b8784477f45`. Все шаги `native-android` **PASS**: https://github.com/manufact-test/nomusic/actions/runs/40931276362. До него PASS: https://github.com/manufact-test/nomusic/actions/runs/40930524770 и https://github.com/manufact-test/nomusic/actions/runs/40930935879.
