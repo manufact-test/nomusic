@@ -60,6 +60,21 @@ public final class TestAudioOwnershipRegression {
       "the aligned player and verified effect survive stale seek replay");
   e.close();
 
+  // HONOR 0.3.48: a transient non-playing snapshot while seek is in flight
+  // clears 'aligned'. Once seek completes at the correct position, do not
+  // submit a redundant second MediaPlayer.seekTo just to restore that flag.
+  TestEngine.playing();e=TestEngine.e;p=e.player;
+  SystemClock.now+=ReplacementEngine.FADE_MS+30;sample(1160,true);TestEngine.p.handler.drain();
+  p.asyncSeek=true;sample(60000,true);
+  check(e.seeking,"seek in flight before transient native pause");
+  sample(60000,false);sample(60000,true);
+  int submittedSeekCalls=p.seekCalls;p.seek.onSeekComplete(p);
+  check(p.seekCalls==submittedSeekCalls&&!e.seeking,
+      "completed aligned seek may not schedule another seek after transient pause");
+  check(e.player==p&&e.effect!=null,
+      "completed seek keeps original verified effect and decoder alive");
+  e.close();
+
   // Track boundaries must silence any older decoder BEFORE releasing native attenuation.
   TestEngine.playing();e=TestEngine.e;p=e.player;
   SystemClock.now+=ReplacementEngine.FADE_MS+30;sample(1160,true);TestEngine.p.handler.drain();
