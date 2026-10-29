@@ -19,11 +19,15 @@ def must_fail(args, expected):
 
 
 must_fail(common, "signed release requires original --signing-dir")
-must_fail(common + ["--unsigned-inspection"], "unsigned inspection requires a CI DEX")
+must_fail(common + ["--unsigned-inspection"], "unsigned inspection requires the source-to-DEX CI provenance JSON")
 must_fail(common + ["--unsigned-inspection", "--signing-dir", "/does-not-matter"],
           "unsigned inspection MUST NOT receive a signing directory")
-must_fail(common + ["--unsigned-inspection", "--inspection-ci-dex", "/fake"],
+must_fail(common + ["--unsigned-inspection", "--inspection-ci-provenance", "/fake"],
           "unsigned inspection requires a CI DEX")
+must_fail(common + ["--unsigned-inspection", "--inspection-ci-dex", "/fake"],
+          "unsigned inspection requires the source-to-DEX CI provenance JSON")
+must_fail(common + ["--signing-dir", "/signing", "--inspection-ci-dex", "/fake"],
+          "prebuilt DEX is forbidden in real signed releases")
 
 original = builder.read_text()
 assert 'args.output.name.endswith("-INSPECTION-UNSIGNED.apk")' in original
