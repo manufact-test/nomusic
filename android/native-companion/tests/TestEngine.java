@@ -46,7 +46,7 @@ public class TestEngine {
   // Old download cannot change the pending state of a newer track.
   reset("ALBUM");e.arm();resolve();NativeApi.AudioResult previous=api.downloaded;p.current=source("2",0,true);e.identity(LogStore.map("mediaAlias","2","albumId","42","title","Песня","artist","Артист","durationMs",120000L),LogStore.map("candidateTrackId","8","method","ALBUM"));resolve();File obsolete=File.createTempFile("engine-old", ".audio");previous.done(obsolete,null);ok(e.preparing&&!obsolete.exists(),"late cancelled download cannot clear new preparation state");
   // Old effect callbacks must not stop a new attachment.
-  playing();DynamicsProcessing retired=e.effect;android.media.audiofx.AudioEffect.OnControlStatusChangeListener retiredListener=retired.listener;p.current=source("1",1000,false);e.update(p.current);SystemClock.now+=400;p.current=source("1",1000,false);p.handler.drain();p.current=source("1",1000,true);e.update(p.current);retiredListener.onControlStatusChange(retired,false);ok(e.armed()&&e.effect!=null,"retired effect callback cannot stop new playback");
+  playing();DynamicsProcessing retired=e.effect;android.media.audiofx.AudioEffect.OnControlStatusChangeListener retiredListener=retired.listener;p.current=source("1",1000,false);e.update(p.current);SystemClock.now+=ReplacementEngine.PAUSE_GRACE_MS+20;p.current=source("1",1000,false);p.handler.drain();p.current=source("1",1000,true);e.update(p.current);retiredListener.onControlStatusChange(retired,false);ok(e.armed()&&e.effect!=null,"retired effect callback cannot stop new playback");
   playing();warm=e.player;e.stop("owner_return_original");SystemClock.now+=ReplacementEngine.FADE_MS+20;p.handler.drain();ok(warm.released&&e.effect==null&&!e.armed(),"queued ramp cannot restart audio after owner stop");
   playing();SystemClock.now+=ReplacementEngine.FADE_MS+20;p.current=source("1",1160,true);p.handler.drain();sameEffect=e.effect;p.current=source("1",60000,true);e.update(p.current);ok(e.effect==sameEffect&&e.effect.gain==-100f,"seek fade keeps an already muted original muted");
   playing();SystemClock.now+=ReplacementEngine.FADE_MS+20;p.current=source("1",1160,true);p.handler.drain();warm=e.player;e.returnOriginal();ok(!e.armed()&&e.returning&&!warm.released,"manual return disables automatic mode and starts a bounded fade");SystemClock.now+=ReplacementEngine.FADE_MS+20;p.current=source("1",1320,true);p.handler.drain();ok(warm.released&&e.effect==null&&!e.returning,"manual return fade releases the player and original effect");
@@ -62,7 +62,7 @@ public class TestEngine {
   // Pause arriving during the initial ramp also preserves the prepared player.
   playing();warm=e.player;SystemClock.now+=50;p.current=source("1",1050,false);p.handler.drain();
   ok(e.player==warm&&!warm.playing&&e.ready,"pause during fade cancels ramp without dropping audio");
-  SystemClock.now+=400;p.current=source("1",1050,false);p.handler.drain();
+  SystemClock.now+=ReplacementEngine.PAUSE_GRACE_MS+30;p.current=source("1",1050,false);p.handler.drain();
   ok(e.effect==null&&e.player==warm&&!warm.released,"sustained pause restores original effect but retains prepared decoder");
   p.current=source("1",1050,true);e.update(p.current);ok(warm.playing,"sustained pause resumes without network lookup");
   // Returning to the previous song requires live authorization, but not another audio download.
