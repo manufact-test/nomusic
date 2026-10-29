@@ -2,7 +2,7 @@ from pathlib import Path
 import subprocess,os
 r=Path(__file__).resolve().parent;addon=r.parent/'addon/src/pro/celikom/nativeprobe/identitydiag';out=r/'classes';out.mkdir(exist_ok=True);json=Path(os.environ.get('CELIKOM_ANDROID_DEPS',str(r.parent/'deps')))/'json.jar'
 subprocess.run(['python3',r/'write_fakes.py'],check=True)
-src=[*sorted((r/'fakes').rglob('*.java')),r/'TestEngine.java',r/'TestAudioOwnershipRegression.java',r/'TestAudioContinuityMonitor.java',r/'TestRealFailures.java',r/'TestAudioLifecycle.java',r/'TestClockSupervisor.java',r/'TestAudioCommandGateway.java',r/'TestSourceEventArbiter.java',r/'TestPhoneReplay.java',r/'TestResumeClock.java',r/'TestLongRun.java',r/'TestCarRecovery.java',r/'TestStreamingEngine.java',r/'TestHandoverClock.java',*[addon/n for n in ['ApiContract.java','AlbumMatch.java','PlaybackSource.java','PlaybackDuration.java','AudioOwnership.java','AudioContinuityMonitor.java','SyncPolicy.java','DriftGuard.java','ClockSupervisor.java','SourceTransitionGate.java','SourceEventArbiter.java','BufferRecoveryGate.java','TransitionMix.java','AudioTransfer.java','BufferedAudio.java','StreamingAudio.java','ReplacementEngine.java']]]
+src=[*sorted((r/'fakes').rglob('*.java')),r/'TestEngine.java',r/'TestAudioOwnershipRegression.java',r/'TestAudioContinuityMonitor.java',r/'TestRealFailures.java',r/'TestAudioLifecycle.java',r/'TestClockSupervisor.java',r/'TestAudioCommandGateway.java',r/'TestSourceEventArbiter.java',r/'TestHonor051Journal.java',r/'TestPhoneReplay.java',r/'TestResumeClock.java',r/'TestLongRun.java',r/'TestCarRecovery.java',r/'TestStreamingEngine.java',r/'TestHandoverClock.java',*[addon/n for n in ['ApiContract.java','AlbumMatch.java','PlaybackSource.java','PlaybackDuration.java','AudioOwnership.java','AudioContinuityMonitor.java','SyncPolicy.java','DriftGuard.java','ClockSupervisor.java','SourceTransitionGate.java','SourceEventArbiter.java','BufferRecoveryGate.java','TransitionMix.java','AudioTransfer.java','BufferedAudio.java','StreamingAudio.java','ReplacementEngine.java']]]
 subprocess.run(['java','com.sun.tools.javac.Main','-encoding','UTF-8','-source','8','-target','8','-cp',str(json),'-d',str(out),*map(str,src)],check=True)
 subprocess.run(['java','-cp',str(out)+os.pathsep+str(json),'pro.celikom.nativeprobe.identitydiag.TestEngine'],check=True)
 
@@ -36,3 +36,6 @@ subprocess.run(['java','-cp',str(out)+os.pathsep+str(json),'pro.celikom.nativepr
 
 # Media3 boundary and seek arbitration from the 0.3.51 device recording.
 subprocess.run(['java','-cp',str(out)+os.pathsep+str(json),'pro.celikom.nativeprobe.identitydiag.TestSourceEventArbiter'],check=True)
+
+# Sanitized latest 0.3.51 HONOR clock journal; observe safe per-track fallback.
+subprocess.run(['java','-cp',str(out)+os.pathsep+str(json),'pro.celikom.nativeprobe.identitydiag.TestHonor051Journal',str(r/'honor-0.3.51-clock-replay.tsv')],check=True)
