@@ -1,0 +1,48 @@
+{
+  "version": "0.3.47",
+  "version_code": 48,
+  "date": "2026-10-29",
+  "branch": "feature/android-0347-short-pause-handover-20261029",
+  "source_head": "d766b23da2c234ce2b5c1b139451dba7abc38687",
+  "filename": "CELIKOM_Android_0347.apk",
+  "apk_sha256": "bdf5ab0b406897a195725b68cd414bab1c115f1a0d4c929ae5b1f36be1cdca7b",
+  "signer_sha256": "67fe81c56fac1c1d145344b69a0e3faf9005cf6607f4e26ca27d5926c3eefc4f",
+  "addon_dex_sha256": "4983486465876d2f78276e01bef26e7df2071613edd430b7daf7c6eaf6251e3e",
+  "source_fingerprint": "8cc3ddf19d9cfc8ab10cf109a5a28561c542a5b905f1964d1658a602656ac601",
+  "diagnostic": "CELIKOM-combined-20261029-134020.txt",
+  "observations": {
+    "current_run_version": "0.3.46",
+    "songs": [
+      "Хлоп-Хлоп",
+      "Скажи (feat. TanDem Foundation)",
+      "Бошки Дымятся"
+    ],
+    "backend_errors": 0,
+    "decoder_errors": 0,
+    "original_effect_recreated_during_813ms_pause": true,
+    "stable_drift_first_song_ms": 255
+  },
+  "fixes": [
+    "Normal pause retains original attenuation up to 1000ms and reuses decoder and effect",
+    "An unstable seek or unfinished warm handover still releases the original effect within 350ms",
+    "Short resume keeps advancing-clock check and 180ms ramp",
+    "Diagnostic logs report whether short resume retained original effect",
+    "All previous track-duration, permissions and connectivity guards preserved"
+  ],
+  "tests": {
+    "engine": "pass",
+    "resume_clock": "39 checks pass",
+    "long_run": "300 transitions and 15 virtual hours pass",
+    "streaming": "pass",
+    "bluetooth": "pass",
+    "all_android_tests": "pass",
+    "signed_apk": "pass",
+    "signer_unchanged": true,
+    "permissions_unchanged": true,
+    "archive": "pass",
+    "signed_dex": "pass",
+    "edited_git_file_hashes_match_local": true,
+    "physical_phone": "not yet verified"
+  },
+  "change_scope": "Android-only. No server, desktop, asset, or signing key changes."
+}
