@@ -17,10 +17,18 @@ final class AudioOwnership {
  }
  void track(String next){
   if(Objects.equals(key,next))return;
-  generation++;pauseEpoch++;key=next;state=State.SOURCE_ONLY;originalMuted=false;reason="track_changed";
+  if(originalMuted)throw new IllegalStateException("track cannot change before secondary silence and source restore");
+  generation++;pauseEpoch++;key=next;
+  if(state!=State.STOPPED)state=State.SOURCE_ONLY;
+  reason="track_changed";
  }
+ void activate(){if(state==State.STOPPED){state=State.SOURCE_ONLY;reason="armed";}}
+
  void invalidate(String why){
-  generation++;pauseEpoch++;key=null;state=State.SOURCE_ONLY;originalMuted=false;reason=why;
+  if(originalMuted)throw new IllegalStateException("boundary cannot discard active output lease");
+  generation++;pauseEpoch++;key=null;
+  if(state!=State.STOPPED)state=State.SOURCE_ONLY;
+  reason=why;
  }
  void preparing(){state=State.PREPARING;reason="preparing";}
  void aligning(){state=State.ALIGNING;reason="aligning";}
@@ -34,6 +42,7 @@ final class AudioOwnership {
  void unsupported(String why){state=State.TRACK_UNSUPPORTED;pauseEpoch++;reason=why;}
  void stopped(){generation++;pauseEpoch++;key=null;originalMuted=false;state=State.STOPPED;reason="stopped";}
  void grantReplacement(DynamicsProcessing effect){
+  if(key==null||(state!=State.ALIGNING&&state!=State.REPLACEMENT))throw new IllegalStateException("handover requires current aligning track");
   if(effect==null||!effect.hasControl()||!effect.getEnabled())
    throw new IllegalStateException("no verified source attenuation");
   effect.setInputGainAllChannelsTo(-100f);
@@ -42,6 +51,7 @@ final class AudioOwnership {
  /** No code may send a positive secondary volume without the verified grant. */
  void volume(MediaPlayer player,float value,DynamicsProcessing effect){
   if(player==null)throw new IllegalStateException("no decoder");
+  if(!Float.isFinite(value)||value<0f||value>1f)throw new IllegalArgumentException("invalid decoder volume");
   if(value>0.001f && (state!=State.REPLACEMENT || !originalMuted ||
      effect==null || !effect.hasControl() || !effect.getEnabled()))
    throw new IllegalStateException("secondary gain without exclusive owner");

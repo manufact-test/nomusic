@@ -13,7 +13,9 @@ public final class TestAudioLifecycle {
   boolean rejected=false;try{a.volume(mp,0.5f,null);}catch(IllegalStateException expected){rejected=true;}
   ok(rejected&&mp.volume==0f,"secondary cannot play before source is muted");
   DynamicsProcessing fx=new DynamicsProcessing(0,101,null);fx.setEnabled(true);
-  a.grantReplacement(fx);a.volume(mp,0.75f,fx);
+  rejected=false;try{a.grantReplacement(fx);}catch(IllegalStateException expected){rejected=true;}
+  ok(rejected,"prepare alone cannot grant audible output");
+  a.aligning();a.grantReplacement(fx);a.volume(mp,0.75f,fx);
   ok(mp.volume==0.75f&&fx.gain==-100f&&a.state()==AudioOwnership.State.REPLACEMENT,"exclusive grant");
   a.paused();long lease=a.pauseLease();a.cancelPause();
   ok(!a.validPause(lease),"resume cancels stale pause timer");
@@ -27,6 +29,8 @@ public final class TestAudioLifecycle {
   a.track("107");ok(a.state()==AudioOwnership.State.SOURCE_ONLY,"new track unblocks replacement");
   a.recovering("drift_unstable");ok(a.state()==AudioOwnership.State.RECOVERING,"drift recovery is observable");
   a.stopped();ok(a.state()==AudioOwnership.State.STOPPED,"Stop revokes output");
+  a.track("108");ok(a.state()==AudioOwnership.State.STOPPED&&!a.current(a.epoch(),"108"),"new observation cannot rearm Stop");
+  a.activate();ok(a.current(a.epoch(),"108")&&a.state()==AudioOwnership.State.SOURCE_ONLY,"user arm explicitly reopens transport");
   TestEngine.playing();ReplacementEngine e=TestEngine.e;MediaPlayer old=e.player;
   long oldEpoch=e.audioOwner.epoch();e.sourceBoundary("confirmed_next_track");
   ok(!e.audioOwner.current(oldEpoch,"1")&&old.released&&old.volume==0f&&e.effect==null,
