@@ -1,4 +1,4 @@
-name: Android 0.3.52 architecture and release contract verification
+name: Android 0.3.53 architecture and release contract verification
 
 on:
   push:
@@ -126,6 +126,24 @@ jobs:
           cp .github/workflows/android-0348-validation.yml "$OUT/native-companion/ci-android-validation-workflow.yml"
           cp "$ROOT/android-native-classes2.dex" "$OUT/native-companion/"
           printf '%s\\n' "Expected base APK: 170b1883e292570d28a3b5c619cf000eaccd9d11ee85ca6f6c08f7b50e5f72c9" > "$OUT/BUILD-KIT-NO-SIGNING-SECRETS.txt"
+      - name: Stage public JDK17 runtime for isolated offline signing
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -x "$JAVA_HOME/bin/javac"
+          tar -C "$JAVA_HOME" -czf android-native-offline-kit/jdk17-linux-x64.tar.gz .
+          test -s android-native-offline-kit/jdk17-linux-x64.tar.gz
+          tar -tzf android-native-offline-kit/jdk17-linux-x64.tar.gz | grep '^./bin/java
+          path: android-native-offline-kit/
+          if-no-files-found: error
+          retention-days: 2
+      - uses: actions/upload-artifact@v4
+        with:
+          name: celikom-android-0353-dex-unsigned
+          path: android/native-companion/android-native-classes2.dex
+          if-no-files-found: error
+          retention-days: 7
+
       - uses: actions/upload-artifact@v4
         with:
           name: celikom-android-offline-kit
