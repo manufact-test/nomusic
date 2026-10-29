@@ -1,3 +1,21 @@
+## Новая обязательная матрица Android — системный аудиодвижок, 29 октября 2026
+
+**Этот раздел заменяет старые указания ниже про «установленную 0.3.48».** Последняя установленная версия 0.3.51, она не принята. Подписанной следующей версии нет.
+
+| Инвариант | Запрет на релиз без проверки |
+|---|---|
+| Только один владелец аудиокоманд | `check_audio_architecture.py` не допускает прямые `MediaPlayer.start/pause/seekTo` и изменение native gain в `ReplacementEngine` |
+| Аудиоэффект принадлежит текущему треку | `AudioOwnership` привязывает `DynamicsProcessing` к одному источнику и эпохе; `TestAudioLifecycle`, `TestAudioCommandGateway` |
+| Исторический Media3 SEEK с новым индексом песни | `SourceEventArbiter` и `TestSourceEventArbiter`: строки 104→105…108→109 из 0.3.51, stale seek 3648→61334 мс |
+| Рассинхронизация ~1160 мс | `ClockSupervisor`, `TestRealFailures`, `TestClockSupervisor`, `TestHonor051Journal`; fail-open на оригинал только для плохого трека |
+| Обычная Bluetooth-задержка 240–550 мс | `TestCarRecovery`, `TestHandoverClock`, `TestHonor051Journal`; не делать повторные слышимые seek |
+| Несовпадение длительности 1469 мс и ранний конец замены | `TestRealFailures`, `TestAudioLifecycle`; не расширять порог безопасного совпадения 500 мс |
+| Пауза, seek, Stop/Start, отключение наушников, завершение трека | `TestEngine`, `TestResumeClock`, `TestAudioOwnershipRegression`, `TestCarRecovery`, `TestLongRun` |
+| Сборочная целостность | Полный `tests/run_engine.py`, 16 runnable `addon/Test*.java`, pinned JAR SHA256, API36 javac и D8. Конечный подписанный APK проверяется отдельно через `verify_release.py` |
+| Реальный аппаратный звук | HONOR/BT тест после сборки. CI не измеряет акустический output, поэтому ни один PASS не означает, что пользователь принял исправления |
+
+Последний проверенный код: `04588acf3495cff41603c2a9ea12ed3cabdddf83`, GitHub Actions https://github.com/manufact-test/nomusic/actions/runs/40926420266 — PASS. Полная спецификация и ограничения: `AUDIO-LIFECYCLE-DESIGN-2026-10-29.md`.
+
 # Актуальная матрица для архитектурной переработки ПОСЛЕ Android 0.3.51
 
 > **29.10.2026, supersedes historical 0.3.48 instructions below.** Полный источник статуса, бэкапов и архитектуры: [ARCHITECTURE-RESET-CHECKPOINT-2026-10-29.md](ARCHITECTURE-RESET-CHECKPOINT-2026-10-29.md). Пользователь не принял 0.3.51. **Не выпускать кандидат после маленькой правки таймера; пока только переработка архитектуры.**

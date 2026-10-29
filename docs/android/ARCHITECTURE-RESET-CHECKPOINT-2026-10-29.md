@@ -1,3 +1,5 @@
+> **Обновление после архитектурного захода:** первоначальный план ниже был записан ДО новой реализации. `AudioOwnership` уже централизует прикрепление аудиоэффекта, exclusive gain, decoder start/pause/seek и восстановление оригинала; `SourceEventArbiter` централизует Media3; `ClockSupervisor` заменяет две конкурировавшие sync-политики; added CI static guard + replay реального HONOR 0.3.51. Кодовый HEAD `04588acf`, полные host/API36/D8 тесты PASS: https://github.com/manufact-test/nomusic/actions/runs/40926420266. Текущее положение и remaining blockers описаны в `AUDIO-LIFECYCLE-DESIGN-2026-10-29.md`. Подписанный APK не выпускался; реальный Bluetooth/acoustic результат остаётся непроверенным. Перед дальнейшими изменениями сохранять новый HEAD в backup-ветку.
+
 # CELIKOM Android — контрольная точка и пересмотр аудиоархитектуры, 29.10.2026
 
 > **ГЛАВНЫЙ АКТУАЛЬНЫЙ ДОКУМЕНТ НА ПЕРЕДАЧУ В НОВЫЙ ЧАТ.**
