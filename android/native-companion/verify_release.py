@@ -31,7 +31,13 @@ def main():
     subprocess.run([str(args.build_tools / "zipalign"), "-c", "4", str(args.apk)], check=True)
     android = "{http://schemas.android.com/apk/res/android}"
     current = ET.parse(args.decoded / "AndroidManifest.xml").getroot()
-    baseline = ET.parse(ROOT / "decoded/AndroidManifest.xml").getroot()
+    # Decode the supplied, SHA-pinned baseline APK instead of relying on a
+    # stale machine-local decoded directory. This is safe for offline rebuilds.
+    with tempfile.TemporaryDirectory(prefix="celikom-verify-baseline-") as directory:
+        reference = Path(directory) / "baseline"
+        subprocess.run(["java", "-jar", str(args.apktool), "d", str(args.base_apk),
+                        "-f", "-o", str(reference)], check=True, stdout=subprocess.DEVNULL)
+        baseline = ET.parse(reference / "AndroidManifest.xml").getroot()
     # Only the approved app label, native UI theme and service description change.
     expected_app = baseline.find("application")
     expected_app.set(android + "label", "CELIKOM")
