@@ -133,7 +133,10 @@ jobs:
           test -x "$JAVA_HOME/bin/javac"
           tar -C "$JAVA_HOME" -czf android-native-offline-kit/jdk17-linux-x64.tar.gz .
           test -s android-native-offline-kit/jdk17-linux-x64.tar.gz
-          tar -tzf android-native-offline-kit/jdk17-linux-x64.tar.gz | grep '^./bin/java
+          tar -tzf android-native-offline-kit/jdk17-linux-x64.tar.gz | grep -F './bin/java'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: celikom-android-offline-kit
           path: android-native-offline-kit/
           if-no-files-found: error
           retention-days: 2
