@@ -23,6 +23,17 @@ public class TestMobileActions {
   JSONObject traced=MobileActions.support("",key,target,"audio_issue");
   String diagnostic=traced.getJSONObject("report").getJSONObject("diagnostics").toString();
   check(diagnostic.contains("alignment_unstable")&&!diagnostic.contains("SECRET")&&!diagnostic.contains("other_track"),"bounded support trace pins song and removes secret fields");
+  // Real Android diagnostic event names must map to backend-approved event codes.
+  SupportTrace.record("replacement_stream_failure",LogStore.map("trackId",id,"elapsedMs",234,"authorization","SECRET"));
+  SupportTrace.record("replacement_alignment_rejected",LogStore.map("trackId",id,"residualMs",620,"correctionPass",2));
+  JSONObject recovered=MobileActions.support("",key,target,"audio_issue");
+  String recoveredTrace=recovered.getJSONObject("report").getJSONObject("diagnostics").toString();
+  check(recoveredTrace.contains("stream_failure")&&recoveredTrace.contains("alignment_unstable")&&!recoveredTrace.contains("SECRET"),"actual audio failures map into sanitized support trace");
+  // A high-volume failure must never block support with the native 8192-byte request cap.
+  for(int n=0;n<175;n++)SupportTrace.record("replacement_recovery",LogStore.map("trackId",id,"reason","R"+n+"_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx","errorCode","E"+n,"sourcePositionMs",1000+n,"driftMs",n));
+  JSONObject bounded=MobileActions.support("Можно помочь с подменой?",key,target,"audio_issue");
+  check(bounded.toString().getBytes(StandardCharsets.UTF_8).length<=7500,"max-size support payload fits the native request limit");
+  check(bounded.getJSONObject("report").getJSONObject("diagnostics").getJSONArray("trace").length()>0,"fresh diagnostic data remains attached under load");
   SupportTrace.clear();
   check(MobileActions.support("",key,target,"audio_issue").getJSONObject("report").getJSONObject("diagnostics").getJSONArray("trace").length()==0,"logout clears support trace");rejects(()->MobileActions.support("",key,null,null));rejects(()->MobileActions.support("x",key,target,"unknown"));rejects(()->MobileActions.support("text","bad",null,null));
   RequestBudget budget=new RequestBudget();check(budget.allow("first",1000),"first request allowed");check(!budget.allow("burst",1001),"request bursts remain paced");check(budget.allow("next",2500),"new song allowed after pacing interval");check(!budget.allow("next",4000),"same album retries cool down");check(budget.allow("next",32500),"failed album retried after cooldown");for(int hour=1;hour<=24;hour++)check(budget.allow("hour-"+hour,hour*3600000L),"pacing works throughout a full day");
