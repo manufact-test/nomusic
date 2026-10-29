@@ -22,8 +22,22 @@ final class SupportTrace {
  private static final Set<String> ENDPOINTS=new HashSet<>(Arrays.asList(
    "config","auth/me","entitlement","resolve","tracks/upload-status","tracks/version-status","rewards"));
  static synchronized void record(String event,Object source) {
-  if(!EVENTS.contains(event)||!(source instanceof Map))return;
+  if(!(source instanceof Map))return;
   Map<?,?> data=(Map<?,?>)source;
+  // Preserve real failure causes without widening the server's strict event whitelist.
+  String impliedReason=null;
+  switch(event){
+   case "replacement_alignment_rejected": event="replacement_recovery";impliedReason="alignment_unstable";break;
+   case "replacement_stream_failure": event="replacement_recovery";impliedReason="stream_failure";break;
+   case "replacement_download_failure": event="replacement_recovery";impliedReason="download_failed";break;
+   case "replacement_stream_fallback":event="replacement_recovery";break;
+   case "replacement_failure":event="replacement_recovery";break;
+   case "replacement_buffer_wait":event="replacement_stream_prefetch_wait";break;
+   case "replacement_buffer_resumed":event="replacement_stream_ready";break;
+   case "replacement_source_boundary":event="source_discontinuity";break;
+   case "replacement_trial_stop":event="replacement_released";break;
+  }
+  if(!EVENTS.contains(event))return;
   Object rawTrack=data.get("trackId");
   String track=rawTrack instanceof String?(String)rawTrack:"";
   if(track.matches("[1-9][0-9]{0,23}"))currentTrack=track;
@@ -42,6 +56,7 @@ final class SupportTrace {
    for(String k:CODES){Object v=data.get(k);
     if(v instanceof String&&((String)v).matches("[a-zA-Z0-9_.:-]{1,64}"))row.put(k,v);
    }
+   if(impliedReason!=null)row.put("reason",impliedReason);
    Object rawEndpoint=data.get("endpoint");
    String endpoint=rawEndpoint instanceof String?(String)rawEndpoint:"";
    if(ENDPOINTS.contains(endpoint))row.put("endpoint",endpoint);
