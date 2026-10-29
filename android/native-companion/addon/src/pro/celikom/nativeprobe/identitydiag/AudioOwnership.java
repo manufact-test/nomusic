@@ -87,7 +87,7 @@ final class AudioOwnership {
  /** Every resync and warm seek must be an inaudible command for the current identity. */
  void seekDecoder(MediaPlayer player,long target,String identity,long ticket){
   if(player==null||!current(ticket,identity))throw new IllegalStateException("stale decoder seek");
-  if(state!=State.ALIGNING&&state!=State.PREPARING&&state!=State.PAUSED)
+  if(state!=State.ALIGNING&&state!=State.PAUSED)
    throw new IllegalStateException("seek outside silent alignment");
   if(commandedSecondary>0.001f)throw new IllegalStateException("audible decoder seek forbidden");
   player.seekTo(Math.max(0L,target),MediaPlayer.SEEK_CLOSEST);
