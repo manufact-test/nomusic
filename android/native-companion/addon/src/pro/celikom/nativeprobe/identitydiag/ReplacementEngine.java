@@ -8,11 +8,11 @@ import java.io.*;
 import java.util.*;
 /** User-enabled automatic replacement within the foreground service lifetime. */
 final class ReplacementEngine {
- static final long PREPARED_MS=60000, SEEK_TIMEOUT_MS=2000, HANDOVER_DRIFT_MS=350, STREAM_SEEK_TIMEOUT_MS=12000, FADE_MS=360, PAUSE_GRACE_MS=350, PAUSE_RESUME_FADE_MS=180;
+ static final long PREPARED_MS=60000, SEEK_TIMEOUT_MS=2000, HANDOVER_DRIFT_MS=350, STREAM_SEEK_TIMEOUT_MS=12000, FADE_MS=360, PAUSE_GRACE_MS=1000, PAUSE_RESUME_FADE_MS=180;
  final ProbeService owner; final NativeApi api;
  String status="Замена выключена",identityKey,trackId,method="NONE",lookupKey;
  JSONObject descriptor; long descriptorUntil,nextLookup,armedUntil,preparedAt,seekStarted,seekBudget=SEEK_TIMEOUT_MS,fadeStarted,transition,pausedAt=-1;
- long warmSeekTransition=-1;boolean handoverPending;
+ long warmSeekTransition=-1;boolean handoverPending;long pauseRestoreDelayMs=PAUSE_GRACE_MS;
  volatile long generation; int trustedSession=-1,failures,seekCorrections;
  final BufferRecoveryGate bufferGate=new BufferRecoveryGate();BufferedAudio streaming;boolean bufferWaiting;String streamFallbackKey;
  MediaPlayer player; DynamicsProcessing effect; LoudnessEnhancer loudness; File audioFile;
@@ -79,7 +79,7 @@ final class ReplacementEngine {
   if(trustedSession<=0){status="Автозамена ожидает подключения: открой эквалайзер Яндекса → CELIKOM один раз";return;}
   try{
    if(!s.playing){pauseSource(s);return;}
-   if(pausedAt>=0)resumeFadePending=true;
+   if(pausedAt>=0){resumeFadePending=true;LogStore.log("replacement_resume_fast",LogStore.map("retainedOriginalEffect",effect!=null,"pauseDurationMs",Math.max(0,clock-pausedAt)));}
    pausedAt=-1;
    if(streaming!=null&&streaming.closed){suspend("stream_interrupted",1000);return;}
    boolean waiting=streaming!=null&&streaming.stalled();
@@ -116,10 +116,10 @@ final class ReplacementEngine {
  }
  void pauseSource(PlaybackSource s){
   if(player==null)return;
-  if(pausedAt<0){bufferGate.reset();resumeDrift=position(s)-player.getCurrentPosition();resumePositionRetained=ready&&aligned&&!seeking;pausedAt=SystemClock.elapsedRealtime();transition++;fading=false;handoverPending=false;warmSeekTransition=-1;aligned=false;player.setVolume(0,0);if(player.isPlaying())player.pause();final MediaPlayer p=player;final long token=transition;
-   owner.handler.postDelayed(()->{if(player==p&&token==transition&&current(identityKey)&&!owner.current.playing)unmute();},PAUSE_GRACE_MS);
+  if(pausedAt<0){bufferGate.reset();resumeDrift=position(s)-player.getCurrentPosition();resumePositionRetained=ready&&aligned&&!seeking;pauseRestoreDelayMs=seeking||handoverPending?350:PAUSE_GRACE_MS;pausedAt=SystemClock.elapsedRealtime();transition++;fading=false;handoverPending=false;warmSeekTransition=-1;aligned=false;player.setVolume(0,0);if(player.isPlaying())player.pause();final MediaPlayer p=player;final long token=transition;
+   owner.handler.postDelayed(()->{if(player==p&&token==transition&&current(identityKey)&&!owner.current.playing)unmute();},pauseRestoreDelayMs);
   }
-  if(SystemClock.elapsedRealtime()-pausedAt>=PAUSE_GRACE_MS)unmute();
+  if(SystemClock.elapsedRealtime()-pausedAt>=pauseRestoreDelayMs)unmute();
   status="Пауза — аудио сохранено для продолжения";logSync("paused",s,0);
  }
  long retryDelay(){failures++;return Math.min(30000,5000L*(1L<<Math.min(3,failures-1)));}
@@ -172,10 +172,13 @@ final class ReplacementEngine {
   if(!now.playing&&Math.abs(residual)<=350){aligned=true;resumePositionRetained=true;}
   update(now);
  }
- boolean mute(){try{if(trustedSession<=0||player==null||player.getAudioSessionId()==trustedSession)throw new IllegalStateException();DynamicsProcessing candidate=new DynamicsProcessing(0,trustedSession,null);effect=candidate;candidate.setControlStatusListener((e,control)->{if(!control)owner.handler.post(()->{if(effect==candidate)stop("effect_control_lost");});});if(!candidate.hasControl())throw new IllegalStateException();originalMix=1f;candidate.setInputGainAllChannelsTo(0f);if(candidate.setEnabled(true)!=AudioEffect.SUCCESS)throw new IllegalStateException();LogStore.log("replacement_original_muted",LogStore.map("sessionId",trustedSession,"globalVolumeChanged",false,"rampMs",FADE_MS));return true;}catch(RuntimeException e){stop("cannot_mute_original");status="Телефон не разрешил приглушить Яндекс; замена остановлена";return false;}}
+ boolean mute(){try{if(trustedSession<=0||player==null||player.getAudioSessionId()==trustedSession)throw new IllegalStateException();DynamicsProcessing candidate=new DynamicsProcessing(0,trustedSession,null);effect=candidate;candidate.setControlStatusListener((e,control)->{if(!control)owner.handler.post(()->{if(effect==candidate)stop("effect_control_lost");});});if(!candidate.hasControl())throw new IllegalStateException();originalMix=1f;candidate.setInputGainAllChannelsTo(0f);if(candidate.setEnabled(true)!=AudioEffect.SUCCESS)throw new IllegalStateException();LogStore.log("replacement_original_muted",LogStore.map("sessionId",trustedSession,"globalVolumeChanged",false,"rampMs",resumeFadePending?PAUSE_RESUME_FADE_MS:FADE_MS));return true;}catch(RuntimeException e){stop("cannot_mute_original");status="Телефон не разрешил приглушить Яндекс; замена остановлена";return false;}}
  void fade(){
   final long token=++transition;final MediaPlayer p=player;final DynamicsProcessing fx=effect;final float initialOriginal=originalMix;
-  final long rampDuration=initialOriginal<=0.001f?80:(resumeFadePending?PAUSE_RESUME_FADE_MS:FADE_MS);resumeFadePending=false;final boolean alignLive=streaming!=null&&initialOriginal>0.001f;
+  final boolean shortResume=resumeFadePending;
+  final long rampDuration=shortResume?PAUSE_RESUME_FADE_MS:(initialOriginal<=0.001f?80:FADE_MS);resumeFadePending=false;
+  // When attenuation stays attached through a short pause, validate decoder's advancing clock before raising replacement volume.
+  final boolean alignLive=streaming!=null&&(initialOriginal>0.001f||shortResume);
   final long[] baseline={p.getCurrentPosition()},phaseStarted={SystemClock.elapsedRealtime()};final int[] corrections={0};
   fadeStarted=SystemClock.elapsedRealtime();fading=true;handoverPending=alignLive;warmSeekTransition=-1;
   Runnable ramp=new Runnable(){public void run(){

@@ -31,13 +31,13 @@ public class TestResumeClock {
   int beforeRoute=player.seekCalls;player.position=1160;e.headphonesDisconnected();sample(1160,false);
   SystemClock.now+=1000;sample(1160,true);
   check(player.playing&&player.seekCalls==beforeRoute,"unchanged route-resume position reuses decoder without any seek");
-  sample(1160,false);SystemClock.now+=400;sample(1160,false);TestEngine.p.handler.drain();sample(1160,true);
+  sample(1160,false);SystemClock.now+=ReplacementEngine.PAUSE_GRACE_MS+20;sample(1160,false);TestEngine.p.handler.drain();sample(1160,true);
   check(player.playing&&player.seekCalls==beforeRoute,"ordinary pause-resume also avoids an unnecessary decoder seek");
   e.close();
 
   TestEngine.playing();e=TestEngine.e;player=e.player;
   SystemClock.now+=ReplacementEngine.FADE_MS+20;sample(1160,true);TestEngine.p.handler.drain();
-  player.position=1160;sample(1160,false);SystemClock.now+=450;sample(1160,false);TestEngine.p.handler.drain();
+  player.position=1160;sample(1160,false);SystemClock.now+=ReplacementEngine.PAUSE_GRACE_MS+20;sample(1160,false);TestEngine.p.handler.drain();
   // Replayed CELIKOM 0.3.45 phone: ~210-254ms mismatch after a paused source.
   int beforeResume=player.seekCalls;sample(1380,true);
   check(player.seekCalls==beforeResume,"existing Bluetooth-sized 220ms offset does not add a risky seek");
@@ -46,6 +46,33 @@ public class TestResumeClock {
   int afterResume=player.seekCalls;SystemClock.now+=ReplacementEngine.PAUSE_RESUME_FADE_MS+20;
   sample(1580,true);TestEngine.p.handler.drain();
   check(player.seekCalls==afterResume&&e.player==player,"resume stays stable without disruptive reseek");
+  e.close();
+
+  // HONOR 0.3.46: after a long pause, a second 813ms pause was needlessly
+  // rebuilding DynamicsProcessing. Keep it for short pauses without losing fail-open.
+  TestEngine.playing();e=TestEngine.e;player=e.player;
+  SystemClock.now+=ReplacementEngine.FADE_MS+20;sample(1160,true);TestEngine.p.handler.drain();
+  android.media.audiofx.DynamicsProcessing original=e.effect;
+  int enabledBefore=android.media.audiofx.DynamicsProcessing.enabledCount;
+  player.position=1160;sample(1160,false);
+  SystemClock.now+=813;sample(1160,false);TestEngine.p.handler.drain();
+  check(!player.playing&&e.effect==original&&!original.released,"813ms pause retains verified effect without audible decoder");
+  sample(1175,true);
+  check(e.player==player&&player.playing&&e.effect==original,"813ms resume keeps same decoder and effect");
+  check(android.media.audiofx.DynamicsProcessing.enabledCount==enabledBefore,"813ms resume does not reattach Android effect");
+  check(e.fadeStarted>=0&&!e.resumeFadePending,"813ms resume uses bounded fade");
+  SystemClock.now+=ReplacementEngine.PAUSE_RESUME_FADE_MS+35;
+  sample(1390,true);TestEngine.p.handler.drain();
+  check(player.volume>0.99f&&!e.fading,"short resume returns to full volume");
+  e.close();
+
+  TestEngine.playing();e=TestEngine.e;player=e.player;
+  SystemClock.now+=ReplacementEngine.FADE_MS+20;sample(1160,true);TestEngine.p.handler.drain();
+  original=e.effect;player.position=1160;sample(1160,false);
+  SystemClock.now+=ReplacementEngine.PAUSE_GRACE_MS+10;sample(1160,false);TestEngine.p.handler.drain();
+  check(e.effect==null&&original.released,"sustained pause releases attenuation and restores source");
+  sample(1160,true);
+  check(e.effect!=null&&e.effect!=original&&player.playing,"long-pause resume safely reacquires effect");
   e.close();
 
   TestEngine.playing();e=TestEngine.e;player=e.player;
