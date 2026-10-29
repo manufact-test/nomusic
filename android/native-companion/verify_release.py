@@ -9,8 +9,10 @@ import subprocess
 import tempfile
 import xml.etree.ElementTree as ET
 import zipfile
+from release_contract import load_release
 
 ROOT = Path(__file__).resolve().parent
+VERSION, VERSION_CODE, SIGNER_CERT_SHA256 = load_release()
 
 
 def certificate(apk, tools):
@@ -27,7 +29,7 @@ def main():
         p.add_argument("--" + arg, type=Path, required=True)
     args = p.parse_args()
     cert = certificate(args.apk, args.build_tools)
-    assert cert == certificate(args.base_apk, args.build_tools), "Installed-app signing identity changed"
+    assert cert == certificate(args.base_apk, args.build_tools) == SIGNER_CERT_SHA256, "Signer differs from installed baseline or pinned certificate"
     subprocess.run([str(args.build_tools / "zipalign"), "-c", "4", str(args.apk)], check=True)
     android = "{http://schemas.android.com/apk/res/android}"
     current = ET.parse(args.decoded / "AndroidManifest.xml").getroot()
@@ -59,7 +61,7 @@ def main():
     denied = ("BIND_NOTIFICATION_LISTENER_SERVICE", "BIND_ACCESSIBILITY_SERVICE", "RECORD_AUDIO", "READ_SMS", "READ_CONTACTS", "QUERY_ALL_PACKAGES")
     assert not any(any(key in value for key in denied) for node in current.iter() for value in node.attrib.values())
     badging = subprocess.check_output([str(args.build_tools / "aapt"), "dump", "badging", str(args.apk)], text=True)
-    assert "versionCode='52'" in badging and "versionName='0.3.51'" in badging
+    assert "versionCode='" + str(VERSION_CODE) + "'" in badging and "versionName='" + VERSION + "'" in badging
     assert "sdkVersion:'28'" in badging and "targetSdkVersion:'36'" in badging
     with zipfile.ZipFile(args.apk) as built, zipfile.ZipFile(args.base_apk) as base:
         assert len(built.namelist()) == len(set(built.namelist())), "Duplicate APK entry"
@@ -83,7 +85,8 @@ def main():
         dex = signed.read("classes2.dex")
         assert dex.startswith(b"dex" + bytes([10])), "Signed addon has no DEX header"
         markers = (
-            b"0.3.51", b"ReplacementEngine", b"AudioOwnership",
+            VERSION.encode("ascii"), b"ReplacementEngine", b"AudioOwnership",
+            b"ClockSupervisor", b"SourceEventArbiter", b"retireDecoder",
             b"SourceTransitionGate", b"AudioContinuityMonitor",
             b"audio_command_anomaly", b"audio_decoder_start",
             b"replacement_resume_fast", b"replacement_duration_mismatch",
@@ -104,10 +107,10 @@ def main():
     assert "AudioContinuityMonitor" in (addon / "AudioContinuityMonitor.java").read_text()
     source_digests = {str(p.relative_to(ROOT)): hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted((ROOT / "addon/src").rglob("*.java"))}
     proof = {
-        "version": "0.3.51", "version_code": 52,
+        "version": VERSION, "version_code": VERSION_CODE,
         "apk_sha256": hashlib.sha256(args.apk.read_bytes()).hexdigest(),
         "base_apk_sha256": hashlib.sha256(args.base_apk.read_bytes()).hexdigest(),
-        "signer_sha256": cert,
+        "signer_sha256": cert, "signer_matches_pinned_identity": cert == SIGNER_CERT_SHA256,
         "addon_dex_sha256": hashlib.sha256(args.compiled_dex.read_bytes()).hexdigest(),
         "signing_continuity": True, "manifest_matches_approved_changes": True,
         "permissions_components_unchanged": True,

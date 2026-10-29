@@ -15,10 +15,10 @@ import subprocess
 import tempfile
 import zipfile
 import xml.etree.ElementTree as ET
+from release_contract import load_release
 
 ROOT = Path(__file__).resolve().parent
-VERSION = "0.3.51"
-VERSION_CODE = 52
+VERSION, VERSION_CODE, SIGNER_CERT_SHA256 = load_release()
 
 
 def run(args, **kwargs):
@@ -38,9 +38,11 @@ def main():
     args = parser.parse_args()
     inputs = json.loads((ROOT / "build-inputs.json").read_text())
     assert sha(args.base_apk) == inputs["base_apk_sha256"], "Unexpected baseline APK"
-    assert ('NAME="' + VERSION + '"') in (ROOT / "addon/src/pro/celikom/nativeprobe/identitydiag/AppVersion.java").read_text(), "Source version mismatch"
     for name, digest in inputs["dependencies"].items():
         assert sha(args.deps_dir / name) == digest, "Dependency mismatch: " + name
+    assert VERSION in args.output.name, "Output filename must include target release version"
+    assert not args.output.exists(), "Refusing to overwrite an existing release"
+    assert args.output.resolve() != args.base_apk.resolve(), "Cannot overwrite the pinned baseline"
     private = args.signing_dir.resolve()
     assert not private.is_relative_to(ROOT), "Keep signing files outside source tree"
     build_root = ROOT / "addon/build"
@@ -56,8 +58,9 @@ def main():
     shutil.rmtree(decoded / "smali_classes2")
     yml = decoded / "apktool.yml"
     config = yml.read_text()
-    config = re.sub(r"versionCode: \d+", "versionCode: " + str(VERSION_CODE), config)
-    config = re.sub(r"versionName: [^\n]+", "versionName: " + VERSION, config)
+    config, code_count = re.subn(r"(?m)^versionCode: \\d+\\s*$", "versionCode: " + str(VERSION_CODE), config)
+    config, name_count = re.subn(r"(?m)^versionName: [^\\n]+$", "versionName: " + VERSION, config)
+    assert code_count == name_count == 1, "Unexpected baseline Apktool version metadata"
     yml.write_text(config)
     manifest = decoded / "AndroidManifest.xml"
     ET.register_namespace("android", "http://schemas.android.com/apk/res/android")
