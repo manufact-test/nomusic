@@ -10,6 +10,7 @@ final class AudioOwnership {
  private String key,reason="initial";
  private long generation=1,pauseEpoch;
  private boolean originalMuted;
+ private float commandedSecondary;
  State state(){return state;}
  String reason(){return reason;}
  long epoch(){return generation;}
@@ -57,15 +58,39 @@ final class AudioOwnership {
      effect==null || !effect.hasControl() || !effect.getEnabled()))
    throw new IllegalStateException("secondary gain without exclusive owner");
   player.setVolume(value,value);
+  commandedSecondary=value;
  }
  /** Silence or force-release secondary before the caller can restore source gain. */
  void silenceReplacement(MediaPlayer player){
   state=State.RECOVERING;reason="silencing_secondary";
   if(player==null)return;
   boolean muted=false,paused=false;
-  try{player.setVolume(0f,0f);muted=true;}catch(RuntimeException ignored){}
+  try{player.setVolume(0f,0f);commandedSecondary=0f;muted=true;}catch(RuntimeException ignored){}
   try{if(player.isPlaying())player.pause();paused=true;}catch(RuntimeException ignored){}
   if(!muted||!paused)try{player.release();}catch(RuntimeException ignored){}
+ }
+ /** Only the current source owner can start a decoder. First starts must stay inaudible. */
+ void startDecoder(MediaPlayer player,DynamicsProcessing effect,String identity,long ticket){
+  if(player==null||!current(ticket,identity))throw new IllegalStateException("stale decoder start");
+  if(state!=State.PREPARING&&state!=State.ALIGNING&&state!=State.REPLACEMENT)
+   throw new IllegalStateException("decoder start outside active lifecycle");
+  if(effect==null||!effect.hasControl()||!effect.getEnabled())
+   throw new IllegalStateException("cannot start decoder without verified session effect");
+  if(commandedSecondary>0.001f&&state!=State.REPLACEMENT)
+   throw new IllegalStateException("cannot start audible decoder before exclusive grant");
+  player.start();
+ }
+ /** Pause is always allowed: emergency silencing must not be blocked by a stale token. */
+ void pauseDecoder(MediaPlayer player){
+  if(player!=null&&player.isPlaying())player.pause();
+ }
+ /** Every resync and warm seek must be an inaudible command for the current identity. */
+ void seekDecoder(MediaPlayer player,long target,String identity,long ticket){
+  if(player==null||!current(ticket,identity))throw new IllegalStateException("stale decoder seek");
+  if(state!=State.ALIGNING&&state!=State.PREPARING&&state!=State.PAUSED)
+   throw new IllegalStateException("seek outside silent alignment");
+  if(commandedSecondary>0.001f)throw new IllegalStateException("audible decoder seek forbidden");
+  player.seekTo(Math.max(0L,target),MediaPlayer.SEEK_CLOSEST);
  }
  static final class RestoreResult { boolean gainReset,disabled,released; }
  /** Secondary decoder must be silent or released before resetting native gain. */
