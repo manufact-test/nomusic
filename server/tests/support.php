@@ -103,6 +103,22 @@ try{
   $trace=$service->thread($second,$u)['report']['diagnostics']['trace'];
   expect(count($trace)===2,'Only recognized bounded events persist');
   expect(!str_contains(json_encode($trace),'SECRET'),'Trace strips private values');
+  $panel=new AdminPanel($pdo,new LocalStorageAdapter('/tmp/celikom-support-tests'),false,false,[]);
+  $adminCookie=static function(int $id)use($pdo):array{
+   $token=bin2hex(random_bytes(32));$csrf=AdminAuth::csrfForToken($token);
+   $pdo->prepare('INSERT INTO admin_sessions(token_hash,admin_id,csrf_hash,expires_at) VALUES (?,?,?,UTC_TIMESTAMP()+INTERVAL 1 HOUR)')->execute([hash('sha256',$token),$id,hash('sha256',$csrf)]);
+   return ['cookie'=>AdminAuth::COOKIE.'='.$token];
+  };
+  $ownerHeaders=$adminCookie($owner);$viewerHeaders=$adminCookie($viewer);
+  $url='/admin/support/diagnostics';$query=['ticket'=>(string)$second];
+  $file=$panel->handle('GET',$url,$query,$ownerHeaders,'');
+  expect($file->status===200&&str_contains($file->headers['Content-Disposition']??'','attachment'),'Admin downloads JSON attachment');
+  $download=json_decode($file->body,true);
+  expect(($download['report']['diagnostics']['trace'][0]['reason']??'')==='alignment_unstable','Downloaded file contains useful event codes');
+  expect(!str_contains($file->body,'SECRET'),'Admin download contains no secret fields');
+  expect($panel->handle('GET',$url,$query,[],'')->status===303,'Anonymous download requires login');
+  expect($panel->handle('GET',$url,$query,$viewerHeaders,'')->status===403,'Viewer cannot download diagnostic');
+  expect($panel->handle('GET',$url,['ticket'=>(string)$general],$ownerHeaders,'')->status===404,'General tickets cannot be downloaded as song diagnostics');
  });
 }finally{
  foreach($users as $u){$pdo->exec('DELETE m FROM support_messages m JOIN support_tickets t ON t.id=m.ticket_id WHERE t.user_id='.$u);$pdo->exec('DELETE FROM audit_log WHERE entity_type=\'support_ticket\' AND entity_id IN (SELECT id FROM support_tickets WHERE user_id='.$u.')');$pdo->exec('DELETE FROM support_tickets WHERE user_id='.$u);$pdo->exec('DELETE FROM users WHERE id='.$u);}
