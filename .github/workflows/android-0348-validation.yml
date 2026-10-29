@@ -23,10 +23,14 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          echo "Android SDK: ${ANDROID_HOME:-${ANDROID_SDK_ROOT:-unset}}"
-          sdkmanager --version
-          yes | sdkmanager --licenses >/dev/null || true
-          sdkmanager --install "platforms;android-36" "build-tools;36.0.0"
+          SDK="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
+          echo "Android SDK: $SDK"
+          export ANDROID_HOME="$SDK" ANDROID_SDK_ROOT="$SDK"
+          SM="$(find "$SDK/cmdline-tools" -type f -name sdkmanager | sort -V | tail -1)"
+          test -n "$SM"
+          "$SM" --version
+          yes | "$SM" --sdk_root="$SDK" --licenses >/dev/null || true
+          "$SM" --sdk_root="$SDK" --install "platforms;android-36" "build-tools;36.0.0"
       - name: Fetch exactly pinned dependencies
         shell: bash
         run: |
@@ -60,7 +64,7 @@ jobs:
         run: |
           set -euo pipefail
           ROOT=android/native-companion
-          SDK="${ANDROID_HOME:-${ANDROID_SDK_ROOT}}"
+          SDK="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
           CP="$SDK/platforms/android-36/android.jar"
           for name in annotation common guava session; do CP="$CP:$ROOT/deps/$name.jar"; done
           mkdir -p "$RUNNER_TEMP/classes" "$RUNNER_TEMP/dex"
