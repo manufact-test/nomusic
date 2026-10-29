@@ -46,6 +46,20 @@ public final class TestAudioOwnershipRegression {
   check(!SourceTransitionGate.currentPositionSeek(-1,61334),
       "unknown controller position cannot validate a seek");
 
+  // Exercise actual ReplacementEngine, not just the pure seek-position gate.
+  // Stale callback must not force a second decoder seek on a short pause/resume
+  // when audio is already aligned within 206ms (0.3.48 HONOR timeline).
+  TestEngine.playing();e=TestEngine.e;p=e.player;
+  SystemClock.now+=ReplacementEngine.FADE_MS+30;sample(1160,true);TestEngine.p.handler.drain();
+  p.position=1160;int seeksBeforeStale=p.seekCalls;
+  if(SourceTransitionGate.currentPositionSeek(101197,61334))e.sourceSeekRequested();
+  sample(1160,false);SystemClock.now+=879;sample(1366,true);
+  check(p.seekCalls==seeksBeforeStale,
+      "stale remote seek must not trigger an audible decoder resync after a short pause");
+  check(e.player==p&&e.effect!=null,
+      "the aligned player and verified effect survive stale seek replay");
+  e.close();
+
   // Track boundaries must silence any older decoder BEFORE releasing native attenuation.
   TestEngine.playing();e=TestEngine.e;p=e.player;
   SystemClock.now+=ReplacementEngine.FADE_MS+30;sample(1160,true);TestEngine.p.handler.drain();
