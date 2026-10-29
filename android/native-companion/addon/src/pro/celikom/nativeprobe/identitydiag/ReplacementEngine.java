@@ -172,7 +172,13 @@ final class ReplacementEngine {
    long compensated=Math.max(0,Math.min(mp.getDuration()-1,target+residual));
    if(compensated<mp.getDuration()-150){seek(now,compensated,residual,true);return;}
   }
-  if(!now.playing&&Math.abs(residual)<=350){aligned=true;resumePositionRetained=true;}
+  // A transient non-playing snapshot during an in-flight seek can clear
+  // 'aligned'. Accept the completed position if within the existing
+  // handover drift budget, rather than launching a second redundant seek.
+  if(Math.abs(residual)<=HANDOVER_DRIFT_MS){
+   aligned=true;
+   if(!now.playing)resumePositionRetained=true;
+  }
   update(now);
  }
  boolean mute(){try{if(trustedSession<=0||player==null||player.getAudioSessionId()==trustedSession)throw new IllegalStateException();DynamicsProcessing candidate=new DynamicsProcessing(0,trustedSession,null);effect=candidate;candidate.setControlStatusListener((e,control)->{if(!control)owner.handler.post(()->{if(effect==candidate)stop("effect_control_lost");});});if(!candidate.hasControl())throw new IllegalStateException();originalMix=1f;audioOwner.preparing();candidate.setInputGainAllChannelsTo(0f);if(candidate.setEnabled(true)!=AudioEffect.SUCCESS)throw new IllegalStateException();LogStore.log("replacement_original_muted",LogStore.map("sessionId",trustedSession,"globalVolumeChanged",false,"rampMs",resumeFadePending?PAUSE_RESUME_FADE_MS:FADE_MS));return true;}catch(RuntimeException e){stop("cannot_mute_original");status="Телефон не разрешил приглушить Яндекс; замена остановлена";return false;}}
