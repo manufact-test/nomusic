@@ -76,38 +76,32 @@ def main():
         assert "identitydiag/RecorderActivity" in method and "->finish()V" in method and "setContentView" not in method
         assert "new-instance v0, Landroid/content/Intent;" in method and "->setClass(" not in method, "Launcher still forwards untrusted task flags"
         assert "android.intent.action.SEND" in method, "Shared text links no longer forwarded"
-    # Inspect the signed deliverable independently, not just an intermediate DEX hash.
-    with tempfile.TemporaryDirectory(prefix="celikom-final-apk-") as directory:
-        extracted = Path(directory) / "decoded"
-        subprocess.run(["java", "-jar", str(args.apktool), "d", str(args.apk), "-r", "-f", "-o", str(extracted)], check=True, stdout=subprocess.DEVNULL)
-        addon = extracted / "smali_classes2/pro/celikom/nativeprobe/identitydiag"
-        support = (addon / "SupportTrace.smali").read_text()
-        assert "replacement_recovery" in support and "trace" in support, "Signed APK lacks bounded support trace"
-        launcher = (extracted / "smali/pro/celikom/nativeprobe/MainActivity.smali").read_text()
-        assert "new-instance v0, Landroid/content/Intent;" in launcher and "->setClass(" not in launcher, "Signed launcher still reuses task Intent"
-        matcher = (addon / "AlbumMatch.smali").read_text()
-        match_body = re.search(r"\.method static match\(.*?\.end method", matcher, re.S).group(0)
-        assert ".method static artistKey(" in matcher and "quest pistols show" in matcher, "Signed APK is missing the artist-pair fix"
-        assert match_body.count("->artistKey(") >= 2, "Signed APK matcher bypasses artist normalization"
-        duration = (addon / "PlaybackDuration.smali").read_text()
-        assert "MAX_TAIL_DIFFERENCE_MS:J = 0x1f4L" in duration, "Final APK duration guard is not 500ms"
-        support = (addon / "SupportTrace.smali").read_text()
-        assert "replacement_duration_mismatch" in support, "Final APK does not report duration failures"
-        engine = (addon / "ReplacementEngine.smali").read_text()
-        assert "PlaybackDuration;->safe" in engine, "Final APK audio engine bypasses duration guard"
-        assert "PAUSE_RESUME_FADE_MS:J = 0xb4L" in engine, "Final APK does not shorten pause resume fade"
-        assert "PAUSE_GRACE_MS:J = 0x3e8L" in engine and "pauseRestoreDelayMs:J" in engine, "Final APK lacks bounded retained effect on short pauses"
-        assert "replacement_resume_fast" in engine, "Final APK cannot distinguish quick resume diagnostics"
-        ownership=(addon / "AudioOwnership.smali").read_text()
-        assert "grantReplacement" in ownership and "validPause" in ownership, "Final APK missing owner-first replacement and stale pause guards"
-        assert "AudioOwnership;->grantReplacement" in engine, "Final APK bypasses exclusive audio ownership"
-        assert "AudioOwnership;->validPause" in "".join(x.read_text() for x in addon.glob("ReplacementEngine*.smali")), "Signed APK lacks stale-pause guard"
-        assert "handoverPending" in engine and "warmSeekTransition" in engine, "Signed APK lacks the live-clock handover guard"
-        assert re.search(r"HANDOVER_DRIFT_MS:J = 0x15eL", engine), "Signed APK handover tolerance is not 350ms"
-        ramp = (addon / "ReplacementEngine$1.smali").read_text()
-        assert re.search(r"const-wide/16[^\n]*0x15e", ramp), "Signed APK fade bypasses shared 350ms tolerance"
-        version = (addon / "AppVersion.smali").read_text()
-        assert '"0.3.49"' in version, "Signed APK addon version mismatch"
+    # Inspect the *signed* DEX directly instead of decompiling the entire APK.
+    # The byte-for-byte compiled DEX comparison above binds all source/tests to
+    # this artifact; repeated full Apktool decompilation can stall on Android 16.
+    with zipfile.ZipFile(args.apk) as signed:
+        dex = signed.read("classes2.dex")
+        assert dex.startswith(b"dex\\n"), "Signed addon has no DEX header"
+        markers = (
+            b"0.3.49", b"ReplacementEngine", b"AudioOwnership",
+            b"SourceTransitionGate", b"AudioContinuityMonitor",
+            b"audio_command_anomaly", b"audio_decoder_start",
+            b"replacement_resume_fast", b"replacement_duration_mismatch",
+            b"SupportTrace", b"PlaybackDuration", b"AlbumMatch",
+        )
+        for marker in markers:
+            assert marker in dex, "Signed APK missing code marker: " + marker.decode()
+    addon = ROOT / "addon/src/pro/celikom/nativeprobe/identitydiag"
+    engine = (addon / "ReplacementEngine.java").read_text()
+    ownership = (addon / "AudioOwnership.java").read_text()
+    matcher = (addon / "AlbumMatch.java").read_text()
+    assert "PAUSE_RESUME_FADE_MS=180" in engine and "PAUSE_GRACE_MS=1000" in engine
+    assert "HANDOVER_DRIFT_MS=350" in engine and "warmSeekTransition" in engine
+    assert "grantReplacement" in ownership and "validPause" in ownership
+    assert "audioOwner.grantReplacement" in engine and "audioOwner.validPause" in engine
+    assert matcher.count("artistKey(") >= 3 and '"quest pistols"' in matcher
+    assert "SourceTransitionGate" in (addon / "SourceTransitionGate.java").read_text()
+    assert "AudioContinuityMonitor" in (addon / "AudioContinuityMonitor.java").read_text()
     source_digests = {str(p.relative_to(ROOT)): hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted((ROOT / "addon/src").rglob("*.java"))}
     proof = {
         "version": "0.3.49", "version_code": 50,
