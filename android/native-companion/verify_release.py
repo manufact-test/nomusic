@@ -53,7 +53,7 @@ def main():
     denied = ("BIND_NOTIFICATION_LISTENER_SERVICE", "BIND_ACCESSIBILITY_SERVICE", "RECORD_AUDIO", "READ_SMS", "READ_CONTACTS", "QUERY_ALL_PACKAGES")
     assert not any(any(key in value for key in denied) for node in current.iter() for value in node.attrib.values())
     badging = subprocess.check_output([str(args.build_tools / "aapt"), "dump", "badging", str(args.apk)], text=True)
-    assert "versionCode='47'" in badging and "versionName='0.3.46'" in badging
+    assert "versionCode='48'" in badging and "versionName='0.3.47'" in badging
     assert "sdkVersion:'28'" in badging and "targetSdkVersion:'36'" in badging
     with zipfile.ZipFile(args.apk) as built, zipfile.ZipFile(args.base_apk) as base:
         assert len(built.namelist()) == len(set(built.namelist())), "Duplicate APK entry"
@@ -90,15 +90,17 @@ def main():
         engine = (addon / "ReplacementEngine.smali").read_text()
         assert "PlaybackDuration;->safe" in engine, "Final APK audio engine bypasses duration guard"
         assert "PAUSE_RESUME_FADE_MS:J = 0xb4L" in engine, "Final APK does not shorten pause resume fade"
+        assert "PAUSE_GRACE_MS:J = 0x3e8L" in engine and "pauseRestoreDelayMs:J" in engine, "Final APK lacks bounded retained effect on short pauses"
+        assert "replacement_resume_fast" in engine, "Final APK cannot distinguish quick resume diagnostics"
         assert "handoverPending" in engine and "warmSeekTransition" in engine, "Signed APK lacks the live-clock handover guard"
         assert re.search(r"HANDOVER_DRIFT_MS:J = 0x15eL", engine), "Signed APK handover tolerance is not 350ms"
         ramp = (addon / "ReplacementEngine$1.smali").read_text()
         assert re.search(r"const-wide/16[^\n]*0x15e", ramp), "Signed APK fade bypasses shared 350ms tolerance"
         version = (addon / "AppVersion.smali").read_text()
-        assert '"0.3.46"' in version, "Signed APK addon version mismatch"
+        assert '"0.3.47"' in version, "Signed APK addon version mismatch"
     source_digests = {str(p.relative_to(ROOT)): hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted((ROOT / "addon/src").rglob("*.java"))}
     proof = {
-        "version": "0.3.46", "version_code": 47,
+        "version": "0.3.47", "version_code": 48,
         "apk_sha256": hashlib.sha256(args.apk.read_bytes()).hexdigest(),
         "base_apk_sha256": hashlib.sha256(args.base_apk.read_bytes()).hexdigest(),
         "signer_sha256": cert,
