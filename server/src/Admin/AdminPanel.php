@@ -501,6 +501,27 @@ final class AdminPanel
                 . '<input type="hidden" name="csrf" value="' . $csrf . '">'
                 . '<button type="submit" title="Скачать журнал действий в CSV">↓ Скачать журнал</button></form>';
         }
+        // Pending moderation/support counts are live. Promo activation notices are
+        // scoped to the administrator and cleared only after viewing Activations.
+        if($tab==='promos' && ($query['activations']??null)==='1' && $admin['role']==='owner') {
+            $lastSeen=(int)$this->pdo->query('SELECT COALESCE(MAX(id),0) FROM promo_redemptions')->fetchColumn();
+            $seen=$this->pdo->prepare("INSERT INTO admin_navigation_seen(admin_id,section,last_seen_id) VALUES (?,'promos',?)
+                ON DUPLICATE KEY UPDATE last_seen_id=GREATEST(last_seen_id,VALUES(last_seen_id)),updated_at=UTC_TIMESTAMP(6)");
+            $seen->execute([(int)$admin['id'],$lastSeen]);
+        }
+        $countQuery=$this->pdo->prepare("SELECT
+            (SELECT COUNT(*) FROM track_replacements WHERE status='pending') AS pending_uploads,
+            (SELECT COUNT(*) FROM track_requests r WHERE " . \Celikom\Application\TrackRequestProgress::sql() . " = 'pending') AS pending_requests,
+            (SELECT COUNT(*) FROM reports WHERE status='pending') AS pending_reports,
+            (SELECT COUNT(*) FROM support_tickets WHERE status='open') AS pending_support,
+            (SELECT COUNT(*) FROM service_incidents WHERE service='yandex' AND ended_at IS NULL) AS active_incidents,
+            (SELECT COUNT(*) FROM promo_redemptions WHERE id >
+             COALESCE((SELECT last_seen_id FROM admin_navigation_seen WHERE admin_id=? AND section='promos'),0)) AS new_promos");
+        $countQuery->execute([(int)$admin['id']]);
+        $counts=$countQuery->fetch(\PDO::FETCH_ASSOC);
+        $noticeCounts=['uploads'=>(int)$counts['pending_uploads'],'requests'=>(int)$counts['pending_requests'],
+            'promos'=>(int)$counts['new_promos'],'incidents'=>(int)$counts['active_incidents'],
+            'support'=>(int)$counts['pending_support']];
         $html .= '<form class="head-form" method="post" action="/admin/logout">'
             . '<input type="hidden" name="csrf" value="' . $csrf . '">'
             . '<button type="submit">Выйти ↗</button></form></div></header><nav class="nav" aria-label="Разделы">';
@@ -514,13 +535,9 @@ final class AdminPanel
             if (!in_array($key, $allowed, true)) continue;
             $html .= '<a href="/admin?tab=' . $key . '&per_page=' . $size . '"'
                 . ($tab === $key ? ' class="current" aria-current="page"' : '') . '>'
-                . self::e($name) . '</a>';
+                . self::e($name) . (($noticeCounts[$key]??0)>0 ? '<span class="nav-count" aria-label="Новых: '.(int)$noticeCounts[$key].'">'.(int)$noticeCounts[$key].'</span>' : '') . '</a>';
         }
         $html .= '</nav>';
-        $counts = $this->pdo->query("SELECT
-            (SELECT COUNT(*) FROM track_replacements WHERE status='pending') AS pending_uploads,
-            (SELECT COUNT(*) FROM track_requests r WHERE " . \Celikom\Application\TrackRequestProgress::sql() . " = 'pending') AS pending_requests,
-            (SELECT COUNT(*) FROM reports WHERE status='pending') AS pending_reports")->fetch(\PDO::FETCH_ASSOC);
         $html .= '<div class="stats">'
             . '<a class="stat" href="/admin?tab=uploads&status=pending&per_page=' . $size
             . '"><span>Версии на проверке<span class="sub">Загруженные аудиофайлы</span></span><strong>'
@@ -530,7 +547,7 @@ final class AdminPanel
             . (int) $counts['pending_requests'] . '</strong></a>'
             . '</div>';
         return $html . match ($tab) {
-            'support' => (new \Celikom\Support\SupportAdminView($this->pdo))->render($admin['csrf'],$this->positiveInt($query['ticket']??null) ?: 0,$this->positiveInt($query['page']??null) ?: 1,$this->positiveInt($query['message_page']??null) ?: 1,$this->positiveInt($query['account']??null) ?: 0,is_string($query['support_kind']??null)?$query['support_kind']:'general'),
+            'support' => (new \Celikom\Support\SupportAdminView($this->pdo))->render($admin['csrf'],$this->positiveInt($query['ticket']??null) ?: 0,$this->positiveInt($query['page']??null) ?: 1,$this->positiveInt($query['message_page']??null) ?: 1,$this->positiveInt($query['account']??null) ?: 0,is_string($query['support_kind']??null)?$query['support_kind']:'all'),
             'promos' => (new \Celikom\Promo\PromoAdminView($this->pdo))->render($admin['csrf'],$this->positiveInt($query['page']??null) ?: 1,($query['create']??null)==='1',($query['activations']??null)==='1'),
             'incidents' => (new \Celikom\Incident\IncidentAdminView($this->pdo))->render($admin['csrf']),
             'requests' => $this->requests($admin, $csrf, $query),
