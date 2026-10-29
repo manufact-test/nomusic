@@ -102,7 +102,7 @@ final class ReplacementEngine {
    boolean newlyAttached=effect==null;
    if(newlyAttached&&!mute())return;
    if(!effect.hasControl()||!effect.getEnabled()){stop("effect_control_lost");return;}
-   if(!player.isPlaying()){setAuditedVolume(player,0f);long decoderPosition=player.getCurrentPosition();player.start();LogStore.log("audio_decoder_start",LogStore.map("trackId",trackId,"decoderPositionMs",decoderPosition,"sourcePositionMs",position(s),"reusePreparedDecoder",true,"seekPending",seeking,"sourceMutedCommand",effect!=null&&originalMix<=0.001f));traceAudioCommands();fade();}
+   if(!player.isPlaying()){setAuditedVolume(player,0f);player.start();try{LogStore.log("audio_decoder_start",LogStore.map("trackId",trackId,"decoderPositionMs",player.getCurrentPosition(),"sourcePositionMs",position(s),"reusePreparedDecoder",true,"seekPending",seeking,"sourceMutedCommand",effect!=null&&originalMix<=0.001f));}catch(RuntimeException ignored){}traceAudioCommands();fade();}
    else if(newlyAttached){setAuditedVolume(player,0f);fade();}
    else if(!fading){audioOwner.grantReplacement(effect);originalMix=0f;applyVolume(1f);}
    status="Играет замена · автопереход включён";logSync("playing",s,drift);
