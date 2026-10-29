@@ -31,11 +31,35 @@ def sha(path):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    for name in ("sdk", "build-tools", "apktool", "base-apk", "signing-dir", "output"):
+    for name in ("sdk", "build-tools", "apktool", "base-apk", "output"):
         parser.add_argument("--" + name, type=Path, required=True)
+    parser.add_argument("--signing-dir", type=Path, default=None)
+    parser.add_argument("--unsigned-inspection", action="store_true", help="structural smoke, NEVER a signed installable APK")
+    parser.add_argument("--inspection-ci-dex", type=Path, default=None)
+    parser.add_argument("--inspection-ci-dex-sha256", default=None)
     parser.add_argument("--deps-dir", type=Path, default=ROOT / "deps")
     parser.add_argument("--work-dir", type=Path, default=None)
     args = parser.parse_args()
+    # Strictly separate read-only unsigned inspection from the release signer.
+    inspection = args.unsigned_inspection
+    if inspection:
+        if args.signing_dir is not None:
+            parser.error("unsigned inspection MUST NOT receive a signing directory")
+        if args.inspection_ci_dex is None or args.inspection_ci_dex_sha256 is None:
+            parser.error("unsigned inspection requires a CI DEX and its trusted SHA256")
+        if not args.output.name.endswith("-INSPECTION-UNSIGNED.apk"):
+            parser.error("unsigned inspections require a clearly marked UNSIGNED output")
+        if not re.fullmatch(r"[a-f0-9]{64}", args.inspection_ci_dex_sha256):
+            parser.error("expected CI DEX SHA256 is invalid")
+        if sha(args.inspection_ci_dex) != args.inspection_ci_dex_sha256:
+            parser.error("provided CI DEX does not match expected SHA256")
+    else:
+        if args.signing_dir is None:
+            parser.error("signed release requires original --signing-dir")
+        if args.inspection_ci_dex is not None or args.inspection_ci_dex_sha256 is not None:
+            parser.error("prebuilt DEX is forbidden in real signed releases")
+        if "UNSIGNED" in args.output.name.upper() or "INSPECTION" in args.output.name.upper():
+            parser.error("signed release output cannot be named an inspection")
     inputs = json.loads((ROOT / "build-inputs.json").read_text())
     assert sha(args.base_apk) == inputs["base_apk_sha256"], "Unexpected baseline APK"
     assert sha(args.apktool) == inputs["apktool_sha256"], "Wrong Apktool binary"
@@ -44,14 +68,15 @@ def main():
     assert (args.sdk / "platforms/android-36/android.jar").is_file(), "Missing Android API 36"
     java_info = subprocess.check_output(["java", "-version"], stderr=subprocess.STDOUT, text=True)
     java_match = re.search(r'\bversion "([0-9]+)', java_info)
-    assert java_match and int(java_match.group(1)) == inputs["jdk"], "Release requires pinned JDK 17"
+    assert inspection or (java_match and int(java_match.group(1)) == inputs["jdk"]), "Signed release requires pinned JDK 17"
     for name, digest in inputs["dependencies"].items():
         assert sha(args.deps_dir / name) == digest, "Dependency mismatch: " + name
     assert VERSION in args.output.name, "Output filename must include target release version"
     assert not args.output.exists(), "Refusing to overwrite an existing release"
     assert args.output.resolve() != args.base_apk.resolve(), "Cannot overwrite the pinned baseline"
-    private = args.signing_dir.resolve()
-    assert not private.is_relative_to(ROOT), "Keep signing files outside source tree"
+    private = args.signing_dir.resolve() if not inspection else None
+    if private is not None:
+        assert not private.is_relative_to(ROOT), "Keep signing files outside source tree"
     build_root = ROOT / "addon/build"
     build_root.mkdir(parents=True, exist_ok=True)
     work = args.work_dir.resolve() if args.work_dir else Path(tempfile.mkdtemp(prefix="package-" + VERSION + "-", dir=build_root))
@@ -122,30 +147,35 @@ def main():
     legacy_text, count = re.subn(r"\.method protected onCreate\(Landroid/os/Bundle;\)V.*?\.end method", lambda m: redirect, legacy_text, flags=re.S)
     assert count == 1, "Unexpected legacy launcher layout"
     legacy.write_text(legacy_text)
-    classes = work / "classes"
-    shutil.rmtree(classes, ignore_errors=True)
-    classes.mkdir()
-    android = args.sdk / "platforms/android-36/android.jar"
-    jars = [args.deps_dir / n for n in sorted(inputs["dependencies"]) if n != "json.jar"]
-    cp = os.pathsep.join(map(str, [android, *jars]))
-    run(["java", "com.sun.tools.javac.Main", "-encoding", "UTF-8", "-source", "8", "-target", "8", "-cp", cp, "-d", classes, *sorted((ROOT / "addon/src").rglob("*.java"))])
-    run(["python3", ROOT / "tests/run_engine.py"], env={**os.environ, "CELIKOM_ANDROID_DEPS": str(args.deps_dir.resolve())})
-    tests = work / "tests"
-    tests.mkdir(exist_ok=True)
-    test_cp = os.pathsep.join(map(str, [args.deps_dir / "json.jar", classes, android]))
-    run(["java", "com.sun.tools.javac.Main", "-encoding", "UTF-8", "-source", "8", "-target", "8", "-cp", test_cp, "-d", tests, *sorted((ROOT / "addon").glob("Test*.java"))])
-    for test in ("TestPure", "TestHybrid", "TestContracts", "TestMobileActions", "TestAppPresentation", "TestNotifications", "TestDiagnosticArchive", "TestAudioTransfer", "TestBufferedAudio", "TestTransitionReadFence", "TestTransitionRecovery", "TestRequestPacing", "TestSourceStateWatchdog", "TestDiagnosticAccess", "TestPresencePreview", "TestDiagnosticRequest"):
-        run(["java", "-cp", os.pathsep.join(map(str, [args.deps_dir / "json.jar", classes, tests, android])), "pro.celikom.nativeprobe.identitydiag." + test])
-    assert source_digests == {str(p.relative_to(ROOT)): sha(p) for p in source_inputs}, "Sources changed during compile/tests"
-    addon_jar = work / "addon.jar"
-    run(["java", "sun.tools.jar.Main", "--create", "--file", addon_jar, "-C", classes, "."])
     dex = work / "dex"
     shutil.rmtree(dex, ignore_errors=True)
     dex.mkdir()
-    d8 = ["java", "-Xmx1500m", "-cp", args.build_tools / "lib/d8.jar", "com.android.tools.r8.D8", "--min-api", "28", "--lib", android, "--output", dex]
-    for jar in jars:
-        d8.extend(["--classpath", jar])
-    run([*d8, addon_jar])
+    if inspection:
+        # Inspection consumes exactly the already-tested CI/D8 bytes; it cannot
+        # become a signed release and is never allowed to access signing files.
+        shutil.copyfile(args.inspection_ci_dex, dex / "classes.dex")
+    else:
+        classes = work / "classes"
+        shutil.rmtree(classes, ignore_errors=True)
+        classes.mkdir()
+        android = args.sdk / "platforms/android-36/android.jar"
+        jars = [args.deps_dir / n for n in sorted(inputs["dependencies"]) if n != "json.jar"]
+        cp = os.pathsep.join(map(str, [android, *jars]))
+        run(["java", "com.sun.tools.javac.Main", "-encoding", "UTF-8", "-source", "8", "-target", "8", "-cp", cp, "-d", classes, *sorted((ROOT / "addon/src").rglob("*.java"))])
+        run(["python3", ROOT / "tests/run_engine.py"], env={**os.environ, "CELIKOM_ANDROID_DEPS": str(args.deps_dir.resolve())})
+        tests = work / "tests"
+        tests.mkdir(exist_ok=True)
+        test_cp = os.pathsep.join(map(str, [args.deps_dir / "json.jar", classes, android]))
+        run(["java", "com.sun.tools.javac.Main", "-encoding", "UTF-8", "-source", "8", "-target", "8", "-cp", test_cp, "-d", tests, *sorted((ROOT / "addon").glob("Test*.java"))])
+        for test in ("TestPure", "TestHybrid", "TestContracts", "TestMobileActions", "TestAppPresentation", "TestNotifications", "TestDiagnosticArchive", "TestAudioTransfer", "TestBufferedAudio", "TestTransitionReadFence", "TestTransitionRecovery", "TestRequestPacing", "TestSourceStateWatchdog", "TestDiagnosticAccess", "TestPresencePreview", "TestDiagnosticRequest"):
+            run(["java", "-cp", os.pathsep.join(map(str, [args.deps_dir / "json.jar", classes, tests, android])), "pro.celikom.nativeprobe.identitydiag." + test])
+        assert source_digests == {str(p.relative_to(ROOT)): sha(p) for p in source_inputs}, "Sources changed during compile/tests"
+        addon_jar = work / "addon.jar"
+        run(["java", "sun.tools.jar.Main", "--create", "--file", addon_jar, "-C", classes, "."])
+        d8 = ["java", "-Xmx1500m", "-cp", args.build_tools / "lib/d8.jar", "com.android.tools.r8.D8", "--min-api", "28", "--lib", android, "--output", dex]
+        for jar in jars:
+            d8.extend(["--classpath", jar])
+        run([*d8, addon_jar])
     # Owner recovery sources belong in Git, never in a distributed APK.
     (decoded / "assets/identity-integration-source.zip").unlink(missing_ok=True)
     unsigned, aligned = work / "unsigned.apk", work / "aligned.apk"
@@ -161,6 +191,17 @@ def main():
         assert len(list(dex.glob("*.dex"))) == 1, "Unexpected additional addon DEX"
         z.write(dex / "classes.dex", "classes2.dex")
     run([args.build_tools / "zipalign", "-f", "4", addon_apk, aligned])
+    if inspection:
+        # Same Apktool + resource assembly + zipalign as actual signing path.
+        # This artefact MUST stay outside user release distribution.
+        shutil.copyfile(aligned, args.output)
+        run(["python3", ROOT / "verify_unsigned_inspection.py",
+             "--apk", args.output, "--base-apk", args.base_apk,
+             "--compiled-dex", dex / "classes.dex", "--build-tools", args.build_tools,
+             "--expected-dex-sha256", args.inspection_ci_dex_sha256])
+        assert source_digests == {str(p.relative_to(ROOT)): sha(p) for p in source_inputs}, "Sources changed during inspection"
+        print("UNSIGNED INSPECTION ONLY; NOT INSTALLABLE:", args.output, "SHA256", sha(args.output))
+        return
     signing = json.loads((private / "signing.json").read_text())
     args.output.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix="celikom-sign-") as tmp:
