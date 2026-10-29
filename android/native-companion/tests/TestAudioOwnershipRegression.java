@@ -32,6 +32,20 @@ public final class TestAudioOwnershipRegression {
   assertExclusive(e);
   e.close();
 
+  // HONOR 0.3.48: Media3 replayed an old 3648->61334ms seek while the
+  // live controller was already at 101197ms. Do not turn it into a new
+  // explicit source seek: that would interrupt a correctly aligned decoder.
+  check(!SourceTransitionGate.currentPositionSeek(101197,61334),
+      "old Media3 seek replay must not force a replacement decoder seek");
+  check(SourceTransitionGate.currentPositionSeek(119151,119147),
+      "real HONOR seek 119147ms must be accepted");
+  check(SourceTransitionGate.currentPositionSeek(157648,157636),
+      "real HONOR seek 157636ms must be accepted");
+  check(SourceTransitionGate.currentPositionSeek(101197,101197+1500),
+      "minor controller clock lag is not a stale event");
+  check(!SourceTransitionGate.currentPositionSeek(-1,61334),
+      "unknown controller position cannot validate a seek");
+
   // Track boundaries must silence any older decoder BEFORE releasing native attenuation.
   TestEngine.playing();e=TestEngine.e;p=e.player;
   SystemClock.now+=ReplacementEngine.FADE_MS+30;sample(1160,true);TestEngine.p.handler.drain();
