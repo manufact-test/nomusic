@@ -26,6 +26,7 @@ final class SupportAdminView
    $html.='<h2>Обращение №'.$selected.' · '.self::status($thread['status']).'</h2><p>'.self::e($user['email']).'</p>';
    if($kind==='song'&&is_array($thread['report'])){
     $r=$thread['report'];$t=$r['track'];
+    $html.='<p><a class="button" href="/admin/support/diagnostics?ticket='.$selected.'">Скачать диагностику JSON</a></p>';
     $html.='<p><strong>Проблема с песней: '.self::e(SongReport::CATEGORIES[$r['category']]??'Другая проблема').'</strong></p><p>'.self::e(trim($t['artist'].' — '.$t['title'])).' · Track ID '.self::e($t['id']).'</p><p>Версия расширения: '.self::e($r['version']).' · '.self::e(MoscowTime::display($thread['created_at'])).' (Москва)</p><details><summary>Техническая диагностика</summary><pre style="white-space:pre-wrap;overflow-wrap:anywhere">'.self::e(json_encode($r['diagnostics'],JSON_PRETTY_PRINT|JSON_UNESCAPED_UNICODE)).'</pre></details>';
    }
    foreach($thread['messages'] as $m){
