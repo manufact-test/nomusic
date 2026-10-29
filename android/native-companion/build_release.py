@@ -17,8 +17,8 @@ import zipfile
 import xml.etree.ElementTree as ET
 
 ROOT = Path(__file__).resolve().parent
-VERSION = "0.3.50"
-VERSION_CODE = 51
+VERSION = "0.3.51"
+VERSION_CODE = 52
 
 
 def run(args, **kwargs):
