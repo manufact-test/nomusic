@@ -75,18 +75,6 @@ try{
   $report=['category'=>'audio_issue','track'=>['id'=>'50163040','artist'=>'SLIMUS','title'=>'<script>song</script>','album'=>'Album','access_token'=>'SECRET'],'version'=>'0.4.41','diagnostics'=>['phase'=>'READY','enabled'=>true,'bridgeHealthy'=>true,'replacementError'=>'api_unavailable','network'=>[['endpoint'=>'config','httpStatus'=>504,'result'=>'api_response_error','elapsedMs'=>10000,'authorization'=>'SECRET']],'token'=>'SECRET','recentLog'=>['SECRET'],'source'=>'https://private.example/SECRET']];
   $id=$service->create($u,'',$uuid(),$report);expect(count($sent)===$before,'Song report sends no email');
   expect($service->create($u,'',$uuid(),$report)===$id,'Same open song/category/comment deduplicates across request keys');
-  // New report with its own trace must not be lost in the old same-song dedupe.
-  $withTrace=$report;
-  $withTrace['diagnostics']['trace']=[
-    ['event'=>'replacement_recovery','ageMs'=>50,'reason'=>'alignment_unstable','driftMs'=>210,'token'=>'SECRET'],
-    ['event'=>'backend_http','endpoint'=>'resolve','httpCode'=>200,'elapsedMs'=>83,'authorization'=>'SECRET'],
-    ['event'=>'not_whitelisted','reason'=>'ignored'],
-  ];
-  $second=$service->create($u,'',$uuid(),$withTrace);
-  expect($second!==$id,'Repeated song problem with diagnostic trace gets separate ticket');
-  $trace=$service->thread($second,$u)['report']['diagnostics']['trace'];
-  expect(count($trace)===2,'Only recognized bounded events persist');
-  expect(!str_contains(json_encode($trace),'SECRET'),'Trace strips private values');
   $thread=$service->thread($id,$u);expect($thread['kind']==='song','Typed report');expect(!str_contains(json_encode($thread),'SECRET'),'Unknown diagnostic keys never stored or returned');
   $service->deliver((int)$pdo->query('SELECT id FROM support_messages WHERE ticket_id='.$id)->fetchColumn());expect(count($sent)===$before,'Song message cannot be delivered later');
   $general=$service->create($u,'Обычное сообщение',$uuid());expect(count($sent)===$before+1,'General email notification preserved');
@@ -103,6 +91,18 @@ try{
   $service->resolveSong($owner,$id);$service->resolveSong($owner,$id);expect($service->thread($id,$u)['status']==='closed','Report resolved');expect($service->thread($general,$u)['status']==='open','Ordinary reply still required');expect(count($sent)===$before+1,'Resolution sends no email');
   expect((int)$pdo->query("SELECT COUNT(*) FROM audit_log WHERE entity_type='support_ticket' AND entity_id=$id AND action='support_close'")->fetchColumn()===1,'Resolution audit idempotent');
   try{\Celikom\Support\SongReport::normalize(['category'=>[]]);throw new RuntimeException('bad_report_accepted');}catch(InvalidArgumentException){}
+  // New report with its own trace must not be lost in the old same-song dedupe.
+  $withTrace=$report;
+  $withTrace['diagnostics']['trace']=[
+    ['event'=>'replacement_recovery','ageMs'=>50,'reason'=>'alignment_unstable','driftMs'=>210,'token'=>'SECRET'],
+    ['event'=>'backend_http','endpoint'=>'resolve','httpCode'=>200,'elapsedMs'=>83,'authorization'=>'SECRET'],
+    ['event'=>'not_whitelisted','reason'=>'ignored'],
+  ];
+  $second=$service->create($u,'',$uuid(),$withTrace);
+  expect($second!==$id,'Repeated song problem with diagnostic trace gets separate ticket');
+  $trace=$service->thread($second,$u)['report']['diagnostics']['trace'];
+  expect(count($trace)===2,'Only recognized bounded events persist');
+  expect(!str_contains(json_encode($trace),'SECRET'),'Trace strips private values');
  });
 }finally{
  foreach($users as $u){$pdo->exec('DELETE m FROM support_messages m JOIN support_tickets t ON t.id=m.ticket_id WHERE t.user_id='.$u);$pdo->exec('DELETE FROM audit_log WHERE entity_type=\'support_ticket\' AND entity_id IN (SELECT id FROM support_tickets WHERE user_id='.$u.')');$pdo->exec('DELETE FROM support_tickets WHERE user_id='.$u);$pdo->exec('DELETE FROM users WHERE id='.$u);}
