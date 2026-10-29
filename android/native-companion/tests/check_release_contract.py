@@ -84,6 +84,9 @@ from pathlib import Path as _Path
 v = (ROOT / "verify_release.py").read_text()
 assert "from release_archive import inspect_zip" in v
 assert 'archive_proof = inspect_zip(args.apk, args.base_apk, args.compiled_dex)' in v
-workflow = (_Path(__file__).resolve().parents[3] / ".github/workflows/android-0348-validation.yml").read_text()
+workflow_file = _Path(__file__).resolve().parents[3] / ".github/workflows/android-0348-validation.yml"
+if not workflow_file.is_file():
+    workflow_file = ROOT / "ci-android-validation-workflow.yml"
+workflow = workflow_file.read_text()
 assert "tests/check_release_archive.py" in workflow
 print("PASS: strict archive guard is wired to signed release and CI")

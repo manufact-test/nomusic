@@ -123,6 +123,7 @@ jobs:
           cp "$ROOT/build-inputs.json" "$ROOT/release-spec.json" "$ROOT/release_contract.py" "$ROOT/release_archive.py" "$ROOT/ci_provenance.py" "$ROOT/ci-dex-provenance.json" "$ROOT/build_release.py" "$ROOT/verify_release.py" "$ROOT/verify_unsigned_inspection.py" "$OUT/native-companion/"
           # upload-artifact excludes hidden dotfiles; preserve only the SAFE ignore policy.
           cp "$ROOT/.gitignore" "$OUT/native-companion/source-gitignore.txt"
+          cp .github/workflows/android-0348-validation.yml "$OUT/native-companion/ci-android-validation-workflow.yml"
           cp "$ROOT/android-native-classes2.dex" "$OUT/native-companion/"
           printf '%s\\n' "Expected base APK: 170b1883e292570d28a3b5c619cf000eaccd9d11ee85ca6f6c08f7b50e5f72c9" > "$OUT/BUILD-KIT-NO-SIGNING-SECRETS.txt"
       - uses: actions/upload-artifact@v4
