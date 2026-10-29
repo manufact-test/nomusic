@@ -101,7 +101,7 @@ final class ReplacementEngine {
    if(!aligned&&resumePositionRetained&&!sourceJump&&Math.abs(drift)<=PAUSE_ALIGN_TOLERANCE_MS){aligned=true;resumePositionRetained=false;LogStore.log("replacement_resume_aligned",LogStore.map("trackId",trackId,"driftMs",drift,"seekSkipped",true));}
    /* Source position is authoritative after a pause: resync off-output if necessary. */
    if(resumed&&pausedDuration>=PAUSE_ALIGN_DELAY_MS&&effect!=null&&Math.abs(drift)>PAUSE_ALIGN_TOLERANCE_MS){seek(s,target,drift);return;}
-   ClockSupervisor.Decision clockDecision=clockSupervisor.assess(aligned,!seeking&&!fading,sourceJump,drift,clock);
+   ClockSupervisor.Decision clockDecision=clockSupervisor.assess(aligned,!seeking&&!handoverPending,sourceJump,drift,clock);
    if(clockDecision==ClockSupervisor.Decision.RESTORE_SOURCE){
     String key=identityKey;LogStore.log("replacement_drift_unstable",LogStore.map("trackId",trackId,"sourcePositionMs",target,"driftMs",drift,"fallback","original_until_next_track","clockSupervisor","confirmed"));
     suspend("drift_unstable",30000);completedKey=key;completedPosition=target;completedReason="Большой рассинхрон замены — играет оригинал до следующей песни";status=completedReason;return;
