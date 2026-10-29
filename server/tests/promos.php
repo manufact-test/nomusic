@@ -57,8 +57,19 @@ try{
   expect(!str_contains($response->body,'value="<fixture>"'),'confirmation escaped');
   expect($panel->handle('POST','/admin/promos/revoke-activation',[],$headers,'id=1')->status===403,'csrf required');
   [$cid,$code]=$create();$id=$user();$r=$service->redeem($id,$code);
+  $unseen=(int)$pdo->query('SELECT COUNT(*) FROM promo_redemptions')->fetchColumn();
+  $beforeActivations=$panel->handle('GET','/admin',['tab'=>'promos'],$headers,'');
+  expect(str_contains($beforeActivations->body,'>Промокоды<span class="nav-count" aria-label="Новых: '.$unseen.'">'.$unseen.'</span>'),'New promo activations are counted in top navigation');
+  $viewNew=$panel->handle('GET','/admin/promos/new',[],$headers,'');
+  expect(str_contains($viewNew->body,'>Промокоды<span class="nav-count"'),'Code creation view does not clear activation notice');
   $response=$panel->handle('GET','/admin',['tab'=>'promos','activations'=>'1'],$headers,'');
   expect($response->status===200&&str_contains($response->body,$code)&&str_contains($response->body,'/admin/promos/revoke-activation'),'activation and revoke rendered');
+  $afterActivations=$panel->handle('GET','/admin',['tab'=>'promos'],$headers,'');
+  expect(!str_contains($afterActivations->body,'>Промокоды<span class="nav-count"'),'Opening Activations clears per-admin promo notice');
+  [$nextId,$nextCode]=$create();$nextUser=$user();$service->redeem($nextUser,$nextCode);
+  $newActivation=$panel->handle('GET','/admin',['tab'=>'promos'],$headers,'');
+  expect(str_contains($newActivation->body,'>Промокоды<span class="nav-count" aria-label="Новых: 1">1</span>'),'New promo activation reappears after being reviewed');
+
   foreach(['/admin/promos','/admin/promos/new','/admin/promos/activations'] as $route){
    $page=$panel->handle('GET',$route,[],$headers,'');expect($page->status===200,'promo path loads');
    if($route==='/admin/promos/new'){expect(str_contains($page->body,'name="request_key"')&&!str_contains($page->body,'<table>'),'creation isolated from lists');expect(str_contains($page->body,'data-promo-deadline hidden')&&str_contains($page->body,'московское время')&&!str_contains($page->body,'Дни добавляются'),'conditional deadline, Moscow and removed paragraph');expect(str_contains($page->headers['Content-Security-Policy'],"script-src 'sha256-"),'form script CSP hash');$fixture=tempnam(sys_get_temp_dir(),'promo-form-');file_put_contents($fixture,$page->body);try{passthru('node '.escapeshellarg(__DIR__.'/promo-form-browser.mjs').' '.escapeshellarg($fixture),$exit);expect($exit===0,'native promo form desktop/mobile');}finally{unlink($fixture);}}

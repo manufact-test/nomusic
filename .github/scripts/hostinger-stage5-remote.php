@@ -104,7 +104,7 @@ try {
                 'track_request_reviews', 'reports', 'users', 'user_devices', 'user_sessions',
                 'user_auth_attempts', 'user_auth_events', 'user_email_security', 'entitlement_ledger', 'account_trials',
                 'subscriptions','billing_events','billing_payments','billing_adjustments',
-                'referrals','referral_codes','reward_ledger','reward_policy','reward_allocations','service_incident_locks','service_incidents','incident_compensations', 'promo_codes', 'promo_redemptions', 'promo_attempt_buckets', 'support_tickets', 'support_messages'], true)) throw new RuntimeException('unknown_table');
+                'referrals','referral_codes','reward_ledger','reward_policy','reward_allocations','service_incident_locks','service_incidents','incident_compensations', 'promo_codes', 'promo_redemptions', 'promo_attempt_buckets', 'support_tickets', 'support_messages', 'admin_navigation_seen'], true)) throw new RuntimeException('unknown_table');
             $currentCount = (int) $pdo->query('SELECT COUNT(*) FROM ' . chr(96) . $table . chr(96))->fetchColumn();
             // The only permitted pre-deployment row-count increase is the
             // expected checksummed additive Stage 9 email security migration.
@@ -196,7 +196,7 @@ try {
         $optional = ['admins', 'admin_sessions', 'admin_login_attempts', 'audit_log',
             'track_request_reviews', 'reports', 'users', 'user_devices', 'user_sessions',
             'user_auth_attempts', 'user_auth_events', 'user_email_security', 'entitlement_ledger', 'account_trials',
-            'subscriptions', 'billing_events', 'billing_payments', 'billing_adjustments', 'referral_codes', 'referrals', 'reward_ledger', 'reward_policy', 'reward_allocations', 'service_incident_locks', 'service_incidents', 'incident_compensations', 'promo_codes', 'promo_redemptions', 'promo_attempt_buckets', 'support_tickets', 'support_messages'];
+            'subscriptions', 'billing_events', 'billing_payments', 'billing_adjustments', 'referral_codes', 'referrals', 'reward_ledger', 'reward_policy', 'reward_allocations', 'service_incident_locks', 'service_incidents', 'incident_compensations', 'promo_codes', 'promo_redemptions', 'promo_attempt_buckets', 'support_tickets', 'support_messages', 'admin_navigation_seen'];
         $present = $pdo->prepare('SELECT COUNT(*) FROM information_schema.tables
             WHERE table_schema = DATABASE() AND table_name = ?');
         foreach ($optional as $extra) {

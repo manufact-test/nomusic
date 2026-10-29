@@ -79,6 +79,14 @@ try{
   $service->deliver((int)$pdo->query('SELECT id FROM support_messages WHERE ticket_id='.$id)->fetchColumn());expect(count($sent)===$before,'Song message cannot be delivered later');
   $general=$service->create($u,'Обычное сообщение',$uuid());expect(count($sent)===$before+1,'General email notification preserved');
   $view=new SupportAdminView($pdo);$account=$view->render(str_repeat('a',64),0,1,1,$u,'song');expect(str_contains($account,'Обычные обращения')&&str_contains($account,'Проблемы с песнями'),'Two account sections');expect(str_contains($account,'ticket='.$id.'"')&&!str_contains($account,'ticket='.$general.'"'),'Song list excludes general conversations');
+  $all=$view->render(str_repeat('a',64),0,1,1,$u);
+  expect(str_contains($all,'support_kind=all" aria-current="page"'),'All tab is active by default');
+  expect(str_contains($all,'ticket='.$id.'"')&&str_contains($all,'ticket='.$general.'"'),'All includes both song and general tickets');
+  expect(str_contains($all,'Проблема с песней')&&str_contains($all,'Обычное обращение'),'All labels each ticket kind');
+  expect(str_contains($all,'Новых: 2 · Всего: 2'),'All counts both pending kinds');
+  expect(strpos($all,'ticket='.$general.'"')<strpos($all,'ticket='.$id.'"'),'Pending All list sorts by latest ID');
+  $ordinary=$view->render(str_repeat('a',64),0,1,1,$u,'general');
+  expect(str_contains($ordinary,'ticket='.$general.'"')&&!str_contains($ordinary,'ticket='.$id.'"'),'General tab excludes song ticket');
   $html=$view->render(str_repeat('a',64),$id);expect(str_contains($html,'&lt;script&gt;song')&&!str_contains($html,'<script>song'),'Metadata escaped');expect(str_contains($html,'resolve-song')&&!str_contains($html,'support/reply'),'Song has resolution, no mandatory reply');expect(str_contains($html,'Скачать диагностику JSON'),'Download link available in song ticket');
   $list=$view->render(str_repeat('a',64),0);
   expect(str_contains($list,'<th>Обращения</th>')&&!str_contains($list,'<th>Песни'),'Single total column');
@@ -110,6 +118,12 @@ try{
    return ['cookie'=>AdminAuth::COOKIE.'='.$token];
   };
   $ownerHeaders=$adminCookie($owner);$viewerHeaders=$adminCookie($viewer);
+
+  $open=(int)$pdo->query("SELECT COUNT(*) FROM support_tickets WHERE status='open'")->fetchColumn();
+  $page=$panel->handle('GET','/admin',['tab'=>'support','account'=>(string)$u],$ownerHeaders,'');
+  expect($page->status===200&&str_contains($page->body,'support_kind=all" aria-current="page"'),'Admin defaults to All');
+  expect(str_contains($page->body,'>Техподдержка<span class="nav-count" aria-label="Новых: '.$open.'">'.$open.'</span>'),'Support top nav shows open ticket total');
+
   $url='/admin/support/diagnostics';$query=['ticket'=>(string)$second];
   $file=$panel->handle('GET',$url,$query,$ownerHeaders,'');
   expect($file->status===200&&str_contains($file->headers['Content-Disposition']??'','attachment'),'Admin downloads JSON attachment');
