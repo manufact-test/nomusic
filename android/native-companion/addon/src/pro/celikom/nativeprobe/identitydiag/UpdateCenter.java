@@ -35,13 +35,20 @@ final class UpdateCenter {
     final Button refresh, install, later;
     volatile Release candidate;
     volatile boolean busy;
+    static final long MIN_CHECK_DISPLAY_MS=1500L;
+    int checkGeneration;
+    boolean checking;
+    boolean upToDate;
     UpdateCenter(RecorderActivity activity, LinearLayout region) {
         this.activity=activity;this.region=region;
-        summary=activity.label(region,"CELIKOM "+AppVersion.NAME+" · Проверка обновлений доступна",13,RecorderActivity.MUTED);
+        summary=activity.label(region,"Проверяем наличие обновлений…",13,RecorderActivity.MUTED);
+        summary.setMinHeight(activity.dp(48));
+        summary.setGravity(android.view.Gravity.CENTER_VERTICAL);
+        summary.setPadding(0,activity.dp(8),0,activity.dp(8));
         refresh=activity.button(region,"Проверить обновления",()->check(true),false);
         install=activity.button(region,"Скачать и установить",this::download,false);
         later=activity.button(region,"Позже",()->{candidate=null;render("Напомним позже");},false);
-        render("Установлена версия "+AppVersion.NAME);
+        render("Проверяем наличие обновлений…");
         schedule(activity);
         check(false);
     }
@@ -96,21 +103,32 @@ final class UpdateCenter {
         long now=System.currentTimeMillis();
         android.content.SharedPreferences p=activity.getSharedPreferences("update-center",0);
         if(!manual && now-p.getLong("checked",0)<INTERVAL)return;
-        busy=true;render("Проверяем обновления…");
+        busy=true;checking=true;upToDate=false;
+        final long started=SystemClock.elapsedRealtime();
+        final int generation=++checkGeneration;
+        render("Проверяем наличие обновлений…");
         IO.execute(()->{
             Release r=null;String error=null;
             try {r=fetch(activity.getApplicationContext());
                 p.edit().putLong("checked",System.currentTimeMillis()).apply();
             }catch(Exception e){error="Не удалось проверить обновления";}
             final Release found=r;final String failure=error;
-            MAIN.post(()->{busy=false;if(!activity.visible())return;candidate=found;
-                render(failure!=null?failure+" · проверьте интернет и сервер обновлений":found==null?"У вас последняя версия CELIKOM ("+AppVersion.NAME+")":"Доступна CELIKOM "+found.name+"\n"+found.notes);
+            long remaining=Math.max(0,MIN_CHECK_DISPLAY_MS-(SystemClock.elapsedRealtime()-started));
+            MAIN.postDelayed(()->{
+                if(generation!=checkGeneration)return;
+                busy=false;checking=false;
+                if(!activity.visible())return;
+                candidate=found;
+                upToDate=failure==null && found==null;
+                render(failure!=null?"Не удалось проверить обновления":upToDate?"У вас последняя версия CELIKOM · "+AppVersion.NAME:"Доступна CELIKOM "+found.name+"\n"+found.notes);
                 if(found!=null)notifyAvailable(activity,found);
-            });
+            },remaining);
         });
     }
     void render(String message) {
-        summary.setText(message);install.setVisibility(candidate==null?View.GONE:View.VISIBLE);
+        summary.setText(message);
+        summary.setTextColor(upToDate?RecorderActivity.MINT:RecorderActivity.MUTED);
+        install.setVisibility(candidate==null?View.GONE:View.VISIBLE);
         later.setVisibility(candidate==null?View.GONE:View.VISIBLE);refresh.setEnabled(!busy);install.setEnabled(!busy);
     }
     static String sha(byte[] bytes) throws Exception {
