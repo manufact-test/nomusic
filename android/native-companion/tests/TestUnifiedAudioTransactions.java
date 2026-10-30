@@ -393,6 +393,32 @@ public final class TestUnifiedAudioTransactions {
      "old-account return tick cannot keep source muted or decoder alive");
   returningEngine.close();
 
+
+  /* Prepared decoder callbacks are also asynchronous. Account rotation
+     retires them before a Media3 playback state poll can intervene. */
+  TestEngine.reset("ALBUM");TestEngine.e.arm();TestEngine.resolve();
+  File accountReadyFile=File.createTempFile("prepared-account-rotated",".audio");
+  TestEngine.api.downloaded.done(accountReadyFile,null);
+  ReplacementEngine stalePreparedEngine=TestEngine.e;MediaPlayer stalePrepared=stalePreparedEngine.player;
+  TestEngine.api.accountGeneration++;
+  stalePrepared.prepared.onPrepared(stalePrepared);
+  check(stalePrepared.released&&stalePreparedEngine.player==null
+       &&!stalePreparedEngine.armed()&&stalePreparedEngine.effect==null,
+       "onPrepared immediately retires decoder after account change");
+  stalePreparedEngine.close();
+
+  /* A native completion while a handover waits for the clock must not end
+     the track, even if there is no native seek pending. */
+  AudioOwnership waitingFinish=new AudioOwnership();waitingFinish.track("clock");
+  waitingFinish.aligning();waitingFinish.event(AudioOwnership.Event.HANDOVER);
+  waitingFinish.handoverWaitForClock(true);
+  check(!waitingFinish.mayConsumeCompletion(new MediaPlayer()),
+       "unverified decoder clock cannot count as complete replacement");
+  waitingFinish.handoverClockValidated();
+  check(waitingFinish.mayConsumeCompletion(new MediaPlayer()),
+       "verified decoder clock permits normal end-of-track handling");
+  waitingFinish.stopped();
+
   System.out.println("PASS unified Android audio transactions: "+checks+" checks");
  }
 }

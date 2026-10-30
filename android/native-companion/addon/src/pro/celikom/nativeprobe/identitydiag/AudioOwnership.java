@@ -56,7 +56,7 @@ final class AudioOwnership {
     It may originate from a retired position while a native seek/hold is
     running. Only the current playable output state may retire this decoder. */
  boolean mayConsumeCompletion(MediaPlayer p){
-  return p!=null&&p!=inFlightDecoder&&pauseMode==PauseMode.NONE
+  return p!=null&&p!=inFlightDecoder&&!handoverAwaitingClock&&pauseMode==PauseMode.NONE
      &&(state==State.ALIGNING||state==State.REPLACEMENT);
  }
  long operationEpoch(){return operationEpoch;}
