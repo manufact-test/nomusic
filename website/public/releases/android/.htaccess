@@ -1,0 +1,5 @@
+# Scoped immutable release route.
+AuthType None
+Require all granted
+RewriteEngine On
+RewriteRule ^[1-9][0-9]*-[a-f0-9]{64}\.apk$ release.php [L]
