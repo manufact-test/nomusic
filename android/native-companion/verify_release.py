@@ -95,7 +95,10 @@ def main():
     ownership = (addon / "AudioOwnership.java").read_text()
     matcher = (addon / "AlbumMatch.java").read_text()
     assert "PAUSE_RESUME_FADE_MS=180" in engine and "PAUSE_GRACE_MS=30000" in engine
-    assert "HANDOVER_DRIFT_MS=350" in engine and "warmSeekTransition" in engine
+    assert "HANDOVER_DRIFT_MS=350" in engine
+    assert "warmSeekTransition" not in engine and "handoverPending" not in engine, "Competing audio clock flags returned"
+    assert "audioOwner.seekInFlight(p)" in engine and "audioOwner.handoverWaitForClock(alignLive)" in engine
+    assert "handoverAwaitingClock()" in ownership and "mayConsumeCompletion" in ownership
     assert "grantReplacement" in ownership and "validPause" in ownership
     assert "audioOwner.grantReplacement" in engine and "audioOwner.validPause" in engine
     assert matcher.count("artistKey(") >= 3 and '"quest pistols"' in matcher
