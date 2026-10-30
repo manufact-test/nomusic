@@ -21,7 +21,12 @@ final class AudioOwnership {
  }
  private long operationEpoch=1;
  private PauseMode pauseMode=PauseMode.NONE;
+ private boolean handoverAwaitingClock;
  PauseMode pauseMode(){return pauseMode;}
+ /* This is the sole handover clock gate, revoked by the same events as output permission. */
+ boolean handoverAwaitingClock(){return handoverAwaitingClock;}
+ void handoverWaitForClock(boolean value){if(state!=State.ALIGNING)throw new IllegalStateException("not aligning");handoverAwaitingClock=value;}
+ void handoverClockValidated(){handoverAwaitingClock=false;}
  /* Native seek completions are untagged. Only one seek is issued per decoder
     until its callback is consumed; old work cannot masquerade as a new seek. */
  enum SeekKind { ALIGNMENT, WARM }
@@ -72,9 +77,10 @@ final class AudioOwnership {
       (state!=State.SOURCE_ONLY&&state!=State.PREPARING&&
        state!=State.RECOVERING&&state!=State.TRACK_UNSUPPORTED))
     throw new IllegalStateException("background preparation cannot take active audio ownership");
-   state=State.PREPARING;reason="preparing";operationEpoch++;return;
+   handoverAwaitingClock=false;state=State.PREPARING;reason="preparing";operationEpoch++;return;
   }
   if(event==Event.PREPARE_READY)return; // data readiness cannot mutate output state
+  handoverAwaitingClock=false;
   if(event==Event.PAUSE)pauseMode=PauseMode.USER;
   else if(event==Event.BUFFERING)pauseMode=PauseMode.BUFFERING;
   else if(event==Event.RESUME||event==Event.ROUTE_LOSS||event==Event.BOUNDARY
@@ -97,7 +103,7 @@ final class AudioOwnership {
  void track(String next){
   if(Objects.equals(key,next))return;
   if(originalMuted)throw new IllegalStateException("track cannot change before secondary silence and source restore");
-  generation++;pauseEpoch++;operationEpoch++;pauseMode=PauseMode.NONE;key=next;
+  generation++;pauseEpoch++;operationEpoch++;pauseMode=PauseMode.NONE;handoverAwaitingClock=false;key=next;
   if(state!=State.STOPPED)state=State.SOURCE_ONLY;
   reason="track_changed";
  }
@@ -105,13 +111,13 @@ final class AudioOwnership {
 
  void invalidate(String why){
   if(originalMuted)throw new IllegalStateException("boundary cannot discard active output lease");
-  generation++;pauseEpoch++;operationEpoch++;pauseMode=PauseMode.NONE;key=null;
+  generation++;pauseEpoch++;operationEpoch++;pauseMode=PauseMode.NONE;handoverAwaitingClock=false;key=null;
   if(state!=State.STOPPED)state=State.SOURCE_ONLY;
   reason=why;
  }
  /** Retire decoder callbacks even when recovery retries the exact same song.
   * Source gain restoration on a long pause does NOT retire the decoder. */
- void retireDecoder(){generation++;pauseEpoch++;operationEpoch++;pauseMode=PauseMode.NONE;clearSeekFlight();reason="decoder_retired";}
+ void retireDecoder(){generation++;pauseEpoch++;operationEpoch++;pauseMode=PauseMode.NONE;clearSeekFlight();handoverAwaitingClock=false;reason="decoder_retired";}
  void preparing(){event(Event.PREPARE);}
  /** Attach the current source effect only after the previous effect has retired. */
  void prepareSourceEffect(DynamicsProcessing candidate){
@@ -135,13 +141,13 @@ final class AudioOwnership {
  long pauseLease(){return pauseEpoch;}
  boolean validPause(long lease){return state==State.PAUSED && pauseEpoch==lease;}
  void cancelPause(){pauseEpoch++;pauseMode=PauseMode.NONE;if(state==State.PAUSED){state=State.ALIGNING;reason="resume";}}
- void source(){state=State.SOURCE_ONLY;pauseMode=PauseMode.NONE;originalMuted=false;attachedEffect=null;commandedSecondary=0f;lastVolumePlayer=null;pauseEpoch++;reason="source_restored";}
- void recovering(String why){state=State.RECOVERING;pauseEpoch++;reason=why;}
- void unsupported(String why){state=State.TRACK_UNSUPPORTED;pauseEpoch++;reason=why;}
- void stopped(){generation++;pauseEpoch++;operationEpoch++;pauseMode=PauseMode.NONE;clearSeekFlight();key=null;originalMuted=false;attachedEffect=null;commandedSecondary=0f;lastVolumePlayer=null;state=State.STOPPED;reason="stopped";}
+ void source(){handoverAwaitingClock=false;state=State.SOURCE_ONLY;pauseMode=PauseMode.NONE;originalMuted=false;attachedEffect=null;commandedSecondary=0f;lastVolumePlayer=null;pauseEpoch++;reason="source_restored";}
+ void recovering(String why){handoverAwaitingClock=false;state=State.RECOVERING;pauseEpoch++;reason=why;}
+ void unsupported(String why){handoverAwaitingClock=false;state=State.TRACK_UNSUPPORTED;pauseEpoch++;reason=why;}
+ void stopped(){generation++;pauseEpoch++;operationEpoch++;pauseMode=PauseMode.NONE;clearSeekFlight();handoverAwaitingClock=false;key=null;originalMuted=false;attachedEffect=null;commandedSecondary=0f;lastVolumePlayer=null;state=State.STOPPED;reason="stopped";}
  void grantReplacement(DynamicsProcessing effect){
   if(key==null||(state!=State.ALIGNING&&state!=State.REPLACEMENT))throw new IllegalStateException("handover requires current aligning track");
-  if(inFlightDecoder!=null)throw new IllegalStateException("native seek must finish before output grant");
+  if(inFlightDecoder!=null||handoverAwaitingClock)throw new IllegalStateException("decoder clock/seek must finish before output grant");
   if(effect==null||effect!=attachedEffect||!effect.hasControl()||!effect.getEnabled())
    throw new IllegalStateException("no verified source attenuation");
   // Avoid repeated DSP writes during stable playback polling.
