@@ -273,8 +273,16 @@ final class ReplacementEngine {
   AudioOwnership.SeekAck ack=audioOwner.acceptSeekCompletion(mp);
   if(ack==null)return; // repeated/retired callback
   if(ack.operationEpoch!=audioOwner.operationEpoch()){
-   warmSeekTransition=-1;seeking=false;aligned=false;resumePositionRetained=false;
-   if(!waitingForRouteResume&&owner.current!=null&&owner.current.playing)update(owner.current);
+   /* A pause revoked output permission, not necessarily the decoder position.
+      Reuse a verified final alignment without granting an old audible command.
+      A new source position or route loss must never reuse the canceled result. */
+   PlaybackSource sourceNow=owner.current;
+   boolean positionStillValid=ack.kind==AudioOwnership.SeekKind.ALIGNMENT
+      &&!waitingForRouteResume&&sourceNow!=null&&current(key)
+      &&Math.abs(position(sourceNow)-mp.getCurrentPosition())<=PAUSE_ALIGN_TOLERANCE_MS;
+   warmSeekTransition=-1;seeking=false;aligned=positionStillValid;
+   resumePositionRetained=positionStillValid;
+   if(!waitingForRouteResume&&sourceNow!=null&&sourceNow.playing)update(sourceNow);
    return;
   }
   if(ack.kind==AudioOwnership.SeekKind.WARM){
