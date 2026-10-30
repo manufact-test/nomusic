@@ -1,0 +1,46 @@
+name: CELIKOM Android download Hostinger read-only preflight
+on:
+  push:
+    branches: [feature/android-unified-preparation-seek-gate]
+    paths: [.github/workflows/android-update-center-hostinger-preflight.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  read-only:
+    runs-on: ubuntu-latest
+    timeout-minutes: 7
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Verify existing Hostinger Android release destination without mutation
+        env:
+          SSH_KEY: ${{ secrets.CELIKOM_HOSTINGER_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.CELIKOM_HOSTINGER_KNOWN_HOSTS }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REPOSITORY" = manufact-test/nomusic
+          test "$GITHUB_REF" = refs/heads/feature/android-unified-preparation-seek-gate
+          test -n "$SSH_KEY" && test -n "$KNOWN_HOSTS"
+          umask 077
+          tmp=$(mktemp -d)
+          trap 'rm -rf "$tmp"' EXIT
+          printf '%s\n' "$SSH_KEY" > "$tmp/id"
+          printf '%s\n' "$KNOWN_HOSTS" > "$tmp/known"
+          chmod 600 "$tmp/id" "$tmp/known"
+          ssh -T -p 65002 -i "$tmp/id" -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$tmp/known" u235811320@92.113.19.189 'bash -se' <<'REMOTE'
+          set -euo pipefail
+          root=/home/u235811320/domains/lemonchiffon-narwhal-791953.hostingersite.com
+          test -d "$root/public_html" && test -d "$root/celikom-private"
+          test -f "$root/public_html/index.php"
+          test -f "$root/celikom-private/app/staging-approved.php"
+          echo "HOSTINGER_REACHABLE; SITE_AND_PRIVATE_DIR_PRESENT"
+          if test -f "$root/public_html/.htaccess"; then
+            echo "HTACCESS_PRESENT"
+            grep -Eic 'AuthType|Require|RewriteRule|RewriteEngine|SetEnvIf' "$root/public_html/.htaccess" || true
+          else
+            echo "HTACCESS_ABSENT"
+          fi
+          /opt/alt/php83/usr/bin/php -v | head -1
+          REMOTE
