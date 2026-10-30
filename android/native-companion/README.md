@@ -1,3 +1,7 @@
+> **АКТУАЛЬНО (30.10.2026):** [Android handoff](../../docs/android/HANDOFF-2026-10-30-UNIFIED-AUDIO.md), [единый audio owner — план](../../docs/android/UNIFIED-AUDIO-OWNERSHIP-PLAN-2026-10-30.md), [стартовое сообщение](../../docs/android/START-NEXT-CHAT-2026-10-30-UNIFIED-AUDIO.md). Последняя физически испытанная, но НЕ принятая версия — подписанная 0.3.54 AUDIOFIX / versionCode55, реальный HONOR log 10:49:05 +03; Android CI 41019895272 SUCCESS (baseline `8128307d0daf95f3386b85791db5347e3ec56357`). Ключ подписи восстановлен и хранится приватно. Новая ветка `feature/android-unified-preparation-seek-gate` создана для **единого owner/reducer**, а не отдельных заплаток следующего трека и перемотки; сам новый дизайн ещё НЕ реализован, нового APK нет. Desktop/backend untouched. Нижние заголовки старых версий исторические.
+
+---
+
 > **ПЕРЕДАЧА 29.10.2026 — ТОЛЬКО ANDROID 0.3.52.** Самое новое и приоритетное: [HANDOFF-2026-10-29-ANDROID-0352.md](../../docs/android/HANDOFF-2026-10-29-ANDROID-0352.md). Компьютерный CELIKOM desktop 0.4.65 / `feature/api-range` ЗАПРЕЩЕНО менять. Последний подтверждённый до передачи HEAD `25767ce3`, CI https://github.com/manufact-test/nomusic/actions/runs/40942060340 **SUCCESS**. Физическое звучание на HONOR НЕ проверено; **0.3.52 ещё НЕ подписана**, исходного ключа нет. Старые заголовки версий ниже — история, а не текущие задачи.
 
 ---

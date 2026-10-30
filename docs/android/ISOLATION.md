@@ -1,3 +1,7 @@
+> **АКТУАЛЬНЫЙ SCOPE (30.10.2026):** только Android `feature/android-unified-preparation-seek-gate` и документы `docs/android/**`; текущая передача [HANDOFF-2026-10-30-UNIFIED-AUDIO.md](HANDOFF-2026-10-30-UNIFIED-AUDIO.md). Signed Android 0.3.54 AUDIOFIX с оригинальным ключом существует; old claims "missing signing key" ниже исторические. Desktop `feature/api-range`/0.4.65, backend, catalogue, CMS and Ad Protection не менять. Ветка `feature/android-0348-audio-ownership-stabilization` — green baseline `8128307d0daf95f3386b85791db5347e3ec56357` (PR #22 draft), не мержить её целиком в desktop.
+
+---
+
 > **СУПЕРСЕДЕД: ЗА ТЕКУЩИМ СТАТУСОМ СМОТРИ** [HANDOFF-2026-10-29-ANDROID-0352.md](HANDOFF-2026-10-29-ANDROID-0352.md). Новое: только Android, desktop 0.4.65 не менять, CI 40942060340 PASS, версия 0.3.52 готова только как НЕПОДПИСАННЫЙ structural smoke, оригинальный приватный ключ подписи отсутствует.
 
 ---

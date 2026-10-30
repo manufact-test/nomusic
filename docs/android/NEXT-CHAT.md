@@ -1,3 +1,7 @@
+> **АКТУАЛЬНАЯ ПЕРЕДАЧА (30.10.2026):** [HANDOFF-2026-10-30-UNIFIED-AUDIO.md](HANDOFF-2026-10-30-UNIFIED-AUDIO.md), [UNIFIED-AUDIO-OWNERSHIP-PLAN-2026-10-30.md](UNIFIED-AUDIO-OWNERSHIP-PLAN-2026-10-30.md), [START-NEXT-CHAT-2026-10-30-UNIFIED-AUDIO.md](START-NEXT-CHAT-2026-10-30-UNIFIED-AUDIO.md). Новая ветка `feature/android-unified-preparation-seek-gate` (docs-only checkpoint), базовый код `8128307d0daf95f3386b85791db5347e3ec56357`, Android CI 41019895272 SUCCESS; **signed 0.3.54 AUDIOFIX установлен**, signing key восстановлен и хранится приватно. Новый единый audio-owner дизайн ещё НЕ реализован, APK не выпускается. ВСЕ нижеследующие исторические статусы о потерянном ключе и неподписанной 0.3.52 устарели. Только Android; desktop/server/ad-protection не трогать.
+
+---
+
 > **ГЛАВНЫЙ АКТУАЛЬНЫЙ ДОКУМЕНТ НА ПЕРЕДАЧУ В НОВЫЙ ЧАТ:** [HANDOFF-2026-10-29-ANDROID-0352.md](HANDOFF-2026-10-29-ANDROID-0352.md). **Готовое первое сообщение:** [START-NEXT-CHAT-2026-10-29.md](START-NEXT-CHAT-2026-10-29.md). Последний код `25767ce3`, CI https://github.com/manufact-test/nomusic/actions/runs/40942060340 PASS; последний signed 0.3.51 НЕ принят; 0.3.52 только unsigned inspection, оригинальный signing key отсутствует. Desktop 0.4.65/feature/api-range НЕ ТРОГАТЬ. Нижеследующие контрольные точки исторические.
 
 ---

@@ -1,3 +1,7 @@
+> **АКТУАЛЬНОЕ ДОПОЛНЕНИЕ (30.10.2026):** [UNIFIED-AUDIO-OWNERSHIP-PLAN-2026-10-30.md](UNIFIED-AUDIO-OWNERSHIP-PLAN-2026-10-30.md) и [HANDOFF-2026-10-30-UNIFIED-AUDIO.md](HANDOFF-2026-10-30-UNIFIED-AUDIO.md). Контракт новых регрессий: PREPARE_READY+SEEK/PAUSE/BUFFERING/BOUNDARY, stale callback after Stop/logout, 10 rapid skips, route loss, no audible dual output. Базовый Android CI `41019895272` SUCCESS на `8128307d0daf95f3386b85791db5347e3ec56357`. Текущий 0.3.54 AUDIOFIX signed с оригинальным ключом уже протестирован на HONOR, но аппаратная бесшовность НЕ принята. Нижние версии/утверждения о потерянном ключе исторические.
+
+---
+
 > **СУПЕРСЕДЕД: ЗА ТЕКУЩИМ СТАТУСОМ СМОТРИ** [HANDOFF-2026-10-29-ANDROID-0352.md](HANDOFF-2026-10-29-ANDROID-0352.md). Новое: только Android, desktop 0.4.65 не менять, CI 40942060340 PASS, версия 0.3.52 готова только как НЕПОДПИСАННЫЙ structural smoke, оригинальный приватный ключ подписи отсутствует.
 
 ---
