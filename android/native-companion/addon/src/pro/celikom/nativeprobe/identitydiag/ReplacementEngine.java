@@ -57,8 +57,14 @@ final class ReplacementEngine {
  boolean current(String key){PlaybackSource s=owner.current;return !closed&&owner.alive()&&s!=null&&ApiContract.current(key,s.key,SystemClock.elapsedRealtime()-s.observed,s.connected);}
  boolean armed(){return !closed&&armedUntil!=0;}
  long position(PlaybackSource s){long extra=s.playing?Math.max(0,SystemClock.elapsedRealtime()-s.observed):0;return Math.min(s.duration,Math.max(0,s.position+extra));}
+ /* An account switch revokes queued decoder callbacks before the next
+    timeline tick. Never grant old-account audio after sign-in changes. */
+ boolean accountLeaseCurrent(){
+  if(authorizationAccount<0||authorizationAccount==api.accountGeneration)return true;
+  stop("account_generation_changed");return false;
+ }
  void update(PlaybackSource s){if(closed||returning)return;
-  if(authorizationAccount>=0&&authorizationAccount!=api.accountGeneration){stop("account_generation_changed");return;}
+  if(!accountLeaseCurrent())return;
   attachPendingSession();
   if(s!=null&&(!s.connected||SystemClock.elapsedRealtime()-s.observed>1500)){if(player!=null||preparing||lookupKey!=null)suspend("source_unavailable",1000);status="Ожидаем подключение к Яндексу; играет оригинал";return;}
   if(s==null){
@@ -250,8 +256,8 @@ final class ReplacementEngine {
  void downloadFull(String key,JSONObject j,long g){api.download(j,()->!closed&&g==generation&&api.signedIn()&&current(key),(file,error)->acceptAudio(key,j,g,file,error));}
  void acceptAudio(String key,JSONObject j,long g,File file,String error){acceptAudio(key,j,g,file,null,error);}
  void acceptAudio(String key,JSONObject j,long g,File file,BufferedAudio source,String error){if(g!=generation||closed||!audioOwner.dataCurrent(prepareTicket,api.accountGeneration,key,j.optLong("replacement_id"),j.optLong("version"),j.optLong("duration_ms"))){if(file!=null)file.delete();if(source!=null)source.close();return;}preparing=false;if(file==null&&source==null){suspend("download_failed",retryDelay());status="Сеть недоступна; играет оригинал, повторим автоматически";return;}if(!current(key)||!api.signedIn()){if(file!=null)file.delete();if(source!=null)source.close();suspend("download_source_changed",1000);return;}
-   try{audioFile=file;streaming=source;bufferWaiting=false;player=new MediaPlayer();final MediaPlayer p=player;final long ownerTicket=audioOwner.epoch();final AudioOwnership.Ticket dataTicket=prepareTicket;p.setAudioAttributes(new AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_MEDIA).setContentType(AudioAttributes.CONTENT_TYPE_MUSIC).build());setAuditedVolume(p,0f);if(source==null)p.setDataSource(file.getAbsolutePath());else p.setDataSource(new StreamingAudio(source));p.setOnErrorListener((mp,what,extra)->{if(mp==player&&g==generation&&audioOwner.current(ownerTicket,key)){suspend("media_player_error",retryDelay());LogStore.log("replacement_failure",LogStore.map("reason","media_player_error","what",what,"extra",extra));}return true;});p.setOnCompletionListener(mp->{
-    if(mp!=player||g!=generation||!audioOwner.current(ownerTicket,key))return;
+   try{audioFile=file;streaming=source;bufferWaiting=false;player=new MediaPlayer();final MediaPlayer p=player;final long ownerTicket=audioOwner.epoch();final AudioOwnership.Ticket dataTicket=prepareTicket;p.setAudioAttributes(new AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_MEDIA).setContentType(AudioAttributes.CONTENT_TYPE_MUSIC).build());setAuditedVolume(p,0f);if(source==null)p.setDataSource(file.getAbsolutePath());else p.setDataSource(new StreamingAudio(source));p.setOnErrorListener((mp,what,extra)->{if(mp==player&&g==generation&&audioOwner.current(ownerTicket,key)&&accountLeaseCurrent()){suspend("media_player_error",retryDelay());LogStore.log("replacement_failure",LogStore.map("reason","media_player_error","what",what,"extra",extra));}return true;});p.setOnCompletionListener(mp->{
+    if(mp!=player||g!=generation||!audioOwner.current(ownerTicket,key)||!accountLeaseCurrent())return;
     /* Completion is untagged: an old-position callback during a seek or a
        paused/buffered/route-lost hold must not mark the song complete. */
     if(!ready||!armed()||returning||pausedAt>=0||waitingForRouteResume
@@ -288,7 +294,7 @@ final class ReplacementEngine {
    }catch(Exception e){suspend("prepare_failed",retryDelay());status="Не удалось подготовить аудио; играет оригинал";}
  }
  void completeSeek(MediaPlayer mp,String key){
-  if(mp!=player||!Objects.equals(identityKey,key))return;
+  if(mp!=player||!Objects.equals(identityKey,key)||!accountLeaseCurrent())return;
   AudioOwnership.SeekAck ack=audioOwner.acceptSeekCompletion(mp);
   if(ack==null)return; // repeated/retired callback
   if(ack.operationEpoch!=audioOwner.operationEpoch()){
@@ -354,7 +360,8 @@ final class ReplacementEngine {
   final long[] baseline={p.getCurrentPosition()},phaseStarted={SystemClock.elapsedRealtime()};final int[] corrections={0};final boolean[] sourceFadeDone={initialOriginal<=0.001f};
   fadeStarted=SystemClock.elapsedRealtime();fading=true;handoverPending=alignLive;warmSeekTransition=-1;
   Runnable ramp=new Runnable(){public void run(){
-   if(closed||token!=transition||p!=player||fx!=effect||!armed()||!audioOwner.current(ownerEpoch,ownerKey)||!audioOwner.commandCurrent(handoverTicket,api.accountGeneration,ownerKey,descriptor==null?0:descriptor.optLong("replacement_id"),descriptor==null?0:descriptor.optLong("version"),descriptor==null?0:descriptor.optLong("duration_ms")))return;
+   if(closed||token!=transition||p!=player||fx!=effect||!armed()||!accountLeaseCurrent()
+      ||!audioOwner.current(ownerEpoch,ownerKey)||!audioOwner.commandCurrent(handoverTicket,api.accountGeneration,ownerKey,descriptor==null?0:descriptor.optLong("replacement_id"),descriptor==null?0:descriptor.optLong("version"),descriptor==null?0:descriptor.optLong("duration_ms")))return;
    try{
     if(!current(identityKey)){suspend("fade_source_unavailable",1000);return;}
     if(!owner.current.playing){if(owner.current.buffering&&owner.current.wantsToPlay)bufferSource(owner.current,false);else pauseSource(owner.current,false);return;}

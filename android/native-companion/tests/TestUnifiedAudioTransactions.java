@@ -285,6 +285,42 @@ public final class TestUnifiedAudioTransactions {
     "valid current decoder completion continues to use normal source recovery");
   endEngine.close();
 
+
+  /* Account generation may rotate before the next Media3 update. Every
+     callback that could affect output must immediately revoke old audio. */
+  TestEngine.playing();ReplacementEngine accountEngine=TestEngine.e;
+  MediaPlayer accountPlayer=accountEngine.player;accountPlayer.asyncSeek=true;
+  TestEngine.p.current=TestEngine.source("1",60000,true);
+  accountEngine.update(TestEngine.p.current);
+  check(accountEngine.seeking&&accountEngine.audioOwner.seekInFlight(accountPlayer),
+    "account rotation test starts with pending seek");
+  TestEngine.api.accountGeneration++;
+  accountPlayer.seek.onSeekComplete(accountPlayer);
+  check(accountPlayer.released&&accountEngine.player==null&&!accountEngine.armed()
+      &&accountEngine.effect==null,"old-account seek callback immediately revokes old output");
+  accountEngine.close();
+
+  TestEngine.playing();accountEngine=TestEngine.e;accountPlayer=accountEngine.player;
+  TestEngine.api.accountGeneration++;
+  accountPlayer.completed.onCompletion(accountPlayer);
+  check(accountPlayer.released&&accountEngine.player==null&&!accountEngine.armed(),
+    "old-account media completion cannot grant a new account its decoder");
+  accountEngine.close();
+
+  TestEngine.playing();accountEngine=TestEngine.e;accountPlayer=accountEngine.player;
+  TestEngine.api.accountGeneration++;
+  accountPlayer.error.onError(accountPlayer,1,1);
+  check(accountPlayer.released&&accountEngine.player==null&&!accountEngine.armed(),
+    "old-account media error stops rather than retrying authorized audio");
+  accountEngine.close();
+
+  TestEngine.playing();accountEngine=TestEngine.e;accountPlayer=accountEngine.player;
+  TestEngine.api.accountGeneration++;
+  android.os.SystemClock.now+=40;TestEngine.p.handler.drain();
+  check(accountPlayer.released&&accountEngine.effect==null&&!accountEngine.armed(),
+    "queued handover detects account rotation before promoting replacement gain");
+  accountEngine.close();
+
   System.out.println("PASS unified Android audio transactions: "+checks+" checks");
  }
 }
