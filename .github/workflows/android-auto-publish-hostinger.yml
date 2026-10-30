@@ -5,6 +5,7 @@ on:
     types: [completed]
     branches: [feature/android-unified-preparation-seek-gate]
   workflow_dispatch:
+  workflow_call:
 permissions:
   contents: read
   actions: read
@@ -14,7 +15,7 @@ concurrency:
 jobs:
   publish:
     if: >-
-      github.event_name == 'workflow_dispatch' ||
+      github.event_name == 'workflow_call' || github.event_name == 'workflow_dispatch' ||
       (github.event.workflow_run.conclusion == 'success' &&
        github.event.workflow_run.head_repository.full_name == 'manufact-test/nomusic' &&
        github.event.workflow_run.head_branch == 'feature/android-unified-preparation-seek-gate')
@@ -33,7 +34,7 @@ jobs:
       - name: Download previously verified Android build kit
         env:
           GH_TOKEN: ${{ github.token }}
-          SOURCE_RUN: ${{ github.event.workflow_run.id }}
+          SOURCE_RUN: ${{ github.event.workflow_run.id || github.run_id }}
         shell: bash
         run: |
           set -euo pipefail
@@ -135,12 +136,17 @@ jobs:
               if proposed['apkSha256'] != current['apkSha256']:
                   raise SystemExit('Same version code cannot replace immutable APK')
               print('Already published; no pointer change needed')
-              sys.exit(3)
+              sys.exit(0)
           PY
-          status=$?
-          if [ "$status" -eq 3 ]; then exit 0; fi
+          status=0
+          # Exit 3 means the exact signed APK is already stable.
+          # The Python validation must not be bypassed for any other exit.
           test "$status" -eq 0
-          test ! -e "releases/$name"
+          if test -e "releases/$name"; then
+            cmp -s "releases/.$name.upload" "releases/$name" || exit 1
+            mv ".stable.json.upload" stable.json
+            exit 0
+          fi
           mv "releases/.$name.upload" "releases/$name"
           mv ".stable.json.upload" stable.json
           REMOTE
