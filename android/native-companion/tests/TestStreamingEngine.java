@@ -22,7 +22,9 @@ public class TestStreamingEngine {
   SystemClock.now+=8;TestEngine.p.current=TestEngine.source("1",initialPosition+187,true);player.seek.onSeekComplete(player);check(player.playing&&Math.abs(e.position(TestEngine.p.current)-player.position)<=10,"cached seek joins within ten milliseconds in recorded-delay replay");
   SystemClock.now+=90;player.position+=90;TestEngine.p.handler.drain();
   SystemClock.now+=90;player.position+=90;TestEngine.p.current=TestEngine.source("1",initialPosition+277,true);TestEngine.p.handler.drain();
-  check(player.volume==0f&&e.effect.gain<0f&&e.effect.gain>-100f,"first 90ms fade original without making second session audible");
+  check((player.volume==0f&&e.effect.gain==0f)
+     ||(player.volume>0.99f&&e.effect.gain==-100f),
+     "streaming handover must preserve a fully audible original or replacement");
   SystemClock.now+=ReplacementEngine.NEW_TRACK_JOIN_MS+20;
   player.position+=ReplacementEngine.NEW_TRACK_JOIN_MS+20;
   TestEngine.p.current=TestEngine.source("1",initialPosition+277+ReplacementEngine.NEW_TRACK_JOIN_MS+20,true);
@@ -36,7 +38,9 @@ public class TestStreamingEngine {
   audio.waiting=false;e.close();
   audio=start();e=TestEngine.e;player=e.player;player.asyncSeek=true;TestEngine.p.current=TestEngine.source("1",30000,true);e.update(TestEngine.p.current);seekCount=player.seekCalls;audio.waiting=true;SystemClock.now+=300;TestEngine.p.current=TestEngine.source("1",30300,true);e.update(TestEngine.p.current);check(e.seeking&&player.seekCalls==seekCount&&e.effect==null,"waiting seek restores original without cancelling/reissuing seek");audio.waiting=false;player.position=30300;player.seek.onSeekComplete(player);check(player.playing&&e.effect!=null,"one completed buffered seek resumes automatically");e.close();
   // isPlaying is true before a streaming decoder necessarily advances its clock.
-  audio=start();e=TestEngine.e;player=e.player;SystemClock.now+=400;TestEngine.p.current=TestEngine.source("1",1400,true);TestEngine.p.handler.drain();check(e.originalMix==1f&&player.volume==0f,"frozen startup decoder never fades out original");player.position+=50;SystemClock.now+=50;TestEngine.p.current=TestEngine.source("1",1450,true);TestEngine.p.handler.drain();SystemClock.now+=200;player.position+=200;TestEngine.p.current=TestEngine.source("1",1650,true);TestEngine.p.handler.drain();SystemClock.now+=90;player.position+=90;TestEngine.p.current=TestEngine.source("1",1740,true);TestEngine.p.handler.drain();check(e.effect.gain<0f&&player.volume==0f,"aligned decoder first fades original while secondary stays inaudible");SystemClock.now+=240;player.position+=240;TestEngine.p.current=TestEngine.source("1",1980,true);TestEngine.p.handler.drain();check(e.originalMix==0f&&player.volume>0f,"only the fully silenced original permits replacement gain");e.close();
+  audio=start();e=TestEngine.e;player=e.player;SystemClock.now+=400;TestEngine.p.current=TestEngine.source("1",1400,true);TestEngine.p.handler.drain();check(e.originalMix==1f&&player.volume==0f,"frozen startup decoder never fades out original");player.position+=50;SystemClock.now+=50;TestEngine.p.current=TestEngine.source("1",1450,true);TestEngine.p.handler.drain();SystemClock.now+=200;player.position+=200;TestEngine.p.current=TestEngine.source("1",1650,true);TestEngine.p.handler.drain();SystemClock.now+=90;player.position+=90;TestEngine.p.current=TestEngine.source("1",1740,true);TestEngine.p.handler.drain();check((e.effect.gain==0f&&player.volume==0f)
+     ||(e.effect.gain==-100f&&player.volume>0.99f),
+     "decoder clock confirmation must not introduce a quiet original-only fade");SystemClock.now+=240;player.position+=240;TestEngine.p.current=TestEngine.source("1",1980,true);TestEngine.p.handler.drain();check(e.originalMix==0f&&player.volume>0f,"only the fully silenced original permits replacement gain");e.close();
   audio=start();e=TestEngine.e;player=e.player;SystemClock.now+=2100;TestEngine.p.current=TestEngine.source("1",3100,true);TestEngine.p.handler.drain();check(e.effect==null&&player.released&&e.armed()&&e.streamFallbackKey!=null,"frozen startup times out to original and full-file recovery");e.close();
   // 2026-10-28 Монпасье: a 2s seek timeout discarded a partial stream,
   // then downloaded all 9.5MB for 52.9s. Preserve the in-flight seek instead.
