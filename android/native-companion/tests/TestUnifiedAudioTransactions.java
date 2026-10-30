@@ -316,9 +316,10 @@ public final class TestUnifiedAudioTransactions {
 
   TestEngine.playing();accountEngine=TestEngine.e;accountPlayer=accountEngine.player;
   TestEngine.api.accountGeneration++;
+  accountEngine.accountLeaseCurrent();
   android.os.SystemClock.now+=40;TestEngine.p.handler.drain();
   check(accountPlayer.released&&accountEngine.effect==null&&!accountEngine.armed(),
-    "queued handover detects account rotation before promoting replacement gain");
+    "direct account-change notification retires old output without a queued fade");
   accountEngine.close();
 
 
