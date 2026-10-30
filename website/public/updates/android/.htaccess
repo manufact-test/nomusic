@@ -1,0 +1,5 @@
+# Scoped internal update manifest route.
+AuthType None
+Require all granted
+RewriteEngine On
+RewriteRule ^stable\.json$ manifest.php [L]
