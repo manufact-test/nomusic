@@ -340,8 +340,9 @@ public final class TestUnifiedAudioTransactions {
   TestEngine.p.current=TestEngine.source("1",3500,true);bufferedEnd.update(TestEngine.p.current);
   check(bufferedEnd.player==bufferedEndPlayer&&!bufferedEndPlayer.released
       &&bufferedEnd.armed(),"same decoder resumes after buffered completion");
+  MediaPlayer.OnCompletionListener obsoleteCompletion=bufferedEndPlayer.completed;
   bufferedEnd.sourceBoundary("confirmed_new_media");
-  bufferedEndPlayer.completed.onCompletion(bufferedEndPlayer);
+  obsoleteCompletion.onCompletion(bufferedEndPlayer);
   check(bufferedEnd.player==null&&bufferedEnd.effect==null
       &&bufferedEndPlayer.released,"old MediaPlayer callback after boundary is inert");
   bufferedEnd.close();
