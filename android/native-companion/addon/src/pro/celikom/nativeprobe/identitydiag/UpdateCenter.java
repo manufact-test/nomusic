@@ -48,7 +48,7 @@ final class UpdateCenter {
         refresh=activity.button(region,"Проверить обновления",()->check(true),false);
         install=activity.button(region,"Скачать и установить",this::download,false);
         later=activity.button(region,"Позже",()->{candidate=null;render("Напомним позже");},false);
-        render("Проверяем наличие обновлений…");
+        render("CELIKOM "+AppVersion.NAME+" · Проверить обновления");
         schedule(activity);
         check(false);
     }
