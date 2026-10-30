@@ -1,6 +1,8 @@
 # CELIKOM Android — единый владелец аудио: технический план (2026-10-30)
 
-**Status: PLAN / NOT IMPLEMENTED.** Подписанный 0.3.54 AUDIOFIX уже существует, но изменение архитектуры из этого документа ещё не реализовано и НЕ отправлялось на устройство. Ни одна новая APK в рамках этого checkpoint не выпускалась.
+**Status updated 30.10.2026: PARTIALLY IMPLEMENTED — see [UNIFIED-AUDIO-GATE-PROGRESS-2026-10-30.md](UNIFIED-AUDIO-GATE-PROGRESS-2026-10-30.md).** The single-authority event/ticket guard and observational lookahead exist and have full Android CI success at `d1034816796d6fc1a421d559304f5c5218317c66`. Full reducer, verified future-track lookahead, any prefetch and device-tested seamless playback are **NOT implemented/confirmed**.
+
+**Original plan note (historical):** Подписанный 0.3.54 AUDIOFIX уже существует, но изменение архитектуры из этого документа ещё не реализовано и НЕ отправлялось на устройство. Ни одна новая APK в рамках этого checkpoint не выпускалась.
 
 **Scope strictly Android phone only.** Repository `manufact-test/nomusic`; development branch `feature/android-unified-preparation-seek-gate` based on green code SHA `8128307d0daf95f3386b85791db5347e3ec56357`. Keep `feature/android-0348-audio-ownership-stabilization` (PR #22, DRAFT), `feature/api-range` (desktop), production backend/catalogue/website/CMS, Ad Protection and keys unchanged.
 

@@ -1,5 +1,7 @@
 # CELIKOM Android — ПЕРЕДАЧА НОВОМУ ЧАТУ · 30.10.2026
 
+> **ОБНОВЛЕНИЕ 30.10.2026:** Этот документ описывает исходный handoff, до реализации. Код новой архитектуры уже начали внедрять. Сначала прочитайте [UNIFIED-AUDIO-GATE-PROGRESS-2026-10-30.md](UNIFIED-AUDIO-GATE-PROGRESS-2026-10-30.md). Последний проверенный код: `d1034816796d6fc1a421d559304f5c5218317c66`, CI SUCCESS: https://github.com/manufact-test/nomusic/actions/runs/41027989995. Gate A частично реализован; Gate B — только наблюдение; **подписанный APK не создан**. Сведения ниже об отсутствии новых изменений — историческое состояние на момент передачи.
+
 > **АКТУАЛЬНЫЙ ПРИОРИТЕТ: ЭТОТ ДОКУМЕНТ + [UNIFIED-AUDIO-OWNERSHIP-PLAN-2026-10-30.md](UNIFIED-AUDIO-OWNERSHIP-PLAN-2026-10-30.md).** Старые handoff 29 октября, README и NEXT-CHAT описывают более раннее состояние (0.3.52 unsigned / signing key missing) и являются историей. Ключ позже восстановлен, 0.3.52–0.3.54 подписаны.
 
 ## Главная задача и пределы
@@ -73,4 +75,4 @@ Last only: `replacement_source_buffer`=26, `replacement_source_buffer_resumed`=1
 
 ### Handoff end state
 
-**No audio code added on the new branch yet: it is created at the last full-CI-success baseline; this document and the plan are the initial checkpoint.** Old working branch and installed signed AUDIOFIX remain intact. New chat can begin implementation without the user repeating history.
+**Historical state only (before 30.10 development):** No audio code had been added at the original handoff. **Current code and CI checkpoints are documented in [UNIFIED-AUDIO-GATE-PROGRESS-2026-10-30.md](UNIFIED-AUDIO-GATE-PROGRESS-2026-10-30.md).** Old working branch and installed signed AUDIOFIX remain intact. New chat can begin implementation without the user repeating history.
