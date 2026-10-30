@@ -132,3 +132,25 @@ Follow `UNIFIED-AUDIO-OWNERSHIP-PLAN-2026-10-30.md` and the original `HANDOFF-20
 - Future-song Media3 lookahead is still read-only and not validated on-device. No speculative next-track resolve, prefetch, second decoder, backend, desktop/extension, Ad Protection, or private signing files were touched.
 
 **Rollback:** `backup/android-unified-gate-f-completion-account-green-20261030` pins the exact last CI-green Android code.
+
+
+## Update 30.10.2026 — Gate G: owner-converged warm seek/clock, return ticket, signed 0.3.55 for HONOR manual test
+
+**Release candidate code and Android CI:** `d0317e3d697db202164804a27f18f3e688fe1d05`, [full Actions SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/41043617578). Earlier matching Java source/DEX producer: `eb7b149725241df881dbdbcce4c91b8dfbce69ba`, [Actions SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/41042716739). Verifier-only change in final commit does not change Java sources or APK bytes. Rollback source: `backup/android-0355-gateg-signed-ci-green-20261030`. Previous 0.3.54 device APK and prior backup branches preserved.
+
+### One-owner reduction in competing output flags
+
+- Removed `ReplacementEngine.warmSeekTransition` entirely. Native warm completion and wait now use the already single-flight `AudioOwnership.seekInFlight(decoder)`; no second warm seek boolean/epoch exists. Existing pause/seek/replay/track-boundary host checks remain green.
+- Removed `ReplacementEngine.handoverPending` entirely. Only `AudioOwnership.handoverAwaitingClock()` and `handoverWaitForClock(alignLive)` hold the clock-wait decision, revoking it on pause, buffering, seek, boundary, route loss, decoder retirement, original restoration or Stop. `PlaybackUi` reads the owner state directly. Exclusive output grant is forbidden while either native seek or unverified decoder clock is in progress.
+- Manual `returnOriginal()` is now an `AudioOwnership.Event.RETURN` operation with edition/account/source command ticket and account-epoch check on every queued fade tick. Prior replacement handover tickets are invalidated.
+- Pending onPrepared callbacks now actively retire an old account's decoder immediately when account generation has rotated. Native completion while unverified startup clock is waiting cannot falsely finalize the current song.
+- Host tests added for owner clock grant/revocation, stale account prepared callback and return, plus old and new Android transition tests. CI compiles Android API36 and D8. The owner is more authoritative, but **a full pure event reducer is not yet implemented**; do not assert the architecture is mathematically race-free.
+
+### Signed device-test candidate produced outside CI
+
+- **Version** `0.3.55`; **versionCode** `56`; same package `pro.celikom.nativeprobe`, same original signer certificate SHA256 `67fe81c56fac1c1d145344b69a0e3faf9005cf6607f4e26ca27d5926c3eefc4f`. Signed candidate name `CELIKOM-Android-0.3.55-GATEG-SIGNED.apk`.
+- **APK SHA256:** `ff1c9d0757173796b1068acf52ebdecd8354cfb429dd35c2b7253f3e5596c54a`. Native addon DEX SHA256 `64ee7d70e48dba382effea638c17766052e58bd67ed56e663ff05d18d08b575c`. Offline local independently recompiled DEX equals CI DEX exactly; signature, APK structure, manifest, package upgrade version, contents, catalogue-preservation and signer continuity passed `verify_release.py`.
+- Persistent **private user Library** backup of installable signed APK (no keystore): `/CELIKOM/Android/Backups/CELIKOM-Android-0.3.55-GATEG-SIGNED-20261030.apk`. Original private signing key/JSON were only used in an isolated local directory, not uploaded to GitHub, CI, or release. Do not include them in any user-facing ZIP.
+- Fixed release verifier's historical `warmSeekTransition` assertion after architecture removed that obsolete flag; subsequent verifier and full CI green. Offline build output survived a command runtime timeout but was **independently fully verified afterward**. Signed APK was generated after actual full local source compile, D8 and host tests.
+- Manual HONOR Android 13 test **NOT YET DONE**. Prior 0.3.54 audio problems remain hardware baseline, not proof of improvement. Request user to install 0.3.55 on top of 0.3.54 (never uninstall), test first-next-track, manual seeks, pause/resume, and headphone/Bluetooth route changes, then provide observed audio quality and sanitized diagnostics. Do not mark accepted without actual device checks. No speculative next-song prefetch; no desktop/backend/ad changes.
+
