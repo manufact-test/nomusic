@@ -15,3 +15,12 @@ Current engine investigation:
 - UpdateCenter UI duplicated version and `Проверить обновления` summary: commit `2f4941c` removes repetition, caches verified latest result keyed to installed versionCode; no device claim.
 
 Next: focused engine regression replay (seek + brief buffering; source boundary + release timing; seamless long pause). Do not publish a new APK or call it fixed until Java/D8, full Android CI, strict original-signer APK verification, then real HONOR listening. No desktop/backend work.
+
+## Candidate fixes (NOT device-verified)
+- `eeae5a3e`: bounded exclusive after-mute replacement gain ramp 180–200ms -> 32ms. Source fade, exclusive source mute and single authority preserved. Audible transitions need HONOR listening confirmation; may reveal a different click/edge.
+- `b7063d13`: if source reports transient Media3 BUFFERING while an authoritative decoder seek is in flight, do not execute a second PAUSED transaction; wait for seek ack. Persistent buffering after seek ack still reaches ordinary buffering logic.
+- `de71fe79`: static regression assertions for above invariants.
+- `2f4941c1`: update UI removes duplicate version and button text, caches last successful versionCode-scoped latest status.
+- Current CI for `de71fe79`: https://github.com/manufact-test/nomusic/actions/runs/41111804358 — queued at checkpoint, **not success**.
+- Separate `android-update-center-live-smoke.yml` workflow is currently failing before any jobs; distinct from Android build test, must diagnose/remove before calling entire CI green.
+- No new signed APK yet; 0.3.58 remains last signed and remains on the user's device. Preserve rollback branch `backup/android-0358-honor-regression-before-fix-20261030`. For next signed version bump code >59 (e.g. 0.3.59/60) after CI and original signature verification. Do not publish URL ahead of deployment.
