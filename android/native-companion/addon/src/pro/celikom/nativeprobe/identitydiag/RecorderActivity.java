@@ -26,7 +26,7 @@ public class RecorderActivity extends Activity {
  static final int BG=0xff0b1013,SURFACE=0xff141b1f,FG=0xfff4f7f8,MUTED=0xffaab8be,MINT=0xff66e0bf,BORDER=0xff2a3439;
  final Handler handler=new Handler(Looper.getMainLooper());
  final ExecutorService files=Executors.newSingleThreadExecutor();
- TextView status,mark,access,track,version,accountNote,reportNote;
+ TextView status,mark,access,track,version,accountNote,reportNote;UpdateCenter updateCenter;
  Button save,start,stop,restore,confirm,loginButton,logoutButton,accountToggle,uploadButton,suggestButton,notificationPermission;
  final StartIntent startIntent=new StartIntent();LinearLayout accountBody;boolean authBusy,accessBusy,pendingStart,exportBusy,presenceBusy,contributionBusy;String serverStatus="",uiProblem="",presenceId="",presenceStatus="";JSONObject accountAccess;long presenceChecked,uiAccountGeneration=-1,permissionIntent=-1,permissionAccount=-1;
  MobileActions.Target pickerTarget;File exportSnapshot;AlertDialog uploadDialog;
@@ -48,6 +48,7 @@ public class RecorderActivity extends Activity {
   support(section(box,"Связь с поддержкой"));
   save=button(box,"Сохранить диагностику",this::requestExport,false);save.setBackground(background(SURFACE));save.setTextColor(0xff8fa0a8);save.setTextSize(12);save.setMinHeight(dp(28));save.setMinimumHeight(dp(28));save.getLayoutParams().height=dp(28);save.setGravity(Gravity.START|Gravity.CENTER_VERTICAL);save.setPadding(dp(12),0,dp(12),0);
   notificationPermission=button(box,"Включить уведомления CELIKOM",this::enableNotifications,false);notificationPermission.setTextSize(12);
+  updateCenter=new UpdateCenter(this,section(box,"Обновления CELIKOM"));
   reportNote=label(box,"",12,MUTED);label(box,"CELIKOM · "+AppVersion.NAME,11,0xff788991);
   if(saved!=null){try{if(saved.containsKey("pickerId"))pickerTarget=new MobileActions.Target(saved.getString("pickerId"),saved.getString("pickerKey"),saved.getString("pickerTitle"),saved.getString("pickerArtist"),saved.getLong("pickerDuration"));String report=saved.getString("reportSnapshot");if(report!=null){File candidate=new File(report);if(candidate.getCanonicalFile().getParentFile().equals(getCacheDir().getCanonicalFile())&&candidate.getName().startsWith("diagnostics-"))exportSnapshot=candidate;}}catch(Exception ignored){}}
   receive(getIntent());render();if(api().signedIn())checkServer();
