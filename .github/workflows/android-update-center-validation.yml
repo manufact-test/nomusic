@@ -1,0 +1,27 @@
+name: CELIKOM Android Update Center HTTP contract
+
+on:
+  push:
+    branches:
+      - feature/android-unified-preparation-seek-gate
+    paths:
+      - 'website/public/update-center.php'
+      - 'website/public/.htaccess'
+      - 'website/tests/UpdateCenterDownloadTest.py'
+      - '.github/workflows/android-update-center-validation.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  download-endpoints:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify PHP availability
+        run: php -v
+      - name: Syntax check
+        run: php -l website/public/update-center.php
+      - name: Test isolated HTTP GET/HEAD/JSON contract
+        run: python3 website/tests/UpdateCenterDownloadTest.py
