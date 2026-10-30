@@ -6,6 +6,41 @@ import java.util.Objects;
 /** Authoritative audio output permission and lifecycle state, confined to service handler. */
 final class AudioOwnership {
  enum State { SOURCE_ONLY, PREPARING, ALIGNING, REPLACEMENT, PAUSED, RECOVERING, TRACK_UNSUPPORTED, STOPPED }
+ /* Event and ticket authority lives with the sole audio output owner. A data ticket
+    survives an ordinary seek/pause, but never a source/account/edition change. */
+ enum Event { PREPARE, PREPARE_READY, SEEK, BUFFERING, PAUSE, RESUME, HANDOVER, BOUNDARY, ROUTE_LOSS, LOGOUT, STOP }
+ static final class Ticket {
+  final String sourceKey;
+  final long sourceEpoch,operationEpoch,accountEpoch,replacementId,version,durationMs;
+  Ticket(String key,long source,long operation,long account,long replacement,long version,long duration){
+   sourceKey=key;sourceEpoch=source;operationEpoch=operation;accountEpoch=account;
+   replacementId=replacement;this.version=version;durationMs=duration;
+  }
+ }
+ private long operationEpoch=1;
+ long operationEpoch(){return operationEpoch;}
+ Ticket ticket(String key,long account,long replacement,long version,long duration){
+  if(!current(generation,key))throw new IllegalStateException("ticket without current source");
+  return new Ticket(key,generation,operationEpoch,account,replacement,version,duration);
+ }
+ boolean dataCurrent(Ticket t,long account,String key,long replacement,long version,long duration){
+  return t!=null&&current(t.sourceEpoch,t.sourceKey)&&Objects.equals(t.sourceKey,key)
+    &&t.accountEpoch==account&&t.replacementId==replacement&&t.version==version&&t.durationMs==duration;
+ }
+ boolean commandCurrent(Ticket t,long account,String key,long replacement,long version,long duration){
+  return dataCurrent(t,account,key,replacement,version,duration)&&t.operationEpoch==operationEpoch;
+ }
+ void event(Event event){
+  if(event==Event.PREPARE){
+   if(key==null||originalMuted||attachedEffect!=null||commandedSecondary>0.001f||
+      (state!=State.SOURCE_ONLY&&state!=State.PREPARING&&
+       state!=State.RECOVERING&&state!=State.TRACK_UNSUPPORTED))
+    throw new IllegalStateException("background preparation cannot take active audio ownership");
+   state=State.PREPARING;reason="preparing";operationEpoch++;return;
+  }
+  if(event==Event.PREPARE_READY)return; // data readiness cannot mutate output state
+  operationEpoch++;
+ }
  private State state=State.SOURCE_ONLY;
  private String key,reason="initial";
  private long generation=1,pauseEpoch;
@@ -22,7 +57,7 @@ final class AudioOwnership {
  void track(String next){
   if(Objects.equals(key,next))return;
   if(originalMuted)throw new IllegalStateException("track cannot change before secondary silence and source restore");
-  generation++;pauseEpoch++;key=next;
+  generation++;pauseEpoch++;operationEpoch++;key=next;
   if(state!=State.STOPPED)state=State.SOURCE_ONLY;
   reason="track_changed";
  }
@@ -30,14 +65,14 @@ final class AudioOwnership {
 
  void invalidate(String why){
   if(originalMuted)throw new IllegalStateException("boundary cannot discard active output lease");
-  generation++;pauseEpoch++;key=null;
+  generation++;pauseEpoch++;operationEpoch++;key=null;
   if(state!=State.STOPPED)state=State.SOURCE_ONLY;
   reason=why;
  }
  /** Retire decoder callbacks even when recovery retries the exact same song.
   * Source gain restoration on a long pause does NOT retire the decoder. */
- void retireDecoder(){generation++;pauseEpoch++;reason="decoder_retired";}
- void preparing(){state=State.PREPARING;reason="preparing";}
+ void retireDecoder(){generation++;pauseEpoch++;operationEpoch++;reason="decoder_retired";}
+ void preparing(){event(Event.PREPARE);}
  /** Attach the current source effect only after the previous effect has retired. */
  void prepareSourceEffect(DynamicsProcessing candidate){
   if(key==null||state==State.STOPPED||candidate==null||!candidate.hasControl())
@@ -48,7 +83,7 @@ final class AudioOwnership {
   if(candidate.setEnabled(true)!=AudioEffect.SUCCESS)
    throw new IllegalStateException("cannot enable original attenuation");
   attachedEffect=candidate;
-  preparing();
+  aligning();
  }
  void aligning(){state=State.ALIGNING;reason="aligning";}
  void replacement(){if(!originalMuted)throw new IllegalStateException("source not muted");state=State.REPLACEMENT;reason="replacement";}
@@ -59,7 +94,7 @@ final class AudioOwnership {
  void source(){state=State.SOURCE_ONLY;originalMuted=false;attachedEffect=null;commandedSecondary=0f;lastVolumePlayer=null;pauseEpoch++;reason="source_restored";}
  void recovering(String why){state=State.RECOVERING;pauseEpoch++;reason=why;}
  void unsupported(String why){state=State.TRACK_UNSUPPORTED;pauseEpoch++;reason=why;}
- void stopped(){generation++;pauseEpoch++;key=null;originalMuted=false;attachedEffect=null;commandedSecondary=0f;lastVolumePlayer=null;state=State.STOPPED;reason="stopped";}
+ void stopped(){generation++;pauseEpoch++;operationEpoch++;key=null;originalMuted=false;attachedEffect=null;commandedSecondary=0f;lastVolumePlayer=null;state=State.STOPPED;reason="stopped";}
  void grantReplacement(DynamicsProcessing effect){
   if(key==null||(state!=State.ALIGNING&&state!=State.REPLACEMENT))throw new IllegalStateException("handover requires current aligning track");
   if(effect==null||effect!=attachedEffect||!effect.hasControl()||!effect.getEnabled())
