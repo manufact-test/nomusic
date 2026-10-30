@@ -5,6 +5,7 @@ root=Path(__file__).resolve().parent.parent/'addon/src/pro/celikom/nativeprobe/i
 engine=(root/'ReplacementEngine.java').read_text()
 owner=(root/'AudioOwnership.java').read_text()
 service=(root/'ProbeService.java').read_text()
+api=(root/'NativeApi.java').read_text()
 for label,pattern in [
     ('direct decoder command',r'\b(?:player|p|old|mp)\.(?:start|pause|seekTo)\s*\('),
     ('native gain change bypass',r'\.setInputGainAllChannelsTo\s*\('),
@@ -53,6 +54,8 @@ if 'if(s.buffering&&s.wantsToPlay)bufferSource(s,sourceJump);' not in engine:
     raise AssertionError('native source buffering classification was lost')
 if 'sourceGainDuringAlignment(effect);originalMix=1f;traceAudioCommands();' not in engine:
     raise AssertionError('native source gain restoration must close command-gap telemetry immediately')
+if 'service.replacement.accountLeaseCurrent();' not in api or api.count('notifyAudioAccountChange();')<3:
+    raise AssertionError('all auth generation changes must notify the audio owner without waiting for transport ticks')
 fade=engine[engine.index('void fade(){'):engine.index('void setAuditedVolume(',engine.index('void fade(){'))]
 if 'audioOwner.fadeSourceBeforeGrant(fx' in fade or 'final long rampDuration=32;' in fade:
     raise AssertionError('multi-tick near-silent pre-handover fade reintroduced')
