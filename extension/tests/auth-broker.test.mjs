@@ -325,3 +325,21 @@ test('connection reset releases stale shared checks without clearing stored cred
  assert.equal(await broker.withAccess(()=>true),true);assert.equal(calls,3);assert.equal(cleared,0);
  assert.ok(broker.networkDiagnostics().some(item=>item.result==="request_cancelled"),"manual reset is not diagnosed as a server/network failure");
 });
+
+test('empty HTTP 500 preserves the account and retries reads, without refreshing or replaying activation',async(t)=>{
+ t.mock.timers.enable({apis:['setTimeout','Date']});
+ const saved={user:{id:4,email:'a@example.org'},access_token:'a'.repeat(64),refresh_token:'b'.repeat(64)};
+ let stored=saved,meCalls=0,writes=0,outage=true;
+ const store={get:async()=>stored,set:async value=>{stored=value},clear:async()=>{stored=null}};
+ const broker=createAuthBroker({storage:{local:{get:async()=>({celikomInstallationId:'12345678-1234-4123-8123-123456789abc'}),set:async()=>{}}}},
+  {store,readConfig:async()=>({baseUrl:'https://celikom.example'}),fetch:async(url,opts)=>{
+   if(opts.method==='POST'){writes++;return new Response('',{status:500});}
+   if(url.endsWith('/auth/me')){meCalls++;if(outage)return new Response('',{status:500});return new Response(JSON.stringify({user:saved.user}),{headers:{'content-type':'application/json'}});}
+   return new Response(JSON.stringify({allowed:true,source:'promo',reason:'promo_active',valid_until:null}),{headers:{'content-type':'application/json'}});
+  }});
+ const pending=broker.withAccess(value=>value.user.id);const rejected=assert.rejects(pending,/auth_unavailable/);
+ await new Promise(setImmediate);t.mock.timers.tick(500);await new Promise(setImmediate);t.mock.timers.tick(1000);await rejected;
+ assert.equal(meCalls,3);assert.equal(stored,saved);assert.equal(writes,0);
+ outage=false;assert.equal(await broker.withAccess(value=>value.user.id),4);assert.equal(stored,saved);
+ await assert.rejects(broker.entitlement(true),/auth_unavailable/);assert.equal(writes,1);assert.equal(stored,saved);
+});

@@ -99,7 +99,7 @@ startButton?.addEventListener("click", async () => {
       access.textContent = state.accessError === "track_required"
         ? "Сначала запустите песню в Яндекс Музыке."
         : state.accessError === "sign_in_required" ? "Войдите в аккаунт, чтобы включить подмену музыки."
-        : "Доступ недоступен. Проверьте аккаунт и соединение.";
+        : "Нет связи с сервером CELIKOM. Попробуйте «Старт» после восстановления связи.";
     } else { if (access) delete access.dataset.kind; await refreshAccess(); }
   } catch (_) {
     if (generation === startGeneration && access) { access.dataset.kind = "error"; access.textContent = "Проверка не завершена. Повторите «Старт»."; }

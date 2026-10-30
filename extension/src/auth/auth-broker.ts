@@ -106,7 +106,7 @@ export function createAuthBroker(api, options = {}) {
         body: data ? JSON.stringify(data) : undefined
       });
       httpStatus = response.status;
-      if ([502,503,504].includes(httpStatus)) {
+      if ([500,502,503,504].includes(httpStatus)) {
         try { await response.body?.cancel(); } catch (_) { /* response is unusable */ }
         throw new Error("auth_unavailable");
       }
@@ -137,7 +137,7 @@ export function createAuthBroker(api, options = {}) {
     } catch (error) {
       outcome = signal.reason === "network_changed" ? "auth_network_error" : signal.aborted || error?.name === "AbortError" ? "auth_timeout" : error instanceof TypeError ? "auth_network_error" : error?.message || "auth_unavailable";
       throw Object.assign(new Error(outcome), { retryable: signal.reason !== "network_changed"
-        && ([502,503,504].includes(httpStatus) || outcome === "auth_network_error" || outcome === "auth_timeout") });
+        && ([500,502,503,504].includes(httpStatus) || outcome === "auth_network_error" || outcome === "auth_timeout") });
     } finally {
       networkHistory.push({ endpoint: path.split("?")[0], method, httpStatus, result: signal.reason === "network_changed" ? "request_cancelled" : ["ok", "auth_timeout", "auth_network_error", "auth_route_blocked"].includes(outcome) ? outcome : "api_response_error", elapsedMs: Date.now() - started, at: Date.now() });
       if (networkHistory.length > 8) networkHistory.shift();

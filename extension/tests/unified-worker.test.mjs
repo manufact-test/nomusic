@@ -237,3 +237,15 @@ test('full diagnostics rejects normal accounts and untrusted senders before read
  const result=await f.send('CELIKOM_DIAGNOSTICS_GET');assert.equal(result.ok,true);assert.ok(result.state.network);
  const normal=await f.send('CELIKOM_STATUS_GET');assert.equal(normal.network,undefined);
 });
+
+test('server outage recovers on the existing page heartbeat without reload, Start or trial activation',async(t)=>{
+ t.mock.timers.enable({apis:['Date']});const f=fixture();f.local.enabled=true;let outage=true;
+ f.auth.entitlement=async()=>{if(outage)throw Error('auth_unavailable');return {allowed:true,source:'promo',valid_until:null};};
+ const sender={id:'worker',url:'https://music.yandex.ru/',tab:{id:1}};
+ await f.send('CELIKOM_CONTEXT_PING',{enabled:true,healthy:true},sender);await new Promise(setImmediate);
+ assert.equal(f.sent.at(-1).state,'unavailable');assert.equal(f.local.enabled,true);
+ outage=false;t.mock.timers.tick(5001);
+ await f.send('CELIKOM_CONTEXT_PING',{enabled:true,healthy:true},sender);await new Promise(setImmediate);
+ assert.equal(f.sent.at(-1).state,'allowed');assert.ok(f.sent.some(m=>m.state==='allowed'&&m.recovered===true));
+ assert.equal(f.local.enabled,true);assert.equal(f.trials,0);
+});

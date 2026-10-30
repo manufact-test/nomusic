@@ -230,7 +230,7 @@ test("maintenance and minimum version suppress resolve; failures do not become p
   let fail = true; let calls = 0;
   const client = new ApiClient("https://celikom.example", { now: () => now, fetch: async (url) => { calls++; if (!url.endsWith("config") && fail) return new Response("error", { status: 500 }); return response(url.endsWith("config") ? config : found); } });
   await assert.rejects(client.resolve("yandex", "7")); fail = false;
-  assert.equal((await client.resolve("yandex", "7")).found, true); assert.equal(calls, 3);
+  assert.equal((await client.resolve("yandex", "7")).found, true); assert.equal(calls, 5);
 });
 
 test("API body and content type are bounded before parsing", async () => {
@@ -387,4 +387,13 @@ test('Manual transport reset is diagnosed as cancellation rather than a network 
  const client=new ApiClient('https://private.example',{onNetwork:item=>entries.push(item),fetch:(_url,options)=>new Promise((_,reject)=>options.signal.addEventListener('abort',()=>reject(Object.assign(Error('aborted'),{name:'AbortError'})),{once:true}))});
  const pending=client.config();const rejected=assert.rejects(pending,/api_network_error/);await new Promise(setImmediate);
  client.resetTransport();await rejected;await new Promise(setImmediate);assert.equal(entries.at(-1).result,'request_cancelled');
+});
+
+test('HTTP 500 read retries recover without caching the failure; writes are never replayed',async(t)=>{
+ t.mock.timers.enable({apis:['setTimeout','Date']});let calls=0;
+ const client=new ApiClient('https://celikom.example',{fetch:async()=>++calls===1?new Response('',{status:500}):response({found:false})});
+ const pending=client.request('/api/v1/resolve');await new Promise(setImmediate);t.mock.timers.tick(500);
+ assert.equal((await pending).found,false);assert.equal(calls,2);
+ calls=0;client.fetch=async()=>{calls++;return new Response('',{status:500});};
+ await assert.rejects(client.request('/api/v1/events/batch',{method:'POST',body:'{}'}),/api_server_error/);assert.equal(calls,1);
 });

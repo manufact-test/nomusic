@@ -44,7 +44,7 @@ export class ApiClient {
       if (response.status === 403) throw new Error("api_forbidden");
       if (response.status >= 500) {
         try { await response.body?.cancel(); } catch (_) { /* response is unusable */ }
-        throw Object.assign(new Error("api_server_error"), { retryable: [502,503,504].includes(response.status) });
+        throw Object.assign(new Error("api_server_error"), { retryable: [500,502,503,504].includes(response.status) });
       }
       if (!response.ok) throw new Error("api_http_error");
       if (!response.headers.get("content-type")?.startsWith("application/json")) throw new Error("invalid_api_response");

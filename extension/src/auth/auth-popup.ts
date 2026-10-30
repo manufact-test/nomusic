@@ -184,7 +184,7 @@ export function initAuthPanel(send) {
     } else if (state.localSession) {
       view("signed", state.user);
       q("summary").textContent = "Аккаунт · нет связи";
-      show("Нет соединения. Вход на этом устройстве сохранён.", "loading");
+      show("Сервер CELIKOM временно недоступен. Вход на этом устройстве сохранён.", "loading");
     } else if (pending) {
       // After switching to the mailbox, reopen the confirmation panel automatically.
       root.open = true;
