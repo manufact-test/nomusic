@@ -7,6 +7,11 @@ import android.os.SystemClock;
 /* Sanitized deterministic replays from HONOR 0.3.59; no user diagnostics embedded. */
 public final class TestHonor059Journal {
  static int checks;
+ static final java.util.List<String> violations=new java.util.ArrayList<>();
+ static void quality(boolean condition,String reason){
+  checks++;
+  if(!condition)violations.add(reason);
+ }
  static void check(boolean condition,String reason){
   checks++;
   if(!condition)throw new AssertionError(reason);
@@ -57,6 +62,22 @@ public final class TestHonor059Journal {
   e.close();
  }
 
+ /* At 50ms of the 100ms original fade, -50dB is practically silent,
+    while the replacement is still commanded to zero. This is a direct
+    command-envelope reproduction, not a device waveform claim. */
+ static void fadeEnergyFloor()throws Exception{
+  TestEngine.playing();
+  ReplacementEngine e=TestEngine.e;
+  SystemClock.now+=50;
+  TestEngine.p.handler.drain();
+  check(e.effect!=null&&e.player!=null&&e.player.volume==0f,
+    "mid-source-fade reproduction requires zero secondary output");
+  double originalLinear=Math.pow(10.0,e.effect.gain/20.0);
+  quality(originalLinear+e.player.volume>=0.1,
+    "RED 0.3.59: halfway through 100ms source fade the original is below -20dB while replacement remains silent");
+  e.close();
+ }
+
  /* Regression: on a long streaming seek, the native original is restored
     immediately. The monitor must close its old command gap at THAT command,
     not 551ms later when another secondary-volume call happens. */
@@ -72,14 +93,16 @@ public final class TestHonor059Journal {
   SystemClock.now+=551;
   AudioContinuityMonitor.Finding phantom=e.continuity.observe(
     SystemClock.now,"7","seek",true,false,false,0f);
-  check(phantom==null,
+  quality(phantom==null,
     "RED 0.3.59: restored original was omitted from continuity sampling; a phantom 551ms commanded-silence event is emitted");
   e.close();
  }
 
  public static void main(String[] args)throws Exception{
   pauseResume126ms();
+  fadeEnergyFloor();
   restoredSourceMustCloseGap();
+  if(!violations.isEmpty())throw new AssertionError(String.join(" | ",violations));
   System.out.println("PASS: "+checks+" HONOR 0.3.59 pause/seek diagnostic replay checks");
  }
 }
