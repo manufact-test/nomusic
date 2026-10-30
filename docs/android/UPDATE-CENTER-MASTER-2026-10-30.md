@@ -65,7 +65,7 @@
 
 ## 6. Интеграция с существующей сборкой: важный подводный камень
 
-Ветка Android содержит ``android/native-companion/addon/src/pro/celikom/nativeprobe/identitydiag/RecorderActivity.java``, `ProbeService.java`, `NotificationState.java`, `AppVersion.java` и `release-spec.json`.
+Ветка Android содержит `android/native-companion/addon/src/pro/celikom/nativeprobe/identitydiag/RecorderActivity.java`, `ProbeService.java`, `NotificationState.java`, `AppVersion.java` и `release-spec.json`.
 
 **Система сборки не является стандартной Gradle APK.** `android/native-companion/build_release.py` каждый раз декодирует pinned original `CELIKOM-0.3.22-install.apk` (проверяется SHA256), изменяет manifest ресурсы и main launcher, компилирует Java с Android API36/JDK17, прогоняет D8, собирает Apktool 2.11.1, подписывает оригинальным private keystore из закрытого рабочего окружения. `verify_release.py` **намеренно запрещает любые непредусмотренные изменения manifest**. Установка update APK потребует нового receiver/permission/provider path и/или scoped file path; менять **оба** build и verifier, добавить новые *negative* tests, а не «отключать строгую проверку». Изменение `decoded/AndroidManifest.xml` само по себе недостаточно: build заново декодирует baseline.
 
