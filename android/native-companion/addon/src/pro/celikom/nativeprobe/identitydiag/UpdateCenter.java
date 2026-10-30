@@ -48,7 +48,11 @@ final class UpdateCenter {
         refresh=activity.button(region,"Проверить обновления",()->check(true),false);
         install=activity.button(region,"Скачать и установить",this::download,false);
         later=activity.button(region,"Позже",()->{candidate=null;render("Напомним позже");},false);
-        render("CELIKOM "+AppVersion.NAME+" · Проверить обновления");
+        android.content.SharedPreferences cache=activity.getSharedPreferences("update-center",0);
+        boolean verified=cache.getInt("verifiedInstalledCode",-1)==installed(activity)
+            &&cache.getBoolean("verifiedLatest",false);
+        upToDate=verified;
+        render(verified?"У вас последняя версия CELIKOM":"Проверяем актуальность версии…");
         schedule(activity);
         check(false);
     }
@@ -102,7 +106,8 @@ final class UpdateCenter {
         if (busy)return;
         long now=System.currentTimeMillis();
         android.content.SharedPreferences p=activity.getSharedPreferences("update-center",0);
-        if(!manual && now-p.getLong("checked",0)<INTERVAL)return;
+        if(!manual && now-p.getLong("checked",0)<INTERVAL
+          &&p.getInt("verifiedInstalledCode",-1)==installed(activity))return;
         busy=true;checking=true;upToDate=false;
         final long started=SystemClock.elapsedRealtime();
         final int generation=++checkGeneration;
@@ -110,7 +115,9 @@ final class UpdateCenter {
         IO.execute(()->{
             Release r=null;String error=null;
             try {r=fetch(activity.getApplicationContext());
-                p.edit().putLong("checked",System.currentTimeMillis()).apply();
+                p.edit().putLong("checked",System.currentTimeMillis())
+                    .putInt("verifiedInstalledCode",installed(activity.getApplicationContext()))
+                    .putBoolean("verifiedLatest",r==null).apply();
             }catch(Exception e){error="Не удалось проверить обновления";}
             final Release found=r;final String failure=error;
             long remaining=Math.max(0,MIN_CHECK_DISPLAY_MS-(SystemClock.elapsedRealtime()-started));
@@ -120,7 +127,7 @@ final class UpdateCenter {
                 if(!activity.visible())return;
                 candidate=found;
                 upToDate=failure==null && found==null;
-                render(failure!=null?"Не удалось проверить обновления":upToDate?"У вас последняя версия CELIKOM · "+AppVersion.NAME:"Доступна CELIKOM "+found.name+"\n"+found.notes);
+                render(failure!=null?"Не удалось проверить обновления":upToDate?"У вас последняя версия CELIKOM":"Доступна CELIKOM "+found.name+"\n"+found.notes);
                 if(found!=null)notifyAvailable(activity,found);
             },remaining);
         });
