@@ -91,9 +91,9 @@ public class TestEngine {
   ok(e.player==warm&&e.effect==sameEffect&&api.downloads==downloads&&api.resolves==resolves,"phone transient false cannot trigger fade recovery or re-download");
   p.current=source("1",67726,true);e.update(p.current);warm.seek.onSeekComplete(warm);
   ok(warm.playing&&e.effect==sameEffect,"phone seek resumes using the same player and original effect");
-  // Pause arriving during the initial ramp also preserves the prepared player.
-  playing();warm=e.player;SystemClock.now+=50;p.current=source("1",1050,false);p.handler.drain();
-  ok(e.player==warm&&!warm.playing&&e.ready,"pause during fade cancels ramp without dropping audio");
+  /* A real Media3 pause snapshot must retain the prepared decoder after output grant. */
+  playing();warm=e.player;SystemClock.now+=50;p.current=source("1",1050,false);e.update(p.current);p.handler.drain();
+  ok(e.player==warm&&!warm.playing&&e.ready,"manual pause retains the decoder and silences replacement promptly");
   SystemClock.now+=ReplacementEngine.PAUSE_GRACE_MS+30;p.current=source("1",1050,false);p.handler.drain();
   ok(e.effect==null&&e.player==warm&&!warm.released,"sustained pause restores original effect but retains prepared decoder");
   p.current=source("1",1050,true);e.update(p.current);ok(warm.playing,"sustained pause resumes without network lookup");
