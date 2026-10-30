@@ -189,7 +189,12 @@ final class ReplacementEngine {
  void pauseSource(PlaybackSource s){pauseSource(s,false);}
  void pauseSource(PlaybackSource s,boolean buffering){
   if(player==null)return;
-  if(pausedAt<0){
+  /* Changing USER_PAUSE <-> BUFFERING invalidates the old timer and delay. */
+  boolean pauseCauseChanged=pausedAt>=0&&audioOwner.pauseMode()!=AudioOwnership.PauseMode.NONE
+      &&audioOwner.pauseMode()!=(buffering?AudioOwnership.PauseMode.BUFFERING:AudioOwnership.PauseMode.USER);
+  if(pausedAt<0||pauseCauseChanged){
+   if(pauseCauseChanged)LogStore.log("replacement_pause_cause_changed",
+       LogStore.map("trackId",trackId,"toBuffering",buffering,"decoderRetained",ready));
    bufferGate.reset();
    resumeDrift=position(s)-player.getCurrentPosition();
    resumePositionRetained=ready&&aligned&&!seeking;
@@ -198,8 +203,7 @@ final class ReplacementEngine {
    transition++;fading=false;handoverPending=false;warmSeekTransition=-1;aligned=false;
    setAuditedVolume(player,0f);
    audioOwner.pauseDecoder(player);
-   audioOwner.event(buffering?AudioOwnership.Event.BUFFERING:AudioOwnership.Event.PAUSE);
-   audioOwner.paused();
+   audioOwner.hold(buffering);
    final MediaPlayer p=player;final DynamicsProcessing fx=effect;
    final long token=transition,epoch=audioOwner.epoch();final String key=identityKey;
    final long lease=audioOwner.pauseLease();
