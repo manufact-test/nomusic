@@ -1,0 +1,67 @@
+name: CELIKOM Android release URL routing repair
+on:
+  push:
+    branches: [feature/android-unified-preparation-seek-gate]
+    paths: [.github/workflows/android-route-repair.yml, website/public/releases/android/.htaccess]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  repair-android-only-route:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Inspect and repair only Android release URL rewrite
+        env:
+          HOST_KEY: ${{ secrets.CELIKOM_HOSTINGER_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.CELIKOM_HOSTINGER_KNOWN_HOSTS }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$HOST_KEY" && test -n "$KNOWN_HOSTS"
+          umask 077
+          mkdir -p "$RUNNER_TEMP/ssh"
+          printf '%s\n' "$HOST_KEY" > "$RUNNER_TEMP/ssh/id"
+          printf '%s\n' "$KNOWN_HOSTS" > "$RUNNER_TEMP/ssh/known_hosts"
+          chmod 600 "$RUNNER_TEMP/ssh/id" "$RUNNER_TEMP/ssh/known_hosts"
+          SSH=(ssh -T -p 65002 -i "$RUNNER_TEMP/ssh/id" -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$RUNNER_TEMP/ssh/known_hosts")
+          SCP=(scp -P 65002 -i "$RUNNER_TEMP/ssh/id" -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$RUNNER_TEMP/ssh/known_hosts")
+          TARGET=u235811320@92.113.19.189
+          DIR=/home/u235811320/domains/lemonchiffon-narwhal-791953.hostingersite.com/public_html/releases/android
+          "${SSH[@]}" "$TARGET" "test -d '$DIR' && test -f '$DIR/release.php' && test -f '/home/u235811320/domains/lemonchiffon-narwhal-791953.hostingersite.com/celikom-private/android-updates/stable.json'"
+          "${SSH[@]}" "$TARGET" "if test -f '$DIR/.htaccess'; then echo ANDROID_REWRITE_PRESENT; sed -n '1,12p' '$DIR/.htaccess'; else echo ANDROID_REWRITE_MISSING; fi"
+          "${SCP[@]}" website/public/releases/android/.htaccess "$TARGET:$DIR/.htaccess.celikom-next"
+          "${SSH[@]}" "$TARGET" "bash -se" -- "$DIR" <<'REMOTE'
+          set -euo pipefail
+          dir="$1"
+          cd "$dir"
+          test -s .htaccess.celikom-next
+          grep -q 'RewriteRule' .htaccess.celikom-next
+          if test -f .htaccess; then
+            cp -p .htaccess .htaccess.celikom-backup
+          fi
+          mv .htaccess.celikom-next .htaccess
+          chmod 644 .htaccess
+          echo ANDROID_REWRITE_DEPLOYED
+          REMOTE
+      - name: Verify exact versioned URL used by Android
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --retry 3 -H 'Cache-Control: no-cache' 'https://lemonchiffon-narwhal-791953.hostingersite.com/updates/android/stable.json' -o "$RUNNER_TEMP/stable.json"
+          python3 - <<'PY'
+          import json,pathlib,os
+          m=json.loads(pathlib.Path(os.environ['RUNNER_TEMP'],'stable.json').read_text())
+          assert m['enabled'] and m['channel']=='stable'
+          p=pathlib.Path(os.environ['RUNNER_TEMP'],'apk-url')
+          p.write_text(m['apkUrl'])
+          print('Checking Android release version',m['versionName'])
+          PY
+          URL="$(cat "$RUNNER_TEMP/apk-url")"
+          curl --fail --silent --show-error --retry 3 --head "$URL" -o "$RUNNER_TEMP/headers"
+          grep -qi 'content-type: application/vnd.android.package-archive' "$RUNNER_TEMP/headers"
+          grep -qi 'HTTP/2 200\|HTTP/1.1 200' "$RUNNER_TEMP/headers"
+          echo ANDROID_VERSIONED_APK_URL_OK
