@@ -83,7 +83,10 @@ final class AudioOwnership {
   if(candidate.setEnabled(true)!=AudioEffect.SUCCESS)
    throw new IllegalStateException("cannot enable original attenuation");
   attachedEffect=candidate;
-  aligning();
+  /* Installing a verified effect is not a handover. Preserve PREPARING until
+     the decoder is ready; only the active playback path may enter ALIGNING. */
+  if(state==State.SOURCE_ONLY){state=State.PREPARING;reason="source_effect_ready";}
+
  }
  void aligning(){state=State.ALIGNING;reason="aligning";}
  void replacement(){if(!originalMuted)throw new IllegalStateException("source not muted");state=State.REPLACEMENT;reason="replacement";}
