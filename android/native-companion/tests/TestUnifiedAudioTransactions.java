@@ -347,6 +347,31 @@ public final class TestUnifiedAudioTransactions {
       &&bufferedEndPlayer.released,"old MediaPlayer callback after boundary is inert");
   bufferedEnd.close();
 
+  /* Only the audio authority may clear the initial decoder clock hold.
+     A stale handover cannot grant output before native progress is verified. */
+  AudioOwnership handover=new AudioOwnership();handover.track("handover");
+  DynamicsProcessing handoverFx=new DynamicsProcessing(0,91,null);
+  MediaPlayer handoverPlayer=new MediaPlayer();
+  handover.prepareSourceEffect(handoverFx);handover.aligning();
+  handover.event(AudioOwnership.Event.HANDOVER);
+  handover.handoverWaitForClock(true);
+  check(handover.handoverAwaitingClock(),"native clock gate acquired by owner");
+  rejects(()->handover.grantReplacement(handoverFx),
+    "handover cannot grant audible replacement before advancing decoder clock");
+  handover.handoverClockValidated();
+  handover.grantReplacement(handoverFx);
+  check(handoverFx.gain==-100f&&!handover.handoverAwaitingClock(),
+    "clock acknowledgement permits only exclusive native source grant");
+  handover.restoreSource(handoverPlayer,handoverFx);
+  handover.aligning();handover.event(AudioOwnership.Event.HANDOVER);
+  handover.handoverWaitForClock(true);
+  handover.hold(true);
+  check(!handover.handoverAwaitingClock()&&handover.pauseMode()==AudioOwnership.PauseMode.BUFFERING,
+    "buffering invalidates the old clock gate and its pending handover command");
+  handover.source();handover.stopped();
+  check(!handover.handoverAwaitingClock(),
+    "retiring the audio owner drops any future clock-completion permission");
+
   System.out.println("PASS unified Android audio transactions: "+checks+" checks");
  }
 }
