@@ -1,5 +1,7 @@
 # CELIKOM Android — checkpoint: Unified Audio Gate A / observational Gate B — 30.10.2026
 
+> **UPDATE — Gate F: decoder completion and account callback fences (30.10.2026):** latest code **`72cc72c7a336698b9a6407c1af7c008a58a257da`**, [full Android CI SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/41037281208), rollback `backup/android-unified-gate-f-completion-account-green-20261030`. See Gate F section below. No new signed APK or physical-device claims.
+
 > **UPDATE — Gate E: pause/buffering cause-lease convergence (30.10.2026):** latest Android code `78e7472e05429b503f5457ffaa7a93f920e7adb3`; [full Android CI SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/41031755152). Rollback `backup/android-unified-gate-e-pause-buffer-20261030-green`. Read the Gate E notes below. No signed APK, no device listening claim, no desktop changes.
 
 > **UPDATE — Gate D seek single-flight / native source continuity (30.10.2026):** latest CI-green code `a560d0051586051979627fc16bc473c394b20501`; [full CI SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/41029927026). See new section at the bottom. Original signed 0.3.54 AUDIOFIX and all desktop code unchanged; **no new signed APK**.
@@ -98,3 +100,35 @@ Follow `UNIFIED-AUDIO-OWNERSHIP-PLAN-2026-10-30.md` and the original `HANDOFF-20
 - Full pure reducer remains incomplete: legacy `ReplacementEngine` flags are still present and must be converged carefully in subsequent Gate E work. Do not create separate preloader/seek controllers.
 - Read-only future Media3 lookahead still lacks HONOR evidence; no speculative next-song audio, no background network prefetch and no second decoder have been enabled. No server, auth implementation, desktop extension, site, catalogue, private signer, or signed release was modified.
 - The last installed APK remains signed **0.3.54 AUDIOFIX (versionCode 55)**. Testing this code on-device would require a deliberate, properly signed next APK (versionCode greater than 55), keeping original private signing materials out of GitHub and CI.
+
+
+## Update 30.10.2026 — Gate F: late completion + account revocation across callbacks
+
+**Last CI-green Android code:** `72cc72c7a336698b9a6407c1af7c008a58a257da` ([full Android CI SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/41037281208)). Intermediate passes: `59e588be91d08601d3495fcce00974f219c1384e` ([SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/41036646613)) and `76761b2d6e348161858bf22322c0b5557713d60d` ([SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/41036944851)). There was one failed intermediate **test-only** CI on `80d4e06a9199d12400a599a6a4091d58391796c1`: the negative test tried calling the already-detached null MediaPlayer listener after boundary. The test was corrected to retain and invoke the original callback reference before listener detachment, as a true stale asynchronous event replay. The final run is green.
+
+### Completion gate owned by AudioOwnership
+
+- Android `MediaPlayer.OnCompletionListener` does **not** include the originating seek/operation ID. Previously a decoder completion from an old position could run after the user had started a new seek, after buffering had silenced the decoder, or while headphones were disconnected. That callback could call `suspend("replacement_completed"/"replacement_early_completion")`, discard still-useful current-song data, or mark the current song as unsupported despite a successful live seek.
+- `AudioOwnership.mayConsumeCompletion(player)` now permits such output-affecting callbacks only when the current owner is `ALIGNING` or `REPLACEMENT`, **no native seek is in-flight**, and no `PauseMode` hold exists. `ReplacementEngine` also verifies current live source identity, ready/armed state, user pause/route-hold status, valid source freshness and playing intent. A deferred completion is diagnostic-only, does not alter `completedKey`, decoder, or audio effect.
+- **Ordinary legitimate completion still works**, including bounded Yandex original outro and normal source restoration. Existing completion tests remain in place.
+
+### Account revocation before Media3's next periodic update
+
+- Gate A already stopped old-account audio when `update()` observed `NativeApi.accountGeneration` change. But a decoder or delayed fade callback could execute **first**. New `accountLeaseCurrent()` immediately stops/retires old source and decoder when that epoch has changed, invoked from actual `MediaPlayer` seek-completion, error and completion callbacks, and the queued handover ramp itself.
+- Only the current old decoder listener can cause this stop; retired callback references remain fenced by player/source/generation identity. The account change does **not** weaken fresh resolve or identity, version, duration, signed-in and entitlement checks, and does not introduce independent output ownership.
+
+### New adversarial tests and enforcement
+
+- Actual engine delayed native `onCompletion` during long seek, user pause, route loss, short and prolonged play-intent buffering; confirm the authorized current decoder is retained and no false completion is recorded.
+- Replay a saved, stale old decoder's completion callback **after** confirmed source boundary and actual MediaPlayer release; verify it cannot revive old output.
+- Confirm current valid decoder completion still restores original gain and retires decoder.
+- Account rotates before seek callback, before decoder completion, before decoder error, or before a pending handover tick; every case must immediately restore original source, retire the previous account decoder, and stop armed replacement without waiting for a new playback source sample.
+- Mandatory `check_audio_architecture.py` explicitly checks completion routing through `AudioOwnership.mayConsumeCompletion` and account fencing. All previous Gate A/B/D/E tests plus actual engine replay/long-run, native compile, DEX and unsigned artifact checks remain enabled.
+
+### Still not claimed
+
+- **Pure reducer / single-state transaction coordinator remains unfinished.** `ReplacementEngine` continues to hold some legacy flags and handler callbacks. These Gate F fixes strengthen existing sole `AudioOwnership` and source epoch; they do not eliminate all possible Android/OEM event races.
+- This is **command-state CI evidence**, not physical waveform/audio or Bluetooth listening evidence on HONOR. Prior signed `0.3.54 AUDIOFIX` (versionCode 55) is unchanged. No new APK was built or signed. Future hardware test needs original private signer, versionCode >55 and explicit verification of audio quality/seek behavior.
+- Future-song Media3 lookahead is still read-only and not validated on-device. No speculative next-track resolve, prefetch, second decoder, backend, desktop/extension, Ad Protection, or private signing files were touched.
+
+**Rollback:** `backup/android-unified-gate-f-completion-account-green-20261030` pins the exact last CI-green Android code.
