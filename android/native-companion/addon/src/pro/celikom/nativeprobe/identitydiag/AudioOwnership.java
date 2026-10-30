@@ -18,6 +18,31 @@ final class AudioOwnership {
   }
  }
  private long operationEpoch=1;
+ /* Native seek completions are untagged. Only one seek is issued per decoder
+    until its callback is consumed; old work cannot masquerade as a new seek. */
+ enum SeekKind { ALIGNMENT, WARM }
+ static final class SeekAck {
+  final SeekKind kind;final long operationEpoch,submittedAt;
+  SeekAck(SeekKind k,long epoch,long at){kind=k;operationEpoch=epoch;submittedAt=at;}
+ }
+ private MediaPlayer inFlightDecoder;
+ private SeekKind inFlightKind;
+ private long inFlightEpoch,inFlightAt;
+ boolean seekInFlight(MediaPlayer p){return p!=null&&p==inFlightDecoder;}
+ boolean seekExpired(MediaPlayer p,long now,long budget){return seekInFlight(p)&&now-inFlightAt>budget;}
+ private void clearSeekFlight(){inFlightDecoder=null;inFlightKind=null;inFlightEpoch=0;inFlightAt=0;}
+ boolean issueSeek(MediaPlayer p,long target,String key,long ticket,SeekKind kind,long now){
+  if(inFlightDecoder!=null)return false;
+  if(kind==null)throw new IllegalArgumentException("seek kind required");
+  inFlightDecoder=p;inFlightKind=kind;inFlightEpoch=operationEpoch;inFlightAt=now;
+  try{seekDecoder(p,target,key,ticket);}catch(RuntimeException e){clearSeekFlight();throw e;}
+  return true;
+ }
+ SeekAck acceptSeekCompletion(MediaPlayer p){
+  if(p==null||p!=inFlightDecoder)return null;
+  SeekAck ack=new SeekAck(inFlightKind,inFlightEpoch,inFlightAt);
+  clearSeekFlight();return ack;
+ }
  long operationEpoch(){return operationEpoch;}
  Ticket ticket(String key,long account,long replacement,long version,long duration){
   if(!current(generation,key))throw new IllegalStateException("ticket without current source");
@@ -71,7 +96,7 @@ final class AudioOwnership {
  }
  /** Retire decoder callbacks even when recovery retries the exact same song.
   * Source gain restoration on a long pause does NOT retire the decoder. */
- void retireDecoder(){generation++;pauseEpoch++;operationEpoch++;reason="decoder_retired";}
+ void retireDecoder(){generation++;pauseEpoch++;operationEpoch++;clearSeekFlight();reason="decoder_retired";}
  void preparing(){event(Event.PREPARE);}
  /** Attach the current source effect only after the previous effect has retired. */
  void prepareSourceEffect(DynamicsProcessing candidate){
@@ -97,7 +122,7 @@ final class AudioOwnership {
  void source(){state=State.SOURCE_ONLY;originalMuted=false;attachedEffect=null;commandedSecondary=0f;lastVolumePlayer=null;pauseEpoch++;reason="source_restored";}
  void recovering(String why){state=State.RECOVERING;pauseEpoch++;reason=why;}
  void unsupported(String why){state=State.TRACK_UNSUPPORTED;pauseEpoch++;reason=why;}
- void stopped(){generation++;pauseEpoch++;operationEpoch++;key=null;originalMuted=false;attachedEffect=null;commandedSecondary=0f;lastVolumePlayer=null;state=State.STOPPED;reason="stopped";}
+ void stopped(){generation++;pauseEpoch++;operationEpoch++;clearSeekFlight();key=null;originalMuted=false;attachedEffect=null;commandedSecondary=0f;lastVolumePlayer=null;state=State.STOPPED;reason="stopped";}
  void grantReplacement(DynamicsProcessing effect){
   if(key==null||(state!=State.ALIGNING&&state!=State.REPLACEMENT))throw new IllegalStateException("handover requires current aligning track");
   if(effect==null||effect!=attachedEffect||!effect.hasControl()||!effect.getEnabled())
