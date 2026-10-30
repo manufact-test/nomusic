@@ -1,3 +1,5 @@
+> **НОВЫЙ ПРИОРИТЕТ (30.10.2026):** Следующий этап — Android Update Center с ОДНОЙ постоянной прямой download-ссылкой, а не дальнейшие независимые audio fixes. См. [UPDATE-CENTER-HANDOFF-2026-10-30.md](UPDATE-CENTER-HANDOFF-2026-10-30.md). Signed 0.3.55/code56 уже есть, но на HONOR не испытана и updater отсутствует. Исторические статусы «не начато» ниже читать как историю; Gate G достиг CI-green `d0317e3d697db202164804a27f18f3e688fe1d05`.
+
 # CELIKOM Android — единый владелец аудио: технический план (2026-10-30)
 
 **Status updated 30.10.2026: PARTIALLY IMPLEMENTED — see [UNIFIED-AUDIO-GATE-PROGRESS-2026-10-30.md](UNIFIED-AUDIO-GATE-PROGRESS-2026-10-30.md).** The single-authority event/ticket guard and observational lookahead exist and have full Android CI success at `d1034816796d6fc1a421d559304f5c5218317c66`. Full reducer, verified future-track lookahead, any prefetch and device-tested seamless playback are **NOT implemented/confirmed**.
