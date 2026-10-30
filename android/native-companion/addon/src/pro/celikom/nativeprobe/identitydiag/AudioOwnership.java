@@ -141,6 +141,17 @@ final class AudioOwnership {
    throw new IllegalArgumentException("invalid source fade progress");
   effect.setInputGainAllChannelsTo(-100f*progress);
  }
+ /** A slow seek may take seconds. The native source must not remain at -100dB
+   * while the muted decoder seeks. Keep the verified effect attached (no costly
+   * recreation) but restore source gain before seekTo; replacement stays silent. */
+ void sourceGainDuringAlignment(DynamicsProcessing effect){
+  if(state!=State.ALIGNING||effect==null||effect!=attachedEffect
+      ||!effect.hasControl()||!effect.getEnabled()||commandedSecondary>0.001f)
+   throw new IllegalStateException("seek source restore requires silent current decoder");
+  if(originalMuted){effect.setInputGainAllChannelsTo(0f);originalMuted=false;}
+  else effect.setInputGainAllChannelsTo(0f);
+  reason="original_audible_during_seek";
+ }
  /** No code may send a positive secondary volume without the verified grant. */
  void volume(MediaPlayer player,float value,DynamicsProcessing effect){
   if(player==null)throw new IllegalStateException("no decoder");

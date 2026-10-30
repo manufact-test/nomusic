@@ -70,6 +70,26 @@ public final class TestUnifiedAudioTransactions {
   check(!TestEngine.e.armed()&&!TestEngine.e.preparing,
     "account rollover clears an otherwise stuck preparation");
 
+  /* Native original gains are restored before an asynchronous seek rather than
+     leaving both the original and decoder silenced through a network stall. */
+  TestEngine.playing();
+  ReplacementEngine slow=TestEngine.e;MediaPlayer seekPlayer=slow.player;
+  android.media.audiofx.DynamicsProcessing existingEffect=slow.effect;
+  android.os.SystemClock.now+=ReplacementEngine.FADE_MS+50;
+  TestEngine.p.current=TestEngine.source("1",1400,true);TestEngine.p.handler.drain();
+  check(seekPlayer.volume>0.99f&&existingEffect.gain==-100f,
+    "replacement was exclusively audible before seeking");
+  seekPlayer.asyncSeek=true;
+  TestEngine.p.current=TestEngine.source("1",60000,true);
+  slow.update(TestEngine.p.current);
+  check(slow.seeking&&!seekPlayer.playing&&seekPlayer.volume==0f
+     &&slow.effect==existingEffect&&existingEffect.gain==0f&&slow.originalMix==1f,
+     "slow seek must restore source with same attached effect before decoder alignment");
+  slow.returnOriginal();
+  check(slow.effect==null&&slow.player==null&&!slow.armed(),
+     "manual return during seek cannot promote the muted decoder to audible output");
+  slow.close();
+
   /* One native callback has no request ID. Do not submit a second seek until
      the first has truly acknowledged; its stale output epoch never becomes new. */
   AudioOwnership single=new AudioOwnership();single.track("single");single.aligning();
