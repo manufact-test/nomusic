@@ -5,6 +5,10 @@ on:
     branches:
       - feature/android-0348-audio-ownership-stabilization
       - feature/android-unified-preparation-seek-gate
+    paths:
+      - 'android/native-companion/**'
+      - '.github/workflows/android-0348-validation.yml'
+      - '.github/workflows/android-auto-publish-hostinger.yml'
   workflow_dispatch:
 
 permissions:
