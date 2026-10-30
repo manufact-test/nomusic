@@ -52,6 +52,17 @@ def main():
     for service in expected_app.findall("service"):
         if service.get(android + "name") == "pro.celikom.nativeprobe.identitydiag.ProbeService":
             service.find("property").set(android + "value", "User initiated current-song observation and automatic audio replacement; foreground playback continues until the user stops it")
+    # Exact allowlist for Update Center. Any extra Android permission/component fails.
+    ET.SubElement(baseline, "uses-permission", {android + "name": "android.permission.REQUEST_INSTALL_PACKAGES"})
+    ET.SubElement(expected_app, "service", {
+        android + "name": "pro.celikom.nativeprobe.identitydiag.UpdateCheckJob",
+        android + "permission": "android.permission.BIND_JOB_SERVICE",
+        android + "exported": "false",
+    })
+    ET.SubElement(expected_app, "receiver", {
+        android + "name": "pro.celikom.nativeprobe.identitydiag.UpdateInstallReceiver",
+        android + "exported": "false",
+    })
     def structure(node):
         # Apktool may reorder names in a flags bitmask without changing it.
         attributes = [(key, "|".join(sorted(value.split("|"))) if key == android + "foregroundServiceType" else value) for key, value in node.attrib.items()]
@@ -112,7 +123,7 @@ def main():
         "signer_sha256": cert, "signer_matches_pinned_identity": cert == SIGNER_CERT_SHA256,
         "addon_dex_sha256": hashlib.sha256(args.compiled_dex.read_bytes()).hexdigest(),
         "signing_continuity": True, "manifest_matches_approved_changes": True,
-        "permissions_components_unchanged": True,
+        "permissions_components_unchanged": False,
         "original_catalogue_assets_unchanged": True, "source_archive_absent": True, "legacy_launcher_gated": True,
         "archive_integrity_verified": True, "asset_count": archive_proof["asset_count"],
         "physical_phone_playback_verified": False,
