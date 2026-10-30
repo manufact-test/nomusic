@@ -1,0 +1,158 @@
+name: CELIKOM Android signed automatic Hostinger release
+on:
+  workflow_run:
+    workflows: ["Android 0.3.55 architecture and release contract verification"]
+    types: [completed]
+    branches: [feature/android-unified-preparation-seek-gate]
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: celikom-android-stable-publish
+  cancel-in-progress: false
+jobs:
+  publish:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.head_repository.full_name == 'manufact-test/nomusic' &&
+       github.event.workflow_run.head_branch == 'feature/android-unified-preparation-seek-gate')
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    environment: android-stable
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Download previously verified Android build kit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_RUN: ${{ github.event.workflow_run.id }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -z "$SOURCE_RUN" ]]; then
+            SOURCE_RUN="$(gh run list --workflow android-0348-validation.yml --branch feature/android-unified-preparation-seek-gate --status success --json databaseId,headSha --limit 20 --jq '.[] | select(.headSha == env.GITHUB_SHA) | .databaseId' | head -1)"
+          fi
+          test -n "$SOURCE_RUN"
+          mkdir -p "$RUNNER_TEMP/kit"
+          gh run download "$SOURCE_RUN" -n celikom-android-offline-kit -D "$RUNNER_TEMP/kit"
+          test -f "$RUNNER_TEMP/kit/native-companion/build_release.py"
+      - name: Reconstruct private original signing inputs (never log or upload)
+        env:
+          BASE_B64: ${{ secrets.CELIKOM_ANDROID_BASE_APK_B64 }}
+          P12_B64: ${{ secrets.CELIKOM_ANDROID_SIGNING_P12_B64 }}
+          SIGN_JSON_B64: ${{ secrets.CELIKOM_ANDROID_SIGNING_JSON_B64 }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$BASE_B64" && test -n "$P12_B64" && test -n "$SIGN_JSON_B64"
+          umask 077
+          mkdir -p "$RUNNER_TEMP/private/signing"
+          printf %s "$BASE_B64" | base64 -d > "$RUNNER_TEMP/private/base.apk"
+          printf %s "$P12_B64" | base64 -d > "$RUNNER_TEMP/private/signing/celikom-native-probe.p12"
+          printf %s "$SIGN_JSON_B64" | base64 -d > "$RUNNER_TEMP/private/signing/signing.json"
+          python3 -m json.tool "$RUNNER_TEMP/private/signing/signing.json" >/dev/null
+      - name: Rebuild and verify signed Android package
+        shell: bash
+        run: |
+          set -euo pipefail
+          SDK="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
+          SM="$(find "$SDK/cmdline-tools" -type f -name sdkmanager | sort -V | tail -1)"
+          yes | "$SM" --sdk_root="$SDK" --licenses >/dev/null || true
+          "$SM" --sdk_root="$SDK" --install "platforms;android-36" "build-tools;36.0.0"
+          ROOT=android/native-companion
+          mkdir -p "$ROOT/deps"
+          cp "$RUNNER_TEMP/kit/native-companion/deps/"*.jar "$ROOT/deps/"
+          cp "$RUNNER_TEMP/kit/native-companion/ci-dex-provenance.json" "$ROOT/ci-dex-provenance.json"
+          VERSION="$(python3 -c 'import json;print(json.load(open("android/native-companion/release-spec.json"))["version"])')"
+          OUT="$RUNNER_TEMP/CELIKOM-Android-$VERSION-SIGNED.apk"
+          python3 "$ROOT/build_release.py" --sdk "$SDK" --build-tools "$SDK/build-tools/36.0.0" --apktool "$RUNNER_TEMP/kit/apktool_2.11.1.jar" --base-apk "$RUNNER_TEMP/private/base.apk" --signing-dir "$RUNNER_TEMP/private/signing" --output "$OUT"
+          echo "RELEASE_APK=$OUT" >> "$GITHUB_ENV"
+      - name: Publish immutable APK before atomic stable manifest
+        env:
+          HOST_KEY: ${{ secrets.CELIKOM_HOSTINGER_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.CELIKOM_HOSTINGER_KNOWN_HOSTS }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$HOST_KEY" && test -n "$KNOWN_HOSTS"
+          umask 077
+          printf '%s\n' "$HOST_KEY" > "$RUNNER_TEMP/id_host"
+          printf '%s\n' "$KNOWN_HOSTS" > "$RUNNER_TEMP/known_hosts"
+          chmod 600 "$RUNNER_TEMP/id_host" "$RUNNER_TEMP/known_hosts"
+          python3 - <<'PY'
+          import hashlib,json,os,pathlib
+          r=json.loads(pathlib.Path('android/native-companion/release-spec.json').read_text())
+          apk=pathlib.Path(os.environ['RELEASE_APK'])
+          digest=hashlib.file_digest(apk.open('rb'),'sha256').hexdigest()
+          code=r['version_code']
+          m=dict(schemaVersion=1,enabled=True,channel='stable',packageName=r['package'],
+                 versionCode=code,versionName=r['version'],signerSha256=r['signing_certificate_sha256'],
+                 apkSha256=digest,sizeBytes=apk.stat().st_size,minSdk=28,
+                 apkUrl=f'https://lemonchiffon-narwhal-791953.hostingersite.com/releases/android/{code}-{digest}.apk',
+                 notesRu=f'CELIKOM {r["version"]}: обновления Android.')
+          pathlib.Path(os.environ['RUNNER_TEMP'],'stable.json').write_text(json.dumps(m,ensure_ascii=False,separators=(',',':'))+'\n')
+          pathlib.Path(os.environ['RUNNER_TEMP'],'release-name').write_text(f'{code}-{digest}.apk')
+          PY
+          NAME="$(cat "$RUNNER_TEMP/release-name")"
+          DEST=/home/u235811320/domains/lemonchiffon-narwhal-791953.hostingersite.com/celikom-private/android-updates
+          SSH=(ssh -p 65002 -i "$RUNNER_TEMP/id_host" -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$RUNNER_TEMP/known_hosts")
+          SCP=(scp -P 65002 -i "$RUNNER_TEMP/id_host" -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$RUNNER_TEMP/known_hosts")
+          TARGET=u235811320@92.113.19.189
+          "${SSH[@]}" "$TARGET" "test -d '$DEST/releases' && test -f '$DEST/stable.json'"
+          "${SCP[@]}" "$RELEASE_APK" "$TARGET:$DEST/releases/.$NAME.upload"
+          "${SCP[@]}" "$RUNNER_TEMP/stable.json" "$TARGET:$DEST/.stable.json.upload"
+          "${SSH[@]}" "$TARGET" "bash -se" -- "$DEST" "$NAME" <<'REMOTE'
+          set -euo pipefail
+          dir="$1"; name="$2"
+          cd "$dir"
+          [[ "$name" =~ ^[0-9]+-[0-9a-f]{64}\.apk$ ]]
+          test -f "releases/.$name.upload"
+          test -f ".stable.json.upload"
+          python3 - "$name" <<'PY'
+          import hashlib,json,os,sys
+          name=sys.argv[1]
+          proposed=json.load(open('.stable.json.upload'))
+          current=json.load(open('stable.json'))
+          code=int(proposed['versionCode'])
+          if proposed['apkSha256'] != name.split('-')[1][:-4] or name != f"{code}-{proposed['apkSha256']}.apk":
+              raise SystemExit('Manifest/path mismatch')
+          blob=f'releases/.{name}.upload'
+          if hashlib.file_digest(open(blob,'rb'),'sha256').hexdigest()!=proposed['apkSha256']:
+              raise SystemExit('Uploaded APK SHA mismatch')
+          if os.path.getsize(blob)!=proposed['sizeBytes']:
+              raise SystemExit('Uploaded APK size mismatch')
+          if code < int(current['versionCode']):
+              raise SystemExit('Refusing stable version downgrade')
+          if code == int(current['versionCode']):
+              if proposed['apkSha256'] != current['apkSha256']:
+                  raise SystemExit('Same version code cannot replace immutable APK')
+              print('Already published; no pointer change needed')
+              sys.exit(3)
+          PY
+          status=$?
+          if [ "$status" -eq 3 ]; then exit 0; fi
+          test "$status" -eq 0
+          test ! -e "releases/$name"
+          mv "releases/.$name.upload" "releases/$name"
+          mv ".stable.json.upload" stable.json
+          REMOTE
+      - name: Verify live stable endpoint matches release
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --retry 3 -H 'Cache-Control: no-cache' 'https://lemonchiffon-narwhal-791953.hostingersite.com/updates/android/stable.json' -o "$RUNNER_TEMP/live.json"
+          python3 - <<'PY'
+          import json,os,pathlib
+          expected=json.loads(pathlib.Path(os.environ['RUNNER_TEMP'],'stable.json').read_text())
+          actual=json.loads(pathlib.Path(os.environ['RUNNER_TEMP'],'live.json').read_text())
+          assert actual==expected, 'Live manifest is not the published release'
+          print('Stable Android version published:',actual['versionName'],actual['versionCode'])
+          PY
