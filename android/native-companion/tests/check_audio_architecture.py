@@ -31,6 +31,10 @@ for expected in [
         raise AssertionError('decoder callback lacks unified completion/account fence: '+expected)
 if 'boolean mayConsumeCompletion(' not in owner:
     raise AssertionError('native decoder completion must be classified by single audio owner')
+if 'warmSeekTransition' in engine:
+    raise AssertionError('duplicate warm seek flag: use AudioOwnership native seek flight only')
+if 'audioOwner.seekInFlight(p)||position-baseline[0]<40' not in engine:
+    raise AssertionError('handover must gate native warm seek from sole audio owner')
 if 'audioOwner.retireDecoder();' not in engine:
     raise AssertionError('decoder release must revoke ownership lease on same song')
 if 'SourceTransitionGate.currentItemBoundary(' in service or 'SourceTransitionGate.currentPositionSeek(' in service:
