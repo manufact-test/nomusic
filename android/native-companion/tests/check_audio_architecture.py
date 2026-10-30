@@ -50,6 +50,10 @@ if 'syncPolicy.correct(' in engine or 'driftGuard.confirmed(' in engine:
 # Regression: the HONOR 0.3.58 post-grant gain ramp was 180–200ms of
 # near-silence after full source mute. Keep exclusive break-before-make;
 # do not silently restore the long ramp or allow source/decoder crossfade.
+if 'if(seeking&&audioOwner.seekInFlight(player)){' not in engine:
+    raise AssertionError('seek-time Media3 buffering must not revoke in-flight decoder seek')
+if 'if(s.buffering&&s.wantsToPlay)bufferSource(s,sourceJump);' not in engine:
+    raise AssertionError('native source buffering classification was lost')
 if 'final long rampDuration=32;' not in engine:
     raise AssertionError('exclusive replacement gain join regressed beyond 32ms')
 if 'audioOwner.grantReplacement(fx);originalMix=0f;' not in engine:
