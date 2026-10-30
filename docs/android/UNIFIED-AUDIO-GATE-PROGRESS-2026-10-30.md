@@ -1,5 +1,7 @@
 # CELIKOM Android — checkpoint: Unified Audio Gate A / observational Gate B — 30.10.2026
 
+> **UPDATE — Gate E: pause/buffering cause-lease convergence (30.10.2026):** latest Android code `78e7472e05429b503f5457ffaa7a93f920e7adb3`; [full Android CI SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/41031755152). Rollback `backup/android-unified-gate-e-pause-buffer-20261030-green`. Read the Gate E notes below. No signed APK, no device listening claim, no desktop changes.
+
 > **UPDATE — Gate D seek single-flight / native source continuity (30.10.2026):** latest CI-green code `a560d0051586051979627fc16bc473c394b20501`; [full CI SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/41029927026). See new section at the bottom. Original signed 0.3.54 AUDIOFIX and all desktop code unchanged; **no new signed APK**.
 
 
@@ -70,3 +72,29 @@ Follow `UNIFIED-AUDIO-OWNERSHIP-PLAN-2026-10-30.md` and the original `HANDOFF-20
 3. Lookahead remains **read-only observation**, not verified on HONOR. Gate C future-song prefetch and speculative audio remain **disabled**. No fresh resolve/entitlement or edition checks were relaxed.
 4. Prior user-recorded 0.3.54 mean detection-to-handover ~1.31s and 26 command-anomaly observations are **historical baseline**, not measurements of this code. Real acoustic/Bluetooth startup and seek behavior still require an eventual properly signed versionCode >55 and HONOR physical listening + sanitized log. **No APK or new user test requested at this checkpoint.**
 5. Original owner signing ZIP and private user logs remain outside the public repository and CI. Installed signed `0.3.54 AUDIOFIX`, `feature/android-0348-audio-ownership-stabilization`, desktop `feature/api-range` and draft PR #22 are unchanged.
+
+
+## Update 30.10.2026 — Gate E: pause vs buffer lease and prepared-callback safety
+
+**Latest tested Android code:** `78e7472e05429b503f5457ffaa7a93f920e7adb3` — [Actions SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/41031755152). Earlier same functional implementation with fewer tests: `96757167763212901f1e9e371c365f38bf7248ef` — [Actions SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/41031461737). **Rollback:** `backup/android-unified-gate-e-pause-buffer-20261030-green`.
+
+### Specific lifecycle conflict fixed
+
+- The old engine used the same retained `pausedAt` and `pauseRestoreDelayMs` for both user PAUSE and Media3 BUFFERING (which has `wantsToPlay=true`). If one type of nonplaying state followed the other without an intervening playing snapshot, its original grace and timer persisted: a buffering episode could inherit the **30-second user-pause grace** rather than restore source after its **900ms buffer grace**, or a new user pause could inherit the **900ms buffering restore**.
+- This remains **one** audio engine, **one** actual `AudioOwnership`. The owner now records `PauseMode.NONE/USER/BUFFERING`; `hold(buffering)` atomically classifies the event and enters PAUSED. A genuine mode conversion revokes previous pause lease and old handler timer via `transition` and `pauseEpoch`, refreshes the pause start/deadline, and retains the same prepared decoder. Ordinary repeated Media3 buffering snapshots do **not** reset the timer. After native source gain has already been restored and the owner has no active hold, repeated snapshots do not manufacture new holds.
+- A new output grant is now rejected by `AudioOwnership.grantReplacement` while any native `seekTo` is still in flight, even if an effect remains attached. Seek completion is serialized and consumed by the existing Gate D mechanism; playback must regain the exclusive verified source lease afterward.
+
+### Adversarial real-engine host tests added
+
+- BUFFERING → USER PAUSE: old 900ms buffered restore callback cannot cancel the newly requested manual pause; verified that the decoder is retained and stopped.
+- USER PAUSE → BUFFERING: new 900ms buffer grace takes precedence over 30-second pause grace; the original native gain is restored, decoder retained, live playback resumes without another download.
+- `onPrepared` arrives while Yandex is buffering with play intent: data is staged but cannot start secondary audio, attach mute effect or steal ownership; resume requires fresh live `playing` snapshot; source boundary releases the old decoder and queued restore callbacks cannot reanimate it.
+- Explicit owner output grant is rejected before a warm seek callback is consumed and succeeds only after native acknowledgement, with original muted first.
+- Earlier phone HONOR, replay, streaming, long-run, car/Bluetooth, source arbitration, strict edition, account, source/DEX provenance, native API36 compile and D8 tests remain enforced and passed.
+
+### Scope and limitations
+
+- This fixes a real conflicting *command-state* path in simulations. It does **not** prove uninterrupted acoustic output or successful real Bluetooth behavior on HONOR. No device logs were generated for this code.
+- Full pure reducer remains incomplete: legacy `ReplacementEngine` flags are still present and must be converged carefully in subsequent Gate E work. Do not create separate preloader/seek controllers.
+- Read-only future Media3 lookahead still lacks HONOR evidence; no speculative next-song audio, no background network prefetch and no second decoder have been enabled. No server, auth implementation, desktop extension, site, catalogue, private signer, or signed release was modified.
+- The last installed APK remains signed **0.3.54 AUDIOFIX (versionCode 55)**. Testing this code on-device would require a deliberate, properly signed next APK (versionCode greater than 55), keeping original private signing materials out of GitHub and CI.
