@@ -5,6 +5,11 @@ public class TestEngine {
  static int tests;static ProbeService p;static ReplacementEngine e;static NativeApi api;
  static void ok(boolean b,String reason){tests++;if(!b)throw new AssertionError(reason);}
  static PlaybackSource source(String alias,long position,boolean playing){return new PlaybackSource(alias,"Песня","Артист",120000,"https://avatars.yandex.net/get-music-content/1/x.a.42-1/700x700",position,playing,true,1f);}
+ static PlaybackSource buffering(long position){
+  return new PlaybackSource("1","Песня","Артист",120000,
+    "https://avatars.yandex.net/get-music-content/1/x.a.42-1/700x700",
+    position,false,true,1f,true,true);
+ }
  static void reset(String method){SystemClock.now=1000;AttenuationService.Companion.session=101;api=new NativeApi();NativeApi.api=api;p=new ProbeService();p.current=source("1",1000,true);e=new ReplacementEngine(p);e.identity(LogStore.map("mediaAlias","1","albumId","42","title","Песня","artist","Артист","durationMs",120000L),LogStore.map("candidateTrackId","7","method",method,"editionConflict",false));api.signed=true;}
  static JSONObject found()throws Exception{return new JSONObject().put("found",true).put("replacement_id",1).put("duration_ms",120000);}
  static void resolve()throws Exception{api.resolved.done(found(),null);}
@@ -119,6 +124,38 @@ public class TestEngine {
   playing();retained=e.audioFile;e.suspend("replacement_end",30000);ok(retained.exists()&&e.recentAudio.size()==1,"natural end preserves validated file for a later repeat in this run");
   p.current=source("2",0,true);e.identity(LogStore.map("mediaAlias","2","albumId","42","title","Песня","artist","Артист","durationMs",120000L),LogStore.map("candidateTrackId","8","method","ALBUM"));api.resolved.done(new JSONObject().put("found",false),null);
   p.current=source("1",0,true);e.identity(LogStore.map("mediaAlias","1","albumId","42","title","Песня","artist","Артист","durationMs",120000L),LogStore.map("candidateTrackId","7","method","ALBUM"));downloads=api.downloads;resolve();ok(api.downloads==downloads&&e.player!=null,"return after natural end uses file after fresh authorization");e.close();ok(!retained.exists(),"completed song cache deleted on shutdown");
-  System.out.println("PASS: "+tests+" actual-engine checks: prepare ordering, confirmation, pause/resume, seek, track change, late responses, stop, expiry, stale/disconnected source, effect loss, playback error and cleanup");
+  // The 0.3.54 HONOR trace shows playWhenReady=true while buffering during seeks.
+   playing();warm=e.player;SystemClock.now+=400;p.current=source("1",1400,true);p.handler.drain();
+   p.current=buffering(1400);e.update(p.current);
+   ok(warm.playing&&e.pausedAt<0&&e.sourceBufferSince>=0,
+      "short play-intent buffering must not interrupt an audible decoder");
+   SystemClock.now+=100;p.current=source("1",1500,true);e.update(p.current);
+   ok(warm.playing&&e.sourceBufferSince<0,
+      "short buffer recovery must avoid a redundant decoder restart");
+   p.current=buffering(1500);e.update(p.current);
+   SystemClock.now+=350;e.update(p.current);
+   ok(!warm.playing&&e.player==warm&&e.pausedAt>=0,
+      "longer buffering must hold the prepared decoder without releasing it");
+   SystemClock.now+=950;p.handler.drain();
+   ok(e.effect==null&&e.player==warm&&!warm.released,
+      "long buffering must restore native gain within its bounded grace");
+   p.current=source("1",1500,true);e.update(p.current);
+   ok(e.player==warm&&api.downloads==1,
+      "post-buffer resume must reuse its decoder rather than redownload audio");
+   playing();warm=e.player;int prePauseSeeks=warm.seekCalls;
+   p.current=source("1",1000,false);e.update(p.current);
+   SystemClock.now+=ReplacementEngine.PAUSE_ALIGN_DELAY_MS+50;p.handler.drain();
+   ok(warm.seekCalls==prePauseSeeks&&e.audioOwner.state()==AudioOwnership.State.PAUSED,
+      "manual pause must not issue the old timed decoder prealignment seek");
+   playing();warm=e.player;e.sourceSeekRequested();p.current=buffering(50000);e.update(p.current);
+   ok(!warm.playing&&e.pausedAt>=0,
+      "buffering after a user seek must immediately silence stale old-position audio");
+   playing();warm=e.player;e.outgoingTrackReset(source("1",119000,true));
+   ok(e.player==warm&&!warm.released,
+      "speculative old-alias reset must retain decoder until confirmed boundary");
+   p.current=source("2",0,true);e.update(p.current);
+   ok(warm.released&&e.player==null,
+      "confirmed next-track boundary must still release old decoder");
+   System.out.println("PASS: "+tests+" actual-engine checks: prepare ordering, confirmation, pause/resume, seek, track change, late responses, stop, expiry, stale/disconnected source, effect loss, playback error and cleanup");
  }
 }
