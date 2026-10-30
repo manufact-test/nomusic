@@ -18,6 +18,10 @@ for required in ['void prepareSourceEffect(', 'void startDecoder(', 'void pauseD
     if required not in owner:raise AssertionError('missing audio authority: '+required)
 if 'audioOwner.event(AudioOwnership.Event.HANDOVER);' not in engine or 'audioOwner.event(AudioOwnership.Event.SEEK);' not in engine:
     raise AssertionError('seek/handover bypass unified event generation')
+if 'audioOwner.sourceGainDuringAlignment(effect);' not in engine:
+    raise AssertionError('slow decoder seek must restore original through AudioOwnership')
+if 'void sourceGainDuringAlignment(' not in owner:
+    raise AssertionError('native seek source gain must use sole audio authority')
 if 'audioOwner.retireDecoder();' not in engine:
     raise AssertionError('decoder release must revoke ownership lease on same song')
 if 'SourceTransitionGate.currentItemBoundary(' in service or 'SourceTransitionGate.currentPositionSeek(' in service:
