@@ -22,6 +22,15 @@ if 'audioOwner.sourceGainDuringAlignment(effect);' not in engine:
     raise AssertionError('slow decoder seek must restore original through AudioOwnership')
 if 'void sourceGainDuringAlignment(' not in owner:
     raise AssertionError('native seek source gain must use sole audio authority')
+for expected in [
+    'audioOwner.mayConsumeCompletion(mp)',
+    'accountLeaseCurrent()',
+    'audioOwner.seekInFlight(mp)',
+]:
+    if expected not in engine:
+        raise AssertionError('decoder callback lacks unified completion/account fence: '+expected)
+if 'boolean mayConsumeCompletion(' not in owner:
+    raise AssertionError('native decoder completion must be classified by single audio owner')
 if 'audioOwner.retireDecoder();' not in engine:
     raise AssertionError('decoder release must revoke ownership lease on same song')
 if 'SourceTransitionGate.currentItemBoundary(' in service or 'SourceTransitionGate.currentPositionSeek(' in service:

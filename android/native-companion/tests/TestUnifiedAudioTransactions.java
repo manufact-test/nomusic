@@ -321,6 +321,31 @@ public final class TestUnifiedAudioTransactions {
     "queued handover detects account rotation before promoting replacement gain");
   accountEngine.close();
 
+
+  /* Completion during play-intent buffering is not a confirmed end-of-song.
+     It is particularly dangerous when Media3 still reports the old alias. */
+  TestEngine.playing();
+  ReplacementEngine bufferedEnd=TestEngine.e;
+  MediaPlayer bufferedEndPlayer=bufferedEnd.player;
+  TestEngine.p.current=TestEngine.buffering(3500);
+  bufferedEnd.update(TestEngine.p.current);
+  bufferedEndPlayer.completed.onCompletion(bufferedEndPlayer);
+  check(bufferedEnd.player==bufferedEndPlayer&&!bufferedEndPlayer.released
+      &&bufferedEnd.armed()&&bufferedEnd.completedKey==null,
+      "transient buffering completion cannot finalize current song");
+  android.os.SystemClock.now+=400;bufferedEnd.update(TestEngine.p.current);
+  bufferedEndPlayer.completed.onCompletion(bufferedEndPlayer);
+  check(bufferedEnd.player==bufferedEndPlayer&&bufferedEnd.audioOwner.state()==AudioOwnership.State.PAUSED,
+      "held buffered decoder ignores completion and retains authorization");
+  TestEngine.p.current=TestEngine.source("1",3500,true);bufferedEnd.update(TestEngine.p.current);
+  check(bufferedEnd.player==bufferedEndPlayer&&!bufferedEndPlayer.released
+      &&bufferedEnd.armed(),"same decoder resumes after buffered completion");
+  bufferedEnd.sourceBoundary("confirmed_new_media");
+  bufferedEndPlayer.completed.onCompletion(bufferedEndPlayer);
+  check(bufferedEnd.player==null&&bufferedEnd.effect==null
+      &&bufferedEndPlayer.released,"old MediaPlayer callback after boundary is inert");
+  bufferedEnd.close();
+
   System.out.println("PASS unified Android audio transactions: "+checks+" checks");
  }
 }
