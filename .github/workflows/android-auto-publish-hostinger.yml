@@ -155,7 +155,11 @@ jobs:
           if proposed['apkSha256'] != name.split('-')[1][:-4] or name != f"{code}-{proposed['apkSha256']}.apk":
               raise SystemExit('Manifest/path mismatch')
           blob=f'releases/.{name}.upload'
-          if hashlib.file_digest(open(blob,'rb'),'sha256').hexdigest()!=proposed['apkSha256']:
+          with open(blob,'rb') as source:
+              sha=hashlib.sha256()
+              for chunk in iter(lambda:source.read(1024*1024), b''):
+                  sha.update(chunk)
+          if sha.hexdigest()!=proposed['apkSha256']:
               raise SystemExit('Uploaded APK SHA mismatch')
           if os.path.getsize(blob)!=proposed['sizeBytes']:
               raise SystemExit('Uploaded APK size mismatch')
