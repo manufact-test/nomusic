@@ -47,4 +47,15 @@ if 'SourceTransitionGate.currentItemBoundary(' in service or 'SourceTransitionGa
     raise AssertionError('Media3 boundary bypasses SourceEventArbiter')
 if 'syncPolicy.correct(' in engine or 'driftGuard.confirmed(' in engine:
     raise AssertionError('parallel clock deciders remain active')
+# Regression: the HONOR 0.3.58 post-grant gain ramp was 180–200ms of
+# near-silence after full source mute. Keep exclusive break-before-make;
+# do not silently restore the long ramp or allow source/decoder crossfade.
+if 'final long rampDuration=32;' not in engine:
+    raise AssertionError('exclusive replacement gain join regressed beyond 32ms')
+if 'audioOwner.grantReplacement(fx);originalMix=0f;' not in engine:
+    raise AssertionError('exclusive source mute must precede replacement gain')
+if engine.index('audioOwner.grantReplacement(fx);originalMix=0f;',engine.index('void fade(){')) > engine.index('applyVolume(mix);',engine.index('void fade(){')):
+    raise AssertionError('positive replacement gain before exclusive source grant')
+if 'audioOwner.fadeSourceBeforeGrant(fx,sourceProgress);' not in engine:
+    raise AssertionError('source fade before exclusive grant removed')
 print('PASS: all audio and Media3 mutations use the single authorities')
