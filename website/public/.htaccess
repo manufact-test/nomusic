@@ -1,0 +1,5 @@
+# Only Android update endpoints are routed here; leave existing website/CMS handling intact.
+RewriteEngine On
+RewriteRule ^download/android/?$ /update-center.php [L,QSA]
+RewriteRule ^updates/android/stable\\.json$ /update-center.php [L,QSA]
+RewriteRule ^releases/android/[1-9][0-9]*-[a-f0-9]{64}\\.apk$ /update-center.php [L,QSA]
