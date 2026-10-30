@@ -104,7 +104,7 @@ final class UpdateCenter {
             }catch(Exception e){error="Не удалось проверить обновления";}
             final Release found=r;final String failure=error;
             MAIN.post(()->{busy=false;if(!activity.visible())return;candidate=found;
-                render(failure!=null?failure:found==null?"Обновлений нет":"Доступна CELIKOM "+found.name+"\n"+found.notes);
+                render(failure!=null?failure+" · проверьте интернет и сервер обновлений":found==null?"У вас последняя версия CELIKOM ("+AppVersion.NAME+")":"Доступна CELIKOM "+found.name+"\n"+found.notes);
                 if(found!=null)notifyAvailable(activity,found);
             });
         });
