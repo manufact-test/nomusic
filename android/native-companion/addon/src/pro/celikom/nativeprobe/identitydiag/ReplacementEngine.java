@@ -184,6 +184,17 @@ final class ReplacementEngine {
      "decoderPlaying",player!=null&&ready&&player.isPlaying(),
      "userPause",false));
   }
+  /* Media3 commonly enters BUFFERING for 15–70ms during an explicit seek.
+     AudioOwnership already owns that in-flight decoder seek and has made the
+     replacement silent while restoring native source gain. Do not turn the
+     same transport operation into a second PAUSED/BUFFERING transaction:
+     it revokes the seek's output lease and forces a second handover. If
+     buffering outlasts native seek completion, the next update falls through
+     to normal BUFFERING handling. */
+  if(seeking&&audioOwner.seekInFlight(player)){
+   status="Перематываем — ожидаем позицию источника";
+   return;
+  }
   if(!sourceJump&&!explicitSourceSeek&&!seeking&&!fading&&!audioOwner.handoverAwaitingClock()
     &&effect!=null&&ready&&player!=null&&player.isPlaying()
     &&commandedReplacementVolume>0.001f&&now-sourceBufferSince<300){
