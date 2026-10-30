@@ -16,6 +16,8 @@ for required in ['void prepareSourceEffect(', 'void startDecoder(', 'void pauseD
                  'void seekDecoder(', 'void grantReplacement(', 'RestoreResult restoreSource(',
                  'void retireDecoder(', 'void event(Event event)', 'boolean dataCurrent(', 'boolean commandCurrent(']:
     if required not in owner:raise AssertionError('missing audio authority: '+required)
+if 'audioOwner.event(AudioOwnership.Event.RETURN);' not in engine or 'audioOwner.commandCurrent(returnTicket' not in engine:
+    raise AssertionError('return to original must revoke old handover and use owner command ticket')
 if 'audioOwner.event(AudioOwnership.Event.HANDOVER);' not in engine or 'audioOwner.event(AudioOwnership.Event.SEEK);' not in engine:
     raise AssertionError('seek/handover bypass unified event generation')
 if 'audioOwner.sourceGainDuringAlignment(effect);' not in engine:

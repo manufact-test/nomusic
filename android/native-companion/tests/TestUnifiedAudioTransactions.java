@@ -372,6 +372,27 @@ public final class TestUnifiedAudioTransactions {
   check(!handover.handoverAwaitingClock(),
     "retiring the audio owner drops any future clock-completion permission");
 
+  /* Manual return must revoke old handover and refuse stale-account fade
+     ticks even without an intervening Media3 onEvents update. */
+  TestEngine.playing();ReplacementEngine returningEngine=TestEngine.e;
+  MediaPlayer returningPlayer=returningEngine.player;
+  android.os.SystemClock.now+=ReplacementEngine.FADE_MS+40;
+  TestEngine.p.current=TestEngine.source("1",1400,true);
+  TestEngine.p.handler.drain();
+  check(returningPlayer.playing&&returningEngine.originalMix==0f,
+    "return-account regression starts from exclusively audible replacement");
+  long oldReturnEpoch=returningEngine.audioOwner.operationEpoch();
+  returningEngine.returnOriginal();
+  check(returningEngine.returning&&!returningEngine.armed()
+     &&returningEngine.audioOwner.operationEpoch()!=oldReturnEpoch,
+     "manual return starts a new owner epoch and revokes original handover");
+  TestEngine.api.accountGeneration++;
+  android.os.SystemClock.now+=60;TestEngine.p.handler.drain();
+  check(returningPlayer.released&&returningEngine.player==null
+     &&returningEngine.effect==null&&!returningEngine.returning,
+     "old-account return tick cannot keep source muted or decoder alive");
+  returningEngine.close();
+
   System.out.println("PASS unified Android audio transactions: "+checks+" checks");
  }
 }

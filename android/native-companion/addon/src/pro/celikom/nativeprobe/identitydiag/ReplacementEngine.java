@@ -448,8 +448,20 @@ final class ReplacementEngine {
     /* No return animation may grant audible replacement during a seek. */
     stop("owner_return_original");return;
    }
+  /* A manual return is a first-class owner transition: it invalidates
+     previous handover command tickets, including their scheduled ramp ticks. */
+  audioOwner.event(AudioOwnership.Event.RETURN);
+  final AudioOwnership.Ticket returnTicket=audioOwner.ticket(identityKey,api.accountGeneration,
+     descriptor==null?0:descriptor.optLong("replacement_id"),
+     descriptor==null?0:descriptor.optLong("version"),
+     descriptor==null?0:descriptor.optLong("duration_ms"));
   preloadAllowed=false;armedUntil=0;returning=true;fading=false;seeking=false;final long token=++transition;final MediaPlayer p=player;final DynamicsProcessing fx=effect;final long start=SystemClock.elapsedRealtime();status="Возвращаем оригинал без наложения звука…";
-  Runnable ramp=new Runnable(){public void run(){if(token!=transition||p!=player||fx!=effect)return;try{if(!current(identityKey)||!owner.current.playing){stop("return_source_changed");return;}float mix=TransitionMix.progress(SystemClock.elapsedRealtime()-start,FADE_MS);if(mix<1f){audioOwner.grantReplacement(fx);originalMix=0f;applyVolume(1f-mix);owner.handler.postDelayed(this,20);}else{applyVolume(0);stop("owner_return_original");}}catch(RuntimeException ex){stop("return_failed");}}};ramp.run();
+  Runnable ramp=new Runnable(){public void run(){if(token!=transition||p!=player||fx!=effect||!accountLeaseCurrent())return;
+     if(!audioOwner.commandCurrent(returnTicket,api.accountGeneration,identityKey,
+         descriptor==null?0:descriptor.optLong("replacement_id"),
+         descriptor==null?0:descriptor.optLong("version"),
+         descriptor==null?0:descriptor.optLong("duration_ms")))return;
+     try{if(!current(identityKey)||!owner.current.playing){stop("return_source_changed");return;}float mix=TransitionMix.progress(SystemClock.elapsedRealtime()-start,FADE_MS);if(mix<1f){audioOwner.grantReplacement(fx);originalMix=0f;applyVolume(1f-mix);owner.handler.postDelayed(this,20);}else{applyVolume(0);stop("owner_return_original");}}catch(RuntimeException ex){stop("return_failed");}}};ramp.run();
  }
  void stop(String reason){previousSource=null;completedKey=null;completedReason=null;clockSupervisor.reset();explicitSourceSeek=false;unavailableSince=-1;waitingForRouteResume=false;routePauseObserved=false;preloadAllowed=false;clearAudioCache();returning=false;armedUntil=0;trustedSession=-1;generation++;preparing=false;release(reason);descriptor=null;lookupKey=null;nextLookup=0;status="Замена выключена; играет оригинал";authorizationAccount=-1;audioOwner.event(AudioOwnership.Event.STOP);audioOwner.stopped();ownerEvent("stopped");if("yandex_audio_session_changed".equals(reason)||"effect_control_lost".equals(reason))status="Яндекс сменил аудиосессию. Открой его эквалайзер → CELIKOM и снова включи автозамену";else if("headphones_disconnected".equals(reason))status="Наушники отключены. Оригинал восстановлен; подключи их и снова включи автозамену";LogStore.log("replacement_trial_stop",LogStore.map("reason",reason));}
  void close(){closed=true;stop("service_stopped");}

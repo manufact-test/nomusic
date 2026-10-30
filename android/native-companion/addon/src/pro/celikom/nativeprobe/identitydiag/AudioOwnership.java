@@ -10,7 +10,7 @@ final class AudioOwnership {
  enum PauseMode { NONE, USER, BUFFERING }
  /* Event and ticket authority lives with the sole audio output owner. A data ticket
     survives an ordinary seek/pause, but never a source/account/edition change. */
- enum Event { PREPARE, PREPARE_READY, SEEK, BUFFERING, PAUSE, RESUME, HANDOVER, BOUNDARY, ROUTE_LOSS, LOGOUT, STOP }
+ enum Event { PREPARE, PREPARE_READY, SEEK, BUFFERING, PAUSE, RESUME, HANDOVER, RETURN, BOUNDARY, ROUTE_LOSS, LOGOUT, STOP }
  static final class Ticket {
   final String sourceKey;
   final long sourceEpoch,operationEpoch,accountEpoch,replacementId,version,durationMs;
