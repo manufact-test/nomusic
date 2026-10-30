@@ -354,7 +354,10 @@ final class ReplacementEngine {
   audioOwner.aligning();
   audioOwner.event(AudioOwnership.Event.HANDOVER);
   final AudioOwnership.Ticket handoverTicket=audioOwner.ticket(ownerKey,api.accountGeneration,descriptor==null?0:descriptor.optLong("replacement_id"),descriptor==null?0:descriptor.optLong("version"),descriptor==null?0:descriptor.optLong("duration_ms"));
-  final long rampDuration=shortResume?PAUSE_RESUME_FADE_MS:(initialOriginal<=0.001f?RETAINED_SEEK_JOIN_MS:NEW_TRACK_JOIN_MS);resumeFadePending=false;
+  /* The old 180–200ms ramp left the replacement nearly silent after the
+     original was fully muted. Keep source fade and exclusive ownership, but
+     complete the post-grant gain join in at most two scheduler ticks. */
+  final long rampDuration=32;resumeFadePending=false;
   // When attenuation stays attached through a short pause, validate decoder's advancing clock before raising replacement volume.
   final boolean alignLive=streaming!=null&&(initialOriginal>0.001f||shortResume);
   final long[] baseline={p.getCurrentPosition()},phaseStarted={SystemClock.elapsedRealtime()};final int[] corrections={0};final boolean[] sourceFadeDone={initialOriginal<=0.001f};
