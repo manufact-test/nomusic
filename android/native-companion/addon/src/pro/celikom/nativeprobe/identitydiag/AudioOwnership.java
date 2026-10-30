@@ -47,6 +47,13 @@ final class AudioOwnership {
   SeekAck ack=new SeekAck(inFlightKind,inFlightEpoch,inFlightAt);
   clearSeekFlight();return ack;
  }
+ /* A MediaPlayer completion callback also carries no seek or ownership ID.
+    It may originate from a retired position while a native seek/hold is
+    running. Only the current playable output state may retire this decoder. */
+ boolean mayConsumeCompletion(MediaPlayer p){
+  return p!=null&&p!=inFlightDecoder&&pauseMode==PauseMode.NONE
+     &&(state==State.ALIGNING||state==State.REPLACEMENT);
+ }
  long operationEpoch(){return operationEpoch;}
  Ticket ticket(String key,long account,long replacement,long version,long duration){
   if(!current(generation,key))throw new IllegalStateException("ticket without current source");

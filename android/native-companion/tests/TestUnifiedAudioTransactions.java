@@ -240,6 +240,51 @@ public final class TestUnifiedAudioTransactions {
      "only acknowledged decoder may acquire verified exclusive output");
   guarded.restoreSource(guardedPlayer,guardedEffect);
 
+
+  /* A stale decoder completion is not a signal that the CURRENT track ended
+     while a native seek or user pause has revoked audio permission. */
+  TestEngine.playing();ReplacementEngine endEngine=TestEngine.e;
+  MediaPlayer ending=endEngine.player;ending.asyncSeek=true;
+  TestEngine.p.current=TestEngine.source("1",60000,true);
+  endEngine.update(TestEngine.p.current);
+  check(endEngine.seeking&&endEngine.audioOwner.seekInFlight(ending),
+    "real decoder has an outstanding seek for stale completion test");
+  ending.completed.onCompletion(ending);
+  check(endEngine.player==ending&&!ending.released&&endEngine.completedKey==null
+      &&endEngine.seeking,"completion from pre-seek decoder position is ignored");
+  ending.seek.onSeekComplete(ending);
+  check(endEngine.player==ending&&endEngine.armed(),
+    "valid current seek still resumes after obsolete completion");
+  endEngine.close();
+
+  TestEngine.playing();endEngine=TestEngine.e;ending=endEngine.player;
+  TestEngine.p.current=TestEngine.source("1",5000,false);
+  endEngine.update(TestEngine.p.current);
+  ending.completed.onCompletion(ending);
+  check(endEngine.player==ending&&!ending.released&&endEngine.ready
+      &&endEngine.audioOwner.pauseMode()==AudioOwnership.PauseMode.USER,
+    "completion received during manual pause cannot discard reusable decoder");
+  TestEngine.p.current=TestEngine.source("1",5000,true);
+  endEngine.update(TestEngine.p.current);
+  check(endEngine.player==ending&&ending.playing,
+    "resumed playback reuses the decoder after ignored paused completion");
+  endEngine.close();
+
+  TestEngine.playing();endEngine=TestEngine.e;ending=endEngine.player;
+  endEngine.headphonesDisconnected();
+  ending.completed.onCompletion(ending);
+  check(endEngine.player==ending&&endEngine.waitingForRouteResume
+     &&endEngine.armed(),"route loss completion cannot terminate authorized decoder");
+  endEngine.close();
+
+  /* Normal replacement completion must still restore source, not be
+     accidentally hidden by the new callback gate. */
+  TestEngine.playing();endEngine=TestEngine.e;ending=endEngine.player;
+  ending.completed.onCompletion(ending);
+  check(endEngine.player==null&&endEngine.effect==null&&endEngine.armed(),
+    "valid current decoder completion continues to use normal source recovery");
+  endEngine.close();
+
   System.out.println("PASS unified Android audio transactions: "+checks+" checks");
  }
 }
