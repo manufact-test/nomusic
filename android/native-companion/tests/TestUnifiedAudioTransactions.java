@@ -197,6 +197,49 @@ public final class TestUnifiedAudioTransactions {
     "buffer recovery reuses authorized decoder without another download");
   switcher.close();
 
+
+  /* Preparation completes while Media3 has play intent but is buffering.
+     Data readiness cannot start the muted replacement or seize source effect. */
+  TestEngine.reset("ALBUM");TestEngine.e.arm();TestEngine.resolve();
+  File bufferedFile=File.createTempFile("ready-while-buffered",".audio");
+  TestEngine.api.downloaded.done(bufferedFile,null);
+  MediaPlayer bufferedPlayer=TestEngine.e.player;
+  TestEngine.p.current=TestEngine.buffering(3500);
+  bufferedPlayer.prepared.onPrepared(bufferedPlayer);
+  check(TestEngine.e.ready&&!bufferedPlayer.playing&&TestEngine.e.effect==null
+      &&TestEngine.e.audioOwner.pauseMode()==AudioOwnership.PauseMode.BUFFERING,
+      "buffered prepared callback stages data only; native output remains authoritative");
+  int downloadedBefore=TestEngine.api.downloads;
+  TestEngine.p.current=TestEngine.source("1",3500,true);
+  TestEngine.e.update(TestEngine.p.current);
+  check(bufferedPlayer.playing&&TestEngine.e.player==bufferedPlayer
+      &&TestEngine.api.downloads==downloadedBefore,
+      "prepared buffered decoder starts only on a live playing source without download");
+  TestEngine.e.sourceBoundary("buffered_new_track");
+  check(bufferedPlayer.released&&TestEngine.e.player==null&&TestEngine.e.effect==null,
+      "boundary retires buffered decoder and its future callbacks");
+  TestEngine.p.handler.drain();
+  check(TestEngine.e.player==null,"old buffered timers cannot reanimate next-song audio");
+  TestEngine.e.close();
+
+  /* Even if the effect is valid, the sole owner rejects positive decoder gain
+     until the native seek acknowledgement has been consumed. */
+  AudioOwnership guarded=new AudioOwnership();guarded.track("guard");
+  android.media.audiofx.DynamicsProcessing guardedEffect=new android.media.audiofx.DynamicsProcessing(0,83,null);
+  MediaPlayer guardedPlayer=new MediaPlayer();guardedPlayer.asyncSeek=true;
+  guarded.prepareSourceEffect(guardedEffect);guarded.aligning();
+  guarded.volume(guardedPlayer,0f,guardedEffect);
+  check(guarded.issueSeek(guardedPlayer,4000,"guard",guarded.epoch(),
+     AudioOwnership.SeekKind.WARM,android.os.SystemClock.now),"guarded warm seek issued");
+  rejects(()->guarded.grantReplacement(guardedEffect),
+     "in-flight native seek cannot acquire audible output lease");
+  guarded.acceptSeekCompletion(guardedPlayer);
+  guarded.grantReplacement(guardedEffect);
+  guarded.volume(guardedPlayer,1f,guardedEffect);
+  check(guardedPlayer.volume==1f&&guardedEffect.gain==-100f,
+     "only acknowledged decoder may acquire verified exclusive output");
+  guarded.restoreSource(guardedPlayer,guardedEffect);
+
   System.out.println("PASS unified Android audio transactions: "+checks+" checks");
  }
 }
