@@ -12,7 +12,7 @@ final class ReplacementEngine {
  final ProbeService owner; final NativeApi api;
  String status="Замена выключена",identityKey,trackId,method="NONE",lookupKey;
  JSONObject descriptor; long descriptorUntil,nextLookup,armedUntil,preparedAt,seekStarted,seekBudget=SEEK_TIMEOUT_MS,fadeStarted,transition,pausedAt=-1;
- long warmSeekTransition=-1;boolean handoverPending;long pauseRestoreDelayMs=PAUSE_GRACE_MS;
+ long warmSeekTransition=-1;boolean handoverPending;long pauseRestoreDelayMs=PAUSE_GRACE_MS,sourceBufferSince=-1;
  final AudioOwnership audioOwner=new AudioOwnership();
  final AudioContinuityMonitor continuity=new AudioContinuityMonitor();float commandedReplacementVolume;
  volatile long generation; int trustedSession=-1,failures,seekCorrections;
@@ -81,7 +81,16 @@ final class ReplacementEngine {
   if(player==null||!ready||!armed())return;
   if(trustedSession<=0){status="Автозамена ожидает подключения: открой эквалайзер Яндекса → CELIKOM один раз";return;}
   try{
-   if(!s.playing){clockSupervisor.reset();pauseSource(s);return;}
+   if(!s.playing){
+    clockSupervisor.reset();
+    if(s.buffering&&s.wantsToPlay)bufferSource(s,sourceJump);
+    else{sourceBufferSince=-1;pauseSource(s,false);}
+    return;
+   }
+   if(sourceBufferSince>=0){
+    LogStore.log("replacement_source_buffer_resumed",LogStore.map("trackId",trackId,"bufferMs",clock-sourceBufferSince,"decoderRetained",player!=null&&ready));
+    sourceBufferSince=-1;
+   }
    boolean resumed=pausedAt>=0;long pausedDuration=resumed?Math.max(0,clock-pausedAt):0;
    if(resumed){audioOwner.cancelPause();resumeFadePending=true;LogStore.log("replacement_resume_fast",LogStore.map("retainedOriginalEffect",effect!=null,"pauseDurationMs",pausedDuration));}
    pausedAt=-1;
@@ -121,15 +130,19 @@ final class ReplacementEngine {
    status="Играет замена · автопереход включён";logSync("playing",s,drift);
   }catch(RuntimeException e){suspend("playback_exception",retryDelay());status="Ошибка звука — оригинал восстановлен; повторим автоматически";LogStore.log("replacement_failure",LogStore.map("reason","playback_exception","type",e.getClass().getSimpleName()));}
  }
+ /** A 0ms BUFFERING frame can precede the confirmed next MediaItem by a few ms.
+  * Do not tear down the current decoder on this speculative old-alias reset.
+  * sourceBoundary() still retires it immediately when the new alias is confirmed. */
  void outgoingTrackReset(PlaybackSource previous){
   if(player==null&&effect==null)return;
   long projected=position(previous);
-  LogStore.log("replacement_outgoing_reset",LogStore.map("trackId",trackId,"previousAlias",previous.alias,"previousPositionMs",projected,"previousDurationMs",previous.duration,"remainingMs",Math.max(0,previous.duration-projected),"oldDecoderPlaying",player!=null&&player.isPlaying(),"oldOriginalMuted",effect!=null&&originalMix<=0.001f));
-  suspend("source_end",30000);
+  LogStore.log("replacement_outgoing_candidate",LogStore.map("trackId",trackId,
+    "previousAlias",previous.alias,"remainingMs",Math.max(0,previous.duration-projected),
+    "retainedUntilConfirmedBoundary",true));
  }
  void sourceSeekRequested(){if(armed())explicitSourceSeek=true;}
  void sourceBoundary(String reason){
-  if(closed)return;generation++;preparing=false;release("track_changed");audioOwner.invalidate(reason);identityKey=null;trackId=null;method="NONE";completedReason=null;clockSupervisor.reset();descriptor=null;lookupKey=null;nextLookup=0;failures=0;previousSource=null;completedKey=null;explicitSourceSeek=false;unavailableSince=-1;status="Определяем новую песню; играет оригинал";ownerEvent("source_boundary");LogStore.log("replacement_source_boundary",LogStore.map("reason",reason,"originalRestoredBeforeLookup",true));
+  if(closed)return;sourceBufferSince=-1;generation++;preparing=false;release("track_changed");audioOwner.invalidate(reason);identityKey=null;trackId=null;method="NONE";completedReason=null;clockSupervisor.reset();descriptor=null;lookupKey=null;nextLookup=0;failures=0;previousSource=null;completedKey=null;explicitSourceSeek=false;unavailableSince=-1;status="Определяем новую песню; играет оригинал";ownerEvent("source_boundary");LogStore.log("replacement_source_boundary",LogStore.map("reason",reason,"originalRestoredBeforeLookup",true));
  }
  void sourceChanged(PlaybackSource previous,PlaybackSource next){
   long ownPosition=-1,ownDuration=-1;
@@ -137,14 +150,56 @@ final class ReplacementEngine {
   LogStore.log("source_track_transition",LogStore.map("previousTrackId",trackId,"previousAlias",previous.alias,"nextAlias",next.alias,"previousDurationMs",previous.duration,"previousProjectedPositionMs",position(previous),"remainingSourceMs",Math.max(0,previous.duration-position(previous)),"replacementPositionMs",ownPosition,"replacementDurationMs",ownDuration,"replacementReady",ready,"followsNativeTrackChange",true));
   if(identityKey!=null||player!=null||preparing)sourceBoundary("sample_track_changed");
  }
- void pauseSource(PlaybackSource s){
+ /** Media3 buffering with playWhenReady=true is not a user pause.
+  * A tiny stall may be absorbed by an already audible replacement. A seek or
+  * longer stall silences it without throwing away the prepared decoder.
+  * Never play through a user seek or a pending handover. */
+ void bufferSource(PlaybackSource s,boolean sourceJump){
+  long now=SystemClock.elapsedRealtime();
+  if(sourceBufferSince<0){
+   sourceBufferSince=now;
+   LogStore.log("replacement_source_buffer",LogStore.map("trackId",trackId,
+     "sourcePositionMs",s.position,"sourceJump",sourceJump,
+     "decoderPlaying",player!=null&&ready&&player.isPlaying(),
+     "userPause",false));
+  }
+  if(!sourceJump&&!explicitSourceSeek&&!seeking&&!fading&&!handoverPending
+    &&effect!=null&&ready&&player!=null&&player.isPlaying()
+    &&commandedReplacementVolume>0.001f&&now-sourceBufferSince<300){
+   status="Яндекс буферизует — сохраняем текущий звук";
+   return;
+  }
+  pauseSource(s,true);
+ }
+ void pauseSource(PlaybackSource s){pauseSource(s,false);}
+ void pauseSource(PlaybackSource s,boolean buffering){
   if(player==null)return;
-  if(pausedAt<0){bufferGate.reset();resumeDrift=position(s)-player.getCurrentPosition();resumePositionRetained=ready&&aligned&&!seeking;pauseRestoreDelayMs=seeking||handoverPending?350:PAUSE_GRACE_MS;pausedAt=SystemClock.elapsedRealtime();transition++;fading=false;handoverPending=false;warmSeekTransition=-1;aligned=false;setAuditedVolume(player,0f);audioOwner.pauseDecoder(player);audioOwner.paused();final MediaPlayer p=player;final DynamicsProcessing fx=effect;final long token=transition,epoch=audioOwner.epoch();final String key=identityKey;final long lease=audioOwner.pauseLease();
-   owner.handler.postDelayed(()->{if(player!=p||token!=transition||!audioOwner.current(epoch,key)||pausedAt<0||seeking||!current(identityKey)||owner.current==null||owner.current.playing||!ready||!armed()||effect!=fx)return;try{long nativePosition=position(owner.current),delta=nativePosition-p.getCurrentPosition();if(Math.abs(delta)>PAUSE_ALIGN_TOLERANCE_MS){LogStore.log("replacement_pause_prealign",LogStore.map("trackId",trackId,"driftMs",delta,"pauseAgeMs",SystemClock.elapsedRealtime()-pausedAt));seek(owner.current,nativePosition,delta);}}catch(RuntimeException ex){LogStore.log("replacement_pause_prealign_failed",LogStore.map("type",ex.getClass().getSimpleName()));}},PAUSE_ALIGN_DELAY_MS);
-   owner.handler.postDelayed(()->{if(player==p&&effect==fx&&token==transition&&audioOwner.current(epoch,key)&&audioOwner.validPause(lease)&&pausedAt>=0&&!seeking&&current(identityKey)&&owner.current!=null&&!owner.current.playing)unmute();},pauseRestoreDelayMs);
+  if(pausedAt<0){
+   bufferGate.reset();
+   resumeDrift=position(s)-player.getCurrentPosition();
+   resumePositionRetained=ready&&aligned&&!seeking;
+   pauseRestoreDelayMs=seeking||handoverPending?350:buffering?900:PAUSE_GRACE_MS;
+   pausedAt=SystemClock.elapsedRealtime();
+   transition++;fading=false;handoverPending=false;warmSeekTransition=-1;aligned=false;
+   setAuditedVolume(player,0f);
+   audioOwner.pauseDecoder(player);
+   audioOwner.paused();
+   final MediaPlayer p=player;final DynamicsProcessing fx=effect;
+   final long token=transition,epoch=audioOwner.epoch();final String key=identityKey;
+   final long lease=audioOwner.pauseLease();
+   // Do not seek a paused decoder on a 160ms timer. The old code changed its
+   // owner state from PAUSED to ALIGNING and invalidated its restore lease;
+   // correct alignment against the live position only when playback resumes.
+   owner.handler.postDelayed(()->{
+    if(player==p&&effect==fx&&token==transition&&audioOwner.current(epoch,key)
+      &&audioOwner.validPause(lease)&&pausedAt>=0&&!seeking&&current(identityKey)
+      &&owner.current!=null&&!owner.current.playing)unmute();
+   },pauseRestoreDelayMs);
   }
   if(SystemClock.elapsedRealtime()-pausedAt>=pauseRestoreDelayMs)unmute();
-  status="Пауза — аудио сохранено для продолжения";ownerEvent("paused");logSync("paused",s,0);
+  status=buffering?"Яндекс буферизует — ожидаем продолжения":"Пауза — аудио сохранено для продолжения";
+  ownerEvent(buffering?"source_buffering":"paused");
+  logSync(buffering?"buffering":"paused",s,0);
  }
  long retryDelay(){failures++;return Math.min(30000,5000L*(1L<<Math.min(3,failures-1)));}
  void seek(PlaybackSource s,long target,long drift){seek(s,target,drift,false);}
@@ -242,7 +297,7 @@ final class ReplacementEngine {
    if(closed||token!=transition||p!=player||fx!=effect||!armed()||!audioOwner.current(ownerEpoch,ownerKey))return;
    try{
     if(!current(identityKey)){suspend("fade_source_unavailable",1000);return;}
-    if(!owner.current.playing){pauseSource(owner.current);return;}
+    if(!owner.current.playing){if(owner.current.buffering&&owner.current.wantsToPlay)bufferSource(owner.current,false);else pauseSource(owner.current,false);return;}
     if(handoverPending){
      long now=SystemClock.elapsedRealtime(),position=p.getCurrentPosition();
      if(warmSeekTransition==token||position-baseline[0]<40){
@@ -311,7 +366,7 @@ final class ReplacementEngine {
     HttpURLConnection.disconnect and effect release may block on the old route. */
  MediaPlayer silenceBeforeCleanup(){transition++;fading=false;handoverPending=false;warmSeekTransition=-1;MediaPlayer old=player;player=null;if(old!=null){boolean zero=false,paused=false;try{setAuditedVolume(old,0f);zero=true;}catch(RuntimeException ignored){}try{audioOwner.pauseDecoder(old);paused=!old.isPlaying();}catch(RuntimeException ignored){}LogStore.log("replacement_output_silenced",LogStore.map("trackId",trackId,"gainZero",zero,"paused",paused,"beforeTransportCleanup",true));}unmute(old);return old;}
  void release(String reason){
-  audioOwner.cancelPause();
+  sourceBufferSince=-1;audioOwner.cancelPause();
   boolean had=player!=null||effect!=null;MediaPlayer old=silenceBeforeCleanup();
   if("identity_changed".equals(reason)||"track_changed".equals(reason)||"replacement_end".equals(reason)||"replacement_completed".equals(reason)||"source_end".equals(reason)||"source_unavailable".equals(reason)||"source_disconnected".equals(reason))rememberAudio();
   /* Detach a completed file before MediaPlayer.release closes its MediaDataSource. */
