@@ -55,6 +55,9 @@ final class ReplacementEngine {
  void confirm(){if(identityKey!=null&&trackId!=null){confirmed.add(confirmationKey());LogStore.log("metadata_candidate_confirmed",LogStore.map("trackId",trackId,"identityKey",identityKey));lookupKey=null;nextLookup=0;update(owner.current);}}
  void identity(Map<String,Object> o,Map<String,Object> decision){String key=PlaybackSource.key(String.valueOf(o.get("mediaAlias")),o.get("albumId"),String.valueOf(o.get("title")),String.valueOf(o.get("artist")),((Number)o.get("durationMs")).longValue());PlaybackSource s=owner.current;if(s==null||!s.key.equals(key))return;String id=(String)decision.get("candidateTrackId");String nextMethod=String.valueOf(decision.get("method"));if(!Objects.equals(identityKey,key)||!Objects.equals(trackId,id)){completedKey=null;completedReason=null;clockSupervisor.reset();generation++;preparing=false;release("identity_changed");audioOwner.track(key);nextLookup=0;failures=0;descriptor=null;lookupKey=null;}identityKey=key;trackId=id;method=nextMethod;if(id==null){status="Песня пока не определена однозначно; играет оригинал";return;}update(s);}
  boolean current(String key){PlaybackSource s=owner.current;return !closed&&owner.alive()&&s!=null&&ApiContract.current(key,s.key,SystemClock.elapsedRealtime()-s.observed,s.connected);}
+ /* Transport data belongs to a verified track/account generation, not to a
+    transient Media3 connection snapshot. Source output still requires current(). */
+ boolean transportLeaseCurrent(String key,long g,long account){return !closed&&owner.alive()&&g==generation&&account==api.accountGeneration&&api.signedIn()&&Objects.equals(identityKey,key);}
  boolean armed(){return !closed&&armedUntil!=0;}
  long position(PlaybackSource s){long extra=s.playing?Math.max(0,SystemClock.elapsedRealtime()-s.observed):0;return Math.min(s.duration,Math.max(0,s.position+extra));}
  /* An account switch revokes queued decoder callbacks before the next
@@ -130,18 +133,19 @@ final class ReplacementEngine {
       LogStore.log("replacement_expected_tail",LogStore.map("trackId",trackId,"sourceDurationMs",s.duration,"measuredDurationMs",player.getDuration(),"action","handoff_to_original_before_next_track"));
      suspend("replacement_end",30000);return;}
    long drift=target-player.getCurrentPosition();
+   boolean retainedPauseResume=resumed&&resumePositionRetained&&!sourceJump&&!waitingForRouteResume&&effect!=null;
    if(fading&&audioOwner.handoverAwaitingClock()&&!sourceJump)return;
    // A retained paused decoder already at the native position needs no seek.
-   if(!aligned&&resumePositionRetained&&!sourceJump&&Math.abs(drift)<=PAUSE_ALIGN_TOLERANCE_MS){aligned=true;resumePositionRetained=false;LogStore.log("replacement_resume_aligned",LogStore.map("trackId",trackId,"driftMs",drift,"seekSkipped",true));}
+   if(!aligned&&retainedPauseResume&&Math.abs(drift)<=HANDOVER_DRIFT_MS){aligned=true;resumePositionRetained=false;LogStore.log("replacement_resume_aligned",LogStore.map("trackId",trackId,"driftMs",drift,"seekSkipped",true));}
    /* Source position is authoritative after a pause: resync off-output if necessary. */
-   if(resumed&&pausedDuration>=PAUSE_ALIGN_DELAY_MS&&effect!=null&&Math.abs(drift)>PAUSE_ALIGN_TOLERANCE_MS){seek(s,target,drift);return;}
+   if(resumed&&pausedDuration>=PAUSE_ALIGN_DELAY_MS&&effect!=null&&Math.abs(drift)>(retainedPauseResume?HANDOVER_DRIFT_MS:PAUSE_ALIGN_TOLERANCE_MS)){seek(s,target,drift);return;}
    ClockSupervisor.Decision clockDecision=clockSupervisor.assess(aligned,!seeking&&!audioOwner.handoverAwaitingClock(),sourceJump,drift,clock);
    if(clockDecision==ClockSupervisor.Decision.RESTORE_SOURCE){
     String key=identityKey;LogStore.log("replacement_drift_unstable",LogStore.map("trackId",trackId,"sourcePositionMs",target,"driftMs",drift,"fallback","original_until_next_track","clockSupervisor","confirmed"));
     suspend("drift_unstable",30000);completedKey=key;completedPosition=target;completedReason="Большой рассинхрон замены — играет оригинал до следующей песни";audioOwner.unsupported("drift_unstable");status=completedReason;ownerEvent("drift_unsupported");return;
    }
    if(clockDecision==ClockSupervisor.Decision.SEEK){seek(s,target,drift);return;}
-   boolean seamlessResume=resumed&&effect!=null&&originalMix<=0.001f&&!sourceJump&&Math.abs(drift)<=PAUSE_ALIGN_TOLERANCE_MS;
+   boolean seamlessResume=retainedPauseResume&&originalMix<=0.001f&&Math.abs(drift)<=HANDOVER_DRIFT_MS;
    boolean newlyAttached=effect==null;
    if(newlyAttached&&!mute())return;
    if(!effect.hasControl()||!effect.getEnabled()){stop("effect_control_lost");return;}
@@ -258,13 +262,14 @@ final class ReplacementEngine {
   if(cached!=null&&cached.isFile()){LogStore.log("replacement_audio_reused",LogStore.map("trackId",trackId,"liveResolveRequired",true));acceptAudio(key,j,g,cached,null);return;}
   if(key.equals(streamFallbackKey)){downloadFull(key,j,g);return;}
   status="Подготавливаем начало песни; играет оригинал";
-  api.stream(j,()->!closed&&g==generation&&api.signedIn()&&current(key),(source,error)->{
+  final long account=api.accountGeneration;
+  api.stream(j,()->transportLeaseCurrent(key,g,account),(source,error)->{
    if(g!=generation||closed||!current(key)||!api.signedIn()){if(source!=null)source.close();if(g==generation&&!closed)suspend("stream_source_changed",1000);return;}
    if(source==null){streamFallbackKey=key;LogStore.log("replacement_stream_fallback",LogStore.map("reason","range_unavailable"));downloadFull(key,j,g);return;}
    acceptAudio(key,j,g,null,source,null);
   });
  }
- void downloadFull(String key,JSONObject j,long g){api.download(j,()->!closed&&g==generation&&api.signedIn()&&current(key),(file,error)->acceptAudio(key,j,g,file,error));}
+ void downloadFull(String key,JSONObject j,long g){final long account=api.accountGeneration;api.download(j,()->transportLeaseCurrent(key,g,account),(file,error)->acceptAudio(key,j,g,file,error));}
  void acceptAudio(String key,JSONObject j,long g,File file,String error){acceptAudio(key,j,g,file,null,error);}
  void acceptAudio(String key,JSONObject j,long g,File file,BufferedAudio source,String error){if(g!=generation||closed||!audioOwner.dataCurrent(prepareTicket,api.accountGeneration,key,j.optLong("replacement_id"),j.optLong("version"),j.optLong("duration_ms"))){if(file!=null)file.delete();if(source!=null)source.close();return;}preparing=false;if(file==null&&source==null){suspend("download_failed",retryDelay());status="Сеть недоступна; играет оригинал, повторим автоматически";return;}if(!current(key)||!api.signedIn()){if(file!=null)file.delete();if(source!=null)source.close();suspend("download_source_changed",1000);return;}
    try{audioFile=file;streaming=source;bufferWaiting=false;player=new MediaPlayer();final MediaPlayer p=player;final long ownerTicket=audioOwner.epoch();final AudioOwnership.Ticket dataTicket=prepareTicket;p.setAudioAttributes(new AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_MEDIA).setContentType(AudioAttributes.CONTENT_TYPE_MUSIC).build());setAuditedVolume(p,0f);if(source==null)p.setDataSource(file.getAbsolutePath());else p.setDataSource(new StreamingAudio(source));p.setOnErrorListener((mp,what,extra)->{if(mp==player&&g==generation&&audioOwner.current(ownerTicket,key)&&accountLeaseCurrent()){suspend("media_player_error",retryDelay());LogStore.log("replacement_failure",LogStore.map("reason","media_player_error","what",what,"extra",extra));}return true;});p.setOnCompletionListener(mp->{
@@ -336,7 +341,7 @@ final class ReplacementEngine {
      alignment and then correct it audibly after handover. Allow two measured
      corrections, then keep the original if the decoder cannot settle. */
   if(streaming!=null&&!waitingForRouteResume&&now.playing&&!mp.isPlaying()
-    &&Math.abs(residual)>(seekCorrections==0?80:HANDOVER_DRIFT_MS)){
+    &&Math.abs(residual)>HANDOVER_DRIFT_MS){
    if(seekCorrections>=2||target>=mp.getDuration()-150){
     LogStore.log("replacement_alignment_rejected",LogStore.map("trackId",trackId,"residualMs",residual,"correctionPass",seekCorrections));suspend("alignment_unstable",retryDelay());return;
    }

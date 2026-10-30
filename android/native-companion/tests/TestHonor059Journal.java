@@ -34,8 +34,8 @@ public final class TestHonor059Journal {
  }
 
  /* Actual 0.3.59 USER PAUSE 937ms, live resume position +126ms:
-    retain the decoder and effect, but expose the re-seek and clock wait.
-    This is a characterization replay, not acceptance of audible latency. */
+    accepted behavior is to resume the retained decoder without a new seek.
+    The old characterization expected the regression and must never return. */
  static void pauseResume126ms()throws Exception{
   MediaPlayer p=exclusivelyAudibleReplacement();
   ReplacementEngine e=TestEngine.e;
@@ -46,20 +46,13 @@ public final class TestHonor059Journal {
     &&e.audioOwner.pauseMode()==AudioOwnership.PauseMode.USER,
     "real user pause must hold the same prepared decoder");
   SystemClock.now+=937;
-  p.asyncSeek=true;
   sample(1526,true);
   check(e.player==p&&e.effect==effect&&!effect.released
     &&TestEngine.api.downloads==downloads,
     "resume must not create a decoder, effect or download");
-  check(e.seeking&&p.seekCalls==before+1&&!p.playing
-    &&e.originalMix==1f&&effect.gain==0f,
-    "0.3.59 +126ms resume takes re-alignment with original restored");
-  SystemClock.now+=18;
-  sample(1544,true);
-  p.seek.onSeekComplete(p);
-  check(!e.seeking&&!e.fading&&p.playing&&p.volume>0.99f
-    &&effect.gain==-100f,
-    "after verified seek the existing decoder takes output in one owner turn");
+  check(!e.seeking&&p.seekCalls==before&&p.playing
+    &&e.originalMix==0f&&effect.gain==-100f&&p.volume>0.99f,
+    "0.3.59 +126ms retained resume must not seek or hand over twice");
   e.close();
  }
 

@@ -65,4 +65,10 @@ if fade.index('audioOwner.grantReplacement(fx);originalMix=0f;') > fade.index('a
     raise AssertionError('secondary positive gain before source exclusive mute')
 if 'audioOwner.handoverClockValidated();' not in fade:
     raise AssertionError('decoder must pass the sole clock gate before output grant')
+if engine.count('()->transportLeaseCurrent(key,g,account)')!=2:
+    raise AssertionError('stream and full-download leases must survive transient source disconnects without crossing track/account generations')
+if '&&Math.abs(residual)>HANDOVER_DRIFT_MS)' not in engine or 'seekCorrections==0?80' in engine:
+    raise AssertionError('streaming correction cannot apply a stricter 80ms threshold than the handover budget')
+if 'boolean retainedPauseResume=resumed&&resumePositionRetained' not in engine or 'boolean seamlessResume=retainedPauseResume' not in engine:
+    raise AssertionError('bounded, verified same-track pause resume must not re-seek')
 print('PASS: all audio and Media3 mutations use the single authorities')
