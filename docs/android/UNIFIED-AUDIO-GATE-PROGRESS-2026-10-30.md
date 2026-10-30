@@ -3,7 +3,7 @@
 > **UPDATE — Gate D seek single-flight / native source continuity (30.10.2026):** latest CI-green code `a560d0051586051979627fc16bc473c394b20501`; [full CI SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/41029927026). See new section at the bottom. Original signed 0.3.54 AUDIOFIX and all desktop code unchanged; **no new signed APK**.
 
 
-**Last fully CI-verified Android code:** `d1034816796d6fc1a421d559304f5c5218317c66` on `feature/android-unified-preparation-seek-gate`.
+**Previous Gate A/B CI-verified Android code:** `d1034816796d6fc1a421d559304f5c5218317c66` on `feature/android-unified-preparation-seek-gate`. **Latest Gate D green code is `a560d0051586051979627fc16bc473c394b20501`, as noted above.**
 
 **CI:** https://github.com/manufact-test/nomusic/actions/runs/41027989995 — SUCCESS: all host regressions, Android API 36 Java compile, D8, source/DEX provenance and unsigned packaging artifact checks. Separate earlier successful runs: [Gate A](https://github.com/manufact-test/nomusic/actions/runs/41027153541) and [read-only Gate B](https://github.com/manufact-test/nomusic/actions/runs/41027778183).
 
