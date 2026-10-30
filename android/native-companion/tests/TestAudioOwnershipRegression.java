@@ -91,10 +91,10 @@ public final class TestAudioOwnershipRegression {
   p.position=1160;int seeksBeforeStale=p.seekCalls;
   if(SourceTransitionGate.currentPositionSeek(101197,61334))e.sourceSeekRequested();
   sample(1160,false);SystemClock.now+=879;sample(1366,true);
-  check(p.seekCalls==seeksBeforeStale+1 && p.position==1366,
-      "stale Media3 callback does not trigger a seek; the real 206ms pause offset is corrected once before playback");
+  check(p.seekCalls==seeksBeforeStale && p.position==1160 && p.playing,
+      "stale Media3 callback and 206ms retained pause offset do not cause an unnecessary seek");
   check(e.player==p&&e.effect!=null,
-      "the aligned player and verified effect survive stale seek replay");
+      "the retained player and verified effect survive stale seek replay");
   e.close();
 
   // HONOR 0.3.48: a transient non-playing snapshot while seek is in flight
