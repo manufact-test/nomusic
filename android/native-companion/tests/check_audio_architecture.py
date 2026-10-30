@@ -47,19 +47,19 @@ if 'SourceTransitionGate.currentItemBoundary(' in service or 'SourceTransitionGa
     raise AssertionError('Media3 boundary bypasses SourceEventArbiter')
 if 'syncPolicy.correct(' in engine or 'driftGuard.confirmed(' in engine:
     raise AssertionError('parallel clock deciders remain active')
-# Regression: the HONOR 0.3.58 post-grant gain ramp was 180–200ms of
-# near-silence after full source mute. Keep exclusive break-before-make;
-# do not silently restore the long ramp or allow source/decoder crossfade.
 if 'if(seeking&&audioOwner.seekInFlight(player)){' not in engine:
     raise AssertionError('seek-time Media3 buffering must not revoke in-flight decoder seek')
 if 'if(s.buffering&&s.wantsToPlay)bufferSource(s,sourceJump);' not in engine:
     raise AssertionError('native source buffering classification was lost')
-if 'final long rampDuration=32;' not in engine:
-    raise AssertionError('exclusive replacement gain join regressed beyond 32ms')
-if 'audioOwner.grantReplacement(fx);originalMix=0f;' not in engine:
-    raise AssertionError('exclusive source mute must precede replacement gain')
-if engine.index('audioOwner.grantReplacement(fx);originalMix=0f;',engine.index('void fade(){')) > engine.index('applyVolume(mix);',engine.index('void fade(){')):
-    raise AssertionError('positive replacement gain before exclusive source grant')
-if 'audioOwner.fadeSourceBeforeGrant(fx,sourceProgress);' not in engine:
-    raise AssertionError('source fade before exclusive grant removed')
+if 'sourceGainDuringAlignment(effect);originalMix=1f;traceAudioCommands();' not in engine:
+    raise AssertionError('native source gain restoration must close command-gap telemetry immediately')
+fade=engine[engine.index('void fade(){'):engine.index('void setAuditedVolume(',engine.index('void fade(){'))]
+if 'audioOwner.fadeSourceBeforeGrant(fx' in fade or 'final long rampDuration=32;' in fade:
+    raise AssertionError('multi-tick near-silent pre-handover fade reintroduced')
+if 'audioOwner.grantReplacement(fx);originalMix=0f;' not in fade or 'applyVolume(1f);' not in fade:
+    raise AssertionError('exclusive same-turn secondary gain must be committed by AudioOwnership')
+if fade.index('audioOwner.grantReplacement(fx);originalMix=0f;') > fade.index('applyVolume(1f);'):
+    raise AssertionError('secondary positive gain before source exclusive mute')
+if 'audioOwner.handoverClockValidated();' not in fade:
+    raise AssertionError('decoder must pass the sole clock gate before output grant')
 print('PASS: all audio and Media3 mutations use the single authorities')
