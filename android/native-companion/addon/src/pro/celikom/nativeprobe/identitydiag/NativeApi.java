@@ -10,7 +10,7 @@ import java.util.concurrent.*;
 /** One serialized transport for refresh rotation; no embedded user/API credentials. */
 final class NativeApi {
  interface Result {void done(JSONObject result,String error);}
- volatile boolean revoking;volatile long accountGeneration;static NativeApi singleton;final SecureSession session;final Context context;final ExecutorService work=Executors.newSingleThreadExecutor();final ExecutorService audioWork=Executors.newSingleThreadExecutor();final ExecutorService contributions=Executors.newSingleThreadExecutor();final Handler main=new Handler(Looper.getMainLooper());
+ volatile boolean revoking;volatile long accountGeneration;volatile long configValidatedAt=-1;static NativeApi singleton;final SecureSession session;final Context context;final ExecutorService work=Executors.newSingleThreadExecutor();final ExecutorService audioWork=Executors.newSingleThreadExecutor();final ExecutorService contributions=Executors.newSingleThreadExecutor();final Handler main=new Handler(Looper.getMainLooper());
  static synchronized NativeApi get(Context c){if(singleton==null)singleton=new NativeApi(c);return singleton;}
  NativeApi(Context c){context=c.getApplicationContext();session=new SecureSession(c);}
  volatile long diagnosticUntil,diagnosticGeneration=-1,nextDiagnosticCheck;volatile boolean diagnosticBusy;
@@ -52,9 +52,9 @@ final class NativeApi {
  JSONObject authenticated(String path,JSONObject body)throws Exception{return request(path,body,access());}
  void login(String email,String password,Result r){submit("login",()->{JSONObject j=request("auth/login",new JSONObject().put("email",email.trim()).put("password",password).put("installation_id",session.installation()),null);if(j.has("access_token")){session.save(j);accountGeneration++;revoking=false;resetDiagnostics();}return new JSONObject().put("verification_required",j.optBoolean("verification_required",false)).put("signedIn",j.has("access_token"));},r);}
  void verify(String email,String code,Result r){submit("verify_email",()->{JSONObject j=request("auth/verify-email",new JSONObject().put("email",email.trim()).put("code",code.trim()).put("installation_id",session.installation()),null);session.save(j);accountGeneration++;revoking=false;resetDiagnostics();return new JSONObject().put("signedIn",true);},r);}
- void check(Result r){refreshDiagnostics();submit("server_check",()->{JSONObject c=request("config",null,null);ApiContract.config(c);JSONObject out=new JSONObject().put("server",true).put("signedIn",signedIn());if(signedIn())out.put("entitlement",authenticated("entitlement",null));return out;},r);}
- void startAccess(Result r){final long generation=accountGeneration;submit("start_access",()->{if(generation!=accountGeneration)throw new Exception("login_required");ApiContract.config(request("config",null,null));JSONObject j=authenticated("auth/activate",new JSONObject());JSONObject entitlement=j.optJSONObject("entitlement");if(entitlement==null||!(entitlement.opt("allowed") instanceof Boolean))throw new Exception("invalid_api_response");return entitlement;},r);}
- void logout(Result r){revoking=true;accountGeneration++;resetDiagnostics();submit("logout",()->{try{JSONObject s=session.read();if(s.has("refresh_token"))request("auth/logout",new JSONObject().put("refresh_token",s.getString("refresh_token")).put("installation_id",session.installation()),null);}finally{session.clear();}return new JSONObject().put("ok",true);},r);}
+ void check(Result r){refreshDiagnostics();submit("server_check",()->{JSONObject c=request("config",null,null);ApiContract.config(c);configValidatedAt=SystemClock.elapsedRealtime();JSONObject out=new JSONObject().put("server",true).put("signedIn",signedIn());if(signedIn())out.put("entitlement",authenticated("entitlement",null));return out;},r);}
+ void startAccess(Result r){final long generation=accountGeneration;submit("start_access",()->{if(generation!=accountGeneration)throw new Exception("login_required");ApiContract.config(request("config",null,null));configValidatedAt=SystemClock.elapsedRealtime();JSONObject j=authenticated("auth/activate",new JSONObject());JSONObject entitlement=j.optJSONObject("entitlement");if(entitlement==null||!(entitlement.opt("allowed") instanceof Boolean))throw new Exception("invalid_api_response");return entitlement;},r);}
+ void logout(Result r){revoking=true;accountGeneration++;configValidatedAt=-1;resetDiagnostics();submit("logout",()->{try{JSONObject s=session.read();if(s.has("refresh_token"))request("auth/logout",new JSONObject().put("refresh_token",s.getString("refresh_token")).put("installation_id",session.installation()),null);}finally{session.clear();}return new JSONObject().put("ok",true);},r);}
  void support(JSONObject body,Result r){final long generation=accountGeneration;submit("support",()->{if(generation!=accountGeneration)throw new Exception("login_required");return authenticated("support",body);},r);}
  void presence(String id,Result r){final long generation=accountGeneration;submit("track_status",()->{JSONObject j=authenticated("tracks/upload-status?service=yandex&track_id="+id,null);if(generation==accountGeneration)presencePreview.put(id,j.optString("status"),generation,SystemClock.elapsedRealtime());return j;},r);}
  interface Progress {void update(int percent);}
@@ -84,9 +84,17 @@ final class NativeApi {
    final JSONObject out=response;final String fail=error;LogStore.log("backend_result",LogStore.map("operation",file==null?"track_request":"upload","ok",fail==null,"errorCode",fail));main.post(()->result.done(out,fail));
   });}catch(Exception e){main.post(()->result.done(null,"login_required"));}});
  }
+ /** Validated, short-lived public config lease. Every track still requires a fresh
+  * authenticated resolve and signed audio URL; never cache entitlement or media grants. */
+ void checkedConfig(java.util.function.BooleanSupplier valid)throws Exception {
+  long now=SystemClock.elapsedRealtime(),checked=configValidatedAt;
+  if(checked>=0&&now>=checked&&now-checked<15000)return;
+  ApiContract.config(request("config",null,null,valid));
+  configValidatedAt=SystemClock.elapsedRealtime();
+ }
  void resolve(String id,Result r){resolve(id,()->true,r);}
  void resolve(String id,java.util.function.BooleanSupplier current,Result result){final long account=accountGeneration;java.util.function.BooleanSupplier valid=()->!revoking&&account==accountGeneration&&current.getAsBoolean();
-  submit("resolve",()->{if(!valid.getAsBoolean())throw new Exception("lookup_cancelled");if(id==null||!id.matches("[1-9][0-9]{0,23}"))throw new Exception("invalid_track");ApiContract.config(request("config",null,null,valid));if(!valid.getAsBoolean())throw new Exception("lookup_cancelled");
+  submit("resolve",()->{if(!valid.getAsBoolean())throw new Exception("lookup_cancelled");if(id==null||!id.matches("[1-9][0-9]{0,23}"))throw new Exception("invalid_track");checkedConfig(valid);if(!valid.getAsBoolean())throw new Exception("lookup_cancelled");
    // Refresh token rotation remains serialized and must finish even if the song changes.
    String token=access();if(!valid.getAsBoolean())throw new Exception("lookup_cancelled");JSONObject j=request("resolve?audio_formats=mp3,m4a&service=yandex&track_id="+id,null,token,valid);if(j.optBoolean("found"))ApiContract.audio(j,System.currentTimeMillis());return j;},result);
  }
