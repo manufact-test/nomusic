@@ -8,7 +8,7 @@ builder = ROOT / "build_release.py"
 common = [
     sys.executable, str(builder), "--sdk", "/nonexistent/sdk",
     "--build-tools", "/nonexistent/tools", "--apktool", "/nonexistent/apktool.jar",
-    "--base-apk", "/nonexistent/base.apk", "--output", "/tmp/CELIKOM-0.3.56-INSPECTION-UNSIGNED.apk",
+    "--base-apk", "/nonexistent/base.apk", "--output", "/tmp/CELIKOM-0.3.57-INSPECTION-UNSIGNED.apk",
 ]
 
 
