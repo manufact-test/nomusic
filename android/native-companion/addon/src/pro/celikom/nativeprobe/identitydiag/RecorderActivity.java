@@ -48,7 +48,8 @@ public class RecorderActivity extends Activity {
   support(section(box,"Связь с поддержкой"));
   save=button(box,"Сохранить диагностику",this::requestExport,false);save.setBackground(background(SURFACE));save.setTextColor(0xff8fa0a8);save.setTextSize(12);save.setMinHeight(dp(28));save.setMinimumHeight(dp(28));save.getLayoutParams().height=dp(28);save.setGravity(Gravity.START|Gravity.CENTER_VERTICAL);save.setPadding(dp(12),0,dp(12),0);
   notificationPermission=button(box,"Включить уведомления CELIKOM",this::enableNotifications,false);notificationPermission.setTextSize(12);
-  updateCenter=new UpdateCenter(this,section(box,"Обновления CELIKOM"));
+  LinearLayout updatesPanel=column();updatesPanel.setPadding(dp(12),dp(12),dp(12),dp(12));updatesPanel.setBackground(background(SURFACE));box.addView(updatesPanel);space(box,10);
+  label(updatesPanel,"Обновления CELIKOM",15,FG);updateCenter=new UpdateCenter(this,updatesPanel);
   reportNote=label(box,"",12,MUTED);label(box,"CELIKOM · "+AppVersion.NAME,11,0xff788991);
   if(saved!=null){try{if(saved.containsKey("pickerId"))pickerTarget=new MobileActions.Target(saved.getString("pickerId"),saved.getString("pickerKey"),saved.getString("pickerTitle"),saved.getString("pickerArtist"),saved.getLong("pickerDuration"));String report=saved.getString("reportSnapshot");if(report!=null){File candidate=new File(report);if(candidate.getCanonicalFile().getParentFile().equals(getCacheDir().getCanonicalFile())&&candidate.getName().startsWith("diagnostics-"))exportSnapshot=candidate;}}catch(Exception ignored){}}
   receive(getIntent());render();if(api().signedIn())checkServer();
