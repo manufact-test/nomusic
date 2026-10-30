@@ -53,6 +53,9 @@
 
 ### ПОДПИСЬ, APK И БЭКАПЫ
 
+**Приватные файлы уже сохранены в ChatGPT Library**, чтобы не потерять их при смене чата: диагностика `/CELIKOM/Android/Diagnostics/CELIKOM-combined-20261030-105118.txt` и исходный keystore backup `/CELIKOM/Android/Private/CELIKOM-Original-Android-Signing-RECOVERED-20261029.zip`. Доступ к ключу только через приватные файлы; ни один секрет не публиковать и не копировать в репозиторий.
+
+
 Последний установленный пользователем подписанный APK **0.3.54 AUDIOFIX**: package `pro.celikom.nativeprobe`, versionCode 55. SHA256 APK `b29af425b630816b6b7161700c130b9a3824a4a82f229d206939bfcb00a153b7`; приватная ChatGPT Library `/CELIKOM/Android/Backups/CELIKOM-Android-0354-AUDIOFIX-DIRECT-20261030-B29AF425.apk`. Там же бэкапы предыдущих подписанных 0.3.51–0.3.54. Оригинальный сертификат SHA256 `67fe81c56fac1c1d145344b69a0e3faf9005cf6607f4e26ca27d5926c3eefc4f`. В предыдущем приватном окружении есть recovery ZIP `/mnt/data/CELIKOM-Original-Android-Signing-RECOVERED-20261029(1).zip` с keystore и `signing.json`; новый чат может не увидеть этот путь — искать приватные файлы, НЕ придумывать и НЕ загружать ключи в GitHub. Никогда не публиковать пароли/keystore.
 
 Для сборки нужны JDK17, SDK API36/build-tools36, Apktool 2.11.1, точный base 0.3.22 APK и зависимости из `build-inputs.json`. APK должен совпадать с CI по DEX, пройти `verify_release.py` и иметь оригинальную подпись. Новый candidate увеличивает versionCode выше 55. Не выпускать новый APK после мелких косметических изменений.

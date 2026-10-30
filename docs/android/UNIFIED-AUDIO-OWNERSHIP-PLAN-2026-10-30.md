@@ -52,6 +52,9 @@ Diagnostic: `CELIKOM-combined-20261030-105118.txt` (private upload; user report 
 
 ## Release and rollback
 
+Private Library continuity verified 30.10.2026: `/CELIKOM/Android/Diagnostics/CELIKOM-combined-20261030-105118.txt` and sensitive original signing archive at `/CELIKOM/Android/Private/CELIKOM-Original-Android-Signing-RECOVERED-20261029.zip`. The latter must never be printed, linked publicly or committed. Access privately only for final APK signing.
+
+
 Existing **SIGNED 0.3.54 AUDIOFIX** is an ON-DEVICE TEST CANDIDATE and uses versionCode 55 (same nominal version as previous 0.3.54, but updated bytecode). User's installation confirmed by 10:49 log. Its APK SHA256 from release evidence: `b29af425b630816b6b7161700c130b9a3824a4a82f229d206939bfcb00a153b7`. Library private file: `/CELIKOM/Android/Backups/CELIKOM-Android-0354-AUDIOFIX-DIRECT-20261030-B29AF425.apk`; previous 0.3.54/0.3.53/0.3.52/0.3.51 also under `/CELIKOM/Android/Backups/`. Do not overwrite backups or uninstall user's app.
 
 Private signing environment, provided earlier by owner: `/mnt/data/CELIKOM-Original-Android-Signing-RECOVERED-20261029(1).zip` (keystore + signing.json) — may NOT exist in a new runtime; retrieve from authorized private files only, do NOT invent paths or expose contents. CI never receives key.

@@ -29,6 +29,11 @@
 
 ## Evidence — последнее диагностика
 
+Приватные, доступные новому чату резервные материалы в ChatGPT Library:
+- журнал: `/CELIKOM/Android/Diagnostics/CELIKOM-combined-20261030-105118.txt` (verified private upload 30.10.2026);
+- **восстановленный оригинальный signing backup**: `/CELIKOM/Android/Private/CELIKOM-Original-Android-Signing-RECOVERED-20261029.zip` (verified private upload 30.10.2026; contains sensitive private keystore and config, NEVER include in repo/CI/output; access only as needed to sign).
+
+
 Uploaded private file in previous conversation: `/mnt/data/CELIKOM-combined-20261030-105118.txt` (new chat runtime may not preserve exact path; search conversation / Library using Files). Contains **3 RUNS**:
 - 0.3.53 @ 2026-10-30T00:28:35+03
 - 0.3.54 pre-AUDIOFIX @ 2026-10-30T01:14:46+03
