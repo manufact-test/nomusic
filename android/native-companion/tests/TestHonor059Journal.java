@@ -57,24 +57,45 @@ public final class TestHonor059Journal {
   SystemClock.now+=18;
   sample(1544,true);
   p.seek.onSeekComplete(p);
-  check(!e.seeking&&e.fading&&p.playing&&p.volume==0f,
-    "after seek completion the decoder still waits for clock and handover");
+  check(!e.seeking&&!e.fading&&p.playing&&p.volume>0.99f
+    &&effect.gain==-100f,
+    "after verified seek the existing decoder takes output in one owner turn");
   e.close();
  }
 
- /* At 50ms of the 100ms original fade, -50dB is practically silent,
-    while the replacement is still commanded to zero. This is a direct
-    command-envelope reproduction, not a device waveform claim. */
+ /* The old 100ms fade to -100dB left both outputs inaudible.
+    After repair a source is audible at every command checkpoint, and a
+    prepared streaming decoder acquires output only after its clock advances. */
  static void fadeEnergyFloor()throws Exception{
-  TestEngine.playing();
+  TestStreamingEngine.Buffer audio=TestStreamingEngine.start();
   ReplacementEngine e=TestEngine.e;
-  SystemClock.now+=50;
+  MediaPlayer p=e.player;
+  DynamicsProcessing effect=e.effect;
+  check(audio!=null&&effect!=null&&p.volume==0f&&effect.gain==0f,
+    "original must stay at full gain during streaming clock validation");
+  for(int i=1;i<=3;i++){
+   SystemClock.now+=25;
+   TestEngine.p.current=TestEngine.source("1",1000+i*25,true);
+   e.update(TestEngine.p.current);
+   TestEngine.p.handler.drain();
+   double originalLinear=Math.pow(10.0,effect.gain/20.0);
+   quality(Math.max(originalLinear,p.volume)>=0.1,
+     "RED 0.3.59: handover must not drive both command outputs below -20dB");
+   check(p.volume==0f&&effect.gain==0f,
+     "unverified streaming decoder cannot attenuate the live original");
+  }
+  p.position=1100;
+  SystemClock.now+=25;
+  TestEngine.p.current=TestEngine.source("1",1100,true);
+  e.update(TestEngine.p.current);
   TestEngine.p.handler.drain();
-  check(e.effect!=null&&e.player!=null&&e.player.volume==0f,
-    "mid-source-fade reproduction requires zero secondary output");
-  double originalLinear=Math.pow(10.0,e.effect.gain/20.0);
-  quality(originalLinear+e.player.volume>=0.1,
-    "RED 0.3.59: halfway through 100ms source fade the original is below -20dB while replacement remains silent");
+  double originalLinear=Math.pow(10.0,effect.gain/20.0);
+  quality(Math.max(originalLinear,p.volume)>=0.1,
+    "RED 0.3.59: output must be granted without a scheduled near-silent phase");
+  check(effect.gain==-100f&&p.volume>0.99f&&!e.fading,
+    "validated streaming decoder receives full exclusive output in same owner turn");
+  check(AudioOwnership.exclusive((float)originalLinear,p.volume),
+    "neither pre-commit nor post-commit commands permit dual audible sessions");
   e.close();
  }
 
