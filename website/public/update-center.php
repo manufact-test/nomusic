@@ -12,7 +12,7 @@ header('X-Content-Type-Options: nosniff');
 header('Cache-Control: no-store, max-age=0');
 header('X-Frame-Options: DENY');
 $path = parse_url($_SERVER['REQUEST_URI'] ?? '', PHP_URL_PATH);
-$root = dirname(__DIR__, 2) . '/celikom-private/android-updates';
+$root = dirname(__DIR__) . '/celikom-private/android-updates';
 $pointer = $root . '/stable.json';
 $fail = static function (int $code): never {
     http_response_code($code);
