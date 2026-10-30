@@ -75,10 +75,13 @@ public final class TestAudioOwnershipRegression {
       "early song reset is not a terminal transition");
   TestEngine.playing();ReplacementEngine outgoing=TestEngine.e;MediaPlayer outgoingPlayer=outgoing.player;
   outgoing.outgoingTrackReset(TestEngine.source("1",116000,true));
+  check(!outgoingPlayer.released&&outgoing.player==outgoingPlayer&&outgoing.effect!=null,
+      "unconfirmed near-tail old-alias reset cannot tear down the audible song");
+  check(outgoing.completedKey==null,
+      "speculative reset must not mark the current song completed");
+  outgoing.sourceBoundary("confirmed_next_alias");
   check(outgoingPlayer.released&&outgoingPlayer.volume==0f&&!outgoingPlayer.playing&&outgoing.effect==null,
-      "near-tail reset silences and releases outgoing source before next starts");
-  check(outgoing.completedKey!=null&&outgoing.player==null,
-      "old alias cannot reprepare a decoder while waiting for next item");
+      "confirmed next alias silences and releases the outgoing decoder");
   outgoing.close();
   // Exercise actual ReplacementEngine, not just the pure seek-position gate.
   // Stale callback must not force a second decoder seek on a short pause/resume
