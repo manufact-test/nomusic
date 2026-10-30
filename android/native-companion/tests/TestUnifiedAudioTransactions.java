@@ -149,6 +149,54 @@ public final class TestUnifiedAudioTransactions {
   check(engine.player==nativePlayer&&nativePlayer.playing,
       "post-pause alignment returns to the live song without new decoder");
   engine.close();
+
+  /* Explicit owner pause cause replaces older delayed restores. */
+  AudioOwnership modes=new AudioOwnership();modes.track("m");
+  modes.hold(false);long userLease=modes.pauseLease();
+  check(modes.pauseMode()==AudioOwnership.PauseMode.USER,"user pause is classified by owner");
+  modes.hold(true);
+  check(modes.pauseMode()==AudioOwnership.PauseMode.BUFFERING&&!modes.validPause(userLease),
+    "buffering invalidates user-pause timer lease");
+  modes.cancelPause();
+  check(modes.pauseMode()==AudioOwnership.PauseMode.NONE,"resume clears cause");
+  modes.hold(true);modes.source();
+  check(modes.pauseMode()==AudioOwnership.PauseMode.NONE,"restoring source clears cause");
+
+  /* Real buffering -> pause: the short timer must not cut a new manual pause. */
+  TestEngine.playing();ReplacementEngine switcher=TestEngine.e;
+  MediaPlayer retained=switcher.player;
+  TestEngine.p.current=TestEngine.buffering(2000);switcher.update(TestEngine.p.current);
+  android.os.SystemClock.now+=350;switcher.update(TestEngine.p.current);
+  check(switcher.pausedAt>=0&&switcher.audioOwner.pauseMode()==AudioOwnership.PauseMode.BUFFERING,
+    "buffering holds existing decoder");
+  android.os.SystemClock.now+=100;TestEngine.p.current=TestEngine.source("1",2000,false);
+  switcher.update(TestEngine.p.current);
+  check(switcher.pauseRestoreDelayMs==ReplacementEngine.PAUSE_GRACE_MS
+    &&switcher.audioOwner.pauseMode()==AudioOwnership.PauseMode.USER
+    &&switcher.player==retained,"new manual pause supersedes buffering timer");
+  android.os.SystemClock.now+=1200;TestEngine.p.handler.drain();
+  check(switcher.effect!=null&&!retained.playing,
+    "expired old buffering timer cannot restore original during a new user pause");
+  switcher.close();
+
+  /* Real pause -> buffering: stale 30s timer must not delay native recovery. */
+  TestEngine.playing();switcher=TestEngine.e;retained=switcher.player;
+  TestEngine.p.current=TestEngine.source("1",2100,false);
+  switcher.update(TestEngine.p.current);
+  check(switcher.audioOwner.pauseMode()==AudioOwnership.PauseMode.USER,"native pause observed");
+  android.os.SystemClock.now+=100;TestEngine.p.current=TestEngine.buffering(2100);
+  switcher.update(TestEngine.p.current);
+  check(switcher.pauseRestoreDelayMs==900
+    &&switcher.audioOwner.pauseMode()==AudioOwnership.PauseMode.BUFFERING
+    &&switcher.player==retained,"buffering gains its own short lease and grace");
+  android.os.SystemClock.now+=1000;TestEngine.p.handler.drain();
+  check(switcher.effect==null&&!retained.released&&!retained.playing,
+    "short buffering grace restores native gain and retains current decoder");
+  TestEngine.p.current=TestEngine.source("1",2100,true);switcher.update(TestEngine.p.current);
+  check(switcher.player==retained&&switcher.armed(),
+    "buffer recovery reuses authorized decoder without another download");
+  switcher.close();
+
   System.out.println("PASS unified Android audio transactions: "+checks+" checks");
  }
 }
