@@ -359,19 +359,21 @@ final class ReplacementEngine {
  }
  boolean mute(){try{if(trustedSession<=0||player==null||player.getAudioSessionId()==trustedSession)throw new IllegalStateException();DynamicsProcessing candidate=new DynamicsProcessing(0,trustedSession,null);effect=candidate;candidate.setControlStatusListener((e,control)->{if(!control)owner.handler.post(()->{if(effect==candidate)stop("effect_control_lost");});});if(!candidate.hasControl())throw new IllegalStateException();originalMix=1f;audioOwner.prepareSourceEffect(candidate);LogStore.log("replacement_original_muted",LogStore.map("sessionId",trustedSession,"globalVolumeChanged",false,"rampMs",resumeFadePending?PAUSE_RESUME_FADE_MS:FADE_MS));return true;}catch(RuntimeException e){stop("cannot_mute_original");status="Телефон не разрешил приглушить Яндекс; замена остановлена";return false;}}
  void fade(){
-  final long token=++transition;final MediaPlayer p=player;final DynamicsProcessing fx=effect;final float initialOriginal=originalMix;
-  final boolean shortResume=resumeFadePending;
+  final long token=++transition;final MediaPlayer p=player;final DynamicsProcessing fx=effect;
   final long ownerEpoch=audioOwner.epoch();final String ownerKey=identityKey;
   audioOwner.aligning();
   audioOwner.event(AudioOwnership.Event.HANDOVER);
   final AudioOwnership.Ticket handoverTicket=audioOwner.ticket(ownerKey,api.accountGeneration,descriptor==null?0:descriptor.optLong("replacement_id"),descriptor==null?0:descriptor.optLong("version"),descriptor==null?0:descriptor.optLong("duration_ms"));
-  /* The old 180–200ms ramp left the replacement nearly silent after the
-     original was fully muted. Keep source fade and exclusive ownership, but
-     complete the post-grant gain join in at most two scheduler ticks. */
-  final long rampDuration=32;resumeFadePending=false;
-  // When attenuation stays attached through a short pause, validate decoder's advancing clock before raising replacement volume.
-  final boolean alignLive=streaming!=null&&(initialOriginal>0.001f||shortResume);
-  final long[] baseline={p.getCurrentPosition()},phaseStarted={SystemClock.elapsedRealtime()};final int[] corrections={0};final boolean[] sourceFadeDone={initialOriginal<=0.001f};
+  /* The original is the audible owner throughout decoder startup and
+     alignment; only AudioOwnership can commit the exclusive switch. */
+  resumeFadePending=false;
+  final boolean alignLive=streaming!=null;
+  final long[] baseline={p.getCurrentPosition()},phaseStarted={SystemClock.elapsedRealtime()};
+  final int[] corrections={0};
+  if(originalMix<=0.001f){
+   setAuditedVolume(p,0f);
+   audioOwner.sourceGainDuringAlignment(fx);originalMix=1f;traceAudioCommands();
+  }
   fadeStarted=SystemClock.elapsedRealtime();fading=true;audioOwner.handoverWaitForClock(alignLive);
   Runnable ramp=new Runnable(){public void run(){
    if(closed||token!=transition||p!=player||fx!=effect||!armed()||!accountLeaseCurrent()
@@ -396,23 +398,14 @@ final class ReplacementEngine {
      audioOwner.handoverClockValidated();fadeStarted=now;
      LogStore.log("replacement_decoder_advancing",LogStore.map("trackId",trackId,"driftMs",drift,"corrections",corrections[0],"waitMs",now-phaseStarted[0]));
     }
-    /* Fade the original alone. The verified, inaudible decoder must not
-       receive positive gain before exclusive source silence is granted. */
-    long fadeElapsed=SystemClock.elapsedRealtime()-fadeStarted;
-    if(!sourceFadeDone[0]){
-     float sourceProgress=TransitionMix.progress(fadeElapsed,SOURCE_FADE_OUT_MS);
-     audioOwner.fadeSourceBeforeGrant(fx,sourceProgress);
-     if(sourceProgress<1f){owner.handler.postDelayed(this,20);return;}
-     sourceFadeDone[0]=true;audioOwner.grantReplacement(fx);originalMix=0f;
-     LogStore.log("replacement_source_fade_complete",LogStore.map("trackId",trackId,"durationMs",SOURCE_FADE_OUT_MS,"replacementStillSilent",commandedReplacementVolume<=0.001f));
-    }
-    float mix=TransitionMix.progress(fadeElapsed-(initialOriginal>0.001f?SOURCE_FADE_OUT_MS:0),rampDuration);
-    // Break-before-make: an original and its replacement must NEVER be audible together.
-    // Wait for decoder progress/alignment first; then mute native source completely,
-    // and only afterwards raise replacement. Do not reintroduce a crossfade here.
-    if(mix>0){audioOwner.grantReplacement(fx);originalMix=0f;}
-    applyVolume(mix);
-    if(mix<1f)owner.handler.postDelayed(this,20);else{fading=false;audioOwner.replacement();ownerEvent("exclusive_handover");LogStore.log("replacement_transition_complete",LogStore.map("trackId",trackId,"rampMs",SystemClock.elapsedRealtime()-fadeStarted));}
+    /* The original remains fully audible until the clock is proven current.
+       Commit mute-before-positive-gain in one serialized handler turn. */
+    audioOwner.grantReplacement(fx);originalMix=0f;
+    applyVolume(1f);
+    fading=false;audioOwner.replacement();ownerEvent("exclusive_handover");
+    LogStore.log("replacement_transition_complete",LogStore.map(
+      "trackId",trackId,"rampMs",0,"joinMode","exclusive_single_turn",
+      "commandDelayMs",SystemClock.elapsedRealtime()-fadeStarted));
    }catch(RuntimeException e){suspend("fade_failed",retryDelay());}
   }};ramp.run();
  }
