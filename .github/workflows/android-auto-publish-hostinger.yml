@@ -30,7 +30,29 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
+      - name: Skip release already published at equal or higher versionCode
+        id: gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --retry 3 -H 'Cache-Control: no-cache' \
+            'https://lemonchiffon-narwhal-791953.hostingersite.com/updates/android/stable.json' -o "$RUNNER_TEMP/current-stable.json"
+          python3 - <<'PY'
+          import json,os,pathlib
+          wanted=json.loads(pathlib.Path('android/native-companion/release-spec.json').read_text())
+          live=json.loads(pathlib.Path(os.environ['RUNNER_TEMP'],'current-stable.json').read_text())
+          proposed=int(wanted['version_code']); current=int(live['versionCode'])
+          if proposed < current: raise SystemExit('Refusing outdated Android release specification')
+          if proposed == current:
+              print('Already stable:',wanted['version'],'code',proposed,'— no deployment')
+              publish='false'
+          else:
+              print('New Android code',proposed,'>',current,'— full signed pipeline')
+              publish='true'
+          with open(os.environ['GITHUB_OUTPUT'],'a') as out: out.write('publish='+publish+'\n')
+          PY
       - name: Download previously verified Android build kit
+        if: steps.gate.outputs.publish == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
           SOURCE_RUN: ${{ github.event.workflow_run.id || github.run_id }}
@@ -45,6 +67,7 @@ jobs:
           gh run download "$SOURCE_RUN" -n celikom-android-offline-kit -D "$RUNNER_TEMP/kit"
           test -f "$RUNNER_TEMP/kit/native-companion/build_release.py"
       - name: Fetch pinned baseline from private Hostinger build inputs
+        if: steps.gate.outputs.publish == 'true'
         env:
           HOST_KEY: ${{ secrets.CELIKOM_HOSTINGER_SSH_KEY }}
           KNOWN_HOSTS: ${{ secrets.CELIKOM_HOSTINGER_KNOWN_HOSTS }}
@@ -69,6 +92,7 @@ jobs:
           print('Pinned Android baseline verified')
           PY
       - name: Reconstruct private original signing inputs (never log or upload)
+        if: steps.gate.outputs.publish == 'true'
         env:
           P12_B64: ${{ secrets.CELIKOM_ANDROID_SIGNING_P12_B64 }}
           SIGN_JSON_B64: ${{ secrets.CELIKOM_ANDROID_SIGNING_JSON_B64 }}
@@ -90,6 +114,7 @@ jobs:
               raise SystemExit('Signing metadata incomplete')
           PY
       - name: Rebuild and verify signed Android package
+        if: steps.gate.outputs.publish == 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -106,6 +131,7 @@ jobs:
           python3 "$ROOT/build_release.py" --sdk "$SDK" --build-tools "$SDK/build-tools/36.0.0" --apktool "$RUNNER_TEMP/kit/apktool_2.11.1.jar" --base-apk "$RUNNER_TEMP/private/base.apk" --signing-dir "$RUNNER_TEMP/private/signing" --output "$OUT"
           echo "RELEASE_APK=$OUT" >> "$GITHUB_ENV"
       - name: Publish immutable APK before atomic stable manifest
+        if: steps.gate.outputs.publish == 'true'
         env:
           HOST_KEY: ${{ secrets.CELIKOM_HOSTINGER_SSH_KEY }}
           KNOWN_HOSTS: ${{ secrets.CELIKOM_HOSTINGER_KNOWN_HOSTS }}
@@ -180,6 +206,7 @@ jobs:
           mv ".stable.json.upload" stable.json
           REMOTE
       - name: Verify live stable endpoint matches release
+        if: steps.gate.outputs.publish == 'true'
         shell: bash
         run: |
           set -euo pipefail
