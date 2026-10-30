@@ -26,6 +26,7 @@ foreach (array_slice($paths, 0, 12) as $path) {
         foreach (['missing_required_file'=>'/Failed opening required|Failed to open stream/i',
             'php_parse'=>'/Parse error|syntax error/i', 'php_memory'=>'/Allowed memory size/i',
             'database_connections'=>'/Too many connections|max_user_connections/i',
+            'database_resource_limit'=>'/max_questions|max_updates|max_connections|exceeded.*resource/i',
             'database_unavailable'=>'/SQLSTATE\[08|Connection refused|server has gone away/i',
             'database_error'=>'/PDOException|SQLSTATE/i', 'php_timeout'=>'/Maximum execution time/i',
             'disk_full'=>'/No space left on device/i', 'php_fatal'=>'/Fatal error|Uncaught /i',
@@ -35,7 +36,13 @@ foreach (array_slice($paths, 0, 12) as $path) {
         if ($category===null) continue;
         $time=null;
         if (preg_match('/^\[([0-9]{2}-[A-Za-z]{3}-[0-9]{4} [0-9:]{8}(?: [A-Za-z_\/+-]+)?)\]/', $line, $m)) $time=$m[1];
-        $key=($time ?? 'unknown_time').' '.$category;
+        $sql='';
+        if (preg_match('/SQLSTATE\[([A-Z0-9]{5})\](?:\s*\[([0-9]{3,5})\])?/', $line, $m)) {
+            $sql=' SQLSTATE='.$m[1];
+            if (isset($m[2])) $sql.=' driver_code='.$m[2];
+        }
+        if (preg_match('/(?:General error|Syntax error or access violation): ([0-9]{3,5})/', $line, $m)) $sql.=' driver_code='.$m[1];
+        $key=($time ?? 'unknown_time').' '.$category.$sql;
         $groups[$key]=($groups[$key] ?? 0)+1;
     }
     $report['logs'][]=['path'=>str_starts_with($path,$site.'/')?substr($path,strlen($site)+1):'account-logs/'.basename($path),'modified_utc'=>gmdate('c',filemtime($path)),
