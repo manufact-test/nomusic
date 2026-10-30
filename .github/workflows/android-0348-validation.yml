@@ -148,3 +148,9 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+
+  publish-stable:
+    needs: native-android
+    if: vars.CELIKOM_ANDROID_AUTO_PUBLISH == 'true' && github.ref == 'refs/heads/feature/android-unified-preparation-seek-gate'
+    uses: ./.github/workflows/android-auto-publish-hostinger.yml
+    secrets: inherit
