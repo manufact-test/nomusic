@@ -1,0 +1,19 @@
+{
+  "_example_only": "NOT A PUBLISHED MANIFEST. Replace example.invalid values after verified deployment.",
+  "schemaVersion": 1,
+  "channel": "stable",
+  "packageName": "pro.celikom.nativeprobe",
+  "versionName": "0.3.56",
+  "versionCode": 57,
+  "minSdk": 28,
+  "apkUrl": "https://example.invalid/releases/android/57-REPLACE_WITH_ACTUAL_SHA256.apk",
+  "apkSha256": "REPLACE_WITH_ACTUAL_64_HEX_SHA256",
+  "signerSha256": "67fe81c56fac1c1d145344b69a0e3faf9005cf6607f4e26ca27d5926c3eefc4f",
+  "sizeBytes": 0,
+  "publishedAt": "REPLACE_WITH_ACTUAL_UTC_TIMESTAMP",
+  "enabled": false,
+  "notesRu": [
+    "Первое обновление CELIKOM с собственной системой установки новых версий."
+  ],
+  "mandatory": false
+}
