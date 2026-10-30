@@ -1,0 +1,4 @@
+# Android public download only; does not affect website/CMS.
+AuthType None
+Require all granted
+DirectoryIndex index.php
