@@ -133,10 +133,11 @@ final class ReplacementEngine {
       LogStore.log("replacement_expected_tail",LogStore.map("trackId",trackId,"sourceDurationMs",s.duration,"measuredDurationMs",player.getDuration(),"action","handoff_to_original_before_next_track"));
      suspend("replacement_end",30000);return;}
    long drift=target-player.getCurrentPosition();
-   boolean retainedPauseResume=resumed&&resumePositionRetained&&!sourceJump&&!waitingForRouteResume&&effect!=null;
+   boolean retainedPosition=resumePositionRetained&&!sourceJump&&!waitingForRouteResume;
+   boolean retainedPauseResume=resumed&&retainedPosition&&effect!=null;
    if(fading&&audioOwner.handoverAwaitingClock()&&!sourceJump)return;
    // A retained paused decoder already at the native position needs no seek.
-   if(!aligned&&retainedPauseResume&&Math.abs(drift)<=HANDOVER_DRIFT_MS){aligned=true;resumePositionRetained=false;LogStore.log("replacement_resume_aligned",LogStore.map("trackId",trackId,"driftMs",drift,"seekSkipped",true));}
+   if(!aligned&&retainedPosition&&Math.abs(drift)<=HANDOVER_DRIFT_MS){aligned=true;resumePositionRetained=false;LogStore.log("replacement_resume_aligned",LogStore.map("trackId",trackId,"driftMs",drift,"seekSkipped",true));}
    /* Source position is authoritative after a pause: resync off-output if necessary. */
    if(resumed&&pausedDuration>=PAUSE_ALIGN_DELAY_MS&&effect!=null&&Math.abs(drift)>(retainedPauseResume?HANDOVER_DRIFT_MS:PAUSE_ALIGN_TOLERANCE_MS)){seek(s,target,drift);return;}
    ClockSupervisor.Decision clockDecision=clockSupervisor.assess(aligned,!seeking&&!audioOwner.handoverAwaitingClock(),sourceJump,drift,clock);

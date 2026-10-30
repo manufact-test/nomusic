@@ -38,13 +38,14 @@ public class TestResumeClock {
   TestEngine.playing();e=TestEngine.e;player=e.player;
   SystemClock.now+=ReplacementEngine.FADE_MS+20;sample(1160,true);TestEngine.p.handler.drain();
   player.position=1160;sample(1160,false);SystemClock.now+=ReplacementEngine.PAUSE_GRACE_MS+20;sample(1160,false);TestEngine.p.handler.drain();
-  // Replayed CELIKOM 0.3.45 phone: ~210-254ms mismatch after a paused source.
+  /* Recorded 0.3.45 phone: 210-254ms pause offset was formerly fixed via a
+     second seek, but this is inside the existing 350ms verified clock budget. */
   int beforeResume=player.seekCalls;sample(1380,true);
-  check(player.seekCalls==beforeResume+1,"old 220ms playback offset is resynchronized rather than replayed audibly");
+  check(player.seekCalls==beforeResume&&!e.seeking,"220ms retained offset resumes without an extra audible seek");
   check(e.effect!=null&&player.playing,"source remains under the verified replacement effect during resume");
-  check(e.fadeStarted>=0&&!e.resumeFadePending,"resumed decoder remains under audio ownership after position correction");
+  check(e.fadeStarted>=0&&!e.resumeFadePending,"resumed decoder remains under audio ownership after bounded alignment");
   int afterResume=player.seekCalls;SystemClock.now+=ReplacementEngine.PAUSE_RESUME_FADE_MS+20;
-  sample(1580,true);TestEngine.p.handler.drain();
+  player.position+=200;sample(1580,true);TestEngine.p.handler.drain();
   check(player.seekCalls==afterResume&&e.player==player,"resume stays stable without disruptive reseek");
   e.close();
 
