@@ -6,5 +6,30 @@ final class SourceTransitionGate {
  String expected;long since;boolean pending;
  boolean begin(String next,long now){if(pending&&Objects.equals(expected,next))return false;pending=true;expected=next;since=now;return true;}
  int sample(String actual,long now){if(!pending||expected==null||Objects.equals(expected,actual)){clear();return ACCEPT;}return now-since>=MAX_WAIT_MS?REFRESH:WAIT;}
+ /** Only current transport seeks may force a decoder resync.
+  * Media3 can deliver a stale PositionInfo after a controller reconnect:
+  * e.g. old 3648->61334 while live controller is already at 101197ms.
+  * A true large jump is independently noticed from PlaybackSource samples.
+  */
+ static final long SEEK_EVENT_MAX_SKEW_MS=2000;
+ static boolean currentPositionSeek(long livePositionMs,long eventNewPositionMs){
+  if(livePositionMs<0||eventNewPositionMs<0)return false;
+  return livePositionMs>=eventNewPositionMs
+      ? livePositionMs-eventNewPositionMs<=SEEK_EVENT_MAX_SKEW_MS
+      : eventNewPositionMs-livePositionMs<=SEEK_EVENT_MAX_SKEW_MS;
+ }
+ /** Fence stale Media3 boundary callbacks against authoritative live media item. */
+ static boolean currentItemBoundary(String currentAlias,String liveAlias,String eventNextAlias,boolean confirmedRepeat){
+  if(eventNextAlias==null||!Objects.equals(liveAlias,eventNextAlias))return false;
+  return !Objects.equals(currentAlias,eventNextAlias)||confirmedRepeat;
+ }
+ static boolean repeatAtBeginning(long oldPosition,long newPosition,long livePosition){
+  return oldPosition>5000&&newPosition>=0&&newPosition<1500&&livePosition>=0&&livePosition<2000;
+ }
+ static boolean outgoingItemReset(String oldAlias,String liveAlias,long oldPositionMs,long durationMs,long newPositionMs,boolean oldPlaying,boolean newPlaying,boolean wantsToPlay,boolean buffering){
+  return oldAlias!=null&&Objects.equals(oldAlias,liveAlias)&&oldPlaying&&!newPlaying
+    &&wantsToPlay&&buffering&&durationMs>0&&oldPositionMs>10000
+    &&durationMs-oldPositionMs>=0&&durationMs-oldPositionMs<=15000&&newPositionMs>=0&&newPositionMs<1000;
+ }
  void clear(){pending=false;expected=null;since=0;}
 }

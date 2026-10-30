@@ -11,8 +11,17 @@ public class TestHandoverClock {
   SystemClock.now+=40+drift;p.position+=40;sample(source);TestEngine.p.handler.drain();
   check(e.player==p&&!p.released&&p.seekCalls==(drift<=350?1:2),"recorded offset "+drift+"ms must not create unnecessary warm seeks");
   if(drift>350){SystemClock.now+=40;p.position+=40;source+=40;sample(source);TestEngine.p.handler.drain();}
-  SystemClock.now+=180;p.position+=180;source+=180;sample(source);TestEngine.p.handler.drain();
-  check(p.volume>0.45f&&p.volume<0.55f,"recorded offset joins through gradual midpoint "+drift);
+  SystemClock.now+=ReplacementEngine.SOURCE_FADE_OUT_MS/2;
+  p.position+=ReplacementEngine.SOURCE_FADE_OUT_MS/2;source+=ReplacementEngine.SOURCE_FADE_OUT_MS/2;
+  sample(source);TestEngine.p.handler.drain();
+  check(p.volume==0f&&e.effect.gain<0f&&e.effect.gain>-100f,
+      "source must fade down while the replacement remains inaudible "+drift);
+  SystemClock.now+=ReplacementEngine.SOURCE_FADE_OUT_MS/2+ReplacementEngine.NEW_TRACK_JOIN_MS+40;
+  p.position+=ReplacementEngine.SOURCE_FADE_OUT_MS/2+ReplacementEngine.NEW_TRACK_JOIN_MS+40;
+  source+=ReplacementEngine.SOURCE_FADE_OUT_MS/2+ReplacementEngine.NEW_TRACK_JOIN_MS+40;
+  sample(source);TestEngine.p.handler.drain();
+  check(p.volume>0.99f&&e.effect.gain==-100f,
+      "source fade completes before the full replacement gain "+drift);
   SystemClock.now+=200;p.position+=200;source+=200;sample(source);TestEngine.p.handler.drain();int seeks=p.seekCalls;
   for(int i=0;i<8;i++){SystemClock.now+=250;p.position+=250;source+=250;sample(source);e.update(TestEngine.p.current);TestEngine.p.handler.drain();}
   check(e.player==p&&!p.released&&p.seekCalls==seeks&&TestEngine.api.resolves==1&&TestEngine.api.downloads==0,"recorded profile stays on same stream without repeated resolve/recovery "+drift);e.close();
@@ -33,8 +42,12 @@ public class TestHandoverClock {
   SystemClock.now+=20;sample(1660);p.seek.onSeekComplete(p);
   SystemClock.now+=40;p.position+=40;sample(1700);TestEngine.p.handler.drain();
   check(p.volume==0f&&e.originalMix==1f,"aligned handover starts at zero replacement gain");
-  SystemClock.now+=180;p.position+=180;sample(1880);TestEngine.p.handler.drain();
-  check(p.volume>0.45f&&p.volume<0.55f&&e.originalMix>0.45f,"aligned midpoint uses complementary gradual gains");
+  SystemClock.now+=ReplacementEngine.SOURCE_FADE_OUT_MS+ReplacementEngine.NEW_TRACK_JOIN_MS+40;
+  p.position+=ReplacementEngine.SOURCE_FADE_OUT_MS+ReplacementEngine.NEW_TRACK_JOIN_MS+40;
+  sample(1700+ReplacementEngine.SOURCE_FADE_OUT_MS+ReplacementEngine.NEW_TRACK_JOIN_MS+40);
+  TestEngine.p.handler.drain();
+  check(p.volume>0.99f&&e.originalMix==0f&&e.effect.gain==-100f,
+      "aligned replacement has full output only after both exclusive fade phases");
   int seeks=p.seekCalls;SystemClock.now+=200;p.position+=200;sample(2080);TestEngine.p.handler.drain();e.update(TestEngine.p.current);
   check(p.volume==1f&&e.originalMix==0f&&p.seekCalls==seeks,"completed aligned fade has no follow-up audible seek");e.close();
   audio=TestStreamingEngine.start();e=TestEngine.e;p=e.player;p.asyncSeek=true;SystemClock.now+=640;p.position+=40;sample(1640);TestEngine.p.handler.drain();

@@ -1,0 +1,8 @@
+{
+  "version": "0.3.54",
+  "version_code": 55,
+  "previous_rejected_version": "0.3.51",
+  "previous_rejected_code": 52,
+  "package": "pro.celikom.nativeprobe",
+  "signing_certificate_sha256": "67fe81c56fac1c1d145344b69a0e3faf9005cf6607f4e26ca27d5926c3eefc4f"
+}

@@ -23,8 +23,16 @@ public class TestCarRecovery {
   TestEngine.reset("ALBUM");e=TestEngine.e;e.arm();stale=TestEngine.api.resolved;resolves=TestEngine.api.resolves;SystemClock.now+=1600;stale.done(TestEngine.found(),null);check(e.lookupKey==null&&e.descriptor==null,"stale-source resolve cannot leave search permanently in flight");SystemClock.now+=1100;sample(2000,true);check(TestEngine.api.resolves==resolves+1&&e.armed(),"fresh source retries a deferred lookup without Stop/Start");e.close();
   TestEngine.playing();e=TestEngine.e;player=e.player;initial=player.seekCalls;player.asyncSeek=true;sample(60000,true);sample(60000,false);player.seek.onSeekComplete(player);sample(60000,true);check(player.seekCalls==initial+1&&player.playing,"completed seek through a transient native pause is not repeated at a 5ms drift");e.close();
   TestEngine.playing();e=TestEngine.e;player=e.player;downloads=TestEngine.api.downloads;sample(120000,true);check(e.player==null&&e.effect==null&&e.armed(),"native source end cannot leave the previous audio playing");resolves=TestEngine.api.resolves;sample(120000,true);check(TestEngine.api.resolves==resolves,"ended item cannot re-resolve itself in a loop");sample(0,true);TestEngine.resolve();check(TestEngine.api.downloads==downloads&&e.player!=null,"same-track repeat at zero reauthorizes immediately and reuses the private file");e.player.prepared.onPrepared(e.player);check(e.player.playing,"repeat does not wait for the old thirty-second completion backoff");e.close();
-  // New report: pause at 69020ms, own clock trails by 452ms; unchanged resume must not seek.
-  TestEngine.playing();e=TestEngine.e;player=e.player;initial=player.seekCalls;player.position=68568;sample(69020,false);SystemClock.now+=12000;sample(69020,true);check(player.playing&&player.seekCalls==initial,"recorded 452ms output offset survives an unchanged pause/resume without audible reseek");e.close();
+  // 0.3.54 regression: never launch a decoder seek while the user is paused;
+  // resume alignment is applied against the live source position, then playback starts.
+  TestEngine.playing();e=TestEngine.e;player=e.player;initial=player.seekCalls;player.position=68568;sample(69020,false);SystemClock.now+=170;sample(69020,false);TestEngine.p.handler.drain();SystemClock.now+=11830;sample(69020,false);TestEngine.p.handler.drain();
+  check(player.seekCalls==initial,"paused decoder is retained without unsolicited timer seek");
+  sample(69020,true);check(player.seekCalls==initial+1&&player.position==69020,
+      "recorded 452ms offset is aligned once at resume");
+  player.seek.onSeekComplete(player);
+  check(player.playing&&player.seekCalls==initial+1,
+      "resume starts the aligned decoder without a second correction");
+  e.close();
   System.out.println("PASS: "+checks+" car clock replay, track fences, metadata-gap recovery, stale resolve and repeat checks");
  }
 }

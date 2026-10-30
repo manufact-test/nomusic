@@ -1,0 +1,62 @@
+{
+  "version": "0.3.48",
+  "version_code": 49,
+  "date": "2026-10-29",
+  "status": "SIGNED_CANDIDATE_AWAITING_OWNER_PHONE_AUDIO_VALIDATION",
+  "branch": "feature/android-0348-audio-ownership-stabilization",
+  "apk_filename": "CELIKOM_Android_0348_CANDIDATE.apk",
+  "apk_sha256": "3e8c00d7e11c471fce9dbc811af96f5ec559d97b9e18c644456580ecaddca62e",
+  "original_cert_sha256": "67fe81c56fac1c1d145344b69a0e3faf9005cf6607f4e26ca27d5926c3eefc4f",
+  "addon_dex_sha256": "a800c53ac460cb453457cd7fcff11ea5ff03aa161b1ed34ffd368534025170a2",
+  "source_fingerprint": "6d2aa5eee77f23ea003e1269cd4022e9925cf6979605afb499506a284796c0b2",
+  "verified_base_apk_sha256": "170b1883e292570d28a3b5c619cf000eaccd9d11ee85ca6f6c08f7b50e5f72c9",
+  "reproduced_from_user_log": "CELIKOM-combined-20261029-140931.txt",
+  "issue": "https://github.com/manufact-test/nomusic/issues/20",
+  "fixes": [
+    "No intentional overlapping source/replacement gain: original muted entirely before replacement volume rises; reverse path silences replacement before restoring original",
+    "Invalidate stale pause restore timer with lease/epoch and source/effect identity guard on resume; protect seek in flight",
+    "On streaming wait and buffer recovery, silence/pause replacement BEFORE unmuting original",
+    "When an effect reattaches to an already playing decoder, prevent immediate full-volume bypass and enter gated fade",
+    "Central AudioOwnership class grants exclusive replacement, tracks SOURCE/PREPARING/ALIGNING/REPLACEMENT/PAUSED/RESTORING and invalidates pause lease",
+    "Existing 0.3.46 duration gate and 0.3.47 short pause grace retained"
+  ],
+  "complete_offline_release_tests": "PASS",
+  "mandatory_regression_suite": "PASS (28 exclusive audio, pause/seek race, manual return, track boundary checks; RED on 0.3.47)",
+  "legacy_test_suite": [
+    "113 actual-engine checks",
+    "53-event phone replay",
+    "39 resume clock checks",
+    "604 actual-engine long-run checks with 300 changes and 15 virtual hours",
+    "43 Bluetooth/car clock checks",
+    "51 progressive stream/buffer recovery checks",
+    "40 artist-display and handover checks",
+    "all additional Test*.java build-release checks"
+  ],
+  "signed_apk_checks": {
+    "sha256": "pass",
+    "v2_v3_signature": "pass",
+    "original_signer": "pass",
+    "manifest_and_permissions": "unchanged",
+    "approved_api_origin": "unchanged",
+    "original_assets": "unchanged",
+    "launcher_redirect": "pass",
+    "compiled_addon_dex_byte_identical": "pass",
+    "signed_dex_contains_owner_grants_and_pause_lease": "pass",
+    "no_private_sources_or_signing_material": "pass"
+  },
+  "unchanged": [
+    "desktop extension 0.4.65",
+    "server and admin",
+    "authentication/entitlement",
+    "catalogue",
+    "client API origin",
+    "launcher and diagnostics UI"
+  ],
+  "physical_honor_phone_test": "NOT PERFORMED — next chat handles device validation; never call this a confirmed stable build",
+  "limitations": [
+    "Logical/host test confirms exclusive volume commands, not measured analog/Bluetooth output",
+    "Break-before-make can introduce a brief silent gap; user should check if perceptible",
+    "Cannot confirm all perceived reconnects/overlaps without real device and fresh logs",
+    "No GitHub Actions Android APK build; release script enforces mandatory host suite"
+  ]
+}
