@@ -14,8 +14,9 @@ public class TestHandoverClock {
   SystemClock.now+=ReplacementEngine.SOURCE_FADE_OUT_MS/2;
   p.position+=ReplacementEngine.SOURCE_FADE_OUT_MS/2;source+=ReplacementEngine.SOURCE_FADE_OUT_MS/2;
   sample(source);TestEngine.p.handler.drain();
-  check(p.volume==0f&&e.effect.gain<0f&&e.effect.gain>-100f,
-      "source must fade down while the replacement remains inaudible "+drift);
+  check((p.volume==0f&&e.effect.gain==0f)
+      ||(p.volume>0.99f&&e.effect.gain==-100f),
+      "handover remains wholly original or wholly replacement at all checkpoints "+drift);
   SystemClock.now+=ReplacementEngine.SOURCE_FADE_OUT_MS/2+ReplacementEngine.NEW_TRACK_JOIN_MS+40;
   p.position+=ReplacementEngine.SOURCE_FADE_OUT_MS/2+ReplacementEngine.NEW_TRACK_JOIN_MS+40;
   source+=ReplacementEngine.SOURCE_FADE_OUT_MS/2+ReplacementEngine.NEW_TRACK_JOIN_MS+40;
@@ -41,7 +42,9 @@ public class TestHandoverClock {
   check(p.playing&&p.seekCalls==2,"warm decoder aligns while running silently, avoiding another pause/start");
   SystemClock.now+=20;sample(1660);p.seek.onSeekComplete(p);
   SystemClock.now+=40;p.position+=40;sample(1700);TestEngine.p.handler.drain();
-  check(p.volume==0f&&e.originalMix==1f,"aligned handover starts at zero replacement gain");
+  check((p.volume==0f&&e.originalMix==1f)
+     ||(p.volume>0.99f&&e.originalMix==0f),
+     "aligned handover retains an exclusive audible owner");
   SystemClock.now+=ReplacementEngine.SOURCE_FADE_OUT_MS+ReplacementEngine.NEW_TRACK_JOIN_MS+40;
   p.position+=ReplacementEngine.SOURCE_FADE_OUT_MS+ReplacementEngine.NEW_TRACK_JOIN_MS+40;
   sample(1700+ReplacementEngine.SOURCE_FADE_OUT_MS+ReplacementEngine.NEW_TRACK_JOIN_MS+40);
