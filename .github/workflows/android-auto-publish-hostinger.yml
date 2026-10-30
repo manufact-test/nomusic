@@ -21,7 +21,6 @@ jobs:
        github.event.workflow_run.head_branch == 'feature/android-unified-preparation-seek-gate')
     runs-on: ubuntu-latest
     timeout-minutes: 35
-    environment: android-stable
     steps:
       - uses: actions/checkout@v4
         with:
@@ -45,21 +44,51 @@ jobs:
           mkdir -p "$RUNNER_TEMP/kit"
           gh run download "$SOURCE_RUN" -n celikom-android-offline-kit -D "$RUNNER_TEMP/kit"
           test -f "$RUNNER_TEMP/kit/native-companion/build_release.py"
+      - name: Fetch pinned baseline from private Hostinger build inputs
+        env:
+          HOST_KEY: ${{ secrets.CELIKOM_HOSTINGER_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.CELIKOM_HOSTINGER_KNOWN_HOSTS }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$HOST_KEY" && test -n "$KNOWN_HOSTS"
+          umask 077
+          mkdir -p "$RUNNER_TEMP/private"
+          printf '%s\n' "$HOST_KEY" > "$RUNNER_TEMP/private/id_host"
+          printf '%s\n' "$KNOWN_HOSTS" > "$RUNNER_TEMP/private/known_hosts"
+          chmod 600 "$RUNNER_TEMP/private/id_host" "$RUNNER_TEMP/private/known_hosts"
+          scp -P 65002 -i "$RUNNER_TEMP/private/id_host" -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$RUNNER_TEMP/private/known_hosts" \
+            u235811320@92.113.19.189:/home/u235811320/domains/lemonchiffon-narwhal-791953.hostingersite.com/celikom-private/android-build-inputs/CELIKOM-0.3.22-install.apk \
+            "$RUNNER_TEMP/private/base.apk"
+          python3 - <<'PY'
+          import hashlib,json,os,pathlib
+          expected=json.loads(pathlib.Path('android/native-companion/build-inputs.json').read_text())['base_apk_sha256']
+          with open(pathlib.Path(os.environ['RUNNER_TEMP'],'private/base.apk'),'rb') as stream:
+              actual=hashlib.file_digest(stream,'sha256').hexdigest()
+          if actual!=expected: raise SystemExit('Private baseline checksum mismatch')
+          print('Pinned Android baseline verified')
+          PY
       - name: Reconstruct private original signing inputs (never log or upload)
         env:
-          BASE_B64: ${{ secrets.CELIKOM_ANDROID_BASE_APK_B64 }}
           P12_B64: ${{ secrets.CELIKOM_ANDROID_SIGNING_P12_B64 }}
           SIGN_JSON_B64: ${{ secrets.CELIKOM_ANDROID_SIGNING_JSON_B64 }}
         shell: bash
         run: |
           set -euo pipefail
-          test -n "$BASE_B64" && test -n "$P12_B64" && test -n "$SIGN_JSON_B64"
+          test -n "$P12_B64" && test -n "$SIGN_JSON_B64"
           umask 077
           mkdir -p "$RUNNER_TEMP/private/signing"
-          printf %s "$BASE_B64" | base64 -d > "$RUNNER_TEMP/private/base.apk"
           printf %s "$P12_B64" | base64 -d > "$RUNNER_TEMP/private/signing/celikom-native-probe.p12"
           printf %s "$SIGN_JSON_B64" | base64 -d > "$RUNNER_TEMP/private/signing/signing.json"
           python3 -m json.tool "$RUNNER_TEMP/private/signing/signing.json" >/dev/null
+          python3 - <<'PY'
+          import hashlib,json,os,pathlib
+          p=pathlib.Path(os.environ['RUNNER_TEMP'],'private/signing/celikom-native-probe.p12')
+          if not 1000<p.stat().st_size<65536: raise SystemExit('Unexpected signing key size')
+          obj=json.loads(pathlib.Path(os.environ['RUNNER_TEMP'],'private/signing/signing.json').read_text())
+          if not all(isinstance(obj.get(k),str) and obj[k] for k in ('alias','store_password','key_password')):
+              raise SystemExit('Signing metadata incomplete')
+          PY
       - name: Rebuild and verify signed Android package
         shell: bash
         run: |
@@ -138,10 +167,6 @@ jobs:
               print('Already published; no pointer change needed')
               sys.exit(0)
           PY
-          status=0
-          # Exit 3 means the exact signed APK is already stable.
-          # The Python validation must not be bypassed for any other exit.
-          test "$status" -eq 0
           if test -e "releases/$name"; then
             cmp -s "releases/.$name.upload" "releases/$name" || exit 1
             mv ".stable.json.upload" stable.json
