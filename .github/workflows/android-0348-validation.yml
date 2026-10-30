@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - feature/android-0348-audio-ownership-stabilization
+      - feature/android-unified-preparation-seek-gate
   workflow_dispatch:
 
 permissions:

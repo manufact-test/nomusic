@@ -14,8 +14,10 @@ for label,pattern in [
     if found:raise AssertionError(label+': '+engine[max(0,found.start()-60):found.end()+50])
 for required in ['void prepareSourceEffect(', 'void startDecoder(', 'void pauseDecoder(',
                  'void seekDecoder(', 'void grantReplacement(', 'RestoreResult restoreSource(',
-                 'void retireDecoder(']:
+                 'void retireDecoder(', 'void event(Event event)', 'boolean dataCurrent(', 'boolean commandCurrent(']:
     if required not in owner:raise AssertionError('missing audio authority: '+required)
+if 'audioOwner.event(AudioOwnership.Event.HANDOVER);' not in engine or 'audioOwner.event(AudioOwnership.Event.SEEK);' not in engine:
+    raise AssertionError('seek/handover bypass unified event generation')
 if 'audioOwner.retireDecoder();' not in engine:
     raise AssertionError('decoder release must revoke ownership lease on same song')
 if 'SourceTransitionGate.currentItemBoundary(' in service or 'SourceTransitionGate.currentPositionSeek(' in service:
