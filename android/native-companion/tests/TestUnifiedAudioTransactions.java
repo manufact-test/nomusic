@@ -53,6 +53,22 @@ public final class TestUnifiedAudioTransactions {
   TestEngine.e.stop("owner_logout");
   check(mp.released&&TestEngine.e.player==null&&TestEngine.e.effect==null,
    "stop releases prepared decoder without changing native playback");
+  /* Account changes cannot inherit a previous user's resolve, decoder or entitlement. */
+  TestEngine.playing();
+  ReplacementEngine active=TestEngine.e;MediaPlayer old=active.player;
+  TestEngine.api.accountGeneration++;
+  active.update(TestEngine.p.current);
+  check(old.released&&active.effect==null&&active.player==null&&!active.armed(),
+    "account rotation restores original and revokes the old decoder");
+  TestEngine.reset("ALBUM");TestEngine.e.arm();TestEngine.resolve();
+  NativeApi.AudioResult pending=TestEngine.api.downloaded;
+  TestEngine.api.accountGeneration++;
+  File stale=File.createTempFile("account-stale",".audio");pending.done(stale,null);
+  check(!stale.exists()&&TestEngine.e.player==null,
+    "download from previous account can never attach a decoder");
+  TestEngine.e.update(TestEngine.p.current);
+  check(!TestEngine.e.armed()&&!TestEngine.e.preparing,
+    "account rollover clears an otherwise stuck preparation");
   System.out.println("PASS unified Android audio transactions: "+checks+" checks");
  }
 }
