@@ -69,6 +69,66 @@ public final class TestUnifiedAudioTransactions {
   TestEngine.e.update(TestEngine.p.current);
   check(!TestEngine.e.armed()&&!TestEngine.e.preparing,
     "account rollover clears an otherwise stuck preparation");
+
+  /* One native callback has no request ID. Do not submit a second seek until
+     the first has truly acknowledged; its stale output epoch never becomes new. */
+  AudioOwnership single=new AudioOwnership();single.track("single");single.aligning();
+  MediaPlayer silent=new MediaPlayer();silent.asyncSeek=true;
+  long sourceEpoch=single.epoch();
+  check(single.issueSeek(silent,3000,"single",sourceEpoch,AudioOwnership.SeekKind.WARM,1000),
+    "first native seek accepted");
+  single.event(AudioOwnership.Event.PAUSE);
+  check(!single.issueSeek(silent,60000,"single",sourceEpoch,AudioOwnership.SeekKind.ALIGNMENT,1100)
+       &&silent.seekCalls==1,"canceled warm seek must serialize before new seek");
+  AudioOwnership.SeekAck staleAck=single.acceptSeekCompletion(silent);
+  check(staleAck.kind==AudioOwnership.SeekKind.WARM
+       &&staleAck.operationEpoch!=single.operationEpoch(),
+       "old native callback cannot carry current audio command permission");
+  check(single.issueSeek(silent,60000,"single",sourceEpoch,AudioOwnership.SeekKind.ALIGNMENT,1200)
+       &&silent.seekCalls==2,"new seek starts only after old callback consumed");
+  check(single.acceptSeekCompletion(silent).kind==AudioOwnership.SeekKind.ALIGNMENT,
+    "second completion belongs exclusively to new seek");
+  check(single.acceptSeekCompletion(silent)==null,"duplicated completion is ignored");
+  single.retireDecoder();
+
+  /* Real streaming decoder: user seeks while a warm seek is still in flight.
+     The old fade is canceled and original audio restored immediately. */
+  TestStreamingEngine.Buffer buffering=TestStreamingEngine.start();
+  ReplacementEngine engine=TestEngine.e;MediaPlayer nativePlayer=engine.player;
+  nativePlayer.asyncSeek=true;android.os.SystemClock.now+=640;nativePlayer.position+=40;
+  TestEngine.p.current=TestEngine.source("1",1640,true);
+  TestEngine.p.handler.drain();
+  check(engine.audioOwner.seekInFlight(nativePlayer)&&nativePlayer.seekCalls==2,
+    "warm alignment owns one pending native seek");
+  engine.sourceSeekRequested();
+  TestEngine.p.current=TestEngine.source("1",60000,true);engine.update(TestEngine.p.current);
+  check(nativePlayer.seekCalls==2&&!nativePlayer.playing
+      &&engine.effect==null&&nativePlayer.volume==0f,
+      "explicit seek cancels fade, restores original and defers native seek");
+  nativePlayer.seek.onSeekComplete(nativePlayer);
+  check(nativePlayer.seekCalls==3&&engine.seeking&&!nativePlayer.playing,
+      "old warm callback permits a new native seek but cannot authorize output");
+  nativePlayer.seek.onSeekComplete(nativePlayer);
+  check(nativePlayer.playing&&engine.player==nativePlayer&&engine.effect!=null,
+      "new seek completes with retained decoder and verified exclusive handover");
+  engine.close();
+
+  /* Warm seek canceled by a genuine pause must not be mistaken for resume seek. */
+  buffering=TestStreamingEngine.start();engine=TestEngine.e;nativePlayer=engine.player;
+  nativePlayer.asyncSeek=true;android.os.SystemClock.now+=640;nativePlayer.position+=40;
+  TestEngine.p.current=TestEngine.source("1",1640,true);TestEngine.p.handler.drain();
+  check(engine.audioOwner.seekInFlight(nativePlayer),"warm native seek pending before pause");
+  TestEngine.p.current=TestEngine.source("1",1640,false);engine.update(TestEngine.p.current);
+  TestEngine.p.current=TestEngine.source("1",60000,true);engine.update(TestEngine.p.current);
+  check(nativePlayer.seekCalls==2&&!nativePlayer.playing,
+      "resume must not overlap the canceled native warm seek");
+  nativePlayer.seek.onSeekComplete(nativePlayer);
+  check(nativePlayer.seekCalls==3&&engine.seeking&&!nativePlayer.playing,
+      "canceled warm completion triggers latest source alignment only");
+  nativePlayer.seek.onSeekComplete(nativePlayer);
+  check(engine.player==nativePlayer&&nativePlayer.playing,
+      "post-pause alignment returns to the live song without new decoder");
+  engine.close();
   System.out.println("PASS unified Android audio transactions: "+checks+" checks");
  }
 }

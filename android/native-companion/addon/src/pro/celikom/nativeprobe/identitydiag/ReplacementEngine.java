@@ -110,6 +110,9 @@ final class ReplacementEngine {
    /* After a canceled warm seek, do not start another decoder seek until the
       untagged completion arrives or the retained decoder times out safely. */
    if(audioOwner.seekInFlight(player)&&!seeking){
+    /* Explicit user seek wins over a pending warm-alignment fade. Do not
+       let a stale warm callback resume the old fade at the new source position. */
+    if(sourceJump&&fading){seek(s,position(s),0);return;}
     if(audioOwner.seekExpired(player,clock,streaming!=null&&!streaming.complete()?STREAM_SEEK_TIMEOUT_MS:SEEK_TIMEOUT_MS))
      suspend("seek_timeout",retryDelay());
     else status="Ожидаем предыдущую перемотку; играет оригинал";
