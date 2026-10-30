@@ -36,6 +36,22 @@ public final class TestSourceEventArbiter {
    "current media item transition is accepted");
   check(arb.discontinuity("106","106","105","106",22,23,0,0,0,false,true)==SourceEventArbiter.Action.IGNORE,
    "old replay is not a real seek on the current track");
-  System.out.println("PASS: "+assertions+" actual HONOR Media3 event arbitration checks");
+  SourceEventArbiter.LookaheadEvidence next=new SourceEventArbiter.LookaheadEvidence();
+   check(next.observe("a",null,false,false,1000),"unknown timeline recorded");
+   check(next.observe("a","b",false,true,1400),"new future candidate observed");
+   check(!next.observe("a","b",false,true,1500),"unchanged candidate is not re-logged");
+   SourceEventArbiter.LookaheadEvidence.Verdict wrong=next.boundary("c",1700);
+   check(wrong.predicted&&!wrong.matched&&!wrong.complete&&wrong.leadMs==300,
+     "unreliable lookahead cannot be used to prefetch");
+   next.observe("c","d",true,true,2000);
+   SourceEventArbiter.LookaheadEvidence.Verdict right=next.boundary("d",3500);
+   check(right.observed&&right.predicted&&right.matched&&right.complete&&right.leadMs==1500,
+     "confirmed candidate yields read-only timing, not ownership");
+   check(!next.boundary("d",3600).observed,"duplicate boundary ignored");
+   next.observe("same","same",true,true,4000);
+   check(!next.boundary("same",4200).predicted,"same song is not future candidate");
+   next.observe("x","y",true,true,4500);next.reset();
+   check(!next.boundary("y",4600).observed,"reconnect revokes observed candidate");
+   System.out.println("PASS: "+assertions+" actual HONOR Media3 event arbitration checks");
  }
 }

@@ -6,6 +6,33 @@ import java.util.Objects;
  */
 final class SourceEventArbiter {
  enum Action { IGNORE, BOUNDARY, SEEK }
+ /* Read-only probe. Candidate strings stay in memory, never enter diagnostics. */
+ static final class LookaheadEvidence {
+  String source,next;boolean complete,timeline;long firstSeen=-1;int samples;
+  void reset(){source=null;next=null;complete=false;timeline=false;firstSeen=-1;samples=0;}
+  boolean observe(String active,String candidate,boolean complete,boolean timeline,long time){
+   String valid=active!=null&&candidate!=null&&!candidate.isEmpty()&&!Objects.equals(active,candidate)?candidate:null;
+   boolean changed=!Objects.equals(source,active)||!Objects.equals(next,valid)
+      ||this.complete!=complete||this.timeline!=timeline;
+   if(changed){source=active;next=valid;this.complete=valid!=null&&complete;this.timeline=timeline;
+    firstSeen=valid==null?-1:time;samples=0;}
+   samples++;return changed;
+  }
+  static final class Verdict {
+   final boolean observed,predicted,matched,complete;final long leadMs;final int samples;
+   Verdict(boolean observed,boolean predicted,boolean matched,boolean complete,long leadMs,int samples){
+    this.observed=observed;this.predicted=predicted;this.matched=matched;
+    this.complete=complete;this.leadMs=leadMs;this.samples=samples;
+   }
+  }
+  Verdict boundary(String actual,long time){
+   boolean seen=source!=null,predicted=next!=null;
+   Verdict result=new Verdict(seen,predicted,predicted&&actual!=null
+    &&!Objects.equals(source,actual)&&Objects.equals(next,actual),complete,
+    predicted&&firstSeen>=0?Math.max(0,time-firstSeen):0,samples);
+   reset();return result;
+  }
+ }
  Action mediaItem(String previousAlias,String liveAlias,String eventAlias,boolean repeat,long livePosition){
   boolean confirmedRepeat=repeat&&livePosition>=0&&livePosition<2000;
   return SourceTransitionGate.currentItemBoundary(previousAlias,liveAlias,eventAlias,confirmedRepeat)?Action.BOUNDARY:Action.IGNORE;
