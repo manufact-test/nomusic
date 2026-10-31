@@ -97,9 +97,13 @@ public final class TestHonor071SeekResidual {
   e.close();
  }
  public static void main(String[] args)throws Exception{
+  try{
   stable206OffsetMakes283ResidualSafe();
-  new250msDeltaGetsSilentCorrection();
-  noBaseline283ResidualCorrectsAndPauseNextWin();
-  System.out.println("PASS: "+checks+" HONOR 0.3.71 baseline-aware seek and pause/Next checks");
+    new250msDeltaGetsSilentCorrection();
+    noBaseline283ResidualCorrectsAndPauseNextWin();
+    System.out.println("PASS: "+checks+" HONOR 0.3.71 baseline-aware seek and pause/Next checks");
+  } finally {
+   if(TestEngine.e!=null&&!TestEngine.e.closed)TestEngine.e.close();
+  }
  }
 }
