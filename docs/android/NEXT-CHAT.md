@@ -1,4 +1,28 @@
-# 31.10.2026 — LATEST SIGNED Android 0.3.68/code69, HONOR audio QA pending
+# 31.10.2026 — LATEST SIGNED Android 0.3.69/code70, ONE MODE, HONOR acoustic QA still pending
+
+**Android-only, один подписанный APK:** production code
+[`a30f949b10a72f62977e70cba30767b7c382a249`](https://github.com/manufact-test/nomusic/commit/a30f949b10a72f62977e70cba30767b7c382a249),
+[GitHub SDK36/D8, исходная подпись и live publication 41222465012](https://github.com/manufact-test/nomusic/actions/runs/41222465012)
+**SUCCESS**; повторный staging [41222325576](https://github.com/manufact-test/nomusic/actions/runs/41222325576)
+**SUCCESS**, `publish-stable SKIPPED`. Live stable `0.3.69/code70`,
+signed APK `8738889` bytes SHA256
+`f03e73d37e957d08acdf105371eb7fb7f7f91876d56fee5603cbb0927ed46d20`,
+полный отдельный GET и HTTP HEAD 200 подтверждены. **Один режим**:
+прежний HONOR-предпочтительный complementary linear 160ms для нового
+подключения, быстрый exclusive single-turn после seek, seek-scoped
+background Range priority только при отсутствующем блоке. Удалены
+admin A/B long-press/выбор двух режимов, сохранено «Сохранить диагностику».
+Реальный HONOR звук/BT **НЕ принят** по CI. Установить через существующее
+«Проверить обновление». Подробный разбор **трёх** новых приватных
+0.3.68-журналов и release receipt:
+[`ANDROID-0369-ONE-MODE-HONOR-TRIAGE-2026-10-31.md`](ANDROID-0369-ONE-MODE-HONOR-TRIAGE-2026-10-31.md).
+Никаких новых A/B APK; только физическая проверка владельца и
+прицельное расследование оставшихся слышимых границ. Десктоп/сервер/сайт/
+каталог/auth/updater не изменены.
+
+---
+
+# 31.10.2026 — PREVIOUS SIGNED Android 0.3.68/code69, HONOR audio QA pending
 
 **One APK PUBLISHED:** source `767cd3701ce04dfcf5779152c78a63fb905ec931`, production [Android SDK36/D8 + signed publish 41213570269 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/41213570269), staging [41213189300](https://github.com/manufact-test/nomusic/actions/runs/41213189300) and [41213426511](https://github.com/manufact-test/nomusic/actions/runs/41213426511) both SUCCESS/NO PUBLISH. Signed signer unchanged. APK SHA256 `c73917856d9c93bd93a2251084038b3b7694bcea19a941ca24f06a0f5cdf7d39`, 8,742,985 bytes, complete independent GET verified, stable updater live `0.3.68/code69`. Full release receipt and **mandatory HONOR test route**: [ANDROID-0368-SIGNED-HONOR-RANGE-PRIORITY-2026-10-31.md](ANDROID-0368-SIGNED-HONOR-RANGE-PRIORITY-2026-10-31.md). New `BufferedAudio` foreground-demand priority preempts stalled background Range off the decoder thread; after validated read, background fill resumes. Latest true Media3 Next during pending seek has a regression. **Do not claim sound accepted**: source cold dip in default and phase-unverified admin linear blend remain open; on-device HONOR test and private diagnostics are next. **Android only**; all other subsystems untouched. New APK only after new device evidence.
 
