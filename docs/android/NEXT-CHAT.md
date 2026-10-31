@@ -16,7 +16,7 @@
 
 `feature/android-0371-honor-diagnostic-audit-staging`
 
-Start from its actual HEAD, not a remembered SHA. Previous checkpoint: `60e78db25c2847d71431be890fdd6a3b0e9c95ba`. **Seek-baseline implementation commit:** `58f1111dade3a15cc6e6bc2b4cdb648623dc933f`. **Latest branch HEAD:** `8653a0b06b4c5d5f1dda98752bfeebb7ee2f6f02` (runner-comment-only follow-up). The implementation adds the seek-scoped stable transport-baseline policy in `ReplacementEngine`, `SeekAlignmentPolicy.java`, and actual-engine tests for 0.3.71 residuals plus 0.3.63/0.3.64 scrub regressions.
+Start from its actual HEAD, not a remembered SHA. Previous checkpoint: `60e78db25c2847d71431be890fdd6a3b0e9c95ba`. **Seek-baseline implementation commit:** `58f1111dade3a15cc6e6bc2b4cdb648623dc933f`. **Latest branch HEAD:** `3d03e2017ef06d4f10399def54bd0a661adc9896` (test-fixture cleanup follow-ups). The implementation adds the seek-scoped stable transport-baseline policy in `ReplacementEngine`, `SeekAlignmentPolicy.java`, and actual-engine tests for 0.3.71 residuals plus 0.3.63/0.3.64 scrub regressions.
 
 ## Policy now under CI validation
 
@@ -26,11 +26,11 @@ This is transport timing only, **not acoustic or Bluetooth phase measurement**. 
 
 ## Required next steps
 
-1. Inspect [GitHub Actions run 41236554763](https://github.com/manufact-test/nomusic/actions/runs/41236554763), which targets code commit `58f1111`. At last check its full host regression step was still running. Do not treat the older run for `60e78db` as validation of the new code.
+1. Inspect [latest GitHub Actions run 41237097335](https://github.com/manufact-test/nomusic/actions/runs/41237097335), targeting the latest fixture-cleanup code. At last check the full host regression step was still running; do not claim CI passed until the run concludes. Older runs were triggered during intermediate test-fixture revisions and are not the final validation receipt.
 2. Run the full `python3 android/native-companion/tests/run_engine.py` suite and inspect any failing test before making another change.
 3. Confirm the new `TestSeekAlignmentPolicy`, `TestHonor071SeekResidual`, modified `TestHonor063SeekScrub` and `TestHonor064ManualNext` all pass.
 4. Confirm SDK36 Java compile + D8 succeeds and the `publish-stable` job is skipped on this staging branch.
-5. Review the final diff for accidental changes. No user journals, track IDs/titles or raw diagnostics in Git.
+5. Review the final diff for accidental changes. No user journals, track IDs/titles or raw diagnostics in Git. The HONOR 0.3.71 replay fixture now drains the initial decoder gate before measuring the cold join and closes its streaming fixture in `finally`; this fixes a test-harness cleanup hazard, not production playback behavior.
 6. Only after all CI gates pass, prepare a real-device test build if explicitly authorized. Keep 0.3.71 as the installed safe baseline until the user tests it.
 
 **Important test cases:** stable 206ms offset + 77ms new seek error (283ms raw) should preserve the offset; stable 206ms + 250ms new error should correct silently; no baseline + 283ms should correct; 179ms fast seek remains accepted; slow Range 2792/933/17ms remains bounded; repeated finger scrubs, pause, Stop, route loss, real Media3 Next, stale callbacks and automatic successor must not regress.
