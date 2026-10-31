@@ -1,6 +1,6 @@
 # CELIKOM Android — NEXT CHAT HANDOFF (31.10.2026)
 
-**READ FIRST:** [ANDROID-0371-RESIDUAL-RED-REPLAY-2026-10-31.md](ANDROID-0371-RESIDUAL-RED-REPLAY-2026-10-31.md), then [ANDROID-0371-HONOR-DIAGNOSTIC-AUDIT-2026-10-31.md](ANDROID-0371-HONOR-DIAGNOSTIC-AUDIT-2026-10-31.md), [REGRESSION-GATES-2026-10-29.md](REGRESSION-GATES-2026-10-29.md), and the previous owner baseline handoff [START-NEXT-CHAT-2026-10-31-AFTER-0369-OWNER.md](START-NEXT-CHAT-2026-10-31-AFTER-0369-OWNER.md).
+**READ FIRST:** [ANDROID-0371-RESIDUAL-RED-REPLAY-2026-10-31.md](ANDROID-0371-RESIDUAL-RED-REPLAY-2026-10-31.md), then [ANDROID-0371-HONOR-DIAGNOSTIC-AUDIT-2026-10-31.md](ANDROID-0371-HONOR-DIAGNOSTIC-AUDIT-2026-10-31.md), [ANDROID-0371-SEEK-TEST-APK-RECEIPT-2026-10-31.md](ANDROID-0371-SEEK-TEST-APK-RECEIPT-2026-10-31.md), [REGRESSION-GATES-2026-10-29.md](REGRESSION-GATES-2026-10-29.md), and the previous owner baseline handoff [START-NEXT-CHAT-2026-10-31-AFTER-0369-OWNER.md](START-NEXT-CHAT-2026-10-31-AFTER-0369-OWNER.md).
 
 ## Immutable production baseline / scope
 
@@ -10,13 +10,13 @@
 - Previous backup `backup/android-0369-honor-listening-control-20261031` also untouched.
 - Live stable remains 0.3.71. Never overwrite or rewrite either backup.
 - Android only. One mode only. No desktop, backend, website, catalogue, auth, updater, UI buttons or A/B mode changes.
-- No APK/version bump/stable publish until the owner explicitly asks after real-device testing.
+- No stable release, stable versionCode bump or Hostinger publish until real-device acceptance. A separate signed same-versionCode test APK is now available; it does not change the stable channel.
 
 ## Current engineering branch
 
 `feature/android-0371-honor-diagnostic-audit-staging`
 
-Start from its actual HEAD, not a remembered SHA. Previous checkpoint: `60e78db25c2847d71431be890fdd6a3b0e9c95ba`. **Seek-baseline implementation commit:** `58f1111dade3a15cc6e6bc2b4cdb648623dc933f`. **Validated code commit:** `032bd8f2c77d6deb069155923a602bf242aebdf1`. **Signed test APK build commit:** `4d7904b156a5fe2b500f6ba97c2cff7be56a9861`. **Latest documentation commit / branch HEAD before this handoff update:** `04dc33b35844879f9719cd254e81a495d0790174`. The implementation adds the seek-scoped stable transport-baseline policy in `ReplacementEngine`, `SeekAlignmentPolicy.java`, and actual-engine tests for 0.3.71 residuals plus 0.3.63/0.3.64 scrub regressions.
+Start from its actual HEAD, not a remembered SHA. Previous checkpoint: `60e78db25c2847d71431be890fdd6a3b0e9c95ba`. **Seek-baseline implementation commit:** `58f1111dade3a15cc6e6bc2b4cdb648623dc933f`. **Validated code commit:** `032bd8f2c77d6deb069155923a602bf242aebdf1`. **Signed test APK build commit:** `4d7904b156a5fe2b500f6ba97c2cff7be56a9861`. Documentation now includes the signed APK receipt, updated regression gates and this handoff; inspect the actual branch HEAD before making further changes. The implementation adds the seek-scoped stable transport-baseline policy in `ReplacementEngine`, `SeekAlignmentPolicy.java`, and actual-engine tests for 0.3.71 residuals plus 0.3.63/0.3.64 scrub regressions.
 
 ## Policy now under CI validation
 
