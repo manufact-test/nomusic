@@ -110,7 +110,7 @@ def main():
     assert "getLongVersionCode()" in updater and "getAppTasks()" in updater
     assert "finishAndRemoveTask()" in updater
     success_callback = re.search(
-        r"else if \\(status == PackageInstaller\\.STATUS_SUCCESS\\) \\{(.*?)\\n\\s*\\} else",
+        r"else if \(status == PackageInstaller\.STATUS_SUCCESS\) \{(.*?)\n\s*\} else",
         updater, re.S
     )
     assert success_callback and "closeTasksAfterVerifiedInstall(context, expectedCode)" in success_callback.group(1)

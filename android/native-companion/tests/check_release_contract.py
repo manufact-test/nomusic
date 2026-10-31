@@ -17,7 +17,7 @@ count = 1
 # recent-task entries; cancellation/failure must not close the current task.
 receiver = (ROOT / "addon/src/pro/celikom/nativeprobe/identitydiag/UpdateInstallReceiver.java").read_text()
 success = re.search(
-    r"else if \\(status == PackageInstaller\\.STATUS_SUCCESS\\) \\{(.*?)\\n\\s*\\} else",
+    r"else if \(status == PackageInstaller\.STATUS_SUCCESS\) \{(.*?)\n\s*\} else",
     receiver,
     re.S,
 )
@@ -55,7 +55,7 @@ for key, value in [
     must_reject(broken, java, key)
 
 must_reject(data, java.replace('NAME="0.3.72"', 'NAME="0.3.51"'), "stale AppVersion")
-must_reject(data, java.replace('NAME="0.3.71"', 'NAME="0.3.71"; static final String NAME="0.3.71"'), "duplicate AppVersion")
+must_reject(data, java.replace('NAME="0.3.72"', 'NAME="0.3.72"; static final String NAME="0.3.72"'), "duplicate AppVersion")
 assert "from release_contract import load_release" in (ROOT / "build_release.py").read_text()
 assert "from release_contract import load_release" in (ROOT / "verify_release.py").read_text()
 # GitHub artifact ZIP strips hidden files by default. Ship the ignore POLICY
@@ -68,7 +68,7 @@ count += 3
 print("PASS:", count, "negative release version, signing identity and code-source contract checks")
 
 sample = "versionCode: 23\nversionName: 0.3.22\nunrelated: value\n"
-expected = "versionCode: 72\nversionName: 0.3.71\nunrelated: value\n"
+expected = "versionCode: 73\nversionName: 0.3.72\nunrelated: value\n"
 assert patch_apktool_metadata(sample, "0.3.72", 73) == expected
 count += 1
 for text in ["versionCode: 23\nunrelated: value\n", "versionCode: 23\nversionCode: 24\nversionName: 0.3.22\n"]:
@@ -82,7 +82,7 @@ print("PASS: Apktool version substitution preserves metadata and rejects ambigui
 
 # Real Apktool 2.11.1 decoded source uses two-space indentation in versionInfo.
 real_apktool_yaml = "versionInfo:\n  versionCode: 23\n  versionName: 0.3.22-probe\n"
-want_yaml = "versionInfo:\n  versionCode: 72\n  versionName: 0.3.71\n"
+want_yaml = "versionInfo:\n  versionCode: 73\n  versionName: 0.3.72\n"
 assert patch_apktool_metadata(real_apktool_yaml, "0.3.72", 73) == want_yaml
 assert patch_apktool_metadata(want_yaml, "0.3.72", 73) == want_yaml
 print("PASS: actual Apktool 2.11.1 indented versionInfo and idempotence")
