@@ -84,7 +84,7 @@ The two event families must never be merged into one generic “buffering” dur
 
 In 0.3.72 there are 35 discontinuities: 27 same-index and 8 changed-index. Same-index events are consistent with in-item scrubs; changed-index events are item navigation/boundary cases. The log cannot prove that all 27 were finger drags or that all 8 were taps on CELIKOM's Next button.
 
-There is an additional instrumentation limitation: production `ProbeService` currently writes `manualNextButtonObserved: false` as a literal. The experimental offline parser's test with a synthetic `true` value tests parser behavior only; it does not mean the running app observed a Next-button tap.
+There is an additional instrumentation limitation: production `Media3SourceRouter` currently writes `manualNextButtonObserved: false` as a literal. The experimental offline parser's test with a synthetic `true` value tests parser behavior only; it does not mean the running app observed a Next-button tap.
 
 ### Position projection
 
@@ -188,9 +188,9 @@ The experimental branch remains separate and is not accepted for production.
 
 The current `SeekAlignmentPolicy` code uses a learned stable transport offset. Its current source constants are not identical to the earlier narrative docs: the code/tests use a 225 ms accepted residual and a 925 ms derived-baseline ceiling, while older notes still describe 200/900 ms. The code also uses a three-sample baseline spanning at least 250 ms, a 45 ms spread limit, a 700 ms initial baseline ceiling and a 1200 ms freshness window.
 
-The policy subtracts a learned difference between Media3's projected position and CELIKOM's MediaPlayer position from later transport drift/seek targeting. It does not measure PCM phase. The host tests are synthetic; they do not establish that the offset is stable on HONOR or acoustically meaningful.
+The policy subtracts a learned difference between Media3's projected position and CELIKOM's MediaPlayer position from later transport drift/seek targeting. It does not measure PCM phase. The host tests are synthetic; they do not establish that the offset is stable on HONOR or acoustically meaningful. The source comment calls the trigger a “user scrub”, but the actual trigger is the Media3 SEEK discontinuity; the app does not verify a physical touch gesture.
 
-A specific untested risk is baseline creep: after an accepted seek, `finish()` can relearn the raw post-seek offset. Repeated individually accepted residuals can move the learned baseline. Existing tests verify isolated baseline examples but do not bound a sequence of incremental residuals or prove that the normalization cannot hide accumulated error. The policy also feeds its normalized drift into the clock supervisor. Before considering it, add a regression for repeated residual accumulation, route/timebase changes and baseline expiry, and require device evidence.
+A specific untested risk is baseline creep: after an accepted seek, `finish()` can relearn the raw post-seek offset. Repeated individually accepted residuals can move the learned baseline. The code permits `finish()` to store a derived offset up to 925 ms, while the next `observe()` clears samples/baseline when the observed drift exceeds the 700 ms initial-baseline ceiling; the current tests assert the immediate post-`finish()` state but do not exercise the next 250 ms observation or a sequence of incremental residuals. The policy also feeds its normalized drift into the clock supervisor. Before considering it, add regressions for repeated residual accumulation, the 700/925 ms interaction, route/timebase changes and baseline expiry, and require device evidence.
 
 **Disposition:** do not cherry-pick `SeekAlignmentPolicy`, do not merge the experimental branch, and do not change the 225/350/160 ms thresholds based on transport-only tests.
 
