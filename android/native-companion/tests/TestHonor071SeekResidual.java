@@ -7,6 +7,7 @@ import android.os.SystemClock;
 /** Actual-engine replay of 0.3.71 seek residuals with a frozen stable clock baseline. */
 public final class TestHonor071SeekResidual {
  static int checks;
+ static TestStreamingEngine.Buffer activeBuffer;
  static void check(boolean ok,String why){checks++;if(!ok)throw new AssertionError(why);}
  static void start(ReplacementEngine e,MediaPlayer p){
   p.position+=50;SystemClock.now+=50;TestEngine.p.current=TestEngine.source("1",1050,true);e.update(TestEngine.p.current);
@@ -33,7 +34,7 @@ public final class TestHonor071SeekResidual {
     "three advancing stable samples establish the transport offset "+offset+"ms");
  }
  static void stable206OffsetMakes283ResidualSafe()throws Exception{
-  TestStreamingEngine.Buffer partial=TestStreamingEngine.start();
+  TestStreamingEngine.Buffer partial=TestStreamingEngine.start();activeBuffer=partial;
   ReplacementEngine e=TestEngine.e;MediaPlayer p=e.player;start(e,p);
   establishOffset(e,p,206);
   DynamicsProcessing original=e.effect;int before=p.seekCalls;
@@ -104,6 +105,7 @@ public final class TestHonor071SeekResidual {
     System.out.println("PASS: "+checks+" HONOR 0.3.71 baseline-aware seek and pause/Next checks");
   } finally {
    if(TestEngine.e!=null&&!TestEngine.e.closed)TestEngine.e.close();
+   if(activeBuffer!=null&&!activeBuffer.closed)activeBuffer.close();
   }
  }
 }
