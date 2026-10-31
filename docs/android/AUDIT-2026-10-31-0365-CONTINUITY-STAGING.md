@@ -55,7 +55,8 @@ Older 0.3.59/0.3.63/0.3.64 test assertions that positively demanded a muted orig
 
 - `python3 android/native-companion/tests/run_engine.py`: **PASS** all runnable local fake-engine suites, including new HONOR replay **71 assertions**, long-run 300 transitions / 15 virtual hours, pause/resume, source buffering, Bluetooth route loss, stale callback fencing, 0.3.51 journal and architecture check.
 - `check_audio_architecture.py`: **PASS**; rejects re-introduction of muted-source scrub timer and repeated partial cold dips and confirms shared production Media3 router.
-- Local **Android SDK 36 absent**, so the mandatory full Android source/addon `Test*.java`, API36 compilation, D8, packaging and signing have **not** been run for this checkpoint. Do not confuse the local fake tests with real `ProbeService` instrumentation.
+- Local **Android SDK 36 absent**, but the independent staging GitHub Actions run [41194035806](https://github.com/manufact-test/nomusic/actions/runs/41194035806) completed **SUCCESS**: pinned dependencies, release/archive/provenance negative cases, complete host tests, full Android API36 source compilation and addon host tests, D8 output, provenance and offline packaging kit. This validates compilation and fake/native host behavior, **not** physical `MediaController` instrumentation or audio quality.
+- The `publish-stable` job in that run was explicitly **SKIPPED** because this was a nonpublishing staging branch. Neither signing nor deployment occurred.
 - There was no signed artifact, no manifest update, no Android release, no HONOR audio recording, and no CI publication from this checkpoint.
 
 ## Cold attachment remains technically unresolved
