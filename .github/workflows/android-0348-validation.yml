@@ -5,6 +5,7 @@ on:
     branches:
       - feature/android-0348-audio-ownership-stabilization
       - feature/android-unified-preparation-seek-gate
+      - feature/android-honor065-continuity-staging
     paths:
       - 'android/native-companion/**'
       - '.github/workflows/android-0348-validation.yml'
