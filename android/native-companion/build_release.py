@@ -188,7 +188,7 @@ def main():
         tests.mkdir(exist_ok=True)
         test_cp = os.pathsep.join(map(str, [args.deps_dir / "json.jar", classes, android]))
         run(["java", "com.sun.tools.javac.Main", "-encoding", "UTF-8", "-source", "8", "-target", "8", "-cp", test_cp, "-d", tests, *sorted((ROOT / "addon").glob("Test*.java"))])
-        for test in ("TestPure", "TestHybrid", "TestContracts", "TestMobileActions", "TestAppPresentation", "TestNotifications", "TestDiagnosticArchive", "TestAudioTransfer", "TestBufferedAudio", "TestTransitionReadFence", "TestTransitionRecovery", "TestRequestPacing", "TestSourceStateWatchdog", "TestDiagnosticAccess", "TestPresencePreview", "TestDiagnosticRequest"):
+        for test in ("TestPure", "TestHybrid", "TestContracts", "TestMobileActions", "TestAppPresentation", "TestNotifications", "TestDiagnosticArchive", "TestAudioTransfer", "TestBufferedAudio", "TestTransitionReadFence", "TestTransitionRecovery", "TestRequestPacing", "TestSourceStateWatchdog", "TestDiagnosticAccess", "TestIncidentLog", "TestPresencePreview", "TestDiagnosticRequest"):
             run(["java", "-cp", os.pathsep.join(map(str, [args.deps_dir / "json.jar", classes, tests, android])), "pro.celikom.nativeprobe.identitydiag." + test])
         assert source_digests == {str(p.relative_to(ROOT)): sha(p) for p in source_inputs}, "Sources changed during compile/tests"
         addon_jar = work / "addon.jar"
