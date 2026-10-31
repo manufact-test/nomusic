@@ -86,6 +86,17 @@ Bluetooth и иных выходных маршрутах. Никакого PCM 
 standalone `TestBufferedAudio` **4139 PASS**, release contract **29 PASS**.
 Это build evidence, не физическое аудиоизмерение.
 
+Первый production release gate
+[`41221973695`](https://github.com/manufact-test/nomusic/actions/runs/41221973695)
+остановился **до подписи/публикации**: быстрый decoder demand успевал
+завершиться раньше, чем асинхронный watcher вызывал `disconnect()`,
+а `TestBufferedAudio` ошибочно требовал готовый счётчик без ожидания.
+Самостоятельный `TestBufferedAudio` четырежды подряд прошёл после
+исправления теста: он теперь `await`-ждёт ровно один disconnect и
+проверяет, что он случился **не на decoder thread**. Аудиодвижок, gain law,
+versionCode и механизм обновлений при этом не менялись. Перед выпуском
+требуется повторный полный staging CI.
+
 Подписывать/публиковать исключительно при зелёном CI через существующий
 производственный release/update workflow с исходным сертификатом. Версия
 кандидата `0.3.69`, code `70`; после live publish проверить подпись,
