@@ -14,8 +14,8 @@ public class TestHandoverClock {
   SystemClock.now+=ReplacementEngine.SOURCE_FADE_OUT_MS/2;
   p.position+=ReplacementEngine.SOURCE_FADE_OUT_MS/2;source+=ReplacementEngine.SOURCE_FADE_OUT_MS/2;
   sample(source);TestEngine.p.handler.drain();
-  check((p.volume==0f&&e.effect.gain==0f)
-      ||(p.volume>0.99f&&e.effect.gain==-100f),
+  check((p.volume==0f&&e.effect.gain<=0f&&e.effect.gain>=-100f)
+      ||(p.volume>=0f&&e.effect.gain==-100f),
       "handover remains wholly original or wholly replacement at all checkpoints "+drift);
   SystemClock.now+=ReplacementEngine.SOURCE_FADE_OUT_MS/2+ReplacementEngine.NEW_TRACK_JOIN_MS+40;
   p.position+=ReplacementEngine.SOURCE_FADE_OUT_MS/2+ReplacementEngine.NEW_TRACK_JOIN_MS+40;
@@ -27,7 +27,44 @@ public class TestHandoverClock {
   for(int i=0;i<8;i++){SystemClock.now+=250;p.position+=250;source+=250;sample(source);e.update(TestEngine.p.current);TestEngine.p.handler.drain();}
   check(e.player==p&&!p.released&&p.seekCalls==seeks&&TestEngine.api.resolves==1&&TestEngine.api.downloads==0,"recorded profile stays on same stream without repeated resolve/recovery "+drift);e.close();
  }
+ static void coldJoinSoftEdgesAndCancellation()throws Exception{
+  TestEngine.playing();ReplacementEngine e=TestEngine.e;MediaPlayer p=e.player;
+  check(e.fading&&p.volume==0f&&e.effect.gain==0f,
+    "cold join starts with original still audible and silent replacement");
+  SystemClock.now+=ReplacementEngine.SOURCE_FADE_OUT_MS/2;
+  sample(1000+ReplacementEngine.SOURCE_FADE_OUT_MS/2);TestEngine.p.handler.drain();
+  check(p.volume==0f&&e.effect.gain<0f&&e.effect.gain>-100f,
+    "original begins a bounded gradual attenuation before replacement grant");
+  SystemClock.now+=ReplacementEngine.SOURCE_FADE_OUT_MS/2+10;
+  sample(1000+ReplacementEngine.SOURCE_FADE_OUT_MS+10);TestEngine.p.handler.drain();
+  check(e.effect.gain==-100f&&p.volume<1f&&e.fading,
+    "decoder gain may rise only after original is fully muted");
+  SystemClock.now+=ReplacementEngine.NEW_TRACK_JOIN_MS/2;
+  sample(1000+ReplacementEngine.SOURCE_FADE_OUT_MS+10+ReplacementEngine.NEW_TRACK_JOIN_MS/2);
+  TestEngine.p.handler.drain();
+  check(p.volume>0f&&p.volume<1f&&e.effect.gain==-100f,
+    "the exclusive decoder joins smoothly instead of a single full-volume step");
+  SystemClock.now+=ReplacementEngine.NEW_TRACK_JOIN_MS/2+20;
+  sample(1000+ReplacementEngine.SOURCE_FADE_OUT_MS+ReplacementEngine.NEW_TRACK_JOIN_MS+30);
+  TestEngine.p.handler.drain();
+  check(p.volume==1f&&e.effect.gain==-100f&&!e.fading,
+    "cold join finishes fully audible without simultaneous output");e.close();
+  TestEngine.playing();e=TestEngine.e;p=e.player;
+  SystemClock.now+=ReplacementEngine.SOURCE_FADE_OUT_MS/2;
+  sample(1000+ReplacementEngine.SOURCE_FADE_OUT_MS/2);TestEngine.p.handler.drain();
+  TestEngine.p.current=TestEngine.source("1",1050,false);e.update(TestEngine.p.current);
+  check(!e.fading&&p.volume==0f&&e.effect!=null&&e.effect.gain==0f,
+    "pause cancels a partially faded cold join and restores native gain");
+  e.close();
+  TestEngine.playing();e=TestEngine.e;p=e.player;
+  SystemClock.now+=ReplacementEngine.SOURCE_FADE_OUT_MS/2;
+  sample(1000+ReplacementEngine.SOURCE_FADE_OUT_MS/2);TestEngine.p.handler.drain();
+  e.sourceBoundary("new_song_during_soft_join");SystemClock.now+=500;TestEngine.p.handler.drain();
+  check(p.released&&p.volume==0f&&e.player==null&&e.effect==null,
+    "new song cancels soft join without stale decoder or effect");e.close();
+ }
  public static void main(String[] args)throws Exception{
+  coldJoinSoftEdgesAndCancellation();
   for(int drift:new int[]{210,198,170,207,197,190,378,230,187})recordedOffset(drift);
   List<Map<String,Object>> rows=new ArrayList<>();rows.add(LogStore.map("catalogueTrackId","89285816","displayTitle","Он рядом","artist","Quest Pistols","durationMs",224520L));
   check("89285816".equals(AlbumMatch.match("Он рядом","Quest Pistols Show, Quest Pistols",224520,rows).get("catalogueTrackId")),"recorded duplicated artist display finds exact album track");
