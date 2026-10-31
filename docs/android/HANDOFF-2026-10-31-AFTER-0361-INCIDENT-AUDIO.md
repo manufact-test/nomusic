@@ -1,4 +1,6 @@
 # CELIKOM Android — FINAL HANDOFF, 31 October 2026
+
+> **NEW forensic checkpoint after this handoff:** [AUDIO-0361-COLD-JOIN-FORENSICS-2026-10-31.md](AUDIO-0361-COLD-JOIN-FORENSICS-2026-10-31.md) measures 21 fresh verified song joins in three private 0.3.61 runs: median 733ms boundary-to-handover (range 523–1073ms), 458ms median boundary-to-stream-ready; one cached reuse 261ms. Read-only next-song hints were incomplete in all 28 observations, so predictive loading has no verified target. Two resolve timeouts and a stream failure were genuine intermittent network outliers. These are commanded state transitions, not acoustic measurements. **No audio code modified; no APK published.** Obtain a time-marked, smooth-transitions-OFF full diagnostic for the remaining audible symptom before writing a failing regression and a surgical fix.
 ## Current authoritative status and exact scope
 
 **ONLY ANDROID.** Repository: https://github.com/manufact-test/nomusic ; working branch: feature/android-unified-preparation-seek-gate. Never touch desktop extension, feature/api-range, Yandex ad protection, server, catalog, other services, payment, Hostinger application or website. This instruction outranks obsolete historical handoffs.
