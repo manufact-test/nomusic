@@ -9,7 +9,7 @@
 - Nine new-song joins have 122–250 ms transport drift immediately before the existing 160 ms envelope; all explicitly mark PCM unmeasured and phase unverified.
 - Media3 seek events and command-level silence/overlap are not proof of a finger gesture or acoustic output. The current `manualNextButtonObserved` runtime field is hardcoded false.
 - Experimental `feature/android-0371-honor-diagnostic-audit-staging` remains unmerged. Its seek-offset policy changes transport clock normalization, not PCM phase; it has a baseline-creep test gap and stale 200/900 ms documentation versus current 225/925 ms source constants.
-- Seven synthetic offline diagnostic regression checks were added and wired into the Android validation workflow on this audit branch. `publish-stable` remains restricted to the production branch.
+- Seven synthetic offline diagnostic regression checks were added and wired into the Android validation workflow. CI run [41243476018](https://github.com/manufact-test/nomusic/actions/runs/41243476018) completed SUCCESS on code/test commit `507108067535b9a0de2cc6720d2ce8d57d35b11e`; `publish-stable` was SKIPPED. The latest branch HEAD is `c4b1360761607b915c469338768472b49c35e8b2` (the later commits are documentation-only).
 
 **Next action:** review the audit and the diagnostic-only test plan before authorizing any runtime instrumentation or PCM-capture experiment. Keep all audio behavior and thresholds unchanged until the owner performs acoustic acceptance on HONOR.
 
