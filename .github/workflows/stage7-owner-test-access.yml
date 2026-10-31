@@ -1,0 +1,42 @@
+name: CELIKOM Stage 7 private owner access
+
+on:
+  push:
+    branches: [feature/api-range]
+    paths:
+      - .github/workflows/stage7-owner-test-access.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: celikom-hostinger-private-test
+  cancel-in-progress: false
+
+jobs:
+  owner-access:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - name: Install fresh temporary owner code on CELIKOM test server
+        env:
+          HOSTINGER_SSH_KEY: ${{ secrets.HOSTINGER_SSH_KEY }}
+          CELIKOM_DELIVER_STAGE7_CODE: "1"
+        run: |
+          bash -n .github/scripts/hostinger-stage7-owner.sh
+          bash .github/scripts/hostinger-stage7-owner.sh
+          test -s dist/stage7-owner-access/owner-code.txt
+      - name: Deliver short-lived owner code privately (not in Git or extension)
+        uses: actions/upload-artifact@v4
+        with:
+          name: celikom-stage7-private-owner-code-${{ github.sha }}
+          path: dist/stage7-owner-access/owner-code.txt
+          retention-days: 1
+          if-no-files-found: error
