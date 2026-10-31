@@ -150,8 +150,8 @@ final class ReplacementEngine {
    boolean newlyAttached=effect==null;
    if(newlyAttached&&!mute())return;
    if(!effect.hasControl()||!effect.getEnabled()){stop("effect_control_lost");return;}
-   if(!player.isPlaying()){if(seamlessResume){audioOwner.grantReplacement(effect);originalMix=0f;applyVolume(1f);}else setAuditedVolume(player,0f);audioOwner.startDecoder(player,effect,identityKey,audioOwner.epoch());try{LogStore.log("audio_decoder_start",LogStore.map("trackId",trackId,"decoderPositionMs",player.getCurrentPosition(),"sourcePositionMs",position(s),"reusePreparedDecoder",true,"seekPending",seeking,"sourceMutedCommand",effect!=null&&originalMix<=0.001f));}catch(RuntimeException ignored){}traceAudioCommands();if(seamlessResume){fading=false;resumeFadePending=false;audioOwner.replacement();LogStore.log("replacement_resume_seamless",LogStore.map("trackId",trackId,"driftMs",drift,"sourcePositionMs",target,"retainedEffect",true));}else fade();}
-   else if(newlyAttached){setAuditedVolume(player,0f);fade();}
+   if(!player.isPlaying()){if(seamlessResume){audioOwner.grantReplacement(effect);originalMix=0f;applyVolume(1f);}else setAuditedVolume(player,0f);audioOwner.startDecoder(player,effect,identityKey,audioOwner.epoch());try{LogStore.log("audio_decoder_start",LogStore.map("trackId",trackId,"decoderPositionMs",player.getCurrentPosition(),"sourcePositionMs",position(s),"reusePreparedDecoder",true,"seekPending",seeking,"sourceMutedCommand",effect!=null&&originalMix<=0.001f));}catch(RuntimeException ignored){}traceAudioCommands();if(seamlessResume){fading=false;resumeFadePending=false;audioOwner.replacement();LogStore.log("replacement_resume_seamless",LogStore.map("trackId",trackId,"driftMs",drift,"sourcePositionMs",target,"retainedEffect",true));}else fade(newlyAttached);}
+   else if(newlyAttached){setAuditedVolume(player,0f);fade(true);}
    else if(!fading){audioOwner.grantReplacement(effect);originalMix=0f;applyVolume(1f);}
    status="Играет замена · автопереход включён";logSync("playing",s,drift);
   }catch(RuntimeException e){suspend("playback_exception",retryDelay());status="Ошибка звука — оригинал восстановлен; повторим автоматически";LogStore.log("replacement_failure",LogStore.map("reason","playback_exception","type",e.getClass().getSimpleName()));}
@@ -225,6 +225,10 @@ final class ReplacementEngine {
    transition++;fading=false;aligned=false;
    setAuditedVolume(player,0f);
    audioOwner.pauseDecoder(player);
+   /* A pause during a cold source fade cannot retain partial source gain. */
+   if(effect!=null&&originalMix>0.001f
+      &&audioOwner.state()==AudioOwnership.State.ALIGNING)
+    audioOwner.sourceGainDuringAlignment(effect);
    audioOwner.hold(buffering);
    final MediaPlayer p=player;final DynamicsProcessing fx=effect;
    final long token=transition,epoch=audioOwner.epoch();final String key=identityKey;
@@ -364,7 +368,7 @@ final class ReplacementEngine {
   update(now);
  }
  boolean mute(){try{if(trustedSession<=0||player==null||player.getAudioSessionId()==trustedSession)throw new IllegalStateException();DynamicsProcessing candidate=new DynamicsProcessing(0,trustedSession,null);effect=candidate;candidate.setControlStatusListener((e,control)->{if(!control)owner.handler.post(()->{if(effect==candidate)stop("effect_control_lost");});});if(!candidate.hasControl())throw new IllegalStateException();originalMix=1f;audioOwner.prepareSourceEffect(candidate);LogStore.log("replacement_original_muted",LogStore.map("sessionId",trustedSession,"globalVolumeChanged",false,"rampMs",resumeFadePending?PAUSE_RESUME_FADE_MS:FADE_MS));return true;}catch(RuntimeException e){stop("cannot_mute_original");status="Телефон не разрешил приглушить Яндекс; замена остановлена";return false;}}
- void fade(){
+ void fade(boolean softColdJoin){
   final long token=++transition;final MediaPlayer p=player;final DynamicsProcessing fx=effect;
   final long ownerEpoch=audioOwner.epoch();final String ownerKey=identityKey;
   audioOwner.aligning();
@@ -375,7 +379,7 @@ final class ReplacementEngine {
   resumeFadePending=false;
   final boolean alignLive=streaming!=null;
   final long[] baseline={p.getCurrentPosition()},phaseStarted={SystemClock.elapsedRealtime()};
-  final int[] corrections={0};
+  final int[] corrections={0};final long[] softStarted={-1};
   if(originalMix<=0.001f){
    setAuditedVolume(p,0f);
    audioOwner.sourceGainDuringAlignment(fx);originalMix=1f;traceAudioCommands();
@@ -404,13 +408,30 @@ final class ReplacementEngine {
      audioOwner.handoverClockValidated();fadeStarted=now;
      LogStore.log("replacement_decoder_advancing",LogStore.map("trackId",trackId,"driftMs",drift,"corrections",corrections[0],"waitMs",now-phaseStarted[0]));
     }
-    /* The original remains fully audible until the clock is proven current.
-       Commit mute-before-positive-gain in one serialized handler turn. */
-    audioOwner.grantReplacement(fx);originalMix=0f;
-    applyVolume(1f);
+    /* Soft edges only for a newly attached source. Existing pause/seek
+       recovery keeps the accepted immediate exclusive owner protocol.
+       Original and replacement never have positive gain at the same time. */
+    if(softColdJoin){
+     if(softStarted[0]<0)softStarted[0]=SystemClock.elapsedRealtime();
+     long elapsed=Math.max(0,SystemClock.elapsedRealtime()-softStarted[0]);
+     if(elapsed<SOURCE_FADE_OUT_MS){
+      audioOwner.fadeSourceBeforeGrant(fx,TransitionMix.progress(elapsed,SOURCE_FADE_OUT_MS));
+      owner.handler.postDelayed(this,20);return;
+     }
+     if(originalMix>0.001f){
+      audioOwner.grantReplacement(fx);originalMix=0f;applyVolume(0f);
+     }
+     applyVolume(TransitionMix.progress(elapsed-SOURCE_FADE_OUT_MS,NEW_TRACK_JOIN_MS));
+     if(elapsed<SOURCE_FADE_OUT_MS+NEW_TRACK_JOIN_MS){
+      owner.handler.postDelayed(this,20);return;
+     }
+    }else{
+     audioOwner.grantReplacement(fx);originalMix=0f;applyVolume(1f);
+    }
     fading=false;audioOwner.replacement();ownerEvent("exclusive_handover");
     LogStore.log("replacement_transition_complete",LogStore.map(
-      "trackId",trackId,"rampMs",0,"joinMode","exclusive_single_turn",
+      "trackId",trackId,"rampMs",softColdJoin?SOURCE_FADE_OUT_MS+NEW_TRACK_JOIN_MS:0,
+      "joinMode",softColdJoin?"exclusive_soft_edge":"exclusive_single_turn",
       "commandDelayMs",SystemClock.elapsedRealtime()-fadeStarted));
    }catch(RuntimeException e){suspend("fade_failed",retryDelay());}
   }};ramp.run();
