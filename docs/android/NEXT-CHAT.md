@@ -16,7 +16,7 @@
 
 `feature/android-0371-honor-diagnostic-audit-staging`
 
-Start from its actual HEAD, not a remembered SHA. Previous checkpoint: `60e78db25c2847d71431be890fdd6a3b0e9c95ba`. **Seek-baseline implementation commit:** `58f1111dade3a15cc6e6bc2b4cdb648623dc933f`. **Validated code commit:** `032bd8f2c77d6deb069155923a602bf242aebdf1`. **Latest documentation commit / branch HEAD before this handoff update:** `f4a288ff3429a30327448a3048a847b21cc52c83`. The implementation adds the seek-scoped stable transport-baseline policy in `ReplacementEngine`, `SeekAlignmentPolicy.java`, and actual-engine tests for 0.3.71 residuals plus 0.3.63/0.3.64 scrub regressions.
+Start from its actual HEAD, not a remembered SHA. Previous checkpoint: `60e78db25c2847d71431be890fdd6a3b0e9c95ba`. **Seek-baseline implementation commit:** `58f1111dade3a15cc6e6bc2b4cdb648623dc933f`. **Validated code commit:** `032bd8f2c77d6deb069155923a602bf242aebdf1`. **Signed test APK build commit:** `4d7904b156a5fe2b500f6ba97c2cff7be56a9861`. **Latest documentation commit / branch HEAD before this handoff update:** `04dc33b35844879f9719cd254e81a495d0790174`. The implementation adds the seek-scoped stable transport-baseline policy in `ReplacementEngine`, `SeekAlignmentPolicy.java`, and actual-engine tests for 0.3.71 residuals plus 0.3.63/0.3.64 scrub regressions.
 
 ## Policy now under CI validation
 
@@ -24,24 +24,37 @@ A flat 350ms gate could grant output while a new seek residual was still audible
 
 This is transport timing only, **not acoustic or Bluetooth phase measurement**. Cold initial join and route-resume paths are intentionally left on their existing behavior.
 
-## Required next steps
+## Final CI and signed test APK
 
-1. Final CI receipt: [GitHub Actions run 41237891623](https://github.com/manufact-test/nomusic/actions/runs/41237891623) — **SUCCESS** on validated code commit `032bd8f`. Native host suite, Android API36 compile, D8, source/DEX provenance, release-contract guards and artifact staging passed. `publish-stable` was **SKIPPED**. The 204ms legacy seek contract is preserved by the 225ms threshold.
-2. Run the full `python3 android/native-companion/tests/run_engine.py` suite and inspect any failing test before making another change.
-3. Confirm the new `TestSeekAlignmentPolicy`, `TestHonor071SeekResidual`, modified `TestHonor063SeekScrub` and `TestHonor064ManualNext` all pass.
-4. Confirm SDK36 Java compile + D8 succeeds and the `publish-stable` job is skipped on this staging branch.
-5. Review the final diff for accidental changes. No user journals, track IDs/titles or raw diagnostics in Git. The HONOR 0.3.71 replay fixture drains the initial decoder gate before measuring the cold join and closes its streaming fixture in `finally`. The 0.3.60 journal fixture also closes its background buffer on failure. `run_engine.py` bounds each host subprocess to 60 seconds so a leaked executor cannot wedge CI indefinitely; this is test-harness hardening, not production playback behavior.
-6. Only after all CI gates pass, prepare a real-device test build if explicitly authorized. Keep 0.3.71 as the installed safe baseline until the user tests it.
+- Algorithm code commit: `032bd8f2c77d6deb069155923a602bf242aebdf1`.
+- Final build/workflow commit: `4d7904b156a5fe2b500f6ba97c2cff7be56a9861`.
+- [GitHub Actions run 41238844237](https://github.com/manufact-test/nomusic/actions/runs/41238844237) — **SUCCESS**.
+- `native-android` — SUCCESS: full host suite, API36 compile, D8, source/DEX provenance and release guards.
+- `build-honor-seek-test-apk` — SUCCESS: rebuilt, signed with the original CELIKOM certificate and independently verified the APK.
+- `publish-stable` — **SKIPPED**. No Hostinger upload or stable manifest mutation occurred.
+
+**Signed test APK is ready:** [download artifact](https://github.com/manufact-test/nomusic/actions/runs/41238844237/artifacts/13056871292). Full receipt: [ANDROID-0371-SEEK-TEST-APK-RECEIPT-2026-10-31.md](ANDROID-0371-SEEK-TEST-APK-RECEIPT-2026-10-31.md).
+
+- File: `CELIKOM-Android-0.3.71-SEEK-TEST-SIGNED.apk`
+- Version/package: `0.3.71`, `pro.celikom.nativeprobe`, versionCode `72`.
+- SHA-256: `444b6c230aaddf2995138c3ad85286433dd25b3994e8a2871fe53d97dba4cb14`.
+- Signer SHA-256: `67fe81c56fac1c1d145344b69a0e3faf9005cf6607f4e26ca27d5926c3eefc4f`.
+
+The test APK deliberately retains package, original signer and versionCode 72 so it can replace the current 0.3.71 in place without advancing the stable channel or blocking rollback to the archived baseline. Do not uninstall the existing app. If Android reports a signature conflict, downgrade or install error, stop and send a screenshot; do not clear data.
+
+## Next action — real HONOR acceptance
+
+1. Download and install the signed test APK over the existing CELIKOM 0.3.71; preserve app data.
+2. Test fast seek, the 204ms legacy boundary, 226ms+, 283–336ms residuals, repeated scrubs, pause/resume, Next during alignment and partial-stream seek.
+3. Listen for an actual micro-rewind, gap, click or level dip. Do not equate transport milliseconds with acoustic phase.
+4. Send one fresh combined diagnostic plus the exact reproduction sequence. Keep the original baseline backup untouched.
+5. If a new symptom appears, preserve the journal and create a deterministic RED test before changing thresholds.
+
+**No stable release has been published.** The APK is signed and ready for device testing, but physical HONOR speaker/Bluetooth behavior is not yet verified.
 
 **Important test cases:** stable 206ms offset + 77ms new seek error (283ms raw) should preserve the offset; stable 206ms + 250ms new error should correct silently; no baseline + 283ms should correct; 179ms fast seek remains accepted; slow Range 2792/933/17ms remains bounded; repeated finger scrubs, pause, Stop, route loss, real Media3 Next, stale callbacks and automatic successor must not regress.
 
 Cold next-song dip/micro-repeat remains separate. The 160ms complementary linear join uses two independent output sessions; transport tests cannot establish PCM phase. Do not reintroduce A/B controls, equal-power fading, or claim the join is acoustically proven.
 
 
-## Final status / real-device acceptance
 
-- The 225ms policy is CI-validated, but **not yet acoustically validated on the HONOR phone**.
-- No new APK was built or signed. Do not install the CI unsigned DEX or offline kit.
-- The next meaningful step is to prepare a separate nonpublishing test APK only when explicitly authorized, install it alongside the untouched 0.3.71 backup/safe path, and record a fresh diagnostic after repeated scrubs (fast, 204ms, 226ms+, 283ms), pause/resume, Next and partial-stream seek.
-- Compare the new journal's raw transport residual and stable baseline fields. Listen for actual micro-rewind; do not equate transport milliseconds with measured audio output.
-- If the phone shows a problem, preserve the new journal and create a precise RED reproduction before changing thresholds again.
