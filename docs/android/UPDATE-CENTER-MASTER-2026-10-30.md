@@ -1,3 +1,7 @@
+> **CURRENT STATUS — 31.10.2026:** the Update Center and stable APK distribution described here are now deployed. CELIKOM Android **0.3.72 / versionCode 73** is live. The original “not created / not deployed” status below describes the state on 30.10.2026 and is retained as historical design context only. See [ANDROID-0372-OTA-RELEASE-RECEIPT-2026-10-31.md](ANDROID-0372-OTA-RELEASE-RECEIPT-2026-10-31.md) for actual release evidence and the pending HONOR test.
+
+---
+
 # CELIKOM Update Center — ТЗ, архитектура и требования · 30.10.2026
 
 > **СТАТУС: подготовлено к реализации в следующем чате.** Раздача APK на сайте, manifest, уведомления и встроенный обновлятор пока **не созданы и не развернуты**. Текущая подписанная 0.3.55/Gate G **не содержит** обновлятора. От этого документа нельзя считать, что скачивание по будущей ссылке уже работает.
