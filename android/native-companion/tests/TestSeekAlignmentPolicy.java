@@ -14,6 +14,8 @@ public final class TestSeekAlignmentPolicy {
     "seek freezes the most recent stable baseline");
   check(p.adjustedDrift(283)==77&&p.withinAcceptance(283),
     "283ms absolute drift is only a 77ms new error over stable 206ms offset");
+  check(p.withinAcceptance(204)&&!p.withinAcceptance(226),
+    "204ms remains inside the historical 350ms handover behavior; 226ms requires correction");
   check(p.adjustedDrift(330)==124&&p.withinAcceptance(330),
     "330ms raw drift is acceptable when only 124ms exceeds the stable baseline");
   check(p.adjustedDrift(456)==250&&!p.withinAcceptance(456),
