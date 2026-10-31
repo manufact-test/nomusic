@@ -2,7 +2,7 @@
 
 Привет! Продолжаем разработку **CELIKOM только для Android**. Репозиторий: https://github.com/manufact-test/nomusic.
 
-**Последняя установленная подписанная версия — 0.3.67/versionCode 68. Её звук НЕ ПРИНЯТ.** Production Android-ветка `feature/android-unified-preparation-seek-gate`, последний подписанный исходный код `525fcb4e39cc077c1eaf7f8ba4172c3fa18d2cf0`; последующий docs-only production HEAD может отличаться. Подготовленный, но ещё **не выпущенный** код — `feature/android-honor065-continuity-staging`. Сначала проверь фактические HEAD обеих веток и staging SDK36/D8 GitHub Actions. **Не делай релиз из старого источника и не копируй staging-only workflow trigger на production.**
+**Последняя установленная подписанная версия — 0.3.67/versionCode 68. Её звук НЕ ПРИНЯТ.** Production Android-ветка `feature/android-unified-preparation-seek-gate`, последний подписанный исходный код `525fcb4e39cc077c1eaf7f8ba4172c3fa18d2cf0`; последующий docs-only production HEAD может отличаться. Подготовленный, но ещё **не выпущенный** Android-код — `510523f128f38249016068b5dc7612f29a7079e5` в `feature/android-honor065-continuity-staging`. Для него [SDK36/D8 GitHub CI 41211791265](https://github.com/manufact-test/nomusic/actions/runs/41211791265) **SUCCESS**, `publish-stable` **SKIPPED**. Сначала проверь фактические HEAD обеих веток. **Не делай релиз из старого источника и не копируй staging-only workflow trigger на production.**
 
 Обязательно сначала полностью прочитай:
 
@@ -19,7 +19,7 @@
 
 - В `ReplacementEngine.update()` при ожидании долгого потокового seek **перестали освобождать и заново прикреплять original `DynamicsProcessing`**, если source уже 0 dB, decoder CELIKOM off-output; добавили однократный `replacement_stream_seek_data_wait`. Реальная pause/Stop/Next/callback fencing не ослаблены.
 - В `BufferedAudio` убрали постоянную потерю фонового заполнения кэша после трёх неудачных HTTP Range: успешный последующий незакэшированный `readAt()` может запустить **один** prefetch worker заново (`replacement_stream_prefetch_resumed`), только если предыдущий prefetch уже был запрошен. Pending wakeup не теряется, если decoder успешно прочитал блок **до** завершения старого worker. Без нового бесконечного timer/retry и без ослабления Range/ETag проверки.
-- Написан красный/зелёный `TestHonor067SlowStreamSeek` (11 проверок); расширен `TestBufferedAudio` (всего 4124 проверок, включая гонку callback/worker); изменён инвариант `TestStreamingEngine`; подключён тест в `run_engine.py`. Полный локальный host suite, отдельный Java BufferedAudio тест и release contract прошли. **Полный SDK36/D8 должен подтвердить GitHub CI; физическое звучание не тестировалось.**
+- Написан красный/зелёный `TestHonor067SlowStreamSeek` (11 проверок); расширен `TestBufferedAudio` (всего 4124 проверок, включая гонку callback/worker); изменён инвариант `TestStreamingEngine`; подключён тест в `run_engine.py`. Полный локальный host suite, отдельный Java BufferedAudio тест и release contract прошли; полный SDK36/D8 GitHub CI **41211791265 SUCCESS**. **Физическое звучание не тестировалось.**
 - **Важно:** эти патчи уменьшают лишнее переключение владельца и восстанавливают prefetch, но **не делают сетевую операцию 2792 мс мгновенной**. Не обещать пользователю, что перемотка наконец исправлена, пока HONOR не подтвердил.
 
 **Твоя задача теперь:**

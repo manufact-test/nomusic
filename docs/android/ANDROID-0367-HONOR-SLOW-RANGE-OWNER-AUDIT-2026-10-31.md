@@ -1,6 +1,6 @@
 # CELIKOM Android — HONOR 0.3.67: долгий HTTP Range seek, владение оригиналом и восстановление догрузки
 
-**31.10.2026. Технический checkpoint, НЕ релиз.** Последняя установленная подписанная версия **0.3.67/versionCode 68**, её звук **не принят**. Исправления этой страницы — кандидат **только** в непубликующей `feature/android-honor065-continuity-staging`; `AppVersion`, release-spec, подпись, backend, сайт и механизм обновления не изменены. Нового APK пока **нет**.
+**31.10.2026. Технический checkpoint, НЕ релиз.** Последняя установленная подписанная версия **0.3.67/versionCode 68**, её звук **не принят**. Исправления этой страницы — кандидат **только** в непубликующей `feature/android-honor065-continuity-staging`; проверенный Android-код **`510523f128f38249016068b5dc7612f29a7079e5`**, [GitHub SDK36/D8 CI 41211791265 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/41211791265), `publish-stable` **SKIPPED**. `AppVersion`, release-spec, подпись, backend, сайт и механизм обновления не изменены. Нового APK пока **нет**.
 
 ## Источник и границы доказательства
 
@@ -27,10 +27,10 @@
 | `TestHonor067SlowStreamSeek` | Асинхронная цепочка **2792/933/17 мс**, три позиции пальца; один original effect, без ложного release, decoder всё время off-output; реальная пауза, Next, stale ACK | **11 PASS**; первый owner-invariant падал на 0.3.67 |
 | `TestBufferedAudio` | Фоновая догрузка трижды получает HTTP **503** на блоке №2, прекращается; успешный decoder `readAt()` блока №6 **до завершения callback отказа** обязан возобновить её и получить полный byte-exact файл; cancellation/ETag/range остались | **4124 PASS** при отдельной Java-host компиляции; проверка восстановления падает без новой логики |
 | `TestStreamingEngine` | При ожидании partial stream исходник полностью слышим, decoder молчит, оригинальный effect **не теряется**; обычная отмена/timeout | **PASS** в общем suite |
-| `python3 android/native-companion/tests/run_engine.py` | Media3 real router, natural → manual Next → seeks → natural → seeks, BLE/BT, pause/resume, Stop, source arbitration, acoustic-feasibility *simulation* | **PASS локально**; native full-source SDK36/D8 gate **не выполнялся** без SDK |
+| `python3 android/native-companion/tests/run_engine.py` | Media3 real router, natural → manual Next → seeks → natural → seeks, BLE/BT, pause/resume, Stop, source arbitration, acoustic-feasibility *simulation* | **PASS локально**; native full-source SDK36/D8 GitHub CI **41211791265 SUCCESS**, публикация **SKIPPED** |
 | `python3 android/native-companion/tests/check_release_contract.py` | 27 version/signing/provenance негативных gate, подлинность release path | **PASS локально**; signing/publishing НЕ запускались |
 
-Перед выпуском кандидат должен пройти **полный staging GitHub Actions SDK36/D8 и `addon/Test*.java`**, затем отдельную проверку signed release path; зелёный CI не равен принятому звуку. Следующий чат обязан сверить фактический staging HEAD/CI.
+Кандидат прошёл **полный staging GitHub Actions SDK36/D8 и `addon/Test*.java`** на `510523f`, [run 41211791265](https://github.com/manufact-test/nomusic/actions/runs/41211791265); `publish-stable` был **SKIPPED**. Перед будущим выпуском требуется отдельная проверка signed release path; зелёный CI не равен принятому звуку. Следующий чат обязан сверить фактический staging HEAD/CI.
 
 ## Открытые риски и приёмка на HONOR
 
