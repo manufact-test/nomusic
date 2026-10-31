@@ -26,7 +26,7 @@ def must_reject(meta, text, label):
 for key, value in [
     ("version", "0.3.51"), ("version", "0.3.54"), ("version", "0.3.59"), ("version", "0.3.63"), ("version", "0.3.64"), ("version", "0.3.65"), ("version", "0.3.66"), ("version", "0.3.67"), ("version", "0.3.69"),
     ("version_code", 52), ("version_code", 55), ("version_code", 60), ("version_code", 63),
-    ("version_code", 64), ("version_code", 65), ("version_code", 66), ("version_code", 67), ("version_code", 68), ("version_code", 71), ("version_code", "56"), ("previous_rejected_code", 54),
+    ("version_code", 64), ("version_code", 65), ("version_code", 66), ("version_code", 67), ("version_code", 68), ("version_code", 70), ("version_code", "56"), ("previous_rejected_code", 54),
     ("previous_rejected_version", "0.3.50"),
     ("package", "invalid.package"),
     ("signing_certificate_sha256", "a" * 64),
