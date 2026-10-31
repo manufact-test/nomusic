@@ -14,6 +14,13 @@ class BufferedAudio implements Closeable {
  final ScheduledExecutorService watcher=Executors.newSingleThreadScheduledExecutor();final ExecutorService background=Executors.newSingleThreadExecutor();
  volatile int playbackBlock;volatile long size=-1,waitingSince=-1;volatile boolean closed;String etag;boolean detached;IOException fatal;
  boolean prefetchActive,prefetchAttempted,prefetchRecoveryPending;
+ // Demand reads must not queue behind a background Range over a slow VPN.
+ // Background transport is yieldable; foreground seeks retain strict validators.
+ int foregroundReads;
+ HttpURLConnection prefetchConnection;
+ static final class ForegroundPriority extends IOException {
+  ForegroundPriority(){super("prefetch_yield_to_decoder");}
+ }
  BufferedAudio(File file,Open open,BooleanSupplier valid,LongSupplier clock,Events events){this.file=file;this.open=open;this.valid=valid;this.clock=clock;this.events=events;
   watcher.scheduleAtFixedRate(()->{if(!valid.getAsBoolean())close();},100,100,TimeUnit.MILLISECONDS);
  }
@@ -26,8 +33,20 @@ class BufferedAudio implements Closeable {
   synchronized(this){if(closed||prefetchActive||complete())return;restart=prefetchAttempted;prefetchAttempted=true;prefetchActive=true;}
   if(restart)events.event("replacement_stream_prefetch_resumed",cachedBytes());
   try{background.execute(()->{
-   try{while(!closed){int b=nextPrefetchBlock();if(b<0)break;fetch(b);}if(complete())events.event("replacement_stream_cached",size);}
+   try{
+    while(!closed){
+     synchronized(BufferedAudio.this){
+      while(!closed&&foregroundReads>0)BufferedAudio.this.wait(100);
+      if(closed)break;
+     }
+     int b=nextPrefetchBlock();if(b<0)break;
+     fetch(b,true);
+    }
+    if(complete())events.event("replacement_stream_cached",size);
+   }
+   catch(ForegroundPriority e){events.event("replacement_stream_prefetch_yield",cachedBytes());}
    catch(IOException e){events.event("replacement_stream_prefetch_wait",cachedBytes());}
+   catch(InterruptedException e){Thread.currentThread().interrupt();}
    finally{
     boolean rearm;
     synchronized(BufferedAudio.this){prefetchActive=false;rearm=prefetchRecoveryPending;prefetchRecoveryPending=false;}
@@ -47,8 +66,18 @@ class BufferedAudio implements Closeable {
   if(position<0||offset<0||length<0||offset>buffer.length-length)throw new IOException("invalid_audio_read");if(length==0)return 0;
   synchronized(this){check();if(size<0)throw new IOException("audio_not_initialized");if(position>=size)return -1;}
   int block=(int)(position/BLOCK),count=(int)Math.min(Math.min(length,BLOCK-position%BLOCK),size-position);
-  boolean cacheMiss;
-  synchronized(this){playbackBlock=block;cacheMiss=!present.get(block);if(cacheMiss)waitingSince=clock.getAsLong();}
+  boolean cacheMiss;HttpURLConnection obsoletePrefetch=null;
+  synchronized(this){
+   playbackBlock=block;cacheMiss=!present.get(block);
+   if(cacheMiss){
+    if(foregroundReads++==0)waitingSince=clock.getAsLong();
+    obsoletePrefetch=prefetchConnection;
+   }
+  }
+  // Never call disconnect() on MediaPlayer's decoder thread: it may block.
+  // The validity watcher is a separate executor and can abort the old Range.
+  if(obsoletePrefetch!=null)try{final HttpURLConnection old=obsoletePrefetch;watcher.execute(old::disconnect);}
+   catch(RejectedExecutionException ignored){}
   try{fetch(block);synchronized(this){check();try(RandomAccessFile in=new RandomAccessFile(file,"r")){in.seek(position);in.readFully(buffer,offset,count);}}
    /* A background HTTP Range failure used to stop prefetch for this whole
       song. A successful ON-DEMAND missing-block fetch is concrete proof that
@@ -66,18 +95,29 @@ class BufferedAudio implements Closeable {
    }
    if(rearm)prefetch();
    return count;}
-  finally{waitingSince=-1;}
+  finally{if(cacheMiss)synchronized(this){
+   if(--foregroundReads==0)waitingSince=-1;
+   notifyAll();
+  }}
  }
  synchronized void check()throws IOException{if(closed||!valid.getAsBoolean())throw new IOException("audio_cancelled");if(fatal!=null)throw fatal;}
- void fetch(int block)throws IOException{
-  synchronized(this){check();while(loading.get(block)&&!present.get(block)){try{wait(100);}catch(InterruptedException e){Thread.currentThread().interrupt();throw new IOException("audio_interrupted");}check();}if(present.get(block))return;loading.set(block);}
+ void fetch(int block)throws IOException{fetch(block,false);}
+ void fetch(int block,boolean backgroundRead)throws IOException{
+  synchronized(this){
+   check();if(backgroundRead&&foregroundReads>0)throw new ForegroundPriority();
+   while(loading.get(block)&&!present.get(block)){
+    try{wait(100);}catch(InterruptedException e){Thread.currentThread().interrupt();throw new IOException("audio_interrupted");}
+    check();if(backgroundRead&&foregroundReads>0)throw new ForegroundPriority();
+   }
+   if(present.get(block))return;loading.set(block);
+  }
   try{
    IOException last=null;
    for(int attempt=0;attempt<3;attempt++){
-    synchronized(this){check();}
+    synchronized(this){check();if(backgroundRead&&foregroundReads>0)throw new ForegroundPriority();}
     HttpURLConnection c=null;
     try{
-     c=open.open();synchronized(this){check();connections.add(c);}
+     c=open.open();synchronized(this){check();connections.add(c);if(backgroundRead)prefetchConnection=c;}
      c.setConnectTimeout(6000);c.setReadTimeout(5000);c.setInstanceFollowRedirects(false);c.setRequestProperty("Accept-Encoding","identity");
      long first=(long)block*BLOCK,lastByte=size>0?Math.min(size-1,first+BLOCK-1):first+BLOCK-1;
      c.setRequestProperty("Range","bytes="+first+"-"+lastByte);String validator; synchronized(this){validator=etag;}if(validator!=null)c.setRequestProperty("If-Range",validator);
@@ -93,8 +133,15 @@ class BufferedAudio implements Closeable {
      byte[] data=new byte[bytes];try(InputStream input=c.getInputStream()){int at=0,n;while(at<bytes){synchronized(this){check();}n=input.read(data,at,bytes-at);if(n<0)throw new EOFException("incomplete_audio");if(n==0)continue;at+=n;}}
      synchronized(this){check();try(RandomAccessFile output=new RandomAccessFile(file,"rw")){output.seek(first);output.write(data);}present.set(block);notifyAll();}return;
     }catch(AudioTransfer.Rejected e){synchronized(this){fatal=e;notifyAll();}throw e;}
-    catch(Exception e){last=e instanceof IOException?(IOException)e:new IOException("audio_transport",e);events.event("replacement_stream_retry",cachedBytes());}
-    finally{if(c!=null){synchronized(this){connections.remove(c);}c.disconnect();}}
+    catch(Exception e){
+     synchronized(this){if(backgroundRead&&foregroundReads>0)throw new ForegroundPriority();}
+     last=e instanceof IOException?(IOException)e:new IOException("audio_transport",e);
+     events.event("replacement_stream_retry",cachedBytes());
+    }
+    finally{if(c!=null){synchronized(this){
+     connections.remove(c);
+     if(backgroundRead&&prefetchConnection==c)prefetchConnection=null;
+    }c.disconnect();}}
    }
    throw last==null?new IOException("audio_transport"):last;
   }finally{synchronized(this){loading.clear(block);notifyAll();}}

@@ -67,9 +67,22 @@ public final class TestHonor067SlowStreamSeek {
   check(!p.playing&&p.volume==0f&&e.pausedAt>=0&&e.effect==retained,
     "genuine user pause must remain effective during stalled seek");
   MediaPlayer.OnSeekCompleteListener staleSeek=p.seek;
-  e.sourceBoundary("manual_next_while_http_stalled");staleSeek.onSeekComplete(p);
+  // Yandex emits a position-discontinuity reason=SEEK when a real manual
+  // Next changes the Media3 item index. Route that actual callback shape,
+  // not a synthetic direct sourceBoundary() call.
+  Media3SourceRouter router=new Media3SourceRouter(new SourceEventArbiter(),
+   new Media3SourceRouter.Sink(){
+    public void boundary(String nextAlias,String reason){e.sourceBoundary(reason);}
+    public void seekRequested(){e.sourceSeekRequested();}
+   });
+  check(router.discontinuity("1","2","1","2",5,6,50350,0,0,false,true)
+      ==SourceEventArbiter.Action.BOUNDARY,
+    "Media3 manual Next changing item index must be a boundary during slow seek");
+  staleSeek.onSeekComplete(p);
   check(p.released&&e.player==null&&e.effect==null&&retained.released,
     "real track boundary retires old in-flight decoder and effect before stale ACK");
+  check(router.mediaItem("2","2","2",false,0)==SourceEventArbiter.Action.IGNORE,
+    "follow-up Media3 item event cannot create a second boundary");
   SystemClock.now+=2000;TestEngine.p.handler.drain();
   check(e.player==null&&e.effect==null,"stale callbacks cannot revive output after Next");
   e.close();
