@@ -103,3 +103,41 @@ versionCode и механизм обновлений при этом не мен
 DEX provenance, номер, SHA256, GET и существующую кнопку
 «Проверить обновление». Окончательная приёмка — только на HONOR пользователя,
 **один единый режим, одна диагностика**, без новых A/B APK.
+
+## Итог: один подписанный 0.3.69/code70, опубликован
+
+- Повторный непубликующий staging на
+  [`a87f912a4d8bef1c92aaa6353ce3cb74ef519081`](https://github.com/manufact-test/nomusic/commit/a87f912a4d8bef1c92aaa6353ce3cb74ef519081):
+  [SDK36/D8 CI 41222325576](https://github.com/manufact-test/nomusic/actions/runs/41222325576)
+  **SUCCESS**, `publish-stable` **SKIPPED**.
+- Единственный **успешный подписанный выпуск**:
+  production commit
+  [`a30f949b10a72f62977e70cba30767b7c382a249`](https://github.com/manufact-test/nomusic/commit/a30f949b10a72f62977e70cba30767b7c382a249),
+  [GitHub SDK36/D8 + sign/publish 41222465012](https://github.com/manufact-test/nomusic/actions/runs/41222465012)
+  **SUCCESS**; все `native-android` и `publish-stable / publish` steps завершены.
+- Подлинная подпись v2/v3, оригинальный signer SHA256
+  `67fe81c56fac1c1d145344b69a0e3faf9005cf6607f4e26ca27d5926c3eefc4f`;
+  точные DEX из CI provenance, assets неизменны. Release verifier сообщил
+  `PASS: same signing identity; APK v2/v3 signature; alignment; version/API;
+  approved manifest boundary and unchanged catalogue assets; exact compiled addon DEX`.
+- **Живой manifest:** `https://lemonchiffon-narwhal-791953.hostingersite.com/updates/android/stable.json`,
+  `versionName=0.3.69`, `versionCode=70`, `packageName=pro.celikom.nativeprobe`.
+- **Живой immutable APK:**
+  `https://lemonchiffon-narwhal-791953.hostingersite.com/releases/android/70-f03e73d37e957d08acdf105371eb7fb7f7f91876d56fee5603cbb0927ed46d20.apk`.
+  HTTP HEAD **200**, content type
+  `application/vnd.android.package-archive`, размер **8 738 889 байт**.
+  Независимый полный HTTP GET в `sha256sum` (exit 0) совпал с manifest:
+  **`f03e73d37e957d08acdf105371eb7fb7f7f91876d56fee5603cbb0927ed46d20`**.
+- Кнопка **«Проверить обновление»** использует тот же существующий live
+  manifest и теперь должна предложить установку code70 поверх 0.3.68/code69.
+  **Физическое подтверждение установки/акустики на HONOR ещё принадлежит
+  владельцу**; APK не именовать «звук принят».
+
+Теперь нужен **один** пользовательский прогон:
+естественная песня → реальный manual Next в Яндексе → 5–6 finger seeks →
+естественная следующая песня → ещё 5–6 seek, плюс пауза/возобновление,
+Bluetooth, Stop, полностью/частично загруженный файл и Next во время
+долгого seek. Без A/B выбора; сохранить только обычную диагностику, если
+будет слышимый дефект. Особенно отметить два разных события: слышное
+подключение в некоторых песнях и короткий seek-glitch на проблемной песне
+при быстрых Media3 BUFFERING/clock transitions.

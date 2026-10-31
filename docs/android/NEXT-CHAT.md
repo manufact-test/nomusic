@@ -1,6 +1,48 @@
-# 31.10.2026 — LATEST SIGNED Android 0.3.68/code69, HONOR audio QA pending
+# 31.10.2026 — Android 0.3.70/code71 PUBLISHED (HONOR acoustic QA pending)
+
+**LATEST SIGNED Android:** production code `06c2d9d01730007e453e15b5b20b067972bf1bf6`; source `feature/android-unified-preparation-seek-gate`; original unchanged 0.3.69 backup `backup/android-0369-honor-listening-control-20261031` -> `a30f949b10a72f62977e70cba30767b7c382a249`. [Staging SDK36/D8 41226755602 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/41226755602), no publish; [production signed build, verification and stable publish 41226869075 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/41226869075). Signed v2/v3 `0.3.70/code71`, 8,742,985 bytes, SHA256 `799bab36eba2eccecd7e1602ee33735b9914fc53401b1eb6b8e5eef1c8d12850`, original cert and DEX verified, live manifest 0.3.70/code71. **Acoustic quality and actual installer Recents behavior are NOT owner accepted until HONOR test.** Read [ANDROID-0370-SIGNED-HONOR-RELEASE-2026-10-31.md](ANDROID-0370-SIGNED-HONOR-RELEASE-2026-10-31.md) and [ANDROID-0370-DETACHED-RESUME-UPDATER-JOIN-CLOCK-STAGING-2026-10-31.md](ANDROID-0370-DETACHED-RESUME-UPDATER-JOIN-CLOCK-STAGING-2026-10-31.md). New code: 35.7s detached pause strict silent resync, success-only installer task-card removal, passive cold-join clock summary. Same 160ms one-mode join unchanged; cold dip/micro-repeat still unproven/unresolved. Do NOT touch desktop/site/backend/catalog/auth or add A/B modes. Test one physical HONOR run after installation, private export only.
+
+---
+
+# 31.10.2026 — HONOR listened to Android 0.3.69/code70, owner-rated BEST CHECKPOINT (acoustic QA still RED)
+
+**Freeze code**: production `a30f949b10a72f62977e70cba30767b7c382a249`, immutable backup `backup/android-0369-honor-listening-control-20261031`; signed CI [41222465012](https://github.com/manufact-test/nomusic/actions/runs/41222465012) SUCCESS. New last-run (`run_start 0.3.69`) HONOR analysis: **33 seek ACK 21–95 ms**, 25 source-buffer resumes, 10 stream-prefetch yield/resume, **10 unified linear joins** (`phaseVerified:false`), listening mostly very good but **brief cold dip/micro-repeats, plus rare long-pause reattach repeat**. One real manual Next sounded perfect to user; `manualNextButtonObserved:false` does not prove transition type. Wi-Fi only, no physical Bluetooth/mobile/Stop check. No new APK or code changes made after owner report. Fully documented in [`ANDROID-0369-HONOR-OWNER-LISTENING-CHECKPOINT-2026-10-31.md`](ANDROID-0369-HONOR-OWNER-LISTENING-CHECKPOINT-2026-10-31.md). **Ready-to-copy next chat** [`START-NEXT-CHAT-2026-10-31-AFTER-0369-OWNER.md`](START-NEXT-CHAT-2026-10-31-AFTER-0369-OWNER.md). Extra **deferred** Android-only updater UX: after system installer «Обновить» CELIKOM is not foreground but remains a stale Recents card; next chat to choose clean task removal after confirmed install or reliable explicit reopen, leaving stable channel/signing unchanged. One mode only; hidden «Сохранить диагностику» A/B selector already removed. **No acoustic acceptance claim.**
+
+---
+
+# 31.10.2026 — LATEST SIGNED Android 0.3.69/code70, ONE MODE, HONOR acoustic QA still pending
+
+**Android-only, один подписанный APK:** production code
+[`a30f949b10a72f62977e70cba30767b7c382a249`](https://github.com/manufact-test/nomusic/commit/a30f949b10a72f62977e70cba30767b7c382a249),
+[GitHub SDK36/D8, исходная подпись и live publication 41222465012](https://github.com/manufact-test/nomusic/actions/runs/41222465012)
+**SUCCESS**; повторный staging [41222325576](https://github.com/manufact-test/nomusic/actions/runs/41222325576)
+**SUCCESS**, `publish-stable SKIPPED`. Live stable `0.3.69/code70`,
+signed APK `8738889` bytes SHA256
+`f03e73d37e957d08acdf105371eb7fb7f7f91876d56fee5603cbb0927ed46d20`,
+полный отдельный GET и HTTP HEAD 200 подтверждены. **Один режим**:
+прежний HONOR-предпочтительный complementary linear 160ms для нового
+подключения, быстрый exclusive single-turn после seek, seek-scoped
+background Range priority только при отсутствующем блоке. Удалены
+admin A/B long-press/выбор двух режимов, сохранено «Сохранить диагностику».
+Реальный HONOR звук/BT **НЕ принят** по CI. Установить через существующее
+«Проверить обновление». Подробный разбор **трёх** новых приватных
+0.3.68-журналов и release receipt:
+[`ANDROID-0369-ONE-MODE-HONOR-TRIAGE-2026-10-31.md`](ANDROID-0369-ONE-MODE-HONOR-TRIAGE-2026-10-31.md).
+Никаких новых A/B APK; только физическая проверка владельца и
+прицельное расследование оставшихся слышимых границ. Десктоп/сервер/сайт/
+каталог/auth/updater не изменены.
+
+---
+
+# 31.10.2026 — PREVIOUS SIGNED Android 0.3.68/code69, HONOR audio QA pending
 
 **One APK PUBLISHED:** source `767cd3701ce04dfcf5779152c78a63fb905ec931`, production [Android SDK36/D8 + signed publish 41213570269 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/41213570269), staging [41213189300](https://github.com/manufact-test/nomusic/actions/runs/41213189300) and [41213426511](https://github.com/manufact-test/nomusic/actions/runs/41213426511) both SUCCESS/NO PUBLISH. Signed signer unchanged. APK SHA256 `c73917856d9c93bd93a2251084038b3b7694bcea19a941ca24f06a0f5cdf7d39`, 8,742,985 bytes, complete independent GET verified, stable updater live `0.3.68/code69`. Full release receipt and **mandatory HONOR test route**: [ANDROID-0368-SIGNED-HONOR-RANGE-PRIORITY-2026-10-31.md](ANDROID-0368-SIGNED-HONOR-RANGE-PRIORITY-2026-10-31.md). New `BufferedAudio` foreground-demand priority preempts stalled background Range off the decoder thread; after validated read, background fill resumes. Latest true Media3 Next during pending seek has a regression. **Do not claim sound accepted**: source cold dip in default and phase-unverified admin linear blend remain open; on-device HONOR test and private diagnostics are next. **Android only**; all other subsystems untouched. New APK only after new device evidence.
+
+---
+
+# 2026-10-31 Android 0.3.67 HONOR slow Range seek — НОВЫЙ НЕПУБЛИКУЮЩИЙ CHECKPOINT
+
+**ЧИТАТЬ ПЕРВЫМ:** [`ANDROID-0367-HONOR-SLOW-RANGE-OWNER-AUDIT-2026-10-31.md`](ANDROID-0367-HONOR-SLOW-RANGE-OWNER-AUDIT-2026-10-31.md) — последний приватный HONOR журнал 0.3.67: реальные 2792/933/17-мс seek callbacks, лишний release/attach original DSP во время ожидания, остановка background Range prefetch после трёх ошибок и ограничения доказательств. Новый кандидат **только** в **непубликующей** `feature/android-honor065-continuity-staging`, код `510523f128f38249016068b5dc7612f29a7079e5`: удержание уже полностью включённого original effect во время slow seek, однократная диагностика и подтверждённое успешным on-demand read возобновление одного prefetch worker, включая гонку worker cleanup. Новый `TestHonor067SlowStreamSeek` и расширенный `TestBufferedAudio` проходят локально, [GitHub SDK36/D8 CI 41211791265](https://github.com/manufact-test/nomusic/actions/runs/41211791265) **SUCCESS**, `publish-stable` **SKIPPED**; реальный HONOR звук не проверялся. **Нового APK НЕТ**, версия **0.3.67/code68** остаётся последней подписанной, акустика **НЕ ПРИНЯТА**. Чистого Wi-Fi vs mobile A/B не было; cold join **не исправлялся**. **Готовое первое сообщение следующему чату:** [`START-NEXT-CHAT-2026-10-31-AFTER-0367-SLOW-STREAM.md`](START-NEXT-CHAT-2026-10-31-AFTER-0367-SLOW-STREAM.md). Статусы ниже — история. Не делать auto-publish из production-ветки.
 
 ---
 

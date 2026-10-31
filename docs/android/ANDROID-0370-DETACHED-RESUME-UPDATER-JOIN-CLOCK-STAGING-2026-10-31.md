@@ -1,3 +1,7 @@
+> **RELEASE POSTCRIPT (31.10.2026):** This staging report became the source of signed Android **0.3.70/code71** at production `06c2d9d01730007e453e15b5b20b067972bf1bf6`. SDK36/D8, signer/DEX/manifest checks and stable publish [41226869075](https://github.com/manufact-test/nomusic/actions/runs/41226869075) SUCCESS; actual HONOR sound/Recents still unaccepted. Full release receipt: [ANDROID-0370-SIGNED-HONOR-RELEASE-2026-10-31.md](ANDROID-0370-SIGNED-HONOR-RELEASE-2026-10-31.md). The staging status below records its earlier point in time.
+
+---
+
 # Android HONOR 0.3.69 → next candidate: detached resume, installer Recents, join clocks
 
 **2026-10-31 · Android-only nonpublishing staging. No APK, no owner audio acceptance.**
