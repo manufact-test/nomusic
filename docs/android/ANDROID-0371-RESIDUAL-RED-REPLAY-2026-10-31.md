@@ -14,10 +14,10 @@ New helper: `android/native-companion/addon/src/pro/celikom/nativeprobe/identity
 
 1. While the same replacement owns output, gather up to five source-vs-decoder drift samples.
 2. An initial baseline is considered stable only after at least three samples spanning 250ms, with no more than 45ms spread. Samples must be at least 100ms apart; a gap over 600ms restarts accumulation.
-3. Initial offsets up to 700ms are eligible. The frozen baseline expires after 1,200ms. A baseline derived from an already trusted offset plus an accepted residual can reach 900ms; a fresh untrusted 900ms offset is never learned.
+3. Initial offsets up to 700ms are eligible. The frozen baseline expires after 1,200ms. A baseline derived from an already trusted offset plus an accepted residual can reach 925ms; a fresh untrusted 925ms offset is never learned.
 4. On a user seek, freeze the most recent stable offset. Seek the same prepared decoder to `sourcePosition - baselineOffset`, preserving the existing clock relationship rather than resetting it to zero.
 5. At callback/handover, calculate `adjustedResidual = rawResidual - baselineOffset`. Accept only when the new residual is within 225ms.
-6. If the new residual exceeds 200ms, keep the original audible and retarget the same decoder to the latest source position while preserving the baseline. Do not predict a second callback's latency: sparse Range callback timing is not stable enough, and speculative prediction can overshoot. At most two corrections are allowed; if confidence still is not sufficient, restore/keep the original for that track.
+6. If the new residual exceeds 225ms, keep the original audible and retarget the same decoder to the latest source position while preserving the baseline. Do not predict a second callback's latency: sparse Range callback timing is not stable enough, and speculative prediction can overshoot. At most two corrections are allowed; if confidence still is not sufficient, restore/keep the original for that track.
 7. During steady playback, ClockSupervisor receives drift normalized against the stable baseline. This avoids treating a persistent route-like transport offset as a newly growing clock error.
 8. Reset baseline on real pause/buffering pause, route loss, decoder release, source boundary and track change. Repeated scrubs while a native seek is in flight retain the frozen baseline and the existing one-in-flight untagged callback discipline.
 
@@ -25,11 +25,11 @@ The policy is seek-scoped. Cold initial join and route-resume legacy paths retai
 
 ## Deterministic coverage added/updated
 
-- `TestSeekAlignmentPolicy`: 206ms stable offset, 550ms stable offset, median/stability sampling, 45ms spread, age/gap expiry, frozen baseline, correction target and normalized clock supervision.
+- `TestSeekAlignmentPolicy`: 204ms acceptance boundary, 226ms correction boundary, 206ms stable offset, 550ms stable offset, median/stability sampling, 45ms spread, age/gap expiry, frozen baseline, correction target and normalized clock supervision.
 - `TestHonor071SeekResidual`: actual `ReplacementEngine` replay. A 206ms stable baseline plus 77ms new error produces 283ms raw drift and is accepted. A 206ms baseline plus 250ms new error is corrected silently. With no baseline, a 283ms residual is corrected. Pause, Next, decoder retirement and stale callback protections remain asserted.
 - `TestHonor063SeekScrub`: 280ms callback residual now triggers a same-decoder silent correction; fast 65ms scrub remains unchanged.
 - `TestHonor064ManualNext`: repeated partial-stream scrubs include the second correction ACK and verify the same decoder/effect, no re-download and no cold-join restart.
-- Existing 0.3.67 2792/933/17ms slow Range sequence remains mandatory, as do 0.3.66 buffering, 0.3.65 Media3 continuity, pause/Next/Stop/route ownership, car recovery, lifecycle and architecture tests.
+- `TestHonor060Journal` retains the historical 204ms no-extra-seek contract. Existing 0.3.67 2792/933/17ms slow Range sequence remains mandatory, as do 0.3.66 buffering, 0.3.65 Media3 continuity, pause/Next/Stop/route ownership, car recovery, lifecycle and architecture tests.
 
 ## Safety / release boundary
 
