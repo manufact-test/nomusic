@@ -1,3 +1,15 @@
+# CURRENT OWNER ACOUSTIC VERDICT — 01.11.2026 — CELIKOM 0.3.72
+
+**READ FIRST:** [ANDROID-0372-HONOR-OWNER-LISTENING-AND-DIAGNOSTIC-CHECKPOINT-2026-11-01.md](ANDROID-0372-HONOR-OWNER-LISTENING-AND-DIAGNOSTIC-CHECKPOINT-2026-11-01.md). The owner has tested the OTA on HONOR: update install, exit and removal from Recents **ACCEPTED**. No changes to the updater are wanted.
+
+**Audio verdict:** **NO MATERIAL IMPROVEMENT** vs 0.3.71. Some songs have frequent tiny skips after finger scrubbing, other songs seek smoothly; a brief dip/repeat on new-song replacement attach persists. The 0.3.72 audio code is carried over from 0.3.71. Do not claim an audio patch shipped in 0.3.72. **Exactly one unified audio implementation; no linear/nonlinear modes.**
+
+The combined owner report `CELIKOM-combined-20261031-235928.txt` includes runs 0.3.70, 0.3.71 and 0.3.72. The new checkpoint contains per-version counts and a checklist for verifying event interpretation against actual production code, including the fundamental limitation that MediaPlayer transport clocks ≠ speaker PCM phase. The new chat should perform diagnostic/code audit and technical literature review *before* changing audio behavior. See the checkpoint for precise findings and constraints. Do not commit the raw diagnostic.
+
+**Current production branch:** `feature/android-unified-preparation-seek-gate`. Signed stable 0.3.72/code73 remains the known usable base. Backup refs must remain intact. Experimental seek baseline branch is NOT production and must not be merged without proof. Restrict work to Android-only nonpublishing staging; leave desktop, backend, website, catalog, authentication and accepted OTA behavior untouched.
+
+---
+
 # CURRENT AUTHORITATIVE ANDROID CHECKPOINT — 31.10.2026 — CELIKOM 0.3.72 / code 73 PUBLISHED
 
 **READ FIRST:** [ANDROID-0372-OTA-RELEASE-RECEIPT-2026-10-31.md](ANDROID-0372-OTA-RELEASE-RECEIPT-2026-10-31.md).
