@@ -66,7 +66,12 @@ if '}else{\n     audioOwner.grantReplacement(fx);originalMix=0f;applyVolume(1f);
 if 'audioOwner.handoverClockValidated();' not in fade:
     raise AssertionError('decoder must pass the sole clock gate before output grant')
 if 'audioOwner.blendSameSong(' in fade:
-    raise AssertionError('cold join cannot overlap two independently clocked audio sources')
+    if ('final boolean correlatedLab=exclusiveDipJoin&&owner.experimentalCorrelatedJoin();' not in fade
+        or 'if(correlatedLab){' not in fade
+        or '"phaseVerified",false' not in fade
+        or 'CORRELATED_JOIN_LAB_MS=160' not in engine
+        or 'float original=1f-mix;' not in owner):
+        raise AssertionError('correlated join may run only as explicitly admin-gated lab with linear gain and no false phase guarantee')
 if 'audioOwner.duckSourceForExclusiveJoin(p,fx,duck,ownerKey,ownerEpoch,handoverTicket.operationEpoch)' not in fade:
     raise AssertionError('the original-only dip must hold the verified ownership ticket')
 if fade.index('audioOwner.handoverClockValidated();')>fade.index('audioOwner.duckSourceForExclusiveJoin('):

@@ -8,7 +8,7 @@ import java.io.*;
 import java.util.*;
 /** User-enabled automatic replacement within the foreground service lifetime. */
 final class ReplacementEngine {
- static final long PREPARED_MS=60000, SEEK_TIMEOUT_MS=2000, HANDOVER_DRIFT_MS=350, STREAM_SEEK_TIMEOUT_MS=12000, FADE_MS=360, PAUSE_GRACE_MS=30000, PAUSE_RESUME_FADE_MS=180, PAUSE_ALIGN_DELAY_MS=160, PAUSE_ALIGN_TOLERANCE_MS=85, COLD_JOIN_DIP_MS=500, RETAINED_SEEK_JOIN_MS=260;
+ static final long PREPARED_MS=60000, SEEK_TIMEOUT_MS=2000, HANDOVER_DRIFT_MS=350, STREAM_SEEK_TIMEOUT_MS=12000, FADE_MS=360, PAUSE_GRACE_MS=30000, PAUSE_RESUME_FADE_MS=180, PAUSE_ALIGN_DELAY_MS=160, PAUSE_ALIGN_TOLERANCE_MS=85, COLD_JOIN_DIP_MS=500, CORRELATED_JOIN_LAB_MS=160, RETAINED_SEEK_JOIN_MS=260;
  final ProbeService owner; final NativeApi api;
  String status="Замена выключена",identityKey,trackId,method="NONE",lookupKey;
  JSONObject descriptor; long descriptorUntil,nextLookup,armedUntil,preparedAt,seekStarted,seekBudget=SEEK_TIMEOUT_MS,fadeStarted,transition,pausedAt=-1;
@@ -393,6 +393,9 @@ final class ReplacementEngine {
      zero-overlap volume dip, not two phase-shifted same-song outputs. */
   resumeFadePending=false;
   final boolean alignLive=streaming!=null;
+  /* Pin this admin-only experiment at the start; changing the preference
+     cannot change an active audio transaction or skip its ownership fence. */
+  final boolean correlatedLab=exclusiveDipJoin&&owner.experimentalCorrelatedJoin();
   final long[] baseline={p.getCurrentPosition()},phaseStarted={SystemClock.elapsedRealtime()};
   final int[] corrections={0};final long[] softStarted={-1};
   if(originalMix<=0.001f&&!seekHoldActive){
@@ -426,7 +429,21 @@ final class ReplacementEngine {
     /* Only the CURRENT verified decoder can start the 500ms dip. Keep the
        replacement silent while original falls to zero for 250ms. After
        exclusive DSP grant, ramp replacement alone back to full volume. */
-    if(exclusiveDipJoin){
+    if(correlatedLab){
+     if(softStarted[0]<0){
+      softStarted[0]=SystemClock.elapsedRealtime();
+      LogStore.log("replacement_correlated_lab_start",LogStore.map("trackId",trackId,
+        "durationMs",CORRELATED_JOIN_LAB_MS,"gainLaw","correlated_linear",
+        "sourcePcmMeasured",false,"phaseVerified",false,"adminOnly",true));
+     }
+     long elapsed=Math.max(0,SystemClock.elapsedRealtime()-softStarted[0]);
+     float mix=TransitionMix.progress(elapsed,CORRELATED_JOIN_LAB_MS);
+     float gain=(float)Math.min(1,Math.pow(10,Math.min(0,descriptor==null?0:descriptor.optDouble("gain_db",0))/20));
+     float volume=audioOwner.blendSameSong(p,fx,mix,Math.max(0.00001f,gain),ownerKey,ownerEpoch,handoverTicket.operationEpoch);
+     originalMix=1f-mix;commandedReplacementVolume=volume;traceAudioCommands();
+     if(elapsed<CORRELATED_JOIN_LAB_MS){owner.handler.postDelayed(this,20);return;}
+     applyVolume(1f);
+    }else if(exclusiveDipJoin){
      if(softStarted[0]<0){
       softStarted[0]=SystemClock.elapsedRealtime();
       LogStore.log("replacement_exclusive_dip_start",LogStore.map("trackId",trackId,
@@ -454,8 +471,8 @@ final class ReplacementEngine {
     }
     fading=false;audioOwner.replacement();seekHoldActive=false;pendingStreamScrubJoin=false;ownerEvent("exclusive_handover");
     LogStore.log("replacement_transition_complete",LogStore.map(
-      "trackId",trackId,"rampMs",exclusiveDipJoin?COLD_JOIN_DIP_MS:0,
-      "joinMode",exclusiveDipJoin?"exclusive_volume_dip":"exclusive_single_turn",
+      "trackId",trackId,"rampMs",correlatedLab?CORRELATED_JOIN_LAB_MS:exclusiveDipJoin?COLD_JOIN_DIP_MS:0,
+      "joinMode",correlatedLab?"admin_correlated_linear_lab":exclusiveDipJoin?"exclusive_volume_dip":"exclusive_single_turn",
       "commandDelayMs",SystemClock.elapsedRealtime()-fadeStarted));
    }catch(RuntimeException e){suspend("fade_failed",retryDelay());}
   }};ramp.run();
