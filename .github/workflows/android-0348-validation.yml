@@ -160,6 +160,132 @@ jobs:
           retention-days: 7
 
 
+  build-honor-seek-test-apk:
+    needs: native-android
+    if: github.ref == 'refs/heads/feature/android-0371-honor-diagnostic-audit-staging'
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Download verified offline packaging kit from this run
+        uses: actions/download-artifact@v4
+        with:
+          name: celikom-android-offline-kit
+          path: ${{ runner.temp }}/kit
+
+      - name: Fetch pinned original Android baseline from private Hostinger inputs
+        env:
+          HOST_KEY: ${{ secrets.CELIKOM_HOSTINGER_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.CELIKOM_HOSTINGER_KNOWN_HOSTS }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$HOST_KEY" && test -n "$KNOWN_HOSTS"
+          umask 077
+          mkdir -p "$RUNNER_TEMP/private"
+          printf '%s\\n' "$HOST_KEY" > "$RUNNER_TEMP/private/id_host"
+          printf '%s\\n' "$KNOWN_HOSTS" > "$RUNNER_TEMP/private/known_hosts"
+          chmod 600 "$RUNNER_TEMP/private/id_host" "$RUNNER_TEMP/private/known_hosts"
+          scp -P 65002 -i "$RUNNER_TEMP/private/id_host" -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$RUNNER_TEMP/private/known_hosts" \\
+            u235811320@92.113.19.189:/home/u235811320/domains/lemonchiffon-narwhal-791953.hostingersite.com/celikom-private/android-build-inputs/CELIKOM-0.3.22-install.apk \\
+            "$RUNNER_TEMP/private/base.apk"
+          python3 - <<'PY'
+          import hashlib,json,os,pathlib
+          root=pathlib.Path("android/native-companion")
+          expected=json.loads((root/"build-inputs.json").read_text())["base_apk_sha256"]
+          actual=hashlib.file_digest(pathlib.Path(os.environ["RUNNER_TEMP"],"private/base.apk").open("rb"),"sha256").hexdigest()
+          if actual!=expected: raise SystemExit("Private baseline checksum mismatch")
+          print("Pinned original Android baseline verified")
+          PY
+
+      - name: Reconstruct original signing identity in isolated private storage
+        env:
+          P12_B64: ${{ secrets.CELIKOM_ANDROID_SIGNING_P12_B64 }}
+          SIGN_JSON_B64: ${{ secrets.CELIKOM_ANDROID_SIGNING_JSON_B64 }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$P12_B64" && test -n "$SIGN_JSON_B64"
+          umask 077
+          mkdir -p "$RUNNER_TEMP/private/signing"
+          printf %s "$P12_B64" | base64 -d > "$RUNNER_TEMP/private/signing/celikom-native-probe.p12"
+          printf %s "$SIGN_JSON_B64" | base64 -d > "$RUNNER_TEMP/private/signing/signing.json"
+          python3 - <<'PY'
+          import json,os,pathlib
+          root=pathlib.Path(os.environ["RUNNER_TEMP"],"private/signing")
+          if not 1000<(root/"celikom-native-probe.p12").stat().st_size<65536:
+              raise SystemExit("Unexpected signing key size")
+          data=json.loads((root/"signing.json").read_text())
+          if not all(isinstance(data.get(k),str) and data[k] for k in ("alias","store_password","key_password")):
+              raise SystemExit("Signing metadata incomplete")
+          PY
+
+      - name: Build and independently verify signed HONOR seek-test APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT=android/native-companion
+          SDK="$RUNNER_TEMP/kit/sdk"
+          BT="$RUNNER_TEMP/kit/build-tools/36.0.0"
+          test -s "$SDK/platforms/android-36/android.jar"
+          test -s "$BT/lib/d8.jar"
+          test -s "$BT/lib/apksigner.jar"
+          test -s "$RUNNER_TEMP/kit/apktool_2.11.1.jar"
+          mkdir -p "$ROOT/deps"
+          cp "$RUNNER_TEMP/kit/native-companion/deps/"*.jar "$ROOT/deps/"
+          OUT="$RUNNER_TEMP/CELIKOM-Android-0.3.71-SEEK-TEST-SIGNED.apk"
+          python3 "$ROOT/build_release.py" \\
+            --sdk "$SDK" \\
+            --build-tools "$BT" \\
+            --apktool "$RUNNER_TEMP/kit/apktool_2.11.1.jar" \\
+            --base-apk "$RUNNER_TEMP/private/base.apk" \\
+            --signing-dir "$RUNNER_TEMP/private/signing" \\
+            --deps-dir "$ROOT/deps" \\
+            --output "$OUT"
+          test -s "$OUT"
+          test -s "$OUT.verification.json"
+          sha256sum "$OUT" "$OUT.verification.json"
+          python3 - <<'PY'
+          import hashlib,json,os,pathlib
+          root=pathlib.Path(os.environ["RUNNER_TEMP"])
+          apk=root/"CELIKOM-Android-0.3.71-SEEK-TEST-SIGNED.apk"
+          proof=json.loads(apk.with_suffix(".apk.verification.json").read_text())
+          if proof.get("signing_continuity") is not True or proof.get("signer_matches_pinned_identity") is not True:
+              raise SystemExit("Signed test APK did not retain the pinned CELIKOM signing identity")
+          if proof.get("physical_phone_playback_verified") is not False:
+              raise SystemExit("Unexpected physical-device claim in build receipt")
+          receipt={
+            "purpose":"Non-publishing HONOR seek-baseline test build",
+            "branch":os.environ.get("GITHUB_REF_NAME"),
+            "commit":os.environ.get("GITHUB_SHA"),
+            "version":proof["version"],
+            "version_code":proof["version_code"],
+            "apk_sha256":hashlib.file_digest(apk.open("rb"),"sha256").hexdigest(),
+            "signer_sha256":proof["signer_sha256"],
+            "stable_publish":"SKIPPED",
+            "physical_phone_playback_verified":False
+          }
+          (root/"CELIKOM-Android-0.3.71-SEEK-TEST-RECEIPT.json").write_text(json.dumps(receipt,indent=2)+"\\n")
+          print("PASS: signed non-publishing test APK verified; no deployment step exists in this job")
+          PY
+
+      - name: Upload signed HONOR seek-test APK and verification receipt
+        uses: actions/upload-artifact@v4
+        with:
+          name: celikom-android-0371-honor-seek-test-signed
+          path: |
+            ${{ runner.temp }}/CELIKOM-Android-0.3.71-SEEK-TEST-SIGNED.apk
+            ${{ runner.temp }}/CELIKOM-Android-0.3.71-SEEK-TEST-SIGNED.apk.verification.json
+            ${{ runner.temp }}/CELIKOM-Android-0.3.71-SEEK-TEST-RECEIPT.json
+          if-no-files-found: error
+          retention-days: 7
+
+
   publish-stable:
     needs: native-android
     if: vars.CELIKOM_ANDROID_AUTO_PUBLISH == 'true' && github.ref == 'refs/heads/feature/android-unified-preparation-seek-gate'
