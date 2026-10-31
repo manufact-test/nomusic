@@ -183,6 +183,7 @@ final class ReplacementEngine {
   * Never play through a user seek or a pending handover. */
  void bufferSource(PlaybackSource s,boolean sourceJump){
   long now=SystemClock.elapsedRealtime();
+  boolean firstBuffer=sourceBufferSince<0;
   if(sourceBufferSince<0){
    sourceBufferSince=now;
    LogStore.log("replacement_source_buffer",LogStore.map("trackId",trackId,
@@ -201,10 +202,28 @@ final class ReplacementEngine {
    status="Перематываем — ожидаем позицию источника";
    return;
   }
-  if(!sourceJump&&!explicitSourceSeek&&!seeking&&!fading&&!audioOwner.handoverAwaitingClock()
+  /* An onEvents(BUFFERING) snapshot may arrive *after* the native decoder's
+     seek callback has already started its muted clock-validation handover.
+     In that state the original still has full gain, the replacement is
+     silent, and the output ticket is valid. A new PAUSED transaction would
+     revoke that ticket and require another decoder start/clock handover for
+     a single user seek (observed repeatedly on HONOR 0.3.66). Keep the
+     existing handover alive across a transient source buffer instead.
+     The pre-existing short-buffer bound still transfers longer stalls to
+     the ordinary pause/recovery path. An unprocessed user seek never enters
+     this branch, so old-position replacement audio cannot leak through. */
+  boolean mutedHandover=fading&&audioOwner.handoverAwaitingClock()
+    &&audioOwner.state()==AudioOwnership.State.ALIGNING
+    &&commandedReplacementVolume<=0.001f&&originalMix>=0.999f;
+  boolean retainedAudible=!fading&&!audioOwner.handoverAwaitingClock()
+    &&commandedReplacementVolume>0.001f;
+  if(!sourceJump&&!explicitSourceSeek&&!seeking
     &&effect!=null&&ready&&player!=null&&player.isPlaying()
-    &&commandedReplacementVolume>0.001f&&now-sourceBufferSince<300){
-   status="Яндекс буферизует — сохраняем текущий звук";
+    &&(retainedAudible||mutedHandover)&&now-sourceBufferSince<300){
+   if(mutedHandover&&firstBuffer)LogStore.log("replacement_muted_handover_buffer_hold",
+     LogStore.map("trackId",trackId,"sourcePositionMs",s.position,
+       "originalAudible",true,"replacementSilent",true,"handoverTicketRetained",true));
+   status=mutedHandover?"Яндекс буферизует — ждём подтверждения позиции":"Яндекс буферизует — сохраняем текущий звук";
    return;
   }
   pauseSource(s,true);
@@ -408,7 +427,15 @@ final class ReplacementEngine {
       ||!audioOwner.current(ownerEpoch,ownerKey)||!audioOwner.commandCurrent(handoverTicket,api.accountGeneration,ownerKey,descriptor==null?0:descriptor.optLong("replacement_id"),descriptor==null?0:descriptor.optLong("version"),descriptor==null?0:descriptor.optLong("duration_ms")))return;
    try{
     if(!current(identityKey)){suspend("fade_source_unavailable",1000);return;}
-    if(!owner.current.playing){if(owner.current.buffering&&owner.current.wantsToPlay)bufferSource(owner.current,false);else pauseSource(owner.current,false);return;}
+    if(!owner.current.playing){
+     if(owner.current.buffering&&owner.current.wantsToPlay)bufferSource(owner.current,false);
+     else pauseSource(owner.current,false);
+     /* The held muted decoder still owns this callback. Without a new tick,
+        update() would see handoverAwaitingClock and wait forever. */
+     if(token==transition&&fading&&audioOwner.handoverAwaitingClock())
+      owner.handler.postDelayed(this,20);
+     return;
+    }
     if(audioOwner.handoverAwaitingClock()){
      long now=SystemClock.elapsedRealtime(),position=p.getCurrentPosition();
      if(audioOwner.seekInFlight(p)||position-baseline[0]<40){
