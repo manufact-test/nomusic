@@ -6,6 +6,10 @@ public final class TestSeekAlignmentPolicy {
  static void check(boolean ok,String why){checks++;if(!ok)throw new AssertionError(why);}
  public static void main(String[] args){
   SeekAlignmentPolicy p=new SeekAlignmentPolicy();
+  p.begin(900);
+  check(p.withinAcceptance(204)&&!p.withinAcceptance(226),
+    "without a stable offset, 204ms is accepted but 226ms requires correction");
+  p.reset();
   p.observe(200,1000,true);p.observe(206,1150,true);p.observe(211,1300,true);
   check(p.stableForTest()&&p.stableOffsetForTest()==206,
     "three consistent samples establish median 206ms baseline");
@@ -14,8 +18,8 @@ public final class TestSeekAlignmentPolicy {
     "seek freezes the most recent stable baseline");
   check(p.adjustedDrift(283)==77&&p.withinAcceptance(283),
     "283ms absolute drift is only a 77ms new error over stable 206ms offset");
-  check(p.withinAcceptance(204)&&!p.withinAcceptance(226),
-    "204ms remains inside the historical 350ms handover behavior; 226ms requires correction");
+  check(p.adjustedDrift(226)==20&&p.withinAcceptance(226),
+    "226ms raw drift is still accepted when a stable 206ms offset explains it");
   check(p.adjustedDrift(330)==124&&p.withinAcceptance(330),
     "330ms raw drift is acceptable when only 124ms exceeds the stable baseline");
   check(p.adjustedDrift(456)==250&&!p.withinAcceptance(456),
@@ -38,7 +42,7 @@ public final class TestSeekAlignmentPolicy {
     "600ms raw drift adds only 50ms to the established 550ms offset");
   p.finish(729,2400);
   check(p.stableForTest()&&p.stableOffsetForTest()==729&&p.supervisedDrift(750)==21,
-    "a validated baseline plus an accepted residual may form a derived offset up to 900ms");
+    "a validated baseline plus an accepted residual may form a derived offset up to 925ms");
   p.reset();p.begin(3000);
   check(!p.hasBaseline()&&p.adjustedDrift(283)==283&&!p.withinAcceptance(283),
     "without stable history the policy fails closed against a 283ms residual");
