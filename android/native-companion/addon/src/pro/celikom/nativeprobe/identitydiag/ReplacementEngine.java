@@ -20,7 +20,7 @@ final class ReplacementEngine {
  volatile long generation; int trustedSession=-1,failures,seekCorrections;
  final BufferRecoveryGate bufferGate=new BufferRecoveryGate();BufferedAudio streaming;boolean bufferWaiting;String streamFallbackKey;
  MediaPlayer player; DynamicsProcessing effect; LoudnessEnhancer loudness; File audioFile;
- float originalMix=1f; boolean ready,closed,preparing,seeking,fading,aligned,returning,preloadAllowed=true,waitingForRouteResume,routePauseObserved,resumePositionRetained,resumeFadePending,seekHoldActive,sourceSeekedThisTrack,pendingStreamScrubJoin; String lastSync="";
+ float originalMix=1f; boolean ready,closed,preparing,seeking,fading,aligned,returning,preloadAllowed=true,waitingForRouteResume,routePauseObserved,resumePositionRetained,resumeFadePending,seekHoldActive,sourceSeekedThisTrack,pendingStreamScrubJoin,streamSeekWaitLogged; String lastSync="";
  final ClockSupervisor clockSupervisor=new ClockSupervisor();PlaybackSource previousSource;boolean explicitSourceSeek;long unavailableSince=-1,lastSyncAt=-1,lastLoggedDrift;String completedKey,completedReason;long completedPosition,resumeDrift;
  final Set<String> confirmed=new HashSet<>();
  // Private, bounded to this foreground run. Every reuse requires a new live resolve.
@@ -110,8 +110,22 @@ final class ReplacementEngine {
    pausedAt=-1;
    if(streaming!=null&&streaming.closed){suspend("stream_interrupted",1000);return;}
    boolean waiting=streaming!=null&&streaming.stalled();
-   // While a seek is waiting, restore the original without cancelling/repeating that seek.
-   if(waiting&&seeking&&effect!=null){setAuditedVolume(player,0f);audioOwner.pauseDecoder(player);unmute();}
+   /* During a slow sparse HTTP read, seek() has ALREADY silenced and paused
+      the replacement and restored the verified source effect to 0dB. Do not
+      unmute() here: releasing/recreating that effect for every long range
+      request adds an unnecessary second audio-ownership transition to one
+      finger scrub. Keep it attached at unity gain until the final ACK (or a
+      real pause, route loss, track boundary, effect loss or seek timeout).
+      This does not make the HTTP seek faster; it removes a proven redundant
+      DSP detach/reattach on the path recorded by HONOR 0.3.67. */
+   if(waiting&&seeking&&!streamSeekWaitLogged){
+    streamSeekWaitLogged=true;
+    LogStore.log("replacement_stream_seek_data_wait",LogStore.map(
+      "trackId",trackId,"cachedBytes",streaming.cachedBytes(),
+      "sourceEffectRetained",effect!=null&&originalMix>=0.999f,
+      "replacementSilent",commandedReplacementVolume<=0.001f,
+      "seekInFlight",audioOwner.seekInFlight(player)));
+   }
    if(streaming!=null&&bufferGate.recover(waiting,aligned&&!bufferWaiting,seeking,player.getCurrentPosition(),clock)){
     if(!bufferWaiting){bufferWaiting=true;transition++;fading=false;aligned=false;seeking=false;resumePositionRetained=false;setAuditedVolume(player,0f);audioOwner.pauseDecoder(player);unmute();LogStore.log("replacement_buffer_wait",LogStore.map("trackId",trackId,"cachedBytes",streaming.cachedBytes()));}
     status="Связь замедлилась; играет оригинал, подгружаем замену";return;
@@ -289,7 +303,7 @@ final class ReplacementEngine {
      on an incomplete HTTP stream. Keep the original audible and retain the
      same effect/decoder until the most recent target's clock is verified. */
   pendingStreamScrubJoin=false;seekHoldActive=false;
-  clockSupervisor.onSeek();audioOwner.event(AudioOwnership.Event.SEEK);audioOwner.aligning();explicitSourceSeek=false;resumePositionRetained=false;seekCorrections=correction?seekCorrections+1:0;seeking=true;aligned=true;seekStarted=SystemClock.elapsedRealtime();seekBudget=streaming!=null&&!streaming.complete()?STREAM_SEEK_TIMEOUT_MS:SEEK_TIMEOUT_MS;transition++;fading=false;setAuditedVolume(player,0f);audioOwner.pauseDecoder(player);
+  clockSupervisor.onSeek();audioOwner.event(AudioOwnership.Event.SEEK);audioOwner.aligning();explicitSourceSeek=false;resumePositionRetained=false;seekCorrections=correction?seekCorrections+1:0;seeking=true;streamSeekWaitLogged=false;aligned=true;seekStarted=SystemClock.elapsedRealtime();seekBudget=streaming!=null&&!streaming.complete()?STREAM_SEEK_TIMEOUT_MS:SEEK_TIMEOUT_MS;transition++;fading=false;setAuditedVolume(player,0f);audioOwner.pauseDecoder(player);
   if(effect!=null){audioOwner.sourceGainDuringAlignment(effect);originalMix=1f;traceAudioCommands();}
   status="Синхронизация позиции; оригинал звучит…";ownerEvent("seek");LogStore.log("replacement_sync",LogStore.map("state","seek","trackId",trackId,"sourcePositionMs",target,"driftMs",drift,"originalStillMuted",false,"originalRestoredDuringSeek",true,"inaudibleCorrection",correction));final MediaPlayer p=player;final long t=transition,epoch=audioOwner.epoch();final String key=identityKey;
   audioOwner.issueSeek(p,target,key,epoch,AudioOwnership.SeekKind.ALIGNMENT,seekStarted);owner.handler.postDelayed(()->{if(player==p&&seeking&&transition==t&&audioOwner.current(epoch,key))suspend("seek_timeout",retryDelay());},seekBudget);}
