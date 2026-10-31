@@ -52,7 +52,7 @@ public class RecorderActivity extends Activity {
   space(box,18);LinearLayout updatesPanel=column();updatesPanel.setPadding(dp(12),dp(12),dp(12),dp(12));updatesPanel.setBackground(background(SURFACE));box.addView(updatesPanel);space(box,10);
   label(updatesPanel,"Обновления CELIKOM",15,FG);updateCenter=new UpdateCenter(this,updatesPanel);
   reportNote=label(box,"",12,MUTED);label(box,"CELIKOM · "+AppVersion.NAME,11,0xff788991);
-  if(saved!=null){try{if(saved.containsKey("pickerId"))pickerTarget=new MobileActions.Target(saved.getString("pickerId"),saved.getString("pickerKey"),saved.getString("pickerTitle"),saved.getString("pickerArtist"),saved.getLong("pickerDuration"));String report=saved.getString("reportSnapshot");if(report!=null){File candidate=new File(report);if(candidate.getCanonicalFile().getParentFile().equals(getCacheDir().getCanonicalFile())&&candidate.getName().startsWith("diagnostics-"))exportSnapshot=candidate;String incident=saved.getString("incidentSnapshot");if(incident!=null){File candidateIncident=new File(incident);if(candidateIncident.getCanonicalFile().getParentFile().equals(getCacheDir().getCanonicalFile())&&candidateIncident.getName().startsWith("incident-"))incidentSnapshot=candidateIncident;}}}catch(Exception ignored){}}
+  if(saved!=null){try{if(saved.containsKey("pickerId"))pickerTarget=new MobileActions.Target(saved.getString("pickerId"),saved.getString("pickerKey"),saved.getString("pickerTitle"),saved.getString("pickerArtist"),saved.getLong("pickerDuration"));String report=saved.getString("reportSnapshot");if(report!=null){File candidate=new File(report);if(candidate.getCanonicalFile().getParentFile().equals(getCacheDir().getCanonicalFile())&&candidate.getName().startsWith("diagnostics-"))exportSnapshot=candidate;}String incident=saved.getString("incidentSnapshot");if(incident!=null){File candidateIncident=new File(incident);if(candidateIncident.getCanonicalFile().getParentFile().equals(getCacheDir().getCanonicalFile())&&candidateIncident.getName().startsWith("incident-"))incidentSnapshot=candidateIncident;}}catch(Exception ignored){}}
   receive(getIntent());render();if(api().signedIn())checkServer();
  }
  LinearLayout column(){LinearLayout v=new LinearLayout(this);v.setOrientation(LinearLayout.VERTICAL);return v;}
@@ -69,7 +69,7 @@ public class RecorderActivity extends Activity {
  @Override protected void onStart(){super.onStart();handler.removeCallbacks(update);handler.post(update);}
  @Override protected void onStop(){handler.removeCallbacks(update);super.onStop();}
  void render(){
-  if(save!=null){save.setVisibility(api().diagnosticHint()?View.VISIBLE:View.INVISIBLE);save.setEnabled(!exportBusy);}if(incidentButton!=null)incidentButton.setEnabled(!exportBusy);if(reportNote!=null)reportNote.setVisibility(api().fullDiagnostics()?View.VISIBLE:View.INVISIBLE);
+  if(save!=null){save.setVisibility(api().diagnosticHint()?View.VISIBLE:View.GONE);save.setEnabled(!exportBusy);}if(incidentButton!=null){incidentButton.setVisibility(api().diagnosticHint()?View.VISIBLE:View.GONE);incidentButton.setEnabled(!exportBusy);}if(reportNote!=null)reportNote.setVisibility(api().fullDiagnostics()?View.VISIBLE:View.INVISIBLE);
   ProbeService p=ProbeService.instance;ReplacementEngine e=p==null?null:p.replacement;boolean running=p!=null&&p.alive(),armed=e!=null&&e.armed(),signed=api().signedIn();
   if(uiAccountGeneration!=api().accountGeneration){uiAccountGeneration=api().accountGeneration;presenceId="";presenceStatus="";presenceChecked=0;accountAccess=null;serverStatus="";}
   PlaybackSource source=running?p.current:null;
@@ -115,16 +115,17 @@ public class RecorderActivity extends Activity {
   kind.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener(){public void onNothingSelected(AdapterView<?> a){}public void onItemSelected(AdapterView<?> a,View v,int position,long id){pinned[0]=position==1?target():null;category.setVisibility(position==1?View.VISIBLE:View.GONE);song.setVisibility(position==1?View.VISIBLE:View.GONE);diagnosticsNote.setVisibility(position==1?View.VISIBLE:View.GONE);set(song,pinned[0]==null?"Сначала включите песню в Яндекс Музыке":pinned[0].artist+" — "+pinned[0].title);message.setHint(position==1?"Комментарий (необязательно)":"Опишите проблему");}});
   Button send=button(form,"Отправить",()->{},false);send.setOnClickListener(v->{if(!api().signedIn()){toast("Войдите в аккаунт CELIKOM");return;}boolean isSong=kind.getSelectedItemPosition()==1;MobileActions.Target t=isSong?pinned[0]:null;try{if(isSong&&(t==null||!current(t)))throw new Exception("track_required");String text=message.getText().toString(),fingerprint=kind.getSelectedItemPosition()+"|"+category.getSelectedItemPosition()+"|"+text+"|"+(t==null?"":t.key);if(!fingerprint.equals(previous[0])||account[0]!=api().accountGeneration){key[0]=UUID.randomUUID().toString();pending[0]=null;previous[0]=fingerprint;account[0]=api().accountGeneration;}if(pending[0]==null)pending[0]=MobileActions.support(text,key[0],t,new String[]{"not_replacing","wrong_version","audio_issue","other"}[category.getSelectedItemPosition()]);send.setEnabled(false);message.setEnabled(false);kind.setEnabled(false);category.setEnabled(false);note.setTextColor(MUTED);set(note,"Отправляем…");api().support(pending[0],(j,error)->{if(!visible())return;send.setEnabled(true);message.setEnabled(true);kind.setEnabled(true);category.setEnabled(true);set(note,error==null?"Сообщение отправлено":error(error));note.setTextColor(error==null?MINT:0xffff9c9c);if(error==null){message.setText("");previous[0]="";pending[0]=null;}});}catch(Exception e){set(note,"track_required".equals(e.getMessage())?"Песня изменилась. Выберите вид обращения заново.":error(e.getMessage()));}});}
  void exportIncidents(){
-  if(exportBusy)return;
+  if(exportBusy||!api().diagnosticHint())return;
   if(!IncidentJournal.hasReport()){toast("Журнал сбоев пока пуст.");return;}
   exportBusy=true;
+  final long account=api().accountGeneration;
   files.execute(()->{
    File snapshot=null;
    try{snapshot=File.createTempFile("incident-",".txt",getCacheDir());IncidentJournal.snapshot(snapshot);}
    catch(Exception e){if(snapshot!=null)snapshot.delete();snapshot=null;}
    final File ready=snapshot;
    handler.post(()->{
-    if(!visible()||ready==null){if(ready!=null)ready.delete();exportBusy=false;if(visible())toast("Не удалось подготовить журнал сбоев");return;}
+    if(!visible()||ready==null||account!=api().accountGeneration||!api().diagnosticHint()){if(ready!=null)ready.delete();exportBusy=false;if(visible())toast("Не удалось подготовить журнал сбоев");return;}
     incidentSnapshot=ready;
     try{
      startActivityForResult(new Intent(Intent.ACTION_CREATE_DOCUMENT)
@@ -137,17 +138,17 @@ public class RecorderActivity extends Activity {
  void finishIncidentExport(int result,Intent data){
   File snapshot=incidentSnapshot;incidentSnapshot=null;exportBusy=false;
   if(snapshot==null)return;
-  if(result!=RESULT_OK||data==null||data.getData()==null){snapshot.delete();return;}
+  if(!api().diagnosticHint()||result!=RESULT_OK||data==null||data.getData()==null){snapshot.delete();return;}
   Uri uri=data.getData();
   files.execute(()->{
    boolean ok=false;
    try(OutputStream out=getContentResolver().openOutputStream(uri,"wt")){
-    if(out==null)throw new IOException("export_output_unavailable");
-    try(InputStream in=new FileInputStream(snapshot)){byte[] buffer=new byte[16384];int n;while((n=in.read(buffer))!=-1)out.write(buffer,0,n);}
+    if(out==null||!api().diagnosticHint())throw new IOException("incident_export_forbidden");
+    try(InputStream in=new FileInputStream(snapshot)){byte[] buffer=new byte[16384];int n;while((n=in.read(buffer))!=-1){if(!api().diagnosticHint())throw new IOException("incident_export_forbidden");out.write(buffer,0,n);}}
     ok=true;
    }catch(Exception ignored){}finally{snapshot.delete();}
    final boolean success=ok;
-   handler.post(()->{if(visible()){set(reportNote,success?"Журнал сбоев сохранён":"Не удалось сохранить журнал сбоев");reportNote.setVisibility(View.VISIBLE);}});
+   handler.post(()->{if(visible())toast(success?"Журнал сбоев сохранён":"Не удалось сохранить журнал сбоев");});
   });
  }
  void requestExport(){if(exportBusy)return;if(api().fullDiagnostics()){export();return;}set(reportNote,"Проверяем доступ к диагностике…");reportNote.setVisibility(View.VISIBLE);api().refreshDiagnostics((j,error)->{if(!visible())return;if(error!=null){toast("diagnostics_forbidden".equals(error)?"Полная диагностика доступна только администраторам":error(error));return;}export();});}

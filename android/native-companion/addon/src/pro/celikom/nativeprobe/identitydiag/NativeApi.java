@@ -16,7 +16,7 @@ final class NativeApi {
  volatile long diagnosticUntil,diagnosticGeneration=-1,nextDiagnosticCheck;volatile boolean diagnosticBusy;
  final PresencePreview presencePreview=new PresencePreview();
  final DiagnosticRequest diagnosticRequest=new DiagnosticRequest();final java.util.ArrayList<Result> diagnosticWaiters=new java.util.ArrayList<>();
- boolean diagnosticHint(){JSONObject u=session.read().optJSONObject("user");long id=u==null?0:u.optLong("id",0);return signedIn()&&id>0&&context.getSharedPreferences("diagnostic-ui",0).getLong("verified-user",0)==id;}
+ boolean diagnosticHint(){JSONObject u=session.read().optJSONObject("user");long id=u==null?0:u.optLong("id",0);return DiagnosticAccess.offlineIncidentHint(signedIn(),id,context.getSharedPreferences("diagnostic-ui",0).getLong("verified-user",0));}
  void rememberDiagnosticHint(boolean grant){JSONObject u=session.read().optJSONObject("user");context.getSharedPreferences("diagnostic-ui",0).edit().putLong("verified-user",grant&&u!=null?u.optLong("id",0):0).apply();}
  String presenceHint(String id){return presencePreview.get(id,accountGeneration,SystemClock.elapsedRealtime());}
  boolean fullDiagnostics(){return DiagnosticAccess.lease(signedIn(),diagnosticGeneration,accountGeneration,SystemClock.elapsedRealtime(),diagnosticUntil);}
