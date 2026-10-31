@@ -56,31 +56,39 @@ if 'sourceGainDuringAlignment(effect);originalMix=1f;traceAudioCommands();' not 
     raise AssertionError('native source gain restoration must close command-gap telemetry immediately')
 if 'service.replacement.accountLeaseCurrent();' not in api or api.count('notifyAudioAccountChange();')<3:
     raise AssertionError('all auth generation changes must notify the audio owner without waiting for transport ticks')
-fade=engine[engine.index('void fade(boolean softColdJoin){'):engine.index('void setAuditedVolume(',engine.index('void fade(boolean softColdJoin){'))]
+fade=engine[engine.index('void fade(boolean exclusiveDipJoin){'):engine.index('void setAuditedVolume(',engine.index('void fade(boolean exclusiveDipJoin){'))]
 if 'audioOwner.fadeSourceBeforeGrant(fx' in fade or 'final long rampDuration=32;' in fade:
-    raise AssertionError('multi-tick near-silent pre-handover fade reintroduced')
+    raise AssertionError('legacy unverified source fade reintroduced')
 if 'audioOwner.grantReplacement(fx);originalMix=0f;applyVolume(1f);' not in fade:
     raise AssertionError('accepted pause/seek exclusive grant must remain available')
 if '}else{\n     audioOwner.grantReplacement(fx);originalMix=0f;applyVolume(1f);\n    }' not in fade:
     raise AssertionError('pause/seek immediate exclusive path must mute original before secondary gain')
 if 'audioOwner.handoverClockValidated();' not in fade:
     raise AssertionError('decoder must pass the sole clock gate before output grant')
-if 'audioOwner.blendSameSong(p,fx,mix,targetGain,ownerKey,ownerEpoch,handoverTicket.operationEpoch)' not in fade:
-    raise AssertionError('cold same-song blend must be commanded only through AudioOwnership')
-if fade.index('audioOwner.handoverClockValidated();')>fade.index('audioOwner.blendSameSong('):
-    raise AssertionError('same-song blend cannot precede verified decoder clock')
-if 'softColdJoin?SAME_SONG_BLEND_MS:0' not in fade or 'SAME_SONG_BLEND_MS=40' not in engine:
-    raise AssertionError('same-song blend must be bounded to a 40ms micro-transition')
+if 'audioOwner.blendSameSong(' in fade:
+    raise AssertionError('cold join cannot overlap two independently clocked audio sources')
+if 'audioOwner.duckSourceForExclusiveJoin(p,fx,duck,ownerKey,ownerEpoch,handoverTicket.operationEpoch)' not in fade:
+    raise AssertionError('the original-only dip must hold the verified ownership ticket')
+if fade.index('audioOwner.handoverClockValidated();')>fade.index('audioOwner.duckSourceForExclusiveJoin('):
+    raise AssertionError('the requested source dip cannot precede the verified decoder clock')
+if 'COLD_JOIN_DIP_MS=500' not in engine or 'COLD_JOIN_DIP_MS/2' not in fade:
+    raise AssertionError('exclusive 250ms down plus 250ms up must be bounded to 500ms')
+if fade.index('audioOwner.duckSourceForExclusiveJoin(p,fx,1f')>fade.index('audioOwner.grantReplacement(fx);originalMix=0f;applyVolume(0f);'):
+    raise AssertionError('original must reach silence before replacement acquires audible ownership')
 if 'RETAINED_SEEK_JOIN_MS=260' not in engine or 'restoreScrubSourceAtDeadline(p,heldEffect,epoch,key)' not in engine:
     raise AssertionError('user scrub must fail open to the original after the bounded silent seek window')
-if 'if(originalMix<=0.001f&&!seekHoldActive)' not in fade or 'seekHoldActive=false;ownerEvent("exclusive_handover")' not in fade:
+if 'if(originalMix<=0.001f&&!seekHoldActive)' not in fade or 'seekHoldActive=false;pendingStreamScrubJoin=false;ownerEvent("exclusive_handover")' not in fade:
     raise AssertionError('fast seek must not restore old-position Yandex before verified decoder restart')
-if 'fade(newlyAttached&&!resumed&&!sourceSeekedThisTrack)' not in engine:
-    raise AssertionError('only fresh-track cold join may use a same-song overlap after user scrubbing')
+if 'fade((newlyAttached&&!resumed&&!sourceSeekedThisTrack)||pendingStreamScrubJoin)' not in engine:
+    raise AssertionError('fresh track and completed partial-stream scrubs must take the bounded dip')
+if 'partialStreamScrub=!correction&&explicitSourceSeek&&streaming!=null&&!streaming.complete()' not in engine or 'boolean shortScrub=!partialStreamScrub' not in engine:
+    raise AssertionError('partially downloaded manual-next seeks must not enter the 260ms muted seek hold')
 if 'audioOwner.commandCurrent(handoverTicket' not in fade or 'token!=transition' not in fade:
     raise AssertionError('same-song blend must recheck command/epoch cancellation every tick')
 if 'float blendSameSong(' not in owner or 'state!=State.SAME_SONG_BLEND' not in owner:
-    raise AssertionError('only current owner may authorize exceptional same-song overlap')
+    raise AssertionError('legacy guarded same-song blend regression must remain testable')
+if 'void duckSourceForExclusiveJoin(' not in owner or 'commandedSecondary>0.001f' not in owner:
+    raise AssertionError('source-only attenuation must reject an already audible decoder')
 if 'if(effect!=null&&originalMix>0.001f' not in engine or 'audioOwner.state()==AudioOwnership.State.SAME_SONG_BLEND' not in engine:
     raise AssertionError('pause must immediately silence replacement and restore source during blend')
 if engine.count('()->transportLeaseCurrent(key,g,account)')!=2:

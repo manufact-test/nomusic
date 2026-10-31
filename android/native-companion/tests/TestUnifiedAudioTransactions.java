@@ -75,7 +75,7 @@ public final class TestUnifiedAudioTransactions {
   TestEngine.playing();
   ReplacementEngine slow=TestEngine.e;MediaPlayer seekPlayer=slow.player;
   android.media.audiofx.DynamicsProcessing existingEffect=slow.effect;
-  android.os.SystemClock.now+=ReplacementEngine.FADE_MS+50;
+  android.os.SystemClock.now+=ReplacementEngine.COLD_JOIN_DIP_MS+50;
   TestEngine.p.current=TestEngine.source("1",1400,true);TestEngine.p.handler.drain();
   check(seekPlayer.volume>0.99f&&existingEffect.gain==-100f,
     "replacement was exclusively audible before seeking");
@@ -128,8 +128,8 @@ public final class TestUnifiedAudioTransactions {
   engine.sourceSeekRequested();
   TestEngine.p.current=TestEngine.source("1",60000,true);engine.update(TestEngine.p.current);
   check(nativePlayer.seekCalls==2&&!nativePlayer.playing
-      &&engine.effect==null&&nativePlayer.volume==0f,
-      "explicit seek cancels fade, restores original and defers native seek");
+      &&engine.effect!=null&&engine.effect.gain==0f&&nativePlayer.volume==0f,
+      "partial-stream explicit seek cancels warm fade, retains effect with original audible and defers native seek");
   nativePlayer.seek.onSeekComplete(nativePlayer);
   check(nativePlayer.seekCalls==3&&engine.seeking&&!nativePlayer.playing,
       "old warm callback permits a new native seek but cannot authorize output");
@@ -382,7 +382,7 @@ public final class TestUnifiedAudioTransactions {
      ticks even without an intervening Media3 onEvents update. */
   TestEngine.playing();ReplacementEngine returningEngine=TestEngine.e;
   MediaPlayer returningPlayer=returningEngine.player;
-  android.os.SystemClock.now+=ReplacementEngine.FADE_MS+40;
+  android.os.SystemClock.now+=ReplacementEngine.COLD_JOIN_DIP_MS+40;
   TestEngine.p.current=TestEngine.source("1",1400,true);
   TestEngine.p.handler.drain();
   check(returningPlayer.playing&&returningEngine.originalMix==0f,

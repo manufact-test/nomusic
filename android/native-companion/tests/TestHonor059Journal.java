@@ -24,7 +24,7 @@ public final class TestHonor059Journal {
   TestEngine.playing();
   ReplacementEngine e=TestEngine.e;
   MediaPlayer p=e.player;
-  SystemClock.now+=ReplacementEngine.FADE_MS+50;
+  SystemClock.now+=ReplacementEngine.COLD_JOIN_DIP_MS+50;
   TestEngine.p.current=TestEngine.source("1",1400,true);
   TestEngine.p.handler.drain();
   check(p.volume>0.99f&&e.originalMix==0f&&e.effect!=null,
@@ -56,9 +56,9 @@ public final class TestHonor059Journal {
   e.close();
  }
 
- /* The rejected 0.3.59 source-only fade drove both outputs near silence.
-    Any new join must retain the verified-clock gate and an audible energy
-    floor at EVERY checkpoint, including a bounded same-song blend. */
+ /* The 0.3.65 user-requested dip intentionally briefly silences the track.
+    Verify it only begins AFTER decoder clock validation, never overlaps
+    sources, and has a strict 500ms upper bound. */
  static void fadeEnergyFloor()throws Exception{
   TestStreamingEngine.Buffer audio=TestStreamingEngine.start();
   ReplacementEngine e=TestEngine.e;
@@ -72,8 +72,8 @@ public final class TestHonor059Journal {
    e.update(TestEngine.p.current);
    TestEngine.p.handler.drain();
    double originalLinear=Math.pow(10.0,effect.gain/20.0);
-   quality(Math.max(originalLinear,p.volume)>=0.1,
-     "RED 0.3.59: handover must not drive both command outputs below -20dB");
+   quality(Math.max(originalLinear,p.volume)>=0.99,
+     "unverified decoder must keep the original at full gain");
    check(p.volume==0f&&effect.gain==0f,
      "unverified streaming decoder cannot attenuate the live original");
   }
@@ -83,26 +83,33 @@ public final class TestHonor059Journal {
   e.update(TestEngine.p.current);
   TestEngine.p.handler.drain();
   double originalLinear=Math.pow(10.0,effect.gain/20.0);
-  quality(Math.max(originalLinear,p.volume)>=0.1,
-    "RED 0.3.59: output must be granted without a scheduled near-silent phase");
-  check(e.fading&&e.audioOwner.state()==AudioOwnership.State.SAME_SONG_BLEND
+  quality(Math.max(originalLinear,p.volume)>=0.99,
+    "clock gate must precede any intentional source dip");
+  check(e.fading&&e.audioOwner.state()==AudioOwnership.State.ALIGNING
       &&effect.gain==0f&&p.volume==0f,
-    "verified streaming decoder starts bounded same-song blend without muting the original");
-  SystemClock.now+=ReplacementEngine.SAME_SONG_BLEND_MS/2;
-  p.position+=ReplacementEngine.SAME_SONG_BLEND_MS/2;
-  sample(1100+ReplacementEngine.SAME_SONG_BLEND_MS/2,true);TestEngine.p.handler.drain();
+    "verified streaming decoder starts bounded exclusive dip with source full");
+  SystemClock.now+=ReplacementEngine.COLD_JOIN_DIP_MS/4;
+  p.position+=ReplacementEngine.COLD_JOIN_DIP_MS/4;
+  sample(1100+ReplacementEngine.COLD_JOIN_DIP_MS/4,true);TestEngine.p.handler.drain();
   originalLinear=Math.pow(10.0,effect.gain/20.0);
-  quality(Math.max(originalLinear,p.volume)>=0.1,
-    "RED 0.3.59: partial blend must never attenuate both outputs below -20dB");
-  check(e.audioOwner.state()==AudioOwnership.State.SAME_SONG_BLEND
-      &&originalLinear>0.001&&p.volume>0f
-      &&originalLinear*originalLinear+p.volume*p.volume>0.98,
-    "only same-song, post-clock equal-power blend may have dual audible sessions");
-  SystemClock.now+=ReplacementEngine.SAME_SONG_BLEND_MS;p.position+=ReplacementEngine.SAME_SONG_BLEND_MS;
-  sample(1100+ReplacementEngine.SAME_SONG_BLEND_MS/2+ReplacementEngine.SAME_SONG_BLEND_MS,true);TestEngine.p.handler.drain();
+  quality(e.audioOwner.state()==AudioOwnership.State.ALIGNING
+      &&originalLinear>0.1&&originalLinear<1f&&p.volume==0f,
+    "first half fades only original without an overlapping decoder");
+  SystemClock.now+=ReplacementEngine.COLD_JOIN_DIP_MS/4;
+  p.position+=ReplacementEngine.COLD_JOIN_DIP_MS/4;
+  sample(1100+ReplacementEngine.COLD_JOIN_DIP_MS/2,true);TestEngine.p.handler.drain();
+  check(effect.gain==-100f&&p.volume==0f,
+    "midpoint intentionally reaches zero without overlapping two versions");
+  SystemClock.now+=ReplacementEngine.COLD_JOIN_DIP_MS/4;
+  p.position+=ReplacementEngine.COLD_JOIN_DIP_MS/4;
+  sample(1100+ReplacementEngine.COLD_JOIN_DIP_MS*3/4,true);TestEngine.p.handler.drain();
+  quality(effect.gain==-100f&&p.volume>0f&&p.volume<1f,
+    "second half restores replacement only, without unmuting original");
+  SystemClock.now+=ReplacementEngine.COLD_JOIN_DIP_MS/4+20;p.position+=ReplacementEngine.COLD_JOIN_DIP_MS/4+20;
+  sample(1100+ReplacementEngine.COLD_JOIN_DIP_MS+20,true);TestEngine.p.handler.drain();
   check(effect.gain==-100f&&p.volume>0.99f&&!e.fading
       &&AudioOwnership.exclusive(e.originalMix,p.volume),
-    "bounded blend ends in the original exclusive full-volume owner state");
+    "bounded requested dip ends in exclusive full-volume replacement");
   e.close();
  }
 

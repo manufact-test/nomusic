@@ -11,20 +11,19 @@ public class TestHandoverClock {
   SystemClock.now+=40+drift;p.position+=40;sample(source);TestEngine.p.handler.drain();
   check(e.player==p&&!p.released&&p.seekCalls==(drift<=350?1:2),"recorded offset "+drift+"ms must not create unnecessary warm seeks");
   if(drift>350){SystemClock.now+=40;p.position+=40;source+=40;sample(source);TestEngine.p.handler.drain();}
-  SystemClock.now+=ReplacementEngine.SAME_SONG_BLEND_MS/2;
-  p.position+=ReplacementEngine.SAME_SONG_BLEND_MS/2;source+=ReplacementEngine.SAME_SONG_BLEND_MS/2;
+  SystemClock.now+=ReplacementEngine.COLD_JOIN_DIP_MS/4;
+  p.position+=ReplacementEngine.COLD_JOIN_DIP_MS/4;source+=ReplacementEngine.COLD_JOIN_DIP_MS/4;
   sample(source);TestEngine.p.handler.drain();
   double originalGain=Math.pow(10,e.effect.gain/20.0);
-  check(e.audioOwner.state()==AudioOwnership.State.SAME_SONG_BLEND
-      &&originalGain>0.001&&p.volume>0
-      &&originalGain*originalGain+p.volume*p.volume>0.98,
-      "recorded alignment blends only verified same-song with no energy hole "+drift);
-  SystemClock.now+=ReplacementEngine.SAME_SONG_BLEND_MS/2+40;
-  p.position+=ReplacementEngine.SAME_SONG_BLEND_MS/2+40;
-  source+=ReplacementEngine.SAME_SONG_BLEND_MS/2+40;
+  check(e.audioOwner.state()==AudioOwnership.State.ALIGNING
+      &&originalGain>0.1&&originalGain<1.0&&p.volume==0f,
+      "recorded alignment ducks only the original after verified clock "+drift);
+  SystemClock.now+=ReplacementEngine.COLD_JOIN_DIP_MS*3/4+40;
+  p.position+=ReplacementEngine.COLD_JOIN_DIP_MS*3/4+40;
+  source+=ReplacementEngine.COLD_JOIN_DIP_MS*3/4+40;
   sample(source);TestEngine.p.handler.drain();
   check(p.volume>0.99f&&e.effect.gain==-100f,
-      "same-song blend completes at exclusive replacement gain "+drift);
+      "exclusive 500ms dip completes at replacement gain "+drift);
   SystemClock.now+=200;p.position+=200;source+=200;sample(source);TestEngine.p.handler.drain();int seeks=p.seekCalls;
   for(int i=0;i<8;i++){SystemClock.now+=250;p.position+=250;source+=250;sample(source);e.update(TestEngine.p.current);TestEngine.p.handler.drain();}
   check(e.player==p&&!p.released&&p.seekCalls==seeks&&TestEngine.api.resolves==1&&TestEngine.api.downloads==0,"recorded profile stays on same stream without repeated resolve/recovery "+drift);e.close();
@@ -33,55 +32,54 @@ public class TestHandoverClock {
   TestEngine.playing();ReplacementEngine e=TestEngine.e;MediaPlayer p=e.player;
   check(e.fading&&p.volume==0f&&e.effect.gain==0f,
     "cold join starts with original still audible and silent replacement");
-  SystemClock.now+=ReplacementEngine.SAME_SONG_BLEND_MS/2;
-  sample(1000+ReplacementEngine.SAME_SONG_BLEND_MS/2);TestEngine.p.handler.drain();
+  SystemClock.now+=ReplacementEngine.COLD_JOIN_DIP_MS/4;
+  sample(1000+ReplacementEngine.COLD_JOIN_DIP_MS/4);TestEngine.p.handler.drain();
   double originalGain=Math.pow(10,e.effect.gain/20.0);
-  check(p.volume>0f&&p.volume<1f&&e.effect.gain<0f&&e.effect.gain>-100f
-      &&e.audioOwner.state()==AudioOwnership.State.SAME_SONG_BLEND
-      &&originalGain*originalGain+p.volume*p.volume>0.98,
-    "confirmed source and decoder cross over for a bounded energy-preserving window");
-  SystemClock.now+=ReplacementEngine.SAME_SONG_BLEND_MS/4;
-  sample(1000+3*ReplacementEngine.SAME_SONG_BLEND_MS/4);TestEngine.p.handler.drain();
-  check(p.volume>0f&&p.volume<1f&&e.effect.gain<0f&&e.fading,
-    "both validated versions retain smooth partial gains near end of blend");
-  SystemClock.now+=ReplacementEngine.SAME_SONG_BLEND_MS/4+20;
-  sample(1000+ReplacementEngine.SAME_SONG_BLEND_MS+20);
+  check(p.volume==0f&&e.effect.gain<0f&&e.effect.gain>-100f
+      &&e.audioOwner.state()==AudioOwnership.State.ALIGNING
+      &&originalGain>0.1&&originalGain<1f,
+    "first quarter ducks source with replacement silent: no waveform clash");
+  SystemClock.now+=ReplacementEngine.COLD_JOIN_DIP_MS/4;
+  sample(1000+ReplacementEngine.COLD_JOIN_DIP_MS/2);TestEngine.p.handler.drain();
+  check(p.volume==0f&&e.effect.gain==-100f&&e.fading,
+    "midpoint has bounded intentional zero-overlap valley");
+  SystemClock.now+=ReplacementEngine.COLD_JOIN_DIP_MS/4;
+  sample(1000+ReplacementEngine.COLD_JOIN_DIP_MS*3/4);TestEngine.p.handler.drain();
+  check(p.volume>0f&&p.volume<1f&&e.effect.gain==-100f&&e.fading,
+    "third quarter raises only replacement, source fully attenuated");
+  SystemClock.now+=ReplacementEngine.COLD_JOIN_DIP_MS/4+20;
+  sample(1000+ReplacementEngine.COLD_JOIN_DIP_MS+20);
   TestEngine.p.handler.drain();
   check(p.volume==1f&&e.effect.gain==-100f&&!e.fading,
     "cold join finishes in exclusive decoder state");e.close();
   TestEngine.playing();e=TestEngine.e;p=e.player;
-  SystemClock.now+=ReplacementEngine.SAME_SONG_BLEND_MS/2;
-  sample(1000+ReplacementEngine.SAME_SONG_BLEND_MS/2);TestEngine.p.handler.drain();
+  SystemClock.now+=ReplacementEngine.COLD_JOIN_DIP_MS/4;
+  sample(1000+ReplacementEngine.COLD_JOIN_DIP_MS/4);TestEngine.p.handler.drain();
   TestEngine.p.current=TestEngine.source("1",1080,false);e.update(TestEngine.p.current);
   check(!e.fading&&p.volume==0f&&e.effect!=null&&e.effect.gain==0f,
-    "pause cancels overlapping same-song blend and restores native gain");
+    "pause cancels partial dip and restores native gain");
   e.close();
   TestEngine.playing();e=TestEngine.e;p=e.player;
-  SystemClock.now+=ReplacementEngine.SAME_SONG_BLEND_MS/2;
-  sample(1000+ReplacementEngine.SAME_SONG_BLEND_MS/2);TestEngine.p.handler.drain();
+  SystemClock.now+=ReplacementEngine.COLD_JOIN_DIP_MS/4;
+  sample(1000+ReplacementEngine.COLD_JOIN_DIP_MS/4);TestEngine.p.handler.drain();
   e.sourceBoundary("new_song_during_soft_join");SystemClock.now+=500;TestEngine.p.handler.drain();
   check(p.released&&p.volume==0f&&e.player==null&&e.effect==null,
     "new song cancels soft join without stale decoder or effect");e.close();
  }
  static void nearTerminalBlendTickMustNotTriggerRecovery()throws Exception{
+  // Retain a direct regression for the legacy blending primitive even though
+  // production now uses non-overlapping output for every cold handover.
   TestEngine.playing();ReplacementEngine e=TestEngine.e;MediaPlayer p=e.player;
-  SystemClock.now+=ReplacementEngine.SAME_SONG_BLEND_MS-1;
-  sample(1000+ReplacementEngine.SAME_SONG_BLEND_MS-1);TestEngine.p.handler.drain();
-  check(e.fading&&e.audioOwner.state()==AudioOwnership.State.SAME_SONG_BLEND,
-    "HONOR 0.3.62: near-terminal blend tick must not prematurely close same-song blend");
-  // On a long HONOR 0.3.62 blend, a tick at 159/160ms produced a
-  // numerically near-zero source gain before the elapsed timer had finished.
-  // Reproduce that exact amplitude in a short 40ms blend, even though the
-  // integer-millisecond clock alone cannot land near enough to the endpoint.
+  e.transition++;e.fading=false;e.audioOwner.handoverClockValidated();
+  e.audioOwner.aligning();
   e.audioOwner.blendSameSong(p,e.effect,0.9999f,1f,e.identityKey,
       e.audioOwner.epoch(),e.audioOwner.operationEpoch());
   check(e.audioOwner.state()==AudioOwnership.State.SAME_SONG_BLEND,
-    "sub-threshold source gain cannot revoke a scheduled final blend tick");
-  SystemClock.now+=20;sample(1000+ReplacementEngine.SAME_SONG_BLEND_MS+19);
-  TestEngine.p.handler.drain();
-  check(e.player==p&&!p.released&&!e.fading&&e.effect!=null
-      &&e.audioOwner.state()==AudioOwnership.State.REPLACEMENT,
-    "HONOR 0.3.62: final scheduled tick cannot produce fade_failed and five-second retry");
+    "HONOR 0.3.62: near-terminal legacy blend cannot prematurely revoke owner");
+  e.audioOwner.blendSameSong(p,e.effect,1f,1f,e.identityKey,
+      e.audioOwner.epoch(),e.audioOwner.operationEpoch());
+  check(e.audioOwner.state()==AudioOwnership.State.REPLACEMENT,
+    "HONOR 0.3.62: exact final blend tick still completes without recovery");
   e.close();
  }
  public static void main(String[] args)throws Exception{
@@ -101,14 +99,12 @@ public class TestHandoverClock {
   check(p.playing&&p.seekCalls==2,"warm decoder aligns while running silently, avoiding another pause/start");
   SystemClock.now+=20;sample(1660);p.seek.onSeekComplete(p);
   SystemClock.now+=40;p.position+=40;sample(1700);TestEngine.p.handler.drain();
-  check((p.volume==0f&&e.originalMix==1f)
-     ||(e.audioOwner.state()==AudioOwnership.State.SAME_SONG_BLEND
-         &&p.volume>=0f&&Math.pow(10,e.effect.gain/20.0)>0.001)
+  check((p.volume==0f&&e.originalMix>0f)
      ||(e.audioOwner.state()==AudioOwnership.State.REPLACEMENT&&e.originalMix==0f),
-     "aligned handover has either the original or one verified same-song blend");
-  SystemClock.now+=ReplacementEngine.SAME_SONG_BLEND_MS+40;
-  p.position+=ReplacementEngine.SAME_SONG_BLEND_MS+40;
-  sample(1700+ReplacementEngine.SAME_SONG_BLEND_MS+40);
+     "aligned handover never commands two audible versions");
+  SystemClock.now+=ReplacementEngine.COLD_JOIN_DIP_MS+40;
+  p.position+=ReplacementEngine.COLD_JOIN_DIP_MS+40;
+  sample(1700+ReplacementEngine.COLD_JOIN_DIP_MS+40);
   TestEngine.p.handler.drain();
   check(p.volume>0.99f&&e.originalMix==0f&&e.effect.gain==-100f,
       "aligned replacement has full output after the verified blend");

@@ -154,6 +154,25 @@ final class AudioOwnership {
   if(!originalMuted)effect.setInputGainAllChannelsTo(-100f);
   originalMuted=true;state=State.REPLACEMENT;reason="exclusive_grant";
  }
+ /** Phase one of a non-overlapping handover: attenuate ONLY the original
+  * while the verified replacement stays silent. No two independently timed
+  * copies may be audible together. Phase two begins after grantReplacement. */
+ void duckSourceForExclusiveJoin(MediaPlayer player,DynamicsProcessing effect,float progress,
+                                 String identity,long ticket,long commandTicket){
+  if(!Float.isFinite(progress)||progress<0f||progress>1f)
+   throw new IllegalArgumentException("invalid exclusive join progress");
+  if(player==null||!player.isPlaying()||!current(ticket,identity)
+      ||operationEpoch!=commandTicket||pauseMode!=PauseMode.NONE
+      ||state!=State.ALIGNING||inFlightDecoder!=null||handoverAwaitingClock
+      ||commandedSecondary>0.001f||effect==null||effect!=attachedEffect
+      ||!effect.hasControl()||!effect.getEnabled())
+   throw new IllegalStateException("exclusive source duck lacks current owner");
+  float remaining=1f-progress;
+  effect.setInputGainAllChannelsTo(remaining<=0.00001f?-100f:
+      (float)(20.0*Math.log10(remaining)));
+  originalMuted=progress>=1f;
+  reason=originalMuted?"exclusive_source_duck_complete":"exclusive_source_duck";
+ }
  /** The only exception to exclusive output: a bounded fade between an already
   * advancing, aligned decoder and the verified source of the SAME identity.
   * Callers hold the current track + command ticket throughout every tick.
