@@ -22,7 +22,9 @@ jobs:
           php-version: '8.3'
           coverage: none
       - name: Validate read-only audit
-        run: php -l .github/scripts/celikom-outage-audit.php
+        run: |
+          php -l .github/scripts/celikom-outage-audit.php
+          php .github/scripts/celikom-outage-audit.php --self-test
       - name: Read only sanitized PHP error categories and current runtime
         env:
           HOSTINGER_SSH_KEY: ${{ secrets.HOSTINGER_SSH_KEY }}

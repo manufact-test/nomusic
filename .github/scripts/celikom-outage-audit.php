@@ -3,6 +3,24 @@ declare(strict_types=1);
 /* Read-only CLI audit. Never print raw log lines, configuration or user data. */
 ini_set('display_errors', '0');
 if (PHP_SAPI !== 'cli') exit(2);
+function celikomSqlCodes(string $line): ?array {
+    if (preg_match('/_sqlstate_([A-Z0-9]{5})_driver_([0-9]{1,5})/i', $line, $m)) return [strtoupper($m[1]), (int)$m[2]];
+    if (!preg_match('/SQLSTATE\[([A-Z0-9]{5})\](?:\s*\[([0-9]{3,5})\])?/i', $line, $m)) return null;
+    $driver=isset($m[2])?(int)$m[2]:null;
+    if (preg_match('/(?:General error|Syntax error or access violation): ([0-9]{3,5})/', $line, $n)) $driver=(int)$n[1];
+    return [strtoupper($m[1]),$driver];
+}
+if (($argv[1] ?? '') === '--self-test') {
+    foreach (['CELIKOM service_unavailable_sqlstate_08004_driver_1040'=>['08004',1040],
+        'CELIKOM service_unavailable_sqlstate_HY000_driver_2002'=>['HY000',2002],
+        'SQLSTATE[HY000] [1226] private text'=>['HY000',1226],
+        'SQLSTATE[HY000]: General error: 1203 private text'=>['HY000',1203],
+        'unrelated private text'=>null] as $line=>$expected) {
+        if (celikomSqlCodes($line)!==$expected) throw new RuntimeException('log_parser_self_test_failed');
+    }
+    echo "Log parser self-test PASS: actual application format and native PDO formats; no raw log output.\n";
+    exit(0);
+}
 $site = '/home/u235811320/domains/darkred-camel-588676.hostingersite.com';
 $app = $site . '/celikom';
 $release = realpath($app . '/current');
@@ -38,20 +56,16 @@ foreach (array_slice($paths, 0, 12) as $path) {
         if (preg_match('/^\[([0-9]{2}-[A-Za-z]{3}-[0-9]{4} [0-9:]{8}(?: [A-Za-z_\/+-]+)?)\]/', $line, $m)) $time=$m[1];
         $sql='';
         /* Application logs deliberately store only underscore-delimited SQL codes. */
-        if (preg_match('/_sqlstate_([A-Z0-9]{5})_driver_([0-9]{1,5})/i', $line, $m)) {
-            $sql=' SQLSTATE='.strtoupper($m[1]).' driver_code='.$m[2];
-            $category=match ((int)$m[2]) {
+        $codes=celikomSqlCodes($line);
+        if ($codes!==null) {
+            $sql=' SQLSTATE='.$codes[0].' driver_code='.($codes[1] ?? 'unknown');
+            $category=match ($codes[1]) {
                 1040,1203=>'database_connections',
                 1226=>'database_resource_limit',
                 2002,2003,2006,2013=>'database_unavailable',
                 default=>'database_error'
             };
         }
-        if (preg_match('/SQLSTATE\[([A-Z0-9]{5})\](?:\s*\[([0-9]{3,5})\])?/', $line, $m)) {
-            $sql=' SQLSTATE='.$m[1];
-            if (isset($m[2])) $sql.=' driver_code='.$m[2];
-        }
-        if (preg_match('/(?:General error|Syntax error or access violation): ([0-9]{3,5})/', $line, $m)) $sql.=' driver_code='.$m[1];
         $key=($time ?? 'unknown_time').' '.$category.$sql;
         $groups[$key]=($groups[$key] ?? 0)+1;
     }
@@ -70,6 +84,20 @@ try {
     $started=microtime(true);
     $pdo=Celikom\Database\Connection::open($config); $pdo->query('SELECT 1')->fetchColumn();
     $report['database']=['ok'=>true,'elapsed_ms'=>round((microtime(true)-$started)*1000)];
+    foreach (['status'=>"SHOW GLOBAL STATUS WHERE Variable_name IN ('Threads_connected','Threads_running','Max_used_connections','Connections','Aborted_connects','Uptime')",
+        'limits'=>"SHOW GLOBAL VARIABLES WHERE Variable_name IN ('max_connections','max_user_connections','wait_timeout','connect_timeout')"] as $name=>$sql) {
+        try {
+            $values=[];
+            foreach ($pdo->query($sql)->fetchAll(PDO::FETCH_NUM) as $row) if (preg_match('/^[0-9]+$/D',(string)$row[1])) $values[$row[0]]=(int)$row[1];
+            $report['database'][$name]=$values;
+        } catch (Throwable) { $report['database'][$name]=['readable'=>false]; }
+    }
+    try {
+        /* Only aggregate this application's database user; never inspect other customers' queries. */
+        $q=$pdo->prepare('SELECT COMMAND, COUNT(*) AS connections, MAX(TIME) AS max_seconds FROM information_schema.PROCESSLIST WHERE USER=? GROUP BY COMMAND');
+        $q->execute([$config['db_user']]);
+        $report['database']['own_user_connections']=array_map(static fn(array $r):array=>['command'=>in_array($r['COMMAND'],['Sleep','Query','Connect'],true)?$r['COMMAND']:'other','count'=>(int)$r['connections'],'max_seconds'=>(int)$r['max_seconds']],$q->fetchAll(PDO::FETCH_ASSOC));
+    } catch (Throwable) { $report['database']['own_user_connections']=['readable'=>false]; }
 } catch (Throwable $error) {
     $report['database']=['ok'=>false,'error_class'=>get_class($error)];
 }
