@@ -71,3 +71,8 @@ Cross-run context: the earlier 0.3.69 segment had 33 seek callbacks at 21–95ms
 - [Android SDK36/D8 full workflow 41231844190](https://github.com/manufact-test/nomusic/actions/runs/41231844190): **SUCCESS** for Java host regressions, release contracts, D8 compile and the new synthetic `check_honor_journal_audit.py`; `publish-stable` **SKIPPED**. **No signed APK was built.**
 - The new interpreter was also executed locally against the actual private owner's three-run export. It independently selected line 2652 / 828 current events and returned 41 seek ACK (12–400ms; 4 over 200), 35 same-index vs 6 changed-index Media3 discontinuities, seven joins (80–205ms coarse drift), 34 exclusive handovers, seven expected overlap-command findings, and no commanded-silence finding. For historical runs it separately returned 33 seek ACK max95ms on 0.3.69 and 38 max990ms on 0.3.70.
 - No raw diagnostic bytes, user identifiers, track names, IDs, or licensed audio were stored in GitHub. The test fixture is entirely synthetic.
+
+### Final observation-semantics correction (no sound change)
+
+- Follow-up staging commit `1d3005182085a38ca13324b857c2e039644681ca` makes `manualNextButtonObserved` derive from actual media-transition events rather than a hardcoded false. A new synthetic test verifies the future `true` path as well as the current absent/false path.
+- [Final Android SDK36/D8 and full host CI 41232063865](https://github.com/manufact-test/nomusic/actions/runs/41232063865): **SUCCESS**; `publish-stable` **SKIPPED**. Production Android playback code, signer, APK and both reference backups are **unchanged**.
