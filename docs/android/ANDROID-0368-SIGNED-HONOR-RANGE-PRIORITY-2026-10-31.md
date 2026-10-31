@@ -1,0 +1,39 @@
+# CELIKOM Android 0.3.68/code69 — signed HONOR foreground-Range priority candidate
+
+**31.10.2026. PUBLISHED via the existing in-app updater. Acoustic acceptance remains RED until the owner tests HONOR.** Android-only. The desktop extension, backend, catalogue, site, authentication, updater implementation, and original signing material were not modified.
+
+## Verified release receipt
+
+- Source: production `feature/android-unified-preparation-seek-gate`, native release commit **`767cd3701ce04dfcf5779152c78a63fb905ec931`**. Changes selected from staging only; **staging-only CI trigger was NOT copied**. Production was checked at `450b5313` before a single fast-forward release commit.
+- Nonpublishing staging: [41213189300](https://github.com/manufact-test/nomusic/actions/runs/41213189300) **SUCCESS**, Android SDK36/D8, regression suite; and [41213426511](https://github.com/manufact-test/nomusic/actions/runs/41213426511) **SUCCESS** with the final 0.3.68/code69 release contract. Both `publish-stable` **SKIPPED**.
+- Production [41213570269](https://github.com/manufact-test/nomusic/actions/runs/41213570269): `native-android` **SUCCESS** and `publish-stable / publish` **SUCCESS**. Signing job shows JDK17, original signing identity, APK v2/v3 verification, zipalign, Android version/API, unchanged catalogue/assets, exact compiled DEX from CI provenance, and no private signing inputs in the APK.
+- Package: `pro.celikom.nativeprobe`; `versionName=0.3.68`; `versionCode=69`; `minSdk=28`.
+- Original signer SHA256 **`67fe81c56fac1c1d145344b69a0e3faf9005cf6607f4e26ca27d5926c3eefc4f`**, unchanged from installed 0.3.67.
+- Live manifest: https://lemonchiffon-narwhal-791953.hostingersite.com/updates/android/stable.json returned `versionName=0.3.68`, `versionCode=69`, correct certificate, APK digest and length.
+- Immutable APK: https://lemonchiffon-narwhal-791953.hostingersite.com/releases/android/69-c73917856d9c93bd93a2251084038b3b7694bcea19a941ca24f06a0f5cdf7d39.apk
+- Size: **8,742,985 bytes**. SHA256: **`c73917856d9c93bd93a2251084038b3b7694bcea19a941ca24f06a0f5cdf7d39`**. Independent HTTP HEAD: **200**, correct APK MIME `application/vnd.android.package-archive`, expected `content-length` and download disposition. Independent full HTTP GET piped into SHA256 produced the exact same digest and exit code 0.
+- Stable download: https://lemonchiffon-narwhal-791953.hostingersite.com/download/android/ ; existing app button **«Проверить обновление»** should offer 0.3.68 over 0.3.67 without uninstalling/data reset. Physical installation on HONOR must still be confirmed by the owner.
+
+## Actual implementation, isolated from cold-join gain law
+
+1. Retains the 0.3.67 staging correction in `ReplacementEngine.update()`: a slow sparse seek no longer releases the verified source `DynamicsProcessing` when the source is already at 0dB and the decoder is off-output. The same effect/epoch survives actual range latency. `replacement_stream_seek_data_wait` records this state once per seek.
+2. Retains the recovery fix in `BufferedAudio`: after three failed background Range attempts, a *successfully validated* decoder demand read may rearm a single background worker; an ACK arriving before the old worker's `finally` is not lost. No unconditional timer or infinite retry.
+3. **New in 0.3.68:** a sparse `readAt()` foreground miss takes priority over an obsolete background HTTP Range. Existing watcher thread issues the background `disconnect()` (never synchronously on the MediaPlayer decoder thread), and background fetch yields without all three retries; its block lock is released, then successful decoder HTTP 206/ETag/Content-Range can resume one background worker. New event `replacement_stream_prefetch_yield`. A concurrent cached read can no longer prematurely erase the outstanding demand's stalled flag.
+4. `TestBufferedAudio` deterministically leaves background block #2 blocked while the decoder asks for block #6. Foreground completion, one recovered background fill, strong validator/byte-exact file, and cancellation gates PASS (**4,129** assertions including prior checks). `TestHonor067SlowStreamSeek` now routes a real Media3 manual Next-as-SEEK across changed item indices **during** a slow native seek; old callbacks cannot unmute or resurrect the retired decoder (**13** checks). The full natural song → real manual Next → 6 cached scrubs → natural successor → 6 scrubs route remains gated by `TestHonor065Media3Continuity` (**71** assertions).
+5. Production signing log independently reran the full host suites (incl. **17 native addon tests**), architecture/audio ownership checks, SDK36/D8 source provenance and archive contract. Pause, restart, Bluetooth/route loss, Stop, unsupported edition/tail, full and partial streams continue to have regression gates.
+
+**This reduces avoidable background competition; it cannot force a slow VPN/server to return a demanded Range quickly.** The 0.3.67 log's 2792/933/17ms callbacks are still an observed *network-condition-bound* baseline (0.3.66 Wi-Fi+VPN and 0.3.67 cellular+VPN were not controlled A/B).
+
+## Cold join: explicitly not fixed in this version
+
+Default mode still intentionally ramps the original down to zero and the replacement back up (500ms total), creating a **commanded volume valley**. The admin-only correlated linear lab still uses a 160ms complementary blend with `sourcePcmMeasured=false` and `phaseVerified=false`; some joins can sound clean while others can change level/timbre due to phase or edition differences. No fabricated phase compensation, permission change, blind 40/100/260ms tweak, or equal-power crossfade was introduced. See [capture feasibility](AUDIO-CAPTURE-FEASIBILITY-2026-10-31.md). User approval for any separate capture/Visualizer/MediaProjection experiment must be obtained before permission changes; avoid private song/audio uploads.
+
+## Mandatory HONOR owner test
+
+1. Installed CELIKOM 0.3.67 → **«Проверить обновление»** → install 0.3.68 and verify displayed version; do not uninstall or erase the cache.
+2. In **default** mode on known songs: natural track → real **manual Next in Yandex Music** → **5–6 rapid finger moves** → allow natural next track → **5–6 more finger moves**. Mark any audible stutters, how long original stays audible, or perceived source-to-replacement sag; save one combined diagnostic.
+3. In admin account, long-press existing **«Сохранить диагностику»** and select **«Линейный переход (эксперимент)»**. Repeat the same song/sequence, changing the setting **before** next cold join. Save a separate diagnostic. This option is not offered to ordinary users.
+4. Compare a **fully cached** and a **partially loaded** track on **Wi-Fi+VPN** and **mobile+VPN** with comparable volume/route. Test pause/resume, Bluetooth reconnect/route loss, Stop, and real Next while Range seek is taking long. Do not mistake Wi-Fi-vs-mobile timings for an algorithm A/B.
+5. In logs, compare `replacement_stream_prefetch_yield`, `replacement_stream_prefetch_resumed`, `replacement_stream_seek_data_wait`, `replacement_seek_complete`, `replacement_warm_alignment`, `replacement_transition_complete`, `audio_command_anomaly` and Media3 boundaries. These are command/transport observations, **not acoustic recordings**. If practicable, owner may keep a consented short external speaker sample with timecode; do not commit recordings or private logs.
+
+**Acceptance decision:** owner decides only after HONOR/BT physical playback. If scrubbing still stutters despite few `prefetch_yield` events, investigate slow demand HTTP 206 rather than blaming the blend mode. If cold joining still sags or interferes, further fixes require a lawful phase/loudness measurement or a separately justified single-owner strategy. This version is not represented as universal seamless audio.
