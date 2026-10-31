@@ -9,7 +9,7 @@ from release_contract import validate_release, load_release, patch_apktool_metad
 
 data = json.loads((ROOT / "release-spec.json").read_text(encoding="utf-8"))
 java = (ROOT / "addon/src/pro/celikom/nativeprobe/identitydiag/AppVersion.java").read_text(encoding="utf-8")
-assert load_release()[:2] == ("0.3.68", 69)
+assert load_release()[:2] == ("0.3.69", 70)
 count = 1
 
 
@@ -36,8 +36,8 @@ for key, value in [
     broken[key] = value
     must_reject(broken, java, key)
 
-must_reject(data, java.replace('NAME="0.3.68"', 'NAME="0.3.51"'), "stale AppVersion")
-must_reject(data, java.replace('NAME="0.3.68"', 'NAME="0.3.68"; static final String NAME="0.3.68"'), "duplicate AppVersion")
+must_reject(data, java.replace('NAME="0.3.69"', 'NAME="0.3.51"'), "stale AppVersion")
+must_reject(data, java.replace('NAME="0.3.69"', 'NAME="0.3.69"; static final String NAME="0.3.69"'), "duplicate AppVersion")
 assert "from release_contract import load_release" in (ROOT / "build_release.py").read_text()
 assert "from release_contract import load_release" in (ROOT / "verify_release.py").read_text()
 # GitHub artifact ZIP strips hidden files by default. Ship the ignore POLICY
@@ -50,12 +50,12 @@ count += 3
 print("PASS:", count, "negative release version, signing identity and code-source contract checks")
 
 sample = "versionCode: 23\nversionName: 0.3.22\nunrelated: value\n"
-expected = "versionCode: 69\nversionName: 0.3.68\nunrelated: value\n"
-assert patch_apktool_metadata(sample, "0.3.68", 69) == expected
+expected = "versionCode: 70\nversionName: 0.3.69\nunrelated: value\n"
+assert patch_apktool_metadata(sample, "0.3.69", 70) == expected
 count += 1
 for text in ["versionCode: 23\nunrelated: value\n", "versionCode: 23\nversionCode: 24\nversionName: 0.3.22\n"]:
     try:
-        patch_apktool_metadata(text, "0.3.68", 69)
+        patch_apktool_metadata(text, "0.3.69", 70)
     except ValueError:
         count += 1
     else:
@@ -64,9 +64,9 @@ print("PASS: Apktool version substitution preserves metadata and rejects ambigui
 
 # Real Apktool 2.11.1 decoded source uses two-space indentation in versionInfo.
 real_apktool_yaml = "versionInfo:\n  versionCode: 23\n  versionName: 0.3.22-probe\n"
-want_yaml = "versionInfo:\n  versionCode: 69\n  versionName: 0.3.68\n"
-assert patch_apktool_metadata(real_apktool_yaml, "0.3.68", 69) == want_yaml
-assert patch_apktool_metadata(want_yaml, "0.3.68", 69) == want_yaml
+want_yaml = "versionInfo:\n  versionCode: 70\n  versionName: 0.3.69\n"
+assert patch_apktool_metadata(real_apktool_yaml, "0.3.69", 70) == want_yaml
+assert patch_apktool_metadata(want_yaml, "0.3.69", 70) == want_yaml
 print("PASS: actual Apktool 2.11.1 indented versionInfo and idempotence")
 
 

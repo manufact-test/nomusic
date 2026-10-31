@@ -4,8 +4,8 @@ import android.media.MediaPlayer;
 import android.os.SystemClock;
 
 /** Replays the 0.3.66 HONOR ordering: decoder seek completion and muted
- * handover startup precede a short Media3 BUFFERING/READY pulse. Both the
- * admin linear and default cold-join modes use this same seek path.
+ * handover startup precede a short Media3 BUFFERING/READY pulse. The one
+ * production entry mode must preserve this independent seek path.
  */
 public final class TestHonor066SeekBufferReplay {
  static int checks;
@@ -16,16 +16,15 @@ public final class TestHonor066SeekBufferReplay {
  static void advance(long ms,long position){
   SystemClock.now+=ms;source(position,true);TestEngine.p.handler.drain();
  }
- static void postSeekReadyBuffer(boolean lab)throws Exception{
+ static void postSeekReadyBuffer()throws Exception{
   TestStreamingEngine.Buffer partial=TestStreamingEngine.start();
-  TestEngine.p.correlatedLab=lab;
   ReplacementEngine e=TestEngine.e;
   MediaPlayer p=e.player;
   // Complete the cold join with an advancing, still-incomplete stream.
   p.position+=50;advance(50,1050);
   p.position+=600;advance(600,1650);
   check(!partial.complete()&&!e.fading&&p.volume>0.99f,
-    "partial-stream cold join finishes in mode="+lab);
+    "partial-stream cold join finishes in the single production mode");
 
   p.asyncSeek=true;
   e.sourceSeekRequested();source(30000,true);e.update(TestEngine.p.current);
@@ -93,8 +92,7 @@ public final class TestHonor066SeekBufferReplay {
   e.close();
  }
  public static void main(String[] args)throws Exception{
-  postSeekReadyBuffer(false);
-  postSeekReadyBuffer(true);
+  postSeekReadyBuffer();
   longBufferFallsBack();
   pauseOrNextRevokesHold();
   System.out.println("PASS: "+checks+" HONOR 0.3.66 short Media3 buffering-after-seek handover checks");

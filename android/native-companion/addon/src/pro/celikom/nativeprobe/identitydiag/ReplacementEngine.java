@@ -8,7 +8,7 @@ import java.io.*;
 import java.util.*;
 /** User-enabled automatic replacement within the foreground service lifetime. */
 final class ReplacementEngine {
- static final long PREPARED_MS=60000, SEEK_TIMEOUT_MS=2000, HANDOVER_DRIFT_MS=350, STREAM_SEEK_TIMEOUT_MS=12000, FADE_MS=360, PAUSE_GRACE_MS=30000, PAUSE_RESUME_FADE_MS=180, PAUSE_ALIGN_DELAY_MS=160, PAUSE_ALIGN_TOLERANCE_MS=85, COLD_JOIN_DIP_MS=500, CORRELATED_JOIN_LAB_MS=160, RETAINED_SEEK_JOIN_MS=260;
+  static final long PREPARED_MS=60000, SEEK_TIMEOUT_MS=2000, HANDOVER_DRIFT_MS=350, STREAM_SEEK_TIMEOUT_MS=12000, FADE_MS=360, PAUSE_GRACE_MS=30000, PAUSE_RESUME_FADE_MS=180, PAUSE_ALIGN_DELAY_MS=160, PAUSE_ALIGN_TOLERANCE_MS=85, UNIFIED_JOIN_MS=160, RETAINED_SEEK_JOIN_MS=260;
  final ProbeService owner; final NativeApi api;
  String status="Замена выключена",identityKey,trackId,method="NONE",lookupKey;
  JSONObject descriptor; long descriptorUntil,nextLookup,armedUntil,preparedAt,seekStarted,seekBudget=SEEK_TIMEOUT_MS,fadeStarted,transition,pausedAt=-1;
@@ -72,7 +72,8 @@ final class ReplacementEngine {
   if(s!=null&&(!s.connected||SystemClock.elapsedRealtime()-s.observed>1500)){if(player!=null||preparing||lookupKey!=null)suspend("source_unavailable",1000);status="Ожидаем подключение к Яндексу; играет оригинал";return;}
   if(s==null){
    long now=SystemClock.elapsedRealtime();if(unavailableSince<0){unavailableSince=now;transition++;fading=false;seeking=false;resumePositionRetained=ready&&aligned;aligned=false;try{if(player!=null&&ready){setAuditedVolume(player,0f);audioOwner.pauseDecoder(player);}}catch(RuntimeException ignored){}unmute();LogStore.log("replacement_source_wait",LogStore.map("decoderRetained",player!=null&&ready,"graceMs",1500));}
-   if(now-unavailableSince>=1500&&(player!=null||preparing||lookupKey!=null))suspend("source_unavailable",1000);status="Ожидаем подключение к Яндексу; играет оригинал";return;
+    if(streaming!=null)streaming.releasePrefetchAfterSeek();
+    if(now-unavailableSince>=1500&&(player!=null||preparing||lookupKey!=null))suspend("source_unavailable",1000);status="Ожидаем подключение к Яндексу; играет оригинал";return;
   }
   unavailableSince=-1;
   boolean sourceJump=explicitSourceSeek;PlaybackSource previous=previousSource;previousSource=s;
@@ -127,7 +128,7 @@ final class ReplacementEngine {
       "seekInFlight",audioOwner.seekInFlight(player)));
    }
    if(streaming!=null&&bufferGate.recover(waiting,aligned&&!bufferWaiting,seeking,player.getCurrentPosition(),clock)){
-    if(!bufferWaiting){bufferWaiting=true;transition++;fading=false;aligned=false;seeking=false;resumePositionRetained=false;setAuditedVolume(player,0f);audioOwner.pauseDecoder(player);unmute();LogStore.log("replacement_buffer_wait",LogStore.map("trackId",trackId,"cachedBytes",streaming.cachedBytes()));}
+     if(!bufferWaiting){bufferWaiting=true;transition++;fading=false;aligned=false;seeking=false;resumePositionRetained=false;setAuditedVolume(player,0f);audioOwner.pauseDecoder(player);streaming.releasePrefetchAfterSeek();unmute();LogStore.log("replacement_buffer_wait",LogStore.map("trackId",trackId,"cachedBytes",streaming.cachedBytes()));}
     status="Связь замедлилась; играет оригинал, подгружаем замену";return;
    }
    if(bufferWaiting){if(waiting)return;bufferGate.reset();bufferWaiting=false;aligned=false;LogStore.log("replacement_buffer_resumed",LogStore.map("trackId",trackId));}
@@ -165,8 +166,8 @@ final class ReplacementEngine {
    boolean newlyAttached=effect==null;
    if(newlyAttached&&!mute())return;
    if(!effect.hasControl()||!effect.getEnabled()){stop("effect_control_lost");return;}
-   if(!player.isPlaying()){if(seamlessResume){audioOwner.grantReplacement(effect);originalMix=0f;applyVolume(1f);}else setAuditedVolume(player,0f);audioOwner.startDecoder(player,effect,identityKey,audioOwner.epoch());try{LogStore.log("audio_decoder_start",LogStore.map("trackId",trackId,"decoderPositionMs",player.getCurrentPosition(),"sourcePositionMs",position(s),"reusePreparedDecoder",true,"seekPending",seeking,"sourceMutedCommand",effect!=null&&originalMix<=0.001f));}catch(RuntimeException ignored){}traceAudioCommands();if(seamlessResume){fading=false;resumeFadePending=false;audioOwner.replacement();LogStore.log("replacement_resume_seamless",LogStore.map("trackId",trackId,"driftMs",drift,"sourcePositionMs",target,"retainedEffect",true));}else fade((newlyAttached&&!resumed&&!sourceSeekedThisTrack)||pendingStreamScrubJoin);}
-   else if(newlyAttached){setAuditedVolume(player,0f);fade((!resumed&&!sourceSeekedThisTrack)||pendingStreamScrubJoin);}
+    if(!player.isPlaying()){if(seamlessResume){audioOwner.grantReplacement(effect);originalMix=0f;applyVolume(1f);}else setAuditedVolume(player,0f);audioOwner.startDecoder(player,effect,identityKey,audioOwner.epoch());try{LogStore.log("audio_decoder_start",LogStore.map("trackId",trackId,"decoderPositionMs",player.getCurrentPosition(),"sourcePositionMs",position(s),"reusePreparedDecoder",true,"seekPending",seeking,"sourceMutedCommand",effect!=null&&originalMix<=0.001f));}catch(RuntimeException ignored){}traceAudioCommands();if(seamlessResume){fading=false;resumeFadePending=false;audioOwner.replacement();LogStore.log("replacement_resume_seamless",LogStore.map("trackId",trackId,"driftMs",drift,"sourcePositionMs",target,"retainedEffect",true));}else fade(newlyAttached||pendingStreamScrubJoin);}
+    else if(newlyAttached){setAuditedVolume(player,0f);fade(true);}
    else if(!fading){if(pendingStreamScrubJoin&&originalMix>0.001f){setAuditedVolume(player,0f);fade(true);}else{audioOwner.grantReplacement(effect);originalMix=0f;applyVolume(1f);}}
    status="Играет замена · автопереход включён";logSync("playing",s,drift);
   }catch(RuntimeException e){suspend("playback_exception",retryDelay());status="Ошибка звука — оригинал восстановлен; повторим автоматически";LogStore.log("replacement_failure",LogStore.map("reason","playback_exception","type",e.getClass().getSimpleName()));}
@@ -245,6 +246,7 @@ final class ReplacementEngine {
  void pauseSource(PlaybackSource s){pauseSource(s,false);}
  void pauseSource(PlaybackSource s,boolean buffering){
   if(player==null)return;
+   if(streaming!=null)streaming.releasePrefetchAfterSeek();
   /* Changing USER_PAUSE <-> BUFFERING invalidates the old timer and delay. */
   boolean pauseCauseChanged=pausedAt>=0&&audioOwner.pauseMode()!=AudioOwnership.PauseMode.NONE
       &&audioOwner.pauseMode()!=(buffering?AudioOwnership.PauseMode.BUFFERING:AudioOwnership.PauseMode.USER);
@@ -287,6 +289,7 @@ final class ReplacementEngine {
  long retryDelay(){failures++;return Math.min(30000,5000L*(1L<<Math.min(3,failures-1)));}
  void seek(PlaybackSource s,long target,long drift){seek(s,target,drift,false);}
  void seek(PlaybackSource s,long target,long drift,boolean correction){
+   if(streaming!=null)streaming.holdPrefetchForSeek();
   if(audioOwner.seekInFlight(player)){
    /* Last desired source position wins. The decoder keeps its one outstanding
       untagged seek; the source is audible while that position settles. */
@@ -415,20 +418,20 @@ final class ReplacementEngine {
   update(now);
  }
  boolean mute(){try{if(trustedSession<=0||player==null||player.getAudioSessionId()==trustedSession)throw new IllegalStateException();DynamicsProcessing candidate=new DynamicsProcessing(0,trustedSession,null);effect=candidate;candidate.setControlStatusListener((e,control)->{if(!control)owner.handler.post(()->{if(effect==candidate)stop("effect_control_lost");});});if(!candidate.hasControl())throw new IllegalStateException();originalMix=1f;audioOwner.prepareSourceEffect(candidate);LogStore.log("replacement_original_muted",LogStore.map("sessionId",trustedSession,"globalVolumeChanged",false,"rampMs",resumeFadePending?PAUSE_RESUME_FADE_MS:FADE_MS));return true;}catch(RuntimeException e){stop("cannot_mute_original");status="Телефон не разрешил приглушить Яндекс; замена остановлена";return false;}}
- void fade(boolean exclusiveDipJoin){
+  void fade(boolean coherentEntry){
   final long token=++transition;final MediaPlayer p=player;final DynamicsProcessing fx=effect;
   final long ownerEpoch=audioOwner.epoch();final String ownerKey=identityKey;
+   if(streaming!=null)streaming.holdPrefetchForSeek();
   audioOwner.aligning();
   audioOwner.event(AudioOwnership.Event.HANDOVER);
   final AudioOwnership.Ticket handoverTicket=audioOwner.ticket(ownerKey,api.accountGeneration,descriptor==null?0:descriptor.optLong("replacement_id"),descriptor==null?0:descriptor.optLong("version"),descriptor==null?0:descriptor.optLong("duration_ms"));
-  /* The original is audible throughout decoder startup and alignment.
-     On a new track or after a partial-stream scrub, join via a half-second
-     zero-overlap volume dip, not two phase-shifted same-song outputs. */
+   /* The original stays audible during native decoder startup and clock
+      alignment. Once validated, a new attachment uses the SAME complementary
+      linear entry tested on HONOR; a retained seek uses exclusive single-turn.
+      Sample phase of two Android output sessions is NOT measurable here:
+      the linear entry is a listening compromise, never acoustic proof. */
   resumeFadePending=false;
   final boolean alignLive=streaming!=null;
-  /* Pin this admin-only experiment at the start; changing the preference
-     cannot change an active audio transaction or skip its ownership fence. */
-  final boolean correlatedLab=exclusiveDipJoin&&owner.experimentalCorrelatedJoin();
   final long[] baseline={p.getCurrentPosition()},phaseStarted={SystemClock.elapsedRealtime()};
   final int[] corrections={0};final long[] softStarted={-1};
   if(originalMix<=0.001f&&!seekHoldActive){
@@ -467,53 +470,31 @@ final class ReplacementEngine {
      audioOwner.handoverClockValidated();fadeStarted=now;
      LogStore.log("replacement_decoder_advancing",LogStore.map("trackId",trackId,"driftMs",drift,"corrections",corrections[0],"waitMs",now-phaseStarted[0]));
     }
-    /* Only the CURRENT verified decoder can start the 500ms dip. Keep the
-       replacement silent while original falls to zero for 250ms. After
-       exclusive DSP grant, ramp replacement alone back to full volume. */
-    if(correlatedLab){
+     /* The same bounded ticket and audio owner fence protect both paths.
+        No equal-power gain law: two correlated sessions at 0.5/0.5 can
+        interfere, but an equal-power 0.707/0.707 could also add +3dB. */
+     if(coherentEntry){
      if(softStarted[0]<0){
       softStarted[0]=SystemClock.elapsedRealtime();
-      LogStore.log("replacement_correlated_lab_start",LogStore.map("trackId",trackId,
-        "durationMs",CORRELATED_JOIN_LAB_MS,"gainLaw","correlated_linear",
-        "sourcePcmMeasured",false,"phaseVerified",false,"adminOnly",true));
+       LogStore.log("replacement_unified_join_start",LogStore.map("trackId",trackId,
+         "durationMs",UNIFIED_JOIN_MS,"gainLaw","complementary_linear",
+         "sourcePcmMeasured",false,"phaseVerified",false,"oneMode",true));
      }
      long elapsed=Math.max(0,SystemClock.elapsedRealtime()-softStarted[0]);
-     float mix=TransitionMix.progress(elapsed,CORRELATED_JOIN_LAB_MS);
+      float mix=TransitionMix.progress(elapsed,UNIFIED_JOIN_MS);
      float gain=(float)Math.min(1,Math.pow(10,Math.min(0,descriptor==null?0:descriptor.optDouble("gain_db",0))/20));
      float volume=audioOwner.blendSameSong(p,fx,mix,Math.max(0.00001f,gain),ownerKey,ownerEpoch,handoverTicket.operationEpoch);
      originalMix=1f-mix;commandedReplacementVolume=volume;traceAudioCommands();
-     if(elapsed<CORRELATED_JOIN_LAB_MS){owner.handler.postDelayed(this,20);return;}
+      if(elapsed<UNIFIED_JOIN_MS){owner.handler.postDelayed(this,20);return;}
      applyVolume(1f);
-    }else if(exclusiveDipJoin){
-     if(softStarted[0]<0){
-      softStarted[0]=SystemClock.elapsedRealtime();
-      LogStore.log("replacement_exclusive_dip_start",LogStore.map("trackId",trackId,
-        "totalMs",COLD_JOIN_DIP_MS,"sourcePhaseMs",COLD_JOIN_DIP_MS/2,
-        "afterStreamScrub",pendingStreamScrubJoin,"overlapAllowed",false));
-     }
-     long elapsed=Math.max(0,SystemClock.elapsedRealtime()-softStarted[0]);
-     long half=COLD_JOIN_DIP_MS/2;
-     if(elapsed<=half&&audioOwner.state()==AudioOwnership.State.ALIGNING){
-      float duck=TransitionMix.progress(elapsed,half);
-      audioOwner.duckSourceForExclusiveJoin(p,fx,duck,ownerKey,ownerEpoch,handoverTicket.operationEpoch);
-      originalMix=1f-duck;
-      traceAudioCommands();
-      if(elapsed<half){owner.handler.postDelayed(this,20);return;}
-     }
-     if(audioOwner.state()==AudioOwnership.State.ALIGNING){
-      audioOwner.duckSourceForExclusiveJoin(p,fx,1f,ownerKey,ownerEpoch,handoverTicket.operationEpoch);
-      audioOwner.grantReplacement(fx);originalMix=0f;applyVolume(0f);
-     }
-     applyVolume(TransitionMix.progress(elapsed-half,half));
-     traceAudioCommands();
-     if(elapsed<COLD_JOIN_DIP_MS){owner.handler.postDelayed(this,20);return;}
     }else{
      audioOwner.grantReplacement(fx);originalMix=0f;applyVolume(1f);
     }
     fading=false;audioOwner.replacement();seekHoldActive=false;pendingStreamScrubJoin=false;ownerEvent("exclusive_handover");
+     if(streaming!=null)streaming.releasePrefetchAfterSeek();
     LogStore.log("replacement_transition_complete",LogStore.map(
-      "trackId",trackId,"rampMs",correlatedLab?CORRELATED_JOIN_LAB_MS:exclusiveDipJoin?COLD_JOIN_DIP_MS:0,
-      "joinMode",correlatedLab?"admin_correlated_linear_lab":exclusiveDipJoin?"exclusive_volume_dip":"exclusive_single_turn",
+       "trackId",trackId,"rampMs",coherentEntry?UNIFIED_JOIN_MS:0,
+       "joinMode",coherentEntry?"unified_complementary_linear":"exclusive_single_turn",
       "commandDelayMs",SystemClock.elapsedRealtime()-fadeStarted));
    }catch(RuntimeException e){suspend("fade_failed",retryDelay());}
   }};ramp.run();

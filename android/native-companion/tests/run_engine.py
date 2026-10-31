@@ -32,8 +32,8 @@ subprocess.run(['java','-cp',str(out)+os.pathsep+str(json),'pro.celikom.nativepr
 # cached seek command gaps, automatic successor and partial stream rejoin.
 subprocess.run(['java','-cp',str(out)+os.pathsep+str(json),'pro.celikom.nativeprobe.identitydiag.TestHonor065Media3Continuity'],check=True)
 
-# One installed diagnostic build may safely A/B old exclusive and admin-only
-# correlated linear joins; all cancellation/Next/pause owner leases stay fenced.
+# One production complementary entry; the former admin A/B selector is gone.
+# All cancellation, real Next and pause owner leases remain fenced.
 subprocess.run(['java','-cp',str(out)+os.pathsep+str(json),'pro.celikom.nativeprobe.identitydiag.TestHonor066JoinLab'],check=True)
 
 # HONOR 0.3.66 logs: Media3 may report a short BUFFERING frame after decoder

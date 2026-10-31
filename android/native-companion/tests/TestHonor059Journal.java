@@ -24,7 +24,7 @@ public final class TestHonor059Journal {
   TestEngine.playing();
   ReplacementEngine e=TestEngine.e;
   MediaPlayer p=e.player;
-  SystemClock.now+=ReplacementEngine.COLD_JOIN_DIP_MS+50;
+  SystemClock.now+=ReplacementEngine.UNIFIED_JOIN_MS+50;
   TestEngine.p.current=TestEngine.source("1",1400,true);
   TestEngine.p.handler.drain();
   check(p.volume>0.99f&&e.originalMix==0f&&e.effect!=null,
@@ -56,9 +56,9 @@ public final class TestHonor059Journal {
   e.close();
  }
 
- /* The 0.3.65 user-requested dip intentionally briefly silences the track.
-    Verify it only begins AFTER decoder clock validation, never overlaps
-    sources, and has a strict 500ms upper bound. */
+ /* The single complementary entry may overlap only after validated decoder
+    advancement. Commanded gains remain complementary; physical phase is
+    not measured by this test. */
  static void fadeEnergyFloor()throws Exception{
   TestStreamingEngine.Buffer audio=TestStreamingEngine.start();
   ReplacementEngine e=TestEngine.e;
@@ -85,31 +85,32 @@ public final class TestHonor059Journal {
   double originalLinear=Math.pow(10.0,effect.gain/20.0);
   quality(Math.max(originalLinear,p.volume)>=0.99,
     "clock gate must precede any intentional source dip");
-  check(e.fading&&e.audioOwner.state()==AudioOwnership.State.ALIGNING
+  check(e.fading&&e.audioOwner.state()==AudioOwnership.State.SAME_SONG_BLEND
       &&effect.gain==0f&&p.volume==0f,
-    "verified streaming decoder starts bounded exclusive dip with source full");
-  SystemClock.now+=ReplacementEngine.COLD_JOIN_DIP_MS/4;
-  p.position+=ReplacementEngine.COLD_JOIN_DIP_MS/4;
-  sample(1100+ReplacementEngine.COLD_JOIN_DIP_MS/4,true);TestEngine.p.handler.drain();
+    "verified decoder starts the one bounded join with source full");
+  SystemClock.now+=ReplacementEngine.UNIFIED_JOIN_MS/4;
+  p.position+=ReplacementEngine.UNIFIED_JOIN_MS/4;
+  sample(1100+ReplacementEngine.UNIFIED_JOIN_MS/4,true);TestEngine.p.handler.drain();
   originalLinear=Math.pow(10.0,effect.gain/20.0);
-  quality(e.audioOwner.state()==AudioOwnership.State.ALIGNING
-      &&originalLinear>0.1&&originalLinear<1f&&p.volume==0f,
-    "first half fades only original without an overlapping decoder");
-  SystemClock.now+=ReplacementEngine.COLD_JOIN_DIP_MS/4;
-  p.position+=ReplacementEngine.COLD_JOIN_DIP_MS/4;
-  sample(1100+ReplacementEngine.COLD_JOIN_DIP_MS/2,true);TestEngine.p.handler.drain();
-  check(effect.gain==-100f&&p.volume==0f,
-    "midpoint intentionally reaches zero without overlapping two versions");
-  SystemClock.now+=ReplacementEngine.COLD_JOIN_DIP_MS/4;
-  p.position+=ReplacementEngine.COLD_JOIN_DIP_MS/4;
-  sample(1100+ReplacementEngine.COLD_JOIN_DIP_MS*3/4,true);TestEngine.p.handler.drain();
-  quality(effect.gain==-100f&&p.volume>0f&&p.volume<1f,
-    "second half restores replacement only, without unmuting original");
-  SystemClock.now+=ReplacementEngine.COLD_JOIN_DIP_MS/4+20;p.position+=ReplacementEngine.COLD_JOIN_DIP_MS/4+20;
-  sample(1100+ReplacementEngine.COLD_JOIN_DIP_MS+20,true);TestEngine.p.handler.drain();
+  quality(e.audioOwner.state()==AudioOwnership.State.SAME_SONG_BLEND
+      &&originalLinear>0.6&&originalLinear<0.9f&&p.volume>0.1f
+      &&Math.abs(originalLinear+p.volume-1f)<0.02f,
+    "first quarter keeps complementary commanded gains under an owner ticket");
+  SystemClock.now+=ReplacementEngine.UNIFIED_JOIN_MS/4;
+  p.position+=ReplacementEngine.UNIFIED_JOIN_MS/4;
+  sample(1100+ReplacementEngine.UNIFIED_JOIN_MS/2,true);TestEngine.p.handler.drain();
+  check(p.volume>0.49f&&p.volume<0.51f&&e.originalMix>0.49f&&e.originalMix<0.51f,
+    "unified midpoint never intentionally commands both channels to zero");
+  SystemClock.now+=ReplacementEngine.UNIFIED_JOIN_MS/4;
+  p.position+=ReplacementEngine.UNIFIED_JOIN_MS/4;
+  sample(1100+ReplacementEngine.UNIFIED_JOIN_MS*3/4,true);TestEngine.p.handler.drain();
+  quality(p.volume>0.6f&&p.volume<0.9f&&e.originalMix>0.1f&&e.originalMix<0.4f,
+    "third quarter uses complementary gains, not equal-power crossfade");
+  SystemClock.now+=ReplacementEngine.UNIFIED_JOIN_MS/4+20;p.position+=ReplacementEngine.UNIFIED_JOIN_MS/4+20;
+  sample(1100+ReplacementEngine.UNIFIED_JOIN_MS+20,true);TestEngine.p.handler.drain();
   check(effect.gain==-100f&&p.volume>0.99f&&!e.fading
       &&AudioOwnership.exclusive(e.originalMix,p.volume),
-    "bounded requested dip ends in exclusive full-volume replacement");
+    "bounded unified entry ends in exclusive full-volume replacement");
   e.close();
  }
 

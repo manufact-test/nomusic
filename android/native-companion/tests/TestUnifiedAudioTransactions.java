@@ -76,7 +76,7 @@ public final class TestUnifiedAudioTransactions {
   TestEngine.playing();
   ReplacementEngine slow=TestEngine.e;MediaPlayer seekPlayer=slow.player;
   android.media.audiofx.DynamicsProcessing existingEffect=slow.effect;
-  android.os.SystemClock.now+=ReplacementEngine.COLD_JOIN_DIP_MS+50;
+  android.os.SystemClock.now+=ReplacementEngine.UNIFIED_JOIN_MS+50;
   TestEngine.p.current=TestEngine.source("1",1400,true);TestEngine.p.handler.drain();
   check(seekPlayer.volume>0.99f&&existingEffect.gain==-100f,
     "replacement was exclusively audible before seeking");
@@ -384,7 +384,7 @@ public final class TestUnifiedAudioTransactions {
      ticks even without an intervening Media3 onEvents update. */
   TestEngine.playing();ReplacementEngine returningEngine=TestEngine.e;
   MediaPlayer returningPlayer=returningEngine.player;
-  android.os.SystemClock.now+=ReplacementEngine.COLD_JOIN_DIP_MS+40;
+  android.os.SystemClock.now+=ReplacementEngine.UNIFIED_JOIN_MS+40;
   TestEngine.p.current=TestEngine.source("1",1400,true);
   TestEngine.p.handler.drain();
   check(returningPlayer.playing&&returningEngine.originalMix==0f,

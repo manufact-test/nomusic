@@ -13,7 +13,10 @@ class BufferedAudio implements Closeable {
  final BitSet present=new BitSet(),loading=new BitSet();final Set<HttpURLConnection> connections=new HashSet<>();
  final ScheduledExecutorService watcher=Executors.newSingleThreadScheduledExecutor();final ExecutorService background=Executors.newSingleThreadExecutor();
  volatile int playbackBlock;volatile long size=-1,waitingSince=-1;volatile boolean closed;String etag;boolean detached;IOException fatal;
- boolean prefetchActive,prefetchAttempted,prefetchRecoveryPending;
+  boolean prefetchActive,prefetchAttempted,prefetchRecoveryPending;
+  // A sequence of decoder seeks owns foreground priority until the last
+  // verified handover, not merely until one HTTP Range read returns.
+  boolean prefetchHeldForSeek,prefetchResumeAfterSeek;
  // Demand reads must not queue behind a background Range over a slow VPN.
  // Background transport is yieldable; foreground seeks retain strict validators.
  int foregroundReads;
@@ -28,16 +31,46 @@ class BufferedAudio implements Closeable {
  // Cache decoder metadata at the end and a second prefix block before publishing.
  // Android may inspect both ends during prepare; background reads must not race startup.
  void initializeForPlayback()throws IOException{fetch(0);int last=blocks()-1;if(last>0)fetch(last);if(last>1)fetch(1);events.event("replacement_stream_ready",cachedBytes());}
+  void holdPrefetchForSeek(){
+   synchronized(this){
+    if(closed||prefetchHeldForSeek)return;
+    prefetchHeldForSeek=true;
+    if(prefetchActive)prefetchResumeAfterSeek=true;
+    notifyAll();
+   }
+   // Do not abort a healthy Range for a cached seek. Only an actual decoder
+   // cache miss in readAt() preempts the in-flight connection; otherwise let
+   // that one block finish, then prevent the next speculative request.
+  }
+  void releasePrefetchAfterSeek(){
+   boolean rearm;
+   synchronized(this){
+    if(!prefetchHeldForSeek)return;
+    prefetchHeldForSeek=false;
+    rearm=prefetchResumeAfterSeek&&prefetchAttempted&&!closed&&!complete();
+    prefetchResumeAfterSeek=false;
+    if(rearm&&prefetchActive){prefetchRecoveryPending=true;rearm=false;}
+    notifyAll();
+   }
+   if(rearm)prefetch();
+  }
  void prefetch(){
   final boolean restart;
-  synchronized(this){if(closed||prefetchActive||complete())return;restart=prefetchAttempted;prefetchAttempted=true;prefetchActive=true;}
+   synchronized(this){
+    if(closed||complete())return;
+    if(prefetchHeldForSeek){prefetchAttempted=true;prefetchResumeAfterSeek=true;return;}
+    if(prefetchActive)return;
+    restart=prefetchAttempted;prefetchAttempted=true;prefetchActive=true;
+   }
   if(restart)events.event("replacement_stream_prefetch_resumed",cachedBytes());
   try{background.execute(()->{
    try{
     while(!closed){
      synchronized(BufferedAudio.this){
-      while(!closed&&foregroundReads>0)BufferedAudio.this.wait(100);
+       if(prefetchHeldForSeek)throw new ForegroundPriority();
+       while(!closed&&foregroundReads>0)BufferedAudio.this.wait(100);
       if(closed)break;
+       if(prefetchHeldForSeek)throw new ForegroundPriority();
      }
      int b=nextPrefetchBlock();if(b<0)break;
      fetch(b,true);
@@ -49,7 +82,12 @@ class BufferedAudio implements Closeable {
    catch(InterruptedException e){Thread.currentThread().interrupt();}
    finally{
     boolean rearm;
-    synchronized(BufferedAudio.this){prefetchActive=false;rearm=prefetchRecoveryPending;prefetchRecoveryPending=false;}
+     synchronized(BufferedAudio.this){
+      prefetchActive=false;
+      rearm=prefetchRecoveryPending&&!prefetchHeldForSeek;
+      if(prefetchRecoveryPending&&prefetchHeldForSeek)prefetchResumeAfterSeek=true;
+      prefetchRecoveryPending=false;
+     }
     // The decoder may have proved the connection healthy while the worker
     // was still reporting its previous failure. Never lose that one wakeup.
     if(rearm)prefetch();
@@ -88,7 +126,8 @@ class BufferedAudio implements Closeable {
    // only re-arm a prefetch that the playback lifecycle already requested.
    boolean rearm=false;
    if(cacheMiss)synchronized(this){
-    if(prefetchAttempted){
+     if(prefetchAttempted&&prefetchHeldForSeek)prefetchResumeAfterSeek=true;
+     else if(prefetchAttempted){
      if(prefetchActive)prefetchRecoveryPending=true;
      else rearm=true;
     }
@@ -104,17 +143,17 @@ class BufferedAudio implements Closeable {
  void fetch(int block)throws IOException{fetch(block,false);}
  void fetch(int block,boolean backgroundRead)throws IOException{
   synchronized(this){
-   check();if(backgroundRead&&foregroundReads>0)throw new ForegroundPriority();
+   check();if(backgroundRead&&(foregroundReads>0||prefetchHeldForSeek))throw new ForegroundPriority();
    while(loading.get(block)&&!present.get(block)){
     try{wait(100);}catch(InterruptedException e){Thread.currentThread().interrupt();throw new IOException("audio_interrupted");}
-    check();if(backgroundRead&&foregroundReads>0)throw new ForegroundPriority();
+    check();if(backgroundRead&&(foregroundReads>0||prefetchHeldForSeek))throw new ForegroundPriority();
    }
    if(present.get(block))return;loading.set(block);
   }
   try{
    IOException last=null;
    for(int attempt=0;attempt<3;attempt++){
-    synchronized(this){check();if(backgroundRead&&foregroundReads>0)throw new ForegroundPriority();}
+    synchronized(this){check();if(backgroundRead&&(foregroundReads>0||prefetchHeldForSeek))throw new ForegroundPriority();}
     HttpURLConnection c=null;
     try{
      c=open.open();synchronized(this){check();connections.add(c);if(backgroundRead)prefetchConnection=c;}
@@ -134,7 +173,7 @@ class BufferedAudio implements Closeable {
      synchronized(this){check();try(RandomAccessFile output=new RandomAccessFile(file,"rw")){output.seek(first);output.write(data);}present.set(block);notifyAll();}return;
     }catch(AudioTransfer.Rejected e){synchronized(this){fatal=e;notifyAll();}throw e;}
     catch(Exception e){
-     synchronized(this){if(backgroundRead&&foregroundReads>0)throw new ForegroundPriority();}
+     synchronized(this){if(backgroundRead&&(foregroundReads>0||prefetchHeldForSeek))throw new ForegroundPriority();}
      last=e instanceof IOException?(IOException)e:new IOException("audio_transport",e);
      events.event("replacement_stream_retry",cachedBytes());
     }

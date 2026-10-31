@@ -14,8 +14,8 @@ public final class TestAudioOwnershipRegression {
    check(e.fading&&e.player!=null&&e.effect!=null&&e.effect.hasControl()
        &&e.audioOwner.current(e.audioOwner.epoch(),e.identityKey)
        &&source>0f&&secondary>=0f
-       &&source*source+secondary*secondary>0.98f,
-       "only verified, ticketed, energy-preserving same-song blend may overlap");
+       &&Math.abs(source+secondary-1f)<0.02f,
+       "only ticketed complementary linear gains may overlap; phase is unverified");
   }else check(AudioOwnership.exclusive(source,secondary),
       "outside same-song blend both outputs must be exclusive "+source+"/"+secondary);
  }
@@ -29,7 +29,7 @@ public final class TestAudioOwnershipRegression {
 
   // The 0.3.47 pause timer was not invalidated by resume during asynchronous seek.
   TestEngine.playing();e=TestEngine.e;p=e.player;
-  SystemClock.now+=ReplacementEngine.COLD_JOIN_DIP_MS+30;sample(1160,true);TestEngine.p.handler.drain();
+  SystemClock.now+=ReplacementEngine.UNIFIED_JOIN_MS+30;sample(1160,true);TestEngine.p.handler.drain();
   p.asyncSeek=true;sample(61334,true);sample(61334,false);
   DynamicsProcessing before=e.effect;long paused=e.pausedAt;
   SystemClock.now+=2;sample(61336,true);
@@ -98,7 +98,7 @@ public final class TestAudioOwnershipRegression {
   // Stale callback must not force a second decoder seek on a short pause/resume
   // when audio is already aligned within 206ms (0.3.48 HONOR timeline).
   TestEngine.playing();e=TestEngine.e;p=e.player;
-  SystemClock.now+=ReplacementEngine.COLD_JOIN_DIP_MS+30;sample(1160,true);TestEngine.p.handler.drain();
+  SystemClock.now+=ReplacementEngine.UNIFIED_JOIN_MS+30;sample(1160,true);TestEngine.p.handler.drain();
   p.position=1160;int seeksBeforeStale=p.seekCalls;
   if(SourceTransitionGate.currentPositionSeek(101197,61334))e.sourceSeekRequested();
   sample(1160,false);SystemClock.now+=879;sample(1366,true);
@@ -112,7 +112,7 @@ public final class TestAudioOwnershipRegression {
   // clears 'aligned'. Once seek completes at the correct position, do not
   // submit a redundant second MediaPlayer.seekTo just to restore that flag.
   TestEngine.playing();e=TestEngine.e;p=e.player;
-  SystemClock.now+=ReplacementEngine.COLD_JOIN_DIP_MS+30;sample(1160,true);TestEngine.p.handler.drain();
+  SystemClock.now+=ReplacementEngine.UNIFIED_JOIN_MS+30;sample(1160,true);TestEngine.p.handler.drain();
   p.asyncSeek=true;sample(60000,true);
   check(e.seeking,"seek in flight before transient native pause");
   sample(60000,false);sample(60000,true);
@@ -125,7 +125,7 @@ public final class TestAudioOwnershipRegression {
 
   // Track boundaries must silence any older decoder BEFORE releasing native attenuation.
   TestEngine.playing();e=TestEngine.e;p=e.player;
-  SystemClock.now+=ReplacementEngine.COLD_JOIN_DIP_MS+30;sample(1160,true);TestEngine.p.handler.drain();
+  SystemClock.now+=ReplacementEngine.UNIFIED_JOIN_MS+30;sample(1160,true);TestEngine.p.handler.drain();
   e.sourceBoundary("next_track");
   check(p.volume==0f&&!p.playing&&p.released&&e.effect==null,"old decoder cannot overlap the following native track");
   SystemClock.now+=1000;TestEngine.p.handler.drain();check(e.player==null&&e.effect==null,"stale callbacks cannot reanimate the retired track");
