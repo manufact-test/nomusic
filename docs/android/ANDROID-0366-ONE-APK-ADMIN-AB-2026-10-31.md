@@ -1,6 +1,14 @@
 # Android 0.3.66/code67 — one installable candidate for HONOR A/B testing
 
-**2026-10-31. Experimental candidate, not acoustically accepted.** Keep this document with `AUDIT-2026-10-31-0365-CONTINUITY-STAGING.md`, `AUDIO-CAPTURE-FEASIBILITY-2026-10-31.md`, and `REGRESSION-GATES-2026-10-29.md`.
+**2026-10-31. Signed test candidate PUBLISHED, not acoustically accepted.** Keep this document with `AUDIT-2026-10-31-0365-CONTINUITY-STAGING.md`, `AUDIO-CAPTURE-FEASIBILITY-2026-10-31.md`, and `REGRESSION-GATES-2026-10-29.md`.
+
+## Release receipt — verified live
+
+- Production code commit: `9643385f3bcbc061eab0d90ed587f0cce941e8f6` on `feature/android-unified-preparation-seek-gate`. This is an audited selection of 28 Android and documentation paths from staging; **the staging-only workflow trigger was excluded**.
+- Production Android GitHub Actions [41199401452](https://github.com/manufact-test/nomusic/actions/runs/41199401452): **native Android SUCCESS, publish-stable SUCCESS**. Original private signing material stayed inside CI; full signed build verifier passed.
+- New manifest: `https://lemonchiffon-narwhal-791953.hostingersite.com/updates/android/stable.json`; `versionName=0.3.66`, `versionCode=67`, package `pro.celikom.nativeprobe`, certificate SHA256 `67fe81c56fac1c1d145344b69a0e3faf9005cf6607f4e26ca27d5926c3eefc4f` (unchanged).
+- Signed APK SHA256 **`df683e495089cf830d2e8bede965fdf746b57c8053c8b2e9b431835348ab70a4`**, size **8,738,889 bytes**. Immutable APK `https://lemonchiffon-narwhal-791953.hostingersite.com/releases/android/67-df683e495089cf830d2e8bede965fdf746b57c8053c8b2e9b431835348ab70a4.apk` answered HTTP **200**, correct content type and content length; a fresh complete network download hashed to the same SHA256 as the live manifest. Stable direct download `https://lemonchiffon-narwhal-791953.hostingersite.com/download/android/` remains available.
+- **HONOR actual sound is NOT ACCEPTED yet.** The signed APK gives the owner the ability to test; it is not proof of phase-coherent output or solved acoustic seam.
 
 ## Why a signed candidate is necessary
 
@@ -14,7 +22,7 @@ The user cannot physically validate uninstalled code. Staging-only fake tests an
 - The `AudioOwnership.blendSameSong()` law is changed from equal-power (which boosts identical copies by about +3dB) to a complementary linear law for correlated copies. The actual final audio level still follows the replacement edition's `gain_db`, and source PCM/sample phase is **not known**.
 - **No** `RECORD_AUDIO`, `MediaProjection`, permissions, new public UI, backend/catalog/site, updater implementation or desktop changes. Package name and signing certificate must remain identical. Version name `0.3.66`, versionCode `67`.
 
-## Mandatory phone procedure AFTER signed APK is verified and published
+## Mandatory phone procedure using the published signed APK
 
 1. In installed CELIKOM 0.3.65, use the existing **«Проверить обновление»** button to install signed 0.3.66/code67 without uninstalling or resetting data. Check version display.
 2. First test the *default baseline* with real Yandex playing: naturally occurring next song, manual Next, six finger scrubs, natural successor, six scrubs, pause/resume, Bluetooth loss/reconnect. It should preserve the previous 0.3.65 500ms join but remove the seek-specific gaps/repeated partial dips.
