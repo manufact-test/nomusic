@@ -1,3 +1,7 @@
+> **2026-10-31 — additional RED gates from HONOR 0.3.65.** See [current diagnostic and handoff](HANDOFF-2026-10-31-AFTER-0365-HONOR-REVIEW.md) before any audio change. New required integration tests: actual Media3 manual Next via `ProbeService`/`SourceEventArbiter` followed by repeated cached seeks, then a natural next and more seeks; partial-stream seeks with repeated 500ms handovers; command silence observed in 0.3.65 for **43–194ms** even though seek callbacks took **20–77ms**. Host `TestHonor064ManualNext` alone is inadequate: it calls `sourceBoundary` directly and does not simulate external Next. Acoustic acceptance requires continuous smooth entry, not the currently deliberate down-to-zero/up-to-full valley. Older gates and all pause/BT/tail regressions remain mandatory. **0.3.65 is not approved; docs-only checkpoint, NO APK.**
+
+---
+
 > **АКТУАЛЬНОЕ ДОПОЛНЕНИЕ (30.10.2026):** [UNIFIED-AUDIO-OWNERSHIP-PLAN-2026-10-30.md](UNIFIED-AUDIO-OWNERSHIP-PLAN-2026-10-30.md) и [HANDOFF-2026-10-30-UNIFIED-AUDIO.md](HANDOFF-2026-10-30-UNIFIED-AUDIO.md). Контракт новых регрессий: PREPARE_READY+SEEK/PAUSE/BUFFERING/BOUNDARY, stale callback after Stop/logout, 10 rapid skips, route loss, no audible dual output. Базовый Android CI `41019895272` SUCCESS на `8128307d0daf95f3386b85791db5347e3ec56357`. Текущий 0.3.54 AUDIOFIX signed с оригинальным ключом уже протестирован на HONOR, но аппаратная бесшовность НЕ принята. Нижние версии/утверждения о потерянном ключе исторические.
 
 ---

@@ -1,5 +1,7 @@
 # Android 0.3.65 / versionCode 66 — manual Next, partial stream seek, exclusive transition
 
+> **PHYSICAL HONOR QA RESULT, 31.10.2026: NOT ACCEPTED.** This file describes the **shipped implementation and its original host-test expectations**, not a confirmed audio fix. The owner reports an audible full-volume valley at each new-track handover and finger-seek jitter after manual Next, possibly into later tracks. The new 0.3.65 journal contains 21 commanded-silence gaps (43–194ms) on cached scrubs and 18 starts of 500ms exclusive dip on startup/partial-stream reattachment; zero `replacement_scrub_fallback` does **not** imply success. **Read the authoritative [post-0.3.65 HONOR diagnostic and next-chat handoff](HANDOFF-2026-10-31-AFTER-0365-HONOR-REVIEW.md)** before attempting changes. No APK was built from the documentation-only review.
+
 Date: 2026-10-31. Scope: Android native companion only; preserve package, signing, updater, and existing desktop/server applications.
 
 ## Device report and 0.3.64 evidence
