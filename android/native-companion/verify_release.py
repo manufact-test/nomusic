@@ -92,7 +92,7 @@ def main():
         dex = signed.read("classes2.dex")
         assert dex.startswith(b"dex" + bytes([10])), "Signed addon has no DEX header"
         markers = (
-            VERSION.encode("ascii"), b"ReplacementEngine", b"AudioOwnership",
+            VERSION.encode("ascii"), b"ReplacementEngine", b"AudioOwnership", b"UpdateInstallReceiver", b"finishAndRemoveTask",
             b"ClockSupervisor", b"SourceEventArbiter", b"retireDecoder",
             b"SourceTransitionGate", b"AudioContinuityMonitor",
             b"audio_command_anomaly", b"audio_decoder_start",
@@ -105,6 +105,16 @@ def main():
     engine = (addon / "ReplacementEngine.java").read_text()
     ownership = (addon / "AudioOwnership.java").read_text()
     matcher = (addon / "AlbumMatch.java").read_text()
+    updater = (addon / "UpdateInstallReceiver.java").read_text()
+    assert "PackageInstaller.STATUS_SUCCESS" in updater
+    assert "getLongVersionCode()" in updater and "getAppTasks()" in updater
+    assert "finishAndRemoveTask()" in updater
+    success_callback = re.search(
+        r"else if \\(status == PackageInstaller\\.STATUS_SUCCESS\\) \\{(.*?)\\n\\s*\\} else",
+        updater, re.S
+    )
+    assert success_callback and "closeTasksAfterVerifiedInstall(context, expectedCode)" in success_callback.group(1)
+    assert "startActivity" not in success_callback.group(1), "Successful update must close/remove tasks, not relaunch CELIKOM"
     assert "PAUSE_RESUME_FADE_MS=180" in engine and "PAUSE_GRACE_MS=30000" in engine
     assert "HANDOVER_DRIFT_MS=350" in engine
     assert "warmSeekTransition" not in engine and "handoverPending" not in engine, "Competing audio clock flags returned"
