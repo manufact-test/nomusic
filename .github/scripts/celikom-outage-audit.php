@@ -37,6 +37,16 @@ foreach (array_slice($paths, 0, 12) as $path) {
         $time=null;
         if (preg_match('/^\[([0-9]{2}-[A-Za-z]{3}-[0-9]{4} [0-9:]{8}(?: [A-Za-z_\/+-]+)?)\]/', $line, $m)) $time=$m[1];
         $sql='';
+        /* Application logs deliberately store only underscore-delimited SQL codes. */
+        if (preg_match('/_sqlstate_([A-Z0-9]{5})_driver_([0-9]{1,5})/i', $line, $m)) {
+            $sql=' SQLSTATE='.strtoupper($m[1]).' driver_code='.$m[2];
+            $category=match ((int)$m[2]) {
+                1040,1203=>'database_connections',
+                1226=>'database_resource_limit',
+                2002,2003,2006,2013=>'database_unavailable',
+                default=>'database_error'
+            };
+        }
         if (preg_match('/SQLSTATE\[([A-Z0-9]{5})\](?:\s*\[([0-9]{3,5})\])?/', $line, $m)) {
             $sql=' SQLSTATE='.$m[1];
             if (isset($m[2])) $sql.=' driver_code='.$m[2];
