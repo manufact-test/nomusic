@@ -10,11 +10,11 @@ public final class TestHonor063SeekScrub {
  static void check(boolean v,String why){checks++;if(!v)throw new AssertionError(why);}
  static ReplacementEngine ready()throws Exception{
   TestEngine.playing();ReplacementEngine e=TestEngine.e;
-  SystemClock.now+=100;e.player.position+=100;
-  TestEngine.p.current=TestEngine.source("1",1100,true);TestEngine.p.handler.drain();
+  SystemClock.now+=ReplacementEngine.COLD_JOIN_DIP_MS+20;e.player.position+=ReplacementEngine.COLD_JOIN_DIP_MS+20;
+  TestEngine.p.current=TestEngine.source("1",1000+ReplacementEngine.COLD_JOIN_DIP_MS+20,true);TestEngine.p.handler.drain();
   check(e.audioOwner.state()==AudioOwnership.State.REPLACEMENT
       &&e.effect.gain==-100f&&e.player.volume>0.99f,
-      "precondition: verified same-song join already completed");
+      "precondition: verified exclusive cold join already completed");
   return e;
  }
  static void fastScrubNeverPlaysOldYandexAudio()throws Exception{
