@@ -1,3 +1,7 @@
+> **CURRENT STATUS — 31.10.2026:** stable OTA release **0.3.72 / versionCode 73** has been published and verified. This QA document's 0.3.55 / 0.3.56 / 0.3.57 steps are historical and superseded. The remaining owner action is the real HONOR test: update discovery, Android confirmation, removal from Recents after successful install, manual relaunch, and version 0.3.72 confirmation. See [ANDROID-0372-OTA-RELEASE-RECEIPT-2026-10-31.md](ANDROID-0372-OTA-RELEASE-RECEIPT-2026-10-31.md).
+
+---
+
 # CELIKOM — Gate G baseline, выпуск Update Center и ручная QA · 30.10.2026
 
 > **Состояние:** подписанная 0.3.55 есть, **НЕ проверена пользователем на телефоне**, **НЕ содержит** обновлятора. Этот чеклист — работа для следующего чата, не отметка о завершённой проверке.
