@@ -96,7 +96,8 @@ def audit_run(run):
             "changedIndex": sum(d["oldIndex"] != d["nextIndex"] for d in known_indexes),
             "indexUnknown": len(source_events) - len(known_indexes),
             "reasonSeek": sum(data(e).get("userSeek") is True for e in source_events),
-            "manualNextButtonProven": False,  # No button observation channel.
+            "manualNextButtonObserved": any(data(e).get("manualNextButtonObserved") is True
+                                            for e in by_event.get("source_media_item_transition", [])),
         },
         "shortBufferResume": {
             "count": len(buffer_ms), "maxMs": max(buffer_ms) if buffer_ms else None,

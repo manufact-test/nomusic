@@ -48,7 +48,7 @@ assert report["decoderSeekCallback"] == {
 }, report
 assert report["media3Discontinuity"] == {
     "total": 2, "sameIndex": 1, "changedIndex": 1,
-    "indexUnknown": 0, "reasonSeek": 2, "manualNextButtonProven": False,
+    "indexUnknown": 0, "reasonSeek": 2, "manualNextButtonObserved": False,
 }, report
 assert report["shortBufferResume"]["maxMs"] == 51
 assert report["handover"]["joinCoarseTransportDriftMinMs"] == 205
@@ -58,6 +58,10 @@ assert report["audioCommandFindings"]["commanded_silence"] == 1
 assert report["audioCommandFindings"]["overlap_commands"] == 1
 assert audit_run(select_run(runs, "0.3.69"))["decoderSeekCallback"]["count"] == 1
 assert audit_run(select_run(runs, "0.3.70"))["decoderSeekCallback"]["maxMs"] == 990
+assert audit_run({"version": "future", "start_line": 1, "events": [
+    {"elapsed_ms": 0, "event": "source_media_item_transition",
+     "data": {"manualNextButtonObserved": True}}
+]})["media3Discontinuity"]["manualNextButtonObserved"] is True
 assert "PRIVATE" not in json.dumps(report)
 assert "DO_NOT_PRINT" not in json.dumps(report)
 try:
@@ -72,4 +76,4 @@ except ValueError:
     pass
 else:
     raise AssertionError("Malformed events within a run must not be silently ignored")
-print("PASS: 14 privacy-safe combined-journal interpretation gates (version, seek, Media3, PCM, gap, errors)")
+print("PASS: privacy-safe combined-journal interpretation gates (version, seek, Media3, PCM, gap, errors)")
