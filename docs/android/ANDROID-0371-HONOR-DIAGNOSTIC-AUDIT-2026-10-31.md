@@ -64,3 +64,10 @@ Cross-run context: the earlier 0.3.69 segment had 33 seek callbacks at 21–95ms
 2. Build a **RED/green actual-engine replay** of the partially cached slow-seek episode: source audible while decoder seeks, callback with residual 254–330ms, clock drift >200ms, no premature audible replacement grant, no extra seek spiral, genuine Next/pause/Stop/BT and prefetch unaffected. The expected safe policy needs to be selected/proven against the old regressions **before** changing `ReplacementEngine`.
 3. New-song dip is separate: investigate reproducible old/join phase and DSP command skew with permission-respecting physical capture or externally recorded phone speaker when owner wants to supply one. Do not claim that an anonymous clock log can solve speaker-level amplitude.
 4. Only after a demonstrated RED mechanism and passing full Android host + SDK36/D8 **on nonpublishing staging** may a release candidate be considered. No new signed APK from this audit. Production and the immutable backups stay untouched.
+
+## Verification receipt — synthetic tests and real-report audit
+
+- Nonpublishing staging source: `0099284e75ba9080c7a666aefb66ee50d72994ae` on `feature/android-0371-honor-diagnostic-audit-staging`.
+- [Android SDK36/D8 full workflow 41231844190](https://github.com/manufact-test/nomusic/actions/runs/41231844190): **SUCCESS** for Java host regressions, release contracts, D8 compile and the new synthetic `check_honor_journal_audit.py`; `publish-stable` **SKIPPED**. **No signed APK was built.**
+- The new interpreter was also executed locally against the actual private owner's three-run export. It independently selected line 2652 / 828 current events and returned 41 seek ACK (12–400ms; 4 over 200), 35 same-index vs 6 changed-index Media3 discontinuities, seven joins (80–205ms coarse drift), 34 exclusive handovers, seven expected overlap-command findings, and no commanded-silence finding. For historical runs it separately returned 33 seek ACK max95ms on 0.3.69 and 38 max990ms on 0.3.70.
+- No raw diagnostic bytes, user identifiers, track names, IDs, or licensed audio were stored in GitHub. The test fixture is entirely synthetic.
