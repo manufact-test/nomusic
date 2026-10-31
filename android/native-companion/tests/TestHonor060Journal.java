@@ -6,6 +6,7 @@ import android.os.SystemClock;
    A working owner state is insufficient if it repeats needless seeks. */
 public final class TestHonor060Journal {
  static int checks;
+ static TestStreamingEngine.Buffer activeBuffer;
  static void ok(boolean condition,String message){
   checks++;if(!condition)throw new AssertionError(message);
  }
@@ -31,7 +32,7 @@ public final class TestHonor060Journal {
  static void noUnnecessaryStreamingCorrection()throws Exception{
   /* Actual 0.3.60 initial seek residual 204ms: another seek was
      issued despite the existing 350ms handover drift budget. */
-  TestStreamingEngine.Buffer data=TestStreamingEngine.start();
+  TestStreamingEngine.Buffer data=TestStreamingEngine.start();activeBuffer=data;
   ReplacementEngine e=TestEngine.e;MediaPlayer p=e.player;
   p.asyncSeek=true;TestEngine.p.current=TestEngine.source("1",30000,true);e.update(TestEngine.p.current);
   int calls=p.seekCalls;ok(e.seeking,"streaming seeks are asynchronous");
@@ -64,8 +65,13 @@ public final class TestHonor060Journal {
   e.close();
  }
  public static void main(String[] args)throws Exception{
-  pauseRetainsDecoder();noUnnecessaryStreamingCorrection();
-  briefSourceReconnectKeepsTransportLease();
-  System.out.println("PASS: "+checks+" HONOR 0.3.60 end-to-end pause/seek/source-refresh regression checks");
+  try{
+   pauseRetainsDecoder();noUnnecessaryStreamingCorrection();
+   briefSourceReconnectKeepsTransportLease();
+   System.out.println("PASS: "+checks+" HONOR 0.3.60 end-to-end pause/seek/source-refresh regression checks");
+  }finally{
+   if(TestEngine.e!=null&&!TestEngine.e.closed)TestEngine.e.close();
+   if(activeBuffer!=null&&!activeBuffer.closed)activeBuffer.close();
+  }
  }
 }
