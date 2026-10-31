@@ -12,6 +12,8 @@ public class TestBufferedAudio {
   final AtomicBoolean stallBlockTwoOnce=new AtomicBoolean();
   final CountDownLatch backgroundReadBlocked=new CountDownLatch(1);
   final AtomicInteger priorityDisconnects=new AtomicInteger();
+   final CountDownLatch priorityDisconnected=new CountDownLatch(1);
+   final AtomicReference<String> priorityDisconnectThread=new AtomicReference<>();
   Server(){for(int i=0;i<data.length;i++)data[i]=(byte)(i*31);}
   public HttpURLConnection open()throws Exception{return new HttpURLConnection(new URL("https://localhost/audio")){
    int first,last;boolean fail,stalledBackground;volatile boolean closed;
@@ -30,7 +32,7 @@ public class TestBufferedAudio {
     if(blockRead)return new InputStream(){public int read()throws IOException{while(!closed){try{Thread.sleep(10);}catch(InterruptedException e){throw new IOException(e);}}throw new IOException("disconnected");}};
     return new ByteArrayInputStream(data,first,fail?10:last-first+1);
    }
-   public void disconnect(){if(stalledBackground&&!closed)priorityDisconnects.incrementAndGet();closed=true;disconnected=true;}public boolean usingProxy(){return false;}public void connect(){}
+    public synchronized void disconnect(){if(stalledBackground&&!closed){priorityDisconnects.incrementAndGet();priorityDisconnectThread.set(Thread.currentThread().getName());priorityDisconnected.countDown();}closed=true;disconnected=true;}public boolean usingProxy(){return false;}public void connect(){}
   };}
  }
  static BufferedAudio audio(Server s,AtomicBoolean valid,CountDownLatch cached)throws Exception{return new BufferedAudio(File.createTempFile("celikom-range-",".test"),s,valid::get,()->System.nanoTime()/1000000,(event,bytes)->{if(event.equals("replacement_stream_cached"))cached.countDown();});}
@@ -106,8 +108,10 @@ public class TestBufferedAudio {
    demandThread.start();
    check(demandDone.await(3,TimeUnit.SECONDS)&&demandFailure.get()==null&&demandBytes.get()==32,
      "a finger seek must finish while an obsolete background Range is stalled: "+demandFailure.get());
-   check(server.priorityDisconnects.get()==1,
-     "the obsolete prefetch connection was disconnected off the decoder thread");
+    check(server.priorityDisconnected.await(3,TimeUnit.SECONDS)
+       &&server.priorityDisconnects.get()==1
+       &&!demandThread.getName().equals(server.priorityDisconnectThread.get()),
+      "obsolete prefetch connection must disconnect exactly once off the decoder thread");
    check(priorityCached.await(5,TimeUnit.SECONDS)&&prioritized.complete(),
      "prefetch recovers after priority yield without a new seek or timer");
    check(Arrays.equals(Files.readAllBytes(prioritized.file.toPath()),server.data),
