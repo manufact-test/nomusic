@@ -113,8 +113,12 @@ public final class TestHonor064ManualNext {
   e.close();
  }
  public static void main(String[] args)throws Exception{
+  try{
   manualNextAndRepeatedPartialScrubs();
-  autoNextAndCancelDuringJoin();
-  System.out.println("PASS: "+checks+" HONOR manual Next, streaming/cached seeks, single unified entry and no repeated cold join");
+    autoNextAndCancelDuringJoin();
+    System.out.println("PASS: "+checks+" HONOR manual Next, streaming/cached seeks, single unified entry and no repeated cold join");
+  } finally {
+   if(TestEngine.e!=null&&!TestEngine.e.closed)TestEngine.e.close();
+  }
  }
 }
