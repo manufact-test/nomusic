@@ -1,3 +1,9 @@
+# 31.10.2026 — HONOR listened to Android 0.3.69/code70, owner-rated BEST CHECKPOINT (acoustic QA still RED)
+
+**Freeze code**: production `a30f949b10a72f62977e70cba30767b7c382a249`, immutable backup `backup/android-0369-honor-listening-control-20261031`; signed CI [41222465012](https://github.com/manufact-test/nomusic/actions/runs/41222465012) SUCCESS. New last-run (`run_start 0.3.69`) HONOR analysis: **33 seek ACK 21–95 ms**, 25 source-buffer resumes, 10 stream-prefetch yield/resume, **10 unified linear joins** (`phaseVerified:false`), listening mostly very good but **brief cold dip/micro-repeats, plus rare long-pause reattach repeat**. One real manual Next sounded perfect to user; `manualNextButtonObserved:false` does not prove transition type. Wi-Fi only, no physical Bluetooth/mobile/Stop check. No new APK or code changes made after owner report. Fully documented in [`ANDROID-0369-HONOR-OWNER-LISTENING-CHECKPOINT-2026-10-31.md`](ANDROID-0369-HONOR-OWNER-LISTENING-CHECKPOINT-2026-10-31.md). **Ready-to-copy next chat** [`START-NEXT-CHAT-2026-10-31-AFTER-0369-OWNER.md`](START-NEXT-CHAT-2026-10-31-AFTER-0369-OWNER.md). Extra **deferred** Android-only updater UX: after system installer «Обновить» CELIKOM is not foreground but remains a stale Recents card; next chat to choose clean task removal after confirmed install or reliable explicit reopen, leaving stable channel/signing unchanged. One mode only; hidden «Сохранить диагностику» A/B selector already removed. **No acoustic acceptance claim.**
+
+---
+
 # 31.10.2026 — LATEST SIGNED Android 0.3.69/code70, ONE MODE, HONOR acoustic QA still pending
 
 **Android-only, один подписанный APK:** production code
