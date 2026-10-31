@@ -176,7 +176,9 @@ final class AudioOwnership {
  /** The only exception to exclusive output: a bounded fade between an already
   * advancing, aligned decoder and the verified source of the SAME identity.
   * Callers hold the current track + command ticket throughout every tick.
-  * Equal-power gains keep an audible floor, unlike a break-before-make fade. */
+  * Complementary LINEAR gains preserve level when the waveforms really are
+  * phase-aligned, unlike equal-power's correlated +3dB bump. This cannot
+  * prove phase alignment without original PCM and is lab-only. */
  float blendSameSong(MediaPlayer player,DynamicsProcessing effect,float mix,float targetGain,String identity,long ticket,long commandTicket){
   if(!Float.isFinite(mix)||mix<0f||mix>1f)throw new IllegalArgumentException("invalid same-song mix");
   if(!Float.isFinite(targetGain)||targetGain<=0f||targetGain>1f)throw new IllegalArgumentException("invalid replacement gain");
@@ -187,8 +189,13 @@ final class AudioOwnership {
    throw new IllegalStateException("same-song blend lacks verified current owner");
   if(state==State.ALIGNING&&commandedSecondary>0.001f)
    throw new IllegalStateException("same-song blend cannot inherit audible decoder");
-  float original=(float)Math.cos(Math.PI*mix/2.0);
-  float secondary=(float)Math.sin(Math.PI*mix/2.0)*targetGain;
+  /* Two editions of the SAME song are strongly correlated. Equal-power
+     (cos/sin) gives a +3dB bump for perfectly aligned copies and caused
+     audible waves on HONOR 0.3.62. Linear complementary gains are neutral
+     for aligned copies; without actual source PCM, phase cancellation is
+     still possible. This primitive is used only by an admin-gated lab join. */
+  float original=1f-mix;
+  float secondary=mix*targetGain;
   if(mix==1f){original=0f;secondary=targetGain;}
   // Make the destination audible BEFORE reducing the source; never schedule
   // an interval with both sources near zero, including a delayed Android DSP.

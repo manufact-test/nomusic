@@ -66,7 +66,12 @@ if '}else{\n     audioOwner.grantReplacement(fx);originalMix=0f;applyVolume(1f);
 if 'audioOwner.handoverClockValidated();' not in fade:
     raise AssertionError('decoder must pass the sole clock gate before output grant')
 if 'audioOwner.blendSameSong(' in fade:
-    raise AssertionError('cold join cannot overlap two independently clocked audio sources')
+    if ('final boolean correlatedLab=exclusiveDipJoin&&owner.experimentalCorrelatedJoin();' not in fade
+        or 'if(correlatedLab){' not in fade
+        or '"phaseVerified",false' not in fade
+        or 'CORRELATED_JOIN_LAB_MS=160' not in engine
+        or 'float original=1f-mix;' not in owner):
+        raise AssertionError('correlated join may run only as explicitly admin-gated lab with linear gain and no false phase guarantee')
 if 'audioOwner.duckSourceForExclusiveJoin(p,fx,duck,ownerKey,ownerEpoch,handoverTicket.operationEpoch)' not in fade:
     raise AssertionError('the original-only dip must hold the verified ownership ticket')
 if fade.index('audioOwner.handoverClockValidated();')>fade.index('audioOwner.duckSourceForExclusiveJoin('):
@@ -75,14 +80,20 @@ if 'COLD_JOIN_DIP_MS=500' not in engine or 'COLD_JOIN_DIP_MS/2' not in fade:
     raise AssertionError('exclusive 250ms down plus 250ms up must be bounded to 500ms')
 if fade.index('audioOwner.duckSourceForExclusiveJoin(p,fx,1f')>fade.index('audioOwner.grantReplacement(fx);originalMix=0f;applyVolume(0f);'):
     raise AssertionError('original must reach silence before replacement acquires audible ownership')
-if 'RETAINED_SEEK_JOIN_MS=260' not in engine or 'restoreScrubSourceAtDeadline(p,heldEffect,epoch,key)' not in engine:
-    raise AssertionError('user scrub must fail open to the original after the bounded silent seek window')
+if 'restoreScrubSourceAtDeadline(' in engine or 'boolean shortScrub=' in engine:
+    raise AssertionError('0.3.65 muted-source seek deadline cannot be reintroduced')
+if 'pendingStreamScrubJoin=true;' in engine:
+    raise AssertionError('partial-stream seek must not restart the cold 500ms dip')
+if 'pendingStreamScrubJoin=false;seekHoldActive=false;' not in engine:
+    raise AssertionError('every new seek must revoke old scrub handover commands')
+if 'setAuditedVolume(player,0f);audioOwner.pauseDecoder(player);' not in engine or 'audioOwner.sourceGainDuringAlignment(effect);originalMix=1f;traceAudioCommands();' not in engine:
+    raise AssertionError('seek must silence decoder first, then immediately restore native source using the retained effect')
 if 'if(originalMix<=0.001f&&!seekHoldActive)' not in fade or 'seekHoldActive=false;pendingStreamScrubJoin=false;ownerEvent("exclusive_handover")' not in fade:
-    raise AssertionError('fast seek must not restore old-position Yandex before verified decoder restart')
+    raise AssertionError('completed handover must revoke any previous seek/owner lease')
 if 'fade((newlyAttached&&!resumed&&!sourceSeekedThisTrack)||pendingStreamScrubJoin)' not in engine:
-    raise AssertionError('fresh track and completed partial-stream scrubs must take the bounded dip')
-if 'partialStreamScrub=!correction&&explicitSourceSeek&&streaming!=null&&!streaming.complete()' not in engine or 'boolean shortScrub=!partialStreamScrub' not in engine:
-    raise AssertionError('partially downloaded manual-next seeks must not enter the 260ms muted seek hold')
+    raise AssertionError('new track must still require a checked cold join; scrubs cannot flag it as cold')
+if 'media3Router.discontinuity(' not in service or 'media3Router.mediaItem(' not in service:
+    raise AssertionError('real ProbeService listeners must use the same Media3 router exercised by the HONOR replay')
 if 'audioOwner.commandCurrent(handoverTicket' not in fade or 'token!=transition' not in fade:
     raise AssertionError('same-song blend must recheck command/epoch cancellation every tick')
 if 'float blendSameSong(' not in owner or 'state!=State.SAME_SONG_BLEND' not in owner:

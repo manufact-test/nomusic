@@ -47,6 +47,9 @@ public class RecorderActivity extends Activity {
   accountBody=section(box,"Аккаунт");accountNote=label(accountBody,"",13,MUTED);loginButton=button(accountBody,"Войти",this::login,false);logoutButton=button(accountBody,"Выйти",this::logout,false);
   support(section(box,"Связь с поддержкой"));
   save=button(box,"Сохранить диагностику",this::requestExport,false);save.setBackground(background(SURFACE));save.setTextColor(0xff8fa0a8);save.setTextSize(12);save.setMinHeight(dp(42));save.setMinimumHeight(dp(42));save.getLayoutParams().height=dp(42);save.setGravity(Gravity.START|Gravity.CENTER_VERTICAL);save.setPadding(dp(12),dp(7),dp(12),dp(7));save.getLayoutParams().height=dp(42);
+  /* An existing admin diagnostic control hosts the experiment. No extra
+     public button or new capture permission is introduced. */
+  save.setOnLongClickListener(v->{requestJoinExperiment();return true;});
   incidentButton=button(box,"Сохранить журнал сбоев (офлайн)",this::exportIncidents,false);incidentButton.setBackground(background(SURFACE));incidentButton.setTextColor(0xffaab8be);incidentButton.setTextSize(12);
   notificationPermission=button(box,"Включить уведомления CELIKOM",this::enableNotifications,false);notificationPermission.setTextSize(12);
   space(box,18);LinearLayout updatesPanel=column();updatesPanel.setPadding(dp(12),dp(12),dp(12),dp(12));updatesPanel.setBackground(background(SURFACE));box.addView(updatesPanel);space(box,10);
@@ -152,6 +155,25 @@ public class RecorderActivity extends Activity {
   });
  }
  void requestExport(){if(exportBusy)return;if(api().fullDiagnostics()){export();return;}set(reportNote,"Проверяем доступ к диагностике…");reportNote.setVisibility(View.VISIBLE);api().refreshDiagnostics((j,error)->{if(!visible())return;if(error!=null){toast("diagnostics_forbidden".equals(error)?"Полная диагностика доступна только администраторам":error(error));return;}export();});}
+ void requestJoinExperiment(){
+  if(!api().diagnosticHint())return;
+  api().refreshDiagnostics((j,error)->{
+   if(!visible())return;
+   if(error!=null||!api().fullDiagnostics()){toast("Выбор перехода доступен только администраторам");return;}
+   final String[] modes={"0.3.65: без наложения (контроль)","Линейный переход (эксперимент)"};
+   final int[] chosen={getSharedPreferences("celikom-join-lab",MODE_PRIVATE).getBoolean("correlated-linear",false)?1:0};
+   new AlertDialog.Builder(this).setTitle("Переход звука (тест, без записи)")
+     .setSingleChoiceItems(modes,chosen[0],(d,which)->chosen[0]=which)
+     .setNegativeButton("Отмена",null)
+     .setPositiveButton("Применить",(d,which)->{
+       if(!api().fullDiagnostics()){toast("Администраторский доступ закончился");return;}
+       getSharedPreferences("celikom-join-lab",MODE_PRIVATE).edit()
+         .putBoolean("correlated-linear",chosen[0]==1).apply();
+       LogStore.log("admin_join_mode_selected",LogStore.map("correlatedLinear",chosen[0]==1,"audioRecorded",false));
+       toast(chosen[0]==1?"Линейный переход: со следующего подключения":"Контрольный переход: со следующего подключения");
+     }).show();
+  });
+ }
  void export(){if(!api().fullDiagnostics())return;if(exportBusy)return;if(!LogStore.hasReport()){toast("Диагностика пока пуста. Сначала нажмите «Старт».");return;}exportBusy=true;files.execute(()->{File snapshot=null;try{snapshot=File.createTempFile("diagnostics-",".txt",getCacheDir());LogStore.snapshot(snapshot);}catch(Exception e){if(snapshot!=null)snapshot.delete();snapshot=null;}final File result=snapshot;handler.post(()->{if(!visible()||result==null||!api().fullDiagnostics()){if(result!=null)result.delete();exportBusy=false;if(visible())toast("Не удалось подготовить диагностику");return;}exportSnapshot=result;try{startActivityForResult(new Intent(Intent.ACTION_CREATE_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("text/plain").putExtra(Intent.EXTRA_TITLE,"CELIKOM-combined-"+new SimpleDateFormat("yyyyMMdd-HHmmss",Locale.ROOT).format(new Date())+".txt"),20);}catch(RuntimeException e){result.delete();exportSnapshot=null;exportBusy=false;toast("Не удалось открыть сохранение TXT");}});});}
  @Override protected void onActivityResult(int request,int result,Intent data){super.onActivityResult(request,result,data);if(request==21){finishIncidentExport(result,data);return;}if(request==30){MobileActions.Target t=pickerTarget;pickerTarget=null;if(result==RESULT_OK&&data!=null&&data.getData()!=null)stage(data.getData(),t);return;}if(request!=20)return;File snapshot=exportSnapshot;exportSnapshot=null;exportBusy=false;if(snapshot==null)return;if(result!=RESULT_OK||data==null||data.getData()==null||!api().fullDiagnostics()){snapshot.delete();return;}Uri uri=data.getData();files.execute(()->{boolean ok=false;if(!api().fullDiagnostics()){snapshot.delete();return;}try(OutputStream out=getContentResolver().openOutputStream(uri,"wt")){if(out==null)throw new IOException();long account=api().accountGeneration;try(InputStream in=new FileInputStream(snapshot)){byte[] buffer=new byte[16384];int n;while((n=in.read(buffer))!=-1){if(account!=api().accountGeneration||!api().fullDiagnostics())throw new IOException("diagnostics_forbidden");out.write(buffer,0,n);}}ok=true;}catch(Exception ignored){}finally{snapshot.delete();}final boolean success=ok;handler.post(()->{if(visible())set(reportNote,success?"Диагностика сохранена":"Не удалось сохранить диагностику");});});}
  @Override protected void onNewIntent(Intent i){super.onNewIntent(i);setIntent(i);receive(i);}

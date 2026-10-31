@@ -70,8 +70,9 @@ public final class TestUnifiedAudioTransactions {
   check(!TestEngine.e.armed()&&!TestEngine.e.preparing,
     "account rollover clears an otherwise stuck preparation");
 
-  /* For a fast finger scrub keep the old source inaudible; for a stalled
-     decoder restore Yandex after the strict bounded seek-hold deadline. */
+  /* HONOR 0.3.65 found 43–194ms commanded silence on cached scrubs. After
+     silencing the decoder the retained effect must restore Yandex immediately;
+     no timer is allowed to govern whether either source may play. */
   TestEngine.playing();
   ReplacementEngine slow=TestEngine.e;MediaPlayer seekPlayer=slow.player;
   android.media.audiofx.DynamicsProcessing existingEffect=slow.effect;
@@ -83,13 +84,14 @@ public final class TestUnifiedAudioTransactions {
   TestEngine.p.current=TestEngine.source("1",60000,true);
   slow.update(TestEngine.p.current);
   check(slow.seeking&&!seekPlayer.playing&&seekPlayer.volume==0f
-     &&slow.effect==existingEffect&&existingEffect.gain==-100f&&slow.originalMix==0f,
-     "short explicit scrub must not restore old original while decoder seeks");
+     &&slow.effect==existingEffect&&existingEffect.gain==0f&&slow.originalMix==1f,
+     "cached finger seek restores native output immediately while decoder seeks");
   android.os.SystemClock.now+=ReplacementEngine.RETAINED_SEEK_JOIN_MS+1;
   TestEngine.p.handler.drain();
   check(slow.seeking&&!seekPlayer.playing&&seekPlayer.volume==0f
-     &&slow.effect==existingEffect&&existingEffect.gain==0f&&slow.originalMix==1f,
-     "slow seek restores source with same effect by bounded fallback deadline");
+     &&slow.effect==existingEffect&&existingEffect.gain==0f&&slow.originalMix==1f
+     &&!slow.seekHoldActive,
+     "slow seek retains the native source without a timed second owner swap");
   slow.returnOriginal();
   check(slow.effect==null&&slow.player==null&&!slow.armed(),
      "manual return during seek cannot promote the muted decoder to audible output");

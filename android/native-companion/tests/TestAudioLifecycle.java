@@ -61,8 +61,8 @@ public final class TestAudioLifecycle {
   double sourceGain=Math.pow(10,verifiedEffect.gain/20.0);
   ok(blend.state()==AudioOwnership.State.SAME_SONG_BLEND
     &&verifiedDecoder.volume>0f&&sourceGain>0f
-    &&sourceGain*sourceGain+verifiedDecoder.volume*verifiedDecoder.volume>0.98,
-    "single current same-song lease permits energy-preserving blend only");
+    &&Math.abs(sourceGain+verifiedDecoder.volume-1.0)<0.0001,
+    "verified same-song lease uses complementary linear gains for correlated audio");
   blend.volume(verifiedDecoder,0f,verifiedEffect);blend.aligning();
   blend.sourceGainDuringAlignment(verifiedEffect);blend.event(AudioOwnership.Event.SEEK);
   rejected=false;try{blend.blendSameSong(verifiedDecoder,verifiedEffect,0.8f,1f,"same-song",blendEpoch,commandEpoch);}catch(IllegalStateException expected){rejected=true;}
