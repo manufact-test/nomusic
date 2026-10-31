@@ -201,4 +201,18 @@
 
 Transport position tests do not measure PCM phase, speaker output, or physical Bluetooth latency. The 160ms complementary cold join is unchanged and remains listening-verified only, not phase-proven.
 
-The CI run staged an offline packaging kit and unsigned DEX only. It did **not** create a signed APK, bump the app version, publish a release, or alter the immutable 0.3.71 installed baseline. A real HONOR listening run is still required before considering any test APK for installation.
+The initial CI run staged an offline packaging kit and unsigned DEX only. A separate non-publishing build was subsequently completed; see the signed test APK receipt below. No stable release was published, and the immutable 0.3.71 baseline remains untouched.
+
+
+## Signed non-publishing test APK receipt — 31.10.2026
+
+- GitHub Actions [41238844237](https://github.com/manufact-test/nomusic/actions/runs/41238844237) — SUCCESS.
+- Signed test artifact: [download CELIKOM-Android-0.3.71-SEEK-TEST-SIGNED.apk](https://github.com/manufact-test/nomusic/actions/runs/41238844237/artifacts/13056871292).
+- Source/build commit: `4d7904b156a5fe2b500f6ba97c2cff7be56a9861`.
+- Package/version: `pro.celikom.nativeprobe`, `0.3.71`, code `72`.
+- APK SHA-256: `444b6c230aaddf2995138c3ad85286433dd25b3994e8a2871fe53d97dba4cb14`.
+- Original signer SHA-256: `67fe81c56fac1c1d145344b69a0e3faf9005cf6607f4e26ca27d5926c3eefc4f`.
+- Host regression suite, API36 compile, D8, full signed build and independent APK verifier — SUCCESS.
+- `publish-stable` — SKIPPED; no Hostinger upload or stable manifest change.
+
+The versionCode remains72 intentionally. Install as an in-place same-signer test update; do not uninstall the installed app. Physical HONOR listening and fresh diagnostic replay remain mandatory before stable approval.
