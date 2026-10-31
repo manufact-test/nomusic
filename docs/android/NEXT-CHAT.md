@@ -16,7 +16,7 @@
 
 `feature/android-0371-honor-diagnostic-audit-staging`
 
-Start from its actual HEAD, not a remembered SHA. Previous checkpoint: `60e78db25c2847d71431be890fdd6a3b0e9c95ba`. The current work stages a seek-scoped stable transport-baseline policy in `ReplacementEngine`, adds `SeekAlignmentPolicy.java`, and expands actual-engine tests for 0.3.71 residuals plus 0.3.63/0.3.64 scrub regressions.
+Start from its actual HEAD, not a remembered SHA. Previous checkpoint: `60e78db25c2847d71431be890fdd6a3b0e9c95ba`. **Seek-baseline implementation commit:** `58f1111dade3a15cc6e6bc2b4cdb648623dc933f`. **Latest branch HEAD:** `8653a0b06b4c5d5f1dda98752bfeebb7ee2f6f02` (runner-comment-only follow-up). The implementation adds the seek-scoped stable transport-baseline policy in `ReplacementEngine`, `SeekAlignmentPolicy.java`, and actual-engine tests for 0.3.71 residuals plus 0.3.63/0.3.64 scrub regressions.
 
 ## Policy now under CI validation
 
@@ -26,7 +26,7 @@ This is transport timing only, **not acoustic or Bluetooth phase measurement**. 
 
 ## Required next steps
 
-1. Inspect the latest GitHub Actions run for the new commit. The previous run for `60e78db` was still executing the host regression suite at last check; do not treat that run as validation of the new code.
+1. Inspect [GitHub Actions run 41236554763](https://github.com/manufact-test/nomusic/actions/runs/41236554763), which targets code commit `58f1111`. At last check its full host regression step was still running. Do not treat the older run for `60e78db` as validation of the new code.
 2. Run the full `python3 android/native-companion/tests/run_engine.py` suite and inspect any failing test before making another change.
 3. Confirm the new `TestSeekAlignmentPolicy`, `TestHonor071SeekResidual`, modified `TestHonor063SeekScrub` and `TestHonor064ManualNext` all pass.
 4. Confirm SDK36 Java compile + D8 succeeds and the `publish-stable` job is skipped on this staging branch.
