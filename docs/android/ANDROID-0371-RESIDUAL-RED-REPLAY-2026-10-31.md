@@ -42,3 +42,16 @@ The policy is seek-scoped. Cold initial join and route-resume legacy paths retai
 ## What this proves — and what it does not
 
 The tests prove deterministic transport-clock behavior and owner lifecycle under synthetic callback timing. They do not prove that a given millisecond residual maps directly to audible rewind, and they do not measure phase alignment between Android output sessions. Real HONOR listening verification remains required before any APK is considered.
+
+
+## Final CI receipt — 31.10.2026
+
+- **Code commit validated:** `032bd8f2c77d6deb069155923a602bf242aebdf1`.
+- **GitHub Actions:** [run 41237891623](https://github.com/manufact-test/nomusic/actions/runs/41237891623) — **SUCCESS**.
+- Full native host regression suite — SUCCESS, including `TestHonor060Journal`, `TestHonor063SeekScrub`, `TestHonor064ManualNext`, `TestHonor067SlowStreamSeek`, `TestHonor071SeekResidual`, and `TestSeekAlignmentPolicy`.
+- Android API 36 native compilation + D8 — SUCCESS.
+- Source/DEX provenance and release-contract negative gates — SUCCESS.
+- Offline packaging/JDK toolchain artifacts uploaded successfully.
+- `publish-stable` — **SKIPPED** on the staging branch.
+
+The failed intermediate run `41237595555` exposed the historical 204ms acceptance invariant; the production threshold was raised from 200ms to 225ms. The final run above verifies the corrected threshold and the 0.3.60 regression. No signed APK, version bump, release or production deployment was created.
