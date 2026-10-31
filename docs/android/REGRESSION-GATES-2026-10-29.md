@@ -1,3 +1,29 @@
+## 2026-11-01 — HONOR diagnostic interpretation gates (0.3.72)
+
+These checks are additive. They do not replace the Android engine regression suite or owner listening on HONOR.
+
+Run locally:
+
+```bash
+python3 android/native-companion/tests/check_honor_journal_audit.py
+python3 android/native-companion/tests/honor_journal_audit.py /path/to/CELIKOM-combined.txt --all-runs
+```
+
+Required interpretation invariants:
+
+- Split every combined journal at each `run_start`; do not let old 0.3.70 join summaries leak into 0.3.71/0.3.72 counts.
+- Label `replacement_seek_complete` as ALIGNMENT callbacks only. Count `replacement_warm_alignment` as additional WARM seek starts; do not invent callback timings for them.
+- Keep Media3 source-buffer intervals separate from CELIKOM replacement HTTP range waits; retire an open source-buffer interval at a changed-item boundary.
+- Classify same-index and changed-index Media3 discontinuities separately. Do not infer a physical finger gesture or a manual Next-button tap from `reasonCode=SEEK`.
+- Treat `replacement_decoder_advancing`, residuals and join-clock summaries as transport telemetry only.
+- Treat `audio_command_anomaly` as commanded-state telemetry only. It is not a microphone, PCM or Bluetooth-output measurement.
+- If join starts exist but `replacement_join_clock_summary` is absent, report coverage as `not_recorded`, never as zero drift.
+- Do not print track IDs, titles, identity keys or URLs from the owner journal in audit summaries.
+
+The synthetic suite covers run isolation, WARM seek undercount, source-buffer retirement, discontinuity classification, source-vs-replacement buffering, join-summary absence and malformed JSON rejection. The Android validation workflow runs this suite on `feature/android-0372-honor-audio-audit-staging`. The workflow's `publish-stable` job remains guarded by the exact production branch ref; this audit branch does not publish an APK.
+
+---
+
 > **31.10.2026 — Android 0.3.68/code69 signed foreground-Range priority gate; HONOR acoustic QA still RED.** A sparse decoder `readAt()` miss may preempt a stalled background HTTP Range without blocking MediaPlayer on `disconnect()`; background worker yields, foreground reads a verified block and single prefetch recovery may resume. `addon/TestBufferedAudio` blocks background block #2 while demand reads #6, requires completion, byte-exact file and restored worker; total **4129 PASS**. `TestHonor067SlowStreamSeek` now includes real `Media3SourceRouter` manual Next across item indices during a slow pending decoder seek (**13 PASS**), plus all previous pause/Next/stale ACK gates. Staging SDK36/D8 [41213189300](https://github.com/manufact-test/nomusic/actions/runs/41213189300) and version-bumped [41213426511](https://github.com/manufact-test/nomusic/actions/runs/41213426511) **SUCCESS**, publication **SKIPPED**. Production SDK36/D8 + original-cert signed release + live stable publish [41213570269](https://github.com/manufact-test/nomusic/actions/runs/41213570269) **SUCCESS**. Real full APK SHA256 verified `c73917856d9c93bd93a2251084038b3b7694bcea19a941ca24f06a0f5cdf7d39`. **No PCM phase or device audibility has been verified; default 500ms cold dip and admin linear interference may persist**. See [release receipt and phone QA](ANDROID-0368-SIGNED-HONOR-RANGE-PRIORITY-2026-10-31.md).
 
 ---
