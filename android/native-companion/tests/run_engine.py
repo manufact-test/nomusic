@@ -54,3 +54,7 @@ subprocess.run(['java','-cp',str(out)+os.pathsep+str(json),'pro.celikom.nativepr
 
 # Structural regression: no direct decoder or source FX commands can bypass ownership.
 subprocess.run(['python3',r/'check_audio_architecture.py'],check=True)
+
+# Pure signal-level impossibility/assumption checks for the cold-join research.
+# This does NOT assert real HONOR or Bluetooth speaker quality.
+subprocess.run(['python3',r/'test_handover_signal_feasibility.py'],check=True)
