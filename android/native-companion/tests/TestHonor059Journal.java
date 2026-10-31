@@ -107,17 +107,21 @@ public final class TestHonor059Journal {
  }
 
  /* Regression: on a long streaming seek, the native original is restored
-    immediately. The monitor must close its old command gap at THAT command,
-    not 551ms later when another secondary-volume call happens. */
+    at the bounded scrub deadline. The monitor must close the old command gap
+    at THAT command, not 551ms later on a secondary-volume call. */
  static void restoredSourceMustCloseGap()throws Exception{
   MediaPlayer p=exclusivelyAudibleReplacement();
   ReplacementEngine e=TestEngine.e;
   DynamicsProcessing effect=e.effect;
   p.asyncSeek=true;
   sample(60000,true);
+  check(e.seeking&&!p.playing&&p.volume==0f&&e.originalMix==0f&&effect.gain==-100f,
+    "brief scrub keeps the former source position inaudible");
+  SystemClock.now+=ReplacementEngine.RETAINED_SEEK_JOIN_MS+1;
+  TestEngine.p.handler.drain();
   check(e.seeking&&!p.playing&&p.volume==0f
     &&e.originalMix==1f&&effect.gain==0f,
-    "seek restores original source output with the same verified effect");
+    "slow seek restores original through same effect by bounded deadline");
   SystemClock.now+=551;
   AudioContinuityMonitor.Finding phantom=e.continuity.observe(
     SystemClock.now,"7","seek",true,false,false,0f);

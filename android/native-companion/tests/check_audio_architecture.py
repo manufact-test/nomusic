@@ -71,6 +71,12 @@ if fade.index('audioOwner.handoverClockValidated();')>fade.index('audioOwner.ble
     raise AssertionError('same-song blend cannot precede verified decoder clock')
 if 'softColdJoin?SAME_SONG_BLEND_MS:0' not in fade or 'SAME_SONG_BLEND_MS=40' not in engine:
     raise AssertionError('same-song blend must be bounded to a 40ms micro-transition')
+if 'RETAINED_SEEK_JOIN_MS=260' not in engine or 'restoreScrubSourceAtDeadline(p,heldEffect,epoch,key)' not in engine:
+    raise AssertionError('user scrub must fail open to the original after the bounded silent seek window')
+if 'if(originalMix<=0.001f&&!seekHoldActive)' not in fade or 'seekHoldActive=false;ownerEvent("exclusive_handover")' not in fade:
+    raise AssertionError('fast seek must not restore old-position Yandex before verified decoder restart')
+if 'fade(newlyAttached&&!resumed&&!sourceSeekedThisTrack)' not in engine:
+    raise AssertionError('only fresh-track cold join may use a same-song overlap after user scrubbing')
 if 'audioOwner.commandCurrent(handoverTicket' not in fade or 'token!=transition' not in fade:
     raise AssertionError('same-song blend must recheck command/epoch cancellation every tick')
 if 'float blendSameSong(' not in owner or 'state!=State.SAME_SONG_BLEND' not in owner:

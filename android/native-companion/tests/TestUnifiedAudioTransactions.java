@@ -70,8 +70,8 @@ public final class TestUnifiedAudioTransactions {
   check(!TestEngine.e.armed()&&!TestEngine.e.preparing,
     "account rollover clears an otherwise stuck preparation");
 
-  /* Native original gains are restored before an asynchronous seek rather than
-     leaving both the original and decoder silenced through a network stall. */
+  /* For a fast finger scrub keep the old source inaudible; for a stalled
+     decoder restore Yandex after the strict bounded seek-hold deadline. */
   TestEngine.playing();
   ReplacementEngine slow=TestEngine.e;MediaPlayer seekPlayer=slow.player;
   android.media.audiofx.DynamicsProcessing existingEffect=slow.effect;
@@ -83,8 +83,13 @@ public final class TestUnifiedAudioTransactions {
   TestEngine.p.current=TestEngine.source("1",60000,true);
   slow.update(TestEngine.p.current);
   check(slow.seeking&&!seekPlayer.playing&&seekPlayer.volume==0f
+     &&slow.effect==existingEffect&&existingEffect.gain==-100f&&slow.originalMix==0f,
+     "short explicit scrub must not restore old original while decoder seeks");
+  android.os.SystemClock.now+=ReplacementEngine.RETAINED_SEEK_JOIN_MS+1;
+  TestEngine.p.handler.drain();
+  check(slow.seeking&&!seekPlayer.playing&&seekPlayer.volume==0f
      &&slow.effect==existingEffect&&existingEffect.gain==0f&&slow.originalMix==1f,
-     "slow seek must restore source with same attached effect before decoder alignment");
+     "slow seek restores source with same effect by bounded fallback deadline");
   slow.returnOriginal();
   check(slow.effect==null&&slow.player==null&&!slow.armed(),
      "manual return during seek cannot promote the muted decoder to audible output");
