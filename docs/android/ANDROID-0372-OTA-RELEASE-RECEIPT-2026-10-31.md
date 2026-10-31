@@ -65,3 +65,11 @@ The pipeline proves the release was built, signed, uploaded, and advertised by t
 7. If the app closes but remains in Recents, send a screenshot/video of the Recents screen. That is the exact device-level acceptance case for the new receiver behavior.
 
 Do not use the test as evidence that any audio transition or seek artifact is fixed. The release is an OTA/updater lifecycle test plus a version increment; acoustic acceptance remains separate.
+
+## Owner acceptance update — 01.11.2026
+
+**ACCEPTED on HONOR:** The owner confirmed the in-app updater discovered and downloaded 0.3.72, the system installed it, CELIKOM closed, and no CELIKOM card remained in Android Recents. The owner explicitly chose to keep this successful exit behavior; **do not redesign or reopen this task**.
+
+**Audio NOT ACCEPTED:** The owner separately listened to 0.3.72 and reported no perceptible improvement from 0.3.71. Finger scrubbing sometimes produces repeated tiny skips and cold song-attach can still sound like a volume dip or micro-repeat. This release did not contain an audio patch. Diagnostic evidence and the next chat audit plan: [ANDROID-0372-HONOR-OWNER-LISTENING-AND-DIAGNOSTIC-CHECKPOINT-2026-11-01.md](ANDROID-0372-HONOR-OWNER-LISTENING-AND-DIAGNOSTIC-CHECKPOINT-2026-11-01.md).
+
+The device acceptance result supersedes the earlier “HONOR acceptance pending” status in this receipt; it does not imply acoustic acceptance.
