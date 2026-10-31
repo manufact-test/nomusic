@@ -88,7 +88,11 @@ public final class TestHonor067SlowStreamSeek {
   e.close();
  }
  public static void main(String[] args)throws Exception{
+  try{
   slowSourceRetargetingRetainsEffect();realPauseAndNextOverrideSlowSeek();
-  System.out.println("PASS: "+checks+" HONOR 0.3.67 slow partial-stream multi-seek owner tests");
+    System.out.println("PASS: "+checks+" HONOR 0.3.67 slow partial-stream multi-seek owner tests");
+  } finally {
+   if(TestEngine.e!=null&&!TestEngine.e.closed)TestEngine.e.close();
+  }
  }
 }
