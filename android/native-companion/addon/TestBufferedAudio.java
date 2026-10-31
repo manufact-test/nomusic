@@ -113,6 +113,42 @@ public class TestBufferedAudio {
    check(Arrays.equals(Files.readAllBytes(prioritized.file.toPath()),server.data),
      "priority preemption never mixes incomplete or stale bytes");
   }finally{prioritized.close();}
+   /* HONOR 0.3.69: rapid finger seeks must NOT start a new speculative
+      background Range between validated decoder reads or corrections.
+      The whole verified seek/handover owns the foreground transport lease. */
+   server=new Server();server.stallBlockTwoOnce.set(true);
+   CountDownLatch heldYield=new CountDownLatch(1),heldCached=new CountDownLatch(1);
+   AtomicInteger resumedWhileHeld=new AtomicInteger(),yields=new AtomicInteger();
+   a=new BufferedAudio(File.createTempFile("celikom-seek-lease-",".test"),server,()->true,
+    ()->System.nanoTime()/1000000,(event,bytes)->{
+     if(event.equals("replacement_stream_prefetch_yield")){yields.incrementAndGet();heldYield.countDown();}
+     if(event.equals("replacement_stream_prefetch_resumed"))resumedWhileHeld.incrementAndGet();
+     if(event.equals("replacement_stream_cached"))heldCached.countDown();
+    });
+   try{
+    a.initializeForPlayback();a.prefetch();
+    check(server.backgroundReadBlocked.await(3,TimeUnit.SECONDS),
+      "setup: speculative Range is blocked before user starts scrubbing");
+    a.holdPrefetchForSeek();
+    for(int block:new int[]{6,3,5,4}){
+     long at=(long)BufferedAudio.BLOCK*block+7;
+     byte[] bytes=new byte[32];
+     check(a.readAt(at,bytes,0,bytes.length)==bytes.length
+       &&bytes[0]==server.data[(int)at],
+       "seek correction has priority and byte-exact sparse content for block "+block);
+    }
+    check(heldYield.await(3,TimeUnit.SECONDS),
+      "actual decoder miss must preempt the blocked background transport");
+    check(resumedWhileHeld.get()==0&&!a.complete()&&yields.get()==1,
+      "background must stay yielded throughout all rapid positions and corrections");
+    a.releasePrefetchAfterSeek();
+    check(heldCached.await(5,TimeUnit.SECONDS)&&a.complete(),
+      "one clock-confirmed handover resumes speculative prefetch");
+    check(resumedWhileHeld.get()==1&&yields.get()==1,
+      "one yield and one resume per whole seek chain, not per decoder read");
+    check(Arrays.equals(Files.readAllBytes(a.file.toPath()),server.data),
+      "prefetch recovery after rapid seeks preserves full exact audio bytes");
+   }finally{a.close();}
   server=new Server();server.badRange=true;rejected(server,"invalid_audio_range");server=new Server();server.deny=true;rejected(server,"audio_range_unavailable");server=new Server();server.ignoreRange=true;rejected(server,"audio_range_unavailable");
   server=new Server();server.changedTag=true;a=audio(server,new AtomicBoolean(true),new CountDownLatch(1));try{a.initialize();try{a.readAt(BufferedAudio.BLOCK,new byte[4],0,4);throw new AssertionError("mixed version accepted");}catch(IOException e){check(e.getMessage().equals("audio_version_changed"),"changed validator never mixes editions");}}finally{a.close();}
   server=new Server();server.blockRead=true;valid=new AtomicBoolean(true);a=audio(server,valid,new CountDownLatch(1));final BufferedAudio cancelled=a;AtomicReference<Throwable> error=new AtomicReference<>();Thread reader=new Thread(()->{try{cancelled.initialize();}catch(Throwable e){error.set(e);}});reader.start();Thread.sleep(150);valid.set(false);reader.join(2000);check(!reader.isAlive()&&error.get()!=null&&server.disconnected,"Stop/account/track cancellation interrupts blocked network promptly");a.close();

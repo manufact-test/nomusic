@@ -61,7 +61,7 @@ public class TestEngine {
   playing();first=e.player;SystemClock.now+=2000;e.update(p.current);ok(first.released&&e.effect==null,"stale source deadline restores original");
   // Preparation before enabling must be silent and reused at activation.
   reset("ALBUM");e.update(p.current);MediaPlayer warm=prepare();ok(e.ready&&!warm.playing&&e.effect==null,"preparation before arm never changes source audio");int requests=api.resolves;e.arm();ok(e.player==warm&&warm.playing&&api.resolves==requests,"arm reuses prepared audio without downloading again");
-  SystemClock.now+=ReplacementEngine.COLD_JOIN_DIP_MS+20;p.current=source("1",1160,true);p.handler.drain();ok(warm.volume==1f&&e.effect.gain==-100f&&!e.fading,"ramp ends at replacement full volume and source muted");
+  SystemClock.now+=ReplacementEngine.UNIFIED_JOIN_MS+20;p.current=source("1",1160,true);p.handler.drain();ok(warm.volume==1f&&e.effect.gain==-100f&&!e.fading,"ramp ends at replacement full volume and source muted");
   DynamicsProcessing sameEffect=e.effect;int attach= DynamicsProcessing.enabledCount;p.current=source("1",60000,true);e.update(p.current);ok(e.effect==sameEffect&&DynamicsProcessing.enabledCount==attach,"seeking does not release or reattach original attenuation");
   // An outstanding asynchronous seek is issued once; timeout restores the source.
   playing();warm=e.player;warm.asyncSeek=true;p.current=source("1",50000,true);e.update(p.current);int seeks=warm.seekCalls;e.update(p.current);ok(warm.seekCalls==seeks&&e.seeking,"pending seek is not repeatedly submitted");SystemClock.now+=2100;p.current=source("1",52100,true);e.update(p.current);ok(warm.released&&e.effect==null&&e.armed(),"seek timeout releases audio but retains automatic recovery");
@@ -77,13 +77,13 @@ public class TestEngine {
   // Old effect callbacks must not stop a new attachment.
   playing();DynamicsProcessing retired=e.effect;android.media.audiofx.AudioEffect.OnControlStatusChangeListener retiredListener=retired.listener;p.current=source("1",1000,false);e.update(p.current);SystemClock.now+=ReplacementEngine.PAUSE_GRACE_MS+20;p.current=source("1",1000,false);p.handler.drain();p.current=source("1",1000,true);e.update(p.current);retiredListener.onControlStatusChange(retired,false);ok(e.armed()&&e.effect!=null,"retired effect callback cannot stop new playback");
   playing();warm=e.player;e.stop("owner_return_original");SystemClock.now+=ReplacementEngine.FADE_MS+20;p.handler.drain();ok(warm.released&&e.effect==null&&!e.armed(),"queued ramp cannot restart audio after owner stop");
-  playing();SystemClock.now+=ReplacementEngine.COLD_JOIN_DIP_MS+20;p.current=source("1",1160,true);p.handler.drain();sameEffect=e.effect;p.current=source("1",60000,true);e.update(p.current);ok(e.effect==sameEffect&&e.player!=null&&AudioOwnership.exclusive(e.originalMix,e.player.volume)
+  playing();SystemClock.now+=ReplacementEngine.UNIFIED_JOIN_MS+20;p.current=source("1",1160,true);p.handler.drain();sameEffect=e.effect;p.current=source("1",60000,true);e.update(p.current);ok(e.effect==sameEffect&&e.player!=null&&AudioOwnership.exclusive(e.originalMix,e.player.volume)
      &&((e.seeking&&e.effect.gain==0f&&e.player.volume==0f)
        ||(!e.seeking&&e.effect.gain==-100f&&e.player.volume>0.99f)),
      "synchronous seek safely commits replacement or retains audible original until alignment");
-  playing();SystemClock.now+=ReplacementEngine.COLD_JOIN_DIP_MS+20;p.current=source("1",1160,true);p.handler.drain();warm=e.player;e.returnOriginal();ok(!e.armed()&&e.returning&&!warm.released,"manual return disables automatic mode and starts a bounded fade");SystemClock.now+=ReplacementEngine.FADE_MS+20;p.current=source("1",1320,true);p.handler.drain();ok(warm.released&&e.effect==null&&!e.returning,"manual return fade releases the player and original effect");
+  playing();SystemClock.now+=ReplacementEngine.UNIFIED_JOIN_MS+20;p.current=source("1",1160,true);p.handler.drain();warm=e.player;e.returnOriginal();ok(!e.armed()&&e.returning&&!warm.released,"manual return disables automatic mode and starts a bounded fade");SystemClock.now+=ReplacementEngine.FADE_MS+20;p.current=source("1",1320,true);p.handler.drain();ok(warm.released&&e.effect==null&&!e.returning,"manual return fade releases the player and original effect");
   // Phone report: seek -> transient false -> seek callback -> false ramp tick -> true.
-  playing();SystemClock.now+=ReplacementEngine.COLD_JOIN_DIP_MS+20;p.current=source("1",1160,true);p.handler.drain();warm=e.player;sameEffect=e.effect;int downloads=api.downloads;int resolves=api.resolves;warm.asyncSeek=true;
+  playing();SystemClock.now+=ReplacementEngine.UNIFIED_JOIN_MS+20;p.current=source("1",1160,true);p.handler.drain();warm=e.player;sameEffect=e.effect;int downloads=api.downloads;int resolves=api.resolves;warm.asyncSeek=true;
   p.current=source("1",67670,true);e.update(p.current);
   SystemClock.now+=30;p.current=source("1",67664,false);e.update(p.current);warm.seek.onSeekComplete(warm);
   ok(!warm.playing&&e.player==warm&&e.ready,"seek completion while source paused must not start audio or discard decoder");
@@ -113,7 +113,7 @@ public class TestEngine {
   playing();e.stop("owner_return_original");int stoppedResolves=api.resolves;e.update(p.current);ok(api.resolves==stoppedResolves&&e.player==null,"manual return does not immediately pre-download the same file again");
   reset("ALBUM");p.current=null;AttenuationService.Companion.session=null;e.arm();ok(e.armed()&&e.effect==null,"can enable waiting mode before Yandex starts");p.current=source("1",1000,true);e.update(p.current);waiting=prepare();ok(!waiting.playing,"Yandex song alone cannot authorize source attenuation");AttenuationService.Companion.session=101;e.update(p.current);ok(waiting.playing,"late song and panel connection need no second activation");e.close();
   // Owner Bluetooth report: route loss must pause the source and retain activation.
-  playing();SystemClock.now+=ReplacementEngine.COLD_JOIN_DIP_MS+20;p.current=source("1",1160,true);p.handler.drain();warm=e.player;sameEffect=e.effect;long routeDeadline=e.armedUntil;downloads=api.downloads;resolves=api.resolves;
+  playing();SystemClock.now+=ReplacementEngine.UNIFIED_JOIN_MS+20;p.current=source("1",1160,true);p.handler.drain();warm=e.player;sameEffect=e.effect;long routeDeadline=e.armedUntil;downloads=api.downloads;resolves=api.resolves;
   e.headphonesDisconnected();ok(p.pauseRequests==1&&e.waitingForRouteResume&&e.armedUntil==routeDeadline,"headphone loss requests source pause and retains automatic deadline");
   ok(!warm.playing&&e.player==warm&&e.effect==null&&sameEffect.released&&sameEffect.gain==0f,"route loss silences replacement and explicitly resets original gain before releasing effect");
   e.update(p.current);ok(!warm.playing&&e.waitingForRouteResume,"old playing snapshot cannot restart output after route loss");
@@ -128,7 +128,7 @@ public class TestEngine {
   p.current=source("2",0,true);e.identity(LogStore.map("mediaAlias","2","albumId","42","title","Песня","artist","Артист","durationMs",120000L),LogStore.map("candidateTrackId","8","method","ALBUM"));api.resolved.done(new JSONObject().put("found",false),null);
   p.current=source("1",0,true);e.identity(LogStore.map("mediaAlias","1","albumId","42","title","Песня","artist","Артист","durationMs",120000L),LogStore.map("candidateTrackId","7","method","ALBUM"));downloads=api.downloads;resolve();ok(api.downloads==downloads&&e.player!=null,"return after natural end uses file after fresh authorization");e.close();ok(!retained.exists(),"completed song cache deleted on shutdown");
   // The 0.3.54 HONOR trace shows playWhenReady=true while buffering during seeks.
-   playing();warm=e.player;SystemClock.now+=ReplacementEngine.COLD_JOIN_DIP_MS+50;p.current=source("1",1160,true);p.handler.drain();
+   playing();warm=e.player;SystemClock.now+=ReplacementEngine.UNIFIED_JOIN_MS+50;p.current=source("1",1160,true);p.handler.drain();
    p.current=buffering(1160);e.update(p.current);
    ok(warm.playing&&e.pausedAt<0&&e.sourceBufferSince>=0,
       "short play-intent buffering must not interrupt an audible decoder");

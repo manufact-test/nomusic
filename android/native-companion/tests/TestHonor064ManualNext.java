@@ -5,7 +5,7 @@ import android.media.audiofx.DynamicsProcessing;
 import android.os.SystemClock;
 
 /** HONOR regression: manual Next -> partial HTTP stream -> user scrub.
- * 0.3.65 rejects both the 260ms muted-source hold and repeated 500ms dips. */
+ * Retained seek must never restart the cold entry after a real Media3 Next. */
 public final class TestHonor064ManualNext {
  static int checks;
  static void check(boolean ok,String why){checks++;if(!ok)throw new AssertionError(why);}
@@ -31,28 +31,28 @@ public final class TestHonor064ManualNext {
     "next song begins from incomplete streaming cache with original still audible");
   return buffer;
  }
- static void finishColdDip(String alias)throws Exception{
+ static void finishUnifiedJoin(String alias)throws Exception{
   ReplacementEngine e=TestEngine.e;MediaPlayer p=e.player;
   tick(alias,p,60,1060);
   check(e.fading&&e.effect.gain==0f&&p.volume==0f,
-    "decoder must advance before the 500ms exclusive dip begins");
-  tick(alias,p,125,1185);
-  check(e.originalMix>0f&&e.originalMix<1f&&p.volume==0f,
-    "quarter-wave dip commands only the original before the midpoint");
-  tick(alias,p,125,1310);
-  check(e.effect.gain==-100f&&p.volume==0f,
-    "midpoint never overlaps the original and replacement waveforms");
-  tick(alias,p,125,1435);
-  check(e.effect.gain==-100f&&p.volume>0f&&p.volume<1f,
-    "second dip half raises replacement without any Yandex overlap");
-  tick(alias,p,130,1565);
+    "decoder must advance before the single clock-gated join begins");
+  tick(alias,p,40,1100);
+  check(e.originalMix>0.6f&&e.originalMix<0.9f&&p.volume>0.1f&&p.volume<0.4f,
+    "first quarter uses complementary source and replacement gains");
+  tick(alias,p,40,1140);
+  check(e.originalMix>0.49f&&e.originalMix<0.51f&&p.volume>0.49f&&p.volume<0.51f,
+    "midpoint avoids intentional total-volume valley");
+  tick(alias,p,40,1180);
+  check(e.originalMix>0.1f&&e.originalMix<0.4f&&p.volume>0.6f&&p.volume<0.9f,
+    "third quarter remains complementary linear, not equal-power");
+  tick(alias,p,60,1240);
   check(!e.fading&&e.audioOwner.state()==AudioOwnership.State.REPLACEMENT
       &&e.effect.gain==-100f&&p.volume==1f,
-    "cold 500ms dip must complete on the single verified replacement");
+    "unified cold join must complete on the verified replacement");
  }
  static void manualNextAndRepeatedPartialScrubs()throws Exception{
   TestStreamingEngine.Buffer buffer=newTrack("2",true);
-  finishColdDip("2");
+  finishUnifiedJoin("2");
   ReplacementEngine e=TestEngine.e;MediaPlayer p=e.player;
   DynamicsProcessing fx=e.effect;p.asyncSeek=true;
   int beforeResolves=TestEngine.api.resolves,beforeDownloads=TestEngine.api.downloads;
@@ -73,7 +73,7 @@ public final class TestHonor064ManualNext {
    tick("2",p,60,target+370);
    check(!e.fading&&!e.pendingStreamScrubJoin&&p.volume==1f
        &&fx.gain==-100f&&e.audioOwner.state()==AudioOwnership.State.REPLACEMENT,
-       "aligned partial scrub returns once without 500ms dip "+i);
+       "aligned partial scrub returns once without another cold join "+i);
   }
   check(TestEngine.api.downloads==beforeDownloads&&TestEngine.api.resolves==beforeResolves
       &&e.effect==fx&&!fx.released,
@@ -94,24 +94,24 @@ public final class TestHonor064ManualNext {
       "completed-cache fast scrub rejoins immediately without redundant dip");
   e.close();
  }
- static void autoNextAndCancelDuringDip()throws Exception{
+ static void autoNextAndCancelDuringJoin()throws Exception{
   TestStreamingEngine.Buffer buffer=newTrack("3",false);
-  finishColdDip("3");check(!buffer.complete(),"automatic next still plays a partial stream");
+  finishUnifiedJoin("3");check(!buffer.complete(),"automatic next still plays a partial stream");
   TestEngine.e.close();
   newTrack("4",false);
   ReplacementEngine e=TestEngine.e;MediaPlayer p=e.player;
-  tick("4",p,60,1060);tick("4",p,125,1185);
-  check(e.fading&&e.originalMix>0f&&e.originalMix<1f&&p.volume==0f,
-      "automatic next can be canceled during source-only down-half");
-  e.sourceBoundary("next_during_exclusive_dip");
+  tick("4",p,60,1060);tick("4",p,40,1100);
+  check(e.fading&&e.originalMix>0f&&e.originalMix<1f&&p.volume>0f,
+      "automatic next can be canceled during the ticketed linear join");
+  e.sourceBoundary("next_during_unified_join");
   SystemClock.now+=900;TestEngine.p.handler.drain();
   check(p.released&&e.player==null&&e.effect==null,
-      "confirmed next cancels all delayed dip and scrub callbacks");
+      "confirmed next cancels all delayed join and scrub callbacks");
   e.close();
  }
  public static void main(String[] args)throws Exception{
   manualNextAndRepeatedPartialScrubs();
-  autoNextAndCancelDuringDip();
-  System.out.println("PASS: "+checks+" HONOR manual Next, streaming/cached seeks, single cold dip and no repeated scrub dip");
+  autoNextAndCancelDuringJoin();
+  System.out.println("PASS: "+checks+" HONOR manual Next, streaming/cached seeks, single unified entry and no repeated cold join");
  }
 }

@@ -17,12 +17,6 @@ public class ProbeService extends Service {
  static ProbeService instance;final Handler handler=new Handler(Looper.getMainLooper());
  volatile PlaybackSource current;AlbumProbe albumProbe;ReplacementEngine replacement;androidx.media3.session.MediaController controller;ListenableFuture<androidx.media3.session.MediaController> connecting;PowerManager.WakeLock wake;boolean receiverRegistered,stopping,networkRegistered,networkSeen;ConnectivityManager connectivity;long lastWakeRenewal,lastState,lastConnectAttempt=-5000,emptySince=-1,lastLookaheadPoll=-2000;String lastLookaheadSource;int attempts;String lastStateKey="",connectionStatus="Подключаемся к Яндексу…",lastRoutes="";
  boolean alive(){return instance==this&&!stopping;}
- /** Lab preference is only accessible from a verified admin diagnostic view.
-     No microphone or playback-capture permission is used. */
- boolean experimentalCorrelatedJoin(){
-  return NativeApi.get(this).fullDiagnostics()
-    &&getSharedPreferences("celikom-join-lab",MODE_PRIVATE).getBoolean("correlated-linear",false);
- }
  public void onCreate(){super.onCreate();LogStore.init(this);}
  public IBinder onBind(Intent i){return null;}
  static final class NotificationContent {
