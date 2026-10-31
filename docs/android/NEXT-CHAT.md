@@ -1,3 +1,7 @@
+> **LATEST ANDROID HANDOFF, 31.10.2026: 0.3.61/code62 (accepted in part) + unreleased admin-only offline incident journal.** Read FIRST [HANDOFF-2026-10-31-AFTER-0361-INCIDENT-AUDIO.md](HANDOFF-2026-10-31-AFTER-0361-INCIDENT-AUDIO.md), then [ANDROID-INCIDENT-JOURNAL-CHECKPOINT-2026-10-31.md](ANDROID-INCIDENT-JOURNAL-CHECKPOINT-2026-10-31.md) and [AUDIO-0361-HONOR-POSITIVE-QA-AND-TAIL-2026-10-31.md](AUDIO-0361-HONOR-POSITIVE-QA-AND-TAIL-2026-10-31.md). The ready-to-paste NEXT CHAT MESSAGE is [START-NEXT-CHAT-2026-10-31-AFTER-0361.md](START-NEXT-CHAT-2026-10-31-AFTER-0361.md). Everything below regarding 0.3.55 or rejected 0.3.59 is historical; Android ONLY; do not touch desktop or release a new APK solely for this journal. Yandex smooth transitions OFF until audio is stable, then ON compatibility work after backup.
+
+---
+
 > **ФИНАЛЬНАЯ ДИАГНОСТИКА ПЕРЕДАЧИ 30.10.2026, 23:47:** Android 0.3.59 на HONOR **ОТВЕРГНУТА**: прежние лаги и новый регресс pause/resume. Документ с конкретными временами событий и ограничениями выводов: [AUDIO-0359-HONOR-DIAGNOSTIC-2026-10-30.md](AUDIO-0359-HONOR-DIAGNOSTIC-2026-10-30.md). [START-NEXT-CHAT-2026-10-30-AFTER-0359.md](START-NEXT-CHAT-2026-10-30-AFTER-0359.md) теперь окончательное готовое сообщение. Текущий чат сохранил только документы, **ничего не чинил и не выпускал после этой диагностики**.
 
 ---

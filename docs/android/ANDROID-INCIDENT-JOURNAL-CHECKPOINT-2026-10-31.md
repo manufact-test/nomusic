@@ -13,14 +13,20 @@ The private combined report `CELIKOM-combined-20261031-025719.txt` (not in GitHu
 - `IncidentJournal.java`: initializes at app/service startup through `LogStore.init()`, records anonymous app start, and (Android API 30+) the OS-reported previous process exit reason once per exit. It captures stage, elapsed time, error class and active network/VPN capabilities when an API request fails. Exceptions in logging never affect playback.
 - `LogStore.java`: forwards **only allowlisted** event categories to the incident journal whether or not the full privileged journal is recording.
 - `NativeApi.java`: records non-sensitive failure information on request exceptions, including failures that occurred before an HTTP status was received.
-- `RecorderActivity.java`: an independently available **«Сохранить журнал сбоев (офлайн)»** button, export via Android document picker, separate request code and snapshot from the admin-only full diagnostic export. No network, account or diagnostic grant required.
+- `RecorderActivity.java`: **«Сохранить журнал сбоев (офлайн)»** button, export via Android document picker, separate request code and snapshot from the admin-only full diagnostic export. **The button and every export action are ADMIN-ONLY** using the previously confirmed local admin identity hint. No **live network or renewed 60-second full-diagnostic lease** is required, but the admin must remain signed in and must have previously been verified online.
 - `TestIncidentLog.java`: host regression for redaction, offline persistence across object/process recreation, bounded rotation, process-exit reason and restricted event schema; included in both native addon host suite and release build test list.
 
 This addition does **not** change `ReplacementEngine`, audio ownership, preparation/seek/pause, desktop code, Yandex backend, hosting, permissions, signing, release-spec or auto-update routes. Existing Android 0.3.61/code62 remains the published stable APK. No version bump yet; it should be bundled with the next justified, tested Android release.
 
+## Admin-only export policy — owner final decision, code commit 5327c146
+
+The offline recording remains running for troubleshooting regardless of backend privilege, but **ONLY a signed-in, previously online-verified administrator sees the export button**. The same local verified-user hint used by the old admin diagnostic UI is re-used; there is no unrestricted new role or extra user-facing button. Ordinary users see neither diagnostic button nor extra blank vertical space (View.GONE). The account switch/logout clears the hint. A new admin device must verify online once; an outage before that first verification cannot be bypassed. The export handler and callback re-check the account hint, so hiding the button is not the only guard. A native regression covers signed-out/other-account/unverified cases in TestDiagnosticAccess.java. Offline journal content is strictly anonymous and still does not rely on the detailed 60-second owner grant; the old full private trace retains its original gate.
+
+This change also fixed restoration of an in-progress incident snapshot across Activity recreation when no unrelated full-report snapshot exists. As of this checkpoint both changes are source-only and will be delivered with the next jointly tested Android audio release; neither is on the installed 0.3.61. Admin UI code CI: https://github.com/manufact-test/nomusic/actions/runs/41150122610 — native-android SUCCESS, publish job SUCCESS with same-version deploy skipped.
+
 ## Acceptance requirements
 
-1. With the server unreachable or signed out, launch the app, attempt a CELIKOM network operation, then export the offline incident journal **without entering credentials**.
+1. First log in as a recognized admin while online; with the server then unreachable but admin still signed in, attempt a CELIKOM network operation and export the anonymous offline incident journal **without renewing a server grant**. A signed-out account must NOT see the button or export.
 2. Close/kill/restart the app; earlier errors must still appear. On API30+, include the previous process exit reason when available. The inability of a terminated process to record a precise instant of death remains an OS limitation.
 3. Unit test confirms the incident TXT cannot contain song/artist, user email, tokens, arbitrary server response, or raw exception messages.
 4. Trigger repeated events: size remains bounded; exporter does not depend on network or full owner-only diagnostic grant.
@@ -30,7 +36,7 @@ This addition does **not** change `ReplacementEngine`, audio ownership, preparat
 
 The owner A/B-tested Yandex Music smooth transitions: playback tails behaved well while the AI/smooth-transition feature was OFF and short overlaps/transition problems returned when ON. The log has native early transition candidates with 1.4–6.8 seconds remaining but no Android-readable setting state. Do not claim raw `userSeek=true` proves manual touches or that log timestamps measure actual acoustic silence (`hardwareOutputMeasured=false`).
 
-Agreed development order to confirm with owner: keep Yandex smooth transitions OFF while stabilizing first-track and next-track original→replacement cold handover, then protect baseline with a backup and separately research smooth-transition interoperability. Do not build a second independent prefetch/seek controller or alter live audio without a failing replay.
+Agreed development order CONFIRMED with owner: keep Yandex smooth transitions OFF while stabilizing first-track and next-track original→replacement cold handover, then protect baseline with a backup and separately research smooth-transition interoperability. Do not build a second independent prefetch/seek controller or alter live audio without a failing replay.
 
 **Fallback question (not approved for implementation):** No documented public Yandex Music integration was found to programmatically change its smooth-transition preference. Ordinary Android apps cannot write arbitrary private settings of another app. A user-visible explanatory prompt/manual setting route is safer; UI automation through Accessibility requires explicit user opt-in, is fragile and out of scope. Research interoperability first.
 
