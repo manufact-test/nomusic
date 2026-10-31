@@ -54,4 +54,21 @@ The tests prove deterministic transport-clock behavior and owner lifecycle under
 - Offline packaging/JDK toolchain artifacts uploaded successfully.
 - `publish-stable` — **SKIPPED** on the staging branch.
 
-The failed intermediate run `41237595555` exposed the historical 204ms acceptance invariant; the production threshold was raised from 200ms to 225ms. The final run above verifies the corrected threshold and the 0.3.60 regression. No signed APK, version bump, release or production deployment was created.
+The failed intermediate run `41237595555` exposed the historical 204ms acceptance invariant; the production threshold was raised from 200ms to 225ms. The final run above verifies the corrected threshold and the 0.3.60 regression. That validation run itself did not create a signed APK, version bump, release or production deployment; the separate non-publishing signed test build is recorded below.
+
+
+## Signed non-publishing HONOR seek-test APK — 31.10.2026
+
+- **Build workflow:** [GitHub Actions run 41238844237](https://github.com/manufact-test/nomusic/actions/runs/41238844237) — **SUCCESS**.
+- **Source/build commit:** `4d7904b156a5fe2b500f6ba97c2cff7be56a9861`.
+- **Artifact:** [CELIKOM Android 0.3.71 HONOR seek-test APK](https://github.com/manufact-test/nomusic/actions/runs/41238844237/artifacts/13056871292).
+- **Filename:** `CELIKOM-Android-0.3.71-SEEK-TEST-SIGNED.apk`.
+- **Package/version:** `pro.celikom.nativeprobe`, `0.3.71`, versionCode `72`.
+- **APK SHA-256:** `444b6c230aaddf2995138c3ad85286433dd25b3994e8a2871fe53d97dba4cb14`.
+- **Signer SHA-256:** `67fe81c56fac1c1d145344b69a0e3faf9005cf6607f4e26ca27d5926c3eefc4f`.
+
+The dedicated `build-honor-seek-test-apk` job downloaded the offline kit from the same successful run, retrieved the SHA-pinned original base APK from private Hostinger build inputs, reconstructed the original signing identity in isolated runner storage, rebuilt from current source and ran the full host regression suite during packaging. The independent verifier passed: original signing identity, APK v2/v3 signature, alignment, version/API, approved manifest boundary, unchanged catalogue assets, exact compiled addon DEX, and absence of recovery source/signing files from the APK.
+
+`publish-stable` was **SKIPPED**. The test APK was uploaded only as a GitHub Actions artifact; there was no Hostinger upload, stable manifest mutation, stable version bump or production deployment. VersionCode 72 was deliberately retained to permit an in-place same-signer update and preserve rollback to the immutable 0.3.71 baseline.
+
+**Device acceptance remains outstanding.** The signed APK has not yet been listened to on the HONOR phone. It does not prove that the audible micro-rewind, Bluetooth phase or speaker output issue is resolved. Follow the install and test checklist in [ANDROID-0371-SEEK-TEST-APK-RECEIPT-2026-10-31.md](ANDROID-0371-SEEK-TEST-APK-RECEIPT-2026-10-31.md).
