@@ -1,3 +1,20 @@
+# LATEST TECHNICAL AUDIT — 01.11.2026 — CELIKOM 0.3.72 / HONOR
+
+**READ FIRST:** [ANDROID-0372-HONOR-AUDIO-DIAGNOSTIC-AUDIT-2026-11-01.md](ANDROID-0372-HONOR-AUDIO-DIAGNOSTIC-AUDIT-2026-11-01.md).
+
+- Audit branch: `feature/android-0372-honor-audio-audit-staging`, based directly on production HEAD `5e18fd070dbf6115f643079b03637b0d180e9665`.
+- No audio-engine, manifest, OTA or production changes. No new APK was built or published.
+- The combined owner journal has three separate runs: 0.3.70 (7 join-clock summaries), 0.3.71 (none), 0.3.72 (none). Never mix event counts across `run_start` boundaries.
+- In 0.3.72, 37 logged ALIGNMENT callbacks exclude two WARM seek starts; the two WARM callbacks have no timing event. Two long ALIGNMENT callbacks coincide with replacement HTTP range waits.
+- Nine new-song joins have 122–250 ms transport drift immediately before the existing 160 ms envelope; all explicitly mark PCM unmeasured and phase unverified.
+- Media3 seek events and command-level silence/overlap are not proof of a finger gesture or acoustic output. The current `manualNextButtonObserved` runtime field is hardcoded false.
+- Experimental `feature/android-0371-honor-diagnostic-audit-staging` remains unmerged. Its seek-offset policy changes transport clock normalization, not PCM phase; it has a baseline-creep test gap and stale 200/900 ms documentation versus current 225/925 ms source constants.
+- Seven synthetic offline diagnostic regression checks were added and wired into the Android validation workflow on this audit branch. `publish-stable` remains restricted to the production branch.
+
+**Next action:** review the audit and the diagnostic-only test plan before authorizing any runtime instrumentation or PCM-capture experiment. Keep all audio behavior and thresholds unchanged until the owner performs acoustic acceptance on HONOR.
+
+---
+
 # CURRENT OWNER ACOUSTIC VERDICT — 01.11.2026 — CELIKOM 0.3.72
 
 **READ FIRST:** [ANDROID-0372-HONOR-OWNER-LISTENING-AND-DIAGNOSTIC-CHECKPOINT-2026-11-01.md](ANDROID-0372-HONOR-OWNER-LISTENING-AND-DIAGNOSTIC-CHECKPOINT-2026-11-01.md). The owner has tested the OTA on HONOR: update install, exit and removal from Recents **ACCEPTED**. No changes to the updater are wanted.
