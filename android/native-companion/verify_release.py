@@ -93,7 +93,7 @@ def main():
         assert dex.startswith(b"dex" + bytes([10])), "Signed addon has no DEX header"
         markers = (
             VERSION.encode("ascii"), b"ReplacementEngine", b"AudioOwnership",
-            b"ClockSupervisor", b"SourceEventArbiter", b"retireDecoder",
+            b"ClockSupervisor", b"SeekAlignmentPolicy", b"SourceEventArbiter", b"retireDecoder",
             b"SourceTransitionGate", b"AudioContinuityMonitor",
             b"audio_command_anomaly", b"audio_decoder_start",
             b"replacement_resume_fast", b"replacement_duration_mismatch",
@@ -105,6 +105,12 @@ def main():
     engine = (addon / "ReplacementEngine.java").read_text()
     ownership = (addon / "AudioOwnership.java").read_text()
     matcher = (addon / "AlbumMatch.java").read_text()
+    seek_policy = (addon / "SeekAlignmentPolicy.java").read_text()
+    assert "ACCEPT_RESIDUAL_MS=225" in seek_policy
+    assert "MAX_BASELINE_MS=700" in seek_policy
+    assert "MAX_DERIVED_BASELINE_MS=MAX_BASELINE_MS+ACCEPT_RESIDUAL_MS" in seek_policy
+    assert "seekAlignment.supervisedDrift(drift)" in engine
+    assert "seekAlignment.decoderTarget(target,p.getDuration())" in engine
     assert "PAUSE_RESUME_FADE_MS=180" in engine and "PAUSE_GRACE_MS=30000" in engine
     assert "HANDOVER_DRIFT_MS=350" in engine
     assert "warmSeekTransition" not in engine and "handoverPending" not in engine, "Competing audio clock flags returned"
