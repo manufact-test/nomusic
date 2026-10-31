@@ -10,7 +10,15 @@ public final class TestHonor071SeekResidual {
  static void check(boolean ok,String why){checks++;if(!ok)throw new AssertionError(why);}
  static void start(ReplacementEngine e,MediaPlayer p){
   p.position+=50;SystemClock.now+=50;TestEngine.p.current=TestEngine.source("1",1050,true);e.update(TestEngine.p.current);
-  p.position+=600;SystemClock.now+=600;TestEngine.p.current=TestEngine.source("1",1650,true);TestEngine.p.handler.drain();
+  p.position+=600;SystemClock.now+=600;TestEngine.p.current=TestEngine.source("1",1650,true);e.update(TestEngine.p.current);
+  TestEngine.p.handler.drain();
+  /* The first drain validates decoder advancement and starts the 160ms cold
+     join. Advance that join explicitly before using this as a seek baseline. */
+  if(e.fading){
+   SystemClock.now+=ReplacementEngine.UNIFIED_JOIN_MS;p.position+=ReplacementEngine.UNIFIED_JOIN_MS;
+   TestEngine.p.current=TestEngine.source("1",p.position,true);e.update(TestEngine.p.current);
+   TestEngine.p.handler.drain();
+  }
   check(!e.fading&&p.volume>0.99f&&e.effect!=null&&e.effect.gain==-100f,
     "precondition: replacement owns output after verified initial join");
  }
