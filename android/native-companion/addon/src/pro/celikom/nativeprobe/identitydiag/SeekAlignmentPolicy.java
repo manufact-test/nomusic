@@ -8,7 +8,7 @@ import java.util.Arrays;
  * introduced by a user scrub. It is not an acoustic/Bluetooth latency meter.
  */
 final class SeekAlignmentPolicy {
- static final long ACCEPT_RESIDUAL_MS=200;
+ static final long ACCEPT_RESIDUAL_MS=225;
  static final long MAX_BASELINE_MS=700;
  static final long MAX_DERIVED_BASELINE_MS=MAX_BASELINE_MS+ACCEPT_RESIDUAL_MS;
  static final long STABILITY_SPREAD_MS=45;
