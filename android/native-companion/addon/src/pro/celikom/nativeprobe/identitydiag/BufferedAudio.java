@@ -13,7 +13,7 @@ class BufferedAudio implements Closeable {
  final BitSet present=new BitSet(),loading=new BitSet();final Set<HttpURLConnection> connections=new HashSet<>();
  final ScheduledExecutorService watcher=Executors.newSingleThreadScheduledExecutor();final ExecutorService background=Executors.newSingleThreadExecutor();
  volatile int playbackBlock;volatile long size=-1,waitingSince=-1;volatile boolean closed;String etag;boolean detached;IOException fatal;
- boolean prefetchActive,prefetchAttempted;
+ boolean prefetchActive,prefetchAttempted,prefetchRecoveryPending;
  BufferedAudio(File file,Open open,BooleanSupplier valid,LongSupplier clock,Events events){this.file=file;this.open=open;this.valid=valid;this.clock=clock;this.events=events;
   watcher.scheduleAtFixedRate(()->{if(!valid.getAsBoolean())close();},100,100,TimeUnit.MILLISECONDS);
  }
@@ -28,7 +28,13 @@ class BufferedAudio implements Closeable {
   try{background.execute(()->{
    try{while(!closed){int b=nextPrefetchBlock();if(b<0)break;fetch(b);}if(complete())events.event("replacement_stream_cached",size);}
    catch(IOException e){events.event("replacement_stream_prefetch_wait",cachedBytes());}
-   finally{synchronized(BufferedAudio.this){prefetchActive=false;}}
+   finally{
+    boolean rearm;
+    synchronized(BufferedAudio.this){prefetchActive=false;rearm=prefetchRecoveryPending;prefetchRecoveryPending=false;}
+    // The decoder may have proved the connection healthy while the worker
+    // was still reporting its previous failure. Never lose that one wakeup.
+    if(rearm)prefetch();
+   }
   });}catch(RejectedExecutionException e){synchronized(this){prefetchActive=false;}if(!closed)throw e;}
  }
  synchronized int nextPrefetchBlock(){int count=blocks();if(count==0)return -1;int cursor=Math.max(0,Math.min(count-1,playbackBlock));for(int b=cursor;b<count;b++)if(!present.get(b))return b;for(int b=0;b<cursor;b++)if(!present.get(b))return b;return -1;}
@@ -51,8 +57,14 @@ class BufferedAudio implements Closeable {
       endlessly failing worker; no timers or unbounded retry queues. */
    // Do not start an extra download during the initial decoder prepare:
    // only re-arm a prefetch that the playback lifecycle already requested.
-   boolean prefetchWasStarted; synchronized(this){prefetchWasStarted=prefetchAttempted;}
-   if(cacheMiss&&prefetchWasStarted)prefetch();
+   boolean rearm=false;
+   if(cacheMiss)synchronized(this){
+    if(prefetchAttempted){
+     if(prefetchActive)prefetchRecoveryPending=true;
+     else rearm=true;
+    }
+   }
+   if(rearm)prefetch();
    return count;}
   finally{waitingSince=-1;}
  }

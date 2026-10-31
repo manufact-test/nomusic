@@ -36,10 +36,14 @@ public class TestBufferedAudio {
      requests. A later successful decoder miss must re-arm ONE background fill,
      not leave the private song partial forever or spin on cached reads. */
   server=new Server();server.failBlockTwoRemaining.set(3);valid=new AtomicBoolean(true);
-  CountDownLatch prefetchFailed=new CountDownLatch(1),eventuallyCached=new CountDownLatch(1);
+  CountDownLatch prefetchFailed=new CountDownLatch(1),releasePrefetchFailure=new CountDownLatch(1),eventuallyCached=new CountDownLatch(1);
   a=new BufferedAudio(File.createTempFile("celikom-range-recovery-",".test"),server,valid::get,
     ()->System.nanoTime()/1000000,(event,bytes)->{
-      if(event.equals("replacement_stream_prefetch_wait"))prefetchFailed.countDown();
+      if(event.equals("replacement_stream_prefetch_wait")){
+       prefetchFailed.countDown();
+       try{if(!releasePrefetchFailure.await(5,TimeUnit.SECONDS))throw new AssertionError("prefetch failure not released");}
+       catch(InterruptedException e){Thread.currentThread().interrupt();throw new AssertionError(e);}
+      }
       if(event.equals("replacement_stream_cached"))eventuallyCached.countDown();
     });
   try{
@@ -51,11 +55,14 @@ public class TestBufferedAudio {
    check(a.readAt(demanded,recovered,0,recovered.length)==recovered.length
        &&recovered[0]==server.data[(int)demanded],
      "post-failure successful on-demand sparse block is validated and readable");
+   check(a.prefetchActive,
+     "race reproduction: decoder recovered while old prefetch worker was still failing");
+   releasePrefetchFailure.countDown();
    check(eventuallyCached.await(5,TimeUnit.SECONDS)&&a.complete(),
-     "RED 0.3.67: successful demand read must automatically restart stopped prefetch");
+     "RED 0.3.67: demand success before worker cleanup must still restart prefetch");
    check(server.requests.get()>requestsBefore,
      "recovery fills missing blocks, rather than spinning on cached reads");
-  }finally{a.close();}
+  }finally{releasePrefetchFailure.countDown();a.close();}
   server=new Server();server.badRange=true;rejected(server,"invalid_audio_range");server=new Server();server.deny=true;rejected(server,"audio_range_unavailable");server=new Server();server.ignoreRange=true;rejected(server,"audio_range_unavailable");
   server=new Server();server.changedTag=true;a=audio(server,new AtomicBoolean(true),new CountDownLatch(1));try{a.initialize();try{a.readAt(BufferedAudio.BLOCK,new byte[4],0,4);throw new AssertionError("mixed version accepted");}catch(IOException e){check(e.getMessage().equals("audio_version_changed"),"changed validator never mixes editions");}}finally{a.close();}
   server=new Server();server.blockRead=true;valid=new AtomicBoolean(true);a=audio(server,valid,new CountDownLatch(1));final BufferedAudio cancelled=a;AtomicReference<Throwable> error=new AtomicReference<>();Thread reader=new Thread(()->{try{cancelled.initialize();}catch(Throwable e){error.set(e);}});reader.start();Thread.sleep(150);valid.set(false);reader.join(2000);check(!reader.isAlive()&&error.get()!=null&&server.disconnected,"Stop/account/track cancellation interrupts blocked network promptly");a.close();
