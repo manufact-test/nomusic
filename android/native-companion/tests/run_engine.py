@@ -47,6 +47,7 @@ subprocess.run(['java','-cp',str(out)+os.pathsep+str(json),'pro.celikom.nativepr
 # HONOR 0.3.71 seek-scoped baseline policy: preserve stable clock offset,
 # correct only new post-seek residual, and retain pause/Next cancellation gates.
 # Transport tests do not measure acoustic phase or speaker output.
+# Keep these tests mandatory in both host-only and SDK36/D8 validation.
 subprocess.run(['java','-cp',str(out)+os.pathsep+str(json),'pro.celikom.nativeprobe.identitydiag.TestHonor071SeekResidual'],check=True)
 subprocess.run(['java','-cp',str(out)+os.pathsep+str(json),'pro.celikom.nativeprobe.identitydiag.TestSeekAlignmentPolicy'],check=True)
 
