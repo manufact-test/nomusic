@@ -1,3 +1,7 @@
+> **CURRENT STATUS — 31.10.2026:** the Update Center is implemented and CELIKOM Android **0.3.72 / versionCode 73 is published** to the stable channel. The previous plan to build the first updater-bearing 0.3.56/57 is historical and superseded. See [ANDROID-0372-OTA-RELEASE-RECEIPT-2026-10-31.md](ANDROID-0372-OTA-RELEASE-RECEIPT-2026-10-31.md) for APK SHA, DEX SHA, original signer, live manifest verification and the exact HONOR OTA acceptance steps. The owner must now test update discovery and successful-install removal from Recents on device; do not claim physical acceptance until then.
+
+---
+
 # Передача CELIKOM Android / Update Center — следующий чат · 30.10.2026
 
 > **ТЕКУЩИЙ ПРИОРИТЕТ — РАЗРАБОТКА**, не очередной обзор. Полное ТЗ: [UPDATE-CENTER-MASTER-2026-10-30.md](UPDATE-CENTER-MASTER-2026-10-30.md). Детальный тестовый план: [UPDATE-CENTER-RELEASE-QA-2026-10-30.md](UPDATE-CENTER-RELEASE-QA-2026-10-30.md). Первая реплика: [START-NEXT-CHAT-UPDATE-CENTER-2026-10-30.md](START-NEXT-CHAT-UPDATE-CENTER-2026-10-30.md). Предыдущее обновление Gate G: [UNIFIED-AUDIO-GATE-PROGRESS-2026-10-30.md](UNIFIED-AUDIO-GATE-PROGRESS-2026-10-30.md).
