@@ -166,3 +166,39 @@
 4. Анализировать только запуск версии 0.3.48 в журнале, а не два старых запуска. Не объявлять reconnect по одному HTTP 200 или смене трека; отличать `media3_connected`, `replacement_recovery`, `source_boundary` и эффект.
 5. При провале не менять задержку вслепую — сначала воспроизвести точную последовательность и добавить тест, затем **весь** регрессионный набор; новый APK только одним комплектом.
 6. Не трогать стабильную компьютерную 0.4.65, сервер, CMS и таблицу каталога. Android-ветка изолирована.
+
+
+---
+
+#21. 0.3.71 HONOR seek-scoped transport baseline — 31.10.2026
+
+**Current staging branch:** `feature/android-0371-honor-diagnostic-audit-staging`
+
+**Validated code commit:** `032bd8f2c77d6deb069155923a602bf242aebdf1`
+
+**CI receipt:** [GitHub Actions 41237891623](https://github.com/manufact-test/nomusic/actions/runs/41237891623) — SUCCESS. Android API 36 compile + D8 SUCCESS; native host suite SUCCESS; release-contract/provenance checks SUCCESS; `publish-stable` SKIPPED.
+
+## New seek policy
+
+- Learn an initial stable source/decoder transport offset from at least 3 samples spanning ≥250ms, spread ≤45ms, sample gap ≤600ms, and magnitude ≤700ms.
+- Freeze a fresh baseline (age ≤1,200ms) at user seek start.
+- Seek the existing prepared decoder to `sourcePosition - baselineOffset`; do not create a new decoder/audio session.
+- Compare `rawResidual - baselineOffset` against **225ms**. This retains the 0.3.60 204ms no-extra-seek contract while correcting 226ms+ new error when no stable offset explains it.
+- After a validated seek, a trusted baseline plus accepted residual may derive a stable offset up to925ms; a fresh untrusted offset above700ms is not learned.
+- Above225ms new residual: keep original audible and perform at most two silent same-decoder corrections. If confidence is still insufficient, fail open to original for that track.
+- Normalize steady ClockSupervisor drift against the stable baseline; invalidate baseline on pause/buffering pause, route loss, release, source boundary and track change.
+
+## Mandatory new/updated tests
+
+- `TestSeekAlignmentPolicy`: no-baseline 204ms accepted / 226ms corrected; 206ms and 550ms stable offsets; baseline freeze; 283ms raw with 206ms baseline accepted as77ms delta; 456ms raw with206ms baseline corrected as250ms delta; expiry and stability spread.
+- `TestHonor060Journal`: 204ms streaming residual must not trigger a second seek.
+- `TestHonor063SeekScrub`: 280ms slow scrub corrected, fast scrub retained.
+- `TestHonor064ManualNext`: repeated partial-stream scrubs, corrections, cached seeks and Next ownership.
+- `TestHonor067SlowStreamSeek`: 2792/933/17ms sparse Range sequence; at most two corrections, final17ms accepted.
+- `TestHonor071SeekResidual`: 283ms raw with stable206ms baseline accepted; new250ms delta corrected; no-baseline283ms corrected; pause/Next/stale callback fences.
+
+## Evidence limits / release rules
+
+Transport position tests do not measure PCM phase, speaker output, or physical Bluetooth latency. The 160ms complementary cold join is unchanged and remains listening-verified only, not phase-proven.
+
+The CI run staged an offline packaging kit and unsigned DEX only. It did **not** create a signed APK, bump the app version, publish a release, or alter the immutable 0.3.71 installed baseline. A real HONOR listening run is still required before considering any test APK for installation.
