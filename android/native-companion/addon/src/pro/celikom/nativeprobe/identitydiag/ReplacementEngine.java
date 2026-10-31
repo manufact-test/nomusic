@@ -153,22 +153,9 @@ final class ReplacementEngine {
    boolean retainedPauseResume=resumed&&retainedPosition&&effect!=null;
    if(fading&&audioOwner.handoverAwaitingClock()&&!sourceJump)return;
    // A retained paused decoder already at the native position needs no seek.
-   /* A detached DSP effect after a genuine long pause must not let the
-      retained decoder bypass its stricter source-position check. Keep the
-      350ms shortcut for ordinary short pauses with a retained effect. */
-   boolean detachedLongResume=resumed&&pausedDuration>=PAUSE_GRACE_MS&&effect==null;
-   if(resumed&&pausedDuration>=PAUSE_ALIGN_DELAY_MS
-     &&(effect!=null||detachedLongResume)
-     &&Math.abs(drift)>(retainedPauseResume?HANDOVER_DRIFT_MS:PAUSE_ALIGN_TOLERANCE_MS)){
-    if(detachedLongResume)LogStore.log("replacement_detached_resume_resync",LogStore.map(
-      "trackId",trackId,"pauseDurationMs",pausedDuration,"driftMs",drift,
-      "originalAudible",true,"decoderSilent",commandedReplacementVolume<=0.001f));
-    seek(s,target,drift);return;
-   }
-   if(!aligned&&retainedPosition&&Math.abs(drift)<=HANDOVER_DRIFT_MS){
-    aligned=true;resumePositionRetained=false;
-    LogStore.log("replacement_resume_aligned",LogStore.map("trackId",trackId,"driftMs",drift,"seekSkipped",true));
-   }
+   if(!aligned&&retainedPosition&&Math.abs(drift)<=HANDOVER_DRIFT_MS){aligned=true;resumePositionRetained=false;LogStore.log("replacement_resume_aligned",LogStore.map("trackId",trackId,"driftMs",drift,"seekSkipped",true));}
+   /* Source position is authoritative after a pause: resync off-output if necessary. */
+   if(resumed&&pausedDuration>=PAUSE_ALIGN_DELAY_MS&&effect!=null&&Math.abs(drift)>(retainedPauseResume?HANDOVER_DRIFT_MS:PAUSE_ALIGN_TOLERANCE_MS)){seek(s,target,drift);return;}
    ClockSupervisor.Decision clockDecision=clockSupervisor.assess(aligned,!seeking&&!audioOwner.handoverAwaitingClock(),sourceJump,drift,clock);
    if(clockDecision==ClockSupervisor.Decision.RESTORE_SOURCE){
     String key=identityKey;LogStore.log("replacement_drift_unstable",LogStore.map("trackId",trackId,"sourcePositionMs",target,"driftMs",drift,"fallback","original_until_next_track","clockSupervisor","confirmed"));
@@ -447,7 +434,6 @@ final class ReplacementEngine {
   final boolean alignLive=streaming!=null;
   final long[] baseline={p.getCurrentPosition()},phaseStarted={SystemClock.elapsedRealtime()};
   final int[] corrections={0};final long[] softStarted={-1};
-  final long[] joinDriftStart={Long.MIN_VALUE},joinDriftMin={Long.MAX_VALUE},joinDriftMax={Long.MIN_VALUE};
   if(originalMix<=0.001f&&!seekHoldActive){
    setAuditedVolume(p,0f);
    audioOwner.sourceGainDuringAlignment(fx);originalMix=1f;traceAudioCommands();
@@ -495,22 +481,12 @@ final class ReplacementEngine {
          "sourcePcmMeasured",false,"phaseVerified",false,"oneMode",true));
      }
      long elapsed=Math.max(0,SystemClock.elapsedRealtime()-softStarted[0]);
-     // Passive transport-clock observation; no source PCM or speaker phase.
-     long joinDrift=position(owner.current)-p.getCurrentPosition();
-     if(joinDriftStart[0]==Long.MIN_VALUE)joinDriftStart[0]=joinDrift;
-     joinDriftMin[0]=Math.min(joinDriftMin[0],joinDrift);
-     joinDriftMax[0]=Math.max(joinDriftMax[0],joinDrift);
       float mix=TransitionMix.progress(elapsed,UNIFIED_JOIN_MS);
      float gain=(float)Math.min(1,Math.pow(10,Math.min(0,descriptor==null?0:descriptor.optDouble("gain_db",0))/20));
      float volume=audioOwner.blendSameSong(p,fx,mix,Math.max(0.00001f,gain),ownerKey,ownerEpoch,handoverTicket.operationEpoch);
      originalMix=1f-mix;commandedReplacementVolume=volume;traceAudioCommands();
       if(elapsed<UNIFIED_JOIN_MS){owner.handler.postDelayed(this,20);return;}
      applyVolume(1f);
-     LogStore.log("replacement_join_clock_summary",LogStore.map(
-       "trackId",trackId,"joinDriftStartMs",joinDriftStart[0],
-       "joinDriftEndMs",position(owner.current)-p.getCurrentPosition(),
-       "joinDriftMinMs",joinDriftMin[0],"joinDriftMaxMs",joinDriftMax[0],
-       "sourcePcmMeasured",false,"phaseVerified",false,"hardwareOutputMeasured",false));
     }else{
      audioOwner.grantReplacement(fx);originalMix=0f;applyVolume(1f);
     }

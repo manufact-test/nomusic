@@ -78,35 +78,8 @@ public final class TestHonor066JoinLab {
     "reattached long-pause session also uses one complementary linear policy");
   e.close();
  }
- static void detachedLongPauseResyncBeforeJoin()throws Exception{
-  ReplacementEngine e=start();MediaPlayer p=e.player;
-  advance(ReplacementEngine.UNIFIED_JOIN_MS+20);
-  p.position=sourcePosition; // a synchronized decoder before the real pause
-  TestEngine.p.current=TestEngine.source("1",sourcePosition,false);
-  e.update(TestEngine.p.current);
-  p.asyncSeek=true;
-  SystemClock.now+=ReplacementEngine.PAUSE_GRACE_MS+5704;
-  TestEngine.p.current=TestEngine.source("1",sourcePosition,false);
-  TestEngine.p.handler.drain();
-  check(e.effect==null&&!p.playing,"35.7s pause releases the native DSP effect");
-  int before=p.seekCalls;
-  sourcePosition+=132; // HONOR 0.3.69: observed coarse drift on detached resume
-  TestEngine.p.current=TestEngine.source("1",sourcePosition,true);
-  e.update(TestEngine.p.current);
-  check(p.seekCalls==before+1&&e.seeking&&e.effect==null,
-    "132ms after detached long pause cannot begin an uncorrected join");
-  check(p.volume==0f&&!p.playing&&e.originalMix==1f,
-    "original remains audible and replacement silent during resync");
-  p.seek.onSeekComplete(p);
-  check(!e.seeking&&e.effect!=null&&p.playing&&e.fading,
-    "only seek completion authorizes the reattachment");
-  advance(ReplacementEngine.UNIFIED_JOIN_MS+20);
-  check(!e.fading&&e.effect.gain==-100f&&p.volume==1f,
-    "detached resume completes the existing one-mode join");
-  e.close();
- }
  public static void main(String[] args)throws Exception{
-  unifiedLinearJoin();midJoinBoundaryInvalidatesTicket();midJoinPauseRetainsSource();longPauseReattachesWithSameJoin();detachedLongPauseResyncBeforeJoin();
+  unifiedLinearJoin();midJoinBoundaryInvalidatesTicket();midJoinPauseRetainsSource();longPauseReattachesWithSameJoin();
   System.out.println("PASS: "+checks+" unified HONOR entry and failure-ownership checks");
  }
 }

@@ -38,25 +38,15 @@ public class TestResumeClock {
   TestEngine.playing();e=TestEngine.e;player=e.player;
   SystemClock.now+=ReplacementEngine.UNIFIED_JOIN_MS+20;sample(1160,true);TestEngine.p.handler.drain();
   player.position=1160;sample(1160,false);SystemClock.now+=ReplacementEngine.PAUSE_GRACE_MS+20;sample(1160,false);TestEngine.p.handler.drain();
-  /* HONOR 0.3.69: after a >30s pause the DSP effect was released.
-     The previous 350ms retained-position shortcut skipped realignment on a
-     132ms offset and could repeat a syllable on the following overlap.
-     A short retained-effect pause still avoids its extra seek. */
-  player.asyncSeek=true;
+  /* Recorded 0.3.45 phone: 210-254ms pause offset was formerly fixed via a
+     second seek, but this is inside the existing 350ms verified clock budget. */
   int beforeResume=player.seekCalls;sample(1380,true);
-  check(player.seekCalls==beforeResume+1&&e.seeking,
-    "220ms detached long-pause offset must get one silent decoder resync");
-  check(e.effect==null&&!player.playing&&player.volume==0f,
-    "long-pause correction keeps original audible with decoder silent");
-  player.seek.onSeekComplete(player);
-  check(!e.seeking&&e.effect!=null&&player.playing,
-    "validated decoder position may reattach one source effect");
-  check(e.fadeStarted>=0&&!e.resumeFadePending,
-    "resumed decoder stays under audio ownership after realignment");
-  int afterResume=player.seekCalls;SystemClock.now+=ReplacementEngine.UNIFIED_JOIN_MS+20;
+  check(player.seekCalls==beforeResume&&!e.seeking,"220ms retained offset resumes without an extra audible seek");
+  check(e.effect!=null&&player.playing,"source remains under the verified replacement effect during resume");
+  check(e.fadeStarted>=0&&!e.resumeFadePending,"resumed decoder remains under audio ownership after bounded alignment");
+  int afterResume=player.seekCalls;SystemClock.now+=ReplacementEngine.PAUSE_RESUME_FADE_MS+20;
   player.position+=200;sample(1580,true);TestEngine.p.handler.drain();
-  check(player.seekCalls==afterResume&&e.player==player,
-    "long resume stays stable without disruptive post-grant reseek");
+  check(player.seekCalls==afterResume&&e.player==player,"resume stays stable without disruptive reseek");
   e.close();
 
   // HONOR 0.3.46: after a long pause, a second 813ms pause was needlessly
