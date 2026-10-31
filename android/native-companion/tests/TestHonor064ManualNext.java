@@ -4,8 +4,8 @@ import android.media.MediaPlayer;
 import android.media.audiofx.DynamicsProcessing;
 import android.os.SystemClock;
 
-/** HONOR 0.3.64: manual Next -> partial HTTP stream -> user scrub during download.
- * Assert that the old 260ms fallback can no longer oscillate the audio owner. */
+/** HONOR regression: manual Next -> partial HTTP stream -> user scrub.
+ * 0.3.65 rejects both the 260ms muted-source hold and repeated 500ms dips. */
 public final class TestHonor064ManualNext {
  static int checks;
  static void check(boolean ok,String why){checks++;if(!ok)throw new AssertionError(why);}
@@ -61,9 +61,9 @@ public final class TestHonor064ManualNext {
    long target=targets[i];int before=p.seekCalls;
    e.sourceSeekRequested();sample("2",target);e.update(TestEngine.p.current);
    check(e.seeking&&p.seekCalls==before+1&&!e.seekHoldActive
-       &&e.pendingStreamScrubJoin&&p.volume==0f
+       &&!e.pendingStreamScrubJoin&&p.volume==0f
        &&fx.gain==0f&&e.originalMix==1f,
-       "partial stream scrub "+i+" must restore original immediately without muted 260ms hold");
+       "partial stream scrub "+i+" keeps native source audible without a new cold join");
    SystemClock.now+=310;sample("2",target+310);TestEngine.p.handler.drain();
    check(e.seeking&&p.volume==0f&&fx.gain==0f&&!e.seekHoldActive,
        "300ms HTTP seek must keep original audible without fallback owner swap "+i);
@@ -71,36 +71,24 @@ public final class TestHonor064ManualNext {
    check(!e.seeking&&p.playing&&e.effect==fx&&e.player==p,
        "completed partial scrub retains decoder and effect, no re-download "+i);
    tick("2",p,60,target+370);
-   check(e.fading&&p.volume==0f&&fx.gain==0f,
-       "verified decoder must join via fresh 500ms exclusive dip after HTTP seek "+i);
-   tick("2",p,125,target+495);
-   check(p.volume==0f&&fx.gain<0f&&fx.gain>-100f,
-       "source down-half remains exclusive after partial scrub "+i);
-   tick("2",p,125,target+620);
-   check(p.volume==0f&&fx.gain==-100f,
-       "source fully muted before decoder ramp "+i);
-   tick("2",p,125,target+745);
-   check(p.volume>0f&&p.volume<1f&&fx.gain==-100f,
-       "replacement up-half remains exclusive after partial scrub "+i);
-   tick("2",p,130,target+875);
    check(!e.fading&&!e.pendingStreamScrubJoin&&p.volume==1f
        &&fx.gain==-100f&&e.audioOwner.state()==AudioOwnership.State.REPLACEMENT,
-       "partial scrub dip ends once, without delayed fallback "+i);
+       "aligned partial scrub returns once without 500ms dip "+i);
   }
   check(TestEngine.api.downloads==beforeDownloads&&TestEngine.api.resolves==beforeResolves
       &&e.effect==fx&&!fx.released,
       "three manual-next scrubs cannot redo lookup, download or effect binding");
-  // After the stream is entirely cached, keep the fast old-position-muted path.
+  // After the stream is entirely cached, source remains available during seek.
   buffer.present.set(1);
   check(buffer.complete(),"streaming fake must now represent a fully cached file");
   int before=p.seekCalls;
   e.sourceSeekRequested();sample("2",70000);e.update(TestEngine.p.current);
-  check(e.seekHoldActive&&p.seekCalls==before+1&&p.volume==0f
-      &&fx.gain==-100f&&e.originalMix==0f,
-      "fully downloaded song retains the fast 260ms muted-seek behavior");
+  check(!e.seekHoldActive&&p.seekCalls==before+1&&p.volume==0f
+      &&fx.gain==0f&&e.originalMix==1f,
+      "fully downloaded song never commands a muted-source seek gap");
   SystemClock.now+=65;sample("2",70065);p.seek.onSeekComplete(p);
-  check(p.playing&&!e.seeking&&e.effect==fx&&fx.gain==-100f,
-      "fast completed seek must never expose old original position");
+  check(p.playing&&!e.seeking&&e.effect==fx&&fx.gain==0f,
+      "fast completed seek stays on native output until decoder clock advances");
   tick("2",p,140,70205);
   check(p.volume==1f&&fx.gain==-100f&&!e.pendingStreamScrubJoin,
       "completed-cache fast scrub rejoins immediately without redundant dip");
@@ -124,6 +112,6 @@ public final class TestHonor064ManualNext {
  public static void main(String[] args)throws Exception{
   manualNextAndRepeatedPartialScrubs();
   autoNextAndCancelDuringDip();
-  System.out.println("PASS: "+checks+" HONOR 0.3.64 manual Next, partial-network scrubs, cached seek and exclusive dip checks");
+  System.out.println("PASS: "+checks+" HONOR manual Next, streaming/cached seeks, single cold dip and no repeated scrub dip");
  }
 }

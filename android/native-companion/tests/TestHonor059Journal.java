@@ -113,22 +113,21 @@ public final class TestHonor059Journal {
   e.close();
  }
 
- /* Regression: on a long streaming seek, the native original is restored
-    at the bounded scrub deadline. The monitor must close the old command gap
-    at THAT command, not 551ms later on a secondary-volume call. */
+ /* Regression: 0.3.65 discovered that any muted-source seek hold can create
+    an observable command gap. Source gain now returns during the seek itself. */
  static void restoredSourceMustCloseGap()throws Exception{
   MediaPlayer p=exclusivelyAudibleReplacement();
   ReplacementEngine e=TestEngine.e;
   DynamicsProcessing effect=e.effect;
   p.asyncSeek=true;
   sample(60000,true);
-  check(e.seeking&&!p.playing&&p.volume==0f&&e.originalMix==0f&&effect.gain==-100f,
-    "brief scrub keeps the former source position inaudible");
+  check(e.seeking&&!p.playing&&p.volume==0f&&e.originalMix==1f&&effect.gain==0f,
+    "cached scrub immediately retains audible native source ownership");
   SystemClock.now+=ReplacementEngine.RETAINED_SEEK_JOIN_MS+1;
   TestEngine.p.handler.drain();
   check(e.seeking&&!p.playing&&p.volume==0f
     &&e.originalMix==1f&&effect.gain==0f,
-    "slow seek restores original through same effect by bounded deadline");
+    "slow seek remains on original with same effect; no timed command-gap workaround");
   SystemClock.now+=551;
   AudioContinuityMonitor.Finding phantom=e.continuity.observe(
     SystemClock.now,"7","seek",true,false,false,0f);

@@ -255,40 +255,25 @@ final class ReplacementEngine {
  void seek(PlaybackSource s,long target,long drift){seek(s,target,drift,false);}
  void seek(PlaybackSource s,long target,long drift,boolean correction){
   if(audioOwner.seekInFlight(player)){
-   /* Old seek owns the decoder until its completion: revoke old output, not data. */
+   /* Last desired source position wins. The decoder keeps its one outstanding
+      untagged seek; the source is audible while that position settles. */
    audioOwner.event(AudioOwnership.Event.SEEK);transition++;fading=false;
    seeking=false;aligned=false;resumePositionRetained=false;
    setAuditedVolume(player,0f);audioOwner.pauseDecoder(player);
-   if(!seekHoldActive&&originalMix<=0.001f)unmute();
-   status=seekHoldActive?"Ожидаем последнюю позицию перемотки CELIKOM":"Ожидаем завершения перемотки; играет оригинал";return;
+   audioOwner.aligning();
+   if(effect!=null){audioOwner.sourceGainDuringAlignment(effect);originalMix=1f;traceAudioCommands();}
+   seekHoldActive=false;pendingStreamScrubJoin=false;
+   status="Ожидаем последнюю позицию перемотки; играет оригинал";return;
   }
-  /* A finger scrub on an already audible replacement is not a fresh song
-     handover. Keep the source muted briefly while the SAME decoder seeks:
-     restoring Yandex at each touch caused 26 audible owner swaps on HONOR
-     0.3.63. A bounded timer restores Yandex if network seeking stalls. */
-  boolean partialStreamScrub=!correction&&explicitSourceSeek&&streaming!=null&&!streaming.complete();
-  if(partialStreamScrub)pendingStreamScrubJoin=true;
-  boolean shortScrub=!partialStreamScrub&&!correction&&effect!=null&&originalMix<=0.001f
-      &&(audioOwner.state()==AudioOwnership.State.REPLACEMENT||seekHoldActive)
-      &&(explicitSourceSeek||seekHoldActive);
+  /* A seek is not a cold attachment. Do not silence BOTH sessions during a
+     cached decoder seek and do not repeatedly start the 500ms cold-entry dip
+     on an incomplete HTTP stream. Keep the original audible and retain the
+     same effect/decoder until the most recent target's clock is verified. */
+  pendingStreamScrubJoin=false;seekHoldActive=false;
   clockSupervisor.onSeek();audioOwner.event(AudioOwnership.Event.SEEK);audioOwner.aligning();explicitSourceSeek=false;resumePositionRetained=false;seekCorrections=correction?seekCorrections+1:0;seeking=true;aligned=true;seekStarted=SystemClock.elapsedRealtime();seekBudget=streaming!=null&&!streaming.complete()?STREAM_SEEK_TIMEOUT_MS:SEEK_TIMEOUT_MS;transition++;fading=false;setAuditedVolume(player,0f);audioOwner.pauseDecoder(player);
-  if(effect!=null&&!shortScrub){audioOwner.sourceGainDuringAlignment(effect);originalMix=1f;traceAudioCommands();}
-  status="Синхронизация позиции…";ownerEvent("seek");LogStore.log("replacement_sync",LogStore.map("state","seek","trackId",trackId,"sourcePositionMs",target,"driftMs",drift,"originalStillMuted",effect!=null&&originalMix<=0.001f,"originalRestoredDuringSeek",!shortScrub,"inaudibleCorrection",correction));final MediaPlayer p=player;final long t=transition,epoch=audioOwner.epoch();final String key=identityKey;
-  if(shortScrub&&!seekHoldActive){
-   seekHoldActive=true;final DynamicsProcessing heldEffect=effect;
-   LogStore.log("replacement_scrub_hold",LogStore.map("trackId",trackId,"deadlineMs",RETAINED_SEEK_JOIN_MS,"decoderRetained",true));
-   owner.handler.postDelayed(()->restoreScrubSourceAtDeadline(p,heldEffect,epoch,key),RETAINED_SEEK_JOIN_MS);
-  }
+  if(effect!=null){audioOwner.sourceGainDuringAlignment(effect);originalMix=1f;traceAudioCommands();}
+  status="Синхронизация позиции; оригинал звучит…";ownerEvent("seek");LogStore.log("replacement_sync",LogStore.map("state","seek","trackId",trackId,"sourcePositionMs",target,"driftMs",drift,"originalStillMuted",false,"originalRestoredDuringSeek",true,"inaudibleCorrection",correction));final MediaPlayer p=player;final long t=transition,epoch=audioOwner.epoch();final String key=identityKey;
   audioOwner.issueSeek(p,target,key,epoch,AudioOwnership.SeekKind.ALIGNMENT,seekStarted);owner.handler.postDelayed(()->{if(player==p&&seeking&&transition==t&&audioOwner.current(epoch,key))suspend("seek_timeout",retryDelay());},seekBudget);}
- void restoreScrubSourceAtDeadline(MediaPlayer p,DynamicsProcessing fx,long epoch,String key){
-  if(!seekHoldActive||p!=player||fx!=effect||!audioOwner.current(epoch,key))return;
-  seekHoldActive=false;
-  if(audioOwner.state()==AudioOwnership.State.REPLACEMENT||originalMix>0.001f)return;
-  if(audioOwner.state()==AudioOwnership.State.ALIGNING&&commandedReplacementVolume<=0.001f){
-   audioOwner.sourceGainDuringAlignment(fx);originalMix=1f;traceAudioCommands();
-  }else unmute();
-  LogStore.log("replacement_scrub_fallback",LogStore.map("trackId",trackId,"reason","decoder_not_ready_at_deadline","limitMs",RETAINED_SEEK_JOIN_MS));
- }
  void prepare(String key,JSONObject j,long g){if(preparing||!current(key)||!api.signedIn())return;PlaybackSource s=owner.current;if(!PlaybackDuration.metadataProbeAllowed(s.duration,j.optLong("duration_ms"))){LogStore.log("replacement_duration_mismatch",LogStore.map("trackId",trackId,"sourceDurationMs",s.duration,"replacementDurationMs",j.optLong("duration_ms")));completedKey=key;completedPosition=position(s);completedReason="Версия замены не совпадает по длительности — пропускаем эту песню, играет оригинал";audioOwner.unsupported("duration_mismatch");status=completedReason;LogStore.log("replacement_track_skipped",LogStore.map("reason","duration_mismatch","trackId",trackId,"sourceDurationMs",s.duration,"replacementDurationMs",j.optLong("duration_ms"),"action","original_until_next_track"));descriptor=null;return;}if(!PlaybackDuration.safe(s.duration,j.optLong("duration_ms"))){
    LogStore.log("replacement_duration_probe",LogStore.map("trackId",trackId,"sourceDurationMs",s.duration,"reportedDurationMs",j.optLong("duration_ms"),"policy","verify_measured_file_before_any_audio"));
   }audioOwner.preparing();prepareTicket=audioOwner.ticket(key,api.accountGeneration,j.optLong("replacement_id"),j.optLong("version"),j.optLong("duration_ms"));preparing=true;status="Готовим аудио заранее; оригинал продолжает играть";
