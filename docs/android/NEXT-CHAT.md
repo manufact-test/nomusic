@@ -1,29 +1,38 @@
-# 31.10.2026 — NEXT CHAT: 0.3.71 seek residual RED reproduced; no production fix/APK
+# CELIKOM Android — NEXT CHAT HANDOFF (31.10.2026)
 
-**READ FIRST:** [ANDROID-0371-RESIDUAL-RED-REPLAY-2026-10-31.md](ANDROID-0371-RESIDUAL-RED-REPLAY-2026-10-31.md), then [ANDROID-0371-HONOR-DIAGNOSTIC-AUDIT-2026-10-31.md](ANDROID-0371-HONOR-DIAGNOSTIC-AUDIT-2026-10-31.md) and [REGRESSION-GATES-2026-10-29.md](REGRESSION-GATES-2026-10-29.md).
+**READ FIRST:** [ANDROID-0371-RESIDUAL-RED-REPLAY-2026-10-31.md](ANDROID-0371-RESIDUAL-RED-REPLAY-2026-10-31.md), then [ANDROID-0371-HONOR-DIAGNOSTIC-AUDIT-2026-10-31.md](ANDROID-0371-HONOR-DIAGNOSTIC-AUDIT-2026-10-31.md), [REGRESSION-GATES-2026-10-29.md](REGRESSION-GATES-2026-10-29.md), and the previous owner baseline handoff [START-NEXT-CHAT-2026-10-31-AFTER-0369-OWNER.md](START-NEXT-CHAT-2026-10-31-AFTER-0369-OWNER.md).
 
-**Immutable owner-preferred signed baseline:** Android 0.3.71/code72, source SHA `b624d5c062a6d6310459f9bb73cf5f9014eb8a54`, backup `backup/android-0371-honor-usable-baseline-20261031`. Do not move, rewrite or delete it. Previous `backup/android-0369-honor-listening-control-20261031` also untouched. Live stable remains 0.3.71. No APK is to be built or published from this task. One mode only; Android only; desktop, backend, site, catalogue, auth and updater are out of scope.
+## Immutable production baseline / scope
 
-**Current nonpublishing branch:** `feature/android-0371-honor-diagnostic-audit-staging`. Start from its actual HEAD, not an old copied SHA. The previous documentation/diagnostic checkpoint is `44f96ecaccf344b035ed46db9b7590849d36f7af`; this task adds `TestHonor071SeekResidual.java`, wires it into `tests/run_engine.py`, and adds the residual replay document. New commit/CI receipt will be added after CI finishes.
+- Signed Android baseline: 0.3.71/code72.
+- Source SHA: `b624d5c062a6d6310459f9bb73cf5f9014eb8a54`.
+- Immutable backup: `backup/android-0371-honor-usable-baseline-20261031`.
+- Previous backup `backup/android-0369-honor-listening-control-20261031` also untouched.
+- Live stable remains 0.3.71. Never overwrite or rewrite either backup.
+- Android only. One mode only. No desktop, backend, website, catalogue, auth, updater, UI buttons or A/B mode changes.
+- No APK/version bump/stable publish until the owner explicitly asks after real-device testing.
 
-## New confirmed code-level risk
+## Current engineering branch
 
-`ReplacementEngine.HANDOVER_DRIFT_MS` is 350ms. In the latest private 0.3.71 run, a few slow seek callbacks (311/400ms) had residuals 254/330ms, then later transport drifts around 283/336ms before the exclusive handover. The decoder can therefore be granted while still up to 350ms behind the source clock. This is a plausible micro-rewind mechanism, not an acoustic proof. Do not reduce the constant blindly.
+`feature/android-0371-honor-diagnostic-audit-staging`
 
-`TestHonor071SeekResidual` deliberately reproduces current behavior in the real `ReplacementEngine` fake-adapter harness: after a 330ms callback residual, a 40ms decoder advance leaves 283ms transport residual and the current gate grants full replacement. It records this as an intentional RED finding (the test passes when the defect is reproduced), while also checking pause, Next/boundary and stale ACK safety. No user journal contents or track metadata are committed.
+Start from its actual HEAD, not a remembered SHA. Previous checkpoint: `60e78db25c2847d71431be890fdd6a3b0e9c95ba`. The current work stages a seek-scoped stable transport-baseline policy in `ReplacementEngine`, adds `SeekAlignmentPolicy.java`, and expands actual-engine tests for 0.3.71 residuals plus 0.3.63/0.3.64 scrub regressions.
 
-## Next task
+## Policy now under CI validation
 
-Do **not** jump to a patch. Design a seek-scoped confidence/fail-open policy that distinguishes:
-- post-seek residuals 0–85ms and 179ms;
-- 206ms stable Bluetooth-like offset (must not be mistaken for a failed seek);
-- 254/283/330/336ms residuals near the current limit;
-- 400ms and 826ms residuals;
-- 2792/933/17ms slow sparse Range callbacks;
-- repeated finger scrubs, pause/resume, real Media3 Next, Stop, route loss, stale callbacks and automatic successor.
+A flat 350ms gate could grant output while a new seek residual was still audible. The staged policy learns a stable source/decoder transport offset (3 samples, ≥250ms span, ≤45ms spread, ≤700ms magnitude, ≤1.2s age), freezes it at seek start, preserves it in the decoder seek target, and compares only the new residual. New residuals up to 200ms are accepted; larger residuals receive at most two silent same-decoder corrections before fail-open to the original. Stable baseline-normalized drift is also passed to ClockSupervisor. Baseline resets on pause, route loss, release and track boundary.
 
-A naive lower threshold can create fallback or repeated-seek loops and regress the already improved scrub path. Keep the original audible whenever alignment confidence is insufficient; do not issue audible corrections. Preserve the same prepared decoder and one in-flight untagged seek discipline. Validate against all existing tests, not only the new replay. Production change only after a documented policy and RED/GREEN proof.
+This is transport timing only, **not acoustic or Bluetooth phase measurement**. Cold initial join and route-resume paths are intentionally left on their existing behavior.
 
-Cold next-song dip/micro-repeat remains separate: complementary linear 160ms uses two independently presented audio sessions; no PCM phase or speaker output is measured. Do not resurrect A/B modes, equal-power fade, or claim that seek fixes join acoustics.
+## Required next steps
 
-**Hard constraints:** no APK/no version bump/no production stable push; don't touch backup refs; no computer version; no extra UI buttons; don't commit private combined logs. Run full `python3 android/native-companion/tests/run_engine.py`, addon host suite, SDK36/D8 and ensure `publish-stable` is skipped.
+1. Inspect the latest GitHub Actions run for the new commit. The previous run for `60e78db` was still executing the host regression suite at last check; do not treat that run as validation of the new code.
+2. Run the full `python3 android/native-companion/tests/run_engine.py` suite and inspect any failing test before making another change.
+3. Confirm the new `TestSeekAlignmentPolicy`, `TestHonor071SeekResidual`, modified `TestHonor063SeekScrub` and `TestHonor064ManualNext` all pass.
+4. Confirm SDK36 Java compile + D8 succeeds and the `publish-stable` job is skipped on this staging branch.
+5. Review the final diff for accidental changes. No user journals, track IDs/titles or raw diagnostics in Git.
+6. Only after all CI gates pass, prepare a real-device test build if explicitly authorized. Keep 0.3.71 as the installed safe baseline until the user tests it.
+
+**Important test cases:** stable 206ms offset + 77ms new seek error (283ms raw) should preserve the offset; stable 206ms + 250ms new error should correct silently; no baseline + 283ms should correct; 179ms fast seek remains accepted; slow Range 2792/933/17ms remains bounded; repeated finger scrubs, pause, Stop, route loss, real Media3 Next, stale callbacks and automatic successor must not regress.
+
+Cold next-song dip/micro-repeat remains separate. The 160ms complementary linear join uses two independent output sessions; transport tests cannot establish PCM phase. Do not reintroduce A/B controls, equal-power fading, or claim the join is acoustically proven.

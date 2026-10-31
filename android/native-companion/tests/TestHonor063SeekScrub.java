@@ -49,12 +49,15 @@ public final class TestHonor063SeekScrub {
   check(e.effect==fx&&!fx.released&&fx.gain==0f&&p.volume==0f&&!p.playing&&e.seeking,
       "long decoder seek keeps Yandex audible through retained effect, without deadline");
   p.seek.onSeekComplete(p);
+  check(e.seeking&&p.seekCalls>=3&&!p.playing&&e.effect==fx&&p.position==60280,
+      "280ms callback residual schedules a silent correction on the same decoder");
+  SystemClock.now+=20;TestEngine.p.current=TestEngine.source("1",60300,true);p.seek.onSeekComplete(p);
   check(!e.seeking&&p.playing&&e.effect==fx,
-      "slow seek completion retains prepared decoder instead of starting fresh download");
-  SystemClock.now+=150;p.position+=150;TestEngine.p.current=TestEngine.source("1",60350,true);
+      "fast correction completion retains prepared decoder instead of starting fresh download");
+  SystemClock.now+=150;p.position+=150;TestEngine.p.current=TestEngine.source("1",60450,true);
   TestEngine.p.handler.drain();
   check(fx.gain==-100f&&p.volume>0.99f,
-      "after a slow seek fallback, only verified decoder can take ownership again");
+      "after a verified correction, only the same decoder takes ownership again");
   e.close();
  }
  static void supersededScrubNeverLeaksStaleAudio()throws Exception{

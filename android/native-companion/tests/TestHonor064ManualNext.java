@@ -68,9 +68,12 @@ public final class TestHonor064ManualNext {
    check(e.seeking&&p.volume==0f&&fx.gain==0f&&!e.seekHoldActive,
        "300ms HTTP seek must keep original audible without fallback owner swap "+i);
    p.seek.onSeekComplete(p);
+   check(e.seeking&&!p.playing&&e.effect==fx&&e.player==p,
+       "large callback residual schedules a silent same-decoder correction "+i);
+   SystemClock.now+=60;sample("2",target+370);p.seek.onSeekComplete(p);
    check(!e.seeking&&p.playing&&e.effect==fx&&e.player==p,
-       "completed partial scrub retains decoder and effect, no re-download "+i);
-   tick("2",p,60,target+370);
+       "corrected partial scrub completes without re-download "+i);
+   tick("2",p,60,target+430);
    check(!e.fading&&!e.pendingStreamScrubJoin&&p.volume==1f
        &&fx.gain==-100f&&e.audioOwner.state()==AudioOwnership.State.REPLACEMENT,
        "aligned partial scrub returns once without another cold join "+i);

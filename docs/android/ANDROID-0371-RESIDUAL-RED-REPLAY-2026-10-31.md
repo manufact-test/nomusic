@@ -1,31 +1,44 @@
-# CELIKOM Android 0.3.71 — RED replay of HONOR seek residuals
+# CELIKOM Android 0.3.71 — seek-scoped transport baseline policy
 
-**31.10.2026. Android-only, nonpublishing staging. No production audio code, signed APK, or immutable backup changed.**
+**31.10.2026. Android-only, nonpublishing staging.** Immutable signed baseline 0.3.71/code72 and both backup refs remain untouched. No APK/version bump or stable release.
 
-## Finding
+## What the 0.3.71 audit established
 
-The private 0.3.71 journal has decoder seek callbacks up to 400ms. The diagnostic audit identified a 350ms `HANDOVER_DRIFT_MS` acceptance gate and observed subsequent transport drifts around 283ms and 336ms before exclusive transfer. The callback residual and later clock drift are distinct measurements; neither is PCM phase or a direct speaker measurement.
+The real-device journal contained slow seek callbacks and post-seek transport residuals in the 283–336ms range. The old handover gate was a flat 350ms. That gate did not distinguish a newly introduced seek error from a stable pre-existing offset between the Yandex and replacement transport clocks.
 
-## New deterministic actual-engine replay
+A transport offset is not proof of acoustic/Bluetooth latency. These values come from player position reports; no PCM waveform, speaker output or physical route latency is measured.
 
-`android/native-companion/tests/TestHonor071SeekResidual.java` runs the real `ReplacementEngine` with the existing deterministic Android/Media3 adapters and partial-stream fixture. It recreates a slow seek with a 330ms residual, then advances the decoder only 40ms while preserving 283ms source/decoder transport difference. It confirms the current 350ms gate grants full replacement output (`REPLACEMENT`, decoder volume >0.99, original effect -100dB). This is an intentional **RED finding recorded as a green test**: the test passes only while it reproduces the known unsafe acceptance. It does not claim that a 283ms transport offset is the exact audible rewind.
+## Staged policy
 
-The same test verifies a real pause revokes a pending muted handover and a track boundary/Next retires the old partial decoder and effect; a stale seek ACK cannot revive it. The fixture is synthetic and contains no user media IDs, titles, or raw journal lines.
+New helper: `android/native-companion/addon/src/pro/celikom/nativeprobe/identitydiag/SeekAlignmentPolicy.java`.
 
-## Why no production fix yet
+1. While the same replacement owns output, gather up to five source-vs-decoder drift samples.
+2. An initial baseline is considered stable only after at least three samples spanning 250ms, with no more than 45ms spread. Samples must be at least 100ms apart; a gap over 600ms restarts accumulation.
+3. Initial offsets up to 700ms are eligible. The frozen baseline expires after 1,200ms. A baseline derived from an already trusted offset plus an accepted residual can reach 900ms; a fresh untrusted 900ms offset is never learned.
+4. On a user seek, freeze the most recent stable offset. Seek the same prepared decoder to `sourcePosition - baselineOffset`, preserving the existing clock relationship rather than resetting it to zero.
+5. At callback/handover, calculate `adjustedResidual = rawResidual - baselineOffset`. Accept only when the new residual is within 200ms.
+6. If the new residual exceeds 200ms, keep the original audible and retarget the same decoder to the latest source position while preserving the baseline. Do not predict a second callback's latency: sparse Range callback timing is not stable enough, and speculative prediction can overshoot. At most two corrections are allowed; if confidence still is not sufficient, restore/keep the original for that track.
+7. During steady playback, ClockSupervisor receives drift normalized against the stable baseline. This avoids treating a persistent route-like transport offset as a newly growing clock error.
+8. Reset baseline on real pause/buffering pause, route loss, decoder release, source boundary and track change. Repeated scrubs while a native seek is in flight retain the frozen baseline and the existing one-in-flight untagged callback discipline.
 
-Simply changing 350ms to 200ms is not approved. It can cause false fallback or break slow Range, rapid seek, Bluetooth offsets, pause/resume and automatic track changes. `ClockSupervisor` currently uses 700ms warning, 1.5s confirmation and bounded correction policy; the 350ms handover gate is a separate decision. A safe policy must distinguish post-seek residual confidence from normal steady Bluetooth/route offset and must fail open without creating a second seek spiral. That policy is not yet selected or validated against all historical HONOR regressions.
+The policy is seek-scoped. Cold initial join and route-resume legacy paths retain their existing thresholds and behavior; the 160ms complementary cold join is not changed.
 
-## Validation contract
+## Deterministic coverage added/updated
 
-- The test is wired into `tests/run_engine.py` and runs with the full host suite.
-- Existing `TestHonor063SeekScrub`, `TestHonor066SeekBufferReplay`, `TestHonor067SlowStreamSeek`, `TestAudioOwnershipRegression`, `TestStreamingEngine`, `TestCarRecovery`, `TestClockSupervisor`, Media3 router and lifecycle gates remain mandatory.
-- Next, pause, Stop, route loss and stale callbacks must remain safe.
-- SDK36/D8 full Android CI must pass on this nonpublishing branch; `publish-stable` must remain skipped.
-- No APK, version bump, desktop/backend/site/updater changes, or modifications to either backup branch.
+- `TestSeekAlignmentPolicy`: 206ms stable offset, 550ms stable offset, median/stability sampling, 45ms spread, age/gap expiry, frozen baseline, correction target and normalized clock supervision.
+- `TestHonor071SeekResidual`: actual `ReplacementEngine` replay. A 206ms stable baseline plus 77ms new error produces 283ms raw drift and is accepted. A 206ms baseline plus 250ms new error is corrected silently. With no baseline, a 283ms residual is corrected. Pause, Next, decoder retirement and stale callback protections remain asserted.
+- `TestHonor063SeekScrub`: 280ms callback residual now triggers a same-decoder silent correction; fast 65ms scrub remains unchanged.
+- `TestHonor064ManualNext`: repeated partial-stream scrubs include the second correction ACK and verify the same decoder/effect, no re-download and no cold-join restart.
+- Existing 0.3.67 2792/933/17ms slow Range sequence remains mandatory, as do 0.3.66 buffering, 0.3.65 Media3 continuity, pause/Next/Stop/route ownership, car recovery, lifecycle and architecture tests.
 
-## Next engineering decision
+## Safety / release boundary
 
-Design and compare a *seek-scoped confidence/fail-open rule* using deterministic timelines: residual 0–85ms, 179ms, 206ms Bluetooth-like steady offset, 254/283/330/336ms post-seek residual, 400ms, 826ms slow stream, 2792/933/17ms sparse Range sequence. The rule must avoid repeated decoder seeks and must not treat a stable route offset as seek error. Only after a proposed rule has RED/GREEN evidence against all cases should `ReplacementEngine` change.
+- All seek corrections remain silent on the replacement; Yandex/source is restored to unity during alignment.
+- One prepared decoder and one untagged native seek at a time; no new audio session or effect attachment.
+- No changes to the single production mode, no extra user/admin controls, no desktop/backend/site/updater changes.
+- SDK36/D8 CI must pass on the staging branch. `publish-stable` must be skipped because the branch is not the release branch.
+- No private combined journal or personal track metadata is committed.
 
-Cold new-song join dips/repeats remain a separate issue. The 160ms complementary linear join uses two independently presented audio sessions and remains phase-unverified; transport tests cannot settle it. No mode switch or second algorithm is to be added.
+## What this proves — and what it does not
+
+The tests prove deterministic transport-clock behavior and owner lifecycle under synthetic callback timing. They do not prove that a given millisecond residual maps directly to audible rewind, and they do not measure phase alignment between Android output sessions. Real HONOR listening verification remains required before any APK is considered.
