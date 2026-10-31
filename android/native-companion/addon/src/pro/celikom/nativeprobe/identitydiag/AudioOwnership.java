@@ -30,26 +30,41 @@ final class AudioOwnership {
  /* Native seek completions are untagged. Only one seek is issued per decoder
     until its callback is consumed; old work cannot masquerade as a new seek. */
  enum SeekKind { ALIGNMENT, WARM }
+ /* Passive transport diagnostics: our single-flight ticket ID is not
+    an Android callback ID or acoustic frame timestamp. */
  static final class SeekAck {
-  final SeekKind kind;final long operationEpoch,submittedAt;
-  SeekAck(SeekKind k,long epoch,long at){kind=k;operationEpoch=epoch;submittedAt=at;}
+  final SeekKind kind;final long operationEpoch,submittedAt,sequence,targetMs;
+  final boolean rangeWaitObserved;
+  SeekAck(SeekKind k,long epoch,long at,long seq,long target,boolean waited){
+   kind=k;operationEpoch=epoch;submittedAt=at;sequence=seq;targetMs=target;rangeWaitObserved=waited;
+  }
  }
  private MediaPlayer inFlightDecoder;
  private SeekKind inFlightKind;
- private long inFlightEpoch,inFlightAt;
+ private long inFlightEpoch,inFlightAt,inFlightSequence,inFlightTarget,nextSeekSequence;
+ private boolean inFlightRangeWait;
  boolean seekInFlight(MediaPlayer p){return p!=null&&p==inFlightDecoder;}
  boolean seekExpired(MediaPlayer p,long now,long budget){return seekInFlight(p)&&now-inFlightAt>budget;}
- private void clearSeekFlight(){inFlightDecoder=null;inFlightKind=null;inFlightEpoch=0;inFlightAt=0;}
+ void noteSeekRangeWait(MediaPlayer p){if(seekInFlight(p))inFlightRangeWait=true;}
+ private void clearSeekFlight(){
+  inFlightDecoder=null;inFlightKind=null;inFlightEpoch=0;inFlightAt=0;
+  inFlightSequence=0;inFlightTarget=0;inFlightRangeWait=false;
+ }
  boolean issueSeek(MediaPlayer p,long target,String key,long ticket,SeekKind kind,long now){
   if(inFlightDecoder!=null)return false;
   if(kind==null)throw new IllegalArgumentException("seek kind required");
   inFlightDecoder=p;inFlightKind=kind;inFlightEpoch=operationEpoch;inFlightAt=now;
+  inFlightSequence=++nextSeekSequence;inFlightTarget=target;inFlightRangeWait=false;
+  LogStore.log("replacement_seek_request",LogStore.map(
+    "seekSeq",inFlightSequence,"kind",kind.name(),"requestedPositionMs",target,
+    "ownerOperationEpoch",operationEpoch,"transportOnly",true));
   try{seekDecoder(p,target,key,ticket);}catch(RuntimeException e){clearSeekFlight();throw e;}
   return true;
  }
  SeekAck acceptSeekCompletion(MediaPlayer p){
   if(p==null||p!=inFlightDecoder)return null;
-  SeekAck ack=new SeekAck(inFlightKind,inFlightEpoch,inFlightAt);
+  SeekAck ack=new SeekAck(inFlightKind,inFlightEpoch,inFlightAt,
+    inFlightSequence,inFlightTarget,inFlightRangeWait);
   clearSeekFlight();return ack;
  }
  /* A MediaPlayer completion callback also carries no seek or ownership ID.

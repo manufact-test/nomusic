@@ -130,6 +130,31 @@ public final class TestAudioOwnershipRegression {
   check(p.volume==0f&&!p.playing&&p.released&&e.effect==null,"old decoder cannot overlap the following native track");
   SystemClock.now+=1000;TestEngine.p.handler.drain();check(e.player==null&&e.effect==null,"stale callbacks cannot reanimate the retired track");
   e.close();
-  System.out.println("PASS: "+checks+" mandatory exclusive-audio, pause/seek race, boundary ownership checks");
+  // 0.3.73: paired transport-only tickets across ALIGNMENT/WARM and retirement.
+   AudioOwnership audit=new AudioOwnership();audit.track("audit_fixture");audit.aligning();
+   MediaPlayer observed=new MediaPlayer(),unrelated=new MediaPlayer();
+   long currentTicket=audit.epoch();
+   check(audit.issueSeek(observed,22000,"audit_fixture",currentTicket,
+       AudioOwnership.SeekKind.ALIGNMENT,100),"alignment diagnostic request accepted");
+   check(!audit.issueSeek(observed,23000,"audit_fixture",currentTicket,
+       AudioOwnership.SeekKind.ALIGNMENT,101),"no second in-flight request");
+   audit.noteSeekRangeWait(unrelated);audit.noteSeekRangeWait(observed);
+   check(audit.acceptSeekCompletion(unrelated)==null,"wrong decoder cannot complete request");
+   AudioOwnership.SeekAck first=audit.acceptSeekCompletion(observed);
+   check(first!=null&&first.sequence==1&&first.kind==AudioOwnership.SeekKind.ALIGNMENT
+       &&first.targetMs==22000&&first.submittedAt==100&&first.rangeWaitObserved,
+       "alignment records request ID, target, time and range wait");
+   check(audit.acceptSeekCompletion(observed)==null,"duplicate ACK ignored");
+   check(audit.issueSeek(observed,41400,"audit_fixture",currentTicket,
+       AudioOwnership.SeekKind.WARM,500),"warm diagnostic request accepted");
+   AudioOwnership.SeekAck second=audit.acceptSeekCompletion(observed);
+   check(second!=null&&second.sequence==2&&second.kind==AudioOwnership.SeekKind.WARM
+       &&second.targetMs==41400&&!second.rangeWaitObserved,
+       "warm ACK independent of previous range wait");
+   check(audit.issueSeek(observed,41600,"audit_fixture",currentTicket,
+       AudioOwnership.SeekKind.WARM,600),"retirement scenario request accepted");
+   audit.retireDecoder();
+   check(audit.acceptSeekCompletion(observed)==null,"retired callback never accepted");
+   System.out.println("PASS: "+checks+" mandatory exclusive-audio, pause/seek race, boundary ownership checks");
  }
 }

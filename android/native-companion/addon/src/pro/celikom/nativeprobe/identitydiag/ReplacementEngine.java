@@ -119,6 +119,7 @@ final class ReplacementEngine {
       real pause, route loss, track boundary, effect loss or seek timeout).
       This does not make the HTTP seek faster; it removes a proven redundant
       DSP detach/reattach on the path recorded by HONOR 0.3.67. */
+   if(waiting&&audioOwner.seekInFlight(player))audioOwner.noteSeekRangeWait(player);
    if(waiting&&seeking&&!streamSeekWaitLogged){
     streamSeekWaitLogged=true;
     LogStore.log("replacement_stream_seek_data_wait",LogStore.map(
@@ -368,6 +369,20 @@ final class ReplacementEngine {
   if(mp!=player||!Objects.equals(identityKey,key)||!accountLeaseCurrent())return;
   AudioOwnership.SeekAck ack=audioOwner.acceptSeekCompletion(mp);
   if(ack==null)return; // repeated/retired callback
+  /* Snapshot BOTH ALIGNMENT and WARM ACKs. This is transport data, not PCM. */
+  final long ackClock=SystemClock.elapsedRealtime();
+  final PlaybackSource sourceAtAck=owner.current;
+  final long projectedAtAck=sourceAtAck==null?-1:position(sourceAtAck);
+  final long decoderAtAck=mp.getCurrentPosition();
+  LogStore.log("replacement_seek_ack",LogStore.map(
+    "seekSeq",ack.sequence,"kind",ack.kind.name(),
+    "requestedPositionMs",ack.targetMs,"callbackElapsedMs",Math.max(0,ackClock-ack.submittedAt),
+    "sourceProjectedMs",projectedAtAck,"decoderPositionMs",decoderAtAck,
+    "rawResidualMs",sourceAtAck==null?null:Long.valueOf(projectedAtAck-decoderAtAck),
+    "correctionPass",ack.kind==AudioOwnership.SeekKind.ALIGNMENT?seekCorrections:-1,
+    "rangeWaitObserved",ack.rangeWaitObserved,
+    "staleOperation",ack.operationEpoch!=audioOwner.operationEpoch(),
+    "sourcePcmMeasured",false,"phaseVerified",false,"transportOnly",true));
   if(ack.operationEpoch!=audioOwner.operationEpoch()){
    /* A pause revoked output permission, not necessarily the decoder position.
       Reuse a verified final alignment without granting an old audible command.
@@ -434,6 +449,9 @@ final class ReplacementEngine {
   final boolean alignLive=streaming!=null;
   final long[] baseline={p.getCurrentPosition()},phaseStarted={SystemClock.elapsedRealtime()};
   final int[] corrections={0};final long[] softStarted={-1};
+  /* Passive cold join drift summary: projected transport clocks only. */
+  final long[] coldClock={Long.MAX_VALUE,Long.MIN_VALUE,0,-1,-1};
+  final long coldStarted=SystemClock.elapsedRealtime();
   if(originalMix<=0.001f&&!seekHoldActive){
    setAuditedVolume(p,0f);
    audioOwner.sourceGainDuringAlignment(fx);originalMix=1f;traceAudioCommands();
@@ -481,6 +499,11 @@ final class ReplacementEngine {
          "sourcePcmMeasured",false,"phaseVerified",false,"oneMode",true));
      }
      long elapsed=Math.max(0,SystemClock.elapsedRealtime()-softStarted[0]);
+     long sourceProjected=position(owner.current),decoderProjected=p.getCurrentPosition();
+     long transportDrift=sourceProjected-decoderProjected;
+     coldClock[0]=Math.min(coldClock[0],transportDrift);
+     coldClock[1]=Math.max(coldClock[1],transportDrift);
+     if(coldClock[2]++==0){coldClock[3]=sourceProjected;coldClock[4]=decoderProjected;}
       float mix=TransitionMix.progress(elapsed,UNIFIED_JOIN_MS);
      float gain=(float)Math.min(1,Math.pow(10,Math.min(0,descriptor==null?0:descriptor.optDouble("gain_db",0))/20));
      float volume=audioOwner.blendSameSong(p,fx,mix,Math.max(0.00001f,gain),ownerKey,ownerEpoch,handoverTicket.operationEpoch);
@@ -492,6 +515,14 @@ final class ReplacementEngine {
     }
     fading=false;audioOwner.replacement();seekHoldActive=false;pendingStreamScrubJoin=false;ownerEvent("exclusive_handover");
      if(streaming!=null)streaming.releasePrefetchAfterSeek();
+    if(coherentEntry&&coldClock[2]>0)LogStore.log("replacement_join_transport_summary",LogStore.map(
+      "joinMode","unified_complementary_linear","transportOnly",true,
+      "elapsedFromJoinStartMs",SystemClock.elapsedRealtime()-coldStarted,
+      "commandedJoinMs",UNIFIED_JOIN_MS,"samples",coldClock[2],
+      "sourceStartMs",coldClock[3],"decoderStartMs",coldClock[4],
+      "sourceEndMs",position(owner.current),"decoderEndMs",p.getCurrentPosition(),
+      "minDriftMs",coldClock[0],"maxDriftMs",coldClock[1],
+      "sourcePcmMeasured",false,"phaseVerified",false));
     LogStore.log("replacement_transition_complete",LogStore.map(
        "trackId",trackId,"rampMs",coherentEntry?UNIFIED_JOIN_MS:0,
        "joinMode",coherentEntry?"unified_complementary_linear":"exclusive_single_turn",
