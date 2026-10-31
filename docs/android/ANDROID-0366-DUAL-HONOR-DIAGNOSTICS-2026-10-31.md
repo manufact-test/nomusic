@@ -1,6 +1,6 @@
 # HONOR Android 0.3.66 — two on-device diagnostics, seek buffering replay
 
-**Date:** 2026-10-31. **Scope:** Android audio only. **Status:** host fix verified, **physical sound NOT accepted**, no additional signed APK produced by this audit.
+**Date:** 2026-10-31. **Scope:** Android audio only. **Status:** host fix verified, **physical sound NOT accepted**. A subsequent, independently verified signed 0.3.67 test release is documented in [`ANDROID-0367-SIGNED-HONOR-SEEK-BUFFER-2026-10-31.md`](ANDROID-0367-SIGNED-HONOR-SEEK-BUFFER-2026-10-31.md); the original technical audit preceded that release.
 
 Read with `ANDROID-0366-ONE-APK-ADMIN-AB-2026-10-31.md`, `REGRESSION-GATES-2026-10-29.md` and `AUDIO-CAPTURE-FEASIBILITY-2026-10-31.md`.
 
