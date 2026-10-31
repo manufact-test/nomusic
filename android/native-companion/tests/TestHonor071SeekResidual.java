@@ -10,6 +10,7 @@ public final class TestHonor071SeekResidual {
  static void check(boolean ok,String why){checks++;if(!ok)throw new AssertionError(why);}
  static void start(ReplacementEngine e,MediaPlayer p){
   p.position+=50;SystemClock.now+=50;TestEngine.p.current=TestEngine.source("1",1050,true);e.update(TestEngine.p.current);
+  TestEngine.p.handler.drain();
   p.position+=600;SystemClock.now+=600;TestEngine.p.current=TestEngine.source("1",1650,true);e.update(TestEngine.p.current);
   TestEngine.p.handler.drain();
   /* The first drain validates decoder advancement and starts the 160ms cold
