@@ -63,7 +63,29 @@ public class TestHandoverClock {
   check(p.released&&p.volume==0f&&e.player==null&&e.effect==null,
     "new song cancels soft join without stale decoder or effect");e.close();
  }
+ static void nearTerminalBlendTickMustNotTriggerRecovery()throws Exception{
+  TestEngine.playing();ReplacementEngine e=TestEngine.e;MediaPlayer p=e.player;
+  SystemClock.now+=ReplacementEngine.SAME_SONG_BLEND_MS-1;
+  sample(1000+ReplacementEngine.SAME_SONG_BLEND_MS-1);TestEngine.p.handler.drain();
+  check(e.fading&&e.audioOwner.state()==AudioOwnership.State.SAME_SONG_BLEND,
+    "HONOR 0.3.62: near-terminal blend tick must not prematurely close same-song blend");
+  // On a long HONOR 0.3.62 blend, a tick at 159/160ms produced a
+  // numerically near-zero source gain before the elapsed timer had finished.
+  // Reproduce that exact amplitude in a short 40ms blend, even though the
+  // integer-millisecond clock alone cannot land near enough to the endpoint.
+  e.audioOwner.blendSameSong(p,e.effect,0.9999f,1f,e.identityKey,
+      e.audioOwner.epoch(),e.audioOwner.operationEpoch());
+  check(e.audioOwner.state()==AudioOwnership.State.SAME_SONG_BLEND,
+    "sub-threshold source gain cannot revoke a scheduled final blend tick");
+  SystemClock.now+=20;sample(1000+ReplacementEngine.SAME_SONG_BLEND_MS+19);
+  TestEngine.p.handler.drain();
+  check(e.player==p&&!p.released&&!e.fading&&e.effect!=null
+      &&e.audioOwner.state()==AudioOwnership.State.REPLACEMENT,
+    "HONOR 0.3.62: final scheduled tick cannot produce fade_failed and five-second retry");
+  e.close();
+ }
  public static void main(String[] args)throws Exception{
+  nearTerminalBlendTickMustNotTriggerRecovery();
   coldJoinSoftEdgesAndCancellation();
   for(int drift:new int[]{210,198,170,207,197,190,378,230,187})recordedOffset(drift);
   List<Map<String,Object>> rows=new ArrayList<>();rows.add(LogStore.map("catalogueTrackId","89285816","displayTitle","Он рядом","artist","Quest Pistols","durationMs",224520L));
@@ -81,7 +103,8 @@ public class TestHandoverClock {
   SystemClock.now+=40;p.position+=40;sample(1700);TestEngine.p.handler.drain();
   check((p.volume==0f&&e.originalMix==1f)
      ||(e.audioOwner.state()==AudioOwnership.State.SAME_SONG_BLEND
-         &&p.volume>=0f&&Math.pow(10,e.effect.gain/20.0)>0.001),
+         &&p.volume>=0f&&Math.pow(10,e.effect.gain/20.0)>0.001)
+     ||(e.audioOwner.state()==AudioOwnership.State.REPLACEMENT&&e.originalMix==0f),
      "aligned handover has either the original or one verified same-song blend");
   SystemClock.now+=ReplacementEngine.SAME_SONG_BLEND_MS+40;
   p.position+=ReplacementEngine.SAME_SONG_BLEND_MS+40;

@@ -175,7 +175,10 @@ final class AudioOwnership {
   // an interval with both sources near zero, including a delayed Android DSP.
   player.setVolume(secondary,secondary);commandedSecondary=secondary;lastVolumePlayer=player;
   effect.setInputGainAllChannelsTo(original<=0.00001f?-100f:(float)(20.0*Math.log10(original)));
-  originalMuted=original<=0.001f;
+  // The gain approaches zero BEFORE the blend clock reaches its endpoint.
+  // Do not enter REPLACEMENT near -60dB before the exact endpoint: the queued final
+  // tick must still be authorized as SAME_SONG_BLEND (HONOR 0.3.62 replay).
+  originalMuted=mix>=1f;
   state=originalMuted?State.REPLACEMENT:State.SAME_SONG_BLEND;
   reason=originalMuted?"verified_same_song_blend_complete":"verified_same_song_blend";
   return secondary;

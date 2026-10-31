@@ -69,8 +69,8 @@ if 'audioOwner.blendSameSong(p,fx,mix,targetGain,ownerKey,ownerEpoch,handoverTic
     raise AssertionError('cold same-song blend must be commanded only through AudioOwnership')
 if fade.index('audioOwner.handoverClockValidated();')>fade.index('audioOwner.blendSameSong('):
     raise AssertionError('same-song blend cannot precede verified decoder clock')
-if 'softColdJoin?SAME_SONG_BLEND_MS:0' not in fade or 'SAME_SONG_BLEND_MS=160' not in engine:
-    raise AssertionError('same-song blend must be bounded to 160ms')
+if 'softColdJoin?SAME_SONG_BLEND_MS:0' not in fade or 'SAME_SONG_BLEND_MS=40' not in engine:
+    raise AssertionError('same-song blend must be bounded to a 40ms micro-transition')
 if 'audioOwner.commandCurrent(handoverTicket' not in fade or 'token!=transition' not in fade:
     raise AssertionError('same-song blend must recheck command/epoch cancellation every tick')
 if 'float blendSameSong(' not in owner or 'state!=State.SAME_SONG_BLEND' not in owner:

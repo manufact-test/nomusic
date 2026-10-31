@@ -88,7 +88,9 @@ public final class TestHonor059Journal {
   check(e.fading&&e.audioOwner.state()==AudioOwnership.State.SAME_SONG_BLEND
       &&effect.gain==0f&&p.volume==0f,
     "verified streaming decoder starts bounded same-song blend without muting the original");
-  SystemClock.now+=80;p.position+=80;sample(1180,true);TestEngine.p.handler.drain();
+  SystemClock.now+=ReplacementEngine.SAME_SONG_BLEND_MS/2;
+  p.position+=ReplacementEngine.SAME_SONG_BLEND_MS/2;
+  sample(1100+ReplacementEngine.SAME_SONG_BLEND_MS/2,true);TestEngine.p.handler.drain();
   originalLinear=Math.pow(10.0,effect.gain/20.0);
   quality(Math.max(originalLinear,p.volume)>=0.1,
     "RED 0.3.59: partial blend must never attenuate both outputs below -20dB");
@@ -97,7 +99,7 @@ public final class TestHonor059Journal {
       &&originalLinear*originalLinear+p.volume*p.volume>0.98,
     "only same-song, post-clock equal-power blend may have dual audible sessions");
   SystemClock.now+=ReplacementEngine.SAME_SONG_BLEND_MS;p.position+=ReplacementEngine.SAME_SONG_BLEND_MS;
-  sample(1180+ReplacementEngine.SAME_SONG_BLEND_MS,true);TestEngine.p.handler.drain();
+  sample(1100+ReplacementEngine.SAME_SONG_BLEND_MS/2+ReplacementEngine.SAME_SONG_BLEND_MS,true);TestEngine.p.handler.drain();
   check(effect.gain==-100f&&p.volume>0.99f&&!e.fading
       &&AudioOwnership.exclusive(e.originalMix,p.volume),
     "bounded blend ends in the original exclusive full-volume owner state");
