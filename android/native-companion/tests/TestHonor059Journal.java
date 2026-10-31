@@ -56,9 +56,9 @@ public final class TestHonor059Journal {
   e.close();
  }
 
- /* The old 100ms fade to -100dB left both outputs inaudible.
-    After repair a source is audible at every command checkpoint, and a
-    prepared streaming decoder acquires output only after its clock advances. */
+ /* The rejected 0.3.59 source-only fade drove both outputs near silence.
+    Any new join must retain the verified-clock gate and an audible energy
+    floor at EVERY checkpoint, including a bounded same-song blend. */
  static void fadeEnergyFloor()throws Exception{
   TestStreamingEngine.Buffer audio=TestStreamingEngine.start();
   ReplacementEngine e=TestEngine.e;
@@ -85,10 +85,22 @@ public final class TestHonor059Journal {
   double originalLinear=Math.pow(10.0,effect.gain/20.0);
   quality(Math.max(originalLinear,p.volume)>=0.1,
     "RED 0.3.59: output must be granted without a scheduled near-silent phase");
-  check(effect.gain==-100f&&p.volume>0.99f&&!e.fading,
-    "validated streaming decoder receives full exclusive output in same owner turn");
-  check(AudioOwnership.exclusive((float)originalLinear,p.volume),
-    "neither pre-commit nor post-commit commands permit dual audible sessions");
+  check(e.fading&&e.audioOwner.state()==AudioOwnership.State.SAME_SONG_BLEND
+      &&effect.gain==0f&&p.volume==0f,
+    "verified streaming decoder starts bounded same-song blend without muting the original");
+  SystemClock.now+=80;p.position+=80;sample(1180,true);TestEngine.p.handler.drain();
+  originalLinear=Math.pow(10.0,effect.gain/20.0);
+  quality(Math.max(originalLinear,p.volume)>=0.1,
+    "RED 0.3.59: partial blend must never attenuate both outputs below -20dB");
+  check(e.audioOwner.state()==AudioOwnership.State.SAME_SONG_BLEND
+      &&originalLinear>0.001&&p.volume>0f
+      &&originalLinear*originalLinear+p.volume*p.volume>0.98,
+    "only same-song, post-clock equal-power blend may have dual audible sessions");
+  SystemClock.now+=ReplacementEngine.SAME_SONG_BLEND_MS;p.position+=ReplacementEngine.SAME_SONG_BLEND_MS;
+  sample(1180+ReplacementEngine.SAME_SONG_BLEND_MS,true);TestEngine.p.handler.drain();
+  check(effect.gain==-100f&&p.volume>0.99f&&!e.fading
+      &&AudioOwnership.exclusive(e.originalMix,p.volume),
+    "bounded blend ends in the original exclusive full-volume owner state");
   e.close();
  }
 

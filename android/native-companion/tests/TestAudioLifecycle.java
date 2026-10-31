@@ -42,6 +42,36 @@ public final class TestAudioLifecycle {
   AudioOwnership.RestoreResult outcome=sequence.restoreSource(ordered,orderedEffect);
   ok(outcome.gainReset&&outcome.disabled&&outcome.released,"source restoration closes audio effect");
   ok(ordered.volume==0f&&!ordered.playing&&orderedEffect.gain==0f,"restoration always mutes secondary first");
+  // A verified-current identity and advancing decoder clock are BOTH required
+  // before any exceptional overlap of two audible media sessions.
+  AudioOwnership blend=new AudioOwnership();blend.track("same-song");blend.preparing();
+  DynamicsProcessing verifiedEffect=new DynamicsProcessing(0,101,null);
+  blend.prepareSourceEffect(verifiedEffect);blend.aligning();
+  MediaPlayer verifiedDecoder=new MediaPlayer();
+  long blendEpoch=blend.epoch(),commandEpoch=blend.operationEpoch();blend.handoverWaitForClock(true);
+  rejected=false;try{blend.blendSameSong(verifiedDecoder,verifiedEffect,0.5f,1f,"same-song",blendEpoch,commandEpoch);}catch(IllegalStateException expected){rejected=true;}
+  ok(rejected&&verifiedDecoder.volume==0f&&verifiedEffect.gain==0f,
+    "unverified decoder clock never starts overlap");
+  blend.handoverClockValidated();
+  rejected=false;try{blend.blendSameSong(verifiedDecoder,verifiedEffect,0.5f,1f,"different-song",blendEpoch,commandEpoch);}catch(IllegalStateException expected){rejected=true;}
+  ok(rejected&&verifiedDecoder.volume==0f&&verifiedEffect.gain==0f,
+    "different song identity never receives overlap permission");
+  verifiedDecoder.start();
+  blend.blendSameSong(verifiedDecoder,verifiedEffect,0.5f,1f,"same-song",blendEpoch,commandEpoch);
+  double sourceGain=Math.pow(10,verifiedEffect.gain/20.0);
+  ok(blend.state()==AudioOwnership.State.SAME_SONG_BLEND
+    &&verifiedDecoder.volume>0f&&sourceGain>0f
+    &&sourceGain*sourceGain+verifiedDecoder.volume*verifiedDecoder.volume>0.98,
+    "single current same-song lease permits energy-preserving blend only");
+  blend.volume(verifiedDecoder,0f,verifiedEffect);blend.aligning();
+  blend.sourceGainDuringAlignment(verifiedEffect);blend.event(AudioOwnership.Event.SEEK);
+  rejected=false;try{blend.blendSameSong(verifiedDecoder,verifiedEffect,0.8f,1f,"same-song",blendEpoch,commandEpoch);}catch(IllegalStateException expected){rejected=true;}
+  ok(rejected&&verifiedDecoder.volume==0f&&verifiedEffect.gain==0f,
+    "seek revokes blend permission until fresh verified alignment");
+  blend.silenceReplacement(verifiedDecoder);blend.restoreSource(verifiedDecoder,verifiedEffect);
+  blend.source();blend.track("next-song");
+  rejected=false;try{blend.blendSameSong(verifiedDecoder,verifiedEffect,0.5f,1f,"same-song",blendEpoch,commandEpoch);}catch(IllegalStateException expected){rejected=true;}
+  ok(rejected,"old identity ticket cannot mix into next song");
   a.stopped();ok(a.state()==AudioOwnership.State.STOPPED,"Stop revokes output");
   a.track("108");ok(a.state()==AudioOwnership.State.STOPPED&&!a.current(a.epoch(),"108"),"new observation cannot rearm Stop");
   a.activate();ok(a.current(a.epoch(),"108")&&a.state()==AudioOwnership.State.SOURCE_ONLY,"user arm explicitly reopens transport");

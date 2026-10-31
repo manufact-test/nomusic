@@ -8,7 +8,7 @@ import java.io.*;
 import java.util.*;
 /** User-enabled automatic replacement within the foreground service lifetime. */
 final class ReplacementEngine {
- static final long PREPARED_MS=60000, SEEK_TIMEOUT_MS=2000, HANDOVER_DRIFT_MS=350, STREAM_SEEK_TIMEOUT_MS=12000, FADE_MS=360, PAUSE_GRACE_MS=30000, PAUSE_RESUME_FADE_MS=180, PAUSE_ALIGN_DELAY_MS=160, PAUSE_ALIGN_TOLERANCE_MS=85, NEW_TRACK_JOIN_MS=200, SOURCE_FADE_OUT_MS=100, RETAINED_SEEK_JOIN_MS=180;
+ static final long PREPARED_MS=60000, SEEK_TIMEOUT_MS=2000, HANDOVER_DRIFT_MS=350, STREAM_SEEK_TIMEOUT_MS=12000, FADE_MS=360, PAUSE_GRACE_MS=30000, PAUSE_RESUME_FADE_MS=180, PAUSE_ALIGN_DELAY_MS=160, PAUSE_ALIGN_TOLERANCE_MS=85, SAME_SONG_BLEND_MS=160, RETAINED_SEEK_JOIN_MS=180;
  final ProbeService owner; final NativeApi api;
  String status="Замена выключена",identityKey,trackId,method="NONE",lookupKey;
  JSONObject descriptor; long descriptorUntil,nextLookup,armedUntil,preparedAt,seekStarted,seekBudget=SEEK_TIMEOUT_MS,fadeStarted,transition,pausedAt=-1;
@@ -225,10 +225,13 @@ final class ReplacementEngine {
    transition++;fading=false;aligned=false;
    setAuditedVolume(player,0f);
    audioOwner.pauseDecoder(player);
-   /* A pause during a cold source fade cannot retain partial source gain. */
+   /* A pause must silence the secondary and restore any partial source gain. */
    if(effect!=null&&originalMix>0.001f
-      &&audioOwner.state()==AudioOwnership.State.ALIGNING)
-    audioOwner.sourceGainDuringAlignment(effect);
+      &&(audioOwner.state()==AudioOwnership.State.ALIGNING
+          ||audioOwner.state()==AudioOwnership.State.SAME_SONG_BLEND)){
+    audioOwner.aligning();audioOwner.sourceGainDuringAlignment(effect);
+    originalMix=1f;traceAudioCommands();
+   }
    audioOwner.hold(buffering);
    final MediaPlayer p=player;final DynamicsProcessing fx=effect;
    final long token=transition,epoch=audioOwner.epoch();final String key=identityKey;
@@ -375,7 +378,7 @@ final class ReplacementEngine {
   audioOwner.event(AudioOwnership.Event.HANDOVER);
   final AudioOwnership.Ticket handoverTicket=audioOwner.ticket(ownerKey,api.accountGeneration,descriptor==null?0:descriptor.optLong("replacement_id"),descriptor==null?0:descriptor.optLong("version"),descriptor==null?0:descriptor.optLong("duration_ms"));
   /* The original is the audible owner throughout decoder startup and
-     alignment; only AudioOwnership can commit the exclusive switch. */
+     alignment. AudioOwnership alone controls the bounded same-song blend. */
   resumeFadePending=false;
   final boolean alignLive=streaming!=null;
   final long[] baseline={p.getCurrentPosition()},phaseStarted={SystemClock.elapsedRealtime()};
@@ -408,30 +411,29 @@ final class ReplacementEngine {
      audioOwner.handoverClockValidated();fadeStarted=now;
      LogStore.log("replacement_decoder_advancing",LogStore.map("trackId",trackId,"driftMs",drift,"corrections",corrections[0],"waitMs",now-phaseStarted[0]));
     }
-    /* Soft edges only for a newly attached source. Existing pause/seek
-       recovery keeps the accepted immediate exclusive owner protocol.
-       Original and replacement never have positive gain at the same time. */
+    /* A same-song blend starts ONLY after the decoder clock advanced and
+       the current identity/edition/account ticket survived every guard.
+       Pause, seek, route loss and track boundary revoke the ramp token. */
     if(softColdJoin){
      if(softStarted[0]<0)softStarted[0]=SystemClock.elapsedRealtime();
      long elapsed=Math.max(0,SystemClock.elapsedRealtime()-softStarted[0]);
-     if(elapsed<SOURCE_FADE_OUT_MS){
-      audioOwner.fadeSourceBeforeGrant(fx,TransitionMix.progress(elapsed,SOURCE_FADE_OUT_MS));
+     float mix=TransitionMix.progress(elapsed,SAME_SONG_BLEND_MS);
+     float targetGain=(float)Math.min(1,Math.pow(10,Math.min(0,descriptor==null?0:descriptor.optDouble("gain_db",0))/20));
+     commandedReplacementVolume=audioOwner.blendSameSong(p,fx,mix,targetGain,ownerKey,ownerEpoch,handoverTicket.operationEpoch);
+     originalMix=mix>=1f?0f:(float)Math.cos(Math.PI*mix/2.0);
+     traceAudioCommands();
+     if(elapsed<SAME_SONG_BLEND_MS){
       owner.handler.postDelayed(this,20);return;
      }
-     if(originalMix>0.001f){
-      audioOwner.grantReplacement(fx);originalMix=0f;applyVolume(0f);
-     }
-     applyVolume(TransitionMix.progress(elapsed-SOURCE_FADE_OUT_MS,NEW_TRACK_JOIN_MS));
-     if(elapsed<SOURCE_FADE_OUT_MS+NEW_TRACK_JOIN_MS){
-      owner.handler.postDelayed(this,20);return;
-     }
+     /* Preserve positive gain normalization without a second audio owner. */
+     applyVolume(1f);
     }else{
      audioOwner.grantReplacement(fx);originalMix=0f;applyVolume(1f);
     }
     fading=false;audioOwner.replacement();ownerEvent("exclusive_handover");
     LogStore.log("replacement_transition_complete",LogStore.map(
-      "trackId",trackId,"rampMs",softColdJoin?SOURCE_FADE_OUT_MS+NEW_TRACK_JOIN_MS:0,
-      "joinMode",softColdJoin?"exclusive_soft_edge":"exclusive_single_turn",
+      "trackId",trackId,"rampMs",softColdJoin?SAME_SONG_BLEND_MS:0,
+      "joinMode",softColdJoin?"verified_same_song_blend":"exclusive_single_turn",
       "commandDelayMs",SystemClock.elapsedRealtime()-fadeStarted));
    }catch(RuntimeException e){suspend("fade_failed",retryDelay());}
   }};ramp.run();

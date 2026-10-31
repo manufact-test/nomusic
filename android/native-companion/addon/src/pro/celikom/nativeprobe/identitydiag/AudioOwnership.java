@@ -5,7 +5,7 @@ import android.media.audiofx.AudioEffect;
 import java.util.Objects;
 /** Authoritative audio output permission and lifecycle state, confined to service handler. */
 final class AudioOwnership {
- enum State { SOURCE_ONLY, PREPARING, ALIGNING, REPLACEMENT, PAUSED, RECOVERING, TRACK_UNSUPPORTED, STOPPED }
+ enum State { SOURCE_ONLY, PREPARING, ALIGNING, SAME_SONG_BLEND, REPLACEMENT, PAUSED, RECOVERING, TRACK_UNSUPPORTED, STOPPED }
  /* A single owner distinguishes user pausing from Media3 play-intent buffering. */
  enum PauseMode { NONE, USER, BUFFERING }
  /* Event and ticket authority lives with the sole audio output owner. A data ticket
@@ -57,7 +57,7 @@ final class AudioOwnership {
     running. Only the current playable output state may retire this decoder. */
  boolean mayConsumeCompletion(MediaPlayer p){
   return p!=null&&p!=inFlightDecoder&&!handoverAwaitingClock&&pauseMode==PauseMode.NONE
-     &&(state==State.ALIGNING||state==State.REPLACEMENT);
+     &&(state==State.ALIGNING||state==State.SAME_SONG_BLEND||state==State.REPLACEMENT);
  }
  long operationEpoch(){return operationEpoch;}
  Ticket ticket(String key,long account,long replacement,long version,long duration){
@@ -154,15 +154,31 @@ final class AudioOwnership {
   if(!originalMuted)effect.setInputGainAllChannelsTo(-100f);
   originalMuted=true;state=State.REPLACEMENT;reason="exclusive_grant";
  }
- /* Fade the original only while the replacement remains silent.
-    Grant exclusive replacement only at the final -100 dB step. */
- void fadeSourceBeforeGrant(DynamicsProcessing effect,float progress){
-  if(state!=State.ALIGNING||originalMuted||effect==null||effect!=attachedEffect
-      ||!effect.hasControl()||!effect.getEnabled()||commandedSecondary>0.001f)
-   throw new IllegalStateException("source fade requires silent current replacement");
-  if(!Float.isFinite(progress)||progress<0f||progress>1f)
-   throw new IllegalArgumentException("invalid source fade progress");
-  effect.setInputGainAllChannelsTo(-100f*progress);
+ /** The only exception to exclusive output: a bounded fade between an already
+  * advancing, aligned decoder and the verified source of the SAME identity.
+  * Callers hold the current track + command ticket throughout every tick.
+  * Equal-power gains keep an audible floor, unlike a break-before-make fade. */
+ float blendSameSong(MediaPlayer player,DynamicsProcessing effect,float mix,float targetGain,String identity,long ticket,long commandTicket){
+  if(!Float.isFinite(mix)||mix<0f||mix>1f)throw new IllegalArgumentException("invalid same-song mix");
+  if(!Float.isFinite(targetGain)||targetGain<=0f||targetGain>1f)throw new IllegalArgumentException("invalid replacement gain");
+  if(player==null||!player.isPlaying()||!current(ticket,identity)||operationEpoch!=commandTicket||pauseMode!=PauseMode.NONE
+      ||(state!=State.ALIGNING&&state!=State.SAME_SONG_BLEND)
+      ||inFlightDecoder!=null||handoverAwaitingClock
+      ||effect==null||effect!=attachedEffect||!effect.hasControl()||!effect.getEnabled())
+   throw new IllegalStateException("same-song blend lacks verified current owner");
+  if(state==State.ALIGNING&&commandedSecondary>0.001f)
+   throw new IllegalStateException("same-song blend cannot inherit audible decoder");
+  float original=(float)Math.cos(Math.PI*mix/2.0);
+  float secondary=(float)Math.sin(Math.PI*mix/2.0)*targetGain;
+  if(mix==1f){original=0f;secondary=targetGain;}
+  // Make the destination audible BEFORE reducing the source; never schedule
+  // an interval with both sources near zero, including a delayed Android DSP.
+  player.setVolume(secondary,secondary);commandedSecondary=secondary;lastVolumePlayer=player;
+  effect.setInputGainAllChannelsTo(original<=0.00001f?-100f:(float)(20.0*Math.log10(original)));
+  originalMuted=original<=0.001f;
+  state=originalMuted?State.REPLACEMENT:State.SAME_SONG_BLEND;
+  reason=originalMuted?"verified_same_song_blend_complete":"verified_same_song_blend";
+  return secondary;
  }
  /** A slow seek may take seconds. The native source must not remain at -100dB
    * while the muted decoder seeks. Keep the verified effect attached (no costly

@@ -7,7 +7,18 @@ public final class TestAudioOwnershipRegression {
  static int checks;
  static void check(boolean ok,String message){checks++;if(!ok)throw new AssertionError(message);}
  static void sample(long pos,boolean playing){TestEngine.p.current=TestEngine.source("1",pos,playing);TestEngine.e.update(TestEngine.p.current);}
- static void assertExclusive(ReplacementEngine e){float source=e.effect==null?1f:e.originalMix;float secondary=e.player==null?0f:e.player.volume;check(AudioOwnership.exclusive(source,secondary),"original/replacement audible at once "+source+"/"+secondary);}
+ static void assertExclusive(ReplacementEngine e){
+  float source=e.effect==null?1f:e.originalMix;
+  float secondary=e.player==null?0f:e.player.volume;
+  if(e.audioOwner.state()==AudioOwnership.State.SAME_SONG_BLEND){
+   check(e.fading&&e.player!=null&&e.effect!=null&&e.effect.hasControl()
+       &&e.audioOwner.current(e.audioOwner.epoch(),e.identityKey)
+       &&source>0f&&secondary>=0f
+       &&source*source+secondary*secondary>0.98f,
+       "only verified, ticketed, energy-preserving same-song blend may overlap");
+  }else check(AudioOwnership.exclusive(source,secondary),
+      "outside same-song blend both outputs must be exclusive "+source+"/"+secondary);
+ }
  public static void main(String[] args)throws Exception {
   TestEngine.playing();ReplacementEngine e=TestEngine.e;MediaPlayer p=e.player;
   for(int i=0;i<10;i++){SystemClock.now+=47;sample(1000+i*47,true);TestEngine.p.handler.drain();assertExclusive(e);}

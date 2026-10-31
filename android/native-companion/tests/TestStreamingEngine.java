@@ -23,14 +23,16 @@ public class TestStreamingEngine {
   SystemClock.now+=8;TestEngine.p.current=TestEngine.source("1",initialPosition+187,true);e.update(TestEngine.p.current);check(player.seekCalls==1&&player.playing,"cached decoder remains active without a second seek");
   SystemClock.now+=90;player.position+=90;TestEngine.p.handler.drain();
   SystemClock.now+=90;player.position+=90;TestEngine.p.current=TestEngine.source("1",initialPosition+277,true);TestEngine.p.handler.drain();
-  check((player.volume==0f&&e.effect.gain<=0f&&e.effect.gain>=-100f)
-     ||(player.volume>=0f&&e.effect.gain==-100f),
-     "streaming handover must keep the decoder silent while source fades, and fully mute source before decoder gain");
-  SystemClock.now+=ReplacementEngine.NEW_TRACK_JOIN_MS+20;
-  player.position+=ReplacementEngine.NEW_TRACK_JOIN_MS+20;
-  TestEngine.p.current=TestEngine.source("1",initialPosition+277+ReplacementEngine.NEW_TRACK_JOIN_MS+20,true);
+  double sourceGain=Math.pow(10,e.effect.gain/20.0);
+  check(e.audioOwner.state()==AudioOwnership.State.SAME_SONG_BLEND
+      &&sourceGain>0.001&&player.volume>0f
+      &&sourceGain*sourceGain+player.volume*player.volume>0.98,
+      "verified decoder has a same-song equal-power join without an audible energy gap");
+  SystemClock.now+=ReplacementEngine.SAME_SONG_BLEND_MS+60;
+  player.position+=ReplacementEngine.SAME_SONG_BLEND_MS+60;
+  TestEngine.p.current=TestEngine.source("1",initialPosition+277+ReplacementEngine.SAME_SONG_BLEND_MS+60,true);
   TestEngine.p.handler.drain();check(player.volume>0.99f&&e.originalMix==0f&&e.effect.gain==-100f,
-      "new-track handover completes after source fade then bounded replacement rise");
+      "new-track handover completes after bounded same-song blend: volume="+player.volume+" source="+e.originalMix+" gain="+e.effect.gain+" state="+e.audioOwner.state()+" fading="+e.fading);
   e.sourceBoundary("rapid_next");SystemClock.now+=500;TestEngine.p.handler.drain();check(player.released&&e.effect==null&&e.player==null,"queued longer fade cannot leak the old song over a new track");e.close();
   TestEngine.reset("ALBUM");e=TestEngine.e;e.arm();java.util.function.BooleanSupplier lookup=TestEngine.api.resolveValid;check(lookup.getAsBoolean(),"active lookup is current");e.sourceBoundary("skip_in_flight");check(!lookup.getAsBoolean(),"skipping a song invalidates queued and active lookup transport");e.close();
   // Report 17:58:55: decoder asks for data while playback can still advance.
@@ -39,9 +41,9 @@ public class TestStreamingEngine {
   audio.waiting=false;e.close();
   audio=start();e=TestEngine.e;player=e.player;player.asyncSeek=true;TestEngine.p.current=TestEngine.source("1",30000,true);e.update(TestEngine.p.current);seekCount=player.seekCalls;audio.waiting=true;SystemClock.now+=300;TestEngine.p.current=TestEngine.source("1",30300,true);e.update(TestEngine.p.current);check(e.seeking&&player.seekCalls==seekCount&&e.effect==null,"waiting seek restores original without cancelling/reissuing seek");audio.waiting=false;player.position=30300;player.seek.onSeekComplete(player);check(player.playing&&e.effect!=null,"one completed buffered seek resumes automatically");e.close();
   // isPlaying is true before a streaming decoder necessarily advances its clock.
-  audio=start();e=TestEngine.e;player=e.player;SystemClock.now+=400;TestEngine.p.current=TestEngine.source("1",1400,true);TestEngine.p.handler.drain();check(e.originalMix==1f&&player.volume==0f,"frozen startup decoder never fades out original");player.position+=50;SystemClock.now+=50;TestEngine.p.current=TestEngine.source("1",1450,true);TestEngine.p.handler.drain();SystemClock.now+=200;player.position+=200;TestEngine.p.current=TestEngine.source("1",1650,true);TestEngine.p.handler.drain();SystemClock.now+=90;player.position+=90;TestEngine.p.current=TestEngine.source("1",1740,true);TestEngine.p.handler.drain();check((player.volume==0f&&e.effect.gain<=0f&&e.effect.gain>=-100f)
-     ||(e.effect.gain==-100f&&player.volume>=0f),
-     "decoder clock confirmation may start source-only fading, but never overlapping decoder output");SystemClock.now+=240;player.position+=240;TestEngine.p.current=TestEngine.source("1",1980,true);TestEngine.p.handler.drain();check(e.originalMix==0f&&player.volume>0f,"only the fully silenced original permits replacement gain");e.close();
+  audio=start();e=TestEngine.e;player=e.player;SystemClock.now+=400;TestEngine.p.current=TestEngine.source("1",1400,true);TestEngine.p.handler.drain();check(e.originalMix==1f&&player.volume==0f,"frozen startup decoder never fades out original");player.position+=50;SystemClock.now+=50;TestEngine.p.current=TestEngine.source("1",1450,true);TestEngine.p.handler.drain();SystemClock.now+=200;player.position+=200;TestEngine.p.current=TestEngine.source("1",1650,true);TestEngine.p.handler.drain();SystemClock.now+=90;player.position+=90;TestEngine.p.current=TestEngine.source("1",1740,true);TestEngine.p.handler.drain();check(e.audioOwner.state()==AudioOwnership.State.SAME_SONG_BLEND
+     &&Math.pow(10,e.effect.gain/20.0)>0.001&&player.volume>0f,
+     "decoder clock confirmation permits bounded same-identity blend, never an unverified decoder");SystemClock.now+=240;player.position+=240;TestEngine.p.current=TestEngine.source("1",1980,true);TestEngine.p.handler.drain();check(e.originalMix==0f&&player.volume>0f,"only completed blend becomes exclusive replacement");e.close();
   audio=start();e=TestEngine.e;player=e.player;SystemClock.now+=2100;TestEngine.p.current=TestEngine.source("1",3100,true);TestEngine.p.handler.drain();check(e.effect==null&&player.released&&e.armed()&&e.streamFallbackKey!=null,"frozen startup times out to original and full-file recovery");e.close();
   // 2026-10-28 Монпасье: a 2s seek timeout discarded a partial stream,
   // then downloaded all 9.5MB for 52.9s. Preserve the in-flight seek instead.
