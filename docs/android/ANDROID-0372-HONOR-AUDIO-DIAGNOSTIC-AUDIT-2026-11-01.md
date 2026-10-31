@@ -233,3 +233,4 @@ A specific untested risk is baseline creep: after an accepted seek, `finish()` c
 - Added a privacy-safe run-scoped diagnostic parser and seven synthetic regression checks.
 - The checks cover version/run separation, WARM seek undercount, source-buffer retirement at item boundaries, same-index vs changed-index discontinuities, separation of source buffering from replacement range waits, and the distinction between transport/command telemetry and PCM evidence.
 - No runtime audio code, Android manifest, release version, updater or production branch was changed.
+- Android validation CI [41243476018](https://github.com/manufact-test/nomusic/actions/runs/41243476018) completed SUCCESS on code/test commit `507108067535b9a0de2cc6720d2ce8d57d35b11e`; the `publish-stable` job was SKIPPED. The later audit-document corrections do not change the tested parser, tests or runtime.
