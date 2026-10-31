@@ -232,6 +232,8 @@ jobs:
           ROOT=android/native-companion
           SDK="$RUNNER_TEMP/kit/sdk"
           BT="$RUNNER_TEMP/kit/build-tools/36.0.0"
+          chmod +x "$BT/zipalign" "$BT/aapt"
+          export LD_LIBRARY_PATH="$BT/lib64${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
           test -s "$SDK/platforms/android-36/android.jar"
           test -s "$BT/lib/d8.jar"
           test -s "$BT/lib/apksigner.jar"
