@@ -8,6 +8,7 @@ on:
       - feature/android-0370-honor-join-pause-updater-staging
       - feature/android-0371-rollback-0369-staging
       - feature/android-0372-ota-release-staging
+      - feature/android-0372-honor-audio-audit-staging
     paths:
       - 'android/native-companion/**'
       - '.github/workflows/android-0348-validation.yml'
@@ -77,6 +78,9 @@ jobs:
       - name: Assert unsigned inspection can never bypass signing
         shell: bash
         run: python3 android/native-companion/tests/check_release_modes.py
+      - name: Run CELIKOM journal interpretation regression checks
+        shell: bash
+        run: python3 android/native-companion/tests/check_honor_journal_audit.py
       - name: Run full Android native host regression suite
         shell: bash
         run: python3 android/native-companion/tests/run_engine.py
