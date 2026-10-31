@@ -188,11 +188,11 @@ jobs:
           test -n "$HOST_KEY" && test -n "$KNOWN_HOSTS"
           umask 077
           mkdir -p "$RUNNER_TEMP/private"
-          printf '%s\\n' "$HOST_KEY" > "$RUNNER_TEMP/private/id_host"
-          printf '%s\\n' "$KNOWN_HOSTS" > "$RUNNER_TEMP/private/known_hosts"
+          printf '%s\n' "$HOST_KEY" > "$RUNNER_TEMP/private/id_host"
+          printf '%s\n' "$KNOWN_HOSTS" > "$RUNNER_TEMP/private/known_hosts"
           chmod 600 "$RUNNER_TEMP/private/id_host" "$RUNNER_TEMP/private/known_hosts"
-          scp -P 65002 -i "$RUNNER_TEMP/private/id_host" -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$RUNNER_TEMP/private/known_hosts" \\
-            u235811320@92.113.19.189:/home/u235811320/domains/lemonchiffon-narwhal-791953.hostingersite.com/celikom-private/android-build-inputs/CELIKOM-0.3.22-install.apk \\
+          scp -P 65002 -i "$RUNNER_TEMP/private/id_host" -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$RUNNER_TEMP/private/known_hosts" \
+            u235811320@92.113.19.189:/home/u235811320/domains/lemonchiffon-narwhal-791953.hostingersite.com/celikom-private/android-build-inputs/CELIKOM-0.3.22-install.apk \
             "$RUNNER_TEMP/private/base.apk"
           python3 - <<'PY'
           import hashlib,json,os,pathlib
@@ -239,13 +239,13 @@ jobs:
           mkdir -p "$ROOT/deps"
           cp "$RUNNER_TEMP/kit/native-companion/deps/"*.jar "$ROOT/deps/"
           OUT="$RUNNER_TEMP/CELIKOM-Android-0.3.71-SEEK-TEST-SIGNED.apk"
-          python3 "$ROOT/build_release.py" \\
-            --sdk "$SDK" \\
-            --build-tools "$BT" \\
-            --apktool "$RUNNER_TEMP/kit/apktool_2.11.1.jar" \\
-            --base-apk "$RUNNER_TEMP/private/base.apk" \\
-            --signing-dir "$RUNNER_TEMP/private/signing" \\
-            --deps-dir "$ROOT/deps" \\
+          python3 "$ROOT/build_release.py" \
+            --sdk "$SDK" \
+            --build-tools "$BT" \
+            --apktool "$RUNNER_TEMP/kit/apktool_2.11.1.jar" \
+            --base-apk "$RUNNER_TEMP/private/base.apk" \
+            --signing-dir "$RUNNER_TEMP/private/signing" \
+            --deps-dir "$ROOT/deps" \
             --output "$OUT"
           test -s "$OUT"
           test -s "$OUT.verification.json"
@@ -270,7 +270,7 @@ jobs:
             "stable_publish":"SKIPPED",
             "physical_phone_playback_verified":False
           }
-          (root/"CELIKOM-Android-0.3.71-SEEK-TEST-RECEIPT.json").write_text(json.dumps(receipt,indent=2)+"\\n")
+          (root/"CELIKOM-Android-0.3.71-SEEK-TEST-RECEIPT.json").write_text(json.dumps(receipt,indent=2)+"\n")
           print("PASS: signed non-publishing test APK verified; no deployment step exists in this job")
           PY
 
