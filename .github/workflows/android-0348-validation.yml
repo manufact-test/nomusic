@@ -7,6 +7,7 @@ on:
       - feature/android-unified-preparation-seek-gate
       - feature/android-0370-honor-join-pause-updater-staging
       - feature/android-0371-rollback-0369-staging
+      - feature/android-0371-honor-diagnostic-audit-staging
     paths:
       - 'android/native-companion/**'
       - '.github/workflows/android-0348-validation.yml'
@@ -67,6 +68,9 @@ jobs:
       - name: Verify Android 0.3.52 release-contract negative cases
         shell: bash
         run: python3 android/native-companion/tests/check_release_contract.py
+      - name: Audit combined-journal semantics using only synthetic events
+        shell: bash
+        run: python3 android/native-companion/tests/check_honor_journal_audit.py
       - name: Reject altered or injected APK structures (negative regression cases)
         shell: bash
         run: python3 android/native-companion/tests/check_release_archive.py
