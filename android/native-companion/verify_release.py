@@ -95,6 +95,10 @@ def main():
             VERSION.encode("ascii"), b"ReplacementEngine", b"AudioOwnership", b"UpdateInstallReceiver", b"finishAndRemoveTask",
             b"ClockSupervisor", b"SourceEventArbiter", b"retireDecoder",
             b"SourceTransitionGate", b"AudioContinuityMonitor",
+            b"SeekTimingEvidence", b"OutputClockEvidence", b"UpdateState",
+            b"sourceAdvanceDuringSeekMs", b"decoderLandingErrorMs",
+            b"handoverSkewAtAckMs", b"replacement_output_clock_sample",
+            b"expected_same_song_blend", b"availableManifest", b"recordSuccessfulCheck",
             b"audio_command_anomaly", b"audio_decoder_start",
             b"replacement_resume_fast", b"replacement_duration_mismatch",
             b"SupportTrace", b"PlaybackDuration", b"AlbumMatch",
@@ -106,6 +110,9 @@ def main():
     ownership = (addon / "AudioOwnership.java").read_text()
     matcher = (addon / "AlbumMatch.java").read_text()
     updater = (addon / "UpdateInstallReceiver.java").read_text()
+    update_center = (addon / "UpdateCenter.java").read_text()
+    update_job = (addon / "UpdateCheckJob.java").read_text()
+    update_state = (addon / "UpdateState.java").read_text()
     assert "PackageInstaller.STATUS_SUCCESS" in updater
     assert "getLongVersionCode()" in updater and "getAppTasks()" in updater
     assert "finishAndRemoveTask()" in updater
@@ -125,6 +132,11 @@ def main():
     assert matcher.count("artistKey(") >= 3 and '"quest pistols"' in matcher
     assert "SourceTransitionGate" in (addon / "SourceTransitionGate.java").read_text()
     assert "AudioContinuityMonitor" in (addon / "AudioContinuityMonitor.java").read_text()
+    assert "OutputClockEvidence.capture" in engine and "logOutputClockSample" in engine
+    assert "sourcePositionAtSubmitMs" in ownership and "decoderLandingErrorMs" in (addon / "SeekTimingEvidence.java").read_text()
+    assert "recordSuccessfulCheck" in update_center and "loadCandidate" in update_center and "deferUpdate" in update_center
+    assert "recordSuccessfulCheck" in update_job
+    assert "successfulCheck" in update_state and "afterLater" in update_state and "shouldSkipAutomaticCheck" in update_state
     source_digests = {str(p.relative_to(ROOT)): hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted((ROOT / "addon/src").rglob("*.java"))}
     proof = {
         "version": VERSION, "version_code": VERSION_CODE,
@@ -137,6 +149,11 @@ def main():
         "original_catalogue_assets_unchanged": True, "source_archive_absent": True, "legacy_launcher_gated": True,
         "archive_integrity_verified": True, "asset_count": archive_proof["asset_count"],
         "physical_phone_playback_verified": False,
+        "output_clock_diagnostics_verified": True,
+        "update_state_persistence_verified": True,
+        "source_pcm_measured": False,
+        "phase_verified": False,
+        "hardware_output_measured": False,
         "final_apk_artist_matcher_verified": True, "final_apk_handover_guard_verified": True, "final_apk_exclusive_audio_gate_verified": True, "final_apk_handover_tolerance_ms": 350,
         "source_fingerprint": hashlib.sha256(json.dumps(source_digests, sort_keys=True).encode()).hexdigest(),
     }

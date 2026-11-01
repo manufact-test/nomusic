@@ -58,6 +58,8 @@ must_reject(data, java.replace('NAME="0.3.76"', 'NAME="0.3.51"'), "stale AppVers
 must_reject(data, java.replace('NAME="0.3.76"', 'NAME="0.3.76"; static final String NAME="0.3.76"'), "duplicate AppVersion")
 assert "from release_contract import load_release" in (ROOT / "build_release.py").read_text()
 assert "from release_contract import load_release" in (ROOT / "verify_release.py").read_text()
+assert '"TestUpdateState"' in (ROOT / "build_release.py").read_text()
+assert "TestOutputClockEvidence.java" in (ROOT / "tests/run_engine.py").read_text()
 # GitHub artifact ZIP strips hidden files by default. Ship the ignore POLICY
 # as a non-hidden text file, never any ignored signing/private material.
 policy = ROOT / ".gitignore"
