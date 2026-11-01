@@ -1,3 +1,9 @@
+## 2026-11-02 — CELIKOM Android 0.3.85 / code 86 experimental full-local-file OTA published (owner sound test pending)
+
+The user specifically requested the controlled local-file seek experiment via the app's existing update button. Android experiment PR [#35](https://github.com/manufact-test/nomusic/pull/35) was merged into the Android publishing branch after complete staging CI PASS. [Release CI #41358568513](https://github.com/manufact-test/nomusic/actions/runs/41358568513) passed Android API 36/D8, signed build, provenance and Hostinger deployment. Live `stable.json` now advertises **0.3.85 / versionCode 86**, immutable APK SHA256 `e23c962d969129c5b839ed3676e36d6a337342e2761bde852e2048bbf1bda88a`. Existing updater, Pause/Next/fade/audio ownership and all three backup branches are unchanged. This is an *experimental APK delivered over the existing stable transport*, **not an acoustically accepted stable audio solution**. Full evidence and owner test: [ANDROID-0385-LOCAL-FILE-OTA-RELEASE-RECEIPT-2026-11-02.md](android/ANDROID-0385-LOCAL-FILE-OTA-RELEASE-RECEIPT-2026-11-02.md).
+
+---
+
 ## 2026-11-02 — Android 0.3.84 HONOR retest: no material acoustic improvement; rollback and handoff secured
 
 **Authoritative evidence/plan:** [ANDROID-0384-OWNER-RETEST-LOCAL-FILE-SEEK-PLAN-2026-11-02.md](android/ANDROID-0384-OWNER-RETEST-LOCAL-FILE-SEEK-PLAN-2026-11-02.md).

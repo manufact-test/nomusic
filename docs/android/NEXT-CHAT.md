@@ -1,3 +1,9 @@
+# CURRENT HANDOFF — 02.11.2026 — 0.3.85 FULL-LOCAL-FILE EXPERIMENT VIA OTA; HONOR VERDICT PENDING
+
+**READ FIRST:** [ANDROID-0385-LOCAL-FILE-OTA-RELEASE-RECEIPT-2026-11-02.md](ANDROID-0385-LOCAL-FILE-OTA-RELEASE-RECEIPT-2026-11-02.md) and [ANDROID-0385-CONTROLLED-LOCAL-FILE-SEEK-EXPERIMENT-2026-11-02.md](ANDROID-0385-CONTROLLED-LOCAL-FILE-SEEK-EXPERIMENT-2026-11-02.md). Owner asked for one new APK through the existing Check for Updates button. Experiment 0.3.85/code86 signed, CI #41358568513 SUCCESS and Hostinger live `stable.json` verified. No audible acceptance yet. It downloads full replacement (20s/30MiB bounded) into private cache and uses existing local MediaPlayer; streaming baseline, Pause/Next/gain/ownership/OTA code untouched. Ask only for a brief listening verdict on seek vs song starts, not another blanket round of logs. All 0.3.84, 0.3.82, 0.3.78 backups and previous release branches preserved. Do not claim confirmed acoustic fix.
+
+---
+
 # CURRENT HANDOFF — 02.11.2026 — 0.3.84 LISTENING RETEST FAILED; STABLE FROZEN
 
 **READ FIRST:** [ANDROID-0384-OWNER-RETEST-LOCAL-FILE-SEEK-PLAN-2026-11-02.md](ANDROID-0384-OWNER-RETEST-LOCAL-FILE-SEEK-PLAN-2026-11-02.md).
