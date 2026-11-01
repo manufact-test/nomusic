@@ -13,9 +13,9 @@ final class NotificationState {
   AppPresentation p=AppPresentation.of(s);String label=s.identified?safe(title)+(artist==null||artist.trim().isEmpty()?"":" — "+safe(artist)):"CELIKOM";
   String detail=p.version;
   if(s.missing&&!s.replacing)detail="Для этой песни нет замены · играет оригинал";
-  if(s.problem.isEmpty()&&!s.playing&&!s.preparing&&!s.confirmation&&!s.seeking)detail=s.missing?"Пауза · для этой песни нет замены":"Пауза";
+  if(s.problem.isEmpty()&&!s.playing&&!s.preparing&&!s.seeking)detail=s.missing?"Пауза · для этой песни нет замены":"Пауза";
   if(detail.isEmpty())detail="CELIKOM подключён";
-  return new NotificationState(label,detail,s.signed&&exact&&s.identified&&!s.confirmation&&!hasReplacement&&!s.replacing&&!s.preparing&&!s.seeking&&s.problem.isEmpty());
+  return new NotificationState(label,detail,s.signed&&exact&&s.identified&&!hasReplacement&&!s.replacing&&!s.preparing&&!s.seeking&&s.problem.isEmpty());
  }
  static String safe(String s){if(s==null)return "";String value=s.replaceAll("[\\x00-\\x1f]"," ").trim();return value.length()>120?value.substring(0,value.offsetByCodePoints(0,Math.min(100,value.codePointCount(0,value.length()))))+"…":value;}
  String fingerprint(){return title+"\u0000"+text+"\u0000"+suggest;}
