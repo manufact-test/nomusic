@@ -16,8 +16,8 @@ public class TestAppPresentation {
   s.playing=false;p=AppPresentation.of(s);check(p.header.equals("Подключён")&&p.version.equals("Пауза"),"pause retains connection without claiming playing");
   s.playing=true;s.seeking=true;p=AppPresentation.of(s);check(p.header.equals("Подключён")&&p.version.contains("Синхронизируем"),"seek is not rendered as audible playback");
   s.seeking=false;s.replacing=false;s.missing=true;p=AppPresentation.of(s);check(p.connected&&p.version.contains("Играет оригинал"),"missing catalogue version is not a connection failure");
-  s.missing=false;s.confirmation=true;p=AppPresentation.of(s);check(p.version.contains("Подтвердите"),"fallback requires explicit confirmation");
-  s.confirmation=false;s.source=false;p=AppPresentation.of(s);check(!p.showTrack&&!p.connected,"connection loss hides the last song");
+  s.missing=false;s.source=true;s.identified=true;s.playing=true;s.replacing=false;p=AppPresentation.of(s);check(!p.version.contains("Подтвердите"),"identified approved candidates do not require a confirmation prompt");
+  s.source=false;p=AppPresentation.of(s);check(!p.showTrack&&!p.connected,"connection loss hides the last song");
   s.enabled=false;s.problem="Нет связи. Повторите «Старт».";p=AppPresentation.of(s);check(p.instruction.equals(s.problem)&&!p.showTrack,"start failures remain actionable, not hidden by prior metadata");
   check(AppPresentation.entitlement(new JSONObject().put("allowed",false).put("reason","trial_not_started"),0).contains("после «Старт»"),"trial follows existing desktop Start behavior");
   check(AppPresentation.entitlement(new JSONObject().put("allowed",true).put("source","promo").put("valid_until",JSONObject.NULL),0).equals("Промокод · доступ навсегда"),"existing perpetual promo label");
