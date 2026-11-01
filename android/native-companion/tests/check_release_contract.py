@@ -55,7 +55,7 @@ for key, value in [
     must_reject(broken, java, key)
 
 must_reject(data, java.replace('NAME="0.3.84"', 'NAME="0.3.51"'), "stale AppVersion")
-must_reject(data, java.replace('NAME="0.3.83"', 'NAME="0.3.83"; static final String NAME="0.3.83"'), "duplicate AppVersion")
+must_reject(data, java.replace('NAME="0.3.84"', 'NAME="0.3.84"; static final String NAME="0.3.84"'), "duplicate AppVersion")
 assert "from release_contract import load_release" in (ROOT / "build_release.py").read_text()
 assert "from release_contract import load_release" in (ROOT / "verify_release.py").read_text()
 assert '"TestUpdateState"' in (ROOT / "build_release.py").read_text()
