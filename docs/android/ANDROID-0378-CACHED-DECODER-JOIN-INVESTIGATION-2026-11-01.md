@@ -1,7 +1,7 @@
-# CELIKOM Android 0.3.78 — cached-file decoder join investigation
+# CELIKOM Android 0.3.79 — cached-file decoder join investigation
 
 Date: 2026-11-01  
-Status: **implementation and CI verified; owner acoustic test pending**
+Status: **0.3.79 / code 80 published to stable OTA; owner acoustic test pending**
 
 ## Immutable baseline and experiment
 
@@ -97,3 +97,23 @@ The artifact is a direct experimental APK. It was not copied to the Hostinger st
 CI and signing prove code, tests and packaging only. They do not prove acoustic phase or device-output timing.
 
 The next manual test is the cache-hit scenario on the owner device, especially **“Биг сити лайф”**: let its replacement enter the local cache, move to another track, return to it, and listen for a dip, silence, click or late join. Also compare a normal streaming first-load path. Do not change any audio constants based only on a diagnostic trace.
+
+## Stable OTA publication — 0.3.79 / versionCode 80
+
+Published: 2026-11-01. Owner-authorized production promotion.
+
+- Production PR: [#29](https://github.com/manufact-test/nomusic/pull/29), merged.
+- Production merge commit: \`56269cda348027d46e16634f31b90e419f29b8f4\`.
+- Production GitHub Actions: [run 41325660420](https://github.com/manufact-test/nomusic/actions/runs/41325660420), **SUCCESS**.
+- Version: **0.3.79**, versionCode **80**, package \`pro.celikom.nativeprobe\`.
+- Immutable Hostinger file: \`celikom-private/android-updates/releases/80-95492c9b657bf5d40cab989f9c95e77787951091f8abc5e78750ee6066eaaacd.apk\`.
+- Public APK URL: https://lemonchiffon-narwhal-791953.hostingersite.com/releases/android/80-95492c9b657bf5d40cab989f9c95e77787951091f8abc5e78750ee6066eaaacd.apk
+- APK SHA-256: \`95492c9b657bf5d40cab989f9c95e77787951091f8abc5e78750ee6066eaaacd\`.
+- APK size: **8,755,273 bytes**.
+- Signing certificate SHA-256: \`67fe81c56fac1c1d145344b69a0e3faf9005cf6607f4e26ca27d5926c3eefc4f\`.
+- Stable manifest: \`/updates/android/stable.json\`, advertises **0.3.79 / code 80**.
+
+The production publisher rebuilt and verified the APK from the merged CI build kit. On Hostinger it verified the uploaded file's SHA-256 and size before atomically moving the immutable APK and \`stable.json\` into place. The final HTTP request fetched the live stable manifest and verified exact JSON equality; the workflow reported \`Stable Android version published: 0.3.79 80\`.
+
+The release is now available through CELIKOM's in-app **Check for updates** flow. Owner acoustic acceptance remains pending; CI success is not a substitute for listening on the device.
+
