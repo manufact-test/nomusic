@@ -1,5 +1,5 @@
 name: Android 0.3.55 architecture and release contract verification
-# Keep 0.3.77 owner-confirmed album-duration staging under the non-publishing gate.
+# Keep 0.3.78 approved-replacement auto-start staging under the non-publishing gate.
 
 on:
   push:
@@ -14,6 +14,7 @@ on:
       - feature/android-0375-honor-bounded-warm-latency-staging
       - feature/android-076-output-clock-update-state-staging-20261101
       - feature/android-077-album-duration-confirmation-staging-20261101
+      - feature/android-078-approved-replacement-autostart-staging-20261101
     paths:
       - 'android/native-companion/**'
       - '.github/workflows/android-0348-validation.yml'
