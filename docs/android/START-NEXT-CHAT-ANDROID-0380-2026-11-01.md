@@ -4,7 +4,7 @@ Continue only from branch `feature/android-audio-regression-from-0378-20261101` 
 
 The branch was created directly from owner-approved 0.3.78 baseline commit `bf011dcf1a70c504883a8e5e742e0b038f41d9b0`. Do not use 0.3.79 or its cached-decoder gate as the source baseline.
 
-Current intended package identity: 0.3.80 / versionCode 81. This is a rollback-forward build: playback engine behavior is kept identical to 0.3.78. The only functional repository addition is the actual-engine regression `TestCachedAudioRollback`, wired into `tests/run_engine.py`.
+Current package identity: 0.3.80 / versionCode 81. Verified source commit: `a4ccaddae311d638e7fe4f6026a9697e179c91ac`. This is a rollback-forward build: playback engine behavior is kept identical to 0.3.78. The only functional repository addition is the actual-engine regression `TestCachedAudioRollback`, wired into `tests/run_engine.py`.
 
 The test protects:
 - local cache hit: no additional streaming cold-decoder gate and no post-attach WARM seek;
@@ -20,3 +20,12 @@ Next:
 5. Ask for a focused phone test of track starts and repeated seeking. Do not change audio behavior again until the result is known.
 
 Do not describe transport clock evidence as PCM, phase, or hardware-output proof.
+
+
+Verified CI/build:
+- Workflow run #341: `41328452631` — all native tests, API 36/D8 and signed-package verification passed.
+- Signed test-only artifact: `celikom-android-0.3.80-signed-test`, artifact ID `13092536465`.
+- APK SHA-256: `e37dc136525b80e492691700cafc3d2a45626d51b50c5100e19e3f7cdf00ff28`.
+- Stable publish job was skipped; the artifact receipt records `stable_published: false`.
+
+The APK is not in the app's stable Update Center. For the owner test, install the signed APK manually. Do not publish stable until the owner confirms the listening test.

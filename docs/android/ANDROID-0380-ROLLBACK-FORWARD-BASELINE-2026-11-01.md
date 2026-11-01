@@ -53,3 +53,30 @@ Use the same songs and seek pattern that exposed the 0.3.79 regression. Check on
 3. Whether the same decoder continues after a seek without audible pauses or jumps.
 
 If the rollback-forward candidate behaves like 0.3.78, the 0.3.79 cache gate is confirmed as the source of the start regression. The seek complaint must then be investigated separately from transport-only logs if it remains audible.
+
+
+## Verified build result
+
+Verified source commit: `a4ccaddae311d638e7fe4f6026a9697e179c91ac`.
+
+GitHub Actions run #341 (`41328452631`) completed successfully:
+
+- Release-contract negative cases: passed.
+- APK archive tamper/injection checks: passed.
+- Source-to-DEX provenance and unsigned-inspection guard: passed.
+- Full Android native host suite: passed, including `TestCachedAudioRollback` (13 checks).
+- Android API 36 compilation and D8: passed.
+- Signed test-only package rebuild and verification: passed.
+- Stable publishing and live stable-manifest write: skipped.
+
+Signed test artifact:
+
+- Artifact: `celikom-android-0.3.80-signed-test`
+- Artifact ID: `13092536465`
+- Workflow run: `https://github.com/manufact-test/nomusic/actions/runs/41328452631`
+- APK size: 8,755,273 bytes
+- APK SHA-256: `e37dc136525b80e492691700cafc3d2a45626d51b50c5100e19e3f7cdf00ff28`
+- Signing certificate SHA-256 matches the pinned release identity.
+- Receipt confirms `stable_published: false`.
+
+The signed APK is a test-only artifact and is not available through the app's stable Update Center. It can be installed manually for the owner's focused listening test. Do not publish it to the stable channel until the owner approves the playback result.
