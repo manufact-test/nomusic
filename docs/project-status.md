@@ -1,3 +1,26 @@
+## 2026-11-01 — CELIKOM Android 0.3.84 / code 85 published; owner retest pending
+
+**Stable OTA is live.** The owner can use CELIKOM's normal **Check for updates** button to download 0.3.84.
+
+- Release branch: `release/android-0.3.84-stable`.
+- Release PR: [#34](https://github.com/manufact-test/nomusic/pull/34), kept open pending device/listening retest.
+- CI/publisher run: [41350942716 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/41350942716).
+- Change: newer same-item source seeks revoke a pending ALIGNMENT operation ticket once, preserve MediaPlayer's single native seek flight, then align to the latest source position after the old callback drains. If the completed position is already within 85 ms, it is reused without a duplicate seek.
+- New regression: `TestHonor068SupersededAlignmentSeek`; **8 checks PASS**.
+- Full host suite, release contract, archive/provenance, Android API 36/D8, signed APK verification and live stable-manifest equality: PASS.
+- APK SHA-256: `a64c562989d92749982ec979eb712fa8ba2fa12492c454ff7b1c54e9337f6bc2`; size 8,763,465 bytes.
+- APK: https://lemonchiffon-narwhal-791953.hostingersite.com/releases/android/85-a64c562989d92749982ec979eb712fa8ba2fa12492c454ff7b1c54e9337f6bc2.apk
+- Live manifest: https://lemonchiffon-narwhal-791953.hostingersite.com/updates/android/stable.json; publisher verified **0.3.84 / 85**.
+- Previous 0.3.83 release branch and protected 0.3.78 rollback remain unchanged.
+
+**Known limitation:** the 0.3.83 diagnostic showed real HTTP Range data waits. This patch fixes stale seek ownership, not remote network latency. Do not claim all seek lag is eliminated until the owner retests.
+
+**Next owner test:** install via the in-app update button, then test a seek immediately after Next and two quick same-track seeks while initial alignment is pending. Capture a fresh combined diagnostic and screen recording if lag remains.
+
+Receipt: [ANDROID-0384-SUPERSEDED-ALIGNMENT-SEEK-2026-11-01.md](android/ANDROID-0384-SUPERSEDED-ALIGNMENT-SEEK-2026-11-01.md).
+
+---
+
 ## 2026-11-01 — CELIKOM Android 0.3.81: exact restore of the protected 0.3.78 source
 
 The owner rejected the 0.3.80 playback behavior and explicitly requested restoring the saved 0.3.78 project state, without combining audio changes from later versions.

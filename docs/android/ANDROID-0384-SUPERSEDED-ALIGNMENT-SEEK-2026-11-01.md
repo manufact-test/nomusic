@@ -32,7 +32,21 @@ It covers:
 3. Reuse of a completed decoder position already within the existing tolerance.
 4. Preservation of the single native seek flight and original-source ownership.
 
-The complete existing Android host suite, release-contract checks, archive/provenance checks, Android API 36 compilation, D8, signed APK verification and Hostinger stable-manifest verification remain mandatory before publication.
+## Publication receipt — verified
+
+- Published: **2026-11-01 21:16 UTC** through CI run [41350942716](https://github.com/manufact-test/nomusic/actions/runs/41350942716).
+- Release PR: [#34](https://github.com/manufact-test/nomusic/pull/34), intentionally left open for owner device retest.
+- Full Android host regression suite: PASS, including **8 HONOR 0.3.84 superseded-alignment checks**.
+- Release-contract negative cases, APK structure/provenance checks, Android API 36 compilation and D8: PASS.
+- Signed APK verification: original signer identity unchanged; v2/v3 signature, alignment, version/API, approved manifest boundary and exact addon DEX verified.
+- Hostinger immutable APK upload: PASS. Live stable manifest was fetched again and matched the proposed release exactly.
+- Stable endpoint reports **0.3.84 / versionCode 85**.
+- APK size: **8,763,465 bytes**.
+- APK SHA-256: `a64c562989d92749982ec979eb712fa8ba2fa12492c454ff7b1c54e9337f6bc2`.
+- Direct APK: https://lemonchiffon-narwhal-791953.hostingersite.com/releases/android/85-a64c562989d92749982ec979eb712fa8ba2fa12492c454ff7b1c54e9337f6bc2.apk
+- Stable manifest: https://lemonchiffon-narwhal-791953.hostingersite.com/updates/android/stable.json
+
+**Owner retest is now the only outstanding step.** Use CELIKOM's normal Check for updates button. Keep 0.3.83 and the 0.3.78 rollback untouched.
 
 ## Release identity
 

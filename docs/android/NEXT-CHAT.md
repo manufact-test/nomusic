@@ -1,3 +1,24 @@
+# CURRENT OWNER RETEST — CELIKOM Android 0.3.84 / versionCode 85 — 01.11.2026
+
+**READ FIRST:** [ANDROID-0384-SUPERSEDED-ALIGNMENT-SEEK-2026-11-01.md](ANDROID-0384-SUPERSEDED-ALIGNMENT-SEEK-2026-11-01.md).
+
+**Stable OTA is live:** 0.3.84 / code 85. CI/publisher run [41350942716](https://github.com/manufact-test/nomusic/actions/runs/41350942716) succeeded, including all host tests, Android API 36/D8, signed APK verification, Hostinger immutable APK upload and live manifest equality verification.
+
+**What changed:** while an ALIGNMENT seek is in flight, a newer same-track source seek now invalidates the old operation ticket once. The native MediaPlayer callback remains single-flight and is allowed to drain; then the engine targets the latest source position. A completed position already within 85 ms is reused instead of issuing a redundant seek.
+
+**Important:** HTTP Range stream-data waits remain possible. This patch fixes stale seek ownership; it does not promise to remove every network-induced delay.
+
+**Owner action:** install through CELIKOM's normal **Check for updates** button. Test:
+1. Press Next and seek soon after the new track starts.
+2. Make two quick same-track seeks while initial alignment is still pending.
+3. Confirm CELIKOM follows the last position and the original source remains audible during alignment.
+
+If lag remains, send a fresh combined diagnostic and screen recording. Do not change the audio algorithm again before reviewing that evidence.
+
+Release PR [#34](https://github.com/manufact-test/nomusic/pull/34) remains open for this retest. The 0.3.83 branch and protected 0.3.78 rollback remain untouched.
+
+---
+
 # CURRENT OWNER ACOUSTIC VERDICT — 01.11.2026 — CELIKOM 0.3.72
 
 **READ FIRST:** [ANDROID-0372-HONOR-OWNER-LISTENING-AND-DIAGNOSTIC-CHECKPOINT-2026-11-01.md](ANDROID-0372-HONOR-OWNER-LISTENING-AND-DIAGNOSTIC-CHECKPOINT-2026-11-01.md). The owner has tested the OTA on HONOR: update install, exit and removal from Recents **ACCEPTED**. No changes to the updater are wanted.
