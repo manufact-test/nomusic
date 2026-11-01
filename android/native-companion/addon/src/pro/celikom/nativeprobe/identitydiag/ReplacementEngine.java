@@ -331,7 +331,9 @@ final class ReplacementEngine {
   clockSupervisor.onSeek();audioOwner.event(AudioOwnership.Event.SEEK);audioOwner.aligning();explicitSourceSeek=false;resumePositionRetained=false;seekCorrections=correction?seekCorrections+1:0;seeking=true;streamSeekWaitLogged=false;aligned=true;seekStarted=SystemClock.elapsedRealtime();seekBudget=streaming!=null&&!streaming.complete()?STREAM_SEEK_TIMEOUT_MS:SEEK_TIMEOUT_MS;transition++;fading=false;setAuditedVolume(player,0f);audioOwner.pauseDecoder(player);
   if(effect!=null){audioOwner.sourceGainDuringAlignment(effect);originalMix=1f;traceAudioCommands();}
   status="Синхронизация позиции; оригинал звучит…";ownerEvent("seek");LogStore.log("replacement_sync",LogStore.map("state","seek","trackId",trackId,"sourcePositionMs",target,"driftMs",drift,"originalStillMuted",false,"originalRestoredDuringSeek",true,"inaudibleCorrection",correction));final MediaPlayer p=player;final long t=transition,epoch=audioOwner.epoch();final String key=identityKey;
-  audioOwner.issueSeek(p,target,key,epoch,AudioOwnership.SeekKind.ALIGNMENT,seekStarted);owner.handler.postDelayed(()->{if(player==p&&seeking&&transition==t&&audioOwner.current(epoch,key))suspend("seek_timeout",retryDelay());},seekBudget);}
+  long sourceAtSubmit=position(s),decoderAtSubmit=player.getCurrentPosition();
+  audioOwner.issueSeek(p,target,key,epoch,AudioOwnership.SeekKind.ALIGNMENT,seekStarted,
+    sourceAtSubmit,s.position,s.observed,decoderAtSubmit);owner.handler.postDelayed(()->{if(player==p&&seeking&&transition==t&&audioOwner.current(epoch,key))suspend("seek_timeout",retryDelay());},seekBudget);}
  void prepare(String key,JSONObject j,long g){if(preparing||!current(key)||!api.signedIn())return;PlaybackSource s=owner.current;if(!PlaybackDuration.metadataProbeAllowed(s.duration,j.optLong("duration_ms"))){LogStore.log("replacement_duration_mismatch",LogStore.map("trackId",trackId,"sourceDurationMs",s.duration,"replacementDurationMs",j.optLong("duration_ms")));completedKey=key;completedPosition=position(s);completedReason="Версия замены не совпадает по длительности — пропускаем эту песню, играет оригинал";audioOwner.unsupported("duration_mismatch");status=completedReason;LogStore.log("replacement_track_skipped",LogStore.map("reason","duration_mismatch","trackId",trackId,"sourceDurationMs",s.duration,"replacementDurationMs",j.optLong("duration_ms"),"action","original_until_next_track"));descriptor=null;return;}if(!PlaybackDuration.safe(s.duration,j.optLong("duration_ms"))){
    LogStore.log("replacement_duration_probe",LogStore.map("trackId",trackId,"sourceDurationMs",s.duration,"reportedDurationMs",j.optLong("duration_ms"),"policy","verify_measured_file_before_any_audio"));
   }audioOwner.preparing();prepareTicket=audioOwner.ticket(key,api.accountGeneration,j.optLong("replacement_id"),j.optLong("version"),j.optLong("duration_ms"));preparing=true;status="Готовим аудио заранее; оригинал продолжает играть";
@@ -395,15 +397,19 @@ final class ReplacementEngine {
   final PlaybackSource sourceAtAck=owner.current;
   final long projectedAtAck=sourceAtAck==null?-1:position(sourceAtAck);
   final long decoderAtAck=mp.getCurrentPosition();
-  LogStore.log("replacement_seek_ack",LogStore.map(
+  Map<String,Object> ackFields=LogStore.map(
     "seekSeq",ack.sequence,"kind",ack.kind.name(),
-    "requestedPositionMs",ack.targetMs,"callbackElapsedMs",Math.max(0,ackClock-ack.submittedAt),
+    "requestedPositionMs",ack.targetMs,
     "sourceProjectedMs",projectedAtAck,"decoderPositionMs",decoderAtAck,
     "rawResidualMs",sourceAtAck==null?null:Long.valueOf(projectedAtAck-decoderAtAck),
+    "rawResidualSemantics","source transport minus decoder cursor at ACK; includes source advance during asynchronous seek",
     "correctionPass",ack.kind==AudioOwnership.SeekKind.ALIGNMENT?seekCorrections:-1,
     "rangeWaitObserved",ack.rangeWaitObserved,
     "staleOperation",ack.operationEpoch!=audioOwner.operationEpoch(),
-    "sourcePcmMeasured",false,"phaseVerified",false,"transportOnly",true));
+    "sourcePcmMeasured",false,"phaseVerified",false,"hardwareOutputMeasured",false,"transportOnly",true);
+  ackFields.putAll(SeekTimingEvidence.atAck(ack,ackClock,projectedAtAck,decoderAtAck,
+      sourceAtAck==null?-1:sourceAtAck.observed));
+  LogStore.log("replacement_seek_ack",ackFields);
     if(ack.operationEpoch!=audioOwner.operationEpoch()){
    /* A pause revoked output permission, not necessarily the decoder position.
       Reuse a verified final alignment without granting an old audible command.
@@ -426,8 +432,13 @@ final class ReplacementEngine {
   long clock=SystemClock.elapsedRealtime(),elapsed=clock-seekStarted;
   if(!ready||!armed()||!current(key))return;
   PlaybackSource now=owner.current;
-  long target=position(now),residual=target-mp.getCurrentPosition();
-  LogStore.log("replacement_seek_complete",LogStore.map("elapsedMs",elapsed,"trackId",trackId,"residualMs",residual,"correctionPass",seekCorrections));
+  long target=position(now),decoderAtComplete=mp.getCurrentPosition(),residual=target-decoderAtComplete;
+  LogStore.log("replacement_seek_complete",LogStore.map(
+    "elapsedMs",elapsed,"trackId",trackId,"residualMs",residual,
+    "sourceProjectedAtCompleteMs",target,"decoderPositionAtCompleteMs",decoderAtComplete,
+    "residualSemantics","source transport minus decoder cursor at callback; not output presentation",
+    "sourceSnapshotAgeAtCompleteMs",Math.max(0,clock-now.observed),
+    "correctionPass",seekCorrections,"sourcePcmMeasured",false,"phaseVerified",false));
   /* A second streaming seek can also wait for data. Never publish that stale
      alignment and then correct it audibly after handover. Allow two measured
      corrections, then keep the original if the decoder cannot settle. */
@@ -472,6 +483,7 @@ final class ReplacementEngine {
   final int[] corrections={0};final long[] softStarted={-1};
   /* Passive cold join drift summary: projected transport clocks only. */
   final long[] coldClock={Long.MAX_VALUE,Long.MIN_VALUE,0,-1,-1};
+  final boolean[] outputPreLogged={false},outputMidLogged={false},outputPostLogged={false};
   final long coldStarted=SystemClock.elapsedRealtime();
   if(originalMix<=0.001f&&!seekHoldActive){
    setAuditedVolume(p,0f);
@@ -513,21 +525,35 @@ final class ReplacementEngine {
       corrections[0]++;baseline[0]=warmTarget;phaseStarted[0]=now;
       LogStore.log("replacement_warm_alignment",LogStore.map(
         "trackId",trackId,"driftMs",drift,"pass",corrections[0],
+        "sourceProjectedAtRequestMs",target,"sourceSnapshotPositionMs",owner.current.position,
+        "sourceSnapshotAgeAtRequestMs",Math.max(0,now-owner.current.observed),
+        "decoderPositionBeforeSeekMs",position,
         "seekTargetMs",warmTarget,"predictedLeadMs",lead,
-        "thresholdMs",STRICT_STREAM_JOIN_DRIFT_MS,"predictor","warm_callback_fixed_70ms","replacementAudible",false));
+        "thresholdMs",STRICT_STREAM_JOIN_DRIFT_MS,"predictor","warm_callback_fixed_70ms","replacementAudible",false,
+        "measurementClass","transport_timeline_only"));
       /* One muted decoder seek; original remains fully audible. */
-      audioOwner.issueSeek(p,warmTarget,ownerKey,ownerEpoch,AudioOwnership.SeekKind.WARM,now);
+      PlaybackSource sourceAtSubmit=owner.current;
+      audioOwner.issueSeek(p,warmTarget,ownerKey,ownerEpoch,AudioOwnership.SeekKind.WARM,now,
+        position(sourceAtSubmit),sourceAtSubmit.position,sourceAtSubmit.observed,p.getCurrentPosition());
       owner.handler.postDelayed(this,20);return;
      }
      audioOwner.handoverClockValidated();fadeStarted=now;
      LogStore.log("replacement_join_guard_verified",LogStore.map(
        "driftMs",drift,"thresholdMs",STRICT_STREAM_JOIN_DRIFT_MS,
+       "sourceProjectedPositionMs",target,"sourceSnapshotPositionMs",owner.current.position,
+       "sourceSnapshotAgeMs",Math.max(0,now-owner.current.observed),
+       "decoderPositionMs",position,
        "corrections",corrections[0],"originalAudibleUntilGate",true,
-       "phaseVerified",false,"sourcePcmMeasured",false));
+       "phaseVerified",false,"sourcePcmMeasured",false,"hardwareOutputMeasured",false,
+       "measurementClass","transport_timeline_only"));
      LogStore.log("replacement_decoder_advancing",LogStore.map(
        "trackId",trackId,"driftMs",drift,"corrections",corrections[0],
        "waitMs",now-phaseStarted[0]));
     }
+     if(!outputPreLogged[0]){
+      logOutputClockSample(p,owner.current,coherentEntry?"pre_blend":"pre_exclusive_grant");
+      outputPreLogged[0]=true;
+     }
      /* The same bounded ticket and audio owner fence protect both paths.
         No equal-power gain law: two correlated sessions at 0.5/0.5 can
         interfere, but an equal-power 0.707/0.707 could also add +3dB. */
@@ -539,6 +565,9 @@ final class ReplacementEngine {
          "sourcePcmMeasured",false,"phaseVerified",false,"oneMode",true));
      }
      long elapsed=Math.max(0,SystemClock.elapsedRealtime()-softStarted[0]);
+     if(!outputMidLogged[0]&&elapsed>=UNIFIED_JOIN_MS/2){
+      logOutputClockSample(p,owner.current,"blend_midpoint");outputMidLogged[0]=true;
+     }
      long sourceProjected=position(owner.current),decoderProjected=p.getCurrentPosition();
      long transportDrift=sourceProjected-decoderProjected;
      coldClock[0]=Math.min(coldClock[0],transportDrift);
@@ -552,6 +581,10 @@ final class ReplacementEngine {
      applyVolume(1f);
     }else{
      audioOwner.grantReplacement(fx);originalMix=0f;applyVolume(1f);
+    }
+    if(!outputPostLogged[0]){
+     logOutputClockSample(p,owner.current,coherentEntry?"post_blend":"post_exclusive_grant");
+     outputPostLogged[0]=true;
     }
     fading=false;audioOwner.replacement();seekHoldActive=false;pendingStreamScrubJoin=false;ownerEvent("exclusive_handover");
      if(streaming!=null)streaming.releasePrefetchAfterSeek();
@@ -570,6 +603,9 @@ final class ReplacementEngine {
    }catch(RuntimeException e){suspend("fade_failed",retryDelay());}
   }};ramp.run();
  }
+ void logOutputClockSample(MediaPlayer p,PlaybackSource source,String stage){
+  LogStore.log("replacement_output_clock_sample",OutputClockEvidence.capture(p,source,stage));
+ }
  /* These are our own output commands, NOT an acoustic or Bluetooth measurement. */
  void setAuditedVolume(MediaPlayer p,float volume){
   audioOwner.volume(p,volume,effect);
@@ -584,9 +620,11 @@ final class ReplacementEngine {
    String cause=seeking?"seek":pausedAt>=0?"source_pause":bufferWaiting?"buffer_wait":
                 returning?"manual_return":fading?"handover":"transport";
    AudioContinuityMonitor.Finding finding=continuity.observe(SystemClock.elapsedRealtime(),
-     trackId,cause,playing,muted,decoder,commandedReplacementVolume);
+     trackId,cause,playing,muted,decoder,commandedReplacementVolume,audioOwner.state());
    if(finding!=null)LogStore.log("audio_command_anomaly",LogStore.map(
-     "kind",finding.kind,"trackId",finding.trackId,"cause",finding.cause,
+     "kind",finding.kind,"classification",finding.classification,
+     "expectedByOwnerState",finding.expectedByOwnerState,
+     "trackId",finding.trackId,"cause",finding.cause,
      "durationMs",finding.durationMs,"transition",transition,
      "sourcePlaying",playing,"sourceMutedCommand",muted,
      "decoderPlaying",decoder,"replacementVolumeCommand",commandedReplacementVolume,
