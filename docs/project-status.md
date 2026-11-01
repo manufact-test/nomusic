@@ -1,3 +1,20 @@
+## 2026-11-01 — CELIKOM Android 0.3.80 rollback-forward published to stable OTA
+
+The owner correctly identified that a signed GitHub test artifact is not enough: CELIKOM's in-app updater reads the Hostinger `/updates/android/stable.json` manifest. The first 0.3.80 candidate was initially uploaded only as a test artifact. This was corrected by putting the rollback-forward source on the normal Android release branch and running the standard signed publisher.
+
+- Version: **0.3.80**, versionCode **81**; previous stable 0.3.79 / code 80.
+- Audio source: restored the owner-approved 0.3.78 `ReplacementEngine` and matching test expectations; added `TestCachedAudioRollback` (13 actual-engine checks).
+- Release source commit: `8d32237a1ebaeaf59ccea828f601a94a19901443` on `feature/android-unified-preparation-seek-gate`.
+- CI and production publisher: [run 41329361546](https://github.com/manufact-test/nomusic/actions/runs/41329361546), **SUCCESS**. Full native tests, Android API 36 / D8, signed APK rebuild, Hostinger upload and live stable-manifest verification passed.
+- Signed APK SHA-256: `ef76f78c49f3e66852a2da56d43d16c3f15a47849f4ff93821ac59bddec806ee`; size **8,755,273 bytes**; original signing certificate preserved.
+- Stable OTA manifest now verified as **0.3.80 / versionCode 81**: https://lemonchiffon-narwhal-791953.hostingersite.com/updates/android/stable.json
+- Immutable APK: https://lemonchiffon-narwhal-791953.hostingersite.com/releases/android/81-ef76f78c49f3e66852a2da56d43d16c3f15a47849f4ff93821ac59bddec806ee.apk
+- Detailed receipt: [ANDROID-0380-OTA-RELEASE-RECEIPT-2026-11-01.md](android/ANDROID-0380-OTA-RELEASE-RECEIPT-2026-11-01.md).
+
+**Next:** owner opens CELIKOM → Check for updates and confirms that 0.3.80 is offered. Then test the same track starts and repeated seeks that exposed 0.3.79. Do not alter the audio engine again before this report.
+
+---
+
 ## 2026-11-01 — CELIKOM Android 0.3.79 published to stable OTA (OWNER LISTENING TEST PENDING)
 
 The owner requested the signed version to appear in CELIKOM's existing **Check for updates** flow. This has now been completed through the production GitHub Actions publisher.
