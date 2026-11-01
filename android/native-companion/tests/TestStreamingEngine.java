@@ -16,24 +16,41 @@ public class TestStreamingEngine {
   audio=start();e=TestEngine.e;player=e.player;player.error.onError(player,1,2);check(e.armed()&&e.effect==null&&audio.closed&&e.streamFallbackKey!=null,"codec error restores original and selects full-file fallback");SystemClock.now=e.nextLookup;TestEngine.p.current=TestEngine.source("1",2000,true);e.update(TestEngine.p.current);TestEngine.resolve();check(TestEngine.api.downloads==1&&e.preparing,"unsupported streaming retries full download automatically");e.close();
   TestEngine.reset("ALBUM");TestEngine.api.useStreaming=true;e=TestEngine.e;e.arm();TestEngine.resolve();NativeApi.StreamResult old=TestEngine.api.streamed;e.stop("owner_stop");audio=new Buffer();old.done(audio,null);check(audio.closed&&e.player==null&&!e.armed(),"late stream callback after Stop cannot revive playback");
   audio=start();e=TestEngine.e;audio.close();TestEngine.p.current=TestEngine.source("1",1200,true);e.update(TestEngine.p.current);check(e.player==null&&e.effect==null&&e.armed(),"cancelled stream cannot report playing or retain original attenuation");e.close();
-  /* A 179ms network seek residual is within the 350ms drift acceptance
-     budget. The old regression expected an unnecessary second seek. */
+  /* HONOR 0.3.73: 179ms seek ACK may still become a 187ms decoder-clock
+     gap. The stricter gate must keep original audible, predict the WARM
+     callback latency and verify advancement before permitting a blend. */
   TestEngine.reset("ALBUM");TestEngine.api.useStreaming=true;e=TestEngine.e;e.arm();TestEngine.resolve();audio=new Buffer();TestEngine.api.streamed.done(audio,null);player=e.player;player.asyncSeek=true;player.prepared.onPrepared(player);long initialPosition=player.position;
   SystemClock.now+=179;TestEngine.p.current=TestEngine.source("1",initialPosition+179,true);player.seek.onSeekComplete(player);check(player.seekCalls==1&&!e.seeking&&player.playing&&e.effect!=null,"179ms stream-seek residual must not trigger another seek");check(player.volume==0f&&e.effect.gain==0f,"source stays audible until advancing replacement clock is verified");
   SystemClock.now+=8;TestEngine.p.current=TestEngine.source("1",initialPosition+187,true);e.update(TestEngine.p.current);check(player.seekCalls==1&&player.playing,"cached decoder remains active without a second seek");
   SystemClock.now+=90;player.position+=90;TestEngine.p.handler.drain();
+  check(player.seekCalls==2&&e.audioOwner.seekInFlight(player)
+      &&player.volume==0f&&e.effect.gain==0f,
+      "187ms projected stream drift requires one muted warm correction");
+  // Android's warm callback is asynchronous: source advances while the same
+  // verified original effect remains at full gain.
+  SystemClock.now+=150;
+  TestEngine.p.current=TestEngine.source("1",initialPosition+427,true);
+  player.seek.onSeekComplete(player);
+  check(player.volume==0f&&e.effect.gain==0f&&!e.audioOwner.seekInFlight(player),
+      "warm ACK alone must never make replacement audible");
+  SystemClock.now+=50;player.position+=50;
+  TestEngine.p.current=TestEngine.source("1",initialPosition+477,true);
+  TestEngine.p.handler.drain();
+  check(e.audioOwner.state()==AudioOwnership.State.SAME_SONG_BLEND,
+      "corrected projected clock enters the one existing blend");
   SystemClock.now+=ReplacementEngine.UNIFIED_JOIN_MS/4;
   player.position+=ReplacementEngine.UNIFIED_JOIN_MS/4;
-  TestEngine.p.current=TestEngine.source("1",initialPosition+187+90+ReplacementEngine.UNIFIED_JOIN_MS/4,true);TestEngine.p.handler.drain();
+  TestEngine.p.current=TestEngine.source("1",initialPosition+517,true);
+  TestEngine.p.handler.drain();
   double sourceGain=Math.pow(10,e.effect.gain/20.0);
   check(e.audioOwner.state()==AudioOwnership.State.SAME_SONG_BLEND
       &&sourceGain>0.6&&sourceGain<0.9f&&player.volume>0.1f&&player.volume<0.4f,
-      "verified streaming clock starts the one complementary linear entry");
+      "strictly verified streaming clock starts the same complementary entry");
   SystemClock.now+=ReplacementEngine.UNIFIED_JOIN_MS+60;
   player.position+=ReplacementEngine.UNIFIED_JOIN_MS+60;
-  TestEngine.p.current=TestEngine.source("1",initialPosition+187+90+ReplacementEngine.UNIFIED_JOIN_MS/4+ReplacementEngine.UNIFIED_JOIN_MS+60,true);
+  TestEngine.p.current=TestEngine.source("1",initialPosition+737,true);
   TestEngine.p.handler.drain();check(player.volume>0.99f&&e.originalMix==0f&&e.effect.gain==-100f,
-      "new-track handover completes after unified join: volume="+player.volume+" source="+e.originalMix+" gain="+e.effect.gain+" state="+e.audioOwner.state()+" fading="+e.fading);
+      "bounded correction completes original single-mode join: volume="+player.volume+" source="+e.originalMix+" gain="+e.effect.gain+" state="+e.audioOwner.state()+" fading="+e.fading);
   e.sourceBoundary("rapid_next");SystemClock.now+=500;TestEngine.p.handler.drain();check(player.released&&e.effect==null&&e.player==null,"queued longer fade cannot leak the old song over a new track");e.close();
   TestEngine.reset("ALBUM");e=TestEngine.e;e.arm();java.util.function.BooleanSupplier lookup=TestEngine.api.resolveValid;check(lookup.getAsBoolean(),"active lookup is current");e.sourceBoundary("skip_in_flight");check(!lookup.getAsBoolean(),"skipping a song invalidates queued and active lookup transport");e.close();
   // Report 17:58:55: decoder asks for data while playback can still advance.
