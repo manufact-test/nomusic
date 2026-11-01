@@ -106,6 +106,9 @@ final class ReplacementEngine {
    if(s.playing&&s.position<completedPosition-1500){completedKey=null;completedReason=null;lookupKey=null;descriptor=null;nextLookup=0;LogStore.log("replacement_repeat_detected",LogStore.map("sourcePositionMs",s.position));}
    else{status=completedReason==null?"Ожидаем следующую песню; играет оригинал":completedReason;return;}
   }
+  if(durationConfirmationRequired&&!confirmed.contains(confirmationKey())){
+   status="Длительность версии отличается. Подтвердите найденную песню; пока играет оригинал";return;
+  }
   if(waitingForRouteResume){if(!s.playing){routePauseObserved=true;status="Наушники отключены. Нажми ▶ в Яндексе для продолжения";return;}if(!routePauseObserved){status="Ждём паузу Яндекса после отключения наушников";return;}waitingForRouteResume=false;pausedAt=-1;aligned=false;LogStore.log("replacement_route_resume",LogStore.map("sessionId",trustedSession,"sourcePlaying",true));}
   if(!s.key.equals(identityKey)){if(player!=null||preparing){generation++;preparing=false;release("track_changed");descriptor=null;lookupKey=null;}return;}
   if(trackId==null||(!armed()&&!preloadAllowed))return;
