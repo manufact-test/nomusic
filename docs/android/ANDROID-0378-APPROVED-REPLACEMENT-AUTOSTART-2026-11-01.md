@@ -1,7 +1,7 @@
 # CELIKOM Android 0.3.78 — automatic playback of approved replacements
 
 Date: 2026-11-01  
-Status: staging candidate; CI and physical HONOR listening acceptance pending. After native validation, the owner-created staging PR or a direct staging-branch push calls the original signing pipeline in explicit test-only mode and uploads a signed APK artifact. PR signing is restricted to this repository's own staging branch and repository owner; the Hostinger stable manifest and release directory are not touched.
+Status: CI passed; physical HONOR listening acceptance pending. The signed 0.3.78 APK is available as a test artifact. The owner-created staging PR or a direct staging-branch push uses explicit test-only signing; the Hostinger stable manifest and release directory are not touched.
 
 ## Baseline
 
@@ -31,11 +31,9 @@ Status: staging candidate; CI and physical HONOR listening acceptance pending. A
 - No seek timing, WARM lead, gain law, crossfade duration, pause/resume, Next, buffering, audio ownership, decoder lifecycle, Media3 arbitration or output-clock algorithm was changed.
 - No desktop extension, website, backend, admin panel, Hostinger deployment, stable manifest or signing identity change.
 
-## Required verification
+## Remaining verification
 
-- Actual-engine replay: automatic ALBUM and LEARNED_METADATA paths; one live resolve per track; 582/663/1354/1469ms bounded tails; >1500ms mismatch remains rejected; stale hint remains non-playable; all historical audio regressions.
-- Android API 36 full-source/Test* host gates and release-contract/archive checks.
-- Physical HONOR test after the candidate is built: confirm the previously blocked approved songs now replace automatically; verify ordinary playback, pause, seek, Next and song boundaries remain unchanged.
+- Physical HONOR test: confirm the previously blocked approved songs now replace automatically; verify ordinary playback, pause, seek, Next and song boundaries remain unchanged.
 
 A green CI run is not acoustic acceptance. The owner's listening test remains the final gate.
 
