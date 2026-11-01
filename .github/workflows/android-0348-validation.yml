@@ -14,6 +14,7 @@ on:
       - feature/android-0375-honor-bounded-warm-latency-staging
       - feature/android-076-output-clock-update-state-staging-20261101
       - feature/android-077-album-duration-confirmation-staging-20261101
+      - feature/android-audio-regression-from-0378-20261101
     paths:
       - 'android/native-companion/**'
       - '.github/workflows/android-0348-validation.yml'
@@ -175,6 +176,16 @@ jobs:
     needs: native-android
     if: vars.CELIKOM_ANDROID_AUTO_PUBLISH == 'true' && github.ref == 'refs/heads/feature/android-unified-preparation-seek-gate'
     uses: ./.github/workflows/android-auto-publish-hostinger.yml
+    secrets: inherit
+  publish-test-only-0-3-80:
+    needs: native-android
+    if: >-
+      github.event_name == 'push' &&
+      github.ref == 'refs/heads/feature/android-audio-regression-from-0378-20261101' &&
+      github.repository == 'manufact-test/nomusic'
+    uses: ./.github/workflows/android-auto-publish-hostinger.yml
+    with:
+      test_only: true
     secrets: inherit
   publish-requested-0-3-78:
     needs: native-android
