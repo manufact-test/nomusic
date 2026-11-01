@@ -12,6 +12,7 @@
 - Manifest APK bytes: `8,763,465`.
 - Original signer certificate SHA256: `67fe81c56fac1c1d145344b69a0e3faf9005cf6607f4e26ca27d5926c3eefc4f`.
 - No change to `UpdateInstallReceiver`, updater code, network publishing workflow, site, catalogue, account data, or audio ownership/gain/Next/Pause algorithms.
+- Delivery caveat: a separate full-APK GET attempted from this execution environment returned 504, and subsequent HEAD requests to **both** old 0.3.84 and new 0.3.85 APK URLs timed out through the same external network path. This does **not** establish a new Hostinger or updater defect; CI independently verified the immutable server file and live manifest. Actual HONOR in-app download/install must still be confirmed by the owner. Do not modify the updater on this evidence alone.
 
 ## What the test actually changes
 
