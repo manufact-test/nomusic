@@ -1,7 +1,7 @@
 # CELIKOM Android 0.3.78 — automatic playback of approved replacements
 
 Date: 2026-11-01  
-Status: Android validation passed on the candidate. Owner explicitly requested publication to the in-app stable update channel; PR #27 runs the original Hostinger publisher only after validation. Do not treat the GitHub test artifact as the deployed update. Deployment is complete only after the live stable manifest and APK URL are verified.
+Status: **PUBLISHED** to the Hostinger stable update channel. The post-publication HTTP check fetched `/updates/android/stable.json` and verified that its complete contents exactly match the release manifest. Owner listening acceptance is still pending.
 
 ## Baseline
 
@@ -43,11 +43,22 @@ A green CI run is not acoustic acceptance. The owner's listening test remains th
 - Tested application source commit: `05e2158e55e876eeb44baf8c22ee2ea8b63efe1b`. The later branch commits only adjust staging workflow concurrency; application sources are unchanged.
 - Actual-engine suite: 131 checks passed; long-run replay: 604 checks, 300 track changes and 15 virtual hours passed. Physical scheduling is not established by host simulation.
 - Full Android API 36 source compilation and D8 succeeded. The release builder verified the original signing identity, APK v2/v3 signature, alignment, version/API, manifest boundary, unchanged catalogue assets and exact compiled addon DEX.
-- Signed APK artifact: `celikom-android-0.3.78-signed-test`, GitHub artifact ID `13086328607`.
-- APK SHA-256: `8ce851a48c281cbb9121dc146e455183e59d3326c0721f030133a1ce55f55457`.
+- Staging-only GitHub artifact (not the deployed binary): artifact ID `13086328607`, SHA-256 `8ce851a48c281cbb9121dc146e455183e59d3326c0721f030133a1ce55f55457`; its receipt correctly recorded `stable_published: false`.
 - Signing certificate SHA-256: `67fe81c56fac1c1d145344b69a0e3faf9005cf6607f4e26ca27d5926c3eefc4f`.
-- Receipt explicitly records `stable_published: false`. Hostinger stable manifest and release directory were not changed.
 
-## Owner acceptance still required
+## Stable channel publication — verified
 
-Install the signed test APK over the existing app and replay the previously blocked approved tracks. Check ordinary playback, pause/resume, seek, Next and song boundaries. Only after the owner's listening acceptance should the candidate be considered for stable release.
+- Published: 2026-11-01 14:11:30 UTC.
+- Workflow run: `41314737218`; PR: [#27](https://github.com/manufact-test/nomusic/pull/27).
+- Pre-publish gate confirmed current stable `versionCode` 78 and candidate 79.
+- Hostinger release directory: `/home/u235811320/domains/lemonchiffon-narwhal-791953.hostingersite.com/celikom-private/android-updates/releases/`.
+- Immutable APK: `79-325d6eb5c538405b989907bd492a644b287143a1f590b76754778c62f66f89a9.apk`.
+- Public APK URL: `https://lemonchiffon-narwhal-791953.hostingersite.com/releases/android/79-325d6eb5c538405b989907bd492a644b287143a1f590b76754778c62f66f89a9.apk`.
+- Deployed APK SHA-256: `325d6eb5c538405b989907bd492a644b287143a1f590b76754778c62f66f89a9`.
+- Size: `8,755,273` bytes.
+- Stable manifest: `/updates/android/stable.json`, version `0.3.78`, code `79`.
+- The remote publication step checked uploaded APK SHA-256 and size before atomically moving the immutable APK and `stable.json` into place. The final HTTP verification fetched the live stable manifest and confirmed exact equality with the expected manifest: `Stable Android version published: 0.3.78 79`.
+
+## Owner listening retest
+
+Open CELIKOM, enter the existing update section and press **Check for updates**. It should now show 0.3.78 and offer the download. After installing, replay the previously blocked approved tracks and check ordinary playback, pause/resume, seek, Next and song boundaries. Publication is verified; acoustic acceptance remains pending.
