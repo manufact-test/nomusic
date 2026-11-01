@@ -27,18 +27,8 @@ public final class TestRealFailures {
   TestEngine.api.downloaded.done(wrongFile,null);
   check(e.player!=null&&e.effect==null,"no original attenuation before measuring the replacement decoder");
   e.player.duration=121469;e.player.prepared.onPrepared(e.player);
-  check(e.player==null&&e.effect==null&&e.durationConfirmationRequired&&e.completedKey!=null,
-      "recorded 1469ms automatic album candidate asks owner before accepting a possible different edit");
-  int beforeConfirm=TestEngine.api.resolves;e.confirm();
-  check(!e.durationConfirmationRequired&&e.completedKey==null&&TestEngine.api.resolves==beforeConfirm+1,
-      "explicit owner confirmation triggers a fresh live resolve");
-  TestEngine.api.resolved.done(new JSONObject()
-    .put("found",true).put("replacement_id",10).put("duration_ms",121469),null);
-  java.io.File confirmedFile=java.io.File.createTempFile("honor-confirmed-edition", ".audio");
-  TestEngine.api.downloaded.done(confirmedFile,null);
-  e.player.duration=121469;e.player.prepared.onPrepared(e.player);
   check(e.ready&&e.effect!=null&&e.player!=null,
-      "explicitly confirmed 1469ms measured tail remains eligible for playback");
+      "recorded 1469ms approved album replacement starts automatically within the bounded tail policy");
   int lookups=TestEngine.api.resolves;
   SystemClock.now+=10000;sample(e,11000);
   check(TestEngine.api.resolves==lookups&&e.ready,

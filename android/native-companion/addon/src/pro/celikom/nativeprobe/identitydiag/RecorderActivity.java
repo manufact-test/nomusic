@@ -27,7 +27,7 @@ public class RecorderActivity extends Activity {
  final Handler handler=new Handler(Looper.getMainLooper());
  final ExecutorService files=Executors.newSingleThreadExecutor();
  TextView status,mark,access,track,version,accountNote,reportNote;UpdateCenter updateCenter;
- Button incidentButton,save,start,stop,restore,confirm,loginButton,logoutButton,accountToggle,uploadButton,suggestButton,notificationPermission;
+ Button incidentButton,save,start,stop,restore,loginButton,logoutButton,accountToggle,uploadButton,suggestButton,notificationPermission;
  final StartIntent startIntent=new StartIntent();LinearLayout accountBody;boolean authBusy,accessBusy,pendingStart,exportBusy,presenceBusy,contributionBusy;String serverStatus="",uiProblem="",presenceId="",presenceStatus="";JSONObject accountAccess;long presenceChecked,uiAccountGeneration=-1,permissionIntent=-1,permissionAccount=-1;
  MobileActions.Target pickerTarget;File exportSnapshot,incidentSnapshot;AlertDialog uploadDialog;
  int dp(float value){return Math.round(value*getResources().getDisplayMetrics().density);}
@@ -43,7 +43,6 @@ public class RecorderActivity extends Activity {
   restore=button(box,"Вернуть оригинал",()->{ProbeService p=ProbeService.instance;if(p!=null&&p.replacement!=null)p.replacement.returnOriginal();},false);
   uploadButton=button(box,"Загрузить версию",this::pickVersion,false);suggestButton=button(box,"Предложить песню",this::suggest,false);
   LinearLayout info=column();info.setPadding(dp(2),dp(14),dp(2),dp(12));access=label(info,"",13,MUTED);track=label(info,"Включите песню в Яндекс Музыке и нажмите «Старт»",16,FG);version=label(info,"",13,MUTED);version.setPadding(0,dp(6),0,0);track.setOnClickListener(v->{ProbeService p=ProbeService.instance;if(p==null||p.current==null)openYandex();});box.addView(info);
-  confirm=button(box,"Подтвердить найденную песню",this::confirmTrack,false);confirm.setVisibility(View.GONE);
   accountBody=section(box,"Аккаунт");accountNote=label(accountBody,"",13,MUTED);loginButton=button(accountBody,"Войти",this::login,false);logoutButton=button(accountBody,"Выйти",this::logout,false);
   support(section(box,"Связь с поддержкой"));
   save=button(box,"Сохранить диагностику",this::requestExport,false);save.setBackground(background(SURFACE));save.setTextColor(0xff8fa0a8);save.setTextSize(12);save.setMinHeight(dp(42));save.setMinimumHeight(dp(42));save.getLayoutParams().height=dp(42);save.setGravity(Gravity.START|Gravity.CENTER_VERTICAL);save.setPadding(dp(12),dp(7),dp(12),dp(7));save.getLayoutParams().height=dp(42);
@@ -84,8 +83,8 @@ public class RecorderActivity extends Activity {
   MobileActions.Target target=target();boolean exact=target!=null;enable(uploadButton,signed&&presentation.showTrack&&exact&&!contributionBusy);enable(suggestButton,signed&&presentation.showTrack&&exact&&!contributionBusy);
   if(exact&&signed&&presentation.showTrack){if(!target.id.equals(presenceId)){presenceId=target.id;presenceStatus=api().presenceHint(target.id);presenceChecked=0;}if(!presenceBusy&&(presenceChecked==0||SystemClock.elapsedRealtime()-presenceChecked>=15000)){presenceBusy=true;presenceChecked=SystemClock.elapsedRealtime();String id=target.id;long account=api().accountGeneration;api().presence(id,(j,error)->{presenceBusy=false;if(account!=api().accountGeneration||!id.equals(presenceId))return;if(error==null)presenceStatus=j.optString("status");});}}
   else{presenceId="";presenceStatus="";}
-  String detail=presentation.version;if(presentation.showTrack&&!input.replacing&&!input.seeking&&!input.confirmation&&input.problem.isEmpty()){if("pending".equals(presenceStatus))detail="Версия песни CELIKOM на проверке";else if("approved".equals(presenceStatus)&&!input.preparing&&"Играет оригинал".equals(detail))detail="Версия песни CELIKOM доступна для подмены";}
-  set(version,detail);version.setVisibility(detail.isEmpty()?View.GONE:View.VISIBLE);version.setTextColor(detail.equals("Играет версия CELIKOM")?MINT:MUTED);confirm.setVisibility(presentation.connected&&input.confirmation?View.VISIBLE:View.GONE);
+  String detail=presentation.version;if(presentation.showTrack&&!input.replacing&&!input.seeking&&input.problem.isEmpty()){if("pending".equals(presenceStatus))detail="Версия песни CELIKOM на проверке";else if("approved".equals(presenceStatus)&&!input.preparing&&"Играет оригинал".equals(detail))detail="Версия песни CELIKOM доступна для подмены";}
+  set(version,detail);version.setVisibility(detail.isEmpty()?View.GONE:View.VISIBLE);version.setTextColor(detail.equals("Играет версия CELIKOM")?MINT:MUTED);
   String accountTitle=AppPresentation.account(signed);accountToggle.setTag(accountTitle);set(accountToggle,(accountBody.getVisibility()==View.VISIBLE?"⌄  ":"›  ")+accountTitle);accountToggle.setContentDescription(accountTitle+(accountBody.getVisibility()==View.VISIBLE?", развернуто":", свернуто"));
   String email="";JSONObject user=api().session.read().optJSONObject("user");if(signed&&user!=null)email=user.optString("email");String term=AppPresentation.entitlement(accountAccess,System.currentTimeMillis());set(accountNote,!signed?"Войдите в тот же аккаунт, что в расширении.":(email.isEmpty()?"Выполнен вход в CELIKOM":email)+(term.isEmpty()?"":"\n"+term)+(serverStatus.isEmpty()?"":"\n"+serverStatus));loginButton.setVisibility(signed?View.GONE:View.VISIBLE);logoutButton.setVisibility(signed?View.VISIBLE:View.GONE);
  }
@@ -94,7 +93,6 @@ public class RecorderActivity extends Activity {
  void launch(){try{startForegroundService(new Intent(this,ProbeService.class).putExtra("arm",true));}catch(RuntimeException e){uiProblem="Не удалось запустить CELIKOM. Нажмите «Старт» ещё раз.";toast(uiProblem);}finally{pendingStart=false;startIntent.cancel();render();}}
  void stop(){pendingStart=false;startIntent.cancel();uiProblem="";ProbeService p=ProbeService.instance;if(p!=null)p.finish("user_stop");render();}
  void openYandex(){Intent intent=getPackageManager().getLaunchIntentForPackage(LogStore.PKG);if(intent==null){toast("Яндекс Музыка не найдена");return;}try{startActivity(intent);}catch(RuntimeException e){toast("Не удалось открыть Яндекс Музыку");}}
- void confirmTrack(){ProbeService p=ProbeService.instance;if(p==null||p.replacement==null||p.current==null)return;ReplacementEngine e=p.replacement;String key=p.current.key,id=e.trackId;if(id==null||!key.equals(e.identityKey))return;new AlertDialog.Builder(this).setTitle("Это нужная песня?").setMessage(p.current.title+" — "+p.current.artist).setNegativeButton("Отмена",null).setPositiveButton("Подтвердить",(d,w)->{if(p.current!=null&&key.equals(p.current.key)&&id.equals(e.trackId))e.confirm();}).show();}
  MobileActions.Target target(){return PlaybackUi.target(ProbeService.instance);}
  boolean current(MobileActions.Target t){MobileActions.Target now=target();return now!=null&&now.id.equals(t.id)&&now.key.equals(t.key);}
  void login(){if(authBusy)return;LinearLayout form=column();form.setPadding(dp(20),dp(8),dp(20),0);EditText email=input(form,"Email",InputType.TYPE_CLASS_TEXT|InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS),password=input(form,"Пароль",InputType.TYPE_CLASS_TEXT|InputType.TYPE_TEXT_VARIATION_PASSWORD);

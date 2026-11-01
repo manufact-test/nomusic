@@ -9,7 +9,7 @@ public class TestHybrid {
   check("OWN_CATALOGUE_METADATA".equals(HybridIdentity.decide(null,fresh,none,false).get("method")),"own fallback selected");
   check("NONE".equals(HybridIdentity.decide(null,fresh,none,true).get("method")),"pending primary prevents premature fallback");
   Map<String,Object> stale=HybridIdentity.own(own,"Песня","А, Б",120000,now+8*86400000L);
-  Map<String,Object> historical=HybridIdentity.decide(null,stale,none,false);check("OWN_CATALOGUE_HINT".equals(historical.get("method"))&&Boolean.FALSE.equals(historical.get("playbackAuthorized")),"old complete catalogue supplies a hint but never playback authorization");
+  Map<String,Object> historical=HybridIdentity.decide(null,stale,none,false);check("NONE".equals(historical.get("method"))&&historical.get("candidateTrackId")==null,"stale catalogue hint is ignored without asking the user to confirm an uncertain edition");
   Map<String,Object> primary=LogStore.map("status","UNIQUE_CANDIDATE","catalogueTrackId","456");Map<String,Object> decision=HybridIdentity.decide(primary,fresh,none,false);
   check("456".equals(decision.get("candidateTrackId"))&&Boolean.TRUE.equals(decision.get("editionConflict")),"different editions reported explicitly, stronger candidate retained");
   check("NONE".equals(HybridIdentity.decide(LogStore.map("status","AMBIGUOUS"),fresh,none,false).get("method")),"ambiguity cannot be hidden by weaker candidate");

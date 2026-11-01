@@ -16,7 +16,7 @@ final class HybridIdentity {
   else if("UNIQUE_METADATA_CANDIDATE".equals(own.get("status"))){id=String.valueOf(own.get("catalogueTrackId"));method="OWN_CATALOGUE_METADATA";reason="unique_fresh_replacement_metadata_candidate";}
   else if("AMBIGUOUS".equals(own.get("status"))){reason="own_catalogue_ambiguous";}
   else if("UNIQUE_METADATA_CANDIDATE".equals(learned.get("status"))){id=String.valueOf(learned.get("catalogueTrackId"));method="LEARNED_METADATA";reason="unique_candidate_in_previously_received_albums";}
-  else if(Boolean.TRUE.equals(own.get("historicalHintEligible"))&&"UNIQUE_METADATA_CANDIDATE".equals(own.get("candidateStatus"))){id=String.valueOf(own.get("catalogueTrackId"));method="OWN_CATALOGUE_HINT";reason="historical_metadata_hint_requires_owner_confirmation_and_live_server_resolve";}
+  else if(Boolean.TRUE.equals(own.get("historicalHintEligible"))&&"UNIQUE_METADATA_CANDIDATE".equals(own.get("candidateStatus"))){reason="historical_catalogue_hint_not_used_without_current_identity";}
   return LogStore.map("method",method,"candidateTrackId",id,"reason",reason,"editionConflict",conflict,"automaticSourceIdVerified",false,"replacementStarted",false,"playbackAuthorized",false);
  }
 }

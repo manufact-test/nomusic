@@ -39,36 +39,27 @@ public class TestEngine {
   File measuredFile=File.createTempFile("engine-measured", ".audio");api.downloaded.done(measuredFile,null);
   e.player.duration=120000;e.player.prepared.onPrepared(e.player);
   ok(e.ready&&e.effect!=null,"correct 120000ms measured file plays despite misleading 119418ms server metadata");
-  /* Replay both additional 0.3.76 long-tail observations. */
+  /* Admin-approved track IDs automatically accept bounded codec/outro tails. */
   for(int delta:new int[]{582,663}){
-   reset("ALBUM");e.arm();api.resolved.done(new JSONObject().put("found",true).put("replacement_id",7).put("duration_ms",120000-delta),null);
-   File candidateFile=File.createTempFile("engine-duration-confirmation", ".audio");api.downloaded.done(candidateFile,null);
+   reset("ALBUM");e.arm();int beforeResolve=api.resolves;
+   api.resolved.done(new JSONObject().put("found",true).put("replacement_id",7).put("duration_ms",120000-delta),null);
+   File candidateFile=File.createTempFile("engine-approved-tail", ".audio");api.downloaded.done(candidateFile,null);
    e.player.duration=120000-delta;e.player.prepared.onPrepared(e.player);
-   ok(e.player==null&&e.effect==null&&!candidateFile.exists()&&e.durationConfirmationRequired
-       &&e.completedKey!=null&&e.completedReason.contains("Подтвердите"),
-      delta+"ms automatic album tail remains original until owner confirms the edition");
+   ok(e.ready&&e.player!=null&&e.effect!=null&&api.resolves==beforeResolve,
+      delta+"ms approved album tail starts automatically after the single live resolve");
   }
-  /* An automatic album candidate is not an exact source-ID proof. If its
-     measured file differs by >500ms, fail open and ask the owner once rather
-     than silently playing a possibly different edit/master. */
-  reset("ALBUM");e.arm();api.resolved.done(new JSONObject().put("found",true).put("replacement_id",7).put("duration_ms",118646),null);
-  File shortFile=File.createTempFile("engine-short-outro", ".audio");api.downloaded.done(shortFile,null);
-  e.player.duration=118646;e.player.prepared.onPrepared(e.player);
-  ok(e.player==null&&e.effect==null&&!shortFile.exists()&&e.durationConfirmationRequired
-      &&e.completedKey!=null&&e.completedReason.contains("Подтвердите"),
-     "unconfirmed 1354ms album tail restores original and requests owner confirmation");
-  int beforeConfirmResolve=api.resolves;e.confirm();
-  ok(!e.durationConfirmationRequired&&e.completedKey==null&&api.resolves==beforeConfirmResolve+1,
-     "owner confirmation clears the hold and performs a fresh live resolve");
+  /* A 1354ms measured tail is inside the existing bounded policy and must not
+     create a confirmation prompt or a second server resolve. */
+  reset("ALBUM");e.arm();int beforeApprovedResolve=api.resolves;
   api.resolved.done(new JSONObject().put("found",true).put("replacement_id",7).put("duration_ms",118646),null);
-  File confirmedFile=File.createTempFile("engine-confirmed-outro", ".audio");api.downloaded.done(confirmedFile,null);
+  File approvedTail=File.createTempFile("engine-approved-outro", ".audio");api.downloaded.done(approvedTail,null);
   e.player.duration=118646;e.player.prepared.onPrepared(e.player);
-  ok(e.ready&&e.player!=null&&e.effect!=null,
-     "explicitly confirmed 1354ms same-track tail is allowed by the existing bounded policy");
+  ok(e.ready&&e.player!=null&&e.effect!=null&&api.resolves==beforeApprovedResolve,
+     "approved 1354ms bounded tail starts automatically after one live resolve");
   MediaPlayer shortDecoder=e.player;p.current=source("1",118646,true);
   shortDecoder.completed.onCompletion(shortDecoder);
   ok(e.player==null&&e.effect==null&&e.completedReason==null,
-     "confirmed expected short outro restores the original at the natural tail");
+     "approved expected short outro restores the original at the natural tail");
   reset("ALBUM");e.arm();api.resolved.done(new JSONObject().put("found",true).put("replacement_id",7).put("duration_ms",118000),null);
   ok(!e.preparing&&api.downloads==0&&e.effect==null,"metadata discrepancy beyond bounded probe never downloads or mutes");
   reset("ALBUM");e.arm();resolve();NativeApi.AudioResult oldDownload=api.downloaded;e.stop("owner_stop");File stale=File.createTempFile("engine-test", ".audio");oldDownload.done(stale,null);ok(!stale.exists()&&e.player==null,"late download after stop is discarded");
@@ -76,8 +67,8 @@ public class TestEngine {
   playing();first=e.player;e.update(null);ok(!first.playing&&e.effect==null&&!first.released,"brief lost source silences replacement and restores original while retaining decoder");SystemClock.now+=1600;e.update(null);ok(first.released&&e.effect==null,"sustained source loss releases retained decoder");
   playing();first=e.player;DynamicsProcessing effect=e.effect;effect.listener.onControlStatusChange(effect,false);ok(!e.armed()&&first.released&&e.effect==null,"effect control loss stops replacement");
   playing();first=e.player;first.error.onError(first,1,2);ok(e.armed()&&first.released&&e.effect==null,"media error restores original and retains automatic mode");
-  reset("LEARNED_METADATA");e.arm();ok(api.resolves==0&&e.player==null,"metadata-only edition needs owner confirmation");e.confirm();ok(api.resolves==1,"explicit confirmation permits server check");prepare();ok(e.effect!=null,"confirmed candidate can play after server and file checks");e.close();ok(!e.armed()&&e.effect==null&&e.player==null,"service shutdown restores original");
-  reset("OWN_CATALOGUE_HINT");e.arm();ok(api.resolves==0&&e.player==null,"historical catalogue hint cannot resolve/play without owner confirmation");e.confirm();ok(api.resolves==1,"historical hint confirmation leads to live server check");api.resolved.done(null,"access_denied");ok(e.player==null&&e.effect==null,"historical hint never bypasses server entitlement");
+  reset("LEARNED_METADATA");e.arm();ok(api.resolves==1&&e.player==null&&e.effect==null,"unique learned track ID automatically starts its single live resolve without muting the original");prepare();ok(e.effect!=null,"approved learned-metadata replacement starts after server and file checks");e.close();ok(!e.armed()&&e.effect==null&&e.player==null,"service shutdown restores original");
+  reset("NONE");e.identity(LogStore.map("mediaAlias","1","albumId","42","title","Песня","artist","Артист","durationMs",120000L),LogStore.map("candidateTrackId",null,"method","NONE"));e.arm();ok(api.resolves==0&&e.player==null,"stale or ambiguous identity hint without a unique current track ID never reaches the approved-replacement resolve");
   reset("ALBUM");e.arm();api.resolved.done(null,"access_denied");ok(e.player==null&&e.effect==null,"server entitlement denial keeps original");
   playing();first=e.player;SystemClock.now+=2000;e.update(p.current);ok(first.released&&e.effect==null,"stale source deadline restores original");
   // Preparation before enabling must be silent and reused at activation.
@@ -180,6 +171,6 @@ public class TestEngine {
    p.current=source("2",0,true);e.update(p.current);
    ok(warm.released&&e.player==null,
       "confirmed next-track boundary must still release old decoder");
-   System.out.println("PASS: "+tests+" actual-engine checks: prepare ordering, confirmation, pause/resume, seek, track change, late responses, stop, expiry, stale/disconnected source, effect loss, playback error and cleanup");
+   System.out.println("PASS: "+tests+" actual-engine checks: prepare ordering, approved auto-start, pause/resume, seek, track change, late responses, stop, expiry, stale/disconnected source, effect loss, playback error and cleanup");
  }
 }
