@@ -169,3 +169,11 @@ jobs:
     if: vars.CELIKOM_ANDROID_AUTO_PUBLISH == 'true' && github.ref == 'refs/heads/feature/android-unified-preparation-seek-gate'
     uses: ./.github/workflows/android-auto-publish-hostinger.yml
     secrets: inherit
+
+  build-test-candidate:
+    needs: native-android
+    if: github.ref == 'refs/heads/feature/android-078-approved-replacement-autostart-staging-20261101'
+    uses: ./.github/workflows/android-auto-publish-hostinger.yml
+    with:
+      test_only: true
+    secrets: inherit
