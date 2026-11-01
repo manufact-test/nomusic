@@ -1,4 +1,4 @@
-> **CURRENT STATUS — 31.10.2026:** the Update Center and stable APK distribution described here are now deployed. CELIKOM Android **0.3.72 / versionCode 73** is live. The original “not created / not deployed” status below describes the state on 30.10.2026 and is retained as historical design context only. See [ANDROID-0372-OTA-RELEASE-RECEIPT-2026-10-31.md](ANDROID-0372-OTA-RELEASE-RECEIPT-2026-10-31.md) for actual release evidence and the pending HONOR test.
+> **CURRENT STATUS — 01.11.2026:** the Update Center is deployed and CELIKOM Android **0.3.77 / versionCode 78** is live on stable. The original “not created / not deployed” text below is historical design context from 30.10.2026. See [ANDROID-0377-OTA-RELEASE-RECEIPT-2026-11-01.md](ANDROID-0377-OTA-RELEASE-RECEIPT-2026-11-01.md) for the signed production APK, live manifest verification, public GET/HEAD/SHA checks and the remaining HONOR device test.
 
 ---
 
