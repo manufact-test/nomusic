@@ -177,6 +177,7 @@ jobs:
     if: vars.CELIKOM_ANDROID_AUTO_PUBLISH == 'true' && github.ref == 'refs/heads/feature/android-unified-preparation-seek-gate'
     uses: ./.github/workflows/android-auto-publish-hostinger.yml
     secrets: inherit
+  # 0.3.80 is a signed test artifact only; stable publishing stays disabled on this branch.
   publish-test-only-0-3-80:
     needs: native-android
     if: >-
