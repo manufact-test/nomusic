@@ -3,11 +3,15 @@ on:
   workflow_run:
     workflows: ["Android 0.3.55 architecture and release contract verification"]
     types: [completed]
-    branches:
-      - feature/android-unified-preparation-seek-gate
-      - feature/android-078-approved-replacement-autostart-staging-20261101
+    branches: [feature/android-unified-preparation-seek-gate]
   workflow_dispatch:
   workflow_call:
+    inputs:
+      test_only:
+        description: Build and sign a test APK without publishing to the stable channel.
+        required: false
+        type: boolean
+        default: false
 permissions:
   contents: read
   actions: read
@@ -20,8 +24,7 @@ jobs:
       github.event_name != 'workflow_run' ||
       (github.event.workflow_run.conclusion == 'success' &&
        github.event.workflow_run.head_repository.full_name == 'manufact-test/nomusic' &&
-       (github.event.workflow_run.head_branch == 'feature/android-unified-preparation-seek-gate' ||
-        github.event.workflow_run.head_branch == 'feature/android-078-approved-replacement-autostart-staging-20261101'))
+       github.event.workflow_run.head_branch == 'feature/android-unified-preparation-seek-gate')
     runs-on: ubuntu-latest
     timeout-minutes: 35
     steps:
@@ -37,10 +40,11 @@ jobs:
         id: gate
         env:
           SOURCE_BRANCH: ${{ github.event.workflow_run.head_branch }}
+          TEST_ONLY: ${{ inputs.test_only }}
         shell: bash
         run: |
           set -euo pipefail
-          if [[ "$SOURCE_BRANCH" == "feature/android-078-approved-replacement-autostart-staging-20261101" ]]; then
+          if [[ "$TEST_ONLY" == "true" || "$SOURCE_BRANCH" == "feature/android-078-approved-replacement-autostart-staging-20261101" ]]; then
             echo 'publish=true' >> "$GITHUB_OUTPUT"
             echo 'test_only=true' >> "$GITHUB_OUTPUT"
             echo 'Staging candidate: sign and upload a test artifact only; no stable manifest or Hostinger release.'
