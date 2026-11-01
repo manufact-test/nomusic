@@ -26,7 +26,7 @@ public final class TestRealFailures {
   java.io.File wrongFile=java.io.File.createTempFile("honor-wrong-edition", ".audio");
   TestEngine.api.downloaded.done(wrongFile,null);
   check(e.player!=null&&e.effect==null,"no original attenuation before measuring the replacement decoder");
-  e.player.duration=121469;e.player.prepared.onPrepared(e.player);TestEngine.finishJoin(e.player);
+  e.player.duration=121469;e.player.prepared.onPrepared(e.player);
   check(e.ready&&e.effect!=null&&e.player!=null,
       "recorded 1469ms approved album replacement starts automatically within the bounded tail policy");
   int lookups=TestEngine.api.resolves;
