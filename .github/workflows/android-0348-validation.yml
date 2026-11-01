@@ -173,6 +173,14 @@ jobs:
           retention-days: 7
 
 
+  build-test-candidate:
+    if: github.ref == 'refs/heads/feature/android-0382-cache-prewarm-staging-20261101'
+    needs: native-android
+    uses: ./.github/workflows/android-auto-publish-hostinger.yml
+    with:
+      test_only: true
+    secrets: inherit
+
   publish-stable:
     needs: native-android
     if: vars.CELIKOM_ANDROID_AUTO_PUBLISH == 'true' && github.ref == 'refs/heads/feature/android-unified-preparation-seek-gate'
