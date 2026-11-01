@@ -421,6 +421,13 @@ final class ReplacementEngine {
  void acceptAudio(String key,JSONObject j,long g,File file,BufferedAudio source,String error){if(g!=generation||closed||!audioOwner.dataCurrent(prepareTicket,api.accountGeneration,key,j.optLong("replacement_id"),j.optLong("version"),j.optLong("duration_ms"))){if(file!=null)file.delete();if(source!=null)source.close();return;}preparing=false;if(file==null&&source==null){suspend("download_failed",retryDelay());status="Сеть недоступна; играет оригинал, повторим автоматически";return;}if(!current(key)||!api.signedIn()){if(file!=null)file.delete();if(source!=null)source.close();suspend("download_source_changed",1000);return;}
    try{if(source!=null)audioFromCache=false;audioFile=file;streaming=source;localPrewarmAttempted=false;localPrewarmAlignmentPending=false;localPrewarmJoinPending=false;bufferWaiting=false;player=new MediaPlayer();final MediaPlayer p=player;final long ownerTicket=audioOwner.epoch();final AudioOwnership.Ticket dataTicket=prepareTicket;p.setAudioAttributes(new AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_MEDIA).setContentType(AudioAttributes.CONTENT_TYPE_MUSIC).build());setAuditedVolume(p,0f);if(source==null)p.setDataSource(file.getAbsolutePath());else p.setDataSource(new StreamingAudio(source));p.setOnErrorListener((mp,what,extra)->{if(mp==player&&g==generation&&audioOwner.current(ownerTicket,key)&&accountLeaseCurrent()){suspend("media_player_error",retryDelay());LogStore.log("replacement_failure",LogStore.map("reason","media_player_error","what",what,"extra",extra));}return true;});p.setOnCompletionListener(mp->{
     if(mp!=player||g!=generation||!audioOwner.current(ownerTicket,key)||!accountLeaseCurrent())return;
+    if(localPrewarmWarmupPending||localPrewarmAlignmentPending||localPrewarmJoinPending){
+     LogStore.log("replacement_completion_before_local_join",LogStore.map(
+       "trackId",trackId,"cacheHit",audioFromCache,"decoderPositionMs",mp.getCurrentPosition(),
+       "originalAudible",originalMix>=0.999f,"action","keep_original"));
+     suspend("replacement_completed",30000);
+     return;
+    }
     /* Completion is untagged: an old-position callback during a seek or a
        paused/buffered/route-lost hold must not mark the song complete. */
     if(!ready||!armed()||returning||pausedAt>=0||waitingForRouteResume
