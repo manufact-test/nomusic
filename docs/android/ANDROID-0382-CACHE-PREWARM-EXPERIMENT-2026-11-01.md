@@ -82,8 +82,25 @@ Run the complete Android validation: native engine suite, Android application te
 The signed candidate is available as a private GitHub Actions artifact at:
 https://github.com/manufact-test/nomusic/actions/runs/41337874853/artifacts/13095853584
 
-It will **not** appear in the installed app's “Check for update” button while kept staging-only. Publishing to the stable updater would expose the candidate to all stable-channel installations and is not authorized by this staging instruction.
+That test-only artifact did not appear in the installed app's updater. The owner then explicitly requested normal in-app delivery; the final signed 0.3.82 release was published through the established Hostinger pipeline and is now advertised by the live stable manifest. The final deployed APK has a different SHA-256 from this test-only artifact; see the verified release record in the current-status document.
 
 ## Owner acceptance still required
 
 The CI and signing pipeline prove the candidate is structurally valid and the regression suite passes. They do not prove the audible result on the HONOR device. The remaining acceptance is a listening test of the initial replacement join, ordinary song changes, manual finger seek, Pause/Resume, Next, and fallback to the original if a local decoder does not become stable.
+
+
+## Stable channel publication — VERIFIED
+
+- Published by the existing owner-requested Hostinger release pipeline: [workflow #41339161550](https://github.com/manufact-test/nomusic/actions/runs/41339161550), **SUCCESS**.
+- Release PR: [#32](https://github.com/manufact-test/nomusic/pull/32), remains open and unmerged pending owner listening retest.
+- Published version: **0.3.82**, versionCode **83**.
+- Live stable manifest: `/updates/android/stable.json` now advertises **0.3.82 / code 83**. The pipeline fetched the live endpoint after publication and verified exact JSON equality with the generated release manifest.
+- Immutable Hostinger file: `celikom-private/android-updates/releases/83-27300b898c4fa93b942329b5d1647930bf5f37a8e8406c055d1479cf65081195.apk`.
+- Public APK URL: https://lemonchiffon-narwhal-791953.hostingersite.com/releases/android/83-27300b898c4fa93b942329b5d1647930bf5f37a8e8406c055d1479cf65081195.apk
+- Deployed APK SHA-256: `27300b898c4fa93b942329b5d1647930bf5f37a8e8406c055d1479cf65081195`.
+- APK size: **8,755,273 bytes**.
+- Original signing certificate SHA-256 retained: `67fe81c56fac1c1d145344b69a0e3faf9005cf6607f4e26ca27d5926c3eefc4f`.
+- The remote publisher verified the uploaded APK's SHA-256 and size before atomically moving the immutable APK and `stable.json` into place. The final live HTTP verification reported: `Stable Android version published: 0.3.82 83`.
+- The earlier test-only artifact (SHA `fb0aea...`) is **not** the deployed file. Use the Hostinger release above.
+
+The owner can now open CELIKOM and press **Check for update**; 0.3.82 should be offered through the normal in-app update flow. Listening acceptance remains pending: test the initial join, normal track changes, manual seek, Pause/Resume, Next, and fail-open to the original.
