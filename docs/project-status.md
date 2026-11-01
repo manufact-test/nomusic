@@ -960,6 +960,25 @@ The Android investigation is isolated in `feature/android-0382-cache-prewarm-sta
 
 A local-file decoder is now prewarmed at replacement volume zero while the original remains audible. CELIKOM waits for 40 ms of decoder-clock movement (bounded by the existing 2-second seek budget), aligns while the decoder is already running, then uses the unchanged handover clock gate and 160 ms complementary entry. An unstable or non-advancing decoder falls back to the original. StreamingAudio and subsequent manual seek remain on their existing paths. No seek algorithm, WARM lead, transition duration, gain law, Pause/Resume, Next, Bluetooth, AudioOwnership policy, permissions, UI, or non-Android project was changed.
 
-Candidate 0.3.82 / code83: [full CI #41337874853 PASS](https://github.com/manufact-test/nomusic/actions/runs/41337874853), including native host regression suite, API 36, D8, release-contract checks, and signed test-only APK verification. Signed APK SHA-256: `fb0aea25bcb8995ee3245e0aa3ffd80a8e0a1fbf34e1d978c9ebf30729f77223`; original signing certificate SHA-256 matches. Test artifact ID `13095853584`; `stable_published=false`. Stable publication and live stable-manifest verification were skipped. It will not appear in the installed app's update button while staging-only.
+Candidate 0.3.82 / code83: [full CI #41337874853 PASS](https://github.com/manufact-test/nomusic/actions/runs/41337874853), including native host regression suite, API 36, D8, release-contract checks, and signed test-only APK verification. That first test artifact (SHA-256 `fb0aea25bcb8995ee3245e0aa3ffd80a8e0a1fbf34e1d978c9ebf30729f77223`, artifact ID `13095853584`) was not deployed.
 
-Current Android status and owner acceptance gate: [CURRENT-STATUS-2026-11-01-ANDROID-0382.md](android/CURRENT-STATUS-2026-11-01-ANDROID-0382.md). Experiment detail: [ANDROID-0382-CACHE-PREWARM-EXPERIMENT-2026-11-01.md](android/ANDROID-0382-CACHE-PREWARM-EXPERIMENT-2026-11-01.md). Draft PR #31 remains unmerged; owner listening acceptance is required before merge or stable publication.
+**Owner-requested stable publication is now complete:** [release workflow #41339161550 PASS](https://github.com/manufact-test/nomusic/actions/runs/41339161550). Hostinger's live `/updates/android/stable.json` advertises 0.3.82 / code83, and the final HTTP verification confirmed exact manifest equality. Deployed immutable APK SHA-256: `27300b898c4fa93b942329b5d1647930bf5f37a8e8406c055d1479cf65081195`; size 8,755,273 bytes; original signing certificate retained. [Direct APK](https://lemonchiffon-narwhal-791953.hostingersite.com/releases/android/83-27300b898c4fa93b942329b5d1647930bf5f37a8e8406c055d1479cf65081195.apk). The app's normal **Check for update** button should now offer 0.3.82.
+
+Current Android status and owner acceptance gate: [CURRENT-STATUS-2026-11-01-ANDROID-0382.md](android/CURRENT-STATUS-2026-11-01-ANDROID-0382.md). Experiment detail: [ANDROID-0382-CACHE-PREWARM-EXPERIMENT-2026-11-01.md](android/ANDROID-0382-CACHE-PREWARM-EXPERIMENT-2026-11-01.md). Release PR [#32](https://github.com/manufact-test/nomusic/pull/32) remains open and unmerged pending the owner's listening retest.
+
+
+## Stable channel publication — VERIFIED
+
+- Published by the existing owner-requested Hostinger release pipeline: [workflow #41339161550](https://github.com/manufact-test/nomusic/actions/runs/41339161550), **SUCCESS**.
+- Release PR: [#32](https://github.com/manufact-test/nomusic/pull/32), remains open and unmerged pending owner listening retest.
+- Published version: **0.3.82**, versionCode **83**.
+- Live stable manifest: `/updates/android/stable.json` now advertises **0.3.82 / code 83**. The pipeline fetched the live endpoint after publication and verified exact JSON equality with the generated release manifest.
+- Immutable Hostinger file: `celikom-private/android-updates/releases/83-27300b898c4fa93b942329b5d1647930bf5f37a8e8406c055d1479cf65081195.apk`.
+- Public APK URL: https://lemonchiffon-narwhal-791953.hostingersite.com/releases/android/83-27300b898c4fa93b942329b5d1647930bf5f37a8e8406c055d1479cf65081195.apk
+- Deployed APK SHA-256: `27300b898c4fa93b942329b5d1647930bf5f37a8e8406c055d1479cf65081195`.
+- APK size: **8,755,273 bytes**.
+- Original signing certificate SHA-256 retained: `67fe81c56fac1c1d145344b69a0e3faf9005cf6607f4e26ca27d5926c3eefc4f`.
+- The remote publisher verified the uploaded APK's SHA-256 and size before atomically moving the immutable APK and `stable.json` into place. The final live HTTP verification reported: `Stable Android version published: 0.3.82 83`.
+- The earlier test-only artifact (SHA `fb0aea...`) is **not** the deployed file. Use the Hostinger release above.
+
+The owner can now open CELIKOM and press **Check for update**; 0.3.82 should be offered through the normal in-app update flow. Listening acceptance remains pending: test the initial join, normal track changes, manual seek, Pause/Resume, Next, and fail-open to the original.
