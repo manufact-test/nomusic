@@ -1,39 +1,3 @@
-## 2026-11-01 — CELIKOM Android 0.3.80 rollback-forward published to stable OTA
-
-The owner correctly identified that a signed GitHub test artifact is not enough: CELIKOM's in-app updater reads the Hostinger `/updates/android/stable.json` manifest. The first 0.3.80 candidate was initially uploaded only as a test artifact. This was corrected by putting the rollback-forward source on the normal Android release branch and running the standard signed publisher.
-
-- Version: **0.3.80**, versionCode **81**; previous stable 0.3.79 / code 80.
-- Audio source: restored the owner-approved 0.3.78 `ReplacementEngine` and matching test expectations; added `TestCachedAudioRollback` (13 actual-engine checks).
-- Release source commit: `8d32237a1ebaeaf59ccea828f601a94a19901443` on `feature/android-unified-preparation-seek-gate`.
-- CI and production publisher: [run 41329361546](https://github.com/manufact-test/nomusic/actions/runs/41329361546), **SUCCESS**. Full native tests, Android API 36 / D8, signed APK rebuild, Hostinger upload and live stable-manifest verification passed.
-- Signed APK SHA-256: `ef76f78c49f3e66852a2da56d43d16c3f15a47849f4ff93821ac59bddec806ee`; size **8,755,273 bytes**; original signing certificate preserved.
-- Stable OTA manifest now verified as **0.3.80 / versionCode 81**: https://lemonchiffon-narwhal-791953.hostingersite.com/updates/android/stable.json
-- Immutable APK: https://lemonchiffon-narwhal-791953.hostingersite.com/releases/android/81-ef76f78c49f3e66852a2da56d43d16c3f15a47849f4ff93821ac59bddec806ee.apk
-- Detailed receipt: [ANDROID-0380-OTA-RELEASE-RECEIPT-2026-11-01.md](android/ANDROID-0380-OTA-RELEASE-RECEIPT-2026-11-01.md).
-
-**Next:** owner opens CELIKOM → Check for updates and confirms that 0.3.80 is offered. Then test the same track starts and repeated seeks that exposed 0.3.79. Do not alter the audio engine again before this report.
-
----
-
-## 2026-11-01 — CELIKOM Android 0.3.79 published to stable OTA (OWNER LISTENING TEST PENDING)
-
-The owner requested the signed version to appear in CELIKOM's existing **Check for updates** flow. This has now been completed through the production GitHub Actions publisher.
-
-- Version: **0.3.79**, versionCode **80** (previous stable 0.3.78 / code 79).
-- Cached decoder fix: new local-file/cache-hit joins use the existing decoder-motion and transport-clock gate; original remains at full gain until safe join; unstable startup fails open to original. Pause/Resume, route resume, seek/WARM constants, transition duration, gain law, Next, Bluetooth and AudioOwnership are unchanged.
-- Production PR: [#29](https://github.com/manufact-test/nomusic/pull/29), merged to `feature/android-unified-preparation-seek-gate`.
-- Merge commit: `56269cda348027d46e16634f31b90e419f29b8f4`.
-- Full Android API 36 / D8 / host regression and production publisher: [CI run 41325660420](https://github.com/manufact-test/nomusic/actions/runs/41325660420), **SUCCESS**.
-- Hostinger immutable APK: `celikom-private/android-updates/releases/80-95492c9b657bf5d40cab989f9c95e77787951091f8abc5e78750ee6066eaaacd.apk`.
-- Public APK URL: https://lemonchiffon-narwhal-791953.hostingersite.com/releases/android/80-95492c9b657bf5d40cab989f9c95e77787951091f8abc5e78750ee6066eaaacd.apk
-- APK SHA-256: `95492c9b657bf5d40cab989f9c95e77787951091f8abc5e78750ee6066eaaacd`; size **8,755,273 bytes**.
-- Original signing certificate preserved: `67fe81c56fac1c1d145344b69a0e3faf9005cf6607f4e26ca27d5926c3eefc4f`.
-- Stable manifest `/updates/android/stable.json` advertises **0.3.79 / code 80**. The publisher verified uploaded APK SHA-256 and size before atomically updating the manifest, then fetched the live manifest and confirmed exact JSON equality.
-
-**Owner action:** Open CELIKOM and press **Check for updates**. Version 0.3.79 should appear. Install it and test the cache-hit scenario on **“Биг сити лайф”**, then send diagnostics. Stable publication is complete; acoustic acceptance is still pending.
-
----
-
 ## 2026-11-01 — CELIKOM Android 0.3.78 published to stable (OWNER LISTENING RETEST PENDING)
 
 The owner clarified that a GitHub test artifact is insufficient: the APK must be uploaded to the Hostinger directory consumed by CELIKOM's in-app update checker. This has now been completed by the existing signed release pipeline after Android API 36 validation passed.
@@ -44,7 +8,7 @@ The owner clarified that a GitHub test artifact is insufficient: the APK must be
 - Public APK URL: https://lemonchiffon-narwhal-791953.hostingersite.com/releases/android/79-325d6eb5c538405b989907bd492a644b287143a1f590b76754778c62f66f89a9.apk
 - SHA-256: `325d6eb5c538405b989907bd492a644b287143a1f590b76754778c62f66f89a9`; size 8,755,273 bytes.
 - Stable manifest `/updates/android/stable.json` now advertises 0.3.78 / code 79. The pipeline fetched the live endpoint after publication and verified the complete manifest matched the expected JSON.
-- CI run: `41314737218` (success); release PR #27 was later merged as the 0.3.78 source baseline before the 0.3.79 promotion; 0.3.79 is now the current stable release.
+- CI run: `41314737218` (success); release PR: https://github.com/manufact-test/nomusic/pull/27 (kept open; not merged pending owner retest).
 - Original package identity and signing certificate preserved. No audio seek/crossfade/transition tuning was changed in this release.
 
 Owner action: in CELIKOM's existing update section, press **Check for updates**; 0.3.78 should now appear. Then test the previously blocked approved tracks plus pause/resume, seek, Next and song boundaries. Stable publication is verified; listening acceptance is still pending.

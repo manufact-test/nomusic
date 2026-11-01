@@ -14,7 +14,6 @@ on:
       - feature/android-0375-honor-bounded-warm-latency-staging
       - feature/android-076-output-clock-update-state-staging-20261101
       - feature/android-077-album-duration-confirmation-staging-20261101
-      - feature/android-0379-cached-decoder-join-staging-20261101
     paths:
       - 'android/native-companion/**'
       - '.github/workflows/android-0348-validation.yml'
@@ -185,14 +184,4 @@ jobs:
       github.event.pull_request.head.repo.full_name == 'manufact-test/nomusic' &&
       github.event.pull_request.user.login == 'manufact-test'
     uses: ./.github/workflows/android-auto-publish-hostinger.yml
-    secrets: inherit
-
-  # This branch is deliberately test-only. It signs a higher-version APK
-  # for owner installation, but never invokes the stable Hostinger publisher.
-  sign-cached-decoder-join-staging:
-    needs: native-android
-    if: github.ref == 'refs/heads/feature/android-0379-cached-decoder-join-staging-20261101'
-    uses: ./.github/workflows/android-auto-publish-hostinger.yml
-    with:
-      test_only: true
     secrets: inherit
