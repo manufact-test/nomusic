@@ -1,3 +1,18 @@
+## 2026-11-01 — CELIKOM Android 0.3.78 published to stable (OWNER LISTENING RETEST PENDING)
+
+The owner clarified that a GitHub test artifact is insufficient: the APK must be uploaded to the Hostinger directory consumed by CELIKOM's in-app update checker. This has now been completed by the existing signed release pipeline after Android API 36 validation passed.
+
+- Version: **0.3.78**, versionCode **79** (previous stable code 78).
+- Behavior: approved, uniquely identified catalogue replacements now start automatically; the redundant confirmation step/UI is removed. Existing source/session/entitlement and bounded duration safety checks remain.
+- Hostinger immutable APK: `/celikom-private/android-updates/releases/79-325d6eb5c538405b989907bd492a644b287143a1f590b76754778c62f66f89a9.apk`.
+- Public APK URL: https://lemonchiffon-narwhal-791953.hostingersite.com/releases/android/79-325d6eb5c538405b989907bd492a644b287143a1f590b76754778c62f66f89a9.apk
+- SHA-256: `325d6eb5c538405b989907bd492a644b287143a1f590b76754778c62f66f89a9`; size 8,755,273 bytes.
+- Stable manifest `/updates/android/stable.json` now advertises 0.3.78 / code 79. The pipeline fetched the live endpoint after publication and verified the complete manifest matched the expected JSON.
+- CI run: `41314737218` (success); release PR: https://github.com/manufact-test/nomusic/pull/27 (kept open; not merged pending owner retest).
+- Original package identity and signing certificate preserved. No audio seek/crossfade/transition tuning was changed in this release.
+
+Owner action: in CELIKOM's existing update section, press **Check for updates**; 0.3.78 should now appear. Then test the previously blocked approved tracks plus pause/resume, seek, Next and song boundaries. Stable publication is verified; listening acceptance is still pending.
+
 ## 2026-10-20 — CELIKOM 0.4.58: VPN recovery without browser online event (OWNER RETEST PENDING)
 
 Owner reported installed **0.4.57** failed to auto-reconnect after switching VPN; manual reconnection worked. Diagnostic evidence: repeated `auth/me` `auth_timeout` (~20 s), then `auth_network_error`; fail-open restored original (`api_network_error`), bridge remained healthy, while `replacementError=access_reconnecting`, `suspended=true`, `recovering=false`, `player.connected=false`. Actual VPN/server route cause unproven; `online` event was not evidenced at return.
