@@ -34,7 +34,7 @@ with tempfile.TemporaryDirectory(prefix='celikom-android-full-host-') as temp:
     run_cp=os.pathsep.join(str(x) for x in [json,classes,tests,ANDROID])
     # TestReportReplay requires a private diagnostic fixture and is not a no-argument gate.
     # Match the release builder's tested runnable suite exactly; compile all test classes.
-    runnable=['TestPure','TestHybrid','TestContracts','TestMobileActions','TestAppPresentation','TestNotifications','TestDiagnosticArchive','TestAudioTransfer','TestBufferedAudio','TestTransitionReadFence','TestTransitionRecovery','TestRequestPacing','TestSourceStateWatchdog','TestDiagnosticAccess','TestIncidentLog','TestPresencePreview','TestDiagnosticRequest']
+    runnable=['TestPure','TestHybrid','TestContracts','TestMobileActions','TestAppPresentation','TestNotifications','TestDiagnosticArchive','TestAudioTransfer','TestBufferedAudio','TestTransitionReadFence','TestTransitionRecovery','TestRequestPacing','TestSourceStateWatchdog','TestDiagnosticAccess','TestIncidentLog','TestPresencePreview','TestDiagnosticRequest','TestUpdateState']
     for name in runnable:
         clazz='pro.celikom.nativeprobe.identitydiag.'+name
         subprocess.run(['java','-cp',run_cp,clazz],check=True)

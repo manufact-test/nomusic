@@ -15,6 +15,10 @@ import java.net.*;
 import java.security.MessageDigest;
 import java.security.cert.Certificate;
 import java.util.Locale;
+import java.util.HashMap;
+import java.util.Map;
+import java.text.SimpleDateFormat;
+import java.util.Date;
 import java.util.concurrent.*;
 import javax.net.ssl.HttpsURLConnection;
 
@@ -45,14 +49,18 @@ final class UpdateCenter {
         summary.setMinHeight(activity.dp(48));
         summary.setGravity(android.view.Gravity.CENTER_VERTICAL);
         summary.setPadding(0,activity.dp(8),0,activity.dp(8));
-        refresh=activity.button(region,"Проверить обновления",()->check(true),false);
-        install=activity.button(region,"Скачать и установить",this::download,false);
-        later=activity.button(region,"Позже",()->{candidate=null;render("Напомним позже");},false);
-        android.content.SharedPreferences cache=activity.getSharedPreferences("update-center",0);
-        boolean verified=cache.getInt("verifiedInstalledCode",-1)==installed(activity)
-            &&cache.getBoolean("verifiedLatest",false);
-        upToDate=verified;
-        render(verified?"У вас последняя версия CELIKOM":"Проверяем актуальность версии…");
+        refresh=activity.button(region,"Проверить обновление",()->check(true),false);
+        install=activity.button(region,"Скачать обновление",this::download,false);
+        later=activity.button(region,"Позже",this::deferUpdate,false);
+        candidate=loadCandidate(activity);
+        UpdateState cached=readState(activity);
+        int current=installed(activity);
+        boolean recent=cached.shouldSkipAutomaticCheck(System.currentTimeMillis(),INTERVAL,current);
+        upToDate=candidate==null&&cached.isVerifiedLatestFor(current)&&recent;
+        String initial=candidate!=null?availableMessage(candidate)
+            :upToDate?"У вас последняя версия CELIKOM"
+            :cached.checkedAt>0?staleMessage(cached.checkedAt):"Статус обновлений ещё не проверен";
+        render(initial);
         schedule(activity);
         check(false);
     }
@@ -63,7 +71,11 @@ final class UpdateCenter {
     }
     static final class Release {
         final int code; final String name,url,sha,notes; final long size;
-        Release(int c,String n,String u,String h,String t,long s){code=c;name=n;url=u;sha=h;notes=t;size=s;}
+        final String manifestJson;
+        Release(int c,String n,String u,String h,String t,long s){this(c,n,u,h,t,s,null);}
+        Release(int c,String n,String u,String h,String t,long s,String raw){
+            code=c;name=n;url=u;sha=h;notes=t;size=s;manifestJson=raw;
+        }
     }
     static Release parse(JSONObject j,int current) throws Exception {
         if (j.getInt("schemaVersion")!=1 || !j.getBoolean("enabled")
@@ -81,7 +93,7 @@ final class UpdateCenter {
           || j.getInt("minSdk")>Build.VERSION.SDK_INT
           || !url.equals("https://"+HOST+"/releases/android/"+code+"-"+sha+".apk"))
             throw new SecurityException("Некорректный релиз");
-        return new Release(code,name,url,sha,notes,size);
+        return new Release(code,name,url,sha,notes,size,j.toString());
     }
     static HttpsURLConnection connect(String url) throws Exception {
         URL target=new URL(url);
@@ -102,41 +114,116 @@ final class UpdateCenter {
             return parse(new JSONObject(b.toString("UTF-8")),installed(context));
         } finally {c.disconnect();}
     }
+    static UpdateState readState(Context context) {
+        android.content.SharedPreferences p=context.getSharedPreferences("update-center",0);
+        Map<String,Object> values=new HashMap<>();
+        values.put("checked",p.getLong("checked",0));
+        values.put("verifiedInstalledCode",p.getInt("verifiedInstalledCode",-1));
+        values.put("verifiedLatest",p.getBoolean("verifiedLatest",false));
+        values.put("availableCode",p.getInt("availableCode",0));
+        values.put("availableManifest",p.getString("availableManifest",null));
+        return UpdateState.restore(values,installed(context));
+    }
+    static void writeState(Context context,UpdateState state) {
+        android.content.SharedPreferences.Editor edit=context.getSharedPreferences("update-center",0).edit()
+            .putLong("checked",state.checkedAt)
+            .putInt("verifiedInstalledCode",state.verifiedInstalledCode)
+            .putBoolean("verifiedLatest",state.verifiedLatest)
+            .putInt("availableCode",state.availableCode);
+        if(state.availableManifest!=null)edit.putString("availableManifest",state.availableManifest);
+        else edit.remove("availableManifest");
+        edit.apply();
+    }
+    static void recordSuccessfulCheck(Context context,Release release) {
+        int current=installed(context);
+        UpdateState previous=readState(context);
+        UpdateState next=previous.successfulCheck(current,release==null?0:release.code,
+            release==null?null:release.manifestJson,System.currentTimeMillis());
+        writeState(context,next);
+    }
+    static Release loadCandidate(Context context) {
+        UpdateState state=readState(context);
+        int current=installed(context);
+        if(!state.hasAvailable(current)) {
+            android.content.SharedPreferences p=context.getSharedPreferences("update-center",0);
+            if(p.getInt("availableCode",0)!=0||p.getString("availableManifest",null)!=null)
+                writeState(context,state.clearCandidate());
+            return null;
+        }
+        try {
+            Release stored=parse(new JSONObject(state.availableManifest),current);
+            if(stored==null||stored.code!=state.availableCode)
+                throw new SecurityException("Stored update candidate mismatch");
+            return stored;
+        } catch(Exception invalid) {
+            writeState(context,state.clearCandidate());
+            return null;
+        }
+    }
+    static String availableMessage(Release release) {
+        return "Доступна новая версия CELIKOM "+release.name+"\n"+release.notes;
+    }
+    static String checkedAt(long time) {
+        return new SimpleDateFormat("dd.MM.yyyy HH:mm",Locale.ROOT).format(new Date(time));
+    }
+    static String staleMessage(long time) {
+        return "Последняя проверка: "+checkedAt(time)+"\nПроверяем актуальность версии…";
+    }
     void check(boolean manual) {
         if (busy)return;
         long now=System.currentTimeMillis();
-        android.content.SharedPreferences p=activity.getSharedPreferences("update-center",0);
-        if(!manual && now-p.getLong("checked",0)<INTERVAL
-          &&p.getInt("verifiedInstalledCode",-1)==installed(activity))return;
+        UpdateState cached=readState(activity);
+        if(!manual&&cached.shouldSkipAutomaticCheck(now,INTERVAL,installed(activity)))return;
         busy=true;checking=true;upToDate=false;
         final long started=SystemClock.elapsedRealtime();
         final int generation=++checkGeneration;
-        render("Проверяем наличие обновлений…");
+        render(candidate!=null?availableMessage(candidate)+"\nПроверяем актуальность…":"Проверяем наличие обновлений…");
         IO.execute(()->{
+            Context context=activity.getApplicationContext();
             Release r=null;String error=null;
-            try {r=fetch(activity.getApplicationContext());
-                p.edit().putLong("checked",System.currentTimeMillis())
-                    .putInt("verifiedInstalledCode",installed(activity.getApplicationContext()))
-                    .putBoolean("verifiedLatest",r==null).apply();
-            }catch(Exception e){error="Не удалось проверить обновления";}
+            try {r=fetch(context);recordSuccessfulCheck(context,r);}
+            catch(Exception e){error="Не удалось проверить обновления";}
             final Release found=r;final String failure=error;
             long remaining=Math.max(0,MIN_CHECK_DISPLAY_MS-(SystemClock.elapsedRealtime()-started));
             MAIN.postDelayed(()->{
                 if(generation!=checkGeneration)return;
                 busy=false;checking=false;
                 if(!activity.visible())return;
-                candidate=found;
-                upToDate=failure==null && found==null;
-                render(failure!=null?"Не удалось проверить обновления":upToDate?"У вас последняя версия CELIKOM":"Доступна CELIKOM "+found.name+"\n"+found.notes);
-                if(found!=null)notifyAvailable(activity,found);
+                if(failure!=null) {
+                    candidate=loadCandidate(context);
+                    UpdateState state=readState(context);
+                    int current=installed(context);
+                    boolean recent=state.shouldSkipAutomaticCheck(System.currentTimeMillis(),INTERVAL,current);
+                    upToDate=candidate==null&&state.isVerifiedLatestFor(current)&&recent;
+                    if(candidate!=null)
+                        render(availableMessage(candidate)+"\nНе удалось обновить проверку; найденная версия сохранена");
+                    else if(upToDate)
+                        render("У вас последняя версия CELIKOM\nПоследняя успешная проверка: "+checkedAt(state.checkedAt)+"\nНе удалось обновить проверку");
+                    else render("Не удалось проверить обновления");
+                } else {
+                    candidate=found;
+                    upToDate=found==null;
+                    render(found==null?"У вас последняя версия CELIKOM":availableMessage(found));
+                    if(found!=null)notifyAvailable(context,found);
+                }
             },remaining);
         });
     }
+    void deferUpdate() {
+        Release found=candidate;
+        if(found==null)return;
+        NotificationManager manager=activity.getSystemService(NotificationManager.class);
+        if(manager!=null)manager.cancel(NOTIFICATION_ID);
+        render("Доступна новая версия CELIKOM "+found.name+"\nОбновление сохранено. Можно установить позже.");
+    }
     void render(String message) {
+        if(candidate!=null&&message!=null&&!message.contains(candidate.name))
+            message=availableMessage(candidate)+"\n"+message;
         summary.setText(message);
         summary.setTextColor(upToDate?RecorderActivity.MINT:RecorderActivity.MUTED);
         install.setVisibility(candidate==null?View.GONE:View.VISIBLE);
-        later.setVisibility(candidate==null?View.GONE:View.VISIBLE);refresh.setEnabled(!busy);install.setEnabled(!busy);
+        later.setVisibility(candidate==null?View.GONE:View.VISIBLE);
+        refresh.setEnabled(!busy);install.setEnabled(!busy);later.setEnabled(!busy);
     }
     static String sha(byte[] bytes) throws Exception {
         MessageDigest d=MessageDigest.getInstance("SHA-256");d.update(bytes);return hex(d.digest());
