@@ -1,11 +1,12 @@
-# CELIKOM Android — current status at 0.3.78 stable baseline
+# CELIKOM Android — current status at 0.3.79 stable release
 
 Date: 2026-11-01  
-Status: **0.3.79 experimental APK built, signed and verified; owner listening test pending**
+Status: **0.3.79 / versionCode 80 published to stable updater; owner listening test pending**
 
 ## Stable and rollback points
 
-- Stable owner baseline: **0.3.78 / versionCode 79**.
+- Previous stable baseline: **0.3.78 / versionCode 79**.
+- Current stable release: **0.3.79 / versionCode 80**, published 2026-11-01.
 - Immutable recovery branch: \`backup/android-0378-original-before-cached-join-20261101\`.
 - Immutable recovery SHA: \`bf011dcf1a70c504883a8e5e742e0b038f41d9b0\`.
 - Verified APK source commit: \`e04d5a7d5eafac2e03c61c885bbe86238e4638d9\`.
@@ -45,7 +46,7 @@ GitHub Actions: [run 41324403134](https://github.com/manufact-test/nomusic/actio
 
 The native host run reported 6,730 checks across 34 test groups.
 
-## Experimental APK
+## Historical staging-only APK (not the production deployment)
 
 - GitHub artifact: \`celikom-android-0.3.79-cached-decoder-join-signed-test\`
 - Artifact ID: \`13090493627\`
@@ -57,11 +58,32 @@ The native host run reported 6,730 checks across 34 test groups.
 - Signing certificate SHA-256: \`67fe81c56fac1c1d145344b69a0e3faf9005cf6607f4e26ca27d5926c3eefc4f\`
 - Receipt: \`stable_published: false\`
 
-The APK can be installed over 0.3.78 without uninstalling because package and signing identity match and versionCode is higher. It is a direct test download and will not appear in the in-app updater; no stable release was published.
+This was the staging-only artifact and was not copied to Hostinger. The production APK was independently rebuilt and published by the signed production workflow below.
+
+## Production publication — completed
+
+## Stable OTA publication — 0.3.79 / versionCode 80
+
+Published: 2026-11-01. Owner-authorized production promotion.
+
+- Production PR: [#29](https://github.com/manufact-test/nomusic/pull/29), merged.
+- Production merge commit: \`56269cda348027d46e16634f31b90e419f29b8f4\`.
+- Production GitHub Actions: [run 41325660420](https://github.com/manufact-test/nomusic/actions/runs/41325660420), **SUCCESS**.
+- Version: **0.3.79**, versionCode **80**, package \`pro.celikom.nativeprobe\`.
+- Immutable Hostinger file: \`celikom-private/android-updates/releases/80-95492c9b657bf5d40cab989f9c95e77787951091f8abc5e78750ee6066eaaacd.apk\`.
+- Public APK URL: https://lemonchiffon-narwhal-791953.hostingersite.com/releases/android/80-95492c9b657bf5d40cab989f9c95e77787951091f8abc5e78750ee6066eaaacd.apk
+- APK SHA-256: \`95492c9b657bf5d40cab989f9c95e77787951091f8abc5e78750ee6066eaaacd\`.
+- APK size: **8,755,273 bytes**.
+- Signing certificate SHA-256: \`67fe81c56fac1c1d145344b69a0e3faf9005cf6607f4e26ca27d5926c3eefc4f\`.
+- Stable manifest: \`/updates/android/stable.json\`, advertises **0.3.79 / code 80**.
+
+The production publisher rebuilt and verified the APK from the merged CI build kit. On Hostinger it verified the uploaded file's SHA-256 and size before atomically moving the immutable APK and \`stable.json\` into place. The final HTTP request fetched the live stable manifest and verified exact JSON equality; the workflow reported \`Stable Android version published: 0.3.79 80\`.
+
+The release is now available through CELIKOM's in-app **Check for updates** flow. Owner acoustic acceptance remains pending; CI success is not a substitute for listening on the device.
 
 ## Next owner test
 
-1. Install the experimental APK over 0.3.78.
+1. Open CELIKOM and press **Check for updates**; install **0.3.79 / code 80** from the in-app updater.
 2. Test the cache-hit path on **“Биг сити лайф”**: allow the replacement to load once, switch to another song, then return to the same track.
 3. Listen for a volume dip, silence, click, late join or unstable transition.
 4. Compare with a first-load streaming replacement and send the resulting diagnostics.
@@ -70,4 +92,4 @@ Do not adjust timing or gain parameters before the device test. A green CI run i
 
 ## Scope boundary
 
-Android only. No Desktop, Backend, website, CMS, catalogue or Hostinger stable release changes.
+Android only. No Desktop, Backend, website, CMS or catalogue changes. The Android 0.3.79 release is published to Hostinger stable OTA.
