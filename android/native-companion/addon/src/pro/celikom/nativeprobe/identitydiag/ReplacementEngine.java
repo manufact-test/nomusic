@@ -105,7 +105,7 @@ final class ReplacementEngine {
  }
  boolean awaitLocalPrewarmMotion(PlaybackSource s,boolean resumed,boolean sourceJump){
   if(!localPrewarmWarmupPending)return false;
-  if(resumed||sourceJump||explicitSourceSeek||waitingForRouteResume||s==null||!s.playing){
+  if(sourceJump||explicitSourceSeek||waitingForRouteResume||s==null||!s.playing){
    localPrewarmWarmupPending=false;
    return false;
   }
