@@ -1,15 +1,15 @@
-# CELIKOM Android — 0.3.77 candidate: conservative album-duration confirmation
+# CELIKOM Android 0.3.77 — conservative album-duration confirmation
 
 Date: 2026-11-01
-Status: signed test candidate; not yet acoustically accepted on HONOR. Stable publication intentionally skipped.
+Status: **signed stable release published and delivery verified**. Physical HONOR listening acceptance is still pending. See [ANDROID-0377-OTA-RELEASE-RECEIPT-2026-11-01.md](ANDROID-0377-OTA-RELEASE-RECEIPT-2026-11-01.md).
 
 ## Baseline and recovery
 
 - Production baseline: Android 0.3.76, versionCode 77, source commit 712e7226052419647b46a16086921e4b82732051.
-- Candidate: Android 0.3.77, versionCode 78.
+- Stable release: Android 0.3.77, versionCode 78, published 2026-11-01.
 - Immutable recovery branch: backup/android-0376-before-strict-seek-clock-20261101.
 - Staging branch: feature/android-077-album-duration-confirmation-staging-20261101.
-- The signed production APK, stable manifest, signing identity and updater are unchanged.
+- Stable manifest now points to 0.3.77. Original package identity, signing certificate and updater implementation are unchanged.
 
 ## Evidence from the owner's 0.3.76 journal
 
@@ -44,7 +44,13 @@ Size: 8,755,273 bytes
 SHA-256: 6ebc28f459951d663d8ed8e6f72584c4726bdac735b45a6edb29f08ab12a688a  
 Signing certificate SHA-256: 67fe81c56fac1c1d145344b69a0e3faf9005cf6607f4e26ca27d5926c3eefc4f
 
-The APK is a direct test artifact only. No stable manifest, public update channel, website or backend was changed.
+This was the staging test artifact; production rebuilt and separately published the signed stable APK. See the OTA release receipt for the production SHA, URL and delivery checks.
+
+## Stable OTA publication
+
+- PR #25 merged to the production source branch at `94afa76ff1739557e050f9020ef6b2a889e9e109`.
+- Production CI and Hostinger publisher run [41306428227](https://github.com/manufact-test/nomusic/actions/runs/41306428227): SUCCESS.
+- Public manifest confirms `0.3.77 / versionCode 78`; immutable APK GET/HEAD and SHA/size were independently verified. Full evidence: [ANDROID-0377-OTA-RELEASE-RECEIPT-2026-11-01.md](ANDROID-0377-OTA-RELEASE-RECEIPT-2026-11-01.md).
 
 ## HONOR acceptance requested
 
