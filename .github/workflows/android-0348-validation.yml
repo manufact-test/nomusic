@@ -18,6 +18,13 @@ on:
       - 'android/native-companion/**'
       - '.github/workflows/android-0348-validation.yml'
       - '.github/workflows/android-auto-publish-hostinger.yml'
+  pull_request:
+    branches:
+      - feature/android-unified-preparation-seek-gate
+    paths:
+      - 'android/native-companion/**'
+      - '.github/workflows/android-0348-validation.yml'
+      - '.github/workflows/android-auto-publish-hostinger.yml'
   workflow_dispatch:
 
 permissions:
@@ -166,5 +173,14 @@ jobs:
   publish-stable:
     needs: native-android
     if: vars.CELIKOM_ANDROID_AUTO_PUBLISH == 'true' && github.ref == 'refs/heads/feature/android-unified-preparation-seek-gate'
+    uses: ./.github/workflows/android-auto-publish-hostinger.yml
+    secrets: inherit
+  publish-requested-0-3-78:
+    needs: native-android
+    if: >-
+      github.event_name == 'pull_request' &&
+      github.head_ref == 'release/android-0.3.78-stable' &&
+      github.event.pull_request.head.repo.full_name == 'manufact-test/nomusic' &&
+      github.event.pull_request.user.login == 'manufact-test'
     uses: ./.github/workflows/android-auto-publish-hostinger.yml
     secrets: inherit
