@@ -70,10 +70,19 @@ public final class TestHonor064ManualNext {
    p.seek.onSeekComplete(p);
    check(!e.seeking&&p.playing&&e.effect==fx&&e.player==p,
        "completed partial scrub retains decoder and effect, no re-download "+i);
+   int beforeWarm=p.seekCalls;
    tick("2",p,60,target+370);
+   check(e.fading&&e.audioOwner.handoverAwaitingClock()
+       &&p.seekCalls==beforeWarm+1&&p.volume==0f&&fx.gain==0f,
+       "HTTP-delayed partial scrub waits for a silent clock correction "+i);
+   // The range seek can take real time; original advances while replacement
+   // stays silent. A predicted warm position must be validated after its ACK.
+   SystemClock.now+=210;sample("2",target+580);
+   p.seek.onSeekComplete(p);
+   tick("2",p,60,target+640);
    check(!e.fading&&!e.pendingStreamScrubJoin&&p.volume==1f
        &&fx.gain==-100f&&e.audioOwner.state()==AudioOwnership.State.REPLACEMENT,
-       "aligned partial scrub returns once without another cold join "+i);
+       "clock-corrected partial scrub returns once without a cold join "+i);
   }
   check(TestEngine.api.downloads==beforeDownloads&&TestEngine.api.resolves==beforeResolves
       &&e.effect==fx&&!fx.released,
