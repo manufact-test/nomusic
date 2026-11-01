@@ -1,4 +1,5 @@
 name: Android 0.3.55 architecture and release contract verification
+# Keep 0.3.77 owner-confirmed album-duration staging under the non-publishing gate.
 
 on:
   push:
