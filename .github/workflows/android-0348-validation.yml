@@ -10,6 +10,7 @@ on:
       - feature/android-0372-ota-release-staging
       - feature/android-0373-honor-transport-diagnostics-staging
       - feature/android-0374-honor-strict-join-gate-staging
+      - feature/android-0375-honor-bounded-warm-latency-staging
     paths:
       - 'android/native-companion/**'
       - '.github/workflows/android-0348-validation.yml'

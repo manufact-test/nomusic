@@ -77,9 +77,9 @@ public final class TestHonor064ManualNext {
        "HTTP-delayed partial scrub waits for a silent clock correction "+i);
    // The range seek can take real time; original advances while replacement
    // stays silent. A predicted warm position must be validated after its ACK.
-   SystemClock.now+=210;sample("2",target+580);
+   SystemClock.now+=80;sample("2",target+450);
    p.seek.onSeekComplete(p);
-   tick("2",p,60,target+640);
+   tick("2",p,60,target+510);
    check(!e.fading&&!e.pendingStreamScrubJoin&&p.volume==1f
        &&fx.gain==-100f&&e.audioOwner.state()==AudioOwnership.State.REPLACEMENT,
        "clock-corrected partial scrub returns once without a cold join "+i);

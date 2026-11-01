@@ -11,12 +11,12 @@ public final class TestHonor074StrictJoin {
  static void check(boolean yes,String why){checks++;if(!yes)throw new AssertionError(why);}
  static void source(long pos){TestEngine.p.current=TestEngine.source("1",pos,true);}
  static void leadBoundaries(){
-  check(ReplacementEngine.predictedWarmLeadMs(0)==70,"unknown latency uses conservative bounded lead");
-  check(ReplacementEngine.predictedWarmLeadMs(111)==151,"HONOR 111ms ACK predicts a 151ms lead");
-  check(ReplacementEngine.predictedWarmLeadMs(182)==222,"HONOR 182ms warm ACK updates lead");
-  check(ReplacementEngine.predictedWarmLeadMs(635)==250,"HONOR 635ms range wait cannot overshoot more than 250ms");
-  check(ReplacementEngine.predictedWarmTargetMs(1000,182,120000)==1222,"predictive warm target is absolute");
-  check(ReplacementEngine.predictedWarmTargetMs(119800,635,120000)==119849,"tail clamp keeps decoder inside duration");
+  check(ReplacementEngine.predictedWarmLeadMs()==70,
+      "HONOR 0.3.74 replay selects a warm-specific 70ms lead");
+  check(ReplacementEngine.predictedWarmTargetMs(1000,120000)==1070,
+      "warm target cannot inherit slower alignment HTTP wait");
+  check(ReplacementEngine.predictedWarmTargetMs(119800,120000)==119849,
+      "tail clamp keeps decoder inside duration");
  }
  static void realEngineRejoinsAfterSilentCorrection()throws Exception {
   TestStreamingEngine.Buffer buffer=TestStreamingEngine.start();
