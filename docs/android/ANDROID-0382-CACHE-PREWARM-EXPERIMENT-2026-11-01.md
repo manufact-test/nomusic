@@ -1,5 +1,16 @@
 # CELIKOM Android 0.3.82 — muted local-file decoder prewarm experiment
 
+## Owner listening retest — 2026-11-01
+
+The owner reports that 0.3.82 is not fully correct: song beginnings and seeking remain inconsistent, and the severity varies by song. The owner prefers to keep this version as the current baseline rather than roll back.
+
+The full device-log analysis and next-step recommendation are in [ANDROID-0382-HONOR-DIAGNOSTICS-2026-11-01.md](ANDROID-0382-HONOR-DIAGNOSTICS-2026-11-01.md). Key findings: 45 ALIGNMENT and 25 WARM seek requests; ALIGNMENT callback latency median 51 ms, p90 360 ms, max 797 ms; two stream seek-data waits reached 737/797 ms. The physical Next tap is not positively recorded (`manualNextButtonObserved: false` on all 17 media-item transition events), so no causal claim about Next is supported yet.
+
+Local-file prewarm ran once (46 ms decoder motion after 214 ms); that is insufficient to validate the beginning-of-song result. All output/phase measurements remain transport-only.
+
+**Current instruction: freeze 0.3.82. No rollback, audio-code change or new APK.** Next work is read-only event attribution and replay, not another speculative audio fix.
+
+
 Date: 2026-11-01
 
 ## Baseline and safety
