@@ -21,7 +21,7 @@ final class ReplacementEngine {
  volatile long generation; int trustedSession=-1,failures,seekCorrections;
  final BufferRecoveryGate bufferGate=new BufferRecoveryGate();BufferedAudio streaming;boolean bufferWaiting;String streamFallbackKey;
  MediaPlayer player; DynamicsProcessing effect; LoudnessEnhancer loudness; File audioFile;
- float originalMix=1f; boolean ready,closed,preparing,seeking,fading,aligned,returning,preloadAllowed=true,waitingForRouteResume,routePauseObserved,resumePositionRetained,resumeFadePending,seekHoldActive,sourceSeekedThisTrack,pendingStreamScrubJoin,streamSeekWaitLogged; boolean audioFromCache,localPrewarmAttempted,localPrewarmAlignmentPending,localPrewarmJoinPending; String lastSync="";
+ float originalMix=1f; boolean ready,closed,preparing,seeking,fading,aligned,returning,preloadAllowed=true,waitingForRouteResume,routePauseObserved,resumePositionRetained,resumeFadePending,seekHoldActive,sourceSeekedThisTrack,pendingStreamScrubJoin,streamSeekWaitLogged; boolean audioFromCache,localPrewarmAttempted,localPrewarmWarmupPending,localPrewarmAlignmentPending,localPrewarmJoinPending; long localPrewarmWarmupStartedAt,localPrewarmWarmupPosition; String lastSync="";
  final ClockSupervisor clockSupervisor=new ClockSupervisor();PlaybackSource previousSource;boolean explicitSourceSeek;long unavailableSince=-1,lastSyncAt=-1,lastLoggedDrift;String completedKey,completedReason;long completedPosition,resumeDrift;
  // Private, bounded to this foreground run. Every reuse requires a new live resolve.
  static final long CACHE_BYTES=62914560;
@@ -62,7 +62,7 @@ final class ReplacementEngine {
  void attachPendingSession(){if(!armed()||trustedSession>0)return;Integer session=verifiedSession(owner);if(session!=null&&session>0){trustedSession=session;status="Подключение получено; автозамена включена";LogStore.log("replacement_session_attached",LogStore.map("sessionId",session,"source","verified_yandex_panel"));}}
  void headphonesDisconnected(){
   if(!armed()&&!returning&&effect==null)return;
-  localPrewarmAlignmentPending=false;localPrewarmJoinPending=false;
+  localPrewarmWarmupPending=false;localPrewarmAlignmentPending=false;localPrewarmJoinPending=false;
   if(returning){stop("headphones_disconnected_during_return");return;}
   resumePositionRetained=player!=null&&ready&&aligned&&!seeking;waitingForRouteResume=true;routePauseObserved=false;transition++;fading=false;aligned=false;pausedAt=-1;audioOwner.event(AudioOwnership.Event.ROUTE_LOSS);
   try{if(player!=null&&ready){setAuditedVolume(player,0f);audioOwner.pauseDecoder(player);}}catch(RuntimeException ex){suspend("route_pause_failed",0);}
@@ -83,21 +83,48 @@ final class ReplacementEngine {
  boolean armed(){return !closed&&armedUntil!=0;}
  long position(PlaybackSource s){long extra=s.playing?Math.max(0,SystemClock.elapsedRealtime()-s.observed):0;return Math.min(s.duration,Math.max(0,s.position+extra));}
  void prewarmLocalFileForInitialAlignment(PlaybackSource s,boolean resumed,boolean sourceJump){
-  if(localPrewarmAttempted||localPrewarmAlignmentPending||localPrewarmJoinPending
+  if(localPrewarmAttempted||localPrewarmWarmupPending||localPrewarmAlignmentPending||localPrewarmJoinPending
      ||streaming!=null||audioFile==null||player==null||!ready||effect!=null
      ||!armed()||trustedSession<=0||s==null||!s.playing||player.isPlaying()
      ||resumed||resumePositionRetained||waitingForRouteResume||sourceJump
      ||explicitSourceSeek||seeking||aligned||fading||audioOwner.handoverAwaitingClock())return;
   if(!mute())return;
-  localPrewarmAttempted=true;localPrewarmAlignmentPending=true;
+  localPrewarmAttempted=true;localPrewarmWarmupPending=true;
+  localPrewarmWarmupStartedAt=SystemClock.elapsedRealtime();
+  localPrewarmWarmupPosition=player.getCurrentPosition();
   setAuditedVolume(player,0f);
   audioOwner.startDecoder(player,effect,identityKey,audioOwner.epoch());
   traceAudioCommands();
   LogStore.log("replacement_local_decoder_prewarm_start",LogStore.map(
     "trackId",trackId,"sourceKind","local_file","cacheHit",audioFromCache,
-    "decoderRecreated",true,"decoderPositionMs",player.getCurrentPosition(),
+    "decoderRecreated",true,"decoderPositionMs",localPrewarmWarmupPosition,
     "sourcePositionMs",position(s),"replacementMuted",commandedReplacementVolume<=0.001f,
     "originalAudible",originalMix>=0.999f,"prewarmBeforeAlignmentSeek",true));
+ }
+ boolean awaitLocalPrewarmMotion(PlaybackSource s,boolean resumed,boolean sourceJump){
+  if(!localPrewarmWarmupPending)return false;
+  if(resumed||sourceJump||explicitSourceSeek||waitingForRouteResume||s==null||!s.playing){
+   localPrewarmWarmupPending=false;
+   return false;
+  }
+  long now=SystemClock.elapsedRealtime(),decoderPosition=player==null?localPrewarmWarmupPosition:player.getCurrentPosition();
+  long moved=decoderPosition-localPrewarmWarmupPosition;
+  if(moved>=40){
+   localPrewarmWarmupPending=false;localPrewarmAlignmentPending=true;
+   LogStore.log("replacement_local_decoder_prewarm_motion",LogStore.map(
+     "trackId",trackId,"movedMs",moved,"waitMs",now-localPrewarmWarmupStartedAt,
+     "sourcePositionMs",position(s),"decoderPositionMs",decoderPosition,
+     "originalAudible",originalMix>=0.999f,"replacementMuted",commandedReplacementVolume<=0.001f));
+   return false;
+  }
+  if(now-localPrewarmWarmupStartedAt>=SEEK_TIMEOUT_MS){
+   localPrewarmWarmupPending=false;
+   skipUnstableJoin("local_decoder_prewarm_timeout",position(s)-decoderPosition,0);
+   return true;
+  }
+  final MediaPlayer expected=player;final long epoch=generation;final String key=identityKey;
+  owner.handler.postDelayed(()->{if(player==expected&&generation==epoch&&current(key)&&localPrewarmWarmupPending)update(owner.current);},20);
+  return true;
  }
  /* An account switch revokes queued decoder callbacks before the next
     timeline tick. Never grant old-account audio after sign-in changes. */
@@ -190,7 +217,6 @@ final class ReplacementEngine {
    long drift=target-player.getCurrentPosition();
    boolean retainedPosition=resumePositionRetained&&!sourceJump&&!waitingForRouteResume;
    boolean retainedPauseResume=resumed&&retainedPosition&&effect!=null;
-  prewarmLocalFileForInitialAlignment(s,resumed,sourceJump);
    if(fading&&audioOwner.handoverAwaitingClock()&&!sourceJump)return;
    // A retained paused decoder already at the native position needs no seek.
    if(!aligned&&retainedPosition&&Math.abs(drift)<=HANDOVER_DRIFT_MS){aligned=true;resumePositionRetained=false;LogStore.log("replacement_resume_aligned",LogStore.map("trackId",trackId,"driftMs",drift,"seekSkipped",true));}
@@ -201,6 +227,8 @@ final class ReplacementEngine {
     String key=identityKey;LogStore.log("replacement_drift_unstable",LogStore.map("trackId",trackId,"sourcePositionMs",target,"driftMs",drift,"fallback","original_until_next_track","clockSupervisor","confirmed"));
     suspend("drift_unstable",30000);completedKey=key;completedPosition=target;completedReason="Большой рассинхрон замены — играет оригинал до следующей песни";audioOwner.unsupported("drift_unstable");status=completedReason;ownerEvent("drift_unsupported");return;
    }
+   prewarmLocalFileForInitialAlignment(s,resumed,sourceJump);
+   if(awaitLocalPrewarmMotion(s,resumed,sourceJump))return;
    if(clockDecision==ClockSupervisor.Decision.SEEK){seek(s,target,drift);return;}
   if(localPrewarmAlignmentPending){
    localPrewarmAlignmentPending=false;localPrewarmJoinPending=true;
@@ -300,7 +328,7 @@ final class ReplacementEngine {
  void pauseSource(PlaybackSource s){pauseSource(s,false);}
  void pauseSource(PlaybackSource s,boolean buffering){
   if(player==null)return;
-  if(localPrewarmAlignmentPending||localPrewarmJoinPending){localPrewarmAlignmentPending=false;localPrewarmJoinPending=false;}
+  if(localPrewarmWarmupPending||localPrewarmAlignmentPending||localPrewarmJoinPending){localPrewarmWarmupPending=false;localPrewarmAlignmentPending=false;localPrewarmJoinPending=false;}
    if(streaming!=null)streaming.releasePrefetchAfterSeek();
   /* Changing USER_PAUSE <-> BUFFERING invalidates the old timer and delay. */
   boolean pauseCauseChanged=pausedAt>=0&&audioOwner.pauseMode()!=AudioOwnership.PauseMode.NONE
@@ -346,6 +374,7 @@ final class ReplacementEngine {
  void seek(PlaybackSource s,long target,long drift,boolean correction){
    if(streaming!=null)streaming.holdPrefetchForSeek();
   boolean keepLocalPrewarmRunning=localPrewarmAlignmentPending&&!correction&&!explicitSourceSeek&&!audioOwner.seekInFlight(player);
+  if(localPrewarmWarmupPending&&!keepLocalPrewarmRunning)localPrewarmWarmupPending=false;
   if(localPrewarmAlignmentPending&&!keepLocalPrewarmRunning){localPrewarmAlignmentPending=false;localPrewarmJoinPending=false;}
   if(audioOwner.seekInFlight(player)){
    localPrewarmAlignmentPending=false;localPrewarmJoinPending=false;
@@ -454,7 +483,7 @@ final class ReplacementEngine {
       sourceAtAck==null?-1:sourceAtAck.observed));
   LogStore.log("replacement_seek_ack",ackFields);
     if(ack.operationEpoch!=audioOwner.operationEpoch()){
-   if(localPrewarmAlignmentPending){localPrewarmAlignmentPending=false;localPrewarmJoinPending=false;}
+   if(localPrewarmWarmupPending||localPrewarmAlignmentPending){localPrewarmWarmupPending=false;localPrewarmAlignmentPending=false;localPrewarmJoinPending=false;}
    /* A pause revoked output permission, not necessarily the decoder position.
       Reuse a verified final alignment without granting an old audible command.
       A new source position or route loss must never reuse the canceled result. */
@@ -689,7 +718,7 @@ final class ReplacementEngine {
  MediaPlayer silenceBeforeCleanup(){transition++;fading=false;MediaPlayer old=player;player=null;if(old!=null){boolean zero=false,paused=false;try{setAuditedVolume(old,0f);zero=true;}catch(RuntimeException ignored){}try{audioOwner.pauseDecoder(old);paused=!old.isPlaying();}catch(RuntimeException ignored){}LogStore.log("replacement_output_silenced",LogStore.map("trackId",trackId,"gainZero",zero,"paused",paused,"beforeTransportCleanup",true));}unmute(old);return old;}
  void release(String reason){
   sourceBufferSince=-1;audioOwner.cancelPause();
-  localPrewarmAttempted=false;localPrewarmAlignmentPending=false;localPrewarmJoinPending=false;audioFromCache=false;
+  localPrewarmAttempted=false;localPrewarmWarmupPending=false;localPrewarmAlignmentPending=false;localPrewarmJoinPending=false;localPrewarmWarmupStartedAt=0;localPrewarmWarmupPosition=0;audioFromCache=false;
   boolean had=player!=null||effect!=null;MediaPlayer old=silenceBeforeCleanup();
   if("identity_changed".equals(reason)||"track_changed".equals(reason)||"replacement_end".equals(reason)||"replacement_completed".equals(reason)||"source_end".equals(reason)||"source_unavailable".equals(reason)||"source_disconnected".equals(reason))rememberAudio();
   /* Detach a completed file before MediaPlayer.release closes its MediaDataSource. */
