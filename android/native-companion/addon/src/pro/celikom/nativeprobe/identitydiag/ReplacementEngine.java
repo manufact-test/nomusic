@@ -564,7 +564,7 @@ final class ReplacementEngine {
       &&Math.abs(position(sourceNow)-mp.getCurrentPosition())<=PAUSE_ALIGN_TOLERANCE_MS;
    seeking=false;aligned=positionStillValid;
    resumePositionRetained=positionStillValid;
-   if(positionStillValid)explicitSourceSeek=false;
+   if(positionStillValid){explicitSourceSeek=false;previousSource=sourceNow;}
    if(!waitingForRouteResume&&sourceNow!=null&&sourceNow.playing)update(sourceNow);
    return;
   }

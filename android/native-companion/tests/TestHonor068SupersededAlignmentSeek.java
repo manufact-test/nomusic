@@ -10,10 +10,12 @@ public final class TestHonor068SupersededAlignmentSeek {
  static int checks;
  static void check(boolean yes,String message){checks++;if(!yes)throw new AssertionError(message);}
  static void ready(long position){TestEngine.p.current=TestEngine.source("1",position,true);}
- static TestStreamingEngine.Buffer pendingInitialAlignment()throws Exception{
+ static TestStreamingEngine.Buffer pendingInitialAlignment()throws Exception{return pendingInitialAlignment(1000);}
+ static TestStreamingEngine.Buffer pendingInitialAlignment(long sourcePosition)throws Exception{
   TestEngine.reset("ALBUM");TestEngine.api.useStreaming=true;TestEngine.e.arm();TestEngine.resolve();
   TestStreamingEngine.Buffer audio=new TestStreamingEngine.Buffer();
   TestEngine.api.streamed.done(audio,null);
+  TestEngine.p.current=TestEngine.source("1",sourcePosition,true);
   MediaPlayer player=TestEngine.e.player;player.asyncSeek=true;player.prepared.onPrepared(player);
   return audio;
  }
@@ -56,10 +58,11 @@ public final class TestHonor068SupersededAlignmentSeek {
   e.close();
  }
  static void alreadyAlignedRetargetDoesNotSeekAgain()throws Exception{
-  TestStreamingEngine.Buffer audio=pendingInitialAlignment();
+  TestStreamingEngine.Buffer audio=pendingInitialAlignment(36000);
   ReplacementEngine e=TestEngine.e;MediaPlayer p=e.player;int issued=p.seekCalls;
-  e.sourceSeekRequested();ready(1000);e.update(TestEngine.p.current);
-  SystemClock.now+=10;ready(1010);p.seek.onSeekComplete(p);
+  e.previousSource=TestEngine.source("1",1000,true);
+  e.sourceSeekRequested();ready(36050);e.update(TestEngine.p.current);
+  SystemClock.now+=10;ready(36050);p.seek.onSeekComplete(p);
   check(p.seekCalls==issued&&!e.seeking&&!e.seekRetargetPending&&!e.explicitSourceSeek,
     "a superseded callback already within the strict pause-position tolerance is reused without a duplicate seek");
   check(e.player==p&&e.effect!=null&&p.volume==0f&&e.effect.gain==0f,

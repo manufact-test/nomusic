@@ -14,7 +14,7 @@
 - A newer same-item Media3 seek now increments the audio owner's operation epoch once per pending ALIGNMENT request.
 - The original MediaPlayer seek is **not** cancelled or duplicated. Native callbacks have no request ID, so single-flight remains mandatory.
 - The old callback is consumed as stale. After it drains, CELIKOM evaluates the latest source position and submits one new alignment seek if required.
-- If the old decoder position is already within the existing 85 ms pause-position tolerance, the source-seek flag is cleared and the completed position is reused instead of issuing a redundant seek.
+- If the old decoder position is already within the existing 85 ms pause-position tolerance, the source-seek flag is cleared, the source snapshot baseline is refreshed, and the completed position is reused instead of issuing a redundant seek.
 - A polling-detected source jump uses the same guard if a Media3 discontinuity callback was missed.
 - Original-source gain, decoder silence, existing timeouts, WARM lead, fade law, Next handling, cache policy and stream block size are unchanged.
 
