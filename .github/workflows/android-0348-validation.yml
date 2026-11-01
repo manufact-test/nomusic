@@ -19,6 +19,7 @@ on:
       - '.github/workflows/android-0348-validation.yml'
       - '.github/workflows/android-auto-publish-hostinger.yml'
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
     branches:
       - feature/android-unified-preparation-seek-gate
     paths:
