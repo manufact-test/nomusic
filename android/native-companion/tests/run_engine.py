@@ -14,6 +14,9 @@ subprocess.run(['java','-cp',str(out)+os.pathsep+str(json),'pro.celikom.nativepr
 
 subprocess.run(['java','-cp',str(out)+os.pathsep+str(json),'pro.celikom.nativeprobe.identitydiag.TestStreamingEngine'],check=True,timeout=45)
 
+# Protect the owner-approved 0.3.78 local-cache startup and cached user-seek behavior.
+subprocess.run(['java','-cp',str(out)+os.pathsep+str(json),'pro.celikom.nativeprobe.identitydiag.TestCachedAudioRollback'],check=True,timeout=45)
+
 subprocess.run(['java','-cp',str(out)+os.pathsep+str(json),'pro.celikom.nativeprobe.identitydiag.TestHandoverClock'],check=True,timeout=45)
 
 # Mandatory interleavings of preparation, seek, pause, route and boundary.
