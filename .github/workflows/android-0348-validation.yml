@@ -8,6 +8,7 @@ on:
       - feature/android-unified-preparation-seek-gate
       - feature/android-0382-cache-path-evidence-staging-20261101
       - feature/android-0382-cache-prewarm-staging-20261101
+      - feature/android-0382-playback-continuity-fix-20261101
       - feature/android-0370-honor-join-pause-updater-staging
       - feature/android-0371-rollback-0369-staging
       - feature/android-0372-ota-release-staging

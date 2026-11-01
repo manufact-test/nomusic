@@ -3,6 +3,7 @@ import android.media.MediaPlayer;
 import android.media.audiofx.DynamicsProcessing;
 import android.media.audiofx.AudioEffect;
 import java.util.Objects;
+import java.util.Map;
 /** Authoritative audio output permission and lifecycle state, confined to service handler. */
 final class AudioOwnership {
  enum State { SOURCE_ONLY, PREPARING, ALIGNING, SAME_SONG_BLEND, REPLACEMENT, PAUSED, RECOVERING, TRACK_UNSUPPORTED, STOPPED }
@@ -32,19 +33,41 @@ final class AudioOwnership {
  enum SeekKind { ALIGNMENT, WARM }
  /* Passive transport diagnostics: our single-flight ticket ID is not
     an Android callback ID or acoustic frame timestamp. */
+ static final class SeekContext {
+  final long sourceEventSequence,sourceItemGeneration,replacementGeneration,decoderInstanceId,ownerGeneration,ownerOperationEpoch;
+  final String audioSourceKind;
+  final boolean localPrewarmAttempted;
+  SeekContext(long eventSequence,long itemGeneration,long replacementGen,long decoderId,
+              long ownerGen,long operationEpoch,String sourceKind,boolean prewarmAttempted){
+   sourceEventSequence=eventSequence;sourceItemGeneration=itemGeneration;
+   replacementGeneration=replacementGen;decoderInstanceId=decoderId;
+   ownerGeneration=ownerGen;ownerOperationEpoch=operationEpoch;
+   audioSourceKind=sourceKind;localPrewarmAttempted=prewarmAttempted;
+  }
+  Map<String,Object> fields(){return LogStore.map(
+    "sourceEventSequence",sourceEventSequence,"sourceItemGeneration",sourceItemGeneration,
+    "replacementGeneration",replacementGeneration,"decoderInstanceId",decoderInstanceId,
+    "ownerGeneration",ownerGeneration,"ownerOperationEpoch",ownerOperationEpoch,
+    "audioSourceKind",audioSourceKind,"localPrewarmAttempted",localPrewarmAttempted);}
+ }
  static final class SeekAck {
   final SeekKind kind;final long operationEpoch,submittedAt,sequence,targetMs;
   final long sourcePositionAtSubmitMs,sourceSnapshotPositionAtSubmitMs,sourceObservedAtSubmitMs,decoderPositionAtSubmitMs;
   final boolean rangeWaitObserved;
+  final SeekContext context;
   SeekAck(SeekKind k,long epoch,long at,long seq,long target,boolean waited){
-   this(k,epoch,at,seq,target,waited,-1,-1,-1,-1);
+   this(k,epoch,at,seq,target,waited,-1,-1,-1,-1,null);
   }
   SeekAck(SeekKind k,long epoch,long at,long seq,long target,boolean waited,
           long sourceAtSubmit,long sourceSnapshot,long sourceObserved,long decoderAtSubmit){
+   this(k,epoch,at,seq,target,waited,sourceAtSubmit,sourceSnapshot,sourceObserved,decoderAtSubmit,null);
+  }
+  SeekAck(SeekKind k,long epoch,long at,long seq,long target,boolean waited,
+          long sourceAtSubmit,long sourceSnapshot,long sourceObserved,long decoderAtSubmit,SeekContext context){
    kind=k;operationEpoch=epoch;submittedAt=at;sequence=seq;targetMs=target;
    rangeWaitObserved=waited;sourcePositionAtSubmitMs=sourceAtSubmit;
    sourceSnapshotPositionAtSubmitMs=sourceSnapshot;sourceObservedAtSubmitMs=sourceObserved;
-   decoderPositionAtSubmitMs=decoderAtSubmit;
+   decoderPositionAtSubmitMs=decoderAtSubmit;this.context=context;
   }
  }
  private MediaPlayer inFlightDecoder;
@@ -52,33 +75,45 @@ final class AudioOwnership {
  private long inFlightEpoch,inFlightAt,inFlightSequence,inFlightTarget,nextSeekSequence;
  private long inFlightSourceAtSubmit=-1,inFlightSourceSnapshot=-1,inFlightSourceObserved=-1,inFlightDecoderAtSubmit=-1;
  private boolean inFlightRangeWait;
+ private SeekContext inFlightContext;
  boolean seekInFlight(MediaPlayer p){return p!=null&&p==inFlightDecoder;}
+ long inFlightSequence(MediaPlayer p){return seekInFlight(p)?inFlightSequence:-1;}
+ String inFlightKind(MediaPlayer p){return seekInFlight(p)&&inFlightKind!=null?inFlightKind.name():null;}
+ long inFlightTargetMs(MediaPlayer p){return seekInFlight(p)?inFlightTarget:-1;}
+ long inFlightElapsedMs(MediaPlayer p,long now){return seekInFlight(p)?Math.max(0,now-inFlightAt):-1;}
  boolean seekExpired(MediaPlayer p,long now,long budget){return seekInFlight(p)&&now-inFlightAt>budget;}
  void noteSeekRangeWait(MediaPlayer p){if(seekInFlight(p))inFlightRangeWait=true;}
  private void clearSeekFlight(){
   inFlightDecoder=null;inFlightKind=null;inFlightEpoch=0;inFlightAt=0;
   inFlightSequence=0;inFlightTarget=0;inFlightRangeWait=false;
-  inFlightSourceAtSubmit=-1;inFlightSourceSnapshot=-1;inFlightSourceObserved=-1;inFlightDecoderAtSubmit=-1;
+  inFlightSourceAtSubmit=-1;inFlightSourceSnapshot=-1;inFlightSourceObserved=-1;inFlightDecoderAtSubmit=-1;inFlightContext=null;
  }
  boolean issueSeek(MediaPlayer p,long target,String key,long ticket,SeekKind kind,long now){
-  return issueSeek(p,target,key,ticket,kind,now,-1,-1,-1,-1);
+  return issueSeek(p,target,key,ticket,kind,now,-1,-1,-1,-1,null);
  }
  boolean issueSeek(MediaPlayer p,long target,String key,long ticket,SeekKind kind,long now,
                    long sourceAtSubmit,long sourceSnapshot,long sourceObserved,long decoderAtSubmit){
+  return issueSeek(p,target,key,ticket,kind,now,sourceAtSubmit,sourceSnapshot,sourceObserved,decoderAtSubmit,null);
+ }
+ boolean issueSeek(MediaPlayer p,long target,String key,long ticket,SeekKind kind,long now,
+                   long sourceAtSubmit,long sourceSnapshot,long sourceObserved,long decoderAtSubmit,
+                   SeekContext context){
   if(inFlightDecoder!=null)return false;
   if(kind==null)throw new IllegalArgumentException("seek kind required");
   inFlightDecoder=p;inFlightKind=kind;inFlightEpoch=operationEpoch;inFlightAt=now;
   inFlightSequence=++nextSeekSequence;inFlightTarget=target;inFlightRangeWait=false;
   inFlightSourceAtSubmit=sourceAtSubmit;inFlightSourceSnapshot=sourceSnapshot;
-  inFlightSourceObserved=sourceObserved;inFlightDecoderAtSubmit=decoderAtSubmit;
-  LogStore.log("replacement_seek_request",LogStore.map(
+  inFlightSourceObserved=sourceObserved;inFlightDecoderAtSubmit=decoderAtSubmit;inFlightContext=context;
+  Map<String,Object> requestFields=LogStore.map(
     "seekSeq",inFlightSequence,"kind",kind.name(),"requestedPositionMs",target,
     "sourceProjectedAtSubmitMs",sourceAtSubmit>=0?sourceAtSubmit:null,
     "sourceSnapshotPositionAtSubmitMs",sourceSnapshot>=0?sourceSnapshot:null,
     "sourceSnapshotAgeAtSubmitMs",sourceObserved>=0?Math.max(0,now-sourceObserved):null,
     "decoderPositionAtSubmitMs",decoderAtSubmit>=0?decoderAtSubmit:null,
     "ownerOperationEpoch",operationEpoch,"transportOnly",true,
-    "sourcePcmMeasured",false,"phaseVerified",false));
+    "sourcePcmMeasured",false,"phaseVerified",false);
+  if(context!=null)requestFields.putAll(context.fields());
+  LogStore.log("replacement_seek_request",requestFields);
   try{seekDecoder(p,target,key,ticket);}catch(RuntimeException e){clearSeekFlight();throw e;}
   return true;
  }
@@ -86,7 +121,7 @@ final class AudioOwnership {
   if(p==null||p!=inFlightDecoder)return null;
   SeekAck ack=new SeekAck(inFlightKind,inFlightEpoch,inFlightAt,
     inFlightSequence,inFlightTarget,inFlightRangeWait,inFlightSourceAtSubmit,
-    inFlightSourceSnapshot,inFlightSourceObserved,inFlightDecoderAtSubmit);
+    inFlightSourceSnapshot,inFlightSourceObserved,inFlightDecoderAtSubmit,inFlightContext);
   clearSeekFlight();return ack;
  }
  /* A MediaPlayer completion callback also carries no seek or ownership ID.
