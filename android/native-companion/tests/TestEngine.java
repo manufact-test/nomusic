@@ -39,6 +39,15 @@ public class TestEngine {
   File measuredFile=File.createTempFile("engine-measured", ".audio");api.downloaded.done(measuredFile,null);
   e.player.duration=120000;e.player.prepared.onPrepared(e.player);
   ok(e.ready&&e.effect!=null,"correct 120000ms measured file plays despite misleading 119418ms server metadata");
+  /* Replay both additional 0.3.76 long-tail observations. */
+  for(int delta:new int[]{582,663}){
+   reset("ALBUM");e.arm();api.resolved.done(new JSONObject().put("found",true).put("replacement_id",7).put("duration_ms",120000-delta),null);
+   File candidateFile=File.createTempFile("engine-duration-confirmation", ".audio");api.downloaded.done(candidateFile,null);
+   e.player.duration=120000-delta;e.player.prepared.onPrepared(e.player);
+   ok(e.player==null&&e.effect==null&&!candidateFile.exists()&&e.durationConfirmationRequired
+       &&e.completedKey!=null&&e.completedReason.contains("Подтвердите"),
+      delta+"ms automatic album tail remains original until owner confirms the edition");
+  }
   /* An automatic album candidate is not an exact source-ID proof. If its
      measured file differs by >500ms, fail open and ask the owner once rather
      than silently playing a possibly different edit/master. */
