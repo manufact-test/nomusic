@@ -8,11 +8,12 @@ import java.io.*;
 import java.util.*;
 /** User-enabled automatic replacement within the foreground service lifetime. */
 final class ReplacementEngine {
-  static final long PREPARED_MS=60000, SEEK_TIMEOUT_MS=2000, HANDOVER_DRIFT_MS=350, STREAM_SEEK_TIMEOUT_MS=12000, FADE_MS=360, PAUSE_GRACE_MS=30000, PAUSE_RESUME_FADE_MS=180, PAUSE_ALIGN_DELAY_MS=160, PAUSE_ALIGN_TOLERANCE_MS=85, UNIFIED_JOIN_MS=160, RETAINED_SEEK_JOIN_MS=260;
+  static final long PREPARED_MS=60000, SEEK_TIMEOUT_MS=2000, HANDOVER_DRIFT_MS=350, STREAM_SEEK_TIMEOUT_MS=12000, FADE_MS=360,
+  STRICT_STREAM_JOIN_DRIFT_MS=100, STRICT_JOIN_BUDGET_MS=3000, PAUSE_GRACE_MS=30000, PAUSE_RESUME_FADE_MS=180, PAUSE_ALIGN_DELAY_MS=160, PAUSE_ALIGN_TOLERANCE_MS=85, UNIFIED_JOIN_MS=160, RETAINED_SEEK_JOIN_MS=260;
  final ProbeService owner; final NativeApi api;
  String status="Замена выключена",identityKey,trackId,method="NONE",lookupKey;
  JSONObject descriptor; long descriptorUntil,nextLookup,armedUntil,preparedAt,seekStarted,seekBudget=SEEK_TIMEOUT_MS,fadeStarted,transition,pausedAt=-1;
- long pauseRestoreDelayMs=PAUSE_GRACE_MS,sourceBufferSince=-1;
+ long pauseRestoreDelayMs=PAUSE_GRACE_MS,sourceBufferSince=-1,lastJoinSeekAckMs=70;
  final AudioOwnership audioOwner=new AudioOwnership();
  AudioOwnership.Ticket prepareTicket;
  long authorizationAccount=-1;
@@ -27,6 +28,25 @@ final class ReplacementEngine {
  static final long CACHE_BYTES=62914560;
  final LinkedHashMap<String,File> recentAudio=new LinkedHashMap<>();
  String audioKey(JSONObject j){return trackId+"|"+j.optLong("replacement_id")+"|"+j.optLong("version")+"|"+j.optLong("duration_ms")+"|"+j.optString("mime_type","audio/mpeg");}
+ /* The source keeps playing while the muted replacement seeks. A seek to
+    the source's CURRENT position is already old by callback time. */
+ static long predictedWarmLeadMs(long previousAckMs){
+  return Math.max(70,Math.min(250,Math.max(0,previousAckMs)+40));
+ }
+ static long predictedWarmTargetMs(long sourceMs,long previousAckMs,long durationMs){
+  return Math.max(0,Math.min(Math.max(0,durationMs-151),sourceMs+predictedWarmLeadMs(previousAckMs)));
+ }
+ void skipUnstableJoin(String reason,long drift,int attempts){
+  final String key=identityKey;
+  final long sourceMs=owner.current==null?0:position(owner.current);
+  LogStore.log("replacement_join_guard_fallback",LogStore.map(
+    "reason",reason,"projectedDriftMs",drift,"warmCorrections",attempts,
+    "originalRetained",true,"sourcePcmMeasured",false,"phaseVerified",false));
+  suspend(reason,30000);
+  completedKey=key;completedPosition=sourceMs;
+  completedReason="Синхронизация неустойчива — играет оригинал до следующей песни";
+  audioOwner.unsupported(reason);status=completedReason;
+ }
  void clearAudioCache(){for(File f:recentAudio.values())f.delete();recentAudio.clear();}
  void rememberAudio(){if(streaming!=null&&audioFile==null)audioFile=streaming.retainComplete();if(audioFile==null||descriptor==null||!ready||!api.signedIn())return;String key=audioKey(descriptor);File old=recentAudio.remove(key);if(old!=null&&!old.equals(audioFile))old.delete();recentAudio.put(key,audioFile);audioFile=null;long size=0;for(File f:recentAudio.values())size+=f.length();Iterator<File> it=recentAudio.values().iterator();while(it.hasNext()&&(recentAudio.size()>3||size>CACHE_BYTES)){File f=it.next();size-=f.length();f.delete();it.remove();}}
 
@@ -383,6 +403,7 @@ final class ReplacementEngine {
     "rangeWaitObserved",ack.rangeWaitObserved,
     "staleOperation",ack.operationEpoch!=audioOwner.operationEpoch(),
     "sourcePcmMeasured",false,"phaseVerified",false,"transportOnly",true));
+  if(ack.operationEpoch==audioOwner.operationEpoch())lastJoinSeekAckMs=Math.max(0,ackClock-ack.submittedAt);
   if(ack.operationEpoch!=audioOwner.operationEpoch()){
    /* A pause revoked output permission, not necessarily the decoder position.
       Reuse a verified final alignment without granting an old audible command.
@@ -473,20 +494,39 @@ final class ReplacementEngine {
     }
     if(audioOwner.handoverAwaitingClock()){
      long now=SystemClock.elapsedRealtime(),position=p.getCurrentPosition();
+     if(now-coldStarted>=STRICT_JOIN_BUDGET_MS){
+      skipUnstableJoin("join_gate_deadline",position(owner.current)-position,corrections[0]);return;
+     }
      if(audioOwner.seekInFlight(p)||position-baseline[0]<40){
-      if(now-phaseStarted[0]>=2000){suspend("decoder_start_timeout",1000);return;}
+      if(now-phaseStarted[0]>=2000){
+       skipUnstableJoin("decoder_start_timeout",position(owner.current)-position,corrections[0]);return;
+      }
       owner.handler.postDelayed(this,20);return;
      }
      long target=position(owner.current),drift=target-position;
-     if(Math.abs(drift)>HANDOVER_DRIFT_MS){
-      if(corrections[0]>=2||target>=p.getDuration()-150){suspend("alignment_unstable",retryDelay());return;}
-      corrections[0]++;baseline[0]=target;phaseStarted[0]=now;
-      LogStore.log("replacement_warm_alignment",LogStore.map("trackId",trackId,"driftMs",drift,"pass",corrections[0],"replacementAudible",false));
-      /* Seek the running muted decoder. A pause/start would recreate its startup lag. */
-      audioOwner.issueSeek(p,Math.max(0,target),ownerKey,ownerEpoch,AudioOwnership.SeekKind.WARM,now);owner.handler.postDelayed(this,20);return;
+     if(Math.abs(drift)>STRICT_STREAM_JOIN_DRIFT_MS){
+      if(corrections[0]>=2||target>=p.getDuration()-150){
+       skipUnstableJoin("join_alignment_unstable",drift,corrections[0]);return;
+      }
+      long lead=predictedWarmLeadMs(lastJoinSeekAckMs);
+      long warmTarget=predictedWarmTargetMs(target,lastJoinSeekAckMs,p.getDuration());
+      corrections[0]++;baseline[0]=warmTarget;phaseStarted[0]=now;
+      LogStore.log("replacement_warm_alignment",LogStore.map(
+        "trackId",trackId,"driftMs",drift,"pass",corrections[0],
+        "seekTargetMs",warmTarget,"predictedLeadMs",lead,
+        "thresholdMs",STRICT_STREAM_JOIN_DRIFT_MS,"replacementAudible",false));
+      /* One muted decoder seek; original remains fully audible. */
+      audioOwner.issueSeek(p,warmTarget,ownerKey,ownerEpoch,AudioOwnership.SeekKind.WARM,now);
+      owner.handler.postDelayed(this,20);return;
      }
      audioOwner.handoverClockValidated();fadeStarted=now;
-     LogStore.log("replacement_decoder_advancing",LogStore.map("trackId",trackId,"driftMs",drift,"corrections",corrections[0],"waitMs",now-phaseStarted[0]));
+     LogStore.log("replacement_join_guard_verified",LogStore.map(
+       "driftMs",drift,"thresholdMs",STRICT_STREAM_JOIN_DRIFT_MS,
+       "corrections",corrections[0],"originalAudibleUntilGate",true,
+       "phaseVerified",false,"sourcePcmMeasured",false));
+     LogStore.log("replacement_decoder_advancing",LogStore.map(
+       "trackId",trackId,"driftMs",drift,"corrections",corrections[0],
+       "waitMs",now-phaseStarted[0]));
     }
      /* The same bounded ticket and audio owner fence protect both paths.
         No equal-power gain law: two correlated sessions at 0.5/0.5 can
@@ -561,7 +601,7 @@ final class ReplacementEngine {
     HttpURLConnection.disconnect and effect release may block on the old route. */
  MediaPlayer silenceBeforeCleanup(){transition++;fading=false;MediaPlayer old=player;player=null;if(old!=null){boolean zero=false,paused=false;try{setAuditedVolume(old,0f);zero=true;}catch(RuntimeException ignored){}try{audioOwner.pauseDecoder(old);paused=!old.isPlaying();}catch(RuntimeException ignored){}LogStore.log("replacement_output_silenced",LogStore.map("trackId",trackId,"gainZero",zero,"paused",paused,"beforeTransportCleanup",true));}unmute(old);return old;}
  void release(String reason){
-  sourceBufferSince=-1;audioOwner.cancelPause();
+  sourceBufferSince=-1;lastJoinSeekAckMs=70;audioOwner.cancelPause();
   boolean had=player!=null||effect!=null;MediaPlayer old=silenceBeforeCleanup();
   if("identity_changed".equals(reason)||"track_changed".equals(reason)||"replacement_end".equals(reason)||"replacement_completed".equals(reason)||"source_end".equals(reason)||"source_unavailable".equals(reason)||"source_disconnected".equals(reason))rememberAudio();
   /* Detach a completed file before MediaPlayer.release closes its MediaDataSource. */

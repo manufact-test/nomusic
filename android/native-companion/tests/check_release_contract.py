@@ -10,7 +10,7 @@ from release_contract import validate_release, load_release, patch_apktool_metad
 
 data = json.loads((ROOT / "release-spec.json").read_text(encoding="utf-8"))
 java = (ROOT / "addon/src/pro/celikom/nativeprobe/identitydiag/AppVersion.java").read_text(encoding="utf-8")
-assert load_release()[:2] == ("0.3.73", 74)
+assert load_release()[:2] == ("0.3.74", 75)
 count = 1
 
 # Successful OTA must verify the installed version and remove CELIKOM's
@@ -42,9 +42,9 @@ def must_reject(meta, text, label):
 
 
 for key, value in [
-    ("version", "0.3.51"), ("version", "0.3.54"), ("version", "0.3.59"), ("version", "0.3.63"), ("version", "0.3.64"), ("version", "0.3.65"), ("version", "0.3.66"), ("version", "0.3.67"), ("version", "0.3.69"), ("version", "0.3.70"), ("version", "0.3.71"), ("version", "0.3.72"),
+    ("version", "0.3.51"), ("version", "0.3.54"), ("version", "0.3.59"), ("version", "0.3.63"), ("version", "0.3.64"), ("version", "0.3.65"), ("version", "0.3.66"), ("version", "0.3.67"), ("version", "0.3.69"), ("version", "0.3.70"), ("version", "0.3.71"), ("version", "0.3.72"), ("version", "0.3.73"),
     ("version_code", 52), ("version_code", 55), ("version_code", 60), ("version_code", 63),
-    ("version_code", 64), ("version_code", 65), ("version_code", 66), ("version_code", 67), ("version_code", 68), ("version_code", 70), ("version_code", 71), ("version_code", 72), ("version_code", 73), ("version_code", "56"), ("previous_rejected_code", 54),
+    ("version_code", 64), ("version_code", 65), ("version_code", 66), ("version_code", 67), ("version_code", 68), ("version_code", 70), ("version_code", 71), ("version_code", 72), ("version_code", 73), ("version_code", 74), ("version_code", "56"), ("previous_rejected_code", 54),
     ("previous_rejected_version", "0.3.50"),
     ("package", "invalid.package"),
     ("signing_certificate_sha256", "a" * 64),
@@ -54,8 +54,8 @@ for key, value in [
     broken[key] = value
     must_reject(broken, java, key)
 
-must_reject(data, java.replace('NAME="0.3.73"', 'NAME="0.3.51"'), "stale AppVersion")
-must_reject(data, java.replace('NAME="0.3.73"', 'NAME="0.3.73"; static final String NAME="0.3.73"'), "duplicate AppVersion")
+must_reject(data, java.replace('NAME="0.3.74"', 'NAME="0.3.51"'), "stale AppVersion")
+must_reject(data, java.replace('NAME="0.3.74"', 'NAME="0.3.74"; static final String NAME="0.3.74"'), "duplicate AppVersion")
 assert "from release_contract import load_release" in (ROOT / "build_release.py").read_text()
 assert "from release_contract import load_release" in (ROOT / "verify_release.py").read_text()
 # GitHub artifact ZIP strips hidden files by default. Ship the ignore POLICY
@@ -68,8 +68,8 @@ count += 3
 print("PASS:", count, "negative release version, signing identity and code-source contract checks")
 
 sample = "versionCode: 23\nversionName: 0.3.22\nunrelated: value\n"
-expected = "versionCode: 74\nversionName: 0.3.73\nunrelated: value\n"
-assert patch_apktool_metadata(sample, "0.3.73", 74) == expected
+expected = "versionCode: 75\nversionName: 0.3.74\nunrelated: value\n"
+assert patch_apktool_metadata(sample, "0.3.74", 75) == expected
 count += 1
 for text in ["versionCode: 23\nunrelated: value\n", "versionCode: 23\nversionCode: 24\nversionName: 0.3.22\n"]:
     try:
@@ -82,9 +82,9 @@ print("PASS: Apktool version substitution preserves metadata and rejects ambigui
 
 # Real Apktool 2.11.1 decoded source uses two-space indentation in versionInfo.
 real_apktool_yaml = "versionInfo:\n  versionCode: 23\n  versionName: 0.3.22-probe\n"
-want_yaml = "versionInfo:\n  versionCode: 74\n  versionName: 0.3.73\n"
-assert patch_apktool_metadata(real_apktool_yaml, "0.3.73", 74) == want_yaml
-assert patch_apktool_metadata(want_yaml, "0.3.73", 74) == want_yaml
+want_yaml = "versionInfo:\n  versionCode: 75\n  versionName: 0.3.74\n"
+assert patch_apktool_metadata(real_apktool_yaml, "0.3.74", 75) == want_yaml
+assert patch_apktool_metadata(want_yaml, "0.3.74", 75) == want_yaml
 print("PASS: actual Apktool 2.11.1 indented versionInfo and idempotence")
 
 
