@@ -26,10 +26,10 @@ jobs:
           umask 077
           tmp=$(mktemp -d)
           trap 'rm -rf "$tmp"' EXIT
-          printf '%s\\n' "$SSH_KEY" > "$tmp/id"
-          printf '%s\\n' "$KNOWN_HOSTS" > "$tmp/known"
+          printf '%s\n' "$SSH_KEY" > "$tmp/id"
+          printf '%s\n' "$KNOWN_HOSTS" > "$tmp/known"
           chmod 600 "$tmp/id" "$tmp/known"
-          ssh -T -p 65002 -i "$tmp/id" -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$tmp/known" u235811320@92.113.19.189 'bash -se' <<'REMOTE'
+          ssh -T -o ConnectTimeout=10 -o ConnectionAttempts=1 -p 65002 -i "$tmp/id" -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$tmp/known" u235811320@92.113.19.189 'bash -se' <<'REMOTE'
           set -euo pipefail
           root=/home/u235811320/domains/lemonchiffon-narwhal-791953.hostingersite.com
           test -d "$root/public_html" && test -d "$root/celikom-private"
