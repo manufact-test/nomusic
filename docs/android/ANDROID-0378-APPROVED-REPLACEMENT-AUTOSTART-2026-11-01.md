@@ -1,7 +1,7 @@
 # CELIKOM Android 0.3.78 — automatic playback of approved replacements
 
 Date: 2026-11-01  
-Status: CI passed; physical HONOR listening acceptance pending. The signed 0.3.78 APK is available as a test artifact. The owner-created staging PR or a direct staging-branch push uses explicit test-only signing; the Hostinger stable manifest and release directory are not touched.
+Status: Android validation passed on the candidate. Owner explicitly requested publication to the in-app stable update channel; PR #27 runs the original Hostinger publisher only after validation. Do not treat the GitHub test artifact as the deployed update. Deployment is complete only after the live stable manifest and APK URL are verified.
 
 ## Baseline
 
