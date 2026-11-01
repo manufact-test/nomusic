@@ -29,6 +29,13 @@ public final class TestRealFailures {
   e.player.duration=121469;e.player.prepared.onPrepared(e.player);
   check(e.ready&&e.effect!=null&&e.player!=null,
       "recorded 1469ms approved album replacement starts automatically within the bounded tail policy");
+  MediaPlayer localDecoder=e.player;
+  localDecoder.position+=40;SystemClock.now+=40;sample(e,1040);
+  localDecoder.position+=40;SystemClock.now+=40;sample(e,1080);
+  SystemClock.now+=ReplacementEngine.UNIFIED_JOIN_MS+20;
+  localDecoder.position+=ReplacementEngine.UNIFIED_JOIN_MS+20;sample(e,1260);
+  check(e.audioOwner.state()==AudioOwnership.State.REPLACEMENT&&localDecoder.volume>0.99f,
+      "approved local file joins only after muted decoder prewarm and clock validation");
   int lookups=TestEngine.api.resolves;
   SystemClock.now+=10000;sample(e,11000);
   check(TestEngine.api.resolves==lookups&&e.ready,

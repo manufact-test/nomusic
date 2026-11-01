@@ -6,6 +6,35 @@ import java.util.Objects;
  */
 final class SourceEventArbiter {
  enum Action { IGNORE, BOUNDARY, SEEK }
+ /* Media3 1.8.x Player reason values. These labels describe controller
+    notifications, not a physical UI button press. */
+ static boolean isRepeatTransition(int reason){return reason==0;}
+ static String classifyMediaItemTransition(int reason){
+  switch(reason){
+   case 0:return "REPEAT";
+   case 1:return "AUTO";
+   case 2:return "SEEK_TO_OTHER_ITEM";
+   case 3:return "PLAYLIST_CHANGED";
+   default:return "UNKNOWN";
+  }
+ }
+ static String classifyTimelineChange(int reason){
+  switch(reason){
+   case 0:return "PLAYLIST_CHANGED";
+   case 1:return "SOURCE_UPDATE";
+   default:return "UNKNOWN";
+  }
+ }
+ static String classifyDiscontinuity(boolean automatic,boolean userSeek,int oldIndex,int nextIndex,
+                                     String oldAlias,String nextAlias){
+  boolean itemChanged=oldIndex!=nextIndex
+    ||(oldAlias!=null&&nextAlias!=null&&!Objects.equals(oldAlias,nextAlias));
+  if(automatic)return "AUTOMATIC_BOUNDARY";
+  if(userSeek&&itemChanged)return "SEEK_TO_OTHER_ITEM";
+  if(userSeek)return "SAME_ITEM_SEEK";
+  if(itemChanged)return "ITEM_BOUNDARY_UNCLASSIFIED";
+  return "POSITION_CHANGE_UNCLASSIFIED";
+ }
  /* Read-only probe. Candidate strings stay in memory, never enter diagnostics. */
  static final class LookaheadEvidence {
   String source,next;boolean complete,timeline;long firstSeen=-1;int samples;

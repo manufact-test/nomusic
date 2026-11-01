@@ -18,6 +18,9 @@ final class Media3SourceRouter {
   if(action==SourceEventArbiter.Action.BOUNDARY)sink.boundary(next,"media_item_transition");
   return action;
  }
+ SourceEventArbiter.Action mediaItem(String active,String live,String next,int transitionReason,long livePosition){
+  return mediaItem(active,live,next,SourceEventArbiter.isRepeatTransition(transitionReason),livePosition);
+ }
 
  SourceEventArbiter.Action discontinuity(String active,String live,String oldAlias,String nextAlias,
     int oldIndex,int nextIndex,long oldPosition,long nextPosition,long livePosition,

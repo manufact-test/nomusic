@@ -10,10 +10,12 @@ import java.util.*;
 final class ReplacementEngine {
   static final long PREPARED_MS=60000, SEEK_TIMEOUT_MS=2000, HANDOVER_DRIFT_MS=350, STREAM_SEEK_TIMEOUT_MS=12000, FADE_MS=360,
   STRICT_STREAM_JOIN_DRIFT_MS=100, STRICT_JOIN_BUDGET_MS=3000, WARM_CALLBACK_LEAD_MS=70, PAUSE_GRACE_MS=30000, PAUSE_RESUME_FADE_MS=180, PAUSE_ALIGN_DELAY_MS=160, PAUSE_ALIGN_TOLERANCE_MS=85, UNIFIED_JOIN_MS=160, RETAINED_SEEK_JOIN_MS=260;
+ static final long FULL_FILE_EXPERIMENT_BUDGET_MS=20000;
  final ProbeService owner; final NativeApi api;
+ final boolean fullFileExperiment;
  String status="Замена выключена",identityKey,trackId,method="NONE",lookupKey;
  JSONObject descriptor; long descriptorUntil,nextLookup,armedUntil,preparedAt,seekStarted,seekBudget=SEEK_TIMEOUT_MS,fadeStarted,transition,pausedAt=-1;
- long pauseRestoreDelayMs=PAUSE_GRACE_MS,sourceBufferSince=-1;
+ long pauseRestoreDelayMs=PAUSE_GRACE_MS,sourceBufferSince=-1,decoderInstanceSequence,decoderInstanceId;String audioSourceKind="unknown";
  final AudioOwnership audioOwner=new AudioOwnership();
  AudioOwnership.Ticket prepareTicket;
  long authorizationAccount=-1;
@@ -21,7 +23,7 @@ final class ReplacementEngine {
  volatile long generation; int trustedSession=-1,failures,seekCorrections;
  final BufferRecoveryGate bufferGate=new BufferRecoveryGate();BufferedAudio streaming;boolean bufferWaiting;String streamFallbackKey;
  MediaPlayer player; DynamicsProcessing effect; LoudnessEnhancer loudness; File audioFile;
- float originalMix=1f; boolean ready,closed,preparing,seeking,fading,aligned,returning,preloadAllowed=true,waitingForRouteResume,routePauseObserved,resumePositionRetained,resumeFadePending,seekHoldActive,sourceSeekedThisTrack,pendingStreamScrubJoin,streamSeekWaitLogged; String lastSync="";
+ float originalMix=1f; boolean ready,closed,preparing,seeking,fading,aligned,returning,preloadAllowed=true,waitingForRouteResume,routePauseObserved,resumePositionRetained,resumeFadePending,seekHoldActive,sourceSeekedThisTrack,pendingStreamScrubJoin,streamSeekWaitLogged,seekRetargetPending; boolean audioFromCache,localPrewarmAttempted,localPrewarmWarmupPending,localPrewarmAlignmentPending,localPrewarmJoinPending; long localPrewarmWarmupStartedAt,localPrewarmWarmupPosition; String lastSync="";
  final ClockSupervisor clockSupervisor=new ClockSupervisor();PlaybackSource previousSource;boolean explicitSourceSeek;long unavailableSince=-1,lastSyncAt=-1,lastLoggedDrift;String completedKey,completedReason;long completedPosition,resumeDrift;
  // Private, bounded to this foreground run. Every reuse requires a new live resolve.
  static final long CACHE_BYTES=62914560;
@@ -50,7 +52,23 @@ final class ReplacementEngine {
  void clearAudioCache(){for(File f:recentAudio.values())f.delete();recentAudio.clear();}
  void rememberAudio(){if(streaming!=null&&audioFile==null)audioFile=streaming.retainComplete();if(audioFile==null||descriptor==null||!ready||!api.signedIn())return;String key=audioKey(descriptor);File old=recentAudio.remove(key);if(old!=null&&!old.equals(audioFile))old.delete();recentAudio.put(key,audioFile);audioFile=null;long size=0;for(File f:recentAudio.values())size+=f.length();Iterator<File> it=recentAudio.values().iterator();while(it.hasNext()&&(recentAudio.size()>3||size>CACHE_BYTES)){File f=it.next();size-=f.length();f.delete();it.remove();}}
 
- ReplacementEngine(ProbeService owner){this.owner=owner;api=NativeApi.get(owner);}
+ // The installed experiment uses only the local-file path. The alternate
+ // constructor exists for deterministic host tests of the frozen stream baseline.
+ ReplacementEngine(ProbeService owner){this(owner,true);}
+ ReplacementEngine(ProbeService owner,boolean fullFileExperiment){this.owner=owner;api=NativeApi.get(owner);this.fullFileExperiment=fullFileExperiment;}
+ AudioOwnership.SeekContext seekContext(){return new AudioOwnership.SeekContext(
+  owner.sourceEventSequence,owner.sourceItemGeneration,generation,decoderInstanceId,
+  audioOwner.epoch(),audioOwner.operationEpoch(),audioSourceKind,localPrewarmAttempted);}
+ Map<String,Object> traceFields(){return LogStore.map(
+  "sourceEventSequence",owner.sourceEventSequence,"sourceItemGeneration",owner.sourceItemGeneration,
+  "replacementGeneration",generation,"decoderInstanceId",decoderInstanceId,
+  "audioSourceKind",audioSourceKind,"localPrewarmAttempted",localPrewarmAttempted,
+  "ownerGeneration",audioOwner.epoch(),"ownerOperationEpoch",audioOwner.operationEpoch());}
+ void logTrace(String event,Map<String,Object> fields){
+  Map<String,Object> trace=traceFields();
+  for(Map.Entry<String,Object> entry:trace.entrySet())if(!fields.containsKey(entry.getKey()))fields.put(entry.getKey(),entry.getValue());
+  LogStore.log(event,fields);
+ }
  static Integer verifiedSession(Context c){try{Class<?> store=Class.forName("pro.celikom.nativeprobe.ProbeStore");Object instance=store.getField("INSTANCE").get(null);if(!Boolean.TRUE.equals(store.getMethod("enabled",Context.class).invoke(instance,c)))return null;JSONObject report=(JSONObject)store.getMethod("report",Context.class).invoke(instance,c);Class<?> cls=Class.forName("pro.celikom.nativeprobe.AttenuationService");Object companion=cls.getField("Companion").get(null);return (Integer)companion.getClass().getMethod("verifiedSession",JSONObject.class,long.class).invoke(companion,report,System.currentTimeMillis());}catch(Exception e){return null;}}
  void arm(){if(closed)return;if(returning)stop("rearm_during_return");if(authorizationAccount>=0&&authorizationAccount!=api.accountGeneration)stop("account_changed");if(!api.signedIn()){status="Сначала войди в свой аккаунт CELIKOM";return;}
   authorizationAccount=api.accountGeneration;audioOwner.activate();if(identityKey!=null)audioOwner.track(identityKey);Integer session=verifiedSession(owner);
@@ -62,6 +80,9 @@ final class ReplacementEngine {
  void attachPendingSession(){if(!armed()||trustedSession>0)return;Integer session=verifiedSession(owner);if(session!=null&&session>0){trustedSession=session;status="Подключение получено; автозамена включена";LogStore.log("replacement_session_attached",LogStore.map("sessionId",session,"source","verified_yandex_panel"));}}
  void headphonesDisconnected(){
   if(!armed()&&!returning&&effect==null)return;
+  boolean interruptedLocalPrewarm=localPrewarmWarmupPending||localPrewarmAlignmentPending;
+  if(interruptedLocalPrewarm)localPrewarmAttempted=false;
+  localPrewarmWarmupPending=false;localPrewarmAlignmentPending=false;localPrewarmJoinPending=false;
   if(returning){stop("headphones_disconnected_during_return");return;}
   resumePositionRetained=player!=null&&ready&&aligned&&!seeking;waitingForRouteResume=true;routePauseObserved=false;transition++;fading=false;aligned=false;pausedAt=-1;audioOwner.event(AudioOwnership.Event.ROUTE_LOSS);
   try{if(player!=null&&ready){setAuditedVolume(player,0f);audioOwner.pauseDecoder(player);}}catch(RuntimeException ex){suspend("route_pause_failed",0);}
@@ -81,6 +102,50 @@ final class ReplacementEngine {
  boolean transportLeaseCurrent(String key,long g,long account){return !closed&&owner.alive()&&g==generation&&account==api.accountGeneration&&api.signedIn()&&Objects.equals(identityKey,key);}
  boolean armed(){return !closed&&armedUntil!=0;}
  long position(PlaybackSource s){long extra=s.playing?Math.max(0,SystemClock.elapsedRealtime()-s.observed):0;return Math.min(s.duration,Math.max(0,s.position+extra));}
+ void prewarmLocalFileForInitialAlignment(PlaybackSource s,boolean resumed,boolean sourceJump){
+  if(localPrewarmAttempted||localPrewarmWarmupPending||localPrewarmAlignmentPending||localPrewarmJoinPending
+     ||streaming!=null||audioFile==null||player==null||!ready
+     ||!armed()||trustedSession<=0||s==null||!s.playing||player.isPlaying()
+     ||resumePositionRetained||waitingForRouteResume||sourceJump
+     ||explicitSourceSeek||seeking||aligned||fading||audioOwner.handoverAwaitingClock())return;
+  if(!mute())return;
+  localPrewarmAttempted=true;localPrewarmWarmupPending=true;
+  localPrewarmWarmupStartedAt=SystemClock.elapsedRealtime();
+  localPrewarmWarmupPosition=player.getCurrentPosition();
+  setAuditedVolume(player,0f);
+  audioOwner.startDecoder(player,effect,identityKey,audioOwner.epoch());
+  traceAudioCommands();
+  logTrace("replacement_local_decoder_prewarm_start",LogStore.map(
+    "trackId",trackId,"sourceKind",audioSourceKind,"cacheHit",audioFromCache,
+    "decoderRecreated",true,"decoderPositionMs",localPrewarmWarmupPosition,
+    "sourcePositionMs",position(s),"replacementMuted",commandedReplacementVolume<=0.001f,
+    "originalAudible",originalMix>=0.999f,"prewarmBeforeAlignmentSeek",true));
+ }
+ boolean awaitLocalPrewarmMotion(PlaybackSource s,boolean resumed,boolean sourceJump){
+  if(!localPrewarmWarmupPending)return false;
+  if(sourceJump||explicitSourceSeek||waitingForRouteResume||s==null||!s.playing){
+   localPrewarmWarmupPending=false;
+   return false;
+  }
+  long now=SystemClock.elapsedRealtime(),decoderPosition=player==null?localPrewarmWarmupPosition:player.getCurrentPosition();
+  long moved=decoderPosition-localPrewarmWarmupPosition;
+  if(moved>=40){
+   localPrewarmWarmupPending=false;localPrewarmAlignmentPending=true;
+   logTrace("replacement_local_decoder_prewarm_motion",LogStore.map(
+     "trackId",trackId,"movedMs",moved,"waitMs",now-localPrewarmWarmupStartedAt,
+     "sourcePositionMs",position(s),"decoderPositionMs",decoderPosition,
+     "originalAudible",originalMix>=0.999f,"replacementMuted",commandedReplacementVolume<=0.001f));
+   return false;
+  }
+  if(now-localPrewarmWarmupStartedAt>=SEEK_TIMEOUT_MS){
+   localPrewarmWarmupPending=false;
+   skipUnstableJoin("local_decoder_prewarm_timeout",position(s)-decoderPosition,0);
+   return true;
+  }
+  final MediaPlayer expected=player;final long epoch=generation;final String key=identityKey;
+  owner.handler.postDelayed(()->{if(player==expected&&generation==epoch&&current(key)&&localPrewarmWarmupPending)update(owner.current);},20);
+  return true;
+ }
  /* An account switch revokes queued decoder callbacks before the next
     timeline tick. Never grant old-account audio after sign-in changes. */
  boolean accountLeaseCurrent(){
@@ -100,6 +165,8 @@ final class ReplacementEngine {
   boolean sourceJump=explicitSourceSeek;PlaybackSource previous=previousSource;previousSource=s;
   if(previous!=null&&previous.key.equals(s.key)&&previous.playing&&s.playing&&s!=previous&&s.observed>=previous.observed&&Math.abs(s.position-(previous.position+s.observed-previous.observed))>900)sourceJump=true;
   if(sourceJump){explicitSourceSeek=true;sourceSeekedThisTrack=true;}
+  if(sourceJump&&seeking&&audioOwner.seekInFlight(player))
+   supersedePendingAlignmentForSourceSeek("source_position_jump");
   if(completedKey!=null&&completedKey.equals(s.key)){
    if(s.playing&&s.position<completedPosition-1500){completedKey=null;completedReason=null;lookupKey=null;descriptor=null;nextLookup=0;LogStore.log("replacement_repeat_detected",LogStore.map("sourcePositionMs",s.position));}
    else{status=completedReason==null?"Ожидаем следующую песню; играет оригинал":completedReason;return;}
@@ -123,7 +190,7 @@ final class ReplacementEngine {
     return;
    }
    if(sourceBufferSince>=0){
-    LogStore.log("replacement_source_buffer_resumed",LogStore.map("trackId",trackId,"bufferMs",clock-sourceBufferSince,"decoderRetained",player!=null&&ready));
+    logTrace("replacement_source_buffer_resumed",LogStore.map("trackId",trackId,"bufferMs",clock-sourceBufferSince,"decoderRetained",player!=null&&ready));
     sourceBufferSince=-1;
    }
    boolean resumed=pausedAt>=0;long pausedDuration=resumed?Math.max(0,clock-pausedAt):0;
@@ -142,11 +209,13 @@ final class ReplacementEngine {
    if(waiting&&audioOwner.seekInFlight(player))audioOwner.noteSeekRangeWait(player);
    if(waiting&&seeking&&!streamSeekWaitLogged){
     streamSeekWaitLogged=true;
-    LogStore.log("replacement_stream_seek_data_wait",LogStore.map(
+    logTrace("replacement_stream_seek_data_wait",LogStore.map(
       "trackId",trackId,"cachedBytes",streaming.cachedBytes(),
       "sourceEffectRetained",effect!=null&&originalMix>=0.999f,
       "replacementSilent",commandedReplacementVolume<=0.001f,
-      "seekInFlight",audioOwner.seekInFlight(player)));
+      "seekInFlight",audioOwner.seekInFlight(player),"seekSeq",audioOwner.inFlightSequence(player),
+      "seekKind",audioOwner.inFlightKind(player),"seekTargetMs",audioOwner.inFlightTargetMs(player),
+      "seekElapsedMs",audioOwner.inFlightElapsedMs(player,clock)));
    }
    if(streaming!=null&&bufferGate.recover(waiting,aligned&&!bufferWaiting,seeking,player.getCurrentPosition(),clock)){
      if(!bufferWaiting){bufferWaiting=true;transition++;fading=false;aligned=false;seeking=false;resumePositionRetained=false;setAuditedVolume(player,0f);audioOwner.pauseDecoder(player);streaming.releasePrefetchAfterSeek();unmute();LogStore.log("replacement_buffer_wait",LogStore.map("trackId",trackId,"cachedBytes",streaming.cachedBytes()));}
@@ -182,14 +251,30 @@ final class ReplacementEngine {
     String key=identityKey;LogStore.log("replacement_drift_unstable",LogStore.map("trackId",trackId,"sourcePositionMs",target,"driftMs",drift,"fallback","original_until_next_track","clockSupervisor","confirmed"));
     suspend("drift_unstable",30000);completedKey=key;completedPosition=target;completedReason="Большой рассинхрон замены — играет оригинал до следующей песни";audioOwner.unsupported("drift_unstable");status=completedReason;ownerEvent("drift_unsupported");return;
    }
+   prewarmLocalFileForInitialAlignment(s,resumed,sourceJump);
+   if(awaitLocalPrewarmMotion(s,resumed,sourceJump))return;
    if(clockDecision==ClockSupervisor.Decision.SEEK){seek(s,target,drift);return;}
+  if(localPrewarmAlignmentPending){
+   localPrewarmAlignmentPending=false;localPrewarmJoinPending=true;
+   logTrace("replacement_local_decoder_prewarm_aligned",LogStore.map("trackId",trackId,"sourcePositionMs",target,"decoderPositionMs",player.getCurrentPosition(),"seekSkipped",true,"originalAudible",originalMix>=0.999f));
+  }
    boolean seamlessResume=retainedPauseResume&&originalMix<=0.001f&&Math.abs(drift)<=HANDOVER_DRIFT_MS;
    boolean newlyAttached=effect==null;
    if(newlyAttached&&!mute())return;
    if(!effect.hasControl()||!effect.getEnabled()){stop("effect_control_lost");return;}
-    if(!player.isPlaying()){if(seamlessResume){audioOwner.grantReplacement(effect);originalMix=0f;applyVolume(1f);}else setAuditedVolume(player,0f);audioOwner.startDecoder(player,effect,identityKey,audioOwner.epoch());try{LogStore.log("audio_decoder_start",LogStore.map("trackId",trackId,"decoderPositionMs",player.getCurrentPosition(),"sourcePositionMs",position(s),"reusePreparedDecoder",true,"seekPending",seeking,"sourceMutedCommand",effect!=null&&originalMix<=0.001f));}catch(RuntimeException ignored){}traceAudioCommands();if(seamlessResume){fading=false;resumeFadePending=false;audioOwner.replacement();LogStore.log("replacement_resume_seamless",LogStore.map("trackId",trackId,"driftMs",drift,"sourcePositionMs",target,"retainedEffect",true));}else fade(newlyAttached||pendingStreamScrubJoin);}
+    if(!player.isPlaying()){
+     boolean prewarmedJoin=localPrewarmJoinPending;
+     if(seamlessResume){audioOwner.grantReplacement(effect);originalMix=0f;applyVolume(1f);}else setAuditedVolume(player,0f);
+     audioOwner.startDecoder(player,effect,identityKey,audioOwner.epoch());
+     try{logTrace("audio_decoder_start",LogStore.map("trackId",trackId,"decoderPositionMs",player.getCurrentPosition(),"sourcePositionMs",position(s),"reusePreparedDecoder",true,"seekPending",seeking,"sourceMutedCommand",effect!=null&&originalMix<=0.001f,"prewarmedLocalFile",localPrewarmAttempted));}catch(RuntimeException ignored){}
+     traceAudioCommands();
+     if(seamlessResume){fading=false;resumeFadePending=false;audioOwner.replacement();LogStore.log("replacement_resume_seamless",LogStore.map("trackId",trackId,"driftMs",drift,"sourcePositionMs",target,"retainedEffect",true));}
+     else if(prewarmedJoin){localPrewarmJoinPending=false;fade(true,true);}
+     else fade(newlyAttached||pendingStreamScrubJoin);
+    }
     else if(newlyAttached){setAuditedVolume(player,0f);fade(true);}
-   else if(!fading){if(pendingStreamScrubJoin&&originalMix>0.001f){setAuditedVolume(player,0f);fade(true);}else{audioOwner.grantReplacement(effect);originalMix=0f;applyVolume(1f);}}
+    else if(localPrewarmJoinPending&&!fading){localPrewarmJoinPending=false;fade(true,true);}
+    else if(!fading){if(pendingStreamScrubJoin&&originalMix>0.001f){setAuditedVolume(player,0f);fade(true);}else{audioOwner.grantReplacement(effect);originalMix=0f;applyVolume(1f);}}
    status="Играет замена · автопереход включён";logSync("playing",s,drift);
   }catch(RuntimeException e){suspend("playback_exception",retryDelay());status="Ошибка звука — оригинал восстановлен; повторим автоматически";LogStore.log("replacement_failure",LogStore.map("reason","playback_exception","type",e.getClass().getSimpleName()));}
  }
@@ -203,15 +288,56 @@ final class ReplacementEngine {
     "previousAlias",previous.alias,"remainingMs",Math.max(0,previous.duration-projected),
     "retainedUntilConfirmedBoundary",true));
  }
- void sourceSeekRequested(){if(armed()){explicitSourceSeek=true;sourceSeekedThisTrack=true;}}
- void sourceBoundary(String reason){
-  if(closed)return;sourceBufferSince=-1;generation++;preparing=false;release("track_changed");audioOwner.event(AudioOwnership.Event.BOUNDARY);audioOwner.invalidate(reason);identityKey=null;trackId=null;method="NONE";completedReason=null;clockSupervisor.reset();descriptor=null;lookupKey=null;nextLookup=0;failures=0;previousSource=null;completedKey=null;explicitSourceSeek=false;sourceSeekedThisTrack=false;unavailableSince=-1;status="Определяем новую песню; играет оригинал";ownerEvent("source_boundary");LogStore.log("replacement_source_boundary",LogStore.map("reason",reason,"originalRestoredBeforeLookup",true));
+ void sourceSeekRequested(){
+  if(!armed())return;
+  explicitSourceSeek=true;sourceSeekedThisTrack=true;
+  supersedePendingAlignmentForSourceSeek("media3_seek_discontinuity");
+ }
+ /* MediaPlayer seek callbacks have no request ID. If the source moves again
+    during an ALIGNMENT seek, revoke that ticket immediately but keep its one
+    native seek in flight. Its callback must drain before the latest target is
+    submitted; issuing concurrent seekTo calls would make callbacks ambiguous. */
+ void supersedePendingAlignmentForSourceSeek(String reason){
+  if(!seeking||seekRetargetPending||player==null||!audioOwner.seekInFlight(player))return;
+  long sequence=audioOwner.inFlightSequence(player);
+  long oldTarget=audioOwner.inFlightTargetMs(player);
+  long operationBefore=audioOwner.operationEpoch();
+  audioOwner.event(AudioOwnership.Event.SEEK);
+  audioOwner.aligning();
+  seekRetargetPending=true;
+  localPrewarmWarmupPending=false;localPrewarmAlignmentPending=false;localPrewarmJoinPending=false;
+  seekHoldActive=false;pendingStreamScrubJoin=false;
+  aligned=false;resumePositionRetained=false;fading=false;
+  setAuditedVolume(player,0f);
+  if(player.isPlaying())audioOwner.pauseDecoder(player);
+  if(effect!=null&&originalMix<0.999f){
+   audioOwner.sourceGainDuringAlignment(effect);originalMix=1f;traceAudioCommands();
+  }
+  logTrace("replacement_seek_superseded",LogStore.map(
+    "reason",reason,"seekSeq",sequence,"oldTargetMs",oldTarget,
+    "sourceEventSequence",owner.sourceEventSequence,
+    "sourcePositionMs",owner.current==null?null:Long.valueOf(position(owner.current)),
+    "operationEpochBefore",operationBefore,"operationEpochAfter",audioOwner.operationEpoch(),
+    "singleFlightRetained",audioOwner.seekInFlight(player),
+    "replacementMuted",commandedReplacementVolume<=0.001f,
+    "sourceEffectRetained",effect!=null&&effect.hasControl()));
+ }
+ void sourceBoundary(String reason){sourceBoundary(reason,null);}
+ void sourceBoundary(String reason,String nextAlias){
+  if(closed)return;owner.noteSourceBoundary(nextAlias);sourceBufferSince=-1;generation++;preparing=false;
+  Map<String,Object> boundaryContext=traceFields();
+  release("track_changed");audioOwner.event(AudioOwnership.Event.BOUNDARY);audioOwner.invalidate(reason);
+  identityKey=null;trackId=null;method="NONE";completedReason=null;clockSupervisor.reset();descriptor=null;lookupKey=null;nextLookup=0;failures=0;previousSource=null;completedKey=null;explicitSourceSeek=false;sourceSeekedThisTrack=false;unavailableSince=-1;status="Определяем новую песню; играет оригинал";ownerEvent("source_boundary");
+  Map<String,Object> fields=LogStore.map("reason",reason,"originalRestoredBeforeLookup",true);
+  fields.putAll(boundaryContext);fields.put("sourceItemGeneration",owner.sourceItemGeneration);fields.put("replacementGeneration",generation);
+  LogStore.log("replacement_source_boundary",fields);
  }
  void sourceChanged(PlaybackSource previous,PlaybackSource next){
   long ownPosition=-1,ownDuration=-1;
   try{if(player!=null&&ready){ownPosition=player.getCurrentPosition();ownDuration=player.getDuration();}}catch(RuntimeException ignored){}
-  LogStore.log("source_track_transition",LogStore.map("previousTrackId",trackId,"previousAlias",previous.alias,"nextAlias",next.alias,"previousDurationMs",previous.duration,"previousProjectedPositionMs",position(previous),"remainingSourceMs",Math.max(0,previous.duration-position(previous)),"replacementPositionMs",ownPosition,"replacementDurationMs",ownDuration,"replacementReady",ready,"followsNativeTrackChange",true));
-  if(identityKey!=null||player!=null||preparing)sourceBoundary("sample_track_changed");
+  LogStore.log("source_track_transition",LogStore.map("previousTrackId",trackId,"previousAlias",previous.alias,"nextAlias",next.alias,"previousDurationMs",previous.duration,"previousProjectedPositionMs",position(previous),"remainingSourceMs",Math.max(0,previous.duration-position(previous)),"replacementPositionMs",ownPosition,"replacementDurationMs",ownDuration,"replacementReady",ready,"followsNativeTrackChange",true,"sourceEventSequence",owner.sourceEventSequence,"sourceItemGeneration",owner.sourceItemGeneration));
+  if(identityKey!=null||player!=null||preparing)sourceBoundary("sample_track_changed",next.alias);
+  else owner.noteSourceBoundary(next.alias);
  }
  /** Media3 buffering with playWhenReady=true is not a user pause.
   * A tiny stall may be absorbed by an already audible replacement. A seek or
@@ -267,6 +393,9 @@ final class ReplacementEngine {
  void pauseSource(PlaybackSource s){pauseSource(s,false);}
  void pauseSource(PlaybackSource s,boolean buffering){
   if(player==null)return;
+  boolean interruptedLocalPrewarm=localPrewarmWarmupPending||localPrewarmAlignmentPending;
+  if(interruptedLocalPrewarm)localPrewarmAttempted=false;
+  if(interruptedLocalPrewarm||localPrewarmJoinPending){localPrewarmWarmupPending=false;localPrewarmAlignmentPending=false;localPrewarmJoinPending=false;}
    if(streaming!=null)streaming.releasePrefetchAfterSeek();
   /* Changing USER_PAUSE <-> BUFFERING invalidates the old timer and delay. */
   boolean pauseCauseChanged=pausedAt>=0&&audioOwner.pauseMode()!=AudioOwnership.PauseMode.NONE
@@ -311,7 +440,11 @@ final class ReplacementEngine {
  void seek(PlaybackSource s,long target,long drift){seek(s,target,drift,false);}
  void seek(PlaybackSource s,long target,long drift,boolean correction){
    if(streaming!=null)streaming.holdPrefetchForSeek();
+  boolean keepLocalPrewarmRunning=localPrewarmAlignmentPending&&!correction&&!explicitSourceSeek&&!audioOwner.seekInFlight(player);
+  if(localPrewarmWarmupPending&&!keepLocalPrewarmRunning)localPrewarmWarmupPending=false;
+  if(localPrewarmAlignmentPending&&!keepLocalPrewarmRunning){localPrewarmAlignmentPending=false;localPrewarmJoinPending=false;}
   if(audioOwner.seekInFlight(player)){
+   seekRetargetPending=false;localPrewarmAlignmentPending=false;localPrewarmJoinPending=false;
    /* Last desired source position wins. The decoder keeps its one outstanding
       untagged seek; the source is audible while that position settles. */
    audioOwner.event(AudioOwnership.Event.SEEK);transition++;fading=false;
@@ -327,17 +460,27 @@ final class ReplacementEngine {
      on an incomplete HTTP stream. Keep the original audible and retain the
      same effect/decoder until the most recent target's clock is verified. */
   pendingStreamScrubJoin=false;seekHoldActive=false;
-  clockSupervisor.onSeek();audioOwner.event(AudioOwnership.Event.SEEK);audioOwner.aligning();explicitSourceSeek=false;resumePositionRetained=false;seekCorrections=correction?seekCorrections+1:0;seeking=true;streamSeekWaitLogged=false;aligned=true;seekStarted=SystemClock.elapsedRealtime();seekBudget=streaming!=null&&!streaming.complete()?STREAM_SEEK_TIMEOUT_MS:SEEK_TIMEOUT_MS;transition++;fading=false;setAuditedVolume(player,0f);audioOwner.pauseDecoder(player);
+  clockSupervisor.onSeek();audioOwner.event(AudioOwnership.Event.SEEK);audioOwner.aligning();explicitSourceSeek=false;resumePositionRetained=false;seekCorrections=correction?seekCorrections+1:0;seeking=true;seekRetargetPending=false;streamSeekWaitLogged=false;aligned=true;seekStarted=SystemClock.elapsedRealtime();seekBudget=streaming!=null&&!streaming.complete()?STREAM_SEEK_TIMEOUT_MS:SEEK_TIMEOUT_MS;transition++;fading=false;setAuditedVolume(player,0f);
+  if(!keepLocalPrewarmRunning)audioOwner.pauseDecoder(player);
+  else logTrace("replacement_local_decoder_prewarm_seek",LogStore.map("trackId",trackId,"decoderStillRunningMuted",player.isPlaying(),"targetMs",target));
   if(effect!=null){audioOwner.sourceGainDuringAlignment(effect);originalMix=1f;traceAudioCommands();}
-  status="Синхронизация позиции; оригинал звучит…";ownerEvent("seek");LogStore.log("replacement_sync",LogStore.map("state","seek","trackId",trackId,"sourcePositionMs",target,"driftMs",drift,"originalStillMuted",false,"originalRestoredDuringSeek",true,"inaudibleCorrection",correction));final MediaPlayer p=player;final long t=transition,epoch=audioOwner.epoch();final String key=identityKey;
+  status="Синхронизация позиции; оригинал звучит…";ownerEvent("seek");logTrace("replacement_sync",LogStore.map("state","seek","trackId",trackId,"sourcePositionMs",target,"driftMs",drift,"originalStillMuted",false,"originalRestoredDuringSeek",true,"inaudibleCorrection",correction));final MediaPlayer p=player;final long t=transition,epoch=audioOwner.epoch();final String key=identityKey;
   long sourceAtSubmit=position(s),decoderAtSubmit=player.getCurrentPosition();
   audioOwner.issueSeek(p,target,key,epoch,AudioOwnership.SeekKind.ALIGNMENT,seekStarted,
-    sourceAtSubmit,s.position,s.observed,decoderAtSubmit);owner.handler.postDelayed(()->{if(player==p&&seeking&&transition==t&&audioOwner.current(epoch,key))suspend("seek_timeout",retryDelay());},seekBudget);}
+    sourceAtSubmit,s.position,s.observed,decoderAtSubmit,seekContext());owner.handler.postDelayed(()->{if(player==p&&seeking&&transition==t&&audioOwner.current(epoch,key))suspend("seek_timeout",retryDelay());},seekBudget);}
  void prepare(String key,JSONObject j,long g){if(preparing||!current(key)||!api.signedIn())return;PlaybackSource s=owner.current;if(!PlaybackDuration.metadataProbeAllowed(s.duration,j.optLong("duration_ms"))){LogStore.log("replacement_duration_mismatch",LogStore.map("trackId",trackId,"sourceDurationMs",s.duration,"replacementDurationMs",j.optLong("duration_ms")));completedKey=key;completedPosition=position(s);completedReason="Версия замены не совпадает по длительности — пропускаем эту песню, играет оригинал";audioOwner.unsupported("duration_mismatch");status=completedReason;LogStore.log("replacement_track_skipped",LogStore.map("reason","duration_mismatch","trackId",trackId,"sourceDurationMs",s.duration,"replacementDurationMs",j.optLong("duration_ms"),"action","original_until_next_track"));descriptor=null;return;}if(!PlaybackDuration.safe(s.duration,j.optLong("duration_ms"))){
    LogStore.log("replacement_duration_probe",LogStore.map("trackId",trackId,"sourceDurationMs",s.duration,"reportedDurationMs",j.optLong("duration_ms"),"policy","verify_measured_file_before_any_audio"));
   }audioOwner.preparing();prepareTicket=audioOwner.ticket(key,api.accountGeneration,j.optLong("replacement_id"),j.optLong("version"),j.optLong("duration_ms"));preparing=true;status="Готовим аудио заранее; оригинал продолжает играть";
+  audioFromCache=false;
   File cached=recentAudio.remove(audioKey(j));
-  if(cached!=null&&cached.isFile()){LogStore.log("replacement_audio_reused",LogStore.map("trackId",trackId,"liveResolveRequired",true));acceptAudio(key,j,g,cached,null);return;}
+  if(cached!=null&&cached.isFile()){audioFromCache=true;LogStore.log("replacement_audio_reused",LogStore.map("trackId",trackId,"liveResolveRequired",true,"cacheHit",true,"decoderRecreated",true,"sourceKind","local_cache_file","sourceItemGeneration",owner.sourceItemGeneration,"sourceEventSequence",owner.sourceEventSequence));acceptAudio(key,j,g,cached,null);return;}
+  if(fullFileExperiment){
+   logTrace("replacement_full_file_experiment_start",LogStore.map(
+     "trackId",trackId,"sourceKind","full_download_file",
+     "streamingSkipped",true,"downloadBudgetMs",FULL_FILE_EXPERIMENT_BUDGET_MS,
+     "originalRemainsAudible",true));
+   downloadFull(key,j,g);return;
+  }
   if(key.equals(streamFallbackKey)){downloadFull(key,j,g);return;}
   status="Подготавливаем начало песни; играет оригинал";
   final long account=api.accountGeneration;
@@ -347,11 +490,18 @@ final class ReplacementEngine {
    acceptAudio(key,j,g,null,source,null);
   });
  }
- void downloadFull(String key,JSONObject j,long g){final long account=api.accountGeneration;api.download(j,()->transportLeaseCurrent(key,g,account),(file,error)->acceptAudio(key,j,g,file,error));}
+ void downloadFull(String key,JSONObject j,long g){audioFromCache=false;final long account=api.accountGeneration,start=SystemClock.elapsedRealtime();api.download(j,()->transportLeaseCurrent(key,g,account)&&(!fullFileExperiment||SystemClock.elapsedRealtime()-start<FULL_FILE_EXPERIMENT_BUDGET_MS),(file,error)->acceptAudio(key,j,g,file,error));}
  void acceptAudio(String key,JSONObject j,long g,File file,String error){acceptAudio(key,j,g,file,null,error);}
  void acceptAudio(String key,JSONObject j,long g,File file,BufferedAudio source,String error){if(g!=generation||closed||!audioOwner.dataCurrent(prepareTicket,api.accountGeneration,key,j.optLong("replacement_id"),j.optLong("version"),j.optLong("duration_ms"))){if(file!=null)file.delete();if(source!=null)source.close();return;}preparing=false;if(file==null&&source==null){suspend("download_failed",retryDelay());status="Сеть недоступна; играет оригинал, повторим автоматически";return;}if(!current(key)||!api.signedIn()){if(file!=null)file.delete();if(source!=null)source.close();suspend("download_source_changed",1000);return;}
-   try{audioFile=file;streaming=source;bufferWaiting=false;player=new MediaPlayer();final MediaPlayer p=player;final long ownerTicket=audioOwner.epoch();final AudioOwnership.Ticket dataTicket=prepareTicket;p.setAudioAttributes(new AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_MEDIA).setContentType(AudioAttributes.CONTENT_TYPE_MUSIC).build());setAuditedVolume(p,0f);if(source==null)p.setDataSource(file.getAbsolutePath());else p.setDataSource(new StreamingAudio(source));p.setOnErrorListener((mp,what,extra)->{if(mp==player&&g==generation&&audioOwner.current(ownerTicket,key)&&accountLeaseCurrent()){suspend("media_player_error",retryDelay());LogStore.log("replacement_failure",LogStore.map("reason","media_player_error","what",what,"extra",extra));}return true;});p.setOnCompletionListener(mp->{
+   try{if(source!=null)audioFromCache=false;audioFile=file;streaming=source;audioSourceKind=source!=null?"stream":audioFromCache?"local_cache_file":"full_download_file";localPrewarmAttempted=false;localPrewarmAlignmentPending=false;localPrewarmJoinPending=false;bufferWaiting=false;player=new MediaPlayer();decoderInstanceId=++decoderInstanceSequence;final MediaPlayer p=player;final long ownerTicket=audioOwner.epoch();final AudioOwnership.Ticket dataTicket=prepareTicket;p.setAudioAttributes(new AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_MEDIA).setContentType(AudioAttributes.CONTENT_TYPE_MUSIC).build());setAuditedVolume(p,0f);if(source==null)p.setDataSource(file.getAbsolutePath());else p.setDataSource(new StreamingAudio(source));p.setOnErrorListener((mp,what,extra)->{if(mp==player&&g==generation&&audioOwner.current(ownerTicket,key)&&accountLeaseCurrent()){suspend("media_player_error",retryDelay());LogStore.log("replacement_failure",LogStore.map("reason","media_player_error","what",what,"extra",extra));}return true;});p.setOnCompletionListener(mp->{
     if(mp!=player||g!=generation||!audioOwner.current(ownerTicket,key)||!accountLeaseCurrent())return;
+    if(localPrewarmWarmupPending||localPrewarmAlignmentPending||localPrewarmJoinPending){
+     LogStore.log("replacement_completion_before_local_join",LogStore.map(
+       "trackId",trackId,"cacheHit",audioFromCache,"decoderPositionMs",mp.getCurrentPosition(),
+       "originalAudible",originalMix>=0.999f,"action","keep_original"));
+     suspend("replacement_completed",30000);
+     return;
+    }
     /* Completion is untagged: an old-position callback during a seek or a
        paused/buffered/route-lost hold must not mark the song complete. */
     if(!ready||!armed()||returning||pausedAt>=0||waitingForRouteResume
@@ -388,13 +538,14 @@ final class ReplacementEngine {
     LogStore.log("replacement_bounded_tail_accepted",LogStore.map("trackId",trackId,"sourceDurationMs",now.duration,"measuredDurationMs",mp.getDuration(),"reportedDurationMs",j.optLong("duration_ms"),"identityMethod",method,"originalRetainedUntilBoundary",true));
    if(!PlaybackDuration.safe(now.duration,j.optLong("duration_ms")))
     LogStore.log("replacement_duration_probe_verified",LogStore.map("trackId",trackId,"sourceDurationMs",now.duration,"reportedDurationMs",j.optLong("duration_ms"),"measuredDurationMs",mp.getDuration()));
-   ready=true;failures=0;preparedAt=SystemClock.elapsedRealtime();status=armed()?"Аудио готово; синхронизируем":"Аудио готово заранее; можно включать автозамену";LogStore.log("replacement_prepared",LogStore.map("trackId",trackId,"measuredDurationMs",mp.getDuration(),"sourceDurationMs",now.duration,"separateAudioSession",true,"beforeArm",!armed()));update(now);});p.setOnSeekCompleteListener(mp->completeSeek(mp,key));p.prepareAsync();if(source!=null)source.prefetch();final MediaPlayer preparingPlayer=p;owner.handler.postDelayed(()->{if(player==preparingPlayer&&!ready)suspend("prepare_timeout",retryDelay());},10000);
+   ready=true;failures=0;preparedAt=SystemClock.elapsedRealtime();status=armed()?"Аудио готово; синхронизируем":"Аудио готово заранее; можно включать автозамену";logTrace("replacement_prepared",LogStore.map("trackId",trackId,"measuredDurationMs",mp.getDuration(),"sourceDurationMs",now.duration,"separateAudioSession",true,"beforeArm",!armed()));update(now);});p.setOnSeekCompleteListener(mp->completeSeek(mp,key));p.prepareAsync();if(source!=null)source.prefetch();final MediaPlayer preparingPlayer=p;owner.handler.postDelayed(()->{if(player==preparingPlayer&&!ready)suspend("prepare_timeout",retryDelay());},10000);
    }catch(Exception e){suspend("prepare_failed",retryDelay());status="Не удалось подготовить аудио; играет оригинал";}
  }
  void completeSeek(MediaPlayer mp,String key){
   if(mp!=player||!Objects.equals(identityKey,key)||!accountLeaseCurrent())return;
   AudioOwnership.SeekAck ack=audioOwner.acceptSeekCompletion(mp);
   if(ack==null)return; // repeated/retired callback
+  seekRetargetPending=false;
   /* Snapshot BOTH ALIGNMENT and WARM ACKs. This is transport data, not PCM. */
   final long ackClock=SystemClock.elapsedRealtime();
   final PlaybackSource sourceAtAck=owner.current;
@@ -412,8 +563,10 @@ final class ReplacementEngine {
     "sourcePcmMeasured",false,"phaseVerified",false,"hardwareOutputMeasured",false,"transportOnly",true);
   ackFields.putAll(SeekTimingEvidence.atAck(ack,ackClock,projectedAtAck,decoderAtAck,
       sourceAtAck==null?-1:sourceAtAck.observed));
+  if(ack.context!=null)ackFields.putAll(ack.context.fields());
   LogStore.log("replacement_seek_ack",ackFields);
     if(ack.operationEpoch!=audioOwner.operationEpoch()){
+   if(localPrewarmWarmupPending||localPrewarmAlignmentPending){localPrewarmWarmupPending=false;localPrewarmAlignmentPending=false;localPrewarmJoinPending=false;}
    /* A pause revoked output permission, not necessarily the decoder position.
       Reuse a verified final alignment without granting an old audible command.
       A new source position or route loss must never reuse the canceled result. */
@@ -423,8 +576,13 @@ final class ReplacementEngine {
       &&Math.abs(position(sourceNow)-mp.getCurrentPosition())<=PAUSE_ALIGN_TOLERANCE_MS;
    seeking=false;aligned=positionStillValid;
    resumePositionRetained=positionStillValid;
+   if(positionStillValid){explicitSourceSeek=false;previousSource=sourceNow;}
    if(!waitingForRouteResume&&sourceNow!=null&&sourceNow.playing)update(sourceNow);
    return;
+  }
+  if(ack.kind==AudioOwnership.SeekKind.ALIGNMENT&&localPrewarmAlignmentPending){
+   localPrewarmAlignmentPending=false;localPrewarmJoinPending=true;
+   LogStore.log("replacement_local_decoder_prewarm_aligned",LogStore.map("trackId",trackId,"sourcePositionMs",projectedAtAck,"decoderPositionMs",decoderAtAck,"seekCallbackElapsedMs",ackClock-ack.submittedAt,"originalAudible",originalMix>=0.999f));
   }
   if(ack.kind==AudioOwnership.SeekKind.WARM){
    
@@ -436,12 +594,15 @@ final class ReplacementEngine {
   if(!ready||!armed()||!current(key))return;
   PlaybackSource now=owner.current;
   long target=position(now),decoderAtComplete=mp.getCurrentPosition(),residual=target-decoderAtComplete;
-  LogStore.log("replacement_seek_complete",LogStore.map(
-    "elapsedMs",elapsed,"trackId",trackId,"residualMs",residual,
+  Map<String,Object> completeFields=LogStore.map(
+    "elapsedMs",elapsed,"trackId",trackId,"seekSeq",ack.sequence,"seekKind",ack.kind.name(),
+    "requestedPositionMs",ack.targetMs,"rangeWaitObserved",ack.rangeWaitObserved,"residualMs",residual,
     "sourceProjectedAtCompleteMs",target,"decoderPositionAtCompleteMs",decoderAtComplete,
     "residualSemantics","source transport minus decoder cursor at callback; not output presentation",
     "sourceSnapshotAgeAtCompleteMs",Math.max(0,clock-now.observed),
-    "correctionPass",seekCorrections,"sourcePcmMeasured",false,"phaseVerified",false));
+    "correctionPass",seekCorrections,"sourcePcmMeasured",false,"phaseVerified",false);
+  if(ack.context!=null)completeFields.putAll(ack.context.fields());
+  LogStore.log("replacement_seek_complete",completeFields);
   /* A second streaming seek can also wait for data. Never publish that stale
      alignment and then correct it audibly after handover. Allow two measured
      corrections, then keep the original if the decoder cannot settle. */
@@ -468,7 +629,8 @@ final class ReplacementEngine {
   update(now);
  }
  boolean mute(){try{if(trustedSession<=0||player==null||player.getAudioSessionId()==trustedSession)throw new IllegalStateException();DynamicsProcessing candidate=new DynamicsProcessing(0,trustedSession,null);effect=candidate;candidate.setControlStatusListener((e,control)->{if(!control)owner.handler.post(()->{if(effect==candidate)stop("effect_control_lost");});});if(!candidate.hasControl())throw new IllegalStateException();originalMix=1f;audioOwner.prepareSourceEffect(candidate);LogStore.log("replacement_original_muted",LogStore.map("sessionId",trustedSession,"globalVolumeChanged",false,"rampMs",resumeFadePending?PAUSE_RESUME_FADE_MS:FADE_MS));return true;}catch(RuntimeException e){stop("cannot_mute_original");status="Телефон не разрешил приглушить Яндекс; замена остановлена";return false;}}
-  void fade(boolean coherentEntry){
+  void fade(boolean coherentEntry){fade(coherentEntry,streaming!=null);}
+ void fade(boolean coherentEntry,boolean requireClockGate){
   final long token=++transition;final MediaPlayer p=player;final DynamicsProcessing fx=effect;
   final long ownerEpoch=audioOwner.epoch();final String ownerKey=identityKey;
    if(streaming!=null)streaming.holdPrefetchForSeek();
@@ -481,7 +643,7 @@ final class ReplacementEngine {
       Sample phase of two Android output sessions is NOT measurable here:
       the linear entry is a listening compromise, never acoustic proof. */
   resumeFadePending=false;
-  final boolean alignLive=streaming!=null;
+  final boolean alignLive=requireClockGate;
   final long[] baseline={p.getCurrentPosition()},phaseStarted={SystemClock.elapsedRealtime()};
   final int[] corrections={0};final long[] softStarted={-1};
   /* Passive cold join drift summary: projected transport clocks only. */
@@ -537,11 +699,11 @@ final class ReplacementEngine {
       /* One muted decoder seek; original remains fully audible. */
       PlaybackSource sourceAtSubmit=owner.current;
       audioOwner.issueSeek(p,warmTarget,ownerKey,ownerEpoch,AudioOwnership.SeekKind.WARM,now,
-        position(sourceAtSubmit),sourceAtSubmit.position,sourceAtSubmit.observed,p.getCurrentPosition());
+        position(sourceAtSubmit),sourceAtSubmit.position,sourceAtSubmit.observed,p.getCurrentPosition(),seekContext());
       owner.handler.postDelayed(this,20);return;
      }
      audioOwner.handoverClockValidated();fadeStarted=now;
-     LogStore.log("replacement_join_guard_verified",LogStore.map(
+     logTrace("replacement_join_guard_verified",LogStore.map(
        "driftMs",drift,"thresholdMs",STRICT_STREAM_JOIN_DRIFT_MS,
        "sourceProjectedPositionMs",target,"sourceSnapshotPositionMs",owner.current.position,
        "sourceSnapshotAgeMs",Math.max(0,now-owner.current.observed),
@@ -563,7 +725,7 @@ final class ReplacementEngine {
      if(coherentEntry){
      if(softStarted[0]<0){
       softStarted[0]=SystemClock.elapsedRealtime();
-       LogStore.log("replacement_unified_join_start",LogStore.map("trackId",trackId,
+       logTrace("replacement_unified_join_start",LogStore.map("trackId",trackId,
          "durationMs",UNIFIED_JOIN_MS,"gainLaw","complementary_linear",
          "sourcePcmMeasured",false,"phaseVerified",false,"oneMode",true));
      }
@@ -599,7 +761,7 @@ final class ReplacementEngine {
       "sourceEndMs",position(owner.current),"decoderEndMs",p.getCurrentPosition(),
       "minDriftMs",coldClock[0],"maxDriftMs",coldClock[1],
       "sourcePcmMeasured",false,"phaseVerified",false));
-    LogStore.log("replacement_transition_complete",LogStore.map(
+    logTrace("replacement_transition_complete",LogStore.map(
        "trackId",trackId,"rampMs",coherentEntry?UNIFIED_JOIN_MS:0,
        "joinMode",coherentEntry?"unified_complementary_linear":"exclusive_single_turn",
       "commandDelayMs",SystemClock.elapsedRealtime()-fadeStarted));
@@ -643,11 +805,12 @@ final class ReplacementEngine {
  MediaPlayer silenceBeforeCleanup(){transition++;fading=false;MediaPlayer old=player;player=null;if(old!=null){boolean zero=false,paused=false;try{setAuditedVolume(old,0f);zero=true;}catch(RuntimeException ignored){}try{audioOwner.pauseDecoder(old);paused=!old.isPlaying();}catch(RuntimeException ignored){}LogStore.log("replacement_output_silenced",LogStore.map("trackId",trackId,"gainZero",zero,"paused",paused,"beforeTransportCleanup",true));}unmute(old);return old;}
  void release(String reason){
   sourceBufferSince=-1;audioOwner.cancelPause();
+  localPrewarmAttempted=false;localPrewarmWarmupPending=false;localPrewarmAlignmentPending=false;localPrewarmJoinPending=false;localPrewarmWarmupStartedAt=0;localPrewarmWarmupPosition=0;audioFromCache=false;
   boolean had=player!=null||effect!=null;MediaPlayer old=silenceBeforeCleanup();
   if("identity_changed".equals(reason)||"track_changed".equals(reason)||"replacement_end".equals(reason)||"replacement_completed".equals(reason)||"source_end".equals(reason)||"source_unavailable".equals(reason)||"source_disconnected".equals(reason))rememberAudio();
   /* Detach a completed file before MediaPlayer.release closes its MediaDataSource. */
   if(old!=null){try{old.setOnErrorListener(null);old.setOnPreparedListener(null);old.setOnCompletionListener(null);old.setOnSeekCompleteListener(null);}catch(RuntimeException ignored){}try{old.release();}catch(RuntimeException ignored){}}
-  returning=false;pausedAt=-1;resumeFadePending=false;seekHoldActive=false;pendingStreamScrubJoin=false;audioOwner.source();audioOwner.retireDecoder();prepareTicket=null;bufferGate.reset();bufferWaiting=false;if(streaming!=null){streaming.close();streaming=null;}ready=false;seeking=false;fading=false;aligned=false;resumePositionRetained=false;
+  returning=false;pausedAt=-1;resumeFadePending=false;seekHoldActive=false;pendingStreamScrubJoin=false;audioOwner.source();audioOwner.retireDecoder();prepareTicket=null;bufferGate.reset();bufferWaiting=false;if(streaming!=null){streaming.close();streaming=null;}ready=false;seeking=false;seekRetargetPending=false;fading=false;aligned=false;resumePositionRetained=false;
   if(loudness!=null){try{loudness.release();}catch(RuntimeException ignored){}loudness=null;}if(audioFile!=null){audioFile.delete();audioFile=null;}if(had)LogStore.log("replacement_released",LogStore.map("reason",reason));
  }
  void suspend(String reason,long delay){if(streaming!=null&&Arrays.asList("prepare_timeout","prepare_failed","duration_or_session_invalid","seek_timeout","media_player_error","decoder_start_timeout").contains(reason)){streamFallbackKey=identityKey;delay=1000;LogStore.log("replacement_stream_fallback",LogStore.map("reason",reason));}if("replacement_completed".equals(reason)||"replacement_end".equals(reason)||"source_end".equals(reason)){completedKey=identityKey;completedPosition=owner.current==null?0:position(owner.current);}generation++;preparing=false;release(reason);descriptor=null;lookupKey=null;nextLookup=SystemClock.elapsedRealtime()+delay;audioOwner.recovering(reason);ownerEvent("recovery");LogStore.log("replacement_recovery",LogStore.map("reason",reason,"automaticModeRetained",armed(),"retryMs",delay));}

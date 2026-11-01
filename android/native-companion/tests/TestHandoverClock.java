@@ -41,35 +41,35 @@ public class TestHandoverClock {
   check(e.fading&&p.volume==0f&&e.effect.gain==0f,
     "cold join starts with original still audible and silent replacement");
   SystemClock.now+=ReplacementEngine.UNIFIED_JOIN_MS/4;
-  sample(1000+ReplacementEngine.UNIFIED_JOIN_MS/4);TestEngine.p.handler.drain();
+  sample(1080+ReplacementEngine.UNIFIED_JOIN_MS/4);TestEngine.p.handler.drain();
   double originalGain=Math.pow(10,e.effect.gain/20.0);
   check(p.volume>0.1f&&p.volume<0.4f&&e.effect.gain<0f&&e.effect.gain>-100f
       &&e.audioOwner.state()==AudioOwnership.State.SAME_SONG_BLEND
       &&originalGain>0.6&&originalGain<0.9f,
     "first quarter has bounded complementary gains, not an energy valley");
   SystemClock.now+=ReplacementEngine.UNIFIED_JOIN_MS/4;
-  sample(1000+ReplacementEngine.UNIFIED_JOIN_MS/2);TestEngine.p.handler.drain();
+  sample(1080+ReplacementEngine.UNIFIED_JOIN_MS/2);TestEngine.p.handler.drain();
   check(p.volume>0.49f&&p.volume<0.51f&&e.originalMix>0.49f&&e.originalMix<0.51f&&e.fading,
     "midpoint is exactly complementary linear, without equal-power gain boost");
   SystemClock.now+=ReplacementEngine.UNIFIED_JOIN_MS/4;
-  sample(1000+ReplacementEngine.UNIFIED_JOIN_MS*3/4);TestEngine.p.handler.drain();
+  sample(1080+ReplacementEngine.UNIFIED_JOIN_MS*3/4);TestEngine.p.handler.drain();
   check(p.volume>0.6f&&p.volume<0.9f&&e.originalMix>0.1f&&e.originalMix<0.4f&&e.fading,
     "third quarter decreases original while increasing replacement");
   SystemClock.now+=ReplacementEngine.UNIFIED_JOIN_MS/4+20;
-  sample(1000+ReplacementEngine.UNIFIED_JOIN_MS+20);
+  sample(1080+ReplacementEngine.UNIFIED_JOIN_MS+20);
   TestEngine.p.handler.drain();
   check(p.volume==1f&&e.effect.gain==-100f&&!e.fading,
     "cold join finishes in exclusive decoder state");e.close();
   TestEngine.playing();e=TestEngine.e;p=e.player;
   SystemClock.now+=ReplacementEngine.UNIFIED_JOIN_MS/4;
-  sample(1000+ReplacementEngine.UNIFIED_JOIN_MS/4);TestEngine.p.handler.drain();
+  sample(1080+ReplacementEngine.UNIFIED_JOIN_MS/4);TestEngine.p.handler.drain();
   TestEngine.p.current=TestEngine.source("1",1080,false);e.update(TestEngine.p.current);
   check(!e.fading&&p.volume==0f&&e.effect!=null&&e.effect.gain==0f,
     "pause cancels the overlapping entry and restores native gain");
   e.close();
   TestEngine.playing();e=TestEngine.e;p=e.player;
   SystemClock.now+=ReplacementEngine.UNIFIED_JOIN_MS/4;
-  sample(1000+ReplacementEngine.UNIFIED_JOIN_MS/4);TestEngine.p.handler.drain();
+  sample(1080+ReplacementEngine.UNIFIED_JOIN_MS/4);TestEngine.p.handler.drain();
   e.sourceBoundary("new_song_during_soft_join");SystemClock.now+=500;TestEngine.p.handler.drain();
   check(p.released&&p.volume==0f&&e.player==null&&e.effect==null,
     "new song cancels soft join without stale decoder or effect");e.close();

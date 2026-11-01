@@ -1,3 +1,40 @@
+## 2026-11-02 — Android 0.3.84 HONOR retest: no material acoustic improvement; rollback and handoff secured
+
+**Authoritative evidence/plan:** [ANDROID-0384-OWNER-RETEST-LOCAL-FILE-SEEK-PLAN-2026-11-02.md](android/ANDROID-0384-OWNER-RETEST-LOCAL-FILE-SEEK-PLAN-2026-11-02.md).
+
+The owner installed and tested 0.3.84 with combined diagnostic CELIKOM-combined-20261102-005314(1).txt and screen recording SVID_20261102_005154_1(1).mp4. Recurring seek and song-start/Next acoustic artifacts remain. The 0.3.84 run shows 18 real seeks, 25 ALIGNMENT ACKs (6 >=250ms; max 751ms), two confirmed streaming data waits, zero staleOperation=true events, and ~1–2s transition-command completion after new-track boundaries. All replacement joins in this run use streamed MediaDataSource (localPrewarmAttempted=false). Output clock journals do not directly measure the original source PCM or speaker output. The last 0.3.84 change fixed a narrowly scoped overlapping-seek race and did not solve general streaming latency.
+
+**No new stable published:** Hostinger Android stable stays 0.3.84 / versionCode 85, signed APK SHA256 a64c562989d92749982ec979eb712fa8ba2fa12492c454ff7b1c54e9337f6bc2. The direct and in-app APK download eventually worked; no Android updater patch was deployed.
+
+**New protected rollback:** backup/android-0384-before-local-seek-experiment-20261102 at source SHA d434d442aeed7a84f17126da48c6a08b752c825d. Preserve existing backup/android-0382-stable-listening-baseline-20261101 at 2e03aca1dad0f89b3d71f871270e09f8bb9f143f and backup/android-0378-original-before-cached-join-20261101 at bf011dcf1a70c504883a8e5e742e0b038f41d9b0.
+
+**Next:** independent audio source/MediaDataSource/Android documentation audit; a *single* Android-only, nonpublishing A/B experiment comparing streaming vs automatically fully cached local-file seeking, then rigorous Pause/Next/start/reliability checks. Do not change website, server, catalogue, auth, signing or accepted OTA. Owner should not be asked for another recording before a defensible test candidate exists.
+
+---
+
+## 2026-11-01 — CELIKOM Android 0.3.84 / code 85 published; owner retest pending
+
+**Stable OTA is live.** The owner can use CELIKOM's normal **Check for updates** button to download 0.3.84.
+
+- Release branch: `release/android-0.3.84-stable`.
+- Release PR: [#34](https://github.com/manufact-test/nomusic/pull/34), kept open pending device/listening retest.
+- CI/publisher run: [41350942716 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/41350942716).
+- Change: newer same-item source seeks revoke a pending ALIGNMENT operation ticket once, preserve MediaPlayer's single native seek flight, then align to the latest source position after the old callback drains. If the completed position is already within 85 ms, it is reused without a duplicate seek.
+- New regression: `TestHonor068SupersededAlignmentSeek`; **8 checks PASS**.
+- Full host suite, release contract, archive/provenance, Android API 36/D8, signed APK verification and live stable-manifest equality: PASS.
+- APK SHA-256: `a64c562989d92749982ec979eb712fa8ba2fa12492c454ff7b1c54e9337f6bc2`; size 8,763,465 bytes.
+- APK: https://lemonchiffon-narwhal-791953.hostingersite.com/releases/android/85-a64c562989d92749982ec979eb712fa8ba2fa12492c454ff7b1c54e9337f6bc2.apk
+- Live manifest: https://lemonchiffon-narwhal-791953.hostingersite.com/updates/android/stable.json; publisher verified **0.3.84 / 85**.
+- Previous 0.3.83 release branch and protected 0.3.78 rollback remain unchanged.
+
+**Known limitation:** the 0.3.83 diagnostic showed real HTTP Range data waits. This patch fixes stale seek ownership, not remote network latency. Do not claim all seek lag is eliminated until the owner retests.
+
+**Next owner test:** install via the in-app update button, then test a seek immediately after Next and two quick same-track seeks while initial alignment is pending. Capture a fresh combined diagnostic and screen recording if lag remains.
+
+Receipt: [ANDROID-0384-SUPERSEDED-ALIGNMENT-SEEK-2026-11-01.md](android/ANDROID-0384-SUPERSEDED-ALIGNMENT-SEEK-2026-11-01.md).
+
+---
+
 ## 2026-11-01 — CELIKOM Android 0.3.81: exact restore of the protected 0.3.78 source
 
 The owner rejected the 0.3.80 playback behavior and explicitly requested restoring the saved 0.3.78 project state, without combining audio changes from later versions.
@@ -952,3 +989,33 @@ Owner installed the 1d69906 History/media/fetch/XHR hook hotfix in the existing 
 Stage 7 code remains **branch-only, owner gate open, not deployed**. Stronger full-frame MPEG Layer III inspection now measures actual audio duration and rejects partial, corrupt and trailing-payload MP3. SHA-256 candidate metadata is checked against measured duration on asset reuse. Retry after a moderation-state transition is not misreported as pending. Four concurrent uploads from independent PHP workers to disposable MySQL agree on a single pending candidate. CI-only FFmpeg synthesizes a real 2.5-second MP3; test-only PHP byte-range fixture and native Chromium successfully decode, seek and play it.
 
 [CI 37945005475](https://github.com/manufact-test/nomusic/actions/runs/37945005475) **PASS** — JS (83 tests), PHP, disposable MySQL, true HTTP multipart/race, native WAV and synthetic MP3 Chromium, package validation. Owner gate preparation at [stage7-owner-upload-acceptance.md](deployment/stage7-owner-upload-acceptance.md). No live Hostinger DB/schema/audio writes, no stage7 deployment, no public uploads, no stage8 approval. PR #6 open/unmerged; Stage6.7 and issue #7 remain open. Real browser owner test requires an independent HTTPS staging environment and explicit permission to provision it.
+
+
+## 2026-11-01 — CELIKOM Android 0.3.82 muted local decoder prewarm (staging only)
+
+The Android investigation is isolated in `feature/android-0382-cache-prewarm-staging-20261101`, stacked on the cache-path evidence branch. The immutable owner rollback point remains 0.3.78 / code79 at `backup/android-0378-original-before-cached-join-20261101` (SHA `bf011dcf1a70c504883a8e5e742e0b038f41d9b0`).
+
+A local-file decoder is now prewarmed at replacement volume zero while the original remains audible. CELIKOM waits for 40 ms of decoder-clock movement (bounded by the existing 2-second seek budget), aligns while the decoder is already running, then uses the unchanged handover clock gate and 160 ms complementary entry. An unstable or non-advancing decoder falls back to the original. StreamingAudio and subsequent manual seek remain on their existing paths. No seek algorithm, WARM lead, transition duration, gain law, Pause/Resume, Next, Bluetooth, AudioOwnership policy, permissions, UI, or non-Android project was changed.
+
+Candidate 0.3.82 / code83: [full CI #41337874853 PASS](https://github.com/manufact-test/nomusic/actions/runs/41337874853), including native host regression suite, API 36, D8, release-contract checks, and signed test-only APK verification. That first test artifact (SHA-256 `fb0aea25bcb8995ee3245e0aa3ffd80a8e0a1fbf34e1d978c9ebf30729f77223`, artifact ID `13095853584`) was not deployed.
+
+**Owner-requested stable publication is now complete:** [release workflow #41339161550 PASS](https://github.com/manufact-test/nomusic/actions/runs/41339161550). Hostinger's live `/updates/android/stable.json` advertises 0.3.82 / code83, and the final HTTP verification confirmed exact manifest equality. Deployed immutable APK SHA-256: `27300b898c4fa93b942329b5d1647930bf5f37a8e8406c055d1479cf65081195`; size 8,755,273 bytes; original signing certificate retained. [Direct APK](https://lemonchiffon-narwhal-791953.hostingersite.com/releases/android/83-27300b898c4fa93b942329b5d1647930bf5f37a8e8406c055d1479cf65081195.apk). The app's normal **Check for update** button should now offer 0.3.82.
+
+Current Android status and owner acceptance gate: [CURRENT-STATUS-2026-11-01-ANDROID-0382.md](android/CURRENT-STATUS-2026-11-01-ANDROID-0382.md). Experiment detail: [ANDROID-0382-CACHE-PREWARM-EXPERIMENT-2026-11-01.md](android/ANDROID-0382-CACHE-PREWARM-EXPERIMENT-2026-11-01.md). Release PR [#32](https://github.com/manufact-test/nomusic/pull/32) remains open and unmerged pending the owner's listening retest.
+
+
+## Stable channel publication — VERIFIED
+
+- Published by the existing owner-requested Hostinger release pipeline: [workflow #41339161550](https://github.com/manufact-test/nomusic/actions/runs/41339161550), **SUCCESS**.
+- Release PR: [#32](https://github.com/manufact-test/nomusic/pull/32), remains open and unmerged pending owner listening retest.
+- Published version: **0.3.82**, versionCode **83**.
+- Live stable manifest: `/updates/android/stable.json` now advertises **0.3.82 / code 83**. The pipeline fetched the live endpoint after publication and verified exact JSON equality with the generated release manifest.
+- Immutable Hostinger file: `celikom-private/android-updates/releases/83-27300b898c4fa93b942329b5d1647930bf5f37a8e8406c055d1479cf65081195.apk`.
+- Public APK URL: https://lemonchiffon-narwhal-791953.hostingersite.com/releases/android/83-27300b898c4fa93b942329b5d1647930bf5f37a8e8406c055d1479cf65081195.apk
+- Deployed APK SHA-256: `27300b898c4fa93b942329b5d1647930bf5f37a8e8406c055d1479cf65081195`.
+- APK size: **8,755,273 bytes**.
+- Original signing certificate SHA-256 retained: `67fe81c56fac1c1d145344b69a0e3faf9005cf6607f4e26ca27d5926c3eefc4f`.
+- The remote publisher verified the uploaded APK's SHA-256 and size before atomically moving the immutable APK and `stable.json` into place. The final live HTTP verification reported: `Stable Android version published: 0.3.82 83`.
+- The earlier test-only artifact (SHA `fb0aea...`) is **not** the deployed file. Use the Hostinger release above.
+
+The owner can now open CELIKOM and press **Check for update**; 0.3.82 should be offered through the normal in-app update flow. Listening acceptance remains pending: test the initial join, normal track changes, manual seek, Pause/Resume, Next, and fail-open to the original.

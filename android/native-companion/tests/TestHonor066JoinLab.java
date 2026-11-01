@@ -9,15 +9,17 @@ public final class TestHonor066JoinLab {
  static long sourcePosition;
  static void check(boolean yes,String msg){checks++;if(!yes)throw new AssertionError(msg);}
  static ReplacementEngine start()throws Exception{
-  TestEngine.reset("ALBUM");
-  sourcePosition=1000;
-  ReplacementEngine e=TestEngine.e;e.arm();TestEngine.prepare();
+  TestEngine.playing();
+  sourcePosition=TestEngine.p.current.position;
+  ReplacementEngine e=TestEngine.e;
   check(e.fading&&e.effect!=null&&e.player.volume==0f,
-    "cold join begins with only original audible");return e;
+    "cold join begins with only original audible after muted local decoder prewarm");return e;
  }
  static void advance(long elapsed){
   SystemClock.now+=elapsed;
   sourcePosition+=elapsed;
+  MediaPlayer player=TestEngine.e.player;
+  if(player!=null&&player.playing)player.position+=elapsed;
   TestEngine.p.current=TestEngine.source("1",sourcePosition,true);
   TestEngine.p.handler.drain();
  }

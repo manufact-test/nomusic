@@ -7,6 +7,27 @@ public final class TestSourceEventArbiter {
  static void check(boolean result,String msg){assertions++;if(!result)throw new AssertionError(msg);}
  public static void main(String[] args){
   SourceEventArbiter arb=new SourceEventArbiter();
+  check("SAME_ITEM_SEEK".equals(SourceEventArbiter.classifyDiscontinuity(false,true,23,23,"21","21")),
+    "same-index SEEK is a same-item seek, not a track boundary");
+  check("SEEK_TO_OTHER_ITEM".equals(SourceEventArbiter.classifyDiscontinuity(false,true,23,24,"21","22")),
+    "SEEK plus media-item index change is a seek to another item");
+  check("AUTOMATIC_BOUNDARY".equals(SourceEventArbiter.classifyDiscontinuity(true,false,23,24,"21","22")),
+    "automatic transition remains distinct from a seek");
+  check("ITEM_BOUNDARY_UNCLASSIFIED".equals(SourceEventArbiter.classifyDiscontinuity(false,false,23,24,"21","22")),
+    "item boundary without a seek/automatic reason remains unclassified");
+  check("REPEAT".equals(SourceEventArbiter.classifyMediaItemTransition(0)),
+    "Media3 transition reason 0 is repeat");
+  check("AUTO".equals(SourceEventArbiter.classifyMediaItemTransition(1)),
+    "Media3 transition reason 1 is automatic");
+  check("SEEK_TO_OTHER_ITEM".equals(SourceEventArbiter.classifyMediaItemTransition(2)),
+    "Media3 transition reason 2 is a seek to another item");
+  check("PLAYLIST_CHANGED".equals(SourceEventArbiter.classifyMediaItemTransition(3)),
+    "Media3 transition reason 3 is playlist mutation, not proof of manual Next");
+  check("PLAYLIST_CHANGED".equals(SourceEventArbiter.classifyTimelineChange(0)),
+    "Media3 timeline reason 0 is playlist changed");
+  check("SOURCE_UPDATE".equals(SourceEventArbiter.classifyTimelineChange(1)),
+    "Media3 timeline reason 1 is source update");
+
   check(arb.discontinuity("105","105","104","105",21,22,0,0,73000,false,true)==SourceEventArbiter.Action.IGNORE,
    "0.3.51 stale 104->105 replay while 105 is already active must be ignored");
   for(int current=105;current<109;current++){
@@ -52,6 +73,12 @@ public final class TestSourceEventArbiter {
    check(!next.boundary("same",4200).predicted,"same song is not future candidate");
    next.observe("x","y",true,true,4500);next.reset();
    check(!next.boundary("y",4600).observed,"reconnect revokes observed candidate");
-   System.out.println("PASS: "+assertions+" actual HONOR Media3 event arbitration checks");
+   Media3SourceRouter reasonRouter=new Media3SourceRouter(arb,new Media3SourceRouter.Sink(){
+   public void boundary(String next,String reason){}
+   public void seekRequested(){}
+  });
+  check(reasonRouter.mediaItem("108","109","109",2,0)==SourceEventArbiter.Action.BOUNDARY,
+    "reason-aware router still accepts a current SEEK-to-next-item boundary");
+  System.out.println("PASS: "+assertions+" actual HONOR Media3 event arbitration checks");
  }
 }

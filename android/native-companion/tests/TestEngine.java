@@ -10,11 +10,12 @@ public class TestEngine {
     "https://avatars.yandex.net/get-music-content/1/x.a.42-1/700x700",
     position,false,true,1f,true,true);
  }
- static void reset(String method){SystemClock.now=1000;AttenuationService.Companion.session=101;api=new NativeApi();NativeApi.api=api;p=new ProbeService();p.current=source("1",1000,true);e=new ReplacementEngine(p);e.identity(LogStore.map("mediaAlias","1","albumId","42","title","Песня","artist","Артист","durationMs",120000L),LogStore.map("candidateTrackId","7","method",method,"editionConflict",false));api.signed=true;}
+ static void reset(String method){reset(method,false);}
+ static void reset(String method,boolean fullFileExperiment){SystemClock.now=1000;AttenuationService.Companion.session=101;api=new NativeApi();NativeApi.api=api;p=new ProbeService();p.current=source("1",1000,true);e=new ReplacementEngine(p,fullFileExperiment);e.identity(LogStore.map("mediaAlias","1","albumId","42","title","Песня","artist","Артист","durationMs",120000L),LogStore.map("candidateTrackId","7","method",method,"editionConflict",false));api.signed=true;}
  static JSONObject found()throws Exception{return new JSONObject().put("found",true).put("replacement_id",1).put("duration_ms",120000);}
  static void resolve()throws Exception{api.resolved.done(found(),null);}
  static MediaPlayer prepare()throws Exception{resolve();File f=File.createTempFile("engine-test", ".audio");api.downloaded.done(f,null);MediaPlayer player=e.player;player.prepared.onPrepared(player);return player;}
- static void playing()throws Exception{reset("ALBUM");e.arm();prepare();ok(e.player!=null&&e.player.isPlaying()&&e.effect!=null&&e.effect.getEnabled(),"prepared replacement starts with verified session");}
+ static void playing()throws Exception{reset("ALBUM");e.arm();prepare();MediaPlayer warm=e.player;warm.position+=40;SystemClock.now+=40;p.handler.drain();warm.position+=40;SystemClock.now+=40;p.handler.drain();p.current=source("1",1080,true);ok(e.player==warm&&warm.isPlaying()&&e.effect!=null&&e.effect.getEnabled()&&e.audioOwner.state()==AudioOwnership.State.SAME_SONG_BLEND&&e.fading&&warm.volume==0f&&e.effect.gain==0f,"prepared local replacement starts muted and enters the existing blend only after decoder prewarm and clock validation");}
  public static void main(String[] args)throws Exception {
   reset("ALBUM");AttenuationService.Companion.session=null;e.arm();ok(e.armed()&&e.trustedSession<=0&&e.effect==null,"explicit activation waits for a verified session without muting");MediaPlayer waiting=prepare();ok(!waiting.playing&&e.effect==null,"waiting session cannot start prepared audio");AttenuationService.Companion.session=101;e.update(p.current);ok(waiting.playing&&e.effect!=null,"verified panel attachment resumes pending activation without another tap");
   reset("ALBUM");e.arm();ok(e.effect==null&&e.player==null,"server lookup cannot mute source");resolve();ok(e.preparing&&e.effect==null&&e.player==null,"download cannot mute source");File f=File.createTempFile("engine-test", ".audio");api.downloaded.done(f,null);ok(e.player!=null&&e.effect==null,"unprepared audio cannot mute source");e.player.duration=140000;e.player.prepared.onPrepared(e.player);ok(e.player==null&&e.effect==null&&!f.exists(),"wrong measured duration releases player and deletes audio");
@@ -73,7 +74,10 @@ public class TestEngine {
   playing();first=e.player;SystemClock.now+=2000;e.update(p.current);ok(first.released&&e.effect==null,"stale source deadline restores original");
   // Preparation before enabling must be silent and reused at activation.
   reset("ALBUM");e.update(p.current);MediaPlayer warm=prepare();ok(e.ready&&!warm.playing&&e.effect==null,"preparation before arm never changes source audio");int requests=api.resolves;e.arm();ok(e.player==warm&&warm.playing&&api.resolves==requests,"arm reuses prepared audio without downloading again");
-  SystemClock.now+=ReplacementEngine.UNIFIED_JOIN_MS+20;p.current=source("1",1160,true);p.handler.drain();ok(warm.volume==1f&&e.effect.gain==-100f&&!e.fading,"ramp ends at replacement full volume and source muted");
+  warm.position+=40;SystemClock.now+=40;p.current=source("1",1040,true);p.handler.drain();
+  warm.position+=40;SystemClock.now+=40;p.current=source("1",1080,true);p.handler.drain();
+  SystemClock.now+=ReplacementEngine.UNIFIED_JOIN_MS+20;warm.position+=ReplacementEngine.UNIFIED_JOIN_MS+20;p.current=source("1",1260,true);p.handler.drain();
+  ok(warm.volume==1f&&e.effect.gain==-100f&&!e.fading,"muted local prewarm validates decoder motion before the unchanged 160ms join");
   DynamicsProcessing sameEffect=e.effect;int attach= DynamicsProcessing.enabledCount;p.current=source("1",60000,true);e.update(p.current);ok(e.effect==sameEffect&&DynamicsProcessing.enabledCount==attach,"seeking does not release or reattach original attenuation");
   // An outstanding asynchronous seek is issued once; timeout restores the source.
   playing();warm=e.player;warm.asyncSeek=true;p.current=source("1",50000,true);e.update(p.current);int seeks=warm.seekCalls;e.update(p.current);ok(warm.seekCalls==seeks&&e.seeking,"pending seek is not repeatedly submitted");SystemClock.now+=2100;p.current=source("1",52100,true);e.update(p.current);ok(warm.released&&e.effect==null&&e.armed(),"seek timeout releases audio but retains automatic recovery");
