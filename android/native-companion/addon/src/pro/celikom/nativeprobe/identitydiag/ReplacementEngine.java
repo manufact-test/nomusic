@@ -298,13 +298,13 @@ final class ReplacementEngine {
   long oldTarget=audioOwner.inFlightTargetMs(player);
   long operationBefore=audioOwner.operationEpoch();
   audioOwner.event(AudioOwnership.Event.SEEK);
+  audioOwner.aligning();
   seekRetargetPending=true;
   localPrewarmWarmupPending=false;localPrewarmAlignmentPending=false;localPrewarmJoinPending=false;
   seekHoldActive=false;pendingStreamScrubJoin=false;
   aligned=false;resumePositionRetained=false;fading=false;
   setAuditedVolume(player,0f);
   if(player.isPlaying())audioOwner.pauseDecoder(player);
-  audioOwner.aligning();
   if(effect!=null&&originalMix<0.999f){
    audioOwner.sourceGainDuringAlignment(effect);originalMix=1f;traceAudioCommands();
   }
