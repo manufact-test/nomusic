@@ -46,6 +46,8 @@ final class OutputClockEvidence {
     "outputClockOwner","CELIKOM replacement MediaPlayer",
     "timestampAvailable",timestamp!=null,
     "timestampUnavailableReason",unavailableReason,
+    "sampleSystemClock","System.nanoTime",
+    "sampleElapsedClock","SystemClock.elapsedRealtimeNanos",
     "sampleSystemNanoTime",sampleSystem,
     "sampleElapsedRealtimeNanoTime",sampleElapsed,
     "systemToElapsedOffsetNs",sampleElapsed-sampleSystem,
@@ -72,6 +74,7 @@ final class OutputClockEvidence {
    long deltaNs=sampleSystem-anchorSystemNs;
    double estimated=anchorMediaUs/1000d+(deltaNs/1000000d)*rate;
    long estimatedMs=Math.round(estimated);
+   fields.put("mediaTimestampAnchorTimebase","MediaTimestamp system nanoseconds");
    fields.put("mediaTimestampAnchorMediaTimeUs",anchorMediaUs);
    fields.put("mediaTimestampAnchorSystemNanoTime",anchorSystemNs);
    fields.put("mediaTimestampClockRate",rate);
