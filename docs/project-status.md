@@ -4,14 +4,14 @@ The owner requested the signed version to appear in CELIKOM's existing **Check f
 
 - Version: **0.3.79**, versionCode **80** (previous stable 0.3.78 / code 79).
 - Cached decoder fix: new local-file/cache-hit joins use the existing decoder-motion and transport-clock gate; original remains at full gain until safe join; unstable startup fails open to original. Pause/Resume, route resume, seek/WARM constants, transition duration, gain law, Next, Bluetooth and AudioOwnership are unchanged.
-- Production PR: [#29](https://github.com/manufact-test/nomusic/pull/29), merged to \`feature/android-unified-preparation-seek-gate\`.
-- Merge commit: \`56269cda348027d46e16634f31b90e419f29b8f4\`.
+- Production PR: [#29](https://github.com/manufact-test/nomusic/pull/29), merged to `feature/android-unified-preparation-seek-gate`.
+- Merge commit: `56269cda348027d46e16634f31b90e419f29b8f4`.
 - Full Android API 36 / D8 / host regression and production publisher: [CI run 41325660420](https://github.com/manufact-test/nomusic/actions/runs/41325660420), **SUCCESS**.
-- Hostinger immutable APK: \`celikom-private/android-updates/releases/80-95492c9b657bf5d40cab989f9c95e77787951091f8abc5e78750ee6066eaaacd.apk\`.
+- Hostinger immutable APK: `celikom-private/android-updates/releases/80-95492c9b657bf5d40cab989f9c95e77787951091f8abc5e78750ee6066eaaacd.apk`.
 - Public APK URL: https://lemonchiffon-narwhal-791953.hostingersite.com/releases/android/80-95492c9b657bf5d40cab989f9c95e77787951091f8abc5e78750ee6066eaaacd.apk
-- APK SHA-256: \`95492c9b657bf5d40cab989f9c95e77787951091f8abc5e78750ee6066eaaacd\`; size **8,755,273 bytes**.
-- Original signing certificate preserved: \`67fe81c56fac1c1d145344b69a0e3faf9005cf6607f4e26ca27d5926c3eefc4f\`.
-- Stable manifest \`/updates/android/stable.json\` advertises **0.3.79 / code 80**. The publisher verified uploaded APK SHA-256 and size before atomically updating the manifest, then fetched the live manifest and confirmed exact JSON equality.
+- APK SHA-256: `95492c9b657bf5d40cab989f9c95e77787951091f8abc5e78750ee6066eaaacd`; size **8,755,273 bytes**.
+- Original signing certificate preserved: `67fe81c56fac1c1d145344b69a0e3faf9005cf6607f4e26ca27d5926c3eefc4f`.
+- Stable manifest `/updates/android/stable.json` advertises **0.3.79 / code 80**. The publisher verified uploaded APK SHA-256 and size before atomically updating the manifest, then fetched the live manifest and confirmed exact JSON equality.
 
 **Owner action:** Open CELIKOM and press **Check for updates**. Version 0.3.79 should appear. Install it and test the cache-hit scenario on **“Биг сити лайф”**, then send diagnostics. Stable publication is complete; acoustic acceptance is still pending.
 
