@@ -40,11 +40,12 @@ jobs:
         id: gate
         env:
           SOURCE_BRANCH: ${{ github.event.workflow_run.head_branch }}
+          CURRENT_BRANCH: ${{ github.ref_name }}
           TEST_ONLY: ${{ inputs.test_only }}
         shell: bash
         run: |
           set -euo pipefail
-          if [[ "$TEST_ONLY" == "true" || "$SOURCE_BRANCH" == "feature/android-078-approved-replacement-autostart-staging-20261101" ]]; then
+          if [[ "$TEST_ONLY" == "true" || "$SOURCE_BRANCH" == "feature/android-078-approved-replacement-autostart-staging-20261101" || "$CURRENT_BRANCH" == "feature/android-078-approved-replacement-autostart-staging-20261101" ]]; then
             echo 'publish=true' >> "$GITHUB_OUTPUT"
             echo 'test_only=true' >> "$GITHUB_OUTPUT"
             echo 'Staging candidate: sign and upload a test artifact only; no stable manifest or Hostinger release.'
