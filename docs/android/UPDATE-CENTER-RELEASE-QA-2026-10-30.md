@@ -1,4 +1,4 @@
-> **CURRENT STATUS — 31.10.2026:** stable OTA release **0.3.72 / versionCode 73** has been published and verified. This QA document's 0.3.55 / 0.3.56 / 0.3.57 steps are historical and superseded. The remaining owner action is the real HONOR test: update discovery, Android confirmation, removal from Recents after successful install, manual relaunch, and version 0.3.72 confirmation. See [ANDROID-0372-OTA-RELEASE-RECEIPT-2026-10-31.md](ANDROID-0372-OTA-RELEASE-RECEIPT-2026-10-31.md).
+> **CURRENT STATUS — 01.11.2026:** stable OTA release **0.3.77 / versionCode 78** has been published and its public APK delivery verified (HEAD 200, GET 200, exact size and SHA). The old 0.3.55 / 0.3.56 / 0.3.57 steps below are historical. The remaining owner action is to press **«Проверить обновление»** in CELIKOM, complete Android’s normal install confirmation, reopen the app if needed and verify 0.3.77. Audio quality remains a separate physical listening acceptance. See [ANDROID-0377-OTA-RELEASE-RECEIPT-2026-11-01.md](ANDROID-0377-OTA-RELEASE-RECEIPT-2026-11-01.md).
 
 ---
 
