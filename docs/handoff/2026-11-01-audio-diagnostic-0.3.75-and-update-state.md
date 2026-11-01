@@ -1,3 +1,7 @@
+> **Follow-up 2026-11-01:** This file records the 0.3.75 diagnostic baseline. Its next-step plan has been refined by [ANDROID-0376](../android/ANDROID-0376-OUTPUT-CLOCK-AND-UPDATE-STATE-2026-11-01.md) and the [follow-up handoff](2026-11-01-audio-output-clock-and-update-state-followup.md). The key correction is that `rawResidualMs` includes source advance during asynchronous seek; it is not by itself decoder landing error or acoustic output evidence. No audible fix is claimed.
+
+---
+
 # CELIKOM — handoff: 2026-11-01 diagnostic 0.3.75 and update-state UX
 
 ## Purpose

@@ -1,3 +1,21 @@
+## 2026-11-01 — Android audio-output evidence and update-state staging (0.3.76 work; NOT RELEASED)
+
+The 0.3.75 owner diagnostic was re-parsed from `CELIKOM-combined-20261101-125049.txt`. The 772 ms ALIGNMENT residual is not a 772 ms decoder landing error: for the 11 ALIGNMENT ACK outliers above 100 ms, the decoder cursor equalled the requested seek target; the source advanced while the asynchronous MediaPlayer seek callback was pending. The 772 ms example had target/decoder 221136 ms, source projection 221908 ms, callback 816 ms. The old `rawResidualMs` therefore represented source-transport minus decoder-cursor at ACK, including source advance during seek. WARM had 20 ACKs at 40–91 ms and no >100 ms result. Eight `overlap_commands` were expected command-level overlaps in the eight `SAME_SONG_BLEND` entries, not evidence of eight races or acoustic defects.
+
+Three replacements were shorter than the Yandex source by 1354 ms (Биг сити лайф), 582 ms (Крылья), and 663 ms (Метамир); all passed the existing 1500 ms bounded-tail allowance. `automaticSourceIdVerified=false` means metadata matching does not prove the same audio edit/master. These are concrete per-track risks, not proof of the audible defect.
+
+Staging code is in `feature/android-076-output-clock-update-state-staging-20261101`; draft PR [#24](https://github.com/manufact-test/nomusic/pull/24) targets `feature/android-unified-preparation-seek-gate`. Backup: `backup/android-0375-before-output-clock-and-update-state-20261101`, at pre-change HEAD `0867c83c692cdc2dbfd74662476cb181ea2e9d51`.
+
+The audio changes are diagnostic-only: seek ACKs now separate callback duration, source advance, decoder landing error, and current transport skew; passive CELIKOM `MediaPlayer.getTimestamp()` samples are recorded at pre/mid/post transition with explicit system/elapsed clock labels. The logs still explicitly say `sourcePcmMeasured=false`, `phaseVerified=false`, and `hardwareOutputMeasured=false`. No Android permission, playback threshold, WARM lead, crossfade duration, seek path, Pause/Resume, Next, buffering, or source restoration behavior changed.
+
+The update center now persists the verified candidate manifest/version across background `UpdateCheckJob` and foreground UI checks. Failed checks preserve the candidate; “Позже” dismisses the notification without deleting it; an already-installed candidate is cleared on next launch. The existing update section is reused; no new main-screen buttons.
+
+CI [41297330560](https://github.com/manufact-test/nomusic/actions/runs/41297330560) PASS on `a7b28fa8ebd6ed856e1ed9bfa02f0e7da612c06f`: full engine and addon host suites, Android API 36 compile, D8, release contract/archive/provenance/release-mode checks. New tests: 18 seek/MediaTimestamp evidence checks and 12 update-state checks. `publish-stable` was skipped. CI produced unsigned DEX/offline build-kit artifacts only; no signed APK, version bump, or server deployment. No audio-quality acceptance is claimed.
+
+**Next:** install a build containing these diagnostics, repeat the owner’s affected-track listening test, and inspect `replacement_seek_ack` decomposition plus `replacement_output_clock_sample`. Source PCM, source presentation timestamp, phase correlation, and speaker/Bluetooth output remain unresolved. Do not retune crossfade or seek timing until those measurements exist.
+
+---
+
 ## 2026-10-20 — CELIKOM 0.4.58: VPN recovery without browser online event (OWNER RETEST PENDING)
 
 Owner reported installed **0.4.57** failed to auto-reconnect after switching VPN; manual reconnection worked. Diagnostic evidence: repeated `auth/me` `auth_timeout` (~20 s), then `auth_network_error`; fail-open restored original (`api_network_error`), bridge remained healthy, while `replacementError=access_reconnecting`, `suspended=true`, `recovering=false`, `player.connected=false`. Actual VPN/server route cause unproven; `online` event was not evidenced at return.
