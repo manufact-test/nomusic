@@ -1,12 +1,12 @@
 # CELIKOM Android 0.3.78 — automatic playback of approved replacements
 
 Date: 2026-11-01  
-Status: staging candidate; CI and physical HONOR listening acceptance pending. Stable publication is not authorized by this document.
+Status: staging candidate; CI and physical HONOR listening acceptance pending. A signed test APK is built through a staging-only gate; stable publication is explicitly disabled.
 
 ## Baseline
 
 - Production Android: 0.3.77, versionCode 78.
-- Production source base: `94afa76ff1739557e050f9020ef6b2a889e9e109`.
+- Production source base: `f1f083ce06ada77849053dc07951cfa1fa1d7562`.
 - Candidate Android: 0.3.78, versionCode 79.
 - Staging branch: `feature/android-078-approved-replacement-autostart-staging-20261101`.
 - Original package identity, signing certificate, updater, backend and admin panel remain unchanged.
