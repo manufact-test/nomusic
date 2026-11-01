@@ -1,3 +1,15 @@
+# CURRENT HANDOFF — 02.11.2026 — 0.3.84 LISTENING RETEST FAILED; STABLE FROZEN
+
+**READ FIRST:** [ANDROID-0384-OWNER-RETEST-LOCAL-FILE-SEEK-PLAN-2026-11-02.md](ANDROID-0384-OWNER-RETEST-LOCAL-FILE-SEEK-PLAN-2026-11-02.md).
+
+Owner retested 0.3.84 on HONOR, supplied new combined log (0.3.82/83/84) and 74.9s recording. **No material acoustic fix:** seeks and beginnings/Next remain uneven. In 0.3.84 there were 18 real finger seeks, six ALIGNMENT seek ACKs >=250ms (max 751ms), two explicit remote stream-data waits (751ms/442ms), and 0 staleOperation=true. Last patch fixed a different race and was not exercised. Four new-track takeover intervals reached ~0.99, 1.46, 1.11 and 2.05s. All replacement sources were streaming, no local prewarm; output logs do not prove speaker PCM timing.
+
+**No further blind releases or fresh owner diagnostics now.** Next task: read the full checkpoint; independently audit engine/BufferedAudio/MediaDataSource/Android APIs and earlier cache regressions. On a separate **nonpublishing** staging branch, compare existing stream playback against bounded automatically downloaded local-file playback for seek latency, without touching Pause/Next/mix/OTA. Measure real causal stages, verify regressions, then ask for one device test only when proven.
+
+**Protected checkpoints:** NEW backup/android-0384-before-local-seek-experiment-20261102 = d434d442aeed7a84f17126da48c6a08b752c825d; backup/android-0382-stable-listening-baseline-20261101 = 2e03aca1dad0f89b3d71f871270e09f8bb9f143f; backup/android-0378-original-before-cached-join-20261101 = bf011dcf1a70c504883a8e5e742e0b038f41d9b0. Stable Android remains 0.3.84 / code85; prior release branches untouched.
+
+---
+
 # CURRENT OWNER RETEST — CELIKOM Android 0.3.84 / versionCode 85 — 01.11.2026
 
 **READ FIRST:** [ANDROID-0384-SUPERSEDED-ALIGNMENT-SEEK-2026-11-01.md](ANDROID-0384-SUPERSEDED-ALIGNMENT-SEEK-2026-11-01.md).
