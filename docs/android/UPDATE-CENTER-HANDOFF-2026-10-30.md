@@ -1,4 +1,4 @@
-> **CURRENT STATUS — 31.10.2026:** the Update Center is implemented and CELIKOM Android **0.3.72 / versionCode 73 is published** to the stable channel. The previous plan to build the first updater-bearing 0.3.56/57 is historical and superseded. See [ANDROID-0372-OTA-RELEASE-RECEIPT-2026-10-31.md](ANDROID-0372-OTA-RELEASE-RECEIPT-2026-10-31.md) for APK SHA, DEX SHA, original signer, live manifest verification and the exact HONOR OTA acceptance steps. The owner must now test update discovery and successful-install removal from Recents on device; do not claim physical acceptance until then.
+> **CURRENT STATUS — 01.11.2026:** CELIKOM Android **0.3.77 / versionCode 78 is published and verified** on the existing stable channel. See [ANDROID-0377-OTA-RELEASE-RECEIPT-2026-11-01.md](ANDROID-0377-OTA-RELEASE-RECEIPT-2026-11-01.md) for production APK SHA/size, signer, immutable URL, live manifest and public APK GET/HEAD verification. The owner’s next action is to open the installed app and press **«Проверить обновление»**, then complete the normal Android install confirmation. Physical HONOR installation and acoustic acceptance are still pending.
 
 ---
 
