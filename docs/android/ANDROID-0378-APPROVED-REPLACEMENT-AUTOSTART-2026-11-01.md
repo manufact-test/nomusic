@@ -1,7 +1,7 @@
 # CELIKOM Android 0.3.78 — automatic playback of approved replacements
 
 Date: 2026-11-01  
-Status: staging candidate; CI and physical HONOR listening acceptance pending. A signed test APK is built through a staging-only gate; stable publication is explicitly disabled.
+Status: staging candidate; CI and physical HONOR listening acceptance pending. After native validation, the workflow calls the original signing pipeline in explicit test-only mode and uploads a signed APK artifact. The Hostinger stable manifest and release directory are not touched.
 
 ## Baseline
 
