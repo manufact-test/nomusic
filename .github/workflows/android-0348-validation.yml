@@ -1,5 +1,5 @@
 name: Android 0.3.55 architecture and release contract verification
-# Keep 0.3.78 approved-replacement auto-start staging under the non-publishing gate.
+# Keep 0.3.77 owner-confirmed album-duration staging under the non-publishing gate.
 
 on:
   push:
@@ -14,8 +14,6 @@ on:
       - feature/android-0375-honor-bounded-warm-latency-staging
       - feature/android-076-output-clock-update-state-staging-20261101
       - feature/android-077-album-duration-confirmation-staging-20261101
-      - feature/android-078-approved-replacement-autostart-staging-20261101
-      - release/android-0.3.78-stable
     paths:
       - 'android/native-companion/**'
       - '.github/workflows/android-0348-validation.yml'
@@ -36,10 +34,6 @@ permissions:
 
 jobs:
   native-android:
-    if: >-
-      github.event_name != 'pull_request' ||
-      github.head_ref == 'feature/android-078-approved-replacement-autostart-staging-20261101' ||
-      github.head_ref == 'release/android-0.3.78-stable'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -181,19 +175,6 @@ jobs:
     needs: native-android
     if: vars.CELIKOM_ANDROID_AUTO_PUBLISH == 'true' && github.ref == 'refs/heads/feature/android-unified-preparation-seek-gate'
     uses: ./.github/workflows/android-auto-publish-hostinger.yml
-    secrets: inherit
-
-  build-test-candidate:
-    needs: native-android
-    if: >-
-      github.ref == 'refs/heads/feature/android-078-approved-replacement-autostart-staging-20261101' ||
-      (github.event_name == 'pull_request' &&
-       github.head_ref == 'feature/android-078-approved-replacement-autostart-staging-20261101' &&
-       github.event.pull_request.head.repo.full_name == 'manufact-test/nomusic' &&
-       github.event.pull_request.user.login == 'manufact-test')
-    uses: ./.github/workflows/android-auto-publish-hostinger.yml
-    with:
-      test_only: true
     secrets: inherit
   publish-requested-0-3-78:
     needs: native-android
