@@ -108,7 +108,9 @@ public final class TestCachedAudioRollback {
     MediaPlayer decoder = startCached(false);
     ReplacementEngine engine = TestEngine.e;
 
+    long sourcePosition = TestEngine.p.current.position;
     SystemClock.now += ReplacementEngine.SEEK_TIMEOUT_MS + 1;
+    TestEngine.p.current = TestEngine.source("1", sourcePosition + ReplacementEngine.SEEK_TIMEOUT_MS + 1, true);
     TestEngine.p.handler.drain();
 
     check(engine.player == null && decoder.released && engine.effect == null
