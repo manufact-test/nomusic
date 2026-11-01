@@ -381,10 +381,32 @@ final class ReplacementEngine {
      completedReason="Замена закончилась раньше оригинала — играет оригинал до следующей песни";
      audioOwner.unsupported("replacement_early_completion");status=completedReason;ownerEvent("early_completion");
     }else suspend("replacement_completed",30000);
-   });p.setOnPreparedListener(mp->{if(mp!=player||g!=generation||!audioOwner.current(ownerTicket,key)||!accountLeaseCurrent()||!audioOwner.dataCurrent(dataTicket,api.accountGeneration,key,j.optLong("replacement_id"),j.optLong("version"),j.optLong("duration_ms")))return;audioOwner.event(AudioOwnership.Event.PREPARE_READY);if(!current(key)){suspend("prepared_stale",1000);return;}PlaybackSource now=owner.current;if(!ApiContract.durations(now.duration,j.optLong("duration_ms"),mp.getDuration())||
-     !PlaybackDuration.compatible(now.duration,j.optLong("duration_ms"),mp.getDuration(),verifiedDurationIdentity())||
+   });p.setOnPreparedListener(mp->{if(mp!=player||g!=generation||!audioOwner.current(ownerTicket,key)||!accountLeaseCurrent()||!audioOwner.dataCurrent(dataTicket,api.accountGeneration,key,j.optLong("replacement_id"),j.optLong("version"),j.optLong("duration_ms")))return;audioOwner.event(AudioOwnership.Event.PREPARE_READY);if(!current(key)){suspend("prepared_stale",1000);return;}PlaybackSource now=owner.current;boolean durationCompatible=PlaybackDuration.compatible(now.duration,j.optLong("duration_ms"),mp.getDuration(),verifiedDurationIdentity());
+   if(!ApiContract.durations(now.duration,j.optLong("duration_ms"),mp.getDuration())||
+     !durationCompatible||
      (trustedSession>0&&mp.getAudioSessionId()==trustedSession)){
-    if(!PlaybackDuration.compatible(now.duration,j.optLong("duration_ms"),mp.getDuration(),verifiedDurationIdentity())){LogStore.log("replacement_duration_mismatch",LogStore.map("trackId",trackId,"sourceDurationMs",now.duration,"reportedDurationMs",j.optLong("duration_ms"),"replacementDurationMs",mp.getDuration(),"stage","measured_file"));completedKey=identityKey;completedPosition=position(now);completedReason="Эту замену нельзя воспроизвести безопасно; играет оригинал";}
+    if(!durationCompatible){
+     long difference=Math.abs(now.duration-(long)mp.getDuration());
+     boolean askOwner="ALBUM".equals(method)&&!confirmed.contains(confirmationKey())
+       &&PlaybackDuration.metadataProbeAllowed(now.duration,j.optLong("duration_ms"))
+       &&mp.getDuration()>0
+       &&Math.abs(j.optLong("duration_ms")-(long)mp.getDuration())<=PlaybackDuration.MAX_METADATA_PROBE_DIFFERENCE_MS
+       &&difference>PlaybackDuration.MAX_TAIL_DIFFERENCE_MS
+       &&difference<=PlaybackDuration.MAX_VERIFIED_TAIL_MS;
+     if(askOwner){
+      durationConfirmationRequired=true;
+      completedKey=identityKey;completedPosition=position(now);
+      completedReason="Длительность версии отличается. Подтвердите найденную песню; пока играет оригинал";
+      LogStore.log("replacement_duration_confirmation_required",LogStore.map(
+        "trackId",trackId,"sourceDurationMs",now.duration,
+        "reportedDurationMs",j.optLong("duration_ms"),"measuredDurationMs",mp.getDuration(),
+        "differenceMs",difference,"identityMethod",method,
+        "automaticSourceIdVerified",false,"originalRetained",true));
+     }else{
+      LogStore.log("replacement_duration_mismatch",LogStore.map("trackId",trackId,"sourceDurationMs",now.duration,"reportedDurationMs",j.optLong("duration_ms"),"replacementDurationMs",mp.getDuration(),"stage","measured_file"));
+      completedKey=identityKey;completedPosition=position(now);completedReason="Эту замену нельзя воспроизводить безопасно; играет оригинал";
+     }
+    }
     suspend("duration_or_session_invalid",30000);if(completedReason!=null){audioOwner.unsupported("measured_duration_mismatch");status=completedReason;}else status="Проверка аудио не пройдена; играет оригинал";return;}
    if(!PlaybackDuration.safe(now.duration,mp.getDuration()))
     LogStore.log("replacement_bounded_tail_accepted",LogStore.map("trackId",trackId,"sourceDurationMs",now.duration,"measuredDurationMs",mp.getDuration(),"reportedDurationMs",j.optLong("duration_ms"),"identityMethod",method,"originalRetainedUntilBoundary",true));
