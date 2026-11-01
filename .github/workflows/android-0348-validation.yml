@@ -15,6 +15,7 @@ on:
       - feature/android-076-output-clock-update-state-staging-20261101
       - feature/android-077-album-duration-confirmation-staging-20261101
       - feature/android-078-approved-replacement-autostart-staging-20261101
+      - release/android-0.3.78-stable
     paths:
       - 'android/native-companion/**'
       - '.github/workflows/android-0348-validation.yml'
