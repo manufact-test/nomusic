@@ -59,3 +59,31 @@ These are actual-engine host tests using deterministic fakes. They do not prove 
 ## Validation and release policy
 
 Run the complete Android validation: native engine suite, Android application tests, API 36 compilation, and D8. Keep the PR draft and unmerged. No Hostinger manifest write and no stable publication. A test APK may be considered only after CI passes; owner listening acceptance remains mandatory before any stable release.
+
+
+## Candidate build and CI result
+
+- Candidate: **0.3.82 / versionCode 83**.
+- Staging branch HEAD: `48ee326aa43b7dad0ba48d447d46757af38437e8`.
+- Draft PR #31: `feature/android-0382-cache-prewarm-staging-20261101` → `feature/android-0382-cache-path-evidence-staging-20261101`.
+- Full validation workflow [#41337874853](https://github.com/manufact-test/nomusic/actions/runs/41337874853): **SUCCESS**.
+  - Release-contract negative tests: PASS.
+  - APK structure/provenance/signing-boundary tests: PASS.
+  - Full native Android host regression suite: PASS.
+  - Android API 36 compilation and D8: PASS.
+  - Offline packaging toolchain staging: PASS.
+  - Signed test-only APK rebuild and verification: PASS.
+- Signed APK: `CELIKOM-Android-0.3.82-SIGNED.apk`, 8,755,273 bytes.
+- APK SHA-256: `fb0aea25bcb8995ee3245e0aa3ffd80a8e0a1fbf34e1d978c9ebf30729f77223`.
+- Signing certificate SHA-256: `67fe81c56fac1c1d145344b69a0e3faf9005cf6607f4e26ca27d5926c3eefc4f` (expected original signing identity).
+- Test-only artifact: `celikom-android-0.3.82-signed-test.zip`, artifact ID `13095853584`.
+- Receipt confirms `stable_published: false`. Both stable publication and live stable-endpoint verification were skipped. No Hostinger stable manifest was changed.
+
+The signed candidate is available as a private GitHub Actions artifact at:
+https://github.com/manufact-test/nomusic/actions/runs/41337874853/artifacts/13095853584
+
+It will **not** appear in the installed app's “Check for update” button while kept staging-only. Publishing to the stable updater would expose the candidate to all stable-channel installations and is not authorized by this staging instruction.
+
+## Owner acceptance still required
+
+The CI and signing pipeline prove the candidate is structurally valid and the regression suite passes. They do not prove the audible result on the HONOR device. The remaining acceptance is a listening test of the initial replacement join, ordinary song changes, manual finger seek, Pause/Resume, Next, and fallback to the original if a local decoder does not become stable.
