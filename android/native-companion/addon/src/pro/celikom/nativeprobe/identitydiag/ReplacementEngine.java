@@ -480,10 +480,11 @@ final class ReplacementEngine {
       linear entry tested on HONOR; a retained seek uses exclusive single-turn.
       Sample phase of two Android output sessions is NOT measurable here:
       the linear entry is a listening compromise, never acoustic proof. */
+  final boolean retainedResumeEntry=resumeFadePending;
   resumeFadePending=false;
   /* A cache hit reuses the validated file, never a prepared decoder. Gate a new
      local-file attachment, but keep retained local pause/resume on its old path. */
-  final boolean requireDecoderClockGate=streaming!=null||(coherentEntry&&!resumeFadePending);
+  final boolean requireDecoderClockGate=streaming!=null||(coherentEntry&&!retainedResumeEntry);
   final long[] baseline={p.getCurrentPosition()},phaseStarted={SystemClock.elapsedRealtime()};
   final int[] corrections={0};final long[] softStarted={-1};
   /* Passive cold join drift summary: projected transport clocks only. */
