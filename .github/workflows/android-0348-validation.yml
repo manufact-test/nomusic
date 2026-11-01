@@ -180,7 +180,12 @@ jobs:
 
   build-test-candidate:
     needs: native-android
-    if: github.ref == 'refs/heads/feature/android-078-approved-replacement-autostart-staging-20261101'
+    if: >-
+      github.ref == 'refs/heads/feature/android-078-approved-replacement-autostart-staging-20261101' ||
+      (github.event_name == 'pull_request' &&
+       github.head_ref == 'feature/android-078-approved-replacement-autostart-staging-20261101' &&
+       github.event.pull_request.head.repo.full_name == 'manufact-test/nomusic' &&
+       github.event.pull_request.user.login == 'manufact-test')
     uses: ./.github/workflows/android-auto-publish-hostinger.yml
     with:
       test_only: true
