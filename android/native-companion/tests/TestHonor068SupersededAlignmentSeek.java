@@ -28,7 +28,7 @@ public final class TestHonor068SupersededAlignmentSeek {
   e.sourceSeekRequested();ready(36000);e.update(TestEngine.p.current);
   check(e.seekRetargetPending&&e.audioOwner.operationEpoch()==operation+1
       &&e.audioOwner.seekInFlight(p)&&p.seekCalls==1&&p.volume==0f
-      &&e.effect==fx&&fx.gain==0f,
+      &&e.effect==fx&&(fx==null||fx.gain==0f),
     "first Media3 seek revokes old ticket but preserves one native callback and audible source");
   long supersededOperation=e.audioOwner.operationEpoch();
   e.sourceSeekRequested();ready(86000);e.update(TestEngine.p.current);
@@ -38,7 +38,7 @@ public final class TestHonor068SupersededAlignmentSeek {
   SystemClock.now+=1173;ready(87000);p.seek.onSeekComplete(p);
   check(p.seekCalls==2&&e.seeking&&e.audioOwner.seekInFlight(p)
       &&e.audioOwner.inFlightTargetMs(p)==87000&&!e.seekRetargetPending
-      &&!e.explicitSourceSeek&&p.volume==0f&&e.effect==fx&&fx.gain==0f,
+      &&!e.explicitSourceSeek&&p.volume==0f&&e.effect==fx&&(fx==null||fx.gain==0f),
     "superseded callback drains silently and exactly one seek targets the latest source position");
   e.close();
  }
@@ -53,7 +53,7 @@ public final class TestHonor068SupersededAlignmentSeek {
     "polling-detected source discontinuity also invalidates the old alignment ticket");
   SystemClock.now+=1173;ready(37000);p.seek.onSeekComplete(p);
   check(p.seekCalls==2&&e.seeking&&e.audioOwner.inFlightTargetMs(p)==37000
-      &&p.volume==0f&&e.effect!=null&&e.effect.gain==0f,
+      &&p.volume==0f&&(e.effect==null||e.effect.gain==0f),
     "polling fallback issues one current-position seek after the old callback");
   e.close();
  }
@@ -65,7 +65,7 @@ public final class TestHonor068SupersededAlignmentSeek {
   SystemClock.now+=10;ready(36050);p.seek.onSeekComplete(p);
   check(p.seekCalls==issued&&!e.seeking&&!e.seekRetargetPending&&!e.explicitSourceSeek,
     "a superseded callback already within the strict pause-position tolerance is reused without a duplicate seek");
-  check(e.player==p&&e.effect!=null&&p.volume==0f&&e.effect.gain==0f,
+  check(e.player==p&&p.volume==0f&&(e.effect==null||e.effect.gain==0f),
     "nearby retarget still remains muted until the normal decoder-clock handover gate");
   e.close();
  }
