@@ -1,0 +1,45 @@
+name: CELIKOM Stage 8 private admin owner bootstrap
+
+on:
+  push:
+    branches: [feature/api-range]
+    paths:
+      - .github/deploy/hostinger-stage8-request.json
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: celikom-hostinger-private-test
+  cancel-in-progress: false
+
+jobs:
+  private-bootstrap:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify guarded one-time private operation
+        run: |
+          php -l .github/scripts/hostinger-stage8-provision-remote.php
+          bash -n .github/scripts/hostinger-stage8-provision.sh
+          node --input-type=module <<'JS'
+          import assert from 'node:assert/strict';
+          import fs from 'node:fs';
+          const r=JSON.parse(fs.readFileSync('.github/deploy/hostinger-stage8-request.json','utf8'));
+          assert.deepEqual(Object.keys(r),['operation']);
+          assert.ok(['prepare','provision'].includes(r.operation));
+          JS
+      - name: Install private admin owner, retaining Stage 7 access
+        env:
+          HOSTINGER_SSH_KEY: ${{ secrets.HOSTINGER_SSH_KEY }}
+        run: bash .github/scripts/hostinger-stage8-provision.sh
+      - name: Deliver one-time admin login privately
+        if: ${{ hashFiles('.github/deploy/hostinger-stage8-request.json') != '' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: celikom-stage8-private-admin-access-${{ github.sha }}
+          path: dist/stage8-admin-access/owner-password.encrypted
+          if-no-files-found: ignore
+          retention-days: 1

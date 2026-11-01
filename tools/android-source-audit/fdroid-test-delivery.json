@@ -1,0 +1,18 @@
+{
+  "schema": 1,
+  "repository_url": "https://darkred-camel-588676.hostingersite.com/android-id-test/fdroid/repo",
+  "fingerprint": "0937D8B0F51EF36ECF13DB27D70299491E1084FADF9B9D2BC95B35DE3A213385",
+  "apk_sha256": "e44cdd00cc527625ba3c7fa8603631168bdf640648ceeedd0ceca0a894501bd9",
+  "apk_signer_sha256": "67fe81c56fac1c1d145344b69a0e3faf9005cf6607f4e26ca27d5926c3eefc4f",
+  "apk_size": 8421566,
+  "version_code": 1,
+  "version_name": "0.1.0-share-probe",
+  "package": "pro.celikom.nativeprobe.shareprobe",
+  "signature_verified": true,
+  "physical_installation_verified": false,
+  "automatic_source_id_verified": false,
+  "payload_size": 3142905,
+  "payload_sha256": "48d60989d7098467e68b1d191e958117dfbe2c6089dc6e89ab1f90fde4b26cbc",
+  "invite_url": "https://darkred-camel-588676.hostingersite.com/android-id-test/fdroid/repo?fingerprint=0937D8B0F51EF36ECF13DB27D70299491E1084FADF9B9D2BC95B35DE3A213385",
+  "payload_blob": "1995ce746ee6daf327f2bd483f8ddb6edd862d20"
+}

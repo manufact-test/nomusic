@@ -1,0 +1,25 @@
+:root { color-scheme: dark; font-family: system-ui, -apple-system, sans-serif; }
+* { box-sizing: border-box; }
+body { margin: 0; min-width: 330px; max-width: 360px; background: #16181d; color: #ebedf2; font-size: 13px; }
+main { padding: 16px; }
+header { display: flex; flex-direction: column; gap: 4px; padding-bottom: 12px; border-bottom: 1px solid #333944; }
+header strong { font-size: 17px; letter-spacing: -.3px; }
+header span { color: #9fb4ff; font-weight: 500; }
+header small, .hint { color: #a2aabb; font-size: 11px; line-height: 1.45; }
+#status { padding: 8px 10px; background: #272b35; color: #cfd8f1; border-radius: 8px; }
+section { padding-top: 8px; }
+h2 { font-size: 13px; margin: 8px 0; }
+h2 span { color: #a2aabb; font-weight: normal; }
+section .hint { margin: -2px 0 8px; }
+dl { display: grid; grid-template-columns: 1fr auto; gap: 6px; margin: 0; padding: 10px; background: #20242c; border-radius: 10px; }
+dt { color: #a9b1bf; }
+dd { margin: 0; font-variant-numeric: tabular-nums; font-weight: 700; }
+ol { padding: 8px 8px 8px 26px; margin: 0; max-height: 128px; overflow: auto; background: #20242c; border-radius: 10px; }
+li { padding: 3px; font-size: 11px; color: #b7c2d3; }
+.actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+button { background: #333c51; color: #fff; border: 1px solid #4c5a78; border-radius: 7px; padding: 8px 9px; cursor: pointer; font-size: 11px; }
+button:hover:not(:disabled) { background: #43557a; }
+button:disabled { opacity: .45; cursor: not-allowed; }
+.foot { margin-bottom: 0; }
+
+button[data-marker] { flex: 1 1 42%; min-height: 33px; }

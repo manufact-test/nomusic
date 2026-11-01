@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+
+<html lang="ru">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width,initial-scale=1" name="viewport"/>
+<meta content="#F7F8F4" name="theme-color"/>
+<meta content="CELIKOM помогает вновь услышать знакомое звучание любимых песен, если нужная проверенная версия доступна." name="description"/>
+<title>CELIKOM — то самое звучание</title>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet"/>
+<style>
+:root {--ink:#0B1013; --mint:#66E0BF; --paper:#F7F8F4; --secondary:#556368; --line:#DCE8E3; --pine:#14594d; --radius:28px; --container:1240px;}
+*,*::before,*::after{box-sizing:border-box}
+html{scroll-behavior:smooth;scroll-padding-top:105px}
+body{margin:0;font-family:Manrope,Arial,sans-serif;color:var(--ink);background:var(--paper);font-size:16px;overflow-x:hidden;-webkit-font-smoothing:antialiased}
+a{color:inherit;text-decoration:none}button{font:inherit}button:focus-visible,a:focus-visible{outline:3px solid var(--pine);outline-offset:4px}img{max-width:100%;display:block}
+.wrap{width:min(var(--container),calc(100% - 88px));margin-inline:auto}
+header{height:90px;position:relative;z-index:5;display:flex;align-items:center;border-bottom:1px solid rgba(11,16,19,.045)}
+.header-inner{display:flex;align-items:center;gap:32px;justify-content:space-between}
+.brand{display:flex;align-items:center;gap:12px;min-width:max-content}
+.brand img{height:44px;width:44px;box-shadow:0 6px 16px #0b101315;border-radius:11px}
+.brand span{font-weight:800;letter-spacing:-.065em;font-size:24px;line-height:1}
+nav{display:flex;align-items:center;gap:35px;color:#35454a;font-weight:600;font-size:13px}
+nav a:hover{color:#00775f}.header-chip{padding:12px 19px;background:#e4faf1;border-radius:100px;color:#156453;font-size:12px;font-weight:800;white-space:nowrap}
+.hero{min-height:675px;padding-block:92px 88px;position:relative}
+.hero-grid{display:grid;grid-template-columns:.99fr 1.01fr;align-items:center;column-gap:58px}
+.eyebrow{color:#607c8d;font-weight:800;letter-spacing:.26em;text-transform:uppercase;font-size:12px}
+h1{font-size:clamp(48px,5.3vw,76px);letter-spacing:-.075em;line-height:.92;margin:25px 0 24px;font-weight:800;max-width:650px;text-wrap:balance}
+h1 span{color:#36cfa3}
+.hero-lead{max-width:570px;color:#435358;font-size:18px;line-height:1.85;letter-spacing:-.023em;margin:0 0 33px}
+.actions{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:17px;border-radius:14px;padding:17px 23px;min-height:58px;font-weight:800;font-size:14px;transition:transform .2s,box-shadow .2s,border .2s;border:1px solid var(--line)}
+.btn:hover{transform:translateY(-2px)}.btn.primary{background:var(--mint);border-color:var(--mint);color:#0b1013;box-shadow:0 14px 32px #66e0bf36}.btn.ghost{background:#fff}
+.visual{height:525px;position:relative;display:grid;place-items:center;isolation:isolate}
+.visual::before{content:"";position:absolute;width:min(540px,105%);aspect-ratio:1/1;background:radial-gradient(ellipse at center,#d8faeacc, #eaf9f270 64%,transparent 75%);border-radius:50%;inset:50% auto auto 50%;transform:translate(-50%,-50%);z-index:-2}
+.visual::after{content:"";position:absolute;left:4%;right:5%;top:27%;height:52%;background:repeating-linear-gradient(90deg,transparent 0 17px,#60dfba65 17px 20px,transparent 20px 26px);mask-image:radial-gradient(ellipse at center,#000,transparent 70%);z-index:-1}
+.swoosh{position:absolute;width:100%;height:auto;top:18%;left:0;z-index:-1;opacity:.73}
+.demo-stage{width:85%;max-width:470px;min-height:435px;position:relative;border-radius:28px;background:linear-gradient(146deg,#ffffffed,#f8fffcde);border:1px solid #fff;box-shadow:0 30px 100px #154a3927,0 2px 6px #0b10130b;transform:rotate(-3deg);padding:26px;display:flex;flex-direction:column;justify-content:space-between}
+.demo-top{display:flex;align-items:center;gap:7px}.dot{width:9px;height:9px;background:#cbd8d2;border-radius:50%}.demo-bar{margin-left:12px;height:14px;background:#eef4f0;border-radius:50px;flex:1}
+.demo-main{display:flex;align-items:center;gap:26px}.art{width:125px;aspect-ratio:1;border-radius:22px;display:grid;place-items:center;flex-shrink:0;background:linear-gradient(145deg,#142723,#398b77);box-shadow:inset 0 2px 15px #ffffff0b}
+.art svg{width:85px}.skeleton{display:grid;gap:15px;flex:1}.skeleton span{height:12px;border-radius:50px;background:#dce7e1}.skeleton span:nth-child(2){width:79%}.skeleton span:nth-child(3){width:54%}
+.demo-bottom{display:flex;gap:13px;align-items:center}.demo-bottom span{width:20%;height:8px;border-radius:50px;background:#dce7e1}.demo-bottom span:first-child{width:65%;background:linear-gradient(to right,#52d8b1 32%,#dce7e1 32%)}
+.real-panel{position:absolute;right:-4%;top:12%;width:239px;z-index:2;background:#0b1013;border-radius:19px;box-shadow:0 25px 70px #071d1e60;padding:13px;transform:rotate(1.5deg)}
+.real-panel img{width:100%;height:auto;display:block;border-radius:9px;box-shadow:inset 0 0 4px #000}
+.pulse{position:absolute;width:70px;height:70px;top:2%;right:1%;background:#0b1013;border:7px solid #fff;box-shadow:0 10px 24px #08241d26;border-radius:20px;display:grid;place-items:center;transform:rotate(7deg)}
+.pulse img{width:46px;height:46px}
+.divider{border-top:1px solid var(--line)}
+.benefits{padding-block:48px 78px}.benefit-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:22px}.benefit{border-radius:26px;background:#fff;border:1px solid #eaf0ed;padding:31px 31px 34px;min-height:205px;box-shadow:0 15px 40px #273f3210}
+.benefit-icon{width:50px;height:50px;flex:0 0 50px;background:#d7fbeb;border-radius:16px;display:grid;place-items:center;margin-bottom:22px;color:#136e59;line-height:0}
+.benefit-icon svg{width:25px;height:25px;display:block;overflow:visible;stroke:currentColor;fill:none;stroke-width:1.95;stroke-linecap:round;stroke-linejoin:round}
+.benefit h3{font-size:18px;letter-spacing:-.04em;margin:0 0 9px}.benefit p{font-size:14px;line-height:1.75;color:#576a6b;margin:0;text-wrap:pretty}
+.process{margin-bottom:60px;border-radius:35px;background:#0b1013;padding:64px 60px 70px;color:white;overflow:hidden;position:relative}.process::before{content:"";position:absolute;width:350px;height:350px;border-radius:50%;right:-90px;bottom:-260px;border:60px solid #66e0bf10;pointer-events:none}
+.process h2{font-size:clamp(31px,3vw,46px);margin:14px 0 36px;letter-spacing:-.06em;line-height:1.12}.process .eyebrow{color:#72d8ba}.steps{display:grid;grid-template-columns:repeat(3,1fr);gap:40px}.step{position:relative}.step .num{font-size:14px;background:#66e0bf;color:#0b1013;width:38px;height:38px;border-radius:14px;font-weight:800;display:grid;place-items:center}.step h3{font-size:17px;line-height:1.5;margin:19px 0 12px}.step p{font-size:13px;color:#a8b6b8;line-height:1.85;margin:0;text-wrap:pretty}
+footer{padding:0 0 40px;color:#738281;font-size:12px;line-height:1.7}
+.prototype-banner{display:none}
+@media(max-width:1050px){.hero-grid{gap:15px}.visual{height:490px}.real-panel{right:-1%;width:210px}.demo-stage{min-height:400px}.wrap{width:min(var(--container),calc(100% - 60px))}nav{gap:21px}}
+@media(max-width:800px){header{height:78px}nav{display:none}.hero{padding-block:70px 48px}.hero-grid{grid-template-columns:1fr;gap:42px}.hero-lead{font-size:16px}.hero h1{max-width:700px}.visual{height:480px;max-width:650px;width:100%;margin:auto}.real-panel{right:5%;top:7%}.benefit-grid{grid-template-columns:1fr 1fr}.process{padding:50px 36px}.steps{gap:20px}}
+@media(max-width:540px){.wrap{width:calc(100% - 36px)}header{height:72px}.brand img{width:39px;height:39px}.brand span{font-size:20px}.header-chip{padding:12px 13px;font-size:10px}.hero{padding-block:58px 42px}.eyebrow{font-size:10px;letter-spacing:.18em}h1{font-size:clamp(40px,11.5vw,57px);margin-top:21px;margin-bottom:20px;line-height:.94}.hero-lead{font-size:14px;line-height:1.75}.actions{gap:11px}.btn{min-height:54px;padding:15px 18px;font-size:12px;width:100%}.visual{height:405px}.demo-stage{width:82%;min-height:330px;padding:20px;border-radius:24px;transform:rotate(-3deg);margin-left:-25px}.demo-main{gap:12px}.art{width:85px;border-radius:17px}.art svg{width:65px}.skeleton{gap:10px}.skeleton span{height:8px}.real-panel{width:162px;right:-2%;top:8%;padding:8px;border-radius:13px}.pulse{width:53px;height:53px;border-width:5px;right:2%;top:0}.pulse img{height:35px;width:35px}.benefits{padding-block:35px 45px}.benefit-grid{grid-template-columns:1fr;gap:12px}.benefit{min-height:0;padding:26px}.process{padding:38px 25px;border-radius:25px;margin-bottom:44px}.process h2{font-size:32px;margin-bottom:30px}.steps{grid-template-columns:1fr;gap:26px}.step h3{margin:10px 0 6px}.step .num{width:31px;height:31px;border-radius:10px}.prototype-banner{font-size:10px}}
+@media(max-width:350px){.wrap{width:calc(100% - 28px)}h1{font-size:39px}.real-panel{width:145px;right:-2%}.demo-stage{margin-left:-33px}.visual{height:375px}}
+@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}*{animation-duration:.01ms!important;transition-duration:.01ms!important}}
+
+/* New stages: wave demonstration, familiar player, community participation. */
+.next-section{margin-block:105px}
+.section-topline{color:#517b76;font-size:12px;font-weight:800;letter-spacing:.21em;text-transform:uppercase;margin-bottom:18px}
+.section-heading{font-size:clamp(34px,4.15vw,58px);line-height:1.1;letter-spacing:-.065em;font-weight:800;margin:0 0 22px;text-wrap:balance}
+.section-body{font-size:16px;line-height:1.8;color:#536267;max-width:600px;margin:0;text-wrap:pretty}
+.demo-section{display:grid;grid-template-columns:minmax(0,.82fr) minmax(0,1.18fr);gap:70px;align-items:center}
+.demo-copy{padding:25px 0}
+.demo-options{margin-top:32px;display:flex;gap:10px;flex-wrap:wrap}
+.mode-btn{background:#fff;border:1px solid #dae9e1;color:#152724;cursor:pointer;min-height:49px;border-radius:14px;padding:12px 18px;font-size:13px;font-family:inherit;font-weight:800;transition:background .25s,box-shadow .25s,transform .25s}
+.mode-btn:hover{transform:translateY(-1px)}
+.mode-btn[aria-pressed="true"]{background:#66e0bf;border-color:#66e0bf;box-shadow:0 12px 28px #66e0bf2b}
+.demo-board{background:#0b1013;color:white;border-radius:35px;min-height:340px;padding:45px 46px;overflow:hidden;position:relative;display:flex;flex-direction:column;justify-content:space-between}
+.demo-board:before{content:"";width:290px;height:290px;position:absolute;right:-96px;bottom:-170px;border:45px solid #66e0bf0c;border-radius:50%}
+.demo-board-label{font-weight:600;color:#91aaa5;font-size:13px;letter-spacing:.02em}
+.wave{width:100%;height:150px;display:flex;align-items:center;gap:clamp(4px,.65vw,9px);justify-content:center;position:relative;z-index:1}
+.wave-bar{width:7px;max-width:2.2%;min-width:4px;border-radius:12px;height:calc(var(--level) * 1%);background:#65e0bd;opacity:.84;transition:height .45s cubic-bezier(.22,.8,.25,1),opacity .3s,background .3s}
+.demo-board[data-mode="service"] .wave-bar{height:calc(var(--original) * 1%);background:#a4b2ad;opacity:.60}
+.demo-board-result{font-size:20px;font-weight:750;letter-spacing:-.03em;position:relative;z-index:1}
+.demo-board-foot{font-size:12px;color:#80948f;margin:6px 0 0;line-height:1.6;position:relative;z-index:1}
+.familiar{background:white;border:1px solid #e5eee9;border-radius:38px;padding:74px 65px;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:65px;align-items:center;box-shadow:0 25px 60px #203d3110}
+.familiar-visual{min-height:315px;border-radius:29px;background:#eff9f3;display:grid;place-items:center;overflow:hidden;position:relative;isolation:isolate}
+.familiar-visual::before{content:"";position:absolute;width:380px;height:380px;border:85px solid #c4f4df;border-radius:50%;transform:translate(33%,-17%);opacity:.9;z-index:-1}
+.familiar-visual::after{content:"";position:absolute;width:290px;height:290px;border:68px solid #97eccc;border-radius:50%;transform:translate(-35%,41%);opacity:.57;z-index:-1}
+.familiar-orbit{width:188px;height:188px;border-radius:50%;border:1px solid #9bddc4;display:grid;place-items:center;background:#f8fdfae0;box-shadow:0 20px 65px #0b10131b;transform:rotate(-9deg)}
+.familiar-orbit svg{width:80px;height:80px;stroke:#14594d;stroke-width:2.7;fill:none;stroke-linecap:round;stroke-linejoin:round}
+.familiar-tag{position:absolute;background:white;border:1px solid #e1ebe5;border-radius:999px;padding:10px 16px;font-weight:750;font-size:13px;color:#14594d;box-shadow:0 12px 23px #0b101312}
+.familiar-tag.t1{left:6%;top:16%}.familiar-tag.t2{right:5%;bottom:13%}
+.familiar-features{margin-top:28px;display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.familiar-features div{display:flex;align-items:center;gap:9px;font-size:13px;font-weight:750}
+.familiar-features svg{stroke:#168b70;width:18px;height:18px;fill:none;stroke-width:2.5;stroke-linecap:round;flex-shrink:0}
+.community{margin-bottom:88px}
+.community-header{max-width:790px;margin-bottom:33px}
+.community-grid{display:grid;grid-template-columns:1fr 1fr;gap:22px}
+.community-card{position:relative;border-radius:30px;background:#dff8eb;padding:40px;min-height:286px;display:flex;flex-direction:column;align-items:flex-start;gap:19px;overflow:hidden}
+.community-card:nth-child(2){background:#e9eee9}
+.community-card:after{content:"";position:absolute;right:-30px;bottom:-100px;width:240px;height:240px;border:38px solid #9cecc74a;border-radius:50%;pointer-events:none}
+.community-card:nth-child(2):after{border-color:#c9d7cf7d}
+.community-card-icon{height:55px;width:55px;border-radius:18px;background:white;display:grid;place-items:center;color:#156453;box-shadow:0 6px 20px #0b10130b}
+.community-card-icon svg{width:26px;height:26px;stroke:currentColor;fill:none;stroke-width:2;stroke-linejoin:round;stroke-linecap:round}
+.community-card h3{margin:0;font-size:25px;letter-spacing:-.05em;line-height:1.2}
+.community-card p{margin:0;color:#445e56;font-size:15px;line-height:1.75;max-width:430px;text-wrap:pretty}
+.community-card a{font-size:13px;text-decoration:underline;text-underline-offset:5px;font-weight:800;margin-top:auto}
+@media(max-width:1050px){.demo-section{gap:28px}.familiar{gap:28px;padding:50px 38px}}
+@media(max-width:800px){.next-section{margin-block:70px}.demo-section{grid-template-columns:1fr;gap:30px}.demo-board{min-height:300px}.familiar{grid-template-columns:1fr;gap:35px}.familiar-visual{min-height:260px}.community-grid{grid-template-columns:1fr}.community-card{min-height:245px}}
+@media(max-width:540px){.next-section{margin-block:55px}.section-heading{font-size:clamp(32px,9.5vw,42px)}.section-body{font-size:14px;line-height:1.76}.demo-copy{padding:0}.demo-options{gap:9px}.mode-btn{font-size:12px;padding:12px 13px;min-height:48px}.demo-board{border-radius:25px;padding:28px 25px;min-height:285px}.wave{gap:5px}.wave-bar{width:5px}.demo-board-result{font-size:18px}.familiar{border-radius:26px;padding:30px 23px}.familiar-visual{min-height:240px;border-radius:22px}.familiar-orbit{width:135px;height:135px}.familiar-orbit svg{height:56px;width:56px}.familiar-tag{font-size:10px;padding:9px 12px}.familiar-features{gap:13px}.familiar-features div{font-size:12px}.community-card{border-radius:25px;padding:28px;gap:16px}.community-card h3{font-size:23px}.community-card p{font-size:14px}.community-header{margin-bottom:24px}.community{margin-bottom:55px}}
+@media(prefers-reduced-motion:reduce){.wave-bar{transition:none}.mode-btn{transition:none}}
+
+/* v4 — единая вертикальная ритмика между секциями. Одно значение для всех секций. */
+:root { --section-gap: 82px; }
+main > section { margin-block: 0 !important; }
+main > section + section { margin-block-start: var(--section-gap) !important; }
+main > section#top { min-height: 0; padding-block: 82px 0; }
+main > section#features { border-top: 0; }
+main > section#features .benefits { padding-block: 0; }
+main > section#how.process { margin-bottom: 0 !important; }
+main > section.next-section { margin-block: 0; }
+main > section.community { margin-bottom: 0; }
+.demo-copy { padding-block: 0; }
+footer.wrap { padding-block: var(--section-gap) 40px; }
+/* Приятные переносы, но без принудительных пробелов внутри длинных слов. */
+.section-heading, .community-card h3, .benefit h3, .step h3 { text-wrap: balance; }
+.section-body, .community-card p, .benefit p, .step p { text-wrap: pretty; overflow-wrap: break-word; }
+@media (max-width: 800px) {
+  :root { --section-gap: 64px; }
+  main > section#top { padding-block: 68px 0; }
+}
+@media (max-width: 540px) {
+  :root { --section-gap: 54px; }
+  main > section#top { padding-block: 55px 0; }
+}
+@media (max-width: 350px) {
+  :root { --section-gap: 48px; }
+}
+/* v5: preserve horizontal auto-centering while controlling only vertical margins. */
+main > section.wrap,footer.wrap{margin-inline:auto!important}
+main > section#features > .wrap{margin-inline:auto}
+main > section{min-width:0}
+.demo-section>*,.familiar>*,.trust>*,.faq>*{min-width:0}
+[hidden]{display:none!important}
+@media(max-width:540px){.hero-grid{gap:24px}.visual{height:365px}}
+@media(max-width:350px){.visual{height:345px}.demo-stage{min-height:315px}}
+.trust{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,.96fr);gap:50px;align-items:center;background:#e9f7f0;border:1px solid #d6e9de;border-radius:36px;padding:62px}
+.trust .section-body{max-width:540px}
+.trust-points{margin-top:30px;display:grid;gap:13px}
+.trust-point{display:flex;gap:12px;align-items:flex-start;color:#263e38;font-size:14px;line-height:1.7}
+.trust-point .tick{font-size:18px;line-height:1.1;color:#128469;flex:none;margin-top:3px}
+.trust-callout{background:#0b1013;color:#fff;border-radius:28px;padding:36px;display:grid;gap:18px;position:relative;overflow:hidden}
+.trust-callout:after{content:"";position:absolute;right:-95px;top:-105px;width:230px;height:230px;border-radius:50%;border:45px solid #66e0bf0d;pointer-events:none}
+.trust-callout h3{font-size:23px;letter-spacing:-.04em;margin:0;position:relative}
+.trust-callout>p{font-size:14px;line-height:1.7;color:#b6c7c4;margin:0;position:relative}
+.trust-callout-row{display:grid;grid-template-columns:36px 1fr;align-items:start;gap:12px;border-top:1px solid #253933;padding-top:18px;position:relative}
+.trust-callout-row b{display:grid;place-items:center;width:34px;height:34px;border-radius:10px;background:#193d32;color:#82e8c9;font-size:12px}
+.trust-callout-row span{font-size:13px;line-height:1.6;color:#d5e6e0}
+.faq{display:grid;grid-template-columns:minmax(0,.78fr) minmax(0,1.22fr);gap:68px;align-items:start}
+.faq-intro{position:sticky;top:28px}.faq-intro .section-body{max-width:390px}
+.faq-nav{display:flex;gap:8px;flex-wrap:wrap;margin-top:28px}
+.faq-filter{font-family:inherit;border:1px solid #d8e9df;background:#fff;border-radius:999px;padding:11px 15px;color:#38534a;font-weight:750;font-size:12px;cursor:pointer;transition:background .2s}
+.faq-filter:hover{border-color:#83d6b6}.faq-filter[aria-pressed=true]{background:var(--mint);color:#0b1013;border-color:var(--mint)}
+.faq-list{display:grid;gap:12px}.faq-item{border:1px solid #e0ede6;border-radius:21px;background:#fff;padding:0 26px;box-shadow:0 12px 28px #233d2a08;min-width:0}
+.faq-item summary{list-style:none;cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:20px;padding:23px 0;font-size:16px;font-weight:800;letter-spacing:-.025em;line-height:1.5}
+.faq-item summary::-webkit-details-marker{display:none}.faq-item summary svg{width:20px;height:20px;flex:0 0 20px;stroke:#0d8166;stroke-width:2.2;fill:none;stroke-linecap:round;stroke-linejoin:round;transition:transform .2s}
+.faq-item[open] summary svg{transform:rotate(45deg)}.faq-item .answer{padding:0 30px 23px 0;color:#4c6360;font-size:14px;line-height:1.85}.faq-item p{margin:0;text-wrap:pretty;overflow-wrap:break-word}
+@media(max-width:1050px){.trust{padding:45px;gap:30px}.faq{gap:35px}.faq-item{padding-inline:20px}}
+@media(max-width:800px){.trust{grid-template-columns:1fr;gap:28px}.faq{grid-template-columns:1fr;gap:28px}.faq-intro{position:static}.faq-intro .section-body{max-width:650px}}
+@media(max-width:540px){.trust{padding:29px 23px;border-radius:26px;gap:25px}.trust-callout{padding:28px 23px;border-radius:23px}.trust-callout h3{font-size:20px}.trust-point{font-size:13px}.faq{gap:24px}.faq-filter{font-size:11px;padding:10px 12px}.faq-item{padding-inline:17px;border-radius:18px}.faq-item summary{font-size:14px;padding:18px 0;gap:12px}.faq-item .answer{padding:0 6px 19px 0;font-size:13px}}
+@media(prefers-reduced-motion:reduce){.faq-filter,.faq-item summary svg{transition:none}}
+
+</style>
+<style>
+/* v6: consistent responsive grid, scroll-following FAQ, and visual fixes. */
+html,body{overflow-x:clip} /* overflow-x:hidden on body breaks position:sticky in Chromium */
+section[id]{scroll-margin-top:24px}
+/* On desktop .pulse appears above popup; on small screens keep it separate and legible. */
+.pulse{z-index:5}
+.demo-options{margin-top:18px}
+.familiar-features{margin-top:17px;row-gap:12px}
+.faq{align-items:stretch}
+.faq-intro{position:sticky;top:clamp(24px,5vh,54px);align-self:start;max-height:calc(100svh - 75px);overflow-y:auto;scrollbar-width:thin;scrollbar-color:#cbe9dd transparent;padding-bottom:4px}
+.faq-intro::-webkit-scrollbar{width:4px}.faq-intro::-webkit-scrollbar-thumb{background:#cbe9dd;border-radius:99px}
+.faq-progress{margin-top:30px;padding:20px 21px;border:1px solid #d7e9dd;border-radius:21px;background:#e9f6ee;max-width:400px}
+.faq-progress-top{display:flex;justify-content:space-between;gap:12px;font-size:12px;font-weight:800;color:#14594d}
+.faq-progress-track{margin-top:14px;height:5px;border-radius:30px;background:#cbdfd4;overflow:hidden}
+.faq-progress-fill{display:block;width:0%;height:100%;background:#1dba91;border-radius:30px;transition:width .22s ease}
+.faq-progress-hint{display:block;color:#61756b;font-size:11px;line-height:1.6;margin-top:11px}
+.faq-search{position:relative;display:block;margin-bottom:16px}
+.faq-search svg{position:absolute;left:19px;top:50%;transform:translateY(-50%);width:19px;height:19px;fill:none;stroke:#286959;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.faq-search input{font:600 14px Manrope,Arial,sans-serif;color:#0b1013;width:100%;padding:18px 20px 18px 50px;border:1px solid #d8e9df;border-radius:16px;background:#fff;outline:none;box-shadow:0 8px 28px #233d2a06}
+.faq-search input:focus-visible{outline:3px solid #66e0bf;outline-offset:2px}
+.faq-empty{color:#536961;background:#fff;border-radius:16px;padding:24px 22px;font-size:14px}
+.faq-item[open] .answer{animation:faqAppear .24s ease both}
+@keyframes faqAppear{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
+.faq-item:target{outline:2px solid #66e0bf;outline-offset:3px}
+.reward,.install{display:grid;grid-template-columns:minmax(0,1.04fr) minmax(0,.96fr);gap:clamp(28px,5vw,76px);align-items:center}
+.reward-copy,.install-text{min-width:0}
+.reward-notice{margin-top:24px;display:flex;align-items:flex-start;gap:12px;font-size:13px;color:#48655b;line-height:1.75;max-width:520px}
+.reward-notice svg{flex:none;width:20px;height:20px;stroke:#18886d;stroke-width:2;fill:none;margin-top:1px}
+.reward-illustration{position:relative;min-height:360px;border-radius:34px;background:linear-gradient(140deg,#dcf7ea,#b7ead3);overflow:hidden;display:grid;place-items:center;isolation:isolate}
+.reward-orbit{width:400px;height:400px;border:50px solid #ffffff4a;border-radius:50%;position:absolute;left:-25%;top:-70%;z-index:-1}
+.reward-orbit--two{left:auto;top:auto;right:-35%;bottom:-80%;border-color:#a2ddc670}
+.reward-symbol{width:142px;height:142px;border-radius:42px;background:#0b1013;display:grid;place-items:center;transform:rotate(-9deg);box-shadow:0 28px 70px #0b101331}
+.reward-symbol svg{width:80px;height:80px;stroke:#66e0bf;stroke-width:4;fill:none;stroke-linejoin:round;stroke-linecap:round}
+.reward-tag{position:absolute;bottom:32px;background:#fff;border-radius:999px;padding:12px 19px;font-size:12px;font-weight:800;color:#14594d;box-shadow:0 10px 28px #224d3518}
+.install{background:#eef5f0;border-radius:36px;padding:clamp(32px,4vw,60px);border:1px solid #dce9e0}
+.install-status{display:inline-flex;align-items:center;gap:11px;font-size:13px;font-weight:800;border:1px solid #badfcb;padding:12px 16px;border-radius:999px;color:#205b49;margin-top:26px}
+.status-dot{height:9px;width:9px;background:#36cfa3;border-radius:50%;box-shadow:0 0 0 5px #36cfa32a}
+.install-card{border-radius:25px;background:#fff;padding:34px;border:1px solid #e0e9e3;box-shadow:0 16px 60px #263e2a14}
+.install-card-icon{display:grid;place-items:center;border-radius:17px;width:54px;height:54px;background:#d6f8e6;color:#155b49}
+.install-card-icon svg{width:28px;height:28px;stroke:currentColor;stroke-width:2;fill:none;stroke-linejoin:round;stroke-linecap:round}
+.install-card h3{font-size:21px;line-height:1.3;margin:20px 0 12px;letter-spacing:-.04em}
+.install-card p{color:#556966;font-size:14px;line-height:1.8;margin:0 0 23px}
+.install-future{display:block;background:#e9efeb;color:#657b70;font-size:12px;text-align:center;border-radius:13px;padding:15px;font-weight:800}
+.closing{position:relative;overflow:hidden;border-radius:34px;padding:clamp(45px,6vw,85px);background:#0b1013;color:#fff;isolation:isolate}
+.closing-halo{position:absolute;width:500px;height:500px;right:-180px;top:-220px;border:100px solid #66e0bf12;border-radius:50%;pointer-events:none;z-index:-1}
+.closing .section-topline{color:#66e0bf}.closing h2{font-size:clamp(36px,4.4vw,62px);line-height:1.06;letter-spacing:-.07em;max-width:800px;margin:19px 0 23px;text-wrap:balance}
+.closing p{color:#c2d2ca;max-width:640px;font-size:16px;line-height:1.8}
+.closing-link{display:inline-flex;align-items:center;gap:22px;color:#0b1013;background:#66e0bf;border-radius:13px;padding:17px 21px;font-size:13px;font-weight:800;margin-top:22px}
+.footer-inner{display:flex;align-items:center;justify-content:space-between;gap:24px;border-top:1px solid #dae7dd;padding-top:30px}
+.footer-brand{font-size:20px;font-weight:800;color:#0b1013;letter-spacing:-.05em}
+.footer-links{display:flex;gap:20px;flex-wrap:wrap;font-size:12px;color:#38594c;font-weight:700}
+.footer-bottom{font-size:12px;color:#65786c;line-height:1.8;max-width:760px;margin-top:18px}
+@media(max-width:1050px){.reward,.install{gap:28px}.install{padding:36px}}
+@media(max-width:900px){.pulse{left:10%;right:auto;top:3%;z-index:6}}
+@media(max-width:800px){.faq-intro{position:static;max-height:none;overflow:visible}.faq-progress{display:none}.reward,.install{grid-template-columns:1fr}.reward-illustration{min-height:300px}.install{padding:32px}}
+@media(max-width:540px){
+ .pulse{left:9%;right:auto;top:3%;width:55px;height:55px;z-index:6;transform:rotate(-8deg)}
+ .pulse img{height:36px;width:36px}
+ .real-panel{top:14%;right:-1%;width:154px}
+ .visual{height:345px}
+ .demo-stage{min-height:305px}
+ .demo-options{margin-top:12px;gap:8px}
+ .demo-copy .section-body{margin-bottom:0}
+ .familiar-features{margin-top:14px;gap:10px}
+ .reward-illustration{min-height:255px;border-radius:24px}
+ .reward-symbol{width:112px;height:112px;border-radius:32px}.reward-symbol svg{width:64px;height:64px}
+ .reward-tag{font-size:11px;bottom:21px}
+ .install{border-radius:26px;padding:25px}.install-card{padding:27px;border-radius:20px}
+ .closing{border-radius:26px;padding:34px 26px}.closing p{font-size:14px}
+ .footer-inner{flex-direction:column;align-items:flex-start}.footer-links{gap:13px}
+ .faq-search input{font-size:13px}
+}
+@media(max-width:350px){.pulse{left:8%;top:4%}.visual{height:325px}.demo-stage{min-height:290px}.real-panel{width:142px;top:15%}.familiar-features{margin-top:12px}}
+@media(prefers-reduced-motion:reduce){.faq-progress-fill{transition:none}.faq-item[open] .answer{animation:none}}
+</style><style>
+/* FAQ: two explicit grid children, so search and answers cannot overlap the heading. */
+.faq { display:grid; grid-template-columns:minmax(0,.78fr) minmax(0,1.22fr); gap:clamp(30px,4.7vw,68px); align-items:start; }
+.faq-intro { position:static; top:auto; max-height:none; overflow:visible; padding:0; align-self:auto; min-width:0; }
+.faq-content { display:flex; flex-direction:column; min-width:0; width:100%; }
+.faq-search { position:relative; display:block; width:100%; margin:0 0 17px; min-height:0; }
+.faq-search input { display:block; width:100%; }
+.faq-list { display:grid; gap:12px; min-width:0; }
+.faq-item { min-width:0; }
+.faq-item[hidden], .faq-empty[hidden] { display:none !important; }
+@media (max-width:800px) {
+  .faq { grid-template-columns:minmax(0,1fr); gap:24px; }
+  .faq-intro { position:static; max-height:none; overflow:visible; }
+}
+@media (max-width:540px) {
+  .faq { gap:22px; }
+  .faq-search { margin-bottom:14px; }
+}
+/* The visual layout has no animations. Motion will be designed for the real site later. */
+*,*::before,*::after { animation:none !important; transition:none !important; }
+html { scroll-behavior:auto !important; }
+</style><style>
+/* CELIKOM v8 / approved visual review fixes */
+footer.wrap{padding-bottom:clamp(48px,5vw,75px) !important;}
+.footer-inner{padding-top:30px;}
+/* Simplified FAQ: no search and no sticky/scroll effects in this preview. */
+.faq{grid-template-columns:minmax(0,.7fr) minmax(0,1.3fr);column-gap:clamp(28px,4vw,54px);}
+.faq-intro{position:static;}
+.faq-nav{margin-top:24px;gap:8px;}
+.faq-content{min-width:0;}
+.faq-list{gap:12px;}
+.faq-filter{line-height:1.3;}
+/* Put the checklist immediately after the explanation, not at the bottom of the column. */
+.trust{align-items:start;}
+.trust-points{margin-top:16px;}
+.trust .section-body{margin-bottom:0;}
+/* Do not change desktop spacing. These rules are specifically for narrow displays. */
+@media(max-width:800px){
+  .faq{grid-template-columns:minmax(0,1fr);row-gap:20px;}
+  .faq-intro{max-width:none;}
+  .faq-nav{margin-top:18px;}
+  .process{padding:38px 30px;}
+  .process h2{max-width:100%;}
+  .trust-points{margin-top:14px;}
+}
+@media(max-width:540px){
+  h1{font-size:clamp(34px,9.5vw,39px);letter-spacing:-.065em;line-height:.99;text-wrap:normal;}
+  .process{padding:33px 23px;}
+  .process h2{font-size:clamp(25px,7.4vw,29px);line-height:1.16;letter-spacing:-.048em;text-wrap:balance;}
+  #contribute-title{font-size:clamp(29px,8.7vw,34px);letter-spacing:-.059em;line-height:1.12;max-width:100%;text-wrap:balance;}
+  #trust-title{font-size:clamp(29px,8.6vw,34px);line-height:1.11;}
+  .section-heading{letter-spacing:-.055em;}
+  .trust-points{margin-top:12px;gap:9px;}
+  footer.wrap{padding-bottom:58px !important;}
+  .footer-inner{row-gap:17px;}
+  .footer-links{gap:12px 18px;line-height:1.7;}
+  .faq-nav{margin-top:17px;}
+}
+@media(max-width:350px){
+  h1{font-size:33px;line-height:1.02;}
+  #contribute-title{font-size:28px;}
+  .process h2{font-size:26px;}
+  .footer-links{gap:12px 15px;}
+}
+</style><style>
+/* CELIKOM v9 — практичный FAQ без боковых переключателей. */
+#faq.faq { display:block !important; width:min(var(--container),calc(100% - 88px)); margin-inline:auto !important; }
+#faq .faq-heading-row { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,.9fr); align-items:end; gap:32px; margin-bottom:34px; }
+#faq .faq-heading-row .section-heading { margin-bottom:0; max-width:780px; }
+#faq .faq-heading-row .section-body { margin:0 0 7px; max-width:440px; justify-self:end; }
+#faq .faq-layout { width:100%; min-width:0; }
+#faq .faq-nav { margin:0 0 24px; padding:7px; display:flex; flex-wrap:wrap; gap:7px; background:#e8f1ec; border-radius:20px; width:100%; }
+#faq .faq-filter { display:inline-flex; flex:1 1 auto; justify-content:center; align-items:center; font-size:13px; line-height:1.3; padding:15px 18px; font-weight:800; min-height:47px; border-radius:14px; color:#33534a; border:1px solid transparent; background:transparent; white-space:nowrap; }
+#faq .faq-filter[aria-pressed="true"] { background:#66e0bf; border-color:#66e0bf; color:#0b1013; box-shadow:0 6px 13px #1e684523; }
+#faq .faq-filter:not([aria-pressed="true"]):hover { border-color:#d4e3d9; background:#fff; }
+#faq .faq-content { display:block; width:100%; min-width:0; }
+#faq .faq-list { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; align-items:start; }
+#faq .faq-item { padding:0 24px; min-width:0; border-radius:23px; }
+#faq .faq-item summary { font-size:16px; min-height:80px; padding:21px 0; line-height:1.45; }
+#faq .faq-item .answer { padding-right:10px; }
+#faq .faq-item p { font-size:14px; line-height:1.76; }
+#faq .faq-item[hidden] { display:none !important; }
+#faq .faq-empty[hidden] { display:none !important; }
+@media(max-width:1050px) { #faq.faq { width:min(var(--container),calc(100% - 60px)); } #faq .faq-nav { padding:6px; } #faq .faq-filter { font-size:12px;padding:13px 14px; } #faq .faq-heading-row { gap:24px; } }
+@media(max-width:800px) { #faq .faq-heading-row { grid-template-columns:1fr; align-items:start; gap:13px; margin-bottom:25px; } #faq .faq-heading-row .section-body { justify-self:start; max-width:580px; } #faq .faq-list { grid-template-columns:1fr; } }
+@media(max-width:540px) { #faq.faq { width:calc(100% - 36px); } #faq .faq-heading-row { margin-bottom:20px; } #faq .faq-nav { flex-wrap:nowrap; overflow-x:auto; scroll-snap-type:x proximity; scrollbar-width:thin; border-radius:15px; padding:5px; gap:5px; margin-bottom:16px; } #faq .faq-filter { flex:0 0 auto; min-height:43px; padding:11px 13px; border-radius:11px; font-size:11px; scroll-snap-align:start; } #faq .faq-item { padding:0 17px; border-radius:18px; } #faq .faq-item summary { font-size:14px; min-height:68px; padding:17px 0; } }
+@media(max-width:350px) { #faq.faq { width:calc(100% - 28px); } }
+</style></head>
+<body>
+<header><div class="wrap header-inner"><a aria-label="CELIKOM — на главную" class="brand" href="#top"><img alt="" src="/assets/images/celikom-mark.svg"/><span>CELIKOM</span></a><nav aria-label="Навигация"><a href="#idea">Идея</a><a href="#features">Возможности</a><a href="#how">Как работает</a></nav><a class="header-chip" href="#how">Как работает →</a></div></header>
+<main>
+<section class="hero" id="top"><div class="wrap hero-grid"><div class="hero-copy"><div class="eyebrow">CELIKOM · знакомая музыка</div><h1>Те самые песни.<br/><span>То самое звучание.</span></h1><p class="hero-lead">Когда любимая песня звучит не так, как ты её помнишь, CELIKOM помогает вернуть знакомую версию — если она есть в проверенном каталоге. Всё в привычном веб‑плеере.</p><div class="actions"><a class="btn primary" href="#how">Как это работает <span aria-hidden="true">↗</span></a><a class="btn ghost" href="#features">Что умеет CELIKOM <span aria-hidden="true">→</span></a></div></div>
+<div aria-label="Фирменный графический фон и настоящий фрагмент интерфейса CELIKOM" class="visual"><svg aria-hidden="true" class="swoosh" viewbox="0 0 660 310"><path d="M0 170 Q140 -20 295 140 T660 110" fill="none" opacity=".19" stroke="#65dfb7" stroke-width="4"></path><path d="M-10 192 Q160 -5 310 168 T680 137" fill="none" opacity=".12" stroke="#65dfb7" stroke-width="2"></path></svg><div aria-hidden="true" class="demo-stage"><div class="demo-top"><i class="dot"></i><i class="dot"></i><i class="dot"></i><i class="demo-bar"></i></div><div class="demo-main"><div class="art"><svg viewbox="0 0 100 100"><path d="M0 50 Q 12 2 24 50 T48 50 T72 50 T96 50" fill="none" stroke="#74efcc" stroke-linecap="round" stroke-width="6"></path></svg></div><div class="skeleton"><span></span><span></span><span></span></div></div><div class="demo-bottom"><span></span><span></span></div></div><div aria-hidden="true" class="pulse"><img alt="" src="/assets/images/celikom-mark.svg"/></div><div class="real-panel"><img alt="Фрагмент настоящего интерфейса расширения: Повторить, Стоп, Вернуть оригинал, Загрузить версию, Предложить песню, статус аккаунта и поддержка" data-managed-media="celikom.popup.approved" src="/media/celikom-popup-approved.png"/></div></div></div></section>
+<section class="divider" id="features"><div class="wrap benefits" id="idea"><div class="benefit-grid"><article class="benefit"><div aria-hidden="true" class="benefit-icon"><svg aria-hidden="true" focusable="false" viewbox="0 0 24 24"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path><path d="M3 3v5h5"></path></svg></div><h3>Привычное звучание</h3><p>Для знакомых песен можно использовать доступную проверенную версию, которую ты помнишь.</p></article><article class="benefit"><div aria-hidden="true" class="benefit-icon"><svg aria-hidden="true" focusable="false" viewbox="0 0 24 24"><rect height="14" rx="2" width="18" x="3" y="4"></rect><path d="M8 22h8M12 18v4"></path></svg></div><h3>Тот же плеер</h3><p>Слушай музыку в привычном веб‑интерфейсе. Не нужно переезжать на новую музыкальную платформу.</p></article><article class="benefit"><div aria-hidden="true" class="benefit-icon"><svg aria-hidden="true" focusable="false" viewbox="0 0 24 24"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"></path><circle cx="15" cy="7" r="2"></circle><circle cx="9" cy="17" r="2"></circle></svg></div><h3>Всё под контролем</h3><p>CELIKOM позволяет управлять заменой звука и возвращаться к оригинальному воспроизведению.</p></article></div></div></section>
+<section class="wrap process" id="how"><div class="eyebrow">Просто и понятно</div><h2>Как это работает</h2><div class="steps"><div class="step"><div class="num">01</div><h3>Подключи расширение</h3><p>Сейчас CELIKOM проходит тестирование. После запуска установить расширение можно будет с этой страницы.</p></div><div class="step"><div class="num">02</div><h3>Открой музыкальный веб‑плеер</h3><p>Продолжай пользоваться привычной очередью, плейлистами и управлением.</p></div><div class="step"><div class="num">03</div><h3>Слушай знакомую версию</h3><p>Если нужная проверенная версия доступна, CELIKOM может заменить звучание трека. Исходное воспроизведение можно вернуть.</p></div></div></section>
+<section aria-labelledby="sound-title" class="wrap next-section demo-section" id="sound">
+<div class="demo-copy">
+<div class="section-topline">Как это устроено</div>
+<h2 class="section-heading" id="sound-title">Тот же трек. Знакомый звук.</h2>
+<p class="section-body">Плеер остаётся прежним. Когда для выбранной песни есть проверенная версия, CELIKOM может заменить её звучание. А оригинальное воспроизведение всегда можно вернуть.</p>
+<div aria-label="Показать принцип работы" class="demo-options" role="group">
+<button aria-pressed="true" class="mode-btn" id="mode-service" type="button">Без CELIKOM</button>
+<button aria-pressed="false" class="mode-btn" id="mode-restored" type="button">С CELIKOM</button>
+</div>
+</div>
+<div aria-label="Визуальная схема принципа замены звука" class="demo-board" data-mode="service" id="sound-panel">
+<div class="demo-board-label">Схема звучания</div>
+<div aria-hidden="true" class="wave"><span aria-hidden="true" class="wave-bar" style="--level:8;--original:22"></span><span aria-hidden="true" class="wave-bar" style="--level:13;--original:24"></span><span aria-hidden="true" class="wave-bar" style="--level:20;--original:27"></span><span aria-hidden="true" class="wave-bar" style="--level:28;--original:31"></span><span aria-hidden="true" class="wave-bar" style="--level:40;--original:36"></span><span aria-hidden="true" class="wave-bar" style="--level:56;--original:43"></span><span aria-hidden="true" class="wave-bar" style="--level:73;--original:51"></span><span aria-hidden="true" class="wave-bar" style="--level:46;--original:39"></span><span aria-hidden="true" class="wave-bar" style="--level:26;--original:30"></span><span aria-hidden="true" class="wave-bar" style="--level:60;--original:45"></span><span aria-hidden="true" class="wave-bar" style="--level:86;--original:57"></span><span aria-hidden="true" class="wave-bar" style="--level:100;--original:63"></span><span aria-hidden="true" class="wave-bar" style="--level:65;--original:47"></span><span aria-hidden="true" class="wave-bar" style="--level:43;--original:37"></span><span aria-hidden="true" class="wave-bar" style="--level:77;--original:53"></span><span aria-hidden="true" class="wave-bar" style="--level:92;--original:59"></span><span aria-hidden="true" class="wave-bar" style="--level:60;--original:45"></span><span aria-hidden="true" class="wave-bar" style="--level:37;--original:35"></span><span aria-hidden="true" class="wave-bar" style="--level:59;--original:45"></span><span aria-hidden="true" class="wave-bar" style="--level:81;--original:54"></span><span aria-hidden="true" class="wave-bar" style="--level:46;--original:39"></span><span aria-hidden="true" class="wave-bar" style="--level:21;--original:27"></span><span aria-hidden="true" class="wave-bar" style="--level:50;--original:40"></span><span aria-hidden="true" class="wave-bar" style="--level:74;--original:51"></span><span aria-hidden="true" class="wave-bar" style="--level:41;--original:36"></span><span aria-hidden="true" class="wave-bar" style="--level:24;--original:29"></span><span aria-hidden="true" class="wave-bar" style="--level:16;--original:25"></span><span aria-hidden="true" class="wave-bar" style="--level:33;--original:33"></span><span aria-hidden="true" class="wave-bar" style="--level:16;--original:25"></span><span aria-hidden="true" class="wave-bar" style="--level:9;--original:22"></span></div>
+<div><div aria-live="polite" class="demo-board-result" id="sound-result">Звучит версия из плеера</div><p class="demo-board-foot">Песни и плейлисты остаются в привычном сервисе.</p></div>
+</div>
+</section>
+<section aria-labelledby="player-title" class="wrap next-section familiar" id="player">
+<div>
+<div class="section-topline">Ничего лишнего</div>
+<h2 class="section-heading" id="player-title">Меняется звук.<br/>Не твои привычки.</h2>
+<p class="section-body">Не нужно переезжать в другой музыкальный сервис. Пользуйся привычным веб‑плеером: сохраняй очередь, переключай песни и управляй воспроизведением как обычно.</p>
+<div class="familiar-features"><div><svg aria-hidden="true" viewbox="0 0 24 24"><path d="m5 12 4 4 10-10"></path></svg> Плейлисты</div><div><svg aria-hidden="true" viewbox="0 0 24 24"><path d="m5 12 4 4 10-10"></path></svg> Очередь</div><div><svg aria-hidden="true" viewbox="0 0 24 24"><path d="m5 12 4 4 10-10"></path></svg> Пауза</div><div><svg aria-hidden="true" viewbox="0 0 24 24"><path d="m5 12 4 4 10-10"></path></svg> Перемотка</div></div>
+</div>
+<div aria-hidden="true" class="familiar-visual"><div class="familiar-tag t1">Твой плеер</div><div class="familiar-orbit"><svg aria-hidden="true" viewbox="0 0 24 24"><path d="M2 12c3.5 0 3.5-8 7-8s3.5 16 7 16 3.5-8 6-8"></path></svg></div><div class="familiar-tag t2">Твоё управление</div></div>
+</section>
+<section aria-labelledby="contribute-title" class="wrap next-section community" id="contribute">
+<div class="community-header"><div class="section-topline">Вместе вернём больше</div><h2 class="section-heading" id="contribute-title">Нет нужной песни?<br/>Ты можешь помочь.</h2><p class="section-body">Если нужной версии пока нет, есть два способа поучаствовать. Так сообщество помогает пополнять каталог проверенных записей.</p></div>
+<div class="community-grid">
+<article class="community-card"><div class="community-card-icon"><svg aria-hidden="true" viewbox="0 0 24 24"><path d="M11 12h10M16 7v10"></path><path d="M3 5h8M3 12h4M3 19h12"></path></svg></div><h3>Предложить песню</h3><p>Сообщи, какую песню хочется снова услышать в привычной версии. Предложение можно отправить прямо из расширения.</p></article>
+<article class="community-card"><div class="community-card-icon"><svg aria-hidden="true" viewbox="0 0 24 24"><path d="M12 16V3M7 8l5-5 5 5"></path><path d="M4 15v5a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-5"></path></svg></div><h3>Загрузить версию</h3><p>Есть подходящая запись и необходимые права на её использование? Предложи файл на проверку. В каталог он попадёт только после одобрения.</p></article>
+</div>
+</section>
+<section aria-labelledby="trust-title" class="wrap next-section trust" id="transparency">
+<div class="trust-copy">
+<div class="section-topline">Без лишних обещаний</div>
+<h2 class="section-heading" id="trust-title">Понятно, как всё работает.</h2>
+<p class="section-body">CELIKOM не заменяет музыкальный сервис. Он помогает вернуть знакомое звучание выбранной композиции, когда для неё доступна проверенная версия.</p>
+<div class="trust-points">
+<div class="trust-point"><span aria-hidden="true" class="tick">✓</span><span>Знакомый плеер и привычное управление остаются.</span></div>
+<div class="trust-point"><span aria-hidden="true" class="tick">✓</span><span>Для каждой песни необходима доступная проверенная версия.</span></div>
+<div class="trust-point"><span aria-hidden="true" class="tick">✓</span><span>Ты можешь вернуться к оригинальному воспроизведению.</span></div>
+</div>
+</div>
+<aside class="trust-callout">
+<h3>Что важно учитывать</h3>
+<p>Мы делаем полезный инструмент, а не обещаем восстановить вообще любую запись.</p>
+<div class="trust-callout-row"><b>01</b><span>Если нужной версии нет, CELIKOM не будет подменять её произвольной записью.</span></div>
+<div class="trust-callout-row"><b>02</b><span>Мобильная версия — отдельная разработка, а не готовый продукт.</span></div>
+<div class="trust-callout-row"><b>03</b><span>Мы независимы от музыкальных платформ и не гарантируем неизменность их правил выплат.</span></div>
+</aside>
+</section>
+<section aria-labelledby="faq-title" class="wrap next-section faq" id="faq"><div class="faq-heading-row"><div><div class="section-topline">Разбираемся вместе</div><h2 class="section-heading" id="faq-title">Вопросы и ответы.</h2></div><p class="section-body">Самое важное о запуске, пробных днях, бонусах за песни и промокодах. Без сложных терминов.</p></div><div class="faq-layout"><div aria-label="Темы вопросов" class="faq-nav" role="group"><button aria-pressed="true" class="faq-filter" data-filter="all" type="button">Все вопросы</button><button aria-pressed="false" class="faq-filter" data-filter="start" type="button">Установка и работа</button><button aria-pressed="false" class="faq-filter" data-filter="rewards" type="button">Бонусы и стоимость</button><button aria-pressed="false" class="faq-filter" data-filter="music" type="button">Песни и модерация</button><button aria-pressed="false" class="faq-filter" data-filter="help" type="button">Аккаунт и помощь</button></div><div class="faq-content"><div class="faq-list" id="faq-list"><details class="faq-item" data-category="start" id="faq-question-01"><summary><span>Что такое CELIKOM?</span><svg aria-hidden="true" viewbox="0 0 24 24"><path d="M12 5v14M5 12h14"></path></svg></summary><div class="answer"><p>Расширение для браузера, которое помогает снова услышать знакомую версию песни прямо в привычном музыкальном плеере. Если подходящая запись есть в каталоге, CELIKOM может подменить звук выбранного трека.</p></div></details><details class="faq-item" data-category="start" id="faq-question-02"><summary><span>Как установить CELIKOM?</span><svg aria-hidden="true" viewbox="0 0 24 24"><path d="M12 5v14M5 12h14"></path></svg></summary><div class="answer"><p>Пока расширение проходит закрытое тестирование. Когда начнётся публичный доступ, на этом сайте будет ссылка на установку и короткая инструкция.</p></div></details><details class="faq-item" data-category="start" id="faq-question-03"><summary><span>Как начать пользоваться после установки?</span><svg aria-hidden="true" viewbox="0 0 24 24"><path d="M12 5v14M5 12h14"></path></svg></summary><div class="answer"><p>Войди в аккаунт CELIKOM, открой Яндекс Музыку в браузере и нажми «Старт» в расширении. Когда для песни найдётся подходящая запись, CELIKOM сможет включить знакомое звучание.</p></div></details><details class="faq-item" data-category="start" id="faq-question-04"><summary><span>Есть ли бесплатный пробный период?</span><svg aria-hidden="true" viewbox="0 0 24 24"><path d="M12 5v14M5 12h14"></path></svg></summary><div class="answer"><p>Да, 3 дня. Пробный доступ уже предусмотрен: отсчёт начинается после первого запуска через «Старт», а не просто после установки расширения.</p></div></details><details class="faq-item" data-category="start" id="faq-question-05"><summary><span>Где работает CELIKOM?</span><svg aria-hidden="true" viewbox="0 0 24 24"><path d="M12 5v14M5 12h14"></path></svg></summary><div class="answer"><p>Сейчас CELIKOM создаётся для Яндекс Музыки в браузере Chrome. Версия для телефона находится в разработке, готового мобильного приложения пока нет.</p></div></details><details class="faq-item" data-category="start" id="faq-question-06"><summary><span>Можно ли вернуться к оригинальной песне?</span><svg aria-hidden="true" viewbox="0 0 24 24"><path d="M12 5v14M5 12h14"></path></svg></summary><div class="answer"><p>Да. В расширении есть кнопка «Вернуть оригинал», а также управление воспроизведением. Переключаться можно самому.</p></div></details><details class="faq-item" data-category="start" id="faq-question-07"><summary><span>Нужно ли переносить плейлисты и слушать музыку в другом приложении?</span><svg aria-hidden="true" viewbox="0 0 24 24"><path d="M12 5v14M5 12h14"></path></svg></summary><div class="answer"><p>Нет. Плейлисты, очередь, названия песен и привычные кнопки остаются в Яндекс Музыке. CELIKOM работает со звуком выбранной композиции.</p></div></details><details class="faq-item" data-category="rewards" id="faq-question-08"><summary><span>Сколько стоит CELIKOM?</span><svg aria-hidden="true" viewbox="0 0 24 24"><path d="M12 5v14M5 12h14"></path></svg></summary><div class="answer"><p>Подписка будет стоить $2,99 в месяц. Первые 3 дня — пробный доступ. Сейчас оплата ещё не подключена: до запуска платного доступа деньги не списываются.</p></div></details><details class="faq-item" data-category="rewards" id="faq-question-09"><summary><span>Как получить скидку за помощь с песнями?</span><svg aria-hidden="true" viewbox="0 0 24 24"><path d="M12 5v14M5 12h14"></path></svg></summary><div class="answer"><p>Загрузи через расширение версию песни, которой ещё нет в каталоге. Когда администратор проверит и одобрит её, тебе автоматически начислят 2% скидки на подписку. За простое предложение песни без файла бонус не дают.</p></div></details><details class="faq-item" data-category="rewards" id="faq-question-10"><summary><span>Сколько можно накопить скидки?</span><svg aria-hidden="true" viewbox="0 0 24 24"><path d="M12 5v14M5 12h14"></path></svg></summary><div class="answer"><p>За каждую одобренную уникальную версию начисляется 2%. В одном месяце можно использовать до 20% скидки — это 10 одобренных песен. Всё, что начислено сверх 20%, переносится на следующие месяцы.</p></div></details><details class="faq-item" data-category="rewards" id="faq-question-11"><summary><span>Сколько одобренных песен нужно для скидки 20%?</span><svg aria-hidden="true" viewbox="0 0 24 24"><path d="M12 5v14M5 12h14"></path></svg></summary><div class="answer"><p>Десять одобренных песен: 10 × 2% = 20% скидки на один месяц. Скидку начисляют только за новые уникальные версии после одобрения администратором.</p></div></details><details class="faq-item" data-category="rewards" id="faq-question-12"><summary><span>Когда начисляется бонус за песню?</span><svg aria-hidden="true" viewbox="0 0 24 24"><path d="M12 5v14M5 12h14"></path></svg></summary><div class="answer"><p>Сразу после того, как администратор одобрит твою уникальную запись. Никаких дополнительных заявок на бонус подавать не нужно.</p></div></details><details class="faq-item" data-category="rewards" id="faq-question-13"><summary><span>Сгорают ли бонусы, пока оплата не подключена?</span><svg aria-hidden="true" viewbox="0 0 24 24"><path d="M12 5v14M5 12h14"></path></svg></summary><div class="answer"><p>Нет. Начисленные проценты сохраняются в аккаунте. Использовать их при оплате подписки можно будет после запуска платежей.</p></div></details><details class="faq-item" data-category="rewards" id="faq-question-14"><summary><span>Бывают ли подарочные промокоды?</span><svg aria-hidden="true" viewbox="0 0 24 24"><path d="M12 5v14M5 12h14"></path></svg></summary><div class="answer"><p>Иногда мы будем выдавать подарочные промокоды: к праздникам, в благодарность за помощь проекту или участникам тестирования. Общедоступной постоянной раздачи нет. Если получишь код, введи его в аккаунте CELIKOM.</p></div></details><details class="faq-item" data-category="rewards" id="faq-question-15"><summary><span>Как активировать промокод?</span><svg aria-hidden="true" viewbox="0 0 24 24"><path d="M12 5v14M5 12h14"></path></svg></summary><div class="answer"><p>Если у тебя есть подарочный код, открой аккаунт CELIKOM в расширении, введи промокод и активируй его. Доступ появится на срок, указанный для этого кода, если он действителен.</p></div></details><details class="faq-item" data-category="rewards" id="faq-question-16"><summary><span>Как ещё можно получить поощрение от CELIKOM?</span><svg aria-hidden="true" viewbox="0 0 24 24"><path d="M12 5v14M5 12h14"></path></svg></summary><div class="answer"><p>Поощрения за одобренные песни начисляются автоматически. В отдельных случаях мы можем поблагодарить подарочным кодом за тестирование, полезную помощь или участие в мероприятиях CELIKOM.</p></div></details><details class="faq-item" data-category="rewards" id="faq-question-17"><summary><span>Можно ли загрузить больше десяти песен?</span><svg aria-hidden="true" viewbox="0 0 24 24"><path d="M12 5v14M5 12h14"></path></svg></summary><div class="answer"><p>Да. Загружать можно и больше десяти версий. За каждую новую одобренную запись начисляются 2%, но на один месяц приходится не больше 20% скидки. Остальное сохраняется на следующие месяцы.</p></div></details><details class="faq-item" data-category="rewards" id="faq-question-18"><summary><span>Дают ли 2% за простое предложение песни?</span><svg aria-hidden="true" viewbox="0 0 24 24"><path d="M12 5v14M5 12h14"></path></svg></summary><div class="answer"><p>Нет. Если ты просто предложил название песни, бонус не начисляется. Чтобы получить 2%, загрузи подходящую запись, которую администратор проверит и одобрит.</p></div></details><details class="faq-item" data-category="music" id="faq-question-19"><summary><span>Что делать, если нужной песни нет?</span><svg aria-hidden="true" viewbox="0 0 24 24"><path d="M12 5v14M5 12h14"></path></svg></summary><div class="answer"><p>Нажми «Предложить песню» в расширении. Запрос попадёт к администраторам, и они увидят, какую запись слушатели хотят вернуть.</p></div></details><details class="faq-item" data-category="music" id="faq-question-20"><summary><span>Когда рассмотрят моё предложение?</span><svg aria-hidden="true" viewbox="0 0 24 24"><path d="M12 5v14M5 12h14"></path></svg></summary><div class="answer"><p>Предложение попадает в админку сразу после отправки. Обычно команда просматривает новые запросы в ближайшие несколько дней. Это не означает, что запись сразу появится: сначала нужно найти подходящую версию и проверить её.</p></div></details><details class="faq-item" data-category="music" id="faq-question-21"><summary><span>Как загрузить свою версию песни?</span><svg aria-hidden="true" viewbox="0 0 24 24"><path d="M12 5v14M5 12h14"></path></svg></summary><div class="answer"><p>Нажми «Загрузить версию» в расширении, выбери подходящую запись и отправь на проверку. Файл не появляется в общем каталоге до одобрения администратором.</p></div></details><details class="faq-item" data-category="music" id="faq-question-22"><summary><span>За какие загрузки дают бонус?</span><svg aria-hidden="true" viewbox="0 0 24 24"><path d="M12 5v14M5 12h14"></path></svg></summary><div class="answer"><p>За новую уникальную версию песни, которую администратор проверил и одобрил. За дубликаты, отклонённые записи и простые предложения без файла скидка не начисляется.</p></div></details><details class="faq-item" data-category="music" id="faq-question-23"><summary><span>Почему мою запись отклонили?</span><svg aria-hidden="true" viewbox="0 0 24 24"><path d="M12 5v14M5 12h14"></path></svg></summary><div class="answer"><p>Причиной может быть неверная песня, плохое качество, несовпадение длительности, повтор уже имеющейся записи или отсутствие необходимых разрешений на использование файла.</p></div></details><details class="faq-item" data-category="music" id="faq-question-24"><summary><span>Можно ли предложить песню, не загружая файл?</span><svg aria-hidden="true" viewbox="0 0 24 24"><path d="M12 5v14M5 12h14"></path></svg></summary><div class="answer"><p>Да. Для этого существует отдельная кнопка «Предложить песню». Так ты сообщаешь о том, чего не хватает в каталоге.</p></div></details><details class="faq-item" data-category="music" id="faq-question-25"><summary><span>Какие записи разрешено загружать?</span><svg aria-hidden="true" viewbox="0 0 24 24"><path d="M12 5v14M5 12h14"></path></svg></summary><div class="answer"><p>Только те, на использование и передачу которых у тебя есть необходимые права или разрешения. Даже подходящий по звучанию файл может не пройти модерацию.</p></div></details><details class="faq-item" data-category="help" id="faq-question-26"><summary><span>Нужен ли аккаунт CELIKOM?</span><svg aria-hidden="true" viewbox="0 0 24 24"><path d="M12 5v14M5 12h14"></path></svg></summary><div class="answer"><p>Да. В аккаунте хранятся твой пробный срок, доступ и бонусы за одобренные версии. Если получишь подарочный промокод, активировать его можно там же.</p></div></details><details class="faq-item" data-category="help" id="faq-question-27"><summary><span>Что делать, если музыка не заменяется?</span><svg aria-hidden="true" viewbox="0 0 24 24"><path d="M12 5v14M5 12h14"></path></svg></summary><div class="answer"><p>Проверь, открыта ли вкладка Яндекс Музыки, включено ли расширение и есть ли подходящая версия песни в каталоге. Если проблема повторяется, открой поддержку в CELIKOM.</p></div></details><details class="faq-item" data-category="help" id="faq-question-28"><summary><span>Как связаться с поддержкой?</span><svg aria-hidden="true" viewbox="0 0 24 24"><path d="M12 5v14M5 12h14"></path></svg></summary><div class="answer"><p>В расширении есть раздел «Связь с поддержкой». Там можно описать проблему и при необходимости скопировать диагностику, чтобы быстрее разобраться.</p></div></details></div><div class="faq-empty" hidden="" id="faq-empty">В этой теме пока нет вопросов.</div></div></div></section>
+<section aria-labelledby="reward-title" class="wrap next-section reward" id="rewards">
+<div class="reward-copy">
+<div class="section-topline">Сообщество помогает</div>
+<h2 class="section-heading" id="reward-title">Помогаешь с музыкой — получаешь бонус.</h2>
+<p class="section-body">За каждую новую уникальную версию песни, которую администратор одобрит, на твой аккаунт начисляется 2% скидки. За месяц можно использовать максимум 20% — это 10 песен. Сверхлимитные бонусы не исчезают: они переходят на следующие месяцы.</p>
+<div class="reward-notice"><svg aria-hidden="true" viewbox="0 0 24 24"><circle cx="12" cy="12" r="9"></circle><path d="M12 11v5m0-8h.01"></path></svg><span>Накопленные проценты сохраняются до запуска оплаты. Скидку можно будет применить к подписке, когда платежи заработают.</span></div>
+</div>
+<div aria-hidden="true" class="reward-illustration"><div class="reward-orbit reward-orbit--one"></div><div class="reward-orbit reward-orbit--two"></div><div class="reward-symbol"><svg viewbox="0 0 64 64"><path d="M24 21c-7 0-11 5-11 11 0 6 5 11 11 11h16c7 0 11-5 11-11 0-6-5-11-11-11H24Z"></path><path d="m27 33 5 5 9-12"></path></svg></div><div class="reward-tag">Версия прошла проверку</div></div>
+</section>
+<section aria-labelledby="install-title" class="wrap next-section install" id="install">
+<div class="install-text"><div class="section-topline">Скоро на твоём компьютере</div><h2 class="section-heading" id="install-title">Знакомая музыка ближе, чем кажется.</h2><p class="section-body">CELIKOM проходит тестирование. Когда мы откроем установку, ты сможешь подключить расширение с этой страницы.</p><div class="install-status"><span class="status-dot"></span>Идёт тестирование</div></div>
+<div class="install-card"><div class="install-card-icon"><svg aria-hidden="true" viewbox="0 0 24 24"><path d="M12 3v12m-5-5 5 5 5-5"></path><path d="M4 17v3h16v-3"></path></svg></div><h3>Установка после запуска</h3><p>Как только расширение будет готово для всех, ты найдёшь здесь проверенный источник и простую инструкцию по подключению.</p><span class="install-future">Пока установка закрыта</span></div>
+</section>
+<section aria-labelledby="closing-title" class="wrap next-section closing" id="closing"><div class="closing-halo"></div><div class="section-topline">CELIKOM</div><h2 id="closing-title">Пусть любимые песни звучат знакомо.</h2><p>Мы создаём CELIKOM, чтобы слушать музыку в привычном плеере и снова находить те самые версии песен.</p><a class="closing-link" href="#top">Наверх страницы <span aria-hidden="true">↗</span></a></section>
+</main>
+<footer class="wrap"><div class="footer-inner"><a aria-label="CELIKOM — наверх" class="footer-brand" href="#top">CELIKOM</a><div class="footer-links"><a href="#how">Как работает</a><a href="#contribute">Участие</a><a href="#faq">Вопросы</a><a href="#install">Установка</a></div></div></footer>
+<script>(() => {
+ const board=document.getElementById('sound-panel');
+ const result=document.getElementById('sound-result');
+ const buttons={service:document.getElementById('mode-service'),restored:document.getElementById('mode-restored')};
+ if(!board || !result || !buttons.service || !buttons.restored) return;
+ for(const [mode,button] of Object.entries(buttons)) {
+  button.addEventListener('click',() => {
+   board.dataset.mode=mode;
+   for(const [name,control] of Object.entries(buttons)) control.setAttribute('aria-pressed',String(name===mode));
+   result.textContent=mode==='restored'?'Играет знакомая версия — если\u00a0она доступна':'Звучит версия из\u00a0плеера';
+  });
+ }
+})();
+</script>
+<script>
+(() => {
+  const root = document.getElementById('faq');
+  if (!root) return;
+  const items = [...root.querySelectorAll('.faq-item')];
+  const buttons = [...root.querySelectorAll('.faq-filter')];
+  const empty = root.querySelector('#faq-empty');
+  function apply(category) {
+    let shown=0;
+    for(const item of items){
+      const visible=category==='all'||item.dataset.category===category;
+      item.hidden=!visible;
+      if (!visible) item.open=false;
+      if(visible) shown++;
+    }
+    for(const button of buttons) button.setAttribute('aria-pressed',String(button.dataset.filter===category));
+    if(empty) empty.hidden=shown>0;
+  }
+  for(const button of buttons) button.addEventListener('click',()=>apply(button.dataset.filter));
+  const hash = decodeURIComponent(location.hash.slice(1));
+  const target=hash?document.getElementById(hash):null;
+  if(target && target.classList.contains('faq-item')){apply(target.dataset.category);target.open=true;}
+  else apply('all');
+})();
+</script></body></html>

@@ -1,0 +1,59 @@
+name: CELIKOM staging live owner-login smoke test
+on:
+  push:
+    branches: [feature/api-range]
+    paths:
+      - .github/workflows/celikom-site-staging-auth-smoke.yml
+permissions:
+  contents: read
+jobs:
+  live-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 9
+    steps:
+      - name: Check authorized website, CMS login and preview without exposing passwords
+        shell: bash
+        env:
+          SSH_KEY: ${{ secrets.CELIKOM_HOSTINGER_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.CELIKOM_HOSTINGER_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REPOSITORY" = manufact-test/nomusic
+          test "$GITHUB_REF" = refs/heads/feature/api-range
+          umask 077
+          t=$(mktemp -d)
+          trap 'rm -rf "$t"' EXIT
+          printf '%s\n' "$SSH_KEY" > "$t/key"
+          printf '%s\n' "$KNOWN_HOSTS" > "$t/known"
+          chmod 600 "$t/key" "$t/known"
+          ssh -T -p 65002 -i "$t/key" -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$t/known" u235811320@92.113.19.189 'bash -se' <<'REMOTE'
+          set -euo pipefail
+          private=/home/u235811320/domains/lemonchiffon-narwhal-791953.hostingersite.com/celikom-private
+          test -f "$private/app/staging-approved.php"
+          test -f "$private/staging-owner-credentials.txt"
+          secret="$private/staging-owner-credentials.txt"
+          basic=$(sed -n 's/^HTTP Basic password: //p' "$secret")
+          owner=$(sed -n 's/^CMS password: //p' "$secret")
+          test -n "$basic" && test -n "$owner"
+          temp=$(mktemp -d)
+          trap 'rm -rf "$temp"' EXIT
+          base=https://lemonchiffon-narwhal-791953.hostingersite.com
+          code=$(curl -sS --connect-timeout 10 --max-time 25 -u "review:$basic" -o "$temp/site" -w '%{http_code}' "$base/")
+          test "$code" = 200 && grep -q CELIKOM "$temp/site"
+          echo 'SITE_AUTHENTICATED_200'
+          code=$(curl -sS --connect-timeout 10 --max-time 25 -u "review:$basic" -c "$temp/cookies" -b "$temp/cookies" -o "$temp/login" -w '%{http_code}' "$base/admin/")
+          test "$code" = 200 && grep -q 'Вход администратора' "$temp/login"
+          csrf=$(sed -n 's/.*name="csrf" value="\([a-f0-9]\{64\}\)".*/\1/p' "$temp/login" | head -n 1)
+          test "${#csrf}" = 64
+          result=$(curl -sS --connect-timeout 10 --max-time 25 -u "review:$basic" -c "$temp/cookies" -b "$temp/cookies" -o "$temp/post" -w '%{http_code}' \
+            --data-urlencode "csrf=$csrf" --data-urlencode "action=login" \
+            --data-urlencode "username=owner" --data-urlencode "password=$owner" "$base/admin/")
+          test "$result" = 303 || { echo 'CMS_LOGIN_FAILED'; exit 1; }
+          echo 'CMS_OWNER_LOGIN_303'
+          result=$(curl -sS --connect-timeout 10 --max-time 25 -u "review:$basic" -c "$temp/cookies" -b "$temp/cookies" -o "$temp/dashboard" -w '%{http_code}' "$base/admin/")
+          test "$result" = 200 && grep -q 'Черновик текстов' "$temp/dashboard"
+          echo 'CMS_AUTHENTICATED_EDITOR_200'
+          result=$(curl -sS --connect-timeout 10 --max-time 25 -u "review:$basic" -c "$temp/cookies" -b "$temp/cookies" -o "$temp/preview" -w '%{http_code}' "$base/admin/?view=preview")
+          test "$result" = 200 && grep -q CELIKOM "$temp/preview"
+          echo 'CMS_PRIVATE_PREVIEW_200'
+          REMOTE
