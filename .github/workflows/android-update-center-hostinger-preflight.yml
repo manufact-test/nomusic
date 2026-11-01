@@ -13,7 +13,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with: {persist-credentials: false}
-      - name: Verify existing Hostinger Android release destination without mutation
+      - name: Verify private Hostinger files and PHP resolver without mutation
         env:
           SSH_KEY: ${{ secrets.CELIKOM_HOSTINGER_SSH_KEY }}
           KNOWN_HOSTS: ${{ secrets.CELIKOM_HOSTINGER_KNOWN_HOSTS }}
@@ -26,15 +26,18 @@ jobs:
           umask 077
           tmp=$(mktemp -d)
           trap 'rm -rf "$tmp"' EXIT
-          printf '%s\n' "$SSH_KEY" > "$tmp/id"
-          printf '%s\n' "$KNOWN_HOSTS" > "$tmp/known"
+          printf '%s\\n' "$SSH_KEY" > "$tmp/id"
+          printf '%s\\n' "$KNOWN_HOSTS" > "$tmp/known"
           chmod 600 "$tmp/id" "$tmp/known"
           ssh -T -p 65002 -i "$tmp/id" -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$tmp/known" u235811320@92.113.19.189 'bash -se' <<'REMOTE'
           set -euo pipefail
           root=/home/u235811320/domains/lemonchiffon-narwhal-791953.hostingersite.com
           test -d "$root/public_html" && test -d "$root/celikom-private"
           test -f "$root/public_html/index.php"
+          test -f "$root/public_html/update-center.php"
           test -f "$root/celikom-private/app/staging-approved.php"
+          test -f "$root/celikom-private/android-updates/stable.json"
+          test -d "$root/celikom-private/android-updates/releases"
           echo "HOSTINGER_REACHABLE; SITE_AND_PRIVATE_DIR_PRESENT"
           if test -f "$root/public_html/.htaccess"; then
             echo "HTACCESS_PRESENT"
@@ -43,4 +46,38 @@ jobs:
             echo "HTACCESS_ABSENT"
           fi
           /opt/alt/php83/usr/bin/php -v | head -1
+          /opt/alt/php83/usr/bin/php -r '
+            $_SERVER["REQUEST_METHOD"]="GET";
+            $_SERVER["REQUEST_URI"]="/updates/android/stable.json";
+            include $argv[1];
+          ' "$root/public_html/update-center.php" > /tmp/celikom-live-stable-manifest.json
+          python3 - <<'PY'
+          import json,os
+          p="/tmp/celikom-live-stable-manifest.json"
+          with open(p) as f: m=json.load(f)
+          assert m.get("enabled") is True and m.get("channel")=="stable"
+          assert m.get("packageName")=="pro.celikom.nativeprobe"
+          print("PRIVATE_PHP_RESOLVER_OK",m["versionName"],m["versionCode"],"manifest_bytes",os.path.getsize(p))
+          PY
+          rm -f /tmp/celikom-live-stable-manifest.json
           REMOTE
+      - name: Verify public HTTPS manifest status, body and JSON contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          tmp=$(mktemp -d)
+          trap 'rm -rf "$tmp"' EXIT
+          status="$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
+            -H 'Cache-Control: no-cache' -o "$tmp/manifest.json" -w '%{http_code}' \
+            'https://lemonchiffon-narwhal-791953.hostingersite.com/updates/android/stable.json')"
+          bytes="$(wc -c < "$tmp/manifest.json" | tr -d ' ')"
+          echo "PUBLIC_MANIFEST_HTTP=$status BODY_BYTES=$bytes"
+          test "$status" = 200
+          test "$bytes" -gt 100
+          python3 - "$tmp/manifest.json" <<'PY'
+          import json,sys
+          with open(sys.argv[1]) as f: m=json.load(f)
+          assert m.get("enabled") is True and m.get("channel")=="stable"
+          assert m.get("packageName")=="pro.celikom.nativeprobe"
+          print("PUBLIC_MANIFEST_OK",m["versionName"],m["versionCode"])
+          PY
