@@ -1,0 +1,40 @@
+# CELIKOM Android 0.3.78 — automatic playback of approved replacements
+
+Date: 2026-11-01  
+Status: staging candidate; CI and physical HONOR listening acceptance pending. Stable publication is not authorized by this document.
+
+## Baseline
+
+- Production Android: 0.3.77, versionCode 78.
+- Production source base: `94afa76ff1739557e050f9020ef6b2a889e9e109`.
+- Candidate Android: 0.3.78, versionCode 79.
+- Staging branch: `feature/android-078-approved-replacement-autostart-staging-20261101`.
+- Original package identity, signing certificate, updater, backend and admin panel remain unchanged.
+
+## Owner-approved behavior
+
+- An identified unique catalogue track ID is sent to the existing live CELIKOM resolve endpoint.
+- If the backend returns an approved replacement (`found=true`) and the existing audio-session/source checks pass, playback starts automatically.
+- No second confirmation, confirmation button, manual retry or post-confirmation resolve is required.
+- Unique fresh own-catalogue and previously learned album metadata candidates may use the same live resolve. A stale/incomplete catalogue hint is not promoted to a candidate; ambiguous or insufficient identity continues with the original.
+- The backend's approved mapping and entitlement response remain the authorization boundary. The app does not play a file merely because a title matched.
+
+## Duration safety
+
+- Keep the existing measured-file checks and bounded 1500ms tail allowance for a unique candidate backed by a track ID.
+- The 582ms, 663ms, 1354ms and 1469ms cases should proceed automatically when the server metadata and measured file satisfy the existing bounded checks.
+- Differences beyond the existing bound, invalid duration metadata, wrong audio session, stale source, entitlement denial, or invalid audio continue to fail open to the original.
+
+## Strict scope
+
+- Removed the user confirmation gate and the corresponding Android UI button/dialog.
+- No seek timing, WARM lead, gain law, crossfade duration, pause/resume, Next, buffering, audio ownership, decoder lifecycle, Media3 arbitration or output-clock algorithm was changed.
+- No desktop extension, website, backend, admin panel, Hostinger deployment, stable manifest or signing identity change.
+
+## Required verification
+
+- Actual-engine replay: automatic ALBUM and LEARNED_METADATA paths; one live resolve per track; 582/663/1354/1469ms bounded tails; >1500ms mismatch remains rejected; stale hint remains non-playable; all historical audio regressions.
+- Android API 36 full-source/Test* host gates and release-contract/archive checks.
+- Physical HONOR test after the candidate is built: confirm the previously blocked approved songs now replace automatically; verify ordinary playback, pause, seek, Next and song boundaries remain unchanged.
+
+A green CI run is not acoustic acceptance. The owner's listening test remains the final gate.
