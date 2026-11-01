@@ -175,7 +175,7 @@ jobs:
 
 
   build-test-candidate:
-    if: github.ref == 'refs/heads/feature/android-0382-cache-prewarm-staging-20261101'
+    if: github.ref == 'refs/heads/feature/android-0382-cache-prewarm-staging-20261101' || github.ref == 'refs/heads/feature/android-0382-playback-continuity-fix-20261101'
     needs: native-android
     uses: ./.github/workflows/android-auto-publish-hostinger.yml
     with:
