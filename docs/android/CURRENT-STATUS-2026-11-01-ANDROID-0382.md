@@ -1,22 +1,43 @@
-# CELIKOM Android — Current Status 2026-11-01 (0.3.82 stable; 0.3.83 diagnostic candidate)
+# CELIKOM Android — Current Status 2026-11-01 (0.3.83 stable; 0.3.82 prior listening baseline)
 
-## Latest diagnostic candidate — 0.3.83 / versionCode 84
+## Latest stable publication — 0.3.83 / versionCode 84
 
-The 0.3.82 listening baseline remains the current stable release. A separate instrumentation-only candidate has now been built and signed to improve Media3 source-event classification and correlate source, replacement decoder and seek generations.
+**Published successfully to CELIKOM's normal in-app update channel.** The owner can now install it through **Check for update**.
 
-- Branch: **feature/android-0382-playback-continuity-fix-20261101**.
-- Source commit: **5a1178048a5aabdeb4cecfa19ee7db2abb797bda**.
-- Candidate: **0.3.83 / code 84**.
-- CI and signed test candidate workflow [#41346799079](https://github.com/manufact-test/nomusic/actions/runs/41346799079): **SUCCESS**.
-- APK SHA-256: **08f43a8b39623f2ea574ef86d2c58bbbd8046dc3a8b4554d37145835d79f3e79**.
-- APK size: **8,763,465 bytes**.
-- Original signing certificate retained.
-- GitHub artifact [celikom-android-0.3.83-signed-test](https://github.com/manufact-test/nomusic/actions/runs/41346799079/artifacts/13100110442), artifact ID **13100110442**.
-- **stable_published: false**; stable publication jobs were skipped. The 0.3.82 stable channel was not changed.
+- Release PR: [#33 — Release CELIKOM Android 0.3.83](https://github.com/manufact-test/nomusic/pull/33), open and unmerged pending owner retest.
+- Full release workflow: [#41347349507](https://github.com/manufact-test/nomusic/actions/runs/41347349507) — **SUCCESS**.
+- Full native host regression suite, release-contract checks, Android API 36 compilation and D8: PASS.
+- Rebuild from pinned private baseline and original signing inputs: PASS.
+- Signed APK/archive/provenance verification: PASS.
+- Immutable APK upload and atomic stable manifest publication: PASS.
+- Final live HTTP read of [stable.json](https://lemonchiffon-narwhal-791953.hostingersite.com/updates/android/stable.json) exactly matched the expected release manifest and confirmed **0.3.83 / 84**.
+- Deployed APK size: **8,763,465 bytes**.
+- Deployed APK SHA-256: **13f68937a268ea21f0f0527b5a1bd41937d3bd43db4c4399143181b9a5163425**.
+- Original signing certificate SHA-256 retained: **67fe81c56fac1c1d145344b69a0e3faf9005cf6607f4e26ca27d5926c3eefc4f**.
+- [Download deployed APK](https://lemonchiffon-narwhal-791953.hostingersite.com/releases/android/84-13f68937a268ea21f0f0527b5a1bd41937d3bd43db4c4399143181b9a5163425.apk).
 
-The new candidate is for better diagnostics only. It does not promise better sound and does not change seek/WARM/fade/gain/prewarm policy. In particular, Media3 listener callbacks cannot prove that the physical Next button was tapped; the logs explicitly preserve that limitation.
+### What this release changes
 
-Read [ANDROID-0383-MEDIA3-EVENT-CORRELATION-DIAGNOSTICS-2026-11-01.md](ANDROID-0383-MEDIA3-EVENT-CORRELATION-DIAGNOSTICS-2026-11-01.md) for the implementation, exact receipt and short owner retest procedure.
+0.3.83 is a **diagnostic-only** release. It adds read-only Media3 timeline/transition/discontinuity reason classification and correlation IDs across source items, replacement decoder instances and seek tickets. It does **not** change audio behavior, seek/WARM/fade/gain/prewarm policy or Next command behavior. Media3 callbacks do not prove that the physical Next button was tapped.
+
+### Important distinction between test APK and deployed APK
+
+The earlier test-only build [#41346799079](https://github.com/manufact-test/nomusic/actions/runs/41346799079), artifact [13100110442](https://github.com/manufact-test/nomusic/actions/runs/41346799079/artifacts/13100110442), had SHA-256 **08f43a8b39623f2ea574ef86d2c58bbbd8046dc3a8b4554d37145835d79f3e79**. It was not deployed. The final release workflow rebuilt and signed the actual OTA APK separately; the deployed binary SHA-256 is **13f68937a268ea21f0f0527b5a1bd41937d3bd43db4c4399143181b9a5163425**.
+
+### Owner retest
+
+1. Open CELIKOM.
+2. Press **Check for update**.
+3. Install **0.3.83 / code 84**.
+4. Run the short diagnostic sequence in [ANDROID-0383-MEDIA3-EVENT-CORRELATION-DIAGNOSTICS-2026-11-01.md](ANDROID-0383-MEDIA3-EVENT-CORRELATION-DIAGNOSTICS-2026-11-01.md): start a track, tap Next once, perform one finger seek, optionally allow one natural track boundary, then export diagnostics.
+
+The phone test is for event capture, not proof of improved sound. No audio-algorithm change is included.
+
+### Preserved prior versions
+
+- Previous listening baseline: **0.3.82 / versionCode 83**, snapshot `backup/android-0382-stable-listening-baseline-20261101`, SHA `2e03aca1dad0f89b3d71f871270e09f8bb9f143f`.
+- Earlier owner-approved rollback: **0.3.78 / versionCode 79**, branch `backup/android-0378-original-before-cached-join-20261101`, SHA `bf011dcf1a70c504883a8e5e742e0b038f41d9b0`.
+- Both backups remain untouched.
 
 ---
 

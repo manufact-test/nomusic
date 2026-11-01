@@ -1,3 +1,19 @@
+# Follow-up addendum — 0.3.83 diagnostic release published
+
+Date: 2026-11-01
+
+The earlier analysis and owner decision below describe the 0.3.82 listening retest at that time. After the owner authorized a diagnostic-only follow-up, CELIKOM 0.3.83 / versionCode 84 was built, signed and published to the normal in-app update channel.
+
+- Release workflow [#41347349507](https://github.com/manufact-test/nomusic/actions/runs/41347349507): **SUCCESS**.
+- Stable manifest [stable.json](https://lemonchiffon-narwhal-791953.hostingersite.com/updates/android/stable.json) was verified by the release workflow and advertises **0.3.83 / 84**.
+- Deployed APK SHA-256: **13f68937a268ea21f0f0527b5a1bd41937d3bd43db4c4399143181b9a5163425**.
+- Deployed APK size: **8,763,465 bytes**.
+- Original signing certificate retained.
+- [Deployed APK](https://lemonchiffon-narwhal-791953.hostingersite.com/releases/android/84-13f68937a268ea21f0f0527b5a1bd41937d3bd43db4c4399143181b9a5163425.apk).
+- Release PR [#33](https://github.com/manufact-test/nomusic/pull/33) remains open and unmerged pending owner retest.
+
+This does not contradict the historical decision to keep 0.3.82 as the best listening baseline at that time: 0.3.83 changes diagnostic attribution only and does not claim to fix the audible defects. The 0.3.82 snapshot and 0.3.78 rollback remain preserved.
+
 # CELIKOM Android 0.3.82 — HONOR listening retest and diagnostic analysis
 
 Date: 2026-11-01
