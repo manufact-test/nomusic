@@ -1,22 +1,44 @@
-## 2026-11-01 — Android 0.3.76 signed diagnostic test APK ready (not stable-published)
+## 2026-11-01 — CELIKOM Android 0.3.76 published to stable Hostinger updates
 
-**Owner action:** install the signed test APK over the existing CELIKOM app, then run the ordinary affected-track listening test and export diagnostics using the existing diagnostic control. Do not uninstall the current app first.
+<badge>Owner action</badge> Open CELIKOM on the phone and press the existing **«Проверить обновление»** button. Version **0.3.76** should now appear. Install it over the existing app; do not uninstall first. After installation, test the affected songs and export diagnostics using the existing diagnostic control.
+
+- Version: `0.3.76`, versionCode `77`, package `pro.celikom.nativeprobe`
+- Stable manifest: https://lemonchiffon-narwhal-791953.hostingersite.com/updates/android/stable.json
+- Published APK: https://lemonchiffon-narwhal-791953.hostingersite.com/releases/android/77-76e1086dc6a38d5b5c5186475babbfd16c959c06a573775e3c264b3b63cdcf40.apk
+- Published APK SHA-256: `76e1086dc6a38d5b5c5186475babbfd16c959c06a573775e3c264b3b63cdcf40`
+- Published APK size: `8,755,273 bytes`
+- Production merge commit: `712e7226052419647b46a16086921e4b82732051`
+- CI + publication: [GitHub Actions 41299061730 — SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/41299061730)
+- Both `native-android` and `publish-stable / publish` jobs passed. The live HTTP `stable.json` fetch exactly matched the newly published manifest and reported `0.3.76 / 77`.
+- Before replacing `stable.json`, the Hostinger server verified the uploaded APK's complete SHA-256 and byte size against the manifest. The APK was uploaded first; the stable pointer was atomically replaced second.
+- The original signing identity was retained. Signed APK verification passed: v2/v3 signature, alignment, package/version/API, manifest allowlist, catalogue assets and compiled addon DEX.
+- Documentation and machine-readable verification: `/CELIKOM/Android/Diagnostics/CELIKOM-0.3.76-verification-20261101.json`
+
+The earlier Library APK is a separately built local reproduction of the same source/DEX and signer, not the byte-identical production APK. Its SHA-256 is `6a1f502d3590f89aa1cb4e49772bf9df1a87e197ad2d327286563164e763c56c`; the production APK hash is the value above.
+
+**Audio status:** diagnostic instrumentation and update-state fixes are published; audible continuity is NOT yet declared fixed. Source Yandex PCM, phase correlation, physical speaker/Bluetooth output and owner listening acceptance remain pending. The next step is the in-app update, listening test and fresh diagnostic export—not blind timing changes.
+
+---
+
+## Earlier local build checkpoint — Android 0.3.76 (superseded by stable publication above)
+
+**Historical note:** this section records the local reproduction build only. The actual production APK was separately rebuilt and published by GitHub Actions; use the in-app updater, not this local copy.
 
 - APK: `CELIKOM-Android-0.3.76-OUTPUT-DIAGNOSTICS-FINAL.apk`
 - Version: `0.3.76`, versionCode `77`
 - SHA-256: `6a1f502d3590f89aa1cb4e49772bf9df1a87e197ad2d327286563164e763c56c`
 - Library: `/CELIKOM/Android/Backups/CELIKOM-Android-0.3.76-OUTPUT-DIAGNOSTICS-SIGNED-20261101.apk`
 - Verification: `/CELIKOM/Android/Diagnostics/CELIKOM-0.3.76-verification-20261101.json`
-- Code branch HEAD: `4d83c3fd5b79642d97b3616b5997ec343ece3bd3`
-- CI: [41298221548 PASS](https://github.com/manufact-test/nomusic/actions/runs/41298221548)
-- Draft PR: [#24](https://github.com/manufact-test/nomusic/pull/24); remains unmerged and not published to stable.
+- Source commit before merge: `4d83c3fd5b79642d97b3616b5997ec343ece3bd3`; production merge commit: `712e7226052419647b46a16086921e4b82732051`
+- Staging CI: [41298221548 PASS](https://github.com/manufact-test/nomusic/actions/runs/41298221548); production build and Hostinger publication: [41299061730 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/41299061730)
+- PR [#24](https://github.com/manufact-test/nomusic/pull/24) merged to the production working branch to trigger the verified Hostinger release pipeline.
 - The APK's addon DEX SHA-256 exactly matches the DEX produced by the final GitHub Actions run: `28da54fc3699d740e886e803db7307b5d45ddab36e7012fb892450ffda7e7ef5`.
 - Original package/signing identity retained; APK structure, archive, manifest allowlist and original catalogue assets verified. Full engine regression, 18 Android addon host gates, Android API 36 compile, D8, release-contract/archive/provenance/release-mode checks passed.
-- No server manifest/Hostinger deployment or stable publish was performed.
+- Production Hostinger publication completed. The live manifest endpoint returned the exact expected release JSON for version 0.3.76 / code77.
 
 The diagnostic now records CELIKOM replacement-player output-clock samples and the existing transport/seek decomposition. The update screen now restores a discovered version after app restart and keeps it after “Позже”. No new diagnostic button or audio permission was added.
 
-**Important limit:** this is a diagnostic build, not an audio-quality fix. Source Yandex PCM, phase correlation and actual speaker/Bluetooth output remain unmeasured. The build verifier explicitly keeps those flags false. The next step is the owner's listening test and diagnostic export, not another blind audio-parameter change.
+**Important limit:** this is a diagnostic build, not an audio-quality fix. Source Yandex PCM, phase correlation and actual speaker/Bluetooth output remain unmeasured. The build verifier explicitly keeps those flags false. The next step is the owner's in-app update, listening test and diagnostic export, not another blind audio-parameter change.
 
 ---
 

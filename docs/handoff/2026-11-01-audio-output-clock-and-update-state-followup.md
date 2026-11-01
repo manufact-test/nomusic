@@ -1,17 +1,19 @@
 # CELIKOM — follow-up handoff after the 0.3.75 audio diagnostic
 
-**Current status:** signed 0.3.76 diagnostic test APK is built and verified; owner listening/diagnostic test is now the next step. Audio quality is NOT declared fixed.
+**Current status:** signed 0.3.76 / code77 release is published to Hostinger stable. The owner should now test the existing in-app update button, install the update, listen to affected tracks and export fresh diagnostics. Audio quality is NOT declared fixed.
 
 ## Branches and commits
 
 - Repository: https://github.com/manufact-test/nomusic
 - Production working branch / PR base: `feature/android-unified-preparation-seek-gate`
 - Staging code branch: `feature/android-076-output-clock-update-state-staging-20261101`
-- Draft PR: https://github.com/manufact-test/nomusic/pull/24
+- PR #24 merged to production working branch at `712e7226052419647b46a16086921e4b82732051`: https://github.com/manufact-test/nomusic/pull/24
 - Documentation branch: `handoff/diagnostic-audio-output-evidence-20261101`
 - Rollback branch: `backup/android-0375-before-output-clock-and-update-state-20261101`
 - Original HEAD: `0867c83c692cdc2dbfd74662476cb181ea2e9d51`
-- Final code HEAD: `4d83c3fd5b79642d97b3616b5997ec343ece3bd3`
+- Pre-merge code HEAD: `4d83c3fd5b79642d97b3616b5997ec343ece3bd3`
+- Production merge commit: `712e7226052419647b46a16086921e4b82732051`
+- Production publication run: [41299061730 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/41299061730)
 
 ## Most important corrected conclusion
 
@@ -43,7 +45,7 @@ This is a real temporary transport lag during async seek, not evidence of a cloc
 
 ## Validation
 
-CI [41297330560](https://github.com/manufact-test/nomusic/actions/runs/41297330560) PASS on final staging HEAD. Existing engine tests, new 18 diagnostic checks, new 12 update-state checks, all 18 addon host gates, Android API 36 compile, D8 and release contract checks passed. The stable publish job was skipped. No signed APK or server deployment was made.
+Staging CI [41298221548](https://github.com/manufact-test/nomusic/actions/runs/41298221548) and production CI/publication [41299061730](https://github.com/manufact-test/nomusic/actions/runs/41299061730) both PASS. The production job rebuilt and verified the signed APK, uploaded it to Hostinger, verified the uploaded SHA/size server-side, atomically replaced `stable.json`, then fetched the live manifest over HTTP and confirmed `0.3.76 / 77`.
 
 ## Non-negotiable next steps
 
@@ -52,7 +54,7 @@ CI [41297330560](https://github.com/manufact-test/nomusic/actions/runs/412973305
 - Install a build containing these diagnostics, repeat the owner's affected-track listening test, and inspect the new fields.
 - Source PCM, phase correlation, Yandex presentation timestamp and actual speaker/Bluetooth output remain unmeasured.
 - Do not add RECORD_AUDIO or MediaProjection to the shipping app until a separately approved diagnostic capture is demonstrably necessary.
-- Keep PR #24 draft/unmerged until the owner wants the staging changes promoted to the main working branch.
+- PR #24 has been merged to the production working branch to enable the requested stable publication.
 
 
 ## Signed diagnostic APK now available
@@ -67,3 +69,16 @@ CI [41297330560](https://github.com/manufact-test/nomusic/actions/runs/412973305
 - The signed APK's DEX SHA matches the final CI DEX byte-for-byte.
 
 Install it as an update over the current app; do not uninstall first. Then perform the ordinary listening test on the tracks that previously sounded wrong and export diagnostics through the existing button. No new diagnostic UI or permissions are required. This build improves evidence and updater persistence; it does not claim to fix audible continuity. The source PCM, phase, and physical output remain unresolved.
+
+
+## Stable release is now live
+
+The app's existing update checker reads the Hostinger manifest. The production pipeline has now published version `0.3.76`, versionCode `77`, and independently verified the live manifest:
+
+- Manifest: https://lemonchiffon-narwhal-791953.hostingersite.com/updates/android/stable.json
+- APK: https://lemonchiffon-narwhal-791953.hostingersite.com/releases/android/77-76e1086dc6a38d5b5c5186475babbfd16c959c06a573775e3c264b3b63cdcf40.apk
+- SHA-256: `76e1086dc6a38d5b5c5186475babbfd16c959c06a573775e3c264b3b63cdcf40`
+- Size: `8755273` bytes
+- Workflow: [41299061730 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/41299061730)
+
+The owner should now use CELIKOM's existing `Проверить обновление` control, install 0.3.76 over the current installation, test affected songs and send a fresh diagnostic export. Do not claim an audio fix before that listening test.

@@ -1,15 +1,18 @@
-# Android 0.3.76 staging — output-clock evidence and persistent update state
+# Android 0.3.76 — output-clock evidence, persistent update state and stable publication
 
 **Date:** 2026-11-01  
-**Status:** signed 0.3.76 diagnostic test APK built and verified; PR remains draft/unmerged; not stable-published  
+**Status:** signed 0.3.76 release published to Hostinger stable; in-app update detection is ready for owner retest  
 **Code branch:** `feature/android-076-output-clock-update-state-staging-20261101`  
 **Base branch:** `feature/android-unified-preparation-seek-gate`  
-**Draft PR:** [#24](https://github.com/manufact-test/nomusic/pull/24)  
+**Merged PR:** [#24](https://github.com/manufact-test/nomusic/pull/24), merge commit `712e7226052419647b46a16086921e4b82732051`  
 **Rollback branch:** `backup/android-0375-before-output-clock-and-update-state-20261101`  
 **Pre-change HEAD:** `0867c83c692cdc2dbfd74662476cb181ea2e9d51`  
 **Final code HEAD:** `4d83c3fd5b79642d97b3616b5997ec343ece3bd3`  
-**CI:** [41298221548 PASS](https://github.com/manufact-test/nomusic/actions/runs/41298221548)  
-**Signed test APK SHA-256:** `6a1f502d3590f89aa1cb4e49772bf9df1a87e197ad2d327286563164e763c56c`
+**Staging CI:** [41298221548 PASS](https://github.com/manufact-test/nomusic/actions/runs/41298221548)  
+**Production build + Hostinger publish:** [41299061730 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/41299061730)  
+**Local reproduction APK SHA-256 (not the server copy):** `6a1f502d3590f89aa1cb4e49772bf9df1a87e197ad2d327286563164e763c56c`  
+**Published Hostinger APK SHA-256:** `76e1086dc6a38d5b5c5186475babbfd16c959c06a573775e3c264b3b63cdcf40`  
+**Published APK size:** `8755273` bytes
 
 ## 1. Re-analysis of the 0.3.75 diagnostic
 
@@ -161,3 +164,19 @@ The local signed build ran the complete engine regression suite, all 18 Android 
 **Owner test:** install over the existing app (do not uninstall), play the affected songs, exercise the usual Next/seek/pause/resume paths, then export the diagnostic through the existing UI. No new diagnostic button or permission was introduced.
 
 **Not proven by this APK:** actual speaker/Bluetooth continuity, source Yandex PCM, and phase alignment. The verifier deliberately records `source_pcm_measured=false`, `phase_verified=false`, `hardware_output_measured=false`, and `physical_phone_playback_verified=false`. Do not describe the audio as fixed until the owner listening test supports that conclusion.
+
+
+## 10. Stable publication completed
+
+The PR was merged into `feature/android-unified-preparation-seek-gate` at `712e7226052419647b46a16086921e4b82732051`. The production pipeline completed successfully: [GitHub Actions 41299061730](https://github.com/manufact-test/nomusic/actions/runs/41299061730).
+
+- Live stable manifest: https://lemonchiffon-narwhal-791953.hostingersite.com/updates/android/stable.json
+- Published APK: https://lemonchiffon-narwhal-791953.hostingersite.com/releases/android/77-76e1086dc6a38d5b5c5186475babbfd16c959c06a573775e3c264b3b63cdcf40.apk
+- Version `0.3.76`, code `77`, size `8755273` bytes
+- Published APK SHA-256: `76e1086dc6a38d5b5c5186475babbfd16c959c06a573775e3c264b3b63cdcf40`
+- The remote Hostinger upload was checked server-side for exact SHA-256 and byte size before the immutable APK was moved into place. Only after that check did the workflow atomically replace `stable.json`.
+- The workflow then fetched the public stable manifest over HTTP and confirmed it exactly matched the expected manifest: `0.3.76 / 77`.
+
+**Owner action:** open CELIKOM, press the existing `Проверить обновление` button, and install 0.3.76 over the existing app. Then run the affected-track listening test and export a fresh diagnostic. No uninstall or new diagnostic button is required.
+
+The local reproduction APK stored earlier in Library has a different file SHA because it was separately packaged; it is not the binary published to Hostinger. Both use the same source version, addon DEX and original signer. Use the in-app update for the production release.
