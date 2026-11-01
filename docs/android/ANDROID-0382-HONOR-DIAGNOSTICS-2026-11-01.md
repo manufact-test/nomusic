@@ -111,3 +111,11 @@ Do not ask the owner to run another test merely to collect the same incomplete l
 - Release PR: [#32](https://github.com/manufact-test/nomusic/pull/32), open and unmerged.
 
 No audio source code was changed while preparing this diagnostic record.
+
+## Follow-up implementation — 0.3.83 diagnostic candidate
+
+The recommended read-only instrumentation pass is implemented in [ANDROID-0383-MEDIA3-EVENT-CORRELATION-DIAGNOSTICS-2026-11-01.md](ANDROID-0383-MEDIA3-EVENT-CORRELATION-DIAGNOSTICS-2026-11-01.md). It adds Media3 timeline/transition/discontinuity reason classification and correlation IDs across source items, replacement decoder instances and seek tickets. It explicitly does not claim to observe a physical Next-button press: manualNextAttribution remains not_exposed_by_media3_listener.
+
+The signed test-only candidate is 0.3.83/code84, APK SHA-256 **08f43a8b39623f2ea574ef86d2c58bbbd8046dc3a8b4554d37145835d79f3e79**, 8,763,465 bytes, original signing certificate retained. Full host regression, Android API36 compilation, D8, release-contract checks and signed APK verification passed in [workflow #41346799079](https://github.com/manufact-test/nomusic/actions/runs/41346799079). Artifact [13100110442](https://github.com/manufact-test/nomusic/actions/runs/41346799079/artifacts/13100110442). It is a GitHub test artifact only; stable publication was skipped and the 0.3.82 updater channel was not changed.
+
+The next phone test is for event capture, not acoustic acceptance. The audio algorithms remain unchanged. See the new diagnostic-candidate document for the short sequence and limitations.

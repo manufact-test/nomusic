@@ -1,4 +1,24 @@
-# CELIKOM Android — Current Status 2026-11-01 (0.3.82 staging)
+# CELIKOM Android — Current Status 2026-11-01 (0.3.82 stable; 0.3.83 diagnostic candidate)
+
+## Latest diagnostic candidate — 0.3.83 / versionCode 84
+
+The 0.3.82 listening baseline remains the current stable release. A separate instrumentation-only candidate has now been built and signed to improve Media3 source-event classification and correlate source, replacement decoder and seek generations.
+
+- Branch: **feature/android-0382-playback-continuity-fix-20261101**.
+- Source commit: **5a1178048a5aabdeb4cecfa19ee7db2abb797bda**.
+- Candidate: **0.3.83 / code 84**.
+- CI and signed test candidate workflow [#41346799079](https://github.com/manufact-test/nomusic/actions/runs/41346799079): **SUCCESS**.
+- APK SHA-256: **08f43a8b39623f2ea574ef86d2c58bbbd8046dc3a8b4554d37145835d79f3e79**.
+- APK size: **8,763,465 bytes**.
+- Original signing certificate retained.
+- GitHub artifact [celikom-android-0.3.83-signed-test](https://github.com/manufact-test/nomusic/actions/runs/41346799079/artifacts/13100110442), artifact ID **13100110442**.
+- **stable_published: false**; stable publication jobs were skipped. The 0.3.82 stable channel was not changed.
+
+The new candidate is for better diagnostics only. It does not promise better sound and does not change seek/WARM/fade/gain/prewarm policy. In particular, Media3 listener callbacks cannot prove that the physical Next button was tapped; the logs explicitly preserve that limitation.
+
+Read [ANDROID-0383-MEDIA3-EVENT-CORRELATION-DIAGNOSTICS-2026-11-01.md](ANDROID-0383-MEDIA3-EVENT-CORRELATION-DIAGNOSTICS-2026-11-01.md) for the implementation, exact receipt and short owner retest procedure.
+
+---
 
 ## Owner listening retest — 2026-11-01 (latest status)
 
