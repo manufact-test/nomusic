@@ -1,12 +1,15 @@
 # Android 0.3.76 staging — output-clock evidence and persistent update state
 
 **Date:** 2026-11-01  
-**Status:** staging / draft PR; not merged, not signed, not released  
+**Status:** signed 0.3.76 diagnostic test APK built and verified; PR remains draft/unmerged; not stable-published  
 **Code branch:** `feature/android-076-output-clock-update-state-staging-20261101`  
 **Base branch:** `feature/android-unified-preparation-seek-gate`  
 **Draft PR:** [#24](https://github.com/manufact-test/nomusic/pull/24)  
 **Rollback branch:** `backup/android-0375-before-output-clock-and-update-state-20261101`  
-**Pre-change HEAD:** `0867c83c692cdc2dbfd74662476cb181ea2e9d51`
+**Pre-change HEAD:** `0867c83c692cdc2dbfd74662476cb181ea2e9d51`  
+**Final code HEAD:** `4d83c3fd5b79642d97b3616b5997ec343ece3bd3`  
+**CI:** [41298221548 PASS](https://github.com/manufact-test/nomusic/actions/runs/41298221548)  
+**Signed test APK SHA-256:** `6a1f502d3590f89aa1cb4e49772bf9df1a87e197ad2d327286563164e763c56c`
 
 ## 1. Re-analysis of the 0.3.75 diagnostic
 
@@ -139,3 +142,22 @@ After a build containing this staging code is installed on the owner's device:
 5. Do not call this an audio fix unless the owner listening test improves and the output evidence supports it.
 
 If MediaTimestamp is unavailable or insufficient, the next source-audio experiment must be a separately approved, diagnostic-only capture path after checking Yandex's capture policy. Do not add `RECORD_AUDIO` or MediaProjection to the shipping app without a demonstrated need and explicit approval.
+
+
+## 9. Signed 0.3.76 diagnostic test APK — ready for owner check
+
+A signed test APK was built from the final staging source (version `0.3.76`, versionCode `77`) using the original recovered signing identity. It is not a stable release and was not deployed to Hostinger.
+
+- File: `CELIKOM-Android-0.3.76-OUTPUT-DIAGNOSTICS-FINAL.apk`
+- SHA-256: `6a1f502d3590f89aa1cb4e49772bf9df1a87e197ad2d327286563164e763c56c`
+- Library backup: `/CELIKOM/Android/Backups/CELIKOM-Android-0.3.76-OUTPUT-DIAGNOSTICS-SIGNED-20261101.apk`
+- Verification record: `/CELIKOM/Android/Diagnostics/CELIKOM-0.3.76-verification-20261101.json`
+- Final code HEAD: `4d83c3fd5b79642d97b3616b5997ec343ece3bd3`
+- CI: [41298221548 PASS](https://github.com/manufact-test/nomusic/actions/runs/41298221548)
+- Compiled addon DEX SHA-256: `28da54fc3699d740e886e803db7307b5d45ddab36e7012fb892450ffda7e7ef5`, identical to the DEX artifact produced by the final CI run.
+
+The local signed build ran the complete engine regression suite, all 18 Android addon host gates, Android API 36 source compilation, D8, all update-state tests, and the strict signed-APK verifier. The APK verifier confirms the original signer, package/version, allowed manifest changes, archive integrity, exact DEX, and unchanged catalogue assets.
+
+**Owner test:** install over the existing app (do not uninstall), play the affected songs, exercise the usual Next/seek/pause/resume paths, then export the diagnostic through the existing UI. No new diagnostic button or permission was introduced.
+
+**Not proven by this APK:** actual speaker/Bluetooth continuity, source Yandex PCM, and phase alignment. The verifier deliberately records `source_pcm_measured=false`, `phase_verified=false`, `hardware_output_measured=false`, and `physical_phone_playback_verified=false`. Do not describe the audio as fixed until the owner listening test supports that conclusion.

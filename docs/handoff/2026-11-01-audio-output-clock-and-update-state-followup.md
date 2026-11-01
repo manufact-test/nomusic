@@ -1,6 +1,6 @@
 # CELIKOM — follow-up handoff after the 0.3.75 audio diagnostic
 
-**Current status:** diagnostic correction and update-state implementation are staged and CI-verified. Audio quality is NOT declared fixed.
+**Current status:** signed 0.3.76 diagnostic test APK is built and verified; owner listening/diagnostic test is now the next step. Audio quality is NOT declared fixed.
 
 ## Branches and commits
 
@@ -11,7 +11,7 @@
 - Documentation branch: `handoff/diagnostic-audio-output-evidence-20261101`
 - Rollback branch: `backup/android-0375-before-output-clock-and-update-state-20261101`
 - Original HEAD: `0867c83c692cdc2dbfd74662476cb181ea2e9d51`
-- Final staging HEAD: `a7b28fa8ebd6ed856e1ed9bfa02f0e7da612c06f`
+- Final code HEAD: `4d83c3fd5b79642d97b3616b5997ec343ece3bd3`
 
 ## Most important corrected conclusion
 
@@ -53,3 +53,17 @@ CI [41297330560](https://github.com/manufact-test/nomusic/actions/runs/412973305
 - Source PCM, phase correlation, Yandex presentation timestamp and actual speaker/Bluetooth output remain unmeasured.
 - Do not add RECORD_AUDIO or MediaProjection to the shipping app until a separately approved diagnostic capture is demonstrably necessary.
 - Keep PR #24 draft/unmerged until the owner wants the staging changes promoted to the main working branch.
+
+
+## Signed diagnostic APK now available
+
+- Version: `0.3.76`, versionCode `77`
+- File: `CELIKOM-Android-0.3.76-OUTPUT-DIAGNOSTICS-FINAL.apk`
+- SHA-256: `6a1f502d3590f89aa1cb4e49772bf9df1a87e197ad2d327286563164e763c56c`
+- Library path: `/CELIKOM/Android/Backups/CELIKOM-Android-0.3.76-OUTPUT-DIAGNOSTICS-SIGNED-20261101.apk`
+- Verification JSON: `/CELIKOM/Android/Diagnostics/CELIKOM-0.3.76-verification-20261101.json`
+- Final CI: [41298221548 PASS](https://github.com/manufact-test/nomusic/actions/runs/41298221548)
+- Final source HEAD: `4d83c3fd5b79642d97b3616b5997ec343ece3bd3`
+- The signed APK's DEX SHA matches the final CI DEX byte-for-byte.
+
+Install it as an update over the current app; do not uninstall first. Then perform the ordinary listening test on the tracks that previously sounded wrong and export diagnostics through the existing button. No new diagnostic UI or permissions are required. This build improves evidence and updater persistence; it does not claim to fix audible continuity. The source PCM, phase, and physical output remain unresolved.

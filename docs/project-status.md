@@ -1,4 +1,26 @@
-## 2026-11-01 — Android audio-output evidence and update-state staging (0.3.76 work; NOT RELEASED)
+## 2026-11-01 — Android 0.3.76 signed diagnostic test APK ready (not stable-published)
+
+**Owner action:** install the signed test APK over the existing CELIKOM app, then run the ordinary affected-track listening test and export diagnostics using the existing diagnostic control. Do not uninstall the current app first.
+
+- APK: `CELIKOM-Android-0.3.76-OUTPUT-DIAGNOSTICS-FINAL.apk`
+- Version: `0.3.76`, versionCode `77`
+- SHA-256: `6a1f502d3590f89aa1cb4e49772bf9df1a87e197ad2d327286563164e763c56c`
+- Library: `/CELIKOM/Android/Backups/CELIKOM-Android-0.3.76-OUTPUT-DIAGNOSTICS-SIGNED-20261101.apk`
+- Verification: `/CELIKOM/Android/Diagnostics/CELIKOM-0.3.76-verification-20261101.json`
+- Code branch HEAD: `4d83c3fd5b79642d97b3616b5997ec343ece3bd3`
+- CI: [41298221548 PASS](https://github.com/manufact-test/nomusic/actions/runs/41298221548)
+- Draft PR: [#24](https://github.com/manufact-test/nomusic/pull/24); remains unmerged and not published to stable.
+- The APK's addon DEX SHA-256 exactly matches the DEX produced by the final GitHub Actions run: `28da54fc3699d740e886e803db7307b5d45ddab36e7012fb892450ffda7e7ef5`.
+- Original package/signing identity retained; APK structure, archive, manifest allowlist and original catalogue assets verified. Full engine regression, 18 Android addon host gates, Android API 36 compile, D8, release-contract/archive/provenance/release-mode checks passed.
+- No server manifest/Hostinger deployment or stable publish was performed.
+
+The diagnostic now records CELIKOM replacement-player output-clock samples and the existing transport/seek decomposition. The update screen now restores a discovered version after app restart and keeps it after “Позже”. No new diagnostic button or audio permission was added.
+
+**Important limit:** this is a diagnostic build, not an audio-quality fix. Source Yandex PCM, phase correlation and actual speaker/Bluetooth output remain unmeasured. The build verifier explicitly keeps those flags false. The next step is the owner's listening test and diagnostic export, not another blind audio-parameter change.
+
+---
+
+## Earlier checkpoint — Android audio-output evidence and update-state staging (0.3.76 work; superseded by signed test APK above)
 
 The 0.3.75 owner diagnostic was re-parsed from `CELIKOM-combined-20261101-125049.txt`. The 772 ms ALIGNMENT residual is not a 772 ms decoder landing error: for the 11 ALIGNMENT ACK outliers above 100 ms, the decoder cursor equalled the requested seek target; the source advanced while the asynchronous MediaPlayer seek callback was pending. The 772 ms example had target/decoder 221136 ms, source projection 221908 ms, callback 816 ms. The old `rawResidualMs` therefore represented source-transport minus decoder-cursor at ACK, including source advance during seek. WARM had 20 ACKs at 40–91 ms and no >100 ms result. Eight `overlap_commands` were expected command-level overlaps in the eight `SAME_SONG_BLEND` entries, not evidence of eight races or acoustic defects.
 
@@ -10,7 +32,7 @@ The audio changes are diagnostic-only: seek ACKs now separate callback duration,
 
 The update center now persists the verified candidate manifest/version across background `UpdateCheckJob` and foreground UI checks. Failed checks preserve the candidate; “Позже” dismisses the notification without deleting it; an already-installed candidate is cleared on next launch. The existing update section is reused; no new main-screen buttons.
 
-CI [41297330560](https://github.com/manufact-test/nomusic/actions/runs/41297330560) PASS on `a7b28fa8ebd6ed856e1ed9bfa02f0e7da612c06f`: full engine and addon host suites, Android API 36 compile, D8, release contract/archive/provenance/release-mode checks. New tests: 18 seek/MediaTimestamp evidence checks and 12 update-state checks. `publish-stable` was skipped. CI produced unsigned DEX/offline build-kit artifacts only; no signed APK, version bump, or server deployment. No audio-quality acceptance is claimed.
+CI [41298221548](https://github.com/manufact-test/nomusic/actions/runs/41298221548) PASS on final code HEAD `4d83c3fd5b79642d97b3616b5997ec343ece3bd3`: full engine and addon host suites, Android API 36 compile, D8, release contract/archive/provenance/release-mode checks. A signed 0.3.76 / code77 diagnostic APK was then built locally from the same source; its addon DEX matches the CI DEX byte-for-byte. New tests: 18 seek/MediaTimestamp evidence checks and 12 update-state checks. `publish-stable` was skipped. CI produced unsigned DEX/offline build-kit artifacts only; no signed APK, version bump, or server deployment. No audio-quality acceptance is claimed.
 
 **Next:** install a build containing these diagnostics, repeat the owner’s affected-track listening test, and inspect `replacement_seek_ack` decomposition plus `replacement_output_clock_sample`. Source PCM, source presentation timestamp, phase correlation, and speaker/Bluetooth output remain unresolved. Do not retune crossfade or seek timing until those measurements exist.
 
