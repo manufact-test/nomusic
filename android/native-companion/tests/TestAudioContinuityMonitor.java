@@ -19,6 +19,17 @@ public final class TestAudioContinuityMonitor {
       "overlap warning is not repeated every volume tick");
   check(monitor.observe(750,"track1","restore",true,false,false,0f)==null,
       "no overlap after replacement stops");
+  AudioContinuityMonitor.Finding expected=monitor.observe(800,"track1","handover",true,false,true,0.4f,
+      AudioOwnership.State.SAME_SONG_BLEND);
+  check(expected!=null&&expected.expectedByOwnerState
+      &&"expected_same_song_blend".equals(expected.classification),
+      "same-song blend overlap is classified as intentional command overlap, not a race");
+  monitor.observe(820,"track1","handover",true,false,false,0f,AudioOwnership.State.REPLACEMENT);
+  AudioContinuityMonitor.Finding unexpected=monitor.observe(840,"track1","transport",true,false,true,0.4f,
+      AudioOwnership.State.REPLACEMENT);
+  check(unexpected!=null&&!unexpected.expectedByOwnerState
+      &&"unexpected_overlap".equals(unexpected.classification),
+      "overlap outside the blend owner state remains an anomaly");
   check(monitor.observe(1000,"track1","pause",false,true,false,0f)==null,
       "user pause is not misreported as commanded playback gap");
   check(monitor.observe(1010,"track1","seek",true,true,false,0f)==null,"new short gap starts");
