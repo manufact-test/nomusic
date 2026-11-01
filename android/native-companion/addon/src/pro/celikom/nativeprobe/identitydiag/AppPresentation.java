@@ -5,7 +5,7 @@ import org.json.*;
 /** Account, connection and audio states have separate meanings on screen. */
 final class AppPresentation {
  static final class Input {
-  boolean signed,starting,running,enabled,source,session,playing,replacing,seeking,preparing,identified,confirmation,missing;
+  boolean signed,starting,running,enabled,source,session,playing,replacing,seeking,preparing,identified,missing;
   String problem="";
  }
  final String header,instruction,version;final boolean connected,showTrack;
@@ -17,8 +17,7 @@ final class AppPresentation {
   if(!s.source)return new AppPresentation("Ожидание музыки","Включите песню в Яндекс Музыке.","",false,false);
   if(!s.session)return new AppPresentation("Не подключён","Откройте эквалайзер Яндекс Музыки и выберите CELIKOM.","",false,false);
   String detail;
-  if(s.confirmation)detail="Подтвердите найденную песню, чтобы включить её подмену.";
-  else if(!s.identified)detail="Определяем песню…";
+  if(!s.identified)detail="Определяем песню…";
   else if(s.seeking)detail="Синхронизируем позицию…";
   else if(s.replacing)detail=s.playing?"Играет версия CELIKOM":"Пауза";
   else if(s.missing)detail="Версия CELIKOM ещё не загружена. Играет оригинал.";
