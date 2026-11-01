@@ -161,7 +161,7 @@ chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse) =>
         sender?.url !== chrome.runtime.getURL("popup/upload-worker.html")) {
       sendResponse({ok:false,error:"invalid_sender"}); return false;
     }
-    const report = message as {id?:unknown;trackId?:unknown;phase?:unknown;percent?:unknown;code?:unknown;sent?:unknown;httpStatus?:unknown};
+    const report = message as {id?:unknown;trackId?:unknown;phase?:unknown;percent?:unknown;code?:unknown;sent?:unknown;httpStatus?:unknown;retryAfterSeconds?:unknown};
     const phases = ["connecting","waiting","transferring","server_wait","completed","duplicate","failed","cancelled"];
     if (typeof report.id !== "string" ||
         !/^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(report.id) ||
@@ -173,6 +173,8 @@ chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse) =>
       id: report.id, trackId: report.trackId, phase: String(report.phase),
       percent: Number.isInteger(report.percent) ? Math.min(100,Math.max(0,Number(report.percent))) : 0,
       code: typeof report.code === "string" && /^[a-z0-9_]{2,40}$/.test(report.code) ? report.code : "",
+      httpStatus:Number.isInteger(report.httpStatus)&&Number(report.httpStatus)>=0&&Number(report.httpStatus)<=599?Number(report.httpStatus):0,
+      retryAt:Number.isInteger(report.retryAfterSeconds)&&Number(report.retryAfterSeconds)>0&&Number(report.retryAfterSeconds)<=3600?Date.now()+Number(report.retryAfterSeconds)*1000:0,
       at: Date.now()
     };
     uploadStatusQueue = uploadStatusQueue.catch(()=>{}).then(async()=>{
@@ -279,7 +281,7 @@ chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse) =>
     return true;
   }
   if (type === "CELIKOM_DIAGNOSTICS_GET") {
-    void userAuth.withDiagnosticsAccess(async () => redactDiagnostics(await readState(false,true)))
+    void userAuth.withDiagnosticsAccess(async () => redactDiagnostics({...await readState(false,true),uploads:await uploadJournal.snapshot()}))
       .then(state => sendResponse({ok:true,state})).catch(() => sendResponse({ok:false,error:"access_denied"}));
     return true;
   }

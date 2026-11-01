@@ -64,3 +64,10 @@ test("explicit cancellation stops in-flight offscreen transfer",async()=>{
  await waitFor(()=>f.deleted.includes(id));
  assert.ok(f.messages.some(m=>m.phase==="cancelled"));
 });
+
+test('quota rejection preserves retry time and is never automatically uploaded again',async()=>{
+ const f=fixture();f.dispatch('CELIKOM_UPLOAD_EXECUTE',{task});await waitFor(()=>f.instances.length===1);
+ const xhr=f.instances[0];xhr.status=429;xhr.responseText=JSON.stringify({error:'rate_limited',retry_after_seconds:1800});xhr.events.get('loadend')();
+ await waitFor(()=>f.deleted.includes(id));
+ const failed=f.messages.find(m=>m.phase==='failed');assert.equal(failed.code,'rate_limited');assert.equal(failed.httpStatus,429);assert.equal(failed.retryAfterSeconds,1800);assert.equal(f.instances.length,1);
+});

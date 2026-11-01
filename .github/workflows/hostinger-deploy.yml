@@ -108,6 +108,14 @@ jobs:
           HOSTINGER_SSH_KEY: ${{ secrets.HOSTINGER_SSH_KEY }}
           HOSTINGER_DB_PASSWORD: ${{ secrets.HOSTINGER_DB_PASSWORD }}
         run: bash .github/scripts/hostinger-deploy.sh
+      - name: Verify administrative bulk quota on the live database without writes
+        env:
+          HOSTINGER_SSH_KEY: ${{ secrets.HOSTINGER_SSH_KEY }}
+        run: |
+          if node -e "process.exit(require('./.github/deploy/hostinger-request.json').request.startsWith('bulk-upload-')?0:1)"; then
+            bash -n .github/scripts/hostinger-bulk-upload-verify.sh
+            bash .github/scripts/hostinger-bulk-upload-verify.sh
+          fi
       - name: Verify preserved data and restore new snapshot in isolated MySQL
         env:
           HOSTINGER_SSH_KEY: ${{ secrets.HOSTINGER_SSH_KEY }}

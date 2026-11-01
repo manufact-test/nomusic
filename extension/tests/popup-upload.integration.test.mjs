@@ -592,3 +592,21 @@ test("stale local completed attempt cannot replace fresh server result with a fa
  assert.equal(form().hidden,false,"live server none authorizes fresh form");
  delete localValues[key];
 });
+
+test('background HTTP 429 names the hourly quota and server retry time; fresh progress clears the error',async()=>{
+ const action=find("[data-action='add']"),id="944530619",key="celikom_background_upload_v1";
+ current={track:{...selected.track,id}};version="none";pendingTracks.delete(id);
+ find("[data-upload-panel]").hidden=true;await action.fire("click");
+ localValues[key]={id:"123e4567-e89b-42d3-a456-426614174000",trackId:id,phase:"connecting",percent:0,at:Date.now()};
+ await intervals[0]();await new Promise(setImmediate);
+ localValues[key]={...localValues[key],phase:"failed",code:"rate_limited",httpStatus:429,retryAt:Date.now()+900000,at:Date.now()};
+ await intervals[0]();await new Promise(setImmediate);
+ assert.match(find("[data-upload-status]").textContent,/часовой лимит загрузок.*МСК/);
+ assert.doesNotMatch(find("[data-upload-status]").textContent,/Загрузка не завершена/);
+ assert.equal(find("[data-upload-transfer-slot]").hidden,true);
+ localValues[key]={...localValues[key],phase:"connecting",code:"",at:Date.now()};
+ await intervals[0]();await new Promise(setImmediate);
+ assert.doesNotMatch(find("[data-upload-status]").textContent,/лимит|Код:/);
+ localValues[key]={...localValues[key],phase:"cancelled",at:Date.now()};
+ await intervals[0]();await new Promise(setImmediate);delete localValues[key];
+});

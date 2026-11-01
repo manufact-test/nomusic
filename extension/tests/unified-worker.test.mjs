@@ -249,3 +249,11 @@ test('server outage recovers on the existing page heartbeat without reload, Star
  assert.equal(f.sent.at(-1).state,'allowed');assert.ok(f.sent.some(m=>m.state==='allowed'&&m.recovered===true));
  assert.equal(f.local.enabled,true);assert.equal(f.trials,0);
 });
+
+test('upload journal is exported only after fresh administrative authorization',async()=>{
+ const f=fixture();f.local.celikom_upload_journal_v1=[{id:'123e4567-e89b-42d3-a456-426614174000',updatedAt:Date.now(),events:[{phase:'failed',httpStatus:429,code:'rate_limited'}]}];
+ assert.equal((await f.send('CELIKOM_DIAGNOSTICS_GET')).error,'access_denied');
+ f.auth.withDiagnosticsAccess=async callback=>callback();
+ const full=await f.send('CELIKOM_DIAGNOSTICS_GET');assert.equal(full.state.uploads[0].events[0].httpStatus,429);
+ const normal=await f.send('CELIKOM_STATUS_GET');assert.equal(normal.uploads,undefined);
+});

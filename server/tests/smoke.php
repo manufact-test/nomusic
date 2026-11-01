@@ -255,3 +255,15 @@ try {
     rmdir($directory);
 }
 fwrite(STDOUT, "CELIKOM PHP unit contracts passed.\n");
+
+run('Bulk upload policy grants only the two verified administrative identity hashes', function (): void {
+    $normal=\Celikom\Application\UploadRatePolicy::limitsForVerifiedHash(null);
+    expect($normal===['account'=>10,'device'=>20,'ip'=>60,'bulk'=>false], 'ordinary anti-abuse ceilings retained');
+    foreach (['18e9af33bc55e691582e0495d6f9024611649a3342742ec7569cd565e28af572',
+        '50bc7e488885f21b0af751f8e2ed3bc622d3bc097c6541817c9ef742cdf7777e'] as $identity) {
+        $bulk=\Celikom\Application\UploadRatePolicy::limitsForVerifiedHash($identity);
+        expect($bulk===['account'=>500,'device'=>1000,'ip'=>3000,'bulk'=>true], 'coherent bulk ceilings');
+        expect(\Celikom\Application\UploadRatePolicy::limitsForVerifiedHash(substr($identity,1).'0')===$normal, 'nearby identity denied');
+    }
+    expect(\Celikom\Application\UploadRatePolicy::limitsForVerifiedHash(hash('sha256','ordinary@example.org'))===$normal, 'normal account cannot acquire bulk access');
+});

@@ -194,6 +194,14 @@ function uploadProgressVisible(visible: boolean): void {
   if (uploadProgress) uploadProgress.hidden = !visible;
 }
 
+function uploadRateLimitMessage(retryAt = 0): string {
+  if (Number.isFinite(retryAt) && retryAt > Date.now() && retryAt <= Date.now() + 3600000) {
+    const time = new Intl.DateTimeFormat("ru-RU", {timeZone:"Europe/Moscow",hour:"2-digit",minute:"2-digit"}).format(new Date(retryAt));
+    return "Достигнут часовой лимит загрузок. Повторите после " + time + " МСК.";
+  }
+  return "Достигнут часовой лимит загрузок. Повторите в начале следующего часа.";
+}
+
 function uploadMessage(value: string, kind = "info"): void {
   if (!uploadStatus) return;
   uploadStatus.textContent = value;
@@ -510,6 +518,8 @@ uploadForm?.addEventListener("submit", async (event) => {
   manualUploadCancel = false;
   if(uploadFile)uploadFile.disabled=true;
   uploadAction("preparing");
+  uploadProgressVisible(false);
+  uploadMessage("Проверяем возможность отправки…", "checking");
   uploadMessage("Проверяем трек и отправляем файл…", "checking");
 
   let origin: string;
@@ -661,7 +671,7 @@ uploadForm?.addEventListener("submit", async (event) => {
         access_denied: "Доступ завершён. Проверьте статус аккаунта.",
         unauthorized: "Войдите в аккаунт ещё раз.",
         invalid_session: "Войдите в аккаунт ещё раз.",
-        rate_limited: "Слишком много попыток. Попробуйте позже.",
+        rate_limited: uploadRateLimitMessage(),
         upload_too_large: "Файл превышает допустимый размер.",
         invalid_mp3: "Файл не прошёл проверку MP3.",
         invalid_m4a: "M4A не поддерживается или повреждён. Нужен M4A с кодеком AAC без защиты DRM.",
@@ -674,6 +684,7 @@ uploadForm?.addEventListener("submit", async (event) => {
         : failure === "stalled" ? "Передача не началась за 45 секунд. Проверьте интернет или VPN."
         : failure === "timeout" ? "Сервер не ответил за две минуты. Проверьте статус песни."
         : xhr.status === 0 ? "Соединение прервалось. Проверьте сеть или VPN."
+        : xhr.status === 429 ? uploadRateLimitMessage()
         : xhr.status >= 500 ? "Сервер временно недоступен. Повторите позже."
         : errors[code] || "Загрузка не завершена. Попробуйте ещё раз.";
       uploadMessage(guidance + " Код: " + attemptId.slice(0, 8).toUpperCase(), "error");
@@ -846,7 +857,8 @@ async function syncBackgroundUpload(): Promise<void> {
     transferring:"Загружаем аудиофайл: "+(saved.percent||0)+"%. Можно закрыть окно CELIKOM.",
     server_wait:"Файл передан. Ждём подтверждения сервера…",
     cancelled:"Загрузка отменена по вашему запросу.",
-    failed: saved.code==="stalled"?"Соединение зависло. Проверьте интернет или VPN."
+    failed: saved.code==="rate_limited" || saved.httpStatus===429 ? uploadRateLimitMessage(saved.retryAt)
+      : saved.code==="stalled"?"Соединение зависло. Проверьте интернет или VPN."
       : saved.code==="timeout"?"Сервер не ответил за две минуты. Проверьте статус трека."
       : saved.code==="invalid_mp3"?"Файл не прошёл проверку MP3."
       : "Загрузка не завершена. Попробуйте ещё раз."

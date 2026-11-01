@@ -34,6 +34,20 @@ function denyTrial(TrialService $trial, int $id, string $reason): void
     catch (DomainException $error) { expect($error->getMessage() === $reason, 'denied activation reason'); }
 }
 try {
+    run('Bulk upload limits are bounded and account lookup uses verified database identity', function () use ($pdo, &$ids): void {
+        $id=fixtureUser($pdo,$ids);
+        expect(\Celikom\Application\UploadRatePolicy::forAccount($pdo,$id)['account']===10,'ordinary database user stays ordinary');
+        $unverified=fixtureUser($pdo,$ids,false);
+        expect(!\Celikom\Application\UploadRatePolicy::forAccount($pdo,$unverified)['bulk'],'unverified identity denied');
+        expect(!\Celikom\Application\UploadRatePolicy::forAccount($pdo,0)['bulk'],'missing identity denied');
+        $hash=hash('sha256','bulk-limiter-fixture-'.bin2hex(random_bytes(8)));
+        try {
+            $limiter=new \Celikom\Application\UploadRateLimiter($pdo);
+            for($n=1;$n<=500;$n++) expect($limiter->check($hash,'upload',500),'bulk accepts attempt '.$n);
+            expect(!$limiter->check($hash,'upload',500),'attempt 501 is rejected');
+            expect(!$limiter->check($hash,'upload',500),'retry cannot reset counter');
+        } finally {$pdo->prepare('DELETE FROM upload_rate_buckets WHERE identity_hash=?')->execute([$hash]);}
+    });
     run('Stage10 read-only check does not start trial; old Stage9 activation does not backfill', function () use ($pdo, &$ids, $entitlement, $trial): void {
         $id = fixtureUser($pdo, $ids);
         $pdo->exec('UPDATE users SET first_activated_at = DATE_SUB(UTC_TIMESTAMP(6), INTERVAL 30 DAY) WHERE id = ' . $id);

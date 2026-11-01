@@ -8,7 +8,8 @@ function update(task, phase, extras = {}) {
     phase,percent:Number.isInteger(extras.percent)?extras.percent:0,
     code:typeof extras.code==="string"?extras.code.slice(0,40):"",
     sent:Number.isSafeInteger(extras.sent)?extras.sent:0,
-    httpStatus:Number.isInteger(extras.httpStatus)?extras.httpStatus:0
+    httpStatus:Number.isInteger(extras.httpStatus)?extras.httpStatus:0,
+    retryAfterSeconds:Number.isInteger(extras.retryAfterSeconds)&&extras.retryAfterSeconds>0&&extras.retryAfterSeconds<=3600?extras.retryAfterSeconds:0
   }).catch(()=>{});
 }
 async function execute(task) {
@@ -86,7 +87,7 @@ async function execute(task) {
       await update(task,phase,{percent:100,code:duplicate?code:"",httpStatus:xhr.status});
     } else {
       const reason=failure||code||(xhr.status>=500?"server_unavailable":"http_error");
-      await update(task,reason==="cancelled"?"cancelled":"failed",{percent:Math.max(0,lastPercent),code:reason,httpStatus:xhr.status});
+      await update(task,reason==="cancelled"?"cancelled":"failed",{percent:Math.max(0,lastPercent),code:reason,httpStatus:xhr.status,retryAfterSeconds:body.retry_after_seconds});
     }
   } catch {
     await update(task,"failed",{code:"upload_background_error"});

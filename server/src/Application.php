@@ -251,8 +251,10 @@ final class Application
             }
             $limiter = new UploadRateLimiter($pdo);
             $isUpload = $path === '/api/v1/uploads';
-            if (!$limiter->check($ownerHash, $isUpload ? 'upload' : 'track_request', $isUpload ? 10 : 20)) {
-                return Response::json(429, ['error' => 'rate_limited']);
+            $limits=$isUpload && !$owner ? \Celikom\Application\UploadRatePolicy::forAccount($pdo,(int)$access['user_id'])
+                : ['account'=>$isUpload?10:20,'device'=>$isUpload?20:40,'ip'=>$isUpload?60:120,'bulk'=>false];
+            if (!$limiter->check($ownerHash, $isUpload ? 'upload' : 'track_request', $limits['account'])) {
+                return $this->contributionRateLimited();
             }
             // Account limits survive session rotation. Independent device and IP
             // ceilings prevent multi-account bypass without collecting raw IPs.
@@ -260,11 +262,13 @@ final class Application
             if (!$owner) {
                 $privacyKey = (string) $this->config['analytics_privacy_key'];
                 $operation = $isUpload ? 'upload' : 'track_request';
-                $deviceHash = hash_hmac('sha256', 'contribution.device.' . $access['installation_id'], $privacyKey);
-                $ipHash = hash_hmac('sha256', 'contribution.ip.' . ($_SERVER['REMOTE_ADDR'] ?? 'unknown'), $privacyKey);
-                if (!$limiter->check($deviceHash, $operation, $isUpload ? 20 : 40)
-                    || !$limiter->check($ipHash, $operation, $isUpload ? 60 : 120)) {
-                    return Response::json(429, ['error' => 'rate_limited']);
+                /* Administrative bulk uploads must not consume an ordinary user's shared-IP quota. */
+                $scope=$limits['bulk']?'contribution.bulk.':'contribution.';
+                $deviceHash = hash_hmac('sha256', $scope.'device.' . $access['installation_id'], $privacyKey);
+                $ipHash = hash_hmac('sha256', $scope.'ip.' . ($_SERVER['REMOTE_ADDR'] ?? 'unknown'), $privacyKey);
+                if (!$limiter->check($deviceHash, $operation, $limits['device'])
+                    || !$limiter->check($ipHash, $operation, $limits['ip'])) {
+                    return $this->contributionRateLimited();
                 }
             }
             if ($isUpload && isset($headers['content-length'])
@@ -388,8 +392,15 @@ final class Application
         return strlen($token) >= 24 && hash_equals('Bearer ' . $token, $headers['authorization'] ?? '');
     }
 
-    // One database connection per application/request, shared by catalog,
-    // session and entitlement checks. Audio Range must not reconnect twice.
+    private function contributionRateLimited(): Response
+    {
+        $seconds=3600-(time()%3600);
+        $response=Response::json(429,['error'=>'rate_limited','retry_after_seconds'=>$seconds]);
+        $response->headers['Retry-After']=(string)$seconds;
+        return $response;
+    }
+
+    /* One database connection per request, shared by catalog, session and entitlement checks. */
     private function database(): \PDO
     {
         return $this->database ??= Connection::open($this->config);
