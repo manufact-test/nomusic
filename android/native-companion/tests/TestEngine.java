@@ -73,7 +73,10 @@ public class TestEngine {
   playing();first=e.player;SystemClock.now+=2000;e.update(p.current);ok(first.released&&e.effect==null,"stale source deadline restores original");
   // Preparation before enabling must be silent and reused at activation.
   reset("ALBUM");e.update(p.current);MediaPlayer warm=prepare();ok(e.ready&&!warm.playing&&e.effect==null,"preparation before arm never changes source audio");int requests=api.resolves;e.arm();ok(e.player==warm&&warm.playing&&api.resolves==requests,"arm reuses prepared audio without downloading again");
-  SystemClock.now+=ReplacementEngine.UNIFIED_JOIN_MS+20;p.current=source("1",1160,true);p.handler.drain();ok(warm.volume==1f&&e.effect.gain==-100f&&!e.fading,"ramp ends at replacement full volume and source muted");
+  warm.position+=40;SystemClock.now+=40;p.current=source("1",1040,true);p.handler.drain();
+  warm.position+=40;SystemClock.now+=40;p.current=source("1",1080,true);p.handler.drain();
+  SystemClock.now+=ReplacementEngine.UNIFIED_JOIN_MS+20;warm.position+=ReplacementEngine.UNIFIED_JOIN_MS+20;p.current=source("1",1260,true);p.handler.drain();
+  ok(warm.volume==1f&&e.effect.gain==-100f&&!e.fading,"muted local prewarm validates decoder motion before the unchanged 160ms join");
   DynamicsProcessing sameEffect=e.effect;int attach= DynamicsProcessing.enabledCount;p.current=source("1",60000,true);e.update(p.current);ok(e.effect==sameEffect&&DynamicsProcessing.enabledCount==attach,"seeking does not release or reattach original attenuation");
   // An outstanding asynchronous seek is issued once; timeout restores the source.
   playing();warm=e.player;warm.asyncSeek=true;p.current=source("1",50000,true);e.update(p.current);int seeks=warm.seekCalls;e.update(p.current);ok(warm.seekCalls==seeks&&e.seeking,"pending seek is not repeatedly submitted");SystemClock.now+=2100;p.current=source("1",52100,true);e.update(p.current);ok(warm.released&&e.effect==null&&e.armed(),"seek timeout releases audio but retains automatic recovery");
