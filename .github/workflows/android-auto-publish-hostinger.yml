@@ -3,9 +3,7 @@ on:
   workflow_run:
     workflows: ["Android 0.3.55 architecture and release contract verification"]
     types: [completed]
-    branches:
-      - feature/android-unified-preparation-seek-gate
-      - release/android-0.3.78-stable
+    branches: [feature/android-unified-preparation-seek-gate]
   workflow_dispatch:
   workflow_call:
     inputs:
@@ -27,8 +25,7 @@ jobs:
       github.event_name != 'workflow_run' ||
       (github.event.workflow_run.conclusion == 'success' &&
        github.event.workflow_run.head_repository.full_name == 'manufact-test/nomusic' &&
-       (github.event.workflow_run.head_branch == 'feature/android-unified-preparation-seek-gate' ||
-        github.event.workflow_run.head_branch == 'release/android-0.3.78-stable'))
+       github.event.workflow_run.head_branch == 'feature/android-unified-preparation-seek-gate')
     runs-on: ubuntu-latest
     timeout-minutes: 35
     steps:
