@@ -1,11 +1,12 @@
 # CELIKOM Android — 0.3.77 candidate: conservative album-duration confirmation
 
 Date: 2026-11-01
-Status: non-publishing staging candidate; not yet accepted on HONOR.
+Status: signed test candidate; not yet acoustically accepted on HONOR. Stable publication intentionally skipped.
 
 ## Baseline and recovery
 
-- Production baseline: Android 0.3.76, source commit 712e7226052419647b46a16086921e4b82732051.
+- Production baseline: Android 0.3.76, versionCode 77, source commit 712e7226052419647b46a16086921e4b82732051.
+- Candidate: Android 0.3.77, versionCode 78.
 - Immutable recovery branch: backup/android-0376-before-strict-seek-clock-20261101.
 - Staging branch: feature/android-077-album-duration-confirmation-staging-20261101.
 - The signed production APK, stable manifest, signing identity and updater are unchanged.
@@ -29,9 +30,21 @@ Track names, IDs and the private diagnostic are intentionally not stored in this
 
 ## Verification
 
-Local tests/run_engine.py passes, including actual-engine preparation, pause/resume, seek, Next, Stop and ownership regressions; long-run and phone timeline replays; 0.3.74 strict join and 0.3.75 WARM latency gates; explicit confirmation and fail-open tests for the 1354ms and 1469ms measured-tail cases; release-contract, source-ownership and Android add-on host checks.
+Local verification passed:
+- tests/run_engine.py, including the actual engine, 582ms / 663ms / 1354ms / 1469ms long-tail cases, confirmation retry, and all historical audio regressions;
+- tests/run_addon_host.py with Android SDK 36;
+- tests/check_release_contract.py;
+- Android SDK 36 / JDK 17 source compilation and D8;
+- signed APK structure, version, alignment, DEX and signing certificate verification.
 
-The local environment does not contain Android SDK 36, so the full SDK36/D8 workflow remains mandatory. The staging workflow must finish with publish-stable skipped. No signed APK has been published by this staging change.
+GitHub Actions run 41304895181: SUCCESS; publish-stable: SKIPPED.
+
+Signed test APK: CELIKOM-0.3.77-HONOR-test.apk  
+Size: 8,755,273 bytes  
+SHA-256: 6ebc28f459951d663d8ed8e6f72584c4726bdac735b45a6edb29f08ab12a688a  
+Signing certificate SHA-256: 67fe81c56fac1c1d145344b69a0e3faf9005cf6607f4e26ca27d5926c3eefc4f
+
+The APK is a direct test artifact only. No stable manifest, public update channel, website or backend was changed.
 
 ## HONOR acceptance requested
 
