@@ -54,7 +54,7 @@ public class TestEngine {
   reset("ALBUM");e.arm();int beforeApprovedResolve=api.resolves;
   api.resolved.done(new JSONObject().put("found",true).put("replacement_id",7).put("duration_ms",118646),null);
   File approvedTail=File.createTempFile("engine-approved-outro", ".audio");api.downloaded.done(approvedTail,null);
-  e.player.duration=118646;e.player.prepared.onPrepared(e.player);
+  e.player.duration=118646;e.player.prepared.onPrepared(e.player);finishJoin(e.player);
   ok(e.ready&&e.player!=null&&e.effect!=null&&api.resolves==beforeApprovedResolve,
      "approved 1354ms bounded tail starts automatically after one live resolve");
   MediaPlayer shortDecoder=e.player;p.current=source("1",118646,true);
