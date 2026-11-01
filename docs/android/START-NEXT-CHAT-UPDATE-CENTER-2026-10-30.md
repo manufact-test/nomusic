@@ -1,3 +1,7 @@
+> **АКТУАЛЬНО НА 01.11.2026:** Update Center уже опубликован. Стабильная CELIKOM Android **0.3.77 / versionCode 78** собрана оригинальной подписью, выложена на Hostinger; live manifest, публичные APK HEAD/GET, размер и SHA проверены. Пользовательский шаг: открыть установленный CELIKOM и нажать **«Проверить обновление»**, затем подтвердить установку штатным Android-установщиком. APK вручную не скачивать и приложение не удалять. Полный receipt: [ANDROID-0377-OTA-RELEASE-RECEIPT-2026-11-01.md](ANDROID-0377-OTA-RELEASE-RECEIPT-2026-11-01.md). Старая задача 0.3.56/0.3.57 ниже историческая; не начинать её заново. Физическая проверка на HONOR и оценка звука ещё ожидаются.
+
+---
+
 Привет! Продолжаем CELIKOM — **НОВАЯ ОСНОВНАЯ ЗАДАЧА: собственный Android Update Center + ОДНА постоянная ссылка на скачивание APK с уже существующего сайта CELIKOM**. Ты новый ведущий разработчик этой задачи. Прежде чем что-то писать, подключись к GitHub и прочитай новые подробные документы: `docs/android/UPDATE-CENTER-HANDOFF-2026-10-30.md`, `docs/android/UPDATE-CENTER-MASTER-2026-10-30.md`, `docs/android/UPDATE-CENTER-RELEASE-QA-2026-10-30.md` и затем `docs/android/UNIFIED-AUDIO-GATE-PROGRESS-2026-10-30.md`.
 
 **GitHub:** https://github.com/manufact-test/nomusic
