@@ -38,8 +38,12 @@ foreach (array_slice($paths, 0, 12) as $path) {
     $size=filesize($path); $offset=max(0, $size-262144); fseek($stream, $offset);
     if ($offset>0) fgets($stream);
     $tail=stream_get_contents($stream, 262144); fclose($stream);
-    $groups=[];
+    $groups=[]; $uploads=[];
     foreach (explode("\n", (string)$tail) as $line) {
+        if (preg_match('/CELIKOM upload_attempt=([a-f0-9-]{36}) status=([0-9]{3}) elapsed_ms=([0-9]+)/i',$line,$u)) {
+            $at=preg_match('/^\\[([^\\]]{1,40})\\]/',$line,$d)?$d[1]:null;
+            $uploads[]=['at'=>$at,'attempt'=>strtoupper(substr($u[1],0,8)),'status'=>(int)$u[2],'elapsed_ms'=>(int)$u[3]];
+        }
         $category=null;
         foreach (['missing_required_file'=>'/Failed opening required|Failed to open stream/i',
             'php_parse'=>'/Parse error|syntax error/i', 'php_memory'=>'/Allowed memory size/i',
@@ -70,7 +74,7 @@ foreach (array_slice($paths, 0, 12) as $path) {
         $groups[$key]=($groups[$key] ?? 0)+1;
     }
     $report['logs'][]=['path'=>str_starts_with($path,$site.'/')?substr($path,strlen($site)+1):'account-logs/'.basename($path),'modified_utc'=>gmdate('c',filemtime($path)),
-        'tail_bytes'=>strlen((string)$tail),'classified_errors'=>array_slice($groups,-100,null,true)];
+        'tail_bytes'=>strlen((string)$tail),'classified_errors'=>array_slice($groups,-100,null,true),'recent_uploads'=>array_slice($uploads,-30)];
 }
 try {
     if ($release===false || !str_starts_with($release,$app.'/releases/')) throw new RuntimeException('layout');
