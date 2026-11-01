@@ -36,7 +36,9 @@ public final class TestHonor065Media3Continuity {
   File file=File.createTempFile("honor065-cached-",".audio");
   TestEngine.api.downloaded.done(file,null);
   engine.player.prepared.onPrepared(engine.player);
-  advance(alias,600);
+  advance(alias,600); // muted local decoder warmup and initial alignment
+  advance(alias,40);  // post-alignment decoder motion gate
+  advance(alias,ReplacementEngine.UNIFIED_JOIN_MS+20); // unchanged complementary entry
   check(engine.audioOwner.state()==AudioOwnership.State.REPLACEMENT&&engine.player.volume>0.99f,
     "track "+alias+" prepared and joined before scrub sequence");
  }
