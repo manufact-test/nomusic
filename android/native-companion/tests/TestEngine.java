@@ -39,15 +39,27 @@ public class TestEngine {
   File measuredFile=File.createTempFile("engine-measured", ".audio");api.downloaded.done(measuredFile,null);
   e.player.duration=120000;e.player.prepared.onPrepared(e.player);
   ok(e.ready&&e.effect!=null,"correct 120000ms measured file plays despite misleading 119418ms server metadata");
+  /* An automatic album candidate is not an exact source-ID proof. If its
+     measured file differs by >500ms, fail open and ask the owner once rather
+     than silently playing a possibly different edit/master. */
   reset("ALBUM");e.arm();api.resolved.done(new JSONObject().put("found",true).put("replacement_id",7).put("duration_ms",118646),null);
   File shortFile=File.createTempFile("engine-short-outro", ".audio");api.downloaded.done(shortFile,null);
   e.player.duration=118646;e.player.prepared.onPrepared(e.player);
+  ok(e.player==null&&e.effect==null&&!shortFile.exists()&&e.durationConfirmationRequired
+      &&e.completedKey!=null&&e.completedReason.contains("Подтвердите"),
+     "unconfirmed 1354ms album tail restores original and requests owner confirmation");
+  int beforeConfirmResolve=api.resolves;e.confirm();
+  ok(!e.durationConfirmationRequired&&e.completedKey==null&&api.resolves==beforeConfirmResolve+1,
+     "owner confirmation clears the hold and performs a fresh live resolve");
+  api.resolved.done(new JSONObject().put("found",true).put("replacement_id",7).put("duration_ms",118646),null);
+  File confirmedFile=File.createTempFile("engine-confirmed-outro", ".audio");api.downloaded.done(confirmedFile,null);
+  e.player.duration=118646;e.player.prepared.onPrepared(e.player);
   ok(e.ready&&e.player!=null&&e.effect!=null,
-     "verified 1354ms measured tail becomes a playable replacement, not a pre-play skip");
+     "explicitly confirmed 1354ms same-track tail is allowed by the existing bounded policy");
   MediaPlayer shortDecoder=e.player;p.current=source("1",118646,true);
   shortDecoder.completed.onCompletion(shortDecoder);
   ok(e.player==null&&e.effect==null&&e.completedReason==null,
-     "expected short outro restores the original without a wrong-edition warning");
+     "confirmed expected short outro restores the original at the natural tail");
   reset("ALBUM");e.arm();api.resolved.done(new JSONObject().put("found",true).put("replacement_id",7).put("duration_ms",118000),null);
   ok(!e.preparing&&api.downloads==0&&e.effect==null,"metadata discrepancy beyond bounded probe never downloads or mutes");
   reset("ALBUM");e.arm();resolve();NativeApi.AudioResult oldDownload=api.downloaded;e.stop("owner_stop");File stale=File.createTempFile("engine-test", ".audio");oldDownload.done(stale,null);ok(!stale.exists()&&e.player==null,"late download after stop is discarded");
