@@ -10,7 +10,9 @@ import java.util.*;
 final class ReplacementEngine {
   static final long PREPARED_MS=60000, SEEK_TIMEOUT_MS=2000, HANDOVER_DRIFT_MS=350, STREAM_SEEK_TIMEOUT_MS=12000, FADE_MS=360,
   STRICT_STREAM_JOIN_DRIFT_MS=100, STRICT_JOIN_BUDGET_MS=3000, WARM_CALLBACK_LEAD_MS=70, PAUSE_GRACE_MS=30000, PAUSE_RESUME_FADE_MS=180, PAUSE_ALIGN_DELAY_MS=160, PAUSE_ALIGN_TOLERANCE_MS=85, UNIFIED_JOIN_MS=160, RETAINED_SEEK_JOIN_MS=260;
+ static final long FULL_FILE_EXPERIMENT_BUDGET_MS=20000;
  final ProbeService owner; final NativeApi api;
+ final boolean fullFileExperiment;
  String status="Замена выключена",identityKey,trackId,method="NONE",lookupKey;
  JSONObject descriptor; long descriptorUntil,nextLookup,armedUntil,preparedAt,seekStarted,seekBudget=SEEK_TIMEOUT_MS,fadeStarted,transition,pausedAt=-1;
  long pauseRestoreDelayMs=PAUSE_GRACE_MS,sourceBufferSince=-1,decoderInstanceSequence,decoderInstanceId;String audioSourceKind="unknown";
@@ -50,7 +52,10 @@ final class ReplacementEngine {
  void clearAudioCache(){for(File f:recentAudio.values())f.delete();recentAudio.clear();}
  void rememberAudio(){if(streaming!=null&&audioFile==null)audioFile=streaming.retainComplete();if(audioFile==null||descriptor==null||!ready||!api.signedIn())return;String key=audioKey(descriptor);File old=recentAudio.remove(key);if(old!=null&&!old.equals(audioFile))old.delete();recentAudio.put(key,audioFile);audioFile=null;long size=0;for(File f:recentAudio.values())size+=f.length();Iterator<File> it=recentAudio.values().iterator();while(it.hasNext()&&(recentAudio.size()>3||size>CACHE_BYTES)){File f=it.next();size-=f.length();f.delete();it.remove();}}
 
- ReplacementEngine(ProbeService owner){this.owner=owner;api=NativeApi.get(owner);}
+ // The installed experiment uses only the local-file path. The alternate
+ // constructor exists for deterministic host tests of the frozen stream baseline.
+ ReplacementEngine(ProbeService owner){this(owner,true);}
+ ReplacementEngine(ProbeService owner,boolean fullFileExperiment){this.owner=owner;api=NativeApi.get(owner);this.fullFileExperiment=fullFileExperiment;}
  AudioOwnership.SeekContext seekContext(){return new AudioOwnership.SeekContext(
   owner.sourceEventSequence,owner.sourceItemGeneration,generation,decoderInstanceId,
   audioOwner.epoch(),audioOwner.operationEpoch(),audioSourceKind,localPrewarmAttempted);}
@@ -469,6 +474,13 @@ final class ReplacementEngine {
   audioFromCache=false;
   File cached=recentAudio.remove(audioKey(j));
   if(cached!=null&&cached.isFile()){audioFromCache=true;LogStore.log("replacement_audio_reused",LogStore.map("trackId",trackId,"liveResolveRequired",true,"cacheHit",true,"decoderRecreated",true,"sourceKind","local_cache_file","sourceItemGeneration",owner.sourceItemGeneration,"sourceEventSequence",owner.sourceEventSequence));acceptAudio(key,j,g,cached,null);return;}
+  if(fullFileExperiment){
+   logTrace("replacement_full_file_experiment_start",LogStore.map(
+     "trackId",trackId,"sourceKind","full_download_file",
+     "streamingSkipped",true,"downloadBudgetMs",FULL_FILE_EXPERIMENT_BUDGET_MS,
+     "originalRemainsAudible",true));
+   downloadFull(key,j,g);return;
+  }
   if(key.equals(streamFallbackKey)){downloadFull(key,j,g);return;}
   status="Подготавливаем начало песни; играет оригинал";
   final long account=api.accountGeneration;
@@ -478,7 +490,7 @@ final class ReplacementEngine {
    acceptAudio(key,j,g,null,source,null);
   });
  }
- void downloadFull(String key,JSONObject j,long g){audioFromCache=false;final long account=api.accountGeneration;api.download(j,()->transportLeaseCurrent(key,g,account),(file,error)->acceptAudio(key,j,g,file,error));}
+ void downloadFull(String key,JSONObject j,long g){audioFromCache=false;final long account=api.accountGeneration,start=SystemClock.elapsedRealtime();api.download(j,()->transportLeaseCurrent(key,g,account)&&(!fullFileExperiment||SystemClock.elapsedRealtime()-start<FULL_FILE_EXPERIMENT_BUDGET_MS),(file,error)->acceptAudio(key,j,g,file,error));}
  void acceptAudio(String key,JSONObject j,long g,File file,String error){acceptAudio(key,j,g,file,null,error);}
  void acceptAudio(String key,JSONObject j,long g,File file,BufferedAudio source,String error){if(g!=generation||closed||!audioOwner.dataCurrent(prepareTicket,api.accountGeneration,key,j.optLong("replacement_id"),j.optLong("version"),j.optLong("duration_ms"))){if(file!=null)file.delete();if(source!=null)source.close();return;}preparing=false;if(file==null&&source==null){suspend("download_failed",retryDelay());status="Сеть недоступна; играет оригинал, повторим автоматически";return;}if(!current(key)||!api.signedIn()){if(file!=null)file.delete();if(source!=null)source.close();suspend("download_source_changed",1000);return;}
    try{if(source!=null)audioFromCache=false;audioFile=file;streaming=source;audioSourceKind=source!=null?"stream":audioFromCache?"local_cache_file":"full_download_file";localPrewarmAttempted=false;localPrewarmAlignmentPending=false;localPrewarmJoinPending=false;bufferWaiting=false;player=new MediaPlayer();decoderInstanceId=++decoderInstanceSequence;final MediaPlayer p=player;final long ownerTicket=audioOwner.epoch();final AudioOwnership.Ticket dataTicket=prepareTicket;p.setAudioAttributes(new AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_MEDIA).setContentType(AudioAttributes.CONTENT_TYPE_MUSIC).build());setAuditedVolume(p,0f);if(source==null)p.setDataSource(file.getAbsolutePath());else p.setDataSource(new StreamingAudio(source));p.setOnErrorListener((mp,what,extra)->{if(mp==player&&g==generation&&audioOwner.current(ownerTicket,key)&&accountLeaseCurrent()){suspend("media_player_error",retryDelay());LogStore.log("replacement_failure",LogStore.map("reason","media_player_error","what",what,"extra",extra));}return true;});p.setOnCompletionListener(mp->{
