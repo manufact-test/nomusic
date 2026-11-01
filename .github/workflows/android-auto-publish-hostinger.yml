@@ -16,7 +16,7 @@ permissions:
   contents: read
   actions: read
 concurrency:
-  group: celikom-android-stable-publish
+  group: ${{ inputs.test_only && 'celikom-android-test-candidate' || 'celikom-android-stable-publish' }}
   cancel-in-progress: false
 jobs:
   publish:
