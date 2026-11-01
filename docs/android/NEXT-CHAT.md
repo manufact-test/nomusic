@@ -1,3 +1,27 @@
+# CELIKOM ANDROID — CURRENT HANDOFF (2026-11-01): 0.3.83 DIAGNOSTIC REVIEW
+
+**This top section supersedes the older historical checkpoints below.** Do not follow old version/branch instructions in the archived text unless the new handoff explicitly refers to them as history.
+
+**READ FIRST:** [HANDOFF-2026-11-01-ANDROID-0383-DIAGNOSTIC-REVIEW.md](HANDOFF-2026-11-01-ANDROID-0383-DIAGNOSTIC-REVIEW.md), then [CURRENT-STATUS-2026-11-01-ANDROID-0382.md](CURRENT-STATUS-2026-11-01-ANDROID-0382.md).
+
+- Current stable OTA: **0.3.83 / versionCode 84**, successfully published to CELIKOM's normal updater. Release workflow [#41347349507](https://github.com/manufact-test/nomusic/actions/runs/41347349507) SUCCESS; live stable manifest verified.
+- 0.3.83 is **diagnostic-only**. It does not change audio behavior. The owner is moving to a new chat to provide a fresh phone diagnostic export and screen recording; those new materials have not yet been analyzed.
+- First task: inspect the new 0.3.83 run and video, align track start / physical Next / finger seek / automatic boundary with log events, verify source/decoder/seek correlation against code, and report a technical conclusion. **Do not change audio code or build another APK before the evidence is analyzed.**
+- Main problems still unresolved: song-start continuity, finger-seek lag/jumps, and possible seek degradation after manual Next.
+- Immutable backups:
+  - 0.3.82 / code83: `backup/android-0382-stable-listening-baseline-20261101` → `2e03aca1dad0f89b3d71f871270e09f8bb9f143f`.
+  - 0.3.78 / code79: `backup/android-0378-original-before-cached-join-20261101` → `bf011dcf1a70c504883a8e5e742e0b038f41d9b0`.
+- Diagnostic source branch: `feature/android-0382-playback-continuity-fix-20261101`, source commit `a084cff5fd9fde500a4fdc36222de7a5c826523f` before this docs-only handoff.
+- Release PR [#33](https://github.com/manufact-test/nomusic/pull/33) remains open/unmerged pending owner retest. Avoid pushing to its release branch because its PR gate is wired to the stable publisher.
+- The old 0.3.82 log did not prove physical Next taps: 17 media-item transitions all had `manualNextButtonObserved: false`; all 47 discontinuities had `userSeek: true`, including track changes. Decoder/transport clocks are not speaker PCM measurements.
+- No speculative fade, delay, gain, ALIGNMENT or WARM tuning. If the trace is insufficient, propose minimal instrumentation; if a concrete bug is shown, add a focused regression test and change one mechanism only.
+
+**NEXT-CHAT STARTER:** [START-NEXT-CHAT-ANDROID-0383-DIAGNOSTIC-REVIEW-2026-11-01.md](START-NEXT-CHAT-ANDROID-0383-DIAGNOSTIC-REVIEW-2026-11-01.md).
+
+---
+
+# Historical checkpoints (superseded; retained for context)
+
 # CURRENT OWNER ACOUSTIC VERDICT — 01.11.2026 — CELIKOM 0.3.72
 
 **READ FIRST:** [ANDROID-0372-HONOR-OWNER-LISTENING-AND-DIAGNOSTIC-CHECKPOINT-2026-11-01.md](ANDROID-0372-HONOR-OWNER-LISTENING-AND-DIAGNOSTIC-CHECKPOINT-2026-11-01.md). The owner has tested the OTA on HONOR: update install, exit and removal from Recents **ACCEPTED**. No changes to the updater are wanted.

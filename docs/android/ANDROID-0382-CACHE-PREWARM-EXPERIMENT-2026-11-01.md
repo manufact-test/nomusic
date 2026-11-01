@@ -115,3 +115,10 @@ The CI and signing pipeline prove the candidate is structurally valid and the re
 - The earlier test-only artifact (SHA `fb0aea...`) is **not** the deployed file. Use the Hostinger release above.
 
 The owner can now open CELIKOM and press **Check for update**; 0.3.82 should be offered through the normal in-app update flow. Listening acceptance remains pending: test the initial join, normal track changes, manual seek, Pause/Resume, Next, and fail-open to the original.
+
+
+## Superseding status — 0.3.83 diagnostic release
+
+The earlier 0.3.82 experiment and measurements above remain historical. The diagnostic-only 0.3.83 / versionCode 84 release has since been published to the stable updater. It adds read-only Media3 transition/discontinuity attribution and source/decoder/seek correlation; it does **not** change the local prewarm algorithm or any audio behavior. The prior observation that local prewarm ran only once in the 0.3.82 trace still stands; no broad stream-vs-cache conclusion is supported.
+
+Next step is to inspect the new 0.3.83 device logs and screen recording, which are pending in the next chat. Do not modify prewarm, seek, WARM, fade or gain policy until a specific failure path is demonstrated. See [HANDOFF-2026-11-01-ANDROID-0383-DIAGNOSTIC-REVIEW.md](HANDOFF-2026-11-01-ANDROID-0383-DIAGNOSTIC-REVIEW.md).

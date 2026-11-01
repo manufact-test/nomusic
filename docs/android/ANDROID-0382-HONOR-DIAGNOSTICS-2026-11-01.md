@@ -1,3 +1,19 @@
+# Follow-up addendum — 0.3.83 diagnostic release published
+
+Date: 2026-11-01
+
+The earlier analysis and owner decision below describe the 0.3.82 listening retest at that time. After the owner authorized a diagnostic-only follow-up, CELIKOM 0.3.83 / versionCode 84 was built, signed and published to the normal in-app update channel.
+
+- Release workflow [#41347349507](https://github.com/manufact-test/nomusic/actions/runs/41347349507): **SUCCESS**.
+- Stable manifest [stable.json](https://lemonchiffon-narwhal-791953.hostingersite.com/updates/android/stable.json) was verified by the release workflow and advertises **0.3.83 / 84**.
+- Deployed APK SHA-256: **13f68937a268ea21f0f0527b5a1bd41937d3bd43db4c4399143181b9a5163425**.
+- Deployed APK size: **8,763,465 bytes**.
+- Original signing certificate retained.
+- [Deployed APK](https://lemonchiffon-narwhal-791953.hostingersite.com/releases/android/84-13f68937a268ea21f0f0527b5a1bd41937d3bd43db4c4399143181b9a5163425.apk).
+- Release PR [#33](https://github.com/manufact-test/nomusic/pull/33) remains open and unmerged pending owner retest.
+
+This does not contradict the historical decision to keep 0.3.82 as the best listening baseline at that time: 0.3.83 changes diagnostic attribution only and does not claim to fix the audible defects. The 0.3.82 snapshot and 0.3.78 rollback remain preserved.
+
 # CELIKOM Android 0.3.82 — HONOR listening retest and diagnostic analysis
 
 Date: 2026-11-01
@@ -119,3 +135,8 @@ The recommended read-only instrumentation pass is implemented in [ANDROID-0383-M
 The signed test-only candidate is 0.3.83/code84, APK SHA-256 **08f43a8b39623f2ea574ef86d2c58bbbd8046dc3a8b4554d37145835d79f3e79**, 8,763,465 bytes, original signing certificate retained. Full host regression, Android API36 compilation, D8, release-contract checks and signed APK verification passed in [workflow #41346799079](https://github.com/manufact-test/nomusic/actions/runs/41346799079). Artifact [13100110442](https://github.com/manufact-test/nomusic/actions/runs/41346799079/artifacts/13100110442). It is a GitHub test artifact only; stable publication was skipped and the 0.3.82 updater channel was not changed.
 
 The next phone test is for event capture, not acoustic acceptance. The audio algorithms remain unchanged. See the new diagnostic-candidate document for the short sequence and limitations.
+
+
+## Handoff status — 0.3.83 trace pending
+
+The diagnostic-only 0.3.83 / code 84 release is now published to the normal updater; see the addendum above for its signed APK receipt. The owner is moving to a new chat to provide the new 0.3.83 log export and screen recording. Those new materials have **not yet been analyzed** here. The next investigation must correlate video actions with Media3 reason codes, source/decoder generations and seek tickets, then verify the instrumentation against the source implementation. Do not infer a physical Next tap from Media3 alone and do not treat transport clocks as speaker PCM measurements. No audio-behavior change is authorized by this checkpoint.

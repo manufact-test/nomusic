@@ -1,10 +1,10 @@
-# CELIKOM Android 0.3.83 — Media3 event correlation diagnostic candidate
+# CELIKOM Android 0.3.83 — Media3 event correlation diagnostic release
 
 Date: 2026-11-01
 
 ## Purpose
 
-This is a diagnostic-only candidate prepared after the owner reported that 0.3.82 remains the best current listening baseline, but song beginnings and seeking still vary by song and the possible relationship to pressing Next is not established.
+This diagnostic-only release was prepared after the owner reported that the 0.3.82 listening baseline still had song-start and song-dependent seek defects, and the possible relationship to pressing Next was not established. The 0.3.82 binary remains preserved as the prior listening baseline; 0.3.83 is now the current stable OTA version.
 
 The objective is to improve event attribution and correlate source, replacement decoder and seek operations. It is **not** an audio-quality fix and does not claim to measure speaker output or PCM phase.
 
@@ -17,7 +17,8 @@ The objective is to improve event attribution and correlate source, replacement 
 - Diagnostic branch: **feature/android-0382-playback-continuity-fix-20261101**.
 - Candidate source commit: **5a1178048a5aabdeb4cecfa19ee7db2abb797bda**.
 - Candidate identity: **0.3.83 / versionCode 84**.
-- No stable branch was changed and no stable manifest or Hostinger release was published.
+- Release PR: [#33](https://github.com/manufact-test/nomusic/pull/33), kept open and unmerged for the owner's diagnostic retest.
+- The stable update manifest now publishes **0.3.83 / code 84**; final publication details are below.
 
 ## Instrumentation added
 
@@ -80,6 +81,24 @@ GitHub Actions workflow [#41346799079](https://github.com/manufact-test/nomusic/
 - Signed test APK rebuild and verification: PASS.
 - Stable publication jobs: **SKIPPED** by design.
 
+## Final stable publication — COMPLETE
+
+The owner authorized publication to CELIKOM's normal **Check for update** channel. The final release was rebuilt from the private pinned baseline with the original signing inputs; the test-only APK above is **not** the deployed binary.
+
+- Release PR: [#33](https://github.com/manufact-test/nomusic/pull/33).
+- Full release workflow: [#41347349507](https://github.com/manufact-test/nomusic/actions/runs/41347349507) — **SUCCESS**.
+- Native Android validation, full host regression suite, API 36 compilation and D8: PASS.
+- Pinned private baseline and original signing inputs: verified.
+- Signed APK rebuild and archive/signature/provenance verification: PASS.
+- Immutable APK upload and atomic stable-manifest update: PASS.
+- Final live HTTP read of [stable.json](https://lemonchiffon-narwhal-791953.hostingersite.com/updates/android/stable.json) matched the expected release manifest exactly and reported **0.3.83 / 84**.
+- Deployed APK size: **8,763,465 bytes**.
+- Deployed APK SHA-256: **13f68937a268ea21f0f0527b5a1bd41937d3bd43db4c4399143181b9a5163425**.
+- Signing certificate SHA-256: **67fe81c56fac1c1d145344b69a0e3faf9005cf6607f4e26ca27d5926c3eefc4f** (original signing identity).
+- Immutable deployed APK: [CELIKOM Android 0.3.83 / code 84](https://lemonchiffon-narwhal-791953.hostingersite.com/releases/android/84-13f68937a268ea21f0f0527b5a1bd41937d3bd43db4c4399143181b9a5163425.apk).
+
+The earlier test-only artifact from workflow #41346799079 has a different SHA-256 (**08f43a8b39623f2ea574ef86d2c58bbbd8046dc3a8b4554d37145835d79f3e79**) and was not deployed. The actual updater binary is the separately rebuilt APK with SHA-256 **13f68937a268ea21f0f0527b5a1bd41937d3bd43db4c4399143181b9a5163425** above.
+
 ## Signed test candidate receipt
 
 - Version: **0.3.83**.
@@ -93,11 +112,11 @@ GitHub Actions workflow [#41346799079](https://github.com/manufact-test/nomusic/
 - [Download signed test artifact](https://github.com/manufact-test/nomusic/actions/runs/41346799079/artifacts/13100110442).
 - Receipt explicitly records **stable_published: false**.
 
-This candidate is a GitHub test artifact. It is **not** offered by CELIKOM's in-app stable updater because the stable manifest was deliberately not changed.
+This test artifact is retained only as the earlier CI candidate and is **not** the deployed OTA binary. The stable updater now offers the separately rebuilt and verified 0.3.83 release documented above.
 
 ## Owner retest — diagnostic purpose only
 
-The purpose of a phone retest is to capture a more useful event sequence, not to judge whether the sound has improved. The audio algorithm is intentionally unchanged.
+The purpose of the owner's phone retest is to capture a more useful event sequence, not to judge whether the sound has improved. The audio algorithm is intentionally unchanged. Install 0.3.83 through CELIKOM's normal **Check for update** action; the release is already live in the stable manifest.
 
 Suggested short sequence:
 1. Start playback and allow a replacement to attach.
@@ -111,3 +130,11 @@ The resulting log should show the Media3 reason and correlate the source item, r
 ## Next engineering decision
 
 Inspect the new device trace first. Do not change audio behavior based only on a reason code or transport-clock residual. A behavior-changing patch requires a specific reproduced failure path and a separate owner listening acceptance.
+
+## Owner retest status at handoff — 2026-11-01
+
+0.3.83 has been published to the stable updater. The owner is moving to a new chat to provide the new phone diagnostic export and screen recording. **The new 0.3.83 trace has not yet been received/analyzed in this checkpoint.** The next chat must isolate the 0.3.83 run, correlate video moments with log timestamps and source/decoder/seek generations, then verify those events against source code.
+
+The intended short sequence is: start a track and allow replacement attach; tap Next once; let the next track settle; perform one finger seek; optionally allow one natural track boundary; export diagnostics. The owner should note which action was performed if it is not unambiguous from the screen recording.
+
+Do not infer a physical Next tap from Media3 callbacks. The diagnostic deliberately records `manualNextButtonObserved: false` and `manualNextAttribution: not_exposed_by_media3_listener`. Do not treat decoder/transport clock values as speaker PCM or acoustic phase. Do not change audio behavior or build another APK until a specific failure sequence is established.
