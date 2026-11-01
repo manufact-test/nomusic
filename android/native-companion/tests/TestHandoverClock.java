@@ -9,8 +9,16 @@ public class TestHandoverClock {
  static void recordedOffset(int drift)throws Exception{
   TestStreamingEngine.Buffer audio=TestStreamingEngine.start();ReplacementEngine e=TestEngine.e;MediaPlayer p=e.player;long source=1040L+drift;
   SystemClock.now+=40+drift;p.position+=40;sample(source);TestEngine.p.handler.drain();
-  check(e.player==p&&!p.released&&p.seekCalls==(drift<=350?1:2),"recorded offset "+drift+"ms must not create unnecessary warm seeks");
-  if(drift>350){SystemClock.now+=40;p.position+=40;source+=40;sample(source);TestEngine.p.handler.drain();}
+  int expectedSeeks=drift<=ReplacementEngine.STRICT_STREAM_JOIN_DRIFT_MS?1:2;
+  check(e.player==p&&!p.released&&p.seekCalls==expectedSeeks,
+      "recorded "+drift+"ms drift requires a warm correction only above the 100ms output gate");
+  if(drift>ReplacementEngine.STRICT_STREAM_JOIN_DRIFT_MS){
+   check(e.effect.gain==0f&&p.volume==0f,
+       "predicted warm seek never makes misaligned replacement audible");
+   SystemClock.now+=50;p.position+=50;source+=50;sample(source);TestEngine.p.handler.drain();
+   check(e.audioOwner.state()==AudioOwnership.State.SAME_SONG_BLEND&&p.volume==0f,
+       "post-ACK decoder progress verifies corrected clock before blend begins");
+  }
   SystemClock.now+=ReplacementEngine.UNIFIED_JOIN_MS/4;
   p.position+=ReplacementEngine.UNIFIED_JOIN_MS/4;source+=ReplacementEngine.UNIFIED_JOIN_MS/4;
   sample(source);TestEngine.p.handler.drain();
@@ -84,7 +92,7 @@ public class TestHandoverClock {
  public static void main(String[] args)throws Exception{
   nearTerminalBlendTickMustNotTriggerRecovery();
   coldJoinSoftEdgesAndCancellation();
-  for(int drift:new int[]{210,198,170,207,197,190,378,230,187})recordedOffset(drift);
+  for(int drift:new int[]{40,85,100,210,198,170,207,197,190,378,230,187})recordedOffset(drift);
   List<Map<String,Object>> rows=new ArrayList<>();rows.add(LogStore.map("catalogueTrackId","89285816","displayTitle","Он рядом","artist","Quest Pistols","durationMs",224520L));
   check("89285816".equals(AlbumMatch.match("Он рядом","Quest Pistols Show, Quest Pistols",224520,rows).get("catalogueTrackId")),"recorded duplicated artist display finds exact album track");
   check("NO_MATCH".equals(AlbumMatch.match("Он рядом","Quest Pistols, Another Artist",224520,rows).get("status")),"an unrecognised extra collaborator is not discarded");
