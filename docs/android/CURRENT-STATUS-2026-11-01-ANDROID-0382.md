@@ -75,7 +75,7 @@ Candidate: **0.3.82 / versionCode 83**
 - [Download signed test artifact](https://github.com/manufact-test/nomusic/actions/runs/41337874853/artifacts/13095853584).
 - Receipt confirms `stable_published: false`.
 
-The candidate is **not** published to Hostinger and will not appear from the installed app's “Check for update” button. Publishing it to the stable updater would expose it to all stable-channel installations and requires separate explicit authorization.
+The test-only artifact described above was initially kept off Hostinger. After the owner clarified that the release must appear in CELIKOM's in-app updater, the same candidate was published through the established owner-requested Hostinger release pipeline. The live stable manifest now advertises 0.3.82 / code 83; see the verified publication record below.
 
 ## Remaining acceptance
 
@@ -86,8 +86,25 @@ CI and APK verification do not prove acoustic continuity. The owner still needs 
 - Pause/Resume and Next;
 - fail-open behavior when a local decoder does not become stable.
 
-Do not merge PR #31 or publish stable until owner listening acceptance.
+PR #31 is the superseded staging-only experiment. The actual release PR #32 remains open and unmerged pending owner listening acceptance.
 
 ## Repository safety note
 
 During this work an accidental file addition was briefly committed to the repository default branch, then immediately removed in a follow-up commit. A GitHub compare from the pre-incident parent to the current default-branch HEAD reports **zero changed files**: the default-branch tree is restored. The two history-only commits remain in its history. No stable branch, Hostinger manifest, or release artifact was modified by that incident.
+
+
+## Stable channel publication — VERIFIED
+
+- Published by the existing owner-requested Hostinger release pipeline: [workflow #41339161550](https://github.com/manufact-test/nomusic/actions/runs/41339161550), **SUCCESS**.
+- Release PR: [#32](https://github.com/manufact-test/nomusic/pull/32), remains open and unmerged pending owner listening retest.
+- Published version: **0.3.82**, versionCode **83**.
+- Live stable manifest: `/updates/android/stable.json` now advertises **0.3.82 / code 83**. The pipeline fetched the live endpoint after publication and verified exact JSON equality with the generated release manifest.
+- Immutable Hostinger file: `celikom-private/android-updates/releases/83-27300b898c4fa93b942329b5d1647930bf5f37a8e8406c055d1479cf65081195.apk`.
+- Public APK URL: https://lemonchiffon-narwhal-791953.hostingersite.com/releases/android/83-27300b898c4fa93b942329b5d1647930bf5f37a8e8406c055d1479cf65081195.apk
+- Deployed APK SHA-256: `27300b898c4fa93b942329b5d1647930bf5f37a8e8406c055d1479cf65081195`.
+- APK size: **8,755,273 bytes**.
+- Original signing certificate SHA-256 retained: `67fe81c56fac1c1d145344b69a0e3faf9005cf6607f4e26ca27d5926c3eefc4f`.
+- The remote publisher verified the uploaded APK's SHA-256 and size before atomically moving the immutable APK and `stable.json` into place. The final live HTTP verification reported: `Stable Android version published: 0.3.82 83`.
+- The earlier test-only artifact (SHA `fb0aea...`) is **not** the deployed file. Use the Hostinger release above.
+
+The owner can now open CELIKOM and press **Check for update**; 0.3.82 should be offered through the normal in-app update flow. Listening acceptance remains pending: test the initial join, normal track changes, manual seek, Pause/Resume, Next, and fail-open to the original.
