@@ -481,7 +481,9 @@ final class ReplacementEngine {
       Sample phase of two Android output sessions is NOT measurable here:
       the linear entry is a listening compromise, never acoustic proof. */
   resumeFadePending=false;
-  final boolean alignLive=streaming!=null;
+  /* A cache hit reuses the validated file, never a prepared decoder. Every new
+     local-file attachment must prove post-start decoder motion just like a stream. */
+  final boolean requireDecoderClockGate=streaming!=null||coherentEntry;
   final long[] baseline={p.getCurrentPosition()},phaseStarted={SystemClock.elapsedRealtime()};
   final int[] corrections={0};final long[] softStarted={-1};
   /* Passive cold join drift summary: projected transport clocks only. */
@@ -492,7 +494,7 @@ final class ReplacementEngine {
    setAuditedVolume(p,0f);
    audioOwner.sourceGainDuringAlignment(fx);originalMix=1f;traceAudioCommands();
   }
-  fadeStarted=SystemClock.elapsedRealtime();fading=true;audioOwner.handoverWaitForClock(alignLive);
+  fadeStarted=SystemClock.elapsedRealtime();fading=true;audioOwner.handoverWaitForClock(requireDecoderClockGate);
   Runnable ramp=new Runnable(){public void run(){
    if(closed||token!=transition||p!=player||fx!=effect||!armed()||!accountLeaseCurrent()
       ||!audioOwner.current(ownerEpoch,ownerKey)||!audioOwner.commandCurrent(handoverTicket,api.accountGeneration,ownerKey,descriptor==null?0:descriptor.optLong("replacement_id"),descriptor==null?0:descriptor.optLong("version"),descriptor==null?0:descriptor.optLong("duration_ms")))return;
