@@ -263,3 +263,10 @@ The next developer must check current documentation and API/device behavior rath
 The user is tired of repeated experiments and contradictory “it is fixed” conclusions. Be direct. Explain what is measured versus inferred. Do not ask the user to repeat information already in this handoff. Do not make them perform a large diagnostic ritual unless the next test isolates a specific hypothesis and is likely to change the diagnosis.
 
 Current user conclusion: audio still sounds wrong overall. Treat this as an unresolved defect.
+
+
+### Verified notes from current Android documentation (checked 2026-11-01)
+
+- Media3's `Player` contract says the visible player state is updated immediately after method calls even if the actual change is handled asynchronously. It also distinguishes normal playback progression from position-discontinuity callbacks, and documents `DISCONTINUITY_REASON_SEEK_ADJUSTMENT`. Do not assume a seek request or callback is a presentation timestamp: https://developer.android.com/reference/androidx/media3/common/Player
+- Android `AudioTimestamp.nanoTime` from `AudioTrack.getTimestamp()` estimates when a frame was presented or committed to presentation, using the monotonic timebase. This is a more relevant output-clock signal for the replacement track than just decoder media position, though it still does not expose the source Yandex PCM: https://developer.android.com/reference/android/media/AudioTimestamp
+- Capturing another app's playback through `AudioPlaybackCapture` requires `RECORD_AUDIO`, a user-approved `MediaProjection` token, same user profile, compatible usage and capture policy. Yandex may disallow capture, so this is a conditional test option, not an assumed capability: https://developer.android.com/media/platform/av-capture and https://developer.android.com/reference/android/media/AudioPlaybackCaptureConfiguration
