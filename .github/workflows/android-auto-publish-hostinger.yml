@@ -150,6 +150,8 @@ jobs:
           echo "RELEASE_APK=$OUT" >> "$GITHUB_ENV"
       - name: Upload signed staging APK without publishing stable
         if: steps.gate.outputs.test_only == 'true'
+        env:
+          STAGING_BRANCH: ${{ github.ref_name }}
         shell: bash
         run: |
           set -euo pipefail
@@ -157,14 +159,14 @@ jobs:
           import hashlib,json,os,pathlib
           spec=json.loads(pathlib.Path('android/native-companion/release-spec.json').read_text())
           apk=pathlib.Path(os.environ['RELEASE_APK'])
-          receipt={"version":spec["version"],"version_code":spec["version_code"],"package":spec["package"],"apk_sha256":hashlib.file_digest(apk.open('rb'),'sha256').hexdigest(),"size_bytes":apk.stat().st_size,"signing_certificate_sha256":spec["signing_certificate_sha256"],"branch":"feature/android-078-approved-replacement-autostart-staging-20261101","stable_published":False}
+          receipt={"version":spec["version"],"version_code":spec["version_code"],"package":spec["package"],"apk_sha256":hashlib.file_digest(apk.open('rb'),'sha256').hexdigest(),"size_bytes":apk.stat().st_size,"signing_certificate_sha256":spec["signing_certificate_sha256"],"branch":os.environ["STAGING_BRANCH"],"stable_published":False}
           pathlib.Path(os.environ['RUNNER_TEMP'],'celikom-android-test-candidate.json').write_text(json.dumps(receipt,indent=2)+'\n')
           print(json.dumps(receipt,indent=2))
           PY
       - uses: actions/upload-artifact@v4
         if: steps.gate.outputs.test_only == 'true'
         with:
-          name: celikom-android-0.3.78-signed-test
+          name: celikom-android-0.3.79-cached-decoder-join-signed-test
           path: |
             ${{ env.RELEASE_APK }}
             ${{ runner.temp }}/celikom-android-test-candidate.json

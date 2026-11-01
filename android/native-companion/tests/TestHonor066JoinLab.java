@@ -12,12 +12,14 @@ public final class TestHonor066JoinLab {
   TestEngine.reset("ALBUM");
   sourcePosition=1000;
   ReplacementEngine e=TestEngine.e;e.arm();TestEngine.prepare();
+  advance(50); // prove local decoder motion before measuring the existing 160ms entry
   check(e.fading&&e.effect!=null&&e.player.volume==0f,
     "cold join begins with only original audible");return e;
  }
  static void advance(long elapsed){
   SystemClock.now+=elapsed;
   sourcePosition+=elapsed;
+  MediaPlayer player=TestEngine.e.player;if(player!=null&&player.playing)player.position+=elapsed;
   TestEngine.p.current=TestEngine.source("1",sourcePosition,true);
   TestEngine.p.handler.drain();
  }

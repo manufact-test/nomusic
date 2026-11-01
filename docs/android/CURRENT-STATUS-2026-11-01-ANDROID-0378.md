@@ -1,20 +1,73 @@
-# CELIKOM Android — current status, 2026-11-01
+# CELIKOM Android — current status at 0.3.78 stable baseline
 
-**Current stable Android:** 0.3.78 / versionCode 79. Stable Hostinger publication is verified; owner acoustic acceptance remains pending.
+Date: 2026-11-01  
+Status: **0.3.79 experimental APK built, signed and verified; owner listening test pending**
 
-**Frozen rollback source:** `backup/android-0378-original-before-cached-join-20261101` → `bf011dcf1a70c504883a8e5e742e0b038f41d9b0`. Verified on GitHub after branch creation. Do not move or modify it.
+## Stable and rollback points
 
-**Signed stable APK:** SHA-256 `325d6eb5c538405b989907bd492a644b287143a1f590b76754778c62f66f89a9`; [download](https://lemonchiffon-narwhal-791953.hostingersite.com/releases/android/79-325d6eb5c538405b989907bd492a644b287143a1f590b76754778c62f66f89a9.apk). Stable manifest was verified against the published release.
+- Stable owner baseline: **0.3.78 / versionCode 79**.
+- Immutable recovery branch: \`backup/android-0378-original-before-cached-join-20261101\`.
+- Immutable recovery SHA: \`bf011dcf1a70c504883a8e5e742e0b038f41d9b0\`.
+- Verified APK source commit: \`e04d5a7d5eafac2e03c61c885bbe86238e4638d9\`.
+- Package: \`pro.celikom.nativeprobe\`.
+- Signing certificate SHA-256: \`67fe81c56fac1c1d145344b69a0e3faf9005cf6607f4e26ca27d5926c3eefc4f\`.
 
-**Current investigation:** owner-provided screen recording and matching 0.3.78 diagnostic. Two suspicious joins were highlighted around “Биг сити лайф”. Reported ~224/~239 ms values are transport/output-clock differences only; they do not prove PCM phase or audible silence.
+The backup branch remains at the exact original SHA. Do not move, force-update or commit to it.
 
-**Hypothesis to test:** cache-hit decoder reuse may follow a different preparation/handover path from streaming preparation. Not yet proven. No audio code has been changed for this investigation.
+## Staging branch and final code behavior
 
-**Next action:** inspect every `ReplacementEngine` path into `fade(...)`; add cache-hit and paired stream-hit actual-engine tests; verify original stays audible until the replacement decoder advances and meets the existing gate; fail open on timeout. Then full native tests + Android API36/D8 CI on non-publishing staging. Only afterward prepare a signed test-only candidate for owner listening.
+- Branch: \`feature/android-0379-cached-decoder-join-staging-20261101\`.
+- Candidate: **0.3.79 / versionCode 80**.
+- The cache stores a validated audio file, not a prepared decoder. A cache hit creates a fresh MediaPlayer.
+- New/coherent local-file attachments now use the existing streaming decoder-motion and transport-clock gate.
+- Streaming keeps its existing gate.
+- Retained local Pause/Resume and route-resume reattachment keep their previous path.
+- Unstable local decoder startup fails open to the original.
+- No changes to AudioOwnership, seek/WARM constants, transition duration, gain law, Pause/Resume, Next, Bluetooth, UI, or permissions.
 
-**Do not:** change fade/seek/WARM/gain/pause/Next/AudioOwnership/Media3 logic speculatively; add modes or buttons; publish stable; touch desktop/backend/site/CMS/catalogue/auth/updater.
+## CI acceptance
 
-Read first:
-- [Next-chat handoff](START-NEXT-CHAT-2026-11-01-AFTER-0378-CACHED-JOIN.md)
-- [Full investigation and rollback checkpoint](ANDROID-0378-CACHED-DECODER-JOIN-INVESTIGATION-2026-11-01.md)
-- [0.3.78 release receipt](ANDROID-0378-APPROVED-REPLACEMENT-AUTOSTART-2026-11-01.md)
+GitHub Actions: [run 41324403134](https://github.com/manufact-test/nomusic/actions/runs/41324403134)
+
+| Check | Result |
+|---|---|
+| Full native host regression suite | PASS |
+| Cached decoder join regression | PASS — 13 checks |
+| Existing audio / Media3 / lifecycle suites | PASS |
+| Android API 36 source compilation | PASS |
+| D8 compilation | PASS |
+| Source-to-DEX provenance | PASS |
+| Signed APK rebuild and release verification | PASS |
+| Same signing certificate / APK v2-v3 signature | PASS |
+| Test-only staging artifact upload | PASS |
+| Hostinger stable publication | SKIPPED |
+| Stable manifest update | NOT PERFORMED |
+
+The native host run reported 6,730 checks across 34 test groups.
+
+## Experimental APK
+
+- GitHub artifact: \`celikom-android-0.3.79-cached-decoder-join-signed-test\`
+- Artifact ID: \`13090493627\`
+- File: \`CELIKOM-Android-0.3.79-SIGNED.apk\`
+- Size: 8,755,273 bytes (about 8.4 MiB)
+- Version code: \`80\`
+- Package: \`pro.celikom.nativeprobe\`
+- APK SHA-256: \`77d262ce9cbee85d5ec529e7c40bc9842209559eddda986003f73352cef9e66f\`
+- Signing certificate SHA-256: \`67fe81c56fac1c1d145344b69a0e3faf9005cf6607f4e26ca27d5926c3eefc4f\`
+- Receipt: \`stable_published: false\`
+
+The APK can be installed over 0.3.78 without uninstalling because package and signing identity match and versionCode is higher. It is a direct test download and will not appear in the in-app updater; no stable release was published.
+
+## Next owner test
+
+1. Install the experimental APK over 0.3.78.
+2. Test the cache-hit path on **“Биг сити лайф”**: allow the replacement to load once, switch to another song, then return to the same track.
+3. Listen for a volume dip, silence, click, late join or unstable transition.
+4. Compare with a first-load streaming replacement and send the resulting diagnostics.
+
+Do not adjust timing or gain parameters before the device test. A green CI run is not acoustic acceptance.
+
+## Scope boundary
+
+Android only. No Desktop, Backend, website, CMS, catalogue or Hostinger stable release changes.

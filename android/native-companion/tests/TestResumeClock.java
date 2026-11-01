@@ -46,7 +46,7 @@ public class TestResumeClock {
   check(e.fadeStarted>=0&&!e.resumeFadePending,"resumed decoder remains under audio ownership after bounded alignment");
   int afterResume=player.seekCalls;SystemClock.now+=ReplacementEngine.PAUSE_RESUME_FADE_MS+20;
   player.position+=200;sample(1580,true);TestEngine.p.handler.drain();
-  check(player.seekCalls==afterResume&&e.player==player,"resume stays stable without disruptive reseek");
+  check(player.seekCalls==afterResume&&e.player==player,"resume stays stable without disruptive reseek: seeks="+player.seekCalls+"/"+afterResume+" current="+(e.player==player)+" released="+player.released+" decoder="+player.position+" source="+TestEngine.p.current.position+" state="+e.audioOwner.state()+" seeking="+e.seeking);
   e.close();
 
   // HONOR 0.3.46: after a long pause, a second 813ms pause was needlessly
