@@ -89,7 +89,9 @@ public final class TestCachedDecoderJoin {
     SystemClock.now += 50;
     TestEngine.p.current = TestEngine.source("1", 1250, true);
     decoder.seek.onSeekComplete(decoder);
-    SystemClock.now += 20;
+    SystemClock.now += 50;
+    decoder.position += 50;
+    TestEngine.p.current = TestEngine.source("1", decoder.position, true);
     TestEngine.p.handler.drain();
 
     check(!engine.audioOwner.handoverAwaitingClock()
@@ -99,7 +101,7 @@ public final class TestCachedDecoderJoin {
 
     SystemClock.now += 200;
     decoder.position += 200;
-    TestEngine.p.current = TestEngine.source("1", 1470, true);
+    TestEngine.p.current = TestEngine.source("1", decoder.position, true);
     TestEngine.p.handler.drain();
     check(!engine.fading
             && engine.originalMix == 0f
