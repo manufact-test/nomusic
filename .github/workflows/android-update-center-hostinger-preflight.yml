@@ -81,3 +81,25 @@ jobs:
           assert m.get("packageName")=="pro.celikom.nativeprobe"
           print("PUBLIC_MANIFEST_OK",m["versionName"],m["versionCode"])
           PY
+          readarray -t release < <(python3 - "$tmp/manifest.json" <<'PY'
+          import json,sys
+          m=json.load(open(sys.argv[1]))
+          print(m["apkUrl"])
+          print(m["apkSha256"])
+          print(m["sizeBytes"])
+          PY
+          )
+          apk_url="${release[0]}"
+          expected_sha="${release[1]}"
+          expected_bytes="${release[2]}"
+          head_status="$(curl --silent --show-error --connect-timeout 10 --max-time 30 -I -o "$tmp/apk-headers.txt" -w '%{http_code}' "$apk_url")"
+          test "$head_status" = 200
+          header_bytes="$(awk 'tolower($1)=="content-length:" {gsub("\\r","",$2); print $2}' "$tmp/apk-headers.txt" | tail -1)"
+          test "$header_bytes" = "$expected_bytes"
+          get_status="$(curl --fail --silent --show-error --connect-timeout 10 --max-time 120 -o "$tmp/release.apk" -w '%{http_code}' "$apk_url")"
+          test "$get_status" = 200
+          actual_bytes="$(wc -c < "$tmp/release.apk" | tr -d ' ')"
+          actual_sha="$(sha256sum "$tmp/release.apk" | awk '{print $1}')"
+          test "$actual_bytes" = "$expected_bytes"
+          test "$actual_sha" = "$expected_sha"
+          echo "PUBLIC_APK_HEAD=$head_status GET=$get_status BYTES=$actual_bytes SHA256=$actual_sha"
