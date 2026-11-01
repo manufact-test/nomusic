@@ -19,6 +19,13 @@ on:
       - 'android/native-companion/**'
       - '.github/workflows/android-0348-validation.yml'
       - '.github/workflows/android-auto-publish-hostinger.yml'
+  pull_request:
+    branches:
+      - feature/android-unified-preparation-seek-gate
+    paths:
+      - 'android/native-companion/**'
+      - '.github/workflows/android-0348-validation.yml'
+      - '.github/workflows/android-auto-publish-hostinger.yml'
   workflow_dispatch:
 
 permissions:
@@ -27,6 +34,7 @@ permissions:
 
 jobs:
   native-android:
+    if: github.event_name != 'pull_request' || github.head_ref == 'feature/android-078-approved-replacement-autostart-staging-20261101'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
