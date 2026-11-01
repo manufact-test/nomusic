@@ -6,7 +6,7 @@ import android.os.SystemClock;
 import org.json.JSONObject;
 import java.io.File;
 
-/** Locks the owner-approved 0.3.78 local-cache start and seek behavior.
+/** Exercises muted local-file prewarm, bounded clock validation, original fallback and unchanged manual seek behavior.
  * This is an actual ReplacementEngine replay, not a hardware-output measurement.
  */
 public final class TestCachedAudioRollback {
@@ -37,10 +37,17 @@ public final class TestCachedAudioRollback {
     MediaPlayer decoder = engine.player;
     decoder.prepared.onPrepared(decoder);
 
-    check(decoder.playing && engine.fading,
-        "prepared local cache starts the existing complementary entry");
-    check(!engine.audioOwner.handoverAwaitingClock(),
-        "0.3.78 cache hit must not acquire the extra streaming cold-decoder gate");
+    check(decoder.playing && engine.fading && engine.localPrewarmAttempted,
+        "local-file decoder is started muted before its initial alignment");
+    check(engine.audioOwner.handoverAwaitingClock()
+            && decoder.volume == 0f
+            && engine.effect != null && engine.effect.gain == 0f
+            && engine.originalMix == 1f,
+        "original stays fully audible and replacement silent while motion gate is pending");
+    check(decoder.startCalls == 1 && decoder.pauseCalls == 0,
+        "initial alignment seek uses the already-running muted decoder without pausing it");
+    check(engine.audioFromCache,
+        "the reused object is a cached audio file, not a cached MediaPlayer decoder");
     initialSeekCount = decoder.seekCalls;
     return decoder;
   }
@@ -69,8 +76,22 @@ public final class TestCachedAudioRollback {
             && engine.effect.gain == -100f,
         "local cache completes the existing 160ms complementary entry without a cold gate");
     check(decoder.seekCalls == initialSeekCount,
-        "local cache startup does not add a post-attach WARM correction");
+        "prewarmed local cache reaches the gate without a post-attach WARM correction");
     engine.close();
+  }
+
+  static void cachedPrewarmTimeoutKeepsOriginal() throws Exception {
+    MediaPlayer decoder = startCached();
+    ReplacementEngine engine = TestEngine.e;
+
+    SystemClock.now += 2001;
+    TestEngine.p.handler.drain();
+
+    check(engine.player == null && decoder.released && engine.effect == null
+            && engine.audioOwner.state() == AudioOwnership.State.TRACK_UNSUPPORTED
+            && engine.completedReason != null
+            && engine.completedReason.contains("Синхронизация неустойчива"),
+        "a local decoder that never advances is rejected and the original remains the only output");
   }
 
   static void cachedUserSeekRetainsTheSameDecoder() throws Exception {
@@ -87,6 +108,7 @@ public final class TestCachedAudioRollback {
 
     check(engine.seeking
             && decoder.seekCalls == beforeSeek + 1
+            && decoder.pauseCalls > 0
             && !decoder.playing
             && decoder.volume == 0f
             && engine.effect == sourceEffect
@@ -118,6 +140,7 @@ public final class TestCachedAudioRollback {
 
   public static void main(String[] args) throws Exception {
     cachedStartRemainsOnTheApprovedPath();
+    cachedPrewarmTimeoutKeepsOriginal();
     cachedUserSeekRetainsTheSameDecoder();
     System.out.println("PASS: " + checks
         + " cached local-file startup and same-decoder seek rollback checks");
