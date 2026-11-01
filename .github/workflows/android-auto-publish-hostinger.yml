@@ -21,6 +21,7 @@ concurrency:
 jobs:
   publish:
     if: >-
+      inputs.test_only == true ||
       github.event_name != 'workflow_run' ||
       (github.event.workflow_run.conclusion == 'success' &&
        github.event.workflow_run.head_repository.full_name == 'manufact-test/nomusic' &&
