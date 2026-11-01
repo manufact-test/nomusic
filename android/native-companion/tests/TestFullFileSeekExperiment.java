@@ -16,6 +16,9 @@ public final class TestFullFileSeekExperiment {
   engine.arm();
   check(engine.player==null&&engine.effect==null&&TestEngine.api.resolves==1,
     "a fresh authenticated resolve still precedes every replacement");
+  // Make the fake stream succeed if invoked: a baseline stream-first engine
+  // must fail this test rather than silently exercising its fallback.
+  TestEngine.api.useStreaming=true;
   TestEngine.resolve();
   check(TestEngine.api.downloads==1&&TestEngine.api.streamed==null
       &&TestEngine.api.valid.getAsBoolean()&&engine.preparing,
