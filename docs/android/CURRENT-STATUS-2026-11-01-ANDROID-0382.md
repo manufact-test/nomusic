@@ -1,5 +1,25 @@
 # CELIKOM Android — Current Status 2026-11-01 (0.3.82 staging)
 
+## Owner listening retest — 2026-11-01 (latest status)
+
+The owner has now tested the published 0.3.82 build and reports:
+- song beginnings remain problematic on some songs;
+- seeking remains inconsistent, varying from apparently clean to strongly audible defects by song;
+- the owner suspects the problems may become apparent after pressing Next, but is uncertain whether they were initially absent.
+
+**Current decision: keep 0.3.82 as the listening baseline. Do not roll back or make another audio-code change yet.** The diagnostic analysis is recorded in [ANDROID-0382-HONOR-DIAGNOSTICS-2026-11-01.md](ANDROID-0382-HONOR-DIAGNOSTICS-2026-11-01.md).
+
+The latest log contains 47 discontinuities, 17 media-item transitions, 45 ALIGNMENT seeks and 25 WARM seeks. ALIGNMENT callback latency ranges from 19 to 797 ms (median 51 ms, p90 360 ms). Two stream seek-data waits reached 737 and 797 ms. This is objective evidence of variable seek timing, not direct measurement of speaker output.
+
+The log does not prove the physical Next button was pressed: all 17 `source_media_item_transition` entries report `manualNextButtonObserved: false`, while `source_discontinuity` marks all 47 events as `userSeek: true`, including track changes. The Next-versus-automatic-boundary distinction therefore needs better instrumentation.
+
+The local-file prewarm branch ran only once in the 0.3.82 segment (46 ms decoder motion after 214 ms). It is not enough evidence to explain or clear the song-start complaint. All output/phase flags remain transport-only.
+
+Next engineering step: improve read-only attribution of physical Next, automatic boundaries, finger seek, buffering and per-song source path; correlate player/seek/owner generations. No seek, WARM, fade, gain, Next or prewarm behavior changes until a specific failure sequence is isolated. No further phone test should be requested until that instrumentation/replay work produces a concrete question.
+
+Exact 0.3.82 release-tree snapshot: `backup/android-0382-stable-listening-baseline-20261101`, SHA `2e03aca1dad0f89b3d71f871270e09f8bb9f143f`. Earlier 0.3.78 rollback remains untouched.
+
+
 ## Owner-approved rollback point
 
 - Working version identified by the owner: **0.3.78 / versionCode 79**.
