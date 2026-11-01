@@ -1,3 +1,17 @@
+## 2026-11-02 — Android 0.3.84 HONOR retest: no material acoustic improvement; rollback and handoff secured
+
+**Authoritative evidence/plan:** [ANDROID-0384-OWNER-RETEST-LOCAL-FILE-SEEK-PLAN-2026-11-02.md](android/ANDROID-0384-OWNER-RETEST-LOCAL-FILE-SEEK-PLAN-2026-11-02.md).
+
+The owner installed and tested 0.3.84 with combined diagnostic CELIKOM-combined-20261102-005314(1).txt and screen recording SVID_20261102_005154_1(1).mp4. Recurring seek and song-start/Next acoustic artifacts remain. The 0.3.84 run shows 18 real seeks, 25 ALIGNMENT ACKs (6 >=250ms; max 751ms), two confirmed streaming data waits, zero staleOperation=true events, and ~1–2s transition-command completion after new-track boundaries. All replacement joins in this run use streamed MediaDataSource (localPrewarmAttempted=false). Output clock journals do not directly measure the original source PCM or speaker output. The last 0.3.84 change fixed a narrowly scoped overlapping-seek race and did not solve general streaming latency.
+
+**No new stable published:** Hostinger Android stable stays 0.3.84 / versionCode 85, signed APK SHA256 a64c562989d92749982ec979eb712fa8ba2fa12492c454ff7b1c54e9337f6bc2. The direct and in-app APK download eventually worked; no Android updater patch was deployed.
+
+**New protected rollback:** backup/android-0384-before-local-seek-experiment-20261102 at source SHA d434d442aeed7a84f17126da48c6a08b752c825d. Preserve existing backup/android-0382-stable-listening-baseline-20261101 at 2e03aca1dad0f89b3d71f871270e09f8bb9f143f and backup/android-0378-original-before-cached-join-20261101 at bf011dcf1a70c504883a8e5e742e0b038f41d9b0.
+
+**Next:** independent audio source/MediaDataSource/Android documentation audit; a *single* Android-only, nonpublishing A/B experiment comparing streaming vs automatically fully cached local-file seeking, then rigorous Pause/Next/start/reliability checks. Do not change website, server, catalogue, auth, signing or accepted OTA. Owner should not be asked for another recording before a defensible test candidate exists.
+
+---
+
 ## 2026-11-01 — CELIKOM Android 0.3.84 / code 85 published; owner retest pending
 
 **Stable OTA is live.** The owner can use CELIKOM's normal **Check for updates** button to download 0.3.84.
