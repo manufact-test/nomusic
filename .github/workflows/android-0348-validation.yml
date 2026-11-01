@@ -194,3 +194,12 @@ jobs:
     with:
       test_only: true
     secrets: inherit
+  publish-requested-0-3-78:
+    needs: native-android
+    if: >-
+      github.event_name == 'pull_request' &&
+      github.head_ref == 'release/android-0.3.78-stable' &&
+      github.event.pull_request.head.repo.full_name == 'manufact-test/nomusic' &&
+      github.event.pull_request.user.login == 'manufact-test'
+    uses: ./.github/workflows/android-auto-publish-hostinger.yml
+    secrets: inherit
