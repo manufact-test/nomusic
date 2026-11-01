@@ -481,9 +481,9 @@ final class ReplacementEngine {
       Sample phase of two Android output sessions is NOT measurable here:
       the linear entry is a listening compromise, never acoustic proof. */
   resumeFadePending=false;
-  /* A cache hit reuses the validated file, never a prepared decoder. Every new
-     local-file attachment must prove post-start decoder motion just like a stream. */
-  final boolean requireDecoderClockGate=streaming!=null||coherentEntry;
+  /* A cache hit reuses the validated file, never a prepared decoder. Gate a new
+     local-file attachment, but keep retained local pause/resume on its old path. */
+  final boolean requireDecoderClockGate=streaming!=null||(coherentEntry&&!resumeFadePending);
   final long[] baseline={p.getCurrentPosition()},phaseStarted={SystemClock.elapsedRealtime()};
   final int[] corrections={0};final long[] softStarted={-1};
   /* Passive cold join drift summary: projected transport clocks only. */
