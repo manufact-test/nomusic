@@ -36,8 +36,10 @@ if 'boolean mayConsumeCompletion(' not in owner:
     raise AssertionError('native decoder completion must be classified by single audio owner')
 if 'handoverPending' in engine:
     raise AssertionError('duplicate handover clock flag: AudioOwnership is authoritative')
-if 'audioOwner.handoverWaitForClock(alignLive)' not in engine:
-    raise AssertionError('native handover clock gate must be owned by AudioOwnership')
+if ('audioOwner.handoverWaitForClock(requireDecoderClockGate)' not in engine
+    or 'final boolean retainedResumeEntry=resumeFadePending;' not in engine
+    or 'final boolean requireDecoderClockGate=streaming!=null||(coherentEntry&&!retainedResumeEntry);' not in engine):
+    raise AssertionError('streaming and new local-file/cache attachments must use the same AudioOwnership decoder-motion gate')
 if 'warmSeekTransition' in engine:
     raise AssertionError('duplicate warm seek flag: use AudioOwnership native seek flight only')
 if 'audioOwner.seekInFlight(p)||position-baseline[0]<40' not in engine:
