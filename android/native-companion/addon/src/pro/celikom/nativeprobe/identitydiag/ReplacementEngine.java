@@ -62,6 +62,8 @@ final class ReplacementEngine {
  void attachPendingSession(){if(!armed()||trustedSession>0)return;Integer session=verifiedSession(owner);if(session!=null&&session>0){trustedSession=session;status="Подключение получено; автозамена включена";LogStore.log("replacement_session_attached",LogStore.map("sessionId",session,"source","verified_yandex_panel"));}}
  void headphonesDisconnected(){
   if(!armed()&&!returning&&effect==null)return;
+  boolean interruptedLocalPrewarm=localPrewarmWarmupPending||localPrewarmAlignmentPending;
+  if(interruptedLocalPrewarm)localPrewarmAttempted=false;
   localPrewarmWarmupPending=false;localPrewarmAlignmentPending=false;localPrewarmJoinPending=false;
   if(returning){stop("headphones_disconnected_during_return");return;}
   resumePositionRetained=player!=null&&ready&&aligned&&!seeking;waitingForRouteResume=true;routePauseObserved=false;transition++;fading=false;aligned=false;pausedAt=-1;audioOwner.event(AudioOwnership.Event.ROUTE_LOSS);
@@ -84,9 +86,9 @@ final class ReplacementEngine {
  long position(PlaybackSource s){long extra=s.playing?Math.max(0,SystemClock.elapsedRealtime()-s.observed):0;return Math.min(s.duration,Math.max(0,s.position+extra));}
  void prewarmLocalFileForInitialAlignment(PlaybackSource s,boolean resumed,boolean sourceJump){
   if(localPrewarmAttempted||localPrewarmWarmupPending||localPrewarmAlignmentPending||localPrewarmJoinPending
-     ||streaming!=null||audioFile==null||player==null||!ready||effect!=null
+     ||streaming!=null||audioFile==null||player==null||!ready
      ||!armed()||trustedSession<=0||s==null||!s.playing||player.isPlaying()
-     ||resumed||resumePositionRetained||waitingForRouteResume||sourceJump
+     ||resumePositionRetained||waitingForRouteResume||sourceJump
      ||explicitSourceSeek||seeking||aligned||fading||audioOwner.handoverAwaitingClock())return;
   if(!mute())return;
   localPrewarmAttempted=true;localPrewarmWarmupPending=true;
@@ -328,7 +330,9 @@ final class ReplacementEngine {
  void pauseSource(PlaybackSource s){pauseSource(s,false);}
  void pauseSource(PlaybackSource s,boolean buffering){
   if(player==null)return;
-  if(localPrewarmWarmupPending||localPrewarmAlignmentPending||localPrewarmJoinPending){localPrewarmWarmupPending=false;localPrewarmAlignmentPending=false;localPrewarmJoinPending=false;}
+  boolean interruptedLocalPrewarm=localPrewarmWarmupPending||localPrewarmAlignmentPending;
+  if(interruptedLocalPrewarm)localPrewarmAttempted=false;
+  if(interruptedLocalPrewarm||localPrewarmJoinPending){localPrewarmWarmupPending=false;localPrewarmAlignmentPending=false;localPrewarmJoinPending=false;}
    if(streaming!=null)streaming.releasePrefetchAfterSeek();
   /* Changing USER_PAUSE <-> BUFFERING invalidates the old timer and delay. */
   boolean pauseCauseChanged=pausedAt>=0&&audioOwner.pauseMode()!=AudioOwnership.PauseMode.NONE
