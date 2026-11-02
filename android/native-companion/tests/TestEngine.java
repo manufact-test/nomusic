@@ -11,7 +11,7 @@ public class TestEngine {
     position,false,true,1f,true,true);
  }
  static void reset(String method){reset(method,false);}
- static void reset(String method,boolean fullFileExperiment){SystemClock.now=1000;AttenuationService.Companion.session=101;api=new NativeApi();NativeApi.api=api;p=new ProbeService();p.current=source("1",1000,true);e=new ReplacementEngine(p,fullFileExperiment);e.identity(LogStore.map("mediaAlias","1","albumId","42","title","Песня","artist","Артист","durationMs",120000L),LogStore.map("candidateTrackId","7","method",method,"editionConflict",false));api.signed=true;}
+ static void reset(String method,boolean fullFileExperiment){SystemClock.now=1000;AttenuationService.Companion.session=101;api=new NativeApi();NativeApi.api=api;p=new ProbeService();p.current=source("1",1000,true);e=new ReplacementEngine(p,fullFileExperiment);e.coldJoinExclusiveExperiment=false;e.identity(LogStore.map("mediaAlias","1","albumId","42","title","Песня","artist","Артист","durationMs",120000L),LogStore.map("candidateTrackId","7","method",method,"editionConflict",false));api.signed=true;}
  static JSONObject found()throws Exception{return new JSONObject().put("found",true).put("replacement_id",1).put("duration_ms",120000);}
  static void resolve()throws Exception{api.resolved.done(found(),null);}
  static MediaPlayer prepare()throws Exception{resolve();File f=File.createTempFile("engine-test", ".audio");api.downloaded.done(f,null);MediaPlayer player=e.player;player.prepared.onPrepared(player);return player;}
