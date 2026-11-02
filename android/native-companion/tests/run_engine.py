@@ -21,6 +21,10 @@ subprocess.run(['java','-cp',str(out)+os.pathsep+str(json),'pro.celikom.nativepr
 # auth cancellation and cleanup. The older stream cases still run unchanged.
 subprocess.run(['java','-cp',str(out)+os.pathsep+str(json),'pro.celikom.nativeprobe.identitydiag.TestFullFileSeekExperiment'],check=True,timeout=45)
 
+# Owner-accepted HONOR 0.3.85 seek path: fail CI on silent source/seek rewrites.
+# This is source/test-only protection; it does not rebuild or change the APK.
+subprocess.run(['python3',r/'check_0385_seek_baseline.py'],check=True)
+
 subprocess.run(['java','-cp',str(out)+os.pathsep+str(json),'pro.celikom.nativeprobe.identitydiag.TestHandoverClock'],check=True,timeout=45)
 
 # Mandatory interleavings of preparation, seek, pause, route and boundary.

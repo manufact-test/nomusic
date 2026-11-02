@@ -61,6 +61,8 @@ assert "from release_contract import load_release" in (ROOT / "verify_release.py
 assert '"TestUpdateState"' in (ROOT / "build_release.py").read_text()
 assert "TestOutputClockEvidence.java" in (ROOT / "tests/run_engine.py").read_text()
 assert "TestHonor068SupersededAlignmentSeek.java" in (ROOT / "tests/run_engine.py").read_text()
+assert "check_0385_seek_baseline.py" in (ROOT / "tests/run_engine.py").read_text()
+assert (ROOT / "tests/check_0385_seek_baseline.py").is_file()
 # Automatic replacement is admin-approved; no owner confirmation gate or UI may return.
 engine_source = (ROOT / "addon/src/pro/celikom/nativeprobe/identitydiag/ReplacementEngine.java").read_text()
 activity_source = (ROOT / "addon/src/pro/celikom/nativeprobe/identitydiag/RecorderActivity.java").read_text()
