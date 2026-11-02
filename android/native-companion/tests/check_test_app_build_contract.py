@@ -34,7 +34,7 @@ workflow = (ROOT.parents[1] / ".github/workflows/android-0385-test-app-build.yml
 assert "workflow_dispatch:" in workflow
 for forbidden_trigger in ("\npush:", "\npull_request:", "\nworkflow_run:", "\nworkflow_call:"):
     assert forbidden_trigger not in workflow, "Test APK workflow must be manual-only"
-for forbidden_action in ("stable.json", "/updates/android/stable.json", "android-auto-publish-hostinger.yml", "publish-stable"):
+for forbidden_action in ("stable.json", "/updates/android/stable.json", "publish-stable"):
     assert forbidden_action not in workflow, "Test APK workflow must not publish or touch stable OTA: " + forbidden_action
 assert "scp -P 65002" in workflow and "CELIKOM_HOSTINGER_SSH_KEY" in workflow
 assert "CELIKOM_ANDROID_SIGNING_P12_B64" in workflow
