@@ -1,5 +1,7 @@
 # CELIKOM Android — next-track lookahead prefetch experiment — 2026-11-02
 
+> **Validation update (2026-11-02):** Combined `CELIKOM Test 0.3.85-test.2` / code `86087` built successfully from functional SHA `f3bc62b553275b3e3d38084a65d2eafedb5af889` in [Actions #41485796561](https://github.com/manufact-test/nomusic/actions/runs/41485796561), APK SHA256 `03387a8d2c1d08f89eb687490dc72b36e565ad8a4137960418f41267013acca9`. Full regression, unchanged seek baseline, API36/D8, package, original signer and OTA-disabled receipt passed. **Owner acoustic confirmation still pending; do not merge or publish.** Detailed checkpoint: [ANDROID-0385-TEST-2-NEXT-TRACK-PREFETCH-HANDOFF-2026-11-02.md](ANDROID-0385-TEST-2-NEXT-TRACK-PREFETCH-HANDOFF-2026-11-02.md).
+
 ## Owner priority
 
 Song beginnings and transitions are the primary task. Do not deliver or request a separate cosmetic login-text APK. This is an isolated audio experiment; the login-field adjustment remains bundled only in this combined test build.

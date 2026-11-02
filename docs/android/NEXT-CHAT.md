@@ -1,3 +1,17 @@
+# CURRENT HANDOFF — 02.11.2026 — COMBINED CELIKOM TEST 0.3.85-test.2 (86087) BUILT; AUDIO OWNER RETEST PENDING
+
+**READ FIRST:** [ANDROID-0385-TEST-2-NEXT-TRACK-PREFETCH-HANDOFF-2026-11-02.md](ANDROID-0385-TEST-2-NEXT-TRACK-PREFETCH-HANDOFF-2026-11-02.md). All relevant source SHA, backup refs, APK SHA-256, signer, Library links, GitHub Actions receipt, diagnostic correlation, frozen audio mechanisms and next analysis steps are there. **The owner will attach new diagnostics in the next chat. Analyze those first; do not modify audio blindly.**
+
+**Owner priority:** new-track beginnings / audio joins; do not request a separate login-text APK. The new combined Test includes both the lookahead-prefetch audio experiment and native login-field contrast. It is technically built/verified but **NOT acoustically accepted**. Yandex Music «Плавный переход» stays **OFF**, accepted seek/Pause/Resume must not be retested without evidence of regression.
+
+**Stable ORIGINAL (hands off):** `pro.celikom.nativeprobe` 0.3.85/code86, source `053b7d59beb53db5f30b942feba35e51a1ab256a`, both `backup/android-0385-honor-seek-accepted-20261102` and `backup/android-0385-honor-seek-accepted-recovery-20261102` point here. **First owner Test control:** `0.3.85-test`/86085, APK SHA `bf1fc8b39a08b3c1f5f5b2d1483f0fe0fb013bbd7041671867dea77e2b5e4bee`, backup ref `backup/android-0385-test-first-owner-check-20261102` → `32a4afa7c381758502bf47d7b3facd200e74842a`. **New Test:** `pro.celikom.nativeprobe.test`, `0.3.85-test.2`/86087, APK SHA `03387a8d2c1d08f89eb687490dc72b36e565ad8a4137960418f41267013acca9`, signed original cert SHA `67fe81c56fac1c1d145344b69a0e3faf9005cf6607f4e26ca27d5926c3eefc4f`, **functional source** `f3bc62b553275b3e3d38084a65d2eafedb5af889`, [successful validation+automatic Test build #41485796561](https://github.com/manufact-test/nomusic/actions/runs/41485796561), artifact ID **13160669778**, no OTA. Signed APK/verification/receipt persist in Library `/CELIKOM/Android/Test/`; preceding 86085 and 86086 remain for rollback. Stable publisher skipped. PR [#37](https://github.com/manufact-test/nomusic/pull/37) **OPEN / NOT MERGED**.
+
+**Diagnosed:** six short audio dips at Yandex track boundaries in prior Test recording, at least one while no replacement/effect owned by CELIKOM; separately cold joins happened 1.98–4.78s after boundary due 1.18–3.99s full downloads. Old lookahead saw next item 7–14s early but `metadataComplete=false`. New prefetch reads only existing Media3 timeline with strict metadata/album unique-match; no control of seek, Pause/Resume or gain. Prefetch may not work if Yandex timeline metadata stays incomplete. The next task is to correlate new event logs with video and establish whether cache hit/readiness or join acoustics improved; no statement of success before owner listening.
+
+**No code changes are included in this documentation checkpoint.** If a docs-only commit advances branch HEAD beyond `f3bc62b...`, the tested APK source is still that prior SHA. Do not trigger a new Test APK solely for documentation.
+
+---
+
 # CURRENT HANDOFF — 02.11.2026 — NEXT-TRACK PREFETCH AUDIO EXPERIMENT IN PROGRESS
 
 The cosmetic login-input fix is retained only as part of a combined Test APK; do not deliver or request a separate cosmetic build. Song beginnings and track joins are the priority.
