@@ -57,8 +57,7 @@ final class ReplacementEngine {
   NextDecoderPrime old=primedNext;if(old==null)return;primedNext=null;
   try{old.player.setOnPreparedListener(null);old.player.setOnSeekCompleteListener(null);
     old.player.setOnErrorListener(null);old.player.setOnCompletionListener(null);
-    old.player.setVolume(0f,0f);if(old.player.isPlaying())old.player.pause();
-    old.player.release();
+    audioOwner.discardSpeculativeNext(old.player);
   }catch(RuntimeException ignored){}
   LogStore.log("replacement_lookahead_decoder_prime_discarded",LogStore.map(
     "mediaAlias",old.alias,"reason",reason,"sourceMuted",false));
@@ -69,14 +68,14 @@ final class ReplacementEngine {
   try{
    long elapsed=SystemClock.elapsedRealtime()-c.startedAt;
    if(p.getCurrentPosition()-c.motionOrigin>=40){
-    p.pause();p.setOnSeekCompleteListener(mp->{
+    audioOwner.pauseSpeculativeNext(p);p.setOnSeekCompleteListener(mp->{
      if(mp!=p||!primingNextCurrent(c)){if(primedNext==c)discardPrimedNext("seek_stale");return;}
      c.ready=true;
      LogStore.log("replacement_lookahead_decoder_prime_ready",LogStore.map(
       "mediaAlias",c.alias,"trackId",c.trackId,"elapsedMs",
       SystemClock.elapsedRealtime()-c.startedAt,"sourceMuted",false));
     });
-    p.seekTo(0,MediaPlayer.SEEK_CLOSEST);return;
+    audioOwner.seekSpeculativeNextZero(p);return;
    }
    if(elapsed>=NEXT_DECODER_PRIME_TIMEOUT_MS){discardPrimedNext("motion_timeout");return;}
    owner.handler.postDelayed(()->pollPrimedNext(c),20);
@@ -92,7 +91,7 @@ final class ReplacementEngine {
    p=new MediaPlayer();
    p.setAudioAttributes(new AudioAttributes.Builder()
     .setUsage(AudioAttributes.USAGE_MEDIA).setContentType(AudioAttributes.CONTENT_TYPE_MUSIC).build());
-   p.setVolume(0f,0f);p.setDataSource(file.getAbsolutePath());
+   audioOwner.silenceFutureDecoder(p);p.setDataSource(file.getAbsolutePath());
    NextDecoderPrime c=new NextDecoderPrime(alias,id,audioKeyFor(id,j),account,file,p);
    primedNext=c;final MediaPlayer future=p;
    p.setOnErrorListener((mp,what,extra)->{
@@ -107,7 +106,7 @@ final class ReplacementEngine {
       discardPrimedNext("measured_duration_mismatch");return;
      }
      c.motionOrigin=mp.getCurrentPosition();
-     mp.setVolume(0f,0f);mp.start();
+     audioOwner.startSpeculativeNext(mp);
      LogStore.log("replacement_lookahead_decoder_prime_start",LogStore.map(
       "mediaAlias",alias,"trackId",id,"sourceMuted",false,"replacementVolumeCommand",0f));
      owner.handler.postDelayed(()->pollPrimedNext(c),20);
@@ -115,7 +114,7 @@ final class ReplacementEngine {
    });p.prepareAsync();
   }catch(Exception e){
    if(primedNext!=null&&primedNext.player==p)discardPrimedNext("setup_failed");
-   else if(p!=null)try{p.release();}catch(RuntimeException ignored){}
+   else if(p!=null)audioOwner.discardSpeculativeNext(p);
   }
  }
  MediaPlayer takePrimedNext(String alias,String key,File file){
@@ -127,9 +126,9 @@ final class ReplacementEngine {
   primedNext=null;
   try{c.player.setOnPreparedListener(null);c.player.setOnErrorListener(null);
    c.player.setOnSeekCompleteListener(null);c.player.setOnCompletionListener(null);
-   c.player.setVolume(0f,0f);
+   audioOwner.adoptSpeculativeNext(c.player);
   }catch(RuntimeException e){
-   try{c.player.release();}catch(RuntimeException ignored){}return null;
+   audioOwner.discardSpeculativeNext(c.player);return null;
   }
   return c.player;
  }
