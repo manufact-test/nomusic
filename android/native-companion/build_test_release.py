@@ -22,6 +22,26 @@ UPDATER_SOURCES = {"UpdateCenter.java", "UpdateCheckJob.java", "UpdateInstallRec
 ANDROID_NS = "http://schemas.android.com/apk/res/android"
 A = "{" + ANDROID_NS + "}"
 
+# Only the standalone test package receives this light-dialog input palette.
+TEST_LOGIN_STYLE = """ void styleLoginInput(EditText field){
+  // Test-only: the login dialog uses a light Android theme, unlike the dark activity body.
+  // Apply contrast after input() has configured its input type and password transformation.
+  field.setTextColor(0xff1f2933);
+  field.setHintTextColor(0xff52606d);
+  field.setHighlightColor(0xffbfdcff);
+  if(Build.VERSION.SDK_INT>=29){
+   android.graphics.drawable.Drawable cursor=field.getTextCursorDrawable();
+   if(cursor!=null){cursor=cursor.mutate();cursor.setTint(0xff1558b0);field.setTextCursorDrawable(cursor);}
+   android.graphics.drawable.Drawable handle=field.getTextSelectHandle();
+   if(handle!=null){handle=handle.mutate();handle.setTint(0xff1558b0);field.setTextSelectHandle(handle);}
+   android.graphics.drawable.Drawable left=field.getTextSelectHandleLeft();
+   if(left!=null){left=left.mutate();left.setTint(0xff1558b0);field.setTextSelectHandleLeft(left);}
+   android.graphics.drawable.Drawable right=field.getTextSelectHandleRight();
+   if(right!=null){right=right.mutate();right.setTint(0xff1558b0);field.setTextSelectHandleRight(right);}
+  }
+ }
+"""
+
 
 def run(command, **kwargs):
     subprocess.run(list(map(str, command)), check=True, **kwargs)
@@ -67,6 +87,25 @@ def patch_test_sources(source_root):
         'TextView brand=label(header,"CELIKOM Test",19,FG);',
         "test app header label",
     )
+    # Fix only the light-theme authentication dialogs in the isolated test APK.
+    replace_once(
+        activity,
+        " void set(TextView v,String value){",
+        TEST_LOGIN_STYLE + " void set(TextView v,String value){",
+        "test-only login input styling",
+    )
+    replace_once(
+        activity,
+        'password=input(form,"Пароль",InputType.TYPE_CLASS_TEXT|InputType.TYPE_TEXT_VARIATION_PASSWORD);',
+        'password=input(form,"Пароль",InputType.TYPE_CLASS_TEXT|InputType.TYPE_TEXT_VARIATION_PASSWORD);styleLoginInput(email);styleLoginInput(password);',
+        "email and password dialog styling",
+    )
+    replace_once(
+        activity,
+        'EditText code=input(form,"Код из письма",InputType.TYPE_CLASS_NUMBER);',
+        'EditText code=input(form,"Код из письма",InputType.TYPE_CLASS_NUMBER);styleLoginInput(code);',
+        "email verification dialog styling",
+    )
     authority_literals = {
         SPEC["stable_package"] + ".package-export": SPEC["file_provider_authority"],
         SPEC["stable_package"] + ".androidx-startup": SPEC["startup_authority"],
@@ -89,7 +128,7 @@ def patch_test_sources(source_root):
     replace_once(
         app_version,
         'static final String NAME="0.3.85";',
-        'static final String NAME="0.3.85-test";',
+        'static final String NAME="' + SPEC["version"] + '";',
         "test app version",
     )
 

@@ -190,6 +190,7 @@ jobs:
               "full_native_host_suite":"passed",
               "cold_join_exclusive_experiment":"passed",
               "check_0385_seek_baseline_unchanged":"passed",
+              "test_login_input_contrast_contract":"passed",
               "android_api_36":"passed",
               "d8":"passed"
             },
@@ -207,7 +208,7 @@ jobs:
       - name: Upload signed test APK and verification receipt only
         uses: actions/upload-artifact@v4
         with:
-          name: CELIKOM-Test-0.3.85-test-code-86085
+          name: CELIKOM-Test-0.3.85-test.1-code-86086
           path: |
             ${{ runner.temp }}/CELIKOM-Android-0.3.85-TEST-SIGNED.apk
             ${{ runner.temp }}/CELIKOM-Android-0.3.85-TEST-SIGNED.verification.json
