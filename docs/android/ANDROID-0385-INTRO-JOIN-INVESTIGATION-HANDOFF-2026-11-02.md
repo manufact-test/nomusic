@@ -19,7 +19,7 @@ The owner estimates the overall work at roughly **70% complete**. This is the ow
 - Release CI: [#41358568513](https://github.com/manufact-test/nomusic/actions/runs/41358568513), successful signed Android build and Hostinger publication.
 - Published APK SHA-256: `e23c962d969129c5b839ed3676e36d6a337342e2761bde852e2048bbf1bda88a`.
 - Original signing certificate SHA-256: `67fe81c56fac1c1d145344b69a0e3faf9005cf6607f4e26ca27d5926c3eefc4f`.
-- Do not change the updater or publish a new stable APK merely because CI is green. No new APK is requested at this checkpoint.
+- Do not change the stable updater or publish a new stable APK merely because CI is green. A separate side-by-side CELIKOM Test APK is explicitly approved; it must use a distinct package ID and have no OTA updater. Follow the dedicated build handoff.
 
 ## Owner decision — build a second, side-by-side test app
 
