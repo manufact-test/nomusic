@@ -97,6 +97,7 @@ subprocess.run(['python3',r/'check_audio_architecture.py'],check=True)
 subprocess.run(['python3',r/'test_handover_signal_feasibility.py'],check=True)
 
 subprocess.run(['java','-cp',str(out)+os.pathsep+str(json),'pro.celikom.nativeprobe.identitydiag.TestLookaheadPrefetchPolicy'],check=True,timeout=45)
+subprocess.run(['java','-cp',str(out)+os.pathsep+str(json),'pro.celikom.nativeprobe.identitydiag.TestLookaheadPrefetchHandoff'],check=True,timeout=45)
 
 # Read-only foreground/background lifecycle diagnostics; accepted audio transport is unchanged.
 subprocess.run(['python3',r/'check_background_diagnostics.py'],check=True)
