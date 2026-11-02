@@ -174,6 +174,29 @@ public final class TestLookaheadPrefetchHandoff {
    "only the fresh current resolve may adopt a prepared decoder and full-file cache");
   TestEngine.e.close();
  }
+ static void stalledPrimedDecoderExpiresWithoutBlockingCurrent()throws Exception{
+  beginLookahead();
+  File file=File.createTempFile("celikom-prime-timeout-",".audio");
+  TestEngine.api.downloadCallbacks.get(0).done(file,null);
+  ReplacementEngine.NextDecoderPrime speculative=TestEngine.e.primedNext;
+  check(speculative!=null,"a silent next decoder was allocated");
+  android.os.SystemClock.now+=ReplacementEngine.NEXT_DECODER_PRIME_TIMEOUT_MS+1;
+  TestEngine.p.handler.drain();
+  check(speculative.player.released&&TestEngine.e.primedNext==null
+      &&TestEngine.e.player==null&&TestEngine.e.effect==null,
+   "a stalled speculative decoder releases without changing source audio ownership");
+  TestEngine.e.sourceBoundary("sample_track_changed","2");
+  TestEngine.p.current=TestEngine.source("2",0,true);
+  TestEngine.p.lookaheadAlias=null;
+  TestEngine.e.identity(
+   LogStore.map("mediaAlias","2","albumId","42","title","Песня","artist","Артист","durationMs",120000L),
+   LogStore.map("candidateTrackId","8","method","ALBUM"));
+  TestEngine.api.resolveCallbacks.get(2).done(descriptor(1),null);
+  check(TestEngine.e.player!=null&&!TestEngine.e.ready&&TestEngine.e.audioFromCache
+       &&TestEngine.api.downloads==1,
+   "even if speculative decoder timed out, the full cached file uses normal playback preparation");
+  TestEngine.e.close();
+ }
  static void primedDecoderKeyMismatchCannotPlay()throws Exception{
   beginLookahead();
   File file=File.createTempFile("celikom-prime-mismatch-",".audio");
@@ -192,7 +215,7 @@ public final class TestLookaheadPrefetchHandoff {
   mismatchedFreshResolveFallsBack();latePrefetchCanStartAfterBoundary();
   newNextCandidateCannotStealCurrentDownload();cancelledCurrentWaitMustFallBack();
   currentWaitHasTimeout();readyPrimedDecoderIsAdoptedOnlyAfterFreshResolve();
-  primedDecoderKeyMismatchCannotPlay();
+  primedDecoderKeyMismatchCannotPlay();stalledPrimedDecoderExpiresWithoutBlockingCurrent();
   System.out.println("PASS: "+checks+" lookahead promotion, fresh-resolve, cache handoff and mismatch checks");
  }
 }

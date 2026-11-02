@@ -105,6 +105,9 @@ final class ReplacementEngine {
      if(!PlaybackDuration.metadataProbeAllowed(j.optLong("duration_ms"),mp.getDuration())){
       discardPrimedNext("measured_duration_mismatch");return;
      }
+     if(trustedSession>0&&mp.getAudioSessionId()==trustedSession){
+      discardPrimedNext("source_session_collision");return;
+     }
      c.motionOrigin=mp.getCurrentPosition();
      audioOwner.startSpeculativeNext(mp);
      LogStore.log("replacement_lookahead_decoder_prime_start",LogStore.map(
@@ -112,6 +115,11 @@ final class ReplacementEngine {
      owner.handler.postDelayed(()->pollPrimedNext(c),20);
     }catch(RuntimeException e){discardPrimedNext("decoder_start_error");}
    });p.prepareAsync();
+   owner.handler.postDelayed(()->{
+    if(primedNext==c&&!c.ready
+       &&SystemClock.elapsedRealtime()-c.startedAt>=NEXT_DECODER_PRIME_TIMEOUT_MS)
+     discardPrimedNext("prime_timeout");
+   },NEXT_DECODER_PRIME_TIMEOUT_MS);
   }catch(Exception e){
    if(primedNext!=null&&primedNext.player==p)discardPrimedNext("setup_failed");
    else if(p!=null)audioOwner.discardSpeculativeNext(p);
