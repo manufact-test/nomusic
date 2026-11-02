@@ -16,10 +16,12 @@ public final class TestLookaheadPrefetchPolicy {
   check(!LookaheadPrefetchPolicy.mayResolve(true,true,true,false,true,true,9000),"no timeline");
   check(!LookaheadPrefetchPolicy.mayResolve(true,true,true,true,false,true,9000),"not distinct");
   check(!LookaheadPrefetchPolicy.mayResolve(true,true,true,true,true,false,9000),"metadata incomplete");
+  check(LookaheadPrefetchPolicy.mayResolve(true,true,true,true,true,true,3000),"minimum lead accepted");
   check(!LookaheadPrefetchPolicy.mayResolve(true,true,true,true,true,true,2999),"too late");
   check(LookaheadPrefetchPolicy.mayPrefetch(true,true,true,true,true,9000),"prefetch");
   check(!LookaheadPrefetchPolicy.mayPrefetch(true,true,true,true,false,9000),"ambiguous");
   check(!LookaheadPrefetchPolicy.mayPrefetch(true,true,true,false,true,9000),"stale");
+  check(LookaheadPrefetchPolicy.mayPrefetch(true,true,true,true,true,3000),"minimum prefetch lead accepted");
   check(!LookaheadPrefetchPolicy.mayPrefetch(true,true,true,true,true,2999),"too late");
   System.out.println("PASS: lookahead metadata and fail-closed prefetch gates");
  }
