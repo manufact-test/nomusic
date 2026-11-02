@@ -91,15 +91,34 @@ final class ReplacementEngine {
  }
  boolean waitForLookaheadPrefetch(String key,JSONObject fresh,long g){
   PlaybackSource source=owner.current;
-  if(!lookaheadPrefetchPromoted||source==null||!Objects.equals(source.alias,lookaheadPrefetchAlias)||!Objects.equals(identityKey,key)||!Objects.equals(trackId,lookaheadPrefetchTrackId)||lookaheadPrefetchAccount!=api.accountGeneration||!armed()||(!"resolving".equals(lookaheadPrefetchPhase)&&!"downloading".equals(lookaheadPrefetchPhase))||g!=generation||!current(key))return false;
+  if(!lookaheadPrefetchPromoted||source==null||!Objects.equals(source.alias,lookaheadPrefetchAlias)
+      ||!Objects.equals(identityKey,key)||!Objects.equals(trackId,lookaheadPrefetchTrackId)
+      ||lookaheadPrefetchAccount!=api.accountGeneration||!armed()
+      ||(!"resolving".equals(lookaheadPrefetchPhase)&&!"downloading".equals(lookaheadPrefetchPhase))
+      ||g!=generation||!current(key)
+      ||!PlaybackDuration.metadataProbeAllowed(source.duration,fresh.optLong("duration_ms")))return false;
   String freshKey=audioKeyFor(trackId,fresh);
   if(lookaheadPrefetchResolvedAudioKey!=null&&!freshKey.equals(lookaheadPrefetchResolvedAudioKey)){
-   LogStore.log("replacement_lookahead_prefetch_key_mismatch",LogStore.map("mediaAlias",lookaheadPrefetchAlias,"trackId",trackId,"freshResolveKeyMatches",false,"action","cancel_prefetch_use_fresh_download"));
+   LogStore.log("replacement_lookahead_prefetch_key_mismatch",LogStore.map(
+     "mediaAlias",lookaheadPrefetchAlias,"trackId",trackId,"freshResolveKeyMatches",false,
+     "action","cancel_prefetch_use_fresh_download"));
    invalidateLookaheadPrefetch("fresh_resolve_key_mismatch");return false;
   }
+  audioOwner.preparing();
+  prepareTicket=audioOwner.ticket(key,api.accountGeneration,fresh.optLong("replacement_id"),
+    fresh.optLong("version"),fresh.optLong("duration_ms"));
+  preparing=true;status="Готовим замену заранее; оригинал продолжает играть";
   lookaheadPrefetchCurrentDescriptor=fresh;lookaheadPrefetchWait=true;
-  LogStore.log("replacement_lookahead_prefetch_current_wait",LogStore.map("mediaAlias",lookaheadPrefetchAlias,"trackId",trackId,"phase",lookaheadPrefetchPhase,"freshResolveRequired",true,"audioKeyMatches",lookaheadPrefetchResolvedAudioKey==null?"pending":true,"originalRemainsAudible",true));
+  LogStore.log("replacement_lookahead_prefetch_current_wait",LogStore.map(
+    "mediaAlias",lookaheadPrefetchAlias,"trackId",trackId,"phase",lookaheadPrefetchPhase,
+    "freshResolveRequired",true,"audioKeyMatches",lookaheadPrefetchResolvedAudioKey==null?"pending":true,
+    "originalRemainsAudible",true));
   return true;
+ }
+ void prepareWithLookaheadPrefetch(String key,JSONObject fresh,long g){
+  if(preparing||!current(key)||!api.signedIn())return;
+  if(waitForLookaheadPrefetch(key,fresh,g))return;
+  prepare(key,fresh,g);
  }
  void fallbackPromotedLookaheadPrefetch(String reason){
   if(!lookaheadPrefetchWait||lookaheadPrefetchCurrentDescriptor==null)return;
@@ -283,8 +302,8 @@ final class ReplacementEngine {
   if(!Float.isFinite(s.speed)||Math.abs(s.speed-1f)>0.01f){if(player!=null||preparing)suspend("unsupported_speed",1000);status="Для замены нужна скорость 1×; играет оригинал";return;}
   long clock=SystemClock.elapsedRealtime();
   if(ready&&!armed()&&clock-preparedAt>PREPARED_MS){generation++;release("prepared_expired");descriptor=null;lookupKey=null;}
-  if(!identityKey.equals(lookupKey)){if(clock<nextLookup)return;lookupKey=identityKey;if(authorizationAccount<0)authorizationAccount=api.accountGeneration;final String key=identityKey,id=trackId;final long g=generation,account=api.accountGeneration;status="Проверяем замену на сервере…";api.resolve(id,()->!closed&&g==generation&&account==api.accountGeneration&&api.signedIn()&&current(key),(j,error)->{if(closed||g!=generation||account!=api.accountGeneration)return;if(!current(key)){if(Objects.equals(lookupKey,key)){lookupKey=null;descriptor=null;nextLookup=SystemClock.elapsedRealtime()+1000;status="Ожидаем актуальное состояние Яндекс Музыки";LogStore.log("replacement_lookup_deferred",LogStore.map("reason","source_not_current","retryMs",1000));}return;}if(error!=null){LogStore.log("replacement_resolve",LogStore.map("trackId",id,"errorCode",error));boolean denied=Arrays.asList("invalid_session","access_denied","login_required","unauthorized","trial_not_activated").contains(error);if(denied)clearAudioCache();if(!denied){lookupKey=null;nextLookup=SystemClock.elapsedRealtime()+retryDelay();}status="Сервер: "+message(error)+"; играет оригинал";return;}descriptor=j;descriptorUntil=SystemClock.elapsedRealtime()+15000;boolean found=j.optBoolean("found",false);status=found?"Замена найдена; готовим заранее":"В каталоге CELIKOM этой замены нет; играет оригинал";LogStore.log("replacement_resolve",LogStore.map("trackId",id,"found",found,"replacementId",j.optLong("replacement_id"),"durationMs",j.optLong("duration_ms")));if(found)prepare(key,j,g);});return;}
-  if(descriptor!=null&&descriptor.optBoolean("found")&&player==null&&!preparing){if(clock>descriptorUntil){lookupKey=null;descriptor=null;return;}prepare(identityKey,descriptor,generation);}
+  if(!identityKey.equals(lookupKey)){if(clock<nextLookup)return;lookupKey=identityKey;if(authorizationAccount<0)authorizationAccount=api.accountGeneration;final String key=identityKey,id=trackId;final long g=generation,account=api.accountGeneration;status="Проверяем замену на сервере…";api.resolve(id,()->!closed&&g==generation&&account==api.accountGeneration&&api.signedIn()&&current(key),(j,error)->{if(closed||g!=generation||account!=api.accountGeneration)return;if(!current(key)){if(Objects.equals(lookupKey,key)){lookupKey=null;descriptor=null;nextLookup=SystemClock.elapsedRealtime()+1000;status="Ожидаем актуальное состояние Яндекс Музыки";LogStore.log("replacement_lookup_deferred",LogStore.map("reason","source_not_current","retryMs",1000));}return;}if(error!=null){LogStore.log("replacement_resolve",LogStore.map("trackId",id,"errorCode",error));boolean denied=Arrays.asList("invalid_session","access_denied","login_required","unauthorized","trial_not_activated").contains(error);if(denied)clearAudioCache();if(!denied){lookupKey=null;nextLookup=SystemClock.elapsedRealtime()+retryDelay();}status="Сервер: "+message(error)+"; играет оригинал";return;}descriptor=j;descriptorUntil=SystemClock.elapsedRealtime()+15000;boolean found=j.optBoolean("found",false);status=found?"Замена найдена; готовим заранее":"В каталоге CELIKOM этой замены нет; играет оригинал";LogStore.log("replacement_resolve",LogStore.map("trackId",id,"found",found,"replacementId",j.optLong("replacement_id"),"durationMs",j.optLong("duration_ms")));if(found)prepareWithLookaheadPrefetch(key,j,g);});return;}
+  if(descriptor!=null&&descriptor.optBoolean("found")&&player==null&&!preparing){if(clock>descriptorUntil){lookupKey=null;descriptor=null;return;}prepareWithLookaheadPrefetch(identityKey,descriptor,generation);}
   if(player==null||!ready||!armed())return;
   if(trustedSession<=0){status="Автозамена ожидает подключения: открой эквалайзер Яндекса → CELIKOM один раз";return;}
   try{
@@ -580,7 +599,6 @@ final class ReplacementEngine {
   File cached=recentAudio.remove(audioKey(j));
   if(cached!=null&&cached.isFile()){audioFromCache=true;if(Objects.equals(lookaheadPrefetchTrackId,trackId)&&Objects.equals(lookaheadPrefetchAlias,owner.current.alias))finishLookaheadPrefetch("cache_consumed");LogStore.log("replacement_audio_reused",LogStore.map("trackId",trackId,"liveResolveRequired",true,"cacheHit",true,"decoderRecreated",true,"sourceKind","local_cache_file","sourceItemGeneration",owner.sourceItemGeneration,"sourceEventSequence",owner.sourceEventSequence));acceptAudio(key,j,g,cached,null);return;}
   if(fullFileExperiment){
-   if(waitForLookaheadPrefetch(key,j,g))return;
    logTrace("replacement_full_file_experiment_start",LogStore.map(
      "trackId",trackId,"sourceKind","full_download_file",
      "streamingSkipped",true,"downloadBudgetMs",FULL_FILE_EXPERIMENT_BUDGET_MS,
