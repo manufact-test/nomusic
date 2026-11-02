@@ -1,3 +1,15 @@
+# CURRENT HANDOFF — 02.11.2026 — CELIKOM TEST LOGIN FIX BUILT, HONOR UI CONFIRMATION PENDING
+
+**READ FIRST:** [ANDROID-0385-TEST-LOGIN-INPUT-VISIBILITY-2026-11-02.md](ANDROID-0385-TEST-LOGIN-INPUT-VISIBILITY-2026-11-02.md) and [ANDROID-0385-TEST-APP-FIRST-OWNER-CHECKPOINT-2026-11-02.md](ANDROID-0385-TEST-APP-FIRST-OWNER-CHECKPOINT-2026-11-02.md).
+
+Native Android `EditText` in light-theme `AlertDialog` used near-white `FG` text from the dark activity, making email/password invisible. Test-only source-copy patch sets dark text, readable hint and cursor/selection colors for login and verification; original Java and authentication/backend unchanged. CI [#41470985426](https://github.com/manufact-test/nomusic/actions/runs/41470985426) PASS: full native host suite, unchanged `check_0385_seek_baseline.py`, Android API36/D8, isolated signed Test APK. Source fix `09b08fbaa9fb0e30e72bb0d1020c9ce857308772`; new `pro.celikom.nativeprobe.test` version `0.3.85-test.1`/code86086, original cert SHA256 `67fe81c56fac1c1d145344b69a0e3faf9005cf6607f4e26ca27d5926c3eefc4f`, APK SHA256 `c030111f0caac0b79fcd079690f26a353ce693ec43bbc6fe38ef6bc3a72395a7`. Artifact ID `13153724134`; fresh APK/receipt/verification stored separately in Library `/CELIKOM/Android/Test/`. Owner HONOR *visual* acceptance of login fields is pending.
+
+The two latest owner diagnostics are **audio-only**, not a login recording. The owner reports song beginnings still not fixed; no audio algorithm was changed in this login fix. Stable seek 0.3.85/code86 accepted. Do not ask to retest seek/Pause/Resume. Keep Yandex Music «Плавный переход» OFF.
+
+**Preserve ALL THREE checkpoints:** stable original source `053b7d59beb53db5f30b942feba35e51a1ab256a` (two honor-seek backup branches), prior Test source `32a4afa7c381758502bf47d7b3facd200e74842a`/code86085 (`backup/android-0385-test-first-owner-check-20261102`, APK SHA `bf1fc8b39a08b3c1f5f5b2d1483f0fe0fb013bbd7041671867dea77e2b5e4bee`), new Test code86086 (separate Library files). Never repoint/delete backup refs. PR #37 OPEN/unmerged. No stable release, contract, OTA, `stable.json`, Hostinger write or publisher action. Documentation commits after the binary source commit do not alter the signed APK it produced.
+
+---
+
 # CURRENT HANDOFF — 02.11.2026 — TEST APK INSTALLED; LOGIN INPUT TEXT VISIBILITY DEFECT
 
 **СНАЧАЛА ПРОЧИТАТЬ:** [ANDROID-0385-TEST-APP-FIRST-OWNER-CHECKPOINT-2026-11-02.md](ANDROID-0385-TEST-APP-FIRST-OWNER-CHECKPOINT-2026-11-02.md), [ANDROID-0385-SIDEBY-SIDE-TEST-APP-BUILD-HANDOFF-2026-11-02.md](ANDROID-0385-SIDEBY-SIDE-TEST-APP-BUILD-HANDOFF-2026-11-02.md), [ANDROID-0385-INTRO-JOIN-INVESTIGATION-HANDOFF-2026-11-02.md](ANDROID-0385-INTRO-JOIN-INVESTIGATION-HANDOFF-2026-11-02.md), [ANDROID-0385-HONOR-INTRO-JOIN-AUDIO-VIDEO-CORRELATION-2026-11-02.md](ANDROID-0385-HONOR-INTRO-JOIN-AUDIO-VIDEO-CORRELATION-2026-11-02.md), [ANDROID-0385-HONOR-SEEK-ACCEPTED-FREEZE-2026-11-02.md](ANDROID-0385-HONOR-SEEK-ACCEPTED-FREEZE-2026-11-02.md).

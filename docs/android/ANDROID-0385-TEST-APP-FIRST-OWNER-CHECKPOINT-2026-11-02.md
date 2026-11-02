@@ -1,5 +1,7 @@
 # CELIKOM Android — контрольная тестовая сборка после первого запуска (2026-11-02)
 
+> **Обновление после исправления UI (02.11.2026):** проблема установлена по нативной форме `RecorderActivity.login()`, где `EditText` с почти белым `FG` показывается внутри светлой `Theme.Material.Light.NoActionBar` / `AlertDialog`. Новая **отдельная** Test APK `0.3.85-test.1`/86086 (source `09b08fbaa9fb0e30e72bb0d1020c9ce857308772`, SHA-256 `c030111f0caac0b79fcd079690f26a353ce693ec43bbc6fe38ef6bc3a72395a7`) собрана с test-only UI patch, [CI #41470985426](https://github.com/manufact-test/nomusic/actions/runs/41470985426) PASS, artifact ID `13153724134`. APK, receipt, verification JSON сохранены в ChatGPT Library `/CELIKOM/Android/Test/` под именами `CELIKOM-Test-0.3.85-test.1.*`. Прежняя Test 86085 и её backup/Library-копии остаются для отката; оригинал code86 не затронут. Реальная проверка читаемости полей на HONOR ещё не подтверждена. Две присланные диагностики относятся к аудио; пользователь слышит прежнюю проблему начал песен. Подробности: [ANDROID-0385-TEST-LOGIN-INPUT-VISIBILITY-2026-11-02.md](ANDROID-0385-TEST-LOGIN-INPUT-VISIBILITY-2026-11-02.md).
+
 ## Важное разделение контрольных точек
 
 Здесь существуют ДВЕ РАЗНЫЕ версии, и их нельзя смешивать:
