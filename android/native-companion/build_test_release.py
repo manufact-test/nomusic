@@ -89,7 +89,7 @@ def patch_test_sources(source_root):
     replace_once(
         app_version,
         'static final String NAME="0.3.85";',
-        'static final String NAME="0.3.85-test";',
+        'static final String NAME="0.3.85-test.2";',
         "test app version",
     )
 
@@ -413,7 +413,7 @@ def main():
         "TestAudioTransfer", "TestBufferedAudio", "TestTransitionReadFence",
         "TestTransitionRecovery", "TestRequestPacing", "TestSourceStateWatchdog",
         "TestDiagnosticAccess", "TestIncidentLog", "TestPresencePreview",
-        "TestDiagnosticRequest", "TestUpdateState",
+        "TestDiagnosticRequest", "TestUpdateState", "TestLookaheadPrefetchPolicy",
     ):
         run([
             "java", "-cp", os.pathsep.join(map(str, [args.deps_dir / "json.jar", classes, tests, android])),
