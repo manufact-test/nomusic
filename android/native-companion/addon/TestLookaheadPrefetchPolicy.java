@@ -3,6 +3,7 @@ public final class TestLookaheadPrefetchPolicy {
  static void check(boolean v,String m){if(!v)throw new AssertionError(m);}
  public static void main(String[] a){
   check(LookaheadPrefetchPolicy.metadataComplete("n","T","A","123",180000,false),"complete");
+  check(!LookaheadPrefetchPolicy.metadataComplete("","T","A","123",180000,false),"empty alias rejected");
   check(!LookaheadPrefetchPolicy.metadataComplete("n","T","A","123",180000,true),"placeholder");
   check(!LookaheadPrefetchPolicy.metadataComplete("n","T","A",null,180000,false),"album missing");
   check(!LookaheadPrefetchPolicy.metadataComplete("n","T","A","abc",180000,false),"album invalid");
