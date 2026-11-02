@@ -29,6 +29,8 @@ assert "base_v3" in verifier and "signer_v3" in verifier
 assert "APK Signature Scheme v3" in verifier
 assert "APPLICATION_ID" in builder and "SPEC[\"package\"]" in builder
 assert "BuildConfig" in verifier and "SPEC[\"stable_package\"]" in verifier
+assert 'activity.set(A + "label", SPEC["label"])' in builder
+assert "launcher_label_verified" in verifier
 runner = (ROOT / "tests/run_addon_host.py").read_text(encoding="utf-8")
 assert "CELIKOM_ANDROID_DEPS" in runner and "DEPS/name" in runner
 

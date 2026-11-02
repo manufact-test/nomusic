@@ -194,6 +194,7 @@ jobs:
             "signature_v3_verified":proof["signature_v3_verified"],
             "separate_android_sandbox":proof["separate_android_sandbox"],
             "dedicated_launcher_icon_verified":proof["dedicated_launcher_icon_verified"],
+            "launcher_label_verified":proof["launcher_label_verified"],
             "test_authorities_unique":proof["test_authorities_unique"],
             "ota_updater_absent":proof["ota_updater_absent"],
             "stable_manifest_reference_absent":proof["stable_manifest_reference_absent"],

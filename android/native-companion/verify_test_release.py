@@ -108,6 +108,23 @@ def main():
         app = expected.find("application")
         app.set(A + "label", SPEC["label"])
         app.set(A + "icon", "@drawable/celikom_test_icon")
+        expected_launchers = []
+        for activity in app.findall("activity"):
+            actions = {
+                node.get(A + "name")
+                for intent_filter in activity.findall("intent-filter")
+                for node in intent_filter.findall("action")
+            }
+            categories = {
+                node.get(A + "name")
+                for intent_filter in activity.findall("intent-filter")
+                for node in intent_filter.findall("category")
+            }
+            if "android.intent.action.MAIN" in actions and "android.intent.category.LAUNCHER" in categories:
+                activity.set(A + "label", SPEC["label"])
+                expected_launchers.append(activity)
+        if len(expected_launchers) != 1:
+            raise ValueError("Expected exactly one launcher activity in baseline manifest")
         stable_permission = SPEC["stable_package"] + ".DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION"
         for node in expected:
             if node.tag in ("permission", "uses-permission") and node.get(A + "name") == stable_permission:
@@ -119,7 +136,23 @@ def main():
             elif name == "androidx.startup.InitializationProvider":
                 provider.set(A + "authorities", SPEC["startup_authority"])
         if structure(current) != structure(expected):
-            raise ValueError("Final manifest contains changes outside the approved test identity/authority/icon boundary")
+            raise ValueError("Final manifest contains changes outside the approved test identity/authority/icon/launcher-label boundary")
+        current_launchers = []
+        for activity in current.find("application").findall("activity"):
+            actions = {
+                node.get(A + "name")
+                for intent_filter in activity.findall("intent-filter")
+                for node in intent_filter.findall("action")
+            }
+            categories = {
+                node.get(A + "name")
+                for intent_filter in activity.findall("intent-filter")
+                for node in intent_filter.findall("category")
+            }
+            if "android.intent.action.MAIN" in actions and "android.intent.category.LAUNCHER" in categories:
+                current_launchers.append(activity)
+        if len(current_launchers) != 1 or current_launchers[0].get(A + "label") != SPEC["label"]:
+            raise ValueError("Launcher icon label is not explicitly CELIKOM Test")
 
         providers = current.find("application").findall("provider")
         authorities = [p.get(A + "authorities") for p in providers if p.get(A + "authorities")]
@@ -205,6 +238,7 @@ def main():
         "package_id_is_distinct": True,
         "separate_android_sandbox": True,
         "dedicated_launcher_icon_verified": True,
+        "launcher_label_verified": True,
         "test_authorities_unique": True,
         "ota_updater_absent": True,
         "stable_manifest_reference_absent": True,
@@ -218,7 +252,7 @@ def main():
         "acoustic_acceptance": False,
     }
     args.apk.with_suffix(".verification.json").write_text(json.dumps(proof, indent=2) + "\n", encoding="utf-8")
-    print("PASS: distinct package/sandbox, test identity/icon, unique authorities, no OTA, original signer v2/v3, unchanged base assets, exact test DEX")
+    print("PASS: distinct package/sandbox, CELIKOM Test launcher label/icon, unique authorities, no OTA, original signer v2/v3, unchanged base assets, exact test DEX")
 
 
 if __name__ == "__main__":

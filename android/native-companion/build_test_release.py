@@ -131,6 +131,24 @@ def patch_manifest(decoded):
     app.set(A + "label", SPEC["label"])
     app.set(A + "icon", "@drawable/celikom_test_icon")
 
+    launcher_activities = []
+    for activity in app.findall("activity"):
+        actions = {
+            node.get(A + "name")
+            for intent_filter in activity.findall("intent-filter")
+            for node in intent_filter.findall("action")
+        }
+        categories = {
+            node.get(A + "name")
+            for intent_filter in activity.findall("intent-filter")
+            for node in intent_filter.findall("category")
+        }
+        if "android.intent.action.MAIN" in actions and "android.intent.category.LAUNCHER" in categories:
+            activity.set(A + "label", SPEC["label"])
+            launcher_activities.append(activity)
+    if len(launcher_activities) != 1:
+        raise ValueError("Expected exactly one launcher activity for explicit CELIKOM Test label")
+
     file_provider_count = 0
     startup_count = 0
     authorities = []
