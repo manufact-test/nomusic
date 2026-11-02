@@ -3,7 +3,7 @@
 ## Deployment verified; owner listening verdict recorded (2026-11-02)
 
 - Version **0.3.85**, versionCode **86**, package `pro.celikom.nativeprobe`.
-- Owner expressly requested the experiment via CELIKOM's normal **Проверить обновление** button. This updater only reads the existing Hostinger `stable.json`, so the test candidate was distributed through the established stable **transport channel**; it is **not** acoustically approved.
+- Owner expressly requested the experiment via CELIKOM's normal **Проверить обновление** button. This updater only reads the existing Hostinger `stable.json`, so the test candidate was distributed through the established stable **transport channel**; it was distributed as an experiment, not as a claim that all audio behavior was accepted. The owner later accepted seeking only; intro/join acceptance remains open.
 - Experimental PR [#35](https://github.com/manufact-test/nomusic/pull/35), merged into the existing Android publish branch; source HEAD at merge: `053b7d59beb53db5f30b942feba35e51a1ab256a`.
 - [GitHub Actions release run #41358568513](https://github.com/manufact-test/nomusic/actions/runs/41358568513): full native host suite, negative release contract, Android SDK 36/D8 and signed Hostinger publish **SUCCESS**.
 - Live manifest: https://lemonchiffon-narwhal-791953.hostingersite.com/updates/android/stable.json — confirmed `versionName=0.3.85`, `versionCode=86`, `channel=stable`.
@@ -12,7 +12,7 @@
 - Manifest APK bytes: `8,763,465`.
 - Original signer certificate SHA256: `67fe81c56fac1c1d145344b69a0e3faf9005cf6607f4e26ca27d5926c3eefc4f`.
 - No change to `UpdateInstallReceiver`, updater code, network publishing workflow, site, catalogue, account data, or audio ownership/gain/Next/Pause algorithms.
-- Delivery caveat: a separate full-APK GET attempted from this execution environment returned 504, and subsequent HEAD requests to **both** old 0.3.84 and new 0.3.85 APK URLs timed out through the same external network path. This does **not** establish a new Hostinger or updater defect; CI independently verified the immutable server file and live manifest. Actual HONOR in-app download/install must still be confirmed by the owner. Do not modify the updater on this evidence alone.
+- Delivery caveat: a separate full-APK GET attempted from this execution environment returned 504, and subsequent HEAD requests to **both** old 0.3.84 and new 0.3.85 APK URLs timed out through the same external network path. This does **not** establish a new Hostinger or updater defect; CI independently verified the immutable server file and live manifest. The owner subsequently confirmed in-app installation and HONOR listening. No updater change was needed; do not modify the updater on this historical network-path evidence alone.
 
 ## What the test actually changes
 
