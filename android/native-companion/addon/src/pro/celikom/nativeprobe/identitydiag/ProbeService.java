@@ -15,7 +15,7 @@ import java.util.*;
 public class ProbeService extends Service {
  final String notificationRun=UUID.randomUUID().toString();String lastNotificationKey="";final SourceTransitionGate transitionGate=new SourceTransitionGate();final SourceEventArbiter sourceArbiter=new SourceEventArbiter();final Media3SourceRouter media3Router=new Media3SourceRouter(sourceArbiter,new Media3SourceRouter.Sink(){public void boundary(String next,String reason){sourceBoundary(next,reason);}public void seekRequested(){if(replacement!=null)replacement.sourceSeekRequested();}});final SourceEventArbiter.LookaheadEvidence lookahead=new SourceEventArbiter.LookaheadEvidence();final SourceStateWatchdog stateWatchdog=new SourceStateWatchdog();boolean controllerSeen;long controllerGeneration,lastMediaEvent,lastHealth,endReachedAt=-1,sourceEventSequence,sourceItemGeneration;String sourceItemAlias;
  static ProbeService instance;final Handler handler=new Handler(Looper.getMainLooper());
- volatile PlaybackSource current;AlbumProbe albumProbe;ReplacementEngine replacement;androidx.media3.session.MediaController controller;ListenableFuture<androidx.media3.session.MediaController> connecting;PowerManager.WakeLock wake;boolean receiverRegistered,stopping,networkRegistered,networkSeen;ConnectivityManager connectivity;long lastWakeRenewal,lastState,lastConnectAttempt=-5000,emptySince=-1,lastLookaheadPoll=-2000;String lastLookaheadSource;int attempts;String lastStateKey="",connectionStatus="Подключаемся к Яндексу…",lastRoutes="";
+ volatile PlaybackSource current;AlbumProbe albumProbe;ReplacementEngine replacement;androidx.media3.session.MediaController controller;ListenableFuture<androidx.media3.session.MediaController> connecting;PowerManager.WakeLock wake;boolean receiverRegistered,stopping,networkRegistered,networkSeen;ConnectivityManager connectivity;long lastWakeRenewal,lastState,lastConnectAttempt=-5000,emptySince=-1,lastLookaheadPoll=-2000;volatile String observedNextAlias,sourceTransitionExpectedAlias;String lastLookaheadSource,lastLookaheadCandidate,lastLookaheadSignature;int attempts;String lastStateKey="",connectionStatus="Подключаемся к Яндексу…",lastRoutes="";
  boolean alive(){return instance==this&&!stopping;}
  public void onCreate(){super.onCreate();LogStore.init(this);}
  public IBinder onBind(Intent i){return null;}
@@ -86,51 +86,69 @@ public class ProbeService extends Service {
     LogStore.log("source_controller_refresh",LogStore.map("reason","quiet_buffering_snapshot","alias",item.mediaId,"nativeState",nativeState,"playWhenReady",c.getPlayWhenReady(),"suppressionReason",c.getPlaybackSuppressionReason(),"positionMs",c.getCurrentPosition(),"mediaEventAgeMs",observedNow-lastMediaEvent,"transportCommandSent",false));
     current=null;controller=null;stateWatchdog.reset();replacement.update(null);c.release();connect();return;
    }
-   emptySince=-1;if(duration<=0||title.trim().isEmpty()){current=null;replacement.update(null);return;}if(sourceItemAlias==null||(current==null&&!Objects.equals(sourceItemAlias,item.mediaId))){sourceItemGeneration++;sourceItemAlias=item.mediaId;}PlaybackSource previous=current;current=new PlaybackSource(item.mediaId,title,artist,duration,cover,c.getCurrentPosition(),c.isPlaying(),c.getDeviceInfo().playbackType==DeviceInfo.PLAYBACK_TYPE_LOCAL,c.getPlaybackParameters().speed,c.getPlayWhenReady(),nativeState==Player.STATE_BUFFERING);if(previous!=null&&!previous.key.equals(current.key)){reportLookahead(current.alias,"sample_track_changed");replacement.sourceChanged(previous,current);}
+   emptySince=-1;if(duration<=0||title.trim().isEmpty()){current=null;replacement.update(null);return;}if(sourceItemAlias==null||(current==null&&!Objects.equals(sourceItemAlias,item.mediaId))){sourceItemGeneration++;sourceItemAlias=item.mediaId;}PlaybackSource previous=current;current=new PlaybackSource(item.mediaId,title,artist,duration,cover,c.getCurrentPosition(),c.isPlaying(),c.getDeviceInfo().playbackType==DeviceInfo.PLAYBACK_TYPE_LOCAL,c.getPlaybackParameters().speed,c.getPlayWhenReady(),nativeState==Player.STATE_BUFFERING);sourceTransitionExpectedAlias=null;if(previous!=null&&!previous.key.equals(current.key)){reportLookahead(current.alias,"sample_track_changed");replacement.sourceChanged(previous,current);}
    else if(previous!=null&&SourceTransitionGate.outgoingItemReset(previous.alias,current.alias,previous.position,previous.duration,current.position,previous.playing,current.playing,c.getPlayWhenReady(),nativeState==Player.STATE_BUFFERING))
       replacement.outgoingTrackReset(previous);
    sampleLookahead(c,item);
    albumProbe.observe(item.mediaId,title,artist,duration,cover);
    // Cached observations must still publish a decision when a previously seen song returns.
-   albumProbe.publishCurrent();replacement.update(current);
+   albumProbe.publishCurrent();replacement.update(current);replacement.noteLookaheadCandidate(lookahead.next);
    long clock=SystemClock.elapsedRealtime();
    if(current.playing&&current.duration>0&&current.position>=current.duration){if(endReachedAt<0)endReachedAt=clock;if(clock-endReachedAt>=2000){LogStore.log("source_controller_refresh",LogStore.map("reason","item_stuck_at_end","alias",current.alias,"positionMs",current.position,"durationMs",current.duration));replacement.sourceBoundary("controller_stuck_at_end",null);current=null;controller=null;c.release();endReachedAt=-1;connect();return;}}else endReachedAt=-1;
    if(clock-lastHealth>=5000){lastHealth=clock;LogStore.log("playback_health",LogStore.map("alias",current.alias,"sourcePositionMs",current.position,"durationMs",current.duration,"sourcePlaying",current.playing,"nativeState",nativeState,"playWhenReady",c.getPlayWhenReady(),"suppressionReason",c.getPlaybackSuppressionReason(),"mediaEventAgeMs",clock-lastMediaEvent,"replacementReady",replacement.ready,"replacementPreparing",replacement.preparing,"replacementArmed",replacement.armed(),"trackId",replacement.trackId,"method",replacement.method));}
    String key=current.key+"|"+c.isPlaying()+"|"+c.getPlaybackState()+"|"+c.getPlaybackParameters().speed;if(!key.equals(lastStateKey)||SystemClock.elapsedRealtime()-lastState>=10000){lastStateKey=key;lastState=SystemClock.elapsedRealtime();LogStore.log("player_state",LogStore.map("mediaAlias",item.mediaId,"title",title,"artist",artist,"durationMs",duration,"albumId",current.albumId,"positionMs",current.position,"isPlaying",current.playing,"playbackState",c.getPlaybackState(),"playWhenReady",c.getPlayWhenReady(),"suppressionReason",c.getPlaybackSuppressionReason(),"speed",current.speed,"interactive",getSystemService(PowerManager.class).isInteractive(),"availableOutputTypes",route()));}
   }catch(RuntimeException e){current=null;replacement.suspend("source_sample_failed",2000);LogStore.error("player_sample",e);}}
- void sourceBoundary(String nextAlias,String reason){if(!alive()||replacement==null)return;if(!transitionGate.begin(nextAlias,SystemClock.elapsedRealtime()))return;lastMediaEvent=SystemClock.elapsedRealtime();replacement.sourceBoundary(reason,nextAlias);reportLookahead(nextAlias,reason);current=null;lastStateKey="";endReachedAt=-1;}
+ void sourceBoundary(String nextAlias,String reason){if(!alive()||replacement==null)return;if(!transitionGate.begin(nextAlias,SystemClock.elapsedRealtime()))return;sourceTransitionExpectedAlias=nextAlias;lastMediaEvent=SystemClock.elapsedRealtime();replacement.sourceBoundary(reason,nextAlias);reportLookahead(nextAlias,reason);current=null;lastStateKey="";endReachedAt=-1;}
  void noteSourceBoundary(String nextAlias){sourceItemGeneration++;sourceItemAlias=nextAlias;}
  /* Read-only Media3 next-item feasibility. No audio, API or prefetch operations. */
  void sampleLookahead(androidx.media3.session.MediaController c,MediaItem item){
-  long now=SystemClock.elapsedRealtime(),elapsed=now-lastLookaheadPoll;
-  String active=item==null?null:item.mediaId;
+  long now=SystemClock.elapsedRealtime(),elapsed=now-lastLookaheadPoll;String active=item==null?null:item.mediaId;
   if(Objects.equals(lastLookaheadSource,active)&&elapsed<2000)return;
   lastLookaheadSource=active;lastLookaheadPoll=now;
-  boolean timeline=false,metadata=false;String candidate=null;
+  boolean timeline=false,metadata=false,placeholder=true;String candidate=null,title="",artist="",cover=null,albumId=null,durationSource="unavailable";
+  long metadataDuration=-1,windowDuration=-1,duration=-1;
   try{
    timeline=c!=null&&c.isConnected()&&c.isCommandAvailable(Player.COMMAND_GET_TIMELINE);
    if(timeline){
-    int next=c.getNextMediaItemIndex(),count=c.getMediaItemCount();
-    if(next>=0&&next<count){
-     MediaItem future=c.getMediaItemAt(next);
-     if(future!=null){candidate=future.mediaId;MediaMetadata m=future.mediaMetadata;
-      metadata=m!=null&&m.title!=null&&m.artist!=null&&m.durationMs!=null&&m.durationMs>0;}
+    int next=c.getNextMediaItemIndex(),count=c.getMediaItemCount();Timeline currentTimeline=c.getCurrentTimeline();
+    if(next>=0&&next<count&&currentTimeline!=null&&next<currentTimeline.getWindowCount()){
+     Timeline.Window window=new Timeline.Window();currentTimeline.getWindow(next,window);
+     MediaItem future=window.mediaItem!=null?window.mediaItem:c.getMediaItemAt(next);
+     if(future!=null){
+      candidate=future.mediaId;MediaMetadata m=future.mediaMetadata;
+      if(m!=null){title=m.title==null?"":m.title.toString();artist=m.artist==null?"":m.artist.toString();cover=m.artworkUri==null?null:m.artworkUri.toString();if(m.durationMs!=null)metadataDuration=m.durationMs;}
+      placeholder=window.isPlaceholder;windowDuration=window.durationMs;
+      if(metadataDuration>0){duration=metadataDuration;durationSource="media_metadata";}else if(windowDuration>0){duration=windowDuration;durationSource="timeline_window";}
+      albumId=AlbumMatch.albumId(cover);metadata=LookaheadPrefetchPolicy.metadataComplete(candidate,title,artist,albumId,duration,placeholder);
+     }
     }
    }
-  }catch(RuntimeException ignored){timeline=false;candidate=null;metadata=false;}
-  if(lookahead.observe(active,candidate,metadata,timeline,now))
-   LogStore.log("source_next_readonly_observation",LogStore.map(
-    "sourceEventSequence",sourceEventSequence,"sourceItemGeneration",sourceItemGeneration,"timelineAvailable",timeline,"candidateIdPresent",candidate!=null&&!candidate.isEmpty(),
-    "candidateDistinct",candidate!=null&&!Objects.equals(active,candidate),
-    "metadataComplete",metadata,"audioCommandSent",false,"prefetchStarted",false));
- }
+  }catch(RuntimeException ignored){timeline=false;candidate=null;metadata=false;title="";artist="";cover=null;albumId=null;duration=-1;durationSource="unavailable";placeholder=true;metadataDuration=-1;windowDuration=-1;}
+  observedNextAlias=candidate;
+  if(!Objects.equals(lastLookaheadCandidate,candidate)){lastLookaheadCandidate=candidate;lastLookaheadSignature="";}
+  boolean changed=lookahead.observe(active,candidate,metadata,timeline,now);
+  if(replacement!=null)replacement.noteLookaheadCandidate(candidate);
+  if(changed)LogStore.log("source_next_readonly_observation",LogStore.map("sourceEventSequence",sourceEventSequence,"sourceItemGeneration",sourceItemGeneration,"timelineAvailable",timeline,"candidateIdPresent",candidate!=null&&!candidate.isEmpty(),"candidateDistinct",candidate!=null&&!Objects.equals(active,candidate),"titlePresent",!title.trim().isEmpty(),"artistPresent",!artist.trim().isEmpty(),"albumIdPresent",albumId!=null,"metadataDurationPresent",metadataDuration>0,"windowDurationPresent",windowDuration>0,"durationSource",durationSource,"windowPlaceholder",placeholder,"metadataComplete",metadata,"audioCommandSent",false,"prefetchStarted",replacement!=null&&replacement.lookaheadPrefetchStarted(candidate)));
+  PlaybackSource source=current;long remaining=source==null?-1:Math.max(0,source.duration-source.position);
+  boolean eligible=LookaheadPrefetchPolicy.mayResolve(replacement!=null&&replacement.armed(),NativeApi.get(this).signedIn(),source!=null&&source.playing,timeline,candidate!=null&&!candidate.isEmpty()&&!Objects.equals(active,candidate),metadata,remaining);
+  if(eligible&&albumProbe!=null){String signature=candidate+"|"+title+"|"+artist+"|"+duration+"|"+cover;if(!signature.equals(lastLookaheadSignature)){lastLookaheadSignature=signature;albumProbe.observeLookahead(candidate,title,artist,duration,cover);}}
+  else if(candidate==null)lastLookaheadSignature="";
+}
  void reportLookahead(String next,String reason){
   SourceEventArbiter.LookaheadEvidence.Verdict v=lookahead.boundary(next,SystemClock.elapsedRealtime());
-  if(v.observed)LogStore.log("source_next_readonly_boundary",LogStore.map(
-   "sourceEventSequence",sourceEventSequence,"sourceItemGeneration",sourceItemGeneration,"reason",reason,"predicted",v.predicted,"matched",v.matched,
-   "metadataComplete",v.complete,"leadMs",v.leadMs,"samples",v.samples,
-   "authorizedForPrefetch",false,"audioCommandSent",false));
+  if(v.observed)LogStore.log("source_next_readonly_boundary",LogStore.map("sourceEventSequence",sourceEventSequence,"sourceItemGeneration",sourceItemGeneration,"reason",reason,"predicted",v.predicted,"matched",v.matched,"metadataComplete",v.complete,"leadMs",v.leadMs,"samples",v.samples,"authorizedForPrefetch",v.predicted&&v.matched&&v.complete&&v.leadMs>=LookaheadPrefetchPolicy.MIN_LEAD_MS,"prefetchStarted",replacement!=null&&replacement.lookaheadPrefetchStarted(next),"prefetchState",replacement==null?"none":replacement.lookaheadPrefetchState(next),"audioCommandSent",false));
+}
+ boolean lookaheadIsNext(String alias){
+  if(!alive()||alias==null||alias.trim().isEmpty())return false;PlaybackSource source=current;
+  return source!=null&&!Objects.equals(source.alias,alias)&&Objects.equals(observedNextAlias,alias)&&sourceTransitionExpectedAlias==null;
  }
+ boolean lookaheadCandidateCurrent(String alias){
+  if(alias==null||alias.trim().isEmpty())return false;PlaybackSource source=current;
+  if(source!=null&&Objects.equals(source.alias,alias))return true;String expected=sourceTransitionExpectedAlias;
+  if(expected!=null)return Objects.equals(expected,alias);
+  return source!=null&&Objects.equals(observedNextAlias,alias);
+ }
+
  String route(){try{android.media.AudioDeviceInfo[] a=getSystemService(AudioManager.class).getDevices(AudioManager.GET_DEVICES_OUTPUTS);List<Integer> types=new ArrayList<>();for(android.media.AudioDeviceInfo d:a)if(!types.contains(d.getType()))types.add(d.getType());return types.toString();}catch(RuntimeException e){return "unknown";}}
  void pauseForRouteLoss(){androidx.media3.session.MediaController c=controller;boolean sent=false;try{if(c!=null&&c.isConnected()&&c.isCommandAvailable(Player.COMMAND_PLAY_PAUSE)){c.pause();sent=true;}}catch(RuntimeException e){LogStore.error("route_pause_request",e);}LogStore.log("source_pause_requested",LogStore.map("reason","headphones_disconnected","sent",sent));sample(true);}
  void onIdentity(Map<String,Object> observation,Map<String,Object> decision){if(replacement==null)return;String key=PlaybackSource.key(String.valueOf(observation.get("mediaAlias")),observation.get("albumId"),String.valueOf(observation.get("title")),String.valueOf(observation.get("artist")),((Number)observation.get("durationMs")).longValue());if(Objects.equals(key,replacement.identityKey)&&Objects.equals(decision.get("candidateTrackId"),replacement.trackId)&&Objects.equals(String.valueOf(decision.get("method")),replacement.method))return;replacement.identity(observation,decision);}
