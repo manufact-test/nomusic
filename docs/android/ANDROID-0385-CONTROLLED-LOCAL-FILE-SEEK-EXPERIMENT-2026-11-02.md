@@ -5,7 +5,7 @@
 - Source: `release/android-0.3.84-stable` at `c53cc467eaa6682e006e78d470bc1db5d19e43e2`.
 - Experiment branch: `feature/android-0385-local-file-seek-controlled-20261102`.
 - Published experiment: `0.3.85`, versionCode `86`. After the owner retest, **seeking is accepted for the tested HONOR scenarios; beginnings/new-track joins remain acoustically unaccepted**. Yandex Music crossfade is currently OFF and has not yet been compatibility-tested with CELIKOM.
-- Protected backups `backup/android-0384-before-local-seek-experiment-20261102`, `backup/android-0382-stable-listening-baseline-20261101`, and `backup/android-0378-original-before-cached-join-20261101` are untouched.
+- Preserved backup refs `backup/android-0384-before-local-seek-experiment-20261102`, `backup/android-0382-stable-listening-baseline-20261101`, and `backup/android-0378-original-before-cached-join-20261101` are unchanged. GitHub reports `protected=false`; do not describe these refs as branch-protected.
 - No Android updater, backend, website, browser extension, database, catalogue, or account changes.
 
 ## Independent evidence review
