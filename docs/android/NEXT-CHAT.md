@@ -1,3 +1,19 @@
+# CURRENT HANDOFF — 02.11.2026 — CELIKOM TEST 0.3.85-test.3 / 86088 BUILT; BACKGROUND RECOVERY DIAGNOSTICS READY
+
+**READ FIRST:** [ANDROID-0385-TEST-3-BACKGROUND-RECOVERY-DIAGNOSTICS-HANDOFF-2026-11-02.md](ANDROID-0385-TEST-3-BACKGROUND-RECOVERY-DIAGNOSTICS-HANDOFF-2026-11-02.md). The separate signed Test APK is built and saved in ChatGPT Library. It is diagnostic-only: no audio fix is claimed and no acoustic acceptance has occurred.
+
+**Owner priority:** intermittent return to original Yandex track while CELIKOM Test is running in the background. Capture the exact service, Media3, network, replacement-player, audio-session and Activity lifecycle states. Do not change audio behavior blindly. The owner's 0.3.85 seeking verdict remains accepted; do not retest or rewrite the seek path.
+
+**Stable ORIGINAL — HANDS OFF:** package `pro.celikom.nativeprobe`, 0.3.85/code86, source `053b7d59beb53db5f30b942feba35e51a1ab256a`; both accepted-seek backup refs remain untouched. **CELIKOM Test 0.3.85-test.3/code86088:** package `pro.celikom.nativeprobe.test`, label `CELIKOM Test`, built from source commit `7166fb6c036bc86fb263ba96a407a25dcfea97e6`; APK SHA256 `ce69bd40c1ff10bbf6703fc0466e34653e8a0d5805701eb5f2630771919ce62d`; original signer matches. Validation/build run [#41508364518](https://github.com/manufact-test/nomusic/actions/runs/41508364518) SUCCESS; artifact ID `13172970865`. APK + verification + receipt are in Library `/CELIKOM/Android/Test/`. Test.2/code86087 remains available. **No OTA:** updater absent, stable manifest absent, stable publisher skipped, stable OTA untouched, Hostinger write false. PR [#37](https://github.com/manufact-test/nomusic/pull/37) remains open/unmerged.
+
+**What the new diagnostics capture:** 15-second service heartbeat without changing the 250 ms observer cadence; Activity onStart/onStop snapshots; Media3 connect/disconnect timing; validated Wi-Fi/cellular/VPN changes; replacement arm/stop/recovery reasons and retry deadlines; trusted/effect/player session IDs and actual replacement-player state. A structural regression guard verifies lifecycle logging is read-only and the accepted seek golden guard remains unchanged.
+
+**Owner test:** install Test.3 over Test.2; do not uninstall stable. Stop stable CELIKOM before testing so only one engine controls the Yandex session. Keep Yandex `Плавный переход` OFF. Listen normally with CELIKOM Test in the background. If original returns, open Test as before, wait a few seconds, save combined diagnostics and a short recording. Do not toggle Start/Stop before capture. No special seek retest.
+
+**Critical interpretation:** in the 21:09 video, green `Подключён` appears while the detail says `Играет оригинал`, then `Версия песни CELIKOM доступна для подмены`. Green connection state does not prove the replacement is audible. Activity onStart only logs/renders; it does not re-arm or restart audio. Compare the new timestamps before inferring that opening the screen caused recovery.
+
+---
+
 # CURRENT HANDOFF — 02.11.2026 — COMBINED CELIKOM TEST 0.3.85-test.2 (86087) BUILT; AUDIO OWNER RETEST PENDING
 
 **READ FIRST:** [ANDROID-0385-TEST-2-NEXT-TRACK-PREFETCH-HANDOFF-2026-11-02.md](ANDROID-0385-TEST-2-NEXT-TRACK-PREFETCH-HANDOFF-2026-11-02.md). All relevant source SHA, backup refs, APK SHA-256, signer, Library links, GitHub Actions receipt, diagnostic correlation, frozen audio mechanisms and next analysis steps are there. **The owner will attach new diagnostics in the next chat. Analyze those first; do not modify audio blindly.**
