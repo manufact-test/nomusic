@@ -1,6 +1,6 @@
 # CELIKOM Android 0.3.85 — local-file experiment OTA receipt (2026-11-02)
 
-## Deployment verified; listening verdict PENDING
+## Deployment verified; owner listening verdict recorded (2026-11-02)
 
 - Version **0.3.85**, versionCode **86**, package `pro.celikom.nativeprobe`.
 - Owner expressly requested the experiment via CELIKOM's normal **Проверить обновление** button. This updater only reads the existing Hostinger `stable.json`, so the test candidate was distributed through the established stable **transport channel**; it is **not** acoustically approved.
@@ -25,6 +25,13 @@ Only a cache-miss replacement source-selection path: after a fresh authorized re
 - `backup/android-0378-original-before-cached-join-20261101` → `bf011dcf1a70c504883a8e5e742e0b038f41d9b0`.
 - Previous `release/android-0.3.84-stable` and `release/android-0.3.83-stable` branches remain untouched.
 
-## One minimal HONOR acceptance pass
+## Owner listening result — 2026-11-02
 
-Install via CELIKOM's normal update button. Listen to ordinary finger seeks (including after Next), new-song intro/Next wait, and one Pause/Resume, using familiar songs. Report **better / worse / similar** for seeking and separately for beginnings. No need to generate another identical diagnostic before the owner reports what is heard. CI and transport logs do not prove clean speaker PCM or acoustic phase; do not label 0.3.85 a sound fix before the user verdict.
+The owner installed 0.3.85 through the in-app update flow and listened on HONOR:
+
+- **Seeking: ACCEPTED for the tested scenarios.** Ordinary finger seeking, including after Next, now sounds smooth; the owner reports no remembered seek lag in this retest.
+- **Beginnings/new-track joins: IMPROVED, NOT ACCEPTED.** They are much better and sometimes nearly imperceptible, but remain audibly uneven on some songs.
+- Yandex Music's own crossfade is currently OFF. First solve CELIKOM's beginning/join with it OFF; only after owner acceptance, enable Yandex crossfade and run a separate interaction test.
+- The owner estimates the overall work at approximately 70% complete; this is a subjective project estimate, not a measured metric.
+
+Do not ask for another generic seek retest. The next owner evidence will be a focused diagnostic and video/recording of problematic beginnings. Use those exact materials first. The journal and transport clocks do not measure original-source PCM or speaker phase; correlate the actual recording with the diagnostic and do not claim an acoustic fix from CI alone.
