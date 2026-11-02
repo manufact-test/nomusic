@@ -16,8 +16,8 @@ verifier = (ROOT / "verify_test_release.py").read_text(encoding="utf-8")
 assert spec["package"] == "pro.celikom.nativeprobe.test"
 assert spec["stable_package"] == "pro.celikom.nativeprobe"
 assert spec["label"] == "CELIKOM Test"
-assert spec["version"] == "0.3.85-test.3"
-assert spec["version_code"] == 86088
+assert spec["version"] == "0.3.85-test.4"
+assert spec["version_code"] == 86089
 assert spec["signing_certificate_sha256"] == "67fe81c56fac1c1d145344b69a0e3faf9005cf6607f4e26ca27d5926c3eefc4f"
 assert spec["test_permission"].startswith(spec["package"] + ".")
 assert spec["file_provider_authority"].startswith(spec["package"] + ".")
@@ -31,6 +31,8 @@ for excluded in ("UpdateCenter.java", "UpdateCheckJob.java", "UpdateInstallRecei
 for required in ("check_0385_seek_baseline.py", "UpdateCenter", "REQUEST_INSTALL_PACKAGES", "celikom_test_icon.xml", "BuildConfig.smali"):
     assert required in builder or required in verifier, "Missing test build safety gate: " + required
 assert "check_background_diagnostics.py" in (ROOT / "tests/run_engine.py").read_text(encoding="utf-8")
+assert "TestLookaheadPrefetchHandoff.java" in (ROOT / "tests/run_engine.py").read_text(encoding="utf-8")
+assert "HybridIdentity.java" in (ROOT / "tests/run_engine.py").read_text(encoding="utf-8")
 assert "if not (v2 or v3)" in verifier
 assert "base_v3" in verifier and "signer_v3" in verifier
 assert "APK Signature Scheme v3" in verifier

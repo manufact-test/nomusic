@@ -125,7 +125,7 @@ jobs:
           set -euo pipefail
           ROOT=android/native-companion
           KIT="$RUNNER_TEMP/kit"
-          OUT="$RUNNER_TEMP/CELIKOM-Android-0.3.85-TEST-BACKGROUND-RECOVERY-SIGNED.apk"
+          OUT="$RUNNER_TEMP/CELIKOM-Android-0.3.85-TEST-INTRO-PREFETCH-SIGNED.apk"
           python3 "$ROOT/build_test_release.py" \
             --sdk "$KIT/sdk" \
             --build-tools "$KIT/build-tools/36.0.0" \
@@ -136,7 +136,7 @@ jobs:
             --work-dir "$RUNNER_TEMP/test-build-work" \
             --output "$OUT"
           test -s "$OUT"
-          test -s "$RUNNER_TEMP/CELIKOM-Android-0.3.85-TEST-BACKGROUND-RECOVERY-SIGNED.verification.json"
+          test -s "$RUNNER_TEMP/CELIKOM-Android-0.3.85-TEST-INTRO-PREFETCH-SIGNED.verification.json"
           echo "TEST_APK=$OUT" >> "$GITHUB_ENV"
 
       - name: Create immutable JSON build receipt
@@ -192,6 +192,8 @@ jobs:
               "check_0385_seek_baseline_unchanged":"passed",
               "test_login_input_contrast_contract":"passed",
               "background_lifecycle_diagnostics":"passed",
+              "stable_metadata_lookahead_fallback":"passed",
+              "prefetch_to_current_cache_handoff":"passed",
               "android_api_36":"passed",
               "d8":"passed"
             },
@@ -201,7 +203,7 @@ jobs:
             "physical_phone_playback_verified":False,
             "acoustic_acceptance":False
           }
-          out=pathlib.Path(os.environ["RUNNER_TEMP"],"CELIKOM-Android-0.3.85-TEST-BACKGROUND-RECOVERY-RECEIPT.json")
+          out=pathlib.Path(os.environ["RUNNER_TEMP"],"CELIKOM-Android-0.3.85-TEST-INTRO-PREFETCH-RECEIPT.json")
           out.write_text(json.dumps(receipt,ensure_ascii=False,indent=2)+"\n",encoding="utf-8")
           print(json.dumps(receipt,ensure_ascii=False,indent=2))
           PY
@@ -209,10 +211,10 @@ jobs:
       - name: Upload signed test APK and verification receipt only
         uses: actions/upload-artifact@v4
         with:
-          name: CELIKOM-Test-0.3.85-test.3-code-86088
+          name: CELIKOM-Test-0.3.85-test.4-code-86089
           path: |
-            ${{ runner.temp }}/CELIKOM-Android-0.3.85-TEST-BACKGROUND-RECOVERY-SIGNED.apk
-            ${{ runner.temp }}/CELIKOM-Android-0.3.85-TEST-BACKGROUND-RECOVERY-SIGNED.verification.json
-            ${{ runner.temp }}/CELIKOM-Android-0.3.85-TEST-BACKGROUND-RECOVERY-RECEIPT.json
+            ${{ runner.temp }}/CELIKOM-Android-0.3.85-TEST-INTRO-PREFETCH-SIGNED.apk
+            ${{ runner.temp }}/CELIKOM-Android-0.3.85-TEST-INTRO-PREFETCH-SIGNED.verification.json
+            ${{ runner.temp }}/CELIKOM-Android-0.3.85-TEST-INTRO-PREFETCH-RECEIPT.json
           if-no-files-found: error
           retention-days: 7

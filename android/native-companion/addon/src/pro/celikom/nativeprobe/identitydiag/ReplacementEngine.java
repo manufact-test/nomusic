@@ -31,6 +31,7 @@ final class ReplacementEngine {
  final LinkedHashMap<String,File> recentAudio=new LinkedHashMap<>();
  volatile long lookaheadPrefetchGeneration,lookaheadPrefetchAccount=-1,lookaheadPrefetchStartedAt;
  volatile String lookaheadPrefetchAlias,lookaheadPrefetchTrackId,lookaheadPrefetchPhase="none";
+ String lookaheadPrefetchResolvedAudioKey;JSONObject lookaheadPrefetchCurrentDescriptor;boolean lookaheadPrefetchPromoted,lookaheadPrefetchWait;
  String audioKey(JSONObject j){return trackId+"|"+j.optLong("replacement_id")+"|"+j.optLong("version")+"|"+j.optLong("duration_ms")+"|"+j.optString("mime_type","audio/mpeg");}
  String audioKeyFor(String id,JSONObject j){return id+"|"+j.optLong("replacement_id")+"|"+j.optLong("version")+"|"+j.optLong("duration_ms")+"|"+j.optString("mime_type","audio/mpeg");}
  /* 0.3.74 HONOR: 24 WARM callbacks took 40..155ms, but reusing an old
@@ -58,42 +59,94 @@ final class ReplacementEngine {
  void noteLookaheadCandidate(String candidateAlias){
   if(lookaheadPrefetchAlias==null)return;PlaybackSource source=owner.current;
   if(source!=null&&Objects.equals(source.alias,lookaheadPrefetchAlias)){
-   if("ready".equals(lookaheadPrefetchPhase)){LogStore.log("replacement_lookahead_prefetch_promoted",LogStore.map("mediaAlias",lookaheadPrefetchAlias,"trackId",lookaheadPrefetchTrackId,"cacheRetained",true));lookaheadPrefetchGeneration++;lookaheadPrefetchAlias=null;lookaheadPrefetchTrackId=null;lookaheadPrefetchAccount=-1;lookaheadPrefetchPhase="cached";}
-   else if(Objects.equals(identityKey,source.key)&&Objects.equals(trackId,lookaheadPrefetchTrackId)&&(Objects.equals(lookupKey,identityKey)||preparing||player!=null))invalidateLookaheadPrefetch("current_track_prepare_started");
+   if(Objects.equals(identityKey,source.key)&&!Objects.equals(trackId,lookaheadPrefetchTrackId)){invalidateLookaheadPrefetch("current_identity_mismatch");return;}
+   lookaheadPrefetchPromoted=true;
+   if("ready".equals(lookaheadPrefetchPhase)){lookaheadPrefetchPhase="cached";LogStore.log("replacement_lookahead_prefetch_promoted",LogStore.map("mediaAlias",lookaheadPrefetchAlias,"trackId",lookaheadPrefetchTrackId,"cacheRetained",true));}
+   else LogStore.log("replacement_lookahead_prefetch_promoted_inflight",LogStore.map("mediaAlias",lookaheadPrefetchAlias,"trackId",lookaheadPrefetchTrackId,"phase",lookaheadPrefetchPhase));
    return;
   }
   if(!Objects.equals(candidateAlias,lookaheadPrefetchAlias)&&!owner.lookaheadCandidateCurrent(lookaheadPrefetchAlias))invalidateLookaheadPrefetch("next_item_changed");
  }
- void invalidateLookaheadPrefetch(String reason){
-  if(lookaheadPrefetchAlias==null)return;LogStore.log("replacement_lookahead_prefetch_cancelled",LogStore.map("mediaAlias",lookaheadPrefetchAlias,"trackId",lookaheadPrefetchTrackId,"phase",lookaheadPrefetchPhase,"reason",reason));
-  lookaheadPrefetchGeneration++;lookaheadPrefetchAlias=null;lookaheadPrefetchTrackId=null;lookaheadPrefetchAccount=-1;lookaheadPrefetchPhase="none";
+ void clearLookaheadPrefetchState(){
+  lookaheadPrefetchGeneration++;lookaheadPrefetchAlias=null;lookaheadPrefetchTrackId=null;lookaheadPrefetchAccount=-1;
+  lookaheadPrefetchPhase="none";lookaheadPrefetchResolvedAudioKey=null;lookaheadPrefetchCurrentDescriptor=null;
+  lookaheadPrefetchPromoted=false;lookaheadPrefetchWait=false;
  }
- boolean lookaheadPrefetchStarted(String alias){return Objects.equals(lookaheadPrefetchAlias,alias)&&("resolving".equals(lookaheadPrefetchPhase)||"downloading".equals(lookaheadPrefetchPhase)||"ready".equals(lookaheadPrefetchPhase));}
+ void finishLookaheadPrefetch(String reason){
+  if(lookaheadPrefetchAlias!=null)LogStore.log("replacement_lookahead_prefetch_finished",LogStore.map("mediaAlias",lookaheadPrefetchAlias,"trackId",lookaheadPrefetchTrackId,"reason",reason));
+  clearLookaheadPrefetchState();
+ }
+ void invalidateLookaheadPrefetch(String reason){
+  if(lookaheadPrefetchAlias==null)return;
+  LogStore.log("replacement_lookahead_prefetch_cancelled",LogStore.map("mediaAlias",lookaheadPrefetchAlias,"trackId",lookaheadPrefetchTrackId,"phase",lookaheadPrefetchPhase,"reason",reason));
+  clearLookaheadPrefetchState();
+ }
+ boolean lookaheadPrefetchStarted(String alias){return Objects.equals(lookaheadPrefetchAlias,alias)&&("resolving".equals(lookaheadPrefetchPhase)||"downloading".equals(lookaheadPrefetchPhase)||"ready".equals(lookaheadPrefetchPhase)||"cached".equals(lookaheadPrefetchPhase));}
  String lookaheadPrefetchState(String alias){return Objects.equals(lookaheadPrefetchAlias,alias)?lookaheadPrefetchPhase:"none";}
  boolean lookaheadPrefetchCurrent(long token,long account,String alias,String id){
   if(closed||token!=lookaheadPrefetchGeneration||account!=api.accountGeneration||!api.signedIn()||!armed()||!Objects.equals(lookaheadPrefetchAlias,alias)||!Objects.equals(lookaheadPrefetchTrackId,id))return false;
-  PlaybackSource source=owner.current;if(source!=null&&Objects.equals(source.alias,alias)&&Objects.equals(identityKey,source.key)&&Objects.equals(trackId,id)&&(Objects.equals(lookupKey,identityKey)||preparing||player!=null))return false;
+  PlaybackSource source=owner.current;
+  if(source!=null&&Objects.equals(source.alias,alias)&&Objects.equals(identityKey,source.key)&&!Objects.equals(trackId,id))return false;
   return owner.lookaheadCandidateCurrent(alias);
  }
+ boolean waitForLookaheadPrefetch(String key,JSONObject fresh,long g){
+  PlaybackSource source=owner.current;
+  if(!lookaheadPrefetchPromoted||source==null||!Objects.equals(source.alias,lookaheadPrefetchAlias)||!Objects.equals(identityKey,key)||!Objects.equals(trackId,lookaheadPrefetchTrackId)||lookaheadPrefetchAccount!=api.accountGeneration||!armed()||(!"resolving".equals(lookaheadPrefetchPhase)&&!"downloading".equals(lookaheadPrefetchPhase))||g!=generation||!current(key))return false;
+  String freshKey=audioKeyFor(trackId,fresh);
+  if(lookaheadPrefetchResolvedAudioKey!=null&&!freshKey.equals(lookaheadPrefetchResolvedAudioKey)){
+   LogStore.log("replacement_lookahead_prefetch_key_mismatch",LogStore.map("mediaAlias",lookaheadPrefetchAlias,"trackId",trackId,"freshResolveKeyMatches",false,"action","cancel_prefetch_use_fresh_download"));
+   invalidateLookaheadPrefetch("fresh_resolve_key_mismatch");return false;
+  }
+  lookaheadPrefetchCurrentDescriptor=fresh;lookaheadPrefetchWait=true;
+  LogStore.log("replacement_lookahead_prefetch_current_wait",LogStore.map("mediaAlias",lookaheadPrefetchAlias,"trackId",trackId,"phase",lookaheadPrefetchPhase,"freshResolveRequired",true,"audioKeyMatches",lookaheadPrefetchResolvedAudioKey==null?"pending":true,"originalRemainsAudible",true));
+  return true;
+ }
+ void fallbackPromotedLookaheadPrefetch(String reason){
+  if(!lookaheadPrefetchWait||lookaheadPrefetchCurrentDescriptor==null)return;
+  JSONObject fresh=lookaheadPrefetchCurrentDescriptor;String key=identityKey;long g=generation;String alias=lookaheadPrefetchAlias;
+  lookaheadPrefetchWait=false;lookaheadPrefetchCurrentDescriptor=null;lookaheadPrefetchPromoted=false;
+  LogStore.log("replacement_lookahead_prefetch_current_fallback",LogStore.map("mediaAlias",alias,"trackId",trackId,"reason",reason,"action","fresh_descriptor_full_download"));
+  invalidateLookaheadPrefetch(reason);
+  if(preparing&&g==generation&&current(key))downloadFull(key,fresh,g);
+ }
+ void resumePromotedLookaheadPrefetch(){
+  if(!lookaheadPrefetchWait||lookaheadPrefetchCurrentDescriptor==null)return;PlaybackSource source=owner.current;
+  if(source==null||!Objects.equals(source.alias,lookaheadPrefetchAlias)||!Objects.equals(identityKey,source.key)||!Objects.equals(trackId,lookaheadPrefetchTrackId))return;
+  JSONObject fresh=lookaheadPrefetchCurrentDescriptor;String expected=audioKeyFor(trackId,fresh);
+  if(!Objects.equals(expected,lookaheadPrefetchResolvedAudioKey)){fallbackPromotedLookaheadPrefetch("resolved_key_mismatch");return;}
+  String key=identityKey;long g=generation;lookaheadPrefetchWait=false;lookaheadPrefetchCurrentDescriptor=null;
+  LogStore.log("replacement_lookahead_prefetch_current_ready",LogStore.map("mediaAlias",source.alias,"trackId",trackId,"audioKeyMatches",true,"cacheReady",true,"sourceItemGeneration",owner.sourceItemGeneration));
+  preparing=false;prepare(key,fresh,g);
+ }
  void prefetchLookahead(Map<String,Object> observation,String id){
-  if(closed||!armed()||!preloadAllowed||!api.signedIn()||observation==null)return;String alias=String.valueOf(observation.get("mediaAlias"));PlaybackSource source=owner.current;
-  long duration=observation.get("durationMs") instanceof Number?((Number)observation.get("durationMs")).longValue():-1;long remaining=source==null?-1:Math.max(0,source.duration-position(source));
-  boolean unique=id!=null&&id.matches("[1-9][0-9]{0,23}");boolean eligible=LookaheadPrefetchPolicy.mayPrefetch(armed(),api.signedIn(),source!=null&&source.playing,owner.lookaheadIsNext(alias),unique,remaining);
+  if(closed||!armed()||!preloadAllowed||!api.signedIn()||observation==null)return;
+  String alias=String.valueOf(observation.get("mediaAlias"));PlaybackSource source=owner.current;
+  long duration=observation.get("durationMs") instanceof Number?((Number)observation.get("durationMs")).longValue():-1;
+  long remaining=source==null?-1:Math.max(0,source.duration-position(source));
+  boolean unique=id!=null&&id.matches("[1-9][0-9]{0,23}");
+  boolean eligible=LookaheadPrefetchPolicy.mayPrefetch(armed(),api.signedIn(),source!=null&&source.playing,owner.lookaheadIsNext(alias),unique,remaining);
   if(!eligible){LogStore.log("replacement_lookahead_prefetch_skipped",LogStore.map("mediaAlias",alias,"trackIdPresent",unique,"sourcePlaying",source!=null&&source.playing,"remainingMs",remaining,"nextItem",owner.lookaheadIsNext(alias),"reason","prefetch_gate"));return;}
-  if(Objects.equals(lookaheadPrefetchAlias,alias)&&Objects.equals(lookaheadPrefetchTrackId,id)&&lookaheadPrefetchAccount==api.accountGeneration&&("resolving".equals(lookaheadPrefetchPhase)||"downloading".equals(lookaheadPrefetchPhase)||"ready".equals(lookaheadPrefetchPhase)))return;
-  invalidateLookaheadPrefetch("new_next_item");final long token=++lookaheadPrefetchGeneration,account=api.accountGeneration,start=SystemClock.elapsedRealtime();
+  if(Objects.equals(lookaheadPrefetchAlias,alias)&&Objects.equals(lookaheadPrefetchTrackId,id)&&lookaheadPrefetchAccount==api.accountGeneration&&("resolving".equals(lookaheadPrefetchPhase)||"downloading".equals(lookaheadPrefetchPhase)||"ready".equals(lookaheadPrefetchPhase)||"cached".equals(lookaheadPrefetchPhase)))return;
+  invalidateLookaheadPrefetch("new_next_item");
+  final long token=++lookaheadPrefetchGeneration,account=api.accountGeneration,start=SystemClock.elapsedRealtime();
   lookaheadPrefetchAlias=alias;lookaheadPrefetchTrackId=id;lookaheadPrefetchAccount=account;lookaheadPrefetchStartedAt=start;lookaheadPrefetchPhase="resolving";
+  lookaheadPrefetchResolvedAudioKey=null;lookaheadPrefetchCurrentDescriptor=null;lookaheadPrefetchPromoted=false;lookaheadPrefetchWait=false;
   LogStore.log("replacement_lookahead_prefetch_start",LogStore.map("mediaAlias",alias,"trackId",id,"sourceDurationMs",duration,"remainingMs",remaining,"sourceItemGeneration",owner.sourceItemGeneration,"sourceEventSequence",owner.sourceEventSequence,"audioCommandSent",false));
   api.resolve(id,()->lookaheadPrefetchCurrent(token,account,alias,id),(j,error)->{
    if(!lookaheadPrefetchCurrent(token,account,alias,id)){LogStore.log("replacement_lookahead_prefetch_stale",LogStore.map("mediaAlias",alias,"stage","resolve"));return;}
-   if(error!=null){lookaheadPrefetchPhase="failed";LogStore.log("replacement_lookahead_prefetch_failure",LogStore.map("mediaAlias",alias,"stage","resolve","errorCode",error));return;}
-   if(j==null||!j.optBoolean("found",false)){lookaheadPrefetchPhase="not_found";LogStore.log("replacement_lookahead_prefetch_not_found",LogStore.map("mediaAlias",alias,"trackId",id));return;}
-   long replacementDuration=j.optLong("duration_ms");if(!PlaybackDuration.metadataProbeAllowed(duration,replacementDuration)){lookaheadPrefetchPhase="duration_rejected";LogStore.log("replacement_lookahead_prefetch_rejected",LogStore.map("mediaAlias",alias,"sourceDurationMs",duration,"replacementDurationMs",replacementDuration));return;}
+   if(error!=null){lookaheadPrefetchPhase="failed";LogStore.log("replacement_lookahead_prefetch_failure",LogStore.map("mediaAlias",alias,"stage","resolve","errorCode",error));fallbackPromotedLookaheadPrefetch("resolve_failed");return;}
+   if(j==null||!j.optBoolean("found",false)){lookaheadPrefetchPhase="not_found";LogStore.log("replacement_lookahead_prefetch_not_found",LogStore.map("mediaAlias",alias,"trackId",id));fallbackPromotedLookaheadPrefetch("not_found");return;}
+   long replacementDuration=j.optLong("duration_ms");
+   if(!PlaybackDuration.metadataProbeAllowed(duration,replacementDuration)){lookaheadPrefetchPhase="duration_rejected";LogStore.log("replacement_lookahead_prefetch_rejected",LogStore.map("mediaAlias",alias,"sourceDurationMs",duration,"replacementDurationMs",replacementDuration));fallbackPromotedLookaheadPrefetch("duration_rejected");return;}
+   lookaheadPrefetchResolvedAudioKey=audioKeyFor(id,j);
+   if(lookaheadPrefetchWait&&lookaheadPrefetchCurrentDescriptor!=null&&!lookaheadPrefetchResolvedAudioKey.equals(audioKeyFor(id,lookaheadPrefetchCurrentDescriptor))){fallbackPromotedLookaheadPrefetch("fresh_resolve_key_mismatch");return;}
    lookaheadPrefetchPhase="downloading";
    api.download(j,()->lookaheadPrefetchCurrent(token,account,alias,id),(file,downloadError)->{
     if(!lookaheadPrefetchCurrent(token,account,alias,id)){if(file!=null)file.delete();LogStore.log("replacement_lookahead_prefetch_stale",LogStore.map("mediaAlias",alias,"stage","download","fileDeleted",file!=null));return;}
-    if(file==null){lookaheadPrefetchPhase="failed";LogStore.log("replacement_lookahead_prefetch_failure",LogStore.map("mediaAlias",alias,"stage","download","errorCode",downloadError));return;}
-    cachePrefetchedAudio(id,j,file);lookaheadPrefetchPhase="ready";LogStore.log("replacement_lookahead_prefetch_ready",LogStore.map("mediaAlias",alias,"trackId",id,"bytes",file.length(),"elapsedMs",SystemClock.elapsedRealtime()-start,"remainingMsAtStart",remaining,"audioCommandSent",false));
+    if(file==null){lookaheadPrefetchPhase="failed";LogStore.log("replacement_lookahead_prefetch_failure",LogStore.map("mediaAlias",alias,"stage","download","errorCode",downloadError));fallbackPromotedLookaheadPrefetch("download_failed");return;}
+    cachePrefetchedAudio(id,j,file);lookaheadPrefetchPhase="ready";
+    LogStore.log("replacement_lookahead_prefetch_ready",LogStore.map("mediaAlias",alias,"trackId",id,"bytes",file.length(),"elapsedMs",SystemClock.elapsedRealtime()-start,"remainingMsAtStart",remaining,"audioCommandSent",false));
+    resumePromotedLookaheadPrefetch();
    });
   });
  }
@@ -147,7 +200,7 @@ final class ReplacementEngine {
     The backend's approved replacement response authorizes playback; the
     bounded measured-duration check remains an independent safety gate. */
  boolean verifiedDurationIdentity(){return trackId!=null&& !"NONE".equals(method);}
- void identity(Map<String,Object> o,Map<String,Object> decision){String key=PlaybackSource.key(String.valueOf(o.get("mediaAlias")),o.get("albumId"),String.valueOf(o.get("title")),String.valueOf(o.get("artist")),((Number)o.get("durationMs")).longValue());PlaybackSource s=owner.current;if(s==null||!s.key.equals(key))return;String id=(String)decision.get("candidateTrackId");String nextMethod=String.valueOf(decision.get("method"));if(!Objects.equals(identityKey,key)||!Objects.equals(trackId,id)){completedKey=null;completedReason=null;clockSupervisor.reset();generation++;preparing=false;release("identity_changed");audioOwner.track(key);sourceSeekedThisTrack=false;nextLookup=0;failures=0;descriptor=null;lookupKey=null;}identityKey=key;trackId=id;method=nextMethod;if(id==null){status="Песня пока не определена однозначно; играет оригинал";return;}update(s);}
+ void identity(Map<String,Object> o,Map<String,Object> decision){String key=PlaybackSource.key(String.valueOf(o.get("mediaAlias")),o.get("albumId"),String.valueOf(o.get("title")),String.valueOf(o.get("artist")),((Number)o.get("durationMs")).longValue());PlaybackSource s=owner.current;if(s==null||!s.key.equals(key))return;String id=(String)decision.get("candidateTrackId");String nextMethod=String.valueOf(decision.get("method"));if(!Objects.equals(identityKey,key)||!Objects.equals(trackId,id)){completedKey=null;completedReason=null;clockSupervisor.reset();generation++;preparing=false;release("identity_changed");audioOwner.track(key);sourceSeekedThisTrack=false;nextLookup=0;failures=0;descriptor=null;lookupKey=null;}identityKey=key;trackId=id;method=nextMethod;if(lookaheadPrefetchAlias!=null&&Objects.equals(s.alias,lookaheadPrefetchAlias)){if(id!=null&&Objects.equals(id,lookaheadPrefetchTrackId))lookaheadPrefetchPromoted=true;else invalidateLookaheadPrefetch("current_identity_mismatch");}if(id==null){status="Песня пока не определена однозначно; играет оригинал";return;}update(s);}
  boolean current(String key){PlaybackSource s=owner.current;return !closed&&owner.alive()&&s!=null&&ApiContract.current(key,s.key,SystemClock.elapsedRealtime()-s.observed,s.connected);}
  /* Transport data belongs to a verified track/account generation, not to a
     transient Media3 connection snapshot. Source output still requires current(). */
@@ -525,8 +578,9 @@ final class ReplacementEngine {
   }audioOwner.preparing();prepareTicket=audioOwner.ticket(key,api.accountGeneration,j.optLong("replacement_id"),j.optLong("version"),j.optLong("duration_ms"));preparing=true;status="Готовим аудио заранее; оригинал продолжает играть";
   audioFromCache=false;
   File cached=recentAudio.remove(audioKey(j));
-  if(cached!=null&&cached.isFile()){audioFromCache=true;LogStore.log("replacement_audio_reused",LogStore.map("trackId",trackId,"liveResolveRequired",true,"cacheHit",true,"decoderRecreated",true,"sourceKind","local_cache_file","sourceItemGeneration",owner.sourceItemGeneration,"sourceEventSequence",owner.sourceEventSequence));acceptAudio(key,j,g,cached,null);return;}
+  if(cached!=null&&cached.isFile()){audioFromCache=true;if(Objects.equals(lookaheadPrefetchTrackId,trackId)&&Objects.equals(lookaheadPrefetchAlias,owner.current.alias))finishLookaheadPrefetch("cache_consumed");LogStore.log("replacement_audio_reused",LogStore.map("trackId",trackId,"liveResolveRequired",true,"cacheHit",true,"decoderRecreated",true,"sourceKind","local_cache_file","sourceItemGeneration",owner.sourceItemGeneration,"sourceEventSequence",owner.sourceEventSequence));acceptAudio(key,j,g,cached,null);return;}
   if(fullFileExperiment){
+   if(waitForLookaheadPrefetch(key,j,g))return;
    logTrace("replacement_full_file_experiment_start",LogStore.map(
      "trackId",trackId,"sourceKind","full_download_file",
      "streamingSkipped",true,"downloadBudgetMs",FULL_FILE_EXPERIMENT_BUDGET_MS,
@@ -896,7 +950,7 @@ final class ReplacementEngine {
          descriptor==null?0:descriptor.optLong("duration_ms")))return;
      try{if(!current(identityKey)||!owner.current.playing){stop("return_source_changed");return;}float mix=TransitionMix.progress(SystemClock.elapsedRealtime()-start,FADE_MS);if(mix<1f){audioOwner.grantReplacement(fx);originalMix=0f;applyVolume(1f-mix);owner.handler.postDelayed(this,20);}else{applyVolume(0);stop("owner_return_original");}}catch(RuntimeException ex){stop("return_failed");}}};ramp.run();
  }
- void stop(String reason){Map<String,Object> stopState=owner.runtimeSnapshot("replacement_stop_"+reason);stopState.put("stopReason",reason);LogStore.log("replacement_stop_state",stopState);previousSource=null;completedKey=null;completedReason=null;clockSupervisor.reset();explicitSourceSeek=false;unavailableSince=-1;waitingForRouteResume=false;routePauseObserved=false;preloadAllowed=false;clearAudioCache();returning=false;armedUntil=0;trustedSession=-1;generation++;preparing=false;release(reason);descriptor=null;lookupKey=null;nextLookup=0;status="Замена выключена; играет оригинал";authorizationAccount=-1;audioOwner.event(AudioOwnership.Event.STOP);audioOwner.stopped();ownerEvent("stopped");if("yandex_audio_session_changed".equals(reason)||"effect_control_lost".equals(reason))status="Яндекс сменил аудиосессию. Открой его эквалайзер → CELIKOM и снова включи автозамену";else if("headphones_disconnected".equals(reason))status="Наушники отключены. Оригинал восстановлен; подключи их и снова включи автозамену";LogStore.log("replacement_trial_stop",LogStore.map("reason",reason));}
+ void stop(String reason){invalidateLookaheadPrefetch("replacement_stop_"+reason);Map<String,Object> stopState=owner.runtimeSnapshot("replacement_stop_"+reason);stopState.put("stopReason",reason);LogStore.log("replacement_stop_state",stopState);previousSource=null;completedKey=null;completedReason=null;clockSupervisor.reset();explicitSourceSeek=false;unavailableSince=-1;waitingForRouteResume=false;routePauseObserved=false;preloadAllowed=false;clearAudioCache();returning=false;armedUntil=0;trustedSession=-1;generation++;preparing=false;release(reason);descriptor=null;lookupKey=null;nextLookup=0;status="Замена выключена; играет оригинал";authorizationAccount=-1;audioOwner.event(AudioOwnership.Event.STOP);audioOwner.stopped();ownerEvent("stopped");if("yandex_audio_session_changed".equals(reason)||"effect_control_lost".equals(reason))status="Яндекс сменил аудиосессию. Открой его эквалайзер → CELIKOM и снова включи автозамену";else if("headphones_disconnected".equals(reason))status="Наушники отключены. Оригинал восстановлен; подключи их и снова включи автозамену";LogStore.log("replacement_trial_stop",LogStore.map("reason",reason));}
  void close(){closed=true;stop("service_stopped");}
  void ownerEvent(String event){LogStore.log("audio_owner_state",LogStore.map("event",event,"state",audioOwner.state().name(),"ownerGeneration",audioOwner.epoch(),"ownerReason",audioOwner.reason(),"trackId",trackId,"identityKey",identityKey,"replacementVolume",commandedReplacementVolume,"sourceMutedCommand",effect!=null&&originalMix<=0.001f,"hardwareOutputMeasured",false));}
  void logSync(String state,PlaybackSource s,long drift){String key=state+"|"+s.key;long now=SystemClock.elapsedRealtime();if(!key.equals(lastSync)||lastSyncAt<0||now-lastSyncAt>=10000||Math.abs(drift-lastLoggedDrift)>=500){lastSync=key;lastSyncAt=now;lastLoggedDrift=drift;LogStore.log("replacement_sync",LogStore.map("state",state,"trackId",trackId,"sourcePositionMs",position(s),"driftMs",drift));}}
