@@ -117,7 +117,7 @@ public class ProbeService extends Service {
      if(future!=null){
       candidate=future.mediaId;MediaMetadata m=future.mediaMetadata;
       if(m!=null){title=m.title==null?"":m.title.toString();artist=m.artist==null?"":m.artist.toString();cover=m.artworkUri==null?null:m.artworkUri.toString();if(m.durationMs!=null)metadataDuration=m.durationMs;}
-      placeholder=window.isPlaceholder;windowDuration=window.durationMs;
+      placeholder=window.isPlaceholder;windowDuration=window.getDurationMs();
       if(metadataDuration>0){duration=metadataDuration;durationSource="media_metadata";}else if(windowDuration>0){duration=windowDuration;durationSource="timeline_window";}
       albumId=AlbumMatch.albumId(cover);metadata=LookaheadPrefetchPolicy.metadataComplete(candidate,title,artist,albumId,duration,placeholder);
      }
