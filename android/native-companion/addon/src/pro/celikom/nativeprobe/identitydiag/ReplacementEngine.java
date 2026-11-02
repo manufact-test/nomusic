@@ -232,6 +232,13 @@ final class ReplacementEngine {
  }
  void prepareWithLookaheadPrefetch(String key,JSONObject fresh,long g){
   if(preparing||!current(key)||!api.signedIn())return;
+  // A fresh current resolve is the final authority: revoke any speculative
+  // decoder from a different replacement edition before another download.
+  NextDecoderPrime speculative=primedNext;
+  if(speculative!=null&&owner.current!=null
+   &&Objects.equals(owner.current.alias,speculative.alias)
+   &&!Objects.equals(audioKeyFor(trackId,fresh),speculative.audioKey))
+   discardPrimedNext("fresh_current_audio_key_mismatch");
   if(waitForLookaheadPrefetch(key,fresh,g))return;
   prepare(key,fresh,g);
  }
