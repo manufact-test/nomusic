@@ -13,6 +13,7 @@ final class ReplacementEngine {
  static final long FULL_FILE_EXPERIMENT_BUDGET_MS=20000;
  final ProbeService owner; final NativeApi api;
  final boolean fullFileExperiment;
+ boolean coldJoinExclusiveExperiment=true;
  String status="Замена выключена",identityKey,trackId,method="NONE",lookupKey;
  JSONObject descriptor; long descriptorUntil,nextLookup,armedUntil,preparedAt,seekStarted,seekBudget=SEEK_TIMEOUT_MS,fadeStarted,transition,pausedAt=-1;
  long pauseRestoreDelayMs=PAUSE_GRACE_MS,sourceBufferSince=-1,decoderInstanceSequence,decoderInstanceId;String audioSourceKind="unknown";
@@ -269,11 +270,11 @@ final class ReplacementEngine {
      try{logTrace("audio_decoder_start",LogStore.map("trackId",trackId,"decoderPositionMs",player.getCurrentPosition(),"sourcePositionMs",position(s),"reusePreparedDecoder",true,"seekPending",seeking,"sourceMutedCommand",effect!=null&&originalMix<=0.001f,"prewarmedLocalFile",localPrewarmAttempted));}catch(RuntimeException ignored){}
      traceAudioCommands();
      if(seamlessResume){fading=false;resumeFadePending=false;audioOwner.replacement();LogStore.log("replacement_resume_seamless",LogStore.map("trackId",trackId,"driftMs",drift,"sourcePositionMs",target,"retainedEffect",true));}
-     else if(prewarmedJoin){localPrewarmJoinPending=false;fade(true,true);}
+     else if(prewarmedJoin){localPrewarmJoinPending=false;startPrewarmedColdJoin();}
      else fade(newlyAttached||pendingStreamScrubJoin);
     }
     else if(newlyAttached){setAuditedVolume(player,0f);fade(true);}
-    else if(localPrewarmJoinPending&&!fading){localPrewarmJoinPending=false;fade(true,true);}
+    else if(localPrewarmJoinPending&&!fading){localPrewarmJoinPending=false;startPrewarmedColdJoin();}
     else if(!fading){if(pendingStreamScrubJoin&&originalMix>0.001f){setAuditedVolume(player,0f);fade(true);}else{audioOwner.grantReplacement(effect);originalMix=0f;applyVolume(1f);}}
    status="Играет замена · автопереход включён";logSync("playing",s,drift);
   }catch(RuntimeException e){suspend("playback_exception",retryDelay());status="Ошибка звука — оригинал восстановлен; повторим автоматически";LogStore.log("replacement_failure",LogStore.map("reason","playback_exception","type",e.getClass().getSimpleName()));}
@@ -629,6 +630,15 @@ final class ReplacementEngine {
   update(now);
  }
  boolean mute(){try{if(trustedSession<=0||player==null||player.getAudioSessionId()==trustedSession)throw new IllegalStateException();DynamicsProcessing candidate=new DynamicsProcessing(0,trustedSession,null);effect=candidate;candidate.setControlStatusListener((e,control)->{if(!control)owner.handler.post(()->{if(effect==candidate)stop("effect_control_lost");});});if(!candidate.hasControl())throw new IllegalStateException();originalMix=1f;audioOwner.prepareSourceEffect(candidate);LogStore.log("replacement_original_muted",LogStore.map("sessionId",trustedSession,"globalVolumeChanged",false,"rampMs",resumeFadePending?PAUSE_RESUME_FADE_MS:FADE_MS));return true;}catch(RuntimeException e){stop("cannot_mute_original");status="Телефон не разрешил приглушить Яндекс; замена остановлена";return false;}}
+  void startPrewarmedColdJoin(){
+   if(coldJoinExclusiveExperiment){
+    logTrace("replacement_cold_join_experiment_start",LogStore.map(
+      "trackId",trackId,"mode","exclusive_after_existing_clock_gate",
+      "baselineMode","unified_complementary_linear",
+      "sourcePcmMeasured",false,"phaseVerified",false));
+    fade(false,true);
+   }else fade(true,true);
+  }
   void fade(boolean coherentEntry){fade(coherentEntry,streaming!=null);}
  void fade(boolean coherentEntry,boolean requireClockGate){
   final long token=++transition;final MediaPlayer p=player;final DynamicsProcessing fx=effect;
@@ -638,10 +648,9 @@ final class ReplacementEngine {
   audioOwner.event(AudioOwnership.Event.HANDOVER);
   final AudioOwnership.Ticket handoverTicket=audioOwner.ticket(ownerKey,api.accountGeneration,descriptor==null?0:descriptor.optLong("replacement_id"),descriptor==null?0:descriptor.optLong("version"),descriptor==null?0:descriptor.optLong("duration_ms"));
    /* The original stays audible during native decoder startup and clock
-      alignment. Once validated, a new attachment uses the SAME complementary
-      linear entry tested on HONOR; a retained seek uses exclusive single-turn.
-      Sample phase of two Android output sessions is NOT measurable here:
-      the linear entry is a listening compromise, never acoustic proof. */
+      alignment. The isolated prewarmed cold-join experiment may use an exclusive
+      single-turn grant after this same clock gate; the legacy baseline retains
+      its complementary-linear entry. Transport clocks do not measure PCM phase. */
   resumeFadePending=false;
   final boolean alignLive=requireClockGate;
   final long[] baseline={p.getCurrentPosition()},phaseStarted={SystemClock.elapsedRealtime()};
