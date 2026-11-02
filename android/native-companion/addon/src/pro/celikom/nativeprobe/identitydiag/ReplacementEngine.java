@@ -127,7 +127,7 @@ final class ReplacementEngine {
   if(session!=null&&session>0){if(trustedSession>0&&trustedSession!=session){generation++;preparing=false;release("session_rearmed");descriptor=null;lookupKey=null;}trustedSession=session;}
   preloadAllowed=true;armedUntil=Long.MAX_VALUE;
   status=trustedSession>0?"Автозамена включена":"Открой эквалайзер Яндекс Музыки и выбери CELIKOM";
-  if(LogStore.active)LogStore.log("replacement_arm_state",owner.runtimeSnapshot("replacement_armed"));LogStore.log("replacement_trial_start",LogStore.map("durationLimited",false,"verifiedAudioSession",trustedSession,"waitingForVerifiedSession",trustedSession<=0,"automaticNextTracks",true,"preparedBeforeArm",ready));update(owner.current);
+  LogStore.log("replacement_arm_state",owner.runtimeSnapshot("replacement_armed"));LogStore.log("replacement_trial_start",LogStore.map("durationLimited",false,"verifiedAudioSession",trustedSession,"waitingForVerifiedSession",trustedSession<=0,"automaticNextTracks",true,"preparedBeforeArm",ready));update(owner.current);
  }
  void attachPendingSession(){if(!armed()||trustedSession>0)return;Integer session=verifiedSession(owner);if(session!=null&&session>0){trustedSession=session;status="Подключение получено; автозамена включена";LogStore.log("replacement_session_attached",LogStore.map("sessionId",session,"source","verified_yandex_panel"));}}
  void headphonesDisconnected(){
