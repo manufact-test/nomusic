@@ -95,7 +95,7 @@ public final class TestLookaheadPrefetchHandoff {
   TestEngine.e.close();
  }
  public static void main(String[] args)throws Exception{
-  beginLookahead();promoteCurrent();matchingPrefetchIsConsumed();
+  beginLookahead();promoteCurrent(descriptor(1),true);matchingPrefetchIsConsumed();
   mismatchedFreshResolveFallsBack();latePrefetchCanStartAfterBoundary();
   System.out.println("PASS: "+checks+" lookahead promotion, fresh-resolve, cache handoff and mismatch checks");
  }
