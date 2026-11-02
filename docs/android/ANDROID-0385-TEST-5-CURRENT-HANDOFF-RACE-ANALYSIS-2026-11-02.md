@@ -45,4 +45,15 @@ One local change in `ReplacementEngine.java`, without touching the accepted seek
 
 Candidate test package `pro.celikom.nativeprobe.test`; version `0.3.85-test.5`/code `86090`; existing original signer; OTA absent. Keep separate from the stable original. Full host suite, unchanged `check_0385_seek_baseline.py`, API 36/D8, signed Test artifact, package/signature/receipt and owner audio review remain mandatory. No stable publishing, `stable.json`, Hostinger write or PR #37 merge.
 
-**Status at time of analysis:** source patch/test candidate prepared, CI and physical listening not yet established. This document is not acoustic acceptance.
+## Verified Test.5 delivery
+
+- Functional source: `9f2ff01475d6400c81deed6710a7db28aafe8b40` (follow-up test correction on top of race-fix commit `610888c9198c97fc6cca4cc0bda71a89cdcac4a7`).
+- Validation and automatic signed test build: [#41519689660](https://github.com/manufact-test/nomusic/actions/runs/41519689660) **SUCCESS**. First attempt #41519487675 exposed an unrealistic stale-source fixture in the new 10-second watchdog test; the fixture was corrected, with audio behavior unchanged, then all host regressions passed.
+- Artifact: ID `13177256960`, `CELIKOM-Test-0.3.85-test.5-code-86090`, GitHub ZIP SHA256 `9803300ec02c2623a2f8e678f07751a52776709e60c85e0a392859342d46eec6`.
+- Signed APK: 8,771,737 bytes; SHA256 `bd7e48e9ec29d769c4f8a350fdda18484fbf0b4bbe3a4b1499878a466e7ad0bb`, verified against local receipt; original certificate `67fe81c56fac1c1d145344b69a0e3faf9005cf6607f4e26ca27d5926c3eefc4f` with V3 verified.
+- Package `pro.celikom.nativeprobe.test`; Test.5/code 86090; OTA updater absent; stable publishing, stable OTA, Hostinger writes all false.
+- Library APK: https://chatgpt.com/library?file_id=libfile_f13b72e0a8c081918f942a67c21bcc6a&account_id=personal
+- Library verification: https://chatgpt.com/library?file_id=libfile_c9873331e1e48191bc9311dafe5b9ce5&account_id=personal
+- Library receipt: https://chatgpt.com/library?file_id=libfile_ca9a5de3f4c481918a7a088b16362dea&account_id=personal
+
+**Still pending:** owner listening on HONOR, real-device confirmation of the previously stuck handoff and subjective quality at track beginnings. CI does not prove acoustic success.
