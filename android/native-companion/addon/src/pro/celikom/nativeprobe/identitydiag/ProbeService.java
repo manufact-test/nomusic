@@ -143,9 +143,10 @@ public class ProbeService extends Service {
   return source!=null&&!Objects.equals(source.alias,alias)&&Objects.equals(observedNextAlias,alias)&&sourceTransitionExpectedAlias==null;
  }
  boolean lookaheadCandidateCurrent(String alias){
-  if(!alive()||alias==null||alias.trim().isEmpty())return false;PlaybackSource source=current;
+  if(alias==null||alias.trim().isEmpty())return false;PlaybackSource source=current;
   if(source!=null&&Objects.equals(source.alias,alias))return true;String expected=sourceTransitionExpectedAlias;
-  if(expected!=null)return Objects.equals(expected,alias);return Objects.equals(observedNextAlias,alias);
+  if(expected!=null)return Objects.equals(expected,alias);
+  return source!=null&&Objects.equals(observedNextAlias,alias);
  }
 
  String route(){try{android.media.AudioDeviceInfo[] a=getSystemService(AudioManager.class).getDevices(AudioManager.GET_DEVICES_OUTPUTS);List<Integer> types=new ArrayList<>();for(android.media.AudioDeviceInfo d:a)if(!types.contains(d.getType()))types.add(d.getType());return types.toString();}catch(RuntimeException e){return "unknown";}}
