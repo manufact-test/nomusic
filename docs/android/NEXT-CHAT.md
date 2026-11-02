@@ -1,3 +1,9 @@
+# АКТУАЛЬНАЯ ПЕРЕДАЧА — Test.4 (86089) собрана, ожидаются новые диагностика и оценка звука — 2026-11-02
+
+**В следующем чате сначала прочитать [ANDROID-0385-TEST-4-OWNER-RESULT-PENDING-HANDOFF-2026-11-02.md](ANDROID-0385-TEST-4-OWNER-RESULT-PENDING-HANDOFF-2026-11-02.md), затем новую диагностику владельца.** Test.4 functional SHA `d0b418d0173207b4900f27af365e87595301c4b1`, code **86089**, signed APK/receipt сохранены, CI [#41514473466](https://github.com/manufact-test/nomusic/actions/runs/41514473466) SUCCESS. Это реальный фикс prefetch/handoff, **акустически ещё не принят**. Стабильный оригинал 0.3.85/code86 и принятая перемотка неизменны. В этой передаче **нет новых изменений аудиокода или новой сборки**.
+
+---
+
 # CELIKOM Test 0.3.85-test.4 — intro prefetch and current-track handoff (2026-11-02)
 
 ## Current deliverable
