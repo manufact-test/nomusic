@@ -1,3 +1,21 @@
+## 2026-11-02 — Android 0.3.85 owner accepts seeking; intro/join and Yandex crossfade remain open
+
+**Current owner verdict:** 0.3.85 / versionCode 86 on HONOR has smooth ordinary in-song finger seeking, including after Next; the owner reports no seek lag in the latest listening retest. Song beginnings/new-track joins are much better than 0.3.84 but still audibly imperfect and vary by track. Do **not** mark the audio work complete. Owner's rough progress estimate: ~70% (subjective estimate, not an engineering metric).
+
+**Two remaining audio tasks, in order:**
+1. Fix CELIKOM's beginning/new-track join with Yandex Music's own crossfade currently OFF.
+2. Only after phase 1 is owner-accepted, enable Yandex Music crossfade and separately test the combined transition behavior.
+
+**Accepted seek baseline:** full repository source SHA `053b7d59beb53db5f30b942feba35e51a1ab256a`; backup refs `backup/android-0385-honor-seek-accepted-20261102` and `backup/android-0385-honor-seek-accepted-recovery-20261102` both point to it. Older 0.3.84/82/78 backups unchanged. Guard `android/native-companion/tests/check_0385_seek_baseline.py` fingerprints the accepted seek submission, async completion, and local-file source-selection blocks. Do not alter those while investigating intros.
+
+PR #36 merged as `ee04be8bf239ae52417ece07b2a9a88d5ea028a1`; post-merge CI [41406096811](https://github.com/manufact-test/nomusic/actions/runs/41406096811) SUCCESS. No audio code or OTA update logic changed in this guard/docs merge. Stable OTA remains 0.3.85/code86; APK SHA256 `e23c962d969129c5b839ed3676e36d6a337342e2761bde852e2048bbf1bda88a`.
+
+Next investigation branch created from the current HEAD: `feature/android-0385-intro-join-investigation-20261102`. Work only there. The owner will provide a new diagnostic and video/recording in the next chat. Correlate the audible intro with full-file download, local prepare/prewarm, decoder clock gate, ownership/gain and fade timeline. No repeated broad test requests, no random timer tweaks, no new stable APK without owner acceptance.
+
+**Rollback note:** both 0.3.85 backup refs are present, but GitHub reports `protected=false`; they are not configured branch-protection rules. Preserve them and the exact SHA. A full restore starts from that entire source tree, preserves the original signer, and must be rebuilt with a versionCode greater than 86 (because OTA refuses a downgrade). Full procedure: [ANDROID-0385-INTRO-JOIN-INVESTIGATION-HANDOFF-2026-11-02.md](android/ANDROID-0385-INTRO-JOIN-INVESTIGATION-HANDOFF-2026-11-02.md).
+
+---
+
 ## 2026-11-02 — Android 0.3.85 HONOR seeking ACCEPTED; immutable rollback and CI golden guard
 
 Owner reports **zero audible finger-seek lag**, including seeks after Next, on 0.3.85/code86 HONOR. Intros are materially better but still occasionally noticeable. Private journal `CELIKOM-combined-20261102-101047.txt`: 30 actual same-item position jumps, 36 ALIGNMENT ACKs median 41ms/max86ms, zero >=250ms and zero streaming waits; all 41 replacement seek ACKs used `full_download_file`. Owner-accepted seeking source frozen at `053b7d59beb53db5f30b942feba35e51a1ab256a` in new `backup/android-0385-honor-seek-accepted-20261102`. Added required guard `check_0385_seek_baseline.py` plus production-default full-file regression to prevent accidental removal when polishing intros. No audio code changes and **no new APK** for this checkpoint; OTA remains 0.3.85/86. The source diagnostics are not committed. See [ANDROID-0385-HONOR-SEEK-ACCEPTED-FREEZE-2026-11-02.md](android/ANDROID-0385-HONOR-SEEK-ACCEPTED-FREEZE-2026-11-02.md). Next: one focused real-audio intro investigation when the owner is ready, with existing seek algorithm/backup untouched.
