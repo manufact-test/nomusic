@@ -13,6 +13,8 @@ public final class TestFullFileSeekExperiment {
   TestEngine.reset("ALBUM",true);
   ReplacementEngine engine=TestEngine.e;
   check(engine.fullFileExperiment,"the installed candidate selects full-file playback");
+  check(new ReplacementEngine(TestEngine.p).fullFileExperiment,
+    "the actual production constructor must keep full-local-file playback as the default");
   engine.arm();
   check(engine.player==null&&engine.effect==null&&TestEngine.api.resolves==1,
     "a fresh authenticated resolve still precedes every replacement");
