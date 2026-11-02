@@ -21,6 +21,16 @@ The owner estimates the overall work at roughly **70% complete**. This is the ow
 - Original signing certificate SHA-256: `67fe81c56fac1c1d145344b69a0e3faf9005cf6607f4e26ca27d5926c3eefc4f`.
 - Do not change the updater or publish a new stable APK merely because CI is green. No new APK is requested at this checkpoint.
 
+## Owner decision — build a second, side-by-side test app
+
+The owner explicitly approved a **fully separate Android application**, installed alongside stable CELIKOM 0.3.85. The next chat must build one signed installable **CELIKOM Test** APK for the exclusive cold-join candidate. It must not update or replace stable CELIKOM.
+
+Read and follow [ANDROID-0385-SIDEBY-SIDE-TEST-APP-BUILD-HANDOFF-2026-11-02.md](ANDROID-0385-SIDEBY-SIDE-TEST-APP-BUILD-HANDOFF-2026-11-02.md) as the exact build specification. Proposed test package: `pro.celikom.nativeprobe.test`; label `CELIKOM Test`; test version `0.3.85-test` / code `86085`; use the original signing certificate. A distinct package ID provides a separate Android app sandbox and permits both apps to remain installed. Do not globally rename Java class namespaces.
+
+The test app must not instantiate `UpdateCenter`, schedule `UpdateCheckJob`, include `UpdateInstallReceiver`/`REQUEST_INSTALL_PACKAGES`, or fetch the stable manifest. The existing `test_only` workflow is not suitable as-is because it still builds stable package `pro.celikom.nativeprobe`. Use a dedicated test builder/verifier and a manually dispatched, nonpublishing GitHub Actions artifact workflow. Do not upload to Hostinger or alter stable `release-spec.json`, `release_contract.py`, `verify_release.py`, `stable.json`, signing identity, or OTA behavior. Keep PR #37 draft/unmerged.
+
+The owner will stop stable CELIKOM before running CELIKOM Test; never run both audio engines simultaneously against the same Yandex session. Keep Yandex crossfade OFF and request only one short listening check of one or two new-track starts. Do not repeat the accepted seek test.
+
 ## Accepted seek baseline — do not disturb
 
 The exact functional source corresponding to the accepted 0.3.85 APK is commit:
@@ -109,4 +119,4 @@ This is a full source-tree rollback delivered as a newer Android package, not an
 
 ## Owner's next action
 
-No additional diagnostic is needed now. The next useful device check, if the owner approves a test-only build, is a short HONOR listening comparison of one or two representative cold/new-track joins with Yandex crossfade still OFF. Do not repeat the accepted finger-seek test. The near-silent pre-join interval is a separate open question; this experiment is not expected to fix it. Phase two (Yandex crossfade ON) remains deferred until phase one is acoustically accepted.
+The owner has approved the side-by-side test build. Build and verify `CELIKOM Test` first, following the dedicated build handoff. After delivery, the owner will install it alongside stable CELIKOM, stop/close stable CELIKOM, and perform one short HONOR listening comparison of one or two representative cold/new-track joins with Yandex crossfade still OFF. Do not repeat the accepted finger-seek test. The near-silent pre-join interval is a separate open question; this experiment is not expected to fix it. Phase two (Yandex crossfade ON) remains deferred until phase one is acoustically accepted.
