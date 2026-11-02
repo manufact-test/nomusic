@@ -41,7 +41,7 @@ assert "CELIKOM_ANDROID_SIGNING_P12_B64" in workflow
 assert "actions/upload-artifact@v4" in workflow and "retention-days: 7" in workflow
 assert "fetch-depth: 0" in workflow
 assert "merge-base" in workflow and "--is-ancestor" in workflow
-assert "git diff --quiet" in workflow
+assert "'git','diff','--quiet'" in workflow
 for required in (
     "signature_v2_verified", "signature_v3_verified", "separate_android_sandbox",
     "stable_manifest_reference_absent", "ota_updater_absent", "package_id_is_distinct",
