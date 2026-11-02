@@ -143,8 +143,8 @@ final class ReplacementEngine {
   long duration=observation.get("durationMs") instanceof Number?((Number)observation.get("durationMs")).longValue():-1;
   long remaining=source==null?-1:Math.max(0,source.duration-position(source));
   boolean unique=id!=null&&id.matches("[1-9][0-9]{0,23}");
-  boolean eligible=LookaheadPrefetchPolicy.mayPrefetch(armed(),api.signedIn(),source!=null&&source.playing,owner.lookaheadIsNext(alias),unique,remaining);
-  if(!eligible){LogStore.log("replacement_lookahead_prefetch_skipped",LogStore.map("mediaAlias",alias,"trackIdPresent",unique,"sourcePlaying",source!=null&&source.playing,"remainingMs",remaining,"nextItem",owner.lookaheadIsNext(alias),"reason","prefetch_gate"));return;}
+  boolean eligible=LookaheadPrefetchPolicy.mayPrefetch(armed(),api.signedIn(),source!=null&&source.playing,owner.lookaheadCandidateCurrent(alias),unique,remaining);
+  if(!eligible){LogStore.log("replacement_lookahead_prefetch_skipped",LogStore.map("mediaAlias",alias,"trackIdPresent",unique,"sourcePlaying",source!=null&&source.playing,"remainingMs",remaining,"candidateCurrent",owner.lookaheadCandidateCurrent(alias),"reason","prefetch_gate"));return;}
   if(Objects.equals(lookaheadPrefetchAlias,alias)&&Objects.equals(lookaheadPrefetchTrackId,id)&&lookaheadPrefetchAccount==api.accountGeneration&&("resolving".equals(lookaheadPrefetchPhase)||"downloading".equals(lookaheadPrefetchPhase)||"ready".equals(lookaheadPrefetchPhase)||"cached".equals(lookaheadPrefetchPhase)))return;
   invalidateLookaheadPrefetch("new_next_item");
   final long token=++lookaheadPrefetchGeneration,account=api.accountGeneration,start=SystemClock.elapsedRealtime();

@@ -69,9 +69,34 @@ public final class TestLookaheadPrefetchHandoff {
   check(!stale.exists(),"a late mismatched prefetch file is deleted");
   TestEngine.e.close();
  }
+ static void latePrefetchCanStartAfterBoundary()throws Exception{
+  TestEngine.reset("ALBUM",true);
+  TestEngine.api.signed=true;
+  TestEngine.e.arm();
+  TestEngine.e.sourceBoundary("sample_track_changed","2");
+  TestEngine.p.current=TestEngine.source("2",0,true);
+  TestEngine.p.lookaheadAlias=null;
+  TestEngine.e.prefetchLookahead(LogStore.map("mediaAlias","2","durationMs",120000L),"8");
+  check(TestEngine.api.resolves==2&&TestEngine.e.player==null,
+    "a uniquely identified next item may begin prefetch even if its album response arrives after the boundary");
+  TestEngine.e.identity(
+    LogStore.map("mediaAlias","2","albumId","42","title","Песня","artist","Артист","durationMs",120000L),
+    LogStore.map("candidateTrackId","8","method","ALBUM","editionConflict",false));
+  TestEngine.api.resolveCallbacks.get(2).done(descriptor(1),null);
+  check(TestEngine.e.preparing&&TestEngine.api.downloads==0,
+    "the current item waits while the late lookahead resolve is still in flight");
+  TestEngine.api.resolveCallbacks.get(1).done(descriptor(1),null);
+  check(TestEngine.api.downloads==1,
+    "the late lookahead response continues directly into one full-file download");
+  File file=File.createTempFile("celikom-lookahead-late-",".audio");
+  TestEngine.api.downloadCallbacks.get(0).done(file,null);
+  check(TestEngine.e.player!=null&&TestEngine.e.audioFromCache&&TestEngine.e.audioFile==file,
+    "late prefetch completion is adopted by the current track without a duplicate download");
+  TestEngine.e.close();
+ }
  public static void main(String[] args)throws Exception{
   beginLookahead();promoteCurrent();matchingPrefetchIsConsumed();
-  mismatchedFreshResolveFallsBack();
+  mismatchedFreshResolveFallsBack();latePrefetchCanStartAfterBoundary();
   System.out.println("PASS: "+checks+" lookahead promotion, fresh-resolve, cache handoff and mismatch checks");
  }
 }

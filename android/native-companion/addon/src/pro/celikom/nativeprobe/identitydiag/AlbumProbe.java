@@ -77,7 +77,7 @@ final class AlbumProbe {
  }
  void resolve(String key,Map<String,Object> o,List<Map<String,Object>> tracks){Map<String,Object> match=AlbumMatch.match(String.valueOf(o.get("title")),String.valueOf(o.get("artist")),((Number)o.get("durationMs")).longValue(),tracks);Map<String,Object> result=LogStore.map("observation",o,"resolution",match);resolutions.put(key,result);resolved=0;for(Map<String,Object> r:resolutions.values())if("UNIQUE_CANDIDATE".equals(((Map<?,?>)r.get("resolution")).get("status")))resolved++;result.put("albumOrigin",albumOrigins.get(String.valueOf(o.get("albumId"))));LogStore.log("album_resolution",result);hybrid(o,match,false);compareReferences();}
  void resolveLookahead(String alias,Map<String,Object> o,List<Map<String,Object>> tracks){
-  if(!owner.lookaheadIsNext(alias))return;
+  if(!owner.lookaheadCandidateCurrent(alias))return;
   String key=String.valueOf(o.get("lookaheadKey"));
   String source=tracks==null?"metadata_fallback":"album_catalogue";
   String resolutionKey=key+"|"+source+"|"+albumCatalogRevision;
@@ -99,7 +99,7 @@ final class AlbumProbe {
     "identitySource",source,"identityMethod",decision.get("method"),"decisionReason",decision.get("reason"),
     "candidateTrackId",unique?id:null,"strictDurationMatchMs",1000,"prefetchAuthorized",unique,
     "audioCommandSent",false));
-  if(unique&&owner.lookaheadIsNext(alias)&&owner.replacement!=null)owner.replacement.prefetchLookahead(o,id);
+  if(unique&&owner.lookaheadCandidateCurrent(alias)&&owner.replacement!=null)owner.replacement.prefetchLookahead(o,id);
  }
  void reference(List<Object> refs){for(Object x:refs)if(x instanceof Map){Map<?,?> ref=(Map<?,?>)x;if(ref.get("catalogueTrackId")!=null&&ref.get("albumId")!=null){String album=String.valueOf(ref.get("albumId")),key=null;for(Map.Entry<String,Map<String,Object>> o:observations.entrySet())if(album.equals(o.getValue().get("albumId")))key=o.getKey();Map<String,Object> linked=LogStore.map("albumId",album,"catalogueTrackId",ref.get("catalogueTrackId"),"observationKey",key);references.add(linked);while(references.size()>60)references.remove(0);LogStore.log("album_reference_context",linked);request(album);}}compareReferences();}
  void compareReferences(){if(comparisons.size()>256)comparisons.clear();for(Map<?,?> ref:references)for(Map.Entry<String,Map<String,Object>> entry:resolutions.entrySet()){Map<?,?> o=(Map<?,?>)entry.getValue().get("observation"),m=(Map<?,?>)entry.getValue().get("resolution");if(!entry.getKey().equals(ref.get("observationKey")))continue;String k=entry.getKey()+"|"+ref.get("catalogueTrackId");if(comparisons.add(k))LogStore.log("album_share_comparison",LogStore.map("mediaAlias",o.get("mediaAlias"),"title",o.get("title"),"albumId",o.get("albumId"),"manualTrackId",ref.get("catalogueTrackId"),"automaticCandidate",m.get("catalogueTrackId"),"status",m.get("catalogueTrackId")==null?"UNRESOLVED":ref.get("catalogueTrackId").equals(m.get("catalogueTrackId"))?"MATCH":"MISMATCH"));}}
