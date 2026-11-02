@@ -145,11 +145,54 @@ public final class TestLookaheadPrefetchHandoff {
     "timeout fallback can still prepare the current replacement");
   TestEngine.e.close();
  }
+ static void readyPrimedDecoderIsAdoptedOnlyAfterFreshResolve()throws Exception{
+  beginLookahead();
+  File file=File.createTempFile("celikom-prime-next-",".audio");
+  TestEngine.api.downloadCallbacks.get(0).done(file,null);
+  ReplacementEngine.NextDecoderPrime speculative=TestEngine.e.primedNext;
+  check(speculative!=null&&TestEngine.e.player==null&&TestEngine.e.effect==null,
+   "next audio is primed silently without gaining source-effect ownership");
+  MediaPlayer future=speculative.player;
+  future.prepared.onPrepared(future);
+  check(future.isPlaying()&&future.volume==0f&&TestEngine.e.effect==null,
+   "the next decoder starts at zero volume while current source remains untouched");
+  future.position=45;android.os.SystemClock.now+=50;TestEngine.p.handler.drain();
+  check(speculative.ready&&!future.isPlaying()&&future.seekCalls==1&&future.volume==0f,
+   "the primed decoder proves muted motion, pauses and returns to position zero");
+  TestEngine.e.sourceBoundary("sample_track_changed","2");
+  TestEngine.p.current=TestEngine.source("2",0,true);
+  TestEngine.p.lookaheadAlias=null;
+  TestEngine.e.identity(
+   LogStore.map("mediaAlias","2","albumId","42","title","Песня","artist","Артист","durationMs",120000L),
+   LogStore.map("candidateTrackId","8","method","ALBUM","editionConflict",false));
+  TestEngine.e.noteLookaheadCandidate(null);
+  check(TestEngine.api.resolves==3,"a primed decoder never replaces the fresh live resolve");
+  TestEngine.api.resolveCallbacks.get(2).done(descriptor(1),null);
+  check(TestEngine.e.player==future&&TestEngine.e.ready&&TestEngine.e.audioFromCache
+    &&TestEngine.e.localPrewarmAttempted&&TestEngine.e.effect!=null
+    &&TestEngine.api.downloads==1,
+   "only the fresh current resolve may adopt a prepared decoder and full-file cache");
+  TestEngine.e.close();
+ }
+ static void primedDecoderKeyMismatchCannotPlay()throws Exception{
+  beginLookahead();
+  File file=File.createTempFile("celikom-prime-mismatch-",".audio");
+  TestEngine.api.downloadCallbacks.get(0).done(file,null);
+  ReplacementEngine.NextDecoderPrime speculative=TestEngine.e.primedNext;
+  check(speculative!=null,"the speculative decoder starts before mismatch");
+  promoteCurrent(descriptor(2),false);
+  check(speculative.player.released&&TestEngine.e.player==null
+     &&TestEngine.api.downloads==2&&TestEngine.e.primedNext==null
+     &&TestEngine.e.effect==null,
+    "a different live audio key discards the silent decoder and uses fresh download");
+  TestEngine.e.close();
+ }
  public static void main(String[] args)throws Exception{
   beginLookahead();promoteCurrent(descriptor(1),true);matchingPrefetchIsConsumed();
   mismatchedFreshResolveFallsBack();latePrefetchCanStartAfterBoundary();
   newNextCandidateCannotStealCurrentDownload();cancelledCurrentWaitMustFallBack();
-  currentWaitHasTimeout();
+  currentWaitHasTimeout();readyPrimedDecoderIsAdoptedOnlyAfterFreshResolve();
+  primedDecoderKeyMismatchCannotPlay();
   System.out.println("PASS: "+checks+" lookahead promotion, fresh-resolve, cache handoff and mismatch checks");
  }
 }
