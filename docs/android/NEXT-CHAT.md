@@ -6,7 +6,7 @@ The owner explicitly reprioritized the work: song beginnings and joins are prima
 
 The next experiment is a fail-closed one-track-ahead prefetch using only the already-authorized current Media3 timeline. It falls back from MediaMetadata.durationMs to Timeline.Window.durationMs, requires title, artist, album ID, positive duration and a non-placeholder window, then uses the existing strict album-constrained unique match. It resolves/downloads to the existing bounded private cache before the boundary. It must not create a decoder, alter AudioOwnership, volume, pause, seek or transport while prefetching. At the boundary, the normal fresh resolve and existing prepare path may consume only an exact cache-key match; otherwise the old path remains. No Yandex MediaBrowser/library access, notifications, Accessibility or account scraping is added.
 
-Work branch: feature/android-0385-next-track-prefetch-20261102. Test target: CELIKOM Test 0.3.85-test.2 / code 86087, same certificate, OTA disabled. One combined audio test APK only after full host suite, seek-baseline guard, Android API 36/D8, package and signature checks pass. Stable 0.3.85/code86 and all accepted seek backups remain untouched. No stable publish, OTA, stable.json or Hostinger write.
+PR #38 is open for CI validation; no APK is approved until the full checks pass. Work branch: feature/android-0385-next-track-prefetch-20261102. Test target: CELIKOM Test 0.3.85-test.2 / code 86087, same certificate, OTA disabled. One combined audio test APK only after full host suite, seek-baseline guard, Android API 36/D8, package and signature checks pass. Stable 0.3.85/code86 and all accepted seek backups remain untouched. No stable publish, OTA, stable.json or Hostinger write.
 
 ---
 
