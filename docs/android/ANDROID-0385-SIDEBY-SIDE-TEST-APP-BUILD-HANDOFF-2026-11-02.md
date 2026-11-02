@@ -13,7 +13,7 @@ Deliver one signed, installable **CELIKOM Test** APK so the owner can keep the c
 - The test app contains the exclusive prewarmed cold-join experiment from PR #37. Yandex Music crossfade stays OFF for the first listening check.
 - The owner will stop/close stable CELIKOM before starting the test app. Do not run both CELIKOM engines simultaneously against the same Yandex playback session.
 
-## 2026-11-02 — separate build path implemented; CI green; signed APK pending
+## 2026-11-02 — separate signed test APK built and verified
 
 The owner supplied `CELIKOM-0.3.22-install(1).apk`. Its SHA-256 was independently computed as `170b1883e292570d28a3b5c619cf000eaccd9d11ee85ca6f6c08f7b50e5f72c9`, exactly matching the pinned baseline. Apktool 2.11.1 successfully decoded it; a local structural smoke build confirmed the test package, label, versionCode/versionName, dedicated vector icon, test authorities and Android API 36 resource compilation.
 
@@ -36,7 +36,27 @@ After the fix, validation run [#41440905435](https://github.com/manufact-test/no
 
 GitHub requires a `workflow_dispatch` workflow file to exist on the default branch. Therefore the same manual-only workflow file is also registered on `main` by workflow-only commit `b836793d0e70eca708cd3673c615f19b0c6075b3`. That commit adds only `.github/workflows/android-0385-test-app-build.yml`; it does not merge PR #37 or change Android source, stable release metadata, publisher or OTA. The workflow page is [here](https://github.com/manufact-test/nomusic/actions/workflows/android-0385-test-app-build.yml).
 
-A signed test APK has **not** yet been produced. The first manual run #1 failed before signing/artifact upload; it produced no APK. Re-run the same manual workflow now against the current work branch HEAD (the branch has advanced to include the dependency-path fix): open the workflow page, select `feature/android-0385-intro-join-investigation-20261102`, check `confirm_build`, and run. The workflow should select successful validation run #41440905435 and publish artifact `CELIKOM-Test-0.3.85-test-code-86085`. Do not install anything until that new run completes successfully and the APK/receipt are verified.
+**SIGNED TEST APK BUILT — SUCCESS.** Manual workflow run [#41442357959](https://github.com/manufact-test/nomusic/actions/runs/41442357959) completed successfully on source commit `05a99d64d0c59405cff1faeda51e45246b851b25`. GitHub Actions artifact:
+- Artifact name: `CELIKOM-Test-0.3.85-test-code-86085`
+- Artifact ID: `13140432584`
+- Artifact ZIP SHA-256: `d79e6b71992d2daaa8ff742fa22cacf555ddc4186245bf3ee5fe3de02900b176`
+- Artifact expires: 2026-11-09 12:10:21 UTC
+- Contents: signed APK, verifier JSON, immutable build receipt JSON.
+
+Final APK:
+- File: `CELIKOM-Android-0.3.85-TEST-SIGNED.apk`
+- SHA-256: `1a516c4c523079fdb260735f47210a62b389dc869676b58fe488299b2c0a9544`
+- Size: 8,747,161 bytes
+- Package: `pro.celikom.nativeprobe.test`; label: `CELIKOM Test`
+- Version: `0.3.85-test`; versionCode: `86085`
+- Signer certificate SHA-256: `67fe81c56fac1c1d145344b69a0e3faf9005cf6607f4e26ca27d5926c3eefc4f`; verifier confirms it matches the original stable CELIKOM signing certificate.
+- Signature Scheme v3: verified. v2: absent/not verified; this is expected because the pinned original base APK is v3-only.
+
+The workflow log confirms: full native host suite PASS; 32 cold-join exclusive-handover checks PASS; unchanged `check_0385_seek_baseline.py` PASS; Android API 36 and D8 PASS; addon host gates PASS; final APK structure/signature/identity/OTA verifier PASS. The verifier specifically confirms distinct package/sandbox, dedicated launcher icon, unique authorities, no updater classes/constructor/job/receiver, no stable manifest reference, no `REQUEST_INSTALL_PACKAGES`, original assets unchanged, exact test DEX and matching original signer.
+
+Safety receipt confirms `stable_published: false`, `stable_ota_touched: false`, `hostinger_write_performed: false`. Stable 0.3.85/code86, its OTA and publisher were not changed. PR #37 remains open and unmerged. No audio or accepted seek implementation was modified by this packaging fix.
+
+**Important acceptance boundary:** physical HONOR playback and acoustic acceptance are still pending. The build is installable, but this is not yet proof that the audio transition sounds correct on the phone. Owner's one device check: keep stable CELIKOM installed; stop/close it before opening CELIKOM Test; keep Yandex Music Crossfade OFF; sign in separately if requested; listen to one or two representative new-song starts only. Do not repeat the accepted seek tests.
 
 Stable CELIKOM 0.3.85/code86, stable release contract, publisher, OTA endpoint and backup branches remain outside this build path. No audio/seek implementation was changed by the packaging work.
 
