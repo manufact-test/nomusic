@@ -17,7 +17,7 @@ Deliver one signed, installable **CELIKOM Test** APK so the owner can keep the c
 
 - Repository: `manufact-test/nomusic`
 - Work branch: `feature/android-0385-intro-join-investigation-20261102`
-- Current branch HEAD at handoff: `93be328e4745ab727d9d910a8a985ec69d66d2d7`
+- CI-tested audio experiment code commit: `2a3cb6801c8bf12adf3923c94220af94fa7b4aa6`. The branch has received documentation-only commits since that CI run; resolve the live branch HEAD before building rather than pinning this older docs checkpoint.
 - Draft experiment PR: [#37](https://github.com/manufact-test/nomusic/pull/37), open and unmerged.
 - Experiment CI: [#41419113128](https://github.com/manufact-test/nomusic/actions/runs/41419113128), PASS (32 cold-join checks, full native host suite, accepted seek guard, Android API 36 and D8).
 - Accepted 0.3.85 seek source: `053b7d59beb53db5f30b942feba35e51a1ab256a`.
