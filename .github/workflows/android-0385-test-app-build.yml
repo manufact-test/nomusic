@@ -1,12 +1,24 @@
-name: CELIKOM Android 0.3.85 side-by-side test APK (automatic after validation)
+name: CELIKOM Android 0.3.85 side-by-side test APK (reusable build)
 
 on:
-  workflow_run:
-    workflows:
-      - Android 0.3.55 architecture and release contract verification
-    types: [completed]
-    branches:
-      - feature/android-0385-intro-join-investigation-20261102
+  workflow_call:
+    inputs:
+      source_sha:
+        description: Exact experiment branch commit that passed validation.
+        required: true
+        type: string
+      source_branch:
+        description: Validated experiment branch.
+        required: true
+        type: string
+      source_repository:
+        description: Repository containing the validated branch.
+        required: true
+        type: string
+      validation_run_id:
+        description: GitHub Actions run that completed the native regression and produced the offline toolchain.
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -18,33 +30,32 @@ concurrency:
 
 jobs:
   build-test-app:
-    if: |
-      github.event.workflow_run.conclusion == 'success' &&
-      github.event.workflow_run.head_branch == 'feature/android-0385-intro-join-investigation-20261102' &&
-      github.event.workflow_run.head_repository.full_name == 'manufact-test/nomusic'
+    if: inputs.source_branch == 'feature/android-0385-intro-join-investigation-20261102' && inputs.source_repository == 'manufact-test/nomusic'
     runs-on: ubuntu-latest
     timeout-minutes: 40
     steps:
       - name: Checkout exact experiment branch
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.workflow_run.head_sha }}
+          ref: ${{ inputs.source_sha }}
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Require successful validation of the dedicated experiment branch
+      - name: Require validated source from the dedicated experiment branch
         env:
-          EVENT_CONCLUSION: ${{ github.event.workflow_run.conclusion }}
+          SOURCE_SHA: ${{ inputs.source_sha }}
+          SOURCE_BRANCH: ${{ inputs.source_branch }}
+          SOURCE_REPOSITORY: ${{ inputs.source_repository }}
+          VALIDATION_RUN_ID: ${{ inputs.validation_run_id }}
           EXPECTED_BRANCH: feature/android-0385-intro-join-investigation-20261102
-          ACTUAL_BRANCH: ${{ github.event.workflow_run.head_branch }}
-          SOURCE_REPOSITORY: ${{ github.event.workflow_run.head_repository.full_name }}
         shell: bash
         run: |
           set -euo pipefail
-          test "$EVENT_CONCLUSION" = "success"
-          test "$ACTUAL_BRANCH" = "$EXPECTED_BRANCH"
+          test -n "$SOURCE_SHA"
+          test "$SOURCE_BRANCH" = "$EXPECTED_BRANCH"
           test "$SOURCE_REPOSITORY" = "manufact-test/nomusic"
           test "$GITHUB_REPOSITORY" = "manufact-test/nomusic"
+          test "$VALIDATION_RUN_ID" -gt 0
           python3 android/native-companion/tests/check_test_app_build_contract.py
 
       - uses: actions/setup-java@v4
@@ -52,42 +63,14 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Download the successful offline toolchain for this exact commit
+      - name: Download the offline toolchain from this successful validation run
         env:
           GH_TOKEN: ${{ github.token }}
-          SOURCE_SHA: ${{ github.event.workflow_run.head_sha }}
-          SOURCE_BRANCH: ${{ github.event.workflow_run.head_branch }}
+          VALIDATION_RUN_ID: ${{ inputs.validation_run_id }}
         shell: bash
         run: |
           set -euo pipefail
-          gh api "repos/$GITHUB_REPOSITORY/actions/workflows/android-0348-validation.yml/runs?branch=$SOURCE_BRANCH&status=completed&per_page=100" > "$RUNNER_TEMP/validation-runs.json"
-          SOURCE_RUN="$(python3 - <<'PY'
-          import json,os,pathlib,subprocess
-          data=json.loads(pathlib.Path(os.environ['RUNNER_TEMP'],'validation-runs.json').read_text())
-          current=os.environ['SOURCE_SHA']
-          guarded_paths=[
-            'android/native-companion',
-            '.github/workflows/android-0348-validation.yml',
-            '.github/workflows/android-auto-publish-hostinger.yml',
-            '.github/workflows/android-0385-test-app-build.yml',
-          ]
-          for run in data.get('workflow_runs',[]):
-              if run.get('conclusion')!='success':
-                  continue
-              candidate=run.get('head_sha','')
-              if not candidate:
-                  continue
-              ancestor=subprocess.run(['git','merge-base','--is-ancestor',candidate,current]).returncode==0
-              if not ancestor:
-                  continue
-              unchanged=subprocess.run(['git','diff','--quiet',candidate+'..'+current,'--',*guarded_paths]).returncode==0
-              if unchanged:
-                  print(run['id'])
-                  break
-          else:
-              print('')
-          PY
-          )"
+          SOURCE_RUN="$VALIDATION_RUN_ID"
           test -n "$SOURCE_RUN"
           mkdir -p "$RUNNER_TEMP/kit"
           gh run download "$SOURCE_RUN" --repo "$GITHUB_REPOSITORY" --name celikom-android-offline-kit --dir "$RUNNER_TEMP/kit"
@@ -97,7 +80,6 @@ jobs:
           test -s "$RUNNER_TEMP/kit/build-tools/36.0.0/lib/apksigner.jar"
           chmod +x "$RUNNER_TEMP/kit/build-tools/36.0.0/aapt" "$RUNNER_TEMP/kit/build-tools/36.0.0/zipalign"
           echo "SOURCE_RUN=$SOURCE_RUN" >> "$GITHUB_ENV"
-
       - name: Read-only fetch of the pinned original CELIKOM base APK
         env:
           HOST_KEY: ${{ secrets.CELIKOM_HOSTINGER_SSH_KEY }}
@@ -159,10 +141,10 @@ jobs:
 
       - name: Create immutable JSON build receipt
         env:
-          SOURCE_SHA: ${{ github.sha }}
-          SOURCE_BRANCH: ${{ github.ref_name }}
-          WORKFLOW_RUN: ${{ github.run_id }}
-          WORKFLOW_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          SOURCE_SHA: ${{ inputs.source_sha }}
+          SOURCE_BRANCH: ${{ inputs.source_branch }}
+          WORKFLOW_RUN: ${{ inputs.validation_run_id }}
+          WORKFLOW_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ inputs.validation_run_id }}
         shell: bash
         run: |
           set -euo pipefail

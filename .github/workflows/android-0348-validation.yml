@@ -180,6 +180,24 @@ jobs:
           retention-days: 7
 
 
+
+  build-celikom-test:
+    if: >-
+      github.event_name == 'pull_request' &&
+      github.head_ref == 'feature/android-0385-intro-join-investigation-20261102' &&
+      github.event.pull_request.head.repo.full_name == 'manufact-test/nomusic'
+    needs: native-android
+    permissions:
+      actions: read
+      contents: read
+    uses: ./.github/workflows/android-0385-test-app-build.yml
+    with:
+      source_sha: ${{ github.event.pull_request.head.sha }}
+      source_branch: ${{ github.head_ref }}
+      source_repository: ${{ github.event.pull_request.head.repo.full_name }}
+      validation_run_id: ${{ github.run_id }}
+    secrets: inherit
+
   build-test-candidate:
     if: github.ref == 'refs/heads/feature/android-0382-cache-prewarm-staging-20261101' || github.ref == 'refs/heads/feature/android-0382-playback-continuity-fix-20261101'
     needs: native-android

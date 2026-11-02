@@ -35,15 +35,12 @@ runner = (ROOT / "tests/run_addon_host.py").read_text(encoding="utf-8")
 assert "CELIKOM_ANDROID_DEPS" in runner and "DEPS/name" in runner
 
 workflow = (ROOT.parents[1] / ".github/workflows/android-0385-test-app-build.yml").read_text(encoding="utf-8")
-assert "workflow_run:" in workflow
-assert "Android 0.3.55 architecture and release contract verification" in workflow
-assert "types: [completed]" in workflow
-assert "github.event.workflow_run.conclusion == 'success'" in workflow
-assert "github.event.workflow_run.head_branch == 'feature/android-0385-intro-join-investigation-20261102'" in workflow
-assert "github.event.workflow_run.head_sha" in workflow
-assert "head_repository.full_name == 'manufact-test/nomusic'" in workflow
-for forbidden_trigger in ("\\npush:", "\\npull_request:", "\\nworkflow_dispatch:", "\\nworkflow_call:"):
-    assert forbidden_trigger not in workflow, "Test APK must only follow successful validation"
+assert "workflow_call:" in workflow
+assert "source_sha" in workflow and "source_branch" in workflow
+assert "source_repository" in workflow and "validation_run_id" in workflow
+assert "github.run_id" not in workflow
+for forbidden_trigger in ("\\npush:", "\\npull_request:", "\\nworkflow_dispatch:", "\\nworkflow_run:"):
+    assert forbidden_trigger not in workflow, "Test APK builder must be callable only after validation"
 for forbidden_action in ("stable.json", "/updates/android/stable.json", "publish-stable"):
     assert forbidden_action not in workflow, "Test APK workflow must not publish or touch stable OTA: " + forbidden_action
 assert "scp -P 65002" in workflow and "CELIKOM_HOSTINGER_SSH_KEY" in workflow
@@ -58,4 +55,4 @@ for required in (
 ):
     assert required in verifier, "Missing final APK verification field: " + required
 
-print("PASS: CELIKOM Test automatic build trigger, packaging identity and OTA isolation contract")
+print("PASS: CELIKOM Test reusable build contract and OTA isolation")
