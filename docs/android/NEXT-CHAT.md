@@ -1,3 +1,9 @@
+# АКТУАЛЬНАЯ ПЕРЕДАЧА — Test.6 реальный retest, причины поздних вступлений (2026-11-03)
+
+**Обязательно сначала читать [ANDROID-0385-TEST-6-OWNER-RETEST-RESULT-2026-11-03.md](ANDROID-0385-TEST-6-OWNER-RETEST-RESULT-2026-11-03.md)**, затем Test.6 handoff ниже. HONOR: владелец слышит заметное улучшение, местами полностью незаметный переход, но несколько «тяжёлых» песен ещё плохие. Из 10 повторных catalog IDs 8 ускорены. Медиана Test.6 boundary→cold join 211 мс vs Test.4 fast joins 440.5 мс. Остались 904 мс (fresh backend resolve ~750 мс при готовом decoder) и 1990 мс (быстрый Next, prefetch файла закончен после source boundary). Длительный mid-song retest ещё ожидается; акустически звук **ещё не принят**. Stable/original/accepted seek/Pause/Resume/backup/Hostinger/PR #37 не менять. Последняя APK Test.6/code86091 source `3c22a03f364a019ac545efb4e132ad3f5fc12c21`; docs-only commits не меняют APK. Главная задача — звук в начале, совмещать связанные реальные исправления в одну Test APK, не выпускать косметические билды.
+
+---
+
 # АКТУАЛЬНАЯ ПЕРЕДАЧА — CELIKOM Test.6, интро + recovery (2026-11-02)
 
 Сначала читать docs/android/ANDROID-0385-TEST-6-EARLY-DECODER-PRIME-HANDOFF-2026-11-02.md. Приоритет владельца: звук в начале песен; не выпускать отдельные APK для мелочей.
