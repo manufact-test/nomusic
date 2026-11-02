@@ -202,11 +202,24 @@ def patch_smali_identity_and_version(decoded):
             replacement_counts[old] += updated.count(old)
             updated = updated.replace(old, new)
         if path.name == "BuildConfig.smali":
-            updated = re.sub(
+            app_id_pattern = re.escape(
+                '.field public static final APPLICATION_ID:Ljava/lang/String; = "' +
+                SPEC["stable_package"] + '"'
+            )
+            updated, app_id_count = re.subn(
+                app_id_pattern,
+                '.field public static final APPLICATION_ID:Ljava/lang/String; = "' + SPEC["package"] + '"',
+                updated,
+            )
+            if app_id_count != 1:
+                raise ValueError("Unexpected baseline BuildConfig application ID")
+            updated, code_count = re.subn(
                 r"(\.field public static final VERSION_CODE:I = )0x[0-9a-f]+",
                 lambda m: m.group(1) + hex(SPEC["version_code"]),
                 updated,
             )
+            if code_count != 1:
+                raise ValueError("Unexpected baseline BuildConfig version code")
         if updated != original:
             path.write_text(updated, encoding="utf-8")
     for path in decoded.rglob("*.smali"):

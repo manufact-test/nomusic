@@ -13,11 +13,32 @@ Deliver one signed, installable **CELIKOM Test** APK so the owner can keep the c
 - The test app contains the exclusive prewarmed cold-join experiment from PR #37. Yandex Music crossfade stays OFF for the first listening check.
 - The owner will stop/close stable CELIKOM before starting the test app. Do not run both CELIKOM engines simultaneously against the same Yandex playback session.
 
+## 2026-11-02 — separate build path implemented; signed APK still pending
+
+The owner supplied `CELIKOM-0.3.22-install(1).apk`. Its SHA-256 was independently computed as `170b1883e292570d28a3b5c619cf000eaccd9d11ee85ca6f6c08f7b50e5f72c9`, exactly matching the pinned baseline. Apktool 2.11.1 successfully decoded it; a local structural smoke build confirmed the test package, label, versionCode/versionName, dedicated vector icon, test authorities and Android API 36 resource compilation.
+
+Implemented on this branch:
+- `android/native-companion/test-app-spec.json`
+- `android/native-companion/build_test_release.py`
+- `android/native-companion/verify_test_release.py`
+- `android/native-companion/tests/check_test_app_build_contract.py`
+- `.github/workflows/android-0385-test-app-build.yml` — **workflow_dispatch only**, exact-branch guard, explicit confirmation checkbox, no push/PR/workflow_run trigger.
+
+The manual workflow uses the existing repository secrets `CELIKOM_HOSTINGER_SSH_KEY`, `CELIKOM_HOSTINGER_KNOWN_HOSTS`, `CELIKOM_ANDROID_SIGNING_P12_B64`, and `CELIKOM_ANDROID_SIGNING_JSON_B64`. It retrieves the pinned baseline by read-only SCP, validates the exact SHA, and signs only in the ephemeral GitHub runner. It uploads only the test APK plus verification JSON and receipt; it has no Hostinger write, stable publisher, or stable manifest step.
+
+**Signature detail:** the pinned original base APK verifies with APK Signature Scheme v3 (not v2). The final test APK verifier therefore checks the original base's v3 signature and certificate, then requires the final newly signed APK to verify with both v2 and v3 using the same original certificate. Do not require v2 on the original base APK.
+
+The builder runs the unchanged full native host suite and unchanged `check_0385_seek_baseline.py`, compiles against Android API 36, runs D8, removes all three updater Java sources from the test DEX, removes the updater construction from `RecorderActivity`, changes the visible update panel to the static disabled notice, and verifies no updater classes/references, stable manifest URL, install permission, or updater components remain.
+
+The validation workflow's contract-check step passed in CI run [#41431072773](https://github.com/manufact-test/nomusic/actions/runs/41431072773) before the final verifier/contract hardening; the latest branch commit must receive a fresh validation run before manual build. A signed test APK has **not** yet been produced. To create it, open Actions → **CELIKOM Android 0.3.85 side-by-side test APK (manual only)**, select this branch, check `confirm_build`, and run. The workflow must finish successfully and publish artifact `CELIKOM-Test-0.3.85-test-code-86085` before any APK is installed.
+
+Stable CELIKOM 0.3.85/code86, stable release contract, publisher, OTA endpoint and backup branches remain outside this build path. No audio/seek implementation was changed by the packaging work.
+
 ## Exact source checkpoint
 
 - Repository: `manufact-test/nomusic`
 - Work branch: `feature/android-0385-intro-join-investigation-20261102`
-- CI-tested audio experiment code commit: `2a3cb6801c8bf12adf3923c94220af94fa7b4aa6`. The branch has received documentation-only commits since that CI run; resolve the live branch HEAD before building rather than pinning this older docs checkpoint.
+- Audio experiment implementation remains the PR #37 code; packaging-only changes are now added on the same work branch. Always use the exact current branch HEAD and a successful validation run for that SHA.
 - Draft experiment PR: [#37](https://github.com/manufact-test/nomusic/pull/37), open and unmerged.
 - Experiment CI: [#41419113128](https://github.com/manufact-test/nomusic/actions/runs/41419113128), PASS (32 cold-join checks, full native host suite, accepted seek guard, Android API 36 and D8).
 - Accepted 0.3.85 seek source: `053b7d59beb53db5f30b942feba35e51a1ab256a`.
@@ -118,8 +139,8 @@ The artifact must be installable and signed. An unsigned inspection APK is not a
 5. App label is `CELIKOM Test`; test versionName/code are the declared test values.
 6. All package-specific manifest authorities and signature permissions are unique; no provider authority collision remains.
 7. Test APK has no update UI/constructor, no scheduled update job, no updater receiver, no `REQUEST_INSTALL_PACKAGES`, and no stable-manifest request.
-8. Test APK signer matches stable certificate SHA-256 `67fe81c56fac1c1d145344b69a0e3faf9005cf6607f4e26ca27d5926c3eefc4f`.
-9. Stable APK and stable release metadata are byte-for-byte untouched; no Hostinger request/write is performed.
+8. Original base APK's v3 signature verifies; final test APK verifies with v2 and v3 and matches stable certificate SHA-256 `67fe81c56fac1c1d145344b69a0e3faf9005cf6607f4e26ca27d5926c3eefc4f`.
+9. Stable APK and stable release metadata are byte-for-byte untouched; the manual build may perform only the pinned baseline's read-only SCP fetch. No Hostinger write, stable.json read/write, or publisher is allowed.
 10. Produce a receipt with source commit, package, label, versionName/code, signer SHA-256, APK SHA-256, file size, CI run URL, and `stable_published: false`.
 
 ## Owner's one device check after delivery

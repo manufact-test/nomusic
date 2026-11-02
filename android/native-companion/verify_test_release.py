@@ -142,6 +142,17 @@ def main():
         if any(name.endswith("UpdateCheckJob") or name.endswith("UpdateInstallReceiver") for name in component_names):
             raise ValueError("OTA job or install receiver is registered in the test APK")
 
+        build_config = (final_decoded / "smali/pro/celikom/nativeprobe/BuildConfig.smali").read_text(encoding="utf-8")
+        for required in (
+            '.field public static final APPLICATION_ID:Ljava/lang/String; = "' + SPEC["package"] + '"',
+            ".field public static final VERSION_CODE:I = " + hex(SPEC["version_code"]),
+            '.field public static final VERSION_NAME:Ljava/lang/String; = "' + SPEC["version"] + '"',
+        ):
+            if required not in build_config:
+                raise ValueError("Test BuildConfig identity/version is missing: " + required)
+        if '.field public static final APPLICATION_ID:Ljava/lang/String; = "' + SPEC["stable_package"] + '"' in build_config:
+            raise ValueError("Stable application ID remains in test BuildConfig")
+
         legacy = (final_decoded / "smali/pro/celikom/nativeprobe/MainActivity.smali").read_text(encoding="utf-8")
         method = re.search(
             r"\.method protected onCreate\(Landroid/os/Bundle;\)V(.*?)\.end method",

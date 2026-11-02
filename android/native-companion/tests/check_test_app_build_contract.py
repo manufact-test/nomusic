@@ -22,8 +22,22 @@ for forbidden in ("from release_contract", "load_release(", "release-spec.json",
     assert forbidden not in builder, "Test builder must not route through stable release code: " + forbidden
 for excluded in ("UpdateCenter.java", "UpdateCheckJob.java", "UpdateInstallReceiver.java"):
     assert excluded in builder, "Test builder must explicitly exclude updater source: " + excluded
-for required in ("check_0385_seek_baseline.py", "UpdateCenter", "REQUEST_INSTALL_PACKAGES", "celikom_test_icon.xml"):
+for required in ("check_0385_seek_baseline.py", "UpdateCenter", "REQUEST_INSTALL_PACKAGES", "celikom_test_icon.xml", "BuildConfig.smali"):
     assert required in builder or required in verifier, "Missing test build safety gate: " + required
+assert "require_v2=False" in verifier and "require_v2=True" in verifier
+assert "APK Signature Scheme v3" in verifier
+assert "APPLICATION_ID" in builder and "SPEC[\"package\"]" in builder
+assert "BuildConfig" in verifier and "SPEC[\"stable_package\"]" in verifier
+
+workflow = (ROOT.parents[1] / ".github/workflows/android-0385-test-app-build.yml").read_text(encoding="utf-8")
+assert "workflow_dispatch:" in workflow
+for forbidden_trigger in ("\npush:", "\npull_request:", "\nworkflow_run:", "\nworkflow_call:"):
+    assert forbidden_trigger not in workflow, "Test APK workflow must be manual-only"
+for forbidden_action in ("stable.json", "/updates/android/stable.json", "android-auto-publish-hostinger.yml", "publish-stable"):
+    assert forbidden_action not in workflow, "Test APK workflow must not publish or touch stable OTA: " + forbidden_action
+assert "scp -P 65002" in workflow and "CELIKOM_HOSTINGER_SSH_KEY" in workflow
+assert "CELIKOM_ANDROID_SIGNING_P12_B64" in workflow
+assert "actions/upload-artifact@v4" in workflow and "retention-days: 7" in workflow
 for required in (
     "signature_v2_verified", "signature_v3_verified", "separate_android_sandbox",
     "stable_manifest_reference_absent", "ota_updater_absent", "package_id_is_distinct",
