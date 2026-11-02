@@ -1,12 +1,12 @@
 # CELIKOM Android 0.3.85 — HONOR intro/join audio-video correlation (2026-11-02)
 
-**Status: evidence review only. No source-code changes, APK build, OTA publication, or stable manifest change.** Preserve accepted seek implementation and golden guard.
+**Status: evidence review plus isolated code-only cold-join experiment.** No APK build or OTA publication. Preserve accepted seek implementation and golden guard.
 
 ## Inputs and run selection
 
 - Owner journal: `CELIKOM-combined-20261102-105708.txt` (three runs: 0.3.84 at 00:52, 0.3.85 at 10:08, and the relevant last 0.3.85 run at **10:55:07 +03:00**).
 - Owner screen recording: `SVID_20261102_105501_1.mp4`, 84.84 s, HONOR Android 13, 590×1280 video, mono AAC 48 kHz.
-- All statistics below are from the **last 10:55:07 run only**, not the two earlier runs. It has 13 full-file experiment starts/downloads/prepares/joins, 12 confirmed source media-item transitions, 26 seek ACKs, and 38 source discontinuity events. The log ends without a `run_end` marker; do not claim a formally closed session.
+- All statistics below are from the **last 10:55:07 run only**, not the two earlier runs. It has 13 full-file experiment starts/downloads/prepares/joins, 12 confirmed source media-item transitions, 26 seek ACKs, and **17** source discontinuity events. The log ends without a `run_end` marker; do not claim a formally closed session.
 - The MP4 has an AAC audio track, so recorded signal level can be measured. It is a screen recording, not a calibrated microphone recording of the phone speaker and not separate PCM captures of Yandex and CELIKOM. No direct source-vs-replacement phase measurement is available.
 
 ## Main findings
@@ -28,9 +28,20 @@
 
 ### 3. A very low-level interval appears at one source boundary before CELIKOM joins
 
-In the video around **59.2–60.1 s**, the recorded AAC level is extremely low (about −100 dBFS RMS in the 59-second bin). The corresponding cover change is around 59.1 s, while the next CELIKOM join begins around 61.6–61.8 s. Thus this low-level interval is **before** the new replacement join starts. It cannot be caused by the later 160 ms CELIKOM blend.
+In the video at **59.1–60.0 s**, the recorded AAC level falls to approximately **−91.9 dBFS RMS** (about 64% of decoded samples in that interval are exactly zero). It returns abruptly to ordinary music level at about 60.0 s. This is a measurement of the screen-recording AAC track, not calibrated speaker output.
 
-This does not prove CELIKOM caused the quiet interval. It may be the actual intro/arrangement of the Yandex source, a source playback/buffering condition, or a recording-path artifact. Do not label it a CELIKOM crossfade bug without separate evidence. Similar low-level sections occur in other portions of the recording; song dynamics vary.
+The approximate video-to-journal alignment is +6.1 s. On the `Хлоп-Хлоп` boundary, the journal sequence is:
+- 53.751 s: source discontinuity classified `SEEK_TO_OTHER_ITEM` (`manualNextButtonObserved=false`).
+- 53.763 s: CELIKOM silences its previous replacement decoder.
+- 53.802 s: CELIKOM restores the original source effect.
+- 53.852 s: Media3 reports the new media item (`PLAYLIST_CHANGED`).
+- 53.922 s: source snapshot reports `isPlaying=false`, playback state 2.
+- 53.931 s: source snapshot reports `isPlaying=true`, playback state 3.
+- 54.063 s: CELIKOM starts the new full-file experiment; download completes at 55.892 s; the new replacement join begins at 56.318 s.
+
+The low-level interval begins roughly 0.7 s before CELIKOM's previous-decoder silence/restore events and ends before the new replacement join. The later 160 ms blend cannot explain its onset. CELIKOM cleanup overlaps only the tail of the interval; the available evidence cannot assign the full gap conclusively to Yandex's transition versus the recording/output path.
+
+The screen recording appears to show a touch indicator over Next near the start of the interval, consistent with a manual Next action. The diagnostic itself explicitly cannot verify a physical button tap, so this remains visual evidence rather than a Media3 attribution. The lookahead record for this item has `metadataComplete=false`, `authorizedForPrefetch=false`, and `prefetchStarted=false`; the current code correctly did not start a speculative download from incomplete next-item metadata.
 
 ### 4. The join gate is not an acoustic phase gate
 
@@ -52,16 +63,25 @@ There are at least two distinct things to keep separate:
 
 Do not collapse both into one generic “Next lag” metric.
 
-## Next controlled experiment — proposed, not performed
+## Isolated cold-join experiment — code-only candidate
 
-Before changing production behavior, inspect the relevant playback source boundary and capture evidence that distinguishes Yandex source audio from CELIKOM replacement audio. If the join blend itself remains the target, a narrow A/B can compare the existing 160 ms complementary-linear **cold/new-track** join with an exclusive cold-join handover after the same readiness/clock gate, keeping download, local decoder, prewarm, seek, Pause, Next, ownership fencing and all other timing unchanged. This is only a diagnostic experiment, not a presumed fix: exclusive switching may click or skip/repeat content if the two versions differ.
+A narrow experiment is now implemented on `feature/android-0385-intro-join-investigation-20261102`:
+
+- Only the **prewarmed local full-file cold/new-track join** changes from `fade(true,true)` (160 ms complementary-linear blend) to `fade(false,true)` (exclusive single-turn handover).
+- The same decoder prewarm, alignment seek, existing handover clock gate, ownership ticket and 100 ms drift threshold remain in place.
+- Source remains audible and replacement muted until the existing clock gate is validated. At the grant, CELIKOM switches to replacement as the sole commanded output; it does not intentionally overlap the two sessions.
+- Streaming joins, non-prewarmed attachment, same-song seek/resume, Pause/Resume, Next routing, duration validation, and the accepted seek implementation are not changed.
+- No user-facing toggle was added. The production constructor selects the experiment; the deterministic host harness retains the previous blend as a baseline and explicitly runs both variants.
+- `TestColdJoinExclusiveExperiment.java` compares both variants under the same local-file prewarm/alignment/gate sequence and asserts no commanded overlap in the exclusive path. `run_engine.py` now includes this test.
+
+This is a diagnostic candidate, not a presumed fix. Exclusive switching may click or expose a content/edition offset if source and replacement are not the same edit. The 59.1–60.0 s near-silence is a separate pre-join observation and is not expected to be repaired by this experiment.
 
 - Work only on `feature/android-0385-intro-join-investigation-20261102`.
 - Keep Yandex Music crossfade OFF during phase one.
 - Do not change the accepted same-song seek path or its guard.
-- Add cold-join-specific automated regression tests; run host suite and Android CI.
-- Do not publish to the live stable OTA channel without an explicit owner decision after test results. Do not create another stable APK merely because CI is green.
-- Test only a short, representative intro on HONOR after the experiment is justified. No broad repeat seek test.
+- Run the full host suite and Android CI before considering a test artifact.
+- No APK has been built and no stable OTA/manifest change has been made. Do not publish to the live stable channel without explicit owner authorization.
+- If CI passes, use only a short, representative HONOR listening test of the cold join. No broad repeat seek test.
 
 ## Preservation
 
