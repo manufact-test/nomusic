@@ -78,6 +78,12 @@ final class ReplacementEngine {
  }
  void invalidateLookaheadPrefetch(String reason){
   if(lookaheadPrefetchAlias==null)return;
+  // An in-flight download may already be the CURRENT track's only prepare path.
+  // Never discard its fresh-resolved descriptor and strand preparing=true.
+  if(lookaheadPrefetchWait&&lookaheadPrefetchCurrentDescriptor!=null){
+   fallbackPromotedLookaheadPrefetch("invalidated_"+reason);
+   return;
+  }
   LogStore.log("replacement_lookahead_prefetch_cancelled",LogStore.map("mediaAlias",lookaheadPrefetchAlias,"trackId",lookaheadPrefetchTrackId,"phase",lookaheadPrefetchPhase,"reason",reason));
   clearLookaheadPrefetchState();
  }
@@ -109,6 +115,13 @@ final class ReplacementEngine {
     fresh.optLong("version"),fresh.optLong("duration_ms"));
   preparing=true;audioFromCache=false;status="Готовим замену заранее; оригинал продолжает играть";
   lookaheadPrefetchCurrentDescriptor=fresh;lookaheadPrefetchWait=true;
+  // A stalled prefetch must not leave the current song in PREPARING indefinitely.
+  final String waitAlias=source.alias;
+  owner.handler.postDelayed(()->{
+   if(!closed&&g==generation&&lookaheadPrefetchWait
+      &&Objects.equals(waitAlias,lookaheadPrefetchAlias)&&Objects.equals(identityKey,key)&&current(key))
+    fallbackPromotedLookaheadPrefetch("current_handoff_timeout");
+  },10000);
   LogStore.log("replacement_lookahead_prefetch_current_wait",LogStore.map(
     "mediaAlias",lookaheadPrefetchAlias,"trackId",trackId,"phase",lookaheadPrefetchPhase,
     "freshResolveRequired",true,"audioKeyMatches",lookaheadPrefetchResolvedAudioKey==null?"pending":true,
@@ -146,6 +159,18 @@ final class ReplacementEngine {
   boolean eligible=LookaheadPrefetchPolicy.mayPrefetch(armed(),api.signedIn(),source!=null&&source.playing,owner.lookaheadCandidateCurrent(alias),unique,remaining);
   if(!eligible){LogStore.log("replacement_lookahead_prefetch_skipped",LogStore.map("mediaAlias",alias,"trackIdPresent",unique,"sourcePlaying",source!=null&&source.playing,"remainingMs",remaining,"candidateCurrent",owner.lookaheadCandidateCurrent(alias),"reason","prefetch_gate"));return;}
   if(Objects.equals(lookaheadPrefetchAlias,alias)&&Objects.equals(lookaheadPrefetchTrackId,id)&&lookaheadPrefetchAccount==api.accountGeneration&&("resolving".equals(lookaheadPrefetchPhase)||"downloading".equals(lookaheadPrefetchPhase)||"ready".equals(lookaheadPrefetchPhase)||"cached".equals(lookaheadPrefetchPhase)))return;
+  if(lookaheadPrefetchWait&&lookaheadPrefetchCurrentDescriptor!=null){
+   // One prefetch slot: let the promoted current file finish before reserving
+   // it for a further next song. Re-check identity after a short delay.
+   LogStore.log("replacement_lookahead_prefetch_deferred",LogStore.map(
+     "mediaAlias",alias,"currentAlias",lookaheadPrefetchAlias,
+     "reason","current_track_handoff_inflight","audioCommandSent",false));
+   final Map<String,Object> retryObservation=new LinkedHashMap<>(observation);
+   owner.handler.postDelayed(()->{
+    if(!closed&&owner.lookaheadIsNext(alias))prefetchLookahead(retryObservation,id);
+   },1000);
+   return;
+  }
   invalidateLookaheadPrefetch("new_next_item");
   final long token=++lookaheadPrefetchGeneration,account=api.accountGeneration,start=SystemClock.elapsedRealtime();
   lookaheadPrefetchAlias=alias;lookaheadPrefetchTrackId=id;lookaheadPrefetchAccount=account;lookaheadPrefetchStartedAt=start;lookaheadPrefetchPhase="resolving";

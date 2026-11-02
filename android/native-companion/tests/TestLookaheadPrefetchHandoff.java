@@ -94,9 +94,59 @@ public final class TestLookaheadPrefetchHandoff {
     "late prefetch completion is adopted by the current track without a duplicate download");
   TestEngine.e.close();
  }
+ static void newNextCandidateCannotStealCurrentDownload()throws Exception{
+  beginLookahead();promoteCurrent(descriptor(1),true);
+  TestEngine.p.lookaheadAlias="3";
+  TestEngine.e.prefetchLookahead(LogStore.map("mediaAlias","3","durationMs",120000L),"9");
+  check(TestEngine.api.downloads==1&&TestEngine.api.resolves==3
+      &&"2".equals(TestEngine.e.lookaheadPrefetchAlias)&&TestEngine.e.lookaheadPrefetchWait,
+    "a new next-track candidate cannot cancel an in-flight current-track handoff");
+  File current=File.createTempFile("celikom-current-handoff-",".audio");
+  TestEngine.api.downloadCallbacks.get(0).done(current,null);
+  check(TestEngine.e.player!=null&&TestEngine.e.audioFile==current
+      &&TestEngine.e.audioFromCache&&!TestEngine.e.lookaheadPrefetchWait,
+    "the promoted current song still consumes its original download");
+  android.os.SystemClock.now+=1000;TestEngine.p.handler.drain();
+  check(TestEngine.api.resolves==4&&"3".equals(TestEngine.e.lookaheadPrefetchAlias),
+    "the next track begins prefetch after the current handoff is secure");
+  check(TestEngine.api.downloads==1,
+    "no duplicate current-track file download was started");
+  TestEngine.e.close();
+ }
+ static void cancelledCurrentWaitMustFallBack()throws Exception{
+  beginLookahead();promoteCurrent(descriptor(1),true);
+  TestEngine.e.invalidateLookaheadPrefetch("simulated_conflicting_candidate");
+  check(TestEngine.api.downloads==2&&TestEngine.e.preparing
+      &&!TestEngine.e.lookaheadPrefetchWait&&TestEngine.e.effect==null,
+    "invalidating a promoted wait starts the verified current full-file fallback");
+  check(!TestEngine.api.downloadValidity.get(0).getAsBoolean(),
+    "cancelled prefetch cannot replace the freshly resolved fallback");
+  File stale=File.createTempFile("celikom-stale-wait-",".audio");
+  TestEngine.api.downloadCallbacks.get(0).done(stale,null);
+  check(!stale.exists(),"a late cancelled prefetch is discarded");
+  File current=File.createTempFile("celikom-fallback-current-",".audio");
+  TestEngine.api.downloadCallbacks.get(1).done(current,null);
+  check(TestEngine.e.player!=null&&TestEngine.e.audioFile==current,
+    "the current decoder prepares after the cancellation fallback");
+  TestEngine.e.close();
+ }
+ static void currentWaitHasTimeout()throws Exception{
+  beginLookahead();promoteCurrent(descriptor(1),true);
+  android.os.SystemClock.now+=10001;TestEngine.p.handler.drain();
+  check(TestEngine.api.downloads==2&&TestEngine.e.preparing
+      &&!TestEngine.e.lookaheadPrefetchWait,
+    "a hung promoted prefetch falls back after a bounded current wait");
+  File current=File.createTempFile("celikom-timeout-current-",".audio");
+  TestEngine.api.downloadCallbacks.get(1).done(current,null);
+  check(TestEngine.e.player!=null&&TestEngine.e.audioFile==current,
+    "timeout fallback can still prepare the current replacement");
+  TestEngine.e.close();
+ }
  public static void main(String[] args)throws Exception{
   beginLookahead();promoteCurrent(descriptor(1),true);matchingPrefetchIsConsumed();
   mismatchedFreshResolveFallsBack();latePrefetchCanStartAfterBoundary();
+  newNextCandidateCannotStealCurrentDownload();cancelledCurrentWaitMustFallBack();
+  currentWaitHasTimeout();
   System.out.println("PASS: "+checks+" lookahead promotion, fresh-resolve, cache handoff and mismatch checks");
  }
 }
