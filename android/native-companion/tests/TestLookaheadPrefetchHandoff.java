@@ -27,6 +27,7 @@ public final class TestLookaheadPrefetchHandoff {
     "prefetch downloads the full file only; original remains the sole audible source");
  }
  static void promoteCurrent()throws Exception{
+  TestEngine.e.sourceBoundary("sample_track_changed","2");
   TestEngine.p.current=TestEngine.source("2",0,true);
   TestEngine.p.lookaheadAlias=null;
   TestEngine.e.identity(

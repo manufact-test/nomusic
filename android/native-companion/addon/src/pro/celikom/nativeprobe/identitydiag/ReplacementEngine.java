@@ -107,7 +107,7 @@ final class ReplacementEngine {
   audioOwner.preparing();
   prepareTicket=audioOwner.ticket(key,api.accountGeneration,fresh.optLong("replacement_id"),
     fresh.optLong("version"),fresh.optLong("duration_ms"));
-  preparing=true;status="Готовим замену заранее; оригинал продолжает играть";
+  preparing=true;audioFromCache=false;status="Готовим замену заранее; оригинал продолжает играть";
   lookaheadPrefetchCurrentDescriptor=fresh;lookaheadPrefetchWait=true;
   LogStore.log("replacement_lookahead_prefetch_current_wait",LogStore.map(
     "mediaAlias",lookaheadPrefetchAlias,"trackId",trackId,"phase",lookaheadPrefetchPhase,
