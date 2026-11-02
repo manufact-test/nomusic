@@ -13,7 +13,7 @@ Deliver one signed, installable **CELIKOM Test** APK so the owner can keep the c
 - The test app contains the exclusive prewarmed cold-join experiment from PR #37. Yandex Music crossfade stays OFF for the first listening check.
 - The owner will stop/close stable CELIKOM before starting the test app. Do not run both CELIKOM engines simultaneously against the same Yandex playback session.
 
-## 2026-11-02 — separate build path implemented; signed APK still pending
+## 2026-11-02 — separate build path implemented; CI green; signed APK pending
 
 The owner supplied `CELIKOM-0.3.22-install(1).apk`. Its SHA-256 was independently computed as `170b1883e292570d28a3b5c619cf000eaccd9d11ee85ca6f6c08f7b50e5f72c9`, exactly matching the pinned baseline. Apktool 2.11.1 successfully decoded it; a local structural smoke build confirmed the test package, label, versionCode/versionName, dedicated vector icon, test authorities and Android API 36 resource compilation.
 
@@ -30,11 +30,13 @@ The manual workflow uses the existing repository secrets `CELIKOM_HOSTINGER_SSH_
 
 The builder runs the unchanged full native host suite and unchanged `check_0385_seek_baseline.py`, compiles against Android API 36, runs D8, removes all three updater Java sources from the test DEX, removes the updater construction from `RecorderActivity`, changes the visible update panel to the static disabled notice, and verifies no updater classes/references, stable manifest URL, install permission, or updater components remain.
 
-Final builder/verifier/contract state passed CI run [#41435554850](https://github.com/manufact-test/nomusic/actions/runs/41435554850) on exact branch HEAD `60cf679b5325af07a56fe931a3b252cc664c23af`: full native host suite, cold-join experiment, unchanged seek golden guard, API 36, D8 and test-app build contract. The offline toolchain artifact from that run is available for 2 days.
+Initial manual build attempt [#41440747159](https://github.com/manufact-test/nomusic/actions/runs/41440747159) correctly fetched the base APK and signing secrets but stopped in the Android addon host gate because `run_addon_host.py` ignored the builder's `CELIKOM_ANDROID_DEPS` path and looked for `annotation.jar` under the source checkout. Fixed the runner to resolve its pinned dependencies from `CELIKOM_ANDROID_DEPS` (with the original local default preserved); no test assertions, audio code or seek implementation changed. Added a static contract assertion for this path.
+
+After the fix, validation run [#41440905435](https://github.com/manufact-test/nomusic/actions/runs/41440905435) passed on exact packaging source commit `ef634ba7a91bf247873a5c1bd4e96a6d5985135e`: full native host suite, cold-join experiment, unchanged seek golden guard, Android API 36, D8, test-app packaging contract and offline toolchain staging. All stable publisher jobs were skipped. Its `celikom-android-offline-kit` artifact is available for 2 days and is selected by the manual workflow for this source commit.
 
 GitHub requires a `workflow_dispatch` workflow file to exist on the default branch. Therefore the same manual-only workflow file is also registered on `main` by workflow-only commit `b836793d0e70eca708cd3673c615f19b0c6075b3`. That commit adds only `.github/workflows/android-0385-test-app-build.yml`; it does not merge PR #37 or change Android source, stable release metadata, publisher or OTA. The workflow page is [here](https://github.com/manufact-test/nomusic/actions/workflows/android-0385-test-app-build.yml).
 
-A signed test APK has **not** yet been produced. To create it, open the workflow page, select `feature/android-0385-intro-join-investigation-20261102` as the run branch, check `confirm_build`, and run. The workflow must finish successfully and publish artifact `CELIKOM-Test-0.3.85-test-code-86085` before any APK is installed.
+A signed test APK has **not** yet been produced. The first manual run #1 failed before signing/artifact upload; it produced no APK. Re-run the same manual workflow now against the current work branch HEAD (the branch has advanced to include the dependency-path fix): open the workflow page, select `feature/android-0385-intro-join-investigation-20261102`, check `confirm_build`, and run. The workflow should select successful validation run #41440905435 and publish artifact `CELIKOM-Test-0.3.85-test-code-86085`. Do not install anything until that new run completes successfully and the APK/receipt are verified.
 
 Stable CELIKOM 0.3.85/code86, stable release contract, publisher, OTA endpoint and backup branches remain outside this build path. No audio/seek implementation was changed by the packaging work.
 
@@ -42,7 +44,7 @@ Stable CELIKOM 0.3.85/code86, stable release contract, publisher, OTA endpoint a
 
 - Repository: `manufact-test/nomusic`
 - Work branch: `feature/android-0385-intro-join-investigation-20261102`
-- Packaging work branch HEAD: `60cf679b5325af07a56fe931a3b252cc664c23af`; validation run [#41435554850](https://github.com/manufact-test/nomusic/actions/runs/41435554850) is green for this exact SHA. Audio experiment implementation remains the PR #37 code; packaging changes are isolated from seek/playback logic.
+- Packaging source commit: `ef634ba7a91bf247873a5c1bd4e96a6d5985135e`; validation run [#41440905435](https://github.com/manufact-test/nomusic/actions/runs/41440905435) is green for this exact SHA. Documentation-only handoff updates may advance branch HEAD; manual workflow confirms the successful validation commit is an ancestor and all guarded packaging/audio paths are unchanged. Audio experiment implementation remains the PR #37 code; packaging changes are isolated from seek/playback logic.
 - Draft experiment PR: [#37](https://github.com/manufact-test/nomusic/pull/37), open and unmerged.
 - Experiment CI: [#41419113128](https://github.com/manufact-test/nomusic/actions/runs/41419113128), PASS (32 cold-join checks, full native host suite, accepted seek guard, Android API 36 and D8).
 - Accepted 0.3.85 seek source: `053b7d59beb53db5f30b942feba35e51a1ab256a`.
