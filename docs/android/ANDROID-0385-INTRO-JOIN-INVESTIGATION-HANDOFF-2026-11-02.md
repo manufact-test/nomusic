@@ -38,11 +38,11 @@ Older checkpoints remain:
 - `backup/android-0382-stable-listening-baseline-20261101` → `2e03aca1dad0f89b3d71f871270e09f8bb9f143f`
 - `backup/android-0378-original-before-cached-join-20261101` → `bf011dcf1a70c504883a8e5e742e0b038f41d9b0`
 
-The current documentation/guard merge is `ee04be8bf239ae52417ece07b2a9a88d5ea028a1` on `feature/android-unified-preparation-seek-gate`. PR [#36](https://github.com/manufact-test/nomusic/pull/36) is merged; post-merge CI [#41406096811](https://github.com/manufact-test/nomusic/actions/runs/41406096811) succeeded. PR #36 changed tests/docs, not the shipped audio implementation. The separate intro investigation branch has been created from this exact current HEAD:
+The current documentation/guard merge is `ee04be8bf239ae52417ece07b2a9a88d5ea028a1` on `feature/android-unified-preparation-seek-gate`. PR [#36](https://github.com/manufact-test/nomusic/pull/36) is merged; post-merge CI [#41406096811](https://github.com/manufact-test/nomusic/actions/runs/41406096811) succeeded. PR #36 changed tests/docs, not the shipped audio implementation. The separate intro investigation branch was created from this exact current HEAD:
 
 `feature/android-0385-intro-join-investigation-20261102`
 
-It currently contains no experimental product-code changes and is the only branch to use for the next investigation. Do not push experiments directly to `feature/android-unified-preparation-seek-gate`: its workflow is the stable publishing path. Do not merge an intro experiment into that branch or publish an APK without the owner's explicit approval after listening.
+It now contains one isolated candidate: only prewarmed local full-file cold/new-track joins use an exclusive single-turn handover after the existing clock gate. Same-song seek submission/ACK, Pause/Resume, Next routing, streaming joins, and duration policy remain unchanged. Draft PR [#37](https://github.com/manufact-test/nomusic/pull/37) is open and unmerged. Android CI [#41419113128](https://github.com/manufact-test/nomusic/actions/runs/41419113128) passed, including 32 cold-join experiment checks, the full native host suite, the accepted 0.3.85 seek golden guard, Android API 36 and D8. Publisher and test-candidate jobs were skipped; no signed APK was built and the stable OTA remains 0.3.85/code86. This is the only branch for intro/join experiments. Do not push experiments directly to `feature/android-unified-preparation-seek-gate`: its workflow is the stable publishing path. Do not merge or publish an APK without the owner's explicit approval after listening.
 
 ### Important honesty about GitHub backup protection
 
@@ -72,15 +72,15 @@ This is consistent with the owner's strong seek improvement. It does **not** est
 
 ## Next work — strictly limited scope
 
-The owner will provide a new diagnostic and a video/recording showing the problematic song beginnings. Use those supplied materials first; do not ask for the same evidence to be recorded again unless a specific missing measurement is demonstrated.
+The owner has supplied the combined journal `CELIKOM-combined-20261102-105708.txt` and HONOR recording `SVID_20261102_105501_1.mp4`; see [ANDROID-0385-HONOR-INTRO-JOIN-AUDIO-VIDEO-CORRELATION-2026-11-02.md](ANDROID-0385-HONOR-INTRO-JOIN-AUDIO-VIDEO-CORRELATION-2026-11-02.md). The recording shows a near-silent AAC interval around 59.1–60.0 s, before the new CELIKOM join; it begins before CELIKOM's old-decoder cleanup and ends before the new join. The screen appears to show a Next tap, but Media3 cannot confirm the physical button action. Do not claim the interval is conclusively Yandex-originated or a CELIKOM fade defect. The source-vs-speaker PCM is unavailable.
 
-1. Read this handoff and the linked 0.3.85 freeze, controlled experiment, OTA receipt, 0.3.84 retest, plus [ANDROID-0382-CACHE-PATH-AUDIT-2026-11-01.md](ANDROID-0382-CACHE-PATH-AUDIT-2026-11-01.md), [ANDROID-0382-CACHE-PREWARM-EXPERIMENT-2026-11-01.md](ANDROID-0382-CACHE-PREWARM-EXPERIMENT-2026-11-01.md), [ANDROID-0383-MEDIA3-EVENT-CORRELATION-DIAGNOSTICS-2026-11-01.md](ANDROID-0383-MEDIA3-EVENT-CORRELATION-DIAGNOSTICS-2026-11-01.md), and [ANDROID-0381-EXACT-0378-RESTORE-RECEIPT-2026-11-01.md](ANDROID-0381-EXACT-0378-RESTORE-RECEIPT-2026-11-01.md) before touching code.
-2. Inspect the new diagnostic and recording together. Verify that the recording actually contains the audible playback; if the internal Android screen recording omits protected audio, say so and use the best evidence already supplied rather than pretending it captured the speakers.
+1. The required documentation review and owner evidence correlation are complete. Keep the linked 0.3.85 freeze, controlled experiment, OTA receipt, cache-path/prewarm, Media3 event-correlation and exact rollback documents as the reference set for any further work.
+2. The supplied recording contains an AAC audio track and its signal level was measured, but it is not calibrated speaker PCM and does not separate Yandex from CELIKOM output. Keep that limitation explicit.
 3. Reconstruct only the problematic new-track boundaries: full download start/end, file validation, local MediaPlayer creation/prepare, prewarm/decoder motion, clock gate, AudioOwnership/gain commands, fade start/end, and transition completion. Correlate the event timeline with the audible recording. Distinguish measured facts from hypotheses.
 4. Separate at least these candidate causes: full-file download/readiness delay; local decoder preparation or first-buffer delay; decoder-clock gate; source/replacement ownership and gain handover; content/encoding offset; CELIKOM's own fade; and any interaction with Yandex Music's transition setting.
-5. **First phase:** investigate and improve CELIKOM's beginning/join while Yandex Music crossfade remains OFF. Use one falsifiable, narrowly scoped experiment. Do not change random timing constants or multiple subsystems together.
+5. **First phase:** the first falsifiable experiment is implemented: exclusive cold/new-track handover for prewarmed local full-file joins, after the same clock gate. It has passed host/Android CI. The candidate still needs one short HONOR listening test; do not infer acoustic success from CI.
 6. **Second phase:** only after the owner accepts the intro with Yandex crossfade OFF, ask the owner to enable Yandex crossfade and test the interaction separately. Determine whether Yandex crossfade and CELIKOM's join overlap, compound, or expose a separate timing issue.
-7. Run regression tests and Android CI before asking for one focused owner test. A successful host/CI test is not acoustic acceptance. Do not issue repeated broad test requests.
+7. Regression tests and Android CI passed in run #41419113128. A successful host/CI test is not acoustic acceptance. Do not issue repeated broad test requests or ask for another seek retest.
 
 ## Hard freeze boundaries
 
@@ -109,4 +109,4 @@ This is a full source-tree rollback delivered as a newer Android package, not an
 
 ## Owner's next action
 
-The owner will attach the new combined diagnostic and video/recording in the next chat. Do not ask him to repeat the already successful seek retest. Begin with evidence review of the new intro examples, then propose one controlled intro-only experiment. Keep the Yandex crossfade OFF during phase one; phase two is a separate test after phase one is accepted.
+No additional diagnostic is needed now. The next useful device check, if the owner approves a test-only build, is a short HONOR listening comparison of one or two representative cold/new-track joins with Yandex crossfade still OFF. Do not repeat the accepted finger-seek test. The near-silent pre-join interval is a separate open question; this experiment is not expected to fix it. Phase two (Yandex crossfade ON) remains deferred until phase one is acoustically accepted.
