@@ -452,7 +452,7 @@ def main():
         "TestAudioTransfer", "TestBufferedAudio", "TestTransitionReadFence",
         "TestTransitionRecovery", "TestRequestPacing", "TestSourceStateWatchdog",
         "TestDiagnosticAccess", "TestIncidentLog", "TestPresencePreview",
-        "TestDiagnosticRequest", "TestUpdateState",
+        "TestDiagnosticRequest", "TestUpdateState", "TestLookaheadPrefetchPolicy",
     ):
         run([
             "java", "-cp", os.pathsep.join(map(str, [args.deps_dir / "json.jar", classes, tests, android])),
