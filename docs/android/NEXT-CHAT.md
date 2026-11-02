@@ -1,3 +1,16 @@
+# АКТУАЛЬНАЯ ПЕРЕДАЧА — CELIKOM Test.6, интро + recovery (2026-11-02)
+
+Сначала читать docs/android/ANDROID-0385-TEST-6-EARLY-DECODER-PRIME-HANDOFF-2026-11-02.md. Приоритет владельца: звук в начале песен; не выпускать отдельные APK для мелочей.
+
+- Тестовая APK: 0.3.85-test.6 / versionCode 86091, package pro.celikom.nativeprobe.test. Functional SHA: 3c22a03f364a019ac545efb4e132ad3f5fc12c21. CI [#41523894044](https://github.com/manufact-test/nomusic/actions/runs/41523894044) SUCCESS: полные регрессии, неизменённая golden seek baseline, API36/D8, подпись и OTA-изоляция.
+- APK SHA256: 74d9b0369d31f84657fc951b7bb6a5c9396c62c30815e5faae222cd1b2de5e21; 8 775 833 байта; исходный сертификат. [APK в Library](https://chatgpt.com/library?file_id=libfile_085b58b278f48191a17c48818dba3bde&account_id=personal), [verification](https://chatgpt.com/library?file_id=libfile_937665882e708191a5dc483f46f36dcc&account_id=personal), [receipt](https://chatgpt.com/library?file_id=libfile_bba341cab64081918847ecd9f7190c96&account_id=personal), каталог /CELIKOM/Android/Test/.
+- Test.6 объединяет Test.5 recovery для зависшего promoted download с ранней **тихой** подготовкой декодера следующего трека. Текущая песня не приглушается при prefetch; применение разрешено только после свежего live resolve, совпадения аудиоключа и измеренной длительности. Неуспешная подготовка (включая таймаут 1,8 с) отступает к прежнему механизму.
+- Реальное ускорение и качество **ещё не проверены на HONOR**. У Test.4 10 холодных join в 321–610 мс, два поздних 2060/5172 мс, один зависший; предыдущая Test.5 решала только зависание. Теперь тестировать начало и отсутствие внезапной потери замены совместно, перемотку/Pause/Resume повторно не просить.
+- Артефакт GitHub 13177859581 ошибочно **назван** старой этикеткой Test.5/code86090, но APK внутри проверен как Test.6/code86091 и нужный source SHA; в Library переименовано только отображаемое имя файла. Исправить хардкод workflow-имени при следующем функциональном изменении, не ради отдельной APK.
+- Стабильная 0.3.85/code86, SHA 053b7d59beb53db5f30b942feba35e51a1ab256a, обе accepted seek backup-ветки, stable.json и Hostinger не тронуты. PR #37 открыт и не объединён. Яндекс «Плавный переход» OFF. Два CELIKOM не запускать одновременно против одной аудиосессии.
+
+---
+
 # АКТУАЛЬНАЯ ПЕРЕДАЧА — CELIKOM Test.5 собрана, диагностика Test.4 разобрана — 2026-11-02
 
 **Сначала читать [ANDROID-0385-TEST-5-CURRENT-HANDOFF-RACE-ANALYSIS-2026-11-02.md](ANDROID-0385-TEST-5-CURRENT-HANDOFF-RACE-ANALYSIS-2026-11-02.md).** Владелец предоставил ZIP с двумя снимками combined TXT (23:11:19 / 23:11:57) и видео 23:09:20. Не публиковать сырые файлы.
