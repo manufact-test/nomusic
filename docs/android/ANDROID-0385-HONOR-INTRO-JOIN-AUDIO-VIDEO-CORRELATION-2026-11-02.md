@@ -79,8 +79,8 @@ This is a diagnostic candidate, not a presumed fix. Exclusive switching may clic
 - Work only on `feature/android-0385-intro-join-investigation-20261102`.
 - Keep Yandex Music crossfade OFF during phase one.
 - Do not change the accepted same-song seek path or its guard.
-- Run the full host suite and Android CI before considering a test artifact.
-- No APK has been built and no stable OTA/manifest change has been made. Do not publish to the live stable channel without explicit owner authorization.
+- Full host regression suite and Android API 36/D8 CI passed in [run #41419113128](https://github.com/manufact-test/nomusic/actions/runs/41419113128). The new cold-join replay passed **32 checks**; the 0.3.85 seek golden guard passed. `publish-stable` and test-candidate build jobs were skipped.
+- CI produced only the offline build kit and unsigned DEX inspection artifact. No signed/installable APK was built and no stable OTA/manifest change was made. Do not publish to the live stable channel without explicit owner authorization.
 - If CI passes, use only a short, representative HONOR listening test of the cold join. No broad repeat seek test.
 
 ## Preservation
