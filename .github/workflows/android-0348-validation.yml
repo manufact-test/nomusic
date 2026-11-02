@@ -184,7 +184,7 @@ jobs:
   build-celikom-test:
     if: >-
       github.event_name == 'pull_request' &&
-      github.head_ref == 'feature/android-0385-intro-join-investigation-20261102' &&
+      github.head_ref == 'feature/android-0385-next-track-prefetch-20261102' &&
       github.event.pull_request.head.repo.full_name == 'manufact-test/nomusic'
     needs: native-android
     permissions:
