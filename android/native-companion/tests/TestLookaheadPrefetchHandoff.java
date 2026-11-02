@@ -26,7 +26,7 @@ public final class TestLookaheadPrefetchHandoff {
   check(TestEngine.api.downloads==1&&TestEngine.e.player==null&&TestEngine.e.effect==null,
     "prefetch downloads the full file only; original remains the sole audible source");
  }
- static void promoteCurrent()throws Exception{
+ static void promoteCurrent(JSONObject fresh,boolean expectPrefetchWait)throws Exception{
   TestEngine.e.sourceBoundary("sample_track_changed","2");
   TestEngine.p.current=TestEngine.source("2",0,true);
   TestEngine.p.lookaheadAlias=null;
@@ -38,9 +38,11 @@ public final class TestLookaheadPrefetchHandoff {
     "the lookahead lease is promoted when the candidate becomes the current track");
   check(TestEngine.api.resolves==3,
     "the boundary still performs a fresh live resolve before any cached audio is consumed");
-  TestEngine.api.resolveCallbacks.get(2).done(descriptor(1),null);
-  check(TestEngine.e.preparing&&TestEngine.e.player==null&&TestEngine.api.downloads==1,
+  TestEngine.api.resolveCallbacks.get(2).done(fresh,null);
+  if(expectPrefetchWait)check(TestEngine.e.preparing&&TestEngine.e.player==null&&TestEngine.api.downloads==1,
     "current preparation waits for the matching in-flight prefetch instead of downloading twice");
+  else check(TestEngine.e.preparing&&TestEngine.api.downloads==2,
+    "a mismatched fresh resolve immediately uses its own full download");
  }
  static void matchingPrefetchIsConsumed()throws Exception{
   File file=File.createTempFile("celikom-lookahead-",".audio");
@@ -57,8 +59,7 @@ public final class TestLookaheadPrefetchHandoff {
   engine.close();
  }
  static void mismatchedFreshResolveFallsBack()throws Exception{
-  beginLookahead();promoteCurrent();
-  TestEngine.api.resolveCallbacks.get(2).done(descriptor(2),null);
+  beginLookahead();promoteCurrent(descriptor(2),false);
   check(TestEngine.api.downloads==2&&TestEngine.e.preparing,
     "a fresh resolve key mismatch falls back to its own full download");
   check(!TestEngine.api.downloadValidity.get(0).getAsBoolean(),
