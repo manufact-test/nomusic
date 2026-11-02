@@ -8,6 +8,7 @@ import subprocess
 import tempfile
 
 ROOT=Path(__file__).resolve().parent.parent
+DEPS=Path(os.environ.get('CELIKOM_ANDROID_DEPS',str(ROOT/'deps'))).resolve()
 SDK=Path(os.environ.get('ANDROID_HOME') or os.environ.get('ANDROID_SDK_ROOT') or '/usr/local/lib/android/sdk')
 ANDROID=SDK/'platforms/android-36/android.jar'
 if not ANDROID.is_file():
@@ -16,8 +17,8 @@ if not ANDROID.is_file():
     print('SKIP: SDK 36 not present locally; Android Test* gate remains mandatory in CI')
     raise SystemExit(0)
 names=['annotation.jar','common.jar','guava.jar','session.jar']
-deps=[ROOT/'deps'/name for name in names]
-json=ROOT/'deps/json.jar'
+deps=[DEPS/name for name in names]
+json=DEPS/'json.jar'
 for item in [*deps,json]:
     if not item.is_file():
         raise SystemExit('Missing pinned dependency: '+str(item))

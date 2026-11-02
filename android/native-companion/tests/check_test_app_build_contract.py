@@ -29,6 +29,8 @@ assert "base_v3" in verifier and "signer_v3" in verifier
 assert "APK Signature Scheme v3" in verifier
 assert "APPLICATION_ID" in builder and "SPEC[\"package\"]" in builder
 assert "BuildConfig" in verifier and "SPEC[\"stable_package\"]" in verifier
+runner = (ROOT / "tests/run_addon_host.py").read_text(encoding="utf-8")
+assert "CELIKOM_ANDROID_DEPS" in runner and "DEPS/name" in runner
 
 workflow = (ROOT.parents[1] / ".github/workflows/android-0385-test-app-build.yml").read_text(encoding="utf-8")
 assert "workflow_dispatch:" in workflow
