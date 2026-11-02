@@ -1,13 +1,12 @@
-name: CELIKOM Android 0.3.85 side-by-side test APK (manual only)
+name: CELIKOM Android 0.3.85 side-by-side test APK (automatic after validation)
 
 on:
-  workflow_dispatch:
-    inputs:
-      confirm_build:
-        description: Confirm that this is a separate CELIKOM Test APK, not a stable update.
-        required: true
-        type: boolean
-        default: false
+  workflow_run:
+    workflows:
+      - Android 0.3.55 architecture and release contract verification
+    types: [completed]
+    branches:
+      - feature/android-0385-intro-join-investigation-20261102
 
 permissions:
   contents: read
@@ -19,27 +18,32 @@ concurrency:
 
 jobs:
   build-test-app:
-    if: github.ref == 'refs/heads/feature/android-0385-intro-join-investigation-20261102'
+    if: |
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.head_branch == 'feature/android-0385-intro-join-investigation-20261102' &&
+      github.event.workflow_run.head_repository.full_name == 'manufact-test/nomusic'
     runs-on: ubuntu-latest
     timeout-minutes: 40
     steps:
       - name: Checkout exact experiment branch
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.sha }}
+          ref: ${{ github.event.workflow_run.head_sha }}
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Require explicit manual confirmation
+      - name: Require successful validation of the dedicated experiment branch
         env:
-          CONFIRM_BUILD: ${{ inputs.confirm_build }}
+          EVENT_CONCLUSION: ${{ github.event.workflow_run.conclusion }}
           EXPECTED_BRANCH: feature/android-0385-intro-join-investigation-20261102
-          ACTUAL_BRANCH: ${{ github.ref_name }}
+          ACTUAL_BRANCH: ${{ github.event.workflow_run.head_branch }}
+          SOURCE_REPOSITORY: ${{ github.event.workflow_run.head_repository.full_name }}
         shell: bash
         run: |
           set -euo pipefail
-          test "$CONFIRM_BUILD" = "true"
+          test "$EVENT_CONCLUSION" = "success"
           test "$ACTUAL_BRANCH" = "$EXPECTED_BRANCH"
+          test "$SOURCE_REPOSITORY" = "manufact-test/nomusic"
           test "$GITHUB_REPOSITORY" = "manufact-test/nomusic"
           python3 android/native-companion/tests/check_test_app_build_contract.py
 
@@ -51,8 +55,8 @@ jobs:
       - name: Download the successful offline toolchain for this exact commit
         env:
           GH_TOKEN: ${{ github.token }}
-          SOURCE_SHA: ${{ github.sha }}
-          SOURCE_BRANCH: ${{ github.ref_name }}
+          SOURCE_SHA: ${{ github.event.workflow_run.head_sha }}
+          SOURCE_BRANCH: ${{ github.event.workflow_run.head_branch }}
         shell: bash
         run: |
           set -euo pipefail
