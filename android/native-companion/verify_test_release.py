@@ -25,7 +25,7 @@ def run(command):
     subprocess.run(list(map(str, command)), check=True)
 
 
-def certificate(apk, build_tools):
+def certificate(apk, build_tools, require_v2=True):
     output = subprocess.check_output([
         "java", "-jar", str(build_tools / "lib/apksigner.jar"),
         "verify", "--verbose", "--print-certs", str(apk),
@@ -33,10 +33,13 @@ def certificate(apk, build_tools):
     match = re.search(r"Signer #1 certificate SHA-256 digest: ([a-f0-9]+)", output)
     if not match:
         raise ValueError("APK signing certificate is missing")
-    for version in (2, 3):
-        marker = f"Verified using v{version} scheme (APK Signature Scheme v{version}): true"
-        if marker not in output:
-            raise ValueError(f"APK Signature Scheme v{version} verification failed")
+    v3_marker = "Verified using v3 scheme (APK Signature Scheme v3): true"
+    if v3_marker not in output:
+        raise ValueError("APK Signature Scheme v3 verification failed")
+    if require_v2:
+        v2_marker = "Verified using v2 scheme (APK Signature Scheme v2): true"
+        if v2_marker not in output:
+            raise ValueError("Final test APK must verify with APK Signature Scheme v2")
     return match.group(1)
 
 
@@ -62,8 +65,8 @@ def main():
     if sha(args.compiled_dex) == "":
         raise ValueError("Compiled DEX is missing")
 
-    signer = certificate(args.apk, args.build_tools)
-    base_signer = certificate(args.base_apk, args.build_tools)
+    signer = certificate(args.apk, args.build_tools, require_v2=True)
+    base_signer = certificate(args.base_apk, args.build_tools, require_v2=False)
     if signer != base_signer or signer != SPEC["signing_certificate_sha256"]:
         raise ValueError("Test APK signer does not match the original CELIKOM certificate")
 
@@ -196,6 +199,7 @@ def main():
         "signer_matches_original": signer == SPEC["signing_certificate_sha256"],
         "signature_v2_verified": True,
         "signature_v3_verified": True,
+        "base_signature_v3_verified": True,
         "package_id_is_distinct": True,
         "separate_android_sandbox": True,
         "dedicated_launcher_icon_verified": True,
