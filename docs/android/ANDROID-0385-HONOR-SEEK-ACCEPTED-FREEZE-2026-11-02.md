@@ -50,3 +50,17 @@ This evidence strongly supports that replacing network-backed streaming seeks wi
 Focus ONLY on occasional imperfect beginnings/Next attachment after the owner has enjoyed and confirmed this baseline. First correlate a short **single problematic intro** captured with actual audible sound against a contemporaneous diagnostic, if the owner elects to supply it; Android's internal screen recorder may omit protected playback, in which case an external microphone recording can be more trustworthy. Do not demand another exhaustive scrubbing test. Separate full-file download time, local muted prewarm, decoder clock gate, and 160ms complementary join. Explore a streaming-start/background-local hybrid only on a separate nonpublishing branch with explicit proof and the golden seek behavior preserved. No blind timing tweaks.
 
 **Acceptance status:** 0.3.85 accepted by owner as the new **seeking-listening baseline**. Intro/Next acoustic polish remains open. No new APK was created for the freeze.
+
+
+## Owner clarification after the initial freeze — 2026-11-02
+
+The freeze is specifically an acceptance of the **seeking behavior**, not acceptance of all audio work.
+
+- Seeking is owner-accepted on HONOR for the tested scenarios, including ordinary in-song finger seeking and seeking after Next.
+- Song beginnings/new-track joins remain open: substantially improved, sometimes imperceptible, but still audibly imperfect on some tracks.
+- Yandex Music's own crossfade is currently OFF. Phase one is to perfect CELIKOM's beginning/join with that setting OFF. Phase two is a separate test with Yandex crossfade enabled, only after phase one is accepted.
+- The owner's rough overall progress estimate is ~70%; do not convert this into an objective completion metric or claim the project is done.
+
+### Backup-ref protection status
+
+The exact 0.3.85 source commit remains `053b7d59beb53db5f30b942feba35e51a1ab256a`. A second recovery ref, `backup/android-0385-honor-seek-accepted-recovery-20261102`, now points to the same commit as `backup/android-0385-honor-seek-accepted-20261102`. GitHub currently reports `protected=false` for both refs: they are preserved backup branches, **not configured GitHub branch-protected refs**. Never force-push, delete, or repoint them. The full rollback procedure and the OTA versionCode constraint are documented in [ANDROID-0385-INTRO-JOIN-INVESTIGATION-HANDOFF-2026-11-02.md](ANDROID-0385-INTRO-JOIN-INVESTIGATION-HANDOFF-2026-11-02.md).
