@@ -132,7 +132,10 @@ public final class TestLookaheadPrefetchHandoff {
  }
  static void currentWaitHasTimeout()throws Exception{
   beginLookahead();promoteCurrent(descriptor(1),true);
-  android.os.SystemClock.now+=10001;TestEngine.p.handler.drain();
+  android.os.SystemClock.now+=10001;
+  // The real service samples the live Media3 item every 250 ms.
+  TestEngine.p.current=TestEngine.source("2",11000,true);
+  TestEngine.p.handler.drain();
   check(TestEngine.api.downloads==2&&TestEngine.e.preparing
       &&!TestEngine.e.lookaheadPrefetchWait,
     "a hung promoted prefetch falls back after a bounded current wait");
