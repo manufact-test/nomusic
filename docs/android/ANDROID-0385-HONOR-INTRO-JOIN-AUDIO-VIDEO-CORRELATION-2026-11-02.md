@@ -83,6 +83,10 @@ This is a diagnostic candidate, not a presumed fix. Exclusive switching may clic
 - CI produced only the offline build kit and unsigned DEX inspection artifact. No signed/installable APK was built and no stable OTA/manifest change was made. Do not publish to the live stable channel without explicit owner authorization.
 - If CI passes, use only a short, representative HONOR listening test of the cold join. No broad repeat seek test.
 
+## Owner-approved next delivery — side-by-side test app
+
+The owner explicitly selected a **separate installed application**, not an in-place update. Build one signed `CELIKOM Test` APK with Android package `pro.celikom.nativeprobe.test`, separate app storage, original signing certificate, and all stable OTA/update behavior disabled. The detailed exact requirements are in [ANDROID-0385-SIDEBY-SIDE-TEST-APP-BUILD-HANDOFF-2026-11-02.md](ANDROID-0385-SIDEBY-SIDE-TEST-APP-BUILD-HANDOFF-2026-11-02.md). The existing same-package `test_only` path must not be used as-is. Deliver as a GitHub Actions artifact; do not publish to Hostinger or change stable 0.3.85/code86. The owner will stop stable CELIKOM before running the test app and listen to one or two cold/new-track starts with Yandex crossfade OFF.
+
 ## Preservation
 
 - Accepted 0.3.85 source SHA: `053b7d59beb53db5f30b942feba35e51a1ab256a`.
