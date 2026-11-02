@@ -36,35 +36,22 @@ After the fix, validation run [#41440905435](https://github.com/manufact-test/no
 
 GitHub requires a `workflow_dispatch` workflow file to exist on the default branch. Therefore the same manual-only workflow file is also registered on `main` by workflow-only commit `b836793d0e70eca708cd3673c615f19b0c6075b3`. That commit adds only `.github/workflows/android-0385-test-app-build.yml`; it does not merge PR #37 or change Android source, stable release metadata, publisher or OTA. The workflow page is [here](https://github.com/manufact-test/nomusic/actions/workflows/android-0385-test-app-build.yml).
 
-**SIGNED TEST APK BUILT — SUCCESS.** Manual workflow run [#41442357959](https://github.com/manufact-test/nomusic/actions/runs/41442357959) completed successfully on source commit `05a99d64d0c59405cff1faeda51e45246b851b25`. GitHub Actions artifact:
-- Artifact name: `CELIKOM-Test-0.3.85-test-code-86085`
-- Artifact ID: `13140432584`
-- Artifact ZIP SHA-256: `d79e6b71992d2daaa8ff742fa22cacf555ddc4186245bf3ee5fe3de02900b176`
-- Artifact expires: 2026-11-09 12:10:21 UTC
-- Contents: signed APK, verifier JSON, immutable build receipt JSON.
+**FIRST SIGNED APK BUILT, THEN SUPERSEDED BY A LAUNCHER-LABEL HARDENING FIX.** The first manual workflow run [#41442357959](https://github.com/manufact-test/nomusic/actions/runs/41442357959) completed successfully and produced artifact ID `13140432584`, APK SHA-256 `1a516c4c523079fdb260735f47210a62b389dc869676b58fe488299b2c0a9544`. It was signed with the original certificate, but its manifest set the app-level label only and relied on the launcher activity inheriting it. The owner asked that the label next to the launcher icon be unambiguously distinct. **Do not install/use this first APK; a corrected rebuild is required.**
 
-Final APK:
-- File: `CELIKOM-Android-0.3.85-TEST-SIGNED.apk`
-- SHA-256: `1a516c4c523079fdb260735f47210a62b389dc869676b58fe488299b2c0a9544`
-- Size: 8,747,161 bytes
-- Package: `pro.celikom.nativeprobe.test`; label: `CELIKOM Test`
-- Version: `0.3.85-test`; versionCode: `86085`
-- Signer certificate SHA-256: `67fe81c56fac1c1d145344b69a0e3faf9005cf6607f4e26ca27d5926c3eefc4f`; verifier confirms it matches the original stable CELIKOM signing certificate.
-- Signature Scheme v3: verified. v2: absent/not verified; this is expected because the pinned original base APK is v3-only.
+**Launcher-label correction implemented:** `build_test_release.py` now explicitly writes `android:label="CELIKOM Test"` onto the unique activity carrying both MAIN and LAUNCHER intent filters, not just the application element. `verify_test_release.py` independently requires that explicit launcher activity label and emits `launcher_label_verified: true` in the verification JSON. The immutable receipt also records that field. The static packaging contract checks that builder/verifier gate exists.
 
-The workflow log confirms: full native host suite PASS; 32 cold-join exclusive-handover checks PASS; unchanged `check_0385_seek_baseline.py` PASS; Android API 36 and D8 PASS; addon host gates PASS; final APK structure/signature/identity/OTA verifier PASS. The verifier specifically confirms distinct package/sandbox, dedicated launcher icon, unique authorities, no updater classes/constructor/job/receiver, no stable manifest reference, no `REQUEST_INSTALL_PACKAGES`, original assets unchanged, exact test DEX and matching original signer.
+Validation run [#41449574918](https://github.com/manufact-test/nomusic/actions/runs/41449574918) passed on source commit `043bc5e480a58bce96d7adb9d5c8d311b080870e`: full native host suite, unchanged `check_0385_seek_baseline.py`, Android API 36, D8, and CELIKOM Test packaging identity/OTA-isolation contract. Stable publisher jobs were skipped. Offline toolchain artifact `celikom-android-offline-kit` ID `13144476807` is available.
 
-Safety receipt confirms `stable_published: false`, `stable_ota_touched: false`, `hostinger_write_performed: false`. Stable 0.3.85/code86, its OTA and publisher were not changed. PR #37 remains open and unmerged. No audio or accepted seek implementation was modified by this packaging fix.
+**Next step:** run the manual workflow again using branch `feature/android-0385-intro-join-investigation-20261102`, confirm the separate test APK checkbox, and wait for success. The workflow can use validation run #41449574918 (later documentation-only commits do not alter guarded build paths). Download and inspect the new artifact; verify `launcher_label_verified: true` in the receipt before delivering the APK to ChatGPT Library. Do not install until the corrected APK is signed and its final-byte SHA-256 verified.
 
-**Important acceptance boundary:** physical HONOR playback and acoustic acceptance are still pending. The build is installable, but this is not yet proof that the audio transition sounds correct on the phone. Owner's one device check: keep stable CELIKOM installed; stop/close it before opening CELIKOM Test; keep Yandex Music Crossfade OFF; sign in separately if requested; listen to one or two representative new-song starts only. Do not repeat the accepted seek tests.
-
+The corrected APK retains package `pro.celikom.nativeprobe.test`, label `CELIKOM Test`, version `0.3.85-test` / code `86085`, separate icon and sandbox, unique authorities, original signer, and no OTA/update mechanism. No audio or accepted seek code is changed by this label-only packaging correction.
 Stable CELIKOM 0.3.85/code86, stable release contract, publisher, OTA endpoint and backup branches remain outside this build path. No audio/seek implementation was changed by the packaging work.
 
 ## Exact source checkpoint
 
 - Repository: `manufact-test/nomusic`
 - Work branch: `feature/android-0385-intro-join-investigation-20261102`
-- Packaging source commit: `ef634ba7a91bf247873a5c1bd4e96a6d5985135e`; validation run [#41440905435](https://github.com/manufact-test/nomusic/actions/runs/41440905435) is green for this exact SHA. Documentation-only handoff updates may advance branch HEAD; manual workflow confirms the successful validation commit is an ancestor and all guarded packaging/audio paths are unchanged. Audio experiment implementation remains the PR #37 code; packaging changes are isolated from seek/playback logic.
+- Packaging source commit: `043bc5e480a58bce96d7adb9d5c8d311b080870e`; validation run [#41449574918](https://github.com/manufact-test/nomusic/actions/runs/41449574918) is green for this exact SHA. Documentation-only handoff updates may advance branch HEAD; manual workflow confirms the successful validation commit is an ancestor and all guarded packaging/audio paths are unchanged. Audio experiment implementation remains the PR #37 code; packaging changes are isolated from seek/playback logic.
 - Draft experiment PR: [#37](https://github.com/manufact-test/nomusic/pull/37), open and unmerged.
 - Experiment CI: [#41419113128](https://github.com/manufact-test/nomusic/actions/runs/41419113128), PASS (32 cold-join checks, full native host suite, accepted seek guard, Android API 36 and D8).
 - Accepted 0.3.85 seek source: `053b7d59beb53db5f30b942feba35e51a1ab256a`.
