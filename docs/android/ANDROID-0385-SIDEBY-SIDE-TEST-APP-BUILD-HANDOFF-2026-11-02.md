@@ -26,7 +26,7 @@ Implemented on this branch:
 
 The manual workflow uses the existing repository secrets `CELIKOM_HOSTINGER_SSH_KEY`, `CELIKOM_HOSTINGER_KNOWN_HOSTS`, `CELIKOM_ANDROID_SIGNING_P12_B64`, and `CELIKOM_ANDROID_SIGNING_JSON_B64`. It retrieves the pinned baseline by read-only SCP, validates the exact SHA, and signs only in the ephemeral GitHub runner. It uploads only the test APK plus verification JSON and receipt; it has no Hostinger write, stable publisher, or stable manifest step.
 
-**Signature detail:** the pinned original base APK verifies with APK Signature Scheme v3 (not v2). The final test APK verifier therefore checks the original base's v3 signature and certificate, then requires the final newly signed APK to verify with both v2 and v3 using the same original certificate. Do not require v2 on the original base APK.
+**Signature detail:** the pinned original base APK verifies with APK Signature Scheme v3 (not v2). The final test APK verifier checks the original base's v3 signature and certificate, then requires the newly signed APK to verify with v3 and the same original certificate. The v2 result is recorded truthfully if present; the repository's standard apksigner invocation may produce v3 without v2. Do not require v2 on either APK.
 
 The builder runs the unchanged full native host suite and unchanged `check_0385_seek_baseline.py`, compiles against Android API 36, runs D8, removes all three updater Java sources from the test DEX, removes the updater construction from `RecorderActivity`, changes the visible update panel to the static disabled notice, and verifies no updater classes/references, stable manifest URL, install permission, or updater components remain.
 
@@ -139,7 +139,7 @@ The artifact must be installable and signed. An unsigned inspection APK is not a
 5. App label is `CELIKOM Test`; test versionName/code are the declared test values.
 6. All package-specific manifest authorities and signature permissions are unique; no provider authority collision remains.
 7. Test APK has no update UI/constructor, no scheduled update job, no updater receiver, no `REQUEST_INSTALL_PACKAGES`, and no stable-manifest request.
-8. Original base APK's v3 signature verifies; final test APK verifies with v2 and v3 and matches stable certificate SHA-256 `67fe81c56fac1c1d145344b69a0e3faf9005cf6607f4e26ca27d5926c3eefc4f`.
+8. Original base APK's v3 signature verifies; final test APK's v3 signature verifies and matches stable certificate SHA-256 `67fe81c56fac1c1d145344b69a0e3faf9005cf6607f4e26ca27d5926c3eefc4f`.
 9. Stable APK and stable release metadata are byte-for-byte untouched; the manual build may perform only the pinned baseline's read-only SCP fetch. No Hostinger write, stable.json read/write, or publisher is allowed.
 10. Produce a receipt with source commit, package, label, versionName/code, signer SHA-256, APK SHA-256, file size, CI run URL, and `stable_published: false`.
 

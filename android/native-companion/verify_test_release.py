@@ -25,7 +25,7 @@ def run(command):
     subprocess.run(list(map(str, command)), check=True)
 
 
-def certificate(apk, build_tools, require_v2=True):
+def certificate(apk, build_tools):
     output = subprocess.check_output([
         "java", "-jar", str(build_tools / "lib/apksigner.jar"),
         "verify", "--verbose", "--print-certs", str(apk),
@@ -33,14 +33,11 @@ def certificate(apk, build_tools, require_v2=True):
     match = re.search(r"Signer #1 certificate SHA-256 digest: ([a-f0-9]+)", output)
     if not match:
         raise ValueError("APK signing certificate is missing")
-    v3_marker = "Verified using v3 scheme (APK Signature Scheme v3): true"
-    if v3_marker not in output:
-        raise ValueError("APK Signature Scheme v3 verification failed")
-    if require_v2:
-        v2_marker = "Verified using v2 scheme (APK Signature Scheme v2): true"
-        if v2_marker not in output:
-            raise ValueError("Final test APK must verify with APK Signature Scheme v2")
-    return match.group(1)
+    v2 = "Verified using v2 scheme (APK Signature Scheme v2): true" in output
+    v3 = "Verified using v3 scheme (APK Signature Scheme v3): true" in output
+    if not (v2 or v3):
+        raise ValueError("APK has no verified modern v2/v3 signature")
+    return match.group(1), v2, v3
 
 
 def structure(node):
@@ -65,8 +62,12 @@ def main():
     if sha(args.compiled_dex) == "":
         raise ValueError("Compiled DEX is missing")
 
-    signer = certificate(args.apk, args.build_tools, require_v2=True)
-    base_signer = certificate(args.base_apk, args.build_tools, require_v2=False)
+    signer, signer_v2, signer_v3 = certificate(args.apk, args.build_tools)
+    base_signer, base_v2, base_v3 = certificate(args.base_apk, args.build_tools)
+    if not base_v3:
+        raise ValueError("Pinned original base APK must verify with its v3 signature")
+    if not signer_v3:
+        raise ValueError("Final CELIKOM Test APK must verify with its v3 signature")
     if signer != base_signer or signer != SPEC["signing_certificate_sha256"]:
         raise ValueError("Test APK signer does not match the original CELIKOM certificate")
 
@@ -197,9 +198,10 @@ def main():
         "label": SPEC["label"],
         "signer_sha256": signer,
         "signer_matches_original": signer == SPEC["signing_certificate_sha256"],
-        "signature_v2_verified": True,
-        "signature_v3_verified": True,
-        "base_signature_v3_verified": True,
+        "signature_v2_verified": signer_v2,
+        "signature_v3_verified": signer_v3,
+        "base_signature_v2_verified": base_v2,
+        "base_signature_v3_verified": base_v3,
         "package_id_is_distinct": True,
         "separate_android_sandbox": True,
         "dedicated_launcher_icon_verified": True,

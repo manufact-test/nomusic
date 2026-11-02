@@ -24,7 +24,8 @@ for excluded in ("UpdateCenter.java", "UpdateCheckJob.java", "UpdateInstallRecei
     assert excluded in builder, "Test builder must explicitly exclude updater source: " + excluded
 for required in ("check_0385_seek_baseline.py", "UpdateCenter", "REQUEST_INSTALL_PACKAGES", "celikom_test_icon.xml", "BuildConfig.smali"):
     assert required in builder or required in verifier, "Missing test build safety gate: " + required
-assert "require_v2=False" in verifier and "require_v2=True" in verifier
+assert "if not (v2 or v3)" in verifier
+assert "base_v3" in verifier and "signer_v3" in verifier
 assert "APK Signature Scheme v3" in verifier
 assert "APPLICATION_ID" in builder and "SPEC[\"package\"]" in builder
 assert "BuildConfig" in verifier and "SPEC[\"stable_package\"]" in verifier
