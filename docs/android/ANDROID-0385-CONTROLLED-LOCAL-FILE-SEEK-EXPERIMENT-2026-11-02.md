@@ -4,7 +4,7 @@
 
 - Source: `release/android-0.3.84-stable` at `c53cc467eaa6682e006e78d470bc1db5d19e43e2`.
 - Experiment branch: `feature/android-0385-local-file-seek-controlled-20261102`.
-- Test identity only: `0.3.85`, versionCode `86`. Physical HONOR acoustic acceptance is **NOT** established.
+- Published experiment: `0.3.85`, versionCode `86`. After the owner retest, **seeking is accepted for the tested HONOR scenarios; beginnings/new-track joins remain acoustically unaccepted**. Yandex Music crossfade is currently OFF and has not yet been compatibility-tested with CELIKOM.
 - Protected backups `backup/android-0384-before-local-seek-experiment-20261102`, `backup/android-0382-stable-listening-baseline-20261101`, and `backup/android-0378-original-before-cached-join-20261101` are untouched.
 - No Android updater, backend, website, browser extension, database, catalogue, or account changes.
 
@@ -47,3 +47,12 @@ After **every new authorized live resolve**, a cache miss now invokes the existi
 ## OTA routing caveat
 
 The installed CELIKOM updater reads **only the Hostinger `stable.json`**. A private GitHub Actions artifact or an isolated PR does not appear behind **Проверить обновление**. Delivering this test through the owner's requested in-app button therefore requires a versionCode 86 signed publish to that same channel. Treat it as an **experiment distributed via the stable transport**, not acoustic approval or a claim that 0.3.85 is stable. Do not modify the updater itself; verify and record the manifest and immutable APK receipt if and only if the build passes all gates.
+
+
+## Post-publication owner verdict and superseding next step — 2026-11-02
+
+The owner has now confirmed that the full-local-file path removed the previously audible seek lag in the tested HONOR scenarios, including seeks after Next. This accepts the **seek behavior only**. It does not close the intro/new-track join issue: beginnings are substantially better but still audibly imperfect on some songs.
+
+The former "one short HONOR test" gate in this experiment plan has been completed for seeking. Do not request another generic seek retest. The owner will provide a new focused diagnostic and video/recording of problematic beginnings. The next investigation is limited to CELIKOM's cold/new-track join while Yandex Music crossfade is OFF. Only after that behavior is accepted should Yandex Music crossfade be enabled and tested as a separate phase.
+
+The accepted seek submission, asynchronous completion, and local-file selection blocks are guarded by `tests/check_0385_seek_baseline.py`; keep that guard enabled and do not change those blocks during intro work. See [ANDROID-0385-INTRO-JOIN-INVESTIGATION-HANDOFF-2026-11-02.md](ANDROID-0385-INTRO-JOIN-INVESTIGATION-HANDOFF-2026-11-02.md) for current branches, rollback procedure, and evidence requirements.
