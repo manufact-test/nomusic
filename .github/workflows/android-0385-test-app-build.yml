@@ -1,0 +1,208 @@
+name: CELIKOM Android 0.3.85 side-by-side test APK (manual only)
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm_build:
+        description: Confirm that this is a separate CELIKOM Test APK, not a stable update.
+        required: true
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: celikom-android-side-by-side-test-apk
+  cancel-in-progress: false
+
+jobs:
+  build-test-app:
+    if: github.ref == 'refs/heads/feature/android-0385-intro-join-investigation-20261102'
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - name: Checkout exact experiment branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Require explicit manual confirmation
+        env:
+          CONFIRM_BUILD: ${{ inputs.confirm_build }}
+          EXPECTED_BRANCH: feature/android-0385-intro-join-investigation-20261102
+          ACTUAL_BRANCH: ${{ github.ref_name }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$CONFIRM_BUILD" = "true"
+          test "$ACTUAL_BRANCH" = "$EXPECTED_BRANCH"
+          test "$GITHUB_REPOSITORY" = "manufact-test/nomusic"
+          python3 android/native-companion/tests/check_test_app_build_contract.py
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Download the successful offline toolchain for this exact commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_SHA: ${{ github.sha }}
+          SOURCE_BRANCH: ${{ github.ref_name }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh api "repos/$GITHUB_REPOSITORY/actions/workflows/android-0348-validation.yml/runs?branch=$SOURCE_BRANCH&status=completed&per_page=100" > "$RUNNER_TEMP/validation-runs.json"
+          SOURCE_RUN="$(python3 - <<'PY'
+          import json,os,pathlib
+          data=json.loads(pathlib.Path(os.environ['RUNNER_TEMP'],'validation-runs.json').read_text())
+          matches=[str(run['id']) for run in data.get('workflow_runs',[]) if run.get('head_sha')==os.environ['SOURCE_SHA'] and run.get('conclusion')=='success']
+          print(matches[0] if matches else '')
+          PY
+          )"
+          test -n "$SOURCE_RUN"
+          mkdir -p "$RUNNER_TEMP/kit"
+          gh run download "$SOURCE_RUN" --repo "$GITHUB_REPOSITORY" --name celikom-android-offline-kit --dir "$RUNNER_TEMP/kit"
+          test -s "$RUNNER_TEMP/kit/apktool_2.11.1.jar"
+          test -s "$RUNNER_TEMP/kit/sdk/platforms/android-36/android.jar"
+          test -s "$RUNNER_TEMP/kit/build-tools/36.0.0/lib/d8.jar"
+          test -s "$RUNNER_TEMP/kit/build-tools/36.0.0/lib/apksigner.jar"
+          chmod +x "$RUNNER_TEMP/kit/build-tools/36.0.0/aapt" "$RUNNER_TEMP/kit/build-tools/36.0.0/zipalign"
+          echo "SOURCE_RUN=$SOURCE_RUN" >> "$GITHUB_ENV"
+
+      - name: Read-only fetch of the pinned original CELIKOM base APK
+        env:
+          HOST_KEY: ${{ secrets.CELIKOM_HOSTINGER_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.CELIKOM_HOSTINGER_KNOWN_HOSTS }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$HOST_KEY" && test -n "$KNOWN_HOSTS"
+          umask 077
+          mkdir -p "$RUNNER_TEMP/private"
+          printf '%s\n' "$HOST_KEY" > "$RUNNER_TEMP/private/id_host"
+          printf '%s\n' "$KNOWN_HOSTS" > "$RUNNER_TEMP/private/known_hosts"
+          chmod 600 "$RUNNER_TEMP/private/id_host" "$RUNNER_TEMP/private/known_hosts"
+          scp -P 65002 -i "$RUNNER_TEMP/private/id_host" \
+            -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
+            -o UserKnownHostsFile="$RUNNER_TEMP/private/known_hosts" \
+            u235811320@92.113.19.189:/home/u235811320/domains/lemonchiffon-narwhal-791953.hostingersite.com/celikom-private/android-build-inputs/CELIKOM-0.3.22-install.apk \
+            "$RUNNER_TEMP/private/base.apk"
+          echo "170b1883e292570d28a3b5c619cf000eaccd9d11ee85ca6f6c08f7b50e5f72c9  $RUNNER_TEMP/private/base.apk" | sha256sum -c -
+
+      - name: Reconstruct original signing inputs in a private runner directory
+        env:
+          P12_B64: ${{ secrets.CELIKOM_ANDROID_SIGNING_P12_B64 }}
+          SIGN_JSON_B64: ${{ secrets.CELIKOM_ANDROID_SIGNING_JSON_B64 }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$P12_B64" && test -n "$SIGN_JSON_B64"
+          umask 077
+          mkdir -p "$RUNNER_TEMP/private/signing"
+          printf %s "$P12_B64" | base64 -d > "$RUNNER_TEMP/private/signing/celikom-native-probe.p12"
+          printf %s "$SIGN_JSON_B64" | base64 -d > "$RUNNER_TEMP/private/signing/signing.json"
+          python3 -m json.tool "$RUNNER_TEMP/private/signing/signing.json" >/dev/null
+          test "$(stat -c %s "$RUNNER_TEMP/private/signing/celikom-native-probe.p12")" -gt 1000
+          test "$(stat -c %s "$RUNNER_TEMP/private/signing/celikom-native-probe.p12")" -lt 65536
+          chmod 600 "$RUNNER_TEMP/private/signing/"*
+
+      - name: Build, regression-test, sign and verify the separate CELIKOM Test APK
+        env:
+          LD_LIBRARY_PATH: ${{ runner.temp }}/kit/build-tools/36.0.0/lib64
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT=android/native-companion
+          KIT="$RUNNER_TEMP/kit"
+          OUT="$RUNNER_TEMP/CELIKOM-Android-0.3.85-TEST-SIGNED.apk"
+          python3 "$ROOT/build_test_release.py" \
+            --sdk "$KIT/sdk" \
+            --build-tools "$KIT/build-tools/36.0.0" \
+            --apktool "$KIT/apktool_2.11.1.jar" \
+            --base-apk "$RUNNER_TEMP/private/base.apk" \
+            --signing-dir "$RUNNER_TEMP/private/signing" \
+            --deps-dir "$KIT/native-companion/deps" \
+            --work-dir "$RUNNER_TEMP/test-build-work" \
+            --output "$OUT"
+          test -s "$OUT"
+          test -s "$RUNNER_TEMP/CELIKOM-Android-0.3.85-TEST-SIGNED.verification.json"
+          echo "TEST_APK=$OUT" >> "$GITHUB_ENV"
+
+      - name: Create immutable JSON build receipt
+        env:
+          SOURCE_SHA: ${{ github.sha }}
+          SOURCE_BRANCH: ${{ github.ref_name }}
+          WORKFLOW_RUN: ${{ github.run_id }}
+          WORKFLOW_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib,json,os,pathlib,datetime
+          apk=pathlib.Path(os.environ['TEST_APK'])
+          verification=apk.with_suffix('.verification.json')
+          proof=json.loads(verification.read_text())
+          with apk.open('rb') as stream:
+              digest=hashlib.file_digest(stream,'sha256').hexdigest()
+          if digest != proof['apk_sha256']:
+              raise SystemExit('APK SHA-256 does not match final-byte verification')
+          receipt={
+            "format":"celikom-side-by-side-test-apk-receipt-v1",
+            "build_utc":datetime.datetime.now(datetime.timezone.utc).isoformat(),
+            "source_repository":os.environ["GITHUB_REPOSITORY"],
+            "source_branch":os.environ["SOURCE_BRANCH"],
+            "source_commit":os.environ["SOURCE_SHA"],
+            "workflow_run_id":int(os.environ["WORKFLOW_RUN"]),
+            "workflow_run_url":os.environ["WORKFLOW_URL"],
+            "base_apk_sha256":"170b1883e292570d28a3b5c619cf000eaccd9d11ee85ca6f6c08f7b50e5f72c9",
+            "apk_filename":apk.name,
+            "apk_sha256":digest,
+            "size_bytes":apk.stat().st_size,
+            "package":proof["package"],
+            "stable_package":proof["stable_package"],
+            "label":proof["label"],
+            "version_name":proof["version"],
+            "version_code":proof["version_code"],
+            "signing_certificate_sha256":proof["signer_sha256"],
+            "signer_matches_original":proof["signer_matches_original"],
+            "signature_v2_verified":proof["signature_v2_verified"],
+            "signature_v3_verified":proof["signature_v3_verified"],
+            "separate_android_sandbox":proof["separate_android_sandbox"],
+            "dedicated_launcher_icon_verified":proof["dedicated_launcher_icon_verified"],
+            "test_authorities_unique":proof["test_authorities_unique"],
+            "ota_updater_absent":proof["ota_updater_absent"],
+            "stable_manifest_reference_absent":proof["stable_manifest_reference_absent"],
+            "request_install_packages_absent":proof["request_install_packages_absent"],
+            "original_assets_unchanged":proof["original_assets_unchanged"],
+            "regression_checks":{
+              "full_native_host_suite":"passed",
+              "cold_join_exclusive_experiment":"passed",
+              "check_0385_seek_baseline_unchanged":"passed",
+              "android_api_36":"passed",
+              "d8":"passed"
+            },
+            "stable_published":False,
+            "stable_ota_touched":False,
+            "hostinger_write_performed":False,
+            "physical_phone_playback_verified":False,
+            "acoustic_acceptance":False
+          }
+          out=pathlib.Path(os.environ["RUNNER_TEMP"],"CELIKOM-Android-0.3.85-TEST-RECEIPT.json")
+          out.write_text(json.dumps(receipt,ensure_ascii=False,indent=2)+"\n",encoding="utf-8")
+          print(json.dumps(receipt,ensure_ascii=False,indent=2))
+          PY
+
+      - name: Upload signed test APK and verification receipt only
+        uses: actions/upload-artifact@v4
+        with:
+          name: CELIKOM-Test-0.3.85-test-code-86085
+          path: |
+            ${{ runner.temp }}/CELIKOM-Android-0.3.85-TEST-SIGNED.apk
+            ${{ runner.temp }}/CELIKOM-Android-0.3.85-TEST-SIGNED.verification.json
+            ${{ runner.temp }}/CELIKOM-Android-0.3.85-TEST-RECEIPT.json
+          if-no-files-found: error
+          retention-days: 7
