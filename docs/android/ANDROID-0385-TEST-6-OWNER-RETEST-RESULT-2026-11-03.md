@@ -39,6 +39,12 @@ ZIP «Сытый пёс(2).zip»: CELIKOM-combined-20261103-001100.txt и SVID_2
 
 Recovery at elapsed12.045 с (`drift_unstable`, drift ~952 мс): защитный откат к исходному звуку; другие recovery at 33.075 с `source_end`, at 68.637 с `replacement_end`. Не доказан бесконечный mid-song dropout, но это **не подтверждает** долгосрочную стабильность. Видеозапись ~112 с содержит mono mixed AAC и тихие окна (напр., 58.13–61.26 с при -35dB); без изолированных Yandex/replacement PCM и точного offset невозможно приписать тишину одному приложению или контенту. Timestamp команд ≠ слышимое начало PCM.
 
+## Дополнительный анализ исходников (гипотеза для следующего эксперимента)
+
+- В `ProbeService.sampleLookahead()` read-only Media3 timeline для **того же текущего трека** опрашивается не чаще раза в **2000 мс**; при неполных альбомных метаданных `LookaheadPrefetchPolicy.STABLE_METADATA_SAMPLES=2` ждёт два стабильных наблюдения. Это **возможная** причина позднего начала prefetch через ~2.235 с после предыдущего boundary при быстром Next. Проверить реальные `source_next_readonly_observation` и `metadataStableSamples` для проблемного перехода, не считать корреляцию доказательством.
+- Кандидат безопасного ускорения — read-only poll interval ~500–750 мс при прежних двух стабильных образцах и строгой identity, без дополнительных HTTP-запросов на каждый тик, без изменения MIN_LEAD_MS=3000, current promoted prefetch priority или AudioOwnership. Нужны deterministic host tests, полный CI API36/D8 и прослушивание на HONOR **до выпуска следующей APK**.
+- `ReplacementEngine.update()` после source identity выполняет свежий `api.resolve` прежде чем принять prefetched file. Это отдельная причина задержки ~750 мс, которую частотой Media3 наблюдения не исправить; проверку fresh авторизации и audioKey обходить нельзя.
+
 ## Что делать дальше
 
 **Главный приоритет — начало песен.** Найти безопасную оптимизацию свежего backend current resolve и способ заблаговременного downloading при быстром Next; сверить с исходным кодом. Никаких speculative обходов точной идентификации, авторизации, current-handoff lease, AudioOwnership, принятой seek/Pause/Resume. Если конкретной безопасной правки пока нет, оставить Test.6 как проверенный owner checkpoint; не выпускать диагностические или косметические APK отдельно. При реальном фиксе объединить изменения в одной Test APK >86091 с полным regression suite, неизменным seek baseline, API36/D8, CI, оригинальной подписью, SHA/verification/receipt и Library.
