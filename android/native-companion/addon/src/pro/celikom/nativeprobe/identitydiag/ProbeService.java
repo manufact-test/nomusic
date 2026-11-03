@@ -176,6 +176,29 @@ public class ProbeService extends Service {
   legacyBrowser=null;
  }
 
+ /* Short post-prepare source polling avoids a full periodic-tick wait at the cold join.
+    It never seeks, controls Yandex, or grants audio permission. */
+ boolean fastJoinSampling;long fastJoinDeadlineMs;
+ void requestFastJoinSamples(){
+  if(!alive()||replacement==null||!replacement.armed())return;
+  fastJoinDeadlineMs=SystemClock.elapsedRealtime()+FastJoinPollPolicy.BUDGET_MS;
+  if(fastJoinSampling)return;
+  fastJoinSampling=true;
+  LogStore.log("replacement_fast_join_poll_started",LogStore.map("maxMs",FastJoinPollPolicy.BUDGET_MS,"stepMs",FastJoinPollPolicy.STEP_MS,"audioCommandSent",false));
+  handler.postDelayed(new Runnable(){public void run(){
+   ReplacementEngine engine=replacement;
+   long now=SystemClock.elapsedRealtime();
+   boolean eligible=engine!=null&&FastJoinPollPolicy.eligible(
+    alive(),now,fastJoinDeadlineMs,engine.armed(),engine.player!=null,engine.ready,
+    engine.effect!=null,engine.trustedSession>0,current!=null&&current.playing,
+    current!=null&&Objects.equals(engine.identityKey,current.key));
+   if(!eligible){fastJoinSampling=false;return;}
+   sample(false);
+   if(!alive()||replacement!=engine||engine.effect!=null){fastJoinSampling=false;return;}
+   handler.postDelayed(this,FastJoinPollPolicy.STEP_MS);
+  }},FastJoinPollPolicy.INITIAL_MS);
+ }
+
  void sample(boolean event){if(!alive())return;lastSampleAt=SystemClock.elapsedRealtime();sampleCount++;String outputs=route();if(!outputs.equals(lastRoutes)){lastRoutes=outputs;LogStore.log("audio_outputs_changed",LogStore.map("availableOutputTypes",outputs,"activeSourceRouteKnown",false));}androidx.media3.session.MediaController c=controller;if(c==null||!c.isConnected()){if(c!=null){controller=null;c.release();}connect();current=null;if(replacement!=null)replacement.update(null);return;}try{MediaItem item=c.getCurrentMediaItem();if(item==null){current=null;replacement.update(null);long now=SystemClock.elapsedRealtime();if(emptySince<0)emptySince=now;if(now-emptySince>=5000){controller=null;c.release();emptySince=-1;connect();}return;}
    int nativeState=c.getPlaybackState();MediaMetadata m=item.mediaMetadata;String title=m.title==null?"":m.title.toString(),artist=m.artist==null?"":m.artist.toString(),cover=m.artworkUri==null?null:m.artworkUri.toString();long duration=c.getDuration();
    boolean usable=nativeState!=Player.STATE_ENDED&&nativeState!=Player.STATE_IDLE&&duration>0&&!title.trim().isEmpty();

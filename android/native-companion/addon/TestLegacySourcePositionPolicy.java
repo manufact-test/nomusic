@@ -39,6 +39,17 @@ public final class TestLegacySourcePositionPolicy {
    "expired platform clock fails closed");
   check(!fresh.unavailable("99").failClosed,
    "track boundary resets fallback lifetime");
+  LegacySourcePositionPolicy paused=new LegacySourcePositionPolicy();
+  take(paused,"77",9700,196000,300,30000);
+  check(take(paused,"77",10000,196300,600,30300).override,
+   "live recovery before pause");
+  LegacySourcePositionPolicy.Decision pauseHold=paused.reconcile("77","Дым","Лёша Свик",219000,
+   10200,false,"Дым","Лёша Свик",219000,196700,60000,false,30600);
+  check(pauseHold.override&&!pauseHold.failClosed&&pauseHold.position==196700,
+   "verified paused source retains the same recovered timeline without an unwanted reset");
+  check(paused.reconcile("77","Дым","Лёша Свик",219000,
+   10200,false,"Дым","Лёша Свик",219000,196700,310000,false,30900).failClosed,
+   "a very old paused source still fails closed");
   System.out.println("PASS: "+checks+" independent Android platform position fencing checks");
  }
 }

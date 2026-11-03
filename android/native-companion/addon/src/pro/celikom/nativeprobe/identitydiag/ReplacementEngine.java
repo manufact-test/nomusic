@@ -880,7 +880,7 @@ final class ReplacementEngine {
       "trackId",trackId,"sourceItemGeneration",owner.sourceItemGeneration,
       "freshResolveRequired",true,"measuredDurationVerified",true,"audioKeyMatches",true));
     }
-    status=armed()?"Аудио готово; синхронизируем":"Аудио готово заранее; можно включать автозамену";logTrace("replacement_prepared",LogStore.map("trackId",trackId,"measuredDurationMs",mp.getDuration(),"sourceDurationMs",now.duration,"separateAudioSession",true,"beforeArm",!armed()));update(now);};p.setOnPreparedListener(livePrepared);p.setOnSeekCompleteListener(mp->completeSeek(mp,key));
+    status=armed()?"Аудио готово; синхронизируем":"Аудио готово заранее; можно включать автозамену";logTrace("replacement_prepared",LogStore.map("trackId",trackId,"measuredDurationMs",mp.getDuration(),"sourceDurationMs",now.duration,"separateAudioSession",true,"beforeArm",!armed()));owner.requestFastJoinSamples();update(now);};p.setOnPreparedListener(livePrepared);p.setOnSeekCompleteListener(mp->completeSeek(mp,key));
     if(decoderPrimed)livePrepared.onPrepared(p);else p.prepareAsync();if(source!=null)source.prefetch();final MediaPlayer preparingPlayer=p;owner.handler.postDelayed(()->{if(player==preparingPlayer&&!ready)suspend("prepare_timeout",retryDelay());},10000);
    }catch(Exception e){suspend("prepare_failed",retryDelay());status="Не удалось подготовить аудио; играет оригинал";}
  }

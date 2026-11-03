@@ -3,7 +3,7 @@ import java.util.Locale;
 
 /** Bounded, passive agreement gate for a second Yandex session position. */
 final class LegacySourcePositionPolicy {
- static final long DIVERGENCE_MS=4000, CONFIRM_MS=250, INITIAL_FRESH_MS=5000, ACTIVE_FRESH_MS=15000;
+ static final long DIVERGENCE_MS=4000, CONFIRM_MS=250, INITIAL_FRESH_MS=5000, ACTIVE_FRESH_MS=15000, PAUSED_HOLD_MS=300000;
  static final class Decision {
   final boolean override,newRecovery,failClosed,candidate;
   final long position;
@@ -44,10 +44,12 @@ final class LegacySourcePositionPolicy {
                     String platformTitle,String platformArtist,long platformDuration,
                     long platformPosition,long platformAge,boolean platformPlaying,long now){
   song(alias);
+  boolean samePlaybackState=media3Playing==platformPlaying;
+  long freshnessLimit=authoritySwitched&&!media3Playing?PAUSED_HOLD_MS:ACTIVE_FRESH_MS;
   boolean valid=alias!=null&&media3Position>=0&&media3Position<duration+2000
    &&platformPosition>=0&&platformPosition<=duration+2000
-   &&platformAge>=0&&platformAge<=ACTIVE_FRESH_MS
-   &&media3Playing&&platformPlaying
+   &&platformAge>=0&&platformAge<=freshnessLimit
+   &&samePlaybackState
    &&sameTrack(sourceTitle,sourceArtist,duration,platformTitle,platformArtist,platformDuration);
   if(!valid){disagreementSince=-1;return authoritySwitched?unsafe():passthrough();}
   long delta=Math.abs(platformPosition-media3Position);
@@ -60,7 +62,7 @@ final class LegacySourcePositionPolicy {
    return authoritySwitched?recovered(platformPosition,false):passthrough();
   }
   if(authoritySwitched)return recovered(platformPosition,false);
-  if(platformAge>INITIAL_FRESH_MS){disagreementSince=-1;return passthrough();}
+  if(!media3Playing||platformAge>INITIAL_FRESH_MS){disagreementSince=-1;return passthrough();}
   if(disagreementSince<0){disagreementSince=now;return candidate();}
   if(now-disagreementSince<CONFIRM_MS)return candidate();
   authoritySwitched=true;disagreementSince=-1;
