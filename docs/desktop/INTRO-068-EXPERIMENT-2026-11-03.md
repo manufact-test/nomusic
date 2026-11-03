@@ -32,3 +32,14 @@ This experiment reduces work on the startup path; zero lost opening audio is NOT
 Owner check in one session: repeat тело and several Next transitions, one pause/resume and one seek; export diagnostics once after the session. Compare first words and startupHistory against reference. No per-song diagnostic collection required.
 
 Rollback: stop playback, replace unpacked files with the preserved 0.4.67 ZIP, reload the existing extension in chrome://extensions, refresh the Yandex tab, then start. Keep the existing extension installation and account data.
+
+## Verified delivery
+
+- 332 desktop tests passed locally and on GitHub.
+- Repository lint passed (883 local files, 882 CI files); manifest and configured API origin checked.
+- Isolated GitHub Actions run `41696088772`: SUCCESS, including actual Chrome synthetic playback, pause, delayed seeking, cancellation and restoration checks. Earlier launches failed before tests at the five-second Chrome launch deadline; a bounded 30-second cold-launch wait and small-shared-memory flag allowed the existing checks to run successfully. No playback assertions were removed.
+- Delivered ZIP SHA-256: `911d5c9d4c5557901e61b7f07e4531bbabc22b51e38f113b9cfc87dcf4c5cc40`, 2,485,658 bytes. Correct API origin is included.
+- Persisted experimental ZIP: `libfile_81880ff627ec819190f0dc9f3809c9ef` (version 1).
+- Owner has not yet confirmed an audible improvement. Keep experiment separate from the reference.
+
+Verified functional source: `1032a5827639e29db53a6885955851474e9566e4`.
