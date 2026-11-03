@@ -34,7 +34,7 @@ final class ReplacementEngine {
  String lookaheadPrefetchResolvedAudioKey;JSONObject lookaheadPrefetchCurrentDescriptor;boolean lookaheadPrefetchPromoted,lookaheadPrefetchWait;
  // A primed next decoder remains muted and never owns the source effect.
  // Live playback still requires a fresh current-track resolve and measured duration.
- static final long NEXT_DECODER_PRIME_TIMEOUT_MS=1800, PROMOTED_PRIME_GRACE_MS=800;
+ static final long NEXT_DECODER_PRIME_TIMEOUT_MS=1800, PROMOTED_PRIME_GRACE_MS=800, PROMOTED_PRIME_READY_WAIT_MS=150;
  static final class NextDecoderPrime {
   final String alias,trackId,audioKey;final long account;final File file;final MediaPlayer player;
   final long startedAt;long motionOrigin;boolean ready;
@@ -47,12 +47,17 @@ final class ReplacementEngine {
  long lookaheadPromotedAtMs;
  boolean primingNextCurrent(NextDecoderPrime c){
   PlaybackSource current=owner.current;
+  boolean promotedCurrent=current!=null&&Objects.equals(current.alias,c.alias)
+   &&lookaheadPrefetchPromoted
+   &&(trackId==null||Objects.equals(trackId,c.trackId))
+   &&(identityKey==null||Objects.equals(identityKey,current.key));
+  boolean expectedNext=(current==null||!Objects.equals(current.alias,c.alias))
+   &&owner.lookaheadCandidateCurrent(c.alias);
   return primedNext==c&&!closed&&armed()&&api.signedIn()
    &&c.account==api.accountGeneration
    &&Objects.equals(lookaheadPrefetchAlias,c.alias)
    &&Objects.equals(lookaheadPrefetchTrackId,c.trackId)
-   &&owner.lookaheadCandidateCurrent(c.alias)
-   &&(current==null||!Objects.equals(current.alias,c.alias));
+   &&(promotedCurrent||expectedNext);
  }
  void discardPrimedNext(String reason){
   NextDecoderPrime old=primedNext;if(old==null)return;primedNext=null;
@@ -252,7 +257,37 @@ final class ReplacementEngine {
    &&!Objects.equals(audioKeyFor(trackId,fresh),speculative.audioKey))
    discardPrimedNext("fresh_current_audio_key_mismatch");
   if(waitForLookaheadPrefetch(key,fresh,g))return;
+  if(waitForPromotedPrimeReady(key,fresh,g))return;
   prepare(key,fresh,g);
+ }
+ boolean waitForPromotedPrimeReady(String key,JSONObject fresh,long g){
+  NextDecoderPrime c=primedNext;
+  PlaybackSource source=owner.current;
+  if(c==null||c.ready||source==null
+      ||!Objects.equals(c.alias,source.alias)
+      ||!Objects.equals(c.trackId,trackId)
+      ||!Objects.equals(c.audioKey,audioKeyFor(trackId,fresh))
+      ||c.account!=api.accountGeneration
+      ||!c.file.equals(recentAudio.get(c.audioKey))
+      ||!primingNextCurrent(c))return false;
+  /* The successor became current while its silent decoder was still warming.
+     Wait briefly after fresh resolve; native original remains the only audible source. */
+  final long started=SystemClock.elapsedRealtime();
+  LogStore.log("replacement_lookahead_decoder_prime_live_wait",LogStore.map(
+    "mediaAlias",c.alias,"trackId",c.trackId,"waitBudgetMs",PROMOTED_PRIME_READY_WAIT_MS,
+    "freshResolveVerified",true,"sourceMuted",false));
+  owner.handler.postDelayed(new Runnable(){public void run(){
+    if(g!=generation||!current(key)||!api.signedIn()||preparing)return;
+    if(primedNext==c&&!c.ready
+       &&SystemClock.elapsedRealtime()-started<PROMOTED_PRIME_READY_WAIT_MS){
+      owner.handler.postDelayed(this,20);return;
+    }
+    LogStore.log("replacement_lookahead_decoder_prime_live_wait_done",LogStore.map(
+      "mediaAlias",c.alias,"ready",primedNext==c&&c.ready,
+      "elapsedMs",SystemClock.elapsedRealtime()-started));
+    prepare(key,fresh,g);
+  }},20);
+  return true;
  }
  void fallbackPromotedLookaheadPrefetch(String reason){
   if(!lookaheadPrefetchWait||lookaheadPrefetchCurrentDescriptor==null)return;

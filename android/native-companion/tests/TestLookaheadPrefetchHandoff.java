@@ -257,6 +257,80 @@ public final class TestLookaheadPrefetchHandoff {
    "next candidate still starts promptly after protected current adoption");
   engine.close();
  }
+ static void promotedPrimePreparedAfterBoundary()throws Exception{
+  beginLookahead();
+  File file=File.createTempFile("celikom-prime-current-",".audio");
+  TestEngine.api.downloadCallbacks.get(0).done(file,null);
+  ReplacementEngine engine=TestEngine.e;
+  ReplacementEngine.NextDecoderPrime candidate=engine.primedNext;
+  MediaPlayer future=candidate.player;
+  engine.sourceBoundary("sample_track_changed","2");
+  TestEngine.p.current=TestEngine.source("2",0,true);
+  TestEngine.p.lookaheadAlias=null;
+  engine.identity(
+   LogStore.map("mediaAlias","2","albumId","42","title","Песня","artist","Артист","durationMs",120000L),
+   LogStore.map("candidateTrackId","8","method","ALBUM"));
+  engine.noteLookaheadCandidate(null);
+  future.prepared.onPrepared(future);
+  check(engine.primedNext==candidate&&!future.released&&future.isPlaying()
+      &&future.volume==0f&&engine.effect==null,
+   "a promoted prime still finishes silent preparation when its song becomes current");
+  future.position=45;android.os.SystemClock.now+=50;TestEngine.p.handler.drain();
+  check(candidate.ready&&!future.isPlaying(),
+   "promoted live prime completes the muted motion and rewind");
+  TestEngine.api.resolveCallbacks.get(2).done(descriptor(1),null);
+  check(engine.player==future&&engine.ready&&TestEngine.api.downloads==1,
+   "fresh resolve adopts the prime completed after the boundary");
+  engine.close();
+ }
+ static void freshResolveWaitsBrieflyForPromotedPrime()throws Exception{
+  beginLookahead();
+  File file=File.createTempFile("celikom-prime-live-wait-",".audio");
+  TestEngine.api.downloadCallbacks.get(0).done(file,null);
+  ReplacementEngine engine=TestEngine.e;
+  ReplacementEngine.NextDecoderPrime candidate=engine.primedNext;
+  MediaPlayer future=candidate.player;
+  engine.sourceBoundary("sample_track_changed","2");
+  TestEngine.p.current=TestEngine.source("2",0,true);
+  TestEngine.p.lookaheadAlias=null;
+  engine.identity(
+   LogStore.map("mediaAlias","2","albumId","42","title","Песня","artist","Артист","durationMs",120000L),
+   LogStore.map("candidateTrackId","8","method","ALBUM"));
+  engine.noteLookaheadCandidate(null);
+  future.prepared.onPrepared(future);
+  TestEngine.api.resolveCallbacks.get(2).done(descriptor(1),null);
+  check(engine.player==null&&engine.primedNext==candidate
+      &&TestEngine.api.downloads==1&&engine.effect==null,
+   "fresh live resolve briefly waits for the in-progress matching muted prime");
+  future.position=45;android.os.SystemClock.now+=60;TestEngine.p.handler.drain();
+  check(engine.player==future&&engine.ready&&engine.primedNext==null
+      &&TestEngine.api.downloads==1,
+   "brief wait adopts the same decoder after a post-boundary priming ACK");
+  engine.close();
+ }
+ static void stalledPromotedPrimeFallsBackAfterBoundedWait()throws Exception{
+  beginLookahead();
+  File file=File.createTempFile("celikom-prime-live-expire-",".audio");
+  TestEngine.api.downloadCallbacks.get(0).done(file,null);
+  ReplacementEngine engine=TestEngine.e;
+  ReplacementEngine.NextDecoderPrime candidate=engine.primedNext;
+  MediaPlayer future=candidate.player;
+  engine.sourceBoundary("sample_track_changed","2");
+  TestEngine.p.current=TestEngine.source("2",0,true);
+  TestEngine.p.lookaheadAlias=null;
+  engine.identity(
+   LogStore.map("mediaAlias","2","albumId","42","title","Песня","artist","Артист","durationMs",120000L),
+   LogStore.map("candidateTrackId","8","method","ALBUM"));
+  engine.noteLookaheadCandidate(null);
+  future.prepared.onPrepared(future);
+  TestEngine.api.resolveCallbacks.get(2).done(descriptor(1),null);
+  android.os.SystemClock.now+=ReplacementEngine.PROMOTED_PRIME_READY_WAIT_MS+25;
+  TestEngine.p.handler.drain();
+  check(engine.player!=null&&engine.player!=future&&!engine.ready
+      &&future.released&&engine.primedNext==null&&TestEngine.api.downloads==1,
+   "a stalled promoted prime falls back to a new decoder after bounded grace");
+  engine.close();
+ }
  public static void main(String[] args)throws Exception{
   beginLookahead();promoteCurrent(descriptor(1),true);matchingPrefetchIsConsumed();
   mismatchedFreshResolveFallsBack();latePrefetchCanStartAfterBoundary();
@@ -265,6 +339,8 @@ public final class TestLookaheadPrefetchHandoff {
   unrelatedCurrentSongCannotDiscardPrimedSuccessor();
   promotedPrimeWaitsForFreshResolveBeforeNextCandidate();
   primedDecoderKeyMismatchCannotPlay();stalledPrimedDecoderExpiresWithoutBlockingCurrent();
+  promotedPrimePreparedAfterBoundary();freshResolveWaitsBrieflyForPromotedPrime();
+  stalledPromotedPrimeFallsBackAfterBoundedWait();
   System.out.println("PASS: "+checks+" lookahead promotion, fresh-resolve, cache handoff and mismatch checks");
  }
 }
