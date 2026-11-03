@@ -44,7 +44,7 @@ final class ReplacementEngine {
    this.file=file;this.player=player;this.currentCache=currentCache;this.startedAt=SystemClock.elapsedRealtime();
   }
  }
- NextDecoderPrime primedNext;boolean lastPrimeWasCurrentCache;
+ NextDecoderPrime primedNext;boolean lastPrimeWasCurrentCache,primeReadyWaitInFlight;long primeReadyWaitToken;
  long lookaheadPromotedAtMs;
  boolean primingNextCurrent(NextDecoderPrime c){
   PlaybackSource current=owner.current;
@@ -316,19 +316,26 @@ final class ReplacementEngine {
       ||c.account!=api.accountGeneration
       ||!c.file.equals(recentAudio.get(c.audioKey))
       ||!primingNextCurrent(c))return false;
-  /* The successor became current while its silent decoder was still warming.
-     Wait briefly after fresh resolve; native original remains the only audible source. */
+  /* One in-flight wait per current decoder: repeated source samples must not
+     queue duplicate prepare/download callbacks after a single fresh resolve. */
+  if(primeReadyWaitInFlight)return true;
+  primeReadyWaitInFlight=true;
+  final long waitToken=++primeReadyWaitToken;
   final long started=SystemClock.elapsedRealtime();
-  LogStore.log("replacement_lookahead_decoder_prime_live_wait",LogStore.map(
+  LogStore.log(c.currentCache?"replacement_cached_current_prime_live_wait":"replacement_lookahead_decoder_prime_live_wait",LogStore.map(
     "mediaAlias",c.alias,"trackId",c.trackId,"waitBudgetMs",PROMOTED_PRIME_READY_WAIT_MS,
     "freshResolveVerified",true,"sourceMuted",false));
   owner.handler.postDelayed(new Runnable(){public void run(){
-    if(g!=generation||!current(key)||!api.signedIn()||preparing)return;
+    if(waitToken!=primeReadyWaitToken)return;
+    if(g!=generation||!current(key)||!api.signedIn()||preparing||player!=null){
+     primeReadyWaitInFlight=false;return;
+    }
     if(primedNext==c&&!c.ready
        &&SystemClock.elapsedRealtime()-started<PROMOTED_PRIME_READY_WAIT_MS){
       owner.handler.postDelayed(this,20);return;
     }
-    LogStore.log("replacement_lookahead_decoder_prime_live_wait_done",LogStore.map(
+    primeReadyWaitInFlight=false;
+    LogStore.log(c.currentCache?"replacement_cached_current_prime_live_wait_done":"replacement_lookahead_decoder_prime_live_wait_done",LogStore.map(
       "mediaAlias",c.alias,"ready",primedNext==c&&c.ready,
       "elapsedMs",SystemClock.elapsedRealtime()-started));
     prepare(key,fresh,g);
@@ -846,7 +853,7 @@ final class ReplacementEngine {
   long sourceAtSubmit=position(s),decoderAtSubmit=player.getCurrentPosition();
   audioOwner.issueSeek(p,target,key,epoch,AudioOwnership.SeekKind.ALIGNMENT,seekStarted,
     sourceAtSubmit,s.position,s.observed,decoderAtSubmit,seekContext());owner.handler.postDelayed(()->{if(player==p&&seeking&&transition==t&&audioOwner.current(epoch,key))suspend("seek_timeout",retryDelay());},seekBudget);}
- void prepare(String key,JSONObject j,long g){if(preparing||!current(key)||!api.signedIn())return;PlaybackSource s=owner.current;if(!PlaybackDuration.metadataProbeAllowed(s.duration,j.optLong("duration_ms"))){LogStore.log("replacement_duration_mismatch",LogStore.map("trackId",trackId,"sourceDurationMs",s.duration,"replacementDurationMs",j.optLong("duration_ms")));completedKey=key;completedPosition=position(s);completedReason="Версия замены не совпадает по длительности — пропускаем эту песню, играет оригинал";audioOwner.unsupported("duration_mismatch");status=completedReason;LogStore.log("replacement_track_skipped",LogStore.map("reason","duration_mismatch","trackId",trackId,"sourceDurationMs",s.duration,"replacementDurationMs",j.optLong("duration_ms"),"action","original_until_next_track"));descriptor=null;return;}if(!PlaybackDuration.safe(s.duration,j.optLong("duration_ms"))){
+ void prepare(String key,JSONObject j,long g){if(preparing||player!=null||!current(key)||!api.signedIn())return;PlaybackSource s=owner.current;if(!PlaybackDuration.metadataProbeAllowed(s.duration,j.optLong("duration_ms"))){LogStore.log("replacement_duration_mismatch",LogStore.map("trackId",trackId,"sourceDurationMs",s.duration,"replacementDurationMs",j.optLong("duration_ms")));completedKey=key;completedPosition=position(s);completedReason="Версия замены не совпадает по длительности — пропускаем эту песню, играет оригинал";audioOwner.unsupported("duration_mismatch");status=completedReason;LogStore.log("replacement_track_skipped",LogStore.map("reason","duration_mismatch","trackId",trackId,"sourceDurationMs",s.duration,"replacementDurationMs",j.optLong("duration_ms"),"action","original_until_next_track"));descriptor=null;return;}if(!PlaybackDuration.safe(s.duration,j.optLong("duration_ms"))){
    LogStore.log("replacement_duration_probe",LogStore.map("trackId",trackId,"sourceDurationMs",s.duration,"reportedDurationMs",j.optLong("duration_ms"),"policy","verify_measured_file_before_any_audio"));
   }audioOwner.preparing();prepareTicket=audioOwner.ticket(key,api.accountGeneration,j.optLong("replacement_id"),j.optLong("version"),j.optLong("duration_ms"));preparing=true;status="Готовим аудио заранее; оригинал продолжает играть";
   audioFromCache=false;
@@ -1201,7 +1208,7 @@ final class ReplacementEngine {
     HttpURLConnection.disconnect and effect release may block on the old route. */
  MediaPlayer silenceBeforeCleanup(){transition++;fading=false;MediaPlayer old=player;player=null;if(old!=null){boolean zero=false,paused=false;try{setAuditedVolume(old,0f);zero=true;}catch(RuntimeException ignored){}try{audioOwner.pauseDecoder(old);paused=!old.isPlaying();}catch(RuntimeException ignored){}LogStore.log("replacement_output_silenced",LogStore.map("trackId",trackId,"gainZero",zero,"paused",paused,"beforeTransportCleanup",true));}unmute(old);return old;}
  void release(String reason){
-  sourceBufferSince=-1;audioOwner.cancelPause();
+  primeReadyWaitInFlight=false;primeReadyWaitToken++;sourceBufferSince=-1;audioOwner.cancelPause();
   localPrewarmAttempted=false;localPrewarmWarmupPending=false;localPrewarmAlignmentPending=false;localPrewarmJoinPending=false;localPrewarmWarmupStartedAt=0;localPrewarmWarmupPosition=0;audioFromCache=false;
   boolean had=player!=null||effect!=null;MediaPlayer old=silenceBeforeCleanup();
   if("identity_changed".equals(reason)||"track_changed".equals(reason)||"replacement_end".equals(reason)||"replacement_completed".equals(reason)||"source_end".equals(reason)||"source_unavailable".equals(reason)||"source_disconnected".equals(reason))rememberAudio();

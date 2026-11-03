@@ -397,6 +397,34 @@ public final class TestLookaheadPrefetchHandoff {
     "leaving a current song revokes its silent prime before any fresh resolve can authorize it");
   engine.close();
  }
+
+ static void repeatedCurrentWaitIsSingleFlight()throws Exception{
+  TestEngine.reset("ALBUM",true);TestEngine.api.signed=true;TestEngine.e.arm();
+  ReplacementEngine engine=TestEngine.e;
+  File file=File.createTempFile("celikom-current-single-flight-", ".audio");
+  engine.recentAudio.put(engine.audioKeyFor("8",descriptor(1)),file);
+  engine.sourceBoundary("sample_track_changed","2");
+  TestEngine.p.current=TestEngine.source("2",0,true);
+  engine.identity(
+   LogStore.map("mediaAlias","2","albumId","42","title","Песня","artist","Артист","durationMs",120000L),
+   LogStore.map("candidateTrackId","8","method","ALBUM"));
+  check(engine.primedNext!=null&&!engine.primedNext.ready,
+    "cached decoder is priming when the current resolve starts");
+  TestEngine.api.resolveCallbacks.get(1).done(descriptor(1),null);
+  check(engine.primeReadyWaitInFlight&&engine.player==null&&TestEngine.api.downloads==0,
+    "only one bounded wait is opened for this unfinished prime");
+  long waitToken=engine.primeReadyWaitToken;
+  for(int i=0;i<35;i++)engine.update(TestEngine.p.current);
+  check(engine.primeReadyWaitToken==waitToken&&engine.primeReadyWaitInFlight,
+    "rapid source samples reuse the same wait without scheduling other callbacks");
+  android.os.SystemClock.now+=ReplacementEngine.PROMOTED_PRIME_READY_WAIT_MS+40;
+  TestEngine.p.handler.drain();
+  check(engine.player!=null&&engine.audioFile==file
+     &&TestEngine.api.downloads==0&&!engine.primeReadyWaitInFlight,
+    "a stalled speculative prime falls back to one cached decoder, never a duplicate download");
+  engine.close();
+  check(!file.exists(),"single-flight fallback does not leak the cached file");
+ }
  public static void main(String[] args)throws Exception{
   beginLookahead();promoteCurrent(descriptor(1),true);matchingPrefetchIsConsumed();
   mismatchedFreshResolveFallsBack();latePrefetchCanStartAfterBoundary();
@@ -408,7 +436,7 @@ public final class TestLookaheadPrefetchHandoff {
   promotedPrimePreparedAfterBoundary();freshResolveWaitsBrieflyForPromotedPrime();
   stalledPromotedPrimeFallsBackAfterBoundedWait();
   cachedCurrentPrimeBeforeFreshResolve();cachedCurrentPrimeRejectedOnLiveEditionMismatch();
-  currentPrimeRevokedOnBoundaryBeforeResolve();
+  currentPrimeRevokedOnBoundaryBeforeResolve();repeatedCurrentWaitIsSingleFlight();
   System.out.println("PASS: "+checks+" lookahead promotion, fresh-resolve, cache handoff and mismatch checks");
  }
 }
