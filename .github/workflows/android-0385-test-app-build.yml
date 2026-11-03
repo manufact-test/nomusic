@@ -125,7 +125,7 @@ jobs:
           set -euo pipefail
           ROOT=android/native-companion
           KIT="$RUNNER_TEMP/kit"
-          OUT="$RUNNER_TEMP/CELIKOM-Android-0.3.85-TEST-LIVE-PRIME-HANDOFF-SIGNED.apk"
+          OUT="$RUNNER_TEMP/CELIKOM-Android-0.3.85-TEST-POSITION-ORACLE-SIGNED.apk"
           python3 "$ROOT/build_test_release.py" \
             --sdk "$KIT/sdk" \
             --build-tools "$KIT/build-tools/36.0.0" \
@@ -136,7 +136,7 @@ jobs:
             --work-dir "$RUNNER_TEMP/test-build-work" \
             --output "$OUT"
           test -s "$OUT"
-          test -s "$RUNNER_TEMP/CELIKOM-Android-0.3.85-TEST-LIVE-PRIME-HANDOFF-SIGNED.verification.json"
+          test -s "$RUNNER_TEMP/CELIKOM-Android-0.3.85-TEST-POSITION-ORACLE-SIGNED.verification.json"
           echo "TEST_APK=$OUT" >> "$GITHUB_ENV"
 
       - name: Create immutable JSON build receipt
@@ -211,10 +211,10 @@ jobs:
       - name: Upload signed test APK and verification receipt only
         uses: actions/upload-artifact@v4
         with:
-          name: CELIKOM-Test-0.3.85-test.9-code-86094
+          name: CELIKOM-Test-0.3.85-test.10-code-86095
           path: |
-            ${{ runner.temp }}/CELIKOM-Android-0.3.85-TEST-LIVE-PRIME-HANDOFF-SIGNED.apk
-            ${{ runner.temp }}/CELIKOM-Android-0.3.85-TEST-LIVE-PRIME-HANDOFF-SIGNED.verification.json
+            ${{ runner.temp }}/CELIKOM-Android-0.3.85-TEST-POSITION-ORACLE-SIGNED.apk
+            ${{ runner.temp }}/CELIKOM-Android-0.3.85-TEST-POSITION-ORACLE-SIGNED.verification.json
             ${{ runner.temp }}/CELIKOM-Android-0.3.85-TEST-INTRO-RETENTION-LEAD-RECEIPT.json
           if-no-files-found: error
           retention-days: 7
