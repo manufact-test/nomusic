@@ -1,3 +1,9 @@
+# ⛔ TEST.17 CANDIDATE (2026-11-03): Test.15 best owner baseline remains untouched
+
+See [ANDROID-0385-TEST-17-CACHE-REENTRY-AND-DIRECT-SESSION-SNAPSHOT-2026-11-03.md](ANDROID-0385-TEST-17-CACHE-REENTRY-AND-DIRECT-SESSION-SNAPSHOT-2026-11-03.md). This branch investigates repeat-file reuse and interrupted complete downloads, plus a bounded **read-only** direct Media3 controller for «Дым» and «Нас не понимают вообще». The observer is diagnostic only: it must never steer seek/pause until HONOR evidence proves a fresh source. No new permissions. Test.15 owner-accepted backup remains immutable; Test.16 is rejected. Test.17 needs full CI and new acoustic acceptance. Stable OTA, Hostinger, accepted seek/ACK and PR #37 unchanged.
+
+---
+
 # ⛔ ГЛАВНАЯ КОНТРОЛЬНАЯ ТОЧКА — 2026-11-03: TEST.15 BEST, TEST.16 REJECTED
 
 **ЭТОТ РАЗДЕЛ ВАЖНЕЕ СТАРЫХ ЗАПИСЕЙ НИЖЕ.** Владелец проверил и отверг CELIKOM Test.16: поздние склейки 2–3 секунды, деградация относительно Test.15. Все дальнейшие функциональные изменения вести **только из сохранённой Test.15**, а не от старой ветки с Test.16.

@@ -5,6 +5,14 @@ root=Path(__file__).resolve().parent.parent/'addon/src/pro/celikom/nativeprobe/i
 engine=(root/'ReplacementEngine.java').read_text()
 owner=(root/'AudioOwnership.java').read_text()
 service=(root/'ProbeService.java').read_text()
+direct=(root/'DirectSessionObserver.java').read_text()
+if not all(marker in service for marker in ('directSessionObserver.observe(c,item,replacement.trackId)', 'directSessionObserver.close()')):
+    raise AssertionError('passive direct-session observer lifecycle is not wired into the service')
+if not all(marker in direct for marker in ('getConnectedToken()', 'SessionToken.TYPE_SESSION', 'SourceSessionSnapshotPolicy.compare(', 'transportCommandsSent', 'now-firstEligibleAt<4000')):
+    raise AssertionError('bounded direct controller comparison and first-chord delay must remain read-only')
+if re.search(r'\.\s*(?:seekTo|play|pause|stop|setMediaItems|setPlaybackParameters|prepare)\s*\(',direct):
+    raise AssertionError('secondary controller may not issue any transport command')
+
 api=(root/'NativeApi.java').read_text()
 if ('final ExecutorService audioWork=Executors.newSingleThreadExecutor()' not in api
     or 'prefetchAudioWork' in api
