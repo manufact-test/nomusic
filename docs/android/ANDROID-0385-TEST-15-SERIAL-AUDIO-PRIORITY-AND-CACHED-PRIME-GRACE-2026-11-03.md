@@ -1,5 +1,7 @@
 # CELIKOM Android Test.15 — serial priority and cached decoder grace (2026-11-03)
 
+> **UPDATED OWNER ACCEPTANCE 2026-11-03:** На реальном HONOR владелец подтвердил Test.15 лучшей акустической сборкой (ориентировочно 70% практически идеальных ранних стыков). **Test.16 позже отвергнута** как заметно худшая; не брать её за baseline. Подробная сравнительная диагностика Test.15/Test.16, «Дым», «Нас не понимают вообще», policy без чувствительных разрешений и дальнейший план: [ANDROID-0385-TEST15-PERMISSIONLESS-RECOVERY-HANDOFF-2026-11-03.md](ANDROID-0385-TEST15-PERMISSIONLESS-RECOVERY-HANDOFF-2026-11-03.md). Новая рабочая ветка `feature/android-0385-test15-permissionless-recovery-20261103`, backup Test.15 неизменен. Никаких новых APK в этом handoff.
+
 ## Scope and source of regression
 
 HONOR NTH-NX9, Android 13. Owner checked isolated Test.14 with private combined log `CELIKOM-combined-20261103-191658.txt` (4,905 JSON events, fresh Test.14 run begins at line 3,519, contains Test.11/Test.13 history) and `SVID_20261103_191454_1.mp4` (~113 seconds). These files contain private listening history; **do not commit them**.
@@ -27,7 +29,7 @@ On «Дым» 39949113, video shows UI seek through approximately 0:42, 1:19, an
 
 ## Verify and future direction
 
-**Validation complete:** full native host tests (including late cached-prime adoption), static architecture guard, Android API36/D8, frozen accepted seek, separate APK signing/certificate and release-contract checks all passed. Stable publisher was SKIPPED. Tested functional SHA `4838ccee4aa4628dce68437ebbf00d4dfc30ce27`. [Full CI SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/41674369584); [direct signed Test.15 ZIP](https://github.com/manufact-test/nomusic/actions/runs/41674369584/artifacts/13248949184); artifact `13248949184` (`CELIKOM-Test-0.3.85-test.15-code-86100`), expires 2026-11-10. No physical acoustic acceptance yet. Owner should run one complete normal listening pass, send a single combined log/video and opinion on transitions, repeats, cold starts and «Дым».
+**Validation complete:** full native host tests (including late cached-prime adoption), static architecture guard, Android API36/D8, frozen accepted seek, separate APK signing/certificate and release-contract checks all passed. Stable publisher was SKIPPED. Tested functional SHA `4838ccee4aa4628dce68437ebbf00d4dfc30ce27`. [Full CI SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/41674369584); [direct signed Test.15 ZIP](https://github.com/manufact-test/nomusic/actions/runs/41674369584/artifacts/13248949184); artifact `13248949184` (`CELIKOM-Test-0.3.85-test.15-code-86100`), expires 2026-11-10. Physical acoustic owner acceptance as BEST Test.15 confirmed in the subsequent 2026-11-03 session; remaining abrupt-attack seams and «Дым» seek are not fixed. See updated handoff linked above.
 
 Do **not** spin further micro-builds from isolated observations. Remaining real tasks are inaccessible seek on «Дым» (needs a different consented source of true position), musical seam on «Биг сити лайф» (PCM alignment/edition validation), long `Крылья` drift after output route changes, and Johnyboy timing requiring additional field evidence. Stable original and user-accepted seek remain frozen.
 
