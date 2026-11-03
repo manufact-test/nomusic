@@ -1209,20 +1209,13 @@ final class ReplacementEngine {
       if(elapsed<UNIFIED_JOIN_MS){owner.handler.postDelayed(this,20);return;}
      applyVolume(1f);
     }else{
-     long sourceGrantAt=SystemClock.elapsedRealtime();
-     audioOwner.grantReplacement(fx);
-     long sourceMuteCommandAt=SystemClock.elapsedRealtime();
-     originalMix=0f;
-     applyVolume(1f);
-     logTrace("replacement_exclusive_gain_command_pair",LogStore.map(
-      "sourceGrantStartMs",sourceGrantAt,
-      "sourceMutedCommandAtMs",sourceMuteCommandAt,
-      "replacementVolumeCommandAtMs",SystemClock.elapsedRealtime(),
-      "sourceCommandPrecedesReplacementCommand",true,
-      "sourceMutedCommand",originalMix<=0.001f,
-      "replacementVolumeCommand",commandedReplacementVolume,
-      "hardwareOutputMeasured",false,"phaseVerified",false));
+     audioOwner.grantReplacement(fx);originalMix=0f;applyVolume(1f);
     }
+    if(!coherentEntry)logTrace("replacement_exclusive_gain_command_pair",LogStore.map(
+     "sourceCommandPrecedesReplacementCommand",true,
+     "sourceMutedCommand",originalMix<=0.001f,
+     "replacementVolumeCommand",commandedReplacementVolume,
+     "hardwareOutputMeasured",false,"phaseVerified",false));
     if(!outputPostLogged[0]){
      logOutputClockSample(p,owner.current,coherentEntry?"post_blend":"post_exclusive_grant");
      outputPostLogged[0]=true;
