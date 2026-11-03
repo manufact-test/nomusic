@@ -1,4 +1,7 @@
 # CELIKOM Android Test.17 — repeated-file reuse and permission-free direct session evidence
+
+> ⛔ **HISTORICAL REJECTED EXPERIMENT.** Owner rejected Test.17 on HONOR on 2026-11-03 (severe startup lag, worse seek and pause, replacement reportedly audible after UI pause). All Test.17 functional changes were removed from the working branch by rollback commit `1b26a0afc1d1d0a5177cced54b9e7bd0d7929f14`. Do not use the signed artifact. See [owner rejection and exact Test.15 rollback](ANDROID-0385-TEST17-OWNER-REJECTION-ROLLBACK-2026-11-03.md). The rest of this document is historical design/CI evidence, **not** an approved implementation or current feature description.
+
 Date: 2026-11-03. Working branch: `feature/android-0385-test15-permissionless-recovery-20261103`.
 
 ## Scope / acceptance state
