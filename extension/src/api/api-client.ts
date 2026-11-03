@@ -16,12 +16,12 @@ export class ApiClient {
     this.now = options.now || Date.now; this.onNetwork=options.onNetwork||(()=>{});
     this.accessToken = options.accessToken || "";
     this.clientVersion = options.clientVersion || "0.4.0";
-    this.cache = new Map(); this.pending = new Map(); this.configCache = null;
+    this.cache = new Map(); this.pending = new Map(); this.configCache = null; this.configPending = null;
     this.recovery = createReadRecovery(); this.transportEpoch = 0;
   }
   resetTransport() {
     this.transportEpoch++; this.recovery.reset();
-    this.cache.clear(); this.pending.clear(); this.configCache = null;
+    this.cache.clear(); this.pending.clear(); this.configCache = null; this.configPending = null;
   }
   async request(path, options = {}) {
     try { return await this.recovery.run(signal => this.requestOnce(path, options, signal), options.method || "GET"); }
@@ -68,8 +68,16 @@ export class ApiClient {
       try{this.onNetwork({endpoint:path.split("?")[0].replace("/api/v1/",""),method:options.method||"GET",httpStatus,result:outcome,elapsedMs:Math.max(0,this.now()-started),at:this.now()});}catch{/* diagnostics never block playback */}
     }
   }
-  async config() {
-    if (this.configCache?.until > this.now()) return this.configCache.value;
+  config() {
+    if (this.configCache?.until > this.now()) return Promise.resolve(this.configCache.value);
+    if (this.configPending) return this.configPending;
+    const epoch = this.transportEpoch;
+    const pending = this.loadConfig(epoch).finally(() => {
+      if (this.configPending === pending) this.configPending = null;
+    });
+    this.configPending = pending; return pending;
+  }
+  async loadConfig(epoch) {
     const value = await this.request("/api/v1/config");
     if (["resolve_cache_ttl_seconds", "negative_cache_ttl_seconds"].some((key) =>
       value?.[key] !== undefined && !Number.isSafeInteger(value[key]))) throw new Error("invalid_api_config");
@@ -78,16 +86,23 @@ export class ApiClient {
     const parts = (s) => s.split(".").map(Number);
     const required = parts(value.minimum_extension_version); const current = parts(this.clientVersion);
     for (let i = 0; i < 3; i++) { if (current[i] < required[i]) throw new Error("extension_update_required"); if (current[i] > required[i]) break; }
+    if (epoch !== this.transportEpoch) throw new Error("api_network_error");
     this.configCache = { value, until: this.now() + 60000 }; return value;
   }
   async resolve(service, trackId, options = {}) {
     if (service !== "yandex" || !/^[1-9]\d{0,23}$/.test(trackId)) throw new Error("invalid_track");
+    /* A warmed public policy must finish even when the mapping is cached. */
+    if (options.configReady) {
+      const policy = await options.configReady;
+      if (policy.maintenance || !policy.features.replacements) return {found:false,
+        retryAfterMs:boundedTtl(policy.negative_cache_ttl_seconds,15,60)*1000};
+    }
     const key = `${service}:${trackId}`;
-    if (options.forceRefresh === true) { this.cache.delete(key); this.configCache = null; }
+    if (options.forceRefresh === true) { this.cache.delete(key); this.configCache = null; this.configPending = null; }
     if (this.cache.get(key)?.until > this.now()) return this.cache.get(key).value;
     if (this.pending.has(key)) return this.pending.get(key);
     const generation = this.transportEpoch;
-    const pending = this.resolveUncached(service, trackId).then((value) => {
+    const pending = this.resolveUncached(service, trackId, options.configReady).then((value) => {
       if (generation !== this.transportEpoch) throw new Error("api_network_error");
       if (this.cache.size >= 200) this.cache.delete(this.cache.keys().next().value);
       const ttl = value.found ? Math.min(value.cacheTtlMs, value.expiresAt - this.now() - 30000) : value.retryAfterMs;
@@ -95,8 +110,8 @@ export class ApiClient {
     }).finally(() => { if (this.pending.get(key) === pending) this.pending.delete(key); });
     this.pending.set(key, pending); return pending;
   }
-  async resolveUncached(service, trackId) {
-    const config = await this.config();
+  async resolveUncached(service, trackId, configReady) {
+    const config = await (configReady || this.config());
     const positiveTtlSeconds = boundedTtl(config.resolve_cache_ttl_seconds, 120, 120);
     const negativeTtlSeconds = boundedTtl(config.negative_cache_ttl_seconds, 15, 60);
     if (config.maintenance || !config.features.replacements) return { found: false, retryAfterMs: negativeTtlSeconds * 1000 };

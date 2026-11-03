@@ -2,7 +2,7 @@ import { ApiClient } from "./api-client.js";
 import { AnalyticsEventService } from "./analytics-event-service.js";
 
 export function createApiBroker(api, options = {}) {
-  let client = null; let accessToken = null; const networkHistory=[];
+  let configWarmer = null; let client = null; let accessToken = null; const networkHistory=[];
   const readConfig = options.readConfig || (async () => (await fetch(api.runtime.getURL("api/config.json"))).json());
   const withAccess = options.withAccess || (async () => { throw new Error("invalid_session"); });
   async function getClient(session) {
@@ -27,10 +27,21 @@ export function createApiBroker(api, options = {}) {
     try {
       const config = await readConfig();
       if (!config.baseUrl) return { ok: true, asset: { found: false, retryAfterMs: 60000 }, configured: false };
+      /* Only public configuration warms before authority checks. No signed
+         descriptor or audio request is sent until withAccess has accepted. */
+      let configReady;
+      if (options.warmPublicConfig === true) {
+        if (!configWarmer || configWarmer.origin !== config.baseUrl) configWarmer = new ApiClient(config.baseUrl,
+          {...options, clientVersion:api.runtime.getManifest().version,
+            onNetwork:item=>{networkHistory.push(item);if(networkHistory.length>16)networkHistory.shift();}});
+        if (message.forceRefresh === true) configWarmer.resetTransport();
+        configReady = configWarmer.config();
+        configReady.catch(()=>{});
+      }
       return await withAccess(async (session) => {
         if (options.entitlement && !(await options.entitlement()).allowed) throw new Error("api_forbidden");
         const active = await getClient(session);
-        return { ok: true, configured: true, asset: await active.resolve(message.service, message.trackId, { forceRefresh: message.forceRefresh === true }) };
+        return { ok: true, configured: true, asset: await active.resolve(message.service, message.trackId, { forceRefresh: message.forceRefresh === true, configReady }) };
       });
     } catch (error) {
       let code = String(error?.message || "");
@@ -42,5 +53,5 @@ export function createApiBroker(api, options = {}) {
       return { ok: false, error: safeErrors.has(code) ? code : "api_unavailable" };
     }
   };
-  return Object.assign(handle, { networkDiagnostics:()=>networkHistory.map(item=>({...item})), resetTransport: () => client?.resetTransport() });
+  return Object.assign(handle, { networkDiagnostics:()=>networkHistory.map(item=>({...item})), resetTransport: () => { client?.resetTransport(); configWarmer?.resetTransport(); } });
 }

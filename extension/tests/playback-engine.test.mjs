@@ -571,7 +571,8 @@ test('connection hints cannot bypass duration or signed access failure blocks',a
  }
 });
 
-test('incident: seeks during loading retain one download and activate at the final position', async()=>{
+test('incident: seeks during loading retain one download and activate at the final position', async t=>{
+ t.mock.timers.enable({apis:['Date'],now:1793731938000});
  const gate=deferred();const f=fixture({loadGate:gate});f.update(snapshot());await settle();
  const first=f.engine.operation;
  for(const time of [20,38]){const seeking=snapshot();Object.assign(seeking.player,{currentTime:time,seeking:true,readyState:1});f.update(seeking,'SEEK');assert.equal(f.engine.operation,first);}

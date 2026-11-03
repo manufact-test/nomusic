@@ -216,8 +216,22 @@ export function createAuthBroker(api, options = {}) {
         (typeof value.valid_until === "string" && /Z$/.test(value.valid_until) && Number.isFinite(Date.parse(value.valid_until))));
   }
   async function withEntitledAccess(callback) {
+    /* Independent read checks overlap; neither result grants authority alone.
+       Reflect early rejection so a failed session cannot leave an unhandled promise. */
+    const version = sessionVersion, epoch = transportEpoch;
+    const candidate = await store.get();
+    if (version !== sessionVersion) throw new Error("invalid_session");
+    const pending = candidate ? apiRequest("entitlement", "GET", null, candidate.access_token)
+      .then(value => ({value}), error => ({error})) : null;
     return withAccess(async (saved) => {
-      const access = await apiRequest("entitlement", "GET", null, saved.access_token);
+      if (version !== sessionVersion) throw new Error("invalid_session");
+      if (epoch !== transportEpoch) throw new Error("auth_network_error");
+      const checked = pending && candidate.access_token === saved.access_token ? await pending
+        : {value:await apiRequest("entitlement", "GET", null, saved.access_token)};
+      if (version !== sessionVersion) throw new Error("invalid_session");
+      if (epoch !== transportEpoch) throw new Error("auth_network_error");
+      if (checked.error) throw checked.error;
+      const access = checked.value;
       if (!validEntitlement(access)) throw new Error("auth_unavailable");
       if (!access.allowed) throw new Error("api_forbidden");
       return callback(saved);

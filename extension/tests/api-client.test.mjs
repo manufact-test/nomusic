@@ -397,3 +397,24 @@ test('HTTP 500 read retries recover without caching the failure; writes are neve
  calls=0;client.fetch=async()=>{calls++;return new Response('',{status:500});};
  await assert.rejects(client.request('/api/v1/events/batch',{method:'POST',body:'{}'}),/api_server_error/);assert.equal(calls,1);
 });
+
+test('concurrent config warmups share one public policy read',async()=>{
+ let release,calls=0;const wait=new Promise(r=>release=r);
+ const client=new ApiClient('https://celikom.example',{now:()=>now,fetch:async()=>{calls++;await wait;return response(config);}});
+ const a=client.config(),b=client.config();assert.equal(calls,1);release();
+ assert.deepEqual(await a,config);assert.equal(await b,await a);assert.equal(calls,1);
+});
+
+test('network reset fences late public config and does not restore its cache',async()=>{
+ let release;const wait=new Promise(r=>release=r);
+ const client=new ApiClient('https://celikom.example',{now:()=>now,fetch:async()=>{await wait;return response(config);}});
+ const pending=client.config();const checked=assert.rejects(pending,/api_network_error/);
+ client.resetTransport();release();await checked;assert.equal(client.configCache,null);
+});
+
+test('warmed maintenance policy overrides an already cached positive mapping',async()=>{
+ let calls=0;const client=new ApiClient('https://celikom.example',{now:()=>now,fetch:async url=>{calls++;return response(url.endsWith('config')?config:found);}});
+ assert.equal((await client.resolve('yandex','7')).found,true);const before=calls;
+ const result=await client.resolve('yandex','7',{configReady:Promise.resolve({...config,maintenance:true})});
+ assert.equal(result.found,false);assert.equal(calls,before,'maintenance does not dispatch audio resolve');
+});
