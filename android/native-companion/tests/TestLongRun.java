@@ -13,7 +13,7 @@ public class TestLongRun {
    e.identity(LogStore.map("mediaAlias",String.valueOf(song+1),"albumId","42","title","Песня","artist","Артист","durationMs",120000L),LogStore.map("candidateTrackId",String.valueOf(song+7),"method","ALBUM"));
    MediaPlayer player=TestEngine.prepare();
    check(e.armed()&&e.armedUntil==enabled&&player.playing,"automatic activation survives song "+song);
-   check(e.recentAudio.size()<=3,"private audio cache remains bounded at song "+song);
+   check(e.recentAudio.size()<=RecentAudioCachePolicy.MAX_ENTRIES,"private audio cache remains bounded at song "+song);
   }
   check(SystemClock.now>12*3600000L,"simulation crosses twelve hours of elapsed time");
   e.stop("user_stop");check(!e.armed()&&e.player==null&&e.effect==null&&e.recentAudio.isEmpty(),"explicit Stop still releases everything after long playback");

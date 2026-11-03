@@ -166,6 +166,43 @@ final class AudioOwnership {
  private DynamicsProcessing attachedEffect;
  private float commandedSecondary;
  private MediaPlayer lastVolumePlayer;
+ // Silent next-item decoder lease. This does not grant ownership of the source
+ // effect, authorize secondary output, or change the active track ticket.
+ private MediaPlayer speculativeNextDecoder;
+ void silenceFutureDecoder(MediaPlayer p){
+  if(p==null||p==lastVolumePlayer)throw new IllegalStateException("invalid speculative decoder");
+  p.setVolume(0f,0f);
+ }
+ void startSpeculativeNext(MediaPlayer p){
+  if(p==null||speculativeNextDecoder!=null||p==lastVolumePlayer)
+   throw new IllegalStateException("speculative decoder already owned");
+  speculativeNextDecoder=p;
+  try{p.setVolume(0f,0f);p.start();}
+  catch(RuntimeException e){speculativeNextDecoder=null;throw e;}
+ }
+ void pauseSpeculativeNext(MediaPlayer p){
+  if(p==null||p!=speculativeNextDecoder)throw new IllegalStateException("stale speculative pause");
+  p.setVolume(0f,0f);if(p.isPlaying())p.pause();
+ }
+ void seekSpeculativeNextZero(MediaPlayer p){
+  if(p==null||p!=speculativeNextDecoder||p.isPlaying())
+   throw new IllegalStateException("speculative seek must be paused");
+  p.setVolume(0f,0f);p.seekTo(0L,MediaPlayer.SEEK_CLOSEST);
+ }
+ void discardSpeculativeNext(MediaPlayer p){
+  if(p==null)return;
+  if(p==lastVolumePlayer&&p!=speculativeNextDecoder)
+   throw new IllegalStateException("cannot discard active decoder as speculative");
+  if(speculativeNextDecoder==p)speculativeNextDecoder=null;
+  try{p.setVolume(0f,0f);}catch(RuntimeException ignored){}
+  try{if(p.isPlaying())p.pause();}catch(RuntimeException ignored){}
+  try{p.release();}catch(RuntimeException ignored){}
+ }
+ void adoptSpeculativeNext(MediaPlayer p){
+  if(p==null||p!=speculativeNextDecoder||p.isPlaying())
+   throw new IllegalStateException("speculative player not primed and paused");
+  p.setVolume(0f,0f);speculativeNextDecoder=null;
+ }
  State state(){return state;}
  String reason(){return reason;}
  long epoch(){return generation;}

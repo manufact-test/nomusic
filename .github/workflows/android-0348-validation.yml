@@ -116,6 +116,12 @@ jobs:
           test -s "$RUNNER_TEMP/dex/classes.dex"
           cp "$RUNNER_TEMP/dex/classes.dex" "$ROOT/android-native-classes2.dex"
           sha256sum "$ROOT/android-native-classes2.dex"
+      - name: Validate isolated CELIKOM Test packaging contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile android/native-companion/build_test_release.py android/native-companion/verify_test_release.py android/native-companion/tests/check_test_app_build_contract.py
+          python3 android/native-companion/tests/check_test_app_build_contract.py
       - name: Record JDK17 CI Java-source and DEX provenance
         shell: bash
         run: python3 android/native-companion/tests/write_ci_provenance.py
@@ -173,6 +179,24 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+
+
+  build-celikom-test:
+    if: >-
+      github.event_name == 'pull_request' &&
+      github.head_ref == 'feature/android-0385-intro-join-investigation-20261102' &&
+      github.event.pull_request.head.repo.full_name == 'manufact-test/nomusic'
+    needs: native-android
+    permissions:
+      actions: read
+      contents: read
+    uses: ./.github/workflows/android-0385-test-app-build.yml
+    with:
+      source_sha: ${{ github.event.pull_request.head.sha }}
+      source_branch: ${{ github.head_ref }}
+      source_repository: ${{ github.event.pull_request.head.repo.full_name }}
+      validation_run_id: ${{ github.run_id }}
+    secrets: inherit
 
   build-test-candidate:
     if: github.ref == 'refs/heads/feature/android-0382-cache-prewarm-staging-20261101' || github.ref == 'refs/heads/feature/android-0382-playback-continuity-fix-20261101'

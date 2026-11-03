@@ -11,7 +11,7 @@ public class TestEngine {
     position,false,true,1f,true,true);
  }
  static void reset(String method){reset(method,false);}
- static void reset(String method,boolean fullFileExperiment){SystemClock.now=1000;AttenuationService.Companion.session=101;api=new NativeApi();NativeApi.api=api;p=new ProbeService();p.current=source("1",1000,true);e=new ReplacementEngine(p,fullFileExperiment);e.identity(LogStore.map("mediaAlias","1","albumId","42","title","Песня","artist","Артист","durationMs",120000L),LogStore.map("candidateTrackId","7","method",method,"editionConflict",false));api.signed=true;}
+ static void reset(String method,boolean fullFileExperiment){SystemClock.now=1000;AttenuationService.Companion.session=101;api=new NativeApi();NativeApi.api=api;p=new ProbeService();p.current=source("1",1000,true);e=new ReplacementEngine(p,fullFileExperiment);e.coldJoinExclusiveExperiment=false;e.identity(LogStore.map("mediaAlias","1","albumId","42","title","Песня","artist","Артист","durationMs",120000L),LogStore.map("candidateTrackId","7","method",method,"editionConflict",false));api.signed=true;}
  static JSONObject found()throws Exception{return new JSONObject().put("found",true).put("replacement_id",1).put("duration_ms",120000);}
  static void resolve()throws Exception{api.resolved.done(found(),null);}
  static MediaPlayer prepare()throws Exception{resolve();File f=File.createTempFile("engine-test", ".audio");api.downloaded.done(f,null);MediaPlayer player=e.player;player.prepared.onPrepared(player);return player;}
@@ -117,7 +117,8 @@ public class TestEngine {
   playing();File retained=e.audioFile;warm=e.player;p.current=source("2",0,true);e.update(p.current);
   ok(retained.exists()&&e.recentAudio.size()==1,"track departure retains one bounded private audio file");
   p.current=source("1",0,true);e.identity(LogStore.map("mediaAlias","1","albumId","42","title","Песня","artist","Артист","durationMs",120000L),LogStore.map("candidateTrackId","7","method","ALBUM"));
-  downloads=api.downloads;resolve();ok(api.downloads==downloads&&e.player!=null,"return uses cached audio only after a fresh successful resolve");e.player.prepared.onPrepared(e.player);ok(e.player.playing,"return starts without an unrelated user seek");e.stop("owner_stop");ok(!retained.exists()&&e.recentAudio.isEmpty(),"explicit stop removes retained audio");
+  if(e.primedNext!=null){MediaPlayer cachedPrime=e.primedNext.player;ok(e.player==null&&e.effect==null,"cached current prime cannot play before live resolve");cachedPrime.prepared.onPrepared(cachedPrime);cachedPrime.position=45;SystemClock.now+=50;p.handler.drain();ok(e.primedNext!=null&&e.primedNext.ready,"repeat decoder silently warms while the fresh resolve is pending");}
+  downloads=api.downloads;resolve();ok(api.downloads==downloads&&e.player!=null,"return uses cached audio only after a fresh successful resolve");if(!e.ready)e.player.prepared.onPrepared(e.player);ok(e.player.playing,"return starts without an unrelated user seek");e.stop("owner_stop");ok(!retained.exists()&&e.recentAudio.isEmpty(),"explicit stop removes retained audio");
   playing();retained=e.audioFile;p.current=source("2",0,true);e.update(p.current);p.current=source("1",0,true);e.update(p.current);downloads=api.downloads;api.resolved.done(found().put("version",2),null);
   ok(api.downloads==downloads+1,"changed replacement version cannot reuse old audio");e.stop("owner_stop");ok(!retained.exists(),"stop also deletes a superseded cached version");
   playing();retained=e.audioFile;p.current=source("2",0,true);e.update(p.current);p.current=source("1",0,true);e.update(p.current);api.resolved.done(null,"access_denied");
@@ -142,7 +143,7 @@ public class TestEngine {
   // Completed song is reusable after a live resolve; do not redownload on repeat.
   playing();retained=e.audioFile;e.suspend("replacement_end",30000);ok(retained.exists()&&e.recentAudio.size()==1,"natural end preserves validated file for a later repeat in this run");
   p.current=source("2",0,true);e.identity(LogStore.map("mediaAlias","2","albumId","42","title","Песня","artist","Артист","durationMs",120000L),LogStore.map("candidateTrackId","8","method","ALBUM"));api.resolved.done(new JSONObject().put("found",false),null);
-  p.current=source("1",0,true);e.identity(LogStore.map("mediaAlias","1","albumId","42","title","Песня","artist","Артист","durationMs",120000L),LogStore.map("candidateTrackId","7","method","ALBUM"));downloads=api.downloads;resolve();ok(api.downloads==downloads&&e.player!=null,"return after natural end uses file after fresh authorization");e.close();ok(!retained.exists(),"completed song cache deleted on shutdown");
+  p.current=source("1",0,true);e.identity(LogStore.map("mediaAlias","1","albumId","42","title","Песня","artist","Артист","durationMs",120000L),LogStore.map("candidateTrackId","7","method","ALBUM"));if(e.primedNext!=null){MediaPlayer cachedPrime=e.primedNext.player;cachedPrime.prepared.onPrepared(cachedPrime);cachedPrime.position=45;SystemClock.now+=50;p.handler.drain();}downloads=api.downloads;resolve();ok(api.downloads==downloads&&e.player!=null,"return after natural end uses file after fresh authorization");e.close();ok(!retained.exists(),"completed song cache deleted on shutdown");
   // The 0.3.54 HONOR trace shows playWhenReady=true while buffering during seeks.
    playing();warm=e.player;SystemClock.now+=ReplacementEngine.UNIFIED_JOIN_MS+50;p.current=source("1",1160,true);p.handler.drain();
    p.current=buffering(1160);e.update(p.current);

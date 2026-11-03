@@ -67,8 +67,14 @@ public class RecorderActivity extends Activity {
  void set(TextView v,String value){if(!value.contentEquals(v.getText()))v.setText(value);}
  void enable(Button button,boolean enabled){button.setEnabled(enabled);button.setAlpha(enabled?1f:.42f);}
  final Runnable update=new Runnable(){public void run(){render();handler.postDelayed(this,500);}};
- @Override protected void onStart(){super.onStart();handler.removeCallbacks(update);handler.post(update);}
- @Override protected void onStop(){handler.removeCallbacks(update);super.onStop();}
+ @Override protected void onStart(){super.onStart();logLifecycle("on_start");handler.removeCallbacks(update);handler.post(update);}
+ @Override protected void onStop(){logLifecycle("on_stop");handler.removeCallbacks(update);super.onStop();}
+ void logLifecycle(String event){
+  ProbeService p=ProbeService.instance;
+  if(p==null){LogStore.log("activity_lifecycle",LogStore.map("activityEvent",event,"servicePresent",false,"processId",android.os.Process.myPid()));return;}
+  java.util.Map<String,Object> state=p.runtimeSnapshot("activity_"+event);state.put("activityEvent",event);
+  LogStore.log("activity_lifecycle",state);
+ }
  void render(){
   if(save!=null){save.setVisibility(api().diagnosticHint()?View.VISIBLE:View.GONE);save.setEnabled(!exportBusy);}if(incidentButton!=null){incidentButton.setVisibility(api().diagnosticHint()?View.VISIBLE:View.GONE);incidentButton.setEnabled(!exportBusy);}if(reportNote!=null)reportNote.setVisibility(api().fullDiagnostics()?View.VISIBLE:View.INVISIBLE);
   ProbeService p=ProbeService.instance;ReplacementEngine e=p==null?null:p.replacement;boolean running=p!=null&&p.alive(),armed=e!=null&&e.armed(),signed=api().signedIn();
@@ -154,7 +160,7 @@ public class RecorderActivity extends Activity {
  void requestExport(){if(exportBusy)return;if(api().fullDiagnostics()){export();return;}set(reportNote,"Проверяем доступ к диагностике…");reportNote.setVisibility(View.VISIBLE);api().refreshDiagnostics((j,error)->{if(!visible())return;if(error!=null){toast("diagnostics_forbidden".equals(error)?"Полная диагностика доступна только администраторам":error(error));return;}export();});}
  void export(){if(!api().fullDiagnostics())return;if(exportBusy)return;if(!LogStore.hasReport()){toast("Диагностика пока пуста. Сначала нажмите «Старт».");return;}exportBusy=true;files.execute(()->{File snapshot=null;try{snapshot=File.createTempFile("diagnostics-",".txt",getCacheDir());LogStore.snapshot(snapshot);}catch(Exception e){if(snapshot!=null)snapshot.delete();snapshot=null;}final File result=snapshot;handler.post(()->{if(!visible()||result==null||!api().fullDiagnostics()){if(result!=null)result.delete();exportBusy=false;if(visible())toast("Не удалось подготовить диагностику");return;}exportSnapshot=result;try{startActivityForResult(new Intent(Intent.ACTION_CREATE_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("text/plain").putExtra(Intent.EXTRA_TITLE,"CELIKOM-combined-"+new SimpleDateFormat("yyyyMMdd-HHmmss",Locale.ROOT).format(new Date())+".txt"),20);}catch(RuntimeException e){result.delete();exportSnapshot=null;exportBusy=false;toast("Не удалось открыть сохранение TXT");}});});}
  @Override protected void onActivityResult(int request,int result,Intent data){super.onActivityResult(request,result,data);if(request==21){finishIncidentExport(result,data);return;}if(request==30){MobileActions.Target t=pickerTarget;pickerTarget=null;if(result==RESULT_OK&&data!=null&&data.getData()!=null)stage(data.getData(),t);return;}if(request!=20)return;File snapshot=exportSnapshot;exportSnapshot=null;exportBusy=false;if(snapshot==null)return;if(result!=RESULT_OK||data==null||data.getData()==null||!api().fullDiagnostics()){snapshot.delete();return;}Uri uri=data.getData();files.execute(()->{boolean ok=false;if(!api().fullDiagnostics()){snapshot.delete();return;}try(OutputStream out=getContentResolver().openOutputStream(uri,"wt")){if(out==null)throw new IOException();long account=api().accountGeneration;try(InputStream in=new FileInputStream(snapshot)){byte[] buffer=new byte[16384];int n;while((n=in.read(buffer))!=-1){if(account!=api().accountGeneration||!api().fullDiagnostics())throw new IOException("diagnostics_forbidden");out.write(buffer,0,n);}}ok=true;}catch(Exception ignored){}finally{snapshot.delete();}final boolean success=ok;handler.post(()->{if(visible())set(reportNote,success?"Диагностика сохранена":"Не удалось сохранить диагностику");});});}
- @Override protected void onNewIntent(Intent i){super.onNewIntent(i);setIntent(i);receive(i);}
+ @Override protected void onNewIntent(Intent i){super.onNewIntent(i);setIntent(i);receive(i);logLifecycle("on_new_intent");}
  void receive(Intent i){
   if(i==null)return;
   if(NotificationTarget.ACTION.equals(i.getAction())){

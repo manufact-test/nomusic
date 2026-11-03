@@ -8,6 +8,7 @@ import subprocess
 import tempfile
 
 ROOT=Path(__file__).resolve().parent.parent
+DEPS=Path(os.environ.get('CELIKOM_ANDROID_DEPS',str(ROOT/'deps'))).resolve()
 SDK=Path(os.environ.get('ANDROID_HOME') or os.environ.get('ANDROID_SDK_ROOT') or '/usr/local/lib/android/sdk')
 ANDROID=SDK/'platforms/android-36/android.jar'
 if not ANDROID.is_file():
@@ -16,8 +17,8 @@ if not ANDROID.is_file():
     print('SKIP: SDK 36 not present locally; Android Test* gate remains mandatory in CI')
     raise SystemExit(0)
 names=['annotation.jar','common.jar','guava.jar','session.jar']
-deps=[ROOT/'deps'/name for name in names]
-json=ROOT/'deps/json.jar'
+deps=[DEPS/name for name in names]
+json=DEPS/'json.jar'
 for item in [*deps,json]:
     if not item.is_file():
         raise SystemExit('Missing pinned dependency: '+str(item))
@@ -34,7 +35,7 @@ with tempfile.TemporaryDirectory(prefix='celikom-android-full-host-') as temp:
     run_cp=os.pathsep.join(str(x) for x in [json,classes,tests,ANDROID])
     # TestReportReplay requires a private diagnostic fixture and is not a no-argument gate.
     # Match the release builder's tested runnable suite exactly; compile all test classes.
-    runnable=['TestPure','TestHybrid','TestContracts','TestMobileActions','TestAppPresentation','TestNotifications','TestDiagnosticArchive','TestAudioTransfer','TestBufferedAudio','TestTransitionReadFence','TestTransitionRecovery','TestRequestPacing','TestSourceStateWatchdog','TestDiagnosticAccess','TestIncidentLog','TestPresencePreview','TestDiagnosticRequest','TestUpdateState']
+    runnable=['TestPure','TestHybrid','TestContracts','TestMobileActions','TestAppPresentation','TestNotifications','TestDiagnosticArchive','TestAudioTransfer','TestBufferedAudio','TestTransitionReadFence','TestTransitionRecovery','TestRequestPacing','TestSourceStateWatchdog','TestDiagnosticAccess','TestIncidentLog','TestPresencePreview','TestDiagnosticRequest','TestUpdateState','TestYandexSessionSafety','TestFastJoinPollPolicy']
     for name in runnable:
         clazz='pro.celikom.nativeprobe.identitydiag.'+name
         subprocess.run(['java','-cp',run_cp,clazz],check=True)

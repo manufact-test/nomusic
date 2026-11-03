@@ -1,14 +1,285 @@
+# ВАЖНО: подтверждён Test.15 BEST OWNER BENCHMARK; Test.16 только кандидат (2026-11-03)
+
+Владелец проверил подписанную **Test.15** и назвал её лучшей из всех предыдущих: примерно 70% переходов практически идеальны, чаще всего нет прежней полусекундной задержки, но у песен с резкой атакой слышно переключение аудио. Эталон сохранён **backup/android-0385-test15-best-owner-20261103** на SHA `6fde1e48179ecb812f1def16067f18bf0d9c3003`; [signed Test.15 ZIP](https://github.com/manufact-test/nomusic/actions/runs/41674369584/artifacts/13248949184). **Не двигать эталон**, Test.16 не подтверждена.
+
+С «Дым» Лёша Свик: видео показало перемотку UI 0→1:46→3:21→3:38→1:57, а Media3 в combined по-прежнему на 0–10 сек / isPlaying:true; **seek и pause вообще не поступили в CELIKOM**, следовательно frozen seek не виноват. В Test.16 лишь разреженная read-only диагностика Android audio playback activity (анонимное число активных media configs без идентификации Яндекса) и ускоренный fast-join polling `35/60→15/30мс` в том же ограниченном 1200мс окне; звук/gain/seek/strict gate неизменны. Отдельная Test.16/code86101: **полный CI SUCCESS** [#41679911010](https://github.com/manufact-test/nomusic/actions/runs/41679911010), **[подписанный APK в ZIP](https://github.com/manufact-test/nomusic/actions/runs/41679911010/artifacts/13251069084)**, функциональный SHA `66dfa4eb5b4ca05b0c26abb8e629131de1ac64e4`; полевой тест владельца PENDING. Стабильная 0.3.85/code86 и Hostinger untouched.
+
+Подробно: [ANDROID-0385-TEST-16-FAST-JOIN-AND-PUBLIC-AUDIO-ACTIVITY-2026-11-03.md](ANDROID-0385-TEST-16-FAST-JOIN-AND-PUBLIC-AUDIO-ACTIVITY-2026-11-03.md).
+
+---
+
+# АКТУАЛЬНО: CELIKOM Test.15 — проверенный откат сетевой конкуренции + улучшение прогрева (2026-11-03)
+
+**Передача:** [ANDROID-0385-TEST-15-SERIAL-AUDIO-PRIORITY-AND-CACHED-PRIME-GRACE-2026-11-03.md](ANDROID-0385-TEST-15-SERIAL-AUDIO-PRIORITY-AND-CACHED-PRIME-GRACE-2026-11-03.md). По свежему HONOR Test.14 логам и видео владелец подтвердил акустическую регрессию: «Солнца не видно» 239→491/768мс, «Биг сити лайф» 267→613мс в разных прогонах. Три `cached_current_prime` не успели за прежние 150мс и были выброшены; «Дым» UI 3:34 при публичном Media3 ~10с, без `SAME_ITEM_SEEK`. Test.15 меняет одну общую audioWork очередь для current/lookahead, **отложенный на 1100мс speculative enqueue** для приоритета текущего трека и **340мс кэшированному prime wait** (промотированный next prime остаётся 150мс). Новая host-регрессия проверяет готовность на230мс; accepted seek, ClockSupervisor, audio output, stable publisher, Hostinger не тронуты. Официальные Android API-документы подтверждают ограничение чтения seek через MediaSession без новых разрешений, не объявлять «Дым» исправленной.
+
+**Функциональный SHA:** `4838ccee4aa4628dce68437ebbf00d4dfc30ce27`; **[полный CI SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/41674369584)** (host, API36/D8, seek freeze, отдельная подписанная Test.15, stable SKIPPED). **[Скачать прямой ZIP с подписанным APK Test.15](https://github.com/manufact-test/nomusic/actions/runs/41674369584/artifacts/13248949184)**, artifact `13248949184`, версия `0.3.85-test.15/code86100`, отдельное приложение. Акустическая проверка на телефоне: **Test.15 подтверждена как лучший эталон владельца**; попросить один совместный проход и combined+видео, без микросборок. Стабильная `0.3.85/code86`, backup refs, Hostinger/stable.json и PR #37 не изменены/не слиты.
+
+---
+
+# АКТУАЛЬНО: CELIKOM Test.14 — независимые загрузки текущего/следующего трека (2026-11-03)
+
+**Передача:** [ANDROID-0385-TEST-14-AUDIO-PRIORITY-AND-FIELD-TRACE-2026-11-03.md](ANDROID-0385-TEST-14-AUDIO-PRIORITY-AND-FIELD-TRACE-2026-11-03.md). Владелец проверил Test.13 на HONOR: 20 подключений, в большинстве тёплый стык ~0,15–0,35 с; оставшиеся «Крылья», «Метамир» Johnyboy, Big City Life и «Дым» описаны там. Обнаружена доказанная FIFO-инверсия: `NativeApi.audioWork` скачивал будущую песню раньше уже выбранной текущей (на «Дым» потеря ~2,1 с, на «Крылья» ~2 с). Новая Test.14/code86099 разводит foreground и speculative download в два отдельных executor-канала, сохраняет promoted in-flight single-flight и accepted seek. Тестовый вариант автоматической умеренной коррекции дрейфа **был отвергнут CI и полностью откатан** до выпуска: защитный fail-open остался прежним. «Дым» seek всё ещё не виден в публичном Media3 на этой модели; не объявлять исправленным, без новых разрешений.
+
+**Функциональный SHA** `14f5eee855d88dfe8a61fa248af67f13dd684483`; **CI** [#41661369840](https://github.com/manufact-test/nomusic/actions/runs/41661369840) **SUCCESS** (host, API36/D8, golden seek, separate signed test), **[прямой ZIP Test.14 с подписанным APK](https://github.com/manufact-test/nomusic/actions/runs/41661369840/artifacts/13241019245)**, APK SHA-256 `42d23f4a49a63961910939040ee46efb7cebfcc4c666a0daac7072b8cc92e188`. APK имеет исходный signer и проверенную v3-подпись, Test.14 ещё **не проверена на телефоне**. Стабильная 0.3.85/code86, Hostinger/stable.json и PR №37 (не сливать) не затронуты. Только один общий полевой тест владельца после получения APK.
+
+---
+
+# АКТУАЛЬНО: CELIKOM Test.13 — одна общая подписанная сборка после Test.11 (2026-11-03)
+
+**Новая передача:** [ANDROID-0385-TEST-13-CURRENT-CACHE-PREWARM-2026-11-03.md](ANDROID-0385-TEST-13-CURRENT-CACHE-PREWARM-2026-11-03.md). Функциональный SHA `1d9fd846cb1ffb9cd88b3e958d6d9a1dea51e52b`, **полный CI [#41652748816](https://github.com/manufact-test/nomusic/actions/runs/41652748816) SUCCESS**. **[ZIP с подписанным APK Test.13](https://github.com/manufact-test/nomusic/actions/runs/41652748816/artifacts/13239070484)**, `0.3.85-test.13/code86098`, отдельное приложение `pro.celikom.nativeprobe.test`; SHA-256 APK `651f598b2e10371b0d2c237fe062395701e708c0d44d58ae6c215e7544677b7b`. User phone check **PENDING**.
+
+В Test.13 объединены частный 8/96MiB кэш Test.12, альтернативный беззвучный прогрев уже скачанной **текущей** песни в параллель свежему серверному resolve и исправление реальной гонки повторных prepare/download от многократных Media3 sample (обнаружена в `TestPhoneReplay` как две скачки и потерянный файл). Один prime-wait per session/track, guard player!=null, ограниченный cooldown повторного зависшего prime, расширенные real-engine tests. **Стабильная `0.3.85/code86`, золотой seek/ACK, пауза, Hostinger/stable.json, PR #37 не тронуты.**
+
+**Не объявлять «Дым» исправленной:** Test.11 зафиксировала, что Яндекс не экспортировал большую часть UI drag в доступную Media3; read-only legacy MediaBrowser отвергнут. Ни нового разрешения, ни вмешательства в Яндекс нет. У холодных незнакомых песен остаётся полное скачивание и возможность слышимого начала; Test.13 даёт шанс исправить повторы и гонки, не гарантирует акустически нулевую склейку. Следующий шаг — **один** общий тест на HONOR всех типов песен с combined+видео, затем пакетная диагностика.
+
+---
+
+# АКТУАЛЬНО: CELIKOM Test.12 signed, ждём один HONOR retest (2026-11-03)
+
+**Новая передача:** [ANDROID-0385-TEST-12-OWNER-TRACE-WARM-CACHE-2026-11-03.md](ANDROID-0385-TEST-12-OWNER-TRACE-WARM-CACHE-2026-11-03.md). Владелец передал свежий Test.11 combined (3,596 строк; свежий run начинается на строке 1881) и видео 173,5 с. **«Дым» не исправлена:** платформа отвергла резервный MediaBrowser (`legacy_position_source_unavailable`), а UI drag часто не отражается в прямом Media3, кроме одного скачка до 106,360 ms; замороженный seek/ACK исправно отработал полученный скачок. Никакой честной гарантии исправления без независимого доступного источника позиции нет. По переходам 14 prewarmed 238–397мс, четыре cold 2041–3381мс; новая Test.12 держит 8/96MiB тёплых файлов, защищает живой primed file от eviction и добавляет тесты. **Это улучшение повторов/смены очереди, не окончательное решение интро/первого uncached трека.**
+
+**Test.12:** `0.3.85-test.12` / code86097, package `pro.celikom.nativeprobe.test`, label CELIKOM Test. Functional SHA `d024db87d0e802327fa658407e659c47c1692cda`; полный CI [#41648755376](https://github.com/manufact-test/nomusic/actions/runs/41648755376) **SUCCESS** включая host, golden seek, API36/D8, подпись, отдельный пакет и стабильный publisher SKIPPED. [Прямой ZIP с подписанным APK](https://github.com/manufact-test/nomusic/actions/runs/41648755376/artifacts/13236337823), APK SHA-256 `6415b13e009c48aea912b9fb19eb1e9f63fc9463d9ef8184915ec8bcd8f4bf36`, original signer. **На HONOR Test.12 ещё не проверен.** Оригинал `0.3.85/code86`, backup refs, Hostinger/stable.json не трогали, PR#37 не мержили.
+
+Не просить тестировать Test.10/Test.11 отдельно. После новой диагностики Test.12 различить warm/cache hit/eviction от неизбежного первого cold, и отдельно предложить новую совместимую архитектуру источника позиции (новые Android permissions/Accessibility только с явного согласия владельца). Никаких blind timing/gain/seek правок. Не выпускать по одному APK на микроправку.
+
+---
+
+# АКТУАЛЬНО: CELIKOM Test.11 — сборка готова, ждём одну полную проверку владельца (2026-11-03)
+
+**Первым делом читать [ANDROID-0385-TEST-11-VERIFIED-HANDOFF-2026-11-03.md](ANDROID-0385-TEST-11-VERIFIED-HANDOFF-2026-11-03.md).** Последний проверенный функциональный SHA `7cb3cc190d614dd23646fa9b64a233e5f91162d4`; CI [#41638455540](https://github.com/manufact-test/nomusic/actions/runs/41638455540) **SUCCESS**; готовый отдельный `CELIKOM Test` code86096 ZIP [скачать напрямую](https://github.com/manufact-test/nomusic/actions/runs/41638455540/artifacts/13231786977). APK SHA256 `dc3d1026948d4b8e5978a5d116d09ceb2b57ff2d7ca2b1c347d1e60e25a52089`, оригинальный signer, стабильный `0.3.85/code86` и accepted seek/Hostinger/backup/PR#37 без изменений. Test.11 = одна общая версия: пассивная альтернативная позиция для пропущенного seek на «Дым», пауза после recovered seek, ограниченный fast poll 35/60мс после готовности нового декодера. **Полевых Test.11 логов/приёмки ещё нет**; владелец принесёт в следующем чате. Не заставлять его проверять Test.10 отдельно. Только после свежей диагностики Test.11 продолжать исправлять слышимые начала/переходы/seek и выпускать один общий APK.
+
+---
+
+# CELIKOM Test.11 — общий пакет: перемотка + начало песен (2026-11-03)
+
+Сначала читать [ANDROID-0385-TEST-11-COMBINED-INTRO-SEEK-2026-11-03.md](ANDROID-0385-TEST-11-COMBINED-INTRO-SEEK-2026-11-03.md). По требованию владельца больше не просить тестировать отдельно каждую микроправку. Test.11/code86096 содержит: (1) пассивный резервный источник позиции для пропущенного Media3 seek на «Дым» из Test.10; (2) исправление потери позиции при паузе после такого восстановления; (3) ускоренную ограниченную 35/60мс выборку только после подготовки нового декодера, чтобы устранить измеренную задержку 268мс между первым ACK и следующей проверкой source. Accepted seek/completeSeek, стабильный code86, backups, Hostinger и PR#37 не трогали. Это один пакет для следующего теста владельца; акустика до проверки не принята. Test.10 не нужно отдельно проверять.
+
+---
+
+# CELIKOM Test.10 — пойман редкий баг перемотки (2026-11-03)
+
+СНАЧАЛА ЧИТАТЬ [ANDROID-0385-TEST-10-LEGACY-POSITION-RECOVERY-2026-11-03.md](ANDROID-0385-TEST-10-LEGACY-POSITION-RECOVERY-2026-11-03.md). По видео и логу Test.9 подтверждено: на «Дым» Яндекс перематывает UI, но прямой Media3 наблюдатель CELIKOM продолжает отдавать старую позицию; `SAME_ITEM_SEEK` отсутствует. Test.10/code86095 пробует отдельное **пассивное** чтение позиции из системной legacy MediaSession того же сервиса; только двойная свежая проверка той же песни разрешает корректировку, при ошибке — оригинал. Замороженный `ReplacementEngine.seek()/completeSeek()` не меняли. Test.9 также имел один `drift_unstable`, акустика Test.10 требует проверки владельца. Стабильный код86, Hostinger, accepted backups и PR#37 не трогали.
+
+---
+
+# CELIKOM Test.9 — подготовка следующего трека после смены плейлиста (2026-11-03)
+
+Читать [ANDROID-0385-TEST-9-POST-PLAYLIST-SWITCH-PRIME-RACE-2026-11-03.md](ANDROID-0385-TEST-9-POST-PLAYLIST-SWITCH-PRIME-RACE-2026-11-03.md). Test.8 на HONOR сначала звучит лучше, затем заметные задержки при смене плейлиста/быстром выборе: журнал Test.8 начинается 14:02:45; видео подтверждает ручную смену очереди на ~72с (новая песня не была заранее скачана, 2.1с download). Найден реальный баг `prepared_stale` на ~87.5с: уже выбранная текущая песня теряет ещё догревающийся decoder; Test.9/code86094 сохраняет согласованный promoted prime и ждёт его до 150мс после fresh resolve. Никаких правок принятой перемотки, Pause/Resume, стабильной 0.3.85/code86, резервных веток, Hostinger или PR#37. **CI и реальное прослушивание проверять отдельно.**
+
+---
+
+# CELIKOM Test.8 — кандидат исправлений по полевой диагностике Test.7 (2026-11-03)
+
+Сначала читать [ANDROID-0385-TEST-8-INTRO-RETENTION-LEAD-CANDIDATE-2026-11-03.md](ANDROID-0385-TEST-8-INTRO-RETENTION-LEAD-CANDIDATE-2026-11-03.md). Владелец передал два combined-лога Test.7: 17 переходов, все файлы готовы заранее, но median output-command 530мс, max 838мс. Подтверждены две преждевременные отмены primed decoder; 13/17 cold joins потребовали дополнительный WARM seek. Test.8/code86093 — один общий эксперимент: сохранить decoder до fresh resolve и отдельный bounded cold-only seek lead. **CI и acoustic acceptance проверять отдельно.** Принятые seek/Pause/Resume, stable 0.3.85/code86, backup refs, stable.json/Hostinger, PR#37 не трогать. Редкий seek-after-unlock не воспроизведён, не исправлять вслепую.
+
+---
+
+# АКТУАЛЬНАЯ ПЕРЕДАЧА — CELIKOM Test.7 УСТАНОВЛЕНА, ждём диагностику (2026-11-03)
+
+**СНАЧАЛА ЧИТАТЬ [ANDROID-0385-TEST-7-INSTALLED-FIELD-TEST-NEXT-CHAT-2026-11-03.md](ANDROID-0385-TEST-7-INSTALLED-FIELD-TEST-NEXT-CHAT-2026-11-03.md).** Владелец **скачал GitHub ZIP, извлёк APK и установил Test.7**. Прежний blocker доставки через Library уже не мешает проверке. **Новые акустические результаты Test.7 пока не получены.** Следующий чат должен взять свежий `CELIKOM-combined-*.txt`, сравнить с Test.6 и продолжить исправлять прежде всего начало песен (одна общая Test APK со всеми реальными исправлениями). Не возвращаться к выдаче APK/разрешениям и не заявлять, что проблема интро устранена без полевого результата.
+
+- **Functional Test.7** SHA `a365dc1da36a9ee960100c40409d677778070e3f`, `0.3.85-test.7`/code86092, package `pro.celikom.nativeprobe.test`. [CI #41603059001](https://github.com/manufact-test/nomusic/actions/runs/41603059001) SUCCESS, artifact `13215970098`, signed APK SHA256 `de9d14050be56de8d7f837973a070c704b75cb23bd381886ac0cbee20e80b5be`.
+- Реально внедрено: Media3 lookahead poll `2000→500ms` + timeline refresh; fail-closed защита от stale Yandex session/double audio на API33; **только пассивная** диагностика rare seek после unlock, не исправление. Mid-song dropout и album identity waits — в общем списке.
+- Стабильный оригинал `0.3.85/code86` SHA `053b7d59beb53db5f30b942feba35e51a1ab256a`, обе accepted seek backups, frozen seek/Pause/Resume, `stable.json`, Hostinger, PR #37 — **НЕ ТРОГАТЬ**.
+
+
+---
+
+# АКТУАЛЬНАЯ ПЕРЕДАЧА — CELIKOM Test.7 signed, три проблемы в одном выпуске (2026-11-03)
+
+**Сначала читать [ANDROID-0385-TEST-7-CONSOLIDATED-OWNER-ISSUES-2026-11-03.md](ANDROID-0385-TEST-7-CONSOLIDATED-OWNER-ISSUES-2026-11-03.md)**. Там полный список приоритетов и диагностика нового owner run `CELIKOM-combined-20261103-111640.txt` (P0 intro: один +2196мс после rapid Next с prefetch lead 178мс; P0 двойной звук на API33 stale Yandex session; P1 редкий seek после unlock не воспроизведён, frozen seek не меняли; P1 album identity wait). Главный приоритет — начало песен, все связанные реальные правки выпускать вместе, не косметическими APK.
+
+- **Functional Test.7 SHA** `a365dc1da36a9ee960100c40409d677778070e3f`, `0.3.85-test.7`/code86092, отдельный package `pro.celikom.nativeprobe.test`. CI [#41603059001](https://github.com/manufact-test/nomusic/actions/runs/41603059001) **SUCCESS**, original signer, unchanged accepted seek, API36/D8, stable publisher SKIPPED. Artifact **13215970098**, signed APK SHA256 `de9d14050be56de8d7f837973a070c704b75cb23bd381886ac0cbee20e80b5be`.
+- Fix/test: Android13 stale session fail-closed (не auto-trust unverified broadcast), next Media3 timeline poll 2000→500мс + immediate onTimelineChanged, passive seek screen state diagnostic. **Нет owner acoustic acceptance.**
+- **Library upload временно не сделан:** sandbox запрещает записать ZIP из GitHub во временный каталог; не подделывать ссылку. Пока signed APK доступна в GitHub Actions artifact; при рабочем файловом доступе материализовать, проверить SHA/cert и сохранить APK+verification+receipt в Library. Не объявлять полноценную передачу APK через Library завершённой.
+- Стабильный CELIKOM 0.3.85/code86 SHA `053b7d59beb53db5f30b942feba35e51a1ab256a`, обе accepted seek backup ветки, stable.json, Hostinger, PR#37 **не трогать**.
+
+---
+
+# КРИТИЧЕСКАЯ ПЕРЕДАЧА — Test.6: stale Yandex audio-session → оригинал + замена одновременно (2026-11-03)
+
+**Сначала читать [ANDROID-0385-TEST-6-STALE-YANDEX-SESSION-DOUBLE-AUDIO-2026-11-03.md](ANDROID-0385-TEST-6-STALE-YANDEX-SESSION-DOUBLE-AUDIO-2026-11-03.md).** Владелец HONOR Android13 поймал новый баг после длинного background: Яндекс аудиосессия сменилась **74313→75561**, CELIKOM сохранял **trustedSessionId 74313** и включал replacement при старом `DynamicsProcessing(0,74313)`, поэтому слышались **оба звука**. На API33 `verifiedSessionSender()` всегда false, existing automatic stop by broadcast не выполняется. Cancel→Start у владельца восстановил нормальный звук. **Автоматическую работу между песнями нужно сохранить, ручной эквалайзер на каждый трек недопустим.** Смена ID должна fail-closed останавливать replacement, но untrusted broadcast нельзя использовать для auto-trust новой сессии. Отдельно в записи ~23с wait для album identity. **Новой APK/фикса пока нет; functional Test.6/code86091 SHA `3c22a03f364a019ac545efb4e132ad3f5fc12c21` не менялся**. Stable original, backups, accepted seek, Pause/Resume, Hostinger, stable.json и PR#37 неизменны.
+
+---
+
+# АКТУАЛЬНАЯ ПЕРЕДАЧА — Test.6 реальный retest, причины поздних вступлений (2026-11-03)
+
+**Обязательно сначала читать [ANDROID-0385-TEST-6-OWNER-RETEST-RESULT-2026-11-03.md](ANDROID-0385-TEST-6-OWNER-RETEST-RESULT-2026-11-03.md)**, затем Test.6 handoff ниже. HONOR: владелец слышит заметное улучшение, местами полностью незаметный переход, но несколько «тяжёлых» песен ещё плохие. Из 10 повторных catalog IDs 8 ускорены. Медиана Test.6 boundary→cold join 211 мс vs Test.4 fast joins 440.5 мс. Остались 904 мс (fresh backend resolve ~750 мс при готовом decoder) и 1990 мс (быстрый Next, prefetch файла закончен после source boundary). Длительный mid-song retest ещё ожидается; акустически звук **ещё не принят**. Stable/original/accepted seek/Pause/Resume/backup/Hostinger/PR #37 не менять. Последняя APK Test.6/code86091 source `3c22a03f364a019ac545efb4e132ad3f5fc12c21`; docs-only commits не меняют APK. Главная задача — звук в начале, совмещать связанные реальные исправления в одну Test APK, не выпускать косметические билды.
+
+---
+
+# АКТУАЛЬНАЯ ПЕРЕДАЧА — CELIKOM Test.6, интро + recovery (2026-11-02)
+
+Сначала читать docs/android/ANDROID-0385-TEST-6-EARLY-DECODER-PRIME-HANDOFF-2026-11-02.md. Приоритет владельца: звук в начале песен; не выпускать отдельные APK для мелочей.
+
+- Тестовая APK: 0.3.85-test.6 / versionCode 86091, package pro.celikom.nativeprobe.test. Functional SHA: 3c22a03f364a019ac545efb4e132ad3f5fc12c21. CI [#41523894044](https://github.com/manufact-test/nomusic/actions/runs/41523894044) SUCCESS: полные регрессии, неизменённая golden seek baseline, API36/D8, подпись и OTA-изоляция.
+- APK SHA256: 74d9b0369d31f84657fc951b7bb6a5c9396c62c30815e5faae222cd1b2de5e21; 8 775 833 байта; исходный сертификат. [APK в Library](https://chatgpt.com/library?file_id=libfile_085b58b278f48191a17c48818dba3bde&account_id=personal), [verification](https://chatgpt.com/library?file_id=libfile_937665882e708191a5dc483f46f36dcc&account_id=personal), [receipt](https://chatgpt.com/library?file_id=libfile_bba341cab64081918847ecd9f7190c96&account_id=personal), каталог /CELIKOM/Android/Test/.
+- Test.6 объединяет Test.5 recovery для зависшего promoted download с ранней **тихой** подготовкой декодера следующего трека. Текущая песня не приглушается при prefetch; применение разрешено только после свежего live resolve, совпадения аудиоключа и измеренной длительности. Неуспешная подготовка (включая таймаут 1,8 с) отступает к прежнему механизму.
+- Реальное ускорение и качество **ещё не проверены на HONOR**. У Test.4 10 холодных join в 321–610 мс, два поздних 2060/5172 мс, один зависший; предыдущая Test.5 решала только зависание. Теперь тестировать начало и отсутствие внезапной потери замены совместно, перемотку/Pause/Resume повторно не просить.
+- Артефакт GitHub 13177859581 ошибочно **назван** старой этикеткой Test.5/code86090, но APK внутри проверен как Test.6/code86091 и нужный source SHA; в Library переименовано только отображаемое имя файла. Исправить хардкод workflow-имени при следующем функциональном изменении, не ради отдельной APK.
+- Стабильная 0.3.85/code86, SHA 053b7d59beb53db5f30b942feba35e51a1ab256a, обе accepted seek backup-ветки, stable.json и Hostinger не тронуты. PR #37 открыт и не объединён. Яндекс «Плавный переход» OFF. Два CELIKOM не запускать одновременно против одной аудиосессии.
+
+---
+
+# АКТУАЛЬНАЯ ПЕРЕДАЧА — CELIKOM Test.5 собрана, диагностика Test.4 разобрана — 2026-11-02
+
+**Сначала читать [ANDROID-0385-TEST-5-CURRENT-HANDOFF-RACE-ANALYSIS-2026-11-02.md](ANDROID-0385-TEST-5-CURRENT-HANDOFF-RACE-ANALYSIS-2026-11-02.md).** Владелец предоставил ZIP с двумя снимками combined TXT (23:11:19 / 23:11:57) и видео 23:09:20. Не публиковать сырые файлы.
+
+- **Новая CELIKOM Test.5:** `0.3.85-test.5` / code **86090**, `pro.celikom.nativeprobe.test`; функциональный source SHA **`9f2ff01475d6400c81deed6710a7db28aafe8b40`**. [CI #41519689660](https://github.com/manufact-test/nomusic/actions/runs/41519689660) **SUCCESS**: полный host regression, новые race/timeout checks, неизменённый seek guard, Android API36/D8, signing and OTA checks. GitHub artifact **13177256960**, ZIP SHA `9803300ec02c2623a2f8e678f07751a52776709e60c85e0a392859342d46eec6`.
+- **Signed APK:** SHA256 `bd7e48e9ec29d769c4f8a350fdda18484fbf0b4bbe3a4b1499878a466e7ad0bb`, размер 8,771,737 байт; V3-подпись оригинальным сертификатом `67fe81c56fac1c1d145344b69a0e3faf9005cf6607f4e26ca27d5926c3eefc4f`. [APK в Library](https://chatgpt.com/library?file_id=libfile_f13b72e0a8c081918f942a67c21bcc6a&account_id=personal), [verification](https://chatgpt.com/library?file_id=libfile_c9873331e1e48191bc9311dafe5b9ce5&account_id=personal), [receipt](https://chatgpt.com/library?file_id=libfile_ca9a5de3f4c481918a7a088b16362dea&account_id=personal). Все в `/CELIKOM/Android/Test/` рядом со старыми версиями.
+- **Подтверждённый баг Test.4:** на GUF «Было давно» текущий файл был promoted in-flight, затем кандидат следующего трека отменил его prefetch, сбросил `lookaheadPrefetchCurrentDescriptor`, оставив `preparing=true` на >50 секунд. Исправлено: defer новой кандидатуры до завершения текущей, fallback на fresh descriptor при любой отмене и 10-секундный watchdog ожидания. Новые host tests прошли.
+- **Звук на HONOR пока не принят.** В Test.4 10 успешных переходов по 321–610 мс, два поздних (2,060 / 5,172 мс), один случай застревания. Видео даёт смешанный AAC, не атрибутирует каждый провал. После установки Test.5 попросить только обычное прослушивание начала/переходов и проверить отсутствие возврата оригинала, не повторяя seek/Pause/Resume.
+- **Стабильный оригинал 0.3.85/code86** `053b7d59beb53db5f30b942feba35e51a1ab256a` и две accepted-seek backup ветки **НЕ ТРОНУТЫ**. Stable OTA/Hostinger/`stable.json` не менялись; stable publisher SKIPPED; PR #37 OPEN/UNMERGED. Яндекс «Плавный переход» OFF; не запускать одновременно стабильный и Test против одной аудиосессии.
+
+---
+
+# АКТУАЛЬНАЯ ПЕРЕДАЧА — Test.4 (86089) собрана, ожидаются новые диагностика и оценка звука — 2026-11-02
+
+**В следующем чате сначала прочитать [ANDROID-0385-TEST-4-OWNER-RESULT-PENDING-HANDOFF-2026-11-02.md](ANDROID-0385-TEST-4-OWNER-RESULT-PENDING-HANDOFF-2026-11-02.md), затем новую диагностику владельца.** Test.4 functional SHA `d0b418d0173207b4900f27af365e87595301c4b1`, code **86089**, signed APK/receipt сохранены, CI [#41514473466](https://github.com/manufact-test/nomusic/actions/runs/41514473466) SUCCESS. Это реальный фикс prefetch/handoff, **акустически ещё не принят**. Стабильный оригинал 0.3.85/code86 и принятая перемотка неизменны. В этой передаче **нет новых изменений аудиокода или новой сборки**.
+
+---
+
+# CELIKOM Test 0.3.85-test.4 — intro prefetch and current-track handoff (2026-11-02)
+
+## Current deliverable
+
+**The current main task is the beginning/join of each replacement song.** Test.4 implements an actual preparation-path change; it is not merely a diagnostic build.
+
+- Test app: **CELIKOM Test**, package `pro.celikom.nativeprobe.test`.
+- Version: **0.3.85-test.4**, versionCode **86089**.
+- Source commit used for this APK: `d0b418d0173207b4900f27af365e87595301c4b1`.
+- Work branch: `feature/android-0385-intro-join-investigation-20261102`.
+- PR [#37](https://github.com/manufact-test/nomusic/pull/37) is open and unmerged.
+- Validation/build run [#41514473466](https://github.com/manufact-test/nomusic/actions/runs/41514473466): **SUCCESS**.
+- Artifact ID: `13174867024`.
+- APK SHA-256: `c62e93a73e48e949e112ceea4c4af38b83e7c889c3eecab3faa57df0c9d59702`.
+- Size: 8,767,641 bytes.
+- Signing certificate SHA-256: `67fe81c56fac1c1d145344b69a0e3faf9005cf6607f4e26ca27d5926c3eefc4f`; signer matches original; APK v3 signature verified.
+- APK copied to Library, materialized back, and SHA-256 matched byte-for-byte.
+- Library:
+  - `/CELIKOM/Android/Test/CELIKOM-Android-0.3.85-TEST-INTRO-PREFETCH-SIGNED.apk`
+  - matching `.verification.json`
+  - matching `-RECEIPT.json`
+
+## Stable/test separation and release safety
+
+- Stable original remains **0.3.85 / code 86**, package `pro.celikom.nativeprobe`, source checkpoint `053b7d59beb53db5f30b942feba35e51a1ab256a`. Accepted-seek backup refs remain untouched.
+- Test.3/code86088 remains available as the immediate previous test build; Test.2/code86087 also remains available.
+- Test.4 uses the same separate test package as Test.2/Test.3 and installs over **CELIKOM Test**. It does not replace stable CELIKOM.
+- `ota_updater_absent=true`, `stable_manifest_reference_absent=true`, `request_install_packages_absent=true`.
+- `stable_published=false`, `stable_ota_touched=false`, `hostinger_write_performed=false`.
+- No stable publisher ran; no production manifest or Hostinger file was written.
+
+## What Test.4 changes for song beginnings
+
+The previous Test.2/Test.3 path could see the next Media3 item but fail to prefetch it if album metadata was incomplete or marked as a timeline placeholder. Then the full replacement file download began only after the source-track boundary, so the original could continue for the download duration before the replacement joined.
+
+Test.4 addresses that specific delay:
+
+1. **Stable metadata fallback:** title, artist and duration are sampled. Two consistent samples may authorize identity lookup even when the album ID is absent or the timeline still marks the item as a placeholder.
+2. **Conservative identity:** `AlbumProbe` tries the fresh own catalogue and previously learned album rows when strict album matching is unavailable or an album request is skipped/fails. Ambiguous, stale or conflicting identity evidence still fails closed. This only nominates a prefetch candidate; it does not authorize playback.
+3. **Early full-file prefetch:** while the current source is still playing, CELIKOM resolves and downloads the next replacement file. Prefetch itself does not create a decoder, alter audio ownership, mute, seek or play anything.
+4. **Promote the same in-flight download:** when the candidate becomes current, the prefetch lease is promoted. The normal current-track path still performs a fresh server resolve. If its audio key matches the prefetch descriptor, the same in-flight download/cache file is adopted instead of starting a second full download.
+5. **Fail-safe mismatch:** if the fresh current resolve differs, the prefetch is invalidated and the current track uses its own fresh descriptor; stale prefetch output is discarded. No unverified file is played.
+6. **Late identity response:** if the candidate is still the current source when delayed album/identity work finishes, it may still begin prefetch for that current item. If the source has moved on, the candidate is rejected.
+
+The current join/handover gate itself remains unchanged. The accepted seek implementation and the frozen full-file source-selection block remain unchanged; `check_0385_seek_baseline.py` passed. The 250 ms service observer and Test.3 background diagnostics are retained.
+
+## CI results
+
+The successful run reports:
+
+- Full native host regression suite: passed.
+- `TestLookaheadPrefetchPolicy`: strict album gate and stable metadata fallback passed.
+- `TestLookaheadPrefetchHandoff`: **22 checks passed** for promotion, fresh resolve, cache reuse, mismatch cancellation and late response after the source boundary.
+- Cold-join exclusive experiment: passed.
+- Accepted 0.3.85 seek/source golden baseline unchanged: passed.
+- Background/service diagnostics remain read-only: passed.
+- Android API 36 compilation and D8: passed.
+- Separate package, original signer, launcher icon/label, OTA isolation and immutable receipt: passed.
+
+Physical phone playback and acoustic acceptance are still **not** verified. Do not claim the sound is fixed until the owner listens.
+
+## Owner test — no need to do this tonight
+
+1. Install **CELIKOM Test 0.3.85-test.4 / code 86089** over the existing CELIKOM Test 0.3.85-test.3. Do not uninstall stable CELIKOM.
+2. Stop stable CELIKOM during the listening session so two engines do not compete for the same Yandex session.
+3. Keep Yandex Music `Плавный переход` OFF, matching the accepted baseline.
+4. Play music normally, with CELIKOM Test running in the background. Focus on the **first 3–5 seconds after each new song starts**: whether the replacement is ready at the boundary, whether the beginning is cut, and whether the original continues too long.
+5. No special seek test is required. Seeking is accepted and the golden guard is unchanged.
+6. If the beginning still sounds wrong, save the combined diagnostics and a short screen recording. Do not change Start/Stop or settings before capture unless needed to restore playback.
+
+The owner explicitly said testing can happen tomorrow; there is no need to test tonight.
+
+---
+
+# CURRENT HANDOFF — 02.11.2026 — CELIKOM TEST 0.3.85-test.3 / 86088 BUILT; BACKGROUND RECOVERY DIAGNOSTICS READY
+
+**READ FIRST:** [ANDROID-0385-TEST-3-BACKGROUND-RECOVERY-DIAGNOSTICS-HANDOFF-2026-11-02.md](ANDROID-0385-TEST-3-BACKGROUND-RECOVERY-DIAGNOSTICS-HANDOFF-2026-11-02.md). The separate signed Test APK is built and saved in ChatGPT Library. It is diagnostic-only: no audio fix is claimed and no acoustic acceptance has occurred.
+
+**Owner priority:** intermittent return to original Yandex track while CELIKOM Test is running in the background. Capture the exact service, Media3, network, replacement-player, audio-session and Activity lifecycle states. Do not change audio behavior blindly. The owner's 0.3.85 seeking verdict remains accepted; do not retest or rewrite the seek path.
+
+**Stable ORIGINAL — HANDS OFF:** package `pro.celikom.nativeprobe`, 0.3.85/code86, source `053b7d59beb53db5f30b942feba35e51a1ab256a`; both accepted-seek backup refs remain untouched. **CELIKOM Test 0.3.85-test.3/code86088:** package `pro.celikom.nativeprobe.test`, label `CELIKOM Test`, built from source commit `7166fb6c036bc86fb263ba96a407a25dcfea97e6`; APK SHA256 `ce69bd40c1ff10bbf6703fc0466e34653e8a0d5805701eb5f2630771919ce62d`; original signer matches. Validation/build run [#41508364518](https://github.com/manufact-test/nomusic/actions/runs/41508364518) SUCCESS; artifact ID `13172970865`. APK + verification + receipt are in Library `/CELIKOM/Android/Test/`. Test.2/code86087 remains available. **No OTA:** updater absent, stable manifest absent, stable publisher skipped, stable OTA untouched, Hostinger write false. PR [#37](https://github.com/manufact-test/nomusic/pull/37) remains open/unmerged.
+
+**What the new diagnostics capture:** 15-second service heartbeat without changing the 250 ms observer cadence; Activity onStart/onStop snapshots; Media3 connect/disconnect timing; validated Wi-Fi/cellular/VPN changes; replacement arm/stop/recovery reasons and retry deadlines; trusted/effect/player session IDs and actual replacement-player state. A structural regression guard verifies lifecycle logging is read-only and the accepted seek golden guard remains unchanged.
+
+**Owner test:** install Test.3 over Test.2; do not uninstall stable. Stop stable CELIKOM before testing so only one engine controls the Yandex session. Keep Yandex `Плавный переход` OFF. Listen normally with CELIKOM Test in the background. If original returns, open Test as before, wait a few seconds, save combined diagnostics and a short recording. Do not toggle Start/Stop before capture. No special seek retest.
+
+**Critical interpretation:** in the 21:09 video, green `Подключён` appears while the detail says `Играет оригинал`, then `Версия песни CELIKOM доступна для подмены`. Green connection state does not prove the replacement is audible. Activity onStart only logs/renders; it does not re-arm or restart audio. Compare the new timestamps before inferring that opening the screen caused recovery.
+
+---
+
+# CURRENT HANDOFF — 02.11.2026 — COMBINED CELIKOM TEST 0.3.85-test.2 (86087) BUILT; AUDIO OWNER RETEST PENDING
+
+**READ FIRST:** [ANDROID-0385-TEST-2-NEXT-TRACK-PREFETCH-HANDOFF-2026-11-02.md](ANDROID-0385-TEST-2-NEXT-TRACK-PREFETCH-HANDOFF-2026-11-02.md). All relevant source SHA, backup refs, APK SHA-256, signer, Library links, GitHub Actions receipt, diagnostic correlation, frozen audio mechanisms and next analysis steps are there. **The owner will attach new diagnostics in the next chat. Analyze those first; do not modify audio blindly.**
+
+**Owner priority:** new-track beginnings / audio joins; do not request a separate login-text APK. The new combined Test includes both the lookahead-prefetch audio experiment and native login-field contrast. It is technically built/verified but **NOT acoustically accepted**. Yandex Music «Плавный переход» stays **OFF**, accepted seek/Pause/Resume must not be retested without evidence of regression.
+
+**Stable ORIGINAL (hands off):** `pro.celikom.nativeprobe` 0.3.85/code86, source `053b7d59beb53db5f30b942feba35e51a1ab256a`, both `backup/android-0385-honor-seek-accepted-20261102` and `backup/android-0385-honor-seek-accepted-recovery-20261102` point here. **First owner Test control:** `0.3.85-test`/86085, APK SHA `bf1fc8b39a08b3c1f5f5b2d1483f0fe0fb013bbd7041671867dea77e2b5e4bee`, backup ref `backup/android-0385-test-first-owner-check-20261102` → `32a4afa7c381758502bf47d7b3facd200e74842a`. **New Test:** `pro.celikom.nativeprobe.test`, `0.3.85-test.2`/86087, APK SHA `03387a8d2c1d08f89eb687490dc72b36e565ad8a4137960418f41267013acca9`, signed original cert SHA `67fe81c56fac1c1d145344b69a0e3faf9005cf6607f4e26ca27d5926c3eefc4f`, **functional source** `f3bc62b553275b3e3d38084a65d2eafedb5af889`, [successful validation+automatic Test build #41485796561](https://github.com/manufact-test/nomusic/actions/runs/41485796561), artifact ID **13160669778**, no OTA. Signed APK/verification/receipt persist in Library `/CELIKOM/Android/Test/`; preceding 86085 and 86086 remain for rollback. Stable publisher skipped. PR [#37](https://github.com/manufact-test/nomusic/pull/37) **OPEN / NOT MERGED**.
+
+**Diagnosed:** six short audio dips at Yandex track boundaries in prior Test recording, at least one while no replacement/effect owned by CELIKOM; separately cold joins happened 1.98–4.78s after boundary due 1.18–3.99s full downloads. Old lookahead saw next item 7–14s early but `metadataComplete=false`. New prefetch reads only existing Media3 timeline with strict metadata/album unique-match; no control of seek, Pause/Resume or gain. Prefetch may not work if Yandex timeline metadata stays incomplete. The next task is to correlate new event logs with video and establish whether cache hit/readiness or join acoustics improved; no statement of success before owner listening.
+
+**No code changes are included in this documentation checkpoint.** If a docs-only commit advances branch HEAD beyond `f3bc62b...`, the tested APK source is still that prior SHA. Do not trigger a new Test APK solely for documentation.
+
+---
+
+# CURRENT HANDOFF — 02.11.2026 — NEXT-TRACK PREFETCH AUDIO EXPERIMENT IN PROGRESS
+
+The cosmetic login-input fix is retained only as part of a combined Test APK; do not deliver or request a separate cosmetic build. Song beginnings and track joins are the priority.
+
+Latest owner evidence: CELIKOM-combined-20261102-172508.txt and SVID_20261102_172353_1.mp4. The run records six cold-join starts. Five replacement joins occur 1.98–4.78 seconds after the next-item boundary, while full-file downloads take 1.18–3.99 seconds. The lookahead observer saw the next Media3 timeline item roughly 7–14 seconds early but marked metadata incomplete and never started prefetch. Brief Media3 BUFFERING periods and low/silent intervals were also observed; the mixed recording does not prove one exclusive source for every dropout.
+
+The audio experiment reads only the existing current Media3 timeline. It uses Timeline.Window.durationMs when MediaMetadata.durationMs is absent, requires title, artist, validated album ID, known duration and a non-placeholder window, then requires active playback and a strict unique album-constrained match. It resolves/downloads the next replacement into the existing bounded private cache before the boundary. Prefetch must not create a decoder or touch AudioOwnership, volume, pause, seek or transport. The boundary path keeps its fresh resolve and consumes only an exact cache-key match; otherwise the original fallback remains. No Yandex MediaBrowser/library access or new Android permissions.
+
+Combined Test target: 0.3.85-test.2 / code 86087, package pro.celikom.nativeprobe.test, same signing certificate, OTA disabled. PR #37 is the validation path because its head branch is the one authorized by the base workflow. Do not merge or publish. Stable CELIKOM 0.3.85/code86 and all accepted seek backups remain untouched.
+
+---
+
+# CURRENT HANDOFF — 02.11.2026 — TEST APK INSTALLED; LOGIN INPUT TEXT VISIBILITY DEFECT
+
+**СНАЧАЛА ПРОЧИТАТЬ:** [ANDROID-0385-TEST-APP-FIRST-OWNER-CHECKPOINT-2026-11-02.md](ANDROID-0385-TEST-APP-FIRST-OWNER-CHECKPOINT-2026-11-02.md), [ANDROID-0385-SIDEBY-SIDE-TEST-APP-BUILD-HANDOFF-2026-11-02.md](ANDROID-0385-SIDEBY-SIDE-TEST-APP-BUILD-HANDOFF-2026-11-02.md), [ANDROID-0385-INTRO-JOIN-INVESTIGATION-HANDOFF-2026-11-02.md](ANDROID-0385-INTRO-JOIN-INVESTIGATION-HANDOFF-2026-11-02.md), [ANDROID-0385-HONOR-INTRO-JOIN-AUDIO-VIDEO-CORRELATION-2026-11-02.md](ANDROID-0385-HONOR-INTRO-JOIN-AUDIO-VIDEO-CORRELATION-2026-11-02.md), [ANDROID-0385-HONOR-SEEK-ACCEPTED-FREEZE-2026-11-02.md](ANDROID-0385-HONOR-SEEK-ACCEPTED-FREEZE-2026-11-02.md).
+
+**НЕ ПУТАТЬ ДВЕ КОНТРОЛЬНЫЕ ТОЧКИ.** Оригинал стабильного CELIKOM 0.3.85/code86 остаётся на source SHA `053b7d59beb53db5f30b942feba35e51a1ab256a`; backup refs `backup/android-0385-honor-seek-accepted-20261102` и `backup/android-0385-honor-seek-accepted-recovery-20261102` указывают на него. Это неприкосновенный оригинал. Отдельная контрольная тестовая сборка CELIKOM Test — package `pro.celikom.nativeprobe.test`, label `CELIKOM Test`, version `0.3.85-test` / code `86085`, APK SHA256 `bf1fc8b39a08b3c1f5f5b2d1483f0fe0fb013bbd7041671867dea77e2b5e4bee`, Actions artifact ID `13148340328`, run [#41457212661](https://github.com/manufact-test/nomusic/actions/runs/41457212661). Её source commit `32a4afa7c381758502bf47d7b3facd200e74842a` сохранён отдельно в новой ветке `backup/android-0385-test-first-owner-check-20261102`. Эта ветка — контрольная точка тестового эксперимента, НЕ новый оригинал. Не менять и не удалять ни одну из этих веток.
+
+**НОВЫЙ ДЕФЕКТ ПОСЛЕ ПЕРВОГО ЗАПУСКА CELIKOM TEST:** пользователь сообщает, что при вводе email и пароля текст отображается белым на белом фоне, из-за чего вводимое содержимое не видно. Пользователь подготовил **две диагностики** и прикрепит их следующим сообщением после handoff. Не просить повторить уже сделанные действия; дождаться двух файлов, прочитать их полностью, сопоставить с фактической реализацией формы и установить точную причину. Не гадать заранее, где форма (native/WebView/CSS), проверить код и диагностики. Исправить только контраст/видимость текста в email/password полях, hint, focus/selection/cursor/autofill/password masking; не менять авторизацию и backend.
+
+**Следующий шаг:** принять две диагностики от владельца и провести разбор. Затем минимальный UI fix только в CELIKOM Test, тест на видимость полей и полный Android CI, неизменный `check_0385_seek_baseline.py`, Android API36/D8. Собрать новую отдельную CELIKOM Test APK с package `pro.celikom.nativeprobe.test`, оригинальным сертификатом, OTA отключённым и test versionCode >86085. Сохранить текущую тестовую сборку для полного отката. Stable 0.3.85/code86, stable OTA, `stable.json`, release-spec/contract/verify, Hostinger, PR #37 и все прежние backup refs не трогать. Не объединять PR #37 и не запускать stable publisher.
+
+**Аудио:** seek/Pause/Resume уже приняты — повторно не тестировать. Intro/cold join ещё требует отдельной короткой проверки на HONOR; использовать русское название настройки Яндекс Музыки **«Плавный переход»**, пока выключено. Не запускать одновременно стабильное CELIKOM и CELIKOM Test против одной сессии Яндекс Музыки.
+
 # CURRENT HANDOFF — 02.11.2026 — 0.3.85 SEEK ACCEPTED; INTRO + YANDEX CROSSFADE STILL OPEN
 
-**READ FIRST:** [ANDROID-0385-INTRO-JOIN-INVESTIGATION-HANDOFF-2026-11-02.md](ANDROID-0385-INTRO-JOIN-INVESTIGATION-HANDOFF-2026-11-02.md), then [ANDROID-0385-HONOR-SEEK-ACCEPTED-FREEZE-2026-11-02.md](ANDROID-0385-HONOR-SEEK-ACCEPTED-FREEZE-2026-11-02.md), [ANDROID-0385-CONTROLLED-LOCAL-FILE-SEEK-EXPERIMENT-2026-11-02.md](ANDROID-0385-CONTROLLED-LOCAL-FILE-SEEK-EXPERIMENT-2026-11-02.md), and [ANDROID-0385-LOCAL-FILE-OTA-RELEASE-RECEIPT-2026-11-02.md](ANDROID-0385-LOCAL-FILE-OTA-RELEASE-RECEIPT-2026-11-02.md).
+**READ FIRST:** [ANDROID-0385-SIDEBY-SIDE-TEST-APP-BUILD-HANDOFF-2026-11-02.md](ANDROID-0385-SIDEBY-SIDE-TEST-APP-BUILD-HANDOFF-2026-11-02.md), [ANDROID-0385-INTRO-JOIN-INVESTIGATION-HANDOFF-2026-11-02.md](ANDROID-0385-INTRO-JOIN-INVESTIGATION-HANDOFF-2026-11-02.md), [ANDROID-0385-HONOR-INTRO-JOIN-AUDIO-VIDEO-CORRELATION-2026-11-02.md](ANDROID-0385-HONOR-INTRO-JOIN-AUDIO-VIDEO-CORRELATION-2026-11-02.md), then [ANDROID-0385-HONOR-SEEK-ACCEPTED-FREEZE-2026-11-02.md](ANDROID-0385-HONOR-SEEK-ACCEPTED-FREEZE-2026-11-02.md), [ANDROID-0385-CONTROLLED-LOCAL-FILE-SEEK-EXPERIMENT-2026-11-02.md](ANDROID-0385-CONTROLLED-LOCAL-FILE-SEEK-EXPERIMENT-2026-11-02.md), and [ANDROID-0385-LOCAL-FILE-OTA-RELEASE-RECEIPT-2026-11-02.md](ANDROID-0385-LOCAL-FILE-OTA-RELEASE-RECEIPT-2026-11-02.md).
 
 Owner's HONOR listening verdict: **0.3.85/code86 finger seeking is accepted** — ordinary in-song seeks, including after Next, are now smooth with no lag noticed in the latest retest. New-song beginnings/joins are significantly improved but still audibly imperfect on some tracks. Work is **not finished**; the owner's rough estimate is ~70% complete. There are two remaining tasks: (1) make CELIKOM's beginnings/joins clean with Yandex Music crossfade OFF (current setting); (2) only after phase 1 is accepted, enable Yandex Music crossfade and test the combined behavior separately.
 
 **DO NOT TOUCH THE ACCEPTED SEEK PATH.** Golden source: `053b7d59beb53db5f30b942feba35e51a1ab256a`. Backup refs: `backup/android-0385-honor-seek-accepted-20261102` and redundant `backup/android-0385-honor-seek-accepted-recovery-20261102` both point to that exact SHA. Existing 0.3.84/82/78 backup refs remain unchanged. Required guard: `android/native-companion/tests/check_0385_seek_baseline.py`.
 
-Current docs/guard merge: `ee04be8bf239ae52417ece07b2a9a88d5ea028a1`; PR [#36](https://github.com/manufact-test/nomusic/pull/36) merged; post-merge CI [#41406096811](https://github.com/manufact-test/nomusic/actions/runs/41406096811) SUCCESS. Current Android OTA remains 0.3.85/code86; no new APK is requested or authorized by this checkpoint.
+**SIDE-BY-SIDE APK BUILD UPDATE (02.11.2026):** The separate app is now built successfully and automatically. Package `pro.celikom.nativeprobe.test`, explicit launcher label `CELIKOM Test`, version `0.3.85-test` / code `86085`, unique authorities/icon/sandbox, original signing certificate and OTA-disabled packaging are verified. The corrected signed APK was produced by validation run [#41457212661](https://github.com/manufact-test/nomusic/actions/runs/41457212661), artifact ID `13148340328`, SHA-256 `bf1fc8b39a08b3c1f5f5b2d1483f0fe0fb013bbd7041671867dea77e2b5e4bee`. It is stored in ChatGPT Library at `/CELIKOM/Android/Test/CELIKOM-Test-0.3.85-test.apk` with receipt and verification JSON. Build automation is a reusable `workflow_call`: the validation workflow invokes `build-celikom-test` only for PR #37's same-repository experiment branch, after `native-android` succeeds. No manual Run workflow action is required. The first manual artifact #41442357959 is superseded; do not install it. Full native suite, cold-join exclusive experiment, unchanged seek baseline, Android API 36 and D8 passed. Stable publisher jobs were skipped; stable CELIKOM 0.3.85/code86 and stable OTA remain untouched. PR #37 stays open/unmerged. Remaining owner test: on HONOR, keep Yandex Crossfade OFF and listen to one or two new-song starts only; do not repeat accepted seek tests. Full build detail in the side-by-side document below.
 
-**NEXT WORK BRANCH:** `feature/android-0385-intro-join-investigation-20261102`, created from the current handoff HEAD. It is the only branch for intro/join experiments. Do not commit experiments to `feature/android-unified-preparation-seek-gate` (stable publisher path); do not merge/publish without explicit owner approval after listening. The owner will provide a new combined diagnostic and video/recording in the next chat; review those exact files first and do not ask for a repeated generic retest.
+Current docs/guard merge: `ee04be8bf239ae52417ece07b2a9a88d5ea028a1`; PR [#36](https://github.com/manufact-test/nomusic/pull/36) merged; post-merge CI [#41406096811](https://github.com/manufact-test/nomusic/actions/runs/41406096811) SUCCESS. Stable Android OTA remains 0.3.85/code86; no stable update is authorized. The owner has explicitly approved one separate side-by-side `CELIKOM Test` APK; it must not replace the stable app. Follow the new side-by-side test-app build handoff.
+
+**NEXT WORK BRANCH:** `feature/android-0385-intro-join-investigation-20261102`. The latest owner journal/video have now been correlated. The journal confirms 17 source discontinuities (not 38), 12 source media-item transitions, 13 full-file joins and 26 seek ACKs. The recording contains a near-silent 59.1–60.0s interval that begins before CELIKOM's boundary cleanup and ends before the new replacement join; do not attribute it to the later 160ms blend. A code-only experiment now switches only prewarmed local full-file cold/new-track joins to an exclusive single-turn handover after the same existing clock gate; the same-song seek path is untouched. The new host regression compares legacy blend and exclusive cold join. Full Android CI [#41419113128](https://github.com/manufact-test/nomusic/actions/runs/41419113128) passed: 32 experiment checks, full native host suite, 0.3.85 seek golden guard, Android API 36 and D8. Publisher and test-candidate jobs were skipped. The owner has now explicitly approved a **separate side-by-side test app**, not an in-place update. Next action: build signed `CELIKOM Test` with package `pro.celikom.nativeprobe.test`, its own sandbox, original signer, and no OTA updater. Detailed packaging/manifest/updater/CI requirements are in the new side-by-side build handoff. No signed/installable test APK exists yet; stable 0.3.85/code86 and its manifest remain untouched. Do not commit experiments to `feature/android-unified-preparation-seek-gate` (stable publisher path); do not merge/publish without explicit owner approval after listening. No new owner evidence is needed at this stage.
 
 Important: GitHub reports the backup branches as `protected=false`. They are preserved refs to the exact full-repository source commit, not GitHub branch-protected refs. Do not call them protected/immutable or force-push/delete/repoint them. Full recovery procedure, versionCode rule (>86), measurement caveats, and hard freeze boundaries are in the new handoff document.
 

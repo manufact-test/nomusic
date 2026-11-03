@@ -12,7 +12,7 @@ import java.util.concurrent.*;
 final class AlbumProbe {
  final IdentityCache cache;JSONObject ownCatalog=new JSONObject();Map<String,Object> lastObservation;final Map<String,String> albumOrigins=new HashMap<>();final ProbeService owner;final ExecutorService executor=Executors.newFixedThreadPool(2);
  final RequestBudget budget=new RequestBudget();final Set<String> pendingAlbums=new HashSet<>();final Set<HttpsURLConnection> connections=Collections.synchronizedSet(new HashSet<>());
- final Map<String,List<Map<String,Object>>> albums=new LinkedHashMap<>();final Map<String,Map<String,Object>> observations=new LinkedHashMap<>();final Map<String,Map<String,Object>> resolutions=new LinkedHashMap<>();final List<Map<?,?>> references=new ArrayList<>();final Set<String> comparisons=new HashSet<>();
+ final Map<String,List<Map<String,Object>>> albums=new LinkedHashMap<>();final Map<String,Map<String,Object>> observations=new LinkedHashMap<>();final Map<String,Map<String,Object>> resolutions=new LinkedHashMap<>();final Map<String,Map<String,Object>> lookaheadObservations=new LinkedHashMap<>();final Set<String> lookaheadResolvedKeys=new HashSet<>();long albumCatalogRevision;final List<Map<?,?>> references=new ArrayList<>();final Set<String> comparisons=new HashSet<>();
  String publishedKey="";Map<String,Object> publishedDecision;
  volatile int pending,completed,resolved;volatile boolean closed;int requests,retries;long lastRetry,lastNetworkRetry;int networkRetries;
  AlbumProbe(ProbeService owner){this.owner=owner;cache=new IdentityCache(new File(owner.getFilesDir(),"identity-albums.json"));albums.putAll(cache.load());for(String id:albums.keySet())albumOrigins.put(id,"PERSISTENT_ALBUM_CACHE");try(InputStream in=owner.getAssets().open("catalog-diagnostic.json");ByteArrayOutputStream bytes=new ByteArrayOutputStream()){byte[] b=new byte[8192];int n;while((n=in.read(b))!=-1){if(bytes.size()+n>10000000)throw new IOException("Own catalogue too large");bytes.write(b,0,n);}ownCatalog=new JSONObject(new String(bytes.toByteArray(),StandardCharsets.UTF_8));}catch(Exception e){LogStore.error("own_catalogue_load",e);}LogStore.log("identity_cache_loaded",LogStore.map("albums",albums.size(),"ownSnapshotGeneratedAtMs",ownCatalog.optLong("generated_at_ms"),"ownSnapshotRows",ownCatalog.optJSONArray("tracks")==null?0:ownCatalog.optJSONArray("tracks").length(),"cacheIsPlaybackAuthorization",false));networkState();LogStore.log("album_probe_policy",LogStore.map("endpoint","https://api.music.yandex.net/albums/{albumId}/with-tracks","authentication","none","sentData","album ID only; no song titles, account data or credentials","matching","strict title/artist + duration <=1000ms, album constrained; ambiguity is not resolved automatically","minimumRequestIntervalMs",RequestBudget.MIN_INTERVAL_MS,"sameAlbumRetryMs",RequestBudget.RETRY_MS,"cumulativeRequestLimit",false,"maxResponseBytes",3145728));}
@@ -26,6 +26,36 @@ final class AlbumProbe {
   Map<String,Object> o=LogStore.map("mediaAlias",alias,"title",title,"artist",artist,"durationMs",duration,"albumId",album,"coverUri",cover,"observedElapsedMs",SystemClock.elapsedRealtime()-LogStore.start);observations.put(key,o);LogStore.log("album_observation",o);
   if(album==null){LogStore.log("album_resolution_unavailable",LogStore.map("mediaAlias",alias,"reason","No validated album ID in the cover URI"));hybrid(o,null,false);return;}if(albums.containsKey(album))resolve(key,o,albums.get(album));else {request(album);hybrid(o,null,pendingAlbums.contains(album));}
  }
+ void observeLookahead(String alias,String title,String artist,long duration,String cover){
+  if(closed||!owner.alive()||!owner.lookaheadIsNext(alias)
+      ||!LookaheadPrefetchPolicy.identityMetadataAvailable(alias,title,artist,duration))return;
+  String album=AlbumMatch.albumId(cover);
+  String key=alias+"|"+album+"|"+title+"|"+artist+"|"+duration;
+  Map<String,Object> o=lookaheadObservations.get(alias);
+  if(o==null||!key.equals(o.get("lookaheadKey"))){
+   o=LogStore.map("mediaAlias",alias,"title",title,"artist",artist,"durationMs",duration,
+     "albumId",album,"observedElapsedMs",SystemClock.elapsedRealtime()-LogStore.start,"lookaheadKey",key);
+   lookaheadObservations.put(alias,o);
+   while(lookaheadObservations.size()>4)lookaheadObservations.remove(lookaheadObservations.keySet().iterator().next());
+  }
+  LogStore.log("source_next_track_identity_candidate",LogStore.map(
+    "mediaAlias",alias,"albumIdPresent",album!=null,"durationMs",duration,
+    "identitySource","current_media3_timeline","strictAlbumMatchRequired",album!=null,
+    "stableMetadataFallbackAllowed",true,"audioCommandSent",false));
+  if(album==null){
+   LogStore.log("source_next_album_id_unavailable",LogStore.map(
+     "mediaAlias",alias,"identityFallback","fresh_own_or_learned_metadata","audioCommandSent",false));
+   resolveLookahead(alias,o,null);return;
+  }
+  if(albums.containsKey(album)){resolveLookahead(alias,o,albums.get(album));return;}
+  request(album);
+  if(pendingAlbums.contains(album)){
+   LogStore.log("source_next_album_lookup_pending",LogStore.map("mediaAlias",alias,"albumId",album));return;
+  }
+  LogStore.log("source_next_album_request_skipped",LogStore.map(
+    "mediaAlias",alias,"reason","album_request_budget_or_pending_limit","albumId",album));
+  resolveLookahead(alias,o,null);
+ }
  void request(String album){if(closed||!album.matches("\\d{1,15}")||albums.containsKey(album)||pendingAlbums.contains(album)||pending>=2||!budget.allow(album,SystemClock.elapsedRealtime()))return;requests++;pending++;pendingAlbums.add(album);final int attempt=requests;LogStore.log("album_request",LogStore.map("albumId",album,"attempt",attempt));executor.execute(()->fetch(album,attempt));}
  void fetch(String album,int attempt){HttpsURLConnection conn=null;Map<String,Object> event=LogStore.map("albumId",album,"attempt",attempt);List<Map<String,Object>> parsed=null;long started=SystemClock.elapsedRealtime();
   try{if(closed)return;conn=(HttpsURLConnection)new URL("https://api.music.yandex.net/albums/"+album+"/with-tracks").openConnection();connections.add(conn);conn.setConnectTimeout(6000);conn.setReadTimeout(8000);conn.setInstanceFollowRedirects(false);conn.setRequestProperty("Accept","application/json");conn.setRequestProperty("User-Agent","CELIKOM/"+AppVersion.NAME+" (Android)");int code=conn.getResponseCode();event.put("httpCode",code);event.put("contentType",conn.getContentType());if(code>=300&&code<400)event.put("redirectNotFollowed",conn.getHeaderField("Location"));InputStream stream=code>=200&&code<300?conn.getInputStream():conn.getErrorStream();String body="";
@@ -33,9 +63,44 @@ final class AlbumProbe {
    if(code==200){JSONObject root=new JSONObject(body);JSONObject result=root.optJSONObject("result");if(result==null)throw new IOException("No result object in successful response");parsed=AlbumMatch.tracks(result,album);event.put("status","CATALOGUE_RECEIVED");event.put("albumTitle",result.optString("title",""));event.put("trackCount",parsed.size());event.put("tracks",parsed);}
    else {event.put("status",code==451?"REGION_RESTRICTION":code==401||code==403?"ACCESS_DENIED":code==429?"RATE_LIMITED":"HTTP_ERROR");try{JSONObject error=new JSONObject(body).optJSONObject("error");if(error!=null){event.put("errorName",error.optString("name",""));event.put("errorMessage",error.optString("message",""));}}catch(Exception ignored){} }
   }catch(Throwable e){event.put("status",closed?"CANCELLED":"TRANSPORT_OR_PARSE_ERROR");event.put("errorClass",e.getClass().getName());event.put("errorMessage",e.getMessage());}
-  finally{if(conn!=null){connections.remove(conn);conn.disconnect();}event.put("elapsedMs",SystemClock.elapsedRealtime()-started);final List<Map<String,Object>> result=parsed;owner.handler.post(()->{pending=Math.max(0,pending-1);pendingAlbums.remove(album);if(closed||!owner.alive())return;completed++;LogStore.log("album_response",event);if(result!=null){albums.put(album,result);albumOrigins.put(album,"NETWORK_ALBUM");while(albums.size()>32){String oldest=albums.keySet().iterator().next();albums.remove(oldest);albumOrigins.remove(oldest);}cache.save(album,result);for(Map.Entry<String,Map<String,Object>> entry:observations.entrySet())if(album.equals(entry.getValue().get("albumId")))resolve(entry.getKey(),entry.getValue(),result);}else {for(Map<String,Object> o:observations.values())if(album.equals(o.get("albumId")))hybrid(o,null,false);}});}
+  finally{if(conn!=null){connections.remove(conn);conn.disconnect();}event.put("elapsedMs",SystemClock.elapsedRealtime()-started);final List<Map<String,Object>> result=parsed;owner.handler.post(()->{pending=Math.max(0,pending-1);pendingAlbums.remove(album);if(closed||!owner.alive())return;completed++;LogStore.log("album_response",event);if(result!=null){
+   albums.put(album,result);albumOrigins.put(album,"NETWORK_ALBUM");albumCatalogRevision++;
+   while(albums.size()>32){String oldest=albums.keySet().iterator().next();albums.remove(oldest);albumOrigins.remove(oldest);}
+   cache.save(album,result);
+   for(Map.Entry<String,Map<String,Object>> entry:observations.entrySet())if(album.equals(entry.getValue().get("albumId")))resolve(entry.getKey(),entry.getValue(),result);
+   for(Map.Entry<String,Map<String,Object>> entry:lookaheadObservations.entrySet())if(album.equals(entry.getValue().get("albumId")))resolveLookahead(entry.getKey(),entry.getValue(),result);
+   for(Map.Entry<String,Map<String,Object>> entry:lookaheadObservations.entrySet())if(entry.getValue().get("albumId")==null)resolveLookahead(entry.getKey(),entry.getValue(),null);
+  }else {
+   for(Map<String,Object> o:observations.values())if(album.equals(o.get("albumId")))hybrid(o,null,false);
+   for(Map.Entry<String,Map<String,Object>> entry:lookaheadObservations.entrySet())if(album.equals(entry.getValue().get("albumId")))resolveLookahead(entry.getKey(),entry.getValue(),null);
+  }});}
  }
  void resolve(String key,Map<String,Object> o,List<Map<String,Object>> tracks){Map<String,Object> match=AlbumMatch.match(String.valueOf(o.get("title")),String.valueOf(o.get("artist")),((Number)o.get("durationMs")).longValue(),tracks);Map<String,Object> result=LogStore.map("observation",o,"resolution",match);resolutions.put(key,result);resolved=0;for(Map<String,Object> r:resolutions.values())if("UNIQUE_CANDIDATE".equals(((Map<?,?>)r.get("resolution")).get("status")))resolved++;result.put("albumOrigin",albumOrigins.get(String.valueOf(o.get("albumId"))));LogStore.log("album_resolution",result);hybrid(o,match,false);compareReferences();}
+ void resolveLookahead(String alias,Map<String,Object> o,List<Map<String,Object>> tracks){
+  if(!owner.lookaheadCandidateCurrent(alias))return;
+  String key=String.valueOf(o.get("lookaheadKey"));
+  String source=tracks==null?"metadata_fallback":"album_catalogue";
+  String resolutionKey=key+"|"+source+"|"+albumCatalogRevision;
+  if(lookaheadResolvedKeys.size()>256)lookaheadResolvedKeys.clear();
+  if(!lookaheadResolvedKeys.add(resolutionKey))return;
+  String title=String.valueOf(o.get("title")),artist=String.valueOf(o.get("artist"));
+  long duration=((Number)o.get("durationMs")).longValue();
+  Map<String,Object> primary=tracks==null?null:AlbumMatch.match(title,artist,duration,tracks);
+  List<Map<String,Object>> learnedRows=new ArrayList<>();
+  for(List<Map<String,Object>> rows:albums.values())learnedRows.addAll(rows);
+  Map<String,Object> own=HybridIdentity.own(ownCatalog,title,artist,duration,System.currentTimeMillis());
+  Map<String,Object> learned=HybridIdentity.metadata(title,artist,duration,learnedRows);
+  Map<String,Object> decision=HybridIdentity.decide(primary,own,learned,false);
+  Object candidate=decision.get("candidateTrackId");String id=candidate==null?null:String.valueOf(candidate);
+  boolean unique=id!=null&&id.matches("[1-9][0-9]{0,23}");
+  LogStore.log("source_next_identity_resolution",LogStore.map(
+    "mediaAlias",alias,"albumId",o.get("albumId"),"albumMatchStatus",primary==null?"UNAVAILABLE":primary.get("status"),
+    "ownCatalogueStatus",own.get("status"),"learnedCatalogueStatus",learned.get("status"),
+    "identitySource",source,"identityMethod",decision.get("method"),"decisionReason",decision.get("reason"),
+    "candidateTrackId",unique?id:null,"strictDurationMatchMs",1000,"prefetchAuthorized",unique,
+    "audioCommandSent",false));
+  if(unique&&owner.lookaheadCandidateCurrent(alias)&&owner.replacement!=null)owner.replacement.prefetchLookahead(o,id);
+ }
  void reference(List<Object> refs){for(Object x:refs)if(x instanceof Map){Map<?,?> ref=(Map<?,?>)x;if(ref.get("catalogueTrackId")!=null&&ref.get("albumId")!=null){String album=String.valueOf(ref.get("albumId")),key=null;for(Map.Entry<String,Map<String,Object>> o:observations.entrySet())if(album.equals(o.getValue().get("albumId")))key=o.getKey();Map<String,Object> linked=LogStore.map("albumId",album,"catalogueTrackId",ref.get("catalogueTrackId"),"observationKey",key);references.add(linked);while(references.size()>60)references.remove(0);LogStore.log("album_reference_context",linked);request(album);}}compareReferences();}
  void compareReferences(){if(comparisons.size()>256)comparisons.clear();for(Map<?,?> ref:references)for(Map.Entry<String,Map<String,Object>> entry:resolutions.entrySet()){Map<?,?> o=(Map<?,?>)entry.getValue().get("observation"),m=(Map<?,?>)entry.getValue().get("resolution");if(!entry.getKey().equals(ref.get("observationKey")))continue;String k=entry.getKey()+"|"+ref.get("catalogueTrackId");if(comparisons.add(k))LogStore.log("album_share_comparison",LogStore.map("mediaAlias",o.get("mediaAlias"),"title",o.get("title"),"albumId",o.get("albumId"),"manualTrackId",ref.get("catalogueTrackId"),"automaticCandidate",m.get("catalogueTrackId"),"status",m.get("catalogueTrackId")==null?"UNRESOLVED":ref.get("catalogueTrackId").equals(m.get("catalogueTrackId"))?"MATCH":"MISMATCH"));}}
  void retryFailedAfterNetworkChange(){if(closed||pending>0)return;long now=SystemClock.elapsedRealtime();if(lastNetworkRetry>0&&now-lastNetworkRetry<15000)return;lastNetworkRetry=now;networkRetries++;Set<String> ids=new LinkedHashSet<>();for(Map<String,Object> o:observations.values()){String id=(String)o.get("albumId");if(id!=null&&!albums.containsKey(id))ids.add(id);}if(ids.isEmpty())return;publishedKey="";publishedDecision=null;networkState();LogStore.log("album_network_recovery",LogStore.map("wave",networkRetries,"albums",ids.size(),"cachedAlbumsRetained",albums.size()));budget.clearCooldowns();for(String id:ids)request(id);}
