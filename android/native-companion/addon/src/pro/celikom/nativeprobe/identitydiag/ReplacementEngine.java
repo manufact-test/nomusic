@@ -27,7 +27,8 @@ final class ReplacementEngine {
  float originalMix=1f; boolean ready,preparing,seeking,fading,aligned,returning,preloadAllowed=true,waitingForRouteResume,routePauseObserved,resumePositionRetained,resumeFadePending,seekHoldActive,sourceSeekedThisTrack,pendingStreamScrubJoin,streamSeekWaitLogged,seekRetargetPending;volatile boolean closed; boolean audioFromCache,localPrewarmAttempted,localPrewarmWarmupPending,localPrewarmAlignmentPending,localPrewarmJoinPending; long localPrewarmWarmupStartedAt,localPrewarmWarmupPosition; String lastSync="";
  final ClockSupervisor clockSupervisor=new ClockSupervisor();PlaybackSource previousSource;boolean explicitSourceSeek;long unavailableSince=-1,lastSyncAt=-1,lastLoggedDrift;String completedKey,completedReason;long completedPosition,resumeDrift;
  // Private, bounded to this foreground run. Every reuse requires a new live resolve.
- static final long CACHE_BYTES=62914560;
+ /* Bounded in-session warm cache covers playlist reorder and rapid repeat selections. */
+ static final long CACHE_BYTES=RecentAudioCachePolicy.MAX_BYTES;
  final LinkedHashMap<String,File> recentAudio=new LinkedHashMap<>();
  volatile long lookaheadPrefetchGeneration,lookaheadPrefetchAccount=-1,lookaheadPrefetchStartedAt;
  volatile String lookaheadPrefetchAlias,lookaheadPrefetchTrackId,lookaheadPrefetchPhase="none";
@@ -171,7 +172,21 @@ final class ReplacementEngine {
   audioOwner.unsupported(reason);status=completedReason;
  }
  void clearAudioCache(){for(File f:recentAudio.values())f.delete();recentAudio.clear();}
- void rememberAudio(){if(streaming!=null&&audioFile==null)audioFile=streaming.retainComplete();if(audioFile==null||descriptor==null||!ready||!api.signedIn())return;String key=audioKey(descriptor);File old=recentAudio.remove(key);if(old!=null&&!old.equals(audioFile))old.delete();recentAudio.put(key,audioFile);audioFile=null;long size=0;for(File f:recentAudio.values())size+=f.length();Iterator<File> it=recentAudio.values().iterator();while(it.hasNext()&&(recentAudio.size()>3||size>CACHE_BYTES)){File f=it.next();size-=f.length();f.delete();it.remove();}}
+ void trimRecentAudio(File keep){
+  long size=0;for(File f:recentAudio.values())size+=f.length();
+  Iterator<Map.Entry<String,File>> it=recentAudio.entrySet().iterator();
+  while(it.hasNext()&&RecentAudioCachePolicy.shouldTrim(recentAudio.size(),size)){
+   Map.Entry<String,File> entry=it.next();File f=entry.getValue();
+   /* Never delete a freshly cached file or the still-primed decoder's local source. */
+   if(f.equals(keep)||(primedNext!=null&&f.equals(primedNext.file)))continue;
+   String reason=RecentAudioCachePolicy.pressure(recentAudio.size(),size);long bytes=f.length();
+   it.remove();size-=bytes;f.delete();
+   LogStore.log("replacement_audio_cache_evicted",LogStore.map(
+    "reason",reason,"bytes",bytes,"remainingEntries",recentAudio.size(),"remainingBytes",size,
+    "primeProtected",primedNext!=null));
+  }
+ }
+ void rememberAudio(){if(streaming!=null&&audioFile==null)audioFile=streaming.retainComplete();if(audioFile==null||descriptor==null||!ready||!api.signedIn())return;String key=audioKey(descriptor);File old=recentAudio.remove(key);if(old!=null&&!old.equals(audioFile))old.delete();recentAudio.put(key,audioFile);File kept=audioFile;audioFile=null;trimRecentAudio(kept);}
  void noteLookaheadCandidate(String candidateAlias){
   if(lookaheadPrefetchAlias==null)return;PlaybackSource source=owner.current;
   if(source!=null&&Objects.equals(source.alias,lookaheadPrefetchAlias)){
@@ -369,8 +384,7 @@ final class ReplacementEngine {
  }
  void cachePrefetchedAudio(String id,JSONObject j,File file){
   if(file==null||!file.isFile())return;String key=audioKeyFor(id,j);File old=recentAudio.remove(key);if(old!=null&&!old.equals(file))old.delete();recentAudio.put(key,file);
-  long size=0;for(File f:recentAudio.values())size+=f.length();Iterator<Map.Entry<String,File>> it=recentAudio.entrySet().iterator();
-  while(it.hasNext()&&(recentAudio.size()>3||size>CACHE_BYTES)){Map.Entry<String,File> entry=it.next();File evicted=entry.getValue();if(evicted.equals(file)&&recentAudio.size()==1)break;size-=evicted.length();it.remove();evicted.delete();}
+  trimRecentAudio(file);
  }
 
 
