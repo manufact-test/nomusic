@@ -19,7 +19,7 @@
 - Это может сокращать выборку на десятки миллисекунд, когда событие приходит между предыдущими 60ms опросами. **Не** меняется native seek, seek-ACK, owner grant, effect source gain, handover 40ms advancing decoder, strict drift 100ms, 0ms exclusive output, cache-prime, 1100ms speculative enqueue и единый audioWork.
 - Светлая резкая атака по-прежнему может выдавать различие исходной редакции и replacement: без PCM фазы источника «идеальный бесшовный» не гарантирован. Не реанимировать длинные fades, которые уже вызывали провалы.
 - Host gate теперь исполняет TestFastJoinPollPolicy; check_audio_architecture охраняет read-only observer. Отдельная signed Test.16 versionCode 86101 и маркировка CELIKOM Test.
-- CI и artifact вписать после сборки. Статус на момент подготовки: **PENDING**.
+- **Полный CI SUCCESS**: https://github.com/manufact-test/nomusic/actions/runs/41679911010 . **Подписанный Test.16 APK в ZIP**: https://github.com/manufact-test/nomusic/actions/runs/41679911010/artifacts/13251069084, artifact 13251069084, имя `CELIKOM-Test-0.3.85-test.16-code-86101`. Functional SHA `66dfa4eb5b4ca05b0c26abb8e629131de1ac64e4`. Stable publisher job **SKIPPED**. Проверка на телефоне: **PENDING**.
 
 ## Одно тестирование владельца
 В Test.16 проверить серию знакомых ярких начал против Test.15, затем «Дым» паузой и несколькими seek; далее обычные seek/pause на 2–3 других песнях. Приложить один combined и видео. Если хуже, немедленно считать Test.15 эталоном и не переносить код в stable.
