@@ -17,7 +17,6 @@ on:
       - feature/android-0375-honor-bounded-warm-latency-staging
       - feature/android-076-output-clock-update-state-staging-20261101
       - feature/android-077-album-duration-confirmation-staging-20261101
-      - feature/android-0385-test15-permissionless-recovery-20261103
     paths:
       - 'android/native-companion/**'
       - '.github/workflows/android-0348-validation.yml'
@@ -184,18 +183,18 @@ jobs:
 
   build-celikom-test:
     if: >-
-      github.event_name == 'push' &&
-      github.ref == 'refs/heads/feature/android-0385-test15-permissionless-recovery-20261103' &&
-      github.repository == 'manufact-test/nomusic'
+      github.event_name == 'pull_request' &&
+      github.head_ref == 'feature/android-0385-intro-join-investigation-20261102' &&
+      github.event.pull_request.head.repo.full_name == 'manufact-test/nomusic'
     needs: native-android
     permissions:
       actions: read
       contents: read
     uses: ./.github/workflows/android-0385-test-app-build.yml
     with:
-      source_sha: ${{ github.sha }}
-      source_branch: feature/android-0385-test15-permissionless-recovery-20261103
-      source_repository: ${{ github.repository }}
+      source_sha: ${{ github.event.pull_request.head.sha }}
+      source_branch: ${{ github.head_ref }}
+      source_repository: ${{ github.event.pull_request.head.repo.full_name }}
       validation_run_id: ${{ github.run_id }}
     secrets: inherit
 

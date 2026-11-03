@@ -224,19 +224,6 @@ final class ReplacementEngine {
   }
  }
  void rememberAudio(){if(streaming!=null&&audioFile==null)audioFile=streaming.retainComplete();if(audioFile==null||descriptor==null||!ready||!api.signedIn())return;String key=audioKey(descriptor);File old=recentAudio.remove(key);if(old!=null&&!old.equals(audioFile))old.delete();recentAudio.put(key,audioFile);File kept=audioFile;audioFile=null;trimRecentAudio(kept);}
- /* A fully downloaded file survives a fast Next while its decoder is preparing.
-    Reuse still requires a fresh resolve and measured duration verification. */
- void retainInterruptedCompleteFile(String reason){
-  if(ready||audioFile==null||!audioFile.isFile()||descriptor==null||!api.signedIn()
-   ||streaming!=null||!fullFileExperiment
-   ||!("track_changed".equals(reason)||"identity_changed".equals(reason)))return;
-  File retained=audioFile;
-  cachePrefetchedAudio(trackId,descriptor,retained);
-  audioFile=null;
-  LogStore.log("replacement_interrupted_file_retained",LogStore.map(
-   "trackId",trackId,"reason",reason,"bytes",retained.length(),
-   "freshResolveRequired",true,"decoderValidated",false));
- }
  void noteLookaheadCandidate(String candidateAlias){
   if(lookaheadPrefetchAlias==null)return;PlaybackSource source=owner.current;
   if(source!=null&&Objects.equals(source.alias,lookaheadPrefetchAlias)){
@@ -430,19 +417,6 @@ final class ReplacementEngine {
    if(!PlaybackDuration.metadataProbeAllowed(duration,replacementDuration)){lookaheadPrefetchPhase="duration_rejected";LogStore.log("replacement_lookahead_prefetch_rejected",LogStore.map("mediaAlias",alias,"sourceDurationMs",duration,"replacementDurationMs",replacementDuration));fallbackPromotedLookaheadPrefetch("duration_rejected");return;}
    lookaheadPrefetchResolvedAudioKey=audioKeyFor(id,j);
    if(lookaheadPrefetchWait&&lookaheadPrefetchCurrentDescriptor!=null&&!lookaheadPrefetchResolvedAudioKey.equals(audioKeyFor(id,lookaheadPrefetchCurrentDescriptor))){fallbackPromotedLookaheadPrefetch("fresh_resolve_key_mismatch");return;}
-   /* A fresh entitlement/edition resolve may reuse an already complete local file.
-      Re-downloading the same next song competes with the current serial audio lane. */
-   File alreadyCached=recentAudio.get(lookaheadPrefetchResolvedAudioKey);
-   if(alreadyCached!=null&&!alreadyCached.isFile()){recentAudio.remove(lookaheadPrefetchResolvedAudioKey);alreadyCached=null;}
-   if(alreadyCached!=null){
-    lookaheadPrefetchPhase="ready";
-    primeNextDecoder(alias,id,j,alreadyCached,account);
-    LogStore.log("replacement_lookahead_cache_reused",LogStore.map(
-     "mediaAlias",alias,"trackId",id,"freshResolveRequired",true,
-     "audioKeyMatches",true,"bytes",alreadyCached.length(),"newDownload",false));
-    resumePromotedLookaheadPrefetch();
-    return;
-   }
    lookaheadPrefetchPhase="downloading";
    api.downloadLookahead(j,()->lookaheadPrefetchCurrent(token,account,alias,id),(file,downloadError)->{
     if(!lookaheadPrefetchCurrent(token,account,alias,id)){if(file!=null)file.delete();LogStore.log("replacement_lookahead_prefetch_stale",LogStore.map("mediaAlias",alias,"stage","download","fileDeleted",file!=null));return;}
@@ -1245,7 +1219,6 @@ final class ReplacementEngine {
   localPrewarmAttempted=false;localPrewarmWarmupPending=false;localPrewarmAlignmentPending=false;localPrewarmJoinPending=false;localPrewarmWarmupStartedAt=0;localPrewarmWarmupPosition=0;audioFromCache=false;
   boolean had=player!=null||effect!=null;MediaPlayer old=silenceBeforeCleanup();
   if("identity_changed".equals(reason)||"track_changed".equals(reason)||"replacement_end".equals(reason)||"replacement_completed".equals(reason)||"source_end".equals(reason)||"source_unavailable".equals(reason)||"source_disconnected".equals(reason))rememberAudio();
-  retainInterruptedCompleteFile(reason);
   /* Detach a completed file before MediaPlayer.release closes its MediaDataSource. */
   if(old!=null){try{old.setOnErrorListener(null);old.setOnPreparedListener(null);old.setOnCompletionListener(null);old.setOnSeekCompleteListener(null);}catch(RuntimeException ignored){}try{old.release();}catch(RuntimeException ignored){}}
   returning=false;pausedAt=-1;resumeFadePending=false;seekHoldActive=false;pendingStreamScrubJoin=false;audioOwner.source();audioOwner.retireDecoder();prepareTicket=null;bufferGate.reset();bufferWaiting=false;if(streaming!=null){streaming.close();streaming=null;}ready=false;seeking=false;seekRetargetPending=false;fading=false;aligned=false;resumePositionRetained=false;

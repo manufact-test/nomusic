@@ -447,58 +447,6 @@ public final class TestLookaheadPrefetchHandoff {
   engine.close();
   check(!file.exists(),"single-flight fallback does not leak the cached file");
  }
- static void lookaheadReusesMatchingPreviouslyCachedFile()throws Exception{
-  TestEngine.reset("ALBUM",true);TestEngine.api.signed=true;TestEngine.e.arm();
-  ReplacementEngine engine=TestEngine.e;
-  File file=File.createTempFile("celikom-cached-next-", ".audio");
-  engine.recentAudio.put(engine.audioKeyFor("8",descriptor(1)),file);
-  TestEngine.p.lookaheadAlias="2";
-  engine.prefetchLookahead(LogStore.map("mediaAlias","2","durationMs",120000L),"8");
-  check(TestEngine.api.resolves==2,"lookahead still authenticates a cached file");
-  TestEngine.api.resolveCallbacks.get(1).done(descriptor(1),null);
-  check(TestEngine.api.downloads==0&&"ready".equals(engine.lookaheadPrefetchPhase)
-   &&engine.primedNext!=null&&engine.primedNext.file==file,
-   "matching live edition reuses a cached successor without a serial download");
-  engine.close();
-  check(!file.exists(),"cached successor is erased on explicit Stop");
- }
- static void lookaheadDifferentEditionMustDownload()throws Exception{
-  TestEngine.reset("ALBUM",true);TestEngine.api.signed=true;TestEngine.e.arm();
-  ReplacementEngine engine=TestEngine.e;
-  File file=File.createTempFile("celikom-cached-edition-", ".audio");
-  engine.recentAudio.put(engine.audioKeyFor("8",descriptor(1)),file);
-  TestEngine.p.lookaheadAlias="2";
-  engine.prefetchLookahead(LogStore.map("mediaAlias","2","durationMs",120000L),"8");
-  TestEngine.api.resolveCallbacks.get(1).done(descriptor(2),null);
-  check(TestEngine.api.downloads==1&&engine.primedNext==null,
-   "server edition mismatch cannot reuse stale cached audio");
-  engine.close();
- }
- static void interruptedPreparedFileIsReusedOnlyAfterFreshResolve()throws Exception{
-  TestEngine.reset("ALBUM",true);TestEngine.api.signed=true;TestEngine.e.arm();
-  ReplacementEngine engine=TestEngine.e;
-  TestEngine.api.resolveCallbacks.get(0).done(descriptor(1),null);
-  File file=File.createTempFile("celikom-fast-next-", ".audio");
-  TestEngine.api.downloadCallbacks.get(0).done(file,null);
-  check(engine.player!=null&&!engine.ready&&engine.audioFile==file,
-   "full file downloaded while decoder is still preparing");
-  engine.sourceBoundary("manual_next","2");
-  check(file.exists()&&engine.recentAudio.containsValue(file)&&engine.player==null,
-   "fast Next retains a complete file for future verified resolve");
-  engine.close();
-  check(!file.exists(),"explicit stop erases interrupted complete file");
- }
- static void invalidOrStoppedFileMustNotBeRetained()throws Exception{
-  TestEngine.reset("ALBUM",true);TestEngine.api.signed=true;TestEngine.e.arm();
-  ReplacementEngine engine=TestEngine.e;
-  TestEngine.api.resolveCallbacks.get(0).done(descriptor(1),null);
-  File file=File.createTempFile("celikom-invalid-stop-", ".audio");
-  TestEngine.api.downloadCallbacks.get(0).done(file,null);
-  engine.suspend("prepare_failed",1000);
-  check(!file.exists()&&engine.recentAudio.isEmpty(),
-   "failed decoder never populates reusable cache");
-  engine.close();
- }
  public static void main(String[] args)throws Exception{
   beginLookahead();promoteCurrent(descriptor(1),true);matchingPrefetchIsConsumed();
   mismatchedFreshResolveFallsBack();latePrefetchCanStartAfterBoundary();
@@ -511,8 +459,6 @@ public final class TestLookaheadPrefetchHandoff {
   stalledPromotedPrimeFallsBackAfterBoundedWait();
   cachedCurrentPrimeBeforeFreshResolve();cachedCurrentPrimeRejectedOnLiveEditionMismatch();
   currentPrimeRevokedOnBoundaryBeforeResolve();cachedCurrentPrimeCanFinishDuringExtendedGrace();repeatedCurrentWaitIsSingleFlight();
-  lookaheadReusesMatchingPreviouslyCachedFile();lookaheadDifferentEditionMustDownload();
-  interruptedPreparedFileIsReusedOnlyAfterFreshResolve();invalidOrStoppedFileMustNotBeRetained();
   System.out.println("PASS: "+checks+" lookahead promotion, fresh-resolve, cache handoff and mismatch checks");
  }
 }
