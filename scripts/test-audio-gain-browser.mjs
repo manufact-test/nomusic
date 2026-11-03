@@ -213,14 +213,14 @@ try{
  check(document.documentElement.scrollWidth<=innerWidth,'mixer horizontal layout');document.body.dataset.gainResult='pass';
  }catch(e){document.body.dataset.gainResult=e.message+' at '+document.body.dataset.gainStep+' '+e.stack}})();</script></body></html>`;
  const file=join(directory,'gain.html');await writeFile(file,html);await mkdir('dist/layout-proof',{recursive:true});
- const browser=spawn(binary,['--headless=new','--no-sandbox','--disable-gpu','--autoplay-policy=no-user-gesture-required','--window-size=420,600','--remote-debugging-port=0','--user-data-dir='+join(directory,'profile'),pathToFileURL(file).href],{stdio:['ignore','ignore','pipe']});
+ const browser=spawn(binary,['--headless=new','--no-sandbox','--disable-gpu','--disable-dev-shm-usage','--autoplay-policy=no-user-gesture-required','--window-size=420,600','--remote-debugging-port=0','--user-data-dir='+join(directory,'profile'),pathToFileURL(file).href],{stdio:['ignore','ignore','pipe']});
  /* Keep bounded synthetic-fixture launch diagnostics when Chrome cannot start. */
  let launchError='';browser.stderr.on('data',chunk=>{launchError=(launchError+chunk.toString()).slice(-3000);});
  const exited=new Promise(resolve=>browser.once('exit',resolve));
  let socket;
  try{
   const pause=ms=>new Promise(r=>setTimeout(r,ms));let port;
-  for(let i=0;i<100&&!port;i++){try{port=(await readFile(join(directory,'profile','DevToolsActivePort'),'utf8')).split('\n')[0];}catch{}if(!port)await pause(50);}
+  for(let i=0;i<600&&!port;i++){try{port=(await readFile(join(directory,'profile','DevToolsActivePort'),'utf8')).split('\n')[0];}catch{}if(!port)await pause(50);}
   if(!port)throw Error('Chrome debug port unavailable: '+launchError);
   const pages=await fetch('http://127.0.0.1:'+port+'/json/list').then(r=>r.json());const page=pages.find(x=>x.type==='page');if(!page)throw Error('Chrome page unavailable');
   socket=new WebSocket(page.webSocketDebuggerUrl);await new Promise((resolve,reject)=>{socket.onopen=resolve;socket.onerror=reject;});
