@@ -1,3 +1,21 @@
+# ⛔ ГЛАВНАЯ КОНТРОЛЬНАЯ ТОЧКА — 2026-11-03: TEST.15 BEST, TEST.16 REJECTED
+
+**ЭТОТ РАЗДЕЛ ВАЖНЕЕ СТАРЫХ ЗАПИСЕЙ НИЖЕ.** Владелец проверил и отверг CELIKOM Test.16: поздние склейки 2–3 секунды, деградация относительно Test.15. Все дальнейшие функциональные изменения вести **только из сохранённой Test.15**, а не от старой ветки с Test.16.
+
+**Актуальная рабочая ветка:** `feature/android-0385-test15-permissionless-recovery-20261103` (основана на Test.15 backup; в момент передачи только docs-коммиты).
+
+**Обязательная полная передача:** [ANDROID-0385-TEST15-PERMISSIONLESS-RECOVERY-HANDOFF-2026-11-03.md](ANDROID-0385-TEST15-PERMISSIONLESS-RECOVERY-HANDOFF-2026-11-03.md).
+
+**Эталон / откат:** `backup/android-0385-test15-best-owner-20261103` SHA `6fde1e48179ecb812f1def16067f18bf0d9c3003`; functional SHA `4838ccee4aa4628dce68437ebbf00d4dfc30ce27`; отдельная Test.15/code86100 [успешный CI](https://github.com/manufact-test/nomusic/actions/runs/41674369584) и [подписанный ZIP/APK](https://github.com/manufact-test/nomusic/actions/runs/41674369584/artifacts/13248949184). Примерно 70% стыков владелец назвал практически идеальными, остаточные слышимые первые аккорды пока требуют доработки.
+
+**Доказанные проблемы:** Test.16 >1с 7/23 vs Test.15 2/16; >2с 6/23 vs Test.15 1/16; многие поздние переходы привязаны к cold/in-flight full-file downloads. «Дым» Лёша Свик id 39949113 — UI seek есть, но Media3 остаётся в первых секундах без seek; «Нас не понимают вообще» Космонавты/RASKOL id 42884423 — UI seek приходит в Media3 только с многосекундной задержкой; наш native seek по полученным данным срабатывает быстро. Подробности и имена приватных log/video — в handoff, не коммитить их.
+
+**Новая принципиальная политика владельца:** никакого Accessibility, NotificationListener, MEDIA_CONTENT_CONTROL, MediaProjection, иных чувствительных разрешений в массовом CELIKOM; нельзя увеличивать Play Protect/установочные предупреждения ради этих двух треков. Вместо этого проверять permission-free direct `MediaController.getConnectedToken()`, вторичное подключение к той же session, другие публичные Yandex Media3 endpoints и свежесть снимка session. Ранее проваленный legacy MediaBrowser не повторять без новых оснований. Гипотезы требуют проверки, не выдавать их за починенный звук.
+
+**Следующий шаг:** на этой новой ветке проанализировать код/диагностику и внести одним безопасным пакетом улучшения кэша/прогрева и проверенные исправления наблюдения source; полный host CI+signed separate APK для одной полевой проверки владельца. Frozen accepted seek/ACK, stable 0.3.85/code86, Hostinger/stable.json, PR #37 и все backup не трогать.
+
+---
+
 # АКТУАЛЬНО: CELIKOM Test.15 — проверенный откат сетевой конкуренции + улучшение прогрева (2026-11-03)
 
 **Передача:** [ANDROID-0385-TEST-15-SERIAL-AUDIO-PRIORITY-AND-CACHED-PRIME-GRACE-2026-11-03.md](ANDROID-0385-TEST-15-SERIAL-AUDIO-PRIORITY-AND-CACHED-PRIME-GRACE-2026-11-03.md). По свежему HONOR Test.14 логам и видео владелец подтвердил акустическую регрессию: «Солнца не видно» 239→491/768мс, «Биг сити лайф» 267→613мс в разных прогонах. Три `cached_current_prime` не успели за прежние 150мс и были выброшены; «Дым» UI 3:34 при публичном Media3 ~10с, без `SAME_ITEM_SEEK`. Test.15 меняет одну общую audioWork очередь для current/lookahead, **отложенный на 1100мс speculative enqueue** для приоритета текущего трека и **340мс кэшированному prime wait** (промотированный next prime остаётся 150мс). Новая host-регрессия проверяет готовность на230мс; accepted seek, ClockSupervisor, audio output, stable publisher, Hostinger не тронуты. Официальные Android API-документы подтверждают ограничение чтения seek через MediaSession без новых разрешений, не объявлять «Дым» исправленной.
