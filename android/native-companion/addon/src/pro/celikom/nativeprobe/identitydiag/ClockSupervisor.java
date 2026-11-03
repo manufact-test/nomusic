@@ -4,7 +4,7 @@ package pro.celikom.nativeprobe.identitydiag;
  */
 final class ClockSupervisor {
  enum Decision { KEEP, SEEK, RESTORE_SOURCE }
- static final long WARN_DRIFT_MS=700, CONFIRM_MS=1500, CORRECTION_DRIFT_MS=1500, CORRECTION_CONFIRM_MS=500, MODERATE_REPAIR_CONFIRM_MS=1100;
+ static final long WARN_DRIFT_MS=700, CONFIRM_MS=1500, CORRECTION_DRIFT_MS=1500, CORRECTION_CONFIRM_MS=500;
  private long unstableSince=-1,severeSince=-1;
  private int severeCorrections;
  Decision assess(boolean aligned,boolean live,boolean sourceJump,long drift,long now){
@@ -18,14 +18,7 @@ final class ClockSupervisor {
    if(now-severeSince>=CORRECTION_CONFIRM_MS && severeCorrections<1){
     severeCorrections++;severeSince=now;return Decision.SEEK;
    }
-  }else{
-   severeSince=-1;
-   /* A sustained moderate route/decoder slip gets one muted realignment
-      before the existing fail-open rule restores the original. */
-   if(now-unstableSince>=MODERATE_REPAIR_CONFIRM_MS&&severeCorrections<1){
-    severeCorrections++;return Decision.SEEK;
-   }
-  }
+  }else severeSince=-1;
   return now-unstableSince>=CONFIRM_MS?Decision.RESTORE_SOURCE:Decision.KEEP;
  }
  /** Do not erase the bounded auto-correction allowance during a seek. */

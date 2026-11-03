@@ -6,14 +6,8 @@ public final class TestClockSupervisor {
  public static void main(String[] args){
   ClockSupervisor s=new ClockSupervisor();
   ok(s.assess(true,true,false,1160,1000)==ClockSupervisor.Decision.KEEP,"single high drift observation is not terminal");
-  ok(s.assess(true,true,false,1156,2200)==ClockSupervisor.Decision.SEEK,"sustained moderate drift receives one guarded repair");
-  s.onSeek();
-  ok(s.assess(true,true,false,1166,2501)==ClockSupervisor.Decision.KEEP,"moderate drift is re-evaluated after repair");
-  ok(s.assess(true,true,false,1166,4102)==ClockSupervisor.Decision.RESTORE_SOURCE,"persistent moderate drift after repair restores native");
-  s.reset();
-  ok(s.assess(true,true,false,850,4300)==ClockSupervisor.Decision.KEEP,"one new moderate reading never triggers immediate repair");
-  ok(s.assess(true,true,false,860,5000)==ClockSupervisor.Decision.KEEP,"short route-change jitter remains untouched");
-  ok(s.assess(true,true,false,870,5500)==ClockSupervisor.Decision.SEEK,"long-lived 870ms drift is repaired without abandoning replacement");
+  ok(s.assess(true,true,false,1156,2200)==ClockSupervisor.Decision.KEEP,"1.2s divergent clock not yet confirmed");
+  ok(s.assess(true,true,false,1166,2501)==ClockSupervisor.Decision.RESTORE_SOURCE,"HONOR 1.16s steady discrepancy must restore native");
   s.reset();
   for(int i=0;i<50;i++)ok(s.assess(true,true,false,550,1000+250*i)==ClockSupervisor.Decision.KEEP,"550ms Bluetooth-offset baseline remains undisturbed");
   ok(s.assess(false,true,false,0,14000)==ClockSupervisor.Decision.SEEK,"first alignment is silent seek");

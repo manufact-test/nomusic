@@ -634,8 +634,6 @@ final class ReplacementEngine {
    prewarmLocalFileForInitialAlignment(s,resumed,sourceJump);
    if(awaitLocalPrewarmMotion(s,resumed,sourceJump))return;
    if(clockDecision==ClockSupervisor.Decision.SEEK){
-    if(aligned&&!sourceJump&&Math.abs(drift)>=ClockSupervisor.WARN_DRIFT_MS)
-     logTrace("replacement_drift_repair",LogStore.map("trackId",trackId,"driftMs",drift,"sourcePositionMs",target,"boundedAutoRealignment",true,"originalAudibleDuringRepair",true,"fallbackStillEnabled",true));
     long seekTarget=target;
     /* Only the first muted cold join predicts callback advance; user seeking stays frozen. */
     if(localPrewarmAlignmentPending&&!explicitSourceSeek&&!sourceJump

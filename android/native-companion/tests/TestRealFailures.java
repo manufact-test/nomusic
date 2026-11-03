@@ -63,17 +63,14 @@ public final class TestRealFailures {
   SystemClock.now+=500;mp.position=1500;sample(e,1500);
   check(e.effect!=null&&!e.fading&&e.aligned,
       "drift test begins only after successful exclusive-audio handover");
-  int seekCallsBeforeDrift=mp.seekCalls;
-  for(int i=0;i<16 && e.player!=null;i++){
+  for(int i=0;i<9 && e.player!=null;i++){
    SystemClock.now+=300;
    long nativePosition=1800L+i*300;
    mp.position=nativePosition-1160;
    sample(e,nativePosition);
   }
-  check(mp.seekCalls>seekCallsBeforeDrift,
-      "confirmed moderate drift first receives a bounded muted realignment");
   check(e.player==null&&e.effect==null&&e.armed()&&mp.released,
-      "persistent drift after realignment restores original and releases unsafe decoder");
+      "sustained drift restores original and releases unsafe decoder without stopping auto mode");
   check(e.status.contains("рассинхрон")&&e.completedKey!=null&&e.audioOwner.state()==AudioOwnership.State.TRACK_UNSUPPORTED,
       "unsafe drift reports specific reason and only blocks this track");
   e.close();
