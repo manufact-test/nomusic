@@ -1,0 +1,35 @@
+name: Desktop 0.4.71 isolated live approval join
+on:
+  push:
+    branches: [feature/desktop-071-live-approval-join-20261103]
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CELIKOM_API_BASE_URL: https://darkred-camel-588676.hostingersite.com
+      REQUIRE_BROWSER_AUDIO: "1"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - name: Install synthetic audio encoder
+        run: sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends ffmpeg
+      - name: Desktop regression tests
+        run: npm --prefix extension test
+      - name: Native Chrome playback, pause, seek and fail-open
+        run: node scripts/test-audio-gain-browser.mjs
+      - name: Validate and package desktop only
+        run: |
+          npm run lint
+          npm --prefix extension run validate
+          npm --prefix extension run build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: celikom-desktop-0.4.71-experiment
+          path: extension/dist/celikom-extension-0.4.71.zip

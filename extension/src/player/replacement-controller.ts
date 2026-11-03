@@ -197,7 +197,13 @@
         if (!operation.joinPrepared && !this.snapshot.player.paused && this.snapshot.player.currentTime > 0.25
             && !this.snapshot.guard?.active && typeof operation.player.prepareJoin === "function") {
           operation.stage="joining";
-          await operation.player.prepareJoin(this.snapshot);
+          await operation.player.prepareJoin(this.snapshot, async () => {
+            if (!this.current(operation)) throw new Error("Replacement cancelled");
+            this.update(await this.bridge.getSnapshot());
+            if (!this.current(operation)) throw new Error("Replacement cancelled");
+            if (!this.eligible()) throw new Error("replacement-join-not-ready");
+            return this.snapshot;
+          });
           if (!this.current(operation)) return;
           this.update(await this.bridge.getSnapshot());
           if (!this.current(operation) || !this.eligible()) return;
