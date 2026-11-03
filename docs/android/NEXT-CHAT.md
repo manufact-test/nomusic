@@ -1,6 +1,11 @@
-# ТЕКУЩАЯ ПЕРЕДАЧА — Test.7 CI SUCCESS, APK ещё НЕ доставлена (2026-11-03)
+# АКТУАЛЬНАЯ ПЕРЕДАЧА — CELIKOM Test.7 УСТАНОВЛЕНА, ждём диагностику (2026-11-03)
 
-**Обязательно сначала читать [ANDROID-0385-TEST-7-UNDELIVERED-APK-NEXT-CHAT-2026-11-03.md](ANDROID-0385-TEST-7-UNDELIVERED-APK-NEXT-CHAT-2026-11-03.md).** Функциональная Test.7 готова: SHA `a365dc1da36a9ee960100c40409d677778070e3f`, CI [#41603059001](https://github.com/manufact-test/nomusic/actions/runs/41603059001) SUCCESS, artifact ID `13215970098`, signed APK SHA256 `de9d14050be56de8d7f837973a070c704b75cb23bd381886ac0cbee20e80b5be`. **Но прямой APK в Library нет, пользователь не установил Test.7 и не начал полевой тест.** В прошлых сессиях файловая среда была read-only; GitHub ZIP ссылка владельцу не подошла. **Сначала передать APK через Library, не пересобирать**, не отправлять пользователя искать Workspace Write в веб-ChatGPT. Стабильный original0.3.85/code86, backups, accepted seek, PR#37, Hostinger — неприкосновенны. Главный приоритет: слышимые начала песен; все реальные исправления одним выпуском, вторично двойной звук/фоновый dropout/редкая перемотка.
+**СНАЧАЛА ЧИТАТЬ [ANDROID-0385-TEST-7-INSTALLED-FIELD-TEST-NEXT-CHAT-2026-11-03.md](ANDROID-0385-TEST-7-INSTALLED-FIELD-TEST-NEXT-CHAT-2026-11-03.md).** Владелец **скачал GitHub ZIP, извлёк APK и установил Test.7**. Прежний blocker доставки через Library уже не мешает проверке. **Новые акустические результаты Test.7 пока не получены.** Следующий чат должен взять свежий `CELIKOM-combined-*.txt`, сравнить с Test.6 и продолжить исправлять прежде всего начало песен (одна общая Test APK со всеми реальными исправлениями). Не возвращаться к выдаче APK/разрешениям и не заявлять, что проблема интро устранена без полевого результата.
+
+- **Functional Test.7** SHA `a365dc1da36a9ee960100c40409d677778070e3f`, `0.3.85-test.7`/code86092, package `pro.celikom.nativeprobe.test`. [CI #41603059001](https://github.com/manufact-test/nomusic/actions/runs/41603059001) SUCCESS, artifact `13215970098`, signed APK SHA256 `de9d14050be56de8d7f837973a070c704b75cb23bd381886ac0cbee20e80b5be`.
+- Реально внедрено: Media3 lookahead poll `2000→500ms` + timeline refresh; fail-closed защита от stale Yandex session/double audio на API33; **только пассивная** диагностика rare seek после unlock, не исправление. Mid-song dropout и album identity waits — в общем списке.
+- Стабильный оригинал `0.3.85/code86` SHA `053b7d59beb53db5f30b942feba35e51a1ab256a`, обе accepted seek backups, frozen seek/Pause/Resume, `stable.json`, Hostinger, PR #37 — **НЕ ТРОГАТЬ**.
+
 
 ---
 
