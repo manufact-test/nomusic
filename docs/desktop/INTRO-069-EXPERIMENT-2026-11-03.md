@@ -27,3 +27,11 @@ New deterministic gates prove auth/me, entitlement and public config all start b
 After one install: тело first word, several Next transitions, pause and seek; export one diagnostic at end. Remaining native 100ms initial offset, audio-file alignment and a cold unidentified track can still lose initial audio; this experiment does not guarantee zero missing phonemes. Next-track prefetch/decoder reuse is a separate future investigation requiring reliable next-track identity, cancellation, account scope, expiry and current-track priority, not enabled speculatively in this release.
 
 Rollback: stop playback, replace files in the existing unpacked extension folder with preserved 0.4.68, reload extension, refresh Yandex tab, start. Do not uninstall extension or clear account data.
+
+## Verified delivery
+
+- 339 desktop tests PASS locally and in GitHub; manifest validation and repository lint PASS.
+- GitHub run `41699592784` SUCCESS, including native Chrome synthetic MP3/M4A playback, pause, delayed seek and original restoration checks. These checks validate functioning playback boundaries, not the opening consonant on the owner's actual song.
+- Configured ZIP `celikom-extension-0.4.69.zip`: 2,486,069 bytes; SHA-256 `ff53cc6db565a6502484d672eebf462a1543b6d1879d5ac46ef359e8b6394dd6`.
+- Persisted delivery `libfile_a7f2ec6afad48191891127928a656d69`.
+- Owner acoustic check PENDING; 0.4.68 remains accepted reference.
