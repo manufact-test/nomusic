@@ -28,6 +28,8 @@ public final class TestColdJoinExclusiveExperiment {
 
     // Match the existing 0.3.85 local decoder prewarm/alignment path exactly.
     TestCachedAudioRollback.advanceWarmup(decoder,10,20,8);
+    check(LogStore.events.contains("replacement_cold_alignment_lead"),
+        "only muted cold attachment applies the bounded predictive alignment lead");
     check(engine.fading&&engine.audioOwner.handoverAwaitingClock()
             &&decoder.volume==0f&&engine.effect.gain==0f
             &&engine.originalMix==1f&&decoder.seekCalls==1,

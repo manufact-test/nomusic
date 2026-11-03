@@ -34,7 +34,7 @@ final class ReplacementEngine {
  String lookaheadPrefetchResolvedAudioKey;JSONObject lookaheadPrefetchCurrentDescriptor;boolean lookaheadPrefetchPromoted,lookaheadPrefetchWait;
  // A primed next decoder remains muted and never owns the source effect.
  // Live playback still requires a fresh current-track resolve and measured duration.
- static final long NEXT_DECODER_PRIME_TIMEOUT_MS=1800;
+ static final long NEXT_DECODER_PRIME_TIMEOUT_MS=1800, PROMOTED_PRIME_GRACE_MS=800;
  static final class NextDecoderPrime {
   final String alias,trackId,audioKey;final long account;final File file;final MediaPlayer player;
   final long startedAt;long motionOrigin;boolean ready;
@@ -44,6 +44,7 @@ final class ReplacementEngine {
   }
  }
  NextDecoderPrime primedNext;
+ long lookaheadPromotedAtMs;
  boolean primingNextCurrent(NextDecoderPrime c){
   PlaybackSource current=owner.current;
   return primedNext==c&&!closed&&armed()&&api.signedIn()
@@ -127,7 +128,9 @@ final class ReplacementEngine {
  }
  MediaPlayer takePrimedNext(String alias,String key,File file){
   NextDecoderPrime c=primedNext;if(c==null)return null;
-  if(!c.ready||!Objects.equals(c.alias,alias)||!Objects.equals(c.audioKey,key)
+  /* Preparing an unrelated current song must not destroy its already primed successor. */
+  if(!Objects.equals(c.alias,alias))return null;
+  if(!c.ready||!Objects.equals(c.audioKey,key)
    ||c.account!=api.accountGeneration||!c.file.equals(file)){
    discardPrimedNext("not_ready_or_live_key_mismatch");return null;
   }
@@ -168,6 +171,7 @@ final class ReplacementEngine {
   if(lookaheadPrefetchAlias==null)return;PlaybackSource source=owner.current;
   if(source!=null&&Objects.equals(source.alias,lookaheadPrefetchAlias)){
    if(Objects.equals(identityKey,source.key)&&!Objects.equals(trackId,lookaheadPrefetchTrackId)){invalidateLookaheadPrefetch("current_identity_mismatch");return;}
+   if(!lookaheadPrefetchPromoted)lookaheadPromotedAtMs=SystemClock.elapsedRealtime();
    lookaheadPrefetchPromoted=true;
    if("ready".equals(lookaheadPrefetchPhase)){lookaheadPrefetchPhase="cached";LogStore.log("replacement_lookahead_prefetch_promoted",LogStore.map("mediaAlias",lookaheadPrefetchAlias,"trackId",lookaheadPrefetchTrackId,"cacheRetained",true));}
    else LogStore.log("replacement_lookahead_prefetch_promoted_inflight",LogStore.map("mediaAlias",lookaheadPrefetchAlias,"trackId",lookaheadPrefetchTrackId,"phase",lookaheadPrefetchPhase));
@@ -178,7 +182,7 @@ final class ReplacementEngine {
  void clearLookaheadPrefetchState(){
   lookaheadPrefetchGeneration++;lookaheadPrefetchAlias=null;lookaheadPrefetchTrackId=null;lookaheadPrefetchAccount=-1;
   lookaheadPrefetchPhase="none";lookaheadPrefetchResolvedAudioKey=null;lookaheadPrefetchCurrentDescriptor=null;
-  lookaheadPrefetchPromoted=false;lookaheadPrefetchWait=false;
+  lookaheadPrefetchPromoted=false;lookaheadPrefetchWait=false;lookaheadPromotedAtMs=0;
  }
  void finishLookaheadPrefetch(String reason){
   if(!"cache_consumed".equals(reason))discardPrimedNext("prefetch_finished_"+reason);
@@ -288,6 +292,23 @@ final class ReplacementEngine {
    },1000);
    return;
   }
+  /* Keep a promoted ready decoder alive briefly for the fresh current-track resolve.
+     A new successor is retried shortly; the bound prevents starving rapid Next. */
+  if(lookaheadPrefetchPromoted&&"cached".equals(lookaheadPrefetchPhase)
+   &&source!=null&&Objects.equals(source.alias,lookaheadPrefetchAlias)
+   &&primedNext!=null&&primedNext.ready
+   &&Objects.equals(primedNext.alias,source.alias)
+   &&Objects.equals(primedNext.trackId,lookaheadPrefetchTrackId)
+   &&SystemClock.elapsedRealtime()-lookaheadPromotedAtMs<PROMOTED_PRIME_GRACE_MS){
+   LogStore.log("replacement_lookahead_prefetch_deferred",LogStore.map(
+    "mediaAlias",alias,"currentAlias",source.alias,
+    "reason","promoted_primed_decoder_current_handoff","audioCommandSent",false));
+   final Map<String,Object> retryObservation=new LinkedHashMap<>(observation);
+   owner.handler.postDelayed(()->{
+    if(!closed&&owner.lookaheadIsNext(alias))prefetchLookahead(retryObservation,id);
+   },200);
+   return;
+  }
   invalidateLookaheadPrefetch("new_next_item");
   final long token=++lookaheadPrefetchGeneration,account=api.accountGeneration,start=SystemClock.elapsedRealtime();
   lookaheadPrefetchAlias=alias;lookaheadPrefetchTrackId=id;lookaheadPrefetchAccount=account;lookaheadPrefetchStartedAt=start;lookaheadPrefetchPhase="resolving";
@@ -361,7 +382,7 @@ final class ReplacementEngine {
     The backend's approved replacement response authorizes playback; the
     bounded measured-duration check remains an independent safety gate. */
  boolean verifiedDurationIdentity(){return trackId!=null&& !"NONE".equals(method);}
- void identity(Map<String,Object> o,Map<String,Object> decision){String key=PlaybackSource.key(String.valueOf(o.get("mediaAlias")),o.get("albumId"),String.valueOf(o.get("title")),String.valueOf(o.get("artist")),((Number)o.get("durationMs")).longValue());PlaybackSource s=owner.current;if(s==null||!s.key.equals(key))return;String id=(String)decision.get("candidateTrackId");String nextMethod=String.valueOf(decision.get("method"));if(!Objects.equals(identityKey,key)||!Objects.equals(trackId,id)){completedKey=null;completedReason=null;clockSupervisor.reset();generation++;preparing=false;release("identity_changed");audioOwner.track(key);sourceSeekedThisTrack=false;nextLookup=0;failures=0;descriptor=null;lookupKey=null;}identityKey=key;trackId=id;method=nextMethod;if(lookaheadPrefetchAlias!=null&&Objects.equals(s.alias,lookaheadPrefetchAlias)){if(id!=null&&Objects.equals(id,lookaheadPrefetchTrackId))lookaheadPrefetchPromoted=true;else invalidateLookaheadPrefetch("current_identity_mismatch");}if(id==null){status="Песня пока не определена однозначно; играет оригинал";return;}update(s);}
+ void identity(Map<String,Object> o,Map<String,Object> decision){String key=PlaybackSource.key(String.valueOf(o.get("mediaAlias")),o.get("albumId"),String.valueOf(o.get("title")),String.valueOf(o.get("artist")),((Number)o.get("durationMs")).longValue());PlaybackSource s=owner.current;if(s==null||!s.key.equals(key))return;String id=(String)decision.get("candidateTrackId");String nextMethod=String.valueOf(decision.get("method"));if(!Objects.equals(identityKey,key)||!Objects.equals(trackId,id)){completedKey=null;completedReason=null;clockSupervisor.reset();generation++;preparing=false;release("identity_changed");audioOwner.track(key);sourceSeekedThisTrack=false;nextLookup=0;failures=0;descriptor=null;lookupKey=null;}identityKey=key;trackId=id;method=nextMethod;if(lookaheadPrefetchAlias!=null&&Objects.equals(s.alias,lookaheadPrefetchAlias)){if(id!=null&&Objects.equals(id,lookaheadPrefetchTrackId)){if(!lookaheadPrefetchPromoted)lookaheadPromotedAtMs=SystemClock.elapsedRealtime();lookaheadPrefetchPromoted=true;}else invalidateLookaheadPrefetch("current_identity_mismatch");}if(id==null){status="Песня пока не определена однозначно; играет оригинал";return;}update(s);}
  boolean current(String key){PlaybackSource s=owner.current;return !closed&&owner.alive()&&s!=null&&ApiContract.current(key,s.key,SystemClock.elapsedRealtime()-s.observed,s.connected);}
  /* Transport data belongs to a verified track/account generation, not to a
     transient Media3 connection snapshot. Source output still requires current(). */
@@ -519,7 +540,18 @@ final class ReplacementEngine {
    }
    prewarmLocalFileForInitialAlignment(s,resumed,sourceJump);
    if(awaitLocalPrewarmMotion(s,resumed,sourceJump))return;
-   if(clockDecision==ClockSupervisor.Decision.SEEK){seek(s,target,drift);return;}
+   if(clockDecision==ClockSupervisor.Decision.SEEK){
+    long seekTarget=target;
+    /* Only the first muted cold join predicts callback advance; user seeking stays frozen. */
+    if(localPrewarmAlignmentPending&&!explicitSourceSeek&&!sourceJump
+      &&streaming==null&&target<s.duration-500){
+     seekTarget=predictedWarmTargetMs(target,player.getDuration());
+     LogStore.log("replacement_cold_alignment_lead",LogStore.map(
+      "trackId",trackId,"sourcePositionMs",target,"targetMs",seekTarget,
+      "leadMs",seekTarget-target,"sourcePcmMeasured",false));
+    }
+    seek(s,seekTarget,drift);return;
+   }
   if(localPrewarmAlignmentPending){
    localPrewarmAlignmentPending=false;localPrewarmJoinPending=true;
    logTrace("replacement_local_decoder_prewarm_aligned",LogStore.map("trackId",trackId,"sourcePositionMs",target,"decoderPositionMs",player.getCurrentPosition(),"seekSkipped",true,"originalAudible",originalMix>=0.999f));

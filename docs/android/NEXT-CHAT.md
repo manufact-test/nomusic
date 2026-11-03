@@ -1,3 +1,9 @@
+# CELIKOM Test.8 — кандидат исправлений по полевой диагностике Test.7 (2026-11-03)
+
+Сначала читать [ANDROID-0385-TEST-8-INTRO-RETENTION-LEAD-CANDIDATE-2026-11-03.md](ANDROID-0385-TEST-8-INTRO-RETENTION-LEAD-CANDIDATE-2026-11-03.md). Владелец передал два combined-лога Test.7: 17 переходов, все файлы готовы заранее, но median output-command 530мс, max 838мс. Подтверждены две преждевременные отмены primed decoder; 13/17 cold joins потребовали дополнительный WARM seek. Test.8/code86093 — один общий эксперимент: сохранить decoder до fresh resolve и отдельный bounded cold-only seek lead. **CI и acoustic acceptance проверять отдельно.** Принятые seek/Pause/Resume, stable 0.3.85/code86, backup refs, stable.json/Hostinger, PR#37 не трогать. Редкий seek-after-unlock не воспроизведён, не исправлять вслепую.
+
+---
+
 # АКТУАЛЬНАЯ ПЕРЕДАЧА — CELIKOM Test.7 УСТАНОВЛЕНА, ждём диагностику (2026-11-03)
 
 **СНАЧАЛА ЧИТАТЬ [ANDROID-0385-TEST-7-INSTALLED-FIELD-TEST-NEXT-CHAT-2026-11-03.md](ANDROID-0385-TEST-7-INSTALLED-FIELD-TEST-NEXT-CHAT-2026-11-03.md).** Владелец **скачал GitHub ZIP, извлёк APK и установил Test.7**. Прежний blocker доставки через Library уже не мешает проверке. **Новые акустические результаты Test.7 пока не получены.** Следующий чат должен взять свежий `CELIKOM-combined-*.txt`, сравнить с Test.6 и продолжить исправлять прежде всего начало песен (одна общая Test APK со всеми реальными исправлениями). Не возвращаться к выдаче APK/разрешениям и не заявлять, что проблема интро устранена без полевого результата.
