@@ -28,3 +28,10 @@ For acoustic first-note seams, the current source and replacement transport cloc
 - No raw owner files in Git.
 - Required CI: native host suite; new cache limits; frozen HONOR seek source SHA; Android API36/D8; signed isolated APK and original signing certificate; stable publisher skipped.
 - Deliver **one** direct GitHub Actions artifact ZIP only after a successful run. Report plainly if any original issue remains unresolved; do not call Test.12 phone-verified before listening.
+
+## Verified signed candidate (2026-11-03)
+
+- Final functional SHA: `d024db87d0e802327fa658407e659c47c1692cda`.
+- GitHub Actions full CI [#41648755376](https://github.com/manufact-test/nomusic/actions/runs/41648755376): **success**. Native host suite, 300-song automatic activity, frozen seek hash, Android API36/D8, isolated signed APK and original certificate checks passed; stable publishing skipped.
+- [Download ZIP artifact 13236337823](https://github.com/manufact-test/nomusic/actions/runs/41648755376/artifacts/13236337823). Name `CELIKOM-Test-0.3.85-test.12-code-86097`; APK `CELIKOM-Android-0.3.85-TEST-12-WARM-CACHE-SIGNED.apk`; APK SHA-256 `6415b13e009c48aea912b9fb19eb1e9f63fc9463d9ef8184915ec8bcd8f4bf36`, signer matches original, v3 signature verified.
+- Owner's HONOR listening/seek acceptance **pending**. Critical: do not call «Дым» repaired; no new position source was added. This build improves bounded repeat/playlist cold-cache behavior only.
