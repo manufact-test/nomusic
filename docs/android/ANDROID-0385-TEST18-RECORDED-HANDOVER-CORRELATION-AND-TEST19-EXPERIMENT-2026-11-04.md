@@ -31,3 +31,11 @@
 ## Текущие критерии будущей проверки владельцем
 
 Сначала убедиться `replacementArmed=true` и реально произошёл `replacement_transition_complete` именно для проверяемой песни; иначе «Дым работает» относится только к Яндексу. На живой замене проверить «Дым» отдельно пальцем и кнопкой Pause→Play, RASKOL с наблюдением source position, жёсткие первые ноты, по меньшей мере три перехода после имитированной невозможности DSP mute. При ухудшении — Test.18 сохранена как эталон.
+
+## Test.19 — реальный результат изолированной CI-сборки (2026-11-04)
+
+- **Функциональный SHA:** `39c4abf5c369772adc9f8864fe546b8df7c75642`; только рабочая экспериментальная ветка. Test.18 backup и stable не изменялись.
+- **Полный CI SUCCESS:** https://github.com/manufact-test/nomusic/actions/runs/41719786549 . Host regression `TestSourceEffectRecovery`: **PASS 33 проверок**, в том числе transient `create / control / enable` failure, source-only после отказа, отсутствие повторов на той же песне, auto-resolve и новый DSP на следующей; обязательный frozen HONOR seek/ACK, архитектурные проверки, Android API36, D8, подпись и упаковка прошли.
+- **Подписанный side-by-side APK ZIP:** https://github.com/manufact-test/nomusic/actions/runs/41719786549/artifacts/13270969005 ; имя архива `CELIKOM-Test-0.3.85-test.19-code-86104.zip`, внутри `CELIKOM-Android-0.3.85-TEST-19-RECOVERABLE-EFFECT-SIGNED.apk`, `verification.json`, `RECEIPT.json`.
+- **Проверенный APK SHA256:** `5d6fed766ec1b5a35515e0f01ffb8a1f8ce0636e7203bcc15a1d73f1e2b78b5b`; совпадает с исходным сертификатом, Android v3 подпись валидна. Пакет `pro.celikom.nativeprobe.test`, ярлык CELIKOM Test, нет OTA и новых разрешений.
+- **Принятие владельцем ещё НЕ получено.** Test.19 намеренно не обещает устранить 200ms acoustic capture gap, Johnyboy cold download или невидимый RASKOL seek; внедрено recoverable DSP с диагностикой failure stage. В случае ухудшения — откат к сохранённому signed Test.18; публиковать новую stable нельзя.
