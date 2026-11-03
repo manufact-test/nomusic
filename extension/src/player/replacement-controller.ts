@@ -41,6 +41,7 @@
       this.lastError = null;
       this.policyRevision = 0;
       this.activationCount = 0;
+      this.startupHistory = [];
       this.restoreCount = 0;
       this.lastRestore = null;
     }
@@ -115,7 +116,11 @@
       // A bound, already guarded master can temporarily have only metadata while
       // seeking/buffering. Keep the lease and pause replacement; admission still
       // requires current data, and emptied/changed/ambiguous masters fail open.
-      const minimumReadyState = operation && matching ? 1 : 2;
+      /* Warm a validated paused beginning before native playback.
+         Mid-song buffering and seeks retain the existing admission rules. */
+      const earlyIntro = !operation && this.snapshot?.player?.paused
+        && !this.snapshot.player.seeking && this.snapshot.player.currentTime <= 0.25;
+      const minimumReadyState = (operation && matching) || earlyIntro ? 1 : 2;
       if (!this.eligible(this.snapshot, minimumReadyState) || (operation && !matching)) {
         if (operation) this.abort("state-changed");
         return;
@@ -156,16 +161,18 @@
           throw new Error("replacement_duration_or_token_invalid");
         }
         if (!operation.asset.demoLoop) this.event("replacement_available", { service: "yandex" });
-        if (this.snapshot?.guard?.transitioning) {
+        if (this.snapshot?.guard?.transitioning && this.eligible()) {
           await this.bridge.request("GUARD_ENGAGE", {token:operation.token,trackId:operation.trackId,mediaId:operation.mediaId,preparing:true});
           if (!this.current(operation)) { this.bridge.post("RELEASE_NOW", {token:operation.token}); return; }
         }
+        operation.resolvedAt = Date.now();
         operation.stage="loading";
         operation.player = this.createPlayer((reason, detail) => { if (this.current(operation)) this.abort(reason, true, detail); });
         if(operation.player.audio?.dataset)operation.player.audio.dataset.celikomTrackId=operation.trackId;
         await operation.player.prepare(operation.asset);
         if (!operation.asset.demoLoop && Math.abs(operation.player.audio.duration * 1000 - operation.asset.durationMs) > 1500) throw new Error("replacement_duration_mismatch");
         if (!this.current(operation)) return;
+        operation.loadedAt = Date.now();
         operation.loaded = true;
         await this.activate(operation);
       } catch (error) { if (this.current(operation)) this.abort(error.message, true, error.streamDetail || null); }
@@ -185,6 +192,14 @@
         if (!this.current(operation) || !this.eligible(this.snapshot, 1)) { this.abort("guard-state-changed"); return; }
         this.phase = "REPLACEMENT_ACTIVE";
         this.activationCount++;
+        /* Bounded timings retain each recent join without URLs or credentials.
+           Activation is a controller milestone, not proof of audible output. */
+        this.startupHistory.push({trackId:operation.trackId, at:Date.now(),
+          prepareMs:Date.now()-operation.startedAt,
+          resolveMs:operation.resolvedAt-operation.startedAt,
+          loadMs:operation.loadedAt-operation.resolvedAt,
+          masterTimeMs:Math.round(this.snapshot.player.currentTime*1000)});
+        if(this.startupHistory.length>12)this.startupHistory.shift();
         if (!operation.asset.demoLoop) this.event("replacement_started", { service: "yandex" });
         this.lastError = null;
         this.log(`REPLACEMENT_ACTIVE · ${operation.trackId}`);

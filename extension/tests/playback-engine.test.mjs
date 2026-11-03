@@ -388,8 +388,8 @@ test("remote MP3 uses CSP-allowed MediaSource blob and bounded verified 206 byte
   assert.equal(player.audio.src, "blob:https://music.yandex.ru/media-source");
   assert.equal(player.audio.duration, 180.872);
   await new Promise(resolve => setTimeout(resolve, 15));
-  assert.deepEqual(calls, [[0, 524287], [524288, 599999]]);
-  assert.deepEqual(chunks, [524288, 75712]);
+  assert.deepEqual(calls, [[0, 65535], [65536, 589823], [589824, 599999]]);
+  assert.deepEqual(chunks, [65536, 524288, 10176]);
   assert.equal(source.readyState, "ended");
   assert.deepEqual(fatals, []);
   player.destroy();
@@ -402,8 +402,8 @@ test("remote MP3 uses CSP-allowed MediaSource blob and bounded verified 206 byte
 test("transient 503 retries the SAME next range without discarding buffered audio", async () => {
   const f = await remoteStreamFixture([206, 503, 503, 206]);
   await f.player.streamTask;
-  assert.deepEqual(f.calls, [[0,524287], [524288,599999], [524288,599999], [524288,599999]]);
-  assert.deepEqual(f.chunks, [524288,75712]);
+  assert.deepEqual(f.calls, [[0,65535], [65536,589823], [65536,589823], [65536,589823], [589824,599999]]);
+  assert.deepEqual(f.chunks, [65536,524288,10176]);
   assert.equal(f.cancelledBodies, 2);
   assert.deepEqual(f.fatals, []);
   assert.equal(f.source.readyState, "ended");
@@ -414,8 +414,8 @@ test("persistent 503 exhausts bounded retries with sanitized status and offset",
   const f = await remoteStreamFixture([206,503,503,503]);
   await f.player.streamTask;
   assert.equal(f.calls.length,4);
-  assert.deepEqual(f.fatals,[{reason:'remote-stream-http',detail:{httpStatus:503,offset:524288,attempts:3}}]);
-  assert.deepEqual(f.chunks,[524288]);
+  assert.deepEqual(f.fatals,[{reason:'remote-stream-http',detail:{httpStatus:503,offset:65536,attempts:3}}]);
+  assert.deepEqual(f.chunks,[65536]);
   f.player.destroy();
 });
 
@@ -424,7 +424,7 @@ test("revoked 403 and unexpected 200 fail open immediately without retry", async
     const f = await remoteStreamFixture([206,status]);
     await f.player.streamTask;
     assert.equal(f.calls.length,2);
-    assert.deepEqual(f.fatals,[{reason:'remote-stream-http',detail:{httpStatus:status,offset:524288,attempts:1}}]);
+    assert.deepEqual(f.fatals,[{reason:'remote-stream-http',detail:{httpStatus:status,offset:65536,attempts:1}}]);
     f.player.destroy();
   }
 });
@@ -538,8 +538,8 @@ test('Manual retry disposes the pending decoder; late readiness cannot reactivat
 });
 test('A stalled later MP3 range is bounded and fails open with network progress',async()=>{
  const f=await remoteStreamFixture([206,'stall']);await new Promise(resolve=>setTimeout(resolve,25));
- assert.equal(f.fatals[0]?.reason,'remote-stream-timeout');assert.equal(f.fatals[0].detail.offset,524288);
- assert.equal(f.fatals[0].detail.receivedBytes,524288);assert.equal(f.fatals[0].detail.phase,'timeout');f.player.destroy();
+ assert.equal(f.fatals[0]?.reason,'remote-stream-timeout');assert.equal(f.fatals[0].detail.offset,65536);
+ assert.equal(f.fatals[0].detail.receivedBytes,65536);assert.equal(f.fatals[0].detail.phase,'timeout');f.player.destroy();
 });
 
 test('verified transition reserves existing silence while loading; Stop cancels the reservation and late completion',async()=>{
@@ -594,4 +594,45 @@ test('incident: Stop or new track while prepared master is seeking prevents late
  if(stop)f.update(snapshot());await settle();assert.equal(f.players[0].destroyed,true);assert.equal(f.engine.activationCount,0);
  assert.equal(f.requests.filter(x=>x.type==='GUARD_ENGAGE').length,0);
  }
+});
+
+test('verified metadata warms audio before native readiness without engaging the guard early',async()=>{
+ const f=fixture({resolveAsset:async()=>remoteAsset()});f.engine.configure(true,'');
+ const metadata=snapshot('2',{guard:{transitioning:true}});Object.assign(metadata.player,{readyState:1,paused:true,currentTime:0.1});
+ f.update(metadata);await settle();
+ assert.equal(f.players.length,1);assert.equal(f.engine.operation.loaded,true);
+ assert.equal(f.engine.activationCount,0);assert.equal(f.players[0].audio.paused,true);
+ assert.equal(f.requests.some(r=>r.type==='GUARD_ENGAGE'),false,'metadata loading cannot seize an original lease');
+ const ready=snapshot();Object.assign(ready.player,{currentTime:0.1,paused:true});f.update(ready);await settle();
+ assert.equal(f.players.length,1,'activation reuses the prepared decoder');assert.equal(f.engine.activationCount,1);
+ assert.equal(f.players[0].audio.paused,true,'native pause is retained');
+ ready.player.paused=false;f.update(ready,'PLAY');await settle();assert.equal(f.players[0].audio.paused,false);
+ f.engine.destroy();await settle();
+});
+
+test('Stop during metadata warmup disposes audio and fences late decoder completion',async()=>{
+ const gate=deferred(),f=fixture({loadGate:gate,resolveAsset:async()=>remoteAsset()});f.engine.configure(true,'');
+ const metadata=snapshot();Object.assign(metadata.player,{readyState:1,paused:true,currentTime:0.1});f.update(metadata);await settle();
+ const previous=f.players[0];assert(previous);f.engine.configure(false,'');await settle();
+ assert.equal(previous.destroyed,true);gate.resolve();await settle();assert.equal(f.engine.activationCount,0);
+ assert.equal(f.engine.operation,null);assert.equal(f.requests.some(r=>r.type==='GUARD_ENGAGE'),false);
+ f.engine.destroy();await settle();
+});
+
+test('ambiguous and duration-mismatched metadata never starts a warmup request',async()=>{
+ let resolves=0;const f=fixture({resolveAsset:async()=>{resolves++;return remoteAsset();}});f.engine.configure(true,'');
+ const metadata=snapshot();Object.assign(metadata.player,{readyState:1,paused:true,currentTime:0.1});metadata.track.ambiguous=true;
+ f.update(metadata);await settle();metadata.track.ambiguous=false;metadata.player.duration=198;
+ f.update(metadata);await settle();assert.equal(resolves,0);assert.equal(f.players.length,0);
+ f.engine.destroy();await settle();
+});
+
+test('join timing history retains twelve recent activations without URLs or credentials',async()=>{
+ const f=fixture({resolveAsset:async()=>remoteAsset()});f.engine.configure(true,'');
+ for(let i=1;i<=14;i++){f.update(snapshot(String(i)));await settle();}
+ assert.equal(f.engine.startupHistory.length,12);assert.equal(f.engine.startupHistory[0].trackId,'3');
+ assert.equal(f.engine.startupHistory.at(-1).trackId,'14');
+ for(const row of f.engine.startupHistory){assert(row.prepareMs>=0);assert(row.resolveMs>=0);assert(row.loadMs>=0);assert.equal(row.masterTimeMs,7000);}
+ assert(!JSON.stringify(f.engine.startupHistory).includes('https:'));
+ f.engine.destroy();await settle();
 });

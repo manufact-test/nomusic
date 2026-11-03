@@ -51,7 +51,7 @@ function createGainChain(context, audio, db) {
     }
     async pumpRemote(asset) {
       // Page media-src permits blob: but rejects the private HTTPS origin.
-      // Feed MSE with verified 512 KiB ranges; no whole-file JS buffer.
+      /* Feed the decoder an initial 64 KiB, then verified 512 KiB ranges. */
       const source = this.mediaSource;
       const abort = this.fetchAbort;
       const waitForSourceOpen = async () => {
@@ -109,8 +109,11 @@ function createGainChain(context, audio, db) {
         }
         const rangeTimer=this.environment.setTimeout(()=>{this.streamState.phase="timeout";abort.abort();},15000);
         try {
+        /* A short first range reduces startup transfer without shrinking steady buffering.
+           Large metadata headers continue through the same contiguous range loop. */
+        const requestSize = offset === 0 ? 64 * 1024 : chunkSize;
         const lastRequested = total === null
-          ? offset + chunkSize - 1 : Math.min(total - 1, offset + chunkSize - 1);
+          ? offset + requestSize - 1 : Math.min(total - 1, offset + requestSize - 1);
         let response;
         Object.assign(this.streamState,{phase:"headers",offset,httpStatus:null,requestAt:Date.now()});
         let attempt = 0;
@@ -160,7 +163,7 @@ function createGainChain(context, audio, db) {
         total = length;
         this.streamState.phase="body";
         const bytes = await response.arrayBuffer();
-        if (bytes.byteLength !== last - from + 1 || bytes.byteLength > chunkSize) {
+        if (bytes.byteLength !== last - from + 1 || bytes.byteLength > requestSize) {
           throw new Error("remote-stream-range");
         }
         if (this.destroyed || abort.signal.aborted) return;

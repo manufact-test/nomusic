@@ -219,7 +219,7 @@
         preparation: this.engine.phase === "PREPARING" && this.engine.operation ? { stage:this.engine.operation.stage, elapsedMs:Math.max(0,Date.now()-this.engine.operation.startedAt), stream:this.engine.operation.player?.streamState || null } : null,
         availability: this.engine.negativeResolution?.trackId === this.snapshot?.track?.id ? "unavailable" : this.engine.operation?.asset?.found ? "available" : "unknown",
         replacementPlayer: this.engine.operation?.player?.diagnostics?.() || null,
-        playback: { activationCount: this.engine.activationCount, restoreCount: this.engine.restoreCount, lastRestore: this.engine.lastRestore },
+        playback: { startupHistory: this.engine.startupHistory, activationCount: this.engine.activationCount, restoreCount: this.engine.restoreCount, lastRestore: this.engine.lastRestore },
         api: { configured: this.apiConfigured, mode: this.testTrackId ? "synthetic-demo" : "remote", replacementId: this.engine.operation?.asset?.replacementId || null },
         track: this.snapshot?.track || null,
         player: this.snapshot?.player || null,
