@@ -36,7 +36,7 @@ final class ReplacementEngine {
  String lookaheadPrefetchResolvedAudioKey;JSONObject lookaheadPrefetchCurrentDescriptor;boolean lookaheadPrefetchPromoted,lookaheadPrefetchWait;
  // A primed next decoder remains muted and never owns the source effect.
  // Live playback still requires a fresh current-track resolve and measured duration.
- static final long NEXT_DECODER_PRIME_TIMEOUT_MS=1800, PROMOTED_PRIME_GRACE_MS=800, PROMOTED_PRIME_READY_WAIT_MS=150;
+ static final long NEXT_DECODER_PRIME_TIMEOUT_MS=1800, PROMOTED_PRIME_GRACE_MS=800, PROMOTED_PRIME_READY_WAIT_MS=150, CACHED_CURRENT_PRIME_READY_WAIT_MS=340;
  static final class NextDecoderPrime {
   final String alias,trackId,audioKey;final long account;final File file;final MediaPlayer player;
   final long startedAt;final boolean currentCache;long motionOrigin;boolean ready;
@@ -328,8 +328,9 @@ final class ReplacementEngine {
   primeReadyWaitInFlight=true;
   final long waitToken=++primeReadyWaitToken;
   final long started=SystemClock.elapsedRealtime();
+  final long waitBudgetMs=c.currentCache?CACHED_CURRENT_PRIME_READY_WAIT_MS:PROMOTED_PRIME_READY_WAIT_MS;
   LogStore.log(c.currentCache?"replacement_cached_current_prime_live_wait":"replacement_lookahead_decoder_prime_live_wait",LogStore.map(
-    "mediaAlias",c.alias,"trackId",c.trackId,"waitBudgetMs",PROMOTED_PRIME_READY_WAIT_MS,
+    "mediaAlias",c.alias,"trackId",c.trackId,"waitBudgetMs",waitBudgetMs,
     "freshResolveVerified",true,"sourceMuted",false));
   owner.handler.postDelayed(new Runnable(){public void run(){
     if(waitToken!=primeReadyWaitToken)return;
@@ -337,7 +338,7 @@ final class ReplacementEngine {
      primeReadyWaitInFlight=false;return;
     }
     if(primedNext==c&&!c.ready
-       &&SystemClock.elapsedRealtime()-started<PROMOTED_PRIME_READY_WAIT_MS){
+       &&SystemClock.elapsedRealtime()-started<waitBudgetMs){
       owner.handler.postDelayed(this,20);return;
     }
     primeReadyWaitInFlight=false;

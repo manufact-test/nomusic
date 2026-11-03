@@ -10,7 +10,7 @@ import java.util.concurrent.*;
 /** One serialized transport for refresh rotation; no embedded user/API credentials. */
 final class NativeApi {
  interface Result {void done(JSONObject result,String error);}
- volatile boolean revoking;volatile long accountGeneration;volatile long configValidatedAt=-1;static NativeApi singleton;final SecureSession session;final Context context;final ExecutorService work=Executors.newSingleThreadExecutor();final ExecutorService audioWork=Executors.newSingleThreadExecutor();final ExecutorService prefetchAudioWork=Executors.newSingleThreadExecutor();final ExecutorService contributions=Executors.newSingleThreadExecutor();final Handler main=new Handler(Looper.getMainLooper());
+ volatile boolean revoking;volatile long accountGeneration;volatile long configValidatedAt=-1;static NativeApi singleton;final SecureSession session;final Context context;final ExecutorService work=Executors.newSingleThreadExecutor();final ExecutorService audioWork=Executors.newSingleThreadExecutor();final ExecutorService contributions=Executors.newSingleThreadExecutor();final Handler main=new Handler(Looper.getMainLooper());
  static synchronized NativeApi get(Context c){if(singleton==null)singleton=new NativeApi(c);return singleton;}
  NativeApi(Context c){context=c.getApplicationContext();session=new SecureSession(c);}
  volatile long diagnosticUntil,diagnosticGeneration=-1,nextDiagnosticCheck;volatile boolean diagnosticBusy;
@@ -118,7 +118,11 @@ final class NativeApi {
  final BufferedAudio out=source;final String fail=error;main.post(()->result.done(out,fail));});}
  interface AudioResult{void done(File file,String error);}
  void download(JSONObject descriptor,java.util.function.BooleanSupplier valid,AudioResult r){enqueueDownload(audioWork,"current",descriptor,valid,r);}
- void downloadLookahead(JSONObject descriptor,java.util.function.BooleanSupplier valid,AudioResult r){enqueueDownload(prefetchAudioWork,"lookahead",descriptor,valid,r);}
+ /* Let the current song claim the single audio queue before a speculative full-file transfer. */
+ static final long LOOKAHEAD_ENQUEUE_YIELD_MS=1100;
+ void downloadLookahead(JSONObject descriptor,java.util.function.BooleanSupplier valid,AudioResult r){
+  main.postDelayed(()->enqueueDownload(audioWork,"lookahead",descriptor,valid,r),LOOKAHEAD_ENQUEUE_YIELD_MS);
+ }
  void enqueueDownload(ExecutorService lane,String priority,JSONObject descriptor,java.util.function.BooleanSupplier valid,AudioResult r){
   final long account=accountGeneration,queuedAt=SystemClock.elapsedRealtime();
   lane.execute(()->{File file=null;String error=null;long started=SystemClock.elapsedRealtime();

@@ -7,11 +7,12 @@ owner=(root/'AudioOwnership.java').read_text()
 service=(root/'ProbeService.java').read_text()
 api=(root/'NativeApi.java').read_text()
 if ('final ExecutorService audioWork=Executors.newSingleThreadExecutor()' not in api
-    or 'final ExecutorService prefetchAudioWork=Executors.newSingleThreadExecutor()' not in api
+    or 'prefetchAudioWork' in api
     or 'enqueueDownload(audioWork,"current"' not in api
-    or 'enqueueDownload(prefetchAudioWork,"lookahead"' not in api
+    or 'main.postDelayed(()->enqueueDownload(audioWork,"lookahead"' not in api
+    or 'LOOKAHEAD_ENQUEUE_YIELD_MS=1100' not in api
     or 'api.downloadLookahead(j,' not in engine):
-    raise AssertionError('current-track download must not queue behind speculative next-track prefetch')
+    raise AssertionError('speculative next-track download must yield to the current-song audio queue')
 for label,pattern in [
     ('direct decoder command',r'\b(?:player|p|old|mp)\.(?:start|pause|seekTo)\s*\('),
     ('native gain change bypass',r'\.setInputGainAllChannelsTo\s*\('),

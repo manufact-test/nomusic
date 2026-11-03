@@ -398,6 +398,28 @@ public final class TestLookaheadPrefetchHandoff {
   engine.close();
  }
 
+ static void cachedCurrentPrimeCanFinishDuringExtendedGrace()throws Exception{
+  TestEngine.reset("ALBUM",true);TestEngine.api.signed=true;TestEngine.e.arm();
+  ReplacementEngine engine=TestEngine.e;
+  File file=File.createTempFile("celikom-current-grace-", ".audio");
+  engine.recentAudio.put(engine.audioKeyFor("8",descriptor(1)),file);
+  engine.sourceBoundary("sample_track_changed","2");
+  TestEngine.p.current=TestEngine.source("2",0,true);
+  engine.identity(
+   LogStore.map("mediaAlias","2","albumId","42","title","Песня","artist","Артист","durationMs",120000L),
+   LogStore.map("candidateTrackId","8","method","ALBUM"));
+  MediaPlayer muted=engine.primedNext.player;
+  muted.prepared.onPrepared(muted);
+  TestEngine.api.resolveCallbacks.get(1).done(descriptor(1),null);
+  check(engine.primeReadyWaitInFlight&&engine.player==null,
+   "the current cached decoder keeps a bounded grace after fresh resolve");
+  muted.position=45;android.os.SystemClock.now+=230;TestEngine.p.handler.drain();
+  check(engine.player==muted&&engine.ready&&engine.primedNext==null
+     &&TestEngine.api.downloads==0&&engine.audioFromCache,
+   "the cached current decoder is adopted after a 230ms prime without a second player");
+  engine.close();
+ }
+
  static void repeatedCurrentWaitIsSingleFlight()throws Exception{
   TestEngine.reset("ALBUM",true);TestEngine.api.signed=true;TestEngine.e.arm();
   ReplacementEngine engine=TestEngine.e;
@@ -417,7 +439,7 @@ public final class TestLookaheadPrefetchHandoff {
   for(int i=0;i<35;i++)engine.update(TestEngine.p.current);
   check(engine.primeReadyWaitToken==waitToken&&engine.primeReadyWaitInFlight,
     "rapid source samples reuse the same wait without scheduling other callbacks");
-  android.os.SystemClock.now+=ReplacementEngine.PROMOTED_PRIME_READY_WAIT_MS+40;
+  android.os.SystemClock.now+=ReplacementEngine.CACHED_CURRENT_PRIME_READY_WAIT_MS+40;
   TestEngine.p.handler.drain();
   check(engine.player!=null&&engine.audioFile==file
      &&TestEngine.api.downloads==0&&!engine.primeReadyWaitInFlight,
@@ -436,7 +458,7 @@ public final class TestLookaheadPrefetchHandoff {
   promotedPrimePreparedAfterBoundary();freshResolveWaitsBrieflyForPromotedPrime();
   stalledPromotedPrimeFallsBackAfterBoundedWait();
   cachedCurrentPrimeBeforeFreshResolve();cachedCurrentPrimeRejectedOnLiveEditionMismatch();
-  currentPrimeRevokedOnBoundaryBeforeResolve();repeatedCurrentWaitIsSingleFlight();
+  currentPrimeRevokedOnBoundaryBeforeResolve();cachedCurrentPrimeCanFinishDuringExtendedGrace();repeatedCurrentWaitIsSingleFlight();
   System.out.println("PASS: "+checks+" lookahead promotion, fresh-resolve, cache handoff and mismatch checks");
  }
 }
