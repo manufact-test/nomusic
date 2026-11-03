@@ -1,3 +1,5 @@
+> **Исторический промежуточный кандидат. Test.10 отдельно тестировать НЕ НУЖНО.** Его исправление вошло в единый Test.11/code86096 вместе с ускорением подключений и защитой после паузы. Актуальная подписанная сборка, SHA, CI и задачи следующего чата — в [ANDROID-0385-TEST-11-VERIFIED-HANDOFF-2026-11-03.md](ANDROID-0385-TEST-11-VERIFIED-HANDOFF-2026-11-03.md).
+
 # CELIKOM Test.10 — recovery of silent seek events (2026-11-03)
 
 ## Evidence from owner's installed Test.9
