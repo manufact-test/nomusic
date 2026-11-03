@@ -353,6 +353,38 @@ function createGainChain(context, audio, db) {
         playPending:this.playPending, wantPlay:this.wantPlay, buffered,
         gainContext:this.gainContext?.state || null, stream:{...this.streamState} };
     }
+    async prepareJoin(snapshot) {
+      const {projectTime, targetTime} = root.__CELIKOM_SYNC_ENGINE_V1__;
+      const audio = this.audio;
+      const target = targetTime(projectTime(snapshot.player, snapshot.observedAt, Date.now()), audio.duration, this.demoLoop);
+      audio.muted = true;
+      await new Promise((resolve, reject) => {
+        let timer = null;
+        const finish = (error) => {
+          this.environment.clearTimeout(timer);
+          audio.removeEventListener("seeked", ready);
+          audio.removeEventListener("canplay", ready);
+          audio.removeEventListener("error", failed);
+          this.cancelJoin = null;
+          if (error) reject(error); else resolve();
+        };
+        const ready = () => { if (!audio.seeking && audio.readyState >= 3) finish(); };
+        const failed = () => finish(new Error("replacement-join-not-ready"));
+        this.cancelJoin = () => finish(new Error("Replacement cancelled"));
+        audio.addEventListener("seeked", ready);
+        audio.addEventListener("canplay", ready);
+        audio.addEventListener("error", failed);
+        timer = this.environment.setTimeout(failed, 1200);
+        audio.currentTime = target;
+        ready();
+      });
+      if (this.destroyed) throw new Error("Replacement cancelled");
+      /* A slow seek cannot be adopted far behind the still-running original. */
+      const advanced = projectTime(snapshot.player, snapshot.observedAt, Date.now());
+      const drift = root.__CELIKOM_SYNC_ENGINE_V1__.driftAt(audio.currentTime,
+        targetTime(advanced, audio.duration, this.demoLoop), audio.duration, this.demoLoop);
+      if (Math.abs(drift) > 300) throw new Error("replacement-join-not-ready");
+    }
     applyState(player) {
       this.audio.volume = Math.min(1, Math.max(0, player.volume));
       this.audio.muted = Boolean(player.muted);
@@ -381,6 +413,7 @@ function createGainChain(context, audio, db) {
       this.destroyed = true;
       this.fetchAbort?.abort();
       this.cancelLoad?.();
+      this.cancelJoin?.();
       this.streamTask = null;
       this.sourceBuffer = null;
       this.mediaSource = null;

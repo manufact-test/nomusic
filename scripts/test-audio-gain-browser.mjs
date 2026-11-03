@@ -199,7 +199,26 @@ try{
  navigator.mediaSession.metadata=new MediaMetadata({title:'Fixture A',artist:'CELIKOM'});
  check(physicalMute(),'next transition protected before negative verdict');
  await exchange('GUARD_TRANSITION_END',{token:sessionId+':5',trackId:'11',mediaId:snapshot.player.mediaId});check(!physicalMute(),'unmapped song immediately restores original');
- old.destroy();__CELIKOM_MAIN_BRIDGE_V1__.destroy();original.pause();original.remove();URL.revokeObjectURL(source);URL.revokeObjectURL(nextSource);
+ old.destroy();
+ document.body.dataset.gainStep='bounded native intro';
+ message('POLICY_UPDATE',{revision:2,enabled:true,holdIntro:true,reset:true});await exchange('GET_SNAPSHOT');
+ original.pause();
+ const introSource=URL.createObjectURL(blob),introLoaded=new Promise(r=>original.addEventListener('loadeddata',r,{once:true}));
+ original.src=introSource;original.load();await introLoaded;
+ const introSeek=new Promise(r=>original.addEventListener('seeked',r,{once:true}));original.currentTime=.1;await introSeek;
+ const heldPlay=original.play();check(original.paused&&physicalMute(),'bounded intro holds native play at validated beginning');
+ await new Promise(r=>setTimeout(r,80));check(original.paused&&Math.abs(original.currentTime-.1)<.01,'native intro clock cannot run ahead while preparing');
+ await exchange('GUARD_ENGAGE',{trackId:'11',mediaId:snapshot.player.mediaId,token:sessionId+':6',preparing:true});
+ await exchange('GUARD_ENGAGE',{trackId:'11',mediaId:snapshot.player.mediaId,token:sessionId+':6'});await heldPlay;
+ check(!original.paused&&physicalMute(),'ready replacement releases exactly the pending native play');
+ await exchange('GUARD_RELEASE',{token:sessionId+':6',reason:'manual-original'});
+ original.pause();
+ const joiner=new ReplacementPlayer(window,r=>fatal.push(r));await joiner.prepare({url:introSource,demoLoop:true});
+ await original.play();const joinTime=original.currentTime;
+ await joiner.prepareJoin({observedAt:Date.now(),player:{currentTime:joinTime,duration:original.duration,paused:false,readyState:4,playbackRate:1}});
+ check(!original.paused&&!physicalMute()&&joiner.audio.muted&&!joiner.audio.seeking,'mid-song join prepares decoder while original remains audible');
+ check(Math.abs(joiner.audio.currentTime-original.currentTime)<.35,'mid-song join position ready before muting original');joiner.destroy();
+ __CELIKOM_MAIN_BRIDGE_V1__.destroy();original.pause();original.remove();URL.revokeObjectURL(source);URL.revokeObjectURL(nextSource);URL.revokeObjectURL(introSource);
 
  const toggle=document.querySelector('[data-gain-toggle]');check(!toggle.open,'gain collapsed initially');toggle.open=true;
  const input=document.querySelector('[name=gain_db]');input.value='6';input.dispatchEvent(new Event('input'));await new Promise(r=>setTimeout(r,50));check(document.querySelector('[data-gain-value]').textContent==='+6 дБ','slider display');

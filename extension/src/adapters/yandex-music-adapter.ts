@@ -762,7 +762,18 @@
               adapter.lastEventAt = adapter.now();
             }
             if (name === "play" || name === "load") adapter.safeCall(() => adapter.emitSnapshot(`before-method:${name}`, true, triggerMediaId));
-            adapter.defer(() => { if (lifecycle.active) adapter.emitSnapshot(`method:${name}`, true); });
+            if (name !== "play") adapter.safeCall(() => adapter.sink?.beforeNativeMethod?.(name, this));
+            const invoke = () => {
+              if (!lifecycle.active) return Reflect.apply(original, this, args);
+              const result = Reflect.apply(original, this, args);
+              adapter.defer(() => { if (lifecycle.active) adapter.emitSnapshot(`method:${name}`, true); });
+              return result;
+            };
+            if (name === "play") {
+              const held = adapter.safeCall(() => adapter.sink?.holdIntroPlay?.(this, invoke));
+              if (held) return held;
+            }
+            return invoke();
           }
           return Reflect.apply(original, this, args);
         };

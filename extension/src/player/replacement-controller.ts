@@ -46,7 +46,7 @@
       this.lastRestore = null;
     }
     publishPolicy(reset = false) {
-      this.bridge.post?.("POLICY_UPDATE", {revision:++this.policyRevision,enabled:this.enabled&&!this.suspended&&!this.destroyed,reset:reset===true,
+      this.bridge.post?.("POLICY_UPDATE", {revision:++this.policyRevision,enabled:this.enabled&&!this.suspended&&!this.destroyed,holdIntro:true,reset:reset===true,
         testTrackId:this.testTrackId,bypassTrackId:this.manualBypass?.trackId||null,blockedTrackId:this.blockedTrackId,
         negative:this.negativeResolution});
     }
@@ -100,6 +100,13 @@
       this.reconcile(eventType === "SEEK");
     }
     current(operation) { return !this.destroyed && this.operation === operation && this.generation === operation.generation; }
+    releaseIntroWait(token) {
+      const operation = this.operation;
+      if (this.phase !== "PREPARING" || !operation || !this.current(operation) || operation.token !== token) return false;
+      operation.generation = ++this.generation;
+      operation.token = `${this.bridge.sessionId}:${operation.generation}`;
+      return true;
+    }
     event(name, properties) {
       try { Promise.resolve(this.onEvent(name, properties)).catch(() => undefined); }
       catch (_error) { /* best-effort telemetry is not a playback dependency */ }
@@ -185,6 +192,18 @@
       try {
         this.update(await this.bridge.getSnapshot());
         if (!this.current(operation) || !this.eligible()) return;
+        /* A newly approved mid-song asset must seek silently while the original
+           remains audible. Never move the native clock to meet the replacement. */
+        if (!operation.joinPrepared && !this.snapshot.player.paused && this.snapshot.player.currentTime > 0.25
+            && !this.snapshot.guard?.active && typeof operation.player.prepareJoin === "function") {
+          operation.stage="joining";
+          await operation.player.prepareJoin(this.snapshot);
+          if (!this.current(operation)) return;
+          this.update(await this.bridge.getSnapshot());
+          if (!this.current(operation) || !this.eligible()) return;
+          if (this.snapshot.player.seeking) return;
+          operation.joinPrepared = true;
+        }
         operation.stage="guarding";
         const guard = await this.bridge.request("GUARD_ENGAGE", { token: operation.token, trackId: operation.trackId, mediaId: operation.mediaId });
         if (!this.current(operation)) { this.bridge.post("RELEASE_NOW", { token: operation.token }); return; }
@@ -203,7 +222,7 @@
         if (!operation.asset.demoLoop) this.event("replacement_started", { service: "yandex" });
         this.lastError = null;
         this.log(`REPLACEMENT_ACTIVE · ${operation.trackId}`);
-        this.reconcile(true);
+        this.reconcile(!operation.joinPrepared);
       } catch (error) { if (this.current(operation)) this.abort(error.message, true, error.streamDetail || null); }
       finally { operation.activating = false; }
     }

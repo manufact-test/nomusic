@@ -103,6 +103,7 @@
         if (event?.snapshot && (!this.snapshot || event.snapshot.observedAt >= this.snapshot.observedAt)) { this.snapshot = event.snapshot; this.engine.update(event.snapshot, event.type); }
       });
       this.bridge.on("GUARD_RELEASED", (event) => {
+        if (["intro-start-timeout", "intro-user-cancelled", "intro-user-seek"].includes(event.reason) && this.engine.releaseIntroWait(event.token)) return;
         if (event.token === this.engine.operation?.token) this.engine.abort(`guard-lost:${event.reason}`, event.reason !== "master-binding-changed" || event.detail?.reason === "media-source-changed", event.detail);
       });
       this.bridge.on("EXTENSION_UNAVAILABLE", () => {

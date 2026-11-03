@@ -25,6 +25,7 @@
   let lastGuardGeneration = 0;
   let handoff = null;
   let preparationTimer = null;
+  let heldStart = null;
   let playbackPolicy = {revision:0,enabled:false};
   let lastAdmission = null, admissionSequence = 0;
   const transitionTrace = []; let tracePrevious = null;
@@ -41,6 +42,42 @@
   const guard = new guardFactory.OriginalAudioGuard(() => {
     post("PLAYER_SNAPSHOT", decorate(adapter.getSnapshot("volume-intent")));
   });
+
+  /* Only the beginning of a known, currently guarded native track may wait.
+     The native clock stays paused; user pause/load cancels rather than resumes. */
+  function finishHeldStart(resume, reason) {
+    const pending = heldStart;
+    if (!pending) return;
+    heldStart = null; root.clearTimeout(pending.timer);
+    const snapshot = adapter.getSnapshot("intro-start-verdict");
+    const same = snapshot.track?.id === pending.trackId && !snapshot.track?.ambiguous
+      && snapshot.player?.mediaId === pending.mediaId
+      && (pending.element.currentSrc || pending.element.src || "") === pending.source;
+    trace(snapshot, resume && same ? "intro-start-ready:"+reason : "intro-start-cancelled:"+reason);
+    if (!resume || !same) {
+      pending.reject(Object.assign(new Error("Native intro start cancelled"), {name:"AbortError"})); return;
+    }
+    try { Promise.resolve(pending.invoke()).then(pending.resolve, pending.reject); }
+    catch (error) { pending.reject(error); }
+  }
+  function holdIntroPlay(element, invoke) {
+    if (heldStart?.element === element) return heldStart.promise;
+    if (heldStart || playbackPolicy.holdIntro !== true || !playbackPolicy.enabled
+      || !controllerSession || pageCached || now()-lastHeartbeatAt>VISIBLE_TIMEOUT_MS) return null;
+    const snapshot = adapter.getSnapshot("intro-start-check"), player = snapshot.player;
+    if (!handoff || !guard.current || !player?.paused || player.seeking || player.readyState<2
+      || player.currentTime<0 || player.currentTime>0.25 || player.ended
+      || adapter.getMediaElement(player.mediaId)!==element || !snapshot.track?.id || snapshot.track.ambiguous
+      || snapshot.track.confidence<100 || !Number.isFinite(player.duration)
+      || Math.abs(player.duration*1000-snapshot.track.metadata?.durationMs)>1500) return null;
+    const pending = {element,invoke,trackId:snapshot.track.id,mediaId:player.mediaId,
+      source:element.currentSrc||element.src||"",timer:null};
+    pending.promise=new Promise((resolve,reject)=>{pending.resolve=resolve;pending.reject=reject;});
+    pending.promise.catch(()=>{});
+    heldStart=pending;
+    pending.timer=root.setTimeout(()=>{if(heldStart===pending)release("intro-start-timeout");},400);
+    trace(snapshot,"intro-start-held");return pending.promise;
+  }
 
   function stopReplacement() {
     for (const element of root.document?.querySelectorAll('audio[data-celikom-replacement="true"]') || []) {
@@ -61,6 +98,7 @@
     if (token && guard.current?.token !== token) return { released: false };
     stopReplacement();
     const result = guard.release(token);
+    finishHeldStart(!/page|unload|session-changed|master-lost|source-changed|track-changed|media-changed/.test(reason), reason);
     if (oldToken) post("GUARD_RELEASED", { reason, token: oldToken, detail });
     if (oldToken && adapter.mounted) post("PLAYER_SNAPSHOT", decorate(adapter.getSnapshot("guard-released")));
     return result;
@@ -103,6 +141,13 @@
   }
 
   function checkBinding(snapshot) {
+    if (heldStart) {
+      const changed = snapshot.track?.id !== heldStart.trackId || snapshot.track?.ambiguous
+        || snapshot.player?.mediaId !== heldStart.mediaId
+        || (heldStart.element.currentSrc||heldStart.element.src||"") !== heldStart.source;
+      if (changed) finishHeldStart(false,"binding-changed");
+      else if (snapshot.player?.seeking || snapshot.player?.currentTime > 0.25) release("intro-user-seek");
+    }
     const lease = guard.current;
     if (!lease) { admitBeforePlay(snapshot); return; }
     const player = snapshot.player;
@@ -174,6 +219,12 @@
   }
 
   const sink = Object.freeze({
+    holdIntroPlay,
+    beforeNativeMethod(name, element) {
+      if (heldStart?.element !== element) return;
+      finishHeldStart(false,"native-"+name);
+      release("intro-user-cancelled");
+    },
     onSnapshot(snapshot) {
       trace(snapshot, snapshot.reason);
       checkBinding(snapshot);
@@ -269,6 +320,7 @@
       // Only an existing transition mute can be reserved while a verified
       // replacement loads. This cannot mute an unrelated initial playback.
       if (payload.preparing) preparationTimer = root.setTimeout(() => release("preparation-timeout", payload.token), 10000);
+      if (!payload.preparing) finishHeldStart(true,"replacement-prepared");
       return { guard: guard.state(), snapshot: decorate(adapter.getSnapshot("guard-engaged")) };
     }
     throw new Error(`Unknown bridge request: ${type}`);

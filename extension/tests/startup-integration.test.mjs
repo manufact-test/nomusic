@@ -556,3 +556,53 @@ test("stale extension context cannot throw from controller wake/storage or leave
     }
   }
 });
+
+test('bounded intro waits for a resolver verdict without advancing native playback',async()=>{
+ const f=browserFixture(),main=f.worlds.get('MAIN'),isolated=f.worlds.get('ISOLATED');const wait=()=>new Promise(r=>setTimeout(r,10));
+ await createControllerBootstrap(f.api,{wait}).ensure(42);
+ try{
+  vm.runInContext('__CELIKOM_CONTENT_CONTROLLER_V2__.engine.resolveAsset=()=>new Promise(r=>globalThis.finishAsset=r)',isolated);
+  vm.runInContext('globalThis.original=new HTMLMediaElement();original.currentTime=.1;globalThis.first=original.play();globalThis.second=original.play()',main);
+  assert.equal(vm.runInContext('original.paused',main),true);
+  assert.equal(vm.runInContext('original.currentTime',main),.1);
+  assert.equal(vm.runInContext('first===second',main),true);
+  await wait();vm.runInContext('finishAsset({found:false})',isolated);await wait();
+  assert.equal(vm.runInContext('original.paused',main),false);
+  assert.equal(vm.runInContext('original.physicalMuted',main),false);
+ }finally{vm.runInContext('__CELIKOM_CONTENT_CONTROLLER_V2__.destroy()',isolated);vm.runInContext('__CELIKOM_MAIN_BRIDGE_V1__.destroy()',main);}
+});
+for(const action of ['pause','load','source','stop','timeout'])test('bounded intro handles '+action+' without a stale native start',async()=>{
+ const f=browserFixture(),main=f.worlds.get('MAIN'),isolated=f.worlds.get('ISOLATED');const wait=()=>new Promise(r=>setTimeout(r,10));
+ await createControllerBootstrap(f.api,{wait}).ensure(42);
+ try{
+  vm.runInContext('__CELIKOM_CONTENT_CONTROLLER_V2__.engine.resolveAsset=()=>new Promise(r=>globalThis.finishAsset=r)',isolated);
+  vm.runInContext('globalThis.original=new HTMLMediaElement();original.currentTime=.1;original.play().catch(e=>globalThis.playError=e.name)',main);
+  await wait();assert.equal(vm.runInContext('original.paused',main),true);
+  if(action==='pause'||action==='load')vm.runInContext('original.'+action+'()',main);
+  if(action==='source')vm.runInContext("original.src='https://strm-fra-03.strm.yandex.net/changed';original.dispatchEvent(new Event('timeupdate'))",main);
+  if(action==='stop')f.changeStorage({enabled:{newValue:false}});
+  if(action==='timeout')await new Promise(r=>setTimeout(r,430));
+  await wait();
+  if(['pause','load','source'].includes(action)){
+   assert.equal(vm.runInContext('original.paused',main),true);
+   assert.equal(vm.runInContext('playError',main),'AbortError');
+  }else{
+   assert.equal(vm.runInContext('original.paused',main),false);
+   assert.equal(vm.runInContext('original.physicalMuted',main),false);
+  }
+ }finally{vm.runInContext('__CELIKOM_CONTENT_CONTROLLER_V2__.destroy()',isolated);vm.runInContext('__CELIKOM_MAIN_BRIDGE_V1__.destroy()',main);}
+});
+
+for(const delay of [20,450])test('intro positive verdict after '+delay+'ms retains a single replacement and valid lease',async()=>{
+ const f=browserFixture(),main=f.worlds.get('MAIN'),isolated=f.worlds.get('ISOLATED');const wait=()=>new Promise(r=>setTimeout(r,10));
+ await createControllerBootstrap(f.api,{wait}).ensure(42);
+ try{
+  vm.runInContext('__CELIKOM_CONTENT_CONTROLLER_V2__.engine.resolveAsset=()=>new Promise(r=>globalThis.finishAsset=r)',isolated);
+  vm.runInContext('globalThis.original=new HTMLMediaElement();original.currentTime=.1;original.play()',main);
+  await new Promise(r=>setTimeout(r,delay));
+  vm.runInContext("finishAsset({found:true,demoLoop:true,url:'https://fixture.test/audio'})",isolated);await wait();await wait();
+  assert.equal(vm.runInContext('__CELIKOM_CONTENT_CONTROLLER_V2__.engine.phase',isolated),'REPLACEMENT_ACTIVE');
+  assert.equal(vm.runInContext('original.paused',main),false);assert.equal(vm.runInContext('original.physicalMuted',main),true);
+  assert.equal(f.elements.size,1);assert.equal(vm.runInContext('__CELIKOM_CONTENT_CONTROLLER_V2__.engine.blockedTrackId',isolated),null);
+ }finally{vm.runInContext('__CELIKOM_CONTENT_CONTROLLER_V2__.destroy()',isolated);vm.runInContext('__CELIKOM_MAIN_BRIDGE_V1__.destroy()',main);}
+});
