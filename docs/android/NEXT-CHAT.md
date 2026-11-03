@@ -1,8 +1,18 @@
+# ВАЖНО: подтверждён Test.15 BEST OWNER BENCHMARK; Test.16 только кандидат (2026-11-03)
+
+Владелец проверил подписанную **Test.15** и назвал её лучшей из всех предыдущих: примерно 70% переходов практически идеальны, чаще всего нет прежней полусекундной задержки, но у песен с резкой атакой слышно переключение аудио. Эталон сохранён **backup/android-0385-test15-best-owner-20261103** на SHA `6fde1e48179ecb812f1def16067f18bf0d9c3003`; [signed Test.15 ZIP](https://github.com/manufact-test/nomusic/actions/runs/41674369584/artifacts/13248949184). **Не двигать эталон**, Test.16 не подтверждена.
+
+С «Дым» Лёша Свик: видео показало перемотку UI 0→1:46→3:21→3:38→1:57, а Media3 в combined по-прежнему на 0–10 сек / isPlaying:true; **seek и pause вообще не поступили в CELIKOM**, следовательно frozen seek не виноват. В Test.16 лишь разреженная read-only диагностика Android audio playback activity (анонимное число активных media configs без идентификации Яндекса) и ускоренный fast-join polling `35/60→15/30мс` в том же ограниченном 1200мс окне; звук/gain/seek/strict gate неизменны. Одна новая отдельно подписанная Test.16/code86101, CI и ссылка после завершения. Стабильная 0.3.85/code86 и Hostinger untouched.
+
+Подробно: [ANDROID-0385-TEST-16-FAST-JOIN-AND-PUBLIC-AUDIO-ACTIVITY-2026-11-03.md](ANDROID-0385-TEST-16-FAST-JOIN-AND-PUBLIC-AUDIO-ACTIVITY-2026-11-03.md).
+
+---
+
 # АКТУАЛЬНО: CELIKOM Test.15 — проверенный откат сетевой конкуренции + улучшение прогрева (2026-11-03)
 
 **Передача:** [ANDROID-0385-TEST-15-SERIAL-AUDIO-PRIORITY-AND-CACHED-PRIME-GRACE-2026-11-03.md](ANDROID-0385-TEST-15-SERIAL-AUDIO-PRIORITY-AND-CACHED-PRIME-GRACE-2026-11-03.md). По свежему HONOR Test.14 логам и видео владелец подтвердил акустическую регрессию: «Солнца не видно» 239→491/768мс, «Биг сити лайф» 267→613мс в разных прогонах. Три `cached_current_prime` не успели за прежние 150мс и были выброшены; «Дым» UI 3:34 при публичном Media3 ~10с, без `SAME_ITEM_SEEK`. Test.15 меняет одну общую audioWork очередь для current/lookahead, **отложенный на 1100мс speculative enqueue** для приоритета текущего трека и **340мс кэшированному prime wait** (промотированный next prime остаётся 150мс). Новая host-регрессия проверяет готовность на230мс; accepted seek, ClockSupervisor, audio output, stable publisher, Hostinger не тронуты. Официальные Android API-документы подтверждают ограничение чтения seek через MediaSession без новых разрешений, не объявлять «Дым» исправленной.
 
-**Функциональный SHA:** `4838ccee4aa4628dce68437ebbf00d4dfc30ce27`; **[полный CI SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/41674369584)** (host, API36/D8, seek freeze, отдельная подписанная Test.15, stable SKIPPED). **[Скачать прямой ZIP с подписанным APK Test.15](https://github.com/manufact-test/nomusic/actions/runs/41674369584/artifacts/13248949184)**, artifact `13248949184`, версия `0.3.85-test.15/code86100`, отдельное приложение. Акустическая проверка на телефоне ещё **PENDING**; попросить один совместный проход и combined+видео, без микросборок. Стабильная `0.3.85/code86`, backup refs, Hostinger/stable.json и PR #37 не изменены/не слиты.
+**Функциональный SHA:** `4838ccee4aa4628dce68437ebbf00d4dfc30ce27`; **[полный CI SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/41674369584)** (host, API36/D8, seek freeze, отдельная подписанная Test.15, stable SKIPPED). **[Скачать прямой ZIP с подписанным APK Test.15](https://github.com/manufact-test/nomusic/actions/runs/41674369584/artifacts/13248949184)**, artifact `13248949184`, версия `0.3.85-test.15/code86100`, отдельное приложение. Акустическая проверка на телефоне: **Test.15 подтверждена как лучший эталон владельца**; попросить один совместный проход и combined+видео, без микросборок. Стабильная `0.3.85/code86`, backup refs, Hostinger/stable.json и PR #37 не изменены/не слиты.
 
 ---
 

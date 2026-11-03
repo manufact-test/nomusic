@@ -102,6 +102,12 @@ if 'if(originalMix<=0.001f&&!seekHoldActive)' not in fade or 'seekHoldActive=fal
     raise AssertionError('completed handover must revoke any previous seek/owner lease')
 if 'fade(newlyAttached||pendingStreamScrubJoin)' not in engine or 'else if(newlyAttached){setAuditedVolume(player,0f);fade(true);}' not in engine:
     raise AssertionError('every new session attachment including long-pause resume must use the one clock-gated entry')
+if ('platform_audio_activity_observed' not in service
+    or 'registerAudioPlaybackCallback(playbackActivityObserver,handler)' not in service
+    or '"observationOnly",true,"audioCommandSent",false' not in service
+    or 'startPlaybackActivityObserver()' not in service
+    or 'stopPlaybackActivityObserver()' not in service):
+    raise AssertionError('playback callback must be anonymous, read-only and disposable')
 if 'media3Router.discontinuity(' not in service or 'media3Router.mediaItem(' not in service:
     raise AssertionError('real ProbeService listeners must use the same Media3 router exercised by the HONOR replay')
 if 'audioOwner.commandCurrent(handoverTicket' not in fade or 'token!=transition' not in fade:
