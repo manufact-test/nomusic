@@ -18,7 +18,7 @@ Diagnostics 20261103-182003: five retained preparation intervals 317, 479, 364, 
 
 ## Narrow changes
 
-1. Warm a validated track at HAVE_METADATA only when paused, not seeking, and position <=250 ms. Keep all identity, confidence, duration, rights and generation checks. No guard request at metadata-only readiness. Activation still requires the existing playable readiness and bridge guard checks. Mid-song buffering/seeks preserve original admission rules.
+1. Warm a validated track at HAVE_METADATA only when paused, not seeking, position <=250 ms and no existing MAIN transition handoff. Existing handoffs keep the previous readiness and reservation path. Keep all identity, confidence, duration, rights and generation checks. No guard request at metadata-only readiness. Activation still requires the existing playable readiness and bridge guard checks. Mid-song buffering/seeks preserve original admission rules.
 2. MP3 MSE initial Range is 64 KiB, followed by contiguous 512 KiB chunks. No dropped bytes, no transcoding, no changed sample rate, no tiny steady-state chunks. Existing status, MIME, range, size, timeout, retry and abort checks retained. Large ID3 blocks continue loading until the decoder has data. M4A native path unchanged.
 3. Diagnostics retain twelve successful join timings (track ID, preparation/resolve/load milliseconds, native position at activation). No signed URLs, credentials or audio contents. Not a measurement of audible output.
 4. Version only: 0.4.68. No master pause/resume overrides, forced rewind, clock offsets, changed sync thresholds or new UI.

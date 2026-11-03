@@ -598,7 +598,7 @@ test('incident: Stop or new track while prepared master is seeking prevents late
 
 test('verified metadata warms audio before native readiness without engaging the guard early',async()=>{
  const f=fixture({resolveAsset:async()=>remoteAsset()});f.engine.configure(true,'');
- const metadata=snapshot('2',{guard:{transitioning:true}});Object.assign(metadata.player,{readyState:1,paused:true,currentTime:0.1});
+ const metadata=snapshot('2',{guard:{transitioning:false}});Object.assign(metadata.player,{readyState:1,paused:true,currentTime:0.1});
  f.update(metadata);await settle();
  assert.equal(f.players.length,1);assert.equal(f.engine.operation.loaded,true);
  assert.equal(f.engine.activationCount,0);assert.equal(f.players[0].audio.paused,true);
@@ -634,5 +634,15 @@ test('join timing history retains twelve recent activations without URLs or cred
  assert.equal(f.engine.startupHistory.at(-1).trackId,'14');
  for(const row of f.engine.startupHistory){assert(row.prepareMs>=0);assert(row.resolveMs>=0);assert(row.loadMs>=0);assert.equal(row.masterTimeMs,7000);}
  assert(!JSON.stringify(f.engine.startupHistory).includes('https:'));
+ f.engine.destroy();await settle();
+});
+
+
+test('metadata-only existing handoff keeps its prior admission and reservation rules',async()=>{
+ const f=fixture({resolveAsset:async()=>remoteAsset()});f.engine.configure(true,'');
+ const metadata=snapshot('2',{guard:{transitioning:true}});Object.assign(metadata.player,{readyState:1,paused:true,currentTime:0.1});
+ f.update(metadata);await settle();assert.equal(f.players.length,0);
+ metadata.player.readyState=4;f.update(metadata);await settle();
+ assert.equal(f.engine.activationCount,1);assert.equal(f.requests.some(r=>r.type==='GUARD_ENGAGE'&&r.preparing),true);
  f.engine.destroy();await settle();
 });

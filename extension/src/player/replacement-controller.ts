@@ -118,7 +118,7 @@
       // requires current data, and emptied/changed/ambiguous masters fail open.
       /* Warm a validated paused beginning before native playback.
          Mid-song buffering and seeks retain the existing admission rules. */
-      const earlyIntro = !operation && this.snapshot?.player?.paused
+      const earlyIntro = !operation && !this.snapshot?.guard?.transitioning && this.snapshot?.player?.paused
         && !this.snapshot.player.seeking && this.snapshot.player.currentTime <= 0.25;
       const minimumReadyState = (operation && matching) || earlyIntro ? 1 : 2;
       if (!this.eligible(this.snapshot, minimumReadyState) || (operation && !matching)) {
