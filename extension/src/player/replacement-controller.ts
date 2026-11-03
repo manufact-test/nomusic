@@ -202,6 +202,10 @@
           this.update(await this.bridge.getSnapshot());
           if (!this.current(operation) || !this.eligible()) return;
           if (this.snapshot.player.seeking) return;
+          const {projectTime,targetTime,driftAt}=root.__CELIKOM_SYNC_ENGINE_V1__;
+          const audio=operation.player.audio;
+          const target=targetTime(projectTime(this.snapshot.player,this.snapshot.observedAt,Date.now()),audio.duration,operation.player.demoLoop);
+          if(Math.abs(driftAt(audio.currentTime,target,audio.duration,operation.player.demoLoop))>300)return;
           operation.joinPrepared = true;
         }
         operation.stage="guarding";
@@ -229,7 +233,7 @@
     abort(reason, blockTrack = false, detail = null) {
       const operation = this.operation;
       if (blockTrack) { this.blockedTrackId = operation?.trackId || this.snapshot?.track?.id; this.lastError = reason; this.publishPolicy(); }
-      const transientNetwork = ["remote-stream-route-blocked", "remote-stream-network", "remote-stream-timeout", "replacement-load-timeout", "api_network_error", "api_server_error", "api_unavailable"].includes(reason)
+      const transientNetwork = ["replacement-join-not-ready", "remote-stream-route-blocked", "remote-stream-network", "remote-stream-timeout", "replacement-load-timeout", "api_network_error", "api_server_error", "api_unavailable"].includes(reason)
         || (reason === "remote-stream-http" && [429, 500, 502, 503, 504].includes(detail?.httpStatus))
         || (reason === "replacement-media-error" && detail?.mediaErrorCode === 2);
       if (blockTrack && (["bridge-timeout", "bridge-unhealthy", "snapshot-stale", "master-clock-stalled", "master-error", "audio-token-expired", "guard-lost:master-error"].includes(reason)

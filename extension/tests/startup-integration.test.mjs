@@ -606,3 +606,25 @@ for(const delay of [20,450])test('intro positive verdict after '+delay+'ms retai
   assert.equal(f.elements.size,1);assert.equal(vm.runInContext('__CELIKOM_CONTENT_CONTROLLER_V2__.engine.blockedTrackId',isolated),null);
  }finally{vm.runInContext('__CELIKOM_CONTENT_CONTROLLER_V2__.destroy()',isolated);vm.runInContext('__CELIKOM_MAIN_BRIDGE_V1__.destroy()',main);}
 });
+
+for(const action of ['timeout','pause'])test('reserved preparation survives intro '+action+' with one decoder and a renewed lease',async()=>{
+ const f=browserFixture(),main=f.worlds.get('MAIN'),isolated=f.worlds.get('ISOLATED');const wait=()=>new Promise(r=>setTimeout(r,10));
+ await createControllerBootstrap(f.api,{wait}).ensure(42);
+ try{
+  vm.runInContext(`{
+   const engine=__CELIKOM_CONTENT_CONTROLLER_V2__.engine,create=engine.createPlayer;
+   engine.resolveAsset=async()=>({found:true,demoLoop:true,url:'https://fixture.test/audio'});
+   engine.createPlayer=fatal=>{const p=create(fatal),prepare=p.prepare.bind(p);p.prepare=async asset=>{await new Promise(r=>globalThis.finishLoad=r);await prepare(asset);};return p;};
+  }`,isolated);
+  vm.runInContext('globalThis.original=new HTMLMediaElement();original.currentTime=.1;original.play().catch(()=>{})',main);await wait();
+  const token=vm.runInContext('__CELIKOM_CONTENT_CONTROLLER_V2__.engine.operation.token',isolated);
+  assert.equal(vm.runInContext('__CELIKOM_MAIN_BRIDGE_V1__.getDiagnostics().guard.token',main),token);
+  if(action==='pause')vm.runInContext('original.pause()',main);else await new Promise(r=>setTimeout(r,430));
+  await wait();assert.notEqual(vm.runInContext('__CELIKOM_CONTENT_CONTROLLER_V2__.engine.operation.token',isolated),token);
+  vm.runInContext('finishLoad()',isolated);await wait();await wait();
+  assert.equal(vm.runInContext('__CELIKOM_CONTENT_CONTROLLER_V2__.engine.phase',isolated),'REPLACEMENT_ACTIVE');
+  assert.equal(vm.runInContext('original.paused',main),action==='pause');
+  assert.equal(f.elements.size,1);
+  if(action==='pause')assert.equal([...f.elements][0].paused,true);
+ }finally{vm.runInContext('__CELIKOM_CONTENT_CONTROLLER_V2__.destroy()',isolated);vm.runInContext('__CELIKOM_MAIN_BRIDGE_V1__.destroy()',main);}
+});

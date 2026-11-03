@@ -17,12 +17,12 @@ A negative result or Stop restores original playback immediately; timeout restor
 ## Owner report: approval while listening
 
 Owner reports abrupt interruption when newly uploaded audio is approved during native playback. No new trace proving the particular approval failure was supplied. Code review found a relevant ordering hazard: guard acquisition preceded the first replacement decoder seek at the current native position. This can silence the original while the decoder is still seeking.
-For an unguarded, playing mid-song master, position the replacement while it remains muted and original remains audible. Await decoder seek readiness before acquiring the guard. Bound preparation at 1200 ms; reject a join more than 300 ms behind the continuing native clock, preserving original playback. Track/operation ownership is rechecked after async preparation and fresh snapshot. Avoid forcing the same initial seek again after guard acquisition. Existing pause/seek synchronization and exact-ID authorization remain in place.
+For an unguarded, playing mid-song master, position the replacement while it remains muted and original remains audible. Await decoder seek readiness before acquiring the guard. Bound preparation at 1200 ms; reject a join more than 300 ms behind the continuing native clock, preserving original playback and scheduling a bounded automatic retry. Track/operation ownership is rechecked after async preparation and fresh snapshot. Avoid forcing the same initial seek again after guard acquisition. Existing pause/seek synchronization and exact-ID authorization remain in place.
 This changes join ordering; it does not claim an acoustically verified crossfade.
 
 ## Checks
 
-Local extension suite: 350 passing tests; repository lint passing. New regressions cover bounded intro positive/negative, repeated play, pause/load, source change, Stop, deadline, valid late lease, and stale mid-song join after track change.
+Local extension suite: 354 passing tests; repository lint passing. New regressions cover bounded intro positive/negative, repeated play, pause/load, source change, Stop, deadline, valid late lease, and stale mid-song join after track change.
 A separate workflow runs actual Chrome media tests for the native held clock and release, plus muted position preparation before mid-song adoption, alongside existing MP3/M4A, gain, pause, seek and fail-open checks. Delivery status and archive digest are recorded after workflow completion.
 
 ## Owner listening check
