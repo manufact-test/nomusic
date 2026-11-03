@@ -192,28 +192,6 @@
       try {
         this.update(await this.bridge.getSnapshot());
         if (!this.current(operation) || !this.eligible()) return;
-        /* A newly approved mid-song asset must seek silently while the original
-           remains audible. Never move the native clock to meet the replacement. */
-        if (!operation.joinPrepared && !this.snapshot.player.paused && this.snapshot.player.currentTime > 0.25
-            && !this.snapshot.guard?.active && typeof operation.player.prepareJoin === "function") {
-          operation.stage="joining";
-          await operation.player.prepareJoin(this.snapshot, async () => {
-            if (!this.current(operation)) throw new Error("Replacement cancelled");
-            this.update(await this.bridge.getSnapshot());
-            if (!this.current(operation)) throw new Error("Replacement cancelled");
-            if (!this.eligible()) throw new Error("replacement-join-not-ready");
-            return this.snapshot;
-          });
-          if (!this.current(operation)) return;
-          this.update(await this.bridge.getSnapshot());
-          if (!this.current(operation) || !this.eligible()) return;
-          if (this.snapshot.player.seeking) return;
-          const {projectTime,targetTime,driftAt}=root.__CELIKOM_SYNC_ENGINE_V1__;
-          const audio=operation.player.audio;
-          const target=targetTime(projectTime(this.snapshot.player,this.snapshot.observedAt,Date.now()),audio.duration,operation.player.demoLoop);
-          if(Math.abs(driftAt(audio.currentTime,target,audio.duration,operation.player.demoLoop))>300)return;
-          operation.joinPrepared = true;
-        }
         operation.stage="guarding";
         const guard = await this.bridge.request("GUARD_ENGAGE", { token: operation.token, trackId: operation.trackId, mediaId: operation.mediaId });
         if (!this.current(operation)) { this.bridge.post("RELEASE_NOW", { token: operation.token }); return; }
@@ -232,14 +210,14 @@
         if (!operation.asset.demoLoop) this.event("replacement_started", { service: "yandex" });
         this.lastError = null;
         this.log(`REPLACEMENT_ACTIVE · ${operation.trackId}`);
-        this.reconcile(!operation.joinPrepared);
+        this.reconcile(true);
       } catch (error) { if (this.current(operation)) this.abort(error.message, true, error.streamDetail || null); }
       finally { operation.activating = false; }
     }
     abort(reason, blockTrack = false, detail = null) {
       const operation = this.operation;
       if (blockTrack) { this.blockedTrackId = operation?.trackId || this.snapshot?.track?.id; this.lastError = reason; this.publishPolicy(); }
-      const transientNetwork = ["replacement-join-not-ready", "remote-stream-route-blocked", "remote-stream-network", "remote-stream-timeout", "replacement-load-timeout", "api_network_error", "api_server_error", "api_unavailable"].includes(reason)
+      const transientNetwork = ["remote-stream-route-blocked", "remote-stream-network", "remote-stream-timeout", "replacement-load-timeout", "api_network_error", "api_server_error", "api_unavailable"].includes(reason)
         || (reason === "remote-stream-http" && [429, 500, 502, 503, 504].includes(detail?.httpStatus))
         || (reason === "replacement-media-error" && detail?.mediaErrorCode === 2);
       if (blockTrack && (["bridge-timeout", "bridge-unhealthy", "snapshot-stale", "master-clock-stalled", "master-error", "audio-token-expired", "guard-lost:master-error"].includes(reason)

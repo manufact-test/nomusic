@@ -660,36 +660,12 @@ test('intro timeout renews a released lease while retaining one in-flight decode
  assert.equal(f.engine.releaseIntroWait(operation.token),false);
  f.engine.destroy();
 });
-test('newly approved mid-song replacement finishes silent position preparation before guard acquisition',async()=>{
- const f=fixture(),join=deferred();let mutedDuringJoin=false;
- const create=f.engine.createPlayer;
- f.engine.createPlayer=(fatal)=>{const p=create(fatal);p.prepareJoin=async()=>{mutedDuringJoin=f.requests.every(r=>r.type!=='GUARD_ENGAGE');await join.promise;p.audio.currentTime=3;};return p;};
- f.update(snapshot());await settle();
- assert.equal(mutedDuringJoin,true);assert.equal(f.engine.phase,'PREPARING');
- assert.equal(f.requests.some(r=>r.type==='GUARD_ENGAGE'),false);
- join.resolve();await settle();assert.equal(f.engine.phase,'REPLACEMENT_ACTIVE');
- assert.equal(f.players.length,1);f.engine.destroy();
-});
-test('track change during approval position preparation cannot acquire a stale guard',async()=>{
- const f=fixture(),join=deferred(),create=f.engine.createPlayer;
- f.engine.createPlayer=(fatal)=>{const p=create(fatal);p.prepareJoin=()=>join.promise;return p;};
- f.update(snapshot());await settle();f.update(snapshot('3'));join.resolve();await settle();
- assert.equal(f.requests.some(r=>r.type==='GUARD_ENGAGE'),false);
- assert.equal(f.players[0].destroyed,true);f.engine.destroy();
-});
-
-test('slow approval join preserves original and schedules a bounded retry instead of blocking this song forever',async()=>{
+test('live adoption uses legacy guard and sync without the rejected prepareJoin path',async()=>{
  const f=fixture(),create=f.engine.createPlayer;
- f.engine.createPlayer=fatal=>{const p=create(fatal);p.prepareJoin=async()=>{throw new Error('replacement-join-not-ready');};return p;};
+ f.engine.createPlayer=fatal=>{const p=create(fatal);p.prepareJoin=()=>{throw Error('rejected live-join path invoked');};return p;};
  f.update(snapshot());await settle();
- assert.equal(f.requests.some(r=>r.type==='GUARD_ENGAGE'),false);
- assert.equal(f.engine.operation,null);assert.ok(f.engine.retryBlock.at>Date.now());
- assert.equal(f.players[0].destroyed,true);f.engine.destroy();
-});
-test('a user seek during approval preparation cannot mute original at the old position',async()=>{
- const f=fixture(),join=deferred(),create=f.engine.createPlayer;
- f.engine.createPlayer=fatal=>{const p=create(fatal);p.prepareJoin=async()=>{await join.promise;p.audio.currentTime=3;};return p;};
- f.update(snapshot());await settle();const moved=snapshot();moved.player.currentTime=40;f.update(moved);
- join.resolve();await settle();assert.equal(f.engine.phase,'PREPARING');
- assert.equal(f.requests.some(r=>r.type==='GUARD_ENGAGE'),false);f.engine.destroy();
+ assert.equal(f.engine.phase,'REPLACEMENT_ACTIVE');
+ assert.equal(f.requests.filter(r=>r.type==='GUARD_ENGAGE').length,1);
+ assert.equal(typeof ReplacementPlayer.prototype.prepareJoin,'undefined');
+ assert.equal(f.players.length,1);f.engine.destroy();
 });

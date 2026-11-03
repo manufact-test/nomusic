@@ -118,48 +118,6 @@ try{
  check(!delayed.diagnostics().seeking&&delayed.diagnostics().stream.phase==='complete','active decoder diagnostics');
  delayed.destroy();check(fatal.length===0,'no delayed-seek fatal');
 
- document.body.dataset.gainStep='live approval with cold MP3 middle and advancing original';
- const liveMaster=document.createElement('audio');liveMaster.hidden=true;document.body.append(liveMaster);
- const liveUrl=URL.createObjectURL(new Blob([seekBytes],{type:'audio/mpeg'}));
- const liveLoaded=new Promise(r=>liveMaster.addEventListener('loadeddata',r,{once:true}));liveMaster.src=liveUrl;liveMaster.load();await liveLoaded;
- const liveSeek=new Promise(r=>liveMaster.addEventListener('seeked',r,{once:true}));liveMaster.currentTime=42;await liveSeek;await liveMaster.play();
- const liveGuard=new __CELIKOM_ORIGINAL_GUARD_V1__.OriginalAudioGuard();let liveReads=0,livePlayers=0,liveDelayed=false,liveUnlock;
- const liveTail=new Promise(r=>liveUnlock=r);
- const liveSnapshot=()=>({observedAt:Date.now(),track:{id:'202',confidence:260,ambiguous:false,metadata:{durationMs:60030}},guard:liveGuard.state(),
-  player:{mediaId:'approval-master',currentTime:liveMaster.currentTime,duration:liveMaster.duration,paused:liveMaster.paused,seeking:liveMaster.seeking,ended:liveMaster.ended,readyState:liveMaster.readyState,volume:liveMaster.volume,muted:liveMaster.muted,playbackRate:1}});
- const liveBridge={sessionId:'approval-real-mp3',isHealthy:()=>true,getSnapshot:async()=>liveSnapshot(),post(){},request:async(type,payload)=>{
-  if(type==='GUARD_ENGAGE'){
-   check(liveEngine.operation.player.audio.readyState>=3&&!liveEngine.operation.player.audio.seeking,'approved MP3 guard waits for completed middle seek');
-   liveGuard.engage(liveMaster,'approval-master',payload.token);return{snapshot:liveSnapshot()};
-  }
-  if(type==='GUARD_RELEASE')return liveGuard.release(payload.token);
-  return{};
- }};
- const liveEnvironment={...m4aEnvironment,MediaSource,fetch:async(url,options)=>{
-  const range=/^bytes=(\\d+)-(\\d+)$/.exec(options.headers.Range);const from=Number(range[1]),last=Math.min(Number(range[2]),seekBytes.length-1);
-  if(from===0)liveReads++;
-  if(from>0&&!liveDelayed){liveDelayed=true;await liveTail;}
-  return new Response(seekBytes.slice(from,last+1),{status:206,headers:{'content-type':'audio/mpeg','content-range':'bytes '+from+'-'+last+'/'+seekBytes.length}});
- }};
- const liveEngine=new __CELIKOM_REPLACEMENT_CONTROLLER_V1__.ReplacementController(liveBridge,liveEnvironment,{resolveAsset:async()=>({found:true,url:'https://private.example/just-approved',mimeType:'audio/mpeg',durationMs:60030,expiresAt:Date.now()+60000}),
-  createPlayer:onFatal=>{livePlayers++;return new ReplacementPlayer(liveEnvironment,onFatal);}});
- let liveTick;
- try{
-  liveEngine.configure(true,'');liveEngine.update(liveSnapshot());
-  liveTick=setInterval(()=>{liveEngine.update(liveSnapshot());liveEngine.tick();},100);
-  await new Promise(r=>setTimeout(r,1800));
-  check(!liveMaster.paused&&!liveMaster.muted&&liveMaster.currentTime>43,'cold approved middle keeps original running beyond old join deadline');
-  check(liveEngine.phase==='PREPARING'&&livePlayers===1&&liveReads===1,'cold join retains one in-flight decoder without retries');
-  liveUnlock();
-  for(let i=0;i<120&&liveEngine.phase!=='REPLACEMENT_ACTIVE';i++)await new Promise(r=>setTimeout(r,50));
-  check(liveEngine.phase==='REPLACEMENT_ACTIVE'&&!liveEngine.lastError,'approved cold MP3 automatically adopts without reload');
-  const livePlayer=liveEngine.operation.player;
-  for(let i=0;i<40&&(livePlayer.audio.paused||livePlayer.audio.seeking);i++)await new Promise(r=>setTimeout(r,25));
-  check(!livePlayer.audio.paused&&!livePlayer.audio.seeking&&Math.abs(livePlayer.audio.currentTime-liveMaster.currentTime)<.35,'real approved MP3 plays aligned to current original');
-  check(livePlayers===1&&liveReads===1&&liveEngine.restoreCount===0,'approval avoids load-destroy-retry loop');
-  liveMaster.pause();liveEngine.update(liveSnapshot());check(livePlayer.audio.paused,'pause remains effective after live approval');
- }finally{clearInterval(liveTick);liveUnlock();liveEngine.destroy();liveGuard.release();liveMaster.pause();liveMaster.remove();URL.revokeObjectURL(liveUrl);}
-
  document.body.dataset.gainStep='seeks during controller download';
  const waitUntil=async(fn,label)=>{for(let i=0;i<100;i++){if(fn())return;await new Promise(r=>setTimeout(r,30));}throw Error(label);};
  let unlockFirst,markFirst;const firstGate=new Promise(r=>unlockFirst=r),firstStarted=new Promise(r=>markFirst=r);let firstReads=0;
@@ -255,11 +213,6 @@ try{
  check(!original.paused&&physicalMute(),'ready replacement releases exactly the pending native play');
  await exchange('GUARD_RELEASE',{token:sessionId+':6',reason:'manual-original'});
  original.pause();
- const joiner=new ReplacementPlayer(window,r=>fatal.push(r));await joiner.prepare({url:introSource,demoLoop:true});
- await original.play();const joinTime=original.currentTime;
- await joiner.prepareJoin({observedAt:Date.now(),player:{currentTime:joinTime,duration:original.duration,paused:false,readyState:4,playbackRate:1}});
- check(!original.paused&&!physicalMute()&&joiner.audio.muted&&!joiner.audio.seeking,'mid-song join prepares decoder while original remains audible');
- check(Math.abs(joiner.audio.currentTime-original.currentTime)<.35,'mid-song join position ready before muting original');joiner.destroy();
  __CELIKOM_MAIN_BRIDGE_V1__.destroy();original.pause();original.remove();URL.revokeObjectURL(source);URL.revokeObjectURL(nextSource);URL.revokeObjectURL(introSource);
 
  const toggle=document.querySelector('[data-gain-toggle]');check(!toggle.open,'gain collapsed initially');toggle.open=true;

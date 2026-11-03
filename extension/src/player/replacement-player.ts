@@ -353,46 +353,6 @@ function createGainChain(context, audio, db) {
         playPending:this.playPending, wantPlay:this.wantPlay, buffered,
         gainContext:this.gainContext?.state || null, stream:{...this.streamState} };
     }
-    async prepareJoin(snapshot, refreshSnapshot = async () => snapshot) {
-      const {projectTime, targetTime, driftAt} = root.__CELIKOM_SYNC_ENGINE_V1__;
-      const audio = this.audio, deadline = Date.now() + 15000;
-      audio.muted = true;
-      /* A cold middle seek can require later MP3 ranges. Keep this decoder and
-         original playback alive, then align once more against a fresh clock.
-         Never restart a pending seek or use a frozen pre-download timestamp. */
-      for (let attempt = 0; attempt < 3; attempt++) {
-        if (this.destroyed) throw new Error("Replacement cancelled");
-        const remaining = deadline - Date.now();
-        if (remaining <= 0) throw new Error("replacement-join-not-ready");
-        const target = targetTime(projectTime(snapshot.player, snapshot.observedAt, Date.now()), audio.duration, this.demoLoop);
-        await new Promise((resolve, reject) => {
-          let timer = null;
-          const finish = (error) => {
-            this.environment.clearTimeout(timer);
-            audio.removeEventListener("seeked", ready);
-            audio.removeEventListener("canplay", ready);
-            audio.removeEventListener("error", failed);
-            this.cancelJoin = null;
-            if (error) reject(error); else resolve();
-          };
-          const ready = () => { if (!audio.seeking && audio.readyState >= 3) finish(); };
-          const failed = () => finish(new Error("replacement-join-not-ready"));
-          this.cancelJoin = () => finish(new Error("Replacement cancelled"));
-          audio.addEventListener("seeked", ready);
-          audio.addEventListener("canplay", ready);
-          audio.addEventListener("error", failed);
-          timer = this.environment.setTimeout(failed, remaining);
-          try { audio.currentTime = target; ready(); } catch (error) { finish(error); }
-        });
-        if (this.destroyed) throw new Error("Replacement cancelled");
-        snapshot = await refreshSnapshot();
-        if (this.destroyed) throw new Error("Replacement cancelled");
-        if (snapshot.player.seeking) throw new Error("replacement-join-not-ready");
-        const advanced = targetTime(projectTime(snapshot.player, snapshot.observedAt, Date.now()), audio.duration, this.demoLoop);
-        if (Math.abs(driftAt(audio.currentTime, advanced, audio.duration, this.demoLoop)) <= 200) return;
-      }
-      throw new Error("replacement-join-not-ready");
-    }
     applyState(player) {
       this.audio.volume = Math.min(1, Math.max(0, player.volume));
       this.audio.muted = Boolean(player.muted);
@@ -421,7 +381,6 @@ function createGainChain(context, audio, db) {
       this.destroyed = true;
       this.fetchAbort?.abort();
       this.cancelLoad?.();
-      this.cancelJoin?.();
       this.streamTask = null;
       this.sourceBuffer = null;
       this.mediaSource = null;
