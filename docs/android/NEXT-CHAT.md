@@ -1,3 +1,9 @@
+# ТЕКУЩАЯ ПЕРЕДАЧА — Test.7 CI SUCCESS, APK ещё НЕ доставлена (2026-11-03)
+
+**Обязательно сначала читать [ANDROID-0385-TEST-7-UNDELIVERED-APK-NEXT-CHAT-2026-11-03.md](ANDROID-0385-TEST-7-UNDELIVERED-APK-NEXT-CHAT-2026-11-03.md).** Функциональная Test.7 готова: SHA `a365dc1da36a9ee960100c40409d677778070e3f`, CI [#41603059001](https://github.com/manufact-test/nomusic/actions/runs/41603059001) SUCCESS, artifact ID `13215970098`, signed APK SHA256 `de9d14050be56de8d7f837973a070c704b75cb23bd381886ac0cbee20e80b5be`. **Но прямой APK в Library нет, пользователь не установил Test.7 и не начал полевой тест.** В прошлых сессиях файловая среда была read-only; GitHub ZIP ссылка владельцу не подошла. **Сначала передать APK через Library, не пересобирать**, не отправлять пользователя искать Workspace Write в веб-ChatGPT. Стабильный original0.3.85/code86, backups, accepted seek, PR#37, Hostinger — неприкосновенны. Главный приоритет: слышимые начала песен; все реальные исправления одним выпуском, вторично двойной звук/фоновый dropout/редкая перемотка.
+
+---
+
 # АКТУАЛЬНАЯ ПЕРЕДАЧА — CELIKOM Test.7 signed, три проблемы в одном выпуске (2026-11-03)
 
 **Сначала читать [ANDROID-0385-TEST-7-CONSOLIDATED-OWNER-ISSUES-2026-11-03.md](ANDROID-0385-TEST-7-CONSOLIDATED-OWNER-ISSUES-2026-11-03.md)**. Там полный список приоритетов и диагностика нового owner run `CELIKOM-combined-20261103-111640.txt` (P0 intro: один +2196мс после rapid Next с prefetch lead 178мс; P0 двойной звук на API33 stale Yandex session; P1 редкий seek после unlock не воспроизведён, frozen seek не меняли; P1 album identity wait). Главный приоритет — начало песен, все связанные реальные правки выпускать вместе, не косметическими APK.
