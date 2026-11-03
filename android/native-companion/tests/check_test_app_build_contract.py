@@ -45,6 +45,7 @@ runner = (ROOT / "tests/run_addon_host.py").read_text(encoding="utf-8")
 assert "CELIKOM_ANDROID_DEPS" in runner and "DEPS/name" in runner
 
 workflow = (ROOT.parents[1] / ".github/workflows/android-0385-test-app-build.yml").read_text(encoding="utf-8")
+assert spec["apk_filename"] in workflow, "Test artifact path must match the APK version spec"
 assert "workflow_call:" in workflow
 assert "source_sha" in workflow and "source_branch" in workflow
 assert "source_repository" in workflow and "validation_run_id" in workflow
