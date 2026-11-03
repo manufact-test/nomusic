@@ -22,6 +22,16 @@ Test.15 (`0.3.85-test.15/code86100`), backup `backup/android-0385-test15-best-ow
 
 **Это не исправление всех слышимых стыков и не обещание идеальной первой песни.** Оптимизация влияет только на случай, когда уже идёт (или стоит в очереди) speculative загрузка *другого* трека, и появляется новая текущая. Первый полностью холодный трек всё равно должен скачать файл (в свежем Test.17 на HONOR это было ~2423 мс). Треки «Дым» id39949113 и «Нас не понимают вообще» id42884423 могут не отдавать seek/pause в публичный Media3: никакой доказанной permission-free альтернативы не появилось. Test.17 direct-session experiment завершился `ExecutionException`, его код удалён.
 
+
+## Проверенная поставка
+
+- Финальный functional SHA `19ebf98344b02ec8a8088595ee8dca7740c0396c` (первый код-коммит `0f14f52a6a3e5c02714188627ebacf8ba1029627`; второй коммит исправил только имя APK в GitHub Actions и добавил отдельную проверку соответствия version spec).
+- Полный [GitHub Actions #41704016656](https://github.com/manufact-test/nomusic/actions/runs/41704016656) — **SUCCESS**: native host regressions, Android 36/D8, golden seek freeze, isolated signed Test APK build, provenance, signer and package verification. Stable publish и все stable deployment jobs — **SKIPPED**.
+- [ZIP с одним проверенным Test.18 APK и receipt](https://github.com/manufact-test/nomusic/actions/runs/41704016656/artifacts/13265222571) (artifact 13265222571; до 2026-11-10).
+- Внутри ZIP `CELIKOM-Android-0.3.85-TEST-18-FOREGROUND-PRIORITY-SIGNED.apk`. APK SHA-256 `e0f4852ada7a6e4f2e9e499176149b7488d8861b6833e714804826663b826a8e`; package `pro.celikom.nativeprobe.test`, version `0.3.85-test.18/code86103`. V3 signer validated, signer SHA-256 `67fe81c56fac1c1d145344b69a0e3faf9005cf6607f4e26ca27d5926c3eefc4f` равен эталонному. Из-за 86103 Test.18 можно обновить поверх Test.17 без downgrade/uninstall.
+- Предыдущий CI `#41703349929` был SUCCESS и подписал правильную Test.18, но вложенный APK ошибочно назывался `TEST-15`. **Не распространять этот первый ZIP**, для владельца предназначен только исправленный финальный `#41704016656`.
+- До первого HONOR прогона улучшение переходов — инженерная гипотеза, акустически не подтверждена. Тестировать всю сборку одним проходом, не утверждать что проблемные seek/pause исправлены.
+
 ## Проверка и критерий приёмки
 
 - Host CI должен подтвердить все старые regressions, golden seek freeze, Android API36/D8, изолированный Test APK, проверку signer и stable publisher SKIPPED.
