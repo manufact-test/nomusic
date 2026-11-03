@@ -23,7 +23,7 @@ public final class TestLookaheadPrefetchHandoff {
   check(TestEngine.api.resolveValidity.get(1).getAsBoolean(),
     "next-item resolve remains valid while the same item is still in the timeline");
   TestEngine.api.resolveCallbacks.get(1).done(descriptor(1),null);
-  check(TestEngine.api.downloads==1&&TestEngine.e.player==null&&TestEngine.e.effect==null,
+  check(TestEngine.api.downloads==1&&TestEngine.api.lookaheadDownloads==1&&TestEngine.api.currentDownloads==0&&TestEngine.e.player==null&&TestEngine.e.effect==null,
     "prefetch downloads the full file only; original remains the sole audible source");
  }
  static void promoteCurrent(JSONObject fresh,boolean expectPrefetchWait)throws Exception{
@@ -60,7 +60,7 @@ public final class TestLookaheadPrefetchHandoff {
  }
  static void mismatchedFreshResolveFallsBack()throws Exception{
   beginLookahead();promoteCurrent(descriptor(2),false);
-  check(TestEngine.api.downloads==2&&TestEngine.e.preparing,
+  check(TestEngine.api.downloads==2&&TestEngine.api.lookaheadDownloads==1&&TestEngine.api.currentDownloads==1&&TestEngine.e.preparing,
     "a fresh resolve key mismatch falls back to its own full download");
   check(!TestEngine.api.downloadValidity.get(0).getAsBoolean(),
     "mismatched prefetch lease is cancelled before its late file can be consumed");

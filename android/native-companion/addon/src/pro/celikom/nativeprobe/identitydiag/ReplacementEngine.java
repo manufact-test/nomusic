@@ -417,7 +417,7 @@ final class ReplacementEngine {
    lookaheadPrefetchResolvedAudioKey=audioKeyFor(id,j);
    if(lookaheadPrefetchWait&&lookaheadPrefetchCurrentDescriptor!=null&&!lookaheadPrefetchResolvedAudioKey.equals(audioKeyFor(id,lookaheadPrefetchCurrentDescriptor))){fallbackPromotedLookaheadPrefetch("fresh_resolve_key_mismatch");return;}
    lookaheadPrefetchPhase="downloading";
-   api.download(j,()->lookaheadPrefetchCurrent(token,account,alias,id),(file,downloadError)->{
+   api.downloadLookahead(j,()->lookaheadPrefetchCurrent(token,account,alias,id),(file,downloadError)->{
     if(!lookaheadPrefetchCurrent(token,account,alias,id)){if(file!=null)file.delete();LogStore.log("replacement_lookahead_prefetch_stale",LogStore.map("mediaAlias",alias,"stage","download","fileDeleted",file!=null));return;}
     if(file==null){lookaheadPrefetchPhase="failed";LogStore.log("replacement_lookahead_prefetch_failure",LogStore.map("mediaAlias",alias,"stage","download","errorCode",downloadError));fallbackPromotedLookaheadPrefetch("download_failed");return;}
     cachePrefetchedAudio(id,j,file);lookaheadPrefetchPhase="ready";primeNextDecoder(alias,id,j,file,account);

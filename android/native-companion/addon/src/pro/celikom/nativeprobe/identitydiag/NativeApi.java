@@ -10,7 +10,7 @@ import java.util.concurrent.*;
 /** One serialized transport for refresh rotation; no embedded user/API credentials. */
 final class NativeApi {
  interface Result {void done(JSONObject result,String error);}
- volatile boolean revoking;volatile long accountGeneration;volatile long configValidatedAt=-1;static NativeApi singleton;final SecureSession session;final Context context;final ExecutorService work=Executors.newSingleThreadExecutor();final ExecutorService audioWork=Executors.newSingleThreadExecutor();final ExecutorService contributions=Executors.newSingleThreadExecutor();final Handler main=new Handler(Looper.getMainLooper());
+ volatile boolean revoking;volatile long accountGeneration;volatile long configValidatedAt=-1;static NativeApi singleton;final SecureSession session;final Context context;final ExecutorService work=Executors.newSingleThreadExecutor();final ExecutorService audioWork=Executors.newSingleThreadExecutor();final ExecutorService prefetchAudioWork=Executors.newSingleThreadExecutor();final ExecutorService contributions=Executors.newSingleThreadExecutor();final Handler main=new Handler(Looper.getMainLooper());
  static synchronized NativeApi get(Context c){if(singleton==null)singleton=new NativeApi(c);return singleton;}
  NativeApi(Context c){context=c.getApplicationContext();session=new SecureSession(c);}
  volatile long diagnosticUntil,diagnosticGeneration=-1,nextDiagnosticCheck;volatile boolean diagnosticBusy;
@@ -117,11 +117,20 @@ final class NativeApi {
  }catch(Exception e){if(source!=null)source.close();source=null;error="audio_stream_unavailable";LogStore.log("replacement_stream_failure",LogStore.map("type",e.getClass().getSimpleName(),"elapsedMs",SystemClock.elapsedRealtime()-start));}
  final BufferedAudio out=source;final String fail=error;main.post(()->result.done(out,fail));});}
  interface AudioResult{void done(File file,String error);}
- void download(JSONObject descriptor,java.util.function.BooleanSupplier valid,AudioResult r){final long account=accountGeneration;audioWork.execute(()->{File file=null;String error=null;long started=SystemClock.elapsedRealtime();java.util.function.BooleanSupplier allowed=()->!revoking&&account==accountGeneration&&valid.getAsBoolean();try{
-  if(!allowed.getAsBoolean())throw new Exception("download_cancelled");
-  file=File.createTempFile("replacement-",".audio",context.getCacheDir());
-  AudioTransfer.copy(file,()->(HttpsURLConnection)new URL(ApiContract.audio(descriptor,System.currentTimeMillis())).openConnection(),allowed,SystemClock::elapsedRealtime,(attempt,bytes,reason)->LogStore.log("replacement_download_retry",LogStore.map("attempt",attempt,"retainedBytes",bytes,"reasonCode",reason)));
-  LogStore.log("replacement_download",LogStore.map("bytes",file.length(),"elapsedMs",SystemClock.elapsedRealtime()-started));
- }catch(Exception e){long bytes=file==null?0:file.length();if(file!=null)file.delete();file=null;error="audio_download_failed";String reason=e.getMessage();LogStore.log("replacement_download_failure",LogStore.map("reasonCode",reason!=null&&reason.matches("[a-z0-9_]{1,80}")?reason:"transport_or_file_error","type",e.getClass().getSimpleName(),"receivedBytes",bytes,"elapsedMs",SystemClock.elapsedRealtime()-started));}
- final File out=file;final String fail=error;main.post(()->r.done(out,fail));});}
+ void download(JSONObject descriptor,java.util.function.BooleanSupplier valid,AudioResult r){enqueueDownload(audioWork,"current",descriptor,valid,r);}
+ void downloadLookahead(JSONObject descriptor,java.util.function.BooleanSupplier valid,AudioResult r){enqueueDownload(prefetchAudioWork,"lookahead",descriptor,valid,r);}
+ void enqueueDownload(ExecutorService lane,String priority,JSONObject descriptor,java.util.function.BooleanSupplier valid,AudioResult r){
+  final long account=accountGeneration,queuedAt=SystemClock.elapsedRealtime();
+  lane.execute(()->{File file=null;String error=null;long started=SystemClock.elapsedRealtime();
+   final long queueWaitMs=Math.max(0,started-queuedAt);
+   java.util.function.BooleanSupplier allowed=()->!revoking&&account==accountGeneration&&valid.getAsBoolean();
+   try{
+    if(!allowed.getAsBoolean())throw new Exception("download_cancelled");
+    file=File.createTempFile("replacement-",".audio",context.getCacheDir());
+    AudioTransfer.copy(file,()->(HttpsURLConnection)new URL(ApiContract.audio(descriptor,System.currentTimeMillis())).openConnection(),allowed,SystemClock::elapsedRealtime,(attempt,bytes,reason)->LogStore.log("replacement_download_retry",LogStore.map("attempt",attempt,"retainedBytes",bytes,"reasonCode",reason,"priority",priority)));
+    LogStore.log("replacement_download",LogStore.map("bytes",file.length(),"elapsedMs",SystemClock.elapsedRealtime()-started,"priority",priority,"queueWaitMs",queueWaitMs));
+   }catch(Exception e){long bytes=file==null?0:file.length();if(file!=null)file.delete();file=null;error="audio_download_failed";String reason=e.getMessage();LogStore.log("replacement_download_failure",LogStore.map("reasonCode",reason!=null&&reason.matches("[a-z0-9_]{1,80}")?reason:"transport_or_file_error","type",e.getClass().getSimpleName(),"receivedBytes",bytes,"elapsedMs",SystemClock.elapsedRealtime()-started,"priority",priority,"queueWaitMs",queueWaitMs));}
+   final File out=file;final String fail=error;main.post(()->r.done(out,fail));
+  });
+ }
 }
