@@ -30,6 +30,7 @@ final class ReplacementEngine {
  /* Bounded in-session warm cache covers playlist reorder and rapid repeat selections. */
  static final long CACHE_BYTES=RecentAudioCachePolicy.MAX_BYTES;
  final LinkedHashMap<String,File> recentAudio=new LinkedHashMap<>();
+ final LinkedHashSet<String> failedPrimeKeys=new LinkedHashSet<>();
  volatile long lookaheadPrefetchGeneration,lookaheadPrefetchAccount=-1,lookaheadPrefetchStartedAt;
  volatile String lookaheadPrefetchAlias,lookaheadPrefetchTrackId,lookaheadPrefetchPhase="none";
  String lookaheadPrefetchResolvedAudioKey;JSONObject lookaheadPrefetchCurrentDescriptor;boolean lookaheadPrefetchPromoted,lookaheadPrefetchWait;
@@ -67,6 +68,11 @@ final class ReplacementEngine {
  }
  void discardPrimedNext(String reason){
   NextDecoderPrime old=primedNext;if(old==null)return;primedNext=null;
+  if(Arrays.asList("prime_timeout","motion_timeout","decoder_start_error","warmup_error",
+    "measured_duration_mismatch","source_session_collision","player_error").contains(reason)){
+   failedPrimeKeys.add(old.audioKey);
+   if(failedPrimeKeys.size()>16)failedPrimeKeys.remove(failedPrimeKeys.iterator().next());
+  }
   try{old.player.setOnPreparedListener(null);old.player.setOnSeekCompleteListener(null);
     old.player.setOnErrorListener(null);old.player.setOnCompletionListener(null);
     audioOwner.discardSpeculativeNext(old.player);
@@ -102,7 +108,7 @@ final class ReplacementEngine {
   for(int i=entries.size()-1;i>=0;i--){
    Map.Entry<String,File> entry=entries.get(i);String key=entry.getKey();
    String[] parts=key.split("\\|",5);
-   if(parts.length!=5||!id.equals(parts[0]))continue;
+   if(parts.length!=5||!id.equals(parts[0])||failedPrimeKeys.contains(key))continue;
    long duration;
    try{duration=Long.parseLong(parts[3]);}catch(NumberFormatException bad){continue;}
    if(!PlaybackDuration.metadataProbeAllowed(source.duration,duration))continue;
@@ -117,7 +123,7 @@ final class ReplacementEngine {
   boolean eligible=currentCache?Objects.equals(owner.current.alias,alias)
     &&Objects.equals(trackId,id)&&Objects.equals(identityKey,owner.current.key)
     :owner.lookaheadCandidateCurrent(alias)&&!Objects.equals(owner.current.alias,alias);
-  if(!eligible)return;
+  if(!eligible||failedPrimeKeys.contains(key))return;
   /* Keep the existing lookahead lease if the current song is not its candidate.
      Both paths stay silent until a matching fresh current resolve arrives. */
   if(currentCache&&primedNext!=null)return;
@@ -202,7 +208,7 @@ final class ReplacementEngine {
   completedReason="Синхронизация неустойчива — играет оригинал до следующей песни";
   audioOwner.unsupported(reason);status=completedReason;
  }
- void clearAudioCache(){for(File f:recentAudio.values())f.delete();recentAudio.clear();}
+ void clearAudioCache(){for(File f:recentAudio.values())f.delete();recentAudio.clear();failedPrimeKeys.clear();}
  void trimRecentAudio(File keep){
   long size=0;for(File f:recentAudio.values())size+=f.length();
   Iterator<Map.Entry<String,File>> it=recentAudio.entrySet().iterator();
