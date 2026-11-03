@@ -28,3 +28,12 @@ This is one candidate **derived from owner-accepted Test.15**, not Test.16. Test
 Required: full native host suite including new cases; unchanged accepted seek fingerprints; Android API36 javac/D8; signed test APK with original certificate; artifact ZIP; stable publishing skipped. Record exact commit, run, artifact, signer and SHA after CI completion. Do not commit personal journals or video.
 
 One owner test: install the separate CELIKOM Test APK, listen through mixed automatic transitions, quick Next and repeated songs/playlist switches; seek and pause both problematic tracks (and an ordinary seek/pause control), with one combined diagnostic/video. Compare against the *same* Test.15 acoustic baseline; track queue/cache events, first audible guard and `source_direct_session_comparison` before claiming progress. Do not test a micro-build for each subchange.
+
+## CI completion / signed receipt (2026-11-03)
+
+- Functional commit: `b24c6d9b527fd5810ba9ef8287c730147acbd3b1` (the exact source the signed APK was built from).
+- **Full CI SUCCESS:** https://github.com/manufact-test/nomusic/actions/runs/41688562595 (native-android and isolated build-test-app both success; all stable publish jobs SKIPPED).
+- **Signed Test.17 ZIP artifact:** https://github.com/manufact-test/nomusic/actions/runs/41688562595/artifacts/13257301057, id `13257301057`, `CELIKOM-Test-0.3.85-test.17-code-86102`, expires 2026-11-10T17:56Z.
+- APK: `CELIKOM-Android-0.3.85-TEST-17-CACHE-DIRECT-SNAPSHOT-SIGNED.apk`; SHA-256 `2f1e0f06314fd37c4b3ed548ba2e3672961969fdaf13404bfb3cae1cc3a796e8`, size 8,800,409 bytes.
+- Package `pro.celikom.nativeprobe.test`, label `CELIKOM Test`, version `0.3.85-test.17`, code `86102`. Signer SHA-256 `67fe81c56fac1c1d145344b69a0e3faf9005cf6607f4e26ca27d5926c3eefc4f` matches original; APK signature v3 verified (v2 not present, v3 is accepted). Separate sandbox and launch icon verified, updater/stable refs absent.
+- Host regressions including new cache/session comparisons, frozen seek, Android API36/D8 and build-contract passed. Stable OTA/Hostinger unchanged; no phone listening validation yet. Do not call seek/pause of the two target songs fixed before new owner diagnostics.
