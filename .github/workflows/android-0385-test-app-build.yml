@@ -30,7 +30,7 @@ concurrency:
 
 jobs:
   build-test-app:
-    if: inputs.source_branch == 'feature/android-0385-intro-join-investigation-20261102' && inputs.source_repository == 'manufact-test/nomusic'
+    if: inputs.source_branch == 'feature/android-0385-test15-permissionless-recovery-20261103' && inputs.source_repository == 'manufact-test/nomusic'
     runs-on: ubuntu-latest
     timeout-minutes: 40
     steps:
@@ -47,7 +47,7 @@ jobs:
           SOURCE_BRANCH: ${{ inputs.source_branch }}
           SOURCE_REPOSITORY: ${{ inputs.source_repository }}
           VALIDATION_RUN_ID: ${{ inputs.validation_run_id }}
-          EXPECTED_BRANCH: feature/android-0385-intro-join-investigation-20261102
+          EXPECTED_BRANCH: feature/android-0385-test15-permissionless-recovery-20261103
         shell: bash
         run: |
           set -euo pipefail
@@ -211,7 +211,7 @@ jobs:
       - name: Upload signed test APK and verification receipt only
         uses: actions/upload-artifact@v4
         with:
-          name: CELIKOM-Test-0.3.85-test.15-code-86100
+          name: CELIKOM-Test-0.3.85-test.18-code-86103
           path: |
             ${{ runner.temp }}/CELIKOM-Android-0.3.85-TEST-15-SERIAL-PRIORITY-GRACE-SIGNED.apk
             ${{ runner.temp }}/CELIKOM-Android-0.3.85-TEST-15-SERIAL-PRIORITY-GRACE-SIGNED.verification.json

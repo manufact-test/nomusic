@@ -9,6 +9,7 @@ on:
       - feature/android-0382-cache-path-evidence-staging-20261101
       - feature/android-0382-cache-prewarm-staging-20261101
       - feature/android-0382-playback-continuity-fix-20261101
+      - feature/android-0385-test15-permissionless-recovery-20261103
       - feature/android-0370-honor-join-pause-updater-staging
       - feature/android-0371-rollback-0369-staging
       - feature/android-0372-ota-release-staging
@@ -183,18 +184,18 @@ jobs:
 
   build-celikom-test:
     if: >-
-      github.event_name == 'pull_request' &&
-      github.head_ref == 'feature/android-0385-intro-join-investigation-20261102' &&
-      github.event.pull_request.head.repo.full_name == 'manufact-test/nomusic'
+      github.event_name == 'push' &&
+      github.ref == 'refs/heads/feature/android-0385-test15-permissionless-recovery-20261103' &&
+      github.repository == 'manufact-test/nomusic'
     needs: native-android
     permissions:
       actions: read
       contents: read
     uses: ./.github/workflows/android-0385-test-app-build.yml
     with:
-      source_sha: ${{ github.event.pull_request.head.sha }}
-      source_branch: ${{ github.head_ref }}
-      source_repository: ${{ github.event.pull_request.head.repo.full_name }}
+      source_sha: ${{ github.sha }}
+      source_branch: ${{ github.ref_name }}
+      source_repository: ${{ github.repository }}
       validation_run_id: ${{ github.run_id }}
     secrets: inherit
 

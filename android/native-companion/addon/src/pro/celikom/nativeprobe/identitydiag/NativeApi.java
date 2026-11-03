@@ -10,7 +10,7 @@ import java.util.concurrent.*;
 /** One serialized transport for refresh rotation; no embedded user/API credentials. */
 final class NativeApi {
  interface Result {void done(JSONObject result,String error);}
- volatile boolean revoking;volatile long accountGeneration;volatile long configValidatedAt=-1;static NativeApi singleton;final SecureSession session;final Context context;final ExecutorService work=Executors.newSingleThreadExecutor();final ExecutorService audioWork=Executors.newSingleThreadExecutor();final ExecutorService contributions=Executors.newSingleThreadExecutor();final Handler main=new Handler(Looper.getMainLooper());
+ volatile boolean revoking;volatile long accountGeneration;volatile long configValidatedAt=-1;static NativeApi singleton;final SecureSession session;final Context context;final ExecutorService work=Executors.newSingleThreadExecutor();final ExecutorService audioWork=Executors.newSingleThreadExecutor();final AudioWorkPriority audioPriority=new AudioWorkPriority();final ExecutorService contributions=Executors.newSingleThreadExecutor();final Handler main=new Handler(Looper.getMainLooper());
  static synchronized NativeApi get(Context c){if(singleton==null)singleton=new NativeApi(c);return singleton;}
  NativeApi(Context c){context=c.getApplicationContext();session=new SecureSession(c);}
  volatile long diagnosticUntil,diagnosticGeneration=-1,nextDiagnosticCheck;volatile boolean diagnosticBusy;
@@ -117,11 +117,18 @@ final class NativeApi {
  }catch(Exception e){if(source!=null)source.close();source=null;error="audio_stream_unavailable";LogStore.log("replacement_stream_failure",LogStore.map("type",e.getClass().getSimpleName(),"elapsedMs",SystemClock.elapsedRealtime()-start));}
  final BufferedAudio out=source;final String fail=error;main.post(()->result.done(out,fail));});}
  interface AudioResult{void done(File file,String error);}
- void download(JSONObject descriptor,java.util.function.BooleanSupplier valid,AudioResult r){enqueueDownload(audioWork,"current",descriptor,valid,r);}
+ void download(JSONObject descriptor,java.util.function.BooleanSupplier valid,AudioResult r){
+  audioPriority.beginForeground();
+  enqueueDownload(audioWork,"current",descriptor,valid,(file,error)->{
+   audioPriority.endForeground();
+   r.done(file,error);
+  });
+ }
  /* Let the current song claim the single audio queue before a speculative full-file transfer. */
  static final long LOOKAHEAD_ENQUEUE_YIELD_MS=1100;
  void downloadLookahead(JSONObject descriptor,java.util.function.BooleanSupplier valid,AudioResult r){
-  main.postDelayed(()->enqueueDownload(audioWork,"lookahead",descriptor,valid,r),LOOKAHEAD_ENQUEUE_YIELD_MS);
+  main.postDelayed(()->enqueueDownload(audioWork,"lookahead",descriptor,
+   ()->audioPriority.lookaheadAllowed(valid),r),LOOKAHEAD_ENQUEUE_YIELD_MS);
  }
  void enqueueDownload(ExecutorService lane,String priority,JSONObject descriptor,java.util.function.BooleanSupplier valid,AudioResult r){
   final long account=accountGeneration,queuedAt=SystemClock.elapsedRealtime();
