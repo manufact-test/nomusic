@@ -38,3 +38,25 @@ If Yandex moves its UI progress bar but its Media3 session does not publish the 
 - User receives **one** complete signed direct APK in Library, never many builds for individual fixes. Document exact functional SHA, CI URL, APK SHA-256 and Library link after signing.
 - Test.25 may install over Test.24 with `versionCode` 86110. If it is worse, the original Test.23 signed APK remains available, but Android downgrade normally requires uninstalling only the **Test** package (loses Test-app data); an accurately labeled *repackaged exact Test.23 source* with a higher versionCode could preserve data if explicitly requested. Never call repackaged APK byte-identical to the original.
 - Next field run: record (a) first Start join, (b) natural+rapid next, (c) RASKOL and «Дым» finger scrubs while replacement audible, (d) pause/resume, (e) «Пушка» mid-song drift, (f) whether sparse probe succeeds or falls back, (g) actual original-versus-replacement listening. Only owner can accept a replacement rollback baseline.
+
+## Signed Test.25 result — ready for ONE owner listening run
+
+| Property | Verified value |
+| --- | --- |
+| Final signed APK | [Download from ChatGPT Library](https://chatgpt.com/library?file_id=libfile_93b91a6576508191a2f4674df8255b8a&account_id=personal) |
+| APK SHA-256 | `eedb39f0f356f7e490b6d04b4bf7b7e12f9b5eb2903aadb2cc6d4a3bf3673fea` |
+| APK bytes | `8796313` |
+| Exact signed-source SHA | `19f19725718710b36e0e9c2d74a325b7b5b6cc8f` |
+| Functional implementation SHA | `257be7d783a653e6bae65c009282a21b5156f461` (later two commits only fix test APK CI file names / workflow trigger) |
+| Full CI | [Run 41833174370 — SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/41833174370) |
+| Expiring secondary CI artifact | [GitHub artifact 13324706236](https://github.com/manufact-test/nomusic/actions/runs/41833174370/artifacts/13324706236) |
+| Artifact ZIP SHA-256 | `f81257e28c91b0c1c51b5dcd9f5fa126b0d029644d86f2a31f448b1147590a3b` |
+| Version / code / package | `0.3.85-test.25`, `86110`, `pro.celikom.nativeprobe.test` |
+| Signer SHA-256 | `67fe81c56fac1c1d145344b69a0e3faf9005cf6607f4e26ca27d5926c3eefc4f` — original signer verified |
+| Verification | Android SDK36/D8, full host suite, v3 signature, exact DEX/source provenance, separate package/icon/authorities, no OTA — **PASS** |
+| Stable/Hostinger | No writes; stable publish skipped |
+| HONOR acoustic test | **PENDING; no owner acceptance yet** |
+
+The first Test.25 CI run `41832422443` failed only because an upload step still required the *old Test.23 verification filename*, after the APK was otherwise successfully built and verified. All old filename references were corrected and the subsequent **full CI** succeeded. This failed run was never delivered as an APK.
+
+Rollback: Test.23's original signed Library APK and exact source freeze above remain unchanged. For the same `CELIKOM Test` package, Android can reject installing old code86108 over new code86110. To use the original Test.23 APK, uninstall only the *separate Test* app (loses its Test-app data), then install the exact saved APK. In-place recovery preserving data is possible only via a distinctly labeled rebuild from exactly frozen Test.23 source with a newer versionCode and original key; never call that rebuild byte-identical to the saved APK.
