@@ -28,9 +28,10 @@ Date: 2026-11-04. Candidate only; no physical audio acceptance yet.
 - Preserved owner-accepted Test.23 backup `backup/android-0385-test23-owner-accepted-20261104` → `251b6facc8739557ff962365da012d502ed3bac8`, original Library APK `libfile_301d98360e9c8191b8e05594f402d265`, SHA256 `c24260ee009381226c11e465b8a5482423af7811de589c64b3b8eb982483de6a`.
 - Reinstalling original older Test.28/code86113 or Test.23/code86108 after Test.29/code86114 normally requires uninstalling **only** `pro.celikom.nativeprobe.test` (loses only isolated Test-app local data) and then installing the original preserved APK. Data-preserving rollback instead requires a separately named, signed higher-code recovery package from the exact frozen sources; it is not byte-identical to the original.
 
-## CI and original signed APK, after successful build only
+## Exact signed APK and reproducible source
 
-- Exact source SHA: **PENDING**.
-- Full CI run: **PENDING**.
-- Original signed APK direct ChatGPT Library link, byte size, SHA-256 and v3 signing proof: **PENDING**.
+- Signed source commit: `00dc792df016726c7a437d4b019e30cc3a8f6a27` (functional code, not subsequent documentation SHA), branch `feature/android-0385-test29-demand-cache-20261104`.
+- Full Android API36/D8, native host suite, isolated test packaging, original signer and final APK verification: [GitHub Actions 41861258456 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/41861258456). Stable publish and OTA jobs skipped. Signed temporary artifact ID `13338754970`, ZIP SHA-256 `9aff5db6edbcf8b442f4a5bd3aad772cc60cee096f583a6d172b513a6414387a` (seven-day artifact, not the permanent download).
+- **Original signed APK, permanent direct download in Library:** [CELIKOM Test.29 APK](https://chatgpt.com/library?file_id=libfile_92afd8482504819188facf5f1b3972b4&account_id=personal), exact filename `CELIKOM-Android-0.3.85-TEST-29-DEMAND-CACHE-SIGNED.apk`, **8,804,505 bytes**, SHA-256 `e29d3cffd0177d43ab0f515b851232cac20285a7ffff7cc3edb69e4a8c87cd84`.
+- Independently downloaded and `unzip -t` verified the GitHub original artifact, matched its ZIP digest and APK SHA to immutable signed receipt and verification JSON. Package `pro.celikom.nativeprobe.test`, code86114, version `0.3.85-test.29`, `CELIKOM Test` label, original APK Signature Scheme **v3** cert SHA-256 `67fe81c56fac1c1d145344b69a0e3faf9005cf6607f4e26ca27d5926c3eefc4f`, unique sandbox, no `REQUEST_INSTALL_PACKAGES` and no stable updater. `physical_phone_playback_verified=false`, `acoustic_acceptance=false`.
 - Physical listening/owner acceptance: **PENDING**. Do not create accepted Test.29 backup before explicit owner selection.
