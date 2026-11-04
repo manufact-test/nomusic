@@ -89,9 +89,11 @@ public final class TestHonor063SeekScrub {
   check(e.originalMix==1f&&!p.playing&&e.player==p&&
       (e.effect==null||e.effect.gain==0f),
       "Yandex buffering must retain native gain and decoder while waiting");
+  int downloads=TestEngine.api.downloads;
   TestEngine.p.current=TestEngine.source("1",79250,true);e.update(TestEngine.p.current);
-  check(p.playing&&e.effect!=null&&e.player==p,
-      "Yandex buffering recovery reuses decoder without new download");
+  check(e.player==p&&!p.released&&TestEngine.api.downloads==downloads
+      &&(p.playing||e.seeking),
+      "buffering recovery retains same decoder and either resumes or safely aligns before output");
   e.close();
  }
  static void trackBoundaryCancelsScrubTimer()throws Exception{

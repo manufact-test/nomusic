@@ -927,7 +927,7 @@ final class ReplacementEngine {
   catch(RuntimeException ex){hotCachedSeek=false;suspend("hot_cached_seek_rejected",retryDelay());return;}
   owner.handler.postDelayed(()->{
    if(hotCachedSeek&&player==p&&seq==hotCachedSeekSequence&&epoch==hotCachedSeekEpoch
-      &&audioOwner.operationEpoch()==epoch&&current(key)){
+      &&(audioOwner.operationEpoch()==epoch||hotCachedSeekPaused)&&current(key)){
     logTrace("replacement_hot_cached_seek_timeout",LogStore.map(
      "trackId",trackId,"targetMs",target,"elapsedMs",SystemClock.elapsedRealtime()-hotCachedSeekStarted,
      "action","retire_untagged_decoder_restore_source"));

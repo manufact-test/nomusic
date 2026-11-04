@@ -102,6 +102,25 @@ public final class TestUnifiedAudioTransactions {
      "manual return during seek cannot promote the muted decoder to audible output");
   slow.close();
 
+  /* A pause increments the owner operation epoch. It must not disable the
+     timeout for a missing *untagged* seek completion: otherwise the paused
+     hot decoder could stay stuck forever after Yandex resumes. */
+  TestEngine.playing();slow=TestEngine.e;seekPlayer=slow.player;
+  android.os.SystemClock.now+=ReplacementEngine.UNIFIED_JOIN_MS+30;
+  TestEngine.p.current=TestEngine.source("1",1160,true);TestEngine.p.handler.drain();
+  seekPlayer.asyncSeek=true;
+  slow.sourceSeekRequested();TestEngine.p.current=TestEngine.source("1",60000,true);
+  slow.update(TestEngine.p.current);
+  TestEngine.p.current=TestEngine.source("1",60000,false);
+  slow.update(TestEngine.p.current);
+  check(slow.hotCachedSeek&&slow.hotCachedSeekPaused&&!seekPlayer.playing,
+      "pause during hot seek holds the decoder until its original ACK or deadline");
+  android.os.SystemClock.now+=ReplacementEngine.HOT_CACHED_SEEK_TIMEOUT_MS+10;
+  TestEngine.p.handler.drain();
+  check(!slow.hotCachedSeek&&seekPlayer.released&&slow.effect==null&&slow.armed(),
+      "missing callback after pause still retires decoder and restores Yandex source");
+  slow.close();
+
   /* One native callback has no request ID. Do not submit a second seek until
      the first has truly acknowledged; its stale output epoch never becomes new. */
   AudioOwnership single=new AudioOwnership();single.track("single");single.aligning();
