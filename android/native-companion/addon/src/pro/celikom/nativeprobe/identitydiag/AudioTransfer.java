@@ -9,15 +9,27 @@ final class AudioTransfer {
  interface Open {HttpURLConnection open() throws Exception;}
  interface Events {void retry(int attempt,long bytes,String reason);}
  static final class Rejected extends IOException {Rejected(String reason){super(reason);}}
+ static final class ForegroundYield extends IOException {ForegroundYield(){super("foreground_audio_priority");}}
  static void copy(File file,Open open,BooleanSupplier valid,LongSupplier clock,Events events)throws Exception {
+  copy(file,open,valid,()->false,clock,events);
+ }
+ /** Speculative downloads yield the socket and retain only a validator-pinned
+  * prefix while the current decoder needs bandwidth. This is not a revoke:
+  * the very same transfer can resume with If-Range when foreground clears. */
+ static void copy(File file,Open open,BooleanSupplier valid,BooleanSupplier foregroundBusy,LongSupplier clock,Events events)throws Exception {
   long start=clock.getAsLong(),total=-1;String etag=null;int failures=0;
   ScheduledExecutorService watchdog=Executors.newSingleThreadScheduledExecutor();
   try{
    while(true){
     if(!valid.getAsBoolean())throw new Rejected("download_cancelled");
     if(clock.getAsLong()-start>=MAX_MS)throw new Rejected("download_deadline");
+    while(foregroundBusy.getAsBoolean()){
+     if(!valid.getAsBoolean())throw new Rejected("download_cancelled");
+     if(clock.getAsLong()-start>=MAX_MS)throw new Rejected("download_deadline");
+     Thread.sleep(50);
+    }
     HttpURLConnection c=open.open();
-    ScheduledFuture<?> cancel=watchdog.scheduleAtFixedRate(()->{if(!valid.getAsBoolean()||clock.getAsLong()-start>=MAX_MS)c.disconnect();},100,100,TimeUnit.MILLISECONDS);
+    ScheduledFuture<?> cancel=watchdog.scheduleAtFixedRate(()->{if(!valid.getAsBoolean()||foregroundBusy.getAsBoolean()||clock.getAsLong()-start>=MAX_MS)c.disconnect();},50,50,TimeUnit.MILLISECONDS);
     long offset=file.length(),expected=-1;
     try{
      c.setConnectTimeout(10000);c.setReadTimeout(12000);c.setInstanceFollowRedirects(false);c.setRequestProperty("Accept-Encoding","identity");
@@ -36,6 +48,7 @@ final class AudioTransfer {
       byte[] bytes=new byte[32768];int n;long received=offset;
       while(received!=expected&&(n=in.read(bytes))!=-1){
        if(!valid.getAsBoolean())throw new Rejected("download_cancelled");
+       if(foregroundBusy.getAsBoolean())throw new ForegroundYield();
        if(clock.getAsLong()-start>=MAX_MS)throw new Rejected("download_deadline");
        received+=n;if(received>MAX_BYTES||(expected>=0&&received>expected))throw new Rejected("invalid_audio_size");out.write(bytes,0,n);
       }
@@ -45,6 +58,10 @@ final class AudioTransfer {
     }catch(Rejected e){throw e;}
     catch(IOException e){
      if(!valid.getAsBoolean())throw new Rejected("download_cancelled");
+     if(e instanceof ForegroundYield||foregroundBusy.getAsBoolean()){
+      events.retry(failures,file.length(),"foreground_yield");
+      continue;
+     }
      if(++failures>8||clock.getAsLong()-start>=MAX_MS)throw e;
      // Without an immutable validator, never append bytes from another response.
      if(etag==null){try(FileOutputStream out=new FileOutputStream(file)){ }total=-1;}

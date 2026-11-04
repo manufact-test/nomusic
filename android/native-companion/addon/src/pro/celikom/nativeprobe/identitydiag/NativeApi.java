@@ -10,7 +10,7 @@ import java.util.concurrent.*;
 /** One serialized transport for refresh rotation; no embedded user/API credentials. */
 final class NativeApi {
  interface Result {void done(JSONObject result,String error);}
- volatile boolean revoking;volatile long accountGeneration;volatile long configValidatedAt=-1;static NativeApi singleton;final SecureSession session;final Context context;final ExecutorService work=Executors.newSingleThreadExecutor();final ExecutorService audioWork=Executors.newSingleThreadExecutor();final ExecutorService foregroundStreamWork=Executors.newSingleThreadExecutor();final ExecutorService contributions=Executors.newSingleThreadExecutor();final Handler main=new Handler(Looper.getMainLooper());
+ volatile boolean revoking;volatile long accountGeneration;volatile long configValidatedAt=-1;static NativeApi singleton;final SecureSession session;final Context context;final ExecutorService work=Executors.newSingleThreadExecutor();final ExecutorService audioWork=Executors.newSingleThreadExecutor();final ExecutorService lookaheadAudioWork=Executors.newSingleThreadExecutor();final ExecutorService foregroundStreamWork=Executors.newSingleThreadExecutor();final java.util.concurrent.atomic.AtomicInteger foregroundAudioDemand=new java.util.concurrent.atomic.AtomicInteger();final ExecutorService contributions=Executors.newSingleThreadExecutor();final Handler main=new Handler(Looper.getMainLooper());
  static synchronized NativeApi get(Context c){if(singleton==null)singleton=new NativeApi(c);return singleton;}
  NativeApi(Context c){context=c.getApplicationContext();session=new SecureSession(c);}
  volatile long diagnosticUntil,diagnosticGeneration=-1,nextDiagnosticCheck;volatile boolean diagnosticBusy;
@@ -109,30 +109,35 @@ final class NativeApi {
  }
  interface StreamResult {void done(BufferedAudio source,String error);}
  void stream(JSONObject descriptor,java.util.function.BooleanSupplier valid,StreamResult result){stream(descriptor,valid,-1,-1,result);}
- void stream(JSONObject descriptor,java.util.function.BooleanSupplier valid,long sourcePositionMs,long sourceDurationMs,StreamResult result){final long account=accountGeneration;foregroundStreamWork.execute(()->{BufferedAudio source=null;String error=null;long start=SystemClock.elapsedRealtime();try{
+ void stream(JSONObject descriptor,java.util.function.BooleanSupplier valid,long sourcePositionMs,long sourceDurationMs,StreamResult result){final long account=accountGeneration;foregroundAudioDemand.incrementAndGet();foregroundStreamWork.execute(()->{BufferedAudio source=null;String error=null;long start=SystemClock.elapsedRealtime();try{
   // Never let a speculative *full-file* lookahead occupy the foreground
   // current song's sparse decoder preparation lane. If three verified Range
   // reads cannot finish promptly, return to the accepted local-file path.
-  java.util.function.BooleanSupplier allowed=()->!revoking&&account==accountGeneration&&valid.getAsBoolean()&&SystemClock.elapsedRealtime()-start<1800;
+  java.util.function.BooleanSupplier allowed=()->!revoking&&account==accountGeneration&&valid.getAsBoolean()&&SystemClock.elapsedRealtime()-start<4500;
   if(!allowed.getAsBoolean())throw new Exception("audio_cancelled");
   File file=File.createTempFile("buffered-",".audio",context.getCacheDir());
   // The deadline applies only to probing initial sparse readiness. Once the
   // decoder owns the source, the song lease (not this startup budget) governs
   // all future Range reads and background caching.
   java.util.concurrent.atomic.AtomicBoolean initialized=new java.util.concurrent.atomic.AtomicBoolean();
-  java.util.function.BooleanSupplier streamLease=()->!revoking&&account==accountGeneration&&valid.getAsBoolean()&&(initialized.get()||SystemClock.elapsedRealtime()-start<1800);
-  source=new BufferedAudio(file,()->(HttpsURLConnection)new URL(ApiContract.audio(descriptor,System.currentTimeMillis())).openConnection(),streamLease,SystemClock::elapsedRealtime,(name,bytes)->LogStore.log(name,LogStore.map("cachedBytes",bytes,"elapsedMs",SystemClock.elapsedRealtime()-start)));
+  java.util.function.BooleanSupplier streamLease=()->!revoking&&account==accountGeneration&&valid.getAsBoolean()&&(initialized.get()||SystemClock.elapsedRealtime()-start<4500);
+  source=new BufferedAudio(file,()->(HttpsURLConnection)new URL(ApiContract.audio(descriptor,System.currentTimeMillis())).openConnection(),streamLease,SystemClock::elapsedRealtime,(name,bytes)->{
+   if("replacement_stream_decoder_demand_begin".equals(name))foregroundAudioDemand.incrementAndGet();
+   else if("replacement_stream_decoder_demand_end".equals(name))foregroundAudioDemand.decrementAndGet();
+   LogStore.log(name,LogStore.map("cachedBytes",bytes,"elapsedMs",SystemClock.elapsedRealtime()-start));
+  });
   if(sourcePositionMs>=0&&sourceDurationMs>0)source.initializeForCurrentPosition(sourcePositionMs,sourceDurationMs);
   else source.initializeForPlayback();
   if(!allowed.getAsBoolean())throw new Exception("audio_cancelled");initialized.set(true);
  }catch(Exception e){if(source!=null)source.close();source=null;error="audio_stream_unavailable";LogStore.log("replacement_stream_failure",LogStore.map("type",e.getClass().getSimpleName(),"elapsedMs",SystemClock.elapsedRealtime()-start));}
+ finally{foregroundAudioDemand.decrementAndGet();}
  final BufferedAudio out=source;final String fail=error;main.post(()->result.done(out,fail));});}
  interface AudioResult{void done(File file,String error);}
- void download(JSONObject descriptor,java.util.function.BooleanSupplier valid,AudioResult r){enqueueDownload(audioWork,"current",descriptor,valid,r);}
+ void download(JSONObject descriptor,java.util.function.BooleanSupplier valid,AudioResult r){foregroundAudioDemand.incrementAndGet();enqueueDownload(audioWork,"current",descriptor,valid,r);}
  /* Let the current song claim the single audio queue before a speculative full-file transfer. */
  static final long LOOKAHEAD_ENQUEUE_YIELD_MS=1100;
  void downloadLookahead(JSONObject descriptor,java.util.function.BooleanSupplier valid,AudioResult r){
-  main.postDelayed(()->enqueueDownload(audioWork,"lookahead",descriptor,valid,r),LOOKAHEAD_ENQUEUE_YIELD_MS);
+  main.postDelayed(()->enqueueDownload(lookaheadAudioWork,"lookahead",descriptor,valid,r),LOOKAHEAD_ENQUEUE_YIELD_MS);
  }
  void enqueueDownload(ExecutorService lane,String priority,JSONObject descriptor,java.util.function.BooleanSupplier valid,AudioResult r){
   final long account=accountGeneration,queuedAt=SystemClock.elapsedRealtime();
@@ -142,9 +147,10 @@ final class NativeApi {
    try{
     if(!allowed.getAsBoolean())throw new Exception("download_cancelled");
     file=File.createTempFile("replacement-",".audio",context.getCacheDir());
-    AudioTransfer.copy(file,()->(HttpsURLConnection)new URL(ApiContract.audio(descriptor,System.currentTimeMillis())).openConnection(),allowed,SystemClock::elapsedRealtime,(attempt,bytes,reason)->LogStore.log("replacement_download_retry",LogStore.map("attempt",attempt,"retainedBytes",bytes,"reasonCode",reason,"priority",priority)));
+    AudioTransfer.copy(file,()->(HttpsURLConnection)new URL(ApiContract.audio(descriptor,System.currentTimeMillis())).openConnection(),allowed,()->"lookahead".equals(priority)&&foregroundAudioDemand.get()>0,SystemClock::elapsedRealtime,(attempt,bytes,reason)->LogStore.log("replacement_download_retry",LogStore.map("attempt",attempt,"retainedBytes",bytes,"reasonCode",reason,"priority",priority)));
     LogStore.log("replacement_download",LogStore.map("bytes",file.length(),"elapsedMs",SystemClock.elapsedRealtime()-started,"priority",priority,"queueWaitMs",queueWaitMs));
    }catch(Exception e){long bytes=file==null?0:file.length();if(file!=null)file.delete();file=null;error="audio_download_failed";String reason=e.getMessage();LogStore.log("replacement_download_failure",LogStore.map("reasonCode",reason!=null&&reason.matches("[a-z0-9_]{1,80}")?reason:"transport_or_file_error","type",e.getClass().getSimpleName(),"receivedBytes",bytes,"elapsedMs",SystemClock.elapsedRealtime()-started,"priority",priority,"queueWaitMs",queueWaitMs));}
+   if("current".equals(priority))foregroundAudioDemand.decrementAndGet();
    final File out=file;final String fail=error;main.post(()->r.done(out,fail));
   });
  }

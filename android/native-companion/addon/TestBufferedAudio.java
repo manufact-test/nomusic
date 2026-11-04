@@ -66,6 +66,24 @@ public class TestBufferedAudio {
    check(a.hintedBlock(-1,20000)==-1&&a.hintedBlock(2000,0)==-1,
      "invalid source position or duration never authorizes speculative bytes");
   }finally{a.close();}
+  // Test.26: a slow OPTIONAL position-hint Range made the entire sparse
+  // startup miss its hard timeout and fall back to a 10+ second full file.
+  server=new Server();server.stallBlockTwoOnce.set(true);
+  AtomicInteger partialWarm=new AtomicInteger();
+  a=new BufferedAudio(File.createTempFile("celikom-priority-cold-",".test"),server,()->true,
+   ()->System.nanoTime()/1000000,(event,bytes)->{
+    if("replacement_stream_cold_warm_pending".equals(event))partialWarm.incrementAndGet();
+   });
+  try{
+   long started=System.nanoTime();a.initializeForCurrentPosition(4000,20000);
+   long elapsed=TimeUnit.NANOSECONDS.toMillis(System.nanoTime()-started);
+   check(server.backgroundReadBlocked.await(1,TimeUnit.SECONDS),"setup: optional cold hint stalled");
+   check(elapsed<1700&&partialWarm.get()==1&&a.present.get(0),
+     "cold sparse startup publishes its verified prefix while optional Range is slow");
+   long other=(long)BufferedAudio.BLOCK*6+9;byte[] data=new byte[16];
+   check(a.readAt(other,data,0,data.length)==16&&data[0]==server.data[(int)other],
+     "decoder seeks use a validated foreground Range even while optional startup hint is stalled");
+  }finally{a.close();}
   server=new Server();server.changedTag=true;a=audio(server,new AtomicBoolean(true),new CountDownLatch(1));
   try{try{a.initializeForCurrentPosition(9000,20000);throw new AssertionError("mixed validator accepted in parallel");}
    catch(IOException e){check("audio_version_changed".equals(e.getMessage()),"parallel Ranges reject a changed ETag");}}

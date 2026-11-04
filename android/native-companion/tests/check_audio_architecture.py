@@ -19,12 +19,15 @@ if ('replacement_lookahead_cache_reused' not in engine
 
 
 if ('final ExecutorService audioWork=Executors.newSingleThreadExecutor()' not in api
-    or 'prefetchAudioWork' in api
+    or 'final ExecutorService lookaheadAudioWork=Executors.newSingleThreadExecutor()' not in api
     or 'enqueueDownload(audioWork,"current"' not in api
-    or 'main.postDelayed(()->enqueueDownload(audioWork,"lookahead"' not in api
+    or 'main.postDelayed(()->enqueueDownload(lookaheadAudioWork,"lookahead"' not in api
+    or 'foregroundAudioDemand.get()>0' not in api
+    or 'foregroundAudioDemand.incrementAndGet()' not in api
+    or 'foregroundAudioDemand.decrementAndGet()' not in api
     or 'LOOKAHEAD_ENQUEUE_YIELD_MS=1100' not in api
     or 'api.downloadLookahead(j,' not in engine):
-    raise AssertionError('speculative next-track download must yield to the current-song audio queue')
+    raise AssertionError('speculative lookahead must never queue before or compete with current audio demand')
 for label,pattern in [
     ('direct decoder command',r'\b(?:player|p|old|mp)\.(?:start|pause|seekTo)\s*\('),
     ('native gain change bypass',r'\.setInputGainAllChannelsTo\s*\('),

@@ -32,11 +32,11 @@ class BufferedAudio implements Closeable {
  // Android may inspect both ends during prepare; background reads must not race startup.
  void initializeForPlayback()throws IOException{fetch(0);int last=blocks()-1;if(last>0)fetch(last);if(last>1)fetch(1);events.event("replacement_stream_ready",cachedBytes());}
  // The single decoder can be joining a song already several seconds in.
- // Test.25 validated blocks 0, 1 and the tail serially, then waited another
- // 1.57s when its first seek hit a missing middle block. Test.26 validates
- // the mandatory metadata blocks concurrently and warms ONE bounded block
- // around the source's projected position, without trusting an approximate
- // byte offset as the actual decoder seek destination.
+ // The first validated prefix is sufficient to publish an on-demand sparse
+ // source. Tail, next prefix and source-position hint are *opportunistic*:
+ // waiting for all three on a congested connection made Test.26 fail its
+ // entire 1.8s startup probe and then download the whole song for 10-22s.
+ // No unvalidated bytes are exposed; missing blocks are fetched on demand.
  void initializeForCurrentPosition(long sourcePositionMs,long durationMs)throws IOException{
   fetch(0); // Establish authoritative length and strong ETag before parallel reads.
   int last=blocks()-1;
@@ -50,16 +50,22 @@ class BufferedAudio implements Closeable {
   ArrayList<Future<?>> reads=new ArrayList<>();
   try{
    for(int block:needed)reads.add(warm.submit(()->{fetch(block);return null;}));
+   long deadline=System.nanoTime()+TimeUnit.MILLISECONDS.toNanos(900);
    for(Future<?> read:reads){
-    try{read.get();}
+    long remaining=deadline-System.nanoTime();
+    if(remaining<=0){events.event("replacement_stream_cold_warm_pending",cachedBytes());break;}
+    try{read.get(remaining,TimeUnit.NANOSECONDS);}
+    catch(TimeoutException e){events.event("replacement_stream_cold_warm_pending",cachedBytes());break;}
     catch(InterruptedException e){Thread.currentThread().interrupt();throw new IOException("audio_interrupted",e);}
-    catch(ExecutionException e){Throwable cause=e.getCause();if(cause instanceof IOException)throw (IOException)cause;throw new IOException("audio_cold_range",cause);}
+    catch(ExecutionException e){Throwable cause=e.getCause();if(cause instanceof AudioTransfer.Rejected)throw (IOException)cause;
+     events.event("replacement_stream_cold_warm_deferred",cachedBytes());}
    }
    check();
    events.event("replacement_stream_ready",cachedBytes());
   }finally{
-   if(!reads.isEmpty())for(Future<?> read:reads)if(!read.isDone())read.cancel(true);
-   warm.shutdownNow();
+   // Already-started validated Range fetches may complete into this source;
+   // they must not be canceled or lose their buffered bytes at publication.
+   warm.shutdown();
   }
  }
  int hintedBlock(long positionMs,long durationMs){
@@ -150,6 +156,7 @@ class BufferedAudio implements Closeable {
     obsoletePrefetch=prefetchConnection;
    }
   }
+  if(cacheMiss)events.event("replacement_stream_decoder_demand_begin",cachedBytes());
   // Never call disconnect() on MediaPlayer's decoder thread: it may block.
   // The validity watcher is a separate executor and can abort the old Range.
   if(obsoletePrefetch!=null)try{final HttpURLConnection old=obsoletePrefetch;watcher.execute(old::disconnect);}
@@ -172,9 +179,9 @@ class BufferedAudio implements Closeable {
    }
    if(rearm)prefetch();
    return count;}
-  finally{if(cacheMiss)synchronized(this){
-   if(--foregroundReads==0)waitingSince=-1;
-   notifyAll();
+  finally{if(cacheMiss){
+   synchronized(this){if(--foregroundReads==0)waitingSince=-1;notifyAll();}
+   events.event("replacement_stream_decoder_demand_end",cachedBytes());
   }}
  }
  synchronized void check()throws IOException{if(closed||!valid.getAsBoolean())throw new IOException("audio_cancelled");if(fatal!=null)throw fatal;}

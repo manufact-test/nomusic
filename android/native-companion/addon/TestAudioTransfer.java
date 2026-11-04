@@ -4,6 +4,7 @@ import java.net.*;
 import java.nio.file.*;
 import java.util.*;
 import java.util.concurrent.atomic.*;
+import java.util.concurrent.*;
 public class TestAudioTransfer {
  static int checks;static void check(boolean b,String s){checks++;if(!b)throw new AssertionError(s);}
  static class Response extends HttpURLConnection {
@@ -30,6 +31,30 @@ public class TestAudioTransfer {
    valid.set(false);try{transfer(f,valid,new AtomicLong(),new Response(200,"abc"));throw new AssertionError("cancel ignored");}catch(AudioTransfer.Rejected e){check(e.getMessage().equals("download_cancelled"),"stale track or account cannot download");}
    valid.set(true);Files.write(f.toPath(),new byte[0]);Response blocked=new Response(200,"abc"){public InputStream getInputStream(){return new InputStream(){public int read()throws IOException{while(!disconnected){try{Thread.sleep(10);}catch(InterruptedException e){throw new IOException(e);}}throw new IOException("cancelled socket");}};}};
    Thread cancel=new Thread(()->{try{Thread.sleep(200);}catch(Exception e){}valid.set(false);});cancel.start();long start=System.nanoTime();try{transfer(f,valid,new AtomicLong(),blocked);throw new AssertionError("blocked transfer survived cancellation");}catch(AudioTransfer.Rejected e){check(blocked.disconnected&&(System.nanoTime()-start)/1000000<2000,"watchdog releases obsolete blocked socket promptly");}cancel.join();
+   // Test.26 HONOR: a speculative transfer consumed 10-14 seconds while the
+   // foreground decoder sought or waited in the single download queue.
+   // A yielded lookahead retains its exact strong-ETag prefix and resumes.
+   valid.set(true);Files.write(f.toPath(),new byte[0]);
+   AtomicBoolean foreground=new AtomicBoolean();AtomicInteger opens=new AtomicInteger();
+   CountDownLatch foregroundObserved=new CountDownLatch(1);
+   Response partial=new Response(200,"abcdef"){
+    public InputStream getInputStream(){return new ByteArrayInputStream(bytes){
+     public synchronized int read(byte[] b,int off,int len){int n=super.read(b,off,Math.min(len,1));if(pos>=3){foreground.set(true);foregroundObserved.countDown();}return n;}
+    };}
+   };
+   Response resumed=new Response(206,"cdef");resumed.headers.put("Content-Range","bytes 2-5/6");
+   Thread release=new Thread(()->{try{
+    check(foregroundObserved.await(2,TimeUnit.SECONDS),"foreground demand observed");
+    Thread.sleep(150);
+    check(f.length()==2,"foreground yield retains an exact prefix without appending unverified bytes");
+    foreground.set(false);
+   }catch(Exception e){throw new AssertionError(e);}});
+   release.start();
+   AudioTransfer.copy(f,()->{int i=opens.getAndIncrement();check(i<2,"yield performs at most one resumed request");return i==0?partial:resumed;},valid::get,foreground::get,()->System.nanoTime()/1000000,(a,b,c)->{});
+   release.join(2000);
+   check(!release.isAlive()&&opens.get()==2&&partial.disconnected,"yield closes obsolete speculative socket");
+   check("bytes=2-".equals(resumed.getRequestProperty("Range"))&&"\"v1\"".equals(resumed.getRequestProperty("If-Range")),"resumed speculative download is byte-exact and validator-pinned");
+   check(new String(Files.readAllBytes(f.toPath()),"UTF-8").equals("abcdef"),"foreground preemption never loses completed bytes");
   }finally{f.delete();}
   System.out.println("PASS: "+checks+" actual transport range, retry, slow transfer, validation and cancellation checks");
  }
