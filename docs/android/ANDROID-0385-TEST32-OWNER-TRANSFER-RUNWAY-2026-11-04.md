@@ -29,6 +29,7 @@ Full-file retry is intentionally safer than repeatedly stealing audio from a spa
 
 ## Pinned rollback (hands off)
 
+* Test.32 **signed but owner-unverified** immutable source: `backup/android-0385-test32-signed-owner-pending-20261104` → `eb13afba0a63567a8e12e45f848b9616aaf7c749`; its original APK is permanently saved below. This is **not** owner acceptance.
 * Test.23 owner-accepted: `backup/android-0385-test23-owner-accepted-20261104` → `251b6facc8739557ff962365da012d502ed3bac8` (original signed APK `libfile_301d98360e9c8191b8e05594f402d265`).
 * Test.28 owner-selected: `backup/android-0385-test28-owner-selected-20261104` → `904ba52d5afbb5e77f4ee36e40d321d568896460` (original signed APK `libfile_dbc76474748481918f72b91a9eaea383`).
 * Test.31 owner-rejected: `8f3bce6bb049d66ae1e30316ab4365bbd7c9f66b`; signed APK `libfile_a4aa619bae1c819187d651fb9900ad05`.
