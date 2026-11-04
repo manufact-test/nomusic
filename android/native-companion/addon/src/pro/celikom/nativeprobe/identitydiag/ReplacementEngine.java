@@ -629,13 +629,17 @@ final class ReplacementEngine {
    if(resumed&&pausedDuration>=PAUSE_ALIGN_DELAY_MS&&effect!=null&&Math.abs(drift)>(retainedPauseResume?HANDOVER_DRIFT_MS:PAUSE_ALIGN_TOLERANCE_MS)){seek(s,target,drift);return;}
    ClockSupervisor.Decision clockDecision=clockSupervisor.assess(aligned,!seeking&&!audioOwner.handoverAwaitingClock(),sourceJump,drift,clock);
    if(clockDecision==ClockSupervisor.Decision.RESTORE_SOURCE){
+    logOutputClockSample(player,s,"sustained_drift_restore_original");
     String key=identityKey;LogStore.log("replacement_drift_unstable",LogStore.map("trackId",trackId,"sourcePositionMs",target,"driftMs",drift,"fallback","original_until_next_track","clockSupervisor","confirmed"));
     suspend("drift_unstable",30000);completedKey=key;completedPosition=target;completedReason="Большой рассинхрон замены — играет оригинал до следующей песни";audioOwner.unsupported("drift_unstable");status=completedReason;ownerEvent("drift_unsupported");return;
    }
    prewarmLocalFileForInitialAlignment(s,resumed,sourceJump);
-   if(player==null||!ready||!armed())return; /* Failed DSP attach retired this decoder. */
    if(awaitLocalPrewarmMotion(s,resumed,sourceJump))return;
    if(clockDecision==ClockSupervisor.Decision.SEEK){
+    if(aligned&&!sourceJump&&Math.abs(drift)>ClockSupervisor.WARN_DRIFT_MS){
+     logOutputClockSample(player,s,"sustained_drift_before_bounded_realign");
+     LogStore.log("replacement_bounded_drift_realign",LogStore.map("trackId",trackId,"driftMs",drift,"sourcePositionMs",target,"oneAttemptPerTrack",true,"originalAudibleDuringSeek",true));
+    }
     long seekTarget=target;
     /* Only the first muted cold join predicts callback advance; user seeking stays frozen. */
     if(localPrewarmAlignmentPending&&!explicitSourceSeek&&!sourceJump
@@ -1032,60 +1036,8 @@ final class ReplacementEngine {
   }
   update(now);
  }
- boolean mute(){
-  String stage="preflight";
-  try{
-   if(trustedSession<=0||player==null||player.getAudioSessionId()==trustedSession)
-    throw new IllegalStateException("unverified audio session");
-   stage="construct_effect";
-   DynamicsProcessing candidate=new DynamicsProcessing(0,trustedSession,null);
-   effect=candidate;
-   candidate.setControlStatusListener((e,control)->owner.handler.post(()->{
-    if(effect!=candidate)return;
-    Map<String,Object> state=owner.runtimeSnapshot("audio_effect_control_status");
-    state.put("controlGranted",control);
-    LogStore.log("audio_effect_control_status",state);
-    if(!control)stop("effect_control_lost");
-   }));
-   stage="acquire_control";
-   if(!candidate.hasControl())throw new IllegalStateException("effect lacks control");
-   originalMix=1f;
-   stage="prepare_source_effect";
-   audioOwner.prepareSourceEffect(candidate);
-   LogStore.log("replacement_original_muted",LogStore.map(
-    "sessionId",trustedSession,"globalVolumeChanged",false,
-    "rampMs",resumeFadePending?PAUSE_RESUME_FADE_MS:FADE_MS));
-   return true;
-  }catch(RuntimeException e){
-   boolean fatal="preflight".equals(stage);
-   logTrace("replacement_original_mute_failed",LogStore.map(
-    "stage",stage,"exceptionType",e.getClass().getSimpleName(),
-    "sessionVerified",trustedSession>0,"effectCreated",effect!=null,
-    "sourceMutedCommand",originalMix<=0.001f,
-    "recoveryMode",fatal?"manual_rearm":"original_until_next_song",
-    "secondControllerUsed",false,"hardwareOutputMeasured",false));
-   if(fatal){
-    stop("cannot_mute_original");
-    status="Не удалось подтвердить аудиосессию Яндекса; включи замену заново";
-    return false;
-   }
-   /* DSP failed before replacement grant. Silence the secondary, restore the
-      original, and defer retries until the next song, never inside this song. */
-   String failedKey=identityKey;
-   long failedPosition=owner.current==null?0:position(owner.current);
-   suspend("source_effect_attach_failed",0);
-   completedKey=failedKey;
-   completedPosition=failedPosition;
-   completedReason="Яндекс не дал приглушить звук; играет оригинал до следующей песни";
-   status=completedReason;
-   logTrace("replacement_source_effect_next_track_recovery",LogStore.map(
-    "failedStage",stage,"originalRetained",true,"automaticModeRetained",armed(),
-    "nextTrackOnly",true,"retryCurrentTrack",false,
-    "sourcePcmMeasured",false));
-   return false;
-  }
- }
-   void startPrewarmedColdJoin(){
+ boolean mute(){try{if(trustedSession<=0||player==null||player.getAudioSessionId()==trustedSession)throw new IllegalStateException();DynamicsProcessing candidate=new DynamicsProcessing(0,trustedSession,null);effect=candidate;candidate.setControlStatusListener((e,control)->owner.handler.post(()->{if(effect!=candidate)return;Map<String,Object> state=owner.runtimeSnapshot("audio_effect_control_status");state.put("controlGranted",control);LogStore.log("audio_effect_control_status",state);if(!control)stop("effect_control_lost");}));if(!candidate.hasControl())throw new IllegalStateException();originalMix=1f;audioOwner.prepareSourceEffect(candidate);LogStore.log("replacement_original_muted",LogStore.map("sessionId",trustedSession,"globalVolumeChanged",false,"rampMs",resumeFadePending?PAUSE_RESUME_FADE_MS:FADE_MS));return true;}catch(RuntimeException e){stop("cannot_mute_original");status="Телефон не разрешил приглушить Яндекс; замена остановлена";return false;}}
+  void startPrewarmedColdJoin(){
    if(coldJoinExclusiveExperiment){
     logTrace("replacement_cold_join_experiment_start",LogStore.map(
       "trackId",trackId,"mode","exclusive_after_existing_clock_gate",
@@ -1211,11 +1163,6 @@ final class ReplacementEngine {
     }else{
      audioOwner.grantReplacement(fx);originalMix=0f;applyVolume(1f);
     }
-    if(!coherentEntry)logTrace("replacement_exclusive_gain_command_pair",LogStore.map(
-     "sourceCommandPrecedesReplacementCommand",true,
-     "sourceMutedCommand",originalMix<=0.001f,
-     "replacementVolumeCommand",commandedReplacementVolume,
-     "hardwareOutputMeasured",false,"phaseVerified",false));
     if(!outputPostLogged[0]){
      logOutputClockSample(p,owner.current,coherentEntry?"post_blend":"post_exclusive_grant");
      outputPostLogged[0]=true;
