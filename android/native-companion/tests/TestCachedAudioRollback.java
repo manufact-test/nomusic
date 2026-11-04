@@ -6,7 +6,7 @@ import android.os.SystemClock;
 import org.json.JSONObject;
 import java.io.File;
 
-/** Exercises muted local-file prewarm, bounded clock validation, original fallback and unchanged manual seek behavior. */
+/** Exercises muted local-file prewarm, bounded clock validation, original fallback and exclusive verified-cache seeking. */
 public final class TestCachedAudioRollback {
   static int checks;
   static int initialSeekCount;
@@ -132,26 +132,25 @@ public final class TestCachedAudioRollback {
     TestEngine.p.current = TestEngine.source("1", 60000, true);
     engine.update(TestEngine.p.current);
 
-    check(engine.seeking
+    check(engine.hotCachedSeek && !engine.seeking
             && decoder.seekCalls == beforeSeek + 1
-            && decoder.pauseCalls > 0
-            && !decoder.playing
-            && decoder.volume == 0f
+            && decoder.playing
+            && decoder.volume == 1f
             && engine.effect == sourceEffect
-            && sourceEffect.gain == 0f
-            && engine.originalMix == 1f,
-        "manual cached seek keeps the original audible and pauses the same replacement decoder");
+            && sourceEffect.gain == -100f
+            && engine.originalMix == 0f,
+        "verified cached seek retains already-exclusive replacement without another original handover");
 
     SystemClock.now += 65;
     TestEngine.p.current = TestEngine.source("1", 60065, true);
     decoder.seek.onSeekComplete(decoder);
 
-    check(!engine.seeking
+    check(!engine.hotCachedSeek && !engine.seeking
             && decoder.playing
             && engine.player == decoder
             && engine.effect == sourceEffect
             && decoder.seekCalls == beforeSeek + 1,
-        "cached seek resumes the same decoder after one accepted alignment callback");
+        "cached seek completes in the same audible decoder after one accepted native callback");
 
     advanceTogether(decoder, 8, 250);
     check(engine.player == decoder
