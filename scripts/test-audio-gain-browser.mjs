@@ -274,7 +274,7 @@ try{
  check(document.documentElement.scrollWidth<=innerWidth,'mixer horizontal layout');document.body.dataset.gainResult='pass';
  }catch(e){document.body.dataset.gainResult=e.message+' at '+document.body.dataset.gainStep+' '+e.stack}})();</script></body></html>`;
  const file=join(directory,'gain.html');await writeFile(file,html);await mkdir('dist/layout-proof',{recursive:true});
- const browser=spawn(binary,['--headless=new','--no-sandbox','--disable-gpu','--disable-dev-shm-usage','--autoplay-policy=no-user-gesture-required','--window-size=420,600','--remote-debugging-port=0','--user-data-dir='+join(directory,'profile'),pathToFileURL(file).href],{stdio:['ignore','ignore','pipe']});
+ const browser=spawn(binary,['--headless=new','--no-sandbox','--disable-gpu','--disable-dev-shm-usage','--autoplay-policy=no-user-gesture-required','--window-size=420,600','--remote-debugging-port=0','--user-data-dir='+join(directory,'profile'),pathToFileURL(file).href],{stdio:['ignore','ignore','pipe'],detached:process.platform!=='win32'});
  /* Keep bounded synthetic-fixture launch diagnostics when Chrome cannot start. */
  let launchError='';browser.stderr.on('data',chunk=>{launchError=(launchError+chunk.toString()).slice(-3000);});
  const exited=new Promise(resolve=>browser.once('exit',resolve));
@@ -288,14 +288,19 @@ try{
   let id=0;const pending=new Map();
   socket.onclose=()=>{for(const {reject} of pending.values())reject(Error('Browser closed during media test: '+launchError));pending.clear();};
   socket.onmessage=event=>{const m=JSON.parse(event.data);if(pending.has(m.id)){const {resolve,reject}=pending.get(m.id);pending.delete(m.id);if(m.error)reject(Error(m.error.message));else resolve(m.result);}};
-  const call=(method,params={})=>new Promise((resolve,reject)=>{const seq=++id;pending.set(seq,{resolve,reject});socket.send(JSON.stringify({id:seq,method,params}));});
+  let lastStep='browser startup';
+  const call=(method,params={})=>new Promise((resolve,reject)=>{
+   const seq=++id,timer=setTimeout(()=>{pending.delete(seq);reject(Error('Browser RPC timeout: '+method+' at '+lastStep));},5000);
+   pending.set(seq,{resolve:value=>{clearTimeout(timer);resolve(value);},reject:error=>{clearTimeout(timer);reject(error);}});
+   socket.send(JSON.stringify({id:seq,method,params}));
+  });
   let state;
   for(let i=0;i<400;i++){
    const r=await call('Runtime.evaluate',{expression:'JSON.stringify({result:document.body?.dataset.gainResult,step:document.body?.dataset.gainStep})',returnByValue:true});
-   state=JSON.parse(r.result.value||'{}');if(state.result)break;await pause(100);
+   state=JSON.parse(r.result.value||'{}');if(state.step&&state.step!==lastStep){lastStep=state.step;console.log('Media fixture: '+lastStep);}if(state.result)break;await pause(100);
   }
   if(state?.result!=='pass')throw Error('Audio gain browser: '+(state?.result||'no result at '+state?.step));
   const shot=await call('Page.captureScreenshot',{format:'png'});await writeFile(join(process.cwd(),'dist/layout-proof/audio-gain.png'),Buffer.from(shot.data,'base64'));
- }finally{socket?.close();if(process.platform==='win32')spawnSync('taskkill',['/PID',String(browser.pid),'/T','/F'],{stdio:'ignore'});else browser.kill('SIGTERM');await Promise.race([exited,new Promise(resolve=>setTimeout(resolve,1500))]);}
+ }finally{socket?.close();if(process.platform==='win32')spawnSync('taskkill',['/PID',String(browser.pid),'/T','/F'],{stdio:'ignore'});else {try{process.kill(-browser.pid,'SIGTERM');}catch{browser.kill('SIGTERM');}}await Promise.race([exited,new Promise(resolve=>setTimeout(resolve,1500))]);browser.stderr.destroy();}
  console.log('Native audio gain: actual decoded media, amplitude boost/attenuation/ceiling, volume/mute/cleanup, native stale-track transition/old-original mute handoff and admin slider/reset PASS');
 }finally{await rm(directory,{recursive:true,force:true,maxRetries:5,retryDelay:100});}
