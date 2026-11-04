@@ -312,8 +312,13 @@ final class ReplacementEngine {
   final long waitStartedAt=SystemClock.elapsedRealtime();
   owner.handler.postDelayed(new Runnable(){public void run(){
    if(closed||g!=generation||!lookaheadPrefetchWait
-      ||!Objects.equals(waitAlias,lookaheadPrefetchAlias)||!Objects.equals(identityKey,key)||!current(key))return;
+      ||!Objects.equals(waitAlias,lookaheadPrefetchAlias)||!Objects.equals(identityKey,key))return;
    long now=SystemClock.elapsedRealtime(),bytes=lookaheadPrefetchReceivedBytes;
+   if(!current(key)&&now-waitStartedAt<LookaheadHandoffPolicy.MAX_CURRENT_WAIT_MS){
+    // A temporarily stale Media3 snapshot must not permanently disarm the
+    // only timeout watcher while preparing still holds the current lease.
+    owner.handler.postDelayed(this,LookaheadHandoffPolicy.RECHECK_MS);return;
+   }
    long progressAge=lookaheadPrefetchProgressAt<0?-1:Math.max(0,now-lookaheadPrefetchProgressAt);
    if(LookaheadHandoffPolicy.keepInFlight(now,waitStartedAt,lookaheadPrefetchProgressAt,bytes,lookaheadPrefetchPhase)){
     LogStore.log("replacement_lookahead_current_inflight_retained",LogStore.map(
