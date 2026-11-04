@@ -123,10 +123,14 @@ if ('&&!(newlyAttached&&coldJoinExclusiveExperiment&&!sourceSeekedThisTrack)' no
 activity=(root/'RecorderActivity.java').read_text()
 if 'requestJoinExperiment' in activity or 'save.setOnLongClickListener' in activity or 'celikom-join-lab' in activity:
     raise AssertionError('Save diagnostics must have no hidden ordinary/linear mode selector')
-if ('streaming.holdPrefetchForSeek();' not in fade
-    or 'streaming.releasePrefetchAfterSeek();' not in fade
+if ('streaming.holdPrefetchForSeek();' not in engine
+    or 'streaming.holdPrefetchForSeek();' in fade
+    or 'streaming.releasePrefetchAfterSeek();streaming.prefetch();' not in fade
+    or 'streaming.hasPlayableRunway(target,owner.current.duration)' not in fade
     or 'void holdPrefetchForSeek(' not in (root/'BufferedAudio.java').read_text()):
-    raise AssertionError('partial-stream alignment must suspend background prefetch until verified handover')
+    raise AssertionError('Test.32 seek owns foreground priority, but muted handover must keep prefetch running until verified runway')
+if 'if(originalMix>0.001f){' not in engine or 'setAuditedVolume(player,0f);fade(true,true);' not in engine:
+    raise AssertionError('Test.32 forbids full-volume source-to-replacement regrant without a handover')
 if 'restoreScrubSourceAtDeadline(' in engine or 'boolean shortScrub=' in engine:
     raise AssertionError('0.3.65 muted-source seek deadline cannot be reintroduced')
 if 'pendingStreamScrubJoin=true;' in engine:

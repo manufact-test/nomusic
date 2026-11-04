@@ -6,7 +6,8 @@ public class TestStreamingEngine {
  static int checks;static void check(boolean b,String why){checks++;if(!b)throw new AssertionError(why);}
  static class Buffer extends BufferedAudio {
   Runnable beforeClose;public void close(){if(beforeClose!=null){Runnable r=beforeClose;beforeClose=null;r.run();}super.close();}
-  boolean waiting;Buffer()throws Exception{super(File.createTempFile("celikom-stream-engine-",".test"),()->{throw new IOException("unused fake transport");},()->true,()->SystemClock.now,(n,b)->{});size=BLOCK*2;present.set(0);}
+  boolean waiting,runwayReady=true;Buffer()throws Exception{super(File.createTempFile("celikom-stream-engine-",".test"),()->{throw new IOException("unused fake transport");},()->true,()->SystemClock.now,(n,b)->{});size=BLOCK*2;present.set(0);}
+  synchronized boolean hasPlayableRunway(long positionMs,long durationMs){return runwayReady;}
   public void prefetch(){}boolean stalled(){return waiting;}
  }
  static Buffer start()throws Exception{TestEngine.reset("ALBUM");TestEngine.api.useStreaming=true;TestEngine.e.arm();TestEngine.resolve();Buffer audio=new Buffer();TestEngine.api.streamed.done(audio,null);TestEngine.e.player.prepared.onPrepared(TestEngine.e.player);return audio;}

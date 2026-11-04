@@ -153,6 +153,30 @@ class BufferedAudio implements Closeable {
  synchronized int nextPrefetchBlock(){int count=blocks();if(count==0)return -1;int cursor=Math.max(0,Math.min(count-1,playbackBlock));for(int b=cursor;b<count;b++)if(!present.get(b))return b;for(int b=0;b<cursor;b++)if(!present.get(b))return b;return -1;}
  int blocks(){return size<0?0:(int)((size+BLOCK-1)/BLOCK);}
  synchronized boolean complete(){return size>0&&present.cardinality()==blocks();}
+ /** Verified contiguous future bytes, not the sum of unrelated cached ranges.
+  * Position is only a byte-offset estimate for VBR MP3; it cannot establish
+  * exact decoder presentation or PCM phase. The foreground reader always wins
+  * over this speculative preparation, and complete files bypass the estimate. */
+ synchronized long contiguousAhead(long positionMs,long durationMs){
+  if(closed||size<=0||durationMs<=0||positionMs<0)return 0;
+  if(complete())return Math.max(0,size-Math.min(size-1,(long)((double)size*Math.min(positionMs,durationMs)/durationMs)));
+  int start=(int)(Math.min(size-1,(long)((double)size*Math.min(positionMs,durationMs)/durationMs))/BLOCK);
+  if(!present.get(start))return 0;
+  long end=(long)start*BLOCK;
+  for(int block=start;block<blocks()&&present.get(block);block++)end=Math.min(size,((long)block+1)*BLOCK);
+  return Math.max(0,end-Math.min(size-1,(long)((double)size*Math.min(positionMs,durationMs)/durationMs)));
+ }
+ synchronized long runwayTargetBytes(long positionMs,long durationMs){
+  if(size<=0||durationMs<=0)return Long.MAX_VALUE;
+  long remaining=Math.max(0,durationMs-positionMs);
+  long estimated=(long)Math.ceil((double)size*Math.min(12000,remaining)/durationMs);
+  return Math.min(Math.max(0,size-(long)((double)size*Math.min(positionMs,durationMs)/durationMs)),
+    Math.min(1048576L,Math.max(524288L,estimated)));
+ }
+ synchronized boolean hasPlayableRunway(long positionMs,long durationMs){
+  if(closed||size<=0||durationMs<=0)return false;
+  return complete()||contiguousAhead(positionMs,durationMs)>=runwayTargetBytes(positionMs,durationMs);
+ }
  /** Conservative evidence for a native, still-audible MediaPlayer seek.
   * Sparse files are laid out by BYTE, not by time; MP3 may be VBR. This is
   * only an eligibility hint (not proof of decoder data readiness): require
