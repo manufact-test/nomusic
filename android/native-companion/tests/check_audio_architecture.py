@@ -6,6 +6,18 @@ engine=(root/'ReplacementEngine.java').read_text()
 owner=(root/'AudioOwnership.java').read_text()
 service=(root/'ProbeService.java').read_text()
 api=(root/'NativeApi.java').read_text()
+# Test.23 cherry-picks only Test.16 anonymous observation and Test.17 bounded verified cache.
+# Unproven extra direct session controller and Test.22 transport must never enter baseline.
+if 'directSessionObserver' in service or 'DirectSessionObserver' in service:
+    raise AssertionError('Test.17 direct Media3 observer must not be active in safe merged Test.23')
+if 'FastAudioTransfer' in api:
+    raise AssertionError('Test.22 experimental multi-range transport must not enter Test.23')
+if ('replacement_lookahead_cache_reused' not in engine
+    or 'replacement_interrupted_file_retained' not in engine
+    or 'retainInterruptedCompleteFile(reason);' not in engine):
+    raise AssertionError('Test.17 complete-file cache reuse and retention must be present')
+
+
 if ('final ExecutorService audioWork=Executors.newSingleThreadExecutor()' not in api
     or 'prefetchAudioWork' in api
     or 'enqueueDownload(audioWork,"current"' not in api
@@ -102,6 +114,12 @@ if 'if(originalMix<=0.001f&&!seekHoldActive)' not in fade or 'seekHoldActive=fal
     raise AssertionError('completed handover must revoke any previous seek/owner lease')
 if 'fade(newlyAttached||pendingStreamScrubJoin)' not in engine or 'else if(newlyAttached){setAuditedVolume(player,0f);fade(true);}' not in engine:
     raise AssertionError('every new session attachment including long-pause resume must use the one clock-gated entry')
+if ('platform_audio_activity_observed' not in service
+    or 'registerAudioPlaybackCallback(playbackActivityObserver,handler)' not in service
+    or '"observationOnly",true,"audioCommandSent",false' not in service
+    or 'startPlaybackActivityObserver()' not in service
+    or 'stopPlaybackActivityObserver()' not in service):
+    raise AssertionError('playback callback must be anonymous, read-only and disposable')
 if 'media3Router.discontinuity(' not in service or 'media3Router.mediaItem(' not in service:
     raise AssertionError('real ProbeService listeners must use the same Media3 router exercised by the HONOR replay')
 if 'audioOwner.commandCurrent(handoverTicket' not in fade or 'token!=transition' not in fade:

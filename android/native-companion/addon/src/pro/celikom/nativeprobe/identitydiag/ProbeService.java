@@ -3,6 +3,8 @@ import android.app.*;
 import android.content.*;
 import android.content.pm.*;
 import android.media.AudioManager;
+import android.media.AudioAttributes;
+import android.media.AudioPlaybackConfiguration;
 import android.media.audiofx.AudioEffect;
 import android.os.*;
 import android.net.*;
@@ -44,7 +46,7 @@ public class ProbeService extends Service {
   try{NotificationManager nm=getSystemService(NotificationManager.class);nm.createNotificationChannel(new NotificationChannel("diagnostic_v2","Воспроизведение CELIKOM",NotificationManager.IMPORTANCE_LOW));if(Build.VERSION.SDK_INT>=34)startForeground(220,notification(),ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE);else startForeground(220,notification());LogStore.begin();try{Class<?> store=Class.forName("pro.celikom.nativeprobe.ProbeStore");store.getMethod("setEnabled",android.content.Context.class,boolean.class).invoke(store.getField("INSTANCE").get(null),this,true);}catch(Exception e){LogStore.log("native_audio_observation","Could not enable existing audio-session observation");}albumProbe=new AlbumProbe(this);replacement=new ReplacementEngine(this);if(LogStore.active){Map<String,Object> state=runtimeSnapshot("service_start_command_created");state.put("startId",id);state.put("flags",flags);state.put("armExtra",i!=null&&i.getBooleanExtra("arm",false));LogStore.log("service_start_command",state);}
    File[] old=getCacheDir().listFiles((dir,name)->(name.startsWith("replacement-")||name.startsWith("buffered-"))&&name.endsWith(".audio"));if(old!=null)for(File f:old)f.delete();
    PowerManager pm=getSystemService(PowerManager.class);wake=pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK,"CELIKOM:playback");wake.setReferenceCounted(false);wake.acquire(90000);
-   IntentFilter filter=new IntentFilter(AudioEffect.ACTION_OPEN_AUDIO_EFFECT_CONTROL_SESSION);filter.addAction(AudioEffect.ACTION_CLOSE_AUDIO_EFFECT_CONTROL_SESSION);filter.addAction(AudioManager.ACTION_AUDIO_BECOMING_NOISY);if(Build.VERSION.SDK_INT>=33)registerReceiver(audio,filter,Context.RECEIVER_EXPORTED);else registerReceiver(audio,filter);receiverRegistered=true;
+   IntentFilter filter=new IntentFilter(AudioEffect.ACTION_OPEN_AUDIO_EFFECT_CONTROL_SESSION);filter.addAction(AudioEffect.ACTION_CLOSE_AUDIO_EFFECT_CONTROL_SESSION);filter.addAction(AudioManager.ACTION_AUDIO_BECOMING_NOISY);if(Build.VERSION.SDK_INT>=33)registerReceiver(audio,filter,Context.RECEIVER_EXPORTED);else registerReceiver(audio,filter);receiverRegistered=true;startPlaybackActivityObserver();
    PackageInfo p=getPackageManager().getPackageInfo(LogStore.PKG,0);LogStore.log("environment",LogStore.map("manufacturer",Build.MANUFACTURER,"model",Build.MODEL,"api",Build.VERSION.SDK_INT,"android",Build.VERSION.RELEASE,"yandexVersion",p.versionName,"yandexVersionCode",p.getLongVersionCode()));LogStore.log("build_policy",LogStore.map("notificationListener",false,"accessibility",false,"sms",false,"microphone",false,"accountPasswordsLogged",false,"replacementRequiresUserStart",true,"durationLimited",false,"apiOrigin",ApiContract.ORIGIN));
    connectivity=getSystemService(ConnectivityManager.class);try{connectivity.registerDefaultNetworkCallback(networkCallback);networkRegistered=true;}catch(RuntimeException e){LogStore.error("network_callback",e);}connect();handler.post(tick);handler.post(notificationTick);if(i!=null&&i.getBooleanExtra("arm",false))beginTrial();NativeApi.get(this).check((j,e)->{if(alive())LogStore.log("server_preflight",LogStore.map("ok",e==null,"errorCode",e,"signedIn",NativeApi.get(this).signedIn()));});
   }catch(Throwable e){LogStore.error("service_start",e);finish("start_failed");}return START_NOT_STICKY;
@@ -62,6 +64,46 @@ public class ProbeService extends Service {
      "senderUidVerified",verifiedSender,"newSessionTrusted",false,"audioCommandSent",true));
    replacement.stop("yandex_audio_session_changed");
   }}};
+ /* Public API26 playback trace. Other applications are anonymized and cannot be identified.
+   Counts are diagnostics only; never infer source seek/pause or issue audio commands. */
+ AudioManager.AudioPlaybackCallback playbackActivityObserver;
+ boolean playbackActivityRegistered;
+ int lastPlatformMediaActive=-1,lastPlatformOtherActive=-1;
+ void startPlaybackActivityObserver(){
+  if(Build.VERSION.SDK_INT<26||playbackActivityRegistered)return;
+  AudioManager manager=getSystemService(AudioManager.class);
+  if(manager==null)return;
+  playbackActivityObserver=new AudioManager.AudioPlaybackCallback(){
+   @Override public void onPlaybackConfigChanged(List<AudioPlaybackConfiguration> configs){
+    if(!alive()||!LogStore.active||configs==null)return;
+    int media=0,other=0;
+    for(AudioPlaybackConfiguration config:configs){
+     if(config==null||config.getAudioAttributes()==null)continue;
+     if(config.getAudioAttributes().getUsage()==AudioAttributes.USAGE_MEDIA)media++;else other++;
+    }
+    if(media==lastPlatformMediaActive&&other==lastPlatformOtherActive)return;
+    lastPlatformMediaActive=media;lastPlatformOtherActive=other;
+    PlaybackSource source=current;ReplacementEngine engine=replacement;
+    boolean decoderPlaying=false;
+    try{decoderPlaying=engine!=null&&engine.player!=null&&engine.player.isPlaying();}catch(RuntimeException ignored){}
+    LogStore.log("platform_audio_activity_observed",LogStore.map(
+     "activeMediaPlayers",media,"activeOtherPlayers",other,
+     "sourceAlias",source==null?null:source.alias,
+     "media3Playing",source!=null&&source.playing,"replacementDecoderPlaying",decoderPlaying,
+     "identityAvailable",false,"positionAvailable",false,"sourceAppIdentified",false,
+     "observationOnly",true,"audioCommandSent",false));
+   }
+  };
+  try{manager.registerAudioPlaybackCallback(playbackActivityObserver,handler);playbackActivityRegistered=true;}
+  catch(RuntimeException e){playbackActivityObserver=null;LogStore.log("platform_audio_activity_unavailable",LogStore.map("reason",e.getClass().getSimpleName()));}
+ }
+ void stopPlaybackActivityObserver(){
+  if(!playbackActivityRegistered)return;
+  playbackActivityRegistered=false;
+  try{getSystemService(AudioManager.class).unregisterAudioPlaybackCallback(playbackActivityObserver);}
+  catch(RuntimeException ignored){}
+  playbackActivityObserver=null;
+ }
  boolean screenInteractive(){PowerManager power=(PowerManager)getSystemService(POWER_SERVICE);return power!=null&&power.isInteractive();}
  boolean verifiedSessionSender(BroadcastReceiver receiver){
   // Package/session extras alone are not caller authentication. On older Android,
@@ -307,7 +349,7 @@ public class ProbeService extends Service {
  void beginTrial(){if(replacement==null)return;stopService(new Intent().setClassName(this,"pro.celikom.nativeprobe.AttenuationService"));if(Build.VERSION.SDK_INT>=34)try{startForeground(220,notification(),ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE|ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK);}catch(RuntimeException e){replacement.status="Android не разрешил запустить воспроизведение";return;}replacement.arm();}
  static void refreshSessions(){ProbeService p=instance;if(p!=null)p.handler.post(p::sampleNow);}
  void sampleNow(){sample(true);}
- void finish(String reason){if(stopping)return;if(LogStore.active){Map<String,Object> state=runtimeSnapshot("service_finish_requested");state.put("finishReason",reason);LogStore.log("service_finish_requested",state);}stopping=true;handler.removeCallbacksAndMessages(null);if(wake!=null&&wake.isHeld())wake.release();if(replacement!=null)replacement.close();if(albumProbe!=null)albumProbe.close();LogStore.end(reason);stopForeground(STOP_FOREGROUND_REMOVE);stopSelf();}
+ void finish(String reason){if(stopping)return;if(LogStore.active){Map<String,Object> state=runtimeSnapshot("service_finish_requested");state.put("finishReason",reason);LogStore.log("service_finish_requested",state);}stopping=true;stopPlaybackActivityObserver();handler.removeCallbacksAndMessages(null);if(wake!=null&&wake.isHeld())wake.release();if(replacement!=null)replacement.close();if(albumProbe!=null)albumProbe.close();LogStore.end(reason);stopForeground(STOP_FOREGROUND_REMOVE);stopSelf();}
  public void onTaskRemoved(Intent root){if(LogStore.active){Map<String,Object> state=runtimeSnapshot("task_removed");LogStore.log("service_task_removed",state);}LogStore.log("task_removed","foreground playback retained until explicit Stop or Android service destruction");}
- public void onDestroy(){if(LogStore.active){Map<String,Object> state=runtimeSnapshot("service_destroying");LogStore.log("service_destroying",state);}stopping=true;if(replacement!=null)replacement.close();if(albumProbe!=null)albumProbe.close();LogStore.end("service_destroyed");if(networkRegistered)try{connectivity.unregisterNetworkCallback(networkCallback);}catch(RuntimeException ignored){}handler.removeCallbacksAndMessages(null);disconnectLegacyPosition();if(connecting!=null)connecting.cancel(false);if(controller!=null)controller.release();controller=null;current=null;if(receiverRegistered)try{unregisterReceiver(audio);}catch(RuntimeException ignored){}if(wake!=null&&wake.isHeld())wake.release();if(instance==this)instance=null;super.onDestroy();}
+ public void onDestroy(){if(LogStore.active){Map<String,Object> state=runtimeSnapshot("service_destroying");LogStore.log("service_destroying",state);}stopping=true;stopPlaybackActivityObserver();if(replacement!=null)replacement.close();if(albumProbe!=null)albumProbe.close();LogStore.end("service_destroyed");if(networkRegistered)try{connectivity.unregisterNetworkCallback(networkCallback);}catch(RuntimeException ignored){}handler.removeCallbacksAndMessages(null);disconnectLegacyPosition();if(connecting!=null)connecting.cancel(false);if(controller!=null)controller.release();controller=null;current=null;if(receiverRegistered)try{unregisterReceiver(audio);}catch(RuntimeException ignored){}if(wake!=null&&wake.isHeld())wake.release();if(instance==this)instance=null;super.onDestroy();}
 }

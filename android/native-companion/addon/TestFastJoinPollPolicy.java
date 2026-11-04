@@ -6,6 +6,8 @@ public final class TestFastJoinPollPolicy {
   return FastJoinPollPolicy.eligible(true,now,deadline,armed,true,true,effect,true,playing,identity);
  }
  public static void main(String[] args){
+  check(FastJoinPollPolicy.STEP_MS==30&&FastJoinPollPolicy.INITIAL_MS==15,
+   "bounded fast sampling never relaxes the clock gate");
   check(can(110,1200,true,false,true,true),"fresh muted decoder gets prompt observer");
   check(can(1200,1200,true,false,true,true),"last sample before deadline allowed");
   check(!can(1201,1200,true,false,true,true),"deadline prevents long-term aggressive polling");
