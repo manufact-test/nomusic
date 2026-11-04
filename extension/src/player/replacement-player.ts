@@ -247,14 +247,15 @@ function createGainChain(context, audio, db) {
         const failure=new Error(reason);failure.streamDetail={...this.streamState};abort.abort();throw failure;
       }finally{this.environment.clearTimeout(timer);}
     }
-    async prepare(asset) {
+    async prepare(asset, options = {}) {
       this.demoLoop = asset.demoLoop === true;
       this.audio.loop = this.demoLoop;
       const parent = this.environment.document.documentElement;
       if (!parent) throw new Error("Document root is unavailable");
       parent.append(this.audio);
       let sourceUrl = asset.url;
-      if (!this.demoLoop && ["audio/mp4","audio/wav","audio/x-wav"].includes(asset.mimeType)) {
+      if (!this.demoLoop && (["audio/mp4","audio/wav","audio/x-wav"].includes(asset.mimeType)
+          || (options.completeMp3 === true && asset.mimeType === "audio/mpeg"))) {
         if (!this.audio.canPlayType(asset.mimeType === 'audio/mp4' ? 'audio/mp4; codecs="mp4a.40.2"' : asset.mimeType)) throw new Error("remote-format-unsupported");
         this.fetchAbort = new this.environment.AbortController();
         const blob = await this.fetchNativeAsset(asset);
@@ -327,7 +328,7 @@ function createGainChain(context, audio, db) {
         });
       }
       await ready;
-      if (asset.mimeType === "audio/mp4" && Math.abs(this.audio.duration*1000-asset.durationMs)>1500) throw new Error("duration-mismatch");
+      if (!this.demoLoop && !this.mediaSource && Math.abs(this.audio.duration*1000-asset.durationMs)>1500) throw new Error("duration-mismatch");
       const gainDb=asset.gainDb??0;
       if(!Number.isFinite(gainDb)||gainDb< -12||gainDb>12)throw new Error("invalid_audio_gain");
       if(gainDb!==0){
@@ -352,6 +353,41 @@ function createGainChain(context, audio, db) {
         networkState:audio.networkState, muted:audio.muted, volume:audio.volume,
         playPending:this.playPending, wantPlay:this.wantPlay, buffered,
         gainContext:this.gainContext?.state || null, stream:{...this.streamState} };
+    }
+    async prepareCompleteJoin(snapshot, refreshSnapshot) {
+      /* Mid-song adoption uses a complete native file, never an unbuffered MSE
+         seek. Keep the original audible until a fresh position is decoded. */
+      if (this.mediaSource || !this.blobUrl || this.destroyed) throw new Error("complete-join-unavailable");
+      const {projectTime,targetTime,driftAt}=root.__CELIKOM_SYNC_ENGINE_V1__;
+      this.audio.muted=true;
+      const deadline=Date.now()+2500;
+      for(let attempt=0;attempt<3;attempt++) {
+        if(this.destroyed)throw new Error("Replacement cancelled");
+        const remaining=deadline-Date.now();if(remaining<=0)throw new Error("complete-join-timeout");
+        const target=targetTime(projectTime(snapshot.player,snapshot.observedAt,Date.now()),this.audio.duration,this.demoLoop);
+        await new Promise((resolve,reject)=>{
+          let timer=null;
+          const finish=error=>{
+            this.environment.clearTimeout(timer);this.cancelCompleteJoin=null;
+            for(const name of ["seeked","canplay"])this.audio.removeEventListener(name,ready);
+            this.audio.removeEventListener("error",failed);
+            if(error)reject(error);else resolve();
+          };
+          const ready=()=>{if(!this.audio.seeking&&this.audio.readyState>=3)finish();};
+          const failed=()=>finish(new Error("complete-join-timeout"));
+          this.cancelCompleteJoin=()=>finish(new Error("Replacement cancelled"));
+          for(const name of ["seeked","canplay"])this.audio.addEventListener(name,ready);
+          this.audio.addEventListener("error",failed);timer=this.environment.setTimeout(failed,remaining);
+          try{this.audio.currentTime=target;ready();}catch(error){finish(error);}
+        });
+        if(this.destroyed)throw new Error("Replacement cancelled");
+        snapshot=await refreshSnapshot();
+        if(this.destroyed)throw new Error("Replacement cancelled");
+        if(snapshot.player.seeking)throw new Error("complete-join-timeout");
+        const targetNow=targetTime(projectTime(snapshot.player,snapshot.observedAt,Date.now()),this.audio.duration,this.demoLoop);
+        if(Math.abs(driftAt(this.audio.currentTime,targetNow,this.audio.duration,this.demoLoop))<=80)return;
+      }
+      throw new Error("complete-join-timeout");
     }
     applyState(player) {
       this.audio.volume = Math.min(1, Math.max(0, player.volume));
@@ -381,6 +417,7 @@ function createGainChain(context, audio, db) {
       this.destroyed = true;
       this.fetchAbort?.abort();
       this.cancelLoad?.();
+      this.cancelCompleteJoin?.();
       this.streamTask = null;
       this.sourceBuffer = null;
       this.mediaSource = null;

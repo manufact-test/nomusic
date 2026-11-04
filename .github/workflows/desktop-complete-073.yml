@@ -1,0 +1,47 @@
+name: Desktop 0.4.73 complete file live join Chrome and Brave
+on:
+  push:
+    branches: [feature/desktop-073-complete-file-live-join-20261104]
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CELIKOM_API_BASE_URL: https://darkred-camel-588676.hostingersite.com
+      REQUIRE_BROWSER_AUDIO: "1"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - name: Install encoder and official Brave release
+        run: |
+          sudo curl -fsSLo /usr/share/keyrings/brave-browser-archive-keyring.gpg https://brave-browser-apt-release.s3.brave.com/brave-browser-archive-keyring.gpg
+          sudo curl -fsSLo /etc/apt/sources.list.d/brave-browser-release.sources https://brave-browser-apt-release.s3.brave.com/brave-browser.sources
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends ffmpeg brave-browser
+          brave-browser --version
+          google-chrome --version
+      - name: Desktop regression tests
+        run: npm --prefix extension test
+      - name: Real Chrome media and complete-file live approval
+        env:
+          CELIKOM_BROWSER_BINARY: /usr/bin/google-chrome
+        run: node scripts/test-audio-gain-browser.mjs
+      - name: Real Brave media and complete-file live approval
+        env:
+          CELIKOM_BROWSER_BINARY: /usr/bin/brave-browser
+        run: node scripts/test-audio-gain-browser.mjs
+      - name: Validate and package desktop only
+        run: |
+          npm run lint
+          npm --prefix extension run validate
+          npm --prefix extension run build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: celikom-desktop-0.4.73-complete-file-join
+          path: extension/dist/celikom-extension-0.4.73.zip

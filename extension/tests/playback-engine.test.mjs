@@ -669,3 +669,21 @@ test('live adoption uses legacy guard and sync without the rejected prepareJoin 
  assert.equal(typeof ReplacementPlayer.prototype.prepareJoin,'undefined');
  assert.equal(f.players.length,1);f.engine.destroy();
 });
+
+test('newly approved mid-song MP3 uses complete-file preparation and fresh alignment before original guard',async()=>{
+ const f=fixture(),create=f.engine.createPlayer,gate=deferred();let complete=false,aligns=0;
+ f.engine.resolveAsset=async()=>({...remoteAsset(),mimeType:'audio/mpeg'});
+ f.engine.createPlayer=fatal=>{const p=create(fatal),prepare=p.prepare;p.prepare=async(asset,options)=>{complete=options.completeMp3;await prepare(asset);};p.prepareCompleteJoin=async(_snapshot,refresh)=>{aligns++;await gate.promise;const s=await refresh();p.audio.currentTime=s.player.currentTime;};return p;};
+ f.engine.configure(true,'');f.engine.negativeResolution={trackId:'2',until:Date.now()-1};f.update(snapshot());await settle();
+ assert.equal(complete,true);assert.equal(f.requests.some(r=>r.type==='GUARD_ENGAGE'),false);
+ const moved=snapshot();moved.player.currentTime=25;f.update(moved);gate.resolve();await settle();
+ assert.equal(f.engine.phase,'REPLACEMENT_ACTIVE');assert.equal(f.players.length,1);assert.equal(aligns,1);
+ assert.ok(Math.abs(f.players[0].audio.currentTime-25)<.1);f.engine.destroy();
+});
+test('complete-file mode cannot alter accepted guarded intro preparation',async()=>{
+ const f=fixture(),create=f.engine.createPlayer;let complete;
+ f.engine.resolveAsset=async()=>({...remoteAsset(),mimeType:'audio/mpeg'});
+ f.engine.createPlayer=fatal=>{const p=create(fatal),prepare=p.prepare;p.prepare=async(asset,options)=>{complete=options.completeMp3;await prepare(asset);};p.prepareCompleteJoin=()=>{throw Error('intro must never use complete join');};return p;};
+ f.engine.configure(true,'');const s=snapshot();s.player.currentTime=.1;s.guard={active:true};f.update(s);await settle();
+ assert.equal(complete,false);assert.equal(f.engine.phase,'REPLACEMENT_ACTIVE');f.engine.destroy();
+});

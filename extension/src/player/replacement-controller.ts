@@ -147,6 +147,7 @@
     async prepare() {
       const snapshot = this.snapshot;
       const operation = { startedAt:Date.now(),stage:"resolving",generation: ++this.generation, token: `${this.bridge.sessionId}:${this.generation}`, trackId: snapshot.track.id, mediaId: snapshot.player.mediaId, sync: new this.SyncEngine(), player: null };
+      operation.wasUnavailable = this.negativeResolution?.trackId === operation.trackId;
       this.operation = operation;
       this.phase = "PREPARING";
       this.log(`PREPARING · ${operation.trackId}`);
@@ -168,7 +169,15 @@
           throw new Error("replacement_duration_or_token_invalid");
         }
         if (!operation.asset.demoLoop) this.event("replacement_available", { service: "yandex" });
-        if (this.snapshot?.guard?.transitioning && this.eligible()) {
+        operation.completeJoin = operation.wasUnavailable && !operation.asset.demoLoop && operation.asset.mimeType === "audio/mpeg"
+          && this.snapshot?.player?.currentTime > 0.25;
+        if(operation.completeJoin && this.snapshot?.guard?.transitioning) {
+          await this.bridge.request("GUARD_TRANSITION_END",{token:operation.token,trackId:operation.trackId,mediaId:operation.mediaId});
+          if(!this.current(operation))return;
+          this.update(await this.bridge.getSnapshot());
+          if(!this.current(operation))return;
+        }
+        if (!operation.completeJoin && this.snapshot?.guard?.transitioning && this.eligible()) {
           await this.bridge.request("GUARD_ENGAGE", {token:operation.token,trackId:operation.trackId,mediaId:operation.mediaId,preparing:true});
           if (!this.current(operation)) { this.bridge.post("RELEASE_NOW", {token:operation.token}); return; }
         }
@@ -176,7 +185,7 @@
         operation.stage="loading";
         operation.player = this.createPlayer((reason, detail) => { if (this.current(operation)) this.abort(reason, true, detail); });
         if(operation.player.audio?.dataset)operation.player.audio.dataset.celikomTrackId=operation.trackId;
-        await operation.player.prepare(operation.asset);
+        await operation.player.prepare(operation.asset, {completeMp3:operation.completeJoin});
         if (!operation.asset.demoLoop && Math.abs(operation.player.audio.duration * 1000 - operation.asset.durationMs) > 1500) throw new Error("replacement_duration_mismatch");
         if (!this.current(operation)) return;
         operation.loadedAt = Date.now();
@@ -192,6 +201,23 @@
       try {
         this.update(await this.bridge.getSnapshot());
         if (!this.current(operation) || !this.eligible()) return;
+        if(operation.completeJoin && !operation.joinAligned) {
+          operation.stage="aligning-complete-file";
+          await operation.player.prepareCompleteJoin(this.snapshot, async()=>{
+            if(!this.current(operation))throw new Error("Replacement cancelled");
+            this.update(await this.bridge.getSnapshot());
+            if(!this.current(operation))throw new Error("Replacement cancelled");
+            if(!this.eligible())throw new Error("complete-join-timeout");
+            return this.snapshot;
+          });
+          if(!this.current(operation))return;
+          this.update(await this.bridge.getSnapshot());
+          if(!this.current(operation)||!this.eligible())return;
+          const {projectTime,targetTime,driftAt}=root.__CELIKOM_SYNC_ENGINE_V1__,audio=operation.player.audio;
+          const target=targetTime(projectTime(this.snapshot.player,this.snapshot.observedAt,Date.now()),audio.duration,false);
+          if(this.snapshot.player.seeking||Math.abs(driftAt(audio.currentTime,target,audio.duration,false))>100)return;
+          operation.joinAligned=true;
+        }
         operation.stage="guarding";
         const guard = await this.bridge.request("GUARD_ENGAGE", { token: operation.token, trackId: operation.trackId, mediaId: operation.mediaId });
         if (!this.current(operation)) { this.bridge.post("RELEASE_NOW", { token: operation.token }); return; }
@@ -210,14 +236,14 @@
         if (!operation.asset.demoLoop) this.event("replacement_started", { service: "yandex" });
         this.lastError = null;
         this.log(`REPLACEMENT_ACTIVE · ${operation.trackId}`);
-        this.reconcile(true);
+        this.reconcile(!operation.joinAligned);
       } catch (error) { if (this.current(operation)) this.abort(error.message, true, error.streamDetail || null); }
       finally { operation.activating = false; }
     }
     abort(reason, blockTrack = false, detail = null) {
       const operation = this.operation;
       if (blockTrack) { this.blockedTrackId = operation?.trackId || this.snapshot?.track?.id; this.lastError = reason; this.publishPolicy(); }
-      const transientNetwork = ["remote-stream-route-blocked", "remote-stream-network", "remote-stream-timeout", "replacement-load-timeout", "api_network_error", "api_server_error", "api_unavailable"].includes(reason)
+      const transientNetwork = ["complete-join-timeout", "remote-stream-route-blocked", "remote-stream-network", "remote-stream-timeout", "replacement-load-timeout", "api_network_error", "api_server_error", "api_unavailable"].includes(reason)
         || (reason === "remote-stream-http" && [429, 500, 502, 503, 504].includes(detail?.httpStatus))
         || (reason === "replacement-media-error" && detail?.mediaErrorCode === 2);
       if (blockTrack && (["bridge-timeout", "bridge-unhealthy", "snapshot-stale", "master-clock-stalled", "master-error", "audio-token-expired", "guard-lost:master-error"].includes(reason)

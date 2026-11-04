@@ -2,10 +2,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 await import('../dist/unpacked/player/replacement-player.js');
 const {ReplacementPlayer}=globalThis.__CELIKOM_REPLACEMENT_PLAYER_V1__;
-function fixture({size=2500000}={}){
+function fixture({size=2500000,mimeType="audio/mp4"}={}){
  let active=0,peak=0,calls=0,tag='"'+'a'.repeat(64)+'-1"',status=206,oversize=false,failures=new Map();const offsets=[];
  const bytes=Uint8Array.from({length:size},(_,i)=>i%251);
- const asset={url:'https://private.example/api/v1/audio/27?token=current',replacementId:27,version:1,mimeType:'audio/mp4'};
+ const asset={url:'https://private.example/api/v1/audio/27?token=current',replacementId:27,version:1,mimeType};
  const env={document:{createElement:()=>({dataset:{},addEventListener(){}})},setTimeout:(fn,ms)=>setTimeout(fn,[500,1000].includes(ms)?1:ms),clearTimeout,AbortController,fetch:async(url,options)=>{
   calls++;active++;peak=Math.max(peak,active);await new Promise(r=>setTimeout(r,2));active--;
   if(options.signal.aborted)throw new Error('Replacement cancelled');
@@ -14,7 +14,7 @@ function fixture({size=2500000}={}){
   const [,a,b]=/^bytes=(\d+)-(\d+)$/.exec(options.headers.Range),from=Number(a),last=Math.min(Number(b),size-1);
   offsets.push(from);const result=failures.get(from)?.shift()??status;
   if(result!==206)return new Response('{}',{status:result,headers:{'content-type':'application/json'}});
-  return new Response(oversize?new Uint8Array(last-from+2):bytes.slice(from,last+1),{status:206,headers:{'content-type':'audio/mp4','content-range':`bytes ${from}-${last}/${size}`,'etag':tag}});
+  return new Response(oversize?new Uint8Array(last-from+2):bytes.slice(from,last+1),{status:206,headers:{'content-type':mimeType,'content-range':`bytes ${from}-${last}/${size}`,'etag':tag}});
  }};
  const player=()=>{const p=new ReplacementPlayer(env,()=>{});p.fetchAbort=new AbortController();return p};
  return {asset,bytes,player,get calls(){return calls},get peak(){return peak},setTag:v=>tag=v,setStatus:v=>status=v,offsets,fail:(offset,sequence)=>failures.set(offset,sequence),overflow:()=>oversize=true};
@@ -45,4 +45,11 @@ test('M4A retries remain bounded and never retry a revoked signed response',asyn
  await assert.rejects(p.fetchNativeAsset(f.asset),error=>error.message==='remote-stream-http'&&error.streamDetail.httpStatus===503&&error.streamDetail.attempt===3);
  assert.equal(f.calls,3);
  f.setStatus(403);const before=f.calls;await assert.rejects(f.player().fetchNativeAsset(f.asset),/remote-stream-http/);assert.equal(f.calls,before+1);
+});
+
+test('approved complete MP3 is byte-preserving, bounded, sequential and still enforces signed access',async()=>{
+ const f=fixture({mimeType:'audio/mpeg'}),p=f.player(),blob=await p.fetchNativeAsset(f.asset);
+ assert.equal(blob.type,'audio/mpeg');assert.deepEqual(new Uint8Array(await blob.arrayBuffer()),f.bytes);
+ assert.deepEqual(f.offsets,[0,524288]);assert.equal(f.peak,1);
+ f.setStatus(403);await assert.rejects(f.player().fetchNativeAsset(f.asset),/remote-stream-http/);
 });

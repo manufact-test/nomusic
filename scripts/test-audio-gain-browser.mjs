@@ -5,7 +5,8 @@ import {join} from 'node:path';
 import {pathToFileURL} from 'node:url';
 import {stripTypeScriptTypes} from 'node:module';
 let binary;
-for(const p of ['/usr/bin/google-chrome','/usr/bin/google-chrome-stable','/usr/bin/chromium']){try{await access(p);binary=p;break}catch{}}
+for(const p of [process.env.CELIKOM_BROWSER_BINARY,'/usr/bin/google-chrome','/usr/bin/google-chrome-stable','/usr/bin/chromium']){if(!p)continue;try{await access(p);binary=p;break}catch{}}
+if(process.env.CELIKOM_BROWSER_BINARY&&binary!==process.env.CELIKOM_BROWSER_BINARY)throw Error('Requested browser binary unavailable');
 if(!binary){if(process.env.REQUIRE_BROWSER_AUDIO==='1')throw Error('Chromium required');console.log('Audio gain native check deferred to CI');process.exit(0);}
 const directory=await mkdtemp(join(tmpdir(),'celikom-gain-'));
 try{
@@ -117,6 +118,52 @@ try{
  check(!delayed.audio.seeking&&!delayed.audio.paused&&delayed.audio.currentTime>50,'actual buffered seek resumes playback');
  check(!delayed.diagnostics().seeking&&delayed.diagnostics().stream.phase==='complete','active decoder diagnostics');
  delayed.destroy();check(fatal.length===0,'no delayed-seek fatal');
+
+ document.body.dataset.gainStep='live approval from complete native MP3 while original advances';
+ const liveMaster=document.createElement('audio');liveMaster.hidden=true;document.body.append(liveMaster);
+ const liveUrl=URL.createObjectURL(new Blob([seekBytes],{type:'audio/mpeg'}));
+ const liveLoaded=new Promise(r=>liveMaster.addEventListener('loadeddata',r,{once:true}));liveMaster.src=liveUrl;liveMaster.load();await liveLoaded;
+ const liveSeek=new Promise(r=>liveMaster.addEventListener('seeked',r,{once:true}));liveMaster.currentTime=42;await liveSeek;await liveMaster.play();
+ const liveGuard=new __CELIKOM_ORIGINAL_GUARD_V1__.OriginalAudioGuard();let liveReads=0,livePlayers=0,liveDelayed=false,liveUnlock,liveApproved=false;
+ const liveTail=new Promise(r=>liveUnlock=r);
+ const liveSnapshot=()=>({observedAt:Date.now(),track:{id:'202',confidence:260,ambiguous:false,metadata:{durationMs:60030}},guard:liveGuard.state(),
+  player:{mediaId:'approval-master',currentTime:liveMaster.currentTime,duration:liveMaster.duration,paused:liveMaster.paused,seeking:liveMaster.seeking,ended:liveMaster.ended,readyState:liveMaster.readyState,volume:liveMaster.volume,muted:liveMaster.muted,playbackRate:1}});
+ const liveBridge={sessionId:'approval-real-mp3',isHealthy:()=>true,getSnapshot:async()=>liveSnapshot(),post(){},request:async(type,payload)=>{
+  if(type==='GUARD_ENGAGE'){
+   check(!liveEngine.operation.player.mediaSource,'live join must not use MediaSource');
+   check(liveEngine.operation.player.audio.readyState>=3&&!liveEngine.operation.player.audio.seeking,'approved MP3 guard waits for completed middle seek');
+   liveGuard.engage(liveMaster,'approval-master',payload.token);return{snapshot:liveSnapshot()};
+  }
+  if(type==='GUARD_RELEASE')return liveGuard.release(payload.token);
+  return{};
+ }};
+ const liveEnvironment={...m4aEnvironment,MediaSource,fetch:async(url,options)=>{
+  const range=/^bytes=(\\d+)-(\\d+)$/.exec(options.headers.Range);const from=Number(range[1]),last=Math.min(Number(range[2]),seekBytes.length-1);
+  if(from===0)liveReads++;
+  if(from>0&&!liveDelayed){liveDelayed=true;await liveTail;}
+  return new Response(seekBytes.slice(from,last+1),{status:206,headers:{'content-type':'audio/mpeg','content-range':'bytes '+from+'-'+last+'/'+seekBytes.length}});
+ }};
+ const liveEngine=new __CELIKOM_REPLACEMENT_CONTROLLER_V1__.ReplacementController(liveBridge,liveEnvironment,{resolveAsset:async()=>liveApproved?({found:true,url:'https://private.example/just-approved',mimeType:'audio/mpeg',durationMs:60030,expiresAt:Date.now()+60000}):({found:false}),
+  createPlayer:onFatal=>{livePlayers++;return new ReplacementPlayer(liveEnvironment,onFatal);}});
+ let liveTick;
+ try{
+  liveEngine.configure(true,'');liveEngine.update(liveSnapshot());
+  for(let i=0;i<50&&!liveEngine.negativeResolution;i++)await new Promise(r=>setTimeout(r,10));
+  check(liveEngine.phase==='IDLE'&&!liveGuard.state().active,'unapproved song leaves original playing');
+  liveApproved=true;liveEngine.negativeResolution.until=Date.now()-1;liveEngine.tick();
+  liveTick=setInterval(()=>{liveEngine.update(liveSnapshot());liveEngine.tick();},100);
+  await new Promise(r=>setTimeout(r,1800));
+  check(!liveMaster.paused&&!liveMaster.muted&&liveMaster.currentTime>43,'fully downloading approved middle keeps original running beyond old join deadline');
+  check(liveEngine.phase==='PREPARING'&&livePlayers===1&&liveReads===1,'complete-file join retains one in-flight decoder without retries');
+  liveUnlock();
+  for(let i=0;i<120&&liveEngine.phase!=='REPLACEMENT_ACTIVE';i++)await new Promise(r=>setTimeout(r,50));
+  check(liveEngine.phase==='REPLACEMENT_ACTIVE'&&!liveEngine.lastError,'approved complete MP3 automatically adopts without reload');
+  const livePlayer=liveEngine.operation.player;
+  for(let i=0;i<40&&(livePlayer.audio.paused||livePlayer.audio.seeking);i++)await new Promise(r=>setTimeout(r,25));
+  check(!livePlayer.audio.paused&&!livePlayer.audio.seeking&&Math.abs(livePlayer.audio.currentTime-liveMaster.currentTime)<.35,'real approved MP3 plays aligned to current original');
+  check(livePlayers===1&&liveReads===1&&liveEngine.restoreCount===0,'approval avoids load-destroy-retry loop');
+  liveMaster.pause();liveEngine.update(liveSnapshot());check(livePlayer.audio.paused,'pause remains effective after live approval');
+ }finally{clearInterval(liveTick);liveUnlock();liveEngine.destroy();liveGuard.release();liveMaster.pause();liveMaster.remove();URL.revokeObjectURL(liveUrl);}
 
  document.body.dataset.gainStep='seeks during controller download';
  const waitUntil=async(fn,label)=>{for(let i=0;i<100;i++){if(fn())return;await new Promise(r=>setTimeout(r,30));}throw Error(label);};
@@ -238,7 +285,9 @@ try{
   if(!port)throw Error('Chrome debug port unavailable: '+launchError);
   const pages=await fetch('http://127.0.0.1:'+port+'/json/list').then(r=>r.json());const page=pages.find(x=>x.type==='page');if(!page)throw Error('Chrome page unavailable');
   socket=new WebSocket(page.webSocketDebuggerUrl);await new Promise((resolve,reject)=>{socket.onopen=resolve;socket.onerror=reject;});
-  let id=0;const pending=new Map();socket.onmessage=event=>{const m=JSON.parse(event.data);if(pending.has(m.id)){const {resolve,reject}=pending.get(m.id);pending.delete(m.id);if(m.error)reject(Error(m.error.message));else resolve(m.result);}};
+  let id=0;const pending=new Map();
+  socket.onclose=()=>{for(const {reject} of pending.values())reject(Error('Browser closed during media test: '+launchError));pending.clear();};
+  socket.onmessage=event=>{const m=JSON.parse(event.data);if(pending.has(m.id)){const {resolve,reject}=pending.get(m.id);pending.delete(m.id);if(m.error)reject(Error(m.error.message));else resolve(m.result);}};
   const call=(method,params={})=>new Promise((resolve,reject)=>{const seq=++id;pending.set(seq,{resolve,reject});socket.send(JSON.stringify({id:seq,method,params}));});
   let state;
   for(let i=0;i<400;i++){

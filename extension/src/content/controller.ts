@@ -217,7 +217,7 @@
         recovering: Boolean(this.engine.retryBlock),
         guardActive: Boolean(this.snapshot?.guard?.active),
         driftMs: this.engine.driftMs,
-        preparation: this.engine.phase === "PREPARING" && this.engine.operation ? { stage:this.engine.operation.stage, elapsedMs:Math.max(0,Date.now()-this.engine.operation.startedAt), stream:this.engine.operation.player?.streamState || null } : null,
+        preparation: this.engine.phase === "PREPARING" && this.engine.operation ? { stage:this.engine.operation.stage, completeFileJoin:this.engine.operation.completeJoin===true, elapsedMs:Math.max(0,Date.now()-this.engine.operation.startedAt), stream:this.engine.operation.player?.streamState || null } : null,
         availability: this.engine.negativeResolution?.trackId === this.snapshot?.track?.id ? "unavailable" : this.engine.operation?.asset?.found ? "available" : "unknown",
         replacementPlayer: this.engine.operation?.player?.diagnostics?.() || null,
         playback: { startupHistory: this.engine.startupHistory, activationCount: this.engine.activationCount, restoreCount: this.engine.restoreCount, lastRestore: this.engine.lastRestore },
