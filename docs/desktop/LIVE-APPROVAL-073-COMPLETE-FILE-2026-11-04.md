@@ -29,3 +29,13 @@ Dedicated workflow installs official Brave release using https://brave.com/linux
 ## Delivery
 
 Isolated branch: `feature/desktop-073-complete-file-live-join-20261104`. No stable branch update or server deployment. Version 0.4.73 only after tests pass; owner acceptance pending.
+
+## Verified delivery
+
+- Extension functional commit: `b081a2fa6c97c8a0373da6598fe08276eb757245`; final verification harness commit: `7b9c0656db9a78dd6d37af25c0c470129143c45a`.
+- Workflow `41791574411`: both jobs SUCCESS. Linux job `126445927178` passed 360 Node regressions, actual Chrome 156.0.8078.47, actual Brave 156.1.98.63, lint, manifest validation and configured ZIP build. Windows job `126445927586` passed the real Brave complete-file live-approval, ordinary media, seeking, restoration and bounded intro fixtures.
+- Earlier Brave harness invocations remained running; the final harness adds bounded RPC, stage reporting and owned child-process-tree cleanup. No audio assertions were skipped. Do not interpret an earlier incomplete harness as a reproduced owner browser crash.
+- Configured ZIP `celikom-extension-0.4.73.zip`: 2,489,476 bytes; SHA-256 `d6689e9d1e7157572e64622864d8c84ec98ec80f286e4aec4cf6fa31bee1a5b8`.
+- Persisted deliverable: `libfile_a4ccee7d8e4481919e0d5bac02be72ab`.
+- Accepted 0.4.70 MAIN intro, adapter, sync and guard files remain byte-identical. Rollback 0.4.72 was not sent for owner testing; send only 0.4.73 as the new mechanism candidate.
+- Owner acceptance PENDING. The exact whole-Brave closure was NOT reproduced and its cause is NOT proven. The changed route avoids unbuffered MSE mid-song seeking and passed all three actual browser/OS checks, but this is not a guarantee for every profile/GPU/network combination.
