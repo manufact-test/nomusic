@@ -24,6 +24,13 @@ Code inspection exposed a deterministic discrepancy: the production `Replacement
 
 Android lower-versionCode reinstalls may require removing only the test package, or a new signed higher-code recovery APK. Source commit alone is not a full rollback; original signed binary matters.
 
-## CI and signed artifact
+## CI and signed artifact — complete, awaiting owner acoustic verdict
 
-PENDING. Do not invent run ID, final source SHA, APK SHA256 or Library link. Add all facts after full successful build and independent verification.
+* **Exact source commit used in original signed APK:** `8f3bce6bb049d66ae1e30316ab4365bbd7c9f66b` on `feature/android-0385-test31-first-join-complementary-20261104`. Later documentation commits do not change the signed-source commit.
+* **[Full GitHub Actions #41891216645 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/41891216645)**, `native-android` and `build-celikom-test / build-test-app` both successful. Stable OTA jobs skipped.
+* **Original CI artifact:** `13354631240`, archive `CELIKOM-Test-0.3.85-test.31-code-86116`.
+* **[Direct original signed APK in ChatGPT Library](https://chatgpt.com/library?file_id=libfile_a4aa619bae1c819187d651fb9900ad05&account_id=personal)**, filename `CELIKOM-Android-0.3.85-TEST-31-FIRST-JOIN-CROSSFADE-SIGNED.apk`.
+* **Independently checked APK SHA-256:** `124f45abad77cd70664f557161736fa76ac997b9c3f118f350665a9a2f326522`; size `8,808,601` bytes. This file was extracted unchanged from the CI ZIP and saved to Library byte-for-byte, **not recompiled**.
+* **Original signer SHA-256:** `67fe81c56fac1c1d145344b69a0e3faf9005cf6607f4e26ca27d5926c3eefc4f` matches reference; APK signature v3 verified. Test-only package `pro.celikom.nativeprobe.test`, `0.3.85-test.31`, versionCode `86116`, label `CELIKOM Test`.
+* The original CI receipt and APK verification JSON are bundled in the GitHub Actions artifact. `stable_published=false`, `stable_ota_touched=false`, `hostinger_write_performed=false`, `physical_phone_playback_verified=false`.
+* **Owner phone audio verdict still PENDING.** Do not create any new owner-approved backup branch or present Test.31 as a verified seamless first join without listening evidence.
