@@ -2,7 +2,7 @@
 
 ## Status and scope
 
-Test.32 is one isolated owner-device experiment, not an owner-accepted acoustic release. It starts from documentation HEAD `c53935141ef20338a4b88a0ee0c1a9a62fc9e351` (Test.31 signed functional SHA `8f3bce6bb049d66ae1e30316ab4365bbd7c9f66b`). The exact Test.32 functional source SHA and CI artifact are recorded below after validation; do not substitute a subsequent docs commit for the signed-source SHA.
+Test.32 is one isolated owner-device experiment, not an owner-accepted acoustic release. It starts from documentation HEAD `c53935141ef20338a4b88a0ee0c1a9a62fc9e351` (Test.31 signed functional SHA `8f3bce6bb049d66ae1e30316ab4365bbd7c9f66b`). The exact Test.32 **signed functional source SHA** is `eb13afba0a63567a8e12e45f848b9616aaf7c749`; do not substitute a subsequent docs commit for this SHA.
 
 Branch: `feature/android-0385-test32-audio-owner-runway-20261104`. Separate package `pro.celikom.nativeprobe.test`, name `CELIKOM Test`, version `0.3.85-test.32`, code `86117` (> Test.31 code86116). Stable package `pro.celikom.nativeprobe` 0.3.85/code86 is not built, signed, published or updated by this test workflow. No manifest permission or account/Track ID change. No PC, Hostinger or OTA edits.
 
@@ -35,10 +35,12 @@ Full-file retry is intentionally safer than repeatedly stealing audio from a spa
 
 Installing Test.32 over Test.31 keeps test app data due the same package, same original signer and higher code. Installing an older code normally requires a separately signed higher-version restore or removing **only** the test package, with its app data loss. Never uninstall the stable original.
 
-## CI provenance (fill from GitHub after build)
+## Original signed APK and CI provenance — verified
 
-* Test.32 functional source SHA: PENDING.
-* Validation + signing run URL and result: PENDING.
-* Signed artifact and SHA256: PENDING.
-* APK original-signature/manifest inspection: PENDING.
-* Owner HONOR acoustic acceptance: **PENDING, NOT VERIFIED**.
+* Functional source: `eb13afba0a63567a8e12e45f848b9616aaf7c749`, exact source-tree SHA `55238a7ff22ef8b0eaa533ab9108e6d163189951` (matches local source tree).
+* Full Android SDK36/host/D8 validation and reusable separate signing: [GitHub Actions #41905656270 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/41905656270). Both native and build-test-app jobs concluded success; all stable publisher jobs skipped.
+* GitHub artifact ID `13360276684`, `CELIKOM-Test-0.3.85-test.32-code-86117`, expires after seven days; its archive SHA256 is `5a4e0a9df6504ff113833139d24aec02d01364e8b41380698feabe4268ee1707`. Do not mistake the ZIP hash for APK hash.
+* **Original signed 8,812,697-byte APK** SHA256 `d13a91dad30c57da4ce3c1d2968c99b028a61209bc53271c4b0cbde6531c505b`: [permanent Library original APK](https://chatgpt.com/library?file_id=libfile_dd79106ef740819197b3f36457d8b0c4&account_id=personal).
+* [Permanent signed-APK verification JSON](https://chatgpt.com/library?file_id=libfile_a39574e3ce648191863219c098c13d81&account_id=personal) and [immutable build receipt](https://chatgpt.com/library?file_id=libfile_bdabf36729488191a6836f23596b4d96&account_id=personal). Original signature certificate SHA256 `67fe81c56fac1c1d145344b69a0e3faf9005cf6607f4e26ca27d5926c3eefc4f`; v3 verified, matches the stable base signer (base/test v2 are false). Package, launcher label/icon, authority separation, no updater/OTA and untouched original assets verified.
+* Host tests include 7 sparse runway checks and 8 Test.32 owner-transfer/starvation/regrant checks; frozen accepted source seek hash passed unchanged. Android full-source host gate was run in CI (SDK36 absent locally).
+* Owner HONOR acoustic acceptance: **PENDING, NOT VERIFIED**. The 160ms output mix remains only a commanded envelope with unknown sample phase; no guarantee the physical «пшик» is eliminated.
