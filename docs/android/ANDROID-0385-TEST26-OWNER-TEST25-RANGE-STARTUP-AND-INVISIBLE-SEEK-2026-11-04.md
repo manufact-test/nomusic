@@ -51,3 +51,23 @@ The 200.764-second Test.25 run has **22 track boundaries and 27 transition-compl
 This is **a targeted hypothesis about the measured cold-start range miss**, not a claim that finger seek on RASKOL is fixed. Only a new paired HONOR listening run can establish whether startup and audible transitions improve. Test.23 is still the sole owner-accepted recovery point, and Test.25 remains the last field-tested experimental APK.
 
 Test.26 version `0.3.85-test.26`, code `86111`, package `pro.celikom.nativeprobe.test`, label `CELIKOM Test`, original signer must be verified. One complete signed APK, not individual microbuilds. Record final exact source SHA, CI, original signer, APK SHA-256 and direct Library link **after** the build exists; do not invent these values.
+
+## Signed Test.26 APK — original artifact preserved, owner listening pending
+
+| Property | Verified value |
+| --- | --- |
+| **Direct signed APK** | [Download Test.26 from ChatGPT Library](https://chatgpt.com/library?file_id=libfile_ced45405cb288191b5bdac05c2eb85f4&account_id=personal) |
+| **Exact signed-source SHA** | `ae0346b35ac59f90488e43336ce15c2aeddfc3f1` |
+| **Full CI** | [Android SDK36/D8, host suites and signature — SUCCESS, run 41837991881](https://github.com/manufact-test/nomusic/actions/runs/41837991881) |
+| **Original APK SHA-256** | `43a70ddc493bb07053bb7d24aa52b84d843424eedff7f8cdfd2e2aed1fd88f51` |
+| **APK bytes** | `8800409` |
+| Package / version / code | `pro.celikom.nativeprobe.test` / `0.3.85-test.26` / `86111` |
+| Signing certificate SHA-256 | `67fe81c56fac1c1d145344b69a0e3faf9005cf6607f4e26ca27d5926c3eefc4f` — identical to original Test app signing key |
+| Signature | Android APK Signature Scheme v3 **verified**. v2 reported false (not required for the Android 13 target; verifier accepts v2 OR v3) |
+| Artifact ZIP | [GitHub artifact 13325664380](https://github.com/manufact-test/nomusic/actions/runs/41837991881/artifacts/13325664380), digest `5af79cae66662bc7bdb44b7d41a4bbb2a86979d56321d4fb3595ba65172a95c0`; ZIP is secondary / expires after seven days |
+| Stable / OTA / Hostinger | Production publish jobs **SKIPPED**; stable manifest/OTA update code absent from signed Test APK |
+| User acoustic acceptance | **PENDING**. Measured speed and RASKOL seek still require real HONOR trial; do not call it fixed |
+
+The downloaded artifact contains the APK, its `.verification.json` and `.RECEIPT.json`. The APK's final bytes have been independently SHA256-matched against both receipts and the workflow artifact digest; signer, source SHA, test package, version code and isolated OTA policy matched exactly. The APK is preserved as its **original signed bytes** in Library; neither a reconstructed nor a re-signed file.
+
+Install Test.26 directly over Test.25: same isolated package and signing key, higher versionCode 86111; no need to uninstall and lose Test app data. Test.23's *original signed* APK code86108 cannot be installed over Test.26 as an in-place downgrade on ordinary Android. To revert, uninstall **only CELIKOM Test** and install its untouched Test.23 Library APK (Test app data lost); alternatively create an explicitly labeled **repackaged exact frozen Test.23 source** with versionCode greater than 86111 and original signer only if the owner requests data-preserving recovery. Never promote Test.26 to the owner-approved backup without explicit acceptance.
