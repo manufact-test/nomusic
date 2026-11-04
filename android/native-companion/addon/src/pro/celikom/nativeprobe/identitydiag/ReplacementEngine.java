@@ -17,7 +17,11 @@ final class ReplacementEngine {
  // Explicit experimental opt-in only for the isolated CELIKOM Test service.
  // Existing two-argument local-file callers keep their frozen semantics.
  final boolean progressiveColdAllowed;
- boolean coldJoinExclusiveExperiment=true;
+ // Test.31: use the SAME 160ms complementary crossfade in the actual APK and
+ // host replay. Test.28's 32ms source duck followed by 48ms decoder rise
+ // intentionally created a near-silent gap at EVERY fresh song attachment.
+ // Keep the rejected exclusive mode only as an explicit diagnostic A/B case.
+ boolean coldJoinExclusiveExperiment=false;
  String status="Замена выключена",identityKey,trackId,method="NONE",lookupKey;
  JSONObject descriptor; long descriptorUntil,nextLookup,preparedAt,seekStarted,seekBudget=SEEK_TIMEOUT_MS,fadeStarted,transition,pausedAt=-1;volatile long armedUntil;
  long pauseRestoreDelayMs=PAUSE_GRACE_MS,sourceBufferSince=-1,decoderInstanceSequence,decoderInstanceId;String audioSourceKind="unknown";

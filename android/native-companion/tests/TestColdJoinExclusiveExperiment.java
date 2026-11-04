@@ -12,10 +12,10 @@ public final class TestColdJoinExclusiveExperiment {
     if(!okay)throw new AssertionError(why);
   }
 
-  static MediaPlayer begin(boolean exclusive)throws Exception{
+  static MediaPlayer begin(Boolean exclusive)throws Exception{
     TestEngine.reset("ALBUM",true);
     ReplacementEngine engine=TestEngine.e;
-    engine.coldJoinExclusiveExperiment=exclusive;
+    if(exclusive!=null)engine.coldJoinExclusiveExperiment=exclusive;
     engine.arm();
     MediaPlayer decoder=TestEngine.prepare();
 
@@ -73,6 +73,21 @@ public final class TestColdJoinExclusiveExperiment {
     TestEngine.e.close();
   }
 
+  /** Critical deployment regression: no test-only switch may hide an audible
+   * first-join mode that production enables by default. */
+  static void actualAppDefaultUsesTheMeasuredComplementaryJoin()throws Exception{
+    LogStore.events.clear();
+    MediaPlayer decoder=begin(null);
+    check(!TestEngine.e.coldJoinExclusiveExperiment,
+        "unconfigured host instance must match the default live APK join mode");
+    advanceAndAssert(decoder,false);
+    check(LogStore.events.contains("replacement_unified_join_start")
+          &&LogStore.events.contains("replacement_join_transport_summary")
+          &&!LogStore.events.contains("replacement_exclusive_soft_join_start"),
+        "fresh track must use simultaneous complementary gains, without the 32/48ms silent notch");
+    TestEngine.e.close();
+  }
+
   static void exclusiveColdJoinUsesTheSameGateWithoutOverlap()throws Exception{
     LogStore.events.clear();
     MediaPlayer decoder=begin(true);
@@ -114,13 +129,13 @@ public final class TestColdJoinExclusiveExperiment {
     TestEngine.e.close();
   }
 
-  static void productionConstructorSelectsExperimentWithoutAnAppToggle(){
+  static void productionAndHostDefaultsMatchWithoutInjection(){
     TestEngine.reset("ALBUM",true);
     ReplacementEngine production=new ReplacementEngine(TestEngine.p);
-    check(production.coldJoinExclusiveExperiment,
-        "production constructor selects the isolated exclusive cold-join candidate");
-    check(!TestEngine.e.coldJoinExclusiveExperiment,
-        "test-only constructor keeps legacy baseline injection for regression replay");
+    check(!production.coldJoinExclusiveExperiment,
+        "live APK must use the owner-preferred simultaneous complementary 160ms join");
+    check(production.coldJoinExclusiveExperiment==TestEngine.e.coldJoinExclusiveExperiment,
+        "no host-only override: production and regression run identical cold-join defaults");
     production.close();
     TestEngine.e.close();
   }
@@ -149,11 +164,12 @@ public final class TestColdJoinExclusiveExperiment {
   }
 
   public static void main(String[] args)throws Exception{
+    actualAppDefaultUsesTheMeasuredComplementaryJoin();
     legacyBaselineRemainsAvailableToHostReplay();
     exclusiveColdJoinUsesTheSameGateWithoutOverlap();
     pauseWhileSourceIsDuckingRestoresSource();
     fingerSeekCannotBecomeAnotherColdJoin();
-    productionConstructorSelectsExperimentWithoutAnAppToggle();
+    productionAndHostDefaultsMatchWithoutInjection();
     System.out.println("PASS: "+checks
         +" cold-join baseline/exclusive handover, same-gate and no-overlap checks");
   }

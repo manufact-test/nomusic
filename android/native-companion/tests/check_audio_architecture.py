@@ -94,6 +94,12 @@ if ('audioOwner.blendSameSong(' not in fade
     or 'UNIFIED_JOIN_MS=160' not in engine
     or 'float original=1f-mix;' not in owner):
     raise AssertionError('one production entry must use measured-clock-gated complementary gains and acknowledge unverified phase')
+host_engine=(Path(__file__).resolve().parent/'TestEngine.java').read_text()
+if ('boolean coldJoinExclusiveExperiment=false;' not in engine
+    or 'e.coldJoinExclusiveExperiment=false;' in host_engine
+    or 'actualAppDefaultUsesTheMeasuredComplementaryJoin();' not in
+        (Path(__file__).resolve().parent/'TestColdJoinExclusiveExperiment.java').read_text()):
+    raise AssertionError('live APK and host replay MUST default to the same non-silent complementary first join')
 if ('COLD_JOIN_DIP_MS' in engine or 'replacement_exclusive_dip_start' in engine
     or 'experimentalCorrelatedJoin' in engine or 'experimentalCorrelatedJoin' in service
     or 'celikom-join-lab' in service):
@@ -107,13 +113,13 @@ if ('audioOwner.duckSourceForExclusiveJoin(p,fx,progress,ownerKey,ownerEpoch,han
     or 'exclusiveRiseStarted[0]=now;' not in fade
     or 'float progress=TransitionMix.progress(now-exclusiveRiseStarted[0],48);' not in fade
     or 'if(progress<1f){owner.handler.postDelayed(this,10);return;}' not in fade):
-    raise AssertionError('cold source duck must finish before decoder rise; no overlap or seek ramp')
+    raise AssertionError('the rejected cold source duck must remain isolated for explicit diagnostic comparison only')
 if ('return !coherentEntry&&requireClockGate&&enabled&&!seekedCurrentTrack;' not in engine
     or 'fingerSeekCannotBecomeAnotherColdJoin();' not in (Path(__file__).resolve().parent/'TestColdJoinExclusiveExperiment.java').read_text()):
     raise AssertionError('first-cold envelope must be strictly one-shot per item and excluded after user seeks')
 if ('&&!(newlyAttached&&coldJoinExclusiveExperiment&&!sourceSeekedThisTrack)' not in engine
     or 'fade(!(coldJoinExclusiveExperiment&&!sourceSeekedThisTrack));' not in engine):
-    raise AssertionError('fresh sparse stream must use same non-overlap envelope, but never user scrub')
+    raise AssertionError('sparse stream must obey the single first-join mode and exclude finger seek from cold experiments')
 activity=(root/'RecorderActivity.java').read_text()
 if 'requestJoinExperiment' in activity or 'save.setOnLongClickListener' in activity or 'celikom-join-lab' in activity:
     raise AssertionError('Save diagnostics must have no hidden ordinary/linear mode selector')

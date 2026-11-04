@@ -1,5 +1,6 @@
 name: Android 0.3.55 architecture and release contract verification
 # Keep 0.3.77 owner-confirmed album-duration staging under the non-publishing gate.
+# Test.31 is an isolated side-by-side experiment; its signed APK must pass this gate.
 
 on:
   push:
@@ -17,6 +18,7 @@ on:
       - feature/android-0385-test28-soft-exclusive-join-20261104
       - feature/android-0385-test29-demand-cache-20261104
       - feature/android-0385-test30-cached-seek-owner-20261104
+      - feature/android-0385-test31-first-join-complementary-20261104
       - feature/android-0370-honor-join-pause-updater-staging
       - feature/android-0371-rollback-0369-staging
       - feature/android-0372-ota-release-staging
@@ -193,7 +195,7 @@ jobs:
   build-celikom-test:
     if: >-
       github.event_name == 'push' &&
-      github.ref == 'refs/heads/feature/android-0385-test30-cached-seek-owner-20261104' &&
+      github.ref == 'refs/heads/feature/android-0385-test31-first-join-complementary-20261104' &&
       github.repository == 'manufact-test/nomusic'
     needs: native-android
     permissions:
