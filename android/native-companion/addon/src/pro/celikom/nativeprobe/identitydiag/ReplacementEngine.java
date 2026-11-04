@@ -47,6 +47,7 @@ final class ReplacementEngine {
  volatile long lookaheadPrefetchGeneration,lookaheadPrefetchAccount=-1,lookaheadPrefetchStartedAt;
  volatile String lookaheadPrefetchAlias,lookaheadPrefetchTrackId,lookaheadPrefetchPhase="none";
  String lookaheadPrefetchResolvedAudioKey;JSONObject lookaheadPrefetchCurrentDescriptor;boolean lookaheadPrefetchPromoted,lookaheadPrefetchWait;
+ volatile LookaheadHandoffProgress lookaheadTransferProgress;
  // A primed next decoder remains muted and never owns the source effect.
  // Live playback still requires a fresh current-track resolve and measured duration.
  static final long NEXT_DECODER_PRIME_TIMEOUT_MS=1800, PROMOTED_PRIME_GRACE_MS=800, PROMOTED_PRIME_READY_WAIT_MS=150, CACHED_CURRENT_PRIME_READY_WAIT_MS=340;
@@ -265,7 +266,7 @@ final class ReplacementEngine {
  void clearLookaheadPrefetchState(){
   lookaheadPrefetchGeneration++;lookaheadPrefetchAlias=null;lookaheadPrefetchTrackId=null;lookaheadPrefetchAccount=-1;
   lookaheadPrefetchPhase="none";lookaheadPrefetchResolvedAudioKey=null;lookaheadPrefetchCurrentDescriptor=null;
-  lookaheadPrefetchPromoted=false;lookaheadPrefetchWait=false;lookaheadPromotedAtMs=0;
+  lookaheadPrefetchPromoted=false;lookaheadPrefetchWait=false;lookaheadPromotedAtMs=0;lookaheadTransferProgress=null;
  }
  void finishLookaheadPrefetch(String reason){
   if(!"cache_consumed".equals(reason)&&primedNext!=null&&!primedNext.currentCache)discardPrimedNext("prefetch_finished_"+reason);
@@ -315,13 +316,25 @@ final class ReplacementEngine {
   // A stalled prefetch must not leave the current song in PREPARING indefinitely.
   // The frozen local-file experiment keeps its exact original 10s policy;
   // only the Test.25 opt-in yields early to verified sparse preparation.
-  final long handoffWaitMs=progressiveColdAllowed?1200:10000;
+  final long handoffWaitMs=progressiveColdAllowed?LookaheadHandoffProgress.BASE_WAIT_MS:10000;
   final String waitAlias=source.alias;
-  owner.handler.postDelayed(()->{
-   if(!closed&&g==generation&&lookaheadPrefetchWait
-      &&Objects.equals(waitAlias,lookaheadPrefetchAlias)&&Objects.equals(identityKey,key)&&current(key))
-    fallbackPromotedLookaheadPrefetch("current_handoff_timeout");
-  },handoffWaitMs);
+  final long waitStartedAtMs=SystemClock.elapsedRealtime();
+  owner.handler.postDelayed(new Runnable(){public void run(){
+   if(closed||g!=generation||!lookaheadPrefetchWait
+      ||!Objects.equals(waitAlias,lookaheadPrefetchAlias)||!Objects.equals(identityKey,key)||!current(key))return;
+   long now=SystemClock.elapsedRealtime();
+   LookaheadHandoffProgress progress=lookaheadTransferProgress;
+   if(progressiveColdAllowed&&"downloading".equals(lookaheadPrefetchPhase)
+      &&progress!=null&&progress.worthWaiting(now,waitStartedAtMs)){
+    LogStore.log("replacement_lookahead_prefetch_current_progress_grace",LogStore.map(
+      "trackId",trackId,"receivedBytes",progress.bytes(),"expectedBytes",progress.expected(),
+      "estimatedRemainingMs",progress.estimatedRemainingMs(now),
+      "elapsedWaitMs",now-waitStartedAtMs,"originalRemainsAudible",true));
+    owner.handler.postDelayed(this,LookaheadHandoffProgress.POLL_MS);
+    return;
+   }
+   fallbackPromotedLookaheadPrefetch("current_handoff_timeout");
+  }},handoffWaitMs);
   LogStore.log("replacement_lookahead_prefetch_current_wait",LogStore.map(
     "mediaAlias",lookaheadPrefetchAlias,"trackId",trackId,"phase",lookaheadPrefetchPhase,
     "freshResolveRequired",true,"audioKeyMatches",lookaheadPrefetchResolvedAudioKey==null?"pending":true,
@@ -440,6 +453,7 @@ final class ReplacementEngine {
   final long token=++lookaheadPrefetchGeneration,account=api.accountGeneration,start=SystemClock.elapsedRealtime();
   lookaheadPrefetchAlias=alias;lookaheadPrefetchTrackId=id;lookaheadPrefetchAccount=account;lookaheadPrefetchStartedAt=start;lookaheadPrefetchPhase="resolving";
   lookaheadPrefetchResolvedAudioKey=null;lookaheadPrefetchCurrentDescriptor=null;lookaheadPrefetchPromoted=false;lookaheadPrefetchWait=false;
+  lookaheadTransferProgress=new LookaheadHandoffProgress();
   LogStore.log("replacement_lookahead_prefetch_start",LogStore.map("mediaAlias",alias,"trackId",id,"sourceDurationMs",duration,"remainingMs",remaining,"sourceItemGeneration",owner.sourceItemGeneration,"sourceEventSequence",owner.sourceEventSequence,"audioCommandSent",false));
   api.resolve(id,()->lookaheadPrefetchCurrent(token,account,alias,id),(j,error)->{
    if(!lookaheadPrefetchCurrent(token,account,alias,id)){LogStore.log("replacement_lookahead_prefetch_stale",LogStore.map("mediaAlias",alias,"stage","resolve"));return;}
@@ -463,13 +477,18 @@ final class ReplacementEngine {
     return;
    }
    lookaheadPrefetchPhase="downloading";
-   api.downloadLookahead(j,()->lookaheadPrefetchCurrent(token,account,alias,id),(file,downloadError)->{
+   final LookaheadHandoffProgress transferProgress=lookaheadTransferProgress;
+   api.downloadLookahead(j,()->lookaheadPrefetchCurrent(token,account,alias,id),new NativeApi.AudioResult(){
+    @Override public void progress(long received,long expected,long atMs){
+     if(transferProgress!=null)transferProgress.update(received,expected,atMs);
+    }
+    @Override public void done(File file,String downloadError){
     if(!lookaheadPrefetchCurrent(token,account,alias,id)){if(file!=null)file.delete();LogStore.log("replacement_lookahead_prefetch_stale",LogStore.map("mediaAlias",alias,"stage","download","fileDeleted",file!=null));return;}
     if(file==null){lookaheadPrefetchPhase="failed";LogStore.log("replacement_lookahead_prefetch_failure",LogStore.map("mediaAlias",alias,"stage","download","errorCode",downloadError));fallbackPromotedLookaheadPrefetch("download_failed");return;}
     cachePrefetchedAudio(id,j,file);lookaheadPrefetchPhase="ready";primeNextDecoder(alias,id,j,file,account);
     LogStore.log("replacement_lookahead_prefetch_ready",LogStore.map("mediaAlias",alias,"trackId",id,"bytes",file.length(),"elapsedMs",SystemClock.elapsedRealtime()-start,"remainingMsAtStart",remaining,"audioCommandSent",false));
     resumePromotedLookaheadPrefetch();
-   });
+   }});
   });
  }
  void cachePrefetchedAudio(String id,JSONObject j,File file){

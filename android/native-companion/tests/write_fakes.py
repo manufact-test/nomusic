@@ -25,6 +25,8 @@ old='void stream(JSONObject j,BooleanSupplier valid,StreamResult r){'
 assert old in files[fake_api]
 files[fake_api]=files[fake_api].replace('boolean signed,useStreaming;',
  'boolean signed,useStreaming;long lastStreamHintPosition=-1,lastStreamHintDuration=-1;')
+files[fake_api]=files[fake_api].replace('interface AudioResult{void done(File f,String e);}',
+ 'interface AudioResult{void done(File f,String e);default void progress(long bytes,long expected,long atMs){}}')
 files[fake_api]=files[fake_api].replace(old,
  'void stream(JSONObject j,BooleanSupplier valid,long sourcePositionMs,long sourceDurationMs,StreamResult r){lastStreamHintPosition=sourcePositionMs;lastStreamHintDuration=sourceDurationMs;stream(j,valid,r);}' + old)
 for name,content in files.items():

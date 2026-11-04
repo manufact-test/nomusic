@@ -132,7 +132,7 @@ final class NativeApi {
  }catch(Exception e){if(source!=null)source.close();source=null;error="audio_stream_unavailable";LogStore.log("replacement_stream_failure",LogStore.map("type",e.getClass().getSimpleName(),"elapsedMs",SystemClock.elapsedRealtime()-start));}
  finally{foregroundAudioDemand.decrementAndGet();}
  final BufferedAudio out=source;final String fail=error;main.post(()->result.done(out,fail));});}
- interface AudioResult{void done(File file,String error);}
+ interface AudioResult{void done(File file,String error);default void progress(long bytes,long expected,long atMs){}}
  void download(JSONObject descriptor,java.util.function.BooleanSupplier valid,AudioResult r){foregroundAudioDemand.incrementAndGet();enqueueDownload(audioWork,"current",descriptor,valid,r);}
  /* Let the current song claim the single audio queue before a speculative full-file transfer. */
  static final long LOOKAHEAD_ENQUEUE_YIELD_MS=1100;
@@ -147,7 +147,7 @@ final class NativeApi {
    try{
     if(!allowed.getAsBoolean())throw new Exception("download_cancelled");
     file=File.createTempFile("replacement-",".audio",context.getCacheDir());
-    AudioTransfer.copy(file,()->(HttpsURLConnection)new URL(ApiContract.audio(descriptor,System.currentTimeMillis())).openConnection(),allowed,()->"lookahead".equals(priority)&&foregroundAudioDemand.get()>0,SystemClock::elapsedRealtime,(attempt,bytes,reason)->LogStore.log("replacement_download_retry",LogStore.map("attempt",attempt,"retainedBytes",bytes,"reasonCode",reason,"priority",priority)));
+    AudioTransfer.copy(file,()->(HttpsURLConnection)new URL(ApiContract.audio(descriptor,System.currentTimeMillis())).openConnection(),allowed,()->"lookahead".equals(priority)&&foregroundAudioDemand.get()>0,SystemClock::elapsedRealtime,(attempt,bytes,reason)->LogStore.log("replacement_download_retry",LogStore.map("attempt",attempt,"retainedBytes",bytes,"reasonCode",reason,"priority",priority)),r::progress);
     LogStore.log("replacement_download",LogStore.map("bytes",file.length(),"elapsedMs",SystemClock.elapsedRealtime()-started,"priority",priority,"queueWaitMs",queueWaitMs));
    }catch(Exception e){long bytes=file==null?0:file.length();if(file!=null)file.delete();file=null;error="audio_download_failed";String reason=e.getMessage();LogStore.log("replacement_download_failure",LogStore.map("reasonCode",reason!=null&&reason.matches("[a-z0-9_]{1,80}")?reason:"transport_or_file_error","type",e.getClass().getSimpleName(),"receivedBytes",bytes,"elapsedMs",SystemClock.elapsedRealtime()-started,"priority",priority,"queueWaitMs",queueWaitMs));}
    if("current".equals(priority))foregroundAudioDemand.decrementAndGet();
