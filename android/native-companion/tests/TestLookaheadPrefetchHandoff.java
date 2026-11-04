@@ -156,6 +156,7 @@ public final class TestLookaheadPrefetchHandoff {
     "10 second timeout must preserve a valid 7.6MB in-flight download");
   android.os.SystemClock.now+=2000;
   TestEngine.api.lookaheadProgressCallbacks.get(0).received(9000000,11118847);
+  TestEngine.p.current=TestEngine.source("2",13000,true);
   TestEngine.p.handler.drain();
   check(TestEngine.api.downloads==1&&TestEngine.e.lookaheadPrefetchWait,
     "sustained transfer progress extends the same current handoff without duplicate fetching");
@@ -171,7 +172,9 @@ public final class TestLookaheadPrefetchHandoff {
   TestEngine.api.lookaheadProgressCallbacks.get(0).received(7000000,11118847);
   android.os.SystemClock.now+=501;TestEngine.p.handler.drain();
   check(TestEngine.api.downloads==1,"recent progress initially protects current handoff");
-  android.os.SystemClock.now+=9000;TestEngine.p.handler.drain();
+  android.os.SystemClock.now+=9000;
+  TestEngine.p.current=TestEngine.source("2",20000,true);
+  TestEngine.p.handler.drain();
   check(TestEngine.api.downloads==2&&!TestEngine.api.downloadValidity.get(0).getAsBoolean(),
     "missing progress eventually revokes the speculative lease and issues one fresh current download");
   TestEngine.e.close();
