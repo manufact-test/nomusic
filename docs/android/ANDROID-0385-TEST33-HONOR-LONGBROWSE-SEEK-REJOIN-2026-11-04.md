@@ -17,7 +17,7 @@ Private source: `CELIKOM-combined-20261104-233641.txt`, third JSON run starting 
 
 ## Test.33 scope
 
-Branch `feature/android-0385-test33-longbrowse-seek-rejoin-20261104` starts from Test.32 documentation HEAD `12b9cf49d811f19243137d90c0c8be8a3d77599b`. It is isolated to the test package `pro.celikom.nativeprobe.test`, version `0.3.85-test.33` code `86118` (higher than Test.32 code86117), original signing certificate. No UI change, new Android permission, Account/OAuth or Track ID change. Stable `pro.celikom.nativeprobe`, PC, Hostinger writes, OTA and admin remain untouched.
+Branch `feature/android-0385-test33-longbrowse-seek-rejoin-20261104` starts from Test.32 documentation HEAD `12b9cf49d811f19243137d90c0c8be8a3d77599b`; its exact signed functional source SHA is **`53d94d66a32b332b62848e0895285d81dda226e9`**. It is isolated to the test package `pro.celikom.nativeprobe.test`, version `0.3.85-test.33` code `86118` (higher than Test.32 code86117), original signing certificate. No UI change, new Android permission, Account/OAuth or Track ID change. Stable `pro.celikom.nativeprobe`, PC, Hostinger writes, OTA and admin remain untouched.
 
 1. **Seek-to-beginning decoder restart must blend.** In the existing `ReplacementEngine.update()` path when a same-item seek to the first 1.5s leaves the decoder paused, use coherent re-entry rather than an audible 0ms `exclusive_single_turn`. The 1.5s *position* classification identifies a beginning replay; it is not a new delay or fade constant. Preserve old `streaming != null` clock-gate default, verified retained-pause behavior, mid-song sparse finger-scrub timing, existing 160ms complementary command-law, and the independent Test.28 diagnostic opt-in. Do NOT change frozen `seek()` or `completeSeek()` or increase crossfade milliseconds. New `Test33LongBrowse` reproduces the previously untested stopped-decoder branch; Test.32's still-playing regrant test remains.
 2. **Long-browse complete-file cache retention.** Increase bounded in-session `RecentAudioCachePolicy.MAX_ENTRIES` from 8 to 12, while **keeping the exact 96 MiB byte limit** and all file, auth/version, eviction and lifecycle checks. This can reduce unnecessary redownloads when revisiting earlier songs; it cannot prefetch an unpredictable new song or solve RASKOL position publication.
@@ -25,7 +25,14 @@ Branch `feature/android-0385-test33-longbrowse-seek-rejoin-20261104` starts from
 
 ## Verification and sign-off
 
-The test branch may build a single signed side-by-side APK only after full native host regression, frozen accepted seek hashes, Android API36/JDK17 compilation and D8, offline test packaging contract and original v3-signer verification succeed in GitHub Actions. A green CI **does not** mean acoustic approval on HONOR. The owner should install this one Test.33 APK over Test.32 and listen to (a) ordinary rapid Next, (b) arbitrary album/song browsing beyond 10 tracks, (c) one same-song seek, and (d) RASKOL UI issue; no repeated videos or separate micro-APKs requested.
+**[GitHub Actions SUCCESS #41911465184](https://github.com/manufact-test/nomusic/actions/runs/41911465184)**: Android API36/JDK17 compilation, D8, full native host suite, frozen approved seek hashes, test packaging contract, original v3 signer and final signed-byte verification all passed. The native `build-celikom-test / build-test-app` job succeeded; stable, publish and Hostinger writes were skipped/absent.
+
+* Exact signed functional SHA: `53d94d66a32b332b62848e0895285d81dda226e9`; immutable owner-pending backup `backup/android-0385-test33-signed-owner-pending-20261104` points to that exact commit.
+* [Permanent original signed Test.33 APK](https://chatgpt.com/library?file_id=libfile_0924722c86908191bef31db36cfcf0ed&account_id=personal), filename `CELIKOM-Android-0.3.85-TEST-33-LONGBROWSE-SEEK-REJOIN-SIGNED.apk`, SHA256 **`7c51a7a394e53462b171ed3250953fbb7ab840a54587b4c89548aa957489a5e3`**, 8,812,697 bytes. The original signing certificate SHA256 matches `67fe81c56fac1c1d145344b69a0e3faf9005cf6607f4e26ca27d5926c3eefc4f`, signature v3 verified (v2 absent by original signing profile). The APK digest exactly matches the independent workflow receipt.
+* Temporary [Actions artifact #13363800069](https://github.com/manufact-test/nomusic/actions/runs/41911465184/artifacts/13363800069) contains the original APK, JSON receipt and verification; artifact ZIP SHA256 `4d166ca373fe4498cda28d065f3528eff033b328e30ee7dd48b8f86330e872b5` matches GitHub's digest. Permanent APK copy above does not share the 7-day artifact expiry.
+* Local native host suite exit0, including Test.33 8 assertions and 300-song / 15-hour virtual replay; Android SDK36 unavailable locally and was validated only in CI. No on-device sound acceptance yet.
+
+A green CI **does not** mean acoustic approval on HONOR. The owner should install this one Test.33 APK over Test.32 and listen to (a) ordinary rapid Next, (b) arbitrary album/song browsing beyond 10 tracks, (c) one same-song seek to the beginning, and (d) the still-open RASKOL UI issue; no repeated videos or separate micro-APKs requested.
 
 ### Immutable rollback and forbidden scope
 
@@ -34,4 +41,4 @@ The test branch may build a single signed side-by-side APK only after full nativ
 * Test.23 owner-accepted `backup/android-0385-test23-owner-accepted-20261104` → `251b6facc8739557ff962365da012d502ed3bac8`.
 * Test.31 owner-rejected functional `8f3bce6bb049d66ae1e30316ab4365bbd7c9f66b`. No branch rewrite, rollback deletion, stable publication or Hostinger uploads.
 
-_Test.33 functional source SHA, CI run ID, final signed APK SHA256 and permanent APK location must be filled **after** successful Actions build and byte verification. Until then Test.33 is not ready to install._
+**Status: signed and ready for one HONOR owner test; acoustic verdict pending.** Do not rename this revision as owner-accepted without new owner confirmation. Documentation-only commits after the signed SHA do not change its APK bytes or backup target.
