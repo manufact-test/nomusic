@@ -115,10 +115,10 @@ public final class TestAudioOwnershipRegression {
   TestEngine.playing();e=TestEngine.e;p=e.player;
   SystemClock.now+=ReplacementEngine.UNIFIED_JOIN_MS+30;sample(1160,true);TestEngine.p.handler.drain();
   p.asyncSeek=true;sample(60000,true);
-  check(e.seeking,"seek in flight before transient native pause");
+  check(e.seeking||e.hotCachedSeek,"seek in flight before transient native pause");
   sample(60000,false);sample(60000,true);
   int submittedSeekCalls=p.seekCalls;p.seek.onSeekComplete(p);
-  check(p.seekCalls==submittedSeekCalls&&!e.seeking,
+  check(p.seekCalls==submittedSeekCalls&&!e.seeking&&!e.hotCachedSeek&&p.playing,
       "completed aligned seek may not schedule another seek after transient pause");
   check(e.player==p&&e.effect!=null,
       "completed seek keeps original verified effect and decoder alive");

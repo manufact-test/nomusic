@@ -1111,6 +1111,22 @@ final class ReplacementEngine {
       "trackId",trackId,"callbackElapsedMs",elapsed,"decoderRetained",true));
      return;
     }
+    if(Math.abs(difference)<=HANDOVER_DRIFT_MS&&effect!=null
+       &&effect.hasControl()&&effect.getEnabled()&&originalMix<=0.001f
+       &&audioOwner.state()==AudioOwnership.State.ALIGNING){
+     // A short false/true Media3 pulse did not invalidate native alignment.
+     // Reuse the owner-approved seamless-resume grant: one decoder, no second
+     // native seek, and no original-to-replacement gain reversal.
+     audioOwner.grantReplacement(effect);originalMix=0f;
+     applyVolume(1f);
+     audioOwner.startDecoder(mp,effect,identityKey,audioOwner.epoch());
+     audioOwner.replacement();resumeFadePending=false;aligned=true;
+     explicitSourceSeek=false;previousSource=now;
+     logTrace("replacement_hot_cached_seek_resume_aligned",LogStore.map(
+      "trackId",trackId,"residualMs",difference,"reseek",false,
+      "decoderRetained",true,"sourceGainChanged",false));
+     return;
+    }
     seek(now,desired,difference,true);return;
    }
    if(!now.playing){pauseSource(now,false);return;}
