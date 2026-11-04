@@ -33,7 +33,8 @@ public final class TestAudioOwnershipRegression {
   p.asyncSeek=true;sample(61334,true);sample(61334,false);
   DynamicsProcessing before=e.effect;long paused=e.pausedAt;
   SystemClock.now+=2;sample(61336,true);
-  check(e.seeking&&e.pausedAt<0&&paused>=0,"resumed seek retains its decoder and invalidates pause status");
+  check((e.seeking||e.hotCachedSeek)&&e.pausedAt<0&&paused>=0,
+      "resumed seek retains its decoder and invalidates pause status across both authorized seek paths");
   // Old/out-of-order transport snapshot arrives while queued Android task runs.
   TestEngine.p.current=TestEngine.source("1",61334,false);
   SystemClock.now+=410;TestEngine.p.handler.drain();
