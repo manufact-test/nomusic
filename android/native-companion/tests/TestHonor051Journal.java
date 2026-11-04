@@ -16,6 +16,7 @@ public final class TestHonor051Journal {
   Map<String,ClockSupervisor> clocks=new HashMap<>();
   Set<String> restored=new HashSet<>();
   Map<String,Long> restoredAt=new HashMap<>();
+  Map<String,Integer> boundedRecovery=new HashMap<>();
   int retainedNativeSamples=0;
   for(String line:Files.readAllLines(Paths.get(args[0]))){
    if(line.trim().isEmpty()||line.startsWith("#"))continue;
@@ -36,11 +37,16 @@ public final class TestHonor051Journal {
    if(decision==ClockSupervisor.Decision.RESTORE_SOURCE){
     check(segment.equals("B"),"only sustained 1.16s deviation must be rejected");
     restored.add(segment);restoredAt.put(segment,when);
+   }else if("playing".equals(mode)&&decision==ClockSupervisor.Decision.SEEK){
+    check(segment.equals("B"),"only recorded sustained 1.16s discrepancy can request bounded auto correction");
+    boundedRecovery.merge(segment,1,Integer::sum);
+    guard.onSeek();
    }else if("playing".equals(mode))check(decision==ClockSupervisor.Decision.KEEP,"good original/BT clock needs no automatic seek");
   }
   check(restored.size()==1&&restored.contains("B"),"persistent HONOR offset must fall back only on affected track");
-  check(restoredAt.get("B")<=177730L,"1.16s drift is restored by the next recorded diagnostic sample");
-  check(retainedNativeSamples>=8,"subsequent bad-track samples cannot start extra decoder corrections");
+  check(boundedRecovery.getOrDefault("B",0)==1&&boundedRecovery.size()==1,"only one bounded clock correction for the bad track");
+  check(restoredAt.get("B")<=197931L,"1.16s drift still restores source after the failed bounded correction");
+  check(retainedNativeSamples>=6,"subsequent bad-track samples cannot start extra decoder corrections");
   check(!restored.contains("A")&&!restored.contains("C")&&!restored.contains("D"),"normal 240ms/90ms/200ms offsets retained");
   check(PlaybackDuration.compatible(221930,223399,223399,true),
         "recorded 1469ms can play as bounded outro for strong album identity");
