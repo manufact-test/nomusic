@@ -8,7 +8,7 @@ import java.util.concurrent.atomic.*;
 public class TestBufferedAudio {
  static int checks;static void check(boolean b,String why){checks++;if(!b)throw new AssertionError(why);}
  static class Server implements BufferedAudio.Open {
-  byte[] data=new byte[BufferedAudio.BLOCK*8+27];AtomicInteger requests=new AtomicInteger(),failBlockTwoRemaining=new AtomicInteger();boolean badRange,changedTag,deny,shortOnce,ignoreRange,blockRead;volatile boolean disconnected;
+  byte[] data=new byte[BufferedAudio.BLOCK*8+27];AtomicInteger requests=new AtomicInteger(),failBlockTwoRemaining=new AtomicInteger(),maxRequestedBlocks=new AtomicInteger();boolean badRange,changedTag,deny,denyBatch,timeoutBatch,shortOnce,ignoreRange,blockRead;volatile boolean disconnected;
   final AtomicBoolean stallBlockTwoOnce=new AtomicBoolean();
   final CountDownLatch backgroundReadBlocked=new CountDownLatch(1);
   final AtomicInteger priorityDisconnects=new AtomicInteger();
@@ -17,10 +17,11 @@ public class TestBufferedAudio {
   Server(){for(int i=0;i<data.length;i++)data[i]=(byte)(i*31);}
   public HttpURLConnection open()throws Exception{return new HttpURLConnection(new URL("https://localhost/audio")){
    int first,last;boolean fail,stalledBackground;volatile boolean closed;
-   public int getResponseCode(){requests.incrementAndGet();String[] range=getRequestProperty("Range").substring(6).split("-");first=Integer.parseInt(range[0]);last=Math.min(data.length-1,Integer.parseInt(range[1]));fail=shortOnce;shortOnce=false;return first/BufferedAudio.BLOCK==2&&failBlockTwoRemaining.getAndUpdate(x->Math.max(0,x-1))>0?503:deny?403:ignoreRange?200:206;}
+   public int getResponseCode(){requests.incrementAndGet();String[] range=getRequestProperty("Range").substring(6).split("-");first=Integer.parseInt(range[0]);last=Math.min(data.length-1,Integer.parseInt(range[1]));maxRequestedBlocks.accumulateAndGet((last-first)/BufferedAudio.BLOCK+1,Math::max);fail=shortOnce;shortOnce=false;return first/BufferedAudio.BLOCK==2&&failBlockTwoRemaining.getAndUpdate(x->Math.max(0,x-1))>0?503:deny?403:denyBatch&&last-first>=BufferedAudio.BLOCK?416:ignoreRange?200:206;}
    public String getHeaderField(String key){if(key.equals("ETag"))return changedTag&&first>0?"\"v2\"":"\"v1\"";if(key.equals("Content-Range"))return "bytes "+(badRange?first+1:first)+"-"+last+"/"+data.length;return null;}
    public long getContentLengthLong(){return last-first+1;}
    public InputStream getInputStream(){
+    if(timeoutBatch&&last-first>=BufferedAudio.BLOCK)return new InputStream(){public int read()throws IOException{throw new SocketTimeoutException("wide_range_timeout");}};
     if(first/BufferedAudio.BLOCK==2&&stallBlockTwoOnce.compareAndSet(true,false)){
      stalledBackground=true;
      return new InputStream(){public int read()throws IOException{
@@ -46,6 +47,43 @@ public class TestBufferedAudio {
    check(a.readAt(a.size,buffer,0,1)==-1&&a.readAt(0,buffer,0,0)==0,"decoder EOF and zero-size semantics");
    a.prefetch();check(cached.await(5,TimeUnit.SECONDS)&&a.complete(),"background fills complete audio");check(Arrays.equals(Files.readAllBytes(file.toPath()),server.data),"sparse cache becomes byte-exact full file");check(a.retainComplete()==file,"only completed file can enter existing cache");
   }finally{a.close();}check(file.exists(),"completed detached file retained");file.delete();
+  // Test.28 kept all 128-KiB network round trips even on a healthy current
+  // stream. Test.29 groups ONLY validated background blocks into 512-KiB
+  // runs; random decoder reads remain individually preemptible and exact.
+  server=new Server();server.data=new byte[BufferedAudio.BLOCK*16+27];
+  for(int i=0;i<server.data.length;i++)server.data[i]=(byte)(i*31);
+  CountDownLatch batchComplete=new CountDownLatch(1);
+  a=audio(server,new AtomicBoolean(true),batchComplete);
+  try{
+   a.initialize();a.prefetch();
+   check(batchComplete.await(5,TimeUnit.SECONDS)&&a.complete(),
+     "bounded batched prefetch completes current audio without another seek");
+   check(server.maxRequestedBlocks.get()==BufferedAudio.PREFETCH_RUN_BLOCKS
+       &&server.requests.get()<=1+((a.blocks()-1+BufferedAudio.PREFETCH_RUN_BLOCKS-1)/BufferedAudio.PREFETCH_RUN_BLOCKS),
+     "background coalescing reduces per-block HTTP round trips by four");
+   check(Arrays.equals(Files.readAllBytes(a.file.toPath()),server.data),
+     "coalesced Range responses become the same byte-exact full song");
+  }finally{a.close();}
+  server=new Server();server.denyBatch=true;batchComplete=new CountDownLatch(1);
+  a=audio(server,new AtomicBoolean(true),batchComplete);
+  try{
+   a.initialize();a.prefetch();
+   check(batchComplete.await(5,TimeUnit.SECONDS)&&a.complete()
+       &&a.backgroundBatchUnsupported,
+     "CDN rejection of wider ranges safely falls back to original 128-KiB requests");
+   check(Arrays.equals(Files.readAllBytes(a.file.toPath()),server.data),
+     "batch rejection cannot poison the source or mix incomplete bytes");
+  }finally{a.close();}
+  server=new Server();server.timeoutBatch=true;batchComplete=new CountDownLatch(1);
+  a=audio(server,new AtomicBoolean(true),batchComplete);
+  try{
+   a.initialize();a.prefetch();
+   check(batchComplete.await(5,TimeUnit.SECONDS)&&a.complete()
+       &&a.backgroundBatchUnsupported,
+     "slow wide Range times out into bounded single-block cache fill");
+   check(Arrays.equals(Files.readAllBytes(a.file.toPath()),server.data),
+     "timeout fallback retains only validated bytes");
+  }finally{a.close();}
   server=new Server();a=audio(server,new AtomicBoolean(true),new CountDownLatch(1));try{a.initializeForPlayback();check(server.requests.get()==3&&a.present.get(0)&&a.present.get(1)&&a.present.get(a.blocks()-1)&&!a.complete(),"decoder preparation has prefix, read-ahead and tail metadata without full download");int before=server.requests.get();a.readAt(a.size-16,new byte[16],0,16);check(server.requests.get()==before,"decoder tail inspection cannot block on a new network request");}finally{a.close();}
   // HONOR Test.25: verified sparse cold start was ready at +1.96s, but the
   // decoder's first alignment seek waited 1.57s for an uncached Range.
@@ -104,6 +142,9 @@ public class TestBufferedAudio {
       if(event.equals("replacement_stream_cached"))eventuallyCached.countDown();
     });
   try{
+   // Exercise the original single-block failure/recovery contract explicitly;
+   // new batched mode may recover earlier by downgrading after a slow run.
+   a.backgroundBatchUnsupported=true;
    a.initialize();a.prefetch();
    check(prefetchFailed.await(5,TimeUnit.SECONDS)&&!a.complete(),
      "three failed background Ranges must leave validated partial data, not a corrupt cache");

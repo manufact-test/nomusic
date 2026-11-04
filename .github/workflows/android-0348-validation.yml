@@ -15,6 +15,7 @@ on:
       - feature/android-0385-test26-cold-hint-observation-20261104
       - feature/android-0385-test27-foreground-priority-20261104
       - feature/android-0385-test28-soft-exclusive-join-20261104
+      - feature/android-0385-test29-demand-cache-20261104
       - feature/android-0370-honor-join-pause-updater-staging
       - feature/android-0371-rollback-0369-staging
       - feature/android-0372-ota-release-staging
@@ -191,7 +192,7 @@ jobs:
   build-celikom-test:
     if: >-
       github.event_name == 'push' &&
-      github.ref == 'refs/heads/feature/android-0385-test28-soft-exclusive-join-20261104' &&
+      github.ref == 'refs/heads/feature/android-0385-test29-demand-cache-20261104' &&
       github.repository == 'manufact-test/nomusic'
     needs: native-android
     permissions:

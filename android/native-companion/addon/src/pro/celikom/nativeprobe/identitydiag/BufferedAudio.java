@@ -7,12 +7,17 @@ import java.util.function.*;
 /** Private sparse cache. Only fully validated chunks are ever visible to the decoder. */
 class BufferedAudio implements Closeable {
  static final int BLOCK=131072;static final long MAX_BYTES=31457280;
+ // A fresh HTTP request per 128 KiB block made a 4-8 MiB song require
+ // dozens of VPN round trips. Only the yieldable background cache filler may
+ // group adjacent blocks; decoder misses still fetch precisely one block.
+ static final int PREFETCH_RUN_BLOCKS=4;
  interface Open {HttpURLConnection open() throws Exception;}
  interface Events {void event(String name,long bytes);}
  final File file;final Open open;final BooleanSupplier valid;final LongSupplier clock;final Events events;
  final BitSet present=new BitSet(),loading=new BitSet();final Set<HttpURLConnection> connections=new HashSet<>();
  final ScheduledExecutorService watcher=Executors.newSingleThreadScheduledExecutor();final ExecutorService background=Executors.newSingleThreadExecutor();
  volatile int playbackBlock;volatile long size=-1,waitingSince=-1;volatile boolean closed;String etag;boolean detached;IOException fatal;
+ volatile boolean backgroundBatchUnsupported;
   boolean prefetchActive,prefetchAttempted,prefetchRecoveryPending;
   // A sequence of decoder seeks owns foreground priority until the last
   // verified handover, not merely until one HTTP Range read returns.
@@ -23,6 +28,9 @@ class BufferedAudio implements Closeable {
  HttpURLConnection prefetchConnection;
  static final class ForegroundPriority extends IOException {
   ForegroundPriority(){super("prefetch_yield_to_decoder");}
+ }
+ static final class BatchUnsupported extends IOException {
+  BatchUnsupported(){super("prefetch_batch_unsupported");}
  }
  BufferedAudio(File file,Open open,BooleanSupplier valid,LongSupplier clock,Events events){this.file=file;this.open=open;this.valid=valid;this.clock=clock;this.events=events;
   watcher.scheduleAtFixedRate(()->{if(!valid.getAsBoolean())close();},100,100,TimeUnit.MILLISECONDS);
@@ -117,7 +125,11 @@ class BufferedAudio implements Closeable {
        if(prefetchHeldForSeek)throw new ForegroundPriority();
      }
      int b=nextPrefetchBlock();if(b<0)break;
-     fetch(b,true);
+     try{fetch(b,true);}catch(BatchUnsupported unsupported){
+      // A compliant CDN can reject wider Range spans while accepting one
+      // block. Retry this block through the original proven transport path.
+      continue;
+     }
     }
     if(complete())events.event("replacement_stream_cached",size);
    }
@@ -187,13 +199,21 @@ class BufferedAudio implements Closeable {
  synchronized void check()throws IOException{if(closed||!valid.getAsBoolean())throw new IOException("audio_cancelled");if(fatal!=null)throw fatal;}
  void fetch(int block)throws IOException{fetch(block,false);}
  void fetch(int block,boolean backgroundRead)throws IOException{
+  final int runBlocks;
   synchronized(this){
    check();if(backgroundRead&&(foregroundReads>0||prefetchHeldForSeek))throw new ForegroundPriority();
    while(loading.get(block)&&!present.get(block)){
     try{wait(100);}catch(InterruptedException e){Thread.currentThread().interrupt();throw new IOException("audio_interrupted");}
     check();if(backgroundRead&&(foregroundReads>0||prefetchHeldForSeek))throw new ForegroundPriority();
    }
-   if(present.get(block))return;loading.set(block);
+   if(present.get(block))return;
+   int count=1;
+   if(backgroundRead&&!backgroundBatchUnsupported){
+    int limit=Math.min(blocks(),block+PREFETCH_RUN_BLOCKS);
+    while(block+count<limit&&!present.get(block+count)&&!loading.get(block+count))count++;
+   }
+   runBlocks=count;
+   loading.set(block,block+runBlocks);
   }
   try{
    IOException last=null;
@@ -203,22 +223,42 @@ class BufferedAudio implements Closeable {
     try{
      c=open.open();synchronized(this){check();connections.add(c);if(backgroundRead)prefetchConnection=c;}
      c.setConnectTimeout(6000);c.setReadTimeout(5000);c.setInstanceFollowRedirects(false);c.setRequestProperty("Accept-Encoding","identity");
-     long first=(long)block*BLOCK,lastByte=size>0?Math.min(size-1,first+BLOCK-1):first+BLOCK-1;
+     long first=(long)block*BLOCK,lastByte=size>0?Math.min(size-1,first+(long)runBlocks*BLOCK-1):first+BLOCK-1;
      c.setRequestProperty("Range","bytes="+first+"-"+lastByte);String validator; synchronized(this){validator=etag;}if(validator!=null)c.setRequestProperty("If-Range",validator);
      int code=c.getResponseCode();
-     if(code!=206){if(code==408||code==429||code>=500)throw new IOException("audio_network_retry");throw new AudioTransfer.Rejected("audio_range_unavailable");}
+     if(code!=206){
+      if(backgroundRead&&runBlocks>1&&(code==200||code==416)){
+       backgroundBatchUnsupported=true;
+       events.event("replacement_stream_prefetch_batch_fallback",cachedBytes());
+       throw new BatchUnsupported();
+      }
+      if(code==408||code==429||code>=500)throw new IOException("audio_network_retry");
+      throw new AudioTransfer.Rejected("audio_range_unavailable");
+     }
      String range=c.getHeaderField("Content-Range"),tag=AudioTransfer.strong(c.getHeaderField("ETag"));
      java.util.regex.Matcher m=java.util.regex.Pattern.compile("bytes ([0-9]+)-([0-9]+)/([0-9]+)").matcher(range==null?"":range);
      if(!m.matches()||tag==null)throw new AudioTransfer.Rejected("invalid_audio_range");
      long from=Long.parseLong(m.group(1)),to=Long.parseLong(m.group(2)),total=Long.parseLong(m.group(3));
-     if(total<=0||total>MAX_BYTES||from!=first||to!=Math.min(total-1,first+BLOCK-1))throw new AudioTransfer.Rejected("invalid_audio_range");
+     if(total<=0||total>MAX_BYTES||from!=first||to!=Math.min(total-1,first+(long)runBlocks*BLOCK-1))throw new AudioTransfer.Rejected("invalid_audio_range");
      int bytes=(int)(to-from+1);long contentLength=c.getContentLengthLong();if(contentLength>=0&&contentLength!=bytes)throw new AudioTransfer.Rejected("invalid_audio_size");
      synchronized(this){check();if(size<0){size=total;etag=tag;}else if(size!=total||!etag.equals(tag))throw new AudioTransfer.Rejected("audio_version_changed");}
      byte[] data=new byte[bytes];try(InputStream input=c.getInputStream()){int at=0,n;while(at<bytes){synchronized(this){check();}n=input.read(data,at,bytes-at);if(n<0)throw new EOFException("incomplete_audio");if(n==0)continue;at+=n;}}
-     synchronized(this){check();try(RandomAccessFile output=new RandomAccessFile(file,"rw")){output.seek(first);output.write(data);}present.set(block);notifyAll();}return;
+     // No block becomes visible before the entire validated response has
+     // reached the private file. A canceled background run cannot expose a
+     // partially written block to a foreground seek.
+     synchronized(this){check();try(RandomAccessFile output=new RandomAccessFile(file,"rw")){output.seek(first);output.write(data);}present.set(block,block+runBlocks);notifyAll();}
+     if(backgroundRead&&runBlocks>1)events.event("replacement_stream_prefetch_batch",cachedBytes());
+     return;
+    }catch(BatchUnsupported unsupported){throw unsupported;
     }catch(AudioTransfer.Rejected e){synchronized(this){fatal=e;notifyAll();}throw e;}
     catch(Exception e){
      synchronized(this){if(backgroundRead&&(foregroundReads>0||prefetchHeldForSeek))throw new ForegroundPriority();}
+     if(backgroundRead&&runBlocks>1
+         &&(e instanceof SocketTimeoutException||attempt>=1)){
+      backgroundBatchUnsupported=true;
+      events.event("replacement_stream_prefetch_batch_fallback",cachedBytes());
+      throw new BatchUnsupported();
+     }
      last=e instanceof IOException?(IOException)e:new IOException("audio_transport",e);
      events.event("replacement_stream_retry",cachedBytes());
     }
@@ -228,7 +268,7 @@ class BufferedAudio implements Closeable {
     }c.disconnect();}}
    }
    throw last==null?new IOException("audio_transport"):last;
-  }finally{synchronized(this){loading.clear(block);notifyAll();}}
+  }finally{synchronized(this){loading.clear(block,block+runBlocks);notifyAll();}}
  }
  public void close(){List<HttpURLConnection> active;synchronized(this){if(closed)return;closed=true;active=new ArrayList<>(connections);connections.clear();notifyAll();if(!detached)file.delete();}for(HttpURLConnection c:active)c.disconnect();watcher.shutdownNow();background.shutdownNow();}
 }

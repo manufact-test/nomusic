@@ -125,10 +125,34 @@ public final class TestColdJoinExclusiveExperiment {
     TestEngine.e.close();
   }
 
+  static void fingerSeekCannotBecomeAnotherColdJoin(){
+    TestEngine.reset("ALBUM");
+    ReplacementEngine engine=TestEngine.e;
+    engine.coldJoinExclusiveExperiment=true;
+    engine.arm();
+    check(ReplacementEngine.exclusiveColdEnvelope(false,true,true,false),
+        "first cold streaming join retains the owner-selected exclusive envelope");
+    engine.sourceSeekRequested();
+    check(engine.sourceSeekedThisTrack,
+        "observed Media3 finger seek tags the current source even before decoder ACK");
+    check(!ReplacementEngine.exclusiveColdEnvelope(false,true,
+        engine.coldJoinExclusiveExperiment,engine.sourceSeekedThisTrack)
+        &&!ReplacementEngine.exclusiveColdEnvelope(true,true,true,false)
+        &&!ReplacementEngine.exclusiveColdEnvelope(false,false,true,false),
+        "a seek, coherent resume or unvalidated clock must not replay the first-cold duck");
+    engine.coldEnvelopeOwnerKey=engine.identityKey;
+    check(!ReplacementEngine.exclusiveColdEnvelope(false,true,
+        engine.coldJoinExclusiveExperiment
+            &&!engine.identityKey.equals(engine.coldEnvelopeOwnerKey),false),
+        "even a later source-buffer recovery on the same item cannot start another first-cold duck");
+    engine.close();
+  }
+
   public static void main(String[] args)throws Exception{
     legacyBaselineRemainsAvailableToHostReplay();
     exclusiveColdJoinUsesTheSameGateWithoutOverlap();
     pauseWhileSourceIsDuckingRestoresSource();
+    fingerSeekCannotBecomeAnotherColdJoin();
     productionConstructorSelectsExperimentWithoutAnAppToggle();
     System.out.println("PASS: "+checks
         +" cold-join baseline/exclusive handover, same-gate and no-overlap checks");

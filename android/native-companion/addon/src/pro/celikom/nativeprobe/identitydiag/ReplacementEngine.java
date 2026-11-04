@@ -27,7 +27,7 @@ final class ReplacementEngine {
  volatile long generation; int trustedSession=-1,failures,seekCorrections;
  final BufferRecoveryGate bufferGate=new BufferRecoveryGate();BufferedAudio streaming;boolean bufferWaiting;String streamFallbackKey;
  MediaPlayer player; DynamicsProcessing effect; LoudnessEnhancer loudness; File audioFile;
- float originalMix=1f; boolean ready,preparing,seeking,fading,aligned,returning,preloadAllowed=true,waitingForRouteResume,routePauseObserved,resumePositionRetained,resumeFadePending,seekHoldActive,sourceSeekedThisTrack,pendingStreamScrubJoin,streamSeekWaitLogged,seekRetargetPending;volatile boolean closed; boolean audioFromCache,localPrewarmAttempted,localPrewarmWarmupPending,localPrewarmAlignmentPending,localPrewarmJoinPending; long localPrewarmWarmupStartedAt,localPrewarmWarmupPosition; String lastSync="";
+ float originalMix=1f; boolean ready,preparing,seeking,fading,aligned,returning,preloadAllowed=true,waitingForRouteResume,routePauseObserved,resumePositionRetained,resumeFadePending,seekHoldActive,sourceSeekedThisTrack,pendingStreamScrubJoin,streamSeekWaitLogged,seekRetargetPending;volatile boolean closed; boolean audioFromCache,localPrewarmAttempted,localPrewarmWarmupPending,localPrewarmAlignmentPending,localPrewarmJoinPending; long localPrewarmWarmupStartedAt,localPrewarmWarmupPosition; String lastSync="",coldEnvelopeOwnerKey;
  final ClockSupervisor clockSupervisor=new ClockSupervisor();PlaybackSource previousSource;boolean explicitSourceSeek;long unavailableSince=-1,lastSyncAt=-1,lastLoggedDrift;String completedKey,completedReason;long completedPosition,resumeDrift;
  // Private, bounded to this foreground run. Every reuse requires a new live resolve.
  /* Bounded in-session warm cache covers playlist reorder and rapid repeat selections. */
@@ -1112,6 +1112,12 @@ final class ReplacementEngine {
    }else fade(true,true);
   }
   void fade(boolean coherentEntry){fade(coherentEntry,streaming!=null);}
+ static boolean exclusiveColdEnvelope(boolean coherentEntry,boolean requireClockGate,
+                                      boolean enabled,boolean seekedCurrentTrack){
+  // The same streaming decoder is re-entered after every finger seek. That
+  // must NOT turn a post-seek handover into another first-cold 32/48ms duck.
+  return !coherentEntry&&requireClockGate&&enabled&&!seekedCurrentTrack;
+ }
  void fade(boolean coherentEntry,boolean requireClockGate){
   final long token=++transition;final MediaPlayer p=player;final DynamicsProcessing fx=effect;
   final long ownerEpoch=audioOwner.epoch();final String ownerKey=identityKey;
@@ -1132,7 +1138,8 @@ final class ReplacementEngine {
      they do not prove matching PCM phase. Keep the two audible sessions strictly
      disjoint; shape only the very first cold handover, never a finger seek. */
   final long[] exclusiveDuckStarted={-1},exclusiveRiseStarted={-1};
-  final boolean shapeExclusiveCold=(!coherentEntry&&requireClockGate&&coldJoinExclusiveExperiment);
+  final boolean shapeExclusiveCold=exclusiveColdEnvelope(coherentEntry,requireClockGate,
+       coldJoinExclusiveExperiment&&!Objects.equals(coldEnvelopeOwnerKey,ownerKey),sourceSeekedThisTrack);
   /* Passive cold join drift summary: projected transport clocks only. */
   final long[] coldClock={Long.MAX_VALUE,Long.MIN_VALUE,0,-1,-1};
   final boolean[] outputPreLogged={false},outputMidLogged={false},outputPostLogged={false};
@@ -1234,6 +1241,7 @@ final class ReplacementEngine {
     }else if(shapeExclusiveCold){
      long now=SystemClock.elapsedRealtime();
      if(exclusiveDuckStarted[0]<0){
+       coldEnvelopeOwnerKey=ownerKey;
       exclusiveDuckStarted[0]=now;
       LogStore.log("replacement_exclusive_soft_join_start",LogStore.map(
        "trackId",trackId,"sourceDuckMs",32,"decoderRiseMs",48,

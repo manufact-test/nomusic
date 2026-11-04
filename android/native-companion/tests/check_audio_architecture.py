@@ -99,13 +99,18 @@ if ('COLD_JOIN_DIP_MS' in engine or 'replacement_exclusive_dip_start' in engine
     or 'celikom-join-lab' in service):
     raise AssertionError('two-mode A/B selector and 500ms cold-volume valley must not reappear')
 if ('audioOwner.duckSourceForExclusiveJoin(p,fx,progress,ownerKey,ownerEpoch,handoverTicket.operationEpoch);' not in fade
-    or 'shapeExclusiveCold=(!coherentEntry&&requireClockGate&&coldJoinExclusiveExperiment)' not in fade
+    or 'shapeExclusiveCold=exclusiveColdEnvelope(coherentEntry,requireClockGate,' not in fade
+    or 'coldJoinExclusiveExperiment&&!Objects.equals(coldEnvelopeOwnerKey,ownerKey),sourceSeekedThisTrack)' not in fade
+    or 'coldEnvelopeOwnerKey=ownerKey;' not in fade
     or 'originalMix=1f-progress;traceAudioCommands();' not in fade
     or 'audioOwner.grantReplacement(fx);originalMix=0f;applyVolume(0f);' not in fade
     or 'exclusiveRiseStarted[0]=now;' not in fade
     or 'float progress=TransitionMix.progress(now-exclusiveRiseStarted[0],48);' not in fade
     or 'if(progress<1f){owner.handler.postDelayed(this,10);return;}' not in fade):
     raise AssertionError('cold source duck must finish before decoder rise; no overlap or seek ramp')
+if ('return !coherentEntry&&requireClockGate&&enabled&&!seekedCurrentTrack;' not in engine
+    or 'fingerSeekCannotBecomeAnotherColdJoin();' not in (Path(__file__).resolve().parent/'TestColdJoinExclusiveExperiment.java').read_text()):
+    raise AssertionError('first-cold envelope must be strictly one-shot per item and excluded after user seeks')
 if ('&&!(newlyAttached&&coldJoinExclusiveExperiment&&!sourceSeekedThisTrack)' not in engine
     or 'fade(!(coldJoinExclusiveExperiment&&!sourceSeekedThisTrack));' not in engine):
     raise AssertionError('fresh sparse stream must use same non-overlap envelope, but never user scrub')
