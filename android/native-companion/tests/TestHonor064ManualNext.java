@@ -87,20 +87,40 @@ public final class TestHonor064ManualNext {
   check(TestEngine.api.downloads==beforeDownloads&&TestEngine.api.resolves==beforeResolves
       &&e.effect==fx&&!fx.released,
       "three manual-next scrubs cannot redo lookup, download or effect binding");
-  // After the stream is entirely cached, source remains available during seek.
+  // Once every source byte is validated, a seek may stay inside the already
+  // audible native decoder: NO source gain restoration/reconnection.
   buffer.present.set(1);
   check(buffer.complete(),"streaming fake must now represent a fully cached file");
   int before=p.seekCalls;
   e.sourceSeekRequested();sample("2",70000);e.update(TestEngine.p.current);
-  check(!e.seekHoldActive&&p.seekCalls==before+1&&p.volume==0f
-      &&fx.gain==0f&&e.originalMix==1f,
-      "fully downloaded song never commands a muted-source seek gap");
+  check(e.hotCachedSeek&&!e.seeking&&!e.seekHoldActive&&p.seekCalls==before+1
+      &&p.playing&&p.volume==1f&&fx.gain==-100f&&e.originalMix==0f,
+      "verified full-cache finger seek keeps exclusive decoder audible without another DSP handover");
   SystemClock.now+=65;sample("2",70065);p.seek.onSeekComplete(p);
-  check(p.playing&&!e.seeking&&e.effect==fx&&fx.gain==0f,
-      "fast completed seek stays on native output until decoder clock advances");
+  check(p.playing&&!e.hotCachedSeek&&!e.seeking&&e.effect==fx&&fx.gain==-100f
+      &&p.volume==1f,
+      "fast completed seek has no new original/secondary output transfer");
   tick("2",p,140,70205);
-  check(p.volume==1f&&fx.gain==-100f&&!e.pendingStreamScrubJoin,
-      "completed-cache fast scrub rejoins immediately without redundant dip");
+  check(p.volume==1f&&fx.gain==-100f&&!e.pendingStreamScrubJoin&&!e.fading,
+      "completed-cache fast scrub remains on the same owner with no join at all");
+  int calls=p.seekCalls;
+  e.sourceSeekRequested();sample("2",85000);e.update(TestEngine.p.current);
+  check(e.hotCachedSeek&&p.seekCalls==calls+1&&p.volume==1f,
+      "first cached scrub starts one audible in-player seek");
+  e.sourceSeekRequested();sample("2",20000);e.update(TestEngine.p.current);
+  check(e.hotCachedSeekPending&&p.seekCalls==calls+1,
+      "rapid second scrub is queued behind the single untagged callback");
+  p.seek.onSeekComplete(p);
+  check(e.hotCachedSeek&&p.seekCalls==calls+2&&p.volume==1f&&fx.gain==-100f,
+      "latest cached scrub begins only after previous callback drains");
+  SystemClock.now+=50;sample("2",20050);p.seek.onSeekComplete(p);
+  check(!e.hotCachedSeek&&p.volume==1f&&fx.gain==-100f,
+      "coalesced rapid scrubs finish without two-session audio handovers");
+  e.sourceSeekRequested();sample("2",90000);e.update(TestEngine.p.current);
+  check(e.hotCachedSeek,"verified cached source started a pause-race seek");
+  TestEngine.p.current=TestEngine.source("2",90000,false);e.update(TestEngine.p.current);
+  check(p.released&&e.effect==null&&!e.hotCachedSeek&&e.armed(),
+      "pause during untagged hot seek retires player before any stale callback can play");
   e.close();
  }
  static void autoNextAndCancelDuringJoin()throws Exception{

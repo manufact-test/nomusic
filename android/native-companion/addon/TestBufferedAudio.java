@@ -47,9 +47,8 @@ public class TestBufferedAudio {
    check(a.readAt(a.size,buffer,0,1)==-1&&a.readAt(0,buffer,0,0)==0,"decoder EOF and zero-size semantics");
    a.prefetch();check(cached.await(5,TimeUnit.SECONDS)&&a.complete(),"background fills complete audio");check(Arrays.equals(Files.readAllBytes(file.toPath()),server.data),"sparse cache becomes byte-exact full file");check(a.retainComplete()==file,"only completed file can enter existing cache");
   }finally{a.close();}check(file.exists(),"completed detached file retained");file.delete();
-  // Test.28 kept all 128-KiB network round trips even on a healthy current
-  // stream. Test.29 groups ONLY validated background blocks into 512-KiB
-  // runs; random decoder reads remain individually preemptible and exact.
+  // Test.29's 512-KiB batching failed owner's real seek trial. Test.30
+  // restores single-block priority while retaining full-byte verification.
   server=new Server();server.data=new byte[BufferedAudio.BLOCK*16+27];
   for(int i=0;i<server.data.length;i++)server.data[i]=(byte)(i*31);
   CountDownLatch batchComplete=new CountDownLatch(1);
@@ -58,19 +57,19 @@ public class TestBufferedAudio {
    a.initialize();a.prefetch();
    check(batchComplete.await(5,TimeUnit.SECONDS)&&a.complete(),
      "bounded batched prefetch completes current audio without another seek");
-   check(server.maxRequestedBlocks.get()==BufferedAudio.PREFETCH_RUN_BLOCKS
-       &&server.requests.get()<=1+((a.blocks()-1+BufferedAudio.PREFETCH_RUN_BLOCKS-1)/BufferedAudio.PREFETCH_RUN_BLOCKS),
-     "background coalescing reduces per-block HTTP round trips by four");
+   check(BufferedAudio.PREFETCH_RUN_BLOCKS==1&&server.maxRequestedBlocks.get()==1
+       &&server.requests.get()==a.blocks(),
+     "background requests never reserve multiple future random-seek blocks");
    check(Arrays.equals(Files.readAllBytes(a.file.toPath()),server.data),
-     "coalesced Range responses become the same byte-exact full song");
+     "individually verified Range responses become the same byte-exact full song");
   }finally{a.close();}
   server=new Server();server.denyBatch=true;batchComplete=new CountDownLatch(1);
   a=audio(server,new AtomicBoolean(true),batchComplete);
   try{
    a.initialize();a.prefetch();
    check(batchComplete.await(5,TimeUnit.SECONDS)&&a.complete()
-       &&a.backgroundBatchUnsupported,
-     "CDN rejection of wider ranges safely falls back to original 128-KiB requests");
+       &&server.maxRequestedBlocks.get()==1,
+     "wide-range rejecting CDN works without ever attempting a wide Range");
    check(Arrays.equals(Files.readAllBytes(a.file.toPath()),server.data),
      "batch rejection cannot poison the source or mix incomplete bytes");
   }finally{a.close();}
@@ -79,8 +78,8 @@ public class TestBufferedAudio {
   try{
    a.initialize();a.prefetch();
    check(batchComplete.await(5,TimeUnit.SECONDS)&&a.complete()
-       &&a.backgroundBatchUnsupported,
-     "slow wide Range times out into bounded single-block cache fill");
+       &&server.maxRequestedBlocks.get()==1,
+     "wide-range timeout cannot affect a single-block cache fill");
    check(Arrays.equals(Files.readAllBytes(a.file.toPath()),server.data),
      "timeout fallback retains only validated bytes");
   }finally{a.close();}
@@ -98,6 +97,14 @@ public class TestBufferedAudio {
    check(server.requests.get()==4&&a.present.get(0)&&a.present.get(1)
      &&a.present.get(predicted)&&a.present.get(a.blocks()-1),
      "parallel cold preparation validates prefix, metadata tail and source-position block");
+   check(!a.hasVerifiedSeekNeighborhood(9000,20000),
+     "a single position hint alone cannot authorize audible decoder hot-seek");
+   a.fetch(2);a.fetch(3);
+   check(a.hasVerifiedSeekNeighborhood(9000,20000),
+     "three verified neighboring blocks plus head/tail authorize bounded fast path");
+   check(!a.hasVerifiedSeekNeighborhood(19000,20000)
+       &&!a.hasVerifiedSeekNeighborhood(-1,20000),
+     "late uncached or invalid seek is routed to fail-open original path");
    int before=server.requests.get();byte[] b=new byte[32];long at=(long)predicted*BufferedAudio.BLOCK+17;
    check(a.readAt(at,b,0,b.length)==32&&server.requests.get()==before
      &&b[0]==server.data[(int)at],"first alignment seek can read its hinted block without another Range");

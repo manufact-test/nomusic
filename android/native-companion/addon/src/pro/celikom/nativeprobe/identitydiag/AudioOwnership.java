@@ -374,6 +374,19 @@ final class AudioOwnership {
   if(commandedSecondary>0.001f)throw new IllegalStateException("audible decoder seek forbidden");
   player.seekTo(Math.max(0L,target),MediaPlayer.SEEK_CLOSEST);
  }
+ /** A genuine verified-cache scrub can stay inside the already exclusive
+  * MediaPlayer output. No DSP/source gain change and no second audible owner.
+  * Callers must prove the needed seek neighborhood is locally validated and
+  * retire this player on a missing callback (untagged Android seek callbacks). */
+ void seekAudibleCached(MediaPlayer player,long target,String identity,long ticket,DynamicsProcessing effect){
+  if(player==null||!player.isPlaying()||!current(ticket,identity)
+      ||state!=State.REPLACEMENT||!originalMuted||pauseMode!=PauseMode.NONE
+      ||handoverAwaitingClock||inFlightDecoder!=null
+      ||commandedSecondary<=0.001f||effect==null||effect!=attachedEffect
+      ||!effect.hasControl()||!effect.getEnabled())
+   throw new IllegalStateException("audible cached seek lacks exclusive owner");
+  player.seekTo(Math.max(0L,target),MediaPlayer.SEEK_CLOSEST);
+ }
  static final class RestoreResult { boolean gainReset,disabled,released; }
  /** Secondary decoder must be silent or released before resetting native gain. */
  RestoreResult restoreSource(MediaPlayer secondary,DynamicsProcessing effect){

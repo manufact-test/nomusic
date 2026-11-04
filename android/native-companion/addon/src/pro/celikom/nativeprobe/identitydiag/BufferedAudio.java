@@ -7,10 +7,10 @@ import java.util.function.*;
 /** Private sparse cache. Only fully validated chunks are ever visible to the decoder. */
 class BufferedAudio implements Closeable {
  static final int BLOCK=131072;static final long MAX_BYTES=31457280;
- // A fresh HTTP request per 128 KiB block made a 4-8 MiB song require
- // dozens of VPN round trips. Only the yieldable background cache filler may
- // group adjacent blocks; decoder misses still fetch precisely one block.
- static final int PREFETCH_RUN_BLOCKS=4;
+ // Test.29 owner rejection: a wide speculative Range reserved four blocks
+ // while a finger scrub needed one. Revert to independently preemptible 128-KiB
+ // foreground/background reads; no batch can hold a future seek block hostage.
+ static final int PREFETCH_RUN_BLOCKS=1;
  interface Open {HttpURLConnection open() throws Exception;}
  interface Events {void event(String name,long bytes);}
  final File file;final Open open;final BooleanSupplier valid;final LongSupplier clock;final Events events;
@@ -153,6 +153,20 @@ class BufferedAudio implements Closeable {
  synchronized int nextPrefetchBlock(){int count=blocks();if(count==0)return -1;int cursor=Math.max(0,Math.min(count-1,playbackBlock));for(int b=cursor;b<count;b++)if(!present.get(b))return b;for(int b=0;b<cursor;b++)if(!present.get(b))return b;return -1;}
  int blocks(){return size<0?0:(int)((size+BLOCK-1)/BLOCK);}
  synchronized boolean complete(){return size>0&&present.cardinality()==blocks();}
+ /** Conservative evidence for a native, still-audible MediaPlayer seek.
+  * Sparse files are laid out by BYTE, not by time; MP3 may be VBR. This is
+  * only an eligibility hint (not proof of decoder data readiness): require
+  * several fully verified adjacent blocks, including metadata head/tail.
+  * A bounded hot-seek watchdog must still fail open if the player stalls. */
+ synchronized boolean hasVerifiedSeekNeighborhood(long positionMs,long durationMs){
+  if(closed||size<=0||positionMs<0||durationMs<=0||positionMs>=durationMs)return false;
+  if(complete())return true;
+  int last=blocks()-1;
+  if(last<3||!present.get(0)||!present.get(last))return false;
+  long estimated=Math.min(size-1,(long)((double)size*positionMs/durationMs));
+  int b=(int)(estimated/BLOCK);
+  return b>0&&b<last&&present.get(b-1)&&present.get(b)&&present.get(b+1);
+ }
  synchronized long cachedBytes(){long total=0;for(int b=present.nextSetBit(0);b>=0;b=present.nextSetBit(b+1))total+=Math.min(BLOCK,size-(long)b*BLOCK);return total;}
  synchronized File retainComplete(){if(!complete()||closed)return null;detached=true;return file;}
  boolean stalled(){return waitingSince>=0&&clock.getAsLong()-waitingSince>=250;}

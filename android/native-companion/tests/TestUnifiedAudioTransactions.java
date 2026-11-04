@@ -70,9 +70,10 @@ public final class TestUnifiedAudioTransactions {
   check(!TestEngine.e.armed()&&!TestEngine.e.preparing,
     "account rollover clears an otherwise stuck preparation");
 
-  /* HONOR 0.3.65 found 43–194ms commanded silence on cached scrubs. After
-     silencing the decoder the retained effect must restore Yandex immediately;
-     no timer is allowed to govern whether either source may play. */
+  /* HONOR 0.3.65 found 43–194ms commanded silence from a timed MUTED seek.
+     Test.30 uses a different path: MediaPlayer.seekTo while still audible,
+     with unchanged source/DSP gains. Missing ACK retires the entire player
+     before any new seek (untagged callbacks), without a muted-source gap. */
   TestEngine.playing();
   ReplacementEngine slow=TestEngine.e;MediaPlayer seekPlayer=slow.player;
   android.media.audiofx.DynamicsProcessing existingEffect=slow.effect;
@@ -83,15 +84,19 @@ public final class TestUnifiedAudioTransactions {
   seekPlayer.asyncSeek=true;
   TestEngine.p.current=TestEngine.source("1",60000,true);
   slow.update(TestEngine.p.current);
-  check(slow.seeking&&!seekPlayer.playing&&seekPlayer.volume==0f
-     &&slow.effect==existingEffect&&existingEffect.gain==0f&&slow.originalMix==1f,
-     "cached finger seek restores native output immediately while decoder seeks");
+  check(slow.hotCachedSeek&&!slow.seeking&&seekPlayer.playing&&seekPlayer.volume==1f
+     &&slow.effect==existingEffect&&existingEffect.gain==-100f&&slow.originalMix==0f,
+     "verified local file seek remains in exclusive replacement without a DSP swap");
   android.os.SystemClock.now+=ReplacementEngine.RETAINED_SEEK_JOIN_MS+1;
   TestEngine.p.handler.drain();
-  check(slow.seeking&&!seekPlayer.playing&&seekPlayer.volume==0f
-     &&slow.effect==existingEffect&&existingEffect.gain==0f&&slow.originalMix==1f
+  check(slow.hotCachedSeek&&seekPlayer.playing&&seekPlayer.volume==1f
+     &&slow.effect==existingEffect&&existingEffect.gain==-100f
      &&!slow.seekHoldActive,
-     "slow seek retains the native source without a timed second owner swap");
+     "no timer introduces commanded silence during exclusive decoder seek");
+  android.os.SystemClock.now+=ReplacementEngine.HOT_CACHED_SEEK_TIMEOUT_MS+10;
+  TestEngine.p.handler.drain();
+  check(!slow.hotCachedSeek&&seekPlayer.released&&slow.effect==null,
+     "missing untagged hot-seek callback retires decoder and restores source safely");
   slow.returnOriginal();
   check(slow.effect==null&&slow.player==null&&!slow.armed(),
      "manual return during seek cannot promote the muted decoder to audible output");
