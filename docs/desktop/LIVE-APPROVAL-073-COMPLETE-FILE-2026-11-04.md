@@ -24,7 +24,7 @@ New checks cover bounded signed MP3 download, content preservation, revoked acce
 
 Browser fixture starts a real original at 42 seconds, first resolves unavailable, simulates approval, holds native-file continuation for 1800 ms, and requires the original to keep playing unmuted. After release, the real controller must adopt a complete native MP3 with one decoder/first download, no restore loop, aligned output and effective pause. Full existing opening-word hold, native MP3/M4A, delayed seek, volume/mute and original restoration scenarios remain enabled.
 
-Dedicated workflow installs official Brave release using https://brave.com/linux/ apt instructions, then requires actual Chrome AND actual Brave native audio fixtures. Explicit browser override must not silently fall back to Chrome. A browser closing during a CDP request fails the test rather than hanging. Linux headless coverage is not proof of every Windows Brave/GPU condition; record actual outcome before claiming success.
+Dedicated workflow installs official Brave release using https://brave.com/linux/ apt instructions, then requires actual Chrome AND actual Brave native audio fixtures. Explicit browser override must not silently fall back to Chrome. A browser closing during a CDP request fails the test rather than hanging. A separate Windows job installs the official standalone Brave installer, verifies its Authenticode publisher, and requires the same real-media tests. Both run in isolated temporary browser profiles; cleanup may terminate only the child process tree created by this script. This still does not reproduce the owner's exact profile/GPU/crash report; record actual outcomes before claiming success.
 
 ## Delivery
 
