@@ -122,16 +122,16 @@ public final class TestHonor059Journal {
   DynamicsProcessing effect=e.effect;
   p.asyncSeek=true;
   sample(60000,true);
-  check(e.seeking&&!p.playing&&p.volume==0f&&e.originalMix==1f&&effect.gain==0f,
-    "cached scrub immediately retains audible native source ownership");
+  check(e.hotCachedSeek&&p.playing&&p.volume==1f&&e.originalMix==0f&&effect.gain==-100f,
+    "verified cached scrub preserves already-exclusive replacement ownership");
   SystemClock.now+=ReplacementEngine.RETAINED_SEEK_JOIN_MS+1;
   TestEngine.p.handler.drain();
-  check(e.seeking&&!p.playing&&p.volume==0f
-    &&e.originalMix==1f&&effect.gain==0f,
-    "slow seek remains on original with same effect; no timed command-gap workaround");
+  check(e.hotCachedSeek&&p.playing&&p.volume==1f
+    &&e.originalMix==0f&&effect.gain==-100f,
+    "cached decoder has no muted-source timer or second DSP transfer while awaiting ACK");
   SystemClock.now+=551;
   AudioContinuityMonitor.Finding phantom=e.continuity.observe(
-    SystemClock.now,"7","seek",true,false,false,0f);
+    SystemClock.now,"7","seek",true,true,true,1f);
   quality(phantom==null,
     "RED 0.3.59: restored original was omitted from continuity sampling; a phantom 551ms commanded-silence event is emitted");
   e.close();
