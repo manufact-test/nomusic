@@ -49,14 +49,14 @@ public final class TestFullFileSeekExperiment {
   engine.sourceSeekRequested();
   TestEngine.p.current=TestEngine.source("1",42000,true);
   engine.update(TestEngine.p.current);
-  check(engine.seeking&&decoder.seekCalls==originalSeeks+1
-      &&decoder.volume==0f&&engine.effect.gain==0f,
-    "finger seek uses the same decoder and retains original output");
+  check(engine.hotCachedSeek&&!engine.seeking&&decoder.seekCalls==originalSeeks+1
+      &&decoder.playing&&decoder.volume==1f&&engine.effect.gain==-100f,
+    "verified full-file finger seek stays inside the exclusive audible decoder");
   SystemClock.now+=60;
   TestEngine.p.current=TestEngine.source("1",42060,true);
   decoder.seek.onSeekComplete(decoder);
-  check(!engine.seeking&&decoder.playing&&engine.player==decoder,
-    "a local seek ACK resumes the retained decoder");
+  check(!engine.hotCachedSeek&&!engine.seeking&&decoder.playing&&engine.player==decoder,
+    "a local seek ACK completes without a new audible handover");
   TestCachedAudioRollback.advanceTogether(decoder,8,250);
   check(TestEngine.api.downloads==originalDownloads&&TestEngine.api.streamed==null
       &&decoder.seekCalls==originalSeeks+1,

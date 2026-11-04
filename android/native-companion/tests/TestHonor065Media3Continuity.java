@@ -69,7 +69,8 @@ public final class TestHonor065Media3Continuity {
   check(action==SourceEventArbiter.Action.SEEK,"live same-item Media3 seek accepted "+alias+"/"+index);
   source(alias,target);
   engine.update(TestEngine.p.current);
-  check(engine.seeking,"real engine starts seek on latest source position "+alias+"/"+index);
+  check(engine.seeking||engine.hotCachedSeek,
+    "real engine starts single-owner or fail-open seek on latest source position "+alias+"/"+index);
   // 0.3.65 fails here: both Yandex and CELIKOM are commanded silent while
   // the source is still playing, even with an entirely cached replacement.
   check(engine.effect==null||engine.effect.gain>-0.01f||player.volume>0.001f,
