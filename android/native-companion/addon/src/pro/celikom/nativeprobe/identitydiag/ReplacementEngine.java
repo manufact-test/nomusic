@@ -920,6 +920,9 @@ final class ReplacementEngine {
    "trackId",trackId,"targetMs",target,"sourcePositionMs",position(source),
    "verifiedCache",true,"sourceGainChanged",false,"replacementGainChanged",false,
    "singleAudibleOwner",true,"sequence",seq,"audioSourceKind",audioSourceKind));
+  // Preserve the owner-approved completeSeek() method byte-for-byte. Route
+  // only this isolated experiment's callbacks through its own handler.
+  p.setOnSeekCompleteListener(mp->{if(hotCachedSeek)completeHotCachedSeek(mp,key);else completeSeek(mp,key);});
   try{audioOwner.seekAudibleCached(p,target,key,audioOwner.epoch(),effect);}
   catch(RuntimeException ex){hotCachedSeek=false;suspend("hot_cached_seek_rejected",retryDelay());return;}
   owner.handler.postDelayed(()->{
@@ -1077,7 +1080,7 @@ final class ReplacementEngine {
     if(decoderPrimed)livePrepared.onPrepared(p);else p.prepareAsync();if(source!=null)source.prefetch();final MediaPlayer preparingPlayer=p;owner.handler.postDelayed(()->{if(player==preparingPlayer&&!ready)suspend("prepare_timeout",retryDelay());},10000);
    }catch(Exception e){suspend("prepare_failed",retryDelay());status="Не удалось подготовить аудио; играет оригинал";}
  }
- void completeSeek(MediaPlayer mp,String key){
+ void completeHotCachedSeek(MediaPlayer mp,String key){
   if(mp!=player||!Objects.equals(identityKey,key)||!accountLeaseCurrent())return;
   if(hotCachedSeek){
    long elapsed=SystemClock.elapsedRealtime()-hotCachedSeekStarted;
@@ -1129,6 +1132,9 @@ final class ReplacementEngine {
     "hardwareOutputMeasured",false));
    return;
   }
+ }
+ void completeSeek(MediaPlayer mp,String key){
+  if(mp!=player||!Objects.equals(identityKey,key)||!accountLeaseCurrent())return;
   AudioOwnership.SeekAck ack=audioOwner.acceptSeekCompletion(mp);
   if(ack==null)return; // repeated/retired callback
   seekRetargetPending=false;
