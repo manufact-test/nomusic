@@ -10,7 +10,7 @@ import java.util.concurrent.*;
 /** One serialized transport for refresh rotation; no embedded user/API credentials. */
 final class NativeApi {
  interface Result {void done(JSONObject result,String error);}
- volatile boolean revoking;volatile long accountGeneration;volatile long configValidatedAt=-1;static NativeApi singleton;final SecureSession session;final Context context;final ExecutorService work=Executors.newSingleThreadExecutor();final ExecutorService audioWork=Executors.newSingleThreadExecutor();final ExecutorService contributions=Executors.newSingleThreadExecutor();final Handler main=new Handler(Looper.getMainLooper());
+ volatile boolean revoking;volatile long accountGeneration;volatile long configValidatedAt=-1;static NativeApi singleton;final SecureSession session;final Context context;final ExecutorService work=Executors.newSingleThreadExecutor();final ExecutorService audioWork=Executors.newSingleThreadExecutor();final ExecutorService foregroundStreamWork=Executors.newSingleThreadExecutor();final ExecutorService contributions=Executors.newSingleThreadExecutor();final Handler main=new Handler(Looper.getMainLooper());
  static synchronized NativeApi get(Context c){if(singleton==null)singleton=new NativeApi(c);return singleton;}
  NativeApi(Context c){context=c.getApplicationContext();session=new SecureSession(c);}
  volatile long diagnosticUntil,diagnosticGeneration=-1,nextDiagnosticCheck;volatile boolean diagnosticBusy;
@@ -108,12 +108,20 @@ final class NativeApi {
    String token=access();if(!valid.getAsBoolean())throw new Exception("lookup_cancelled");JSONObject j=request("resolve?audio_formats=mp3,m4a&service=yandex&track_id="+id,null,token,valid);if(j.optBoolean("found"))ApiContract.audio(j,System.currentTimeMillis());return j;},result);
  }
  interface StreamResult {void done(BufferedAudio source,String error);}
- void stream(JSONObject descriptor,java.util.function.BooleanSupplier valid,StreamResult result){final long account=accountGeneration;audioWork.execute(()->{BufferedAudio source=null;String error=null;long start=SystemClock.elapsedRealtime();try{
-  java.util.function.BooleanSupplier allowed=()->!revoking&&account==accountGeneration&&valid.getAsBoolean();
+ void stream(JSONObject descriptor,java.util.function.BooleanSupplier valid,StreamResult result){final long account=accountGeneration;foregroundStreamWork.execute(()->{BufferedAudio source=null;String error=null;long start=SystemClock.elapsedRealtime();try{
+  // Never let a speculative *full-file* lookahead occupy the foreground
+  // current song's sparse decoder preparation lane. If three verified Range
+  // reads cannot finish promptly, return to the accepted local-file path.
+  java.util.function.BooleanSupplier allowed=()->!revoking&&account==accountGeneration&&valid.getAsBoolean()&&SystemClock.elapsedRealtime()-start<1800;
   if(!allowed.getAsBoolean())throw new Exception("audio_cancelled");
   File file=File.createTempFile("buffered-",".audio",context.getCacheDir());
-  source=new BufferedAudio(file,()->(HttpsURLConnection)new URL(ApiContract.audio(descriptor,System.currentTimeMillis())).openConnection(),allowed,SystemClock::elapsedRealtime,(name,bytes)->LogStore.log(name,LogStore.map("cachedBytes",bytes,"elapsedMs",SystemClock.elapsedRealtime()-start)));
-  source.initializeForPlayback();if(!allowed.getAsBoolean())throw new Exception("audio_cancelled");
+  // The deadline applies only to probing initial sparse readiness. Once the
+  // decoder owns the source, the song lease (not this startup budget) governs
+  // all future Range reads and background caching.
+  java.util.concurrent.atomic.AtomicBoolean initialized=new java.util.concurrent.atomic.AtomicBoolean();
+  java.util.function.BooleanSupplier streamLease=()->!revoking&&account==accountGeneration&&valid.getAsBoolean()&&(initialized.get()||SystemClock.elapsedRealtime()-start<1800);
+  source=new BufferedAudio(file,()->(HttpsURLConnection)new URL(ApiContract.audio(descriptor,System.currentTimeMillis())).openConnection(),streamLease,SystemClock::elapsedRealtime,(name,bytes)->LogStore.log(name,LogStore.map("cachedBytes",bytes,"elapsedMs",SystemClock.elapsedRealtime()-start)));
+  source.initializeForPlayback();if(!allowed.getAsBoolean())throw new Exception("audio_cancelled");initialized.set(true);
  }catch(Exception e){if(source!=null)source.close();source=null;error="audio_stream_unavailable";LogStore.log("replacement_stream_failure",LogStore.map("type",e.getClass().getSimpleName(),"elapsedMs",SystemClock.elapsedRealtime()-start));}
  final BufferedAudio out=source;final String fail=error;main.post(()->result.done(out,fail));});}
  interface AudioResult{void done(File file,String error);}

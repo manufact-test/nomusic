@@ -6,8 +6,10 @@ public final class TestClockSupervisor {
  public static void main(String[] args){
   ClockSupervisor s=new ClockSupervisor();
   ok(s.assess(true,true,false,1160,1000)==ClockSupervisor.Decision.KEEP,"single high drift observation is not terminal");
-  ok(s.assess(true,true,false,1156,2200)==ClockSupervisor.Decision.KEEP,"1.2s divergent clock not yet confirmed");
-  ok(s.assess(true,true,false,1166,2501)==ClockSupervisor.Decision.RESTORE_SOURCE,"HONOR 1.16s steady discrepancy must restore native");
+  ok(s.assess(true,true,false,1156,2200)==ClockSupervisor.Decision.SEEK,"confirmed medium drift gets one silent re-alignment, not a permanent song dropout");
+  s.onSeek();
+  ok(s.assess(true,true,false,1166,2501)==ClockSupervisor.Decision.KEEP,"post-correction drift starts a new confirmation window");
+  ok(s.assess(true,true,false,1166,4102)==ClockSupervisor.Decision.RESTORE_SOURCE,"persistent mismatch after correction must restore native");
   s.reset();
   for(int i=0;i<50;i++)ok(s.assess(true,true,false,550,1000+250*i)==ClockSupervisor.Decision.KEEP,"550ms Bluetooth-offset baseline remains undisturbed");
   ok(s.assess(false,true,false,0,14000)==ClockSupervisor.Decision.SEEK,"first alignment is silent seek");
@@ -21,6 +23,13 @@ public final class TestClockSupervisor {
   s.reset();
   ok(s.assess(true,false,false,3000,21000)==ClockSupervisor.Decision.KEEP,"pause does not count as drift");
   ok(s.assess(true,true,false,240,22000)==ClockSupervisor.Decision.KEEP,"normal small clock offset is harmless");
+  s.reset();
+  ok(s.assess(true,true,false,925,23000)==ClockSupervisor.Decision.KEEP,"Test24 Pушка initial 925ms offset is debounced");
+  ok(s.assess(true,true,false,1005,23700)==ClockSupervisor.Decision.SEEK,"Test24 Pушка 1005ms sustained offset corrects rather than drops the entire song");
+  s.onSeek();
+  ok(s.assess(true,true,false,120,23900)==ClockSupervisor.Decision.KEEP,"corrected clock is safe");
+  ok(s.assess(true,true,false,900,24000)==ClockSupervisor.Decision.KEEP,"isolated transient must not rearm a second correction");
+  ok(s.assess(true,true,false,900,25700)==ClockSupervisor.Decision.RESTORE_SOURCE,"repeated mismatch fail-opens after bounded retry");
   System.out.println("PASS: "+checks+" unified clock supervisor decisions");
  }
 }

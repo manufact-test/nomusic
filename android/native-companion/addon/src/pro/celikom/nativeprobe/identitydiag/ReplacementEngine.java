@@ -13,6 +13,9 @@ final class ReplacementEngine {
  static final long FULL_FILE_EXPERIMENT_BUDGET_MS=20000;
  final ProbeService owner; final NativeApi api;
  final boolean fullFileExperiment;
+ // Explicit experimental opt-in only for the isolated CELIKOM Test service.
+ // Existing two-argument local-file callers keep their frozen semantics.
+ final boolean progressiveColdAllowed;
  boolean coldJoinExclusiveExperiment=true;
  String status="Замена выключена",identityKey,trackId,method="NONE",lookupKey;
  JSONObject descriptor; long descriptorUntil,nextLookup,preparedAt,seekStarted,seekBudget=SEEK_TIMEOUT_MS,fadeStarted,transition,pausedAt=-1;volatile long armedUntil;
@@ -300,16 +303,19 @@ final class ReplacementEngine {
   preparing=true;audioFromCache=false;status="Готовим замену заранее; оригинал продолжает играть";
   lookaheadPrefetchCurrentDescriptor=fresh;lookaheadPrefetchWait=true;
   // A stalled prefetch must not leave the current song in PREPARING indefinitely.
+  // The frozen local-file experiment keeps its exact original 10s policy;
+  // only the Test.25 opt-in yields early to verified sparse preparation.
+  final long handoffWaitMs=progressiveColdAllowed?1200:10000;
   final String waitAlias=source.alias;
   owner.handler.postDelayed(()->{
    if(!closed&&g==generation&&lookaheadPrefetchWait
       &&Objects.equals(waitAlias,lookaheadPrefetchAlias)&&Objects.equals(identityKey,key)&&current(key))
     fallbackPromotedLookaheadPrefetch("current_handoff_timeout");
-  },10000);
+  },handoffWaitMs);
   LogStore.log("replacement_lookahead_prefetch_current_wait",LogStore.map(
     "mediaAlias",lookaheadPrefetchAlias,"trackId",trackId,"phase",lookaheadPrefetchPhase,
     "freshResolveRequired",true,"audioKeyMatches",lookaheadPrefetchResolvedAudioKey==null?"pending":true,
-    "originalRemainsAudible",true));
+    "originalRemainsAudible",true,"waitBudgetMs",handoffWaitMs));
   return true;
  }
  void prepareWithLookaheadPrefetch(String key,JSONObject fresh,long g){
@@ -366,9 +372,12 @@ final class ReplacementEngine {
   if(!lookaheadPrefetchWait||lookaheadPrefetchCurrentDescriptor==null)return;
   JSONObject fresh=lookaheadPrefetchCurrentDescriptor;String key=identityKey;long g=generation;String alias=lookaheadPrefetchAlias;
   lookaheadPrefetchWait=false;lookaheadPrefetchCurrentDescriptor=null;lookaheadPrefetchPromoted=false;
-  LogStore.log("replacement_lookahead_prefetch_current_fallback",LogStore.map("mediaAlias",alias,"trackId",trackId,"reason",reason,"action","fresh_descriptor_full_download"));
+  LogStore.log("replacement_lookahead_prefetch_current_fallback",LogStore.map("mediaAlias",alias,"trackId",trackId,"reason",reason,"action",progressiveColdAllowed?"fresh_verified_sparse_start":"fresh_descriptor_full_download"));
   invalidateLookaheadPrefetch(reason);
-  if(preparing&&g==generation&&current(key))downloadFull(key,fresh,g);
+  if(preparing&&g==generation&&current(key)){
+   if(progressiveColdAllowed){preparing=false;prepare(key,fresh,g);}
+   else downloadFull(key,fresh,g);
+  }
  }
  void resumePromotedLookaheadPrefetch(){
   if(!lookaheadPrefetchWait||lookaheadPrefetchCurrentDescriptor==null)return;PlaybackSource source=owner.current;
@@ -459,10 +468,11 @@ final class ReplacementEngine {
  }
 
 
- // The installed experiment uses only the local-file path. The alternate
- // constructor exists for deterministic host tests of the frozen stream baseline.
+ // Keep the frozen local-file default for regression callers. The isolated
+ // Test.25 service opts into progressive cold preparation explicitly.
  ReplacementEngine(ProbeService owner){this(owner,true);}
- ReplacementEngine(ProbeService owner,boolean fullFileExperiment){this.owner=owner;api=NativeApi.get(owner);this.fullFileExperiment=fullFileExperiment;}
+ ReplacementEngine(ProbeService owner,boolean fullFileExperiment){this(owner,fullFileExperiment,false);}
+ ReplacementEngine(ProbeService owner,boolean fullFileExperiment,boolean progressiveColdAllowed){this.owner=owner;api=NativeApi.get(owner);this.fullFileExperiment=fullFileExperiment;this.progressiveColdAllowed=progressiveColdAllowed;}
  AudioOwnership.SeekContext seekContext(){return new AudioOwnership.SeekContext(
   owner.sourceEventSequence,owner.sourceItemGeneration,generation,decoderInstanceId,
   audioOwner.epoch(),audioOwner.operationEpoch(),audioSourceKind,localPrewarmAttempted);}
@@ -591,7 +601,9 @@ final class ReplacementEngine {
   if(trustedSession<=0){status="Автозамена ожидает подключения: открой эквалайзер Яндекса → CELIKOM один раз";return;}
   try{
    if(!s.playing){
-    clockSupervisor.reset();
+    // Pause clears transient drift evidence without re-arming a consumed
+    // one-per-song correction allowance. Track/Stop still perform full reset.
+    clockSupervisor.onSeek();
     if(s.buffering&&s.wantsToPlay)bufferSource(s,sourceJump);
     else{sourceBufferSince=-1;pauseSource(s,false);}
     return;
@@ -892,6 +904,12 @@ final class ReplacementEngine {
   audioFromCache=false;
   File cached=recentAudio.remove(audioKey(j));
   if(cached!=null&&cached.isFile()){audioFromCache=true;if(Objects.equals(lookaheadPrefetchTrackId,trackId)&&Objects.equals(lookaheadPrefetchAlias,owner.current.alias))finishLookaheadPrefetch("cache_consumed");LogStore.log("replacement_audio_reused",LogStore.map("trackId",trackId,"liveResolveRequired",true,"cacheHit",true,"decoderRecreated",true,"sourceKind","local_cache_file","sourceItemGeneration",owner.sourceItemGeneration,"sourceEventSequence",owner.sourceEventSequence));acceptAudio(key,j,g,cached,null);return;}
+  if(fullFileExperiment&&progressiveColdAllowed&&!key.equals(streamFallbackKey)){
+   LogStore.log("replacement_progressive_cold_start",LogStore.map("trackId",trackId,
+     "policy","validated_range_before_full_file","startupBudgetMs",1800,
+     "originalRemainsAudible",true,"owner", "foreground_single_decoder"));
+   startVerifiedProgressive(key,j,g);return;
+  }
   if(fullFileExperiment){
    logTrace("replacement_full_file_experiment_start",LogStore.map(
      "trackId",trackId,"sourceKind","full_download_file",
@@ -909,6 +927,25 @@ final class ReplacementEngine {
   });
  }
  void downloadFull(String key,JSONObject j,long g){audioFromCache=false;final long account=api.accountGeneration,start=SystemClock.elapsedRealtime();api.download(j,()->transportLeaseCurrent(key,g,account)&&(!fullFileExperiment||SystemClock.elapsedRealtime()-start<FULL_FILE_EXPERIMENT_BUDGET_MS),(file,error)->acceptAudio(key,j,g,file,error));}
+ void startVerifiedProgressive(String key,JSONObject j,long g){
+  final long account=api.accountGeneration;
+  status="Подключаем замену по проверенным частям файла; играет оригинал";
+  api.stream(j,()->transportLeaseCurrent(key,g,account),(source,error)->{
+   if(g!=generation||closed||!current(key)||!api.signedIn()){
+    if(source!=null)source.close();return;
+   }
+   if(source==null){
+    streamFallbackKey=key;
+    LogStore.log("replacement_progressive_cold_fallback",LogStore.map(
+      "trackId",trackId,"reason",error==null?"range_unavailable":error,
+      "action","accepted_full_file_download"));
+    downloadFull(key,j,g);return;
+   }
+   LogStore.log("replacement_progressive_cold_ready",LogStore.map("trackId",trackId,
+     "cachedBytes",source.cachedBytes(),"verifiedRange",true,"decoderSource","private_sparse_file"));
+   acceptAudio(key,j,g,null,source,null);
+  });
+ }
  void acceptAudio(String key,JSONObject j,long g,File file,String error){acceptAudio(key,j,g,file,null,error);}
  void acceptAudio(String key,JSONObject j,long g,File file,BufferedAudio source,String error){if(g!=generation||closed||!audioOwner.dataCurrent(prepareTicket,api.accountGeneration,key,j.optLong("replacement_id"),j.optLong("version"),j.optLong("duration_ms"))){if(file!=null)file.delete();if(source!=null)source.close();return;}preparing=false;if(file==null&&source==null){suspend("download_failed",retryDelay());status="Сеть недоступна; играет оригинал, повторим автоматически";return;}if(!current(key)||!api.signedIn()){if(file!=null)file.delete();if(source!=null)source.close();suspend("download_source_changed",1000);return;}
    try{if(source!=null)audioFromCache=false;audioFile=file;streaming=source;audioSourceKind=source!=null?"stream":audioFromCache?"local_cache_file":"full_download_file";localPrewarmAttempted=false;localPrewarmAlignmentPending=false;localPrewarmJoinPending=false;bufferWaiting=false;

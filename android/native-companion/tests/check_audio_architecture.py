@@ -130,8 +130,8 @@ if 'void duckSourceForExclusiveJoin(' not in owner or 'commandedSecondary>0.001f
     raise AssertionError('source-only attenuation must reject an already audible decoder')
 if 'if(effect!=null&&originalMix>0.001f' not in engine or 'audioOwner.state()==AudioOwnership.State.SAME_SONG_BLEND' not in engine:
     raise AssertionError('pause must immediately silence replacement and restore source during blend')
-if engine.count('()->transportLeaseCurrent(key,g,account)')!=2:
-    raise AssertionError('stream and full-download leases must survive transient source disconnects without crossing track/account generations')
+if engine.count('()->transportLeaseCurrent(key,g,account)')!=3:
+    raise AssertionError('baseline stream, Test25 verified progressive stream and full download must all keep exact track/account ownership leases')
 if '&&Math.abs(residual)>HANDOVER_DRIFT_MS)' not in engine or 'seekCorrections==0?80' in engine:
     raise AssertionError('streaming correction cannot apply a stricter 80ms threshold than the handover budget')
 if 'boolean retainedPosition=resumePositionRetained' not in engine or 'boolean retainedPauseResume=resumed&&retainedPosition' not in engine or 'boolean seamlessResume=retainedPauseResume' not in engine:

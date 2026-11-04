@@ -63,7 +63,7 @@ public final class TestRealFailures {
   SystemClock.now+=500;mp.position=1500;sample(e,1500);
   check(e.effect!=null&&!e.fading&&e.aligned,
       "drift test begins only after successful exclusive-audio handover");
-  for(int i=0;i<9 && e.player!=null;i++){
+  for(int i=0;i<13 && e.player!=null;i++){
    SystemClock.now+=300;
    long nativePosition=1800L+i*300;
    mp.position=nativePosition-1160;

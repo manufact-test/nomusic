@@ -30,7 +30,7 @@ concurrency:
 
 jobs:
   build-test-app:
-    if: inputs.source_branch == 'feature/android-0385-test23-selective-merge-20261104' && inputs.source_repository == 'manufact-test/nomusic'
+    if: inputs.source_branch == 'feature/android-0385-test25-progressive-continuity-20261104' && inputs.source_repository == 'manufact-test/nomusic'
     runs-on: ubuntu-latest
     timeout-minutes: 40
     steps:
@@ -47,7 +47,7 @@ jobs:
           SOURCE_BRANCH: ${{ inputs.source_branch }}
           SOURCE_REPOSITORY: ${{ inputs.source_repository }}
           VALIDATION_RUN_ID: ${{ inputs.validation_run_id }}
-          EXPECTED_BRANCH: feature/android-0385-test23-selective-merge-20261104
+          EXPECTED_BRANCH: feature/android-0385-test25-progressive-continuity-20261104
         shell: bash
         run: |
           set -euo pipefail
@@ -125,7 +125,7 @@ jobs:
           set -euo pipefail
           ROOT=android/native-companion
           KIT="$RUNNER_TEMP/kit"
-          OUT="$RUNNER_TEMP/CELIKOM-Android-0.3.85-TEST-23-TEST15-SAFE-16-17-MERGE-SIGNED.apk"
+          OUT="$RUNNER_TEMP/CELIKOM-Android-0.3.85-TEST-25-PROGRESSIVE-CONTINUITY-SIGNED.apk"
           python3 "$ROOT/build_test_release.py" \
             --sdk "$KIT/sdk" \
             --build-tools "$KIT/build-tools/36.0.0" \
@@ -211,9 +211,9 @@ jobs:
       - name: Upload signed test APK and verification receipt only
         uses: actions/upload-artifact@v4
         with:
-          name: CELIKOM-Test-0.3.85-test.23-code-86108
+          name: CELIKOM-Test-0.3.85-test.25-code-86110
           path: |
-            ${{ runner.temp }}/CELIKOM-Android-0.3.85-TEST-23-TEST15-SAFE-16-17-MERGE-SIGNED.apk
+            ${{ runner.temp }}/CELIKOM-Android-0.3.85-TEST-25-PROGRESSIVE-CONTINUITY-SIGNED.apk
             ${{ runner.temp }}/CELIKOM-Android-0.3.85-TEST-23-TEST15-SAFE-16-17-MERGE-SIGNED.verification.json
             ${{ runner.temp }}/CELIKOM-Android-0.3.85-TEST-23-TEST15-SAFE-16-17-MERGE-RECEIPT.json
           if-no-files-found: error
