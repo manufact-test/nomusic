@@ -629,17 +629,12 @@ final class ReplacementEngine {
    if(resumed&&pausedDuration>=PAUSE_ALIGN_DELAY_MS&&effect!=null&&Math.abs(drift)>(retainedPauseResume?HANDOVER_DRIFT_MS:PAUSE_ALIGN_TOLERANCE_MS)){seek(s,target,drift);return;}
    ClockSupervisor.Decision clockDecision=clockSupervisor.assess(aligned,!seeking&&!audioOwner.handoverAwaitingClock(),sourceJump,drift,clock);
    if(clockDecision==ClockSupervisor.Decision.RESTORE_SOURCE){
-    logOutputClockSample(player,s,"sustained_drift_restore_original");
     String key=identityKey;LogStore.log("replacement_drift_unstable",LogStore.map("trackId",trackId,"sourcePositionMs",target,"driftMs",drift,"fallback","original_until_next_track","clockSupervisor","confirmed"));
     suspend("drift_unstable",30000);completedKey=key;completedPosition=target;completedReason="Большой рассинхрон замены — играет оригинал до следующей песни";audioOwner.unsupported("drift_unstable");status=completedReason;ownerEvent("drift_unsupported");return;
    }
    prewarmLocalFileForInitialAlignment(s,resumed,sourceJump);
    if(awaitLocalPrewarmMotion(s,resumed,sourceJump))return;
    if(clockDecision==ClockSupervisor.Decision.SEEK){
-    if(aligned&&!sourceJump&&Math.abs(drift)>ClockSupervisor.WARN_DRIFT_MS){
-     logOutputClockSample(player,s,"sustained_drift_before_bounded_realign");
-     LogStore.log("replacement_bounded_drift_realign",LogStore.map("trackId",trackId,"driftMs",drift,"sourcePositionMs",target,"oneAttemptPerTrack",true,"originalAudibleDuringSeek",true));
-    }
     long seekTarget=target;
     /* Only the first muted cold join predicts callback advance; user seeking stays frozen. */
     if(localPrewarmAlignmentPending&&!explicitSourceSeek&&!sourceJump
