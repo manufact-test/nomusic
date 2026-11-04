@@ -700,9 +700,14 @@ final class ReplacementEngine {
      traceAudioCommands();
      if(seamlessResume){fading=false;resumeFadePending=false;audioOwner.replacement();LogStore.log("replacement_resume_seamless",LogStore.map("trackId",trackId,"driftMs",drift,"sourcePositionMs",target,"retainedEffect",true));}
      else if(prewarmedJoin){localPrewarmJoinPending=false;startPrewarmedColdJoin();}
-     else fade(newlyAttached||pendingStreamScrubJoin);
+     /* The source can be sparse HTTP on its first join too (not just a fully
+        cached file). Its PCM phase is equally unknown: use the same bounded
+        exclusive envelope on a fresh cold stream, but NEVER on user scrubs. */
+     else fade((newlyAttached||pendingStreamScrubJoin)
+       &&!(newlyAttached&&coldJoinExclusiveExperiment&&!sourceSeekedThisTrack));
     }
-    else if(newlyAttached){setAuditedVolume(player,0f);fade(true);}
+    else if(newlyAttached){setAuditedVolume(player,0f);
+     fade(!(coldJoinExclusiveExperiment&&!sourceSeekedThisTrack));}
     else if(localPrewarmJoinPending&&!fading){localPrewarmJoinPending=false;startPrewarmedColdJoin();}
     else if(!fading){if(pendingStreamScrubJoin&&originalMix>0.001f){setAuditedVolume(player,0f);fade(true);}else{audioOwner.grantReplacement(effect);originalMix=0f;applyVolume(1f);}}
    status="Играет замена · автопереход включён";logSync("playing",s,drift);

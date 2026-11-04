@@ -106,6 +106,9 @@ if ('audioOwner.duckSourceForExclusiveJoin(p,fx,progress,ownerKey,ownerEpoch,han
     or 'float progress=TransitionMix.progress(now-exclusiveRiseStarted[0],48);' not in fade
     or 'if(progress<1f){owner.handler.postDelayed(this,10);return;}' not in fade):
     raise AssertionError('cold source duck must finish before decoder rise; no overlap or seek ramp')
+if ('&&!(newlyAttached&&coldJoinExclusiveExperiment&&!sourceSeekedThisTrack)' not in engine
+    or 'fade(!(coldJoinExclusiveExperiment&&!sourceSeekedThisTrack));' not in engine):
+    raise AssertionError('fresh sparse stream must use same non-overlap envelope, but never user scrub')
 activity=(root/'RecorderActivity.java').read_text()
 if 'requestJoinExperiment' in activity or 'save.setOnLongClickListener' in activity or 'celikom-join-lab' in activity:
     raise AssertionError('Save diagnostics must have no hidden ordinary/linear mode selector')
@@ -123,8 +126,10 @@ if 'setAuditedVolume(player,0f);audioOwner.pauseDecoder(player);' not in engine 
     raise AssertionError('seek must silence decoder first, then immediately restore native source using the retained effect')
 if 'if(originalMix<=0.001f&&!seekHoldActive)' not in fade or 'seekHoldActive=false;pendingStreamScrubJoin=false;ownerEvent("exclusive_handover")' not in fade:
     raise AssertionError('completed handover must revoke any previous seek/owner lease')
-if 'fade(newlyAttached||pendingStreamScrubJoin)' not in engine or 'else if(newlyAttached){setAuditedVolume(player,0f);fade(true);}' not in engine:
-    raise AssertionError('every new session attachment including long-pause resume must use the one clock-gated entry')
+if ('else fade((newlyAttached||pendingStreamScrubJoin)' not in engine
+    or 'else if(newlyAttached){setAuditedVolume(player,0f);' not in engine
+    or 'fade(!(coldJoinExclusiveExperiment&&!sourceSeekedThisTrack));' not in engine):
+    raise AssertionError('new session attachment and long-pause resume must use a fenced clock-gated entry')
 if ('platform_audio_activity_observed' not in service
     or 'registerAudioPlaybackCallback(playbackActivityObserver,handler)' not in service
     or '"observationOnly",true,"audioCommandSent",false' not in service
