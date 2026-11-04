@@ -8,8 +8,12 @@ final class AudioTransfer {
  static final long MAX_BYTES=31457280, MAX_MS=180000;
  interface Open {HttpURLConnection open() throws Exception;}
  interface Events {void retry(int attempt,long bytes,String reason);}
+ interface Progress {void received(long bytes,long expected);}
  static final class Rejected extends IOException {Rejected(String reason){super(reason);}}
  static void copy(File file,Open open,BooleanSupplier valid,LongSupplier clock,Events events)throws Exception {
+  copy(file,open,valid,clock,events,(bytes,expected)->{});
+ }
+ static void copy(File file,Open open,BooleanSupplier valid,LongSupplier clock,Events events,Progress progress)throws Exception {
   long start=clock.getAsLong(),total=-1;String etag=null;int failures=0;
   ScheduledExecutorService watchdog=Executors.newSingleThreadScheduledExecutor();
   try{
@@ -38,6 +42,7 @@ final class AudioTransfer {
        if(!valid.getAsBoolean())throw new Rejected("download_cancelled");
        if(clock.getAsLong()-start>=MAX_MS)throw new Rejected("download_deadline");
        received+=n;if(received>MAX_BYTES||(expected>=0&&received>expected))throw new Rejected("invalid_audio_size");out.write(bytes,0,n);
+       progress.received(received,expected);
       }
       if(received==0||expected>=0&&received!=expected)throw new EOFException("incomplete_audio");
      }

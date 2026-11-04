@@ -145,6 +145,49 @@ public final class TestLookaheadPrefetchHandoff {
     "timeout fallback can still prepare the current replacement");
   TestEngine.e.close();
  }
+ static void progressingPrefetchIsNeverDiscardedAtTenSeconds()throws Exception{
+  beginLookahead();promoteCurrent(descriptor(1),true);
+  android.os.SystemClock.now+=9500;
+  TestEngine.api.lookaheadProgressCallbacks.get(0).received(7584788,11118847);
+  android.os.SystemClock.now+=501;
+  TestEngine.p.current=TestEngine.source("2",11000,true);
+  TestEngine.p.handler.drain();
+  check(TestEngine.api.downloads==1&&TestEngine.e.lookaheadPrefetchWait&&TestEngine.api.downloadValidity.get(0).getAsBoolean(),
+    "10 second timeout must preserve a valid 7.6MB in-flight download");
+  android.os.SystemClock.now+=2000;
+  TestEngine.api.lookaheadProgressCallbacks.get(0).received(9000000,11118847);
+  TestEngine.p.handler.drain();
+  check(TestEngine.api.downloads==1&&TestEngine.e.lookaheadPrefetchWait,
+    "sustained transfer progress extends the same current handoff without duplicate fetching");
+  File completed=File.createTempFile("celikom-promoted-progress-",".audio");
+  TestEngine.api.downloadCallbacks.get(0).done(completed,null);
+  check(TestEngine.e.player!=null&&TestEngine.e.audioFile==completed&&TestEngine.api.downloads==1,
+    "completed file from the original transfer is handed to current after the timeout window");
+  TestEngine.e.close();
+ }
+ static void stalledPrefetchReleasesCurrent()throws Exception{
+  beginLookahead();promoteCurrent(descriptor(1),true);
+  android.os.SystemClock.now+=9500;
+  TestEngine.api.lookaheadProgressCallbacks.get(0).received(7000000,11118847);
+  android.os.SystemClock.now+=501;TestEngine.p.handler.drain();
+  check(TestEngine.api.downloads==1,"recent progress initially protects current handoff");
+  android.os.SystemClock.now+=9000;TestEngine.p.handler.drain();
+  check(TestEngine.api.downloads==2&&!TestEngine.api.downloadValidity.get(0).getAsBoolean(),
+    "missing progress eventually revokes the speculative lease and issues one fresh current download");
+  TestEngine.e.close();
+ }
+ static void continuouslySlowTransferStillHasHardDeadline()throws Exception{
+  beginLookahead();promoteCurrent(descriptor(1),true);
+  for(int elapsed=10000;elapsed<=46000;elapsed+=2000){
+   android.os.SystemClock.now=1000+elapsed;
+   TestEngine.api.lookaheadProgressCallbacks.get(0).received(100000+elapsed,11118847);
+   TestEngine.p.current=TestEngine.source("2",elapsed,true);
+   TestEngine.p.handler.drain();
+  }
+  check(TestEngine.api.downloads==2&&!TestEngine.e.lookaheadPrefetchWait,
+   "hard current deadline survives a trickling but non-completing transfer");
+  TestEngine.e.close();
+ }
  static void readyPrimedDecoderIsAdoptedOnlyAfterFreshResolve()throws Exception{
   beginLookahead();
   File file=File.createTempFile("celikom-prime-next-",".audio");
@@ -503,7 +546,9 @@ public final class TestLookaheadPrefetchHandoff {
   beginLookahead();promoteCurrent(descriptor(1),true);matchingPrefetchIsConsumed();
   mismatchedFreshResolveFallsBack();latePrefetchCanStartAfterBoundary();
   newNextCandidateCannotStealCurrentDownload();cancelledCurrentWaitMustFallBack();
-  currentWaitHasTimeout();readyPrimedDecoderIsAdoptedOnlyAfterFreshResolve();
+  currentWaitHasTimeout();progressingPrefetchIsNeverDiscardedAtTenSeconds();
+  stalledPrefetchReleasesCurrent();continuouslySlowTransferStillHasHardDeadline();
+  readyPrimedDecoderIsAdoptedOnlyAfterFreshResolve();
   unrelatedCurrentSongCannotDiscardPrimedSuccessor();
   promotedPrimeWaitsForFreshResolveBeforeNextCandidate();
   primedDecoderKeyMismatchCannotPlay();stalledPrimedDecoderExpiresWithoutBlockingCurrent();

@@ -25,6 +25,11 @@ public class TestAudioTransfer {
    Files.write(f.toPath(),new byte[0]);first=new Response(200,"abcdef");first.failAt=2;first.headers.clear();rest=new Response(200,"abcdef");transfer(f,valid,extra,first,rest);check(rest.getRequestProperty("Range")==null&&f.length()==6,"no validator cannot append");
    Files.write(f.toPath(),new byte[0]);first=new Response(200,"abcdef");first.failAt=3;rest=new Response(206,"def");rest.headers.put("Content-Range","bytes 2-4/6");try{transfer(f,valid,extra,first,rest);throw new AssertionError("bad range accepted");}catch(AudioTransfer.Rejected e){check(e.getMessage().equals("invalid_audio_range"),"wrong range cannot corrupt audio");}
    Files.write(f.toPath(),new byte[0]);first=new Response(200,"abcd");first.extra=extra;first.jump=9000;transfer(f,valid,extra,first);check(f.length()==4&&extra.get()>30000,"advancing transfer beyond thirty seconds completes");
+   Files.write(f.toPath(),new byte[0]);AtomicLong seen=new AtomicLong(),expected=new AtomicLong();
+   AudioTransfer.copy(f,()->new Response(200,"abcde"),valid::get,()->System.nanoTime()/1000000,
+    (a,b,c)->{},(bytes,total)->{check(bytes>=seen.get(),"progress monotonically grows within one response");seen.set(bytes);expected.set(total);});
+   check(seen.get()==5&&expected.get()==5&&f.length()==5,
+    "only flushed file bytes and validated full expected size are reported as progress");
    Files.write(f.toPath(),new byte[0]);rejected(f,new Response(403,"denied"),"audio_access_failed");
    Response huge=new Response(200,"x"){public long getContentLengthLong(){return AudioTransfer.MAX_BYTES+1;}};rejected(f,huge,"audio_too_large");
    valid.set(false);try{transfer(f,valid,new AtomicLong(),new Response(200,"abc"));throw new AssertionError("cancel ignored");}catch(AudioTransfer.Rejected e){check(e.getMessage().equals("download_cancelled"),"stale track or account cannot download");}
