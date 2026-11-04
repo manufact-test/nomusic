@@ -613,7 +613,7 @@ final class ReplacementEngine {
      // until its untagged seek callback drains. Retiring on this sample made
      // every otherwise-fast scrub pay for a complete decoder reconnection.
      hotCachedSeekPaused=true;
-     pauseSource(s,false);return;
+     pauseSource(s,s.buffering&&s.wantsToPlay);return;
     }
     // Pause clears transient drift evidence without re-arming a consumed
     // one-per-song correction allowance. Track/Stop still perform full reset.

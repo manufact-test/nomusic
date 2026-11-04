@@ -21,13 +21,13 @@ public final class TestHonor063SeekScrub {
   ReplacementEngine e=ready();MediaPlayer p=e.player;DynamicsProcessing fx=e.effect;
   p.asyncSeek=true;int initialSeeks=p.seekCalls;
   e.sourceSeekRequested();TestEngine.p.current=TestEngine.source("1",60000,true);e.update(TestEngine.p.current);
-  check(e.seeking&&p.seekCalls==initialSeeks+1&&!p.playing&&p.volume==0f
-      &&fx.gain==0f&&e.originalMix==1f,
-      "0.3.65 gap regression: cached scrub must not command both streams silent");
+  check(e.hotCachedSeek&&!e.seeking&&p.seekCalls==initialSeeks+1&&p.playing
+      &&p.volume==1f&&fx.gain==-100f&&e.originalMix==0f,
+      "cached scrub stays with the already-exclusive decoder, with no silent-owner handover");
   SystemClock.now+=65;TestEngine.p.current=TestEngine.source("1",60065,true);
   p.seek.onSeekComplete(p);
-  check(!e.seeking&&p.playing&&e.effect==fx&&
-       (fx.gain==0f||(fx.gain==-100f&&p.volume>0.99f)),
+  check(!e.hotCachedSeek&&!e.seeking&&p.playing&&e.effect==fx&&
+       fx.gain==-100f&&p.volume>0.99f,
       "new-position decoder grants only a verified source or replacement owner");
   SystemClock.now+=140;p.position+=140;TestEngine.p.current=TestEngine.source("1",60205,true);
   TestEngine.p.handler.drain();
@@ -46,10 +46,11 @@ public final class TestHonor063SeekScrub {
   SystemClock.now+=ReplacementEngine.RETAINED_SEEK_JOIN_MS+20;
   TestEngine.p.current=TestEngine.source("1",60000+ReplacementEngine.RETAINED_SEEK_JOIN_MS+20,true);
   TestEngine.p.handler.drain();
-  check(e.effect==fx&&!fx.released&&fx.gain==0f&&p.volume==0f&&!p.playing&&e.seeking,
-      "long decoder seek keeps Yandex audible through retained effect, without deadline");
+  check(e.effect==fx&&!fx.released&&fx.gain==-100f&&p.volume==1f
+      &&p.playing&&e.hotCachedSeek,
+      "verified cached seek remains on one owner while waiting for its bounded native callback");
   p.seek.onSeekComplete(p);
-  check(!e.seeking&&p.playing&&e.effect==fx,
+  check(!e.hotCachedSeek&&p.playing&&e.effect==fx,
       "slow seek completion retains prepared decoder instead of starting fresh download");
   SystemClock.now+=150;p.position+=150;TestEngine.p.current=TestEngine.source("1",60350,true);
   TestEngine.p.handler.drain();
@@ -61,11 +62,12 @@ public final class TestHonor063SeekScrub {
   ReplacementEngine e=ready();MediaPlayer p=e.player;p.asyncSeek=true;
   e.sourceSeekRequested();TestEngine.p.current=TestEngine.source("1",35000,true);e.update(TestEngine.p.current);
   e.sourceSeekRequested();TestEngine.p.current=TestEngine.source("1",70000,true);e.update(TestEngine.p.current);
-  check(p.seekCalls==2&&!p.playing&&p.volume==0f&&e.effect.gain==0f,
-      "second drag serializes an in-flight seek with native output available");
+  check(p.seekCalls==2&&p.playing&&p.volume==1f&&e.effect.gain==-100f
+      &&e.hotCachedSeekPending,
+      "second cached drag queues its latest target without a concurrent native seek");
   p.seek.onSeekComplete(p);
-  check(p.seekCalls==3&&!p.playing&&e.effect.gain==0f,
-      "old completion cannot grant sound and only latest target is sought");
+  check(p.seekCalls==3&&p.playing&&e.effect.gain==-100f,
+      "first completion starts only the latest queued cached target");
   p.seek.onSeekComplete(p);
   SystemClock.now+=130;p.position+=130;
   TestEngine.p.current=TestEngine.source("1",70130,true);TestEngine.p.handler.drain();
@@ -77,10 +79,10 @@ public final class TestHonor063SeekScrub {
   ReplacementEngine e=ready();MediaPlayer p=e.player;p.asyncSeek=true;
   e.sourceSeekRequested();TestEngine.p.current=TestEngine.source("1",79000,true);e.update(TestEngine.p.current);
   SystemClock.now+=40;TestEngine.p.current=TestEngine.buffering(79000);e.update(TestEngine.p.current);
-  check(e.seeking&&e.effect!=null&&e.effect.gain==0f,
-      "transient Yandex BUFFERING during decoder seek cannot force muted native output");
+  check(e.hotCachedSeek&&e.hotCachedSeekPaused&&e.effect!=null&&!p.playing,
+      "transient Yandex BUFFERING pauses cached decoder while pending callback drains");
   p.seek.onSeekComplete(p);
-  check(!e.seeking&&e.pausedAt>=0&&!p.playing,
+  check(!e.hotCachedSeek&&e.pausedAt>=0&&!p.playing,
       "after native completion a still-buffering Yandex player stays safely held");
   SystemClock.now+=1000;
   TestEngine.p.handler.drain();
