@@ -1,10 +1,17 @@
 # CELIKOM Android — Test.19 rejected, Test.20 bounded transport-clock recovery (2026-11-04)
 
+## TEST.20 SIGNED RESULT — SUCCESS
+- **Test.20 source SHA**: `8dca644d4cd6f8a3b8c4b1ff321a7ebbea551757` (CI SUCCESS: https://github.com/manufact-test/nomusic/actions/runs/41798899375).
+- **Download signed APK in GitHub ZIP**: https://github.com/manufact-test/nomusic/actions/runs/41798899375/artifacts/13306273701 (artifact `CELIKOM-Test-0.3.85-test.20-code-86105`; 7-day GitHub retention).
+- Signed APK file: `CELIKOM-Android-0.3.85-TEST-20-BOUNDED-DRIFT-REJOIN-SIGNED.apk`, APK SHA-256 `bd4d86f204edeec7278e2a380831aa9a0dc3b7b8c91c541024077ef79cf83120`. V3 signature confirmed, isolated sandbox/label/authorities confirmed, no OTA and no stable source/manifest touch.
+- Full native host regression and signed APK verification passed; **actual HONOR/Yandex acoustic listening not yet performed**. Test.18 remains the last accepted acoustic baseline.
+- Regression suite updated: `TestRealFailures` requires one moderate-drift decoder correction then original fallback; sanitized HONOR 0.3.51 journal requires correction only on sustained track B, never ordinary 90–250ms drift.
+
 ## Immutable baseline and release safety
 - **Accepted Test.18**: backup `backup/android-0385-test18-best-owner-20261103`, SHA `1a19ccec674d41b7417f29715d853eb693595687`, signed ZIP https://github.com/manufact-test/nomusic/actions/runs/41704016656/artifacts/13265222571 . Preserve and use as one-click rollback.
 - **Production 0.3.85/code86** unaffected. Production package `pro.celikom.nativeprobe` and OTA/publish pipeline unchanged.
 - **Rejected Test.19** functional `39c4abf5c369772adc9f8864fe546b8df7c75642` (CI 41719786549). No promotion. Its transient DSP `source_effect_next_track_recovery` behavior is completely absent from Test.20.
-- **Test.20**: independent installation `pro.celikom.nativeprobe.test`, update over Test.19, version `0.3.85-test.20/code86105`, signed ZIP built only after full CI; source branch `feature/android-0385-test15-permissionless-recovery-20261103`. No extra permissions, no second listener/controller, no parallel audible owner.
+- **Test.20**: independent installation `pro.celikom.nativeprobe.test`, update over Test.19, version `0.3.85-test.20/code86105`, signed ZIP verified by full CI; source branch `feature/android-0385-test15-permissionless-recovery-20261103`. No extra permissions, no second listener/controller, no parallel audible owner.
 
 ## What the user's latest diagnostic *actually* shows
 File `CELIKOM-combined-20261104-110556.txt` has **three captures in one attachment**: Test.18 run A up to line 2186, Test.18 run B 2187–2972, Test.19 from line 2973. Compare runs explicitly; avoid blaming features introduced only in Test.19 for events already present in Test.18.
