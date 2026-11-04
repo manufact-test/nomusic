@@ -34,6 +34,8 @@ public final class TestProgressiveCold {
   ReplacementEngine e=cold(true);
   check(e.progressiveColdAllowed&&e.preparing&&TestEngine.api.downloads==0
     &&TestEngine.api.streamed!=null,"eligible cold current starts sparse verification without a full-file download");
+  check(TestEngine.api.lastStreamHintPosition>=0&&TestEngine.api.lastStreamHintDuration>0,
+    "Test.26 cold probe uses the live source position, not a guessed zero-time stream");
   Sparse ready=new Sparse();
   TestEngine.api.streamed.done(ready,null);
   check(e.player!=null&&e.streaming==ready&&e.audioFile==null

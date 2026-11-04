@@ -47,6 +47,29 @@ public class TestBufferedAudio {
    a.prefetch();check(cached.await(5,TimeUnit.SECONDS)&&a.complete(),"background fills complete audio");check(Arrays.equals(Files.readAllBytes(file.toPath()),server.data),"sparse cache becomes byte-exact full file");check(a.retainComplete()==file,"only completed file can enter existing cache");
   }finally{a.close();}check(file.exists(),"completed detached file retained");file.delete();
   server=new Server();a=audio(server,new AtomicBoolean(true),new CountDownLatch(1));try{a.initializeForPlayback();check(server.requests.get()==3&&a.present.get(0)&&a.present.get(1)&&a.present.get(a.blocks()-1)&&!a.complete(),"decoder preparation has prefix, read-ahead and tail metadata without full download");int before=server.requests.get();a.readAt(a.size-16,new byte[16],0,16);check(server.requests.get()==before,"decoder tail inspection cannot block on a new network request");}finally{a.close();}
+  // HONOR Test.25: verified sparse cold start was ready at +1.96s, but the
+  // decoder's first alignment seek waited 1.57s for an uncached Range.
+  // A bounded position hint is *only* prefetch: the decoder still chooses
+  // its real byte offsets, with the same strict ETag/content-range checks.
+  server=new Server();a=audio(server,new AtomicBoolean(true),new CountDownLatch(1));
+  try{
+   check(a.hintedBlock(9000,20000)==-1,"hint does not guess an offset before the verified length arrives");
+   a.initializeForCurrentPosition(9000,20000);
+   int predicted=a.hintedBlock(9000,20000);
+   check(predicted==4,"hint is clamped to the validated file length and source duration");
+   check(server.requests.get()==4&&a.present.get(0)&&a.present.get(1)
+     &&a.present.get(predicted)&&a.present.get(a.blocks()-1),
+     "parallel cold preparation validates prefix, metadata tail and source-position block");
+   int before=server.requests.get();byte[] b=new byte[32];long at=(long)predicted*BufferedAudio.BLOCK+17;
+   check(a.readAt(at,b,0,b.length)==32&&server.requests.get()==before
+     &&b[0]==server.data[(int)at],"first alignment seek can read its hinted block without another Range");
+   check(a.hintedBlock(-1,20000)==-1&&a.hintedBlock(2000,0)==-1,
+     "invalid source position or duration never authorizes speculative bytes");
+  }finally{a.close();}
+  server=new Server();server.changedTag=true;a=audio(server,new AtomicBoolean(true),new CountDownLatch(1));
+  try{try{a.initializeForCurrentPosition(9000,20000);throw new AssertionError("mixed validator accepted in parallel");}
+   catch(IOException e){check("audio_version_changed".equals(e.getMessage()),"parallel Ranges reject a changed ETag");}}
+  finally{a.close();}
   server=new Server();server.shortOnce=true;a=audio(server,new AtomicBoolean(true),new CountDownLatch(1));try{a.initialize();check(server.requests.get()==2&&a.cachedBytes()==BufferedAudio.BLOCK,"truncated block retries without exposing corrupt prefix");check(a.retainComplete()==null,"partial cache cannot be treated as a complete file");}finally{file=a.file;a.close();}check(!file.exists(),"closing deletes incomplete cache");
   /* HONOR 0.3.67: mobile+VPN lost sparse prefetch after three failed Range
      requests. A later successful decoder miss must re-arm ONE background fill,

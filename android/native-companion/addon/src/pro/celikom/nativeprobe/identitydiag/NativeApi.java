@@ -108,7 +108,8 @@ final class NativeApi {
    String token=access();if(!valid.getAsBoolean())throw new Exception("lookup_cancelled");JSONObject j=request("resolve?audio_formats=mp3,m4a&service=yandex&track_id="+id,null,token,valid);if(j.optBoolean("found"))ApiContract.audio(j,System.currentTimeMillis());return j;},result);
  }
  interface StreamResult {void done(BufferedAudio source,String error);}
- void stream(JSONObject descriptor,java.util.function.BooleanSupplier valid,StreamResult result){final long account=accountGeneration;foregroundStreamWork.execute(()->{BufferedAudio source=null;String error=null;long start=SystemClock.elapsedRealtime();try{
+ void stream(JSONObject descriptor,java.util.function.BooleanSupplier valid,StreamResult result){stream(descriptor,valid,-1,-1,result);}
+ void stream(JSONObject descriptor,java.util.function.BooleanSupplier valid,long sourcePositionMs,long sourceDurationMs,StreamResult result){final long account=accountGeneration;foregroundStreamWork.execute(()->{BufferedAudio source=null;String error=null;long start=SystemClock.elapsedRealtime();try{
   // Never let a speculative *full-file* lookahead occupy the foreground
   // current song's sparse decoder preparation lane. If three verified Range
   // reads cannot finish promptly, return to the accepted local-file path.
@@ -121,7 +122,9 @@ final class NativeApi {
   java.util.concurrent.atomic.AtomicBoolean initialized=new java.util.concurrent.atomic.AtomicBoolean();
   java.util.function.BooleanSupplier streamLease=()->!revoking&&account==accountGeneration&&valid.getAsBoolean()&&(initialized.get()||SystemClock.elapsedRealtime()-start<1800);
   source=new BufferedAudio(file,()->(HttpsURLConnection)new URL(ApiContract.audio(descriptor,System.currentTimeMillis())).openConnection(),streamLease,SystemClock::elapsedRealtime,(name,bytes)->LogStore.log(name,LogStore.map("cachedBytes",bytes,"elapsedMs",SystemClock.elapsedRealtime()-start)));
-  source.initializeForPlayback();if(!allowed.getAsBoolean())throw new Exception("audio_cancelled");initialized.set(true);
+  if(sourcePositionMs>=0&&sourceDurationMs>0)source.initializeForCurrentPosition(sourcePositionMs,sourceDurationMs);
+  else source.initializeForPlayback();
+  if(!allowed.getAsBoolean())throw new Exception("audio_cancelled");initialized.set(true);
  }catch(Exception e){if(source!=null)source.close();source=null;error="audio_stream_unavailable";LogStore.log("replacement_stream_failure",LogStore.map("type",e.getClass().getSimpleName(),"elapsedMs",SystemClock.elapsedRealtime()-start));}
  final BufferedAudio out=source;final String fail=error;main.post(()->result.done(out,fail));});}
  interface AudioResult{void done(File file,String error);}

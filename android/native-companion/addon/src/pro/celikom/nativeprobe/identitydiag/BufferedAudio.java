@@ -31,6 +31,44 @@ class BufferedAudio implements Closeable {
  // Cache decoder metadata at the end and a second prefix block before publishing.
  // Android may inspect both ends during prepare; background reads must not race startup.
  void initializeForPlayback()throws IOException{fetch(0);int last=blocks()-1;if(last>0)fetch(last);if(last>1)fetch(1);events.event("replacement_stream_ready",cachedBytes());}
+ // The single decoder can be joining a song already several seconds in.
+ // Test.25 validated blocks 0, 1 and the tail serially, then waited another
+ // 1.57s when its first seek hit a missing middle block. Test.26 validates
+ // the mandatory metadata blocks concurrently and warms ONE bounded block
+ // around the source's projected position, without trusting an approximate
+ // byte offset as the actual decoder seek destination.
+ void initializeForCurrentPosition(long sourcePositionMs,long durationMs)throws IOException{
+  fetch(0); // Establish authoritative length and strong ETag before parallel reads.
+  int last=blocks()-1;
+  LinkedHashSet<Integer> needed=new LinkedHashSet<>();
+  if(last>0)needed.add(last);
+  if(last>1)needed.add(1);
+  int hint=hintedBlock(sourcePositionMs,durationMs);
+  if(hint>0&&hint<last)needed.add(hint);
+  if(needed.isEmpty()){events.event("replacement_stream_ready",cachedBytes());return;}
+  ExecutorService warm=Executors.newFixedThreadPool(Math.min(3,needed.size()),r->{Thread t=new Thread(r,"celikom-cold-range");t.setDaemon(true);return t;});
+  ArrayList<Future<?>> reads=new ArrayList<>();
+  try{
+   for(int block:needed)reads.add(warm.submit(()->{fetch(block);return null;}));
+   for(Future<?> read:reads){
+    try{read.get();}
+    catch(InterruptedException e){Thread.currentThread().interrupt();throw new IOException("audio_interrupted",e);}
+    catch(ExecutionException e){Throwable cause=e.getCause();if(cause instanceof IOException)throw (IOException)cause;throw new IOException("audio_cold_range",cause);}
+   }
+   check();
+   events.event("replacement_stream_ready",cachedBytes());
+  }finally{
+   if(!reads.isEmpty())for(Future<?> read:reads)if(!read.isDone())read.cancel(true);
+   warm.shutdownNow();
+  }
+ }
+ int hintedBlock(long positionMs,long durationMs){
+  if(durationMs<=0||positionMs<=0||size<=0)return -1;
+  long ahead=Math.min(durationMs,positionMs+1600);
+  long estimated=(long)((double)size*((double)ahead/durationMs));
+  int last=blocks()-1;
+  return last>1?Math.max(1,Math.min(last-1,(int)(estimated/BLOCK))):-1;
+ }
   void holdPrefetchForSeek(){
    synchronized(this){
     if(closed||prefetchHeldForSeek)return;

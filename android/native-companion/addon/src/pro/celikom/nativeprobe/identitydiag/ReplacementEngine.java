@@ -929,8 +929,10 @@ final class ReplacementEngine {
  void downloadFull(String key,JSONObject j,long g){audioFromCache=false;final long account=api.accountGeneration,start=SystemClock.elapsedRealtime();api.download(j,()->transportLeaseCurrent(key,g,account)&&(!fullFileExperiment||SystemClock.elapsedRealtime()-start<FULL_FILE_EXPERIMENT_BUDGET_MS),(file,error)->acceptAudio(key,j,g,file,error));}
  void startVerifiedProgressive(String key,JSONObject j,long g){
   final long account=api.accountGeneration;
+  PlaybackSource observed=owner.current;
+  final long sourcePositionMs=observed==null?-1:position(observed),sourceDurationMs=observed==null?-1:observed.duration;
   status="Подключаем замену по проверенным частям файла; играет оригинал";
-  api.stream(j,()->transportLeaseCurrent(key,g,account),(source,error)->{
+  api.stream(j,()->transportLeaseCurrent(key,g,account),sourcePositionMs,sourceDurationMs,(source,error)->{
    if(g!=generation||closed||!current(key)||!api.signedIn()){
     if(source!=null)source.close();return;
    }

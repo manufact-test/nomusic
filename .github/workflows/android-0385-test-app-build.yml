@@ -30,7 +30,7 @@ concurrency:
 
 jobs:
   build-test-app:
-    if: inputs.source_branch == 'feature/android-0385-test25-progressive-continuity-20261104' && inputs.source_repository == 'manufact-test/nomusic'
+    if: inputs.source_branch == 'feature/android-0385-test26-cold-hint-observation-20261104' && inputs.source_repository == 'manufact-test/nomusic'
     runs-on: ubuntu-latest
     timeout-minutes: 40
     steps:
@@ -47,7 +47,7 @@ jobs:
           SOURCE_BRANCH: ${{ inputs.source_branch }}
           SOURCE_REPOSITORY: ${{ inputs.source_repository }}
           VALIDATION_RUN_ID: ${{ inputs.validation_run_id }}
-          EXPECTED_BRANCH: feature/android-0385-test25-progressive-continuity-20261104
+          EXPECTED_BRANCH: feature/android-0385-test26-cold-hint-observation-20261104
         shell: bash
         run: |
           set -euo pipefail
@@ -125,7 +125,7 @@ jobs:
           set -euo pipefail
           ROOT=android/native-companion
           KIT="$RUNNER_TEMP/kit"
-          OUT="$RUNNER_TEMP/CELIKOM-Android-0.3.85-TEST-25-PROGRESSIVE-CONTINUITY-SIGNED.apk"
+          OUT="$RUNNER_TEMP/CELIKOM-Android-0.3.85-TEST-26-STARTUP-RANGE-HINT-SIGNED.apk"
           python3 "$ROOT/build_test_release.py" \
             --sdk "$KIT/sdk" \
             --build-tools "$KIT/build-tools/36.0.0" \
@@ -136,7 +136,7 @@ jobs:
             --work-dir "$RUNNER_TEMP/test-build-work" \
             --output "$OUT"
           test -s "$OUT"
-          test -s "$RUNNER_TEMP/CELIKOM-Android-0.3.85-TEST-25-PROGRESSIVE-CONTINUITY-SIGNED.verification.json"
+          test -s "$RUNNER_TEMP/CELIKOM-Android-0.3.85-TEST-26-STARTUP-RANGE-HINT-SIGNED.verification.json"
           echo "TEST_APK=$OUT" >> "$GITHUB_ENV"
 
       - name: Create immutable JSON build receipt
@@ -203,7 +203,7 @@ jobs:
             "physical_phone_playback_verified":False,
             "acoustic_acceptance":False
           }
-          out=pathlib.Path(os.environ["RUNNER_TEMP"],"CELIKOM-Android-0.3.85-TEST-25-PROGRESSIVE-CONTINUITY-RECEIPT.json")
+          out=pathlib.Path(os.environ["RUNNER_TEMP"],"CELIKOM-Android-0.3.85-TEST-26-STARTUP-RANGE-HINT-RECEIPT.json")
           out.write_text(json.dumps(receipt,ensure_ascii=False,indent=2)+"\n",encoding="utf-8")
           print(json.dumps(receipt,ensure_ascii=False,indent=2))
           PY
@@ -211,10 +211,10 @@ jobs:
       - name: Upload signed test APK and verification receipt only
         uses: actions/upload-artifact@v4
         with:
-          name: CELIKOM-Test-0.3.85-test.25-code-86110
+          name: CELIKOM-Test-0.3.85-test.26-code-86111
           path: |
-            ${{ runner.temp }}/CELIKOM-Android-0.3.85-TEST-25-PROGRESSIVE-CONTINUITY-SIGNED.apk
-            ${{ runner.temp }}/CELIKOM-Android-0.3.85-TEST-25-PROGRESSIVE-CONTINUITY-SIGNED.verification.json
-            ${{ runner.temp }}/CELIKOM-Android-0.3.85-TEST-25-PROGRESSIVE-CONTINUITY-RECEIPT.json
+            ${{ runner.temp }}/CELIKOM-Android-0.3.85-TEST-26-STARTUP-RANGE-HINT-SIGNED.apk
+            ${{ runner.temp }}/CELIKOM-Android-0.3.85-TEST-26-STARTUP-RANGE-HINT-SIGNED.verification.json
+            ${{ runner.temp }}/CELIKOM-Android-0.3.85-TEST-26-STARTUP-RANGE-HINT-RECEIPT.json
           if-no-files-found: error
           retention-days: 7
