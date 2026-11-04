@@ -40,3 +40,21 @@ For the user's field test, record separately whether CELIKOM replacement was act
 - Complete Android host suite, baseline seek hash, architecture regression, Android API36/D8, separate-package signing and signature checks before delivering one APK.
 - Original signed APK from frozen Test.23 remains the rollback reference. If Test.24 is worse, use the exact saved Test.23 APK (only after uninstalling the separate Test app if Android blocks downgrade), or an explicitly marked exact-source repackaging with higher versionCode for in-place recovery.
 - Keep Test.24 as experiment only until the owner confirms actual HONOR/Yandex listening. Never overwrite Test.23 backup on the strength of CI alone.
+
+## Signed build completed — repeatable provenance
+
+CI **SUCCESS**: https://github.com/manufact-test/nomusic/actions/runs/41827246558. Original functional source commit `136caff44c6db10ec52b57bb712ee41fe1b79921` (tree `1d7d8fec19053b7e9004caa0862518c52bd622eb`). All native host/Android API36/D8 gates, accepted seek hash and release isolation checks passed. Stable publish was skipped. Physical listening acceptance is **pending**.
+
+| Property | Verified value |
+| --- | --- |
+| APK | `CELIKOM-Android-0.3.85-TEST-24-HANDOFF-RETAIN-SIGNED.apk` |
+| **Permanent signed APK** | https://chatgpt.com/library?file_id=libfile_5d1ffa5a20348191a1f6959ecd1117cd&account_id=personal |
+| **SHA-256 APK** | `47115dae7487b727d9fb3d7e74e92324fe208f7293073f7930f0c4c75866aed5` |
+| APK byte count | `8796313` |
+| Package / label | `pro.celikom.nativeprobe.test` / `CELIKOM Test` |
+| Version / code | `0.3.85-test.24` / `86109` |
+| Signing certificate SHA-256 | `67fe81c56fac1c1d145344b69a0e3faf9005cf6607f4e26ca27d5926c3eefc4f` |
+| Verification | Original signer matched, APK signature v3 valid, isolated Test sandbox, unique authorities, no OTA updater |
+| Secondary CI artifact (expires) | https://github.com/manufact-test/nomusic/actions/runs/41827246558/artifacts/13320615401 |
+
+The downloaded CI artifact ZIP passed archive validation and digest `36115d4b724500524badbce54c2381a80dfbcb057055b6e9c2775e589799dc98`. Its extracted signed APK was independently hashed and matched the CI receipt and verifier. The original signed APK is stored in the owner Library, **not** merely a Git commit or expiring Action artifact. Do not promote Test.24 to rollback baseline before owner approval.
