@@ -125,7 +125,7 @@ jobs:
           set -euo pipefail
           ROOT=android/native-companion
           KIT="$RUNNER_TEMP/kit"
-          OUT="$RUNNER_TEMP/CELIKOM-Android-0.3.85-TEST-33-LONGBROWSE-SEEK-REJOIN-SIGNED.apk"
+          OUT="$RUNNER_TEMP/CELIKOM-Android-0.3.85-TEST-34-PROGRESS-AWARE-COLD-HANDOFF-SIGNED.apk"
           python3 "$ROOT/build_test_release.py" \
             --sdk "$KIT/sdk" \
             --build-tools "$KIT/build-tools/36.0.0" \
@@ -136,7 +136,7 @@ jobs:
             --work-dir "$RUNNER_TEMP/test-build-work" \
             --output "$OUT"
           test -s "$OUT"
-          test -s "$RUNNER_TEMP/CELIKOM-Android-0.3.85-TEST-33-LONGBROWSE-SEEK-REJOIN-SIGNED.verification.json"
+          test -s "$RUNNER_TEMP/CELIKOM-Android-0.3.85-TEST-34-PROGRESS-AWARE-COLD-HANDOFF-SIGNED.verification.json"
           echo "TEST_APK=$OUT" >> "$GITHUB_ENV"
 
       - name: Create immutable JSON build receipt
@@ -207,6 +207,14 @@ jobs:
           out.write_text(json.dumps(receipt,ensure_ascii=False,indent=2)+"\n",encoding="utf-8")
           print(json.dumps(receipt,ensure_ascii=False,indent=2))
           PY
+
+      - name: Require complete signed APK delivery set
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s "$RUNNER_TEMP/CELIKOM-Android-0.3.85-TEST-34-PROGRESS-AWARE-COLD-HANDOFF-SIGNED.apk"
+          test -s "$RUNNER_TEMP/CELIKOM-Android-0.3.85-TEST-34-PROGRESS-AWARE-COLD-HANDOFF-SIGNED.verification.json"
+          test -s "$RUNNER_TEMP/CELIKOM-Android-0.3.85-TEST-34-PROGRESS-AWARE-COLD-HANDOFF-RECEIPT.json"
 
       - name: Upload signed test APK and verification receipt only
         uses: actions/upload-artifact@v4
