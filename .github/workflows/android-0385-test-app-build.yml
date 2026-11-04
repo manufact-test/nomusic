@@ -136,7 +136,7 @@ jobs:
             --work-dir "$RUNNER_TEMP/test-build-work" \
             --output "$OUT"
           test -s "$OUT"
-          test -s "$RUNNER_TEMP/CELIKOM-Android-0.3.85-TEST-23-TEST15-SAFE-16-17-MERGE-SIGNED.verification.json"
+          test -s "$RUNNER_TEMP/CELIKOM-Android-0.3.85-TEST-25-PROGRESSIVE-CONTINUITY-SIGNED.verification.json"
           echo "TEST_APK=$OUT" >> "$GITHUB_ENV"
 
       - name: Create immutable JSON build receipt
@@ -203,7 +203,7 @@ jobs:
             "physical_phone_playback_verified":False,
             "acoustic_acceptance":False
           }
-          out=pathlib.Path(os.environ["RUNNER_TEMP"],"CELIKOM-Android-0.3.85-TEST-23-TEST15-SAFE-16-17-MERGE-RECEIPT.json")
+          out=pathlib.Path(os.environ["RUNNER_TEMP"],"CELIKOM-Android-0.3.85-TEST-25-PROGRESSIVE-CONTINUITY-RECEIPT.json")
           out.write_text(json.dumps(receipt,ensure_ascii=False,indent=2)+"\n",encoding="utf-8")
           print(json.dumps(receipt,ensure_ascii=False,indent=2))
           PY
@@ -214,7 +214,7 @@ jobs:
           name: CELIKOM-Test-0.3.85-test.25-code-86110
           path: |
             ${{ runner.temp }}/CELIKOM-Android-0.3.85-TEST-25-PROGRESSIVE-CONTINUITY-SIGNED.apk
-            ${{ runner.temp }}/CELIKOM-Android-0.3.85-TEST-23-TEST15-SAFE-16-17-MERGE-SIGNED.verification.json
-            ${{ runner.temp }}/CELIKOM-Android-0.3.85-TEST-23-TEST15-SAFE-16-17-MERGE-RECEIPT.json
+            ${{ runner.temp }}/CELIKOM-Android-0.3.85-TEST-25-PROGRESSIVE-CONTINUITY-SIGNED.verification.json
+            ${{ runner.temp }}/CELIKOM-Android-0.3.85-TEST-25-PROGRESSIVE-CONTINUITY-RECEIPT.json
           if-no-files-found: error
           retention-days: 7
