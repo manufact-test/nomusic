@@ -138,7 +138,12 @@ final class NativeApi {
    try{
     if(!allowed.getAsBoolean())throw new Exception("download_cancelled");
     file=File.createTempFile("replacement-",".audio",context.getCacheDir());
-    AudioTransfer.copy(file,()->(HttpsURLConnection)new URL(ApiContract.audio(descriptor,System.currentTimeMillis())).openConnection(),allowed,SystemClock::elapsedRealtime,(attempt,bytes,reason)->LogStore.log("replacement_download_retry",LogStore.map("attempt",attempt,"retainedBytes",bytes,"reasonCode",reason,"priority",priority)));
+    AudioTransfer.Open open=()->(HttpsURLConnection)new URL(ApiContract.audio(descriptor,System.currentTimeMillis())).openConnection();
+    AudioTransfer.Events retries=(attempt,bytes,reason)->LogStore.log("replacement_download_retry",LogStore.map("attempt",attempt,"retainedBytes",bytes,"reasonCode",reason,"priority",priority));
+    if("current".equals(priority)){
+     FastAudioTransfer.copy(file,open,allowed,SystemClock::elapsedRealtime,retries,(mode,elapsed,bytes)->
+      LogStore.log("replacement_fast_full_file_transfer",LogStore.map("mode",mode,"elapsedMs",elapsed,"bytes",bytes,"shards",FastAudioTransfer.SHARDS,"priority",priority)));
+    }else AudioTransfer.copy(file,open,allowed,SystemClock::elapsedRealtime,retries);
     LogStore.log("replacement_download",LogStore.map("bytes",file.length(),"elapsedMs",SystemClock.elapsedRealtime()-started,"priority",priority,"queueWaitMs",queueWaitMs));
    }catch(Exception e){long bytes=file==null?0:file.length();if(file!=null)file.delete();file=null;error="audio_download_failed";String reason=e.getMessage();LogStore.log("replacement_download_failure",LogStore.map("reasonCode",reason!=null&&reason.matches("[a-z0-9_]{1,80}")?reason:"transport_or_file_error","type",e.getClass().getSimpleName(),"receivedBytes",bytes,"elapsedMs",SystemClock.elapsedRealtime()-started,"priority",priority,"queueWaitMs",queueWaitMs));}
    final File out=file;final String fail=error;main.post(()->r.done(out,fail));
