@@ -141,7 +141,8 @@ if 'setAuditedVolume(player,0f);audioOwner.pauseDecoder(player);' not in engine 
     raise AssertionError('seek must silence decoder first, then immediately restore native source using the retained effect')
 if 'if(originalMix<=0.001f&&!seekHoldActive)' not in fade or 'seekHoldActive=false;pendingStreamScrubJoin=false;ownerEvent("exclusive_handover")' not in fade:
     raise AssertionError('completed handover must revoke any previous seek/owner lease')
-if ('else fade((newlyAttached||pendingStreamScrubJoin)' not in engine
+if ('boolean replayFromBeginning=sourceSeekedThisTrack&&target<=1500;' not in engine
+    or 'fade((newlyAttached||pendingStreamScrubJoin||replayFromBeginning)' not in engine
     or 'else if(newlyAttached){setAuditedVolume(player,0f);' not in engine
     or 'fade(!(coldJoinExclusiveExperiment&&!sourceSeekedThisTrack));' not in engine):
     raise AssertionError('new session attachment and long-pause resume must use a fenced clock-gated entry')

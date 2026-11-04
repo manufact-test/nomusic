@@ -743,11 +743,16 @@ final class ReplacementEngine {
      traceAudioCommands();
      if(seamlessResume){fading=false;resumeFadePending=false;audioOwner.replacement();LogStore.log("replacement_resume_seamless",LogStore.map("trackId",trackId,"driftMs",drift,"sourcePositionMs",target,"retainedEffect",true));}
      else if(prewarmedJoin){localPrewarmJoinPending=false;startPrewarmedColdJoin();}
-     /* The source can be sparse HTTP on its first join too (not just a fully
-        cached file). Its PCM phase is equally unknown: use the same bounded
-        exclusive envelope on a fresh cold stream, but NEVER on user scrubs. */
-     else fade((newlyAttached||pendingStreamScrubJoin)
-       &&!(newlyAttached&&coldJoinExclusiveExperiment&&!sourceSeekedThisTrack));
+     /* HONOR Test.32: SAME_ITEM_SEEK-to-zero restarted a stopped decoder and
+        used an audible 0ms exclusive_single_turn. Treat confirmed beginning
+        replay as a new entry, including with a retained effect. Do NOT alter
+        mid-song sparse finger-scrub callback timing or ordinary pause-resume:
+        they have separate owner-accepted regression contracts. */
+     else {
+      boolean replayFromBeginning=sourceSeekedThisTrack&&target<=1500;
+      fade((newlyAttached||pendingStreamScrubJoin||replayFromBeginning)
+        &&!(newlyAttached&&coldJoinExclusiveExperiment&&!sourceSeekedThisTrack));
+     }
     }
     else if(newlyAttached){setAuditedVolume(player,0f);
      fade(!(coldJoinExclusiveExperiment&&!sourceSeekedThisTrack));}
