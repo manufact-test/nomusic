@@ -1,12 +1,19 @@
 # CELIKOM Android — Test.20 rejected, Test.18 sound restored as Test.21 (2026-11-04)
 
+## VERIFIED — Test.21 signed rollback ready
+- Functional restoration packaged at source SHA `a706d4855c2e6b9b88e308782ea171d3ff9fe625` and full CI SUCCESS https://github.com/manufact-test/nomusic/actions/runs/41804036697 .
+- Signed ZIP: https://github.com/manufact-test/nomusic/actions/runs/41804036697/artifacts/13309252135; contains `CELIKOM-Android-0.3.85-TEST-21-TEST18-RESTORE-SIGNED.apk` and verification JSON; artifact retention seven days.
+- Signed APK SHA-256 `463e9c5cbf30aaba9b67f7a8e803161d469ee78610a3e67196407f5b9c9909c7`, Android v3 signature verified, separate Test sandbox/icon/authority, OTA absent, stable untouched.
+- SHA diff against immutable Test.18 confirms **zero modifications to audio, playback, seek/ACK, or transport code**; the only non-document changes are the test version spec, contract, and signing workflow package naming.
+- This restores known-good Test.18 audio in-place without uninstall. It does NOT solve measured 5.7–12.1s cold downloads and should not be marketed as a latency fix.
+
 ## Decision and deployment
 - **Test.20 is REJECTED by owner**: 5–7s perceived join latency, and some songs noticeably later. Do not distribute as best build. Old signed test20 CI 41798899375 remains a historical artifact only.
 - Audio accepted baseline **Test.18** immutable backup `backup/android-0385-test18-best-owner-20261103`, SHA `1a19ccec674d41b7417f29715d853eb693595687`, signed ZIP https://github.com/manufact-test/nomusic/actions/runs/41704016656/artifacts/13265222571 . Do not overwrite.
 - Latest development branch `feature/android-0385-test15-permissionless-recovery-20261103` first explicitly restored the EXACT Test.18 bytes in **all 8 code/test/workflow paths modified by Test.20**, rollback commit `522c3a686b4e550e42f8f34d4820c8450dcc114d`. Comparison should have **zero audio-code differences** from Test.18.
 - For painless user rollback over installed Test.20 (versionCode 86105), build an **in-place, identically signed** Test.21 package `pro.celikom.nativeprobe.test`, version `0.3.85-test.21/code86106`, with only version/spec/contract/workflow changes atop restored Test.18 code. Do not suggest installing versionCode 86103 directly over higher 86105, which Android may refuse; keep user app data/cache.
 - Production `pro.celikom.nativeprobe`, 0.3.85/code86, stable OTA and production SHA untouched.
-- CI, signed artifact and source SHA to be appended after build. Accepted Test.18 baseline remains rollback anchor; Test.21 is functionally Test.18, but owner must confirm on phone.
+- Full CI passed and signed Test.21 artifact recorded above. Accepted Test.18 baseline remains rollback anchor; Test.21 is functionally Test.18, but owner must confirm on phone.
 
 ## New recording forensic facts
 Provided `CELIKOM-combined-20261104-115530.txt`, screen recording `SVID_20261104_115426_1.mp4`. Combined TXT has Test.18 earlier segment and Test.20 from line 1641 (run_start UTC 2026-11-04T11:54:11+03:00).
