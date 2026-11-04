@@ -176,7 +176,10 @@ public final class TestLookaheadPrefetchHandoff {
   TestEngine.p.current=TestEngine.source("2",20000,true);
   TestEngine.p.handler.drain();
   check(TestEngine.api.downloads==2&&!TestEngine.api.downloadValidity.get(0).getAsBoolean(),
-    "missing progress eventually revokes the speculative lease and issues one fresh current download");
+    "missing progress eventually revokes the speculative lease and issues one fresh current download; downloads="
+    +TestEngine.api.downloads+" wait="+TestEngine.e.lookaheadPrefetchWait
+    +" progressAge="+(android.os.SystemClock.now-TestEngine.e.lookaheadPrefetchProgressAt)
+    +" phase="+TestEngine.e.lookaheadPrefetchPhase);
   TestEngine.e.close();
  }
  static void continuouslySlowTransferStillHasHardDeadline()throws Exception{
