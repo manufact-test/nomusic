@@ -1,4 +1,6 @@
-# Desktop 0.4.73 — complete-file adoption of a newly approved MP3
+# Desktop 0.4.73 — ACCEPTED MAIN DESKTOP REFERENCE (2026-11-04)
+
+Owner accepted this version after live approval testing. See `README.md` for the current reference and frozen source/archive identifiers.
 
 ## Owner request
 
@@ -28,7 +30,7 @@ Dedicated workflow installs official Brave release using https://brave.com/linux
 
 ## Delivery
 
-Isolated branch: `feature/desktop-073-complete-file-live-join-20261104`. No stable branch update or server deployment. Version 0.4.73 only after tests pass; owner acceptance pending.
+Isolated branch: `feature/desktop-073-complete-file-live-join-20261104`. No stable branch update or server deployment. Version 0.4.73 is the owner-accepted main desktop reference as of 2026-11-04.
 
 ## Verified delivery
 
@@ -37,5 +39,5 @@ Isolated branch: `feature/desktop-073-complete-file-live-join-20261104`. No stab
 - Earlier Brave harness invocations remained running; the final harness adds bounded RPC, stage reporting and owned child-process-tree cleanup. No audio assertions were skipped. Do not interpret an earlier incomplete harness as a reproduced owner browser crash.
 - Configured ZIP `celikom-extension-0.4.73.zip`: 2,489,476 bytes; SHA-256 `d6689e9d1e7157572e64622864d8c84ec98ec80f286e4aec4cf6fa31bee1a5b8`.
 - Persisted deliverable: `libfile_a4ccee7d8e4481919e0d5bac02be72ab`.
-- Accepted 0.4.70 MAIN intro, adapter, sync and guard files remain byte-identical. Rollback 0.4.72 was not sent for owner testing; send only 0.4.73 as the new mechanism candidate.
-- Owner acceptance PENDING. The exact whole-Brave closure was NOT reproduced and its cause is NOT proven. The changed route avoids unbuffered MSE mid-song seeking and passed all three actual browser/OS checks, but this is not a guarantee for every profile/GPU/network combination.
+- Accepted 0.4.70 MAIN intro, adapter, sync and guard files remain byte-identical. Rollback 0.4.72 was not sent for owner testing; 0.4.73 has now passed owner listening and live-approval acceptance.
+- Owner acceptance CONFIRMED on 2026-11-04: transition after approval is audible but continues smoothly; owner explicitly requested keeping this behavior and freezing 0.4.73 as the main reference. Earlier opening-word behavior was also accepted. The historical whole-Brave closure cause remains unproven; acceptance does not establish a forensic cause or universal compatibility.
