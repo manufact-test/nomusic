@@ -23,6 +23,7 @@ on:
     paths:
       - 'android/native-companion/**'
       - '.github/workflows/android-0348-validation.yml'
+      - '.github/workflows/android-0385-test-app-build.yml'
       - '.github/workflows/android-auto-publish-hostinger.yml'
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
