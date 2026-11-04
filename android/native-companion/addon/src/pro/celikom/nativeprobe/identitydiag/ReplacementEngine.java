@@ -32,7 +32,7 @@ final class ReplacementEngine {
  // Verified local fast seeks stay inside the already-audible decoder, without
  // a second source/DSP handover. Unlike the rejected Test.65 delayed mute,
  // this path NEVER pauses or mutes either session during its fast seek.
- boolean hotCachedSeek,hotCachedSeekPending;long hotCachedSeekStarted,hotCachedSeekTarget,hotCachedSeekSequence,hotCachedSeekEpoch;int hotCachedSeekCorrections;
+ boolean hotCachedSeek,hotCachedSeekPending,hotCachedSeekPaused;long hotCachedSeekStarted,hotCachedSeekTarget,hotCachedSeekSequence,hotCachedSeekEpoch;int hotCachedSeekCorrections;
  final ClockSupervisor clockSupervisor=new ClockSupervisor();PlaybackSource previousSource;boolean explicitSourceSeek;long unavailableSince=-1,lastSyncAt=-1,lastLoggedDrift;String completedKey,completedReason;long completedPosition,resumeDrift;
  // Private, bounded to this foreground run. Every reuse requires a new live resolve.
  /* Bounded in-session warm cache covers playlist reorder and rapid repeat selections. */
@@ -608,9 +608,12 @@ final class ReplacementEngine {
   try{
    if(!s.playing){
     if(hotCachedSeek){
-     // An untagged callback after pause must not be mistaken for a later seek.
-     // Retire the player: source gain is restored before another prepare.
-     suspend("hot_cached_seek_source_paused",1000);return;
+     // HONOR emits a transient !playing sample in the middle of a scrub.
+     // Immediately pause/silence the decoder, but retain the *same* player
+     // until its untagged seek callback drains. Retiring on this sample made
+     // every otherwise-fast scrub pay for a complete decoder reconnection.
+     hotCachedSeekPaused=true;
+     pauseSource(s,false);return;
     }
     // Pause clears transient drift evidence without re-arming a consumed
     // one-per-song correction allowance. Track/Stop still perform full reset.
@@ -909,7 +912,7 @@ final class ReplacementEngine {
   if(hotCachedSeek)return;
   final MediaPlayer p=player;final String key=identityKey;
   clockSupervisor.onSeek();audioOwner.event(AudioOwnership.Event.SEEK);
-  hotCachedSeek=true;hotCachedSeekPending=false;hotCachedSeekTarget=target;
+  hotCachedSeek=true;hotCachedSeekPending=false;hotCachedSeekPaused=false;hotCachedSeekTarget=target;
   hotCachedSeekStarted=SystemClock.elapsedRealtime();hotCachedSeekEpoch=audioOwner.operationEpoch();
   final long seq=++hotCachedSeekSequence,epoch=hotCachedSeekEpoch;
   aligned=true;explicitSourceSeek=false;sourceSeekedThisTrack=true;
@@ -1083,16 +1086,31 @@ final class ReplacementEngine {
    long desired=now==null?-1:position(now);
    long difference=desired-actual;
    boolean pending=hotCachedSeekPending;
-   hotCachedSeek=false;hotCachedSeekPending=false;
+   boolean interruptedByPause=hotCachedSeekPaused;
+   hotCachedSeek=false;hotCachedSeekPending=false;hotCachedSeekPaused=false;
    logTrace("replacement_hot_cached_seek_ack",LogStore.map(
     "trackId",trackId,"requestedPositionMs",hotCachedSeekTarget,
     "sourceProjectedMs",desired,"decoderPositionMs",actual,"residualMs",difference,
     "callbackElapsedMs",elapsed,"sourceGainChanged",false,"replacementGainChanged",false,
     "singleAudibleOwner",true,"pendingRetarget",pending,"correctionPass",hotCachedSeekCorrections));
-   if(!ready||!armed()||now==null||!now.playing||!current(key)
-      ||audioOwner.operationEpoch()!=hotCachedSeekEpoch){
+   if(!ready||!armed()||now==null||!current(key)
+      ||(!interruptedByPause&&audioOwner.operationEpoch()!=hotCachedSeekEpoch)){
     suspend("hot_cached_seek_stale",1000);return;
    }
+   if(interruptedByPause){
+    // The source pause changed the owner epoch deliberately. Its in-flight
+    // native callback is now drained. Never resume audio from the callback:
+    // re-align normally only after the source reports actual playback again.
+    aligned=false;resumePositionRetained=false;
+    if(!now.playing){
+     status="Пауза во время перемотки — аудио сохранено";
+     logTrace("replacement_hot_cached_seek_pause_drained",LogStore.map(
+      "trackId",trackId,"callbackElapsedMs",elapsed,"decoderRetained",true));
+     return;
+    }
+    seek(now,desired,difference,true);return;
+   }
+   if(!now.playing){pauseSource(now,false);return;}
    if(pending||Math.abs(difference)>HANDOVER_DRIFT_MS){
     if(hotCachedSeekCorrections<1&&eligibleHotCachedSeek(now,desired)){
      hotCachedSeekCorrections++;
@@ -1422,7 +1440,7 @@ final class ReplacementEngine {
   /* Detach a completed file before MediaPlayer.release closes its MediaDataSource. */
   if(old!=null){try{old.setOnErrorListener(null);old.setOnPreparedListener(null);old.setOnCompletionListener(null);old.setOnSeekCompleteListener(null);}catch(RuntimeException ignored){}try{old.release();}catch(RuntimeException ignored){}}
   returning=false;pausedAt=-1;resumeFadePending=false;seekHoldActive=false;pendingStreamScrubJoin=false;
-  hotCachedSeek=false;hotCachedSeekPending=false;hotCachedSeekSequence++;
+  hotCachedSeek=false;hotCachedSeekPending=false;hotCachedSeekPaused=false;hotCachedSeekSequence++;
   audioOwner.source();audioOwner.retireDecoder();prepareTicket=null;bufferGate.reset();bufferWaiting=false;if(streaming!=null){streaming.close();streaming=null;}ready=false;seeking=false;seekRetargetPending=false;fading=false;aligned=false;resumePositionRetained=false;
   if(loudness!=null){try{loudness.release();}catch(RuntimeException ignored){}loudness=null;}if(audioFile!=null){audioFile.delete();audioFile=null;}if(had)LogStore.log("replacement_released",LogStore.map("reason",reason));
  }

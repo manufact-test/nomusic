@@ -119,8 +119,12 @@ public final class TestHonor064ManualNext {
   e.sourceSeekRequested();sample("2",90000);e.update(TestEngine.p.current);
   check(e.hotCachedSeek,"verified cached source started a pause-race seek");
   TestEngine.p.current=TestEngine.source("2",90000,false);e.update(TestEngine.p.current);
-  check(p.released&&e.effect==null&&!e.hotCachedSeek&&e.armed(),
-      "pause during untagged hot seek retires player before any stale callback can play");
+  check(!p.playing&&p.volume==0f&&e.hotCachedSeek&&e.hotCachedSeekPaused
+      &&e.player==p&&!p.released,
+      "transient Yandex pause during in-player seek silences but retains decoder until ACK");
+  p.seek.onSeekComplete(p);
+  check(!p.playing&&!e.hotCachedSeek&&e.player==p&&!p.released&&e.ready,
+      "paused cached seek drains untagged callback without starting replacement or reconnecting");
   e.close();
  }
  static void autoNextAndCancelDuringJoin()throws Exception{
