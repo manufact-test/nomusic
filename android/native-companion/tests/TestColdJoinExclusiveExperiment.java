@@ -78,9 +78,39 @@ public final class TestColdJoinExclusiveExperiment {
     MediaPlayer decoder=begin(true);
     advanceAndAssert(decoder,true);
     check(LogStore.events.contains("replacement_cold_join_experiment_start")
+            &&LogStore.events.contains("replacement_exclusive_soft_join_start")
             &&!LogStore.events.contains("replacement_unified_join_start")
             &&!LogStore.events.contains("replacement_join_transport_summary"),
-        "experiment replaces only the cold-join blend, not the prewarm or clock gate");
+        "bounded non-overlap source-duck/decoder-rise replaces only the cold-join blend");
+    TestEngine.e.close();
+  }
+
+  static void pauseWhileSourceIsDuckingRestoresSource()throws Exception{
+    LogStore.events.clear();
+    MediaPlayer decoder=begin(true);
+    ReplacementEngine engine=TestEngine.e;
+    // Complete the transport-only gate and enter the first muted source ramp.
+    for(int i=0;i<6&&!LogStore.events.contains("replacement_exclusive_soft_join_start");i++){
+      SystemClock.now+=20;
+      decoder.position+=20;
+      TestEngine.p.current=TestEngine.source("1",TestEngine.p.current.position+20,true);
+      TestEngine.p.handler.drain();
+    }
+    check(LogStore.events.contains("replacement_exclusive_soft_join_start")
+            &&decoder.volume==0f&&engine.originalMix>0f,
+        "cold envelope begins with inaudible replacement");
+    SystemClock.now+=10;
+    decoder.position+=10;
+    TestEngine.p.current=TestEngine.source("1",TestEngine.p.current.position+10,true);
+    TestEngine.p.handler.drain();
+    check(engine.originalMix>0f&&engine.originalMix<1f&&decoder.volume==0f,
+        "source is partly ducked and replacement is still silent");
+    PlaybackSource paused=TestEngine.source("1",TestEngine.p.current.position,false);
+    TestEngine.p.current=paused;
+    engine.update(paused);
+    check(decoder.volume==0f&&engine.effect.gain==0f
+            &&engine.audioOwner.state()==AudioOwnership.State.PAUSED,
+        "source pause during exclusive envelope restores native gain and silences decoder");
     TestEngine.e.close();
   }
 
@@ -98,6 +128,7 @@ public final class TestColdJoinExclusiveExperiment {
   public static void main(String[] args)throws Exception{
     legacyBaselineRemainsAvailableToHostReplay();
     exclusiveColdJoinUsesTheSameGateWithoutOverlap();
+    pauseWhileSourceIsDuckingRestoresSource();
     productionConstructorSelectsExperimentWithoutAnAppToggle();
     System.out.println("PASS: "+checks
         +" cold-join baseline/exclusive handover, same-gate and no-overlap checks");

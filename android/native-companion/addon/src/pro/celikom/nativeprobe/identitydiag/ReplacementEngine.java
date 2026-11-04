@@ -1122,6 +1122,12 @@ final class ReplacementEngine {
   final boolean alignLive=requireClockGate;
   final long[] baseline={p.getCurrentPosition()},phaseStarted={SystemClock.elapsedRealtime()};
   final int[] corrections={0};final long[] softStarted={-1};
+  /* Exclusive cold joins previously switched unity source -> unity decoder in
+     one handler tick. That is click-prone even when transport clocks agree:
+     they do not prove matching PCM phase. Keep the two audible sessions strictly
+     disjoint; shape only the very first cold handover, never a finger seek. */
+  final long[] exclusiveDuckStarted={-1},exclusiveRiseStarted={-1};
+  final boolean shapeExclusiveCold=(!coherentEntry&&requireClockGate&&coldJoinExclusiveExperiment);
   /* Passive cold join drift summary: projected transport clocks only. */
   final long[] coldClock={Long.MAX_VALUE,Long.MIN_VALUE,0,-1,-1};
   final boolean[] outputPreLogged={false},outputMidLogged={false},outputPostLogged={false};
@@ -1220,6 +1226,26 @@ final class ReplacementEngine {
      originalMix=1f-mix;commandedReplacementVolume=volume;traceAudioCommands();
       if(elapsed<UNIFIED_JOIN_MS){owner.handler.postDelayed(this,20);return;}
      applyVolume(1f);
+    }else if(shapeExclusiveCold){
+     long now=SystemClock.elapsedRealtime();
+     if(exclusiveDuckStarted[0]<0){
+      exclusiveDuckStarted[0]=now;
+      LogStore.log("replacement_exclusive_soft_join_start",LogStore.map(
+       "trackId",trackId,"sourceDuckMs",32,"decoderRiseMs",48,
+       "sourcePcmMeasured",false,"phaseVerified",false,"nonOverlapping",true));
+     }
+     if(exclusiveRiseStarted[0]<0){
+      float progress=TransitionMix.progress(now-exclusiveDuckStarted[0],32);
+      audioOwner.duckSourceForExclusiveJoin(p,fx,progress,ownerKey,ownerEpoch,handoverTicket.operationEpoch);
+      originalMix=1f-progress;traceAudioCommands();
+      if(progress<1f){owner.handler.postDelayed(this,10);return;}
+      audioOwner.grantReplacement(fx);originalMix=0f;applyVolume(0f);
+      exclusiveRiseStarted[0]=now;
+      owner.handler.postDelayed(this,10);return;
+     }
+     float progress=TransitionMix.progress(now-exclusiveRiseStarted[0],48);
+     applyVolume(progress);
+     if(progress<1f){owner.handler.postDelayed(this,10);return;}
     }else{
      audioOwner.grantReplacement(fx);originalMix=0f;applyVolume(1f);
     }
@@ -1238,8 +1264,8 @@ final class ReplacementEngine {
       "minDriftMs",coldClock[0],"maxDriftMs",coldClock[1],
       "sourcePcmMeasured",false,"phaseVerified",false));
     logTrace("replacement_transition_complete",LogStore.map(
-       "trackId",trackId,"rampMs",coherentEntry?UNIFIED_JOIN_MS:0,
-       "joinMode",coherentEntry?"unified_complementary_linear":"exclusive_single_turn",
+       "trackId",trackId,"rampMs",coherentEntry?UNIFIED_JOIN_MS:shapeExclusiveCold?80:0,
+       "joinMode",coherentEntry?"unified_complementary_linear":shapeExclusiveCold?"exclusive_duck_then_rise":"exclusive_single_turn",
       "commandDelayMs",SystemClock.elapsedRealtime()-fadeStarted));
    }catch(RuntimeException e){suspend("fade_failed",retryDelay());}
   }};ramp.run();

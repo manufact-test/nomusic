@@ -96,8 +96,16 @@ if ('audioOwner.blendSameSong(' not in fade
     raise AssertionError('one production entry must use measured-clock-gated complementary gains and acknowledge unverified phase')
 if ('COLD_JOIN_DIP_MS' in engine or 'replacement_exclusive_dip_start' in engine
     or 'experimentalCorrelatedJoin' in engine or 'experimentalCorrelatedJoin' in service
-    or 'celikom-join-lab' in service or 'audioOwner.duckSourceForExclusiveJoin(' in fade):
+    or 'celikom-join-lab' in service):
     raise AssertionError('two-mode A/B selector and 500ms cold-volume valley must not reappear')
+if ('audioOwner.duckSourceForExclusiveJoin(p,fx,progress,ownerKey,ownerEpoch,handoverTicket.operationEpoch);' not in fade
+    or 'shapeExclusiveCold=(!coherentEntry&&requireClockGate&&coldJoinExclusiveExperiment)' not in fade
+    or 'originalMix=1f-progress;traceAudioCommands();' not in fade
+    or 'audioOwner.grantReplacement(fx);originalMix=0f;applyVolume(0f);' not in fade
+    or 'exclusiveRiseStarted[0]=now;' not in fade
+    or 'float progress=TransitionMix.progress(now-exclusiveRiseStarted[0],48);' not in fade
+    or 'if(progress<1f){owner.handler.postDelayed(this,10);return;}' not in fade):
+    raise AssertionError('cold source duck must finish before decoder rise; no overlap or seek ramp')
 activity=(root/'RecorderActivity.java').read_text()
 if 'requestJoinExperiment' in activity or 'save.setOnLongClickListener' in activity or 'celikom-join-lab' in activity:
     raise AssertionError('Save diagnostics must have no hidden ordinary/linear mode selector')
