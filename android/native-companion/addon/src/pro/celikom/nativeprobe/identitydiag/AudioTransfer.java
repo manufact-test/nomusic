@@ -8,6 +8,7 @@ final class AudioTransfer {
  static final long MAX_BYTES=31457280, MAX_MS=180000;
  interface Open {HttpURLConnection open() throws Exception;}
  interface Events {void retry(int attempt,long bytes,String reason);}
+ interface Progress {void bytes(long received,long expected,long when);}
  static final class Rejected extends IOException {Rejected(String reason){super(reason);}}
  static final class ForegroundYield extends IOException {ForegroundYield(){super("foreground_audio_priority");}}
  static void copy(File file,Open open,BooleanSupplier valid,LongSupplier clock,Events events)throws Exception {
@@ -17,6 +18,9 @@ final class AudioTransfer {
   * prefix while the current decoder needs bandwidth. This is not a revoke:
   * the very same transfer can resume with If-Range when foreground clears. */
  static void copy(File file,Open open,BooleanSupplier valid,BooleanSupplier foregroundBusy,LongSupplier clock,Events events)throws Exception {
+  copy(file,open,valid,foregroundBusy,clock,events,(received,expected,when)->{});
+ }
+ static void copy(File file,Open open,BooleanSupplier valid,BooleanSupplier foregroundBusy,LongSupplier clock,Events events,Progress progress)throws Exception {
   long start=clock.getAsLong(),total=-1;String etag=null;int failures=0;
   ScheduledExecutorService watchdog=Executors.newSingleThreadScheduledExecutor();
   try{
@@ -44,6 +48,7 @@ final class AudioTransfer {
      }else if(code==408||code==429||code>=500&&code<=599)throw new IOException("audio_server_busy");
      else throw new Rejected("audio_access_failed");
      if(total>MAX_BYTES||total==0)throw new Rejected("audio_too_large");expected=total;
+     if(expected>0)progress.bytes(offset,expected,clock.getAsLong());
      try(InputStream in=c.getInputStream();FileOutputStream out=new FileOutputStream(file,offset>0)){
       byte[] bytes=new byte[32768];int n;long received=offset;
       while(received!=expected&&(n=in.read(bytes))!=-1){
@@ -51,6 +56,7 @@ final class AudioTransfer {
        if(foregroundBusy.getAsBoolean())throw new ForegroundYield();
        if(clock.getAsLong()-start>=MAX_MS)throw new Rejected("download_deadline");
        received+=n;if(received>MAX_BYTES||(expected>=0&&received>expected))throw new Rejected("invalid_audio_size");out.write(bytes,0,n);
+       if(expected>0)progress.bytes(received,expected,clock.getAsLong());
       }
       if(received==0||expected>=0&&received!=expected)throw new EOFException("incomplete_audio");
      }

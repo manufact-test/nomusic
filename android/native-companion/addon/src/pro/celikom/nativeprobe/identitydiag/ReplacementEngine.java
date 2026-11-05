@@ -18,6 +18,7 @@ final class ReplacementEngine {
  // Explicit experimental opt-in only for the isolated CELIKOM Test service.
  // Existing two-argument local-file callers keep their frozen semantics.
  final boolean progressiveColdAllowed;
+ final boolean promotedFullTransferAllowed;
  // Test.31: use the SAME 160ms complementary crossfade in the actual APK and
  // host replay. Test.28's 32ms source duck followed by 48ms decoder rise
  // intentionally created a near-silent gap at EVERY fresh song attachment.
@@ -47,6 +48,7 @@ final class ReplacementEngine {
  volatile long lookaheadPrefetchGeneration,lookaheadPrefetchAccount=-1,lookaheadPrefetchStartedAt;
  volatile String lookaheadPrefetchAlias,lookaheadPrefetchTrackId,lookaheadPrefetchPhase="none";
  String lookaheadPrefetchResolvedAudioKey;JSONObject lookaheadPrefetchCurrentDescriptor;boolean lookaheadPrefetchPromoted,lookaheadPrefetchWait;
+ LookaheadTransferState lookaheadTransfer;
  // A primed next decoder remains muted and never owns the source effect.
  // Live playback still requires a fresh current-track resolve and measured duration.
  static final long NEXT_DECODER_PRIME_TIMEOUT_MS=1800, PROMOTED_PRIME_GRACE_MS=800, PROMOTED_PRIME_READY_WAIT_MS=150, CACHED_CURRENT_PRIME_READY_WAIT_MS=340;
@@ -266,6 +268,7 @@ final class ReplacementEngine {
   lookaheadPrefetchGeneration++;lookaheadPrefetchAlias=null;lookaheadPrefetchTrackId=null;lookaheadPrefetchAccount=-1;
   lookaheadPrefetchPhase="none";lookaheadPrefetchResolvedAudioKey=null;lookaheadPrefetchCurrentDescriptor=null;
   lookaheadPrefetchPromoted=false;lookaheadPrefetchWait=false;lookaheadPromotedAtMs=0;
+  lookaheadTransfer=null;
  }
  void finishLookaheadPrefetch(String reason){
   if(!"cache_consumed".equals(reason)&&primedNext!=null&&!primedNext.currentCache)discardPrimedNext("prefetch_finished_"+reason);
@@ -312,16 +315,34 @@ final class ReplacementEngine {
     fresh.optLong("version"),fresh.optLong("duration_ms"));
   preparing=true;audioFromCache=false;status="Готовим замену заранее; оригинал продолжает играть";
   lookaheadPrefetchCurrentDescriptor=fresh;lookaheadPrefetchWait=true;
+  if(promotedFullTransferAllowed&&lookaheadTransfer!=null&&freshKey.equals(lookaheadPrefetchResolvedAudioKey)){
+   lookaheadTransfer.promote();
+   LogStore.log("replacement_lookahead_transfer_promoted",LogStore.map(
+     "trackId",trackId,"receivedBytes",lookaheadTransfer.received(),
+     "expectedBytes",lookaheadTransfer.expected(),"editionVerified",true,
+     "action","keep_one_full_file_download"));
+  }
   // A stalled prefetch must not leave the current song in PREPARING indefinitely.
   // The frozen local-file experiment keeps its exact original 10s policy;
   // only the Test.25 opt-in yields early to verified sparse preparation.
-  final long handoffWaitMs=progressiveColdAllowed?1200:10000;
+  final long handoffWaitMs=progressiveColdAllowed?LookaheadTransferState.INITIAL_WAIT_MS:10000;
   final String waitAlias=source.alias;
-  owner.handler.postDelayed(()->{
-   if(!closed&&g==generation&&lookaheadPrefetchWait
-      &&Objects.equals(waitAlias,lookaheadPrefetchAlias)&&Objects.equals(identityKey,key)&&current(key))
-    fallbackPromotedLookaheadPrefetch("current_handoff_timeout");
-  },handoffWaitMs);
+  final long waitStarted=SystemClock.elapsedRealtime();
+  owner.handler.postDelayed(new Runnable(){public void run(){
+   if(closed||g!=generation||!lookaheadPrefetchWait
+      ||!Objects.equals(waitAlias,lookaheadPrefetchAlias)||!Objects.equals(identityKey,key)||!current(key))return;
+   long now=SystemClock.elapsedRealtime();
+   LookaheadTransferState transfer=lookaheadTransfer;
+   if(promotedFullTransferAllowed&&transfer!=null&&"downloading".equals(lookaheadPrefetchPhase)
+      &&transfer.finishInsteadOfRestart(now,waitStarted)){
+    LogStore.log("replacement_lookahead_transfer_near_complete",LogStore.map(
+      "trackId",trackId,"receivedBytes",transfer.received(),
+      "expectedBytes",transfer.expected(),"waitElapsedMs",now-waitStarted,
+      "action","bounded_continue_same_validated_file"));
+    owner.handler.postDelayed(this,100);return;
+   }
+   fallbackPromotedLookaheadPrefetch("current_handoff_timeout");
+  }},handoffWaitMs);
   LogStore.log("replacement_lookahead_prefetch_current_wait",LogStore.map(
     "mediaAlias",lookaheadPrefetchAlias,"trackId",trackId,"phase",lookaheadPrefetchPhase,
     "freshResolveRequired",true,"audioKeyMatches",lookaheadPrefetchResolvedAudioKey==null?"pending":true,
@@ -440,6 +461,7 @@ final class ReplacementEngine {
   final long token=++lookaheadPrefetchGeneration,account=api.accountGeneration,start=SystemClock.elapsedRealtime();
   lookaheadPrefetchAlias=alias;lookaheadPrefetchTrackId=id;lookaheadPrefetchAccount=account;lookaheadPrefetchStartedAt=start;lookaheadPrefetchPhase="resolving";
   lookaheadPrefetchResolvedAudioKey=null;lookaheadPrefetchCurrentDescriptor=null;lookaheadPrefetchPromoted=false;lookaheadPrefetchWait=false;
+  lookaheadTransfer=promotedFullTransferAllowed?new LookaheadTransferState():null;
   LogStore.log("replacement_lookahead_prefetch_start",LogStore.map("mediaAlias",alias,"trackId",id,"sourceDurationMs",duration,"remainingMs",remaining,"sourceItemGeneration",owner.sourceItemGeneration,"sourceEventSequence",owner.sourceEventSequence,"audioCommandSent",false));
   api.resolve(id,()->lookaheadPrefetchCurrent(token,account,alias,id),(j,error)->{
    if(!lookaheadPrefetchCurrent(token,account,alias,id)){LogStore.log("replacement_lookahead_prefetch_stale",LogStore.map("mediaAlias",alias,"stage","resolve"));return;}
@@ -449,6 +471,15 @@ final class ReplacementEngine {
    if(!PlaybackDuration.metadataProbeAllowed(duration,replacementDuration)){lookaheadPrefetchPhase="duration_rejected";LogStore.log("replacement_lookahead_prefetch_rejected",LogStore.map("mediaAlias",alias,"sourceDurationMs",duration,"replacementDurationMs",replacementDuration));fallbackPromotedLookaheadPrefetch("duration_rejected");return;}
    lookaheadPrefetchResolvedAudioKey=audioKeyFor(id,j);
    if(lookaheadPrefetchWait&&lookaheadPrefetchCurrentDescriptor!=null&&!lookaheadPrefetchResolvedAudioKey.equals(audioKeyFor(id,lookaheadPrefetchCurrentDescriptor))){fallbackPromotedLookaheadPrefetch("fresh_resolve_key_mismatch");return;}
+   if(promotedFullTransferAllowed&&lookaheadPrefetchWait&&lookaheadTransfer!=null
+      &&lookaheadPrefetchCurrentDescriptor!=null
+      &&lookaheadPrefetchResolvedAudioKey.equals(audioKeyFor(id,lookaheadPrefetchCurrentDescriptor))){
+    lookaheadTransfer.promote();
+    LogStore.log("replacement_lookahead_transfer_promoted",LogStore.map(
+      "trackId",id,"receivedBytes",lookaheadTransfer.received(),
+      "expectedBytes",lookaheadTransfer.expected(),"editionVerified",true,
+      "action","keep_one_full_file_download"));
+   }
    /* A fresh entitlement/edition resolve may reuse an already complete local file.
       Re-downloading the same next song competes with the current serial audio lane. */
    File alreadyCached=recentAudio.get(lookaheadPrefetchResolvedAudioKey);
@@ -463,7 +494,7 @@ final class ReplacementEngine {
     return;
    }
    lookaheadPrefetchPhase="downloading";
-   api.downloadLookahead(j,()->lookaheadPrefetchCurrent(token,account,alias,id),(file,downloadError)->{
+   api.downloadLookahead(j,()->lookaheadPrefetchCurrent(token,account,alias,id),lookaheadTransfer,(file,downloadError)->{
     if(!lookaheadPrefetchCurrent(token,account,alias,id)){if(file!=null)file.delete();LogStore.log("replacement_lookahead_prefetch_stale",LogStore.map("mediaAlias",alias,"stage","download","fileDeleted",file!=null));return;}
     if(file==null){lookaheadPrefetchPhase="failed";LogStore.log("replacement_lookahead_prefetch_failure",LogStore.map("mediaAlias",alias,"stage","download","errorCode",downloadError));fallbackPromotedLookaheadPrefetch("download_failed");return;}
     cachePrefetchedAudio(id,j,file);lookaheadPrefetchPhase="ready";primeNextDecoder(alias,id,j,file,account);
@@ -482,7 +513,8 @@ final class ReplacementEngine {
  // Test.25 service opts into progressive cold preparation explicitly.
  ReplacementEngine(ProbeService owner){this(owner,true);}
  ReplacementEngine(ProbeService owner,boolean fullFileExperiment){this(owner,fullFileExperiment,false);}
- ReplacementEngine(ProbeService owner,boolean fullFileExperiment,boolean progressiveColdAllowed){this.owner=owner;api=NativeApi.get(owner);this.fullFileExperiment=fullFileExperiment;this.progressiveColdAllowed=progressiveColdAllowed;}
+ ReplacementEngine(ProbeService owner,boolean fullFileExperiment,boolean progressiveColdAllowed){this(owner,fullFileExperiment,progressiveColdAllowed,false);}
+ ReplacementEngine(ProbeService owner,boolean fullFileExperiment,boolean progressiveColdAllowed,boolean promotedFullTransferAllowed){this.owner=owner;api=NativeApi.get(owner);this.fullFileExperiment=fullFileExperiment;this.progressiveColdAllowed=progressiveColdAllowed;this.promotedFullTransferAllowed=promotedFullTransferAllowed;}
  AudioOwnership.SeekContext seekContext(){return new AudioOwnership.SeekContext(
   owner.sourceEventSequence,owner.sourceItemGeneration,generation,decoderInstanceId,
   audioOwner.epoch(),audioOwner.operationEpoch(),audioSourceKind,localPrewarmAttempted);}

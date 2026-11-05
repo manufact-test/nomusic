@@ -27,6 +27,10 @@ files[fake_api]=files[fake_api].replace('boolean signed,useStreaming;',
  'boolean signed,useStreaming;long lastStreamHintPosition=-1,lastStreamHintDuration=-1;')
 files[fake_api]=files[fake_api].replace(old,
  'void stream(JSONObject j,BooleanSupplier valid,long sourcePositionMs,long sourceDurationMs,StreamResult r){lastStreamHintPosition=sourcePositionMs;lastStreamHintDuration=sourceDurationMs;stream(j,valid,r);}' + old)
+fake_lookahead='void downloadLookahead(JSONObject j,BooleanSupplier valid,AudioResult r){'
+assert fake_lookahead in files[fake_api]
+files[fake_api]=files[fake_api].replace(fake_lookahead,
+ 'void downloadLookahead(JSONObject j,BooleanSupplier valid,LookaheadTransferState transfer,AudioResult r){downloadLookahead(j,valid,r);}' + fake_lookahead)
 for name,content in files.items():
  p=root/name;p.parent.mkdir(parents=True,exist_ok=True);p.write_text(content)
 print('Fake Android/audio adapters generated; only for host tests, never packaged')
