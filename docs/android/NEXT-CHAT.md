@@ -623,3 +623,8 @@ admin A/B long-press/выбор двух режимов, сохранено «С
 ## Следующий Android APK — только после переписывания
 
 Номер нового выпуска должен быть > versionCode 52, но **не повышать AppVersion и не собирать сейчас**. `build_release.py` требует SDK API36/Build Tools36/D8, Apktool2.11.1, ровно pinned JAR из `build-inputs.json`, исходный 0.3.22 base APK и приватный сертификат. Проверить `verify_release.py` на готовом подписанном пакете. GitHub Actions не располагает подписью. APK не должен уходить пользователю по недействительной ссылке.
+# 2026-11-05 Test.38 candidate — emergency fix after Test.37 owner-rejected playback regression
+
+- Owner video plus `CELIKOM-combined-20261105-142956.txt` show Yandex changes songs/seek, but companion sees **no Media3 event** for 50s: stale controller keeps alias 255 (Шёлковая простынь), and the independent replacement decoder keeps playing it. **Test.37 is rejected**, never promote or use its persistent effect implementation.
+- Test.38 branch `feature/android-0385-test38-session-recheck-20261105`: **Test.33 audio engine fully restored**, `SourceSessionRecheck` uses unverified same-session OPEN only to fail-open, rebind, and quarantine stale alias/cursor until fresh trusted Media3 evidence. New tests include the 20.652s stale-controller incident.
+- Full analysis and exact pending validation/delivery: `docs/android/ANDROID-0385-TEST38-STALE-CONTROLLER-FAILOPEN-2026-11-05.md`. Exact source SHA/APK/signature need pinning after GitHub CI. Do not touch stable, OTA, or owner-accepted Test.33 backup.
