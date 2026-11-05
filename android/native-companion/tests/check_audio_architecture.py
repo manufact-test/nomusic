@@ -118,7 +118,8 @@ if ('return !coherentEntry&&requireClockGate&&enabled&&!seekedCurrentTrack;' not
     or 'fingerSeekCannotBecomeAnotherColdJoin();' not in (Path(__file__).resolve().parent/'TestColdJoinExclusiveExperiment.java').read_text()):
     raise AssertionError('first-cold envelope must be strictly one-shot per item and excluded after user seeks')
 if ('&&!(newlyAttached&&coldJoinExclusiveExperiment&&!sourceSeekedThisTrack)' not in engine
-    or 'fade(!(coldJoinExclusiveExperiment&&!sourceSeekedThisTrack));' not in engine):
+    or 'else fade(!(coldJoinExclusiveExperiment&&!sourceSeekedThisTrack),lateColdAttach||streaming!=null);' not in engine
+    or '&&streaming==null&&trustedSession>0' not in engine):
     raise AssertionError('sparse stream must obey the single first-join mode and exclude finger seek from cold experiments')
 activity=(root/'RecorderActivity.java').read_text()
 if 'requestJoinExperiment' in activity or 'save.setOnLongClickListener' in activity or 'celikom-join-lab' in activity:
@@ -144,7 +145,8 @@ if 'if(originalMix<=0.001f&&!seekHoldActive)' not in fade or 'seekHoldActive=fal
 if ('boolean replayFromBeginning=sourceSeekedThisTrack&&target<=1500;' not in engine
     or 'fade((newlyAttached||pendingStreamScrubJoin||replayFromBeginning)' not in engine
     or 'else if(newlyAttached){setAuditedVolume(player,0f);' not in engine
-    or 'fade(!(coldJoinExclusiveExperiment&&!sourceSeekedThisTrack));' not in engine):
+    or 'else fade(!(coldJoinExclusiveExperiment&&!sourceSeekedThisTrack),lateColdAttach||streaming!=null);' not in engine
+    or 'final boolean alignLive=requireClockGate||sourceEffectDeferred;' not in fade):
     raise AssertionError('new session attachment and long-pause resume must use a fenced clock-gated entry')
 if ('platform_audio_activity_observed' not in service
     or 'registerAudioPlaybackCallback(playbackActivityObserver,handler)' not in service

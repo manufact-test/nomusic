@@ -23,6 +23,10 @@ final class ReplacementEngine {
  // intentionally created a near-silent gap at EVERY fresh song attachment.
  // Keep the rejected exclusive mode only as an explicit diagnostic A/B case.
  boolean coldJoinExclusiveExperiment=false;
+ // Test.39 experiment: original DSP remains entirely untouched until the
+ // silent replacement decoder has passed the existing clock/runway gate.
+ // Deliberately not enabled in stable/accepted builds.
+ boolean lateSourceEffectAttachExperiment=true;
  String status="Замена выключена",identityKey,trackId,method="NONE",lookupKey;
  JSONObject descriptor; long descriptorUntil,nextLookup,preparedAt,seekStarted,seekBudget=SEEK_TIMEOUT_MS,fadeStarted,transition,pausedAt=-1;volatile long armedUntil;
  long pauseRestoreDelayMs=PAUSE_GRACE_MS,sourceBufferSince=-1,decoderInstanceSequence,decoderInstanceId;String audioSourceKind="unknown";
@@ -33,7 +37,7 @@ final class ReplacementEngine {
  volatile long generation; int trustedSession=-1,failures,seekCorrections;
  final BufferRecoveryGate bufferGate=new BufferRecoveryGate();BufferedAudio streaming;boolean bufferWaiting;String streamFallbackKey;
  MediaPlayer player; DynamicsProcessing effect; LoudnessEnhancer loudness; File audioFile;
- float originalMix=1f; boolean ready,preparing,seeking,fading,aligned,returning,preloadAllowed=true,waitingForRouteResume,routePauseObserved,resumePositionRetained,resumeFadePending,seekHoldActive,sourceSeekedThisTrack,pendingStreamScrubJoin,streamSeekWaitLogged,seekRetargetPending;volatile boolean closed; boolean audioFromCache,localPrewarmAttempted,localPrewarmWarmupPending,localPrewarmAlignmentPending,localPrewarmJoinPending; long localPrewarmWarmupStartedAt,localPrewarmWarmupPosition; String lastSync="",coldEnvelopeOwnerKey;
+ float originalMix=1f; boolean ready,preparing,seeking,fading,aligned,returning,preloadAllowed=true,waitingForRouteResume,routePauseObserved,resumePositionRetained,resumeFadePending,seekHoldActive,sourceSeekedThisTrack,pendingStreamScrubJoin,streamSeekWaitLogged,seekRetargetPending;volatile boolean closed; boolean audioFromCache,localPrewarmAttempted,localPrewarmWarmupPending,localPrewarmAlignmentPending,localPrewarmJoinPending,deferredEffectPending; long localPrewarmWarmupStartedAt,localPrewarmWarmupPosition; String lastSync="",coldEnvelopeOwnerKey;
  // Verified local fast seeks stay inside the already-audible decoder, without
  // a second source/DSP handover. Unlike the rejected Test.65 delayed mute,
  // this path NEVER pauses or mutes either session during its fast seek.
@@ -535,12 +539,21 @@ final class ReplacementEngine {
      ||!armed()||trustedSession<=0||s==null||!s.playing||player.isPlaying()
      ||resumePositionRetained||waitingForRouteResume||sourceJump
      ||explicitSourceSeek||seeking||aligned||fading||audioOwner.handoverAwaitingClock())return;
-  if(!mute())return;
+  boolean defer=lateSourceEffectAttachExperiment&&!resumed&&!sourceJump
+    &&effect==null&&!routePauseObserved&&!resumePositionRetained
+    &&!sourceSeekedThisTrack&&!pendingStreamScrubJoin;
+  if(!defer&&!mute())return;
   localPrewarmAttempted=true;localPrewarmWarmupPending=true;
   localPrewarmWarmupStartedAt=SystemClock.elapsedRealtime();
   localPrewarmWarmupPosition=player.getCurrentPosition();
   setAuditedVolume(player,0f);
-  audioOwner.startDecoder(player,effect,identityKey,audioOwner.epoch());
+  if(defer){
+   audioOwner.startMutedDecoderBeforeEffect(player,identityKey,audioOwner.epoch());
+   deferredEffectPending=true;
+   LogStore.log("replacement_source_effect_deferred",LogStore.map(
+     "trackId",trackId,"sourceSessionId",trustedSession,
+     "phase","local_decoder_prewarm","originalUntouched",true));
+  }else audioOwner.startDecoder(player,effect,identityKey,audioOwner.epoch());
   traceAudioCommands();
   logTrace("replacement_local_decoder_prewarm_start",LogStore.map(
     "trackId",trackId,"sourceKind",audioSourceKind,"cacheHit",audioFromCache,
@@ -733,12 +746,22 @@ final class ReplacementEngine {
   }
    boolean seamlessResume=retainedPauseResume&&originalMix<=0.001f&&Math.abs(drift)<=HANDOVER_DRIFT_MS;
    boolean newlyAttached=effect==null;
-   if(newlyAttached&&!mute())return;
-   if(!effect.hasControl()||!effect.getEnabled()){stop("effect_control_lost");return;}
+   boolean lateColdAttach=lateSourceEffectAttachExperiment&&newlyAttached
+     &&(deferredEffectPending||!player.isPlaying())&&!seamlessResume&&!resumed&&!resumeFadePending
+     &&!routePauseObserved&&!resumePositionRetained&&!sourceSeekedThisTrack
+     &&!pendingStreamScrubJoin&&!bufferWaiting&&streaming==null&&trustedSession>0
+     &&player.getAudioSessionId()!=trustedSession;
+   if(newlyAttached&&!lateColdAttach&&!mute())return;
+   if(effect!=null&&(!effect.hasControl()||!effect.getEnabled())){stop("effect_control_lost");return;}
     if(!player.isPlaying()){
      boolean prewarmedJoin=localPrewarmJoinPending;
      if(seamlessResume){audioOwner.grantReplacement(effect);originalMix=0f;applyVolume(1f);}else setAuditedVolume(player,0f);
-     audioOwner.startDecoder(player,effect,identityKey,audioOwner.epoch());
+     if(lateColdAttach){
+      audioOwner.startMutedDecoderBeforeEffect(player,identityKey,audioOwner.epoch());
+      logTrace("replacement_source_effect_deferred",LogStore.map(
+        "trackId",trackId,"sourceSessionId",trustedSession,
+        "sourceUntouched",true,"decoderMuted",true));
+     }else audioOwner.startDecoder(player,effect,identityKey,audioOwner.epoch());
      try{logTrace("audio_decoder_start",LogStore.map("trackId",trackId,"decoderPositionMs",player.getCurrentPosition(),"sourcePositionMs",position(s),"reusePreparedDecoder",true,"seekPending",seeking,"sourceMutedCommand",effect!=null&&originalMix<=0.001f,"prewarmedLocalFile",localPrewarmAttempted));}catch(RuntimeException ignored){}
      traceAudioCommands();
      if(seamlessResume){fading=false;resumeFadePending=false;audioOwner.replacement();LogStore.log("replacement_resume_seamless",LogStore.map("trackId",trackId,"driftMs",drift,"sourcePositionMs",target,"retainedEffect",true));}
@@ -751,11 +774,13 @@ final class ReplacementEngine {
      else {
       boolean replayFromBeginning=sourceSeekedThisTrack&&target<=1500;
       fade((newlyAttached||pendingStreamScrubJoin||replayFromBeginning)
-        &&!(newlyAttached&&coldJoinExclusiveExperiment&&!sourceSeekedThisTrack));
+        &&!(newlyAttached&&coldJoinExclusiveExperiment&&!sourceSeekedThisTrack),
+        lateColdAttach||streaming!=null);
      }
     }
     else if(newlyAttached){setAuditedVolume(player,0f);
-     fade(!(coldJoinExclusiveExperiment&&!sourceSeekedThisTrack));}
+     if(localPrewarmJoinPending){localPrewarmJoinPending=false;startPrewarmedColdJoin();}
+     else fade(!(coldJoinExclusiveExperiment&&!sourceSeekedThisTrack),lateColdAttach||streaming!=null);}
     else if(localPrewarmJoinPending&&!fading){localPrewarmJoinPending=false;startPrewarmedColdJoin();}
     else if(!fading){
      if(originalMix>0.001f){
@@ -1270,7 +1295,7 @@ final class ReplacementEngine {
   }
   update(now);
  }
- boolean mute(){try{if(trustedSession<=0||player==null||player.getAudioSessionId()==trustedSession)throw new IllegalStateException();DynamicsProcessing candidate=new DynamicsProcessing(0,trustedSession,null);effect=candidate;candidate.setControlStatusListener((e,control)->owner.handler.post(()->{if(effect!=candidate)return;Map<String,Object> state=owner.runtimeSnapshot("audio_effect_control_status");state.put("controlGranted",control);LogStore.log("audio_effect_control_status",state);if(!control)stop("effect_control_lost");}));if(!candidate.hasControl())throw new IllegalStateException();originalMix=1f;audioOwner.prepareSourceEffect(candidate);LogStore.log("replacement_original_muted",LogStore.map("sessionId",trustedSession,"globalVolumeChanged",false,"rampMs",resumeFadePending?PAUSE_RESUME_FADE_MS:FADE_MS));return true;}catch(RuntimeException e){stop("cannot_mute_original");status="Телефон не разрешил приглушить Яндекс; замена остановлена";return false;}}
+ boolean mute(){try{if(trustedSession<=0||player==null||player.getAudioSessionId()==trustedSession)throw new IllegalStateException();DynamicsProcessing candidate=new DynamicsProcessing(0,trustedSession,null);effect=candidate;candidate.setControlStatusListener((e,control)->owner.handler.post(()->{if(effect!=candidate)return;Map<String,Object> state=owner.runtimeSnapshot("audio_effect_control_status");state.put("controlGranted",control);LogStore.log("audio_effect_control_status",state);if(!control)stop("effect_control_lost");}));if(!candidate.hasControl())throw new IllegalStateException();originalMix=1f;audioOwner.prepareSourceEffect(candidate);deferredEffectPending=false;LogStore.log("replacement_original_muted",LogStore.map("sessionId",trustedSession,"globalVolumeChanged",false,"rampMs",resumeFadePending?PAUSE_RESUME_FADE_MS:FADE_MS));return true;}catch(RuntimeException e){stop("cannot_mute_original");status="Телефон не разрешил приглушить Яндекс; замена остановлена";return false;}}
   void startPrewarmedColdJoin(){
    if(coldJoinExclusiveExperiment){
     logTrace("replacement_cold_join_experiment_start",LogStore.map(
@@ -1288,7 +1313,9 @@ final class ReplacementEngine {
   return !coherentEntry&&requireClockGate&&enabled&&!seekedCurrentTrack;
  }
  void fade(boolean coherentEntry,boolean requireClockGate){
-  final long token=++transition;final MediaPlayer p=player;final DynamicsProcessing fx=effect;
+  final long token=++transition;final MediaPlayer p=player;
+  final DynamicsProcessing[] fxRef={effect};
+  final boolean sourceEffectDeferred=fxRef[0]==null;
   final long ownerEpoch=audioOwner.epoch();final String ownerKey=identityKey;
   // A completed seek releases foreground priority. Holding background
   // prefetch through a clock-gated join exhausted the initial 128KiB prefix.
@@ -1301,7 +1328,7 @@ final class ReplacementEngine {
       single-turn grant after this same clock gate; the legacy baseline retains
       its complementary-linear entry. Transport clocks do not measure PCM phase. */
   resumeFadePending=false;
-  final boolean alignLive=requireClockGate;
+  final boolean alignLive=requireClockGate||sourceEffectDeferred;
   final long[] baseline={p.getCurrentPosition()},phaseStarted={SystemClock.elapsedRealtime()};
   final int[] corrections={0};final long[] softStarted={-1};
   /* Exclusive cold joins previously switched unity source -> unity decoder in
@@ -1317,11 +1344,11 @@ final class ReplacementEngine {
   final long coldStarted=SystemClock.elapsedRealtime();
   if(originalMix<=0.001f&&!seekHoldActive){
    setAuditedVolume(p,0f);
-   audioOwner.sourceGainDuringAlignment(fx);originalMix=1f;traceAudioCommands();
+   audioOwner.sourceGainDuringAlignment(fxRef[0]);originalMix=1f;traceAudioCommands();
   }
   fadeStarted=SystemClock.elapsedRealtime();fading=true;audioOwner.handoverWaitForClock(alignLive);
   Runnable ramp=new Runnable(){public void run(){
-   if(closed||token!=transition||p!=player||fx!=effect||!armed()||!accountLeaseCurrent()
+   if(closed||token!=transition||p!=player||fxRef[0]!=effect||!armed()||!accountLeaseCurrent()
       ||!audioOwner.current(ownerEpoch,ownerKey)||!audioOwner.commandCurrent(handoverTicket,api.accountGeneration,ownerKey,descriptor==null?0:descriptor.optLong("replacement_id"),descriptor==null?0:descriptor.optLong("version"),descriptor==null?0:descriptor.optLong("duration_ms")))return;
    try{
     if(!current(identityKey)){suspend("fade_source_unavailable",1000);return;}
@@ -1398,6 +1425,19 @@ final class ReplacementEngine {
        "trackId",trackId,"driftMs",drift,"corrections",corrections[0],
        "waitMs",now-phaseStarted[0]));
     }
+     // Attach the native source effect at 0dB only AFTER all cold-start
+     // checks pass. A stale controller, failed seek or buffer timeout never
+     // touches Yandex's audio processing. The verified effect remains the
+     // required guard before any secondary volume may become nonzero.
+     if(sourceEffectDeferred&&fxRef[0]==null){
+      if(!mute())return;
+      fxRef[0]=effect;
+      LogStore.log("replacement_source_effect_attached_at_join",LogStore.map(
+        "trackId",trackId,"sessionId",trustedSession,
+        "sourcePcmMeasured",false,"sourceGainDb",0,
+        "decoderAlreadyAdvancingMuted",p.isPlaying()));
+     }
+     final DynamicsProcessing fx=fxRef[0];
      if(!outputPreLogged[0]){
       logOutputClockSample(p,owner.current,coherentEntry?"pre_blend":"pre_exclusive_grant");
       outputPreLogged[0]=true;
@@ -1503,7 +1543,7 @@ final class ReplacementEngine {
  }
  void applyVolume(float mix){double gain=descriptor==null?0:descriptor.optDouble("gain_db",0);float volume=mix*(float)Math.min(1,Math.pow(10,Math.min(0,gain)/20));setAuditedVolume(player,volume);if(gain>0&&loudness==null)try{loudness=new LoudnessEnhancer(player.getAudioSessionId());loudness.setTargetGain((int)Math.round(gain*100));loudness.setEnabled(true);}catch(RuntimeException ignored){LogStore.log("replacement_gain","positive gain unavailable");}}
  void unmute(){unmute(player);}
- void unmute(MediaPlayer secondary){seekHoldActive=false;if(effect!=null){DynamicsProcessing fx=effect;effect=null;AudioOwnership.RestoreResult r=audioOwner.restoreSource(secondary,fx);commandedReplacementVolume=0f;originalMix=1f;LogStore.log("replacement_original_restored",LogStore.map("reason","effect_released","gainReset",r.gainReset,"disabled",r.disabled,"released",r.released,"hardwareAudibilityVerified",false));ownerEvent("source_restored");traceAudioCommands();}}
+ void unmute(MediaPlayer secondary){seekHoldActive=false;deferredEffectPending=false;if(effect!=null){DynamicsProcessing fx=effect;effect=null;AudioOwnership.RestoreResult r=audioOwner.restoreSource(secondary,fx);commandedReplacementVolume=0f;originalMix=1f;LogStore.log("replacement_original_restored",LogStore.map("reason","effect_released","gainReset",r.gainReset,"disabled",r.disabled,"released",r.released,"hardwareAudibilityVerified",false));ownerEvent("source_restored");traceAudioCommands();}}
  /* Invalidate ramps and silence output before cache, network or diagnostic cleanup.
     HttpURLConnection.disconnect and effect release may block on the old route. */
  MediaPlayer silenceBeforeCleanup(){transition++;fading=false;MediaPlayer old=player;player=null;if(old!=null){boolean zero=false,paused=false;try{setAuditedVolume(old,0f);zero=true;}catch(RuntimeException ignored){}try{audioOwner.pauseDecoder(old);paused=!old.isPlaying();}catch(RuntimeException ignored){}LogStore.log("replacement_output_silenced",LogStore.map("trackId",trackId,"gainZero",zero,"paused",paused,"beforeTransportCleanup",true));}unmute(old);return old;}

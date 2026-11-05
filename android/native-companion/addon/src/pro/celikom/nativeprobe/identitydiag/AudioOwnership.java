@@ -362,6 +362,20 @@ final class AudioOwnership {
    throw new IllegalStateException("cannot start audible decoder before exclusive grant");
   player.start();
  }
+ /** Test.39: the decoder may advance at zero volume while the real source
+  * remains untouched. This lease NEVER authorizes audible secondary output;
+  * the source effect is still mandatory at the verified handover gate. */
+ void startMutedDecoderBeforeEffect(MediaPlayer player,String identity,long ticket){
+  if(player==null||!current(ticket,identity)
+      ||(state!=State.SOURCE_ONLY&&state!=State.PREPARING&&state!=State.ALIGNING)
+      ||attachedEffect!=null||originalMuted||commandedSecondary>0.001f
+      ||handoverAwaitingClock)
+   throw new IllegalStateException("cold decoder prestart lacks silent owner");
+  player.setVolume(0f,0f);
+  commandedSecondary=0f;lastVolumePlayer=player;
+  if(state==State.SOURCE_ONLY){state=State.PREPARING;reason="cold_decoder_prestart_muted";}
+  player.start();
+ }
  /** Pause is always allowed: emergency silencing must not be blocked by a stale token. */
  void pauseDecoder(MediaPlayer player){
   if(player!=null&&player.isPlaying())player.pause();
