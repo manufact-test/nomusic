@@ -8,6 +8,8 @@ src.append(r/'Test33LongBrowse.java')
 src.append(addon/'SourceSessionRecheck.java')
 src.append(r/'Test38SourceSessionRecheck.java')
 src.append(r/'Test39LateSourceEffectAttach.java')
+src.append(addon/'JoinStabilityWindow.java')
+src.append(r/'Test40ConservativeJoin.java')
 subprocess.run(['java','com.sun.tools.javac.Main','-encoding','UTF-8','-source','8','-target','8','-cp',str(json),'-d',str(out),*map(str,src)],check=True)
 subprocess.run(['java','-cp',str(out)+os.pathsep+str(json),'pro.celikom.nativeprobe.identitydiag.TestEngine'],check=True,timeout=45)
 
@@ -23,6 +25,7 @@ subprocess.run(['java','-cp',str(out)+os.pathsep+str(json),'pro.celikom.nativepr
 subprocess.run(['java','-cp',str(out)+os.pathsep+str(json),'pro.celikom.nativeprobe.identitydiag.Test33LongBrowse'],check=True,timeout=45)
 subprocess.run(['java','-cp',str(out)+os.pathsep+str(json),'pro.celikom.nativeprobe.identitydiag.Test38SourceSessionRecheck'],check=True,timeout=45)
 subprocess.run(['java','-cp',str(out)+os.pathsep+str(json),'pro.celikom.nativeprobe.identitydiag.Test39LateSourceEffectAttach'],check=True,timeout=45)
+subprocess.run(['java','-cp',str(out)+os.pathsep+str(json),'pro.celikom.nativeprobe.identitydiag.Test40ConservativeJoin'],check=True,timeout=45)
 
 # Protect the owner-approved 0.3.78 local-cache startup and cached user-seek behavior.
 subprocess.run(['java','-cp',str(out)+os.pathsep+str(json),'pro.celikom.nativeprobe.identitydiag.TestCachedAudioRollback'],check=True,timeout=45)

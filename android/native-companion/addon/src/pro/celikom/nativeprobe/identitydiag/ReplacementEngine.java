@@ -27,6 +27,9 @@ final class ReplacementEngine {
  // silent replacement decoder has passed the existing clock/runway gate.
  // Deliberately not enabled in stable/accepted builds.
  boolean lateSourceEffectAttachExperiment=true;
+ // Test.40 production-only: require several stable silent decoder clock
+ // samples before first handover. Two-argument Test.39 replay stays unchanged.
+ final boolean conservativeColdJoinExperiment;
  String status="Замена выключена",identityKey,trackId,method="NONE",lookupKey;
  JSONObject descriptor; long descriptorUntil,nextLookup,preparedAt,seekStarted,seekBudget=SEEK_TIMEOUT_MS,fadeStarted,transition,pausedAt=-1;volatile long armedUntil;
  long pauseRestoreDelayMs=PAUSE_GRACE_MS,sourceBufferSince=-1,decoderInstanceSequence,decoderInstanceId;String audioSourceKind="unknown";
@@ -486,7 +489,8 @@ final class ReplacementEngine {
  // Test.25 service opts into progressive cold preparation explicitly.
  ReplacementEngine(ProbeService owner){this(owner,true);}
  ReplacementEngine(ProbeService owner,boolean fullFileExperiment){this(owner,fullFileExperiment,false);}
- ReplacementEngine(ProbeService owner,boolean fullFileExperiment,boolean progressiveColdAllowed){this.owner=owner;api=NativeApi.get(owner);this.fullFileExperiment=fullFileExperiment;this.progressiveColdAllowed=progressiveColdAllowed;}
+ ReplacementEngine(ProbeService owner,boolean fullFileExperiment,boolean progressiveColdAllowed){this(owner,fullFileExperiment,progressiveColdAllowed,false);}
+ ReplacementEngine(ProbeService owner,boolean fullFileExperiment,boolean progressiveColdAllowed,boolean conservativeColdJoinExperiment){this.owner=owner;api=NativeApi.get(owner);this.fullFileExperiment=fullFileExperiment;this.progressiveColdAllowed=progressiveColdAllowed;this.conservativeColdJoinExperiment=conservativeColdJoinExperiment;}
  AudioOwnership.SeekContext seekContext(){return new AudioOwnership.SeekContext(
   owner.sourceEventSequence,owner.sourceItemGeneration,generation,decoderInstanceId,
   audioOwner.epoch(),audioOwner.operationEpoch(),audioSourceKind,localPrewarmAttempted);}
@@ -749,7 +753,7 @@ final class ReplacementEngine {
    boolean lateColdAttach=lateSourceEffectAttachExperiment&&newlyAttached
      &&(deferredEffectPending||!player.isPlaying())&&!seamlessResume&&!resumed&&!resumeFadePending
      &&!routePauseObserved&&!resumePositionRetained&&!sourceSeekedThisTrack
-     &&!pendingStreamScrubJoin&&!bufferWaiting&&streaming==null&&trustedSession>0
+     &&!pendingStreamScrubJoin&&!bufferWaiting&&(streaming==null||conservativeColdJoinExperiment)&&trustedSession>0
      &&player.getAudioSessionId()!=trustedSession;
    if(newlyAttached&&!lateColdAttach&&!mute())return;
    if(effect!=null&&(!effect.hasControl()||!effect.getEnabled())){stop("effect_control_lost");return;}
@@ -1316,6 +1320,11 @@ final class ReplacementEngine {
   final long token=++transition;final MediaPlayer p=player;
   final DynamicsProcessing[] fxRef={effect};
   final boolean sourceEffectDeferred=fxRef[0]==null;
+  final boolean conservativeCold=conservativeColdJoinExperiment&&sourceEffectDeferred
+    &&!sourceSeekedThisTrack&&!pendingStreamScrubJoin&&!explicitSourceSeek
+    &&!resumePositionRetained&&!waitingForRouteResume;
+  final JoinStabilityWindow stableClock=new JoinStabilityWindow();
+  final long[] firstEligibleClock={-1};
   final long ownerEpoch=audioOwner.epoch();final String ownerKey=identityKey;
   // A completed seek releases foreground priority. Holding background
   // prefetch through a clock-gated join exhausted the initial 128KiB prefix.
@@ -1391,10 +1400,11 @@ final class ReplacementEngine {
       status="Готовим непрерывный буфер; играет оригинал";
       owner.handler.postDelayed(this,40);return;
      }
-     if(Math.abs(drift)>STRICT_STREAM_JOIN_DRIFT_MS){
+     if(Math.abs(drift)>(conservativeCold?JoinStabilityWindow.MAX_DRIFT_MS:STRICT_STREAM_JOIN_DRIFT_MS)){
       if(corrections[0]>=2||target>=p.getDuration()-150){
        skipUnstableJoin("join_alignment_unstable",drift,corrections[0]);return;
       }
+      stableClock.reset();firstEligibleClock[0]=-1;
       long lead=predictedWarmLeadMs();
       long warmTarget=predictedWarmTargetMs(target,p.getDuration());
       corrections[0]++;baseline[0]=warmTarget;phaseStarted[0]=now;
@@ -1411,6 +1421,23 @@ final class ReplacementEngine {
       audioOwner.issueSeek(p,warmTarget,ownerKey,ownerEpoch,AudioOwnership.SeekKind.WARM,now,
         position(sourceAtSubmit),sourceAtSubmit.position,sourceAtSubmit.observed,p.getCurrentPosition(),seekContext());
       owner.handler.postDelayed(this,20);return;
+     }
+     if(conservativeCold){
+      if(firstEligibleClock[0]<0)firstEligibleClock[0]=now;
+      JoinStabilityWindow.Decision decision=stableClock.observe(now,drift,
+        firstEligibleClock[0],streaming!=null?JoinStabilityWindow.STREAM_DEADLINE_MS:
+          JoinStabilityWindow.LOCAL_DEADLINE_MS);
+      if(decision==JoinStabilityWindow.Decision.UNSAFE){
+       skipUnstableJoin("cold_clock_not_stable",drift,corrections[0]);return;
+      }
+      if(decision==JoinStabilityWindow.Decision.WAIT){
+       owner.handler.postDelayed(this,20);return;
+      }
+      LogStore.log("replacement_cold_clock_window_verified",LogStore.map(
+       "trackId",trackId,"samples",stableClock.samples,
+       "observationMs",now-stableClock.started,"minDriftMs",stableClock.min,
+       "maxDriftMs",stableClock.max,"originalAudible",true,
+       "sourcePcmMeasured",false,"phaseVerified",false));
      }
      audioOwner.handoverClockValidated();fadeStarted=now;
      logTrace("replacement_join_guard_verified",LogStore.map(

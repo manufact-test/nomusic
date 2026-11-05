@@ -12,12 +12,15 @@ final class SupportTrace {
    "replacement_decoder_advancing","replacement_transition_complete","replacement_recovery",
    "replacement_released","replacement_output_silenced","replacement_original_restored",
    "replacement_original_muted","replacement_stream_retry","replacement_stream_prefetch_wait",
+   "replacement_cold_clock_window_verified","source_controller_probe_result",
    "source_discontinuity","album_resolution","playback_health"));
  private static final Set<String> NUMBERS=new HashSet<>(Arrays.asList(
    "elapsedMs","driftMs","residualMs","sourcePositionMs","cachedBytes",
-   "correctionPass","pass","rampMs","retryMs","httpCode"));
+   "correctionPass","pass","rampMs","retryMs","httpCode",
+   "samples","observationMs","minDriftMs","maxDriftMs"));
  private static final Set<String> FLAGS=new HashSet<>(Arrays.asList(
-   "gainZero","paused","found","replacementAudible","beforeTransportCleanup","ok"));
+   "gainZero","paused","found","replacementAudible","beforeTransportCleanup","ok",
+   "connected","sameSource","oldControllerRetained","originalAudible"));
  private static final Set<String> CODES=new HashSet<>(Arrays.asList("reason","state","phase","result","errorCode","operation"));
  private static final Set<String> ENDPOINTS=new HashSet<>(Arrays.asList(
    "config","auth/me","entitlement","resolve","tracks/upload-status","tracks/version-status","rewards"));

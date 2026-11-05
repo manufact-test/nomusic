@@ -119,7 +119,8 @@ if ('return !coherentEntry&&requireClockGate&&enabled&&!seekedCurrentTrack;' not
     raise AssertionError('first-cold envelope must be strictly one-shot per item and excluded after user seeks')
 if ('&&!(newlyAttached&&coldJoinExclusiveExperiment&&!sourceSeekedThisTrack)' not in engine
     or 'else fade(!(coldJoinExclusiveExperiment&&!sourceSeekedThisTrack),lateColdAttach||streaming!=null);' not in engine
-    or '&&streaming==null&&trustedSession>0' not in engine):
+    or '&&(streaming==null||conservativeColdJoinExperiment)&&trustedSession>0' not in engine
+    or '!sourceSeekedThisTrack&&!pendingStreamScrubJoin&&!explicitSourceSeek' not in engine):
     raise AssertionError('sparse stream must obey the single first-join mode and exclude finger seek from cold experiments')
 activity=(root/'RecorderActivity.java').read_text()
 if 'requestJoinExperiment' in activity or 'save.setOnLongClickListener' in activity or 'celikom-join-lab' in activity:
