@@ -24,6 +24,10 @@ final class JoinTransitionPolicy {
   // loud decoder in one pair of asynchronously applied audio commands.
   return Math.max(previous,Math.min(requested,previous+0.16f));
  }
+ /** AudioOwnership changes to REPLACEMENT only at an exact 1.0 mix.
+  * A capped near-terminal value such as 0.99975 is still a live two-owner
+  * blend; issuing an exclusive decoder volume command there is illegal. */
+ static boolean exclusiveGainReady(float mix){return mix==1f;}
  static long retryMs(int attempt){
   return 1200L << Math.min(3,Math.max(0,attempt-1));
  }

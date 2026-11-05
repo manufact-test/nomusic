@@ -456,6 +456,18 @@ final class ReplacementEngine {
  void prefetchLookahead(Map<String,Object> observation,String id){
   if(closed||!armed()||!preloadAllowed||!api.signedIn()||observation==null)return;
   String alias=String.valueOf(observation.get("mediaAlias"));PlaybackSource source=owner.current;
+  // A late album/lookahead callback can refer to the song that is ALREADY
+  // current after a manual Next. In progressive mode its verified sparse
+  // current-track preparation is faster than starting a speculative FULL-file
+  // download, waiting 1200ms, cancelling it and then preparing from scratch.
+  // Preserve the frozen full-file prefetch/handoff behavior and all real NEXT
+  // candidates (whose aliases differ from the live source).
+  if(progressiveColdAllowed&&source!=null&&Objects.equals(source.alias,alias)){
+   LogStore.log("replacement_lookahead_prefetch_skipped",LogStore.map(
+     "mediaAlias",alias,"trackIdPresent",id!=null,"reason","already_current_progressive_prepare",
+     "currentTrackUsesFreshResolve",true,"audioCommandSent",false));
+   return;
+  }
   long duration=observation.get("durationMs") instanceof Number?((Number)observation.get("durationMs")).longValue():-1;
   long remaining=source==null?-1:Math.max(0,source.duration-position(source));
   boolean unique=id!=null&&id.matches("[1-9][0-9]{0,23}");
@@ -1558,7 +1570,12 @@ final class ReplacementEngine {
      fadeStage[0]="same_song_mix";
      float volume=audioOwner.blendSameSong(p,fx,mix,Math.max(0.00001f,gain),ownerKey,ownerEpoch,handoverTicket.operationEpoch);
      originalMix=1f-mix;commandedReplacementVolume=volume;traceAudioCommands();
-      if(mix<0.999f){owner.handler.postDelayed(this,20);return;}
+      // blendSameSong grants REPLACEMENT only at the exact 1.0 endpoint.
+      // Test.43 proved that >=0.999 could reach this path at 0.99902/0.99975,
+      // when the source still owns a tiny fraction and audioOwner.volume(1)
+      // correctly throws "secondary gain without exclusive owner". Complete
+      // the bounded remaining step before issuing any exclusive gain command.
+      if(!JoinTransitionPolicy.exclusiveGainReady(mix)){owner.handler.postDelayed(this,20);return;}
      fadeStage[0]="final_decoder_gain";
      applyVolume(1f);
     }else if(shapeExclusiveCold){
