@@ -228,15 +228,22 @@ final class AudioOwnership {
   * Source gain restoration on a long pause does NOT retire the decoder. */
  void retireDecoder(){generation++;pauseEpoch++;operationEpoch++;pauseMode=PauseMode.NONE;clearSeekFlight();handoverAwaitingClock=false;reason="decoder_retired";}
  void preparing(){event(Event.PREPARE);}
- /** Attach the current source effect only after the previous effect has retired. */
- void prepareSourceEffect(DynamicsProcessing candidate){
+ /** Attach the current source effect only after the previous track has returned
+  * source ownership. Test.37 may reuse an already-enabled unity-gain effect
+  * from the same verified native session, without a second enable command. */
+ void prepareSourceEffect(DynamicsProcessing candidate){prepareSourceEffect(candidate,false);}
+ void prepareSourceEffect(DynamicsProcessing candidate,boolean parkedAtUnity){
   if(key==null||state==State.STOPPED||candidate==null||!candidate.hasControl())
    throw new IllegalStateException("unverified source session");
   if(attachedEffect!=null||commandedSecondary>0.001f)
    throw new IllegalStateException("audio effect still owned by previous transition");
-  candidate.setInputGainAllChannelsTo(0f);
-  if(candidate.setEnabled(true)!=AudioEffect.SUCCESS)
-   throw new IllegalStateException("cannot enable original attenuation");
+  if(parkedAtUnity){
+   if(!candidate.getEnabled())throw new IllegalStateException("parked effect was disabled");
+  }else{
+   candidate.setInputGainAllChannelsTo(0f);
+   if(candidate.setEnabled(true)!=AudioEffect.SUCCESS)
+    throw new IllegalStateException("cannot enable original attenuation");
+  }
   attachedEffect=candidate;
   /* Installing a verified effect is not a handover. Preserve PREPARING until
      the decoder is ready; only the active playback path may enter ALIGNING. */
@@ -387,7 +394,39 @@ final class AudioOwnership {
    throw new IllegalStateException("audible cached seek lacks exclusive owner");
   player.seekTo(Math.max(0L,target),MediaPlayer.SEEK_CLOSEST);
  }
- static final class RestoreResult { boolean gainReset,disabled,released; }
+ static final class RestoreResult { boolean gainReset,disabled,released,parked; }
+ /** Return the original to unity with its session effect still enabled.
+  * The now-silent decoder and previous track's output lease are retired before
+  * the effect may be adopted by another track. No DSP enable/disable cycle. */
+ RestoreResult parkSourceEffect(MediaPlayer secondary,DynamicsProcessing effect){
+  silenceReplacement(secondary);
+  RestoreResult r=new RestoreResult();
+  try{
+   if(effect==null||!effect.hasControl()||!effect.getEnabled())
+    throw new IllegalStateException("cannot park unverified audio session");
+   effect.setInputGainAllChannelsTo(0f);
+   r.gainReset=true;
+   if(!effect.hasControl()||!effect.getEnabled())
+    throw new IllegalStateException("source effect lost control while parking");
+   r.parked=true;source();return r;
+  }catch(RuntimeException failure){
+   // Fail open: a failed unity reset must never leave a muted source.
+   RestoreResult restored=restoreSource(null,effect);
+   r.gainReset=restored.gainReset;r.disabled=restored.disabled;r.released=restored.released;
+   return r;
+  }
+ }
+ /** A parked effect owns no active track; disposal is still performed through
+  * the sole source-gain command gateway, not directly from transport code. */
+ RestoreResult discardParkedSourceEffect(DynamicsProcessing effect){
+  RestoreResult result=new RestoreResult();
+  if(effect==null)return result;
+  try{effect.setControlStatusListener(null);}catch(RuntimeException ignored){}
+  try{effect.setInputGainAllChannelsTo(0f);result.gainReset=true;}catch(RuntimeException ignored){}
+  try{result.disabled=effect.setEnabled(false)==AudioEffect.SUCCESS;}catch(RuntimeException ignored){}
+  try{effect.release();result.released=true;}catch(RuntimeException ignored){}
+  return result;
+ }
  /** Secondary decoder must be silent or released before resetting native gain. */
  RestoreResult restoreSource(MediaPlayer secondary,DynamicsProcessing effect){
   silenceReplacement(secondary);
