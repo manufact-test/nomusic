@@ -200,7 +200,8 @@ jobs:
   build-celikom-test:
     if: >-
       github.event_name == 'push' &&
-      github.ref == 'refs/heads/feature/android-0385-test38-session-recheck-20261105' &&
+      (github.ref == 'refs/heads/feature/android-0385-test38-session-recheck-20261105' ||
+       github.ref == 'refs/heads/feature/android-0385-test39-late-source-effect-20261105') &&
       github.repository == 'manufact-test/nomusic'
     needs: native-android
     permissions:
