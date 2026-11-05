@@ -13,7 +13,7 @@ class BufferedAudio implements Closeable {
  static final int PREFETCH_RUN_BLOCKS=1;
  interface Open {HttpURLConnection open() throws Exception;}
  interface Events {void event(String name,long bytes);}
- final File file;final Open open;final BooleanSupplier valid;final LongSupplier clock;final Events events;
+ final File file;final Open open;final BooleanSupplier valid,backgroundAllowed;final LongSupplier clock;final Events events;
  final BitSet present=new BitSet(),loading=new BitSet();final Set<HttpURLConnection> connections=new HashSet<>();
  final ScheduledExecutorService watcher=Executors.newSingleThreadScheduledExecutor();final ExecutorService background=Executors.newSingleThreadExecutor();
  volatile int playbackBlock;volatile long size=-1,waitingSince=-1;volatile boolean closed;String etag;boolean detached;IOException fatal;
@@ -32,7 +32,8 @@ class BufferedAudio implements Closeable {
  static final class BatchUnsupported extends IOException {
   BatchUnsupported(){super("prefetch_batch_unsupported");}
  }
- BufferedAudio(File file,Open open,BooleanSupplier valid,LongSupplier clock,Events events){this.file=file;this.open=open;this.valid=valid;this.clock=clock;this.events=events;
+ BufferedAudio(File file,Open open,BooleanSupplier valid,LongSupplier clock,Events events){this(file,open,valid,clock,events,()->true);}
+ BufferedAudio(File file,Open open,BooleanSupplier valid,LongSupplier clock,Events events,BooleanSupplier backgroundAllowed){this.file=file;this.open=open;this.valid=valid;this.clock=clock;this.events=events;this.backgroundAllowed=backgroundAllowed;
   watcher.scheduleAtFixedRate(()->{if(!valid.getAsBoolean())close();},100,100,TimeUnit.MILLISECONDS);
  }
  void initialize()throws IOException{fetch(0);events.event("replacement_stream_ready",cachedBytes());}
@@ -120,7 +121,7 @@ class BufferedAudio implements Closeable {
     while(!closed){
      synchronized(BufferedAudio.this){
        if(prefetchHeldForSeek)throw new ForegroundPriority();
-       while(!closed&&foregroundReads>0)BufferedAudio.this.wait(100);
+       while(!closed&&(foregroundReads>0||!backgroundAllowed.getAsBoolean()))BufferedAudio.this.wait(100);
       if(closed)break;
        if(prefetchHeldForSeek)throw new ForegroundPriority();
      }

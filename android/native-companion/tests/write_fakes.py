@@ -27,6 +27,23 @@ files[fake_api]=files[fake_api].replace('boolean signed,useStreaming;',
  'boolean signed,useStreaming;long lastStreamHintPosition=-1,lastStreamHintDuration=-1;')
 files[fake_api]=files[fake_api].replace(old,
  'void stream(JSONObject j,BooleanSupplier valid,long sourcePositionMs,long sourceDurationMs,StreamResult r){lastStreamHintPosition=sourcePositionMs;lastStreamHintDuration=sourceDurationMs;stream(j,valid,r);}' + old)
+# Test.35 production has a separate speculative sparse lane and transfers one
+# validated BufferedAudio instance rather than starting a second download.
+files[fake_api]=files[fake_api].replace(
+ 'interface StreamResult{void done(BufferedAudio source,String error);}',
+ 'interface StreamResult{void done(BufferedAudio source,String error);default void fullyCached(BufferedAudio source){}}')
+files[fake_api]=files[fake_api].replace(
+ 'int resolves,downloads,lookaheadDownloads,currentDownloads;',
+ 'int resolves,downloads,lookaheadDownloads,currentDownloads,lookaheadSparseRequests,foregroundSparseRequests;'
+ 'java.util.List<StreamResult> lookaheadSparseCallbacks=new java.util.ArrayList<>();'
+ 'java.util.List<PromotableAudioLease> lookaheadSparseLeases=new java.util.ArrayList<>();')
+files[fake_api]=files[fake_api].replace(
+ 'void stream(JSONObject j,BooleanSupplier valid,StreamResult r){streamValid=valid;',
+ 'void stream(JSONObject j,BooleanSupplier valid,StreamResult r){foregroundSparseRequests++;streamValid=valid;')
+files[fake_api]=files[fake_api].replace(
+ 'void downloadLookahead(JSONObject j,BooleanSupplier valid,AudioResult r){',
+ 'void prefetchStream(JSONObject j,PromotableAudioLease valid,long durationMs,StreamResult r){lookaheadSparseRequests++;lookaheadSparseCallbacks.add(r);lookaheadSparseLeases.add(valid);}'
+ 'void downloadLookahead(JSONObject j,BooleanSupplier valid,AudioResult r){')
 for name,content in files.items():
  p=root/name;p.parent.mkdir(parents=True,exist_ok=True);p.write_text(content)
 print('Fake Android/audio adapters generated; only for host tests, never packaged')

@@ -16,8 +16,9 @@ verifier = (ROOT / "verify_test_release.py").read_text(encoding="utf-8")
 assert spec["package"] == "pro.celikom.nativeprobe.test"
 assert spec["stable_package"] == "pro.celikom.nativeprobe"
 assert spec["label"] == "CELIKOM Test"
-assert spec["version"] == "0.3.85-test.33"
-assert spec["version_code"] == 86118
+assert spec["version"] == "0.3.85-test.35"
+assert spec["version_code"] == 86120
+assert spec["apk_filename"] == "CELIKOM-Android-0.3.85-TEST-35-SINGLEFLIGHT-SPARSE-HANDOFF-SIGNED.apk"
 assert spec["signing_certificate_sha256"] == "67fe81c56fac1c1d145344b69a0e3faf9005cf6607f4e26ca27d5926c3eefc4f"
 assert spec["test_permission"].startswith(spec["package"] + ".")
 assert spec["file_provider_authority"].startswith(spec["package"] + ".")
@@ -32,6 +33,8 @@ for required in ("check_0385_seek_baseline.py", "UpdateCenter", "REQUEST_INSTALL
     assert required in builder or required in verifier, "Missing test build safety gate: " + required
 assert "check_background_diagnostics.py" in (ROOT / "tests/run_engine.py").read_text(encoding="utf-8")
 assert "TestLookaheadPrefetchHandoff.java" in (ROOT / "tests/run_engine.py").read_text(encoding="utf-8")
+assert "Test35SingleFlight.java" in (ROOT / "tests/run_engine.py").read_text(encoding="utf-8")
+assert "new ReplacementEngine(this,true,true,true)" in (ROOT / "addon/src/pro/celikom/nativeprobe/identitydiag/ProbeService.java").read_text(encoding="utf-8")
 assert "requestFastJoinSamples" in (ROOT / "addon/src/pro/celikom/nativeprobe/identitydiag/ProbeService.java").read_text(encoding="utf-8")
 assert "HybridIdentity.java" in (ROOT / "tests/run_engine.py").read_text(encoding="utf-8")
 assert "if not (v2 or v3)" in verifier
@@ -56,6 +59,10 @@ for forbidden_action in ("stable.json", "/updates/android/stable.json", "publish
 assert "scp -P 65002" in workflow and "CELIKOM_HOSTINGER_SSH_KEY" in workflow
 assert "CELIKOM_ANDROID_SIGNING_P12_B64" in workflow
 assert "actions/upload-artifact@v4" in workflow and "retention-days: 7" in workflow
+assert "feature/android-0385-test35-transfer-ownership-20261105" in workflow
+assert "CELIKOM-Test-0.3.85-test.35-code-86120" in workflow
+assert workflow.count(spec["apk_filename"]) >= 3
+assert "Require complete signed APK delivery set" in workflow
 assert "fetch-depth: 0" in workflow
 assert 'SOURCE_RUN="$VALIDATION_RUN_ID"' in workflow
 assert 'gh run download "$SOURCE_RUN"' in workflow

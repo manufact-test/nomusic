@@ -107,7 +107,7 @@ final class NativeApi {
    // Refresh token rotation remains serialized and must finish even if the song changes.
    String token=access();if(!valid.getAsBoolean())throw new Exception("lookup_cancelled");JSONObject j=request("resolve?audio_formats=mp3,m4a&service=yandex&track_id="+id,null,token,valid);if(j.optBoolean("found"))ApiContract.audio(j,System.currentTimeMillis());return j;},result);
  }
- interface StreamResult {void done(BufferedAudio source,String error);}
+ interface StreamResult {void done(BufferedAudio source,String error);default void fullyCached(BufferedAudio source) {}}
  void stream(JSONObject descriptor,java.util.function.BooleanSupplier valid,StreamResult result){stream(descriptor,valid,-1,-1,result);}
  void stream(JSONObject descriptor,java.util.function.BooleanSupplier valid,long sourcePositionMs,long sourceDurationMs,StreamResult result){final long account=accountGeneration;foregroundAudioDemand.incrementAndGet();foregroundStreamWork.execute(()->{BufferedAudio source=null;String error=null;long start=SystemClock.elapsedRealtime();try{
   // Never let a speculative *full-file* lookahead occupy the foreground
@@ -132,6 +132,41 @@ final class NativeApi {
  }catch(Exception e){if(source!=null)source.close();source=null;error="audio_stream_unavailable";LogStore.log("replacement_stream_failure",LogStore.map("type",e.getClass().getSimpleName(),"elapsedMs",SystemClock.elapsedRealtime()-start));}
  finally{foregroundAudioDemand.decrementAndGet();}
  final BufferedAudio out=source;final String fail=error;main.post(()->result.done(out,fail));});}
+ /* Same validated sparse source is owned first by NEXT, then by CURRENT.
+  * Unlike a full-file speculative copy, it can be handed to MediaPlayer with
+  * its verified blocks and HTTP validators intact; no second fetch is needed.
+  * This lane never queues ahead of foreground sparse preparation. */
+ void prefetchStream(JSONObject descriptor,PromotableAudioLease valid,long durationMs,StreamResult result){
+  main.postDelayed(()->lookaheadAudioWork.execute(()->{
+   final long account=accountGeneration,start=SystemClock.elapsedRealtime();
+   BufferedAudio source=null;String error=null;
+   final java.util.concurrent.atomic.AtomicBoolean initialized=new java.util.concurrent.atomic.AtomicBoolean();
+   java.util.function.BooleanSupplier allowed=()->!revoking&&account==accountGeneration&&valid.getAsBoolean()
+     &&(initialized.get()||SystemClock.elapsedRealtime()-start<4500);
+   try{
+    if(!allowed.getAsBoolean())throw new Exception("prefetch_cancelled");
+    File file=File.createTempFile("lookahead-sparse-",".audio",context.getCacheDir());
+    final java.util.concurrent.atomic.AtomicReference<BufferedAudio> current=new java.util.concurrent.atomic.AtomicReference<>();
+    while(foregroundAudioDemand.get()>0&&allowed.getAsBoolean())Thread.sleep(50);
+    if(!allowed.getAsBoolean())throw new Exception("prefetch_yield_deadline");
+    source=new BufferedAudio(file,()->(HttpsURLConnection)new URL(ApiContract.audio(descriptor,System.currentTimeMillis())).openConnection(),allowed,SystemClock::elapsedRealtime,(name,bytes)->{
+     if("replacement_stream_decoder_demand_begin".equals(name))foregroundAudioDemand.incrementAndGet();
+     else if("replacement_stream_decoder_demand_end".equals(name))foregroundAudioDemand.decrementAndGet();
+     if("replacement_stream_cached".equals(name)){
+      BufferedAudio complete=current.get();if(complete!=null)main.post(()->result.fullyCached(complete));
+     }
+     LogStore.log(name,LogStore.map("cachedBytes",bytes,"priority","promotable_next","elapsedMs",SystemClock.elapsedRealtime()-start));
+    },()->valid.promoted()||foregroundAudioDemand.get()==0);
+    current.set(source);
+    source.initializeForCurrentPosition(0,durationMs);
+    if(!allowed.getAsBoolean())throw new Exception("prefetch_cancelled");
+    initialized.set(true);
+   }catch(Exception e){if(source!=null)source.close();source=null;error="lookahead_stream_unavailable";
+    LogStore.log("replacement_lookahead_sparse_failure",LogStore.map("type",e.getClass().getSimpleName(),"elapsedMs",SystemClock.elapsedRealtime()-start));}
+   final BufferedAudio ready=source;final String failure=error;
+   main.post(()->result.done(ready,failure));
+  }),LOOKAHEAD_ENQUEUE_YIELD_MS);
+ }
  interface AudioResult{void done(File file,String error);}
  void download(JSONObject descriptor,java.util.function.BooleanSupplier valid,AudioResult r){foregroundAudioDemand.incrementAndGet();enqueueDownload(audioWork,"current",descriptor,valid,r);}
  /* Let the current song claim the single audio queue before a speculative full-file transfer. */
