@@ -40,8 +40,13 @@ No new notification permissions, accessibility, VPN/audio capture permission, pl
 - Entire real-engine native host suite, plus `Test35SingleFlight.java`: source object identity, verified bytes retention, late callback disposal, wrong-edition fail-open, current-priority fallback, account/operation lease takeover, full-file primed reuse, rapid Next.
 - Static parity: **the actual `ProbeService` constructs the four-argument opt-in engine**; the architecture lease gate includes the new owner transfer.
 - Golden Android 0.3.85 seek, pause, old source gain, and audio authority contracts must remain green.
-- Android API 36 Java compilation, D8, original APK base checksum and signing certificate, v2/v3 signature, separate `.test` package, updater absence, no stable manifest authority, full APK + verification + JSON receipt artifact.
+- Android API 36 Java compilation, D8, original APK base checksum and signing certificate, verified v3 signature, separate `.test` package, updater absence, no stable manifest authority, full APK + verification + JSON receipt artifact.
 - Human **HONOR 50 / Android 13**, after artifact is confirmed: listen to familiar album, mixed random picks and the especially heavy transitions; then provide one combined log/screen record. Side-by-side qualitative comparison must use **Test.33** as gold. Do not promote a CI pass to acoustic acceptance.
 
 Test.35 candidate branch: `feature/android-0385-test35-transfer-ownership-20261105`.
-The precise signed functional commit, CI run, APK file SHA-256, permanent signed APK Library ID and owner decision must be added after the real build.
+Exact remote functional signed source **`6bf318640b969605c352e3e1c4bb44174f91ff58`** (tree `8c206d78b4a3e044c2634057660c1d304356ad70`; local independent same-tree commit `2e397d4252133d9256096c5e0030ce99415a0f4f`).
+Dedicated signed-candidate restore ref: **`backup/android-0385-test35-signed-pending-20261105`** pinned to that functional SHA. It is not an owner-accepted replacement and must not displace the Test.33 backup.
+
+Android native regression and signed-test builder: **[GitHub Actions #41995295434 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/41995295434)**. Original base SHA and signer match. Version `0.3.85-test.35`, code `86120`, package `pro.celikom.nativeprobe.test`, size `8,820,889` bytes, final signed APK SHA-256 **`7371b87b2af31b2ac652cfa2a6a25ba6e631dc388da489fda1b4b13c37a7498c`**. v3 signature verified; v2 is not present/verified and was not required. Stable OTA untouched; no stable publish job executed. Artifact ID `13400476202` contains all **three** required files, separately unzipped and receipt/verification digest checked.
+
+**[Permanent signed Test.35 APK](https://chatgpt.com/library?file_id=libfile_82d59f4b91f08191a11acead57161515&account_id=personal)**. Experimental **owner HONOR physical playback / acoustic acceptance PENDING**, not a replacement for Test.33. The signing workflow proves successful build/structure, not a seamless handover on-device.
