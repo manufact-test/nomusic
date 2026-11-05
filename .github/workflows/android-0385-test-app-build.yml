@@ -30,7 +30,7 @@ concurrency:
 
 jobs:
   build-test-app:
-    if: inputs.source_branch == 'feature/android-0385-test38-session-recheck-20261105' && inputs.source_repository == 'manufact-test/nomusic'
+    if: inputs.source_branch == 'feature/android-0385-test39-late-source-effect-20261105' && inputs.source_repository == 'manufact-test/nomusic'
     runs-on: ubuntu-latest
     timeout-minutes: 40
     steps:
@@ -47,7 +47,7 @@ jobs:
           SOURCE_BRANCH: ${{ inputs.source_branch }}
           SOURCE_REPOSITORY: ${{ inputs.source_repository }}
           VALIDATION_RUN_ID: ${{ inputs.validation_run_id }}
-          EXPECTED_BRANCH: feature/android-0385-test38-session-recheck-20261105
+          EXPECTED_BRANCH: feature/android-0385-test39-late-source-effect-20261105
         shell: bash
         run: |
           set -euo pipefail
