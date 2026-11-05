@@ -1,6 +1,6 @@
 # CELIKOM Test.37: persistent verified-session effect
 
-Status 2026-11-05: isolated experimental candidate; physical HONOR acoustic verdict **pending**. This is not the accepted rollback.
+Status 2026-11-05: signed Test.37 APK verified by full GitHub CI and archived permanently; physical HONOR acoustic verdict **pending**. This is not the accepted rollback.
 
 ## Why this differs from Test.34–36
 
@@ -21,7 +21,9 @@ Hypothesis, **not established cause**: re-creating, enabling and then disposing 
 
 - All host engine and recorded HONOR transaction suites passed locally, including new `Test37PersistentSourceEffect` (15 assertions) and existing Test.33 seek baseline and route/manual Next regressions.
 - New test asserts only one effect **construction and enable** across three confirmed songs, source returned to unity between songs, effect release on stop/route/account/session/control loss, and untouched same-song seek.
-- Native Android SDK36 compile, original signing/verification, uploaded signed APK and real-device acoustic output must pass separately in CI/on phone. Local host tests **cannot measure DSP crackle**.
+- Full Android API36 host/D8 compilation, source-to-DEX provenance, signing and APK verification **PASSED**, [GitHub Actions run 42017642828](https://github.com/manufact-test/nomusic/actions/runs/42017642828). Stable publication job was SKIPPED.
+- Exact signed APK functional source **GitHub SHA** `979ae02911674ea30cf6910016b3ad51309b34da` (identical source tree to local test commit `13a657cbd9ece0fb402d4a83b411aac61e296490`). Signed APK SHA256 `8b81da76d5a02e579a1ff59890e5ce8e4d542712520bd179247bc18ae24c4ab3`, original certificate SHA256 `67fe81c56fac1c1d145344b69a0e3faf9005cf6607f4e26ca27d5926c3eefc4f`, signature v3 verified, test version code `86122`, size 8812697 bytes.
+- [Permanent original Test.37 signed APK](https://chatgpt.com/library?file_id=libfile_0a3204d2783c8191b9b6908e93861d43&account_id=personal). Physical acoustic output is still **unverified**: local/CI host tests cannot measure real HONOR DSP crackle.
 
 ## Rollback and delivery safeguards
 
