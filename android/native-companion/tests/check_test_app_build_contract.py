@@ -64,6 +64,10 @@ for forbidden_action in ("stable.json", "/updates/android/stable.json", "publish
 assert "scp -P 65002" in workflow and "CELIKOM_HOSTINGER_SSH_KEY" in workflow
 assert "CELIKOM_ANDROID_SIGNING_P12_B64" in workflow
 assert "actions/upload-artifact@v4" in workflow and "retention-days: 7" in workflow
+assert workflow.count(spec["apk_filename"]) == 2, "Build output and uploaded APK names must agree"
+assert workflow.count(spec["apk_filename"].removesuffix(".apk") + ".verification.json") == 2, "Verification names must agree"
+assert workflow.count(spec["apk_filename"].removesuffix("SIGNED.apk") + "RECEIPT.json") == 2, "Receipt names must agree"
+assert "TEST-44-OWNER-ENDPOINT" not in workflow, "Do not reuse the prior test artifact names"
 assert "fetch-depth: 0" in workflow
 assert 'SOURCE_RUN="$VALIDATION_RUN_ID"' in workflow
 assert 'gh run download "$SOURCE_RUN"' in workflow
