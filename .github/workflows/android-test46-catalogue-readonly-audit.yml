@@ -1,0 +1,44 @@
+name: Read-only CELIKOM catalogue identity check
+on:
+  push:
+    branches:
+      - feature/android-0385-catalog-audit-20261106
+permissions:
+  contents: read
+jobs:
+  read-only-identity-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compare four mobile IDs to live approved desktop catalogue without writes
+        env:
+          HOST_KEY: ${{ secrets.CELIKOM_HOSTINGER_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.CELIKOM_HOSTINGER_KNOWN_HOSTS }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$HOST_KEY" && test -n "$KNOWN_HOSTS"
+          umask 077
+          mkdir -p "$RUNNER_TEMP/private"
+          printf '%s\n' "$HOST_KEY" > "$RUNNER_TEMP/private/id_host"
+          printf '%s\n' "$KNOWN_HOSTS" > "$RUNNER_TEMP/private/known_hosts"
+          chmod 600 "$RUNNER_TEMP/private/id_host" "$RUNNER_TEMP/private/known_hosts"
+          ssh -p 65002 -i "$RUNNER_TEMP/private/id_host" \
+            -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
+            -o UserKnownHostsFile="$RUNNER_TEMP/private/known_hosts" \
+            u235811320@92.113.19.189 php \
+            < android/companion-probe/catalog-snapshot-remote.php \
+            | python3 -c '
+          import json,sys,unicodedata
+          data=json.load(sys.stdin)
+          def norm(v):
+              s=unicodedata.normalize("NFKC",str(v)).lower().replace("ё","е")
+              return " ".join("".join(ch if ch.isalnum() else " " for ch in s).split())
+          names={"соната ей","порнозвезда","гипнозы","нас нет"}
+          mobile={"108864304","61007010","34483761","53886987"}
+          print("CATALOGUE_COMPLETE:",data["complete"],"TOTAL:",data["total_tracks"])
+          for row in data["tracks"]:
+              if row["track_id"] in mobile or any(n in norm(row["title"]) for n in names):
+                  print(json.dumps({k:row[k] for k in ("track_id","title","artist","duration_ms","replacement_available")},ensure_ascii=False))
+          '
