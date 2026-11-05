@@ -43,7 +43,7 @@ public class ProbeService extends Service {
  Notification notification(){return buildNotification(notificationContent());}
  final Runnable notificationTick=new Runnable(){public void run(){if(!alive())return;try{NotificationContent content=notificationContent();String key=content.fingerprint();if(!key.equals(lastNotificationKey)){lastNotificationKey=key;getSystemService(NotificationManager.class).notify(220,buildNotification(content));}}catch(RuntimeException e){LogStore.error("notification_update",e);}handler.postDelayed(this,1000);}};
  public int onStartCommand(Intent i,int flags,int id){if(i!=null&&"stop".equals(i.getAction())){finish("user_stop");return START_NOT_STICKY;}if(alive()){if(LogStore.active){Map<String,Object> state=runtimeSnapshot("service_start_command_reused");state.put("startId",id);state.put("flags",flags);state.put("armExtra",i!=null&&i.getBooleanExtra("arm",false));LogStore.log("service_start_command",state);}if(i!=null&&i.getBooleanExtra("arm",false))beginTrial();return START_NOT_STICKY;}instance=this;
-  try{NotificationManager nm=getSystemService(NotificationManager.class);nm.createNotificationChannel(new NotificationChannel("diagnostic_v2","Воспроизведение CELIKOM",NotificationManager.IMPORTANCE_LOW));if(Build.VERSION.SDK_INT>=34)startForeground(220,notification(),ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE);else startForeground(220,notification());LogStore.begin();try{Class<?> store=Class.forName("pro.celikom.nativeprobe.ProbeStore");store.getMethod("setEnabled",android.content.Context.class,boolean.class).invoke(store.getField("INSTANCE").get(null),this,true);}catch(Exception e){LogStore.log("native_audio_observation","Could not enable existing audio-session observation");}albumProbe=new AlbumProbe(this);replacement=new ReplacementEngine(this,true,true,true);if(LogStore.active){Map<String,Object> state=runtimeSnapshot("service_start_command_created");state.put("startId",id);state.put("flags",flags);state.put("armExtra",i!=null&&i.getBooleanExtra("arm",false));LogStore.log("service_start_command",state);}
+  try{NotificationManager nm=getSystemService(NotificationManager.class);nm.createNotificationChannel(new NotificationChannel("diagnostic_v2","Воспроизведение CELIKOM",NotificationManager.IMPORTANCE_LOW));if(Build.VERSION.SDK_INT>=34)startForeground(220,notification(),ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE);else startForeground(220,notification());LogStore.begin();try{Class<?> store=Class.forName("pro.celikom.nativeprobe.ProbeStore");store.getMethod("setEnabled",android.content.Context.class,boolean.class).invoke(store.getField("INSTANCE").get(null),this,true);}catch(Exception e){LogStore.log("native_audio_observation","Could not enable existing audio-session observation");}albumProbe=new AlbumProbe(this);replacement=new ReplacementEngine(this,true,true,false);if(LogStore.active){Map<String,Object> state=runtimeSnapshot("service_start_command_created");state.put("startId",id);state.put("flags",flags);state.put("armExtra",i!=null&&i.getBooleanExtra("arm",false));LogStore.log("service_start_command",state);}
    File[] old=getCacheDir().listFiles((dir,name)->(name.startsWith("replacement-")||name.startsWith("buffered-"))&&name.endsWith(".audio"));if(old!=null)for(File f:old)f.delete();
    PowerManager pm=getSystemService(PowerManager.class);wake=pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK,"CELIKOM:playback");wake.setReferenceCounted(false);wake.acquire(90000);
    IntentFilter filter=new IntentFilter(AudioEffect.ACTION_OPEN_AUDIO_EFFECT_CONTROL_SESSION);filter.addAction(AudioEffect.ACTION_CLOSE_AUDIO_EFFECT_CONTROL_SESSION);filter.addAction(AudioManager.ACTION_AUDIO_BECOMING_NOISY);if(Build.VERSION.SDK_INT>=33)registerReceiver(audio,filter,Context.RECEIVER_EXPORTED);else registerReceiver(audio,filter);receiverRegistered=true;startPlaybackActivityObserver();
@@ -64,9 +64,14 @@ public class ProbeService extends Service {
      "senderUidVerified",verifiedSender,"newSessionTrusted",false,"audioCommandSent",true));
    replacement.stop("yandex_audio_session_changed");
   }else if(AudioEffect.ACTION_OPEN_AUDIO_EFFECT_CONTROL_SESSION.equals(action)){
-   // Same-session OPEN is unverified on Android 13: use only as a reason to
-   // recheck a quiet controller, never as an audio or identity authority.
-   recheckQuietSourceController(session);
+   // A same-session OPEN is a non-authoritative Android 13 hint, not proof
+   // that the Media3 controller or track changed. Test.40 probed a second
+   // controller and could quarantine the real playback on probe failures.
+   // Keep the live controller and replacement; Media3 callbacks and actual
+   // disconnection remain the only source of reconnection decisions.
+   LogStore.log("source_same_session_open_ignored",LogStore.map(
+     "sessionId",session,"trustedSessionId",replacement.trustedSession,
+     "controllerRetained",controller!=null&&controller.isConnected()));
   }}};
  void recheckQuietSourceController(int session){
   if(!alive()||replacement==null)return;
