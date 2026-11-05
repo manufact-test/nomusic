@@ -79,15 +79,13 @@ public final class TestHonor067SlowStreamSeek {
       ==SourceEventArbiter.Action.BOUNDARY,
     "Media3 manual Next changing item index must be a boundary during slow seek");
   staleSeek.onSeekComplete(p);
-  check(p.released&&e.player==null&&e.effect==null
-      &&e.parkedSourceEffect==retained&&!retained.released&&retained.getEnabled()&&retained.gain==0f,
-    "real track boundary retires old decoder and source output lease; session effect remains enabled at unity");
+  check(p.released&&e.player==null&&e.effect==null&&retained.released,
+    "real track boundary retires old in-flight decoder and effect before stale ACK");
   check(router.mediaItem("2","2","2",false,0)==SourceEventArbiter.Action.IGNORE,
     "follow-up Media3 item event cannot create a second boundary");
   SystemClock.now+=2000;TestEngine.p.handler.drain();
   check(e.player==null&&e.effect==null,"stale callbacks cannot revive output after Next");
   e.close();
-  check(retained.released,"service stop releases the parked native session effect");
  }
  public static void main(String[] args)throws Exception{
   slowSourceRetargetingRetainsEffect();realPauseAndNextOverrideSlowSeek();
