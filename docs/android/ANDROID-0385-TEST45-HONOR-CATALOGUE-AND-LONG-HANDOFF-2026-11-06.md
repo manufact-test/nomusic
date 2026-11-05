@@ -38,4 +38,11 @@
 
 Безопасный узкий Test.45: только для progressive cold Android, если на момент **свежего current resolve** ранее предзагружаемый полный файл длинной песни **≥240000 ms всё ещё скачивается**, wait для его готовности **400 вместо 1200 ms**. Если файл успевает закончить в первые 400 мс — прежний reuse; если нет — вызывается уже существующий verified sparse fallback, прежний speculative token отзывается. Для коротких треков (в т.ч. фактический быстрый 203700 ms с успешным 749 ms wait), фазы `resolving`, всех frozen full-file путей и готового кэша поведение **не изменено**. Данных для улучшения качества стыка по PCM нет: Test.45 **не перестраивает** fade, не включает Test.40 strict gate, не возвращает persistent DSP Test.37.
 
-Test `Test45LongPrefetchHandoff.java`: длинный promoted current не блокируется после 400 ms, новая работа идёт под свежим resolve, старые speculative callbacks не получают владение звуком; короткий и frozen режимы сохраняют прежние дедлайны. Полный host/Android CI и APK signed provenance — в отчёт дописать после подтверждения сборки.
+Test `Test45LongPrefetchHandoff.java`: длинный promoted current не блокируется после 400 ms, новая работа идёт под свежим resolve, старые speculative callbacks не получают владение звуком; короткий и frozen режимы сохраняют прежние дедлайны.
+
+## Проверенная подписанная Test.45
+
+- **Точный functional/build SHA:** `50851ec5fdbbb66bf6f4536be78b7f7e4a84c0af`; [GitHub Actions #42116999044 — SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/42116999044): native host suites, API36, D8, package/OTA isolation, signed APK build and artifact upload passed.
+- **Прямая APK в CELIKOM Library:** [CELIKOM Android 0.3.85 Test.45](https://chatgpt.com/library?file_id=libfile_74bc4efca43481918b40c7cff736600d&account_id=personal); filename `CELIKOM-Android-0.3.85-TEST-45-LONG-HANDOFF-SIGNED.apk`, package `pro.celikom.nativeprobe.test`, versionCode `86130`.
+- **SHA-256:** `c94116e20b78fb4e4d7eaf60e8d7e7cda99c27a7b8fe20cc15ab91b213785dc3`; 8,824,985 bytes; original signing cert matches, APK Signature Scheme v3 verified, stable package/OTA, Hostinger, server, desktop and accepted Test.33 backup untouched.
+- Физическое прослушивание Test.45 владельцем **не проведено**. Ни отсутствие «пшиков», ни полное устранение долгих Next, ни `found:false` не заявлять исправленными.
