@@ -13,6 +13,13 @@ public class TestRequestPacing {
   check(b.recent.size()<=128,"history stays bounded");
   b.clearCooldowns();check(!b.allow("afterNetwork",13398001L),"network recovery does not bypass global pacing");
   check(b.allow("afterNetwork",13399500L),"network recovery remains automatic after short pacing delay");
+  RequestBudget rapid=new RequestBudget();
+  check(rapid.allow("speculative_next",100000,false),"speculative next starts while source plays");
+  check(!rapid.allow("audible_current",100249,true),"foreground pacing protects the album endpoint");
+  check(rapid.allow("audible_current",100250,true),"manual Next current preempts speculation after 250 ms");
+  check(!rapid.allow("another_speculation",100500,false),"speculation cannot preempt current lookup");
+  check(rapid.allow("another_speculation",101750,false),"normal speculative pacing resumes");
+  check(!rapid.allow("speculative_next",102000,true),"same album cooldown cannot be bypassed");
   System.out.println("PASS: "+checks+" request pacing / recorded 0.3.31 quota regression checks");
  }
 }

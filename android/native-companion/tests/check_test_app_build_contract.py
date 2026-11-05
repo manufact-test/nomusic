@@ -16,9 +16,9 @@ verifier = (ROOT / "verify_test_release.py").read_text(encoding="utf-8")
 assert spec["package"] == "pro.celikom.nativeprobe.test"
 assert spec["stable_package"] == "pro.celikom.nativeprobe"
 assert spec["label"] == "CELIKOM Test"
-assert spec["version"] == "0.3.85-test.45"
-assert spec["version_code"] == 86130
-assert spec["apk_filename"] == "CELIKOM-Android-0.3.85-TEST-45-LONG-HANDOFF-SIGNED.apk"
+assert spec["version"] == "0.3.85-test.46"
+assert spec["version_code"] == 86131
+assert spec["apk_filename"] == "CELIKOM-Android-0.3.85-TEST-46-CURRENT-FIRST-SIGNED.apk"
 assert spec["signing_certificate_sha256"] == "67fe81c56fac1c1d145344b69a0e3faf9005cf6607f4e26ca27d5926c3eefc4f"
 assert spec["test_permission"].startswith(spec["package"] + ".")
 assert spec["file_provider_authority"].startswith(spec["package"] + ".")
@@ -68,6 +68,9 @@ assert workflow.count(spec["apk_filename"]) == 2, "Build output and uploaded APK
 assert workflow.count(spec["apk_filename"].removesuffix(".apk") + ".verification.json") == 2, "Verification names must agree"
 assert workflow.count(spec["apk_filename"].removesuffix("SIGNED.apk") + "RECEIPT.json") == 2, "Receipt names must agree"
 assert "TEST-44-OWNER-ENDPOINT" not in workflow, "Do not reuse the prior test artifact names"
+assert "TEST-45-LONG-HANDOFF" not in workflow, "Do not reuse previous test artifact names"
+service_order = (ROOT / "addon/src/pro/celikom/nativeprobe/identitydiag/ProbeService.java").read_text(encoding="utf-8")
+assert service_order.index("albumProbe.observe(item.mediaId") < service_order.index("sampleLookahead(c,item);"), "Current album must precede speculative album fetch"
 assert "fetch-depth: 0" in workflow
 assert 'SOURCE_RUN="$VALIDATION_RUN_ID"' in workflow
 assert 'gh run download "$SOURCE_RUN"' in workflow
