@@ -370,7 +370,8 @@ final class ReplacementEngine {
   // A stalled prefetch must not leave the current song in PREPARING indefinitely.
   // The frozen local-file experiment keeps its exact original 10s policy;
   // only the Test.25 opt-in yields early to verified sparse preparation.
-  final long handoffWaitMs=progressiveColdAllowed?1200:10000;
+  final long handoffWaitMs=LookaheadPrefetchPolicy.promotedCurrentWaitMs(
+    progressiveColdAllowed,source.duration,lookaheadPrefetchPhase);
   final String waitAlias=source.alias;
   owner.handler.postDelayed(()->{
    if(!closed&&g==generation&&lookaheadPrefetchWait
@@ -380,7 +381,9 @@ final class ReplacementEngine {
   LogStore.log("replacement_lookahead_prefetch_current_wait",LogStore.map(
     "mediaAlias",lookaheadPrefetchAlias,"trackId",trackId,"phase",lookaheadPrefetchPhase,
     "freshResolveRequired",true,"audioKeyMatches",lookaheadPrefetchResolvedAudioKey==null?"pending":true,
-    "originalRemainsAudible",true,"waitBudgetMs",handoffWaitMs));
+    "originalRemainsAudible",true,"waitBudgetMs",handoffWaitMs,
+    "shortLongTrackWait",progressiveColdAllowed&&handoffWaitMs==LookaheadPrefetchPolicy.LONG_TRACK_CURRENT_WAIT_MS,
+    "sourceDurationMs",source.duration));
   return true;
  }
  void prepareWithLookaheadPrefetch(String key,JSONObject fresh,long g){

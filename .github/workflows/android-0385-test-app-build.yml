@@ -30,7 +30,7 @@ concurrency:
 
 jobs:
   build-test-app:
-    if: inputs.source_branch == 'feature/android-0385-test44-owner-endpoint-20261105' && inputs.source_repository == 'manufact-test/nomusic'
+    if: inputs.source_branch == 'feature/android-0385-test45-honor-20261106' && inputs.source_repository == 'manufact-test/nomusic'
     runs-on: ubuntu-latest
     timeout-minutes: 40
     steps:
@@ -47,7 +47,7 @@ jobs:
           SOURCE_BRANCH: ${{ inputs.source_branch }}
           SOURCE_REPOSITORY: ${{ inputs.source_repository }}
           VALIDATION_RUN_ID: ${{ inputs.validation_run_id }}
-          EXPECTED_BRANCH: feature/android-0385-test44-owner-endpoint-20261105
+          EXPECTED_BRANCH: feature/android-0385-test45-honor-20261106
         shell: bash
         run: |
           set -euo pipefail
@@ -211,10 +211,10 @@ jobs:
       - name: Upload signed test APK and verification receipt only
         uses: actions/upload-artifact@v4
         with:
-          name: CELIKOM-Test-0.3.85-test.44-code-86129
+          name: CELIKOM-Test-0.3.85-test.45-code-86130
           path: |
-            ${{ runner.temp }}/CELIKOM-Android-0.3.85-TEST-44-OWNER-ENDPOINT-SIGNED.apk
-            ${{ runner.temp }}/CELIKOM-Android-0.3.85-TEST-44-OWNER-ENDPOINT-SIGNED.verification.json
-            ${{ runner.temp }}/CELIKOM-Android-0.3.85-TEST-44-OWNER-ENDPOINT-RECEIPT.json
+            ${{ runner.temp }}/CELIKOM-Android-0.3.85-TEST-45-LONG-HANDOFF-SIGNED.apk
+            ${{ runner.temp }}/CELIKOM-Android-0.3.85-TEST-45-LONG-HANDOFF-SIGNED.verification.json
+            ${{ runner.temp }}/CELIKOM-Android-0.3.85-TEST-45-LONG-HANDOFF-RECEIPT.json
           if-no-files-found: error
           retention-days: 7
