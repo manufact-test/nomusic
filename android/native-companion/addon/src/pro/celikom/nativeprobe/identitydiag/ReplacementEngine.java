@@ -1666,7 +1666,7 @@ final class ReplacementEngine {
   primeReadyWaitInFlight=false;primeReadyWaitToken++;sourceBufferSince=-1;audioOwner.cancelPause();
   localPrewarmAttempted=false;localPrewarmWarmupPending=false;localPrewarmAlignmentPending=false;localPrewarmJoinPending=false;localPrewarmWarmupStartedAt=0;localPrewarmWarmupPosition=0;audioFromCache=false;
   boolean had=player!=null||effect!=null;MediaPlayer old=silenceBeforeCleanup();
-  if("identity_changed".equals(reason)||"track_changed".equals(reason)||"replacement_end".equals(reason)||"replacement_completed".equals(reason)||"source_end".equals(reason)||"source_unavailable".equals(reason)||"source_disconnected".equals(reason))rememberAudio();
+  if("identity_changed".equals(reason)||"track_changed".equals(reason)||"replacement_end".equals(reason)||"replacement_completed".equals(reason)||"source_end".equals(reason)||"source_unavailable".equals(reason)||"source_disconnected".equals(reason)||"fade_failed".equals(reason))rememberAudio();
   retainInterruptedCompleteFile(reason);
   /* Detach a completed file before MediaPlayer.release closes its MediaDataSource. */
   if(old!=null){try{old.setOnErrorListener(null);old.setOnPreparedListener(null);old.setOnCompletionListener(null);old.setOnSeekCompleteListener(null);}catch(RuntimeException ignored){}try{old.release();}catch(RuntimeException ignored){}}

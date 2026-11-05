@@ -28,6 +28,8 @@ public final class Test43FadeRecovery {
     "exception must silence decoder and restore the original");
   check(e.armed()&&e.completedKey==null&&e.joinRetryPreferBaseline,
     "the original remains audible and the same track is eligible for a safe retry");
+  check(e.recentAudio.containsValue(audio)&&audio.isFile(),
+    "a ready local file survives a failed fade, avoiding another download");
   check(e.nextLookup-SystemClock.now==1200&&e.joinRetryAttempts==1,
     "the first fade failure retries after 1.2s, not the former fixed 5s");
   check(LogStore.events.contains("replacement_join_exception")
@@ -42,9 +44,10 @@ public final class Test43FadeRecovery {
   int before=TestEngine.api.resolves;
   e.update(TestEngine.p.current);
   check(TestEngine.api.resolves==before+1,"retry re-resolves the unchanged song");
+  int downloads=TestEngine.api.downloads;
   TestEngine.api.resolved.done(TestEngine.found(),null);
-  File next=File.createTempFile("celikom-43-retry-", ".audio");
-  TestEngine.api.downloaded.done(next,null);
+  check(TestEngine.api.downloads==downloads,
+    "fresh authorized resolve reuses the verified local file without network fetch");
   MediaPlayer retryDecoder=e.player;
   retryDecoder.prepared.onPrepared(retryDecoder);
   TestCachedAudioRollback.advanceWarmup(retryDecoder,10,20,8);
