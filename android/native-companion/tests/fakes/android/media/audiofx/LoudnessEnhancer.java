@@ -1,1 +1,1 @@
-package android.media.audiofx;public class LoudnessEnhancer {public LoudnessEnhancer(int s){}public void setTargetGain(int g){}public void setEnabled(boolean b){}public void release(){}}
+package android.media.audiofx;public class LoudnessEnhancer {public int gain,volumeWrites;public boolean enabled;public LoudnessEnhancer(int s){}public void setTargetGain(int g){gain=g;volumeWrites++;}public void setEnabled(boolean b){enabled=b;}public void release(){enabled=false;}}

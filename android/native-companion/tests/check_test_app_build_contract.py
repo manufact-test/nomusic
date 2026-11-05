@@ -16,9 +16,9 @@ verifier = (ROOT / "verify_test_release.py").read_text(encoding="utf-8")
 assert spec["package"] == "pro.celikom.nativeprobe.test"
 assert spec["stable_package"] == "pro.celikom.nativeprobe"
 assert spec["label"] == "CELIKOM Test"
-assert spec["version"] == "0.3.85-test.41"
-assert spec["version_code"] == 86126
-assert spec["apk_filename"] == "CELIKOM-Android-0.3.85-TEST-41-NO-BLOCKING-PROBE-SIGNED.apk"
+assert spec["version"] == "0.3.85-test.42"
+assert spec["version_code"] == 86127
+assert spec["apk_filename"] == "CELIKOM-Android-0.3.85-TEST-42-ADAPTIVE-RETRY-SIGNED.apk"
 assert spec["signing_certificate_sha256"] == "67fe81c56fac1c1d145344b69a0e3faf9005cf6607f4e26ca27d5926c3eefc4f"
 assert spec["test_permission"].startswith(spec["package"] + ".")
 assert spec["file_provider_authority"].startswith(spec["package"] + ".")
@@ -40,6 +40,7 @@ service_source = (ROOT / "addon/src/pro/celikom/nativeprobe/identitydiag/ProbeSe
 assert "new ReplacementEngine(this,true,true,false)" in service_source
 assert "recheckQuietSourceController(session);" not in service_source
 assert "source_same_session_open_ignored" in service_source
+assert "replacement.adaptiveJoinExperiment=true;" in service_source
 assert "HybridIdentity.java" in (ROOT / "tests/run_engine.py").read_text(encoding="utf-8")
 assert "if not (v2 or v3)" in verifier
 assert "base_v3" in verifier and "signer_v3" in verifier
