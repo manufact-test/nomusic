@@ -1,6 +1,6 @@
 # CELIKOM Test.38: stale Media3 controller must fail open
 
-Status 2026-11-05: candidate source and deterministic guard test; physical HONOR acoustic and switching verdict **pending**. Test.37 owner-rejected due to stuck source playback. Keep Test.33 as the only owner-approved rollback.
+Status 2026-11-05: **signed Test.38 APK verified by full GitHub CI**; physical HONOR acoustic and switching verdict **pending**. Test.37 owner-rejected due to stuck source playback. Keep Test.33 as the only owner-approved rollback.
 
 ## Physical evidence
 
@@ -23,5 +23,7 @@ Owner supplied `CELIKOM-combined-20261105-142956.txt` and `SVID_20261105_142918_
 
 - `Test38SourceSessionRecheck`: 20 pure assertions; follows the 20.652/25.366/35.645s incident timeline, stale ticker, new alias, seek, duplicate OPEN and cooldown.
 - `check_0385_seek_baseline.py` PASS; Test.33 seek source untouched. `check_test_app_build_contract.py` PASS; separate `pro.celikom.nativeprobe.test`, `CELIKOM Test` app, original signing and stable OTA exclusion.
-- Full Android compile, all host regressions, signed APK, CI provenance and phone outcome **pending** until GitHub Actions completes.
+- **FULL PASS:** Android SDK36/D8, host regressions, static packaging check, isolated signed APK verification, [GitHub run 42021705567](https://github.com/manufact-test/nomusic/actions/runs/42021705567). The original signed certificate SHA256 `67fe81c56fac1c1d145344b69a0e3faf9005cf6607f4e26ca27d5926c3eefc4f` matched; Android APK signature v3 verified. Stable publication SKIPPED.
+- **Exact APK functional source:** GitHub commit `7a4c48fbcdd86c415b0726efaf4529fb6b7e28ae`, code tree `7b37fa9188caa6770854ad34e7aaec28c6bcd8b1`. Signed APK `CELIKOM-Android-0.3.85-TEST-38-SOURCE-RECHECK-SIGNED.apk`, SHA256 `c295d2d1e87519abac12bd7ebf49a1999786c07f99b4a2f0e795d6a5f17c4495`, 8,812,697 bytes, `pro.celikom.nativeprobe.test`, `0.3.85-test.38` code86123, label `CELIKOM Test`, stable OTA absent.
+- [Permanent signed APK in ChatGPT Library](https://chatgpt.com/library?file_id=libfile_28a73987a9f88191b0e32a7fc6821a0e&account_id=personal); original artifact `13411992124`, ZIP SHA256 `7f300360f2e2a876a3764816cc6aefa1ad15165757a72cd9adb885b06878ce6e`, expires 2026-11-12. Real HONOR playback remains unverified and is **not** owner-accepted on CI alone.
 - Test.33 pinned baseline functional source `53d94d66a32b332b62848e0895285d81dda226e9`, backup `backup/android-0385-test33-owner-accepted-20261105`, library original APK `libfile_0924722c86908191bef31db36cfcf0ed`.
