@@ -3,6 +3,11 @@ package pro.celikom.nativeprobe.identitydiag;
 /** Test.42: bounded command-level fade, based only on transport evidence.
  *  This cannot infer whether two independent audio sessions carry identical PCM. */
 final class JoinTransitionPolicy {
+ static long durationMs(long driftMs,long sourceObservationAgeMs,boolean failedLongFadeRetry){
+  // An error during a long fade is not evidence that repeating it is safe.
+  // Test.41's successful 160ms path is the bounded same-song recovery mode.
+  return failedLongFadeRetry?160:durationMs(driftMs,sourceObservationAgeMs);
+ }
  static long durationMs(long driftMs,long sourceObservationAgeMs){
   long drift=Math.abs(driftMs);
   // Aligned timelines can tolerate a longer, gentler fade. A larger offset

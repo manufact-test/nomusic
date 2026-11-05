@@ -49,7 +49,7 @@ final class ReplacementEngine {
  // this path NEVER pauses or mutes either session during its fast seek.
  boolean hotCachedSeek,hotCachedSeekPending,hotCachedSeekPaused;long hotCachedSeekStarted,hotCachedSeekTarget,hotCachedSeekSequence,hotCachedSeekEpoch;int hotCachedSeekCorrections;
  final ClockSupervisor clockSupervisor=new ClockSupervisor();PlaybackSource previousSource;boolean explicitSourceSeek;long unavailableSince=-1,lastSyncAt=-1,lastLoggedDrift;String completedKey,completedReason;long completedPosition,resumeDrift;
- String joinRetryKey;int joinRetryAttempts;boolean joinLoudnessUnavailable;
+ String joinRetryKey;int joinRetryAttempts;boolean joinRetryPreferBaseline,joinLoudnessUnavailable;
  // Private, bounded to this foreground run. Every reuse requires a new live resolve.
  /* Bounded in-session warm cache covers playlist reorder and rapid repeat selections. */
  static final long CACHE_BYTES=RecentAudioCachePolicy.MAX_BYTES;
@@ -244,6 +244,37 @@ final class ReplacementEngine {
   completedKey=key;completedPosition=sourceMs;
   completedReason="Синхронизация неустойчива — играет оригинал до следующей песни";
   audioOwner.unsupported(reason);status=completedReason;
+ }
+ /** Test.42's fade exception was discarded, then retried only after 5s.
+  * Keep the original audible, retry this still-current song with a bounded
+  * backoff, and use the older 160ms entry instead of repeating a failed fade. */
+ void recoverFailedJoin(RuntimeException error,String stage,long duration,float lastMix){
+  final String key=identityKey;
+  final PlaybackSource source=owner.current;
+  final long sourceMs=source==null?0:position(source);
+  final boolean sameTrack=adaptiveJoinExperiment&&key!=null&&current(key)&&armed()
+    &&source!=null&&sourceMs+4000<source.duration;
+  final String detail=error instanceof IllegalStateException || error instanceof IllegalArgumentException
+    ?error.getMessage():null;
+  LogStore.log("replacement_join_exception",LogStore.map(
+    "reason","fade_failed","type",error.getClass().getSimpleName(),"detail",detail,
+    "stage",stage,"requestedDurationMs",duration,"lastCommandedMix",lastMix,
+    "ownerState",audioOwner.state().name(),"retrySameTrack",sameTrack,
+    "sourcePcmMeasured",false,"hardwareOutputMeasured",false));
+  if(sameTrack){
+   if(!Objects.equals(joinRetryKey,key)){joinRetryKey=key;joinRetryAttempts=0;}
+   joinRetryPreferBaseline=true;
+   long retry=JoinTransitionPolicy.retryMs(++joinRetryAttempts);
+   LogStore.log("replacement_join_guard_fallback",LogStore.map(
+     "reason","fade_failed","originalRetained",true,"retrySameTrack",true,
+     "retryAttempt",joinRetryAttempts,"retryMs",retry,
+     "nextJoinDurationMs",UNIFIED_JOIN_MS,"fallbackFromDurationMs",duration));
+   suspend("fade_failed",retry);
+   completedKey=null;completedReason=null;
+   status="Ошибка перехода — повторяем на этой песне; играет оригинал";
+   return;
+  }
+  suspend("fade_failed",retryDelay());
  }
  void clearAudioCache(){for(File f:recentAudio.values())f.delete();recentAudio.clear();failedPrimeKeys.clear();}
  void trimRecentAudio(File keep){
@@ -1343,6 +1374,7 @@ final class ReplacementEngine {
   final JoinStabilityWindow stableClock=new JoinStabilityWindow();
   final long[] firstEligibleClock={-1};
   final long[] adaptiveDuration={UNIFIED_JOIN_MS};final float[] adaptiveMix={0f};
+  final String[] fadeStage={"clock_gate"};
   final long ownerEpoch=audioOwner.epoch();final String ownerKey=identityKey;
   // A completed seek releases foreground priority. Holding background
   // prefetch through a clock-gated join exhausted the initial 128KiB prefix.
@@ -1378,6 +1410,7 @@ final class ReplacementEngine {
    if(closed||token!=transition||p!=player||fxRef[0]!=effect||!armed()||!accountLeaseCurrent()
       ||!audioOwner.current(ownerEpoch,ownerKey)||!audioOwner.commandCurrent(handoverTicket,api.accountGeneration,ownerKey,descriptor==null?0:descriptor.optLong("replacement_id"),descriptor==null?0:descriptor.optLong("version"),descriptor==null?0:descriptor.optLong("duration_ms")))return;
    try{
+    fadeStage[0]="clock_gate";
     if(!current(identityKey)){suspend("fade_source_unavailable",1000);return;}
     if(!owner.current.playing){
      if(owner.current.buffering&&owner.current.wantsToPlay)bufferSource(owner.current,false);
@@ -1475,6 +1508,7 @@ final class ReplacementEngine {
      // touches Yandex's audio processing. The verified effect remains the
      // required guard before any secondary volume may become nonzero.
      if(sourceEffectDeferred&&fxRef[0]==null){
+      fadeStage[0]="source_effect_attach";
       if(!mute())return;
       fxRef[0]=effect;
       LogStore.log("replacement_source_effect_attached_at_join",LogStore.map(
@@ -1496,11 +1530,13 @@ final class ReplacementEngine {
       if(adaptiveJoinExperiment){
        long entryDrift=position(owner.current)-p.getCurrentPosition();
        adaptiveDuration[0]=JoinTransitionPolicy.durationMs(entryDrift,
-        Math.max(0,softStarted[0]-owner.current.observed));
+         Math.max(0,softStarted[0]-owner.current.observed),
+         joinRetryPreferBaseline&&Objects.equals(joinRetryKey,ownerKey));
       }
        logTrace("replacement_unified_join_start",LogStore.map("trackId",trackId,
          "durationMs",adaptiveDuration[0],"gainLaw","complementary_linear",
          "adaptive",adaptiveJoinExperiment,
+         "baselineRetry",adaptiveJoinExperiment&&joinRetryPreferBaseline&&Objects.equals(joinRetryKey,ownerKey),
          "sourcePcmMeasured",false,"phaseVerified",false,"oneMode",true));
      }
      long elapsed=Math.max(0,SystemClock.elapsedRealtime()-softStarted[0]);
@@ -1517,10 +1553,13 @@ final class ReplacementEngine {
        :TransitionMix.progress(elapsed,UNIFIED_JOIN_MS);
      adaptiveMix[0]=mix;
      float gain=(float)Math.min(1,Math.pow(10,Math.min(0,descriptor==null?0:descriptor.optDouble("gain_db",0))/20));
+     fadeStage[0]="positive_gain_ramp";
      if(adaptiveJoinExperiment)rampPositiveGain(p,mix);
+     fadeStage[0]="same_song_mix";
      float volume=audioOwner.blendSameSong(p,fx,mix,Math.max(0.00001f,gain),ownerKey,ownerEpoch,handoverTicket.operationEpoch);
      originalMix=1f-mix;commandedReplacementVolume=volume;traceAudioCommands();
       if(mix<0.999f){owner.handler.postDelayed(this,20);return;}
+     fadeStage[0]="final_decoder_gain";
      applyVolume(1f);
     }else if(shapeExclusiveCold){
      long now=SystemClock.elapsedRealtime();
@@ -1546,11 +1585,13 @@ final class ReplacementEngine {
     }else{
      audioOwner.grantReplacement(fx);originalMix=0f;applyVolume(1f);
     }
+    fadeStage[0]="post_join_clock_sample";
     if(!outputPostLogged[0]){
      logOutputClockSample(p,owner.current,coherentEntry?"post_blend":"post_exclusive_grant");
      outputPostLogged[0]=true;
     }
-    if(adaptiveJoinExperiment){joinRetryKey=null;joinRetryAttempts=0;}
+    if(adaptiveJoinExperiment){joinRetryKey=null;joinRetryAttempts=0;joinRetryPreferBaseline=false;}
+    fadeStage[0]="owner_completion";
     fading=false;audioOwner.replacement();seekHoldActive=false;pendingStreamScrubJoin=false;ownerEvent("exclusive_handover");
      if(streaming!=null)streaming.releasePrefetchAfterSeek();
     if(coherentEntry&&coldClock[2]>0)LogStore.log("replacement_join_transport_summary",LogStore.map(
@@ -1565,7 +1606,7 @@ final class ReplacementEngine {
        "trackId",trackId,"rampMs",coherentEntry?adaptiveDuration[0]:shapeExclusiveCold?80:0,
        "joinMode",coherentEntry?"unified_complementary_linear":shapeExclusiveCold?"exclusive_duck_then_rise":"exclusive_single_turn",
       "commandDelayMs",SystemClock.elapsedRealtime()-fadeStarted));
-   }catch(RuntimeException e){suspend("fade_failed",retryDelay());}
+   }catch(RuntimeException e){recoverFailedJoin(e,fadeStage[0],adaptiveDuration[0],adaptiveMix[0]);}
   }};ramp.run();
  }
  /** Existing gain_db above zero used to switch LoudnessEnhancer on only when
