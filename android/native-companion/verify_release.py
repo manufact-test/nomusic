@@ -52,15 +52,10 @@ def main():
     for service in expected_app.findall("service"):
         if service.get(android + "name") == "pro.celikom.nativeprobe.identitydiag.ProbeService":
             service.find("property").set(android + "value", "User initiated current-song observation and automatic audio replacement; foreground playback continues until the user stops it")
-    # Exact allowlist for Update Center. Any extra Android permission/component fails.
-    ET.SubElement(baseline, "uses-permission", {android + "name": "android.permission.REQUEST_INSTALL_PACKAGES"})
+    # Exact allowlist for read-only update discovery. No APK installer permission.
     ET.SubElement(expected_app, "service", {
         android + "name": "pro.celikom.nativeprobe.identitydiag.UpdateCheckJob",
         android + "permission": "android.permission.BIND_JOB_SERVICE",
-        android + "exported": "false",
-    })
-    ET.SubElement(expected_app, "receiver", {
-        android + "name": "pro.celikom.nativeprobe.identitydiag.UpdateInstallReceiver",
         android + "exported": "false",
     })
     def structure(node):
@@ -68,6 +63,8 @@ def main():
         attributes = [(key, "|".join(sorted(value.split("|"))) if key == android + "foregroundServiceType" else value) for key, value in node.attrib.items()]
         return node.tag, sorted(attributes), [structure(child) for child in node]
     assert structure(current) == structure(baseline), "Application manifest differs from verified baseline"
+    assert not any(node.get(android + "name") == "android.permission.REQUEST_INSTALL_PACKAGES"
+                   for node in current.findall("uses-permission")), "Package installer permission returned"
     assert current.get("package") == "pro.celikom.nativeprobe"
     app = current.find("application")
     assert app.get(android + "allowBackup") == "false"
@@ -92,7 +89,7 @@ def main():
         dex = signed.read("classes2.dex")
         assert dex.startswith(b"dex" + bytes([10])), "Signed addon has no DEX header"
         markers = (
-            VERSION.encode("ascii"), b"ReplacementEngine", b"AudioOwnership", b"UpdateInstallReceiver", b"finishAndRemoveTask",
+            VERSION.encode("ascii"), b"ReplacementEngine", b"AudioOwnership", b"android.intent.action.VIEW",
             b"ClockSupervisor", b"SourceEventArbiter", b"retireDecoder",
             b"SourceTransitionGate", b"AudioContinuityMonitor",
             b"SeekTimingEvidence", b"OutputClockEvidence", b"UpdateState",
@@ -105,23 +102,19 @@ def main():
         )
         for marker in markers:
             assert marker in dex, "Signed APK missing code marker: " + marker.decode()
+        for forbidden in (b"UpdateInstallReceiver", b"PackageInstaller", b"REQUEST_INSTALL_PACKAGES"):
+            assert forbidden not in dex, "Signed APK unexpectedly contains app-installer code: " + forbidden.decode()
     addon = ROOT / "addon/src/pro/celikom/nativeprobe/identitydiag"
     engine = (addon / "ReplacementEngine.java").read_text()
     ownership = (addon / "AudioOwnership.java").read_text()
     matcher = (addon / "AlbumMatch.java").read_text()
-    updater = (addon / "UpdateInstallReceiver.java").read_text()
     update_center = (addon / "UpdateCenter.java").read_text()
     update_job = (addon / "UpdateCheckJob.java").read_text()
     update_state = (addon / "UpdateState.java").read_text()
-    assert "PackageInstaller.STATUS_SUCCESS" in updater
-    assert "getLongVersionCode()" in updater and "getAppTasks()" in updater
-    assert "finishAndRemoveTask()" in updater
-    success_callback = re.search(
-        r"else if \(status == PackageInstaller\.STATUS_SUCCESS\) \{(.*?)\n\s*\} else",
-        updater, re.S
-    )
-    assert success_callback and "closeTasksAfterVerifiedInstall(context, expectedCode)" in success_callback.group(1)
-    assert "startActivity" not in success_callback.group(1), "Successful update must close/remove tasks, not relaunch CELIKOM"
+    assert not (addon / "UpdateInstallReceiver.java").exists(), "Self-installer receiver returned"
+    assert "Intent.ACTION_VIEW" in update_center and "Intent.CATEGORY_BROWSABLE" in update_center
+    assert "activity.startActivity(external)" in update_center
+    assert "PackageInstaller" not in update_center and "canRequestPackageInstalls" not in update_center
     assert "PAUSE_RESUME_FADE_MS=180" in engine and "PAUSE_GRACE_MS=30000" in engine
     assert "HANDOVER_DRIFT_MS=350" in engine
     assert "warmSeekTransition" not in engine and "handoverPending" not in engine, "Competing audio clock flags returned"
