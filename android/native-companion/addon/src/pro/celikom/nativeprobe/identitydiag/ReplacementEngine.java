@@ -67,6 +67,34 @@ final class ReplacementEngine {
  volatile String lookaheadPrefetchAlias,lookaheadPrefetchTrackId,lookaheadPrefetchPhase="none";
  String lookaheadPrefetchResolvedAudioKey;JSONObject lookaheadPrefetchCurrentDescriptor;boolean lookaheadPrefetchPromoted,lookaheadPrefetchWait;
  long lookaheadPrefetchQueuedAtMs=-1;String lookaheadPromotedLoggedPhase;
+ // Test.50: a resolved NEXT identity is delivered only once while CURRENT prepares.
+ Map<String,Object> pendingNextObservation;
+ String pendingNextId,pendingOwnerKey;
+ long pendingAccount=-1;
+ void clearPendingNext(String why){
+  if(why!=null&&pendingNextObservation!=null)LogStore.log("replacement_lookahead_pending_discarded",
+   LogStore.map("reason",why,"mediaAlias",String.valueOf(pendingNextObservation.get("mediaAlias"))));
+  pendingNextObservation=null;pendingNextId=null;pendingOwnerKey=null;pendingAccount=-1;
+ }
+ void flushPendingNextAfterJoin(){
+  if(pendingNextObservation==null)return;
+  Map<String,Object> next=pendingNextObservation;
+  String alias=String.valueOf(next.get("mediaAlias")),id=pendingNextId,key=pendingOwnerKey;
+  long account=pendingAccount;
+  clearPendingNext(null);
+  PlaybackSource now=owner.current;
+  if(closed||!armed()||!api.signedIn()||account!=api.accountGeneration
+   ||now==null||!now.playing||!ready||preparing
+   ||!Objects.equals(now.key,key)||!Objects.equals(identityKey,key)
+   ||!owner.lookaheadCandidateCurrent(alias)){
+   LogStore.log("replacement_lookahead_pending_discarded",LogStore.map(
+    "reason","stale_at_join","mediaAlias",alias));
+   return;
+  }
+  LogStore.log("replacement_lookahead_pending_started",LogStore.map(
+   "mediaAlias",alias,"trackId",id,"afterCurrentJoin",true));
+  prefetchLookahead(next,id);
+ }
  // A primed next decoder remains muted and never owns the source effect.
  // Live playback still requires a fresh current-track resolve and measured duration.
  static final long NEXT_DECODER_PRIME_TIMEOUT_MS=1800, PROMOTED_PRIME_GRACE_MS=800, PROMOTED_PRIME_READY_WAIT_MS=150, CACHED_CURRENT_PRIME_READY_WAIT_MS=340;
@@ -503,9 +531,13 @@ final class ReplacementEngine {
   boolean eligible=LookaheadPrefetchPolicy.mayPrefetch(armed(),api.signedIn(),source!=null&&source.playing,owner.lookaheadCandidateCurrent(alias),unique,remaining);
   if(!eligible){LogStore.log("replacement_lookahead_prefetch_skipped",LogStore.map("mediaAlias",alias,"trackIdPresent",unique,"sourcePlaying",source!=null&&source.playing,"remainingMs",remaining,"candidateCurrent",owner.lookaheadCandidateCurrent(alias),"reason","prefetch_gate"));return;}
   if(progressiveColdAllowed&&preparing&&!ready&&source!=null&&Objects.equals(identityKey,source.key)){
-   // The current song is still obtaining its first uninterrupted decoder
-   // runway. Let the recurring Media3 sample retry speculative work after
-   // foreground readiness, without creating any delayed retry queue.
+   // Do not start a competing download. Keep next identity until CURRENT join.
+   if(owner.lookaheadCandidateCurrent(alias)){
+    pendingNextObservation=new LinkedHashMap<>(observation);
+    pendingNextId=id;pendingOwnerKey=source.key;pendingAccount=api.accountGeneration;
+    LogStore.log("replacement_lookahead_pending_queued",LogStore.map(
+     "mediaAlias",alias,"trackId",id,"reason","current_preparing"));
+   }
    return;
   }
   if(Objects.equals(lookaheadPrefetchAlias,alias)&&Objects.equals(lookaheadPrefetchTrackId,id)&&lookaheadPrefetchAccount==api.accountGeneration&&("resolving".equals(lookaheadPrefetchPhase)||"downloading".equals(lookaheadPrefetchPhase)||"ready".equals(lookaheadPrefetchPhase)||"cached".equals(lookaheadPrefetchPhase)))return;
@@ -942,7 +974,7 @@ final class ReplacementEngine {
  }
  void sourceBoundary(String reason){sourceBoundary(reason,null);}
  void sourceBoundary(String reason,String nextAlias){
-  if(closed)return;if(primedNext!=null&&primedNext.currentCache)discardPrimedNext("current_source_boundary");owner.noteSourceBoundary(nextAlias);sourceBufferSince=-1;generation++;preparing=false;
+  if(closed)return;clearPendingNext("source_boundary");if(primedNext!=null&&primedNext.currentCache)discardPrimedNext("current_source_boundary");owner.noteSourceBoundary(nextAlias);sourceBufferSince=-1;generation++;preparing=false;
   Map<String,Object> boundaryContext=traceFields();
   release("track_changed");audioOwner.event(AudioOwnership.Event.BOUNDARY);audioOwner.invalidate(reason);
   identityKey=null;trackId=null;method="NONE";completedReason=null;clockSupervisor.reset();descriptor=null;lookupKey=null;nextLookup=0;failures=0;previousSource=null;completedKey=null;explicitSourceSeek=false;sourceSeekedThisTrack=false;unavailableSince=-1;status="Определяем новую песню; играет оригинал";ownerEvent("source_boundary");
@@ -1674,6 +1706,7 @@ final class ReplacementEngine {
        "trackId",trackId,"rampMs",coherentEntry?adaptiveDuration[0]:shapeExclusiveCold?80:0,
        "joinMode",coherentEntry?"unified_complementary_linear":shapeExclusiveCold?"exclusive_duck_then_rise":"exclusive_single_turn",
       "commandDelayMs",SystemClock.elapsedRealtime()-fadeStarted));
+    flushPendingNextAfterJoin();
    }catch(RuntimeException e){recoverFailedJoin(e,fadeStage[0],adaptiveDuration[0],adaptiveMix[0]);}
   }};ramp.run();
  }
@@ -1803,7 +1836,7 @@ final class ReplacementEngine {
      try{if(!current(identityKey)||!owner.current.playing){stop("return_source_changed");return;}float mix=TransitionMix.progress(SystemClock.elapsedRealtime()-start,FADE_MS);if(mix<1f){audioOwner.grantReplacement(fx);originalMix=0f;applyVolume(1f-mix);owner.handler.postDelayed(this,20);}else{applyVolume(0);stop("owner_return_original");}}catch(RuntimeException ex){stop("return_failed");}}};ramp.run();
  }
  void stop(String reason){discardPrimedNext("replacement_stop");invalidateLookaheadPrefetch("replacement_stop_"+reason);Map<String,Object> stopState=owner.runtimeSnapshot("replacement_stop_"+reason);stopState.put("stopReason",reason);LogStore.log("replacement_stop_state",stopState);previousSource=null;completedKey=null;completedReason=null;clockSupervisor.reset();explicitSourceSeek=false;unavailableSince=-1;waitingForRouteResume=false;routePauseObserved=false;preloadAllowed=false;clearAudioCache();returning=false;armedUntil=0;trustedSession=-1;generation++;preparing=false;release(reason);descriptor=null;lookupKey=null;nextLookup=0;status="Замена выключена; играет оригинал";authorizationAccount=-1;audioOwner.event(AudioOwnership.Event.STOP);audioOwner.stopped();ownerEvent("stopped");if("yandex_audio_session_changed".equals(reason)||"effect_control_lost".equals(reason))status="Яндекс сменил аудиосессию. Открой его эквалайзер → CELIKOM и снова включи автозамену";else if("headphones_disconnected".equals(reason))status="Наушники отключены. Оригинал восстановлен; подключи их и снова включи автозамену";LogStore.log("replacement_trial_stop",LogStore.map("reason",reason));}
- void close(){closed=true;stop("service_stopped");}
+ void close(){clearPendingNext("service_stopped");closed=true;stop("service_stopped");}
  void ownerEvent(String event){LogStore.log("audio_owner_state",LogStore.map("event",event,"state",audioOwner.state().name(),"ownerGeneration",audioOwner.epoch(),"ownerReason",audioOwner.reason(),"trackId",trackId,"identityKey",identityKey,"replacementVolume",commandedReplacementVolume,"sourceMutedCommand",effect!=null&&originalMix<=0.001f,"hardwareOutputMeasured",false));}
  void logSync(String state,PlaybackSource s,long drift){String key=state+"|"+s.key;long now=SystemClock.elapsedRealtime();if(!key.equals(lastSync)||lastSyncAt<0||now-lastSyncAt>=10000||Math.abs(drift-lastLoggedDrift)>=500){lastSync=key;lastSyncAt=now;lastLoggedDrift=drift;LogStore.log("replacement_sync",LogStore.map("state",state,"trackId",trackId,"sourcePositionMs",position(s),"driftMs",drift));}}
 
