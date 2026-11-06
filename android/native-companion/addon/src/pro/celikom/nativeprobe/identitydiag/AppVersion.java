@@ -1,5 +1,5 @@
 package pro.celikom.nativeprobe.identitydiag;
 final class AppVersion {
- static final String NAME="0.3.89";
+ static final String NAME="0.3.90";
  private AppVersion(){}
 }
