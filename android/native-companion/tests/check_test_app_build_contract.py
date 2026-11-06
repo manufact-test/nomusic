@@ -16,9 +16,9 @@ verifier = (ROOT / "verify_test_release.py").read_text(encoding="utf-8")
 assert spec["package"] == "pro.celikom.nativeprobe.test"
 assert spec["stable_package"] == "pro.celikom.nativeprobe"
 assert spec["label"] == "CELIKOM Test"
-assert spec["version"] == "0.3.85-test.47"
-assert spec["version_code"] == 86132
-assert spec["apk_filename"] == "CELIKOM-Android-0.3.85-TEST-47-SESSION-STABILITY-SIGNED.apk"
+assert spec["version"] == "0.3.85-test.48"
+assert spec["version_code"] == 86133
+assert spec["apk_filename"] == "CELIKOM-Android-0.3.85-TEST-48-SESSION-EFFECT-HOLD-SIGNED.apk"
 assert spec["signing_certificate_sha256"] == "67fe81c56fac1c1d145344b69a0e3faf9005cf6607f4e26ca27d5926c3eefc4f"
 assert spec["test_permission"].startswith(spec["package"] + ".")
 assert spec["file_provider_authority"].startswith(spec["package"] + ".")
@@ -41,6 +41,8 @@ assert "new ReplacementEngine(this,true,true,false)" in service_source
 assert "recheckQuietSourceController(session);" not in service_source
 assert "source_same_session_open_ignored" in service_source
 assert "replacement.adaptiveJoinExperiment=true;" in service_source
+assert "replacement.retainSessionEffectBetweenTracksExperiment=true;" in service_source
+assert "Test48SourceEffectLease.java" in (ROOT / "tests/run_engine.py").read_text(encoding="utf-8")
 assert "HybridIdentity.java" in (ROOT / "tests/run_engine.py").read_text(encoding="utf-8")
 assert "if not (v2 or v3)" in verifier
 assert "base_v3" in verifier and "signer_v3" in verifier

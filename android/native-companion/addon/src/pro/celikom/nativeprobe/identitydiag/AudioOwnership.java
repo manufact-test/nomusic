@@ -235,7 +235,7 @@ final class AudioOwnership {
   if(attachedEffect!=null||commandedSecondary>0.001f)
    throw new IllegalStateException("audio effect still owned by previous transition");
   candidate.setInputGainAllChannelsTo(0f);
-  if(candidate.setEnabled(true)!=AudioEffect.SUCCESS)
+  if(!candidate.getEnabled()&&candidate.setEnabled(true)!=AudioEffect.SUCCESS)
    throw new IllegalStateException("cannot enable original attenuation");
   attachedEffect=candidate;
   /* Installing a verified effect is not a handover. Preserve PREPARING until
