@@ -1,3 +1,9 @@
+## 2026-11-06: OWNER-ACCEPTED TEST.50 WITH FULL ROLLBACK — READ FIRST
+See `docs/android/ANDROID-0385-TEST50-FROZEN-ETALON-ROLLBACK-2026-11-06.md`.
+Installed signed APK source commit **5d737d203a0b364b0cb4fd6886040b8bd0c6fbd1**; full backup branch **backup/android-test50-exact-source-owner-accepted-20261106**; Library complete source+APK+receipts+HONOR diagnostic: https://chatgpt.com/library?file_id=libfile_d97af2a45fb48191a40a384db83f6d8e&account_id=personal . DO NOT do partial code rollback. Test.50 is the NEW owner-accepted acoustic reference; Test.49 rejected; stable/PC untouched. Real field diagnostic ends `run_end(reason=user_stop)`, not truncated. All source and APK hashes documented.
+
+---
+
 
 ## Подтверждение подписанной Test.50
 Source commit (code, not docs): `5d737d203a0b364b0cb4fd6886040b8bd0c6fbd1`. CI run `42287196407`: native host regressions, Android API 36, D8, packaging/signature verification — PASS.
