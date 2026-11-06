@@ -47,7 +47,7 @@ final class UpdateCenter {
         summary.setGravity(android.view.Gravity.CENTER_VERTICAL);
         summary.setPadding(0,activity.dp(8),0,activity.dp(8));
         refresh=activity.button(region,"Проверить обновление",()->check(true),false);
-        install=activity.button(region,"Скачать обновление",this::download,false);
+        install=activity.button(region,"Скачать через браузер",this::download,false);
         later=activity.button(region,"Позже",this::deferUpdate,false);
         candidate=loadCandidate(activity);
         UpdateState cached=readState(activity);
