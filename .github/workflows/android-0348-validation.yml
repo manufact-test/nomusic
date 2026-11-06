@@ -6,6 +6,7 @@ on:
     branches:
       - feature/android-0348-audio-ownership-stabilization
       - feature/android-unified-preparation-seek-gate
+      - release/android-0.3.87-playprotect-rollback-candidate-20261106
       - feature/android-0382-cache-path-evidence-staging-20261101
       - feature/android-0382-cache-prewarm-staging-20261101
       - feature/android-0382-playback-continuity-fix-20261101
