@@ -1,0 +1,40 @@
+name: CELIKOM Test.50 owner-approved complete source export
+on:
+  push:
+    branches:
+      - backup/android-test50-full-source-export-job-20261106
+permissions:
+  contents: read
+jobs:
+  immutable-source-archive:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Checkout exact installed APK source without modifying any branch
+        uses: actions/checkout@v4
+        with:
+          ref: 5d737d203a0b364b0cb4fd6886040b8bd0c6fbd1
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Archive all tracked files from the exact code tree
+        shell: bash
+        run: |
+          set -euo pipefail
+          SOURCE=5d737d203a0b364b0cb4fd6886040b8bd0c6fbd1
+          test "$(git rev-parse HEAD)" = "$SOURCE"
+          test "$(git rev-parse HEAD^{tree})" = bbdf43d78e04c6dc4562c5b0541049283f9109b0
+          OUT="$RUNNER_TEMP/CELIKOM-TEST50-FULL-REPO-SOURCE-5d737d.zip"
+          git archive --format=zip --prefix=CELIKOM-TEST50-FULL-REPO/ --output="$OUT" "$SOURCE"
+          test -s "$OUT"
+          sha256sum "$OUT" >"$OUT.sha256"
+          unzip -t "$OUT" >/dev/null
+          echo "Immutable repository source archive created from $SOURCE"
+      - name: Upload read-only snapshot of full tracked repository
+        uses: actions/upload-artifact@v4
+        with:
+          name: celikom-test50-full-repo-source-5d737d
+          path: |
+            ${{ runner.temp }}/CELIKOM-TEST50-FULL-REPO-SOURCE-5d737d.zip
+            ${{ runner.temp }}/CELIKOM-TEST50-FULL-REPO-SOURCE-5d737d.zip.sha256
+          if-no-files-found: error
+          retention-days: 90
