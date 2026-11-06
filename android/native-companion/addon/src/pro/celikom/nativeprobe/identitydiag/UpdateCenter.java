@@ -4,9 +4,9 @@ import android.app.*;
 import android.app.job.*;
 import android.content.*;
 import android.content.pm.*;
+import android.database.Cursor;
 import android.net.Uri;
 import android.os.*;
-import android.provider.Settings;
 import android.view.View;
 import android.widget.*;
 import org.json.JSONObject;
@@ -14,8 +14,6 @@ import java.io.*;
 import java.net.*;
 import java.security.MessageDigest;
 import java.security.cert.Certificate;
-import java.nio.file.Files;
-import java.nio.file.StandardCopyOption;
 import java.util.Locale;
 import java.util.HashMap;
 import java.util.Map;
@@ -41,6 +39,7 @@ final class UpdateCenter {
     final Button refresh, install, later;
     volatile Release candidate;
     volatile boolean busy;
+    volatile int downloadedCode;
     static final long MIN_CHECK_DISPLAY_MS=1500L;
     int checkGeneration;
     boolean checking;
@@ -55,6 +54,7 @@ final class UpdateCenter {
         install=activity.button(region,"Скачать обновление",this::download,false);
         later=activity.button(region,"Позже",this::deferUpdate,false);
         candidate=loadCandidate(activity);
+        downloadedCode=activity.getSharedPreferences("update-center",0).getInt("downloadedCode",0);
         UpdateState cached=readState(activity);
         int current=installed(activity);
         boolean recent=cached.shouldSkipAutomaticCheck(System.currentTimeMillis(),INTERVAL,current);
@@ -64,6 +64,12 @@ final class UpdateCenter {
             :cached.checkedAt>0?staleMessage(cached.checkedAt):"Статус обновлений ещё не проверен";
         render(initial);
         schedule(activity);
+        android.content.SharedPreferences pending=activity.getSharedPreferences("update-center",0);
+        if(candidate!=null&&candidate.code==pending.getInt("downloadCode",0)&&pending.getLong("downloadId",-1)>0&&downloadedCode!=candidate.code){
+            busy=true;
+            render("Проверяем загрузку CELIKOM "+candidate.name+"…");
+            watchDownload(candidate,pending.getLong("downloadId",-1),0);
+        }
         check(false);
     }
     static int installed(Context ctx) {
@@ -225,6 +231,9 @@ final class UpdateCenter {
         summary.setTextColor(upToDate?RecorderActivity.MINT:RecorderActivity.MUTED);
         install.setVisibility(candidate==null?View.GONE:View.VISIBLE);
         later.setVisibility(candidate==null?View.GONE:View.VISIBLE);
+        boolean ready=candidate!=null&&downloadedCode==candidate.code;
+        install.setText(ready?"Открыть загрузки Android":"Скачать обновление");
+        install.setOnClickListener(v->{if(ready)openSystemDownloads();else download();});
         refresh.setEnabled(!busy);install.setEnabled(!busy);later.setEnabled(!busy);
     }
     static String sha(byte[] bytes) throws Exception {
@@ -247,62 +256,96 @@ final class UpdateCenter {
     }
     void download() {
         Release r=candidate;if(r==null || busy)return;
-        if(Build.VERSION.SDK_INT>=26 && !activity.getPackageManager().canRequestPackageInstalls()){
-            Intent i=new Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,Uri.parse("package:"+activity.getPackageName()));
-            activity.startActivity(i);
-            render("Разрешите установку из CELIKOM, затем повторите скачивание");
-            return;
+        // Keep CELIKOM out of the APK installer role. Android's system
+        // DownloadManager owns the transfer and its native completion notice.
+        // The owner opens the verified download through Android Downloads.
+        DownloadManager manager=(DownloadManager)activity.getSystemService(Context.DOWNLOAD_SERVICE);
+        if(manager==null){render("Системная загрузка Android недоступна");return;}
+        try {
+            String filename="CELIKOM-"+r.name+"-"+r.code+"-"+System.currentTimeMillis()+".apk";
+            DownloadManager.Request request=new DownloadManager.Request(Uri.parse(r.url))
+                .setTitle("CELIKOM "+r.name)
+                .setDescription("Обновление CELIKOM")
+                .setMimeType("application/vnd.android.package-archive")
+                .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
+                .setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS,filename);
+            long id=manager.enqueue(request);
+            activity.getSharedPreferences("update-center",0).edit()
+                .putLong("downloadId",id).putInt("downloadCode",r.code).remove("downloadedCode").apply();
+            downloadedCode=0;
+            busy=true;render("Android скачивает CELIKOM "+r.name+"…");
+            watchDownload(r,id,0);
+        } catch(Exception e) {
+            busy=false;render("Не удалось запустить системную загрузку Android");
         }
-        busy=true;render("Загружаем CELIKOM "+r.name+"…");
+    }
+    void watchDownload(Release r,long id,int attempt) {
+        if(attempt>600){downloadFailed(id,"Время загрузки истекло");return;}
         IO.execute(()->{
-            File tmp=null;
-            try {
-                if(activity.getCacheDir().getUsableSpace()<r.size*2)throw new IOException("Недостаточно памяти");
-                tmp=File.createTempFile("celikom-update-",".apk",activity.getCacheDir());
-                MessageDigest digest=MessageDigest.getInstance("SHA-256");
-                long total=0;
-                HttpsURLConnection c=connect(r.url);
-                try(InputStream in=c.getInputStream();FileOutputStream out=new FileOutputStream(tmp)){
-                    byte[] b=new byte[32768];int n;
-                    while((n=in.read(b))!=-1){
-                        total+=n;if(total>r.size||total>MAX_APK)throw new IOException("Oversized APK");
-                        out.write(b,0,n);digest.update(b,0,n);
-                    }
-                    out.getFD().sync();
-                }finally{c.disconnect();}
-                if(total!=r.size||!r.sha.equals(hex(digest.digest())))throw new SecurityException("Контрольная сумма не совпадает");
-                Context context=activity.getApplicationContext();
-                verifyApk(context,tmp,r);
-                // Keep the verified bytes until Android finishes reading them.
-                // Moving inside the app's private data partition is atomic.
-                Files.move(tmp.toPath(),VerifiedUpdateProvider.verifiedFile(context).toPath(),
-                    StandardCopyOption.ATOMIC_MOVE,StandardCopyOption.REPLACE_EXISTING);
-                tmp=null;
+            DownloadManager manager=(DownloadManager)activity.getSystemService(Context.DOWNLOAD_SERVICE);
+            if(manager==null){MAIN.post(()->downloadFailed(id,"Системная загрузка недоступна"));return;}
+            int status,reason;long completed,total;
+            try(Cursor cursor=manager.query(new DownloadManager.Query().setFilterById(id))){
+                if(cursor==null||!cursor.moveToFirst())throw new IOException("Загрузка не найдена");
+                status=cursor.getInt(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS));
+                reason=cursor.getInt(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_REASON));
+                completed=cursor.getLong(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_BYTES_DOWNLOADED_SO_FAR));
+                total=cursor.getLong(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_TOTAL_SIZE_BYTES));
+            } catch(Exception e){MAIN.post(()->downloadFailed(id,"Загрузка Android недоступна"));return;}
+            if(status==DownloadManager.STATUS_SUCCESSFUL){
+                try {
+                    verifySystemDownload(activity.getApplicationContext(),manager,id,r);
+                    MAIN.post(()->{
+                        busy=false;downloadedCode=r.code;
+                        activity.getSharedPreferences("update-center",0).edit()
+                            .putInt("downloadedCode",r.code).remove("downloadId").remove("downloadCode").apply();
+                        if(activity.visible())render("CELIKOM "+r.name+" скачана и проверена. Нажмите уведомление Android о загрузке, затем «Установить». Если уведомления нет — откройте загрузки кнопкой ниже.");
+                    });
+                } catch(Exception e){
+                    manager.remove(id);
+                    MAIN.post(()->downloadFailed(id,"Проверка APK не пройдена — загрузка удалена"));
+                }
+            } else if(status==DownloadManager.STATUS_FAILED){
+                MAIN.post(()->downloadFailed(id,"Android не смог скачать обновление ("+reason+")"));
+            } else {
+                final int percent=total>0?(int)Math.min(100,completed*100/total):-1;
                 MAIN.post(()->{
-                    busy=false;
-                    if(!activity.visible())return;
-                    try {
-                        openSystemInstaller(activity);
-                        render("APK проверена. Подтвердите установку в Android.");
-                    } catch(Exception error) {
-                        render("Не удалось открыть установщик Android");
-                    }
+                    if(activity.visible())render("Android скачивает CELIKOM "+r.name+(percent>=0?" — "+percent+"%":"…"));
+                    MAIN.postDelayed(()->watchDownload(r,id,attempt+1),1000);
                 });
-            } catch(Exception e){
-                final String msg=e instanceof SecurityException?"Проверка APK не пройдена":"Загрузка или установка не удалась";
-                MAIN.post(()->{busy=false;if(activity.visible())render(msg);});
-            }finally{if(tmp!=null)tmp.delete();}
+            }
         });
     }
-    static void openSystemInstaller(Activity activity) {
-        // The same Android package viewer used for a manually opened APK:
-        // local content:// URI, never a browser or a Hostinger download page.
-        Uri uri=VerifiedUpdateProvider.contentUri(activity);
-        Intent intent=new Intent(Intent.ACTION_VIEW);
-        intent.setDataAndType(uri,VerifiedUpdateProvider.APK_MIME);
-        intent.setClipData(ClipData.newRawUri("CELIKOM update",uri));
-        intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-        activity.startActivity(intent);
+    static void verifySystemDownload(Context context,DownloadManager manager,long id,Release r) throws Exception {
+        File copy=File.createTempFile("celikom-dm-verify-",".apk",context.getCacheDir());
+        try {
+            MessageDigest digest=MessageDigest.getInstance("SHA-256");
+            long total=0;
+            try(ParcelFileDescriptor downloaded=manager.openDownloadedFile(id);
+                InputStream input=new FileInputStream(downloaded.getFileDescriptor());
+                FileOutputStream output=new FileOutputStream(copy)){
+                byte[] block=new byte[32768];int count;
+                while((count=input.read(block))!=-1){
+                    total+=count;
+                    if(total>r.size||total>MAX_APK)throw new SecurityException("APK larger than signed manifest");
+                    digest.update(block,0,count);
+                    output.write(block,0,count);
+                }
+                output.getFD().sync();
+            }
+            if(total!=r.size||!r.sha.equals(hex(digest.digest())))
+                throw new SecurityException("APK checksum mismatch");
+            verifyApk(context,copy,r);
+        }finally{copy.delete();}
+    }
+    void downloadFailed(long id,String reason) {
+        busy=false;
+        activity.getSharedPreferences("update-center",0).edit().remove("downloadId").remove("downloadCode").apply();
+        if(activity.visible())render(reason);
+    }
+    void openSystemDownloads() {
+        try {activity.startActivity(new Intent(DownloadManager.ACTION_VIEW_DOWNLOADS));}
+        catch(Exception e){render("Откройте уведомление «CELIKOM» или папку «Загрузки» в Android");}
     }
     static void ensureChannel(Context ctx) {
         NotificationManager nm=ctx.getSystemService(NotificationManager.class);

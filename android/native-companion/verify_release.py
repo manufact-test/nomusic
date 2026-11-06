@@ -53,17 +53,10 @@ def main():
         if service.get(android + "name") == "pro.celikom.nativeprobe.identitydiag.ProbeService":
             service.find("property").set(android + "value", "User initiated current-song observation and automatic audio replacement; foreground playback continues until the user stops it")
     # Exact allowlist for Update Center. Any extra Android permission/component fails.
-    ET.SubElement(baseline, "uses-permission", {android + "name": "android.permission.REQUEST_INSTALL_PACKAGES"})
     ET.SubElement(expected_app, "service", {
         android + "name": "pro.celikom.nativeprobe.identitydiag.UpdateCheckJob",
         android + "permission": "android.permission.BIND_JOB_SERVICE",
         android + "exported": "false",
-    })
-    ET.SubElement(expected_app, "provider", {
-        android + "name": "pro.celikom.nativeprobe.identitydiag.VerifiedUpdateProvider",
-        android + "authorities": "pro.celikom.nativeprobe.verified-update",
-        android + "exported": "false",
-        android + "grantUriPermissions": "true",
     })
     def structure(node):
         # Apktool may reorder names in a flags bitmask without changing it.
@@ -94,7 +87,7 @@ def main():
         dex = signed.read("classes2.dex")
         assert dex.startswith(b"dex" + bytes([10])), "Signed addon has no DEX header"
         markers = (
-            VERSION.encode("ascii"), b"ReplacementEngine", b"AudioOwnership", b"VerifiedUpdateProvider", b"openSystemInstaller",
+            VERSION.encode("ascii"), b"ReplacementEngine", b"AudioOwnership", b"verifySystemDownload", b"watchDownload",
             b"ClockSupervisor", b"SourceEventArbiter", b"retireDecoder",
             b"SourceTransitionGate", b"AudioContinuityMonitor",
             b"SeekTimingEvidence", b"OutputClockEvidence", b"UpdateState",
@@ -111,16 +104,17 @@ def main():
     engine = (addon / "ReplacementEngine.java").read_text()
     ownership = (addon / "AudioOwnership.java").read_text()
     matcher = (addon / "AlbumMatch.java").read_text()
-    provider = (addon / "VerifiedUpdateProvider.java").read_text()
     update_center = (addon / "UpdateCenter.java").read_text()
     update_job = (addon / "UpdateCheckJob.java").read_text()
     update_state = (addon / "UpdateState.java").read_text()
-    assert "Intent.ACTION_VIEW" in update_center and "VerifiedUpdateProvider.contentUri" in update_center
-    assert "Intent.FLAG_GRANT_READ_URI_PERMISSION" in update_center
-    assert "getPackageInstaller()" not in update_center and "PackageInstaller" not in provider
-    assert "ParcelFileDescriptor.MODE_READ_ONLY" in provider
-    assert '"r".equals(mode)' in provider and "Unknown update URI" in provider
-    assert "Files.move" in update_center and "verifyApk(context,tmp,r)" in update_center
+    assert "DownloadManager.Request" in update_center and "VISIBILITY_VISIBLE_NOTIFY_COMPLETED" in update_center
+    assert "DownloadManager.ACTION_VIEW_DOWNLOADS" in update_center
+    assert "manager.openDownloadedFile(id)" in update_center and "verifyApk(context,copy,r)" in update_center
+    assert "getPackageInstaller()" not in update_center and "canRequestPackageInstalls" not in update_center
+    assert "ACTION_INSTALL_PACKAGE" not in update_center and "ACTION_VIEW" not in update_center
+    assert not (addon / "VerifiedUpdateProvider.java").exists()
+    assert not (addon / "UpdateInstallReceiver.java").exists()
+    assert all("REQUEST_INSTALL_PACKAGES" not in val for node in current.iter() for val in node.attrib.values())
     assert "PAUSE_RESUME_FADE_MS=180" in engine and "PAUSE_GRACE_MS=30000" in engine
     assert "HANDOVER_DRIFT_MS=350" in engine
     assert "warmSeekTransition" not in engine and "handoverPending" not in engine, "Competing audio clock flags returned"

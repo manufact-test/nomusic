@@ -114,18 +114,12 @@ def main():
     for service in application.findall("service"):
         if service.get(android_attr + "name") == "pro.celikom.nativeprobe.identitydiag.ProbeService":
             service.find("property").set(android_attr + "value", "User initiated current-song observation and automatic audio replacement; foreground playback continues until the user stops it")
-    # Sideload update-only additions. Do not relax existing service/activity policies.
-    ET.SubElement(tree.getroot(), "uses-permission", {android_attr + "name": "android.permission.REQUEST_INSTALL_PACKAGES"})
+    # The updater only enqueues a system DownloadManager transfer. This app
+    # never requests APK installation privileges or provides installer URIs.
     ET.SubElement(application, "service", {
         android_attr + "name": "pro.celikom.nativeprobe.identitydiag.UpdateCheckJob",
         android_attr + "permission": "android.permission.BIND_JOB_SERVICE",
         android_attr + "exported": "false",
-    })
-    ET.SubElement(application, "provider", {
-        android_attr + "name": "pro.celikom.nativeprobe.identitydiag.VerifiedUpdateProvider",
-        android_attr + "authorities": "pro.celikom.nativeprobe.verified-update",
-        android_attr + "exported": "false",
-        android_attr + "grantUriPermissions": "true",
     })
     tree.write(manifest, encoding="utf-8", xml_declaration=True)
     for p in (decoded / "smali/pro/celikom/nativeprobe").rglob("*.smali"):
