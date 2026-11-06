@@ -63,6 +63,14 @@ public final class TestLookaheadPrefetchPolicy {
   check(!LookaheadPrefetchPolicy.mayPrefetch(true,true,true,false,true,9000),"stale");
   check(LookaheadPrefetchPolicy.mayPrefetch(true,true,true,true,true,3000),"minimum prefetch lead accepted");
   check(!LookaheadPrefetchPolicy.mayPrefetch(true,true,true,true,true,2999),"too late");
+  check(LookaheadPrefetchPolicy.queuedLookaheadMustYieldToCurrent(true,"downloading",2000,2500),
+    "rapid manual Next bypasses a full-file download that is still in its queue grace");
+  check(!LookaheadPrefetchPolicy.queuedLookaheadMustYieldToCurrent(true,"downloading",2000,3100),
+    "started speculative transfer retains existing bounded handoff");
+  check(!LookaheadPrefetchPolicy.queuedLookaheadMustYieldToCurrent(false,"downloading",2000,2500),
+    "frozen nonprogressive path is unchanged");
+  check(!LookaheadPrefetchPolicy.queuedLookaheadMustYieldToCurrent(true,"cached",2000,2500),
+    "complete cached lookahead is not cancelled");
   metadataOnlyFallbackIsUniqueAndFailClosed();
   System.out.println("PASS: lookahead strict album and stable metadata fallback gates");
  }

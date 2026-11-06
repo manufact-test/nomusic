@@ -7,6 +7,15 @@ final class LookaheadPrefetchPolicy {
  // a completed lookahead still uses its existing immediate cache handoff.
  static final long LONG_TRACK_MS=240000L;
  static final long LONG_TRACK_CURRENT_WAIT_MS=400L;
+ // A speculative full-file request intentionally waits for the foreground
+ // decoder. If Next promotes that item during the queue grace, waiting for
+ // the speculative file would add the entire queue delay plus a handoff
+ // timeout before verified sparse preparation can even begin.
+ static final long SPECULATIVE_QUEUE_YIELD_MS=1100L;
+ static boolean queuedLookaheadMustYieldToCurrent(boolean progressive,String phase,long queuedAtMs,long nowMs){
+  return progressive&&"downloading".equals(phase)&&queuedAtMs>=0&&nowMs>=queuedAtMs
+    &&nowMs-queuedAtMs<SPECULATIVE_QUEUE_YIELD_MS;
+ }
  static long promotedCurrentWaitMs(boolean progressive,long durationMs,String phase){
   if(!progressive)return 10000L;
   return durationMs>=LONG_TRACK_MS&&"downloading".equals(phase)

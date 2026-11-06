@@ -135,9 +135,14 @@ final class NativeApi {
  interface AudioResult{void done(File file,String error);}
  void download(JSONObject descriptor,java.util.function.BooleanSupplier valid,AudioResult r){foregroundAudioDemand.incrementAndGet();enqueueDownload(audioWork,"current",descriptor,valid,r);}
  /* Let the current song claim the single audio queue before a speculative full-file transfer. */
- static final long LOOKAHEAD_ENQUEUE_YIELD_MS=1100;
  void downloadLookahead(JSONObject descriptor,java.util.function.BooleanSupplier valid,AudioResult r){
-  main.postDelayed(()->enqueueDownload(lookaheadAudioWork,"lookahead",descriptor,valid,r),LOOKAHEAD_ENQUEUE_YIELD_MS);
+  main.postDelayed(()->{
+   // A rapid manual Next may already have promoted this item to foreground
+   // and started a verified sparse decoder. Do not enqueue a now-stale
+   // speculative transfer merely because its 1.1s delay has expired.
+   if(!valid.getAsBoolean()){r.done(null,"audio_download_cancelled");return;}
+   enqueueDownload(lookaheadAudioWork,"lookahead",descriptor,valid,r);
+  },LookaheadPrefetchPolicy.SPECULATIVE_QUEUE_YIELD_MS);
  }
  void enqueueDownload(ExecutorService lane,String priority,JSONObject descriptor,java.util.function.BooleanSupplier valid,AudioResult r){
   final long account=accountGeneration,queuedAt=SystemClock.elapsedRealtime();

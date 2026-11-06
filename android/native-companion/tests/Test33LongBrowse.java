@@ -53,17 +53,17 @@ public final class Test33LongBrowse {
   TestEngine.reset("ALBUM");
   ReplacementEngine engine=TestEngine.e;
   File oldest=null,newest=null;
-  for(int n=0;n<13;n++){
+  for(int n=0;n<17;n++){
    File audio=File.createTempFile("celikom-test33-cache-", ".audio");
    if(n==0)oldest=audio;
    newest=audio;
    JSONObject descriptor=TestEngine.found().put("replacement_id",100+n);
    engine.cachePrefetchedAudio("track"+n,descriptor,audio);
-   if(n==11)check(engine.recentAudio.size()==12&&oldest.exists(),
-     "twelve verified recent songs remain available under the byte ceiling");
+   if(n==15)check(engine.recentAudio.size()==16&&oldest.exists(),
+     "sixteen verified recent songs remain available under the unchanged byte ceiling");
   }
-  check(engine.recentAudio.size()==12&&!oldest.exists()&&newest.exists(),
-    "thirteenth song evicts only the oldest unprotected file");
+  check(engine.recentAudio.size()==16&&!oldest.exists()&&newest.exists(),
+    "seventeenth song evicts only the oldest unprotected file");
   engine.close();
   check(!newest.exists(),"private cache is cleaned on shutdown");
  }

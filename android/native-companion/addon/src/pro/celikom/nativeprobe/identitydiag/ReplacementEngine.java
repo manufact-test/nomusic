@@ -58,6 +58,7 @@ final class ReplacementEngine {
  volatile long lookaheadPrefetchGeneration,lookaheadPrefetchAccount=-1,lookaheadPrefetchStartedAt;
  volatile String lookaheadPrefetchAlias,lookaheadPrefetchTrackId,lookaheadPrefetchPhase="none";
  String lookaheadPrefetchResolvedAudioKey;JSONObject lookaheadPrefetchCurrentDescriptor;boolean lookaheadPrefetchPromoted,lookaheadPrefetchWait;
+ long lookaheadPrefetchQueuedAtMs=-1;String lookaheadPromotedLoggedPhase;
  // A primed next decoder remains muted and never owns the source effect.
  // Live playback still requires a fresh current-track resolve and measured duration.
  static final long NEXT_DECODER_PRIME_TIMEOUT_MS=1800, PROMOTED_PRIME_GRACE_MS=800, PROMOTED_PRIME_READY_WAIT_MS=150, CACHED_CURRENT_PRIME_READY_WAIT_MS=340;
@@ -312,7 +313,10 @@ final class ReplacementEngine {
    if(!lookaheadPrefetchPromoted)lookaheadPromotedAtMs=SystemClock.elapsedRealtime();
    lookaheadPrefetchPromoted=true;
    if("ready".equals(lookaheadPrefetchPhase)){lookaheadPrefetchPhase="cached";LogStore.log("replacement_lookahead_prefetch_promoted",LogStore.map("mediaAlias",lookaheadPrefetchAlias,"trackId",lookaheadPrefetchTrackId,"cacheRetained",true));}
-   else LogStore.log("replacement_lookahead_prefetch_promoted_inflight",LogStore.map("mediaAlias",lookaheadPrefetchAlias,"trackId",lookaheadPrefetchTrackId,"phase",lookaheadPrefetchPhase));
+   else if(!Objects.equals(lookaheadPromotedLoggedPhase,lookaheadPrefetchPhase)){
+    lookaheadPromotedLoggedPhase=lookaheadPrefetchPhase;
+    LogStore.log("replacement_lookahead_prefetch_promoted_inflight",LogStore.map("mediaAlias",lookaheadPrefetchAlias,"trackId",lookaheadPrefetchTrackId,"phase",lookaheadPrefetchPhase));
+   }
    return;
   }
   if(!Objects.equals(candidateAlias,lookaheadPrefetchAlias)&&!owner.lookaheadCandidateCurrent(lookaheadPrefetchAlias))invalidateLookaheadPrefetch("next_item_changed");
@@ -321,6 +325,7 @@ final class ReplacementEngine {
   lookaheadPrefetchGeneration++;lookaheadPrefetchAlias=null;lookaheadPrefetchTrackId=null;lookaheadPrefetchAccount=-1;
   lookaheadPrefetchPhase="none";lookaheadPrefetchResolvedAudioKey=null;lookaheadPrefetchCurrentDescriptor=null;
   lookaheadPrefetchPromoted=false;lookaheadPrefetchWait=false;lookaheadPromotedAtMs=0;
+  lookaheadPrefetchQueuedAtMs=-1;lookaheadPromotedLoggedPhase=null;
  }
  void finishLookaheadPrefetch(String reason){
   if(!"cache_consumed".equals(reason)&&primedNext!=null&&!primedNext.currentCache)discardPrimedNext("prefetch_finished_"+reason);
@@ -361,6 +366,19 @@ final class ReplacementEngine {
      "mediaAlias",lookaheadPrefetchAlias,"trackId",trackId,"freshResolveKeyMatches",false,
      "action","cancel_prefetch_use_fresh_download"));
    invalidateLookaheadPrefetch("fresh_resolve_key_mismatch");return false;
+  }
+  if(LookaheadPrefetchPolicy.queuedLookaheadMustYieldToCurrent(
+     progressiveColdAllowed,lookaheadPrefetchPhase,lookaheadPrefetchQueuedAtMs,SystemClock.elapsedRealtime())){
+   // Observed on HONOR Test.46 (42.3-45.4s): Next promoted a speculative
+   // download inside its mandatory 1.1s queue grace. Waiting another 1.2s
+   // could never yield a complete file; it simply delayed the live sparse
+   // decoder. Revoke only this not-yet-started future transfer.
+   LogStore.log("replacement_current_bypassed_queued_lookahead",LogStore.map(
+     "mediaAlias",source.alias,"trackId",trackId,"queuedAgeMs",
+     SystemClock.elapsedRealtime()-lookaheadPrefetchQueuedAtMs,
+     "originalAudible",true,"currentUsesFreshResolve",true));
+   invalidateLookaheadPrefetch("queued_lookahead_yield_to_current");
+   return false;
   }
   audioOwner.preparing();
   prepareTicket=audioOwner.ticket(key,api.accountGeneration,fresh.optLong("replacement_id"),
@@ -476,6 +494,12 @@ final class ReplacementEngine {
   boolean unique=id!=null&&id.matches("[1-9][0-9]{0,23}");
   boolean eligible=LookaheadPrefetchPolicy.mayPrefetch(armed(),api.signedIn(),source!=null&&source.playing,owner.lookaheadCandidateCurrent(alias),unique,remaining);
   if(!eligible){LogStore.log("replacement_lookahead_prefetch_skipped",LogStore.map("mediaAlias",alias,"trackIdPresent",unique,"sourcePlaying",source!=null&&source.playing,"remainingMs",remaining,"candidateCurrent",owner.lookaheadCandidateCurrent(alias),"reason","prefetch_gate"));return;}
+  if(progressiveColdAllowed&&preparing&&!ready&&source!=null&&Objects.equals(identityKey,source.key)){
+   // The current song is still obtaining its first uninterrupted decoder
+   // runway. Let the recurring Media3 sample retry speculative work after
+   // foreground readiness, without creating any delayed retry queue.
+   return;
+  }
   if(Objects.equals(lookaheadPrefetchAlias,alias)&&Objects.equals(lookaheadPrefetchTrackId,id)&&lookaheadPrefetchAccount==api.accountGeneration&&("resolving".equals(lookaheadPrefetchPhase)||"downloading".equals(lookaheadPrefetchPhase)||"ready".equals(lookaheadPrefetchPhase)||"cached".equals(lookaheadPrefetchPhase)))return;
   if(lookaheadPrefetchWait&&lookaheadPrefetchCurrentDescriptor!=null){
    // One prefetch slot: let the promoted current file finish before reserving
@@ -533,6 +557,7 @@ final class ReplacementEngine {
     return;
    }
    lookaheadPrefetchPhase="downloading";
+   lookaheadPrefetchQueuedAtMs=SystemClock.elapsedRealtime();
    api.downloadLookahead(j,()->lookaheadPrefetchCurrent(token,account,alias,id),(file,downloadError)->{
     if(!lookaheadPrefetchCurrent(token,account,alias,id)){if(file!=null)file.delete();LogStore.log("replacement_lookahead_prefetch_stale",LogStore.map("mediaAlias",alias,"stage","download","fileDeleted",file!=null));return;}
     if(file==null){lookaheadPrefetchPhase="failed";LogStore.log("replacement_lookahead_prefetch_failure",LogStore.map("mediaAlias",alias,"stage","download","errorCode",downloadError));fallbackPromotedLookaheadPrefetch("download_failed");return;}

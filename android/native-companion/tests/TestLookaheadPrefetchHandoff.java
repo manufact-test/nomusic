@@ -27,6 +27,9 @@ public final class TestLookaheadPrefetchHandoff {
     "prefetch downloads the full file only; original remains the sole audible source");
  }
  static void promoteCurrent(JSONObject fresh,boolean expectPrefetchWait)throws Exception{
+  // The old handoff assertions cover an already-started speculative transfer.
+  // Early Next before enqueue now takes the separate immediate-foreground path.
+  android.os.SystemClock.now+=LookaheadPrefetchPolicy.SPECULATIVE_QUEUE_YIELD_MS;
   TestEngine.e.sourceBoundary("sample_track_changed","2");
   TestEngine.p.current=TestEngine.source("2",0,true);
   TestEngine.p.lookaheadAlias=null;

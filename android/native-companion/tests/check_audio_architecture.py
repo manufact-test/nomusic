@@ -6,6 +6,7 @@ engine=(root/'ReplacementEngine.java').read_text()
 owner=(root/'AudioOwnership.java').read_text()
 service=(root/'ProbeService.java').read_text()
 api=(root/'NativeApi.java').read_text()
+lookahead_policy=(root/'LookaheadPrefetchPolicy.java').read_text()
 # Test.23 cherry-picks only Test.16 anonymous observation and Test.17 bounded verified cache.
 # Unproven extra direct session controller and Test.22 transport must never enter baseline.
 if 'directSessionObserver' in service or 'DirectSessionObserver' in service:
@@ -21,11 +22,14 @@ if ('replacement_lookahead_cache_reused' not in engine
 if ('final ExecutorService audioWork=Executors.newSingleThreadExecutor()' not in api
     or 'final ExecutorService lookaheadAudioWork=Executors.newSingleThreadExecutor()' not in api
     or 'enqueueDownload(audioWork,"current"' not in api
-    or 'main.postDelayed(()->enqueueDownload(lookaheadAudioWork,"lookahead"' not in api
+    or 'main.postDelayed(()->{' not in api
+    or 'if(!valid.getAsBoolean()){r.done(null,"audio_download_cancelled");return;}' not in api
+    or 'enqueueDownload(lookaheadAudioWork,"lookahead"' not in api
     or 'foregroundAudioDemand.get()>0' not in api
     or 'foregroundAudioDemand.incrementAndGet()' not in api
     or 'foregroundAudioDemand.decrementAndGet()' not in api
-    or 'LOOKAHEAD_ENQUEUE_YIELD_MS=1100' not in api
+    or 'LookaheadPrefetchPolicy.SPECULATIVE_QUEUE_YIELD_MS' not in api
+    or 'SPECULATIVE_QUEUE_YIELD_MS=1100L' not in lookahead_policy
     or 'api.downloadLookahead(j,' not in engine):
     raise AssertionError('speculative lookahead must never queue before or compete with current audio demand')
 for label,pattern in [

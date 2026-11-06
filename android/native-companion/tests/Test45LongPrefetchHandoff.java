@@ -30,6 +30,9 @@ public final class Test45LongPrefetchHandoff {
   check(TestEngine.api.resolves==2,"future long track starts a normal authenticated lookahead resolve");
   TestEngine.api.resolveCallbacks.get(1).done(descriptor(280000),null);
   check(TestEngine.api.lookaheadDownloads==1,"full-file speculative work begins before Next");
+  // Test.45's 400ms branch applies after the 1.1s speculative queue grace.
+  // Test.47 separately exercises Next *during* that grace.
+  SystemClock.now+=LookaheadPrefetchPolicy.SPECULATIVE_QUEUE_YIELD_MS;
   TestEngine.e.sourceBoundary("sample_track_changed","2");
   TestEngine.p.current=longSource("2");
   TestEngine.p.lookaheadAlias=null;
