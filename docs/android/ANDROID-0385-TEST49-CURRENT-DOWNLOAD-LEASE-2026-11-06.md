@@ -17,6 +17,13 @@
 
 Отдельная ветка: `feature/android-0385-test49-current-download-lease-20261106`, пакет `pro.celikom.nativeprobe.test`, версия `0.3.85-test.49/code86134`.
 
+### Подтверждённая сборка
+
+- Точный **APK source commit**: `9c8a19bf2426012ed5d8b27761c9965c852a86eb`.
+- [GitHub Actions run #42277309486 — SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/42277309486). Полный native host suite, source/seek regressions, Android API 36 и D8: PASS; stable publish SKIPPED.
+- [Подписанная Test.49 APK в CELIKOM Library](https://chatgpt.com/library?file_id=libfile_e47b30ddb7808191bdf000f84936792d&account_id=personal), SHA-256 `46e8997b5fc81fa762d86ae76efe300f7a0aea9fd0a1536ecc4986e9e026542a`.
+- Подпись APK Signature v3 verified, certificate совпал с original; пакет test отделён от stable, OTA/updater отсутствует. Это проверка целостности/установки, **не акустическая приёмка на HONOR**.
+
 В `ReplacementEngine.prefetchLookahead` защищён промежуток, когда уже текущая песня получила **promoted lease** на старую загрузку, но fresh current resolve ещё не завершился. Запрос следующей песни ждёт освобождения **того же** prefetch-слота, не отменяет текущую загрузку. После подтверждения текущей песни обычная подготовка следующей возобновляется; при несовпадении ID/edition прежние fail-open и отмена сохраняются. Лог `replacement_lookahead_prefetch_deferred` с `reason=promoted_current_awaiting_fresh_resolve` показывает защищённый случай.
 
 Добавлен regression-replay именно обратного порядка callbacks: **next identity раньше current resolve**, затем текущая загрузка успешно принимается, следующая запускается после handoff. Старый тест (next после fresh resolve) остаётся. **Ни один из порогов времени, clock/seek/crossfade и параметров DSP не менялся**.
