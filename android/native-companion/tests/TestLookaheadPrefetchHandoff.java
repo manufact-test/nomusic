@@ -116,6 +116,40 @@ public final class TestLookaheadPrefetchHandoff {
     "no duplicate current-track file download was started");
   TestEngine.e.close();
  }
+ static void nextIdentityArrivingBeforeFreshCurrentResolvePreservesDownload()throws Exception{
+  // Test.48 real device: a next-album result arrived while the newly current
+  // song's previously prefetched file was still downloading. The old code
+  // cancelled that CURRENT file before its live resolve callback arrived.
+  beginLookahead();
+  android.os.SystemClock.now+=LookaheadPrefetchPolicy.SPECULATIVE_QUEUE_YIELD_MS;
+  TestEngine.e.sourceBoundary("sample_track_changed","2");
+  TestEngine.p.current=TestEngine.source("2",0,true);
+  TestEngine.p.lookaheadAlias=null;
+  TestEngine.e.identity(
+    LogStore.map("mediaAlias","2","albumId","42","title","Песня","artist","Артист","durationMs",120000L),
+    LogStore.map("candidateTrackId","8","method","ALBUM","editionConflict",false));
+  TestEngine.e.noteLookaheadCandidate(null);
+  check(TestEngine.api.resolves==3&&TestEngine.e.lookaheadPrefetchPromoted
+      &&!TestEngine.e.lookaheadPrefetchWait,
+    "current download is promoted but the mandatory live resolve is still pending");
+  TestEngine.p.lookaheadAlias="3";
+  TestEngine.e.prefetchLookahead(LogStore.map("mediaAlias","3","durationMs",120000L),"9");
+  check(TestEngine.api.resolves==3&&TestEngine.api.downloadValidity.get(0).getAsBoolean()
+      &&"2".equals(TestEngine.e.lookaheadPrefetchAlias),
+    "next metadata cannot cancel promoted CURRENT download before fresh resolve");
+  TestEngine.api.resolveCallbacks.get(2).done(descriptor(1),null);
+  check(TestEngine.e.lookaheadPrefetchWait&&TestEngine.api.downloads==1,
+    "fresh live resolve accepts protected current file without starting a duplicate download");
+  File current=File.createTempFile("celikom-test49-current-", ".audio");
+  TestEngine.api.downloadCallbacks.get(0).done(current,null);
+  check(TestEngine.e.player!=null&&TestEngine.e.audioFromCache
+      &&TestEngine.e.audioFile==current&&TestEngine.api.downloads==1,
+    "protected current song is adopted instead of arriving through a new stream");
+  android.os.SystemClock.now+=1000;TestEngine.p.handler.drain();
+  check(TestEngine.api.resolves==4&&"3".equals(TestEngine.e.lookaheadPrefetchAlias),
+    "the NEXT song still gets its prefetch slot after current track handoff");
+  TestEngine.e.close();
+ }
  static void cancelledCurrentWaitMustFallBack()throws Exception{
   beginLookahead();promoteCurrent(descriptor(1),true);
   TestEngine.e.invalidateLookaheadPrefetch("simulated_conflicting_candidate");
@@ -505,7 +539,7 @@ public final class TestLookaheadPrefetchHandoff {
  public static void main(String[] args)throws Exception{
   beginLookahead();promoteCurrent(descriptor(1),true);matchingPrefetchIsConsumed();
   mismatchedFreshResolveFallsBack();latePrefetchCanStartAfterBoundary();
-  newNextCandidateCannotStealCurrentDownload();cancelledCurrentWaitMustFallBack();
+  newNextCandidateCannotStealCurrentDownload();nextIdentityArrivingBeforeFreshCurrentResolvePreservesDownload();cancelledCurrentWaitMustFallBack();
   currentWaitHasTimeout();readyPrimedDecoderIsAdoptedOnlyAfterFreshResolve();
   unrelatedCurrentSongCannotDiscardPrimedSuccessor();
   promotedPrimeWaitsForFreshResolveBeforeNextCandidate();

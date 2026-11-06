@@ -521,6 +521,25 @@ final class ReplacementEngine {
    },1000);
    return;
   }
+  // Test.49 / HONOR Test.48 replay: the next album can resolve BEFORE the
+  // fresh CURRENT-track resolve. At that instant a promoted speculative file
+  // is still downloading but lookaheadPrefetchWait is not set yet. Replacing
+  // the one prefetch slot cancelled 9 MB of the CURRENT song, forced a second
+  // streaming download and produced a late audible join. Keep the current
+  // download lease until its fresh resolve can adopt or explicitly reject it.
+  // This is an ownership boundary, not another timing/clock adjustment.
+  if(lookaheadPrefetchPromoted&&source!=null
+   &&Objects.equals(source.alias,lookaheadPrefetchAlias)
+   &&("resolving".equals(lookaheadPrefetchPhase)||"downloading".equals(lookaheadPrefetchPhase))){
+   LogStore.log("replacement_lookahead_prefetch_deferred",LogStore.map(
+    "mediaAlias",alias,"currentAlias",source.alias,
+    "reason","promoted_current_awaiting_fresh_resolve","audioCommandSent",false));
+   final Map<String,Object> retryObservation=new LinkedHashMap<>(observation);
+   owner.handler.postDelayed(()->{
+    if(!closed&&owner.lookaheadIsNext(alias))prefetchLookahead(retryObservation,id);
+   },200);
+   return;
+  }
   /* Keep a promoted ready decoder alive briefly for the fresh current-track resolve.
      A new successor is retried shortly; the bound prevents starving rapid Next. */
   if(lookaheadPrefetchPromoted&&"cached".equals(lookaheadPrefetchPhase)

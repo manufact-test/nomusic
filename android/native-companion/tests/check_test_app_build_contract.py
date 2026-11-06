@@ -16,9 +16,9 @@ verifier = (ROOT / "verify_test_release.py").read_text(encoding="utf-8")
 assert spec["package"] == "pro.celikom.nativeprobe.test"
 assert spec["stable_package"] == "pro.celikom.nativeprobe"
 assert spec["label"] == "CELIKOM Test"
-assert spec["version"] == "0.3.85-test.48"
-assert spec["version_code"] == 86133
-assert spec["apk_filename"] == "CELIKOM-Android-0.3.85-TEST-48-SESSION-EFFECT-HOLD-SIGNED.apk"
+assert spec["version"] == "0.3.85-test.49"
+assert spec["version_code"] == 86134
+assert spec["apk_filename"] == "CELIKOM-Android-0.3.85-TEST-49-CURRENT-DOWNLOAD-LEASE-SIGNED.apk"
 assert spec["signing_certificate_sha256"] == "67fe81c56fac1c1d145344b69a0e3faf9005cf6607f4e26ca27d5926c3eefc4f"
 assert spec["test_permission"].startswith(spec["package"] + ".")
 assert spec["file_provider_authority"].startswith(spec["package"] + ".")
