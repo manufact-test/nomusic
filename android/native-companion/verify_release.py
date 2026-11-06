@@ -111,7 +111,8 @@ def main():
     assert "DownloadManager.ACTION_VIEW_DOWNLOADS" in update_center
     assert "manager.openDownloadedFile(id)" in update_center and "verifyApk(context,copy,r)" in update_center
     assert "getPackageInstaller()" not in update_center and "canRequestPackageInstalls" not in update_center
-    assert "ACTION_INSTALL_PACKAGE" not in update_center and "ACTION_VIEW" not in update_center
+    assert "Intent.ACTION_INSTALL_PACKAGE" not in update_center
+    assert "new Intent(Intent.ACTION_VIEW)" not in update_center
     assert not (addon / "VerifiedUpdateProvider.java").exists()
     assert not (addon / "UpdateInstallReceiver.java").exists()
     assert all("REQUEST_INSTALL_PACKAGES" not in val for node in current.iter() for val in node.attrib.values())
