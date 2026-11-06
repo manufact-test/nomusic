@@ -6,11 +6,14 @@ import android.content.*;
 import android.content.pm.*;
 import android.net.Uri;
 import android.os.*;
+import android.provider.Settings;
 import android.view.View;
 import android.widget.*;
 import org.json.JSONObject;
 import java.io.*;
 import java.net.*;
+import java.security.MessageDigest;
+import java.security.cert.Certificate;
 import java.util.Locale;
 import java.util.HashMap;
 import java.util.Map;
@@ -19,7 +22,7 @@ import java.util.Date;
 import java.util.concurrent.*;
 import javax.net.ssl.HttpsURLConnection;
 
-/** Update discovery and user-initiated browser download; cannot install APKs itself. */
+/** Isolated sideload update client; never touches audio state or accounts. */
 final class UpdateCenter {
     static final String HOST="lemonchiffon-narwhal-791953.hostingersite.com";
     static final String MANIFEST="https://"+HOST+"/updates/android/stable.json";
@@ -47,7 +50,7 @@ final class UpdateCenter {
         summary.setGravity(android.view.Gravity.CENTER_VERTICAL);
         summary.setPadding(0,activity.dp(8),0,activity.dp(8));
         refresh=activity.button(region,"Проверить обновление",()->check(true),false);
-        install=activity.button(region,"Скачать через браузер",this::download,false);
+        install=activity.button(region,"Скачать обновление",this::download,false);
         later=activity.button(region,"Позже",this::deferUpdate,false);
         candidate=loadCandidate(activity);
         UpdateState cached=readState(activity);
@@ -222,18 +225,80 @@ final class UpdateCenter {
         later.setVisibility(candidate==null?View.GONE:View.VISIBLE);
         refresh.setEnabled(!busy);install.setEnabled(!busy);later.setEnabled(!busy);
     }
+    static String sha(byte[] bytes) throws Exception {
+        MessageDigest d=MessageDigest.getInstance("SHA-256");d.update(bytes);return hex(d.digest());
+    }
+    static String hex(byte[] bytes) {
+        StringBuilder b=new StringBuilder(bytes.length*2);
+        for(byte n:bytes)b.append(String.format(Locale.ROOT,"%02x",n&255));
+        return b.toString();
+    }
+    static void verifyApk(Context context,File apk,Release r) throws Exception {
+        PackageManager pm=context.getPackageManager();
+        PackageInfo p=pm.getPackageArchiveInfo(apk.getAbsolutePath(),PackageManager.GET_SIGNING_CERTIFICATES);
+        if(p==null || !context.getPackageName().equals(p.packageName)
+             || (Build.VERSION.SDK_INT>=28?p.getLongVersionCode():p.versionCode)!=r.code
+             || p.signingInfo==null)throw new SecurityException("APK package/version mismatch");
+        android.content.pm.Signature[] signatures=p.signingInfo.getApkContentsSigners();
+        if(signatures==null || signatures.length!=1 || !CERT.equals(sha(signatures[0].toByteArray())))
+            throw new SecurityException("Подпись APK не совпадает");
+    }
     void download() {
         Release r=candidate;if(r==null || busy)return;
-        // Open only the validated HTTPS release URL in a user-selected browser.
-        // The application never requests APK-install permission or installs other apps.
-        Intent external=new Intent(Intent.ACTION_VIEW,Uri.parse(r.url));
-        external.addCategory(Intent.CATEGORY_BROWSABLE);
-        try {
-            activity.startActivity(external);
-            render("Откройте скачанную APK из браузера. Android проверит подпись и попросит подтверждение установки.");
-        } catch(ActivityNotFoundException noBrowser) {
-            render("Не найден браузер для загрузки обновления CELIKOM "+r.name);
+        if(Build.VERSION.SDK_INT>=26 && !activity.getPackageManager().canRequestPackageInstalls()){
+            Intent i=new Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,Uri.parse("package:"+activity.getPackageName()));
+            activity.startActivity(i);
+            render("Разрешите установку из CELIKOM, затем повторите скачивание");
+            return;
         }
+        busy=true;render("Загружаем CELIKOM "+r.name+"…");
+        IO.execute(()->{
+            File tmp=null;
+            try {
+                if(activity.getCacheDir().getUsableSpace()<r.size*2)throw new IOException("Недостаточно памяти");
+                tmp=File.createTempFile("celikom-update-",".apk",activity.getCacheDir());
+                MessageDigest digest=MessageDigest.getInstance("SHA-256");
+                long total=0;
+                HttpsURLConnection c=connect(r.url);
+                try(InputStream in=c.getInputStream();FileOutputStream out=new FileOutputStream(tmp)){
+                    byte[] b=new byte[32768];int n;
+                    while((n=in.read(b))!=-1){
+                        total+=n;if(total>r.size||total>MAX_APK)throw new IOException("Oversized APK");
+                        out.write(b,0,n);digest.update(b,0,n);
+                    }
+                    out.getFD().sync();
+                }finally{c.disconnect();}
+                if(total!=r.size||!r.sha.equals(hex(digest.digest())))throw new SecurityException("Контрольная сумма не совпадает");
+                verifyApk(activity.getApplicationContext(),tmp,r);
+                installSession(activity.getApplicationContext(),tmp,r);
+                MAIN.post(()->{busy=false;if(activity.visible())render("APK проверена. Подтвердите установку в Android.");});
+            } catch(Exception e){
+                final String msg=e instanceof SecurityException?"Проверка APK не пройдена":"Загрузка или установка не удалась";
+                MAIN.post(()->{busy=false;if(activity.visible())render(msg);});
+            }finally{if(tmp!=null)tmp.delete();}
+        });
+    }
+    static void installSession(Context ctx,File apk,Release r) throws Exception {
+        PackageInstaller installer=ctx.getPackageManager().getPackageInstaller();
+        PackageInstaller.SessionParams params=new PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL);
+        params.setAppPackageName(ctx.getPackageName());
+        params.setSize(r.size);
+        int id=installer.createSession(params);
+        boolean committed=false;
+        try(PackageInstaller.Session session=installer.openSession(id)){
+            try(InputStream in=new FileInputStream(apk);
+                OutputStream out=session.openWrite("CELIKOM.apk",0,r.size)){
+                byte[] b=new byte[32768];int n;
+                while((n=in.read(b))!=-1)out.write(b,0,n);
+                session.fsync(out);
+            }
+            Intent callback=new Intent(ctx,UpdateInstallReceiver.class);
+            callback.setAction("pro.celikom.nativeprobe.UPDATE_INSTALL");
+            callback.putExtra("expectedCode",r.code);
+            PendingIntent pending=PendingIntent.getBroadcast(ctx,id,callback,PendingIntent.FLAG_UPDATE_CURRENT|PendingIntent.FLAG_MUTABLE);
+            session.commit(pending.getIntentSender());
+            committed=true;
+        } finally {if(!committed)installer.abandonSession(id);}
     }
     static void ensureChannel(Context ctx) {
         NotificationManager nm=ctx.getSystemService(NotificationManager.class);

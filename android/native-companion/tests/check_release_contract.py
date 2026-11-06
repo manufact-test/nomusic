@@ -10,19 +10,24 @@ from release_contract import validate_release, load_release, patch_apktool_metad
 
 data = json.loads((ROOT / "release-spec.json").read_text(encoding="utf-8"))
 java = (ROOT / "addon/src/pro/celikom/nativeprobe/identitydiag/AppVersion.java").read_text(encoding="utf-8")
-assert load_release()[:2] == ("0.3.88", 89)
+assert load_release()[:2] == ("0.3.89", 90)
 count = 1
 
-# Safety regression: the main app may discover releases but never self-install APKs.
-source_dir = ROOT / "addon/src/pro/celikom/nativeprobe/identitydiag"
-updater = (source_dir / "UpdateCenter.java").read_text()
-assert "Intent.ACTION_VIEW" in updater and "Intent.CATEGORY_BROWSABLE" in updater
-assert "activity.startActivity(external)" in updater
-assert "PackageInstaller" not in updater and "canRequestPackageInstalls" not in updater
-assert not (source_dir / "UpdateInstallReceiver.java").exists()
-builder = (ROOT / "build_release.py").read_text()
-assert "android.permission.REQUEST_INSTALL_PACKAGES" not in builder
-assert "UpdateInstallReceiver" not in builder
+# Successful OTA must verify the installed version and remove CELIKOM's
+# recent-task entries; cancellation/failure must not close the current task.
+receiver = (ROOT / "addon/src/pro/celikom/nativeprobe/identitydiag/UpdateInstallReceiver.java").read_text()
+success = re.search(
+    r"else if \(status == PackageInstaller\.STATUS_SUCCESS\) \{(.*?)\n\s*\} else",
+    receiver,
+    re.S,
+)
+assert "PackageInstaller.STATUS_PENDING_USER_ACTION" in receiver
+assert success and "closeTasksAfterVerifiedInstall(context, expectedCode)" in success.group(1)
+assert "startActivity" not in success.group(1)
+assert "getLongVersionCode()" in receiver
+assert "getAppTasks()" in receiver
+assert "finishAndRemoveTask()" in receiver
+assert receiver.count("closeTasksAfterVerifiedInstall(context, expectedCode)") == 1
 
 
 
@@ -39,7 +44,7 @@ def must_reject(meta, text, label):
 for key, value in [
     ("version", "0.3.51"), ("version", "0.3.54"), ("version", "0.3.59"), ("version", "0.3.63"), ("version", "0.3.64"), ("version", "0.3.65"), ("version", "0.3.66"), ("version", "0.3.67"), ("version", "0.3.69"), ("version", "0.3.70"), ("version", "0.3.71"), ("version", "0.3.72"), ("version", "0.3.73"), ("version", "0.3.74"), ("version", "0.3.75"), ("version", "0.3.76"), ("version", "0.3.77"), ("version", "0.3.78"), ("version", "0.3.79"), ("version", "0.3.80"), ("version", "0.3.81"), ("version", "0.3.82"), ("version", "0.3.83"), ("version", "0.3.84"), ("version", "0.3.85"),
     ("version_code", 52), ("version_code", 55), ("version_code", 60), ("version_code", 63),
-    ("version_code", 64), ("version_code", 65), ("version_code", 66), ("version_code", 67), ("version_code", 68), ("version_code", 70), ("version_code", 71), ("version_code", 72), ("version_code", 73), ("version_code", 74), ("version_code", 75), ("version_code", 76), ("version_code", 77), ("version_code", 78), ("version_code", 79), ("version_code", 80), ("version_code", 81), ("version_code", 82), ("version_code", 83), ("version_code", 84), ("version_code", 85), ("version_code", 86), ("version_code", 87), ("version_code", 88), ("version_code", "56"), ("previous_rejected_code", 54),
+    ("version_code", 64), ("version_code", 65), ("version_code", 66), ("version_code", 67), ("version_code", 68), ("version_code", 70), ("version_code", 71), ("version_code", 72), ("version_code", 73), ("version_code", 74), ("version_code", 75), ("version_code", 76), ("version_code", 77), ("version_code", 78), ("version_code", 79), ("version_code", 80), ("version_code", 81), ("version_code", 82), ("version_code", 83), ("version_code", 84), ("version_code", 85), ("version_code", 86), ("version_code", 87), ("version_code", 88), ("version_code", 89), ("version_code", "56"), ("previous_rejected_code", 54),
     ("previous_rejected_version", "0.3.50"),
     ("package", "invalid.package"),
     ("signing_certificate_sha256", "a" * 64),
@@ -49,8 +54,8 @@ for key, value in [
     broken[key] = value
     must_reject(broken, java, key)
 
-must_reject(data, java.replace('NAME="0.3.88"', 'NAME="0.3.51"'), "stale AppVersion")
-must_reject(data, java.replace('NAME="0.3.88"', 'NAME="0.3.88"; static final String NAME="0.3.88"'), "duplicate AppVersion")
+must_reject(data, java.replace('NAME="0.3.89"', 'NAME="0.3.51"'), "stale AppVersion")
+must_reject(data, java.replace('NAME="0.3.89"', 'NAME="0.3.89"; static final String NAME="0.3.89"'), "duplicate AppVersion")
 assert "from release_contract import load_release" in (ROOT / "build_release.py").read_text()
 assert "from release_contract import load_release" in (ROOT / "verify_release.py").read_text()
 assert '"TestUpdateState"' in (ROOT / "build_release.py").read_text()
@@ -76,8 +81,8 @@ count += 3
 print("PASS:", count, "negative release version, signing identity and code-source contract checks")
 
 sample = "versionCode: 23\nversionName: 0.3.22\nunrelated: value\n"
-expected = "versionCode: 89\nversionName: 0.3.88\nunrelated: value\n"
-assert patch_apktool_metadata(sample, "0.3.88", 89) == expected
+expected = "versionCode: 90\nversionName: 0.3.89\nunrelated: value\n"
+assert patch_apktool_metadata(sample, "0.3.89", 90) == expected
 count += 1
 for text in ["versionCode: 23\nunrelated: value\n", "versionCode: 23\nversionCode: 24\nversionName: 0.3.22\n"]:
     try:
@@ -90,9 +95,9 @@ print("PASS: Apktool version substitution preserves metadata and rejects ambigui
 
 # Real Apktool 2.11.1 decoded source uses two-space indentation in versionInfo.
 real_apktool_yaml = "versionInfo:\n  versionCode: 23\n  versionName: 0.3.22-probe\n"
-want_yaml = "versionInfo:\n  versionCode: 89\n  versionName: 0.3.88\n"
-assert patch_apktool_metadata(real_apktool_yaml, "0.3.88", 89) == want_yaml
-assert patch_apktool_metadata(want_yaml, "0.3.88", 89) == want_yaml
+want_yaml = "versionInfo:\n  versionCode: 90\n  versionName: 0.3.89\n"
+assert patch_apktool_metadata(real_apktool_yaml, "0.3.89", 90) == want_yaml
+assert patch_apktool_metadata(want_yaml, "0.3.89", 90) == want_yaml
 print("PASS: actual Apktool 2.11.1 indented versionInfo and idempotence")
 
 
