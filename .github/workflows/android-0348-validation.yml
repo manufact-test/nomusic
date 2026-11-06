@@ -34,6 +34,7 @@ on:
       - feature/android-0385-test47-session-stability-20261106
       - feature/android-0387-manual-browser-update-candidate-20261106
       - feature/android-0389-inapp-ota-restore-20261106
+      - feature/android-0391-native-installer-source-20261106
       - release/android-0.3.86-test47-promotion-20261106
       - feature/android-0370-honor-join-pause-updater-staging
       - feature/android-0371-rollback-0369-staging

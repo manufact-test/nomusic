@@ -121,9 +121,11 @@ def main():
         android_attr + "permission": "android.permission.BIND_JOB_SERVICE",
         android_attr + "exported": "false",
     })
-    ET.SubElement(application, "receiver", {
-        android_attr + "name": "pro.celikom.nativeprobe.identitydiag.UpdateInstallReceiver",
+    ET.SubElement(application, "provider", {
+        android_attr + "name": "pro.celikom.nativeprobe.identitydiag.VerifiedUpdateProvider",
+        android_attr + "authorities": "pro.celikom.nativeprobe.verified-update",
         android_attr + "exported": "false",
+        android_attr + "grantUriPermissions": "true",
     })
     tree.write(manifest, encoding="utf-8", xml_declaration=True)
     for p in (decoded / "smali/pro/celikom/nativeprobe").rglob("*.smali"):

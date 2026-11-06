@@ -14,6 +14,8 @@ import java.io.*;
 import java.net.*;
 import java.security.MessageDigest;
 import java.security.cert.Certificate;
+import java.nio.file.Files;
+import java.nio.file.StandardCopyOption;
 import java.util.Locale;
 import java.util.HashMap;
 import java.util.Map;
@@ -269,36 +271,38 @@ final class UpdateCenter {
                     out.getFD().sync();
                 }finally{c.disconnect();}
                 if(total!=r.size||!r.sha.equals(hex(digest.digest())))throw new SecurityException("Контрольная сумма не совпадает");
-                verifyApk(activity.getApplicationContext(),tmp,r);
-                installSession(activity.getApplicationContext(),tmp,r);
-                MAIN.post(()->{busy=false;if(activity.visible())render("APK проверена. Подтвердите установку в Android.");});
+                Context context=activity.getApplicationContext();
+                verifyApk(context,tmp,r);
+                // Keep the verified bytes until Android finishes reading them.
+                // Moving inside the app's private data partition is atomic.
+                Files.move(tmp.toPath(),VerifiedUpdateProvider.verifiedFile(context).toPath(),
+                    StandardCopyOption.ATOMIC_MOVE,StandardCopyOption.REPLACE_EXISTING);
+                tmp=null;
+                MAIN.post(()->{
+                    busy=false;
+                    if(!activity.visible())return;
+                    try {
+                        openSystemInstaller(activity);
+                        render("APK проверена. Подтвердите установку в Android.");
+                    } catch(Exception error) {
+                        render("Не удалось открыть установщик Android");
+                    }
+                });
             } catch(Exception e){
                 final String msg=e instanceof SecurityException?"Проверка APK не пройдена":"Загрузка или установка не удалась";
                 MAIN.post(()->{busy=false;if(activity.visible())render(msg);});
             }finally{if(tmp!=null)tmp.delete();}
         });
     }
-    static void installSession(Context ctx,File apk,Release r) throws Exception {
-        PackageInstaller installer=ctx.getPackageManager().getPackageInstaller();
-        PackageInstaller.SessionParams params=new PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL);
-        params.setAppPackageName(ctx.getPackageName());
-        params.setSize(r.size);
-        int id=installer.createSession(params);
-        boolean committed=false;
-        try(PackageInstaller.Session session=installer.openSession(id)){
-            try(InputStream in=new FileInputStream(apk);
-                OutputStream out=session.openWrite("CELIKOM.apk",0,r.size)){
-                byte[] b=new byte[32768];int n;
-                while((n=in.read(b))!=-1)out.write(b,0,n);
-                session.fsync(out);
-            }
-            Intent callback=new Intent(ctx,UpdateInstallReceiver.class);
-            callback.setAction("pro.celikom.nativeprobe.UPDATE_INSTALL");
-            callback.putExtra("expectedCode",r.code);
-            PendingIntent pending=PendingIntent.getBroadcast(ctx,id,callback,PendingIntent.FLAG_UPDATE_CURRENT|PendingIntent.FLAG_MUTABLE);
-            session.commit(pending.getIntentSender());
-            committed=true;
-        } finally {if(!committed)installer.abandonSession(id);}
+    static void openSystemInstaller(Activity activity) {
+        // The same Android package viewer used for a manually opened APK:
+        // local content:// URI, never a browser or a Hostinger download page.
+        Uri uri=VerifiedUpdateProvider.contentUri(activity);
+        Intent intent=new Intent(Intent.ACTION_VIEW);
+        intent.setDataAndType(uri,VerifiedUpdateProvider.APK_MIME);
+        intent.setClipData(ClipData.newRawUri("CELIKOM update",uri));
+        intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+        activity.startActivity(intent);
     }
     static void ensureChannel(Context ctx) {
         NotificationManager nm=ctx.getSystemService(NotificationManager.class);

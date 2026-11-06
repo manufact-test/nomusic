@@ -10,24 +10,21 @@ from release_contract import validate_release, load_release, patch_apktool_metad
 
 data = json.loads((ROOT / "release-spec.json").read_text(encoding="utf-8"))
 java = (ROOT / "addon/src/pro/celikom/nativeprobe/identitydiag/AppVersion.java").read_text(encoding="utf-8")
-assert load_release()[:2] == ("0.3.90", 91)
+assert load_release()[:2] == ("0.3.91", 92)
 count = 1
 
-# Successful OTA must verify the installed version and remove CELIKOM's
-# recent-task entries; cancellation/failure must not close the current task.
-receiver = (ROOT / "addon/src/pro/celikom/nativeprobe/identitydiag/UpdateInstallReceiver.java").read_text()
-success = re.search(
-    r"else if \(status == PackageInstaller\.STATUS_SUCCESS\) \{(.*?)\n\s*\} else",
-    receiver,
-    re.S,
-)
-assert "PackageInstaller.STATUS_PENDING_USER_ACTION" in receiver
-assert success and "closeTasksAfterVerifiedInstall(context, expectedCode)" in success.group(1)
-assert "startActivity" not in success.group(1)
-assert "getLongVersionCode()" in receiver
-assert "getAppTasks()" in receiver
-assert "finishAndRemoveTask()" in receiver
-assert receiver.count("closeTasksAfterVerifiedInstall(context, expectedCode)") == 1
+# The APK is downloaded and verified inside CELIKOM, then opened by Android's
+# standard system installer via a read-only, single-file content URI.
+provider = (ROOT / "addon/src/pro/celikom/nativeprobe/identitydiag/VerifiedUpdateProvider.java").read_text()
+updater = (ROOT / "addon/src/pro/celikom/nativeprobe/identitydiag/UpdateCenter.java").read_text()
+assert "Intent.ACTION_VIEW" in updater
+assert "VerifiedUpdateProvider.contentUri" in updater
+assert "Intent.FLAG_GRANT_READ_URI_PERMISSION" in updater
+assert "verifyApk(context,tmp,r)" in updater and "Files.move" in updater
+assert "PackageInstaller" not in updater
+assert '"r".equals(mode)' in provider and "ParcelFileDescriptor.MODE_READ_ONLY" in provider
+assert "Unknown update URI" in provider
+assert not (ROOT / "addon/src/pro/celikom/nativeprobe/identitydiag/UpdateInstallReceiver.java").exists()
 
 
 
@@ -54,8 +51,10 @@ for key, value in [
     broken[key] = value
     must_reject(broken, java, key)
 
-must_reject(data, java.replace('NAME="0.3.90"', 'NAME="0.3.51"'), "stale AppVersion")
-must_reject(data, java.replace('NAME="0.3.90"', 'NAME="0.3.90"; static final String NAME="0.3.90"'), "duplicate AppVersion")
+must_reject(dict(data,version="0.3.90"),java,"previous version")
+must_reject(dict(data,version_code=91),java,"previous code")
+must_reject(data, java.replace('NAME="0.3.91"', 'NAME="0.3.51"'), "stale AppVersion")
+must_reject(data, java.replace('NAME="0.3.91"', 'NAME="0.3.91"; static final String NAME="0.3.91"'), "duplicate AppVersion")
 assert "from release_contract import load_release" in (ROOT / "build_release.py").read_text()
 assert "from release_contract import load_release" in (ROOT / "verify_release.py").read_text()
 assert '"TestUpdateState"' in (ROOT / "build_release.py").read_text()
@@ -81,8 +80,8 @@ count += 3
 print("PASS:", count, "negative release version, signing identity and code-source contract checks")
 
 sample = "versionCode: 23\nversionName: 0.3.22\nunrelated: value\n"
-expected = "versionCode: 91\nversionName: 0.3.90\nunrelated: value\n"
-assert patch_apktool_metadata(sample, "0.3.90", 91) == expected
+expected = "versionCode: 92\nversionName: 0.3.91\nunrelated: value\n"
+assert patch_apktool_metadata(sample, "0.3.91", 92) == expected
 count += 1
 for text in ["versionCode: 23\nunrelated: value\n", "versionCode: 23\nversionCode: 24\nversionName: 0.3.22\n"]:
     try:
@@ -95,9 +94,9 @@ print("PASS: Apktool version substitution preserves metadata and rejects ambigui
 
 # Real Apktool 2.11.1 decoded source uses two-space indentation in versionInfo.
 real_apktool_yaml = "versionInfo:\n  versionCode: 23\n  versionName: 0.3.22-probe\n"
-want_yaml = "versionInfo:\n  versionCode: 91\n  versionName: 0.3.90\n"
-assert patch_apktool_metadata(real_apktool_yaml, "0.3.90", 91) == want_yaml
-assert patch_apktool_metadata(want_yaml, "0.3.90", 91) == want_yaml
+want_yaml = "versionInfo:\n  versionCode: 92\n  versionName: 0.3.91\n"
+assert patch_apktool_metadata(real_apktool_yaml, "0.3.91", 92) == want_yaml
+assert patch_apktool_metadata(want_yaml, "0.3.91", 92) == want_yaml
 print("PASS: actual Apktool 2.11.1 indented versionInfo and idempotence")
 
 

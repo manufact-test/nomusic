@@ -18,7 +18,7 @@ from release_archive import inspect_zip
 
 ROOT = Path(__file__).resolve().parent
 SPEC = json.loads((ROOT / "test-app-spec.json").read_text(encoding="utf-8"))
-UPDATER_SOURCES = {"UpdateCenter.java", "UpdateCheckJob.java", "UpdateInstallReceiver.java"}
+UPDATER_SOURCES = {"UpdateCenter.java", "UpdateCheckJob.java", "VerifiedUpdateProvider.java"}
 ANDROID_NS = "http://schemas.android.com/apk/res/android"
 A = "{" + ANDROID_NS + "}"
 
@@ -141,7 +141,7 @@ def patch_test_sources(source_root):
         if path.name in UPDATER_SOURCES:
             continue
         source = path.read_text(encoding="utf-8")
-        for forbidden in ("UpdateCenter", "UpdateCheckJob", "UpdateInstallReceiver"):
+        for forbidden in ("UpdateCenter", "UpdateCheckJob", "VerifiedUpdateProvider"):
             if forbidden in source:
                 raise ValueError(f"Updater reference remains in test source: {path}:{forbidden}")
 
@@ -226,7 +226,7 @@ def patch_manifest(decoded):
         for node in app.iter()
         if node.tag in ("activity", "service", "receiver", "provider")
     ]
-    if any(name.endswith("UpdateCheckJob") or name.endswith("UpdateInstallReceiver") for name in component_names):
+    if any(name.endswith("UpdateCheckJob") or name.endswith("VerifiedUpdateProvider") for name in component_names):
         raise ValueError("Updater components must not be registered in the test manifest")
 
     tree.write(manifest, encoding="utf-8", xml_declaration=True)

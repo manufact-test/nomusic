@@ -59,9 +59,11 @@ def main():
         android + "permission": "android.permission.BIND_JOB_SERVICE",
         android + "exported": "false",
     })
-    ET.SubElement(expected_app, "receiver", {
-        android + "name": "pro.celikom.nativeprobe.identitydiag.UpdateInstallReceiver",
+    ET.SubElement(expected_app, "provider", {
+        android + "name": "pro.celikom.nativeprobe.identitydiag.VerifiedUpdateProvider",
+        android + "authorities": "pro.celikom.nativeprobe.verified-update",
         android + "exported": "false",
+        android + "grantUriPermissions": "true",
     })
     def structure(node):
         # Apktool may reorder names in a flags bitmask without changing it.
@@ -92,7 +94,7 @@ def main():
         dex = signed.read("classes2.dex")
         assert dex.startswith(b"dex" + bytes([10])), "Signed addon has no DEX header"
         markers = (
-            VERSION.encode("ascii"), b"ReplacementEngine", b"AudioOwnership", b"UpdateInstallReceiver", b"finishAndRemoveTask",
+            VERSION.encode("ascii"), b"ReplacementEngine", b"AudioOwnership", b"VerifiedUpdateProvider", b"openSystemInstaller",
             b"ClockSupervisor", b"SourceEventArbiter", b"retireDecoder",
             b"SourceTransitionGate", b"AudioContinuityMonitor",
             b"SeekTimingEvidence", b"OutputClockEvidence", b"UpdateState",
@@ -109,19 +111,16 @@ def main():
     engine = (addon / "ReplacementEngine.java").read_text()
     ownership = (addon / "AudioOwnership.java").read_text()
     matcher = (addon / "AlbumMatch.java").read_text()
-    updater = (addon / "UpdateInstallReceiver.java").read_text()
+    provider = (addon / "VerifiedUpdateProvider.java").read_text()
     update_center = (addon / "UpdateCenter.java").read_text()
     update_job = (addon / "UpdateCheckJob.java").read_text()
     update_state = (addon / "UpdateState.java").read_text()
-    assert "PackageInstaller.STATUS_SUCCESS" in updater
-    assert "getLongVersionCode()" in updater and "getAppTasks()" in updater
-    assert "finishAndRemoveTask()" in updater
-    success_callback = re.search(
-        r"else if \(status == PackageInstaller\.STATUS_SUCCESS\) \{(.*?)\n\s*\} else",
-        updater, re.S
-    )
-    assert success_callback and "closeTasksAfterVerifiedInstall(context, expectedCode)" in success_callback.group(1)
-    assert "startActivity" not in success_callback.group(1), "Successful update must close/remove tasks, not relaunch CELIKOM"
+    assert "Intent.ACTION_VIEW" in update_center and "VerifiedUpdateProvider.contentUri" in update_center
+    assert "Intent.FLAG_GRANT_READ_URI_PERMISSION" in update_center
+    assert "getPackageInstaller()" not in update_center and "PackageInstaller" not in provider
+    assert "ParcelFileDescriptor.MODE_READ_ONLY" in provider
+    assert '"r".equals(mode)' in provider and "Unknown update URI" in provider
+    assert "Files.move" in update_center and "verifyApk(context,tmp,r)" in update_center
     assert "PAUSE_RESUME_FADE_MS=180" in engine and "PAUSE_GRACE_MS=30000" in engine
     assert "HANDOVER_DRIFT_MS=350" in engine
     assert "warmSeekTransition" not in engine and "handoverPending" not in engine, "Competing audio clock flags returned"

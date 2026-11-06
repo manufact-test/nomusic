@@ -176,7 +176,7 @@ def main():
             for n in current.find("application").iter()
             if n.tag in ("activity", "service", "receiver", "provider")
         ]
-        if any(name.endswith("UpdateCheckJob") or name.endswith("UpdateInstallReceiver") for name in component_names):
+        if any(name.endswith("UpdateCheckJob") or name.endswith("VerifiedUpdateProvider") for name in component_names):
             raise ValueError("OTA job or install receiver is registered in the test APK")
 
         build_config = (final_decoded / "smali/pro/celikom/nativeprobe/BuildConfig.smali").read_text(encoding="utf-8")
@@ -208,7 +208,7 @@ def main():
         if not all_dex.startswith(b"dex\n"):
             raise ValueError("Final APK DEX header is invalid")
         for marker in (
-            b"UpdateCenter", b"UpdateCheckJob", b"UpdateInstallReceiver",
+            b"UpdateCenter", b"UpdateCheckJob", b"VerifiedUpdateProvider",
             b"stable.json", b"/updates/android/stable.json",
             b"REQUEST_INSTALL_PACKAGES",
             (SPEC["stable_package"] + ".package-export").encode(),

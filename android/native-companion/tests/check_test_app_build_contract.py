@@ -27,7 +27,7 @@ assert spec["update_notice"] == "Тестовая сборка · автомат
 
 for forbidden in ("from release_contract", "load_release(", "release-spec.json", "android-auto-publish-hostinger"):
     assert forbidden not in builder, "Test builder must not route through stable release code: " + forbidden
-for excluded in ("UpdateCenter.java", "UpdateCheckJob.java", "UpdateInstallReceiver.java"):
+for excluded in ("UpdateCenter.java", "UpdateCheckJob.java", "VerifiedUpdateProvider.java"):
     assert excluded in builder, "Test builder must explicitly exclude updater source: " + excluded
 for required in ("check_0385_seek_baseline.py", "UpdateCenter", "REQUEST_INSTALL_PACKAGES", "celikom_test_icon.xml", "BuildConfig.smali"):
     assert required in builder or required in verifier, "Missing test build safety gate: " + required
