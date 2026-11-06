@@ -125,12 +125,17 @@ def patch_test_sources(source_root):
                 raise ValueError(f"Stable authority literal remains in Java source: {path}:{old}")
 
     app_version = source_root / "pro/celikom/nativeprobe/identitydiag/AppVersion.java"
-    replace_once(
-        app_version,
-        'static final String NAME="0.3.85";',
+    # The stable AppVersion advances independently of the isolated Test APK.
+    # Require one plain stable version marker before applying Test metadata.
+    version_source = app_version.read_text(encoding="utf-8")
+    version_source, count = re.subn(
+        r'static final String NAME="0\.3\.\d+";',
         'static final String NAME="' + SPEC["version"] + '";',
-        "test app version",
+        version_source,
     )
+    if count != 1:
+        raise ValueError("Expected exactly one stable AppVersion marker for Test packaging")
+    app_version.write_text(version_source, encoding="utf-8")
 
     for path in source_root.rglob("*.java"):
         if path.name in UPDATER_SOURCES:
