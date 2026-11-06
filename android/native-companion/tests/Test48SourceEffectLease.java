@@ -9,6 +9,28 @@ public final class Test48SourceEffectLease {
  static int checks;
  static void check(boolean value,String description){checks++;if(!value)throw new AssertionError(description);}
 
+ // Preserve the live alias through the clock replay. The shared Test.33
+ // helper intentionally hardcodes alias "1" and would simulate a third song.
+ static void advanceWarmup(MediaPlayer decoder){
+  String alias=TestEngine.p.current.alias;
+  long sourcePosition=TestEngine.p.current.position;
+  for(int i=0;i<10;i++){
+   SystemClock.now+=20;sourcePosition+=20;
+   if(i>=8)decoder.position+=20;
+   TestEngine.p.current=TestEngine.source(alias,sourcePosition,true);
+   TestEngine.p.handler.drain();
+  }
+ }
+ static void advanceTogether(MediaPlayer decoder){
+  String alias=TestEngine.p.current.alias;
+  long sourcePosition=TestEngine.p.current.position;
+  for(int i=0;i<10;i++){
+   SystemClock.now+=20;sourcePosition+=20;decoder.position+=20;
+   TestEngine.p.current=TestEngine.source(alias,sourcePosition,true);
+   TestEngine.p.handler.drain();
+  }
+ }
+
  static ReplacementEngine firstSong()throws Exception{
   TestEngine.reset("ALBUM",true);
   ReplacementEngine e=TestEngine.e;
@@ -16,8 +38,8 @@ public final class Test48SourceEffectLease {
   e.lateSourceEffectAttachExperiment=true;
   e.arm();
   MediaPlayer first=TestEngine.prepare();
-  TestCachedAudioRollback.advanceWarmup(first,10,20,8);
-  TestCachedAudioRollback.advanceTogether(first,10,20);
+  advanceWarmup(first);
+  advanceTogether(first);
   check(e.effect!=null&&e.effect.gain==-100f&&first.volume>0.99f,
     "first song owns exclusive replacement; source verified and muted");
   return e;
@@ -40,8 +62,8 @@ public final class Test48SourceEffectLease {
   check(e.parkedSourceEffect==original,
     "new source identity does not force another native effect allocation");
   MediaPlayer second=TestEngine.prepare();
-  TestCachedAudioRollback.advanceWarmup(second,10,20,8);
-  TestCachedAudioRollback.advanceTogether(second,10,20);
+  advanceWarmup(second);
+  advanceTogether(second);
   check(e.effect==original&&e.parkedSourceEffect==null&&!original.released,
     "clock-verified new song reuses the same source effect safely");
   check(DynamicsProcessing.constructionCount==created
@@ -79,8 +101,8 @@ public final class Test48SourceEffectLease {
     "artist","Артист","durationMs",120000L),
     LogStore.map("candidateTrackId","8","method","ALBUM","editionConflict",false));
   MediaPlayer second=TestEngine.prepare();
-  TestCachedAudioRollback.advanceWarmup(second,10,20,8);
-  TestCachedAudioRollback.advanceTogether(second,10,20);
+  advanceWarmup(second);
+  advanceTogether(second);
   check(original.released&&e.effect!=original,
     "verified session mismatch must never inherit the previous effect");
   e.close();
