@@ -6,7 +6,8 @@
 - Ветка: `feature/android-0385-test47-session-stability-20261106`.
 - Предыдущая подписанная Test.46: functional source `e0ec5f7e80938ce18c2747e14f3425bcd360c34b`, APK SHA-256 `14a91c03c153f7ce3af32b6be286641f52b51d96af7ba36033a2febaa4f5541d`.
 - Предварительно создана резервная точка Test.46: `backup/android-0385-test46-pre-test47-20261106` → `77f393785371dd9a01f8c27f655e5682584730d4`; Test.33 `53d94d66a32b332b62848e0895285d81dda226e9` и её backup остаются отдельно, без изменений.
-- CI/build SHA, signed APK SHA и Library file ID вписать после фактической проверки. Пока **акустическая приёмка не выполнена**.
+- Функциональный SHA подписанной сборки: `9c90a73fc87a0b9b12d6c4da66c98028b14073cc`; [GitHub Actions #42206692807 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/42206692807) — host regression, SDK36/D8 и отдельная подписанная тестовая APK.
+- [Прямая APK Test.47 в ChatGPT Library](https://chatgpt.com/library?file_id=libfile_8dc571f14c5481919d79fca6929cfed6&account_id=personal), размер 8 824 985 байт, SHA-256 `8a02d9f66ada3d02d6793b57dfcd66872ced15836a6a5e67166bc908fb7fbd15`. Подписант совпадает с оригиналом, v3-подпись подтверждена. **Физическая акустическая приёмка не выполнена**.
 
 ## Источник и разделение трёх сессий
 
@@ -60,3 +61,4 @@ Test.44/45: в сумме 44 удаления готовых файлов, зн�
 
 - Локальная полная fake-engine/phone regression suite: **PASS**; 15 виртуальных часов, 300 переключений, source/pause/seek, Test.33 accepted seek guard, Test.47 race guards.
 - APK, SDK36/D8, source provenance, original signer и отсутствие stable publisher: обязателен отдельный GitHub CI success; локальный хост не доказывает подписанную сборку.
+- GitHub CI #42206692807: **SUCCESS**; `native-android` и `build-celikom-test / build-test-app` завершились успешно. Подписанный Test.47 только в отдельном пакете `pro.celikom.nativeprobe.test`; stable publisher SKIPPED, `stable_published=false`, `stable_ota_touched=false`, `hostinger_write_performed=false` в build receipt. По поручению владельца решение о возможном переносе тестовой в основную версию отложено до проверки на HONOR и нового обсуждения.
