@@ -1732,19 +1732,15 @@ final class ReplacementEngine {
   parkedSourceEffect=null;parkedSourceSession=-1;parkedSourceEpoch++;
   // The outgoing decoder is already silent. This always returns the source
   // to its original gain, even if an unrelated track or route takes over.
-  boolean reset=false,disabled=false,released=false;
-  try{parked.setControlStatusListener(null);}catch(RuntimeException ignored){}
-  try{parked.setInputGainAllChannelsTo(0f);reset=true;}catch(RuntimeException ignored){}
-  try{disabled=parked.setEnabled(false)==AudioEffect.SUCCESS;}catch(RuntimeException ignored){}
-  try{parked.release();released=true;}catch(RuntimeException ignored){}
+  AudioOwnership.RestoreResult retired=audioOwner.retireParkedSourceEffect(parked);
   // A parked effect has no current AudioOwnership lease. Do not reset the
   // current decoder's ALIGNING/PREPARING state while it is warming up.
-  LogStore.log("replacement_source_effect_park_released",LogStore.map("reason",reason,"gainReset",reset,"disabled",disabled,"released",released));
+  LogStore.log("replacement_source_effect_park_released",LogStore.map("reason",reason,"gainReset",retired.gainReset,"disabled",retired.disabled,"released",retired.released));
  }
  boolean parkSourceEffect(){
   DynamicsProcessing fx=effect;
   if(fx==null||!fx.hasControl()||!fx.getEnabled())return false;
-  try{fx.setInputGainAllChannelsTo(0f);}catch(RuntimeException ignored){return false;}
+  try{if(!audioOwner.parkSourceEffectAtUnity(fx))return false;}catch(RuntimeException ignored){return false;}
   if(parkedSourceEffect!=null)releaseParkedSourceEffect("replaced_park");
   effect=null;parkedSourceEffect=fx;parkedSourceSession=trustedSession;
   parkedSourceUntil=SystemClock.elapsedRealtime()+SOURCE_EFFECT_PARK_MS;
