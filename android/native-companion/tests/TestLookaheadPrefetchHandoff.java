@@ -118,7 +118,11 @@ public final class TestLookaheadPrefetchHandoff {
  }
 
  static void deferredNextAfterJoin()throws Exception{
-  TestEngine.reset("ALBUM",true);TestEngine.api.signed=true;TestEngine.e.arm();
+  TestEngine.reset("ALBUM",true);TestEngine.api.signed=true;
+  TestEngine.e=new ReplacementEngine(TestEngine.p,true,true);
+  TestEngine.e.identity(LogStore.map("mediaAlias","1","albumId","42","title","Песня","artist","Артист","durationMs",120000L),
+   LogStore.map("candidateTrackId","7","method","ALBUM","editionConflict",false));
+  TestEngine.e.arm();
   ReplacementEngine e=TestEngine.e;TestEngine.p.lookaheadAlias="2";
   e.preparing=true;e.ready=false;
   e.prefetchLookahead(LogStore.map("mediaAlias","2","durationMs",120000L),"8");
@@ -132,7 +136,11 @@ public final class TestLookaheadPrefetchHandoff {
   e.close();
  }
  static void deferredNextDroppedOnBoundary()throws Exception{
-  TestEngine.reset("ALBUM",true);TestEngine.api.signed=true;TestEngine.e.arm();
+  TestEngine.reset("ALBUM",true);TestEngine.api.signed=true;
+  TestEngine.e=new ReplacementEngine(TestEngine.p,true,true);
+  TestEngine.e.identity(LogStore.map("mediaAlias","1","albumId","42","title","Песня","artist","Артист","durationMs",120000L),
+   LogStore.map("candidateTrackId","7","method","ALBUM","editionConflict",false));
+  TestEngine.e.arm();
   ReplacementEngine e=TestEngine.e;TestEngine.p.lookaheadAlias="2";
   e.preparing=true;e.ready=false;
   e.prefetchLookahead(LogStore.map("mediaAlias","2","durationMs",120000L),"8");
