@@ -18,12 +18,18 @@ try {
         $counts[$table] = (int)$pdo->query('SELECT COUNT(*) FROM ' . $table)->fetchColumn();
     }
     $assets = $pdo->query('SELECT storage_key FROM audio_assets WHERE storage_driver = \'local\'')->fetchAll(PDO::FETCH_COLUMN);
+    $links = $pdo->query("SELECT a.storage_key, t.service_track_id
+        FROM audio_assets a JOIN track_replacements r ON r.audio_asset_id = a.id
+        JOIN tracks t ON t.id = r.track_id WHERE a.storage_driver = 'local'")->fetchAll(PDO::FETCH_ASSOC);
     $pdo->commit();
     $known = array_fill_keys(array_map('strval', $assets), true);
+    $owners = [];
+    foreach ($links as $link) $owners[(string)$link['storage_key']][] = (string)$link['service_track_id'];
     $root = realpath((string)$config['storage_path']);
     if (!$root || !is_dir($root) || !str_starts_with($root, '/home/u235811320/')) throw new RuntimeException();
     $fileCount = 0;
     $unknown = [];
+    $audioFiles = [];
     $knownFiles = 0;
     $scan = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($root, FilesystemIterator::SKIP_DOTS));
     foreach ($scan as $file) {
@@ -32,11 +38,16 @@ try {
         $relative = str_replace('\\', '/', substr($file->getPathname(), strlen($root) + 1));
         if (isset($known[$relative])) $knownFiles++;
         elseif (preg_match('~^audio/[a-f0-9]{2}/[a-f0-9]{64}\\.(mp3|m4a)$~iD', $relative)) $unknown[] = $file->getPathname();
+        if (preg_match('~^audio/[a-f0-9]{2}/[a-f0-9]{64}\\.mp3$~iD', $relative))
+            $audioFiles[] = ['path' => $file->getPathname(), 'key' => $relative];
     }
-    // Read ID3v2 titles ONLY from unindexed MP3s. Do not log paths, audio or metadata of unrelated songs.
+    // Check ID3v2 titles in registered AND unindexed MP3s for the four owner-reported songs.
+    // Never log paths, audio bytes, or titles from any other song.
     $matchNames = ['соната ей', 'порнозвезда', 'гипнозы', 'нас нет'];
     $hits = [];
-    foreach (array_slice($unknown, 0, 2000) as $path) {
+    foreach (array_slice($audioFiles, 0, 2000) as $candidate) {
+        $path = $candidate['path'];
+        $key = $candidate['key'];
         if (!str_ends_with(strtolower($path), '.mp3')) continue;
         $in = @fopen($path, 'rb');
         if (!$in) continue;
@@ -70,13 +81,16 @@ try {
         $normalized = str_replace('ё', 'е', $normalized);
         foreach ($matchNames as $name) {
             if ($normalized !== '' && str_contains($normalized, $name)) {
-                $hits[] = ['target' => $name, 'size_bytes' => filesize($path)];
+                $hits[] = ['target' => $name, 'registered' => isset($known[$key]),
+                    'owner_track_ids' => array_values(array_unique($owners[$key] ?? [])),
+                    'size_bytes' => filesize($path)];
                 break;
             }
         }
     }
     echo json_encode(['counts' => $counts, 'known_local_assets' => count($known),
         'registered_files' => $knownFiles, 'unindexed_files' => count($unknown),
+        'id3_checked_mp3' => count($audioFiles),
         'title_hits' => $hits], JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
 } catch (Throwable) {
     fwrite(STDERR, "Private read-only recovery inventory failed.\n");
