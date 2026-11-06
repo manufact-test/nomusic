@@ -1,3 +1,13 @@
+## НАЧАТЬ ЗДЕСЬ · 07.11.2026 — Test.50 ЗАМОРОЖЕНА, НОВАЯ ЗАДАЧА: PAUSE/SEEK
+
+**СРОЧНО ЧИТАТЬ:** [новое ТЗ по массово неработающей паузе и перемотке](ANDROID-0385-TEST51-UNRESPONSIVE-PAUSE-SEEK-HANDOFF-2026-11-07.md) и [эталон Test.50 с полным откатом](ANDROID-0385-TEST50-FROZEN-ETALON-ROLLBACK-2026-11-06.md).
+
+**ВАЖНО:** Test.50 — принятый владельцем эталон по звуку, исходный коммит 5d737d203a0b364b0cb4fd6886040b8bd0c6fbd1, полный backup в Library. Ветка для новой работы: `feature/android-0385-test51-transport-controls-investigation-20261107` (только документы, APK Test.51 **ещё не создана**). Примеры проблемных треков: «Дым», RASKOL — «Нас не понимают вообще» (сверить издание/ID); есть похожие в других альбомах, более десятка. В Yandex UI перемотка может применяться ~30 сек, Pause почти не срабатывает, хотя подмена играет. Не менять звук/Next/lookahead/эталон, стабильную Android 0.3.92, ПК, сервер и OTA. Одно причинное решение — после изучения предыдущих диагностик, без очередного тюнинга таймингов.
+
+Полный готовый первый текст: [START-NEXT-CHAT-TEST50-SEEK-PAUSE-2026-11-07.md](START-NEXT-CHAT-TEST50-SEEK-PAUSE-2026-11-07.md).
+
+---
+
 ## 2026-11-06: OWNER-ACCEPTED TEST.50 WITH FULL ROLLBACK — READ FIRST
 See `docs/android/ANDROID-0385-TEST50-FROZEN-ETALON-ROLLBACK-2026-11-06.md`.
 Installed signed APK source commit **5d737d203a0b364b0cb4fd6886040b8bd0c6fbd1**; full backup branch **backup/android-test50-exact-source-owner-accepted-20261106**; Library complete source+APK+receipts+HONOR diagnostic: https://chatgpt.com/library?file_id=libfile_d97af2a45fb48191a40a384db83f6d8e&account_id=personal . DO NOT do partial code rollback. Test.50 is the NEW owner-accepted acoustic reference; Test.49 rejected; stable/PC untouched. Real field diagnostic ends `run_end(reason=user_stop)`, not truncated. All source and APK hashes documented.
