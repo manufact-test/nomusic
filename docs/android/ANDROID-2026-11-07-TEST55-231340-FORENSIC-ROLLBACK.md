@@ -17,3 +17,14 @@
 Прочитать этот файл и `docs/android/NEXT-CHAT.md`. Проверять **почему один и тот же Яндекс Media3 service не выдаёт SEEK callback на RASKOL, но выдаёт на «Есть вопросы»**, и почему в переходе RASKOL→«Дым» остаётся `BUFFERING` с `playWhenReady=true`. Сравнить именно последовательности и media item/timeline/player commands. Требуется иной достоверный источник управления песней, а не таймер или анонимный AudioPlaybackCallback. Не добавлять Accessibility, Notification Listener, root, экранный захват/дополнительные разрешения без отдельного согласия владельца. Стабильные звуковые переходы Test.50 неприкосновенны.
 
 Миграция Hostinger частично выполнена; завтра пользователь завершит и переведёт работу на новый MCP workflow. Не переносить старые URL на новую платформу наугад.
+
+## Фактически выпущенный rollback Test.56 — PASS
+- Пакет: `0.3.85-test.56`, `versionCode=86142`, `pro.celikom.nativeprobe.test` — ставится поверх Test.55 без удаления данных тестового приложения.
+- **Никаких изменений в Java-функциях аудио:** сравнение с SHA `5d737d203a0b364b0cb4fd6886040b8bd0c6fbd1` показало **только 4 упаковочных/CI файла и документ**.
+- Исходный commit, из которого собрана APK: `94811e91b24db5aa1cd759453e0aa9b5bf0d9915`.
+- CI [run 42410653153](https://github.com/manufact-test/nomusic/actions/runs/42410653153): `native-android=success`, `build-test-app=success`; подпись v3 проверена, оригинальный сертификат совпадает, original assets unchanged, stable build unaffected.
+- Подписанная APK `CELIKOM-Android-0.3.85-TEST-56-EXACT-TEST50-RESTORE-SIGNED.apk`, размер **8 829 081 bytes**, SHA-256 `2587231207e795b2309007227c146a488db20b48785dda3964c9ab9cf954cbee`.
+- **ChatGPT Library**: https://chatgpt.com/library?file_id=libfile_898126eafe288191854fb19be9fd3c12&account_id=personal
+- Отдельно в Library сохранены `verification.json` id `libfile_16a4d8bd8b088191b5225cdd169899d0` и `RECEIPT.json` id `libfile_4cc8a9dff5908191ab6911d69a097257`.
+- **Не заявлять, что RASKOL/«Дым» исправлены**: это точный функциональный откат. Старое поведение watchdog Test.50 при BUFFERING тоже вернётся; ожидаемо, не выдавать за улучшение.
+- Пользователя, уставшего от проверок, не гонять по новой серии тестов без конкретного технического изменения.
