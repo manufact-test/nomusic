@@ -11,6 +11,9 @@ public class TestAppPresentation {
   s.starting=false;s.running=true;s.enabled=true;p=AppPresentation.of(s);check(p.instruction.contains("Включите песню")&&!p.showTrack,"waiting for Yandex is a connection instruction");
   s.source=true;s.identified=true;p=AppPresentation.of(s);check(p.instruction.contains("эквалайзер")&&!p.showTrack&&p.version.isEmpty(),"reported Ramil case: known metadata without audio connection displays only setup instruction");check(!p.header.equals("Работает")&&!p.connected,"arming is not proof of audio connection");
   s.session=true;s.playing=true;p=AppPresentation.of(s);check(p.instruction.equals("CELIKOM подключён. Можно пользоваться.")&&p.connected&&p.showTrack,"verified connection displays readiness and current song separately");check(!p.header.equals("Подмена активна"),"connected alone does not claim replacement is audible");
+  s.identified=false;s.identityPending=true;p=AppPresentation.of(s);check(p.version.equals("Определяем песню…")&&!p.showTrack,"album request in progress is shown as pending");
+  s.identityPending=false;p=AppPresentation.of(s);check(p.version.contains("Не удалось однозначно определить")&&p.version.contains("Играет оригинал")&&p.showTrack,"completed no-match shows the song and honest original status instead of endless search");
+  s.identified=true;
   s.preparing=true;p=AppPresentation.of(s);check(p.version.contains("Подготавливаем"),"preparation has its own state");
   s.preparing=false;s.replacing=true;p=AppPresentation.of(s);check(p.header.equals("Подмена активна")&&p.version.equals("Играет версия CELIKOM"),"only actual replacement output shows active");
   s.playing=false;p=AppPresentation.of(s);check(p.header.equals("Подключён")&&p.version.equals("Пауза"),"pause retains connection without claiming playing");
