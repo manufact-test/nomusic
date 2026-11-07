@@ -16,9 +16,9 @@ verifier = (ROOT / "verify_test_release.py").read_text(encoding="utf-8")
 assert spec["package"] == "pro.celikom.nativeprobe.test"
 assert spec["stable_package"] == "pro.celikom.nativeprobe"
 assert spec["label"] == "CELIKOM Test"
-assert spec["version"] == "0.3.85-test.52"
-assert spec["version_code"] == 86137
-assert spec["apk_filename"] == "CELIKOM-Android-0.3.85-TEST-52-TRANSPORT-IDENTITY-SIGNED.apk"
+assert spec["version"] == "0.3.85-test.53"
+assert spec["version_code"] == 86138
+assert spec["apk_filename"] == "CELIKOM-Android-0.3.85-TEST-53-STALE-SOURCE-QUARANTINE-SIGNED.apk"
 assert spec["signing_certificate_sha256"] == "67fe81c56fac1c1d145344b69a0e3faf9005cf6607f4e26ca27d5926c3eefc4f"
 assert spec["test_permission"].startswith(spec["package"] + ".")
 assert spec["file_provider_authority"].startswith(spec["package"] + ".")
@@ -34,12 +34,18 @@ for required in ("check_0385_seek_baseline.py", "UpdateCenter", "REQUEST_INSTALL
 assert "check_background_diagnostics.py" in (ROOT / "tests/run_engine.py").read_text(encoding="utf-8")
 assert "TestLookaheadPrefetchHandoff.java" in (ROOT / "tests/run_engine.py").read_text(encoding="utf-8")
 assert "requestFastJoinSamples" in (ROOT / "addon/src/pro/celikom/nativeprobe/identitydiag/ProbeService.java").read_text(encoding="utf-8")
-# Test.41: never deny playback for a repeated unverified same-session OPEN,
-# and never enable the Test.40 four-sample cold clock restriction in production.
+# Test.53: a same-session OPEN alone does not prove a track change. Only
+# a recent anonymous audio restart plus an old Media3 event can revoke
+# substitution, never authorize another track or trigger a transport command.
 service_source = (ROOT / "addon/src/pro/celikom/nativeprobe/identitydiag/ProbeService.java").read_text(encoding="utf-8")
 assert "new ReplacementEngine(this,true,true,false)" in service_source
 assert "recheckQuietSourceController(session);" not in service_source
 assert "source_same_session_open_ignored" in service_source
+assert "source_audio_quarantine_started" in service_source
+assert "sourceAudioQuarantine.allow(item.mediaId)" in service_source
+assert "source_audio_unverified" in service_source
+assert "lastPlatformAudioObservedAt" in service_source
+assert service_source.count("probeTransportSnapshot(") == 1, "Denied secondary controller probes must not be invoked"
 assert "lastPlatformMediaActive" in service_source and "registerAudioPlaybackCallback" in service_source
 assert "probeTransportSnapshot(" in service_source
 assert "source_transport_probe_result" in service_source
@@ -51,7 +57,7 @@ assert "controllerRetained" in service_source
 watchdog_start = service_source.index("if(stateWatchdog.refresh(")
 watchdog_end = service_source.index("PlaybackSource previous=current;", watchdog_start)
 watchdog_source = service_source[watchdog_start:watchdog_end]
-assert 'probeTransportSnapshot("quiet_buffering"' in watchdog_source
+assert 'source_buffering_wait_no_reconnect' in watchdog_source
 assert "controller=null" not in watchdog_source and "c.release()" not in watchdog_source
 assert "seek_discontinuity_disagreement" in service_source
 assert "SourceTransportOverride" in service_source
@@ -63,6 +69,10 @@ assert "SourceActivityProbePolicy.java" in (ROOT / "tests/run_engine.py").read_t
 assert "SourceTransportOverride.java" in (ROOT / "tests/run_engine.py").read_text(encoding="utf-8")
 assert "TestSourceActivityProbePolicy.java" in (ROOT / "tests/run_engine.py").read_text(encoding="utf-8")
 assert "TestSourceTransportOverride.java" in (ROOT / "tests/run_engine.py").read_text(encoding="utf-8")
+assert "SourceAudioQuarantine.java" in (ROOT / "tests/run_engine.py").read_text(encoding="utf-8")
+assert "TestSourceAudioQuarantine.java" in (ROOT / "tests/run_engine.py").read_text(encoding="utf-8")
+assert "sourceQuarantined" in (ROOT / "addon/src/pro/celikom/nativeprobe/identitydiag/AppPresentation.java").read_text(encoding="utf-8")
+assert "Яндекс загружает песню" in (ROOT / "addon/src/pro/celikom/nativeprobe/identitydiag/AppPresentation.java").read_text(encoding="utf-8")
 assert "HybridIdentity.java" in (ROOT / "tests/run_engine.py").read_text(encoding="utf-8")
 assert "if not (v2 or v3)" in verifier
 assert "base_v3" in verifier and "signer_v3" in verifier
@@ -110,7 +120,7 @@ assert "build-celikom-test:" in caller
 assert "needs: native-android" in caller
 assert "uses: ./.github/workflows/android-0385-test-app-build.yml" in caller
 assert "validation_run_id: ${{ github.run_id }}" in caller
-assert "feature/android-0385-test52-transport-identity-20261107" in caller
+assert "feature/android-0385-test53-stale-source-quarantine-20261107" in caller
 for required in (
     "signature_v2_verified", "signature_v3_verified", "separate_android_sandbox",
     "stable_manifest_reference_absent", "ota_updater_absent", "package_id_is_distinct",
