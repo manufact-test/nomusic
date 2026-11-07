@@ -30,7 +30,7 @@ concurrency:
 
 jobs:
   build-test-app:
-    if: inputs.source_branch == 'feature/android-0385-test50-deferred-lookahead-20261106' && inputs.source_repository == 'manufact-test/nomusic'
+    if: inputs.source_branch == 'feature/android-0385-test52-transport-identity-20261107' && inputs.source_repository == 'manufact-test/nomusic'
     runs-on: ubuntu-latest
     timeout-minutes: 40
     steps:
@@ -47,7 +47,7 @@ jobs:
           SOURCE_BRANCH: ${{ inputs.source_branch }}
           SOURCE_REPOSITORY: ${{ inputs.source_repository }}
           VALIDATION_RUN_ID: ${{ inputs.validation_run_id }}
-          EXPECTED_BRANCH: feature/android-0385-test50-deferred-lookahead-20261106
+          EXPECTED_BRANCH: feature/android-0385-test52-transport-identity-20261107
         shell: bash
         run: |
           set -euo pipefail
@@ -99,6 +99,31 @@ jobs:
             u235811320@92.113.19.189:/home/u235811320/domains/lemonchiffon-narwhal-791953.hostingersite.com/celikom-private/android-build-inputs/CELIKOM-0.3.22-install.apk \
             "$RUNNER_TEMP/private/base.apk"
           echo "170b1883e292570d28a3b5c619cf000eaccd9d11ee85ca6f6c08f7b50e5f72c9  $RUNNER_TEMP/private/base.apk" | sha256sum -c -
+          # Execute the owner-supplied SELECT-only script over SSH stdin; no server file or row is changed.
+          ssh -T -p 65002 -i "$RUNNER_TEMP/private/id_host" \
+            -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
+            -o UserKnownHostsFile="$RUNNER_TEMP/private/known_hosts" \
+            u235811320@92.113.19.189 'php -' \
+            < android/companion-probe/catalog-snapshot-remote.php \
+            > "$RUNNER_TEMP/private/catalog-diagnostic.json"
+          python3 - "$RUNNER_TEMP/private/catalog-diagnostic.json" <<'PY'
+          import json,sys,time
+          p=json.load(open(sys.argv[1],encoding="utf-8"))
+          tracks=p.get("tracks")
+          age=int(time.time()*1000)-int(p.get("generated_at_ms",0))
+          if p.get("schema")!=1 or p.get("source")!="celikom_owner_catalog_snapshot":
+              raise SystemExit("Unexpected catalogue snapshot format")
+          if p.get("complete") is not True or not isinstance(tracks,list):
+              raise SystemExit("Owner catalogue snapshot is incomplete")
+          if p.get("total_tracks")!=len(tracks) or not 1<=len(tracks)<=5000:
+              raise SystemExit("Owner catalogue snapshot row count is invalid")
+          if not 0<=age<=600000:
+              raise SystemExit("Owner catalogue snapshot is not fresh")
+          ids=[row.get("track_id") for row in tracks]
+          if len(set(ids))!=len(ids) or any(not isinstance(x,str) or not x.isdigit() for x in ids):
+              raise SystemExit("Owner catalogue snapshot has invalid or duplicate IDs")
+          print("Fresh read-only CELIKOM catalogue rows:",len(tracks))
+          PY
 
       - name: Reconstruct original signing inputs in a private runner directory
         env:
@@ -125,12 +150,13 @@ jobs:
           set -euo pipefail
           ROOT=android/native-companion
           KIT="$RUNNER_TEMP/kit"
-          OUT="$RUNNER_TEMP/CELIKOM-Android-0.3.85-TEST-50-DEFERRED-LOOKAHEAD-SIGNED.apk"
+          OUT="$RUNNER_TEMP/CELIKOM-Android-0.3.85-TEST-52-TRANSPORT-IDENTITY-SIGNED.apk"
           python3 "$ROOT/build_test_release.py" \
             --sdk "$KIT/sdk" \
             --build-tools "$KIT/build-tools/36.0.0" \
             --apktool "$KIT/apktool_2.11.1.jar" \
             --base-apk "$RUNNER_TEMP/private/base.apk" \
+            --catalog-snapshot "$RUNNER_TEMP/private/catalog-diagnostic.json" \
             --signing-dir "$RUNNER_TEMP/private/signing" \
             --deps-dir "$KIT/native-companion/deps" \
             --work-dir "$RUNNER_TEMP/test-build-work" \
@@ -186,12 +212,19 @@ jobs:
             "stable_manifest_reference_absent":proof["stable_manifest_reference_absent"],
             "request_install_packages_absent":proof["request_install_packages_absent"],
             "original_assets_unchanged":proof["original_assets_unchanged"],
+            "allowed_asset_updates":proof["allowed_asset_updates"],
+            "catalog_snapshot_updated":proof["catalog_snapshot_updated"],
+            "catalog_snapshot_generated_at_ms":proof["catalog_snapshot_generated_at_ms"],
+            "catalog_snapshot_track_count":proof["catalog_snapshot_track_count"],
             "regression_checks":{
               "full_native_host_suite":"passed",
               "first_join_production_host_parity":"passed",
               "check_0385_seek_baseline_unchanged":"passed",
               "test_login_input_contrast_contract":"passed",
               "background_lifecycle_diagnostics":"passed",
+              "source_activity_probe_policy":"passed",
+              "source_transport_override":"passed",
+              "fresh_catalog_snapshot":"passed",
               "stable_metadata_lookahead_fallback":"passed",
               "prefetch_to_current_cache_handoff":"passed",
               "android_api_36":"passed",
@@ -203,7 +236,7 @@ jobs:
             "physical_phone_playback_verified":False,
             "acoustic_acceptance":False
           }
-          out=pathlib.Path(os.environ["RUNNER_TEMP"],"CELIKOM-Android-0.3.85-TEST-50-DEFERRED-LOOKAHEAD-RECEIPT.json")
+          out=pathlib.Path(os.environ["RUNNER_TEMP"],"CELIKOM-Android-0.3.85-TEST-52-TRANSPORT-IDENTITY-RECEIPT.json")
           out.write_text(json.dumps(receipt,ensure_ascii=False,indent=2)+"\n",encoding="utf-8")
           print(json.dumps(receipt,ensure_ascii=False,indent=2))
           PY
@@ -211,10 +244,10 @@ jobs:
       - name: Upload signed test APK and verification receipt only
         uses: actions/upload-artifact@v4
         with:
-          name: CELIKOM-Test-0.3.85-test.48-code-86133
+          name: CELIKOM-Test-0.3.85-test.52-code-86137
           path: |
-            ${{ runner.temp }}/CELIKOM-Android-0.3.85-TEST-50-DEFERRED-LOOKAHEAD-SIGNED.apk
+            ${{ runner.temp }}/CELIKOM-Android-0.3.85-TEST-52-TRANSPORT-IDENTITY-SIGNED.apk
             ${{ runner.temp }}/CELIKOM-Android-0.3.85-TEST-50-DEFERRED-LOOKAHEAD-SIGNED.verification.json
-            ${{ runner.temp }}/CELIKOM-Android-0.3.85-TEST-50-DEFERRED-LOOKAHEAD-RECEIPT.json
+            ${{ runner.temp }}/CELIKOM-Android-0.3.85-TEST-52-TRANSPORT-IDENTITY-RECEIPT.json
           if-no-files-found: error
           retention-days: 7
