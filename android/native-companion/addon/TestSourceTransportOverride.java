@@ -11,7 +11,7 @@ public class TestSourceTransportOverride {
   SourceTransportOverride override=new SourceTransportOverride();
   PlaybackSource live=source(153000,true,true,false);long pauseTime=live.observed;
   PlaybackSource paused=source(153000,false,false,false);
-  check(override.accept(live,paused,-1,pauseTime),"same-alias fresh paused snapshot is accepted");
+  check(override.accept(live,paused,153000,pauseTime),"same-alias fresh paused snapshot is accepted");
   check(override.active(),"pause override remains active while primary controller is stale");
   PlaybackSource effective=override.apply(live,pauseTime+1000);
   check(!effective.playing&&!effective.wantsToPlay&&!effective.buffering,"stale playing controller is presented to engine as paused");
