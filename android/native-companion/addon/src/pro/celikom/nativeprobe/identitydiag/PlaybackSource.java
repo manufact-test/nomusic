@@ -11,5 +11,13 @@ final class PlaybackSource {
   this.connected=connected;this.speed=speed;this.wantsToPlay=wantsToPlay;this.buffering=buffering;
   observed=SystemClock.elapsedRealtime();
  }
+ /** Same immutable track identity, but a pause-controlled media clock. No
+  * change to the audio decoder's source, duration, or canonical track ID. */
+ PlaybackSource(PlaybackSource live,long projectedPosition,boolean effectivePlaying,boolean effectiveWantsToPlay){
+  alias=live.alias;title=live.title;artist=live.artist;albumId=live.albumId;duration=live.duration;
+  key=live.key;position=projectedPosition;playing=effectivePlaying;connected=live.connected;
+  speed=live.speed;wantsToPlay=effectiveWantsToPlay;buffering=false;
+  observed=SystemClock.elapsedRealtime();
+ }
  static String key(String alias,Object album,String title,String artist,long duration){return alias+"|"+album+"|"+title+"|"+artist+"|"+duration;}
 }
