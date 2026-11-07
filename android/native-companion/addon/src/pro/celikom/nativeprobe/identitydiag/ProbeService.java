@@ -205,21 +205,22 @@ public class ProbeService extends Service {
       LogStore.log("source_transport_probe_result",LogStore.map("reason",reason,"connected",true,"accepted",false,"sameAlias",true,"metadataMatch",false,"primaryControllerRetained",true,"transportCommandSent",false));
       return;
      }
-     long position=fresh.getCurrentPosition();
-     if(position<0||position>live.duration+2000||(expectedPositionMs>=0&&Math.abs(position-expectedPositionMs)>SourceTransportOverride.SEEK_CONFIRM_MS)){
+     long freshPosition=fresh.getCurrentPosition();
+     if(expectedPositionMs>=0&&(freshPosition<0||freshPosition>live.duration+2000||Math.abs(freshPosition-expectedPositionMs)>SourceTransportOverride.SEEK_CONFIRM_MS)){
       sourceActivityProbePolicy.probeCompleted(sourceTransportOverride.active(),SystemClock.elapsedRealtime());
-      LogStore.log("source_transport_probe_result",LogStore.map("reason",reason,"connected",true,"accepted",false,"sameAlias",true,"freshPositionMs",position,"expectedPositionMs",expectedPositionMs,"primaryControllerRetained",true,"transportCommandSent",false));
+      LogStore.log("source_transport_probe_result",LogStore.map("reason",reason,"connected",true,"accepted",false,"sameAlias",true,"freshPositionMs",freshPosition,"expectedPositionMs",expectedPositionMs,"primaryControllerRetained",true,"transportCommandSent",false));
       return;
      }
      int state=fresh.getPlaybackState();boolean wants=fresh.getPlayWhenReady(),playing=fresh.isPlaying();
      boolean buffering=state==Player.STATE_BUFFERING&&wants;float speed=fresh.getPlaybackParameters().speed;
-     PlaybackSource snapshot=new PlaybackSource(live,position,playing,live.connected,speed,wants,buffering);
+     long snapshotPosition=expectedPositionMs>=0?freshPosition:live.position;
+     PlaybackSource snapshot=new PlaybackSource(live,snapshotPosition,playing,live.connected,speed,wants,buffering);
      boolean accepted=sourceTransportOverride.accept(live,snapshot,expectedPositionMs,SystemClock.elapsedRealtime());
      PlaybackSource effective=sourceTransportOverride.apply(live,SystemClock.elapsedRealtime());
      current=effective;
      sourceActivityProbePolicy.probeCompleted(sourceTransportOverride.active(),SystemClock.elapsedRealtime());
      if(replacement!=null)replacement.update(effective);
-     LogStore.log("source_transport_probe_result",LogStore.map("reason",reason,"connected",true,"accepted",accepted,"sameAlias",true,"freshPositionMs",position,"freshIsPlaying",playing,"freshPlayWhenReady",wants,"freshPlaybackState",state,"overrideActive",sourceTransportOverride.active(),"primaryControllerRetained",true,"yandexTransportCommandSent",false));
+     LogStore.log("source_transport_probe_result",LogStore.map("reason",reason,"connected",true,"accepted",accepted,"sameAlias",true,"freshPositionMs",freshPosition,"snapshotPositionMs",snapshotPosition,"freshIsPlaying",playing,"freshPlayWhenReady",wants,"freshPlaybackState",state,"overrideActive",sourceTransportOverride.active(),"primaryControllerRetained",true,"yandexTransportCommandSent",false));
     }catch(Exception error){
      sourceActivityProbePolicy.probeCompleted(sourceTransportOverride.active(),SystemClock.elapsedRealtime());
      LogStore.log("source_transport_probe_result",LogStore.map("reason",reason,"connected",false,"type",error.getClass().getSimpleName(),"causeType",error.getCause()==null?"":error.getCause().getClass().getSimpleName(),"primaryControllerRetained",true,"yandexTransportCommandSent",false));
