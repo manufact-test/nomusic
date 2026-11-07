@@ -198,7 +198,57 @@ public class ProbeService extends Service {
   if(Build.VERSION.SDK_INT<34)return false;
   try{return receiver.getSentFromUid()==getPackageManager().getApplicationInfo(LogStore.PKG,0).uid;}catch(Exception ignored){return false;}
  }
- void connect(){if(!alive()||controller!=null||connecting!=null||SystemClock.elapsedRealtime()<nextConnectAllowedAt||SystemClock.elapsedRealtime()-lastConnectAttempt<1000)return;final long connectStartedAt=SystemClock.elapsedRealtime();lastConnectAttempt=connectStartedAt;final int connectAttempt=++attempts;final long connectGeneration=++controllerGeneration;if(LogStore.active)LogStore.log("media3_connect_attempt",LogStore.map("attempt",connectAttempt,"generation",connectGeneration,"lastMediaEventAgeMs",lastMediaEvent<=0?-1:connectStartedAt-lastMediaEvent,"replacementArmed",replacement!=null&&replacement.armed()));try{SessionToken token=new SessionToken(this,new ComponentName(LogStore.PKG,"com.yandex.music.shared.media.session.session.Media3LibraryService"));connecting=new androidx.media3.session.MediaController.Builder(this,token).setListener(new androidx.media3.session.MediaController.Listener(){public void onDisconnected(androidx.media3.session.MediaController c){if(controller==c){if(LogStore.active){Map<String,Object> state=runtimeSnapshot("media3_disconnected");state.put("connectAttempt",connectAttempt);LogStore.log("media3_disconnect_state",state);}controller=null;current=null;nextConnectAllowedAt=SystemClock.elapsedRealtime()+2000;connectionStatus="Соединение потеряно; переподключаемся…";replacement.update(null);LogStore.log("media3_disconnected","retry scheduled");handler.postDelayed(ProbeService.this::connect,2000);}}}).buildAsync();final ListenableFuture<androidx.media3.session.MediaController> future=connecting;handler.postDelayed(()->{if(connecting==future&&!future.isDone())future.cancel(false);},12000);future.addListener(()->{if(connecting==future)connecting=null;try{androidx.media3.session.MediaController c=future.get();if(!alive()||connectGeneration!=controllerGeneration){c.release();return;}controller=c;transitionGate.clear();lookahead.reset();lastLookaheadSource=null;lastLookaheadPoll=-2000;controllerSeen=true;lastMediaEvent=SystemClock.elapsedRealtime();if(LogStore.active)LogStore.log("media3_connect_result",LogStore.map("attempt",connectAttempt,"elapsedMs",lastMediaEvent-connectStartedAt,"connected",true,"generation",connectGeneration));attempts=0;nextConnectAllowedAt=-1;connectionStatus="Яндекс подключён";c.addListener(new Player.Listener(){public void onEvents(Player p,Player.Events e){if(!alive()||controller!=c)return;lastMediaEvent=SystemClock.elapsedRealtime();sample(true);}
+ void connect(){if(!alive()||controller!=null||connecting!=null||SystemClock.elapsedRealtime()<nextConnectAllowedAt||SystemClock.elapsedRealtime()-lastConnectAttempt<1000)return;final long connectStartedAt=SystemClock.elapsedRealtime();lastConnectAttempt=connectStartedAt;final int connectAttempt=++attempts;final long connectGeneration=++controllerGeneration;if(LogStore.active)LogStore.log("media3_connect_attempt",LogStore.map("attempt",connectAttempt,"generation",connectGeneration,"lastMediaEventAgeMs",lastMediaEvent<=0?-1:connectStartedAt-lastMediaEvent,"replacementArmed",replacement!=null&&replacement.armed()));try{SessionToken token=new SessionToken(this,new ComponentName(LogStore.PKG,"com.yandex.music.shared.media.session.session.Media3LibraryService"));connecting=new androidx.media3.session.MediaController.Builder(this,token).setListener(new androidx.media3.session.MediaController.Listener(){public void onDisconnected(androidx.media3.session.MediaController c){if(controller==c){if(LogStore.active){Map<String,Object> state=runtimeSnapshot("media3_disconnected");state.put("connectAttempt",connectAttempt);LogStore.log("media3_disconnect_state",state);}controller=null;current=null;nextConnectAllowedAt=SystemClock.elapsedRealtime()+2000;connectionStatus="Соединение потеряно; переподключаемся…";replacement.update(null);LogStore.log("media3_disconnected","retry scheduled");handler.postDelayed(ProbeService.this::connect,2000);}}}).buildAsync();final ListenableFuture<androidx.media3.session.MediaController> future=connecting;handler.postDelayed(()->{if(connecting==future&&!future.isDone())future.cancel(false);},12000);future.addListener(()->{if(connecting==future)connecting=null;try{androidx.media3.session.MediaController c=future.get();if(!alive()||connectGeneration!=controllerGeneration){c.release();return;}controller=c;transitionGate.clear();lookahead.reset();lastLookaheadSource=null;lastLookaheadPoll=-2000;controllerSeen=true;lastMediaEvent=SystemClock.elapsedRealtime();if(LogStore.active)LogStore.log("media3_connect_result",LogStore.map("attempt",connectAttempt,"elapsedMs",lastMediaEvent-connectStartedAt,"connected",true,"generation",connectGeneration));attempts=0;nextConnectAllowedAt=-1;connectionStatus="Яндекс подключён";c.addListener(new Player.Listener(){public void onEvents(Player p,Player.Events e){
+     if(!alive()||controller!=c)return;
+     long eventAt=SystemClock.elapsedRealtime(),gapMs=lastMediaEvent<0?-1:eventAt-lastMediaEvent;
+     // A controller poll may extrapolate its own position without Yandex ever
+     // sending a fresh event. Only this callback is a *received* event.
+     lastMediaEvent=eventAt;
+     if(LogStore.active){
+      java.util.ArrayList<Integer> actualEventIds=new java.util.ArrayList<>();
+      for(int eventIndex=0;eventIndex<e.size();eventIndex++)actualEventIds.add(e.get(eventIndex));
+      MediaItem activeItem=p.getCurrentMediaItem();
+      LogStore.log("media3_remote_event_evidence",LogStore.map(
+       "eventIds",actualEventIds.toString(),"eventGapMs",gapMs,
+       "alias",activeItem==null?null:activeItem.mediaId,
+       "sourceItemGeneration",sourceItemGeneration,
+       "state",p.getPlaybackState(),"playWhenReady",p.getPlayWhenReady(),
+       "isPlaying",p.isPlaying(),"isLoading",p.isLoading(),
+       "suppressionReason",p.getPlaybackSuppressionReason(),
+       "positionEstimateMs",p.getCurrentPosition(),
+       "positionIsSourceTimestamp",false,"positionExtrapolatedByController",true,
+       "availablePlayPause",p.isCommandAvailable(Player.COMMAND_PLAY_PAUSE),
+       "availableSeek",p.isCommandAvailable(Player.COMMAND_SEEK_IN_CURRENT_MEDIA_ITEM),
+       "onPositionDiscontinuity",e.contains(Player.EVENT_POSITION_DISCONTINUITY),
+       "onPlayWhenReadyChanged",e.contains(Player.EVENT_PLAY_WHEN_READY_CHANGED),
+       "onIsPlayingChanged",e.contains(Player.EVENT_IS_PLAYING_CHANGED),
+       "onPlaybackStateChanged",e.contains(Player.EVENT_PLAYBACK_STATE_CHANGED),
+       "onTimelineChanged",e.contains(Player.EVENT_TIMELINE_CHANGED),
+       "onMediaItemTransition",e.contains(Player.EVENT_MEDIA_ITEM_TRANSITION),
+       "transportCommandSent",false));
+     }
+     sample(true);
+    }
+    public void onPlayWhenReadyChanged(boolean playWhenReady,int reason){
+     if(alive()&&controller==c)LogStore.log("media3_raw_play_when_ready",LogStore.map(
+      "value",playWhenReady,"reasonCode",reason,"observedFromControllerEvent",true,
+      "transportCommandSent",false));
+    }
+    public void onIsPlayingChanged(boolean playing){
+     if(alive()&&controller==c)LogStore.log("media3_raw_is_playing",LogStore.map(
+      "value",playing,"observedFromControllerEvent",true,"transportCommandSent",false));
+    }
+    public void onPlaybackStateChanged(int state){
+     if(alive()&&controller==c)LogStore.log("media3_raw_playback_state",LogStore.map(
+      "state",state,"observedFromControllerEvent",true,"transportCommandSent",false));
+    }
+    public void onAvailableCommandsChanged(Player.Commands commands){
+     if(alive()&&controller==c)LogStore.log("media3_raw_available_commands",LogStore.map(
+      "playPause",commands.contains(Player.COMMAND_PLAY_PAUSE),
+      "seekInCurrentItem",commands.contains(Player.COMMAND_SEEK_IN_CURRENT_MEDIA_ITEM),
+      "seekToNext",commands.contains(Player.COMMAND_SEEK_TO_NEXT),
+      "observedFromControllerEvent",true,"transportCommandSent",false));
+    }
     public void onTimelineChanged(Timeline timeline,int reason){if(!alive()||controller!=c)return;lastLookaheadPoll=-2000;long eventId=++sourceEventSequence;int currentIndex=-1,itemCount=-1;String liveAlias=null;try{currentIndex=c.getCurrentMediaItemIndex();itemCount=c.getMediaItemCount();MediaItem live=c.getCurrentMediaItem();liveAlias=live==null?null:live.mediaId;}catch(RuntimeException ignored){}LogStore.log("source_timeline_changed",LogStore.map("sourceEventId",eventId,"sourceItemGeneration",sourceItemGeneration,"reasonCode",reason,"reasonClass",SourceEventArbiter.classifyTimelineChange(reason),"windowCount",timeline==null?0:timeline.getWindowCount(),"currentIndex",currentIndex,"itemCount",itemCount,"liveAlias",liveAlias,"audioCommandSent",false));}
     public void onMediaItemTransition(MediaItem item,int reason){if(!alive()||controller!=c)return;long eventId=++sourceEventSequence;String next=item==null?null:item.mediaId;String live=null;try{MediaItem fresh=c.getCurrentMediaItem();live=fresh==null?null:fresh.mediaId;}catch(RuntimeException ignored){}String active=current==null?null:current.alias;long livePos=-1;int liveIndex=-1,itemCount=-1;try{livePos=c.getCurrentPosition();liveIndex=c.getCurrentMediaItemIndex();itemCount=c.getMediaItemCount();}catch(RuntimeException ignored){}String transitionClass=SourceEventArbiter.classifyMediaItemTransition(reason);SourceEventArbiter.Action action=media3Router.mediaItem(active,live,next,reason,livePos);LogStore.log("source_media_item_transition",LogStore.map("sourceEventId",eventId,"sourceItemGeneration",sourceItemGeneration,"reasonCode",reason,"transitionClass",transitionClass,"eventNextAlias",next,"liveAlias",live,"currentAlias",active,"livePositionMs",livePos,"liveIndex",liveIndex,"timelineItemCount",itemCount,"decision",action.name(),"manualNextButtonObserved",false,"manualNextAttribution","not_exposed_by_media3_listener","audioCommandSent",false));if(action!=SourceEventArbiter.Action.BOUNDARY)LogStore.log("source_boundary_ignored",LogStore.map("sourceEventId",eventId,"reason","stale_media_item_transition","eventNextAlias",next,"liveAlias",live,"currentAlias",active,"repeat",SourceEventArbiter.isRepeatTransition(reason),"transitionClass",transitionClass));}
     public void onPositionDiscontinuity(Player.PositionInfo oldPosition,Player.PositionInfo newPosition,int reason){if(!alive()||controller!=c)return;String oldAlias=oldPosition.mediaItem==null?null:oldPosition.mediaItem.mediaId,nextAlias=newPosition.mediaItem==null?null:newPosition.mediaItem.mediaId;boolean automatic=reason==Player.DISCONTINUITY_REASON_AUTO_TRANSITION,userSeek=reason==Player.DISCONTINUITY_REASON_SEEK;long eventId=++sourceEventSequence;String classification=SourceEventArbiter.classifyDiscontinuity(automatic,userSeek,oldPosition.mediaItemIndex,newPosition.mediaItemIndex,oldAlias,nextAlias);LogStore.log("source_discontinuity",LogStore.map("sourceEventId",eventId,"sourceItemGeneration",sourceItemGeneration,"reasonCode",reason,"classification",classification,"automaticTransition",automatic,"userSeek",userSeek,"itemIndexChanged",oldPosition.mediaItemIndex!=newPosition.mediaItemIndex,"aliasChanged",!Objects.equals(oldAlias,nextAlias),"manualNextButtonObserved",false,"manualNextAttribution","not_exposed_by_media3_listener","deviceInteractive",screenInteractive(),"oldPositionMs",oldPosition.positionMs,"newPositionMs",newPosition.positionMs,"oldAlias",oldAlias,"nextAlias",nextAlias,"oldIndex",oldPosition.mediaItemIndex,"nextIndex",newPosition.mediaItemIndex));
@@ -215,7 +265,31 @@ public class ProbeService extends Service {
     }
     if(reason==Player.DISCONTINUITY_REASON_SEEK&&sessionRecheck.confirmFreshSeek(live,newPosition.positionMs,livePosition))
       LogStore.log("source_controller_freshness_confirmed",LogStore.map("reason","fresh_seek_event","alias",live,"audioCommandSent",false));
-     }});LogStore.log("media3_connected","direct service; no notification access");connectLegacyPosition();sample(true);}catch(Exception e){if(alive()&&connectGeneration==controllerGeneration){connectionStatus="Ожидаем Яндекс Музыку";long retryMs=Math.min(20000,1000L*Math.max(1,connectAttempt));if(LogStore.active)LogStore.log("media3_connect_result",LogStore.map("attempt",connectAttempt,"elapsedMs",SystemClock.elapsedRealtime()-connectStartedAt,"connected",false,"errorType",e.getClass().getSimpleName(),"causeType",e.getCause()==null?"":e.getCause().getClass().getSimpleName(),"retryMs",retryMs));LogStore.log("media3_connection_failed",LogStore.map("attempt",connectAttempt,"type",e.getClass().getSimpleName()));nextConnectAllowedAt=SystemClock.elapsedRealtime()+retryMs;handler.postDelayed(this::connect,retryMs);}}},handler::post);}catch(RuntimeException e){connectionStatus="Яндекс ещё не доступен";if(LogStore.active)LogStore.log("media3_connect_result",LogStore.map("attempt",connectAttempt,"elapsedMs",SystemClock.elapsedRealtime()-connectStartedAt,"connected",false,"errorType",e.getClass().getSimpleName(),"retryMs",5000));nextConnectAllowedAt=SystemClock.elapsedRealtime()+5000;handler.postDelayed(this::connect,5000);}}
+     }});LogStore.log("media3_connected","direct service; no notification access");
+     // Read-only inventory. Do NOT open a second MediaController: the Yandex
+     // service rejected it in Test.52. Services are not necessarily active.
+     try{
+      SessionToken liveToken=c.getConnectedToken();
+      LogStore.log("media3_actual_connected_session",LogStore.map(
+       "serviceRequested","com.yandex.music.shared.media.session.session.Media3LibraryService",
+       "sessionType",liveToken==null?-1:liveToken.getType(),
+       "sessionVersion",liveToken==null?-1:liveToken.getSessionVersion(),
+       "samePackage",liveToken!=null&&LogStore.PKG.equals(liveToken.getPackageName()),
+       "transportCommandSent",false));
+      java.util.ArrayList<String> knownYandexServices=new java.util.ArrayList<>();
+      for(SessionToken candidate:SessionToken.getAllServiceTokens(ProbeService.this)){
+       if(LogStore.PKG.equals(candidate.getPackageName()))
+        knownYandexServices.add(candidate.getServiceName()+"#"+candidate.getType());
+      }
+      LogStore.log("media3_readonly_service_inventory",LogStore.map(
+       "yandexServiceNamesAndTypes",knownYandexServices.toString(),
+       "count",knownYandexServices.size(),
+       "discoveredServicesNotNecessarilyActive",true,"transportCommandSent",false));
+     }catch(RuntimeException ex){
+      LogStore.log("media3_readonly_service_inventory_unavailable",LogStore.map(
+       "errorType",ex.getClass().getSimpleName(),"transportCommandSent",false));
+     }
+     connectLegacyPosition();sample(true);}catch(Exception e){if(alive()&&connectGeneration==controllerGeneration){connectionStatus="Ожидаем Яндекс Музыку";long retryMs=Math.min(20000,1000L*Math.max(1,connectAttempt));if(LogStore.active)LogStore.log("media3_connect_result",LogStore.map("attempt",connectAttempt,"elapsedMs",SystemClock.elapsedRealtime()-connectStartedAt,"connected",false,"errorType",e.getClass().getSimpleName(),"causeType",e.getCause()==null?"":e.getCause().getClass().getSimpleName(),"retryMs",retryMs));LogStore.log("media3_connection_failed",LogStore.map("attempt",connectAttempt,"type",e.getClass().getSimpleName()));nextConnectAllowedAt=SystemClock.elapsedRealtime()+retryMs;handler.postDelayed(this::connect,retryMs);}}},handler::post);}catch(RuntimeException e){connectionStatus="Яндекс ещё не доступен";if(LogStore.active)LogStore.log("media3_connect_result",LogStore.map("attempt",connectAttempt,"elapsedMs",SystemClock.elapsedRealtime()-connectStartedAt,"connected",false,"errorType",e.getClass().getSimpleName(),"retryMs",5000));nextConnectAllowedAt=SystemClock.elapsedRealtime()+5000;handler.postDelayed(this::connect,5000);}}
  final Runnable tick=new Runnable(){public void run(){if(!alive())return;long now=SystemClock.elapsedRealtime(),previousTick=lastTickAt;lastTickAt=now;tickCount++;if(LogStore.active&&(lastHeartbeatAt<0||now-lastHeartbeatAt>=15000)){lastHeartbeatAt=now;Map<String,Object> state=runtimeSnapshot("periodic_15s");state.put("previousTickGapMs",previousTick<0?-1:now-previousTick);LogStore.log("service_heartbeat",state);}if(wake!=null&&now-lastWakeRenewal>=60000){wake.acquire(90000);lastWakeRenewal=now;}NativeApi.get(ProbeService.this).refreshDiagnostics();sample(false);handler.postDelayed(this,250);}};
  Map<String,Object> runtimeSnapshot(String reason){
   long now=SystemClock.elapsedRealtime();ReplacementEngine e=replacement;PlaybackSource s=current;
@@ -352,7 +426,9 @@ public class ProbeService extends Service {
    albumProbe.publishCurrent();replacement.update(current);replacement.noteLookaheadCandidate(lookahead.next);
    long clock=SystemClock.elapsedRealtime();
    if(current.playing&&current.duration>0&&current.position>=current.duration){if(endReachedAt<0)endReachedAt=clock;if(clock-endReachedAt>=2000){LogStore.log("source_controller_refresh",LogStore.map("reason","item_stuck_at_end","alias",current.alias,"positionMs",current.position,"durationMs",current.duration));replacement.sourceBoundary("controller_stuck_at_end",null);current=null;controller=null;c.release();endReachedAt=-1;connect();return;}}else endReachedAt=-1;
-   if(clock-lastHealth>=5000){lastHealth=clock;LogStore.log("playback_health",LogStore.map("alias",current.alias,"sourcePositionMs",current.position,"durationMs",current.duration,"sourcePlaying",current.playing,"nativeState",nativeState,"playWhenReady",c.getPlayWhenReady(),"suppressionReason",c.getPlaybackSuppressionReason(),"mediaEventAgeMs",clock-lastMediaEvent,"replacementReady",replacement.ready,"replacementPreparing",replacement.preparing,"replacementArmed",replacement.armed(),"trackId",replacement.trackId,"method",replacement.method));}
+   if(clock-lastHealth>=5000){lastHealth=clock;LogStore.log("playback_health",LogStore.map("alias",current.alias,"sourcePositionMs",current.position,"durationMs",current.duration,"sourcePlaying",current.playing,"positionIsControllerEstimate",true,
+       "lastActualMedia3EventAgeMs",observedNow-lastMediaEvent,
+       "nativeState",nativeState,"playWhenReady",c.getPlayWhenReady(),"suppressionReason",c.getPlaybackSuppressionReason(),"mediaEventAgeMs",clock-lastMediaEvent,"replacementReady",replacement.ready,"replacementPreparing",replacement.preparing,"replacementArmed",replacement.armed(),"trackId",replacement.trackId,"method",replacement.method));}
    String key=current.key+"|"+c.isPlaying()+"|"+c.getPlaybackState()+"|"+c.getPlaybackParameters().speed;if(!key.equals(lastStateKey)||SystemClock.elapsedRealtime()-lastState>=10000){lastStateKey=key;lastState=SystemClock.elapsedRealtime();LogStore.log("player_state",LogStore.map("mediaAlias",item.mediaId,"title",title,"artist",artist,"durationMs",duration,"albumId",current.albumId,"positionMs",current.position,"isPlaying",current.playing,"playbackState",c.getPlaybackState(),"playWhenReady",c.getPlayWhenReady(),"suppressionReason",c.getPlaybackSuppressionReason(),"speed",current.speed,"interactive",getSystemService(PowerManager.class).isInteractive(),"availableOutputTypes",route()));}
   }catch(RuntimeException e){current=null;replacement.suspend("source_sample_failed",2000);if(LogStore.active)LogStore.log("player_sample_failure",LogStore.map("type",e.getClass().getSimpleName(),"controllerPresent",controller!=null,"controllerConnected",controller!=null&&controller.isConnected(),"mediaEventAgeMs",lastMediaEvent<=0?-1:SystemClock.elapsedRealtime()-lastMediaEvent));LogStore.error("player_sample",e);}}
  void sourceBoundary(String nextAlias,String reason){if(!alive()||replacement==null)return;if(!transitionGate.begin(nextAlias,SystemClock.elapsedRealtime()))return;sourceTransitionExpectedAlias=nextAlias;lastMediaEvent=SystemClock.elapsedRealtime();replacement.sourceBoundary(reason,nextAlias);reportLookahead(nextAlias,reason);current=null;lastStateKey="";endReachedAt=-1;}
