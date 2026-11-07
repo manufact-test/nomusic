@@ -1,3 +1,15 @@
+# ⚠️ АКТУАЛЬНО НА 07.11.2026 — ПАУЗА ДО ПЕРЕНОСА С HOSTINGER
+
+**ПЕРВЫМ ДЕЛОМ ЧИТАТЬ:** [ANDROID-2026-11-07-FREEZE-TEST50-ROOT-CAUSE-AND-HOST-MIGRATION.md](ANDROID-2026-11-07-FREEZE-TEST50-ROOT-CAUSE-AND-HOST-MIGRATION.md).
+
+**РЕШЕНИЕ ВЛАДЕЛЬЦА:** остановить Android-эксперименты и сохранить на этом месте. Единственная подтверждённая рабочая звуковая основа — **Test.50**, exact SHA `5d737d203a0b364b0cb4fd6886040b8bd0c6fbd1`, backup `backup/android-test50-exact-source-owner-accepted-20261106`. **Test.51, Test.52 и Test.53 не приняты; никаких новых алгоритмов из них не переносить.** Проблемные RASKOL («Нас не понимают вообще») и «Дым» остаются неуправляемыми/зависают, а Test.53 добавила ложное блокирование ранее работающих песен. Диагностика: `CELIKOM-combined-20261107-152610.txt`, видео: `SVID_20261107_152425_1.mp4`.
+
+**КЛЮЧИ ДЛЯ ПОСЛЕДУЮЩЕГО ИССЛЕДОВАНИЯ:** «Дым» после RASKOL остаётся в Media3 `BUFFERING=2 / playWhenReady=true / isPlaying=false`, но после других переходов может запускаться. Test.53 вызвала ложный `source_audio_quarantine_started` на «ты» около 46.22 с, поэтому нельзя применять счётчик анонимных аудиоплееров как доказательство смены композиции. Отдельно имеются `451 REGION_RESTRICTION` и `no_unique_candidate` в распознавании альбомов; не смешивать с буферизацией или Pause/Seek. Работать с несколькими треками/альбомом, а не двумя жёсткими исключениями. Не менять эталонный fade и звук Test.50.
+
+**ПЕРЕНОС СЕРВЕРА:** с Hostinger на новую платформу (ещё не определена). До завершения миграции и новой команды пользователя **не изменять код, не собирать новые APK, не деплоить, не менять Hostinger и stable**. Ветка `feature/android-0385-test50-rollback-package-20261107` — точный звук Test.50 с другим номером упаковки `test.54/code86140`, не новая функциональная ветка. Рабочую APK перепроверить отдельно до выдачи.
+
+---
+
 # Test.50 — remember NEXT during current prepare (2026-11-06)
 
 Baseline: Test.48 (not rejected Test.49). Input CELIKOM-combined-20261106-230322.txt, last run Test.49: 7 prefetch starts, 15 cold starts, 19 completed transitions; previous Test.48: 25 prefetch starts, 5 cold starts, 30 completed transitions. Distinct usage scenarios, not measured acoustic PCM.
