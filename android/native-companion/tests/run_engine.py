@@ -15,6 +15,8 @@ src.append(r/'Test43FadeRecovery.java')
 src.append(r/'Test44OwnerEndpoint.java')
 src.append(r/'Test47CurrentFirstStability.java')
 src.append(r/'Test48SourceEffectLease.java')
+src.append(addon/'SourceStateWatchdog.java')
+src.append(r/'Test51SourceControllerRetention.java')
 subprocess.run(['java','com.sun.tools.javac.Main','-encoding','UTF-8','-source','8','-target','8','-cp',str(json),'-d',str(out),*map(str,src)],check=True)
 subprocess.run(['java','-cp',str(out)+os.pathsep+str(json),'pro.celikom.nativeprobe.identitydiag.TestEngine'],check=True,timeout=45)
 
@@ -37,6 +39,10 @@ subprocess.run(['java','-cp',str(out)+os.pathsep+str(json),'pro.celikom.nativepr
 subprocess.run(['java','-cp',str(out)+os.pathsep+str(json),'pro.celikom.nativeprobe.identitydiag.Test45LongPrefetchHandoff'],check=True,timeout=45)
 subprocess.run(['java','-cp',str(out)+os.pathsep+str(json),'pro.celikom.nativeprobe.identitydiag.Test47CurrentFirstStability'],check=True,timeout=45)
 subprocess.run(['java','-cp',str(out)+os.pathsep+str(json),'pro.celikom.nativeprobe.identitydiag.Test48SourceEffectLease'],check=True,timeout=45)
+
+# Test.51: native BUFFERING must not detach a healthy Media3 controller.
+subprocess.run(['java','-cp',str(out)+os.pathsep+str(json),'pro.celikom.nativeprobe.identitydiag.Test51SourceControllerRetention'],check=True,timeout=45)
+subprocess.run(['python3',r/'check_0385_test51_controller_retention.py'],check=True)
 
 # Protect the owner-approved 0.3.78 local-cache startup and cached user-seek behavior.
 subprocess.run(['java','-cp',str(out)+os.pathsep+str(json),'pro.celikom.nativeprobe.identitydiag.TestCachedAudioRollback'],check=True,timeout=45)
