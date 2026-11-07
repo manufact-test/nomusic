@@ -27,7 +27,7 @@ public class TestSourceTransportOverride {
   check(!override.accept(live,source(42000,true,true,false),153676,seekTime+1000),"stale position cannot confirm a different seek target");
   check(override.active(),"rejected stale seek does not discard the last confirmed snapshot");
 
-  PlaybackSource other= new PlaybackSource("114","Other","Artist",200000,null,5000,true,true,1f,true,false);
+  PlaybackSource other= new PlaybackSource("114","Other","Artist",200000,null,5000,true,true,1f,true,false,1000L);
   check(override.apply(other,seekTime+1500)==other&&!override.active(),"track boundary clears prior transport override");
   PlaybackSource buffering=source(153676,false,true,true);
   check(override.accept(source(153676,true,true,false),buffering,-1,buffering.observed),"fresh buffering state is accepted distinctly from pause");
