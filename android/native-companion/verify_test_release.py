@@ -201,6 +201,8 @@ def main():
 
     with zipfile.ZipFile(args.apk) as apk:
         catalog = json.loads(apk.read("assets/catalog-diagnostic.json"))
+        if not isinstance(catalog, dict):
+            raise ValueError("Final APK catalogue snapshot root must be an object")
         catalog_tracks = catalog.get("tracks") if isinstance(catalog, dict) else None
         catalog_generated = catalog.get("generated_at_ms") if isinstance(catalog, dict) else None
         catalog_total = catalog.get("total_tracks") if isinstance(catalog, dict) else None
