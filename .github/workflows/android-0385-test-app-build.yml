@@ -103,7 +103,7 @@ jobs:
           if ! ssh -T -p 65002 -i "$RUNNER_TEMP/private/id_host" \
             -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
             -o UserKnownHostsFile="$RUNNER_TEMP/private/known_hosts" \
-            u235811320@92.113.19.189 'php -' \
+            u235811320@92.113.19.189 "php -r 'include \"php://stdin\";'" \
             < "$GITHUB_WORKSPACE/android/companion-probe/catalog-snapshot-remote.php" \
             > "$RUNNER_TEMP/private/catalog-diagnostic.json" \
             2> "$RUNNER_TEMP/private/catalog-snapshot.stderr"; then
