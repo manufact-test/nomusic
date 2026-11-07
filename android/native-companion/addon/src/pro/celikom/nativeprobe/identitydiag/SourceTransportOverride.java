@@ -32,7 +32,7 @@ final class SourceTransportOverride {
    snapshot=null;return live;
   }
   return new PlaybackSource(live,expected,snapshot.playing,snapshot.connected,
-    snapshot.speed,snapshot.wantsToPlay,snapshot.buffering);
+    snapshot.speed,snapshot.wantsToPlay,snapshot.buffering,now);
  }
 
  void clear(){snapshot=null;}
