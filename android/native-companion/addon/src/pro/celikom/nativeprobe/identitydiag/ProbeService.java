@@ -291,7 +291,7 @@ public class ProbeService extends Service {
       reason==Player.DISCONTINUITY_REASON_AUTO_TRANSITION,reason==Player.DISCONTINUITY_REASON_SEEK);
     if(decision==SourceEventArbiter.Action.IGNORE){
       if(boundary)LogStore.log("source_boundary_ignored",LogStore.map("reason","stale_position_transition","oldAlias",oldAlias,"eventNextAlias",nextAlias,"liveAlias",live,"currentAlias",active));
-      else if(reason==Player.DISCONTINUITY_REASON_SEEK){LogStore.log("source_seek_event_ignored",LogStore.map("reason","stale_or_unknown_controller_position","eventPositionMs",newPosition.positionMs,"controllerPositionMs",livePosition));if(!boundary&&Objects.equals(active,live)&&Objects.equals(live,nextAlias)&&Objects.equals(oldAlias,nextAlias)&&Math.abs(livePosition-newPosition.positionMs)>2000)probeTransportSnapshot("seek_discontinuity_disagreement",live,newPosition.positionMs);}
+      else if(reason==Player.DISCONTINUITY_REASON_SEEK){LogStore.log("source_seek_event_ignored",LogStore.map("reason","stale_or_unknown_controller_position","eventPositionMs",newPosition.positionMs,"controllerPositionMs",livePosition));if(!boundary&&newPosition.positionMs>=0&&Objects.equals(active,live)&&Objects.equals(live,nextAlias)&&Objects.equals(oldAlias,nextAlias)&&Math.abs(livePosition-newPosition.positionMs)>2000)probeTransportSnapshot("seek_discontinuity_disagreement",live,newPosition.positionMs);}
     }
     if(reason==Player.DISCONTINUITY_REASON_SEEK&&sessionRecheck.confirmFreshSeek(live,newPosition.positionMs,livePosition))
       LogStore.log("source_controller_freshness_confirmed",LogStore.map("reason","fresh_seek_event","alias",live,"audioCommandSent",false));
