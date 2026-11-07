@@ -43,6 +43,10 @@ assert "source_same_session_open_ignored" in service_source
 assert "getActivePlaybackConfigurations()" in service_source
 assert "probeTransportSnapshot(" in service_source
 assert "source_transport_probe_result" in service_source
+assert "identityPending" in (ROOT / "addon/src/pro/celikom/nativeprobe/identitydiag/ReplacementEngine.java").read_text(encoding="utf-8")
+assert "waiting_for_album_response" in (ROOT / "addon/src/pro/celikom/nativeprobe/identitydiag/ReplacementEngine.java").read_text(encoding="utf-8")
+assert "Не удалось однозначно определить песню. Играет оригинал" in (ROOT / "addon/src/pro/celikom/nativeprobe/identitydiag/AppPresentation.java").read_text(encoding="utf-8")
+assert "p.showTrack?safe(title)" in (ROOT / "addon/src/pro/celikom/nativeprobe/identitydiag/NotificationState.java").read_text(encoding="utf-8")
 assert "controllerRetained" in service_source
 assert "seek_discontinuity_disagreement" in service_source
 assert "SourceTransportOverride" in service_source
