@@ -9,6 +9,7 @@ public class TestAppPresentation {
   s.signed=true;p=AppPresentation.of(s);check(p.instruction.contains("Старт")&&!p.showTrack,"account login alone is not an audio connection");
   s.starting=true;p=AppPresentation.of(s);check(p.header.equals("Подключение…")&&!p.connected,"pending access cannot claim working playback");
   s.starting=false;s.running=true;s.enabled=true;p=AppPresentation.of(s);check(p.instruction.contains("Включите песню")&&!p.showTrack,"waiting for Yandex is a connection instruction");
+  s.sourceQuarantined=true;p=AppPresentation.of(s);check(p.header.equals("Оригинал")&&p.version.contains("оригинал")&&p.connected&&!p.showTrack,"stale Media3 quarantine is neither disconnection nor replacement");s.sourceQuarantined=false;
   s.source=true;s.identified=true;p=AppPresentation.of(s);check(p.instruction.contains("эквалайзер")&&!p.showTrack&&p.version.isEmpty(),"reported Ramil case: known metadata without audio connection displays only setup instruction");check(!p.header.equals("Работает")&&!p.connected,"arming is not proof of audio connection");
   s.session=true;s.playing=true;p=AppPresentation.of(s);check(p.instruction.equals("CELIKOM подключён. Можно пользоваться.")&&p.connected&&p.showTrack,"verified connection displays readiness and current song separately");check(!p.header.equals("Подмена активна"),"connected alone does not claim replacement is audible");
   s.identified=false;s.identityPending=true;p=AppPresentation.of(s);check(p.version.equals("Определяем песню…")&&!p.showTrack,"album request in progress is shown as pending");
@@ -18,7 +19,8 @@ public class TestAppPresentation {
   s.preparing=false;s.replacing=true;p=AppPresentation.of(s);check(p.header.equals("Подмена активна")&&p.version.equals("Играет версия CELIKOM"),"only actual replacement output shows active");
   s.playing=false;p=AppPresentation.of(s);check(p.header.equals("Подключён")&&p.version.equals("Пауза"),"pause retains connection without claiming playing");
   s.playing=true;s.seeking=true;p=AppPresentation.of(s);check(p.header.equals("Подключён")&&p.version.contains("Синхронизируем"),"seek is not rendered as audible playback");
-  s.seeking=false;s.replacing=false;s.missing=true;p=AppPresentation.of(s);check(p.connected&&p.version.contains("Играет оригинал"),"missing catalogue version is not a connection failure");
+  s.seeking=false;s.replacing=false;s.identified=true;s.playing=false;s.buffering=true;p=AppPresentation.of(s);check(p.version.contains("Яндекс загружает")&&!p.version.contains("Пауза"),"playWhenReady+BUFFERING is not user pause");s.buffering=false;s.playing=true;
+  s.missing=true;p=AppPresentation.of(s);check(p.connected&&p.version.contains("Играет оригинал"),"missing catalogue version is not a connection failure");
   s.missing=false;s.source=true;s.identified=true;s.playing=true;s.replacing=false;p=AppPresentation.of(s);check(!p.version.contains("Подтвердите"),"identified approved candidates do not require a confirmation prompt");
   s.source=false;p=AppPresentation.of(s);check(!p.showTrack&&!p.connected,"connection loss hides the last song");
   s.enabled=false;s.problem="Нет связи. Повторите «Старт».";p=AppPresentation.of(s);check(p.instruction.equals(s.problem)&&!p.showTrack,"start failures remain actionable, not hidden by prior metadata");
