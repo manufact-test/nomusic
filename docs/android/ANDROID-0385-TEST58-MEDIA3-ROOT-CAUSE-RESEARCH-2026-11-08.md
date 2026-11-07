@@ -37,3 +37,13 @@ Branch `feature/android-0385-test58-media3-evidence-only-20261108` создаё�
 - **Отдельно «Дым»:** STATE_BUFFERING расследовать как startup/transport дефект. Играющая подмена здесь не должна стартовать до подтверждённого READY. Test.57 one-shot seek0 не выполнялся; не повторять как будто проверен.
 
 **Стабильную ветку, эталон, текущие серверы, VPN и миграцию не менять.** После миграции на новый MCP стек перенести этот документ, Test.58 исходники и результаты CI; не копировать Hostinger secrets в репозиторий.
+
+## Build and Library — verified
+- CI: [GitHub Actions 42422777384](https://github.com/manufact-test/nomusic/actions/runs/42422777384), `native-android=success`, `build-test-app=success`.
+- Exact compiled source commit: `cbc3bf6a03e1f79ffb01cf7dc63be1c0d1117d70`.
+- Branch `feature/android-0385-test58-media3-evidence-only-20261108`, verified ahead of Test.50 with only 5 files modified: `ProbeService.java`, `test-app-spec.json`, safety test, two CI workflows. No edits to audio decoder, fade, DSP, backend, album matching or original music assets.
+- Signed `CELIKOM-Android-0.3.85-TEST-58-RAW-MEDIA3-EVIDENCE-SIGNED.apk`, versionCode `86144`, 8,833,177 bytes, SHA256 `c660e8a1cb824558c03b8f9c619c5e9b3e8d0a552dee4f2e82a771ada1ffb420`.
+- Signing certificate SHA256 `67fe81c56fac1c1d145344b69a0e3faf9005cf6607f4e26ca27d5926c3eefc4f`, matches original signed Test package; APK v3 signature verified; isolated `pro.celikom.nativeprobe.test`; no stable publication/OTA, no server writes.
+- **Library APK:** https://chatgpt.com/library?file_id=libfile_1e054ad111508191bdfd918e9bec7f0c&account_id=personal
+- Verification JSON `libfile_3b6872ab5ff08191942224ce3eb22dec`, signed build receipt `libfile_2658cdb6f7248191a8185a8d4cf16c5d`, both under `/CELIKOM/Android/Backups/`.
+- **Phone behavior not verified.** Test.58 intentionally does not fix Pause/Seek. ONE focused test only if owner agrees: RASKOL Pause/Seek then «Дым», export diagnostics, compare `media3_remote_event_evidence` with displayed UI; no need to test 20 songs. Test.58's service inventory might be empty if Android visibility limits service discovery.
