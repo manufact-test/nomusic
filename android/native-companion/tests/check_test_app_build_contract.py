@@ -49,7 +49,7 @@ assert "Не удалось однозначно определить песню
 assert "p.showTrack?safe(title)" in (ROOT / "addon/src/pro/celikom/nativeprobe/identitydiag/NotificationState.java").read_text(encoding="utf-8")
 assert "controllerRetained" in service_source
 watchdog_start = service_source.index("if(stateWatchdog.refresh(")
-watchdog_end = service_source.index("void recheckQuietSourceController", watchdog_start)
+watchdog_end = service_source.index("PlaybackSource previous=current;", watchdog_start)
 watchdog_source = service_source[watchdog_start:watchdog_end]
 assert 'probeTransportSnapshot("quiet_buffering"' in watchdog_source
 assert "controller=null" not in watchdog_source and "c.release()" not in watchdog_source
