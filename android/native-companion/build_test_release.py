@@ -450,7 +450,7 @@ def main():
         "TestPure", "TestHybrid", "TestContracts", "TestMobileActions",
         "TestAppPresentation", "TestNotifications", "TestDiagnosticArchive",
         "TestAudioTransfer", "TestBufferedAudio", "TestTransitionReadFence",
-        "TestTransitionRecovery", "TestRequestPacing", "TestSourceStateWatchdog",
+        "TestTransitionRecovery", "TestRequestPacing", "TestSourceStateWatchdog", "TestSourceActivityPauseFallback",
         "TestDiagnosticAccess", "TestIncidentLog", "TestPresencePreview",
         "TestDiagnosticRequest", "TestUpdateState", "TestLookaheadPrefetchPolicy",
         "TestLegacySourcePositionPolicy", "TestFastJoinPollPolicy",
