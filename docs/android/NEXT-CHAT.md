@@ -1,3 +1,9 @@
+## Android Test.51 — CI PASS + signed APK (2026-11-07)
+
+GitHub Actions run `42354535974`: full native Android host regression **PASS**, Android D8 / packaging contract **PASS**, signed side-by-side Test.51 build **PASS**. Signed artifact id `13566582735` (`CELIKOM-Test-0.3.85-test.51-code-86136`). Exact APK source commit `4ab21ebe6d0d2702662a22301e09f2036a78e32c`. Signed `CELIKOM-Android-0.3.85-TEST-51-SOURCE-CONTROLLER-RETENTION-SIGNED.apk`, SHA256 `e4e7c9f143f8c35af2315e9b40e84597afb29b50ec8da37122b899f923257fc4`; version `0.3.85-test.51`, package `pro.celikom.nativeprobe.test`, versionCode `86136`, original signing certificate matched, APK v3 signature verified; no stable publication. Test.50 frozen rollback remains exact. **Owner phone test NOT yet performed.** Test.51 ONLY corrects the forced reconnect on quiet Yandex buffering; Pause/Seek via Yandex UI remains unproved/unfixed because Media3 does not publish those gestures in the captured incident. Run URL: https://github.com/manufact-test/nomusic/actions/runs/42354535974 .
+
+---
+
 ## Android 0.3.85 Test.51 — verified screen recording + isolated controller-retention candidate (2026-11-07)
 
 Video and combined log reviewed. RASKOL/«Дым» show Yandex UI pause/seek ahead of authoritative Media3 state; decoder seek ACK 36–73 ms after publication, so **do not claim UI pause/seek repaired**. A separate, proven failure at 78.571 s is the *connected* controller being released for 3 s of normal Yandex buffering; subsequent reconnects get SecurityException until 93.778 s. Isolated Test.51 candidate on `feature/android-0385-test51-transport-controls-investigation-20261107` keeps the controller connected and logs quiet buffering instead. Strict Test.50 frozen rollback stays unchanged. Details: `docs/android/ANDROID-0385-TEST51-VIDEO-DIAGNOSTIC-2026-11-07.md`. Candidate must pass GitHub validation and signed build before offering an APK; physical device acceptance remains outstanding.
