@@ -15,9 +15,9 @@ import java.io.*;
 import java.util.*;
 /** Current-player observation only. No notification, Accessibility, library or account access to Yandex. */
 public class ProbeService extends Service {
- final String notificationRun=UUID.randomUUID().toString();String lastNotificationKey="";final SourceTransitionGate transitionGate=new SourceTransitionGate();final SourceSessionRecheck sessionRecheck=new SourceSessionRecheck();final SourceEventArbiter sourceArbiter=new SourceEventArbiter();final Media3SourceRouter media3Router=new Media3SourceRouter(sourceArbiter,new Media3SourceRouter.Sink(){public void boundary(String next,String reason){sourceBoundary(next,reason);}public void seekRequested(){if(replacement!=null)replacement.sourceSeekRequested();}});final SourceEventArbiter.LookaheadEvidence lookahead=new SourceEventArbiter.LookaheadEvidence();final SourceStateWatchdog stateWatchdog=new SourceStateWatchdog();final LegacySourcePositionPolicy legacyPositionPolicy=new LegacySourcePositionPolicy();android.media.browse.MediaBrowser legacyBrowser;android.media.session.MediaController legacyController;long lastLegacyDiagnosticAt=-1;boolean legacyPositionUnsafeLogged;boolean controllerSeen;long controllerGeneration,lastMediaEvent,lastHealth,endReachedAt=-1,sourceEventSequence,sourceItemGeneration;String sourceItemAlias;
+ final String notificationRun=UUID.randomUUID().toString();String lastNotificationKey="";final SourceTransitionGate transitionGate=new SourceTransitionGate();final SourceSessionRecheck sessionRecheck=new SourceSessionRecheck();final SourceEventArbiter sourceArbiter=new SourceEventArbiter();final Media3SourceRouter media3Router=new Media3SourceRouter(sourceArbiter,new Media3SourceRouter.Sink(){public void boundary(String next,String reason){sourceBoundary(next,reason);}public void seekRequested(){if(replacement!=null)replacement.sourceSeekRequested();}});final SourceEventArbiter.LookaheadEvidence lookahead=new SourceEventArbiter.LookaheadEvidence();final SourceStateWatchdog stateWatchdog=new SourceStateWatchdog();final SourceActivityProbePolicy sourceActivityProbePolicy=new SourceActivityProbePolicy();final SourceTransportOverride sourceTransportOverride=new SourceTransportOverride();final LegacySourcePositionPolicy legacyPositionPolicy=new LegacySourcePositionPolicy();android.media.browse.MediaBrowser legacyBrowser;android.media.session.MediaController legacyController;long lastLegacyDiagnosticAt=-1;boolean legacyPositionUnsafeLogged;boolean controllerSeen;long controllerGeneration,lastMediaEvent,lastHealth,endReachedAt=-1,sourceEventSequence,sourceItemGeneration;String sourceItemAlias;
  static ProbeService instance;final Handler handler=new Handler(Looper.getMainLooper());long serviceCreatedAt=-1,lastTickAt=-1,lastSampleAt=-1,lastHeartbeatAt=-1,lastNetworkAvailableAt=-1,lastNetworkLostAt=-1;int tickCount,sampleCount;
- volatile PlaybackSource current;AlbumProbe albumProbe;ReplacementEngine replacement;androidx.media3.session.MediaController controller;ListenableFuture<androidx.media3.session.MediaController> connecting,sourceProbe;PowerManager.WakeLock wake;boolean receiverRegistered,stopping,networkRegistered,networkSeen;ConnectivityManager connectivity;long lastWakeRenewal,lastState,lastConnectAttempt=-5000,nextConnectAllowedAt=-1,emptySince=-1,lastLookaheadPoll=-2000;int sourceProbeFailures;volatile String observedNextAlias,sourceTransitionExpectedAlias;String lastLookaheadSource,lastLookaheadCandidate,lastLookaheadSignature,lastLookaheadMetadataSignature;int lookaheadMetadataSamples,attempts;String lastStateKey="",connectionStatus="Подключаемся к Яндексу…",lastRoutes="";
+ volatile PlaybackSource current;AlbumProbe albumProbe;ReplacementEngine replacement;androidx.media3.session.MediaController controller;ListenableFuture<androidx.media3.session.MediaController> connecting,sourceProbe,transportProbe;long lastTransportProbeAt=-1;PowerManager.WakeLock wake;boolean receiverRegistered,stopping,networkRegistered,networkSeen;ConnectivityManager connectivity;long lastWakeRenewal,lastState,lastConnectAttempt=-5000,nextConnectAllowedAt=-1,emptySince=-1,lastLookaheadPoll=-2000;int sourceProbeFailures;volatile String observedNextAlias,sourceTransitionExpectedAlias;String lastLookaheadSource,lastLookaheadCandidate,lastLookaheadSignature,lastLookaheadMetadataSignature;int lookaheadMetadataSamples,attempts;String lastStateKey="",connectionStatus="Подключаемся к Яндексу…",lastRoutes="";
  boolean alive(){return instance==this&&!stopping;}
  public void onCreate(){super.onCreate();LogStore.init(this);serviceCreatedAt=SystemClock.elapsedRealtime();}
  public IBinder onBind(Intent i){return null;}
@@ -151,6 +151,80 @@ public class ProbeService extends Service {
      "connected",false,"type",error.getClass().getSimpleName(),"oldControllerRetained",true));
   }
  }
+ int activeMediaPlayerCount(){
+  if(Build.VERSION.SDK_INT<26)return -1;
+  try{
+   AudioManager manager=getSystemService(AudioManager.class);if(manager==null)return -1;
+   List<AudioPlaybackConfiguration> configs=manager.getActivePlaybackConfigurations();int media=0;
+   if(configs!=null)for(AudioPlaybackConfiguration config:configs)
+    if(config!=null&&config.getAudioAttributes()!=null
+      &&config.getAudioAttributes().getUsage()==AudioAttributes.USAGE_MEDIA)media++;
+   return media;
+  }catch(RuntimeException error){
+   LogStore.log("platform_audio_activity_unavailable",LogStore.map("reason",error.getClass().getSimpleName()));
+   return -1;
+  }
+ }
+
+ /** Obtain a second read-only snapshot without releasing the working controller.
+  * It can reconcile pause/resume or a seek callback whose live cursor is stale. */
+ void probeTransportSnapshot(String reason,String expectedAlias,long expectedPositionMs){
+  if(!alive()||expectedAlias==null||expectedAlias.trim().isEmpty()||transportProbe!=null)return;
+  long now=SystemClock.elapsedRealtime();
+  if(lastTransportProbeAt>=0&&now-lastTransportProbeAt<1000)return;
+  PlaybackSource base=current;
+  if(base==null||!Objects.equals(base.alias,expectedAlias))return;
+  androidx.media3.session.MediaController primary=controller;
+  if(primary==null||!primary.isConnected())return;
+  lastTransportProbeAt=now;
+  LogStore.log("source_transport_probe_requested",LogStore.map("reason",reason,"alias",expectedAlias,"expectedPositionMs",expectedPositionMs,"activeMediaPlayers",activeMediaPlayerCount(),"primaryControllerRetained",true,"transportCommandSent",false));
+  try{
+   SessionToken token=new SessionToken(this,new ComponentName(LogStore.PKG,
+     "com.yandex.music.shared.media.session.session.Media3LibraryService"));
+   final ListenableFuture<androidx.media3.session.MediaController> future=
+     new androidx.media3.session.MediaController.Builder(this,token).buildAsync();
+   transportProbe=future;
+   handler.postDelayed(()->{if(transportProbe==future&&!future.isDone())future.cancel(false);},4000);
+   future.addListener(()->{
+    if(transportProbe==future)transportProbe=null;
+    androidx.media3.session.MediaController fresh=null;
+    try{
+     fresh=future.get();
+     if(!alive())return;
+     PlaybackSource live=current;
+     MediaItem item=fresh.getCurrentMediaItem();
+     String alias=item==null?null:item.mediaId;
+     if(live==null||!Objects.equals(live.alias,expectedAlias)||!Objects.equals(alias,expectedAlias)){
+      sourceActivityProbePolicy.probeCompleted(sourceTransportOverride.active(),SystemClock.elapsedRealtime());
+      LogStore.log("source_transport_probe_result",LogStore.map("reason",reason,"connected",true,"accepted",false,"sameAlias",false,"freshAlias",alias,"primaryControllerRetained",true,"transportCommandSent",false));
+      return;
+     }
+     long position=fresh.getCurrentPosition();
+     if(position<0||position>live.duration+2000||(expectedPositionMs>=0&&Math.abs(position-expectedPositionMs)>SourceTransportOverride.SEEK_CONFIRM_MS)){
+      sourceActivityProbePolicy.probeCompleted(sourceTransportOverride.active(),SystemClock.elapsedRealtime());
+      LogStore.log("source_transport_probe_result",LogStore.map("reason",reason,"connected",true,"accepted",false,"sameAlias",true,"freshPositionMs",position,"expectedPositionMs",expectedPositionMs,"primaryControllerRetained",true,"transportCommandSent",false));
+      return;
+     }
+     int state=fresh.getPlaybackState();boolean wants=fresh.getPlayWhenReady(),playing=fresh.isPlaying();
+     boolean buffering=state==Player.STATE_BUFFERING&&wants;float speed=fresh.getPlaybackParameters().speed;
+     PlaybackSource snapshot=new PlaybackSource(live,position,playing,live.connected,speed,wants,buffering);
+     boolean accepted=sourceTransportOverride.accept(live,snapshot,expectedPositionMs,SystemClock.elapsedRealtime());
+     PlaybackSource effective=sourceTransportOverride.apply(live,SystemClock.elapsedRealtime());
+     current=effective;
+     sourceActivityProbePolicy.probeCompleted(sourceTransportOverride.active(),SystemClock.elapsedRealtime());
+     if(replacement!=null)replacement.update(effective);
+     LogStore.log("source_transport_probe_result",LogStore.map("reason",reason,"connected",true,"accepted",accepted,"sameAlias",true,"freshPositionMs",position,"freshIsPlaying",playing,"freshPlayWhenReady",wants,"freshPlaybackState",state,"overrideActive",sourceTransportOverride.active(),"primaryControllerRetained",true,"yandexTransportCommandSent",false));
+    }catch(Exception error){
+     sourceActivityProbePolicy.probeCompleted(sourceTransportOverride.active(),SystemClock.elapsedRealtime());
+     LogStore.log("source_transport_probe_result",LogStore.map("reason",reason,"connected",false,"type",error.getClass().getSimpleName(),"causeType",error.getCause()==null?"":error.getCause().getClass().getSimpleName(),"primaryControllerRetained",true,"yandexTransportCommandSent",false));
+    }finally{if(fresh!=null)try{fresh.release();}catch(RuntimeException ignored){}}
+   },handler::post);
+  }catch(RuntimeException error){
+   sourceActivityProbePolicy.probeCompleted(sourceTransportOverride.active(),SystemClock.elapsedRealtime());
+   LogStore.log("source_transport_probe_result",LogStore.map("reason",reason,"connected",false,"type",error.getClass().getSimpleName(),"primaryControllerRetained",true,"yandexTransportCommandSent",false));
+  }
+ }
+
  /* Public API26 playback trace. Other applications are anonymized and cannot be identified.
    Counts are diagnostics only; never infer source seek/pause or issue audio commands. */
  AudioManager.AudioPlaybackCallback playbackActivityObserver;
@@ -211,7 +285,7 @@ public class ProbeService extends Service {
       reason==Player.DISCONTINUITY_REASON_AUTO_TRANSITION,reason==Player.DISCONTINUITY_REASON_SEEK);
     if(decision==SourceEventArbiter.Action.IGNORE){
       if(boundary)LogStore.log("source_boundary_ignored",LogStore.map("reason","stale_position_transition","oldAlias",oldAlias,"eventNextAlias",nextAlias,"liveAlias",live,"currentAlias",active));
-      else if(reason==Player.DISCONTINUITY_REASON_SEEK)LogStore.log("source_seek_event_ignored",LogStore.map("reason","stale_or_unknown_controller_position","eventPositionMs",newPosition.positionMs,"controllerPositionMs",livePosition));
+      else if(reason==Player.DISCONTINUITY_REASON_SEEK){LogStore.log("source_seek_event_ignored",LogStore.map("reason","stale_or_unknown_controller_position","eventPositionMs",newPosition.positionMs,"controllerPositionMs",livePosition));if(!boundary&&Objects.equals(active,live)&&Objects.equals(live,nextAlias)&&Objects.equals(oldAlias,nextAlias)&&Math.abs(livePosition-newPosition.positionMs)>2000)probeTransportSnapshot("seek_discontinuity_disagreement",live,newPosition.positionMs);}
     }
     if(reason==Player.DISCONTINUITY_REASON_SEEK&&sessionRecheck.confirmFreshSeek(live,newPosition.positionMs,livePosition))
       LogStore.log("source_controller_freshness_confirmed",LogStore.map("reason","fresh_seek_event","alias",live,"audioCommandSent",false));
@@ -339,12 +413,19 @@ public class ProbeService extends Service {
    if(nativeState==Player.STATE_ENDED||nativeState==Player.STATE_IDLE){if(current!=null||replacement.player!=null)sourceBoundary(null,"native_stopped");current=null;replacement.update(null);return;}
    long observedNow=SystemClock.elapsedRealtime();
    if(stateWatchdog.refresh(item.mediaId,nativeState,c.isPlaying(),observedNow-lastMediaEvent,observedNow)){
-    LogStore.log("source_controller_refresh",LogStore.map("reason","quiet_buffering_snapshot","alias",item.mediaId,"nativeState",nativeState,"playWhenReady",c.getPlayWhenReady(),"suppressionReason",c.getPlaybackSuppressionReason(),"positionMs",c.getCurrentPosition(),"mediaEventAgeMs",observedNow-lastMediaEvent,"transportCommandSent",false));
-    current=null;controller=null;stateWatchdog.reset();replacement.update(null);c.release();connect();return;
+    LogStore.log("source_controller_snapshot_probe",LogStore.map("reason","quiet_buffering_snapshot","alias",item.mediaId,"nativeState",nativeState,"playWhenReady",c.getPlayWhenReady(),"suppressionReason",c.getPlaybackSuppressionReason(),"positionMs",c.getCurrentPosition(),"mediaEventAgeMs",observedNow-lastMediaEvent,"controllerRetained",true,"transportCommandSent",false));
+    probeTransportSnapshot("quiet_buffering",item.mediaId,-1);
    }
-   emptySince=-1;if(duration<=0||title.trim().isEmpty()){current=null;replacement.update(null);return;}long sampledPosition=c.getCurrentPosition();boolean fenced=sessionRecheck.awaitingFreshSource;if(!sessionRecheck.accept(item.mediaId,sampledPosition,observedNow)){current=null;replacement.update(null);return;}if(fenced)LogStore.log("source_controller_freshness_confirmed",LogStore.map("reason","new_controller_metadata","alias",item.mediaId,"positionMs",sampledPosition,"audioCommandSent",false));if(sourceItemAlias==null||(current==null&&!Objects.equals(sourceItemAlias,item.mediaId))){sourceItemGeneration++;sourceItemAlias=item.mediaId;}LegacySourcePositionPolicy.Decision legacy=legacyPosition(item.mediaId,title,artist,duration,sampledPosition,c.isPlaying());if(legacy.failClosed){if(!legacyPositionUnsafeLogged){legacyPositionUnsafeLogged=true;LogStore.log("source_seek_platform_fail_closed",LogStore.map("alias",item.mediaId,"originalRetained",true));}replacement.suspend("legacy_position_unverified",2000);replacement.update(null);return;}legacyPositionUnsafeLogged=false;if(legacy.newRecovery)replacement.sourceSeekRequested();PlaybackSource previous=current;current=new PlaybackSource(item.mediaId,title,artist,duration,cover,legacy.override?legacy.position:sampledPosition,c.isPlaying(),c.getDeviceInfo().playbackType==DeviceInfo.PLAYBACK_TYPE_LOCAL,c.getPlaybackParameters().speed,c.getPlayWhenReady(),nativeState==Player.STATE_BUFFERING);sourceTransitionExpectedAlias=null;if(previous!=null&&!previous.key.equals(current.key)){reportLookahead(current.alias,"sample_track_changed");replacement.sourceChanged(previous,current);}
+   emptySince=-1;if(duration<=0||title.trim().isEmpty()){current=null;replacement.update(null);return;}long sampledPosition=c.getCurrentPosition();boolean fenced=sessionRecheck.awaitingFreshSource;if(!sessionRecheck.accept(item.mediaId,sampledPosition,observedNow)){current=null;replacement.update(null);return;}if(fenced)LogStore.log("source_controller_freshness_confirmed",LogStore.map("reason","new_controller_metadata","alias",item.mediaId,"positionMs",sampledPosition,"audioCommandSent",false));if(sourceItemAlias==null||(current==null&&!Objects.equals(sourceItemAlias,item.mediaId))){sourceItemGeneration++;sourceItemAlias=item.mediaId;}LegacySourcePositionPolicy.Decision legacy=legacyPosition(item.mediaId,title,artist,duration,sampledPosition,c.isPlaying());if(legacy.failClosed){if(!legacyPositionUnsafeLogged){legacyPositionUnsafeLogged=true;LogStore.log("source_seek_platform_fail_closed",LogStore.map("alias",item.mediaId,"originalRetained",true));}replacement.suspend("legacy_position_unverified",2000);replacement.update(null);return;}legacyPositionUnsafeLogged=false;if(legacy.newRecovery)replacement.sourceSeekRequested();PlaybackSource previous=current;PlaybackSource liveSource=new PlaybackSource(item.mediaId,title,artist,duration,cover,legacy.override?legacy.position:sampledPosition,c.isPlaying(),c.getDeviceInfo().playbackType==DeviceInfo.PLAYBACK_TYPE_LOCAL,c.getPlaybackParameters().speed,c.getPlayWhenReady(),nativeState==Player.STATE_BUFFERING);current=liveSource;sourceTransitionExpectedAlias=null;if(previous!=null&&!previous.key.equals(current.key)){reportLookahead(current.alias,"sample_track_changed");replacement.sourceChanged(previous,current);}
    else if(previous!=null&&SourceTransitionGate.outgoingItemReset(previous.alias,current.alias,previous.position,previous.duration,current.position,previous.playing,current.playing,c.getPlayWhenReady(),nativeState==Player.STATE_BUFFERING))
       replacement.outgoingTrackReset(previous);
+   int activeMediaPlayers=activeMediaPlayerCount();boolean replacementPlaying=false,replacementAudible=false;
+   try{replacementPlaying=replacement!=null&&replacement.player!=null&&replacement.player.isPlaying();replacementAudible=replacementPlaying&&replacement.armed()&&replacement.ready&&replacement.effect!=null&&replacement.effect.hasControl()&&replacement.commandedReplacementVolume>0.01f&&!replacement.fading;}catch(RuntimeException ignored){}
+   PlaybackSource effectiveSource=sourceTransportOverride.apply(liveSource,observedNow);
+   SourceActivityProbePolicy.Action transportAction=sourceActivityProbePolicy.sample(liveSource.alias,liveSource.playing,liveSource.wantsToPlay,liveSource.buffering,replacementPlaying,replacementAudible,activeMediaPlayers,sourceTransportOverride.active(),observedNow);
+   if(transportAction==SourceActivityProbePolicy.Action.PROBE_PAUSE)probeTransportSnapshot("audio_activity_pause",liveSource.alias,-1);
+   else if(transportAction==SourceActivityProbePolicy.Action.PROBE_RESUME)probeTransportSnapshot("audio_activity_resume",liveSource.alias,-1);
+   current=effectiveSource;
    albumProbe.observe(item.mediaId,title,artist,duration,cover);
    // Prioritize the audible song before speculative successor metadata.
    sampleLookahead(c,item);
@@ -355,7 +436,7 @@ public class ProbeService extends Service {
    if(clock-lastHealth>=5000){lastHealth=clock;LogStore.log("playback_health",LogStore.map("alias",current.alias,"sourcePositionMs",current.position,"durationMs",current.duration,"sourcePlaying",current.playing,"nativeState",nativeState,"playWhenReady",c.getPlayWhenReady(),"suppressionReason",c.getPlaybackSuppressionReason(),"mediaEventAgeMs",clock-lastMediaEvent,"replacementReady",replacement.ready,"replacementPreparing",replacement.preparing,"replacementArmed",replacement.armed(),"trackId",replacement.trackId,"method",replacement.method));}
    String key=current.key+"|"+c.isPlaying()+"|"+c.getPlaybackState()+"|"+c.getPlaybackParameters().speed;if(!key.equals(lastStateKey)||SystemClock.elapsedRealtime()-lastState>=10000){lastStateKey=key;lastState=SystemClock.elapsedRealtime();LogStore.log("player_state",LogStore.map("mediaAlias",item.mediaId,"title",title,"artist",artist,"durationMs",duration,"albumId",current.albumId,"positionMs",current.position,"isPlaying",current.playing,"playbackState",c.getPlaybackState(),"playWhenReady",c.getPlayWhenReady(),"suppressionReason",c.getPlaybackSuppressionReason(),"speed",current.speed,"interactive",getSystemService(PowerManager.class).isInteractive(),"availableOutputTypes",route()));}
   }catch(RuntimeException e){current=null;replacement.suspend("source_sample_failed",2000);if(LogStore.active)LogStore.log("player_sample_failure",LogStore.map("type",e.getClass().getSimpleName(),"controllerPresent",controller!=null,"controllerConnected",controller!=null&&controller.isConnected(),"mediaEventAgeMs",lastMediaEvent<=0?-1:SystemClock.elapsedRealtime()-lastMediaEvent));LogStore.error("player_sample",e);}}
- void sourceBoundary(String nextAlias,String reason){if(!alive()||replacement==null)return;if(!transitionGate.begin(nextAlias,SystemClock.elapsedRealtime()))return;sourceTransitionExpectedAlias=nextAlias;lastMediaEvent=SystemClock.elapsedRealtime();replacement.sourceBoundary(reason,nextAlias);reportLookahead(nextAlias,reason);current=null;lastStateKey="";endReachedAt=-1;}
+ void sourceBoundary(String nextAlias,String reason){if(!alive()||replacement==null)return;if(!transitionGate.begin(nextAlias,SystemClock.elapsedRealtime()))return;sourceTransportOverride.clear();sourceActivityProbePolicy.reset();sourceTransitionExpectedAlias=nextAlias;lastMediaEvent=SystemClock.elapsedRealtime();replacement.sourceBoundary(reason,nextAlias);reportLookahead(nextAlias,reason);current=null;lastStateKey="";endReachedAt=-1;}
  void noteSourceBoundary(String nextAlias){sourceItemGeneration++;sourceItemAlias=nextAlias;}
  /* Read-only Media3 next-item feasibility. No audio, API or prefetch operations. */
  void sampleLookahead(androidx.media3.session.MediaController c,MediaItem item){
@@ -439,7 +520,7 @@ public class ProbeService extends Service {
  void beginTrial(){if(replacement==null)return;stopService(new Intent().setClassName(this,"pro.celikom.nativeprobe.AttenuationService"));if(Build.VERSION.SDK_INT>=34)try{startForeground(220,notification(),ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE|ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK);}catch(RuntimeException e){replacement.status="Android не разрешил запустить воспроизведение";return;}replacement.arm();}
  static void refreshSessions(){ProbeService p=instance;if(p!=null)p.handler.post(p::sampleNow);}
  void sampleNow(){sample(true);}
- void finish(String reason){if(stopping)return;if(LogStore.active){Map<String,Object> state=runtimeSnapshot("service_finish_requested");state.put("finishReason",reason);LogStore.log("service_finish_requested",state);}stopping=true;if(sourceProbe!=null)sourceProbe.cancel(false);stopPlaybackActivityObserver();handler.removeCallbacksAndMessages(null);if(wake!=null&&wake.isHeld())wake.release();if(replacement!=null)replacement.close();if(albumProbe!=null)albumProbe.close();LogStore.end(reason);stopForeground(STOP_FOREGROUND_REMOVE);stopSelf();}
+ void finish(String reason){if(stopping)return;if(LogStore.active){Map<String,Object> state=runtimeSnapshot("service_finish_requested");state.put("finishReason",reason);LogStore.log("service_finish_requested",state);}stopping=true;if(sourceProbe!=null)sourceProbe.cancel(false);if(transportProbe!=null)transportProbe.cancel(false);sourceTransportOverride.clear();sourceActivityProbePolicy.reset();stopPlaybackActivityObserver();handler.removeCallbacksAndMessages(null);if(wake!=null&&wake.isHeld())wake.release();if(replacement!=null)replacement.close();if(albumProbe!=null)albumProbe.close();LogStore.end(reason);stopForeground(STOP_FOREGROUND_REMOVE);stopSelf();}
  public void onTaskRemoved(Intent root){if(LogStore.active){Map<String,Object> state=runtimeSnapshot("task_removed");LogStore.log("service_task_removed",state);}LogStore.log("task_removed","foreground playback retained until explicit Stop or Android service destruction");}
- public void onDestroy(){if(LogStore.active){Map<String,Object> state=runtimeSnapshot("service_destroying");LogStore.log("service_destroying",state);}stopping=true;stopPlaybackActivityObserver();if(replacement!=null)replacement.close();if(albumProbe!=null)albumProbe.close();LogStore.end("service_destroyed");if(networkRegistered)try{connectivity.unregisterNetworkCallback(networkCallback);}catch(RuntimeException ignored){}handler.removeCallbacksAndMessages(null);disconnectLegacyPosition();if(connecting!=null)connecting.cancel(false);if(controller!=null)controller.release();controller=null;current=null;if(receiverRegistered)try{unregisterReceiver(audio);}catch(RuntimeException ignored){}if(wake!=null&&wake.isHeld())wake.release();if(instance==this)instance=null;super.onDestroy();}
+ public void onDestroy(){if(LogStore.active){Map<String,Object> state=runtimeSnapshot("service_destroying");LogStore.log("service_destroying",state);}stopping=true;stopPlaybackActivityObserver();if(replacement!=null)replacement.close();if(albumProbe!=null)albumProbe.close();LogStore.end("service_destroyed");if(networkRegistered)try{connectivity.unregisterNetworkCallback(networkCallback);}catch(RuntimeException ignored){}handler.removeCallbacksAndMessages(null);disconnectLegacyPosition();if(connecting!=null)connecting.cancel(false);if(transportProbe!=null)transportProbe.cancel(false);sourceTransportOverride.clear();sourceActivityProbePolicy.reset();if(controller!=null)controller.release();controller=null;current=null;if(receiverRegistered)try{unregisterReceiver(audio);}catch(RuntimeException ignored){}if(wake!=null&&wake.isHeld())wake.release();if(instance==this)instance=null;super.onDestroy();}
 }
