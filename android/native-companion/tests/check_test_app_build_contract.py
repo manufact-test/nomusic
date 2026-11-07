@@ -16,9 +16,9 @@ verifier = (ROOT / "verify_test_release.py").read_text(encoding="utf-8")
 assert spec["package"] == "pro.celikom.nativeprobe.test"
 assert spec["stable_package"] == "pro.celikom.nativeprobe"
 assert spec["label"] == "CELIKOM Test"
-assert spec["version"] == "0.3.85-test.50"
-assert spec["version_code"] == 86135
-assert spec["apk_filename"] == "CELIKOM-Android-0.3.85-TEST-50-DEFERRED-LOOKAHEAD-SIGNED.apk"
+assert spec["version"] == "0.3.85-test.58"
+assert spec["version_code"] == 86144
+assert spec["apk_filename"] == "CELIKOM-Android-0.3.85-TEST-58-RAW-MEDIA3-EVIDENCE-SIGNED.apk"
 assert spec["signing_certificate_sha256"] == "67fe81c56fac1c1d145344b69a0e3faf9005cf6607f4e26ca27d5926c3eefc4f"
 assert spec["test_permission"].startswith(spec["package"] + ".")
 assert spec["file_provider_authority"].startswith(spec["package"] + ".")
@@ -40,6 +40,25 @@ service_source = (ROOT / "addon/src/pro/celikom/nativeprobe/identitydiag/ProbeSe
 assert "new ReplacementEngine(this,true,true,false)" in service_source
 assert "recheckQuietSourceController(session);" not in service_source
 assert "source_same_session_open_ignored" in service_source
+# Read-only Media3 freshness instrumentation; no touch to Yandex transport.
+assert "media3_remote_event_evidence" in service_source
+assert "media3_raw_play_when_ready" in service_source
+assert "media3_raw_is_playing" in service_source
+assert "media3_raw_playback_state" in service_source
+assert "media3_raw_available_commands" in service_source
+assert "media3_readonly_service_inventory" in service_source
+assert "media3_actual_connected_session" in service_source
+assert "positionIsControllerEstimate" in service_source
+assert "positionExtrapolatedByController" in service_source
+start = service_source.index('c.addListener(new Player.Listener(){public void onEvents(')
+end = service_source.index('public void onTimelineChanged(', start)
+diagnostic_listener = service_source[start:end]
+for forbidden in ('.play()', '.pause()', '.seekTo(', 'c.release()', 'controller=null', 'connect();', 'replacement.update('):
+    assert forbidden not in diagnostic_listener, "Media3 evidence callbacks must never control audio: " + forbidden
+assert "sourceAudioQuarantine" not in service_source
+assert "SourceActivityPauseFallback" not in service_source
+assert "StalledStartRecoveryPolicy" not in service_source
+
 assert "replacement.adaptiveJoinExperiment=true;" in service_source
 assert "replacement.retainSessionEffectBetweenTracksExperiment=true;" in service_source
 assert "Test48SourceEffectLease.java" in (ROOT / "tests/run_engine.py").read_text(encoding="utf-8")
