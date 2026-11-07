@@ -7,11 +7,13 @@ public class TestNotifications {
   s.starting=false;n=state(s,false,false,true,false);check(n.text.contains("Войдите")&&!n.suggest,"logged-out actions cannot suggest songs");
   s.signed=true;s.running=true;n=state(s,false,false,true,false);check(n.text.contains("выключена")&&!n.suggest,"manual bypass retains an honest original status");
   s.enabled=true;n=state(s,false,false,true,false);check(n.text.contains("Включите песню")&&!n.suggest,"initial wait is not called a disconnect");n=state(s,true,false,true,false);check(n.text.contains("Потеряна связь")&&!n.suggest,"transport loss is distinguishable from absence of a replacement");
+  s.sourceQuarantined=true;n=state(s,false,false,true,false);check(n.text.contains("ждём подтверждения")&&!n.suggest&&n.title.contains("оригинал"),"quarantined stale Yandex state shows safe original, not disconnected");s.sourceQuarantined=false;
   s.source=true;s.identified=true;s.playing=true;n=state(s,false,false,true,false);check(n.title.contains("требуется подключение")&&!n.title.contains("Песня")&&!n.suggest,"unverified audio session shows setup, not stale metadata");
   s.session=true;s.missing=true;n=state(s,false,false,true,false);check(n.title.equals("Песня — Исполнитель")&&n.text.contains("нет замены")&&n.suggest,"current exact song without a replacement exposes Suggest");
   check(!state(s,false,false,false,false).suggest,"metadata/fallback target cannot be submitted as an exact song");check(!state(s,false,false,true,true).suggest,"existing replacement hides redundant Suggest");
   s.missing=false;s.replacing=true;n=state(s,false,false,true,true);check(n.text.equals("Играет версия CELIKOM")&&!n.suggest,"actual replacement is reported as active");
   s.playing=false;n=state(s,false,false,true,true);check(n.text.equals("Пауза")&&!n.suggest,"pause is not called a disconnect");
+  s.replacing=false;s.buffering=true;n=state(s,false,false,true,true);check(n.text.contains("Яндекс загружает")&&!n.text.equals("Пауза"),"buffering never mislabelled pause");s.buffering=false;
   s.replacing=false;s.missing=true;n=state(s,false,false,true,false);check(n.text.contains("Пауза")&&n.text.contains("нет замены")&&n.suggest,"a paused exact missing song remains suggestible");
   s.playing=true;s.preparing=true;n=state(s,false,false,true,false);check(!n.suggest,"preparing audio cannot expose a conflicting contribution action");
   s.preparing=false;s.missing=false;s.seeking=true;n=state(s,false,false,true,true);check(n.text.contains("Синхронизируем")&&!n.suggest,"seek status is distinct from connection loss");
