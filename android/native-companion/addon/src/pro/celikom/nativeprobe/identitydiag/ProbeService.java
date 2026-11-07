@@ -418,7 +418,7 @@ public class ProbeService extends Service {
    else if(previous!=null&&SourceTransitionGate.outgoingItemReset(previous.alias,current.alias,previous.position,previous.duration,current.position,previous.playing,current.playing,c.getPlayWhenReady(),nativeState==Player.STATE_BUFFERING))
       replacement.outgoingTrackReset(previous);
    int activeMediaPlayers=activeMediaPlayerCount();boolean replacementPlaying=false,replacementAudible=false;
-   try{replacementPlaying=replacement!=null&&replacement.player!=null&&replacement.player.isPlaying();replacementAudible=replacementPlaying&&replacement.armed()&&replacement.ready&&replacement.effect!=null&&replacement.effect.hasControl()&&replacement.commandedReplacementVolume>0.01f&&!replacement.fading;}catch(RuntimeException ignored){}
+   try{replacementPlaying=replacement!=null&&replacement.player!=null&&replacement.player.isPlaying();replacementAudible=replacementPlaying&&replacement.armed()&&replacement.ready&&replacement.commandedReplacementVolume>0.01f&&!replacement.fading;}catch(RuntimeException ignored){}
    PlaybackSource effectiveSource=sourceTransportOverride.apply(liveSource,observedNow);
    SourceActivityProbePolicy.Action transportAction=sourceActivityProbePolicy.sample(liveSource.alias,liveSource.playing,liveSource.wantsToPlay,liveSource.buffering,replacementPlaying,replacementAudible,activeMediaPlayers,sourceTransportOverride.active(),observedNow);
    if(transportAction==SourceActivityProbePolicy.Action.PROBE_PAUSE)probeTransportSnapshot("audio_activity_pause",liveSource.alias,liveSource.position);
