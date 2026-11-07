@@ -104,7 +104,7 @@ jobs:
             -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
             -o UserKnownHostsFile="$RUNNER_TEMP/private/known_hosts" \
             u235811320@92.113.19.189 'php -' \
-            < android/companion-probe/catalog-snapshot-remote.php \
+            < "$GITHUB_WORKSPACE/android/companion-probe/catalog-snapshot-remote.php" \
             > "$RUNNER_TEMP/private/catalog-diagnostic.json"
           python3 - "$RUNNER_TEMP/private/catalog-diagnostic.json" <<'PY'
           import json,sys,time
