@@ -40,7 +40,7 @@ service_source = (ROOT / "addon/src/pro/celikom/nativeprobe/identitydiag/ProbeSe
 assert "new ReplacementEngine(this,true,true,false)" in service_source
 assert "recheckQuietSourceController(session);" not in service_source
 assert "source_same_session_open_ignored" in service_source
-assert "getActivePlaybackConfigurations()" in service_source
+assert "lastPlatformMediaActive" in service_source and "registerAudioPlaybackCallback" in service_source
 assert "probeTransportSnapshot(" in service_source
 assert "source_transport_probe_result" in service_source
 assert "identityPending" in (ROOT / "addon/src/pro/celikom/nativeprobe/identitydiag/ReplacementEngine.java").read_text(encoding="utf-8")
