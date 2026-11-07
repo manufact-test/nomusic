@@ -26,4 +26,4 @@ try {
     }
     echo json_encode(['schema'=>1,'source'=>'celikom_owner_catalog_snapshot','generated_at_ms'=>(int)round(microtime(true)*1000),
         'complete'=>$count<=5000 && count($rows)===$count,'total_tracks'=>$count,'tracks'=>$items], JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR);
-} catch (Throwable) { fwrite(STDERR,"Read-only catalog snapshot failed.\n"); exit(1); }
+} catch (Throwable $e) { fwrite(STDERR,"Read-only catalog snapshot failed: ".get_class($e)." code=".(string)$e->getCode()."\n"); exit(1); }
