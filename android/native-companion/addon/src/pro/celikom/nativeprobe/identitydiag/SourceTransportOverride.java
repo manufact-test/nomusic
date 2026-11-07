@@ -9,6 +9,7 @@ final class SourceTransportOverride {
  private PlaybackSource snapshot;
 
  boolean active(){return snapshot!=null;}
+ long position(long now){return snapshot==null?-1:project(snapshot,now);}
 
  boolean accept(PlaybackSource live,PlaybackSource fresh,long expectedPositionMs,long now){
   if(live==null||fresh==null||!Objects.equals(live.key,fresh.key)
