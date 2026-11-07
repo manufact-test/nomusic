@@ -194,14 +194,17 @@ public class ProbeService extends Service {
       return;
      }
      long freshPosition=fresh.getCurrentPosition();
-     if(expectedPositionMs>=0&&(freshPosition<0||freshPosition>live.duration+2000||Math.abs(freshPosition-expectedPositionMs)>SourceTransportOverride.SEEK_CONFIRM_MS)){
+     boolean seekTargetProbe="seek_discontinuity_disagreement".equals(reason);
+     boolean bufferingProbe="quiet_buffering".equals(reason);
+     if((seekTargetProbe&&(expectedPositionMs<0||freshPosition<0||freshPosition>live.duration+2000||Math.abs(freshPosition-expectedPositionMs)>SourceTransportOverride.SEEK_CONFIRM_MS))
+        ||(bufferingProbe&&(freshPosition<0||freshPosition>live.duration+2000))){
       sourceActivityProbePolicy.probeCompleted(sourceTransportOverride.active(),SystemClock.elapsedRealtime());
       LogStore.log("source_transport_probe_result",LogStore.map("reason",reason,"connected",true,"accepted",false,"sameAlias",true,"freshPositionMs",freshPosition,"expectedPositionMs",expectedPositionMs,"primaryControllerRetained",true,"transportCommandSent",false));
       return;
      }
      int state=fresh.getPlaybackState();boolean wants=fresh.getPlayWhenReady(),playing=fresh.isPlaying();
      boolean buffering=state==Player.STATE_BUFFERING&&wants;float speed=fresh.getPlaybackParameters().speed;
-     long snapshotPosition=expectedPositionMs>=0?freshPosition:live.position;
+     long snapshotPosition=(seekTargetProbe||bufferingProbe)?freshPosition:(expectedPositionMs>=0?expectedPositionMs:live.position);
      PlaybackSource snapshot=new PlaybackSource(live,snapshotPosition,playing,live.connected,speed,wants,buffering);
      boolean accepted=sourceTransportOverride.accept(live,snapshot,expectedPositionMs,SystemClock.elapsedRealtime());
      PlaybackSource effective=sourceTransportOverride.apply(live,SystemClock.elapsedRealtime());
@@ -409,7 +412,7 @@ public class ProbeService extends Service {
    long observedNow=SystemClock.elapsedRealtime();
    if(stateWatchdog.refresh(item.mediaId,nativeState,c.isPlaying(),observedNow-lastMediaEvent,observedNow)){
     LogStore.log("source_controller_snapshot_probe",LogStore.map("reason","quiet_buffering_snapshot","alias",item.mediaId,"nativeState",nativeState,"playWhenReady",c.getPlayWhenReady(),"suppressionReason",c.getPlaybackSuppressionReason(),"positionMs",c.getCurrentPosition(),"mediaEventAgeMs",observedNow-lastMediaEvent,"controllerRetained",true,"transportCommandSent",false));
-    probeTransportSnapshot("quiet_buffering",item.mediaId,current==null?-1:current.position);
+    probeTransportSnapshot("quiet_buffering",item.mediaId,-1);
    }
    emptySince=-1;if(duration<=0||title.trim().isEmpty()){current=null;sourceTransportOverride.clear();sourceActivityProbePolicy.reset();replacement.update(null);return;}long sampledPosition=c.getCurrentPosition();boolean fenced=sessionRecheck.awaitingFreshSource;if(!sessionRecheck.accept(item.mediaId,sampledPosition,observedNow)){current=null;sourceTransportOverride.clear();sourceActivityProbePolicy.reset();replacement.update(null);return;}if(fenced)LogStore.log("source_controller_freshness_confirmed",LogStore.map("reason","new_controller_metadata","alias",item.mediaId,"positionMs",sampledPosition,"audioCommandSent",false));if(sourceItemAlias==null||(current==null&&!Objects.equals(sourceItemAlias,item.mediaId))){sourceItemGeneration++;sourceItemAlias=item.mediaId;}LegacySourcePositionPolicy.Decision legacy=legacyPosition(item.mediaId,title,artist,duration,sampledPosition,c.isPlaying());if(legacy.failClosed){if(!legacyPositionUnsafeLogged){legacyPositionUnsafeLogged=true;LogStore.log("source_seek_platform_fail_closed",LogStore.map("alias",item.mediaId,"originalRetained",true));}sourceTransportOverride.clear();sourceActivityProbePolicy.reset();replacement.suspend("legacy_position_unverified",2000);replacement.update(null);return;}legacyPositionUnsafeLogged=false;if(legacy.newRecovery)replacement.sourceSeekRequested();PlaybackSource previous=current;PlaybackSource liveSource=new PlaybackSource(item.mediaId,title,artist,duration,cover,legacy.override?legacy.position:sampledPosition,c.isPlaying(),c.getDeviceInfo().playbackType==DeviceInfo.PLAYBACK_TYPE_LOCAL,c.getPlaybackParameters().speed,c.getPlayWhenReady(),nativeState==Player.STATE_BUFFERING);current=liveSource;sourceTransitionExpectedAlias=null;if(previous!=null&&!previous.key.equals(current.key)){reportLookahead(current.alias,"sample_track_changed");replacement.sourceChanged(previous,current);}
    else if(previous!=null&&SourceTransitionGate.outgoingItemReset(previous.alias,current.alias,previous.position,previous.duration,current.position,previous.playing,current.playing,c.getPlayWhenReady(),nativeState==Player.STATE_BUFFERING))
