@@ -11,5 +11,10 @@ final class PlaybackSource {
   this.connected=connected;this.speed=speed;this.wantsToPlay=wantsToPlay;this.buffering=buffering;
   observed=SystemClock.elapsedRealtime();
  }
+ PlaybackSource(PlaybackSource source,long position,boolean playing,boolean connected,float speed,boolean wantsToPlay,boolean buffering){
+  alias=source.alias;title=source.title;artist=source.artist;duration=source.duration;albumId=source.albumId;key=source.key;
+  this.position=position;this.playing=playing;this.connected=connected;this.speed=speed;
+  this.wantsToPlay=wantsToPlay;this.buffering=buffering;observed=SystemClock.elapsedRealtime();
+ }
  static String key(String alias,Object album,String title,String artist,long duration){return alias+"|"+album+"|"+title+"|"+artist+"|"+duration;}
 }
