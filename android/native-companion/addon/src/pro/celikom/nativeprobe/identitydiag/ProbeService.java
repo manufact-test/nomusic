@@ -169,7 +169,7 @@ public class ProbeService extends Service {
  /** Obtain a second read-only snapshot without releasing the working controller.
   * It can reconcile pause/resume or a seek callback whose live cursor is stale. */
  void probeTransportSnapshot(String reason,String expectedAlias,long expectedPositionMs){
-  if(!alive()||expectedAlias==null||expectedAlias.trim().isEmpty()||transportProbe!=null)return;
+  if(!alive()||expectedAlias==null||expectedAlias.trim().isEmpty()||transportProbe!=null||sourceProbe!=null)return;
   long now=SystemClock.elapsedRealtime();
   if(lastTransportProbeAt>=0&&now-lastTransportProbeAt<1000)return;
   PlaybackSource base=current;
