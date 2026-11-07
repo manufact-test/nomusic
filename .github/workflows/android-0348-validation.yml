@@ -34,6 +34,7 @@ on:
       - feature/android-0385-test47-session-stability-20261106
       - feature/android-0385-test48-session-fx-hold-20261106
       - feature/android-0385-test50-deferred-lookahead-20261106
+      - feature/android-0385-test52-transport-identity-20261107
       - feature/android-0370-honor-join-pause-updater-staging
       - feature/android-0371-rollback-0369-staging
       - feature/android-0372-ota-release-staging
@@ -44,6 +45,7 @@ on:
       - feature/android-077-album-duration-confirmation-staging-20261101
     paths:
       - 'android/native-companion/**'
+      - 'android/companion-probe/catalog-snapshot-remote.php'
       - '.github/workflows/android-0348-validation.yml'
       - '.github/workflows/android-0385-test-app-build.yml'
       - '.github/workflows/android-auto-publish-hostinger.yml'
@@ -221,7 +223,8 @@ jobs:
        github.ref == 'refs/heads/feature/android-0385-test46-current-first-20261106' ||
        github.ref == 'refs/heads/feature/android-0385-test47-session-stability-20261106' ||
        github.ref == 'refs/heads/feature/android-0385-test48-session-fx-hold-20261106' ||
-       github.ref == 'refs/heads/feature/android-0385-test50-deferred-lookahead-20261106') &&
+       github.ref == 'refs/heads/feature/android-0385-test50-deferred-lookahead-20261106' ||
+       github.ref == 'refs/heads/feature/android-0385-test52-transport-identity-20261107') &&
       github.repository == 'manufact-test/nomusic'
     needs: native-android
     permissions:
