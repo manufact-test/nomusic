@@ -1,3 +1,13 @@
+# АКТУАЛЬНО 08.11.2026 — новая Test.59, исправлены реальные ошибки из свежего видео
+
+**Читать первой:** [ANDROID-0385-TEST59-HONOR-020905-FIXES-AND-MCP-HANDOFF-2026-11-08.md](ANDROID-0385-TEST59-HONOR-020905-FIXES-AND-MCP-HANDOFF-2026-11-08.md). Пользователь отклонил Test.58: после RASKOL у «Дыма» Яндекс уходил в «потеря связи», а ранее стабильная Татем «Мне нужна любовь» не определялась. Последние source: `CELIKOM-combined-20261108-020905.txt`, video `SVID_20261108_020713_1.mp4` (105с), последний сегмент **0.3.85-test.58**, Yandex **2026.10.3 #170gpr**.
+
+**ДОКАЗАННЫЕ БАГИ И ПРАВКИ:** `source_controller_refresh quiet_buffering_snapshot` на «Дым» (~105с) в старом Test.50 рвал Media3, затем 7 раз подряд `SecurityException`; Test.59 **сохраняет подключённый контроллер**, не отправляя дополнительных команд. «Мне нужна любовь» `album 28055398` → **HTTP 451**, собственная база Test.58 **12 старых записей**, поэтому `no_unique_candidate`; Test.59 **реально встроила 119/119 свежих одобренных треков**, включая `118910020`, Татем, 102380ms (новый READ ONLY snapshot БД на build 2026-11-07T23:19:18Z). Verified album fallback test added.
+
+**TEST.59 compiled от неизменяемой Test.50 `5d737d203a0b364b0cb4fd6886040b8bd0c6fbd1`.** Branch `feature/android-0385-test59-buffering-retain-fresh-catalog-20261108`, compiled SHA `64c43d967df662094f3f53e477e168b8e8e40b2a`, full CI [42424582618](https://github.com/manufact-test/nomusic/actions/runs/42424582618) **SUCCESS**, version `0.3.85-test.59/code86145`. [Подписанная APK в Библиотеке](https://chatgpt.com/library?file_id=libfile_7cb1b63efbec8191bcf720b307ecec03&account_id=personal), SHA256 `a035b49362322f639bc0849105b8d3dca27c7deae6df209491ea1697f2c8b7fd`. Audio DSP, fade, seek decoder, identity algorithm, original permissions, stable/main backend НЕ менялись; в APK обновлён только approved catalog asset. **На телефоне Test.59 ещё не проверена.** Статус RASKOL Pause/Seek и само BUFFERING «Дыма» **не считать решёнными**. Не делать очередных таймерных догадок. Миграция с Hostinger на MCP платформу впереди; переносить полную документацию + исходный commit, а не копировать URL и секреты вслепую.
+
+---
+
 # 08.11.2026 — ПРОВЕРЕНА MEDIA3-ПРИЧИНА, ПОСТРОЕНА TEST.58 ТОЛЬКО ДЛЯ ДИАГНОСТИКИ
 
 **Сначала читать:** [ANDROID-0385-TEST58-MEDIA3-ROOT-CAUSE-RESEARCH-2026-11-08.md](ANDROID-0385-TEST58-MEDIA3-ROOT-CAUSE-RESEARCH-2026-11-08.md).
