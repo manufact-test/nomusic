@@ -38,6 +38,26 @@ result = inspect(valid)
 assert result["dex_count"] == 2 and result["asset_count"] == 2
 checks += 1
 
+refreshed_catalogue = [(k, (b"FRESH" if k == "assets/music-catalogue.json" else v)) for k,v in valid]
+with ZipFile(zipped(refreshed_catalogue)) as candidate, ZipFile(zipped(baseline)) as original:
+    allowed_result = inspect_zip(candidate, original, DEX, allowed_asset_updates={"assets/music-catalogue.json"})
+assert allowed_result["original_assets_unchanged"] is True
+assert allowed_result["allowed_asset_updates"] == ["assets/music-catalogue.json"]
+checks += 1
+
+def bad_allowlist(items, allowed, label):
+    global checks
+    try:
+        with ZipFile(zipped(items)) as candidate, ZipFile(zipped(baseline)) as original:
+            inspect_zip(candidate, original, DEX, allowed_asset_updates=allowed)
+    except (ValueError, KeyError):
+        checks += 1
+        return
+    raise AssertionError("Unsafe allowlisted APK asset accepted: "+label)
+
+bad_allowlist(valid, {"assets/music-catalogue.json"}, "allowlisted asset not refreshed")
+bad_allowlist(refreshed_catalogue, {"assets/missing.json"}, "allowlist not present in base APK")
+
 
 def bad(items, label, dex=DEX):
     global checks
