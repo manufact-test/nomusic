@@ -16,9 +16,9 @@ verifier = (ROOT / "verify_test_release.py").read_text(encoding="utf-8")
 assert spec["package"] == "pro.celikom.nativeprobe.test"
 assert spec["stable_package"] == "pro.celikom.nativeprobe"
 assert spec["label"] == "CELIKOM Test"
-assert spec["version"] == "0.3.85-test.50"
-assert spec["version_code"] == 86135
-assert spec["apk_filename"] == "CELIKOM-Android-0.3.85-TEST-50-DEFERRED-LOOKAHEAD-SIGNED.apk"
+assert spec["version"] == "0.3.85-test.55"
+assert spec["version_code"] == 86141
+assert spec["apk_filename"] == "CELIKOM-Android-0.3.85-TEST-55-SOURCE-PAUSE-FALLBACK-SIGNED.apk"
 assert spec["signing_certificate_sha256"] == "67fe81c56fac1c1d145344b69a0e3faf9005cf6607f4e26ca27d5926c3eefc4f"
 assert spec["test_permission"].startswith(spec["package"] + ".")
 assert spec["file_provider_authority"].startswith(spec["package"] + ".")
@@ -40,9 +40,24 @@ service_source = (ROOT / "addon/src/pro/celikom/nativeprobe/identitydiag/ProbeSe
 assert "new ReplacementEngine(this,true,true,false)" in service_source
 assert "recheckQuietSourceController(session);" not in service_source
 assert "source_same_session_open_ignored" in service_source
+assert "SourceActivityPauseFallback" in service_source
+assert "source_audio_pause_fallback" in service_source
+assert "sourceActivityPauseFallback.activity(" in service_source
+assert "sourceAudioQuarantine" not in service_source
+# Test.50 stale-buffering reconnect caused an actual session loss; only observe.
+watchdog_start=service_source.index("if(stateWatchdog.refresh(")
+watchdog_end=service_source.index("   emptySince=-1;",watchdog_start)
+watchdog_block=service_source[watchdog_start:watchdog_end]
+assert '"source_controller_buffering_retained"' in watchdog_block
+for destructive in ("c.release()", "controller=null", "connect();", "replacement.update(null)"):
+    assert destructive not in watchdog_block, "Connected buffering must not drop the Yandex Media3 controller"
 assert "replacement.adaptiveJoinExperiment=true;" in service_source
 assert "replacement.retainSessionEffectBetweenTracksExperiment=true;" in service_source
 assert "Test48SourceEffectLease.java" in (ROOT / "tests/run_engine.py").read_text(encoding="utf-8")
+assert "SourceActivityPauseFallback.java" in (ROOT / "tests/run_engine.py").read_text(encoding="utf-8")
+assert "TestSourceActivityPauseFallback.java" in (ROOT / "tests/run_engine.py").read_text(encoding="utf-8")
+assert "TestSourceActivityPauseFallback" in (ROOT / "tests/run_addon_host.py").read_text(encoding="utf-8")
+assert "TestSourceActivityPauseFallback" in builder
 assert "HybridIdentity.java" in (ROOT / "tests/run_engine.py").read_text(encoding="utf-8")
 assert "if not (v2 or v3)" in verifier
 assert "base_v3" in verifier and "signer_v3" in verifier
