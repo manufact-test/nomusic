@@ -11,5 +11,10 @@ final class SourceStateWatchdog {
     ||(lastObservation>=0&&now-lastObservation<OBSERVATION_INTERVAL_MS))return false;
   lastObservation=now;quietSince=now;return true;
  }
+ // Compatibility with the existing TestSourceStateWatchdog regression harness.
+ // Return value is a diagnostic trigger only; ProbeService NEVER reconnects on it.
+ @Deprecated boolean refresh(String nextKey,int nextState,boolean playing,long eventAge,long now){
+  return observeQuietBuffering(nextKey,nextState,playing,eventAge,now);
+ }
  void reset(){key=null;state=-1;quietSince=-1;}
 }
