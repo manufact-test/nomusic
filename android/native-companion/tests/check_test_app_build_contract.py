@@ -16,9 +16,9 @@ verifier = (ROOT / "verify_test_release.py").read_text(encoding="utf-8")
 assert spec["package"] == "pro.celikom.nativeprobe.test"
 assert spec["stable_package"] == "pro.celikom.nativeprobe"
 assert spec["label"] == "CELIKOM Test"
-assert spec["version"] == "0.3.85-test.50"
-assert spec["version_code"] == 86135
-assert spec["apk_filename"] == "CELIKOM-Android-0.3.85-TEST-50-DEFERRED-LOOKAHEAD-SIGNED.apk"
+assert spec["version"] == "0.3.85-test.52"
+assert spec["version_code"] == 86137
+assert spec["apk_filename"] == "CELIKOM-Android-0.3.85-TEST-52-TRANSPORT-IDENTITY-SIGNED.apk"
 assert spec["signing_certificate_sha256"] == "67fe81c56fac1c1d145344b69a0e3faf9005cf6607f4e26ca27d5926c3eefc4f"
 assert spec["test_permission"].startswith(spec["package"] + ".")
 assert spec["file_provider_authority"].startswith(spec["package"] + ".")
@@ -40,9 +40,20 @@ service_source = (ROOT / "addon/src/pro/celikom/nativeprobe/identitydiag/ProbeSe
 assert "new ReplacementEngine(this,true,true,false)" in service_source
 assert "recheckQuietSourceController(session);" not in service_source
 assert "source_same_session_open_ignored" in service_source
+assert "getActivePlaybackConfigurations()" in service_source
+assert "probeTransportSnapshot(" in service_source
+assert "source_transport_probe_result" in service_source
+assert "controllerRetained" in service_source
+assert "seek_discontinuity_disagreement" in service_source
+assert "SourceTransportOverride" in service_source
+assert "sourceTransportOverride.clear()" in service_source
 assert "replacement.adaptiveJoinExperiment=true;" in service_source
 assert "replacement.retainSessionEffectBetweenTracksExperiment=true;" in service_source
 assert "Test48SourceEffectLease.java" in (ROOT / "tests/run_engine.py").read_text(encoding="utf-8")
+assert "SourceActivityProbePolicy.java" in (ROOT / "tests/run_engine.py").read_text(encoding="utf-8")
+assert "SourceTransportOverride.java" in (ROOT / "tests/run_engine.py").read_text(encoding="utf-8")
+assert "TestSourceActivityProbePolicy.java" in (ROOT / "tests/run_engine.py").read_text(encoding="utf-8")
+assert "TestSourceTransportOverride.java" in (ROOT / "tests/run_engine.py").read_text(encoding="utf-8")
 assert "HybridIdentity.java" in (ROOT / "tests/run_engine.py").read_text(encoding="utf-8")
 assert "if not (v2 or v3)" in verifier
 assert "base_v3" in verifier and "signer_v3" in verifier
@@ -74,6 +85,12 @@ assert "TEST-45-LONG-HANDOFF" not in workflow, "Do not reuse previous test artif
 service_order = (ROOT / "addon/src/pro/celikom/nativeprobe/identitydiag/ProbeService.java").read_text(encoding="utf-8")
 assert service_order.index("albumProbe.observe(item.mediaId") < service_order.index("sampleLookahead(c,item);"), "Current album must precede speculative album fetch"
 assert "fetch-depth: 0" in workflow
+assert "catalog-snapshot-remote.php" in workflow
+assert "php -" in workflow and "--catalog-snapshot" in workflow
+assert "catalog_snapshot_updated" in verifier
+assert 'allowed_asset_updates={"assets/catalog-diagnostic.json"}' in verifier
+assert "load_catalog_snapshot" in builder and "patch_catalog_snapshot" in builder
+assert "10 * 1024 * 1024" in builder
 assert 'SOURCE_RUN="$VALIDATION_RUN_ID"' in workflow
 assert 'gh run download "$SOURCE_RUN"' in workflow
 caller = (ROOT.parents[1] / ".github/workflows/android-0348-validation.yml").read_text(encoding="utf-8")
@@ -81,6 +98,7 @@ assert "build-celikom-test:" in caller
 assert "needs: native-android" in caller
 assert "uses: ./.github/workflows/android-0385-test-app-build.yml" in caller
 assert "validation_run_id: ${{ github.run_id }}" in caller
+assert "feature/android-0385-test52-transport-identity-20261107" in caller
 for required in (
     "signature_v2_verified", "signature_v3_verified", "separate_android_sandbox",
     "stable_manifest_reference_absent", "ota_updater_absent", "package_id_is_distinct",
