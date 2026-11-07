@@ -151,20 +151,8 @@ public class ProbeService extends Service {
      "connected",false,"type",error.getClass().getSimpleName(),"oldControllerRetained",true));
   }
  }
- int activeMediaPlayerCount(){
-  if(Build.VERSION.SDK_INT<26)return -1;
-  try{
-   AudioManager manager=getSystemService(AudioManager.class);if(manager==null)return -1;
-   List<AudioPlaybackConfiguration> configs=manager.getActivePlaybackConfigurations();int media=0;
-   if(configs!=null)for(AudioPlaybackConfiguration config:configs)
-    if(config!=null&&config.getAudioAttributes()!=null
-      &&config.getAudioAttributes().getUsage()==AudioAttributes.USAGE_MEDIA)media++;
-   return media;
-  }catch(RuntimeException error){
-   LogStore.log("platform_audio_activity_unavailable",LogStore.map("reason",error.getClass().getSimpleName()));
-   return -1;
-  }
- }
+ int activeMediaPlayerCount(){return lastPlatformMediaActive;}
+
 
  /** Obtain a second read-only snapshot without releasing the working controller.
   * It can reconcile pause/resume or a seek callback whose live cursor is stale. */
