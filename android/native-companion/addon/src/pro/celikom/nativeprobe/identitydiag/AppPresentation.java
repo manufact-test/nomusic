@@ -5,7 +5,7 @@ import org.json.*;
 /** Account, connection and audio states have separate meanings on screen. */
 final class AppPresentation {
  static final class Input {
-  boolean signed,starting,running,enabled,source,session,playing,replacing,seeking,preparing,identified,identityPending,missing;
+  boolean signed,starting,running,enabled,source,sourceQuarantined,session,playing,buffering,replacing,seeking,preparing,identified,identityPending,missing;
   String problem="";
  }
  final String header,instruction,version;final boolean connected,showTrack;
@@ -14,6 +14,7 @@ final class AppPresentation {
   if(s.starting)return new AppPresentation("Подключение…","Подключаем CELIKOM…","",false,false);
   if(!s.signed)return new AppPresentation("Не подключён","Войдите в аккаунт CELIKOM, чтобы начать.","",false,false);
   if(!s.running||!s.enabled)return new AppPresentation(s.running?"Оригинал":"Остановлен",s.problem.isEmpty()?"Нажмите «Старт», чтобы подключить CELIKOM.":s.problem,"",false,false);
+  if(s.sourceQuarantined)return new AppPresentation("Оригинал","CELIKOM подключён к Яндексу.","Яндекс сменил аудиопоток без подтверждения новой песни. Временно играет оригинал.",true,false);
   if(!s.source)return new AppPresentation("Ожидание музыки","Включите песню в Яндекс Музыке.","",false,false);
   if(!s.session)return new AppPresentation("Не подключён","Откройте эквалайзер Яндекс Музыки и выберите CELIKOM.","",false,false);
   String detail;
@@ -23,6 +24,7 @@ final class AppPresentation {
   else if(s.missing)detail="Версия CELIKOM ещё не загружена. Играет оригинал.";
   else if(!s.problem.isEmpty())detail=s.problem;
   else if(s.preparing)detail="Подготавливаем версию CELIKOM…";
+  else if(s.buffering)detail="Яндекс загружает песню; CELIKOM ожидает воспроизведения";
   else if(!s.playing)detail="Пауза в Яндекс Музыке";
   else detail="Играет оригинал";
   return new AppPresentation(s.replacing&&s.playing&&!s.seeking?"Подмена активна":"Подключён","CELIKOM подключён. Можно пользоваться.",detail,true,s.identified||(s.source&&!s.identityPending));
