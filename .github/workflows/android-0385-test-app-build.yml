@@ -162,7 +162,7 @@ jobs:
             --work-dir "$RUNNER_TEMP/test-build-work" \
             --output "$OUT"
           test -s "$OUT"
-          test -s "$RUNNER_TEMP/CELIKOM-Android-0.3.85-TEST-50-DEFERRED-LOOKAHEAD-SIGNED.verification.json"
+          test -s "$RUNNER_TEMP/CELIKOM-Android-0.3.85-TEST-52-TRANSPORT-IDENTITY-SIGNED.verification.json"
           echo "TEST_APK=$OUT" >> "$GITHUB_ENV"
 
       - name: Create immutable JSON build receipt
@@ -247,7 +247,7 @@ jobs:
           name: CELIKOM-Test-0.3.85-test.52-code-86137
           path: |
             ${{ runner.temp }}/CELIKOM-Android-0.3.85-TEST-52-TRANSPORT-IDENTITY-SIGNED.apk
-            ${{ runner.temp }}/CELIKOM-Android-0.3.85-TEST-50-DEFERRED-LOOKAHEAD-SIGNED.verification.json
+            ${{ runner.temp }}/CELIKOM-Android-0.3.85-TEST-52-TRANSPORT-IDENTITY-SIGNED.verification.json
             ${{ runner.temp }}/CELIKOM-Android-0.3.85-TEST-52-TRANSPORT-IDENTITY-RECEIPT.json
           if-no-files-found: error
           retention-days: 7
