@@ -5,7 +5,7 @@ public class TestSourceTransportOverride {
  static void check(boolean value,String message){checks++;if(!value)throw new AssertionError(message);}
  static PlaybackSource source(long position,boolean playing,boolean wants,boolean buffering){
   return new PlaybackSource("113","Нас не понимают вообще","Космонавты, RASKOL",232330,null,
-    position,playing,true,1.0f,wants,buffering);
+    position,playing,true,1.0f,wants,buffering,1000L);
  }
  public static void main(String[] args){
   SourceTransportOverride override=new SourceTransportOverride();
