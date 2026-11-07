@@ -6,6 +6,7 @@ import json
 import re
 import subprocess
 import tempfile
+import time
 import xml.etree.ElementTree as ET
 import zipfile
 
@@ -199,6 +200,22 @@ def main():
             raise ValueError("Legacy launcher no longer redirects to the test RecorderActivity")
 
     with zipfile.ZipFile(args.apk) as apk:
+        catalog = json.loads(apk.read("assets/catalog-diagnostic.json"))
+        catalog_tracks = catalog.get("tracks") if isinstance(catalog, dict) else None
+        catalog_generated = catalog.get("generated_at_ms") if isinstance(catalog, dict) else None
+        catalog_total = catalog.get("total_tracks") if isinstance(catalog, dict) else None
+        now_ms = int(time.time() * 1000)
+        if catalog.get("schema") != 1 or catalog.get("source") != "celikom_owner_catalog_snapshot":
+            raise ValueError("Final APK does not contain the owner catalogue snapshot")
+        if catalog.get("complete") is not True or not isinstance(catalog_tracks, list):
+            raise ValueError("Final APK catalogue snapshot is incomplete")
+        if not isinstance(catalog_total, int) or catalog_total < 1 or catalog_total != len(catalog_tracks):
+            raise ValueError("Final APK catalogue snapshot row count is invalid")
+        if not isinstance(catalog_generated, int) or catalog_generated > now_ms + 60000 or now_ms - catalog_generated > 24 * 60 * 60 * 1000:
+            raise ValueError("Final APK catalogue snapshot is stale")
+        catalog_ids = [row.get("track_id") for row in catalog_tracks if isinstance(row, dict)]
+        if len(catalog_ids) != len(catalog_tracks) or len(set(catalog_ids)) != len(catalog_ids):
+            raise ValueError("Final APK catalogue snapshot contains invalid or duplicate rows")
         dex_names = sorted(n for n in apk.namelist() if re.fullmatch(r"classes\d*\.dex", n))
         if dex_names != ["classes.dex", "classes2.dex"]:
             raise ValueError("Unexpected DEX layout in final test APK")
@@ -222,7 +239,7 @@ def main():
         if SPEC["label"].encode("ascii") not in all_dex:
             raise ValueError("Test app header label is missing from the app DEX")
 
-    archive_proof = inspect_zip(args.apk, args.base_apk, args.compiled_dex)
+    archive_proof = inspect_zip(args.apk, args.base_apk, args.compiled_dex, allowed_asset_updates={"assets/catalog-diagnostic.json"})
     proof = {
         "package": SPEC["package"],
         "stable_package": SPEC["stable_package"],
@@ -244,6 +261,10 @@ def main():
         "stable_manifest_reference_absent": True,
         "request_install_packages_absent": True,
         "original_assets_unchanged": archive_proof["original_assets_unchanged"],
+        "allowed_asset_updates": archive_proof["allowed_asset_updates"],
+        "catalog_snapshot_updated": True,
+        "catalog_snapshot_generated_at_ms": catalog_generated,
+        "catalog_snapshot_track_count": catalog_total,
         "apk_sha256": sha(args.apk),
         "size_bytes": args.apk.stat().st_size,
         "stable_published": False,
@@ -252,7 +273,7 @@ def main():
         "acoustic_acceptance": False,
     }
     args.apk.with_suffix(".verification.json").write_text(json.dumps(proof, indent=2) + "\n", encoding="utf-8")
-    print("PASS: distinct package/sandbox, CELIKOM Test launcher label/icon, unique authorities, no OTA, original signer v2/v3, unchanged base assets, exact test DEX")
+    print("PASS: distinct package/sandbox, fresh owner catalogue snapshot, all other base assets unchanged, original signer v2/v3, exact test DEX, no OTA")
 
 
 if __name__ == "__main__":
