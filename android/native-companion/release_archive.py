@@ -49,8 +49,8 @@ def inspect_zip(rebuilt, original, compiled_dex, allowed_asset_updates=()):
                 if apk.read(name) != base.read(name):
                     raise ValueError("Modified original asset: "+name)
             return {"asset_count": len(orig_assets), "dex_count": len(found_dex),
-                    "archive_entries": len(members), "original_assets_unchanged": True,
-                    "allowed_asset_updates": sorted(allowed)}
+                    "archive_entries": len(members), "original_assets_unchanged": not bool(allowed),
+                    "non_allowlisted_assets_unchanged": True, "allowed_asset_updates": sorted(allowed)}
 
 
 class _borrow:
