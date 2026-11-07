@@ -100,12 +100,18 @@ jobs:
             "$RUNNER_TEMP/private/base.apk"
           echo "170b1883e292570d28a3b5c619cf000eaccd9d11ee85ca6f6c08f7b50e5f72c9  $RUNNER_TEMP/private/base.apk" | sha256sum -c -
           # Execute the owner-supplied SELECT-only script over SSH stdin; no server file or row is changed.
-          ssh -T -p 65002 -i "$RUNNER_TEMP/private/id_host" \
+          if ! ssh -T -p 65002 -i "$RUNNER_TEMP/private/id_host" \
             -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
             -o UserKnownHostsFile="$RUNNER_TEMP/private/known_hosts" \
             u235811320@92.113.19.189 'php -' \
             < "$GITHUB_WORKSPACE/android/companion-probe/catalog-snapshot-remote.php" \
-            > "$RUNNER_TEMP/private/catalog-diagnostic.json"
+            > "$RUNNER_TEMP/private/catalog-diagnostic.json" \
+            2> "$RUNNER_TEMP/private/catalog-snapshot.stderr"; then
+            echo "Read-only CELIKOM catalogue snapshot failed:"
+            cat "$RUNNER_TEMP/private/catalog-snapshot.stderr" || true
+            cat "$RUNNER_TEMP/private/catalog-diagnostic.json" || true
+            exit 1
+          fi
           python3 - "$RUNNER_TEMP/private/catalog-diagnostic.json" <<'PY'
           import json,sys,time
           p=json.load(open(sys.argv[1],encoding="utf-8"))
