@@ -12,6 +12,7 @@ final class SourceActivityProbePolicy {
  private long candidateSince=-1,lastProbeAt=-1;
  private int candidateCount=-1;
  private boolean overrideActive;
+ private Action lastProbeAction=Action.NONE;
 
  Action sample(String nextAlias,boolean sourcePlaying,boolean wantsToPlay,boolean buffering,
                boolean replacementPlaying,boolean replacementAudible,int activeMediaPlayers,
@@ -35,9 +36,9 @@ final class SourceActivityProbePolicy {
   if(candidateSince<0||candidateCount!=activeMediaPlayers){
    candidateSince=now;candidateCount=activeMediaPlayers;return Action.NONE;
   }
-  if(now-candidateSince<DEBOUNCE_MS||(lastProbeAt>=0&&now-lastProbeAt<RETRY_MS))
+  if(now-candidateSince<DEBOUNCE_MS||(lastProbeAt>=0&&lastProbeAction==action&&now-lastProbeAt<RETRY_MS))
    return Action.NONE;
-  candidateSince=-1;candidateCount=-1;lastProbeAt=now;return action;
+  candidateSince=-1;candidateCount=-1;lastProbeAt=now;lastProbeAction=action;return action;
  }
 
  void probeCompleted(boolean nextOverrideActive,long now){
@@ -45,6 +46,6 @@ final class SourceActivityProbePolicy {
  }
 
  void reset(){
-  alias=null;candidateSince=-1;lastProbeAt=-1;candidateCount=-1;overrideActive=false;
+  alias=null;candidateSince=-1;lastProbeAt=-1;candidateCount=-1;overrideActive=false;lastProbeAction=Action.NONE;
  }
 }
