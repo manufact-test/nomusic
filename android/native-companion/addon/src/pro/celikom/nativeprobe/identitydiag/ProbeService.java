@@ -199,6 +199,12 @@ public class ProbeService extends Service {
       LogStore.log("source_transport_probe_result",LogStore.map("reason",reason,"connected",true,"accepted",false,"sameAlias",false,"freshAlias",alias,"primaryControllerRetained",true,"transportCommandSent",false));
       return;
      }
+     CharSequence freshTitle=item.mediaMetadata.title,freshArtist=item.mediaMetadata.artist;
+     if((freshTitle!=null&&!live.title.equals(freshTitle.toString()))||(freshArtist!=null&&!live.artist.equals(freshArtist.toString()))){
+      sourceActivityProbePolicy.probeCompleted(sourceTransportOverride.active(),SystemClock.elapsedRealtime());
+      LogStore.log("source_transport_probe_result",LogStore.map("reason",reason,"connected",true,"accepted",false,"sameAlias",true,"metadataMatch",false,"primaryControllerRetained",true,"transportCommandSent",false));
+      return;
+     }
      long position=fresh.getCurrentPosition();
      if(position<0||position>live.duration+2000||(expectedPositionMs>=0&&Math.abs(position-expectedPositionMs)>SourceTransportOverride.SEEK_CONFIRM_MS)){
       sourceActivityProbePolicy.probeCompleted(sourceTransportOverride.active(),SystemClock.elapsedRealtime());
