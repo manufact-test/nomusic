@@ -5,7 +5,7 @@ import org.json.*;
 /** Account, connection and audio states have separate meanings on screen. */
 final class AppPresentation {
  static final class Input {
-  boolean signed,starting,running,enabled,source,session,playing,replacing,seeking,preparing,identified,missing;
+  boolean signed,starting,running,enabled,source,session,playing,replacing,seeking,preparing,identified,identityPending,missing;
   String problem="";
  }
  final String header,instruction,version;final boolean connected,showTrack;
@@ -17,7 +17,7 @@ final class AppPresentation {
   if(!s.source)return new AppPresentation("Ожидание музыки","Включите песню в Яндекс Музыке.","",false,false);
   if(!s.session)return new AppPresentation("Не подключён","Откройте эквалайзер Яндекс Музыки и выберите CELIKOM.","",false,false);
   String detail;
-  if(!s.identified)detail="Определяем песню…";
+  if(!s.identified)detail=s.identityPending?"Определяем песню…":!s.problem.isEmpty()?s.problem:"Не удалось однозначно определить песню. Играет оригинал";
   else if(s.seeking)detail="Синхронизируем позицию…";
   else if(s.replacing)detail=s.playing?"Играет версия CELIKOM":"Пауза";
   else if(s.missing)detail="Версия CELIKOM ещё не загружена. Играет оригинал.";
@@ -25,7 +25,7 @@ final class AppPresentation {
   else if(s.preparing)detail="Подготавливаем версию CELIKOM…";
   else if(!s.playing)detail="Пауза в Яндекс Музыке";
   else detail="Играет оригинал";
-  return new AppPresentation(s.replacing&&s.playing&&!s.seeking?"Подмена активна":"Подключён","CELIKOM подключён. Можно пользоваться.",detail,true,s.identified);
+  return new AppPresentation(s.replacing&&s.playing&&!s.seeking?"Подмена активна":"Подключён","CELIKOM подключён. Можно пользоваться.",detail,true,s.identified||(s.source&&!s.identityPending));
  }
  static String account(boolean signed){return signed?"Аккаунт · подключён":"Аккаунт · не подключён";}
  static String entitlement(JSONObject access,long now){
