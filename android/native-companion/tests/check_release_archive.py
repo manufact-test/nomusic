@@ -41,7 +41,8 @@ checks += 1
 refreshed_catalogue = [(k, (b"FRESH" if k == "assets/music-catalogue.json" else v)) for k,v in valid]
 with ZipFile(zipped(refreshed_catalogue)) as candidate, ZipFile(zipped(baseline)) as original:
     allowed_result = inspect_zip(candidate, original, DEX, allowed_asset_updates={"assets/music-catalogue.json"})
-assert allowed_result["original_assets_unchanged"] is True
+assert allowed_result["original_assets_unchanged"] is False
+assert allowed_result["non_allowlisted_assets_unchanged"] is True
 assert allowed_result["allowed_asset_updates"] == ["assets/music-catalogue.json"]
 checks += 1
 
