@@ -504,7 +504,7 @@ def main():
         "TestTransitionRecovery", "TestRequestPacing", "TestSourceStateWatchdog",
         "TestDiagnosticAccess", "TestIncidentLog", "TestPresencePreview",
         "TestDiagnosticRequest", "TestUpdateState", "TestLookaheadPrefetchPolicy",
-        "TestLegacySourcePositionPolicy", "TestFastJoinPollPolicy", "TestSourceActivityProbePolicy", "TestSourceTransportOverride",
+        "TestLegacySourcePositionPolicy", "TestFastJoinPollPolicy", "TestSourceActivityProbePolicy", "TestSourceTransportOverride", "TestSourceAudioQuarantine",
     ):
         run([
             "java", "-cp", os.pathsep.join(map(str, [args.deps_dir / "json.jar", classes, tests, android])),
