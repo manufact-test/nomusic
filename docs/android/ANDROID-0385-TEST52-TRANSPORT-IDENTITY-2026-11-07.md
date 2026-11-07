@@ -27,3 +27,19 @@ Status: isolated test branch; no stable release or Hostinger application writes.
 - Version code: `86137`
 - Stable package, stable OTA, audio-engine timing/decoder settings, and Hostinger application files remain untouched.
 - No merge to `main`/stable. Phone acceptance is still required before treating pause/seek as fixed.
+
+## Build result — PASS
+- GitHub Actions validation run: `42363800773` — native validation and isolated Test APK build both succeeded.
+- Exact source commit: `be256661ec206d75ed67e9dced3fc35d54484ac7`.
+- APK: `CELIKOM-Android-0.3.85-TEST-52-TRANSPORT-IDENTITY-SIGNED.apk`.
+- Version `0.3.85-test.52`, versionCode `86137`, package `pro.celikom.nativeprobe.test`.
+- APK SHA-256: `c1c71a9ac8f198076de1873a9c93eb895f94e438be66b630a803cd19e051625f`.
+- Size: 8,841,369 bytes.
+- Fresh owner catalogue embedded: 119 active approved replacement tracks.
+- Signature v3 verified and signer matches the original test signer. Separate Android sandbox and package verified.
+- Archive verification: only `assets/catalog-diagnostic.json` was intentionally refreshed; every non-allowlisted base asset is unchanged.
+- APK, verification JSON and build receipt uploaded to ChatGPT Library under `/CELIKOM/Android/Backups/`.
+- Stable package, stable OTA and Hostinger application files were not modified or published.
+
+## Acceptance still pending
+Automated checks do not prove physical pause/seek behavior. Install Test.52 over Test.51 (higher versionCode) and replay RASKOL pause/resume, several forward/back seeks, «Толер», and the tracks that previously appeared to lose connection. Do not mark the issue fixed until the owner confirms the phone result.
