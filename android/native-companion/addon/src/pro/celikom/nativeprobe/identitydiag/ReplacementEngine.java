@@ -51,7 +51,7 @@ final class ReplacementEngine {
  volatile long generation; int trustedSession=-1,failures,seekCorrections;
  final BufferRecoveryGate bufferGate=new BufferRecoveryGate();BufferedAudio streaming;boolean bufferWaiting;String streamFallbackKey;
  MediaPlayer player; DynamicsProcessing effect; LoudnessEnhancer loudness; File audioFile;
- float originalMix=1f; boolean ready,preparing,seeking,fading,aligned,returning,preloadAllowed=true,waitingForRouteResume,routePauseObserved,resumePositionRetained,resumeFadePending,seekHoldActive,sourceSeekedThisTrack,pendingStreamScrubJoin,streamSeekWaitLogged,seekRetargetPending;volatile boolean closed; boolean audioFromCache,localPrewarmAttempted,localPrewarmWarmupPending,localPrewarmAlignmentPending,localPrewarmJoinPending,deferredEffectPending; long localPrewarmWarmupStartedAt,localPrewarmWarmupPosition; String lastSync="",coldEnvelopeOwnerKey;
+ float originalMix=1f; boolean ready,preparing,seeking,fading,aligned,returning,preloadAllowed=true,waitingForRouteResume,routePauseObserved,resumePositionRetained,resumeFadePending,seekHoldActive,sourceSeekedThisTrack,pendingStreamScrubJoin,streamSeekWaitLogged,seekRetargetPending,identityPending;volatile boolean closed; boolean audioFromCache,localPrewarmAttempted,localPrewarmWarmupPending,localPrewarmAlignmentPending,localPrewarmJoinPending,deferredEffectPending; long localPrewarmWarmupStartedAt,localPrewarmWarmupPosition; String lastSync="",coldEnvelopeOwnerKey;
  // Verified local fast seeks stay inside the already-audible decoder, without
  // a second source/DSP handover. Unlike the rejected Test.65 delayed mute,
  // this path NEVER pauses or mutes either session during its fast seek.
