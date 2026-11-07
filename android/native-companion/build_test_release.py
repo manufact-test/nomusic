@@ -11,6 +11,7 @@ import re
 import shutil
 import subprocess
 import tempfile
+import time
 import zipfile
 import xml.etree.ElementTree as ET
 
@@ -359,14 +360,64 @@ def patch_legacy_launcher(decoded):
     legacy.write_text(text, encoding="utf-8")
 
 
+
+def load_catalog_snapshot(snapshot_path):
+    path = Path(snapshot_path).resolve()
+    if not path.is_file():
+        raise FileNotFoundError("Fresh owner catalogue snapshot is missing")
+    raw = path.read_bytes()
+    if not raw or len(raw) > 10 * 1024 * 1024:
+        raise ValueError("Owner catalogue snapshot is empty or exceeds the 10 MiB APK asset limit")
+    data = json.loads(raw)
+    if not isinstance(data, dict):
+        raise ValueError("Owner catalogue snapshot root must be an object")
+    now_ms = int(time.time() * 1000)
+    generated = data.get("generated_at_ms") if isinstance(data, dict) else None
+    tracks = data.get("tracks") if isinstance(data, dict) else None
+    total = data.get("total_tracks") if isinstance(data, dict) else None
+    if data.get("schema") != 1 or data.get("source") != "celikom_owner_catalog_snapshot":
+        raise ValueError("Unexpected owner catalogue snapshot schema/source")
+    if data.get("complete") is not True or not isinstance(tracks, list):
+        raise ValueError("Owner catalogue snapshot is incomplete")
+    if not isinstance(total, int) or total < 1 or total > 5000 or total != len(tracks):
+        raise ValueError("Owner catalogue snapshot row count is incomplete or exceeds the supported limit")
+    if not isinstance(generated, int) or generated > now_ms + 60000 or now_ms - generated > 10 * 60 * 1000:
+        raise ValueError("Owner catalogue snapshot is not fresh (maximum age: 10 minutes)")
+    seen = set()
+    for row in tracks:
+        if not isinstance(row, dict):
+            raise ValueError("Invalid owner catalogue row")
+        track_id = row.get("track_id")
+        if not isinstance(track_id, str) or not re.fullmatch(r"[1-9][0-9]{0,23}", track_id) or track_id in seen:
+            raise ValueError("Invalid or duplicate owner catalogue track ID")
+        seen.add(track_id)
+        if not isinstance(row.get("title"), str) or not isinstance(row.get("artist"), str):
+            raise ValueError("Owner catalogue metadata is incomplete")
+        if not isinstance(row.get("duration_ms"), int) or row["duration_ms"] < 0:
+            raise ValueError("Owner catalogue duration is invalid")
+        if not isinstance(row.get("replacement_available"), bool):
+            raise ValueError("Owner catalogue replacement status is invalid")
+    return raw, data
+
+
+def patch_catalog_snapshot(decoded, raw):
+    target = Path(decoded) / "assets" / "catalog-diagnostic.json"
+    if not target.is_file():
+        raise FileNotFoundError("Pinned base APK is missing assets/catalog-diagnostic.json")
+    target.write_bytes(raw)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    for name in ("sdk", "build-tools", "apktool", "base-apk", "signing-dir", "output"):
+    for name in ("sdk", "build-tools", "apktool", "base-apk", "signing-dir", "output", "catalog-snapshot"):
         parser.add_argument("--" + name, type=Path, required=True)
     parser.add_argument("--deps-dir", type=Path, default=ROOT / "deps")
     parser.add_argument("--work-dir", type=Path, default=None)
     args = parser.parse_args()
 
+    catalog_raw, catalog_data = load_catalog_snapshot(args.catalog_snapshot)
+    if args.catalog_snapshot.resolve().is_relative_to(ROOT):
+        parser.error("Owner catalogue snapshot must stay outside the repository")
     if args.output.exists() or args.output.resolve() == args.base_apk.resolve():
         parser.error("Output must be a new file and must not overwrite the pinned base APK")
     if "TEST" not in args.output.name.upper():
@@ -453,7 +504,7 @@ def main():
         "TestTransitionRecovery", "TestRequestPacing", "TestSourceStateWatchdog",
         "TestDiagnosticAccess", "TestIncidentLog", "TestPresencePreview",
         "TestDiagnosticRequest", "TestUpdateState", "TestLookaheadPrefetchPolicy",
-        "TestLegacySourcePositionPolicy", "TestFastJoinPollPolicy",
+        "TestLegacySourcePositionPolicy", "TestFastJoinPollPolicy", "TestSourceActivityProbePolicy", "TestSourceTransportOverride",
     ):
         run([
             "java", "-cp", os.pathsep.join(map(str, [args.deps_dir / "json.jar", classes, tests, android])),
@@ -482,6 +533,7 @@ def main():
 
     decoded = work / "decoded"
     run(["java", "-jar", args.apktool, "d", args.base_apk, "-o", decoded, "-f"])
+    patch_catalog_snapshot(decoded, catalog_raw)
     shutil.rmtree(decoded / "smali_classes2", ignore_errors=True)
     patch_manifest(decoded)
     patch_apktool_metadata(decoded)
@@ -537,6 +589,8 @@ def main():
         "version": SPEC["version"],
         "version_code": SPEC["version_code"],
         "stable_published": False,
+        "catalog_snapshot_generated_at_ms": catalog_data["generated_at_ms"],
+        "catalog_snapshot_track_count": catalog_data["total_tracks"],
     }, indent=2))
 
 
