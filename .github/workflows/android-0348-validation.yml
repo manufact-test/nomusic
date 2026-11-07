@@ -35,6 +35,7 @@ on:
       - feature/android-0385-test48-session-fx-hold-20261106
       - feature/android-0385-test50-deferred-lookahead-20261106
       - feature/android-0385-test52-transport-identity-20261107
+      - feature/android-0385-test53-stale-source-quarantine-20261107
       - feature/android-0370-honor-join-pause-updater-staging
       - feature/android-0371-rollback-0369-staging
       - feature/android-0372-ota-release-staging
@@ -224,7 +225,8 @@ jobs:
        github.ref == 'refs/heads/feature/android-0385-test47-session-stability-20261106' ||
        github.ref == 'refs/heads/feature/android-0385-test48-session-fx-hold-20261106' ||
        github.ref == 'refs/heads/feature/android-0385-test50-deferred-lookahead-20261106' ||
-       github.ref == 'refs/heads/feature/android-0385-test52-transport-identity-20261107') &&
+       github.ref == 'refs/heads/feature/android-0385-test52-transport-identity-20261107' ||
+       github.ref == 'refs/heads/feature/android-0385-test53-stale-source-quarantine-20261107') &&
       github.repository == 'manufact-test/nomusic'
     needs: native-android
     permissions:
