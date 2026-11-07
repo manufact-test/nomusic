@@ -261,6 +261,7 @@ def main():
         "stable_manifest_reference_absent": True,
         "request_install_packages_absent": True,
         "original_assets_unchanged": archive_proof["original_assets_unchanged"],
+        "non_allowlisted_assets_unchanged": archive_proof["non_allowlisted_assets_unchanged"],
         "allowed_asset_updates": archive_proof["allowed_asset_updates"],
         "catalog_snapshot_updated": True,
         "catalog_snapshot_generated_at_ms": catalog_generated,
