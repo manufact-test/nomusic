@@ -48,6 +48,11 @@ assert "waiting_for_album_response" in (ROOT / "addon/src/pro/celikom/nativeprob
 assert "Не удалось однозначно определить песню. Играет оригинал" in (ROOT / "addon/src/pro/celikom/nativeprobe/identitydiag/AppPresentation.java").read_text(encoding="utf-8")
 assert "p.showTrack?safe(title)" in (ROOT / "addon/src/pro/celikom/nativeprobe/identitydiag/NotificationState.java").read_text(encoding="utf-8")
 assert "controllerRetained" in service_source
+watchdog_start = service_source.index("if(stateWatchdog.refresh(")
+watchdog_end = service_source.index("void recheckQuietSourceController", watchdog_start)
+watchdog_source = service_source[watchdog_start:watchdog_end]
+assert 'probeTransportSnapshot("quiet_buffering"' in watchdog_source
+assert "controller=null" not in watchdog_source and "c.release()" not in watchdog_source
 assert "seek_discontinuity_disagreement" in service_source
 assert "SourceTransportOverride" in service_source
 assert "sourceTransportOverride.clear()" in service_source
@@ -95,6 +100,9 @@ assert "catalog_snapshot_updated" in verifier
 assert 'allowed_asset_updates={"assets/catalog-diagnostic.json"}' in verifier
 assert "load_catalog_snapshot" in builder and "patch_catalog_snapshot" in builder
 assert "10 * 1024 * 1024" in builder
+catalog_remote = (ROOT.parents[1] / "android/companion-probe/catalog-snapshot-remote.php").read_text(encoding="utf-8")
+assert "SET TRANSACTION READ ONLY" in catalog_remote and "beginTransaction()" in catalog_remote
+assert "track_replacements" in catalog_remote and "status='approved'" in catalog_remote
 assert 'SOURCE_RUN="$VALIDATION_RUN_ID"' in workflow
 assert 'gh run download "$SOURCE_RUN"' in workflow
 caller = (ROOT.parents[1] / ".github/workflows/android-0348-validation.yml").read_text(encoding="utf-8")
