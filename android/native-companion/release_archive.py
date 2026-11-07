@@ -13,7 +13,7 @@ FORBIDDEN = (".java", ".py", ".ts", ".map", ".p12", ".jks", ".pem", ".zip")
 DEX_NAMES = ["classes.dex", "classes2.dex"]
 
 
-def inspect_zip(rebuilt, original, compiled_dex):
+def inspect_zip(rebuilt, original, compiled_dex, allowed_asset_updates=()):
     """Accept file paths or opened ZipFile objects; raise on any divergence."""
     with ZipFile(rebuilt) if not isinstance(rebuilt, ZipFile) else _borrow(rebuilt) as apk:
         with ZipFile(original) if not isinstance(original, ZipFile) else _borrow(original) as base:
@@ -38,11 +38,19 @@ def inspect_zip(rebuilt, original, compiled_dex):
             built_assets = {n for n in members if n.startswith("assets/")}
             if built_assets != orig_assets:
                 raise ValueError("Unexpected added/removed assets: "+str(sorted(built_assets ^ orig_assets)))
+            allowed = set(allowed_asset_updates or ())
+            if not allowed.issubset(orig_assets):
+                raise ValueError("Allowed asset update is not present in the pinned base APK: "+str(sorted(allowed-orig_assets)))
             for name in orig_assets:
+                if name in allowed:
+                    if apk.read(name) == base.read(name):
+                        raise ValueError("Allowlisted asset was not refreshed: "+name)
+                    continue
                 if apk.read(name) != base.read(name):
                     raise ValueError("Modified original asset: "+name)
             return {"asset_count": len(orig_assets), "dex_count": len(found_dex),
-                    "archive_entries": len(members), "original_assets_unchanged": True}
+                    "archive_entries": len(members), "original_assets_unchanged": not bool(allowed),
+                    "non_allowlisted_assets_unchanged": True, "allowed_asset_updates": sorted(allowed)}
 
 
 class _borrow:
