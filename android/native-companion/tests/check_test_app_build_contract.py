@@ -16,9 +16,9 @@ verifier = (ROOT / "verify_test_release.py").read_text(encoding="utf-8")
 assert spec["package"] == "pro.celikom.nativeprobe.test"
 assert spec["stable_package"] == "pro.celikom.nativeprobe"
 assert spec["label"] == "CELIKOM Test"
-assert spec["version"] == "0.3.85-test.50"
-assert spec["version_code"] == 86135
-assert spec["apk_filename"] == "CELIKOM-Android-0.3.85-TEST-50-DEFERRED-LOOKAHEAD-SIGNED.apk"
+assert spec["version"] == "0.3.85-test.59"
+assert spec["version_code"] == 86145
+assert spec["apk_filename"] == "CELIKOM-Android-0.3.85-TEST-59-BUFFERING-CATALOG-SIGNED.apk"
 assert spec["signing_certificate_sha256"] == "67fe81c56fac1c1d145344b69a0e3faf9005cf6607f4e26ca27d5926c3eefc4f"
 assert spec["test_permission"].startswith(spec["package"] + ".")
 assert spec["file_provider_authority"].startswith(spec["package"] + ".")
@@ -40,6 +40,26 @@ service_source = (ROOT / "addon/src/pro/celikom/nativeprobe/identitydiag/ProbeSe
 assert "new ReplacementEngine(this,true,true,false)" in service_source
 assert "recheckQuietSourceController(session);" not in service_source
 assert "source_same_session_open_ignored" in service_source
+# Verified Test.58 phone regression: Dym BUFFERING must never destroy the
+# connected session and trigger the 7 SecurityException reconnect loop.
+assert '"source_controller_buffering_retained"' in service_source
+watchdog_start=service_source.index("if(stateWatchdog.refresh(")
+watchdog_end=service_source.index("emptySince=-1;",watchdog_start)
+watchdog=service_source[watchdog_start:watchdog_end]
+for forbidden in ("c.release()", "controller=null", "connect();", "replacement.update(null)", "return;"):
+    assert forbidden not in watchdog, "buffering watchdog must retain Yandex Media3 session: "+forbidden
+assert "source_controller_refresh" not in watchdog
+# Test.59 must inject complete fresh approved catalogue, not ship the 12-row
+# stale snapshot accidentally pinned in the original Test.50 base APK.
+assert "def load_catalog_snapshot(" in builder
+assert "def patch_catalog_snapshot(" in builder
+assert 'patch_catalog_snapshot(decoded, catalog_raw)' in builder
+assert '"assets/catalog-diagnostic.json"' in verifier
+assert 'allowed_asset_updates={"assets/catalog-diagnostic.json"}' in verifier
+assert "SourceActivityPauseFallback" not in service_source
+assert "source_audio_quarantine_started" not in service_source
+assert "StalledStartRecoveryPolicy" not in service_source
+
 assert "replacement.adaptiveJoinExperiment=true;" in service_source
 assert "replacement.retainSessionEffectBetweenTracksExperiment=true;" in service_source
 assert "Test48SourceEffectLease.java" in (ROOT / "tests/run_engine.py").read_text(encoding="utf-8")
