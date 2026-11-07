@@ -369,6 +369,8 @@ def load_catalog_snapshot(snapshot_path):
     if not raw or len(raw) > 10 * 1024 * 1024:
         raise ValueError("Owner catalogue snapshot is empty or exceeds the 10 MiB APK asset limit")
     data = json.loads(raw)
+    if not isinstance(data, dict):
+        raise ValueError("Owner catalogue snapshot root must be an object")
     now_ms = int(time.time() * 1000)
     generated = data.get("generated_at_ms") if isinstance(data, dict) else None
     tracks = data.get("tracks") if isinstance(data, dict) else None
