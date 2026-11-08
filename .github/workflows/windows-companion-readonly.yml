@@ -37,6 +37,8 @@ jobs:
           dotnet-version: '10.0.x'
       - name: Build W15 Windows Companion UI + account and loopback bridge
         run: dotnet build windows-companion/w15/Celikom.Companion/Celikom.Companion.csproj -c Release -warnaserror
+      - name: W15 native DPAPI, real API contracts and loopback HTTP integration
+        run: dotnet run --project windows-companion/w15/Celikom.Companion.Tests/Celikom.Companion.Tests.csproj -c Release
       - name: W15 signed URL, Stop/Next and localhost pairing contracts
         run: node --test windows-companion/w15/w15-contract.test.mjs
       - name: Install W15 PulseSync SDK in isolated CI only

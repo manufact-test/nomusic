@@ -42,8 +42,10 @@ public static class GrantValidator
         if (!response.TryGetProperty("audio_url", out var audioProperty) ||
             audioProperty.ValueKind != JsonValueKind.String ||
             !response.TryGetProperty("expires_at", out var expiryProperty) ||
+            expiryProperty.ValueKind != JsonValueKind.Number ||
             !expiryProperty.TryGetInt64(out var expiresSeconds) ||
             !response.TryGetProperty("duration_ms", out var duration) ||
+            duration.ValueKind != JsonValueKind.Number ||
             !duration.TryGetInt32(out var ms) || ms <= 0 ||
             !response.TryGetProperty("mime_type", out var mime) ||
             mime.ValueKind != JsonValueKind.String ||
