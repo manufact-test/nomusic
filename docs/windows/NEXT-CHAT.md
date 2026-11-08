@@ -1,6 +1,6 @@
 # CELIKOM Windows Companion — NEXT-CHAT
 
-**Updated 2026-11-08. W2 real owner report RECEIVED. W3 is a read-only follow-up.**
+**Updated 2026-11-08. W3 real owner report RECEIVED. W4 isolated source adapter underway.**
 
 ## Objective
 Official Windows Yandex Music is the ONLY owner of audio, pause, seek, next, queue,
@@ -46,8 +46,8 @@ Code: `windows-companion/Celikom.Core/AsarSourceSurvey.cs`,
 Read `docs/windows/W3-SOURCE-SEAM-READONLY-20261108.md` and CI result.
 
 ## Next decision
-1. Obtain owner's **W3 report** from `START-CELIKOM-PROBE.cmd`.
-2. Check exact unchanged hash and W3 counts, especially
+1. W3 report RECEIVED — no repeat owner action needed.
+2. CONFIRMED unchanged hash and W3 counts, especially
    `Source marker + Webpack marker in SAME file`, loader hints,
    and survey completeness. They are heuristics, not executable hook evidence.
 3. If W3 supports a narrow packaged seam, build a SMALL independent Electron
@@ -75,4 +75,16 @@ behavior. Don't claim source substitution without audible owner acceptance.
 - Artifact ID `13628595552`; ZIP `CELIKOM-Windows-Probe-W3.zip`.
 - ZIP SHA-256 `4fbbe806a859a091ceac376ff9932eec9f87610b37b1b7eb819ead632f7b350b`; archive CRC checked; contains one EXE and `START-CELIKOM-PROBE.cmd`.
 - ChatGPT Library: `/CELIKOM/Windows/Test/CELIKOM-Windows-Probe-W3.zip`, library ID `libfile_13cdbbfeb5588191b1ba18859aadba26`.
-- Real owner W3 run: **PENDING**. CI validates only synthetic fixtures, not official Yandex source substitution.
+- Real owner W3 run: **RECEIVED, PASS read-only**. 1117/1117 JS inspected, no skips; `getFileInfo` in 19 packaged files, batch in 3, `GetFileInfoResource` in 19, endpoint strings in 2. No installed integration; original works. CI validates only synthetic fixtures, not official Yandex source substitution.
+
+## W4 isolated adapter (no owner installation)
+- See `docs/windows/W4-SOURCE-ADAPTER-ISOLATED-20261108.md`.
+- Code `windows-companion/bridge/w4-source-resource-adapter.mjs` and
+  `w4-source-resource-adapter.test.mjs`; W4 Windows CI uses Node 22 tests.
+- Implements exact-ID, original-first single/batch resource wrappers,
+  time-limited prepared Blob URLs, cancellation, Stop/Original and cleanup.
+- Nothing hooks the installed Yandex client, touches browser/Android/backend,
+  or plays independent audio. Source response contract tests are **synthetic**.
+- Next proof: isolated Electron fixture with actual pinned Yandex resource
+  class and synthetic audio; then assess patch/rollback strategy. DO NOT ask
+  owner to reinstall or repeat diagnostics absent a new safe user action.

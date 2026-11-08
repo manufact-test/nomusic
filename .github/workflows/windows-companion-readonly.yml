@@ -1,4 +1,4 @@
-name: Windows Companion — W3 read-only source seam
+name: Windows Companion — W4 isolated source adapter + W3 probe
 
 on:
   workflow_dispatch:
@@ -19,6 +19,12 @@ jobs:
     steps:
       - name: Checkout isolated branch
         uses: actions/checkout@v4
+      - name: Setup Node 22 for W4 isolated contract
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: W4 exact-ID native resource adapter contract (synthetic, no Yandex app)
+        run: node --test windows-companion/bridge/w4-source-resource-adapter.test.mjs
       - name: Setup .NET 10
         uses: actions/setup-dotnet@v4
         with:
