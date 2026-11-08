@@ -245,6 +245,18 @@ jobs:
       test_only: true
     secrets: inherit
 
+  build-stable-0393-candidate:
+    # Explicitly a signed stable-package preview: NEVER publish stable.json.
+    if: >-
+      github.event_name == 'push' &&
+      github.ref == 'refs/heads/feature/android-0393-test50-live-catalogue-stable-candidate-20261108' &&
+      github.repository == 'manufact-test/nomusic'
+    needs: native-android
+    uses: ./.github/workflows/android-auto-publish-hostinger.yml
+    with:
+      test_only: true
+    secrets: inherit
+
   publish-stable:
     needs: native-android
     if: vars.CELIKOM_ANDROID_AUTO_PUBLISH == 'true' && github.ref == 'refs/heads/feature/android-unified-preparation-seek-gate'
