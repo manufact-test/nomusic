@@ -12,6 +12,7 @@ final class LookaheadPrefetchPolicy {
  // *same existing verified sparse* current-track fallback; no DSP changes.
  // Mature transfers retain 400ms so near-complete full-file prefetch still wins.
  static final long EARLY_LONG_TRACK_CURRENT_WAIT_MS=200L;
+ static final long EARLY_LONG_TRACK_PREFETCH_MIN_AGE_MS=1800L;
  static final long EARLY_LONG_TRACK_PREFETCH_AGE_MS=2600L;
  // A speculative full-file request intentionally waits for the foreground
  // decoder. If Next promotes that item during the queue grace, waiting for
@@ -29,7 +30,7 @@ final class LookaheadPrefetchPolicy {
  }
  static long promotedCurrentWaitMs(boolean progressive,long durationMs,String phase,long prefetchAgeMs){
   long baseline=promotedCurrentWaitMs(progressive,durationMs,phase);
-  return baseline==LONG_TRACK_CURRENT_WAIT_MS&&prefetchAgeMs>=0
+  return baseline==LONG_TRACK_CURRENT_WAIT_MS&&prefetchAgeMs>=EARLY_LONG_TRACK_PREFETCH_MIN_AGE_MS
     &&prefetchAgeMs<EARLY_LONG_TRACK_PREFETCH_AGE_MS
     ?EARLY_LONG_TRACK_CURRENT_WAIT_MS:baseline;
  }
