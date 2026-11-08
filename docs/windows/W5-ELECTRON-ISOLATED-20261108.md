@@ -71,3 +71,45 @@ native source class + actual Electron decoder, next evidence gap is
 restore behavior**. Do not claim Windows support before owner can listen
 to one approved track in the original Yandex app with Play/Pause/Seek/Next
 and verified rollback.
+
+## VERIFIED Windows CI result — 2026-11-08
+
+**Final code:** `bfe5ce7ca0c31780812de19f2de7e96eda06d9da` (after corrections).
+[GitHub Actions run 42511997271](https://github.com/manufact-test/nomusic/actions/runs/42511997271): **SUCCESS**.
+
+- Electron **44.10.2** executed real pinned public Yandex Webpack resource
+  v1/v2 classes and original private native source class (test-only export).
+- **35/35** W5 runtime assertions passed inside Electron.
+- Native decoder in ONE real Chromium media element: synthetic alternate MP3
+  starts, pause holds clock, seek reaches 6 s, Next switches to 36-second
+  track, seek to 30 s plays, stale previous response is fenced.
+- Explicit Original re-acquisition plays the synthetic signed original
+  via the **same** media element; Stop blocks future substitution.
+- Fixture signed URL checks: 206 correct byte range, 403 missing/expired
+  signature, 416 invalid range.
+- Existing W4 Node synthetic contract and W3 .NET read-only checks passed.
+- **No** owner-installed Yandex app was used, modified or launched. This is
+  strong **isolated** feasibility evidence, NOT product integration evidence.
+
+### Correction tracked, not hidden
+
+Initial [CI run 42511753607](https://github.com/manufact-test/nomusic/actions/runs/42511753607)
+incorrectly showed SUCCESS despite Electron's renderer test failing
+with native media code 4 while reacquiring the fixture original.
+The Yandex getter appended its `?vsid` fields onto an already-signed
+fixture URL, making the HMAC request unusable. The W5 test now normalizes
+only its **exact known synthetic signed fixture URLs**; real Yandex URLs
+are untouched. The runner also uses `app.exit(1)` so a future failed
+assertion turns CI red. On re-run **35 assertions genuinely passed**.
+This URL behavior is a concrete compatibility requirement for a future
+CELIKOM signed audio bridge; it is not automatically solved for the live
+Windows app.
+
+### Next gate
+
+Determine how to attach to the owner's **official Windows Yandex 5.126.1.0**
+renderer by safe, isolated and reversible means, and where the live playback
+owner/caches reside. No full Windows integration, no native Yandex UI button
+test, no production CELIKOM server/session flow, no installable companion yet.
+Do NOT initiate any app.asar modification without explicit owner consent,
+version pin, backup/rollback, and an integrity recovery demonstration.

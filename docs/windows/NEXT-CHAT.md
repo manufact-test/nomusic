@@ -110,3 +110,22 @@ behavior. Don't claim source substitution without audible owner acceptance.
 - W5 is NOT a Windows CELIKOM installer. No owner action/ZIP unless a
   subsequently approved, reversible live-client test can be designed.
 - Check W5 Windows workflow result before claiming verified.
+
+## W5 validated, next stage is official-client integration feasibility
+
+- W5 source `bfe5ce7ca0c31780812de19f2de7e96eda06d9da`.
+- [CI run 42511997271](https://github.com/manufact-test/nomusic/actions/runs/42511997271): **SUCCESS**, **35/35 runtime assertions** with Electron 44.10.2 and original pinned **public Yandex web frontend** resource/source classes.
+- Covers actual Electron decoder (one media element), native pause/seek,
+  Next to longer MP3, late seek, delayed-response fencing, explicit original
+  reacquisition, Stop, synthetic signed fixture 206/403/416 and cleanup.
+- First W5 CI showed false success despite native original decoding failure.
+  Both the synthetic signed-URL suffix interaction and actual nonzero CI exit
+  were fixed in the follow-up commit. Do not erase this history.
+- Public Yandex frontend `v4.1726.0` is not proven identical to the
+  renderer running inside official owner's Windows `5.126.1.0`.
+- **W5 is NOT an installable companion**. No new download for owner yet; no
+  installed Yandex, browser, Android, server or shared release changes.
+- Next real gate: safe method to attach to official renderer, exact version
+  compatibility, native player ownership/cache lifecycle and verified
+  byte-for-byte rollback. Must secure owner's explicit approval BEFORE
+  patching installed Yandex or accessing user sessions.
