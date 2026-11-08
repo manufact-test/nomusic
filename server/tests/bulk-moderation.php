@@ -17,6 +17,19 @@ if (!str_starts_with((string)$config['db_name'],'celikom_test')) {
 }
 $pdo = Connection::open($config);
 (new MigrationRunner($pdo,dirname(__DIR__).'/migrations'))->run();
+if (getenv('BULK_DEBUG_LIVE_MERGE') === '1') {
+    // The active Hostinger admin has a newer navigation-counter migration.
+    // It is present in production, but this pinned research branch predates it.
+    // Provide only a disposable compatibility table; never deploy this fixture.
+    $pdo->exec("CREATE TABLE IF NOT EXISTS admin_navigation_seen (
+        admin_id BIGINT UNSIGNED NOT NULL,
+        section VARCHAR(40) NOT NULL,
+        last_seen_id BIGINT UNSIGNED NOT NULL DEFAULT 0,
+        updated_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+        PRIMARY KEY(admin_id,section)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+}
+
 $storage = new LocalStorageAdapter($config['storage_path']);
 $config['admin_enabled'] = true;
 $config['api_enabled'] = true;
