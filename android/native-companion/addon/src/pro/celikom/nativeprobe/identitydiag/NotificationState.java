@@ -3,6 +3,14 @@ package pro.celikom.nativeprobe.identitydiag;
 final class NotificationState {
  final String title,text;final boolean suggest;
  NotificationState(String title,String text,boolean suggest){this.title=title;this.text=text;this.suggest=suggest;}
+ /** The Media3 controller can report buffering while playWhenReady=true.
+  * Neither a PAUSE label nor an old track title is trustworthy in this state.
+  * Passive display only: never play/pause/seek Yandex or touch native audio. */
+ static NotificationState yandexBuffering(boolean stale){
+  return new NotificationState(stale?"CELIKOM · Яндекс не отвечает":"CELIKOM",
+    stale?"Яндекс не обновляет трек · играет оригинал":
+      "Яндекс загружает · играет оригинал",false);
+ }
  static NotificationState of(AppPresentation.Input s,String title,String artist,boolean transportLost,boolean sessionLost,boolean exact,boolean hasReplacement){
   if(s.starting)return new NotificationState("CELIKOM","Подключаемся к Яндекс Музыке…",false);
   if(!s.signed)return new NotificationState("CELIKOM","Войдите в аккаунт CELIKOM",false);
