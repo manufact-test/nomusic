@@ -23,13 +23,15 @@ final class NotificationState {
   // A complete APPROVED-only snapshot can rule out an approved version,
   // but cannot establish submission/moderation status. Keep the compact
   // Android notification readable; the Activity retains full context.
-  if(!s.identified&&s.catalogueFresh&&"NO_MATCH".equals(s.catalogueStatus)&&s.playing)
-    detail="Нет одобренной версии · играет оригинал";
+  if(!s.identified&&s.catalogueFresh&&"NO_MATCH".equals(s.catalogueStatus)&&s.playing
+      &&!"album_region_restricted".equals(s.identityReason))
+    detail="Не удалось сопоставить версию · играет оригинал";
   if(s.missing&&!s.replacing)detail="Для этой песни нет замены · играет оригинал";
   if(s.problem.isEmpty()&&!s.playing&&!s.preparing&&!s.seeking){
-    boolean noApproved=!s.identified&&s.catalogueFresh&&"NO_MATCH".equals(s.catalogueStatus);
+    boolean noApproved=!s.identified&&s.catalogueFresh&&"NO_MATCH".equals(s.catalogueStatus)
+      &&!"album_region_restricted".equals(s.identityReason);
     boolean unknown=!s.identified&&!s.identityReason.isEmpty()&&!"waiting_for_album_response".equals(s.identityReason);
-    detail=s.missing?"Пауза · для этой песни нет замены":noApproved?"Пауза · нет одобренной версии":unknown?"Пауза · не удалось проверить версию":"Пауза";
+    detail=s.missing?"Пауза · для этой песни нет замены":noApproved?"Пауза · совпадение не найдено":unknown?"Пауза · не удалось проверить версию":"Пауза";
    }
   if(detail.isEmpty())detail="CELIKOM подключён";
   return new NotificationState(label,detail,s.signed&&exact&&s.identified&&!hasReplacement&&!s.replacing&&!s.preparing&&!s.seeking&&s.problem.isEmpty());
