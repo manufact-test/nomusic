@@ -16,7 +16,14 @@ Android `MediaSessionManager.getActiveSessions(ComponentName)` is documented to 
 - **Only Test APK manifest** receives exported Android system-bound listener guarded by `android.permission.BIND_NOTIFICATION_LISTENER_SERVICE`, action `android.service.notification.NotificationListenerService`; **only Test APK UI** gets a permission-settings button. A confirmation dialog explicitly warns the user that Android grants access to all notifications even though our code intentionally reads only Yandex session state, and that permission is optional/manual and revocable. No separate accessibility, audio, notification-text, microphone or root privileges.
 - Signed test package `pro.celikom.nativeprobe.test`, `0.3.85-test.74` code `86160`, filename `CELIKOM-Android-0.3.85-TEST-74-MEDIASESSION-WITNESS-SIGNED.apk`. No production audio, stable 0.3.92, OTA, Hostinger, backend, main or desktop changes.
 
-## Owner HONOR experiment once signed APK is available
+## Signed build and delivery
+* **Validated source SHA** `5e0acb1b3617f44a58d0f64b9f234df80ef9d67e`, [native full regression and signed APK CI SUCCESS #42518012832](https://github.com/manufact-test/nomusic/actions/runs/42518012832).
+* **Actual signed APK** `CELIKOM-Android-0.3.85-TEST-74-MEDIASESSION-WITNESS-SIGNED.apk`, 8,890,521 bytes, SHA-256 `0d1cb45ae78d0cc6d6916be636c4647b4779726abf773c19d68db6f91ff96866`, package `pro.celikom.nativeprobe.test`, code 86160, **v3 signature verified**, original signing cert unchanged.
+* **Library confirmed:** [download APK](https://chatgpt.com/library?file_id=libfile_543e17a19d208191ae8b60c5f649618b&account_id=personal); verification JSON `libfile_dab80200e6988191bf0e7cdc94d0a693`; receipt JSON `libfile_45a459e1768c8191bf0c678a967fe1ac`, all under `/CELIKOM/Android/Test/`.
+* **Physical HONOR permission grant and control-observation not yet tested.** No claim of fixed pause/seek. Build host validation is not phone acceptance.
+* The earlier first build run #42517858888 failed **only** because the original APK verifier forbade any additional service; strict verifier was updated to allow **this one** system-protected listener and explicitly reject everything else. Final run #42518012832 passed. No audio changes.
+
+## Owner HONOR experiment
 1. Install Test.74 over Test.73 (same package/signature). Launch and tap **«Проверить независимое управление Яндекса»**, review disclosure, open Android «Доступ к уведомлениям», manually allow **CELIKOM Test**. Permission can be revoked afterward.
 2. Start CELIKOM (normal). Record one screen video and a combined diagnostic TXT.
 3. On a **working track**, wait until CELIKOM version is audible, tap **Pause**, hold at least **3 sec**, tap Play, scrub forward about **+60sec**, then backward. Repeat the **same actions on RASKOL** and **«Дым»**. This single A/B is sufficient to compare data; no need to test 100 tracks.
