@@ -292,8 +292,8 @@ try {
       "trial A starts corrected reload from settled playback rather than prior reload's pending seek events");
     await sessionPort.reload("1002", { livePosition: true });
     const corrected = appliedSources.at(-1), correctedRewindMs = Math.round((corrected.live - corrected.requested) * 1000);
-    check(staleRewindMs >= 100 && Math.abs(correctedRewindMs) < 30,
-      "trial A removes stale-position replay under the same delayed stock source load");
+    console.log("TRIAL_A " + JSON.stringify({ stale, corrected, staleRewindMs, correctedRewindMs, correctionMs: sessionPort.lastPositionCorrectionMs }));
+    const positionImproved = staleRewindMs >= 100 && Math.abs(correctedRewindMs) < 30;
     nativeResource.httpClient.get = get;
     /* Trial B reads the actual public queue's derived nextEntity getter,
        including a queue order different from entityList order. */
@@ -322,6 +322,8 @@ try {
       nativeMs: preparedNextMs, legacy073PrepareSamplesMs: legacyWarmSamples,
       scope: "controlled prepared-file path, not signed-in end-to-end playback",
       limitations: ["exact next entity must already exist", "fresh admission and cancellation are not wired into this laboratory next registration"] } };
+    console.log("BOUNDED_TRIALS " + JSON.stringify(trials));
+    check(positionImproved, "trial A removes stale-position replay under the same delayed stock source load");
     nativeAudio.pause(); nativeAudio.remove(); api.unregister("1003"); URL.revokeObjectURL(nextUrl);
     api.dispose();
     check(api.diagnostics().stopped && api.diagnostics().assets === 0, "dispose restores owned prototype hooks and removes registry");
