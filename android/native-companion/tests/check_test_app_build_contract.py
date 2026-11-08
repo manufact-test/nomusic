@@ -16,9 +16,9 @@ verifier = (ROOT / "verify_test_release.py").read_text(encoding="utf-8")
 assert spec["package"] == "pro.celikom.nativeprobe.test"
 assert spec["stable_package"] == "pro.celikom.nativeprobe"
 assert spec["label"] == "CELIKOM Test"
-assert spec["version"] == "0.3.85-test.72"
-assert spec["version_code"] == 86158
-assert spec["apk_filename"] == "CELIKOM-Android-0.3.85-TEST-72-SOURCE-SNAPSHOT-SIGNED.apk"
+assert spec["version"] == "0.3.85-test.73"
+assert spec["version_code"] == 86159
+assert spec["apk_filename"] == "CELIKOM-Android-0.3.85-TEST-73-QUEST-REGION-FAST-SIGNED.apk"
 
 # Test.72 starts from Test.70, excluding the rejected Test.71 MediaBrowser retry.
 # No notification controls or remote commands are allowed to re-enter this branch.
