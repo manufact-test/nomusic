@@ -1,0 +1,22 @@
+name: CELIKOM Blur batch20 — validate reserve MP3s (no production access)
+on:
+  push:
+    branches: [feature/blur-batch20-20261108]
+    paths: ['.github/workflows/blur-batch20-reserves-test.yml']
+permissions:
+  contents: read
+concurrency:
+  group: celikom-blur-twenty-reserves-only
+  cancel-in-progress: false
+jobs:
+  reserves:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Probe 12 reserve source tracks with exact CELIKOM decoder and MIME
+        run: |
+          set -euo pipefail
+          python3 tools/blur-batch20/check_reserves.py
