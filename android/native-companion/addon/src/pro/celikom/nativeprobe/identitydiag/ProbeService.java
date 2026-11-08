@@ -371,10 +371,12 @@ public class ProbeService extends Service {
    else if(previous!=null&&SourceTransitionGate.outgoingItemReset(previous.alias,current.alias,previous.position,previous.duration,current.position,previous.playing,current.playing,c.getPlayWhenReady(),nativeState==Player.STATE_BUFFERING))
       replacement.outgoingTrackReset(previous);
    albumProbe.observe(item.mediaId,title,artist,duration,cover);
-   // Prioritize the audible song before speculative successor metadata.
-   sampleLookahead(c,item);
+   // Current first: publish its identity and start/refresh the current decoder before
+   // resolving or downloading a speculative next song. The former ordering let the
+   // successor occupy the download lane before the first audible replacement resolved.
    // Cached observations must still publish a decision when a previously seen song returns.
-   albumProbe.publishCurrent();replacement.update(current);replacement.noteLookaheadCandidate(lookahead.next);
+   albumProbe.publishCurrent();replacement.update(current);
+   sampleLookahead(c,item);replacement.noteLookaheadCandidate(lookahead.next);
    long clock=SystemClock.elapsedRealtime();
    if(current.playing&&current.duration>0&&current.position>=current.duration){if(endReachedAt<0)endReachedAt=clock;if(clock-endReachedAt>=2000){LogStore.log("source_controller_refresh",LogStore.map("reason","item_stuck_at_end","alias",current.alias,"positionMs",current.position,"durationMs",current.duration));replacement.sourceBoundary("controller_stuck_at_end",null);current=null;controller=null;c.release();endReachedAt=-1;connect();return;}}else endReachedAt=-1;
    if(clock-lastHealth>=5000){lastHealth=clock;LogStore.log("playback_health",LogStore.map("alias",current.alias,"sourcePositionMs",current.position,"durationMs",current.duration,"sourcePlaying",current.playing,"nativeState",nativeState,"playWhenReady",c.getPlayWhenReady(),"suppressionReason",c.getPlaybackSuppressionReason(),"mediaEventAgeMs",clock-lastMediaEvent,"replacementReady",replacement.ready,"replacementPreparing",replacement.preparing,"replacementArmed",replacement.armed(),"trackId",replacement.trackId,"method",replacement.method));}
