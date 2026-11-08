@@ -94,6 +94,39 @@ public final class TestLookaheadPrefetchPolicy {
     "cached file unchanged");
   check(LookaheadPrefetchPolicy.promotedCurrentWaitMs(true,246810,"downloading",-1)==400L,
     "unknown age preserves original grace");
+  // Test.73 HONOR: only 3–4 minute old speculative transfers pay 400ms.
+  check(LookaheadPrefetchPolicy.promotedCurrentWaitMs(true,213610,"downloading",2983)==400L,
+    "GUF Skazhi aged 3:33 full prefetch must not waste 1200ms before sparse fallback");
+  check(LookaheadPrefetchPolicy.promotedCurrentWaitMs(true,137710,"downloading",2477)==1200L,
+    "KEER Polvtorogo retains the completed 279ms full-file handoff");
+  check(LookaheadPrefetchPolicy.promotedCurrentWaitMs(true,179999,"downloading",3000)==1200L,
+    "sub-three-minute transfers unchanged");
+  check(LookaheadPrefetchPolicy.promotedCurrentWaitMs(true,213610,"downloading",2700)==1200L,
+    "still-young medium transfer unchanged");
+  check(LookaheadPrefetchPolicy.promotedCurrentWaitMs(true,213610,"downloading",5200)==1200L,
+    "mature medium transfer still gets full wait");
+  check(LookaheadPrefetchPolicy.promotedCurrentWaitMs(true,213610,"cached",3000)==1200L,
+    "cached or complete handoff is unchanged");
+  check(LookaheadPrefetchPolicy.promotedCurrentWaitMs(false,213610,"downloading",3000)==10000L,
+    "frozen nonprogressive mode is untouched");
+  JSONObject questCatalog=new JSONObject().put("schema",1).put("complete",true)
+    .put("generated_at_ms",1000).put("tracks",new JSONArray().put(
+      new JSONObject().put("track_id","90123").put("replacement_available",true)
+        .put("title","Он рядом").put("artist","Quest Pistols").put("duration_ms",224520)));
+  Map<String,Object> quest=HybridIdentity.own(questCatalog,"Он рядом",
+    "Quest Pistols, Quest Pistols Show",224520,2000);
+  check("UNIQUE_METADATA_CANDIDATE".equals(quest.get("status"))
+    &&"90123".equals(quest.get("catalogueTrackId")),
+    "duplicated Yandex Quest Pistols / Quest Pistols Show artist must match strict own catalogue");
+  check("NO_MATCH".equals(HybridIdentity.own(questCatalog,"Он рядом",
+    "Quest Pistols, Different Artist",224520,2000).get("status")),
+    "real different artist remains disallowed");
+  check("NO_MATCH".equals(HybridIdentity.own(questCatalog,"Он рядом",
+    "Quest Pistols, Quest Pistols Show",224520+2001,2000).get("status")),
+    "Quest artist alias must not relax duration");
+  check("NO_MATCH".equals(HybridIdentity.own(questCatalog,"Другой трек",
+    "Quest Pistols, Quest Pistols Show",224520,2000).get("status")),
+    "Quest artist alias must not relax title");
   metadataOnlyFallbackIsUniqueAndFailClosed();
   System.out.println("PASS: lookahead strict album and stable metadata fallback gates");
  }
