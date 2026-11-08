@@ -1,6 +1,6 @@
 # CELIKOM Windows Companion — NEXT-CHAT
 
-**Updated 2026-11-08. W3 real owner report RECEIVED. W4 isolated source adapter underway.**
+**Updated 2026-11-08. W3 real owner report RECEIVED; W4 CI passed; W5 isolated Electron test authored.**
 
 ## Objective
 Official Windows Yandex Music is the ONLY owner of audio, pause, seek, next, queue,
@@ -94,3 +94,19 @@ behavior. Don't claim source substitution without audible owner acceptance.
 - GitHub Actions [42509525224](https://github.com/manufact-test/nomusic/actions/runs/42509525224): **SUCCESS**; W4 Node synthetic adapter stage passed, W3 .NET build/safety stages passed.
 - 17 named W4 synthetic tests cover v1/v2, mixed batch, wrong ID, delayed Next, abort, Original, duplicate-track preference, double hook, Stop, expiry, unsafe asset, original failure/error, unsupported prototype, cleanup and secret-safe diagnostics.
 - No new owner-side diagnostic is needed; do not confuse CI fixture passing with live audio.
+
+## W5 Electron source-level media fixture
+- Detailed scope: `docs/windows/W5-ELECTRON-ISOLATED-20261108.md`.
+- `windows-companion/w5/**` contains pinned public Yandex JS asset hashes,
+  test-only factory preparation, offline signed Range fixture, isolated
+  Electron main/renderer tests; uses original W4 in-memory source adapter.
+- Tests actual **public web** Yandex resource/source classes in a genuine
+  Electron audio renderer with generated synthetic MP3; **NOT** the owner's
+  official Yandex Windows 5.126.1.0 binary, and no user tokens.
+- Assert native one-decoder playback, pause, seek, track change, late seek,
+  a delayed stale request, explicit original reacquisition, Stop and
+  signed URL 206/403/416. If CI fails, identify and fix without weakening
+  real assertions.
+- W5 is NOT a Windows CELIKOM installer. No owner action/ZIP unless a
+  subsequently approved, reversible live-client test can be designed.
+- Check W5 Windows workflow result before claiming verified.

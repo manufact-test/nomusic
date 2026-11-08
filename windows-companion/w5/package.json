@@ -1,0 +1,13 @@
+{
+  "name": "celikom-windows-w5-isolated-electron-fixture",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Not a CELIKOM product; synthetic Electron compatibility fixture only",
+  "scripts": {
+    "e2e": "electron w5-electron-main.cjs"
+  },
+  "devDependencies": {
+    "electron": "44.10.2",
+    "ffmpeg-static": "5.2.0"
+  }
+}

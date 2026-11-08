@@ -1,4 +1,4 @@
-name: Windows Companion — W4 isolated source adapter + W3 probe
+name: Windows Companion — W5 isolated Electron native source proof
 
 on:
   workflow_dispatch:
@@ -25,6 +25,15 @@ jobs:
           node-version: '22'
       - name: W4 exact-ID native resource adapter contract (synthetic, no Yandex app)
         run: node --test windows-companion/bridge/w4-source-resource-adapter.test.mjs
+      - name: Install W5 isolated Electron and MP3 fixture dependencies
+        working-directory: windows-companion/w5
+        run: npm install --no-audit --no-fund --no-package-lock
+      - name: Prepare hash-pinned public Yandex source classes (test-only)
+        working-directory: windows-companion/w5
+        run: node prepare-fixture.mjs out
+      - name: W5 genuine Yandex public resource classes inside isolated Electron
+        working-directory: windows-companion/w5
+        run: npm run e2e
       - name: Setup .NET 10
         uses: actions/setup-dotnet@v4
         with:
