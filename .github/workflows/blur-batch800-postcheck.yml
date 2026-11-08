@@ -22,7 +22,7 @@ jobs:
         run: |
           set -euo pipefail
           php -l tools/blur-batch800/check-live800-readonly.php
-          jq -e '.target_pending==200 and .fixed_plan==true and (.selected|length)==200' tools/blur-batch800/fixed-plan600.json
+          jq -e '.target_pending==200 and .fixed_plan==true and (.selected|length)==200' tools/blur-batch800/fixed-plan800.json
       - name: Independently verify live 200 private audio digests, pending DB state, catalogue and API
         env:
           HOST_KEY: ${{ secrets.CELIKOM_HOSTINGER_SSH_KEY }}
