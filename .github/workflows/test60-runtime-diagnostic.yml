@@ -39,6 +39,21 @@ jobs:
           p=root/'celikom/current/src/Application.php'
           print('ACTIVE_ROUTE_PRESENT',p.is_file() and "/api/v1/replacement-catalog" in p.read_text(errors='replace'))
           PY
+          # Actual production database, read-only; never log credentials or audio.
+          ssh -p 65002 -i "$RUNNER_TEMP/private/id_host" -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$RUNNER_TEMP/private/known_hosts" u235811320@92.113.19.189 'php' <<'PHP'
+          <?php
+          declare(strict_types=1);
+          $base = '/home/u235811320/domains/darkred-camel-588676.hostingersite.com/celikom/current';
+          require $base . '/bootstrap.php';
+          $config = require $base . '/config/app.php';
+          $pdo = \Celikom\Database\Connection::open($config);
+          $snapshot = (new \Celikom\Application\ReplacementCatalogueService($pdo))->snapshot();
+          if (($snapshot['complete'] ?? false)!==true || ($snapshot['total_tracks'] ?? 0)<1
+              || count($snapshot['tracks'] ?? [])!==$snapshot['total_tracks']) {
+              throw new RuntimeException('Live catalogue unavailable or incomplete');
+          }
+          echo 'PASS: live production DB approved catalogue rows ' . $snapshot['total_tracks'] . PHP_EOL;
+          PHP
           for url in             'https://darkred-camel-588676.hostingersite.com/api/v1/health'             "https://darkred-camel-588676.hostingersite.com/api/v1/replacement-catalog?test60=${GITHUB_RUN_ID}"; do
             curl -sS -m 15 -o /dev/null -w 'URL: %{url_effective} HTTP: %{http_code} SERVER: %{remote_ip}\n' -H 'Cache-Control: no-cache, no-store' "$url" || true
           done
