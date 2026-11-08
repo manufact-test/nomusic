@@ -54,3 +54,36 @@ W12 Windows CI is required before calling the synthetic experiment passed. If CI
 ## Next decision
 
 Verify whether an officially supported plugin/SDK or other permission-limited audio-source interface exists for Yandex Music Windows 5.126.1.0. If no supported seam is demonstrated, record Windows live client as **blocked**. Product must never silently fall back to a second music player, disable integrity or expose authenticated CDP. Any attempt at a separate official-app copy is a new consent-and-threat-model gate, not implied by synthetic W12 success.
+
+## Verified W12 Windows CI — 2026-11-08
+
+- Source commit \`89c648af08c2016cb49ce2605cd96cd8ccf10330\`.
+- [Actions run 42520309048](https://github.com/manufact-test/nomusic/actions/runs/42520309048):
+  **SUCCESS** (Windows runner, Node 22, Electron 44.10.2, .NET 10).
+- W12 production launch fail-closed policy: **6/6** unit tests, all pass.
+  It never grants official EXE launch/debugging/ASAR modification, even
+  with seemingly perfect W10 identity and user-consent flags.
+- W12 genuine disposable Electron single-instance experiment: **5/5**
+  runtime assertions passed:
+  - first generic fixture process with test profile A acquired lock;
+  - second with same profile A was denied as independent player;
+  - primary A received the \`second-instance\` forwarding event;
+  - third with separate test profile B acquired independent lock;
+  - no second player/profile confusion, no official Yandex process.
+- Existing W11 private pipe **33/33**, W7+W8 native error recovery
+  **33/33**, W5 native audio **35/35**, W9 real generated ASAR
+  copy restore, W6 **15/15**, and W10 .NET offline safety tests passed.
+- Backup ref **before W12**:
+  \`backup/windows-w11-verified-before-w12-20261108\`
+  at \`2e4134554843a416181153d01bc4df06bdf5590f\`.
+- **No official Yandex application process was started, debugged, modified,
+  or inspected live.** The official Windows single-instance mechanism
+  is still unverified, and the owner W10 report already proves ASAR-only
+  patches violate the enabled integrity check.
+- No owner W12 ZIP is necessary. Do not ask for another W0–W10 scan.
+- **Next gate is real official-app feasibility, not W13 more synthetic
+  success:** locate a genuine supported, permission-limited source
+  integration interface. If none exists, document Windows native
+  integration as BLOCKED. A separate test of the official signed EXE
+  needs explicit narrowly scoped risk review/owner approval and must
+  guarantee not to forward into their logged-in running instance.

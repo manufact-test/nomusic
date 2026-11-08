@@ -1,6 +1,6 @@
 # CELIKOM Windows Companion — NEXT-CHAT
 
-**Updated 2026-11-08. W10 real EXE/ASAR integrity ENABLED/MATCH (official ASAR patch NO-GO); W11 private pipe isolated PASS; W12 generic Electron single-instance isolation under CI.**
+**Updated 2026-11-08. Owner W10 ASAR integrity ENABLED/MATCH, direct ASAR patch NO-GO. W11 and W12 verified Windows CI. Next: W13 genuine official-client feasibility go/no-go.**
 
 ## Objective
 Official Windows Yandex Music is the ONLY owner of audio, pause, seek, next, queue,
@@ -349,7 +349,52 @@ Read `docs/windows/W12-SINGLE-INSTANCE-ISOLATION-20261108.md`.
 - Current owner's installed official Yandex is RUNNING and authenticated state is not to be inspected. No official EXE was launched for W12.
 - Electron `requestSingleInstanceLock` can forward second launch into existing primary. Do not assume `--user-data-dir` ensures separate official Yandex profile/process.
 - `windows-companion/w12/official-launch-gate.mjs`: real app launch / signed ASAR changes / opening authenticated debugger explicitly forbidden. Pure synthetic tests check refusal.
-- W12 disposable generic Electron fixture experiments with same synthetic profile vs different synthetic profile and real `second-instance` forwarding; CI verification PENDING until logged.
+- W12 disposable generic Electron fixture experiments with same synthetic profile vs different synthetic profile and real `second-instance` forwarding; Windows CI **VERIFIED PASS**.
 - W12 tested code restricted to `windows-companion/w12/`, `windows-companion/w5/package.json`, workflow and docs.
 - Pre-W12 verified backup ref: `backup/windows-w11-verified-before-w12-20261108` at `2e4134554843a416181153d01bc4df06bdf5590f`.
 - Do NOT ask owner to run another W10 read-only scanner. No new owner ZIP needed for W12. No live source swap yet.
+
+## W12 Windows CI accepted — owner handoff (2026-11-08)
+
+- Source commit \`89c648af08c2016cb49ce2605cd96cd8ccf10330\`.
+- [CI run 42520309048](https://github.com/manufact-test/nomusic/actions/runs/42520309048): **SUCCESS**.
+- W12 fail-closed official launch policy **6/6**; real GENERIC Electron
+  test \`run-single-instance-e2e.mjs\` **5/5** assertions passed:
+  first synthetic profile A owns lock; second with A is blocked and
+  forwards \`second-instance\` to A; independent profile B gets own lock.
+- W11 private inherited pipe **33/33**, W7+W8 **33/33**,
+  W5 **35/35**, W9 actual generated ASAR original/copy/restore
+  boot verified, and earlier .NET/Node regression all PASS.
+- W12 has **NO official Yandex launcher**; \`official-launch-gate.mjs\`
+  deliberately returns NO_GO even with W10 identity and consent.
+- No official app process was launched, no Yandex account or profile
+  inspected, no installed EXE/ASAR, browser, Android, website, backend
+  or production branch changed. No owner W12 ZIP needed.
+- Pre-W12 backup \`backup/windows-w11-verified-before-w12-20261108\`
+  -> \`2e4134554843a416181153d01bc4df06bdf5590f\`.
+- W10 definitive actual owner: ASAR SHA matches, Electron integrity
+  \`ENABLED\`, ASAR-only \`ENABLED\`, PE resource \`PRESENT/MATCH\`.
+  **NEVER** patch installed ASAR or flip fuses/EXE hash.
+- New concise next-chat entry message is in
+  \`docs/windows/W12-NEXT-CHAT-PROMPT-20261108.md\`.
+
+### Next phase W13 — stop making hypothetical fixtures
+
+1. Read project docs and W10–W12 evidence, inspect current branch.
+2. Investigate a **supported, limited, noninvasive** native desktop
+   audio-source seam in the official Windows Yandex build, including
+   how it would retain Yandex's own decoder/pause/seek/queue.
+   Do NOT assume public web source classes == installed official ones.
+3. Treat W11 private CDP as privileged debugger and W12 synthetic
+   profiles as a risk demonstration, **NOT product approval**.
+4. If no supported or independently verifiable safe seam exists,
+   state clear NO-GO/BLOCKED, stop endless fixture work, offer
+   realistic options without a second player.
+5. Never launch current owner's authenticated Yandex with debug
+   flags, never modify signed official EXE/ASAR, never extract
+   tokens/cookies or duplicate paid production systems. An
+   actual isolated signed app test must be separately scoped and
+   explicitly approved after a safety review.
+6. Keep work on Windows branch and preserve backup refs.
+7. Owner prefers *large chunks* and concise factual status, no
+   ten-minute stops, no repetitive W0–W10 probe requests.
