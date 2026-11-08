@@ -1,0 +1,57 @@
+name: CELIKOM Blur — THIRD 200 real private pending tracks (four fixed batches of 50)
+on:
+  push:
+    branches: [feature/blur-batch600-20261108]
+    paths: ['.github/workflows/blur-batch600-deploy.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: celikom-blur-real-50-pending
+  cancel-in-progress: false
+jobs:
+  private-200:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Validate exactly 200 immutable pinned MP3s and all batch scripts
+        shell: bash
+        run: |
+          set -euo pipefail
+          php -l tools/blur-batch50/import.php
+          php -l tools/blur-batch600/verify-pending-files.php
+          python3 -m py_compile tools/blur-batch600/fetch-fixed.py tools/blur-batch50/prepare.py
+          bash -n tools/blur-batch600/run-deploy.sh
+          python3 - <<'PY'
+          import json, csv
+          p=json.load(open('tools/blur-batch600/fixed-plan600.json'))
+          c=json.load(open('tools/blur-batch600/candidates.json'))
+          byid={x['id']:x for x in c['candidates']}
+          s=p['selected']
+          rejected={r['track_id'] for r in csv.DictReader(open('docs/research/BLUR-REJECTED-CUMULATIVE.csv'))}
+          assert p['target_pending']==200 and p['batch_size']==50 and p['fixed_plan'] is True
+          assert p['source_commit']==c['source_commit']=='10187b7af56f311fe141a3c9b75483798bf0f589'
+          assert len(s)==len({x['id'] for x in s})==200
+          assert len({(' '.join(x['artist'].lower().split()),' '.join(x['title'].lower().split())) for x in s})==200
+          assert all(x['id'] in byid and x['id'] not in rejected and x['blob']==byid[x['id']]['blob'] and x['size']==byid[x['id']]['size'] and isinstance(x.get('duration_ms'),int) and x['duration_ms']>=1000 for x in s)
+          print('FIXED200_VALID: four exact 50-ID groups; all source digests pinned; no replacement of failed IDs.')
+          PY
+          command -v ffprobe || { sudo apt-get update -qq; sudo apt-get install -y ffmpeg; }
+          command -v file
+      - name: Upload four fixed 50-song private batches and independently verify all 200 live
+        env:
+          HOST_KEY: ${{ secrets.CELIKOM_HOSTINGER_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.CELIKOM_HOSTINGER_KNOWN_HOSTS }}
+        shell: bash
+        run: bash tools/blur-batch600/run-deploy.sh
+      - name: Preserve all independent live DB and file checks for four batches
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: celikom-blur-live200-${{ github.run_id }}
+          path: ${{ runner.temp }}/sixhundred-state/
+          retention-days: 90
+          if-no-files-found: warn
