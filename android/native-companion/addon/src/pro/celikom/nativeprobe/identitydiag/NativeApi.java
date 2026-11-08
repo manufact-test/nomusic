@@ -65,7 +65,8 @@ final class NativeApi {
     JSONObject output=null;String failure=null;
     try{
      if(account!=accountGeneration||revoking)throw new Exception("account_changed");
-     // CDN may cache the pre-deployment 404. A unique read-only query bypasses stale negative caches.\n     output=request("replacement-catalog?refresh="+System.currentTimeMillis(),null,bearer,
+     // CDN may cache the pre-deployment 404. A unique read-only query bypasses stale negative caches.
+     output=request("replacement-catalog?refresh="+System.currentTimeMillis(),null,bearer,
        ()->account==accountGeneration&&!revoking);
     }catch(Exception e){
      failure=account==accountGeneration?"catalogue_network_unavailable":"account_changed";
