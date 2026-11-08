@@ -111,7 +111,7 @@ public final class LabActivity extends Activity {
         } catch (Exception e) {
             return 0;
         } finally {
-            meta.release();
+            try { meta.release(); } catch (IOException ignored) {}
         }
     }
 
