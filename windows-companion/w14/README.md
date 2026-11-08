@@ -10,6 +10,8 @@ Code: source-controller.mjs; tests: source-controller.test.mjs.
 
 **Safety contract:** disabled by default, exact track ID, allowlisted same HTTPS origin, signed short-lived CELIKOM Range endpoint, server-provided approval and entitlement, no username/password stored here, stale Next response cannot re-hook, Original per current track, global Stop, graceful clear on dispose. The future Companion must be the source of authorized resolve() and the allowed origin. These placeholder test URL/grants are synthetic and never shipped as real media.
 
+**Candidate SDK package:** `windows-companion/w14/addon/` uses the actual published `@pulsesync/addon-sdk@0.18.0` Vite builder to verify compilation (CI only). Its `start` is intentionally OFF: no account, no authenticated resolver, no requested source, no second player, no window/CDP. A successful package build is not evidence of a runtime hook on Yandex 5.126.1.0.
+
 **Not yet implemented:** consumer installation, PulseSync SDK addon packaging, approved Companion IPC/login, own server signed grant adaptation, live playback tests, compatible host/version validation, Windows integrity-safe installation, test VM, account/legal approval. Do **not** tell owner to install PulseSync based on this file. It proves only module safety contract and *that a public third-party SDK API shape exists*, not that this exact module is running in 5.126.1.0.
 
 ## External audit discoveries

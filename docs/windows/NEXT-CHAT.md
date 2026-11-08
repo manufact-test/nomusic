@@ -1,3 +1,9 @@
+# W14 SDK packaging step
+
+Added a disabled PulseSync add-on package using published @pulsesync/addon-sdk 0.18.0, with Windows CI build. Its actual API shape is exercised at *build-time*, not in an installed Yandex client; no source request or account data. CI outcome must be observed before claiming build pass.
+
+---
+
 # W14 code checkpoint (2026-11-09)
 
 Implemented first **PulseSync SDK candidate source-only CELIKOM controller** in `windows-companion/w14/source-controller.mjs` and 11 Node safety tests in `source-controller.test.mjs`; added Windows CI step. No live app modified or test installed. Read `windows-companion/w14/README.md` for audit and blockers. This is not proof that real modified Yandex works. Initial CI run 42526191317 started on commit 7e5932b; the follow-up W14 code fixes SDK-error false-positive reporting. Verify the latest commit CI separately.

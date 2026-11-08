@@ -25,6 +25,12 @@ jobs:
           node-version: '22'
       - name: W14 PulseSync candidate source adapter contract (NO official runtime)
         run: node --test windows-companion/w14/source-controller.test.mjs
+      - name: Install candidate PulseSync add-on SDK in CI only
+        working-directory: windows-companion/w14/addon
+        run: npm install --no-audit --no-fund --no-package-lock
+      - name: Build REAL PulseSync add-on SDK candidate (disabled, no host execution)
+        working-directory: windows-companion/w14/addon
+        run: npm run build
       - name: W12 fail-closed official-launch policy (synthetic only)
         run: node --test windows-companion/w12/official-launch-gate.test.mjs
       - name: W11 private pipe target and CDP framing policy
