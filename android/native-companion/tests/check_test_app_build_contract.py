@@ -28,7 +28,7 @@ assert "ProblemTrackTransport" not in probe and "problem_transport_command_sent"
 assert "sourceBuffering" in probe and "NotificationState.yandexBuffering" in probe
 assert "NativeTransportWitness" not in probe and "native_transport_legacy_retry" not in probe
 assert "SourceSnapshotConsistency" in probe and "source_snapshot_mixed_identity" in probe
-# Test.74 MUST NEVER use passive system witness to control audio or authorize a mapping.
+# Test.75 observer never sends remote commands; policy gates control to same exact source.
 witness=(ROOT / "addon/src/pro/celikom/nativeprobe/identitydiag/YandexSessionWitnessService.java").read_text(encoding="utf-8")
 assert "extends NotificationListenerService" in witness
 assert 'Objects.equals(c.getPackageName(),LogStore.PKG)' in witness
@@ -60,7 +60,7 @@ assert "sourceSnapshotConsistency.observe(" in probe
 assert "Test72SourceSnapshotConsistency" in (ROOT / "tests/run_engine.py").read_text(encoding="utf-8")
 assert probe.index("sourceSnapshotConsistency.observe(") < probe.index("LegacySourcePositionPolicy.Decision legacy=")
 assert probe.index("sourceSnapshotConsistency.observe(") < probe.index("albumProbe.observe(item.mediaId")
-assert probe.index("sourceSnapshotConsistency.observe(") < probe.index("current=new PlaybackSource(")
+assert probe.index("sourceSnapshotConsistency.observe(") < probe.index("current=control.usePlatform")
 notif=(ROOT / "addon/src/pro/celikom/nativeprobe/identitydiag/NotificationState.java").read_text(encoding="utf-8")
 assert "Яндекс не обновляет трек" in notif and "Яндекс загружает" in notif
 # Test.61 must defeat CDN negative caching after the approved-catalogue route is deployed.
