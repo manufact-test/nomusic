@@ -1,0 +1,34 @@
+name: CELIKOM Blur — diagnose two new MP3 inspector lengths READ ONLY
+on:
+  push:
+    branches: [feature/blur-batch1000-20261108]
+    paths: ['.github/workflows/blur-new2-inspector.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Compare MP3Inspector with ffprobe on 2 candidates
+        shell: bash
+        run: |
+          set -euo pipefail
+          command -v ffprobe || { sudo apt-get update -qq; sudo apt-get install -y ffmpeg; }
+          python3 - <<'PY'
+          import json,urllib.request,pathlib,tempfile,hashlib,subprocess
+          m=json.load(open('tools/blur-research/pending50-20261109.json'))
+          with tempfile.TemporaryDirectory() as td:
+            for x in m['selected'][-2:]:
+              f=pathlib.Path(td)/(x['id']+'.mp3')
+              data=urllib.request.urlopen(urllib.request.Request(x['source_url'],headers={'User-Agent':'CELIKOM-diagnose'}),timeout=45).read()
+              assert len(data)==x['size'] and hashlib.sha256(data).hexdigest()==x['sha256']
+              f.write_bytes(data)
+              php='require "server/bootstrap.php"; $m=(new Celikom\\Application\\Mp3Inspector())->durationMs($argv[1]);echo json_encode(["duration_ms"=>$m]);'
+              result=subprocess.run(['php','-r',php,str(f)],text=True,capture_output=True)
+              ff=subprocess.run(['ffprobe','-v','error','-show_entries','format=duration','-of','json',str(f)],text=True,capture_output=True)
+              print('INSPECTOR_DIAG',json.dumps({'id':x['id'],'expected':x['duration_ms'],'php_stdout':result.stdout,'php_stderr':result.stderr[:300],'php_rc':result.returncode,'ffprobe':ff.stdout[:300]},ensure_ascii=False),flush=True)
+          PY
