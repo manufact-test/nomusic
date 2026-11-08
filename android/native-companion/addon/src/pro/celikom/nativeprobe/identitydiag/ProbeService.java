@@ -15,7 +15,9 @@ import java.io.*;
 import java.util.*;
 /** Current-player observation only. No notification, Accessibility, library or account access to Yandex. */
 public class ProbeService extends Service {
- final String notificationRun=UUID.randomUUID().toString();String lastNotificationKey="";final SourceTransitionGate transitionGate=new SourceTransitionGate();final SourceSessionRecheck sessionRecheck=new SourceSessionRecheck();final SourceEventArbiter sourceArbiter=new SourceEventArbiter();final Media3SourceRouter media3Router=new Media3SourceRouter(sourceArbiter,new Media3SourceRouter.Sink(){public void boundary(String next,String reason){sourceBoundary(next,reason);}public void seekRequested(){if(replacement!=null)replacement.sourceSeekRequested();}});final SourceEventArbiter.LookaheadEvidence lookahead=new SourceEventArbiter.LookaheadEvidence();final SourceStateWatchdog stateWatchdog=new SourceStateWatchdog();final LegacySourcePositionPolicy legacyPositionPolicy=new LegacySourcePositionPolicy();final SourceSnapshotConsistency sourceSnapshotConsistency=new SourceSnapshotConsistency();android.media.browse.MediaBrowser legacyBrowser;android.media.session.MediaController legacyController;long lastLegacyDiagnosticAt=-1;boolean legacyPositionUnsafeLogged;boolean controllerSeen;long controllerGeneration,lastMediaEvent,lastHealth,endReachedAt=-1,sourceEventSequence,sourceItemGeneration;String sourceItemAlias;
+ final String notificationRun=UUID.randomUUID().toString();String lastNotificationKey="";final SourceTransitionGate transitionGate=new SourceTransitionGate();final SourceSessionRecheck sessionRecheck=new SourceSessionRecheck();final SourceEventArbiter sourceArbiter=new SourceEventArbiter();final Media3SourceRouter media3Router=new Media3SourceRouter(sourceArbiter,new Media3SourceRouter.Sink(){public void boundary(String next,String reason){sourceBoundary(next,reason);}public void seekRequested(){if(replacement!=null)replacement.sourceSeekRequested();}});final SourceEventArbiter.LookaheadEvidence lookahead=new SourceEventArbiter.LookaheadEvidence();final SourceStateWatchdog stateWatchdog=new SourceStateWatchdog();final LegacySourcePositionPolicy legacyPositionPolicy=new LegacySourcePositionPolicy();final SourceSnapshotConsistency sourceSnapshotConsistency=new SourceSnapshotConsistency();
+ final YandexFrameworkTransportPolicy frameworkPolicy=new YandexFrameworkTransportPolicy();
+ boolean frameworkUnsafeLogged;android.media.browse.MediaBrowser legacyBrowser;android.media.session.MediaController legacyController;long lastLegacyDiagnosticAt=-1;boolean legacyPositionUnsafeLogged;boolean controllerSeen;long controllerGeneration,lastMediaEvent,lastHealth,endReachedAt=-1,sourceEventSequence,sourceItemGeneration;String sourceItemAlias;
  static ProbeService instance;final Handler handler=new Handler(Looper.getMainLooper());long serviceCreatedAt=-1,lastTickAt=-1,lastSampleAt=-1,lastHeartbeatAt=-1,lastNetworkAvailableAt=-1,lastNetworkLostAt=-1;int tickCount,sampleCount;
  volatile PlaybackSource current;AlbumProbe albumProbe;ReplacementEngine replacement;androidx.media3.session.MediaController controller;ListenableFuture<androidx.media3.session.MediaController> connecting,sourceProbe;PowerManager.WakeLock wake;boolean receiverRegistered,stopping,networkRegistered,networkSeen;ConnectivityManager connectivity;long lastWakeRenewal,lastState,lastConnectAttempt=-5000,nextConnectAllowedAt=-1,emptySince=-1,lastLookaheadPoll=-2000;int sourceProbeFailures;volatile String observedNextAlias,sourceTransitionExpectedAlias;String lastLookaheadSource,lastLookaheadCandidate,lastLookaheadSignature,lastLookaheadMetadataSignature;int lookaheadMetadataSamples,attempts;String lastIdentityInventoryAlias;long lastIdentityInventoryAt=-30000;String lastStateKey="",connectionStatus="Подключаемся к Яндексу…",lastRoutes="";
  boolean alive(){return instance==this&&!stopping;}
@@ -405,8 +407,55 @@ public class ProbeService extends Service {
      "mediaEventAgeMs",observedNow-lastMediaEvent,
      "controllerRetained",true,"transportCommandSent",false));
    }
-   emptySince=-1;if(duration<=0||title.trim().isEmpty()){current=null;replacement.update(null);return;}long sampledPosition=c.getCurrentPosition();boolean fenced=sessionRecheck.awaitingFreshSource;if(!sessionRecheck.accept(item.mediaId,sampledPosition,observedNow)){current=null;replacement.update(null);return;}if(fenced)LogStore.log("source_controller_freshness_confirmed",LogStore.map("reason","new_controller_metadata","alias",item.mediaId,"positionMs",sampledPosition,"audioCommandSent",false));if(sourceItemAlias==null||(current==null&&!Objects.equals(sourceItemAlias,item.mediaId))){sourceItemGeneration++;sourceItemAlias=item.mediaId;}LegacySourcePositionPolicy.Decision legacy=legacyPosition(item.mediaId,title,artist,duration,sampledPosition,c.isPlaying());if(legacy.failClosed){if(!legacyPositionUnsafeLogged){legacyPositionUnsafeLogged=true;LogStore.log("source_seek_platform_fail_closed",LogStore.map("alias",item.mediaId,"originalRetained",true));}replacement.suspend("legacy_position_unverified",2000);replacement.update(null);return;}legacyPositionUnsafeLogged=false;if(legacy.newRecovery)replacement.sourceSeekRequested();PlaybackSource previous=current;current=new PlaybackSource(item.mediaId,title,artist,duration,cover,legacy.override?legacy.position:sampledPosition,c.isPlaying(),c.getDeviceInfo().playbackType==DeviceInfo.PLAYBACK_TYPE_LOCAL,c.getPlaybackParameters().speed,c.getPlayWhenReady(),nativeState==Player.STATE_BUFFERING);sourceTransitionExpectedAlias=null;if(previous!=null&&!previous.key.equals(current.key)){reportLookahead(current.alias,"sample_track_changed");replacement.sourceChanged(previous,current);}
-   else if(previous!=null&&SourceTransitionGate.outgoingItemReset(previous.alias,current.alias,previous.position,previous.duration,current.position,previous.playing,current.playing,c.getPlayWhenReady(),nativeState==Player.STATE_BUFFERING))
+   emptySince=-1;if(duration<=0||title.trim().isEmpty()){current=null;replacement.update(null);return;}long sampledPosition=c.getCurrentPosition();boolean fenced=sessionRecheck.awaitingFreshSource;if(!sessionRecheck.accept(item.mediaId,sampledPosition,observedNow)){current=null;replacement.update(null);return;}if(fenced)LogStore.log("source_controller_freshness_confirmed",LogStore.map("reason","new_controller_metadata","alias",item.mediaId,"positionMs",sampledPosition,"audioCommandSent",false));if(sourceItemAlias==null||(current==null&&!Objects.equals(sourceItemAlias,item.mediaId))){sourceItemGeneration++;sourceItemAlias=item.mediaId;}LegacySourcePositionPolicy.Decision legacy=legacyPosition(item.mediaId,title,artist,duration,sampledPosition,c.isPlaying());if(legacy.failClosed){if(!legacyPositionUnsafeLogged){legacyPositionUnsafeLogged=true;LogStore.log("source_seek_platform_fail_closed",LogStore.map("alias",item.mediaId,"originalRetained",true));}replacement.suspend("legacy_position_unverified",2000);replacement.update(null);return;}legacyPositionUnsafeLogged=false;
+   if(legacy.newRecovery)replacement.sourceSeekRequested();
+   // Test.75: independently confirmed *opt-in* native framework control
+   // overrides stale external Media3 only for this same verified Yandex song.
+   // Never accesses notification text or sends transport commands to Yandex.
+   YandexSessionWitnessService.Snapshot witness=YandexSessionWitnessService.controlSnapshot();
+   YandexFrameworkTransportPolicy.Decision control=frameworkPolicy.reconcile(
+      item.mediaId,title,artist,duration,sampledPosition,c.isPlaying(),
+      witness.available,witness.yandexSessions,witness.title,witness.artist,
+      witness.duration,witness.state,witness.rawPosition,witness.stateAgeMs,
+      witness.speed,observedNow);
+   if(control.failClosed){
+     if(!frameworkUnsafeLogged){
+       frameworkUnsafeLogged=true;
+       LogStore.log("source_framework_authority_lost",LogStore.map(
+         "alias",item.mediaId,"reason",control.reason,
+         "originalRetained",true,"remoteCommandSent",false));
+       replacement.suspend("framework_source_unverified",3000);
+     }
+     current=null;replacement.update(null);return;
+   }
+   frameworkUnsafeLogged=false;
+   if(control.firstRecovery)
+     LogStore.log("source_framework_authority_verified",LogStore.map(
+       "alias",item.mediaId,"reason",control.reason,
+       "originalMedia3PositionMs",sampledPosition,
+       "nativeFrameworkPositionMs",control.position,
+       "nativeState",witness.state,"sameTitleArtistDuration",true,
+       "yandexSessions",witness.yandexSessions,"remoteCommandSent",false));
+   if(control.seekObserved){
+     replacement.sourceSeekRequested();
+     LogStore.log("source_framework_seek_detected",LogStore.map(
+       "alias",item.mediaId,"nativePositionMs",control.position,
+       "remoteMedia3PositionMs",sampledPosition,
+       "remoteCommandSent",false));
+   }
+   PlaybackSource rawMedia3=new PlaybackSource(item.mediaId,title,artist,duration,cover,
+     legacy.override?legacy.position:sampledPosition,c.isPlaying(),
+     c.getDeviceInfo().playbackType==DeviceInfo.PLAYBACK_TYPE_LOCAL,
+     c.getPlaybackParameters().speed,c.getPlayWhenReady(),nativeState==Player.STATE_BUFFERING);
+   PlaybackSource previous=current;
+   current=control.usePlatform
+     ?new PlaybackSource(item.mediaId,title,artist,duration,cover,
+       control.position,control.playing,
+       c.getDeviceInfo().playbackType==DeviceInfo.PLAYBACK_TYPE_LOCAL,
+       c.getPlaybackParameters().speed,control.wantsToPlay,control.buffering)
+     :rawMedia3;
+   sourceTransitionExpectedAlias=null;if(previous!=null&&!previous.key.equals(current.key)){reportLookahead(current.alias,"sample_track_changed");replacement.sourceChanged(previous,current);}
+   else if(previous!=null&&SourceTransitionGate.outgoingItemReset(previous.alias,current.alias,previous.position,previous.duration,current.position,previous.playing,current.playing,current.wantsToPlay,current.buffering))
       replacement.outgoingTrackReset(previous);
    albumProbe.observe(item.mediaId,title,artist,duration,cover);
    if(LogStore.active&&(!Objects.equals(lastIdentityInventoryAlias,item.mediaId)
@@ -417,9 +466,9 @@ public class ProbeService extends Service {
    // Foreground album/current resolve before speculative next. Actual
    // network dispatch is protected by independent resolve lanes as well.
    albumProbe.publishCurrent();replacement.update(current);
-   // Test.74: independent framework MediaSession read-only trace; AFTER all
-   // Test.73 audio decisions. Never feeds back to the replacement engine.
-   YandexSessionWitnessService.sample(c,current);
+   // Keep the raw Test.73 Media3 values in independent diagnostics, even if
+   // the opt-in Test.75 framework authority corrected the playback engine.
+   YandexSessionWitnessService.sample(c,rawMedia3);
    sampleLookahead(c,item);replacement.noteLookaheadCandidate(lookahead.next);
    long clock=SystemClock.elapsedRealtime();
    if(current.playing&&current.duration>0&&current.position>=current.duration){if(endReachedAt<0)endReachedAt=clock;if(clock-endReachedAt>=2000){LogStore.log("source_controller_refresh",LogStore.map("reason","item_stuck_at_end","alias",current.alias,"positionMs",current.position,"durationMs",current.duration));replacement.sourceBoundary("controller_stuck_at_end",null);current=null;controller=null;c.release();endReachedAt=-1;connect();return;}}else endReachedAt=-1;
