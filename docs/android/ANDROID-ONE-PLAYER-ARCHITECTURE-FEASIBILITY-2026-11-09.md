@@ -1,3 +1,5 @@
+> **2026-11-09 · новый независимый эксперимент:** `experiment/android-one-player-source-gate-20261109`. Gate 0 исследован, Gate 1 реальной интеграции с Яндексом пока **BLOCKED**: отсутствует аудируемый совместимый in-process host. Создан автономный `android/one-player-prototype/` с безопасным выбором альтернативы до запуска одного плеера и 12 unit scenarios; этот код не является модификацией Яндекса или APK. Подробности: [ANDROID-ONE-PLAYER-GATE0-DECISION-2026-11-09.md](ANDROID-ONE-PLAYER-GATE0-DECISION-2026-11-09.md). Основу, Test.50, сервер и официальный Яндекс не менять. CI результат проверять отдельно.
+
 # CELIKOM Android — single-player architecture / implementation contract
 
 **2026-11-09 · owner-approved NEW direction · DOC/RESEARCH ONLY.** Repository `manufact-test/nomusic`; working docs branch `research/android-single-player-inprocess-20261109`. This is NOT a signed implementation nor proof of Play Protect acceptance.
