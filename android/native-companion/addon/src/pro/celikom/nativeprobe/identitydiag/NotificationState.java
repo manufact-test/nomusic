@@ -16,7 +16,7 @@ final class NotificationState {
   // but cannot establish submission/moderation status. Keep the compact
   // Android notification readable; the Activity retains full context.
   if(!s.identified&&s.catalogueFresh&&"NO_MATCH".equals(s.catalogueStatus)&&s.playing)
-    detail="Нет одобренной версии · оригинал";
+    detail="Нет одобренной версии · играет оригинал";
   if(s.missing&&!s.replacing)detail="Для этой песни нет замены · играет оригинал";
   if(s.problem.isEmpty()&&!s.playing&&!s.preparing&&!s.seeking){
     boolean noApproved=!s.identified&&s.catalogueFresh&&"NO_MATCH".equals(s.catalogueStatus);
