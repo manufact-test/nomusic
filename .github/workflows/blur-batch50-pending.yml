@@ -17,7 +17,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
-      - name: Verify pinned candidate source and syntax
+      - name: Verify pinned candidate source and syntax (retry 2)
         shell: bash
         run: |
           set -euo pipefail
