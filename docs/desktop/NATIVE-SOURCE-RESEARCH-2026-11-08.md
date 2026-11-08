@@ -6,7 +6,7 @@ Status: isolated feasibility prototype; not a release. Accepted CELIKOM 0.4.73 r
 
 Base: `archive/desktop-0.4.73-accepted-20261104`, commit `63d8cd891e1db82e0245122391fd4ab5cdd323be`.
 Experiment: `experiment/desktop-native-source-20261108`.
-Only `spikes/native-source/`, this document and a dedicated test workflow are added.
+Only `spikes/native-source/`, research documents/results and a dedicated test workflow are added.
 No changes to extension production sources/manifest, Android, server, deployment or the accepted archive.
 
 ## What the four projects actually do
@@ -40,7 +40,7 @@ Relevant assets:
 | `81814-555ff279a2b975f5.js` | `87bfda81feef3272bfd6d27dc9b37c553cfd3c1040ce584d600bab91d1816e8e` |
 
 URL prefix: `https://yastatic-net.ru/s3/music-frontend-static/music/v4.1726.0/_next/static/chunks/`.
-Transient CI provenance records every fetched asset and content hash. Third-party bundles are not committed or distributed with CELIKOM.
+`spikes/native-source/asset-manifest.json` pins 76 public chunk URLs and SHA-256 hashes from this observed build. CI downloads them into a transient fixture and verifies the hashes; it does not depend on a fresh homepage for every test. `CELIKOM_NATIVE_LIVE_ASSETS=1` optionally examines the current public homepage instead. Third-party bundles are not committed or distributed with CELIKOM.
 
 Chrome supports `MAIN` content scripts at `document_start`; accepted CELIKOM already uses this. DNR is not a JSON response-body rewriting API. The experiment patches narrowly selected JavaScript resource methods rather than requiring Electron or modifying Chrome network response bodies.
 
@@ -66,7 +66,28 @@ It installs official Chrome/Brave, loads this actual unpacked MV3 extension via 
 
 Cases: v1/v2, mixed prefetch batches, exact-ID/abort/original-error fences, actual native MP3 playback, pause, seek, six-minute track and late seek, rapid Next, explicit original reacquisition, expiry, HTTP 503 retry, access denial, invalid ranges and hook cleanup.
 
-Results are recorded below after completion. Never infer artifact quality, absence of clicks, zero missing words or live account compatibility solely from these tests.
+### Verified results
+
+- Functional experiment commit: `374f48db24cdad0ea89b52506fbf3609c9eb86bc`.
+- [CI run 42478508631](https://github.com/manufact-test/nomusic/actions/runs/42478508631), job `128725094171`: SUCCESS.
+- Actual Chrome `156.0.8078.79`: **23 checks passed**.
+- Actual Brave `157.1.99.55` (Chromium `157.0.8103.39`): **23 checks passed**.
+- Accepted extension regressions: **360 passed, 0 failed**.
+- Separate read-only probes on the actual anonymous Yandex website: HTTP 200, two real resource classes discovered in BOTH browsers, zero replacements and no registered assets. This establishes current browser access to the seam, not authenticated playback compatibility.
+- Machine-readable results: [NATIVE-SOURCE-VERIFIED-20261108.json](NATIVE-SOURCE-VERIFIED-20261108.json). Full asset provenance and test outputs are also attached to the CI run.
+
+Controlled preparation comparison (synthetic six-minute MP3; server delays every continuation by 1800 ms):
+
+| Browser | Accepted .73 streaming decoder ready | Cold complete file + native decoder ready | Already prepared native file + decoder ready |
+| --- | ---: | ---: | ---: |
+| Chrome | 28 ms | 1844 ms | 2 ms |
+| Brave | 12 ms | 1845 ms | 3 ms |
+
+These are single controlled decoder-preparation measurements, **not** user-perceived account lookup/start latency, statistical percentiles, or a general speedup. The warm-file case excludes the preceding complete transfer and account/descriptor admission. It cannot justify bypassing their checks in a real integration. The cold result demonstrates why unconditional full-file substitution would regress startup.
+
+Earlier harness runs failed on fixture encoding and an HTTP fixture that rejected native open-ended `bytes=0-` requests. Final fixture serves UTF-8 explicitly and accepts open-ended native media ranges. A temporary homepage network failure also motivated pinned, hash-checked asset downloads. These failures are preserved in CI history; do not describe them as product fixes. No skipped audio assertions in the final passing run.
+
+Never infer absence of clicks, zero missing words, indefinite playback stability or live account compatibility solely from these tests. Play/Pause/Seek here exercise the native media element through an actual source descriptor, not authenticated Yandex UI buttons. Automatic restore after active decoder failure remains unimplemented.
 
 ## Comparison with accepted 0.4.73
 

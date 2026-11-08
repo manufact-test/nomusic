@@ -1,0 +1,273 @@
+{
+  "verifiedAt": "2026-11-08",
+  "sourceCommit": "374f48db24cdad0ea89b52506fbf3609c9eb86bc",
+  "runId": 42478508631,
+  "jobId": 128725094171,
+  "baselineNodeRegressions": {
+    "passed": 360,
+    "failed": 0
+  },
+  "browsers": [
+    {
+      "browser": "156.0.8078.79",
+      "extensionId": "eefjmbbndgfhgeooaepjjilecmobjeoo",
+      "checks": [
+        "actual v1 and v2 Yandex resource classes hooked",
+        "v1 exact ID native MP3 without encryption key",
+        "v1 mixed batch preserves original track and order",
+        "v1 aborted request never substituted",
+        "v1 original failure is not bypassed",
+        "v2 exact ID native MP3 without encryption key",
+        "v2 mixed batch preserves original track and order",
+        "v2 aborted request never substituted",
+        "v2 original failure is not bypassed",
+        "actual private Yandex source URL parameters normalized only for owned Blob",
+        "single native HTMLAudioElement actually plays",
+        "native pause holds clock",
+        "native seek reaches requested position",
+        "six minute native MP3 decoded",
+        "long track seek beyond first HTTP range plays",
+        "rapid next uses exactly one media element",
+        "disabled hook returns original encrypted descriptor untouched",
+        "explicit source reacquisition restores original fixture playback",
+        "cold complete file honestly waits for delayed continuation",
+        "expired asset is never assigned to new request",
+        "denied download rejected before native registration",
+        "bad-range download rejected before native registration",
+        "dispose restores owned prototype hooks and removes registry"
+      ],
+      "beforeDispose": {
+        "resourceClasses": 2,
+        "urlNormalization": true,
+        "singles": 15,
+        "batches": 2,
+        "replacements": 15,
+        "enabled": true,
+        "stopped": false,
+        "assets": 2,
+        "attempts": 17
+      },
+      "preparationComparison": {
+        "scope": "controlled decoder preparation only, not signed-in end-to-end latency",
+        "continuationDelayMs": 1800,
+        "baseline073StreamingMs": 28,
+        "nativeColdCompleteFileMs": 1844,
+        "nativeAlreadyPreparedFileMs": 2
+      },
+      "experimentElapsedMs": 3043,
+      "limitations": [
+        "controlled resource responses; not a signed-in Yandex listening session",
+        "explicit source reacquisition tested; automatic engine cache invalidation and error restore not implemented",
+        "no measured end-to-end speed advantage"
+      ],
+      "liveProbe": {
+        "status": 200,
+        "diagnostics": {
+          "resourceClasses": 2,
+          "urlNormalization": true,
+          "singles": 0,
+          "batches": 0,
+          "replacements": 0,
+          "enabled": true,
+          "stopped": false,
+          "assets": 0,
+          "attempts": 7
+        },
+        "signedInPlaybackTested": false
+      },
+      "httpRanges": [
+        {
+          "path": "/short.mp3",
+          "range": "bytes=0-524287",
+          "mode": "retry"
+        },
+        {
+          "path": "/short.mp3",
+          "range": "bytes=0-524287",
+          "mode": "retry"
+        },
+        {
+          "path": "/long.mp3",
+          "range": "bytes=0-524287",
+          "mode": null
+        },
+        {
+          "path": "/long.mp3",
+          "range": "bytes=524288-5761191",
+          "mode": null
+        },
+        {
+          "path": "/short.mp3",
+          "range": "bytes=0-",
+          "mode": null
+        },
+        {
+          "path": "/short.mp3",
+          "range": "bytes=65536-129191",
+          "mode": null
+        },
+        {
+          "path": "/long.mp3",
+          "range": "bytes=0-65535",
+          "mode": "slow-tail"
+        },
+        {
+          "path": "/long.mp3",
+          "range": "bytes=65536-589823",
+          "mode": "slow-tail"
+        },
+        {
+          "path": "/long.mp3",
+          "range": "bytes=0-524287",
+          "mode": "slow-tail"
+        },
+        {
+          "path": "/long.mp3",
+          "range": "bytes=524288-5761191",
+          "mode": "slow-tail"
+        },
+        {
+          "path": "/short.mp3",
+          "range": "bytes=0-524287",
+          "mode": "denied"
+        },
+        {
+          "path": "/short.mp3",
+          "range": "bytes=0-524287",
+          "mode": "bad-range"
+        }
+      ]
+    },
+    {
+      "browser": "157.0.8103.39",
+      "extensionId": "eefjmbbndgfhgeooaepjjilecmobjeoo",
+      "checks": [
+        "actual v1 and v2 Yandex resource classes hooked",
+        "v1 exact ID native MP3 without encryption key",
+        "v1 mixed batch preserves original track and order",
+        "v1 aborted request never substituted",
+        "v1 original failure is not bypassed",
+        "v2 exact ID native MP3 without encryption key",
+        "v2 mixed batch preserves original track and order",
+        "v2 aborted request never substituted",
+        "v2 original failure is not bypassed",
+        "actual private Yandex source URL parameters normalized only for owned Blob",
+        "single native HTMLAudioElement actually plays",
+        "native pause holds clock",
+        "native seek reaches requested position",
+        "six minute native MP3 decoded",
+        "long track seek beyond first HTTP range plays",
+        "rapid next uses exactly one media element",
+        "disabled hook returns original encrypted descriptor untouched",
+        "explicit source reacquisition restores original fixture playback",
+        "cold complete file honestly waits for delayed continuation",
+        "expired asset is never assigned to new request",
+        "denied download rejected before native registration",
+        "bad-range download rejected before native registration",
+        "dispose restores owned prototype hooks and removes registry"
+      ],
+      "beforeDispose": {
+        "resourceClasses": 2,
+        "urlNormalization": true,
+        "singles": 15,
+        "batches": 2,
+        "replacements": 15,
+        "enabled": true,
+        "stopped": false,
+        "assets": 2,
+        "attempts": 16
+      },
+      "preparationComparison": {
+        "scope": "controlled decoder preparation only, not signed-in end-to-end latency",
+        "continuationDelayMs": 1800,
+        "baseline073StreamingMs": 12,
+        "nativeColdCompleteFileMs": 1845,
+        "nativeAlreadyPreparedFileMs": 3
+      },
+      "experimentElapsedMs": 2873,
+      "limitations": [
+        "controlled resource responses; not a signed-in Yandex listening session",
+        "explicit source reacquisition tested; automatic engine cache invalidation and error restore not implemented",
+        "no measured end-to-end speed advantage"
+      ],
+      "liveProbe": {
+        "status": 200,
+        "diagnostics": {
+          "resourceClasses": 2,
+          "urlNormalization": true,
+          "singles": 0,
+          "batches": 0,
+          "replacements": 0,
+          "enabled": true,
+          "stopped": false,
+          "assets": 0,
+          "attempts": 8
+        },
+        "signedInPlaybackTested": false
+      },
+      "httpRanges": [
+        {
+          "path": "/short.mp3",
+          "range": "bytes=0-524287",
+          "mode": "retry"
+        },
+        {
+          "path": "/short.mp3",
+          "range": "bytes=0-524287",
+          "mode": "retry"
+        },
+        {
+          "path": "/long.mp3",
+          "range": "bytes=0-524287",
+          "mode": null
+        },
+        {
+          "path": "/long.mp3",
+          "range": "bytes=524288-5761191",
+          "mode": null
+        },
+        {
+          "path": "/short.mp3",
+          "range": "bytes=0-",
+          "mode": null
+        },
+        {
+          "path": "/long.mp3",
+          "range": "bytes=0-65535",
+          "mode": "slow-tail"
+        },
+        {
+          "path": "/short.mp3",
+          "range": "bytes=65536-129191",
+          "mode": null
+        },
+        {
+          "path": "/long.mp3",
+          "range": "bytes=65536-589823",
+          "mode": "slow-tail"
+        },
+        {
+          "path": "/long.mp3",
+          "range": "bytes=0-524287",
+          "mode": "slow-tail"
+        },
+        {
+          "path": "/long.mp3",
+          "range": "bytes=524288-5761191",
+          "mode": "slow-tail"
+        },
+        {
+          "path": "/short.mp3",
+          "range": "bytes=0-524287",
+          "mode": "denied"
+        },
+        {
+          "path": "/short.mp3",
+          "range": "bytes=0-524287",
+          "mode": "bad-range"
+        }
+      ]
+    }
+  ]
+}
+
