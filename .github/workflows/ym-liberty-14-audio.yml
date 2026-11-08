@@ -1,0 +1,30 @@
+name: CELIKOM — Verify 14 YM Liberty source files offline READ ONLY
+on:
+  push:
+    branches: [feature/blur-batch1000-20261108]
+    paths: ['.github/workflows/ym-liberty-14-audio.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 14
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Verify isolated source bytes, SHA256, MP3 inspector and ffprobe (NO production)
+        shell: bash
+        run: |
+          set -euo pipefail
+          command -v ffprobe || { sudo apt-get update -qq; sudo apt-get install -y ffmpeg; }
+          python3 -m py_compile tools/blur-research/ym-liberty-14-audio.py
+          python3 tools/blur-research/ym-liberty-14-audio.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ym-liberty-14-audio-${{ github.run_id }}
+          path: ym-liberty-14-source-check.json
+          retention-days: 90
+          if-no-files-found: ignore
