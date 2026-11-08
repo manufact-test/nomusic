@@ -1,0 +1,41 @@
+name: CELIKOM Blur — plan exactly 200 source files READ ONLY
+on:
+  push:
+    branches: [feature/blur-batch800-20261108]
+    paths: ['.github/workflows/blur-batch800-plan.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: celikom-blur-800-planning-only
+  cancel-in-progress: false
+jobs:
+  plan:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Source and script safety validation
+        run: |
+          set -euo pipefail
+          php -l tools/blur-batch50/live-check.php
+          python3 -m py_compile tools/blur-batch800/plan.py tools/blur-batch50/prepare.py
+          bash -n tools/blur-batch800/run-plan.sh
+          command -v ffprobe || { sudo apt-get update -qq; sudo apt-get install -y ffmpeg; }
+          command -v file
+      - name: Live SELECT-only check, download 200 with refill, archive fixed proposal
+        env:
+          HOST_KEY: ${{ secrets.CELIKOM_HOSTINGER_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.CELIKOM_HOSTINGER_KNOWN_HOSTS }}
+        shell: bash
+        run: bash tools/blur-batch800/run-plan.sh
+      - name: Archive immutable plan proposal and rejected/duplicates ledgers
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: celikom-blur-plan200-${{ github.run_id }}
+          path: ${{ runner.temp }}/plan-state/
+          retention-days: 90
+          if-no-files-found: warn
