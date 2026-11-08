@@ -17,7 +17,7 @@ concurrency:
 
 jobs:
   media-preflight:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 12
     steps:
       - uses: actions/checkout@v4
@@ -29,7 +29,7 @@ jobs:
           python3 tools/blur-pilot-five/validate.py --report "$RUNNER_TEMP/blur-five-metadata.json"
       - name: Fetch, validate and delete five pinned audio files in isolated runner
         run: |
-          command -v ffprobe
+          if ! command -v ffprobe; then sudo apt-get update -qq && sudo apt-get install -y ffmpeg; fi
           python3 tools/blur-pilot-five/validate.py --audio-check --report "$RUNNER_TEMP/blur-five-audio-audit.json"
       - name: Publish text-only technical report (no media)
         if: always()
