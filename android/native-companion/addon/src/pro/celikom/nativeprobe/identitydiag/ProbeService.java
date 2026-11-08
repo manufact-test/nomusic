@@ -23,26 +23,110 @@ public class ProbeService extends Service {
  public IBinder onBind(Intent i){return null;}
  static final class NotificationContent {
   final NotificationState state;final NotificationTarget target;
-  NotificationContent(NotificationState state,NotificationTarget target){this.state=state;this.target=target;}
-  String fingerprint(){return state.fingerprint()+"|"+(target==null?"":target.fingerprint());}
+  final String controlAlias,controlTrack;final boolean controlPlaying;
+  NotificationContent(NotificationState state,NotificationTarget target,
+    String controlAlias,String controlTrack,boolean controlPlaying){
+   this.state=state;this.target=target;this.controlAlias=controlAlias;
+   this.controlTrack=controlTrack;this.controlPlaying=controlPlaying;
+  }
+  String fingerprint(){return state.fingerprint()+"|"+(target==null?"":target.fingerprint())
+     +"|"+controlAlias+"|"+controlTrack+"|"+controlPlaying;}
  }
  NotificationContent notificationContent(){
   NativeApi api=NativeApi.get(this);AppPresentation.Input input=PlaybackUi.capture(this,api.signedIn(),replacement==null,"");PlaybackSource source=current;MobileActions.Target song=PlaybackUi.target(this);
   boolean lost=controllerSeen&&(controller==null||!controller.isConnected()),sessionLost=replacement!=null&&replacement.status.startsWith("Яндекс сменил");boolean hasReplacement=replacement!=null&&replacement.descriptor!=null&&replacement.descriptor.optBoolean("found");
   NotificationState state=NotificationState.of(input,source==null?"":source.title,source==null?"":source.artist,lost,sessionLost,song!=null,hasReplacement);
-  NotificationTarget target=state.suggest&&song!=null?new NotificationTarget(notificationRun,song.id,song.key,api.accountGeneration):null;return new NotificationContent(state,target);
+  NotificationTarget target=state.suggest&&song!=null?new NotificationTarget(notificationRun,song.id,song.key,api.accountGeneration):null;
+  boolean controls=source!=null&&replacement!=null&&
+    ProblemTrackTransport.eligible(replacement.trackId,replacement.armed(),replacement.ready,
+      controller!=null&&controller.isConnected(),api.signedIn())&&source.connected;
+  return new NotificationContent(state,target,controls?source.alias:null,
+    controls?replacement.trackId:null,controls&&source.playing);
  }
  Intent notificationOpen(){return new Intent(this,RecorderActivity.class).addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP|Intent.FLAG_ACTIVITY_SINGLE_TOP);}
+ PendingIntent problemTransportIntent(String action,int requestCode,NotificationContent content){
+  Intent intent=new Intent(this,ProbeService.class).setAction(action)
+    .setData(new android.net.Uri.Builder().scheme("celikom").authority("local-transport")
+      .appendPath(notificationRun).appendPath(content.controlAlias).appendPath(content.controlTrack)
+      .appendPath(Integer.toString(requestCode)).build())
+    .putExtra("control_run",notificationRun).putExtra("control_alias",content.controlAlias)
+    .putExtra("control_track",content.controlTrack);
+  return PendingIntent.getService(this,requestCode,intent,
+    PendingIntent.FLAG_IMMUTABLE|PendingIntent.FLAG_UPDATE_CURRENT);
+ }
+ void problemTransportCommand(Intent intent){
+  if(!alive()||intent==null||replacement==null||controller==null||!controller.isConnected())return;
+  PlaybackSource source=current;String action=intent.getAction();
+  if(source==null||!notificationRun.equals(intent.getStringExtra("control_run"))
+    ||!Objects.equals(source.alias,intent.getStringExtra("control_alias"))
+    ||!Objects.equals(replacement.trackId,intent.getStringExtra("control_track"))
+    ||!ProblemTrackTransport.eligible(replacement.trackId,replacement.armed(),replacement.ready,
+      source.connected,NativeApi.get(this).signedIn()))return;
+  androidx.media3.session.MediaController c=controller;
+  try{
+   MediaItem live=c.getCurrentMediaItem();
+   if(live==null||!Objects.equals(live.mediaId,source.alias))return;
+   int permission=ProblemTrackTransport.TOGGLE.equals(action)?Player.COMMAND_PLAY_PAUSE:
+     ProblemTrackTransport.NEXT.equals(action)?Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM:
+     Player.COMMAND_SEEK_IN_CURRENT_MEDIA_ITEM;
+   if(!c.isCommandAvailable(permission)){
+    LogStore.log("problem_transport_command_unavailable",LogStore.map(
+      "trackId",replacement.trackId,"action",action,"requiredMedia3Command",permission));
+    return;
+   }
+   long before=c.getCurrentPosition(),requestedPosition=-1;
+   boolean wasPlaying=c.getPlayWhenReady();
+   if(ProblemTrackTransport.TOGGLE.equals(action)){
+    if(wasPlaying)c.pause();else c.play();
+   }else if(ProblemTrackTransport.NEXT.equals(action))c.seekToNextMediaItem();
+   else{
+    requestedPosition=ProblemTrackTransport.target(before,source.duration,
+      ProblemTrackTransport.FORWARD.equals(action));
+    if(requestedPosition<0)return;
+    c.seekTo(requestedPosition);
+   }
+   final String alias=source.alias,track=String.valueOf(replacement.trackId);
+   final long requested=requestedPosition;
+   LogStore.log("problem_transport_command_sent",LogStore.map(
+     "trackId",track,"action",action,"beforePositionMs",before,
+     "requestedPositionMs",requested,"wasPlayWhenReady",wasPlaying,
+     "sentTo","Yandex_Media3_session","newPermission",false));
+   handler.postDelayed(()->{
+    if(!alive()||controller!=c||current==null||!Objects.equals(current.alias,alias))return;
+    long after=-1;boolean playing=false;boolean wants=false;
+    try{after=c.getCurrentPosition();playing=c.isPlaying();wants=c.getPlayWhenReady();}catch(RuntimeException ignored){return;}
+    LogStore.log("problem_transport_command_observed",LogStore.map(
+      "trackId",track,"action",action,"requestedPositionMs",requested,
+      "observedPositionMs",after,"observedPlaying",playing,
+      "observedPlayWhenReady",wants,"originalSourceIsAuthoritative",true));
+    sample(true);
+   },250);
+  }catch(RuntimeException error){
+   LogStore.log("problem_transport_command_failed",LogStore.map(
+     "action",action,"errorType",error.getClass().getSimpleName()));
+  }
+ }
  Notification buildNotification(NotificationContent content){
   PendingIntent open=PendingIntent.getActivity(this,0,notificationOpen(),PendingIntent.FLAG_IMMUTABLE|PendingIntent.FLAG_UPDATE_CURRENT);
   PendingIntent stop=PendingIntent.getService(this,1,new Intent(this,ProbeService.class).setAction("stop"),PendingIntent.FLAG_IMMUTABLE|PendingIntent.FLAG_UPDATE_CURRENT);
   Notification.Builder builder=new Notification.Builder(this,"diagnostic_v2").setSmallIcon(android.R.drawable.ic_media_play).setContentTitle(content.state.title).setContentText(content.state.text).setStyle(new Notification.BigTextStyle().bigText(content.state.text)).setSubText("CELIKOM").setShowWhen(false).setOnlyAlertOnce(true).setContentIntent(open).setOngoing(true).setVisibility(Notification.VISIBILITY_PRIVATE);
+  if(content.controlAlias!=null){
+   builder.addAction(new Notification.Action.Builder(null,
+     content.controlPlaying?"Пауза":"Играть",
+     problemTransportIntent(ProblemTrackTransport.TOGGLE,100,content)).build());
+   builder.addAction(new Notification.Action.Builder(null,"−30 с",
+     problemTransportIntent(ProblemTrackTransport.BACK,101,content)).build());
+   builder.addAction(new Notification.Action.Builder(null,"+30 с",
+     problemTransportIntent(ProblemTrackTransport.FORWARD,102,content)).build());
+   builder.addAction(new Notification.Action.Builder(null,"Следующая",
+     problemTransportIntent(ProblemTrackTransport.NEXT,103,content)).build());
+  }
   if(content.target!=null){NotificationTarget t=content.target;Intent action=notificationOpen().setAction(NotificationTarget.ACTION).setData(new android.net.Uri.Builder().scheme("celikom").authority("suggest").appendPath(t.fingerprint()).build()).putExtra("notification_run",t.run).putExtra("notification_track",t.id).putExtra("notification_key",t.key).putExtra("notification_account",t.account);PendingIntent suggest=PendingIntent.getActivity(this,2,action,PendingIntent.FLAG_IMMUTABLE|PendingIntent.FLAG_UPDATE_CURRENT);builder.addAction(new Notification.Action.Builder(null,"Предложить песню",suggest).build());}
   builder.addAction(new Notification.Action.Builder(null,"Открыть CELIKOM",open).build());builder.addAction(new Notification.Action.Builder(null,"Стоп",stop).build());return builder.build();
  }
  Notification notification(){return buildNotification(notificationContent());}
  final Runnable notificationTick=new Runnable(){public void run(){if(!alive())return;try{NotificationContent content=notificationContent();String key=content.fingerprint();if(!key.equals(lastNotificationKey)){lastNotificationKey=key;getSystemService(NotificationManager.class).notify(220,buildNotification(content));if(LogStore.active){AppPresentation.Input input=PlaybackUi.capture(ProbeService.this,NativeApi.get(ProbeService.this).signedIn(),replacement==null,"");LogStore.log("notification_status_published",LogStore.map("mediaAlias",current==null?null:current.alias,"identified",input.identified,"catalogueFresh",input.catalogueFresh,"catalogueStatus",input.catalogueStatus,"identityReason",input.identityReason,"displayText",content.state.text,"suggest",content.state.suggest));}}}catch(RuntimeException e){LogStore.error("notification_update",e);}handler.postDelayed(this,1000);}};
- public int onStartCommand(Intent i,int flags,int id){if(i!=null&&"stop".equals(i.getAction())){finish("user_stop");return START_NOT_STICKY;}if(alive()){if(LogStore.active){Map<String,Object> state=runtimeSnapshot("service_start_command_reused");state.put("startId",id);state.put("flags",flags);state.put("armExtra",i!=null&&i.getBooleanExtra("arm",false));LogStore.log("service_start_command",state);}if(i!=null&&i.getBooleanExtra("arm",false))beginTrial();return START_NOT_STICKY;}instance=this;
+ public int onStartCommand(Intent i,int flags,int id){if(i!=null&&"stop".equals(i.getAction())){finish("user_stop");return START_NOT_STICKY;}if(i!=null&&ProblemTrackTransport.isAction(i.getAction())){if(alive())problemTransportCommand(i);return START_NOT_STICKY;}if(alive()){if(LogStore.active){Map<String,Object> state=runtimeSnapshot("service_start_command_reused");state.put("startId",id);state.put("flags",flags);state.put("armExtra",i!=null&&i.getBooleanExtra("arm",false));LogStore.log("service_start_command",state);}if(i!=null&&i.getBooleanExtra("arm",false))beginTrial();return START_NOT_STICKY;}instance=this;
   try{NotificationManager nm=getSystemService(NotificationManager.class);nm.createNotificationChannel(new NotificationChannel("diagnostic_v2","Воспроизведение CELIKOM",NotificationManager.IMPORTANCE_LOW));if(Build.VERSION.SDK_INT>=34)startForeground(220,notification(),ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE);else startForeground(220,notification());LogStore.begin();try{Class<?> store=Class.forName("pro.celikom.nativeprobe.ProbeStore");store.getMethod("setEnabled",android.content.Context.class,boolean.class).invoke(store.getField("INSTANCE").get(null),this,true);}catch(Exception e){LogStore.log("native_audio_observation","Could not enable existing audio-session observation");}albumProbe=new AlbumProbe(this);replacement=new ReplacementEngine(this,true,true,false);replacement.adaptiveJoinExperiment=true;replacement.retainSessionEffectBetweenTracksExperiment=true;if(LogStore.active){Map<String,Object> state=runtimeSnapshot("service_start_command_created");state.put("startId",id);state.put("flags",flags);state.put("armExtra",i!=null&&i.getBooleanExtra("arm",false));LogStore.log("service_start_command",state);}
    File[] old=getCacheDir().listFiles((dir,name)->(name.startsWith("replacement-")||name.startsWith("buffered-"))&&name.endsWith(".audio"));if(old!=null)for(File f:old)f.delete();
    PowerManager pm=getSystemService(PowerManager.class);wake=pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK,"CELIKOM:playback");wake.setReferenceCounted(false);wake.acquire(90000);
