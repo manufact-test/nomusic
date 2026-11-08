@@ -36,7 +36,7 @@ jobs:
           assert len(rejected)==len(reject)==73
           assert pool['source_commit']==plan['source_commit']=='10187b7af56f311fe141a3c9b75483798bf0f589'
           assert pool['target_pending']==plan['target_pending']==200
-          assert plan['fixed_plan'] is True and plan['batch_size']==73
+          assert plan['fixed_plan'] is True and plan['batch_size']==50
           assert len(selected)==len({x['id'] for x in selected})==200
           def key(e): return (' '.join(e['artist'].lower().split()), ' '.join(e['title'].lower().split()))
           assert len({key(x) for x in selected})==200
