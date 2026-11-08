@@ -15,7 +15,7 @@ import java.io.*;
 import java.util.*;
 /** Current-player observation only. No notification, Accessibility, library or account access to Yandex. */
 public class ProbeService extends Service {
- final String notificationRun=UUID.randomUUID().toString();String lastNotificationKey="";final SourceTransitionGate transitionGate=new SourceTransitionGate();final SourceSessionRecheck sessionRecheck=new SourceSessionRecheck();final SourceEventArbiter sourceArbiter=new SourceEventArbiter();final Media3SourceRouter media3Router=new Media3SourceRouter(sourceArbiter,new Media3SourceRouter.Sink(){public void boundary(String next,String reason){sourceBoundary(next,reason);}public void seekRequested(){if(replacement!=null)replacement.sourceSeekRequested();}});final SourceEventArbiter.LookaheadEvidence lookahead=new SourceEventArbiter.LookaheadEvidence();final SourceStateWatchdog stateWatchdog=new SourceStateWatchdog();final LegacySourcePositionPolicy legacyPositionPolicy=new LegacySourcePositionPolicy();android.media.browse.MediaBrowser legacyBrowser;android.media.session.MediaController legacyController;long lastLegacyDiagnosticAt=-1;boolean legacyPositionUnsafeLogged;boolean controllerSeen;long controllerGeneration,lastMediaEvent,lastHealth,endReachedAt=-1,sourceEventSequence,sourceItemGeneration;String sourceItemAlias;
+ final String notificationRun=UUID.randomUUID().toString();String lastNotificationKey="";final SourceTransitionGate transitionGate=new SourceTransitionGate();final SourceSessionRecheck sessionRecheck=new SourceSessionRecheck();final SourceEventArbiter sourceArbiter=new SourceEventArbiter();final Media3SourceRouter media3Router=new Media3SourceRouter(sourceArbiter,new Media3SourceRouter.Sink(){public void boundary(String next,String reason){sourceBoundary(next,reason);}public void seekRequested(){if(replacement!=null)replacement.sourceSeekRequested();}});final SourceEventArbiter.LookaheadEvidence lookahead=new SourceEventArbiter.LookaheadEvidence();final SourceStateWatchdog stateWatchdog=new SourceStateWatchdog();final LegacySourcePositionPolicy legacyPositionPolicy=new LegacySourcePositionPolicy();final NativeTransportWitness nativeTransportWitness=new NativeTransportWitness();android.media.browse.MediaBrowser legacyBrowser;android.media.session.MediaController legacyController;long lastLegacyDiagnosticAt=-1;boolean legacyPositionUnsafeLogged;boolean controllerSeen;long controllerGeneration,lastMediaEvent,lastHealth,endReachedAt=-1,sourceEventSequence,sourceItemGeneration;String sourceItemAlias;
  static ProbeService instance;final Handler handler=new Handler(Looper.getMainLooper());long serviceCreatedAt=-1,lastTickAt=-1,lastSampleAt=-1,lastHeartbeatAt=-1,lastNetworkAvailableAt=-1,lastNetworkLostAt=-1;int tickCount,sampleCount;
  volatile PlaybackSource current;AlbumProbe albumProbe;ReplacementEngine replacement;androidx.media3.session.MediaController controller;ListenableFuture<androidx.media3.session.MediaController> connecting,sourceProbe;PowerManager.WakeLock wake;boolean receiverRegistered,stopping,networkRegistered,networkSeen;ConnectivityManager connectivity;long lastWakeRenewal,lastState,lastConnectAttempt=-5000,nextConnectAllowedAt=-1,emptySince=-1,lastLookaheadPoll=-2000;int sourceProbeFailures;volatile String observedNextAlias,sourceTransitionExpectedAlias;String lastLookaheadSource,lastLookaheadCandidate,lastLookaheadSignature,lastLookaheadMetadataSignature;int lookaheadMetadataSamples,attempts;String lastIdentityInventoryAlias;long lastIdentityInventoryAt=-30000;String lastStateKey="",connectionStatus="Подключаемся к Яндексу…",lastRoutes="";
  boolean alive(){return instance==this&&!stopping;}
@@ -231,6 +231,7 @@ public class ProbeService extends Service {
     SourceEventArbiter.Action decision=media3Router.discontinuity(active,live,oldAlias,nextAlias,
       oldPosition.mediaItemIndex,newPosition.mediaItemIndex,oldPosition.positionMs,newPosition.positionMs,livePosition,
       reason==Player.DISCONTINUITY_REASON_AUTO_TRANSITION,reason==Player.DISCONTINUITY_REASON_SEEK);
+    if(decision==SourceEventArbiter.Action.SEEK&&replacement!=null)nativeTransportWitness.noteSeek(live,replacement.trackId,newPosition.positionMs,SystemClock.elapsedRealtime());
     if(decision==SourceEventArbiter.Action.IGNORE){
       if(boundary)LogStore.log("source_boundary_ignored",LogStore.map("reason","stale_position_transition","oldAlias",oldAlias,"eventNextAlias",nextAlias,"liveAlias",live,"currentAlias",active));
       else if(reason==Player.DISCONTINUITY_REASON_SEEK)LogStore.log("source_seek_event_ignored",LogStore.map("reason","stale_or_unknown_controller_position","eventPositionMs",newPosition.positionMs,"controllerPositionMs",livePosition));
@@ -307,6 +308,41 @@ public class ProbeService extends Service {
    LegacySourcePositionPolicy.Decision decision=legacyPositionPolicy.reconcile(
     alias,title,artist,duration,mediaPosition,playing,
     platformTitle,platformArtist,platformDuration,platformPosition,platformAge,platformPlaying,now);
+    // A second view of Yandex PlaybackState is NOT independent PCM evidence.
+    // Only fresh same-song pause disagreement is allowed to restore original.
+    String watchedId=replacement==null?null:replacement.trackId;
+    if(NativeTransportWitness.watched(watchedId)){
+     androidx.media3.session.MediaController media3=controller;
+     int m3State=media3==null?-1:media3.getPlaybackState();
+     boolean wants=media3!=null&&media3.getPlayWhenReady();
+     boolean same=LegacySourcePositionPolicy.sameTrack(title,artist,duration,
+       platformTitle,platformArtist,platformDuration);
+     NativeTransportWitness.Verdict witness=nativeTransportWitness.observe(
+       alias,watchedId,same,state.getState(),platformPosition,platformAge,
+       mediaPosition,playing,wants,m3State,lastMediaEvent<=0?-1:now-lastMediaEvent,now);
+     if(witness.report)LogStore.log("native_transport_witness",LogStore.map(
+       "stage",witness.stage,"mediaAlias",alias,"trackId",watchedId,
+       "identityMatched",witness.matchedIdentity,"legacyState",state.getState(),
+       "legacySnapshotAgeMs",witness.legacyStateAgeMs,
+       "legacyPositionEstimateMs",platformPosition,
+       "legacyUpdateElapsedMs",state.getLastPositionUpdateTime(),
+       "media3Playing",playing,"media3WantsToPlay",wants,
+       "media3State",m3State,"media3PositionEstimateMs",mediaPosition,
+       "media3EventAgeMs",lastMediaEvent<=0?-1:now-lastMediaEvent,
+       "seekAgeMs",witness.seekAgeMs,"seekCount",nativeTransportWitness.seekNumber(),
+       "positionDifferenceMs",witness.positionDifferenceMs,
+       "freshState",witness.freshState,"freshAfterSeek",witness.freshAfterSeek,
+       "quarantinedUntilNextTrack",witness.quarantined,
+       "sameBackendPossible",true,"sourcePcmMeasured",false,
+       "hardwareOutputMeasured",false,"remoteCommandSent",false));
+     if(witness.restore&&replacement!=null){
+      LogStore.log("native_transport_fail_closed",LogStore.map(
+       "mediaAlias",alias,"trackId",watchedId,
+       "reason","fresh_matched_legacy_pause_disagrees",
+       "quarantineUntilNextTrack",true,"remoteCommandSent",false));
+      replacement.suspend("native_transport_pause_disagreement",30000);
+     }
+    }
    if((decision.newRecovery||decision.failClosed||decision.candidate)&&
       (decision.newRecovery||lastLegacyDiagnosticAt<0||now-lastLegacyDiagnosticAt>=5000)){
     lastLegacyDiagnosticAt=now;
@@ -387,7 +423,7 @@ public class ProbeService extends Service {
    }
    // Foreground album/current resolve before speculative next. Actual
    // network dispatch is protected by independent resolve lanes as well.
-   albumProbe.publishCurrent();replacement.update(current);
+   albumProbe.publishCurrent();if(nativeTransportWitness.quarantined(item.mediaId,replacement.trackId))replacement.update(null);else replacement.update(current);
    sampleLookahead(c,item);replacement.noteLookaheadCandidate(lookahead.next);
    long clock=SystemClock.elapsedRealtime();
    if(current.playing&&current.duration>0&&current.position>=current.duration){if(endReachedAt<0)endReachedAt=clock;if(clock-endReachedAt>=2000){LogStore.log("source_controller_refresh",LogStore.map("reason","item_stuck_at_end","alias",current.alias,"positionMs",current.position,"durationMs",current.duration));replacement.sourceBoundary("controller_stuck_at_end",null);current=null;controller=null;c.release();endReachedAt=-1;connect();return;}}else endReachedAt=-1;
