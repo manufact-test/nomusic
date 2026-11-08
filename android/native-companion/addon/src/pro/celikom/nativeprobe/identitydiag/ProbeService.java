@@ -105,6 +105,98 @@ public class ProbeService extends Service {
   probeFreshSource(stale);
  }
 
+ /** Test.76: probe a NEW Media3 controller while preserving old session.
+  * Framework metadata is only a cross-check, never sufficient to play a
+  * replacement. No transport commands, no forced reconnect on probe failure. */
+ void probeDivergentSource(androidx.media3.session.MediaController old){
+  if(!alive()||old==null||controller!=old||!old.isConnected()||sourceProbe!=null)return;
+  final long started=SystemClock.elapsedRealtime();
+  try{
+   SessionToken token=new SessionToken(this,new ComponentName(LogStore.PKG,
+     "com.yandex.music.shared.media.session.session.Media3LibraryService"));
+   final ListenableFuture<androidx.media3.session.MediaController> future=
+     new androidx.media3.session.MediaController.Builder(this,token).buildAsync();
+   sourceProbe=future;
+   handler.postDelayed(()->{
+     if(sourceProbe==future&&!future.isDone())future.cancel(false);
+   },6000);
+   future.addListener(()->{
+     if(sourceProbe==future)sourceProbe=null;
+     androidx.media3.session.MediaController fresh=null;
+     boolean adopted=false;
+     try{
+      fresh=future.get();
+      if(!alive()||controller!=old||!divergenceQuarantined||!fresh.isConnected())return;
+      MediaItem item=fresh.getCurrentMediaItem();
+      MediaMetadata meta=item==null?null:item.mediaMetadata;
+      String name=meta==null||meta.title==null?"":meta.title.toString();
+      String artist=meta==null||meta.artist==null?"":meta.artist.toString();
+      long duration=item==null?-1:fresh.getDuration();
+      long pos=item==null?-1:fresh.getCurrentPosition();
+      android.os.Bundle extras=meta==null?null:meta.extras;
+      Object rawDuration=extras==null?null:extras.get("com.yandex.music.media.metadata.duration");
+      boolean consistentExtra=!(rawDuration instanceof Number)
+        ||Math.abs(((Number)rawDuration).longValue()-duration)<=2000;
+      YandexSessionWitnessService.Snapshot platform=YandexSessionWitnessService.controlSnapshot();
+      boolean identityVerified=item!=null&&item.mediaId!=null&&!item.mediaId.isEmpty()
+        &&fresh.getPlaybackState()!=Player.STATE_IDLE
+        &&fresh.getPlaybackState()!=Player.STATE_ENDED
+        &&pos>=0&&duration>0&&pos<=duration+2000&&consistentExtra
+        &&platform.available&&platform.yandexSessions==1&&platform.stateAgeMs>=-25
+        &&platform.stateAgeMs<=5000
+        &&YandexIdentityDivergenceGate.sameTrack(name,artist,duration,
+          platform.title,platform.artist,platform.duration);
+      LogStore.log("source_framework_fresh_probe",LogStore.map(
+        "connected",true,"identityVerified",identityVerified,
+        "freshAlias",item==null?null:item.mediaId,
+        "freshTitle",name,"freshArtist",artist,
+        "platformTitle",platform.title,"platformArtist",platform.artist,
+        "frameworkSessions",platform.yandexSessions,
+        "oldMedia3RetainedUntilVerified",true,
+        "elapsedMs",SystemClock.elapsedRealtime()-started,
+        "audioCommandSent",false));
+      if(!identityVerified)return;
+      // Stop old song and atomically switch controllers without an empty
+      // reconnect window. All new replacement authorizations still pass
+      // the ordinary album/ID/snapshot/duration checks in sample().
+      String nextAlias=item.mediaId;
+      if(replacement!=null)replacement.suspend("framework_verified_media3_recovery",1000);
+      sourceBoundary(nextAlias,"framework_cross_verified_media3_source");
+      controller=fresh;adopted=true;
+      controllerSeen=true;lastMediaEvent=SystemClock.elapsedRealtime();
+      current=null;sourceItemAlias=null;sourceItemGeneration++;
+      sourceSnapshotConsistency.clear();transitionGate.clear();stateWatchdog.reset();
+      lookahead.reset();lastLookaheadSource=null;lastLookaheadPoll=-2000;
+      lastStateKey="";lastIdentityInventoryAlias=null;
+      identityDivergence.reset();divergenceQuarantined=false;
+      connectionStatus="Яндекс подключён";
+      attachControllerEvents(fresh);
+      try{old.release();}catch(RuntimeException ignored){}
+      LogStore.log("source_framework_fresh_controller_adopted",LogStore.map(
+        "newAlias",nextAlias,"title",name,"artist",artist,
+        "sameFrameworkTitleArtistDuration",true,
+        "oldControllerReleasedAfterAdoption",true,
+        "yandexTransportCommandSent",false));
+      sample(true);
+     }catch(Exception ex){
+      if(alive())LogStore.log("source_framework_fresh_probe",LogStore.map(
+       "connected",false,"type",ex.getClass().getSimpleName(),
+       "causeType",ex.getCause()==null?null:ex.getCause().getClass().getSimpleName(),
+       "oldMedia3Retained",controller==old,"originalOnly",true,
+       "elapsedMs",SystemClock.elapsedRealtime()-started,
+       "audioCommandSent",false));
+     }finally{
+      if(fresh!=null&&!adopted)try{fresh.release();}catch(RuntimeException ignored){}
+     }
+   },handler::post);
+  }catch(RuntimeException error){
+   LogStore.log("source_framework_fresh_probe",LogStore.map(
+     "connected",false,"type",error.getClass().getSimpleName(),
+     "oldMedia3Retained",controller==old,"originalOnly",true,
+     "audioCommandSent",false));
+  }
+ }
+
  /** A second, short-lived read-only controller proves whether a quiet source
   * actually switched. Never release the live controller on a mere broadcast.
   * Failure quarantines replacement audio but leaves the original connected. */
