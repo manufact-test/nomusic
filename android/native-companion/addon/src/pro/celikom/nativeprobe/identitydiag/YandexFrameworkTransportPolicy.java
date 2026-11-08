@@ -75,10 +75,10 @@ final class YandexFrameworkTransportPolicy {
   boolean stateBuffering=platformState==PLATFORM_BUFFERING;
   boolean gap=remotePos>=0&&Math.abs(platformPos-remotePos)>=SEEK_GAP_MS;
   boolean conflictingPause=(platformState==PLATFORM_PAUSED&&remotePlaying);
-  boolean conflictingPlay=(platformState==PLATFORM_PLAYING&&!remotePlaying);
-  // BUFFERING happens for 15–70ms on scrubs; only treat it as evidence if
-  // framework cursor is already far from remote cursor.
-  boolean discrepancy=gap||conflictingPause||conflictingPlay;
+  // An external Media3 temporary BUFFERING state does not mean it is
+  // wrong: never acquire a second authority merely because remote !playing.
+  // Only a track-verified position gap or hidden native PAUSE can opt in.
+  boolean discrepancy=gap||conflictingPause;
   if(!platformAuthority&&!discrepancy)return remote("remote_and_platform_agree");
   boolean first=!platformAuthority;
   platformAuthority=true;
