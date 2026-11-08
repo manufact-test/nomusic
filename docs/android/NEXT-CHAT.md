@@ -1,3 +1,11 @@
+# ВАЖНО: Test.75 на HONOR не включил новый источник, 09.11.2026 00:24
+
+**Сначала прочитать:** [ANDROID-TEST75-HONOR-NOT-ACTIVATED-2026-11-09.md](ANDROID-TEST75-HONOR-NOT-ACTIVATED-2026-11-09.md). Пользователь прислал `CELIKOM-combined-20261109-002624.txt` и `SVID_20261109_002458_1.mp4`. В последнем прогоне `0.3.85-test.75` все **191/191** `yandex_witness_sample` имеют `enabled=false, available=false, yandexSessions=0`; НЕТ событий `source_framework_authority_verified` / `source_framework_seek_detected`. **Новое управление ни разу не запускалось — телефон реально проверял старую схему Test.73**. В предыдущем Test.74 213/213 samples `enabled=true, available=true, sessions=1`. Нельзя утверждать, что тестирующий включал разрешение, и нельзя винить пользователя: UI не предупредил об отсутствующем канале. Вероятно, Notification Access был отозван после Test.74, что мы сами ранее советовали в целях безопасности; точное состояние Settings не подтверждено.
+
+**НЕ СОБИРАТЬ ЕЩЁ ОДНУ APK:** сначала на уже установленной Test.75 добровольно включить CELIKOM Test → Android «Доступ к уведомлениям», без отключения Play Protect. До RASKOL/Дым проверить диагностикой, что есть `enabled=true, available=true, yandexSessions=1`. Если включить нельзя или listener не стартует, остановить эксперимент и разбираться со связкой Android разрешений, а не собирать исправление паузы наугад. Если канал заработал — один короткий тест RASKOL с паузой/seek, затем исправлять только подтверждённую ошибку.
+
+---
+
 # 08.11.2026 — Test.75: native PAUSE/SEEK исправление через opt-in системную медиасессию
 
 **Читать первым:** [ANDROID-TEST75-OPTIN-FRAMEWORK-TRANSPORT-2026-11-08.md](ANDROID-TEST75-OPTIN-FRAMEWORK-TRANSPORT-2026-11-08.md) и [ANDROId-TEST74-HONOR-PROVEN-YANDEX-REMOTE-LAG](ANDROID-TEST74-HONOR-PROVEN-YANDEX-REMOTE-LAG-2026-11-08.md). Полные Test.74 логи и видео дали подтверждение: AndroidX Media3 отстаёт от реальной паузы/перемотки на **3.1–3.3 сек** у RASKOL и «Дым», системная MediaSession показывает верную позицию и настоящую PAUSED.
