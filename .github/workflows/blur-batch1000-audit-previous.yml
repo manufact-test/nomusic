@@ -1,0 +1,52 @@
+name: CELIKOM Blur — batch1000 verify previous 200 approval and live inventory READ ONLY
+on:
+  push:
+    branches: [feature/blur-batch1000-20261108]
+    paths: ['.github/workflows/blur-batch1000-audit-previous.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: celikom-blur-batch1000-audit-readonly
+  cancel-in-progress: false
+jobs:
+  audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Syntax-check independent production auditor
+        run: |
+          php -l tools/blur-batch800/check-current200-after-approval.php
+          php -l tools/blur-batch800/live-inventory-readonly.php
+      - name: Verify prior 200 irrespective of whether moderation has finished
+        shell: bash
+        env:
+          HOST_KEY: ${{ secrets.CELIKOM_HOSTINGER_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.CELIKOM_HOSTINGER_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p "$RUNNER_TEMP/private"
+          printf '%s\n' "$HOST_KEY" > "$RUNNER_TEMP/private/key"
+          printf '%s\n' "$KNOWN_HOSTS" > "$RUNNER_TEMP/private/hosts"
+          chmod 600 "$RUNNER_TEMP/private/"*
+          sshargs=(-p 65002 -i "$RUNNER_TEMP/private/key" -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$RUNNER_TEMP/private/hosts")
+          host='u235811320@92.113.19.189'
+          ssh "${sshargs[@]}" "$host" '/opt/alt/php83/usr/bin/php -d display_errors=stderr' < tools/blur-batch800/check-current200-after-approval.php | tee "$RUNNER_TEMP/audit-prior200.json"
+          jq -e '.pass==true and .checked==200 and (.approved_active+.pending)==200 and .files_verified==200 and .catalogue_correct==200 and .resolve_correct==200 and .head200==.approved_active and .range206==.approved_active and .writes==0 and (.issues|length)==0' "$RUNNER_TEMP/audit-prior200.json"
+          ssh "${sshargs[@]}" "$host" '/opt/alt/php83/usr/bin/php -d display_errors=stderr' < tools/blur-batch800/live-inventory-readonly.php | tee "$RUNNER_TEMP/audit-library-inventory.json"
+          jq -e '.status=="LIVE_LIBRARY_INVENTORY_READ_ONLY" and .writes==0' "$RUNNER_TEMP/audit-library-inventory.json"
+          echo '### Previous 200 versions (IDs 918-1117)' >> "$GITHUB_STEP_SUMMARY"
+          jq '{pass,checked,approved_active,pending,head200,range206,files_verified,catalogue_correct,resolve_correct,bytes,issues,writes}' "$RUNNER_TEMP/audit-prior200.json" >> "$GITHUB_STEP_SUMMARY"
+          echo '### Live library inventory' >> "$GITHUB_STEP_SUMMARY"
+          jq . "$RUNNER_TEMP/audit-library-inventory.json" >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: celikom-batch1000-audit-prior-${{ github.run_id }}
+          path: ${{ runner.temp }}/audit-*.json
+          retention-days: 90
+          if-no-files-found: ignore
