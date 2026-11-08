@@ -169,6 +169,54 @@ final class AdminPanel
                 return $this->page('<section class="panel"><h1>Настройки уже изменились</h1><p>Обновите страницу и сохраните ещё раз.</p><a href="/admin?tab=rewards">Вернуться</a></section>',status:409);
             }
         }
+        if (in_array($path, ['/admin/bulk/preview','/admin/bulk/execute'], true)) {
+            if (!in_array($admin['role'],['owner','moderator'],true)) return Response::json(403,['error'=>'forbidden']);
+            if ($method !== 'POST') return Response::json(405,['error'=>'method_not_allowed']);
+            $form = $this->form($headers,$body,16384);
+            if (!AdminAuth::validCsrf($admin,$form['csrf']??null)) return Response::json(403,['error'=>'csrf_failed']);
+            try {
+                $selected = BulkModerationService::selected($form['selected']??null);
+                $action = $form['bulk_action']??null;
+                if (!is_string($action)) throw new \InvalidArgumentException('bulk_action_invalid');
+                if ($action === 'delete' && $admin['role'] !== 'owner') return Response::json(403,['error'=>'forbidden']);
+                $bulk = new BulkModerationService($this->pdo,$this->storage,
+                    $this->rewardEligibilityEnabled ? new \Celikom\Reward\RewardService($this->pdo) : null);
+                if ($path === '/admin/bulk/preview') {
+                    $rows = $bulk->preview($selected,$action,(string)$admin['role']);
+                    return $this->page(BulkModerationView::confirmation($admin['csrf'],$selected,$rows,$action));
+                }
+                if (($form['confirm_batch']??null) !== '1')
+                    throw new \InvalidArgumentException('bulk_confirmation_required');
+                if ($action === 'delete' && ($form['confirm_count']??null) !== (string)count($selected))
+                    throw new \InvalidArgumentException('bulk_delete_confirmation_required');
+                if ($action === 'delete') {
+                    $note=$form['review_note']??'';
+                    if (!is_string($note) || !mb_check_encoding($note,'UTF-8')
+                        || mb_strlen($note,'UTF-8')>180 || preg_match('/[\x00-\x1F\x7F]/u',$note))
+                        throw new \InvalidArgumentException('bulk_delete_note_invalid');
+                    $decision=['delete','Удаление после проверки'.(trim($note)!==''?' · '.trim($note):'')];
+                } else {
+                    $decision=self::replacementDecision([
+                        'decision'=>$action==='approve'?'approval':'rejection',
+                        'reject_category'=>$form['reject_category']??null,
+                        'review_note'=>$form['review_note']??''
+                    ],$action);
+                    if ($decision===null) throw new \InvalidArgumentException('bulk_decision_invalid');
+                }
+                [$realAction,$reason]=$decision;
+                $result=$bulk->execute((int)$admin['id'],(string)$admin['role'],$selected,
+                    $realAction,$reason,($form['rights_confirmed']??null)==='1',true);
+                return $this->page(BulkModerationView::result($result),
+                    status:$result['conflicts']?(count($result['success'])?207:409):200);
+            } catch (\InvalidArgumentException) {
+                return Response::json(400,['error'=>'invalid_bulk_request']);
+            } catch (\DomainException) {
+                return $this->page('<section class="panel"><h1>Массовая операция не выполнена</h1>'
+                    . '<p>Записи изменились или обязательное подтверждение отсутствует. Обновите очередь.</p>'
+                    . '<a class="btn" href="/admin?tab=uploads&amp;status=pending&amp;per_page=50">Вернуться</a>'
+                    . '</section>',status:409);
+            }
+        }
         if ($path === '/admin/action' && $method === 'POST') {
             if (!in_array($admin['role'], ['owner','moderator'], true)) return Response::json(403, ['error'=>'forbidden']);
             $form = $this->form($headers, $body);
@@ -423,6 +471,11 @@ final class AdminPanel
             if($source===false) throw new \RuntimeException('promo_script_not_found');
             $sources[]=$source;
         }
+        if(str_contains($inner,'data-bulk-select')) {
+            $source=file_get_contents(__DIR__.'/bulk-moderation.js');
+            if($source===false)throw new \RuntimeException('bulk_script_not_found');
+            $sources[]=$source;
+        }
         if(str_contains($inner,'data-gain-audio')) {
             $source=file_get_contents(__DIR__.'/audio-gain.js');
             if($source===false)throw new \RuntimeException('audio_gain_script_not_found');
@@ -641,11 +694,37 @@ final class AdminPanel
             . ($mismatchCount > 0 ? '<div class="duration-summary"><strong>Версий с расхождением длительности: ' . $mismatchCount
                 . '</strong><span>Разница больше 1,5 секунды — расширение не запустит подмену.</span>'
                 . '<a class="btn" href="/admin?tab=uploads&amp;duration=mismatch&amp;per_page=' . $perPage . '">Показать проблемные версии</a></div>' : '')
-            . $filter . '<div class="cards">';
+            . $filter;
+        $selectable = 0;
+        if (in_array($admin['role'],['owner','moderator'],true)) {
+            foreach ($rows as $r) {
+                if ($r['status']==='pending' || ($r['status']==='rejected' && $admin['role']==='owner')) ++$selectable;
+            }
+        }
+        if ($selectable > 0) {
+            $html .= '<form id="bulk-selection" data-bulk-select method="post" action="/admin/bulk/preview" class="bulk-bar">'
+                . '<input type="hidden" name="csrf" value="' . $csrf . '">'
+                . '<strong>Массовая модерация</strong><span data-bulk-count aria-live="polite">Выбрано 0 из ' . $selectable . '</span>'
+                . '<div class="bulk-tools"><button type="button" class="btn" data-bulk-all>Выделить все на странице (' . $selectable . ')</button>'
+                . '<button type="button" class="btn" data-bulk-none>Снять выделение</button></div>'
+                . '<div class="bulk-actions"><button type="submit" name="bulk_action" value="approve" data-bulk-action class="primary" disabled>Одобрить выбранные</button>'
+                . '<button type="submit" name="bulk_action" value="reject" data-bulk-action class="danger" disabled>Отклонить</button>'
+                . ($admin['role']==='owner'
+                    ? '<button type="submit" name="bulk_action" value="delete" data-bulk-action class="danger" disabled>Удалить</button>' : '')
+                . '</div><p class="muted">Выделение действует только на текущей странице. Перед обработкой потребуется отдельное подтверждение.</p></form>';
+        }
+        $html .= '<div class="cards">';
         foreach ($rows as $r) {
             $id = (int) $r['id'];
             $trackId = (string) $r['service_track_id'];
-            $html .= '<article class="track-card"><div class="track-top"><div class="track-heading">'
+            $html .= '<article class="track-card"><div class="track-top">'
+                . ($selectable > 0 && ($r['status']==='pending'
+                    || ($r['status']==='rejected' && $admin['role']==='owner'))
+                    ? '<label class="bulk-card-check"><input data-bulk-candidate type="checkbox"'
+                        . ' form="bulk-selection" name="selected[' . $id . ']" value="'
+                        . (int)$r['version'] . ':' . (int)($r['active_id']??0) . '">Выбрать</label>'
+                    : '')
+                . '<div class="track-heading">'
                 . '<span class="track-icon" aria-hidden="true">♫</span><div>'
                 . '<h2 class="track-title">#' . $id . ' · '
                 . self::e(self::displayTitle($r['artist'], $r['title'])) . '</h2>'
