@@ -75,6 +75,33 @@ try {
           'pending_replacements'=>$g['pending']];
     }
     $sameIdActiveConflicts=array_filter($activeById,static fn($count)=>$count>1);
+    $multipleVersions=$pdo->query("SELECT t.service_track_id,t.artist,t.title,
+         COUNT(r.id) AS replacement_count,
+         SUM(CASE WHEN r.is_active=1 AND r.status='approved' THEN 1 ELSE 0 END) AS active_count,
+         SUM(CASE WHEN r.status='pending' THEN 1 ELSE 0 END) AS pending_count,
+         GROUP_CONCAT(CONCAT(r.id,':',r.status,':',r.is_active) ORDER BY r.id SEPARATOR ',') AS versions
+       FROM tracks t JOIN track_replacements r ON r.track_id=t.id
+       WHERE t.service='yandex'
+       GROUP BY t.id,t.service_track_id,t.artist,t.title
+       HAVING COUNT(r.id)>1 ORDER BY COUNT(r.id) DESC LIMIT 40")->fetchAll(PDO::FETCH_ASSOC);
+    $sharedFiles=$pdo->query("SELECT COUNT(*) AS linked_tracks,
+        GROUP_CONCAT(DISTINCT t.service_track_id ORDER BY t.service_track_id SEPARATOR ',') AS ids,
+        LEFT(a.sha256,12) AS asset_sha_prefix
+       FROM track_replacements r JOIN tracks t ON t.id=r.track_id
+       JOIN audio_assets a ON a.id=r.audio_asset_id
+       WHERE t.service='yandex'
+       GROUP BY a.id
+       HAVING COUNT(DISTINCT t.id)>1 LIMIT 40")->fetchAll(PDO::FETCH_ASSOC);
+    $durationOutliers=$pdo->query("SELECT t.service_track_id,t.title,t.artist,
+          t.duration_ms AS source_ms,a.duration_ms AS file_ms,
+          r.id AS replacement_id,r.status,r.is_active,r.created_at AS replacement_created_at
+        FROM tracks t JOIN track_replacements r ON r.track_id=t.id
+        JOIN audio_assets a ON a.id=r.audio_asset_id
+        WHERE t.service='yandex' AND ABS(CAST(t.duration_ms AS SIGNED)-CAST(a.duration_ms AS SIGNED))>1500
+        ORDER BY r.id LIMIT 40")->fetchAll(PDO::FETCH_ASSOC);
+    $catalogue=(new \\Celikom\\Application\\ReplacementCatalogueService($pdo))->snapshot();
+    $questCatalogue=array_values(array_filter($catalogue['tracks'],static fn($t)=>
+        (string)$t['track_id']==='89285816'));
     $pdo->rollBack();
 
     echo json_encode([
@@ -87,6 +114,13 @@ try {
       'same_track_id_multiple_active_ids'=>array_keys($sameIdActiveConflicts),
       'different_track_id_same_normalized_artist_title_groups'=>count($duplicateNames),
       'different_track_id_same_normalized_artist_title_examples'=>array_slice($duplicateNames,0,40),
+      'catalogue_active_count'=>(int)$catalogue['total_tracks'],
+      'quest_id_in_actual_live_catalogue'=>$questCatalogue,
+      'multiple_replacements_same_track_count'=>count($multipleVersions),
+      'multiple_replacements_same_track'=>$multipleVersions,
+      'audio_assets_shared_across_different_track_ids_count'=>count($sharedFiles),
+      'audio_assets_shared_across_different_track_ids'=>$sharedFiles,
+      'duration_outliers_with_status'=>$durationOutliers,
       'replacement_vs_source_duration_gt1500ms_count'=>count($assetDurationProblems),
       'replacement_vs_source_duration_gt1500ms_examples'=>array_slice($assetDurationProblems,0,40),
       'writes'=>0
