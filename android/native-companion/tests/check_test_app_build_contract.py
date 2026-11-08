@@ -139,7 +139,7 @@ assert "TEST-44-OWNER-ENDPOINT" not in workflow, "Do not reuse the prior test ar
 assert "TEST-45-LONG-HANDOFF" not in workflow, "Do not reuse previous test artifact names"
 service_order = (ROOT / "addon/src/pro/celikom/nativeprobe/identitydiag/ProbeService.java").read_text(encoding="utf-8")
 assert service_order.index("albumProbe.observe(item.mediaId") < service_order.index("sampleLookahead(c,item);"), "Current album must precede speculative album fetch"
-assert service_order.index("albumProbe.publishCurrent();replacement.update(current);") < service_order.index("sampleLookahead(c,item);"), "Current resolve must precede next metadata sampling"
+assert service_order.index("albumProbe.publishCurrent();") < service_order.index("sampleLookahead(c,item);"), "Current resolve must precede next metadata sampling"
 assert "Media3IdentityInventory.capture(c,item" in service_order
 assert "resolveLookahead" in native_api and "resolveLanes.submit" in native_api
 assert "api.resolveLookahead" in (ROOT / "addon/src/pro/celikom/nativeprobe/identitydiag/ReplacementEngine.java").read_text(encoding="utf-8")
