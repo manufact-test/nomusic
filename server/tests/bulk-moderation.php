@@ -78,7 +78,7 @@ run('50 pending render one-page checkboxes and select-all (no default rights)',f
     if ($page->status !== 200 && getenv('BULK_DEBUG_LIVE_MERGE') === '1') {
         try {
             (new \Celikom\Admin\AdminPanel($GLOBALS['pdo'],$GLOBALS['storage'],false,false,$GLOBALS['config']))
-                ->handle('GET','/admin',['tab'=>'uploads','status'=>'pending','per_page'=>'50'],$get,'');
+                ->handle('GET','/admin',['tab'=>'uploads','status'=>'pending','per_page'=>'50'],['cookie'=>$get['Cookie']],'');
         } catch (\Throwable $error) {
             fwrite(STDERR,"MERGED_ADMIN_DB_DIAG: ".get_class($error).' '.$error->getMessage()."\n");
         }
