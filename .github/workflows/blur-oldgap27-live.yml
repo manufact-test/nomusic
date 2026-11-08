@@ -1,0 +1,47 @@
+name: CELIKOM Blur — 27 older source-gap live ID uniqueness READ ONLY
+on:
+  push:
+    branches: [feature/blur-batch1000-20261108]
+    paths: ['.github/workflows/blur-oldgap27-live.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Validate read-only PHP
+        run: php -l tools/blur-research/oldgap27-live-readonly.php
+      - name: Check 27 IDs against current production catalogue (no writes)
+        env:
+          HOST_KEY: ${{ secrets.CELIKOM_HOSTINGER_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.CELIKOM_HOSTINGER_KNOWN_HOSTS }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p "$RUNNER_TEMP/private"
+          printf '%s\n' "$HOST_KEY" > "$RUNNER_TEMP/private/key"
+          printf '%s\n' "$KNOWN_HOSTS" > "$RUNNER_TEMP/private/hosts"
+          chmod 600 "$RUNNER_TEMP/private/"*
+          for attempt in 1 2 3; do
+            if ssh -p 65002 -o ConnectTimeout=25 -o ServerAliveInterval=20 -o ServerAliveCountMax=4 -i "$RUNNER_TEMP/private/key" -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$RUNNER_TEMP/private/hosts" \
+              u235811320@92.113.19.189 '/opt/alt/php83/usr/bin/php -d display_errors=stderr' < tools/blur-research/oldgap27-live-readonly.php > "$RUNNER_TEMP/oldgap27-live.json"; then
+              cat "$RUNNER_TEMP/oldgap27-live.json"
+              break
+            fi
+            if [ "$attempt" -eq 3 ]; then echo OLDGAP27_LIVE_READONLY_SSH_UNAVAILABLE; exit 1; fi
+            sleep 25
+          done
+          jq -e '.status=="OLDER_SOURCE_GAPS_27_READ_ONLY" and .checked==27 and .writes==0 and (.absent_tracks+.existing_tracks)==27' "$RUNNER_TEMP/oldgap27-live.json"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: celikom-oldgap27-live-${{ github.run_id }}
+          path: ${{ runner.temp }}/oldgap27-live.json
+          retention-days: 90
+          if-no-files-found: ignore
