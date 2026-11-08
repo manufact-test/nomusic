@@ -76,7 +76,7 @@ run('50 pending render one-page checkboxes and select-all (no default rights)',f
     use($app,$get,$ids):void {
     $page=$app->handle('GET','/admin',['tab'=>'uploads','status'=>'pending','per_page'=>'50'],$get);
     expect($page->status===200,'Queue loads');
-    expect(substr_count($page->body,'data-bulk-candidate')===50,'Exactly fifty selectable');
+    expect(substr_count($page->body,'data-bulk-candidate type="checkbox"')===50,'Exactly fifty selectable');
     expect(str_contains($page->body,'Выделить все на странице (50)'),'50 selection control');
     expect(str_contains($page->body,'name="bulk_action" value="delete"'),'Owner deletion control');
     expect(str_contains($page->headers['Content-Security-Policy']??'','sha256-'),'Script integrity CSP');
