@@ -16,9 +16,9 @@ verifier = (ROOT / "verify_test_release.py").read_text(encoding="utf-8")
 assert spec["package"] == "pro.celikom.nativeprobe.test"
 assert spec["stable_package"] == "pro.celikom.nativeprobe"
 assert spec["label"] == "CELIKOM Test"
-assert spec["version"] == "0.3.85-test.62"
-assert spec["version_code"] == 86148
-assert spec["apk_filename"] == "CELIKOM-Android-0.3.85-TEST-62-CONNECT-ALBUM-RECOVERY-SIGNED.apk"
+assert spec["version"] == "0.3.85-test.64"
+assert spec["version_code"] == 86150
+assert spec["apk_filename"] == "CELIKOM-Android-0.3.85-TEST-64-RESOLVE-PRIORITY-SIGNED.apk"
 # Test.61 must defeat CDN negative caching after the approved-catalogue route is deployed.
 native_api = (ROOT / "addon/src/pro/celikom/nativeprobe/identitydiag/NativeApi.java").read_text(encoding="utf-8")
 assert '"replacement-catalog?refresh="+System.currentTimeMillis()' in native_api
@@ -127,6 +127,10 @@ assert "TEST-44-OWNER-ENDPOINT" not in workflow, "Do not reuse the prior test ar
 assert "TEST-45-LONG-HANDOFF" not in workflow, "Do not reuse previous test artifact names"
 service_order = (ROOT / "addon/src/pro/celikom/nativeprobe/identitydiag/ProbeService.java").read_text(encoding="utf-8")
 assert service_order.index("albumProbe.observe(item.mediaId") < service_order.index("sampleLookahead(c,item);"), "Current album must precede speculative album fetch"
+assert service_order.index("albumProbe.publishCurrent();replacement.update(current);") < service_order.index("sampleLookahead(c,item);"), "Current resolve must precede next metadata sampling"
+assert "Media3IdentityInventory.capture(c,item" in service_order
+assert "resolveLookahead" in native_api and "resolveLanes.submit" in native_api
+assert "api.resolveLookahead" in (ROOT / "addon/src/pro/celikom/nativeprobe/identitydiag/ReplacementEngine.java").read_text(encoding="utf-8")
 assert "fetch-depth: 0" in workflow
 assert 'SOURCE_RUN="$VALIDATION_RUN_ID"' in workflow
 assert 'gh run download "$SOURCE_RUN"' in workflow
