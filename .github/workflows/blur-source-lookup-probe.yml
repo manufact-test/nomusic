@@ -36,5 +36,21 @@ jobs:
                           if isinstance(got,list):got=got[0] if got else {}
                           info["title"]=got.get("title");info["artists"]=[x.get("name") for x in got.get("artists",[]) if isinstance(x,dict)]
                       except Exception as exc:info["decode_error"]=type(exc).__name__
+                  if code==200 and "html" in typ:
+                      from html.parser import HTMLParser
+                      class H(HTMLParser):
+                          def __init__(self):super().__init__();self.tags={};self.title="";self.inside=False
+                          def handle_starttag(self,tag,attrs):
+                              a=dict(attrs)
+                              if tag=="title":self.inside=True
+                              if tag=="meta":
+                                  k=a.get("property") or a.get("name")
+                                  if k in ("og:title","og:description","description","music:song","twitter:title"):self.tags[k]=a.get("content","")
+                          def handle_endtag(self,tag):
+                              if tag=="title":self.inside=False
+                          def handle_data(self,data):
+                              if self.inside:self.title+=data
+                      h=H();h.feed(data.decode("utf-8",errors="replace"))
+                      info["html_title"]=h.title[:180];info["meta"]=h.tags
                   print("PUBLIC_YANDEX_METADATA "+json.dumps(info,ensure_ascii=False),flush=True)
           PY
