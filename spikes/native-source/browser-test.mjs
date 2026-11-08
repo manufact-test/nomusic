@@ -1,6 +1,7 @@
 import { createRequire } from "node:module";
 import { createServer } from "node:http";
-import { readFile, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import os from "node:os";
 import { createHash } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import path from "node:path";
@@ -49,18 +50,26 @@ const server = createServer((request, response) => {
 });
 await new Promise(resolve => server.listen(0, "127.0.0.1", resolve));
 const origin = "http://127.0.0.1:" + server.address().port;
-let browser;
+let browser, context;
+const profile = await mkdtemp(path.join(os.tmpdir(), "celikom-native-research-"));
 try {
-  browser = await chromium.launch({ executablePath: binary, headless: true,
+  context = await chromium.launchPersistentContext(profile, { executablePath: binary, headless: true,
     ignoreDefaultArgs: ["--disable-extensions"],
     args: ["--no-sandbox", "--disable-dev-shm-usage", "--enable-unsafe-extension-debugging", "--autoplay-policy=no-user-gesture-required"] });
+  browser = context.browser();
   const cdp = await browser.newBrowserCDPSession();
-  const installation = await cdp.send("Extensions.loadUnpacked", { path: extension, enableInIncognito: true });
+  const installation = await cdp.send("Extensions.loadUnpacked", { path: extension });
   console.log("Installed actual MV3 MAIN-world research extension", installation.id);
-  const context = await browser.newContext(), page = await context.newPage();
+  const page = await context.newPage();
+  page.on("pageerror", error => console.log("Fixture page error", error.message));
   page.setDefaultTimeout(10000);
   await page.goto(origin, { waitUntil: "load" });
-  await page.waitForFunction(() => window.__CELIKOM_NATIVE_SOURCE_RESEARCH__?.diagnostics().resourceClasses === 2);
+  try {
+    await page.waitForFunction(() => window.__CELIKOM_NATIVE_SOURCE_RESEARCH__?.diagnostics().resourceClasses === 2);
+  } catch (error) {
+    console.log("Fixture state", await page.evaluate(() => ({ api: window.__CELIKOM_NATIVE_SOURCE_RESEARCH__?.diagnostics(), fixture: Boolean(window.__nativeFixture), chunks: Boolean(window.webpackChunk_N_E) })));
+    throw error;
+  }
   const result = await page.evaluate(async origin => {
     const checks = [], check = (value, label) => { if (!value) throw Error(label); checks.push(label); };
     const api = window.__CELIKOM_NATIVE_SOURCE_RESEARCH__, req = window.__nativeFixture.req;
@@ -152,6 +161,7 @@ try {
   console.log(JSON.stringify({ browser: await browser.version(), extensionId: installation.id, ...result, httpRanges: requests }, null, 2));
   await writeFile(path.join(fixture, path.basename(binary) + "-results.json"), JSON.stringify({ browser: await browser.version(), ...result, httpRanges: requests }, null, 2) + "\n");
 } finally {
-  await browser?.close();
+  await context?.close();
+  await rm(profile, { recursive: true, force: true });
   await new Promise(resolve => server.close(resolve));
 }

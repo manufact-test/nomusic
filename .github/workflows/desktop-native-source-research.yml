@@ -33,11 +33,13 @@ jobs:
           CELIKOM_BROWSER_BINARY: /usr/bin/google-chrome
         run: node spikes/native-source/browser-test.mjs
       - name: Actual Brave MV3 native playback
+        if: success() || failure()
         env:
           PLAYWRIGHT_MODULE: /tmp/celikom-research-tools/node_modules/playwright
           CELIKOM_BROWSER_BINARY: /usr/bin/brave-browser
         run: node spikes/native-source/browser-test.mjs
       - name: Accepted desktop regressions
+        if: success() || failure()
         run: npm --prefix extension test
       - uses: actions/upload-artifact@v4
         if: always()
