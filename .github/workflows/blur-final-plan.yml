@@ -1,0 +1,41 @@
+name: CELIKOM Blur — exhaustive scan of all remaining source candidates READ ONLY
+on:
+  push:
+    branches: [feature/blur-batch1000-20261108]
+    paths: ['.github/workflows/blur-final-plan.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: celikom-blur-final-plan-readonly
+  cancel-in-progress: false
+jobs:
+  plan:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Validate read-only source check and strict MP3 verifier
+        run: |
+          set -euo pipefail
+          php -l tools/blur-batch800/live-check.php
+          python3 -m py_compile tools/blur-final/plan.py tools/blur-batch50/prepare.py
+          bash -n tools/blur-final/run-plan.sh
+          command -v ffprobe || { sudo apt-get update -qq; sudo apt-get install -y ffmpeg; }
+          command -v file
+      - name: Live SELECT-only check and validate 200 audio sources
+        env:
+          HOST_KEY: ${{ secrets.CELIKOM_HOSTINGER_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.CELIKOM_HOSTINGER_KNOWN_HOSTS }}
+        shell: bash
+        run: bash tools/blur-final/run-plan.sh
+      - name: Archive proposed fixed plan and technical rejection ledger
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: celikom-blur-final-sweep-${{ github.run_id }}
+          path: ${{ runner.temp }}/plan-state/
+          retention-days: 90
+          if-no-files-found: ignore
