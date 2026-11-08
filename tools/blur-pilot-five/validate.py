@@ -96,8 +96,27 @@ def check_audio(track, commit, directory):
     duration = float(info.get("format", {}).get("duration", 0))
     if duration < 10 or duration > 3600 or not streams:
         raise ValueError(f"invalid/unreadable audio for {tid}")
+    # CELIKOM uses its own conservative frame inspector, not ffprobe. A file
+    # accepted by ffprobe may still be rejected by the real upload endpoint.
+    php_check = subprocess.run(
+        [
+            "php", "-r",
+            "require 'server/bootstrap.php'; $d=(new "
+            "Celikom\\Application\\Mp3Inspector())->durationMs($argv[1]); "
+            "echo $d===null ? 'REJECTED' : (string)$d;",
+            str(target),
+        ],
+        cwd=Path(__file__).resolve().parents[2],
+        capture_output=True, text=True, timeout=90, check=True,
+    )
+    verified_duration = php_check.stdout.strip()
+    if not verified_duration.isdigit():
+        raise ValueError(f"CELIKOM Mp3Inspector rejected source track {tid}")
+    celikom_ms = int(verified_duration)
+    if abs(celikom_ms - round(duration * 1000)) > 1500:
+        raise ValueError(f"CELIKOM duration mismatch for {tid}: {celikom_ms} vs ffprobe")
     target.unlink()  # Delete promptly, even before the temporary directory cleanup.
-    return {"track_id": tid, "source_verified": True, "bytes": total, "duration_ms": round(duration * 1000), "codec": streams[0].get("codec_name"), "sample_rate": streams[0].get("sample_rate"), "channels": streams[0].get("channels"), "format": info.get("format", {}).get("format_name")}
+    return {"track_id": tid, "source_verified": True, "bytes": total, "duration_ms": round(duration * 1000), "celikom_mp3_duration_ms": celikom_ms, "codec": streams[0].get("codec_name"), "sample_rate": streams[0].get("sample_rate"), "channels": streams[0].get("channels"), "format": info.get("format", {}).get("format_name")}
 
 
 def main(argv=None):
