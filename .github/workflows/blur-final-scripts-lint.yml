@@ -1,0 +1,25 @@
+name: CELIKOM Blur — final-tail isolated importer syntax READ ONLY
+on:
+  push:
+    branches: [feature/blur-batch1000-20261108]
+    paths: ['.github/workflows/blur-final-scripts-lint.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  syntax:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Validate final-tail scripts (no server or production connections)
+        shell: bash
+        run: |
+          set -euo pipefail
+          php -l tools/blur-final/import.php
+          php -l tools/blur-final/verify-pending-files.php
+          python3 -m py_compile tools/blur-final/plan.py tools/blur-final/fetch-fixed.py
+          bash -n tools/blur-final/run-plan.sh tools/blur-final/run-deploy.sh
+          echo 'FINAL_TAIL_SYNTAX_PASS'
