@@ -18,6 +18,7 @@ jobs:
         run: |
           set -euo pipefail
           php -l tools/blur-research/fork20-live-readonly.php
+          command -v ffprobe || { sudo apt-get update -qq; sudo apt-get install -y ffmpeg; }
           python3 -m py_compile tools/blur-research/fork20-check-audio.py
           python3 tools/blur-research/fork20-check-audio.py
       - name: Compare 20 IDs with CELIKOM production via read-only transaction
