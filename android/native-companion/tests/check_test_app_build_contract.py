@@ -16,9 +16,9 @@ verifier = (ROOT / "verify_test_release.py").read_text(encoding="utf-8")
 assert spec["package"] == "pro.celikom.nativeprobe.test"
 assert spec["stable_package"] == "pro.celikom.nativeprobe"
 assert spec["label"] == "CELIKOM Test"
-assert spec["version"] == "0.3.85-test.59"
-assert spec["version_code"] == 86145
-assert spec["apk_filename"] == "CELIKOM-Android-0.3.85-TEST-59-BUFFERING-CATALOG-SIGNED.apk"
+assert spec["version"] == "0.3.85-test.60"
+assert spec["version_code"] == 86146
+assert spec["apk_filename"] == "CELIKOM-Android-0.3.85-TEST-60-LIVE-CATALOGUE-SYNC-SIGNED.apk"
 assert spec["signing_certificate_sha256"] == "67fe81c56fac1c1d145344b69a0e3faf9005cf6607f4e26ca27d5926c3eefc4f"
 assert spec["test_permission"].startswith(spec["package"] + ".")
 assert spec["file_provider_authority"].startswith(spec["package"] + ".")
@@ -40,6 +40,28 @@ service_source = (ROOT / "addon/src/pro/celikom/nativeprobe/identitydiag/ProbeSe
 assert "new ReplacementEngine(this,true,true,false)" in service_source
 assert "recheckQuietSourceController(session);" not in service_source
 assert "source_same_session_open_ignored" in service_source
+# Runtime catalogue must refresh after new approvals, independently of APK.
+album_probe = (ROOT / "addon/src/pro/celikom/nativeprobe/identitydiag/AlbumProbe.java").read_text(encoding="utf-8")
+native_api = (ROOT / "addon/src/pro/celikom/nativeprobe/identitydiag/NativeApi.java").read_text(encoding="utf-8")
+catalogue_store = (ROOT / "addon/src/pro/celikom/nativeprobe/identitydiag/LiveCatalogueStore.java").read_text(encoding="utf-8")
+server_root = ROOT.parent.parent / "server"
+server_router = (server_root / "src/Application.php").read_text(encoding="utf-8")
+server_catalog = (server_root / "src/Application/ReplacementCatalogueService.php").read_text(encoding="utf-8")
+assert '"replacement-catalog"' in native_api
+assert 'fetchApprovedCatalogue' in native_api and 'catalogueWork' in native_api
+assert 'LiveCatalogueStore.MAX_BYTES' in native_api
+assert 'refreshOwnCatalogue()' in album_probe
+assert 'LiveCatalogueStore.validate' in album_probe and 'LiveCatalogueStore.save' in album_probe
+assert 'LiveCatalogueStore.load' in album_probe
+assert 'newReplacement' not in catalogue_store
+assert 'MAX_ROWS=5000' in catalogue_store
+assert 'albumProbe.refreshOwnCatalogue()' in service_source
+assert "'/api/v1/replacement-catalog'" in server_router
+assert "BearerAuthenticator" in server_router
+assert "status = 'approved'" in server_catalog and "r.is_active = 1" in server_catalog
+assert "TestLiveCatalogueStore" in (ROOT / "tests/run_addon_host.py").read_text(encoding="utf-8")
+assert "TestLiveCatalogueStore" in builder
+
 # Verified Test.58 phone regression: Dym BUFFERING must never destroy the
 # connected session and trigger the 7 SecurityException reconnect loop.
 assert '"source_controller_buffering_retained"' in service_source
