@@ -1,0 +1,22 @@
+# Test.75 HONOR · 2026-11-09 00:35:04+03 · independent failure: remote Media3 stuck on prior song
+
+Owner provided `CELIKOM-combined-20261109-003608.txt`; combined includes Test.74 and two Test.75 sessions. **All facts below ONLY from last run**, `run_start` at `2026-11-09T00:35:04+03:00`, Test.75, 526 events, ~64.7s.
+
+**This run DOES have notification listener, unlike earlier 00:24 Test.75:** 101/101 `yandex_witness_sample` entries `enabled=true, available=true, yandexSessions=1`.
+
+Timeline (run-relative):
+* t=0.097, 1.131, 3.153, 6.179, 10.224s: direct AndroidX Media3 `media3_connect_result` fails with `ExecutionException` whose cause is `SecurityException`; first 5 connection attempts rejected. t=12.010s sixth succeeds.
+* t=12.010 onward: remote recognizes **«Биг сити лайф» Триагрутрика**, id 40371622, album 482139. Album API gives **451 REGION_RESTRICTION** at t=12.460s, but own catalog strict unique metadata fallback still identifies track and authorizes replacement. Backend resolve `found=true`, replacement prepares at 12.988s, joins at 13.708s; `Играет версия CELIKOM` at t=14.116. **Neither 451 nor library-upload failure causes the later stall.**
+* t=15.634s remote Media3 emits `SAME_ITEM_SEEK` to 0 on Big city life, followed by remote playback state BUFFERING(2), isPlaying=false at t=15.661; remote cursor remains at 0, *while controllerConnected=true*, with NO subsequent native Media3 state/identity callback. CELIKOM appropriately restores original (t=16.632).
+* t=16.559s framework/Yandex **independent MediaSession metadata changes to «Дым», Лёша Свик, 219660ms**, framework playback PLAYING, position advancing normally. Yet remote Media3 still reads previous **«Биг сити лайф»**, source alias `504`, position zero, BUFFERING. Witness samples t=16.779–41.5s show **different song identity** (proof, not conjecture).
+* t=42.036s framework now changes to **«Нас не понимают вообще», artist «Космонавты, RASKOL», duration 232330ms** while remote Media3 *still* remains old «Биг сити лайф» alias `504` in BUFFERING state, at least to t=64.7s. Thus remote track-boundary observation is broken in this session, not just same-song seek/pause.
+* Notification text changes `Яндекс загружает · играет оригинал` at 16.128s, `Яндекс не обновляет трек · играет оригинал` at 22.146s (and 49.213/52.227 repeat). This reflects stale **external controller**, NOT proof that Yandex music is itself unavailable. System witness sees Yandex playing and changing songs.
+* No `source_framework_authority_verified` / `source_framework_seek_detected`: Test.75 only allows framework authority when **same title+artist+duration** match; after remote gets stuck on old item, framework has moved to next track, so identity safety correctly forbids passing foreign song's position to old replacement.
+* This test cannot verify Test.75 corrected same-track pause or seek: while newer system source is available, remote identity mismatch makes integration fail-closed. No evidence the source MP3/extension catalog is defective.
+
+## Engineering implications
+This is a distinct **track identity handoff / Media3 source desynchronization** from prior same-track pause/seek lag, but shares untrustworthy remote Media3 as dependency. Do not fix with position offsets, source polling rate, song-specific hacks, permission prompts, decoder cache, or higher timeout. Do not make `YandexFrameworkTransportPolicy` accept mismatched titles: that would play a wrong alternate over another Yandex song.
+
+Next candidate architecture must support **safe independent identity boundary**: reliably identify current Yandex track from framework metadata (title+artist+duration are not catalog-id proof; handle collisions & versions), re-resolve via *strict verified catalog policy*, atomically replace old alias/generation and release prior decoder, never trust stale remote alias during divergence. Validate exact mappings, no stolen/foreign metadata, fallback to original if ambiguous, and preserve both 2026-11-08 audio goldens. This may require user-enabled wide Notification Access; it is not a commercial default. Explore legitimate permission-free route, and do not silently weaken permissions/Play Protect. If no robust identity, fail closed and expose actionable `Состояние Яндекса недоступно` rather than misleading `Яндекс не обновляет трек`.
+
+**No APK created from these findings; no source code, stable, backend, or other projects changed in this doc-only update.**
