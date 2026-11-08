@@ -6,7 +6,7 @@ import org.json.*;
 final class AppPresentation {
  static final class Input {
   boolean signed,starting,running,enabled,source,session,playing,replacing,seeking,preparing,identified,missing;
-  String problem="";
+  String problem="",identityReason="";
  }
  final String header,instruction,version;final boolean connected,showTrack;
  AppPresentation(String header,String instruction,String version,boolean connected,boolean showTrack){this.header=header;this.instruction=instruction;this.version=version;this.connected=connected;this.showTrack=showTrack;}
@@ -17,7 +17,12 @@ final class AppPresentation {
   if(!s.source)return new AppPresentation("Ожидание музыки","Включите песню в Яндекс Музыке.","",false,false);
   if(!s.session)return new AppPresentation("Не подключён","Откройте эквалайзер Яндекс Музыки и выберите CELIKOM.","",false,false);
   String detail;
-  if(!s.identified)detail="Определяем песню…";
+  if(!s.identified){
+    if("album_region_restricted".equals(s.identityReason))detail="Не удалось определить песню: Яндекс ограничил данные альбома · играет оригинал";
+    else if("album_ambiguous_weaker_fallback_withheld".equals(s.identityReason)||"own_catalogue_ambiguous".equals(s.identityReason))detail="Не удалось однозначно определить версию · играет оригинал";
+    else if(!s.identityReason.isEmpty()&&!"waiting_for_album_response".equals(s.identityReason))detail="Не удалось определить песню · играет оригинал";
+    else detail="Определяем песню…";
+   }
   else if(s.seeking)detail="Синхронизируем позицию…";
   else if(s.replacing)detail=s.playing?"Играет версия CELIKOM":"Пауза";
   else if(s.missing)detail="Версия CELIKOM ещё не загружена. Играет оригинал.";

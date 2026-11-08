@@ -16,9 +16,9 @@ verifier = (ROOT / "verify_test_release.py").read_text(encoding="utf-8")
 assert spec["package"] == "pro.celikom.nativeprobe.test"
 assert spec["stable_package"] == "pro.celikom.nativeprobe"
 assert spec["label"] == "CELIKOM Test"
-assert spec["version"] == "0.3.85-test.64"
-assert spec["version_code"] == 86150
-assert spec["apk_filename"] == "CELIKOM-Android-0.3.85-TEST-64-RESOLVE-PRIORITY-SIGNED.apk"
+assert spec["version"] == "0.3.85-test.65"
+assert spec["version_code"] == 86151
+assert spec["apk_filename"] == "CELIKOM-Android-0.3.85-TEST-65-IDENTITY-STATUS-SIGNED.apk"
 # Test.61 must defeat CDN negative caching after the approved-catalogue route is deployed.
 native_api = (ROOT / "addon/src/pro/celikom/nativeprobe/identitydiag/NativeApi.java").read_text(encoding="utf-8")
 assert '"replacement-catalog?refresh="+System.currentTimeMillis()' in native_api
@@ -131,6 +131,9 @@ assert service_order.index("albumProbe.publishCurrent();replacement.update(curre
 assert "Media3IdentityInventory.capture(c,item" in service_order
 assert "resolveLookahead" in native_api and "resolveLanes.submit" in native_api
 assert "api.resolveLookahead" in (ROOT / "addon/src/pro/celikom/nativeprobe/identitydiag/ReplacementEngine.java").read_text(encoding="utf-8")
+assert "TestIdentificationStatus.java" in (ROOT / "tests/run_engine.py").read_text(encoding="utf-8")
+assert "album_region_restricted" in (ROOT / "addon/src/pro/celikom/nativeprobe/identitydiag/PlaybackUi.java").read_text(encoding="utf-8")
+assert "identityDecisionReason" in (ROOT / "addon/src/pro/celikom/nativeprobe/identitydiag/ReplacementEngine.java").read_text(encoding="utf-8")
 assert "fetch-depth: 0" in workflow
 assert 'SOURCE_RUN="$VALIDATION_RUN_ID"' in workflow
 assert 'gh run download "$SOURCE_RUN"' in workflow
