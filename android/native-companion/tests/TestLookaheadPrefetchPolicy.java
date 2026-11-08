@@ -71,6 +71,23 @@ public final class TestLookaheadPrefetchPolicy {
     "frozen nonprogressive path is unchanged");
   check(!LookaheadPrefetchPolicy.queuedLookaheadMustYieldToCurrent(true,"cached",2000,2500),
     "complete cached lookahead is not cancelled");
+  // HONOR Test.66: early fallback only for young long-track lookahead.
+  check(LookaheadPrefetchPolicy.promotedCurrentWaitMs(true,246810,"downloading",2300)==200L,
+    "young long-track full download yields earlier to current verified sparse");
+  check(LookaheadPrefetchPolicy.promotedCurrentWaitMs(true,242000,"downloading",3300)==400L,
+    "nearly finished lookahead retains 400ms grace");
+  check(LookaheadPrefetchPolicy.promotedCurrentWaitMs(true,240000,"downloading",2599)==200L,
+    "early age boundary");
+  check(LookaheadPrefetchPolicy.promotedCurrentWaitMs(true,240000,"downloading",2600)==400L,
+    "mature age boundary");
+  check(LookaheadPrefetchPolicy.promotedCurrentWaitMs(true,232450,"downloading",100)==1200L,
+    "short track keeps baseline");
+  check(LookaheadPrefetchPolicy.promotedCurrentWaitMs(false,246810,"downloading",100)==10000L,
+    "frozen nonprogressive unchanged");
+  check(LookaheadPrefetchPolicy.promotedCurrentWaitMs(true,246810,"cached",100)==1200L,
+    "cached file unchanged");
+  check(LookaheadPrefetchPolicy.promotedCurrentWaitMs(true,246810,"downloading",-1)==400L,
+    "unknown age preserves original grace");
   metadataOnlyFallbackIsUniqueAndFailClosed();
   System.out.println("PASS: lookahead strict album and stable metadata fallback gates");
  }
