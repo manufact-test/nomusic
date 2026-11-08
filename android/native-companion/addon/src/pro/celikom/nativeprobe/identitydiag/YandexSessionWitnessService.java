@@ -114,6 +114,52 @@ public final class YandexSessionWitnessService extends NotificationListenerServi
   if(subscribed!=null)try{subscribed.unregisterCallback(callback);}catch(RuntimeException ignored){}
   subscribed=null;sessions=null;yandex=null;yandexSessionCount=0;live=null;generation++;
  }
+ /** Immutable one-shot copy of the optional Yandex framework session. */
+ static final class Snapshot {
+  final boolean available;
+  final int yandexSessions,state;
+  final String title,artist;
+  final long duration,rawPosition,stateAgeMs;
+  final float speed;
+  Snapshot(boolean available,int sessions,String title,String artist,long duration,
+           int state,long rawPosition,long stateAgeMs,float speed){
+   this.available=available;this.yandexSessions=sessions;
+   this.title=title;this.artist=artist;this.duration=duration;
+   this.state=state;this.rawPosition=rawPosition;this.stateAgeMs=stateAgeMs;this.speed=speed;
+  }
+ }
+ /**
+  * Read the already opted-in framework controller without capturing
+  * notification text or issuing transport commands.
+  * If permission/session is absent, explicit fail-closed semantics are
+  * decided by YandexFrameworkTransportPolicy, not by this transport.
+  */
+ static Snapshot controlSnapshot(){
+  MediaController p=yandex;
+  YandexSessionWitnessService l=live;
+  int count=yandexSessionCount;
+  if(l==null||p==null||count!=1)
+   return new Snapshot(false,count,null,null,-1,-1,-1,-1,1f);
+  try{
+   if(!Objects.equals(p.getPackageName(),LogStore.PKG))
+    return new Snapshot(false,count,null,null,-1,-1,-1,-1,1f);
+   PlaybackState state=p.getPlaybackState();
+   MediaMetadata meta=p.getMetadata();
+   if(state==null||meta==null)
+    return new Snapshot(false,count,null,null,-1,-1,-1,-1,1f);
+   long now=SystemClock.elapsedRealtime();
+   return new Snapshot(true,count,
+      meta.getString(MediaMetadata.METADATA_KEY_TITLE),
+      meta.getString(MediaMetadata.METADATA_KEY_ARTIST),
+      meta.getLong(MediaMetadata.METADATA_KEY_DURATION),
+      state.getState(),state.getPosition(),now-state.getLastPositionUpdateTime(),
+      state.getPlaybackSpeed());
+  }catch(RuntimeException ex){
+   if(LogStore.active)LogStore.log("yandex_framework_control_read_failed",LogStore.map(
+      "type",ex.getClass().getSimpleName(),"observerOnly",true));
+   return new Snapshot(false,count,null,null,-1,-1,-1,-1,1f);
+  }
+ }
  private static Object boolExtra(Bundle extras,String name){
   if(extras==null||!extras.containsKey(name))return null;
   Object value=extras.get(name);
