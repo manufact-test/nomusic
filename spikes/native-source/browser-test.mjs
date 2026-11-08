@@ -62,6 +62,7 @@ try {
   console.log("Installed actual MV3 MAIN-world research extension", installation.id);
   const page = await context.newPage();
   page.on("pageerror", error => console.log("Fixture page error", error.stack));
+  page.on("console", message => console.log("Browser fixture", message.text()));
   page.setDefaultTimeout(10000);
   await page.goto(origin, { waitUntil: "load" });
   try {
@@ -71,7 +72,7 @@ try {
     throw error;
   }
   const result = await page.evaluate(async origin => {
-    const checks = [], check = (value, label) => { if (!value) throw Error(label); checks.push(label); };
+    const checks = [], check = (value, label) => { if (!value) throw Error(label); checks.push(label); console.log("PASS " + label); };
     const api = window.__CELIKOM_NATIVE_SOURCE_RESEARCH__, req = window.__nativeFixture.req;
     const Source = req(window.__nativeFixture.sourceModule).__testNativeSource;
     const resources = [];
@@ -122,7 +123,7 @@ try {
       const ready = new Promise((resolve, reject) => {
         const timer = setTimeout(() => reject(Error("native load timeout")), 8000);
         audio.addEventListener("loadeddata", () => { clearTimeout(timer); resolve(); }, { once: true });
-        audio.addEventListener("error", () => { clearTimeout(timer); reject(Error("native decode error")); }, { once: true });
+        audio.addEventListener("error", () => { clearTimeout(timer); reject(Error("native decode error " + JSON.stringify({ code: audio.error?.code, message: audio.error?.message, source: audio.src, stage: checks.at(-1) }))); }, { once: true });
       });
       audio.src = source.src; audio.load(); await ready;
       return source.src;
