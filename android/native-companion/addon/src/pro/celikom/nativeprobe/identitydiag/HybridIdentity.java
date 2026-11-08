@@ -3,7 +3,12 @@ import java.util.*;
 import org.json.*;
 /** Diagnostic policy: data sources remain explicit; this never authorizes playback. */
 final class HybridIdentity {
- static List<String> artists(String s){List<String>a=new ArrayList<>();for(String name:s.split("(?i)[,;]|\\s+(?:feat\\.?|ft\\.?|featuring|&)\\s+")){String n=AlbumMatch.norm(name);if(!n.isEmpty()&&!a.contains(n))a.add(n);}Collections.sort(a);return a;}
+ static List<String> artists(String s){List<String>a=new ArrayList<>();for(String name:s.split("(?i)[,;]|\\s+(?:feat\\.?|ft\\.?|featuring|&)\\s+")){String n=AlbumMatch.norm(name);if(!n.isEmpty()&&!a.contains(n))a.add(n);}// Yandex labels Quest Pistols/Quest Pistols Show twice for the same artist;
+  // this exact duplicate-pair exception is already accepted by AlbumMatch.artistKey.
+  // Apply it to OWN catalogue and cached album fallback as well; never relax
+  // title or 1-second duration matching, and never collapse other artists.
+  if(a.contains("quest pistols")&&a.contains("quest pistols show"))a.remove("quest pistols show");
+  Collections.sort(a);return a;}
  static Map<String,Object> metadata(String title,String artist,long duration,List<Map<String,Object>> rows){LinkedHashMap<String,Object> found=new LinkedHashMap<>();if(AlbumMatch.norm(title).isEmpty()||artists(artist).isEmpty()||duration<=0)return LogStore.map("status","INSUFFICIENT_METADATA","candidates",new ArrayList<>());
   for(Map<String,Object> t:rows){Object len=t.get("durationMs");if(!(len instanceof Number))continue;long ms=((Number)len).longValue();if(ms<=0||Math.abs(ms-duration)>1000)continue;if(!AlbumMatch.norm(title).equals(AlbumMatch.norm(String.valueOf(t.get("displayTitle")))))continue;if(!artists(artist).equals(artists(String.valueOf(t.get("artist")))))continue;Object id=t.get("catalogueTrackId");if(id!=null&&String.valueOf(id).matches("\\d{1,20}"))found.put(String.valueOf(id),t);}
   Map<String,Object> out=LogStore.map("status",found.size()==1?"UNIQUE_METADATA_CANDIDATE":found.isEmpty()?"NO_MATCH":"AMBIGUOUS","candidates",new ArrayList<>(found.values()),"scope","bounded catalogue; uniqueness is not proof of the source edition");if(found.size()==1)out.put("catalogueTrackId",found.keySet().iterator().next());return out;
