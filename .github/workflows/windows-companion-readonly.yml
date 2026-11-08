@@ -1,4 +1,4 @@
-name: Windows Companion — read-only probe
+name: Windows Companion — W2 read-only renderer topology
 
 on:
   workflow_dispatch:
@@ -35,7 +35,7 @@ jobs:
       - name: Artifact (test only, no deployment)
         uses: actions/upload-artifact@v4
         with:
-          name: celikom-windows-readonly-probe
+          name: celikom-windows-w2-topology
           path: |
             windows-companion/out/CELIKOM-Windows-Probe.exe
             windows-companion/out/START-CELIKOM-PROBE.cmd

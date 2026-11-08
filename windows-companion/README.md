@@ -26,3 +26,13 @@ The published EXE can be run without .NET SDK. GitHub Actions `windows-companion
 ### Scope policy
 
 Only isolated `windows-companion/**` on `experiment/windows-companion-integration-20261108`; do not touch stable desktop 0.4.73, Android, the server, website, or the other chat's `experiment/desktop-native-source-20261108`. The owner must confirm real Yandex Windows version and native integration path before we add audio hooks.
+
+### W2 checkpoint — packaged renderer topology
+
+Owner confirmed official Yandex Music **5.126.1.0** (Windows 10 x64), installed and running; W1 read a **54.96 MiB** ASAR with SHA-256 `5a259722d60f746ec32c8bf6e880e375e888315080fb18e67c29b54b582c1215`, entry `index.js`, Electron BrowserWindow and Webpack hints. No `getFileInfo` marker in W1's 48 local JS samples. **This is NOT proof the hook is absent:** client may load a remote frontend.
+
+W2 adds `AsarTopology.Inspect`: bounded scan of *packaged* app files only, flags `loadURL/loadFile`, Yandex Music host, static hosting, preload, updater, Webpack and audio source marker hints. The exact owner ASAR SHA is **identity-only**, not an integrity attestation or working compatibility claim. The inspector never reads account/browser profiles, network calls, playback state, audio content or credentials; it neither injects nor patches the official app.
+
+**Owner action:** With official Yandex Music running, extract W2 ZIP, run `START-CELIKOM-PROBE.cmd`, send only `CELIKOM-Windows-report.txt`. Old W1 folder may be removed. Do not install competitor mods or send app.asar or passwords.
+
+**W2 gate:** next chat must inspect the report and decide whether a narrowly scoped isolated fixture/source-interception PoC is justified. No live ASAR modification until rollback and explicit approval. Automated CI validates synthetic fixtures, NOT actual Windows Yandex integration.

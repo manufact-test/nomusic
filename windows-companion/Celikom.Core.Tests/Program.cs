@@ -84,7 +84,29 @@ try
     File.WriteAllBytes(asarPath, TestAsar(noHook, "console.log('no hooks')"));
     inspected = AsarInspector.Inspect(asarPath);
     Check(inspected.State == "OK" && !inspected.HasFileInfoMarker, "absence is handled conservatively");
-    Console.WriteLine($"CELIKOM W1 read-only probe: {passed} checks passed.");
+
+    // W2: read-only source topology must only return boolean hints, never source text.
+    var topology = AsarTopology.Inspect(asarPath, AsarTopology.OwnerAsarSha256);
+    Check(topology.State == "OK", "W2 ASAR topology parsed");
+    Check(topology.OwnerHashMatch == "MATCH_OWNER_W1", "W2 recognizes pinned owner W1 identity");
+    Check(topology.TotalPackagedJsFiles == 1 && topology.InspectedJsFiles == 1, "W2 bounded packaged JS inventory");
+    Check(!topology.HasFileInfoMarker, "W2 no-hook fixture stays negative");
+    Check(!topology.SafeReport().Contains(dir, StringComparison.OrdinalIgnoreCase), "W2 redacts local filesystem path");
+    Check(!topology.SafeReport().Contains("console.log", StringComparison.Ordinal), "W2 never exports JavaScript source");
+    Check(!topology.InspectionIncomplete, "W2 synthetic one-file scan completes");
+
+    string topologySource = "BrowserWindow.loadURL('https://music.yandex.ru'); " +
+        "const preload = true; const marker = 'yastatic'; " +
+        "const endpoint = 'getFileInfoBatch'; const update = 'autoUpdater';";
+    File.WriteAllBytes(asarPath, TestAsar(synthetic, topologySource));
+    topology = AsarTopology.Inspect(asarPath, "0");
+    Check(topology.OwnerHashMatch == "CHANGED_OR_UNVERIFIED", "W2 recognizes changed archive hash");
+    Check(topology.HasYandexMusicHostMarker && topology.HasYandexStaticHostMarker, "W2 remote renderer hints detected");
+    Check(topology.HasLoadUrlMarker && topology.HasFileInfoBatchMarker, "W2 source and batch hints detected");
+    Check(topology.HasAutoUpdaterMarker, "W2 updater hint detected");
+    File.WriteAllBytes(asarPath, new byte[12]);
+    Check(AsarTopology.Inspect(asarPath, null).State == "INVALID_OR_OVERSIZE", "W2 malformed archive is safe");
+    Console.WriteLine($"CELIKOM W2 read-only probe: {passed} checks passed.");
 }
 finally
 {
