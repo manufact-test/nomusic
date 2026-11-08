@@ -27,3 +27,7 @@ Date: 2026-11-08. Owner requested the original/stable Android app to gain **both
 ## Recovery
 - Stable pre-change frozen source: `8a215d59432d9b6d11ab1971af6189cd230b52f3`. Test.50 exact frozen source: `5d737d203a0b364b0cb4fd6886040b8bd0c6fbd1`. Keep both independently.
 - Never overwrite published APK in-place or downgrade versionCode to roll back; use an emergency incremented signed release if rollback necessary.
+
+## Source audit after staging
+- Exact comparison performed against immutable Test.50: `ReplacementEngine.java` and `AudioOwnership.java` in the candidate are **byte-identical** to Test.50. `ProbeService.java` is byte-identical after removing exactly the single inserted `if(albumProbe!=null)albumProbe.refreshOwnCatalogue();` call. **Important correction:** Test.60's `ProbeService.java` carried a separate unaccepted Test.59 buffering/controller change; this was explicitly removed from the stable candidate. No Test.59 reconnect/buffering logic is promoted.
+- Validation job/signing/real-device E2E are not confirmed; candidate remains staging only. The live Test.60 log proved API 404, so there is no accepted production release yet.
