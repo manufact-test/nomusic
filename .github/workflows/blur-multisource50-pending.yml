@@ -1,0 +1,49 @@
+name: CELIKOM Blur — owner requested multisource 50 private PENDING only
+on:
+  push:
+    branches: [feature/blur-batch1000-20261108]
+    paths: ['.github/workflows/blur-multisource50-pending.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: celikom-blur-real-50-pending
+  cancel-in-progress: false
+jobs:
+  import-pending:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Validate exact frozen manifest and scripts
+        shell: bash
+        run: |
+          set -euo pipefail
+          php -l tools/blur-research/pending50/import.php
+          php -l tools/blur-research/pending50/verify-pending-files.php
+          python3 -m py_compile tools/blur-research/pending50/fetch.py
+          bash -n tools/blur-research/pending50/run.sh
+          python3 - <<'PY'
+          import json
+          m=json.load(open('tools/blur-research/pending50-20261109.json',encoding='utf8'))
+          s=m['selected']
+          assert len(s)==50 and len({x['id'] for x in s})==50 and m['source_commit']=='multisource-20261109'
+          assert all(x['artist'] and x['title'] and x['source_url'] and len(x['sha256'])==64 and 0<x['size']<=25000000 for x in s)
+          PY
+          command -v ffprobe || { sudo apt-get update -qq; sudo apt-get install -y ffmpeg; }
+      - name: Private MP3 staging, preflight, pending-only import and independent live audit
+        shell: bash
+        env:
+          HOST_KEY: ${{ secrets.CELIKOM_HOSTINGER_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.CELIKOM_HOSTINGER_KNOWN_HOSTS }}
+        run: bash tools/blur-research/pending50/run.sh
+      - name: Preserve postchecks
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: celikom-multisource50-owner-pending-${{ github.run_id }}
+          path: ${{ runner.temp }}/final-state/
+          retention-days: 90
+          if-no-files-found: warn
