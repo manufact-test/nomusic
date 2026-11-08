@@ -1,4 +1,4 @@
-name: Windows Companion — W9 isolated ASAR copy & rollback proof
+name: Windows Companion — W10 official EXE integrity read-only probe and W9 lab
 
 on:
   workflow_dispatch:
@@ -64,7 +64,7 @@ jobs:
       - name: Artifact (test only, no deployment)
         uses: actions/upload-artifact@v4
         with:
-          name: celikom-windows-w3-source-seam
+          name: celikom-windows-w10-integrity-readonly
           path: |
             windows-companion/out/CELIKOM-Windows-Probe.exe
             windows-companion/out/START-CELIKOM-PROBE.cmd

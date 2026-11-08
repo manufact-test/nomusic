@@ -94,3 +94,22 @@ If W9 passes, safe next evidence is a **read-only check of the actual
 official Windows binary's embedded ASAR integrity metadata and
 static boot/renderer target**, with no account or token reading.
 A silent direct patch is NOT an acceptable default.
+
+## Verified Windows CI — actual W9
+
+[GitHub Actions run 42516545399](https://github.com/manufact-test/nomusic/actions/runs/42516545399):
+**SUCCESS**, after fixing an asynchronous file-existence check.
+
+- W9 \`asar-copy-lab.test.mjs\`: **15/15** synthetic, physical ASAR
+  backup/restore and interruption assertions passed.
+- W9 \`run-boot-e2e.mjs\`: real Electron boots generated original
+  ASAR => boots modified synthetic **copy** => boots restored original.
+  All three boot markers PASS; restored app has no test-only hook.
+  Original copy SHA-256 verified; an unknown official integrity fuse
+  continues to mean NO-GO for official modification.
+- Existing W8 12/12, W7+W8 runtime 33/33, W5 runtime 35/35 and
+  W6 15/15 all passed together in the same Windows workflow.
+- First CI 42516425634 failed due an \`await\` omission in W9's
+  fixture file-existence check; CI correctly flagged the failure,
+  fixed in \`145dc26b8d0daef3b8ff24f3446f3016f89709fa\`.
+- No installed Yandex Music EXE/ASAR/credentials opened or changed.

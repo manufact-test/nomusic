@@ -1,6 +1,6 @@
 # CELIKOM Windows Companion — NEXT-CHAT
 
-**Updated 2026-11-08. W3 owner identity confirmed; W4–W8 isolated CI verified; W9 physical ASAR-copy laboratory under CI.**
+**Updated 2026-11-08. W3 user evidence confirmed; W4–W9 isolated CI VERIFIED; W10 safe executable integrity observation under CI.**
 
 ## Objective
 Official Windows Yandex Music is the ONLY owner of audio, pause, seek, next, queue,
@@ -232,3 +232,25 @@ No owner ZIP and no repeated W0–W3 scans are needed here.
 - After W9, a real read-only integrity observation on the actual
   installed Yandex EXE could resolve current blockers, but do not
   ask owner to repeat W0–W3 or issue a patched client unapproved.
+
+## W9 verified; W10 actual official binary read-only evidence
+
+- W9 [CI 42516545399](https://github.com/manufact-test/nomusic/actions/runs/42516545399) SUCCESS.
+  **15/15** generated ASAR copy crash/restore tests; actual generic
+  Electron boots original generated ASAR, modified copy with test-only
+  hook, then byte-restored original with no hook. No official Yandex touched.
+- First W9 CI failure 42516425634 was an `await` omission in
+  fixture file existence; fixed in `145dc26b8d0daef3b8ff24f3446f3016f89709fa`.
+- W10 code: `windows-companion/Celikom.Core/ElectronIntegrityReadOnly.cs`,
+  with tests in `Celikom.Core.Tests/Program.cs`. Directly **reads only**
+  documented Electron V1 fuse 4 (embedded ASAR integrity), fuse 5
+  (only load ASAR) and optional Windows PE resource
+  `Integrity/ElectronAsar`; compares with actual app.asar header SHA.
+- W10 Probe rechecks owner W3 archive SHA and W10 integrity result,
+  without repeating the full 1117-file W3 source scan.
+- W10 is NOT an installer, source hook or signed official Yandex patch;
+  does not enable remote debugging or access app accounts. Any missing
+  or unknown evidence is NO-GO for writing official binary.
+- Source details `docs/windows/W10-EXE-INTEGRITY-READONLY-20261108.md`.
+  New W10 CI and owner artifact to be verified/delivered before asking
+  the owner to run. Do not claim passed before CI result is real.

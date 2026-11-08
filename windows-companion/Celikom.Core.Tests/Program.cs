@@ -156,6 +156,61 @@ try
     Check(!gate.Choose(latest, valid, DateTimeOffset.UtcNow).UseReplacement,
         "W3 Stop forbids substitution");
 
+    // W10: actual documented Electron V1 fuse wire and Windows resource
+    // inspection. Synthetic PE bytes only; never any installed Yandex EXE.
+    var sentinel = Encoding.ASCII.GetBytes("dL7pKGdnNz796PbbjQWNKmHXBZaB9tsX");
+    byte[] wire = { 1, 9, (byte)'1', (byte)'0', (byte)'0',
+        (byte)'0', (byte)'1', (byte)'1', (byte)'0', (byte)'0', (byte)'0' };
+    byte[] syntheticExe = new byte[262144 + 60];
+    Buffer.BlockCopy(sentinel, 0, syntheticExe, 262144 - 10, sentinel.Length);
+    Buffer.BlockCopy(wire, 0, syntheticExe, 262144 - 10 + sentinel.Length, wire.Length);
+    var fuse = ElectronIntegrityReadOnly.InspectSyntheticFuseBytes(syntheticExe);
+    Check(fuse.State == "V1_FOUND" && fuse.Integrity == "ENABLED" &&
+        fuse.OnlyLoad == "ENABLED", "W10 V1 fuse indexes 4/5 decoded");
+    string fakeExe = Path.Combine(dir, "fixture-not-real-exe.bin");
+    File.WriteAllBytes(fakeExe, syntheticExe);
+    var pe = ElectronIntegrityReadOnly.Inspect(fakeExe, asarPath);
+    Check(pe.FuseWireState == "V1_FOUND" &&
+        pe.EmbeddedAsarIntegrityFuse == "ENABLED",
+        "W10 bounded streaming sees sentinel across 128 KiB boundary");
+    Check(pe.EmbeddedAsarResource is "RESOURCE_READ_FAILED" or "NOT_FOUND",
+        "W10 fake non-PE cannot pose as valid ElectronAsar integrity resource");
+    Check(!pe.SafeReport().Contains(dir, StringComparison.OrdinalIgnoreCase),
+        "W10 never exports executable path or username");
+    var unknownFuse = ElectronIntegrityReadOnly.InspectSyntheticFuseBytes(
+        Encoding.ASCII.GetBytes("no Electron sentinel here"));
+    Check(unknownFuse.State == "NOT_FOUND" && unknownFuse.Integrity == "UNKNOWN",
+        "W10 missing fuse marker stays unknown");
+    var ambiguous = new byte[syntheticExe.Length + sentinel.Length + wire.Length + 12];
+    Buffer.BlockCopy(syntheticExe, 0, ambiguous, 0, syntheticExe.Length);
+    Buffer.BlockCopy(sentinel, 0, ambiguous, syntheticExe.Length, sentinel.Length);
+    Buffer.BlockCopy(wire, 0, ambiguous, syntheticExe.Length + sentinel.Length, wire.Length);
+    Check(ElectronIntegrityReadOnly.InspectSyntheticFuseBytes(ambiguous).State ==
+        "AMBIGUOUS", "W10 multiple fuse markers do not claim compatibility");
+    byte[] removed = (byte[])syntheticExe.Clone();
+    removed[262144 - 10 + sentinel.Length + 2 + 4] = (byte)'r';
+    Check(ElectronIntegrityReadOnly.InspectSyntheticFuseBytes(removed).Integrity ==
+        "REMOVED_OR_UNSUPPORTED", "W10 removed fuse cannot be treated as disabled");
+    var rawHeader = TestAsar(synthetic, "console.log('synthetic only')");
+    string? headerSha = ElectronIntegrityReadOnly.SyntheticAsarHeaderHash(rawHeader);
+    Check(headerSha?.Length == 64, "W10 ASAR JSON header SHA-256 computed without script export");
+    Check(ElectronIntegrityReadOnly.SyntheticAsarHeaderHash(new byte[6]) is null,
+        "W10 truncated ASAR header is rejected");
+    string resourceFixture = JsonSerializer.Serialize(new[] { new {
+        file = @"resources\app.asar", alg = "sha256", value = headerSha } });
+    var match = ElectronIntegrityReadOnly.InspectSyntheticIntegrityJson(
+        resourceFixture, headerSha);
+    Check(match.Resource == "PRESENT" && match.Match == "MATCH",
+        "W10 synthetic Windows resource matches original header");
+    var mismatch = ElectronIntegrityReadOnly.InspectSyntheticIntegrityJson(
+        resourceFixture, new string('0', 64));
+    Check(mismatch.Match == "MISMATCH",
+        "W10 changed ASAR archive header rejects embedded resource hash");
+    var unsupported = ElectronIntegrityReadOnly.InspectSyntheticIntegrityJson(
+        "{} no valid resource", headerSha);
+    Check(unsupported.Match == "UNKNOWN" && unsupported.Resource == "UNRECOGNIZED_FORMAT",
+        "W10 malformed Windows resource is never falsely accepted");
+
     File.WriteAllBytes(asarPath, new byte[12]);
     Check(AsarTopology.Inspect(asarPath, null).State == "INVALID_OR_OVERSIZE", "W2 malformed archive is safe");
     Console.WriteLine($"CELIKOM W2 read-only probe: {passed} checks passed.");
