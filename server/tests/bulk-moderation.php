@@ -75,6 +75,14 @@ $readState=static function(int $id) use($pdo):array {
 run('50 pending render one-page checkboxes and select-all (no default rights)',function()
     use($app,$get,$ids):void {
     $page=$app->handle('GET','/admin',['tab'=>'uploads','status'=>'pending','per_page'=>'50'],$get);
+    if ($page->status !== 200 && getenv('BULK_DEBUG_LIVE_MERGE') === '1') {
+        try {
+            (new \Celikom\Admin\AdminPanel($GLOBALS['pdo'],$GLOBALS['storage'],false,false,$GLOBALS['config']))
+                ->handle('GET','/admin',['tab'=>'uploads','status'=>'pending','per_page'=>'50'],$get,'');
+        } catch (\Throwable $error) {
+            fwrite(STDERR,"MERGED_ADMIN_DB_DIAG: ".get_class($error).' '.$error->getMessage()."\n");
+        }
+    }
     expect($page->status===200,'Queue loads');
     expect(substr_count($page->body,'data-bulk-candidate type="checkbox"')===50,'Exactly fifty selectable');
     expect(str_contains($page->body,'Выделить все на странице (50)'),'50 selection control');
