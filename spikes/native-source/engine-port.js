@@ -143,6 +143,7 @@
       const { core, audio, entity } = binding, original = core.getMediaSource;
       const ownDescriptor = Object.getOwnPropertyDescriptor(core, "getMediaSource");
       const guards = [], ownedSources = new WeakSet();
+      const port = this;
       let readStarted = false;
       const changed = () => { operation.intentChanged = true; };
       const assertCurrent = () => {
@@ -167,7 +168,16 @@
           if (typeof method !== "function") continue;
           const descriptor = Object.getOwnPropertyDescriptor(target, key);
           const wrapper = function (...args) {
-            if (ownedSources.has(args[0]?.source)) assertCurrent();
+            if (ownedSources.has(args[0]?.source)) {
+              assertCurrent();
+              if (key === "corePlay" && options.livePosition === true && audio.paused === false && !audio.seeking) {
+                const live = Number(audio.currentTime), captured = Number(args[0].positionSec);
+                if (Number.isFinite(live) && Number.isFinite(captured) && live >= captured) {
+                  port.lastPositionCorrectionMs = Math.round((live - captured) * 1000);
+                  args[0] = { ...args[0], positionSec: live };
+                }
+              }
+            }
             return Reflect.apply(method, this, args);
           };
           Object.defineProperty(target, key, { value: wrapper, writable: true, configurable: true });

@@ -212,7 +212,9 @@ try {
     const nativeAudio = document.createElement("audio"); document.body.append(nativeAudio);
     const nativeCore = Object.create(NativeCore.prototype), entity = { data: { meta: { id: "1001", durationMs: 8000 } }, mediaSourceData: {} };
     const v2 = resources.find(C => !C.prototype.getByteRange), nativeResource = instance(v2, "v2");
+    const appliedSources = [];
     const applySource = async ({ source, positionSec = 0 }, play) => {
+      appliedSources.push({ requested: positionSec, live: nativeAudio.currentTime, at: performance.now() });
       source.vsid = "native-session-fixture"; source.sourceIndex = 0; source.positionSec = positionSec;
       const loaded = new Promise((resolve, reject) => {
         const timeout = setTimeout(() => reject(Error("session audio load timeout")), 8000);
@@ -274,11 +276,53 @@ try {
     await nativeCore.reload(nextEntity);
     await nativeSession.confirmSource(nativeAudio, null, new AbortController().signal);
     check(nativeAudio.currentSrc.startsWith(origin) && sessionPort.inspect().trackId === "1002", "Next does not reuse prior replacement for another ID");
-    await nativeSession.configure(false, 4); nativeAudio.pause(); nativeAudio.remove();
+    await nativeSession.configure(false, 4);
+    /* Trial A uses the actual stock reload with a delayed file-info request
+       while the original audio clock continues advancing. */
+    const get = nativeResource.httpClient.get;
+    nativeResource.httpClient.get = async function (...args) {
+      await new Promise(resolve => setTimeout(resolve, 180)); return Reflect.apply(get, this, args);
+    };
+    await nativeAudio.play();
+    await nativeCore.reload(nextEntity);
+    const stale = appliedSources.at(-1), staleRewindMs = Math.round((stale.live - stale.requested) * 1000);
+    await sessionPort.reload("1002", { livePosition: true });
+    const corrected = appliedSources.at(-1), correctedRewindMs = Math.round((corrected.live - corrected.requested) * 1000);
+    check(staleRewindMs >= 100 && Math.abs(correctedRewindMs) < 30,
+      "trial A removes stale-position replay under the same delayed stock source load");
+    nativeResource.httpClient.get = get;
+    /* Trial B reads the actual public queue's derived nextEntity getter,
+       including a queue order different from entityList order. */
+    const Queue = req(28692).Di, lastEntity = { data: { meta: { id: "1003", durationMs: 8000 } }, mediaSourceData: {} };
+    const queue = new Queue({ prevIndex: null, index: 0, nextIndex: 1, entityList: [{ entity: lastEntity }, { entity: nextEntity }],
+      order: [1, 0], repeat: req(28692).pM.NONE, shuffle: true, filterParams: {} });
+    nativePlayback.playbackState.queueState = queue.state;
+    check(queue.state.currentEntity.value.entity === nextEntity && queue.state.nextEntity.value.entity === lastEntity,
+      "trial B gets next ID from actual queue state rather than guessing DOM or array order");
+    const nextUrl = URL.createObjectURL(short); api.setEnabled(true);
+    api.register(String(queue.state.nextEntity.value.entity.data.meta.id), nextUrl, { expiresAt: Date.now() + 60000, bitrate: 128 });
+    const sourceCount = appliedSources.length, nextStart = performance.now();
+    queue.state.index.value = 1; queue.state.nextIndex.value = null;
+    const nextSource = await nativeCore.getMediaSource({ entity: queue.state.currentEntity.value.entity });
+    await nativeCore.corePlay({ source: nextSource, positionSec: 0 });
+    const preparedNextMs = Math.round(performance.now() - nextStart);
+    check(nativeAudio.currentSrc.startsWith("blob:") && appliedSources.length === sourceCount + 1 && sessionPort.inspect().trackId === "1003",
+      "trial B prepared next track uses one native source assignment without late replacement reload");
+    const legacyWarmSamples = [];
+    for (let i = 0; i < 3; i++) {
+      const legacy = new window.__CELIKOM_REPLACEMENT_PLAYER_V1__.ReplacementPlayer(window, () => {}), began = performance.now();
+      await legacy.prepare({ url: origin + "/short.mp3", mimeType: "audio/mpeg", durationMs: 8000 });
+      legacyWarmSamples.push(Math.round(performance.now() - began)); legacy.destroy();
+    }
+    const trials = { position: { sourceDelayMs: 180, staleRewindMs, correctedRewindMs }, preparedNext: {
+      nativeMs: preparedNextMs, legacy073PrepareSamplesMs: legacyWarmSamples,
+      scope: "controlled prepared-file path, not signed-in end-to-end playback",
+      limitations: ["exact next entity must already exist", "fresh admission and cancellation are not wired into this laboratory next registration"] } };
+    nativeAudio.pause(); nativeAudio.remove(); api.unregister("1003"); URL.revokeObjectURL(nextUrl);
     api.dispose();
     check(api.diagnostics().stopped && api.diagnostics().assets === 0, "dispose restores owned prototype hooks and removes registry");
     reactRoot.unmount(); mount.remove();
-    return { checks, beforeDispose, preparationComparison, experimentElapsedMs: Math.round(performance.now() - start), limitations: ["controlled resource responses; not a signed-in Yandex listening session", "stock reload tested with real audio; actual encrypted decryption is not tested", "no measured end-to-end speed advantage"] };
+    return { checks, beforeDispose, preparationComparison, trials, experimentElapsedMs: Math.round(performance.now() - start), limitations: ["controlled resource responses; not a signed-in Yandex listening session", "stock reload tested with real audio; actual encrypted decryption is not tested", "no measured end-to-end speed advantage"] };
   }, origin);
   let liveProbe;
   const livePage = await context.newPage();

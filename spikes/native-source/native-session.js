@@ -70,7 +70,7 @@
       const current = () => this.enabled && epoch === this.epoch && generation === this.generation;
       const confirmation = new AbortController(); this.confirmAbort = confirmation;
       this.resource.register(trackId, record.url, { expiresAt: record.expiresAt });
-      this.pending = this.port.reload(trackId, { isCurrent: current }).then(async () => {
+      this.pending = this.port.reload(trackId, { isCurrent: current, livePosition: true }).then(async () => {
         await this.confirmSource(binding.audio, record, confirmation.signal);
         if (!current() || this.owned()?.trackId !== trackId) throw Error("native_source_not_applied");
         this.active = trackId; this.lastError = null;

@@ -263,3 +263,19 @@ test("late publication cleanup is scoped to its old session generation", async (
   assert.ok(revoked.some(x => x.reason === "late-publish" && x.generation === oldGeneration));
   assert.ok(!revoked.some(x => x.reason === "late-publish" && x.generation === coordinator.generation));
 });
+test("experiment A catches up to the still-playing original instead of replaying a stale captured position", async () => {
+  const n = nativeEngine(), entered = gate(), delayed = gate();
+  n.core.state.progress.value = { position: 10 }; n.audio.currentTime = 10; n.audio.paused = false;
+  n.core.getMediaSource = async () => { entered.resolve(); return delayed.promise; };
+  const task = n.port.reload("1001", { livePosition: true }); await entered.promise;
+  n.audio.currentTime = 10.5; delayed.resolve({ data: { transport: "raw" } }); await task;
+  assert.equal(n.applied[0].positionSec, 10.5); assert.equal(n.port.lastPositionCorrectionMs, 500);
+});
+test("experiment A still rejects user seek instead of overwriting its new position", async () => {
+  const n = nativeEngine(), entered = gate(), delayed = gate();
+  n.core.state.progress.value = { position: 10 }; n.audio.currentTime = 10; n.audio.paused = false;
+  n.core.getMediaSource = async () => { entered.resolve(); return delayed.promise; };
+  const task = n.port.reload("1001", { livePosition: true }); await entered.promise;
+  n.audio.currentTime = 25; n.audio.dispatchEvent(new Event("seeking"));
+  delayed.resolve({}); await assert.rejects(task, /intent_changed/); assert.equal(n.applied.length, 0);
+});
