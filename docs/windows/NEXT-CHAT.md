@@ -1,6 +1,6 @@
 # CELIKOM Windows Companion — NEXT-CHAT
 
-**Updated 2026-11-08. W10 REAL OWNER REPORT RECEIVED. Official desktop ASAR integrity enabled and matching; direct ASAR patch NO-GO. W11 isolated private-pipe experiment under test.**
+**Updated 2026-11-08. W10 OWNER confirmed EXE/ASAR integrity ENABLED + MATCH. W11 private pipe isolated Electron PASSED (6/6 and 33/33); no live official integration.**
 
 ## Objective
 Official Windows Yandex Music is the ONLY owner of audio, pause, seek, next, queue,
@@ -312,3 +312,33 @@ Following W11, only consider a carefully permissioned non-authenticated
 sandbox experiment on a COPY of an official app with explicit consent
 and without disabling integrity/signature safety. The normal installed
 client remains untouched. Never request another W0-W10 report.
+
+## Verified W11 — secure transport research, not a finished client
+
+[Actions 42518263737](https://github.com/manufact-test/nomusic/actions/runs/42518263737)
+SUCCESS, source `a953ed992b4952bbcc7aec725c659d2e98010002`.
+
+- W11 6/6 pipe policy tests PASS. Real Electron 44 inherits
+  private standard FD3/FD4 CDP `--remote-debugging-pipe`,
+  no TCP debugger port, clean disposable profile. External Node
+  sidecar attached and dynamically activated W4/W8 against the
+  pinned original public web Yandex source/resource classes.
+- W11 actual native single-decoder playback and error recovery
+  **33/33**, W7 equivalent **33/33**, W5 **35/35**. All existing
+  W4/W6/W8/W9/W10 offline tests/build regression passed.
+- **Never conflate** success of private pipe on a disposable
+  test renderer with permission to debug an authenticated official
+  Yandex Music Windows app. CDP privileges remain unrestricted
+  inside that one renderer.
+- W10 actual official app fuse+ASAR resource both ENABLED/MATCH:
+  modifying installed official app.asar without EXE changes is a
+  definite NO-GO. EXE rewriting/signature changes are not approved.
+- No safe permission-limited documented official audio-source API
+  has been verified. No further proxy audio clock or second player.
+- The next concrete research stage would require a separately
+  authorized, clean-profile, read-only **official Windows client**
+  compatibility observation using a test-only private pipe. This
+  would launch a separate instance, must preserve official install
+  and fail closed on single-instance handoff, account screen or
+  app update; do NOT do it without explicit owner permission.
+- No new test ZIP required at W11 stage; installed client untouched.

@@ -107,3 +107,33 @@ permission-limited attachment point in the official desktop renderer.
 If there is no supported interface, the honest next step is to agree
 on a separate, explicit risk-scoped test of a non-authenticated
 sandboxed copy — never silently patch the installed official app.
+
+## Windows CI verification — W11 completed, 2026-11-08
+
+- Source commit `a953ed992b4952bbcc7aec725c659d2e98010002`.
+- [Actions run 42518263737](https://github.com/manufact-test/nomusic/actions/runs/42518263737):
+  **SUCCESS**.
+- Strict private-pipe protocol policy: **6/6** Node tests PASS,
+  zero failures (nonce/target allowlist, CDP frame splitting, no
+  high-privilege extra domains, session fence, malformed frame,
+  clean close).
+- Actual Windows Electron 44 private CDP `--remote-debugging-pipe`
+  **PASS** with inherited FD3/FD4; W11 externally connected to
+  disposable profile and dynamically ran W4/W8 over the private pipe.
+- **33/33** genuine synthetic Electron decoding and recovery checks
+  PASS: original public Yandex web resource/source classes, one decoder,
+  Play, Pause, Seek, Next, stale request fencing, corrupt MP3 error,
+  automatic original recovery with play/seek restoration, no retry loop.
+- Existing W7 localhost CDP fixture **33/33**, W5 **35/35**, W9
+  real generated ASAR copy boot/restore PASS, W6 synthetic recovery
+  **15/15**, W8 controller **12/12**, W10 .NET offline checks PASS.
+- No network debugger port was created by W11 fixture mode.
+  The V1/V2 public Yandex class experiment remains a DIFFERENT
+  app, NOT installed/authorized Yandex Music.
+- **Production remains NO-GO** until a safe launch/attach strategy
+  for official Windows 5.126.1.0 is independently verified, with
+  owner permission, disposable profile and strict no-credentials
+  policy. Pipe-only CDP still has high privileges in the chosen
+  renderer, even though its transport is private.
+- No owner-side W11 ZIP; it is a laboratory test with generic
+  Electron and synthetic sine-wave audio only.
