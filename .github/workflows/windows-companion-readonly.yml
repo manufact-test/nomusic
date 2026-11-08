@@ -31,6 +31,12 @@ jobs:
       - name: Build REAL PulseSync add-on SDK candidate (disabled, no host execution)
         working-directory: windows-companion/w14/addon
         run: npm run build
+      - name: Setup .NET 10 for real W15 Companion build
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Build W15 Windows Companion UI + account and loopback bridge
+        run: dotnet build windows-companion/w15/Celikom.Companion/Celikom.Companion.csproj -c Release -warnaserror
       - name: W12 fail-closed official-launch policy (synthetic only)
         run: node --test windows-companion/w12/official-launch-gate.test.mjs
       - name: W11 private pipe target and CDP framing policy
