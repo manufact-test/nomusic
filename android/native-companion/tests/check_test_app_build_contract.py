@@ -16,9 +16,9 @@ verifier = (ROOT / "verify_test_release.py").read_text(encoding="utf-8")
 assert spec["package"] == "pro.celikom.nativeprobe.test"
 assert spec["stable_package"] == "pro.celikom.nativeprobe"
 assert spec["label"] == "CELIKOM Test"
-assert spec["version"] == "0.3.85-test.75"
-assert spec["version_code"] == 86161
-assert spec["apk_filename"] == "CELIKOM-Android-0.3.85-TEST-75-OPTIN-NATIVE-PAUSE-SEEK-SIGNED.apk"
+assert spec["version"] == "0.3.85-test.76"
+assert spec["version_code"] == 86162
+assert spec["apk_filename"] == "CELIKOM-Android-0.3.85-TEST-76-VERIFIED-RECOVERY-SIGNED.apk"
 
 # Test.72 starts from Test.70, excluding the rejected Test.71 MediaBrowser retry.
 # No notification controls or remote commands are allowed to re-enter this branch.
@@ -47,6 +47,20 @@ assert 'norm(artist).equals(norm(platformArtist))' in policy
 assert 'sessions==1&&available' in policy
 assert 'return platformAuthority?unsafe(' in policy
 assert "PLATFORM_BUFFERING" in policy and "PLATFORM_PAUSED" in policy
+# Test.76 may only refresh source by verified NEW Media3 connection.
+assert "YandexIdentityDivergenceGate" in probe
+assert "probeDivergentSource(c);" in probe
+assert "source_framework_track_divergence_verified" in probe
+assert "source_framework_fresh_controller_adopted" in probe
+assert "source_framework_fresh_probe" in probe
+assert 'sourceBoundary(nextAlias,"framework_cross_verified_media3_source")' in probe
+assert 'YandexIdentityDivergenceGate.sameTrack(name,artist,duration,' in probe
+assert "sourceProbe=future;" in probe and "old.release();" in probe
+assert probe.index("controller=fresh;adopted=true;") < probe.index("old.release();")
+assert "Test76YandexIdentityDivergenceGate" in (ROOT / "tests/run_engine.py").read_text(encoding="utf-8")
+assert "yandexSourceResync()" in (ROOT / "addon/src/pro/celikom/nativeprobe/identitydiag/NotificationState.java").read_text(encoding="utf-8")
+assert "Обновляем сведения о песне" in (ROOT / "addon/src/pro/celikom/nativeprobe/identitydiag/NotificationState.java").read_text(encoding="utf-8")
+
 
 assert "onNotificationPosted(" not in witness and "onNotificationRemoved(" not in witness
 assert "getActiveSessions(" in witness
