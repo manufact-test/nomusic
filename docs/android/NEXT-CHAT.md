@@ -1,3 +1,16 @@
+# CURRENT OVERRIDE · 2026-11-09 — owner selects IN-PROCESS SINGLE-PLAYER architecture
+
+**LATEST DECISION — read before all historic Test.76 notes below.** User explicitly said stop small bugfixes; whether CELIKOM is a standalone app/equalizer/module is irrelevant. Must keep familiar Yandex experience, single player managing original OR alternative source, fast start, native seek/pause/Next, normal installation with **Google Play Protect ON**. User now ALLOWS investigation of a compatible modified Yandex Android client (supersedes 2026-11-04 no-patcher decision), but not silent modification of their installed stock Yandex or bypassing security.
+
+**New docs branch:** `research/android-single-player-inprocess-20261109` (**documentation/research only**, no APK or code modifications in this branch). Read immediately:
+- [ANDROID-ONE-PLAYER-ARCHITECTURE-FEASIBILITY-2026-11-09.md](ANDROID-ONE-PLAYER-ARCHITECTURE-FEASIBILITY-2026-11-09.md) — main implementation contract, honest install/sandbox/signature/Play Protect limitations, public source comparisons, Gate 0–4, one-player proof and acceptance gates.
+- [ANDROID-TEST76-FINAL-HONOR-FORENSIC-2026-11-09.md](ANDROID-TEST76-FINAL-HONOR-FORENSIC-2026-11-09.md) — last genuine owner run 01:18 Test.76. **6× SecurityException, 7th connect at 14.279s, normal «Папиросы» replacement works; RASKOL ID 42884423 and replacement prepared but remote stuck BUFFERING at 0 for last ~39s. 91/91 framework witnesses DISABLED — new Test.76 repair path never invoked.** Don't mislabel its untriggered logic as tested or fixed.
+- [ANDROID-ONE-PLAYER-NEXT-CHAT-PROMPT-2026-11-09.md](ANDROID-ONE-PLAYER-NEXT-CHAT-PROMPT-2026-11-09.md) — ready-to-send next-chat task.
+
+**Next worker:** branch separately from this docs head, research safe source-available way of in-process integration, then implement read-only internal real Yandex trackId+source-choice prototype, *not* generic fake player. ChromaSync Mobile README describes patched Yandex Android app, but repo has no source; YM Liberty Android has source but is an independent GPLv3 client. No root, no Play Protect bypass, no sensitive permission or code stealth. Prove signature/package/install safety before touching owner's official Yandex; use a spare/emulator. Keep stable, Test.50 owner-accepted backup, PC, Chrome, server and 1426 approved track data unchanged. Delivery from this chat is docs only; NO phone-tested new build.
+
+---
+
 # CURRENT: Test.76 parallel Media3 recovery built and signed (2026-11-09)
 
 **Do not restart development, do not change stable.** Source branch `feature/android-0385-test76-framework-crosschecked-recovery-20261109`, validated source SHA `654cbdac2eb85c414d4d8e9396c28a4244b64204`. [GitHub Actions #42528845789 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/42528845789). Signed `CELIKOM-Android-0.3.85-TEST-76-VERIFIED-RECOVERY-SIGNED.apk` SHA256 `b79d22ea2f903196e7e79adfea1f1307a7386bb21194264e08ace2419cd3bf3b`, Test package `pro.celikom.nativeprobe.test`, code `86162`, signer matches original. ChatGPT Library `/CELIKOM/Android/Test/CELIKOM-Android-0.3.85-TEST-76-VERIFIED-RECOVERY-SIGNED.apk` (`libfile_e17565b4efb8819184f1efdbac88cf15`). **Phone verification pending**.
