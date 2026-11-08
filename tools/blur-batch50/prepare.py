@@ -90,10 +90,14 @@ def main() -> None:
     if len(eligible)!=len(set(eligible)) or any(i not in byid for i in eligible):
         raise ValueError('inconsistent eligible Track IDs')
     started=time.monotonic()
-    ready=[];bad=[];temporary=[];total=0;attempted=0
+    ready=[];bad=[];temporary=[];collisions=[];titles=set();total=0;attempted=0
     for tid in eligible:
         if len(ready)>=50: break
         entry=byid[tid];attempted+=1
+        label=(' '.join(entry['artist'].lower().split()),' '.join(entry['title'].lower().split()))
+        if label in titles:
+            collisions.append({'id':tid,'reason':'matching_title_in_batch'})
+            continue
         duration,why,is_transient=download(entry,out)
         if why:
             record={'track_id':tid,'artist':entry['artist'],'title':entry['title'],
@@ -112,13 +116,14 @@ def main() -> None:
         e['duration_ms']=duration
         e['original_duration_verified']=False
         ready.append(e)
+        titles.add(label)
         total+=entry['size']
     rejected_csv=state/'rejected-new.csv'
     with rejected_csv.open('w',newline='',encoding='utf-8') as f:
         writer=csv.DictWriter(f,FIELDS,quoting=csv.QUOTE_ALL)
         writer.writeheader();writer.writerows(bad)
     (state/'retry-later.json').write_text(json.dumps(temporary,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
-    (state/'duplicates.json').write_text(json.dumps(precheck['skipped'],ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
+    (state/'duplicates.json').write_text(json.dumps(precheck['skipped']+collisions,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
     (state/'selected.json').write_text(json.dumps({
         'schema':1,'source_commit':COMMIT,'target_pending':50,'selected':ready
     },ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
