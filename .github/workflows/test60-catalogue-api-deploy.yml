@@ -55,7 +55,12 @@ jobs:
           if not domain.is_dir(): raise SystemExit('The active API domain is NOT on this SSH host; refusing deployment')
           candidates=[p for p in domain.rglob('src/Application.php') if p.is_file() and p.stat().st_size<200000]
           candidates=[p for p in candidates if 'class Application' in p.read_text(errors='replace') and '/api/v1/resolve' in p.read_text(errors='replace')]
-          if len(candidates)!=1: raise SystemExit('Cannot uniquely identify active API source; refusing deployment')
+          if len(candidates)!=1:
+              print('Preflight: domain exists:',domain.is_dir(),file=sys.stderr)
+              print('Preflight: current API candidates:',len(candidates),file=sys.stderr)
+              print('Preflight: src/Application.php filenames:',[str(p.relative_to(domain)) for p in domain.rglob('Application.php')][:12],file=sys.stderr)
+              print('Preflight: top-level directories:',[p.name for p in domain.iterdir() if p.is_dir()][:15],file=sys.stderr)
+              raise SystemExit('Cannot uniquely identify active API source; refusing deployment')
           print(candidates[0].parent)
           PY
           ")"
