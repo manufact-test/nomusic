@@ -1,4 +1,4 @@
-name: Windows Companion — W14 SDK adapter contract & W12 regression
+name: Windows Companion — W15 Native Preview + SDK add-on
 
 on:
   workflow_dispatch:
@@ -37,6 +37,14 @@ jobs:
           dotnet-version: '10.0.x'
       - name: Build W15 Windows Companion UI + account and loopback bridge
         run: dotnet build windows-companion/w15/Celikom.Companion/Celikom.Companion.csproj -c Release -warnaserror
+      - name: W15 signed URL, Stop/Next and localhost pairing contracts
+        run: node --test windows-companion/w15/w15-contract.test.mjs
+      - name: Install W15 PulseSync SDK in isolated CI only
+        working-directory: windows-companion/w15/addon
+        run: npm install --no-audit --no-fund --no-package-lock
+      - name: Compile W15 CELIKOM add-on through the real PulseSync SDK
+        working-directory: windows-companion/w15/addon
+        run: npm run build
       - name: W12 fail-closed official-launch policy (synthetic only)
         run: node --test windows-companion/w12/official-launch-gate.test.mjs
       - name: W11 private pipe target and CDP framing policy
@@ -85,6 +93,32 @@ jobs:
       - name: Add one-click report launcher
         shell: pwsh
         run: Copy-Item windows-companion/START-CELIKOM-PROBE.cmd windows-companion/out/START-CELIKOM-PROBE.cmd
+      - name: Publish standalone W15 CELIKOM Companion for isolated PREVIEW (no Yandex modification)
+        run: dotnet publish windows-companion/w15/Celikom.Companion/Celikom.Companion.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:DebugType=None -o windows-companion/w15/publish
+      - name: Assemble W15 preview ZIP: EXE + PulseSync add-on only
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $base = 'windows-companion/w15'
+          $pack = Join-Path $base 'bundle'
+          New-Item -ItemType Directory -Path $pack -Force | Out-Null
+          Copy-Item -Path (Join-Path $base 'publish/CELIKOM.Companion.exe') -Destination $pack
+          Copy-Item -Path (Join-Path $base 'PREVIEW-README.txt') -Destination $pack
+          Copy-Item -Path (Join-Path $base 'addon/dist') -Destination (Join-Path $pack 'addon') -Recurse -Force
+          $exe = Join-Path $pack 'CELIKOM.Companion.exe'
+          if (-not (Test-Path $exe) -or (Get-Item $exe).Length -lt 500000) { throw 'W15_EXE_MISSING' }
+          $addon = Get-ChildItem -Path (Join-Path $pack 'addon') -Filter script.js -Recurse
+          if ($addon.Count -ne 1 -or $addon[0].Length -lt 1000) { throw 'W15_ADDON_MISSING' }
+          (Get-FileHash $exe -Algorithm SHA256).Hash | Out-File (Join-Path $pack 'EXE-SHA256.txt') -Encoding ascii
+          (Get-FileHash $addon[0].FullName -Algorithm SHA256).Hash | Out-File (Join-Path $pack 'ADDON-SHA256.txt') -Encoding ascii
+          Compress-Archive -Path (Join-Path $pack '*') -DestinationPath (Join-Path $base 'CELIKOM-Windows-W15-PREVIEW.zip') -CompressionLevel Optimal -Force
+      - name: Upload W15 test preview artifact (not public release)
+        uses: actions/upload-artifact@v4
+        with:
+          name: CELIKOM-Windows-W15-PREVIEW
+          path: windows-companion/w15/CELIKOM-Windows-W15-PREVIEW.zip
+          if-no-files-found: error
+          retention-days: 14
       - name: Artifact (test only, no deployment)
         uses: actions/upload-artifact@v4
         with:
