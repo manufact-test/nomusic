@@ -1,0 +1,80 @@
+name: CELIKOM Blur — batch20 MP3 to private pending moderation
+
+on:
+  push:
+    branches: [feature/blur-batch20-20261108]
+    paths: ['.github/workflows/blur-batch20-pending-import.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: celikom-blur-batch20-pending-live-once
+  cancel-in-progress: false
+
+jobs:
+  import-pending:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 14
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Validate script, expected manifest and source metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          php -l tools/blur-batch20/import-pending.php
+          python3 -m json.tool tools/blur-batch20/batch20.json > /dev/null
+          python3 -c 'import json; p=json.load(open("tools/blur-batch20/batch20.json")); t=p["tracks"]; assert p["source_commit"]=="10187b7af56f311fe141a3c9b75483798bf0f589" and len(t)==20 and len({e["id"] for e in t})==20'
+      - name: Download exactly twenty pinned MP3s to disposable private runner
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -m 700 "$RUNNER_TEMP/blur-twenty-audio"
+          download_started="$(date +%s)"
+          python3 tools/blur-batch20/download_sources.py "$RUNNER_TEMP/blur-twenty-audio"
+          echo "DOWNLOAD_SECONDS=$(( $(date +%s) - download_started ))"
+          for audio in "$RUNNER_TEMP/blur-twenty-audio/"*.mp3; do
+            php -r 'require "server/bootstrap.php"; $duration=(new Celikom\Application\Mp3Inspector())->durationMs($argv[1]); if($duration===null){fwrite(STDERR,"CELIKOM_MP3_REJECTED\n");exit(1);}' "$audio"
+          done
+          echo 'MP3_INSPECTOR_PASS: 20 of 20'
+          test "$(find "$RUNNER_TEMP/blur-twenty-audio" -maxdepth 1 -type f -name '*.mp3' | wc -l)" -eq 20
+      - name: Push to private staging, dry-run dedupe and import pending only
+        shell: bash
+        env:
+          HOST_KEY: ${{ secrets.CELIKOM_HOSTINGER_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.CELIKOM_HOSTINGER_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          test -n "$HOST_KEY" && test -n "$KNOWN_HOSTS"
+          umask 077
+          mkdir -p "$RUNNER_TEMP/private"
+          printf '%s\n' "$HOST_KEY" > "$RUNNER_TEMP/private/id_host"
+          printf '%s\n' "$KNOWN_HOSTS" > "$RUNNER_TEMP/private/known_hosts"
+          chmod 600 "$RUNNER_TEMP/private/"*
+          SSH=(ssh -p 65002 -i "$RUNNER_TEMP/private/id_host" -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$RUNNER_TEMP/private/known_hosts")
+          SCP=(scp -P 65002 -i "$RUNNER_TEMP/private/id_host" -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$RUNNER_TEMP/private/known_hosts")
+          TARGET=u235811320@92.113.19.189
+          REMOTE_BASE=/home/u235811320/domains/darkred-camel-588676.hostingersite.com/celikom
+          REMOTE_DIR="$REMOTE_BASE/incoming/blur-twenty-$GITHUB_RUN_ID"
+          cleanup() {
+            "${SSH[@]}" "$TARGET" "if test -d '$REMOTE_DIR'; then rm -f '$REMOTE_DIR'/*.mp3 '$REMOTE_DIR'/import-pending.php; rmdir '$REMOTE_DIR'; fi" || true
+          }
+          trap cleanup EXIT
+          "${SSH[@]}" "$TARGET" "umask 077; test -d '$REMOTE_BASE/incoming' && test ! -e '$REMOTE_DIR' && mkdir -m 700 '$REMOTE_DIR'"
+          "${SCP[@]}" tools/blur-batch20/import-pending.php "$TARGET:$REMOTE_DIR/import-pending.php"
+          transfer_started="$(date +%s)"
+          "${SCP[@]}" "$RUNNER_TEMP/blur-twenty-audio/"*.mp3 "$TARGET:$REMOTE_DIR/"
+          echo "TRANSFER_SECONDS=$(( $(date +%s) - transfer_started ))"
+          echo 'PRECHECK: no database changes before this check'
+          "${SSH[@]}" "$TARGET" "CELIKOM_BLUR_DRY_RUN=1 php '$REMOTE_DIR/import-pending.php'"
+          echo 'PENDING IMPORT: twenty unapproved files; no rights declaration, no activation'
+          import_started="$(date +%s)"
+          "${SSH[@]}" "$TARGET" "php '$REMOTE_DIR/import-pending.php'"
+          echo "IMPORT_SECONDS=$(( $(date +%s) - import_started ))"
+          echo '### Twenty MP3 sent to owner-only CELIKOM moderation' >> "$GITHUB_STEP_SUMMARY"
+          echo '- [Open pending songs in admin](https://darkred-camel-588676.hostingersite.com/admin?tab=uploads&status=pending)' >> "$GITHUB_STEP_SUMMARY"
+          echo '- No auto approval; rights confirmation belongs to the owner.' >> "$GITHUB_STEP_SUMMARY"
