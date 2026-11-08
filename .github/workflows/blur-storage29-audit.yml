@@ -39,7 +39,7 @@ jobs:
                     with urllib.request.urlopen(req,timeout=65) as src, path.open('wb') as dst:
                       size=0
                       sha256=hashlib.sha256()
-                      gitsha=hashlib.sha1(b'blob '+str(rec['size_expected']).encode()+b'\\0')
+                      gitsha=hashlib.sha1(b'blob '+str(rec['size_expected']).encode()+b'\0')
                       while chunk:=src.read(262144):
                         size+=len(chunk)
                         if size>27000000:raise ValueError('oversized')
@@ -70,7 +70,7 @@ jobs:
               by_sha.setdefault(rec['sha256'],[]).append(rec['track_id'])
           dup={k:v for k,v in by_sha.items() if len(v)>1}
           summary={'checked':len(results),'valid_mp3':sum(x['status']=='valid_mp3' for x in results),'has_artist_title':sum(bool(x.get('tags',{}).get('artist') and x.get('tags',{}).get('title')) for x in results),'duplicates_within_batch':dup,'duplicates_with_previous_48':sum(bool(x.get('duplicate_48_id')) for x in results),'writes':0}
-          pathlib.Path('blur-storage29-results.json').write_text(json.dumps({'summary':summary,'results':results},ensure_ascii=False,indent=2)+'\\n',encoding='utf-8')
+          pathlib.Path('blur-storage29-results.json').write_text(json.dumps({'summary':summary,'results':results},ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
           print('BLUR_STORAGE29_SUMMARY '+json.dumps(summary,ensure_ascii=False),flush=True)
           assert len(results)==29 and all(x['status']!='pending' for x in results)
           PY
