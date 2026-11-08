@@ -1,0 +1,53 @@
+name: CELIKOM Blur — inspect 20 new fork files and live IDs READ ONLY
+on:
+  push:
+    branches: [feature/blur-batch1000-20261108]
+    paths: ['.github/workflows/blur-fork20-discovery.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  discover:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Validate source manifest, inspect MP3 SHA1 SHA256 ID3 offline
+        run: |
+          set -euo pipefail
+          php -l tools/blur-research/fork20-live-readonly.php
+          python3 -m py_compile tools/blur-research/fork20-check-audio.py
+          python3 tools/blur-research/fork20-check-audio.py
+      - name: Compare 20 IDs with CELIKOM production via read-only transaction
+        env:
+          HOST_KEY: ${{ secrets.CELIKOM_HOSTINGER_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.CELIKOM_HOSTINGER_KNOWN_HOSTS }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p "$RUNNER_TEMP/private"
+          printf '%s\n' "$HOST_KEY" > "$RUNNER_TEMP/private/key"
+          printf '%s\n' "$KNOWN_HOSTS" > "$RUNNER_TEMP/private/hosts"
+          chmod 600 "$RUNNER_TEMP/private/"*
+          for attempt in 1 2 3; do
+            if ssh -p 65002 -o ConnectTimeout=25 -o ServerAliveInterval=20 -o ServerAliveCountMax=4 -i "$RUNNER_TEMP/private/key" -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$RUNNER_TEMP/private/hosts" \
+              u235811320@92.113.19.189 '/opt/alt/php83/usr/bin/php -d display_errors=stderr' < tools/blur-research/fork20-live-readonly.php > "$RUNNER_TEMP/fork20-live.json"; then
+              cat "$RUNNER_TEMP/fork20-live.json"
+              break
+            fi
+            if [ "$attempt" -eq 3 ]; then echo FORK20_READONLY_SSH_UNAVAILABLE; exit 1; fi
+            sleep 25
+          done
+          jq -e '.status=="NEW_SOURCE_FORKS_20_READ_ONLY" and .checked==20 and .writes==0 and (.absent_tracks+.existing_tracks)==20' "$RUNNER_TEMP/fork20-live.json"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: celikom-fork20-research-${{ github.run_id }}
+          path: |
+            fork20-audio-results.json
+            ${{ runner.temp }}/fork20-live.json
+          retention-days: 90
+          if-no-files-found: ignore
