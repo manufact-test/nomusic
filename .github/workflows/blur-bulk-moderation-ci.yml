@@ -1,0 +1,58 @@
+name: CELIKOM Blur bulk moderation — isolated 50-item MySQL and browser CI
+
+on:
+  push:
+    branches: [feature/blur-bulk-moderation-20261108]
+    paths:
+      - 'server/src/Admin/**'
+      - 'server/migrations/019_bulk_moderation_tombstones.sql'
+      - 'server/tests/bulk-moderation*'
+      - '.github/workflows/blur-bulk-moderation-ci.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  moderation-50-isolated:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: test-only
+          MYSQL_DATABASE: celikom_test_bulk
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -ptest-only"
+          --health-interval=10s --health-timeout=5s --health-retries=12
+    env:
+      CI: 'true'
+      APP_ENV: test
+      DB_HOST: 127.0.0.1
+      DB_PORT: '3306'
+      DB_NAME: celikom_test_bulk
+      DB_USER: root
+      DB_PASSWORD: test-only
+      STORAGE_DRIVER: local
+      STORAGE_PATH: /tmp/celikom-bulk-moderation/storage
+      BULK_HTML_OUT: /tmp/celikom-bulk-50.html
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: PHP extensions and syntax checks
+        run: |
+          php -m | grep -qi '^pdo_mysql$' || { sudo apt-get update -qq && sudo apt-get install -y php-mysql; }
+          php -m | grep -qi '^mbstring$' || { sudo apt-get update -qq && sudo apt-get install -y php-mbstring; }
+          php -l server/src/Admin/AdminPanel.php
+          php -l server/src/Admin/ModerationService.php
+          php -l server/src/Admin/BulkModerationService.php
+          php -l server/src/Admin/BulkModerationView.php
+          php -l server/tests/bulk-moderation.php
+      - name: Isolated 50-song moderation and protected deletion E2E (NO production)
+        run: php server/tests/bulk-moderation.php
+      - name: Chromium desktop, tablet and mobile layout/select-all
+        run: node server/tests/bulk-moderation-browser.mjs "$BULK_HTML_OUT"
