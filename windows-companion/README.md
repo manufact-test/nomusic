@@ -36,3 +36,22 @@ W2 adds `AsarTopology.Inspect`: bounded scan of *packaged* app files only, flags
 **Owner action:** With official Yandex Music running, extract W2 ZIP, run `START-CELIKOM-PROBE.cmd`, send only `CELIKOM-Windows-report.txt`. Old W1 folder may be removed. Do not install competitor mods or send app.asar or passwords.
 
 **W2 gate:** next chat must inspect the report and decide whether a narrowly scoped isolated fixture/source-interception PoC is justified. No live ASAR modification until rollback and explicit approval. Automated CI validates synthetic fixtures, NOT actual Windows Yandex integration.
+
+### W3 checkpoint — complete packaged source-seam survey + offline gate
+
+After the owner's real W2 report confirmed **MATCH_OWNER_W1**, **1117** packaged JS,
+100 scanned, `getFileInfo` and batch markers present, W3 examines up to 96 MiB
+across all packaged JS files (max 12 MiB per file), exports only aggregate
+method/endpoint and same-file boot/renderer/webpack hints, and records skipped
+files explicitly. It does not inspect active renderer requests, user sessions,
+cookies or audio. A named source marker does **not** imply an active hook.
+
+W3 also includes an offline `SourceSwapGate` contract for exact IDs, generation
+cancellation, entitlement/duration/file readiness, signed URL expiry, same
+configured HTTPS API origin and Stop/Original fallback. Only synthetic CI
+fixtures exercise the gate. This is **not** an installed bridge or live audio.
+The console probe W3 retains W0/W1/W2 reports for comparison and adds W3.
+
+**Owner action:** Extract W3 ZIP, run `START-CELIKOM-PROBE.cmd`, and provide
+`CELIKOM-Windows-report.txt`. No change to Yandex installation; old W2 is
+no longer needed for subsequent read-only tests.

@@ -4,7 +4,7 @@ using Celikom.Companion.Core;
 Console.OutputEncoding = Encoding.UTF8;
 if (args.Contains("--help", StringComparer.OrdinalIgnoreCase))
 {
-    Console.WriteLine("CELIKOM Windows Probe W2 — read-only Yandex Electron renderer topology.");
+    Console.WriteLine("CELIKOM Windows Probe W3 — read-only Yandex source-seam survey and offline contract.");
     Console.WriteLine("Usage: CELIKOM-Windows-Probe.exe [--help]");
     Console.WriteLine("No installation, account, sound or application files are changed.");
     return 0;
@@ -29,9 +29,11 @@ try
         Console.WriteLine(w1.SafeReport());
         Console.WriteLine();
         Console.WriteLine(AsarTopology.Inspect(asarPath, w1.Sha256).SafeReport());
+        Console.WriteLine();
+        Console.WriteLine(AsarSourceSurvey.Inspect(asarPath, w1.Sha256).SafeReport());
     }
     Console.WriteLine();
-    Console.WriteLine("Read-only W2: подмена и модификация Яндекс.Музыки НЕ проводились.");
+    Console.WriteLine("Read-only W3: подмена и модификация Яндекс.Музыки НЕ проводились.");
     return snapshot.IsInstalled ? 0 : 2;
 }
 catch (Exception ex) when (ex is IOException or UnauthorizedAccessException
