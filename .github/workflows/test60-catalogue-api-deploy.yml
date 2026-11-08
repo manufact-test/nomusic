@@ -1,0 +1,89 @@
+name: CELIKOM Test.60 catalogue endpoint guarded deployment
+
+on:
+  push:
+    branches:
+      - feature/android-auto-catalogue-sync-20261108
+    paths:
+      - .github/workflows/test60-catalogue-api-deploy.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: celikom-test60-catalogue-api-deploy
+  cancel-in-progress: false
+
+jobs:
+  catalogue:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Verify PHP sources before touching hosting
+        shell: bash
+        run: |
+          set -euo pipefail
+          php -l server/src/Application.php
+          php -l server/src/Application/ReplacementCatalogueService.php
+          php server/tests/replacement-catalogue.php
+      - name: Discover active Test.60 API location with existing SSH key; abort on mismatch
+        shell: bash
+        env:
+          HOST_KEY: ${{ secrets.CELIKOM_HOSTINGER_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.CELIKOM_HOSTINGER_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          test -n "$HOST_KEY" && test -n "$KNOWN_HOSTS"
+          umask 077
+          mkdir -p "$RUNNER_TEMP/private"
+          printf '%s\n' "$HOST_KEY" > "$RUNNER_TEMP/private/id_host"
+          printf '%s\n' "$KNOWN_HOSTS" > "$RUNNER_TEMP/private/known_hosts"
+          chmod 600 "$RUNNER_TEMP/private/"*
+          SSH=(ssh -p 65002 -i "$RUNNER_TEMP/private/id_host" -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$RUNNER_TEMP/private/known_hosts")
+          TARGET=u235811320@92.113.19.189
+          DOMAIN=/home/u235811320/domains/darkred-camel-588676.hostingersite.com
+          # Explicitly NEVER deploy to previous lemonchiffon host.
+          test -n "$DOMAIN"
+          APP_SRC="$("${SSH[@]}" "$TARGET" "python3 - '$DOMAIN' <<'PY'
+          from pathlib import Path
+          import sys
+          domain=Path(sys.argv[1])
+          if not domain.is_dir(): raise SystemExit('The active API domain is NOT on this SSH host; refusing deployment')
+          candidates=[p for p in domain.rglob('src/Application.php') if p.is_file() and p.stat().st_size<200000]
+          candidates=[p for p in candidates if 'class Application' in p.read_text(errors='replace') and '/api/v1/resolve' in p.read_text(errors='replace')]
+          if len(candidates)!=1: raise SystemExit('Cannot uniquely identify active API source; refusing deployment')
+          print(candidates[0].parent)
+          PY
+          ")"
+          test -n "$APP_SRC"
+          case "$APP_SRC" in "$DOMAIN"/*) ;; *) echo 'Unexpected domain' >&2; exit 1;; esac
+          echo "Verified target: $APP_SRC"
+          echo "APP_SRC=$APP_SRC" >> "$GITHUB_ENV"
+          echo "SSH_TARGET=$TARGET" >> "$GITHUB_ENV"
+      - name: Copy narrow route patch to remote staging, install atomically with backup
+        shell: bash
+        run: |
+          set -euo pipefail
+          SSH=(ssh -p 65002 -i "$RUNNER_TEMP/private/id_host" -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$RUNNER_TEMP/private/known_hosts")
+          SCP=(scp -P 65002 -i "$RUNNER_TEMP/private/id_host" -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$RUNNER_TEMP/private/known_hosts")
+          TEMP_REMOTE="${APP_SRC}/.test60-patch-${GITHUB_RUN_ID}"
+          "${SSH[@]}" "$SSH_TARGET" "umask 077; mkdir '$TEMP_REMOTE'"
+          trap '"${SSH[@]}" "$SSH_TARGET" "rm -rf -- '\''$TEMP_REMOTE'\''" || true' EXIT
+          "${SCP[@]}" server/src/Application.php "$SSH_TARGET:$TEMP_REMOTE/Application.php"
+          "${SCP[@]}" server/src/Application/ReplacementCatalogueService.php "$SSH_TARGET:$TEMP_REMOTE/ReplacementCatalogueService.php"
+          "${SCP[@]}" .github/scripts/install_test60_catalogue.py "$SSH_TARGET:$TEMP_REMOTE/install.py"
+          "${SSH[@]}" "$SSH_TARGET" "python3 '$TEMP_REMOTE/install.py' '$APP_SRC' '$TEMP_REMOTE'"
+      - name: Confirm actual endpoint is no longer missing
+        shell: bash
+        run: |
+          set -euo pipefail
+          CODE="$(curl -sS -m 15 -o "$RUNNER_TEMP/replacement-catalog-response.json" -w '%{http_code}' -H 'Cache-Control: no-cache' 'https://darkred-camel-588676.hostingersite.com/api/v1/replacement-catalog')"
+          if [ "$CODE" != "401" ]; then
+            echo "Expected HTTP 401 for unauthenticated catalogue; got $CODE. API deployment not verified." >&2
+            exit 1
+          fi
+          echo 'PASS: live Test.60 API catalogue returns HTTP 401 without authentication (route is deployed)'
