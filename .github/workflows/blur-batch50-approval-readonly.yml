@@ -1,0 +1,45 @@
+name: CELIKOM Blur — verify 50 approved production songs (READ ONLY)
+on:
+  push:
+    branches: [feature/blur-batch50-20261108]
+    paths: ['.github/workflows/blur-batch50-approval-readonly.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: celikom-blur-batch50-audit-readonly
+  cancel-in-progress: false
+jobs:
+  live-read-only-audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 7
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Validate syntax of the read-only checker
+        run: php -l tools/blur-batch50/check-approved-readonly.php
+      - name: Check live approved mappings, API resolve, signed HEAD and Range for all 50
+        env:
+          HOST_KEY: ${{ secrets.CELIKOM_HOSTINGER_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.CELIKOM_HOSTINGER_KNOWN_HOSTS }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          test -n "$HOST_KEY" && test -n "$KNOWN_HOSTS"
+          mkdir -p "$RUNNER_TEMP/private"
+          printf '%s\n' "$HOST_KEY" > "$RUNNER_TEMP/private/id_host"
+          printf '%s\n' "$KNOWN_HOSTS" > "$RUNNER_TEMP/private/known_hosts"
+          chmod 600 "$RUNNER_TEMP/private/"*
+          ssh -p 65002 -i "$RUNNER_TEMP/private/id_host" -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$RUNNER_TEMP/private/known_hosts" \
+            u235811320@92.113.19.189 'php' < tools/blur-batch50/check-approved-readonly.php | tee "$RUNNER_TEMP/approved-audit.json"
+          jq -e '.read_only_verified==true and .approved_active==50 and .resolve_found==50 and .range_206==50 and .writes==0' "$RUNNER_TEMP/approved-audit.json"
+          cat "$RUNNER_TEMP/approved-audit.json" >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: blur-batch50-live-readonly-audit-${{ github.run_id }}
+          path: ${{ runner.temp }}/approved-audit.json
+          if-no-files-found: ignore
+          retention-days: 30
