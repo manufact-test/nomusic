@@ -532,13 +532,23 @@ final class ReplacementEngine {
   boolean unique=id!=null&&id.matches("[1-9][0-9]{0,23}");
   boolean eligible=LookaheadPrefetchPolicy.mayPrefetch(armed(),api.signedIn(),source!=null&&source.playing,owner.lookaheadCandidateCurrent(alias),unique,remaining);
   if(!eligible){LogStore.log("replacement_lookahead_prefetch_skipped",LogStore.map("mediaAlias",alias,"trackIdPresent",unique,"sourcePlaying",source!=null&&source.playing,"remainingMs",remaining,"candidateCurrent",owner.lookaheadCandidateCurrent(alias),"reason","prefetch_gate"));return;}
-  if(progressiveColdAllowed&&preparing&&!ready&&source!=null&&Objects.equals(identityKey,source.key)){
+  // HONOR Test.67 random «Легенды»: the foreground sparse decoder was
+  // prepared, but its audio still waited for verified contiguous runway.
+  // Dispatching the NEXT full-file speculative transfer during this phase can
+  // compete with the current stream's missing bytes. Test.50's pending slot
+  // already safely starts NEXT after the current handover has finished.
+  boolean currentSparseAwaitingHandover=progressiveColdAllowed&&streaming!=null
+   &&source!=null&&Objects.equals(identityKey,source.key)
+   &&audioOwner.state()!=AudioOwnership.State.REPLACEMENT;
+  if(progressiveColdAllowed&&source!=null&&Objects.equals(identityKey,source.key)
+    &&((preparing&&!ready)||currentSparseAwaitingHandover)){
    // Do not start a competing download. Keep next identity until CURRENT join.
    if(owner.lookaheadCandidateCurrent(alias)){
     pendingNextObservation=new LinkedHashMap<>(observation);
     pendingNextId=id;pendingOwnerKey=source.key;pendingAccount=api.accountGeneration;
     LogStore.log("replacement_lookahead_pending_queued",LogStore.map(
-     "mediaAlias",alias,"trackId",id,"reason","current_preparing"));
+     "mediaAlias",alias,"trackId",id,"reason",
+     currentSparseAwaitingHandover?"current_sparse_runway_pending":"current_preparing"));
    }
    return;
   }
