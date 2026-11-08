@@ -40,6 +40,15 @@
     }
     inspect() {
       const b = this.binding();
+      const shape = safe(() => {
+        const controller = this.getController(), playback = controller?.playbackController?.getPlayback();
+        const pair = playback?.queueState?.currentEntity?.value, entity = pair?.entity, player = playback?.currentMediaPlayer?.value;
+        let core = player, depth = 0;
+        while (core && typeof core.getMediaSource !== "function" && depth++ < 3) core = core.currentMediaPlayer;
+        return { playback: Boolean(playback), queuePair: Boolean(pair), entity: Boolean(entity), entityTrackId: numericId(entity?.data?.meta?.id),
+          player: Boolean(player), sourceLoader: typeof core?.getMediaSource === "function", reload: typeof core?.reload === "function",
+          mediaRef: Boolean(core?.currentAudioElement?.value), nestedPlayerDepth: depth };
+      });
       const canFence = (object, key) => {
         if (!object || typeof object[key] !== "function") return false;
         const descriptor = Object.getOwnPropertyDescriptor(object, key);
@@ -49,7 +58,7 @@
         pending: Boolean(this.pending), nativeReload: Boolean(b?.core?.reload), encryptedRestoreViaEngine: Boolean(b?.core?.reload),
         mediaEvents: typeof b?.audio?.addEventListener === "function" && typeof b?.audio?.removeEventListener === "function",
         sourceFence: canFence(b?.core, "getMediaSource"), playFence: canFence(b?.core, "corePlay"), setSourceFence: canFence(b?.core?.core, "setSrc"),
-        nativeHooks: typeof b?.core?.hooks?.beforeMediaSourceContentReload?.promise === "function" && typeof b?.core?.hooks?.afterMediaSourceContentReload?.promise === "function" };
+        nativeHooks: typeof b?.core?.hooks?.beforeMediaSourceContentReload?.promise === "function" && typeof b?.core?.hooks?.afterMediaSourceContentReload?.promise === "function", shape };
     }
     same(binding) {
       const current = this.binding();

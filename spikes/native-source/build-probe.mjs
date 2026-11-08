@@ -13,7 +13,7 @@ const reader = prefix + `
   Object.defineProperty(root,"__CELIKOM_ENGINE_READONLY_PROBE__",{value:Object.freeze({inspect:()=>reader.inspect()}),configurable:true});
 })(globalThis);
 `;
-if (/\.reload\s*\(|getMediaSource\s*=|\.src\s*=|\.pause\s*\(|\.play\s*\(/.test(reader)) throw Error("Probe unexpectedly contains a playback mutation");
+if (/\.reload\s*\(|getMediaSource\s*=(?!=)|\.src\s*=(?!=)|\.pause\s*\(|\.play\s*\(/.test(reader)) throw Error("Probe unexpectedly contains a playback mutation");
 new vm.Script(reader);
 await mkdir(output, { recursive: true });
 await cp(new URL("probe/", import.meta.url), output, { recursive: true });
