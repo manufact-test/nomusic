@@ -29,10 +29,15 @@ jobs:
         run: dotnet run --project windows-companion/Celikom.Core.Tests/Celikom.Core.Tests.csproj -c Release --no-build
       - name: Publish read-only Windows executable
         run: dotnet publish windows-companion/Celikom.Probe/Celikom.Probe.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:PublishReadyToRun=false -o ./windows-companion/out
+      - name: Add one-click report launcher
+        shell: pwsh
+        run: Copy-Item windows-companion/START-CELIKOM-PROBE.cmd windows-companion/out/START-CELIKOM-PROBE.cmd
       - name: Artifact (test only, no deployment)
         uses: actions/upload-artifact@v4
         with:
           name: celikom-windows-readonly-probe
-          path: windows-companion/out/CELIKOM-Windows-Probe.exe
+          path: |
+            windows-companion/out/CELIKOM-Windows-Probe.exe
+            windows-companion/out/START-CELIKOM-PROBE.cmd
           if-no-files-found: error
           retention-days: 7
