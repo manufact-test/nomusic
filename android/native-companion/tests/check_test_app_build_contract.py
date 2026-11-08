@@ -16,9 +16,9 @@ verifier = (ROOT / "verify_test_release.py").read_text(encoding="utf-8")
 assert spec["package"] == "pro.celikom.nativeprobe.test"
 assert spec["stable_package"] == "pro.celikom.nativeprobe"
 assert spec["label"] == "CELIKOM Test"
-assert spec["version"] == "0.3.85-test.61"
-assert spec["version_code"] == 86147
-assert spec["apk_filename"] == "CELIKOM-Android-0.3.85-TEST-61-CATALOGUE-CACHE-BYPASS-SIGNED.apk"
+assert spec["version"] == "0.3.85-test.62"
+assert spec["version_code"] == 86148
+assert spec["apk_filename"] == "CELIKOM-Android-0.3.85-TEST-62-CONNECT-ALBUM-RECOVERY-SIGNED.apk"
 # Test.61 must defeat CDN negative caching after the approved-catalogue route is deployed.
 native_api = (ROOT / "addon/src/pro/celikom/nativeprobe/identitydiag/NativeApi.java").read_text(encoding="utf-8")
 assert '"replacement-catalog?refresh="+System.currentTimeMillis()' in native_api
@@ -87,6 +87,11 @@ assert '"assets/catalog-diagnostic.json"' in verifier
 assert 'allowed_asset_updates={"assets/catalog-diagnostic.json"}' in verifier
 assert "SourceActivityPauseFallback" not in service_source
 assert "source_audio_quarantine_started" not in service_source
+assert "media3_connect_audio_activity_wakeup" in service_source
+assert "previousMedia==0&&media>0&&controller==null&&connecting==null&&attempts>0" in service_source
+assert "regionRestrictedAlbums.contains(album)" in album_probe
+assert "regionRestrictedAlbums.clear()" in album_probe
+assert "album_region_restriction_cached" in album_probe
 assert "StalledStartRecoveryPolicy" not in service_source
 
 assert "replacement.adaptiveJoinExperiment=true;" in service_source
