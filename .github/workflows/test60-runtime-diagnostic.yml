@@ -1,0 +1,44 @@
+name: CELIKOM Test60 read-only live API routing diagnosis
+on:
+  push:
+    branches: [feature/android-auto-catalogue-sync-20261108]
+    paths: [.github/workflows/test60-runtime-diagnostic.yml]
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Read-only SSH routing and public HTTP diagnosis
+        shell: bash
+        env:
+          HOST_KEY: ${{ secrets.CELIKOM_HOSTINGER_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.CELIKOM_HOSTINGER_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p "$RUNNER_TEMP/private"
+          printf '%s\n' "$HOST_KEY" > "$RUNNER_TEMP/private/id_host"
+          printf '%s\n' "$KNOWN_HOSTS" > "$RUNNER_TEMP/private/known_hosts"
+          chmod 600 "$RUNNER_TEMP/private/"*
+          ssh -p 65002 -i "$RUNNER_TEMP/private/id_host" -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$RUNNER_TEMP/private/known_hosts" u235811320@92.113.19.189 'python3 -' <<'PY'
+          from pathlib import Path
+          root=Path.home()/'domains'/'darkred-camel-588676.hostingersite.com'
+          for name in ('celikom/current','public_html','public_html/index.php','celikom/current/public/index.php'):
+              p=root/name
+              print(name,'exists',p.exists(),'symlink',p.is_symlink(),'resolved',p.resolve().relative_to(root) if p.exists() and p.resolve().is_relative_to(root) else 'outside/missing')
+          for name in ('public_html/index.php','celikom/current/public/index.php'):
+              p=root/name
+              if p.is_file():
+                  print('ROUTER',name)
+                  for line in p.read_text(errors='replace').splitlines():
+                      if any(t in line for t in ('require','current','index.php','bootstrap','Application','autoload','src/','api/v1')):
+                          if not any(t in line for t in ('.env','password','secret','token','DATABASE','DB_')):
+                              print(line[:250])
+          p=root/'celikom/current/src/Application.php'
+          print('ACTIVE_ROUTE_PRESENT',p.is_file() and "/api/v1/replacement-catalog" in p.read_text(errors='replace'))
+          PY
+          for url in             'https://darkred-camel-588676.hostingersite.com/api/v1/health'             "https://darkred-camel-588676.hostingersite.com/api/v1/replacement-catalog?test60=${GITHUB_RUN_ID}"; do
+            curl -sS -m 15 -o /dev/null -w 'URL: %{url_effective} HTTP: %{http_code} SERVER: %{remote_ip}\n' -H 'Cache-Control: no-cache, no-store' "$url" || true
+          done
