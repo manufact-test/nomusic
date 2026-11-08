@@ -1,0 +1,53 @@
+name: CELIKOM Blur — check all multisource50 against strict Mp3Inspector READ ONLY
+on:
+  push:
+    branches: [feature/blur-batch1000-20261108]
+    paths: ['.github/workflows/blur-multisource50-inspector-audit.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Download exact SHA256 source and check strict server MP3 format
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import pathlib,json,urllib.request,hashlib,tempfile,subprocess,time
+          rows=json.load(open('tools/blur-research/pending50-20261109.json'))['selected']
+          out=[]
+          with tempfile.TemporaryDirectory() as folder:
+           for i,x in enumerate(rows,1):
+            path=pathlib.Path(folder)/(x['id']+'.mp3')
+            for attempt in range(3):
+             try:
+              data=urllib.request.urlopen(urllib.request.Request(x['source_url'],headers={'User-Agent':'CELIKOM-inspector-50-readonly'}),timeout=60).read()
+              break
+             except (OSError,TimeoutError):
+              if attempt==2:raise
+              time.sleep(2)
+            if len(data)!=x['size'] or hashlib.sha256(data).hexdigest()!=x['sha256']:raise RuntimeError('hash_error_'+x['id'])
+            path.write_bytes(data)
+            php='require "server/bootstrap.php";echo json_encode(["ms"=>(new Celikom\\Application\\Mp3Inspector())->durationMs($argv[1])]);'
+            p=subprocess.run(['php','-r',php,str(path)],capture_output=True,text=True,timeout=40)
+            result=json.loads(p.stdout)
+            ms=result['ms']
+            rec={'id':x['id'],'name':x['artist']+' - '+x['title'],'expected_ms':x['duration_ms'],'inspector_ms':ms,'valid':bool(ms and abs(ms-x['duration_ms'])<=1500)}
+            out.append(rec)
+            path.unlink()
+            print('STRICT50',json.dumps(rec,ensure_ascii=False),flush=True)
+          summary={'checked':50,'pass':sum(x['valid'] for x in out),'fails':[x['id'] for x in out if not x['valid']]}
+          pathlib.Path('multisource50-strict-inspector.json').write_text(json.dumps({'summary':summary,'records':out},indent=2,ensure_ascii=False)+'\n',encoding='utf-8')
+          print('STRICT50_SUMMARY',json.dumps(summary,ensure_ascii=False),flush=True)
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: celikom-multisource50-strict-check-${{ github.run_id }}
+          path: multisource50-strict-inspector.json
+          retention-days: 90
