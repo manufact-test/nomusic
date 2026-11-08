@@ -234,9 +234,10 @@ try{
         FROM tracks t JOIN track_replacements r ON r.track_id=t.id
         JOIN audio_assets a ON a.id=r.audio_asset_id
         WHERE t.service='yandex' AND t.service_track_id=? ORDER BY r.id");
-    $verified=0;$absent=0;$bytes=0;$issues=[];$batch=[0,0,0,0];$ids=[];
+    $verified=0;$absent=0;$catalogueAbsent=0;$bytes=0;$issues=[];$batch=[0,0,0,0];$ids=[];$ordinal=0;
     $pdo->exec('START TRANSACTION READ ONLY');
     foreach($expected as $id=>$e){
+        $slot=intdiv($ordinal++,50);
         $id=(string)$id;
         $q->execute([$id]);$rows=$q->fetchAll(PDO::FETCH_ASSOC);
         if(count($rows)!==1){$issues[]=['id'=>$id,'reason'=>'missing_or_multiple_versions'];continue;}
@@ -248,6 +249,7 @@ try{
         if(isset($inCatalogue[$id])||$lookup->findActive('yandex',$id)!==null){
            $issues[]=['id'=>$id,'reason'=>'pending_is_public'];continue;
         }
+        $catalogueAbsent++;
         if($r['storage_driver']!=='local'||$r['mime_type']!=='audio/mpeg'
            ||(int)$r['size_bytes']!==$e['size']
            ||abs((int)$r['duration_ms']-$e['duration_ms'])>1500
@@ -276,7 +278,7 @@ try{
         if($resp->status===200 && ($data['found']??null)===false){$absent++;}else{
             $issues[]=['id'=>$id,'reason'=>'pending_api_resolve_visible'];
         }
-        $index=count($ids);$batch[intdiv($index,50)]++;
+        $batch[$slot]++;
         $ids[]=['track_id'=>$id,'replacement_id'=>(int)$r['id']];
     }
     $pdo->rollBack();
@@ -284,7 +286,7 @@ try{
           && $batch===[50,50,50,50] && !$issues;
     $out=['status'=>'LIVE200_INDEPENDENT_READONLY','pass'=>$pass,'checked'=>200,
           'pending'=>$verified,'files_verified'=>$verified,'private_bytes'=>$bytes,
-          'batch_counts'=>$batch,'catalogue_absent'=>200-count($issues),
+          'batch_counts'=>$batch,'catalogue_absent'=>$catalogueAbsent,
           'resolve_not_found'=>$absent,'auto_approved'=>0,'active'=>0,
           'writes'=>0,'issues'=>$issues,'records'=>$ids];
     echo json_encode($out,JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR),"\n";
