@@ -60,6 +60,10 @@ jobs:
               print('Preflight: current API candidates:',len(candidates),file=sys.stderr)
               print('Preflight: src/Application.php filenames:',[str(p.relative_to(domain)) for p in domain.rglob('Application.php')][:12],file=sys.stderr)
               print('Preflight: top-level directories:',[p.name for p in domain.iterdir() if p.is_dir()][:15],file=sys.stderr)
+              for p in [domain/'celikom',domain/'celikom/current',domain/'celikom/live',domain/'celikom/public',domain/'public_html',domain/'public_html/index.php',domain/'public_html/api',domain/'celikom/active']:
+                  print('Preflight pointer:',str(p.relative_to(domain)),'exists=',p.exists(),'symlink=',p.is_symlink(),'resolved=',str(p.resolve()).replace(str(domain),'[DOMAIN]'),file=sys.stderr)
+              if (domain/'celikom').is_dir():
+                  print('Preflight celikom entries:',[(p.name,'link' if p.is_symlink() else 'dir' if p.is_dir() else 'file') for p in (domain/'celikom').iterdir()][:28],file=sys.stderr)
               raise SystemExit('Cannot uniquely identify active API source; refusing deployment')
           print(candidates[0].parent)
           PY
