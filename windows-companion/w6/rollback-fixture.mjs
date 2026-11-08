@@ -8,7 +8,7 @@
 import { promises as fs, constants } from "node:fs";
 import { createHash, randomBytes } from "node:crypto";
 import { tmpdir } from "node:os";
-import { basename, join, resolve, sep } from "node:path";
+import { basename, isAbsolute, join, relative, resolve, sep } from "node:path";
 
 const PREFIX = "celikom-w6-synthetic-";
 const MARKER = "CELIKOM-W6-SYNTHETIC-LAB-v1\n";
@@ -32,21 +32,30 @@ const abort = code => { throw Error("W6_" + code); };
 async function assertSandboxRoot(root) {
   if (typeof root !== "string") abort("INVALID_SANDBOX");
   const r = resolve(root), t = resolve(tmpdir());
-  if (!r.startsWith(t + sep) || !basename(r).startsWith(PREFIX))
+  const lexical = relative(t, r);
+  if (!lexical || lexical === ".." || lexical.startsWith(".." + sep) ||
+      isAbsolute(lexical) || !basename(r).startsWith(PREFIX))
     abort("OUTSIDE_SYNTHETIC_TEMP");
-  const real = await fs.realpath(r);
-  if (real !== r) abort("SANDBOX_SYMLINK");
-  const stat = await fs.lstat(real);
+  // Windows may return a different capitalization or canonical spelling
+  // from realpath. That alone is NOT a symlink. Reject the actual entry
+  // if it is a symlink, then verify its canonical path stays under OS temp.
+  const stat = await fs.lstat(r);
   if (!stat.isDirectory() || stat.isSymbolicLink()) abort("SANDBOX_NOT_DIRECTORY");
-  if ((await fs.readFile(join(real, F.marker), "utf8")) !== MARKER)
+  const real = await fs.realpath(r);
+  const canonicalTemp = await fs.realpath(t);
+  const canonicalRelative = relative(canonicalTemp, real);
+  if (!canonicalRelative || canonicalRelative === ".." ||
+      canonicalRelative.startsWith(".." + sep) || isAbsolute(canonicalRelative) ||
+      !basename(real).startsWith(PREFIX)) abort("SANDBOX_SYMLINK");
+  if ((await fs.readFile(join(r, F.marker), "utf8")) !== MARKER)
     abort("SANDBOX_MARKER_MISSING");
   for (const filename of Object.values(F)) {
-    const path = join(real, filename);
+    const path = join(r, filename);
     if (!(await present(path))) continue;
     const s = await fs.lstat(path);
     if (!s.isFile() || s.isSymbolicLink()) abort("SANDBOX_FILE_NOT_REGULAR");
   }
-  return real;
+  return r;
 }
 
 async function atomicJournal(root, record) {
