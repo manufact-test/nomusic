@@ -1,3 +1,15 @@
+# W14 VERIFIED — engineering checkpoint 2026-11-09
+
+**Current status: W14 SDK candidate build + unit tests PASSED on Windows CI.** [Run 42526627485](https://github.com/manufact-test/nomusic/actions/runs/42526627485) **SUCCESS** for source `16cb39000cbcbcb6925eb0d7a6fd3099b13eadfb`; W14 11/11 contract tests, REAL third-party PulseSync addon SDK Vite build 30 transformed modules, output `dist/6f812b94-dcf8-4b6f-b913-0a3f10c77c20/script.js` 13.56 kB, and W4–W12 regressions pass.
+
+**This is a DISABLED addon candidate (resolve returns none).** It cannot substitute real songs yet and was NEVER installed or heard in real Yandex. No new user ZIP; do not claim native audio verified.
+
+**Next gate:** read [W14 isolated real-client test plan](W14-FIRST-REAL-CLIENT-TEST-PLAN-20261109.md). Need test-specific owner consent *before* executing any official-client mod install in isolated VM. Keep Defender and SmartScreen ON; inspect signature and protected EXE side effects. PulseSync Client license is restrictive for commercial use; need permission or an independently licensable route. Do not modify the owner's current signed Yandex.
+
+**Backups before W14:** `backup/windows-w11-verified-before-w12-20261108` and `backup/windows-w12-verified-handoff-20261108`. Do not force-move; preserve verified W14 code for reversion.
+
+---
+
 # W14 SDK packaging step
 
 Added a disabled PulseSync add-on package using published @pulsesync/addon-sdk 0.18.0, with Windows CI build. Its actual API shape is exercised at *build-time*, not in an installed Yandex client; no source request or account data. CI outcome must be observed before claiming build pass.

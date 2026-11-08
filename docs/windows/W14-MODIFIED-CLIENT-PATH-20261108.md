@@ -1,5 +1,8 @@
 # W14 — CELIKOM Windows: modified-client delivery route, feasibility and safety plan
 
+**W14 code checkpoint verified (2026-11-09):** real published PulseSync SDK addon **compiled** in [CI 42526627485](https://github.com/manufact-test/nomusic/actions/runs/42526627485), W14 source adapter **11/11**, previous W4–W12 regressions PASS. No official Yandex client installed, modified, launched or authorized. [First real-client isolated approval plan](W14-FIRST-REAL-CLIENT-TEST-PLAN-20261109.md).
+
+
 **2026-11-08. Product-scope revision by owner following W13.** The owner now permits exploring an explicitly disclosed *modified* Yandex Music Windows client, as long as CELIKOM runs as a companion, Yandex retains its audio decoder/queue/controls and installation does not require users to disable Windows Defender, SmartScreen or any security setting. No official EXE/ASAR, accounts, server or production branch were changed by this document.
 
 ## Decision: W13 was a narrower NO-GO, not cancellation

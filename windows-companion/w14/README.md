@@ -1,5 +1,8 @@
 # W14 — source-only candidate against PulseSync add-on API
 
+**Verified CI, 2026-11-09:** [Windows 42526627485](https://github.com/manufact-test/nomusic/actions/runs/42526627485) **SUCCESS**, W14 11/11 source adapter unit tests + actual published PulseSync add-on SDK 0.18.0 Vite build emitted a disabled `script.js` 13.56 kB. Other Windows regressions passed. The addon has *not* been installed into any Yandex app and cannot resolve a real CELIKOM track. [Exact real-client VM test plan](../../docs/windows/W14-FIRST-REAL-CLIENT-TEST-PLAN-20261109.md) requires explicit owner permission.
+
+
 **Status: CODE CANDIDATE + UNIT TESTS; NOT live Yandex, NOT installable Companion.** A successful SDK mapping call is recorded as `SDK_MAPPING_ACCEPTED`, **not** proof of audible replacement. A rejected SDK call never marks active mapping.
 
 This directory starts the actual **CELIKOM adapter** for the third-party PulseSync add-on contract rather than another Chromium/ASAR synthetic renderer. It is independent JavaScript, with no third-party runtime bundled or licenses copied. No user account token, browser profile, audio sample, official executable or network endpoint is accessed. The host contract is based on the checked-in public FckCensor SDK bridge and PulseSync-mod WebHost runtime.
