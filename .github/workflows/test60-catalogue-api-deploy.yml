@@ -53,19 +53,17 @@ jobs:
           import sys
           domain=Path(sys.argv[1])
           if not domain.is_dir(): raise SystemExit('The active API domain is NOT on this SSH host; refusing deployment')
-          candidates=[p for p in domain.rglob('src/Application.php') if p.is_file() and p.stat().st_size<200000]
-          candidates=[p for p in candidates if 'class Application' in p.read_text(errors='replace') and '/api/v1/resolve' in p.read_text(errors='replace')]
-          if len(candidates)!=1:
-              print('Preflight: domain exists:',domain.is_dir(),file=sys.stderr)
-              print('Preflight: current API candidates:',len(candidates),file=sys.stderr)
-              print('Preflight: src/Application.php filenames:',[str(p.relative_to(domain)) for p in domain.rglob('Application.php')][:12],file=sys.stderr)
-              print('Preflight: top-level directories:',[p.name for p in domain.iterdir() if p.is_dir()][:15],file=sys.stderr)
-              for p in [domain/'celikom',domain/'celikom/current',domain/'celikom/live',domain/'celikom/public',domain/'public_html',domain/'public_html/index.php',domain/'public_html/api',domain/'celikom/active']:
-                  print('Preflight pointer:',str(p.relative_to(domain)),'exists=',p.exists(),'symlink=',p.is_symlink(),'resolved=',str(p.resolve()).replace(str(domain),'[DOMAIN]'),file=sys.stderr)
-              if (domain/'celikom').is_dir():
-                  print('Preflight celikom entries:',[(p.name,'link' if p.is_symlink() else 'dir' if p.is_dir() else 'file') for p in (domain/'celikom').iterdir()][:28],file=sys.stderr)
-              raise SystemExit('Cannot uniquely identify active API source; refusing deployment')
-          print(candidates[0].parent)
+          pointer=domain/'celikom'/'current'
+          if not pointer.is_symlink(): raise SystemExit('Active API symlink missing')
+          target=pointer.resolve()
+          releases=(domain/'celikom'/'releases').resolve()
+          if not target.is_relative_to(releases): raise SystemExit('Unexpected API pointer outside immutable releases')
+          candidate=target/'src'/'Application.php'
+          if not candidate.is_file(): raise SystemExit('Active CELIKOM PHP entry missing')
+          source=candidate.read_text(errors='replace')
+          if 'class Application' not in source or '/api/v1/resolve' not in source:
+              raise SystemExit('Active API PHP source differs from expected CELIKOM')
+          print(candidate.parent)
           PY
           ")"
           test -n "$APP_SRC"
@@ -79,13 +77,13 @@ jobs:
           set -euo pipefail
           SSH=(ssh -p 65002 -i "$RUNNER_TEMP/private/id_host" -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$RUNNER_TEMP/private/known_hosts")
           SCP=(scp -P 65002 -i "$RUNNER_TEMP/private/id_host" -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$RUNNER_TEMP/private/known_hosts")
-          TEMP_REMOTE="${APP_SRC}/.test60-patch-${GITHUB_RUN_ID}"
+          TEMP_REMOTE="/home/u235811320/domains/darkred-camel-588676.hostingersite.com/celikom/incoming/test60-${GITHUB_RUN_ID}"
           "${SSH[@]}" "$SSH_TARGET" "umask 077; mkdir '$TEMP_REMOTE'"
           trap '"${SSH[@]}" "$SSH_TARGET" "rm -rf -- '\''$TEMP_REMOTE'\''" || true' EXIT
           "${SCP[@]}" server/src/Application.php "$SSH_TARGET:$TEMP_REMOTE/Application.php"
           "${SCP[@]}" server/src/Application/ReplacementCatalogueService.php "$SSH_TARGET:$TEMP_REMOTE/ReplacementCatalogueService.php"
           "${SCP[@]}" .github/scripts/install_test60_catalogue.py "$SSH_TARGET:$TEMP_REMOTE/install.py"
-          "${SSH[@]}" "$SSH_TARGET" "python3 '$TEMP_REMOTE/install.py' '$APP_SRC' '$TEMP_REMOTE'"
+          "${SSH[@]}" "$SSH_TARGET" "python3 '$TEMP_REMOTE/install.py' '$APP_SRC' '$TEMP_REMOTE' '${GITHUB_RUN_ID}'"
       - name: Confirm actual endpoint is no longer missing
         shell: bash
         run: |
