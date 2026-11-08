@@ -235,7 +235,7 @@ final class AudioOwnership {
   if(attachedEffect!=null||commandedSecondary>0.001f)
    throw new IllegalStateException("audio effect still owned by previous transition");
   candidate.setInputGainAllChannelsTo(0f);
-  if(candidate.setEnabled(true)!=AudioEffect.SUCCESS)
+  if(!candidate.getEnabled()&&candidate.setEnabled(true)!=AudioEffect.SUCCESS)
    throw new IllegalStateException("cannot enable original attenuation");
   attachedEffect=candidate;
   /* Installing a verified effect is not a handover. Preserve PREPARING until
@@ -402,6 +402,26 @@ final class AudioOwnership {
   player.seekTo(Math.max(0L,target),MediaPlayer.SEEK_CLOSEST);
  }
  static final class RestoreResult { boolean gainReset,disabled,released; }
+ /** End of a verified song: the outgoing decoder is silent, and this effect
+  * remains enabled at unity ONLY until the next verified session candidate.
+  * Source gain must still be written by the single audio authority. */
+ boolean parkSourceEffectAtUnity(DynamicsProcessing candidate){
+  if(candidate==null||candidate!=attachedEffect||commandedSecondary>0.001f
+      ||!candidate.hasControl()||!candidate.getEnabled())return false;
+  candidate.setInputGainAllChannelsTo(0f);
+  originalMuted=false;
+  return true;
+ }
+ /** Detached parked effect: retire without rewriting an active new owner. */
+ RestoreResult retireParkedSourceEffect(DynamicsProcessing parked){
+  RestoreResult result=new RestoreResult();
+  if(parked==null)return result;
+  try{parked.setControlStatusListener(null);}catch(RuntimeException ignored){}
+  try{parked.setInputGainAllChannelsTo(0f);result.gainReset=true;}catch(RuntimeException ignored){}
+  try{result.disabled=parked.setEnabled(false)==AudioEffect.SUCCESS;}catch(RuntimeException ignored){}
+  try{parked.release();result.released=true;}catch(RuntimeException ignored){}
+  return result;
+ }
  /** Secondary decoder must be silent or released before resetting native gain. */
  RestoreResult restoreSource(MediaPlayer secondary,DynamicsProcessing effect){
   silenceReplacement(secondary);
