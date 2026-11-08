@@ -23,4 +23,4 @@
 3. Only then integrate this SourceGate into that host, test one rights-cleared local file through its **one** player, and check native pause/seek/next, Play Protect **ON**, normal installer, and rollback. Without (1), **NO-GO for architecture A as a deliverable**, not a claim that all in-process modifications are impossible.
 4. If (1) cannot be sourced, investigate a first-party independent client under explicit user approval. It cannot promise to retain the installed stock Yandex interface.
 
-No signed APK, live HONOR ID trace or Play Protect verdict is available. CI checks only source decision behavior.
+**Verified CI:** [run #42532088126 — SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/42532088126), host JDK compile + 12 source-gate scenarios + legacy-dependency scan passed. No signed APK, live HONOR ID trace or Play Protect verdict is available. CI checks only source decision behavior.
