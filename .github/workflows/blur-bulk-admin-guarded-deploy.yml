@@ -1,0 +1,132 @@
+name: CELIKOM Blur admin — guarded narrow live deployment
+
+on:
+  push:
+    branches: [feature/blur-bulk-moderation-20261108]
+    paths: ['.github/workflows/blur-bulk-admin-guarded-deploy.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  guarded-admin-deploy:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: test-only
+          MYSQL_DATABASE: celikom_test_bulk
+        ports: [3306:3306]
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -ptest-only"
+          --health-interval=10s --health-timeout=5s --health-retries=12
+    env:
+      CI: 'true'
+      APP_ENV: test
+      DB_HOST: 127.0.0.1
+      DB_PORT: '3306'
+      DB_NAME: celikom_test_bulk
+      DB_USER: root
+      DB_PASSWORD: test-only
+      STORAGE_DRIVER: local
+      STORAGE_PATH: /tmp/celikom-bulk-live-merge/storage
+      BULK_HTML_OUT: /tmp/celikom-bulk-deploy.html
+      BULK_DEBUG_LIVE_MERGE: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Read active admin and prepare exact three-way merge WITHOUT remote writes
+        shell: bash
+        env:
+          HOST_KEY: ${{ secrets.CELIKOM_HOSTINGER_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.CELIKOM_HOSTINGER_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          umask 077
+          test -n "$HOST_KEY" && test -n "$KNOWN_HOSTS"
+          mkdir -p "$RUNNER_TEMP/private" "$RUNNER_TEMP/base" "$RUNNER_TEMP/live"
+          printf '%s\n' "$HOST_KEY" > "$RUNNER_TEMP/private/id_host"
+          printf '%s\n' "$KNOWN_HOSTS" > "$RUNNER_TEMP/private/known_hosts"
+          chmod 600 "$RUNNER_TEMP/private/"*
+          BASE_SHA=f42e3ebfd46c6fe639619e848135ed79dd215be8
+          TARGET=u235811320@92.113.19.189
+          git fetch --no-tags --depth=1 origin "$BASE_SHA"
+          git show "$BASE_SHA:server/src/Admin/AdminPanel.php" > "$RUNNER_TEMP/base/AdminPanel.php"
+          APP="$(ssh -p 65002 -i "$RUNNER_TEMP/private/id_host" -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$RUNNER_TEMP/private/known_hosts" "$TARGET" "python3 - <<'PY'
+          from pathlib import Path
+          home=Path('/home/u235811320/domains/darkred-camel-588676.hostingersite.com/celikom')
+          current=home/'current'
+          if not current.is_symlink(): raise SystemExit('Missing live release')
+          release=current.resolve()
+          if not release.is_relative_to((home/'releases').resolve()): raise SystemExit('Unsafe release path')
+          print(release)
+          PY
+          " )"
+          test -n "$APP"
+          scp -P 65002 -i "$RUNNER_TEMP/private/id_host" -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$RUNNER_TEMP/private/known_hosts" "$TARGET:$APP/src/Admin/AdminPanel.php" "$RUNNER_TEMP/live/AdminPanel.php"
+          scp -P 65002 -i "$RUNNER_TEMP/private/id_host" -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$RUNNER_TEMP/private/known_hosts" "$TARGET:$APP/src/Admin/admin-style.css" "$RUNNER_TEMP/live/admin-style.css"
+          scp -P 65002 -i "$RUNNER_TEMP/private/id_host" -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$RUNNER_TEMP/private/known_hosts" "$TARGET:$APP/src/Admin/ModerationService.php" "$RUNNER_TEMP/live/ModerationService.php"
+          git show "$BASE_SHA:server/src/Admin/ModerationService.php" | cmp - "$RUNNER_TEMP/live/ModerationService.php" || { echo 'BLOCKED: core moderation changed on live server'; exit 1; }
+          echo "CELIKOM_ACTIVE_RELEASE=$APP" >> "$GITHUB_ENV"
+          echo 'Read-only summary of live-only navigation table contract (no data values)'
+          grep -n -B 5 -A 8 'admin_navigation_seen' "$RUNNER_TEMP/live/AdminPanel.php" || true
+          if ! git merge-file -p server/src/Admin/AdminPanel.php "$RUNNER_TEMP/base/AdminPanel.php" "$RUNNER_TEMP/live/AdminPanel.php" > "$RUNNER_TEMP/merged.php"; then
+            echo 'BLOCKED: 3-way merge conflict with live AdminPanel, no remote changes'
+            exit 1
+          fi
+          if grep -q 'Bulk moderation: additive UI' "$RUNNER_TEMP/live/admin-style.css"; then
+            echo 'BLOCKED: live CSS already contains bulk implementation, must inspect'
+            exit 1
+          fi
+          cp "$RUNNER_TEMP/merged.php" server/src/Admin/AdminPanel.php
+          awk '/^\/\* Bulk moderation: additive UI/{found=1} found{print}' server/src/Admin/admin-style.css > "$RUNNER_TEMP/bulk-extra.css"
+          test -s "$RUNNER_TEMP/bulk-extra.css"
+          cp "$RUNNER_TEMP/live/admin-style.css" server/src/Admin/admin-style.css
+          cat "$RUNNER_TEMP/bulk-extra.css" >> server/src/Admin/admin-style.css
+          php -l server/src/Admin/AdminPanel.php
+          echo 'PASS 3-way PHP merge and additive CSS; current live modifications preserved, no remote writes'
+          echo '--- Numeric diff summary (not source) ---'
+          wc -lc server/src/Admin/AdminPanel.php server/src/Admin/admin-style.css
+      - name: Isolated integrated MySQL and real Chromium layout after live merge
+        run: |
+          set -euo pipefail
+          php -m | grep -qi '^pdo_mysql$' || { sudo apt-get update -qq; sudo apt-get install -y php-mysql; }
+          php -m | grep -qi '^mbstring$' || { sudo apt-get update -qq; sudo apt-get install -y php-mbstring; }
+          php server/tests/bulk-moderation.php
+          node server/tests/bulk-moderation-browser.mjs "$BULK_HTML_OUT"
+
+      - name: Install exactly seven admin-only files with lease check, backup and rollback
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          test -n "$CELIKOM_ACTIVE_RELEASE"
+          LOCAL_STAGE="$RUNNER_TEMP/admin-stage"
+          mkdir -m 700 "$LOCAL_STAGE"
+          cp server/src/Admin/AdminPanel.php "$LOCAL_STAGE/AdminPanel.php"
+          cp server/src/Admin/ModerationService.php "$LOCAL_STAGE/ModerationService.php"
+          cp server/src/Admin/BulkModerationService.php "$LOCAL_STAGE/BulkModerationService.php"
+          cp server/src/Admin/BulkModerationView.php "$LOCAL_STAGE/BulkModerationView.php"
+          cp server/src/Admin/admin-style.css "$LOCAL_STAGE/admin-style.css"
+          cp server/src/Admin/bulk-moderation.js "$LOCAL_STAGE/bulk-moderation.js"
+          cp server/migrations/019_bulk_moderation_tombstones.sql "$LOCAL_STAGE/019_bulk_moderation_tombstones.sql"
+          python3 - "$RUNNER_TEMP/live" "$LOCAL_STAGE" <<'PY'
+          import hashlib,json,pathlib,sys
+          live=pathlib.Path(sys.argv[1]);stage=pathlib.Path(sys.argv[2])
+          existing=['AdminPanel.php','ModerationService.php','admin-style.css']
+          created=['BulkModerationService.php','BulkModerationView.php',
+                   'bulk-moderation.js','019_bulk_moderation_tombstones.sql']
+          expected={p:hashlib.sha256((live/p).read_bytes()).hexdigest() for p in existing}
+          expected.update({p:None for p in created})
+          (stage/'expected.json').write_text(json.dumps(expected,sort_keys=True),encoding='utf-8')
+          PY
+          TARGET=u235811320@92.113.19.189
+          REMOTE_STAGE="/home/u235811320/domains/darkred-camel-588676.hostingersite.com/celikom/incoming/bulk-admin-$GITHUB_RUN_ID"
+          ssh -p 65002 -i "$RUNNER_TEMP/private/id_host" -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$RUNNER_TEMP/private/known_hosts" "$TARGET" "umask 077; test ! -e '$REMOTE_STAGE' && mkdir -m 700 '$REMOTE_STAGE'"
+          scp -P 65002 -i "$RUNNER_TEMP/private/id_host" -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$RUNNER_TEMP/private/known_hosts" "$LOCAL_STAGE/"* .github/scripts/blur-bulk-admin-install.py "$TARGET:$REMOTE_STAGE/"
+          ssh -p 65002 -i "$RUNNER_TEMP/private/id_host" -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$RUNNER_TEMP/private/known_hosts" "$TARGET" "python3 '$REMOTE_STAGE/blur-bulk-admin-install.py' '$CELIKOM_ACTIVE_RELEASE' '$REMOTE_STAGE'"
+          echo 'Narrow live patch installed only after isolation E2E and release SHA checks'
