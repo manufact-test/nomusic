@@ -131,7 +131,9 @@ try {
     };
     const expanded = await load(firstInfo);
     check(expanded.includes("?vsid=") && !audio.src.includes("?vsid=") && audio.src.includes("#t=0"), "actual private Yandex source URL parameters normalized only for owned Blob");
-    await audio.play(); await new Promise(r => setTimeout(r, 180));
+    await audio.play();
+    const advancingDeadline = performance.now() + 3000;
+    while ((audio.paused || audio.currentTime <= 0) && performance.now() < advancingDeadline) await new Promise(r => setTimeout(r, 25));
     check(!audio.paused && audio.currentTime > 0, "single native HTMLAudioElement actually plays");
     audio.pause(); const paused = audio.currentTime; await new Promise(r => setTimeout(r, 150));
     check(audio.paused && Math.abs(audio.currentTime - paused) < 0.02, "native pause holds clock");
