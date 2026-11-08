@@ -169,6 +169,7 @@ public class ProbeService extends Service {
      if(config.getAudioAttributes().getUsage()==AudioAttributes.USAGE_MEDIA)media++;else other++;
     }
     if(media==lastPlatformMediaActive&&other==lastPlatformOtherActive)return;
+    int previousMedia=lastPlatformMediaActive;
     lastPlatformMediaActive=media;lastPlatformOtherActive=other;
     PlaybackSource source=current;ReplacementEngine engine=replacement;
     boolean decoderPlaying=false;
@@ -179,6 +180,18 @@ public class ProbeService extends Service {
      "media3Playing",source!=null&&source.playing,"replacementDecoderPlaying",decoderPlaying,
      "identityAvailable",false,"positionAvailable",false,"sourceAppIdentified",false,
      "observationOnly",true,"audioCommandSent",false));
+    // A newly active media output is a hint to retry the read-only controller, not proof of Yandex identity.
+    // Never send transport commands, replace a healthy controller, or bypass the 1s connection throttle.
+    if(previousMedia==0&&media>0&&controller==null&&connecting==null&&attempts>0){
+     long now=SystemClock.elapsedRealtime();
+     if(now-lastConnectAttempt>=1000&&nextConnectAllowedAt>now){
+      LogStore.log("media3_connect_audio_activity_wakeup",LogStore.map(
+       "priorRetryRemainingMs",nextConnectAllowedAt-now,"identityAuthorized",false,
+       "audioCommandSent",false));
+      nextConnectAllowedAt=-1;
+      connect();
+     }
+    }
    }
   };
   try{manager.registerAudioPlaybackCallback(playbackActivityObserver,handler);playbackActivityRegistered=true;}
