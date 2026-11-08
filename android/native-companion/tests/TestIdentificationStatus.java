@@ -21,9 +21,17 @@ public final class TestIdentificationStatus {
   AppPresentation.Input region=input();region.identityReason="album_region_restricted";
   String regionStatus=AppPresentation.of(region).version;
   has(regionStatus,"Яндекс ограничил","451 is a terminal identification failure");
+  region.catalogueFresh=true;
+  region.catalogueStatus="NO_MATCH";
+  has(AppPresentation.of(region).version,"Яндекс ограничил",
+    "451 must not be overwritten by fresh catalogue NO_MATCH");
+  ok(!AppPresentation.of(region).version.contains("не найдена"),
+    "451 cannot be presented as proof that approved replacement is missing");
   ok(!regionStatus.contains("Определяем")&&!regionStatus.contains("нет замены"),"451 cannot imply an absent CELIKOM replacement");
   NotificationState rn=NotificationState.of(region,"Малая, пой","Мари Краймбрери",false,false,false,false);
   has(rn.text,"Яндекс ограничил","451 must show a cause in the notification");
+  ok(!rn.text.contains("Нет одобренной версии"),
+    "current song 451 never implies absent approved replacement");
   ok(!rn.suggest,"Unknown Track ID must not allow sending a song request");
 
   AppPresentation.Input unmatched=input();unmatched.identityReason="no_unique_candidate";
