@@ -286,6 +286,9 @@ try {
     await nativeAudio.play();
     await nativeCore.reload(nextEntity);
     const stale = appliedSources.at(-1), staleRewindMs = Math.round((stale.live - stale.requested) * 1000);
+    await new Promise(resolve => setTimeout(resolve, 150));
+    check(!nativeAudio.paused && !nativeAudio.seeking && nativeAudio.readyState >= 3,
+      "trial A starts corrected reload from settled playback rather than prior reload's pending seek events");
     await sessionPort.reload("1002", { livePosition: true });
     const corrected = appliedSources.at(-1), correctedRewindMs = Math.round((corrected.live - corrected.requested) * 1000);
     check(staleRewindMs >= 100 && Math.abs(correctedRewindMs) < 30,
