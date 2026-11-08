@@ -1,0 +1,51 @@
+name: CELIKOM Blur pilot — five synthetic pending E2E (isolated)
+
+on:
+  push:
+    branches: [feature/blur-pilot-five-20261108]
+    paths:
+      - 'tools/blur-pilot-five/pending-e2e.php'
+      - 'tools/blur-pilot-five/pilot.json'
+      - '.github/workflows/blur-pilot-five-pending-e2e.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  synthetic-pending-only:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: test-only
+          MYSQL_DATABASE: celikom_test_blur_five
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -ptest-only"
+          --health-interval=10s --health-timeout=5s --health-retries=10
+    env:
+      CI: 'true'
+      APP_ENV: test
+      DB_HOST: '127.0.0.1'
+      DB_PORT: '3306'
+      DB_NAME: celikom_test_blur_five
+      DB_USER: root
+      DB_PASSWORD: test-only
+      STORAGE_DRIVER: local
+      STORAGE_PATH: /tmp/celikom-blur-five-e2e/storage
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Verify PHP MySQL extension
+        shell: bash
+        run: |
+          php -m | grep -qi '^pdo_mysql$' || { sudo apt-get update -qq; sudo apt-get install -y php-mysql; }
+          php -l tools/blur-pilot-five/pending-e2e.php
+      - name: Five synthetic uploads must remain pending and invisible in catalogue
+        shell: bash
+        run: php tools/blur-pilot-five/pending-e2e.php
