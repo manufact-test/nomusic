@@ -142,16 +142,20 @@
       const operation = { ...binding, generation: ++this.sequence, cancelled: false, intentChanged: false };
       const { core, audio, entity } = binding, original = core.getMediaSource;
       const ownDescriptor = Object.getOwnPropertyDescriptor(core, "getMediaSource");
-      const guards = [];
+      const guards = [], ownedSources = new WeakSet();
+      let readStarted = false;
       const changed = () => { operation.intentChanged = true; };
       const assertCurrent = () => {
         if (operation.cancelled || !this.same(binding) || options.isCurrent?.() === false) throw Error("native_reload_stale");
         if (operation.intentChanged) throw Error("native_reload_intent_changed");
       };
       const guarded = async function (...args) {
+        if (readStarted || args[0]?.entity !== entity) return Reflect.apply(original, this, args);
+        readStarted = true;
         assertCurrent();
         const source = await Reflect.apply(original, this, args);
         assertCurrent();
+        if (source && ["object", "function"].includes(typeof source)) ownedSources.add(source);
         return source;
       };
       operation.promise = Promise.resolve().then(async () => {
@@ -162,7 +166,10 @@
           const method = target?.[key];
           if (typeof method !== "function") continue;
           const descriptor = Object.getOwnPropertyDescriptor(target, key);
-          const wrapper = function (...args) { assertCurrent(); return Reflect.apply(method, this, args); };
+          const wrapper = function (...args) {
+            if (ownedSources.has(args[0]?.source)) assertCurrent();
+            return Reflect.apply(method, this, args);
+          };
           Object.defineProperty(target, key, { value: wrapper, writable: true, configurable: true });
           guards.push(() => {
             if (target[key] !== wrapper) return;

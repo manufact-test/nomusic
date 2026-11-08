@@ -99,6 +99,26 @@ test("one pending reload per binding and no automatic retry", async () => {
   await assert.rejects(n.port.reload("1002"), /native_reload_busy/);
   n.port.cancel(); deferred.resolve({}); await assert.rejects(run, /native_reload_stale/); assert.equal(requests, 1);
 });
+test("an old reload guard does not block the next track's own source read and playback", async () => {
+  const n = nativeEngine(), entered = gate(), delayed = gate(), nextEntity = { data: { meta: { id: "1002" } } };
+  const nextSource = { next: true };
+  n.core.getMediaSource = async ({ entity }) => { if (entity === n.entity) { entered.resolve(); return delayed.promise; } return nextSource; };
+  const run = n.port.reload("1001"); await entered.promise;
+  n.playback.state.queueState.currentEntity.value = { entity: nextEntity };
+  const source = await n.core.getMediaSource({ entity: nextEntity });
+  await n.core.corePlay({ source, positionSec: 0 });
+  delayed.resolve({ old: true }); await assert.rejects(run, /native_reload_stale/);
+  assert.equal(n.applied.length, 1); assert.equal(n.applied[0].source, nextSource);
+});
+test("an old reload guard leaves independent same-track native requests and setSrc intact", async () => {
+  const n = nativeEngine(), entered = gate(), delayed = gate(); let calls = 0;
+  const independentSource = { independent: true };
+  n.core.getMediaSource = async () => { if (++calls === 1) { entered.resolve(); return delayed.promise; } return independentSource; };
+  const run = n.port.reload("1001"); await entered.promise; n.audio.dispatchEvent(new Event("pause"));
+  const source = await n.core.getMediaSource({ entity: n.entity }); n.core.core.setSrc({ source, positionSec: 2 });
+  delayed.resolve({ old: true }); await assert.rejects(run, /native_reload_intent_changed/);
+  assert.equal(n.applied.length, 1); assert.equal(n.applied[0].source, independentSource);
+});
 test("reload cleanup does not overwrite a newer owner's method", async () => {
   const n = nativeEngine(), entered = gate(), deferred = gate();
   n.core.getMediaSource = async () => { entered.resolve(); return deferred.promise; };
