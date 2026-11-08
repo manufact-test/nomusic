@@ -1,0 +1,27 @@
+name: CELIKOM — YM Liberty 32 candidate audio links HEAD READ ONLY
+on:
+  push:
+    branches: [feature/blur-batch1000-20261108]
+    paths: ['.github/workflows/ym-liberty-32-head.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Read-only HEAD to 32 public candidate MP3 URLs, no file downloads
+        run: |
+          python3 -m py_compile tools/blur-research/ym-liberty-32-head.py
+          python3 tools/blur-research/ym-liberty-32-head.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ym-liberty-32-head-${{ github.run_id }}
+          path: ym-liberty-33-head-results.json
+          retention-days: 90
+          if-no-files-found: ignore
