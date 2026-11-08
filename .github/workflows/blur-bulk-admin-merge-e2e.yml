@@ -3,7 +3,9 @@ name: CELIKOM Blur admin — READ ONLY 3-way live merge and isolated E2E
 on:
   push:
     branches: [feature/blur-bulk-moderation-20261108]
-    paths: ['.github/workflows/blur-bulk-admin-merge-e2e.yml']
+    paths:
+      - '.github/workflows/blur-bulk-admin-merge-e2e.yml'
+      - 'server/tests/bulk-moderation.php'
   workflow_dispatch:
 
 permissions:
