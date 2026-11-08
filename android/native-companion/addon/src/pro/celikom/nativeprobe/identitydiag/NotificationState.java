@@ -14,8 +14,9 @@ final class NotificationState {
   String detail=p.version;
   if(s.missing&&!s.replacing)detail="Для этой песни нет замены · играет оригинал";
   if(s.problem.isEmpty()&&!s.playing&&!s.preparing&&!s.seeking){
+    boolean noApproved=!s.identified&&s.catalogueFresh&&"NO_MATCH".equals(s.catalogueStatus);
     boolean unknown=!s.identified&&!s.identityReason.isEmpty()&&!"waiting_for_album_response".equals(s.identityReason);
-    detail=s.missing?"Пауза · для этой песни нет замены":unknown?"Пауза · не удалось определить песню":"Пауза";
+    detail=s.missing?"Пауза · для этой песни нет замены":noApproved?"Пауза · нет одобренной версии":unknown?"Пауза · не удалось проверить версию":"Пауза";
    }
   if(detail.isEmpty())detail="CELIKOM подключён";
   return new NotificationState(label,detail,s.signed&&exact&&s.identified&&!hasReplacement&&!s.replacing&&!s.preparing&&!s.seeking&&s.problem.isEmpty());

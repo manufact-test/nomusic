@@ -11,6 +11,13 @@ final class PlaybackUi {
     s.identityReason=e.identityDecisionReason;
     if("no_unique_candidate".equals(s.identityReason)&&p.albumProbe!=null&&source.albumId!=null&&p.albumProbe.regionRestrictedAlbums.contains(source.albumId))s.identityReason="album_region_restricted";
    }
+  // UI-only metadata assessment: 133 approved tracks from the live catalogue.
+  // This is NOT a Track ID, is NOT pending/moderation evidence and cannot authorize audio.
+  if(s.source&&p.albumProbe!=null&&source.key.equals(p.albumProbe.publishedKey)&&p.albumProbe.publishedOwn!=null){
+   java.util.Map<String,Object> own=p.albumProbe.publishedOwn;
+   s.catalogueFresh=Boolean.TRUE.equals(own.get("catalogueFreshComplete"));
+   if(s.catalogueFresh)s.catalogueStatus=String.valueOf(own.get("status"));
+  }
   if(s.problem.isEmpty()&&e!=null){if(s.source&&e.completedKey!=null&&e.completedKey.equals(source.key)&&e.completedReason!=null)s.problem=e.completedReason;else if(e.status.startsWith("Яндекс сменил"))s.problem="Яндекс Музыка отключилась. Нажмите «Старт» и выберите CELIKOM в её эквалайзере.";else if(e.status.startsWith("Android не")||e.status.startsWith("Телефон не"))s.problem=e.status;else if(e.status.startsWith("Сервер:")||e.status.startsWith("Сеть недоступна"))s.problem="Не удалось получить версию CELIKOM. Играет оригинал; повторим автоматически.";}
   try{s.replacing=e!=null&&e.audioOwner.state()==AudioOwnership.State.REPLACEMENT&&e.effect!=null&&e.player!=null&&e.ready&&!e.returning&&!e.seeking&&e.commandedReplacementVolume>0.001f&&e.player.isPlaying()&&s.playing&&source.key.equals(e.identityKey);}catch(RuntimeException ignored){}
   return s;

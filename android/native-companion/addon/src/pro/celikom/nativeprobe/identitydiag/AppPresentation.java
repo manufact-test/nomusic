@@ -5,8 +5,8 @@ import org.json.*;
 /** Account, connection and audio states have separate meanings on screen. */
 final class AppPresentation {
  static final class Input {
-  boolean signed,starting,running,enabled,source,session,playing,replacing,seeking,preparing,identified,missing;
-  String problem="",identityReason="";
+  boolean signed,starting,running,enabled,source,session,playing,replacing,seeking,preparing,identified,missing,catalogueFresh;
+  String problem="",identityReason="",catalogueStatus="";
  }
  final String header,instruction,version;final boolean connected,showTrack;
  AppPresentation(String header,String instruction,String version,boolean connected,boolean showTrack){this.header=header;this.instruction=instruction;this.version=version;this.connected=connected;this.showTrack=showTrack;}
@@ -18,10 +18,21 @@ final class AppPresentation {
   if(!s.session)return new AppPresentation("Не подключён","Откройте эквалайзер Яндекс Музыки и выберите CELIKOM.","",false,false);
   String detail;
   if(!s.identified){
-    if("album_region_restricted".equals(s.identityReason))detail="Не удалось определить песню: Яндекс ограничил данные альбома · играет оригинал";
-    else if("album_ambiguous_weaker_fallback_withheld".equals(s.identityReason)||"own_catalogue_ambiguous".equals(s.identityReason))detail="Не удалось однозначно определить версию · играет оригинал";
-    else if(!s.identityReason.isEmpty()&&!"waiting_for_album_response".equals(s.identityReason))detail="Не удалось определить песню · играет оригинал";
-    else detail="Определяем песню…";
+    // Media3 already gives the song name. Never imply its title is unknown.
+    // Approved catalogue is complete, but contains no pending submissions.
+    if(s.catalogueFresh&&"NO_MATCH".equals(s.catalogueStatus))
+      detail="В одобренном каталоге CELIKOM версия не найдена · играет оригинал";
+    else if(s.catalogueFresh&&"UNIQUE_METADATA_CANDIDATE".equals(s.catalogueStatus))
+      detail="Версия есть в каталоге CELIKOM · уточняем совпадение";
+    else if(s.catalogueFresh&&"AMBIGUOUS".equals(s.catalogueStatus))
+      detail="В каталоге несколько похожих версий · уточняем совпадение";
+    else if("album_region_restricted".equals(s.identityReason))
+      detail="Яндекс ограничил данные альбома · статус версии неизвестен";
+    else if("album_ambiguous_weaker_fallback_withheld".equals(s.identityReason)||"own_catalogue_ambiguous".equals(s.identityReason))
+      detail="Не удалось однозначно определить версию · играет оригинал";
+    else if(!s.identityReason.isEmpty()&&!"waiting_for_album_response".equals(s.identityReason))
+      detail="Не удалось проверить версию CELIKOM · играет оригинал";
+    else detail="Проверяем наличие версии CELIKOM…";
    }
   else if(s.seeking)detail="Синхронизируем позицию…";
   else if(s.replacing)detail=s.playing?"Играет версия CELIKOM":"Пауза";
@@ -30,7 +41,7 @@ final class AppPresentation {
   else if(s.preparing)detail="Подготавливаем версию CELIKOM…";
   else if(!s.playing)detail="Пауза в Яндекс Музыке";
   else detail="Играет оригинал";
-  return new AppPresentation(s.replacing&&s.playing&&!s.seeking?"Подмена активна":"Подключён","CELIKOM подключён. Можно пользоваться.",detail,true,s.identified);
+  return new AppPresentation(s.replacing&&s.playing&&!s.seeking?"Подмена активна":"Подключён","CELIKOM подключён. Можно пользоваться.",detail,true,s.source);
  }
  static String account(boolean signed){return signed?"Аккаунт · подключён":"Аккаунт · не подключён";}
  static String entitlement(JSONObject access,long now){
