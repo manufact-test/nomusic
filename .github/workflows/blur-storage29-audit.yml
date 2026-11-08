@@ -18,7 +18,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          command -v ffprobe
+          command -v ffprobe || { sudo apt-get update -qq; sudo apt-get install -y ffmpeg; }
           python3 - <<'PY'
           import csv, pathlib, json, hashlib, tempfile, urllib.request, subprocess, time
           input_file=pathlib.Path('docs/research/BLUR-29-STORAGE-ONLY-AUDIO-LEADS-2026-11-09.csv')
