@@ -1,0 +1,263 @@
+[
+  {
+    "track_id": "63607783",
+    "artist": "4К",
+    "title": "Если чё",
+    "failure_code": "mp3_inspector_or_mime_rejected",
+    "source_url": "https://huggingface.co/datasets/naloz/YMliberty/resolve/main/tracks/63607783.mp3",
+    "old_blob_sha1": "2aeb6802a4a7b75e3bd98f602681f5d9899d675f",
+    "old_size_bytes": 3206014
+  },
+  {
+    "track_id": "50697041",
+    "artist": "Красное Дерево, Мелочь",
+    "title": "Кишки",
+    "failure_code": "mime_audio_ogg",
+    "source_url": "https://huggingface.co/datasets/naloz/YMliberty/resolve/main/tracks/50697041.mp3",
+    "old_blob_sha1": "1d2df56a66cd186b955918f5c0552b82b9d0fef5",
+    "old_size_bytes": 1445663
+  },
+  {
+    "track_id": "105579529",
+    "artist": "Убийцы",
+    "title": "В лесу",
+    "failure_code": "mp3_inspector_rejected",
+    "source_url": "https://huggingface.co/datasets/naloz/YMliberty/resolve/main/tracks/105579529.mp3",
+    "old_blob_sha1": "c2f7ba5b25c6fb3695b1754cc89edeb63234e122",
+    "old_size_bytes": 8099136
+  },
+  {
+    "track_id": "37120836",
+    "artist": "СД , ЛСП , BOOKER , Вири Альди",
+    "title": "Монетка",
+    "failure_code": "mp3_inspector_rejected",
+    "source_url": "https://huggingface.co/datasets/naloz/YMliberty/resolve/main/tracks/37120836.mp3",
+    "old_blob_sha1": "4b911cea7017a3245e1bf191bbdcd9c8bd4c0652",
+    "old_size_bytes": 11125161
+  },
+  {
+    "track_id": "105579530",
+    "artist": "Убийцы",
+    "title": "Следующая станция",
+    "failure_code": "mp3_inspector_rejected",
+    "source_url": "https://huggingface.co/datasets/naloz/YMliberty/resolve/main/tracks/105579530.mp3",
+    "old_blob_sha1": "0e392013380236a7d217fe58ea571bf96ede6af0",
+    "old_size_bytes": 7036475
+  },
+  {
+    "track_id": "89680487",
+    "artist": "LAZZY2WICE",
+    "title": "Dieforthis",
+    "failure_code": "mp3_inspector_rejected",
+    "source_url": "https://huggingface.co/datasets/naloz/YMliberty/resolve/main/tracks/89680487.mp3",
+    "old_blob_sha1": "0d381c326a024c00b6f1570d8950eda2b392b781",
+    "old_size_bytes": 4218385
+  },
+  {
+    "track_id": "104896793",
+    "artist": "Heronwater",
+    "title": "Гана",
+    "failure_code": "mp3_inspector_rejected",
+    "source_url": "https://huggingface.co/datasets/naloz/YMliberty/resolve/main/tracks/104896793.mp3",
+    "old_blob_sha1": "b284f7d1dfebccfb652d8846669b1e091ee4362e",
+    "old_size_bytes": 4168230
+  },
+  {
+    "track_id": "104896798",
+    "artist": "Heronwater",
+    "title": "Чёрная экономика",
+    "failure_code": "mp3_inspector_rejected",
+    "source_url": "https://huggingface.co/datasets/naloz/YMliberty/resolve/main/tracks/104896798.mp3",
+    "old_blob_sha1": "abadcc9d29841c4b179c1cd5b41e990bb6ed72a1",
+    "old_size_bytes": 4880851
+  },
+  {
+    "track_id": "104896797",
+    "artist": "Heronwater",
+    "title": "Бла-бла-бла",
+    "failure_code": "mp3_inspector_rejected",
+    "source_url": "https://huggingface.co/datasets/naloz/YMliberty/resolve/main/tracks/104896797.mp3",
+    "old_blob_sha1": "ce2920088fed176bd685705dbe90bd2ed18aa561",
+    "old_size_bytes": 4882940
+  },
+  {
+    "track_id": "104896794",
+    "artist": "Heronwater",
+    "title": "Забудь",
+    "failure_code": "mp3_inspector_rejected",
+    "source_url": "https://huggingface.co/datasets/naloz/YMliberty/resolve/main/tracks/104896794.mp3",
+    "old_blob_sha1": "e72c32644be01c8aab1ac757e74364eb8cf7707b",
+    "old_size_bytes": 5123267
+  },
+  {
+    "track_id": "104896795",
+    "artist": "Heronwater",
+    "title": "Хайперпоп",
+    "failure_code": "mp3_inspector_rejected",
+    "source_url": "https://huggingface.co/datasets/naloz/YMliberty/resolve/main/tracks/104896795.mp3",
+    "old_blob_sha1": "f773bc3841b32006b175cd3d640da015f02cac56",
+    "old_size_bytes": 4883985
+  },
+  {
+    "track_id": "39917908",
+    "artist": "RASA",
+    "title": "Под фонарём",
+    "failure_code": "mime_application_octet-stream",
+    "source_url": "https://huggingface.co/datasets/naloz/YMliberty/resolve/main/tracks/39917908.mp3",
+    "old_blob_sha1": "aacc7ac64eabeb575bf52a23ac721ee2b9680276",
+    "old_size_bytes": 24311117
+  },
+  {
+    "track_id": "105702985",
+    "artist": "небо над головой",
+    "title": "Скуби-Ду!",
+    "failure_code": "mp3_inspector_rejected",
+    "source_url": "https://huggingface.co/datasets/naloz/YMliberty/resolve/main/tracks/105702985.mp3",
+    "old_blob_sha1": "d0db5828b4065539a88a70714c03ddff647b5553",
+    "old_size_bytes": 8222434
+  },
+  {
+    "track_id": "81936402",
+    "artist": "OG Buda , Scally Milano",
+    "title": "Дабстэп",
+    "failure_code": "mp3_inspector_rejected",
+    "source_url": "https://huggingface.co/datasets/naloz/YMliberty/resolve/main/tracks/81936402.mp3",
+    "old_blob_sha1": "ddbfec2bd29ad53760de9972ad3b97ccfe1bf806",
+    "old_size_bytes": 5480622
+  },
+  {
+    "track_id": "27317253",
+    "artist": "GUF",
+    "title": "Фанзона",
+    "failure_code": "mp3_inspector_rejected",
+    "source_url": "https://huggingface.co/datasets/naloz/YMliberty/resolve/main/tracks/27317253.mp3",
+    "old_blob_sha1": "c133f374f04280dc9965f97c6eed5477871115e8",
+    "old_size_bytes": 8650483
+  },
+  {
+    "track_id": "41435392",
+    "artist": "Элджей",
+    "title": "360º",
+    "failure_code": "mp3_inspector_rejected",
+    "source_url": "https://huggingface.co/datasets/naloz/YMliberty/resolve/main/tracks/41435392.mp3",
+    "old_blob_sha1": "f856db8c88c096216423b4f6d044fa0574169ce7",
+    "old_size_bytes": 5867234
+  },
+  {
+    "track_id": "53685453",
+    "artist": "YUNG TRAPPA",
+    "title": "Splinter Cell",
+    "failure_code": "mp3_inspector_rejected",
+    "source_url": "https://huggingface.co/datasets/naloz/YMliberty/resolve/main/tracks/53685453.mp3",
+    "old_blob_sha1": "69940089983a9327067ace0ce625bbdb4a5bc197",
+    "old_size_bytes": 8224828
+  },
+  {
+    "track_id": "85327086",
+    "artist": "Scally Milano",
+    "title": "Скам",
+    "failure_code": "mp3_inspector_rejected",
+    "source_url": "https://huggingface.co/datasets/naloz/YMliberty/resolve/main/tracks/85327086.mp3",
+    "old_blob_sha1": "93a0fb35fa54f47aba63fcfd1e7f3fefc3359981",
+    "old_size_bytes": 6190933
+  },
+  {
+    "track_id": "53685452",
+    "artist": "YUNG TRAPPA",
+    "title": "Trapflow III",
+    "failure_code": "mp3_inspector_rejected",
+    "source_url": "https://huggingface.co/datasets/naloz/YMliberty/resolve/main/tracks/53685452.mp3",
+    "old_blob_sha1": "c0f284ef806d6376faa638e528f4e69f7213f949",
+    "old_size_bytes": 5086189
+  },
+  {
+    "track_id": "53839000",
+    "artist": "YUNG TRAPPA",
+    "title": "Естественный отбор",
+    "failure_code": "mp3_inspector_rejected",
+    "source_url": "https://huggingface.co/datasets/naloz/YMliberty/resolve/main/tracks/53839000.mp3",
+    "old_blob_sha1": "4cdf0c685bedc6c4c01845241847d2c46714b9df",
+    "old_size_bytes": 7814924
+  },
+  {
+    "track_id": "53685461",
+    "artist": "YUNG TRAPPA",
+    "title": "Theraflu",
+    "failure_code": "mp3_inspector_rejected",
+    "source_url": "https://huggingface.co/datasets/naloz/YMliberty/resolve/main/tracks/53685461.mp3",
+    "old_blob_sha1": "4fde73477fc4cd24ea64e944efd186016245868e",
+    "old_size_bytes": 3967610
+  },
+  {
+    "track_id": "81624799",
+    "artist": "zavet",
+    "title": "my sweet lullaby",
+    "failure_code": "mime_video_mp4",
+    "source_url": "https://huggingface.co/datasets/naloz/YMliberty/resolve/main/tracks/81624799.mp3",
+    "old_blob_sha1": "59989697d937a07236fabbbe364a776e11a1a66d",
+    "old_size_bytes": 2696039
+  },
+  {
+    "track_id": "76780018",
+    "artist": "zavet",
+    "title": "96 слёз",
+    "failure_code": "mime_video_mp4",
+    "source_url": "https://huggingface.co/datasets/naloz/YMliberty/resolve/main/tracks/76780018.mp3",
+    "old_blob_sha1": "6ff6e424e1cb2a846f3b893629bb439ed18d1ae1",
+    "old_size_bytes": 2467035
+  },
+  {
+    "track_id": "67489473",
+    "artist": "zavet , Bouledvard Depo , Boulevard Depo",
+    "title": "оранжевая песня",
+    "failure_code": "mime_video_mp4",
+    "source_url": "https://huggingface.co/datasets/naloz/YMliberty/resolve/main/tracks/67489473.mp3",
+    "old_blob_sha1": "3e0bbfe85581d0a9aedac291902e860e2eb6c453",
+    "old_size_bytes": 3119395
+  },
+  {
+    "track_id": "104896799",
+    "artist": "Heronwater",
+    "title": "Божественный план",
+    "failure_code": "mime_video_mp4",
+    "source_url": "https://huggingface.co/datasets/naloz/YMliberty/resolve/main/tracks/104896799.mp3",
+    "old_blob_sha1": "15731f2f007a4ce35617f209063f2ef5c36c4022",
+    "old_size_bytes": 2067893
+  },
+  {
+    "track_id": "97277430",
+    "artist": "Scally Milano",
+    "title": "Гнида",
+    "failure_code": "mime_video_mp4",
+    "source_url": "https://huggingface.co/datasets/naloz/YMliberty/resolve/main/tracks/97277430.mp3",
+    "old_blob_sha1": "8d4f7b807267a2a1e85906ecfe4cc7e6e6683db5",
+    "old_size_bytes": 3322362
+  },
+  {
+    "track_id": "93556498",
+    "artist": "Big Baby Tape , kizaru",
+    "title": "Slip & Slide",
+    "failure_code": "mime_video_mp4",
+    "source_url": "https://huggingface.co/datasets/naloz/YMliberty/resolve/main/tracks/93556498.mp3",
+    "old_blob_sha1": "5b9f94cc2b9fe981ee939d7c5fcaa896617535f0",
+    "old_size_bytes": 2314247
+  },
+  {
+    "track_id": "93556489",
+    "artist": "Big Baby Tape , kizaru",
+    "title": "Big Tymers",
+    "failure_code": "mime_video_mp4",
+    "source_url": "https://huggingface.co/datasets/naloz/YMliberty/resolve/main/tracks/93556489.mp3",
+    "old_blob_sha1": "fe9829387b52aef4c1ce120e6a78ab982b1e7182",
+    "old_size_bytes": 3864712
+  },
+  {
+    "track_id": "29727292",
+    "artist": "2rbina 2rista",
+    "title": "Наркотестер",
+    "failure_code": "mime_video_mp4",
+    "source_url": "https://huggingface.co/datasets/naloz/YMliberty/resolve/main/tracks/29727292.mp3",
+    "old_blob_sha1": "df16dcf3380d294370c18a71cf3d92f2776061db",
+    "old_size_bytes": 6024023
+  }
+]

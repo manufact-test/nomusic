@@ -1,0 +1,30 @@
+name: CELIKOM Blur — independent 29 rejected-source HF alternate probe READ ONLY
+on:
+  push:
+    branches: [feature/blur-batch1000-20261108]
+    paths: ['.github/workflows/blur-hf29-repair.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Offline temporary audio inspection only
+        shell: bash
+        run: |
+          set -euo pipefail
+          command -v ffprobe || { sudo apt-get update -qq; sudo apt-get install -y ffmpeg; }
+          python3 -m py_compile tools/blur-research/ym-liberty-29-repair.py
+          python3 tools/blur-research/ym-liberty-29-repair.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: celikom-hf29-repair-${{ github.run_id }}
+          path: hf29-repair-report.json
+          retention-days: 90
+          if-no-files-found: ignore
