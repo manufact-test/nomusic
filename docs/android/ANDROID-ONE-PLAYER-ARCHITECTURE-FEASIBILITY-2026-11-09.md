@@ -1,3 +1,5 @@
+> **2026-11-09 —実験ный Android lab:** independent Gradle APK built, [CI #42532598788 PASS](https://github.com/manufact-test/nomusic/actions/runs/42532598788), pure-Java 12 source-gate cases pass. This is not Yandex in-process access and not a Play Protect result. See [Gate 0 decision](ANDROID-ONE-PLAYER-GATE0-DECISION-2026-11-09.md).
+
 > **2026-11-09 · новый независимый эксперимент:** `experiment/android-one-player-source-gate-20261109`. Gate 0 исследован, Gate 1 реальной интеграции с Яндексом пока **BLOCKED**: отсутствует аудируемый совместимый in-process host. Создан автономный `android/one-player-prototype/` с безопасным выбором альтернативы до запуска одного плеера и 12 unit scenarios; этот код не является модификацией Яндекса или APK. Подробности: [ANDROID-ONE-PLAYER-GATE0-DECISION-2026-11-09.md](ANDROID-ONE-PLAYER-GATE0-DECISION-2026-11-09.md). Основу, Test.50, сервер и официальный Яндекс не менять. CI результат проверять отдельно.
 
 # CELIKOM Android — single-player architecture / implementation contract
