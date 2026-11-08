@@ -237,7 +237,8 @@ jobs:
        github.ref == 'refs/heads/feature/android-0385-test59-buffering-retain-fresh-catalog-20261108' ||
        github.ref == 'refs/heads/feature/android-auto-catalogue-sync-20261108' ||
        github.ref == 'refs/heads/feature/android-0385-test62-connect-album-recovery-20261108' ||
-       github.ref == 'refs/heads/feature/android-0385-test64-resolve-priority-media3-evidence-20261108') &&
+       github.ref == 'refs/heads/feature/android-0385-test64-resolve-priority-media3-evidence-20261108' ||
+        github.ref == 'refs/heads/feature/android-0385-test65-identification-status-recovery-20261108') &&
       github.repository == 'manufact-test/nomusic'
     needs: native-android
     permissions:
