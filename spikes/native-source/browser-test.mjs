@@ -259,6 +259,7 @@ try {
     const nextEntity = { data: { meta: { id: "1002", durationMs: 8000 } }, mediaSourceData: {} };
     nativePlayback.state.queueState.currentEntity.value = { entity: nextEntity };
     await nativeCore.reload(nextEntity);
+    await nativeSession.confirmSource(nativeAudio, null, new AbortController().signal);
     check(nativeAudio.currentSrc.startsWith(origin) && sessionPort.inspect().trackId === "1002", "Next does not reuse prior replacement for another ID");
     await nativeSession.configure(false, 4); nativeAudio.pause(); nativeAudio.remove();
     api.dispose();

@@ -89,6 +89,7 @@
       }
       if (this.operation?.trackId === id && this.phase === "REPLACEMENT_ACTIVE") throw Error("native_source_lost");
       this.operation = { trackId: id, generation: revision, stage: "resolving", startedAt: Date.now() };
+      this.operation.player = { diagnostics: () => ({ backend: "native-experiment-001", engine: this.latest, prefetch: this.coordinator.diagnostics() }) };
       this.phase = "PREPARING";
       const record = await this.coordinator.request({ id, durationMs: state.durationMs });
       if (revision !== this.revision) return;
