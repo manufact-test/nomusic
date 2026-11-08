@@ -19,6 +19,13 @@ assert spec["label"] == "CELIKOM Test"
 assert spec["version"] == "0.3.85-test.61"
 assert spec["version_code"] == 86147
 assert spec["apk_filename"] == "CELIKOM-Android-0.3.85-TEST-61-CATALOGUE-CACHE-BYPASS-SIGNED.apk"
+# Test.61 must defeat CDN negative caching after the approved-catalogue route is deployed.
+native_api = (ROOT / "addon/src/pro/celikom/nativeprobe/identitydiag/NativeApi.java").read_text(encoding="utf-8")
+assert '"replacement-catalog?refresh="+System.currentTimeMillis()' in native_api
+assert 'path.startsWith("replacement-catalog?")' in native_api
+assert 'c.setRequestProperty("Pragma","no-cache")' in native_api
+assert 'LiveCatalogueStore.MAX_BYTES' in native_api
+
 assert spec["signing_certificate_sha256"] == "67fe81c56fac1c1d145344b69a0e3faf9005cf6607f4e26ca27d5926c3eefc4f"
 assert spec["test_permission"].startswith(spec["package"] + ".")
 assert spec["file_provider_authority"].startswith(spec["package"] + ".")
