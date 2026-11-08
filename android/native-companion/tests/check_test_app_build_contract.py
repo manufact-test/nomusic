@@ -16,9 +16,9 @@ verifier = (ROOT / "verify_test_release.py").read_text(encoding="utf-8")
 assert spec["package"] == "pro.celikom.nativeprobe.test"
 assert spec["stable_package"] == "pro.celikom.nativeprobe"
 assert spec["label"] == "CELIKOM Test"
-assert spec["version"] == "0.3.85-test.66"
-assert spec["version_code"] == 86152
-assert spec["apk_filename"] == "CELIKOM-Android-0.3.85-TEST-66-CATALOGUE-FIRST-SIGNED.apk"
+assert spec["version"] == "0.3.85-test.67"
+assert spec["version_code"] == 86153
+assert spec["apk_filename"] == "CELIKOM-Android-0.3.85-TEST-67-HONOR-TUNING-SIGNED.apk"
 # Test.61 must defeat CDN negative caching after the approved-catalogue route is deployed.
 native_api = (ROOT / "addon/src/pro/celikom/nativeprobe/identitydiag/NativeApi.java").read_text(encoding="utf-8")
 assert '"replacement-catalog?refresh="+System.currentTimeMillis()' in native_api
