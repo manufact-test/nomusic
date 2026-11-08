@@ -8,6 +8,19 @@ public class TestHybrid {
   check("UNIQUE_METADATA_CANDIDATE".equals(fresh.get("status")),"own fallback without album and reordered artists");
   check("OWN_CATALOGUE_METADATA".equals(HybridIdentity.decide(null,fresh,none,false).get("method")),"own fallback selected");
   check("NONE".equals(HybridIdentity.decide(null,fresh,none,true).get("method")),"pending primary prevents premature fallback");
+  // Test.58 HONOR 50, album 28055398: Yandex returns HTTP 451 but the
+  // approved song exists in CELIKOM. This is a general catalogue fallback
+  // test, not a hardcoded production exception for this song.
+  JSONObject approved=new JSONObject("{\"schema\":1,\"complete\":true,\"total_tracks\":1,\"source\":\"celikom_owner_catalog_snapshot\",\"tracks\":[{\"track_id\":\"118910020\",\"title\":\"Мне нужна любовь\",\"artist\":\"Татем\",\"album\":\"Мне нужна любовь\",\"duration_ms\":102380,\"replacement_available\":true}]}").put("generated_at_ms",now);
+  Map<String,Object> blockedAlbumFallback=HybridIdentity.own(approved,"Мне нужна любовь","Татем",102380,now);
+  Map<String,Object> resolved451=HybridIdentity.decide(null,blockedAlbumFallback,none,false);
+  check("OWN_CATALOGUE_METADATA".equals(resolved451.get("method"))
+    &&"118910020".equals(resolved451.get("candidateTrackId")),
+    "approved unique source replaces even when Yandex album 28055398 is HTTP 451");
+  check("NONE".equals(HybridIdentity.decide(null,
+    HybridIdentity.own(approved,"Мне нужна любовь","Татем",108000,now),none,false).get("method")),
+    "wrong edition duration cannot be silently substituted");
+
   Map<String,Object> stale=HybridIdentity.own(own,"Песня","А, Б",120000,now+8*86400000L);
   Map<String,Object> historical=HybridIdentity.decide(null,stale,none,false);check("NONE".equals(historical.get("method"))&&historical.get("candidateTrackId")==null,"stale catalogue hint is ignored without asking the user to confirm an uncertain edition");
   Map<String,Object> primary=LogStore.map("status","UNIQUE_CANDIDATE","catalogueTrackId","456");Map<String,Object> decision=HybridIdentity.decide(primary,fresh,none,false);
