@@ -1,5 +1,7 @@
 # Native source: authority, engine reload and manual boundary
 
+Follow-up: owner returned no controller from the initial probe. Current probe is **0.0.2**, documented in [NATIVE-PROBE-SEARCH-2026-11-08.md](NATIVE-PROBE-SEARCH-2026-11-08.md). The initial ZIP details below are historical; do not redeliver them as the current check.
+
 Date: 2026-11-08. Branch: `experiment/desktop-native-lifecycle-20261108`.
 Base: verified prototype `32a433f78b6b858af2b1e0955b2701260b89ee37` on `experiment/desktop-native-source-20261108`.
 Accepted 0.4.73 archive, production extension sources, server and Android remain untouched.
