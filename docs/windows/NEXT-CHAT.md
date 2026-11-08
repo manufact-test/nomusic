@@ -1,6 +1,6 @@
 # CELIKOM Windows Companion — NEXT-CHAT
 
-**Updated 2026-11-08. W3 user evidence confirmed; W4–W9 isolated CI VERIFIED; W10 safe executable integrity observation under CI.**
+**Updated 2026-11-08. W3 owner verified; W4–W9 isolated CI verified; W10 built, tested and in Library; owner W10 report pending.**
 
 ## Objective
 Official Windows Yandex Music is the ONLY owner of audio, pause, seek, next, queue,
@@ -254,3 +254,26 @@ No owner ZIP and no repeated W0–W3 scans are needed here.
 - Source details `docs/windows/W10-EXE-INTEGRITY-READONLY-20261108.md`.
   New W10 CI and owner artifact to be verified/delivered before asking
   the owner to run. Do not claim passed before CI result is real.
+
+## Verified W10 package and next action
+
+- [Actions 42517089821](https://github.com/manufact-test/nomusic/actions/runs/42517089821)
+  **SUCCESS**, commit `507911ac52bb5886ccd2f461ab56a6fc17bafc95`.
+- `CELIKOM-Windows-Probe-W10.zip` 32909420 bytes, sha256
+  `d021bb12a3436e69c403ea5c06c5e981b07b7d1a3008da93d6adc039a9b8e327`.
+  CRC verified, contains EXE and CMD only.
+- Uploaded to Library:
+  `/CELIKOM/Windows/Test/CELIKOM-Windows-Probe-W10.zip`,
+  library ID `libfile_65577f120f4c8191adcf345a9406d5dd`.
+  GitHub run artifact ID `13631553715`.
+- Owner runs read-only W10 `START-CELIKOM-PROBE.cmd` and provides
+  `CELIKOM-Windows-report.txt`. NEVER request original credentials
+  or installed app binary upload. No installed files changed.
+- W10 reads Electron fuse sentinel (official V1 indexes 4/5) and
+  optional Windows `Integrity/ElectronAsar` resource, comparing
+  documented hash with ASAR header. **EXE integrity result on actual
+  owner Windows not yet observed**. W10 CI validated only synthetic
+  fake PE + packaged tool, not owner's official client.
+- Important: an enabled integrity fuse matching resource is a clear
+  NO-GO for modifying official ASAR. Fuse disabled / resource absent
+  still does NOT prove an approved live plugin interface exists.

@@ -78,3 +78,28 @@ installed-client experiment needs separate explicit user approval and
 a demonstrated real backup/restore plan.
 
 W10 must not be described as working real source replacement.
+
+## Verified W10 Windows CI / delivery — 2026-11-08
+
+- Source commit `507911ac52bb5886ccd2f461ab56a6fc17bafc95`.
+- [Actions run 42517089821](https://github.com/manufact-test/nomusic/actions/runs/42517089821):
+  **SUCCESS**. Windows .NET build with warnings as errors and synthetic
+  W10 fuse/PE-resource tests passed, alongside W9 physical ASAR E2E and
+  W4–W8 regressions (W5 35/35; W7+W8 33/33).
+- W10 published win-x64, self-contained single-file probe ZIP: GitHub
+  artifact `13631553715`, name `celikom-windows-w10-integrity-readonly`.
+- Final archive `CELIKOM-Windows-Probe-W10.zip`, 32909420 bytes,
+  SHA-256 `d021bb12a3436e69c403ea5c06c5e981b07b7d1a3008da93d6adc039a9b8e327`.
+  ZIP CRC verified, exactly two files:
+  `CELIKOM-Windows-Probe.exe`,
+  `START-CELIKOM-PROBE.cmd`.
+- Uploaded and independently listed in ChatGPT Library:
+  `/CELIKOM/Windows/Test/CELIKOM-Windows-Probe-W10.zip`,
+  Library file ID `libfile_65577f120f4c8191adcf345a9406d5dd`.
+- Real owner W10 EXE fuse/resource report: **NOT YET RECEIVED**.
+  Do NOT claim any official app compatibility or source hooking until
+  that real observation and later authorized native integration tests.
+- Owner test action: extract W10 ZIP, run existing
+  `START-CELIKOM-PROBE.cmd` with official app running, return only
+  `CELIKOM-Windows-report.txt`. This is read-only and does not
+  repeat W3's 1117-file source scan.
