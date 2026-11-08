@@ -27,7 +27,7 @@ with tempfile.TemporaryDirectory() as folder:
                 u=f"https://raw.githubusercontent.com/{SOURCE}/{COMMIT}/tracks/{tid}"
                 req=urllib.request.Request(u,headers={"User-Agent":"CELIKOM-readonly-source-tags"})
                 with urllib.request.urlopen(req,timeout=60) as stream, path.open("wb") as out:
-                    h=hashlib.sha1(b"blob "+str(src["size"]).encode()+b"\\0")
+                    h=hashlib.sha1(b"blob "+str(src["size"]).encode()+b"\0")
                     total=0
                     while block:=stream.read(262144):
                         out.write(block);h.update(block);total+=len(block)
@@ -48,5 +48,5 @@ with tempfile.TemporaryDirectory() as folder:
         results.append(result)
         print("SOURCE_GAP_TAGS "+json.dumps(result,ensure_ascii=False,separators=(",",":")),flush=True)
 summary={"checked":len(results),"normal_mp3":sum(x.get("mime")=="audio/mpeg" for x in results),"with_title_artist_tags":sum(bool(x.get("tags",{}).get("title") and x.get("tags",{}).get("artist")) for x in results),"no_tags":sum(not x.get("tags") for x in results),"transient":sum(x.get("status")=="transient_error" for x in results),"production_writes":0}
-pathlib.Path("source-gaps-audit.json").write_text(json.dumps({"summary":summary,"results":results},indent=2,ensure_ascii=False)+"\\n",encoding="utf-8")
+pathlib.Path("source-gaps-audit.json").write_text(json.dumps({"summary":summary,"results":results},indent=2,ensure_ascii=False)+"\n",encoding="utf-8")
 print("SOURCE_GAPS_AUDIT_SUMMARY "+json.dumps(summary,ensure_ascii=False),flush=True)
