@@ -417,6 +417,9 @@ public class ProbeService extends Service {
    // Foreground album/current resolve before speculative next. Actual
    // network dispatch is protected by independent resolve lanes as well.
    albumProbe.publishCurrent();replacement.update(current);
+   // Test.74: independent framework MediaSession read-only trace; AFTER all
+   // Test.73 audio decisions. Never feeds back to the replacement engine.
+   YandexSessionWitnessService.sample(c,current);
    sampleLookahead(c,item);replacement.noteLookaheadCandidate(lookahead.next);
    long clock=SystemClock.elapsedRealtime();
    if(current.playing&&current.duration>0&&current.position>=current.duration){if(endReachedAt<0)endReachedAt=clock;if(clock-endReachedAt>=2000){LogStore.log("source_controller_refresh",LogStore.map("reason","item_stuck_at_end","alias",current.alias,"positionMs",current.position,"durationMs",current.duration));replacement.sourceBoundary("controller_stuck_at_end",null);current=null;controller=null;c.release();endReachedAt=-1;connect();return;}}else endReachedAt=-1;
