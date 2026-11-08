@@ -2,7 +2,7 @@
 # Exactly 50 prechecked multisource MP3. Idempotent private pending-only import.
 set -euo pipefail
 test -n "${HOST_KEY:-}" && test -n "${KNOWN_HOSTS:-}"
-test -f tools/blur-research/pending50-20261109.json
+test -f tools/blur-research/pending48-20261109.json
 umask 077
 mkdir -p "$RUNNER_TEMP/private" "$RUNNER_TEMP/final-state" "$RUNNER_TEMP/audio"
 chmod 700 "$RUNNER_TEMP/private" "$RUNNER_TEMP/final-state" "$RUNNER_TEMP/audio"
@@ -26,7 +26,7 @@ started="$(date +%s)"
 release_baseline="$(ssh "${ssh_args[@]}" "$host" "readlink -f '$base/current'")"
 [[ "$release_baseline" == "$base"/releases/* ]] || { echo UNSAFE_PRODUCTION_RELEASE;exit 2; }
 python3 tools/blur-research/pending50/fetch.py "$RUNNER_TEMP/audio" "$RUNNER_TEMP/final-state"
-total="$(jq '.selected|length' tools/blur-research/pending50-20261109.json)"
+total="$(jq '.selected|length' tools/blur-research/pending48-20261109.json)"
 test "$total" -ge 1 && test "$total" -le 200
 batches="$(( (total+49)/50 ))"
 test "$(find "$RUNNER_TEMP/audio" -maxdepth 1 -type f -name '*.mp3' | wc -l)" -eq "$total"
@@ -72,7 +72,7 @@ final_stage="$base/incoming/blur-fifty-$((GITHUB_RUN_ID*10+5))"
 stages+=("$final_stage")
 ssh "${ssh_args[@]}" "$host" "umask 077; test ! -e '$final_stage' && mkdir -m 700 '$final_stage'"
 scp "${scp_args[@]}" tools/blur-research/pending50/verify-pending-files.php "$host:$final_stage/"
-scp "${scp_args[@]}" tools/blur-research/pending50-20261109.json "$host:$final_stage/selected.json"
+scp "${scp_args[@]}" tools/blur-research/pending48-20261109.json "$host:$final_stage/selected.json"
 ssh "${ssh_args[@]}" "$host" "$php '$final_stage/verify-pending-files.php'" | tee "$RUNNER_TEMP/final-state/verify-all200.json"
 jq -e --argjson n "$total" '.status==("LIVE"+($n|tostring)+"_PENDING_VERIFIED") and .checked==$n and .files_verified==$n and .pending_count==$n and .pass==true and (.issues|length)==0 and .writes==0' "$RUNNER_TEMP/final-state/verify-all200.json" >/dev/null
 ssh "${ssh_args[@]}" "$host" "rm -f -- '$final_stage/'*.json '$final_stage/'*.php; rmdir -- '$final_stage'"
