@@ -34,6 +34,7 @@ jobs:
       STORAGE_DRIVER: local
       STORAGE_PATH: /tmp/celikom-bulk-live-merge/storage
       BULK_HTML_OUT: /tmp/celikom-bulk-live-merge.html
+      BULK_DEBUG_LIVE_MERGE: '1'
     steps:
       - uses: actions/checkout@v4
         with:
