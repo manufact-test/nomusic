@@ -1,0 +1,253 @@
+{
+  "schema": 1,
+  "source_repository": "Hazzz895/FckCensorData",
+  "source_commit": "10187b7af56f311fe141a3c9b75483798bf0f589",
+  "batch_size": 20,
+  "candidates": [
+    {
+      "id": "63104735",
+      "artist": "ZOVetik, Nemichieff",
+      "title": "Отключили свет",
+      "size": 5665481,
+      "blob": "50dd9780215d1ed1738df9749651e24eb9b60ad6"
+    },
+    {
+      "id": "137472446",
+      "artist": "голодный",
+      "title": "таблетки",
+      "size": 3887064,
+      "blob": "b64d84cc063767488dae326fb5e296c6d2b9a3ec"
+    },
+    {
+      "id": "150598645",
+      "artist": "uglystephan",
+      "title": "Я люблю лин",
+      "size": 2065692,
+      "blob": "24f50ada040137b03bee0d87d5ee2ce24bc01869"
+    },
+    {
+      "id": "145054524",
+      "artist": "Пошлая Молли",
+      "title": "Спать с тобой",
+      "size": 2489031,
+      "blob": "3b9c85d9500d5777c6f9c9ccfdad9a6522367065"
+    },
+    {
+      "id": "136272297",
+      "artist": "9mice",
+      "title": "indiana",
+      "size": 4209938,
+      "blob": "2768fdebf965d7bf3742d0c3ba14b9474b909298"
+    },
+    {
+      "id": "123382745",
+      "artist": "Серега Пират",
+      "title": "В этой траве",
+      "size": 5273643,
+      "blob": "7602532ca321a46c1f85e1c76ab00dff5fa91cad"
+    },
+    {
+      "id": "138778164",
+      "artist": "KSB muzic",
+      "title": "Отчим",
+      "size": 3999912,
+      "blob": "6cd86fd90493fc5ce824fcae762d3b405a738505"
+    },
+    {
+      "id": "155025088",
+      "artist": "Clonnex",
+      "title": "ILD",
+      "size": 4741566,
+      "blob": "e14893f7d39e263700d1f6a3e374cc6c4b2afe49"
+    },
+    {
+      "id": "137300017",
+      "artist": "madk1d",
+      "title": "так похуй",
+      "size": 4445732,
+      "blob": "4f5c70355dd19103bc16240aa48228ee12e9dea2"
+    },
+    {
+      "id": "93401053",
+      "artist": "Паша Техник",
+      "title": "Я ебал в рот",
+      "size": 7204614,
+      "blob": "63d58a21e5eb2bef667158b8068d05afae658dfc"
+    },
+    {
+      "id": "151855603",
+      "artist": "CUPSIZE",
+      "title": "мы делили апельсин",
+      "size": 2840520,
+      "blob": "e25bc6bed68c6a3b0ace51b1f9ef6e24c60916d3"
+    },
+    {
+      "id": "91340238",
+      "artist": "Пошлая Молли, Элджей",
+      "title": "Дом Периньон",
+      "size": 7233534,
+      "blob": "c0f2534239894bd9a07a92a7f07ea744f54b08c5"
+    },
+    {
+      "id": "152396542",
+      "artist": "Пошлая Молли",
+      "title": "Lin Ansty",
+      "size": 6168162,
+      "blob": "a26ded76e0f7bb8f53b8ef1e2d196b3ee1095d15"
+    },
+    {
+      "id": "136404135",
+      "artist": "Пошлая Молли",
+      "title": "Школа не нужна",
+      "size": 3772370,
+      "blob": "661fd8e83a0c1b37a433e280a44d5bc3f76c66f2"
+    },
+    {
+      "id": "138629224",
+      "artist": "Расстройство",
+      "title": "Виновата скорость",
+      "size": 5380792,
+      "blob": "b5527c5e51e1db86f582298a7bf163bdcdb6aa52"
+    },
+    {
+      "id": "110374527",
+      "artist": "Lida, СТИНТ, mazzellovvv, ШАПКА, t2x2, Барагозеры",
+      "title": "Новогодняя",
+      "size": 5137807,
+      "blob": "0b5af9892857ae9b124608112159bc3697282390"
+    },
+    {
+      "id": "149870633",
+      "artist": "Синдром Восьмиклассника",
+      "title": "ДЖЕТИКС",
+      "size": 3620684,
+      "blob": "4c8dec4fe716009803f21996a7c80b959ad5ffa3"
+    },
+    {
+      "id": "30212997",
+      "artist": "Yanix, ATL",
+      "title": "Трэп хата",
+      "size": 3236257,
+      "blob": "d328c2c2c097c12ae26fd5462039bddb03634e13"
+    },
+    {
+      "id": "111001121",
+      "artist": "две тысячи ярдов",
+      "title": "Постарели",
+      "size": 4983162,
+      "blob": "c646ac8536962e555ff89043d750cad21c0b361c"
+    },
+    {
+      "id": "120305632",
+      "artist": "CUPSIZE",
+      "title": "Клей",
+      "size": 3485615,
+      "blob": "66362788000bee592e5d1e27d38f26c35f28939b"
+    },
+    {
+      "id": "63607797",
+      "artist": "4К",
+      "title": "Крайне аккуратно",
+      "size": 7901562,
+      "blob": "9a42e596cfb67da1a8535dd3e7b109e64a2ed1e1"
+    },
+    {
+      "id": "59357625",
+      "artist": "Сява",
+      "title": "Меня вставляет дым",
+      "size": 6654999,
+      "blob": "f8f21b2642c4e37955c1c80fd5282f49e13a39a8"
+    },
+    {
+      "id": "139910364",
+      "artist": "тёмный принц",
+      "title": "губы",
+      "size": 1541152,
+      "blob": "72683524e2f5951114f989834a5c8ac4c314dd09"
+    },
+    {
+      "id": "63607783",
+      "artist": "4К",
+      "title": "Если чё",
+      "size": 3206014,
+      "blob": "2aeb6802a4a7b75e3bd98f602681f5d9899d675f"
+    },
+    {
+      "id": "25319594",
+      "artist": "Anacondaz",
+      "title": "Мама, я люблю",
+      "size": 9005974,
+      "blob": "c6c22354ecea2771e7a1fc84737ed952dad959b5"
+    },
+    {
+      "id": "111402809",
+      "artist": "Kai Angel, 9mice",
+      "title": "LIPSTICK",
+      "size": 4870312,
+      "blob": "48bf5e9825956d65a354e4e9aad853686f277bfa"
+    },
+    {
+      "id": "88057589",
+      "artist": "zavet",
+      "title": "Вот она",
+      "size": 1946434,
+      "blob": "9a4842edd4167067e9e4db267051cc4350221e30"
+    },
+    {
+      "id": "63607809",
+      "artist": "4К",
+      "title": "Хули нет",
+      "size": 8161742,
+      "blob": "94cac9b2c7dc222d8e8f4b43c02a0fcf10914c28"
+    },
+    {
+      "id": "113240879",
+      "artist": "Lizer",
+      "title": "Не ангел",
+      "size": 8337285,
+      "blob": "552031a65efe5214f9fb5358890e0ec77bb40e3c"
+    },
+    {
+      "id": "63607788",
+      "artist": "4К",
+      "title": "Милиция",
+      "size": 7360305,
+      "blob": "3d48263c4cc01983e4d88a10b72b776bd4ca1838"
+    },
+    {
+      "id": "144622062",
+      "artist": "тёмный принц",
+      "title": "скидка",
+      "size": 1690303,
+      "blob": "a9a28185354a2e4a04faa166ea2f6d613fba3483"
+    },
+    {
+      "id": "133951915",
+      "artist": "Kai Angel",
+      "title": "madam",
+      "size": 5788399,
+      "blob": "4f57cb247be60fb60dfa3d913baa97a03ddd0d32"
+    },
+    {
+      "id": "109996936",
+      "artist": "CMH, GSPD, Lida",
+      "title": "Сумасшедшая",
+      "size": 6447482,
+      "blob": "2e9dc30ab1df83ac869125e7eb3e8790ef5d64c1"
+    },
+    {
+      "id": "115131527",
+      "artist": "ЗимойБезШапки",
+      "title": "Лёха",
+      "size": 1633459,
+      "blob": "fbc074257833015ee1f1a08d33e80f6017c7aabd"
+    },
+    {
+      "id": "136901411",
+      "artist": "madk1d, тёмный принц",
+      "title": "ты че обиделась",
+      "size": 3616227,
+      "blob": "e0d87e8421fd61d5cc0ef4bdae170749d0aef31f"
+    }
+  ]
+}
