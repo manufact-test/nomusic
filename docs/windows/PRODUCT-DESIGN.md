@@ -1,5 +1,8 @@
 # CELIKOM Companion Windows — product and UX/UI design v1
 
+> **W13 product hold (2026-11-08):** This mockup and the states below are a non-operational proposal. Native source integration in the *unmodified official* Yandex Music Windows 5.126.1.0 is **NO-GO/BLOCKED** under current constraints; see [W13 decision](W13-OFFICIAL-CLIENT-INTEGRATION-DECISION-20261108.md). Do not build or market the Windows playback-connected shell before there is a safe, permitted native source-provider interface. No fake connected/status claims.
+
+
 **Status:** design proposal awaiting owner approval; mockup is illustrative only. User interface is **CELIKOM Companion**, not a skin/fork of the official Yandex Music UI. No fake features or working audio claims.
 
 ## Product rules

@@ -1,5 +1,9 @@
 # CELIKOM Windows Companion — delivery plan, responsibilities and test gates
 
+
+> **W13 STOP DECISION (2026-11-08):** [official-client integration feasibility](W13-OFFICIAL-CLIENT-INTEGRATION-DECISION-20261108.md) is **NO-GO/BLOCKED** for the owner's unchanged Yandex Music 5.126.1.0. Previous W0–W12 standalone test success does not grant a production attachment seam. All phases and acceptance items below are **conditional planning only**, not authorized executable work. No W14 laboratory work unless a genuinely new supported integration API or separately approved revised product constraints appear. Keep existing browser extension unchanged; do not ship a second audio player.
+
+
 Status: **planning only**, 2026-11-08. No app, installer, modified Yandex binary or backend changes exist.
 
 ## Priorities and go/no-go gates
@@ -70,8 +74,10 @@ Status: **planning only**, 2026-11-08. No app, installer, modified Yandex binary
 - Any common API feature request must be written as a separate proposal and explicitly coordinated with server/Android/extension owners; never change shared files behind their backs.
 - Keep one `docs/windows/NEXT-CHAT.md` handoff for future chats once first real PoC starts. Before that, this README is the handoff.
 
-## Immediate practical instruction for owner
+## Current practical instruction for owner (W13 supersedes W0)
 
-Install the **official** Yandex Music Windows client from https://music.yandex.ru/download/ if desired, and make sure it plays normally. Next time, report only Yandex app version, Windows version, and whether it was installed in the standard location; never send Yandex/CELIKOM passwords or cookies. No need to install PulseSync, FkCensor or another third-party patcher yet.
+**Nothing to install or rerun.** The owner has already supplied the official Windows W10 identity and integrity report. Keep normal Yandex Music unchanged. CELIKOM Windows-native audio source substitution is blocked while no permitted, supported native source-provider interface is evidenced.
 
-**No release timing promised.** Any estimated schedule must follow actual successful W0/W1 validation.
+Only after a documented technical opening and an independent safety plan would the owner be asked for a narrowly scoped consent. The prior W0 instruction to install/report the app is **obsolete**.
+
+**No release timing is promised.**

@@ -1,4 +1,31 @@
-# CELIKOM Windows Companion — NEXT-CHAT
+# CELIKOM Windows Companion — current NEXT-CHAT, W13 decision (2026-11-08)
+
+**Current Windows branch:** `experiment/windows-companion-integration-20261108` in `manufact-test/nomusic`.
+
+**W13 VERDICT: NO-GO / BLOCKED for source replacement in the owner's unmodified official Yandex Music 5.126.1.0 under strict existing constraints.** This is a decision on available evidence, not a proof that all conceivable private interfaces are impossible.
+
+**Read first:** [W13 final decision](W13-OFFICIAL-CLIENT-INTEGRATION-DECISION-20261108.md). This supersedes older 'next experiment' suggestions below.
+
+### What was really verified
+- Real owner's official client 5.126.1.0, Windows 10 x64; packaged ASAR SHA-256 `5a259722d60f746ec32c8bf6e880e375e888315080fb18e67c29b54b582c1215`; W10: embedded ASAR integrity ENABLED, OnlyLoadAppFromAsar ENABLED, PE resource PRESENT/MATCH. **Never edit installed EXE/ASAR.**
+- W5–W12 Windows CI results apply to isolated GENERIC Electron fixtures and public web Yandex source classes, **not** to authenticated official Windows application. W12 CI [42520309048](https://github.com/manufact-test/nomusic/actions/runs/42520309048) SUCCESS, 6/6 + 5/5 synthetic checks.
+- PulseSync add-on API is real but requires a separately modified client runtime. Electron `loadExtension` cannot be triggered externally without host cooperation. Windows media transport and OS audio effects cannot select a source inside the Yandex decoder. Unrestricted CDP/debugging of authenticated client is forbidden. No independently verified official source-plugin API found for exact owner version.
+
+### Next actions: NOT another synthetic Windows test
+- Freeze native Windows Companion integration/installer/UI as BLOCKED. No W14 laboratory iteration, no zip to owner, no repeat diagnostics, no official launch.
+- Recommend using existing browser-extension CELIKOM for browser-based Yandex Music on Windows — explicitly **not** native Windows-client integration.
+- Reopen only if a genuine Yandex/vendor-supported permission-limited source provider is documented and validated, or if owner **explicitly changes constraints** to consider a third-party modified-client dependency after independent security/commercial review.
+- Any new official binary/profile/renderer test first requires a separate precise safety proposal and owner approval. No production, server, Android, extension changes.
+- Keep backup refs `backup/windows-w11-verified-before-w12-20261108` and `backup/windows-w12-verified-handoff-20261108` untouched.
+
+### W13 delivery
+W13 research + documentation only; no executable or new CI claim. No action needed from owner unless they choose a revised product constraint or bring a supported vendor SDK.
+
+---
+
+## Archived earlier handoffs, W0–W12 (historical; superseded for future actions)
+
+# Historical CELIKOM Windows Companion — NEXT-CHAT (W0–W12)
 
 **Updated 2026-11-08. Owner W10 ASAR integrity ENABLED/MATCH, direct ASAR patch NO-GO. W11 and W12 verified Windows CI. Next: W13 genuine official-client feasibility go/no-go.**
 
