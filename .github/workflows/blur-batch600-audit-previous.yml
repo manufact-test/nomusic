@@ -1,0 +1,45 @@
+name: CELIKOM Blur — independent post-approval audit last 200 (IDs 518-717)
+on:
+  push:
+    branches: [feature/blur-batch600-20261108]
+    paths: ['.github/workflows/blur-batch600-audit-previous.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: celikom-blur-audit-prior-200-readonly
+  cancel-in-progress: false
+jobs:
+  audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Check nonmutating fixed 200 PHP audit
+        run: |
+          php -l tools/blur-batch400/check-current200-after-approval.php
+      - name: Independent live audio and API check
+        shell: bash
+        env:
+          HOST_KEY: ${{ secrets.CELIKOM_HOSTINGER_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.CELIKOM_HOSTINGER_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p "$RUNNER_TEMP/private"
+          printf '%s\n' "$HOST_KEY" > "$RUNNER_TEMP/private/key"
+          printf '%s\n' "$KNOWN_HOSTS" > "$RUNNER_TEMP/private/hosts"
+          chmod 600 "$RUNNER_TEMP/private/"*
+          ssh -p 65002 -i "$RUNNER_TEMP/private/key" -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$RUNNER_TEMP/private/hosts" \
+            u235811320@92.113.19.189 '/opt/alt/php83/usr/bin/php -d display_errors=stderr' < tools/blur-batch400/check-current200-after-approval.php | tee "$RUNNER_TEMP/celikom-last200-after-approval.json"
+          jq -e '.pass==true and .checked==200 and .files_verified==200 and .catalogue_correct==200 and .resolve_correct==200 and .head200==.approved_active and .range206==.approved_active and .writes==0 and (.issues|length)==0' "$RUNNER_TEMP/celikom-last200-after-approval.json"
+          jq '{pass,checked,approved_active,pending,other_status,files_verified,catalogue_correct,resolve_correct,head200,range206,bytes,batches,issues,writes}' "$RUNNER_TEMP/celikom-last200-after-approval.json" >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: celikom-last200-after-approval-${{ github.run_id }}
+          path: ${{ runner.temp }}/celikom-last200-after-approval.json
+          retention-days: 90
+          if-no-files-found: ignore
