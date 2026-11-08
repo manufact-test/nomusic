@@ -10,12 +10,11 @@ export default defineAddon({
   name: addonConfig.name,
   start: async api => {
     const local = createCompanionBridge({net:api.net, storage:api.storage});
+    let trustedApiOrigin = "";
     const controller = createCelikomSourceController({
       api, resolve:(id, signal)=>local.resolve(id, signal),
-      // Replaced only by an exact, validated local bridge backend grant.
-      // The configured CELIKOM API origin MUST be independently pinned
-      // by the Companion. Do not accept arbitrary hosts from local replies.
-      allowedOrigin: "https://celikom-placeholder.invalid"
+      // Only a paired companion can supply an API origin and signed grant.
+      allowedOrigin: () => trustedApiOrigin
     });
     let stopped=false, asked=false, timer;
     const stop=()=>{
@@ -50,7 +49,18 @@ export default defineAddon({
       const status=await local.state();
       if(stopped)return;
       if(!status.paired) {controller.disable();return;}
-      if(status.enabled && status.signedIn)controller.enable();
+      let canonicalOrigin="";
+      try {
+        const parsed=new URL(status.apiOrigin || "");
+        if(parsed.protocol === "https:" && parsed.origin === status.apiOrigin &&
+           parsed.pathname === "/" && !parsed.username && !parsed.password)
+          canonicalOrigin=parsed.origin;
+      } catch {}
+      if(canonicalOrigin !== trustedApiOrigin) {
+        controller.disable();
+        trustedApiOrigin=canonicalOrigin;
+      }
+      if(status.enabled && status.signedIn && trustedApiOrigin)controller.enable();
       else controller.disable();
       await local.heartbeat(controller.trackId,controller.status);
     };

@@ -58,7 +58,7 @@ export function createCelikomSourceController({ api, resolve, allowedOrigin, now
       typeof api?.client?.setTrackReplacements !== "function" ||
       typeof api?.client?.clearTrackReplacements !== "function" ||
       typeof allowedOrigin !== "string" ||
-      !allowedOrigin.startsWith("https://"))
+      !(typeof allowedOrigin === "function" || allowedOrigin.startsWith("https://"))
     throw new Error("W14_UNSUPPORTED_HOST_OR_BRIDGE");
 
   let enabled = false, disposed = false, current = null, originalFor = null;
@@ -110,7 +110,7 @@ export function createCelikomSourceController({ api, resolve, allowedOrigin, now
       .then(async grant => {
         if (disposed || !enabled || signal.aborted ||
             revision !== generation || current !== requestedId) return;
-        const url = validateCelikomGrant(grant, requestedId, allowedOrigin, now());
+        const url = validateCelikomGrant(grant, requestedId, typeof allowedOrigin === "function" ? allowedOrigin() : allowedOrigin, now());
         if (!url) { state = "ORIGINAL"; return; }
         const accepted = await queueWrite("set", requestedId, url, revision);
         if (accepted && revision === generation && enabled && !disposed)

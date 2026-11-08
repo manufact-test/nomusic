@@ -64,13 +64,13 @@ public sealed class MainWindow : Form
         content.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         Controls.Add(content);
 
-        Add(content, Header("CELIKOM", 26, true, 52));
-        Add(content, Hint("Windows Companion — управление музыкой остаётся в Яндексе.", 42));
+        Add(content, Header("CELIKOM", 26, true, 52), 52);
+        Add(content, Hint("Windows Companion — управление музыкой остаётся в Яндексе.", 42), 42);
         _status.Text = "Запускаю локальную службу…";
         _status.ForeColor = ColorTranslator.FromHtml("#14594D");
         Add(content, _status, 56);
         Add(content, Section("Подключение к CELIKOM"), 28);
-        Add(content, Hint("Адрес действующего API (HTTPS):", 23));
+        Add(content, Hint("Адрес действующего API (HTTPS):", 23), 23);
         _origin.Text = _api.Origin;
         _origin.PlaceholderText = "https://адрес-вашего-сервера";
         Add(content, _origin, 36);
@@ -94,7 +94,7 @@ public sealed class MainWindow : Form
         _nowPlaying.Text = "Песня: ожидаем подключение модуля";
         Add(content, _nowPlaying, 49);
         Add(content, Section("Первое соединение с модулем"), 32);
-        Add(content, Hint("Код вводится один раз в дополнении CELIKOM внутри Яндекс.Музыки.", 37));
+        Add(content, Hint("Код вводится один раз в дополнении CELIKOM внутри Яндекс.Музыки.", 37), 37);
         _pairCode.Font = new Font("Consolas", 17F, FontStyle.Bold);
         _pairCode.ForeColor = ColorTranslator.FromHtml("#14594D");
         Add(content, _pairCode, 43);
@@ -110,7 +110,7 @@ public sealed class MainWindow : Form
             catch { MessageBox.Show(this, "Открой Яндекс.Музыку обычным способом.", "CELIKOM"); }
         };
 
-        Add(content, Hint("CELIKOM не отключает защиту Windows и не изменяет файлы Яндекса.", 46));
+        Add(content, Hint("CELIKOM не отключает защиту Windows и не изменяет файлы Яндекса.", 46), 46);
 
         _login.Click += LoginAsync;
         _logout.Click += LogoutAsync;
@@ -202,17 +202,19 @@ public sealed class MainWindow : Form
         _pairCode.Text = _bridge.PairCode.Length == 6
             ? _bridge.PairCode + "  (10 мин.)"
             : "Код использован. Для нового соединения нажми кнопку.";
+        var songStatus = _bridge.LastStatus switch
+        {
+            "SDK_MAPPING_ACCEPTED" => "Ссылка передана SDK (звук не подтверждён)",
+            "RESOLVING" => "Ищем версию",
+            "ORIGINAL" => "Воспроизведение оригинала",
+            "OFF" => "Подмена выключена",
+            "UNAVAILABLE" => "Ожидаем песню",
+            "HOST_ERROR" => "Ошибка подключения модуля",
+            _ => "Ожидание соединения"
+        };
         _nowPlaying.Text = _bridge.LastStatus == "NOT_CONNECTED"
             ? "Модуль Яндекса ещё не подключён."
-            : "ID песни: " + (_bridge.LastSong.Length > 0 ? _bridge.LastSong : "—") +
-                " · " + _bridge.LastStatus switch
-                {
-                    "SDK_MAPPING_ACCEPTED" => "Ссылка передана SDK (звук не подтверждён)",
-                    "RESOLVING" => "Ищем версию",
-                    "ORIGINAL" => "Играет оригинал / версия не найдена",
-                    "OFF" => "Подмена выключена",
-                    _ => "Статус: " + _bridge.LastStatus
-                };
+            : "ID песни: " + (_bridge.LastSong.Length > 0 ? _bridge.LastSong : "—") + " · " + songStatus;
         if (!keepStatus)
             _status.Text = !_bridgeStarted ? "Локальная служба не запущена"
                 : !_api.IsLoggedIn ? "Не выполнен вход в CELIKOM"

@@ -45,7 +45,7 @@ export function createCompanionBridge({ net, storage }) {
       const s = await net.json(endpoint("/v1/state"), {
         credentials:"omit", cache:"no-store", timeoutMs:2500, headers: headers()
       });
-      return {paired:true, enabled:s?.enabled===true, signedIn:s?.signedIn===true};
+      return {paired:true, enabled:s?.enabled===true, signedIn:s?.signedIn===true, apiOrigin: typeof s?.apiOrigin === "string" ? s.apiOrigin : ""};
     } catch { return {paired:false, enabled:false}; }
   }
   async function resolve(id, signal) {

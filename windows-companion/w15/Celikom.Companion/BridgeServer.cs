@@ -146,7 +146,7 @@ public sealed class BridgeServer : IAsyncDisposable
         {
             if (!Authorized(ctx)) return Results.Unauthorized();
             return Results.Json(new { enabled = CanResolve,
-                signedIn = _api.IsLoggedIn, transport = "paired" });
+                signedIn = _api.IsLoggedIn, apiOrigin = _api.IsLoggedIn ? _api.Origin : "", transport = "paired" });
         });
 
         app.MapGet("/v1/resolve", async (HttpContext ctx) =>
@@ -164,7 +164,6 @@ public sealed class BridgeServer : IAsyncDisposable
             catch (OperationCanceledException) { return Results.StatusCode(499); }
             catch (ApiFailure) { return Results.Json(new { found = false }); }
             catch (HttpRequestException) { return Results.Json(new { found = false }); }
-            catch (TaskCanceledException) { return Results.Json(new { found = false }); }
         });
 
         app.MapPost("/v1/heartbeat", async (HttpContext ctx) =>
