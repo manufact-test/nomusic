@@ -9,10 +9,40 @@
     "origin": "signed CELIKOM Android Test.61 embedded approved catalogue; not live production DB"
   },
   "tracks": [
-    {"track_id":"17198343","artist":"Сектор Газа","title":"Опять сегодня","source_blob_sha1":"a900564ca1581a1e3686f4cc22a8e6461f302465","source_bytes":5690514},
-    {"track_id":"24442524","artist":"Агата Кристи","title":"Моряк","source_blob_sha1":"430d56493268e927c5fa17531818c15131742c06","source_bytes":8796967},
-    {"track_id":"27323567","artist":"GUF","title":"Ice Baby","source_blob_sha1":"8bed6b5391b3e3272463cec8002187f8c68887b6","source_bytes":10176701},
-    {"track_id":"29851850","artist":"PHARAOH","title":"Black Siemens","source_blob_sha1":"ca26ff6dc980f758af2113aa036b8cc27aced94d","source_bytes":7697180},
-    {"track_id":"32988400","artist":"Найк Борзов","title":"Лошадка","source_blob_sha1":"8154a994903f3a9bba2996e2702877051644c4e6","source_bytes":12299934}
+    {
+      "track_id": "17198343",
+      "artist": "Сектор Газа",
+      "title": "Опять сегодня",
+      "source_blob_sha1": "a900564ca1581a1e3686f4cc22a8e6461f302465",
+      "source_bytes": 5690514
+    },
+    {
+      "track_id": "24442524",
+      "artist": "Агата Кристи",
+      "title": "Моряк",
+      "source_blob_sha1": "430d56493268e927c5fa17531818c15131742c06",
+      "source_bytes": 8796967
+    },
+    {
+      "track_id": "27323567",
+      "artist": "GUF",
+      "title": "Ice Baby",
+      "source_blob_sha1": "8bed6b5391b3e3272463cec8002187f8c68887b6",
+      "source_bytes": 10176701
+    },
+    {
+      "track_id": "29851850",
+      "artist": "PHARAOH",
+      "title": "Black Siemens",
+      "source_blob_sha1": "ca26ff6dc980f758af2113aa036b8cc27aced94d",
+      "source_bytes": 7697180
+    },
+    {
+      "track_id": "25168288",
+      "artist": "ЛСП",
+      "title": "Уровни",
+      "source_blob_sha1": "eef7b5cfbd68d747ee18bd832cd28fda4d5107de",
+      "source_bytes": 9535135
+    }
   ]
 }

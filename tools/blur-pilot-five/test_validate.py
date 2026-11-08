@@ -11,7 +11,7 @@ class PilotTests(unittest.TestCase):
         self.tracks = validate.validate_manifest(self.manifest)
 
     def test_five_pinned_candidates(self):
-        self.assertEqual([t["track_id"] for t in self.tracks], ["17198343", "24442524", "27323567", "29851850", "32988400"])
+        self.assertEqual([t["track_id"] for t in self.tracks], ["17198343", "24442524", "27323567", "29851850", "25168288"])
 
     def test_duplicate_candidate_is_rejected(self):
         bad = copy.deepcopy(self.manifest)
@@ -36,8 +36,8 @@ class PilotTests(unittest.TestCase):
         self.assertEqual(validate.compare_approved_snapshot(self.tracks, snapshot)["exact_duplicates"], ["17198343"])
 
     def test_same_title_new_id_reported(self):
-        snapshot = {"schema": 1, "source": "celikom_owner_catalog_snapshot", "complete": True, "total_tracks": 1, "tracks": [{"track_id": "99", "title": "Лошадка"}]}
-        self.assertEqual(validate.compare_approved_snapshot(self.tracks, snapshot)["same_title_other_id"][0]["candidate_id"], "32988400")
+        snapshot = {"schema": 1, "source": "celikom_owner_catalog_snapshot", "complete": True, "total_tracks": 1, "tracks": [{"track_id": "99", "title": "Уровни"}]}
+        self.assertEqual(validate.compare_approved_snapshot(self.tracks, snapshot)["same_title_other_id"][0]["candidate_id"], "25168288")
 
     def test_incomplete_catalog_rejected(self):
         snapshot = {"schema": 1, "source": "celikom_owner_catalog_snapshot", "complete": False, "total_tracks": 0, "tracks": []}
