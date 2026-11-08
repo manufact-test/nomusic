@@ -58,6 +58,16 @@ public final class TestCatalogueNotification {
   AppPresentation.Input replacing=input(approved,"unique_album_candidate");replacing.identified=true;replacing.replacing=true;
   ok(notice(replacing).contains("Играет версия CELIKOM"),"Actual replacement remains unchanged");
 
+  NotificationState loading=NotificationState.yandexBuffering(false);
+  ok("Яндекс загружает · играет оригинал".equals(loading.text),
+    "BUFFERING with playWhenReady must never be presented as user pause");
+  ok(!loading.suggest&&"CELIKOM".equals(loading.title),
+    "Do not offer submissions on incomplete Yandex source");
+  NotificationState stalled=NotificationState.yandexBuffering(true);
+  ok(stalled.text.contains("не обновляет")&&!stalled.text.contains("Пауза"),
+    "Source stuck in buffering must not claim paused user session");
+  ok(!stalled.title.contains("RASKOL")&&!stalled.text.contains("RASKOL"),
+    "Stale Media3 metadata must not masquerade as currently playing track");
   System.out.println("PASS: catalogue-first notification status with fresh/stale, pending/451 and replacement, checks="+checks);
  }
 }
