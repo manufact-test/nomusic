@@ -220,7 +220,7 @@ try {
       if (play) await nativeAudio.play(); else nativeAudio.pause();
     };
     const status = {}, progress = {};
-    Object.defineProperty(status, "value", { get: () => nativeAudio.paused ? reloadExports.MT.PAUSED : reloadExports.MT.PLAYING });
+    Object.defineProperty(status, "value", { get: () => nativeAudio.paused ? reloadExports.MT.PAUSED : reloadExports.MT.PLAYING, set: () => {} });
     Object.defineProperty(progress, "value", { get: () => ({ position: nativeAudio.currentTime }) });
     Object.defineProperties(nativeCore, {
       state: { value: { status, progress } },

@@ -98,3 +98,74 @@ test("original restore failure retains the URL instead of revoking a playing sou
   await assert.rejects(n.session.configure(false, 2), /controlled-network-error/);
   assert.equal(n.revoked.length, 0); assert.equal(n.session.enabled, false); assert.equal(n.registered.size, 0);
 });
+
+test("isolated controller uses existing downloader and MAIN RPC without a legacy player owner", async () => {
+  const n = sessionFixture();
+  const script = async name => vm.runInContext(await readFile(new URL(name, moduleRoot), "utf8"), engineContext);
+  const originalRegistry = engineContext.__CELIKOM_REPLACEMENT_CONTROLLER_V1__;
+  assert.equal(originalRegistry, undefined);
+  const messages = [], timers = new Set();
+  Object.assign(engineContext, { AbortController, Event, EventTarget, queueMicrotask, setTimeout, clearTimeout,
+    __CELIKOM_NATIVE_SOURCE_RESEARCH__: n.resource,
+    __CELIKOM_PLAYER_CORE_V1__: { CHANNEL: "CELIKOM_PLAYER_V1", PROTOCOL_VERSION: 1 },
+    document: { hidden: false, querySelectorAll: () => [{ __reactFiber$fixture: { memoizedProps: { value: n.controller } } }] },
+    __messages: messages,
+    setInterval: fn => { timers.add(fn); return fn; }
+  });
+  vm.runInContext(`{
+    const listeners = new Map();
+    globalThis.addEventListener = (key, fn) => { if (!listeners.has(key)) listeners.set(key, new Set()); listeners.get(key).add(fn); };
+    globalThis.removeEventListener = (key, fn) => listeners.get(key)?.delete(fn);
+    globalThis.postMessage = data => queueMicrotask(() => {
+      __messages.push(data);
+      for (const fn of listeners.get("message") || []) fn({ source: globalThis, data });
+    });
+  }`, engineContext);
+  await script("../../extension/dist/unpacked/player/replacement-player.js");
+  await script("prefetch-coordinator.js"); await script("desktop-prefetch-adapter.js");
+  const parser = (await readFile(new URL("../../extension/dist/unpacked/upload/mp3-duration.js", moduleRoot), "utf8")).replaceAll("export function ", "function ");
+  vm.runInContext(parser + "\nglobalThis.__CELIKOM_NATIVE_MP3_DURATION__ = mp3DurationMs;", engineContext);
+  await script("native-runtime.js"); await script("native-controller.js");
+  const requests = [];
+  engineContext.fetch = async (url, options) => {
+    requests.push({ url, range: options.headers.Range });
+    const match = /^bytes=(\d+)-(\d+)$/.exec(options.headers.Range);
+    const from = Number(match[1]), end = Math.min(Number(match[2]), bytes.length - 1);
+    return new Response(bytes.subarray(from, end + 1), { status: 206, headers: {
+      "Content-Type": "audio/mpeg", "Content-Range": `bytes ${from}-${end}/${bytes.length}`, ETag: '"fixture-1"'
+    } });
+  };
+  engineContext.__resolve = async id => ({ found: true, url: "https://fixture.example/audio", mimeType: "audio/mpeg", gainDb: 0,
+    replacementId: 1, version: 1, durationMs: 8000, expiresAt: Date.now() + 60000 });
+  vm.runInContext(`
+    globalThis.__testBridge = {
+      sessionId: "fixture-controller-session", isHealthy: () => true,
+      post: (type, payload = {}) => postMessage({ channel: "CELIKOM_PLAYER_V1", protocolVersion: 1, direction: "to-main", sessionId: "fixture-controller-session", type, payload })
+    };
+    __testBridge.post("INIT");
+    globalThis.__testController = new __CELIKOM_REPLACEMENT_CONTROLLER_V1__.ReplacementController(__testBridge, globalThis, { resolveAsset: __resolve });
+  `, engineContext);
+  const controller = engineContext.__testController;
+  await new Promise(resolve => setImmediate(resolve)); controller.configure(true, ""); await controller.control;
+  assert.equal(controller.lastError, null);
+  await controller.poll();
+  assert.equal(controller.phase, "REPLACEMENT_ACTIVE"); assert.equal(controller.activationCount, 1);
+  assert.ok(n.audio.src.startsWith("blob:")); assert.equal(requests.length, 1);
+  assert.ok(messages.some(m => m.type === "publish" && m.payload.blob?.type === "audio/mpeg"));
+  assert.ok(messages.filter(m => m.type === "POLICY_UPDATE").every(m => m.payload.enabled === false));
+  controller.manualRestore(); await controller.control;
+  assert.equal(n.audio.src, "https://fixture.example/original"); assert.equal(controller.operation, null);
+  await controller.poll(); assert.equal(controller.phase, "IDLE");
+  controller.configure(false, ""); await controller.control; controller.destroy();
+});
+test("Next with new metadata waits for the native transition instead of reloading at the old position", async () => {
+  const n = sessionFixture(); await n.session.configure(true, 1); n.publish(); await n.session.activate("1001", 1);
+  n.playback.state.queueState.currentEntity.value = { entity: { data: { meta: { id: "1002", durationMs: 8000 } } } };
+  let reads = 0; n.core.getMediaSource = async () => { reads++; throw Error("must not reload new song"); };
+  const stopped = n.session.configure(false, 2);
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(reads, 0); assert.equal(n.revoked.length, 0);
+  n.audio.src = "https://fixture.example/next"; n.audio.currentSrc = n.audio.src;
+  n.audio.dispatchEvent(new Event("loadedmetadata")); await stopped;
+  assert.equal(n.revoked.length, 1); assert.equal(reads, 0);
+});

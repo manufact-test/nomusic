@@ -29,7 +29,9 @@
       const binding = this.port.binding();
       if (this.owned(binding)) {
         try {
-          await this.port.reload(binding.id);
+          /* Next may expose new metadata while its native source is loading.
+             Never reload that new song using the previous audio's position. */
+          if (this.owned(binding).trackId === binding.id) await this.port.reload(binding.id);
           await this.confirmSource(binding.audio, null, new AbortController().signal);
         }
         catch (error) { this.lastError = "native_original_restore_failed"; throw error; }
