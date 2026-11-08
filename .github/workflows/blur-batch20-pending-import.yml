@@ -37,9 +37,18 @@ jobs:
           download_started="$(date +%s)"
           python3 tools/blur-batch20/download_sources.py "$RUNNER_TEMP/blur-twenty-audio"
           echo "DOWNLOAD_SECONDS=$(( $(date +%s) - download_started ))"
+          rejected=0
           for audio in "$RUNNER_TEMP/blur-twenty-audio/"*.mp3; do
-            php -r 'require "server/bootstrap.php"; $duration=(new Celikom\Application\Mp3Inspector())->durationMs($argv[1]); if($duration===null){fwrite(STDERR,"CELIKOM_MP3_REJECTED\n");exit(1);}' "$audio"
+            id="$(basename "$audio" .mp3)"
+            if php -r 'require "server/bootstrap.php"; $duration=(new Celikom\Application\Mp3Inspector())->durationMs($argv[1]); if($duration===null){exit(1);}' "$audio"; then
+              echo "MP3_ACCEPTED_ID=$id"
+            else
+              echo "MP3_REJECTED_ID=$id"
+              rejected=$((rejected+1))
+            fi
           done
+          echo "MP3_REJECTED_COUNT=$rejected"
+          test "$rejected" -eq 0
           echo 'MP3_INSPECTOR_PASS: 20 of 20'
           test "$(find "$RUNNER_TEMP/blur-twenty-audio" -maxdepth 1 -type f -name '*.mp3' | wc -l)" -eq 20
       - name: Push to private staging, dry-run dedupe and import pending only
