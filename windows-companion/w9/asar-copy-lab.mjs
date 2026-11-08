@@ -35,7 +35,7 @@ const exists = async path => fs.lstat(path).then(() => true, error => {
   throw error;
 });
 const bytes = async path => fs.readFile(path);
-const hash = async path => exists(path) ? SHA(await bytes(path)) : null;
+const hash = async path => (await exists(path)) ? SHA(await bytes(path)) : null;
 const sameSha = value => typeof value === "string" && /^[a-f0-9]{64}$/.test(value);
 const internal = (root, name) => join(root, N[name]);
 
