@@ -2,7 +2,7 @@ name: CELIKOM — Quest Pistols and duplicate-track live DB READ ONLY audit
 on:
   push:
     branches: [feature/library-readonly-quest-audit-20261108]
-    paths: ['.github/workflows/library-quest-readonly-audit-20261108.yml']
+    paths: ['.github/workflows/library-quest-readonly-audit-20261108.yml', 'tools/library-audit/quest-20261108-readonly.php']
   workflow_dispatch:
 permissions:
   contents: read
@@ -40,7 +40,7 @@ jobs:
             u235811320@92.113.19.189 '/opt/alt/php83/usr/bin/php -d display_errors=stderr' < tools/library-audit/quest-20261108-readonly.php > "$RUNNER_TEMP/quest-library-audit.json"
           jq -e '.type=="CELIKOM_QUEST_LIBRARY_AUDIT_READ_ONLY" and .writes==0 and .yandex_unique_track_ids>=1 and (.quest_or_named_source_rows|type)=="array"' "$RUNNER_TEMP/quest-library-audit.json"
           echo '### Quest Pistols + library alias conflicts (read-only)' >> "$GITHUB_STEP_SUMMARY"
-          jq '{checked_at_utc,quest_or_named_source_rows,yandex_unique_track_ids,replacement_rows_inspected,same_track_id_multiple_active,different_track_id_same_normalized_artist_title_groups,different_track_id_same_normalized_artist_title_examples,replacement_vs_source_duration_gt1500ms_count,replacement_vs_source_duration_gt1500ms_examples,writes}' "$RUNNER_TEMP/quest-library-audit.json" >> "$GITHUB_STEP_SUMMARY"
+          jq '{checked_at_utc,quest_or_named_source_rows,yandex_unique_track_ids,replacement_rows_inspected,same_track_id_multiple_active,different_track_id_same_normalized_artist_title_groups,different_track_id_same_normalized_artist_title_examples,catalogue_active_count,quest_id_in_actual_live_catalogue,multiple_replacements_same_track_count,multiple_replacements_same_track,audio_assets_shared_across_different_track_ids_count,audio_assets_shared_across_different_track_ids,duration_outliers_with_status,replacement_vs_source_duration_gt1500ms_count,replacement_vs_source_duration_gt1500ms_examples,writes}' "$RUNNER_TEMP/quest-library-audit.json" >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
