@@ -40,8 +40,16 @@
     }
     inspect() {
       const b = this.binding();
+      const canFence = (object, key) => {
+        if (!object || typeof object[key] !== "function") return false;
+        const descriptor = Object.getOwnPropertyDescriptor(object, key);
+        return descriptor ? descriptor.configurable === true : Object.isExtensible(object);
+      };
       return { controllerFound: Boolean(safe(() => this.getController())), found: Boolean(b), trackId: b?.id || null, durationMs: Number(b?.entity?.data?.meta?.durationMs) || null,
-        pending: Boolean(this.pending), nativeReload: Boolean(b?.core?.reload), encryptedRestoreViaEngine: true };
+        pending: Boolean(this.pending), nativeReload: Boolean(b?.core?.reload), encryptedRestoreViaEngine: Boolean(b?.core?.reload),
+        mediaEvents: typeof b?.audio?.addEventListener === "function" && typeof b?.audio?.removeEventListener === "function",
+        sourceFence: canFence(b?.core, "getMediaSource"), playFence: canFence(b?.core, "corePlay"), setSourceFence: canFence(b?.core?.core, "setSrc"),
+        nativeHooks: typeof b?.core?.hooks?.beforeMediaSourceContentReload?.promise === "function" && typeof b?.core?.hooks?.afterMediaSourceContentReload?.promise === "function" };
     }
     same(binding) {
       const current = this.binding();
