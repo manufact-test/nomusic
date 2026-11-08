@@ -1,4 +1,4 @@
-name: Windows Companion — W6 rollback lab & W5 Electron proof
+name: Windows Companion — W7 external attach experiment & W6 rollback
 
 on:
   workflow_dispatch:
@@ -23,6 +23,8 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: W7 reject any non-fixture debug target
+        run: node --test windows-companion/w7/session-policy.test.mjs
       - name: W6 strict identity gate and crash-safe synthetic rollback
         run: node --test windows-companion/w6/rollback-fixture.test.mjs
       - name: W4 exact-ID native resource adapter contract (synthetic, no Yandex app)
@@ -36,6 +38,9 @@ jobs:
       - name: W5 genuine Yandex public resource classes inside isolated Electron
         working-directory: windows-companion/w5
         run: npm run e2e
+      - name: W7 external sidecar attach inside disposable local Electron (not official Yandex)
+        working-directory: windows-companion/w5
+        run: npm run w7
       - name: Setup .NET 10
         uses: actions/setup-dotnet@v4
         with:

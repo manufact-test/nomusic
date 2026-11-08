@@ -1,6 +1,6 @@
 # CELIKOM Windows Companion — NEXT-CHAT
 
-**Updated 2026-11-08. W3 owner report RECEIVED; W4/W5 isolated CI passed; W6 synthetic recovery 15/15 passed.**
+**Updated 2026-11-08. W3 confirmed by owner; W4/W5/W6 passed isolated CI; W7 external fixture sidecar under test.**
 
 ## Objective
 Official Windows Yandex Music is the ONLY owner of audio, pause, seek, next, queue,
@@ -161,3 +161,16 @@ behavior. Don't claim source substitution without audible owner acceptance.
   without unsafe binary modifications; if no safe supported method exists,
   document the limitation and require explicit owner opt-in for a separately
   verified reversible test. No unapproved access to Yandex account data.
+
+## W7 external sidecar attachment research
+
+Read `docs/windows/W7-EXTERNAL-ATTACH-FIXTURE-20261108.md`.
+The experiment adds `windows-companion/w7/` with exact nonce/URL/path CDP
+gate, a standalone disposable Electron window containing pinned public
+Yandex Webpack factories, a separately spawned Node sidecar using only
+Runtime.enable/Runtime.evaluate, and a test-only dynamic W4 activation
+that exercises one native decoder and Stop/Original. **Production decision
+always denies enabling a DevTools port on the owner's authenticated Yandex.**
+No installed Yandex files were changed; synthetic client only.
+CI result must be confirmed separately; a green W5 does not imply W7 passed.
+No owner ZIP and no repeated W0–W3 scans are needed here.
