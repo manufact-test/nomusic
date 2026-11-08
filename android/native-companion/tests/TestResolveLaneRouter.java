@@ -23,10 +23,15 @@ public final class TestResolveLaneRouter {
    router.submit(false,newCurrent::countDown);
    check(newCurrent.await(1,TimeUnit.SECONDS),"current must NOT wait for in-flight slow next");
    holdNext.countDown();
-   // Rapid Next: stale callbacks are rejected by each task's own generation lease.
+   // Rapid Next: check the existing per-item lease after a deterministic
+   // executor barrier, not a racy thread-scheduling assumption.
    AtomicInteger generation=new AtomicInteger(1),committed=new AtomicInteger();
+   CountDownLatch blocked=new CountDownLatch(1),allowNext=new CountDownLatch(1);
+   router.submit(true,()->{blocked.countDown();try{allowNext.await(2,TimeUnit.SECONDS);}catch(InterruptedException e){Thread.currentThread().interrupt();}});
+   check(blocked.await(1,TimeUnit.SECONDS),"next executor barrier entered");
    router.submit(true,()->{if(generation.get()==1)committed.incrementAndGet();});
    generation.incrementAndGet();
+   allowNext.countDown();
    next.submit(()->{}).get(2,TimeUnit.SECONDS);
    check(committed.get()==0,"stale next must not publish after generation change");
    System.out.println("PASS: current-before-next resolve, independent lanes, stale candidate fence");
