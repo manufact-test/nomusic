@@ -1,0 +1,36 @@
+{
+  "version": 1,
+  "as_of": "2026-11-08",
+  "branch": "feature/blur-batch1000-20261108",
+  "source_count": {
+    "first": "gagayhhad-tech/ym-liberty-db",
+    "fork1": "seuyh/FckCensorDataAdditional",
+    "fork2": "kotzillac/FckCensorData",
+    "fork3": "d1343243423234/FckCensorData",
+    "prior": "Hazzz895/FckCensorData"
+  },
+  "production_writes": 0,
+  "technical_valid_audio_files": 58,
+  "already_in_production": 1,
+  "audio_duplicate_hold": 1,
+  "ready_for_metadata_and_rights_review": 48,
+  "manual_new_issues": 30,
+  "broken_links_404": 18,
+  "invalid_webm": 3,
+  "metadata_issues": 8,
+  "duplicate_audio_ids_for_review": 1,
+  "prior_rejected_138_remain_separate": true,
+  "mirrors_revalidated_identical_bad": 29,
+  "tracks_missing_from_production_total": 78,
+  "rights_confirmed": 0,
+  "all_audio_pending_independent_yandex_id_content_match": true,
+  "audits": {
+    "ym_liberty_live": "https://github.com/manufact-test/nomusic/actions/runs/42520424778",
+    "ym_liberty_head": "https://github.com/manufact-test/nomusic/actions/runs/42520543959",
+    "ym_liberty_audio": "https://github.com/manufact-test/nomusic/actions/runs/42520675747",
+    "forks": "https://github.com/manufact-test/nomusic/actions/runs/42521784617",
+    "oldgap_audio": "https://github.com/manufact-test/nomusic/actions/runs/42522178093",
+    "oldgap_live": "https://github.com/manufact-test/nomusic/actions/runs/42522418056",
+    "hf_mirrors": "https://github.com/manufact-test/nomusic/actions/runs/42521936264"
+  }
+}
