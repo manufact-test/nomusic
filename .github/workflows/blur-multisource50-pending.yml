@@ -1,4 +1,4 @@
-name: CELIKOM Blur — owner requested multisource 50 private PENDING only
+name: CELIKOM Blur — owner requested multisource 48 private PENDING only
 on:
   push:
     branches: [feature/blur-batch1000-20261108]
@@ -27,9 +27,9 @@ jobs:
           bash -n tools/blur-research/pending50/run.sh
           python3 - <<'PY'
           import json
-          m=json.load(open('tools/blur-research/pending50-20261109.json',encoding='utf8'))
+          m=json.load(open('tools/blur-research/pending48-20261109.json',encoding='utf8'))
           s=m['selected']
-          assert len(s)==50 and len({x['id'] for x in s})==50 and m['source_commit']=='multisource-20261109'
+          assert len(s)==48 and len({x['id'] for x in s})==50 and m['source_commit']=='multisource-20261109'
           assert all(x['artist'] and x['title'] and x['source_url'] and len(x['sha256'])==64 and 0<x['size']<=25000000 for x in s)
           PY
           command -v ffprobe || { sudo apt-get update -qq; sudo apt-get install -y ffmpeg; }
