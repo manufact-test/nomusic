@@ -103,3 +103,25 @@ W10 must not be described as working real source replacement.
   `START-CELIKOM-PROBE.cmd` with official app running, return only
   `CELIKOM-Windows-report.txt`. This is read-only and does not
   repeat W3's 1117-file source scan.
+
+## Actual owner report received — 2026-11-08
+
+Owner ran W10 on Windows 10 build 19045 x64, official Yandex Music
+5.126.1.0 and running process. Full packaged ASAR identity matches W3.
+
+- Fuse: \`V1_FOUND\`
+- Embedded ASAR validation: \`ENABLED\`
+- \`OnlyLoadAppFromAsar\`: \`ENABLED\`
+- Windows EXE \`Integrity / ElectronAsar\`: \`PRESENT\`
+- Embedded expected hash vs original ASAR header: \`MATCH\`
+- No installed hook, no file modifications, no credentials examined.
+
+**HARD NO-GO for altering official app.asar alone.** Any change to
+its checked header while the executable still has the same embedded
+expected hash is not compatible with the enabled Electron integrity
+fuse. Changing the signed executable itself is a separate potentially
+unsafe intervention and has not been authorized.
+
+Next work: safer **private debug pipe** transport study in an isolated
+Electron app without any Yandex authenticated session (W11). No more
+W10 reruns requested. No new original Yandex files needed.

@@ -1,6 +1,6 @@
 # CELIKOM Windows Companion — NEXT-CHAT
 
-**Updated 2026-11-08. W3 owner verified; W4–W9 isolated CI verified; W10 built, tested and in Library; owner W10 report pending.**
+**Updated 2026-11-08. W10 REAL OWNER REPORT RECEIVED. Official desktop ASAR integrity enabled and matching; direct ASAR patch NO-GO. W11 isolated private-pipe experiment under test.**
 
 ## Objective
 Official Windows Yandex Music is the ONLY owner of audio, pause, seek, next, queue,
@@ -277,3 +277,38 @@ No owner ZIP and no repeated W0–W3 scans are needed here.
 - Important: an enabled integrity fuse matching resource is a clear
   NO-GO for modifying official ASAR. Fuse disabled / resource absent
   still does NOT prove an approved live plugin interface exists.
+
+## W10 real owner finding — ASAR patch is NOT viable
+
+Official Windows 10 x64, Yandex EXE \`5.126.1.0\`, ASAR
+\`5a259722d60f746ec32c8bf6e880e375e888315080fb18e67c29b54b582c1215\`
+MATCH W3. W10 reports: \`V1_FOUND\`, Embedded ASAR Integrity
+\`ENABLED\`, OnlyLoadAppFromAsar \`ENABLED\`, EXE
+\`ElectronAsar\` resource \`PRESENT\`, resource hash \`MATCH\`.
+Official app currently running; no CELIKOM integration installed.
+**DO NOT patch installed Yandex app.asar**. Modifying EXE resource
+to evade validation compromises signature/update and is NOT approved.
+Never say a synthetic copy boots means actual official signed client
+patch works; both fuses on the actual owner's machine are now confirmed.
+
+## W11 no-port inherited debug pipe experiment
+
+Read \`docs/windows/W11-PRIVATE-PIPE-FEASIBILITY-20261108.md\`.
+The existing W7 fixture supports \`CELIKOM_W11_PIPE_ONLY=YES\`
+plus a random nonce and separate temporary user-data directory.
+It does not create a TCP DevTools port in this CI-only mode.
+\`windows-companion/w11/pipe-protocol.mjs\` provides strict JSON-NUL
+FD3/FD4 CDP framing, allowlisted methods, nonce-bound localhost
+target matching, bounded response sizes/timeouts and fail-closed errors.
+\`windows-companion/w11/run-pipe-e2e.mjs\` must launch isolated
+generic Electron with \`--remote-debugging-pipe\`, then externally
+attach using only inherited pipes and run W7+W8 actual native
+media regression. Any failure must fail CI; NO port fallback allowed.
+No official Yandex app/EXE/ASAR, accounts, or user data accessed.
+**CI outcome not yet confirmed**; do not misrepresent green until
+the actual Windows job finishes and logs show private-pipe PASS.
+
+Following W11, only consider a carefully permissioned non-authenticated
+sandbox experiment on a COPY of an official app with explicit consent
+and without disabling integrity/signature safety. The normal installed
+client remains untouched. Never request another W0-W10 report.

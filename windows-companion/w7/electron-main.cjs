@@ -6,20 +6,28 @@
 "use strict";
 const { app, BrowserWindow, session } = require("electron");
 const { createServer } = require("node:http");
-const { readFile, mkdtemp, rm } = require("node:fs/promises");
+const { readFile, mkdtemp, mkdir, rm } = require("node:fs/promises");
 const { tmpdir } = require("node:os");
 const { join, resolve } = require("node:path");
 const { spawn, spawnSync } = require("node:child_process");
 const { randomBytes, randomInt } = require("node:crypto");
 const ffmpeg = require("../w5/node_modules/ffmpeg-static");
 
-const debugPort = randomInt(19000, 61000);
-const nonce = randomBytes(16).toString("hex");
-app.commandLine.appendSwitch("remote-debugging-port", String(debugPort));
-app.commandLine.appendSwitch("remote-debugging-address", "127.0.0.1");
+const PIPE_FIXTURE =
+  process.env.CELIKOM_W11_PIPE_ONLY === "YES" &&
+  /^[a-f0-9]{32}$/.test(process.env.CELIKOM_W11_NONCE || "");
+const debugPort = PIPE_FIXTURE ? null : randomInt(19000, 61000);
+const nonce = PIPE_FIXTURE ? process.env.CELIKOM_W11_NONCE : randomBytes(16).toString("hex");
+// W11 does not start a TCP debugger; it receives an inherited stdio-only
+// DevTools pipe from the parent test runner (never production Yandex).
+if (!PIPE_FIXTURE) {
+  app.commandLine.appendSwitch("remote-debugging-port", String(debugPort));
+  app.commandLine.appendSwitch("remote-debugging-address", "127.0.0.1");
+}
 app.commandLine.appendSwitch("autoplay-policy", "no-user-gesture-required");
 const media = new Map();
 let tmp, server, win, allowedOrigin;
+let finishedW11 = null;
 
 function respond(res, status, headers, bytes) {
   res.writeHead(status, { "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff", ...headers });
@@ -29,6 +37,12 @@ function respond(res, status, headers, bytes) {
 async function handle(req, res) {
   try {
     const url = new URL(req.url, "http://127.0.0.1");
+    if (PIPE_FIXTURE && url.pathname === "/__w11_done" &&
+        url.searchParams.get("nonce") === nonce && req.method === "POST") {
+      respond(res, 200, {}, "OK");
+      if (finishedW11) finishedW11();
+      return;
+    }
     if (url.pathname === "/" && url.searchParams.get("nonce") === nonce)
       return respond(res, 200, {
         "Content-Type": "text/html; charset=utf-8",
@@ -116,6 +130,11 @@ function externalSidecar(origin) {
 
 async function run() {
   await createAudio();
+  if (PIPE_FIXTURE) {
+    const data = join(tmp, "isolated-profile");
+    await mkdir(data, {recursive:true});
+    app.setPath("userData", data);
+  }
   await readFile(resolve(__dirname,"../w5/out/webpack-fixture.js"));
   server=createServer((req,res)=>{void handle(req,res);});
   await new Promise(resolvePromise=>server.listen(0,"127.0.0.1",resolvePromise));
@@ -132,6 +151,13 @@ async function run() {
       webSecurity:true,backgroundThrottling:false}});
   win.webContents.setWindowOpenHandler(()=>({action:"deny"}));
   await win.loadURL(allowedOrigin+"/?nonce="+nonce);
+  if (PIPE_FIXTURE) {
+    process.stdout.write("W11_FIXTURE_READY=" +
+      JSON.stringify({origin:allowedOrigin,nonce}) + "\n");
+    await new Promise(resolvePromise => { finishedW11 = resolvePromise; });
+    console.log("W11_FIXTURE_DONE");
+    return;
+  }
   const result=await externalSidecar(allowedOrigin);
   console.log(JSON.stringify({
     w7:"PASS", cdpsidecar:"external Node process dynamically activated W4",

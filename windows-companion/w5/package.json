@@ -6,7 +6,8 @@
   "scripts": {
     "e2e": "electron w5-electron-main.cjs",
     "w7": "electron ../w7/electron-main.cjs",
-    "w9": "node ../w9/run-boot-e2e.mjs"
+    "w9": "node ../w9/run-boot-e2e.mjs",
+    "w11": "node ../w11/run-pipe-e2e.mjs"
   },
   "devDependencies": {
     "electron": "44.10.2",
