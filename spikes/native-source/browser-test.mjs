@@ -23,7 +23,7 @@ const files = {
   "/long.mp3": [await readFile(path.join(fixture, "long.mp3")), "audio/mpeg"]
 };
 const requests = [], retries = new Map();
-const server = createServer((request, response) => {
+const server = createServer(async (request, response) => {
   const url = new URL(request.url, "http://127.0.0.1");
   if (url.pathname === "/") {
     response.writeHead(200, { "Content-Type": "text/html; charset=utf-8", "Content-Security-Policy": "default-src 'none'; script-src 'self'; media-src 'self' blob:; connect-src 'self'" });
@@ -38,11 +38,12 @@ const server = createServer((request, response) => {
   if (url.searchParams.get("mode") === "retry" && !retries.has(url.pathname)) {
     retries.set(url.pathname, true); response.writeHead(503); return response.end();
   }
-  const match = /^bytes=(\d+)-(\d+)$/.exec(request.headers.range);
+  const match = /^bytes=(\d+)-(\d*)$/.exec(request.headers.range);
   if (!match) { response.writeHead(416); return response.end(); }
-  const from = Number(match[1]), last = Math.min(Number(match[2]), bytes.length - 1);
+  const from = Number(match[1]), last = match[2] ? Math.min(Number(match[2]), bytes.length - 1) : bytes.length - 1;
   if (from > last) { response.writeHead(416); return response.end(); }
   const body = bytes.subarray(from, last + 1);
+  if (url.searchParams.get("mode") === "slow-tail" && from > 0) await new Promise(resolve => setTimeout(resolve, 1800));
   response.writeHead(206, { "Content-Type": mime, "Content-Length": body.length,
     "Content-Range": `bytes ${url.searchParams.get("mode") === "bad-range" ? from + 1 : from}-${last}/${bytes.length}`,
     ETag: '"' + createHash("sha256").update(bytes).digest("hex") + '-1"' });
@@ -82,10 +83,10 @@ try {
       for (const C of Object.values(req(id))) if (typeof C === "function" && C.prototype?.getFileInfo && C.prototype?.getFileInfoBatch) resources.push(C);
     }
     check(resources.length === 2, "actual v1 and v2 Yandex resource classes hooked");
-    const download = async suffix => {
+    const download = async (suffix, replacementId = 1) => {
       const holder = { environment: window, destroyed: false, fetchAbort: new AbortController(), streamState: {} };
       return window.__CELIKOM_REPLACEMENT_PLAYER_V1__.ReplacementPlayer.prototype.fetchNativeAsset.call(holder,
-        { url: origin + suffix, mimeType: "audio/mpeg", replacementId: 1, version: 1 });
+        { url: origin + suffix, mimeType: "audio/mpeg", replacementId, version: 1 });
     };
     const start = performance.now(), short = await download("/short.mp3?mode=retry"), long = await download("/long.mp3");
     const shortUrl = URL.createObjectURL(short), longUrl = URL.createObjectURL(long);
@@ -148,6 +149,21 @@ try {
     check(restored.transport === "encraw" && restored.key === "fixture-not-a-secret", "disabled hook returns original encrypted descriptor untouched");
     await load({ ...restored, codec: "mp3", transport: "raw" }); await audio.play();
     check(audio.currentSrc.startsWith(origin + "/short.mp3") && !audio.paused, "explicit source reacquisition restores original fixture playback");
+    audio.pause();
+    const baseline = new window.__CELIKOM_REPLACEMENT_PLAYER_V1__.ReplacementPlayer(window, () => {});
+    let clock = performance.now();
+    await baseline.prepare({ url: origin + "/long.mp3?mode=slow-tail", mimeType: "audio/mpeg", durationMs: 360030 });
+    const baselinePreparationMs = Math.round(performance.now() - clock); baseline.destroy();
+    clock = performance.now(); const nativeCold = await download("/long.mp3?mode=slow-tail", 2);
+    const nativeColdUrl = URL.createObjectURL(nativeCold); api.setEnabled(true);
+    api.register("1002", nativeColdUrl, { expiresAt: Date.now() + 60000, bitrate: 128 });
+    await load(await resolve("1002"));
+    const nativeColdPreparationMs = Math.round(performance.now() - clock);
+    clock = performance.now(); await load(await resolve("1002"));
+    const nativeWarmPreparationMs = Math.round(performance.now() - clock);
+    const preparationComparison = { scope: "controlled decoder preparation only, not signed-in end-to-end latency", continuationDelayMs: 1800,
+      baseline073StreamingMs: baselinePreparationMs, nativeColdCompleteFileMs: nativeColdPreparationMs, nativeAlreadyPreparedFileMs: nativeWarmPreparationMs };
+    check(nativeColdPreparationMs >= 1600, "cold complete file honestly waits for delayed continuation");
     api.setEnabled(true);api.register("1001", shortUrl, { expiresAt: Date.now() + 50 }); await new Promise(r => setTimeout(r, 75));
     check((await resolve("1001")).transport === "encraw", "expired asset is never assigned to new request");
     for (const mode of ["denied", "bad-range"]) {
@@ -156,8 +172,8 @@ try {
     }
     const beforeDispose = api.diagnostics(); api.dispose();
     check(api.diagnostics().stopped && api.diagnostics().assets === 0, "dispose restores owned prototype hooks and removes registry");
-    audio.pause(); audio.removeAttribute("src"); audio.load();audio.remove();URL.revokeObjectURL(shortUrl);URL.revokeObjectURL(longUrl);
-    return { checks, beforeDispose, experimentElapsedMs: Math.round(performance.now() - start), limitations: ["controlled resource responses; not a signed-in Yandex listening session", "explicit source reacquisition tested; automatic engine cache invalidation and error restore not implemented", "no measured end-to-end speed advantage"] };
+    audio.pause(); audio.removeAttribute("src"); audio.load();audio.remove();URL.revokeObjectURL(shortUrl);URL.revokeObjectURL(longUrl);URL.revokeObjectURL(nativeColdUrl);
+    return { checks, beforeDispose, preparationComparison, experimentElapsedMs: Math.round(performance.now() - start), limitations: ["controlled resource responses; not a signed-in Yandex listening session", "explicit source reacquisition tested; automatic engine cache invalidation and error restore not implemented", "no measured end-to-end speed advantage"] };
   }, origin);
   let liveProbe;
   const livePage = await context.newPage();
