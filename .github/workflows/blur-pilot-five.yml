@@ -1,0 +1,40 @@
+name: CELIKOM Blur five tracks (isolated media preflight)
+
+on:
+  push:
+    branches: [feature/blur-pilot-five-20261108]
+    paths:
+      - 'tools/blur-pilot-five/**'
+      - '.github/workflows/blur-pilot-five.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: celikom-blur-five-readonly
+  cancel-in-progress: false
+
+jobs:
+  media-preflight:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Offline tests and manifest audit (no production access)
+        run: |
+          python3 -m unittest discover -s tools/blur-pilot-five -p 'test_*.py'
+          python3 tools/blur-pilot-five/validate.py --report "$RUNNER_TEMP/blur-five-metadata.json"
+      - name: Fetch, validate and delete five pinned audio files in isolated runner
+        run: |
+          command -v ffprobe
+          python3 tools/blur-pilot-five/validate.py --audio-check --report "$RUNNER_TEMP/blur-five-audio-audit.json"
+      - name: Publish text-only technical report (no media)
+        if: always()
+        run: |
+          if test -f "$RUNNER_TEMP/blur-five-audio-audit.json"; then
+            echo '### CELIKOM Blur pilot: technical preflight' >> "$GITHUB_STEP_SUMMARY"
+            python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); print("Source blobs verified:",len(d.get("audio_technical_checks",[]))); [print(x["track_id"],x["codec"],str(x["duration_ms"])+"ms") for x in d.get("audio_technical_checks",[])]' "$RUNNER_TEMP/blur-five-audio-audit.json" >> "$GITHUB_STEP_SUMMARY"
+          fi
