@@ -16,9 +16,9 @@ verifier = (ROOT / "verify_test_release.py").read_text(encoding="utf-8")
 assert spec["package"] == "pro.celikom.nativeprobe.test"
 assert spec["stable_package"] == "pro.celikom.nativeprobe"
 assert spec["label"] == "CELIKOM Test"
-assert spec["version"] == "0.3.85-test.62"
-assert spec["version_code"] == 86148
-assert spec["apk_filename"] == "CELIKOM-Android-0.3.85-TEST-62-CONNECT-ALBUM-RECOVERY-SIGNED.apk"
+assert spec["version"] == "0.3.85-test.63"
+assert spec["version_code"] == 86149
+assert spec["apk_filename"] == "CELIKOM-Android-0.3.85-TEST-63-CURRENT-FIRST-PRELOAD-SIGNED.apk"
 # Test.61 must defeat CDN negative caching after the approved-catalogue route is deployed.
 native_api = (ROOT / "addon/src/pro/celikom/nativeprobe/identitydiag/NativeApi.java").read_text(encoding="utf-8")
 assert '"replacement-catalog?refresh="+System.currentTimeMillis()' in native_api
@@ -87,6 +87,8 @@ assert '"assets/catalog-diagnostic.json"' in verifier
 assert 'allowed_asset_updates={"assets/catalog-diagnostic.json"}' in verifier
 assert "SourceActivityPauseFallback" not in service_source
 assert "source_audio_quarantine_started" not in service_source
+# Test.63: identity/current replacement must be serviced before next-track speculative lookup.
+assert service_source.index("albumProbe.publishCurrent();replacement.update(current);") < service_source.index("sampleLookahead(c,item);")
 assert "media3_connect_audio_activity_wakeup" in service_source
 assert "previousMedia==0&&media>0&&controller==null&&connecting==null&&attempts>0" in service_source
 assert "regionRestrictedAlbums.contains(album)" in album_probe
