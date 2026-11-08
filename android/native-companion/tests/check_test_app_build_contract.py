@@ -16,9 +16,9 @@ verifier = (ROOT / "verify_test_release.py").read_text(encoding="utf-8")
 assert spec["package"] == "pro.celikom.nativeprobe.test"
 assert spec["stable_package"] == "pro.celikom.nativeprobe"
 assert spec["label"] == "CELIKOM Test"
-assert spec["version"] == "0.3.85-test.67"
-assert spec["version_code"] == 86153
-assert spec["apk_filename"] == "CELIKOM-Android-0.3.85-TEST-67-HONOR-TUNING-SIGNED.apk"
+assert spec["version"] == "0.3.85-test.68"
+assert spec["version_code"] == 86154
+assert spec["apk_filename"] == "CELIKOM-Android-0.3.85-TEST-68-CURRENT-FIRST-CONTROLS-SIGNED.apk"
 # Test.61 must defeat CDN negative caching after the approved-catalogue route is deployed.
 native_api = (ROOT / "addon/src/pro/celikom/nativeprobe/identitydiag/NativeApi.java").read_text(encoding="utf-8")
 assert '"replacement-catalog?refresh="+System.currentTimeMillis()' in native_api
@@ -133,6 +133,15 @@ assert "resolveLookahead" in native_api and "resolveLanes.submit" in native_api
 assert "api.resolveLookahead" in (ROOT / "addon/src/pro/celikom/nativeprobe/identitydiag/ReplacementEngine.java").read_text(encoding="utf-8")
 assert "TestIdentificationStatus.java" in (ROOT / "tests/run_engine.py").read_text(encoding="utf-8")
 assert "TestCatalogueNotification.java" in (ROOT / "tests/run_engine.py").read_text(encoding="utf-8")
+assert "TestProblemTrackTransport.java" in (ROOT / "tests/run_engine.py").read_text(encoding="utf-8")
+assert "ProblemTrackTransport.java" in (ROOT / "tests/run_engine.py").read_text(encoding="utf-8")
+control_source = (ROOT / "addon/src/pro/celikom/nativeprobe/identitydiag/ProbeService.java").read_text(encoding="utf-8")
+for required in ("problemTransportCommand(Intent intent)", "problemTransportIntent(String action",
+  "problem_transport_command_sent", "problem_transport_command_observed",
+  "controller.isConnected()", "getCurrentMediaItem()", "ProblemTrackTransport.eligible("):
+    assert required in control_source, "Missing safeguarded transport control: "+required
+assert "current_sparse_runway_pending" in (ROOT / "addon/src/pro/celikom/nativeprobe/identitydiag/ReplacementEngine.java").read_text(encoding="utf-8")
+
 assert "publishedOwn=own" in (ROOT / "addon/src/pro/celikom/nativeprobe/identitydiag/AlbumProbe.java").read_text(encoding="utf-8")
 assert "notification_status_published" in (ROOT / "addon/src/pro/celikom/nativeprobe/identitydiag/ProbeService.java").read_text(encoding="utf-8")
 assert "album_region_restricted" in (ROOT / "addon/src/pro/celikom/nativeprobe/identitydiag/PlaybackUi.java").read_text(encoding="utf-8")
