@@ -1,0 +1,76 @@
+name: CELIKOM Blur — 200 static and private storage preflight READ ONLY
+on:
+  push:
+    branches: [feature/blur-batch600-20261108]
+    paths: ['.github/workflows/blur-batch600-preflight.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  preflight:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Check PHP, Python and shell scripts; stable 200 IDs and metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          php -l tools/blur-batch600/live-check.php
+          php -l tools/blur-batch600/verify-pending-files.php
+          php -l tools/blur-batch50/import.php
+          python3 -m py_compile tools/blur-batch600/plan.py tools/blur-batch600/fetch-fixed.py tools/blur-batch50/prepare.py
+          bash -n tools/blur-batch600/run-plan.sh tools/blur-batch600/run-deploy.sh
+          python3 - <<'PY'
+          import json, csv
+          from pathlib import Path
+          pool=json.loads(Path('tools/blur-batch600/candidates.json').read_text())
+          plan=json.loads(Path('tools/blur-batch600/fixed-plan600.json').read_text())
+          src={e['id']:e for e in pool['candidates']}
+          selected=plan['selected']
+          with Path('docs/research/BLUR-REJECTED-CUMULATIVE.csv').open(newline='') as f:
+              reject=list(csv.DictReader(f))
+          rejected={x['track_id'] for x in reject}
+          assert len(rejected)==len(reject)==50
+          assert pool['source_commit']==plan['source_commit']=='10187b7af56f311fe141a3c9b75483798bf0f589'
+          assert pool['target_pending']==plan['target_pending']==200
+          assert plan['fixed_plan'] is True and plan['batch_size']==50
+          assert len(selected)==len({x['id'] for x in selected})==200
+          def key(e): return (' '.join(e['artist'].lower().split()), ' '.join(e['title'].lower().split()))
+          assert len({key(x) for x in selected})==200
+          for x in selected:
+              e=src[x['id']]
+              assert x['id'] not in rejected
+              assert e['size']==x['size'] and e['blob']==x['blob']
+              assert isinstance(x['duration_ms'],int) and x['duration_ms']>=1000
+          assert sum(x['size'] for x in selected)==1223634198
+          print('IMMUTABLE_200_PREFLIGHT_PASS')
+          PY
+      - name: Inspect current production release and free capacity without writes
+        env:
+          HOST_KEY: ${{ secrets.CELIKOM_HOSTINGER_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.CELIKOM_HOSTINGER_KNOWN_HOSTS }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p "$RUNNER_TEMP/private"
+          printf '%s\n' "$HOST_KEY" > "$RUNNER_TEMP/private/key"
+          printf '%s\n' "$KNOWN_HOSTS" > "$RUNNER_TEMP/private/hosts"
+          chmod 600 "$RUNNER_TEMP/private/"*
+          sshargs=(-p 65002 -i "$RUNNER_TEMP/private/key" -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$RUNNER_TEMP/private/hosts")
+          base='/home/u235811320/domains/darkred-camel-588676.hostingersite.com/celikom'
+          host='u235811320@92.113.19.189'
+          release="$(ssh "${sshargs[@]}" "$host" "readlink -f '$base/current'")"
+          [[ "$release" == "$base"/releases/* ]] || exit 2
+          free="$(ssh "${sshargs[@]}" "$host" "df -B1 --output=avail '$base/shared/audio' | tail -1 | tr -d '[:space:]'")"
+          [[ "$free" =~ ^[0-9]+$ ]] || exit 2
+          # Entire 200-set plus largest 50-item transfer plus 100MB contingency.
+          max_batch="$(jq '[.selected | _nwise(50) | map(.size) | add] | max' tools/blur-batch600/fixed-plan600.json)"
+          required="$((1223634198 + max_batch + 100000000))"
+          echo "CAPACITY_BYTES_AVAILABLE=$free"
+          echo "CAPACITY_BYTES_REQUIRED=$required"
+          test "$free" -gt "$required" || { echo 'CAPACITY_PREFLIGHT_INSUFFICIENT'; exit 1; }
+          echo 'PRODUCTION_READONLY_PREFLIGHT_PASS'
