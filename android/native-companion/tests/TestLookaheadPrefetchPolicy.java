@@ -72,6 +72,12 @@ public final class TestLookaheadPrefetchPolicy {
   check(!LookaheadPrefetchPolicy.queuedLookaheadMustYieldToCurrent(true,"cached",2000,2500),
     "complete cached lookahead is not cancelled");
   // HONOR Test.66: early fallback only for young long-track lookahead.
+  check(LookaheadPrefetchPolicy.promotedCurrentWaitMs(true,246810,"downloading",1100)==400L,
+    "Test.45 early download keeps existing 400ms opportunity");
+  check(LookaheadPrefetchPolicy.promotedCurrentWaitMs(true,246810,"downloading",1799)==400L,
+    "youngest in-flight long transfers preserve baseline");
+  check(LookaheadPrefetchPolicy.promotedCurrentWaitMs(true,246810,"downloading",1800)==200L,
+    "bounded age window starts after original Test.45 case");
   check(LookaheadPrefetchPolicy.promotedCurrentWaitMs(true,246810,"downloading",2300)==200L,
     "young long-track full download yields earlier to current verified sparse");
   check(LookaheadPrefetchPolicy.promotedCurrentWaitMs(true,242000,"downloading",3300)==400L,
