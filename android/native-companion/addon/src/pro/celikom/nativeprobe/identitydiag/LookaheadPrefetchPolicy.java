@@ -30,9 +30,17 @@ final class LookaheadPrefetchPolicy {
  }
  static long promotedCurrentWaitMs(boolean progressive,long durationMs,String phase,long prefetchAgeMs){
   long baseline=promotedCurrentWaitMs(progressive,durationMs,phase);
-  return baseline==LONG_TRACK_CURRENT_WAIT_MS&&prefetchAgeMs>=EARLY_LONG_TRACK_PREFETCH_MIN_AGE_MS
-    &&prefetchAgeMs<EARLY_LONG_TRACK_PREFETCH_AGE_MS
-    ?EARLY_LONG_TRACK_CURRENT_WAIT_MS:baseline;
+  if(baseline==LONG_TRACK_CURRENT_WAIT_MS&&prefetchAgeMs>=EARLY_LONG_TRACK_PREFETCH_MIN_AGE_MS
+    &&prefetchAgeMs<EARLY_LONG_TRACK_PREFETCH_AGE_MS)return EARLY_LONG_TRACK_CURRENT_WAIT_MS;
+  // HONOR Test.72: GUF "Скажи" (213610ms) spent 1200ms in a still-downloading
+  // speculative full-file handoff at prefetch age 2983ms, then fell back to
+  // verified sparse stream anyway. Only mid-length 3–4 minute unfinished
+  // transfers in this observed age window yield after 400ms. Preserve the
+  // quick 2:17 KEER "ПОЛВТОРОГО" handoff, which completed in 279ms.
+  if(progressive&&baseline==1200L&&"downloading".equals(phase)
+    &&durationMs>=180000L&&durationMs<LONG_TRACK_MS
+    &&prefetchAgeMs>=2800L&&prefetchAgeMs<5000L)return 400L;
+  return baseline;
  }
  static final int STABLE_METADATA_SAMPLES=2;
  static boolean metadataComplete(String alias,String title,String artist,String albumId,long durationMs,boolean placeholder){
