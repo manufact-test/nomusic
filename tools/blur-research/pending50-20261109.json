@@ -1,0 +1,460 @@
+{
+  "schema": 2,
+  "purpose": "owner-requested private pending review; no approval; rights unverified",
+  "source_commit": "multisource-20261109",
+  "fixed_plan": true,
+  "batch_size": 50,
+  "target_pending": 50,
+  "selected": [
+    {
+      "id": "27317249",
+      "artist": "Гуф",
+      "title": "Ballada",
+      "size": 8403132,
+      "duration_ms": 207726,
+      "sha256": "c27d1d836c3e5e0385a7f1d2222079c0fb41562e8d10a7a47414887ca48be6ca",
+      "source_url": "https://huggingface.co/datasets/naloz/YMliberty/resolve/main/tracks/27317249.mp3"
+    },
+    {
+      "id": "27323572",
+      "artist": "Гуф/ MARK",
+      "title": "Kalpak (feat. Mark)",
+      "size": 5926462,
+      "duration_ms": 145058,
+      "sha256": "5f0394bc25d87c037dddcb5ad44a50eb95c0779632ceae51024604f58d8dd7ec",
+      "source_url": "https://huggingface.co/datasets/naloz/YMliberty/resolve/main/tracks/27323572.mp3"
+    },
+    {
+      "id": "33790386",
+      "artist": "9 грамм",
+      "title": "Плановая",
+      "size": 9551324,
+      "duration_ms": 236042,
+      "sha256": "3ff41b480acd339fdc880c1e859b81b04aa4a3ccccf9a9cb057608694e72b3fc",
+      "source_url": "https://huggingface.co/datasets/naloz/YMliberty/resolve/main/tracks/33790386.mp3"
+    },
+    {
+      "id": "36063264",
+      "artist": "PHARAOH",
+      "title": "Дико, например",
+      "size": 6808996,
+      "duration_ms": 168049,
+      "sha256": "63d38db695fb90ed5600da08854257a521a8b6a41c948dc104017b343be9c14c",
+      "source_url": "https://raw.githubusercontent.com/Hazzz895/FckCensorData/10187b7af56f311fe141a3c9b75483798bf0f589/tracks/36063264"
+    },
+    {
+      "id": "38559822",
+      "artist": "GONE.Fludd, Lottery Billz, GONE.Fludd & Lottery Billz",
+      "title": "Wacky-Backy",
+      "size": 10707510,
+      "duration_ms": 265512,
+      "sha256": "ee9f5c9c41a2f635ed8bb898489a643402cd155822de7f8896626ae340046d21",
+      "source_url": "https://raw.githubusercontent.com/Hazzz895/FckCensorData/10187b7af56f311fe141a3c9b75483798bf0f589/tracks/38559822"
+    },
+    {
+      "id": "40498609",
+      "artist": "GONE.Fludd",
+      "title": "SERIAL CHILLER",
+      "size": 9432735,
+      "duration_ms": 233642,
+      "sha256": "06458e2a840d341b04e1e102b7accb1487768d2f7c1c8f8272883cf73a3b19ff",
+      "source_url": "https://raw.githubusercontent.com/Hazzz895/FckCensorData/10187b7af56f311fe141a3c9b75483798bf0f589/tracks/40498609"
+    },
+    {
+      "id": "40498611",
+      "artist": "GONE.Fludd",
+      "title": "СКВАД",
+      "size": 4240637,
+      "duration_ms": 173067,
+      "sha256": "e8663fe2d329dfb1c933a0df032f9726f53e1b8391e257e6cd40b8c1877ca039",
+      "source_url": "https://raw.githubusercontent.com/Hazzz895/FckCensorData/10187b7af56f311fe141a3c9b75483798bf0f589/tracks/40498611"
+    },
+    {
+      "id": "41570482",
+      "artist": "Платина",
+      "title": "Бандана",
+      "size": 5051088,
+      "duration_ms": 122044,
+      "sha256": "a5522c3b221ff0af88e6db24c1a8c2312a21ec33c12f8540de8de9c1ac6e5523",
+      "source_url": "https://raw.githubusercontent.com/Hazzz895/FckCensorData/10187b7af56f311fe141a3c9b75483798bf0f589/tracks/41570482"
+    },
+    {
+      "id": "57340475",
+      "artist": "гнилаялирика",
+      "title": "Кодеиновый рай",
+      "size": 7982020,
+      "duration_ms": 199448,
+      "sha256": "db83f896b567352caacdfb41b989e6fd5521891b4d76074e9db5c0259c4a7943",
+      "source_url": "https://raw.githubusercontent.com/Hazzz895/FckCensorData/10187b7af56f311fe141a3c9b75483798bf0f589/tracks/57340475"
+    },
+    {
+      "id": "63607785",
+      "artist": "4К, Лакоста, Kima",
+      "title": "Навали-ка",
+      "size": 13009986,
+      "duration_ms": 323814,
+      "sha256": "8731505e59fbe65fda3262fb5da64604030dfe8a3912826bf69103733cfd45de",
+      "source_url": "https://huggingface.co/datasets/naloz/YMliberty/resolve/main/tracks/63607785.mp3"
+    },
+    {
+      "id": "67570047",
+      "artist": "почтисчастье",
+      "title": "Не верю (Sefon.Pro)",
+      "size": 4422132,
+      "duration_ms": 184059,
+      "sha256": "cc592d4dfa52799bdccdfce092e57767ddf38446e9bc1543a36d25ae8ff85824",
+      "source_url": "https://raw.githubusercontent.com/seuyh/FckCensorDataAdditional/main/tracks/67570047"
+    },
+    {
+      "id": "78803018",
+      "artist": "Каникулы Бонифация",
+      "title": "Тили-бом",
+      "size": 8779022,
+      "duration_ms": 218044,
+      "sha256": "590f90d52a9481878c14ae4c55c65b3b0d250de89cca02fca49d4a699e171acc",
+      "source_url": "https://huggingface.co/datasets/naloz/YMliberty/resolve/main/tracks/78803018.mp3"
+    },
+    {
+      "id": "81874002",
+      "artist": "Yanix",
+      "title": "Boy",
+      "size": 7471104,
+      "duration_ms": 186726,
+      "sha256": "361d3c6ecd95ee80e05edcb050fdee6a5523b363baa4f238ed20bbea646e6ef1",
+      "source_url": "https://raw.githubusercontent.com/Hazzz895/FckCensorData/10187b7af56f311fe141a3c9b75483798bf0f589/tracks/81874002"
+    },
+    {
+      "id": "101389541",
+      "artist": "163ONMYNECK",
+      "title": "ВЫКЛЮЧАТЕЛЬ",
+      "size": 3881213,
+      "duration_ms": 94880,
+      "sha256": "c5e80bc7eee1e65baf3bc92998557c156444a11380c12542fbb4f11ce184ad48",
+      "source_url": "https://raw.githubusercontent.com/Hazzz895/FckCensorData/10187b7af56f311fe141a3c9b75483798bf0f589/tracks/101389541"
+    },
+    {
+      "id": "103080185",
+      "artist": "CUPREOUS",
+      "title": "Nicotine",
+      "size": 6128115,
+      "duration_ms": 149264,
+      "sha256": "9637e307bd79fdbf3927dfb5ecbcf8222ff673ffae14783b35a724cff0461a13",
+      "source_url": "https://raw.githubusercontent.com/Hazzz895/FckCensorData/10187b7af56f311fe141a3c9b75483798bf0f589/tracks/103080185"
+    },
+    {
+      "id": "106844308",
+      "artist": "Роки",
+      "title": "Чтобы девочки плакали",
+      "size": 6146927,
+      "duration_ms": 153234,
+      "sha256": "f30708a34c8fbd4b16711f8a4e38ed333d5e58839277f2f48a5addedb1992e01",
+      "source_url": "https://raw.githubusercontent.com/seuyh/FckCensorDataAdditional/main/tracks/106844308"
+    },
+    {
+      "id": "107482028",
+      "artist": "Джизус [drivemusic.me]",
+      "title": "Твои Глаза",
+      "size": 3798456,
+      "duration_ms": 158067,
+      "sha256": "4f22829e1ae1af893094ad4c2f996adcad7e9a4d230a90bcf308fa760d1d94d8",
+      "source_url": "https://raw.githubusercontent.com/seuyh/FckCensorDataAdditional/main/tracks/107482028"
+    },
+    {
+      "id": "107827233",
+      "artist": "курящих нет",
+      "title": "Очнись (Sefon.Pro)",
+      "size": 3779520,
+      "duration_ms": 157283,
+      "sha256": "629ab7fd77f521831d4deb34c181107ed7b81437f2d72fb98b408d830e538a80",
+      "source_url": "https://raw.githubusercontent.com/seuyh/FckCensorDataAdditional/main/tracks/107827233"
+    },
+    {
+      "id": "109051383",
+      "artist": "SODA LUV",
+      "title": "REFERENCE БОЛЬШОЙ ШАГАТЕЛЬ",
+      "size": 6882138,
+      "duration_ms": 169848,
+      "sha256": "359c18a2e2964d3f415b3608cae5da2a29226f1c0b2b66e682fbd97349ba1733",
+      "source_url": "https://raw.githubusercontent.com/Hazzz895/FckCensorData/10187b7af56f311fe141a3c9b75483798bf0f589/tracks/109051383"
+    },
+    {
+      "id": "109332240",
+      "artist": "Heronwater",
+      "title": "В миноре",
+      "size": 6846632,
+      "duration_ms": 168986,
+      "sha256": "609290c965b4fcf6c3f0942453e239834d18a8a051cbe3ed43fec83d0710937c",
+      "source_url": "https://raw.githubusercontent.com/Hazzz895/FckCensorData/10187b7af56f311fe141a3c9b75483798bf0f589/tracks/109332240"
+    },
+    {
+      "id": "109647067",
+      "artist": "f0lk",
+      "title": "Пикассо (Sefon.Pro)",
+      "size": 3662282,
+      "duration_ms": 152398,
+      "sha256": "23168d054566ad8fc5ab920f717209cf709c00b5ab2f15bfbb0992a5906534a0",
+      "source_url": "https://raw.githubusercontent.com/seuyh/FckCensorDataAdditional/main/tracks/109647067"
+    },
+    {
+      "id": "111888125",
+      "artist": "f0lk",
+      "title": "крутятся",
+      "size": 6230885,
+      "duration_ms": 155745,
+      "sha256": "2f02a097616f635869c27c0c04c1a6e235da8cf133bbbcc6b65d556d3228c18f",
+      "source_url": "https://raw.githubusercontent.com/seuyh/FckCensorDataAdditional/main/tracks/111888125"
+    },
+    {
+      "id": "112132165",
+      "artist": "ЩЕНКИ",
+      "title": "Похмелье и несчастная любовь",
+      "size": 8209327,
+      "duration_ms": 204542,
+      "sha256": "256f24e98e6efaeffbb7db160524b3832ae3d32db74fb82148b2e31731384b73",
+      "source_url": "https://raw.githubusercontent.com/Hazzz895/FckCensorData/10187b7af56f311fe141a3c9b75483798bf0f589/tracks/112132165"
+    },
+    {
+      "id": "112873872",
+      "artist": "LUFNAEL",
+      "title": "Выродок трапа",
+      "size": 6622683,
+      "duration_ms": 162534,
+      "sha256": "392f0be27eaf8a3e4aa97da98f62fa21c7a19bd7e8b062c735a6403912e27f5c",
+      "source_url": "https://raw.githubusercontent.com/seuyh/FckCensorDataAdditional/main/tracks/112873872"
+    },
+    {
+      "id": "113140426",
+      "artist": "OG Buda/Гуф",
+      "title": "1709",
+      "size": 9569179,
+      "duration_ms": 237349,
+      "sha256": "4bd40e81abf7f880b84891311535e6316c81d92c7042f53f86a68d27493bd11d",
+      "source_url": "https://huggingface.co/datasets/naloz/YMliberty/resolve/main/tracks/113140426.mp3"
+    },
+    {
+      "id": "113714170",
+      "artist": "Смоки Мо/ Гуф",
+      "title": "Coco Chanel",
+      "size": 10010950,
+      "duration_ms": 244349,
+      "sha256": "8052eaf4826c74fac18b5bb68112caf097d173e4abbcea418e8d185f82bb0de3",
+      "source_url": "https://huggingface.co/datasets/naloz/YMliberty/resolve/main/tracks/113714170.mp3"
+    },
+    {
+      "id": "125243454",
+      "artist": "STED.D",
+      "title": "Жестко (Breakbeat Remix)",
+      "size": 5728677,
+      "duration_ms": 142263,
+      "sha256": "62ec3e2a6b1f7e64ba9af4248bb439bec5d6aeba6fe8ea3f061e9335bedbabd8",
+      "source_url": "https://raw.githubusercontent.com/Hazzz895/FckCensorData/10187b7af56f311fe141a3c9b75483798bf0f589/tracks/125243454"
+    },
+    {
+      "id": "125714579",
+      "artist": "cqthqrsis feat. madk1d",
+      "title": "Жоский",
+      "size": 3717790,
+      "duration_ms": 92813,
+      "sha256": "060a93a077bc902240a2aff3541e78400566a4dbb54745509b754868406b1f5b",
+      "source_url": "https://raw.githubusercontent.com/Hazzz895/FckCensorData/10187b7af56f311fe141a3c9b75483798bf0f589/tracks/125714579"
+    },
+    {
+      "id": "126054904",
+      "artist": "SLIMUS",
+      "title": "Эмбраер",
+      "size": 7024956,
+      "duration_ms": 174318,
+      "sha256": "7bc78bae1507fba256ece290482beea4303ee9caf6a90390dbbb45210b9845ab",
+      "source_url": "https://raw.githubusercontent.com/Hazzz895/FckCensorData/10187b7af56f311fe141a3c9b75483798bf0f589/tracks/126054904"
+    },
+    {
+      "id": "130966246",
+      "artist": "2hug",
+      "title": "Время",
+      "size": 5932076,
+      "duration_ms": 143047,
+      "sha256": "2c9a9329e7d5927a6eb9f6f7153781fdbd5bc8a227352b85f8d33783a04611e7",
+      "source_url": "https://huggingface.co/datasets/naloz/YMliberty/resolve/main/tracks/130966246.mp3"
+    },
+    {
+      "id": "131240179",
+      "artist": "нэнси холод",
+      "title": "Тату",
+      "size": 4113930,
+      "duration_ms": 102792,
+      "sha256": "8faa5b3e08386ccc62fc4aa0531ff7781e63ed0bf8241491f1d23a227e931a22",
+      "source_url": "https://raw.githubusercontent.com/seuyh/FckCensorDataAdditional/main/tracks/131240179"
+    },
+    {
+      "id": "132521805",
+      "artist": "паранойя",
+      "title": "домокун <3 (kleff & bangwhippa) [на всех площадках]",
+      "size": 1577610,
+      "duration_ms": 81110,
+      "sha256": "fc62d8df2e1a313e2bd5d1e2fefb9211ce6cdcb2df57a70163ee52c1aef05928",
+      "source_url": "https://raw.githubusercontent.com/d1343243423234/FckCensorData/main/tracks/132521805"
+    },
+    {
+      "id": "132720741",
+      "artist": "Heronwater",
+      "title": "Сваровски",
+      "size": 6462529,
+      "duration_ms": 161205,
+      "sha256": "14a6f1f77a3c17e88a766d0d3f12fd234fb6fba8718581f06b37d5ad5b4543a5",
+      "source_url": "https://raw.githubusercontent.com/Hazzz895/FckCensorData/10187b7af56f311fe141a3c9b75483798bf0f589/tracks/132720741"
+    },
+    {
+      "id": "146122668",
+      "artist": "урал гайсин, снялцепи",
+      "title": "ты в моих мыслях навсегда",
+      "size": 4933522,
+      "duration_ms": 117760,
+      "sha256": "008d4d036dacb7da35abd922c44de377dbcc19be830da928fd38e3221d41ea30",
+      "source_url": "https://huggingface.co/datasets/naloz/YMliberty/resolve/main/tracks/146122668.mp3"
+    },
+    {
+      "id": "148715960",
+      "artist": "Платина",
+      "title": "Гоблин",
+      "size": 5450106,
+      "duration_ms": 135997,
+      "sha256": "cd76f3287074a8813ddca32e78c56077a2237baf45506666be9400035edee79b",
+      "source_url": "https://raw.githubusercontent.com/Hazzz895/FckCensorData/10187b7af56f311fe141a3c9b75483798bf0f589/tracks/148715960"
+    },
+    {
+      "id": "148716091",
+      "artist": "Платина",
+      "title": "Время на веселье",
+      "size": 5657053,
+      "duration_ms": 139624,
+      "sha256": "86b35ab04022f51f8f01c36e6980c47441a8514d5cfab7483dadf2d78e74e77e",
+      "source_url": "https://raw.githubusercontent.com/Hazzz895/FckCensorData/10187b7af56f311fe141a3c9b75483798bf0f589/tracks/148716091"
+    },
+    {
+      "id": "148716101",
+      "artist": "Платина",
+      "title": "У меня свег, у меня стиль",
+      "size": 4315347,
+      "duration_ms": 107628,
+      "sha256": "57a2711e404a1227bbd094ec3c0815aabed495c46caf9589dcc06c0c4061d04a",
+      "source_url": "https://raw.githubusercontent.com/Hazzz895/FckCensorData/10187b7af56f311fe141a3c9b75483798bf0f589/tracks/148716101"
+    },
+    {
+      "id": "148716121",
+      "artist": "Платина",
+      "title": "Бритни Спирс",
+      "size": 6558219,
+      "duration_ms": 162508,
+      "sha256": "1d4d495d0a4804e87640ec6e065d2e75a6e3791fcfad0efa66935f2d8e201b3d",
+      "source_url": "https://huggingface.co/datasets/naloz/YMliberty/resolve/main/tracks/148716121.mp3"
+    },
+    {
+      "id": "148716132",
+      "artist": "Платина",
+      "title": "Завидуют",
+      "size": 5822090,
+      "duration_ms": 145296,
+      "sha256": "ea665f4a11a9a69be414db4eaf2f12f5d2bbd1a94c0d13e89ac1ea9b37e20619",
+      "source_url": "https://raw.githubusercontent.com/Hazzz895/FckCensorData/10187b7af56f311fe141a3c9b75483798bf0f589/tracks/148716132"
+    },
+    {
+      "id": "148716140",
+      "artist": "Платина",
+      "title": "Один дома",
+      "size": 4779282,
+      "duration_ms": 119226,
+      "sha256": "ca6b6be25e6cba6968896b8ddb44dd3910ae715b2f8b72dce941c28934c2b290",
+      "source_url": "https://raw.githubusercontent.com/Hazzz895/FckCensorData/10187b7af56f311fe141a3c9b75483798bf0f589/tracks/148716140"
+    },
+    {
+      "id": "148716901",
+      "artist": "Платина",
+      "title": "На грязном (Диана)",
+      "size": 5134046,
+      "duration_ms": 126201,
+      "sha256": "b05e74ea601fb9af26971d711dded1c3fb11c6ee3af198dba493b85cb3ba73f9",
+      "source_url": "https://raw.githubusercontent.com/Hazzz895/FckCensorData/10187b7af56f311fe141a3c9b75483798bf0f589/tracks/148716901"
+    },
+    {
+      "id": "148716938",
+      "artist": "Платина",
+      "title": "Иней!",
+      "size": 7143076,
+      "duration_ms": 174289,
+      "sha256": "17575f8be6e548a5203ea7b40e4f22c9f7f4c4fe55a3f3484d084df7daae9ca0",
+      "source_url": "https://raw.githubusercontent.com/Hazzz895/FckCensorData/10187b7af56f311fe141a3c9b75483798bf0f589/tracks/148716938"
+    },
+    {
+      "id": "148717002",
+      "artist": "Платина, Big Baby Tape",
+      "title": "Веном",
+      "size": 7158013,
+      "duration_ms": 176800,
+      "sha256": "d87da4c1841876b45d10c9693c2c50ecc0f8fa4281f99c03a0bd89c24a6c5f00",
+      "source_url": "https://raw.githubusercontent.com/Hazzz895/FckCensorData/10187b7af56f311fe141a3c9b75483798bf0f589/tracks/148717002"
+    },
+    {
+      "id": "148825093",
+      "artist": "PLOHOYPAREN",
+      "title": "Таблетка",
+      "size": 3679548,
+      "duration_ms": 89838,
+      "sha256": "f50a0cd62d69527d5a6513d6845d06316379b65606c0e23d42423dc27195418a",
+      "source_url": "https://raw.githubusercontent.com/Hazzz895/FckCensorData/10187b7af56f311fe141a3c9b75483798bf0f589/tracks/148825093"
+    },
+    {
+      "id": "149665384",
+      "artist": "ЩЕНКИ",
+      "title": "Грязь",
+      "size": 7642846,
+      "duration_ms": 188921,
+      "sha256": "883d9601347043fa4642ec7fce5184752d8be4560805c6f7ab4a0fd6c5ea22d1",
+      "source_url": "https://raw.githubusercontent.com/Hazzz895/FckCensorData/10187b7af56f311fe141a3c9b75483798bf0f589/tracks/149665384"
+    },
+    {
+      "id": "152973936",
+      "artist": "Rocket",
+      "title": "Monday",
+      "size": 6860847,
+      "duration_ms": 168934,
+      "sha256": "f685d58f6e7601709dc3f53ac57b5fa4d0dfeb5f58884bc37946fcadbb234738",
+      "source_url": "https://huggingface.co/datasets/naloz/YMliberty/resolve/main/tracks/152973936.mp3"
+    },
+    {
+      "id": "153116884",
+      "artist": "Rocket",
+      "title": "Инкассатор",
+      "size": 6757981,
+      "duration_ms": 165407,
+      "sha256": "da3a467b0280a802ba919b38b87f48e1ca353d9fe8a7fb458e4f6330c6068e0f",
+      "source_url": "https://huggingface.co/datasets/naloz/YMliberty/resolve/main/tracks/153116884.mp3"
+    },
+    {
+      "id": "155807913",
+      "artist": "CUPSIZE",
+      "title": "семнадцать ножевых",
+      "size": 5842396,
+      "duration_ms": 144248,
+      "sha256": "38db50657f4ac47668eb9cf43a230183455033d812ce0519e90f5a01e3c2d764",
+      "source_url": "https://huggingface.co/datasets/naloz/YMliberty/resolve/main/tracks/155807913.mp3"
+    },
+    {
+      "id": "39580348",
+      "artist": "Овсянкин feat. Вертушка Газманова",
+      "title": "Тебя прёт габба",
+      "size": 8831610,
+      "duration_ms": 220656,
+      "sha256": "4ae0d6d6c857a8112b037ea740cd30ebdc9789b991ea13b655287edebcc2cefa",
+      "source_url": "https://raw.githubusercontent.com/Hazzz895/FckCensorData/10187b7af56f311fe141a3c9b75483798bf0f589/tracks/39580348"
+    },
+    {
+      "id": "136404135",
+      "artist": "ПОШЛАЯ МОЛЛИ",
+      "title": "Школа Не Нужна",
+      "size": 3772370,
+      "duration_ms": 94276,
+      "sha256": "bd4aa3081fd914cf577dfd2c9b6d38a0798391cf9ec9acd549775cf6287ad5e2",
+      "source_url": "https://raw.githubusercontent.com/Hazzz895/FckCensorData/10187b7af56f311fe141a3c9b75483798bf0f589/tracks/136404135"
+    }
+  ]
+}
