@@ -575,7 +575,7 @@ final class ReplacementEngine {
   lookaheadPrefetchAlias=alias;lookaheadPrefetchTrackId=id;lookaheadPrefetchAccount=account;lookaheadPrefetchStartedAt=start;lookaheadPrefetchPhase="resolving";
   lookaheadPrefetchResolvedAudioKey=null;lookaheadPrefetchCurrentDescriptor=null;lookaheadPrefetchPromoted=false;lookaheadPrefetchWait=false;
   LogStore.log("replacement_lookahead_prefetch_start",LogStore.map("mediaAlias",alias,"trackId",id,"sourceDurationMs",duration,"remainingMs",remaining,"sourceItemGeneration",owner.sourceItemGeneration,"sourceEventSequence",owner.sourceEventSequence,"audioCommandSent",false));
-  api.resolve(id,()->lookaheadPrefetchCurrent(token,account,alias,id),(j,error)->{
+  api.resolveLookahead(id,()->lookaheadPrefetchCurrent(token,account,alias,id),(j,error)->{
    if(!lookaheadPrefetchCurrent(token,account,alias,id)){LogStore.log("replacement_lookahead_prefetch_stale",LogStore.map("mediaAlias",alias,"stage","resolve"));return;}
    if(error!=null){lookaheadPrefetchPhase="failed";LogStore.log("replacement_lookahead_prefetch_failure",LogStore.map("mediaAlias",alias,"stage","resolve","errorCode",error));fallbackPromotedLookaheadPrefetch("resolve_failed");return;}
    if(j==null||!j.optBoolean("found",false)){lookaheadPrefetchPhase="not_found";LogStore.log("replacement_lookahead_prefetch_not_found",LogStore.map("mediaAlias",alias,"trackId",id));fallbackPromotedLookaheadPrefetch("not_found");return;}
