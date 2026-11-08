@@ -1,4 +1,4 @@
-name: CELIKOM Blur — owner requested multisource 48 private PENDING only
+name: CELIKOM Blur — strict 48 verified sources private PENDING only
 on:
   push:
     branches: [feature/blur-batch1000-20261108]
