@@ -68,3 +68,11 @@ Read `docs/windows/W3-SOURCE-SEAM-READONLY-20261108.md` and CI result.
 ## Reporting
 Russian, concise. Distinguish CI fixture success from real user Windows
 behavior. Don't claim source substitution without audible owner acceptance.
+
+## Verified W3 build / delivery
+- Source commit: `3b91d8fec9df1402447075c08ca4352ba163704d`.
+- [CI run 42507700601](https://github.com/manufact-test/nomusic/actions/runs/42507700601): **SUCCESS** (.NET build, synthetic checks, native Win x64 publish, ZIP artifact).
+- Artifact ID `13628595552`; ZIP `CELIKOM-Windows-Probe-W3.zip`.
+- ZIP SHA-256 `4fbbe806a859a091ceac376ff9932eec9f87610b37b1b7eb819ead632f7b350b`; archive CRC checked; contains one EXE and `START-CELIKOM-PROBE.cmd`.
+- ChatGPT Library: `/CELIKOM/Windows/Test/CELIKOM-Windows-Probe-W3.zip`, library ID `libfile_13cdbbfeb5588191b1ba18859aadba26`.
+- Real owner W3 run: **PENDING**. CI validates only synthetic fixtures, not official Yandex source substitution.
