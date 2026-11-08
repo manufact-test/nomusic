@@ -16,9 +16,9 @@ verifier = (ROOT / "verify_test_release.py").read_text(encoding="utf-8")
 assert spec["package"] == "pro.celikom.nativeprobe.test"
 assert spec["stable_package"] == "pro.celikom.nativeprobe"
 assert spec["label"] == "CELIKOM Test"
-assert spec["version"] == "0.3.85-test.74"
-assert spec["version_code"] == 86160
-assert spec["apk_filename"] == "CELIKOM-Android-0.3.85-TEST-74-MEDIASESSION-WITNESS-SIGNED.apk"
+assert spec["version"] == "0.3.85-test.75"
+assert spec["version_code"] == 86161
+assert spec["apk_filename"] == "CELIKOM-Android-0.3.85-TEST-75-OPTIN-NATIVE-PAUSE-SEEK-SIGNED.apk"
 
 # Test.72 starts from Test.70, excluding the rejected Test.71 MediaBrowser retry.
 # No notification controls or remote commands are allowed to re-enter this branch.
@@ -32,15 +32,29 @@ assert "SourceSnapshotConsistency" in probe and "source_snapshot_mixed_identity"
 witness=(ROOT / "addon/src/pro/celikom/nativeprobe/identitydiag/YandexSessionWitnessService.java").read_text(encoding="utf-8")
 assert "extends NotificationListenerService" in witness
 assert 'Objects.equals(c.getPackageName(),LogStore.PKG)' in witness
-assert 'YandexSessionWitnessService.sample(c,current);' in probe
-assert probe.index("YandexSessionWitnessService.sample(c,current);") > probe.index("albumProbe.publishCurrent();replacement.update(current);")
+assert 'YandexSessionWitnessService.sample(c,rawMedia3);' in probe
+assert probe.index("YandexSessionWitnessService.sample(c,rawMedia3);") > probe.index("albumProbe.publishCurrent();replacement.update(current);")
+assert 'YandexSessionWitnessService.controlSnapshot()' in probe
+assert 'frameworkPolicy.reconcile(' in probe
+assert probe.index("frameworkPolicy.reconcile(") < probe.index("albumProbe.publishCurrent();replacement.update(current);")
+assert "YandexFrameworkTransportPolicy" in probe
+assert "source_framework_authority_lost" in probe
+assert "source_framework_seek_detected" in probe
+assert "Test75FrameworkTransportPolicy" in (ROOT / "tests/run_engine.py").read_text(encoding="utf-8")
+policy=(ROOT / "addon/src/pro/celikom/nativeprobe/identitydiag/YandexFrameworkTransportPolicy.java").read_text(encoding="utf-8")
+assert 'norm(title).equals(norm(platformTitle))' in policy
+assert 'norm(artist).equals(norm(platformArtist))' in policy
+assert 'sessions==1&&available' in policy
+assert 'return platformAuthority?unsafe(' in policy
+assert "PLATFORM_BUFFERING" in policy and "PLATFORM_PAUSED" in policy
+
 assert "onNotificationPosted(" not in witness and "onNotificationRemoved(" not in witness
 assert "getActiveSessions(" in witness
 assert "android.permission.BIND_NOTIFICATION_LISTENER_SERVICE" in builder
 assert "android.service.notification.NotificationListenerService" in builder
 assert "ACTION_NOTIFICATION_LISTENER_SETTINGS" in builder
 for forbidden in (".getTransportControls(", ".pause(", ".play(", ".seekTo(", ".setVolumeTo(", ".adjustVolume(", "replacement.identity(", "replacement.update(", "startForegroundService("):
-    assert forbidden not in witness, "Test.74 witness may only READ Yandex media sessions: "+forbidden
+    assert forbidden not in witness, "Test.75 witness may only READ Yandex media sessions: "+forbidden
 
 assert "sourceSnapshotConsistency.observe(" in probe
 assert "Test72SourceSnapshotConsistency" in (ROOT / "tests/run_engine.py").read_text(encoding="utf-8")
