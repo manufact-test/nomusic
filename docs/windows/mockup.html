@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CELIKOM Companion — Windows UI concept (offline)</title>
+<style>
+:root{--ink:#0b1013;--mint:#66e0bf;--paper:#f7f8f4;--muted:#556368;--line:#dce8e3;--green:#14594d;--red:#bb5252;--white:#fff}
+*{box-sizing:border-box}body{margin:0;background:#e4eae5;font:500 14px/1.5 Manrope,"Segoe UI",sans-serif;color:var(--ink);display:flex;align-items:center;justify-content:center;min-height:100vh;padding:26px}button,select{font:inherit}button{cursor:pointer}button:disabled{opacity:.48;cursor:not-allowed}:focus-visible{outline:3px solid #0e7565;outline-offset:3px}h1,h2,h3,p{margin:0}.stage{display:grid;grid-template-columns:minmax(350px,460px) minmax(210px,260px);gap:22px;align-items:start;max-width:770px;width:100%}
+.window{width:100%;min-height:635px;background:var(--paper);border:1px solid #d2dad6;border-radius:23px;box-shadow:0 25px 80px #19342c29;overflow:hidden;display:flex;flex-direction:column}.top{background:var(--ink);color:#fff;padding:24px 24px 22px}.toprow{display:flex;align-items:center;gap:11px}.brand{display:flex;align-items:center;gap:10px;flex:1;font-size:17px;letter-spacing:.02em;font-weight:800}.mark{width:29px;height:29px;border-radius:10px;background:var(--mint);color:var(--ink);font-weight:900;display:grid;place-items:center;font-size:23px;line-height:1}.topsmall{font-size:11px;letter-spacing:.04em;color:#aac3ba}.top small{display:block;color:#94aaa2;margin-top:7px}.chip{border-radius:100px;border:1px solid #38524a;padding:6px 9px;color:#d1e6de;font-size:11px;white-space:nowrap}.main{padding:20px 22px 24px;flex:1;display:flex;flex-direction:column;gap:16px}.connection{padding:13px 14px;background:white;border:1px solid var(--line);border-radius:16px;display:flex;gap:10px;align-items:center}.dot{width:9px;height:9px;border-radius:50%;background:var(--mint);box-shadow:0 0 0 4px #66e0bf20;flex:none}.dot.off{background:#a0aca8;box-shadow:none}.dot.warn{background:var(--red);box-shadow:none}.connection strong{display:block;font-weight:750;font-size:13px}.connection span{display:block;font-size:11px;color:var(--muted)}.power{display:flex;justify-content:space-between;align-items:center;gap:12px}.power strong{font-size:15px}.power p{color:var(--muted);font-size:12px;margin-top:3px}.switch{width:48px;height:28px;padding:4px;border:0;border-radius:20px;background:#a3b0ab;flex:none;transition:background .2s}.switch:after{content:"";display:block;width:20px;height:20px;border-radius:50%;background:white;transition:transform .2s}.switch.on{background:var(--green)}.switch.on:after{transform:translateX(20px)}.eyebrow{font-size:10px;font-weight:800;letter-spacing:.14em;color:#687c73}.track{background:var(--ink);color:#fff;padding:17px;border-radius:19px}.trackhead{display:flex;gap:12px;align-items:center}.cover{width:68px;height:68px;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#234e43,#112a26);border-radius:12px;font-size:26px;color:var(--mint);flex:none}.track h2{font-size:17px;font-weight:800;line-height:1.3}.track .artist{font-size:12px;color:#afc3ba;margin-top:4px}.status{margin-top:16px;display:flex;align-items:center;gap:8px;color:#b9f5dc;font-size:12px}.status i{height:6px;width:6px;background:var(--mint);border-radius:100%}.status.negative{color:#ffc3c3}.status.negative i{background:#ef7d7d}.status.neutral{color:#c2d1c9}.status.neutral i{background:#c2d1c9}.buttonstack{display:grid;gap:8px}.primary{border:0;border-radius:13px;min-height:46px;background:var(--mint);font-weight:800;color:var(--ink);padding:10px 14px}.secondary{border:1px solid var(--line);border-radius:13px;min-height:44px;background:white;color:var(--ink);font-weight:730;padding:10px 14px}.actions{display:grid;grid-template-columns:1fr 1fr;gap:8px}.footnote{font-size:11px;color:var(--muted);margin-top:auto;text-align:center}.nav{border-top:1px solid var(--line);padding:9px 11px 12px;display:flex;gap:5px;justify-content:space-around;background:white}.nav button{border:0;border-radius:10px;background:transparent;color:#74847c;padding:9px 10px;font-weight:750;font-size:12px}.nav button.active{background:#e4f6ec;color:#14594d}.panel{padding:17px;background:white;border:1px solid var(--line);border-radius:16px}.panel h3{font-size:15px;margin-bottom:11px}.panel p{color:var(--muted);font-size:12px}.row{display:flex;justify-content:space-between;gap:15px;align-items:center;padding:10px 0;border-bottom:1px solid #edf0ed}.row:last-child{border:0}.row strong{font-size:12px}.row span{font-size:12px;color:var(--muted)}.side{background:#fff;border:1px solid #d4ded8;border-radius:18px;padding:19px;display:grid;gap:11px}.side h2{font-size:16px;line-height:1.3}.side p{font-size:12px;color:var(--muted)}.side label{font-size:12px;font-weight:800}.side select{width:100%;padding:10px;border-radius:9px;border:1px solid var(--line);background:var(--paper)}.demo{display:inline-block;font-size:10px;color:#24634e;font-weight:800;background:#e7fbef;padding:4px 8px;border-radius:100px;justify-self:start}.hint{font-size:11px;color:#5d6e66;background:#f1f6f0;padding:11px;border-radius:10px}.hidden{display:none!important}.modalcover{position:fixed;inset:0;background:#09171399;z-index:10;display:grid;place-items:center;padding:16px}.modal{background:var(--paper);max-width:430px;width:100%;padding:24px;border-radius:20px;box-shadow:0 20px 80px #071c1869}.modal h2{font-size:20px}.modal p{font-size:13px;color:var(--muted);margin:10px 0 18px}.modal .demo-label{background:#e7fbef;padding:12px;border-radius:12px;color:var(--green);font-size:12px;margin-bottom:20px}.modal .actions{grid-template-columns:1fr 1fr}.alt{font-size:13px;color:var(--muted)}@media(max-width:740px){body{align-items:start;padding:12px}.stage{grid-template-columns:1fr;max-width:460px}.window{min-height:630px}.side{order:-1}}@media(max-width:390px){body{padding:5px}.window{border-radius:16px}.top{padding:20px 17px}.main{padding:16px}.actions{grid-template-columns:1fr 1fr}.stage{gap:8px}}@media(prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div class="stage">
+<section class="window" aria-label="Макет окна CELIKOM Windows">
+<header class="top">
+<div class="toprow"><div class="brand"><span class="mark" aria-hidden="true">C</span> CELIKOM</div><span class="chip" id="accountChip">Аккаунт активен</span></div>
+<small>Для официальной Яндекс.Музыки · Windows</small>
+</header>
+<div class="main" id="home">
+<div class="connection"><span class="dot" id="connDot"></span><div><strong id="connectionName">Яндекс.Музыка подключена</strong><span id="connectionInfo">Официальное приложение · Windows</span></div></div>
+<div class="power"><div><strong>Подмена версий</strong><p>Только для проверенных песен</p></div><button class="switch on" role="switch" aria-checked="true" aria-label="Включить или выключить подмену" id="toggle"></button></div>
+<div class="eyebrow">Сейчас в Яндекс.Музыке</div>
+<div class="track"><div class="trackhead"><div class="cover" aria-hidden="true">♫</div><div><h2 id="trackName">Пример композиции</h2><p class="artist" id="artistName">Исполнитель · демонстрация</p></div></div><div class="status" id="statusLine"><i></i><span id="trackStatus">Версия CELIKOM доступна</span></div></div>
+<div class="buttonstack"><button class="primary" id="mainAction">Вернуть оригинал</button><div class="actions"><button class="secondary" id="upload">Загрузить версию</button><button class="secondary" id="suggest">Предложить песню</button></div></div>
+<p class="footnote">Управляй музыкой как обычно — в Яндексе</p>
+</div>
+<div class="main hidden" id="account">
+<div class="eyebrow">Мой CELIKOM</div>
+<h2 style="font-size:22px">Аккаунт и подписка</h2>
+<div class="panel"><h3>Доступ CELIKOM</h3><div class="row"><strong>Статус</strong><span>Активен · макет</span></div><div class="row"><strong>Платформа</strong><span>Windows Companion</span></div><div class="row"><strong>Бонусы</strong><span>По данным сервера</span></div></div>
+<p class="alt">Реальная информация о платежах, пробном периоде и бонусах будет загружаться только с нашего сервера.</p>
+<button class="primary" id="manage">Управление подпиской</button>
+<button class="secondary" id="logout">Выйти на этом устройстве</button>
+</div>
+<div class="main hidden" id="settings">
+<div class="eyebrow">CELIKOM Companion</div><h2 style="font-size:22px">Настройки</h2>
+<div class="panel"><h3>Подключение</h3><div class="row"><strong>Яндекс.Музыка</strong><span>Версия проверяется</span></div><div class="row"><strong>Режим</strong><span>Официальный плеер</span></div><div class="row"><strong>Автозапуск</strong><span>Выключен</span></div></div>
+<div class="panel"><h3>Безопасность</h3><p>При неподдерживаемой версии Яндекс.Музыки CELIKOM не применяет подмену и оставляет оригинальный звук. Восстановление — обязательная часть установки.</p></div>
+<button class="secondary" id="diagnostics">Показать диагностику</button>
+</div>
+<nav class="nav" aria-label="Разделы"><button class="active" data-tab="home">Главная</button><button data-tab="account">Аккаунт</button><button data-tab="settings">Настройки</button></nav>
+</section>
+<aside class="side" aria-label="Управление демонстрацией"><span class="demo">ИНТЕРАКТИВНЫЙ МАКЕТ</span><h2>Концепция Windows Companion</h2><p>Сервер, Яндекс.Музыка и звук здесь не подключены. Эти переключатели только показывают будущие состояния интерфейса.</p><label for="scenario">Сценарий интерфейса</label>
+<select id="scenario"><option value="active">Подмена работает</option><option value="noVersion">Нет версии песни</option><option value="closed">Яндекс не запущен</option><option value="unsupported">Обновился Яндекс</option><option value="noAccess">Доступ CELIKOM закончился</option><option value="offline">Сервер CELIKOM недоступен</option></select>
+<div class="hint">Дизайн ориентирован на компактное окно Windows. Музыкальные кнопки Play/Pause/Seek специально отсутствуют — ими управляет штатная Яндекс.Музыка.</div>
+<div class="hint">Бренд: Manrope, тёмный #0B1013, мятный #66E0BF, светлый #F7F8F4.</div>
+</aside>
+</div>
+<div class="modalcover hidden" id="modalcover" role="presentation"><section class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle"><h2 id="modalTitle"></h2><p id="modalDesc"></p><div class="demo-label">Дизайн-демо: реальные файлы, подписки и заявки не отправляются.</div><div class="actions"><button class="secondary" id="dismiss">Закрыть</button><button class="primary" id="modalOk">Понятно</button></div></section></div>
+<script>
+(()=>{
+const $=id=>document.getElementById(id);
+const states={
+active:{label:"Яндекс.Музыка подключена",info:"Официальное приложение · Windows",status:"Играет версия CELIKOM",action:"Вернуть оригинал",dot:"",type:"",enabled:true},
+noVersion:{label:"Яндекс.Музыка подключена",info:"Официальное приложение · Windows",status:"Проверенной версии пока нет",action:"Предложить песню",dot:"",type:"neutral",enabled:true},
+closed:{label:"Яндекс.Музыка не запущена",info:"Открой приложение, чтобы слушать музыку",status:"Ожидаем подключение к Яндексу",action:"Открыть Яндекс.Музыку",dot:"off",type:"neutral",enabled:false},
+unsupported:{label:"Версия Яндекса не поддерживается",info:"Подмена отключена ради безопасности",status:"Играет оригинальная версия",action:"Подробнее",dot:"warn",type:"negative",enabled:false},
+noAccess:{label:"Требуется доступ CELIKOM",info:"Доступ к подмене пока закрыт",status:"Играет оригинальная версия",action:"Управлять подпиской",dot:"warn",type:"negative",enabled:false},
+offline:{label:"Нет связи с CELIKOM",info:"Яндекс.Музыка продолжает работать",status:"Играет оригинальная версия",action:"Повторить",dot:"warn",type:"negative",enabled:false}
+};
+let active=true,scenario="active";
+function update(){const s=states[scenario],on=active&&s.enabled;$("connectionName").textContent=s.label;$("connectionInfo").textContent=s.info;$("connDot").className="dot "+s.dot;$("trackStatus").textContent=on?s.status:(s.enabled?"Подмена выключена — играет оригинал":s.status);$("statusLine").className="status "+(on?s.type:"neutral");$("mainAction").textContent=on?s.action:(s.enabled?"Старт":s.action);$("toggle").classList.toggle("on",on);$("toggle").setAttribute("aria-checked",String(on));$("toggle").disabled=!s.enabled;$("upload").disabled=!s.enabled;$("suggest").disabled=!s.enabled||scenario==="active";$("trackName").textContent=s.enabled?"Пример композиции":"Ожидаем Яндекс.Музыку";$("artistName").textContent=s.enabled?"Исполнитель · демонстрация":"Без активной песни"}
+function dialog(title,description){$("modalTitle").textContent=title;$("modalDesc").textContent=description;$("modalcover").classList.remove("hidden");$("dismiss").focus()}
+function closeDialog(){$("modalcover").classList.add("hidden")}
+$("scenario").addEventListener("change",e=>{scenario=e.target.value;active=true;update()});
+$("toggle").addEventListener("click",()=>{active=!active;update()});
+$("mainAction").addEventListener("click",()=>{const t=$("mainAction").textContent;if(t==="Вернуть оригинал"){active=false;update()}else if(t==="Старт"){active=true;update()}else dialog(t,"Здесь будет реальный сценарий с проверкой поддерживаемости официального клиента и прав доступа. В макете ничего не запускается и не меняется.")});
+$("upload").addEventListener("click",()=>dialog("Загрузить версию","В рабочем приложении: выбрать свой аудиофайл, подтвердить права, проверить длительность и получить подтверждение модерации с сервера."));
+$("suggest").addEventListener("click",()=>dialog("Предложить песню","В рабочем приложении: выбрать точную песню из Яндекса или вставить ссылку и отправить запрос в наш каталог."));
+$("manage").addEventListener("click",()=>dialog("Управление подпиской","Будет открываться защищённый серверный сценарий CELIKOM, а не форма оплаты внутри демо."));
+$("logout").addEventListener("click",()=>dialog("Выход с устройства","Сессия будет завершена только на этом компьютере. Другие устройства не затрагиваются."));
+$("diagnostics").addEventListener("click",()=>dialog("Диагностика","Согласованный экспорт обезличенных событий без токенов, ссылок на аудио и паролей."));
+document.querySelectorAll("[data-tab]").forEach(b=>b.addEventListener("click",()=>{document.querySelectorAll("[data-tab]").forEach(x=>x.classList.toggle("active",x===b));["home","account","settings"].forEach(x=>$(x).classList.toggle("hidden",x!==b.dataset.tab))}));
+$("dismiss").addEventListener("click",closeDialog);$("modalOk").addEventListener("click",closeDialog);$("modalcover").addEventListener("click",e=>{if(e.target===$("modalcover"))closeDialog()});document.addEventListener("keydown",e=>{if(e.key==="Escape")closeDialog()});update();
+})();
+</script>
+</body>
+</html>
