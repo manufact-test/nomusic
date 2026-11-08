@@ -1,3 +1,5 @@
+> **Updated product scope 2026-11-08:** The owner subsequently allowed exploration of a *disclosed, installable modified-client route* (without disabled antivirus or a second player). Read [W14 revised plan](W14-MODIFIED-CLIENT-PATH-20261108.md). The W13 NO-GO conclusion remains technically valid for **unmodified official client only**, not a permanent freeze on all Windows engineering. W10 integrity evidence and installation/privacy risks still apply.
+
 # W13 — Official Windows client source integration: feasibility decision
 
 **2026-11-08 — NO-GO for live official Yandex Music 5.126.1.0 source substitution under current safety/product constraints.**

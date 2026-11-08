@@ -1,3 +1,15 @@
+# CELIKOM Windows Companion — current NEXT-CHAT, W14 revised scope (2026-11-08)
+
+**LATEST PRODUCT DECISION:** The owner explicitly allows considering a disclosed modification of the official Yandex Windows client to make a real CELIKOM Companion. The player, queue, pause/seek/next and output remain in Yandex; **no second audio player**, no disabled Windows protection, no stealth security bypass. Read [W14 approach and safety plan](W14-MODIFIED-CLIENT-PATH-20261108.md) before W13.
+
+**W13 remains a correct NO-GO only for the prior requirement that the official 5.126.1.0 installation must stay unmodified.** Do not keep freezing the entire Windows project based on an obsolete requirement. W10 actual ASAR integrity is still enforced. W14 proposes auditing PulseSync v2.1.5 (release says 5.126.1, but notes spoofing version from 5.125.3), and separate commercial permissions for PulseSync Client; MIT on PulseSync-mod does not grant this.
+
+**Next task:** actionable PulseSync host/addon audit and a version-pinned, reversible, security-preserving **real-client** integration test plan. Owner's explicit test-specific approval is required before any actual modification/installation on Yandex. No owner test executed; no new claims of real native audio. Preserve both backup refs and do not touch shared branches/files.
+
+---
+
+## W13 handoff and W0–W12 history (see W14 above for current instruction)
+
 # CELIKOM Windows Companion — current NEXT-CHAT, W13 decision (2026-11-08)
 
 **Current Windows branch:** `experiment/windows-companion-integration-20261108` in `manufact-test/nomusic`.

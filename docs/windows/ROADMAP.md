@@ -1,4 +1,6 @@
 # CELIKOM Windows Companion — delivery plan, responsibilities and test gates
+> **W14 PRODUCT REOPEN (2026-11-08):** Owner allows an openly disclosed modified-client integration. [W14 revised path](W14-MODIFIED-CLIENT-PATH-20261108.md) supersedes W13's *product-wide freeze*, but **does not** negate W13's no-go for untouched official client or W10 signed-ASAR integrity. Prior phase roadmap is historical; no official app install until independent safety plan and test-specific consent.
+
 
 
 > **W13 STOP DECISION (2026-11-08):** [official-client integration feasibility](W13-OFFICIAL-CLIENT-INTEGRATION-DECISION-20261108.md) is **NO-GO/BLOCKED** for the owner's unchanged Yandex Music 5.126.1.0. Previous W0–W12 standalone test success does not grant a production attachment seam. All phases and acceptance items below are **conditional planning only**, not authorized executable work. No W14 laboratory work unless a genuinely new supported integration API or separately approved revised product constraints appear. Keep existing browser extension unchanged; do not ship a second audio player.
