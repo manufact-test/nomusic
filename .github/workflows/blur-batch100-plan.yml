@@ -23,7 +23,8 @@ jobs:
           php -l tools/blur-batch50/live-check.php
           python3 -m py_compile tools/blur-batch100/plan.py tools/blur-batch50/prepare.py
           bash -n tools/blur-batch100/run-plan.sh
-          command -v ffprobe
+          command -v ffprobe || { sudo apt-get update -qq; sudo apt-get install -y ffmpeg; }
+          command -v file
       - name: Live SELECT-only check, download 100 with refill, archive fixed proposal
         env:
           HOST_KEY: ${{ secrets.CELIKOM_HOSTINGER_SSH_KEY }}
