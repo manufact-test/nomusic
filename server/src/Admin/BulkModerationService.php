@@ -214,7 +214,7 @@ final class BulkModerationService
                 || !preg_match('/^[a-zA-Z_][a-zA-Z_0-9]*$/D', $column)) {
                 throw new \DomainException('invalid_foreign_reference');
             }
-            $q = $this->pdo->prepare("SELECT 1 FROM \`$child\` WHERE \`$column\`=? LIMIT 1");
+            $q = $this->pdo->prepare("SELECT 1 FROM `$child` WHERE `$column`=? LIMIT 1");
             $q->execute([$id]);
             if ($q->fetchColumn() !== false) return true;
         }
