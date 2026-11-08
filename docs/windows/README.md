@@ -43,3 +43,9 @@ This is a **hypothesis to validate on real Windows 10/11**; not a proven impleme
 6. Deliver measured outcomes + a reversible test only when approved. If source interception is technically or contractually untenable, report the blocker rather than force a secondary-player workaround.
 
 **Acceptance rule:** the owner must explicitly accept the integration route and visual mockup before implementation. Passing a unit test does NOT establish compatibility with the installed Yandex client.
+
+## Current checkpoint: W2 read-only diagnostic (2026-11-08)
+
+Owner's real Windows 10 / Yandex Music 5.126.1.0 W1 ASAR report is received. W2 source is implemented, native Windows CI passed (run 42506616157), test ZIP is saved to ChatGPT Library at `CELIKOM/Windows/Test/CELIKOM-Windows-Probe-W2.zip`. The user has **not yet** run W2; no source substitution has been attempted.
+
+**For the next chat, read [NEXT-CHAT.md](NEXT-CHAT.md) first**, then [W2-TOPOLOGY-READONLY-20261108.md](W2-TOPOLOGY-READONLY-20261108.md). The original W0/W1 + W2 traces and tests are distinguished there. Do not repeat owner W1 questions. Continue only under `experiment/windows-companion-integration-20261108`, never modify the frozen browser extension or other teams.
