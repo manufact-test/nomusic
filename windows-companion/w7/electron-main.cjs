@@ -37,7 +37,8 @@ async function handle(req, res) {
     const modules = new Map([
       ["/webpack-fixture.js", resolve(__dirname, "../w5/out/webpack-fixture.js")],
       ["/bridge.mjs", resolve(__dirname, "../bridge/w4-source-resource-adapter.mjs")],
-      ["/activation.mjs", resolve(__dirname, "activation.mjs")]
+      ["/activation.mjs", resolve(__dirname, "activation.mjs")],
+      ["/recovery.mjs", resolve(__dirname, "../w8/native-original-recovery.mjs")]
     ]);
     if (modules.has(url.pathname)) {
       const buffer = await readFile(modules.get(url.pathname));

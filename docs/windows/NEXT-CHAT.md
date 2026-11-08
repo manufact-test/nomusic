@@ -1,6 +1,6 @@
 # CELIKOM Windows Companion — NEXT-CHAT
 
-**Updated 2026-11-08. W3 confirmed by owner; W4/W5/W6 passed isolated CI; W7 external fixture sidecar under test.**
+**Updated 2026-11-08. W3 confirmed by owner; W4-W7 isolated CI passed, W8 one-decoder recovery under test.**
 
 ## Objective
 Official Windows Yandex Music is the ONLY owner of audio, pause, seek, next, queue,
@@ -174,3 +174,24 @@ always denies enabling a DevTools port on the owner's authenticated Yandex.**
 No installed Yandex files were changed; synthetic client only.
 CI result must be confirmed separately; a green W5 does not imply W7 passed.
 No owner ZIP and no repeated W0–W3 scans are needed here.
+
+## W7 verified, W8 underway
+
+- [W7 Windows CI 42514425074](https://github.com/manufact-test/nomusic/actions/runs/42514425074)
+  **SUCCESS**: external Node sidecar attached to a non-authenticated
+  standalone Electron 44 test renderer and dynamically activated W4
+  against original pinned public web Yandex resource/source classes.
+  **28/28** actual fixture assertions. Never enable a debugger on
+  the user's authenticated installed Yandex; this is fixture-only.
+- W8 pure recovery controller and synthetic unit tests:
+  `windows-companion/w8/native-original-recovery.mjs` and
+  `native-original-recovery.test.mjs`. Exact track, one-shot, no loops,
+  original-first, snapshot pause/seek, Next/Stop fencing, no second decoder.
+- W8 extends the **W7 actual Electron** CDP fixture: cause a real
+  decoder failure using corrupt synthetic MP3, auto-reacquire original
+  through W4/Yandex public class on the SAME native element and restore
+  position/play state. Do not count this as passed until CI verifies.
+- Read `docs/windows/W8-NATIVE-ERROR-RECOVERY-20261108.md`.
+- No owner installation or test ZIP. Only Windows working branch.
+- Real official Windows renderer attachment remains unproven and requires
+  an explicit opt-in after safety and rollback assessment.

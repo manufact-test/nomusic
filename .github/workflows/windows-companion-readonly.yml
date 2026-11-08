@@ -1,4 +1,4 @@
-name: Windows Companion — W7 external attach experiment & W6 rollback
+name: Windows Companion — W8 native error recovery & W7 external attach
 
 on:
   workflow_dispatch:
@@ -23,6 +23,8 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: W8 one-decoder fallback and async Next fencing contract
+        run: node --test windows-companion/w8/native-original-recovery.test.mjs
       - name: W7 reject any non-fixture debug target
         run: node --test windows-companion/w7/session-policy.test.mjs
       - name: W6 strict identity gate and crash-safe synthetic rollback

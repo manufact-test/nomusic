@@ -3,10 +3,11 @@
  * CDP only imports this module after confirming a nonce-bound LOCAL test page.
  */
 import { createWindowsSourceBridge } from "/bridge.mjs";
+import { createNativeOriginalRecovery } from "/recovery.mjs";
 
 export async function runW7(nonce) {
   const checks=[], blobs=[];
-  let bridge, audio;
+  let bridge, audio, recovery;
   const check=(value,label)=>{if(!value)throw Error("W7_ASSERT_"+label);checks.push(label);};
   const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
   const match=new URL(location.href);
@@ -119,6 +120,49 @@ export async function runW7(nonce) {
     audio.pause();const time=audio.currentTime;await sleep(150);
     check(audio.paused&&Math.abs(audio.currentTime-time)<0.03,"native Pause holds same clock");
     await seek(7);check(Math.abs(audio.currentTime-7)<0.2,"native Seek works");
+
+    // W8: intentionally corrupt the currently selected synthetic alternate,
+    // let Electron deliver a REAL media error, then automatically reacquire
+    // and restore the original through the SAME media element.
+    recovery=createNativeOriginalRecovery({
+      sourceGate:bridge,
+      reacquireOriginal:async id=>single(instances[0].obj,id),
+      applyToSameDecoder:async({original:descriptor,snapshot,isCurrent})=>{
+        if(!isCurrent())return false;
+        await load(descriptor); // never constructs another decoder
+        if(!isCurrent())return false;
+        if(snapshot.positionSec>0){
+          const position=Math.min(snapshot.positionSec,Math.max(0,audio.duration-0.3));
+          await seek(position);
+        }
+        if(!isCurrent())return false;
+        if(snapshot.wasPlaying)await audio.play();
+        return true;
+      }
+    });
+    recovery.setTrack("1001");
+    await audio.play();
+    const playbackSnapshot={positionSec:audio.currentTime,wasPlaying:!audio.paused};
+    const corrupt=URL.createObjectURL(new Blob([new Uint8Array(1024)],{type:"audio/mpeg"}));
+    blobs.push(corrupt);
+    const failureEvent=new Promise((resolve,reject)=>{
+      const timer=setTimeout(()=>{audio.removeEventListener("error",on);reject(Error("W8_MEDIA_ERROR_NOT_TRIGGERED"));},12000);
+      const on=()=>{clearTimeout(timer);resolve(audio.error?.code||0);};
+      audio.addEventListener("error",on,{once:true});
+    });
+    audio.src=corrupt;audio.load();
+    const mediaFault=await failureEvent;
+    check(mediaFault===4,"real Electron decoder reports unsupported/corrupt synthetic MP3");
+    const recovered=await recovery.onNativeDecodeError("1001",playbackSnapshot);
+    check(recovered.status==="RESTORED_ORIGINAL","W8 automatically reacquires and plays original on decoder error");
+    check(audio.currentSrc.startsWith(location.origin+"/media/orig1001.mp3")&&
+      !audio.paused&&Math.abs(audio.currentTime-playbackSnapshot.positionSec)<0.6,
+      "W8 original restored at same position and play state in ONE media element");
+    check((await recovery.onNativeDecodeError("1001",playbackSnapshot)).status==="ALREADY_ATTEMPTED",
+      "W8 duplicate decoder error cannot trigger recovery loop");
+    check(document.querySelectorAll("audio,video").length===1,
+      "W8 fallback did not create a second decoder");
+    recovery.setTrack("2002");
     bridge.setTrack("2002");
     const next=await single(instances[1].obj,"2002");
     check(next.url===second,"Next chooses exact second track");
@@ -156,6 +200,6 @@ export async function runW7(nonce) {
       officialAppTested:false};
   }finally{
     audio?.pause();audio?.removeAttribute("src");audio?.load();audio?.remove();
-    bridge?.dispose();for(const url of blobs)URL.revokeObjectURL(url);
+    recovery?.dispose();bridge?.dispose();for(const url of blobs)URL.revokeObjectURL(url);
   }
 }
