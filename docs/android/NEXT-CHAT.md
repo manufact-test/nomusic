@@ -1,3 +1,17 @@
+# ПЕРЕДАЧА 08.11.2026 · Test.71 подписана и загружена в Library — ограниченный Android native state witness, HONOR ещё не принял
+
+**ЧИТАТЬ СНАЧАЛА:** [ANDROID-TEST71-NATIVE-TRANSPORT-WITNESS-2026-11-08.md](ANDROID-TEST71-NATIVE-TRANSPORT-WITNESS-2026-11-08.md); затем [свежий разбор Test.70](ANDROID-TEST70-HONOR-203805-ARCHITECTURE-2026-11-08.md). Всё ниже этого блока — история Test.70 и предыдущих экспериментов.
+
+**Готовая Test.71:** `0.3.85-test.71`, `code 86157`, тестовый пакет `pro.celikom.nativeprobe.test`, **[скачать подписанную APK в ChatGPT Library](https://chatgpt.com/library?file_id=libfile_e520e40f3fe48191abda9fd79bbb4d84&account_id=personal)**, SHA256 `2be7d394dc40c3ee465e82fcb3539bc18577d9c9aa4b1c43d481d74e72199aa8`, 8,861,849 байт. Подпись **v3 VERIFIED**, сертификат совпадает с Test.70 и оригиналом. [CI #42508087622 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/42508087622) native host + Android D8 + signing/verification/receipt. Исходник, из которого подписана APK: `e620fbc05425e87574a2150bb174ae9641d8da92`; ветка `feature/android-0385-test71-native-state-witness-20261108`; последующие документационные коммиты в APK не входят.
+
+**ЧТО ИЗМЕНИЛОСЬ:** Только 2 проблемных трека RASKOL `42884423` и Дым `39949113`. В Android 13 Test.70 уже наблюдал Media3 и анонимные AudioManager playback counts, но **legacy MediaBrowser Яндекса не подключался ни разу** в трёх прогонах. Новая Test.71 делает ОДНУ безопасную read-only попытку его переподключить при проблемном треке; если подключится, сопоставляет возраст и состояние стандартного `PlaybackState` с Media3, логирует события, а только при **устойчивом свежем противоречии PAUSED vs PLAYING** вернёт оригинальный звук и изолирует замену до следующей песни. Если не подключится — поведение по звуку **как Test.70**. Никаких удалённых transport-команд, повторной паузы, новых кнопок, новых разрешений, root и патча Яндекса. Результат **НИКОГДА не называть исправлением самой архитектуры двух плееров**, пока нет физического подтверждения. Legacy+Media3 могут читать одно состояние, PCM-часов Яндекса нет.
+
+**ДАЛЬШЕ:** На HONOR проверить родные паузу/перемотку на RASKOL и Дым, контроль 10AGE Пушка `85025192` и Нету интереса `78608850`, Next, при холодном и горячем кэше; прислать **новые** combined log и видео. Искать `native_transport_witness_unavailable`, `native_transport_legacy_retry`, `native_transport_witness`, `native_transport_fail_closed` и фактический звук, а не только MediaPlayer seek ACK. Если witness недоступен и задержка осталась — законно признать ограничение, не делать Test.72 с очередными таймингами/кнопками. Версия Test.70 — безопасный откат.
+
+**Изоляция:** stable Android 0.3.92, OTA, сервер, Hostinger/платежи, main, десктоп и остальные проекты НЕ меняли. CI читал pinned base APK/approved catalogue с Hostinger, write не выполнял. В Library лежат APK, verification JSON и receipt. Физического HONOR-одобрения Test.71 ещё НЕТ.
+
+---
+
 # ПЕРЕДАЧА 08.11.2026 · Android HONOR Test.70 подтверждён как baseline; следующий — Test.71 (АРХИТЕКТУРА/НАТИВНОЕ УПРАВЛЕНИЕ)
 
 **ПРОЧЕСТЬ В ПЕРВУЮ ОЧЕРЕДЬ:** [ANDROID-TEST70-HONOR-203805-ARCHITECTURE-2026-11-08.md](ANDROID-TEST70-HONOR-203805-ARCHITECTURE-2026-11-08.md) — полный свежий разбор Test.70, точные временные отметки seek и отдельное архитектурное задание. Старые блоки ниже — история, **НЕ** актуальный запрет на разработку Test.71.
