@@ -29,7 +29,7 @@ jobs:
                   path=pathlib.Path(tmp)/(tid+'.mp3')
                   data=urllib.request.urlopen(urllib.request.Request(f'https://raw.githubusercontent.com/Hazzz895/FckCensorData/{src}/tracks/{tid}',headers={'User-Agent':'CELIKOM-dupe-readonly'}),timeout=30).read()
                   item=expect[tid]
-                  got=hashlib.sha1(b'blob '+str(len(data)).encode()+b'\\0'+data).hexdigest()
+                  got=hashlib.sha1(b'blob '+str(len(data)).encode()+b'\0'+data).hexdigest()
                   assert len(data)==item['size'] and got==item['blob']
                   path.write_bytes(data)
                   o=subprocess.run(['ffprobe','-v','error','-show_entries','format_tags=title,artist,album','-of','json',str(path)],check=True,text=True,capture_output=True)
