@@ -1,3 +1,6 @@
+using System.Buffers.Binary;
+using System.Text;
+using System.Text.Json;
 using Celikom.Companion.Core;
 
 int passed = 0;
@@ -6,6 +9,35 @@ void Check(bool condition, string message)
     if (!condition) throw new Exception("FAIL: " + message);
     passed++;
     Console.WriteLine("PASS " + message);
+}
+
+static byte[] TestAsar(string package, string mainCode)
+{
+    // Handcrafted minimal Electron ASAR container. These are synthetic files, NOT Yandex bytes.
+    var data0 = Encoding.UTF8.GetBytes(package);
+    var data1 = Encoding.UTF8.GetBytes(mainCode);
+    var header = new
+    {
+        files = new Dictionary<string, object>
+        {
+            ["package.json"] = new { size = data0.Length, offset = "0" },
+            ["index.js"] = new { size = data1.Length, offset = data0.Length.ToString() }
+        }
+    };
+    byte[] json = JsonSerializer.SerializeToUtf8Bytes(header);
+    int padded = (json.Length + 3) & ~3;
+    using var stream = new MemoryStream();
+    byte[] preamble = new byte[16];
+    BinaryPrimitives.WriteUInt32LittleEndian(preamble.AsSpan(0, 4), 4);
+    BinaryPrimitives.WriteUInt32LittleEndian(preamble.AsSpan(4, 4), (uint)(padded + 8));
+    BinaryPrimitives.WriteUInt32LittleEndian(preamble.AsSpan(8, 4), (uint)(padded + 4));
+    BinaryPrimitives.WriteUInt32LittleEndian(preamble.AsSpan(12, 4), (uint)json.Length);
+    stream.Write(preamble);
+    stream.Write(json);
+    stream.Write(new byte[padded - json.Length]);
+    stream.Write(data0);
+    stream.Write(data1);
+    return stream.ToArray();
 }
 
 string dir = Path.Combine(Path.GetTempPath(), "celikom-probe-fixture-" + Guid.NewGuid().ToString("N"));
@@ -29,7 +61,30 @@ try
     string report = fakeSnapshot.SafeReport();
     Check(!report.Contains(dir, StringComparison.OrdinalIgnoreCase), "do not leak temp/user path");
     Check(report.Contains("Integration status: not installed / not tested"), "do not claim source hook");
-    Console.WriteLine($"CELIKOM read-only probe: {passed} checks passed.");
+
+    string asarPath = Path.Combine(dir, "app.asar");
+    Check(AsarInspector.Inspect(asarPath).State == "NOT_FOUND", "missing ASAR is safe");
+    File.WriteAllBytes(asarPath, new byte[12]);
+    Check(AsarInspector.Inspect(asarPath).State == "INVALID_ASAR", "truncated ASAR is safe");
+
+    string synthetic = """{"name":"test.yandex","version":"5.126.1","main":"index.js"}""";
+    File.WriteAllBytes(asarPath, TestAsar(synthetic,
+        "const { BrowserWindow } = require('electron'); const getFileInfo = () => 1;"));
+    var inspected = AsarInspector.Inspect(asarPath);
+    Check(inspected.State == "OK", "valid synthetic ASAR parsed");
+    Check(inspected.MainEntryExists && inspected.MainEntry == "index.js", "main entry validated");
+    Check(inspected.PackageVersion == "5.126.1", "package version read");
+    Check(inspected.HasFileInfoMarker && inspected.HasElectronWindowMarker, "source hook hints detected");
+    Check(inspected.InspectedJsFiles == 1, "bounded JS inspection");
+    Check(inspected.Sha256?.Length == 64, "ASAR hash computed");
+    Check(!inspected.SafeReport().Contains(dir, StringComparison.OrdinalIgnoreCase), "no local path in ASAR report");
+    Check(inspected.SafeReport().Contains("NOT YET VERIFIED"), "report does not claim source hook works");
+
+    string noHook = """{"name":"safe","version":"1.0","main":"index.js"}""";
+    File.WriteAllBytes(asarPath, TestAsar(noHook, "console.log('no hooks')"));
+    inspected = AsarInspector.Inspect(asarPath);
+    Check(inspected.State == "OK" && !inspected.HasFileInfoMarker, "absence is handled conservatively");
+    Console.WriteLine($"CELIKOM W1 read-only probe: {passed} checks passed.");
 }
 finally
 {
