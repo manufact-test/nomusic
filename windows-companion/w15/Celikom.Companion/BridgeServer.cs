@@ -90,7 +90,7 @@ public sealed class BridgeServer : IAsyncDisposable
         if (!SessionStore.IsHexToken(offered)) return false;
         var token = _api.Settings.BridgeToken;
         return CryptographicOperations.FixedTimeEquals(
-            Convert.FromHexString(offered), Convert.FromHexString(token));
+            Convert.FromHexString(offered!), Convert.FromHexString(token));
     }
 
     public async Task StartAsync(CancellationToken ct = default)

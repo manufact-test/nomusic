@@ -27,7 +27,7 @@ public sealed class MainWindow : Form
     {
         _api = new CelikomApi(_store);
         _bridge = new BridgeServer(_api, _store);
-        _bridge.Changed += UpdateSafe;
+        _bridge.Changed += () => UpdateSafe();
         Text = "CELIKOM Companion — Windows";
         Width = 495;
         Height = 655;
@@ -124,9 +124,9 @@ public sealed class MainWindow : Form
         new() { Text = value, Dock = DockStyle.Fill,
             Font = new Font("Segoe UI", size, bold ? FontStyle.Bold : FontStyle.Regular),
             TextAlign = ContentAlignment.MiddleLeft, Height = height };
-    private static Label Section(string text, int height) =>
+    private static Label Section(string text) =>
         new() { Text = text, Font = new Font("Segoe UI", 11.5F, FontStyle.Bold),
-            Dock = DockStyle.Fill, TextAlign = ContentAlignment.BottomLeft, Height = height };
+            Dock = DockStyle.Fill, TextAlign = ContentAlignment.BottomLeft };
     private static Label Hint(string text, int height) =>
         new() { Text = text, ForeColor = ColorTranslator.FromHtml("#556368"),
             Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft, Height = height };
