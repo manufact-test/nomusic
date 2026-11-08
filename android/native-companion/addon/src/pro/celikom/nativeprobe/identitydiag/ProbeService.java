@@ -339,20 +339,8 @@ public class ProbeService extends Service {
    if(nativeState==Player.STATE_ENDED||nativeState==Player.STATE_IDLE){if(current!=null||replacement.player!=null)sourceBoundary(null,"native_stopped");current=null;replacement.update(null);return;}
    long observedNow=SystemClock.elapsedRealtime();
    if(stateWatchdog.refresh(item.mediaId,nativeState,c.isPlaying(),observedNow-lastMediaEvent,observedNow)){
-    // Verified Test.58 regression: when Yandex reports BUFFERING after Dym,
-    // forcibly releasing an otherwise connected controller makes every
-    // subsequent connection fail SecurityException. Preserve the live session,
-    // let the existing engine keep the original available, and allow a real
-    // STATE_READY or onDisconnected to drive the normal recovery path.
-    LogStore.log("source_controller_buffering_retained",LogStore.map(
-     "reason","quiet_buffering_without_state_change",
-     "alias",item.mediaId,"nativeState",nativeState,
-     "playWhenReady",c.getPlayWhenReady(),
-     "suppressionReason",c.getPlaybackSuppressionReason(),
-     "positionEstimateMs",c.getCurrentPosition(),
-     "positionIsControllerEstimate",true,
-     "mediaEventAgeMs",observedNow-lastMediaEvent,
-     "controllerRetained",true,"transportCommandSent",false));
+    LogStore.log("source_controller_refresh",LogStore.map("reason","quiet_buffering_snapshot","alias",item.mediaId,"nativeState",nativeState,"playWhenReady",c.getPlayWhenReady(),"suppressionReason",c.getPlaybackSuppressionReason(),"positionMs",c.getCurrentPosition(),"mediaEventAgeMs",observedNow-lastMediaEvent,"transportCommandSent",false));
+    current=null;controller=null;stateWatchdog.reset();replacement.update(null);c.release();connect();return;
    }
    emptySince=-1;if(duration<=0||title.trim().isEmpty()){current=null;replacement.update(null);return;}long sampledPosition=c.getCurrentPosition();boolean fenced=sessionRecheck.awaitingFreshSource;if(!sessionRecheck.accept(item.mediaId,sampledPosition,observedNow)){current=null;replacement.update(null);return;}if(fenced)LogStore.log("source_controller_freshness_confirmed",LogStore.map("reason","new_controller_metadata","alias",item.mediaId,"positionMs",sampledPosition,"audioCommandSent",false));if(sourceItemAlias==null||(current==null&&!Objects.equals(sourceItemAlias,item.mediaId))){sourceItemGeneration++;sourceItemAlias=item.mediaId;}LegacySourcePositionPolicy.Decision legacy=legacyPosition(item.mediaId,title,artist,duration,sampledPosition,c.isPlaying());if(legacy.failClosed){if(!legacyPositionUnsafeLogged){legacyPositionUnsafeLogged=true;LogStore.log("source_seek_platform_fail_closed",LogStore.map("alias",item.mediaId,"originalRetained",true));}replacement.suspend("legacy_position_unverified",2000);replacement.update(null);return;}legacyPositionUnsafeLogged=false;if(legacy.newRecovery)replacement.sourceSeekRequested();PlaybackSource previous=current;current=new PlaybackSource(item.mediaId,title,artist,duration,cover,legacy.override?legacy.position:sampledPosition,c.isPlaying(),c.getDeviceInfo().playbackType==DeviceInfo.PLAYBACK_TYPE_LOCAL,c.getPlaybackParameters().speed,c.getPlayWhenReady(),nativeState==Player.STATE_BUFFERING);sourceTransitionExpectedAlias=null;if(previous!=null&&!previous.key.equals(current.key)){reportLookahead(current.alias,"sample_track_changed");replacement.sourceChanged(previous,current);}
    else if(previous!=null&&SourceTransitionGate.outgoingItemReset(previous.alias,current.alias,previous.position,previous.duration,current.position,previous.playing,current.playing,c.getPlayWhenReady(),nativeState==Player.STATE_BUFFERING))
