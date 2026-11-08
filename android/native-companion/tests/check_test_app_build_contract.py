@@ -16,16 +16,19 @@ verifier = (ROOT / "verify_test_release.py").read_text(encoding="utf-8")
 assert spec["package"] == "pro.celikom.nativeprobe.test"
 assert spec["stable_package"] == "pro.celikom.nativeprobe"
 assert spec["label"] == "CELIKOM Test"
-assert spec["version"] == "0.3.85-test.70"
-assert spec["version_code"] == 86156
-assert spec["apk_filename"] == "CELIKOM-Android-0.3.85-TEST-70-SAFE-ROLLBACK-SIGNED.apk"
+assert spec["version"] == "0.3.85-test.71"
+assert spec["version_code"] == 86157
+assert spec["apk_filename"] == "CELIKOM-Android-0.3.85-TEST-71-STATE-WITNESS-SIGNED.apk"
 
-# Test.70 is a source-pinned safe rollback, not a continuation of Test.69.
+# Test.71 starts from frozen Test.70: only a passive witness and bounded fallback.
 # No notification controls or remote commands are allowed to re-enter this branch.
 probe=(ROOT / "addon/src/pro/celikom/nativeprobe/identitydiag/ProbeService.java").read_text(encoding="utf-8")
 assert "problemTransportCommand" not in probe and "problemTransportIntent" not in probe
 assert "ProblemTrackTransport" not in probe and "problem_transport_command_sent" not in probe
 assert "sourceBuffering" in probe and "NotificationState.yandexBuffering" in probe
+assert "NativeTransportWitness" in probe and "native_transport_fail_closed" in probe
+assert "replacement.suspend(\"native_transport_pause_disagreement\",30000)" in probe
+assert "TestNativeTransportWitness" in (ROOT / "tests/run_engine.py").read_text(encoding="utf-8")
 notif=(ROOT / "addon/src/pro/celikom/nativeprobe/identitydiag/NotificationState.java").read_text(encoding="utf-8")
 assert "Яндекс не обновляет трек" in notif and "Яндекс загружает" in notif
 # Test.61 must defeat CDN negative caching after the approved-catalogue route is deployed.
