@@ -10,7 +10,7 @@ import java.util.concurrent.*;
 /** One serialized transport for refresh rotation; no embedded user/API credentials. */
 final class NativeApi {
  interface Result {void done(JSONObject result,String error);}
- volatile boolean revoking;volatile long accountGeneration;volatile long configValidatedAt=-1;static NativeApi singleton;final SecureSession session;final Context context;final ExecutorService work=Executors.newSingleThreadExecutor();final ExecutorService audioWork=Executors.newSingleThreadExecutor();final ExecutorService lookaheadAudioWork=Executors.newSingleThreadExecutor();final ExecutorService foregroundStreamWork=Executors.newSingleThreadExecutor();final java.util.concurrent.atomic.AtomicInteger foregroundAudioDemand=new java.util.concurrent.atomic.AtomicInteger();final ExecutorService contributions=Executors.newSingleThreadExecutor();final Handler main=new Handler(Looper.getMainLooper());
+ volatile boolean revoking;volatile long accountGeneration;volatile long configValidatedAt=-1;static NativeApi singleton;final SecureSession session;final Context context;final ExecutorService work=Executors.newSingleThreadExecutor();final ExecutorService catalogueWork=Executors.newSingleThreadExecutor();final ExecutorService audioWork=Executors.newSingleThreadExecutor();final ExecutorService lookaheadAudioWork=Executors.newSingleThreadExecutor();final ExecutorService foregroundStreamWork=Executors.newSingleThreadExecutor();final java.util.concurrent.atomic.AtomicInteger foregroundAudioDemand=new java.util.concurrent.atomic.AtomicInteger();final ExecutorService contributions=Executors.newSingleThreadExecutor();final Handler main=new Handler(Looper.getMainLooper());
  static synchronized NativeApi get(Context c){if(singleton==null)singleton=new NativeApi(c);return singleton;}
  NativeApi(Context c){context=c.getApplicationContext();session=new SecureSession(c);}
  volatile long diagnosticUntil,diagnosticGeneration=-1,nextDiagnosticCheck;volatile boolean diagnosticBusy;
@@ -45,6 +45,37 @@ final class NativeApi {
     service.replacement.accountLeaseCurrent();
   });
  }
+ /** Refresh approved metadata out-of-band, never blocking foreground audio
+  * downloads/resolves. Credential refresh remains serialized on work. */
+ void fetchApprovedCatalogue(Result result){
+  final long account=accountGeneration;
+  work.execute(()->{
+   String token=null,prepError=null;
+   try{
+    if(account!=accountGeneration||!signedIn())throw new Exception("login_required");
+    token=access();
+   }catch(Exception e){prepError="catalogue_auth_unavailable";}
+   if(prepError!=null){
+    final String error=prepError;
+    main.post(()->result.done(null,error));
+    return;
+   }
+   final String bearer=token;
+   catalogueWork.execute(()->{
+    JSONObject output=null;String failure=null;
+    try{
+     if(account!=accountGeneration||revoking)throw new Exception("account_changed");
+     output=request("replacement-catalog",null,bearer,
+       ()->account==accountGeneration&&!revoking);
+    }catch(Exception e){
+     failure=account==accountGeneration?"catalogue_network_unavailable":"account_changed";
+    }
+    final JSONObject response=output;final String error=failure;
+    main.post(()->result.done(account==accountGeneration?response:null,
+      account==accountGeneration?error:"account_changed"));
+   });
+  });
+ }
  void submit(String task,Callable<JSONObject> action,Result result){work.execute(()->{JSONObject j=null;String error=null;try{j=action.call();}catch(Exception e){error=e.getMessage();if(error==null||!error.matches("[a-z0-9_]{1,80}"))error="network_or_response_error";}final JSONObject out=j;final String fail=error;LogStore.log("backend_result",LogStore.map("operation",task,"ok",fail==null,"errorCode",fail));main.post(()->result.done(out,fail));});}
  JSONObject request(String path,JSONObject body,String access)throws Exception {return request(path,body,access,null);}
  JSONObject request(String path,JSONObject body,String access,java.util.function.BooleanSupplier valid)throws Exception {
@@ -52,7 +83,7 @@ final class NativeApi {
   try(ReadFence fence=new ReadFence(c,valid)){fence.check();c.setConnectTimeout(7000);c.setReadTimeout(8000);c.setInstanceFollowRedirects(false);c.setRequestProperty("Accept","application/json");c.setRequestProperty("Cache-Control","no-store");if(access!=null&&!access.isEmpty())c.setRequestProperty("Authorization","Bearer "+access);
    if(body!=null){byte[] data=body.toString().getBytes(StandardCharsets.UTF_8);if(data.length>8192)throw new Exception("invalid_request");c.setRequestMethod("POST");c.setRequestProperty("Content-Type","application/json");c.setDoOutput(true);c.setFixedLengthStreamingMode(data.length);try(OutputStream out=c.getOutputStream()){out.write(data);}}
    int code=c.getResponseCode();observedHttp=code;if(code>=300&&code<400)throw new Exception("redirect_rejected");String type=c.getContentType();if(type==null||!type.toLowerCase().startsWith("application/json"))throw new Exception("invalid_api_response");InputStream stream=code>=200&&code<300?c.getInputStream():c.getErrorStream();JSONObject j;
-   try(InputStream in=stream;ByteArrayOutputStream out=new ByteArrayOutputStream()){if(in==null)throw new Exception("empty_api_response");byte[] b=new byte[4096];int n;while((n=in.read(b))!=-1){fence.check();if(out.size()+n>65536||SystemClock.elapsedRealtime()-start>18000)throw new Exception("response_limit");out.write(b,0,n);}j=new JSONObject(new String(out.toByteArray(),StandardCharsets.UTF_8));}
+   try(InputStream in=stream;ByteArrayOutputStream out=new ByteArrayOutputStream()){if(in==null)throw new Exception("empty_api_response");byte[] b=new byte[4096];int n;while((n=in.read(b))!=-1){fence.check();if(out.size()+n>("replacement-catalog".equals(path)?LiveCatalogueStore.MAX_BYTES:65536)||SystemClock.elapsedRealtime()-start>18000)throw new Exception("response_limit");out.write(b,0,n);}j=new JSONObject(new String(out.toByteArray(),StandardCharsets.UTF_8));}
    fence.check();LogStore.log("backend_http",LogStore.map("endpoint",path.split("\\?")[0],"httpCode",code,"elapsedMs",SystemClock.elapsedRealtime()-start));
    if(code<200||code>=300){String e=j.optString("error","api_http_error");throw new Exception(e.matches("[a-z0-9_]{1,80}")?e:"api_http_error");}return j;
   }catch(Exception failure){IncidentJournal.transportFailure(context,path,failure,SystemClock.elapsedRealtime()-start,observedHttp>=0);throw failure;}finally{c.disconnect();}
