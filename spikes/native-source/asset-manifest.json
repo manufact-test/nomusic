@@ -1,0 +1,310 @@
+{
+  "frontend": "v4.1726.0",
+  "observedAt": "2026-11-08",
+  "assets": [
+    {
+      "url": "https://yastatic-net.ru/s3/music-frontend-static/music/v4.1726.0/_next/static/chunks/e06a6886-e71db4367d5a8074.js",
+      "sha256": "dd3238c6df7418955853b7166853558ea789d964cb3f4a12014eb0d2ec709e02"
+    },
+    {
+      "url": "https://yastatic-net.ru/s3/music-frontend-static/music/v4.1726.0/_next/static/chunks/62670-f30f592f7d17cc6e.js",
+      "sha256": "5eb4b2d86af429fd5bc5e568e91c949a9e47d2119931da0c2e360ec9dc5a9c35"
+    },
+    {
+      "url": "https://yastatic-net.ru/s3/music-frontend-static/music/v4.1726.0/_next/static/chunks/main-app-63dca047e20acee1.js",
+      "sha256": "36974d93b5b231ba72156ed9b88796299c9ecb62caace0f0ffd6c3a21abdbc60"
+    },
+    {
+      "url": "https://yastatic-net.ru/s3/music-frontend-static/music/v4.1726.0/_next/static/chunks/96904-60c2337505952427.js",
+      "sha256": "98458ccf13bebe0767dd75debfb04499f5c2a1f5e649d5bbeac34fa4f132555c"
+    },
+    {
+      "url": "https://yastatic-net.ru/s3/music-frontend-static/music/v4.1726.0/_next/static/chunks/app/global-error-b0eabafdd89df864.js",
+      "sha256": "0641e8622449efdfe7b360d2040fc63469d809311e50ef7ed0e0cfefe987939b"
+    },
+    {
+      "url": "https://yastatic-net.ru/s3/music-frontend-static/music/v4.1726.0/_next/static/chunks/28bdd4cd-e152fe2e5a6b3ca4.js",
+      "sha256": "1e26976680fdf47df6dbe9bcb0681816eef3c8d9a3ce397c3bef980453630406"
+    },
+    {
+      "url": "https://yastatic-net.ru/s3/music-frontend-static/music/v4.1726.0/_next/static/chunks/73861d58-e1e68913d3efe04c.js",
+      "sha256": "4c4191622ee05f55d6f43bf88bde943f5fde854bf52eabdc0c8dc34c48d71377"
+    },
+    {
+      "url": "https://yastatic-net.ru/s3/music-frontend-static/music/v4.1726.0/_next/static/chunks/e155f9ad-b317612a208bc94e.js",
+      "sha256": "163a70d373721f03e8d34e67b4baf7443be521c9a736d9867ac43ece181b876e"
+    },
+    {
+      "url": "https://yastatic-net.ru/s3/music-frontend-static/music/v4.1726.0/_next/static/chunks/94e11dd8-74bcba4b9b1f6eba.js",
+      "sha256": "05365d3d4f93d1ead985b9d3cf46d6a63dbd035f3954aded08a2413fa33305a5"
+    },
+    {
+      "url": "https://yastatic-net.ru/s3/music-frontend-static/music/v4.1726.0/_next/static/chunks/65053-1db5cc520e782590.js",
+      "sha256": "910055586c81c6e3347cb6a56cee11c73af6640e9d6759466d92e44163e65ebd"
+    },
+    {
+      "url": "https://yastatic-net.ru/s3/music-frontend-static/music/v4.1726.0/_next/static/chunks/23805-1dbed69c0535c37d.js",
+      "sha256": "f4795549bb0899d69c3a2824daef2750b52dadd8f43f3179c4e7dba0849682bf"
+    },
+    {
+      "url": "https://yastatic-net.ru/s3/music-frontend-static/music/v4.1726.0/_next/static/chunks/33578-137af601c5065987.js",
+      "sha256": "9c011063a52d7376150f0022b78a8a0a805af00b010cef5fd0d0db8defabbf6c"
+    },
+    {
+      "url": "https://yastatic-net.ru/s3/music-frontend-static/music/v4.1726.0/_next/static/chunks/667-761845befb476e19.js",
+      "sha256": "02fac5150bd7edfa91e4ace518947562e047b9d445918e2a6666741042721c6f"
+    },
+    {
+      "url": "https://yastatic-net.ru/s3/music-frontend-static/music/v4.1726.0/_next/static/chunks/87999-c08942b5e689cece.js",
+      "sha256": "42f9ddf330429877bb6cd0dd277b73f87a6d981c1f603130d0e4246e580b4786"
+    },
+    {
+      "url": "https://yastatic-net.ru/s3/music-frontend-static/music/v4.1726.0/_next/static/chunks/98283-57beaf8e69184b58.js",
+      "sha256": "e050143f3764015ad0957599d3901e714eac358c478a211915f39848256ade24"
+    },
+    {
+      "url": "https://yastatic-net.ru/s3/music-frontend-static/music/v4.1726.0/_next/static/chunks/66426-f61c4daeea1c9ba8.js",
+      "sha256": "4d87faa399503a65058c64b4e761eaef24988ab1bdf10e384b99c9b2a35a89ed"
+    },
+    {
+      "url": "https://yastatic-net.ru/s3/music-frontend-static/music/v4.1726.0/_next/static/chunks/33587-608ba24b05dab24e.js",
+      "sha256": "565872dfb0319f0db4e67dfd2fbfdc63e0ff77d2d8bbe0a302a1b3754268fb27"
+    },
+    {
+      "url": "https://yastatic-net.ru/s3/music-frontend-static/music/v4.1726.0/_next/static/chunks/24793-5c9def2303b2ac5b.js",
+      "sha256": "6f40b79f3e2309ac2332a448cac3e2966ee12ad549b8cde65cd7674d393f7167"
+    },
+    {
+      "url": "https://yastatic-net.ru/s3/music-frontend-static/music/v4.1726.0/_next/static/chunks/81927-ba8d72dd405c6a51.js",
+      "sha256": "583f72903059ef37efe111dc6f8ebff995ed29ec87c68f5e17b930e523e27bd2"
+    },
+    {
+      "url": "https://yastatic-net.ru/s3/music-frontend-static/music/v4.1726.0/_next/static/chunks/83919-0275a10545480198.js",
+      "sha256": "677ed8997d48dade078a49d9939ae1cc4dc5692549cb5e7ee19f8e5fd18ad69d"
+    },
+    {
+      "url": "https://yastatic-net.ru/s3/music-frontend-static/music/v4.1726.0/_next/static/chunks/52300-4ce4789be8ae9002.js",
+      "sha256": "6ecf6f6460287f0dfa3ba3d6779f6c36c268d9c76c137f27430d344c1476e63b"
+    },
+    {
+      "url": "https://yastatic-net.ru/s3/music-frontend-static/music/v4.1726.0/_next/static/chunks/35200-2985e5722de120b6.js",
+      "sha256": "dd6bdcbe1d05dc1e256801e992965e2c4f6fbbdefce58534576f03727b56b27a"
+    },
+    {
+      "url": "https://yastatic-net.ru/s3/music-frontend-static/music/v4.1726.0/_next/static/chunks/26360-96f793c5a3c4483e.js",
+      "sha256": "af76db1ff1d41b8767e6b83090aba106a6ce78bf96ca6499966f19ecc7c4856e"
+    },
+    {
+      "url": "https://yastatic-net.ru/s3/music-frontend-static/music/v4.1726.0/_next/static/chunks/90688-fa2f577d6c88f40d.js",
+      "sha256": "825247ee4d9516a4c75cc0e92f5b45bfb8655b58aa694c1f4102b3cf3601167e"
+    },
+    {
+      "url": "https://yastatic-net.ru/s3/music-frontend-static/music/v4.1726.0/_next/static/chunks/62254-079e4d4cd3e02f3e.js",
+      "sha256": "c6495267e3c7f45bcdc8a62e537f652d5ecaf8bdd4088dec5a2c022d7da31dbb"
+    },
+    {
+      "url": "https://yastatic-net.ru/s3/music-frontend-static/music/v4.1726.0/_next/static/chunks/87627-8e5031e5e390fce5.js",
+      "sha256": "7ca9c580e991b33c7dac243e246a3e7ff063106a59d78a5591d60463ef58c385"
+    },
+    {
+      "url": "https://yastatic-net.ru/s3/music-frontend-static/music/v4.1726.0/_next/static/chunks/49124-ddfeb83a6ca022af.js",
+      "sha256": "7d90c413cf1e2ebfb2649e2d17fe7ae1e55f410d61980ef326503937631e3957"
+    },
+    {
+      "url": "https://yastatic-net.ru/s3/music-frontend-static/music/v4.1726.0/_next/static/chunks/19570-6509f272f254b9ec.js",
+      "sha256": "1e505d8d03993e9f9a96a8fe39eceecdad9459fa75be3db9336029feac016e4d"
+    },
+    {
+      "url": "https://yastatic-net.ru/s3/music-frontend-static/music/v4.1726.0/_next/static/chunks/19934-2f943b503a26f7ec.js",
+      "sha256": "4e911cb6123bc94214428c6e92d6217c7f70d59ec2fd3660e1ed427b96e3c444"
+    },
+    {
+      "url": "https://yastatic-net.ru/s3/music-frontend-static/music/v4.1726.0/_next/static/chunks/57670-c637dc67dfaac049.js",
+      "sha256": "3576a40ef029349b72c2d92e1da7f39755485fef2d491af3720f4ba3767eecaa"
+    },
+    {
+      "url": "https://yastatic-net.ru/s3/music-frontend-static/music/v4.1726.0/_next/static/chunks/31274-c30ca5135185c6e2.js",
+      "sha256": "49af38d5663f901144485eae7ce0fe5131b245c640d5e0768ec542362ff1e9c4"
+    },
+    {
+      "url": "https://yastatic-net.ru/s3/music-frontend-static/music/v4.1726.0/_next/static/chunks/89337-89e01687915f6b74.js",
+      "sha256": "0d5670102fa4c386ba4ef7062f624d02f0ad5b00fcf8a74badab6434b9a10420"
+    },
+    {
+      "url": "https://yastatic-net.ru/s3/music-frontend-static/music/v4.1726.0/_next/static/chunks/11372-4d420d1f714af434.js",
+      "sha256": "0cada108ec7197e2b2d080d316a47e9adff9bbd9b18423e1682b01c26973b0c7"
+    },
+    {
+      "url": "https://yastatic-net.ru/s3/music-frontend-static/music/v4.1726.0/_next/static/chunks/56600-2ebd8a8ac9ade162.js",
+      "sha256": "27cd24998cd08af348fe4c2f18934e7d70346ec6d0c86cbdbce6c1c20ede43ca"
+    },
+    {
+      "url": "https://yastatic-net.ru/s3/music-frontend-static/music/v4.1726.0/_next/static/chunks/53883-a6750ea82827267d.js",
+      "sha256": "52b6ae2b9dd00628036d7aac30bf5a2f3daffc648dba07041b3d1b01085d2cea"
+    },
+    {
+      "url": "https://yastatic-net.ru/s3/music-frontend-static/music/v4.1726.0/_next/static/chunks/2288-0ac4c4052e7fade0.js",
+      "sha256": "22027fa2471c920d0d07746d70ea12540e2056652515635e102eed7ebfa1ee16"
+    },
+    {
+      "url": "https://yastatic-net.ru/s3/music-frontend-static/music/v4.1726.0/_next/static/chunks/38955-4b50e7a3f8cd77e8.js",
+      "sha256": "4e19c1b0c4f8c12f39827e9384d4be01b6c54add1592e557be61ddd92d8eb5f4"
+    },
+    {
+      "url": "https://yastatic-net.ru/s3/music-frontend-static/music/v4.1726.0/_next/static/chunks/31051-73a0a1990ccdb464.js",
+      "sha256": "c7631ee363cad79399c470c32e26b59414b2aa64864e36dcb37165ba8326fbf9"
+    },
+    {
+      "url": "https://yastatic-net.ru/s3/music-frontend-static/music/v4.1726.0/_next/static/chunks/91514-6eb9aecc0796b447.js",
+      "sha256": "4f0ce6d9daca2588754d25bb96dfda9e0fed7fc794985da78b610e4e0806d3b5"
+    },
+    {
+      "url": "https://yastatic-net.ru/s3/music-frontend-static/music/v4.1726.0/_next/static/chunks/37954-4b6af2952cef8a4f.js",
+      "sha256": "80752fabbf5d2a2a2860a523545c2401a8b653941c03b90136058af9ebde2ee1"
+    },
+    {
+      "url": "https://yastatic-net.ru/s3/music-frontend-static/music/v4.1726.0/_next/static/chunks/31198-46fa1f11642162d7.js",
+      "sha256": "e6b69ef037f9f5e540a07a7ebd5ad47a093b2f7d85c7ebacb7cdf5ea5679186a"
+    },
+    {
+      "url": "https://yastatic-net.ru/s3/music-frontend-static/music/v4.1726.0/_next/static/chunks/app/(product)/(core)/(app)/layout-6e8786e052666f7a.js",
+      "sha256": "9648f1746d465869c0d3d33a7a00a09cbb96f4f792fa80d270e3320a44db8352"
+    },
+    {
+      "url": "https://yastatic-net.ru/s3/music-frontend-static/music/v4.1726.0/_next/static/chunks/4301d3d9-9da5d1d30782a331.js",
+      "sha256": "83184924d48ef0e28dce545c20950a764f730c349a21811a5a552b8c34bba943"
+    },
+    {
+      "url": "https://yastatic-net.ru/s3/music-frontend-static/music/v4.1726.0/_next/static/chunks/58940-49783b180b8dbee5.js",
+      "sha256": "60cc5c007a210ec23dc621dff3bcbf07646aee09e86719194d89e7cc1cb2f4ca"
+    },
+    {
+      "url": "https://yastatic-net.ru/s3/music-frontend-static/music/v4.1726.0/_next/static/chunks/1223-1afcebf837846063.js",
+      "sha256": "32210dd30bc14690df97d8b4a9bd9f162d23852b76a870521015e4c5241f0730"
+    },
+    {
+      "url": "https://yastatic-net.ru/s3/music-frontend-static/music/v4.1726.0/_next/static/chunks/52288-22e2d8188e62818e.js",
+      "sha256": "3e5aeeeae2b17cad06e72c09238c42c468332f4d61a614a57be0b1f4c0da3688"
+    },
+    {
+      "url": "https://yastatic-net.ru/s3/music-frontend-static/music/v4.1726.0/_next/static/chunks/21002-1fd10bf6d7576559.js",
+      "sha256": "ec892ba81d03debf2f0bd7f2f13678ea9d4f6049df144a3d769d213f11aeb8cb"
+    },
+    {
+      "url": "https://yastatic-net.ru/s3/music-frontend-static/music/v4.1726.0/_next/static/chunks/72191-49f223b0f5e73d49.js",
+      "sha256": "d3cfd3535de439f25717e47f9ba4c9f3aa3c3672b9c35df1b89d2efb69c5e76d"
+    },
+    {
+      "url": "https://yastatic-net.ru/s3/music-frontend-static/music/v4.1726.0/_next/static/chunks/57297-63eacdb2783f9348.js",
+      "sha256": "ccdda8f9143c0f0d04bbe9f0e050f3a6a4878386c4acd6c287acf808a3a24bd6"
+    },
+    {
+      "url": "https://yastatic-net.ru/s3/music-frontend-static/music/v4.1726.0/_next/static/chunks/10079-97bfe094dfe5a4e1.js",
+      "sha256": "487b086681fb292165bbe4d9a195537c3437a5fabb1b62ed722321ad0d17e1cb"
+    },
+    {
+      "url": "https://yastatic-net.ru/s3/music-frontend-static/music/v4.1726.0/_next/static/chunks/51327-bda52339f98c49ae.js",
+      "sha256": "997f450e3d830578704895ff8dad13d85b264ed6270d1911928d503b7eb6e219"
+    },
+    {
+      "url": "https://yastatic-net.ru/s3/music-frontend-static/music/v4.1726.0/_next/static/chunks/27053-124e2d153d0fabd6.js",
+      "sha256": "ca7ceee8cf5aeba1001e168251c75a941dc7db0e8c0b8dbf081912d7417be03d"
+    },
+    {
+      "url": "https://yastatic-net.ru/s3/music-frontend-static/music/v4.1726.0/_next/static/chunks/34190-c24e8dea1717e6a0.js",
+      "sha256": "f6517bf0291358faff66c88fc4362ce9cbd4a65635f7aeeb1e27aa058ed5ba55"
+    },
+    {
+      "url": "https://yastatic-net.ru/s3/music-frontend-static/music/v4.1726.0/_next/static/chunks/44322-36610aca0256e737.js",
+      "sha256": "3e1deeab4f40bcdf1937ce814ddad2233b8ce5c7e79ff231b551d4787cfe9be2"
+    },
+    {
+      "url": "https://yastatic-net.ru/s3/music-frontend-static/music/v4.1726.0/_next/static/chunks/47934-f3bd3c908c8c8b79.js",
+      "sha256": "2d403330d6cc4b89659eb18f9ee7ae97140d21f00ddd829e063237256cc43dd8"
+    },
+    {
+      "url": "https://yastatic-net.ru/s3/music-frontend-static/music/v4.1726.0/_next/static/chunks/34497-e56b7089abb5601b.js",
+      "sha256": "b4bae3fc37e72e0a7439a5059f92595c4dbd748fdbbedcfa4ad814e28af6fc1a"
+    },
+    {
+      "url": "https://yastatic-net.ru/s3/music-frontend-static/music/v4.1726.0/_next/static/chunks/89923-b2cb45c1f856c84b.js",
+      "sha256": "813058d52104e59b1259c690ee4328ba61b47730ec15272d379e9cd860a7b3d0"
+    },
+    {
+      "url": "https://yastatic-net.ru/s3/music-frontend-static/music/v4.1726.0/_next/static/chunks/91986-1506c67f061a6855.js",
+      "sha256": "aae9591e32a5671b805d92b33f1c0835a9cc82bf9ac9949bd9f719075a0adc8f"
+    },
+    {
+      "url": "https://yastatic-net.ru/s3/music-frontend-static/music/v4.1726.0/_next/static/chunks/27555-e8eee3e015faa27a.js",
+      "sha256": "6bcded6ea9ce33e120b0d7e491a9690daceb5deca4928bee4570628621136f70"
+    },
+    {
+      "url": "https://yastatic-net.ru/s3/music-frontend-static/music/v4.1726.0/_next/static/chunks/79719-e4a54247cdcb90ec.js",
+      "sha256": "d652f6bb7665d510e10814d01c30e5e236c5e6737e114c0f1028e9f8f187fd8b"
+    },
+    {
+      "url": "https://yastatic-net.ru/s3/music-frontend-static/music/v4.1726.0/_next/static/chunks/8234-2680ff7b0a269e8d.js",
+      "sha256": "4bd861ccda15f15f58827113538e67684f49dfe68c0cf18e0fa0a732af7a5f29"
+    },
+    {
+      "url": "https://yastatic-net.ru/s3/music-frontend-static/music/v4.1726.0/_next/static/chunks/app/(product)/(core)/(app)/page-10cadaac257de30c.js",
+      "sha256": "22f196f6c7c729543c33e5ff04b15230a0d92d62f2283941b39de8bb2734f230"
+    },
+    {
+      "url": "https://yastatic-net.ru/s3/music-frontend-static/music/v4.1726.0/_next/static/chunks/97934-db6e473593d9fa7d.js",
+      "sha256": "8e7716de62f4701424a469ae80995f6b0c41f7a3954c12cbea9d7cbc0192cb88"
+    },
+    {
+      "url": "https://yastatic-net.ru/s3/music-frontend-static/music/v4.1726.0/_next/static/chunks/12389-dac840c5422ee4fe.js",
+      "sha256": "a5148197d7cf777e2bb04c56ef257eb1bb5eb26c5810d1d957455866abb51851"
+    },
+    {
+      "url": "https://yastatic-net.ru/s3/music-frontend-static/music/v4.1726.0/_next/static/chunks/62837-e10470163748cce9.js",
+      "sha256": "193156456f735bcd0d88d10cc7bdff19ac4ef016de28d10d920d106b5a41f7d6"
+    },
+    {
+      "url": "https://yastatic-net.ru/s3/music-frontend-static/music/v4.1726.0/_next/static/chunks/45266-ef5b6f5aa18a425d.js",
+      "sha256": "80341fec483aecc5aac7cbec6de556b32a3ac70a3e685d4750060a821923a396"
+    },
+    {
+      "url": "https://yastatic-net.ru/s3/music-frontend-static/music/v4.1726.0/_next/static/chunks/41599-ae9a1e5c45ac96c9.js",
+      "sha256": "60e1a40d87eba8d12def89b657b0d74d681d1ee6246b4922000e2e34366f939f"
+    },
+    {
+      "url": "https://yastatic-net.ru/s3/music-frontend-static/music/v4.1726.0/_next/static/chunks/92370-8f9098a6f3b93828.js",
+      "sha256": "b952b9c6b12cdb118f33c80dc7e3f0990903fd1da5cea799f0336acbc46df50e"
+    },
+    {
+      "url": "https://yastatic-net.ru/s3/music-frontend-static/music/v4.1726.0/_next/static/chunks/86943-e61d29f6bd4b8c08.js",
+      "sha256": "52c5dc182b75e09d6650d1f8268696371c192f086f09a8a5dfc5be4c46ceef3c"
+    },
+    {
+      "url": "https://yastatic-net.ru/s3/music-frontend-static/music/v4.1726.0/_next/static/chunks/71625-1a504b96e3c7eaa9.js",
+      "sha256": "bbf6f051ad625dfe74a1942bfe3b9e2837c04560294fddd00edbcf2600bc003f"
+    },
+    {
+      "url": "https://yastatic-net.ru/s3/music-frontend-static/music/v4.1726.0/_next/static/chunks/40617-5eb9f169441781a7.js",
+      "sha256": "3e4eb8b514dd2eb99acca7f02b01f03448da192c3914efe63e28532c42b492d8"
+    },
+    {
+      "url": "https://yastatic-net.ru/s3/music-frontend-static/music/v4.1726.0/_next/static/chunks/2868-796bdb0fc4a06bb1.js",
+      "sha256": "18f7cd9e93d6c004ff603af95011813885f1f55e392f0cdfcdf05e44c28f58b4"
+    },
+    {
+      "url": "https://yastatic-net.ru/s3/music-frontend-static/music/v4.1726.0/_next/static/chunks/81814-555ff279a2b975f5.js",
+      "sha256": "87bfda81feef3272bfd6d27dc9b37c553cfd3c1040ce584d600bab91d1816e8e"
+    },
+    {
+      "url": "https://yastatic-net.ru/s3/music-frontend-static/music/v4.1726.0/_next/static/chunks/app/(product)/(core)/layout-eeb956058ffc07f6.js",
+      "sha256": "d859e316f5f8cdf6bbf8f1c2e624784660d56853096ac0f6046f7477440cec5c"
+    },
+    {
+      "url": "https://yastatic-net.ru/s3/music-frontend-static/music/v4.1726.0/_next/static/chunks/app/(product)/(core)/not-found-408f11f2b38a232d.js",
+      "sha256": "d81e5fef14c720d6abe218fa75fb5469bb59de5a95333564f923c169bb2b3947"
+    },
+    {
+      "url": "https://yastatic-net.ru/s3/music-frontend-static/music/v4.1726.0/_next/static/chunks/app/(product)/layout-ffee8605ab6d9909.js",
+      "sha256": "de68fa698553cca7a5ff0fbc3829e67791b98f512c2c05d0ece24d01c31b357a"
+    }
+  ]
+}

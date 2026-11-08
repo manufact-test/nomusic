@@ -1,7 +1,9 @@
 (function (root) {
   "use strict";
   /* Research-only MAIN-world module. Not loaded by the CELIKOM manifest. */
+  if (root.__CELIKOM_NATIVE_SOURCE_RESEARCH__) return;
   const assets = new Map(), patches = [], patched = new WeakSet();
+  const scanned = new Map();
   const metrics = { resourceClasses: 0, urlNormalization: false, singles: 0, batches: 0, replacements: 0 };
   let enabled = true, stopped = false, timer = null, requireApp = null, attempts = 0;
   const own = (value, key) => Object.prototype.hasOwnProperty.call(value, key);
@@ -90,10 +92,11 @@
     const modules = Object.keys(requireApp.m);
     if (modules.length > 20000) return;
     for (const id of modules) {
+      if (scanned.get(id) === requireApp.m[id]) continue;
       let src; try { src = Function.prototype.toString.call(requireApp.m[id]); } catch { continue; }
       const resource = src.includes("getFileInfoBatch") && (src.includes('"get-file-info"') || src.includes('"resources/v2/file-info"'));
-      if (!resource) continue;
-      try { inspect(requireApp(id)); } catch { /* Unsupported modules remain untouched. */ }
+      if (!resource) { scanned.set(id, requireApp.m[id]); continue; }
+      try { inspect(requireApp(id)); scanned.set(id, requireApp.m[id]); } catch { /* Retry only matching resources whose dependencies were not ready. */ }
     }
   }
   if (root.Element?.prototype && metrics.urlNormalization) {
@@ -116,7 +119,7 @@
     dispose() {
       stopped = true; enabled = false; root.clearTimeout(timer);
       for (const undo of patches.reverse()) undo();
-      assets.clear();
+      assets.clear(); scanned.clear();
     }
   };
   Object.defineProperty(root, "__CELIKOM_NATIVE_SOURCE_RESEARCH__", { value: api, configurable: true });

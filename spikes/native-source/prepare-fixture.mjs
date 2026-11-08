@@ -2,21 +2,39 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import vm from "node:vm";
 import path from "node:path";
+import { setDefaultResultOrder } from "node:dns";
+import { setDefaultAutoSelectFamilyAttemptTimeout } from "node:net";
+
+setDefaultResultOrder("ipv4first");
+setDefaultAutoSelectFamilyAttemptTimeout(3000);
 
 const output = path.resolve(process.argv[2] || "/tmp/celikom-native-source-fixture");
 await mkdir(output, { recursive: true });
 const get = async url => {
-  const response = await fetch(url, { signal: AbortSignal.timeout(30000) });
-  if (!response.ok) throw Error("Fixture download HTTP " + response.status);
-  return response.text();
+  let last;
+  for (let attempt = 0; attempt < 4; attempt++) {
+    try {
+      const response = await fetch(url, { signal: AbortSignal.timeout(30000) });
+      if (!response.ok) throw Error("Fixture download HTTP " + response.status);
+      return await response.text();
+    } catch (error) {
+      last = error;
+      if (attempt < 3) await new Promise(resolve => setTimeout(resolve, (attempt + 1) * 500));
+    }
+  }
+  throw last;
 };
+const manifest = JSON.parse(await readFile(new URL("asset-manifest.json", import.meta.url), "utf8"));
 let html, urls;
 if (process.env.CELIKOM_RESEARCH_ASSET_CACHE) {
   html = "cached public homepage";
   urls = JSON.parse(await readFile(path.join(process.env.CELIKOM_RESEARCH_ASSET_CACHE, "script-urls.json"), "utf8"));
-} else {
+} else if (process.env.CELIKOM_NATIVE_LIVE_ASSETS === "1") {
   html = await get("https://music.yandex.ru/");
   urls = [...new Set([...html.matchAll(/<script[^>]+src="([^"]+)/g)].map(m => m[1]))];
+} else {
+  html = "pinned public frontend " + manifest.frontend;
+  urls = manifest.assets.map(asset => asset.url);
 }
 const factories = {}, context = { self: { webpackChunk_N_E: [] } }, provenance = [];
 context.self.webpackChunk_N_E.push = chunk => Object.assign(factories, chunk[1]);
@@ -28,6 +46,8 @@ for (let offset = 0; offset < urls.length; offset += 8) {
       ? await readFile(path.join(process.env.CELIKOM_RESEARCH_ASSET_CACHE, "web-assets", (offset + j) + ".js"), "utf8")
       : await get(new URL(url, "https://music.yandex.ru/").href);
     if (!source.startsWith("(self.webpackChunk_N_E") && !source.startsWith('"use strict";(self.webpackChunk_N_E')) return null;
+    const expected = manifest.assets.find(asset => asset.url === url)?.sha256;
+    if (expected && createHash("sha256").update(source).digest("hex") !== expected) throw Error("Public fixture asset hash mismatch");
     return { source, url };
   }));
   for (const item of batch.filter(Boolean)) {

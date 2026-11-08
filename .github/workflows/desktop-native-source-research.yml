@@ -26,6 +26,7 @@ jobs:
           google-chrome --version
           brave-browser --version
       - name: Download public Yandex classes into transient fixture
+        id: fixture
         run: node spikes/native-source/prepare-fixture.mjs
       - name: Actual Chrome MV3 native playback
         env:
@@ -33,7 +34,7 @@ jobs:
           CELIKOM_BROWSER_BINARY: /usr/bin/google-chrome
         run: node spikes/native-source/browser-test.mjs
       - name: Actual Brave MV3 native playback
-        if: success() || failure()
+        if: always() && steps.fixture.outcome == 'success'
         env:
           PLAYWRIGHT_MODULE: /tmp/celikom-research-tools/node_modules/playwright
           CELIKOM_BROWSER_BINARY: /usr/bin/brave-browser
