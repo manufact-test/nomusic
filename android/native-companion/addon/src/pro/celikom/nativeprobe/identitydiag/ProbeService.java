@@ -29,7 +29,13 @@ public class ProbeService extends Service {
  NotificationContent notificationContent(){
   NativeApi api=NativeApi.get(this);AppPresentation.Input input=PlaybackUi.capture(this,api.signedIn(),replacement==null,"");PlaybackSource source=current;MobileActions.Target song=PlaybackUi.target(this);
   boolean lost=controllerSeen&&(controller==null||!controller.isConnected()),sessionLost=replacement!=null&&replacement.status.startsWith("Яндекс сменил");boolean hasReplacement=replacement!=null&&replacement.descriptor!=null&&replacement.descriptor.optBoolean("found");
-  NotificationState state=NotificationState.of(input,source==null?"":source.title,source==null?"":source.artist,lost,sessionLost,song!=null,hasReplacement);
+  boolean sourceBuffering=source!=null&&source.buffering&&source.wantsToPlay;
+   boolean sourceStale=sourceBuffering&&Objects.equals(stateWatchdog.key,source.alias)
+      &&stateWatchdog.quietSince>=0&&SystemClock.elapsedRealtime()-stateWatchdog.quietSince>=3000;
+   NotificationState state=api.signedIn()&&input.enabled&&input.session&&!lost&&sourceBuffering
+     ?NotificationState.yandexBuffering(sourceStale)
+     :NotificationState.of(input,source==null?"":source.title,
+       source==null?"":source.artist,lost,sessionLost,song!=null,hasReplacement);
   NotificationTarget target=state.suggest&&song!=null?new NotificationTarget(notificationRun,song.id,song.key,api.accountGeneration):null;return new NotificationContent(state,target);
  }
  Intent notificationOpen(){return new Intent(this,RecorderActivity.class).addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP|Intent.FLAG_ACTIVITY_SINGLE_TOP);}
