@@ -166,6 +166,23 @@ final class Application
             $response->headers['Cache-Control']='no-store';
             return $response;
         }
+        if ($path === '/api/v1/replacement-catalog') {
+            if (!($this->config['auth_enabled'] ?? false)) {
+                return Response::json(404, ['error' => 'not_found']);
+            }
+            if ($method !== 'GET') {
+                return Response::json(405, ['error' => 'method_not_allowed']);
+            }
+            $pdo = $this->database();
+            if ((new BearerAuthenticator($pdo))->session($headers) === null) {
+                return Response::json(401, ['error' => 'invalid_session']);
+            }
+            // This endpoint lists only already approved, active public track
+            // metadata, not playback URLs. It never activates entitlements.
+            $response = Response::json(200, (new \Celikom\Application\ReplacementCatalogueService($pdo))->snapshot());
+            $response->headers['Cache-Control'] = 'private, no-store';
+            return $response;
+        }
         if ($method === 'GET' && $path === '/api/v1/entitlement') {
             if (!($this->config['entitlement_enabled'] ?? false) || !($this->config['auth_enabled'] ?? false))
                 return Response::json(404, ['error' => 'not_found']);
