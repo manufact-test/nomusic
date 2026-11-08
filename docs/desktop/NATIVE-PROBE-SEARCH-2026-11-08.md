@@ -1,5 +1,7 @@
 # Read-only engine probe 0.0.2 — owner search failure
 
+Follow-up: probe 0.0.2 found the owner controller but exposed a wrong Playback state path. Current check is 0.0.3; see [NATIVE-PROBE-STATE-2026-11-08.md](NATIVE-PROBE-STATE-2026-11-08.md). Historical evidence below is unchanged.
+
 Scope: `experiment/desktop-native-probe-search-20261108`, based on `4d33706b546a33c7db61db726d183907b1b72cef` from the lifecycle research branch. Accepted 0.4.73, product source/manifest, server and Android are unchanged.
 
 ## Owner evidence
