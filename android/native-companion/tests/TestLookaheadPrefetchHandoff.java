@@ -116,6 +116,42 @@ public final class TestLookaheadPrefetchHandoff {
     "no duplicate current-track file download was started");
   TestEngine.e.close();
  }
+
+ static void deferredNextAfterJoin()throws Exception{
+  TestEngine.reset("ALBUM",true);TestEngine.api.signed=true;
+  TestEngine.e=new ReplacementEngine(TestEngine.p,true,true);
+  TestEngine.e.identity(LogStore.map("mediaAlias","1","albumId","42","title","Песня","artist","Артист","durationMs",120000L),
+   LogStore.map("candidateTrackId","7","method","ALBUM","editionConflict",false));
+  TestEngine.e.arm();
+  ReplacementEngine e=TestEngine.e;TestEngine.p.lookaheadAlias="2";
+  e.preparing=true;e.ready=false;
+  e.prefetchLookahead(LogStore.map("mediaAlias","2","durationMs",120000L),"8");
+  check(e.pendingNextObservation!=null&&TestEngine.api.resolves==1,
+   "remember next ID while current prepares without starting prefetch");
+  e.preparing=false;e.ready=true;e.flushPendingNextAfterJoin();
+  check(e.pendingNextObservation==null&&TestEngine.api.resolves==2
+   &&"2".equals(e.lookaheadPrefetchAlias),"start remembered next once current is ready");
+  e.flushPendingNextAfterJoin();
+  check(TestEngine.api.resolves==2,"do not replay next ID twice");
+  e.close();
+ }
+ static void deferredNextDroppedOnBoundary()throws Exception{
+  TestEngine.reset("ALBUM",true);TestEngine.api.signed=true;
+  TestEngine.e=new ReplacementEngine(TestEngine.p,true,true);
+  TestEngine.e.identity(LogStore.map("mediaAlias","1","albumId","42","title","Песня","artist","Артист","durationMs",120000L),
+   LogStore.map("candidateTrackId","7","method","ALBUM","editionConflict",false));
+  TestEngine.e.arm();
+  ReplacementEngine e=TestEngine.e;TestEngine.p.lookaheadAlias="2";
+  e.preparing=true;e.ready=false;
+  e.prefetchLookahead(LogStore.map("mediaAlias","2","durationMs",120000L),"8");
+  check(e.pendingNextObservation!=null,"remember next before boundary");
+  e.sourceBoundary("sample_track_changed","3");
+  TestEngine.p.current=TestEngine.source("3",0,true);
+  e.preparing=false;e.ready=true;e.flushPendingNextAfterJoin();
+  check(e.pendingNextObservation==null&&TestEngine.api.resolves==1,
+   "stale lookahead is not downloaded on another track");
+  e.close();
+ }
  static void cancelledCurrentWaitMustFallBack()throws Exception{
   beginLookahead();promoteCurrent(descriptor(1),true);
   TestEngine.e.invalidateLookaheadPrefetch("simulated_conflicting_candidate");
@@ -505,7 +541,7 @@ public final class TestLookaheadPrefetchHandoff {
  public static void main(String[] args)throws Exception{
   beginLookahead();promoteCurrent(descriptor(1),true);matchingPrefetchIsConsumed();
   mismatchedFreshResolveFallsBack();latePrefetchCanStartAfterBoundary();
-  newNextCandidateCannotStealCurrentDownload();cancelledCurrentWaitMustFallBack();
+  newNextCandidateCannotStealCurrentDownload();deferredNextAfterJoin();deferredNextDroppedOnBoundary();cancelledCurrentWaitMustFallBack();
   currentWaitHasTimeout();readyPrimedDecoderIsAdoptedOnlyAfterFreshResolve();
   unrelatedCurrentSongCannotDiscardPrimedSuccessor();
   promotedPrimeWaitsForFreshResolveBeforeNextCandidate();
