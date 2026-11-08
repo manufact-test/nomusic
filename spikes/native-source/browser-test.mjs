@@ -175,6 +175,31 @@ try {
     const beforeDispose = api.diagnostics(); api.dispose();
     check(api.diagnostics().stopped && api.diagnostics().assets === 0, "dispose restores owned prototype hooks and removes registry");
     audio.pause(); audio.removeAttribute("src"); audio.load();audio.remove();URL.revokeObjectURL(shortUrl);URL.revokeObjectURL(longUrl);URL.revokeObjectURL(nativeColdUrl);
+    const react = req(53548);
+    const rendererModule = Object.keys(req.m).find(id => {
+      const src = req.m[id].toString(); return src.includes("createRoot=function") && src.includes("hydrateRoot=function");
+    });
+    check(Boolean(rendererModule), "actual Yandex React renderer available for discovery test");
+    const renderer = req(rendererModule), context = react.createContext(null), mount = document.createElement("div");
+    document.body.append(mount);
+    let mutationCalls = 0;
+    const forbidden = () => { mutationCalls++; throw Error("read-only discovery called engine control"); };
+    const engineAudio = document.createElement("audio");
+    const core = { getMediaSource: forbidden, reload: forbidden, corePlay: forbidden, core: { setSrc: forbidden },
+      currentAudioElement: { value: engineAudio }, hooks: { beforeMediaSourceContentReload: { promise: forbidden }, afterMediaSourceContentReload: { promise: forbidden } } };
+    const controller = { getState: forbidden, playbackController: { getPlayback: () => ({
+      queueState: { currentEntity: { value: { entity: { data: { meta: { id: "1001", durationMs: 8000 } } } } } }, currentMediaPlayer: { value: core }
+    }) } };
+    function Consumer() { react.useContext(context); return react.createElement("button", { id: "celikom-react-consumer" }, "context fixture"); }
+    const reactRoot = renderer.createRoot(mount);
+    reactRoot.render(react.createElement(context.Provider, { value: controller }, react.createElement(Consumer)));
+    const mountedDeadline = performance.now() + 3000;
+    while (!mount.querySelector("button") && performance.now() < mountedDeadline) await new Promise(r => setTimeout(r, 25));
+    check(Boolean(mount.querySelector("button")), "actual React context consumer rendered outside player selectors");
+    const discovered = new window.__CELIKOM_NATIVE_ENGINE_PORT__.EnginePort().inspect();
+    check(discovered.found && discovered.discovery.matchSource === "fiber-context" && mutationCalls === 0,
+      "actual React dependency discovery finds controller without invoking playback");
+    reactRoot.unmount(); mount.remove();
     return { checks, beforeDispose, preparationComparison, experimentElapsedMs: Math.round(performance.now() - start), limitations: ["controlled resource responses; not a signed-in Yandex listening session", "explicit source reacquisition tested; automatic engine cache invalidation and error restore not implemented", "no measured end-to-end speed advantage"] };
   }, origin);
   let liveProbe;

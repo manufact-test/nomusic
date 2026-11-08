@@ -10,7 +10,7 @@ const { EnginePort } = context.__CELIKOM_NATIVE_ENGINE_PORT__;
 const prefix = source.slice(0, source.indexOf("  class EnginePort {")).replaceAll("__CELIKOM_NATIVE_ENGINE_PORT__", "__CELIKOM_ENGINE_READONLY_PROBE__");
 const reader = prefix + `
   const reader={ getController:()=>discoverController(), ${EnginePort.prototype.binding.toString()}, ${EnginePort.prototype.inspect.toString()} };
-  Object.defineProperty(root,"__CELIKOM_ENGINE_READONLY_PROBE__",{value:Object.freeze({inspect:()=>reader.inspect()}),configurable:true});
+  Object.defineProperty(root,"__CELIKOM_ENGINE_READONLY_PROBE__",{value:Object.freeze({version:ENGINE_PORT_VERSION,inspect:()=>reader.inspect()}),configurable:true});
 })(globalThis);
 `;
 if (/\.reload\s*\(|getMediaSource\s*=(?!=)|\.src\s*=(?!=)|\.pause\s*\(|\.play\s*\(/.test(reader)) throw Error("Probe unexpectedly contains a playback mutation");

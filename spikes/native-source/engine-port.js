@@ -1,32 +1,100 @@
 (function (root) {
   "use strict";
-  if (root.__CELIKOM_NATIVE_ENGINE_PORT__) return;
+  const ENGINE_PORT_VERSION = 2;
+  if (root.__CELIKOM_NATIVE_ENGINE_PORT__?.version === ENGINE_PORT_VERSION) return;
   const numericId = value => /^\d{1,24}$/.test(String(value)) ? String(value) : null;
   const safe = fn => { try { return fn(); } catch { return null; } };
+  let lastDiscovery = null;
   function discoverController(document = root.document) {
-    const nodes = Array.from(document?.querySelectorAll('[data-test-id="PLAYERBAR_DESKTOP"], [data-test-id="VIBE_PLAYERBAR"], [data-test-id="PLAYERBAR_DESKTOP"] button, audio') || []).slice(0, 16);
-    const visited = new Set();
-    for (const node of nodes) {
-      const fiberKey = Object.keys(node).find(key => key.startsWith("__reactFiber$"));
-      let fiber = fiberKey && node[fiberKey];
-      for (let depth = 0; fiber && depth < 160 && !visited.has(fiber); depth++, fiber = fiber.return) {
-        visited.add(fiber);
-        const props = safe(() => fiber.memoizedProps);
+    const started = Date.now(), visitedNodes = new Set(), visitedFibers = new Set(), visitedValues = new Set();
+    const report = { version: ENGINE_PORT_VERSION, nodes: 0, fiberRoots: 0, fibers: 0, contexts: 0, candidates: 0,
+      nonEnumerableRoots: 0, propertyErrors: 0, limited: false, matchSource: null, elapsedMs: 0, seeds: {} };
+    lastDiscovery = report;
+    const read = fn => { try { return fn(); } catch { report.propertyErrors++; return null; } };
+    const within = () => {
+      if (Date.now() - started > 100 || report.nodes >= 4096 || report.fibers >= 12000 || report.candidates >= 4000) { report.limited = true; return false; }
+      return true;
+    };
+    const finish = result => { report.elapsedMs = Date.now() - started; return result; };
+    function candidate(value, source, depth = 0) {
+      if (!value || !["object", "function"].includes(typeof value) || visitedValues.has(value) || !within()) return null;
+      visitedValues.add(value); report.candidates++;
+      if (read(() => typeof value.getState === "function" && typeof value.playbackController?.getPlayback === "function")) {
+        report.matchSource = source; return value;
+      }
+      if (depth >= 2) return null;
+      for (const key of ["controller", "sonata", "sonataController", "playerController", "value", "current"]) {
+        const found = candidate(read(() => value[key]), source, depth + 1);
+        if (found) return found;
+      }
+      return null;
+    }
+    function fiberTree(start) {
+      const queue = [start]; let cursor = 0;
+      while (cursor < queue.length && cursor < 320 && within()) {
+        const fiber = queue[cursor++];
+        if (!fiber || typeof fiber !== "object" || visitedFibers.has(fiber)) continue;
+        visitedFibers.add(fiber); report.fibers++;
+        const props = read(() => fiber.memoizedProps);
         for (const value of [props?.value, props?.controller, props?.sonata]) {
-          if (value && typeof value.getState === "function" && typeof value.playbackController?.getPlayback === "function") return value;
+          const found = candidate(value, "fiber-props"); if (found) return found;
+        }
+        let context = read(() => fiber.dependencies?.firstContext);
+        const contexts = new Set();
+        while (context && contexts.size < 32 && !contexts.has(context) && within()) {
+          contexts.add(context); report.contexts++;
+          const found = candidate(read(() => context.memoizedValue), "fiber-context"); if (found) return found;
+          context = read(() => context.next);
+        }
+        if (context && contexts.size >= 32) report.limited = true;
+        const parent = read(() => fiber.return), alternate = read(() => fiber.alternate);
+        if (parent) queue.push(parent);
+        if (alternate) queue.push(alternate);
+      }
+      if (cursor < queue.length) report.limited = true;
+      return null;
+    }
+    function nodeController(node) {
+      if (!node || visitedNodes.has(node) || !within()) return null;
+      visitedNodes.add(node); report.nodes++;
+      const keys = read(() => Object.getOwnPropertyNames(node)) || [];
+      for (const key of keys.filter(name => /^__react(?:Fiber|InternalInstance|Container)\$/.test(name)).slice(0, 3)) {
+        const fiber = read(() => node[key]); report.fiberRoots++;
+        if (!Object.prototype.propertyIsEnumerable.call(node, key)) report.nonEnumerableRoots++;
+        for (const start of [fiber, read(() => fiber?.current), read(() => fiber?.stateNode?.current)]) {
+          const found = fiberTree(start); if (found) return found;
         }
       }
+      return null;
     }
-    return null;
+    /* A request/player UI can be rendered through context consumers and
+       portals. Read bounded committed context dependencies, not only props. */
+    for (const [name, selector] of [
+      ["player", '[data-test-id="PLAYERBAR_DESKTOP"], [data-test-id="VIBE_PLAYERBAR"]'],
+      ["controls", '[data-test-id="PLAY_BUTTON"], [data-test-id="PAUSE_BUTTON"], [role="slider"]'],
+      ["media", "audio,video"]
+    ]) {
+      const nodes = read(() => document?.querySelectorAll(selector)); report.seeds[name] = nodes?.length || 0;
+      for (const node of Array.from(nodes || []).slice(0, 64)) { const found = nodeController(node); if (found) return finish(found); }
+    }
+    const walker = read(() => document?.createTreeWalker?.(document.body || document.documentElement, 1));
+    if (walker) {
+      let node = walker.currentNode;
+      while (node && within()) { const found = nodeController(node); if (found) return finish(found); node = read(() => walker.nextNode()); }
+    } else {
+      for (const node of Array.from(read(() => document?.querySelectorAll("*")) || []).slice(0, 4096)) {
+        if (!within()) break; const found = nodeController(node); if (found) return finish(found);
+      }
+    }
+    return finish(null);
   }
   class EnginePort {
     constructor(options = {}) {
       this.getController = options.getController || (() => discoverController());
       this.pending = null; this.sequence = 0;
     }
-    binding() {
+    binding(controller = this.getController()) {
       return safe(() => {
-        const controller = this.getController();
         const playback = controller?.playbackController?.getPlayback();
         const pair = playback?.queueState?.currentEntity?.value;
         const entity = pair?.entity, id = numericId(entity?.data?.meta?.id);
@@ -39,9 +107,9 @@
       });
     }
     inspect() {
-      const b = this.binding();
+      const controller = safe(() => this.getController()), b = this.binding(controller);
       const shape = safe(() => {
-        const controller = this.getController(), playback = controller?.playbackController?.getPlayback();
+        const playback = controller?.playbackController?.getPlayback();
         const pair = playback?.queueState?.currentEntity?.value, entity = pair?.entity, player = playback?.currentMediaPlayer?.value;
         let core = player, depth = 0;
         while (core && typeof core.getMediaSource !== "function" && depth++ < 3) core = core.currentMediaPlayer;
@@ -54,11 +122,12 @@
         const descriptor = Object.getOwnPropertyDescriptor(object, key);
         return descriptor ? descriptor.configurable === true : Object.isExtensible(object);
       };
-      return { controllerFound: Boolean(safe(() => this.getController())), found: Boolean(b), trackId: b?.id || null, durationMs: Number(b?.entity?.data?.meta?.durationMs) || null,
+      return { readerVersion: ENGINE_PORT_VERSION, controllerFound: Boolean(controller), found: Boolean(b), trackId: b?.id || null, durationMs: Number(b?.entity?.data?.meta?.durationMs) || null,
         pending: Boolean(this.pending), nativeReload: Boolean(b?.core?.reload), encryptedRestoreViaEngine: Boolean(b?.core?.reload),
         mediaEvents: typeof b?.audio?.addEventListener === "function" && typeof b?.audio?.removeEventListener === "function",
         sourceFence: canFence(b?.core, "getMediaSource"), playFence: canFence(b?.core, "corePlay"), setSourceFence: canFence(b?.core?.core, "setSrc"),
-        nativeHooks: typeof b?.core?.hooks?.beforeMediaSourceContentReload?.promise === "function" && typeof b?.core?.hooks?.afterMediaSourceContentReload?.promise === "function", shape };
+        nativeHooks: typeof b?.core?.hooks?.beforeMediaSourceContentReload?.promise === "function" && typeof b?.core?.hooks?.afterMediaSourceContentReload?.promise === "function", shape,
+        discovery: lastDiscovery ? JSON.parse(JSON.stringify(lastDiscovery)) : null };
     }
     same(binding) {
       const current = this.binding();
@@ -117,5 +186,5 @@
     }
     cancel() { if (this.pending) this.pending.cancelled = true; }
   }
-  Object.defineProperty(root, "__CELIKOM_NATIVE_ENGINE_PORT__", { value: { EnginePort, discoverController }, configurable: true });
+  Object.defineProperty(root, "__CELIKOM_NATIVE_ENGINE_PORT__", { value: { version: ENGINE_PORT_VERSION, EnginePort, discoverController }, configurable: true });
 })(globalThis);

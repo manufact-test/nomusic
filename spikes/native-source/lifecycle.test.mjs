@@ -104,6 +104,52 @@ test("DOM discovery follows bounded React providers without exposing account dat
   assert.equal(engineContext.__CELIKOM_NATIVE_ENGINE_PORT__.discoverController({ querySelectorAll: () => [node] }), controller);
   assert.equal(n.port.inspect().trackId, "1001");
 });
+function documentFixture(nodes, targets = []) {
+  return { querySelectorAll: selector => selector === "*" ? nodes : targets };
+}
+test("discovery reads context dependencies when provider props are not on the selected ancestor path", () => {
+  const n = nativeEngine();
+  const fiber = { memoizedProps: {}, dependencies: { firstContext: { memoizedValue: n.controller, next: null } }, return: null };
+  const node = { __reactFiber$consumer: fiber };
+  assert.equal(engineContext.__CELIKOM_NATIVE_ENGINE_PORT__.discoverController(documentFixture([node])), n.controller);
+});
+test("discovery finds non-enumerable React roots outside known player selectors", () => {
+  const n = nativeEngine(), node = {};
+  Object.defineProperty(node, "__reactFiber$hidden", { value: { memoizedProps: { value: n.controller }, return: null }, enumerable: false });
+  assert.equal(Object.keys(node).length, 0);
+  assert.equal(engineContext.__CELIKOM_NATIVE_ENGINE_PORT__.discoverController(documentFixture([node])), n.controller);
+});
+test("discovery checks alternate committed dependencies and context wrappers", () => {
+  const n = nativeEngine(), primary = { memoizedProps: {}, return: null };
+  const alternate = { memoizedProps: {}, dependencies: { firstContext: { memoizedValue: { controller: n.controller }, next: null } }, return: null, alternate: primary };
+  primary.alternate = alternate;
+  assert.equal(engineContext.__CELIKOM_NATIVE_ENGINE_PORT__.discoverController(documentFixture([{ __reactFiber$alternate: primary }])), n.controller);
+});
+test("discovery contains throwing getters and never invokes engine control methods", () => {
+  const n = nativeEngine(); let mutations = 0;
+  n.controller.getState = () => { mutations++; throw Error("not allowed"); };
+  const hostile = {}; Object.defineProperty(hostile, "playbackController", { get() { throw Error("opaque"); } });
+  hostile.getState = () => {};
+  const context = { memoizedValue: hostile, next: { memoizedValue: n.controller, next: null } };
+  assert.equal(engineContext.__CELIKOM_NATIVE_ENGINE_PORT__.discoverController(documentFixture([{ __reactFiber$context: { dependencies: { firstContext: context } } }])), n.controller);
+  assert.equal(mutations, 0);
+});
+test("discovery reports missing selectors and inspected contexts rather than a bare false", () => {
+  const oldDocument = engineContext.document;
+  engineContext.document = documentFixture([{ __reactFiber$empty: { dependencies: { firstContext: { memoizedValue: {}, next: null } } } }]);
+  try {
+    const result = new EnginePort().inspect();
+    assert.equal(result.readerVersion, 2); assert.equal(result.controllerFound, false);
+    assert.equal(result.discovery.seeds.player, 0); assert.equal(result.discovery.contexts, 1);
+    assert.equal(result.discovery.fiberRoots, 1); assert.equal(result.discovery.limited, false);
+  } finally { engineContext.document = oldDocument; }
+});
+test("discovery bounds cyclic context and fiber graphs", () => {
+  const n = nativeEngine(), context = { memoizedValue: {} }; context.next = context;
+  const fiber = { dependencies: { firstContext: context } }; fiber.return = fiber; fiber.alternate = fiber;
+  assert.equal(engineContext.__CELIKOM_NATIVE_ENGINE_PORT__.discoverController(documentFixture([{ __reactFiber$loop: fiber }])), null);
+  assert.ok(n.controller);
+});
 
 async function pipeline() {
   const root = sandbox();
