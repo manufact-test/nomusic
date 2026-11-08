@@ -9,7 +9,7 @@
 - APK в ChatGPT Library: [Test.72](https://chatgpt.com/library?file_id=libfile_0cb46b47275481918d4b268be75cb0eb&account_id=personal). Рядом доступны `verification.json` и `RECEIPT.json`.
 
 ## Воспроизведённая регрессия Test.71
-Диагностика `CELIKOM-combined-20261108-211554.txt` + `SVID_20261108_211432_1.mp4`, анализ: [ANDROID-TEST71-HONOR-211554-FAIL-2026-11-08.md](../android/ANDROID-TEST71-HONOR-211554-FAIL-2026-11-08.md) в ветке Test.71.
+Диагностика `CELIKOM-combined-20261108-211554.txt` + `SVID_20261108_211432_1.mp4`, анализ: [ANDROID-TEST71-HONOR-211554-FAIL-2026-11-08.md](https://github.com/manufact-test/nomusic/blob/feature/android-0385-test71-native-state-witness-20261108/docs/android/ANDROID-TEST71-HONOR-211554-FAIL-2026-11-08.md) в ветке Test.71.
 
 При переходе RASKOL→«Дым» Test.71 Яндекс оставался в BUFFERING и не прислал READY; альтернативный источник состояния отсутствовал. После перехода на «Розовое вино» и Back экран Яндекса показывал «Дым», но внешний Media3 с тем же alias `978` передал прежние название/исполнителя «Розового вина» и **длительность `219660 ms` от «Дыма» вместо `246810 ms`**. Это вызывало ошибочный `source_track_transition` (previousAlias=nextAlias=978), замена сбрасывалась, `no_unique_candidate` ошибочно трактовалось как отсутствие версии. Данных, что библиотека потеряла замену «Дыма», **нет**.
 
