@@ -1,0 +1,28 @@
+name: android-one-player-source-gate
+on:
+  push:
+    branches:
+      - experiment/android-one-player-source-gate-20261109
+    paths:
+      - 'android/one-player-prototype/**'
+      - '.github/workflows/android-one-player-source-gate.yml'
+  workflow_dispatch:
+jobs:
+  offline-source-gate:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Compile and test source selection
+        run: bash android/one-player-prototype/run-tests.sh
+      - name: Exclude legacy two-player dependencies from prototype
+        run: |
+          if grep -rE '(MediaPlayer|DynamicsProcessing|MediaController|ACCESSIBILITY_SERVICE|LSPosed)' android/one-player-prototype/src; then
+            echo "Legacy second-player or injection dependency found" >&2
+            exit 1
+          fi
