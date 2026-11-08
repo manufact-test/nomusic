@@ -30,7 +30,7 @@ concurrency:
 
 jobs:
   build-test-app:
-    if: inputs.source_branch == 'feature/android-0385-test70-safe-rollback-source-buffer-status-20261108' && inputs.source_repository == 'manufact-test/nomusic'
+    if: inputs.source_branch == 'feature/android-0385-test72-source-snapshot-consistency-20261108' && inputs.source_repository == 'manufact-test/nomusic'
     runs-on: ubuntu-latest
     timeout-minutes: 40
     steps:
@@ -47,7 +47,7 @@ jobs:
           SOURCE_BRANCH: ${{ inputs.source_branch }}
           SOURCE_REPOSITORY: ${{ inputs.source_repository }}
           VALIDATION_RUN_ID: ${{ inputs.validation_run_id }}
-          EXPECTED_BRANCH: feature/android-0385-test70-safe-rollback-source-buffer-status-20261108
+          EXPECTED_BRANCH: feature/android-0385-test72-source-snapshot-consistency-20261108
         shell: bash
         run: |
           set -euo pipefail
@@ -156,7 +156,7 @@ jobs:
           set -euo pipefail
           ROOT=android/native-companion
           KIT="$RUNNER_TEMP/kit"
-          OUT="$RUNNER_TEMP/CELIKOM-Android-0.3.85-TEST-70-SAFE-ROLLBACK-SIGNED.apk"
+          OUT="$RUNNER_TEMP/CELIKOM-Android-0.3.85-TEST-72-SOURCE-SNAPSHOT-SIGNED.apk"
           python3 "$ROOT/build_test_release.py" \
             --sdk "$KIT/sdk" \
             --build-tools "$KIT/build-tools/36.0.0" \
@@ -168,7 +168,7 @@ jobs:
             --work-dir "$RUNNER_TEMP/test-build-work" \
             --output "$OUT"
           test -s "$OUT"
-          test -s "$RUNNER_TEMP/CELIKOM-Android-0.3.85-TEST-70-SAFE-ROLLBACK-SIGNED.verification.json"
+          test -s "$RUNNER_TEMP/CELIKOM-Android-0.3.85-TEST-72-SOURCE-SNAPSHOT-SIGNED.verification.json"
           echo "TEST_APK=$OUT" >> "$GITHUB_ENV"
 
       - name: Create immutable JSON build receipt
@@ -231,6 +231,7 @@ jobs:
               "background_lifecycle_diagnostics":"passed",
               "source_activity_probe_policy":"passed",
               "source_buffering_retention":"passed",
+              "test72_source_snapshot_fence":"passed",
               "fresh_catalog_snapshot":"passed",
               "stable_metadata_lookahead_fallback":"passed",
               "prefetch_to_current_cache_handoff":"passed",
@@ -243,7 +244,7 @@ jobs:
             "physical_phone_playback_verified":False,
             "acoustic_acceptance":False
           }
-          out=pathlib.Path(os.environ["RUNNER_TEMP"],"CELIKOM-Android-0.3.85-TEST-70-SAFE-ROLLBACK-RECEIPT.json")
+          out=pathlib.Path(os.environ["RUNNER_TEMP"],"CELIKOM-Android-0.3.85-TEST-72-SOURCE-SNAPSHOT-RECEIPT.json")
           out.write_text(json.dumps(receipt,ensure_ascii=False,indent=2)+"\n",encoding="utf-8")
           print(json.dumps(receipt,ensure_ascii=False,indent=2))
           PY
@@ -251,10 +252,10 @@ jobs:
       - name: Upload signed test APK and verification receipt only
         uses: actions/upload-artifact@v4
         with:
-          name: CELIKOM-Test-0.3.85-test.70-code-86156
+          name: CELIKOM-Test-0.3.85-test.72-code-86158
           path: |
-            ${{ runner.temp }}/CELIKOM-Android-0.3.85-TEST-70-SAFE-ROLLBACK-SIGNED.apk
-            ${{ runner.temp }}/CELIKOM-Android-0.3.85-TEST-70-SAFE-ROLLBACK-SIGNED.verification.json
-            ${{ runner.temp }}/CELIKOM-Android-0.3.85-TEST-70-SAFE-ROLLBACK-RECEIPT.json
+            ${{ runner.temp }}/CELIKOM-Android-0.3.85-TEST-72-SOURCE-SNAPSHOT-SIGNED.apk
+            ${{ runner.temp }}/CELIKOM-Android-0.3.85-TEST-72-SOURCE-SNAPSHOT-SIGNED.verification.json
+            ${{ runner.temp }}/CELIKOM-Android-0.3.85-TEST-72-SOURCE-SNAPSHOT-RECEIPT.json
           if-no-files-found: error
           retention-days: 7
