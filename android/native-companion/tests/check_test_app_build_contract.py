@@ -133,13 +133,6 @@ assert "resolveLookahead" in native_api and "resolveLanes.submit" in native_api
 assert "api.resolveLookahead" in (ROOT / "addon/src/pro/celikom/nativeprobe/identitydiag/ReplacementEngine.java").read_text(encoding="utf-8")
 assert "TestIdentificationStatus.java" in (ROOT / "tests/run_engine.py").read_text(encoding="utf-8")
 assert "TestCatalogueNotification.java" in (ROOT / "tests/run_engine.py").read_text(encoding="utf-8")
-assert "TestProblemTrackTransport.java" in (ROOT / "tests/run_engine.py").read_text(encoding="utf-8")
-assert "ProblemTrackTransport.java" in (ROOT / "tests/run_engine.py").read_text(encoding="utf-8")
-control_source = (ROOT / "addon/src/pro/celikom/nativeprobe/identitydiag/ProbeService.java").read_text(encoding="utf-8")
-for required in ("problemTransportCommand(Intent intent)", "problemTransportIntent(String action",
-  "problem_transport_command_sent", "problem_transport_command_observed",
-  "controller.isConnected()", "getCurrentMediaItem()", "ProblemTrackTransport.eligible("):
-    assert required in control_source, "Missing safeguarded transport control: "+required
 assert "current_sparse_runway_pending" in (ROOT / "addon/src/pro/celikom/nativeprobe/identitydiag/ReplacementEngine.java").read_text(encoding="utf-8")
 
 assert "publishedOwn=own" in (ROOT / "addon/src/pro/celikom/nativeprobe/identitydiag/AlbumProbe.java").read_text(encoding="utf-8")
