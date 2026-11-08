@@ -99,7 +99,7 @@ try {
         JOIN audio_assets a ON a.id=r.audio_asset_id
         WHERE t.service='yandex' AND ABS(CAST(t.duration_ms AS SIGNED)-CAST(a.duration_ms AS SIGNED))>1500
         ORDER BY r.id LIMIT 40")->fetchAll(PDO::FETCH_ASSOC);
-    $catalogue=(new \\Celikom\\Application\\ReplacementCatalogueService($pdo))->snapshot();
+    $catalogue=(new \Celikom\Application\ReplacementCatalogueService($pdo))->snapshot();
     $questCatalogue=array_values(array_filter($catalogue['tracks'],static fn($t)=>
         (string)$t['track_id']==='89285816'));
     $pdo->rollBack();
