@@ -20,14 +20,14 @@ final class AppPresentation {
   if(!s.identified){
     // Media3 already gives the song name. Never imply its title is unknown.
     // Approved catalogue is complete, but contains no pending submissions.
-    if(s.catalogueFresh&&"NO_MATCH".equals(s.catalogueStatus))
-      detail="В одобренном каталоге CELIKOM версия не найдена · играет оригинал";
+    if("album_region_restricted".equals(s.identityReason))
+      detail="Яндекс ограничил данные альбома · статус версии неизвестен";
+    else if(s.catalogueFresh&&"NO_MATCH".equals(s.catalogueStatus))
+      detail="Не удалось сопоставить песню с одобренным каталогом CELIKOM · играет оригинал";
     else if(s.catalogueFresh&&"UNIQUE_METADATA_CANDIDATE".equals(s.catalogueStatus))
       detail="Версия есть в каталоге CELIKOM · уточняем совпадение";
     else if(s.catalogueFresh&&"AMBIGUOUS".equals(s.catalogueStatus))
       detail="В каталоге несколько похожих версий · уточняем совпадение";
-    else if("album_region_restricted".equals(s.identityReason))
-      detail="Яндекс ограничил данные альбома · статус версии неизвестен";
     else if("album_ambiguous_weaker_fallback_withheld".equals(s.identityReason)||"own_catalogue_ambiguous".equals(s.identityReason))
       detail="Не удалось однозначно определить версию · играет оригинал";
     else if(!s.identityReason.isEmpty()&&!"waiting_for_album_response".equals(s.identityReason))
