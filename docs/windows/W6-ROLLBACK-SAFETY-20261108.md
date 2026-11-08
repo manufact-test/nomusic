@@ -81,3 +81,20 @@ or represent it as a proven CELIKOM integration.
 
 **Do not call W6 a functioning Windows companion, a patcher, or an accepted
 rollback of official Yandex Music.**
+
+## Verified CI checkpoint — 2026-11-08
+
+- Source commit `75a8e407a8528b13de9db37198f5c4807e49bb12`.
+- [GitHub Actions run 42513323017](https://github.com/manufact-test/nomusic/actions/runs/42513323017): **SUCCESS** on Windows.
+- W6 **15/15** isolated synthetic tests passed (zero failures).
+- W4 Node source adapter regression passed; W5 genuine public resource
+  classes in isolated Electron 44.10.2 passed **35/35** runtime assertions;
+  legacy W3 .NET read-only build/safety/publish also passed.
+- Initial [CI run 42513155758](https://github.com/manufact-test/nomusic/actions/runs/42513155758) FAILED W6: strict equality of Windows realpaths
+  mistakenly treated Windows canonical path normalization as a symlink.
+  Fixed to enforce OS-temp containment using realpath + relative paths,
+  lstat symlink rejection, a synthetic-only marker and fixed fake filenames.
+  No real client paths were touched.
+- **No owner-device rollback tested**, no official app hooks installed,
+  no direct source playback in installed Yandex proven, and no user ZIP
+  is appropriate for this synthetic-only stage.

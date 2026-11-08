@@ -1,6 +1,6 @@
 # CELIKOM Windows Companion — NEXT-CHAT
 
-**Updated 2026-11-08. W3 owner report RECEIVED; W4/W5 isolated CI passed; W6 rollback lab under test.**
+**Updated 2026-11-08. W3 owner report RECEIVED; W4/W5 isolated CI passed; W6 synthetic recovery 15/15 passed.**
 
 ## Objective
 Official Windows Yandex Music is the ONLY owner of audio, pause, seek, next, queue,
@@ -143,8 +143,21 @@ behavior. Don't claim source substitution without audible owner acceptance.
 - Read-only competitor inspection exposed possible EXE hash rewrites for
   Electron ASAR patching. Do not reuse this blindly; official integrity,
   signing and update implications remain unproven.
-- W6 changes are only Windows paths and Windows CI workflow. CI result
-  still requires verification before reporting success.
+- W6 changes are only Windows paths and Windows CI workflow. Verified Windows CI run 42513323017: W6 15/15, W5 35/35, W4 and W3 regression PASS.
 - W6 does not produce any owner installer. Next technical gate is a
   defensible official Windows renderer attachment model, with formal
   opt-in and truly byte-verified restore; if impossible report NO-GO.
+
+## W6 verified handoff
+- Commit `75a8e407a8528b13de9db37198f5c4807e49bb12`,
+  [Windows CI 42513323017](https://github.com/manufact-test/nomusic/actions/runs/42513323017) SUCCESS.
+- W6 **15/15** synthetic OS-temp backup/recovery tests.
+- Windows case canonicalization bug in initial CI corrected; initial failed
+  run 42513155758 must not be described as a clean first pass.
+- W5 regression **35/35** real Electron fixture runtime assertions.
+- W6 is not a genuine Yandex app.asar patcher nor an owner-installed recovery
+  tool. Do NOT ship a W6 test ZIP as though it proves real app integration.
+- Next: evaluate an attach seam in the actual official Electron process
+  without unsafe binary modifications; if no safe supported method exists,
+  document the limitation and require explicit owner opt-in for a separately
+  verified reversible test. No unapproved access to Yandex account data.
