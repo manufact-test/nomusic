@@ -1,4 +1,4 @@
-name: CELIKOM Blur five live DB read-only dedupe
+name: CELIKOM Blur pilot live DB read-only dedupe (fifth candidate)
 
 on:
   push:
