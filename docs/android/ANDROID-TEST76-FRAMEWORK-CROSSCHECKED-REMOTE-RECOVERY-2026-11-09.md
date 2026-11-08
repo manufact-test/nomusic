@@ -1,0 +1,21 @@
+# Android Test.76: safe recovery of stale Yandex Media3 track identity
+
+**Date:** 2026-11-09. **Branch:** `feature/android-0385-test76-framework-crosschecked-recovery-20261109`. **Basis:** owner Test.75 combined TXT `CELIKOM-combined-20261109-003608.txt` last run 00:35:04+03, documented in [ANDROID-TEST75-HONOR-SECURITYEXCEPTION-STALE-TRACK-2026-11-09.md](ANDROID-TEST75-HONOR-SECURITYEXCEPTION-STALE-TRACK-2026-11-09.md).
+
+## Problem confirmed on actual HONOR
+Direct AndroidX Media3 attached to Yandex `Media3LibraryService` eventually stayed **BUFFERING on former track «Биг сити лайф»**, position 0, even when the separate opt-in Android framework Yandex session showed **«Дым» then «Нас не понимают вообще» actively playing**. Test.75's same-track observer could never allow the framework clock to control an older track — correctly so. Retained connected Media3 controller is intentional from previous Test.58, because immediately releasing it on a quiet buffer had produced repeated `SecurityException` when reconnecting. A 451 Yandex public album endpoint in that run was unrelated: local approved strict catalogue and API resolve had succeeded for prior track.
+
+## Test.76 bounded experiment
+1. New pure `YandexIdentityDivergenceGate` observes no notification text and sends no commands. It requires **one** authorized Yandex framework session, valid recent framework playback, title/artist/duration diverging from the old external Media3 identity, old Media3 `STATE_BUFFERING` and nonplaying, no Media3 events for at least 1.25s, plus 0.9s stable mismatch. Rechecks at most every 5.5s; does NOT trigger for a healthy actively playing remote song or during normal track transitions.
+2. On confirmed divergence, CELIKOM **stops its own replacement, restores original**, marks old identity quarantined, and opens a second **read-only** Media3 connection **without releasing the old one**. A failed connection, timeout, empty song, or a second stale old track leaves original playing and does not drop the old remote.
+3. If and **only if** the new Media3 controller's media item/title/artist/duration/state/position is valid and independently matches the current Yandex framework session, the candidate controller is adopted before the old is released. All regular new-track album verification, account authorization, audio-source isolation and duration checks remain mandatory. Framework title metadata by itself NEVER picks a CELIKOM audio file. New controller receives same Media3 events; all existing seek/pause audio engine logic is untouched.
+4. While mismatch persists, the notification now says `Обновляем сведения о песне · играет оригинал` instead of misleadingly blaming Yandex for not playing. A revoked notification permission cannot authorize unverified playback. No Play Protect bypass.
+5. Added deterministic host tests replaying old «Биг сити лайф» versus new «Дым», healthy track, cooldown, permission revoked, multiple sessions, and stale framework state.
+
+## What is NOT proven
+No actual signed Test.76 handset test has confirmed fresh probe connects to the new track. Yandex may reject the parallel connection with `SecurityException` or return the same stale item. In that case the system **stays original**, logging `source_framework_fresh_probe` with `connected=false` / `identityVerified=false`. Do not claim pause/seek is fixed. This path still requires opt-in Notification Access and is therefore a **test-only** architecture, not an acceptable default for mass distribution without a separate privacy/distribution design.
+
+## Requested physical check (only after native/packaging CI PASS)
+Install signed Test.76 *over Test.75 only if Play Protect permits without disabling protections*, leave owner-approved stable untouched. If Notification Access is on, play **one** failed song (e.g. «Дым»), trigger normal next/previous, seek and pause; return one combined TXT. Look for `source_framework_track_divergence_verified`, `source_framework_fresh_probe`, `source_framework_fresh_controller_adopted`; if fresh Media3 can't connect, the source reports concrete failure. Do not waste time testing 20 songs before this.
+
+**Stable, server, Windows, catalogue contents and owner Test.50 backup remain untouched.**
