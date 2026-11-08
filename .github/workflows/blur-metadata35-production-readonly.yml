@@ -1,0 +1,33 @@
+name: CELIKOM Blur — 35 metadata-only leads vs production READ ONLY
+on:
+  push:
+    branches: [feature/blur-batch1000-20261108]
+    paths: ['.github/workflows/blur-metadata35-production-readonly.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: PHP syntax
+        run: php -l tools/blur-research/metadata35-production-readonly.php
+      - name: Strictly SELECT-only production lookup
+        shell: bash
+        env:
+          HOST_KEY: ${{ secrets.CELIKOM_HOSTINGER_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.CELIKOM_HOSTINGER_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p "$RUNNER_TEMP/private"
+          printf '%s\n' "$HOST_KEY" > "$RUNNER_TEMP/private/key"
+          printf '%s\n' "$KNOWN_HOSTS" > "$RUNNER_TEMP/private/hosts"
+          chmod 600 "$RUNNER_TEMP/private/"*
+          ssh -p 65002 -o ConnectTimeout=25 -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$RUNNER_TEMP/private/hosts" -i "$RUNNER_TEMP/private/key" u235811320@92.113.19.189 '/opt/alt/php83/usr/bin/php -d display_errors=stderr' < tools/blur-research/metadata35-production-readonly.php > "$RUNNER_TEMP/metadata35-live.json"
+          cat "$RUNNER_TEMP/metadata35-live.json"
+          jq -e '.status=="METADATA35_PRODUCTION_READONLY" and .checked==35 and .writes==0 and (.existing+.absent)==35' "$RUNNER_TEMP/metadata35-live.json"
