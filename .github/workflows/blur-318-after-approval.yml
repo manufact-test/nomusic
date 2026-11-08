@@ -1,0 +1,78 @@
+name: CELIKOM Blur — independent post-approval audit of 318 new tracks
+on:
+  push:
+    branches: [feature/blur-batch1000-20261108]
+    paths: ['.github/workflows/blur-318-after-approval.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: celikom-blur-318-after-approval-readonly
+  cancel-in-progress: false
+jobs:
+  audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Check 318-track independent audit code
+        run: php -l tools/blur-final/check-318-after-approval.php
+      - name: Read-only live metadata, SHA256, Git blob, catalogue, resolve, HEAD and Range
+        shell: bash
+        env:
+          HOST_KEY: ${{ secrets.CELIKOM_HOSTINGER_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.CELIKOM_HOSTINGER_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p "$RUNNER_TEMP/private"
+          printf '%s\n' "$HOST_KEY" > "$RUNNER_TEMP/private/key"
+          printf '%s\n' "$KNOWN_HOSTS" > "$RUNNER_TEMP/private/hosts"
+          chmod 600 "$RUNNER_TEMP/private/"*
+          for attempt in 1 2 3 4; do
+            if ssh -p 65002 -o ConnectTimeout=25 -o ServerAliveInterval=20 -o ServerAliveCountMax=4 -i "$RUNNER_TEMP/private/key" -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$RUNNER_TEMP/private/hosts" \
+              u235811320@92.113.19.189 '/opt/alt/php83/usr/bin/php -d display_errors=stderr' < tools/blur-final/check-318-after-approval.php > "$RUNNER_TEMP/batch318-audit.json"; then
+              cat "$RUNNER_TEMP/batch318-audit.json"
+              break
+            fi
+            if [ "$attempt" -eq 4 ]; then echo SSH_READONLY_UNAVAILABLE; exit 1; fi
+            sleep 35
+          done
+          jq -e '.pass==true and .checked==318 and .approved_active==318 and .pending==0 and .other_status==0 and .files_verified==318 and .catalogue_correct==318 and .resolve_correct==318 and .head200==318 and .range206==318 and .bytes==2015328340 and .batches==[50,50,50,50,50,50,18] and .writes==0 and (.issues|length)==0' "$RUNNER_TEMP/batch318-audit.json"
+          echo '### CELIKOM: post approval independent 318-file production audit' >> "$GITHUB_STEP_SUMMARY"
+          jq '{pass,checked,approved_active,pending,other_status,files_verified,catalogue_correct,resolve_correct,head200,range206,bytes,batches,issues,writes}' "$RUNNER_TEMP/batch318-audit.json" >> "$GITHUB_STEP_SUMMARY"
+      - name: Confirm actual production library inventory READ ONLY
+        shell: bash
+        env:
+          HOST_KEY: ${{ secrets.CELIKOM_HOSTINGER_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.CELIKOM_HOSTINGER_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p "$RUNNER_TEMP/private"
+          printf '%s\n' "$HOST_KEY" > "$RUNNER_TEMP/private/key"
+          printf '%s\n' "$KNOWN_HOSTS" > "$RUNNER_TEMP/private/hosts"
+          chmod 600 "$RUNNER_TEMP/private/"*
+          for attempt in 1 2 3 4; do
+            if ssh -p 65002 -o ConnectTimeout=25 -o ServerAliveInterval=20 -o ServerAliveCountMax=4 -i "$RUNNER_TEMP/private/key" -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$RUNNER_TEMP/private/hosts" \
+              u235811320@92.113.19.189 '/opt/alt/php83/usr/bin/php -d display_errors=stderr' < tools/blur-batch800/live-inventory-readonly.php > "$RUNNER_TEMP/library-inventory.json"; then
+              cat "$RUNNER_TEMP/library-inventory.json"
+              break
+            fi
+            if [ "$attempt" -eq 4 ]; then echo SSH_READONLY_INVENTORY_UNAVAILABLE; exit 1; fi
+            sleep 35
+          done
+          jq -e '.status=="LIVE_LIBRARY_INVENTORY_READ_ONLY" and .writes==0' "$RUNNER_TEMP/library-inventory.json"
+          echo '### Current production inventory' >> "$GITHUB_STEP_SUMMARY"
+          jq . "$RUNNER_TEMP/library-inventory.json" >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: celikom-postapproval318-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/batch318-audit.json
+            ${{ runner.temp }}/library-inventory.json
+          retention-days: 90
+          if-no-files-found: ignore
