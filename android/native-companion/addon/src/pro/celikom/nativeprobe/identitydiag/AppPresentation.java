@@ -21,7 +21,7 @@ final class AppPresentation {
     // Media3 already gives the song name. Never imply its title is unknown.
     // Approved catalogue is complete, but contains no pending submissions.
     if("album_region_restricted".equals(s.identityReason))
-      detail="Яндекс ограничил данные альбома · статус версии неизвестен";
+      detail="Яндекс ограничил альбом · версия неизвестна";
     else if(s.catalogueFresh&&"NO_MATCH".equals(s.catalogueStatus))
       detail="Не удалось сопоставить песню с одобренным каталогом CELIKOM · играет оригинал";
     else if(s.catalogueFresh&&"UNIQUE_METADATA_CANDIDATE".equals(s.catalogueStatus))
