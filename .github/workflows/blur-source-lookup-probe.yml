@@ -1,0 +1,40 @@
+name: CELIKOM Blur — anonymous public metadata probe for missing source labels
+on:
+  push:
+    branches: [feature/blur-batch1000-20261108]
+    paths: ['.github/workflows/blur-source-lookup-probe.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Check anonymous metadata reachability only
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import urllib.request,urllib.error,json
+          for tid in ("101389541","148715960","29508038"):
+              for uri in (f"https://api.music.yandex.net/tracks/{tid}",f"https://music.yandex.ru/track/{tid}"):
+                  code=None; data=b""; typ=""
+                  try:
+                      req=urllib.request.Request(uri,headers={"User-Agent":"Mozilla/5.0 CELIKOM-metadata-readonly","Accept":"application/json,text/html;q=0.9"})
+                      with urllib.request.urlopen(req,timeout=15) as r:
+                          code=r.status;typ=r.headers.get("Content-Type","");data=r.read(180000)
+                  except urllib.error.HTTPError as e:code=e.code
+                  except Exception as e:code=type(e).__name__
+                  info={"id":tid,"endpoint":"api" if "/api." in uri else "html","status":code,"content_type":typ,"bytes":len(data)}
+                  if code==200 and "json" in typ:
+                      try:
+                          obj=json.loads(data)
+                          got=(obj.get("result") or obj)
+                          if isinstance(got,list):got=got[0] if got else {}
+                          info["title"]=got.get("title");info["artists"]=[x.get("name") for x in got.get("artists",[]) if isinstance(x,dict)]
+                      except Exception as exc:info["decode_error"]=type(exc).__name__
+                  print("PUBLIC_YANDEX_METADATA "+json.dumps(info,ensure_ascii=False),flush=True)
+          PY
