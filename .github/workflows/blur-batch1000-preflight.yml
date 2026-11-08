@@ -18,7 +18,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          php -l tools/blur-batch1000/live-check.php
+          php -l tools/blur-batch800/live-check.php
           php -l tools/blur-batch1000/verify-pending-files.php
           php -l tools/blur-batch50/import.php
           python3 -m py_compile tools/blur-batch1000/plan.py tools/blur-batch1000/fetch-fixed.py tools/blur-batch50/prepare.py
