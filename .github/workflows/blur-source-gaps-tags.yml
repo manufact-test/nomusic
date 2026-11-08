@@ -1,0 +1,29 @@
+name: CELIKOM Blur — inspect 28 unmapped source files READ ONLY
+on:
+  push:
+    branches: [feature/blur-batch1000-20261108]
+    paths: ['.github/workflows/blur-source-gaps-tags.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Check file types and pinned source metadata without private credentials
+        run: |
+          set -euo pipefail
+          command -v ffprobe || { sudo apt-get update -qq; sudo apt-get install -y ffmpeg; }
+          python3 -m py_compile tools/blur-final/inspect-source-gaps.py
+          python3 tools/blur-final/inspect-source-gaps.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: celikom-blur-unmapped-source-tags-${{ github.run_id }}
+          path: source-gaps-audit.json
+          retention-days: 90
+          if-no-files-found: ignore
