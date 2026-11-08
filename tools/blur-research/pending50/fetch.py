@@ -7,9 +7,9 @@ if len(sys.argv)!=3:raise SystemExit('usage: fetch.py audio-dir state-dir')
 audio=pathlib.Path(sys.argv[1]).resolve()
 state=pathlib.Path(sys.argv[2]).resolve()
 assert audio.is_dir() and state.is_dir() and not audio.is_symlink()
-data=json.loads(pathlib.Path('tools/blur-research/pending48-20261109.json').read_text(encoding='utf-8'))
+data=json.loads(pathlib.Path('tools/blur-research/pending34-20261109.json').read_text(encoding='utf-8'))
 rows=data['selected']
-assert data['source_commit']=='multisource-20261109' and len(rows)==48 and len(set(r['id'] for r in rows))==48
+assert data['source_commit']=='multisource-20261109' and len(rows)==34 and len(set(r['id'] for r in rows))==34
 assert sum(r['size'] for r in rows)<500000000
 for i,r in enumerate(rows,1):
  tid=r['id']
@@ -39,5 +39,5 @@ for i,r in enumerate(rows,1):
  if i%10==0:print('SOURCE50_VERIFIED',i,'of',len(rows),flush=True)
 batch={'schema':2,'source_commit':'multisource-20261109','target_pending':len(rows),'selected':rows}
 (state/'selected-1.json').write_text(json.dumps(batch,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
-(state/'source-status.json').write_text(json.dumps({'status':'PASS','verified':48,'bytes':sum(r['size'] for r in rows),'rights_verified':False},ensure_ascii=False),encoding='utf-8')
-print('SOURCE48_PASS count=48 no_rights_confirmation',flush=True)
+(state/'source-status.json').write_text(json.dumps({'status':'PASS','verified':34,'bytes':sum(r['size'] for r in rows),'rights_verified':False},ensure_ascii=False),encoding='utf-8')
+print('SOURCE34_PASS count=34 no_rights_confirmation',flush=True)
