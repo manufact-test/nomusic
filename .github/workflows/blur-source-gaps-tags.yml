@@ -14,7 +14,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
-      - name: Check file types and pinned source metadata without private credentials
+      - name: Recheck pinned source metadata after Git blob verifier correction
         run: |
           set -euo pipefail
           command -v ffprobe || { sudo apt-get update -qq; sudo apt-get install -y ffmpeg; }
