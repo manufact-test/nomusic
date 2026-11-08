@@ -114,6 +114,7 @@
       assets.set(normalized, { url, expiresAt, bitrate });
     },
     setEnabled(value) { enabled = value === true; },
+    unregister(id) { assets.delete(String(id)); },
     diagnostics() { return { ...metrics, enabled, stopped, assets: assets.size, attempts }; },
     scan,
     dispose() {

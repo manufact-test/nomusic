@@ -6,7 +6,7 @@
   "minimum_chrome_version": "120",
   "content_scripts": [{
     "matches": ["https://music.yandex.ru/*", "http://127.0.0.1/*"],
-    "js": ["engine-port.js", "native-source.js"],
+    "js": ["engine-port.js", "native-source.js", "native-session.js"],
     "run_at": "document_start",
     "world": "MAIN"
   }]

@@ -27,4 +27,12 @@ Archive contains only manifest, popup HTML/CSS/JS and generated inspect-only rea
 
 Owner step: replace files in the EXISTING check-extension folder, reload ONLY CELIKOM engine check in Brave's extensions page, then copy its result on the playing Yandex tab. No Yandex refresh required; version-2 reader is replaced. Expected header probeVersion 0.0.3 / readerVersion 3. Accepted CELIKOM 0.4.73 should not be updated.
 
-Actual owner binding, source switching and encrypted restoration remain unverified. No native playback backend has been enabled for the owner.
+## Owner confirmation, 2026-11-08T13:42:13.106Z
+
+Owner returned probeVersion 0.0.3 / readerVersion 3. Controller and binding found; trackId and entityTrackId both 42498653; durationMs 220820; playbackState, queuePair, entity, player, sourceLoader, reload and mediaRef present. Discovery matched fiber-context, without limits or property errors. Media events, native hooks and source/play/setSrc method descriptor checks all passed. pending was false.
+
+This confirms live read-only binding on the owner's Brave tab and resolves the previous probe's wrong state path. encryptedRestoreViaEngine:true reports the presence of a reload entry point only; it does NOT mean encrypted restoration was executed successfully. Likewise fence flags describe configurable method shapes, not installed or executed protections.
+
+Next experiment must provide exclusive playback ownership, reuse the existing broker/downloader, and exercise actual source replacement plus original restoration. Do not run the accepted replacement player and native replacement concurrently. Begin with one explicit current-track switch, then pause/seek/Next/Stop/error restoration; do not enable automatically on startup.
+
+Actual source switching and encrypted restoration remain unverified. No native playback backend has been enabled for the owner.

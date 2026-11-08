@@ -172,8 +172,7 @@ try {
       try { await download("/short.mp3?mode=" + mode); throw Error("accepted-invalid-download"); }
       catch (e) { check(e.message !== "accepted-invalid-download", mode + " download rejected before native registration"); }
     }
-    const beforeDispose = api.diagnostics(); api.dispose();
-    check(api.diagnostics().stopped && api.diagnostics().assets === 0, "dispose restores owned prototype hooks and removes registry");
+    const beforeDispose = api.diagnostics(); api.unregister("1001"); api.unregister("1002");
     audio.pause(); audio.removeAttribute("src"); audio.load();audio.remove();URL.revokeObjectURL(shortUrl);URL.revokeObjectURL(longUrl);URL.revokeObjectURL(nativeColdUrl);
     const react = req(53548);
     const rendererModule = Object.keys(req.m).find(id => {
@@ -205,6 +204,65 @@ try {
     check(discovered.found && discovered.trackId === "1001" && discovered.shape.playbackState && discovered.mediaEvents && discovered.nativeReload
       && discovered.discovery.matchSource === "fiber-context" && mutationCalls === 0,
       "actual React dependency discovery finds controller without invoking playback");
+    const reloadExports = req(window.__nativeFixture.reloadModule), NativeCore = reloadExports.__testReloadCore;
+    const nativeAudio = document.createElement("audio"); document.body.append(nativeAudio);
+    const nativeCore = Object.create(NativeCore.prototype), entity = { data: { meta: { id: "1001", durationMs: 8000 } }, mediaSourceData: {} };
+    const v2 = resources.find(C => !C.prototype.getByteRange), nativeResource = instance(v2, "v2");
+    const applySource = async ({ source, positionSec = 0 }, play) => {
+      source.vsid = "native-session-fixture"; source.sourceIndex = 0; source.positionSec = positionSec;
+      const loaded = new Promise((resolve, reject) => {
+        const timeout = setTimeout(() => reject(Error("session audio load timeout")), 8000);
+        nativeAudio.addEventListener("loadeddata", () => { clearTimeout(timeout); resolve(); }, { once: true });
+        nativeAudio.addEventListener("error", () => { clearTimeout(timeout); reject(Error("session audio decode failed")); }, { once: true });
+      });
+      nativeAudio.src = source.src; nativeAudio.load(); await loaded;
+      nativeAudio.currentTime = positionSec;
+      if (play) await nativeAudio.play(); else nativeAudio.pause();
+    };
+    const status = {}, progress = {};
+    Object.defineProperty(status, "value", { get: () => nativeAudio.paused ? reloadExports.MT.PAUSED : reloadExports.MT.PLAYING });
+    Object.defineProperty(progress, "value", { get: () => ({ position: nativeAudio.currentTime }) });
+    Object.defineProperties(nativeCore, {
+      state: { value: { status, progress } },
+      currentAudioElement: { value: { value: nativeAudio } },
+      hooks: { value: Object.fromEntries(["beforeMediaSourceContentReload", "afterMediaSourceContentReload", "afterError"].map(key => [key, { promise: async () => {} }])) },
+      getMediaSource: { configurable: true, writable: true, value: async ({ entity }) => {
+        const response = await nativeResource.getFileInfo({ trackId: entity.data.meta.id, quality: "nq", codecs: ["mp3"], transports: ["raw"] });
+        return new Source({ data: response.fileInfo, loadingTime: performance.now() });
+      } },
+      corePlay: { configurable: true, value: args => applySource(args, true) },
+      core: { value: { setSrc: args => applySource(args, false) } }
+    });
+    const nativePlayback = Object.create(ActualPlayback.prototype);
+    nativePlayback.playbackState = { queueState: { currentEntity: { value: { entity } } }, currentMediaPlayer: { value: nativeCore } };
+    const nativeController = { getState: () => nativePlayback.state, playbackController: { getPlayback: () => nativePlayback } };
+    const sessionPort = new window.__CELIKOM_NATIVE_ENGINE_PORT__.EnginePort({ getController: () => nativeController });
+    const nativeSession = new window.__CELIKOM_NATIVE_SESSION__.NativeSession({ port: sessionPort, resource: api });
+    await nativeCore.reload(entity); await nativeAudio.play(); nativeAudio.currentTime = 0.7;
+    const audioCount = document.querySelectorAll("audio").length;
+    await nativeSession.configure(true, 1);
+    nativeSession.publish({ trackId: "1001", generation: 1, blob: short, durationMs: 8000, expiresAt: Date.now() + 60000 });
+    await nativeSession.activate("1001", 1);
+    check(nativeSession.inspect().activeTrackId === "1001" && nativeAudio.currentSrc.startsWith("blob:") && nativeAudio.currentTime >= 0.6,
+      "actual stock reload applies admitted file through existing native audio and retains position");
+    check(document.querySelectorAll("audio").length === audioCount, "native switch creates no second audio element");
+    nativeAudio.pause(); const pausedAt = nativeAudio.currentTime; await new Promise(r => setTimeout(r, 120));
+    check(nativeAudio.paused && Math.abs(nativeAudio.currentTime - pausedAt) < 0.02, "native pause controls replacement directly");
+    nativeAudio.currentTime = 2; await new Promise(r => setTimeout(r, 100));
+    check(Math.abs(nativeAudio.currentTime - 2) < 0.1, "native seek controls replacement directly");
+    await nativeSession.configure(false, 2);
+    check(!nativeSession.inspect().activeTrackId && nativeAudio.currentSrc.startsWith(origin) && nativeAudio.paused,
+      "stock reload restores controlled original without starting a paused song");
+    await nativeSession.configure(true, 3);
+    nativeSession.publish({ trackId: "1001", generation: 3, blob: short, durationMs: 8000, expiresAt: Date.now() + 60000 });
+    await nativeSession.activate("1001", 3);
+    const nextEntity = { data: { meta: { id: "1002", durationMs: 8000 } }, mediaSourceData: {} };
+    nativePlayback.state.queueState.currentEntity.value = { entity: nextEntity };
+    await nativeCore.reload(nextEntity);
+    check(nativeAudio.currentSrc.startsWith(origin) && sessionPort.inspect().trackId === "1002", "Next does not reuse prior replacement for another ID");
+    await nativeSession.configure(false, 4); nativeAudio.pause(); nativeAudio.remove();
+    api.dispose();
+    check(api.diagnostics().stopped && api.diagnostics().assets === 0, "dispose restores owned prototype hooks and removes registry");
     reactRoot.unmount(); mount.remove();
     return { checks, beforeDispose, preparationComparison, experimentElapsedMs: Math.round(performance.now() - start), limitations: ["controlled resource responses; not a signed-in Yandex listening session", "explicit source reacquisition tested; automatic engine cache invalidation and error restore not implemented", "no measured end-to-end speed advantage"] };
   }, origin);
