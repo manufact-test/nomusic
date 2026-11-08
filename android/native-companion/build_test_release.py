@@ -498,7 +498,7 @@ def main():
         *test_sources,
     ])
     for test in (
-        "TestPure", "TestHybrid", "TestContracts", "TestMobileActions",
+        "TestPure", "TestHybrid", "TestLiveCatalogueStore", "TestContracts", "TestMobileActions",
         "TestAppPresentation", "TestNotifications", "TestDiagnosticArchive",
         "TestAudioTransfer", "TestBufferedAudio", "TestTransitionReadFence",
         "TestTransitionRecovery", "TestRequestPacing", "TestSourceStateWatchdog",
