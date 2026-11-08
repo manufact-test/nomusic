@@ -1,0 +1,271 @@
+<?php
+declare(strict_types=1);
+// Independent read-only production audit of previous 200 songs after manual moderation.
+if(PHP_SAPI!=='cli'||count($argv)!==1)exit(2);
+ini_set('display_errors','0');
+$base='/home/u235811320/domains/darkred-camel-588676.hostingersite.com/celikom';
+$expected=[
+  '36161917'=>['rid'=>318,'size'=>5239559,'duration'=>128810,'blob'=>'1433e28b553f961e781895efd827b10d1c52d322'],
+  '106475674'=>['rid'=>319,'size'=>7873376,'duration'=>189231,'blob'=>'ce9e854cfa81527f5a7c8d431648bbcf31af9515'],
+  '66668867'=>['rid'=>320,'size'=>3234003,'duration'=>131161,'blob'=>'2ebcc0870eccf8831748cb7328915bc015214023'],
+  '48591809'=>['rid'=>321,'size'=>9500256,'duration'=>237401,'blob'=>'277cd03a9f05a92491243ad82876494f4ba37910'],
+  '138912048'=>['rid'=>322,'size'=>7139832,'duration'=>178390,'blob'=>'3379d782452689b42430af19a13a601189bb2ac1'],
+  '107769753'=>['rid'=>323,'size'=>12220544,'duration'=>303360,'blob'=>'1b8724b1d92228474a1a60aecfbb0d795fc7ef13'],
+  '90841991'=>['rid'=>324,'size'=>9175711,'duration'=>227239,'blob'=>'91cbe290e6a61233eaa35c520beb3d30b929b84c'],
+  '111454944'=>['rid'=>325,'size'=>10410759,'duration'=>258090,'blob'=>'b26e90630fd8eaf9c06739531f0671562d84a49c'],
+  '43854383'=>['rid'=>326,'size'=>6477784,'duration'=>159791,'blob'=>'4a7fd20a9119c75dd45f35c38ba54d4d7bde7c8a'],
+  '119890654'=>['rid'=>327,'size'=>3750705,'duration'=>93022,'blob'=>'75627deabe52b08e889f19ca111c1fba221f3c45'],
+  '79932386'=>['rid'=>328,'size'=>6556778,'duration'=>163814,'blob'=>'69d7cab9a075abeb158a1f30fa64a525a3d29d81'],
+  '120805927'=>['rid'=>329,'size'=>3880273,'duration'=>96261,'blob'=>'e007e3dafdffcaeabf3bb62807c725b72f1cba56'],
+  '130011719'=>['rid'=>330,'size'=>3674574,'duration'=>91298,'blob'=>'08eac264eee8eea676710fa8abd9766c7dfeadd2'],
+  '111124377'=>['rid'=>331,'size'=>5200418,'duration'=>124918,'blob'=>'44206f9eed708ac99cc02de95b36694c73d71c7a'],
+  '119890672'=>['rid'=>332,'size'=>7385216,'duration'=>184320,'blob'=>'de518b3a09a7a41dae76cabce8f696bf00164bf9'],
+  '52572387'=>['rid'=>333,'size'=>6955303,'duration'=>171729,'blob'=>'ca8be59f58795b82cc2e1de004745559b8bf83a4'],
+  '108050041'=>['rid'=>334,'size'=>6897491,'duration'=>168333,'blob'=>'ea76f2b274f0699b54a395bb699e3142494b8ee8'],
+  '69420850'=>['rid'=>335,'size'=>7069197,'duration'=>174576,'blob'=>'11cd9f6b4bc1a4de8cc0bf43070008fcf4608b5c'],
+  '67639975'=>['rid'=>336,'size'=>6406313,'duration'=>160052,'blob'=>'7ffd6f349fff9e1d5f39086399e6536ae5190834'],
+  '50400504'=>['rid'=>337,'size'=>5237491,'duration'=>128784,'blob'=>'fa68b76d0f49278d1050d67ee95efa9ce31539d8'],
+  '58978660'=>['rid'=>338,'size'=>6741099,'duration'=>166374,'blob'=>'b329d1ffeaf77f16b251099e7f6df27555788776'],
+  '58810179'=>['rid'=>339,'size'=>7767188,'duration'=>192026,'blob'=>'88c44d85dac139bc9986fe9e085ffc45ca4dffa8'],
+  '50573122'=>['rid'=>340,'size'=>9075401,'duration'=>224731,'blob'=>'594661374fc0ce5a5bc8884eced3db6d003212d5'],
+  '50400502'=>['rid'=>341,'size'=>7427597,'duration'=>183536,'blob'=>'37651954bf3e78074660b6f0f4ab15c7fcd9def2'],
+  '121733051'=>['rid'=>342,'size'=>4745971,'duration'=>118544,'blob'=>'c57e6647b57ee735978febad5832165205de2e71'],
+  '43503864'=>['rid'=>343,'size'=>5640821,'duration'=>138867,'blob'=>'a5fb5435052d13a551c1b4b0eb1c6475a0e5803c'],
+  '48592076'=>['rid'=>344,'size'=>8051401,'duration'=>199131,'blob'=>'a3e90c20e3b7af858c4098fe91d827cd4cd20a57'],
+  '81936387'=>['rid'=>345,'size'=>7616723,'duration'=>188264,'blob'=>'3fa4636de01a91e36c9856c1e6ad093b891ae607'],
+  '115258952'=>['rid'=>346,'size'=>6169644,'duration'=>153496,'blob'=>'a9c9d478243e8f7d845c47622a5fa97ca55ce30d'],
+  '131788963'=>['rid'=>347,'size'=>6331081,'duration'=>158171,'blob'=>'68a2fe15b4ccb8e1acd868050d17659ac36e9867'],
+  '87117636'=>['rid'=>348,'size'=>5145540,'duration'=>126485,'blob'=>'4b3fa61f335549b01166802d3c1fef521dfa58b3'],
+  '106123283'=>['rid'=>349,'size'=>4920886,'duration'=>120869,'blob'=>'c4086047d664091e0c91a1700e235b0844f32be3'],
+  '81936403'=>['rid'=>350,'size'=>9036740,'duration'=>223765,'blob'=>'e4404dfbd176b0a1e0d706ad17bbb7ad6499eb19'],
+  '38572740'=>['rid'=>351,'size'=>6980359,'duration'=>172330,'blob'=>'c0fdb20f739eb338248409cf6d1e16790a1f17ad'],
+  '48591482'=>['rid'=>352,'size'=>12297866,'duration'=>305293,'blob'=>'36bac18fd8560454662bf371c91d5f01fe33b9cc'],
+  '29851854'=>['rid'=>353,'size'=>8956261,'duration'=>221727,'blob'=>'17c9428e0a34d498463346da6ba617e607d6eaef'],
+  '117219737'=>['rid'=>354,'size'=>6736292,'duration'=>168046,'blob'=>'c9fa2a910fd90cd241f9eca7727b9cbee8420fb5'],
+  '36893518'=>['rid'=>355,'size'=>9418348,'duration'=>234057,'blob'=>'3271e0bc3f00ae634b4702912d7e5d4000f95a26'],
+  '140330884'=>['rid'=>356,'size'=>4611973,'duration'=>114887,'blob'=>'30b849856008e45fbbaeccc4c9a7838949001236'],
+  '142577327'=>['rid'=>357,'size'=>5391613,'duration'=>134557,'blob'=>'7936d7dac30e8c9e65e2c4043d1c37ce552d67cb'],
+  '29508050'=>['rid'=>358,'size'=>7246829,'duration'=>179017,'blob'=>'70a28ab60cc945c9ca504808056e7c0f104256d0'],
+  '36063268'=>['rid'=>359,'size'=>6604196,'duration'=>162926,'blob'=>'2f040617efea04142976ed737e5c265d6137cc12'],
+  '149220758'=>['rid'=>360,'size'=>5666943,'duration'=>139520,'blob'=>'a3d912a2b0062d30f1e3e06892b6a9a0fbea162d'],
+  '36562968'=>['rid'=>361,'size'=>6060849,'duration'=>149342,'blob'=>'05c1efdeb20a720abfeea792a1d82eef8f05f731'],
+  '115424575'=>['rid'=>362,'size'=>3643603,'duration'=>90984,'blob'=>'ba26a54b8c13f86532ccee982264550ad7fe3c63'],
+  '119280171'=>['rid'=>363,'size'=>5272829,'duration'=>130717,'blob'=>'535a5ff02382da39ff81ac5854b3020ce0cc6ab1'],
+  '35476145'=>['rid'=>364,'size'=>6808996,'duration'=>168046,'blob'=>'72d64961ec3cce2d6f540c75da5ddb5183bd3615'],
+  '117370317'=>['rid'=>365,'size'=>6785256,'duration'=>169091,'blob'=>'16a9524961845aeb37620ff5f0388285c42c47f0'],
+  '76711327'=>['rid'=>366,'size'=>9128670,'duration'=>226038,'blob'=>'9346101adb0c1f42616b64956ceeba29bf9f4be4'],
+  '116649704'=>['rid'=>367,'size'=>7623473,'duration'=>190302,'blob'=>'ada468b4386f2a3a2175a6bcc88253898bb5375a'],
+  '142825481'=>['rid'=>368,'size'=>6477366,'duration'=>161829,'blob'=>'d50be3552d9c3d74e11158715101cf0e8bcdaef8'],
+  '76711318'=>['rid'=>369,'size'=>9105703,'duration'=>225489,'blob'=>'be95ae499d632b4e54ed998232e3eb7bde545593'],
+  '132344550'=>['rid'=>370,'size'=>3867232,'duration'=>94119,'blob'=>'bff931940ae15916673b54693055a6c478b53178'],
+  '135256919'=>['rid'=>371,'size'=>5276277,'duration'=>131187,'blob'=>'eb0a3078488b412ad556555ec552c6bd4ead536a'],
+  '38180454'=>['rid'=>372,'size'=>4186303,'duration'=>204957,'blob'=>'7f627411e05f260b143c3714d7e09784b86e5b0e'],
+  '118111192'=>['rid'=>373,'size'=>5685710,'duration'=>141218,'blob'=>'06dfb43cb2e2a562697fe9b01931eda749377864'],
+  '110313505'=>['rid'=>374,'size'=>5795047,'duration'=>144771,'blob'=>'3b30c9ba1528e84963ea2b990dd103267fa6223b'],
+  '131866155'=>['rid'=>375,'size'=>3661366,'duration'=>91429,'blob'=>'c87314826eeed1eb5a73353ac00d777c427c767e'],
+  '113871254'=>['rid'=>376,'size'=>4817024,'duration'=>120320,'blob'=>'c77e6f81a80127e12fd3956e817092b7913f23b0'],
+  '73939476'=>['rid'=>377,'size'=>7554029,'duration'=>186697,'blob'=>'4ff47a2c9fd0da17210163a3178e4609c518d0d5'],
+  '98093044'=>['rid'=>378,'size'=>4580249,'duration'=>112353,'blob'=>'0883415f15014013fb357b60309c71d34c4b3801'],
+  '60441423'=>['rid'=>379,'size'=>6295972,'duration'=>155246,'blob'=>'b3cdb2f49d79f53afdb65b438947345a91244794'],
+  '58212468'=>['rid'=>380,'size'=>8498199,'duration'=>212349,'blob'=>'25a6d1cfefb69928af16c1067e98443aaa3ed6bc'],
+  '108485144'=>['rid'=>381,'size'=>5363581,'duration'=>131579,'blob'=>'b3a6cb0f386b479919b5f4836d18589f5b015e22'],
+  '109996934'=>['rid'=>382,'size'=>6143417,'duration'=>151432,'blob'=>'ddb4ba4d3ad79097e739486bdafb98fda9b07564'],
+  '31192330'=>['rid'=>383,'size'=>9468572,'duration'=>234762,'blob'=>'913ceb7740821f954034d7746d0a2fd1ca7fdd3e'],
+  '126043434'=>['rid'=>384,'size'=>4368094,'duration'=>108278,'blob'=>'10d524d0640450f9675805daeaf29e3c7ba103fa'],
+  '147603436'=>['rid'=>385,'size'=>7152657,'duration'=>176744,'blob'=>'fd23272739a0cd4d95f02a113b300bbda76b4c48'],
+  '38931996'=>['rid'=>386,'size'=>5849779,'duration'=>144065,'blob'=>'3ee7f181c11fec684e229de1823942791c18acd0'],
+  '135681115'=>['rid'=>387,'size'=>6645595,'duration'=>166034,'blob'=>'c069c52add83b5d27d066f83d783fc76f47653ed'],
+  '53582341'=>['rid'=>388,'size'=>4083042,'duration'=>255190,'blob'=>'d3909aa15adb72b2d6ef09c391c6b2a866982749'],
+  '51039981'=>['rid'=>389,'size'=>8758506,'duration'=>214282,'blob'=>'4b04fc1b16b86f9b5d95048690d79608282be7e8'],
+  '38563412'=>['rid'=>390,'size'=>8527165,'duration'=>205662,'blob'=>'a8f3670818ad48747baa2b13387d821637953ff7'],
+  '108977147'=>['rid'=>391,'size'=>5914584,'duration'=>145711,'blob'=>'bc9db878c461a90b652ccf60153d084d6b43c9d6'],
+  '139229968'=>['rid'=>392,'size'=>3578775,'duration'=>89469,'blob'=>'3bc205385559c83a8cca4e4e55f2f12ac687af79'],
+  '127455122'=>['rid'=>393,'size'=>5699962,'duration'=>142393,'blob'=>'b5d3c7ec32b243690d114bb3d1a5572df0553a72'],
+  '81936404'=>['rid'=>394,'size'=>6427608,'duration'=>158511,'blob'=>'a00aaef196d0f538c020416118721e61311f5fde'],
+  '116649702'=>['rid'=>395,'size'=>6018510,'duration'=>150178,'blob'=>'faafa17a968df033e3dfd50a739ffeb9b81ded76'],
+  '116649700'=>['rid'=>396,'size'=>4812698,'duration'=>120033,'blob'=>'201ee7ced007d6512c9546f24f4620810419fc34'],
+  '140330881'=>['rid'=>397,'size'=>3686193,'duration'=>91742,'blob'=>'4a79ec4e8a59a11aed1cdcdf31755dbc24df7f1d'],
+  '38419047'=>['rid'=>398,'size'=>13347968,'duration'=>331520,'blob'=>'f2105c9d36fdb6fd503d1c5c20c08ec0da4b8c0d'],
+  '136904439'=>['rid'=>399,'size'=>4033350,'duration'=>100728,'blob'=>'55ed86d4c300c35e10723ab39eb3387f20e4e5c4'],
+  '116649709'=>['rid'=>400,'size'=>6219130,'duration'=>155193,'blob'=>'771643153ea447ed188778f92c4025caac1aa757'],
+  '130919938'=>['rid'=>401,'size'=>4505581,'duration'=>112457,'blob'=>'b3342925294ca75e135fe16f71c4c4f896fdeeb1'],
+  '143244429'=>['rid'=>402,'size'=>6381564,'duration'=>156630,'blob'=>'c14e1b12005c6dca0c61d73feedf6fb297781f7f'],
+  '108127243'=>['rid'=>403,'size'=>7425507,'duration'=>183484,'blob'=>'539445d315d77643b3a56a4edca6afab44799e35'],
+  '130919974'=>['rid'=>404,'size'=>7088569,'duration'=>177032,'blob'=>'a0a738c8862fdd0442833635c4b5b1144778894a'],
+  '115308816'=>['rid'=>405,'size'=>5777055,'duration'=>144039,'blob'=>'3efffc366edcbc24f742caf8936b26545a822ae9'],
+  '43528291'=>['rid'=>406,'size'=>8853882,'duration'=>219193,'blob'=>'373b28a6adc1871b6251f930b1b4a8ddb1714481'],
+  '130919941'=>['rid'=>407,'size'=>5153480,'duration'=>128731,'blob'=>'a137848d3c0880ada5cc5c54a1100c6b45600c9b'],
+  '138413377'=>['rid'=>408,'size'=>5061154,'duration'=>125962,'blob'=>'99aaa21ffa8ee34aa174339564e1124d6812c40b'],
+  '108284700'=>['rid'=>409,'size'=>6448108,'duration'=>161097,'blob'=>'72b81b2ed0742a54af4356df945524f73471d5de'],
+  '110023304'=>['rid'=>410,'size'=>2720957,'duration'=>67918,'blob'=>'dbaede9014b201acae08faa820d0f4aedf3be963'],
+  '120305626'=>['rid'=>411,'size'=>5998155,'duration'=>149055,'blob'=>'da07bf494e23670733a6e8ab132b134523dfa262'],
+  '83836715'=>['rid'=>412,'size'=>5833709,'duration'=>145842,'blob'=>'ee91e1fd9e74c18709014abd68e3450374739459'],
+  '104242342'=>['rid'=>413,'size'=>4005556,'duration'=>97985,'blob'=>'73659a17e2e3967f8e5a6ac5a2062e6f3f353af5'],
+  '48592086'=>['rid'=>414,'size'=>9487091,'duration'=>235024,'blob'=>'e1cbb57fef60f3c4e562d35fdfdaf9401c82227a'],
+  '41468696'=>['rid'=>415,'size'=>7806874,'duration'=>192993,'blob'=>'dac05825eeefc13e96b0886a8064bbf44c2718d3'],
+  '105382858'=>['rid'=>416,'size'=>4695815,'duration'=>117394,'blob'=>'aca1e6dd2159cde3138010a9c356002c0efb08cd'],
+  '105382841'=>['rid'=>417,'size'=>6290748,'duration'=>155115,'blob'=>'9eac745a908ac01db1ef5207f310e0072f92e3e3'],
+  '105382847'=>['rid'=>418,'size'=>6586454,'duration'=>162508,'blob'=>'5dc7f800dea68051fa8740ec82b9438df60413fd'],
+  '105382856'=>['rid'=>419,'size'=>6345082,'duration'=>156473,'blob'=>'c9e5e2d0d0457641e362455eee4d41eacd695333'],
+  '106018754'=>['rid'=>420,'size'=>5354518,'duration'=>131709,'blob'=>'d55c3d12a87300b502f3aff756f3635add24c673'],
+  '80159693'=>['rid'=>421,'size'=>5796075,'duration'=>139259,'blob'=>'5622498004c93ad81905d6363aa8bc11cb864af8'],
+  '93556490'=>['rid'=>422,'size'=>6551972,'duration'=>161646,'blob'=>'aed2533458c97588ac89d99d0574342d032eb6db'],
+  '119280163'=>['rid'=>423,'size'=>4205988,'duration'=>104046,'blob'=>'d20c6a74529848dbcdc9f86c60a36a806174f09b'],
+  '105382852'=>['rid'=>424,'size'=>5760964,'duration'=>141845,'blob'=>'8f0a56fadad964eb37b7dd2a180881a77df3995a'],
+  '104242332'=>['rid'=>425,'size'=>4129899,'duration'=>101094,'blob'=>'99a915e1665bc046a0f94ff1b78b9fc0f68f33a3'],
+  '104242353'=>['rid'=>426,'size'=>6101157,'duration'=>147749,'blob'=>'294356eb41fa3f040bb95fd3e9cc5c593982b640'],
+  '105999154'=>['rid'=>427,'size'=>5772060,'duration'=>144196,'blob'=>'64d37bacb22f656edaf899e5a2156a64889dcf45'],
+  '97933934'=>['rid'=>428,'size'=>6772445,'duration'=>167158,'blob'=>'9120419833b12029212e4bfcec285642941a12be'],
+  '137300020'=>['rid'=>429,'size'=>3598464,'duration'=>89600,'blob'=>'c321f59d1271d04f16ab60e5514aaaf84d0b735c'],
+  '144098512'=>['rid'=>430,'size'=>5691557,'duration'=>140852,'blob'=>'b0141e2fb5d2639e05ea6ab5747b85a7c18467e7'],
+  '119923201'=>['rid'=>431,'size'=>7512338,'duration'=>187063,'blob'=>'2144fb1dfdf34ba39a4c33f5186cbd234588b67f'],
+  '123874951'=>['rid'=>432,'size'=>5979723,'duration'=>149055,'blob'=>'bad486772b372a48382202a1d12d054890c25940'],
+  '38149234'=>['rid'=>433,'size'=>6466291,'duration'=>159504,'blob'=>'a1c220083d0760e31a8f44ea03563f5326166841'],
+  '139228490'=>['rid'=>434,'size'=>3736599,'duration'=>93309,'blob'=>'4653ae81e3c0543c26c305f24939f6bfecf3199d'],
+  '137803949'=>['rid'=>435,'size'=>5986682,'duration'=>147513,'blob'=>'95264633c5be28f02be29a9c8b7769fb04fc83a3'],
+  '148781606'=>['rid'=>436,'size'=>7148147,'duration'=>178704,'blob'=>'71b715c73a65231d6fe95e69ff72304e8717a4c3'],
+  '148778065'=>['rid'=>437,'size'=>6618510,'duration'=>165460,'blob'=>'a51469cb5fca7b2657d56d57052464550fd148e3'],
+  '137251857'=>['rid'=>438,'size'=>4347380,'duration'=>103654,'blob'=>'6a6cad73de6aeee25b253a775b61b5ba689c74c6'],
+  '81772338'=>['rid'=>439,'size'=>4373987,'duration'=>109244,'blob'=>'49499ba76401f556170d7dd9fd23587d32eb3dff'],
+  '68074242'=>['rid'=>440,'size'=>2842166,'duration'=>114834,'blob'=>'010ff4a92dca81acb51803a3caf8c18fbe32d398'],
+  '123286436'=>['rid'=>441,'size'=>5242151,'duration'=>130769,'blob'=>'57c11732679fb35f3153c61e28d02b38d6a4d4a2'],
+  '131538268'=>['rid'=>442,'size'=>6788119,'duration'=>167549,'blob'=>'711c0df9205405c7202d9a37dd9a508bf8172e52'],
+  '42840670'=>['rid'=>443,'size'=>7183070,'duration'=>177398,'blob'=>'c63586da3a4aba8426b4997a1647a2cc0f467be6'],
+  '131898079'=>['rid'=>444,'size'=>6490532,'duration'=>159086,'blob'=>'89dc0f8680127d2e4ab81002387151dba31a55f9'],
+  '147212188'=>['rid'=>445,'size'=>1678315,'duration'=>37512,'blob'=>'7afc8e598b5ec55d228c9a9e4ce2ae0dcb4b7f8a'],
+  '107845498'=>['rid'=>446,'size'=>8272919,'duration'=>204669,'blob'=>'5e81c74b50f0972e1ccd0f3e73d3c59d52951859'],
+  '122852454'=>['rid'=>447,'size'=>6108058,'duration'=>152033,'blob'=>'39cdd52da21c3c3869250fa419079487978280be'],
+  '100923878'=>['rid'=>448,'size'=>8057252,'duration'=>201326,'blob'=>'0aae2e203602ba5b22e6c86325995e7aca75a56b'],
+  '60968632'=>['rid'=>449,'size'=>9510078,'duration'=>235598,'blob'=>'7226ae2b25ea99f843e3b5ae462dbc0720f6b88e'],
+  '139671870'=>['rid'=>450,'size'=>7057588,'duration'=>174785,'blob'=>'95f97c220cbfbe869136df26b1e2fef92dbb4eee'],
+  '121043176'=>['rid'=>451,'size'=>4125301,'duration'=>103027,'blob'=>'2e6d20444de39841f5365790feacd543f4ef93f1'],
+  '130751236'=>['rid'=>452,'size'=>5311072,'duration'=>132441,'blob'=>'3f7b7032e26888d4f2d6e419f78023cfbb95ec84'],
+  '147212189'=>['rid'=>453,'size'=>7057235,'duration'=>169378,'blob'=>'11923701aeef003beb2070612664c661cd892d2d'],
+  '145536333'=>['rid'=>454,'size'=>4776900,'duration'=>118805,'blob'=>'fb6ae74730269dcdbbe4735f9f7d510dc6be6635'],
+  '54281103'=>['rid'=>455,'size'=>5838307,'duration'=>143804,'blob'=>'d08648d70804ed0b94e897b821b63bf0157e62c6'],
+  '136260233'=>['rid'=>456,'size'=>4094999,'duration'=>102269,'blob'=>'91c6ab37782f4ba3f93b3fdcb2bf4501fd0cdb31'],
+  '140701188'=>['rid'=>457,'size'=>4017677,'duration'=>100336,'blob'=>'af09c4267ce0c5e4126091e3578b9fdc6581d200'],
+  '145536338'=>['rid'=>458,'size'=>6076891,'duration'=>148872,'blob'=>'87f6be2e84c4e73204a20a7756eb172ce8734101'],
+  '142512577'=>['rid'=>459,'size'=>4794035,'duration'=>119850,'blob'=>'18daeeee2b48ec4fd1914bb5d3b7a2fb26e39a53'],
+  '117383616'=>['rid'=>460,'size'=>6330036,'duration'=>158250,'blob'=>'ac23df34ab8afad5de8e78ac0c5c7c31fc79c1b7'],
+  '147212190'=>['rid'=>461,'size'=>13276915,'duration'=>329744,'blob'=>'40d89a4efdabf6484d43a61e1880502b8a677c95'],
+  '141390024'=>['rid'=>462,'size'=>3801383,'duration'=>94929,'blob'=>'d93ce820312c94cea14cfaef615a084baaa4fc34'],
+  '136021421'=>['rid'=>463,'size'=>6045824,'duration'=>151040,'blob'=>'f5a13bfaa97aa99a509d02c5f11555668eb16432'],
+  '25738208'=>['rid'=>464,'size'=>6809016,'duration'=>168072,'blob'=>'41ac3a30f361dfd1c88c3e9055349f05d0299d15'],
+  '148716941'=>['rid'=>465,'size'=>9365212,'duration'=>227997,'blob'=>'51592b944aa2c6dc691f85ec33809bc11605cfac'],
+  '135463527'=>['rid'=>466,'size'=>5023912,'duration'=>125597,'blob'=>'3bb5edfe07fc6102daa3286b0f0df760a6a22d9b'],
+  '39151536'=>['rid'=>467,'size'=>11054437,'duration'=>274207,'blob'=>'6a4a223771441bfc42fc4c03c1862459c3219ad0'],
+  '131394968'=>['rid'=>468,'size'=>9503424,'duration'=>237480,'blob'=>'4aa3a68c85fcf4642b75df3b3074434e8016ee55'],
+  '66668863'=>['rid'=>469,'size'=>3077268,'duration'=>124630,'blob'=>'e9179bda4ba36944c6a48f1bb0fdcde8e722cdbb'],
+  '137950219'=>['rid'=>470,'size'=>8208762,'duration'=>205113,'blob'=>'5e5e52690fa666d9c92bc685dc3a9c3e2fa1351a'],
+  '146183038'=>['rid'=>471,'size'=>3976395,'duration'=>94354,'blob'=>'7b08f353bc55be070a923df6260c96b479704c70'],
+  '139083707'=>['rid'=>472,'size'=>4160452,'duration'=>103445,'blob'=>'433422f846c0eaaaad5f93a61731d3b459f5e37d'],
+  '62484718'=>['rid'=>473,'size'=>7850362,'duration'=>196153,'blob'=>'eaef946d19970638484e4dd76be6feefae684fb7'],
+  '81750768'=>['rid'=>474,'size'=>6224919,'duration'=>153469,'blob'=>'182d4e572924aa33194e2747410b8de42760e4ed'],
+  '93012495'=>['rid'=>475,'size'=>4363956,'duration'=>106945,'blob'=>'0278041f00a38335d44b3f3b00022ef10f43c336'],
+  '95699210'=>['rid'=>476,'size'=>4371270,'duration'=>107128,'blob'=>'35c4552c1a214f8d212da720b97c72243bf9a9eb'],
+  '104182086'=>['rid'=>477,'size'=>4857498,'duration'=>117656,'blob'=>'6d1141277b823756431fc6d68acc3e96cfa62a62'],
+  '66801291'=>['rid'=>478,'size'=>3960625,'duration'=>161437,'blob'=>'f01c09adcf02b9824e2befc523de678cb4bd4787'],
+  '137709368'=>['rid'=>479,'size'=>5928795,'duration'=>148114,'blob'=>'3f1b541d9573ee619bbbb8c56e00dbbdb049a8fa'],
+  '125535661'=>['rid'=>480,'size'=>5134756,'duration'=>127086,'blob'=>'53ae81ef6bddd128c0b66889dc6bd425a143fb64'],
+  '35681868'=>['rid'=>481,'size'=>8994448,'duration'=>220656,'blob'=>'5521a3e0a88c31f259f978e67cd67c6ec6f55aff'],
+  '108523845'=>['rid'=>482,'size'=>5940707,'duration'=>146364,'blob'=>'bc26cb254eaebd619d1219768c861d5b9ba33fbd'],
+  '84106658'=>['rid'=>483,'size'=>6147659,'duration'=>152895,'blob'=>'f84fb40a21ba0c37c60f7a2e54786885663b5548'],
+  '104735373'=>['rid'=>484,'size'=>4493523,'duration'=>110184,'blob'=>'fbbc443623dc08e88a9590f1e77366c3cd843791'],
+  '125535648'=>['rid'=>485,'size'=>4501568,'duration'=>112104,'blob'=>'45ee286fee2fbd0cf9b60d742701cdb1561dc06e'],
+  '36142276'=>['rid'=>486,'size'=>3691532,'duration'=>89861,'blob'=>'2e880ebec9fbad845b9126e471b37654dd2c7c61'],
+  '36161896'=>['rid'=>487,'size'=>9772975,'duration'=>244219,'blob'=>'1cc05795f48b6d67d15ac3e6c6f3a8b7381dac91'],
+  '110058012'=>['rid'=>488,'size'=>7489872,'duration'=>187141,'blob'=>'542665e74668501d4e2b8b334f4b7e75817f5f55'],
+  '118663870'=>['rid'=>489,'size'=>5832276,'duration'=>140251,'blob'=>'fcc5bec37299d8060757902fa52a2ccb3f91ffbc'],
+  '96941368'=>['rid'=>490,'size'=>5010041,'duration'=>123037,'blob'=>'526a181c267c0628b108a1f20c0dc6eb36cf1b80'],
+  '28676494'=>['rid'=>491,'size'=>8413959,'duration'=>208170,'blob'=>'d8af07a3d8b94ecc74a18dd5b3b593ac9ad5e9b0'],
+  '135256913'=>['rid'=>492,'size'=>5464359,'duration'=>135889,'blob'=>'ddf8ac9fd371cdec78826ae28e1af59a719bcec2'],
+  '135256916'=>['rid'=>493,'size'=>5260604,'duration'=>130795,'blob'=>'c33697f4f9353369bb0fd8672224e0f070ad3cbe'],
+  '135256920'=>['rid'=>494,'size'=>4899069,'duration'=>121757,'blob'=>'5b80ea2a6c1e830ab5a2badc61cf1db08b8e0f6a'],
+  '135256909'=>['rid'=>495,'size'=>6358791,'duration'=>158250,'blob'=>'c38f10727dfb670d058bb98ad9a5c374b614ca0c'],
+  '119469048'=>['rid'=>496,'size'=>5026003,'duration'=>125544,'blob'=>'7cfa02eaacab59db61684df9ac4c5231f58f841a'],
+  '110997060'=>['rid'=>497,'size'=>8257505,'duration'=>203233,'blob'=>'546cb27b037573000ae7c0134473fcce9229323d'],
+  '135256921'=>['rid'=>498,'size'=>4625306,'duration'=>114913,'blob'=>'f397d865d12976504174cf4035d0a309a3c691e5'],
+  '119469050'=>['rid'=>499,'size'=>5065709,'duration'=>126537,'blob'=>'c004240b3b3dd5cf2a3a359636115a917efa9820'],
+  '35758333'=>['rid'=>500,'size'=>5250237,'duration'=>218279,'blob'=>'ab69b3428e5dea3cecb1f239f18e30eaa440fbb4'],
+  '147993029'=>['rid'=>501,'size'=>5494849,'duration'=>136882,'blob'=>'39fc40e9bd85597a488ce4c5a4ff4832c6e84d35'],
+  '119469051'=>['rid'=>502,'size'=>6274859,'duration'=>153365,'blob'=>'d9f1bef11c0de1538e90c22db58dc6e61babcd35'],
+  '131538266'=>['rid'=>503,'size'=>5687842,'duration'=>140042,'blob'=>'ca041e1b34ce34a00783f31a212c349dfb12685f'],
+  '131538273'=>['rid'=>504,'size'=>5172707,'duration'=>127164,'blob'=>'670e1b8c8dec639d330da35be609ca914af5e9ff'],
+  '131538269'=>['rid'=>505,'size'=>6708707,'duration'=>165564,'blob'=>'6c6484ca4a9ea6d06a477187bd831577cbafea92'],
+  '131538276'=>['rid'=>506,'size'=>4887450,'duration'=>120033,'blob'=>'b495abcd0f7443792e86acc943b69391d509081d'],
+  '131538271'=>['rid'=>507,'size'=>5368103,'duration'=>132049,'blob'=>'470fa93d2469d836a53fe3642c1eefa3dc323d68'],
+  '76262072'=>['rid'=>508,'size'=>6274029,'duration'=>154697,'blob'=>'6cc23dfff763ae4a633e8fa8fbf5b24f34f4f57e'],
+  '76262126'=>['rid'=>509,'size'=>5517523,'duration'=>135784,'blob'=>'318fa1bf17b415bf3712a5225406f252a7c3681e'],
+  '76262124'=>['rid'=>510,'size'=>6648103,'duration'=>164049,'blob'=>'a7cc909358ba3759829d887ae08e8ab36742b300'],
+  '76262104'=>['rid'=>511,'size'=>6143417,'duration'=>151432,'blob'=>'0910db4c4d0d30d282916ad68706cebe8aac8ad2'],
+  '131538277'=>['rid'=>512,'size'=>6140282,'duration'=>151353,'blob'=>'d2158a11b964261d58ec4d9cfe78afd0e35a449c'],
+  '64724076'=>['rid'=>513,'size'=>4558686,'duration'=>112065,'blob'=>'da49262e695a4b84dd8d211e6391379b040c074a'],
+  '76262139'=>['rid'=>514,'size'=>5533197,'duration'=>136176,'blob'=>'e3f76ca8fb54580a96bfa2e45223c3be1e4f30b2'],
+  '104896796'=>['rid'=>515,'size'=>3426264,'duration'=>85551,'blob'=>'89d943857745ffa93fa2d8b476a3a7129c35ab2e'],
+  '130642855'=>['rid'=>516,'size'=>2784697,'duration'=>69512,'blob'=>'3b78c7e482c5b2dfdaf66a30a1c435dc83349838'],
+  '116486249'=>['rid'=>517,'size'=>6247384,'duration'=>155951,'blob'=>'332dbc4f6a7283a48a487d3b1e5bb1f005ac7dd7'],
+];
+try{
+  $rel=realpath($base.'/current');
+  if(!is_link($base.'/current')||!$rel||!str_starts_with($rel,$base.'/releases/'))throw new RuntimeException('unsafe_active_release');
+  require_once $rel.'/bootstrap.php';
+  $cfg=require $rel.'/config/app.php';
+  if(($cfg['environment']??'')!=='production')throw new RuntimeException('wrong_environment');
+  $pdo=\Celikom\Database\Connection::open($cfg);
+  $store=new \Celikom\Storage\LocalStorageAdapter($cfg['storage_path']);
+  $app=new \Celikom\Application($cfg);
+  $catalogue=(new \Celikom\Application\ReplacementCatalogueService($pdo))->snapshot();
+  $inCat=[];foreach($catalogue['tracks'] as $x)$inCat[(string)$x['track_id']]=true;
+  $token=(string)($cfg['test_api_token']??'');if(strlen($token)<24)throw new RuntimeException('missing_test_api_token');
+  $q=$pdo->prepare("SELECT r.id,r.status,r.is_active,r.approved_at,r.approved_by_admin_id,r.disabled_at,a.storage_driver,a.storage_key,a.sha256,a.size_bytes,a.mime_type,a.duration_ms FROM tracks t JOIN track_replacements r ON r.track_id=t.id JOIN audio_assets a ON a.id=r.audio_asset_id WHERE t.service='yandex' AND t.service_track_id=? ORDER BY r.id");
+  $out=['status'=>'PREVIOUS200_AFTER_APPROVAL_READ_ONLY','checked'=>count($expected),'approved_active'=>0,'pending'=>0,'other_status'=>0,'files_verified'=>0,'catalogue_correct'=>0,'resolve_correct'=>0,'head200'=>0,'range206'=>0,'bytes'=>0,'batches'=>[0,0,0,0],'issues'=>[],'writes'=>0];
+  $pdo->exec('START TRANSACTION READ ONLY');$ord=0;
+  foreach($expected as $id=>$e){
+    $id=(string)$id;$group=intdiv($ord++,50);
+    $q->execute([$id]);$rows=$q->fetchAll(PDO::FETCH_ASSOC);
+    if(count($rows)!==1){$out['issues'][]=['track'=>$id,'error'=>'missing_or_multiple_versions'];continue;}
+    $r=$rows[0];$approved=$r['status']==='approved'&&(int)$r['is_active']===1&&$r['disabled_at']===null;
+    $pending=$r['status']==='pending'&&(int)$r['is_active']===0;
+    if((int)$r['id']!==$e['rid']){$out['issues'][]=['track'=>$id,'error'=>'replacement_id_changed'];continue;}
+    if(!$approved&&!$pending){$out['other_status']++;$out['issues'][]=['track'=>$id,'error'=>'unexpected_status'];continue;}
+    if($approved&&($r['approved_at']===null||$r['approved_by_admin_id']===null)){$out['issues'][]=['track'=>$id,'error'=>'approval_audit_missing'];continue;}
+    if($pending&&($r['approved_at']!==null||$r['approved_by_admin_id']!==null)){$out['issues'][]=['track'=>$id,'error'=>'pending_has_approval'];continue;}
+    if($r['storage_driver']!=='local'||$r['mime_type']!=='audio/mpeg'||(int)$r['size_bytes']!==$e['size']||abs((int)$r['duration_ms']-$e['duration'])>1500||!$store->exists((string)$r['storage_key'])||$store->getSize((string)$r['storage_key'])!==$e['size']||$store->getMimeType((string)$r['storage_key'])!=='audio/mpeg'){$out['issues'][]=['track'=>$id,'error'=>'private_file_metadata_mismatch'];continue;}
+    $fp=$store->openStream((string)$r['storage_key']);
+    try{
+      $sha=hash_init('sha256');$blob=hash_init('sha1');hash_update($blob,'blob '.$e['size']."\0");$first='';
+      while(!feof($fp)){$chunk=fread($fp,262144);if($chunk===false)throw new RuntimeException('read_error');if($chunk==='')continue;if(strlen($first)<64)$first.=substr($chunk,0,64-strlen($first));hash_update($sha,$chunk);hash_update($blob,$chunk);}
+    }finally{fclose($fp);}
+    if(!hash_equals((string)$r['sha256'],hash_final($sha))||!hash_equals($e['blob'],hash_final($blob))){$out['issues'][]=['track'=>$id,'error'=>'audio_hash_invalid'];continue;}
+    $out['files_verified']++;$out['bytes']+=$e['size'];
+    if(isset($inCat[$id])!==$approved){$out['issues'][]=['track'=>$id,'error'=>'catalogue_wrong_status'];continue;}
+    $out['catalogue_correct']++;
+    $response=$app->handle('GET','/api/v1/resolve',['service'=>'yandex','track_id'=>$id],['authorization'=>'Bearer '.$token]);
+    $data=json_decode($response->body,true);
+    if($response->status!==200||($data['found']??null)!==$approved){$out['issues'][]=['track'=>$id,'error'=>'resolve_wrong_status'];continue;}
+    $out['resolve_correct']++;
+    if($approved){
+      if((int)($data['replacement_id']??0)!==$e['rid']||!isset($data['audio_url'])){$out['issues'][]=['track'=>$id,'error'=>'resolve_wrong_replacement'];continue;}
+      $url=parse_url((string)$data['audio_url']);
+      if(!is_array($url)||!preg_match('~^/api/v1/audio/[1-9][0-9]{0,17}$~D',(string)($url['path']??''))){$out['issues'][]=['track'=>$id,'error'=>'signed_url_invalid'];continue;}
+      parse_str((string)($url['query']??''),$args);
+      $head=$app->handle('HEAD',(string)$url['path'],$args);
+      if($head->status!==200||($head->headers['Content-Type']??'')!=='audio/mpeg'||(int)($head->headers['Content-Length']??0)!==$e['size']||($head->headers['Accept-Ranges']??'')!=='bytes'){$out['issues'][]=['track'=>$id,'error'=>'head_invalid'];continue;}
+      $out['head200']++;
+      $range=$app->handle('GET',(string)$url['path'],$args,['range'=>'bytes=0-63']);
+      if($range->status!==206||($range->headers['Content-Range']??'')!=='bytes 0-63/'.$e['size']||(int)($range->headers['Content-Length']??0)!==64){$out['issues'][]=['track'=>$id,'error'=>'range_headers_invalid'];continue;}
+      ob_start();$range->emitBody();$got=ob_get_clean();
+      if($got!==$first){$out['issues'][]=['track'=>$id,'error'=>'range_bytes_mismatch'];continue;}
+      $out['range206']++;$out['approved_active']++;
+    }else{$out['pending']++;}
+    $out['batches'][$group]++;
+  }
+  $pdo->rollBack();$active=$out['approved_active'];
+  $out['pass']=$out['checked']===200&&$active+$out['pending']===200&&$out['files_verified']===200&&$out['catalogue_correct']===200&&$out['resolve_correct']===200&&$out['head200']===$active&&$out['range206']===$active&&$out['batches']===[50,50,50,50]&&!$out['issues'];
+  echo json_encode($out,JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR),"\n";
+  if(!$out['pass'])exit(1);
+}catch(Throwable $error){
+ if(isset($pdo)&&$pdo instanceof PDO&&$pdo->inTransaction())$pdo->rollBack();
+ fwrite(STDERR,'READONLY_PREVIOUS200_AUDIT_REFUSED: '.$error->getMessage()."\n");exit(2);
+}
