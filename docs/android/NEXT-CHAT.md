@@ -1,3 +1,11 @@
+# ПЕРЕДАЧА 08.11.2026 · Test.71 ПРОВАЛИЛАСЬ НА HONOR — откат к Test.70
+
+**СРОЧНО ЧИТАТЬ ПЕРВЫМ:** [ANDROID-TEST71-HONOR-211554-FAIL-2026-11-08.md](ANDROID-TEST71-HONOR-211554-FAIL-2026-11-08.md). **Test.71 REJECTED**, несмотря на PASS GitHub CI: owner test combined log `CELIKOM-combined-20261108-211554.txt` и видео `SVID_20261108_211432_1.mp4`. На RASKOL→«Дым» Dym обнаружен и замена подготовлена, но Яндекс остаётся BUFFERING=2 / playWhenReady=true без READY до Next. Новый `NativeTransportWitness` **ни разу не получил** legacy PlaybackState; `native_transport_fail_closed` отсутствует; был один недоказанный по пользе повторный MediaBrowser.connect. При Back с «Розовое вино» на «Дым» Media3 смешал старую метадату alias `978`/«Розовое вино» и **новую длительность 219660 мс («Дым»)**, наш движок вызвал `source_track_transition` при одинаковом alias и ошибочно решил `no_unique_candidate`. Это **не** отсутствие версии Dym в библиотеке.
+
+**БЕЗОПАСНЫЙ ОТКАТ:** Test.70 code 86156 (Test.71 code 86157 должна быть удалена перед обычной установкой младшего APK): [Test.70 в Library](https://chatgpt.com/library?file_id=libfile_0b137e3fe3388191b372296f24f4d7fe); Яндекс/его данные не удалять. Разработку следующего корректирующего кандидата вести только от `feature/android-0385-test70-safe-rollback-source-buffer-status-20261108`, **без** Test.71 watcher/legacy retry. Сначала воспроизвести смешение Media3 metadata/duration в E2E, поставить fence на противоречивый snapshot **до** `PlaybackSource`, не трогать stable Android 0.3.92, OTA и сервер. Никаких новых кнопок/команд Яндексу/таймингов. Test.71/её Library APK больше не рекомендовать к проверкам.
+
+---
+
 # ПЕРЕДАЧА 08.11.2026 · Test.71 подписана и загружена в Library — ограниченный Android native state witness, HONOR ещё не принял
 
 **ЧИТАТЬ СНАЧАЛА:** [ANDROID-TEST71-NATIVE-TRANSPORT-WITNESS-2026-11-08.md](ANDROID-TEST71-NATIVE-TRANSPORT-WITNESS-2026-11-08.md); затем [свежий разбор Test.70](ANDROID-TEST70-HONOR-203805-ARCHITECTURE-2026-11-08.md). Всё ниже этого блока — история Test.70 и предыдущих экспериментов.
