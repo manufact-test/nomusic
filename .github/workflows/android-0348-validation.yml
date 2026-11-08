@@ -5,6 +5,7 @@ name: Android 0.3.55 architecture and release contract verification
 on:
   push:
     branches:
+      - feature/android-0393-test50-live-catalogue-stable-candidate-20261108
       - feature/android-0348-audio-ownership-stabilization
       - feature/android-unified-preparation-seek-gate
       - feature/android-0382-cache-path-evidence-staging-20261101
