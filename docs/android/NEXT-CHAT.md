@@ -1,3 +1,17 @@
+# 08.11.2026 — Test.64: проверенный блок current-first resolve + Media3 evidence (новее записей Test.62/Test.63 ниже)
+
+**Исходная проверенная база:** Test.62 `6cc77df3a9fcc632c36975dc9fb68ffd853c5b36`. **Новая изолированная ветка:** `feature/android-0385-test64-resolve-priority-media3-evidence-20261108`. Test.63 не служил доказательством исправления.
+
+**Технический отчёт:** [ANDROID-TEST64-RESULT-2026-11-08.md](ANDROID-TEST64-RESULT-2026-11-08.md). Полная исследовательская передача остаётся в [main](https://github.com/manufact-test/nomusic/blob/main/docs/android/ANDROID-RESEARCH-TO-IMPLEMENTATION-HANDOFF-2026-11-08.md).
+
+**Подписанная Test.64:** https://github.com/manufact-test/nomusic/actions/runs/42480130861/artifacts/13617221230 — GitHub Actions `42480130861` SUCCESS, подписанный APK SHA-256 `d6985bdd0e4e9cb4a4febd96c9ba433119ceaf97a782c162206294215d60d1af`, source commit `e9322f376d57fdb6966d482d2c4c78a20c0bc58a`. Хранение artifact 7 дней. Стабильная 0.3.92, звук Test.50, main/OTA не затронуты.
+
+**Реальная разработка:** текущий и speculative resolve больше не разделяют одну FIFO-очередь; текущий приоритетный сетевой запрос, отмена stale по generation, последовательное обновление токена; current-first sample; read-only мониторинг Media3 fields/extras/URI schemes/timeline и новых player callbacks. Полная CI/D8/регрессии/подпись прошли. Автокаталог уже работает (133 строки на успешном Test.62), не переделывали.
+
+**Что НЕ доказано:** настоящий Yandex Track ID в публичной Media3-сессии; исправление пропущенных паузы/seek у RASKOL 42884423, BUFFERING у «Дым» 39949113, акустические переходы/щелчки и ускорение на физическом HONOR. Не утверждать обратное по успешной компиляции. Новые логи `media3_identity_fields_readonly` и `media3_fresh_*callback` помогут проверить доступные события без root/Accessibility/Notification Listener. После физического теста сравнить звук с Test.50, скорость с Test.62, паузу/перемотку и позднюю синхронизацию.
+
+---
+
 # Test.50 — remember NEXT during current prepare (2026-11-06)
 
 Baseline: Test.48 (not rejected Test.49). Input CELIKOM-combined-20261106-230322.txt, last run Test.49: 7 prefetch starts, 15 cold starts, 19 completed transitions; previous Test.48: 25 prefetch starts, 5 cold starts, 30 completed transitions. Distinct usage scenarios, not measured acoustic PCM.
