@@ -3,6 +3,7 @@ package pro.celikom.oneplayerlab;
 import android.app.Activity;
 import android.content.Intent;
 import android.media.MediaPlayer;
+import android.media.MediaMetadataRetriever;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
@@ -102,15 +103,15 @@ public final class LabActivity extends Activity {
     }
 
     private long readDuration(Uri uri) {
-        MediaPlayer probe = new MediaPlayer();
+        MediaMetadataRetriever meta = new MediaMetadataRetriever();
         try {
-            probe.setDataSource(this,uri);
-            probe.prepare();
-            return probe.getDuration();
+            meta.setDataSource(this, uri);
+            String duration = meta.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION);
+            return duration == null ? 0 : Long.parseLong(duration);
         } catch (Exception e) {
             return 0;
         } finally {
-            probe.release();
+            meta.release();
         }
     }
 
