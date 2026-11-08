@@ -95,7 +95,7 @@ jobs:
         run: Copy-Item windows-companion/START-CELIKOM-PROBE.cmd windows-companion/out/START-CELIKOM-PROBE.cmd
       - name: Publish standalone W15 CELIKOM Companion for isolated PREVIEW (no Yandex modification)
         run: dotnet publish windows-companion/w15/Celikom.Companion/Celikom.Companion.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:DebugType=None -o windows-companion/w15/publish
-      - name: Assemble W15 preview ZIP: EXE + PulseSync add-on only
+      - name: "Assemble W15 preview ZIP: EXE + PulseSync add-on only"
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
