@@ -27,3 +27,12 @@ The integrated extension still requires an owner listening check. End-to-end sig
 Build accepted sources with CELIKOM_API_BASE_URL set to the existing configured service origin, then run `node spikes/native-source/build-integrated.mjs ABSOLUTE_OUTPUT_PATH`. GITHUB_SHA records exact committed experimental source provenance. Packaging emits version 0.4.74 / version_name 0.4.74-native-experiment-001, an internal provenance file, a deterministic ZIP and an external SHA-256 receipt. This does not change accepted package.json, manifest or core source.
 
 Use a SEPARATE folder. Disable ordinary CELIKOM, load the experimental unpacked folder, sign in normally if the separate extension ID has no stored account, and reload Yandex once. Never run two CELIKOM playback extensions simultaneously. Check two known available MP3 tracks: beginning, pause, seek, Next, Return original and Stop. If unexpected behavior occurs, disable the experiment, re-enable accepted 0.4.73 and reload Yandex. Its existing folder and stored account remain intact.
+
+## Final verified delivery
+
+Source/build commit: `8397eddd77378cf40e578866e356547e623cb786`.
+[Final CI 42487932665](https://github.com/manufact-test/nomusic/actions/runs/42487932665), job 128753786900: SUCCESS. Official Chrome 156.0.8078.79 and Brave 157.1.99.55 each passed 35 browser checks, including real native source application, paused original restoration and preservation of the existing metadata/upload target. All 46 experimental Node cases and 360 accepted regressions passed.
+
+Delivered CELIKOM-Native-Experiment-001.zip: 2,507,030 bytes; SHA-256 `eb1f28742823ebe0ba8947b720059dee44f5c321ba271309aa49600e1649e0ad`. Repeated local packaging reproduced the same hash. CI produced a ZIP with the same byte count but a different archive hash (`a2b4ebcfbe762e774989ad404fd12666cb31d07a350b48357f0089927450cbab`); cross-environment ZIP byte identity is not claimed. Both builds use the same recorded source commit; the exact cause of archive-level differences was not investigated. Library identity `libfile_b7f83c4e1f908191a9b11945fc7ccc1a`.
+
+Byte comparison against the compiled 0.4.73 input found exactly four overlays: manifest.json, player/core.js (version label only), player/main-world-bundle.js, content/controller-bundle.js, plus the experimental provenance JSON. Account, API, upload, popup and other packaged files are byte-identical to that input. Git comparison against accepted 0.4.73 shows zero source changes under extension, android or server. The working tree contains no production deployment changes.
