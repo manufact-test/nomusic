@@ -44,6 +44,7 @@ on:
       - feature/android-0385-test70-safe-rollback-source-buffer-status-20261108
       - feature/android-0385-test72-source-snapshot-consistency-20261108
       - feature/android-0385-test73-quest-artist-451-prefetch-20261108
+      - feature/android-0385-test74-optin-yandex-mediasession-witness-20261108
       - feature/android-0370-honor-join-pause-updater-staging
       - feature/android-0371-rollback-0369-staging
       - feature/android-0372-ota-release-staging
@@ -248,7 +249,8 @@ jobs:
          github.ref == 'refs/heads/feature/android-0385-test66-compact-notification-honor-20261108' ||
           github.ref == 'refs/heads/feature/android-0385-test70-safe-rollback-source-buffer-status-20261108' ||
            github.ref == 'refs/heads/feature/android-0385-test72-source-snapshot-consistency-20261108' ||
-           github.ref == 'refs/heads/feature/android-0385-test73-quest-artist-451-prefetch-20261108') &&
+           github.ref == 'refs/heads/feature/android-0385-test73-quest-artist-451-prefetch-20261108' ||
+           github.ref == 'refs/heads/feature/android-0385-test74-optin-yandex-mediasession-witness-20261108') &&
       github.repository == 'manufact-test/nomusic'
     needs: native-android
     permissions:
