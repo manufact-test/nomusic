@@ -1,0 +1,13 @@
+{
+  "manifest_version": 3,
+  "name": "CELIKOM native source RESEARCH ONLY",
+  "version": "0.0.1",
+  "description": "Isolated native-source feasibility fixture; no production account or playback integration",
+  "minimum_chrome_version": "120",
+  "content_scripts": [{
+    "matches": ["https://music.yandex.ru/*", "http://127.0.0.1/*"],
+    "js": ["native-source.js"],
+    "run_at": "document_start",
+    "world": "MAIN"
+  }]
+}
