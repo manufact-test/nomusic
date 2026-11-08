@@ -29,7 +29,7 @@ jobs:
           import json
           m=json.load(open('tools/blur-research/pending48-20261109.json',encoding='utf8'))
           s=m['selected']
-          assert len(s)==48 and len({x['id'] for x in s})==50 and m['source_commit']=='multisource-20261109'
+          assert len(s)==48 and len({x['id'] for x in s})==48 and m['source_commit']=='multisource-20261109'
           assert all(x['artist'] and x['title'] and x['source_url'] and len(x['sha256'])==64 and 0<x['size']<=25000000 for x in s)
           PY
           command -v ffprobe || { sudo apt-get update -qq; sudo apt-get install -y ffmpeg; }
