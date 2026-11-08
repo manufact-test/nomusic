@@ -19,3 +19,9 @@
 - CI full native tests and D8 + signed separate APK: build run must be independently verified; passed CI **does not verify phone**.
 - On HONOR: check startup, repeated normal next transitions, catalogue 133+ and examples of current-song join with no regression (current vs speculative prefetch). RASKOL pause/seek and «Дым» BUFFERING are **open problems**. Do not announce as fixed.
 - Next safe research task: verify if any publicly exposed Yandex Android media session output delivers *fresh authoritative* pause/seek state without restricted privileges. If not, clearly communicate architecture limitation rather than keep experimenting with timer-based controller recovery.
+
+## Signed build verified
+- CI [42477357165](https://github.com/manufact-test/nomusic/actions/runs/42477357165) native host regression, D8 and APK signing PASS. Exact built source `c542b8275d2bbab200968b16dc6f0910ee6c443b` (doc commit after this).
+- Separate signed test APK `CELIKOM-Android-0.3.85-TEST-63-CURRENT-FIRST-PRELOAD-SIGNED.apk`, version `0.3.85-test.63`, code `86149`, SHA-256 `75c3e18d12aee0378f954eb5f579a65afc0e094466712b2683a5b27990c81c9d`, verified original signing cert; signature v3 PASS. Artifact `CELIKOM-Test-0.3.85-test.63-code-86149`, GitHub artifact id `13615869214`.
+- Phone audio/perceived speed not yet accepted; do not promote. RASKOL transport/«Дым» buffering remain OPEN.
+
