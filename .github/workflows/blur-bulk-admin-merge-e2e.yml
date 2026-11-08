@@ -71,6 +71,8 @@ jobs:
           test -n "$APP"
           scp -P 65002 -i "$RUNNER_TEMP/private/id_host" -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$RUNNER_TEMP/private/known_hosts" "$TARGET:$APP/src/Admin/AdminPanel.php" "$RUNNER_TEMP/live/AdminPanel.php"
           scp -P 65002 -i "$RUNNER_TEMP/private/id_host" -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$RUNNER_TEMP/private/known_hosts" "$TARGET:$APP/src/Admin/admin-style.css" "$RUNNER_TEMP/live/admin-style.css"
+          echo 'Read-only summary of live-only navigation table contract (no data values)'
+          grep -n -B 5 -A 8 'admin_navigation_seen' "$RUNNER_TEMP/live/AdminPanel.php" || true
           if ! git merge-file -p server/src/Admin/AdminPanel.php "$RUNNER_TEMP/base/AdminPanel.php" "$RUNNER_TEMP/live/AdminPanel.php" > "$RUNNER_TEMP/merged.php"; then
             echo 'BLOCKED: 3-way merge conflict with live AdminPanel, no remote changes'
             exit 1
