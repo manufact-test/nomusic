@@ -136,8 +136,20 @@ def main():
                 provider.set(A + "authorities", SPEC["file_provider_authority"])
             elif name == "androidx.startup.InitializationProvider":
                 provider.set(A + "authorities", SPEC["startup_authority"])
+        # Single explicitly authorized Test.74-only system-bound listener;
+        # nothing else in the baseline manifest may change.
+        witness = ET.SubElement(app, "service", {
+            A + "name": "pro.celikom.nativeprobe.identitydiag.YandexSessionWitnessService",
+            A + "label": "CELIKOM Test · чтение медиасессии Яндекса",
+            A + "permission": "android.permission.BIND_NOTIFICATION_LISTENER_SERVICE",
+            A + "exported": "true",
+        })
+        witness_filter = ET.SubElement(witness, "intent-filter")
+        ET.SubElement(witness_filter, "action", {
+            A + "name": "android.service.notification.NotificationListenerService"
+        })
         if structure(current) != structure(expected):
-            raise ValueError("Final manifest contains changes outside the approved test identity/authority/icon/launcher-label boundary")
+            raise ValueError("Final manifest changed beyond test identity and the one explicitly opt-in read-only witness")
         current_launchers = []
         for activity in current.find("application").findall("activity"):
             actions = {
@@ -172,6 +184,18 @@ def main():
             raise ValueError("Stable dynamic receiver permission leaked into test manifest")
         if "android.permission.REQUEST_INSTALL_PACKAGES" in permissions:
             raise ValueError("Test APK must not request REQUEST_INSTALL_PACKAGES")
+        witness_services = [
+            v for v in current.find("application").findall("service")
+            if v.get(A + "name", "").endswith("YandexSessionWitnessService")
+        ]
+        if len(witness_services) != 1 or witness_services[0].get(A+"permission") != "android.permission.BIND_NOTIFICATION_LISTENER_SERVICE" or witness_services[0].get(A+"exported") != "true":
+            raise ValueError("Read-only witness must be the sole opt-in permission-guarded listener")
+        actions = [
+            v.get(A+"name") for f in witness_services[0].findall("intent-filter")
+            for v in f.findall("action")
+        ]
+        if actions != ["android.service.notification.NotificationListenerService"]:
+            raise ValueError("Witness service action unexpected")
         component_names = [
             n.get(A + "name", "")
             for n in current.find("application").iter()
