@@ -1,6 +1,6 @@
 # CELIKOM Windows Companion — NEXT-CHAT
 
-**Updated 2026-11-08. W3 confirmed by owner; W4-W7 isolated CI passed, W8 one-decoder recovery under test.**
+**Updated 2026-11-08. W3 confirmed by owner; W4–W8 isolated CI VERIFIED. W8 native error recovery 12/12 + 33/33 Electron assertions.**
 
 ## Objective
 Official Windows Yandex Music is the ONLY owner of audio, pause, seek, next, queue,
@@ -195,3 +195,20 @@ No owner ZIP and no repeated W0–W3 scans are needed here.
 - No owner installation or test ZIP. Only Windows working branch.
 - Real official Windows renderer attachment remains unproven and requires
   an explicit opt-in after safety and rollback assessment.
+
+## W8 VERIFIED acceptance: no owner action
+
+- Commit `8e85da515b20f9c9b825d048aef6eaec5dfe106f`.
+- [CI 42514969269](https://github.com/manufact-test/nomusic/actions/runs/42514969269): **SUCCESS**, W8 contract **12/12**, W7+W8 live synthetic media inside Electron **33/33**, W5 baseline **35/35**, W6 **15/15** (plus W4/W3).
+- One actual Chromium decoder reports error for corrupted synthetic MP3;
+  W8 auto-reacquires the corresponding original through W4 and the
+  pinned public Yandex source class, restoring seek/pause state on the
+  SAME `HTMLAudioElement`, without overlay player or retry loop.
+- This is still **NOT a real Windows Yandex integration**. W7 CDP
+  exposes unsafe broad debugger power and MUST NOT be enabled in a
+  customer/authenticated Yandex session.
+- Safe next work: evidence of official Windows 5.126.1.0 native attachment
+  API or independent opt-in, version-pinned and truly reversible
+  integration feasibility, with explicit consent before modifying any
+  installed file. Existing W3 owner snapshot remains the sole real-client
+  evidence; do not ask for W0-W3 scans again.

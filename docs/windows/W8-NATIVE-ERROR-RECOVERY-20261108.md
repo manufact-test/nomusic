@@ -74,3 +74,27 @@ will accept this recovery controller is **not proven**.
 
 Proceed only after verified safe native hook point/official plugin support,
 accurate runtime version-gating and a user-approved test.
+
+## Verified W8 automatic original recovery — Windows CI
+
+- Source commit `8e85da515b20f9c9b825d048aef6eaec5dfe106f`.
+- [GitHub Actions run 42514969269](https://github.com/manufact-test/nomusic/actions/runs/42514969269):
+  **SUCCESS** on Windows with Node 22 + Electron 44.
+- **12/12** W8 controller contract tests passed (wrong ID, stale Next,
+  Stop/Dispose, duplicate error, original failure, invalid original,
+  position/state preservation and diagnostics).
+- **33/33** integrated W7+W8 Electron assertions passed: external Node
+  CDP attachment → W4 installed into pinned actual public Yandex
+  resource classes → synthetic MP3 decodes → native play/pause/seek
+  → intentionally corrupted MP3 causes **real HTMLMediaElement error**
+  → W8 automatically reacquires synthetic original with same decoder,
+  restores position and play state → no retry loop → Next, late seek,
+  manual Original/Stop remain functional.
+- W6 synthetic rollback, W4 source-gate, W5 original 35/35 regression,
+  legacy .NET probe build/safety checks also passed in the same workflow.
+- **All media and accounts in these tests are artificial**. The actual
+  installed Yandex Music `5.126.1.0` has still NEVER been modified,
+  attached to, or proven capable of using W8 in live playback.
+- No owner-side test ZIP required. Next engineering gate is a
+  permission-limited, authorized and reversible **official-client**
+  runtime entry point; our current CDP approach is not production safe.

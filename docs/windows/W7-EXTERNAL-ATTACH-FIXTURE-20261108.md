@@ -88,3 +88,14 @@ Official Electron references:
    NO-GO rather than claiming W5/W7 prove a finished product.
 
 **No owner action or new test ZIP is needed for W7.**
+
+## Verified W7 external attach — Windows CI
+
+- [CI run 42514425074](https://github.com/manufact-test/nomusic/actions/runs/42514425074) **SUCCESS**; source commit `b68b524e4276363de382b393a59152036b2490d7`.
+- **28/28** assertions passed. External Node process remotely activated W4
+  in a separate, non-authenticated Electron 44 test renderer whose test
+  runtime loads pinned public Yandex Webpack resource and source classes.
+- No live Yandex process, auth data, installed files, DevTools port on
+  owner's machine or production CELIKOM account accessed.
+- W7 is **not** a safe normal deployment path: a DevTools port grants
+  powerful arbitrary renderer access. Do not enable it on owner's app.
