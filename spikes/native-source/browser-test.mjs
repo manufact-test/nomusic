@@ -187,9 +187,14 @@ try {
     const engineAudio = document.createElement("audio");
     const core = { getMediaSource: forbidden, reload: forbidden, corePlay: forbidden, core: { setSrc: forbidden },
       currentAudioElement: { value: engineAudio }, hooks: { beforeMediaSourceContentReload: { promise: forbidden }, afterMediaSourceContentReload: { promise: forbidden } } };
-    const controller = { getState: forbidden, playbackController: { getPlayback: () => ({
+    const ActualPlayback = req(window.__nativeFixture.reloadModule).VE;
+    const playback = Object.create(ActualPlayback.prototype);
+    playback.playbackState = {
       queueState: { currentEntity: { value: { entity: { data: { meta: { id: "1001", durationMs: 8000 } } } } } }, currentMediaPlayer: { value: core }
-    }) } };
+    };
+    check(!playback.queueState && !playback.currentMediaPlayer && playback.state === playback.playbackState,
+      "actual Yandex Playback exposes queue and player only through state getter");
+    const controller = { getState: forbidden, playbackController: { getPlayback: () => playback } };
     function Consumer() { react.useContext(context); return react.createElement("button", { id: "celikom-react-consumer" }, "context fixture"); }
     const reactRoot = renderer.createRoot(mount);
     reactRoot.render(react.createElement(context.Provider, { value: controller }, react.createElement(Consumer)));
@@ -197,7 +202,8 @@ try {
     while (!mount.querySelector("button") && performance.now() < mountedDeadline) await new Promise(r => setTimeout(r, 25));
     check(Boolean(mount.querySelector("button")), "actual React context consumer rendered outside player selectors");
     const discovered = new window.__CELIKOM_NATIVE_ENGINE_PORT__.EnginePort().inspect();
-    check(discovered.found && discovered.discovery.matchSource === "fiber-context" && mutationCalls === 0,
+    check(discovered.found && discovered.trackId === "1001" && discovered.shape.playbackState && discovered.mediaEvents && discovered.nativeReload
+      && discovered.discovery.matchSource === "fiber-context" && mutationCalls === 0,
       "actual React dependency discovery finds controller without invoking playback");
     reactRoot.unmount(); mount.remove();
     return { checks, beforeDispose, preparationComparison, experimentElapsedMs: Math.round(performance.now() - start), limitations: ["controlled resource responses; not a signed-in Yandex listening session", "explicit source reacquisition tested; automatic engine cache invalidation and error restore not implemented", "no measured end-to-end speed advantage"] };

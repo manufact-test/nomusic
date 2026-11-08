@@ -17,7 +17,7 @@ const engineContext = sandbox();
 vm.runInContext(await readFile(fixture + "/webpack-fixture.js", "utf8"), engineContext);
 vm.runInContext(await readFile(new URL("engine-port.js", moduleRoot), "utf8"), engineContext);
 const reloadExports = engineContext.__nativeFixture.req(engineContext.__nativeFixture.reloadModule);
-const ReloadCore = reloadExports.__testReloadCore, statuses = reloadExports.MT;
+const ReloadCore = reloadExports.__testReloadCore, statuses = reloadExports.MT, Playback = reloadExports.VE;
 const { EnginePort } = engineContext.__CELIKOM_NATIVE_ENGINE_PORT__;
 function gate() { let resolve; const promise = new Promise(r => { resolve = r; }); return { promise, resolve }; }
 function nativeEngine() {
@@ -32,11 +32,20 @@ function nativeEngine() {
     corePlay: { value: async args => { applied.push(args); }, configurable: true },
     core: { value: { setSrc: args => { applied.push(args); } } }
   });
-  const playback = { queueState: { currentEntity: { value: { entity } } }, currentMediaPlayer: { value: core } };
-  const controller = { getState: () => ({}), playbackController: { getPlayback: () => playback } };
+  const playback = Object.create(Playback.prototype);
+  playback.playbackState = { queueState: { currentEntity: { value: { entity } } }, currentMediaPlayer: { value: core } };
+  const controller = { getState: () => playback.state, playbackController: { getPlayback: () => playback } };
   const port = new EnginePort({ getController: () => controller });
   return { port, core, audio, entity, applied, playback, controller };
 }
+test("binding uses the actual exported Yandex Playback.state getter, not invented direct queue fields", () => {
+  const n = nativeEngine();
+  assert.equal(Object.getOwnPropertyDescriptor(Playback.prototype, "state").get.toString().includes("playbackState"), true);
+  assert.equal(n.playback.queueState, undefined); assert.equal(n.playback.currentMediaPlayer, undefined);
+  assert.equal(n.port.binding().pair, n.playback.state.queueState.currentEntity.value);
+  const inspected = n.port.inspect(); assert.equal(inspected.found, true); assert.equal(inspected.trackId, "1001");
+  assert.equal(inspected.shape.playbackState, true);
+});
 test("actual Yandex reload retains position and encrypted source through native core", async () => {
   const n = nativeEngine(), method = n.core.getMediaSource;
   assert.equal((await n.port.reload("1001")).restored, true);
@@ -63,7 +72,7 @@ test("Next during an asynchronous native before-reload hook cannot apply the old
   const n = nativeEngine(), entered = gate(), release = gate();
   n.core.hooks.beforeMediaSourceContentReload.promise = async () => { entered.resolve(); await release.promise; };
   const run = n.port.reload("1001"); await entered.promise;
-  n.playback.queueState.currentEntity.value = { entity: { data: { meta: { id: "1002" } } } };
+  n.playback.state.queueState.currentEntity.value = { entity: { data: { meta: { id: "1002" } } } };
   release.resolve(); await assert.rejects(run, /native_reload_stale/); assert.equal(n.applied.length, 0);
 });
 for (const change of ["next", "media-player", "pause", "seek", "cancel", "authority"]) {
@@ -71,8 +80,8 @@ for (const change of ["next", "media-player", "pause", "seek", "cancel", "author
     const n = nativeEngine(), deferred = gate(), entered = gate(); let valid = true;
     n.core.getMediaSource = async () => { entered.resolve(); return deferred.promise; };
     const run = n.port.reload("1001", { isCurrent: () => valid }); await entered.promise;
-    if (change === "next") n.playback.queueState.currentEntity.value = { entity: { data: { meta: { id: "1002" } } } };
-    if (change === "media-player") n.playback.currentMediaPlayer.value = {};
+    if (change === "next") n.playback.state.queueState.currentEntity.value = { entity: { data: { meta: { id: "1002" } } } };
+    if (change === "media-player") n.playback.state.currentMediaPlayer.value = {};
     if (change === "pause") n.audio.dispatchEvent(new Event("pause"));
     if (change === "seek") n.audio.dispatchEvent(new Event("seeking"));
     if (change === "cancel") n.port.cancel();
@@ -139,7 +148,7 @@ test("discovery reports missing selectors and inspected contexts rather than a b
   engineContext.document = documentFixture([{ __reactFiber$empty: { dependencies: { firstContext: { memoizedValue: {}, next: null } } } }]);
   try {
     const result = new EnginePort().inspect();
-    assert.equal(result.readerVersion, 2); assert.equal(result.controllerFound, false);
+    assert.equal(result.readerVersion, 3); assert.equal(result.controllerFound, false);
     assert.equal(result.discovery.seeds.player, 0); assert.equal(result.discovery.contexts, 1);
     assert.equal(result.discovery.fiberRoots, 1); assert.equal(result.discovery.limited, false);
   } finally { engineContext.document = oldDocument; }

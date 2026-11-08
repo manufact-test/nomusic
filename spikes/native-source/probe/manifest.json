@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "CELIKOM — проверка движка",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "description": "Только чтение интерфейса плеера. Не меняет звук, настройки или аккаунт.",
   "permissions": ["activeTab", "scripting", "clipboardWrite"],
   "action": { "default_popup": "popup.html", "default_title": "CELIKOM — проверка движка" }

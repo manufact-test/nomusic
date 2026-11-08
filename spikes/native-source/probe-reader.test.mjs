@@ -5,6 +5,11 @@ import vm from "node:vm";
 import { spawnSync } from "node:child_process";
 import os from "node:os";
 import path from "node:path";
+import { webcrypto } from "node:crypto";
+const nativeRuntime = vm.createContext({ crypto: webcrypto, TextEncoder, TextDecoder, URL, URLSearchParams, performance, setTimeout, clearTimeout, Blob, Response, AbortController });
+nativeRuntime.self = nativeRuntime; nativeRuntime.window = nativeRuntime;
+await vm.runInContext(await readFile((process.env.CELIKOM_NATIVE_FIXTURE || "/tmp/celikom-native-source-fixture") + "/webpack-fixture.js", "utf8"), nativeRuntime);
+const Playback = nativeRuntime.__nativeFixture.req(nativeRuntime.__nativeFixture.reloadModule).VE;
 const output = path.join(os.tmpdir(), "celikom-engine-reader-test");
 const built = spawnSync(process.execPath, ["spikes/native-source/build-probe.mjs", output], { encoding: "utf8" });
 assert.equal(built.status, 0, built.stderr);
@@ -16,7 +21,8 @@ function fixture() {
   const core = { getMediaSource: forbidden, reload: forbidden, corePlay: forbidden, core: { setSrc: forbidden }, currentAudioElement: { value: audio },
     hooks: { beforeMediaSourceContentReload: { promise: forbidden }, afterMediaSourceContentReload: { promise: forbidden } } };
   const pair = { entity: { data: { meta: { id: "1001", durationMs: 8000 } } } };
-  const playback = { queueState: { currentEntity: { value: pair } }, currentMediaPlayer: { value: core } };
+  const playback = Object.create(Playback.prototype);
+  playback.playbackState = { queueState: { currentEntity: { value: pair } }, currentMediaPlayer: { value: core } };
   const controller = { getState: forbidden, playbackController: { getPlayback: () => playback } };
   const node = {};
   Object.defineProperty(node, "__reactFiber$fixture", { value: { memoizedProps: {}, dependencies: { firstContext: { memoizedValue: controller, next: null } } }, enumerable: false });
@@ -25,10 +31,11 @@ function fixture() {
 }
 test("generated reader replaces an old reader on the same already open tab", () => {
   const f = fixture();
-  vm.runInContext('Object.defineProperty(globalThis,"__CELIKOM_ENGINE_READONLY_PROBE__",{value:{inspect:()=>({controllerFound:false})},configurable:true})', f.sandbox);
+  vm.runInContext('Object.defineProperty(globalThis,"__CELIKOM_ENGINE_READONLY_PROBE__",{value:{version:2,inspect:()=>({controllerFound:true,found:false})},configurable:true})', f.sandbox);
   vm.runInContext(source, f.sandbox);
   const reader = f.sandbox.__CELIKOM_ENGINE_READONLY_PROBE__, result = reader.inspect();
-  assert.equal(reader.version, 2); assert.equal(result.readerVersion, 2); assert.equal(result.found, true);
+  assert.equal(reader.version, 3); assert.equal(result.readerVersion, 3); assert.equal(result.found, true);
+  assert.equal(result.shape.playbackState, true); assert.equal(result.trackId, "1001");
   assert.equal(result.discovery.matchSource, "fiber-context"); assert.equal(result.discovery.nonEnumerableRoots, 1);
   assert.equal(f.mutations(), 0);
 });

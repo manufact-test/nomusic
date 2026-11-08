@@ -1,6 +1,6 @@
 (function (root) {
   "use strict";
-  const ENGINE_PORT_VERSION = 2;
+  const ENGINE_PORT_VERSION = 3;
   if (root.__CELIKOM_NATIVE_ENGINE_PORT__?.version === ENGINE_PORT_VERSION) return;
   const numericId = value => /^\d{1,24}$/.test(String(value)) ? String(value) : null;
   const safe = fn => { try { return fn(); } catch { return null; } };
@@ -96,24 +96,26 @@
     binding(controller = this.getController()) {
       return safe(() => {
         const playback = controller?.playbackController?.getPlayback();
-        const pair = playback?.queueState?.currentEntity?.value;
+        const state = playback?.state;
+        const pair = state?.queueState?.currentEntity?.value;
         const entity = pair?.entity, id = numericId(entity?.data?.meta?.id);
-        const player = playback?.currentMediaPlayer?.value;
+        const player = state?.currentMediaPlayer?.value;
         let core = player;
         for (let depth = 0; core && typeof core.getMediaSource !== "function" && depth < 3; depth++) core = core.currentMediaPlayer;
         const audio = core?.currentAudioElement?.value;
         if (!id || !entity || !core || typeof core.reload !== "function" || typeof core.getMediaSource !== "function" || !audio) return null;
-        return { controller, playback, pair, entity, id, player, core, audio };
+        return { controller, playback, state, pair, entity, id, player, core, audio };
       });
     }
     inspect() {
       const controller = safe(() => this.getController()), b = this.binding(controller);
       const shape = safe(() => {
         const playback = controller?.playbackController?.getPlayback();
-        const pair = playback?.queueState?.currentEntity?.value, entity = pair?.entity, player = playback?.currentMediaPlayer?.value;
+        const state = playback?.state;
+        const pair = state?.queueState?.currentEntity?.value, entity = pair?.entity, player = state?.currentMediaPlayer?.value;
         let core = player, depth = 0;
         while (core && typeof core.getMediaSource !== "function" && depth++ < 3) core = core.currentMediaPlayer;
-        return { playback: Boolean(playback), queuePair: Boolean(pair), entity: Boolean(entity), entityTrackId: numericId(entity?.data?.meta?.id),
+        return { playback: Boolean(playback), playbackState: Boolean(state), queuePair: Boolean(pair), entity: Boolean(entity), entityTrackId: numericId(entity?.data?.meta?.id),
           player: Boolean(player), sourceLoader: typeof core?.getMediaSource === "function", reload: typeof core?.reload === "function",
           mediaRef: Boolean(core?.currentAudioElement?.value), nestedPlayerDepth: depth };
       });
@@ -131,7 +133,7 @@
     }
     same(binding) {
       const current = this.binding();
-      return current && ["controller", "playback", "pair", "entity", "id", "player", "core", "audio"].every(key => current[key] === binding[key]);
+      return current && ["controller", "playback", "state", "pair", "entity", "id", "player", "core", "audio"].every(key => current[key] === binding[key]);
     }
     reload(trackId, options = {}) {
       if (this.pending) return this.pending.id === String(trackId) ? this.pending.promise : Promise.reject(Error("native_reload_busy"));
