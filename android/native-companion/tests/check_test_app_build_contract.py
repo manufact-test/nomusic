@@ -16,9 +16,9 @@ verifier = (ROOT / "verify_test_release.py").read_text(encoding="utf-8")
 assert spec["package"] == "pro.celikom.nativeprobe.test"
 assert spec["stable_package"] == "pro.celikom.nativeprobe"
 assert spec["label"] == "CELIKOM Test"
-assert spec["version"] == "0.3.85-test.73"
-assert spec["version_code"] == 86159
-assert spec["apk_filename"] == "CELIKOM-Android-0.3.85-TEST-73-QUEST-REGION-FAST-SIGNED.apk"
+assert spec["version"] == "0.3.85-test.74"
+assert spec["version_code"] == 86160
+assert spec["apk_filename"] == "CELIKOM-Android-0.3.85-TEST-74-MEDIASESSION-WITNESS-SIGNED.apk"
 
 # Test.72 starts from Test.70, excluding the rejected Test.71 MediaBrowser retry.
 # No notification controls or remote commands are allowed to re-enter this branch.
@@ -28,6 +28,20 @@ assert "ProblemTrackTransport" not in probe and "problem_transport_command_sent"
 assert "sourceBuffering" in probe and "NotificationState.yandexBuffering" in probe
 assert "NativeTransportWitness" not in probe and "native_transport_legacy_retry" not in probe
 assert "SourceSnapshotConsistency" in probe and "source_snapshot_mixed_identity" in probe
+# Test.74 MUST NEVER use passive system witness to control audio or authorize a mapping.
+witness=(ROOT / "addon/src/pro/celikom/nativeprobe/identitydiag/YandexSessionWitnessService.java").read_text(encoding="utf-8")
+assert "extends NotificationListenerService" in witness
+assert 'Objects.equals(c.getPackageName(),LogStore.PKG)' in witness
+assert 'YandexSessionWitnessService.sample(c,current);' in probe
+assert probe.index("YandexSessionWitnessService.sample(c,current);") > probe.index("albumProbe.publishCurrent();replacement.update(current);")
+assert "onNotificationPosted(" not in witness and "onNotificationRemoved(" not in witness
+assert "getActiveSessions(" in witness
+assert "android.permission.BIND_NOTIFICATION_LISTENER_SERVICE" in builder
+assert "android.service.notification.NotificationListenerService" in builder
+assert "ACTION_NOTIFICATION_LISTENER_SETTINGS" in builder
+for forbidden in (".getTransportControls(", ".pause(", ".play(", ".seekTo(", ".setVolumeTo(", ".adjustVolume(", "replacement.identity(", "replacement.update(", "startForegroundService("):
+    assert forbidden not in witness, "Test.74 witness may only READ Yandex media sessions: "+forbidden
+
 assert "sourceSnapshotConsistency.observe(" in probe
 assert "Test72SourceSnapshotConsistency" in (ROOT / "tests/run_engine.py").read_text(encoding="utf-8")
 assert probe.index("sourceSnapshotConsistency.observe(") < probe.index("LegacySourcePositionPolicy.Decision legacy=")
