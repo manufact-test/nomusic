@@ -1,4 +1,4 @@
-name: Windows Companion — W5 isolated Electron native source proof
+name: Windows Companion — W6 rollback lab & W5 Electron proof
 
 on:
   workflow_dispatch:
@@ -23,6 +23,8 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: W6 strict identity gate and crash-safe synthetic rollback
+        run: node --test windows-companion/w6/rollback-fixture.test.mjs
       - name: W4 exact-ID native resource adapter contract (synthetic, no Yandex app)
         run: node --test windows-companion/bridge/w4-source-resource-adapter.test.mjs
       - name: Install W5 isolated Electron and MP3 fixture dependencies

@@ -1,6 +1,6 @@
 # CELIKOM Windows Companion — NEXT-CHAT
 
-**Updated 2026-11-08. W3 real owner report RECEIVED; W4 CI passed; W5 isolated Electron test authored.**
+**Updated 2026-11-08. W3 owner report RECEIVED; W4/W5 isolated CI passed; W6 rollback lab under test.**
 
 ## Objective
 Official Windows Yandex Music is the ONLY owner of audio, pause, seek, next, queue,
@@ -129,3 +129,22 @@ behavior. Don't claim source substitution without audible owner acceptance.
   compatibility, native player ownership/cache lifecycle and verified
   byte-for-byte rollback. Must secure owner's explicit approval BEFORE
   patching installed Yandex or accessing user sessions.
+
+## W6 safety work / next checkpoint
+
+- Read `docs/windows/W6-ROLLBACK-SAFETY-20261108.md`.
+- `windows-companion/w6/compatibility.mjs`: owner-specific strict identity
+  gate; matches real W3 identity but **never grants official file writes
+  or live renderer attachment**. Version/hash/process mismatch => no go.
+- `windows-companion/w6/rollback-fixture.mjs` + Node tests: temp
+  **synthetic-only** backup, staged change, simulated power loss, restore,
+  outsider edit/backup corruption => hard stop. NEVER takes installed
+  Yandex path as a write target.
+- Read-only competitor inspection exposed possible EXE hash rewrites for
+  Electron ASAR patching. Do not reuse this blindly; official integrity,
+  signing and update implications remain unproven.
+- W6 changes are only Windows paths and Windows CI workflow. CI result
+  still requires verification before reporting success.
+- W6 does not produce any owner installer. Next technical gate is a
+  defensible official Windows renderer attachment model, with formal
+  opt-in and truly byte-verified restore; if impossible report NO-GO.
