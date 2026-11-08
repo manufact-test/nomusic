@@ -133,14 +133,16 @@ async function run() {
 }
 
 app.whenReady().then(async () => {
-  try { await run(); process.exitCode = 0; }
+  let exitCode = 0;
+  try { await run(); }
   catch (e) {
     console.error("W5 ISOLATED ELECTRON FAILURE:", e.stack || e.message);
-    process.exitCode = 1;
+    exitCode = 1;
   } finally {
     window?.destroy();
     if (server) await new Promise(ok => server.close(ok));
     if (tempDir) await rm(tempDir, { recursive: true, force: true });
-    app.quit();
+    // Electron app.quit() may reset process.exitCode; explicitly mark red CI.
+    app.exit(exitCode);
   }
 });

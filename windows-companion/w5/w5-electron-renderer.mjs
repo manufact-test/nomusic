@@ -130,7 +130,17 @@ async function run() {
       const fragment = raw.indexOf("#", owned.length);
       return { raw, playable: owned + (fragment < 0 ? "" : raw.slice(fragment)), owned: true };
     }
-    return { raw, playable: raw, owned: false };
+    // The real Yandex getter appends '?vsid=...' even when a fixture URL
+    // already has HMAC query parameters. That invalidates a signed test URL.
+    // Normalize ONLY these two fixture-origin tickets; never rewrite actual
+    // third-party Yandex URLs, and retain the exact signed capability.
+    for (const ticketUrl of originals.values()) {
+      if (!raw.startsWith(ticketUrl + "?")) continue;
+      const fragment = raw.indexOf("#", ticketUrl.length);
+      return { raw, playable: ticketUrl + (fragment < 0 ? "" : raw.slice(fragment)),
+        owned: false, signedFixtureNormalized: true };
+    }
+    return { raw, playable: raw, owned: false, signedFixtureNormalized: false };
   };
 
   player = document.createElement("audio");
@@ -226,8 +236,9 @@ async function run() {
   const restored = await get(resources[1].instance, "2002");
   assert(restored.url === two.url, "Original selects native original source on next acquisition");
   const originalUrls = await loadNative(restored);
-  assert(!originalUrls.owned && player.currentSrc.startsWith(two.url),
-    "original signed URL handed to same native decoder");
+  assert(!originalUrls.owned && originalUrls.signedFixtureNormalized &&
+    player.currentSrc.startsWith(two.url),
+    "Yandex getter appended URL query; fixture signer preserved for native original");
   await player.play();
   await sleep(180);
   assert(!player.paused && player.currentTime >= 0,
