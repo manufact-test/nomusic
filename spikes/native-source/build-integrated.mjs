@@ -1,4 +1,4 @@
-import { readFile, writeFile, mkdir, cp, rm, readdir } from "node:fs/promises";
+import { readFile, writeFile, mkdir, cp, rm, readdir, utimes } from "node:fs/promises";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -34,6 +34,10 @@ for (const group of contentScriptGroups) {
   }
   await writeFile(path.join(target, group.file), parts.join("\n;\n"));
 }
+await writeFile(path.join(target, "CELIKOM-NATIVE-EXPERIMENT.json"), JSON.stringify({
+  base: "0.4.73", acceptedCommit: "63d8cd891e1db82e0245122391fd4ab5cdd323be",
+  sourceCommit: process.env.GITHUB_SHA || null, backend: "native-experiment-001", production: false
+}, null, 2) + "\n");
 const files = [];
 async function walk(folder) {
   for (const entry of (await readdir(folder, { withFileTypes: true })).sort((a,b) => a.name.localeCompare(b.name))) {
@@ -42,6 +46,7 @@ async function walk(folder) {
   }
 }
 await walk(target);
+for (const file of files) await utimes(path.join(target, file), new Date("1980-01-01T00:00:00Z"), new Date("1980-01-01T00:00:00Z"));
 const archive = target + ".zip"; await rm(archive, { force: true });
 const result = spawnSync("zip", ["-X", "-q", archive, ...files], { cwd: target });
 if (result.status !== 0) throw Error("archive_failed");
