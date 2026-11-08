@@ -17,7 +17,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
-      - name: Validate exactly 200 immutable pinned MP3s and all batch scripts
+      - name: Validate exact 118 immutable pinned MP3s and all batch scripts
         shell: bash
         run: |
           set -euo pipefail
@@ -48,11 +48,11 @@ jobs:
           KNOWN_HOSTS: ${{ secrets.CELIKOM_HOSTINGER_KNOWN_HOSTS }}
         shell: bash
         run: bash tools/blur-final/run-deploy.sh
-      - name: Preserve all independent live DB and file checks for four batches
+      - name: Preserve all 50+50+18 private DB and file checks
         uses: actions/upload-artifact@v4
         if: always()
         with:
           name: celikom-blur-final118-${{ github.run_id }}
-          path: ${{ runner.temp }}/eighthundred-state/
+          path: ${{ runner.temp }}/final-state/
           retention-days: 90
           if-no-files-found: warn
