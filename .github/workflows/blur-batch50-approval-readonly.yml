@@ -17,7 +17,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
-      - name: Validate syntax of the read-only checker
+      - name: Validate syntax of the read-only checker (string track IDs)
         run: php -l tools/blur-batch50/check-approved-readonly.php
       - name: Check live approved mappings, API resolve, signed HEAD and Range for all 50
         env:
