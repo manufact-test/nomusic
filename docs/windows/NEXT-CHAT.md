@@ -1,3 +1,9 @@
+# W14 code checkpoint (2026-11-09)
+
+Implemented first **PulseSync SDK candidate source-only CELIKOM controller** in `windows-companion/w14/source-controller.mjs` and 11 Node safety tests in `source-controller.test.mjs`; added Windows CI step. No live app modified or test installed. Read `windows-companion/w14/README.md` for audit and blockers. This is not proof that real modified Yandex works. Pending CI result; check run before reporting success.
+
+---
+
 # CELIKOM Windows Companion — current NEXT-CHAT, W14 revised scope (2026-11-08)
 
 **LATEST PRODUCT DECISION:** The owner explicitly allows considering a disclosed modification of the official Yandex Windows client to make a real CELIKOM Companion. The player, queue, pause/seek/next and output remain in Yandex; **no second audio player**, no disabled Windows protection, no stealth security bypass. Read [W14 approach and safety plan](W14-MODIFIED-CLIENT-PATH-20261108.md) before W13.

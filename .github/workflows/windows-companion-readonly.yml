@@ -1,4 +1,4 @@
-name: Windows Companion — W12 single-instance isolation & W11 pipe
+name: Windows Companion — W14 SDK adapter contract & W12 regression
 
 on:
   workflow_dispatch:
@@ -23,6 +23,8 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: W14 PulseSync candidate source adapter contract (NO official runtime)
+        run: node --test windows-companion/w14/source-controller.test.mjs
       - name: W12 fail-closed official-launch policy (synthetic only)
         run: node --test windows-companion/w12/official-launch-gate.test.mjs
       - name: W11 private pipe target and CDP framing policy
