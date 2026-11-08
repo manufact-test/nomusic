@@ -17,8 +17,8 @@ for (const [name, duration] of [["short", 8], ["long", 360]]) {
   if (result.status !== 0) throw Error("Synthetic audio encoder failed: " + result.stderr);
 }
 const files = {
-  "/webpack-fixture.js": [await readFile(path.join(fixture, "webpack-fixture.js")), "application/javascript"],
-  "/baseline.js": [await readFile("extension/src/player/replacement-player.ts"), "application/javascript"],
+  "/webpack-fixture.js": [await readFile(path.join(fixture, "webpack-fixture.js")), "application/javascript; charset=utf-8"],
+  "/baseline.js": [await readFile("extension/src/player/replacement-player.ts"), "application/javascript; charset=utf-8"],
   "/short.mp3": [await readFile(path.join(fixture, "short.mp3")), "audio/mpeg"],
   "/long.mp3": [await readFile(path.join(fixture, "long.mp3")), "audio/mpeg"]
 };
@@ -26,8 +26,8 @@ const requests = [], retries = new Map();
 const server = createServer((request, response) => {
   const url = new URL(request.url, "http://127.0.0.1");
   if (url.pathname === "/") {
-    response.writeHead(200, { "Content-Type": "text/html", "Content-Security-Policy": "default-src 'none'; script-src 'self'; media-src 'self' blob:; connect-src 'self'" });
-    return response.end('<!doctype html><title>CELIKOM isolated native source fixture</title><script src="/webpack-fixture.js"></script><script src="/baseline.js"></script>');
+    response.writeHead(200, { "Content-Type": "text/html; charset=utf-8", "Content-Security-Policy": "default-src 'none'; script-src 'self'; media-src 'self' blob:; connect-src 'self'" });
+    return response.end('<!doctype html><meta charset="utf-8"><title>CELIKOM isolated native source fixture</title><script src="/webpack-fixture.js"></script><script src="/baseline.js"></script>');
   }
   const file = files[url.pathname];
   if (!file) { response.writeHead(404); return response.end(); }
@@ -61,7 +61,7 @@ try {
   const installation = await cdp.send("Extensions.loadUnpacked", { path: extension });
   console.log("Installed actual MV3 MAIN-world research extension", installation.id);
   const page = await context.newPage();
-  page.on("pageerror", error => console.log("Fixture page error", error.message));
+  page.on("pageerror", error => console.log("Fixture page error", error.stack));
   page.setDefaultTimeout(10000);
   await page.goto(origin, { waitUntil: "load" });
   try {
@@ -158,8 +158,17 @@ try {
     audio.pause(); audio.removeAttribute("src"); audio.load();audio.remove();URL.revokeObjectURL(shortUrl);URL.revokeObjectURL(longUrl);
     return { checks, beforeDispose, experimentElapsedMs: Math.round(performance.now() - start), limitations: ["controlled resource responses; not a signed-in Yandex listening session", "explicit source reacquisition tested; automatic engine cache invalidation and error restore not implemented", "no measured end-to-end speed advantage"] };
   }, origin);
-  console.log(JSON.stringify({ browser: await browser.version(), extensionId: installation.id, ...result, httpRanges: requests }, null, 2));
-  await writeFile(path.join(fixture, path.basename(binary) + "-results.json"), JSON.stringify({ browser: await browser.version(), ...result, httpRanges: requests }, null, 2) + "\n");
+  let liveProbe;
+  const livePage = await context.newPage();
+  try {
+    const response = await livePage.goto("https://music.yandex.ru/", { waitUntil: "domcontentloaded", timeout: 45000 });
+    await livePage.waitForFunction(() => window.__CELIKOM_NATIVE_SOURCE_RESEARCH__?.diagnostics().resourceClasses === 2, undefined, { timeout: 15000 });
+    liveProbe = { status: response.status(), diagnostics: await livePage.evaluate(() => window.__CELIKOM_NATIVE_SOURCE_RESEARCH__.diagnostics()), signedInPlaybackTested: false };
+  } catch (error) {
+    liveProbe = { unavailable: true, reason: error.name, signedInPlaybackTested: false };
+  } finally { await livePage.close(); }
+  console.log(JSON.stringify({ browser: await browser.version(), extensionId: installation.id, ...result, liveProbe, httpRanges: requests }, null, 2));
+  await writeFile(path.join(fixture, path.basename(binary) + "-results.json"), JSON.stringify({ browser: await browser.version(), ...result, liveProbe, httpRanges: requests }, null, 2) + "\n");
 } finally {
   await context?.close();
   await rm(profile, { recursive: true, force: true });
