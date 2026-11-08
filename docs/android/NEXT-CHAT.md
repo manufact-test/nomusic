@@ -1,3 +1,14 @@
+# АКТУАЛЬНАЯ ПЕРЕДАЧА · 08.11.2026 · TEST.72 ПОДПИСАНА, HONOR ЕЩЁ НЕ ПРОВЕРИЛ
+
+**ЧИТАЙ ПЕРВЫМ:** [ANDROID-TEST72-SNAPSHOT-FENCE-2026-11-08.md](ANDROID-TEST72-SNAPSHOT-FENCE-2026-11-08.md). Новая реализация **строго от Test.70**, отдельная ветка `feature/android-0385-test72-source-snapshot-consistency-20261108`. Test.71 отвергнута пользователем и **не перенесена**.
+
+**APK:** `0.3.85-test.72`, code `86158`, [подписанная сборка в ChatGPT Library](https://chatgpt.com/library?file_id=libfile_0cb46b47275481918d4b268be75cb0eb&account_id=personal). [CI 42511253216 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/42511253216); APK SHA256 `279230811ce22d781267b65dee7aee7899fa6ae6b95b530d1dbabdfe391b3ec6`, signing SOURCE `ed9ade1a4ed695ae94ecda6bb760515b1894d959`. Последующие doc commits в APK не входят.
+
+**Регрессия:** на Test.71 RASKOL→Дым завис в BUFFERING, а при Back с Розовое вино на Дым внешний Media3 передал старую идентичность RoseWine alias 978 + новую длительность Дым 219660ms; CELIKOM ошибочно сообщал `no_unique_candidate`. В Test.72 `SourceSnapshotConsistency` отсекает смешанный снимок **до** `PlaybackSource` и `AlbumProbe`, возвращает оригинал, не объявляет песню отсутствующей и ждёт нового согласованного media item. Имеются host replay + полный CI. Запрет на новые удалённые transport команды, кнопки и изменения таймингов соблюдён.
+
+**Предел:** fix закрывает ложную идентификацию, но не доказывает устранение базовой задержки pause/seek и не исправляет внутренний Yandex BUFFERING. HONOR ещё не протестировал. Следующий шаг — пользователь устанавливает Test.72 **поверх Test.71** и проверяет RASKOL 42884423 → Дым 39949113 → Next → Back и обычные контрольные треки, приносит diagnostic/video. Не просить пользователя откатывать APK к Test.70 ради разработки; Test.70 — базовые исходники. Stable Android 0.3.92, prod, OTA, сервер и desktop НЕ менять.
+
+---
 # ПЕРЕДАЧА 08.11.2026 · Android HONOR Test.70 подтверждён как baseline; следующий — Test.71 (АРХИТЕКТУРА/НАТИВНОЕ УПРАВЛЕНИЕ)
 
 **ПРОЧЕСТЬ В ПЕРВУЮ ОЧЕРЕДЬ:** [ANDROID-TEST70-HONOR-203805-ARCHITECTURE-2026-11-08.md](ANDROID-TEST70-HONOR-203805-ARCHITECTURE-2026-11-08.md) — полный свежий разбор Test.70, точные временные отметки seek и отдельное архитектурное задание. Старые блоки ниже — история, **НЕ** актуальный запрет на разработку Test.71.
