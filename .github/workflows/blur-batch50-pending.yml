@@ -1,0 +1,51 @@
+name: CELIKOM Blur — user-approved 50 MP3 into private pending
+on:
+  push:
+    branches: [feature/blur-batch50-20261108]
+    paths: ['.github/workflows/blur-batch50-pending.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: celikom-blur-real-50-pending
+  cancel-in-progress: false
+jobs:
+  fifty-pending:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Verify pinned candidate source and syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          php -l tools/blur-batch50/live-check.php
+          php -l tools/blur-batch50/import.php
+          php -l tools/blur-batch50/verify.php
+          python3 -m py_compile tools/blur-batch50/prepare.py
+          python3 - <<'PY'
+          import json
+          data=json.load(open('tools/blur-batch50/candidates.json'))
+          items=data['candidates']
+          assert data['target_pending']==50 and data['source_commit']=='10187b7af56f311fe141a3c9b75483798bf0f589'
+          assert len(items)==250 and len({v['id'] for v in items})==250
+          assert all(1024<=i['size']<=25000000 and len(i['blob'])==40 for i in items)
+          PY
+          command -v ffprobe || { sudo apt-get update -qq; sudo apt-get install -y ffmpeg; }
+          command -v file
+      - name: Read-only production dedupe, replace bad sources and import pending only
+        shell: bash
+        env:
+          HOST_KEY: ${{ secrets.CELIKOM_HOSTINGER_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.CELIKOM_HOSTINGER_KNOWN_HOSTS }}
+        run: bash tools/blur-batch50/run.sh
+      - name: Archive new rejected-source CSV and live results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: celikom-blur-fifty-${{ github.run_id }}
+          path: ${{ runner.temp }}/state/
+          retention-days: 90
+          if-no-files-found: warn
