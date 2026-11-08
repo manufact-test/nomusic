@@ -1,0 +1,32 @@
+name: CELIKOM Blur — 48 sources full production collision audit READ ONLY
+on:
+  push:
+    branches: [feature/blur-batch1000-20261108]
+    paths: ['.github/workflows/blur-pending48-preflight.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Validate script
+        run: php -l tools/blur-research/pending50/preflight48.php
+      - name: Read only track IDs, titles, asset SHA and tombstones
+        shell: bash
+        env:
+          HOST_KEY: ${{ secrets.CELIKOM_HOSTINGER_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.CELIKOM_HOSTINGER_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p "$RUNNER_TEMP/private"
+          printf '%s\n' "$HOST_KEY" > "$RUNNER_TEMP/private/key"
+          printf '%s\n' "$KNOWN_HOSTS" > "$RUNNER_TEMP/private/hosts"
+          chmod 600 "$RUNNER_TEMP/private/"*
+          ssh -p 65002 -o ConnectTimeout=25 -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$RUNNER_TEMP/private/hosts" -i "$RUNNER_TEMP/private/key" u235811320@92.113.19.189 '/opt/alt/php83/usr/bin/php -d display_errors=stderr' < tools/blur-research/pending50/preflight48.php > "$RUNNER_TEMP/preflight48.json"
+          cat "$RUNNER_TEMP/preflight48.json"
+          jq -e '.status=="PENDING48_PREFLIGHT_READONLY" and .checked==48 and .writes==0 and (.rows|length)==48' "$RUNNER_TEMP/preflight48.json"
