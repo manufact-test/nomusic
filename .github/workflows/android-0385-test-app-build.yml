@@ -243,7 +243,7 @@ jobs:
             "physical_phone_playback_verified":False,
             "acoustic_acceptance":False
           }
-          out=pathlib.Path(os.environ["RUNNER_TEMP"],"CELIKOM-Android-0.3.85-TEST-68-CURRENT-FIRST-CONTROLS-RECEIPT.json")
+          out=pathlib.Path(os.environ["RUNNER_TEMP"],"CELIKOM-Android-0.3.85-TEST-69-BOUNCE-RELATIVE-SEEK-RECEIPT.json")
           out.write_text(json.dumps(receipt,ensure_ascii=False,indent=2)+"\n",encoding="utf-8")
           print(json.dumps(receipt,ensure_ascii=False,indent=2))
           PY
@@ -255,6 +255,6 @@ jobs:
           path: |
             ${{ runner.temp }}/CELIKOM-Android-0.3.85-TEST-69-BOUNCE-RELATIVE-SEEK-SIGNED.apk
             ${{ runner.temp }}/CELIKOM-Android-0.3.85-TEST-69-BOUNCE-RELATIVE-SEEK-SIGNED.verification.json
-            ${{ runner.temp }}/CELIKOM-Android-0.3.85-TEST-68-CURRENT-FIRST-CONTROLS-RECEIPT.json
+            ${{ runner.temp }}/CELIKOM-Android-0.3.85-TEST-69-BOUNCE-RELATIVE-SEEK-RECEIPT.json
           if-no-files-found: error
           retention-days: 7
