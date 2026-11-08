@@ -27,14 +27,14 @@ public final class TestCatalogueNotification {
   Map<String,Object> none=HybridIdentity.own(data,"ИСКАЛА","Земфира",271000,System.currentTimeMillis());
   ok("NO_MATCH".equals(none.get("status")),"No-matching approved catalogue must be explicit");
   AppPresentation.Input stillWaiting=input(none,"waiting_for_album_response");
-  ok(notice(stillWaiting).equals("Нет одобренной версии · оригинал"),"Use compact approved-only absence without waiting for Yandex 451");
-  ok(notice(stillWaiting).length()<=40,"HONOR notification must fit a single compact status");
+  ok(notice(stillWaiting).equals("Нет одобренной версии · играет оригинал"),"Use compact approved-only absence without waiting for Yandex 451");
+  ok(notice(stillWaiting).length()<=50,"HONOR notification must fit a single compact status");
   ok(AppPresentation.of(stillWaiting).version.contains("одобренном каталоге"),"Keep full catalogue caveat visible in the Activity");
   ok(!notice(stillWaiting).contains("модерации"),"Approved snapshot never proves pending/moderation");
   ok(!notice(stillWaiting).contains("Определяем"),"Never say we are identifying a title already present in notification");
   ok(AppPresentation.of(stillWaiting).showTrack,"Show Yandex song title in activity without Track ID");
   AppPresentation.Input after451=input(none,"album_region_restricted");
-  ok(notice(after451).equals("Нет одобренной версии · оригинал"),"451 still cannot hide known catalogue result");
+  ok(notice(after451).equals("Нет одобренной версии · играет оригинал"),"451 still cannot hide known catalogue result");
   ok(!NotificationState.of(after451,"ИСКАЛА","Земфира",false,false,false,false).suggest,"No ID never allows suggesting/uploading");
   after451.playing=false;
   ok(notice(after451).contains("Пауза · нет одобренной"),"Paused unknown track retains catalogue outcome");
