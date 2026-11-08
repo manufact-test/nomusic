@@ -33,6 +33,34 @@ try {
              OR LOWER(t.title) LIKE '%он рядом%')
           ORDER BY t.service_track_id,r.id LIMIT 100");
     $quest=$q->fetchAll(PDO::FETCH_ASSOC);
+    // Physically verify the 2026-10-25 known-good Quest replacement, not just its SQL row.
+    // All operations are read-only and the private key/path never leaves this process.
+    $questAsset=$pdo->prepare("SELECT a.storage_key,a.sha256,a.size_bytes,a.duration_ms,r.id
+        FROM tracks t JOIN track_replacements r ON r.track_id=t.id
+        JOIN audio_assets a ON a.id=r.audio_asset_id
+        WHERE t.service='yandex' AND t.service_track_id=?
+          AND r.status='approved' AND r.is_active=1 AND r.disabled_at IS NULL LIMIT 1");
+    $questAsset->execute(['89285816']);
+    $fileRow=$questAsset->fetch(PDO::FETCH_ASSOC);
+    $questFile=['active_asset_row_found'=>$fileRow!==false,'file_exists'=>false,
+        'size_matches'=>false,'sha256_matches'=>false,'duration_ms'=>$fileRow?(int)$fileRow['duration_ms']:null];
+    if($fileRow!==false){
+        $root=realpath((string)$cfg['storage_path']);
+        if($root===false || !is_dir($root))throw new RuntimeException('private_storage_root_missing');
+        $key=(string)$fileRow['storage_key'];
+        if(!preg_match('~^[a-zA-Z0-9][a-zA-Z0-9._/-]{0,240}$~D',$key)
+             || in_array('..',explode('/',$key),true)
+             || in_array('.',explode('/',$key),true))
+             throw new RuntimeException('unsafe_audio_key');
+        $target=realpath($root.'/'.$key);
+        if($target!==false && str_starts_with($target,rtrim($root,'/').'/') && is_file($target)){
+           $questFile['file_exists']=true;
+           $questFile['size_matches']=filesize($target)===(int)$fileRow['size_bytes'];
+           $computed=hash_file('sha256',$target);
+           $questFile['sha256_matches']=$computed!==false
+               &&hash_equals((string)$fileRow['sha256'],$computed);
+        }
+    }
     $questOut=[];
     foreach($quest as $row){
         $out=$row;
@@ -132,6 +160,7 @@ try {
       'different_track_id_same_normalized_artist_title_examples'=>array_slice($duplicateNames,0,40),
       'catalogue_active_count'=>(int)$catalogue['total_tracks'],
       'quest_id_in_actual_live_catalogue'=>$questCatalogue,
+      'quest_active_audio_disk_integrity'=>$questFile,
       'multiple_replacements_same_track_count'=>count($multipleVersions),
       'multiple_replacements_same_track'=>$multipleVersions,
       'audio_assets_shared_across_different_track_ids_count'=>count($sharedFiles),
