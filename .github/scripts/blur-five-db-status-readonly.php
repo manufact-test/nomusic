@@ -19,7 +19,7 @@ try {
     $config = require $release . '/config/app.php';
     $pdo = Celikom\Database\Connection::open($config);
     $pdo->exec('START TRANSACTION READ ONLY');
-    $ids = ['17198343', '24442524', '27323567', '29851850', '32988400'];
+    $ids = ['17198343', '24442524', '27323567', '29851850', '32988400', '25168288', '17198411', '21220262', '30212997'];
     $in = implode(',', array_fill(0, count($ids), '?'));
     $st = $pdo->prepare("SELECT t.service_track_id AS yandex_id, t.id AS local_id, t.artist, t.title, r.status, r.is_active, r.disabled_at
         FROM tracks t LEFT JOIN track_replacements r ON r.track_id = t.id
@@ -42,13 +42,19 @@ try {
         }
     }
     // Potential alternate Yandex ID with the same title: informational only.
-    $sample = [['Сектор Газа', 'Опять сегодня'], ['Агата Кристи', 'Моряк'], ['GUF', 'Ice Baby'], ['PHARAOH', 'Black Siemens'], ['Найк Борзов', 'Лошадка']];
+    $sample = [['Сектор Газа', 'Опять сегодня'], ['Агата Кристи', 'Моряк'], ['GUF', 'Ice Baby'], ['PHARAOH', 'Black Siemens'], ['Найк Борзов', 'Лошадка'], ['ЛСП', 'Уровни'], ['Сектор Газа', 'Наркоман'], ['Anacondaz', 'Радуга'], ['Yanix', 'Трэп хата']];
     $alt = [];
     $similar = $pdo->prepare("SELECT service_track_id AS yandex_id, artist, title
         FROM tracks WHERE service = 'yandex' AND title = ? LIMIT 20");
     foreach ($sample as [$artist, $title]) {
         $similar->execute([$title]);
         $alt[$title] = array_map(static fn($x) => ['track_id' => (string) $x['yandex_id'], 'artist' => (string) $x['artist']], $similar->fetchAll(PDO::FETCH_ASSOC));
+    }
+    $requestStmt = $pdo->prepare("SELECT service_track_id, status FROM track_requests WHERE service = 'yandex' AND service_track_id IN ($in) ORDER BY id");
+    $requestStmt->execute($ids);
+    foreach ($out as $id => $_row) { $out[$id]['track_request_statuses'] = []; }
+    foreach ($requestStmt->fetchAll(PDO::FETCH_ASSOC) as $rq) {
+        $out[(string) $rq['service_track_id']]['track_request_statuses'][] = (string) $rq['status'];
     }
     $pdo->rollBack();
     echo json_encode(['source' => 'live_approved_and_pending_readonly', 'candidate_count' => count($ids), 'results' => $out, 'same_title_records' => $alt, 'writes' => 0], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT) . "\n";
