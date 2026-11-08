@@ -1,5 +1,7 @@
 # Native experiment 001: integrated desktop extension
 
+**Owner result: rejected for daily use.** On 2026-11-08 the owner reported slower joining and a loud switching artifact. Keep accepted 0.4.73 as the listening baseline. Successful controlled CI checks below establish functionality only, not an improvement in listening quality. Follow-up is bounded to two comparisons, documented separately.
+
 Branch: `experiment/desktop-native-integration-20261108`. Base is owner-accepted desktop 0.4.73 (`63d8cd891e1db82e0245122391fd4ab5cdd323be`). No production publication. Product extension sources/manifest, Android and server are unchanged; packaging overlays live under spikes/native-source only.
 
 ## What is integrated
