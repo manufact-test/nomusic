@@ -1,0 +1,94 @@
+name: CELIKOM Blur admin — READ ONLY 3-way live merge and isolated E2E
+
+on:
+  push:
+    branches: [feature/blur-bulk-moderation-20261108]
+    paths: ['.github/workflows/blur-bulk-admin-merge-e2e.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  merge-live-no-write:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: test-only
+          MYSQL_DATABASE: celikom_test_bulk
+        ports: [3306:3306]
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -ptest-only"
+          --health-interval=10s --health-timeout=5s --health-retries=12
+    env:
+      CI: 'true'
+      APP_ENV: test
+      DB_HOST: 127.0.0.1
+      DB_PORT: '3306'
+      DB_NAME: celikom_test_bulk
+      DB_USER: root
+      DB_PASSWORD: test-only
+      STORAGE_DRIVER: local
+      STORAGE_PATH: /tmp/celikom-bulk-live-merge/storage
+      BULK_HTML_OUT: /tmp/celikom-bulk-live-merge.html
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Read active admin sources and merge with exact baseline WITHOUT any remote writes
+        shell: bash
+        env:
+          HOST_KEY: ${{ secrets.CELIKOM_HOSTINGER_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.CELIKOM_HOSTINGER_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          umask 077
+          test -n "$HOST_KEY" && test -n "$KNOWN_HOSTS"
+          mkdir -p "$RUNNER_TEMP/private" "$RUNNER_TEMP/base" "$RUNNER_TEMP/live"
+          printf '%s\n' "$HOST_KEY" > "$RUNNER_TEMP/private/id_host"
+          printf '%s\n' "$KNOWN_HOSTS" > "$RUNNER_TEMP/private/known_hosts"
+          chmod 600 "$RUNNER_TEMP/private/"*
+          BASE_SHA=f42e3ebfd46c6fe639619e848135ed79dd215be8
+          TARGET=u235811320@92.113.19.189
+          git fetch --no-tags --depth=1 origin "$BASE_SHA"
+          git show "$BASE_SHA:server/src/Admin/AdminPanel.php" > "$RUNNER_TEMP/base/AdminPanel.php"
+          APP="$(ssh -p 65002 -i "$RUNNER_TEMP/private/id_host" -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$RUNNER_TEMP/private/known_hosts" "$TARGET" "python3 - <<'PY'
+          from pathlib import Path
+          home=Path('/home/u235811320/domains/darkred-camel-588676.hostingersite.com/celikom')
+          current=home/'current'
+          if not current.is_symlink(): raise SystemExit('Missing live release')
+          release=current.resolve()
+          if not release.is_relative_to((home/'releases').resolve()): raise SystemExit('Unsafe release path')
+          print(release)
+          PY
+          " )"
+          test -n "$APP"
+          scp -P 65002 -i "$RUNNER_TEMP/private/id_host" -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$RUNNER_TEMP/private/known_hosts" "$TARGET:$APP/src/Admin/AdminPanel.php" "$RUNNER_TEMP/live/AdminPanel.php"
+          scp -P 65002 -i "$RUNNER_TEMP/private/id_host" -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$RUNNER_TEMP/private/known_hosts" "$TARGET:$APP/src/Admin/admin-style.css" "$RUNNER_TEMP/live/admin-style.css"
+          if ! git merge-file -p server/src/Admin/AdminPanel.php "$RUNNER_TEMP/base/AdminPanel.php" "$RUNNER_TEMP/live/AdminPanel.php" > "$RUNNER_TEMP/merged.php"; then
+            echo 'BLOCKED: 3-way merge conflict with live AdminPanel, no remote changes'
+            exit 1
+          fi
+          if grep -q 'Bulk moderation: additive UI' "$RUNNER_TEMP/live/admin-style.css"; then
+            echo 'BLOCKED: live CSS already contains bulk implementation, must inspect'
+            exit 1
+          fi
+          cp "$RUNNER_TEMP/merged.php" server/src/Admin/AdminPanel.php
+          awk '/^\/\* Bulk moderation: additive UI/{found=1} found{print}' server/src/Admin/admin-style.css > "$RUNNER_TEMP/bulk-extra.css"
+          test -s "$RUNNER_TEMP/bulk-extra.css"
+          cp "$RUNNER_TEMP/live/admin-style.css" server/src/Admin/admin-style.css
+          cat "$RUNNER_TEMP/bulk-extra.css" >> server/src/Admin/admin-style.css
+          php -l server/src/Admin/AdminPanel.php
+          echo 'PASS 3-way PHP merge and additive CSS; current live modifications preserved, no remote writes'
+          echo '--- Numeric diff summary (not source) ---'
+          wc -lc server/src/Admin/AdminPanel.php server/src/Admin/admin-style.css
+      - name: Isolated integrated MySQL and real Chromium layout after live merge
+        run: |
+          set -euo pipefail
+          php -m | grep -qi '^pdo_mysql$' || { sudo apt-get update -qq; sudo apt-get install -y php-mysql; }
+          php -m | grep -qi '^mbstring$' || { sudo apt-get update -qq; sudo apt-get install -y php-mbstring; }
+          php server/tests/bulk-moderation.php
+          node server/tests/bulk-moderation-browser.mjs "$BULK_HTML_OUT"
