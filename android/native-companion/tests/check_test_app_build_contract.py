@@ -16,9 +16,9 @@ verifier = (ROOT / "verify_test_release.py").read_text(encoding="utf-8")
 assert spec["package"] == "pro.celikom.nativeprobe.test"
 assert spec["stable_package"] == "pro.celikom.nativeprobe"
 assert spec["label"] == "CELIKOM Test"
-assert spec["version"] == "0.3.85-test.68"
-assert spec["version_code"] == 86154
-assert spec["apk_filename"] == "CELIKOM-Android-0.3.85-TEST-68-CURRENT-FIRST-CONTROLS-SIGNED.apk"
+assert spec["version"] == "0.3.85-test.69"
+assert spec["version_code"] == 86155
+assert spec["apk_filename"] == "CELIKOM-Android-0.3.85-TEST-69-BOUNCE-RELATIVE-SEEK-SIGNED.apk"
 # Test.61 must defeat CDN negative caching after the approved-catalogue route is deployed.
 native_api = (ROOT / "addon/src/pro/celikom/nativeprobe/identitydiag/NativeApi.java").read_text(encoding="utf-8")
 assert '"replacement-catalog?refresh="+System.currentTimeMillis()' in native_api
@@ -135,6 +135,13 @@ assert "TestIdentificationStatus.java" in (ROOT / "tests/run_engine.py").read_te
 assert "TestCatalogueNotification.java" in (ROOT / "tests/run_engine.py").read_text(encoding="utf-8")
 assert "TestProblemTrackTransport.java" in (ROOT / "tests/run_engine.py").read_text(encoding="utf-8")
 assert "ProblemTrackTransport.java" in (ROOT / "tests/run_engine.py").read_text(encoding="utf-8")
+assert "ProblemTransportRecoveryPolicy.java" in (ROOT / "tests/run_engine.py").read_text(encoding="utf-8")
+assert "ProblemSourceClockPolicy.java" in (ROOT / "tests/run_engine.py").read_text(encoding="utf-8")
+for phrase in ("problem_transport_pause_bounce_detected","problem_transport_pause_retry_sent",
+ "problem_transport_absolute_seek_rejected","problem_source_clock_stuck"):
+    assert phrase in (ROOT / "addon/src/pro/celikom/nativeprobe/identitydiag/ProbeService.java").read_text(encoding="utf-8")
+assert "sourceClockStalled()" in (ROOT / "addon/src/pro/celikom/nativeprobe/identitydiag/ReplacementEngine.java").read_text(encoding="utf-8")
+
 control_source = (ROOT / "addon/src/pro/celikom/nativeprobe/identitydiag/ProbeService.java").read_text(encoding="utf-8")
 for required in ("problemTransportCommand(Intent intent)", "problemTransportIntent(String action",
   "problem_transport_command_sent", "problem_transport_command_observed",
