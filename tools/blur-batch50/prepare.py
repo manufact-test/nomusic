@@ -50,6 +50,7 @@ def download(entry: dict, out: Path) -> tuple[int | None,str | None, bool]:
     path=out/(tid+'.mp3')
     transient=None
     for retry in range(3):
+        transient=None
         h=hashlib.sha1(b'blob '+str(size).encode('ascii')+b'\0')
         received=0
         try:
