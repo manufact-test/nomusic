@@ -88,3 +88,9 @@ behavior. Don't claim source substitution without audible owner acceptance.
 - Next proof: isolated Electron fixture with actual pinned Yandex resource
   class and synthetic audio; then assess patch/rollback strategy. DO NOT ask
   owner to reinstall or repeat diagnostics absent a new safe user action.
+
+## Verified W4 CI
+- Source commit `a47d1c847da62dde42490da3be4ec4f9f8d06661`.
+- GitHub Actions [42509525224](https://github.com/manufact-test/nomusic/actions/runs/42509525224): **SUCCESS**; W4 Node synthetic adapter stage passed, W3 .NET build/safety stages passed.
+- 17 named W4 synthetic tests cover v1/v2, mixed batch, wrong ID, delayed Next, abort, Original, duplicate-track preference, double hook, Stop, expiry, unsafe asset, original failure/error, unsupported prototype, cleanup and secret-safe diagnostics.
+- No new owner-side diagnostic is needed; do not confuse CI fixture passing with live audio.

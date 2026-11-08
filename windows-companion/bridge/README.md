@@ -14,3 +14,5 @@ A passing test here **does not prove native Yandex decoding**. This adapter
 does not install itself, patch ASAR, read credentials, or own a player.
 It deliberately requires the real call-site and active renderer ownership
 to be independently proven before a live integration can exist.
+
+CI proof: [run 42509525224](https://github.com/manufact-test/nomusic/actions/runs/42509525224) SUCCESS (17 synthetic Node cases). It does not perform real Yandex playback.

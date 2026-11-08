@@ -63,3 +63,9 @@ audio asset and **one native media element**. Prove actual raw descriptor,
 pause/seek/Next, mixed batch, stale request, URL signing/Range, source expiry,
 Stop/Original reacquisition, fallback. If it cannot be proven with narrow,
 reversible integration, say no and do not silently create another player.
+
+## Verified W4 checkpoint
+- Commit `a47d1c847da62dde42490da3be4ec4f9f8d06661`.
+- Windows Actions run [42509525224](https://github.com/manufact-test/nomusic/actions/runs/42509525224): **SUCCESS**, includes W4 17 Node synthetic contract tests, existing W3 .NET safety/build and Windows read-only publish.
+- No owner-side W4 ZIP necessary: there is no new official-Yandex integration to run, and repeating static probes would be misleading. User W3 evidence is sufficient for this gate.
+- W4 native Yandex real playback compatibility: **NOT PROVEN**.
