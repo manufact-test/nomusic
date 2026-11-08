@@ -950,6 +950,23 @@ final class ReplacementEngine {
     "previousAlias",previous.alias,"remainingMs",Math.max(0,previous.duration-projected),
     "retainedUntilConfirmedBoundary",true));
  }
+ /** When Yandex reports READY+playing yet stops advancing its source cursor
+  * (HONOR Test.68 RASKOL at 110904ms for over 22 seconds), stop repeated
+  * resyncs to an untrustworthy timestamp. This does not repair Yandex UI. */
+ void sourceClockStalled(){
+  PlaybackSource source=owner.current;String key=identityKey,id=trackId;
+  if(source==null||!armed()||!ready||key==null||!Objects.equals(key,source.key)
+    ||!ProblemTrackTransport.isKnownStaleMedia3Track(id))return;
+  final long position=position(source);
+  LogStore.log("replacement_source_clock_stalled_restore",LogStore.map(
+    "trackId",id,"sourcePositionMs",position,"originalRestored",true,
+    "safety","no_unverified_position_prediction","noYandexTransportCommand",true));
+  suspend("source_clock_stalled",30000);
+  completedKey=key;completedPosition=position;
+  completedReason="Яндекс перестал обновлять позицию · играет оригинал до следующей песни";
+  audioOwner.unsupported("source_clock_stalled");
+  status=completedReason;ownerEvent("source_clock_stalled");
+ }
  void sourceSeekRequested(){
   if(!armed())return;
   explicitSourceSeek=true;sourceSeekedThisTrack=true;
