@@ -1,5 +1,8 @@
 # W15 — native Windows Companion + PulseSync bridge (preflight)
 
+**Verified delivery (2026-11-09):** [W15 Windows CI 42530365857](https://github.com/manufact-test/nomusic/actions/runs/42530365857) **SUCCESS** for source `040a3dd5e0ec0d829137e6192b6b231d69fe80eb`: compiled standalone Win-x64 EXE; compiled PulseSync SDK addon; unit contracts, WinForms compile, real local Kestrel HTTP and DPAPI contract tests, all older regression checks; ZIP artifact `13637501124` created and CRC checked. **Native Yandex audio substitution is NOT TESTED**. First owner check is to start the CELIKOM EXE alone, with no changes to Yandex or Windows security. Then arrange a separately approved isolated VM integration test. No server/browser/Android code changed.
+
+
 Source: `windows-companion/w15/Celikom.Companion` (.NET 10 WinForms + Kestrel loopback) and `w15/addon` (PulseSync SDK).
 
 **Scope:** standalone CELIKOM account login and encrypted per-device session; On/Off; pairing code; localhost-only authenticated bridge; approved exact-ID signed Range URL from existing PHP API; SDK source substitution inside PulseSync host. No second player, no Yandex EXE/ASAR write from CELIKOM, no debuggers or profile reads.

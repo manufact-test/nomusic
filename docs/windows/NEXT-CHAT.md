@@ -1,3 +1,22 @@
+# W15 — verified native CELIKOM Companion preview (2026-11-09)
+
+**BUILD READY FOR OWNER UI SMOKE; AUDIO IN MODIFIED YANDEX NOT YET VERIFIED.** Windows [Actions run 42530365857](https://github.com/manufact-test/nomusic/actions/runs/42530365857) passed on source commit `040a3dd5e0ec0d829137e6192b6b231d69fe80eb`, including W15 .NET native application build, offline signed audio grant/Next/Stop contract tests, actual local Kestrel HTTP + DPAPI and mock CELIKOM login/resolve integration tests, PulseSync SDK add-on build, self-contained Win-x64 EXE publish and zip packaging, and earlier W4–W12 regressions.
+
+**Actual created preview ZIP:** `CELIKOM-Windows-W15-PREVIEW.zip` from GitHub Actions artifact `13637501124` (`CELIKOM-Windows-W15-PREVIEW`). User-facing copy obtained and verified separately. Bundle contains only CELIKOM's `CELIKOM.Companion.exe`, PulseSync addon script+metadata, hashes and PREVIEW README. No PulseSync/Yandex installer, no modification code, no real credentials or audio.
+
+Artifact verification after extracting GitHub's Actions ZIP wrapper:
+- Zip CRC checked (all OK), compressed ~59.8 MB.
+- Self-contained EXE 143,967,902 bytes, SHA-256 `e2d58ad788ed5bf45a39f9bc927a1180a1f9086f058b9a04fc9aa7df7ce8a0e3`.
+- SDK addon script 19,649 bytes, SHA-256 `b60ea55ec97e2e1937d3f0be71c6211418663ad1846b4244d82f4bca37f4d984`.
+- Inner ZIP SHA-256 `4d375ddabe8b27b184474d808364bbd4bbf349a4c7ea7bdf06f063a0bf9d9be9`.
+
+**Next SINGLE manual action for owner:** extract ZIP, launch **only** `CELIKOM.Companion.exe` on their Windows 10; check if CELIKOM UI opens and local status shows ready, without any modification to installed Yandex or other software. Do not install the add-on or PulseSync, do not type credentials unless specifically required; report window opening or exact Windows protection/error warning. Never disable Defender/SmartScreen. This is a new native UI smoke test, not another W0–W12 diagnostic.
+
+**After UI confirmation**: pursue isolated VM test using `docs/windows/W14-FIRST-REAL-CLIENT-TEST-PLAN-20261109.md`, requiring explicit consent for install/modification of third-party signed Yandex files and licensing consideration. No live Yandex source replacement has yet been heard or accepted; never imply this ZIP is production-ready or commercially distributable without PulseSync permission.
+
+Project branch: `experiment/windows-companion-integration-20261108`. Pre-W15 verified backup `backup/windows-w14-sdk-candidate-verified-20261109` preserved. W15 backup will contain only docs checkpoint, no changes to previous tested code.
+
+---
 # W14 VERIFIED — engineering checkpoint 2026-11-09
 
 **Current status: W14 SDK candidate build + unit tests PASSED on Windows CI.** [Run 42526627485](https://github.com/manufact-test/nomusic/actions/runs/42526627485) **SUCCESS** for source `16cb39000cbcbcb6925eb0d7a6fd3099b13eadfb`; W14 11/11 contract tests, REAL third-party PulseSync addon SDK Vite build 30 transformed modules, output `dist/6f812b94-dcf8-4b6f-b913-0a3f10c77c20/script.js` 13.56 kB, and W4–W12 regressions pass.
