@@ -27,17 +27,17 @@ public final class TestCatalogueNotification {
   Map<String,Object> none=HybridIdentity.own(data,"ИСКАЛА","Земфира",271000,System.currentTimeMillis());
   ok("NO_MATCH".equals(none.get("status")),"No-matching approved catalogue must be explicit");
   AppPresentation.Input stillWaiting=input(none,"waiting_for_album_response");
-  ok(notice(stillWaiting).equals("Нет одобренной версии · играет оригинал"),"Use compact approved-only absence without waiting for Yandex 451");
+  ok(notice(stillWaiting).equals("Не удалось сопоставить версию · играет оригинал"),"Full approved snapshot NO_MATCH is not proof of absent replacement");
   ok(notice(stillWaiting).length()<=50,"HONOR notification must fit a single compact status");
-  ok(AppPresentation.of(stillWaiting).version.contains("одобренном каталоге"),"Keep full catalogue caveat visible in the Activity");
+  ok(AppPresentation.of(stillWaiting).version.contains("одобренным каталогом"),"Keep unknown-id catalogue caveat visible in the Activity");
   ok(!notice(stillWaiting).contains("модерации"),"Approved snapshot never proves pending/moderation");
   ok(!notice(stillWaiting).contains("Определяем"),"Never say we are identifying a title already present in notification");
   ok(AppPresentation.of(stillWaiting).showTrack,"Show Yandex song title in activity without Track ID");
   AppPresentation.Input after451=input(none,"album_region_restricted");
-  ok(notice(after451).equals("Нет одобренной версии · играет оригинал"),"451 still cannot hide known catalogue result");
+  ok(notice(after451).equals("Яндекс ограничил альбом · версия неизвестна"),"451 must outrank fresh NO_MATCH: do not claim absent replacement");
   ok(!NotificationState.of(after451,"ИСКАЛА","Земфира",false,false,false,false).suggest,"No ID never allows suggesting/uploading");
   after451.playing=false;
-  ok(notice(after451).contains("Пауза · нет одобренной"),"Paused unknown track retains catalogue outcome");
+  ok(notice(after451).contains("Пауза · не удалось проверить версию"),"Paused regional 451 never claims absent replacement");
 
   Map<String,Object> approved=HybridIdentity.own(data,"Пушка","10AGE",177000,System.currentTimeMillis());
   ok("UNIQUE_METADATA_CANDIDATE".equals(approved.get("status")),"Known approved version must be found");
@@ -51,7 +51,7 @@ public final class TestCatalogueNotification {
   ok(notice(staleInput).contains("Проверяем наличие"),"Unknown catalogue only permits an honest check state");
   ok(!notice(staleInput).contains("Определяем песню"),"Progress should refer to checking CELIKOM, not title ID");
   AppPresentation.Input end=input(stale,"album_region_restricted");
-  ok(notice(end).contains("статус версии неизвестен"),"When both sources unavailable, do not invent a replacement status");
+  ok(notice(end).contains("версия неизвестна"),"When both sources unavailable, do not invent a replacement status");
 
   AppPresentation.Input missing=input(approved,"unique_album_candidate");missing.identified=true;missing.missing=true;
   ok(notice(missing).contains("нет замены"),"Proven server found=false retains historical notification");
