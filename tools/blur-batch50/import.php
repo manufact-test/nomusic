@@ -120,6 +120,11 @@ try {
                  || (int)$asset['size_bytes']!==$item['size']
                  || abs((int)$asset['duration_ms']-$item['duration'])>1500))
                 throw new DomainException('audio_asset_hash_conflict_'.$id);
+            if($dry) {
+                $new[]=['id'=>$id,'replacement_id'=>0];
+                $pdo->rollBack();
+                continue; // No filesystem, DB or moderation writes in dry run.
+            }
             if(!$storage->exists($item['key'])) {
                 $f=fopen($item['file'],'rb');
                 if(!$f)throw new RuntimeException('mp3_open_error_'.$id);
@@ -144,8 +149,7 @@ try {
             $trackId=(int)$pdo->lastInsertId();
             $insertReplacement->execute([$trackId,$assetId]);
             $new[]=['id'=>$id,'replacement_id'=>(int)$pdo->lastInsertId()];
-            if($dry) $pdo->rollBack();
-            else $pdo->commit();
+            $pdo->commit();
         } catch(Throwable $e) {
             if($pdo->inTransaction())$pdo->rollBack();
             if($copied) {
@@ -159,9 +163,8 @@ try {
         }
     }
     if($dry) {
-        if($resumed)throw new RuntimeException('dry_run_requires_no_already_pending');
         echo json_encode(['status'=>'DRY_RUN_PASS','verified_files'=>50,
-            'possible_new'=>count($new),'writes'=>0,'rights_confirmed'=>false],
+            'possible_new'=>count($new),'matching_existing_pending'=>count($resumed),'writes'=>0,'rights_confirmed'=>false],
             JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR),"\n";
     } else {
         $post=$pdo->prepare("SELECT r.id,r.status,r.is_active FROM track_replacements r JOIN tracks t ON t.id=r.track_id
