@@ -12,6 +12,11 @@ final class NotificationState {
   if(!s.session)return new NotificationState("CELIKOM · требуется подключение","Откройте эквалайзер Яндекс Музыки и выберите CELIKOM.",false);
   AppPresentation p=AppPresentation.of(s);String label=title==null||title.trim().isEmpty()?"CELIKOM":safe(title)+(artist==null||artist.trim().isEmpty()?"":" — "+safe(artist));
   String detail=p.version;
+  // A complete APPROVED-only snapshot can rule out an approved version,
+  // but cannot establish submission/moderation status. Keep the compact
+  // Android notification readable; the Activity retains full context.
+  if(!s.identified&&s.catalogueFresh&&"NO_MATCH".equals(s.catalogueStatus)&&s.playing)
+    detail="Нет одобренной версии · оригинал";
   if(s.missing&&!s.replacing)detail="Для этой песни нет замены · играет оригинал";
   if(s.problem.isEmpty()&&!s.playing&&!s.preparing&&!s.seeking){
     boolean noApproved=!s.identified&&s.catalogueFresh&&"NO_MATCH".equals(s.catalogueStatus);
