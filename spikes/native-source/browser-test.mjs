@@ -19,6 +19,9 @@ for (const [name, duration] of [["short", 8], ["long", 360]]) {
 const files = {
   "/webpack-fixture.js": [await readFile(path.join(fixture, "webpack-fixture.js")), "application/javascript; charset=utf-8"],
   "/baseline.js": [await readFile("extension/src/player/replacement-player.ts"), "application/javascript; charset=utf-8"],
+  "/core.js": [await readFile("extension/src/player/core.ts"), "application/javascript; charset=utf-8"],
+  "/adapter.js": [await readFile("extension/src/adapters/yandex-music-adapter.ts"), "application/javascript; charset=utf-8"],
+  "/native-metadata.js": [await readFile("spikes/native-source/native-metadata-adapter.js"), "application/javascript; charset=utf-8"],
   "/short.mp3": [await readFile(path.join(fixture, "short.mp3")), "audio/mpeg"],
   "/long.mp3": [await readFile(path.join(fixture, "long.mp3")), "audio/mpeg"]
 };
@@ -72,6 +75,7 @@ try {
     console.log("Fixture state", await page.evaluate(() => ({ api: window.__CELIKOM_NATIVE_SOURCE_RESEARCH__?.diagnostics(), fixture: Boolean(window.__nativeFixture), chunks: Boolean(window.webpackChunk_N_E) })));
     throw error;
   }
+  for (const name of ["core.js", "adapter.js", "native-metadata.js"]) await page.addScriptTag({ url: origin + "/" + name });
   const result = await page.evaluate(async origin => {
     const checks = [], check = (value, label) => { if (!value) throw Error(label); checks.push(label); console.log("PASS " + label); };
     const api = window.__CELIKOM_NATIVE_SOURCE_RESEARCH__, req = window.__nativeFixture.req;
@@ -236,6 +240,12 @@ try {
     const nativePlayback = Object.create(ActualPlayback.prototype);
     nativePlayback.playbackState = { queueState: { currentEntity: { value: { entity } } }, currentMediaPlayer: { value: nativeCore } };
     const nativeController = { getState: () => nativePlayback.state, playbackController: { getPlayback: () => nativePlayback } };
+    reactRoot.render(react.createElement(context.Provider, { value: nativeController }, react.createElement(Consumer)));
+    const metadataPort = new window.__CELIKOM_NATIVE_ENGINE_PORT__.EnginePort(), bindingDeadline = performance.now() + 3000;
+    while (metadataPort.binding()?.audio !== nativeAudio && performance.now() < bindingDeadline) await new Promise(r => setTimeout(r, 20));
+    check(metadataPort.binding()?.audio === nativeAudio, "actual React context switches to the native playback binding");
+    const metadataAdapter = new window.__CELIKOM_YANDEX_ADAPTER_V1__.YandexMusicAdapter(window);
+    metadataAdapter.trackCatalog.set("1001", { id: "1001", title: "Fixture song", artist: "Fixture artist", durationMs: 8000 });
     const sessionPort = new window.__CELIKOM_NATIVE_ENGINE_PORT__.EnginePort({ getController: () => nativeController });
     const nativeSession = new window.__CELIKOM_NATIVE_SESSION__.NativeSession({ port: sessionPort, resource: api });
     await nativeCore.reload(entity); await nativeAudio.play(); nativeAudio.currentTime = 0.7;
@@ -246,6 +256,9 @@ try {
     check(nativeSession.inspect().activeTrackId === "1001" && nativeAudio.currentSrc.startsWith("blob:") && nativeAudio.currentTime >= 0.6,
       "actual stock reload applies admitted file through existing native audio and retains position");
     check(document.querySelectorAll("audio").length === audioCount, "native switch creates no second audio element");
+    const nativeMetadata = metadataAdapter.trackState(nativeAudio);
+    check(nativeMetadata.id === "1001" && !nativeMetadata.ambiguous && nativeMetadata.metadata.title === "Fixture song",
+      "existing CELIKOM metadata adapter preserves track ID and upload target after native source change");
     nativeAudio.pause(); const pausedAt = nativeAudio.currentTime; await new Promise(r => setTimeout(r, 120));
     check(nativeAudio.paused && Math.abs(nativeAudio.currentTime - pausedAt) < 0.02, "native pause controls replacement directly");
     nativeAudio.currentTime = 2; await new Promise(r => setTimeout(r, 100));
@@ -265,7 +278,7 @@ try {
     api.dispose();
     check(api.diagnostics().stopped && api.diagnostics().assets === 0, "dispose restores owned prototype hooks and removes registry");
     reactRoot.unmount(); mount.remove();
-    return { checks, beforeDispose, preparationComparison, experimentElapsedMs: Math.round(performance.now() - start), limitations: ["controlled resource responses; not a signed-in Yandex listening session", "explicit source reacquisition tested; automatic engine cache invalidation and error restore not implemented", "no measured end-to-end speed advantage"] };
+    return { checks, beforeDispose, preparationComparison, experimentElapsedMs: Math.round(performance.now() - start), limitations: ["controlled resource responses; not a signed-in Yandex listening session", "stock reload tested with real audio; actual encrypted decryption is not tested", "no measured end-to-end speed advantage"] };
   }, origin);
   let liveProbe;
   const livePage = await context.newPage();

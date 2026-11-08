@@ -169,3 +169,16 @@ test("Next with new metadata waits for the native transition instead of reloadin
   n.audio.dispatchEvent(new Event("loadedmetadata")); await stopped;
   assert.equal(n.revoked.length, 1); assert.equal(reads, 0);
 });
+test("native metadata keeps the same song visible after source replacement without binding another element", async () => {
+  const n = nativeEngine();
+  class Adapter {
+    constructor() { this.trackCatalog = new Map([["1001", { title: "Current song", artist: "Artist" }]]); }
+    trackState() { return { id: null, ambiguous: true, evidence: "awaiting-track-refresh", metadata: { title: "Visible song", durationMs: 8000 } }; }
+  }
+  Object.assign(engineContext, { __CELIKOM_YANDEX_ADAPTER_V1__: { YandexMusicAdapter: Adapter },
+    document: { querySelectorAll: () => [{ __reactFiber$fixture: { memoizedProps: { value: n.controller } } }] } });
+  vm.runInContext(await readFile(new URL("native-metadata-adapter.js", moduleRoot), "utf8"), engineContext);
+  const adapter = new Adapter(), state = adapter.trackState(n.audio);
+  assert.equal(state.id, "1001"); assert.equal(state.ambiguous, false); assert.equal(state.metadata.title, "Current song");
+  assert.equal(adapter.trackState(new EventTarget()).id, null);
+});

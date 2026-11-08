@@ -20,6 +20,9 @@ const script = file => readFile(new URL(file, import.meta.url), "utf8");
 for (const group of contentScriptGroups) {
   const parts = [];
   for (const file of group.modules) {
+    if (file === "player/main-world-entry.js") {
+      parts.push(await script("engine-port.js"), await script("native-metadata-adapter.js"));
+    }
     if (file === "player/replacement-controller.js") {
       const parser = (await readFile(path.join(source, "upload/mp3-duration.js"), "utf8")).replaceAll("export function ", "function ");
       parts.push(`(function(){${parser}\nglobalThis.__CELIKOM_NATIVE_MP3_DURATION__=mp3DurationMs;})();`);
@@ -27,7 +30,7 @@ for (const group of contentScriptGroups) {
     } else parts.push(await readFile(path.join(target, file), "utf8"));
   }
   if (group.world === "MAIN") {
-    for (const name of ["engine-port.js", "native-source.js", "native-session.js", "native-runtime.js"]) parts.push(await script(name));
+    for (const name of ["native-source.js", "native-session.js", "native-runtime.js"]) parts.push(await script(name));
   }
   await writeFile(path.join(target, group.file), parts.join("\n;\n"));
 }
