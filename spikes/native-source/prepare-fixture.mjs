@@ -64,7 +64,15 @@ if (!sourceName || !args || args.length !== 3) throw Error("Unsupported source f
 /* Test-only export exposes an otherwise private class. Its class body is unchanged.
    Downloaded third-party code is a transient fixture, never checked into git. */
 const exportBody = sourceText.slice(0, -1) + `;Object.defineProperty(${args[1]},"__testNativeSource",{value:${sourceName},enumerable:true});}`;
-const entries = Object.entries(factories).map(([id, f]) => JSON.stringify(id) + ":" + (id === sourceModule ? exportBody : f.toString()));
+const reloadFactory = Object.entries(factories).find(([, f]) => f.toString().includes("reload(e){let t=this.state.progress.value.position"));
+if (!reloadFactory) throw Error("Native reload factory not found");
+const [reloadModule, reloadFn] = reloadFactory, reloadText = reloadFn.toString();
+const reloadAt = reloadText.indexOf("reload(e){let t=this.state.progress.value.position");
+const reloadName = [...reloadText.slice(0, reloadAt).matchAll(/class ([\w$]+)(?: extends [\w$]+)?\{/g)].at(-1)?.[1];
+const reloadArgs = reloadText.match(/^\(([^)]+)\)=>/)?.[1].split(",");
+if (!reloadName || !reloadArgs) throw Error("Unsupported native reload shape");
+const reloadBody = reloadText.slice(0, -1) + `;Object.defineProperty(${reloadArgs[1]},"__testReloadCore",{value:${reloadName},enumerable:true});}`;
+const entries = Object.entries(factories).map(([id, f]) => JSON.stringify(id) + ":" + (id === sourceModule ? exportBody : id === reloadModule ? reloadBody : f.toString()));
 const loader = `
 const factories={${entries.join(",\n")}},cache={};
 function req(id){if(cache[id])return cache[id].exports;if(!factories[id])throw Error('missing fixture module '+id);const m=cache[id]={exports:{}};try{factories[id](m,m.exports,req)}catch(e){delete cache[id];throw e}return m.exports}
@@ -73,7 +81,7 @@ req.r=e=>Object.defineProperty(e,'__esModule',{value:true});req.o=(o,k)=>Object.
 req.t=(v,mode)=>{if(mode&1)v=req(v);if(mode&8)return v;if(v&&typeof v==='object'&&(mode&4)&&v.__esModule)return v;const ns=Object.create(null);req.r(ns);Object.defineProperty(ns,'default',{enumerable:true,value:v});if(mode&2&&typeof v!=='string')for(const k in v)Object.defineProperty(ns,k,{enumerable:true,get:()=>v[k]});return ns};
 const chunks=[];chunks.push=chunk=>{Object.assign(factories,chunk[1]);if(chunk[0]?.some(id=>typeof id==='symbol'))chunk[2]?.(req);return chunks.length};
 globalThis.webpackChunk_N_E=chunks;
-globalThis.__nativeFixture={req,sourceModule:${JSON.stringify(sourceModule)}};
+globalThis.__nativeFixture={req,sourceModule:${JSON.stringify(sourceModule)},reloadModule:${JSON.stringify(reloadModule)}};
 `;
 await writeFile(path.join(output, "webpack-fixture.js"), loader + "\n");
 await writeFile(path.join(output, "provenance.json"), JSON.stringify({ fetchedAt: new Date().toISOString(), modules: Object.keys(factories).length, privateClassExportForTestOnly: true, assets: provenance }, null, 2) + "\n");

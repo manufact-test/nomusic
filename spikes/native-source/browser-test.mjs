@@ -180,7 +180,8 @@ try {
   try {
     const response = await livePage.goto("https://music.yandex.ru/", { waitUntil: "domcontentloaded", timeout: 45000 });
     await livePage.waitForFunction(() => window.__CELIKOM_NATIVE_SOURCE_RESEARCH__?.diagnostics().resourceClasses === 2, undefined, { timeout: 15000 });
-    liveProbe = { status: response.status(), diagnostics: await livePage.evaluate(() => window.__CELIKOM_NATIVE_SOURCE_RESEARCH__.diagnostics()), signedInPlaybackTested: false };
+    liveProbe = { status: response.status(), diagnostics: await livePage.evaluate(() => window.__CELIKOM_NATIVE_SOURCE_RESEARCH__.diagnostics()),
+      engine: await livePage.evaluate(() => new window.__CELIKOM_NATIVE_ENGINE_PORT__.EnginePort().inspect()), signedInPlaybackTested: false };
   } catch (error) {
     liveProbe = { unavailable: true, reason: error.name, signedInPlaybackTested: false };
   } finally { await livePage.close(); }

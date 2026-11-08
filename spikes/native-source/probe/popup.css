@@ -1,0 +1,6 @@
+body { width: 300px; margin: 0; padding: 18px; background: #0b1013; color: #edf6f5; font: 13px/1.5 system-ui, sans-serif; }
+h1 { font-size: 18px; margin: 0 0 12px; }
+p { margin: 0 0 14px; }
+button { width: 100%; padding: 11px; margin-bottom: 10px; border: 1px solid #34464b; border-radius: 9px; color: #071211; background: #66dfbf; font: inherit; cursor: pointer; }
+button:disabled { cursor: default; background: #192428; color: #c3cece; }
+textarea { box-sizing: border-box; width: 100%; height: 150px; padding: 10px; border: 1px solid #34464b; border-radius: 9px; background: #111a1e; color: #d8e5e5; resize: vertical; font: 11px/1.5 monospace; }

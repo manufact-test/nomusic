@@ -1,0 +1,57 @@
+name: Desktop native source lifecycle and authority research
+on:
+  push:
+    branches: [experiment/desktop-native-lifecycle-20261108]
+    paths: [spikes/native-source/**, .github/workflows/desktop-native-lifecycle-research.yml]
+permissions:
+  contents: read
+jobs:
+  browsers:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Install isolated tooling and official Brave
+        run: |
+          npm install --prefix /tmp/celikom-research-tools --no-audit --no-fund playwright@1.62.1
+          sudo curl -fsSLo /usr/share/keyrings/brave-browser-archive-keyring.gpg https://brave-browser-apt-release.s3.brave.com/brave-browser-archive-keyring.gpg
+          sudo curl -fsSLo /etc/apt/sources.list.d/brave-browser-release.sources https://brave-browser-apt-release.s3.brave.com/brave-browser.sources
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends ffmpeg brave-browser
+          google-chrome --version
+          brave-browser --version
+      - name: Download public Yandex classes into transient fixture
+        id: fixture
+        run: node spikes/native-source/prepare-fixture.mjs
+      - name: Actual Chrome MV3 native playback
+        env:
+          PLAYWRIGHT_MODULE: /tmp/celikom-research-tools/node_modules/playwright
+          CELIKOM_BROWSER_BINARY: /usr/bin/google-chrome
+        run: node spikes/native-source/browser-test.mjs
+      - name: Actual Brave MV3 native playback
+        if: always() && steps.fixture.outcome == 'success'
+        env:
+          PLAYWRIGHT_MODULE: /tmp/celikom-research-tools/node_modules/playwright
+          CELIKOM_BROWSER_BINARY: /usr/bin/brave-browser
+        run: node spikes/native-source/browser-test.mjs
+      - name: Native lifecycle, authority and read-only probe
+        if: success() || failure()
+        run: |
+          npm --prefix extension run build:unpacked
+          node --test spikes/native-source/lifecycle.test.mjs
+          node spikes/native-source/build-probe.mjs
+      - name: Accepted desktop regressions
+        if: success() || failure()
+        run: npm --prefix extension test
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: native-source-research-results
+          path: |
+            /tmp/celikom-native-source-fixture/*results.json
+            /tmp/celikom-native-source-fixture/provenance.json

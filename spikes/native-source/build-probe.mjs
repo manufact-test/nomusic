@@ -1,0 +1,25 @@
+import { cp, mkdir, readFile, writeFile } from "node:fs/promises";
+import { spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
+import vm from "node:vm";
+import path from "node:path";
+const output = path.resolve(process.argv[2] || "/tmp/celikom-engine-check");
+const source = await readFile(new URL("engine-port.js", import.meta.url), "utf8");
+const context = vm.createContext({}); vm.runInContext(source, context);
+const { EnginePort } = context.__CELIKOM_NATIVE_ENGINE_PORT__;
+const prefix = source.slice(0, source.indexOf("  class EnginePort {")).replaceAll("__CELIKOM_NATIVE_ENGINE_PORT__", "__CELIKOM_ENGINE_READONLY_PROBE__");
+const reader = prefix + `
+  const reader={ getController:()=>discoverController(), ${EnginePort.prototype.binding.toString()}, ${EnginePort.prototype.inspect.toString()} };
+  Object.defineProperty(root,"__CELIKOM_ENGINE_READONLY_PROBE__",{value:Object.freeze({inspect:()=>reader.inspect()}),configurable:true});
+})(globalThis);
+`;
+if (/\.reload\s*\(|getMediaSource\s*=|\.src\s*=|\.pause\s*\(|\.play\s*\(/.test(reader)) throw Error("Probe unexpectedly contains a playback mutation");
+new vm.Script(reader);
+await mkdir(output, { recursive: true });
+await cp(new URL("probe/", import.meta.url), output, { recursive: true });
+await writeFile(path.join(output, "reader.js"), reader);
+const files = ["manifest.json", "popup.html", "popup.css", "popup.js", "reader.js"];
+const zip = output + ".zip";
+const zipped = spawnSync("zip", ["-X", "-q", "-9", zip, ...files], { cwd: output });
+if (zipped.status !== 0) throw Error("Probe ZIP creation failed");
+console.log(JSON.stringify({ path: zip, size: (await readFile(zip)).length, sha256: createHash("sha256").update(await readFile(zip)).digest("hex"), readOnly: true }));
