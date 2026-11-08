@@ -153,7 +153,8 @@ test("isolated controller uses existing downloader and MAIN RPC without a legacy
   assert.ok(n.audio.src.startsWith("blob:")); assert.equal(requests.length, 1);
   assert.ok(messages.some(m => m.type === "publish" && m.payload.blob?.type === "audio/mpeg"));
   assert.ok(messages.filter(m => m.type === "POLICY_UPDATE").every(m => m.payload.enabled === false));
-  controller.manualRestore(); await controller.control;
+  controller.manualRestore(); engineContext.__testBridge.post("RELEASE_NOW"); await controller.control;
+  assert.equal(controller.readyRevision, controller.revision);
   assert.equal(n.audio.src, "https://fixture.example/original"); assert.equal(controller.operation, null);
   await controller.poll(); assert.equal(controller.phase, "IDLE");
   controller.configure(false, ""); await controller.control; controller.destroy();
@@ -181,4 +182,9 @@ test("native metadata keeps the same song visible after source replacement witho
   const adapter = new Adapter(), state = adapter.trackState(n.audio);
   assert.equal(state.id, "1001"); assert.equal(state.ambiguous, false); assert.equal(state.metadata.title, "Current song");
   assert.equal(adapter.trackState(new EventTarget()).id, null);
+});
+test("a page without a native playback binding remains an ordinary waiting state", () => {
+  const n = sessionFixture(); n.port.getController = () => null;
+  const state = n.session.inspect();
+  assert.equal(state.found, false); assert.equal(state.activeTrackId, null); assert.equal(state.sourceMismatch, false);
 });

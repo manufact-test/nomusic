@@ -14,7 +14,7 @@
     inspect() {
       const binding = this.port.binding(), audio = binding?.audio, owned = this.owned(binding);
       return { ...this.port.inspect(), enabled: this.enabled, generation: this.generation,
-        activeTrackId: owned?.trackId === binding?.id ? binding.id : null,
+        activeTrackId: owned && binding && owned.trackId === binding.id ? binding.id : null,
         sourceMismatch: Boolean(owned && owned.trackId !== binding?.id), pending: Boolean(this.pending), lastError: this.lastError,
         position: Number(audio?.currentTime) || 0, paused: audio?.paused !== false,
         readyState: audio?.readyState || 0, ended: audio?.ended === true };
@@ -25,6 +25,12 @@
       this.confirmAbort?.abort();
       this.enabled = false; this.resource.setEnabled(false); this.port.cancel();
       for (const id of this.assets.keys()) this.resource.unregister(id);
+      const previous = this.configurePending;
+      this.configurePending = this.restoreAfter(previous, epoch, enabled, generation);
+      return this.configurePending;
+    }
+    async restoreAfter(previous, epoch, enabled, generation) {
+      await previous?.catch(() => {});
       await this.pending?.catch(() => {});
       const binding = this.port.binding();
       if (this.owned(binding)) {

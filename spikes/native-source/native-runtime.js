@@ -5,11 +5,11 @@
   const session = new root.__CELIKOM_NATIVE_SESSION__.NativeSession({
     port: new root.__CELIKOM_NATIVE_ENGINE_PORT__.EnginePort(), resource: root.__CELIKOM_NATIVE_SOURCE_RESEARCH__
   });
-  let controller = null, heartbeat = 0, resetting = false;
+  let controller = null, heartbeat = 0, resetPending = null;
   const reset = () => {
-    if (resetting) return;
-    resetting = true;
-    session.configure(false, Math.max(0, session.generation)).catch(() => {}).finally(() => { resetting = false; });
+    if (resetPending) return resetPending;
+    resetPending = session.configure(false, Math.max(0, session.generation)).catch(() => {}).finally(() => { resetPending = null; });
+    return resetPending;
   };
   root.addEventListener("message", event => {
     if (event.source !== root) return;
@@ -27,7 +27,8 @@
     if (m?.channel !== channel || m.direction !== "request" || m.sessionId !== controller || !controller
       || typeof m.requestId !== "string" || m.requestId.length > 180) return;
     const run = async () => {
-      if (resetting && m.type !== "inspect") throw Error("native_reset_pending");
+      if (resetPending && ["configure", "revoke"].includes(m.type)) await resetPending;
+      if (resetPending && m.type !== "inspect") throw Error("native_reset_pending");
       if (m.type === "inspect") return session.inspect();
       if (m.type === "configure") return session.configure(m.payload?.enabled, m.payload?.generation);
       if (m.type === "publish") return session.publish(m.payload);

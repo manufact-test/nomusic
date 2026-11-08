@@ -240,10 +240,10 @@ try {
     const nativePlayback = Object.create(ActualPlayback.prototype);
     nativePlayback.playbackState = { queueState: { currentEntity: { value: { entity } } }, currentMediaPlayer: { value: nativeCore } };
     const nativeController = { getState: () => nativePlayback.state, playbackController: { getPlayback: () => nativePlayback } };
-    reactRoot.render(react.createElement(context.Provider, { value: nativeController }, react.createElement(Consumer)));
+    playback.playbackState = nativePlayback.playbackState;
     const metadataPort = new window.__CELIKOM_NATIVE_ENGINE_PORT__.EnginePort(), bindingDeadline = performance.now() + 3000;
     while (metadataPort.binding()?.audio !== nativeAudio && performance.now() < bindingDeadline) await new Promise(r => setTimeout(r, 20));
-    check(metadataPort.binding()?.audio === nativeAudio, "actual React context switches to the native playback binding");
+    check(metadataPort.binding()?.audio === nativeAudio, "actual React context reads updated native Playback state");
     const metadataAdapter = new window.__CELIKOM_YANDEX_ADAPTER_V1__.YandexMusicAdapter(window);
     metadataAdapter.trackCatalog.set("1001", { id: "1001", title: "Fixture song", artist: "Fixture artist", durationMs: 8000 });
     const sessionPort = new window.__CELIKOM_NATIVE_ENGINE_PORT__.EnginePort({ getController: () => nativeController });
