@@ -12,6 +12,10 @@ final class TestNativeTransportWitness {
   yes(!NativeTransportWitness.watched("78608850"),"control not watched");
   yes(NativeTransportWitness.watched("42884423"),"RASKOL");
   yes(NativeTransportWitness.watched("39949113"),"Dym");
+  yes(!w.noteUnavailable("722","85025192"),"control no secondary observer");
+  yes(w.noteUnavailable("722","42884423"),"RASKOL secondary source absence");
+  yes(!w.noteUnavailable("722","42884423"),"no repeated absence spam");
+  yes(w.noteUnavailable("785","39949113"),"Dym can report absence separately");
   yes(!step(w,"722","85025192",true,2,10,true,1000,1000).restore,"control cannot fall back");
   yes(!step(w,"722","42884423",false,2,10,true,1000,1050).restore,"unmatched metadata");
   yes(!step(w,"722","42884423",true,2,3000,true,1000,1400).restore,"stale legacy");
