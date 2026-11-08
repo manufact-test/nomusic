@@ -19,6 +19,8 @@ src.append(addon/'SourceSnapshotConsistency.java')
 src.append(r/'Test72SourceSnapshotConsistency.java')
 src.append(r/'Test75FrameworkTransportPolicy.java')
 src.append(addon/'YandexFrameworkTransportPolicy.java')
+src.append(r/'Test76YandexIdentityDivergenceGate.java')
+src.append(addon/'YandexIdentityDivergenceGate.java')
 subprocess.run(['java','com.sun.tools.javac.Main','-encoding','UTF-8','-source','8','-target','8','-cp',str(json),'-d',str(out),*map(str,src)],check=True)
 subprocess.run(['java','-cp',str(out)+os.pathsep+str(json),'pro.celikom.nativeprobe.identitydiag.TestEngine'],check=True,timeout=45)
 
@@ -44,6 +46,7 @@ subprocess.run(['java','-cp',str(out)+os.pathsep+str(json),'pro.celikom.nativepr
 
 subprocess.run(['java','-cp',str(out)+os.pathsep+str(json),'pro.celikom.nativeprobe.identitydiag.Test72SourceSnapshotConsistency'],check=True,timeout=45)
 subprocess.run(['java','-cp',str(out)+os.pathsep+str(json),'pro.celikom.nativeprobe.identitydiag.Test75FrameworkTransportPolicy'],check=True,timeout=45)
+subprocess.run(['java','-cp',str(out)+os.pathsep+str(json),'pro.celikom.nativeprobe.identitydiag.Test76YandexIdentityDivergenceGate'],check=True,timeout=45)
 
 # Protect the owner-approved 0.3.78 local-cache startup and cached user-seek behavior.
 subprocess.run(['java','-cp',str(out)+os.pathsep+str(json),'pro.celikom.nativeprobe.identitydiag.TestCachedAudioRollback'],check=True,timeout=45)
