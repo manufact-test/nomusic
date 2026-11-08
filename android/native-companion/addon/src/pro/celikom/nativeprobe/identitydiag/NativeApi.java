@@ -10,7 +10,7 @@ import java.util.concurrent.*;
 /** One serialized transport for refresh rotation; no embedded user/API credentials. */
 final class NativeApi {
  interface Result {void done(JSONObject result,String error);}
- volatile boolean revoking;volatile long accountGeneration;volatile long configValidatedAt=-1;static NativeApi singleton;final SecureSession session;final Context context;final ExecutorService work=Executors.newSingleThreadExecutor();final ExecutorService catalogueWork=Executors.newSingleThreadExecutor();final ExecutorService audioWork=Executors.newSingleThreadExecutor();final ExecutorService lookaheadAudioWork=Executors.newSingleThreadExecutor();final ExecutorService foregroundStreamWork=Executors.newSingleThreadExecutor();final java.util.concurrent.atomic.AtomicInteger foregroundAudioDemand=new java.util.concurrent.atomic.AtomicInteger();final ExecutorService contributions=Executors.newSingleThreadExecutor();final Handler main=new Handler(Looper.getMainLooper());
+ volatile boolean revoking;volatile long accountGeneration;volatile long configValidatedAt=-1;static NativeApi singleton;final SecureSession session;final Context context;final ExecutorService work=Executors.newSingleThreadExecutor();final ExecutorService catalogueWork=Executors.newSingleThreadExecutor();final ExecutorService audioWork=Executors.newSingleThreadExecutor();final ExecutorService lookaheadAudioWork=Executors.newSingleThreadExecutor();final ExecutorService foregroundStreamWork=Executors.newSingleThreadExecutor();final java.util.concurrent.atomic.AtomicInteger foregroundAudioDemand=new java.util.concurrent.atomic.AtomicInteger();final ExecutorService contributions=Executors.newSingleThreadExecutor();final Handler main=new Handler(Looper.getMainLooper());final ResolveLaneRouter resolveLanes=new ResolveLaneRouter(Executors.newSingleThreadExecutor(),Executors.newSingleThreadExecutor());
  static synchronized NativeApi get(Context c){if(singleton==null)singleton=new NativeApi(c);return singleton;}
  NativeApi(Context c){context=c.getApplicationContext();session=new SecureSession(c);}
  volatile long diagnosticUntil,diagnosticGeneration=-1,nextDiagnosticCheck;volatile boolean diagnosticBusy;
@@ -89,7 +89,7 @@ final class NativeApi {
    if(code<200||code>=300){String e=j.optString("error","api_http_error");throw new Exception(e.matches("[a-z0-9_]{1,80}")?e:"api_http_error");}return j;
   }catch(Exception failure){IncidentJournal.transportFailure(context,path,failure,SystemClock.elapsedRealtime()-start,observedHttp>=0);throw failure;}finally{c.disconnect();}
  }
- String access()throws Exception {if(revoking)throw new Exception("login_required");JSONObject s=session.read();if(s.optString("refresh_token").isEmpty())throw new Exception("login_required");if(s.optLong("access_until_ms")<System.currentTimeMillis()+30000){try{s=request("auth/refresh",new JSONObject().put("refresh_token",s.getString("refresh_token")).put("installation_id",session.installation()),null);session.save(s);}catch(Exception e){if("invalid_session".equals(e.getMessage()))session.clear();throw e;}}return s.getString("access_token");}
+ synchronized String access()throws Exception {if(revoking)throw new Exception("login_required");JSONObject s=session.read();if(s.optString("refresh_token").isEmpty())throw new Exception("login_required");if(s.optLong("access_until_ms")<System.currentTimeMillis()+30000){try{s=request("auth/refresh",new JSONObject().put("refresh_token",s.getString("refresh_token")).put("installation_id",session.installation()),null);session.save(s);}catch(Exception e){if("invalid_session".equals(e.getMessage()))session.clear();throw e;}}return s.getString("access_token");}
  JSONObject authenticated(String path,JSONObject body)throws Exception{return request(path,body,access());}
  void login(String email,String password,Result r){submit("login",()->{JSONObject j=request("auth/login",new JSONObject().put("email",email.trim()).put("password",password).put("installation_id",session.installation()),null);if(j.has("access_token")){session.save(j);accountGeneration++;revoking=false;resetDiagnostics();notifyAudioAccountChange();}return new JSONObject().put("verification_required",j.optBoolean("verification_required",false)).put("signedIn",j.has("access_token"));},r);}
  void verify(String email,String code,Result r){submit("verify_email",()->{JSONObject j=request("auth/verify-email",new JSONObject().put("email",email.trim()).put("code",code.trim()).put("installation_id",session.installation()),null);session.save(j);accountGeneration++;revoking=false;resetDiagnostics();notifyAudioAccountChange();return new JSONObject().put("signedIn",true);},r);}
@@ -134,10 +134,39 @@ final class NativeApi {
   configValidatedAt=SystemClock.elapsedRealtime();
  }
  void resolve(String id,Result r){resolve(id,()->true,r);}
- void resolve(String id,java.util.function.BooleanSupplier current,Result result){final long account=accountGeneration;java.util.function.BooleanSupplier valid=()->!revoking&&account==accountGeneration&&current.getAsBoolean();
-  submit("resolve",()->{if(!valid.getAsBoolean())throw new Exception("lookup_cancelled");if(id==null||!id.matches("[1-9][0-9]{0,23}"))throw new Exception("invalid_track");checkedConfig(valid);if(!valid.getAsBoolean())throw new Exception("lookup_cancelled");
-   // Refresh token rotation remains serialized and must finish even if the song changes.
-   String token=access();if(!valid.getAsBoolean())throw new Exception("lookup_cancelled");JSONObject j=request("resolve?audio_formats=mp3,m4a&service=yandex&track_id="+id,null,token,valid);if(j.optBoolean("found"))ApiContract.audio(j,System.currentTimeMillis());return j;},result);
+ void resolve(String id,java.util.function.BooleanSupplier current,Result result){
+  resolveInLane(id,current,result,false);
+ }
+ void resolveLookahead(String id,java.util.function.BooleanSupplier current,Result result){
+  resolveInLane(id,current,result,true);
+ }
+ /* A speculative HTTP resolve used to occupy the same serialized worker as
+  * the audible song. Keep refresh-token rotation synchronized, but give the
+  * current source its own network lane, while holding queued lookahead. */
+ void resolveInLane(String id,java.util.function.BooleanSupplier current,Result result,boolean speculative){
+  final long account=accountGeneration,queuedAt=SystemClock.elapsedRealtime();
+  java.util.function.BooleanSupplier valid=()->!revoking&&account==accountGeneration&&current.getAsBoolean();
+  resolveLanes.submit(speculative,()->{
+   JSONObject response=null;String error=null;
+   try{
+    if(!valid.getAsBoolean())throw new Exception("lookup_cancelled");
+    if(id==null||!id.matches("[1-9][0-9]{0,23}"))throw new Exception("invalid_track");
+    checkedConfig(valid);
+    if(!valid.getAsBoolean())throw new Exception("lookup_cancelled");
+    String token=access();
+    if(!valid.getAsBoolean())throw new Exception("lookup_cancelled");
+    response=request("resolve?audio_formats=mp3,m4a&service=yandex&track_id="+id,null,token,valid);
+    if(response.optBoolean("found"))ApiContract.audio(response,System.currentTimeMillis());
+   }catch(Exception e){
+    error=e.getMessage();
+    if(error==null||!error.matches("[a-z0-9_]{1,80}"))error="network_or_response_error";
+   }
+   final JSONObject out=response;final String fail=error;
+   LogStore.log("backend_result",LogStore.map("operation",speculative?"resolve_lookahead":"resolve",
+    "ok",fail==null,"errorCode",fail,"lane",speculative?"speculative":"current",
+    "operationElapsedMs",SystemClock.elapsedRealtime()-queuedAt));
+   main.post(()->result.done(out,fail));
+  });
  }
  interface StreamResult {void done(BufferedAudio source,String error);}
  void stream(JSONObject descriptor,java.util.function.BooleanSupplier valid,StreamResult result){stream(descriptor,valid,-1,-1,result);}
