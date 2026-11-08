@@ -12,6 +12,12 @@ Direct AndroidX Media3 attached to Yandex `Media3LibraryService` eventually stay
 4. While mismatch persists, the notification now says `Обновляем сведения о песне · играет оригинал` instead of misleadingly blaming Yandex for not playing. A revoked notification permission cannot authorize unverified playback. No Play Protect bypass.
 5. Added deterministic host tests replaying old «Биг сити лайф» versus new «Дым», healthy track, cooldown, permission revoked, multiple sessions, and stale framework state.
 
+## Verified build result (CI, not phone)
+
+**Build source SHA:** `654cbdac2eb85c414d4d8e9396c28a4244b64204`. [Actions run 42528845789](https://github.com/manufact-test/nomusic/actions/runs/42528845789): native Android validation SUCCESS; isolated Test.76 APK build/signature verification SUCCESS. Stable release and OTA publication **skipped**.
+
+**Signed APK:** `CELIKOM-Android-0.3.85-TEST-76-VERIFIED-RECOVERY-SIGNED.apk`, package `pro.celikom.nativeprobe.test`, version `0.3.85-test.76`, code `86162`, bytes `8911001`, SHA256 `b79d22ea2f903196e7e79adfea1f1307a7386bb21194264e08ace2419cd3bf3b`. Original signer SHA256 `67fe81c56fac1c1d145344b69a0e3faf9005cf6607f4e26ca27d5926c3eefc4f`, v3 verified and original signer match. CI receipt `CELIKOM-Android-0.3.85-TEST-76-VERIFIED-RECOVERY-RECEIPT.json` recorded physical_phone_playback_verified=false. APK backed up to ChatGPT Library `/CELIKOM/Android/Test/CELIKOM-Android-0.3.85-TEST-76-VERIFIED-RECOVERY-SIGNED.apk` (`libfile_e17565b4efb8819184f1efdbac88cf15`). **No claim pause/seek or source handoff is fixed on HONOR yet**.
+
 ## What is NOT proven
 No actual signed Test.76 handset test has confirmed fresh probe connects to the new track. Yandex may reject the parallel connection with `SecurityException` or return the same stale item. In that case the system **stays original**, logging `source_framework_fresh_probe` with `connected=false` / `identityVerified=false`. Do not claim pause/seek is fixed. This path still requires opt-in Notification Access and is therefore a **test-only** architecture, not an acceptable default for mass distribution without a separate privacy/distribution design.
 
