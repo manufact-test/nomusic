@@ -1,0 +1,50 @@
+name: CELIKOM Blur — independent production audit of both 50-track batches
+on:
+  push:
+    branches: [feature/blur-batch100-20261108]
+    paths: ['.github/workflows/blur-batch100-postcheck.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: celikom-blur-100-postcheck-readonly
+  cancel-in-progress: false
+jobs:
+  audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Check syntax and pinned target count
+        shell: bash
+        run: |
+          set -euo pipefail
+          php -l tools/blur-batch100/check-live100-readonly.php
+          jq -e '.target_pending==100 and (.selected|length)==100' tools/blur-batch100/fixed-plan100.json
+      - name: Audit all 100 live rows, audio assets, catalogue, authenticated resolve and signed Range
+        env:
+          HOST_KEY: ${{ secrets.CELIKOM_HOSTINGER_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.CELIKOM_HOSTINGER_KNOWN_HOSTS }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p "$RUNNER_TEMP/private"
+          printf '%s\n' "$HOST_KEY" > "$RUNNER_TEMP/private/key"
+          printf '%s\n' "$KNOWN_HOSTS" > "$RUNNER_TEMP/private/known_hosts"
+          chmod 600 "$RUNNER_TEMP/private/"*
+          ssh -p 65002 -i "$RUNNER_TEMP/private/key" -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$RUNNER_TEMP/private/known_hosts" \
+            u235811320@92.113.19.189 '/opt/alt/php83/usr/bin/php -d display_errors=stderr' < tools/blur-batch100/check-live100-readonly.php | tee "$RUNNER_TEMP/celikom-live100-audit.json"
+          jq -e '.pass==true and .checked==100 and .asset_verified==100 and .missing==0 and .duplicate_versions==0 and (.issues|length)==0 and .writes==0' "$RUNNER_TEMP/celikom-live100-audit.json"
+          echo '### Live read-only verification of the two 50-song batches' >> "$GITHUB_STEP_SUMMARY"
+          cat "$RUNNER_TEMP/celikom-live100-audit.json" >> "$GITHUB_STEP_SUMMARY"
+      - name: Retain verification summary
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: celikom-live100-postcheck-${{ github.run_id }}
+          path: ${{ runner.temp }}/celikom-live100-audit.json
+          if-no-files-found: ignore
+          retention-days: 90
