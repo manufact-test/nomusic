@@ -27,7 +27,7 @@ try {
         throw new RuntimeException('unexpected_storage_environment');
     $manifest=json_decode(file_get_contents($stage.'/selected.json'),true,512,JSON_THROW_ON_ERROR);
     $entries=$manifest['selected']??null;
-    if(!is_array($entries) || (count($entries)<1 || count($entries)>50) || ($manifest['target_pending']??null)!==50
+    if(!is_array($entries) || (count($entries)<1 || count($entries)>50) || ($manifest['target_pending']??null)!==count($entries)
        || ($manifest['source_commit']??'')!=='10187b7af56f311fe141a3c9b75483798bf0f589')
         throw new RuntimeException('invalid_fifty_manifest');
     $pdo=\Celikom\Database\Connection::open($cfg);
