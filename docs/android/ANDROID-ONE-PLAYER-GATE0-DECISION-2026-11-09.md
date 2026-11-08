@@ -24,3 +24,10 @@
 4. If (1) cannot be sourced, investigate a first-party independent client under explicit user approval. It cannot promise to retain the installed stock Yandex interface.
 
 **Verified CI:** [run #42532088126 — SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/42532088126), host JDK compile + 12 source-gate scenarios + legacy-dependency scan passed. No signed APK, live HONOR ID trace or Play Protect verdict is available. CI checks only source decision behavior.
+
+## 2026-11-09 — completed Android lab APK build
+
+- **CI PASS:** [Android single-player lab build #42532598788](https://github.com/manufact-test/nomusic/actions/runs/42532598788) at code SHA `a17da94a3ef61886f7e8b1df1e39ee8eb5755ea0`. JDK source-gate tests passed, Android SDK 35 Gradle assembled the debug APK, manifest sensitive-permission grep passed, SHA256 recorded, artifact upload passed.
+- [GitHub Actions artifact (debug APK)](https://github.com/manufact-test/nomusic/actions/runs/42532598788/artifacts/13637703961), artifact ZIP SHA256 per GitHub digest `46bb56b3f389945fbf373e9f42d441a5dd0868244039d28d37bea0714f745bcc` (ZIP digest, **not APK hash**). Retention through 2026-11-15 UTC. This is a *debug signed* standalone laboratory APK despite workflow artifact name saying 'unsigned-for-research'; it is **not a release signature** and cannot replace official Yandex Music.
+- The lab is a single-MediaPlayer Android Activity that lets a tester pick two user-owned audio files via the system picker, simulate catalog+edition IDs, choose a verified cached source before start, pause, seek, and release old playback on Next. Metadata duration comes from `MediaMetadataRetriever` (not a second player).
+- **No Yandex interface integration / no real in-process ID evidence / no Play Protect on-device verdict**. Gate 1 for modified Yandex still blocked. The lab is ready for *optional separate-device* hands-on evaluation; never tell owner to uninstall or alter official Yandex for this.
