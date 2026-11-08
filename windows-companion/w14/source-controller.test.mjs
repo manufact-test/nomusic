@@ -54,7 +54,7 @@ test("off by default, SDK receives exactly ONE map and no second player",async()
   x.controller.enable();
   await x.controller.flush();
   assert.deepEqual(x.calls.filter(c=>c[0]==="set").map(c=>Object.keys(c[1])),[["123"]]);
-  assert.equal(x.controller.status,"REPLACEMENT_SET");
+  assert.equal(x.controller.status,"SDK_MAPPING_ACCEPTED");
   await x.controller.dispose();
   assert.equal(x.calls.at(-1)[0],"clear");
 });
@@ -120,6 +120,6 @@ test("SDK setter failure is not reported as active replacement",async()=>{
   const x=fixture();
   x.api.client.setTrackReplacements=async()=>{throw Error("synthetic sdk failure")};
   await x.controller.start();x.controller.enable();await x.controller.flush();
-  assert.notEqual(x.controller.status,"REPLACEMENT_SET");
+  assert.notEqual(x.controller.status,"SDK_MAPPING_ACCEPTED");
   await x.controller.dispose();
 });

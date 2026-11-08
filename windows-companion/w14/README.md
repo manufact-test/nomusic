@@ -1,6 +1,6 @@
 # W14 — source-only candidate against PulseSync add-on API
 
-**Status: CODE CANDIDATE + UNIT TESTS; NOT live Yandex, NOT installable Companion.**
+**Status: CODE CANDIDATE + UNIT TESTS; NOT live Yandex, NOT installable Companion.** A successful SDK mapping call is recorded as `SDK_MAPPING_ACCEPTED`, **not** proof of audible replacement. A rejected SDK call never marks active mapping.
 
 This directory starts the actual **CELIKOM adapter** for the third-party PulseSync add-on contract rather than another Chromium/ASAR synthetic renderer. It is independent JavaScript, with no third-party runtime bundled or licenses copied. No user account token, browser profile, audio sample, official executable or network endpoint is accessed. The host contract is based on the checked-in public FckCensor SDK bridge and PulseSync-mod WebHost runtime.
 

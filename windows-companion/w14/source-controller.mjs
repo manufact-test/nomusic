@@ -65,10 +65,10 @@ export function createCelikomSourceController({ api, resolve, allowedOrigin, now
   let state = "OFF";
 
   function queueWrite(kind, id, url, revision) {
-    const job = writes.catch(() => {}).then(async () => {
-      if (disposed && kind === "set") return;
+    const job = writes.catch(() => false).then(async () => {
+      if (disposed && kind === "set") return false;
       if (kind === "set" && (revision !== generation || !enabled ||
-                             current !== id || originalFor === id)) return;
+                             current !== id || originalFor === id)) return false;
       if (kind === "clear") {
         await api.client.clearTrackReplacements();
       } else {
@@ -76,8 +76,9 @@ export function createCelikomSourceController({ api, resolve, allowedOrigin, now
         // If Next/Stop/Original happened while SDK awaited the write,
         // a later clear is queued by that transition.
       }
+      return true;
     });
-    writes = job.catch(() => { state = "HOST_ERROR"; });
+    writes = job.catch(() => { state = "HOST_ERROR"; return false; });
     return writes;
   }
 
@@ -107,8 +108,9 @@ export function createCelikomSourceController({ api, resolve, allowedOrigin, now
             revision !== generation || current !== requestedId) return;
         const url = validateCelikomGrant(grant, requestedId, allowedOrigin, now());
         if (!url) { state = "ORIGINAL"; return; }
-        await queueWrite("set", requestedId, url, revision);
-        if (revision === generation && enabled && !disposed) state = "REPLACEMENT_SET";
+        const accepted = await queueWrite("set", requestedId, url, revision);
+        if (accepted && revision === generation && enabled && !disposed)
+          state = "SDK_MAPPING_ACCEPTED";
       }).catch(() => {
         if (revision === generation && !disposed) state = "ORIGINAL";
       });
