@@ -92,6 +92,22 @@ try {
        WHERE t.service='yandex'
        GROUP BY a.id
        HAVING COUNT(DISTINCT t.id)>1 LIMIT 40")->fetchAll(PDO::FETCH_ASSOC);
+    $sharedFileLinks=$pdo->query("SELECT LEFT(a.sha256,12) AS asset_sha_prefix,
+          t.service_track_id,t.title,t.artist,t.duration_ms AS source_ms,
+          a.duration_ms AS file_ms,r.id AS replacement_id,r.status,r.is_active,
+          r.created_at AS replacement_created_at
+        FROM audio_assets a
+        JOIN track_replacements r ON r.audio_asset_id=a.id
+        JOIN tracks t ON t.id=r.track_id
+        WHERE a.id IN (
+          SELECT r2.audio_asset_id
+          FROM track_replacements r2 JOIN tracks t2 ON t2.id=r2.track_id
+          WHERE t2.service='yandex'
+          GROUP BY r2.audio_asset_id HAVING COUNT(DISTINCT t2.id)>1
+        ) AND t.service='yandex'
+        ORDER BY a.id,t.service_track_id,r.id LIMIT 100")->fetchAll(PDO::FETCH_ASSOC);
+    $replacementStatusNow=$pdo->query("SELECT r.status,r.is_active,COUNT(*) AS n
+       FROM track_replacements r GROUP BY r.status,r.is_active")->fetchAll(PDO::FETCH_ASSOC);
     $durationOutliers=$pdo->query("SELECT t.service_track_id,t.title,t.artist,
           t.duration_ms AS source_ms,a.duration_ms AS file_ms,
           r.id AS replacement_id,r.status,r.is_active,r.created_at AS replacement_created_at
@@ -120,6 +136,8 @@ try {
       'multiple_replacements_same_track'=>$multipleVersions,
       'audio_assets_shared_across_different_track_ids_count'=>count($sharedFiles),
       'audio_assets_shared_across_different_track_ids'=>$sharedFiles,
+      'shared_audio_file_per_track_and_status'=>$sharedFileLinks,
+      'replacement_status_now'=>$replacementStatusNow,
       'duration_outliers_with_status'=>$durationOutliers,
       'replacement_vs_source_duration_gt1500ms_count'=>count($assetDurationProblems),
       'replacement_vs_source_duration_gt1500ms_examples'=>array_slice($assetDurationProblems,0,40),
