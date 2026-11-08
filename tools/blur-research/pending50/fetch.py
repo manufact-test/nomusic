@@ -9,7 +9,7 @@ state=pathlib.Path(sys.argv[2]).resolve()
 assert audio.is_dir() and state.is_dir() and not audio.is_symlink()
 data=json.loads(pathlib.Path('tools/blur-research/pending48-20261109.json').read_text(encoding='utf-8'))
 rows=data['selected']
-assert data['source_commit']=='multisource-20261109' and len(rows)==48 and len(set(r['id'] for r in rows))==50
+assert data['source_commit']=='multisource-20261109' and len(rows)==48 and len(set(r['id'] for r in rows))==48
 assert sum(r['size'] for r in rows)<500000000
 for i,r in enumerate(rows,1):
  tid=r['id']
