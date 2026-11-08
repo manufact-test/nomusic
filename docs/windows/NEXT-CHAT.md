@@ -1,6 +1,6 @@
 # CELIKOM Windows Companion — NEXT-CHAT
 
-**Updated 2026-11-08. W10 OWNER confirmed EXE/ASAR integrity ENABLED + MATCH. W11 private pipe isolated Electron PASSED (6/6 and 33/33); no live official integration.**
+**Updated 2026-11-08. W10 real EXE/ASAR integrity ENABLED/MATCH (official ASAR patch NO-GO); W11 private pipe isolated PASS; W12 generic Electron single-instance isolation under CI.**
 
 ## Objective
 Official Windows Yandex Music is the ONLY owner of audio, pause, seek, next, queue,
@@ -342,3 +342,14 @@ SUCCESS, source `a953ed992b4952bbcc7aec725c659d2e98010002`.
   and fail closed on single-instance handoff, account screen or
   app update; do NOT do it without explicit owner permission.
 - No new test ZIP required at W11 stage; installed client untouched.
+
+## W12: same-profile collision is a risk, not proof of official separation
+
+Read `docs/windows/W12-SINGLE-INSTANCE-ISOLATION-20261108.md`.
+- Current owner's installed official Yandex is RUNNING and authenticated state is not to be inspected. No official EXE was launched for W12.
+- Electron `requestSingleInstanceLock` can forward second launch into existing primary. Do not assume `--user-data-dir` ensures separate official Yandex profile/process.
+- `windows-companion/w12/official-launch-gate.mjs`: real app launch / signed ASAR changes / opening authenticated debugger explicitly forbidden. Pure synthetic tests check refusal.
+- W12 disposable generic Electron fixture experiments with same synthetic profile vs different synthetic profile and real `second-instance` forwarding; CI verification PENDING until logged.
+- W12 tested code restricted to `windows-companion/w12/`, `windows-companion/w5/package.json`, workflow and docs.
+- Pre-W12 verified backup ref: `backup/windows-w11-verified-before-w12-20261108` at `2e4134554843a416181153d01bc4df06bdf5590f`.
+- Do NOT ask owner to run another W10 read-only scanner. No new owner ZIP needed for W12. No live source swap yet.

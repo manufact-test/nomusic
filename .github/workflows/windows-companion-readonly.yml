@@ -1,4 +1,4 @@
-name: Windows Companion — W11 sealed pipe sidecar & W10 integrity gate
+name: Windows Companion — W12 single-instance isolation & W11 pipe
 
 on:
   workflow_dispatch:
@@ -23,6 +23,8 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: W12 fail-closed official-launch policy (synthetic only)
+        run: node --test windows-companion/w12/official-launch-gate.test.mjs
       - name: W11 private pipe target and CDP framing policy
         run: node --test windows-companion/w11/pipe-protocol.test.mjs
       - name: W8 one-decoder fallback and async Next fencing contract
@@ -50,6 +52,9 @@ jobs:
       - name: W7 external sidecar attach inside disposable local Electron (not official Yandex)
         working-directory: windows-companion/w5
         run: npm run w7
+      - name: W12 genuine generic Electron single-instance collision with isolated temp profiles
+        working-directory: windows-companion/w5
+        run: npm run w12
       - name: W11 external private pipe to disposable synthetic Electron, W4-W8 live media regression
         working-directory: windows-companion/w5
         run: npm run w11
