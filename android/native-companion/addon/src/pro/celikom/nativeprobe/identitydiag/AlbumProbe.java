@@ -13,9 +13,63 @@ final class AlbumProbe {
  final IdentityCache cache;JSONObject ownCatalog=new JSONObject();Map<String,Object> lastObservation;final Map<String,String> albumOrigins=new HashMap<>();final ProbeService owner;final ExecutorService executor=Executors.newFixedThreadPool(2);
  final RequestBudget budget=new RequestBudget();final Set<String> pendingAlbums=new HashSet<>();final Set<HttpsURLConnection> connections=Collections.synchronizedSet(new HashSet<>());
  final Map<String,List<Map<String,Object>>> albums=new LinkedHashMap<>();final Map<String,Map<String,Object>> observations=new LinkedHashMap<>();final Map<String,Map<String,Object>> resolutions=new LinkedHashMap<>();final Map<String,Map<String,Object>> lookaheadObservations=new LinkedHashMap<>();final Set<String> lookaheadResolvedKeys=new HashSet<>();long albumCatalogRevision;final List<Map<?,?>> references=new ArrayList<>();final Set<String> comparisons=new HashSet<>();
+ final File liveCatalogueFile;boolean liveCatalogueFetchPending;
+ long nextLiveCatalogueFetchAt;
  String publishedKey="";Map<String,Object> publishedDecision;
  volatile int pending,completed,resolved;volatile boolean closed;int requests,retries;long lastRetry,lastNetworkRetry;int networkRetries;
- AlbumProbe(ProbeService owner){this.owner=owner;cache=new IdentityCache(new File(owner.getFilesDir(),"identity-albums.json"));albums.putAll(cache.load());for(String id:albums.keySet())albumOrigins.put(id,"PERSISTENT_ALBUM_CACHE");try(InputStream in=owner.getAssets().open("catalog-diagnostic.json");ByteArrayOutputStream bytes=new ByteArrayOutputStream()){byte[] b=new byte[8192];int n;while((n=in.read(b))!=-1){if(bytes.size()+n>10000000)throw new IOException("Own catalogue too large");bytes.write(b,0,n);}ownCatalog=new JSONObject(new String(bytes.toByteArray(),StandardCharsets.UTF_8));}catch(Exception e){LogStore.error("own_catalogue_load",e);}LogStore.log("identity_cache_loaded",LogStore.map("albums",albums.size(),"ownSnapshotGeneratedAtMs",ownCatalog.optLong("generated_at_ms"),"ownSnapshotRows",ownCatalog.optJSONArray("tracks")==null?0:ownCatalog.optJSONArray("tracks").length(),"cacheIsPlaybackAuthorization",false));networkState();LogStore.log("album_probe_policy",LogStore.map("endpoint","https://api.music.yandex.net/albums/{albumId}/with-tracks","authentication","none","sentData","album ID only; no song titles, account data or credentials","matching","strict title/artist + duration <=1000ms, album constrained; ambiguity is not resolved automatically","minimumRequestIntervalMs",RequestBudget.MIN_INTERVAL_MS,"sameAlbumRetryMs",RequestBudget.RETRY_MS,"cumulativeRequestLimit",false,"maxResponseBytes",3145728));}
+ AlbumProbe(ProbeService owner){this.owner=owner;liveCatalogueFile=new File(owner.getFilesDir(),"catalog-live.json");cache=new IdentityCache(new File(owner.getFilesDir(),"identity-albums.json"));albums.putAll(cache.load());for(String id:albums.keySet())albumOrigins.put(id,"PERSISTENT_ALBUM_CACHE");try(InputStream in=owner.getAssets().open("catalog-diagnostic.json");ByteArrayOutputStream bytes=new ByteArrayOutputStream()){byte[] b=new byte[8192];int n;while((n=in.read(b))!=-1){if(bytes.size()+n>10000000)throw new IOException("Own catalogue too large");bytes.write(b,0,n);}ownCatalog=new JSONObject(new String(bytes.toByteArray(),StandardCharsets.UTF_8));}catch(Exception e){LogStore.error("own_catalogue_load",e);}
+  JSONObject cached=LiveCatalogueStore.load(liveCatalogueFile,System.currentTimeMillis());
+  if(cached!=null&&cached.optLong("generated_at_ms",0)>ownCatalog.optLong("generated_at_ms",0))
+   ownCatalog=cached;
+  LogStore.log("identity_cache_loaded",LogStore.map("albums",albums.size(),"ownSnapshotGeneratedAtMs",ownCatalog.optLong("generated_at_ms"),"ownSnapshotRows",ownCatalog.optJSONArray("tracks")==null?0:ownCatalog.optJSONArray("tracks").length(),"cacheIsPlaybackAuthorization",false));networkState();LogStore.log("album_probe_policy",LogStore.map("endpoint","https://api.music.yandex.net/albums/{albumId}/with-tracks","authentication","none","sentData","album ID only; no song titles, account data or credentials","matching","strict title/artist + duration <=1000ms, album constrained; ambiguity is not resolved automatically","minimumRequestIntervalMs",RequestBudget.MIN_INTERVAL_MS,"sameAlbumRetryMs",RequestBudget.RETRY_MS,"cumulativeRequestLimit",false,"maxResponseBytes",3145728));}
+
+
+ /** The user never has to request a new APK when an approved song is added.
+  * Called on the service main thread; throttled to 15 min while in use and
+  * retried after 2 min on transport failure. Playback remains independent. */
+ void refreshOwnCatalogue(){
+  if(closed||!owner.alive()||liveCatalogueFetchPending)return;
+  long now=SystemClock.elapsedRealtime();
+  if(now<nextLiveCatalogueFetchAt)return;
+  NativeApi api=NativeApi.get(owner);
+  if(!api.signedIn()){nextLiveCatalogueFetchAt=now+30000;return;}
+  liveCatalogueFetchPending=true;
+  nextLiveCatalogueFetchAt=now+15000;
+  api.fetchApprovedCatalogue((response,error)->{
+   liveCatalogueFetchPending=false;
+   if(closed||!owner.alive())return;
+   long completedAt=SystemClock.elapsedRealtime();
+   if(error!=null||response==null){
+    nextLiveCatalogueFetchAt=completedAt+120000;
+    LogStore.log("own_catalogue_auto_refresh",LogStore.map(
+      "status","unavailable_keep_previous","reason",error,"retryAfterMs",120000));
+    return;
+   }
+   try{
+    JSONObject fresh=LiveCatalogueStore.validate(response,System.currentTimeMillis());
+    long previousGenerated=ownCatalog.optLong("generated_at_ms",0);
+    if(!LiveCatalogueStore.save(liveCatalogueFile,fresh))
+     throw new IOException("catalogue_cache_write_failed");
+    ownCatalog=fresh;
+    nextLiveCatalogueFetchAt=completedAt+900000;
+    // Never tear down an audible decoder simply because metadata changed.
+    // If no replacement is active, let the newly approved song resolve now.
+    if(owner.replacement==null||owner.replacement.player==null){
+     publishedKey="";publishedDecision=null;publishCurrent();
+    }
+    LogStore.log("own_catalogue_auto_refresh",LogStore.map(
+     "status","success","rows",fresh.optInt("total_tracks"),
+     "generatedAtMs",fresh.optLong("generated_at_ms"),
+     "previousGeneratedAtMs",previousGenerated,
+     "transportCommandSent",false));
+   }catch(Exception invalid){
+    nextLiveCatalogueFetchAt=completedAt+120000;
+    LogStore.log("own_catalogue_auto_refresh",LogStore.map(
+     "status","invalid_keep_previous","reason",invalid.getClass().getSimpleName(),
+     "retryAfterMs",120000));
+   }
+  });
+ }
 
  void hybrid(Map<String,Object> o,Map<String,Object> primary,boolean pending){String title=String.valueOf(o.get("title")),artist=String.valueOf(o.get("artist"));long duration=((Number)o.get("durationMs")).longValue();List<Map<String,Object>> learnedRows=new ArrayList<>();for(List<Map<String,Object>> rows:albums.values())learnedRows.addAll(rows);Map<String,Object> own=HybridIdentity.own(ownCatalog,title,artist,duration,System.currentTimeMillis()),learned=HybridIdentity.metadata(title,artist,duration,learnedRows);Map<String,Object> decision=HybridIdentity.decide(primary,own,learned,pending);publishedKey=PlaybackSource.key(String.valueOf(o.get("mediaAlias")),o.get("albumId"),title,artist,duration);publishedDecision=decision;owner.onIdentity(o,decision);LogStore.log("hybrid_identity",LogStore.map("observation",o,"albumOrigin",albumOrigins.get(String.valueOf(o.get("albumId"))),"primary",primary,"ownCatalogue",own,"learnedCatalogue",learned,"decision",HybridIdentity.decide(primary,own,learned,pending)));
   if(!pending){Map<String,Object> noCover=HybridIdentity.decide(null,own,learned,false);Map<String,Object> missingOwn=HybridIdentity.own(ownCatalog,title,artist,0,System.currentTimeMillis()),missingLearned=HybridIdentity.metadata(title,artist,0,learnedRows);LogStore.log("fallback_scenarios",LogStore.map("simulation",true,"mediaAlias",o.get("mediaAlias"),"missingCover",noCover,"noNetwork",primary==null?noCover:HybridIdentity.decide(primary,own,learned,false),"missingDuration",HybridIdentity.decide(null,missingOwn,missingLearned,false),"note","Counterfactual policy checks on observed metadata; not an actual network interruption"));}}
