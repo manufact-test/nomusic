@@ -11,6 +11,11 @@ final class NotificationState {
     stale?"Яндекс не обновляет трек · играет оригинал":
       "Яндекс загружает · играет оригинал",false);
  }
+ /** Yandex itself is playing; our remote Media3 observer is stale. */
+ static NotificationState yandexSourceResync(){
+  return new NotificationState("CELIKOM · переподключение",
+    "Обновляем сведения о песне · играет оригинал",false);
+ }
  static NotificationState of(AppPresentation.Input s,String title,String artist,boolean transportLost,boolean sessionLost,boolean exact,boolean hasReplacement){
   if(s.starting)return new NotificationState("CELIKOM","Подключаемся к Яндекс Музыке…",false);
   if(!s.signed)return new NotificationState("CELIKOM","Войдите в аккаунт CELIKOM",false);
