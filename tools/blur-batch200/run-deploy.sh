@@ -3,7 +3,7 @@
 # replays the same immutable IDs; it never selects a new hundred.
 set -euo pipefail
 test -n "${HOST_KEY:-}" && test -n "${KNOWN_HOSTS:-}"
-test -f tools/blur-batch200/fixed-plan100.json
+test -f tools/blur-batch200/fixed-plan200.json
 umask 077
 mkdir -p "$RUNNER_TEMP/private" "$RUNNER_TEMP/twohundred-state" "$RUNNER_TEMP/audio"
 chmod 700 "$RUNNER_TEMP/private" "$RUNNER_TEMP/twohundred-state" "$RUNNER_TEMP/audio"
@@ -26,7 +26,7 @@ trap cleanup EXIT
 started="$(date +%s)"
 release_baseline="$(ssh "${ssh_args[@]}" "$host" "readlink -f '$base/current'")"
 [[ "$release_baseline" == "$base"/releases/* ]] || { echo UNSAFE_PRODUCTION_RELEASE;exit 2; }
-python3 tools/blur-batch200/fetch-fixed.py tools/blur-batch200/fixed-plan100.json "$RUNNER_TEMP/audio" "$RUNNER_TEMP/twohundred-state"
+python3 tools/blur-batch200/fetch-fixed.py tools/blur-batch200/fixed-plan200.json "$RUNNER_TEMP/audio" "$RUNNER_TEMP/twohundred-state"
 test "$(find "$RUNNER_TEMP/audio" -maxdepth 1 -type f -name '*.mp3' | wc -l)" -eq 200
 for batch in 1 2 3 4; do
   stage="$base/incoming/blur-fifty-$((GITHUB_RUN_ID*10+batch))"
