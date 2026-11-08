@@ -87,6 +87,7 @@ try {
      'range_206'=>0,'duplicate_versions'=>0,'inconsistencies'=>[],'writes'=>0];
   $auth='Bearer '.(string)($cfg['test_api_token']??'');
   foreach($ids as $id=>$expectedRid) {
+    $id=(string)$id; // PHP converts numeric-looking array keys to integers.
     $qrows=[];$query->execute([$id]);
     while($r=$query->fetch(PDO::FETCH_ASSOC))$qrows[]=$r;
     if(!$qrows){$summary['missing']++;$summary['inconsistencies'][]=['id'=>$id,'reason'=>'track_missing'];continue;}
