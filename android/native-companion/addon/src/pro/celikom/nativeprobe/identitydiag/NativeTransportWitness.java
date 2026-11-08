@@ -27,11 +27,11 @@ final class NativeTransportWitness {
   }
  }
  private String alias,track;
- private boolean quarantined,initialReported,seekEarlyReported,seekLateReported;
+ private boolean quarantined,initialReported,unavailableReported,seekEarlyReported,seekLateReported;
  private long mismatchSince=-1,seekAt=-1,seekTarget=-1;
  private int seekNumber;
  private void reset(String mediaAlias,String trackId){
-  alias=mediaAlias;track=trackId;quarantined=false;initialReported=false;
+  alias=mediaAlias;track=trackId;quarantined=false;initialReported=false;unavailableReported=false;
   seekEarlyReported=false;seekLateReported=false;mismatchSince=-1;
   seekAt=-1;seekTarget=-1;seekNumber=0;
  }
@@ -43,6 +43,13 @@ final class NativeTransportWitness {
  }
  boolean quarantined(String mediaAlias,String trackId){
   return watched(trackId)&&quarantined&&Objects.equals(alias,mediaAlias)&&Objects.equals(track,trackId);
+ }
+ /** Report missing secondary session once per watched song, not each 250ms tick. */
+ boolean noteUnavailable(String mediaAlias,String trackId){
+  if(!watched(trackId)||mediaAlias==null)return false;
+  if(!Objects.equals(alias,mediaAlias)||!Objects.equals(track,trackId))reset(mediaAlias,trackId);
+  if(unavailableReported)return false;
+  unavailableReported=true;return true;
  }
  int seekNumber(){return seekNumber;}
  Verdict observe(String mediaAlias,String trackId,boolean matchingMetadata,int platformState,
