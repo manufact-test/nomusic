@@ -15,6 +15,14 @@ Android 13 `MediaSessionManager.getActiveSessions` public API requires enabled n
 - In `ProbeService.sample`, policy runs after verified Test.72 cross-track metadata and after old media 3 session fence, but before `PlaybackSource` and `replacement.update`. A confirmed native seek calls the existing `replacement.sourceSeekRequested` event exactly as usual; no new direct decoder/player commands are made. `YandexSessionWitnessService.sample(c,rawMedia3)` continues to log raw remote values for A/B, not corrected ones.
 - `Test75FrameworkTransportPolicy` hosts RASKOL and «Дым» replay: two early seeks, hidden native pause, resume, original on revoke; good track remains unmodified, wrong artist/title/duration and duplicate sessions disallowed, stale buffering/paused rejected. Existing Test72, all Test73 regression/source-snapshot and packaging verifier remain required.
 
+## Verified signed delivery
+- **Accepted source SHA** `cf294892f1dc8b60c56038d19bfbbc5ff5192bab`.
+- [Full native regression + signed test CI: **SUCCESS** (42521506931)](https://github.com/manufact-test/nomusic/actions/runs/42521506931). All validation, final artifact verifier and signing passed. Source checked out by exact SHA from validated run.
+- APK `CELIKOM-Android-0.3.85-TEST-75-OPTIN-NATIVE-PAUSE-SEEK-SIGNED.apk`: **8,906,905 bytes**, SHA256 `44f2fdb3e491c9ac519938a9bfabff74af7453467a8a05a6c0b33fab5a21f407`; v3 signature verified with prior test cert SHA256 `67fe81c56fac1c1d145344b69a0e3faf9005cf6607f4e26ca27d5926c3eefc4f`. Installed stable not touched.
+- Personal Library verified upload: [APK](https://chatgpt.com/library?file_id=libfile_c09e72a838548191a4625c2206e238e0&account_id=personal), plus [verification JSON](https://chatgpt.com/library?file_id=libfile_4341f34d11f08191acdc5a140d38d31a&account_id=personal) and [receipt JSON](https://chatgpt.com/library?file_id=libfile_a8b705a37fc88191b0348399d52c1785&account_id=personal).
+- This signed APK is **NOT hardware-verified on HONOR** and **NOT approved as a production fix**. Android notification-listener access remains genuinely optional and sensitive. Do not ask owner to disable Play Protect.
+- Archive last known-good Test.73/74 is unchanged; no changes to stable 0.3.92/OTA/backend/library.
+
 ## Acceptance procedure on HONOR
 1. **Google Play Protect ENABLED.** Install signed Test.75 update over Test.74. If Android security blocks, **do not disable protections**; collect full exact warning and stop. For app's function, opt-in notification access to CELIKOM Test is required only if the user accepts granting Android's *broad* notification-listener privilege; it may be revoked at any time.
 2. With access, play one ordinary song and verify normal manual Pause and forward/back seek.
