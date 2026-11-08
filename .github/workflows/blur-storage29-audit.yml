@@ -1,0 +1,83 @@
+name: CELIKOM Blur — storage-only MP3 verification READ ONLY
+on:
+  push:
+    branches: [feature/blur-batch1000-20261108]
+    paths: ['.github/workflows/blur-storage29-audit.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 24
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Independently verify original pinned audio hashes, format, duplicate SHA256 and ID3
+        shell: bash
+        run: |
+          set -euo pipefail
+          command -v ffprobe
+          python3 - <<'PY'
+          import csv, pathlib, json, hashlib, tempfile, urllib.request, subprocess, time
+          input_file=pathlib.Path('docs/research/BLUR-29-STORAGE-ONLY-AUDIO-LEADS-2026-11-09.csv')
+          rows=list(csv.DictReader(input_file.open(encoding='utf-8')))
+          assert len(rows)==29
+          prior=list(csv.DictReader(open('docs/research/BLUR-MULTISOURCE-48-CANDIDATES-2026-11-08.csv',encoding='utf-8')))
+          known_sha={r['source_sha256']:r['track_id'] for r in prior}
+          results=[]
+          with tempfile.TemporaryDirectory() as tmp:
+            for row in rows:
+              tid=row['track_id']
+              rec={'track_id':tid,'git_blob':row['git_blob_sha1'],'size_expected':int(row['file_size_bytes']),'status':'pending','prior_48_id':row['in_prior_queues']}
+              path=pathlib.Path(tmp)/(tid+'.audio')
+              try:
+                req=urllib.request.Request(row['source_url'],headers={'User-Agent':'CELIKOM-storage29-independent-readonly'})
+                for attempt in range(3):
+                  try:
+                    with urllib.request.urlopen(req,timeout=65) as src, path.open('wb') as dst:
+                      size=0
+                      sha256=hashlib.sha256()
+                      gitsha=hashlib.sha1(b'blob '+str(rec['size_expected']).encode()+b'\\0')
+                      while chunk:=src.read(262144):
+                        size+=len(chunk)
+                        if size>27000000:raise ValueError('oversized')
+                        dst.write(chunk);sha256.update(chunk);gitsha.update(chunk)
+                    break
+                  except (OSError,TimeoutError):
+                    if attempt==2:raise
+                    time.sleep(3)
+                rec.update({'bytes':size,'sha256':sha256.hexdigest(),'git_blob_actual':gitsha.hexdigest()})
+                if size!=rec['size_expected'] or gitsha.hexdigest()!=rec['git_blob']:
+                  rec['status']='hash_mismatch'
+                else:
+                  m=subprocess.run(['file','-b','--mime-type',str(path)],text=True,capture_output=True,timeout=30)
+                  p=subprocess.run(['ffprobe','-v','error','-show_entries','format=duration,format_name:format_tags=artist,title','-of','json',str(path)],text=True,capture_output=True,timeout=50)
+                  info=json.loads(p.stdout) if p.returncode==0 and p.stdout.strip() else {}
+                  f=info.get('format',{})
+                  rec.update({'mime':m.stdout.strip(),'duration_s':f.get('duration'),'format_name':f.get('format_name'),'tags':f.get('tags',{}),'duplicate_48_id':known_sha.get(sha256.hexdigest())})
+                  rec['status']='valid_mp3' if m.stdout.strip()=='audio/mpeg' and 'mp3' in f.get('format_name','') else 'wrong_or_unreadable_format'
+              except Exception as exc:
+                rec.update({'status':'download_or_probe_error','error':type(exc).__name__,'error_detail':str(exc)[:160]})
+              finally:
+                path.unlink(missing_ok=True)
+              results.append(rec)
+              print('BLUR_STORAGE29 '+json.dumps(rec,ensure_ascii=False),flush=True)
+          by_sha={}
+          for rec in results:
+            if rec.get('sha256'):
+              by_sha.setdefault(rec['sha256'],[]).append(rec['track_id'])
+          dup={k:v for k,v in by_sha.items() if len(v)>1}
+          summary={'checked':len(results),'valid_mp3':sum(x['status']=='valid_mp3' for x in results),'has_artist_title':sum(bool(x.get('tags',{}).get('artist') and x.get('tags',{}).get('title')) for x in results),'duplicates_within_batch':dup,'duplicates_with_previous_48':sum(bool(x.get('duplicate_48_id')) for x in results),'writes':0}
+          pathlib.Path('blur-storage29-results.json').write_text(json.dumps({'summary':summary,'results':results},ensure_ascii=False,indent=2)+'\\n',encoding='utf-8')
+          print('BLUR_STORAGE29_SUMMARY '+json.dumps(summary,ensure_ascii=False),flush=True)
+          assert len(results)==29 and all(x['status']!='pending' for x in results)
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: blur-storage29-readonly-${{ github.run_id }}
+          path: blur-storage29-results.json
+          retention-days: 30
+          if-no-files-found: ignore
