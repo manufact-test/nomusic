@@ -33,7 +33,7 @@ jobs:
           printf '%s\n' "$KNOWN_HOSTS" > "$RUNNER_TEMP/private/known_hosts"
           chmod 600 "$RUNNER_TEMP/private/"*
           ssh -p 65002 -i "$RUNNER_TEMP/private/id_host" -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$RUNNER_TEMP/private/known_hosts" \
-            u235811320@92.113.19.189 'php' < tools/blur-batch50/check-approved-readonly.php | tee "$RUNNER_TEMP/approved-audit.json"
+            u235811320@92.113.19.189 '/opt/alt/php83/usr/bin/php -d display_errors=stderr' < tools/blur-batch50/check-approved-readonly.php | tee "$RUNNER_TEMP/approved-audit.json"
           jq -e '.read_only_verified==true and .approved_active==50 and .resolve_found==50 and .range_206==50 and .writes==0' "$RUNNER_TEMP/approved-audit.json"
           cat "$RUNNER_TEMP/approved-audit.json" >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v4
