@@ -212,7 +212,7 @@ try {
     const nativeAudio = document.createElement("audio"); document.body.append(nativeAudio);
     const nativeCore = Object.create(NativeCore.prototype), entity = { data: { meta: { id: "1001", durationMs: 8000 } }, mediaSourceData: {} };
     const v2 = resources.find(C => !C.prototype.getByteRange), nativeResource = instance(v2, "v2");
-    const appliedSources = [];
+    const appliedSources = []; let pausedSourceApply = Promise.resolve();
     const applySource = async ({ source, positionSec = 0 }, play) => {
       appliedSources.push({ requested: positionSec, live: nativeAudio.currentTime, at: performance.now() });
       source.vsid = "native-session-fixture"; source.sourceIndex = 0; source.positionSec = positionSec;
@@ -237,7 +237,7 @@ try {
         return new Source({ data: response.fileInfo, loadingTime: performance.now() });
       } },
       corePlay: { configurable: true, value: args => applySource(args, true) },
-      core: { value: { setSrc: args => applySource(args, false) } }
+      core: { value: { setSrc: args => { pausedSourceApply = applySource(args, false); return pausedSourceApply; } } }
     });
     const nativePlayback = Object.create(ActualPlayback.prototype);
     nativePlayback.playbackState = { queueState: { currentEntity: { value: { entity } } }, currentMediaPlayer: { value: nativeCore } };
@@ -277,6 +277,7 @@ try {
     await nativeSession.confirmSource(nativeAudio, null, new AbortController().signal);
     check(nativeAudio.currentSrc.startsWith(origin) && sessionPort.inspect().trackId === "1002", "Next does not reuse prior replacement for another ID");
     await nativeSession.configure(false, 4);
+    await pausedSourceApply;
     /* Trial A uses the actual stock reload with a delayed file-info request
        while the original audio clock continues advancing. */
     const get = nativeResource.httpClient.get;
