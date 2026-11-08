@@ -57,9 +57,9 @@ export function createCelikomSourceController({ api, resolve, allowedOrigin, now
       typeof api?.player?.onTrackChange !== "function" ||
       typeof api?.client?.setTrackReplacements !== "function" ||
       typeof api?.client?.clearTrackReplacements !== "function" ||
-      typeof allowedOrigin !== "string" ||
-      !(typeof allowedOrigin === "function" || allowedOrigin.startsWith("https://"))
-    throw new Error("W14_UNSUPPORTED_HOST_OR_BRIDGE");
+      !((typeof allowedOrigin === "string" && allowedOrigin.startsWith("https://")) ||
+        typeof allowedOrigin === "function"))
+    throw new Error("W15_UNSUPPORTED_HOST_OR_BRIDGE");
 
   let enabled = false, disposed = false, current = null, originalFor = null;
   let generation = 0, started = false, unsubscribe = () => {};
