@@ -1,0 +1,67 @@
+name: CELIKOM Blur bulk admin — READ ONLY live backend compatibility
+
+on:
+  push:
+    branches: [feature/blur-bulk-moderation-20261108]
+    paths: ['.github/workflows/blur-bulk-admin-live-preflight.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  compare-live-admin:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 7
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Compare live active PHP/CSS to pinned baseline (read only)
+        env:
+          HOST_KEY: ${{ secrets.CELIKOM_HOSTINGER_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.CELIKOM_HOSTINGER_KNOWN_HOSTS }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$HOST_KEY" && test -n "$KNOWN_HOSTS"
+          umask 077
+          mkdir -p "$RUNNER_TEMP/private"
+          printf '%s\n' "$HOST_KEY" > "$RUNNER_TEMP/private/id_host"
+          printf '%s\n' "$KNOWN_HOSTS" > "$RUNNER_TEMP/private/known_hosts"
+          chmod 600 "$RUNNER_TEMP/private/"*
+          TARGET=u235811320@92.113.19.189
+          BASE_SHA=f42e3ebfd46c6fe639619e848135ed79dd215be8
+          git fetch --no-tags --depth=1 origin "$BASE_SHA"
+          APP="$(ssh -p 65002 -i "$RUNNER_TEMP/private/id_host" -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$RUNNER_TEMP/private/known_hosts" "$TARGET" "python3 - <<'PY'
+          from pathlib import Path
+          home=Path('/home/u235811320/domains/darkred-camel-588676.hostingersite.com/celikom')
+          current=home/'current'
+          if not current.is_symlink(): raise SystemExit('active symlink missing')
+          release=current.resolve()
+          if not release.is_relative_to((home/'releases').resolve()):
+              raise SystemExit('unexpected active release target')
+          if not (release/'src'/'Admin'/'AdminPanel.php').is_file():
+              raise SystemExit('active admin source missing')
+          print(release)
+          PY
+          " )"
+          test -n "$APP"
+          echo 'PASS active private release location and symlink'
+          mismatch=0
+          for file in AdminPanel.php ModerationService.php admin-style.css; do
+            local_hash="$(git show "$BASE_SHA:server/src/Admin/$file" | sha256sum | cut -d' ' -f1)"
+            remote_hash="$(ssh -p 65002 -i "$RUNNER_TEMP/private/id_host" -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$RUNNER_TEMP/private/known_hosts" "$TARGET" "sha256sum '$APP/src/Admin/$file' | cut -d' ' -f1" )"
+            if [ "$local_hash" = "$remote_hash" ]; then
+              echo "PASS $file: live matches pinned moderation baseline"
+            else
+              echo "DRIFT $file: live differs; direct deployment MUST BE BLOCKED"
+              mismatch=1
+            fi
+          done
+          if ssh -p 65002 -i "$RUNNER_TEMP/private/id_host" -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$RUNNER_TEMP/private/known_hosts" "$TARGET" "test -e '$APP/migrations/019_bulk_moderation_tombstones.sql'"; then
+            echo 'Active release already contains migration 019; compare before deploying'
+            mismatch=1
+          fi
+          test "$mismatch" -eq 0 || exit 1
+          echo 'PASS read-only compatibility; no production writes'
