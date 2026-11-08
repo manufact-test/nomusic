@@ -88,6 +88,31 @@ def patch_test_sources(source_root):
         'TextView brand=label(header,"CELIKOM Test",19,FG);',
         "test app header label",
     )
+    # Test.74: opt-in Android notification-access read-only Yandex media session
+    # witness. UI is TEST-ONLY; no service auto-enables a permission.
+    replace_once(
+        activity,
+        'notificationPermission=button(box,"Включить уведомления CELIKOM",this::enableNotifications,false);notificationPermission.setTextSize(12);',
+        'notificationPermission=button(box,"Включить уведомления CELIKOM",this::enableNotifications,false);notificationPermission.setTextSize(12);'
+        'Button mediaWitness=button(box,"Проверить независимое управление Яндекса",this::showYandexWitnessAccess,false);mediaWitness.setTextSize(12);',
+        "test-only independent witness settings button",
+    )
+    replace_once(
+        activity,
+        ' void enableNotifications(){',
+        """ void showYandexWitnessAccess(){
+  new AlertDialog.Builder(this)
+   .setTitle("Диагностика управления Яндексом")
+   .setMessage("Для отдельной проверки паузы и перемотки Android попросит доступ ко ВСЕМ уведомлениям. CELIKOM Test не читает тексты уведомлений: только состояние медиасессии Яндекс.Музыки. Разрешение выдаёте и отзы́ваете вручную в настройках Android. На управление звуком эта проверка не влияет.")
+   .setNegativeButton("Отмена",null)
+   .setPositiveButton("Открыть настройки",(d,w)->{
+     try{startActivity(new Intent(android.provider.Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS));}
+     catch(RuntimeException e){toast("Откройте Настройки → Доступ к уведомлениям → CELIKOM Test.");}
+   }).show();
+ }
+ void enableNotifications(){""",
+        "test-only explicit disclosure and opt-in notification listener settings",
+    )
     # Fix only the light-theme authentication dialogs in the isolated test APK.
     replace_once(
         activity,
@@ -210,6 +235,22 @@ def patch_manifest(decoded):
     if set(authorities) != {SPEC["file_provider_authority"], SPEC["startup_authority"]}:
         raise ValueError("Unexpected provider authority in test manifest")
 
+    # Test.74: service is inaccessible until the Android user explicitly
+    # grants notification-listener access in system settings. It is protected
+    # by the BIND_NOTIFICATION_LISTENER_SERVICE signature permission.
+    witness_name="pro.celikom.nativeprobe.identitydiag.YandexSessionWitnessService"
+    existing=[x for x in app.findall("service") if x.get(A+"name")==witness_name]
+    if existing:raise ValueError("Duplicate notification session witness")
+    witness=ET.SubElement(app,"service",{
+      A+"name":witness_name,
+      A+"label":"CELIKOM Test · чтение медиасессии Яндекса",
+      A+"permission":"android.permission.BIND_NOTIFICATION_LISTENER_SERVICE",
+      A+"exported":"true"
+    })
+    action=ET.SubElement(witness,"intent-filter")
+    ET.SubElement(action,"action",{
+      A+"name":"android.service.notification.NotificationListenerService"
+    })
     forbidden_permissions = {
         "android.permission.REQUEST_INSTALL_PACKAGES",
     }
