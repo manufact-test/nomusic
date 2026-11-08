@@ -17,6 +17,8 @@ import java.util.*;
 public class ProbeService extends Service {
  final String notificationRun=UUID.randomUUID().toString();String lastNotificationKey="";final SourceTransitionGate transitionGate=new SourceTransitionGate();final SourceSessionRecheck sessionRecheck=new SourceSessionRecheck();final SourceEventArbiter sourceArbiter=new SourceEventArbiter();final Media3SourceRouter media3Router=new Media3SourceRouter(sourceArbiter,new Media3SourceRouter.Sink(){public void boundary(String next,String reason){sourceBoundary(next,reason);}public void seekRequested(){if(replacement!=null)replacement.sourceSeekRequested();}});final SourceEventArbiter.LookaheadEvidence lookahead=new SourceEventArbiter.LookaheadEvidence();final SourceStateWatchdog stateWatchdog=new SourceStateWatchdog();final LegacySourcePositionPolicy legacyPositionPolicy=new LegacySourcePositionPolicy();final SourceSnapshotConsistency sourceSnapshotConsistency=new SourceSnapshotConsistency();
  final YandexFrameworkTransportPolicy frameworkPolicy=new YandexFrameworkTransportPolicy();
+ final YandexIdentityDivergenceGate identityDivergence=new YandexIdentityDivergenceGate();
+ boolean divergenceQuarantined;
  boolean frameworkUnsafeLogged;android.media.browse.MediaBrowser legacyBrowser;android.media.session.MediaController legacyController;long lastLegacyDiagnosticAt=-1;boolean legacyPositionUnsafeLogged;boolean controllerSeen;long controllerGeneration,lastMediaEvent,lastHealth,endReachedAt=-1,sourceEventSequence,sourceItemGeneration;String sourceItemAlias;
  static ProbeService instance;final Handler handler=new Handler(Looper.getMainLooper());long serviceCreatedAt=-1,lastTickAt=-1,lastSampleAt=-1,lastHeartbeatAt=-1,lastNetworkAvailableAt=-1,lastNetworkLostAt=-1;int tickCount,sampleCount;
  volatile PlaybackSource current;AlbumProbe albumProbe;ReplacementEngine replacement;androidx.media3.session.MediaController controller;ListenableFuture<androidx.media3.session.MediaController> connecting,sourceProbe;PowerManager.WakeLock wake;boolean receiverRegistered,stopping,networkRegistered,networkSeen;ConnectivityManager connectivity;long lastWakeRenewal,lastState,lastConnectAttempt=-5000,nextConnectAllowedAt=-1,emptySince=-1,lastLookaheadPoll=-2000;int sourceProbeFailures;volatile String observedNextAlias,sourceTransitionExpectedAlias;String lastLookaheadSource,lastLookaheadCandidate,lastLookaheadSignature,lastLookaheadMetadataSignature;int lookaheadMetadataSamples,attempts;String lastIdentityInventoryAlias;long lastIdentityInventoryAt=-30000;String lastStateKey="",connectionStatus="Подключаемся к Яндексу…",lastRoutes="";
@@ -34,7 +36,9 @@ public class ProbeService extends Service {
   boolean sourceBuffering=source!=null&&source.buffering&&source.wantsToPlay;
    boolean sourceStale=sourceBuffering&&Objects.equals(stateWatchdog.key,source.alias)
       &&stateWatchdog.quietSince>=0&&SystemClock.elapsedRealtime()-stateWatchdog.quietSince>=3000;
-   NotificationState state=api.signedIn()&&input.enabled&&input.session&&!lost&&sourceBuffering
+   NotificationState state=divergenceQuarantined
+     ?NotificationState.yandexSourceResync()
+     :api.signedIn()&&input.enabled&&input.session&&!lost&&sourceBuffering
      ?NotificationState.yandexBuffering(sourceStale)
      :NotificationState.of(input,source==null?"":source.title,
        source==null?"":source.artist,lost,sessionLost,song!=null,hasReplacement);
@@ -395,6 +399,44 @@ public class ProbeService extends Service {
      "mediaAlias",item.mediaId,"title",title,"controllerDurationMs",duration,
      "metadataDurationMs",metadataDurationMs,
      "sourceEventSequence",sourceEventSequence,"remoteTransportCommandSent",false));
+   // Test.76: framework is evidence that old Media3 is STUCK on the wrong
+   // song. Do not use system metadata to authorize an alternate audio file.
+   // Only a fresh independent Media3 controller may become source authority.
+   YandexSessionWitnessService.Snapshot witness=YandexSessionWitnessService.controlSnapshot();
+   boolean recheckIdentity=identityDivergence.observe(item.mediaId,title,artist,duration,
+     nativeState,c.isPlaying(),lastMediaEvent<=0?-1:observedNow-lastMediaEvent,
+     witness.available,witness.yandexSessions,witness.title,witness.artist,witness.duration,
+     witness.state,witness.rawPosition,witness.stateAgeMs,observedNow);
+   if(recheckIdentity){
+     if(!divergenceQuarantined){
+       divergenceQuarantined=true;
+       LogStore.log("source_framework_track_divergence_verified",LogStore.map(
+         "oldAlias",item.mediaId,"remoteTitle",title,"remoteArtist",artist,
+         "frameworkTitle",witness.title,"frameworkArtist",witness.artist,
+         "frameworkDurationMs",witness.duration,"remoteState",nativeState,
+         "remoteEventAgeMs",observedNow-lastMediaEvent,
+         "action","original_only_and_non_destructive_media3_probe",
+         "sourceCommandSent",false));
+       replacement.suspend("framework_remote_track_divergence",1500);
+     }
+     probeDivergentSource(c);
+   }
+   if(divergenceQuarantined){
+     boolean restored=witness.available&&witness.yandexSessions==1
+       &&YandexIdentityDivergenceGate.sameTrack(title,artist,duration,
+         witness.title,witness.artist,witness.duration)
+       &&nativeState==Player.STATE_READY;
+     if(restored){
+       divergenceQuarantined=false;identityDivergence.reset();
+       LogStore.log("source_framework_track_divergence_cleared",LogStore.map(
+         "alias",item.mediaId,"reason","remote_identity_matches_platform",
+         "audioCommandSent",false));
+     }else{
+       current=null;
+       replacement.update(null);
+       return;
+     }
+   }
    if(stateWatchdog.refresh(item.mediaId,nativeState,c.isPlaying(),observedNow-lastMediaEvent,observedNow)){
     // Verified Test.58 regression: when Yandex reports BUFFERING after Dym,
     // forcibly releasing an otherwise connected controller makes every
@@ -416,7 +458,6 @@ public class ProbeService extends Service {
    // Test.75: independently confirmed *opt-in* native framework control
    // overrides stale external Media3 only for this same verified Yandex song.
    // Never accesses notification text or sends transport commands to Yandex.
-   YandexSessionWitnessService.Snapshot witness=YandexSessionWitnessService.controlSnapshot();
    YandexFrameworkTransportPolicy.Decision control=frameworkPolicy.reconcile(
       item.mediaId,title,artist,duration,sampledPosition,c.isPlaying(),
       witness.available,witness.yandexSessions,witness.title,witness.artist,
