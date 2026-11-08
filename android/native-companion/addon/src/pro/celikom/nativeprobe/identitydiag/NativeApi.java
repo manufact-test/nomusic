@@ -65,7 +65,7 @@ final class NativeApi {
     JSONObject output=null;String failure=null;
     try{
      if(account!=accountGeneration||revoking)throw new Exception("account_changed");
-     output=request("replacement-catalog",null,bearer,
+     // CDN may cache the pre-deployment 404. A unique read-only query bypasses stale negative caches.\n     output=request("replacement-catalog?refresh="+System.currentTimeMillis(),null,bearer,
        ()->account==accountGeneration&&!revoking);
     }catch(Exception e){
      failure=account==accountGeneration?"catalogue_network_unavailable":"account_changed";
@@ -80,10 +80,10 @@ final class NativeApi {
  JSONObject request(String path,JSONObject body,String access)throws Exception {return request(path,body,access,null);}
  JSONObject request(String path,JSONObject body,String access,java.util.function.BooleanSupplier valid)throws Exception {
   HttpsURLConnection c=(HttpsURLConnection)new URL(ApiContract.ORIGIN+"/api/v1/"+path).openConnection();long start=SystemClock.elapsedRealtime();int observedHttp=-1;
-  try(ReadFence fence=new ReadFence(c,valid)){fence.check();c.setConnectTimeout(7000);c.setReadTimeout(8000);c.setInstanceFollowRedirects(false);c.setRequestProperty("Accept","application/json");c.setRequestProperty("Cache-Control","no-store");if(access!=null&&!access.isEmpty())c.setRequestProperty("Authorization","Bearer "+access);
+  try(ReadFence fence=new ReadFence(c,valid)){fence.check();c.setConnectTimeout(7000);c.setReadTimeout(8000);c.setInstanceFollowRedirects(false);c.setRequestProperty("Accept","application/json");c.setRequestProperty("Cache-Control","no-store, no-cache, max-age=0");c.setRequestProperty("Pragma","no-cache");if(access!=null&&!access.isEmpty())c.setRequestProperty("Authorization","Bearer "+access);
    if(body!=null){byte[] data=body.toString().getBytes(StandardCharsets.UTF_8);if(data.length>8192)throw new Exception("invalid_request");c.setRequestMethod("POST");c.setRequestProperty("Content-Type","application/json");c.setDoOutput(true);c.setFixedLengthStreamingMode(data.length);try(OutputStream out=c.getOutputStream()){out.write(data);}}
    int code=c.getResponseCode();observedHttp=code;if(code>=300&&code<400)throw new Exception("redirect_rejected");String type=c.getContentType();if(type==null||!type.toLowerCase().startsWith("application/json"))throw new Exception("invalid_api_response");InputStream stream=code>=200&&code<300?c.getInputStream():c.getErrorStream();JSONObject j;
-   try(InputStream in=stream;ByteArrayOutputStream out=new ByteArrayOutputStream()){if(in==null)throw new Exception("empty_api_response");byte[] b=new byte[4096];int n;while((n=in.read(b))!=-1){fence.check();if(out.size()+n>("replacement-catalog".equals(path)?LiveCatalogueStore.MAX_BYTES:65536)||SystemClock.elapsedRealtime()-start>18000)throw new Exception("response_limit");out.write(b,0,n);}j=new JSONObject(new String(out.toByteArray(),StandardCharsets.UTF_8));}
+   try(InputStream in=stream;ByteArrayOutputStream out=new ByteArrayOutputStream()){if(in==null)throw new Exception("empty_api_response");byte[] b=new byte[4096];int n;while((n=in.read(b))!=-1){fence.check();if(out.size()+n>(("replacement-catalog".equals(path)||path.startsWith("replacement-catalog?"))?LiveCatalogueStore.MAX_BYTES:65536)||SystemClock.elapsedRealtime()-start>18000)throw new Exception("response_limit");out.write(b,0,n);}j=new JSONObject(new String(out.toByteArray(),StandardCharsets.UTF_8));}
    fence.check();LogStore.log("backend_http",LogStore.map("endpoint",path.split("\\?")[0],"httpCode",code,"elapsedMs",SystemClock.elapsedRealtime()-start));
    if(code<200||code>=300){String e=j.optString("error","api_http_error");throw new Exception(e.matches("[a-z0-9_]{1,80}")?e:"api_http_error");}return j;
   }catch(Exception failure){IncidentJournal.transportFailure(context,path,failure,SystemClock.elapsedRealtime()-start,observedHttp>=0);throw failure;}finally{c.disconnect();}
