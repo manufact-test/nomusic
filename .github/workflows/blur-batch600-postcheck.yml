@@ -1,0 +1,50 @@
+name: CELIKOM Blur — independent READ ONLY live audit of 200 pending tracks
+on:
+  push:
+    branches: [feature/blur-batch600-20261108]
+    paths: ['.github/workflows/blur-batch600-postcheck.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: celikom-blur-600-independent-audit-only
+  cancel-in-progress: false
+jobs:
+  audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Check static pinned plan and non-mutating independent PHP
+        shell: bash
+        run: |
+          set -euo pipefail
+          php -l tools/blur-batch600/check-live600-readonly.php
+          jq -e '.target_pending==200 and .fixed_plan==true and (.selected|length)==200' tools/blur-batch600/fixed-plan600.json
+      - name: Independently verify live 200 private audio digests, pending DB state, catalogue and API
+        env:
+          HOST_KEY: ${{ secrets.CELIKOM_HOSTINGER_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.CELIKOM_HOSTINGER_KNOWN_HOSTS }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p "$RUNNER_TEMP/private"
+          printf '%s\n' "$HOST_KEY" > "$RUNNER_TEMP/private/key"
+          printf '%s\n' "$KNOWN_HOSTS" > "$RUNNER_TEMP/private/hosts"
+          chmod 600 "$RUNNER_TEMP/private/"*
+          ssh -p 65002 -i "$RUNNER_TEMP/private/key" -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$RUNNER_TEMP/private/hosts" \
+            u235811320@92.113.19.189 '/opt/alt/php83/usr/bin/php -d display_errors=stderr' < tools/blur-batch600/check-live600-readonly.php | tee "$RUNNER_TEMP/celikom-live200-independent.json"
+          jq -e '.status=="NEW200_BATCH600_INDEPENDENT_READONLY" and .pass==true and .checked==200 and .pending==200 and .files_verified==200 and .private_bytes==1223634198 and .batch_counts==[50,50,50,50] and .catalogue_absent==200 and .resolve_not_found==200 and .auto_approved==0 and .active==0 and .writes==0 and (.issues|length)==0' "$RUNNER_TEMP/celikom-live200-independent.json"
+          echo '### Independent production read-only validation: 200/200 pending and private audio intact, 0 public' >> "$GITHUB_STEP_SUMMARY"
+          jq '{pass,checked,pending,files_verified,private_bytes,batch_counts,catalogue_absent,resolve_not_found,issues,writes}' "$RUNNER_TEMP/celikom-live200-independent.json" >> "$GITHUB_STEP_SUMMARY"
+      - name: Keep read-only verification result
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: celikom-live200-independent-${{ github.run_id }}
+          path: ${{ runner.temp }}/celikom-live200-independent.json
+          retention-days: 90
+          if-no-files-found: ignore
