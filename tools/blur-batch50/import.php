@@ -115,7 +115,7 @@ try {
             }
             $findSame->execute([$item['artist'],$item['title']]);
             if($findSame->fetchColumn()!==false)throw new DomainException('title_exists_other_track_'.$id);
-            $findAsset->execute([$item['sha']);$asset=$findAsset->fetch(PDO::FETCH_ASSOC);
+            $findAsset->execute([$item['sha']]);$asset=$findAsset->fetch(PDO::FETCH_ASSOC);
             if($asset && ($asset['storage_key']!==$item['key'] || $asset['mime_type']!=='audio/mpeg'
                  || (int)$asset['size_bytes']!==$item['size']
                  || abs((int)$asset['duration_ms']-$item['duration'])>1500))
