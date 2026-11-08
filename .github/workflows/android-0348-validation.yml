@@ -37,6 +37,7 @@ on:
       - feature/android-0385-test59-buffering-retain-fresh-catalog-20261108
       - feature/android-auto-catalogue-sync-20261108
       - feature/android-0385-test62-connect-album-recovery-20261108
+      - feature/android-0385-test64-resolve-priority-media3-evidence-20261108
       - feature/android-0370-honor-join-pause-updater-staging
       - feature/android-0371-rollback-0369-staging
       - feature/android-0372-ota-release-staging
@@ -234,7 +235,8 @@ jobs:
        github.ref == 'refs/heads/feature/android-0385-test50-deferred-lookahead-20261106' ||
        github.ref == 'refs/heads/feature/android-0385-test59-buffering-retain-fresh-catalog-20261108' ||
        github.ref == 'refs/heads/feature/android-auto-catalogue-sync-20261108' ||
-       github.ref == 'refs/heads/feature/android-0385-test62-connect-album-recovery-20261108') &&
+       github.ref == 'refs/heads/feature/android-0385-test62-connect-album-recovery-20261108' ||
+       github.ref == 'refs/heads/feature/android-0385-test64-resolve-priority-media3-evidence-20261108') &&
       github.repository == 'manufact-test/nomusic'
     needs: native-android
     permissions:
