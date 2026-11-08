@@ -1,0 +1,1812 @@
+{
+  "schema": 1,
+  "purpose": "approved owner instruction for exactly 200 new private pending records, 2x50, never auto approve",
+  "source_repository": "Hazzz895/FckCensorData",
+  "source_commit": "10187b7af56f311fe141a3c9b75483798bf0f589",
+  "selected": [
+    {
+      "id": "107544285",
+      "artist": "rizza",
+      "title": "агорафобик",
+      "size": 4887450,
+      "blob": "5cfe8e9ed492f67ad3fef9e35a65a544d2716d97",
+      "original_duration_verified": false,
+      "duration_ms": 120033
+    },
+    {
+      "id": "134997178",
+      "artist": "OG Buda , Джон Гарик",
+      "title": "Картель Картель",
+      "size": 6159947,
+      "blob": "c769e5aa689dfe9e59d424434b0351d0c5aaa65b",
+      "original_duration_verified": false,
+      "duration_ms": 152895
+    },
+    {
+      "id": "115682364",
+      "artist": "Baby Melo",
+      "title": "Вне закона",
+      "size": 3779716,
+      "blob": "277d1fab5e8b2091e6998884992c3bb3f4cf4b44",
+      "original_duration_verified": false,
+      "duration_ms": 93780
+    },
+    {
+      "id": "128831134",
+      "artist": "@ilymeedy",
+      "title": "Держись подальше",
+      "size": 5673796,
+      "blob": "b644445bb7d3a39ec43d751d769b41a9c801ef03",
+      "original_duration_verified": false,
+      "duration_ms": 141845
+    },
+    {
+      "id": "133174442",
+      "artist": "Джон Гарик",
+      "title": "Три года назад",
+      "size": 5891618,
+      "blob": "3a4d1bf1bc0ee3e37946e6359e950b5efc486ae1",
+      "original_duration_verified": false,
+      "duration_ms": 142602
+    },
+    {
+      "id": "117505549",
+      "artist": "i61 , Kill Eva , GONE.Fludd , CREAM SODA",
+      "title": "NIGHTLIFE",
+      "size": 7043910,
+      "blob": "873fadf16776c9b53b1b6659b0de41bafcc55819",
+      "original_duration_verified": false,
+      "duration_ms": 174968
+    },
+    {
+      "id": "112679395",
+      "artist": "SODA LUV , 163ONMYNECK",
+      "title": "TAMPON|",
+      "size": 6444974,
+      "blob": "c9c2244ac462568bf30b47d8683e0bb1a4e98ee8",
+      "original_duration_verified": false,
+      "duration_ms": 161019
+    },
+    {
+      "id": "119280175",
+      "artist": "OG Buda , DooMee , Sqwore",
+      "title": "Stoopid Money",
+      "size": 7176633,
+      "blob": "54d1ee1f7daec48a4d46c8a241396d7eeefec592",
+      "original_duration_verified": false,
+      "duration_ms": 178312
+    },
+    {
+      "id": "38690302",
+      "artist": "playingtheangel",
+      "title": "Бурлеск шоу",
+      "size": 7068131,
+      "blob": "8f8cd78b2870d08ccd60304b61f5d91bc9e6430d",
+      "original_duration_verified": false,
+      "duration_ms": 174524
+    },
+    {
+      "id": "85095956",
+      "artist": "плм",
+      "title": "тачки четыре",
+      "size": 5201964,
+      "blob": "57c9158f3c986afef2452f8af278181fd8f389d8",
+      "original_duration_verified": false,
+      "duration_ms": 127896
+    },
+    {
+      "id": "41900827",
+      "artist": "pyrokinesis",
+      "title": "Останови меня",
+      "size": 8488751,
+      "blob": "aec106c9059f67544b5d7aed309b8d6e84928c08",
+      "original_duration_verified": false,
+      "duration_ms": 212219
+    },
+    {
+      "id": "119296540",
+      "artist": "163ONMYNECK",
+      "title": "Буллинг",
+      "size": 5548220,
+      "blob": "7f249a37590f9f9a71fcf0dc46da682e4f8cfbc8",
+      "original_duration_verified": false,
+      "duration_ms": 137169
+    },
+    {
+      "id": "108393736",
+      "artist": "xxxmanera",
+      "title": "Lincoln",
+      "size": 5677371,
+      "blob": "1c07b1b699450106182aabf7fd834c1c55a994ef",
+      "original_duration_verified": false,
+      "duration_ms": 139755
+    },
+    {
+      "id": "103574254",
+      "artist": "FRIENDLY THUG 52 NGG , EX-BOY SEVEN",
+      "title": "Local Club Star",
+      "size": 4423338,
+      "blob": "d644294be0a56f4a3ec27fb160dc6e1ab41f9fb5",
+      "original_duration_verified": false,
+      "duration_ms": 108069
+    },
+    {
+      "id": "149146246",
+      "artist": "Bumble Beezy",
+      "title": "Epistaxis",
+      "size": 8421295,
+      "blob": "a598bbaccaa02ebfe11eab3520b434291cb4c1c4",
+      "original_duration_verified": false,
+      "duration_ms": 208379
+    },
+    {
+      "id": "61221107",
+      "artist": "kizaru",
+      "title": "Say No Mo",
+      "size": 4833115,
+      "blob": "bb2b7cee4ac799623863b8f2d999eac37f6718a3",
+      "original_duration_verified": false,
+      "duration_ms": 118674
+    },
+    {
+      "id": "58810157",
+      "artist": "МУККА",
+      "title": "Говори",
+      "size": 3320750,
+      "blob": "a3dbb17bc71d3a74814bbd60dbc73839bd44dee1",
+      "original_duration_verified": false,
+      "duration_ms": 138188
+    },
+    {
+      "id": "137497429",
+      "artist": "geoxantes , destroythesystem , swagminer",
+      "title": "вк",
+      "size": 4427277,
+      "blob": "d6869fe72cadcc0f65eb20e7fad530066f3b978d",
+      "original_duration_verified": false,
+      "duration_ms": 110576
+    },
+    {
+      "id": "81936401",
+      "artist": "OG Buda",
+      "title": "Грусть",
+      "size": 4277544,
+      "blob": "80c5fcbdefb5018429a8a61e4c0fe84b6338f76a",
+      "original_duration_verified": false,
+      "duration_ms": 98534
+    },
+    {
+      "id": "136598162",
+      "artist": "morphy",
+      "title": "крепкие сиги",
+      "size": 4739701,
+      "blob": "c825b49d2cc7c3bee028d6110977d8a67cabd424",
+      "original_duration_verified": false,
+      "duration_ms": 118387
+    },
+    {
+      "id": "116515484",
+      "artist": "T-Fest",
+      "title": "Никого не ебет",
+      "size": 8394085,
+      "blob": "29e0dc9f8b4a0d13b0a978f73b0936ee497b7dd6",
+      "original_duration_verified": false,
+      "duration_ms": 208927
+    },
+    {
+      "id": "116649708",
+      "artist": "163ONMYNECK",
+      "title": "Средний",
+      "size": 5672649,
+      "blob": "81c16f19ebbcc42cf376b8cdc090076f5ead5cdf",
+      "original_duration_verified": false,
+      "duration_ms": 141531
+    },
+    {
+      "id": "133174435",
+      "artist": "Джон Гарик , Baby Melo",
+      "title": "Классика",
+      "size": 5874821,
+      "blob": "b90f060a1878117aab89d7fa3bedd90cb448b61a",
+      "original_duration_verified": false,
+      "duration_ms": 139233
+    },
+    {
+      "id": "119296515",
+      "artist": "163ONMYNECK , OG Buda , THRILL PILL",
+      "title": "Виктория сикрет",
+      "size": 5975192,
+      "blob": "d539c6e42fda0ff81bdda383c696244b7195510c",
+      "original_duration_verified": false,
+      "duration_ms": 147174
+    },
+    {
+      "id": "121385451",
+      "artist": "Pluggstar",
+      "title": "человек-бензопила",
+      "size": 4321698,
+      "blob": "9a2d6f17e3daf155b496df3872e936e10d95fa42",
+      "original_duration_verified": false,
+      "duration_ms": 108042
+    },
+    {
+      "id": "53223217",
+      "artist": "Ганвест , Alexei Shkurko",
+      "title": "Никотин",
+      "size": 8538048,
+      "blob": "1d752b2059d4fbe8ca5fb658f1a930bccaf79890",
+      "original_duration_verified": false,
+      "duration_ms": 211272
+    },
+    {
+      "id": "112220712",
+      "artist": "Папин Олимпос",
+      "title": "Отпускаю",
+      "size": 5062958,
+      "blob": "ed79da5935a2df0932babd6de0a45e6bb6ad0428",
+      "original_duration_verified": false,
+      "duration_ms": 113737
+    },
+    {
+      "id": "99697481",
+      "artist": "курящих нет",
+      "title": "Еду зайцем",
+      "size": 4376494,
+      "blob": "1f2d40ccdf455bad8d98eab3c5331289ccb312c0",
+      "original_duration_verified": false,
+      "duration_ms": 107259
+    },
+    {
+      "id": "81936417",
+      "artist": "OG Buda , SODA LUV",
+      "title": "Бонус Трэк (Грясссь)",
+      "size": 9738890,
+      "blob": "7a722bd3d0fc327d63159a278ad46c10fc9ba685",
+      "original_duration_verified": false,
+      "duration_ms": 241293
+    },
+    {
+      "id": "49336734",
+      "artist": "Крематорий",
+      "title": "2001 год",
+      "size": 8611968,
+      "blob": "3bc67cad84a2a0883d273b87680149f510bd7233",
+      "original_duration_verified": false,
+      "duration_ms": 215249
+    },
+    {
+      "id": "127212428",
+      "artist": "WormGanger , Молодой калуга , валюта скуратов",
+      "title": "Понедельник",
+      "size": 6764066,
+      "blob": "1b620b4b728586881c08e54c32bdbf2d2d2544d1",
+      "original_duration_verified": false,
+      "duration_ms": 168202
+    },
+    {
+      "id": "103303171",
+      "artist": "СМЫСЛА.net , курящих нет",
+      "title": "Котики",
+      "size": 6343620,
+      "blob": "27ccb3833f7fb738ba90798ed00dcb930c19dce3",
+      "original_duration_verified": false,
+      "duration_ms": 158485
+    },
+    {
+      "id": "106067863",
+      "artist": "Hood Rich Luka , Scally Milano",
+      "title": "ABORT",
+      "size": 5960565,
+      "blob": "5f27c92421a23d6608072a53e3d1ecda4a7dc9de",
+      "original_duration_verified": false,
+      "duration_ms": 147226
+    },
+    {
+      "id": "43504918",
+      "artist": "playingtheangel",
+      "title": "ФУДЗИ",
+      "size": 12375188,
+      "blob": "8a91fbfaf392a15778d17fe8a9be737b16262adc",
+      "original_duration_verified": false,
+      "duration_ms": 307226
+    },
+    {
+      "id": "109990504",
+      "artist": "Big Baby Tape",
+      "title": "Like A G6",
+      "size": 7034714,
+      "blob": "7a9b1c1d895407c2bad9634a4e685970b3409439",
+      "original_duration_verified": false,
+      "duration_ms": 173714
+    },
+    {
+      "id": "53256122",
+      "artist": "GONE.Fludd , CAKEBOY",
+      "title": "Glam!",
+      "size": 6595440,
+      "blob": "ac70e8dd4446482fb21485b7b1eef64f43dc9449",
+      "original_duration_verified": false,
+      "duration_ms": 164885
+    },
+    {
+      "id": "110023310",
+      "artist": "MAYOT",
+      "title": "Воскресенье",
+      "size": 4564158,
+      "blob": "038f45093b04bb29b45c9de8bc667ff5d9b8385f",
+      "original_duration_verified": false,
+      "duration_ms": 113998
+    },
+    {
+      "id": "73375329",
+      "artist": "playingtheangel , Три дня дождя",
+      "title": "Худшее во мне",
+      "size": 6700327,
+      "blob": "a38f4f8ad2b9fa21b4587d1b88cb3c65728e1073",
+      "original_duration_verified": false,
+      "duration_ms": 165329
+    },
+    {
+      "id": "148716977",
+      "artist": "Платина",
+      "title": "Валентина",
+      "size": 6061453,
+      "blob": "d40f11f52050e73e251245e9301372271bd01b42",
+      "original_duration_verified": false,
+      "duration_ms": 151536
+    },
+    {
+      "id": "85971535",
+      "artist": "SEEMEE , OG Buda , Ляхов Григорий Алексеевич",
+      "title": "Битбокс",
+      "size": 5149719,
+      "blob": "3044cde3da527d93c42a936afa5e9647634b6c35",
+      "original_duration_verified": false,
+      "duration_ms": 126589
+    },
+    {
+      "id": "131898080",
+      "artist": "OG Buda , Джон Гарик",
+      "title": "Умереть Хочешь?",
+      "size": 4980676,
+      "blob": "4fe5fb802b92ddc4871fa54ef52d051564d3b87d",
+      "original_duration_verified": false,
+      "duration_ms": 121365
+    },
+    {
+      "id": "72737512",
+      "artist": "MORGENSHTERN , SLAVA MARLOW",
+      "title": "Быстро",
+      "size": 4731760,
+      "blob": "0f93063d214f8552162ec94d94a837b4bcc7d379",
+      "original_duration_verified": false,
+      "duration_ms": 116140
+    },
+    {
+      "id": "144935313",
+      "artist": "FRIENDLY THUG 52 NGG",
+      "title": "Mille Grazie",
+      "size": 4613268,
+      "blob": "266005a74fff8b51f9a4ea4a48aacc093a6e9e7d",
+      "original_duration_verified": false,
+      "duration_ms": 115226
+    },
+    {
+      "id": "89104835",
+      "artist": "ЛСП",
+      "title": "Джентельмен-шоу",
+      "size": 8442366,
+      "blob": "8e98ed7590cf2719a2eebed04526a24bf90dbb53",
+      "original_duration_verified": false,
+      "duration_ms": 208901
+    },
+    {
+      "id": "110023312",
+      "artist": "MAYOT",
+      "title": "Ножевое",
+      "size": 4214073,
+      "blob": "15742bc0d42c9a387c90e43a40b2f3b63f12a9c9",
+      "original_duration_verified": false,
+      "duration_ms": 105352
+    },
+    {
+      "id": "82790447",
+      "artist": "VTORNIK",
+      "title": "Дела восток",
+      "size": 3186606,
+      "blob": "9e9b41d09913436c9ac5446d65f1f33310a940da",
+      "original_duration_verified": false,
+      "duration_ms": 131553
+    },
+    {
+      "id": "51950492",
+      "artist": "Xassa",
+      "title": "Туман",
+      "size": 7208168,
+      "blob": "fcd27b6f4ba858d194467b251931405d5a3a41b4",
+      "original_duration_verified": false,
+      "duration_ms": 178051
+    },
+    {
+      "id": "148715962",
+      "artist": "Платина",
+      "title": "Иней!",
+      "size": 6971559,
+      "blob": "5ba6b8886fa2456db32df42fe7ffb9b2388c64aa",
+      "original_duration_verified": false,
+      "duration_ms": 174289
+    },
+    {
+      "id": "128507538",
+      "artist": "FENDIGLOCK",
+      "title": "ATL Flow",
+      "size": 4421676,
+      "blob": "76e5412b6acdcbe559aacbdaa6439328e636443b",
+      "original_duration_verified": false,
+      "duration_ms": 109976
+    },
+    {
+      "id": "133706042",
+      "artist": "Subbota , Techno Project",
+      "title": "Мексиканцам",
+      "size": 5595428,
+      "blob": "389293dc38a9ae41a01003f0dc871eeb7c7be6c8",
+      "original_duration_verified": false,
+      "duration_ms": 139886
+    },
+    {
+      "id": "109110867",
+      "artist": "INSPACE",
+      "title": "Хочется назад",
+      "size": 7481469,
+      "blob": "3d7181ef117ac9666446adeaa104187f9f9013b7",
+      "original_duration_verified": false,
+      "duration_ms": 187037
+    },
+    {
+      "id": "119728718",
+      "artist": "OG Buda",
+      "title": "Порш",
+      "size": 7202525,
+      "blob": "8e88cfdfc15a19346c1df99b716436515d1bb488",
+      "original_duration_verified": false,
+      "duration_ms": 180062
+    },
+    {
+      "id": "48928606",
+      "artist": "Slavik Pogosov",
+      "title": "Выпуская дым",
+      "size": 5335134,
+      "blob": "b923c4ed56c7a39cb5c255214da74d73776cf5c1",
+      "original_duration_verified": false,
+      "duration_ms": 222119
+    },
+    {
+      "id": "104817646",
+      "artist": "Bogdan Kiyashko",
+      "title": "Братишка",
+      "size": 5711821,
+      "blob": "ed215ce90e0fbc6c0363cea7d10c9b3f743a8f00",
+      "original_duration_verified": false,
+      "duration_ms": 142315
+    },
+    {
+      "id": "130009827",
+      "artist": "OG Buda",
+      "title": "Смак",
+      "size": 7415640,
+      "blob": "1a8cea5ad08073594885d70e6cd6b135e53a5320",
+      "original_duration_verified": false,
+      "duration_ms": 185391
+    },
+    {
+      "id": "107827229",
+      "artist": "курящих нет",
+      "title": "Кетарол",
+      "size": 5498715,
+      "blob": "84df01f5f29e66f08223d11a0fedf067a7ae6fb6",
+      "original_duration_verified": false,
+      "duration_ms": 135314
+    },
+    {
+      "id": "108422089",
+      "artist": "xxxmanera",
+      "title": "1+1",
+      "size": 4004093,
+      "blob": "113714363c7107ab402dc7daf223ebd8cc93db7d",
+      "original_duration_verified": false,
+      "duration_ms": 99997
+    },
+    {
+      "id": "112047077",
+      "artist": "FENDIGLOCK",
+      "title": "Допинг",
+      "size": 3975881,
+      "blob": "31ef93622246701a8749f42440645f01ce6307bd",
+      "original_duration_verified": false,
+      "duration_ms": 99291
+    },
+    {
+      "id": "114896393",
+      "artist": "never die",
+      "title": "ты одна засыпаешь",
+      "size": 4515093,
+      "blob": "257048105168e2099977be8635c5b16d826eeaa0",
+      "original_duration_verified": false,
+      "duration_ms": 112875
+    },
+    {
+      "id": "81936397",
+      "artist": "OG Buda , BUSHIDO ZHO",
+      "title": "САМП",
+      "size": 5667988,
+      "blob": "c087c217acf121a547c6120e2bc0745beb435abf",
+      "original_duration_verified": false,
+      "duration_ms": 139546
+    },
+    {
+      "id": "59759472",
+      "artist": "Subbota",
+      "title": "Мексиканцам",
+      "size": 7016534,
+      "blob": "56498124d0c9eed08681c201d71f2b5675f44e50",
+      "original_duration_verified": false,
+      "duration_ms": 175308
+    },
+    {
+      "id": "123277830",
+      "artist": "fleurnothappy",
+      "title": "Это правда странно",
+      "size": 5143032,
+      "blob": "962c40cd77412dc1be7162bfc4dde06827da36e2",
+      "original_duration_verified": false,
+      "duration_ms": 128470
+    },
+    {
+      "id": "83924496",
+      "artist": "Элджей",
+      "title": "Candy Flip",
+      "size": 5721905,
+      "blob": "cc7d50e27cf4a6be217ae773e7911915efb07ac8",
+      "original_duration_verified": false,
+      "duration_ms": 143047
+    },
+    {
+      "id": "59556187",
+      "artist": "INSTASAMKA , CMH",
+      "title": "GTA",
+      "size": 6723335,
+      "blob": "adffd6222aba59b2f731723ab8948c4776af7b83",
+      "original_duration_verified": false,
+      "duration_ms": 165930
+    },
+    {
+      "id": "52765483",
+      "artist": "Big Baby Tape",
+      "title": "Brigada",
+      "size": 5863363,
+      "blob": "66e0d9d37d8c407c9c749db21c5f62fabdb4a6dc",
+      "original_duration_verified": false,
+      "duration_ms": 144405
+    },
+    {
+      "id": "124711308",
+      "artist": "Whole Lotta Swag",
+      "title": "Страгл",
+      "size": 5055114,
+      "blob": "abaa04d1d2d6ba2ebf354e88b3facb0d5f5d5d09",
+      "original_duration_verified": false,
+      "duration_ms": 126093
+    },
+    {
+      "id": "35758332",
+      "artist": "Элджей",
+      "title": "ZEF",
+      "size": 8011908,
+      "blob": "a10288add2ad77b58d860b23096e66ce3c4a9d65",
+      "original_duration_verified": false,
+      "duration_ms": 200072
+    },
+    {
+      "id": "143482533",
+      "artist": "Anonymous Ember , DJ GLAMSTA",
+      "title": "#2033",
+      "size": 3845268,
+      "blob": "0f289a1b14e1c6ac0dd572a538e6a8655996b784",
+      "original_duration_verified": false,
+      "duration_ms": 96026
+    },
+    {
+      "id": "53839022",
+      "artist": "YUNG TRAPPA",
+      "title": "С головой",
+      "size": 10863848,
+      "blob": "acdeac236dcd8b0de5e3ceb0db4c5fe2437c3dec",
+      "original_duration_verified": false,
+      "duration_ms": 271491
+    },
+    {
+      "id": "116649706",
+      "artist": "163ONMYNECK",
+      "title": "Фри Рио",
+      "size": 6287295,
+      "blob": "00fc375b529206a87d3963772f68b0c9fce9cc16",
+      "original_duration_verified": false,
+      "duration_ms": 155298
+    },
+    {
+      "id": "89382788",
+      "artist": "SLAVA MARLOW , The Limba , Элджей",
+      "title": "Она тебя любит",
+      "size": 7721129,
+      "blob": "25ee5aa7ea858db6fbae95e3fe69c70915095303",
+      "original_duration_verified": false,
+      "duration_ms": 192052
+    },
+    {
+      "id": "125539266",
+      "artist": "KATASTROFA , madk1d",
+      "title": "Жоский",
+      "size": 3636288,
+      "blob": "100390504b82516b405f86864ff717dec26d868c",
+      "original_duration_verified": false,
+      "duration_ms": 90906
+    },
+    {
+      "id": "89116734",
+      "artist": "Платина , Big Baby Tape",
+      "title": "Веном",
+      "size": 4275167,
+      "blob": "5104d085430d86b4442407964096553311e4e2bc",
+      "original_duration_verified": false,
+      "duration_ms": 176797
+    },
+    {
+      "id": "68269714",
+      "artist": "badCurt",
+      "title": "Американская мечта",
+      "size": 8749975,
+      "blob": "d2f315603a78ebe0bb7d7cf7373199b418b60da8",
+      "original_duration_verified": false,
+      "duration_ms": 218749
+    },
+    {
+      "id": "148715970",
+      "artist": "Платина , OBLADAET",
+      "title": "Бэнтли, Бенз и Бумер",
+      "size": 7257256,
+      "blob": "2b291011fc0efa50e9ea08a98f13c773324fd269",
+      "original_duration_verified": false,
+      "duration_ms": 179252
+    },
+    {
+      "id": "136074520",
+      "artist": "9mice",
+      "title": "Anora",
+      "size": 6494481,
+      "blob": "e34612b3d84a2922a174d7b6a01cdd9d0d30c3f5",
+      "original_duration_verified": false,
+      "duration_ms": 161724
+    },
+    {
+      "id": "136101921",
+      "artist": "FORTUNA 812",
+      "title": "Hello, world!",
+      "size": 4244190,
+      "blob": "7c381dad0d931064f186b79e7e11cad75303a2cf",
+      "original_duration_verified": false,
+      "duration_ms": 105718
+    },
+    {
+      "id": "119296517",
+      "artist": "163ONMYNECK , FEARMUCH",
+      "title": "Что ты знаешь?",
+      "size": 5623437,
+      "blob": "244030ec261a102c9cbe3c0b6d3d94ccc45330f1",
+      "original_duration_verified": false,
+      "duration_ms": 140251
+    },
+    {
+      "id": "70524316",
+      "artist": "Cloudeyes",
+      "title": "Get Low",
+      "size": 4935786,
+      "blob": "61173702f72aede236b178df35adb415a57ab8c8",
+      "original_duration_verified": false,
+      "duration_ms": 122201
+    },
+    {
+      "id": "126276767",
+      "artist": "Heronwater",
+      "title": "Больной",
+      "size": 5207771,
+      "blob": "1ae7e84604c8ee2ad3c4555fc7b7eb62f0cce88e",
+      "original_duration_verified": false,
+      "duration_ms": 130194
+    },
+    {
+      "id": "70691077",
+      "artist": "SEEMEE , SODA LUV",
+      "title": "Голодный пёс",
+      "size": 6940647,
+      "blob": "5d9788246553ad48a2271c2f517ee15b63bd97dc",
+      "original_duration_verified": false,
+      "duration_ms": 171755
+    },
+    {
+      "id": "140257587",
+      "artist": "Anonymous Ember , fakemutin",
+      "title": "Мой Флоу Со Справкой",
+      "size": 4618493,
+      "blob": "072958da827a12aefc6c1d695645e4eed21a499a",
+      "original_duration_verified": false,
+      "duration_ms": 115357
+    },
+    {
+      "id": "122053558",
+      "artist": "unki",
+      "title": "BALLOUT",
+      "size": 4158484,
+      "blob": "56f491b1f0e8c416e4ef7bd2daed0772b8270c0d",
+      "original_duration_verified": false,
+      "duration_ms": 101930
+    },
+    {
+      "id": "53582330",
+      "artist": "YUNG TRAPPA",
+      "title": "Нету меня",
+      "size": 7842573,
+      "blob": "99121f43a94ee4ec576374cefa3b1bced9d1c441",
+      "original_duration_verified": false,
+      "duration_ms": 193985
+    },
+    {
+      "id": "45541231",
+      "artist": "Пошлая Молли",
+      "title": "Лол",
+      "size": 6356113,
+      "blob": "4b27e45285110d9da6e2bbbea9bb604bee998ccd",
+      "original_duration_verified": false,
+      "duration_ms": 158903
+    },
+    {
+      "id": "97345805",
+      "artist": "Sqwore , TREEPSIDE",
+      "title": "Холодное оружие",
+      "size": 6132946,
+      "blob": "c444f8abf2ceedc1441498016ad996ecd5a7ef32",
+      "original_duration_verified": false,
+      "duration_ms": 151144
+    },
+    {
+      "id": "122728371",
+      "artist": "Heronwater",
+      "title": "Say What's Real Freestyle",
+      "size": 5198411,
+      "blob": "7951e7b067a9d310f1d54dbb45ba5c3cb2020362",
+      "original_duration_verified": false,
+      "duration_ms": 129855
+    },
+    {
+      "id": "138578779",
+      "artist": "Anonymous Ember",
+      "title": "TRAP A HOLIC",
+      "size": 4252516,
+      "blob": "dc4adbdd9c9755865cddc7a0122620be5546fd7b",
+      "original_duration_verified": false,
+      "duration_ms": 100023
+    },
+    {
+      "id": "139803303",
+      "artist": "HELLOVERCAVI , SODA LUV",
+      "title": "СВАГА",
+      "size": 3930631,
+      "blob": "541fbcb71f5bd27358b97a11a70b1f3383e4f68d",
+      "original_duration_verified": false,
+      "duration_ms": 98220
+    },
+    {
+      "id": "114343051",
+      "artist": "1.Kla$",
+      "title": "Я тебя никому не отдам (Gipsydance)",
+      "size": 10145790,
+      "blob": "3079009c681db3ddcd3c9549bf3cee46f9c638b0",
+      "original_duration_verified": false,
+      "duration_ms": 252996
+    },
+    {
+      "id": "135680515",
+      "artist": "kizaru , FRIENDLY THUG 52 NGG",
+      "title": "Diamond Tears",
+      "size": 6570362,
+      "blob": "869b28469db4d1914b3b2841c447fadcea1a93c8",
+      "original_duration_verified": false,
+      "duration_ms": 164153
+    },
+    {
+      "id": "97277436",
+      "artist": "Scally Milano , uglystephan",
+      "title": "Тюрбан",
+      "size": 5852672,
+      "blob": "d5eae7e92ca0a698ce82f819aa15bccc171fbee1",
+      "original_duration_verified": false,
+      "duration_ms": 145319
+    },
+    {
+      "id": "148628495",
+      "artist": "kavabanga Depo kolibri",
+      "title": "Больше нет тепла на двоих",
+      "size": 11204530,
+      "blob": "a9084be2708266a6117a1c79971b111c5aa80649",
+      "original_duration_verified": false,
+      "duration_ms": 280111
+    },
+    {
+      "id": "148716914",
+      "artist": "Платина , OG Buda , LIL KRYSTALLL , FEDUK",
+      "title": "Биг бой",
+      "size": 10405093,
+      "blob": "cbebbe418d2ddd8a3895098c3d2fc8a90b4ea1bb",
+      "original_duration_verified": false,
+      "duration_ms": 260127
+    },
+    {
+      "id": "38681475",
+      "artist": "THRILL PILL",
+      "title": "Бабник",
+      "size": 7103678,
+      "blob": "a16ed8b9c0fb26d9bc7488130a67334b7ed3d0dc",
+      "original_duration_verified": false,
+      "duration_ms": 175438
+    },
+    {
+      "id": "21287095",
+      "artist": "Anacondaz",
+      "title": "Минуту",
+      "size": 7768212,
+      "blob": "f7ffa3ebe89bfb756e5af1dc6163d975c9da273c",
+      "original_duration_verified": false,
+      "duration_ms": 192026
+    },
+    {
+      "id": "109051375",
+      "artist": "SODA LUV , Heronwater",
+      "title": "КАРИНА",
+      "size": 6373922,
+      "blob": "b8b96d2e8abe27f4015f02d48e34ebdfbc655b36",
+      "original_duration_verified": false,
+      "duration_ms": 159242
+    },
+    {
+      "id": "104198618",
+      "artist": "By Индия",
+      "title": "целуйся правильно",
+      "size": 7447450,
+      "blob": "944d0ee9fa4ad408cf1ea6650f7d1aef55aa1c90",
+      "original_duration_verified": false,
+      "duration_ms": 184033
+    },
+    {
+      "id": "106894275",
+      "artist": "две тысячи ярдов",
+      "title": "Фармацевт",
+      "size": 6033826,
+      "blob": "0d851b42d8ccb5d9754cf8e5f3d0c4e73b7e9c48",
+      "original_duration_verified": false,
+      "duration_ms": 146051
+    },
+    {
+      "id": "103457320",
+      "artist": "aikko",
+      "title": "у меня всё хорошо",
+      "size": 8377431,
+      "blob": "abb839aae5760c1e9d6a16357e4de03ddbcf5fb5",
+      "original_duration_verified": false,
+      "duration_ms": 208588
+    },
+    {
+      "id": "53685449",
+      "artist": "YUNG TRAPPA",
+      "title": "OMG 2012",
+      "size": 8579809,
+      "blob": "9df248659933a3c99948a3f2076439f57c518aef",
+      "original_duration_verified": false,
+      "duration_ms": 212088
+    },
+    {
+      "id": "44950137",
+      "artist": "StaFFорд63",
+      "title": "Дым - мой круговорот",
+      "size": 7475662,
+      "blob": "1af7cbb33d746dfbad0cb56907ffcc0761c1e45a",
+      "original_duration_verified": false,
+      "duration_ms": 184738
+    },
+    {
+      "id": "45564126",
+      "artist": "StaFFорд63",
+      "title": "Дым – мой круговорот",
+      "size": 6645991,
+      "blob": "d9cc004b8f2d4b1b45c010433a813e0fcc241395",
+      "original_duration_verified": false,
+      "duration_ms": 163971
+    },
+    {
+      "id": "36161918",
+      "artist": "Kunteynir",
+      "title": "Кассир",
+      "size": 9902960,
+      "blob": "be4ea1c507d931a5ffc8f4a8dd39bbeb3278f50d",
+      "original_duration_verified": false,
+      "duration_ms": 245420
+    },
+    {
+      "id": "112218101",
+      "artist": "Metox",
+      "title": "Бишкек",
+      "size": 6487377,
+      "blob": "bb64dc6e9530252fe0c5a7cd142f848e62c8ee98",
+      "original_duration_verified": false,
+      "duration_ms": 161541
+    },
+    {
+      "id": "116357690",
+      "artist": "SQWOZ BAB",
+      "title": "TITTY MILK",
+      "size": 5159061,
+      "blob": "9b74df8402744099a23f647e254bd619335a897a",
+      "original_duration_verified": false,
+      "duration_ms": 127791
+    },
+    {
+      "id": "139046055",
+      "artist": "Denks , Hatsune Vika",
+      "title": "Na Na Na",
+      "size": 5298735,
+      "blob": "64fd3b8df64bce29a278ea3c63ccc87cd0bd1659",
+      "original_duration_verified": false,
+      "duration_ms": 132467
+    },
+    {
+      "id": "112035753",
+      "artist": "Metox",
+      "title": "Кто за?",
+      "size": 6379752,
+      "blob": "e735505850a052e2f7418e90808b90413bf26c46",
+      "original_duration_verified": false,
+      "duration_ms": 158851
+    },
+    {
+      "id": "139046046",
+      "artist": "Denks , ЧИКА УБИЙЦА ФНАФ , Saldal , Фурри собачка",
+      "title": "Гача Лайф Стрим Хаус Пати",
+      "size": 5543227,
+      "blob": "f1cf26ffff4123b1ba053f4c9f37c3e1a441fa58",
+      "original_duration_verified": false,
+      "duration_ms": 138580
+    },
+    {
+      "id": "139046051",
+      "artist": "Denks",
+      "title": "White Monster UwU",
+      "size": 5762656,
+      "blob": "f9a25384140dd994bde8cef261103758f5eabc86",
+      "original_duration_verified": false,
+      "duration_ms": 144065
+    },
+    {
+      "id": "135706401",
+      "artist": "бэйби гога",
+      "title": "орви шансон",
+      "size": 5845658,
+      "blob": "ebd0bd75826d10d40ef9b2264ca6ac53ae23bd29",
+      "original_duration_verified": false,
+      "duration_ms": 143360
+    },
+    {
+      "id": "62556361",
+      "artist": "Три дня дождя , Роки",
+      "title": "Спорт",
+      "size": 5969963,
+      "blob": "8ae2d0eafa865b4a085f3081e0626e6dc98647ce",
+      "original_duration_verified": false,
+      "duration_ms": 147096
+    },
+    {
+      "id": "136101925",
+      "artist": "FORTUNA 812",
+      "title": "MoneyDay",
+      "size": 3958932,
+      "blob": "4c48245e3029f54a014c325a133cb56265cabf10",
+      "original_duration_verified": false,
+      "duration_ms": 98586
+    },
+    {
+      "id": "38681476",
+      "artist": "THRILL PILL",
+      "title": "Аптека 2",
+      "size": 5867564,
+      "blob": "1060c9664935b2377e763068a4e3168851a4760e",
+      "original_duration_verified": false,
+      "duration_ms": 144536
+    },
+    {
+      "id": "140712545",
+      "artist": "диссоциативное расстройство",
+      "title": "kazantip70rus",
+      "size": 5512591,
+      "blob": "060c62dcee272d7c75cc314060f321ebd8c33066",
+      "original_duration_verified": false,
+      "duration_ms": 137300
+    },
+    {
+      "id": "139046056",
+      "artist": "Denks",
+      "title": "Холодно",
+      "size": 8251603,
+      "blob": "63a72ae2125785bf2a7739acb3ab2289c0a987ad",
+      "original_duration_verified": false,
+      "duration_ms": 206289
+    },
+    {
+      "id": "136267325",
+      "artist": "Heronwater",
+      "title": "TOKYO WATER",
+      "size": 4960175,
+      "blob": "6f154dd8a475c7b2edaff5dcbf21b24c39c6728a",
+      "original_duration_verified": false,
+      "duration_ms": 123899
+    },
+    {
+      "id": "147953044",
+      "artist": "DEXIE 999",
+      "title": "Таблетки",
+      "size": 4475341,
+      "blob": "eb0ddfb875b776f730d4e4da68e073369883cc68",
+      "original_duration_verified": false,
+      "duration_ms": 111882
+    },
+    {
+      "id": "112045232",
+      "artist": "Heronwater",
+      "title": "2033",
+      "size": 4663423,
+      "blob": "e84d8035905c3037571d4c8e66dc8b5bdc11604f",
+      "original_duration_verified": false,
+      "duration_ms": 116480
+    },
+    {
+      "id": "108857579",
+      "artist": "Heronwater",
+      "title": "В миноре (Prod. by Wex & Lawzy)",
+      "size": 6796671,
+      "blob": "7b07bf3eae7076c652a09f188edae52924d37f87",
+      "original_duration_verified": false,
+      "duration_ms": 168986
+    },
+    {
+      "id": "53838987",
+      "artist": "YUNG TRAPPA",
+      "title": "На квартале",
+      "size": 8163886,
+      "blob": "4d981c8eb1ce4dc46acbbd06ea2809b4d3a402f1",
+      "original_duration_verified": false,
+      "duration_ms": 198583
+    },
+    {
+      "id": "114084879",
+      "artist": "Heronwater",
+      "title": "Рок стар",
+      "size": 5473219,
+      "blob": "f816c388e1e58b5bb34f570212bda01e34d600f7",
+      "original_duration_verified": false,
+      "duration_ms": 136725
+    },
+    {
+      "id": "81747372",
+      "artist": "Скриптонит , FEDUK",
+      "title": "Рамок нет",
+      "size": 11699140,
+      "blob": "df45b984643c44682fae441e1c18805ff3f0e76d",
+      "original_duration_verified": false,
+      "duration_ms": 290325
+    },
+    {
+      "id": "135590034",
+      "artist": "Heronwater",
+      "title": "BEAST MODE",
+      "size": 5236028,
+      "blob": "7eb8f1e2e5a0317131b46fdde41d3ed962f285cd",
+      "original_duration_verified": false,
+      "duration_ms": 130795
+    },
+    {
+      "id": "129054544",
+      "artist": "BOOKER , STED.D",
+      "title": "ШАЛМАН",
+      "size": 5135404,
+      "blob": "6f2ac5e0da5cfb36e0f242f3c995875c4238780a",
+      "original_duration_verified": false,
+      "duration_ms": 127896
+    },
+    {
+      "id": "132723443",
+      "artist": "SALUKI , Big Baby Tape , Aarne",
+      "title": "MANSION MUSIK",
+      "size": 7371486,
+      "blob": "db2fd9fee77653a5054128605896624fec9b19a9",
+      "original_duration_verified": false,
+      "duration_ms": 183798
+    },
+    {
+      "id": "138412039",
+      "artist": "OG Buda , МС Кальмар",
+      "title": "Футфетиш",
+      "size": 5080338,
+      "blob": "c3183836ed50b283e7d48aab3a864811ea631857",
+      "original_duration_verified": false,
+      "duration_ms": 126903
+    },
+    {
+      "id": "119296533",
+      "artist": "163ONMYNECK , OG Buda",
+      "title": "Коричневые",
+      "size": 7297812,
+      "blob": "b7575eebd1a1a792d80b072f18fccd4180dc4a6c",
+      "original_duration_verified": false,
+      "duration_ms": 177972
+    },
+    {
+      "id": "103844887",
+      "artist": "Scally Milano , OG Buda",
+      "title": "Большие Бабки",
+      "size": 5672139,
+      "blob": "7db54fbdf1bd556204b588869387f3a87be4f84b",
+      "original_duration_verified": false,
+      "duration_ms": 140904
+    },
+    {
+      "id": "119923186",
+      "artist": "OG Buda",
+      "title": "Гикаю",
+      "size": 5267897,
+      "blob": "d60ab01bf952df410f6fb99c9a497204b4de82d5",
+      "original_duration_verified": false,
+      "duration_ms": 130952
+    },
+    {
+      "id": "133429866",
+      "artist": "Слава КПСС , OG Buda",
+      "title": "Doodle Jump",
+      "size": 6685071,
+      "blob": "7f54e9efcd45070bb303542b983b84bcab0b5590",
+      "original_duration_verified": false,
+      "duration_ms": 164180
+    },
+    {
+      "id": "148716915",
+      "artist": "Платина , OG Buda",
+      "title": "Млечный путь",
+      "size": 5383776,
+      "blob": "fac3d948e56c691700bb8c80b6df18200d5c50ba",
+      "original_duration_verified": false,
+      "duration_ms": 132441
+    },
+    {
+      "id": "112996875",
+      "artist": "SALUKI , FEDUK , FRIENDLY THUG 52 NGG",
+      "title": "BOY$",
+      "size": 13286298,
+      "blob": "64154915abefd2f2e68e5b364598da2c74bb1bd7",
+      "original_duration_verified": false,
+      "duration_ms": 331233
+    },
+    {
+      "id": "84894428",
+      "artist": "Yanix , OG Buda , 163ONMYNECK",
+      "title": "Стейк",
+      "size": 8819840,
+      "blob": "8d842c91af0857737fc3f0d789956f4766582958",
+      "original_duration_verified": false,
+      "duration_ms": 212637
+    },
+    {
+      "id": "109996944",
+      "artist": "Lida",
+      "title": "Хочется забыться",
+      "size": 5833708,
+      "blob": "a28be188a37c8730d0400c20580dfa03b9031816",
+      "original_duration_verified": false,
+      "duration_ms": 145842
+    },
+    {
+      "id": "150820029",
+      "artist": "GUF",
+      "title": "Туман",
+      "size": 3236763,
+      "blob": "963619b7c417fed1a78fcc92876f9d99ef290d44",
+      "original_duration_verified": false,
+      "duration_ms": 202292
+    },
+    {
+      "id": "82890465",
+      "artist": "MORGENSHTERN , SODA LUV , blago white , OG Buda , MAYOT",
+      "title": "Cristal & МОЁТ",
+      "size": 8867444,
+      "blob": "8f08f963e5032e347578496cfc675407f16c5cc7",
+      "original_duration_verified": false,
+      "duration_ms": 219507
+    },
+    {
+      "id": "149180232",
+      "artist": "Bumble Beezy",
+      "title": "Не круто",
+      "size": 7363837,
+      "blob": "fd0bd2d24b6cde727694ea676daf4980c90d7874",
+      "original_duration_verified": false,
+      "duration_ms": 181917
+    },
+    {
+      "id": "27323574",
+      "artist": "GUF , Ба",
+      "title": "Дома",
+      "size": 11024136,
+      "blob": "9c93cf417cea4e72361443a6ff4ee5b28c372694",
+      "original_duration_verified": false,
+      "duration_ms": 273450
+    },
+    {
+      "id": "46844318",
+      "artist": "Bumble Beezy",
+      "title": "Groupie Town",
+      "size": 6651216,
+      "blob": "499ef82707520397cc96b0d92061f8609793253c",
+      "original_duration_verified": false,
+      "duration_ms": 164101
+    },
+    {
+      "id": "46844319",
+      "artist": "Bumble Beezy",
+      "title": "Blue Blood",
+      "size": 7741044,
+      "blob": "fcf0f297d60095f63c9ef070f178e47d752d2e56",
+      "original_duration_verified": false,
+      "duration_ms": 191347
+    },
+    {
+      "id": "27317245",
+      "artist": "GUF",
+      "title": "Сегодня-завтра",
+      "size": 11834954,
+      "blob": "297ec41d1a74869c8bb319605bcdac84e5bccbf0",
+      "original_duration_verified": false,
+      "duration_ms": 293695
+    },
+    {
+      "id": "27323560",
+      "artist": "GUF",
+      "title": "Больше стаффа",
+      "size": 10987542,
+      "blob": "2105a93ea8dc8eec4d14e29f953134882926101a",
+      "original_duration_verified": false,
+      "duration_ms": 272509
+    },
+    {
+      "id": "46844320",
+      "artist": "Bumble Beezy",
+      "title": "Big Gain Time",
+      "size": 7066062,
+      "blob": "25e70ee0d59e2b646a8cb0984597cb0d099da094",
+      "original_duration_verified": false,
+      "duration_ms": 174498
+    },
+    {
+      "id": "44368106",
+      "artist": "Bumble Beezy",
+      "title": "Какой парень",
+      "size": 9486046,
+      "blob": "9237bf4954caa3e4da65d18553a3604d10313134",
+      "original_duration_verified": false,
+      "duration_ms": 234998
+    },
+    {
+      "id": "46844312",
+      "artist": "Bumble Beezy",
+      "title": "NBA",
+      "size": 6145507,
+      "blob": "a29a5c24a72f9e252d8bede2b67cf0f04be9e48a",
+      "original_duration_verified": false,
+      "duration_ms": 151484
+    },
+    {
+      "id": "149171791",
+      "artist": "Bumble Beezy",
+      "title": "Саккада",
+      "size": 5768299,
+      "blob": "f38557866b10bad4ddcf1a3f49a5ded453758b8c",
+      "original_duration_verified": false,
+      "duration_ms": 142054
+    },
+    {
+      "id": "46844321",
+      "artist": "Bumble Beezy",
+      "title": "Гравитация",
+      "size": 9031515,
+      "blob": "0e2a2ac3a355d530f09c6705839595d843df7aa4",
+      "original_duration_verified": false,
+      "duration_ms": 223634
+    },
+    {
+      "id": "77143804",
+      "artist": "Джарахов , MORGENSHTERN",
+      "title": "Дегенерат",
+      "size": 2231508,
+      "blob": "b7d5919bbfbf6860f94cca6bdd92568e2e71183e",
+      "original_duration_verified": false,
+      "duration_ms": 90514
+    },
+    {
+      "id": "46844317",
+      "artist": "Bumble Beezy",
+      "title": "GOAT",
+      "size": 6887384,
+      "blob": "29a8524fbc112f1b96b88d5e2c86360cc1491a79",
+      "original_duration_verified": false,
+      "duration_ms": 170031
+    },
+    {
+      "id": "46844315",
+      "artist": "Bumble Beezy",
+      "title": "Найшуллер",
+      "size": 8348152,
+      "blob": "053c58166da8d1a56abcb3b19d2eb382cf56c33d",
+      "original_duration_verified": false,
+      "duration_ms": 206550
+    },
+    {
+      "id": "46844314",
+      "artist": "Bumble Beezy",
+      "title": "Average",
+      "size": 8515335,
+      "blob": "609792ec3d6cbcb45003bfa310e5c362f4b711de",
+      "original_duration_verified": false,
+      "duration_ms": 210730
+    },
+    {
+      "id": "123726329",
+      "artist": "voidvoice717",
+      "title": "Мертвенно-бледный",
+      "size": 5292408,
+      "blob": "03ee1fbef3ec6d91edf310cae972502a6aeab618",
+      "original_duration_verified": false,
+      "duration_ms": 132310
+    },
+    {
+      "id": "117219730",
+      "artist": "Слава КПСС",
+      "title": "No Thanks",
+      "size": 5480685,
+      "blob": "7ff5bd7a41736673391dabeb2b22f480cc449d2e",
+      "original_duration_verified": false,
+      "duration_ms": 137016
+    },
+    {
+      "id": "108721702",
+      "artist": "MORGENSHTERN",
+      "title": "Я УБИЛ МАРКА",
+      "size": 8988673,
+      "blob": "97aaea027d72494412118e99c35ad02fc5c47a55",
+      "original_duration_verified": false,
+      "duration_ms": 222563
+    },
+    {
+      "id": "105630453",
+      "artist": "MORGENSHTERN , Aarne",
+      "title": "DALEKO",
+      "size": 6021164,
+      "blob": "ab6a5efa3674676048caaa83cf8d720a214f7db3",
+      "original_duration_verified": false,
+      "duration_ms": 148376
+    },
+    {
+      "id": "70975421",
+      "artist": "INSTASAMKA , MONEYKEN",
+      "title": "ВИТОН",
+      "size": 5432886,
+      "blob": "19c1b1f0eb153ef7c751507dd346880970926529",
+      "original_duration_verified": false,
+      "duration_ms": 133669
+    },
+    {
+      "id": "107970506",
+      "artist": "Слава КПСС , GOKILLA",
+      "title": "Дубай",
+      "size": 4075564,
+      "blob": "99f27921bda648448d7cfe2f38039bd729cce84c",
+      "original_duration_verified": false,
+      "duration_ms": 99736
+    },
+    {
+      "id": "78489534",
+      "artist": "Слава КПСС",
+      "title": "Солнце",
+      "size": 9983417,
+      "blob": "c201c60ce7fca020c84508e1efbe5970e8377382",
+      "original_duration_verified": false,
+      "duration_ms": 247432
+    },
+    {
+      "id": "107970516",
+      "artist": "Слава КПСС",
+      "title": "Пачка",
+      "size": 5220772,
+      "blob": "2b2e81cd42cd0b558f7a929e3385ae8e68aecb9a",
+      "original_duration_verified": false,
+      "duration_ms": 128366
+    },
+    {
+      "id": "133429873",
+      "artist": "Слава КПСС",
+      "title": "AntiH",
+      "size": 7801022,
+      "blob": "9d2f845980b2e82d5b5419c571b4d916e0f12c55",
+      "original_duration_verified": false,
+      "duration_ms": 192078
+    },
+    {
+      "id": "107970523",
+      "artist": "Слава КПСС",
+      "title": "Bring Me the Horizon",
+      "size": 7928103,
+      "blob": "196011e5c6f52baa6f8365134bfd0e00ef9f9610",
+      "original_duration_verified": false,
+      "duration_ms": 196049
+    },
+    {
+      "id": "133429868",
+      "artist": "Слава КПСС , The Chemodan",
+      "title": "Swag",
+      "size": 6443700,
+      "blob": "a4b08e84fb8e9b83b575dab6247ca2e2fec37d7c",
+      "original_duration_verified": false,
+      "duration_ms": 158145
+    },
+    {
+      "id": "105333543",
+      "artist": "Слава КПСС",
+      "title": "Mike Killer",
+      "size": 7921106,
+      "blob": "41fe1b041d35329658a65bc034687f2ad8ea7ef6",
+      "original_duration_verified": false,
+      "duration_ms": 194194
+    },
+    {
+      "id": "131794589",
+      "artist": "Слава КПСС",
+      "title": "Страна-Гангстер",
+      "size": 5698102,
+      "blob": "c730f5e6261e3cc50636e511dc18d1759156a34d",
+      "original_duration_verified": false,
+      "duration_ms": 140069
+    },
+    {
+      "id": "131794593",
+      "artist": "Слава КПСС",
+      "title": "Элизиум",
+      "size": 6414902,
+      "blob": "4b347d76991dac0c8da442b85fe74a2354693a55",
+      "original_duration_verified": false,
+      "duration_ms": 157989
+    },
+    {
+      "id": "145192519",
+      "artist": "Слава КПСС",
+      "title": "Cold Money",
+      "size": 5851723,
+      "blob": "a65d9f039a7c6656c460c94ac241300e8c0d04a2",
+      "original_duration_verified": false,
+      "duration_ms": 145215
+    },
+    {
+      "id": "145192511",
+      "artist": "Слава КПСС , Palmdropov",
+      "title": "Лига чемпионов панчей",
+      "size": 7833895,
+      "blob": "4f007c942a38d454b3d66fdd7c4d3f7ec38240cd",
+      "original_duration_verified": false,
+      "duration_ms": 194769
+    },
+    {
+      "id": "78489537",
+      "artist": "Слава КПСС",
+      "title": "Обезбол",
+      "size": 5906225,
+      "blob": "120a630e91197b1e3b0261c01255bf1eff2692d8",
+      "original_duration_verified": false,
+      "duration_ms": 145502
+    },
+    {
+      "id": "131794600",
+      "artist": "Слава КПСС",
+      "title": "Хит Леджер",
+      "size": 7342772,
+      "blob": "050a7b136a5600bc6456dec20379d9707890a1ad",
+      "original_duration_verified": false,
+      "duration_ms": 181185
+    },
+    {
+      "id": "78489529",
+      "artist": "Слава КПСС",
+      "title": "Золотой храм",
+      "size": 4778780,
+      "blob": "4c7ea82cf0b392f1bf10707f8c844c0389f49634",
+      "original_duration_verified": false,
+      "duration_ms": 117316
+    },
+    {
+      "id": "131794592",
+      "artist": "Слава КПСС",
+      "title": "Мои пацаны",
+      "size": 9042821,
+      "blob": "5803f5ed6783d3b1f7edea58058b297881fb5d36",
+      "original_duration_verified": false,
+      "duration_ms": 223687
+    },
+    {
+      "id": "145192512",
+      "artist": "Слава КПСС",
+      "title": "Исаакий Флоу",
+      "size": 5451527,
+      "blob": "7c692fa48e0d2af1d4bf72aeab932290b9ac8236",
+      "original_duration_verified": false,
+      "duration_ms": 135210
+    },
+    {
+      "id": "114440638",
+      "artist": "Слава КПСС",
+      "title": "Девочка-милф",
+      "size": 6859130,
+      "blob": "900ea0c2122ffbdd91e0be9469d948c228e06c6f",
+      "original_duration_verified": false,
+      "duration_ms": 170553
+    },
+    {
+      "id": "131794596",
+      "artist": "Слава КПСС",
+      "title": "Деньги и Бог",
+      "size": 12097058,
+      "blob": "dcc46922c316a83319798f2397b0399d8ee2f4ec",
+      "original_duration_verified": false,
+      "duration_ms": 300042
+    },
+    {
+      "id": "114440643",
+      "artist": "Слава КПСС",
+      "title": "Rave Эзотерика",
+      "size": 8439016,
+      "blob": "edba6c31e941ddcc3de6193a412588fd04498757",
+      "original_duration_verified": false,
+      "duration_ms": 210051
+    },
+    {
+      "id": "117472918",
+      "artist": "huzzy b",
+      "title": "T&A",
+      "size": 6110607,
+      "blob": "0d08d7e9b7ed6eb01488e6b1feaad8a99c9b0473",
+      "original_duration_verified": false,
+      "duration_ms": 152660
+    },
+    {
+      "id": "119043915",
+      "artist": "SODA LUV",
+      "title": "Vigilante",
+      "size": 6779028,
+      "blob": "df7b503ec733e60ed4775934b50a23c355a4ae80",
+      "original_duration_verified": false,
+      "duration_ms": 168986
+    },
+    {
+      "id": "95505944",
+      "artist": "Тони Раут , Yltramarine",
+      "title": "La Vida Loca",
+      "size": 5929192,
+      "blob": "e6a8b8809e8a1165e1fbc2cef7d2f15759410e85",
+      "original_duration_verified": false,
+      "duration_ms": 146051
+    },
+    {
+      "id": "40498601",
+      "artist": "GONE.Fludd",
+      "title": "КУБИК ЛЬДА",
+      "size": 3465114,
+      "blob": "5f63e6b5a00c834f1005d6872d0f57bb64811ff9",
+      "original_duration_verified": false,
+      "duration_ms": 140748
+    },
+    {
+      "id": "148610616",
+      "artist": "cowboyclicker , Austin",
+      "title": "FRONTSHOTS BACKSHOTS SIDESHOTS",
+      "size": 4026285,
+      "blob": "fd135d2f32e5b8f50fd203ef06e9f012e3153060",
+      "original_duration_verified": false,
+      "duration_ms": 100656
+    },
+    {
+      "id": "86505315",
+      "artist": "ЗАМАЙ , Слава КПСС",
+      "title": "Дискотека Овсянкин",
+      "size": 11909143,
+      "blob": "696b2eb0d232e80d292c64fd0957d386d7cb2e82",
+      "original_duration_verified": false,
+      "duration_ms": 295549
+    },
+    {
+      "id": "119258438",
+      "artist": "SODA LUV , KREC",
+      "title": "Гаструляция",
+      "size": 9184384,
+      "blob": "23a9f0efdd4897c51e0f506117716210035a1733",
+      "original_duration_verified": false,
+      "duration_ms": 229120
+    },
+    {
+      "id": "52397208",
+      "artist": "playingtheangel , РЭЙДИ",
+      "title": "Кошмары",
+      "size": 8375318,
+      "blob": "48126421efc7e7bc1cd094d9b9b531c729f6d6a2",
+      "original_duration_verified": false,
+      "duration_ms": 207229
+    },
+    {
+      "id": "149171789",
+      "artist": "Bumble Beezy , CVPELLV , Dj Chinmachine",
+      "title": "Пристегни",
+      "size": 9687690,
+      "blob": "ed0df7771c3a845169c768d74ad7b5c1e131bf7b",
+      "original_duration_verified": false,
+      "duration_ms": 240013
+    },
+    {
+      "id": "38436677",
+      "artist": "Легенды Про , CENTR",
+      "title": "Загадка",
+      "size": 11519416,
+      "blob": "61cc23d0e55e2958fcbfb0a2d925f8295f9451b0",
+      "original_duration_verified": false,
+      "duration_ms": 285832
+    },
+    {
+      "id": "138562786",
+      "artist": "FRIENDLY THUG 52 NGG",
+      "title": "No Coco Senior Please",
+      "size": 4139679,
+      "blob": "35ee54806a9d20bff28dfecd2dc77baa83349bd9",
+      "original_duration_verified": false,
+      "duration_ms": 103079
+    },
+    {
+      "id": "39779902",
+      "artist": "STED.D , playingtheangel",
+      "title": "Не лезь ко мне",
+      "size": 6424265,
+      "blob": "7026e3b37219edddf42e025d8b593b85247fd2fc",
+      "original_duration_verified": false,
+      "duration_ms": 264046
+    },
+    {
+      "id": "73939474",
+      "artist": "STED.D , ЕГОР НАТС",
+      "title": "ИДУ ЗА ТОБОЙ",
+      "size": 9469305,
+      "blob": "c7b5e1043d8591a84fb71c508f1259ca237728f2",
+      "original_duration_verified": false,
+      "duration_ms": 234553
+    },
+    {
+      "id": "138562779",
+      "artist": "FRIENDLY THUG 52 NGG",
+      "title": "AIST",
+      "size": 5313120,
+      "blob": "e1e090e4876107f03d19ad4b122f1cd4a47cea77",
+      "original_duration_verified": false,
+      "duration_ms": 132441
+    },
+    {
+      "id": "93556488",
+      "artist": "Big Baby Tape , kizaru",
+      "title": "So Icy Nihao",
+      "size": 6228033,
+      "blob": "59fc23c0baa69731564c14507979e5d953e7b3d7",
+      "original_duration_verified": false,
+      "duration_ms": 153522
+    },
+    {
+      "id": "112996867",
+      "artist": "SALUKI , Boulevard Depo",
+      "title": "BROTHA BROTHA",
+      "size": 7555032,
+      "blob": "dc16fc6b8e38f89fdd9c5f6faa54327efa3f9614",
+      "original_duration_verified": false,
+      "duration_ms": 187951
+    },
+    {
+      "id": "132723446",
+      "artist": "SALUKI",
+      "title": "BIIG",
+      "size": 5185559,
+      "blob": "cd9331f460128a4baabddbbe618e93f65035b8bf",
+      "original_duration_verified": false,
+      "duration_ms": 129149
+    },
+    {
+      "id": "132723447",
+      "artist": "SALUKI , BUSHIDO ZHO",
+      "title": "DOGS",
+      "size": 6348531,
+      "blob": "63df2259808e0fb3a6bfbb0853356eb988a9ecec",
+      "original_duration_verified": false,
+      "duration_ms": 158224
+    },
+    {
+      "id": "40498610",
+      "artist": "GONE.Fludd",
+      "title": "СЛАДОСТИ",
+      "size": 4127788,
+      "blob": "796dfae8e927219cb6deec84a4e97d8beb99ff0e",
+      "original_duration_verified": false,
+      "duration_ms": 168359
+    },
+    {
+      "id": "112996879",
+      "artist": "SALUKI , БИЛИК , Брутто",
+      "title": "BOLOTO",
+      "size": 8501731,
+      "blob": "814a32d5c6202daf7778797086277f9627c97b84",
+      "original_duration_verified": false,
+      "duration_ms": 207909
+    },
+    {
+      "id": "92607045",
+      "artist": "GONE.Fludd",
+      "title": "Баланс",
+      "size": 5118372,
+      "blob": "440afa6c76ec73f70e41b75397f884b11f89d3fe",
+      "original_duration_verified": false,
+      "duration_ms": 125806
+    },
+    {
+      "id": "109051381",
+      "artist": "SODA LUV",
+      "title": "ЯЛРС (prod. by YG Woods, 8keey)",
+      "size": 5206770,
+      "blob": "85dc6ef790e537b6a0e7704909769c42ee5753ec",
+      "original_duration_verified": false,
+      "duration_ms": 130064
+    },
+    {
+      "id": "60544538",
+      "artist": "SODA LUV",
+      "title": "Бигасс",
+      "size": 5795466,
+      "blob": "6ad5507ec742839de13a9b418f35cfa0c4319597",
+      "original_duration_verified": false,
+      "duration_ms": 142733
+    },
+    {
+      "id": "118841491",
+      "artist": "FRIENDLY THUG 52 NGG",
+      "title": "October",
+      "size": 4321261,
+      "blob": "cd23ad88a7053f36d64d5a41ac51edaf37a80497",
+      "original_duration_verified": false,
+      "duration_ms": 107337
+    }
+  ],
+  "target_pending": 200,
+  "batch_size": 50,
+  "original_duration_verified": false,
+  "fixed_plan": true
+}
