@@ -1,6 +1,6 @@
 # CELIKOM Windows Companion — NEXT-CHAT
 
-**Updated 2026-11-08. W3 confirmed by owner; W4–W8 isolated CI VERIFIED. W8 native error recovery 12/12 + 33/33 Electron assertions.**
+**Updated 2026-11-08. W3 owner identity confirmed; W4–W8 isolated CI verified; W9 physical ASAR-copy laboratory under CI.**
 
 ## Objective
 Official Windows Yandex Music is the ONLY owner of audio, pause, seek, next, queue,
@@ -212,3 +212,23 @@ No owner ZIP and no repeated W0–W3 scans are needed here.
   integration feasibility, with explicit consent before modifying any
   installed file. Existing W3 owner snapshot remains the sole real-client
   evidence; do not ask for W0-W3 scans again.
+
+## W9 generated ASAR copy & rollback with actual Electron launches
+
+- `docs/windows/W9-ASAR-COPY-ROLLBACK-20261108.md` defines the
+  strict experimental boundary. ASAR integrity may be embedded in
+  the Windows EXE's resources and checked by the Electron fuse.
+  If unknown, any official-client modification is **NO-GO**.
+- `windows-companion/w9/asar-copy-lab.mjs` creates only its own
+  temp generated ASAR, independently backs it up, hashes, repacks
+  modified **copy**, simulates interrupted install/restoration
+  and refuses third-party changes.
+- `run-boot-e2e.mjs` must launch a REAL generic CI Electron
+  44 against an original synthetic `app.asar`, then modified copy,
+  then byte-restored original, verifying absence of hook after restore.
+- This is physical copy testing, **not an actual user's Yandex file
+  backup, installation, live renderer interception or consent**.
+- W9 Windows CI result must be inspected, not assumed.
+- After W9, a real read-only integrity observation on the actual
+  installed Yandex EXE could resolve current blockers, but do not
+  ask owner to repeat W0–W3 or issue a patched client unapproved.

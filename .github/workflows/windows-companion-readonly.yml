@@ -1,4 +1,4 @@
-name: Windows Companion — W8 native error recovery & W7 external attach
+name: Windows Companion — W9 isolated ASAR copy & rollback proof
 
 on:
   workflow_dispatch:
@@ -34,6 +34,11 @@ jobs:
       - name: Install W5 isolated Electron and MP3 fixture dependencies
         working-directory: windows-companion/w5
         run: npm install --no-audit --no-fund --no-package-lock
+      - name: W9 real generated ASAR integrity, fail-closed copy and crash recovery tests
+        run: node --test windows-companion/w9/asar-copy-lab.test.mjs
+      - name: W9 genuine Electron boots original, isolated modified copy and byte-restored original
+        working-directory: windows-companion/w5
+        run: npm run w9
       - name: Prepare hash-pinned public Yandex source classes (test-only)
         working-directory: windows-companion/w5
         run: node prepare-fixture.mjs out

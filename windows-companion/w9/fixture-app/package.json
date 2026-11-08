@@ -1,0 +1,6 @@
+{
+  "name": "celikom-w9-synthetic-electron-only",
+  "version": "0.0.0",
+  "main": "index.cjs",
+  "private": true
+}
