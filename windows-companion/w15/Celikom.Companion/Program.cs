@@ -20,7 +20,7 @@ internal static class Program
             }
         }
         ApplicationConfiguration.Initialize();
-        Application.Run(new MainWindow());
+        Application.Run(new MainWindow(args.Length == 1 && args[0] == "--complete-update"));
         return 0;
     }
 }

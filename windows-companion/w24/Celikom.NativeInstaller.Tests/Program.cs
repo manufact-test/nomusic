@@ -54,7 +54,7 @@ var asar=MakeArchive();
 var headerLength=BinaryPrimitives.ReadUInt32LittleEndian(asar.AsSpan(12,4));
 var headerHash=Hash(asar.AsSpan(16,(int)headerLength).ToArray());
 var exe=Encoding.ASCII.GetBytes("MZ_FAKE_SIGNED_"+headerHash+"_END");
-var host=Encoding.ASCII.GetBytes("host:"+new string('h',240));
+var host=Encoding.ASCII.GetBytes("const CELIKOM_NATIVE_VERSION = \"0.24.4\";\\n"+"host:"+new string('h',240));
 var renderer=Encoding.ASCII.GetBytes("renderer:"+new string('r',1600));
 var originalAsarHash=Hash(asar);
 var originalExeHash=Hash(exe);
@@ -67,6 +67,24 @@ Check(!changed.Executable.SequenceEqual(exe),"EXE patch applied");
 Check(!changed.Asar.SequenceEqual(asar),"ASAR patch applied");
 Check(changed.Executable.AsSpan().IndexOf(Encoding.ASCII.GetBytes(headerHash)) < 0,"old embedded hash removed");
 Check(changed.Asar.Length>asar.Length+host.Length+renderer.Length,"new content embedded");
+var identityRoot = Path.Combine(Path.GetTempPath(),"celikom-native-identity-"+Guid.NewGuid().ToString("N"));
+var identityAssets = Path.Combine(identityRoot,"assets");
+Directory.CreateDirectory(Path.Combine(identityRoot,"resources"));
+Directory.CreateDirectory(identityAssets);
+try {
+  File.WriteAllBytes(Path.Combine(identityRoot,"resources","app.asar"),changed.Asar);
+  File.WriteAllBytes(Path.Combine(identityAssets,"host.cjs"),host);
+  File.WriteAllBytes(Path.Combine(identityAssets,"renderer.js"),renderer);
+  var identity = NativeModuleIdentity.Inspect(NativeInstallState.Active,identityRoot,identityAssets);
+  Check(identity.Version=="0.24.4"&&identity.MatchesApplication,
+      "installed ASAR host/renderer hashes and native version match actual installed app");
+  File.AppendAllText(Path.Combine(identityAssets,"renderer.js"),"changed");
+  var mismatch = NativeModuleIdentity.Inspect(NativeInstallState.Active,identityRoot,identityAssets);
+  Check(mismatch.Version=="0.24.4"&&!mismatch.MatchesApplication,
+      "old or modified native module is marked mismatched");
+  Check(NativeModuleIdentity.Inspect(NativeInstallState.NotInstalled,identityRoot,identityAssets).Version=="unknown",
+      "no installed module never claims version");
+} finally { Directory.Delete(identityRoot,true); }
 
 Reject(()=>NativeAsarImageBuilder.Build(exe,asar,host,renderer,new string('0',64),originalAsarHash),
   "wrong exe original blocked");

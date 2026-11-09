@@ -5,7 +5,11 @@
 [Setup]
 AppId={{D99FDB90-46BF-4EE5-989E-659A2B6450D6}
 AppName=CELIKOM
-AppVersion=0.24.3
+AppVersion=0.24.4
+VersionInfoVersion=0.24.4.0
+VersionInfoCompany=CELIKOM
+VersionInfoProductName=CELIKOM
+VersionInfoDescription=CELIKOM Windows Setup
 AppPublisher=CELIKOM
 DefaultDirName={localappdata}\Programs\CELIKOM
 DefaultGroupName=CELIKOM
@@ -17,7 +21,7 @@ Compression=lzma2
 SolidCompression=yes
 DisableDirPage=yes
 OutputDir=..\output
-OutputBaseFilename=CELIKOM-W31-AUDIO-TRACE-UNSIGNED
+OutputBaseFilename=CELIKOM-W32-EASY-UPDATE-UNSIGNED
 UninstallDisplayIcon={app}\{#AppExecutable}
 CloseApplications=yes
 RestartApplications=no
@@ -32,9 +36,20 @@ Source: "..\..\w23\dist\renderer.js"; DestDir: "{app}\integration"; Flags: ignor
 Name: "{autoprograms}\CELIKOM"; Filename: "{app}\{#AppExecutable}"
 
 [Run]
-Filename: "{app}\{#AppExecutable}"; Description: "Открыть CELIKOM"; Flags: postinstall nowait skipifsilent
+Filename: "{app}\{#AppExecutable}"; Parameters: "--complete-update"; Flags: nowait; Check: IsAppUpdate
+Filename: "{app}\{#AppExecutable}"; Description: "Открыть CELIKOM"; Flags: postinstall nowait skipifsilent; Check: IsNormalInstall
 
 [Code]
+function IsAppUpdate(): Boolean;
+begin
+  Result := ExpandConstant('{param:CELIKOMAPPUPDATE|0}') = '1';
+end;
+
+function IsNormalInstall(): Boolean;
+begin
+  Result := not IsAppUpdate();
+end;
+
 function InitializeUninstall(): Boolean;
 var
   ReturnCode: Integer;

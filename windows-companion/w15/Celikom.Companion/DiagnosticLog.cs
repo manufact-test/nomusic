@@ -57,12 +57,18 @@ public static class DiagnosticLog
         line is not null && line.Length <= 128 && SafeLine.IsMatch(line);
 
     public static string ExportText(string? yandexVersion, string integration,
-        bool bridgeStarted, bool enabled, bool signedIn)
+        bool bridgeStarted, bool enabled, bool signedIn,
+        string? nativeModuleVersion = null, bool? nativeMatchesApplication = null)
     {
         var text = new StringBuilder();
         text.AppendLine("CELIKOM WINDOWS OWNER DIAGNOSTICS — W31");
         text.AppendLine("GeneratedUTC=" + DateTimeOffset.UtcNow.ToString("O", CultureInfo.InvariantCulture));
         text.AppendLine("AppVersion=" + (typeof(DiagnosticLog).Assembly.GetName().Version?.ToString() ?? "unknown"));
+        text.AppendLine("NativeModuleVersion=" +
+            (nativeModuleVersion is not null && Regex.IsMatch(nativeModuleVersion, @"^[0-9.]{1,24}$")
+                ? nativeModuleVersion : "unknown"));
+        text.AppendLine("NativeModuleMatchesApp=" +
+            (nativeMatchesApplication is null ? "unknown" : nativeMatchesApplication.Value ? "true" : "false"));
         text.AppendLine("CodeBaseline=W31_BROWSER_CONTEXT_AUDIO_PROBE");
         text.AppendLine("YandexVersion=" + (yandexVersion is not null &&
             Regex.IsMatch(yandexVersion, @"^[0-9.]{1,24}$") ? yandexVersion : "unknown"));

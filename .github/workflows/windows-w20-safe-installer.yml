@@ -76,6 +76,21 @@ jobs:
           if (-not (Test-Path $compiler)) { throw 'W20_INNO_COMPILER_NOT_FOUND' }
           & $compiler windows-companion/w20/installer/CELIKOM.iss
           if ($LASTEXITCODE -ne 0) { throw 'W20_INSTALLER_COMPILE_FAILED' }
+      - name: Validate updater ZIP selection, PE version and anti-downgrade
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $installer = 'windows-companion/w20/output/CELIKOM-W32-EASY-UPDATE-UNSIGNED.exe'
+          $meta = [Diagnostics.FileVersionInfo]::GetVersionInfo((Resolve-Path $installer))
+          if ($meta.FileVersion -ne '0.24.4.0' -or $meta.ProductName -ne 'CELIKOM' -or $meta.CompanyName -ne 'CELIKOM') {
+            throw "W32_INSTALLER_PE_VERSION_MISMATCH: version=$($meta.FileVersion) product=$($meta.ProductName) company=$($meta.CompanyName)"
+          }
+          $package = Join-Path $env:RUNNER_TEMP 'CELIKOM-W32-test-package.zip'
+          Compress-Archive -Path $installer -DestinationPath $package
+          $env:CELIKOM_UPDATE_TEST_PACKAGE = $package
+          dotnet run --project windows-companion/w15/Celikom.Companion.Tests/Celikom.Companion.Tests.csproj -c Release
+          if ($LASTEXITCODE -ne 0) { throw 'W32_ONE_CLICK_ZIP_TEST_FAILED' }
+          Write-Output 'W32_ZIP_UPDATE_METADATA_AND_DOWNGRADE_GUARD_PASS'
       - name: Disposable Windows per-user install and uninstall smoke
         shell: pwsh
         run: |
@@ -95,6 +110,12 @@ jobs:
             throw 'W24_NATIVE_ASSETS_NOT_INSTALLED'
           }
           if (Test-Path $yandexDir) { throw 'W20_INSTALLED_OR_TOUCHED_YANDEX' }
+          $upgrade = Start-Process -FilePath $installer -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/SP-' -Wait -PassThru
+          if ($upgrade.ExitCode -ne 0 -or -not (Test-Path $exe)) { throw 'W32_SAME_APPID_UPGRADE_FAILED' }
+          if (Test-Path (Join-Path $env:LOCALAPPDATA 'Programs\CELIKOM\unins001.exe')) {
+            throw 'W32_SECOND_UNINSTALLER_MEANS_DUPLICATE_APPLICATION'
+          }
+          Write-Output 'W32_SAME_APPLICATION_INPLACE_INSTALL_PASS'
           $remove = Start-Process -FilePath $unins -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART' -Wait -PassThru
           if ($remove.ExitCode -ne 0) { throw 'W20_UNINSTALL_EXIT_NONZERO' }
           Start-Sleep -Seconds 2

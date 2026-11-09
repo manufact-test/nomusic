@@ -27,6 +27,11 @@ public sealed class MainWindow : Form
     private readonly Label _status = new();
     private readonly Label _song = new();
     private readonly Label _hostStatus = new();
+    private readonly Label _versionFooter = new();
+    private readonly Button _updateApplication = new();
+    private NativeModuleIdentity _installedModule = NativeModuleIdentity.Unknown;
+    private bool _updatingApplication;
+    private readonly bool _finishApplicationUpdate;
     private readonly Button _connectYandex = new();
     private readonly Button _restoreYandex = new();
     private NativeInstallState _nativeInstallState = NativeInstallState.NotInstalled;
@@ -46,15 +51,16 @@ public sealed class MainWindow : Form
     private bool _closing;
     private bool _loggingIn;
 
-    public MainWindow()
+    public MainWindow(bool finishApplicationUpdate = false)
     {
+        _finishApplicationUpdate = finishApplicationUpdate;
         _api = new CelikomApi(_store);
         _bridge = new BridgeServer(_api, _store);
         _bridge.Changed += () => UpdateSafe();
 
-        Text = "CELIKOM Companion — Windows";
-        ClientSize = new Size(488, 612);
-        MinimumSize = new Size(465, 620);
+        Text = "CELIKOM " + AppUpdateManager.RunningVersion.ToString(3) + " — Windows";
+        ClientSize = new Size(500, 690);
+        MinimumSize = new Size(485, 675);
         StartPosition = FormStartPosition.CenterScreen;
         Font = new Font("Segoe UI", 10F);
         BackColor = Paper;
@@ -83,8 +89,18 @@ public sealed class MainWindow : Form
         var account = new TabPage("Аккаунт") { BackColor = Paper, UseVisualStyleBackColor = false };
         _pages.TabPages.Add(home);
         _pages.TabPages.Add(account);
+        var footerBar = new Panel { Dock = DockStyle.Bottom, Height = 38,
+            BackColor = ColorTranslator.FromHtml("#E5EEEA") };
+        _versionFooter.Dock = DockStyle.Fill;
+        _versionFooter.Padding = new Padding(15, 0, 8, 0);
+        _versionFooter.TextAlign = ContentAlignment.MiddleLeft;
+        _versionFooter.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
+        _versionFooter.ForeColor = Ink;
+        _versionFooter.AutoEllipsis = true;
+        footerBar.Controls.Add(_versionFooter);
         Controls.Add(_pages);
         Controls.Add(header);
+        Controls.Add(footerBar);
         BuildHome(home);
         BuildAccount(account);
 
@@ -104,6 +120,7 @@ public sealed class MainWindow : Form
         {
             await StartBridgeAsync();
             await RefreshHostAsync();
+            if (_finishApplicationUpdate) await CompleteApplicationUpdateAsync();
         };
         Activated += (_, _) =>
         {
@@ -260,6 +277,9 @@ public sealed class MainWindow : Form
         tools.Controls.Add(openYandex, 0, 0);
         tools.Controls.Add(downloadDiagnostics, 1, 0);
         Add(layout, tools, 47);
+        ConfigureAuthButton(_updateApplication, false, "Обновить CELIKOM из ZIP или EXE");
+        _updateApplication.Click += UpdateApplicationAsync;
+        Add(layout, _updateApplication, 43);
         _hostStatus.ForeColor = Secondary;
         _hostStatus.Font = new Font("Segoe UI", 9F);
         _hostStatus.AutoEllipsis = false;
@@ -319,14 +339,20 @@ public sealed class MainWindow : Form
         try
         {
             var inspected = await Task.Run(() =>
-                (YandexHostProbe.Inspect(), NativeIntegrationManager.Inspect()));
+            {
+                var nativeState = NativeIntegrationManager.Inspect();
+                return (YandexHostProbe.Inspect(), nativeState,
+                    NativeModuleIdentity.Inspect(nativeState));
+            });
             _hostReport = inspected.Item1;
             _nativeInstallState = inspected.Item2;
+            _installedModule = inspected.Item3;
         }
         catch
         {
             _hostReport = new(YandexHostStatus.InspectionUnavailable, "");
             _nativeInstallState = NativeInstallState.Changed;
+            _installedModule = NativeModuleIdentity.Unknown;
         }
         finally
         {
@@ -440,7 +466,8 @@ public sealed class MainWindow : Form
         {
             var snapshot = DiagnosticLog.ExportText(_hostReport?.Version,
                 _nativeInstallState.ToString().ToUpperInvariant(), _bridgeStarted,
-                _bridge.Enabled, _api.IsLoggedIn);
+                _bridge.Enabled, _api.IsLoggedIn, _installedModule.Version,
+                _nativeInstallState == NativeInstallState.Active ? _installedModule.MatchesApplication : null);
             File.WriteAllText(save.FileName, snapshot, System.Text.Encoding.UTF8);
             DiagnosticLog.Record("EXPORT_SAVED");
             MessageBox.Show(this, "Диагностика сохранена. Пришли этот TXT в чат.", "CELIKOM");
@@ -449,6 +476,104 @@ public sealed class MainWindow : Form
         {
             DiagnosticLog.Record("EXPORT_FAILED");
             MessageBox.Show(this, "Не удалось сохранить файл. Выбери другую папку.", "CELIKOM");
+        }
+    }
+
+    private async void UpdateApplicationAsync(object? sender, EventArgs e)
+    {
+        if (_updatingApplication || _integrationBusy) return;
+        using var picker = new OpenFileDialog
+        {
+            Title = "Выбери скачанный ZIP CELIKOM (или установщик EXE)",
+            Filter = "Обновление CELIKOM (*.zip;*.exe)|*.zip;*.exe",
+            Multiselect = false,
+            CheckFileExists = true,
+            RestoreDirectory = true
+        };
+        if (picker.ShowDialog(this) != DialogResult.OK) return;
+
+        _updatingApplication = true;
+        UpdateSafe();
+        AppUpdateManager.StagedInstaller? staged = null;
+        try
+        {
+            DiagnosticLog.Record("APP_UPDATE_FILE_SELECTED");
+            staged = await Task.Run(() =>
+                AppUpdateManager.Stage(picker.FileName, AppUpdateManager.RunningVersion));
+            var agree = MessageBox.Show(this,
+                "CELIKOM " + AppUpdateManager.RunningVersion.ToString(3) +
+                " → " + staged.Version.ToString(3) + "\n\n" +
+                "Обновим ЭТО ЖЕ приложение в Windows, без удаления и нового входа. " +
+                "Затем проверим и при необходимости обновим модуль внутри Яндекса. " +
+                "Яндекс может перезапуститься.\n\n" +
+                "Используй только ZIP, скачанный из нашего GitHub (сборки пока без цифровой подписи).",
+                "Обновить CELIKOM",
+                MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+            if (agree != DialogResult.Yes) return;
+            AppUpdateManager.MarkPending(staged.Version);
+            AppUpdateManager.Launch(staged);
+            DiagnosticLog.Record("APP_UPDATE_INSTALLER_LAUNCHED");
+            Close();
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or
+            System.IO.InvalidDataException or System.ComponentModel.Win32Exception or
+            InvalidOperationException or ArgumentException)
+        {
+            DiagnosticLog.Record("APP_UPDATE_FAILED");
+            var message = ex.Message switch
+            {
+                "UPDATE_NOT_NEWER" => "Этот ZIP содержит старую или уже установленную версию. Скачай более новую.",
+                "UPDATE_NOT_CELIKOM" => "Файл не похож на подходящий установщик CELIKOM. Обновление остановлено.",
+                "UPDATE_PACKAGE_INVALID" or "UPDATE_FILE_INVALID" =>
+                    "Выбери ZIP с одним установщиком CELIKOM, скачанный из нашего GitHub.",
+                _ => "Обновление не запустилось. CELIKOM остался без изменений."
+            };
+            MessageBox.Show(this, message, "CELIKOM", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+        }
+        finally
+        {
+            _updatingApplication = false;
+            if (!_closing) UpdateSafe();
+        }
+    }
+
+    // This path is authorized ONLY by a 20-minute, one-use ticket from the
+    // previous running CELIKOM that launched the installer after owner consent.
+    private async Task CompleteApplicationUpdateAsync()
+    {
+        if (!AppUpdateManager.TryConsumePending(AppUpdateManager.RunningVersion)) return;
+        DiagnosticLog.Record("APP_UPDATE_COMPLETED");
+        if (_nativeInstallState != NativeInstallState.Active || _installedModule.MatchesApplication)
+            return;
+        _integrationBusy = true;
+        UpdateSafe();
+        try
+        {
+            _bridge.SetEnabled(false);
+            await Task.Run(() =>
+            {
+                NativeIntegrationManager.Restore();
+                NativeIntegrationManager.Install();
+            });
+            DiagnosticLog.Record("APP_UPDATE_NATIVE_REFRESH_OK");
+            _bridge.SetEnabled(_api.IsLoggedIn);
+            var exe = Path.Combine(NativeIntegrationManager.DefaultYandexDirectory, "Яндекс Музыка.exe");
+            try { Process.Start(new ProcessStartInfo(exe) { UseShellExecute = true }); }
+            catch { /* Owner can open Yandex normally. */ }
+        }
+        catch (Exception error)
+        {
+            DiagnosticLog.Record("APP_UPDATE_NATIVE_REFRESH_FAILED");
+            MessageBox.Show(this,
+                "CELIKOM обновился, но модуль Яндекса не обновился: " +
+                DescribeIntegrationFailure(error) + "\nНажми «Обновить модуль» после проверки.",
+                "Обновление CELIKOM", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+        }
+        finally
+        {
+            _integrationBusy = false;
+            await RefreshHostAsync();
+            UpdateSafe();
         }
     }
 
@@ -541,7 +666,8 @@ public sealed class MainWindow : Form
         var connected = _bridgeStarted && _api.IsLoggedIn;
         _login.Enabled = !_loggingIn;
         _logout.Enabled = !_loggingIn && _api.IsLoggedIn;
-        _toggle.Enabled = connected && _nativeInstallState == NativeInstallState.Active;
+        _toggle.Enabled = connected && _nativeInstallState == NativeInstallState.Active &&
+            _installedModule.MatchesApplication;
         _toggle.Text = _bridge.Enabled ? "Стоп" : "Старт";
         _toggle.BackColor = connected ? Accent : ColorTranslator.FromHtml("#D1D9D6");
         _toggle.ForeColor = connected ? Color.White : Secondary;
@@ -603,12 +729,24 @@ public sealed class MainWindow : Form
              _hostReport?.Status == YandexHostStatus.OfficialBaselineVerified);
         _restoreYandex.Enabled = !_integrationBusy &&
             _nativeInstallState is NativeInstallState.Active or NativeInstallState.Interrupted;
+        _updateApplication.Enabled = !_integrationBusy && !_updatingApplication;
         if (_nativeInstallState == NativeInstallState.Active)
-            _hostStatus.Text = "Подключён к Яндекс.Музыке. Плеер и очередь остаются родными.";
+            _hostStatus.Text = _installedModule.MatchesApplication
+                ? "Модуль Яндекса совпадает с программой. Звук подмены ещё проверяется."
+                : "В Яндексе старый модуль! Нажми «Обновить модуль».";
         else if (_nativeInstallState == NativeInstallState.Interrupted)
             _hostStatus.Text = "Подключение прервалось. Доступно восстановление оригинала.";
         else if (_nativeInstallState == NativeInstallState.Changed)
             _hostStatus.Text = "Яндекс обновился или изменён. Автоматических изменений не будет.";
+        var moduleText = _nativeInstallState == NativeInstallState.Active
+            ? _installedModule.MatchesApplication
+                ? "Модуль Яндекса: " + AppUpdateManager.RunningVersion.ToString(3) + " ✓"
+                : "Модуль Яндекса: " +
+                  (_installedModule.Version == "unknown" ? "старая версия" : _installedModule.Version) +
+                  " — не совпадает"
+            : "Модуль Яндекса: не подключён";
+        _versionFooter.Text = "CELIKOM " + AppUpdateManager.RunningVersion.ToString(3) +
+            "   |   " + moduleText;
         _tray.Text = connected && _bridge.Enabled
             ? "CELIKOM — включён" : "CELIKOM — выключен";
     }

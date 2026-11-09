@@ -82,7 +82,23 @@ try
     Test(!GrantValidator.IsTrackId("123:42"), "no fuzzy album ID");
     Test(!GrantValidator.IsTrackId("01"), "no ambiguous leading zeros");
 
-    var expectedAccess = new string('b', 64);
+    // GitHub Windows installer workflow injects the built ZIP after Inno Setup.
+    var zipFixture = Environment.GetEnvironmentVariable("CELIKOM_UPDATE_TEST_PACKAGE");
+    if (!string.IsNullOrWhiteSpace(zipFixture))
+    {
+        var staged = AppUpdateManager.Stage(zipFixture, new Version(0, 24, 3, 0));
+        Test(staged.Version == new Version(0, 24, 4, 0),
+            "ZIP one-click updater accepts new CELIKOM version");
+        Test(Path.GetFileName(staged.Path).StartsWith("CELIKOM-W32-",StringComparison.Ordinal),
+            "ZIP extraction stages only CELIKOM installer");
+        bool oldRejected = false;
+        try { AppUpdateManager.Stage(zipFixture, AppUpdateManager.RunningVersion); }
+        catch (IOException e) when (e.Message == "UPDATE_NOT_NEWER") { oldRejected = true; }
+        Test(oldRejected, "update button rejects already-installed version");
+        Test(!File.Exists(Path.Combine(AppUpdateManager.RunningVersion.ToString(), "fake")),
+            "upgrade acceptance never modifies Yandex");
+    }
+        var expectedAccess = new string('b', 64);
     var expectedRefresh = new string('c', 64);
     var backendCalls = new List<string>();
     using var api = new CelikomApi(store, new FakeHandler(request =>
