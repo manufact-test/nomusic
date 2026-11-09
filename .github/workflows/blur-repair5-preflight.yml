@@ -1,0 +1,30 @@
+name: CELIKOM Blur — five repaired track IDs production preflight READ ONLY
+on:
+  push:
+    branches: [feature/blur-batch1000-20261108]
+    paths: ['.github/workflows/blur-repair5-preflight.yml']
+  workflow_dispatch:
+permissions: {contents: read}
+jobs:
+  audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - run: php -l tools/blur-research/repair5-preflight.php
+      - name: Query production by ID and exact title, read-only
+        shell: bash
+        env:
+          HOST_KEY: ${{ secrets.CELIKOM_HOSTINGER_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.CELIKOM_HOSTINGER_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p "$RUNNER_TEMP/private"
+          printf '%s\n' "$HOST_KEY" > "$RUNNER_TEMP/private/key"
+          printf '%s\n' "$KNOWN_HOSTS" > "$RUNNER_TEMP/private/hosts"
+          chmod 600 "$RUNNER_TEMP/private/"*
+          ssh -p 65002 -o ConnectTimeout=25 -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$RUNNER_TEMP/private/hosts" -i "$RUNNER_TEMP/private/key" u235811320@92.113.19.189 '/opt/alt/php83/usr/bin/php -d display_errors=stderr' < tools/blur-research/repair5-preflight.php > "$RUNNER_TEMP/repair5-live.json"
+          cat "$RUNNER_TEMP/repair5-live.json"
+          jq -e '.status=="REPAIR5_PREFLIGHT_READONLY" and .checked==5 and .writes==0 and (.rows|length)==5' "$RUNNER_TEMP/repair5-live.json"
