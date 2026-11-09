@@ -1,0 +1,35 @@
+name: CELIKOM W21 independent Windows recovery contracts
+
+on:
+  push:
+    branches:
+      - experiment/windows-companion-integration-20261108
+    paths:
+      - windows-companion/w21/**
+      - .github/workflows/windows-w21-recovery.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  recovery:
+    runs-on: windows-2022
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Compile independently licensable recovery core
+        shell: pwsh
+        run: |
+          dotnet build windows-companion/w21/Celikom.Recovery/Celikom.Recovery.csproj -c Release -warnaserror
+          if ($LASTEXITCODE -ne 0) { throw 'W21_COMPILE_FAILED' }
+      - name: Test atomic backup, known-patch recovery and foreign-update refusal
+        shell: pwsh
+        run: |
+          dotnet run --project windows-companion/w21/Celikom.Recovery.Tests/Celikom.Recovery.Tests.csproj -c Release
+          if ($LASTEXITCODE -ne 0) { throw 'W21_RECOVERY_FAILED' }
