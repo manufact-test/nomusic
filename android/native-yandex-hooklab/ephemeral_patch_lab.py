@@ -131,13 +131,13 @@ def loader_library_preflight(apk:Path):
                 raise ValueError("LSPatch loader ELF is not ZIP_STORED: "+abi)
             file.seek(info.header_offset)
             header=file.read(30)
-            if len(header)!=30 or header[:4]!=b"PK\\x03\\x04":
+            if len(header)!=30 or header[:4]!=b"PK\x03\x04":
                 raise ValueError("LSPatch native loader ZIP header invalid")
             namelen,extralen=struct.unpack_from("<HH",header,26)
             data_offset=info.header_offset+30+namelen+extralen
             with z.open(info) as stream:
                 elf=stream.read(20)
-            if elf[:4]!=b"\\x7fELF" or len(elf)!=20:
+            if elf[:4]!=b"\x7fELF" or len(elf)!=20:
                 raise ValueError("LSPatch loader has no ELF header")
             real_machine=struct.unpack_from("<H",elf,18)[0]
             if real_machine!=machine:
