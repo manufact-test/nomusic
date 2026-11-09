@@ -1,75 +1,193 @@
 "use strict";
-const {app,webContents}=require("electron");
-const fs=require("node:fs");
-const path=require("node:path");
-const approvedOrigins=new Set([
- "https://desktop.app.music.yandex.net",
- "https://music.yandex.ru",
- "https://next.music.yandex.ru",
- "https://music.yandex.com"
+
+/**
+ * CELIKOM main-process relay for genuine Yandex Music desktop.
+ * Bridges only fixed-shape state/grant data through Electron executeJavaScript.
+ * Never weakens CSP or requires a browser-accessible localhost endpoint.
+ * No access to Yandex account, player controls, queue or third-party secrets.
+ */
+const { app, webContents } = require("electron");
+const fs = require("node:fs");
+const path = require("node:path");
+const http = require("node:http");
+const allowedOrigins = new Set([
+  "https://desktop.app.music.yandex.net",
+  "https://music.yandex.ru",
+  "https://next.music.yandex.ru",
+  "https://music.yandex.com"
 ]);
-const capability=path.join(process.env.LOCALAPPDATA||"","CELIKOM","Windows","native-bridge.key");
-let js="";
-try{js=fs.readFileSync(path.join(app.getAppPath(),"celikom","renderer.js"),"utf8");}catch{}
-const seen=new WeakMap();
-const diagnostic=process.env.CELIKOM_W23_DEV_DIAG||"";
-function report(code){
-  if(!diagnostic||!/^[A-Z_]{3,48}$/.test(code))return;
-  try{fs.appendFileSync(diagnostic,code+"\n");}catch{}
+const capabilityFile = path.join(process.env.LOCALAPPDATA || "",
+  "CELIKOM", "Windows", "native-bridge.key");
+const diagnostics = process.env.CELIKOM_W23_DEV_DIAG || "";
+const logged = new Set();
+function note(code) {
+  if (!diagnostics || !/^[A-Z_]{3,48}$/.test(code) || logged.has(code)) return;
+  logged.add(code);
+  try { fs.appendFileSync(diagnostics, code + "\n"); } catch {}
 }
-report("HOST_LOADED");
-const noted=new Set();
-function note(code) {if (!noted.has(code)) {noted.add(code);report(code);} }
-if (!js) note("BUNDLE_MISSING"); else note("BUNDLE_PRESENT");
-function getToken(){
-  try{
-    const t=fs.readFileSync(capability,"utf8").trim();
-    return /^[a-f0-9]{64}$/.test(t)?t:"";
-  }catch{return "";}
+let renderer = "";
+try {
+  renderer = fs.readFileSync(path.join(app.getAppPath(), "celikom", "renderer.js"), "utf8");
+} catch {}
+note("HOST_LOADED");
+if (renderer) note("BUNDLE_PRESENT"); else note("BUNDLE_MISSING");
+const injected = new WeakMap();
+const busy = new WeakSet();
+const lastStateAt = new WeakMap();
+const lastStatus = new WeakMap();
+
+function readToken() {
+  try {
+    const value = fs.readFileSync(capabilityFile, "utf8").trim();
+    return /^[0-9a-f]{64}$/.test(value) ? value : "";
+  } catch { return ""; }
 }
-function validView(view){
+function validView(view) {
   try {
     if (view.isDestroyed()) return false;
-    const url=new URL(view.getURL());
-    const scheme=(url.protocol||"unknown").replace(/[^a-z]/gi,"").toUpperCase();
-    note("ORIGIN_SCHEME_"+scheme.slice(0,28));
-    const hostname=url.hostname.toUpperCase().replace(/[^A-Z0-9]/g,"_").slice(0,35);
-    if (hostname) note("ORIGIN_HOST_"+hostname);
-    const nativeScheme=url.protocol.replace(/[^a-z]/gi,"").toLowerCase()==="musicapplication";
-    const nativeDesktop=url.hostname.toLowerCase()==="desktop";
-    note("PROTO_CHECK_"+(nativeScheme?"TRUE":"FALSE"));
-    note("DESKTOP_CHECK_"+(nativeDesktop?"TRUE":"FALSE"));
-    if (approvedOrigins.has(url.origin) || (nativeScheme && nativeDesktop)) {
-      note("APPROVED_VIEW");return true;
+    const url = new URL(view.getURL());
+    const proto = url.protocol.replace(/[^a-z]/gi, "").toLowerCase();
+    if (allowedOrigins.has(url.origin) ||
+        (proto === "musicapplication" && url.hostname.toLowerCase() === "desktop")) {
+      note("APPROVED_VIEW");
+      return true;
     }
-    note("VIEW_NOT_APPROVED");
-  } catch {note("VIEW_UNKNOWN_URL");}
+  } catch {}
   return false;
 }
-async function update(view){
-  if(!js||!validView(view))return;
-  const secret=getToken();
-  if(!secret){note("BOOTSTRAP_KEY_MISSING");return;}
-  note("BOOTSTRAP_KEY_PRESENT");
-  if(seen.get(view)===secret)return;
-  const source=";(()=>{if(!window.__celikomBridgeSetToken){"+
-    js+"\n}if(window.__celikomBridgeSetToken)window.__celikomBridgeSetToken("+
-    JSON.stringify(secret)+");})()";
-  try{await view.executeJavaScript(source);seen.set(view,secret);report("RENDERER_INJECTED");}
-  catch{note("RENDERER_EVALUATION_FAILED");}
-}
-app.on("web-contents-created",(_event,view)=>{
-  view.on("console-message",(event,_level,legacyMessage)=>{
-    const message=typeof event?.message==="string"?event.message:legacyMessage;
-    if(message==="[CELIKOM] Native file-info source connector attached")report("RESOURCE_ATTACHED");
+function localRequest(token, route, method = "GET", payload = null) {
+  return new Promise(resolve => {
+    const body = payload == null ? null : JSON.stringify(payload);
+    if (!token || typeof route !== "string" || !route.startsWith("/v1/")) {
+      resolve(null); return;
+    }
+    const request = http.request({
+      host: "127.0.0.1", port: 21471, path: route, method, timeout: 1650,
+      headers: {
+        "Origin": "musicapplication://desktop",
+        "X-Celikom-Bridge-Token": token,
+        "X-Celikom-Native-Host": "1",
+        ...(body == null ? {} : {
+          "Content-Type": "application/json",
+          "Content-Length": Buffer.byteLength(body)
+        })
+      }
+    }, response => {
+      if (response.statusCode !== 200) {
+        response.resume(); resolve(null); return;
+      }
+      const chunks = [];
+      let length = 0;
+      response.on("data", buffer => {
+        length += buffer.length;
+        if (length <= 64 * 1024) chunks.push(buffer);
+        else request.destroy(new Error("RESPONSE_TOO_LARGE"));
+      });
+      response.on("end", () => {
+        try {
+          resolve(JSON.parse(Buffer.concat(chunks).toString("utf8")));
+        } catch { resolve(null); }
+      });
+      response.on("error", () => resolve(null));
+    });
+    request.on("timeout", () => request.destroy());
+    request.on("error", () => resolve(null));
+    if (body) request.write(body);
+    request.end();
   });
-  view.on("dom-ready",()=>{seen.delete(view);void update(view);});
-  view.on("did-finish-load",()=>{seen.delete(view);void update(view);});
+}
+async function execute(view, js) {
+  try {
+    if (!validView(view)) return null;
+    return await view.executeJavaScript(js);
+  } catch { return null; }
+}
+async function inject(view) {
+  if (!renderer || !validView(view)) return false;
+  if (injected.get(view) === true) return true;
+  const result = await execute(view,
+    ";(()=>{if(!window.__celikomBridgeNativeDrain){" + renderer +
+    "\n}return !!window.__celikomBridgeNativeDrain;})()");
+  if (result !== true) return false;
+  injected.set(view, true);
+  note("RENDERER_INJECTED");
+  return true;
+}
+async function relayState(view, token, now) {
+  if (now - (lastStateAt.get(view) || 0) < 2200) return;
+  lastStateAt.set(view, now);
+  const state = await localRequest(token, "/v1/state");
+  if (state && typeof state === "object") note("LOCAL_STATE_OK");
+  const safeState = {
+    enabled: state?.enabled === true,
+    signedIn: state?.signedIn === true,
+    apiOrigin: typeof state?.apiOrigin === "string" ? state.apiOrigin.slice(0, 256) : ""
+  };
+  const ok = await execute(view,
+    ";(()=>{if(!window.__celikomBridgeNativeSetState)return false;" +
+    "window.__celikomBridgeNativeSetState(" + JSON.stringify(safeState) + ");return true})()");
+  if (ok === true) note("RENDERER_STATE_DELIVERED");
+}
+async function relayGrant(view, token, request) {
+  if (!request || typeof request !== "object" ||
+      typeof request.requestId !== "string" ||
+      !/^[1-9][0-9]{0,12}$/.test(request.requestId) ||
+      typeof request.trackId !== "string" ||
+      !/^[1-9][0-9]{0,23}$/.test(request.trackId)) return;
+  const response = await localRequest(token,
+    "/v1/resolve?track_id=" + encodeURIComponent(request.trackId));
+  if (response != null) note("LOCAL_RESOLVE_REPLY");
+  const grant = response?.found === true ? response.grant ?? null : null;
+  // The result is application data only; no bridge capability or auth token
+  // is transmitted into the renderer, only an approved signed audio grant.
+  await execute(view, ";window.__celikomBridgeNativeReceive?.(" +
+    JSON.stringify(request.requestId) + "," + JSON.stringify(grant) + ")");
+}
+async function tick(view) {
+  if (!validView(view) || busy.has(view)) return;
+  busy.add(view);
+  try {
+    if (!await inject(view)) return;
+    const token = readToken();
+    if (!token) {
+      await execute(view,
+        ";window.__celikomBridgeNativeSetState?.({enabled:false,signedIn:false,apiOrigin:''})");
+      return;
+    }
+    note("BOOTSTRAP_KEY_PRESENT");
+    const now = Date.now();
+    await relayState(view, token, now);
+    const queue = await execute(view,
+      ";(window.__celikomBridgeNativeDrain?.()||[])");
+    if (Array.isArray(queue)) {
+      await Promise.all(queue.slice(0, 6).map(item => relayGrant(view, token, item)));
+    }
+    if (now - (lastStatus.get(view)?.at || 0) > 2200) {
+      const status = await execute(view, ";window.__celikomBridgeNativeStatus?.()||'ORIGINAL'");
+      const previous = lastStatus.get(view);
+      lastStatus.set(view, { value: status, at: now });
+      if ((status === "NATIVE_CONNECTED" || status === "NATIVE_MAPPING_ACCEPTED" ||
+           status === "ORIGINAL") && (!previous || status !== previous.value)) {
+        await localRequest(token, "/v1/heartbeat", "POST",
+          {trackId:null,status});
+      }
+    }
+  } finally {
+    busy.delete(view);
+  }
+}
+app.on("web-contents-created", (_event, view) => {
+  view.on("dom-ready", () => { injected.delete(view); void tick(view); });
+  view.on("did-finish-load", () => { injected.delete(view); void tick(view); });
+  view.on("console-message", (event, _level, legacy) => {
+    const msg = typeof event?.message === "string" ? event.message : legacy;
+    if (msg === "[CELIKOM] Native file-info source connector attached") note("RESOURCE_ATTACHED");
+    if (msg === "[CELIKOM] Native bridge state received") note("RENDERER_BRIDGE_STATE_SEEN");
+  });
 });
-const refresher=setInterval(()=>{
-  const views=webContents.getAllWebContents();
-  if(views.length>0)note("WEB_CONTENTS_PRESENT");
-  else note("NO_WEB_CONTENTS_YET");
-  for(const view of views)void update(view);
-},2800);
-if(refresher.unref)refresher.unref();
+const timer = setInterval(() => {
+  const views = webContents.getAllWebContents();
+  if (views.length) note("WEB_CONTENTS_PRESENT");
+  for (const view of views) void tick(view);
+}, 180);
+if (timer.unref) timer.unref();
