@@ -243,6 +243,15 @@ def run():
         total_resource_rewrites = 0
         omitted_permission_declarations = 0
         omit_shadowed = os.getenv("CELIKOM_OMIT_SHADOWED_SIGNATURE_DECLS") == "1"
+        # Diagnostic control: keep *all* publisher DEX bytes untouched.
+        # This isolates manifest/package rewriting from the known-bad
+        # AppMetrica byte substitution that violated DEX string_ids ordering.
+        preserve_original_dex = os.getenv("CELIKOM_MANIFEST_ONLY_ORIGINAL_DEX") == "1"
+        if preserve_original_dex and not (
+            os.getenv("CELIKOM_CLEAN_ANDROID_ARMV7_TRANSLATION") == "1"
+            and os.getenv("GITHUB_ACTIONS") == "true"
+        ):
+            raise arsc.TrialError("MANIFEST_ONLY_REQUIRES_DISPOSABLE_ARMV7_CI")
         if omit_shadowed and os.getenv("CELIKOM_CLEAN_ANDROID_ARMV7_TRANSLATION") != "1":
             raise arsc.TrialError("SHADOWED_SIGNATURE_TEST_REQUIRES_DISPOSABLE_X86_ARMV7")
         for i, apk in enumerate(apks):
@@ -287,7 +296,10 @@ def run():
                 original_bytes = src_dex[relative]
                 if file.read_bytes() != original_bytes:
                     raise arsc.TrialError("SOURCE_DECODE_CHANGED_DEX")
-                edited, patched = patch_one_dex(original_bytes)
+                if preserve_original_dex:
+                    edited, patched = original_bytes, False
+                else:
+                    edited, patched = patch_one_dex(original_bytes)
                 file.write_bytes(edited)
                 patched_source_dexes[relative] = edited
                 total_dex_literal_rewrites += int(patched)
@@ -394,7 +406,7 @@ def run():
             raise arsc.TrialError("IDENTITY_PROVIDER_REWRITE_COUNT_DRIFT")
         if total_resource_rewrites != 1:
             raise arsc.TrialError("IDENTITY_SYNC_RESOURCE_COUNT_DRIFT")
-        if total_dex_literal_rewrites != 1:
+        if total_dex_literal_rewrites != (0 if preserve_original_dex else 1):
             raise arsc.TrialError("IDENTITY_DEX_LITERAL_COUNT_DRIFT")
         if omit_shadowed and omitted_permission_declarations != 2:
             raise arsc.TrialError("SHADOWED_SIGNATURE_PERMISSION_COUNT_DRIFT")
@@ -540,7 +552,8 @@ def run():
             "split_count": 5,
             "manifest_passport_metrica_provider_rewrites": total_passport_provider_rewrites,
             "passport_sync_resource_rewrites": total_resource_rewrites,
-            "single_reversible_appmetrica_dex_literal_rewrite": True,
+            "single_reversible_appmetrica_dex_literal_rewrite": not preserve_original_dex,
+            "all_original_dex_preserved_byte_identical": preserve_original_dex,
             "resolved_original_vs_clone_provider_collisions": 0,
             "shadowed_signature_declarations_omitted_in_install_only_clone": omitted_permission_declarations,
             "issuer_permission_protection_not_weakened": True,
