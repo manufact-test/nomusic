@@ -12,6 +12,7 @@ import hashlib,json,re,sys,tempfile,zipfile
 from pathlib import Path
 import audit_rustore_host_once as rur
 import audit_gpr_apkpure_once as gpr
+from compare_dex_method_bodies import compare_dex_code
 
 def dex_hashes(path:Path)->dict:
     out={}
@@ -57,6 +58,12 @@ def main():
             gpr.inspect_publisher(gp_parts)
             code_rur=dex_hashes(rp)
             code_gpr=dex_hashes(get_base(gp_parts))
+            # Compare semantically paired method bodies, not only hash differences.
+            # Never upload, retain or print any APK or DEX source data.
+            semantic={}
+            with zipfile.ZipFile(rp) as zr, zipfile.ZipFile(get_base(gp_parts)) as zg:
+                for name in sorted(set(code_rur) & set(code_gpr)):
+                    semantic[name]=compare_dex_code(zr.read(name),zg.read(name))
             names_match=set(code_rur)==set(code_gpr)
             identical=names_match and all(code_rur[n]==code_gpr[n] for n in code_rur)
             different=sorted(set(code_rur)|set(code_gpr),key=str)
@@ -71,6 +78,7 @@ def main():
                 "rur_dex":code_rur,"gpr_dex":code_gpr,
                 "all_dex_byte_identical":identical,
                 "changed_dex_names":delta,
+                "semantic_method_body_comparison":semantic,
                 "interpretation":(
                     "DEX_CODE_EXACTLY_IDENTICAL_STATIC_IN_PROCESS_JAVA_METHOD_TRACES_TRANSFERABLE"
                     if identical else
