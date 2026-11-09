@@ -1,10 +1,11 @@
-CELIKOM Companion for Windows — W15 PREVIEW / ISOLATED TEST ONLY
+CELIKOM Companion for Windows — W15.2 PREVIEW / ISOLATED TEST ONLY
 ===============================================================
 
 What is included:
 - CELIKOM.Companion.exe : native .NET 10 Windows app (own CELIKOM login, Start/Stop,
   one-time pairing code, local bridge only). It does NOT play audio.
-- addon/<GUID>/script.js and metadata: PulseSync SDK add-on code.
+- CELIKOM-Addon.pext: ready-to-import PulseSync add-on (metadata + script).
+- addon/<GUID>/script.js and metadata: inspectable add-on sources.
 - SHA-256 digests for both artifacts.
 
 What is NOT included:

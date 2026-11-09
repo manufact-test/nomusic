@@ -58,14 +58,35 @@ jobs:
           Copy-Item -Path (Join-Path $base 'addon/dist') -Destination (Join-Path $pack 'addon') -Recurse -Force
           $addons = @(Get-ChildItem -Path (Join-Path $pack 'addon') -Filter script.js -Recurse)
           if ($addons.Count -ne 1 -or $addons[0].Length -lt 1000) { throw "MISSING_ADDON" }
+          $metadata = Join-Path $addons[0].DirectoryName 'metadata.json'
+          if (-not (Test-Path $metadata)) { throw "MISSING_ADDON_METADATA" }
+          $addonMeta = Get-Content -Raw $metadata | ConvertFrom-Json
+          if ($addonMeta.type -ne 'web-addon' -or $addonMeta.script -ne 'script.js' -or
+              $addonMeta.allowedUrls.Count -ne 1 -or $addonMeta.allowedUrls[0] -ne 'http://127.0.0.1:21471/') {
+            throw "UNSAFE_ADDON_METADATA"
+          }
+          # PulseSync .pext expects metadata.json and script.js at ZIP ROOT.
+          $pextZip = Join-Path $pack 'CELIKOM-Addon.zip'
+          Compress-Archive -Path (Join-Path $addons[0].DirectoryName '*') -DestinationPath $pextZip -CompressionLevel Optimal -Force
+          $pextFile = Join-Path $pack 'CELIKOM-Addon.pext'
+          Move-Item $pextZip $pextFile -Force
+          Add-Type -AssemblyName System.IO.Compression
+          $archive = [System.IO.Compression.ZipFile]::OpenRead($pextFile)
+          try {
+            $entries = @($archive.Entries | ForEach-Object { $_.FullName })
+            if ($entries.Count -ne 2 -or 'metadata.json' -notin $entries -or 'script.js' -notin $entries) {
+              throw "INVALID_PEXT_ARCHIVE"
+            }
+          } finally { $archive.Dispose() }
+
           (Get-FileHash $exe -Algorithm SHA256).Hash | Out-File (Join-Path $pack 'EXE-SHA256.txt') -Encoding ascii
           (Get-FileHash $addons[0].FullName -Algorithm SHA256).Hash | Out-File (Join-Path $pack 'ADDON-SHA256.txt') -Encoding ascii
-          Compress-Archive -Path (Join-Path $pack '*') -DestinationPath (Join-Path $base 'CELIKOM-Windows-W15.1-PREVIEW.zip') -CompressionLevel Optimal -Force
-          if ((Get-Item (Join-Path $base 'CELIKOM-Windows-W15.1-PREVIEW.zip')).Length -lt 1000000) { throw "INVALID_ZIP" }
-      - name: Upload private W15.1 preview archive
+          Compress-Archive -Path (Join-Path $pack '*') -DestinationPath (Join-Path $base 'CELIKOM-Windows-W15.2-PREVIEW.zip') -CompressionLevel Optimal -Force
+          if ((Get-Item (Join-Path $base 'CELIKOM-Windows-W15.2-PREVIEW.zip')).Length -lt 1000000) { throw "INVALID_ZIP" }
+      - name: Upload private W15.2 preview archive
         uses: actions/upload-artifact@v4
         with:
-          name: CELIKOM-Windows-W15.1-PREVIEW
-          path: windows-companion/w15/CELIKOM-Windows-W15.1-PREVIEW.zip
+          name: CELIKOM-Windows-W15.2-PREVIEW
+          path: windows-companion/w15/CELIKOM-Windows-W15.2-PREVIEW.zip
           if-no-files-found: error
           retention-days: 14
