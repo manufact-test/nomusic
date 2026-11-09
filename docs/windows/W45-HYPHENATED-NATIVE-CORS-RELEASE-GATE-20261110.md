@@ -1,5 +1,16 @@
-# CELIKOM Windows — W45 exact native CORS hotfix ready, PRODUCTION NOT MODIFIED
+# CELIKOM Windows — W45 exact native CORS hotfix deployed (production HTTPS verified)
 Date: 2026-11-10. Working branch: `experiment/windows-companion-integration-20261108`.
+
+## Live activation and independent verification (2026-11-10)
+
+- **Owner explicitly approved deployment** in this chat on 2026-11-10: “Делай”.
+- W45 live deployment: https://github.com/manufact-test/nomusic/actions/runs/42707502289 — **SUCCESS**, jobs verify/activate both success; marker `W45_ONE_HUNK_LIVE_CORS_ACTIVATED`. Exact surgical patch run only on separate candidate `releases/w45-native-cors-d11481668524`, not on active file or Windows installation.
+- Pre-change live `Application.php` SHA256 `ec7f5d0d87978c823ece2dcfa2e76a021d4e2af09eb4f5c4d5fe52b6ab6c897e`; new active PHP SHA256 `920a4fa28357a3e61d6af64085448eacc76ea8c3c3c1946597b6428e61b506e0`. **Exactly one allowlist hunk** was added: `music-application://desktop`.
+- Server immutable backup: `backups/w45-native-cors-d11481668524/Original-Application.php` and `previous-release`, with entire earlier immutable release still present. Automatic symlink rollback armed for any failed post-switch checks; not triggered because all live checks passed. Existing W30 LiteSpeed PHP cache invalidation was completed.
+- Deployment verified live: native audio OPTIONS **204/ACAO correct**, invalid-token audio Range GET **403/ACAO correct**, hostile lookalike origin disallowed, auth CORS denied, legacy opaque/browser origins still work, health **200**, candidate hash matches exact expected. Independent HTTPS read-only re-run of W42: https://github.com/manufact-test/nomusic/actions/runs/42704976449 — **SUCCESS**, exact markers `W42_LIVE_OPTIONS_STATUS=204 ACAO=EXACT_NATIVE`, `W42_LIVE_INVALID_TOKEN_STATUS=403 ACAO=EXACT_NATIVE`, `W42_LIVE_AUTH_OPTIONS_STATUS=405 ACAO=MISSING`, `W42_LIVE_CORRECT_ORIGIN_ALREADY_ACTIVE`.
+- **No Windows reinstall or update required:** CELIKOM 0.24.4 + native module 0.24.4 remain installed. Android/Test.50, browser extension, owner account, song library, DB and Yandex native player not modified.
+- **Not yet proven:** approved signed 206 audio in the genuine Yandex decoder, audible native replacement, Pause/Seek/Next; a distinct file-info codec/key/iv/transport issue could remain.
+- **Future deploy caveat:** ensure this exact narrow CORS entry is merged/preserved in canonical backend `feature/api-range` before any later full server release, or an older backend package could revert the fix. No broad backend deployment performed here.
 
 ## Owner/product contract
 Windows CELIKOM 0.24.4.0 and native module 0.24.4 match and remain installed. Ordinary Yandex Music tracks play; rights-approved replacements immediately stop, 4/4 owner probes `AUDIO_PROBE_FETCH_BLOCKED`. No independent second player, no global webSecurity/CSP disable, no metadata/key/IV guess, no unsigned fresh installer. Android/Test.50 untouched.
@@ -24,12 +35,12 @@ Windows CELIKOM 0.24.4.0 and native module 0.24.4 match and remain installed. Or
 - `server/deploy/w45-native-origin-surgical.php` guards exact live input SHA, isolated fresh `/releases/w45-native-cors-<12 hex>/src/Application.php` candidate only, and exact output SHA; no way to point at production current path or arbitrary file. W45 actual helper CI #42706261691 SUCCESS: wrong path refused, correct input patched, double patch refused, full PHP suite PASS. No deployment, no uploads.
 - W45 accepted backup: `backup/windows-w45-candidate-guard-ci-pass-20261110` at `b5785a24cb1b531e531101632f7553c673cbbb5c`. Earlier `backup/windows-w41-cors-stage-ci-pass-20261110` at `42f1d8de2e6eb55bf219a781e51dd9ba35df0c5b`.
 
-## Remaining manual release gate
-**DO NOT DEPLOY without separate explicit owner authorization.** Once explicitly approved:
+## Release procedure and rollback gates (historical, already executed)
+**Owner authorized and this release was executed successfully.** Verified procedure:
 1. Check current release symlink and exact live PHP SHA again; fail on drift. Pin Hostinger SSH key and server host fingerprint as proven in W30/W43.
 2. Under separate unique `releases/w45-native-cors-<12 hex>` clone exact live immutable release, make private backup of original PHP and previous symlink; run the W45 guarded candidate-only patch. Lint and require candidate HMAC/CORS/auth bounds before switching. Do not replace with the staged whole file. No database, catalog or Android/Windows installs.
 3. Atomically switch symlink with automatic rollback on any failure; preserve old release and PHP backup. Account for the W30 LiteSpeed compiled PHP cache issue using the prior guarded one-use invalidation procedure, always remove its temporary file.
 4. Post-switch verify public HTTPS correct origin OPTIONS 204 + `ACAO: music-application://desktop`, fixed invalid-token GET remains 403 **with** same ACAO, audio Range preflight allowed; existing opaque and browser origins still work; auth route remains CORS-denied; health 200. Roll back on any failure.
 5. Separately test an authorized owner signed 206/Range and real native Yandex audible substituted audio + Pause/Seek/Next. Even correct CORS may reveal a distinct Windows `toDownloadInfo` codec/transport/key/IV decoder incompatibility. Don't assume completed until actual owner audio succeeds.
 
-**Current owner action:** nothing to install or re-export. Explicit permission required only for the guarded live CORS change.
+**Current owner action:** On existing CELIKOM 0.24.4, Stop/Start CELIKOM and restart Yandex Music if the old failed audio request was cached. Try approved substitution, pause/seek/next and normal original track; if it still stops, export the current diagnostic TXT. Do not reinstall before reviewing it.
