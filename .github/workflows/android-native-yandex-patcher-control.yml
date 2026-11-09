@@ -1,0 +1,65 @@
+name: Android 11 LSPatch native host without CELIKOM module control
+on:
+  push:
+    branches:
+      - experiment/android-native-yandex-fileinfo-hooklab-20261109
+    paths:
+      - '.github/workflows/android-native-yandex-patcher-control.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  lspatch-only-control:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: Scope all patched binaries to ephemeral runner only
+        run: echo "CELIKOM_EMULATOR_TEST_DIR=${RUNNER_TEMP}/celikom-patcher-only-test-apks" >> "${GITHUB_ENV}"
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+      - name: Build lab module for fixed signing identity (not embedded in this control)
+        run: gradle -p android/native-yandex-hooklab :app:assembleDebug --no-daemon
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Modify exactly signed #170gpr with LSPatch 1.2 but embed ZERO modules, sigbypass remains zero
+        env:
+          CELIKOM_DIAGNOSTIC_NO_MODULE: '1'
+        run: |
+          set -eu
+          python -m py_compile android/native-yandex-hooklab/ephemeral_patch_lab.py
+          python android/native-yandex-hooklab/ephemeral_patch_lab.py
+      - name: Prepare isolated Android emulator
+        run: |
+          test -e /dev/kvm
+          sudo chmod 666 /dev/kvm
+      - name: Isolate LSPatch loader from CELIKOM in Android 11 ARMv7-translated Google Play AVD
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 30
+          arch: x86
+          target: google_apis_playstore
+          profile: pixel_5
+          cores: 2
+          ram-size: 4096M
+          heap-size: 512M
+          emulator-boot-timeout: 600
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
+          disable-animations: true
+          script: |
+            set -eu
+            adb shell getprop ro.product.cpu.abilist
+            adb install-multiple "${CELIKOM_EMULATOR_TEST_DIR}"/*.apk
+            python3 android/native-yandex-hooklab/diagnose_emulator.py --patched-without-module
+      - name: Erase all patched Yandex binaries regardless of test result
+        if: always()
+        run: |
+          rm -rf -- "${CELIKOM_EMULATOR_TEST_DIR}"
+          echo 'LSPatch-only native host files deleted; no artifact uploaded'
