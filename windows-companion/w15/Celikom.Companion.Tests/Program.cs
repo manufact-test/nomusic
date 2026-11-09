@@ -142,6 +142,36 @@ try
         var token = pairJson.RootElement.GetProperty("bridgeToken").GetString();
         Test(SessionStore.IsHexToken(token), "isolated bridge token issued");
         bridge.SetEnabled(true);
+        foreach (var nativeOrigin in new[] { "null", "musicapplication://desktop" })
+        {
+            using (var nativePreflight = new HttpRequestMessage(HttpMethod.Options, "/v1/state"))
+            {
+                nativePreflight.Headers.TryAddWithoutValidation("Origin", nativeOrigin);
+                nativePreflight.Headers.TryAddWithoutValidation(
+                    "Access-Control-Request-Headers", "x-celikom-bridge-token, x-celikom-native-host");
+                using var response = await http.SendAsync(nativePreflight);
+                Test(response.StatusCode == HttpStatusCode.NoContent,
+                    "native custom-protocol preflight permitted");
+                Test(response.Headers.GetValues("Access-Control-Allow-Origin").Single() == nativeOrigin,
+                    "native preflight scoped to actual origin");
+            }
+            using (var nativeState = new HttpRequestMessage(HttpMethod.Get, "/v1/state"))
+            {
+                nativeState.Headers.TryAddWithoutValidation("Origin", nativeOrigin);
+                nativeState.Headers.TryAddWithoutValidation("X-Celikom-Bridge-Token", token);
+                nativeState.Headers.TryAddWithoutValidation("X-Celikom-Native-Host", "1");
+                using var response = await http.SendAsync(nativeState);
+                Test(response.IsSuccessStatusCode, "native Yandex renderer reads authorized state");
+            }
+            using (var foreign = new HttpRequestMessage(HttpMethod.Get, "/v1/state"))
+            {
+                foreign.Headers.TryAddWithoutValidation("Origin", nativeOrigin);
+                foreign.Headers.TryAddWithoutValidation("X-Celikom-Bridge-Token", token);
+                using var response = await http.SendAsync(foreign);
+                Test(response.StatusCode == HttpStatusCode.Forbidden,
+                    "opaque-origin request without native marker refused");
+            }
+        }
         using (var state = await Request("/v1/state", HttpMethod.Get, token: token))
         {
             Test(state.IsSuccessStatusCode, "paired can read state");
