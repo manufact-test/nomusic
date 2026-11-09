@@ -27,3 +27,10 @@
 - Active release identifier w30-audio-cors-603564c68082 (under private Hostinger releases). Rollback backup backups/w30-audio-cors-603564c68082 and previous-release. No MySQL migrations, account data, production audio, Windows binaries or extension altered. Existing Windows CELIKOM 0.24.2 remains compatible; no installer needed.
 - Real signed-range audio success and audible playback inside owner Yandex account are NOT yet verified. Ask owner to Stop/Start CELIKOM and restart Yandex if necessary; compare approved vs ordinary tracks, Play/Pause/Seek/Next, attach new diagnostic if it fails.
 - Future full deployment from feature/api-range must include this scoped CORS correction, otherwise hotfix will revert. Canonical sync remains required before broad Hostinger rollout.
+
+## Independent live verification and canonical API source
+- Independent read-only GitHub Actions https://github.com/manufact-test/nomusic/actions/runs/42647185895 **SUCCESS**: LIVE_AUDIO_CORS_OPAQUE_STATUS=204 ALLOWED=null; LIVE_AUDIO_CORS_NATIVE_STATUS=204 ALLOWED=musicapplication://desktop; LIVE_AUDIO_CORS_BROWSER_STATUS=204 ALLOWED=https://music.yandex.ru; LIVE_HTTP_OPTIONS=204; LIVE_HEALTH=200; W30_INDEPENDENT_LIVE_PHP_CORS_VERIFY_PASS.
+- Unauthenticated live GET/HEAD audio returned 403 as expected; no signed owner media URL tested. Do NOT claim actual owner playback fixed yet.
+- Copied ONLY the verified server Application.php and smoke.php source into canonical backend branch feature/api-range, commit 7e648eacaeb50cc371842590ed7a30284e440d2a; no redeploy from that branch (request gate unchanged).
+- Canonical-backend pre-change backup: backup/api-range-pre-w30-desktop-audio-cors-20261109 at 78a1072c212fa3c8f1256b3524c353a5883eabcc. Future routine API package will preserve the origin correction.
+- Owner should test installed CELIKOM Windows 0.24.2: Stop, Start, restart native Yandex if previous failed requests are cached; try an approved track and an ordinary one. If still pauses, export TXT and inspect live audio HTTP/decoder separately.
