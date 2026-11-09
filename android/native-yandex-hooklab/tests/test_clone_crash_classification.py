@@ -87,10 +87,10 @@ class SafeCloneCrashClassificationTest(unittest.TestCase):
 
     def test_android_11_numeric_crash_reason_main_vs_appmetrica(self):
         raw = ("ApplicationExitInfo #0: process=pro.celikom.yandex.nativeclonelab:AppMetrica "
-               "reason=5 (APP CRASH(NATIVE))\\n"
-               "ApplicationExitInfo #1:\\n"
-               "  process=pro.celikom.yandex.nativeclonelab\\n"
-               "  reason=4 (APP CRASH(EXCEPTION))\\n"
+               "reason=5 (APP CRASH(NATIVE))\n"
+               "ApplicationExitInfo #1:\n"
+               "  process=pro.celikom.yandex.nativeclonelab\n"
+               "  reason=4 (APP CRASH(EXCEPTION))\n"
                "  trace=NEVER_EXPOSE")
         report = classify_activity_exit_info(raw)
         self.assertTrue(report["exit_reason_crash"])
@@ -114,10 +114,10 @@ class SafeCloneCrashClassificationTest(unittest.TestCase):
         self.assertTrue(report["unattributed_crash_reason_seen"])
 
     def test_process_events_main_vs_auxiliary_and_no_raw(self):
-        raw = ("I/am_proc_start: [0,111,10000,pro.celikom.yandex.nativeclonelab,top]\\n"
-               "I/am_proc_died: [0,111,pro.celikom.yandex.nativeclonelab]\\n"
-               "I/am_crash: [0,111,pro.celikom.yandex.nativeclonelab]\\n"
-               "I/am_proc_start: [0,112,10000,pro.celikom.yandex.nativeclonelab:AppMetrica,service]\\n"
+        raw = ("I/am_proc_start: [0,111,10000,pro.celikom.yandex.nativeclonelab,top]\n"
+               "I/am_proc_died: [0,111,pro.celikom.yandex.nativeclonelab]\n"
+               "I/am_crash: [0,111,pro.celikom.yandex.nativeclonelab]\n"
+               "I/am_proc_start: [0,112,10000,pro.celikom.yandex.nativeclonelab:AppMetrica,service]\n"
                "PRIVATE_VALUE")
         report = classify_clone_process_events(raw)
         self.assertTrue(report["am_proc_start_main_seen"])
