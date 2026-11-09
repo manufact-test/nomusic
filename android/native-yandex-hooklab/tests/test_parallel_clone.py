@@ -27,10 +27,20 @@ E: manifest (line=1)
         self.assertEqual(info["providers"], 1)
         self.assertEqual(info["original_package_provider_authorities"], 1)
         self.assertEqual(info["package_bound_manifest_attributes"], 3)
+        self.assertEqual(info["original_package_root_identity_attributes"], 1)
+        self.assertEqual(info["original_package_permission_attributes"], 1)
+        self.assertEqual(info["original_package_routing_attributes"], 1)
+        self.assertEqual(info["original_package_class_name_attributes"], 0)
         self.assertEqual(info["custom_schemes"], 1)
         self.assertEqual(info["intent_filters"], 1)
         self.assertEqual(info["custom_permissions"], 1)
         self.assertNotIn("ru.yandex.music.files", repr(info))
+
+    def test_component_class_names_are_not_install_collision(self):
+        xml = 'E: activity (line=1)\nA: android:name(0x01)="ru.yandex.music.MainActivity"\n'
+        out = audit.manifest_summary(xml)
+        self.assertEqual(out["original_package_class_name_attributes"], 1)
+        self.assertEqual(out["original_package_routing_attributes"], 0)
 
     def test_unrelated_provider_not_counted_as_collision(self):
         tree = 'E: provider (line=1)\nA: android:authorities(0x01)="separate.safe.provider"\n'

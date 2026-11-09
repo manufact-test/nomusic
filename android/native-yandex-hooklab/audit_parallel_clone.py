@@ -31,10 +31,20 @@ MAX_DEX_STRING_ITEMS = 1_000_000
 
 
 def manifest_summary(xmltree: str) -> dict:
-    """Return only categories/counts, never raw manifest values."""
+    """Summarize original identity surfaces by *role*, not total package mentions.
+
+    Class names may retain ru.yandex.music after a legitimate applicationId
+    change: unlike ContentProvider authorities they are not by themselves
+    installation collisions. Never reveal actual values.
+    """
     counts = {k: 0 for k in (
         "activities", "services", "receivers", "providers", "provider_authorities",
         "original_package_provider_authorities", "package_bound_manifest_attributes",
+        "original_package_class_name_attributes",
+        "original_package_permission_attributes",
+        "original_package_routing_attributes",
+        "original_package_root_identity_attributes",
+        "original_package_other_attributes",
         "custom_permissions", "queries", "intent_filters", "custom_schemes",
         "shared_user_id_attributes",
     )}
@@ -54,11 +64,8 @@ def manifest_summary(xmltree: str) -> dict:
         if not attr:
             continue
         key = attr.group(1)
-        # aapt uses quoted values on the same line. Values never leave process.
         matched = re.search(r'="([^"]*)"', line)
         val = matched.group(1) if matched else ""
-        if ORIGINAL in val:
-            counts["package_bound_manifest_attributes"] += 1
         if key.endswith(":authorities") and current == "provider":
             counts["provider_authorities"] += 1
             if ORIGINAL in val:
@@ -67,8 +74,38 @@ def manifest_summary(xmltree: str) -> dict:
             counts["custom_schemes"] += 1
         if key.endswith(":sharedUserId"):
             counts["shared_user_id_attributes"] += 1
+        if ORIGINAL not in val:
+            continue
+        counts["package_bound_manifest_attributes"] += 1
+        if key == "package":
+            counts["original_package_root_identity_attributes"] += 1
+        elif key.endswith(":authorities") or key.endswith(":name") and current in (
+                "activity", "service", "receiver", "provider", "activity-alias",
+                "application", "instrumentation"):
+            if key.endswith(":name"):
+                counts["original_package_class_name_attributes"] += 1
+            else:
+                counts["original_package_routing_attributes"] += 1
+        elif (key.endswith(":permission") or key.endswith(":readPermission")
+              or key.endswith(":writePermission") or current in (
+                  "permission", "uses-permission", "permission-group",
+                  "permission-tree")):
+            counts["original_package_permission_attributes"] += 1
+        elif key.endswith((":targetPackage", ":targetProcesses", ":process",
+                           ":taskAffinity", ":scheme", ":host")):
+            counts["original_package_routing_attributes"] += 1
+        else:
+            counts["original_package_other_attributes"] += 1
+    role_sum = sum(counts[k] for k in (
+        "original_package_class_name_attributes",
+        "original_package_permission_attributes",
+        "original_package_routing_attributes",
+        "original_package_root_identity_attributes",
+        "original_package_other_attributes",
+    ))
+    if role_sum != counts["package_bound_manifest_attributes"]:
+        raise ValueError("MANIFEST_ROLE_CLASSIFICATION_INCOMPLETE")
     return counts
-
 
 def count_dex_package_dependencies(raw: bytes) -> dict:
     """Bounded DEX parse, exact package literal/reference statistics only."""
@@ -102,7 +139,6 @@ def summarize_signed_bundle(paths: list[Path], aapt: str,
     base = None
     version_names = set()
     for apk in paths:
-        identity = gpr.split_apk_identity(apk) if hasattr(gpr, "split_apk_identity") else None
         # Parse known trusted aapt metadata, not filenames.
         p = run_tool([aapt, "dump", "badging", str(apk)],
                      capture_output=True, text=True, timeout=60)
@@ -151,8 +187,10 @@ def summarize_signed_bundle(paths: list[Path], aapt: str,
     ]
     if info["original_package_provider_authorities"] > 0:
         blockers.append("MANIFEST_PROVIDER_AUTHORITY_REWRITE_REQUIRED")
-    if info["package_bound_manifest_attributes"] > 0:
-        blockers.append("MANIFEST_PACKAGE_REFERENCES_REWRITE_REQUIRED")
+    if sum(info[k] for k in ("original_package_permission_attributes",
+                             "original_package_routing_attributes",
+                             "original_package_other_attributes")):
+        blockers.append("MANIFEST_NONCLASS_PACKAGE_REFERENCES_REQUIRE_REVIEW")
     if sum(dex_counts.values()) > 0:
         blockers.append("DEX_PACKAGE_IDENTITY_DEPENDENCIES_REVIEW_REQUIRED")
     if info["shared_user_id_attributes"]:
