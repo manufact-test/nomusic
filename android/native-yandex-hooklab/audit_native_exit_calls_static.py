@@ -2,11 +2,13 @@
 """Read-only diagnostic: explicit process termination callsites in signed original.
 
 This does not identify a causal path or bypass any publisher control.
-Only aggregate static bytecode statistics escape the disposable CI runner.
+Only bounded public DEX class/method identifiers and aggregate counts escape CI;
+no binary, stack trace, account, URL, key or user data.
 """
 from __future__ import annotations
 import json
 import os
+import re
 import sys
 import tempfile
 import zipfile
@@ -32,6 +34,17 @@ def exit_target(method):
     return TARGETS.get(method)
 
 
+def safe_method_meta(method):
+    """Allow only bounded compiled public class/method tokens; no literals."""
+    clazz, name, proto = method
+    if (len(clazz) > 150 or len(name) > 64 or len(proto) > 150 or
+            not re.fullmatch(r"L[A-Za-z0-9_/$]+;", clazz) or
+            not re.fullmatch(r"(?:[A-Za-z0-9_$]+|<init>|<clinit>)", name) or
+            not re.fullmatch(r"[A-Za-z0-9_/$;()[\]]+", proto)):
+        return None
+    return {"owner": clazz, "method": name, "prototype": proto}
+
+
 def inspect_dex(raw):
     dex = Dex(raw)
     method_indexes = {
@@ -43,22 +56,33 @@ def inspect_dex(raw):
     yandex_namespace = {name: 0 for name in TARGETS.values()}
     anomalies = 0
     scanned = 0
+    bounded_callers = []
+    app_invoke_targets = []
     for caller, code_off in method_definitions(dex):
         scanned += 1
+        caller_method = dex.method(caller)
         try:
             for called, _, _ in invoked_method_indexes(dex, code_off):
+                if caller_method[0] == YM_APPLICATION:
+                    # Keep direct-invoke method IDENTITY only in memory, not output.
+                    app_invoke_targets.append(dex.method(called))
                 kind = method_indexes.get(called)
                 if kind is None:
                     continue
                 totals[kind] += 1
-                klass = dex.method(caller)[0]
+                klass = caller_method[0]
                 if klass == YM_APPLICATION:
                     app_direct[kind] += 1
                 if klass.startswith(("Lru/yandex/", "Lcom/yandex/")):
                     yandex_namespace[kind] += 1
+                meta = safe_method_meta(caller_method)
+                if meta and len(bounded_callers) < 24:
+                    bounded_callers.append({"exit_api": kind, **meta})
         except DexError:
             anomalies += 1
     return {
+        "bounded_callers": bounded_callers,
+        "ym_application_invoke_targets": app_invoke_targets,
         "exit_target_references": len(method_indexes),
         "method_bodies_scanned": scanned,
         "known_exit_callsites": totals,
@@ -92,9 +116,18 @@ def run():
                     observations.append(inspect_dex(source_zip.read(name)))
         if len(observations) != 6:
             raise ValueError("SIGNED_DEX_COUNT_DRIFT")
+        caller_details = [c for d in observations for c in d["bounded_callers"]]
+        if len(caller_details) > 24:
+            raise ValueError("UNEXPECTED_MANY_EXIT_CALLSITES")
+        app_calls = {tuple(x) for d in observations
+                     for x in d["ym_application_invoke_targets"]}
+        direct_ymapp_neighbors = [c for c in caller_details
+                                  if (c["owner"], c["method"], c["prototype"]) in app_calls]
         return {
             "verdict": "STATIC_EXIT_CALLSITE_EVIDENCE_ONLY",
             "original_dex_count": len(observations),
+            "bounded_explicit_exit_callsite_owners": caller_details,
+            "ymapplication_directly_invokes_exit_callers": direct_ymapp_neighbors,
             "signed_original_only": True,
             "scan_complete": all(d["bytecode_scan_complete"] for d in observations),
             "known_exit_callsites": {kind: sum(d["known_exit_callsites"][kind] for d in observations)
