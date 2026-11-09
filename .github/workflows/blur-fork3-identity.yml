@@ -1,0 +1,27 @@
+name: CELIKOM Blur — check fork MP3 blob identity READ ONLY
+on:
+  push:
+    branches: [feature/blur-batch1000-20261108]
+    paths: ['.github/workflows/blur-fork3-identity.yml']
+  workflow_dispatch:
+permissions: {contents: read}
+jobs:
+  inspect:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Compare source bytes vs Git tree object identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib,json,urllib.request
+          path='tools/blur-research/repair5-pending.json'
+          m=json.load(open(path))
+          for r in m['selected'][2:]:
+           url=r['source_url'];data=urllib.request.urlopen(urllib.request.Request(url,headers={'User-Agent':'CELIKOM-source-identity'}),timeout=50).read()
+           git=hashlib.sha1(b'blob '+str(len(data)).encode()+b'\0'+data).hexdigest()
+           print(json.dumps({'id':r['id'],'expected_git':r['source_git_blob'],'actual_git':git,'bytes':len(data),'matches':git==r['source_git_blob']},ensure_ascii=False),flush=True)
+          PY
