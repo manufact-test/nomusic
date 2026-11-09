@@ -1,3 +1,5 @@
+W25 confirmed 2026-11-09: Native main-process relay reaches actual CELIKOM from actual Yandex Electron, 35 JS + 61 native checks, exact rollback verified: https://github.com/manufact-test/nomusic/actions/runs/42622540129 . One internal native installer: https://github.com/manufact-test/nomusic/actions/runs/42622515498 . NEXT REQUIRED: real audible approved track, pause/seek/Next acceptance. See docs/windows/NEXT-CHAT.md.
+
 > **W22 latest 2026-11-09 verified engineering:** Independent W21 recovery core (20 tests) and W22 Yandex file-info source adapter (13 tests) now pass in CI. [Current handoff](NEXT-CHAT.md) controls. They are source-only internal components; no actual Yandex injection/audio, legal modified-client distribution, digital signature or working customer installer verified. W20 internal installer remains non-audio-only, not a consumer release.
 
 # CELIKOM Windows Companion — delivery plan, responsibilities and test gates
