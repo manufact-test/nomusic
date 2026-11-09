@@ -24,7 +24,7 @@ def redact_type(text):
     types = re.findall(r"(?:java|android|dalvik|kotlin|org\.lsposed|io\.github)[\w.$/]*(?:Exception|Error)", text)
     return list(dict.fromkeys(types))[:5]
 
-def launch(original_baseline: bool = False):
+def launch(original_baseline: bool = False, patched_without_module: bool = False):
     code, out, err = adb("shell", "pm", "path", PACKAGE)
     count = sum(line.startswith("package:") for line in out.splitlines())
     print(f"INSTALL_STATE: package_present={bool(count)} split_apks={count}")
@@ -125,6 +125,12 @@ def launch(original_baseline: bool = False):
             return 0
         print("BASELINE_NO_GO: ORIGINAL, UNMODIFIED Yandex did not remain alive; do not blame CELIKOM injection yet")
         return 2
+    if patched_without_module:
+        if states[-1] and states[-2]:
+            print("PASS: LSPatch-modified native Yandex stays running WITHOUT any CELIKOM module; no audio, login or Play Protect verdict")
+            return 0
+        print("PATCHER_NO_MODULE_NO_GO: LSPatch native host does not remain running even without a CELIKOM module")
+        return 2
     if "HOOKS_ARMED" in events:
         print("PASS: native FileInfo converter observer registered in an isolated emulator; playback and Play Protect NOT tested")
         return 0
@@ -132,4 +138,5 @@ def launch(original_baseline: bool = False):
     return 2
 
 if __name__ == "__main__":
-    raise SystemExit(launch(original_baseline="--original-baseline" in sys.argv))
+    raise SystemExit(launch(original_baseline="--original-baseline" in sys.argv,
+                            patched_without_module="--patched-without-module" in sys.argv))
