@@ -1,0 +1,50 @@
+name: Android 11 native Yandex official-signed no-patch baseline
+on:
+  push:
+    branches:
+      - experiment/android-native-yandex-fileinfo-hooklab-20261109
+    paths:
+      - '.github/workflows/android-native-yandex-baseline.yml'
+      - 'android/native-yandex-hooklab/stage_original_baseline.py'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  original-android11-control:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+      - name: Scope source APKs strictly to ephemeral runner
+        run: echo "CELIKOM_EMULATOR_TEST_DIR=${RUNNER_TEMP}/celikom-original-yandex-apks" >> "${GITHUB_ENV}"
+      - name: Validate unchanged Yandex publisher-signed 5 APK splits without touching any user install
+        run: |
+          python -m py_compile android/native-yandex-hooklab/stage_original_baseline.py
+          python android/native-yandex-hooklab/stage_original_baseline.py
+      - name: Enable KVM on disposable AVD runner
+        run: |
+          test -e /dev/kvm
+          sudo chmod 666 /dev/kvm
+      - name: Android 11 x86 ARMv7 translation control, official Yandex release, no login
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 30
+          arch: x86
+          target: google_apis_playstore
+          profile: pixel_5
+          cores: 2
+          ram-size: 4096M
+          heap-size: 512M
+          emulator-boot-timeout: 600
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
+          disable-animations: true
+          script: |
+            set -eu
+            adb shell getprop ro.product.cpu.abilist
+            adb install-multiple "${CELIKOM_EMULATOR_TEST_DIR}"/*.apk
+            python3 android/native-yandex-hooklab/diagnose_emulator.py --original-baseline
+      - name: Erase all original native client APK copies, no proprietary artifact
+        if: always()
+        run: |
+          rm -rf -- "${CELIKOM_EMULATOR_TEST_DIR}"
+          echo 'Publisher-signed original host APKs deleted after AVD control'
