@@ -7,6 +7,7 @@ No raw logcat, stack traces, URLs, tokens, Android IDs, audio or files.
 """
 from __future__ import annotations
 import re
+import sys
 import subprocess
 import time
 
@@ -23,7 +24,7 @@ def redact_type(text):
     types = re.findall(r"(?:java|android|dalvik|kotlin|org\.lsposed|io\.github)[\w.$/]*(?:Exception|Error)", text)
     return list(dict.fromkeys(types))[:5]
 
-def launch():
+def launch(original_baseline: bool = False):
     code, out, err = adb("shell", "pm", "path", PACKAGE)
     count = sum(line.startswith("package:") for line in out.splitlines())
     print(f"INSTALL_STATE: package_present={bool(count)} split_apks={count}")
@@ -97,6 +98,12 @@ def launch():
     print(f"OBSERVER_LIFECYCLE: {events}")
     print(f"ANDROID_EXCEPTION_TYPES: {runtime_exceptions}")
     print(f"NATIVE_CRASH_MARKERS: {native_crash}")
+    if original_baseline:
+        if states[-1] and states[-2]:
+            print("PASS: untouched publisher-signed native Yandex stays running in isolated Android 11; no account, playback or Play Protect verdict")
+            return 0
+        print("BASELINE_NO_GO: ORIGINAL, UNMODIFIED Yandex did not remain alive; do not blame CELIKOM injection yet")
+        return 2
     if "HOOKS_ARMED" in events:
         print("PASS: native FileInfo converter observer registered in an isolated emulator; playback and Play Protect NOT tested")
         return 0
@@ -104,4 +111,4 @@ def launch():
     return 2
 
 if __name__ == "__main__":
-    raise SystemExit(launch())
+    raise SystemExit(launch(original_baseline="--original-baseline" in sys.argv))
