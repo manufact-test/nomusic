@@ -37,10 +37,19 @@ jobs:
           function Save-Status { $report | ConvertTo-Json -Depth 8 | Set-Content -Path $reportPath -Encoding utf8 }
           function Download-Pinned([string]$url,[string]$name,[string]$sha) {
             $file = Join-Path $root $name
-            for($i=0;$i -lt 2;$i++){
+            for($i=0;$i -lt 3;$i++){
               try {
-                if($url -match '^https://api\\.github\\.com/.*/releases/assets/[0-9]+
-              catch { if($i -eq 1){throw}; Start-Sleep -Seconds 5 }
+                if($url.StartsWith('https://api.github.com/')) {
+                  $headers = @{ Accept = 'application/octet-stream'; 'X-GitHub-Api-Version' = '2022-11-28'; 'User-Agent' = 'CELIKOM-W16-Disposable' }
+                  Invoke-WebRequest -Uri $url -Headers $headers -OutFile $file -UseBasicParsing -TimeoutSec 240 -MaximumRedirection 6
+                } else {
+                  Invoke-WebRequest -Uri $url -OutFile $file -UseBasicParsing -TimeoutSec 240 -MaximumRedirection 6
+                }
+                break
+              } catch {
+                if($i -eq 2){throw}
+                Start-Sleep -Seconds 6
+              }
             }
             if(!(Test-Path $file) -or (Get-Item $file).Length -lt 100000){throw "EMPTY_DOWNLOAD_$name"}
             $actual = (Get-FileHash $file -Algorithm SHA256).Hash.ToLowerInvariant()
