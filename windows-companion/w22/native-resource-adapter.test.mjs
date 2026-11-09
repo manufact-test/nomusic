@@ -166,3 +166,40 @@ test('never maps fuzzy IDs or arbitrary input',async()=>{
   }
   a.dispose();
 });
+
+test('native source with stalled Yandex file-info resolves from approved grant',async()=>{
+  const a=create(async id=>grant(id));const {proto}=resource();
+  proto.getFileInfo=()=>new Promise(()=>{});
+  a.attach(proto);a.enable();
+  const start=Date.now();
+  const reply=await proto.getFileInfo({trackId:'123'});
+  assert.equal(reply.downloadInfo.url,url);
+  assert.equal(reply.responseTime,0);
+  assert.equal(reply.url,'');
+  assert.equal(reply.downloadInfo.bitrate,320);
+  assert.ok(Date.now()-start<450,'approved grant must not stall behind Yandex');
+  a.dispose();
+});
+test('native resource throws; CELIKOM source preserves official response shape',async()=>{
+  const a=create();const {proto}=resource();
+  proto.getFileInfo=async()=>{throw new Error('unavailable')};
+  a.attach(proto);a.enable();
+  const info=await proto.getFileInfo({trackId:'123'});
+  assert.deepEqual(Object.keys(info).sort(),['downloadInfo','responseTime','url'].sort());
+  assert.equal(info.downloadInfo.transport,'raw');
+  a.dispose();
+});
+test('no approved grant never cuts off a slow native Yandex original',async()=>{
+  let release;
+  const a=create(async()=>null);const {proto}=resource();
+  proto.getFileInfo=()=>new Promise(r=>{release=r});
+  a.attach(proto);a.enable();
+  let settled=false;
+  const wait=proto.getFileInfo({trackId:'123'}).then(x=>{settled=true;return x});
+  await new Promise(resolve=>setTimeout(resolve,50));
+  assert.equal(settled,false);
+  const official={downloadInfo:{trackId:'123',url:'https://official.example/native'}};
+  release(official);
+  assert.deepEqual(await wait,official);
+  a.dispose();
+});

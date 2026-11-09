@@ -25,7 +25,9 @@ function toDownloadInfo(original, trackId, url, mimeType, quality) {
     ...result, trackId, realId: trackId,
     codec: mimeType === 'audio/mp4' ? 'aac-mp4' : 'mp3',
     transport: 'raw', quality: result.quality || quality || 'nq',
-    gain: false, urls: [url], url
+    gain: false, bitrate: (Number.isFinite(result.bitrate) && result.bitrate > 0)
+      ? result.bitrate : mimeType === 'audio/mpeg' ? 320 : undefined,
+    urls: [url], url
   };
 }
 
@@ -143,16 +145,32 @@ export function createNativeResourceAdapter({ resolve, allowedOrigin, now = Date
       const native = Promise.resolve().then(() => originalSingle.call(this, params, ...rest))
         .then(value => ({ value }), error => ({ error }));
       const grant = await lookup(id, rev);
-      const base = await native;
       if (!grant || !isLive(id, rev)) {
+        const base = await native;
         if (rev === revision) status = enabled ? 'ORIGINAL' : 'OFF';
         if ('error' in base) throw base.error;
         return base.value;
       }
-      const field = base.value && 'fileInfo' in base.value ? 'fileInfo' : 'downloadInfo';
-      const replacement = toDownloadInfo(base.value?.[field], id, grant.signedUrl, grant.mimeType, params?.quality);
+      // The approved source must not hang behind a stalled official resource.
+      // Give the genuine Yandex response a short chance to supply metadata,
+      // then preserve its outer response contract with only a new source.
+      let graceTimer;
+      const grace = new Promise(resolve => {
+        graceTimer = setTimeout(() => resolve({ slow: true }), 130);
+      });
+      const base = await Promise.race([native, grace]);
+      clearTimeout(graceTimer);
+      if (!isLive(id, rev)) {
+        const original = await native;
+        if ('error' in original) throw original.error;
+        return original.value;
+      }
+      const value = 'value' in base && base.value && typeof base.value === 'object'
+        ? base.value : null;
+      const field = value && 'fileInfo' in value ? 'fileInfo' : 'downloadInfo';
+      const replacement = toDownloadInfo(value?.[field], id, grant.signedUrl, grant.mimeType, params?.quality);
       status = 'SOURCE_MAPPING_RETURNED_NOT_AUDIO_VERIFIED';
-      return { ...base.value, [field]: replacement };
+      return { responseTime: 0, url: '', ...value, [field]: replacement };
     };
     proto.getFileInfo = ownSingle;
 

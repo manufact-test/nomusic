@@ -62,7 +62,7 @@ function localRequest(token, route, method = "GET", payload = null) {
       resolve(null); return;
     }
     const request = http.request({
-      host: "127.0.0.1", port: 21471, path: route, method, timeout: 1650,
+      host: "127.0.0.1", port: 21471, path: route, method, timeout: 1000,
       headers: {
         "Origin": "musicapplication://desktop",
         "X-Celikom-Bridge-Token": token,
