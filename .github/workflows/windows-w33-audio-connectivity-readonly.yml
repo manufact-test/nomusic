@@ -56,7 +56,7 @@ jobs:
               music) host='music.yandex.ru';;
               next) host='next.music.yandex.ru';;
             esac
-            status="$(curl --silent --show-error --connect-timeout 8 --max-time 20               -D "$scratch/$case.headers" -o /dev/null --max-redirs 0               "https://$host/" -w '%{http_code}' || true)"
+            status="$(curl --silent --show-error --connect-timeout 8 --max-time 20               -D "$scratch/$case.headers" -o /dev/null --location --max-redirs 5               "https://$host/" -w '%{http_code}' || true)"
             echo "W33_YANDEX_${case^^}_STATUS=$status"
             python3 - "$scratch/$case.headers" "$case" <<'PY'
           import sys
@@ -64,7 +64,9 @@ jobs:
           values = []
           try:
               with open(path, encoding="utf-8", errors="replace") as stream:
-                  for line in stream:
+                  lines = list(stream)
+                  marker = max((i for i, line in enumerate(lines) if line.startswith("HTTP/")), default=0)
+                  for line in lines[marker:]:
                       if line.lower().startswith("content-security-policy:"):
                           values.append(line.split(":",1)[1].strip())
           except OSError:
