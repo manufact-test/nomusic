@@ -1,0 +1,219 @@
+#!/usr/bin/env python3
+"""EPHEMERAL: tightly scoped five-split package-identity research, no distribution.
+
+One known AppMetrica authority DEX string, four manifest provider authorities
+and one Passport sync resource are changed only in disposable CI copies.
+This is not a real CELIKOM-enabled Yandex client and NEVER installs on a device.
+No DRM, auth/security checks, Play Protect, certificates or accounts bypassed.
+"""
+from __future__ import annotations
+import hashlib
+import json
+import os
+import struct
+import sys
+import tempfile
+import zipfile
+import zlib
+from pathlib import Path
+import clone_native_splits_ephemeral as source
+import clone_native_splits_arsclib_ephemeral as arsc
+
+OLD_METRICA = "com.yandex.preinstallsatellite.appmetrica.provider"
+NEW_METRICA = "pro.celikom.nativeclonelab.appmetrica.provider.v01"
+OLD_SYNC = "com.yandex.passport.sync.ru.yandex.music"
+NEW_SYNC = "com.yandex.passport.sync." + source.DEST
+SYNC_KEY = "passport_sync_adapter_content_authority"
+PASSPORT_PREFIX = "com.yandex.passport."
+ANDROID = "{" + source.ANDROID + "}"
+
+
+def patch_one_dex(data):
+    original = OLD_METRICA.encode("ascii")
+    replacement = NEW_METRICA.encode("ascii")
+    if len(original) != len(replacement):
+        raise arsc.TrialError("DECODED_DEX_LITERAL_LENGTH_DRIFT")
+    count = data.count(original)
+    if count == 0:
+        return data, False
+    if count != 1 or not data.startswith(b"dex\\n"):
+        raise arsc.TrialError("DEX_TARGET_NOT_ONE_EXACT_LITERAL")
+    updated = bytearray(data.replace(original, replacement, 1))
+    updated[12:32] = hashlib.sha1(updated[32:]).digest()
+    updated[8:12] = struct.pack("<I", zlib.adler32(updated[12:]) & 0xffffffff)
+    return bytes(updated), True
+
+
+def rewrite_passport_and_metrica(xml):
+    root = source.ET.fromstring(xml)
+    changed = 0
+    for provider in root.iter("provider"):
+        attr = ANDROID + "authorities"
+        value = provider.attrib.get(attr, "")
+        if value == OLD_METRICA:
+            provider.set(attr, NEW_METRICA)
+            changed += 1
+        elif value.startswith(PASSPORT_PREFIX) and value.endswith(source.SOURCE):
+            provider.set(attr, value[:-len(source.SOURCE)] + source.DEST)
+            changed += 1
+    return source.ET.tostring(root, encoding="utf-8", xml_declaration=True), changed
+
+
+def replace_sync_resource(decoded):
+    matches = []
+    for file in decoded.rglob("strings.xml"):
+        if file.stat().st_size > 3 * 1024 * 1024:
+            continue
+        root = source.ET.parse(file).getroot()
+        edited = False
+        for element in root.iter("string"):
+            if element.attrib.get("name") == SYNC_KEY:
+                if (element.text or "").strip() != OLD_SYNC:
+                    raise arsc.TrialError("PASSPORT_SYNC_RESOURCE_VALUE_DRIFT")
+                element.text = NEW_SYNC
+                edited = True
+        if edited:
+            file.write_bytes(source.ET.tostring(root, encoding="utf-8", xml_declaration=True))
+            matches.append(str(file.relative_to(decoded)))
+    return matches
+
+
+def run():
+    if os.getenv("GITHUB_ACTIONS") != "true":
+        raise arsc.TrialError("CI_ONLY")
+    with tempfile.TemporaryDirectory(prefix="celikom-five-split-identity-") as td:
+        work = Path(td)
+        archive = work / "signed-pinned.xapk"
+        size, sha = source.gpr.download(archive)
+        if size != 60433885 or sha != source.ARCHIVE_SHA:
+            raise arsc.TrialError("PINNED_ARCHIVE_CHANGED")
+        apks = source.gpr.split_apks(archive, work)
+        if len(apks) != 5:
+            raise arsc.TrialError("FIVE_SPLITS_REQUIRED")
+        source.gpr.inspect_publisher(apks)
+        editor = work / "APKEditor.jar"
+        arsc.download_editor(editor)
+        key = work / "ephemeral.jks"
+        arsc.run(["keytool", "-genkeypair", "-storetype", "JKS",
+                  "-keystore", str(key), "-storepass", "ephemeral-lab-only",
+                  "-keypass", "ephemeral-lab-only", "-alias", "research",
+                  "-keyalg", "RSA", "-keysize", "2048", "-validity", "1",
+                  "-dname", "CN=CELIKOM Non-distributable Lab, O=CELIKOM, C=XX"],
+                 "IDENTITY_LAB_KEY", 60)
+        original_splits, modified_splits = set(), set()
+        total_passport_provider_rewrites = 0
+        total_dex_literal_rewrites = 0
+        total_resource_rewrites = 0
+        for i, apk in enumerate(apks):
+            meta = source.apkmeta(apk)
+            if meta.get("name") != source.SOURCE or meta.get("versionCode") != "24026531":
+                raise arsc.TrialError("SOURCE_SPLIT_VERSION_DRIFT")
+            split = meta.get("split", "")
+            original_splits.add(split)
+            decoded = work / ("decoded-" + str(i))
+            arsc.run(["java", "-Xmx3g", "-jar", str(editor), "d", "-t", "xml",
+                      "-dex", "-i", str(apk), "-o", str(decoded)],
+                     "IDENTITY_DECODE_SPLIT_" + str(i), 240)
+            manifest = decoded / "AndroidManifest.xml"
+            initial, _ = source.rewrite_manifest(manifest.read_bytes().decode("utf-8"))
+            next_manifest, rewritten = rewrite_passport_and_metrica(initial)
+            manifest.write_bytes(next_manifest)
+            total_passport_provider_rewrites += rewritten
+            resource_changes = replace_sync_resource(decoded)
+            total_resource_rewrites += len(resource_changes)
+
+            patched_source_dexes = {}
+            with zipfile.ZipFile(apk) as original_zip:
+                src_dex = {n: original_zip.read(n) for n in original_zip.namelist()
+                           if n.startswith("classes") and n.endswith(".dex")}
+            # Copy-mode dex entries can be located in the decoded root or a raw subdir.
+            for file in decoded.rglob("classes*.dex"):
+                relative = file.name
+                if relative not in src_dex or relative in patched_source_dexes:
+                    raise arsc.TrialError("DEX_PATH_OR_DUPLICATE_MISMATCH")
+                original_bytes = src_dex[relative]
+                if file.read_bytes() != original_bytes:
+                    raise arsc.TrialError("SOURCE_DECODE_CHANGED_DEX")
+                edited, patched = patch_one_dex(original_bytes)
+                file.write_bytes(edited)
+                patched_source_dexes[relative] = edited
+                total_dex_literal_rewrites += int(patched)
+            if set(patched_source_dexes) != set(src_dex):
+                raise arsc.TrialError("DECODED_DEX_SET_DRIFT")
+            unsigned = work / ("unsigned-" + str(i) + ".apk")
+            arsc.run(["java", "-Xmx3g", "-jar", str(editor), "b", "-t", "xml",
+                      "-i", str(decoded), "-o", str(unsigned)],
+                     "IDENTITY_BUILD_SPLIT_" + str(i), 300)
+            aligned = work / ("aligned-" + str(i) + ".apk")
+            arsc.run([source.sdk_tool("zipalign"), "-f", "-p", "4",
+                      str(unsigned), str(aligned)], "IDENTITY_ZIPALIGN", 75)
+            arsc.run([source.sdk_tool("apksigner"), "sign",
+                      "--ks", str(key), "--ks-pass", "pass:ephemeral-lab-only",
+                      "--ks-key-alias", "research",
+                      "--key-pass", "pass:ephemeral-lab-only",
+                      "--min-sdk-version", "28", "--v4-signing-enabled", "false",
+                      str(aligned)], "IDENTITY_SIGN", 80)
+            cert = arsc.run([source.sdk_tool("apksigner"), "verify",
+                             "--print-certs", str(aligned)],
+                            "IDENTITY_VERIFY_SIGNATURE", 60)
+            signer_lines = [x for x in cert.splitlines()
+                            if "certificate SHA-256 digest:" in x]
+            if len(signer_lines) != 1:
+                raise arsc.TrialError("IDENTITY_SIGNER_COUNT_DRIFT")
+            new_fingerprint = signer_lines[0].rsplit(":", 1)[-1].strip().replace(":", "").lower()
+            if len(new_fingerprint) != 64 or new_fingerprint == source.RUSTORE_SHA256_CERT:
+                raise arsc.TrialError("IDENTITY_SIGNER_NOT_INDEPENDENT")
+            new_meta = source.apkmeta(aligned)
+            if (new_meta.get("name") != source.DEST or
+                new_meta.get("split", "") != split or
+                new_meta.get("versionCode") != "24026531"):
+                raise arsc.TrialError("IDENTITY_SPLIT_METADATA_DRIFT")
+            with zipfile.ZipFile(apk) as old_zip, zipfile.ZipFile(aligned) as new_zip:
+                for path in old_zip.namelist():
+                    if path.startswith("lib/") and path.endswith(".so"):
+                        if old_zip.read(path) != new_zip.read(path):
+                            raise arsc.TrialError("IDENTITY_NATIVE_LIBRARY_DRIFT")
+                    if path in src_dex:
+                        if patched_source_dexes[path] != new_zip.read(path):
+                            raise arsc.TrialError("IDENTITY_UNEXPECTED_DEX_DIFFERENCES")
+            modified_splits.add(split)
+            print(json.dumps({"split_index": i, "built_and_verified": True,
+                              "dex_patch_count_total": total_dex_literal_rewrites,
+                              "provider_identity_rewrites_total": total_passport_provider_rewrites}))
+        if original_splits != modified_splits or len(modified_splits) != 5:
+            raise arsc.TrialError("IDENTITY_FIVE_SPLIT_SET_DRIFT")
+        if total_passport_provider_rewrites != 4:
+            raise arsc.TrialError("IDENTITY_PROVIDER_REWRITE_COUNT_DRIFT")
+        if total_resource_rewrites != 1:
+            raise arsc.TrialError("IDENTITY_SYNC_RESOURCE_COUNT_DRIFT")
+        if total_dex_literal_rewrites != 1:
+            raise arsc.TrialError("IDENTITY_DEX_LITERAL_COUNT_DRIFT")
+        result = {
+            "verdict": "FIVE_SPLIT_IDENTITY_STRUCTURAL_PASS_ONLY",
+            "split_count": 5,
+            "manifest_passport_metrica_provider_rewrites": total_passport_provider_rewrites,
+            "passport_sync_resource_rewrites": total_resource_rewrites,
+            "single_reversible_appmetrica_dex_literal_rewrite": True,
+            "published_vendor_apks": False,
+            "installed_on_owner_phone": False,
+            "app_auth_or_login_tested": False,
+            "fileinfo_decoder_proven": False,
+            "native_audio_tested": False,
+            "play_protect_tested": False
+        }
+    return result
+
+
+if __name__ == "__main__":
+    try:
+        print(json.dumps(run(), sort_keys=True))
+    except arsc.TrialError as e:
+        print(json.dumps({"verdict": "FIVE_SPLIT_IDENTITY_BLOCKED",
+                          "stage": e.stage, "diagnostic": e.hints,
+                          "published_vendor_apks": False}))
+        sys.exit(2)
+    except Exception as e:
+        print(json.dumps({"verdict": "FIVE_SPLIT_IDENTITY_BLOCKED",
+                          "stage": "UNEXPECTED_"+type(e).__name__.upper(),
+                          "published_vendor_apks": False}))
+        sys.exit(2)

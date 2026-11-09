@@ -1,0 +1,31 @@
+name: Android native 5-split exact provider identity research (EPHEMERAL)
+on:
+  push:
+    branches:
+      - experiment/android-native-yandex-fileinfo-hooklab-20261109
+    paths:
+      - 'android/native-yandex-hooklab/clone_native_identity_phase2_ephemeral.py'
+      - '.github/workflows/android-native-identity-phase2-ephemeral.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  signed-five-split-identity-only:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Validate source only (no vendor APKs)
+        run: python3 -m py_compile android/native-yandex-hooklab/clone_native_identity_phase2_ephemeral.py
+      - name: Five-split exact scoped public provider identity trial
+        run: python3 android/native-yandex-hooklab/clone_native_identity_phase2_ephemeral.py
+      - name: No source APK published, installed, retained or uploaded
+        if: always()
+        run: |
+          test ! -d android/native-yandex-hooklab/release
+          test ! -d android/native-yandex-hooklab/patched
+          echo 'Ephemeral temporary APKs and research key deleted, no third-party artifacts'
