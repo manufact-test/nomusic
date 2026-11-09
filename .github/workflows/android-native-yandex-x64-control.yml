@@ -1,0 +1,63 @@
+name: Android 11 x86_64 ARMv7 native Yandex LSPatch compatibility control
+on:
+  push:
+    branches:
+      - experiment/android-native-yandex-fileinfo-hooklab-20261109
+    paths:
+      - '.github/workflows/android-native-yandex-x64-control.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  x64-arm-bridge-alternate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 28
+    steps:
+      - uses: actions/checkout@v4
+      - name: Scope all proprietary APK bytes strictly to disposable runner
+        run: echo "CELIKOM_EMULATOR_TEST_DIR=${RUNNER_TEMP}/celikom-gpr-x64-compat-apks" >> "${GITHUB_ENV}"
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+      - name: Compile modern libxposed read-only observer
+        run: gradle -p android/native-yandex-hooklab :app:assembleDebug --no-daemon
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Validate exact original Yandex signer + build five lab-signed LSPatch splits, sigbypass ZERO
+        run: |
+          set -eu
+          python -m py_compile android/native-yandex-hooklab/ephemeral_patch_lab.py
+          python android/native-yandex-hooklab/ephemeral_patch_lab.py
+      - name: Enable KVM on disposable runner
+        run: |
+          test -e /dev/kvm
+          sudo chmod 666 /dev/kvm
+      - name: Android 11 x86_64 with built-in ARMv7 translation; no Yandex account or real phone
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 30
+          arch: x86_64
+          target: google_apis_playstore
+          profile: pixel_5
+          cores: 2
+          ram-size: 4096M
+          heap-size: 512M
+          emulator-boot-timeout: 600
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
+          disable-animations: true
+          script: |
+            set -eu
+            adb shell getprop ro.product.cpu.abilist
+            adb install-multiple "${CELIKOM_EMULATOR_TEST_DIR}"/*.apk
+            python3 android/native-yandex-hooklab/diagnose_emulator.py
+      - name: Erase proprietary native Yandex binaries even if emulator fails
+        if: always()
+        run: |
+          rm -rf -- "${CELIKOM_EMULATOR_TEST_DIR}"
+          echo 'No Yandex APK or signing key retained or published'
