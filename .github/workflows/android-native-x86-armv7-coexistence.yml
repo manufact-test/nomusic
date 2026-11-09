@@ -36,7 +36,7 @@ jobs:
           emulator-boot-timeout: 480
           emulator-options: -no-snapshot-load -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none
           disable-animations: true
-          script: CELIKOM_CLEAN_ANDROID_ARMV7_TRANSLATION=1 CELIKOM_OMIT_SHADOWED_SIGNATURE_DECLS=1 python3 android/native-yandex-hooklab/clone_native_identity_phase2_ephemeral.py
+          script: CELIKOM_CLEAN_ANDROID_ARMV7_TRANSLATION=1 CELIKOM_OMIT_SHADOWED_SIGNATURE_DECLS=1 CELIKOM_ORIGINAL_CONTROL_LAUNCH=1 python3 android/native-yandex-hooklab/clone_native_identity_phase2_ephemeral.py
       - name: Ensure original and clone APKs were not released
         if: always()
         run: |
