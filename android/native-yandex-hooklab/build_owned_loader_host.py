@@ -16,7 +16,9 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 APK = HERE / "armv7-loader-host/app/build/outputs/apk/debug/app-debug.apk"
-PACKAGE = "pro.celikom.armv7loaderhost"
+WITNESS = os.getenv("CELIKOM_OWN_WITNESS") == "1"
+PACKAGE = "pro.celikom.armv7loaderhost.witness" if WITNESS else "pro.celikom.armv7loaderhost"
+MODULE = HERE / "armv7-witness-module/app/build/outputs/apk/debug/app-debug.apk"
 JAR_URL = "https://github.com/JingMatrix/LSPatch/releases/download/v1.2/lspatch-v1.2-487-release.jar"
 JAR_SHA = "d238fdc414d121b7fa454d8b4ccf420df3a8c97d563761861ff92bd9c5da2165"
 
@@ -79,8 +81,10 @@ def check_host(path, patched=False):
                 raise ValueError("LSPATCH_RUNTIME_NOT_EMBEDDED")
             if "assets/lspatch/so/armeabi-v7a/liblspatch.so" not in names:
                 raise ValueError("LSPATCH_ARMV7_LOADER_MISSING")
-            if any(n.startswith("assets/lspatch/modules/") and n.endswith(".apk")
-                   for n in names):
+            embedded = [n for n in names if n.startswith("assets/lspatch/modules/") and n.endswith(".apk")]
+            if WITNESS and len(embedded) != 1:
+                raise ValueError("WITNESS_MODULE_NOT_EMBEDDED")
+            if not WITNESS and embedded:
                 raise ValueError("UNEXPECTED_MODULE_EMBEDDED")
     return True
 
@@ -110,9 +114,30 @@ def main():
              "-dname", "CN=CELIKOM Owned ARMv7 Lab, O=CELIKOM, C=XX"], 80)
         output = root / "patched"
         output.mkdir()
-        run(["java", "-jar", str(jar), "-k", str(store), "owned-test-only",
-             "celikomlab", "owned-test-only", "-o", str(output),
-             "-l", "0", str(APK)], 500)
+        args = ["java", "-jar", str(jar), "-k", str(store), "owned-test-only",
+                "celikomlab", "owned-test-only"]
+        signed_module = None
+        if WITNESS:
+            if not MODULE.is_file():
+                raise ValueError("OWN_MODULE_MISSING")
+            with zipfile.ZipFile(MODULE) as mz:
+                if mz.read("META-INF/xposed/scope.list").decode().strip() != PACKAGE:
+                    raise ValueError("WITNESS_SCOPE_MISMATCH")
+                if mz.read("META-INF/xposed/java_init.list").decode().strip() != "pro.celikom.armv7witnessmodule.HookWitnessEntry":
+                    raise ValueError("WITNESS_ENTRY_MISMATCH")
+                if "minApiVersion=102" not in mz.read("META-INF/xposed/module.prop").decode():
+                    raise ValueError("WITNESS_API_INCOMPATIBLE")
+            signed_module = root / "own-module.apk"
+            shutil.copyfile(MODULE, signed_module)
+            run([sdk("apksigner"), "sign", "--ks", str(store),
+                 "--ks-pass", "pass:owned-test-only", "--ks-key-alias", "celikomlab",
+                 "--key-pass", "pass:owned-test-only", "--min-sdk-version", "28",
+                 "--v4-signing-enabled", "false", str(signed_module)], 90)
+            if signed_sha(signed_module) == original_cert:
+                raise ValueError("WITNESS_MODULE_SIGNER_INVALID")
+            args += ["-m", str(signed_module)]
+        args += ["-o", str(output), "-l", "0", str(APK)]
+        run(args, 500)
         produced = list(output.glob("*.apk"))
         if len(produced) != 1:
             raise ValueError("PATCHER_OUTPUT_COUNT_INVALID")
@@ -121,6 +146,14 @@ def main():
         patched_cert = signed_sha(patched)
         if patched_cert == original_cert:
             raise ValueError("PATCHED_CERT_NOT_SEPARATE")
+        if WITNESS:
+            if patched_cert != signed_sha(signed_module):
+                raise ValueError("WITNESS_SIGNER_MISMATCH")
+            with zipfile.ZipFile(patched) as z:
+                matches = [n for n in z.namelist()
+                           if re.fullmatch(r"assets/lspatch/modules/[^/]+[.]apk", n)]
+                if len(matches) != 1 or hashlib.sha256(z.read(matches[0])).digest() != hashlib.sha256(signed_module.read_bytes()).digest():
+                    raise ValueError("EXACT_WITNESS_MODULE_NOT_EMBEDDED")
         artifact = os.getenv("CELIKOM_OWNED_ARTIFACT_DIR")
         if artifact:
             dest = Path(artifact).resolve()
@@ -128,11 +161,11 @@ def main():
             if root_temp not in dest.parents or dest.exists():
                 raise ValueError("INVALID_ARTIFACT_LOCATION")
             dest.mkdir(parents=True, mode=0o700)
-            shutil.copyfile(patched, dest / "CELIKOM-ARMv7-LOADER-ONLY-Test.apk")
+            shutil.copyfile(patched, dest / ("CELIKOM-ARMv7-HOOK-WITNESS-Test.apk" if WITNESS else "CELIKOM-ARMv7-LOADER-ONLY-Test.apk"))
         print(json.dumps({
-            "verdict": "OWN_SOURCE_ARMV7_PATCHED_STATIC_PASS_NO_DEVICE_RUN",
+            "verdict": "OWN_MODULE_WITNESS_STATIC_PASS_NO_DEVICE_RUN" if WITNESS else "OWN_SOURCE_ARMV7_PATCHED_STATIC_PASS_NO_DEVICE_RUN",
             "package": PACKAGE, "native_abi": "armeabi-v7a",
-            "permissions": 0, "sigbypass": 0, "modules_embedded": 0,
+            "permissions": 0, "sigbypass": 0, "modules_embedded": 1 if WITNESS else 0,
             "yandex_code_included": False,
             "yandex_modified_or_installed": False, "runtime_tested": False,
             "play_protect_verdict": "NOT_TESTED_ON_DEVICE",
