@@ -1,4 +1,4 @@
-name: CELIKOM W36 disposable genuine-Yandex renderer boundary
+name: CELIKOM W37 passive genuine-Yandex network failure classification
 
 on:
   push:
@@ -50,6 +50,7 @@ jobs:
         shell: pwsh
         env:
           CELIKOM_W33_RUNTIME_PROBE: '1'
+          CELIKOM_W37_CDP_PROBE: '1'
         run: |
           ./windows-companion/w23/w23-host-smoke.ps1
           if ($LASTEXITCODE -ne 0) { throw 'W33_DISPOSABLE_NATIVE_PROBE_FAIL' }
@@ -66,7 +67,13 @@ jobs:
           if (@($probe | Where-Object { $_ -match '^W33_RT_(NATIVE|MUSIC_WEB|NEXT_WEB|DESKTOP_WEB|MUSIC_COM)_(HTTP_|FETCH_|TIMEOUT)' }).Count -eq 0) {
             throw 'W36_NO_APPROVED_RENDERER_FETCH_RESULT'
           }
-          Write-Output 'W36_REAL_YANDEX_RENDERER_BOUNDARY_TEST_COMPLETED'
+          if ('W33_RT_CDP_NETWORK_ENABLED' -notin $probe) {
+            throw 'W37_PASSIVE_CDP_NOT_ENABLED'
+          }
+          if (@($probe | Where-Object { $_ -match '^W33_RT_CDP_(LOAD_FAILED_|HTTP_|CSP_CONSOLE)' }).Count -eq 0) {
+            throw 'W37_CDP_HAS_NO_CLASSIFIED_NETWORK_OUTCOME'
+          }
+          Write-Output 'W37_NATIVE_CDP_BOUNDARY_CLASSIFIED'
       - name: Retain only sanitized CI report (never patched Yandex binaries or credentials)
         if: always()
         uses: actions/upload-artifact@v4
