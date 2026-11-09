@@ -78,3 +78,7 @@
 ## Официальный Яндекс на основном HONOR не удалять
 
 Владелец явно отказался удалять официальную Яндекс.Музыку и терять музыку на тренировках. Параллельная копия возможна лишь при **новом package ID**, успешной проверке пяти split APK, manifest/provider/callback совместимости и отдельного clone-scope модуля. Готового APK нет. См. docs/android/ANDROID-NATIVE-PARALLEL-CLONE-GATE-2026-11-09.md.
+
+## Актуальное доказательство от владельца: own ARM hook PASS (09.11.2026)
+
+На HONOR 50, Android 13, успешно запущен независимый CELIKOM ARMv7 Hook Witness с реальным libxposed-модулем: `Native host: STARTED`, `Module hook armed: YES`, `onCreate intercepted: YES` (скриншот `Screenshot_20261109_184208.jpg`, 18:42). Таким образом, **rootless LSPatch/libxposed реально работает на ARM устройстве внутри собственного подписанного пакета**, в отличие от x86 AVD. Никакого запуска модуля в `ru.yandex.music`, декодирования или подмены звука это не доказывает. Оригинальная Яндекс.Музыка на HONOR не изменялась. Дальнейший фокус — совместимый параллельный native-клиент без конфликта пакета, иначе standstill; не переносить на HONOR переподписанный `ru.yandex.music`. Полный результат: `docs/android/ANDROID-NATIVE-ARMV7-OWNER-WITNESS-2026-11-09.md`.

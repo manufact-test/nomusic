@@ -32,3 +32,21 @@ Source: android/native-yandex-hooklab/armv7-witness-module/; packaging: android/
 - Owner has NOT tested the new witness APK yet. The first own host is PASS; new libxposed hook state remains NOT TESTED ON DEVICE.
 - The second APK may coexist with the first CELIKOM ARM Loader Lab and official Yandex, with a different signing identity and package ID. Never overwrite official ru.yandex.music.
 - After owner installs and opens the second test, ask only the two on-screen statuses: Module hook armed and onCreate intercepted; if they say YES both, own-host runtime hook is confirmed (but still no Yandex/media proof). Do NOT advise Play Protect bypass if installation blocked.
+
+## Реальное подтверждение владельца: ROOTLESS LIBXPOSED ON ARM — PASS (09.11.2026)
+
+Владелец прислал снимок `Screenshot_20261109_184208.jpg` с основного HONOR 50, Android 13 (локальное время снимка 18:42). На экране **CELIKOM ARMv7 — hook witness** отображается ровно:
+
+```text
+Native host: STARTED
+Module hook armed: YES
+onCreate intercepted: YES
+```
+
+**GATE PASS:** LSPatch 1.2 (sigbypass=0) загрузил наш libxposed 102-модуль внутри **отдельного собственного пакета** `pro.celikom.armv7loaderhost.witness`; перехват `MainActivity.onCreate` сработал. Сборка с exact source SHA `e9791456e063f8dc5442e5ab5f9040ba053bef16`, GitHub CI [42643802887](https://github.com/manufact-test/nomusic/actions/runs/42643802887) SUCCESS, artifact 13687465487. На основном HONOR без root удалось доказать native in-process hook **только в нашем тестовом приложении**.
+
+**НЕ ДОКАЗАНО:** официальный нативный Яндекс не модифицирован и не перехвачен; `FileInfoDto -> eed -> native decoder` не проверена в runtime; аудиоподмены ещё нет; Play Protect ON не подтверждён отдельно (установка без блокировок ранее сообщена владельцем). Не путать со старым NO-GO на x86-эмуляторах и не объявлять их отладку необходимой.
+
+**Неприкосновенность:** установленный `ru.yandex.music`, локальные скачанные песни, Android Test.50, stable, extension, Windows, API/DB и продакшен не затронуты. Создание конфликтующего `ru.yandex.music`-APK для HONOR запрещено.
+
+**Следующий технический блокер:** обеспечить отдельную не конфликтующую нативную лабораторную копию Яндекса на разрешённом стенде, либо обоснованную интеграцию без её переподписи/пакетного конфликта. Исследовать только offline точную #170gpr и её package/manifest/DEX/login зависимости; не делать вывод, что собственный Hook Witness гарантирует работу private DTO hook Яндекса. Не предлагать удалить оригинал или отключить Play Protect.

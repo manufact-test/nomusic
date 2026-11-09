@@ -58,3 +58,7 @@
 ## Готов отдельный ARMv7 hook-witness APK — CI SUCCESS
 
 Сборка [42643802887](https://github.com/manufact-test/nomusic/actions/runs/42643802887) — SUCCESS; исходный коммит e9791456; [artifact 13687465487](https://github.com/manufact-test/nomusic/actions/runs/42643802887/artifacts/13687465487). APK также в библиотеке ChatGPT владельца под CELIKOM-ARMv7-HOOK-WITNESS-Test.apk. Новый package pro.celikom.armv7loaderhost.witness; не обновляет предыдущий собственный APK и не затрагивает официальный ru.yandex.music. **Реальный Xposed hook ещё не подтверждён!** Следующая проверка: владелец запускает этот APK и сообщает два статуса Module hook armed / onCreate intercepted. Детали: docs/android/ANDROID-NATIVE-ARMV7-OWNER-WITNESS-2026-11-09.md.
+
+## НОВОЕ: подтверждён собственный ROOTLESS libxposed hook на реальном HONOR — PASS
+
+Скриншот владельца `Screenshot_20261109_184208.jpg`: `Native host: STARTED`, `Module hook armed: YES`, `onCreate intercepted: YES` в отдельном CELIKOM ARMv7 Hook Witness. Значит, libxposed реально выполнился в своём ARMv7 приложении на HONOR 50 Android 13; проблема x86 loader не применима к этому ARM own-host. **НЕ означает работы в нативном Яндексе или аудиоподмены!** Следующий блокер — безопасная отдельная native-Yandex интеграция без удаления официального ru.yandex.music и без Play Protect bypass. Подробности в `docs/android/ANDROID-NATIVE-ARMV7-OWNER-WITNESS-2026-11-09.md`.
