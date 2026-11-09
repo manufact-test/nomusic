@@ -14,6 +14,9 @@ $report = [ordered]@{
   managedRestoreConfirmed = $false
   modifiedExeSignature = 'NOT_CHECKED'
   modifiedAppLaunched = $false
+  ownerNativeLogCreated = $false
+  ownerNativeLogRedacted = $false
+  managedRefreshCycleVerified = $false
   nativeHostLoaded = $false
   rendererInjected = $false
   resourceHookAttached = $false
@@ -148,6 +151,128 @@ try {
   if (-not $report.nativeBridgeStateReached -or
       -not $report.mainProcessRelayReached -or -not $report.rendererStateDelivered)
     { throw 'NATIVE_MAIN_PROCESS_RELAY_CANNOT_REACH_COMPANION' }
+  # Prove owner diagnostics exist on the real Yandex host without dev flags.
+  $ownerLog = Join-Path $data 'native-events.log'
+  if (-not (Test-Path $ownerLog)) { throw 'W28_NATIVE_OWNER_LOG_NOT_CREATED' }
+  $ownerLines = @(Get-Content $ownerLog -TotalCount 2500)
+  if ($ownerLines.Count -lt 1 -or
+      @($ownerLines | Where-Object { $_ -match '\|HOST_LOADED
+} catch {
+  $failed = $_.Exception.Message
+  $report.error = $failed
+} finally {
+  try {
+    Get-Process -Name 'Яндекс Музыка' -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+    if ($companionProcess) {
+      Stop-Process -Id $companionProcess.Id -Force -ErrorAction SilentlyContinue
+    }
+    Start-Sleep -Seconds 3
+    if ($backedUp) {
+      if (Test-Path (Join-Path $managedBackup 'recovery.json')) {
+        & dotnet run --project $cli -c Release -- --restore $yandexRoot $managedBackup
+        if ($LASTEXITCODE -eq 0) {
+          $report.managedRestoreConfirmed = $true
+        } else {
+          $failed = 'W24_RECOVERY_MANAGER_FAILED'
+          $report.error = $failed
+        }
+      }
+      # Last-resort cleanup is only for this disposable CI machine.
+      if (-not $report.managedRestoreConfirmed) {
+        Copy-Item $backupExe $exe -Force -ErrorAction Stop
+        Copy-Item $backupAsar $asar -Force -ErrorAction Stop
+      }
+      $report.originalBytesRestored =
+        ((Get-FileHash $exe -Algorithm SHA256).Hash.ToLowerInvariant() -eq $originalExe) -and
+        ((Get-FileHash $asar -Algorithm SHA256).Hash.ToLowerInvariant() -eq $originalAsar)
+      $report.originalSignatureRestored = (Get-AuthenticodeSignature $exe).Status -eq 'Valid'
+    }
+    Remove-Item (Join-Path $env:LOCALAPPDATA 'CELIKOM\Windows\native-bridge.key') -Force -ErrorAction SilentlyContinue
+    Remove-Item Env:\CELIKOM_W23_DEV_DIAG -ErrorAction SilentlyContinue
+    Remove-Item Env:\CELIKOM_W23_DEV_BRIDGE_DIAG -ErrorAction SilentlyContinue
+  } catch {
+    $failed = 'RESTORE_FAILED'
+    $report.error = $failed
+  }
+  Report
+  $report | ConvertTo-Json -Depth 5 | Write-Output
+}
+if ($backedUp -and (-not $report.originalBytesRestored -or -not $report.originalSignatureRestored)) {
+  throw 'RESTORE_NOT_VERIFIED'
+}
+if ($failed) { throw $failed }
+ }).Count -eq 0) {
+    throw 'W28_NATIVE_OWNER_LOG_MISSING_HOST_EVENT'
+  }
+  foreach ($line in $ownerLines) {
+    if ($line -notmatch '^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z\|[A-Z_]{3,48}(\|track=[1-9][0-9]{0,17})?
+} catch {
+  $failed = $_.Exception.Message
+  $report.error = $failed
+} finally {
+  try {
+    Get-Process -Name 'Яндекс Музыка' -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+    if ($companionProcess) {
+      Stop-Process -Id $companionProcess.Id -Force -ErrorAction SilentlyContinue
+    }
+    Start-Sleep -Seconds 3
+    if ($backedUp) {
+      if (Test-Path (Join-Path $managedBackup 'recovery.json')) {
+        & dotnet run --project $cli -c Release -- --restore $yandexRoot $managedBackup
+        if ($LASTEXITCODE -eq 0) {
+          $report.managedRestoreConfirmed = $true
+        } else {
+          $failed = 'W24_RECOVERY_MANAGER_FAILED'
+          $report.error = $failed
+        }
+      }
+      # Last-resort cleanup is only for this disposable CI machine.
+      if (-not $report.managedRestoreConfirmed) {
+        Copy-Item $backupExe $exe -Force -ErrorAction Stop
+        Copy-Item $backupAsar $asar -Force -ErrorAction Stop
+      }
+      $report.originalBytesRestored =
+        ((Get-FileHash $exe -Algorithm SHA256).Hash.ToLowerInvariant() -eq $originalExe) -and
+        ((Get-FileHash $asar -Algorithm SHA256).Hash.ToLowerInvariant() -eq $originalAsar)
+      $report.originalSignatureRestored = (Get-AuthenticodeSignature $exe).Status -eq 'Valid'
+    }
+    Remove-Item (Join-Path $env:LOCALAPPDATA 'CELIKOM\Windows\native-bridge.key') -Force -ErrorAction SilentlyContinue
+    Remove-Item Env:\CELIKOM_W23_DEV_DIAG -ErrorAction SilentlyContinue
+    Remove-Item Env:\CELIKOM_W23_DEV_BRIDGE_DIAG -ErrorAction SilentlyContinue
+  } catch {
+    $failed = 'RESTORE_FAILED'
+    $report.error = $failed
+  }
+  Report
+  $report | ConvertTo-Json -Depth 5 | Write-Output
+}
+if ($backedUp -and (-not $report.originalBytesRestored -or -not $report.originalSignatureRestored)) {
+  throw 'RESTORE_NOT_VERIFIED'
+}
+if ($failed) { throw $failed }
+) {
+      throw 'W28_NATIVE_OWNER_LOG_UNSAFE'
+    }
+  }
+  $report.ownerNativeLogCreated = $true
+  $report.ownerNativeLogRedacted = $true
+
+  # Exercise W24->W28 refresh from verified backup. Disposable CI ONLY.
+  Get-Process -Name 'Яндекс Музыка' -ErrorAction SilentlyContinue |
+    Stop-Process -Force -ErrorAction SilentlyContinue
+  Start-Sleep -Seconds 2
+  & dotnet run --project $cli -c Release -- --restore $yandexRoot $managedBackup
+  if ($LASTEXITCODE -ne 0) { throw 'W28_REFRESH_RESTORE_FAILED' }
+  & dotnet run --project $cli -c Release -- --install $yandexRoot 'windows-companion/w23/dist' $managedBackup
+  if ($LASTEXITCODE -ne 0) { throw 'W28_REFRESH_INSTALL_FAILED' }
+  $refreshed = Get-Content (Join-Path $managedBackup 'recovery.json') -Raw | ConvertFrom-Json
+  if ($refreshed.State -ne 'ACTIVE' -or
+      (Get-FileHash $exe -Algorithm SHA256).Hash.ToLowerInvariant() -ne $refreshed.AppliedExe -or
+      (Get-FileHash $asar -Algorithm SHA256).Hash.ToLowerInvariant() -ne $refreshed.AppliedAsar) {
+    throw 'W28_REFRESH_APPLIED_HASH_MISMATCH'
+  }
+  $report.managedRefreshCycleVerified = $true
+
 } catch {
   $failed = $_.Exception.Message
   $report.error = $failed

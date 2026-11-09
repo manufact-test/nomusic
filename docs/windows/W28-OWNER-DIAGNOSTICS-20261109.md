@@ -30,3 +30,6 @@
 - Existing W26 can synthesize a replacement file-info envelope when native metadata stalls. Such an envelope is **suspect**, not proven the reason for immediate pause. Do not change player behavior speculatively before owner log.
 - Meaning of **PNR** was not found in current Windows source/handoff and was not invented. Owner term needs definition before any module is claimed present.
 - Once owner TXT is available: identify first failed stage; apply minimal correction to actual Yandex file-info/decoder, preserve fallback/restore, verify in disposable CI and real owner playback.
+
+## Disposable CI upgrade coverage
+The W23 genuine Yandex runner checks that ordinary Electron diagnostics are created automatically without dev environment flags, every exported native event line is a strict UTC/code/numeric-ID entry, and the managed Restore -> Install refresh cycle works with verified file hashes. No authenticated audio claim results from this coverage.
