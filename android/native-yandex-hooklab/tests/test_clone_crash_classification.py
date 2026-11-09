@@ -3,7 +3,7 @@ import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from clone_native_identity_phase2_ephemeral import classify_clone_launch_logcat
+from clone_native_identity_phase2_ephemeral import classify_clone_launch_logcat, summarize_installed_package_code_flags
 
 
 class SafeCloneCrashClassificationTest(unittest.TestCase):
@@ -49,6 +49,18 @@ class SafeCloneCrashClassificationTest(unittest.TestCase):
         report = classify_clone_launch_logcat(raw)
         self.assertEqual(["ru.yandex.music.SomeClass"],
                          report["bounded_missing_public_class_hints"])
+
+    def test_package_manager_flags_are_boolean_only(self):
+        sample = ("Package [some.public.package] codePath=/data/app/base.apk\\n"
+                  "  flags=[ HAS_CODE ALLOW_CLEAR_USER_DATA ]\\n"
+                  "  classLoaderName=dalvik.system.PathClassLoader\\n"
+                  "  private-tag=NEVER_EXPOSE_THIS\\n")
+        report = summarize_installed_package_code_flags(sample)
+        self.assertTrue(report["has_code_flag"])
+        self.assertTrue(report["has_code_path_record"])
+        self.assertTrue(report["has_base_apk_record"])
+        self.assertTrue(report["has_classloader_record"])
+        self.assertNotIn("NEVER_EXPOSE_THIS", str(report))
 
     def test_no_crash_produces_zero_flags(self):
         report = classify_clone_launch_logcat("")
