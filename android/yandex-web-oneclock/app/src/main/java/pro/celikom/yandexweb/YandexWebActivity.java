@@ -41,12 +41,16 @@ public final class YandexWebActivity extends Activity {
         broker=new CelikomBroker(this,new CelikomBroker.Listener(){
             @Override public void status(String text) {
                 if(status!=null)status.setText(text);
+                if(text.startsWith("CELIKOM: вход")){
+                    notifyPageEnabled();
+                    broker.announceReady();
+                }
             }
             @Override public void ready(String id,String albumId,long durationMs) {
                 if(web==null||!scriptAvailable)return;
                 String js="window.__CELIKOM_WEB_SOURCE_V1__ && window.__CELIKOM_WEB_SOURCE_V1__.ready("
                    +JSONObject.quote(id)+","+JSONObject.quote(albumId)+","+durationMs+","
-                   +JSONObject.quote(audio.virtualUrl(id))+");";
+                   +JSONObject.quote(audio.virtualUrl(id,albumId))+");";
                 web.evaluateJavascript(js,null);
             }
         });
