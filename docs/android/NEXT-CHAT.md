@@ -26,3 +26,7 @@
 ## Новая подготовка (отдельный ARM-стенд)
 
 Добавлен `android/native-yandex-hooklab/probe_arm_device.py`: **только чтение**, 8 синтетических unit-тестов. Важно: #170gpr требует `armeabi-v7a` — *просто ARM64 недостаточно*, если Android 64-bit-only. Скрипт блокирует основной HONOR 50, уже установленный Яндекс, эмуляторы, Android ниже 13 и отсутствие Google Play. Play Protect ON **нельзя** подтвердить наличием Play Store: требует проверки на отдельном устройстве. Никаких новых runtime PASS, подмены звука или публикации APK нет.
+
+## Нет запасного телефона
+
+Обновлён путь без покупки устройства: Google Developer Device Platform — физический Galaxy A52 5G (Android 14, Device Streaming), альтернативный Samsung Remote Test Lab. Прежде чем устанавливать что-либо, нужна проверка `armeabi-v7a` и Play Protect. План: `docs/android/ANDROID-NATIVE-NO-SPARE-CLOUD-ARM-GATE-2026-11-09.md`. Внешних загрузок APK и удалённых запусков не было; требуется отдельное разрешение для передачи перепакованного Яндекса облачному сервису.
