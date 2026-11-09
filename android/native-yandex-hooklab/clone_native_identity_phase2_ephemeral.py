@@ -148,9 +148,9 @@ def classify_clone_launch_logcat(raw):
     import re
     raw_candidates = []
     patterns = (
-        r'Didn.t find class ["\\']([A-Za-z0-9_.$/]+)["\\']',
+        r'Didn.t find class "([A-Za-z0-9_.$/]+)"',
         r'Failed resolution of: L([A-Za-z0-9_$/]+);',
-        r'(?:ClassNotFoundException|NoClassDefFoundError):\\s*(?:class\\s+)?([A-Za-z0-9_.$/]+)',
+        r'(?:ClassNotFoundException|NoClassDefFoundError):\s*(?:class\s+)?([A-Za-z0-9_.$/]+)',
     )
     for regex in patterns:
         raw_candidates.extend(re.findall(regex, raw, flags=re.IGNORECASE))
