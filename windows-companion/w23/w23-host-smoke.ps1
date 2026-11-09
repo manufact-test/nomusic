@@ -144,7 +144,6 @@ try {
     $report.observedEvents = @($events | Sort-Object -Unique)
     if ($env:CELIKOM_W33_RUNTIME_PROBE -eq '1') {
       $report.w33RuntimeProbe = @($events | Where-Object { $_.StartsWith('W33_RT_') } | Sort-Object -Unique)
-      if ($report.w33RuntimeProbe.Count -eq 0) { throw 'W33_NATIVE_RENDERER_PROBE_NOT_OBSERVED' }
     }
     $report.nativeHostLoaded = 'HOST_LOADED' -in $events
     $report.rendererInjected = 'RENDERER_INJECTED' -in $events

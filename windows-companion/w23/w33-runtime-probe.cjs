@@ -7,6 +7,12 @@
  * No Yandex account, real song, signed URL or token is accessed.
  */
 (() => {
+  // Prove that this CI-only appendix actually executed inside Electron main.
+  try {
+    const dev = process.env.CELIKOM_W23_DEV_DIAG || "";
+    if (dev) require("node:fs").appendFileSync(dev,
+      "W33_RT_BOOTSTRAP_" + (process.env.CELIKOM_W33_RUNTIME_PROBE === "1" ? "ON" : "OFF") + "\n");
+  } catch {}
   if (process.env.CELIKOM_W33_RUNTIME_PROBE !== "1") return;
   const { webContents } = require("electron");
   const fs = require("node:fs");

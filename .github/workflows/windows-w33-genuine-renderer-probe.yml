@@ -57,8 +57,11 @@ jobs:
             throw 'W33_ORIGINAL_VENDOR_BYTES_NOT_RESTORED'
           }
           $probe = @($report.w33RuntimeProbe)
-          if ($probe.Count -eq 0) { throw 'W33_NO_NATIVE_RENDERER_OBSERVATION' }
           $probe | ForEach-Object { Write-Output "W33_RUNTIME_RESULT: $_" }
+          if ($probe.Count -eq 0) { throw 'W33_NO_NATIVE_RENDERER_OBSERVATION' }
+          if (@($probe | Where-Object { $_ -match '^W33_RT_(NATIVE|MUSIC_WEB|NEXT_WEB|DESKTOP_WEB|OTHER)_' }).Count -eq 0) {
+            throw 'W33_NO_RENDERER_FETCH_RESULT_AFTER_BOOTSTRAP'
+          }
           Write-Output 'W33_REAL_YANDEX_RENDERER_BOUNDARY_TEST_COMPLETED'
       - name: Retain only sanitized CI report (never patched Yandex binaries or credentials)
         if: always()
