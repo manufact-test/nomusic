@@ -62,18 +62,38 @@
         if (t && bound === this && candidate && candidate.albumId === t.albumId
             && Math.abs(candidate.durationMs - t.durationMs) <= 1500
             && !this.src.includes("/__celikom_audio/")) {
-          // Source change happens before native host play(), never after playback starts.
-          this.src = candidate.uri;
-          this.load();
-          post({kind:"selected", id:t.id});
-          if (typeof this.addEventListener === "function") {
-            const id=t.id, url=candidate.uri;
-            this.addEventListener("playing", () => {
-              post({kind:"playback",id,phase:this.currentSrc === url || this.src === url
+          // The host still owns this SAME player clock. No second audio element.
+          const previousSource = this.currentSrc || this.src;
+          const element = this;
+          let alternateStarted = false;
+          let startupFallbackUsed = false;
+          if (typeof element.addEventListener === "function") {
+            element.addEventListener("playing", () => {
+              const playingAlternate=element.currentSrc === candidate.uri || element.src === candidate.uri;
+              alternateStarted=playingAlternate;
+              post({kind:"playback",id:t.id,phase:playingAlternate
                 ? "alternate-playing":"host-overwrote-source"});
             },{once:true});
-            this.addEventListener("error", () => post({kind:"playback",id,phase:"alternate-error"}),{once:true});
+            element.addEventListener("error", () => {
+              if (!startupFallbackUsed && !alternateStarted && previousSource &&
+                  (element.src === candidate.uri || element.currentSrc === candidate.uri)) {
+                startupFallbackUsed = true;
+                element.src = previousSource;
+                element.load();
+                post({kind:"playback",id:t.id,phase:"original-startup-fallback"});
+                try {
+                  const playback=Reflect.apply(originalPlay,element,[]);
+                  playback?.catch?.(() => {});
+                } catch (_) { /* No extra audio decoder may be started */ }
+              } else {
+                post({kind:"playback",id:t.id,phase:"alternate-error"});
+              }
+            },{once:true});
           }
+          // Source change happens before native host play(), never after playback starts.
+          element.src = candidate.uri;
+          element.load();
+          post({kind:"selected", id:t.id});
         }
       }
     } catch (_) { /* Original stays playable */ }
