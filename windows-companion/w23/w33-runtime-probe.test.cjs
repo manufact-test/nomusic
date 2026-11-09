@@ -7,20 +7,47 @@ const vm = require("node:vm");
 const EventEmitter = require("node:events");
 const source = fs.readFileSync(path.join(__dirname, "w33-runtime-probe.cjs"), "utf8");
 
-function harness({ initialUrl = "", loading = true, failOnce = false } = {}) {
+function harness({ initialUrl = "", loading = true, failOnce = false, cdp = false } = {}) {
   const events = [];
   const intervals = [];
   const timeouts = [];
   const app = new EventEmitter();
-  let url = initialUrl, isLoading = loading, executions = 0;
+  let url = initialUrl, isLoading = loading, executions = 0, testUrl = "";
+  const debuggerEvents = new EventEmitter();
+  let debugAttached = false;
+  debuggerEvents.isAttached = () => debugAttached;
+  debuggerEvents.attach = () => { debugAttached = true; };
+  debuggerEvents.detach = () => { debugAttached = false; };
+  debuggerEvents.sendCommand = async () => ({});
   const view = Object.assign(new EventEmitter(), {
     id: 42,
+    ...(cdp ? {debugger: debuggerEvents} : {}),
     isDestroyed: () => false,
     getURL: () => url,
     isLoadingMainFrame: () => isLoading,
     executeJavaScript: async () => {
       executions++;
       if (failOnce && executions === 1) throw new Error("navigation");
+      if (cdp) {
+        const rid = "fake-request-7";
+        const invalid = testUrl;
+        debuggerEvents.emit("message", {}, "Network.requestWillBeSent", {
+          requestId:rid, request:{url:invalid,method:"GET",
+            headers:{Origin:"https://unexpected.example",Range:"bytes=0-31"}}
+        });
+        debuggerEvents.emit("message", {}, "Network.requestWillBeSentExtraInfo", {
+          requestId:rid, headers:{Origin:"null"}
+        });
+        debuggerEvents.emit("message", {}, "Network.responseReceivedExtraInfo", {
+          requestId:rid, statusCode:403, headers:{"content-type":"application/json"}
+        });
+        debuggerEvents.emit("message", {}, "Network.loadingFailed", {
+          requestId:rid, corsErrorStatus:{
+            corsError:"MissingAllowOriginHeader",
+            failedParameter:"UNSAFE_CREDENTIAL_VALUE_NEVER_EMIT"
+          }
+        });
+      }
       return {type:"NATIVE", outcome:"HTTP_403_VISIBLE", csp:"NONE"};
     }
   });
@@ -30,6 +57,7 @@ function harness({ initialUrl = "", loading = true, failOnce = false } = {}) {
     get: (_url, opts, callback) => {
       assert.equal(opts.headers.Range, "bytes=0-31");
       assert.match(_url, /token=0{64}/);
+      testUrl = _url;
       queueMicrotask(() => callback({
         statusCode:403,
         headers:{"access-control-allow-origin":"musicapplication://desktop"},
@@ -46,14 +74,15 @@ function harness({ initialUrl = "", loading = true, failOnce = false } = {}) {
     app, webContents:{getAllWebContents:()=>[view]}
   };
   const context = {
-    process:{env:{CELIKOM_W33_RUNTIME_PROBE:"1",CELIKOM_W23_DEV_DIAG:"CI-only"}},
+    process:{env:{CELIKOM_W33_RUNTIME_PROBE:"1",CELIKOM_W23_DEV_DIAG:"CI-only",
+      ...(cdp ? {CELIKOM_W37_CDP_PROBE:"1",CELIKOM_W39_CORS_HEADERS:"1"} : {})}},
     require: name => {
       if(name==="node:fs")return fakeFs;
       if(name==="node:https")return fakeHttps;
       if(name==="electron")return fakeElectron;
       throw Error("Unexpected require");
     },
-    setTimeout: (fn, ms) => { timeouts.push({fn,ms}); return timeouts.length; },
+    setTimeout: (fn, ms) => { timeouts.push({fn,ms}); if (ms===750) queueMicrotask(fn); return timeouts.length; },
     setInterval: (fn, ms) => { intervals.push({fn,ms}); return intervals.length; },
     clearInterval: () => {},
     clearTimeout: () => {},
@@ -112,4 +141,18 @@ test("W36: failed renderer evaluation retries without duplicate in-flight calls"
   assert.ok(h.events.includes("W33_RT_NATIVE_HTTP_403_VISIBLE_CSP_NONE"));
   h.scan();await flush();
   assert.equal(h.executions(),2);
+});
+test("W39: passive Chromium CORS categories contain no raw headers, URLs, or failedParameter",async()=>{
+  const h=harness({cdp:true});
+  h.setReady();
+  await flush(); await flush();
+  assert.ok(h.events.includes("W33_RT_CDP_REQUEST_SEEN"));
+  assert.ok(h.events.includes("W33_RT_CDP_REQUEST_ORIGIN_UNLISTED_HTTPS"));
+  assert.ok(h.events.includes("W33_RT_CDP_WIRE_REQUEST_ORIGIN_NULL"));
+  assert.ok(h.events.includes("W33_RT_CDP_WIRE_RESPONSE_ACAO_ABSENT"));
+  assert.ok(h.events.includes("W33_RT_CDP_WIRE_STATUS_403"));
+  assert.ok(h.events.includes("W33_RT_CDP_CORS_ENUM_MISSING_ALLOW_ORIGIN_HEADER"));
+  assert.ok(!h.events.join("\\n").includes("UNSAFE_CREDENTIAL_VALUE_NEVER_EMIT"));
+  assert.ok(!h.events.join("\\n").includes("unexpected.example"));
+  assert.ok(!h.events.join("\\n").includes("hostingersite.com"));
 });
