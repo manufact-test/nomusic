@@ -1,3 +1,11 @@
+# UPDATE / source-boundary correction — 2026-11-09
+
+**Critical correction to section 3:** On the publisher-signed native `#170rur` DEX, the obfuscated `Liml;` method annotation on `PlayAudioApi.a` has safe static route literal **`plays`**. Verified without accessing credentials or content in [GitHub Actions #42608101050 — SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/42608101050). This makes the `Lsy5; → Lqdw; → PlayAudioApi` graph **more consistent with reporting/accounting of plays than with pre-prepare stream URL selection**. It remains a factually correct callgraph, but **must not be selected as the CELIKOM audio replacement hook** on available evidence. The HTTP verb/semantics and server response are not proven; infer only a likely reporting role, not certainty.
+
+Current next step: bounded search for real `stream/source/download-info/track` API route literals and corresponding invoked methods, then a test-environment witness of exact track+edition and the live native source owner **before decoder prepare**. No new user-facing APK or destructive installation.
+
+---
+
 # CELIKOM Android — exact native #170gpr is now obtained & publisher-verified (2026-11-09)
 
 **Status: genuine progress, but NOT a working replacement.** This supersedes the claim in the previous Gate 1 report that exact #170gpr had not been acquired. The source audit of `#170rur` is retained for history. All changes are isolated on `experiment/android-native-yandex-gate1-20261109`; not merged to stable CELIKOM or Test.50.
