@@ -32,6 +32,12 @@ jobs:
           gradle-version: '8.10.2'
       - name: Exact media source and edition tests
         run: node --test tests/test-source.cjs
+      - name: Verify reused real CELIKOM Yandex identity adapter
+        run: |
+          mkdir -p ../../extension/dist/unpacked/player ../../extension/dist/unpacked/adapters
+          cp app/src/main/assets/celikom-core.js ../../extension/dist/unpacked/player/core.js
+          cp app/src/main/assets/celikom-yandex-adapter.js ../../extension/dist/unpacked/adapters/yandex-music-adapter.js
+          node --test ../../extension/tests/yandex-adapter.test.mjs
       - name: RFC7233 audio seek and range tests
         run: |
           mkdir -p build/testclasses
