@@ -50,3 +50,7 @@
 ## Подготовлен реальный тест загрузчика без Яндекса (CI SUCCESS)
 
 Собран собственный отдельный `CELIKOM ARM Loader Lab` для ARMv7 (no Yandex, no permissions): [CI 42638725850](https://github.com/manufact-test/nomusic/actions/runs/42638725850) — SUCCESS; [внутренний APK artifact 13683314600](https://github.com/manufact-test/nomusic/actions/runs/42638725850/artifacts/13683314600). **Это не рабочий CELIKOM и не проверка аудио.** На HONOR пока ничего не установлено; официальный Яндекс сохраняется. Дальше — ручной запуск отдельного тестового приложения с Play Protect ON, только когда владельцу будет удобно. Подробности: `docs/android/ANDROID-NATIVE-OWNED-ARMV7-LOADER-2026-11-09.md`.
+
+## PASS владельца: ARMv7 on-device, отдельное приложение
+
+9 ноября 2026 владелец установил независимый CELIKOM ARM Loader Lab на HONOR 50 (Android 13) и прислал скриншот открытого приложения. **ARMv7 JNI-host PASS**, установка без блокировки; официальный Яндекс не изменялся. В первой сборке Xposed module отсутствовал: это НЕ доказательство перехвата Яндекса. Новый этап — отдельный own-host hook witness с новой package ID, его два статуса видны прямо на экране. Подробности: docs/android/ANDROID-NATIVE-ARMV7-OWNER-WITNESS-2026-11-09.md.
