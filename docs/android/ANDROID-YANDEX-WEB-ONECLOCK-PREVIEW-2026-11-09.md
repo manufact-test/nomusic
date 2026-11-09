@@ -1,3 +1,9 @@
+# ⛔ OWNER REJECTED — WEBVIEW IS NOT CELIKOM ANDROID'S PRODUCT (2026-11-09)
+
+The owner explicitly requires **native Android Yandex Music** (Yandex account/login inside its own Android client), with CELIKOM modifying audio in THAT player's process. The Android WebView preview below is intentionally **archived / rejected**, not approved for installation, manual testing, release, or further development. Automated CI SUCCESS only proved a web preview APK compiled; it never proved native Yandex integration, Play Protect approval, or actual music playback. **Do not present this APK to the owner again.** Current correction and correct next-chat task live in `research/android-single-player-inprocess-20261109/docs/android/ANDROID-NATIVE-YANDEX-RESTART-OWNER-OVERRIDE-2026-11-09.md`.
+
+---
+
 # CELIKOM Android — real Yandex Web one-clock preview (2026-11-09)
 
 ## Decision and limits
