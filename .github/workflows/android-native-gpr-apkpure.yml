@@ -1,0 +1,27 @@
+name: Android exact owner GPR mirror integrity gate (research only)
+on:
+  push:
+    branches:
+      - experiment/android-native-yandex-gate1-20261109
+    paths:
+      - '.github/workflows/android-native-gpr-apkpure.yml'
+      - 'tools/android-native-gate1/audit_gpr_apkpure_once.py'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  exact-gpr-static-only:
+    runs-on: ubuntu-latest
+    timeout-minutes: 7
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Python syntax and SDK availability
+        run: |
+          python -m py_compile tools/android-native-gate1/audit_gpr_apkpure_once.py
+          test -n "${ANDROID_HOME}"
+          find "${ANDROID_HOME}/build-tools" -name apksigner -type f | head -1 | grep -q apksigner
+      - name: Authenticated-signature and exact-version gate; APK ephemeral; no installation
+        run: python tools/android-native-gate1/audit_gpr_apkpure_once.py
