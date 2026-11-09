@@ -1,0 +1,32 @@
+name: Android signed native FileInfo downstream DEX audit (NO PATCH)
+on:
+  push:
+    branches:
+      - experiment/android-native-yandex-fileinfo-hooklab-20261109
+    paths:
+      - 'android/native-yandex-hooklab/trace_native_model_to_decoder.py'
+      - 'android/native-yandex-hooklab/tests/test_native_model_to_decoder.py'
+      - '.github/workflows/android-native-model-downstream-gate.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  signed-model-downstream:
+    runs-on: ubuntu-latest
+    timeout-minutes: 17
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Synthetic signature and privacy checks
+        run: |
+          python3 -m unittest discover -s android/native-yandex-hooklab/tests -p 'test_native_model_to_decoder.py' -v
+          python3 -m py_compile android/native-yandex-hooklab/trace_native_model_to_decoder.py
+      - name: Inspect pinned original published Yandex split APK (no execution or modification)
+        run: python3 android/native-yandex-hooklab/trace_native_model_to_decoder.py
+      - name: Assert no APKs distributed
+        if: always()
+        run: |
+          test ! -d android/native-yandex-hooklab/release
+          echo 'STATIC_READ_ONLY: no signed/modified APK artifacts or user data'
