@@ -35,7 +35,8 @@ function toDownloadInfo(original, trackId, url, mimeType, quality) {
  * Hooks one already-discovered resource prototype. Another version-gated,
  * consented integration component must discover it within Yandex.
  */
-export function createNativeResourceAdapter({ resolve, allowedOrigin, now = Date.now, deadlineMs = DEFAULT_DEADLINE_MS }) {
+export function createNativeResourceAdapter({ resolve, allowedOrigin, now = Date.now,
+  deadlineMs = DEFAULT_DEADLINE_MS, onEvent = () => {} }) {
   if (typeof resolve !== 'function' ||
       !(typeof allowedOrigin === 'string' || typeof allowedOrigin === 'function') ||
       !Number.isInteger(deadlineMs) || deadlineMs < 10 || deadlineMs > 8000)
@@ -47,6 +48,9 @@ export function createNativeResourceAdapter({ resolve, allowedOrigin, now = Date
   const pending = new Map();
   const cache = new Map();
   let status = 'OFF';
+  function emit(code, id = null) {
+    try { onEvent(code, id); } catch { /* Diagnostics must never block the player. */ }
+  }
 
   function cancel() {
     revision++;
@@ -60,6 +64,7 @@ export function createNativeResourceAdapter({ resolve, allowedOrigin, now = Date
     if (current !== id) {
       current = id;
       cancel();
+      emit('TRACK_CHANGED', id);
       status = enabled ? 'ORIGINAL' : 'OFF';
     }
   }
@@ -90,13 +95,14 @@ export function createNativeResourceAdapter({ resolve, allowedOrigin, now = Date
   async function lookup(id, revisionAtStart) {
     if (!enabled || disposed || revisionAtStart !== revision) return null;
     const cached = fromCache(id);
-    if (cached !== undefined) return cached;
+    if (cached !== undefined) { emit('CACHE_HIT', id); return cached; }
     let job = pending.get(id);
     if (!job) {
+      emit('RESOLVE_START', id);
       const abort = new AbortController();
       let timer;
       const timeout = new Promise(resolveTimeout => {
-        timer = setTimeout(() => { abort.abort(); resolveTimeout(null); }, deadlineMs);
+        timer = setTimeout(() => { emit('RESOLVE_TIMEOUT', id); abort.abort(); resolveTimeout(null); }, deadlineMs);
       });
       const request = Promise.resolve().then(() => resolve(id, abort.signal))
         .catch(() => null);
@@ -141,11 +147,14 @@ export function createNativeResourceAdapter({ resolve, allowedOrigin, now = Date
       const id = validId(params?.trackId);
       if (!enabled || !id || disposed) return originalSingle.call(this, params, ...rest);
       if (id !== current) trackChanged(id);
+      emit('NATIVE_FILEINFO_REQUEST', id);
       const rev = revision;
       const native = Promise.resolve().then(() => originalSingle.call(this, params, ...rest))
-        .then(value => ({ value }), error => ({ error }));
+        .then(value => { emit('NATIVE_FILEINFO_OK', id); return { value }; },
+              error => { emit('NATIVE_FILEINFO_ERROR', id); return { error }; });
       const grant = await lookup(id, rev);
       if (!grant || !isLive(id, rev)) {
+        emit('SOURCE_ORIGINAL', id);
         const base = await native;
         if (rev === revision) status = enabled ? 'ORIGINAL' : 'OFF';
         if ('error' in base) throw base.error;
@@ -160,6 +169,7 @@ export function createNativeResourceAdapter({ resolve, allowedOrigin, now = Date
       });
       const base = await Promise.race([native, grace]);
       clearTimeout(graceTimer);
+      if ('slow' in base) emit('NATIVE_FILEINFO_SLOW', id);
       if (!isLive(id, rev)) {
         const original = await native;
         if ('error' in original) throw original.error;
@@ -168,7 +178,11 @@ export function createNativeResourceAdapter({ resolve, allowedOrigin, now = Date
       const value = 'value' in base && base.value && typeof base.value === 'object'
         ? base.value : null;
       const field = value && 'fileInfo' in value ? 'fileInfo' : 'downloadInfo';
+      emit(!value ? 'SOURCE_SYNTHETIC_RESPONSE' :
+        field === 'fileInfo' ? 'FILEINFO_SHAPE_FILE' :
+        value.downloadInfo ? 'FILEINFO_SHAPE_DOWNLOAD' : 'FILEINFO_SHAPE_MISSING', id);
       const replacement = toDownloadInfo(value?.[field], id, grant.signedUrl, grant.mimeType, params?.quality);
+      emit('SOURCE_MAPPED', id);
       status = 'SOURCE_MAPPING_RETURNED_NOT_AUDIO_VERIFIED';
       return { responseTime: 0, url: '', ...value, [field]: replacement };
     };
@@ -180,6 +194,7 @@ export function createNativeResourceAdapter({ resolve, allowedOrigin, now = Date
           ? params.trackIds : typeof params?.trackIds === 'string' ? params.trackIds.split(',') : [];
         const ids = [...new Set(raw.map(validId).filter(Boolean))];
         if (!enabled || disposed || ids.length === 0) return originalBatch.call(this, params, ...rest);
+        emit('SOURCE_BATCH_REQUEST', ids[0]);
         const rev = revision;
         // Batch is often requested BEFORE any single file-info. Resolve a small
         // bounded window to avoid falling back for every playlist/Next request.
@@ -209,6 +224,7 @@ export function createNativeResourceAdapter({ resolve, allowedOrigin, now = Date
             id, grant.signedUrl, grant.mimeType, params?.quality);
           if (index >= 0) list[index] = info; else list.push(info);
         }
+        emit('SOURCE_BATCH_MAPPED', hits[0]?.[0] || null);
         status = 'SOURCE_MAPPING_RETURNED_NOT_AUDIO_VERIFIED';
         return { ...base, [field]: list };
       };

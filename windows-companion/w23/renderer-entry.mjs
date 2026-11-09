@@ -20,8 +20,52 @@ import { createNativeResourceAdapter } from "../w22/native-resource-adapter.mjs"
   let pendingCount = 0, sequence = 0, lastReported = "";
   const queued = [], pending = new Map();
   const MAX_QUEUE = 24;
+  const diagnosticQueue = [];
+  function report(code, trackId = null) {
+    if (!/^[A-Z_]{3,48}$/.test(code)) return;
+    const id = typeof trackId === "string" && /^[1-9][0-9]{0,17}$/.test(trackId)
+      ? trackId : null;
+    diagnosticQueue.push([code, id]);
+    if (diagnosticQueue.length > 256) diagnosticQueue.shift();
+  }
+  window.__celikomBridgeNativeDrainDiagnostics = () => diagnosticQueue.splice(0, 48);
+
+  // Only report observable media DOM events. WebAudio-only playback is explicitly
+  // marked as unobserved in the exported diagnostics.
+  if (typeof document !== "undefined" && document?.addEventListener) {
+    for (const name of ["play", "pause", "playing", "error", "waiting",
+                        "stalled", "seeking", "seeked", "ended"]) {
+      document.addEventListener(name, event => {
+        if (event?.target?.tagName === "AUDIO")
+          report("MEDIA_" + name.toUpperCase());
+      }, true);
+    }
+  }
+  // Resource Timing may not disclose HTTP status on cross-origin media.
+  // Never record the name, full URL, query string, response headers or tokens.
+  if (typeof PerformanceObserver !== "undefined") {
+    try {
+      const observer = new PerformanceObserver(list => {
+        for (const entry of list.getEntries()) {
+          if (!apiOrigin || typeof entry.name !== "string") continue;
+          try {
+            const url = new URL(entry.name);
+            if (url.origin !== apiOrigin ||
+                !/^\\/api\\/v1\\/audio\\/[A-Za-z0-9_-]{1,128}$/.test(url.pathname)) continue;
+            report("MEDIA_REQUEST_SEEN");
+            const status = Number(entry.responseStatus);
+            report(status >= 200 && status < 300 ? "MEDIA_HTTP_OK" :
+              status >= 400 ? "MEDIA_HTTP_FAILED" : "MEDIA_HTTP_UNVERIFIED");
+          } catch {}
+        }
+      });
+      observer.observe({ type: "resource", buffered: false });
+      window.addEventListener("beforeunload", () => observer.disconnect(), { once: true });
+    } catch {}
+  }
 
   const adapter = createNativeResourceAdapter({
+    onEvent: report,
     allowedOrigin: () => apiOrigin,
     resolve: (trackId, signal) => new Promise(resolve => {
       if (stopped || signal.aborted || pending.size >= MAX_QUEUE) {
@@ -34,7 +78,7 @@ import { createNativeResourceAdapter } from "../w22/native-resource-adapter.mjs"
         signal.removeEventListener("abort", abort);
         resolve(result);
       };
-      const abort = () => finish(null);
+      const abort = () => { report("RESOLVE_ABORTED", trackId); finish(null); };
       pending.set(requestId, { finish });
       signal.addEventListener("abort", abort, { once: true });
       queued.push({ requestId, trackId });
@@ -70,6 +114,7 @@ import { createNativeResourceAdapter } from "../w22/native-resource-adapter.mjs"
     const status = adapter.enabled ? "NATIVE_CONNECTED" : "ORIGINAL";
     if (status !== lastReported) {
       lastReported = status;
+      report(adapter.enabled ? "RENDERER_STATE_ON" : "RENDERER_STATE_OFF");
       console.info("[CELIKOM] Native bridge state received");
     }
   };
@@ -104,6 +149,7 @@ import { createNativeResourceAdapter } from "../w22/native-resource-adapter.mjs"
         try {
           adapter.attach(klass.prototype);
           attached = true;
+          report("RESOURCE_HOOK_ATTACHED");
           console.info("[CELIKOM] Native file-info source connector attached");
           return true;
         } catch {}
@@ -119,7 +165,7 @@ import { createNativeResourceAdapter } from "../w22/native-resource-adapter.mjs"
   const deadline = setInterval(() => {
     if (attached || ++attempts >= 35) {
       clearInterval(deadline);
-      if (!attached) clearInterval(finder);
+      if (!attached) { report("RESOURCE_HOOK_MISSING"); clearInterval(finder); }
     }
   }, 1000);
   findResource();
@@ -134,5 +180,6 @@ import { createNativeResourceAdapter } from "../w22/native-resource-adapter.mjs"
     delete window.__celikomBridgeNativeReceive;
     delete window.__celikomBridgeNativeSetState;
     delete window.__celikomBridgeNativeStatus;
+    delete window.__celikomBridgeNativeDrainDiagnostics;
   }, { once: true });
 })();
