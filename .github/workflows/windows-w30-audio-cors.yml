@@ -83,4 +83,19 @@ jobs:
             $r=$app->handle("OPTIONS","/api/v1/auth/login",[],["Origin"=>"null"]);
             echo "LIVE_AUTH_NULL_CORS=", $r->headers["Access-Control-Allow-Origin"] ?? "NONE", PHP_EOL;
           ' "$root/current"
+          echo 'W30_HTTP_DIAGNOSTICS_FROM_ABORTED_DEPLOY:'
+          saved="$root/backups/w30-audio-cors-b1c25855ac44/audio-opaque-headers"
+          if [[ -f "$saved" ]]; then
+            awk 'BEGIN{IGNORECASE=1} /^HTTP\// {print "W30_SAVED_STATUS_LINE="$2} tolower($1)=="access-control-allow-origin:" {print "W30_SAVED_ACAO="$2}' "$saved"
+          else
+            echo 'W30_SAVED_HEADERS_ABSENT'
+          fi
+          for method in OPTIONS GET HEAD; do
+            case "$method" in
+              OPTIONS) code="$(curl -sS --connect-timeout 10 --max-time 15 -X OPTIONS -H 'Origin: null' -o /dev/null -w '%{http_code}' https://darkred-camel-588676.hostingersite.com/api/v1/audio/7)";;
+              GET) code="$(curl -sS --connect-timeout 10 --max-time 15 -H 'Origin: null' -o /dev/null -w '%{http_code}' https://darkred-camel-588676.hostingersite.com/api/v1/audio/7)";;
+              HEAD) code="$(curl -sS --connect-timeout 10 --max-time 15 -I -H 'Origin: null' -o /dev/null -w '%{http_code}' https://darkred-camel-588676.hostingersite.com/api/v1/audio/7)";;
+            esac
+            echo "W30_LIVE_HTTP_METHOD_$method=$code"
+          done
           REMOTE
