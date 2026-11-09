@@ -17,6 +17,8 @@ HTTP_ANNOTATIONS = frozenset({
     "Lretrofit2/http/GET;", "Lretrofit2/http/POST;",
     "Lretrofit2/http/PUT;", "Lretrofit2/http/PATCH;",
     "Lretrofit2/http/DELETE;", "Lretrofit2/http/HTTP;",
+    # Seen on official-signer PlayAudioApi.a; do NOT assume Liml is @POST yet.
+    "Liml;",
 })
 MAX_REFS = 90
 MAX_CALLS = 70
