@@ -1,3 +1,22 @@
+# 2026-11-09 · New exact #170gpr native FILE-INFO source candidates (read this first)
+
+**Critical finding:** The exact publisher-signed native `2026.10.3 #170gpr`, `24026531`, does contain REAL first-party API interfaces under `com/yandex/music/shared/player/content/remote/`, not merely a speculative `PlayAudioApi`. From the actual exact signed XAPK's `classes4.dex`, we decoded safe compile-time Retrofit annotation routes and method signatures:
+
+| Native Yandex interface | Obfuscated method | Static media route |
+| --- | --- | --- |
+| `com/yandex/music/shared/player/content/remote/fileinfo/FileInfoApi` | `a(String,String,String,String,long,String,Integer,Integer,String): retrofit2.Call` | **`resources/v2/file-info`** |
+| `com/yandex/music/shared/player/content/remote/fileinfo/OldFileInfoApi` | `a(String,String,String,String,long,String,Integer,Integer,String,String): retrofit2.Call` | **`get-file-info`** |
+| `com/yandex/music/shared/player/content/remote/downloadinfo/DownloadInfoApi` | `b(String,Boolean,Boolean,String): retrofit2.Call` | **`tracks/{trackId}/download-info`** |
+| `com/yandex/music/shared/generative/data/GenerativeApi` | `b(String,String): retrofit2.Call` | `rotor/station/{stationId}/stream` (separate radio/generative path; don't confuse with track bytes) |
+
+**Proof:** [GitHub Actions #42609347093 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/42609347093), exact Google Play channel version, cryptographic signer/manifest gates passed before inspection, 1,105 method annotations examined on the owning DEX. All identified route annotations use obfuscated `Lt4e;` (the exact HTTP verb is not independently proven by this alone). No APK, credentials, audio content or arbitrary annotation values are retained/logged. This is **real, highly relevant static source-boundary evidence**, though not proof of runtime execution or ability to replace the MediaSource in place. An isolated caller-graph audit of these three API interfaces is now in `tools/android-native-gate1/trace_source_api_consumers.py`.
+
+**Important rejection retained:** `PlayAudioApi` is annotated with route `plays`, likely playback reporting. It should NOT be treated as the substitution hook. We now favor the first-party `fileinfo` and `downloadinfo` boundary for *read-only runtime verification* of track+edition-to-source mapping before modifying playback.
+
+**Remaining safety gate:** Avoid externally controlled double players, WebView, root and OAuth interception. A patched native Yandex APK re-signed by CELIKOM cannot silently update the genuine existing Yandex package. Any uninstall/clone/install behavior requires owner approval; Play Protect ON acceptance requires a physical device test and cannot be claimed from static CI. No test APK ready; never touch Test.50, stable production, song database or owner phone.
+
+---
+
 # UPDATE / source-boundary correction — 2026-11-09
 
 **Critical correction to section 3:** On the publisher-signed native `#170rur` DEX, the obfuscated `Liml;` method annotation on `PlayAudioApi.a` has safe static route literal **`plays`**. Verified without accessing credentials or content in [GitHub Actions #42608101050 — SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/42608101050). This makes the `Lsy5; → Lqdw; → PlayAudioApi` graph **more consistent with reporting/accounting of plays than with pre-prepare stream URL selection**. It remains a factually correct callgraph, but **must not be selected as the CELIKOM audio replacement hook** on available evidence. The HTTP verb/semantics and server response are not proven; infer only a likely reporting role, not certainty.
