@@ -183,7 +183,9 @@ def run():
             publisher_manifest = manifest.read_bytes()
             initial, _ = source.rewrite_manifest(publisher_manifest.decode("utf-8"))
             next_manifest, rewritten = rewrite_passport_and_metrica(initial)
-            if omit_shadowed:
+            # Only the BASE APK declares app-level custom permissions;
+            # config splits must NOT be forced to have those declarations.
+            if omit_shadowed and not split:
                 next_manifest, count = omit_shadowed_signature_permission_declarations(next_manifest)
                 omitted_permission_declarations += count
             publisher_auths = resolved_provider_authorities(publisher_manifest, OLD_SYNC)
