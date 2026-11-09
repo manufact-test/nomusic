@@ -28,3 +28,15 @@ This is a **controlled isolation test**, NOT a vendor DEX patch:
 Workflow: `.github/workflows/android-native-manifest-only-dex-preserved.yml`
 Guard: `CELIKOM_MANIFEST_ONLY_ORIGINAL_DEX=1` only in ephemeral GitHub CI and
 Android ARMv7 translated disposable emulator, never a distributable artifact.
+
+## Final real-runtime verdict correction (09.11.2026)
+Manifest-only control structurally PASS (CI 42697151607), and original
+publisher process survives. Do NOT confuse `SIDE_BY_SIDE...INSTALL_LAUNCH_ONLY`
+from CI 42695956456 with full native Yandex app launch:
+**only auxiliary :AppMetrica process survived** and no clone MAIN process,
+resumed activity or focused window existed. Updated strict gate
+[CI 42696772783](https://github.com/manufact-test/nomusic/actions/runs/42696772783)
+deliberately FAILS as `MAIN_UI_NOT_READY_AUXILIARY_PROCESS_ALONE_INSUFFICIENT`.
+The product is not ready, login/Play Protect/decoder/audio not tested.
+CI-only manifest-only mode is now also permitted for structural no-install
+checks; still no APK output or user device change.

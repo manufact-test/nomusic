@@ -30,3 +30,14 @@ bypass, or changes to user's HONOR/Test.50.
 [CI 42691145641](https://github.com/manufact-test/nomusic/actions/runs/42691145641) **SUCCESS read-only candidate scan**: several same-length alternate public authority names preserve the original ordered slot (e.g. `com.yandex.preinstallsatellite.appmetrica.provideq`). They are laboratory candidates only; no APK using them has been built, installed or run.
 
 **DO NOT mark clone as fixed.** An attempt to update the clone's in-place DEX literal replacement was blocked before a GitHub commit. Current script still uses the old known-invalid candidate; no safe runtime PASS. Future modification must explicitly enforce original and modified `string_id` slot ordering, preserve permission boundaries and make no claims about Play Protect or login. The remaining native runtime decoder→source proof is independent of this.
+
+## Safe CI guard after root-cause discovery (09.11.2026)
+Legacy `patch_one_dex` now **rejects invalid replacement order before writing
+the DEX** (`DEX_STRING_ID_ORDER_FAIL_CLOSED`), rather than emitting a
+checksummed but unsorted DEX. The still-configured original legacy
+AppMetrica replacement is KNOWN invalid and cannot be used for a runtime APK.
+The existing structural CI workflow has been switched to the safe
+`CELIKOM_MANIFEST_ONLY_ORIGINAL_DEX=1` control and PASS
+[42697151607](https://github.com/manufact-test/nomusic/actions/runs/42697151607).
+The safe runtime clone STILL has no MAIN/UI, see
+[ANDROID-NATIVE-STRICT-MAIN-UI-GATE-2026-11-09.md](ANDROID-NATIVE-STRICT-MAIN-UI-GATE-2026-11-09.md).

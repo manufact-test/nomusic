@@ -136,3 +136,37 @@ Next technical gate: isolated **genuine native Yandex runtime** on an ARM-capabl
 [CI 42691145641](https://github.com/manufact-test/nomusic/actions/runs/42691145641) **read-only PASS** нашёл несколько вариантов такого же по длине публичного имени, которые остаются внутри исходного сортировочного интервала. **В код клона новый адрес НЕ внесён**, потому что попытка изменения была заблокирована инструментом. Текущее `NEW_METRICA` по-прежнему нарушает DEX сортировку: не выдавать APK, не объявлять клон исправленным, не просить установку на HONOR.
 
 Документ: `docs/android/ANDROID-NATIVE-DEX-STRING-ID-ORDER-2026-11-09.md`. Принятый Test.50, подписанный оригинал на HONOR, Windows/сервер и продакшен не трогали. Следующий допустимый рубеж — проверенная DEX-aware безопасная обработка строк и независимый runtime control без обхода аутентификации/Play Protect; trackId FileInfo param0 всё ещё только статически доказан.
+
+
+## Самое новое: неверный зелёный PASS исправлен, строгий MAIN/UI FAIL (09.11.2026)
+
+Отдельный **manifest-only control** сохраняет все шесть DEX оригинала ПОБАЙТНО.
+Оригинальный Яндекс и 5-split клон успешно ставятся параллельно в изолированном
+Android 11 x86/ARMv7. Предыдущая `YMApplication ClassNotFoundException` в
+[CI 42694224453](https://github.com/manufact-test/nomusic/actions/runs/42694224453)
+не зафиксирована. AOSP прямо требует сортировку `string_ids`, исходный
+патч её нарушал.
+
+**Критическое исправление отчётности:** [CI 42695956456](https://github.com/manufact-test/nomusic/actions/runs/42695956456)
+ошибочно засчитал как запущенный клон живой вспомогательный процесс
+`:AppMetrica`. Подписанный оригинальный MAIN launcher требует основной
+процесс, что подтверждено [CI 42696018566](https://github.com/manufact-test/nomusic/actions/runs/42696018566).
+[CI 42696772783](https://github.com/manufact-test/nomusic/actions/runs/42696772783)
+**ожидаемо FAIL**: основного процесса клона НЕТ, главный экран не активен,
+оригинал продолжает работать. Это текущий честный статус, нельзя выдавать APK.
+
+Функция legacy DEX patch теперь **fail-closed** при нарушении сортировки;
+[CI 42697151607](https://github.com/manufact-test/nomusic/actions/runs/42697151607)
+**PASS** для безопасной 5/5 структурной сборки с оригинальным DEX;
+[CI 42697074970](https://github.com/manufact-test/nomusic/actions/runs/42697074970)
+два задания read-only hooklab **PASS**.
+
+Полная новая передача:
+`docs/android/ANDROID-NATIVE-STRICT-MAIN-UI-GATE-2026-11-09.md`.
+Следующая реальная задача: разобраться, отчего завершается основной процесс
+и почему нет главного UI. Не гадать о подписи/защите. Существующая
+`classify_activity_exit_info` пока НЕ распознаёт стандартные текстовые
+форматы AOSP `reason=4 (APP CRASH(EXCEPTION))`; попытка её исправить не
+применена, не считать отсутствие флагов доказательством отсутствия падения.
+Никаких ручных действий на HONOR; никакого Test.50, продакшена или
+публичных перепакованных APK не трогали.
