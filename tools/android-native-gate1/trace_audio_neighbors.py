@@ -10,6 +10,7 @@ from inspect_android_host import Dex, DexError
 from trace_native_callers import method_definitions, invoked_method_indexes
 
 CALLER_CLASS = "Lqdw;"
+UPSTREAM_CLASS = "Lsy5;"
 API_CLASS = "Lcom/yandex/music/shared/play/audio2/data/PlayAudioApi;"
 MAX_EDGES = 90
 
@@ -18,7 +19,7 @@ def inspect_neighbors(data: bytes) -> dict:
     candidates = set()
     for i in range(d.method_count):
         cls, name, sig = d.method(i)
-        if (cls == CALLER_CLASS and name == "a") or cls == API_CLASS:
+        if (cls == CALLER_CLASS and name == "a") or (cls == UPSTREAM_CLASS and name == "invokeSuspend") or cls == API_CLASS:
             candidates.add(i)
     inbound = []
     body = []
@@ -26,7 +27,7 @@ def inspect_neighbors(data: bytes) -> dict:
     scanned = 0
     for idx, code in method_definitions(d):
         c, method, signature = d.method(idx)
-        own_target = c == CALLER_CLASS and method == "a"
+        own_target = (c == CALLER_CLASS and method == "a") or (c == UPSTREAM_CLASS and method == "invokeSuspend")
         refs = []
         try:
             for tgt, pc, op in invoked_method_indexes(d, code):
