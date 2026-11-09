@@ -50,7 +50,9 @@ function note(code, trackId = null) {
   if (process.env.LOCALAPPDATA) {
     try {
       fs.mkdirSync?.(nativeDirectory, { recursive: true });
-      if ((fs.statSync?.(nativeFile)?.size || 0) > 384 * 1024) {
+      let existingSize = 0;
+      try { existingSize = fs.statSync(nativeFile).size; } catch {}
+      if (existingSize > 384 * 1024) {
         try { fs.unlinkSync?.(nativeFile + ".1"); } catch {}
         fs.renameSync?.(nativeFile, nativeFile + ".1");
       }

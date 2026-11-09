@@ -26,6 +26,8 @@ async function runHost(url, { queue = [], token = "b".repeat(64) } = {}) {
     }
   };
   const fakeFs = {
+    mkdirSync: () => {},
+    statSync: () => { throw Object.assign(new Error("NOT_FOUND"), { code: "ENOENT" }); },
     readFileSync: file => file.includes("renderer.js")
       ? "window.__celikomBridgeNativeDrain=()=>[];" : token,
     appendFileSync: (_file, line) => diagnostics.push(line.trim())
