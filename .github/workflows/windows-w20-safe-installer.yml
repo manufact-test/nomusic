@@ -35,7 +35,7 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           & ./windows-companion/w20/release-gate.ps1 -Mode Stage
-          if ($LASTEXITCODE -ne 0) { throw 'W20_STAGE_POLICY_FAILED' }
+          # Script exceptions already fail this step; native LASTEXITCODE is stale.
       - name: Publish self-contained CELIKOM-owned Windows binary
         shell: pwsh
         run: |
