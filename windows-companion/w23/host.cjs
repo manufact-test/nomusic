@@ -36,7 +36,7 @@ function validView(view){
     const hostname=url.hostname.toUpperCase().replace(/[^A-Z0-9]/g,"_").slice(0,35);
     if (hostname) note("ORIGIN_HOST_"+hostname);
     if (approvedOrigins.has(url.origin) ||
-        (url.protocol==="musicapplication:"&&url.hostname==="desktop")) {
+        (url.protocol.toLowerCase()==="musicapplication:"&&url.hostname.toLowerCase()==="desktop")) {
       note("APPROVED_VIEW");return true;
     }
     note("VIEW_NOT_APPROVED");
