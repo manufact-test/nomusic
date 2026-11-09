@@ -7,7 +7,7 @@ const vm = require("node:vm");
 const EventEmitter = require("node:events");
 const source = fs.readFileSync(path.join(__dirname, "w33-runtime-probe.cjs"), "utf8");
 
-function harness({ initialUrl = "", loading = true, failOnce = false, cdp = false } = {}) {
+function harness({ initialUrl = "", loading = true, failOnce = false, cdp = false, wireOrigin = "null" } = {}) {
   const events = [];
   const intervals = [];
   const timeouts = [];
@@ -36,7 +36,7 @@ function harness({ initialUrl = "", loading = true, failOnce = false, cdp = fals
             headers:{Origin:"https://unexpected.example",Range:"bytes=0-31"}}
         });
         debuggerEvents.emit("message", {}, "Network.requestWillBeSentExtraInfo", {
-          requestId:rid, headers:{Origin:"null"}
+          requestId:rid, headers:{Origin:wireOrigin}
         });
         debuggerEvents.emit("message", {}, "Network.responseReceivedExtraInfo", {
           requestId:rid, statusCode:403, headers:{"content-type":"application/json"}
@@ -155,4 +155,12 @@ test("W39: passive Chromium CORS categories contain no raw headers, URLs, or fai
   assert.ok(!h.events.join("\\n").includes("UNSAFE_CREDENTIAL_VALUE_NEVER_EMIT"));
   assert.ok(!h.events.join("\\n").includes("unexpected.example"));
   assert.ok(!h.events.join("\\n").includes("hostingersite.com"));
+});
+
+test("W40: alternative native Origin scheme is categorized without leaking exact origin", async()=>{
+  const h=harness({cdp:true,wireOrigin:"http://127.0.0.1:54321"});
+  h.setReady();
+  await flush();await flush();
+  assert.ok(h.events.includes("W33_RT_CDP_WIRE_REQUEST_ORIGIN_LOCAL_HTTP"));
+  assert.equal(h.events.some(e=>e.includes("54321")||e.includes("127.0.0.1")),false);
 });
