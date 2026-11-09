@@ -127,7 +127,13 @@ def signer_digest(apk, apksigner):
                        text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=50)
     if p.returncode: raise ValueError("APK signature verification FAILED")
     hits = re.findall(r"Signer #\d+ certificate SHA-256 digest:\s*([a-fA-F0-9:]+)", p.stdout)
-    if len(hits) != 1: raise ValueError("Unexpected APK signing certificate set")
+    if len(hits) != 1:
+        print("SIGNER_DEBUG: matching_digest_count=" + str(len(hits)) +
+              " signer_sha256=" + json.dumps(hits[:6]) +
+              " signer_lines=" + json.dumps([x.strip() for x in p.stdout.splitlines()
+                                                if "Signer" in x or "Verified using" in x][:18]),
+              file=sys.stderr)
+        raise ValueError("Unexpected APK signing certificate set")
     digest = hits[0].replace(":", "").lower()
     if digest != RUSTORE_SHA256_CERT: raise ValueError("APK signer does not match official store certificate")
     return digest
@@ -174,6 +180,7 @@ def main():
             temp = Path(temp)
             path = temp / "store_package.zip"
             size, sha = download_temp(url, path)
+            print("OFFICIAL_STORE_TEMP_DOWNLOAD: bytes=" + str(size) + " sha256=" + sha)
             with zipfile.ZipFile(path) as outer:
                 if "classes.dex" in outer.namelist():
                     apk_paths = [path]
@@ -188,6 +195,7 @@ def main():
                             shutil.copyfileobj(src, out)
                         apk_paths.append(ap)
             if not apk_paths: raise ValueError("No APK splits to inspect")
+            print("OFFICIAL_STORE_ARCHIVE: apk_splits=" + str(len(apk_paths)))
             signer = sdk_tool("apksigner")
             aapt = sdk_tool("aapt")
             for apk in apk_paths:
