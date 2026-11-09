@@ -1,3 +1,11 @@
+# LATEST — 2026-11-09 exact native HONOR #170gpr now available for SIGNED static audit
+
+**IMPORTANT: supersedes old `#170gpr not obtained` statements below.** Exact `ru.yandex.music 2026.10.3 #170gpr (24026531)` acquired in ephemeral GitHub CI from APKPure XAPK (5 APK splits), validated by `aapt` and Android `apksigner` using the same Yandex publisher SHA256 certificate as independently obtained official RuStore `#170rur`: `aca405ded8b25cb2e8c6da69425d2b4307d087c1276fc06ad5942731ccc51dba`. [GPR CI SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/42606555769). Publisher-verified XAPK SHA256 `918bd50599dc6a942e190a409303e843b83dcb6d11b90b03c00240331333cf84`. Binaries not retained or installed. [Code comparison SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/42607424390); all method signatures equal, but not all method bodies equal across RUR/GPR. In-process audio-source mutation **NOT proven**.
+
+The mapped `Lsy5; → Lqdw; → PlayAudioApi` has fixed static relative annotation route `plays` in the signed APK. That endpoint is **likely reporting/listening records rather than source URL selection**; exclude it from implementation until proven otherwise. See [full audit](../../docs/android/ANDROID-NATIVE-GPR-VERIFIED-2026-11-09.md). New isolated tools `trace_playaudio_boundary.py`, `trace_audio_neighbors.py`, `compare_dex_method_bodies.py`, `compare_gpr_rur_dex.py`, `trace_source_route_literals.py`, `audit_gpr_apkpure_once.py`. All require trustworthy native, signed input and are static/read-only; neither a patched APK nor a Play Protect pass is claimed.
+
+---
+
 # Native Yandex Gate 1 — read-only APK/XAPK inventory
 
 **Purpose:** narrow an exact-version `ru.yandex.music` *media source boundary* using local, structurally parsed DEX method signatures. This tool does **not** patch an APK, hook it, read Android private data, install anything, connect to Yandex, or request Yandex credentials. It is intentionally **not** a new CELIKOM player or installable module.
