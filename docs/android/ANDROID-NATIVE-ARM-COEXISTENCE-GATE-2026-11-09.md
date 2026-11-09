@@ -14,3 +14,13 @@ Script opt-in mode `CELIKOM_CLEAN_ARM_EMULATOR=1` in
 `android/native-yandex-hooklab/clone_native_identity_phase2_ephemeral.py`.
 New workflow: `.github/workflows/android-native-clone-arm-coexistence-ephemeral.yml`.
 No changes to production, user phone, stable Test.50, Windows or extension.
+
+
+## Emulator/runtime gate hard blocker — 09.11.2026
+
+- Clean original Yandex ARM64 macOS GitHub Actions emulator: [run 42669152016](https://github.com/manufact-test/nomusic/actions/runs/42669152016) **FAIL** before any APK install. Full QEMU log: `HVF error: HV_UNSUPPORTED` / `failed to initialize HVF: Invalid argument`; then adb device absent and boot timeout. This is runner nested-virtualization failure, **not** evidence against original Yandex or clone.
+- GitHub docs confirm nested virtualization unavailable on macOS arm64 hosted runners. Do NOT rerun default HVF configuration.
+- First coexistence workflow [run 42671525588](https://github.com/manufact-test/nomusic/actions/runs/42671525588) and an incidental Phase2 rerun [42671525464](https://github.com/manufact-test/nomusic/actions/runs/42671525464) reported workflow-level failure **without any job records** (GitHub API `total_count:0`); root cause undetermined, do not attribute to code. Previously verified 5/5 structural PASS [42670648029](https://github.com/manufact-test/nomusic/actions/runs/42670648029) still stands at the exact tested commit.
+- One bounded, technically different original ARM emulator retry uses `-accel off` (QEMU software emulation) in the isolated original-host workflow: [run 42672246229](https://github.com/manufact-test/nomusic/actions/runs/42672246229). Queued at handoff; no PASS claim. If this fails, treat hosted ARM runtime as unavailable and stop re-running it; do not ask owner to delete Yandex/disable Play Protect.
+- **Hard boundary:** No Android PackageManager original+clone coexistence runtime PASS; no normal Passport login, read-only hook in authentic Yandex, native decoder/MediaSource, real source swap, acoustic RASKOL/«Дым» or Play Protect verdict. Next genuine test requires working authorized disposable ARM device/runtime, not a repeat of synthetic own-player smoke.
+- IMPORTANT: current read-only `HookSpec.TARGET_PACKAGE = "ru.yandex.music"` is version-pinned to official package. It will **not** hook the separate clone package without a separately audited clone-specific observer binding; never assert it is installed/working.
