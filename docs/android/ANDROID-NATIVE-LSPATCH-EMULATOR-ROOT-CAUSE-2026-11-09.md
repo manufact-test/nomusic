@@ -1,3 +1,13 @@
+# FINAL STATIC ELF VERDICT — 09.11.2026
+
+**[CI #42623602723 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/42623602723)** verified actual patched native Yandex *base.apk* embeds LSPatch `liblspatch.so` **for all four** ABIs: `armeabi-v7a` (ELF32 EM_ARM 40), `arm64-v8a` (ELF64 EM_AARCH64 183), `x86` (ELF32 EM_386 3), `x86_64` (ELF64 EM_X86_64 62). All entries `ZIP_STORED`, and the actual ZIP local-file payload offsets are **4096-byte aligned**. The file is NOT simply omitted, compressed, or built for a wrong ELF ISA. It is present but native `System.load` **cannot resolve/load it in the tested Android 11 x86→ARMv7 translated process**. Android 11 and 13 x86 emulators are not equivalent to native ARM hardware.
+
+Read upstream [JingMatrix LSPatch metaloader](https://github.com/JingMatrix/LSPatch/blob/master/meta-loader/src/main/java/org/lsposed/lspatch/metaloader/LSPAppComponentFactoryStub.java): it uses `VMRuntime.vmInstructionSet`, loads `assets/lspatch/so/<ISA>/liblspatch.so` via `System.load` very early. Tested with `sigbypass=0` (no signature impersonation). Android NDK supports direct ZIP .so loading only if stored and aligned; our static preflight meets these prerequisites but runtime still fails, indicating another loader/ABI/namespace/translator issue. **Do not assert a universal LSPatch bug on native Android ARM** without ARM runtime proof.
+
+**Stop repeating the Android 11 x86/ARM-bridge injection test unchanged.** The next meaningful test requires a *native ARM* Android 13 disposable device/emulator with proper ABI, Google Play Protect ON, no owner-account data or primary HONOR modification, and explicit experimental signing/installation consent. No valid CELIKOM source replacement APK is deliverable from these results. Keep Yandex's native player goal; no WebView or dual player.
+
+---
+
 # CELIKOM Android · native Yandex LSPatch startup blocker · 2026-11-09
 
 **Verdict:** We have a structural rootless-patched native Yandex build, **not a runtime-capable native replacement yet**. Isolated Android 11 x86 emulator with ARMv7 translation runs the original publisher-signed native Yandex but the modified native host crashes **before any CELIKOM code**, even if ZERO CELIKOM modules are embedded. This is an objective **LSPatch native loader / emulator compatibility NO-GO**, not evidence the FileInfo hook is wrong.
