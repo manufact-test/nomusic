@@ -74,3 +74,7 @@
 ## Без запасного телефона
 
 Найден путь к удалённому физическому ARM-стенду вместо покупки или вмешательства в HONOR: Google Developer Device Platform (кандидат Samsung Galaxy A52 5G, Android 14) и Samsung Remote Test Lab. **ABI `armeabi-v7a` и Play Protect ещё не проверены**, перепакованный Яндекс в облако не передавался. План и ограничения: `docs/android/ANDROID-NATIVE-NO-SPARE-CLOUD-ARM-GATE-2026-11-09.md`.
+
+## Официальный Яндекс на основном HONOR не удалять
+
+Владелец явно отказался удалять официальную Яндекс.Музыку и терять музыку на тренировках. Параллельная копия возможна лишь при **новом package ID**, успешной проверке пяти split APK, manifest/provider/callback совместимости и отдельного clone-scope модуля. Готового APK нет. См. docs/android/ANDROID-NATIVE-PARALLEL-CLONE-GATE-2026-11-09.md.
