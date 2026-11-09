@@ -7,6 +7,7 @@ on:
       - '.github/workflows/android-native-yandex-emulator.yml'
       - 'android/native-yandex-hooklab/ephemeral_patch_lab.py'
       - 'android/native-yandex-hooklab/app/src/main/java/pro/celikom/yandex/nativehooklab/NativeHookEntry.java'
+      - 'android/native-yandex-hooklab/diagnose_emulator.py'
   workflow_dispatch:
 permissions:
   contents: read
@@ -67,13 +68,7 @@ jobs:
             echo "Installed APK split count:"
             adb shell pm path ru.yandex.music
             test "$(adb shell pm path ru.yandex.music | grep -c 'package:')" -eq 5
-            echo "Start native Yandex without entering any account credentials."
-            adb shell monkey -p ru.yandex.music -c android.intent.category.LAUNCHER 1 || true
-            sleep 15
-            echo "CELIKOM observer event categories only:"
-            adb logcat -d -s CELIKOM-NativeLab:I '*:S' | sed -n '1,35p'
-            adb shell pidof ru.yandex.music || true
-            adb logcat -d -s CELIKOM-NativeLab:I '*:S' | grep -q 'observer: native file-info converter hooks armed; read-only' && echo 'PASS: exact native converter observer hooked in Android 11 emulator (no playback or Play Protect claim).' || (echo 'NO-GO: native hook registration not witnessed; packaging success is insufficient.'; exit 2)
+            python3 android/native-yandex-hooklab/diagnose_emulator.py
       - name: Delete temporary proprietary Yandex APKs regardless of outcome, no artifact upload
         if: always()
         run: |
