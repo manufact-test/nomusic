@@ -1,3 +1,19 @@
+# W15.1 Windows Companion — owner UI accepted + improved preview (2026-11-09)
+
+**Owner's manual W15 UI smoke PASSED.** The user launched CELIKOM.Companion.exe on their normal Windows 10, submitted screenshot showing app window open, login controls, Start button, pairing code and text "Модуль Яндекса ещё не подключён." No user Yandex credentials entered and no PulseSync/Yandex modification. Windows SmartScreen warned on unsigned unfamiliar EXE before successful owner launch. **This is NOT confirmation of source substitution.** Do not infer native Yandex integration from app window.
+
+**W15.1 completed:** condensed UI into "Главная" / "Аккаунт" without scrolling all controls; pairing code copy and code expiry check; user-bound pairing secret rotates on CELIKOM login/logout, old session cannot automatically reuse it; Stop resets stale track status. Fixes made exclusively in Windows Companion branch.
+
+**Windows CI verified:** [W15.1 Preview CI 42581622466](https://github.com/manufact-test/nomusic/actions/runs/42581622466) SUCCESS on source `5257cd643eaae75f7935d9b5d81f0dc120f23420`. Native .NET build (warnings-as-errors), DPAPI + localhost HTTP integration, Node signed grant/Stop/Next tests, pinned PulseSync SDK addon build and one-file x64 publish/ZIP all passed. The archived W4–W12 regression workflow remains available but is no longer an unconditional dependency for each W15 UI change.
+
+**Artifact:** GitHub Actions artifact `13657009476`, `CELIKOM-Windows-W15.1-PREVIEW`. Inner ZIP 59,802,524 bytes, SHA-256 `14f62042fa99d7cfabc831629182543c8db873f7447e7273950a6ecdbe28776e`. ZIP CRC: OK. Verified both internal SHA-256 checks. EXE: 143,971,998 bytes, addon script 19,649 bytes. No Yandex/PulseSync installer and no code that modifies signed Yandex files. *This package is for preview only, not proof of playback or a production installer.*
+
+**Next meaningful test:** actual PulseSync host/Yandex 5.126.1.0 behavior, **only in disposable snapshotted Windows**, following [exact isolation and safety plan](W14-FIRST-REAL-CLIENT-TEST-PLAN-20261109.md) and explicit owner approval for modified client install and rollback. Keep SmartScreen/Defender active. PulseSync Client license remains a paid distribution blocker. No additional UI-only manual test required just to repeat W15 initial screenshot.
+
+**Protected baselines:** `backup/windows-w14-sdk-candidate-verified-20261109`, `backup/windows-w15-verified-preview-20261109`, and both W11/W12 backups. W15.1 documentation records the new backup branch, but no backup is moved/overwritten.
+
+---
+
 # W15 — verified native CELIKOM Companion preview (2026-11-09)
 
 **BUILD READY FOR OWNER UI SMOKE; AUDIO IN MODIFIED YANDEX NOT YET VERIFIED.** Windows [Actions run 42530365857](https://github.com/manufact-test/nomusic/actions/runs/42530365857) passed on source commit `040a3dd5e0ec0d829137e6192b6b231d69fe80eb`, including W15 .NET native application build, offline signed audio grant/Next/Stop contract tests, actual local Kestrel HTTP + DPAPI and mock CELIKOM login/resolve integration tests, PulseSync SDK add-on build, self-contained Win-x64 EXE publish and zip packaging, and earlier W4–W12 regressions.
