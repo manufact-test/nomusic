@@ -103,6 +103,41 @@ def resolved_provider_authorities(manifest_bytes, sync_value):
     return names
 
 
+# These TWO custom permissions are already owned by the publisher-signed
+# original, with Android signature protection. For a disposable install-only
+# research clone, OMIT duplicate DECLARATIONS; keep original ownership and all
+# uses-permission requests unchanged (thus cross-signature access is NOT granted).
+# This is never used in the structural baseline or a distributed application.
+SHADOWED_SIGNATURE_PERMISSIONS = {
+    "com.yandex.permission.READ_CREDENTIALS",
+    "com.yandex.music.RELAY_PERMISSION",
+}
+
+
+def omit_shadowed_signature_permission_declarations(manifest_bytes):
+    root = source.ET.fromstring(manifest_bytes)
+    omitted = set()
+    for child in list(root):
+        if child.tag != "permission":
+            continue
+        name = child.attrib.get(ANDROID + "name", "")
+        if name not in SHADOWED_SIGNATURE_PERMISSIONS:
+            continue
+        if child.attrib.get(ANDROID + "protectionLevel") != "signature":
+            raise arsc.TrialError("SHADOWED_PERMISSION_PROTECTION_LEVEL_DRIFT")
+        root.remove(child)
+        omitted.add(name)
+    if omitted != SHADOWED_SIGNATURE_PERMISSIONS:
+        raise arsc.TrialError("SIGNED_DUPLICATE_PERMISSION_SET_DRIFT")
+    # Signature-protected uses-permission entries remain intact; do not silently
+    # rewrite them into clone-owned permissions or bypass issuer signature.
+    used = {child.attrib.get(ANDROID + "name") for child in root.iter()
+            if child.tag in ("uses-permission", "uses-permission-sdk-23")}
+    if "com.yandex.permission.READ_CREDENTIALS" not in used:
+        raise arsc.TrialError("ORIGINAL_SIGNATURE_PERMISSION_REQUEST_CHANGED")
+    return source.ET.tostring(root, encoding="utf-8", xml_declaration=True), len(omitted)
+
+
 def run():
     if os.getenv("GITHUB_ACTIONS") != "true":
         raise arsc.TrialError("CI_ONLY")
@@ -130,6 +165,10 @@ def run():
         total_passport_provider_rewrites = 0
         total_dex_literal_rewrites = 0
         total_resource_rewrites = 0
+        omitted_permission_declarations = 0
+        omit_shadowed = os.getenv("CELIKOM_OMIT_SHADOWED_SIGNATURE_DECLS") == "1"
+        if omit_shadowed and os.getenv("CELIKOM_CLEAN_ANDROID_ARMV7_TRANSLATION") != "1":
+            raise arsc.TrialError("SHADOWED_SIGNATURE_TEST_REQUIRES_DISPOSABLE_X86_ARMV7")
         for i, apk in enumerate(apks):
             meta = source.apkmeta(apk)
             if meta.get("name") != source.SOURCE or meta.get("versionCode") != "24026531":
@@ -144,6 +183,9 @@ def run():
             publisher_manifest = manifest.read_bytes()
             initial, _ = source.rewrite_manifest(publisher_manifest.decode("utf-8"))
             next_manifest, rewritten = rewrite_passport_and_metrica(initial)
+            if omit_shadowed:
+                next_manifest, count = omit_shadowed_signature_permission_declarations(next_manifest)
+                omitted_permission_declarations += count
             publisher_auths = resolved_provider_authorities(publisher_manifest, OLD_SYNC)
             clone_auths = resolved_provider_authorities(next_manifest, NEW_SYNC)
             if publisher_auths & clone_auths:
@@ -222,6 +264,8 @@ def run():
             raise arsc.TrialError("IDENTITY_SYNC_RESOURCE_COUNT_DRIFT")
         if total_dex_literal_rewrites != 1:
             raise arsc.TrialError("IDENTITY_DEX_LITERAL_COUNT_DRIFT")
+        if omit_shadowed and omitted_permission_declarations != 2:
+            raise arsc.TrialError("SHADOWED_SIGNATURE_PERMISSION_COUNT_DRIFT")
         emulator_runtime = {}
         native_arm = os.getenv("CELIKOM_CLEAN_ARM_EMULATOR") == "1"
         translated_x64 = os.getenv("CELIKOM_CLEAN_ANDROID_TRANSLATION") == "1"
@@ -261,6 +305,15 @@ def run():
             clone_count = sum(x.startswith("package:") for x in clone_paths.splitlines())
             if original_count != 5 or clone_count != 5:
                 raise arsc.TrialError("ARM_SIDE_BY_SIDE_SPLIT_COUNT_INVALID")
+            if omit_shadowed:
+                package_dump = arsc.run(["adb", "shell", "dumpsys", "package", source.DEST],
+                                        "CLONE_SIGNATURE_PERMISSION_AUDIT", 45)
+                # Only check an explicit positive grant: if a different-signer
+                # clone somehow receives credential permission, fail immediately.
+                if __import__("re").search(
+                    r"com\\.yandex\\.permission\\.READ_CREDENTIALS\\s*:\\s*granted=true",
+                    package_dump):
+                    raise arsc.TrialError("CLONE_RECEIVED_UNAUTHORIZED_CREDENTIAL_PERMISSION")
             print(json.dumps({"emulator_install_gate": "SIDE_BY_SIDE_5_AND_5_PASS",
                               "owner_phone_touched": False, "credential_use": False}))
             arsc.run(["adb", "shell", "monkey", "-p", source.DEST,
@@ -289,6 +342,8 @@ def run():
             "passport_sync_resource_rewrites": total_resource_rewrites,
             "single_reversible_appmetrica_dex_literal_rewrite": True,
             "resolved_original_vs_clone_provider_collisions": 0,
+            "shadowed_signature_declarations_omitted_in_install_only_clone": omitted_permission_declarations,
+            "issuer_permission_protection_not_weakened": True,
             "published_vendor_apks": False,
             "installed_on_owner_phone": False,
             "app_auth_or_login_tested": False,
