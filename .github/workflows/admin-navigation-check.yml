@@ -1,0 +1,62 @@
+name: CELIKOM admin navigation and support regression checks
+on:
+  push:
+    branches: [feature/admin-notification-tabs-20261029]
+  pull_request:
+    branches: [feature/api-range]
+permissions:
+  contents: read
+jobs:
+  admin:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: ci-disposable-mysql
+          MYSQL_DATABASE: celikom_test
+        ports: ["3306:3306"]
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -pci-disposable-mysql"
+          --health-interval=10s --health-timeout=5s --health-retries=10
+    env:
+      CI: "1"
+      DB_HOST: 127.0.0.1
+      DB_PORT: 3306
+      DB_NAME: celikom_test
+      DB_USER: root
+      DB_PASSWORD: ci-disposable-mysql
+      STORAGE_PATH: /tmp/celikom-admin-notifications
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.3"
+          extensions: pdo_mysql, fileinfo
+          coverage: none
+      - run: npm ci
+      - name: PHP syntax checks
+        run: |
+          php -l server/src/Admin/AdminPanel.php
+          php -l server/src/Support/SupportAdminView.php
+          php -l server/tests/support.php
+          php -l server/tests/promos.php
+      - name: Support filters, counts, RBAC and download
+        run: php server/tests/support.php
+      - name: Promos and per-admin notice count
+        run: php server/tests/promos.php
+      - name: Admin general regressions
+        run: php server/tests/admin.php
+      - name: Reset disposable CI-only MySQL before independent full suite
+        run: |
+          php -r '$pdo=new PDO("mysql:host=127.0.0.1;port=3306","root",getenv("DB_PASSWORD"));$pdo->exec("DROP DATABASE IF EXISTS celikom_test");$pdo->exec("CREATE DATABASE celikom_test CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");'
+      - name: Full offline regression suite
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends ffmpeg
+          npm run ci

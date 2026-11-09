@@ -1,0 +1,31 @@
+{
+  "content": {
+    "hero.title.first": "Пример с вопросами CELIKOM.",
+    "seo.description": "Тестовый предпросмотр FAQ без публикации."
+  },
+  "faq": {
+    "updates": {
+      "faq-question-01": {
+        "question": "Тестовый вопрос о CELIKOM?",
+        "answer": "Проверенный тестовый ответ FAQ."
+      },
+      "faq-question-02": {
+        "is_visible": false
+      },
+      "faq-question-05": {
+        "category": "music",
+        "sort_order": 1
+      }
+    },
+    "new_items": [
+      {
+        "id": "faq-question-29",
+        "category": "help",
+        "question": "Новый тестовый вопрос?",
+        "answer": "Ответ на новый тестовый вопрос.",
+        "sort_order": 290,
+        "is_visible": true
+      }
+    ]
+  }
+}

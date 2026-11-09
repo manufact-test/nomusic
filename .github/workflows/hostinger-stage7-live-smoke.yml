@@ -1,0 +1,54 @@
+name: CELIKOM Stage 7 live private upload smoke
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [feature/api-range]
+    paths:
+      - .github/workflows/hostinger-stage7-live-smoke.yml
+      - .github/scripts/hostinger-stage7-live-smoke.php
+
+permissions:
+  contents: read
+
+concurrency:
+  group: celikom-hostinger-private-test
+  cancel-in-progress: false
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Validate remote smoke script and synthesize original test audio
+        run: |
+          php -l .github/scripts/hostinger-stage7-live-smoke.php
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends ffmpeg
+          ffmpeg -hide_banner -loglevel error -f lavfi -i sine=frequency=440:duration=165 \
+            -ac 2 -ar 44100 -c:a libmp3lame -b:a 128k -y /tmp/stage7-live-smoke.mp3
+          test "$(stat -c%s /tmp/stage7-live-smoke.mp3)" -gt 2097152
+      - name: Upload synthetic MP3 over real private HTTPS and verify pending-only DB isolation
+        env:
+          HOSTINGER_SSH_KEY: ${{ secrets.HOSTINGER_SSH_KEY }}
+        run: |
+          set -euo pipefail
+          umask 077
+          work="$(mktemp -d)"
+          trap 'rm -rf "$work"' EXIT
+          printf '%s\n' "$HOSTINGER_SSH_KEY" | tr -d '\r' > "$work/key"
+          ssh-keygen -y -P '' -f "$work/key" > "$work/public"
+          [[ "$(ssh-keygen -lf "$work/public" | awk '{print $2}')" == 'SHA256:Q6FyifXRq6garceQdIIjBmXhkk81Ic1p/x9JTSYHWUk' ]] || exit 1
+          printf '%s\n' '[92.113.19.189]:65002 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAf8M2EVwq0oJI8I9KZ0NFE8P8yDOvDATEhkQti/Kk/0' > "$work/known_hosts"
+          opts=(-i "$work/key" -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o "UserKnownHostsFile=$work/known_hosts" -o GlobalKnownHostsFile=/dev/null -o ConnectTimeout=15)
+          target='u235811320@92.113.19.189'
+          remote='/home/u235811320/domains/darkred-camel-588676.hostingersite.com/celikom/incoming'
+          remote_php="$remote/stage7-smoke-${GITHUB_SHA}.php"
+          remote_audio="$remote/stage7-smoke-${GITHUB_SHA}.mp3"
+          scp -P 65002 "${opts[@]}" .github/scripts/hostinger-stage7-live-smoke.php "$target:$remote_php"
+          scp -P 65002 "${opts[@]}" /tmp/stage7-live-smoke.mp3 "$target:$remote_audio"
+          trap 'ssh -T -p 65002 "${opts[@]}" "$target" "rm -f '\''$remote_php'\'' '\''$remote_audio'\''" || true; rm -rf "$work"' EXIT
+          ssh -T -p 65002 "${opts[@]}" "$target" "/opt/alt/php83/usr/bin/php '$remote_php' '$remote_audio'"

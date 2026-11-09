@@ -2,23 +2,247 @@
   "use strict";
   const KEY = "__CELIKOM_REPLACEMENT_PLAYER_V1__";
   if (root[KEY]) return;
+  // One verified native asset per content-script lifetime; never persisted.
+  let nativeCache = null;
+function createGainChain(context, audio, db) {
+  const source=context.createMediaElementSource(audio),gain=context.createGain();
+  const limiter=context.createDynamicsCompressor(),compensation=context.createGain(),ceiling=context.createWaveShaper();
+  limiter.threshold.value=-1;limiter.knee.value=0;limiter.ratio.value=20;limiter.attack.value=0.001;limiter.release.value=0.1;
+  // Web Audio fixed makeup gain: cancel it so the slider controls the actual quiet-signal gain.
+  // https://webaudio.github.io/web-audio-api/#computing-the-makeup-gain
+  compensation.gain.value=Math.pow(10,limiter.threshold.value*(1-1/limiter.ratio.value)*0.6/20);
+  const curve=new Float32Array(4097);for(let i=0;i<curve.length;i++)curve[i]=Math.max(-0.98,Math.min(0.98,i*2/(curve.length-1)-1));
+  ceiling.curve=curve;ceiling.oversample="none";
+  source.connect(gain);limiter.connect(compensation);compensation.connect(ceiling);ceiling.connect(context.destination);
+  let positive=null;
+  const set=(value)=>{
+    if(!Number.isFinite(value)||value< -12||value>12)throw new Error("invalid_audio_gain");
+    const next=value>0;
+    if(next!==positive){gain.disconnect();gain.connect(next?limiter:context.destination);positive=next;}
+    gain.gain.setTargetAtTime(Math.pow(10,value/20),context.currentTime,0.01);
+  };
+  set(db);
+  return {set,destroy(){for(const node of [source,gain,limiter,compensation,ceiling]){try{node.disconnect();}catch{}}}};
+}
+
   class ReplacementPlayer {
     constructor(environment, onFatal) {
       this.environment = environment;
       this.onFatal = onFatal;
       this.destroyed = false;
       this.cancelLoad = null;
+      this.playRevision = 0;
       this.playPending = false;
       this.wantPlay = false;
       this.blobUrl = null;
       this.fetchAbort = null;
+      this.gainContext = null;this.gainChain = null;
+      this.mediaSource = null;
+      this.sourceBuffer = null;
+      this.streamTask = null;
+      this.streamState={phase:"idle",offset:0,receivedBytes:0,httpStatus:null};
       this.audio = environment.document.createElement("audio");
       this.audio.dataset.celikomReplacement = "true";
       this.audio.hidden = true;
       this.audio.preload = "auto";
       this.audio.muted = true;
-      this.audio.addEventListener("error", () => { if (!this.destroyed) onFatal("replacement-media-error"); });
+      this.audio.addEventListener("error", () => { if (!this.destroyed) onFatal("replacement-media-error", { mediaErrorCode: this.audio.error?.code || 0 }); });
       this.audio.addEventListener("ended", () => { if (!this.destroyed && !this.demoLoop) onFatal("replacement-ended"); });
+    }
+    async pumpRemote(asset) {
+      // Page media-src permits blob: but rejects the private HTTPS origin.
+      // Feed MSE with verified 512 KiB ranges; no whole-file JS buffer.
+      const source = this.mediaSource;
+      const abort = this.fetchAbort;
+      const waitForSourceOpen = async () => {
+        if (source.readyState === "open") return;
+        await new Promise((resolve, reject) => {
+          const cleanup = () => {
+            this.environment.clearTimeout(timeout);
+            source.removeEventListener("sourceopen", opened);
+            abort.signal.removeEventListener("abort", cancelled);
+          };
+          const opened = () => { cleanup(); resolve(); };
+          const cancelled = () => { cleanup(); reject(new Error("remote-stream-cancelled")); };
+          const timeout = this.environment.setTimeout(() => { cleanup(); reject(new Error("remote-stream-timeout")); }, 10000);
+          source.addEventListener("sourceopen", opened, { once: true });
+          abort.signal.addEventListener("abort", cancelled, { once: true });
+        });
+      };
+      this.streamState.phase="source-open";
+      await waitForSourceOpen();
+      if (this.destroyed || abort.signal.aborted) return;
+      const buffer = source.addSourceBuffer("audio/mpeg");
+      this.sourceBuffer = buffer;
+      source.duration = asset.durationMs / 1000;
+      const append = async (bytes) => {
+        if (this.destroyed || abort.signal.aborted) return;
+        await new Promise((resolve, reject) => {
+          const cleanup = () => {
+            this.environment.clearTimeout(timeout);
+            buffer.removeEventListener("updateend", done);
+            buffer.removeEventListener("error", failed);
+            abort.signal.removeEventListener("abort", cancelled);
+          };
+          const done = () => { cleanup(); resolve(); };
+          const failed = () => { cleanup(); reject(new Error("remote-buffer-error")); };
+          const cancelled = () => { cleanup(); reject(new Error("remote-stream-cancelled")); };
+          const timeout = this.environment.setTimeout(() => { cleanup(); reject(new Error("remote-buffer-timeout")); }, 10000);
+          buffer.addEventListener("updateend", done, { once: true });
+          buffer.addEventListener("error", failed, { once: true });
+          abort.signal.addEventListener("abort", cancelled, { once: true });
+          try { buffer.appendBuffer(bytes); } catch (_error) { cleanup(); reject(new Error("remote-buffer-error")); }
+        });
+      };
+      let total = null;
+      let offset = 0;
+      const chunkSize = 512 * 1024;
+      const maxSize = 30 * 1024 * 1024;
+      while (!this.destroyed && !abort.signal.aborted && (total === null || offset < total)) {
+        if (buffer.buffered?.length
+            && buffer.buffered.end(buffer.buffered.length - 1) - this.audio.currentTime > 120) {
+          await new Promise((resolve) => {
+            const timer = this.environment.setTimeout(resolve, 500);
+            abort.signal.addEventListener("abort", () => { this.environment.clearTimeout(timer); resolve(); }, { once: true });
+          });
+          continue;
+        }
+        const rangeTimer=this.environment.setTimeout(()=>{this.streamState.phase="timeout";abort.abort();},15000);
+        try {
+        const lastRequested = total === null
+          ? offset + chunkSize - 1 : Math.min(total - 1, offset + chunkSize - 1);
+        let response;
+        Object.assign(this.streamState,{phase:"headers",offset,httpStatus:null,requestAt:Date.now()});
+        let attempt = 0;
+        // Hosting may reject short bursts. Retry only temporary HTTP failures,
+        // with the same signed URL/range; never bypass revoked/expired access.
+        for (;;) {
+          try {
+            response = await this.environment.fetch(asset.url, {
+              method: "GET",
+              headers: { Range: "bytes=" + offset + "-" + lastRequested },
+              credentials: "omit", cache: "no-store", redirect: "error", signal: abort.signal
+            });
+          } catch (_error) { throw new Error(this.streamState.phase==="timeout"?"remote-stream-timeout":"remote-stream-network"); }
+          this.streamState.httpStatus=response.status;
+          if (response.status === 206) break;
+          const retry = [429, 502, 503, 504].includes(response.status) && attempt < 2;
+          // Discard the error body without buffering or exposing server text.
+          try { await response.body?.cancel(); } catch (_error) { /* status remains authoritative */ }
+          if (!retry) {
+            const edgeBlock = [401,403,429].includes(response.status) && response.headers?.get?.("content-type")?.includes("text/html");
+            const error = new Error(edgeBlock ? "remote-stream-route-blocked" : "remote-stream-http");
+            error.streamDetail = { httpStatus: response.status, offset, attempts: attempt + 1 };
+            throw error;
+          }
+          attempt++;
+          await new Promise((resolve) => {
+            const done = () => {
+              this.environment.clearTimeout(timer);
+              abort.signal.removeEventListener("abort", done);
+              resolve();
+            };
+            const timer = this.environment.setTimeout(done, attempt * 500);
+            abort.signal.addEventListener("abort", done, { once: true });
+            if (abort.signal.aborted) done();
+          });
+          if (this.destroyed || abort.signal.aborted) return;
+        }
+        if (!(response.headers.get("content-type") || "").toLowerCase().startsWith("audio/mpeg")) {
+          throw new Error("remote-stream-format");
+        }
+        const match = /^bytes ([0-9]+)-([0-9]+)\/([0-9]+)$/.exec(response.headers.get("content-range") || "");
+        if (!match) throw new Error("remote-stream-range");
+        const from = Number(match[1]), last = Number(match[2]), length = Number(match[3]);
+        if (!Number.isSafeInteger(length) || length < 1 || length > maxSize
+            || from !== offset || last < from || last > lastRequested
+            || (total !== null && length !== total)) throw new Error("remote-stream-range");
+        total = length;
+        this.streamState.phase="body";
+        const bytes = await response.arrayBuffer();
+        if (bytes.byteLength !== last - from + 1 || bytes.byteLength > chunkSize) {
+          throw new Error("remote-stream-range");
+        }
+        if (this.destroyed || abort.signal.aborted) return;
+        this.streamState.phase="buffering";
+        await append(bytes);
+        // Network/source-open deadlines own transport. Start the decoder's
+        // readiness deadline only once the first verified bytes were appended.
+        if (offset === 0) this.initialBufferAppended?.();
+        offset = last + 1;
+        Object.assign(this.streamState,{phase:"streaming",receivedBytes:offset});
+        } finally { this.environment.clearTimeout(rangeTimer); }
+
+      }
+      if (!this.destroyed && !abort.signal.aborted && source.readyState === "open") {
+        this.streamState.phase="complete";
+        source.endOfStream();
+      }
+    }
+    async fetchNativeAsset(asset) {
+      const abort = this.fetchAbort;
+      let total = null, etag = null, received = 0;
+      const timer = this.environment.setTimeout(() => {this.streamState.phase="timeout";abort.abort();}, 30000);
+      const readRange = async (offset, requestedEnd) => {
+        Object.assign(this.streamState,{phase:"headers",offset,httpStatus:null,requestAt:Date.now()});
+        let response;
+        for (let attempt=0;;attempt++) {
+          if(this.destroyed||abort.signal.aborted)throw new Error("Replacement cancelled");
+          Object.assign(this.streamState,{phase:"headers",offset,attempt:attempt+1,requestAt:Date.now()});
+          response=await this.environment.fetch(asset.url, {
+            method:"GET",headers:{Range:`bytes=${offset}-${requestedEnd}`},
+            credentials:"omit",cache:"no-store",redirect:"error",signal:abort.signal
+          });
+          this.streamState.httpStatus=response.status;
+          if(response.status===206)break;
+          await response.body?.cancel();
+          if(![429,502,503,504].includes(response.status)||attempt>=2)throw new Error([401,403,429].includes(response.status)&&response.headers.get("content-type")?.includes("text/html")?"remote-stream-route-blocked":"remote-stream-http");
+          this.streamState.phase="retry-wait";
+          await new Promise(resolve=>{
+            const done=()=>{this.environment.clearTimeout(wait);abort.signal.removeEventListener("abort",done);resolve();};
+            const wait=this.environment.setTimeout(done,(attempt+1)*500);
+            abort.signal.addEventListener("abort",done,{once:true});if(abort.signal.aborted)done();
+          });
+        }
+        const match=/^bytes ([0-9]+)-([0-9]+)\/([0-9]+)$/.exec(response.headers.get("content-range")||"");
+        const responseEtag=response.headers.get("etag");
+        const size=match?Number(match[3]):0,from=match?Number(match[1]):-1,last=match?Number(match[2]):-1;
+        let problem=null;
+        if((response.headers.get("content-type")||"").split(";")[0].trim().toLowerCase()!==asset.mimeType)problem="remote-stream-format";
+        else if(!Number.isSafeInteger(size)||size<1024||size>31457280||from!==offset||last!==Math.min(requestedEnd,size-1)||(total!==null&&size!==total)||(total!==null&&responseEtag!==etag))problem="remote-stream-range";
+        if(problem){await response.body?.cancel();throw new Error(problem);}
+        if(total===null){total=size;etag=responseEtag;}
+        const parts=[],reader=response.body.getReader();let count=0;
+        this.streamState.phase="body";
+        try{
+          for(;;){const {value,done}=await reader.read();if(done)break;count+=value.byteLength;if(count>last-from+1)throw new Error("remote-stream-range");parts.push(value);}
+        }finally{await reader.cancel();}
+        if(count!==last-from+1)throw new Error("remote-stream-range");
+        if(this.destroyed||abort.signal.aborted)throw new Error("Replacement cancelled");
+        received+=count;Object.assign(this.streamState,{phase:"streaming",receivedBytes:received});
+        return parts;
+      };
+      try{
+        // A real signed range is required on EVERY use, including a cache hit.
+        // Its strong content hash/version ETag also fences deleted/replaced files.
+        const first=await readRange(0,524287);
+        const cacheKey=etag&&/^"[a-f0-9]{64}-[0-9]+"$/.test(etag)
+          ?JSON.stringify([new URL(asset.url).origin,new URL(asset.url).pathname,asset.replacementId,asset.version,asset.mimeType,total,etag]):null;
+        if(cacheKey&&nativeCache?.key===cacheKey){this.streamState.phase="cached";return nativeCache.blob;}
+        nativeCache=null;
+        // One sequential continuation avoids triggering hosting burst limits.
+        // The total and every streamed body remain bounded to 30 MiB.
+        const chunks=[first];
+        if(total>524288)chunks.push(await readRange(524288,total-1));
+        if(this.destroyed||abort.signal.aborted)throw new Error("Replacement cancelled");
+        const blob=new Blob(chunks.flat(),{type:asset.mimeType});
+        if(blob.size!==total)throw new Error("remote-stream-range");
+        if(cacheKey)nativeCache={key:cacheKey,blob};
+        this.streamState.phase="complete";return blob;
+      }catch(error){
+        const reason=this.streamState.phase==="timeout"?"remote-stream-timeout":error instanceof TypeError?"remote-stream-network":error.message;
+        const failure=new Error(reason);failure.streamDetail={...this.streamState};abort.abort();throw failure;
+      }finally{this.environment.clearTimeout(timer);}
     }
     async prepare(asset) {
       this.demoLoop = asset.demoLoop === true;
@@ -27,26 +251,43 @@
       if (!parent) throw new Error("Document root is unavailable");
       parent.append(this.audio);
       let sourceUrl = asset.url;
-      if (asset.demoLoop === true) {
-        // Preserve the accepted PoC's packaged-asset → blob playback path.
-        // This is only a bounded synthetic fixture; future real files stream
-        // directly through the Range-capable API, never through a full-file blob.
+      if (!this.demoLoop && ["audio/mp4","audio/wav","audio/x-wav"].includes(asset.mimeType)) {
+        if (!this.audio.canPlayType(asset.mimeType === 'audio/mp4' ? 'audio/mp4; codecs="mp4a.40.2"' : asset.mimeType)) throw new Error("remote-format-unsupported");
+        this.fetchAbort = new this.environment.AbortController();
+        const blob = await this.fetchNativeAsset(asset);
+        if (this.destroyed) throw new Error("Replacement cancelled");
+        this.blobUrl = this.environment.URL.createObjectURL(blob);
+        sourceUrl = this.blobUrl;
+      } else if (!this.demoLoop) {
+        const MediaSource = this.environment.MediaSource;
+        if (!MediaSource || !MediaSource.isTypeSupported("audio/mpeg")
+            || !Number.isFinite(asset.durationMs) || asset.durationMs <= 0) {
+          throw new Error("remote-mse-unsupported");
+        }
+        this.mediaSource = new MediaSource();
+        this.fetchAbort = new this.environment.AbortController();
+        this.blobUrl = this.environment.URL.createObjectURL(this.mediaSource);
+        sourceUrl = this.blobUrl;
+      } else {
         this.fetchAbort = new this.environment.AbortController();
         const fetchTimer = this.environment.setTimeout(() => this.fetchAbort?.abort(), 6000);
         try {
           const response = await this.environment.fetch(asset.url, { cache: "force-cache", signal: this.fetchAbort.signal });
-          if (!response.ok) throw new Error(`Demo asset HTTP ${response.status}`);
+          if (!response.ok) throw new Error("demo-asset-unavailable");
           const blob = await response.blob();
           if (this.destroyed) throw new Error("Replacement cancelled");
-          if (!blob.size || blob.size > 5 * 1024 * 1024) throw new Error("Demo asset size is invalid");
+          if (!blob.size || blob.size > 5 * 1024 * 1024) throw new Error("demo-asset-size-invalid");
           this.blobUrl = this.environment.URL.createObjectURL(blob);
           sourceUrl = this.blobUrl;
         } finally { this.environment.clearTimeout(fetchTimer); this.fetchAbort = null; }
       }
       if (this.destroyed) throw new Error("Replacement cancelled");
-      await new Promise((resolve, reject) => {
+      let rejectReady;
+      const ready = new Promise((resolve, reject) => {
+        let timer = null;
         const cleanup = () => {
           this.environment.clearTimeout(timer);
+          this.initialBufferAppended = null;
           for (const event of ["loadedmetadata", "canplay"]) this.audio.removeEventListener(event, onReady);
           this.audio.removeEventListener("error", onError);
           this.cancelLoad = null;
@@ -55,8 +296,14 @@
           if (this.audio.readyState < 2 || !Number.isFinite(this.audio.duration) || this.audio.duration <= 0) return;
           cleanup(); resolve();
         };
-        const onError = () => { cleanup(); reject(new Error("Replacement load failed")); };
-        const timer = this.environment.setTimeout(() => { cleanup(); reject(new Error("Replacement load timeout")); }, 6000);
+        const onError = () => { cleanup(); reject(new Error("replacement-media-error")); };
+        const startDecoderDeadline = () => {
+          if (timer !== null) return;
+          timer = this.environment.setTimeout(() => { cleanup(); const error=new Error("replacement-load-timeout");error.streamDetail={...this.streamState};reject(error); }, 10000);
+        };
+        rejectReady = (error) => { cleanup(); reject(error); };
+        if (this.mediaSource) this.initialBufferAppended = startDecoderDeadline;
+        else startDecoderDeadline();
         this.cancelLoad = () => { cleanup(); reject(new Error("Replacement cancelled")); };
         for (const event of ["loadedmetadata", "canplay"]) this.audio.addEventListener(event, onReady);
         this.audio.addEventListener("error", onError);
@@ -64,7 +311,44 @@
         this.audio.load();
         onReady();
       });
+      if (this.mediaSource) {
+        this.streamTask = this.pumpRemote(asset).catch((error) => {
+          if (this.destroyed) return;
+          const permitted = ["remote-stream-network", "remote-stream-http", "remote-stream-format",
+            "remote-stream-route-blocked", "remote-stream-range", "remote-stream-timeout", "remote-buffer-error", "remote-buffer-timeout"];
+          const reason = this.streamState.phase==="timeout"?"remote-stream-timeout":permitted.includes(error?.message) ? error.message : "remote-stream-error";
+          const detail = error.streamDetail || {...this.streamState};
+          const failure = new Error(reason); failure.streamDetail = detail;
+          rejectReady(failure);
+          this.onFatal(reason, detail);
+        });
+      }
+      await ready;
+      if (asset.mimeType === "audio/mp4" && Math.abs(this.audio.duration*1000-asset.durationMs)>1500) throw new Error("duration-mismatch");
+      const gainDb=asset.gainDb??0;
+      if(!Number.isFinite(gainDb)||gainDb< -12||gainDb>12)throw new Error("invalid_audio_gain");
+      if(gainDb!==0){
+        const AudioContext=this.environment.AudioContext||this.environment.webkitAudioContext;
+        if(!AudioContext)throw new Error("audio_gain_unavailable");
+        this.gainContext=new AudioContext();this.gainChain=createGainChain(this.gainContext,this.audio,gainDb);
+        let timeout;
+        try{await Promise.race([this.gainContext.resume(),new Promise((_,reject)=>{timeout=this.environment.setTimeout(()=>reject(new Error("audio_gain_blocked")),2500)})]);}
+        finally{this.environment.clearTimeout(timeout);}
+        if(this.gainContext.state!=="running")throw new Error("audio_gain_blocked");
+      }
       if (this.destroyed) throw new Error("Replacement cancelled");
+    }
+    diagnostics() {
+      const audio = this.audio;
+      const buffered = [];
+      for (let i = 0; i < Math.min(audio.buffered?.length || 0, 8); i++) {
+        buffered.push([audio.buffered.start(i), audio.buffered.end(i)]);
+      }
+      return { currentTime:audio.currentTime, duration:Number.isFinite(audio.duration)?audio.duration:null,
+        paused:audio.paused, seeking:Boolean(audio.seeking), readyState:audio.readyState,
+        networkState:audio.networkState, muted:audio.muted, volume:audio.volume,
+        playPending:this.playPending, wantPlay:this.wantPlay, buffered,
+        gainContext:this.gainContext?.state || null, stream:{...this.streamState} };
     }
     applyState(player) {
       this.audio.volume = Math.min(1, Math.max(0, player.volume));
@@ -75,20 +359,31 @@
       this.wantPlay = true;
       if (this.destroyed || this.playPending || !this.audio.paused) return;
       this.playPending = true;
-      Promise.resolve(this.audio.play()).then(() => {
+      const revision = this.playRevision;
+      Promise.resolve().then(async()=>{
+        if(this.gainContext && this.gainContext.state!=="running")await this.gainContext.resume();
+        if(this.destroyed||!this.wantPlay||revision!==this.playRevision)return;
+        return this.audio.play();
+      }).then(() => {
         if (this.destroyed || !this.wantPlay) this.audio.pause();
-      }).catch(() => {
-        // pause() can legitimately reject an in-flight play() with AbortError.
-        if (!this.destroyed && this.wantPlay) this.onFatal("replacement-play-blocked");
+      }).catch((error) => {
+        // MAIN may pause synchronously on seek/track change before its snapshot
+        // reaches this world. A cancelled play is not an autoplay rejection.
+        if (!this.destroyed && this.wantPlay && revision === this.playRevision && error?.name !== "AbortError") this.onFatal("replacement-play-blocked");
       }).finally(() => { this.playPending = false; });
     }
-    pause() { this.wantPlay = false; this.audio.pause(); }
+    pause() { ++this.playRevision; this.wantPlay = false; this.audio.pause(); }
     destroy() {
       if (this.destroyed) return;
       this.destroyed = true;
       this.fetchAbort?.abort();
       this.cancelLoad?.();
+      this.streamTask = null;
+      this.sourceBuffer = null;
+      this.mediaSource = null;
       this.audio.muted = true;
+      this.gainChain?.destroy();this.gainChain=null;
+      if(this.gainContext){void this.gainContext.close().catch(()=>{});this.gainContext=null;}
       this.pause();
       this.audio.removeAttribute("src");
       this.audio.load();
@@ -98,3 +393,4 @@
   }
   Object.defineProperty(root, KEY, { value: Object.freeze({ ReplacementPlayer }), writable: false });
 })(globalThis);
+

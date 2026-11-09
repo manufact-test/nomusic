@@ -1,0 +1,48 @@
+name: CELIKOM owner requested revert of wrong visual changes
+on:
+  push:
+    branches: [feature/api-range]
+    paths:
+      - .github/workflows/celikom-owner-ux-rollback.yml
+permissions:
+  contents: read
+concurrency:
+  group: celikom-website-staging
+  cancel-in-progress: false
+jobs:
+  revert-site:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Restore original PHP pages only, without touching MySQL
+        shell: bash
+        env:
+          SSH_KEY: ${{ secrets.CELIKOM_HOSTINGER_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.CELIKOM_HOSTINGER_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REPOSITORY" = manufact-test/nomusic
+          test "$GITHUB_REF" = refs/heads/feature/api-range
+          umask 077
+          tmp=$(mktemp -d)
+          trap 'rm -rf "$tmp"' EXIT
+          printf '%s\n' "$SSH_KEY" > "$tmp/key"
+          printf '%s\n' "$KNOWN_HOSTS" > "$tmp/known"
+          chmod 600 "$tmp/key" "$tmp/known"
+          ssh -T -p 65002 -i "$tmp/key" -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$tmp/known" u235811320@92.113.19.189 'bash -se' <<'REMOTE'
+          set -euo pipefail
+          root=/home/u235811320/domains/lemonchiffon-narwhal-791953.hostingersite.com
+          old="$root/celikom-private/ux-backup-78c5f2948f75707972f441393a499f52d1ef7b89"
+          test -f "$root/celikom-private/app/staging-approved.php"
+          test -f "$root/celikom-private/staging-config.php"
+          test -f "$old/index.php" && test -f "$old/admin-index.php"
+          test -f "$root/public_html/index.php" && test -f "$root/public_html/admin/index.php"
+          /opt/alt/php83/usr/bin/php -l "$old/index.php"
+          /opt/alt/php83/usr/bin/php -l "$old/admin-index.php"
+          cp -p "$old/index.php" "$root/public_html/index.php"
+          cp -p "$old/admin-index.php" "$root/public_html/admin/index.php"
+          echo "ORIGINAL_SITE_RENDERERS_RESTORED_NO_DATABASE_CHANGE"
+          REMOTE
+          code=$(curl -sS --connect-timeout 10 --max-time 25 -o /dev/null -w '%{http_code}' 'https://lemonchiffon-narwhal-791953.hostingersite.com/?rollback=1')
+          test "$code" = 401
+          echo 'PROTECTED_SITE_STILL_REQUIRES_PASSWORD'

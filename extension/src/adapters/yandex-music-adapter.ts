@@ -17,6 +17,7 @@
     "ended",
     "ratechange",
     "volumechange",
+    "loadstart",
     "loadedmetadata",
     "durationchange",
     "emptied",
@@ -47,6 +48,7 @@
       this.sink = null;
       this.knownMedia = new Map();
       this.mediaIds = new WeakMap();
+      this.mediaIdentities = new WeakMap();
       this.mediaHandlers = new Map();
       this.trackCatalog = new Map();
       this.xhrUrls = new WeakMap();
@@ -498,12 +500,49 @@
       // Guard validation needs independent catalog duration, not a copy of the
       // selected media duration which would make a mismatch check tautological.
       const canonicalDuration = this.trackCatalog.get(result.selected?.id)?.durationMs;
+      const session = this.mediaSessionMetadata();
+      const visible = this.playerDomMetadata();
+      const sessionMatch = core.pickTrackFromCatalog([...this.trackCatalog.values()], { ...session, durationMs: metadata.durationMs }, 100).selected;
+      const visibleMatch = core.pickTrackFromCatalog([...this.trackCatalog.values()], visible, 100).selected;
+      const conflict = sessionMatch && visibleMatch && sessionMatch.id !== visibleMatch.id;
+      let awaitingRefresh = false;
+      let awaitingSource = false;
+      if (master) {
+        const assignedSource = master.src || "";
+        const currentSource = master.currentSrc || "";
+        const source = assignedSource || currentSource;
+        // src changes before currentSrc during HTML's asynchronous resource
+        // selection. Neither the old nor the next track may bind this gap.
+        awaitingSource = Boolean(assignedSource && currentSource && assignedSource !== currentSource);
+        const sessionObject = this.safeCall(() => this.environment.navigator?.mediaSession?.metadata, null);
+        const fingerprint = JSON.stringify({ session, visible: { title: visible.title, artist: visible.artist, album: visible.album, coverUri: visible.coverUri } });
+        const previous = this.mediaIdentities.get(master);
+        // Stream and metadata updates are independent. Never re-admit the old
+        // recording on a new stream merely because their durations are close.
+        let pending = previous?.pending || null;
+        const sourceChanged = Boolean(previous?.source && source && previous.source !== source);
+        if (sourceChanged && previous.id
+            && (!result.selected || result.selected.id === previous.id) && previous.fingerprint === fingerprint && previous.sessionObject === sessionObject) {
+          pending = { id: previous.id, fingerprint, sessionObject };
+        }
+        if (pending && !conflict && ((result.selected && result.selected.id !== pending.id) || fingerprint !== pending.fingerprint || sessionObject !== pending.sessionObject)) pending = null;
+        awaitingRefresh = Boolean(pending);
+        this.mediaIdentities.set(master, {
+          source: source || previous?.source || "",
+          // Metadata can also arrive before the stream. Keep the identity that
+          // first accompanied this resource rather than relabeling it early.
+          id: !previous || sourceChanged || (previous.pending && !pending)
+            ? result.selected?.id || previous?.id || null : previous.id || result.selected?.id || null,
+          fingerprint, sessionObject, pending
+        });
+      }
+      const identityIssue = awaitingSource ? "awaiting-media-source" : conflict ? "playback-metadata-conflict" : awaitingRefresh ? "awaiting-track-refresh" : null;
       return {
-        id: result.selected?.id || null,
+        id: identityIssue ? null : result.selected?.id || null,
         confidence: result.selected?.score || 0,
         source: result.selected?.source || null,
-        evidence: result.selected?.evidence || "",
-        ambiguous: result.ambiguous,
+        evidence: identityIssue || result.selected?.evidence || "",
+        ambiguous: Boolean(identityIssue) || result.ambiguous,
         candidates: result.ranked,
         metadata: { ...metadata, durationMs: canonicalDuration > 0 ? canonicalDuration : metadata.durationMs },
         catalogSize: this.trackCatalog.size
@@ -542,9 +581,10 @@
       });
     }
 
-    emitSnapshot(reason, force = false) {
+    emitSnapshot(reason, force = false, triggerMediaId = null) {
       if (!this.mounted) return null;
       const snapshot = this.getSnapshot(reason);
+      if(triggerMediaId)snapshot.triggerMediaId=triggerMediaId;
       this.emitTrackTransition(snapshot, reason);
       const signature = core.snapshotSignature(snapshot);
       if (force || signature !== this.lastSnapshotSignature) {
@@ -568,6 +608,9 @@
       this.lastSnapshotSignature = core.snapshotSignature(snapshot);
       const type = core.normalizeNativeEventType(event.type);
       if (!type || snapshot.player?.mediaId !== mediaId) return;
+      // Yandex may reuse the element before a queued ended event is dispatched.
+      // Only the current media state can confirm that this master actually ended.
+      if (type === "ENDED" && snapshot.player?.ended !== true) return;
       this.sink?.onPlayerEvent({
         type,
         nativeEvent: event.type,
@@ -609,10 +652,16 @@
     installNetworkHooks() {
       if (!this.nativeHooks.fetch && typeof this.environment.fetch === "function") {
         const adapter = this;
-        this.nativeHooks.fetch = this.environment.fetch;
+        const originalFetch = this.environment.fetch;
+        const lifecycle = { active: true };
+        this.nativeHooks.fetch = originalFetch;
+        this.nativeHooks.fetchLifecycle = lifecycle;
         this.nativeHooks.fetchWrapper = async function celikomObservedFetch(...args) {
-          const response = await Reflect.apply(adapter.nativeHooks.fetch, this, args);
-          adapter.captureJsonResponse(response, "fetch-json");
+          // An external wrapper may retain this function after unmount. Its
+          // original target must never be looked up in a reused hook registry.
+          const response = await Reflect.apply(originalFetch, this, args);
+          // Observation must never turn a successful page request into a rejection.
+          if (lifecycle.active) adapter.safeCall(() => adapter.captureJsonResponse(response, "fetch-json"));
           return response;
         };
         this.environment.fetch = this.nativeHooks.fetchWrapper;
@@ -621,15 +670,19 @@
       const prototype = this.environment.XMLHttpRequest?.prototype;
       if (!prototype || this.nativeHooks.xhrOpen) return;
       const adapter = this;
-      this.nativeHooks.xhrOpen = prototype.open;
-      this.nativeHooks.xhrSend = prototype.send;
+      const originalOpen = prototype.open;
+      const originalSend = prototype.send;
+      const lifecycle = { active: true };
+      this.nativeHooks.xhrOpen = originalOpen;
+      this.nativeHooks.xhrSend = originalSend;
+      this.nativeHooks.xhrLifecycle = lifecycle;
       this.nativeHooks.xhrOpenWrapper = function celikomObservedXhrOpen(method, url, ...args) {
-        adapter.safeCall(() => adapter.xhrUrls.set(this, String(url || "")));
-        return Reflect.apply(adapter.nativeHooks.xhrOpen, this, [method, url, ...args]);
+        if (lifecycle.active) adapter.safeCall(() => adapter.xhrUrls.set(this, String(url || "")));
+        return Reflect.apply(originalOpen, this, [method, url, ...args]);
       };
       this.nativeHooks.xhrSendWrapper = function celikomObservedXhrSend(...args) {
-        this.addEventListener("loadend", () => {
-          if (!adapter.isYandexNetworkUrl(adapter.xhrUrls.get(this))) return;
+        if (lifecycle.active) adapter.safeCall(() => this.addEventListener("loadend", () => {
+          if (!lifecycle.active || !adapter.isYandexNetworkUrl(adapter.xhrUrls.get(this))) return;
           const contentType = adapter.safeCall(() => this.getResponseHeader("content-type"), "") || "";
           if (!/\bjson\b/i.test(contentType)) return;
           try {
@@ -638,14 +691,16 @@
           } catch (_error) {
             // Ignore inaccessible or non-JSON responses.
           }
-        }, { once: true });
-        return Reflect.apply(adapter.nativeHooks.xhrSend, this, args);
+        }, { once: true }));
+        return Reflect.apply(originalSend, this, args);
       };
       prototype.open = this.nativeHooks.xhrOpenWrapper;
       prototype.send = this.nativeHooks.xhrSendWrapper;
     }
 
     restoreNetworkHooks() {
+      if (this.nativeHooks.fetchLifecycle) this.nativeHooks.fetchLifecycle.active = false;
+      if (this.nativeHooks.xhrLifecycle) this.nativeHooks.xhrLifecycle.active = false;
       if (this.nativeHooks.fetch && this.environment.fetch === this.nativeHooks.fetchWrapper) {
         this.environment.fetch = this.nativeHooks.fetch;
       }
@@ -656,9 +711,37 @@
       if (prototype && this.nativeHooks.xhrSend && prototype.send === this.nativeHooks.xhrSendWrapper) {
         prototype.send = this.nativeHooks.xhrSend;
       }
-      for (const key of ["fetch", "fetchWrapper", "xhrOpen", "xhrSend", "xhrOpenWrapper", "xhrSendWrapper"]) {
+      for (const key of ["fetch", "fetchWrapper", "fetchLifecycle", "xhrOpen", "xhrSend", "xhrLifecycle", "xhrOpenWrapper", "xhrSendWrapper"]) {
         delete this.nativeHooks[key];
       }
+    }
+
+    installMediaSessionHook() {
+      const session = this.safeCall(() => this.environment.navigator?.mediaSession, null);
+      if (!session || this.nativeHooks.metadataOwner) return;
+      for (let owner = session; owner; owner = Object.getPrototypeOf(owner)) {
+        const descriptor = Object.getOwnPropertyDescriptor(owner, "metadata");
+        if (!descriptor) continue;
+        if (!descriptor.set || !descriptor.configurable) return;
+        const adapter = this;
+        const lifecycle = { active: true };
+        const setter = function celikomObservedMetadata(value) {
+          Reflect.apply(descriptor.set, this, [value]);
+          if (lifecycle.active && this === session) adapter.safeCall(() => adapter.emitSnapshot("media-session-metadata", true));
+        };
+        Object.defineProperty(owner, "metadata", { ...descriptor, set: setter });
+        Object.assign(this.nativeHooks, { metadataOwner: owner, metadataDescriptor: descriptor, metadataSetter: setter, metadataLifecycle: lifecycle });
+        return;
+      }
+    }
+
+    restoreMediaSessionHook() {
+      const hooks = this.nativeHooks;
+      if (hooks.metadataLifecycle) hooks.metadataLifecycle.active = false;
+      if (hooks.metadataOwner && Object.getOwnPropertyDescriptor(hooks.metadataOwner, "metadata")?.set === hooks.metadataSetter) {
+        Object.defineProperty(hooks.metadataOwner, "metadata", hooks.metadataDescriptor);
+      }
+      for (const key of ["metadataOwner", "metadataDescriptor", "metadataSetter", "metadataLifecycle"]) delete hooks[key];
     }
 
     installPrototypeHooks() {
@@ -667,17 +750,21 @@
       const adapter = this;
       for (const name of ["play", "pause", "load"]) {
         if (this.nativeHooks[name] || typeof prototype[name] !== "function") continue;
-        this.nativeHooks[name] = prototype[name];
+        const original = prototype[name];
+        const lifecycle = { active: true };
+        this.nativeHooks[name] = original;
+        this.nativeHooks[`${name}Lifecycle`] = lifecycle;
         this.nativeHooks[`${name}Wrapper`] = function celikomObservedMediaMethod(...args) {
-          if (!adapter.isReplacementElement(this)) {
-            adapter.registerMedia(this);
+          if (lifecycle.active && !adapter.isReplacementElement(this)) {
+            const triggerMediaId=adapter.registerMedia(this);
             if (name !== "load") {
               adapter.lastEventElement = this;
               adapter.lastEventAt = adapter.now();
             }
-            adapter.defer(() => adapter.emitSnapshot(`method:${name}`, true));
+            if (name === "play" || name === "load") adapter.safeCall(() => adapter.emitSnapshot(`before-method:${name}`, true, triggerMediaId));
+            adapter.defer(() => { if (lifecycle.active) adapter.emitSnapshot(`method:${name}`, true); });
           }
-          return Reflect.apply(adapter.nativeHooks[name], this, args);
+          return Reflect.apply(original, this, args);
         };
         prototype[name] = this.nativeHooks[`${name}Wrapper`];
       }
@@ -687,11 +774,13 @@
       const prototype = this.environment.HTMLMediaElement?.prototype;
       if (!prototype) return;
       for (const name of ["play", "pause", "load"]) {
+        if (this.nativeHooks[`${name}Lifecycle`]) this.nativeHooks[`${name}Lifecycle`].active = false;
         if (this.nativeHooks[name] && prototype[name] === this.nativeHooks[`${name}Wrapper`]) {
           prototype[name] = this.nativeHooks[name];
         }
         delete this.nativeHooks[name];
         delete this.nativeHooks[`${name}Wrapper`];
+        delete this.nativeHooks[`${name}Lifecycle`];
       }
     }
 
@@ -701,10 +790,15 @@
       const adapter = this;
       for (const name of ["pushState", "replaceState"]) {
         if (this.nativeHooks[name] || typeof history[name] !== "function") continue;
-        this.nativeHooks[name] = history[name];
+        const original = history[name];
+        const lifecycle = { active: true };
+        this.nativeHooks[name] = original;
+        this.nativeHooks[`${name}Lifecycle`] = lifecycle;
         this.nativeHooks[`${name}Wrapper`] = function celikomObservedHistory(...args) {
-          const result = Reflect.apply(adapter.nativeHooks[name], this, args);
-          adapter.defer(() => adapter.emitSnapshot(`history:${name}`, true));
+          const result = Reflect.apply(original, this, args);
+          if (lifecycle.active) adapter.defer(() => {
+            if (lifecycle.active) adapter.emitSnapshot(`history:${name}`, true);
+          });
           return result;
         };
         history[name] = this.nativeHooks[`${name}Wrapper`];
@@ -715,11 +809,13 @@
       const history = this.environment.history;
       if (!history) return;
       for (const name of ["pushState", "replaceState"]) {
+        if (this.nativeHooks[`${name}Lifecycle`]) this.nativeHooks[`${name}Lifecycle`].active = false;
         if (this.nativeHooks[name] && history[name] === this.nativeHooks[`${name}Wrapper`]) {
           history[name] = this.nativeHooks[name];
         }
         delete this.nativeHooks[name];
         delete this.nativeHooks[`${name}Wrapper`];
+        delete this.nativeHooks[`${name}Lifecycle`];
       }
     }
 
@@ -735,6 +831,7 @@
       this.sink = sink;
       this.mounted = true;
       this.installPrototypeHooks();
+      this.safeCall(() => this.installMediaSessionHook());
       this.installHistoryHooks();
       this.installNetworkHooks();
       this.window.addEventListener?.("popstate", this.onNavigation);
@@ -778,6 +875,7 @@
       this.catalogRefreshTimer = null;
       this.snapshotTimer = null;
       this.restorePrototypeHooks();
+      this.restoreMediaSessionHook();
       this.restoreHistoryHooks();
       this.restoreNetworkHooks();
       for (const [id, element] of this.knownMedia) this.unregisterMedia(id, element);

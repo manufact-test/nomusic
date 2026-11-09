@@ -20,16 +20,23 @@
     return Math.round(drift * 1000);
   }
   class SyncEngine {
-    constructor(thresholdMs = 350) { this.thresholdMs = thresholdMs; this.lastSeekAt = 0; this.driftMs = null; }
+    constructor(thresholdMs = 350) { this.thresholdMs = thresholdMs; this.lastSeekAt = 0; this.lastSeekTarget = null; this.driftMs = null; }
     sync(replacement, snapshot, force = false, now = Date.now()) {
       const player = snapshot.player;
       replacement.applyState(player);
       const target = targetTime(projectTime(player, snapshot.observedAt, now), replacement.audio.duration, replacement.demoLoop);
       this.driftMs = driftAt(replacement.audio.currentTime, target, replacement.audio.duration, replacement.demoLoop);
-      // Do not fight an in-progress native seek or repeatedly correct its lagging clock.
-      if ((force || Math.abs(this.driftMs) > this.thresholdMs) && (force || now - this.lastSeekAt >= 800)) {
+      // currentTime assignment starts a new asynchronous decoder seek, even at
+      // the same position. Let that seek finish instead of chasing the moving
+      // master clock every 800 ms. A genuinely new user seek still wins.
+      const aligned = Math.abs(this.driftMs) <= (force ? 40 : this.thresholdMs);
+      const newSeek = force && (this.lastSeekTarget === null
+        || Math.abs(driftAt(this.lastSeekTarget, target, replacement.audio.duration, replacement.demoLoop)) > this.thresholdMs);
+      if (!aligned && (!replacement.audio.seeking || newSeek)
+          && (force || now - this.lastSeekAt >= 800)) {
         replacement.audio.currentTime = target;
         this.lastSeekAt = now;
+        this.lastSeekTarget = target;
       }
       if (player.paused || player.ended || player.seeking || player.readyState < 3) replacement.pause();
       else replacement.play();
@@ -38,3 +45,4 @@
   }
   Object.defineProperty(root, KEY, { value: Object.freeze({ SyncEngine, projectTime, targetTime, driftAt }), writable: false });
 })(globalThis);
+

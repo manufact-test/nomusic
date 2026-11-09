@@ -13,23 +13,169 @@
         <strong>CELIKOM</strong>
         <span class="status" data-status>Проверка…</span>
       </header>
+      <section class="incident-banner" data-incident-banner hidden role="status" aria-live="polite" aria-atomic="true">
+        <strong>Подмена временно приостановлена</strong>
+        <p>Интеграция с Яндекс Музыкой временно недоступна. Мы восстанавливаем её работу.</p>
+        <p>Время действующего доступа заморожено. Оригинальная музыка доступна.</p>
+      </section>
+      <div class="music-controls" data-music-controls>
       <div class="primary-actions" aria-label="Управление CELIKOM">
         <button class="primary" type="button" data-action="start">Старт</button>
         <button type="button" data-action="stop">Стоп</button>
       </div>
       <button class="wide" type="button" data-action="restore">Вернуть оригинал</button>
-      <button class="wide" type="button" data-action="add">Добавить трек</button>
-      <p class="stage" data-coming-soon hidden>Загрузка треков появится после подключения сервера. Сейчас ничего не загружается.</p>
+      <button class="wide add-track-action" type="button" data-action="add" aria-expanded="false" aria-controls="celikom-upload-panel">Загрузить версию</button>
+      <section class="upload-panel" id="celikom-upload-panel" data-upload-panel hidden aria-label="Добавить версию">
+        <strong>Загрузить версию</strong>
+        <p class="stage">Новые версии публикуются после ручной проверки. После отправки файла можно закрыть окно CELIKOM — загрузка продолжится в фоне.</p>
+        <div class="upload-result" data-upload-result hidden role="status" aria-live="polite">
+          <strong data-upload-result-title>Отправлено на проверку</strong>
+          <p data-upload-result-note>Версия ожидает модерации.</p>
+        </div>
+        <form data-upload-form hidden novalidate>
+          <label class="stage" for="upload-track">Track ID · только чтение</label>
+          <input id="upload-track" data-upload-track readonly aria-readonly="true" required>
+          <label class="stage" for="upload-file">Аудиофайл · MP3 или M4A (AAC) до 30 МиБ</label>
+          <input class="upload-file-native" id="upload-file" data-upload-file type="file" accept=".mp3,.m4a,audio/mpeg,audio/mp4,audio/x-m4a" required>
+          <label class="upload-file-picker" data-file-picker for="upload-file">
+            <span class="upload-file-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 16V4m0 0-4 4m4-4 4 4"/>
+                <path d="M5 15v4a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-4"/>
+              </svg>
+            </span>
+            <span class="upload-file-copy">
+              <strong data-file-title>Выбрать MP3 или M4A</strong>
+              <span data-file-name>Нажмите или перетащите файл сюда</span>
+            </span>
+          </label>
+        <p class="upload-duration-note" data-upload-duration hidden role="status" aria-live="polite"></p>
+          <label class="upload-rights"><input data-upload-rights type="checkbox" required> Подтверждаю, что имею необходимые права на этот аудиофайл.</label>
+          <div class="upload-transfer-slot" data-upload-transfer-slot hidden aria-label="Ход загрузки">
+            <progress data-upload-progress max="100" value="0" hidden aria-label="Загрузка"></progress>
+          </div>
+          <button class="primary wide" data-upload-submit type="submit">Отправить на проверку</button>
+        </form>
+          <section class="celikom-confirm" data-upload-confirm hidden role="alertdialog" aria-labelledby="upload-confirm-title" aria-modal="true">
+            <strong id="upload-confirm-title">Отменить загрузку?</strong>
+            <p>Передача файла остановится. Уже отправленные данные не получится продолжить с того же места.</p>
+            <div class="celikom-confirm-actions">
+              <button class="quiet" type="button" data-upload-continue>Продолжить загрузку</button>
+              <button class="danger" type="button" data-upload-stop>Да, отменить</button>
+            </div>
+          </section>
+        <p class="upload-feedback" data-upload-status role="status" aria-live="polite" hidden></p>
+      </section>
+      <button class="wide" type="button" data-action="suggest" aria-expanded="false" aria-controls="celikom-suggest-panel">Предложить песню</button>
+      <section class="upload-panel" id="celikom-suggest-panel" data-suggest-panel hidden aria-label="Предложить песню">
+        <strong>Предложить песню</strong>
+        <p class="stage">Сообщите нам, для какой песни нужна альтернативная версия.</p>
+        <p class="track" data-suggest-track></p>
+        <div class="upload-result" data-suggest-result hidden role="status" aria-live="polite"><strong data-suggest-result-title></strong><p data-suggest-result-note></p></div>
+        <button class="primary wide" type="button" data-suggest-submit>Отправить предложение</button>
+        <p class="upload-feedback" data-suggest-note role="status" aria-live="polite" hidden></p>
+      </section>
+      </div>
+      <div class="music-details" data-music-details>
+      <p class="access-status" data-access-status role="status" aria-live="polite">Загрузка доступа…</p>
       <p class="track" data-track>Запустите трек в Яндекс Музыке</p>
-      <details>
-        <summary>Для разработчика</summary>
-        <p class="stage">Stage 3 · тестовый сигнал вместо одного точного Track ID. Это ещё не библиотека песен.</p>
-        <label class="stage" for="test-track">Тестовый Track ID</label>
-        <input id="test-track" data-test-track inputmode="numeric" pattern="[0-9]{1,24}" maxlength="24" placeholder="Пусто — без подмены">
-        <button class="wide" type="button" data-action="use-current">Тестировать текущий трек</button>
-        <button class="wide" type="button" data-action="clear-test">Убрать тестовую подмену</button>
-        <button class="diagnostics" type="button" data-action="diagnostics">Скопировать диагностику</button>
+      <p class="version-status" data-version-status aria-live="polite">Загрузка версии песни…</p>
+      </div>
+      <details class="account-panel" data-auth-panel>
+        <summary data-auth-summary>Аккаунт</summary>
+        <div class="account-content">
+          <form data-auth-form class="account-form" novalidate>
+            <label for="auth-email">Email</label>
+            <input id="auth-email" data-auth-email type="email" name="username" inputmode="email" maxlength="254" autocomplete="username" autocapitalize="off" spellcheck="false" aria-describedby="auth-email-helper" required>
+            <button class="auth-email-suggestion" data-auth-email-suggestion type="button" id="auth-email-helper" hidden aria-label="Подставить ранее использованный email"></button>
+            <label for="auth-password">Пароль</label>
+            <div class="auth-password-field">
+              <input id="auth-password" data-auth-password type="password" minlength="12" maxlength="128" autocomplete="current-password" required>
+              <button class="auth-eye" data-auth-eye type="button" aria-label="Показать пароль" aria-pressed="false" title="Показать пароль">
+                <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M2 12s3.6-6 10-6 10 6 10 6-3.6 6-10 6S2 12 2 12Z"/>
+                  <circle cx="12" cy="12" r="3"/>
+                </svg>
+              </button>
+            </div>
+            <label data-auth-referral-field hidden>Код приглашения (необязательно)
+              <input data-auth-referral maxlength="32" autocomplete="off" spellcheck="false">
+            </label>
+            <button class="primary wide" data-auth-submit type="submit">Войти</button>
+            <button class="quiet wide" data-auth-mode type="button">Создать аккаунт</button>
+            <button class="auth-link" data-auth-forgot type="button">Забыли пароль?</button>
+          </form>
+          <form data-auth-verify-form class="account-form" novalidate hidden>
+            <p class="auth-caption">Мы отправили на почту шестизначный код. Введите его, чтобы подтвердить адрес.</p>
+            <label for="auth-code">Код из письма</label>
+            <input id="auth-code" data-auth-code type="text" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" autocomplete="one-time-code" spellcheck="false">
+            <button class="primary wide" data-auth-confirm type="submit">Подтвердить почту</button>
+            <button class="quiet wide" data-auth-resend type="button">Отправить код ещё раз</button>
+            <button class="auth-link" data-auth-back type="button">Вернуться ко входу</button>
+          </form>
+          <form data-auth-recovery-form class="account-form" novalidate hidden>
+            <p class="auth-caption">Мы отправим код для восстановления пароля, если email зарегистрирован.</p>
+            <label for="auth-recovery-email">Email</label>
+            <input id="auth-recovery-email" name="email" data-auth-recovery-email type="email" inputmode="email" maxlength="254" autocomplete="email" autocapitalize="off">
+            <button class="primary wide" data-auth-recovery-request type="submit">Получить код</button>
+            <button class="auth-link" data-auth-recovery-back type="button">Вернуться ко входу</button>
+          </form>
+          <form data-auth-new-password-form class="account-form" novalidate hidden>
+            <p class="auth-caption">Введите код из письма и новый пароль.</p>
+            <label for="auth-reset-code">Код из письма</label>
+            <input id="auth-reset-code" data-auth-reset-code type="text" inputmode="numeric" maxlength="6" autocomplete="one-time-code">
+            <label for="auth-reset-password">Новый пароль</label>
+            <div class="auth-password-field">
+              <input id="auth-reset-password" data-auth-reset-password type="password" minlength="12" maxlength="128" autocomplete="new-password">
+              <button class="auth-eye" data-auth-reset-eye type="button" aria-label="Показать пароль" aria-pressed="false" title="Показать пароль">
+                <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M2 12s3.6-6 10-6 10 6 10 6-3.6 6-10 6S2 12 2 12Z"/>
+                  <circle cx="12" cy="12" r="3"/>
+                </svg>
+              </button>
+            </div>
+            <button class="primary wide" data-auth-reset-submit type="submit">Изменить пароль</button>
+            <button class="auth-link" data-auth-reset-back type="button">Вернуться ко входу</button>
+          </form>
+          <div data-auth-signed class="account-signed" hidden>
+            <details data-auth-promo-panel hidden><summary>Промокод</summary><form><label>Промокод<input type="text" minlength="8" maxlength="64" autocomplete="off" autocapitalize="characters" required></label><button type="submit">Активировать</button></form><p data-promo-note aria-live="polite"></p></details>
+            <p class="account-identity" data-auth-identity></p>
+            <details data-benefits-panel hidden>
+              <summary>Бонусы и друзья</summary>
+              <div class="benefits-content">
+                <p data-benefits-rewards hidden></p>
+                <p data-benefits-progress>Подписка и приглашения пока недоступны.</p>
+                <p class="referral-code" data-benefits-code hidden></p>
+                <button class="quiet wide" type="button" data-benefits-create hidden>Создать код приглашения</button>
+                <button class="quiet wide" type="button" data-benefits-copy hidden>Скопировать код</button>
+                <button class="quiet wide" type="button" data-benefits-share hidden>Поделиться</button>
+                <p data-benefits-note role="status" aria-live="polite" hidden></p>
+              </div>
+            </details>
+            <button class="quiet wide" type="button" data-auth-logout>Выйти</button>
+          </div>
+          <p class="auth-feedback" data-auth-note role="status" aria-live="polite" hidden></p>
+        <button type="button" class="quiet wide" data-auth-network-copy hidden>Скопировать диагностику</button>
+        </div>
       </details>
+      <details data-support-panel>
+        <summary>Связь с поддержкой</summary>
+        <div class="support-content">
+          <label for="support-kind">Вид обращения</label>
+          <select id="support-kind" data-support-kind><option value="general">Обычное обращение · ответ по почте</option><option value="song">Проблема с текущей песней</option></select>
+          <div data-support-song-fields hidden>
+            <p class="track" data-support-track></p>
+            <label for="support-category">Что произошло?</label>
+            <select id="support-category" data-support-category><option value="not_replacing">Не включается версия CELIKOM</option><option value="wrong_version">Играет неправильная версия</option><option value="audio_issue">Звук обрывается или рассинхронизируется</option><option value="other">Другая проблема</option></select>
+            <p class="stage">Песня и техническая диагностика приложатся автоматически. Ответ по почте не требуется.</p>
+          </div>
+          <label for="support-description" data-support-label>Опишите проблему</label>
+          <textarea id="support-description" data-support-description maxlength="2000" rows="4"></textarea>
+          <button class="quiet wide" type="button" data-support-send>Отправить</button>
+          <p data-support-note role="status" aria-live="polite" hidden></p>
+        </div>
+      </details>
+      <div class="diagnostics-slot"><button class="diagnostics" type="button" data-action="diagnostics" hidden>Скопировать диагностику</button></div>
     </main>
     <script type="module" src="popup.js"></script>
   </body>

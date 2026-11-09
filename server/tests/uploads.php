@@ -1,0 +1,283 @@
+<?php
+
+declare(strict_types=1);
+
+require __DIR__ . '/smoke.php';
+
+use Celikom\Application;
+use Celikom\Application\UploadService;
+use Celikom\Application\DeferredFingerprintService;
+use Celikom\Application\TrackRequestService;
+use Celikom\Application\UploadRateLimiter;
+use Celikom\Application\Mp3Inspector;
+use Celikom\Database\Connection;
+use Celikom\Database\MigrationRunner;
+use Celikom\Repositories\PdoCatalogRepository;
+use Celikom\Storage\LocalStorageAdapter;
+
+$config = require dirname(__DIR__) . '/config/app.php';
+if (!str_starts_with((string) $config['db_name'], 'celikom_test')) {
+    if (getenv('CI')) throw new RuntimeException('Upload tests require disposable celikom_test*');
+    fwrite(STDOUT, "Stage 7 MySQL tests deferred.\n");
+    exit(0);
+}
+$pdo = Connection::open($config);
+(new MigrationRunner($pdo, dirname(__DIR__) . '/migrations'))->run();
+$storage = new LocalStorageAdapter($config['storage_path']);
+$ownerHash = hash('sha256', 'stage7-ci-isolated-owner');
+$path = sys_get_temp_dir() . '/celikom-stage7-' . bin2hex(random_bytes(8)) . '.mp3';
+// Synthetic MP3 frame stream: MPEG1 Layer3, 128 kbps, 44.1 kHz.
+// No copyrighted audio or live library asset is involved.
+$frame = hex2bin('fffb9064') . str_repeat("\0", 413);
+file_put_contents($path, str_repeat($frame, 100));
+$size = filesize($path);
+$fields = [
+    'service' => 'yandex', 'track_id' => '799001', 'duration_ms' => '2606',
+    'artist' => 'synthetic', 'title' => 'stage7', 'album' => '', 'declaration' => '1',
+    'request_id' => '10000000-0000-4000-8000-000000000001',
+];
+$file = ['error' => UPLOAD_ERR_OK, 'tmp_name' => $path, 'name' => 'audio.mp3', 'size' => $size];
+$service = new UploadService($pdo, $storage, 31457280, static fn (string $p): bool => is_file($p),
+    new DeferredFingerprintService($pdo));
+$catalog = new PdoCatalogRepository($pdo);
+
+try {
+    run('Stage 7 structural MP3 probe accepts synthetic frames', function () use ($path): void {
+        expect((new Mp3Inspector())->check($path), 'Synthetic MPEG frames');
+    });
+    run('Stage 7 MP3 measures full audio duration and rejects damaged endings', function () use ($path): void {
+        $inspector = new Mp3Inspector();
+        expect($inspector->durationMs($path) === 2612, 'Frame-derived duration');
+        $bytes = file_get_contents($path);
+        $cases = [
+            'truncated' => substr($bytes, 0, -80),
+            'corrupted-middle' => substr_replace($bytes, str_repeat("\0", 417), 417 * 50, 417),
+            'fake-trailing-payload' => $bytes . '<?php harmless syntax text ?>',
+            'invalid-id3-size' => "ID3\x04\x00\x00\xff\xff\xff\xff" . $bytes,
+        ];
+        foreach ($cases as $label => $damaged) {
+            $tmp = tempnam(sys_get_temp_dir(), 'celikom-mp3-');
+            file_put_contents($tmp, $damaged);
+            try { expect($inspector->durationMs($tmp) === null, $label . ' rejected'); }
+            finally { unlink($tmp); }
+        }
+        $tagged = tempnam(sys_get_temp_dir(), 'celikom-id3-');
+        file_put_contents($tagged, "ID3\x04\x00\x00\x00\x00\x00\x10"
+            . str_repeat("\0", 16) . $bytes . 'TAG' . str_repeat("\0", 125));
+        try { expect($inspector->durationMs($tagged) === 2612, 'Standard ID3 tags accepted'); }
+        finally { unlink($tagged); }
+    });
+    run('Tagged MP3 with ordinary APEv2 footer is measured and accepted into pending moderation', function () use ($path, $service, $fields, $file, $ownerHash): void {
+        $item = pack('V2', 4, 0) . "Title\0Test";
+        $footer = 'APETAGEX' . pack('V4', 2000, 32 + strlen($item), 1, 0) . str_repeat("\0", 8);
+        $tagged = tempnam(sys_get_temp_dir(), 'celikom-ape-');
+        $audio = file_get_contents($path);
+        file_put_contents($tagged, $audio . $item . $footer);
+        try {
+            expect((new Mp3Inspector())->durationMs($tagged) === 2612, 'Bounded APEv2 accepted');
+            $request = array_merge($fields, [
+                'track_id' => '799081',
+                'request_id' => '10000000-0000-4000-8000-000000000081'
+            ]);
+            $result = $service->upload($request, array_merge($file, [
+                'tmp_name' => $tagged, 'size' => filesize($tagged)
+            ]), $ownerHash);
+            expect($result['status'] === 'pending', 'Tagged audio staged for moderation');
+            $bad = $audio . $item . substr_replace($footer, pack('V', 1234), 8, 4);
+            file_put_contents($tagged, $bad);
+            expect((new Mp3Inspector())->durationMs($tagged) === null, 'Malformed APE footer rejected');
+        } finally { unlink($tagged); }
+    });
+    run('Consecutive ID3v2.4 tags are accepted as MP3 without weakening frame validation', function () use ($path,$service,$fields,$file,$ownerHash): void {
+        // Synthetic reproduction of an actual user file: ID3v2.4 tag at 0,
+        // another at offset 45, MPEG audio starts at offset 89.
+        $header = static function (int $length): string {
+            return "ID3\x04\x00\x00" . chr(($length >> 21) & 127)
+                . chr(($length >> 14) & 127) . chr(($length >> 7) & 127)
+                . chr($length & 127);
+        };
+        $prefix = $header(35) . str_repeat('A', 35)
+            . $header(34) . str_repeat('B', 34);
+        $audio = file_get_contents($path);
+        $tagged = tempnam(sys_get_temp_dir(), 'celikom-id3-double-');
+        file_put_contents($tagged, $prefix . $audio);
+        try {
+            $inspector = new Mp3Inspector();
+            expect($inspector->durationMs($tagged) === 2612, 'Double ID3v2 tags preserve MPEG duration');
+            $data = array_merge($fields, [
+                'track_id' => '799082',
+                'request_id' => '10000000-0000-4000-8000-000000000082',
+            ]);
+            $result = $service->upload($data, array_merge($file, [
+                'tmp_name' => $tagged, 'size' => filesize($tagged)
+            ]), $ownerHash);
+            expect($result['status'] === 'pending', 'Double-tagged MP3 accepted for moderation');
+            // A malformed second ID3 tag must still be rejected.
+            $bad = $prefix . $audio;
+            $bad[45 + 6] = chr(255);
+            file_put_contents($tagged, $bad);
+            expect($inspector->durationMs($tagged) === null, 'Malformed second ID3 rejected');
+            $fiveTags = str_repeat($header(35) . str_repeat('A', 35), 5);
+            file_put_contents($tagged, $fiveTags . $audio);
+            expect($inspector->durationMs($tagged) === null, 'Excessive tags rejected');
+        } finally { unlink($tagged); }
+    });
+    run('Uploads reject duration mismatch before creating a track or asset', function () use ($service,$fields,$file,$ownerHash,$pdo): void {
+        $bad=array_merge($fields,['track_id'=>'799999','duration_ms'=>'4113']);
+        try {$service->upload($bad,$file,$ownerHash);throw new RuntimeException('mismatch accepted');}
+        catch (DomainException $e) {expect($e->getMessage()==='duration_mismatch','Mismatch rejected');}
+        expect((int)$pdo->query("SELECT COUNT(*) FROM tracks WHERE service_track_id='799999'")->fetchColumn()===0,'No track created');
+    });
+    $created = $service->upload($fields, $file, $ownerHash);
+    run('Upload uses stored original duration despite spoofed supplied duration',function() use($service,$fields,$file,$ownerHash,$pdo):void{
+        $pdo->exec("UPDATE tracks SET duration_ms=4113 WHERE service_track_id='799001'");
+        try {try{$service->upload($fields,$file,$ownerHash);throw new RuntimeException('stored mismatch accepted');}
+        catch(DomainException $e){expect($e->getMessage()==='duration_mismatch','Stored original authoritative');}}
+        finally{$pdo->exec("UPDATE tracks SET duration_ms=2606 WHERE service_track_id='799001'");}
+    });
+    run('Stage 7 upload creates only pending candidate and fingerprint job', function () use ($pdo, $catalog, $created): void {
+        expect($created['status'] === 'pending' && !$created['duplicate'], 'Only pending');
+        expect($catalog->findActive('yandex', '799001') === null, 'No active replacement');
+        expect($catalog->findByReplacement((int) $created['replacement_id']) === null, 'No public audio');
+        $stmt = $pdo->prepare('SELECT r.status, r.is_active, f.status AS fingerprint_status FROM track_replacements r
+            JOIN audio_fingerprint_jobs f ON f.audio_asset_id = r.audio_asset_id WHERE r.id = ?');
+        $stmt->execute([$created['replacement_id']]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        expect($row['status'] === 'pending' && (int) $row['is_active'] === 0 && $row['fingerprint_status'] === 'pending',
+            'Pending and deferred fingerprint only');
+        $stmt = $pdo->prepare('SELECT a.duration_ms FROM audio_assets a JOIN track_replacements r ON r.audio_asset_id = a.id WHERE r.id = ?');
+        $stmt->execute([$created['replacement_id']]);
+        expect((int) $stmt->fetchColumn() === 2612, 'Asset uses inspected MP3 duration, not supplied Track duration');
+    });
+    run('Stage 7 byte-identical upload under different name and same request is idempotent', function () use ($service, $fields, $file, $ownerHash, $created, $pdo): void {
+        $again = $service->upload($fields, array_merge($file, ['name' => 'renamed.mp3']), $ownerHash);
+        expect($again['duplicate'] && $again['replacement_id'] === $created['replacement_id'], 'Idempotency key');
+        $differentId = array_merge($fields, ['request_id' => '10000000-0000-4000-8000-000000000002']);
+        $renamed = $service->upload($differentId, array_merge($file, ['name' => 'another-name.mp3']), $ownerHash);
+        expect($renamed['duplicate'] && $renamed['replacement_id'] === $created['replacement_id'], 'SHA candidate dedupe');
+        expect((int) $pdo->query("SELECT COUNT(*) FROM track_replacements r
+            JOIN tracks t ON t.id = r.track_id WHERE t.service_track_id = '799001'")->fetchColumn() === 1,
+            'No second candidate');
+    });
+    run('Stage 7 same asset links second exact Track ID without publication', function () use ($service, $fields, $file, $ownerHash, $pdo, $catalog, $created): void {
+        $second = $service->upload(array_merge($fields, [
+            'track_id' => '799002', 'request_id' => '10000000-0000-4000-8000-000000000003'
+        ]), $file, $ownerHash);
+        expect($second['replacement_id'] !== $created['replacement_id'], 'Different candidate link');
+        $stmt = $pdo->prepare('SELECT audio_asset_id FROM track_replacements WHERE id IN (?, ?) ORDER BY id');
+        $stmt->execute([$created['replacement_id'], $second['replacement_id']]);
+        $ids = $stmt->fetchAll(PDO::FETCH_COLUMN);
+        expect(count($ids) === 2 && $ids[0] === $ids[1], 'One reusable asset');
+        expect($catalog->findActive('yandex', '799002') === null, 'Still pending');
+        $sha = hash_file('sha256', $file['tmp_name']);
+        $stmt = $pdo->prepare('SELECT COUNT(*) FROM audio_assets WHERE sha256 = ?');
+        $stmt->execute([$sha]);
+        expect((int) $stmt->fetchColumn() === 1, 'No second physical AudioAsset row');
+    });
+    run('Stage 7 blocks a different MP3 for a Track ID already in pending', function () use ($service, $fields, $file, $ownerHash, $path, $pdo): void {
+        $other = tempnam(sys_get_temp_dir(), 'celikom-different-');
+        $bytes = file_get_contents($path);
+        $bytes[100] = chr(ord($bytes[100]) ^ 0x4f);
+        file_put_contents($other, $bytes);
+        try {
+            $different = array_merge($fields, ['request_id' => '10000000-0000-4000-8000-000000000039']);
+            $input = array_merge($file, ['tmp_name' => $other, 'size' => filesize($other)]);
+            try {
+                $service->upload($different, $input, $ownerHash);
+                throw new RuntimeException('Second candidate for pending Track accepted');
+            } catch (DomainException $e) {
+                expect($e->getMessage() === 'track_pending', 'One pending candidate per Track');
+            }
+            $count = (int) $pdo->query("SELECT COUNT(*) FROM track_replacements r JOIN tracks t
+                ON t.id = r.track_id WHERE t.service_track_id='799001' AND r.status='pending'")->fetchColumn();
+            expect($count === 1, 'Only original candidate retained');
+        } finally { unlink($other); }
+    });
+    run('Stage 7 read-only track state detects pending across popup/browser sessions', function () use ($config): void {
+        $config['owner_uploads_enabled'] = true;
+        $app = new Application($config);
+        $pending = $app->handle('GET', '/api/v1/tracks/upload-status',
+            ['service' => 'yandex', 'track_id' => '799001']);
+        expect($pending->status === 200 &&
+            (json_decode($pending->body, true)['status'] ?? null) === 'pending',
+            'Pending status visible with no private metadata');
+        $none = $app->handle('GET', '/api/v1/tracks/upload-status',
+            ['service' => 'yandex', 'track_id' => '799888']);
+        expect($none->status === 200 &&
+            (json_decode($none->body, true)['status'] ?? null) === 'none', 'Fresh track accepted');
+        $config['owner_uploads_enabled'] = false;
+        expect((new Application($config))->handle('GET', '/api/v1/tracks/upload-status',
+            ['service' => 'yandex', 'track_id' => '799001'])->status === 404,
+            'Status endpoint unavailable when private upload is disabled');
+    });
+    run('Stage 7 rejects conflicting HTTP retry', function () use ($service, $fields, $file, $ownerHash): void {
+        try {
+            $service->upload(array_merge($fields, ['track_id' => '799003']), $file, $ownerHash);
+            throw new RuntimeException('Conflicting retry accepted');
+        } catch (DomainException $e) {
+            expect($e->getMessage() === 'idempotency_conflict', 'Retry conflict');
+        }
+    });
+    run('Stage 7 rejects fake, malformed, oversize and rights-free files', function () use ($service, $fields, $file, $ownerHash, $path, $pdo, $storage): void {
+        $fake = $path . '.fake';
+        file_put_contents($fake, str_repeat('not an mp3', 200));
+        try {
+            foreach ([
+                [$fields, array_merge($file, ['tmp_name' => $fake, 'name' => 'fake.mp3', 'size' => filesize($fake)]), 'DomainException'],
+                [array_merge($fields, ['declaration' => '0']), $file, 'DomainException'],
+                [array_merge($fields, ['track_id' => '007']), $file, 'InvalidArgumentException'],
+                [$fields, array_merge($file, ['error' => UPLOAD_ERR_PARTIAL]), 'InvalidArgumentException'],
+                [$fields, array_merge($file, ['size' => 999]), 'InvalidArgumentException'],
+            ] as [$f, $input, $expected]) {
+                try {
+                    $service->upload($f, $input, $ownerHash);
+                    throw new RuntimeException('Unsafe upload accepted');
+                } catch (Throwable $e) {
+                    expect(get_class($e) === $expected, $expected . ' rejected');
+                }
+            }
+            $limited = new UploadService($pdo, $storage, 1024, static fn (string $p): bool => is_file($p));
+            try { $limited->upload($fields, $file, $ownerHash); throw new RuntimeException('Oversize accepted'); }
+            catch (LengthException $e) { expect($e->getMessage() === 'upload_too_large', 'Oversize'); }
+        } finally { unlink($fake); }
+    });
+    run('Stage 7 protected route disabled by default even with read token', function () use ($config): void {
+        $config['owner_uploads_enabled'] = false;
+        $config['owner_upload_token'] = str_repeat('x', 48);
+        $app = new Application($config);
+        expect($app->handle('POST', '/api/v1/uploads', [], ['Authorization' => 'Bearer ' . $config['owner_upload_token']])->status === 503, 'Default off');
+    });
+    run('Stage 7 owner-only API and rate limiter guard writes', function () use ($config, $pdo, $ownerHash): void {
+        $config['owner_uploads_enabled'] = true;
+        $config['owner_upload_token'] = str_repeat('owner-only-ci-token-', 3);
+        $app = new Application($config);
+        expect($app->handle('POST', '/api/v1/uploads', [], ['Authorization' => 'Bearer ' . $config['test_api_token']])->status === 401, 'Read token denied');
+        expect($app->handle('POST', '/api/v1/uploads', [], ['Authorization' => 'Bearer ' . $config['owner_upload_token']],
+            '', [], [])->status === 415, 'Multipart required');
+        $limiter = new UploadRateLimiter($pdo);
+        $who = hash('sha256', $ownerHash . bin2hex(random_bytes(4)));
+        expect($limiter->check($who, 'upload', 2), 'First');
+        expect($limiter->check($who, 'upload', 2), 'Second');
+        expect(!$limiter->check($who, 'upload', 2), 'Third rate limited');
+    });
+    run('Stage 7 track requests are private and idempotent', function () use ($pdo, $ownerHash): void {
+        $requests = new TrackRequestService($pdo);
+        $params = ['service' => 'yandex', 'track_id' => '799009', 'artist' => 'CI', 'title' => 'fixture'];
+        $first = $requests->submit($params, $ownerHash);
+        $next = $requests->submit($params, $ownerHash);
+        expect($first === $next && $first['status'] === 'pending', 'Same owner+Track returns existing');
+    });
+    run('Stage 7 retry never misreports a moderated record as still pending', function () use ($pdo, $created, $service, $fields, $file, $ownerHash): void {
+        $pdo->prepare("UPDATE track_replacements SET status = 'rejected', is_active = 0 WHERE id = ?")
+            ->execute([$created['replacement_id']]);
+        try {
+            $service->upload($fields, $file, $ownerHash);
+            throw new RuntimeException('A rejected candidate was incorrectly reported pending');
+        } catch (DomainException $e) {
+            expect($e->getMessage() === 'idempotency_conflict', 'Moderation status is honored');
+        }
+    });
+    fwrite(STDOUT, "CELIKOM Stage 7 isolated upload foundation passed.\n");
+} finally {
+    unlink($path);
+}

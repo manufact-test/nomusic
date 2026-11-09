@@ -61,6 +61,18 @@ function message(bridge, type, sequence, payload = {}, overrides = {}) {
     ...overrides
   };
 }
+test('worker transport interruption releases original and preserves retry loop only for valid extension context',async()=>{
+ const target=new FakeWindow();let alive=false,valid=true;
+ const bridge=new PlayerBridge(target,{confirmAlive:async()=>alive,canRecoverAliveFailure:()=>valid});
+ bridge.start();
+ for(let i=0;i<2;i++){bridge.heartbeat();for(let j=0;j<10;j++)await Promise.resolve()}
+ assert.equal(bridge.destroyed,false);assert.equal(target.posts.at(-1).type,'RELEASE_NOW');
+ alive=true;bridge.lastInitAt=0;bridge.heartbeat();for(let j=0;j<10;j++)await Promise.resolve();
+ assert.equal(target.posts.at(-1).type,'INIT');
+ target.dispatch(message(bridge,'READY',1));assert.equal(bridge.isHealthy(),true);
+ alive=false;valid=false;for(let i=0;i<2;i++){bridge.heartbeat();for(let j=0;j<10;j++)await Promise.resolve()}
+ assert.equal(bridge.destroyed,true);assert.equal(target.intervals.size,0);
+});
 
 test("PlayerBridge starts once and ignores stale or foreign events", () => {
   const target = new FakeWindow();
@@ -115,5 +127,46 @@ test("a lost initial INIT is retried instead of waiting forever for READY", () =
   assert.equal(target.posts.filter((post) => post.type === "INIT").length, 2);
   target.dispatch(message(bridge, "READY", 1));
   assert.equal(bridge.ready, true);
+  bridge.destroy();
+});
+
+test("a stale isolated world cannot keep MAIN muted after the installed worker is disabled", async () => {
+  const target = new FakeWindow();
+  let installedWorker = true;
+  let lost = 0;
+  const bridge = new PlayerBridge(target, {
+    sessionId: "disabled-extension",
+    confirmAlive: async () => installedWorker
+  });
+  bridge.on("EXTENSION_UNAVAILABLE", () => { lost++; });
+  bridge.start();
+  target.dispatch(message(bridge, "READY", 1));
+  bridge.heartbeat();
+  await new Promise(resolve => setTimeout(resolve, 0));
+  assert.equal(target.posts.filter(m => m.type === "HEARTBEAT").length, 1);
+  installedWorker = false;
+  bridge.heartbeat();
+  await new Promise(resolve => setTimeout(resolve, 0));
+  assert.equal(target.posts.filter(m => m.type === "HEARTBEAT").length, 1, "no unverified heartbeat may extend the guard");
+  assert.equal(lost, 0, "tolerate one transient missed worker reply");
+  bridge.heartbeat();
+  await new Promise(resolve => setTimeout(resolve, 0));
+  assert.equal(lost, 1);
+  assert.equal(bridge.destroyed, true);
+  assert.equal(target.posts.at(-1).type, "SHUTDOWN");
+  assert.equal(target.intervals.size, 0);
+});
+
+test("unresponsive installed-worker verification does not send blind heartbeats", async () => {
+  const target = new FakeWindow();
+  const bridge = new PlayerBridge(target, {
+    sessionId: "hung-worker",
+    confirmAlive: () => new Promise(() => {})
+  }).start();
+  target.dispatch(message(bridge, "READY", 1));
+  bridge.heartbeat();
+  bridge.heartbeat();
+  await Promise.resolve();
+  assert.equal(target.posts.filter(m => m.type === "HEARTBEAT").length, 0);
   bridge.destroy();
 });

@@ -1,0 +1,113 @@
+/* CELIKOM owner-review UX polish. Loaded after unchanged v10 CSS. */
+:root { scroll-behavior:smooth; scroll-padding-top:110px; }
+html:focus-within {scroll-behavior:smooth}
+section[id],div[id="idea"] {scroll-margin-top:110px}
+header a,footer a,.btn,.mode-btn,.faq-filter {
+  -webkit-tap-highlight-color:transparent;
+  transition-property:color,background-color,box-shadow,transform,border-color;
+  transition-duration:.25s;
+  transition-timing-function:cubic-bezier(.2,.7,.2,1);
+}
+@media(hover:hover) {
+  .btn:hover,.header-chip:hover{transform:translateY(-2px)}
+  .footer-brand:hover,.brand:hover{opacity:.78}
+}
+.brand:focus-visible,.footer-brand:focus-visible,.faq-item summary:focus-visible,
+header a:focus-visible,footer a:focus-visible {
+ outline:3px solid #19bf94;outline-offset:5px;border-radius:4px
+}
+/* Replace missing third-party-looking UI illustration with a brand-only motif. */
+.owner-visual { position:relative; overflow:visible; }
+.owner-visual::before {
+  width:min(560px,105%);height:min(560px,105%);aspect-ratio:1/1;
+  background:radial-gradient(circle,#d6f8eccc 0,#eef9f3aa 59%,transparent 75%);
+}
+.owner-visual::after {
+ background:repeating-linear-gradient(90deg,transparent 0 19px,#4bcfae1b 19px 21px,transparent 21px 35px);
+ mask-image:radial-gradient(ellipse,#0004 12%,transparent 73%);
+}
+.owner-art-orbit {position:absolute;left:50%;top:50%;border:1px solid #a9e9d5;
+ width:min(88%,440px);aspect-ratio:1;border-radius:50%;transform:translate(-50%,-50%);
+ pointer-events:none}
+.owner-art-orbit--inner {width:min(65%,330px);border-width:34px;border-color:#d4f5e87d;box-shadow:0 0 80px #b1f2d769}
+.owner-art-orbit--outer {box-shadow:inset 0 0 70px #dcf9ee6a,0 0 35px #daf3e7ba}
+.owner-art-core {width:clamp(112px,19vw,188px);aspect-ratio:1;
+ background:#0b1817;border-radius:34%;transform:rotate(-9deg);
+ box-shadow:0 25px 70px #12453633, inset 0 1px 1px #baffd428;
+ display:grid;place-items:center;position:relative;z-index:2}
+.owner-art-core img {width:68%;height:68%;object-fit:contain}
+.owner-art-wave {position:absolute;left:8%;right:8%;height:32%;border-top:3px solid #45d5a46b;
+ border-radius:50%;transform:rotate(-14deg);z-index:1;pointer-events:none}
+.owner-art-wave--one {top:43%}
+.owner-art-wave--two {top:50%;transform:rotate(13deg);border-color:#45d5a447}
+.owner-art-wave--three {top:58%;transform:rotate(-6deg);border-color:#45d5a42e}
+.owner-reward-illustration {background:radial-gradient(circle at 70% 20%,#e9fff6,#c9f5e2 55%,#a9dec9);
+ box-shadow:inset 0 0 0 1px #85d4b159}
+.owner-reward-badge {position:relative;z-index:3;width:138px;height:138px;
+ border-radius:40px;background:#10221f;display:grid;place-items:center;
+ box-shadow:0 28px 70px #173c2b3a;transform:rotate(-7deg)}
+.owner-reward-badge img {width:75%;height:75%;object-fit:contain}
+.owner-reward-glow {position:absolute;width:360px;aspect-ratio:1;border-radius:50%;
+ background:radial-gradient(circle,#8fefc88e,transparent 70%)}
+.owner-reward-orbit {position:absolute;border-radius:50%;width:440px;aspect-ratio:1;
+ border:38px solid #fff8;right:-170px;top:-220px;pointer-events:none}
+.owner-reward-orbit--two {width:340px;left:-160px;right:auto;top:auto;bottom:-220px;border-color:#f8fff667}
+/* Final block is a statement, not a 'go to top' destination. */
+.closing {
+ background:radial-gradient(ellipse 60% 110% at 92% 7%,#173a32 0,transparent 78%),
+ radial-gradient(ellipse 45% 95% at 0% 110%,#152d2a 0,transparent 79%),#0b1013;
+ box-shadow:inset 0 0 0 1px #c3fbe412;
+ min-height:390px;
+}
+.closing::before {content:"";position:absolute;inset:auto -10% -80% auto;width:540px;
+ aspect-ratio:1;border:1px solid #63dfb82c;border-radius:50%;pointer-events:none;}
+.closing::after {content:"";position:absolute;right:clamp(22px,5vw,80px);bottom:clamp(18px,4vw,48px);
+ width:66px;height:66px;border-radius:22px;transform:rotate(10deg);
+ background:#69e5be16;border:1px solid #71f4c92a;pointer-events:none}
+.closing .closing-halo {border-color:#62deb51c}
+.closing h2 {max-width:900px}
+.closing p {margin-bottom:0}
+#sound .demo-board-label {max-width:100%;font-size:12px}
+/* Smooth height transitions are driven by WAAPI; neutralize old instant open animation. */
+#faq .faq-item[open] .answer {animation:none}
+#faq .faq-item .answer {overflow:hidden;will-change:height}
+#faq .faq-item summary {transition:color .2s ease}
+#faq .faq-item summary:hover {color:#0b7b64}
+@media(prefers-reduced-motion:no-preference){
+  html.owner-motion .owner-reveal:not(.owner-visible) {
+    opacity:0; transform:translate3d(0,22px,0);
+  }
+  html.owner-motion .owner-reveal {
+    transition:opacity .7s cubic-bezier(.2,.7,.2,1),
+               transform .7s cubic-bezier(.2,.7,.2,1);
+    transition-delay:var(--owner-delay,0ms);
+  }
+  html.owner-motion .owner-reveal.owner-visible {opacity:1;transform:translate3d(0,0,0)}
+  .owner-art-orbit--outer {animation:ownerBreath 8s ease-in-out infinite}
+  .owner-art-core {animation:ownerFloat 6s ease-in-out infinite}
+  .owner-reward-badge {animation:ownerRewardFloat 7s ease-in-out infinite}
+  @keyframes ownerBreath{50%{opacity:.7;filter:drop-shadow(0 0 18px #63e2b64d)}}
+  @keyframes ownerFloat{50%{transform:translateY(-8px) rotate(-7deg)}}
+  @keyframes ownerRewardFloat{50%{transform:translateY(-7px) rotate(-5deg)}}
+}
+@media(max-width:800px){
+ :root{scroll-padding-top:85px}
+ section[id],div[id="idea"]{scroll-margin-top:85px}
+ .closing{min-height:0}
+ .owner-reward-badge{width:116px;height:116px;border-radius:32px}
+}
+@media(max-width:540px){
+ .owner-visual {height:315px}
+ .owner-art-orbit--outer{width:83%}
+ .owner-art-orbit--inner{width:62%;border-width:26px}
+ .owner-art-core{width:122px;border-radius:35px}
+ .owner-reward-illustration {min-height:235px}
+ .owner-reward-badge{width:105px;height:105px}
+ .closing {padding:38px 26px 60px}
+ .closing::after{width:42px;height:42px;right:22px;bottom:16px}
+}
+@media(prefers-reduced-motion:reduce){
+ :root,html:focus-within{scroll-behavior:auto!important}
+ .owner-art-core,.owner-art-orbit--outer,.owner-reward-badge{animation:none!important}
+ html.owner-motion .owner-reveal {transition:none!important;opacity:1!important;transform:none!important}
+}

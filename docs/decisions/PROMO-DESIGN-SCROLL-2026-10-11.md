@@ -1,0 +1,15 @@
+# Promo layout and popup scrollbar spacing — 11.10.2026
+
+Owner reports successful real promo creation and one activation, and provided screenshots showing a real lifetime grant. This is owner functional confirmation; no extra grants, activations, incidents or payments are issued for this layout fix. Actual account/code values from screenshots are not copied into this document.
+
+Creation form fields no longer stretch to match adjacent help text, lifetime controls or a revealed deadline. Inputs retain 40px height and top alignment. Duration and lifetime share one labelled control group; the date stays directly below its window selector. Submit spans the form grid. Existing validation, defaults, owner lifetime confirmation, UTC/Moscow conversion and grant/revoke mechanics are unchanged.
+
+Both tables separate «Название» and «Промокод», with name preceding code. Actions are vertically centered without inherited form margins; long values wrap in their own columns and narrow tables remain within horizontal scrolling shells. Active lifetime access is shown once; finite duration and effective expiry remain distinct, and revoked status stays visible.
+
+The popup uses the same overflow-aware spacing for signed-in account, login/register, email confirmation and recovery. A 10px inner gap appears beside an actual scrollbar and disappears when no overflow remains. Observers respond to disclosure, text, hidden state and size changes without animation-frame visibility dependence. Outer popup scrolling retains the normal 16px padding. Promo entry labels, input and button also receive consistent spacing. New client is unified 0.4.28; no separate build for functionality.
+
+Native Chromium checks actual server-rendered creation/list/activation layouts, desktop/narrow screens, control alignment and action centers. Popup checks force scroll in each auth state and verify expanded promo/benefits controls have space, then collapse and verify the gap is removed. Disposable screenshots are reviewed internally; no real owner data or screenshots are published as artifacts.
+
+Validation: CI/MySQL/native Chromium 38166683446 and final code/ops CI 38166735759 PASS; 177 client tests and 17 PoC tests. MariaDB 38166497481 PASS (server code unchanged since that run). Native creation and both list checks PASS on desktop/narrow screens; popup overflow checks PASS in every auth state plus expanded/collapsed signed account. Disposable layout screenshots were inspected. Configured ZIP run 38166732141 PASS. Full client 2,442,054 bytes, SHA256 62ec04dfb9726540709f4d627a6fa114d3598784bc2d08dd57f4e2b568669a1c, manifest 0.4.28 and private API configuration verified.
+
+Snapshot 38166732105 PASS: 12 private audio objects and 39 SQL tables preserved. Deploy 38167055702: PASS; backend `0.4.28-29802edf4a4c071662639a2eb475915b9bf17bb8` развёрнут, HTTPS health/config/CORS/unauthorized checks PASS. No new migrations or functional entitlement changes. The owner has not yet accepted 0.4.28 manually. PR #6 remains open/unmerged; stage 15 stays excluded and the existing payment/stage 14/16/17/18 limitations remain.
