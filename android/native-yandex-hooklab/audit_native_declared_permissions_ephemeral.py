@@ -39,6 +39,10 @@ def run():
         component_references = []
         dex_counts = {}
         all_defined = set()
+        component_name_shapes = {"relative_dot": [], "unqualified": [],
+                                 "fully_qualified": [], "empty_name": []}
+        component_tags = {"application", "activity", "activity-alias",
+                          "service", "receiver", "provider", "instrumentation"}
         for i, apk in enumerate(apks):
             split = source.apkmeta(apk).get("split", "") or "base"
             decoded = root / ("decoded-" + str(i))
@@ -51,6 +55,12 @@ def run():
             for el in xml.iter():
                 tag = el.tag
                 name = el.attrib.get(ANDROID+"name", "")
+                if tag in component_tags:
+                    shape = ("empty_name" if not name else
+                             "relative_dot" if name.startswith(".") else
+                             "unqualified" if "." not in name else "fully_qualified")
+                    component_name_shapes[shape].append({"split": split, "tag": tag,
+                                                         "public_class": name[:180]})
                 if tag in ("permission", "permission-group", "permission-tree"):
                     if name in all_defined:
                         raise arsc.TrialError("ORIGINAL_DUPLICATE_PERMISSION_DECLARATION")
@@ -77,6 +87,12 @@ def run():
             "verdict": "SIGNED_MANIFEST_PERMISSION_AUDIT_STATIC_ONLY",
             "source": "2026.10.3 #170gpr",
             "original_five_splits_verified": True,
+            "manifest_component_name_shape_counts": {
+                shape: len(entries) for shape, entries in component_name_shapes.items()
+            },
+            "potentially_rebased_component_class_names": (
+                component_name_shapes["relative_dot"][:12] +
+                component_name_shapes["unqualified"][:12]),
             "declared_permission_count": len(declaration_rows),
             "declared_permissions": declaration_rows[:35],
             "public_yandex_permission_uses": usage_rows[:35],
