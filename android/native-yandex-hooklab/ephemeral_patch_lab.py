@@ -89,7 +89,7 @@ def verify_observer_binary_methods(base_apk:Path):
     found=set()
     with zipfile.ZipFile(base_apk) as z:
         for item in z.infolist():
-            if not re.fullmatch(r"classes\\d*\\.dex",item.filename):
+            if not re.fullmatch(r"classes\d*\.dex",item.filename):
                 continue
             if item.file_size>DEX_MAX:
                 raise ValueError("DEX size exceeds static hook preflight cap")
