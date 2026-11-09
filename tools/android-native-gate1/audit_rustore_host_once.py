@@ -157,7 +157,7 @@ def scan(apk):
     output = {"classes": 0, "method_ids": 0, "factory_refs": 0,
               "factory_invoke_calls": 0, "incomplete_methods": 0, "dex_count": 0,
               "media_surfaces": [], "playaudio_boundary": [], "qdw_neighborhood": [],
-              "source_route_candidates": []
+              "source_route_candidates": []}
     with zipfile.ZipFile(apk) as archive:
         dexnames = sorted(n for n in archive.namelist()
                           if re.fullmatch(r"classes\d*\.dex", n))
