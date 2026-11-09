@@ -49,7 +49,24 @@ def metadata():
     print("MIRROR_METADATA: package="+PKG+" version="+str(version)[:80]+
           " code="+str(code)[:20])
     if version!=VERSION or code!=CODE:
-        raise ValueError("Target #170gpr not present in this mirror metadata")
+        # Public version-pin endpoint is distinct from unpinned /app/get.
+        # It must identify the exact version independently; never fall back to an older APK.
+        api = "https://ws2.aptoide.com/api/7/app/getMeta/package_name=" + PKG + "/vercode=" + str(CODE)
+        with OPENER.open(urllib.request.Request(guarded(api),headers={
+                "Accept":"application/json","User-Agent":"CELIKOM-static-research/1.0"}),timeout=30) as r:
+            if r.status!=200:raise ValueError("Version-pinned mirror HTTP "+str(r.status))
+            payload=r.read(1024*1024+1)
+        if len(payload)>1024*1024:raise ValueError("Version metadata too large")
+        pin=json.loads(payload)
+        if (pin.get("info") or {}).get("status")!="OK":
+            raise ValueError("Mirror version-specific endpoint not available")
+        d=pin.get("data") or {}
+        f=d.get("file") or {}
+        version,code=f.get("vername"),f.get("vercode")
+        print("MIRROR_PINNED_METADATA: package="+str(d.get("package"))+
+              " version="+str(version)[:80]+" code="+str(code)[:20])
+        if d.get("package")!=PKG or version!=VERSION or code!=CODE:
+            raise ValueError("Exact #170gpr not present in public version-specific mirror API")
     url=f.get("path")
     if not isinstance(url,str):raise ValueError("Missing archive path")
     return guarded(url)
