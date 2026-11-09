@@ -1,0 +1,13 @@
+# W19 — Windows Sandbox controlled real audio test (2026-11-09)
+
+**Approval:** Owner approved Yandex + PulseSync test **only on separately isolated Windows**, leaving their daily Yandex Music unchanged. W18 has installed mod and CELIKOM addon with Defender ON but has **not played audio**.
+
+**Deliverable:** User-facing conversation artifact `CELIKOM-W19-Sandbox-Audio-Test.zip`, SHA256 `cb799ef3540f4629c59a1ae72f69680b6fdfd8c2bd06f8a26611e20e7d936034` (~59.6 MB). Built from verified W15.2 ZIP (SHA256 `f3756ac097d3531bb2ea1ecb43a8ba174fbb8629d423282ef01b9a3711c53fce`) plus host-only CMD launcher, XML .wsb template, sandbox-only install PowerShell and Russian README. **Archive CRC and XML parse verified locally; scripted interaction on a real Windows Sandbox NOT yet validated.** Not a GitHub Release or public product distribution.
+
+**Owner action after downloading:** Extract W19 ZIP; double-click `START-W19-WINDOWS-SANDBOX.cmd`. On Windows 10 Pro/Enterprise/Edu with already enabled Windows Sandbox, this opens a disposable Windows, maps host folder READ ONLY, clipboard OFF, vGPU OFF, Defender real-time must be ON (script can turn it ON only inside sandbox, never OFF), downloads only pinned official vendor assets (does not bundle Yandex or PulseSync proprietary binaries), verifies Authenticode and hashes, installs official Yandex 5.126.1, PulseSync Client 3.0.3-beta, PulseSync Mod 2.1.5 via its native deeplink, imports CELIKOM `.pext`, and launches Companion and modified Yandex inside the Sandbox.
+
+Only **after** this, owner uses **separate disposable Yandex Music test account with valid music access** and CELIKOM test account/API, pairs the local code, plays a known catalog-approved track, tests native pause, seek, Next, and original/Stop. No personal Yandex credentials, no debug flags, no Windows protection exclusions or SmartScreen bypasses. If the flow shows `SETUP_FAILED` or Windows Sandbox unavailable, do not install on daily PC; report only screen/status. Close Sandbox to discard all. Windows Sandbox enabling networking can expose third-party binaries to LAN; mapping is read-only and clipboard disabled.
+
+If Windows Sandbox not available (e.g. Windows Home/feature off), use a separate disposable Windows 10 Pro VM or independent test PC only. The launcher will NOT enable optional Windows features or change the host.
+
+**Caution:** This provides a path for a real test, NOT a guaranteed installer: PulseSync downloader availability, Windows Sandbox compatibility and eventual audio have not been tested in W19. A successful W18 installed mod **invalidated Yandex digital signature** and commercial PulseSync Client redistribution rights remain restricted. No production claims.

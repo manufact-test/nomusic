@@ -1,5 +1,8 @@
 # W15 — native Windows Companion + PulseSync bridge (preflight)
 
+**W18 evidence:** [mod installed + CELIKOM addon imported + modified Yandex process started](https://github.com/manufact-test/nomusic/actions/runs/42585206639) in disposable Windows Server with Defender ON, then exact original restored. **Authenticode became HashMismatch after mod.** Real song audio/seek/Next NOT TESTED; use W19 Sandbox/VM for that.
+
+
 ## Owner UI smoke, 2026-11-09
 
 W15 app launched successfully in owner's Windows 10 (screenshot), after standard SmartScreen unknown-publisher warning. UI window verified; CELIKOM login and actual Yandex source replacement not tested. W15.1 updated UI to Home/Account tabs with copyable pairing code; login/logout now rotate addon pairing token; Stop resets stale state. Windows W15.1 CI [42581622466](https://github.com/manufact-test/nomusic/actions/runs/42581622466) SUCCESS. Inner W15.1 preview ZIP SHA-256 `14f62042fa99d7cfabc831629182543c8db873f7447e7273950a6ecdbe28776e`, artifact `13657009476`. User does not need to rerun a GUI-only smoke immediately.
