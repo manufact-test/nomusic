@@ -1,0 +1,22 @@
+name: CELIKOM Android official-store version probe (metadata only)
+on:
+  push:
+    branches:
+      - experiment/android-native-yandex-gate1-20261109
+    paths:
+      - 'tools/android-native-gate1/probe_rustore.py'
+      - '.github/workflows/android-native-store-probe.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  metadata-only:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Query RuStore version metadata, no APK downloads, credentials or files
+        run: python tools/android-native-gate1/probe_rustore.py
