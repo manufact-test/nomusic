@@ -1,0 +1,34 @@
+name: Android clean ARM Yandex original + CELIKOM clone coexistence (NO DISTRIBUTION)
+on:
+  push:
+    branches:
+      - experiment/android-native-yandex-fileinfo-hooklab-20261109
+    paths:
+      - 'android/native-yandex-hooklab/clone_native_identity_phase2_ephemeral.py'
+      - '.github/workflows/android-native-clone-arm-coexistence-ephemeral.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  disposable-arm64-two-package-runtime:
+    runs-on: macos-15
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate scoped identity patch test syntax
+        run: python3 -m py_compile android/native-yandex-hooklab/clone_native_identity_phase2_ephemeral.py
+      - name: ARM64 Android 13, original and separate package side-by-side (no auth)
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 33
+          target: google_apis
+          arch: arm64-v8a
+          profile: pixel_5
+          emulator-boot-timeout: 600
+          script: CELIKOM_CLEAN_ARM_EMULATOR=1 python3 android/native-yandex-hooklab/clone_native_identity_phase2_ephemeral.py
+      - name: No third-party APK upload or owner device modifications
+        if: always()
+        run: |
+          test ! -d android/native-yandex-hooklab/release
+          test ! -d android/native-yandex-hooklab/patched
+          echo 'All vendor APKs, clone APKs, and lab keys are ephemeral and unshared'

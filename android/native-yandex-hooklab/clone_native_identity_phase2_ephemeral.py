@@ -101,6 +101,7 @@ def run():
                   "-dname", "CN=CELIKOM Non-distributable Lab, O=CELIKOM, C=XX"],
                  "IDENTITY_LAB_KEY", 60)
         original_splits, modified_splits = set(), set()
+        clone_output_apks = []
         total_passport_provider_rewrites = 0
         total_dex_literal_rewrites = 0
         total_resource_rewrites = 0
@@ -177,6 +178,7 @@ def run():
                         if patched_source_dexes[path] != new_zip.read(path):
                             raise arsc.TrialError("IDENTITY_UNEXPECTED_DEX_DIFFERENCES")
             modified_splits.add(split)
+            clone_output_apks.append(aligned)
             print(json.dumps({"split_index": i, "built_and_verified": True,
                               "dex_patch_count_total": total_dex_literal_rewrites,
                               "provider_identity_rewrites_total": total_passport_provider_rewrites}))
@@ -188,6 +190,44 @@ def run():
             raise arsc.TrialError("IDENTITY_SYNC_RESOURCE_COUNT_DRIFT")
         if total_dex_literal_rewrites != 1:
             raise arsc.TrialError("IDENTITY_DEX_LITERAL_COUNT_DRIFT")
+        emulator_runtime = {}
+        if os.getenv("CELIKOM_CLEAN_ARM_EMULATOR") == "1":
+            # This intentionally runs ONLY on a disposable clean ARM emulator,
+            # never on an owner device or in an emulator with user accounts.
+            import time
+            abi = arsc.run(["adb", "shell", "getprop", "ro.product.cpu.abilist"],
+                           "ARM_EMULATOR_ABI", 30).strip()
+            if "arm64-v8a" not in abi:
+                raise arsc.TrialError("ARM64_RUNTIME_REQUIRED")
+            arsc.run(["adb", "install-multiple", *[str(p) for p in apks]],
+                     "ARM_INSTALL_PUBLISHER_ORIGINAL", 240)
+            arsc.run(["adb", "install-multiple", *[str(p) for p in clone_output_apks]],
+                     "ARM_INSTALL_TEST_CLONE", 240)
+            original_paths = arsc.run(["adb", "shell", "pm", "path", source.SOURCE],
+                                      "ARM_PM_ORIGINAL", 40)
+            clone_paths = arsc.run(["adb", "shell", "pm", "path", source.DEST],
+                                   "ARM_PM_CLONE", 40)
+            original_count = sum(x.startswith("package:") for x in original_paths.splitlines())
+            clone_count = sum(x.startswith("package:") for x in clone_paths.splitlines())
+            if original_count != 5 or clone_count != 5:
+                raise arsc.TrialError("ARM_SIDE_BY_SIDE_SPLIT_COUNT_INVALID")
+            print(json.dumps({"emulator_install_gate": "SIDE_BY_SIDE_5_AND_5_PASS",
+                              "owner_phone_touched": False, "credential_use": False}))
+            arsc.run(["adb", "shell", "monkey", "-p", source.DEST,
+                      "-c", "android.intent.category.LAUNCHER", "1"],
+                     "ARM_CLONE_LAUNCH_INTENT", 50)
+            time.sleep(5)
+            pid = arsc.run(["adb", "shell", "pidof", source.DEST],
+                           "ARM_CLONE_PROCESS", 30).strip()
+            if not pid:
+                raise arsc.TrialError("ARM_CLONE_PROCESS_NOT_ALIVE")
+            emulator_runtime = {
+                "clean_arm_emulator_side_by_side_installed": True,
+                "original_split_count": original_count,
+                "clone_split_count": clone_count,
+                "clone_process_alive_after_launch": True,
+                "emulator_abi": abi
+            }
         result = {
             "verdict": "FIVE_SPLIT_IDENTITY_STRUCTURAL_PASS_ONLY",
             "split_count": 5,
@@ -201,6 +241,9 @@ def run():
             "native_audio_tested": False,
             "play_protect_tested": False
         }
+        if emulator_runtime:
+            result.update(emulator_runtime)
+            result["verdict"] = "SIDE_BY_SIDE_ARM_EMULATOR_INSTALL_AND_LAUNCH_PASS_NOT_AUDIO"
     return result
 
 
