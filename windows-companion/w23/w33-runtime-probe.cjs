@@ -163,6 +163,34 @@
       debug.attach("1.3");
     } catch { note("CDP_ATTACH_FAILED"); return () => {}; }
 
+    // W39: classifications only. Raw Origin, response headers and URLs MUST
+    // never be logged, returned or included in GitHub Actions artifacts.
+    const classifyOrigin = raw => {
+      if (typeof raw !== "string" || !raw) return "ABSENT";
+      switch (raw) {
+        case "null": return "NULL";
+        case "musicapplication://desktop": return "NATIVE";
+        case "https://desktop.app.music.yandex.net": return "DESKTOP_WEB";
+        case "https://music.yandex.ru": return "MUSIC_WEB";
+        case "https://next.music.yandex.ru": return "NEXT_WEB";
+        case "https://music.yandex.com": return "MUSIC_COM";
+        case "*": return "WILDCARD";
+        default: return raw.startsWith("musicapplication:") ? "UNLISTED_NATIVE" :
+          raw.startsWith("https:") ? "UNLISTED_HTTPS" : "UNLISTED_OTHER";
+      }
+    };
+    const header = (headers, name) => {
+      if (!headers || typeof headers !== "object") return undefined;
+      const key = Object.keys(headers).find(k => k.toLowerCase() === name);
+      const value = key ? headers[key] : undefined;
+      return typeof value === "string" ? value : undefined;
+    };
+    const observeHeaders = (headers, prefix) => {
+      note("CDP_" + prefix + "_ORIGIN_" +
+        classifyOrigin(header(headers, "origin")));
+      note("CDP_" + prefix + "_ACAO_" +
+        classifyOrigin(header(headers, "access-control-allow-origin")));
+    };
     const tracked = new Set();
     let seen = false, closed = false;
     const onMessage = (_event, method, data) => {
@@ -171,8 +199,30 @@
           tracked.add(String(data.requestId));
           seen = true;
           note("CDP_REQUEST_SEEN");
+          if (process.env.CELIKOM_W39_CORS_HEADERS === "1") {
+            observeHeaders(data.request.headers, "REQUEST");
+            note(data.request.method === "GET" ? "CDP_METHOD_GET" :
+              data.request.method === "OPTIONS" ? "CDP_METHOD_OPTIONS" :
+              "CDP_METHOD_OTHER");
+          }
+        } else if (method === "Network.requestWillBeSentExtraInfo" &&
+            tracked.has(String(data?.requestId))) {
+          if (process.env.CELIKOM_W39_CORS_HEADERS === "1")
+            observeHeaders(data?.headers, "WIRE_REQUEST");
+        } else if (method === "Network.responseReceivedExtraInfo" &&
+            tracked.has(String(data?.requestId))) {
+          if (process.env.CELIKOM_W39_CORS_HEADERS === "1") {
+            note("CDP_WIRE_STATUS_" +
+              (data?.statusCode === 403 ? "403" :
+                data?.statusCode >= 200 && data?.statusCode < 300 ? "2XX" :
+                  data?.statusCode >= 300 && data?.statusCode < 400 ? "3XX" :
+                    data?.statusCode >= 400 ? "4XX" : "UNKNOWN"));
+            observeHeaders(data?.headers, "WIRE_RESPONSE");
+          }
         } else if (method === "Network.responseReceived" &&
             tracked.has(String(data?.requestId))) {
+          if (process.env.CELIKOM_W39_CORS_HEADERS === "1")
+            observeHeaders(data?.response?.headers, "RESPONSE");
           const status = Number(data?.response?.status);
           note(status === 403 ? "CDP_HTTP_403" :
             status >= 200 && status < 300 ? "CDP_HTTP_2XX" : "CDP_HTTP_OTHER");
