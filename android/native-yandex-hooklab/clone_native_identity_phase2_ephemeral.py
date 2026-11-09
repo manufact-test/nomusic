@@ -36,7 +36,7 @@ def patch_one_dex(data):
     count = data.count(original)
     if count == 0:
         return data, False
-    if count != 1 or not data.startswith(b"dex\\n"):
+    if count != 1 or not data.startswith(b"dex\n"):
         raise arsc.TrialError("DEX_TARGET_NOT_ONE_EXACT_LITERAL")
     updated = bytearray(data.replace(original, replacement, 1))
     updated[12:32] = hashlib.sha1(updated[32:]).digest()
@@ -160,7 +160,7 @@ def run():
                             if "certificate SHA-256 digest:" in x]
             if len(signer_lines) != 1:
                 raise arsc.TrialError("IDENTITY_SIGNER_COUNT_DRIFT")
-            new_fingerprint = signer_lines[0].rsplit(":", 1)[-1].strip().replace(":", "").lower()
+            new_fingerprint = signer_lines[0].split("digest:", 1)[-1].strip().replace(":", "").lower()
             if len(new_fingerprint) != 64 or new_fingerprint == source.RUSTORE_SHA256_CERT:
                 raise arsc.TrialError("IDENTITY_SIGNER_NOT_INDEPENDENT")
             new_meta = source.apkmeta(aligned)
