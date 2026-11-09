@@ -28,6 +28,7 @@ function env() {
   };
   const root={
     location:{origin:'https://music.yandex.ru'},
+    URL,
     HTMLMediaElement:FakeMedia,
     __CELIKOM_YANDEX_ADAPTER_V1__:{createAdapter(){return adapter;}},
     CelikomBridge:{postMessage(x){sent.push(JSON.parse(x));}}
