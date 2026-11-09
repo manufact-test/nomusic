@@ -1,0 +1,38 @@
+name: Android exact signed Yandex parallel-clone structural trial (EPHEMERAL)
+on:
+  push:
+    branches:
+      - experiment/android-native-yandex-fileinfo-hooklab-20261109
+    paths:
+      - 'android/native-yandex-hooklab/clone_native_splits_ephemeral.py'
+      - 'android/native-yandex-hooklab/tests/test_clone_native_splits_ephemeral.py'
+      - '.github/workflows/android-native-clone-structure-ephemeral.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  no-artifact-parallel-structure:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Verify synthetic source package identity rewrites and no class renaming
+        run: |
+          python3 -m unittest discover -s android/native-yandex-hooklab/tests -p 'test_clone_native_splits_ephemeral.py' -v
+          python3 -m py_compile android/native-yandex-hooklab/clone_native_splits_ephemeral.py
+      - name: Full exact signed 5-split APK offline structural clone, ephemeral only
+        run: |
+          python3 android/native-yandex-hooklab/clone_native_splits_ephemeral.py
+      - name: Verify no Yandex APKs published in the repository
+        if: always()
+        run: |
+          test ! -d android/native-yandex-hooklab/release
+          test ! -d android/native-yandex-hooklab/patched
+          echo 'All third-party binaries/keys deleted; no artifact upload'
