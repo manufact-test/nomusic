@@ -30,6 +30,7 @@
   ]);
   const started = new Map();
   const completed = new Set();
+  const inFlight = new Set();
   const startedAt = Date.now();
   let discovered = false;
   let finished = false;
@@ -122,7 +123,7 @@
     return type + "_" + outcome + "_CSP_" + csp;
   }
   function attempt(view) {
-    if (finished || !approved(view) || completed.has(view.id) || pending > 2) return;
+    if (finished || !approved(view) || completed.has(view.id) || inFlight.has(view.id) || pending > 2) return;
     discovered = true;
     const attempts = started.get(view.id) || 0;
     if (attempts >= 3) return;
@@ -130,6 +131,7 @@
     try { loading = view.isLoadingMainFrame(); } catch {}
     if (loading) return;
     started.set(view.id, attempts + 1);
+    inFlight.add(view.id);
     pending++;
     note("APPROVED_RENDERER_FOUND");
     const timeout = new Promise(resolve => {
@@ -147,7 +149,7 @@
           note(classify(value.result));
           completed.add(view.id);
         }
-      }).finally(() => { pending--; });
+      }).finally(() => { pending--; inFlight.delete(view.id); });
   }
   function scan() {
     if (finished) return;
