@@ -20,7 +20,7 @@ import clone_native_splits_ephemeral as source
 import clone_native_splits_arsclib_ephemeral as arsc
 
 OLD_METRICA = "com.yandex.preinstallsatellite.appmetrica.provider"
-NEW_METRICA = "pro.celikom.nativeclonelab.appmetrica.provider.v01"
+NEW_METRICA = "com.yandex.preinstallsatellite.appmetrica.provideq"
 OLD_SYNC = "com.yandex.passport.sync.ru.yandex.music"
 NEW_SYNC = "com.yandex.passport.sync." + source.DEST
 SYNC_KEY = "passport_sync_adapter_content_authority"
@@ -310,6 +310,7 @@ def full_native_main_ui_pass(samples, activity_status, foreground):
         and not activity_status.get("activity_explicit_error")
         and (last.get("direct_pid_alive") or last.get("ps_main_process_alive"))
         and foreground.get("activity_resumed_for_package")
+        and foreground.get("window_focus_for_package")
     )
 
 
@@ -422,6 +423,12 @@ def run():
         # This isolates manifest/package rewriting from the known-bad
         # AppMetrica byte substitution that violated DEX string_ids ordering.
         preserve_original_dex = os.getenv("CELIKOM_MANIFEST_ONLY_ORIGINAL_DEX") == "1"
+        sorted_metrica_runtime = os.getenv("CELIKOM_SORTED_METRICA_RUNTIME") == "1"
+        strict_main_ui_gate = preserve_original_dex or sorted_metrica_runtime
+        if sorted_metrica_runtime and preserve_original_dex:
+            raise arsc.TrialError("SORTED_METRICA_REQUIRES_MUTABLE_LAB_DEX")
+        if sorted_metrica_runtime and os.getenv("CELIKOM_CLEAN_ANDROID_ARMV7_TRANSLATION") != "1":
+            raise arsc.TrialError("SORTED_METRICA_REQUIRES_DISPOSABLE_ANDROID_EMULATOR")
         if preserve_original_dex and os.getenv("GITHUB_ACTIONS") != "true":
             raise arsc.TrialError("MANIFEST_ONLY_REQUIRES_EPHEMERAL_GITHUB_CI")
         if omit_shadowed and os.getenv("CELIKOM_CLEAN_ANDROID_ARMV7_TRANSLATION") != "1":
@@ -676,7 +683,7 @@ def run():
             print(json.dumps({"emulator_install_gate": "SIDE_BY_SIDE_5_AND_5_PASS",
                               "owner_phone_touched": False, "credential_use": False}))
             # Disposable emulator only: scope lifecycle evidence to this launch.
-            if preserve_original_dex:
+            if strict_main_ui_gate:
                 arsc.run(["adb", "logcat", "-c"],
                          "CLEAN_EMULATOR_LAUNCH_EVENT_SCOPE", 30)
             launch_stdout = arsc.run(
@@ -685,7 +692,7 @@ def run():
                  "-c", "android.intent.category.LAUNCHER",
                  "-n", source.DEST + "/ru.yandex.music.main.MainScreenActivity"],
                 "ARM_CLONE_DIRECT_LAUNCH", 60)
-            if preserve_original_dex:
+            if strict_main_ui_gate:
                 print(json.dumps({
                     "clone_activity_start": classify_activity_start(launch_stdout)
                 },sort_keys=True))
@@ -726,7 +733,7 @@ def run():
                      "-s", "AndroidRuntime:E", "ActivityManager:W",
                      "ActivityTaskManager:W", "libc:F", "DEBUG:F"],
                     "ARM_CLONE_PRIVACY_SAFE_CRASH_CLASSIFICATION", 35)
-                if preserve_original_dex:
+                if strict_main_ui_gate:
                     try:
                         event_log = arsc.run(
                             ["adb", "logcat", "-b", "events", "-d",
@@ -742,7 +749,7 @@ def run():
                         }))
                 relevant_crash = raw_crashes.rsplit(
                     "Process: " + source.DEST, 1)[-1][:16000]
-                if preserve_original_dex:
+                if strict_main_ui_gate:
                     try:
                         exit_dump = arsc.run(
                             ["adb", "shell", "dumpsys", "activity", "exit-info",
@@ -766,7 +773,7 @@ def run():
                 }, sort_keys=True))
                 raise arsc.TrialError(
                     "MAIN_UI_NOT_READY_AUXILIARY_PROCESS_ALONE_INSUFFICIENT"
-                    if preserve_original_dex else "ARM_CLONE_PROCESS_NOT_ALIVE")
+                    if strict_main_ui_gate else "ARM_CLONE_PROCESS_NOT_ALIVE")
             emulator_runtime = {
                 "clean_arm_emulator_side_by_side_installed": True,
                 "original_split_count": original_count,
@@ -785,6 +792,7 @@ def run():
             "passport_sync_resource_rewrites": total_resource_rewrites,
             "single_reversible_appmetrica_dex_literal_rewrite": not preserve_original_dex,
             "all_original_dex_preserved_byte_identical": preserve_original_dex,
+            "sorted_metrica_authority_consistency_trial": sorted_metrica_runtime,
             "resolved_original_vs_clone_provider_collisions": 0,
             "shadowed_signature_declarations_omitted_in_install_only_clone": omitted_permission_declarations,
             "issuer_permission_protection_not_weakened": True,
@@ -797,6 +805,10 @@ def run():
         }
         if emulator_runtime:
             result.update(emulator_runtime)
+            if strict_main_ui_gate:
+                result["strict_main_foreground_ui_verified"] = True
+                result["verdict"] = "SIDE_BY_SIDE_MAIN_UI_ONLY_NOT_AUTH_OR_AUDIO"
+                return result
             result["verdict"] = (
                 "SIDE_BY_SIDE_X86_ARMV7_TRANSLATED_INSTALL_LAUNCH_ONLY"
                 if translated_x86_armv7 else

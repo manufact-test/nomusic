@@ -171,11 +171,17 @@ class SafeCloneCrashClassificationTest(unittest.TestCase):
             {"activity_status_ok": True, "activity_explicit_error": False},
             {"activity_resumed_for_package": False}))
 
+    def test_main_and_resumed_but_not_window_focused_is_not_pass(self):
+        self.assertFalse(full_native_main_ui_pass(
+            [{"direct_pid_alive": True, "ps_main_process_alive": True}],
+            {"activity_status_ok": True, "activity_explicit_error": False},
+            {"activity_resumed_for_package": True, "window_focus_for_package": False}))
+
     def test_only_real_main_and_resumed_activity_pass(self):
         self.assertTrue(full_native_main_ui_pass(
             [{"direct_pid_alive": True, "ps_main_process_alive": True}],
             {"activity_status_ok": True, "activity_explicit_error": False},
-            {"activity_resumed_for_package": True}))
+            {"activity_resumed_for_package": True, "window_focus_for_package": True}))
 
     def test_no_crash_produces_zero_flags(self):
         report = classify_clone_launch_logcat("")
