@@ -33,6 +33,23 @@
   const inFlight = new Set();
   const startedAt = Date.now();
   let discovered = false;
+  const seenViewKinds = new Set();
+  function noteViewKind(view) {
+    let kind = "VIEW_URL_EMPTY";
+    try {
+      const raw = view.getURL();
+      if (raw) {
+        const u = new URL(raw);
+        kind = u.protocol === "musicapplication:" ? "VIEW_SCHEME_NATIVE" :
+          u.protocol === "https:" ? "VIEW_SCHEME_HTTPS" : "VIEW_SCHEME_OTHER";
+        if (u.hostname.toLowerCase() === "desktop") kind = "VIEW_HOST_DESKTOP";
+        else if (u.hostname.toLowerCase().endsWith(".yandex.ru") ||
+          u.hostname.toLowerCase().endsWith(".yandex.net") ||
+          u.hostname.toLowerCase() === "music.yandex.com") kind = "VIEW_HOST_YANDEX";
+      }
+    } catch { kind = "VIEW_URL_PARSE_ERROR"; }
+    if (!seenViewKinds.has(kind)) { seenViewKinds.add(kind); note(kind); }
+  }
   let finished = false;
   let pending = 0;
 
@@ -106,6 +123,7 @@
 
   function approved(view) {
     try {
+      if (typeof validView === "function") return validView(view);
       if (view.isDestroyed()) return false;
       const url = new URL(view.getURL());
       return allowed.has(url.origin) ||
@@ -157,7 +175,8 @@
     try { views = webContents.getAllWebContents(); }
     catch { note("WEB_CONTENTS_SCAN_ERROR"); return; }
     if (!Array.isArray(views)) return;
-    for (const view of views) attempt(view);
+    if (views.length === 0) note("VIEW_LIST_EMPTY");
+    for (const view of views) { noteViewKind(view); attempt(view); }
   }
   app.on("web-contents-created", (_event, view) => {
     if (finished) return;
