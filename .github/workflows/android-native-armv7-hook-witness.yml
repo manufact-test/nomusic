@@ -1,0 +1,65 @@
+name: CELIKOM isolated ARMv7 own-host libxposed witness (no Yandex)
+on:
+  push:
+    branches:
+      - experiment/android-native-yandex-fileinfo-hooklab-20261109
+    paths:
+      - 'android/native-yandex-hooklab/armv7-witness-module/**'
+      - 'android/native-yandex-hooklab/build_owned_loader_host.py'
+      - '.github/workflows/android-native-armv7-hook-witness.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  own-only-hook-witness:
+    runs-on: ubuntu-latest
+    timeout-minutes: 28
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+      - name: Build separate ARMv7 host, new package ID, no Yandex source
+        run: gradle -p android/native-yandex-hooklab/armv7-loader-host :app:assembleDebug --no-daemon -PcelikomWitnessAppId=pro.celikom.armv7loaderhost.witness
+      - name: Build read-only libxposed module scoped only to own witness host
+        run: gradle -p android/native-yandex-hooklab/armv7-witness-module :app:assembleDebug --no-daemon
+      - name: Verify no official-package hooks, capture or unsafe permissions
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          base=Path('android/native-yandex-hooklab/armv7-witness-module/app')
+          source=(base/'src/main/java/pro/celikom/armv7witnessmodule/HookWitnessEntry.java').read_text()
+          scope=(base/'src/main/resources/META-INF/xposed/scope.list').read_text().strip()
+          assert scope == 'pro.celikom.armv7loaderhost.witness'
+          assert 'ru.yandex.music' not in source
+          assert 'setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)' in source
+          assert 'chain.proceed()' in source
+          for forbidden in ('getAccount', 'OAuth', 'Authorization', 'MediaPlayer(', 'WebView(', 'setDataSource('):
+              assert forbidden not in source
+          print('PASS: own host only; no Yandex, media or credential hook')
+          PY
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Embed own-only module into owned ARMv7 APK, no signature bypass
+        env:
+          CELIKOM_OWN_WITNESS: '1'
+          CELIKOM_OWNED_ARTIFACT_DIR: ${{ runner.temp }}/own-armv7-witness
+        run: |
+          python3 -m py_compile android/native-yandex-hooklab/build_owned_loader_host.py
+          python3 android/native-yandex-hooklab/build_owned_loader_host.py
+      - name: Upload internal own-code witness test APK only
+        uses: actions/upload-artifact@v4
+        with:
+          name: CELIKOM-ARMv7-HOOK-WITNESS-OWNER-TEST
+          path: ${{ runner.temp }}/own-armv7-witness/CELIKOM-ARMv7-HOOK-WITNESS-Test.apk
+          if-no-files-found: error
+          retention-days: 7
+      - name: Delete temporary files regardless of outcome
+        if: always()
+        run: rm -rf -- "$RUNNER_TEMP/own-armv7-witness"
