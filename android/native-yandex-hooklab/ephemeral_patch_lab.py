@@ -217,6 +217,24 @@ def main():
             # Defensive validation independent of vendor JSON field spelling.
             if any(k in str(cfg).lower() for k in ("password","oauth","authtoken")):
                 raise ValueError("Suspicious patched runtime configuration")
+        # Optional ONLY for a fresh, isolated CI emulator started in the same job.
+        # The runner deletes these original/patched APKs in an always-run cleanup
+        # step; public Actions artifacts are never uploaded.
+        emulator_dir=os.getenv("CELIKOM_EMULATOR_TEST_DIR")
+        if emulator_dir:
+            if os.getenv("GITHUB_ACTIONS")!="true":
+                raise ValueError("Ephemeral emulator export allowed only in isolated GitHub CI")
+            runner_temp=os.getenv("RUNNER_TEMP")
+            if not runner_temp:
+                raise ValueError("Missing ephemeral runner root")
+            base=Path(runner_temp).resolve()
+            target=Path(emulator_dir).resolve()
+            if target == base or base not in target.parents or target.exists():
+                raise ValueError("Emulator staging path must be new and strictly inside RUNNER_TEMP")
+            target.mkdir(parents=True,mode=0o700)
+            for i,p in enumerate(sorted(patched)):
+                shutil.copyfile(p,target/f"native-split-{i}.apk")
+
         print(json.dumps({
             "result":"PATCHED_EXACT_NATIVE_HOST_BUNDLE_STRUCTURALLY_VERIFIED_NO_RUNTIME",
             "base_original_package":PACKAGE,
@@ -239,7 +257,7 @@ def main():
             "host_installed":False,
             "runtime_hook_evidence":False,
             "play_protect_tested":False,
-            "retained_binaries":False
+            "retained_binaries":("RUNNER_TEMP_ONLY_FOR_IMMEDIATE_EMULATOR" if emulator_dir else False)
         },indent=2,ensure_ascii=False))
     return 0
 
