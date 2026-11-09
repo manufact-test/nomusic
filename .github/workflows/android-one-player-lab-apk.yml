@@ -31,6 +31,8 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.10.2'
+      - name: Local-only APK inspector regression
+        run: python3 -m unittest discover -s tools -p 'test_*.py' -v
       - name: Compile host-only source-gate
         run: bash run-tests.sh
       - name: Build standalone debug APK
