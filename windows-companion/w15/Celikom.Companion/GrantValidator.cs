@@ -5,7 +5,7 @@ using System.Text.RegularExpressions;
 namespace Celikom.Companion;
 
 public sealed record SourceGrant(string TrackId, bool Approved, bool Entitled,
-    string AudioUrl, long ExpiresAt);
+    string AudioUrl, long ExpiresAt, string MimeType);
 
 /// <summary>
 /// Converts the actual server ResolveService contract into a narrow,
@@ -81,6 +81,7 @@ public static class GrantValidator
                 RegexOptions.CultureInvariant)))
             return null;
 
-        return new SourceGrant(trackId, true, true, link.AbsoluteUri, expiresSeconds * 1000);
+        return new SourceGrant(trackId, true, true, link.AbsoluteUri, expiresSeconds * 1000,
+            mime.GetString()!);
     }
 }
