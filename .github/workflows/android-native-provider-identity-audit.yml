@@ -1,0 +1,33 @@
+name: Android signed Yandex provider identity audit (READ-ONLY)
+on:
+  push:
+    branches:
+      - experiment/android-native-yandex-fileinfo-hooklab-20261109
+    paths:
+      - 'android/native-yandex-hooklab/audit_native_provider_identities_ephemeral.py'
+      - '.github/workflows/android-native-provider-identity-audit.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  no-artifact-native-provider-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Python syntax and existing manifest invariants
+        run: |
+          python3 -m py_compile android/native-yandex-hooklab/audit_native_provider_identities_ephemeral.py
+          python3 -m unittest discover -s android/native-yandex-hooklab/tests -p 'test_clone_native_splits_ephemeral.py'
+      - name: Audit real original publisher-signed provider DEX/resource identity references
+        run: python3 android/native-yandex-hooklab/audit_native_provider_identities_ephemeral.py
+      - name: No APK files committed/uploaded
+        if: always()
+        run: |
+          test ! -d android/native-yandex-hooklab/release
+          test ! -d android/native-yandex-hooklab/patched
+          echo 'Only public manifest metadata and literal counts; no artifacts'
