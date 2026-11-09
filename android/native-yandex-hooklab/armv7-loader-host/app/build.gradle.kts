@@ -7,6 +7,7 @@ android {
         val witnessId = providers.gradleProperty("celikomWitnessAppId").orNull
         require(witnessId == null || witnessId == "pro.celikom.armv7loaderhost.witness")
         applicationId = witnessId ?: "pro.celikom.armv7loaderhost"
+        manifestPlaceholders["celikomLabLabel"] = if (witnessId == null) "CELIKOM ARM Loader Lab" else "CELIKOM ARM Hook Witness"
         minSdk = 28
         targetSdk = 33
         versionCode = 1
