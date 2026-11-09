@@ -1,0 +1,46 @@
+name: CELIKOM isolated OWN ARMv7 LSPatch loader APK (no Yandex)
+on:
+  push:
+    branches:
+      - experiment/android-native-yandex-fileinfo-hooklab-20261109
+    paths:
+      - 'android/native-yandex-hooklab/armv7-loader-host/**'
+      - 'android/native-yandex-hooklab/build_owned_loader_host.py'
+      - '.github/workflows/android-native-armv7-owned-host.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  armv7-native-host:
+    runs-on: ubuntu-latest
+    timeout-minutes: 24
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+      - name: Build CELIKOM-owned ARMv7-only APK, no permissions
+        run: gradle -p android/native-yandex-hooklab/armv7-loader-host :app:assembleDebug --no-daemon
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Verify independent package, ARMv7 ELF, no Yandex; LSPatch sigbypass=0 with ZERO modules
+        run: |
+          export CELIKOM_OWNED_ARTIFACT_DIR="$RUNNER_TEMP/celikom-owned-arm-loader"
+          python3 -m py_compile android/native-yandex-hooklab/build_owned_loader_host.py
+          python3 android/native-yandex-hooklab/build_owned_loader_host.py
+      - name: Keep only our own-source standalone test APK (7 days, not Yandex)
+        uses: actions/upload-artifact@v4
+        with:
+          name: CELIKOM-ARMv7-LOADER-ONLY-OWNER-TEST
+          path: ${{ runner.temp }}/celikom-owned-arm-loader/CELIKOM-ARMv7-LOADER-ONLY-Test.apk
+          if-no-files-found: error
+          retention-days: 7
+      - name: Delete ephemeral package even on failure
+        if: always()
+        run: rm -rf -- "$RUNNER_TEMP/celikom-owned-arm-loader"
