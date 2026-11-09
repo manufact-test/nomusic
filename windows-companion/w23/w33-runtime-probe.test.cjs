@@ -60,6 +60,7 @@ function harness({ initialUrl = "", loading = true, failOnce = false } = {}) {
     Date, URL, Set, Map, Promise
   };
   vm.runInNewContext(source, context, {timeout:1000});
+  app.emit("web-contents-created", {}, view);
   return {
     app, view, events, intervals, timeouts,
     setReady(nextUrl="musicapplication://desktop/") { url=nextUrl;isLoading=false;view.emit("dom-ready"); },
