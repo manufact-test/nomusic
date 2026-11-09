@@ -1,0 +1,70 @@
+name: CELIKOM W33 disposable genuine-Yandex renderer fetch boundary
+
+on:
+  push:
+    branches:
+      - experiment/windows-companion-integration-20261108
+    paths:
+      - windows-companion/w23/w33-runtime-probe.cjs
+      - windows-companion/w23/w23-host-smoke.ps1
+      - .github/workflows/windows-w33-genuine-renderer-probe.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  genuine-renderer-boundary:
+    runs-on: windows-2022
+    timeout-minutes: 38
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Build original CELIKOM native main/renderer for disposable Yandex only
+        working-directory: windows-companion/w23
+        shell: pwsh
+        run: |
+          npm install --no-audit --no-fund --no-package-lock
+          if ($LASTEXITCODE -ne 0) { throw 'W33_NPM_FAIL' }
+          npm run build
+          if ($LASTEXITCODE -ne 0) { throw 'W33_BUNDLE_FAIL' }
+      - name: Verify source-only adapter/renderer and bounded audio diagnostic tests
+        shell: pwsh
+        run: |
+          node --test windows-companion/w22/native-resource-adapter.test.mjs windows-companion/w23/native-host.test.mjs windows-companion/w23/renderer-relay.test.mjs windows-companion/w23/audio-probe.test.mjs
+          if ($LASTEXITCODE -ne 0) { throw 'W33_NATIVE_TESTS_FAIL' }
+      - name: Build temporary Windows companion without owner account
+        shell: pwsh
+        run: |
+          dotnet publish windows-companion/w15/Celikom.Companion/Celikom.Companion.csproj -c Release -r win-x64 --self-contained false -o windows-companion/w23/companion
+          if ($LASTEXITCODE -ne 0) { throw 'W33_COMPANION_PUBLISH_FAIL' }
+      - name: Signed genuine Yandex 5.126.1 disposable renderer HTTP/CSP probe; restore vendor bytes
+        shell: pwsh
+        env:
+          CELIKOM_W33_RUNTIME_PROBE: '1'
+        run: |
+          ./windows-companion/w23/w23-host-smoke.ps1
+          if ($LASTEXITCODE -ne 0) { throw 'W33_DISPOSABLE_NATIVE_PROBE_FAIL' }
+          $report = Get-Content 'windows-companion/w23/W23-report.json' -Raw | ConvertFrom-Json
+          if (-not $report.originalBytesRestored -or -not $report.originalSignatureRestored) {
+            throw 'W33_ORIGINAL_VENDOR_BYTES_NOT_RESTORED'
+          }
+          $probe = @($report.w33RuntimeProbe)
+          if ($probe.Count -eq 0) { throw 'W33_NO_NATIVE_RENDERER_OBSERVATION' }
+          $probe | ForEach-Object { Write-Output "W33_RUNTIME_RESULT: $_" }
+          Write-Output 'W33_REAL_YANDEX_RENDERER_BOUNDARY_TEST_COMPLETED'
+      - name: Retain only sanitized CI report (never patched Yandex binaries or credentials)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: CELIKOM-W33-DISPOSABLE-RENDERER-REPORT
+          path: windows-companion/w23/W23-report.json
+          retention-days: 7
+          if-no-files-found: warn
