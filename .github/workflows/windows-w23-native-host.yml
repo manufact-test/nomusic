@@ -40,7 +40,7 @@ jobs:
       - name: Native source contract and ASAR/EXE staging tests
         shell: pwsh
         run: |
-          node --test windows-companion/w22/native-resource-adapter.test.mjs windows-companion/w23/asar-images.test.mjs
+          node --test windows-companion/w22/native-resource-adapter.test.mjs windows-companion/w23/asar-images.test.mjs windows-companion/w23/native-host.test.mjs
           if ($LASTEXITCODE -ne 0) { throw 'NATIVE_IMAGE_CONTRACT_FAILURE' }
       - name: Patch genuine Yandex only on disposable runner, verify native host and restore
         shell: pwsh
