@@ -50,12 +50,27 @@ jobs:
             try {
               $mp = Get-MpComputerStatus -ErrorAction Stop
               $protected = $mp.AntivirusEnabled -eq $true -and $mp.RealTimeProtectionEnabled -eq $true
+              if($mp.AntivirusEnabled -eq $true -and !$protected) {
+                # The hosted runner comes with Defender realtime OFF. Turn it ON,
+                # not off. If policy blocks activation, refuse all installers.
+                try {
+                  Set-MpPreference -DisableRealtimeMonitoring $false -ErrorAction Stop
+                  Start-Sleep -Seconds 7
+                  $mp = Get-MpComputerStatus -ErrorAction Stop
+                } catch { $report.notes = 'Cannot enable Defender realtime on disposable runner' }
+                $protected = $mp.AntivirusEnabled -eq $true -and $mp.RealTimeProtectionEnabled -eq $true
+              }
               $report.defender = "antivirus=$($mp.AntivirusEnabled);realtime=$($mp.RealTimeProtectionEnabled)"
             } catch {
               $protected = $false
               $report.defender = "UNAVAILABLE"
             }
             Save-Status
+            if(!$protected){
+              $report.yandexInstall = 'SAFE_STOP_HOSTED_DEFENDER_STILL_OFF'
+              Save-Status
+              exit 0
+            }
             $original = Download-Pinned 'https://desktop.app.music.yandex.net/stable/Yandex_Music_x64_5.126.1.exe' 'Yandex_Music_x64_5.126.1.exe' ''
             $sig = Get-AuthenticodeSignature -FilePath $original.path
             $report.officialInstaller = "sha256=$($original.sha);bytes=$($original.bytes)"
