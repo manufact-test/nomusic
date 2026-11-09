@@ -231,13 +231,18 @@ def installed_process_snapshot(package):
         raise arsc.TrialError("ANDROID_PS_PROBE_FAILED")
     process_names = [line.split()[-1] for line in ps.stdout.splitlines()[1:]
                      if line.split()]
+    aux_names = [name[len(package)+1:] for name in process_names
+                 if name.startswith(package + ":")]
+    import re
+    public_aux = [name for name in aux_names[:8]
+                  if len(name) <= 64 and re.fullmatch(r"[a-zA-Z0-9_.-]+", name)]
     return {
         "direct_pid_alive": main_alive,
         "ps_main_process_alive": package in process_names,
-        "ps_auxiliary_process_alive": any(
-            name.startswith(package + ":") for name in process_names),
+        "ps_auxiliary_process_alive": bool(aux_names),
+        "safe_auxiliary_process_suffixes": public_aux,
         "any_named_process_alive": (main_alive or package in process_names or
-            any(name.startswith(package + ":") for name in process_names)),
+            bool(aux_names)),
         "raw_process_output_exposed": False
     }
 
@@ -253,6 +258,33 @@ def classify_activity_start(stdout):
         "launch_state_warm": "LaunchState: WARM" in stdout,
         "raw_activity_output_exposed": False
     }
+
+
+
+def disposable_foreground_snapshot(package):
+    """Only foreground booleans from public Android activity/window manager.
+
+    All captured system text stays inside the temporary emulator CI process;
+    no URLs, account screens, view texts or component internals are printed.
+    """
+    if package not in (source.SOURCE, source.DEST):
+        raise arsc.TrialError("UNAPPROVED_FOREGROUND_PACKAGE")
+    activity = arsc.run(["adb", "shell", "dumpsys", "activity", "activities"],
+                        "FOREGROUND_ACTIVITY_QUERY", 35)
+    window = arsc.run(["adb", "shell", "dumpsys", "window", "windows"],
+                      "FOREGROUND_WINDOW_QUERY", 35)
+    resumed = [line for line in activity.splitlines()
+               if "resumedactivity" in line.lower()]
+    focused = [line for line in window.splitlines()
+               if "mCurrentFocus" in line or "mFocusedApp" in line]
+    return {
+        "activity_resumed_for_package": any(package + "/" in line for line in resumed),
+        "window_focus_for_package": any(package + "/" in line for line in focused),
+        "activity_resumed_row_detected": bool(resumed),
+        "window_focus_row_detected": bool(focused),
+        "raw_activity_or_window_output_exposed": False
+    }
+
 
 
 def classify_activity_exit_info(raw):
@@ -568,12 +600,20 @@ def run():
                     "clone_activity_start": classify_activity_start(launch_stdout)
                 },sort_keys=True))
                 startup_samples = []
-                for delay in (0.1, 1.0, 4.0):
+                for delay in (0.1, 1.0, 4.0, 8.0):
                     time.sleep(delay)
                     startup_samples.append(installed_process_snapshot(source.DEST))
+                foreground = disposable_foreground_snapshot(source.DEST)
+                original_after_clone = installed_process_snapshot(source.SOURCE)
                 print(json.dumps({
-                    "manifest_only_clone_startup_samples": startup_samples
+                    "manifest_only_clone_startup_samples": startup_samples,
+                    "manifest_only_clone_foreground": foreground,
+                    "original_process_alive_after_clone_launch":
+                        original_after_clone["any_named_process_alive"],
+                    "login_and_audio_untested": True
                 },sort_keys=True))
+                if not original_after_clone["any_named_process_alive"]:
+                    raise arsc.TrialError("PUBLISHER_PROCESS_DID_NOT_SURVIVE_CLONE")
                 pid = "observed" if startup_samples[-1]["any_named_process_alive"] else ""
             else:
                 time.sleep(5)
