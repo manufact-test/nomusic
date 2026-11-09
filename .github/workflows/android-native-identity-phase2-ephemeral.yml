@@ -1,4 +1,4 @@
-name: Android native 5-split exact provider identity research (EPHEMERAL)
+name: Android native 5-split manifest-only safe identity structural gate (EPHEMERAL)
 on:
   push:
     branches:
@@ -24,7 +24,7 @@ jobs:
       - name: Synthetic provider authority resolution invariants
         run: python3 -m unittest discover -s android/native-yandex-hooklab/tests -p 'test_resolved_provider_authorities.py' -v
       - name: Five-split exact scoped public provider identity trial
-        run: python3 android/native-yandex-hooklab/clone_native_identity_phase2_ephemeral.py
+        run: CELIKOM_MANIFEST_ONLY_ORIGINAL_DEX=1 python3 android/native-yandex-hooklab/clone_native_identity_phase2_ephemeral.py
       - name: No source APK published, installed, retained or uploaded
         if: always()
         run: |
