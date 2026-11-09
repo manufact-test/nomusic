@@ -75,7 +75,8 @@ function harness({ initialUrl = "", loading = true, failOnce = false, cdp = fals
   };
   const context = {
     process:{env:{CELIKOM_W33_RUNTIME_PROBE:"1",CELIKOM_W23_DEV_DIAG:"CI-only",
-      ...(cdp ? {CELIKOM_W37_CDP_PROBE:"1",CELIKOM_W39_CORS_HEADERS:"1"} : {})}},
+      ...(cdp ? {CELIKOM_W37_CDP_PROBE:"1",CELIKOM_W39_CORS_HEADERS:"1",
+                  CELIKOM_W41_SCHEME_ONLY:"1"} : {})}},
     require: name => {
       if(name==="node:fs")return fakeFs;
       if(name==="node:https")return fakeHttps;
@@ -163,4 +164,13 @@ test("W40: alternative native Origin scheme is categorized without leaking exact
   await flush();await flush();
   assert.ok(h.events.includes("W33_RT_CDP_WIRE_REQUEST_ORIGIN_LOCAL_HTTP"));
   assert.equal(h.events.some(e=>e.includes("54321")||e.includes("127.0.0.1")),false);
+});
+
+test("W41: emit only bounded native Origin scheme and allowed host category", async()=>{
+  const h=harness({cdp:true,wireOrigin:"yandex-music-client://desktop"});
+  h.setReady(); await flush(); await flush();
+  assert.ok(h.events.includes("W33_RT_CDP_WIRE_SCHEME_YANDEX_MUSIC_CLIENT"));
+  assert.ok(h.events.includes("W33_RT_CDP_WIRE_HOST_DESKTOP"));
+  assert.ok(h.events.includes("W33_RT_CDP_WIRE_PORT_ABSENT"));
+  assert.equal(h.events.some(e=>e.includes("://")||e.includes("secret")),false);
 });
