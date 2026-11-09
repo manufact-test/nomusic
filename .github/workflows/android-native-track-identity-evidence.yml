@@ -1,0 +1,29 @@
+name: Android signed-native Yandex trackId to FileInfo static evidence (READ-ONLY)
+on:
+  push:
+    branches:
+      - experiment/android-native-yandex-fileinfo-hooklab-20261109
+    paths:
+      - 'android/native-yandex-hooklab/audit_native_track_identity_static.py'
+      - '.github/workflows/android-native-track-identity-evidence.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  signed-no-artifact-trackid-evidence:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify syntax and known signed manifest invariant tests
+        run: |
+          python3 -m py_compile android/native-yandex-hooklab/audit_native_track_identity_static.py
+          python3 -m unittest discover -s android/native-yandex-hooklab/tests -p 'test_clone_native_splits_ephemeral.py' -v
+      - name: Static trackId and source boundary audit against real publisher-signed 5-split client
+        run: python3 android/native-yandex-hooklab/audit_native_track_identity_static.py
+      - name: Ensure no original APK committed or published
+        if: always()
+        run: |
+          test ! -d android/native-yandex-hooklab/release
+          test ! -d android/native-yandex-hooklab/patched
+          echo 'No vendor APK artifacts and no login/audio/user data'
