@@ -149,7 +149,7 @@ try {
         expect($response->status === 503 && $response->body === '{"error":"service_unavailable"}', 'Safe error');
     });
     run('Native Yandex audio CORS permits signed media only, not account or arbitrary API routes', function () use ($app, $query): void {
-        foreach (['null', 'musicapplication://desktop',
+        foreach (['null', 'musicapplication://desktop', 'music-application://desktop',
             'https://desktop.app.music.yandex.net',
             'https://next.music.yandex.ru',
             'https://music.yandex.com'] as $origin) {
@@ -168,7 +168,7 @@ try {
             expect($preflight->status === 204 && ($preflight->headers['Access-Control-Allow-Origin'] ?? null) === $origin, 'Native audio preflight');
             expect(str_contains($preflight->headers['Access-Control-Allow-Headers'] ?? '', 'Range'), 'Native preflight permits Range');
         }
-        foreach (['null','musicapplication://desktop','https://desktop.app.music.yandex.net'] as $origin) {
+        foreach (['null','musicapplication://desktop','music-application://desktop','https://desktop.app.music.yandex.net'] as $origin) {
             $resolve = $app->handle('GET', '/api/v1/resolve',
                 ['service' => 'yandex', 'track_id' => '1944599'], ['Origin' => $origin]);
             expect($resolve->status === 401 && !isset($resolve->headers['Access-Control-Allow-Origin']),
@@ -180,9 +180,30 @@ try {
             expect($bad->status === 404 && !isset($bad->headers['Access-Control-Allow-Origin']),
                 'Native origin cannot enable arbitrary path CORS');
         }
-        $foreign = $app->handle('GET', '/api/v1/audio/7', $query, ['Origin' => 'https://evil.example']);
-        expect($foreign->status === 200 && !isset($foreign->headers['Access-Control-Allow-Origin']),
-            'Unknown origin denied CORS even with a valid signed bearer');
+        // Rejected bearer MUST remain rejected even when the exact native
+        // Origin is permitted for CORS: visibility is not authorization.
+        $nativeOrigin = 'music-application://desktop';
+        $denied = $app->handle('GET', '/api/v1/audio/7',
+            ['expires' => $query['expires'], 'token' => str_repeat('0', 64)],
+            ['Origin' => $nativeOrigin, 'Range' => 'bytes=0-31']);
+        expect($denied->status === 403 &&
+            ($denied->headers['Access-Control-Allow-Origin'] ?? null) === $nativeOrigin,
+            'Native invalid token remains denied with visible CORS rejection');
+
+        foreach (['https://evil.example','music-application://evil',
+            'music-application://desktop.evil.example',
+            'music-application://desktop:1234'] as $foreignOrigin) {
+            $foreign = $app->handle('GET', '/api/v1/audio/7', $query,
+                ['Origin' => $foreignOrigin]);
+            expect($foreign->status === 200 &&
+                !isset($foreign->headers['Access-Control-Allow-Origin']),
+                'Unknown or lookalike origin denied CORS even with valid signed bearer');
+            $badOptions = $app->handle('OPTIONS', '/api/v1/audio/7', [],
+                ['Origin' => $foreignOrigin, 'Access-Control-Request-Headers' => 'Range']);
+            expect($badOptions->status !== 204 &&
+                !isset($badOptions->headers['Access-Control-Allow-Origin']),
+                'Unknown origin cannot preflight audio range');
+        }
     });
     run('whole audio and HEAD', function () use ($app, $query): void {
         $response = $app->handle('GET', '/api/v1/audio/7', $query);
