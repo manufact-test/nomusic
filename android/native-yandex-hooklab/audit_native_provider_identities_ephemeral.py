@@ -68,7 +68,7 @@ def main():
         ]
         dex_counts = {needle: 0 for needle in needles}
         with zipfile.ZipFile(base) as z:
-            dexes = [n for n in z.namelist() if re.fullmatch(r"classes\\d*\\.dex", n)]
+            dexes = [n for n in z.namelist() if n.startswith("classes") and n.endswith(".dex")]
             for name in dexes:
                 data = z.read(name)
                 for needle in needles:
@@ -80,12 +80,17 @@ def main():
             raw = file.read_text(encoding="utf-8", errors="replace")
             if RESOURCE_NAME not in raw:
                 continue
-            items = re.findall(r"<string\\b[^>]*name=[\\\"']" + re.escape(RESOURCE_NAME) +
-                               r"[\\\"'][^>]*>(.*?)</string>", raw, re.DOTALL)
+            try:
+                document = original.ET.fromstring(raw)
+                items = ["".join(element.itertext()).strip()
+                         for element in document.iter("string")
+                         if element.attrib.get("name") == RESOURCE_NAME]
+            except original.ET.ParseError:
+                items = []
             resource_matches.append({
                 "relative_file": str(file.relative_to(decoded)),
                 "found_named_value": bool(items),
-                "public_configured_value": re.sub(r"\\s+", " ", items[0])[:200] if items else ""
+                "public_configured_value": " ".join(items[0].split())[:200] if items else ""
             })
         result = {
             "verdict": "READ_ONLY_PROVIDER_IDENTITY_AUDIT_NOT_CLONE_PASS",
