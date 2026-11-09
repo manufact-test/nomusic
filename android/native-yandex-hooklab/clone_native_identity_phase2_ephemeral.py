@@ -203,7 +203,7 @@ def summarize_installed_package_code_flags(raw):
 
 def dex_header_integrity(raw):
     """Validate standard DEX structural header without running app code."""
-    if len(raw) < 112 or not raw.startswith(b"dex\\n"):
+    if len(raw) < 112 or not raw.startswith(b"dex\n"):
         return False
     file_size = int.from_bytes(raw[32:36], "little")
     header_size = int.from_bytes(raw[36:40], "little")
