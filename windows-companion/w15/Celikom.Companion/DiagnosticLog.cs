@@ -60,17 +60,17 @@ public static class DiagnosticLog
         bool bridgeStarted, bool enabled, bool signedIn)
     {
         var text = new StringBuilder();
-        text.AppendLine("CELIKOM WINDOWS OWNER DIAGNOSTICS — W28");
+        text.AppendLine("CELIKOM WINDOWS OWNER DIAGNOSTICS — W31");
         text.AppendLine("GeneratedUTC=" + DateTimeOffset.UtcNow.ToString("O", CultureInfo.InvariantCulture));
         text.AppendLine("AppVersion=" + (typeof(DiagnosticLog).Assembly.GetName().Version?.ToString() ?? "unknown"));
-        text.AppendLine("CodeBaseline=099d71c5030cba3d8fb72efd051e4bf82bc2ad7b");
+        text.AppendLine("CodeBaseline=W31_BROWSER_CONTEXT_AUDIO_PROBE");
         text.AppendLine("YandexVersion=" + (yandexVersion is not null &&
             Regex.IsMatch(yandexVersion, @"^[0-9.]{1,24}$") ? yandexVersion : "unknown"));
         text.AppendLine("NativeIntegration=" + (Code.IsMatch(integration) ? integration : "UNKNOWN"));
         text.AppendLine("BridgeStarted=" + bridgeStarted.ToString().ToLowerInvariant());
         text.AppendLine("Enabled=" + enabled.ToString().ToLowerInvariant());
         text.AppendLine("SignedIn=" + signedIn.ToString().ToLowerInvariant());
-        text.AppendLine("HTTP media response / decoder audio: only logged when observable; lack of an event is NOT success.");
+        text.AppendLine("AUDIO_PROBE_* is an independent 32-byte diagnostic GET from the Yandex renderer (CSP/CORS), NOT verified playback.");
         text.AppendLine("Renderer media events: may be NOT_OBSERVED if the player uses WebAudio instead of HTMLMediaElement.");
         text.AppendLine("PNR: NOT_IMPLEMENTED_OR_NOT_IDENTIFIED.");
         text.AppendLine("Events: UTC | allowlisted code | optional numeric track id. No raw request URLs or error messages.");

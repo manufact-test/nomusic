@@ -5,7 +5,7 @@
 [Setup]
 AppId={{D99FDB90-46BF-4EE5-989E-659A2B6450D6}
 AppName=CELIKOM
-AppVersion=0.24.2
+AppVersion=0.24.3
 AppPublisher=CELIKOM
 DefaultDirName={localappdata}\Programs\CELIKOM
 DefaultGroupName=CELIKOM
@@ -17,7 +17,7 @@ Compression=lzma2
 SolidCompression=yes
 DisableDirPage=yes
 OutputDir=..\output
-OutputBaseFilename=CELIKOM-W29-NATIVE-SAFE-UNSIGNED
+OutputBaseFilename=CELIKOM-W31-AUDIO-TRACE-UNSIGNED
 UninstallDisplayIcon={app}\{#AppExecutable}
 CloseApplications=yes
 RestartApplications=no
