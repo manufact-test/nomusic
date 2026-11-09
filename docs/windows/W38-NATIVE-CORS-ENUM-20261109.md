@@ -15,7 +15,11 @@ Date: 2026-11-09. **Read-only, CI-only; no release and no owner work.**
 
 ## W38 CI
 https://github.com/manufact-test/nomusic/actions/runs/42695804499
-Status at document creation: pending final classification.
+**Final W38 CI #42695804499: SUCCESS.** `W33_RT_CDP_CORS_ENUM_MISSING_ALLOW_ORIGIN_HEADER` in genuine `NATIVE` Yandex renderer, `CDP_LOAD_FAILED_CORS`, `MAIN_HTTP_403` + `MAIN_ACAO_NATIVE`. Original vendor EXE+ASAR restored byte-identically; signature valid. This verifies missing browser-visible ACAO for a deliberately invalid-token request. It does NOT verify actual signed 206 media or audible substitution.
+
+Exact pre-W39 backup: `backup/windows-w38-native-cors-missing-acao-confirmed-20261109` at `ec7b0ad7a264612728fd4f1af99d5bdc18c58bfc`.
+
+W39 uses *passive* CDP-only categorization of the real renderer's outgoing Origin and returned ACAO/status. No actual header values or credentials are copied to logs. See `docs/windows/W39-NATIVE-ORIGIN-CLASSIFICATION-20261109.md`.
 
 ## Next
 If W38 identifies an actionable specific CORS mismatch, isolate and test a minimal CORS response adjustment **without altering unrelated API, authorization, Yandex CSP/webSecurity, original native player or desktop installation**. Re-verify invalid token (403 remains denied), preflight and authorized approved 206/Range where permitted; never treat an invalid-token negative probe as real audio proof. Once signed media is confirmed, inspect the genuine Windows source schema, key/iv, codec/transport and decoder before any installation.
