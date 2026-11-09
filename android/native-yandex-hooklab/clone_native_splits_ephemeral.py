@@ -143,7 +143,7 @@ def main():
             split=original.get("split","")
             orig_splits.add(split)
             folder=work/("decoded"+str(i))
-            action(["java","-jar",str(jar),"d","-f","-r","-s","--force-manifest",
+            action(["java","-jar",str(jar),"d","-f","-r","-s",
                     "-o",str(folder),str(apk)],"APKTOOL_DECODE_FAILED",220)
             manifest=folder/"AndroidManifest.xml"
             if not manifest.is_file():raise ValueError("MANIFEST_NOT_DECODED")
