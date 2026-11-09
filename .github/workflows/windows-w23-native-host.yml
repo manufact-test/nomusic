@@ -7,6 +7,9 @@ on:
     paths:
       - windows-companion/w23/**
       - windows-companion/w15/Celikom.Companion/**
+      - windows-companion/w22/native-resource-adapter.mjs
+      - windows-companion/w22/native-resource-adapter.test.mjs
+      - windows-companion/w24/**
       - .github/workflows/windows-w23-native-host.yml
   workflow_dispatch:
 
