@@ -1,0 +1,43 @@
+name: Android 15 x86_64 ARM-translation Yandex clone coexistence (NO HOOK, EPHEMERAL)
+on:
+  push:
+    branches:
+      - experiment/android-native-yandex-fileinfo-hooklab-20261109
+    paths:
+      - '.github/workflows/android-native-x64-arm-translation-coexistence.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  disposable-api35-arm-translation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - name: Enable KVM for hosted Linux x86_64 Android emulator
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+          test -e /dev/kvm
+      - name: Source syntax only, no vendor assets
+        run: |
+          python3 -m py_compile android/native-yandex-hooklab/clone_native_identity_phase2_ephemeral.py
+          python3 -m unittest discover -s android/native-yandex-hooklab/tests -p 'test_resolved_provider_authorities.py'
+      - name: API35 Google APIs x64 native-bridge detection and publisher+clone package install
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          profile: pixel_5
+          emulator-boot-timeout: 480
+          emulator-options: -no-snapshot-load -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none
+          disable-animations: true
+          script: CELIKOM_CLEAN_ANDROID_TRANSLATION=1 python3 android/native-yandex-hooklab/clone_native_identity_phase2_ephemeral.py
+      - name: Confirm no third-party APK artifacts were published
+        if: always()
+        run: |
+          test ! -d android/native-yandex-hooklab/release
+          test ! -d android/native-yandex-hooklab/patched
+          echo 'All third-party binaries and research keys ephemeral. No owner device.'
