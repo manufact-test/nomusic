@@ -119,6 +119,50 @@ def _retrofit_annotations(dex: Dex) -> list[dict]:
         return report
     return []
 
+def _annotation_shape(dex: Dex) -> dict:
+    """Describe public annotation *types* only, never opaque values/headers."""
+    for i in range(dex.class_count):
+        base = dex.class_offset + i * 32
+        if dex.descriptor(dex.u32(base)) != TARGET:
+            continue
+        annotations_off = dex.u32(base + 20)
+        if not annotations_off:
+            return {"interface_defined": True, "annotations_directory": False}
+        count_fields = dex.u32(annotations_off + 4)
+        count_methods = dex.u32(annotations_off + 8)
+        count_params = dex.u32(annotations_off + 12)
+        if max(count_fields,count_methods,count_params) > 10000:
+            raise DexError("Oversize PlayAudioApi annotation directory")
+        start = annotations_off + 16 + count_fields * 8
+        dex.bounds(start, count_methods * 8)
+        shapes=[]
+        for m in range(count_methods):
+            method_idx=dex.u32(start + m * 8)
+            set_off=dex.u32(start + m * 8 + 4)
+            if method_idx >= dex.method_count:
+                raise DexError("Annotation method id out of bounds")
+            cls, name, sig = dex.method(method_idx)
+            kinds=[]
+            if set_off:
+                number=dex.u32(set_off)
+                if number > 64:
+                    raise DexError("Too many interface annotations")
+                dex.bounds(set_off+4,number*4)
+                for k in range(number):
+                    item=dex.u32(set_off + 4 + 4*k)
+                    dex.bounds(item,2)
+                    tid,_=uleb(dex,item+1)
+                    kind=dex.descriptor(tid)
+                    if kind.startswith(("Lretrofit2/http/","Ldalvik/annotation/")):
+                        kinds.append(kind)
+            shapes.append({"method":name,"signature":sig,"types":sorted(set(kinds))})
+        return {"interface_defined":True,"annotations_directory":True,
+                "annotated_methods":count_methods,
+                "parameter_annotation_lists":count_params,
+                "method_annotation_types":shapes[:24]}
+    return {"interface_defined":False,"annotations_directory":False}
+
+
 def trace_playaudio(data: bytes) -> dict:
     dex = Dex(data)
     refs = {}
@@ -158,6 +202,7 @@ def trace_playaudio(data: bytes) -> dict:
         "playaudio_referenced_class_count": len(names),
         "defined_audio2_classes": core[:80],
         "retrofit_static_routes": _retrofit_annotations(dex),
+        "retrofit_annotation_shape":_annotation_shape(dex),
         "invocation_count": count,
         "bounded_invocations": invocations,
         "scan_incomplete": bool(problems),
