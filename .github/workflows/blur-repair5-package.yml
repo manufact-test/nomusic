@@ -1,4 +1,4 @@
-name: CELIKOM Blur — package five repaired MP3 for owner manual import
+name: CELIKOM Blur — verified five repaired MP3 for owner
 on:
   push:
     branches: [feature/blur-batch1000-20261108]
