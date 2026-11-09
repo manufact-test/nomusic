@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- No INTERNET, storage, accessibility, account, QUERY_ALL_PACKAGES or dangerous permissions. -->
+    <application
+        android:allowBackup="false"
+        android:fullBackupContent="false"
+        android:label="CELIKOM Native Hook Lab (read-only)"
+        android:hasCode="true">
+    </application>
+</manifest>
