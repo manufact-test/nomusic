@@ -21,3 +21,12 @@ of Android runtime until a disposable emulator control confirms it.
 
 No APK distribution, key/token collection, LSPatch, root, protection
 bypass, or changes to user's HONOR/Test.50.
+
+
+## Confirmed signed #170gpr structural failure — 09.11.2026
+
+[CI 42690904213](https://github.com/manufact-test/nomusic/actions/runs/42690904213) **SUCCESS read-only gate**: original `classes.dex` AppMetrica authority is in a correctly sorted `string_id` slot, but the current lab replacement `pro.celikom.nativeclonelab.appmetrica.provider.v01` lies AFTER the immediate next string, violating the DEX sorting invariant. This can explain ART rejecting the DEX and reporting `YMApplication` missing although checksum and class definitions look valid. The runtime cause is NOT yet experimentally proven.
+
+[CI 42691145641](https://github.com/manufact-test/nomusic/actions/runs/42691145641) **SUCCESS read-only candidate scan**: several same-length alternate public authority names preserve the original ordered slot (e.g. `com.yandex.preinstallsatellite.appmetrica.provideq`). They are laboratory candidates only; no APK using them has been built, installed or run.
+
+**DO NOT mark clone as fixed.** An attempt to update the clone's in-place DEX literal replacement was blocked before a GitHub commit. Current script still uses the old known-invalid candidate; no safe runtime PASS. Future modification must explicitly enforce original and modified `string_id` slot ordering, preserve permission boundaries and make no claims about Play Protect or login. The remaining native runtime decoder→source proof is independent of this.
