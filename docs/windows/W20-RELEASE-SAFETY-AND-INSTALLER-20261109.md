@@ -6,7 +6,7 @@
 - W18 imported the SDK addon into PulseSync in disposable Windows and launched
   modified Yandex. **No real track audio, Pause/Seek/Next was tested.**
 - W17/W18's PulseSync patch invalidated the original Yandex EXE Authenticode
-  signature: \`HashMismatch\`. Restoring original bytes restored a valid signature.
+  signature: `HashMismatch`. Restoring original bytes restored a valid signature.
 - A valid new signature on our CELIKOM executable does not repair a patched
   third-party Yandex EXE. Do not bypass Defender, SmartScreen or protection.
 
@@ -37,7 +37,7 @@ API can reopen it.
 ## New W20 implementation scope
 
 - The existing native W15 code receives a **read-only** Yandex installation
-  probe for the exact tested version \`5.126.1.0\`: checks version, WinVerifyTrust
+  probe for the exact tested version `5.126.1.0`: checks version, WinVerifyTrust
   EXE signature and pinned original ASAR SHA256. Does not repair, patch,
   launch, read profiles, capture audio or request login.
 - W20 builds a **single internal Windows installer** using Inno Setup,
