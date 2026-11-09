@@ -11,3 +11,7 @@ Only **after** this, owner uses **separate disposable Yandex Music test account 
 If Windows Sandbox not available (e.g. Windows Home/feature off), use a separate disposable Windows 10 Pro VM or independent test PC only. The launcher will NOT enable optional Windows features or change the host.
 
 **Caution:** This provides a path for a real test, NOT a guaranteed installer: PulseSync downloader availability, Windows Sandbox compatibility and eventual audio have not been tested in W19. A successful W18 installed mod **invalidated Yandex digital signature** and commercial PulseSync Client redistribution rights remain restricted. No production claims.
+
+## W19 actual owner outcome / CLOSED, 2026-11-09
+
+Owner ran `START-W19-WINDOWS-SANDBOX.cmd` on Windows **10 Pro 22H2 build 19045.6456**. Launcher showed: **"Windows Sandbox is not available on this Windows installation. No system setting has been changed. Nothing was installed."** No audio testing occurred. Assistant suggested turning on Windows Sandbox via `optionalfeatures.exe`, owner expressly rejected using this configuration as either an owner test requirement or an end-user flow. **DO NOT ask to enable Sandbox, reboot or retry W19.** This package is an obsolete internal test-only experiment, NOT an installable CELIKOM product. The original Yandex was unchanged. Next work must pursue a single consumer installer and developer-controlled integration testing, see [current handoff](NEXT-CHAT.md) and [owner correction](W19-OWNER-PRODUCT-CORRECTION-20261109.md).

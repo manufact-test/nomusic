@@ -1,4 +1,7 @@
 # CELIKOM Windows — architecture v1 (proposal)
+
+> **LATEST 2026-11-09 OWNER PRODUCT CORRECTION:** [Current NEXT-CHAT](NEXT-CHAT.md) and [W19 owner correction](W19-OWNER-PRODUCT-CORRECTION-20261109.md) supersede all old stop/go instructions below. Native consumer CELIKOM + Yandex single playback pipeline, one normal Windows installer, no customer Sandbox/VM/manual mod setup, no disabling Defender/SmartScreen. W15.2 UI/addon built; W18 mod install+addon import real; original Yandex EXE signature invalidated by PulseSync mod; native audio not proven. All phases below are historical planning until confirmed new architecture. Do not fabricate "clean" security compatibility.
+
 > **W14 NEW APPROVED DIRECTION (2026-11-08):** Modifications to the client may be **considered**, not secretly installed; preserve Yandex's native decoder and transport, normal Windows protection and transparent user consent. [W14 architecture and safety plan](W14-MODIFIED-CLIENT-PATH-20261108.md). W13 NO-GO applies to *unchanged* official binaries only. A proposed PulseSync SDK addon requires real-version verification plus a separate commercial rights review; SDK host EULA != mod MIT license.
 
 

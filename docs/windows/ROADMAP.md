@@ -1,4 +1,7 @@
 # CELIKOM Windows Companion — delivery plan, responsibilities and test gates
+
+> **LATEST 2026-11-09 OWNER PRODUCT CORRECTION:** [Current NEXT-CHAT](NEXT-CHAT.md) and [W19 owner correction](W19-OWNER-PRODUCT-CORRECTION-20261109.md) supersede all old stop/go instructions below. Native consumer CELIKOM + Yandex single playback pipeline, one normal Windows installer, no customer Sandbox/VM/manual mod setup, no disabling Defender/SmartScreen. W15.2 UI/addon built; W18 mod install+addon import real; original Yandex EXE signature invalidated by PulseSync mod; native audio not proven. All phases below are historical planning until confirmed new architecture. Do not fabricate "clean" security compatibility.
+
 > **W14 PRODUCT REOPEN (2026-11-08):** Owner allows an openly disclosed modified-client integration. [W14 revised path](W14-MODIFIED-CLIENT-PATH-20261108.md) supersedes W13's *product-wide freeze*, but **does not** negate W13's no-go for untouched official client or W10 signed-ASAR integrity. Prior phase roadmap is historical; no official app install until independent safety plan and test-specific consent.
 
 

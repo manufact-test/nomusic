@@ -1,5 +1,8 @@
 # CELIKOM Companion Windows — product and UX/UI design v1
 
+> **LATEST 2026-11-09 OWNER PRODUCT CORRECTION:** [Current NEXT-CHAT](NEXT-CHAT.md) and [W19 owner correction](W19-OWNER-PRODUCT-CORRECTION-20261109.md) supersede all old stop/go instructions below. Native consumer CELIKOM + Yandex single playback pipeline, one normal Windows installer, no customer Sandbox/VM/manual mod setup, no disabling Defender/SmartScreen. W15.2 UI/addon built; W18 mod install+addon import real; original Yandex EXE signature invalidated by PulseSync mod; native audio not proven. All phases below are historical planning until confirmed new architecture. Do not fabricate "clean" security compatibility.
+
+
 > **W13 product hold (2026-11-08):** This mockup and the states below are a non-operational proposal. Native source integration in the *unmodified official* Yandex Music Windows 5.126.1.0 is **NO-GO/BLOCKED** under current constraints; see [W13 decision](W13-OFFICIAL-CLIENT-INTEGRATION-DECISION-20261108.md). Do not build or market the Windows playback-connected shell before there is a safe, permitted native source-provider interface. No fake connected/status claims.
 
 

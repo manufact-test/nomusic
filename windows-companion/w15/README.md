@@ -1,5 +1,8 @@
 # W15 — native Windows Companion + PulseSync bridge (preflight)
 
+> **LATEST OWNER ACCEPTANCE 2026-11-09:** This native Companion W15.2 is a **non-operational preview** that the owner successfully launched, **not** a distributable Windows music product. The owner requires a single regular CELIKOM installer driving source replacement **inside Yandex Music**, no second player or manual PulseSync/Sandbox. W17 mod changes signed Yandex EXE => `HashMismatch`; W18 imports addon and launches modded Yandex but **never proved actual audio, seek or Next**. No false "works in Yandex" or "security solved" claims. [Current handoff](../../docs/windows/NEXT-CHAT.md) and [owner correction](../../docs/windows/W19-OWNER-PRODUCT-CORRECTION-20261109.md) govern next work.
+
+
 **W18 evidence:** [mod installed + CELIKOM addon imported + modified Yandex process started](https://github.com/manufact-test/nomusic/actions/runs/42585206639) in disposable Windows Server with Defender ON, then exact original restored. **Authenticode became HashMismatch after mod.** Real song audio/seek/Next NOT TESTED; use W19 Sandbox/VM for that.
 
 
