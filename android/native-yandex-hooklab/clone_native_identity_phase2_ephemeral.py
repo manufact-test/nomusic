@@ -293,6 +293,20 @@ def run():
                 new_meta.get("versionCode") != "24026531"):
                 raise arsc.TrialError("IDENTITY_SPLIT_METADATA_DRIFT")
             with zipfile.ZipFile(apk) as old_zip, zipfile.ZipFile(aligned) as new_zip:
+                if not split:
+                    dex_storage = {}
+                    for dex_name in sorted(src_dex):
+                        original_entry = old_zip.getinfo(dex_name)
+                        rebuilt_entry = new_zip.getinfo(dex_name)
+                        dex_storage[dex_name] = {
+                            "original_zip_compression": original_entry.compress_type,
+                            "clone_zip_compression": rebuilt_entry.compress_type,
+                            "original_size": original_entry.file_size,
+                            "clone_size": rebuilt_entry.file_size,
+                            "compression_preserved": original_entry.compress_type == rebuilt_entry.compress_type
+                        }
+                    print(json.dumps({"base_dex_zip_storage_audit": dex_storage,
+                                      "raw_apk_bytes_published": False}, sort_keys=True))
                 for path in old_zip.namelist():
                     if path.startswith("lib/") and path.endswith(".so"):
                         if old_zip.read(path) != new_zip.read(path):
