@@ -35,7 +35,7 @@ function validView(view){
     note("ORIGIN_SCHEME_"+scheme.slice(0,28));
     const hostname=url.hostname.toUpperCase().replace(/[^A-Z0-9]/g,"_").slice(0,35);
     if (hostname) note("ORIGIN_HOST_"+hostname);
-    const nativeScheme=url.protocol.toLowerCase()==="musicapplication:";
+    const nativeScheme=url.protocol.replace(/[^a-z]/gi,"").toLowerCase()==="musicapplication";
     const nativeDesktop=url.hostname.toLowerCase()==="desktop";
     note("PROTO_CHECK_"+(nativeScheme?"TRUE":"FALSE"));
     note("DESKTOP_CHECK_"+(nativeDesktop?"TRUE":"FALSE"));

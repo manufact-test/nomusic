@@ -5,7 +5,7 @@ import {createNativeResourceAdapter} from "../w22/native-resource-adapter.mjs";
   const endpoint = "http://127.0.0.1:21471";
   const approved = new Set(["https://desktop.app.music.yandex.net", "https://music.yandex.ru", "https://next.music.yandex.ru", "https://music.yandex.com"]);
   if (!approved.has(window.location.origin) &&
-      !(window.location.protocol.toLowerCase()==="musicapplication:"&&window.location.hostname.toLowerCase()==="desktop"))
+      !(window.location.protocol.replace(/[^a-z]/gi,"").toLowerCase()==="musicapplication"&&window.location.hostname.toLowerCase()==="desktop"))
     return;
   let token="", apiOrigin="", stopped=false, attached=false, polling=false, lastState="";
   const validToken = value => typeof value === "string" && /^[a-f0-9]{64}$/.test(value);
