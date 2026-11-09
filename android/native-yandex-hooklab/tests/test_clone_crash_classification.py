@@ -163,6 +163,32 @@ class SafeCloneCrashClassificationTest(unittest.TestCase):
         for secret in ("ORIGINAL_PRIVATE", "AUX_PRIVATE", "MAIN_PRIVATE", "token="):
             self.assertNotIn(secret, str(report))
 
+    def test_pid_scoped_runtime_throwable_types_and_stage(self):
+        exit_info = (
+            "ApplicationExitInfo #0:\n  timestamp=X pid=611\n"
+            "  process=pro.celikom.yandex.nativeclonelab reason=1 status=0\n"
+            "ApplicationExitInfo #1:\n  timestamp=X pid=612\n"
+            "  process=pro.celikom.yandex.nativeclonelab:AppMetrica reason=1 status=0\n")
+        logs = (
+            "11-09 21:59:00.010  612  612 E AndroidRuntime: FATAL EXCEPTION: BAD_HELPER\n"
+            "11-09 21:59:00.011  612  612 E AndroidRuntime: java.lang.SecurityException: SECRETHELPER\n"
+            "11-09 21:59:00.012  611  611 E AndroidRuntime: FATAL EXCEPTION: main\n"
+            "11-09 21:59:00.013  611  611 E AndroidRuntime: java.lang.RuntimeException: "
+            "Unable to instantiate provider PRIVATE_PATH token=NEVER_LOG\n"
+            "11-09 21:59:00.014  611  611 E AndroidRuntime: Caused by: "
+            "android.content.res.Resources$NotFoundException: SECRET\n")
+        result = classify_main_pid_scoped_system_logs(exit_info, logs)
+        self.assertTrue(result["main_pid_android_runtime_fatal_seen"])
+        self.assertEqual(result["main_pid_android_runtime_initialization_stage"],
+                         "PROVIDER_INSTANTIATE")
+        self.assertIn("java.lang.RuntimeException",
+                      result["main_pid_bounded_runtime_throwable_types"])
+        self.assertIn("android.content.res.Resources$NotFoundException",
+                      result["main_pid_bounded_caused_by_throwable_types"])
+        self.assertFalse(result["main_pid_security_exception_marker_seen"])
+        for word in ("SECRETHELPER", "NEVER_LOG", "PRIVATE_PATH", "SECRET", "BAD_HELPER"):
+            self.assertNotIn(word, str(result))
+
     def test_main_pid_log_fails_closed_if_no_process_pid(self):
         raw = "ApplicationExitInfo #0: process=pro.celikom.yandex.nativeclonelab reason=1"
         log = "11-09 21:59:00.013  404  404 E System.err: java.lang.SecurityException: SECRET"

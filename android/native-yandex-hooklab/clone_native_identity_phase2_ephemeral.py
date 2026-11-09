@@ -454,7 +454,43 @@ def classify_main_pid_scoped_system_logs(exit_info_raw, threadtime_raw):
             tags.add(tag)
         relevant_messages.append((severity, tag, message))
     combined = "\n".join(x[2] for x in relevant_messages)
+    runtime_text = "\n".join(msg for _, tag, msg in relevant_messages
+                             if tag == "AndroidRuntime")
+    # Only a Java exception CLASS IDENTIFIER, never free-form exception text.
+    throwable_pattern = (
+        r"(?<![A-Za-z0-9_$./])"
+        r"((?:[A-Za-z_$][A-Za-z0-9_$]*\.){1,12}"
+        r"[A-Za-z_$][A-Za-z0-9_$]*(?:Exception|Error))"
+        r"(?=[:\s]|$)"
+    )
+    runtime_types = []
+    for klass in re.findall(throwable_pattern, runtime_text):
+        if len(klass) <= 160 and klass not in runtime_types:
+            runtime_types.append(klass)
+        if len(runtime_types) >= 8:
+            break
+    caused_by_types = []
+    for klass in re.findall(r"Caused by:\s*" + throwable_pattern, runtime_text):
+        if len(klass) <= 160 and klass not in caused_by_types:
+            caused_by_types.append(klass)
+        if len(caused_by_types) >= 6:
+            break
+    stages = (
+        ("APPLICATION_CREATE", "Unable to create application"),
+        ("PROVIDER_INSTANTIATE", "Unable to instantiate provider"),
+        ("PROVIDER_CREATE", "Unable to get provider"),
+        ("ACTIVITY_START", "Unable to start activity"),
+        ("ACTIVITY_INSTANTIATE", "Unable to instantiate activity"),
+        ("SERVICE_CREATE", "Unable to create service"),
+    )
+    runtime_stage = next(
+        (label for label, phrase in stages if phrase in runtime_text),
+        "OTHER" if runtime_text else "NOT_OBSERVED")
     return {
+        "main_pid_android_runtime_fatal_seen": "FATAL EXCEPTION" in runtime_text,
+        "main_pid_bounded_runtime_throwable_types": runtime_types,
+        "main_pid_bounded_caused_by_throwable_types": caused_by_types,
+        "main_pid_android_runtime_initialization_stage": runtime_stage,
         "main_exit_pid_records_available": bool(target_pids),
         "main_pid_scoped_log_lines_seen": bool(relevant_messages),
         "main_pid_scoped_error_severity_seen":
