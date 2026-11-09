@@ -1,0 +1,34 @@
+name: Android native Yandex ARSCLib five-split structural gate (EPHEMERAL)
+on:
+  push:
+    branches:
+      - experiment/android-native-yandex-fileinfo-hooklab-20261109
+    paths:
+      - 'android/native-yandex-hooklab/clone_native_splits_arsclib_ephemeral.py'
+      - '.github/workflows/android-native-arsclib-clone-ephemeral.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  arsc-no-artifact-parallel-structure:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Verify source syntax and original synthetic manifest invariants
+        run: |
+          python3 -m py_compile android/native-yandex-hooklab/clone_native_splits_arsclib_ephemeral.py
+          python3 -m unittest discover -s android/native-yandex-hooklab/tests -p 'test_clone_native_splits_ephemeral.py'
+      - name: Signed original five-split ARSCLib structural rebuild (NO APK ARTIFACTS)
+        run: |
+          python3 android/native-yandex-hooklab/clone_native_splits_arsclib_ephemeral.py
+      - name: Assert third-party APK never staged or uploaded
+        if: always()
+        run: |
+          test ! -d android/native-yandex-hooklab/release
+          test ! -d android/native-yandex-hooklab/patched
+          echo 'No Yandex binary published or installed; temporary work cleaned'
