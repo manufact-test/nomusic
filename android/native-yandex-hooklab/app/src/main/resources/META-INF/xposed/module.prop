@@ -1,0 +1,11 @@
+id=pro.celikom.yandex.nativehooklab
+name=CELIKOM Native Yandex Gate2 read-only observer
+version=v0.0.1
+versionCode=1
+author=CELIKOM
+description=Isolated no-root native FileInfoDTO converter observer; no mutation, no account access, no playback.
+minApiVersion=102
+targetApiVersion=102
+staticScope=true
+autoHotReload=false
+exceptionMode=protective
