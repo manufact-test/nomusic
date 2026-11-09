@@ -138,6 +138,24 @@ def omit_shadowed_signature_permission_declarations(manifest_bytes):
     return source.ET.tostring(root, encoding="utf-8", xml_declaration=True), len(omitted)
 
 
+def classify_clone_launch_logcat(raw):
+    """Allow-listed crash categories ONLY: never persist/log raw Yandex output."""
+    return {
+        "fatal_exception_seen": "FATAL EXCEPTION" in raw,
+        "clone_process_named_in_crash": "Process: " + source.DEST in raw,
+        "security_exception_seen": "SecurityException" in raw,
+        "class_loading_exception_seen": (
+            "ClassNotFoundException" in raw or "NoClassDefFoundError" in raw),
+        "native_library_error_seen": "UnsatisfiedLinkError" in raw,
+        "dex_verify_error_seen": "VerifyError" in raw,
+        "resources_inflation_error_seen": "InflateException" in raw,
+        "illegal_state_error_seen": "IllegalStateException" in raw,
+        "permission_denial_seen": "Permission Denial" in raw,
+        "runtime_exception_seen": "RuntimeException" in raw,
+        "raw_log_included": False
+    }
+
+
 def run():
     if os.getenv("GITHUB_ACTIONS") != "true":
         raise arsc.TrialError("CI_ONLY")
@@ -322,9 +340,27 @@ def run():
                       "-c", "android.intent.category.LAUNCHER", "1"],
                      "ARM_CLONE_LAUNCH_INTENT", 50)
             time.sleep(5)
-            pid = arsc.run(["adb", "shell", "pidof", source.DEST],
-                           "ARM_CLONE_PROCESS", 30).strip()
+            # pidof normally exits nonzero when app crashed; this is a
+            # diagnostic case, not a subprocess invocation failure.
+            pid = arsc.run(["adb", "shell", "sh", "-c",
+                            "pidof " + source.DEST + " || true"],
+                           "ARM_CLONE_PROCESS_PROBE", 30).strip()
             if not pid:
+                # Read only limited system crash tags on an empty, unauthenticated
+                # emulator. Emit ONLY boolean classifications, never raw logs,
+                # URLs, requests, tokens, stack traces or account contents.
+                raw_crashes = arsc.run(
+                    ["adb", "logcat", "-d", "-v", "brief", "-t", "1000",
+                     "-s", "AndroidRuntime:E", "ActivityManager:W",
+                     "ActivityTaskManager:W"],
+                    "ARM_CLONE_PRIVACY_SAFE_CRASH_CLASSIFICATION", 35)
+                print(json.dumps({
+                    "clone_launch_result": "PROCESS_NOT_ALIVE",
+                    "crash_classification": classify_clone_launch_logcat(raw_crashes),
+                    "original_publisher_app_unmodified": True,
+                    "owner_phone_touched": False,
+                    "raw_log_published": False
+                }, sort_keys=True))
                 raise arsc.TrialError("ARM_CLONE_PROCESS_NOT_ALIVE")
             emulator_runtime = {
                 "clean_arm_emulator_side_by_side_installed": True,
