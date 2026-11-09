@@ -1,0 +1,191 @@
+name: CELIKOM W45 guarded hyphenated Yandex native audio CORS release
+
+on:
+  push:
+    branches:
+      - experiment/windows-companion-integration-20261108
+    paths:
+      - .github/workflows/windows-w45-native-cors-live-release.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: celikom-hostinger-private-test
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+      - run: |
+          php -l server/deploy/w45-native-origin-surgical.php
+          php -l server/src/Application.php
+          php server/tests/smoke.php
+
+  activate:
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 13
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Fingerprinted SSH, immutable clone, one-file patch, HTTPS check and rollback
+        env:
+          HOSTINGER_SSH_KEY: ${{ secrets.HOSTINGER_SSH_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$HOSTINGER_SSH_KEY"
+          umask 077
+          work="$(mktemp -d)"
+          trap 'rm -rf "$work"' EXIT
+          printf '%s\n' "$HOSTINGER_SSH_KEY" | tr -d '\r' > "$work/key"
+          ssh-keygen -y -P '' -f "$work/key" > "$work/public"
+          test "$(ssh-keygen -lf "$work/public" | awk '{print $2}')" = 'SHA256:Q6FyifXRq6garceQdIIjBmXhkk81Ic1p/x9JTSYHWUk'
+          printf '%s\n' '[92.113.19.189]:65002 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAf8M2EVwq0oJI8I9KZ0NFE8P8yDOvDATEhkQti/Kk/0' > "$work/known_hosts"
+          id="w45-native-cors-$(printf '%s' "$GITHUB_SHA" | cut -c1-12)"
+          root=/home/u235811320/domains/darkred-camel-588676.hostingersite.com/celikom
+          ssh -T -p 65002 -i "$work/key" -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
+            -o "UserKnownHostsFile=$work/known_hosts" -o GlobalKnownHostsFile=/dev/null \
+            -o ConnectTimeout=15 u235811320@92.113.19.189 \
+            "umask 077; mkdir -p '$root/incoming/$id'"
+          scp -P 65002 -i "$work/key" -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
+            -o "UserKnownHostsFile=$work/known_hosts" -o GlobalKnownHostsFile=/dev/null \
+            -o ConnectTimeout=15 server/deploy/w45-native-origin-surgical.php \
+            "u235811320@92.113.19.189:$root/incoming/$id/patch.php"
+          ssh -T -p 65002 -i "$work/key" -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
+            -o "UserKnownHostsFile=$work/known_hosts" -o GlobalKnownHostsFile=/dev/null \
+            -o ConnectTimeout=15 u235811320@92.113.19.189 "bash -s -- '$id'" <<'REMOTE'
+          set -euo pipefail
+          id="$1"
+          root=/home/u235811320/domains/darkred-camel-588676.hostingersite.com/celikom
+          site=https://darkred-camel-588676.hostingersite.com
+          php=/opt/alt/php83/usr/bin/php
+          [[ "$id" =~ ^w45-native-cors-[a-f0-9]{12}$ ]]
+          test -L "$root/current" && test -f "$root/incoming/$id/patch.php"
+          old="$(readlink -f "$root/current")"
+          [[ "$old" == "$root/releases/"* ]]
+          sha="$(sha256sum "$old/src/Application.php" | awk '{print $1}')"
+          test "$sha" = "ec7f5d0d87978c823ece2dcfa2e76a021d4e2af09eb4f5c4d5fe52b6ab6c897e" || { echo 'W45_LIVE_SOURCE_CHANGED_NO_DEPLOY'; exit 3; }
+          candidate="$root/releases/$id"
+          backup="$root/backups/$id"
+          test ! -e "$candidate" && test ! -e "$backup"
+          mkdir -p "$candidate" "$backup"
+          cp -a "$old/." "$candidate/"
+          cp -p "$old/src/Application.php" "$backup/Original-Application.php"
+          printf '%s\n' "$old" > "$backup/previous-release"
+          test "$(sha256sum "$backup/Original-Application.php" | awk '{print $1}')" = "$sha"
+          "$php" "$root/incoming/$id/patch.php" "$candidate/src/Application.php"
+          "$php" -l "$candidate/src/Application.php"
+          test "$(sha256sum "$candidate/src/Application.php" | awk '{print $1}')" = '920a4fa28357a3e61d6af64085448eacc76ea8c3c3c1946597b6428e61b506e0'
+          echo W45_CANDIDATE_HASH_AND_BACKUP_VERIFIED
+          "$php" -r '
+            require $argv[1] . "/bootstrap.php";
+            $config = require $argv[1] . "/config/app.php";
+            $app = new Celikom\Application($config);
+            foreach (["null","musicapplication://desktop","music-application://desktop","https://desktop.app.music.yandex.net","https://music.yandex.ru"] as $origin) {
+                $r = $app->handle("OPTIONS","/api/v1/audio/7",[],["Origin"=>$origin]);
+                if ($r->status !== 204 || ($r->headers["Access-Control-Allow-Origin"]??null) !== $origin) exit(12);
+            }
+            $native = "music-application://desktop";
+            $denied = $app->handle("GET","/api/v1/audio/7",
+              ["token"=>str_repeat("0",64),"expires"=>"1800000180","sid"=>"1"],
+              ["Origin"=>$native,"Range"=>"bytes=0-31"]);
+            if ($denied->status !== 403 || ($denied->headers["Access-Control-Allow-Origin"]??null) !== $native) exit(14);
+            foreach ([$native,"null"] as $origin) {
+              $r = $app->handle("OPTIONS","/api/v1/auth/login",[],["Origin"=>$origin]);
+              if (isset($r->headers["Access-Control-Allow-Origin"])) exit(13);
+            }
+            $alien = $app->handle("OPTIONS","/api/v1/audio/7",[],["Origin"=>"music-application://desktop.evil.example"]);
+            if ($alien->status === 204 || isset($alien->headers["Access-Control-Allow-Origin"])) exit(15);
+            echo "W45_CANDIDATE_CORS_CONTRACT_PASS",PHP_EOL;
+          ' "$candidate"
+          test "$(readlink -f "$root/current")" = "$old"
+          switched=0
+          cache_probe=''
+          rollback() {
+            status=$?
+            trap - EXIT
+            if [[ -n "$cache_probe" ]]; then rm -f "$cache_probe"; fi
+            if [[ "$status" != 0 && "$switched" = 1 && "$(readlink -f "$root/current")" = "$candidate" ]]; then
+              ln -s "$old" "$root/w45-rollback-$$"
+              mv -Tf "$root/w45-rollback-$$" "$root/current"
+              echo 'W45_AUTOMATIC_ROLLBACK_COMPLETED' >&2
+            fi
+            exit "$status"
+          }
+          trap rollback EXIT
+          test "$(readlink -f "$root/current")" = "$old"
+          test "$(sha256sum "$old/src/Application.php" | awk '{print $1}')" = "$sha"
+          ln -s "$candidate" "$root/w45-next-$$"
+          mv -Tf "$root/w45-next-$$" "$root/current"
+          switched=1
+          # LiteSpeed PHP may retain a compiled class across the current symlink
+          # switch. A one-use random, POST-only same-site probe expires immediately.
+          public=/home/u235811320/domains/darkred-camel-588676.hostingersite.com/public_html
+          test -d "$public" && test ! -L "$public"
+          cache_probe="$public/w45-cors-$(openssl rand -hex 20).php"
+          cat > "$cache_probe" <<'PHP_CACHE'
+          <?php
+          declare(strict_types=1);
+          if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST' || ($_SERVER['HTTP_X_W45_AUDIO'] ?? '') !== '1') {
+              http_response_code(404); exit;
+          }
+          header('Cache-Control: no-store');
+          $f = dirname(__DIR__) . '/celikom/current/src/Application.php';
+          if (!is_file($f)) {http_response_code(503);exit;}
+          if (function_exists('opcache_invalidate')) {
+              opcache_invalidate($f, true);
+              opcache_invalidate((string) realpath($f), true);
+          }
+          if (function_exists('opcache_reset')) opcache_reset();
+          echo 'W45_CACHE_CLEARED';
+          PHP_CACHE
+          chmod 0644 "$cache_probe"
+          cache_response="$(curl -sS --connect-timeout 10 --max-time 20 -X POST -H 'X-W45-Audio: 1' "$site/$(basename "$cache_probe")")"
+          rm -f "$cache_probe"
+          cache_probe=''
+          test "$cache_response" = W45_CACHE_CLEARED || { echo 'W45_WEB_PHP_CACHE_INVALIDATE_FAILED'; exit 4; }
+          opaque="$(curl -sS --connect-timeout 10 --max-time 20 -D "$backup/audio-opaque-headers" -o /dev/null -X OPTIONS -H 'Origin: null' "$site/api/v1/audio/7" -w '%{http_code}')"
+          if [[ "$opaque" != 204 ]]; then echo "W45_LIVE_NATIVE_HTTP=$opaque"; exit 5; fi
+          grep -qi '^access-control-allow-origin: null' "$backup/audio-opaque-headers"
+          browser="$(curl -sS --connect-timeout 10 --max-time 20 -D "$backup/audio-browser-headers" -o /dev/null -X OPTIONS -H 'Origin: https://music.yandex.ru' "$site/api/v1/audio/7" -w '%{http_code}')"
+          test "$browser" = 204
+          grep -qi '^access-control-allow-origin: https://music.yandex.ru' "$backup/audio-browser-headers"
+          health="$(curl -sS --connect-timeout 10 --max-time 20 -o /dev/null "$site/api/v1/health" -w '%{http_code}')"
+          test "$health" = 200
+          curl -sS --connect-timeout 10 --max-time 20 -D "$backup/auth-null-headers" -o /dev/null -X OPTIONS -H 'Origin: null' "$site/api/v1/auth/login"
+          ! grep -qi '^access-control-allow-origin:' "$backup/auth-null-headers"
+          native_origin='music-application://desktop'
+          native_opts="$(curl -sS --connect-timeout 10 --max-time 20 -D "$backup/audio-hyphenated-preflight-headers" -o /dev/null -X OPTIONS -H "Origin: $native_origin" -H 'Access-Control-Request-Method: GET' -H 'Access-Control-Request-Headers: Range' "$site/api/v1/audio/7" -w '%{http_code}')"
+          test "$native_opts" = 204
+          tr -d '\r' < "$backup/audio-hyphenated-preflight-headers" | grep -Fxi "access-control-allow-origin: $native_origin" >/dev/null
+          invalid_url="$site/api/v1/audio/7?token=$(printf '%064d' 0)&expires=1800000180&sid=1"
+          native_bad="$(curl -sS --connect-timeout 10 --max-time 20 -D "$backup/audio-hyphenated-invalid-headers" -o /dev/null -H "Origin: $native_origin" -H 'Range: bytes=0-31' "$invalid_url" -w '%{http_code}')"
+          test "$native_bad" = 403
+          tr -d '\r' < "$backup/audio-hyphenated-invalid-headers" | grep -Fxi "access-control-allow-origin: $native_origin" >/dev/null
+          curl -sS --connect-timeout 10 --max-time 20 -D "$backup/auth-hyphenated-headers" -o /dev/null -X OPTIONS -H "Origin: $native_origin" "$site/api/v1/auth/login"
+          ! grep -qi '^access-control-allow-origin:' "$backup/auth-hyphenated-headers"
+          hostile_origin='music-application://desktop.evil.example'
+          hostile_opts="$(curl -sS --connect-timeout 10 --max-time 20 -D "$backup/audio-hostile-origin-headers" -o /dev/null -X OPTIONS -H "Origin: $hostile_origin" "$site/api/v1/audio/7" -w '%{http_code}')"
+          test "$hostile_opts" != 204
+          ! grep -qi '^access-control-allow-origin:' "$backup/audio-hostile-origin-headers"
+          test "$(sha256sum "$root/current/src/Application.php" | awk '{print $1}')" = '920a4fa28357a3e61d6af64085448eacc76ea8c3c3c1946597b6428e61b506e0'
+          echo 'W45_LIVE_NATIVE_OPTIONS_204_WITH_ACAO'
+          echo 'W45_LIVE_INVALID_TOKEN_403_WITH_ACAO'
+          echo 'W45_LIVE_AUTH_AND_HOSTILE_CORS_DENIED'
+          echo 'W45_LIVE_AUDIO_CORS_204_PASS'
+          echo 'W45_LIVE_BROWSER_CORS_PASS'
+          echo 'W45_LIVE_HEALTH_PASS'
+          echo 'W45_ORIGINAL_RELEASE_PRESERVED'
+          REMOTE
+          echo 'W45_ONE_HUNK_LIVE_CORS_ACTIVATED'
