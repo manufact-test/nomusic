@@ -66,6 +66,14 @@
           this.src = candidate.uri;
           this.load();
           post({kind:"selected", id:t.id});
+          if (typeof this.addEventListener === "function") {
+            const id=t.id, url=candidate.uri;
+            this.addEventListener("playing", () => {
+              post({kind:"playback",id,phase:this.currentSrc === url || this.src === url
+                ? "alternate-playing":"host-overwrote-source"});
+            },{once:true});
+            this.addEventListener("error", () => post({kind:"playback",id,phase:"alternate-error"}),{once:true});
+          }
         }
       }
     } catch (_) { /* Original stays playable */ }
