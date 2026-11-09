@@ -1,3 +1,15 @@
+# 2026-11-09 · EXACT HONOR #170gpr PUBLISHER VERIFIED — NEWEST GATE1 STATUS
+
+**First read:** [ANDROID-NATIVE-GPR-VERIFIED-2026-11-09.md](ANDROID-NATIVE-GPR-VERIFIED-2026-11-09.md). This is the current audited native-APK handoff, superseding older assertions that `#170gpr` is unavailable.
+
+Exact Yandex native `2026.10.3 #170gpr` versionCode `24026531` acquired from APKPure **only in temporary GitHub CI**, 5 split APKs; package/manifest matches and all five APKs cryptographically verified by Android `apksigner`, with Yandex publisher SHA256 `aca405ded8b25cb2e8c6da69425d2b4307d087c1276fc06ad5942731ccc51dba`, matching independently official RuStore signature. [Proof #42606555769 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/42606555769). Proprietary binary never committed, uploaded, installed, executed or retained. No user's account, phone or Play Protect configuration touched.
+
+Signed #gpr and #rur DEX differ by SHA256 but **all method signatures match**, with body differences 5+0+0+1+1+6349 across 6 DEX. [Semantic proof #42607424390 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/42607424390). Native Kotlin `Lsy5; → Lqdw; → PlayAudioApi` exact callgraph exists in both. **Critical correction**: signed APK annotation `Liml;` carries `PlayAudioApi` relative route `plays` ([#42608101050 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/42608101050)). This is likely recording/listening events, **NOT a proven audio source selection boundary**; do NOT hook or substitute its request as playback file source. Current isolated search focuses on true stream/source/download-info route caller before native prepare.
+
+**Current objective blocker:** no executed exact catalog track+edition pre-prepare source-selection witness, and no approved no-root safe patched Yandex installation/upgrade path with Google Play Protect enabled. Re-signing modified `ru.yandex.music` cannot update over original publisher-signed Yandex; modifying installation UX needs owner approval. No test APK built. Never revive WebView, second player, root requirement or OAuth token capture. Preserve stable, Test.50, server, original Yandex, catalogue. **Do not ask owner to uninstall anything.**
+
+---
+
 # 2026-11-09 · SIGNED NATIVE APK INSPECTED, EXACT #170gpr STILL BLOCKED
 
 **Isolated implementation/research branch:** `experiment/android-native-yandex-gate1-20261109`. **Read first:** [ANDROID-NATIVE-YANDEX-ACTUAL-SIGNED-APK-SURFACE-2026-11-09.md](ANDROID-NATIVE-YANDEX-ACTUAL-SIGNED-APK-SURFACE-2026-11-09.md).
