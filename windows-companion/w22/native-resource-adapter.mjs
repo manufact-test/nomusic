@@ -160,31 +160,32 @@ export function createNativeResourceAdapter({ resolve, allowedOrigin, now = Date
         if ('error' in base) throw base.error;
         return base.value;
       }
-      // The approved source must not hang behind a stalled official resource.
-      // Give the genuine Yandex response a short chance to supply metadata,
-      // then preserve its outer response contract with only a new source.
-      let graceTimer;
-      const grace = new Promise(resolve => {
-        graceTimer = setTimeout(() => resolve({ slow: true }), 130);
-      });
-      const base = await Promise.race([native, grace]);
-      clearTimeout(graceTimer);
-      if ('slow' in base) emit('NATIVE_FILEINFO_SLOW', id);
-      if (!isLive(id, rev)) {
-        const original = await native;
-        if ('error' in original) throw original.error;
-        return original.value;
+      // Never fabricate metadata: owner W28 shows late genuine Yandex responses
+      // arriving after the old 130 ms synthetic-response cutoff.
+      const watch = setTimeout(() => emit('NATIVE_FILEINFO_WAIT', id), 130);
+      const base = await native;
+      clearTimeout(watch);
+      if ('error' in base) throw base.error;
+      if (!isLive(id, rev)) return base.value;
+      const value = base.value;
+      if (!value || typeof value !== 'object' || Array.isArray(value)) {
+        emit('FILEINFO_SHAPE_MISSING', id);
+        status = 'ORIGINAL';
+        return value;
       }
-      const value = 'value' in base && base.value && typeof base.value === 'object'
-        ? base.value : null;
-      const field = value && 'fileInfo' in value ? 'fileInfo' : 'downloadInfo';
-      emit(!value ? 'SOURCE_SYNTHETIC_RESPONSE' :
-        field === 'fileInfo' ? 'FILEINFO_SHAPE_FILE' :
-        value.downloadInfo ? 'FILEINFO_SHAPE_DOWNLOAD' : 'FILEINFO_SHAPE_MISSING', id);
-      const replacement = toDownloadInfo(value?.[field], id, grant.signedUrl, grant.mimeType, params?.quality);
+      const field = value.fileInfo && typeof value.fileInfo === 'object'
+        ? 'fileInfo' : value.downloadInfo && typeof value.downloadInfo === 'object'
+          ? 'downloadInfo' : null;
+      if (!field || Array.isArray(value[field])) {
+        emit('FILEINFO_SHAPE_MISSING', id);
+        status = 'ORIGINAL';
+        return value;
+      }
+      emit(field === 'fileInfo' ? 'FILEINFO_SHAPE_FILE' : 'FILEINFO_SHAPE_DOWNLOAD', id);
+      const replacement = toDownloadInfo(value[field], id, grant.signedUrl, grant.mimeType, params?.quality);
       emit('SOURCE_MAPPED', id);
       status = 'SOURCE_MAPPING_RETURNED_NOT_AUDIO_VERIFIED';
-      return { responseTime: 0, url: '', ...value, [field]: replacement };
+      return { ...value, [field]: replacement };
     };
     proto.getFileInfo = ownSingle;
 
@@ -215,14 +216,34 @@ export function createNativeResourceAdapter({ resolve, allowedOrigin, now = Date
           if ('error' in result) throw result.error;
           return result.value;
         }
-        const base = 'error' in result ? {} : result.value;
-        const field = base && 'fileInfos' in base ? 'fileInfos' : 'downloadInfos';
-        const list = Array.isArray(base?.[field]) ? [...base[field]] : [];
+        // Never create imaginary official file-info batches or append missing IDs.
+        if ('error' in result) {
+          emit('BATCH_FILEINFO_ERROR', hits[0]?.[0] || null);
+          throw result.error;
+        }
+        const base = result.value;
+        if (!base || typeof base !== 'object' || Array.isArray(base)) {
+          emit('SOURCE_BATCH_ORIGINAL', hits[0]?.[0] || null);
+          return base;
+        }
+        const field = Array.isArray(base.fileInfos) ? 'fileInfos'
+          : Array.isArray(base.downloadInfos) ? 'downloadInfos' : null;
+        if (!field) {
+          emit('SOURCE_BATCH_ORIGINAL', hits[0]?.[0] || null);
+          return base;
+        }
+        const list = [...base[field]];
+        let mapped = false;
         for (const [id, grant] of hits) {
           const index = list.findIndex(x => x && validId(x.trackId) === id);
-          const info = toDownloadInfo(index >= 0 ? list[index] : null,
+          if (index < 0 || !list[index] || typeof list[index] !== 'object') continue;
+          list[index] = toDownloadInfo(list[index],
             id, grant.signedUrl, grant.mimeType, params?.quality);
-          if (index >= 0) list[index] = info; else list.push(info);
+          mapped = true;
+        }
+        if (!mapped) {
+          emit('SOURCE_BATCH_ORIGINAL', hits[0]?.[0] || null);
+          return base;
         }
         emit('SOURCE_BATCH_MAPPED', hits[0]?.[0] || null);
         status = 'SOURCE_MAPPING_RETURNED_NOT_AUDIO_VERIFIED';

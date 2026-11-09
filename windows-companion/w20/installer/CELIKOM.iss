@@ -5,7 +5,7 @@
 [Setup]
 AppId={{D99FDB90-46BF-4EE5-989E-659A2B6450D6}
 AppName=CELIKOM
-AppVersion=0.24.1
+AppVersion=0.24.2
 AppPublisher=CELIKOM
 DefaultDirName={localappdata}\Programs\CELIKOM
 DefaultGroupName=CELIKOM
@@ -17,7 +17,7 @@ Compression=lzma2
 SolidCompression=yes
 DisableDirPage=yes
 OutputDir=..\output
-OutputBaseFilename=CELIKOM-W28-DIAGNOSTIC-UNSIGNED
+OutputBaseFilename=CELIKOM-W29-NATIVE-SAFE-UNSIGNED
 UninstallDisplayIcon={app}\{#AppExecutable}
 CloseApplications=yes
 RestartApplications=no

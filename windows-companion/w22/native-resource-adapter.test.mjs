@@ -57,11 +57,12 @@ test('rejects unapproved, entitlement denied, wrong origin, wrong track',async()
     assert.deepEqual(await proto.getFileInfo({trackId:'123'}),orig);a.dispose();
   }
 });
-test('if original fails but approved grant exists, native source response is built',async()=>{
+test('native error must not be hidden behind invented file-info',async()=>{
   const a=create();const {proto}=resource();
   proto.getFileInfo=async()=>{throw new Error('native unavailable')};
   a.attach(proto);a.enable();
-  assert.equal((await proto.getFileInfo({trackId:'123'})).downloadInfo.url,url);a.dispose();
+  await assert.rejects(()=>proto.getFileInfo({trackId:'123'}),/native unavailable/);
+  a.dispose();
 });
 test('original error propagates when CELIKOM has no valid grant',async()=>{
   const a=create(async()=>null);const {proto}=resource();
@@ -115,9 +116,9 @@ test('Next in batch resolves exact future track without changing Yandex queue',a
   const {proto}=resource();a.attach(proto);a.enable();
   const r=await proto.getFileInfoBatch({trackIds:['123','456','789']});
   assert.deepEqual(queried,['123','456','789']);
-  assert.equal(r.downloadInfos.length,3);
+  assert.equal(r.downloadInfos.length,1,'do not append missing Yandex queue items');
   assert.equal(r.downloadInfos[0].url,url);
-  assert.deepEqual(r.downloadInfos.map(x=>x.trackId),['123','456','789']);
+  assert.deepEqual(r.downloadInfos.map(x=>x.trackId),['123']);
   a.dispose();
 });
 test('batch lookup bounded to three exact ids and never expands arbitrary input',async()=>{
@@ -167,26 +168,57 @@ test('never maps fuzzy IDs or arbitrary input',async()=>{
   a.dispose();
 });
 
-test('native source with stalled Yandex file-info resolves from approved grant',async()=>{
-  const a=create(async id=>grant(id));const {proto}=resource();
-  proto.getFileInfo=()=>new Promise(()=>{});
+test('slow real Yandex metadata is awaited before applying approved source',async()=>{
+  const events=[];let release;
+  const a=create(async id=>grant(id),{onEvent:(code,id)=>events.push([code,id])});
+  const {proto}=resource();
+  proto.getFileInfo=()=>new Promise(resolve=>{release=resolve;});
   a.attach(proto);a.enable();
-  const start=Date.now();
-  const reply=await proto.getFileInfo({trackId:'123'});
+  let settled=false;
+  const pending=proto.getFileInfo({trackId:'123'}).then(v=>{settled=true;return v;});
+  await new Promise(resolve=>setTimeout(resolve,170));
+  assert.equal(settled,false,'no synthetic response after 130ms');
+  assert.ok(events.some(([code])=>code==='NATIVE_FILEINFO_WAIT'));
+  release({...orig,extraClock:{stillNative:true}});
+  const reply=await pending;
+  assert.equal(reply.responseTime,41);
+  assert.deepEqual(reply.extraClock,{stillNative:true});
   assert.equal(reply.downloadInfo.url,url);
-  assert.equal(reply.responseTime,0);
-  assert.equal(reply.url,'');
-  assert.equal(reply.downloadInfo.bitrate,320);
-  assert.ok(Date.now()-start<450,'approved grant must not stall behind Yandex');
+  assert.ok(!events.some(([code])=>code==='SOURCE_SYNTHETIC_RESPONSE'));
   a.dispose();
 });
-test('native resource throws; CELIKOM source preserves official response shape',async()=>{
+test('native file-info error propagates with approved grant',async()=>{
   const a=create();const {proto}=resource();
   proto.getFileInfo=async()=>{throw new Error('unavailable')};
   a.attach(proto);a.enable();
-  const info=await proto.getFileInfo({trackId:'123'});
-  assert.deepEqual(Object.keys(info).sort(),['downloadInfo','responseTime','url'].sort());
-  assert.equal(info.downloadInfo.transport,'raw');
+  await assert.rejects(()=>proto.getFileInfo({trackId:'123'}),/unavailable/);
+  a.dispose();
+});
+test('unsupported Yandex file-info envelope is returned unchanged',async()=>{
+  const events=[];
+  const a=create(async id=>grant(id),{onEvent:code=>events.push(code)});
+  const {proto}=resource();
+  proto.getFileInfo=async()=>({responseTime:37,otherMetadata:{sample:true}});
+  a.attach(proto);a.enable();
+  const value=await proto.getFileInfo({trackId:'123'});
+  assert.deepEqual(value,{responseTime:37,otherMetadata:{sample:true}});
+  assert.ok(events.includes('FILEINFO_SHAPE_MISSING'));
+  assert.ok(!events.includes('SOURCE_MAPPED'));
+  a.dispose();
+});
+test('batch cannot invent absent official queue entries',async()=>{
+  const a=create();const {proto}=resource();
+  proto.getFileInfoBatch=async()=>({downloadInfos:[{trackId:'999',url:'https://original.example/'}],responseTime:34});
+  a.attach(proto);a.enable();
+  const value=await proto.getFileInfoBatch({trackIds:['123']});
+  assert.deepEqual(value,{downloadInfos:[{trackId:'999',url:'https://original.example/'}],responseTime:34});
+  a.dispose();
+});
+test('batch native failure does not create a fake successful response',async()=>{
+  const a=create();const {proto}=resource();
+  proto.getFileInfoBatch=async()=>{throw new Error('batch unavailable');};
+  a.attach(proto);a.enable();
+  await assert.rejects(()=>proto.getFileInfoBatch({trackIds:['123']}),/batch unavailable/);
   a.dispose();
 });
 test('no approved grant never cuts off a slow native Yandex original',async()=>{

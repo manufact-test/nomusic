@@ -253,6 +253,9 @@ public sealed class MainWindow : Form
         tools.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
         tools.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
         var downloadDiagnostics = Button("Скачать диагностику", false);
+        // Default WinForms button width truncated both labels in the owner screenshot.
+        openYandex.Dock = DockStyle.Fill;
+        downloadDiagnostics.Dock = DockStyle.Fill;
         downloadDiagnostics.Click += (_, _) => SaveDiagnostics();
         tools.Controls.Add(openYandex, 0, 0);
         tools.Controls.Add(downloadDiagnostics, 1, 0);
