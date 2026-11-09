@@ -46,10 +46,17 @@ def signed_sha(path):
     if not ("Verified using v2 scheme (APK Signature Scheme v2): true" in out
             or "Verified using v3 scheme (APK Signature Scheme v3): true" in out):
         raise ValueError("SIGNING_VERIFICATION_FAILED")
-    certs = re.findall(r"Signer #1 certificate SHA-256 digest:\s*([0-9a-fA-F:]+)", out)
+    certs = set()
+    for line in out.splitlines():
+        if "certificate SHA-256 digest:" not in line:
+            continue
+        digest = line.split("certificate SHA-256 digest:", 1)[1].strip()
+        digest = digest.replace(":", "").lower()
+        if re.fullmatch(r"[0-9a-f]{64}", digest):
+            certs.add(digest)
     if len(certs) != 1:
         raise ValueError("SIGNER_COUNT_INVALID")
-    return certs[0].lower().replace(":", "")
+    return next(iter(certs))
 
 def check_host(path, patched=False):
     if apk_identity(path) != (PACKAGE, "1", ""):
