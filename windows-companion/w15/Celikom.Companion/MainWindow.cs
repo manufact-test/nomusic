@@ -335,22 +335,34 @@ public sealed class MainWindow : Form
 
     private async void ConnectYandexAsync(object? sender, EventArgs e)
     {
-        if (_integrationBusy || _nativeInstallState == NativeInstallState.Active) return;
-        if (_hostReport?.Status != YandexHostStatus.OfficialBaselineVerified)
+        if (_integrationBusy) return;
+        var upgrading = _nativeInstallState == NativeInstallState.Active;
+        if (!upgrading && _hostReport?.Status != YandexHostStatus.OfficialBaselineVerified)
         {
             MessageBox.Show(this, "Установленная версия Яндекс.Музыки пока не поддерживается.", "CELIKOM");
             return;
         }
         var answer = MessageBox.Show(this,
-            "CELIKOM сохранит оригинальные файлы Яндекс.Музыки и подключит свою подмену. " +
-            "Яндекс будет аккуратно закрыт и перезапущен. Продолжить?",
-            "Подключить CELIKOM", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+            upgrading
+                ? "Обновить модуль CELIKOM внутри Яндекс.Музыки? " +
+                  "Сначала будут проверены и восстановлены оригинальные файлы, затем " +
+                  "установлен новый модуль с диагностикой. Яндекс перезапустится."
+                : "CELIKOM сохранит оригинальные файлы Яндекс.Музыки и подключит свою подмену. " +
+                  "Яндекс будет аккуратно закрыт и перезапущен. Продолжить?",
+            upgrading ? "Обновить модуль CELIKOM" : "Подключить CELIKOM",
+            MessageBoxButtons.YesNo, MessageBoxIcon.Question);
         if (answer != DialogResult.Yes) return;
         _integrationBusy = true;
         UpdateSafe();
         try
         {
-            DiagnosticLog.Record("NATIVE_INSTALL_REQUEST");
+            DiagnosticLog.Record(upgrading ? "NATIVE_UPGRADE_REQUEST" : "NATIVE_INSTALL_REQUEST");
+            if (upgrading)
+            {
+                _bridge.SetEnabled(false);
+                await Task.Run(() => NativeIntegrationManager.Restore());
+                DiagnosticLog.Record("NATIVE_RESTORE_OK");
+            }
             await Task.Run(() => NativeIntegrationManager.Install());
             DiagnosticLog.Record("NATIVE_INSTALL_OK");
             _bridge.SetEnabled(_api.IsLoggedIn);
@@ -365,7 +377,7 @@ public sealed class MainWindow : Form
         }
         catch (Exception error)
         {
-            DiagnosticLog.Record("NATIVE_INSTALL_FAILED");
+            DiagnosticLog.Record(upgrading ? "NATIVE_UPGRADE_FAILED" : "NATIVE_INSTALL_FAILED");
             MessageBox.Show(this, DescribeIntegrationFailure(error), "CELIKOM",
                 MessageBoxButtons.OK, MessageBoxIcon.Warning);
         }
@@ -581,9 +593,11 @@ public sealed class MainWindow : Form
             _accountStatus.Text = _api.IsLoggedIn
                 ? "Вход выполнен: " + _api.Email
                 : "Нет активной сессии CELIKOM.";
+        _connectYandex.Text = _nativeInstallState == NativeInstallState.Active
+            ? "Обновить модуль" : "Подключить CELIKOM";
         _connectYandex.Enabled = !_integrationBusy &&
-            _hostReport?.Status == YandexHostStatus.OfficialBaselineVerified &&
-            _nativeInstallState != NativeInstallState.Active;
+            (_nativeInstallState == NativeInstallState.Active ||
+             _hostReport?.Status == YandexHostStatus.OfficialBaselineVerified);
         _restoreYandex.Enabled = !_integrationBusy &&
             _nativeInstallState is NativeInstallState.Active or NativeInstallState.Interrupted;
         if (_nativeInstallState == NativeInstallState.Active)

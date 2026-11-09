@@ -17,7 +17,7 @@
 7. CI contract tests cover source-only mapping and redacted diagnostic export.
 
 ## Owner test (only AFTER CI green)
-- Update/install CELIKOM 0.24.1 from completed W28 internal artifact; install over 0.24.0 without manually editing Yandex.
+- Update/install CELIKOM 0.24.1 from completed W28 internal artifact; install over 0.24.0 without manually editing Yandex. **Important:** a previous W24 patch inside Yandex is NOT replaced automatically by the new CELIKOM installer. In the CELIKOM main tab click **«Обновить модуль»** once and confirm. The app uses its verified backup to restore the original, reapply updated renderer/host and relaunch Yandex. If any step fails it must not claim successful upgrade; native restore remains available.
 - Start CELIKOM, launch ordinary Yandex, play known problematic track e.g. Гуф «Новогодняя», record observed pause behavior. Compare with disabled playback.
 - Click **«Скачать диагностику»** on the main tab, save TXT and send it. If Windows blocks save, choose a writable user folder.
 - Do not enter Yandex credentials into CELIKOM. Do not disable Defender. Do not modify Yandex manually.
