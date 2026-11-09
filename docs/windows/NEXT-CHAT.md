@@ -1,3 +1,29 @@
+# CELIKOM Windows — актуальная передача W26 (2026-11-09)
+
+**Главное требование:** единый установщик; CELIKOM подключается к обычной установленной Яндекс.Музыке и использует родной плеер (Play/Pause/Seek/Next/очередь/радио). Никакого отдельного плеера, ручных модов, запуска терминала и отключения защит Windows.
+
+**Репозиторий:** manufact-test/nomusic. **Ветка:** experiment/windows-companion-integration-20261108.
+**Проверенная функциональная точка:** 7226f1ce595f9ee49781cea50a2ce9d237730503. **Исходная контрольная точка W25:** febe369b0aba49e703daa7214e86270bac0ba1b7.
+
+## W26 — что сделано и проверено
+
+- Исправлен сценарий зависания: подтверждённый CELIKOM source grant больше не ждёт бесконечно застрявший нативный Yandex getFileInfo. Нативный ответ может предоставить исходные метаданные; если он не приходит, возвращается корректная форма ответа с тем же аудиоресурсом Yandex и нашим MP3/AAC source вместо зависания.
+- Добавлены fallback-поля responseTime и url и bitrate MP3, используемые native file-info. При отсутствии подтверждённой подмены штатный ответ Яндекса НЕ обрезается и продолжается естественным образом. Локальный bridge timeout согласован с ограничением времени source lookup.
+- **Проверено:** [real Yandex + recovery CI 42625065029](https://github.com/manufact-test/nomusic/actions/runs/42625065029) SUCCESS; 38/38 JS тестов, 61/61 .NET Bridge; успешно W24_ACTUAL_HOST_INSTALL_VERIFIED / W24_ACTUAL_HOST_RESTORED, native renderer attached, local bridge state reached, original files byte-identical restored, error="".
+- **Adapter CI [42625065074](https://github.com/manufact-test/nomusic/actions/runs/42625065074)** SUCCESS: 20/20 adapter and 10/10 source controller tests. Тест stalled getFileInfo с одобренным grant проходит.
+- **One-installer CI [42625065045](https://github.com/manufact-test/nomusic/actions/runs/42625065045)** SUCCESS, GitHub artifact 13677423231 с именем CELIKOM-W24-INTERNAL-NATIVE-UNSIGNED. Нужна только одна обычная установка CELIKOM.
+- Производственный сервер, Android, расширение и компьютер владельца не трогали.
+
+## Что ещё не доказано
+
+На CI нет авторизованного аккаунта Яндекс.Музыки, поэтому **реальная слышимая подмена трека не проверена**. Равно как настоящая Pause/Seek/Next при звучащем заменённом треке. Нельзя выдавать offline fixtures за результат прослушивания. Сборка является внутренней тестовой версией.
+
+## Следующий существенный шаг
+
+Один аудиотест с настоящей учётной записью в обычном Яндекс.Музыке: установка CELIKOM, авторизация отдельно в CELIKOM, подключение кнопкой, прослушивание заранее известного одобренного трека, проверка Pause/Seek/Next и отключения. При дефекте — диагностика конкретного аудио и исправление, без повторного создания установщика. Восстановление оригинала предусмотрено.
+
+---
+
 # CELIKOM Windows — актуальная передача W25 (2026-11-09)
 
 Репозиторий: manufact-test/nomusic
