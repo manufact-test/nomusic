@@ -1,0 +1,27 @@
+name: CELIKOM exact Yandex GPR signed-APK static research
+on:
+  push:
+    branches:
+      - experiment/android-native-yandex-gate1-20261109
+    paths:
+      - '.github/workflows/android-native-gpr-static.yml'
+      - 'tools/android-native-gate1/audit_gpr_aptoide_once.py'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  exact-gpr-readonly:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Verify script syntax and signature tools
+        run: |
+          python -m py_compile tools/android-native-gate1/audit_gpr_aptoide_once.py
+          test -n "${ANDROID_HOME}"
+          find "${ANDROID_HOME}/build-tools" -name apksigner -type f | head -1 | grep -q apksigner
+      - name: Only scan exact #170gpr if cryptographically signed by Yandex; never install or upload APK
+        run: python tools/android-native-gate1/audit_gpr_aptoide_once.py
