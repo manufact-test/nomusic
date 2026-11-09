@@ -132,7 +132,10 @@ try {
   if (-not $keyReady) { throw 'COMPANION_BRIDGE_NOT_STARTED' }
   $report.companionBridgeStarted = $true
   $proc = Start-Process $exe -PassThru
-  Start-Sleep -Seconds 20
+  # CI-only runtime probe waits for the genuine approved renderer and its DOM-ready.
+  # Ordinary native smoke retains its original 20-second observation window.
+  $observeSeconds = if ($env:CELIKOM_W33_RUNTIME_PROBE -eq '1') { 80 } else { 20 }
+  Start-Sleep -Seconds $observeSeconds
   if (Test-Path $bridgeDiagnostic) {
     $bridgeEvents = @(Get-Content $bridgeDiagnostic)
     $report.nativeBridgePreflight = 'NATIVE_PREFLIGHT' -in $bridgeEvents
