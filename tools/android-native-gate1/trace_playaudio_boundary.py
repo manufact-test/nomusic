@@ -153,8 +153,9 @@ def _annotation_shape(dex: Dex) -> dict:
                     dex.bounds(item,2)
                     tid,_=uleb(dex,item+1)
                     kind=dex.descriptor(tid)
-                    if kind.startswith(("Lretrofit2/http/","Ldalvik/annotation/")):
-                        kinds.append(kind)
+                    # Annotation TYPE names only. Obfuscation may rename @POST
+                    # and related Retrofit interfaces; never print values.
+                    kinds.append(kind)
             shapes.append({"method":name,"signature":sig,"types":sorted(set(kinds))})
         return {"interface_defined":True,"annotations_directory":True,
                 "annotated_methods":count_methods,
