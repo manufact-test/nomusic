@@ -1,3 +1,9 @@
+# ⛔ REJECTED BY OWNER — DO NOT INSTALL OR CONTINUE (2026-11-09)
+
+**This Android WebView/Yandex website design was built contrary to the owner's explicit product requirement, and was REJECTED.** CELIKOM must work with the native **Android Yandex Music client** where people log in and listen inside Yandex; not within the CELIKOM app/embedded browser. This preview is a source/archive only, not an accepted test APK or a viable product. No more coding, installation requests, or promotion of this branch. See `docs/android/ANDROID-NATIVE-YANDEX-RESTART-OWNER-OVERRIDE-2026-11-09.md` on branch `research/android-single-player-inprocess-20261109`.
+
+---
+
 # CELIKOM Android — real Yandex Music web integration, rootless candidate
 
 **Separate preview, not a stock Android Yandex patch and not a release.** This app opens the **actual `https://music.yandex.ru` website inside Android WebView** rather than fabricating a new player. Its source-gate tries to provide a cached approved track as the **same page media element's source before play**; no CELIKOM MediaPlayer, AudioTrack, equalizer or parallel playback clock. Android's native client `ru.yandex.music` is unaffected.
