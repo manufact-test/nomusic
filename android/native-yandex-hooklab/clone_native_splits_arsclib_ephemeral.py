@@ -141,6 +141,17 @@ def main() -> dict:
             fingerprints = re.findall(
                 r"Signer #1 certificate SHA-256 digest:\s*([0-9a-fA-F]+)", signature)
             if len(fingerprints) != 1 or fingerprints[0].lower() == baseline.RUSTORE_SHA256_CERT:
+                # Signature verifier output contains only public certificate metadata;
+                # print field labels and counts, not certificate data, to diagnose CLI format.
+                print(json.dumps({
+                    "signing_probe": "NOT_MATCHED",
+                    "verify_stdout_line_count": len(signature.splitlines()),
+                    "cert_labels": [line.split(":", 1)[0].strip()[:100]
+                                    for line in signature.splitlines() if "cert" in line.lower()][:10],
+                    "sha256_matches": len(fingerprints),
+                    "is_publisher_signature": bool(fingerprints) and
+                                              fingerprints[0].lower() == baseline.RUSTORE_SHA256_CERT
+                }))
                 raise TrialError("ARSC_SIGNING_IDENTITY_INVALID")
             if baseline.native_payload_hashes(apk) != baseline.native_payload_hashes(aligned):
                 raise TrialError("ARSC_DEX_OR_NATIVE_PAYLOAD_DRIFT")
