@@ -25,6 +25,7 @@ from trace_native_callers import dex_callers
 from inventory_native_media_surface import inspect_surface
 from trace_playaudio_boundary import trace_playaudio
 from trace_audio_neighbors import inspect_neighbors
+from trace_source_route_literals import source_route_scan
 
 PACKAGE = "ru.yandex.music"
 CODE = 24026531
@@ -155,7 +156,8 @@ def manifest_version(apk, aapt):
 def scan(apk):
     output = {"classes": 0, "method_ids": 0, "factory_refs": 0,
               "factory_invoke_calls": 0, "incomplete_methods": 0, "dex_count": 0,
-              "media_surfaces": [], "playaudio_boundary": [], "qdw_neighborhood": []}
+              "media_surfaces": [], "playaudio_boundary": [], "qdw_neighborhood": [],
+              "source_route_candidates": []
     with zipfile.ZipFile(apk) as archive:
         dexnames = sorted(n for n in archive.namelist()
                           if re.fullmatch(r"classes\d*\.dex", n))
@@ -173,6 +175,9 @@ def scan(apk):
             output["incomplete_methods"] += len(calls["anomalies"])
             output["dex_count"] += 1
             output["media_surfaces"].append({"dex": name, **inspect_surface(dexbytes)})
+            route=source_route_scan(dexbytes)
+            if route["matching_strings_total"]:
+                output["source_route_candidates"].append({"dex":name, **route})
             play = trace_playaudio(dexbytes)
             if play["playaudio_ref_method_count"] or play["defined_audio2_classes"]:
                 output["playaudio_boundary"].append({"dex": name, **play})
