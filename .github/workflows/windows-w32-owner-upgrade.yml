@@ -63,9 +63,9 @@ jobs:
           if ([IO.File]::ReadAllText($sentinel) -ne $magic) {
             throw 'W32_OWNER_DPAPI_STATE_OVERWRITTEN'
           }
-          $host = Join-Path $program 'integration\host.cjs'
-          if (-not (Test-Path $host) -or
-              -not ([IO.File]::ReadAllText($host)).Contains('const CELIKOM_NATIVE_VERSION = "0.24.4"')) {
+          $hostFile = Join-Path $program 'integration\host.cjs'
+          if (-not (Test-Path $hostFile) -or
+              -not ([IO.File]::ReadAllText($hostFile)).Contains('const CELIKOM_NATIVE_VERSION = "0.24.4"')) {
             throw 'W32_OWNER_HOST_ASSETS_NOT_REPLACED'
           }
           if (Test-Path $originalYandex) { throw 'W32_OWNER_INSTALLER_TOUCHED_YANDEX' }
