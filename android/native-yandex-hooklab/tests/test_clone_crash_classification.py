@@ -99,6 +99,48 @@ class SafeCloneCrashClassificationTest(unittest.TestCase):
         self.assertFalse(report["unattributed_exit_record_seen"])
         self.assertNotIn("NEVER_EXPOSE", str(report))
 
+    def test_actual_aosp_android11_status_and_subreason_are_sanitized(self):
+        sample = ("ApplicationExitInfo #0:\n"
+                  "  timestamp=ANY pid=100 realUid=1234\n"
+                  "  process=pro.celikom.yandex.nativeclonelab reason=1 (EXIT_SELF) "
+                  "subreason=0 (UNKNOWN) status=0\n"
+                  "  description=secret.invalid?token=DO_NOT_PRINT\n"
+                  "ApplicationExitInfo #1:\n"
+                  "  process=pro.celikom.yandex.nativeclonelab:AppMetrica "
+                  "reason=4 (APP CRASH(EXCEPTION)) subreason=0 status=3\n")
+        observed = classify_activity_exit_info(sample)
+        self.assertTrue(observed["exit_reason_exit_self"])
+        self.assertTrue(observed["main_exit_status_available"])
+        self.assertEqual(observed["main_exit_status"], 0)
+        self.assertTrue(observed["main_exit_self_status_zero"])
+        self.assertFalse(observed["main_exit_self_status_nonzero"])
+        self.assertEqual(observed["main_exit_subreason"], 0)
+        self.assertFalse(observed["exit_reason_crash"])
+        self.assertNotIn("DO_NOT_PRINT", str(observed))
+
+    def test_nonzero_main_exit_status_not_confused_with_helper(self):
+        raw = ("ApplicationExitInfo #0:\n  process=pro.celikom.yandex.nativeclonelab:AppMetrica "
+               "reason=1 status=0\n"
+               "ApplicationExitInfo #1:\n  process=pro.celikom.yandex.nativeclonelab "
+               "reason=1 (EXIT_SELF) subreason=4 status=137\n")
+        observed = classify_activity_exit_info(raw)
+        self.assertEqual(observed["main_exit_status"], 137)
+        self.assertTrue(observed["main_exit_self_status_nonzero"])
+        self.assertFalse(observed["main_exit_self_status_zero"])
+        self.assertEqual(observed["main_exit_subreason"], 4)
+
+    def test_stage_timeline_reports_events_only_not_raw_lines(self):
+        pkg = "pro.celikom.yandex.nativeclonelab"
+        raw = (f"I/am_proc_start: [0,9,10010,{pkg},top]\n"
+               f"I/am_create_activity: [0,8,24,{pkg}/ru.yandex.music.main.MainScreenActivity]\n"
+               f"I/am_resume_activity: [0,8,24,{pkg}/ru.yandex.music.main.MainScreenActivity]\n"
+               f"I/am_proc_died: [0,9,{pkg}] PRIVATE_TOKEN")
+        out = classify_clone_process_events(raw)
+        self.assertEqual(out["main_lifecycle_stages"],
+                         ["am_proc_start", "am_create_activity", "am_resume_activity", "am_proc_died"])
+        self.assertTrue(out["main_activity_lifecycle_observed"])
+        self.assertNotIn("PRIVATE_TOKEN", str(out))
+
     def test_helper_only_is_not_main_exit(self):
         report = classify_activity_exit_info(
             "ApplicationExitInfo #0: process=pro.celikom.yandex.nativeclonelab:AppMetrica "

@@ -337,6 +337,8 @@ def classify_activity_exit_info(raw):
     if len(blocks) == 1:
         blocks = raw.splitlines()
     main_codes, auxiliary_codes, unknown_codes = set(), set(), set()
+    main_exit_statuses = []
+    main_exit_subreasons = []
     for block in blocks:
         matches = re.findall(r"\breason\s*[=:]\s*(\d{1,2})\b", block, re.I)
         if not matches:
@@ -345,6 +347,15 @@ def classify_activity_exit_info(raw):
             r"\b(?:processName|process|process name)\s*[=:]\s*"
             r"([A-Za-z0-9_.:]+)", block, re.I)
         name = process.group(1) if process else None
+        if name == source.DEST:
+            # AOSP API 30 dump() includes status=N: exit(int) status.
+            # Share only bounded exit codes, never description/trace/UID.
+            status_match = re.search(r"\bstatus\s*[=:]\s*(-?\d{1,4})\b", block, re.I)
+            subreason_match = re.search(r"\bsubreason\s*[=:]\s*(\d{1,3})\b", block, re.I)
+            if status_match and -255 <= int(status_match.group(1)) <= 255:
+                main_exit_statuses.append(int(status_match.group(1)))
+            if subreason_match and int(subreason_match.group(1)) <= 255:
+                main_exit_subreasons.append(int(subreason_match.group(1)))
         target = (main_codes if name == source.DEST else
                   auxiliary_codes if name and name.startswith(source.DEST + ":")
                   else unknown_codes)
@@ -356,6 +367,12 @@ def classify_activity_exit_info(raw):
         **{"exit_reason_" + label: code in main_codes
            for code, label in known.items()},
         "main_exit_record_seen": bool(main_codes),
+        "main_exit_status_available": bool(main_exit_statuses),
+        "main_exit_status": main_exit_statuses[0] if main_exit_statuses else None,
+        "main_exit_self_status_zero": 1 in main_codes and 0 in main_exit_statuses,
+        "main_exit_self_status_nonzero": 1 in main_codes and any(s != 0 for s in main_exit_statuses),
+        "main_exit_subreason_known": bool(main_exit_subreasons),
+        "main_exit_subreason": main_exit_subreasons[0] if main_exit_subreasons else None,
         "auxiliary_exit_record_seen": bool(auxiliary_codes),
         "unattributed_exit_record_seen": bool(unknown_codes),
         "unattributed_crash_reason_seen": bool({4, 5} & unknown_codes),
@@ -372,8 +389,11 @@ def classify_clone_process_events(raw):
         r"(?<![A-Za-z0-9_.])" + re.escape(source.DEST) +
         r"(?![A-Za-z0-9_.:])")
     tags = ("am_proc_start", "am_proc_died", "am_kill",
-            "am_crash", "am_anr")
+            "am_crash", "am_anr", "am_create_activity",
+            "am_resume_activity", "am_pause_activity",
+            "am_finish_activity", "am_destroy_activity")
     flags = {tag + "_main_seen": False for tag in tags}
+    lifecycle_stages = []
     helper_seen = False
     for line in raw.splitlines()[:5000]:
         if source.DEST not in line:
@@ -385,7 +405,13 @@ def classify_clone_process_events(raw):
         for tag in tags:
             if re.search(r"\b" + tag + r"\b", line):
                 flags[tag + "_main_seen"] = True
+                if len(lifecycle_stages) < 20:
+                    lifecycle_stages.append(tag)
     return {**flags, "auxiliary_process_events_seen": helper_seen,
+            "main_lifecycle_stages": lifecycle_stages,
+            "main_activity_lifecycle_observed": any(
+                item in lifecycle_stages for item in
+                ("am_create_activity", "am_resume_activity", "am_pause_activity")),
             "raw_event_log_exposed": False}
 
 
