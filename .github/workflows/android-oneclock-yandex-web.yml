@@ -35,6 +35,9 @@ jobs:
       - name: Verify reused real CELIKOM Yandex identity adapter
         run: |
           mkdir -p ../../extension/dist/unpacked/player ../../extension/dist/unpacked/adapters
+          for src in ../../extension/src/player/*.ts; do
+            cp "$src" "../../extension/dist/unpacked/player/$(basename "$src" .ts).js"
+          done
           cp app/src/main/assets/celikom-core.js ../../extension/dist/unpacked/player/core.js
           cp app/src/main/assets/celikom-yandex-adapter.js ../../extension/dist/unpacked/adapters/yandex-music-adapter.js
           node --test ../../extension/tests/yandex-adapter.test.mjs
