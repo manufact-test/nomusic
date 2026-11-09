@@ -8,7 +8,14 @@ import android.view.Gravity;
 
 public final class MainActivity extends Activity {
     static { System.loadLibrary("celikom_host_probe"); }
+    private AudioSmokeScreen audioScreen;
     @Override public void onCreate(Bundle b) {
+        if(getPackageName().equals("pro.celikom.armv7loaderhost.audio")) {
+            super.onCreate(b);
+            audioScreen=new AudioSmokeScreen(this);
+            setContentView(audioScreen);
+            return;
+        }
         super.onCreate(b);
         TextView text = new TextView(this);
         text.setGravity(Gravity.CENTER);
@@ -29,5 +36,9 @@ public final class MainActivity extends Activity {
                 + "This does NOT prove audio substitution or Play Protect acceptance.");
         }
         setContentView(text);
+    }
+    @Override protected void onStop() {
+        if(audioScreen!=null) audioScreen.stopAndRelease();
+        super.onStop();
     }
 }

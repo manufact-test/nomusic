@@ -6,8 +6,11 @@ android {
         // Only the explicitly approved isolated witness ID can override the base lab app.
         val witnessId = providers.gradleProperty("celikomWitnessAppId").orNull
         require(witnessId == null || witnessId == "pro.celikom.armv7loaderhost.witness")
-        applicationId = witnessId ?: "pro.celikom.armv7loaderhost"
-        manifestPlaceholders["celikomLabLabel"] = if (witnessId == null) "CELIKOM ARM Loader Lab" else "CELIKOM ARM Hook Witness"
+        val audioId = providers.gradleProperty("celikomAudioAppId").orNull
+        require(audioId == null || audioId == "pro.celikom.armv7loaderhost.audio")
+        require(witnessId == null || audioId == null)
+        applicationId = audioId ?: witnessId ?: "pro.celikom.armv7loaderhost"
+        manifestPlaceholders["celikomLabLabel"] = if (audioId != null) "CELIKOM Audio Smoke Test" else if (witnessId == null) "CELIKOM ARM Loader Lab" else "CELIKOM ARM Hook Witness"
         minSdk = 28
         targetSdk = 33
         versionCode = 1
