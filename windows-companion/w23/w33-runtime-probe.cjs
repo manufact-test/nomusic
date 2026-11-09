@@ -178,7 +178,31 @@
             status >= 200 && status < 300 ? "CDP_HTTP_2XX" : "CDP_HTTP_OTHER");
         } else if (method === "Network.loadingFailed" &&
             tracked.has(String(data?.requestId))) {
-          if (data?.corsErrorStatus) note("CDP_LOAD_FAILED_CORS");
+          if (data?.corsErrorStatus) {
+            note("CDP_LOAD_FAILED_CORS");
+            // CDP CorsError is a public fixed enum, not failedParameter.
+            // Never export the latter: it may include origin/header values.
+            const enumName = String(data.corsErrorStatus.corsError || "");
+            const known = new Set([
+              "DisallowedByMode","InvalidResponse","WildcardOriginNotAllowed",
+              "MissingAllowOriginHeader","MultipleAllowOriginValues",
+              "InvalidAllowOriginValue","AllowOriginMismatch","InvalidAllowCredentials",
+              "CorsDisabledScheme","PreflightInvalidStatus",
+              "PreflightDisallowedRedirect","PreflightWildcardOriginNotAllowed",
+              "PreflightMissingAllowOriginHeader","PreflightMultipleAllowOriginValues",
+              "PreflightInvalidAllowOriginValue","PreflightAllowOriginMismatch",
+              "PreflightInvalidAllowCredentials","PreflightMissingAllowExternal",
+              "PreflightInvalidAllowExternal","PreflightMissingAllowPrivateNetwork",
+              "PreflightInvalidAllowPrivateNetwork","InvalidAllowMethodsPreflightResponse",
+              "InvalidAllowHeadersPreflightResponse","MethodDisallowedByPreflightResponse",
+              "HeaderDisallowedByPreflightResponse","RedirectContainsCredentials",
+              "InsecureLocalNetwork","InvalidLocalNetworkAccess",
+              "NoCorsRedirectModeNotFollow","LocalNetworkAccessPermissionDenied"
+            ]);
+            note(known.has(enumName)
+              ? "CDP_CORS_ENUM_" + enumName.replace(/([a-z])([A-Z])/g,"$1_$2").toUpperCase()
+              : "CDP_CORS_ENUM_UNRECOGNIZED");
+          }
           else if (data?.blockedReason === "csp") note("CDP_LOAD_FAILED_CSP");
           else if (data?.blockedReason === "mixed-content") note("CDP_LOAD_FAILED_MIXED");
           else if (data?.blockedReason) note("CDP_LOAD_FAILED_BLOCKED_OTHER");
