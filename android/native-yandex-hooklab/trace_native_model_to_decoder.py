@@ -65,6 +65,7 @@ def analyze_dex(raw):
             "defined_methods_scanned":0,
             "invalid_code_bodies":0}
     examples=[]
+    ged_bridge=[]
     for idx,off in method_definitions(d):
         counts["defined_methods_scanned"]+=1
         try:
@@ -72,6 +73,17 @@ def analyze_dex(raw):
         except DexError:
             counts["invalid_code_bodies"]+=1
             continue
+        triple = d.method(idx)
+        if triple[0] == "Lged;" and triple[1] == "a" and len(ged_bridge) < 10:
+            details=[]
+            for method_id in sorted(invoked):
+                callee=d.method(method_id)
+                if len(details)>=24:break
+                if callee[0]=="Leed;" or callee[0]=="Lsw7;" or callee[0].startswith("Landroidx/media3/"):
+                    details.append({"class":callee[0], "method":callee[1],
+                                    "signature":callee[2][:140]})
+            ged_bridge.append({"signature":triple[2][:160],
+                               "model_calls":details})
         contains_model=bool(invoked&targets) or idx in targets
         contains_converter=bool(invoked&converters)
         contains_media=bool(invoked&media)
@@ -85,7 +97,7 @@ def analyze_dex(raw):
                 "calls_media_source_factory_same_body":contains_media,
                 "calls_exact_converter_same_body":contains_converter,
             })
-    return counts,examples
+    return counts,examples,ged_bridge
 
 def run():
     with tempfile.TemporaryDirectory(prefix="celikom-native-model-link-readonly-") as name:
@@ -109,15 +121,17 @@ def run():
         if len(bases)!=1:raise ValueError("BASE_NOT_EXACT")
         totals={}
         examples=[]
+        bridges=[]
         dex_files=0
         with zipfile.ZipFile(bases[0]) as z:
             for item in z.infolist():
                 if not re.fullmatch("classes[0-9]*[.]dex",item.filename):continue
                 if item.file_size>DEX_MAX:raise ValueError("DEX_LIMIT")
-                counters,sample=analyze_dex(z.read(item))
+                counters,sample,ged=analyze_dex(z.read(item))
                 dex_files+=1
                 for k,v in counters.items():totals[k]=totals.get(k,0)+v
                 examples.extend(sample[:max(0,MAX_EXAMPLES-len(examples))])
+                bridges.extend(ged[:max(0,10-len(bridges))])
         if dex_files==0:raise ValueError("NO_DEX")
         return {
             "verdict":"STATIC_MODEL_DOWNSTREAM_SCAN_ONLY",
@@ -126,6 +140,7 @@ def run():
             "dex_count":dex_files,
             "counts":totals,
             "bounded_method_hints":examples[:MAX_EXAMPLES],
+            "candidate_ged_bridge_structures":bridges[:10],
             "authoritative_decoder_prepare_proven":False,
             "native_pause_seek_audible_proven":False,
             "replaced_audio":False,
