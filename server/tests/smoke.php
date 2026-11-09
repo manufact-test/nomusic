@@ -148,6 +148,42 @@ try {
         $catalog->throw = false;
         expect($response->status === 503 && $response->body === '{"error":"service_unavailable"}', 'Safe error');
     });
+    run('Native Yandex audio CORS permits signed media only, not account or arbitrary API routes', function () use ($app, $query): void {
+        foreach (['null', 'musicapplication://desktop',
+            'https://desktop.app.music.yandex.net',
+            'https://next.music.yandex.ru',
+            'https://music.yandex.com'] as $origin) {
+            $get = $app->handle('GET', '/api/v1/audio/7', $query, ['Origin' => $origin]);
+            expect($get->status === 200 && bytes($get) === '0123456789abcdef', 'Native audio bytes');
+            expect(($get->headers['Access-Control-Allow-Origin'] ?? null) === $origin, 'Native audio CORS');
+            expect(($get->headers['Vary'] ?? null) === 'Origin', 'No shared origin cache');
+            $ranged = $app->handle('GET', '/api/v1/audio/7', $query,
+                ['Origin' => $origin, 'Range' => 'bytes=0-3']);
+            expect($ranged->status === 206 && bytes($ranged) === '0123', 'Native range bytes');
+            expect(($ranged->headers['Access-Control-Allow-Origin'] ?? null) === $origin, 'Native range CORS');
+            $head = $app->handle('HEAD', '/api/v1/audio/7', $query, ['Origin' => $origin]);
+            expect($head->status === 200 && ($head->headers['Access-Control-Allow-Origin'] ?? null) === $origin, 'Native HEAD CORS');
+            $preflight = $app->handle('OPTIONS', '/api/v1/audio/7', $query,
+                ['Origin' => $origin, 'Access-Control-Request-Headers' => 'range']);
+            expect($preflight->status === 204 && ($preflight->headers['Access-Control-Allow-Origin'] ?? null) === $origin, 'Native audio preflight');
+            expect(str_contains($preflight->headers['Access-Control-Allow-Headers'] ?? '', 'Range'), 'Native preflight permits Range');
+        }
+        foreach (['null','musicapplication://desktop','https://desktop.app.music.yandex.net'] as $origin) {
+            $resolve = $app->handle('GET', '/api/v1/resolve',
+                ['service' => 'yandex', 'track_id' => '1944599'], ['Origin' => $origin]);
+            expect($resolve->status === 401 && !isset($resolve->headers['Access-Control-Allow-Origin']),
+                'Native audio origin is NOT a new API auth origin');
+            $preflight = $app->handle('OPTIONS', '/api/v1/auth/login', [], ['Origin' => $origin]);
+            expect($preflight->status !== 204 && !isset($preflight->headers['Access-Control-Allow-Origin']),
+                'Native origin cannot preflight account API');
+            $bad = $app->handle('GET', '/api/v1/audio/nonnumeric', [], ['Origin' => $origin]);
+            expect($bad->status === 404 && !isset($bad->headers['Access-Control-Allow-Origin']),
+                'Native origin cannot enable arbitrary path CORS');
+        }
+        $foreign = $app->handle('GET', '/api/v1/audio/7', $query, ['Origin' => 'https://evil.example']);
+        expect($foreign->status === 200 && !isset($foreign->headers['Access-Control-Allow-Origin']),
+            'Unknown origin denied CORS even with a valid signed bearer');
+    });
     run('whole audio and HEAD', function () use ($app, $query): void {
         $response = $app->handle('GET', '/api/v1/audio/7', $query);
         expect($response->status === 200 && bytes($response) === '0123456789abcdef', 'Whole body');

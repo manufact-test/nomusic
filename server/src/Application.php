@@ -65,12 +65,29 @@ final class Application
         }
         $response->headers['X-Content-Type-Options'] = 'nosniff';
         $response->headers['Referrer-Policy'] = 'no-referrer';
-        if (in_array($headers['origin'] ?? '', $this->config['allowed_origins'], true)) {
+        // Desktop Yandex uses an opaque ("null") or native app origin. Its
+        // audio fetch is cross-origin even though the signed audio URL is valid.
+        // Grant CORS ONLY to the token-scoped audio route, not login/API routes.
+        if (in_array($headers['origin'] ?? '', $this->config['allowed_origins'], true)
+            || self::isNativeAudioOrigin($method, $path, $headers['origin'] ?? '')) {
             $response->headers['Access-Control-Allow-Origin'] = $headers['origin'];
             $response->headers['Access-Control-Expose-Headers'] = 'Accept-Ranges, Content-Range, Content-Length, ETag';
             $response->headers['Vary'] = 'Origin';
         }
         return $response;
+    }
+
+    private static function isNativeAudioOrigin(string $method, string $path, string $origin): bool
+    {
+        return in_array($method, ['GET', 'HEAD', 'OPTIONS'], true)
+            && preg_match('~^/api/v1/audio/[1-9]\\d{0,17}$~D', $path) === 1
+            && in_array($origin, [
+                'null',
+                'musicapplication://desktop',
+                'https://desktop.app.music.yandex.net',
+                'https://next.music.yandex.ru',
+                'https://music.yandex.com',
+            ], true);
     }
 
     private function route(string $method, string $path, array $query, array $headers, string $body, array $fields, array $files): Response
@@ -83,7 +100,9 @@ final class Application
                 (bool)($this->config['reward_eligibility_enabled'] ?? false), $this->config))
                 ->handle($method, $path, $query, $headers, $body);
         }
-        if ($method === 'OPTIONS' && str_starts_with($path, '/api/v1/') && in_array($headers['origin'] ?? '', $this->config['allowed_origins'], true)) {
+        if ($method === 'OPTIONS' && str_starts_with($path, '/api/v1/') &&
+            (in_array($headers['origin'] ?? '', $this->config['allowed_origins'], true)
+            || self::isNativeAudioOrigin($method, $path, $headers['origin'] ?? ''))) {
             return new Response(204, ['Access-Control-Allow-Methods' => 'GET, HEAD, POST, OPTIONS', 'Access-Control-Allow-Headers' => 'Authorization, Content-Type, Range, X-Celikom-Upload-Attempt', 'Access-Control-Max-Age' => '600']);
         }
         if ($method === 'GET' && in_array($path, ['/health', '/api/v1/health'], true)) {
