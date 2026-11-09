@@ -54,3 +54,7 @@
 ## PASS владельца: ARMv7 on-device, отдельное приложение
 
 9 ноября 2026 владелец установил независимый CELIKOM ARM Loader Lab на HONOR 50 (Android 13) и прислал скриншот открытого приложения. **ARMv7 JNI-host PASS**, установка без блокировки; официальный Яндекс не изменялся. В первой сборке Xposed module отсутствовал: это НЕ доказательство перехвата Яндекса. Новый этап — отдельный own-host hook witness с новой package ID, его два статуса видны прямо на экране. Подробности: docs/android/ANDROID-NATIVE-ARMV7-OWNER-WITNESS-2026-11-09.md.
+
+## Готов отдельный ARMv7 hook-witness APK — CI SUCCESS
+
+Сборка [42643802887](https://github.com/manufact-test/nomusic/actions/runs/42643802887) — SUCCESS; исходный коммит e9791456; [artifact 13687465487](https://github.com/manufact-test/nomusic/actions/runs/42643802887/artifacts/13687465487). APK также в библиотеке ChatGPT владельца под CELIKOM-ARMv7-HOOK-WITNESS-Test.apk. Новый package pro.celikom.armv7loaderhost.witness; не обновляет предыдущий собственный APK и не затрагивает официальный ru.yandex.music. **Реальный Xposed hook ещё не подтверждён!** Следующая проверка: владелец запускает этот APK и сообщает два статуса Module hook armed / onCreate intercepted. Детали: docs/android/ANDROID-NATIVE-ARMV7-OWNER-WITNESS-2026-11-09.md.
