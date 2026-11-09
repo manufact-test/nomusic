@@ -1,0 +1,27 @@
+name: CELIKOM Blur — repair five source formats READ ONLY
+on:
+  push:
+    branches: [feature/blur-batch1000-20261108]
+    paths: ['.github/workflows/blur-repair5-audit.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 16
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Install ffmpeg and validate transcodes with server inspector
+        shell: bash
+        run: |
+          set -euo pipefail
+          command -v ffprobe || { sudo apt-get update -qq; sudo apt-get install -y ffmpeg; }
+          python3 tools/blur-research/repair5-audit.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: blur-repair5-readonly-${{ github.run_id }}
+          path: repair5-audio-audit.json
+          retention-days: 60
