@@ -6,6 +6,7 @@ on:
     paths:
       - '.github/workflows/android-native-gpr-apkpure.yml'
       - 'tools/android-native-gate1/audit_gpr_apkpure_once.py'
+      - 'tools/android-native-gate1/trace_source_route_literals.py'
   workflow_dispatch:
 permissions:
   contents: read
