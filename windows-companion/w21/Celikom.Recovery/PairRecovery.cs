@@ -65,6 +65,90 @@ public static class PairRecovery
     }
 
     /// <summary>
+    /// Write the planned post-modification hashes BEFORE changing either host
+    /// file. If installation is interrupted, Restore accepts a mix of known
+    /// original and known patched bytes. Requires the app to be closed.
+    /// </summary>
+    public static Manifest PrepareApply(string installDirectory, string backupDirectory,
+        string expectedAppliedExe, string expectedAppliedAsar)
+    {
+        RequireHash(expectedAppliedExe);
+        RequireHash(expectedAppliedAsar);
+        var record = ReadVerified(installDirectory, backupDirectory);
+        if (record.State != "PREPARED") throw new IOException("SNAPSHOT_NOT_PREPARED");
+        if (OperatingSystem.IsWindows() && Process.GetProcessesByName("Яндекс Музыка").Length > 0)
+            throw new IOException("YANDEX_MUST_BE_CLOSED_FOR_APPLY");
+        AssertHostMatches(Full(installDirectory), record.OriginalExe, record.OriginalAsar);
+        if (record.OriginalExe == expectedAppliedExe ||
+            record.OriginalAsar == expectedAppliedAsar)
+            throw new IOException("EXPECTED_BOTH_FILES_TO_CHANGE");
+        var next = record with {
+            AppliedExe = expectedAppliedExe, AppliedAsar = expectedAppliedAsar,
+            State = "APPLYING"
+        };
+        WriteManifest(Full(backupDirectory), next);
+        return next;
+    }
+
+    public static Manifest CommitApply(string installDirectory, string backupDirectory)
+    {
+        var record = ReadVerified(installDirectory, backupDirectory);
+        if (record.State != "APPLYING" ||
+            record.AppliedExe is null || record.AppliedAsar is null)
+            throw new IOException("NOT_AN_APPLYING_PATCH");
+        AssertHostMatches(Full(installDirectory), record.AppliedExe, record.AppliedAsar);
+        var next = record with { State = "ACTIVE" };
+        WriteManifest(Full(backupDirectory), next);
+        return next;
+    }
+
+    /// <summary>
+    /// Applies two already built, fully hash-verified images. Automatically
+    /// attempts byte-identical restore when a write fails. Both files remain
+    /// independently replaceable; the durable intent handles interrupted runs.
+    /// </summary>
+    public static Manifest ApplyStaged(string installDirectory, string backupDirectory,
+        string stagedExe, string stagedAsar)
+    {
+        RequireFile(stagedExe);
+        RequireFile(stagedAsar);
+        var exeHash = Hash(stagedExe);
+        var asarHash = Hash(stagedAsar);
+        PrepareApply(installDirectory, backupDirectory, exeHash, asarHash);
+        try
+        {
+            var root = Full(installDirectory);
+            ApplyOne(HostPath(root, ExeName), stagedExe, exeHash,
+                ReadVerified(root, backupDirectory).OriginalExe);
+            ApplyOne(HostPath(root, AsarName), stagedAsar, asarHash,
+                ReadVerified(root, backupDirectory).OriginalAsar);
+            return CommitApply(root, backupDirectory);
+        }
+        catch
+        {
+            try { Restore(installDirectory, backupDirectory); }
+            catch { /* Leave durable APPLYING/RESTORING state for manual retry. */ }
+            throw;
+        }
+    }
+
+    private static void ApplyOne(string target, string staged, string expected,
+        string original)
+    {
+        if (Hash(target) != original) throw new IOException("HOST_CHANGED_DURING_APPLY");
+        var temp = target + ".celikom-apply-" + Guid.NewGuid().ToString("N");
+        try
+        {
+            File.Copy(staged, temp);
+            if (Hash(temp) != expected) throw new IOException("STAGED_IMAGE_CHANGED");
+            if (Hash(target) != original) throw new IOException("HOST_CHANGED_DURING_APPLY");
+            File.Move(temp, target, true);
+            if (Hash(target) != expected) throw new IOException("IMAGE_APPLY_CHECKSUM_MISMATCH");
+        }
+        finally { if (File.Exists(temp)) File.Delete(temp); }
+    }
+
+    /// <summary>
     /// Called ONLY by a separately approved adapter after a known patch has
     /// been fully applied and both resulting fingerprints are known.
     /// Never guesses a modification from arbitrary current bytes.
@@ -107,7 +191,7 @@ public static class PairRecovery
             AssertHostMatches(root, record.OriginalExe, record.OriginalAsar);
             return record;
         }
-        if (record.State is not ("ACTIVE" or "RESTORING") ||
+        if (record.State is not ("APPLYING" or "ACTIVE" or "RESTORING") ||
             record.AppliedExe is null || record.AppliedAsar is null)
             throw new IOException("NOT_AN_ACTIVE_RECOGNIZED_PATCH");
         if (OperatingSystem.IsWindows() && Process.GetProcessesByName("Яндекс Музыка").Length > 0)
@@ -121,7 +205,7 @@ public static class PairRecovery
             presentAsar != record.AppliedAsar && presentAsar != record.OriginalAsar)
             throw new IOException("HOST_UPDATED_OR_UNKNOWN_MODIFICATION");
 
-        if (record.State == "ACTIVE")
+        if (record.State is "APPLYING" or "ACTIVE")
         {
             record = record with { State = "RESTORING" };
             WriteManifest(backup, record); // crash marker BEFORE touching either target
@@ -176,7 +260,7 @@ public static class PairRecovery
             ?? throw new IOException("INVALID_BACKUP_MANIFEST");
         if (manifest.Schema != 1 ||
             !string.Equals(manifest.InstallRoot, root, StringComparison.OrdinalIgnoreCase) ||
-            manifest.State is not ("PREPARED" or "ACTIVE" or "RESTORING" or "RESTORED"))
+            manifest.State is not ("PREPARED" or "APPLYING" or "ACTIVE" or "RESTORING" or "RESTORED"))
             throw new IOException("BACKUP_PROVENANCE_MISMATCH");
         RequireHash(manifest.OriginalExe);
         RequireHash(manifest.OriginalAsar);

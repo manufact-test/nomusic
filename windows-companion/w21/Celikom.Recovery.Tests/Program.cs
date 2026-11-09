@@ -93,6 +93,43 @@ try
         "partial recovery yields exact originals");
     Check(Directory.GetFiles(backups, "*.celikom-restore-*", SearchOption.AllDirectories).Length == 0,
         "staged restore files cleaned");
+
+    // Real installation transaction shape: durable intent precedes either write.
+    var backupD = Path.Combine(backups, "snapshot-D");
+    var stagedExeD = Path.Combine(root, "new-exe");
+    var stagedAsarD = Path.Combine(root, "new-asar");
+    SetOriginal();
+    PairRecovery.Capture(host, backupD, originalExe, originalAsar);
+    File.WriteAllText(stagedExeD, "integrated-exe-D");
+    File.WriteAllText(stagedAsarD, "integrated-asar-D");
+    var appliedD = PairRecovery.ApplyStaged(host, backupD, stagedExeD, stagedAsarD);
+    Check(appliedD.State == "ACTIVE", "staged pair installed with durable recovery record");
+    Check(Sha(exe) == Sha(stagedExeD) && Sha(asar) == Sha(stagedAsarD),
+        "integrated pair equals staged image hashes");
+    PairRecovery.Restore(host, backupD);
+    Check(Sha(exe) == originalExe && Sha(asar) == originalAsar,
+        "transactional apply restores byte-identical originals");
+
+    // Crash between file writes: prepared intent allows safe restore.
+    var backupE = Path.Combine(backups, "snapshot-E");
+    PairRecovery.Capture(host, backupE, originalExe, originalAsar);
+    PairRecovery.PrepareApply(host, backupE, Sha(stagedExeD), Sha(stagedAsarD));
+    File.Copy(stagedExeD, exe, true); // Emulate power loss after EXE swap, before ASAR.
+    Check(PairRecovery.Inspect(host, backupE).State == "APPLYING",
+        "interrupted transaction intent survives restart");
+    PairRecovery.Restore(host, backupE);
+    Check(Sha(exe) == originalExe && Sha(asar) == originalAsar,
+        "restore handles partial APPLYING state safely");
+
+    // A foreign update after interrupted install is never overwritten.
+    var backupF = Path.Combine(backups, "snapshot-F");
+    PairRecovery.Capture(host, backupF, originalExe, originalAsar);
+    PairRecovery.PrepareApply(host, backupF, Sha(stagedExeD), Sha(stagedAsarD));
+    File.WriteAllText(asar, "a third-party change");
+    Reject(() => PairRecovery.Restore(host, backupF),
+        "foreign modification during pending apply blocks recovery");
+    Check(File.ReadAllText(asar) == "a third-party change",
+        "foreign ASAR preserved on refusal");
     Console.WriteLine("W21_RECOVERY_CONTRACT_PASS " + passed);
 }
 finally
