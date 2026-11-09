@@ -200,6 +200,20 @@ def summarize_installed_package_code_flags(raw):
 
 
 
+
+def dex_header_integrity(raw):
+    """Validate standard DEX structural header without running app code."""
+    if len(raw) < 112 or not raw.startswith(b"dex\\n"):
+        return False
+    file_size = int.from_bytes(raw[32:36], "little")
+    header_size = int.from_bytes(raw[36:40], "little")
+    checksum = int.from_bytes(raw[8:12], "little")
+    return (file_size == len(raw) and header_size == 112 and
+            hashlib.sha1(raw[32:]).digest() == raw[12:32] and
+            (zlib.adler32(raw[12:]) & 0xffffffff) == checksum)
+
+
+
 def run():
     if os.getenv("GITHUB_ACTIONS") != "true":
         raise arsc.TrialError("CI_ONLY")
@@ -348,6 +362,9 @@ def run():
                     },sort_keys=True))
                     dex_storage = {}
                     for dex_name in sorted(src_dex):
+                        old_dex, new_dex = old_zip.read(dex_name), new_zip.read(dex_name)
+                        if not dex_header_integrity(old_dex) or not dex_header_integrity(new_dex):
+                            raise arsc.TrialError("SIGNED_APK_DEX_HEADER_CORRUPT")
                         original_entry = old_zip.getinfo(dex_name)
                         rebuilt_entry = new_zip.getinfo(dex_name)
                         dex_storage[dex_name] = {
