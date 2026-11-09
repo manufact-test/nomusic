@@ -6,6 +6,8 @@ on:
     paths:
       - '.github/workflows/android-native-compare-gpr-rur.yml'
       - 'tools/android-native-gate1/compare_gpr_rur_dex.py'
+      - 'tools/android-native-gate1/compare_dex_method_bodies.py'
+      - 'tools/android-native-gate1/inspect_android_host.py'
   workflow_dispatch:
 permissions:
   contents: read
