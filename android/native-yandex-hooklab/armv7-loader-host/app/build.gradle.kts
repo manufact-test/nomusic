@@ -3,7 +3,10 @@ android {
     namespace = "pro.celikom.armv7loaderhost"
     compileSdk = 35
     defaultConfig {
-        applicationId = "pro.celikom.armv7loaderhost"
+        // Only the explicitly approved isolated witness ID can override the base lab app.
+        val witnessId = providers.gradleProperty("celikomWitnessAppId").orNull
+        require(witnessId == null || witnessId == "pro.celikom.armv7loaderhost.witness")
+        applicationId = witnessId ?: "pro.celikom.armv7loaderhost"
         minSdk = 28
         targetSdk = 33
         versionCode = 1

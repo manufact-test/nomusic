@@ -1,0 +1,11 @@
+id=pro.celikom.armv7witnessmodule
+name=CELIKOM ARMv7 Own-Host Hook Witness
+version=v0.0.1
+versionCode=1
+author=CELIKOM
+description=Own test-host only: in-process onCreate witness, no audio, no user data, no real Yandex.
+minApiVersion=102
+targetApiVersion=102
+staticScope=true
+autoHotReload=false
+exceptionMode=protective

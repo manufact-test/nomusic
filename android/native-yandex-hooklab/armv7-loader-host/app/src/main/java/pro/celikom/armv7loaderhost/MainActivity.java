@@ -15,10 +15,19 @@ public final class MainActivity extends Activity {
         text.setTextColor(Color.BLACK);
         text.setBackgroundColor(Color.WHITE);
         text.setTextSize(18f);
-        text.setText("CELIKOM ARMv7 loader test\n\n"
-            + "This is a separate test app. No Yandex, music or account access.\n"
-            + "If visible: the 32-bit host activity launched.\n"
-            + "This does NOT prove audio substitution or Play Protect acceptance.");
+        if (getPackageName().equals("pro.celikom.armv7loaderhost.witness")) {
+            text.setText("CELIKOM ARMv7 — hook witness\n\n"
+                + "Native host: STARTED\n"
+                + "Module hook armed: " + (HookWitnessState.armed() ? "YES" : "NOT OBSERVED") + "\n"
+                + "onCreate intercepted: " + (HookWitnessState.intercepted() ? "YES" : "NOT OBSERVED") + "\n\n"
+                + "If both YES: LSPatch ran our module inside this OWN lab app.\n"
+                + "This is NOT a Yandex or audio replacement test.");
+        } else {
+            text.setText("CELIKOM ARMv7 loader test\n\n"
+                + "This is a separate test app. No Yandex, music or account access.\n"
+                + "If visible: the 32-bit host activity launched.\n"
+                + "This does NOT prove audio substitution or Play Protect acceptance.");
+        }
         setContentView(text);
     }
 }
