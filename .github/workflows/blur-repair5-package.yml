@@ -1,0 +1,32 @@
+name: CELIKOM Blur — package five repaired MP3 for owner manual import
+on:
+  push:
+    branches: [feature/blur-batch1000-20261108]
+    paths: ['.github/workflows/blur-repair5-package.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  package:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Recreate five verified MP3 with pinned content hashes
+        shell: bash
+        run: |
+          set -euo pipefail
+          command -v ffprobe || { sudo apt-get update -qq; sudo apt-get install -y ffmpeg; }
+          mkdir -p "$RUNNER_TEMP/audio" "$RUNNER_TEMP/state"
+          python3 tools/blur-research/repair5-fetch.py "$RUNNER_TEMP/audio" "$RUNNER_TEMP/state"
+          test "$(find "$RUNNER_TEMP/audio" -maxdepth 1 -type f -name '*.mp3' | wc -l)" -eq 5
+          mkdir -p repaired5-for-owner
+          cp "$RUNNER_TEMP/audio/"*.mp3 repaired5-for-owner/
+          cp tools/blur-research/repair5-pending.json repaired5-for-owner/manifest.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: CELIKOM-five-repaired-MP3-${{ github.run_id }}
+          path: repaired5-for-owner/
+          retention-days: 90
+          if-no-files-found: error
