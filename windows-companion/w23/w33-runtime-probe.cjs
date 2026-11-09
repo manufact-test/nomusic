@@ -147,6 +147,75 @@
       .includes(result?.csp) ? result.csp : "UNRECOGNIZED";
     return type + "_" + outcome + "_CSP_" + csp;
   }
+  // W37: passive Chrome DevTools Protocol observer ONLY on the disposable CI
+  // copy of genuine Yandex. It never intercepts or rewrites requests, reads
+  // response bodies, disables protections, or exports URLs/headers/credentials.
+  async function attachPassiveNetwork(view) {
+    if (process.env.CELIKOM_W37_CDP_PROBE !== "1") return () => {};
+    const debug = view?.debugger;
+    if (!debug || typeof debug.attach !== "function" ||
+        typeof debug.sendCommand !== "function") {
+      note("CDP_UNAVAILABLE");
+      return () => {};
+    }
+    try {
+      if (debug.isAttached()) { note("CDP_ALREADY_ATTACHED"); return () => {}; }
+      debug.attach("1.3");
+    } catch { note("CDP_ATTACH_FAILED"); return () => {}; }
+
+    const tracked = new Set();
+    let seen = false, closed = false;
+    const onMessage = (_event, method, data) => {
+      try {
+        if (method === "Network.requestWillBeSent" && data?.request?.url === invalid) {
+          tracked.add(String(data.requestId));
+          seen = true;
+          note("CDP_REQUEST_SEEN");
+        } else if (method === "Network.responseReceived" &&
+            tracked.has(String(data?.requestId))) {
+          const status = Number(data?.response?.status);
+          note(status === 403 ? "CDP_HTTP_403" :
+            status >= 200 && status < 300 ? "CDP_HTTP_2XX" : "CDP_HTTP_OTHER");
+        } else if (method === "Network.loadingFailed" &&
+            tracked.has(String(data?.requestId))) {
+          if (data?.corsErrorStatus) note("CDP_LOAD_FAILED_CORS");
+          else if (data?.blockedReason === "csp") note("CDP_LOAD_FAILED_CSP");
+          else if (data?.blockedReason === "mixed-content") note("CDP_LOAD_FAILED_MIXED");
+          else if (data?.blockedReason) note("CDP_LOAD_FAILED_BLOCKED_OTHER");
+          else if (/ERR_(TIMED_OUT|CONNECTION_TIMED_OUT)/.test(String(data?.errorText)))
+            note("CDP_LOAD_FAILED_TIMEOUT");
+          else if (/ERR_(NAME_NOT_RESOLVED|CONNECTION_REFUSED|INTERNET_DISCONNECTED)/.test(
+            String(data?.errorText))) note("CDP_LOAD_FAILED_NETWORK");
+          else note("CDP_LOAD_FAILED_UNSPECIFIED");
+        } else if (method === "Log.entryAdded") {
+          const message = String(data?.entry?.text || "");
+          if (message.includes("darkred-camel-588676.hostingersite.com") &&
+              /Content Security Policy|Refused to connect|violates the following/i.test(message))
+            note("CDP_CSP_CONSOLE");
+        }
+      } catch {}
+    };
+    debug.on("message", onMessage);
+    try {
+      await debug.sendCommand("Network.enable");
+      await debug.sendCommand("Log.enable");
+      note("CDP_NETWORK_ENABLED");
+    } catch {
+      note("CDP_ENABLE_FAILED");
+      try { debug.removeListener("message", onMessage); debug.detach(); } catch {}
+      return () => {};
+    }
+    function close() {
+      if (closed) return;
+      closed = true;
+      if (!seen) note("CDP_REQUEST_NOT_SEEN");
+      try { debug.removeListener("message", onMessage); } catch {}
+      try { if (debug.isAttached()) debug.detach(); } catch {}
+    }
+    setTimeout(close, 14500);
+    return close;
+  }
+
   function attempt(view) {
     if (finished || !approved(view) || completed.has(view.id) || inFlight.has(view.id) || pending > 2) return;
     discovered = true;
@@ -162,8 +231,15 @@
     const timeout = new Promise(resolve => {
       setTimeout(() => resolve({ timedOut: true }), 12500);
     });
-    const task = Promise.resolve().then(() =>
-      view.executeJavaScript("(" + rendererProbe.toString() + ")()"));
+    const task = Promise.resolve().then(async () => {
+      const close = await attachPassiveNetwork(view);
+      try {
+        const result = await view.executeJavaScript("(" + rendererProbe.toString() + ")()");
+        if (process.env.CELIKOM_W37_CDP_PROBE === "1")
+          await new Promise(resolve => setTimeout(resolve, 750));
+        return result;
+      } finally { close(); }
+    });
     void Promise.race([task.then(result => ({ result }), () => ({ failed: true })), timeout])
       .then(value => {
         if (value?.timedOut) {
