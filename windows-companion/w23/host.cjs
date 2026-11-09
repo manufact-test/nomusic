@@ -35,8 +35,11 @@ function validView(view){
     note("ORIGIN_SCHEME_"+scheme.slice(0,28));
     const hostname=url.hostname.toUpperCase().replace(/[^A-Z0-9]/g,"_").slice(0,35);
     if (hostname) note("ORIGIN_HOST_"+hostname);
-    if (approvedOrigins.has(url.origin) ||
-        (url.protocol.toLowerCase()==="musicapplication:"&&url.hostname.toLowerCase()==="desktop")) {
+    const nativeScheme=url.protocol.toLowerCase()==="musicapplication:";
+    const nativeDesktop=url.hostname.toLowerCase()==="desktop";
+    note("PROTO_CHECK_"+(nativeScheme?"TRUE":"FALSE"));
+    note("DESKTOP_CHECK_"+(nativeDesktop?"TRUE":"FALSE"));
+    if (approvedOrigins.has(url.origin) || (nativeScheme && nativeDesktop)) {
       note("APPROVED_VIEW");return true;
     }
     note("VIEW_NOT_APPROVED");
