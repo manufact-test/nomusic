@@ -28,6 +28,7 @@ from trace_audio_neighbors import inspect_neighbors
 from trace_source_route_literals import source_route_scan
 from trace_media_api_routes import inspect_media_route_annotations
 from trace_source_api_consumers import trace_source_api_calls
+from trace_fileinfo_model import inspect_fileinfo_shapes
 
 PACKAGE = "ru.yandex.music"
 CODE = 24026531
@@ -159,7 +160,7 @@ def scan(apk):
     output = {"classes": 0, "method_ids": 0, "factory_refs": 0,
               "factory_invoke_calls": 0, "incomplete_methods": 0, "dex_count": 0,
               "media_surfaces": [], "playaudio_boundary": [], "qdw_neighborhood": [],
-              "source_route_candidates": [], "media_file_info_api_owners": [], "source_api_consumers": []}
+              "source_route_candidates": [], "media_file_info_api_owners": [], "source_api_consumers": [], "fileinfo_converted_shapes": []}
     with zipfile.ZipFile(apk) as archive:
         dexnames = sorted(n for n in archive.namelist()
                           if re.fullmatch(r"classes\d*\.dex", n))
@@ -177,6 +178,9 @@ def scan(apk):
             output["incomplete_methods"] += len(calls["anomalies"])
             output["dex_count"] += 1
             output["media_surfaces"].append({"dex": name, **inspect_surface(dexbytes)})
+            shapes=inspect_fileinfo_shapes(dexbytes)
+            if shapes["defined_targets"]:
+                output["fileinfo_converted_shapes"].append({"dex":name, **shapes})
             consumption=trace_source_api_calls(dexbytes)
             if consumption["target_method_refs"]:
                 output["source_api_consumers"].append({"dex": name, **consumption})
