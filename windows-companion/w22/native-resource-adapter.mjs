@@ -158,24 +158,40 @@ export function createNativeResourceAdapter({ resolve, allowedOrigin, now = Date
 
     if (originalBatch) {
       ownBatch = async function (params, ...rest) {
-        // Batch remains instant: only already-prefetched grants, no network.
         const raw = Array.isArray(params?.trackIds)
           ? params.trackIds : typeof params?.trackIds === 'string' ? params.trackIds.split(',') : [];
-        const ids = raw.map(validId).filter(Boolean);
-        const hits = ids.map(id => [id, fromCache(id)]).filter(([, g]) => !!g);
-        if (!enabled || disposed || !hits.length) return originalBatch.call(this, params, ...rest);
+        const ids = [...new Set(raw.map(validId).filter(Boolean))];
+        if (!enabled || disposed || ids.length === 0) return originalBatch.call(this, params, ...rest);
         const rev = revision;
-        const base = await originalBatch.call(this, params, ...rest);
-        if (!enabled || disposed || rev !== revision) return base;
+        // Batch is often requested BEFORE any single file-info. Resolve a small
+        // bounded window to avoid falling back for every playlist/Next request.
+        // Continue requesting Yandex's own response in parallel.
+        const native = Promise.resolve().then(() => originalBatch.call(this, params, ...rest))
+          .then(value => ({ value }), error => ({ error }));
+        const preferred = current && ids.includes(current) ? [current] : [];
+        const selected = [...new Set([...preferred, ...ids])].slice(0, 3);
+        const results = await Promise.all(selected.map(async id => [id, await lookup(id, rev)]));
+        const result = await native;
+        if (!enabled || disposed || revision !== rev) {
+          if ('error' in result) throw result.error;
+          return result.value;
+        }
+        const hits = results.filter(([id, grant]) => !!grant && ids.includes(id) &&
+          fromCache(id) === grant);
+        if (hits.length === 0) {
+          if ('error' in result) throw result.error;
+          return result.value;
+        }
+        const base = 'error' in result ? {} : result.value;
         const field = base && 'fileInfos' in base ? 'fileInfos' : 'downloadInfos';
         const list = Array.isArray(base?.[field]) ? [...base[field]] : [];
         for (const [id, grant] of hits) {
-          if (!isLive(id, rev) || fromCache(id) !== grant) continue;
           const index = list.findIndex(x => x && validId(x.trackId) === id);
           const info = toDownloadInfo(index >= 0 ? list[index] : null,
             id, grant.signedUrl, grant.mimeType, params?.quality);
           if (index >= 0) list[index] = info; else list.push(info);
         }
+        status = 'SOURCE_MAPPING_RETURNED_NOT_AUDIO_VERIFIED';
         return { ...base, [field]: list };
       };
       proto.getFileInfoBatch = ownBatch;

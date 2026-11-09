@@ -101,13 +101,55 @@ test('prefetch enables batch mapping for current exact ID',async()=>{
   const r=await proto.getFileInfoBatch({trackIds:['123','456']});
   assert.equal(r.downloadInfos[0].url,url);assert.equal(stats.batch,1);a.dispose();
 });
-test('unprefetched batch retains native response without lookup',async()=>{
+test('batch-first playback resolves CELIKOM without requiring single-file event',async()=>{
   let calls=0;const a=create(async()=>{calls++;return grant()});
   const {proto}=resource();a.attach(proto);a.enable();
   const r=await proto.getFileInfoBatch({trackIds:['123']});
-  assert.equal(r.downloadInfos[0].url,'https://official.example/');
-  assert.equal(calls,0);a.dispose();
+  assert.equal(r.downloadInfos[0].url,url);
+  assert.equal(r.downloadInfos[0].key,undefined);
+  assert.equal(calls,1);a.dispose();
 });
+test('Next in batch resolves exact future track without changing Yandex queue',async()=>{
+  const queried=[];
+  const a=create(async id=>{queried.push(id);return grant(id);});
+  const {proto}=resource();a.attach(proto);a.enable();
+  const r=await proto.getFileInfoBatch({trackIds:['123','456','789']});
+  assert.deepEqual(queried,['123','456','789']);
+  assert.equal(r.downloadInfos.length,3);
+  assert.equal(r.downloadInfos[0].url,url);
+  assert.deepEqual(r.downloadInfos.map(x=>x.trackId),['123','456','789']);
+  a.dispose();
+});
+test('batch lookup bounded to three exact ids and never expands arbitrary input',async()=>{
+  const queried=[];
+  const a=create(async id=>{queried.push(id);return grant(id);});
+  const {proto}=resource();a.attach(proto);a.enable();
+  await proto.getFileInfoBatch({trackIds:['1','2','3','4','1','bogus']});
+  assert.deepEqual(queried,['1','2','3']);
+  a.dispose();
+});
+test('Stop during pending batch reverts to Yandex native batch',async()=>{
+  let release;
+  const a=create(()=>new Promise(resolve=>{release=resolve;}));
+  const {proto}=resource();a.attach(proto);a.enable();
+  const pending=proto.getFileInfoBatch({trackIds:['123']});
+  await new Promise(resolve=>setTimeout(resolve,3));
+  a.disable();
+  release(grant('123'));
+  const r=await pending;
+  assert.equal(r.downloadInfos[0].url,'https://official.example/');
+  a.dispose();
+});
+test('batch timeout preserves original and does not hang Next',async()=>{
+  const a=create(()=>new Promise(()=>{}),{deadlineMs:15});
+  const {proto}=resource();a.attach(proto);a.enable();
+  const started=Date.now();
+  const r=await proto.getFileInfoBatch({trackIds:['123']});
+  assert.ok(Date.now()-started<100);
+  assert.equal(r.downloadInfos[0].url,'https://official.example/');
+  a.dispose();
+});
+
 test('cleanup restores original resource methods',async()=>{
   const a=create();const {proto}=resource();
   const originalSingle=proto.getFileInfo, originalBatch=proto.getFileInfoBatch;
