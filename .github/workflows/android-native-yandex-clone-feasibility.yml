@@ -1,0 +1,27 @@
+name: Android exact-GPR parallel clone feasibility (READ ONLY)
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  static-identity-collision-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Unit tests with synthetic manifests, no Yandex APK
+        run: |
+          python3 -m unittest discover -s android/native-yandex-hooklab/tests -p 'test_parallel_clone.py' -v
+          python3 -m py_compile android/native-yandex-hooklab/audit_parallel_clone.py
+      - name: Inspect exact publisher-signed Yandex GPR (manifest + DEX counts; no install/repack/export)
+        run: |
+          python3 android/native-yandex-hooklab/audit_parallel_clone.py
+      - name: Confirm no proprietary APK uploaded as artifact
+        if: always()
+        run: |
+          test ! -d android/native-yandex-hooklab/release
+          test ! -d android/native-yandex-hooklab/patched
+          echo 'AUDIT_ONLY: no signing, install, uploads or distribution'

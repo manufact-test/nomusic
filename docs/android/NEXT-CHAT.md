@@ -38,3 +38,7 @@
 ## Взято полезное из Windows W28 (read-only review)
 
 Проверена Windows branch `experiment/windows-companion-integration-20261108` @ `7c1858e6` (W28). Подтверждены работающие renderer hook, source grant bridge, таймауты/защита от запоздавшей подмены и безопасная диагностика. **Настоящий звук в Windows ещё FAIL/не подтверждён**, нельзя копировать синтетический file-info ответ (особенно key/iv/codec) в Android. Выводы и порядок Android: `docs/android/ANDROID-NATIVE-WINDOWS-W28-LESSONS-2026-11-09.md`. Windows-код не изменяли.
+
+## Проба параллельной копии без установки на HONOR
+
+Добавлен **только read-only** аудит `audit_parallel_clone.py` + CI `.github/workflows/android-native-yandex-clone-feasibility.yml`: считает совпадения package/authorities/DEX оригинального подписанного #170gpr, APK удаляются после теста. **Не создаёт и не публикует клон.** Подробности: `docs/android/ANDROID-NATIVE-CLONE-STATIC-GATE-2026-11-09.md`.
