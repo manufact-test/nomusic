@@ -3,7 +3,7 @@ import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from clone_native_identity_phase2_ephemeral import classify_clone_launch_logcat, summarize_installed_package_code_flags
+from clone_native_identity_phase2_ephemeral import classify_clone_launch_logcat, summarize_installed_package_code_flags, classify_activity_start, classify_activity_exit_info
 
 
 class SafeCloneCrashClassificationTest(unittest.TestCase):
@@ -61,6 +61,25 @@ class SafeCloneCrashClassificationTest(unittest.TestCase):
         self.assertTrue(report["has_base_apk_record"])
         self.assertTrue(report["has_classloader_record"])
         self.assertNotIn("NEVER_EXPOSE_THIS", str(report))
+
+    def test_activity_result_without_raw_data(self):
+        report = classify_activity_start(
+            "Status: ok\\nLaunchState: COLD\\nActivity: pro.celikom.lab.Main\\nsecret=NEVER_SHARE")
+        self.assertTrue(report["activity_status_ok"])
+        self.assertTrue(report["launch_state_cold"])
+        self.assertFalse(report["activity_explicit_error"])
+        self.assertNotIn("NEVER_SHARE", str(report))
+
+    def test_activity_failure_does_not_dump_raw(self):
+        report = classify_activity_start("Error: Activity not started with private=NEVER_SHARE")
+        self.assertTrue(report["activity_explicit_error"])
+        self.assertNotIn("NEVER_SHARE", str(report))
+
+    def test_exit_reason_classification_no_raw_data(self):
+        report = classify_activity_exit_info("REASON_EXIT_SELF\\nraw_token=NEVER_SHARE")
+        self.assertTrue(report["exit_reason_exit_self"])
+        self.assertFalse(report["exit_reason_crash"])
+        self.assertNotIn("NEVER_SHARE", str(report))
 
     def test_no_crash_produces_zero_flags(self):
         report = classify_clone_launch_logcat("")
