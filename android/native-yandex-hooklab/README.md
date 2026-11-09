@@ -29,3 +29,9 @@ Use source-available **JingMatrix/LSPatch v1.2 build 487**, pinned upstream rele
 - **Counters are not enough** to release CELIKOM. Need identify exact track+edition and prove mapping from response model to *native* source/decoder before the next step. If original client fails login, package integrity, or Play Protect, stop—never bypass warnings or protections.
 
 **No claim of working CELIKOM replacement:** actual audio source selector, account-safe broker, Google Play Protect verdict and native pause/seek continuity are still unverified. This is preparation for a genuine in-process test, not another user-facing fake player.
+
+## Read-only spare ARM hardware preflight (09.11.2026)
+
+Before considering any installation on a **separate disposable device**, run `python3 android/native-yandex-hooklab/probe_arm_device.py` from a PC with adb and exactly one authorized **spare** phone connected. It uses only `adb devices`, `getprop` and `pm path`; it never installs, removes, launches, roots or changes anything. It refuses the known owner HONOR 50, an existing Yandex package, Android below API 33, emulators, no Play Store and devices lacking `armeabi-v7a` (the exact native #170gpr host contains ARMv7 32-bit libraries). On a 64-bit-only Android device the official host is ABI-incompatible even if its CPU is arm64.
+
+**A green preflight is NOT permission to install anything.** It is not proof that Play Protect is enabled, that the phone is an authorized spare, or that libxposed works. Those require explicit on-device checks and a separate lab installation decision. It never reports device serials, paths, account data or Play Protect status guesses. Unit tests run in the existing hooklab CI without adb.
