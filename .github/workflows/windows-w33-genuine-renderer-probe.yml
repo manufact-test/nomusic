@@ -1,4 +1,4 @@
-name: CELIKOM W38 exact native CORS failure enum observation
+name: CELIKOM W39 native CORS request/response category observation
 
 on:
   push:
@@ -51,6 +51,7 @@ jobs:
         env:
           CELIKOM_W33_RUNTIME_PROBE: '1'
           CELIKOM_W37_CDP_PROBE: '1'
+          CELIKOM_W39_CORS_HEADERS: '1'
         run: |
           ./windows-companion/w23/w23-host-smoke.ps1
           if ($LASTEXITCODE -ne 0) { throw 'W33_DISPOSABLE_NATIVE_PROBE_FAIL' }
@@ -79,7 +80,14 @@ jobs:
           if (@($probe | Where-Object { $_ -match '^W33_RT_CDP_CORS_ENUM_' }).Count -eq 0) {
             throw 'W38_CORS_ERROR_ENUM_MISSING'
           }
-          Write-Output 'W38_NATIVE_CORS_ERROR_ENUM_CLASSIFIED'
+          if ('W33_RT_CDP_REQUEST_SEEN' -notin $probe -or
+              'W33_RT_CDP_LOAD_FAILED_CORS' -notin $probe) {
+            throw 'W39_NATIVE_CORS_REQUEST_MISSING'
+          }
+          if (@($probe | Where-Object { $_ -match '^W33_RT_CDP_REQUEST_ORIGIN_' }).Count -eq 0) {
+            throw 'W39_REQUEST_ORIGIN_CATEGORY_MISSING'
+          }
+          Write-Output 'W39_NATIVE_ORIGIN_CATEGORIES_CAPTURED'
       - name: Retain only sanitized CI report (never patched Yandex binaries or credentials)
         if: always()
         uses: actions/upload-artifact@v4
