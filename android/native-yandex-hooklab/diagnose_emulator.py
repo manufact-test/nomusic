@@ -66,6 +66,8 @@ def launch(original_baseline: bool = False):
     events = []
     native_crash = []
     runtime_exceptions = []
+    library_basename_candidates = []
+    loader_failure_categories = []
     for line in logs.splitlines():
         if TAG in line and "observer:" in line:
             if "hooks armed" in line:
@@ -90,6 +92,23 @@ def launch(original_baseline: bool = False):
                 native_crash.append("ANDROID_RUNTIME_FATAL")
         if "Fatal signal" in line and (PACKAGE in line or "liblspatch" in line):
             native_crash.append("NATIVE_FATAL_SIGNAL")
+        # Only names like libname.so, not full linker messages or paths.
+        if ("dlopen failed" in line or "UnsatisfiedLinkError" in line
+                or "couldn't find" in line.lower() or "linker" in line.lower()):
+            for basename in re.findall(r"lib[A-Za-z0-9_.+-]{1,90}\\.so", line):
+                if len(library_basename_candidates) < 24:
+                    library_basename_candidates.append(basename)
+            lower = line.lower()
+            if "dlopen failed" in lower:
+                loader_failure_categories.append("DLOPEN_FAILED")
+            if "wrong elf" in lower or "elfclass" in lower:
+                loader_failure_categories.append("WRONG_ELF_CLASS")
+            if "not found" in lower or "couldn't find" in lower:
+                loader_failure_categories.append("LIBRARY_NOT_FOUND")
+            if "is 64-bit" in lower or "is 32-bit" in lower:
+                loader_failure_categories.append("ABI_WIDTH_CONFLICT")
+            if "namespace" in lower:
+                loader_failure_categories.append("NATIVE_LINKER_NAMESPACE")
         if "dlopen failed" in line and (PACKAGE in line or "lspatch" in line.lower()):
             native_crash.append("NATIVE_LIBRARY_LOAD_FAILURE")
     events = list(dict.fromkeys(events))
@@ -98,6 +117,8 @@ def launch(original_baseline: bool = False):
     print(f"OBSERVER_LIFECYCLE: {events}")
     print(f"ANDROID_EXCEPTION_TYPES: {runtime_exceptions}")
     print(f"NATIVE_CRASH_MARKERS: {native_crash}")
+    print(f"NATIVE_LOADER_LIBRARIES: {list(dict.fromkeys(library_basename_candidates))[:20]}")
+    print(f"NATIVE_LOADER_REASONS: {list(dict.fromkeys(loader_failure_categories))[:10]}")
     if original_baseline:
         if states[-1] and states[-2]:
             print("PASS: untouched publisher-signed native Yandex stays running in isolated Android 11; no account, playback or Play Protect verdict")
