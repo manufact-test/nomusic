@@ -104,6 +104,7 @@ public final class NativeHookEntry extends XposedModule {
                     });
             targetHooked = true;
             log(Log.INFO, TAG, "observer: native file-info converter hooks armed; read-only");
+            Log.i(TAG, "observer: native file-info converter hooks armed; read-only");
         } catch (Throwable ignored) {
             log(Log.WARN, TAG, "observer: no exact converter pair; original unaffected");
         }
@@ -115,6 +116,7 @@ public final class NativeHookEntry extends XposedModule {
             // Count only, throttled. No account, source URL, trackId, key, or timestamp.
             if (n == 1 || n % 20 == 0) {
                 log(Log.INFO, TAG, "observer: " + kind + " file-info conversion count=" + n);
+                Log.i(TAG, "observer: " + kind + " file-info conversion count=" + n);
             }
         } catch (Throwable ignored) {
             // Logging/observer failures can never interfere with Yandex.
