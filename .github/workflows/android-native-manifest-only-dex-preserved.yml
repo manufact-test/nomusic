@@ -26,7 +26,7 @@ jobs:
           python3 -m unittest discover -s android/native-yandex-hooklab/tests -p 'test_resolved_provider_authorities.py' -v
           python3 -m unittest discover -s android/native-yandex-hooklab/tests -p 'test_shadowed_signature_permissions.py' -v
           python3 -m unittest discover -s android/native-yandex-hooklab/tests -p 'test_clone_crash_classification.py' -v
-      - name: Real Android 11 32bit original vs manifest-only clone, no DEX mutation
+      - name: Real Android 11 32bit process lifecycle snapshots, intact DEX
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 30
