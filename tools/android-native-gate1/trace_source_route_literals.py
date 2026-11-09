@@ -21,6 +21,9 @@ def safe_route(value:str)->bool:
         return False
     if not re.fullmatch(r"[A-Za-z0-9_/{}?.:=&-]+",value):
         return False
+    # Bare CamelCase method/class names are not HTTP route literals.
+    if "/" not in value and "-" not in value and "_" not in value and any(c.isupper() for c in value):
+        return False
     if not any(word in value.lower() for word in TOKENS):
         return False
     if value.lower() in ("plays","audio","source","stream","track","playback"):
