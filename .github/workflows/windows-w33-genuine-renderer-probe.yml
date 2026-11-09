@@ -1,4 +1,4 @@
-name: CELIKOM W33 disposable genuine-Yandex renderer fetch boundary
+name: CELIKOM W36 disposable genuine-Yandex renderer boundary
 
 on:
   push:
@@ -6,6 +6,7 @@ on:
       - experiment/windows-companion-integration-20261108
     paths:
       - windows-companion/w23/w33-runtime-probe.cjs
+      - windows-companion/w23/w33-runtime-probe.test.cjs
       - windows-companion/w23/w23-host-smoke.ps1
       - .github/workflows/windows-w33-genuine-renderer-probe.yml
   workflow_dispatch:
@@ -38,7 +39,7 @@ jobs:
       - name: Verify source-only adapter/renderer and bounded audio diagnostic tests
         shell: pwsh
         run: |
-          node --test windows-companion/w22/native-resource-adapter.test.mjs windows-companion/w23/native-host.test.mjs windows-companion/w23/renderer-relay.test.mjs windows-companion/w23/audio-probe.test.mjs
+          node --test windows-companion/w22/native-resource-adapter.test.mjs windows-companion/w23/native-host.test.mjs windows-companion/w23/renderer-relay.test.mjs windows-companion/w23/audio-probe.test.mjs windows-companion/w23/w33-runtime-probe.test.cjs
           if ($LASTEXITCODE -ne 0) { throw 'W33_NATIVE_TESTS_FAIL' }
       - name: Build temporary Windows companion without owner account
         shell: pwsh
@@ -59,10 +60,13 @@ jobs:
           $probe = @($report.w33RuntimeProbe)
           $probe | ForEach-Object { Write-Output "W33_RUNTIME_RESULT: $_" }
           if ($probe.Count -eq 0) { throw 'W33_NO_NATIVE_RENDERER_OBSERVATION' }
-          if (@($probe | Where-Object { $_ -match '^W33_RT_(NATIVE|MUSIC_WEB|NEXT_WEB|DESKTOP_WEB|OTHER)_' }).Count -eq 0) {
-            throw 'W33_NO_RENDERER_FETCH_RESULT_AFTER_BOOTSTRAP'
+          if (@($probe | Where-Object { $_ -match '^W33_RT_MAIN_(HTTP_|REDIRECT|NETWORK_ERROR|TIMEOUT)' }).Count -eq 0) {
+            throw 'W36_NO_TRUSTED_MAIN_NETWORK_CONTROL'
           }
-          Write-Output 'W33_REAL_YANDEX_RENDERER_BOUNDARY_TEST_COMPLETED'
+          if (@($probe | Where-Object { $_ -match '^W33_RT_(NATIVE|MUSIC_WEB|NEXT_WEB|DESKTOP_WEB)_(HTTP_|FETCH_|TIMEOUT)' }).Count -eq 0) {
+            throw 'W36_NO_APPROVED_RENDERER_FETCH_RESULT'
+          }
+          Write-Output 'W36_REAL_YANDEX_RENDERER_BOUNDARY_TEST_COMPLETED'
       - name: Retain only sanitized CI report (never patched Yandex binaries or credentials)
         if: always()
         uses: actions/upload-artifact@v4
