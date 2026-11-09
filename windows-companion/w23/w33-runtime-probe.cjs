@@ -178,6 +178,9 @@
     if (views.length === 0) note("VIEW_LIST_EMPTY");
     for (const view of views) { noteViewKind(view); attempt(view); }
   }
+  // The CI-compiled host calls this ONLY after its existing approved-view gate.
+  // Avoid a second, potentially mistimed webContents discovery path.
+  globalThis.__celikomW33OnApprovedView = attempt;
   app.on("web-contents-created", (_event, view) => {
     if (finished) return;
     view.on("dom-ready", () => attempt(view));
@@ -189,6 +192,8 @@
   setTimeout(() => {
     finished = true;
     clearInterval(pulse);
+    if (globalThis.__celikomW33OnApprovedView === attempt)
+      delete globalThis.__celikomW33OnApprovedView;
     if (!discovered) note("NO_APPROVED_RENDERER_OBSERVED");
     if (pending > 0) note("EXECUTION_STILL_PENDING");
     if (!completed.size) note("NO_RENDERER_RESULT_OBSERVED");
