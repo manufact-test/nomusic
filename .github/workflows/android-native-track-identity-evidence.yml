@@ -19,6 +19,13 @@ jobs:
         run: |
           python3 -m py_compile android/native-yandex-hooklab/audit_native_track_identity_static.py
           python3 -m unittest discover -s android/native-yandex-hooklab/tests -p 'test_clone_native_splits_ephemeral.py' -v
+      - name: Assert exact signed-scanner dependencies and no accidental dynamic hook
+        run: |
+          test -f tools/android-native-gate1/inspect_android_host.py
+          test -f tools/android-native-gate1/trace_media_api_routes.py
+          test -f tools/android-native-gate1/trace_native_callers.py
+          test -f tools/android-native-gate1/trace_playaudio_boundary.py
+          echo 'PASS: signed original static analyzer dependencies available'
       - name: Static trackId and source boundary audit against real publisher-signed 5-split client
         run: python3 android/native-yandex-hooklab/audit_native_track_identity_static.py
       - name: Ensure no original APK committed or published
