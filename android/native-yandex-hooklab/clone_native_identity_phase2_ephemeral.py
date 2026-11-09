@@ -185,6 +185,21 @@ def classify_clone_launch_logcat(raw):
     }
 
 
+
+def summarize_installed_package_code_flags(raw):
+    """Expose public package-manager code-path booleans, no raw app data."""
+    import re
+    flag_lines = [line for line in raw.splitlines() if "flags=[" in line]
+    return {
+        "has_code_flag": any(re.search(r"\\bHAS_CODE\\b", line) for line in flag_lines),
+        "has_code_path_record": "codePath=" in raw,
+        "has_base_apk_record": "base.apk" in raw,
+        "has_classloader_record": "classLoaderName=" in raw,
+        "raw_dumpsys_exposed": False
+    }
+
+
+
 def run():
     if os.getenv("GITHUB_ACTIONS") != "true":
         raise arsc.TrialError("CI_ONLY")
@@ -408,8 +423,12 @@ def run():
                         "raw_logs_published": False
                     },sort_keys=True))
                     raise arsc.TrialError("ORIGINAL_CONTROL_PROCESS_NOT_ALIVE")
+                original_info = arsc.run(
+                    ["adb", "shell", "dumpsys", "package", source.SOURCE],
+                    "ORIGINAL_PACKAGE_PUBLIC_CODE_FLAGS", 35)
                 print(json.dumps({
                     "original_control_runtime": "PROCESS_ALIVE_AFTER_LAUNCH",
+                    "original_code_flags": summarize_installed_package_code_flags(original_info),
                     "original_signature_untouched": True,
                     "login_tested": False, "audio_tested": False}))
             arsc.run(["adb", "install-multiple", *[str(p) for p in clone_output_apks]],
@@ -422,6 +441,12 @@ def run():
             clone_count = sum(x.startswith("package:") for x in clone_paths.splitlines())
             if original_count != 5 or clone_count != 5:
                 raise arsc.TrialError("ARM_SIDE_BY_SIDE_SPLIT_COUNT_INVALID")
+            clone_info = arsc.run(
+                ["adb", "shell", "dumpsys", "package", source.DEST],
+                "CLONE_PACKAGE_PUBLIC_CODE_FLAGS", 35)
+            print(json.dumps({
+                "clone_installed_code_flags": summarize_installed_package_code_flags(clone_info)
+            }, sort_keys=True))
             if omit_shadowed:
                 package_dump = arsc.run(["adb", "shell", "dumpsys", "package", source.DEST],
                                         "CLONE_SIGNATURE_PERMISSION_AUDIT", 45)
@@ -452,8 +477,14 @@ def run():
                      "-s", "AndroidRuntime:E", "ActivityManager:W",
                      "ActivityTaskManager:W"],
                     "ARM_CLONE_PRIVACY_SAFE_CRASH_CLASSIFICATION", 35)
+                relevant_crash = raw_crashes.rsplit(
+                    "Process: " + source.DEST, 1)[-1][:16000]
                 print(json.dumps({
                     "clone_launch_result": "PROCESS_NOT_ALIVE",
+                    "dex_path_mentions_base_apk": (
+                        "DexPathList" in relevant_crash and "base.apk" in relevant_crash),
+                    "dex_path_mentions_clone_package": (
+                        "DexPathList" in relevant_crash and source.DEST in relevant_crash),
                     "crash_classification": classify_clone_launch_logcat(raw_crashes),
                     "original_publisher_app_unmodified": True,
                     "owner_phone_touched": False,
