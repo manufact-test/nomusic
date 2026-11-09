@@ -26,7 +26,7 @@ jobs:
           python3 -m unittest discover -s android/native-yandex-hooklab/tests -p 'test_resolved_provider_authorities.py'
           python3 -m unittest discover -s android/native-yandex-hooklab/tests -p 'test_shadowed_signature_permissions.py'
           python3 -m unittest discover -s android/native-yandex-hooklab/tests -p 'test_clone_crash_classification.py'
-      - name: Android 11 ARMv7 install original plus base-only permission-adjusted test clone
+      - name: Android 11 ARMv7 clone launch: privacy-safe missing-class diagnostics
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 30
