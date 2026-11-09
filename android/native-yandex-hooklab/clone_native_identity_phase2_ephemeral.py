@@ -344,6 +344,35 @@ def run():
                 raise arsc.TrialError("NATIVE_ARM64_RUNTIME_REQUIRED")
             arsc.run(["adb", "install-multiple", *[str(p) for p in apks]],
                      "ARM_INSTALL_PUBLISHER_ORIGINAL", 240)
+            if os.getenv("CELIKOM_ORIGINAL_CONTROL_LAUNCH") == "1":
+                # Unmodified publisher app is a control. If it fails on the
+                # same translated emulator, a clone crash alone proves nothing.
+                arsc.run(["adb", "shell", "monkey", "-p", source.SOURCE,
+                          "-c", "android.intent.category.LAUNCHER", "1"],
+                         "ORIGINAL_CONTROL_LAUNCH_INTENT", 50)
+                time.sleep(5)
+                original_pid = arsc.run(
+                    ["adb", "shell", "sh", "-c", "pidof " + source.SOURCE + " || true"],
+                    "ORIGINAL_CONTROL_PROCESS_PROBE", 30).strip()
+                if not original_pid:
+                    original_raw = arsc.run(
+                        ["adb", "logcat", "-d", "-v", "brief", "-t", "1000",
+                         "-s", "AndroidRuntime:E", "ActivityManager:W",
+                         "ActivityTaskManager:W"],
+                        "ORIGINAL_CONTROL_SAFE_CRASH_CLASSIFICATION", 35)
+                    hints = classify_clone_launch_logcat(original_raw)
+                    print(json.dumps({
+                        "original_control_runtime": "PROCESS_NOT_ALIVE",
+                        "original_crash_categories": hints,
+                        "original_publisher_signature_untouched": True,
+                        "clone_installed": False,
+                        "raw_logs_published": False
+                    },sort_keys=True))
+                    raise arsc.TrialError("ORIGINAL_CONTROL_PROCESS_NOT_ALIVE")
+                print(json.dumps({
+                    "original_control_runtime": "PROCESS_ALIVE_AFTER_LAUNCH",
+                    "original_signature_untouched": True,
+                    "login_tested": False, "audio_tested": False}))
             arsc.run(["adb", "install-multiple", *[str(p) for p in clone_output_apks]],
                      "ARM_INSTALL_TEST_CLONE", 240)
             original_paths = arsc.run(["adb", "shell", "pm", "path", source.SOURCE],
