@@ -17,7 +17,9 @@ Date: 2026-11-09. **Diagnostic experiment only. No owner binary/update released.
 
 ## CI
 - W37 diagnostic workflow: https://github.com/manufact-test/nomusic/actions/runs/42694895709
-- Status when documented: **running**. Do not interpret W37 as success until logs and final vendor restoration have both been verified.
+- **W37 CI #42694895709: SUCCESS, passive network evidence.** `CDP_NETWORK_ENABLED`, `CDP_REQUEST_SEEN`, `CDP_LOAD_FAILED_CORS`, `NATIVE_FETCH_BLOCKED_TYPEERROR_CSP_NONE`, `REALM_APPROVED`; trusted main `MAIN_HTTP_403`, `MAIN_ACAO_NATIVE`. The original EXE/ASAR were restored byte-identically and signature validated, `error=""`. The deliberately invalid-token native renderer request is blocked by Chromium CORS. **This does not yet prove the same CORS branch for real signed 206 audio or establish native playback.**
+- W37 exact accepted backup `backup/windows-w37-native-cdp-cors-confirmed-20261109` at `f1e33c534d7aa1f5e7ea7c1ae7aa089945d14927`.
+- W38 disposable follow-up `#42695804499` uses the public DevTools `Network.CorsError` enum (fixed allowlist) to identify **which** CORS check fails, with no raw URL/header/`failedParameter` logging. Pending final result.
 
 ## Next gate
 - If CDP explicitly reports CSP, decide a narrowly scoped authenticated audio delivery boundary for rights-approved CELIKOM media preserving Yandex webSecurity and its single native player.
