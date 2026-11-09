@@ -309,6 +309,22 @@ def run():
                 raise arsc.TrialError("IDENTITY_SPLIT_METADATA_DRIFT")
             with zipfile.ZipFile(apk) as old_zip, zipfile.ZipFile(aligned) as new_zip:
                 if not split:
+                    # The class is declared in the publisher's classes.dex.
+                    # Verify it is still in the actual signed clone DEX.
+                    from inspect_android_host import Dex
+                    cls = "Lru/yandex/music/YMApplication;"
+                    source_definitions = Dex(old_zip.read("classes.dex")).defined_classes()
+                    clone_definitions = Dex(new_zip.read("classes.dex")).defined_classes()
+                    found_in_source = cls in source_definitions
+                    found_in_clone = cls in clone_definitions
+                    print(json.dumps({
+                        "ymapplication_in_original_signed_dex": found_in_source,
+                        "ymapplication_in_clone_signed_dex": found_in_clone,
+                        "class_definition_counts_equal": (
+                            len(source_definitions) == len(clone_definitions))
+                    },sort_keys=True))
+                    if not found_in_source or not found_in_clone:
+                        raise arsc.TrialError("YMAPPLICATION_CLASS_DEFINITION_MISSING")
                     # Compare only public Android application loader flags from
                     # the actually compiled signed manifests (not XML source).
                     def compiled_loader_flags(target, stage):
