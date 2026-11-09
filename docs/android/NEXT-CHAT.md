@@ -1,3 +1,15 @@
+# 2026-11-09 · LATEST NATIVE YANDEX HOOKLAB GATE — ACTUAL LSPATCH LOADER NO-GO (NOT CELIKOM)
+
+**Branch:** `experiment/android-native-yandex-fileinfo-hooklab-20261109`. **Read first:** `docs/android/ANDROID-NATIVE-LSPATCH-EMULATOR-ROOT-CAUSE-2026-11-09.md`, then `docs/android/ANDROID-NATIVE-YANDEX-ROOTLESS-HOOKLAB-2026-11-09.md`. Fully isolated; no changes to user HONOR, accepted Test.50, stable, production API/DB/catalog, original Yandex.
+
+Hard evidence: exactly publisher-signed native Yandex `2026.10.3 #170gpr`, 5 splits (native `armeabi-v7a`), **ORIGINAL** app installs & stays running on disposable Android11 x86/ARMv7 translator (5/5 alive; [CI SUCCESS #42621833205](https://github.com/manufact-test/nomusic/actions/runs/42621833205)). The same host **LSPatch 1.2-487 + CELIKOM read-only observer** installs but crashes before module load, 0/5 process samples, `UnsatisfiedLinkError`, `dlopen failed` for `liblspatch.so` ([#42622523007 NO-GO](https://github.com/manufact-test/nomusic/actions/runs/42622523007)). **LSPatch WITHOUT ANY CELIKOM module** fails identically ([#42622723034 NO-GO](https://github.com/manufact-test/nomusic/actions/runs/42622723034)). This conclusively excludes the CELIKOM observer as cause of the **initial** loader crash on the tested emulator. No audio playback or runtime source hook witness!
+
+Static ELF/ZIP preflight [#42623602723 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/42623602723) independently confirms all 4 `liblspatch.so` ISA variants are actually embedded in patched APK, ELF machine matches arch, ZIP_STORED, payload 4096-byte aligned. Runtime failure is NOT simply missing/incorrectly compressed/unaligned package content. Likely linker/native bridge constraint; not proven on ARM hardware. Android13 x86_64 AVD rejects host `armeabi-v7a` at install (no matching ABI).
+
+**Action:** Stop repeating the exact same x86 emulator LSPatch runs without a specific upstream fix. Next meaningful gate is a disposable native ARM Android13 device (Play Protect ON), or a *verified* native-ARM emulator, without owner HONOR, root, signature-spoof, credentials, disabling defenses, proprietary APK artifacts or dual-player/WebView. Current `NativeHookEntry.java` is nonmutating and version-locked; both `sw7.y0/z0` methods genuinely exist, but they have NOT been called at runtime. Installer cannot replace official same-package Yandex due different signing; no owner consent for phone uninstall and no working delivery APK. Preserve build code and exact diagnostic/test controls in this branch.
+
+---
+
 # 2026-11-09 · OWNER-AUTHORIZED ROOTLESS NATIVE YANDEX HOOK LAB — NEWEST HANDOFF
 
 **Current isolated implementation branch:** `experiment/android-native-yandex-fileinfo-hooklab-20261109`, branched from the proven static Gate2 research SHA `c285fc65262d79a731883bea14b23bbb2a076b9b`. **Read first:** [ANDROID-NATIVE-YANDEX-ROOTLESS-HOOKLAB-2026-11-09.md](ANDROID-NATIVE-YANDEX-ROOTLESS-HOOKLAB-2026-11-09.md). Not merged to production. Owner authorized only a **separate disposable test device/emulator**, not changes to the HONOR/official app.
