@@ -1,3 +1,11 @@
+# IMPORTANT · 2026-11-09 OWNER CORRECTION — NATIVE ANDROID YANDEX IS NONNEGOTIABLE
+
+The product is **NOT** a separate player or WebView wrapper for `music.yandex.ru`. The user enters their Yandex account in the **Android Yandex Music client** and listens within its native app; CELIKOM changes an approved source within that same native player's pipeline (or provides helper/settings/modification for a transparently compatible native build). The owner rejected `feature/android-yandex-web-oneclock-20261109` as an unauthorized product change; its CI-tested APK is archival, not a solution. **DO NOT TRY TO VALIDATE OR RESURRECT THAT ROUTE WITHOUT EXPLICIT OWNER APPROVAL.** Only permitted architecture is real native Android Yandex in-process/source ownership, subject to safety, license/signature and normal Play Protect ON; independent CELIKOM Player/own WebView are not valid Gate 1/2 results.
+
+Read latest owner decision in [ANDROID-NATIVE-YANDEX-RESTART-OWNER-OVERRIDE-2026-11-09.md](ANDROID-NATIVE-YANDEX-RESTART-OWNER-OVERRIDE-2026-11-09.md) and next prompt in [ANDROID-ONE-PLAYER-NEXT-CHAT-PROMPT-2026-11-09.md](ANDROID-ONE-PLAYER-NEXT-CHAT-PROMPT-2026-11-09.md).
+
+---
+
 # CELIKOM Android — single-player architecture / implementation contract
 
 **2026-11-09 · owner-approved NEW direction · DOC/RESEARCH ONLY.** Repository `manufact-test/nomusic`; working docs branch `research/android-single-player-inprocess-20261109`. This is NOT a signed implementation nor proof of Play Protect acceptance.
