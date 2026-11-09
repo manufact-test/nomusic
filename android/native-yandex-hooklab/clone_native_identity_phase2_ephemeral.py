@@ -139,8 +139,37 @@ def omit_shadowed_signature_permission_declarations(manifest_bytes):
 
 
 def classify_clone_launch_logcat(raw):
-    """Allow-listed crash categories ONLY: never persist/log raw Yandex output."""
+    """Report bounded public Java CLASS names and flags only, never raw log text.
+
+    No arbitrary message, exception stack, URL, token or process metadata can
+    escape in this result. All names must match package/class grammar and
+    preapproved non-personal Java namespace prefixes.
+    """
+    import re
+    raw_candidates = []
+    patterns = (
+        r'Didn.t find class ["\\']([A-Za-z0-9_.$/]+)["\\']',
+        r'Failed resolution of: L([A-Za-z0-9_$/]+);',
+        r'(?:ClassNotFoundException|NoClassDefFoundError):\\s*(?:class\\s+)?([A-Za-z0-9_.$/]+)',
+    )
+    for regex in patterns:
+        raw_candidates.extend(re.findall(regex, raw, flags=re.IGNORECASE))
+    allowed = ("com.yandex.", "ru.yandex.", "pro.celikom.",
+               "androidx.", "android.", "com.google.", "kotlin.",
+               "org.jetbrains.", "org.chromium.")
+    class_hints = []
+    for candidate in raw_candidates:
+        name = candidate.replace("/", ".")
+        if (len(name) < 8 or len(name) > 180 or
+                not name.startswith(allowed) or
+                not re.fullmatch(r"[A-Za-z_$][A-Za-z0-9_.$]*", name)):
+            continue
+        if name not in class_hints:
+            class_hints.append(name)
+        if len(class_hints) >= 4:
+            break
     return {
+        "bounded_missing_public_class_hints": class_hints,
         "fatal_exception_seen": "FATAL EXCEPTION" in raw,
         "clone_process_named_in_crash": "Process: " + source.DEST in raw,
         "security_exception_seen": "SecurityException" in raw,
