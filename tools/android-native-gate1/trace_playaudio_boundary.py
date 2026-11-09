@@ -7,6 +7,7 @@ A Retrofit route and callsite do NOT prove the live player source selection.
 """
 from __future__ import annotations
 
+import re
 from inspect_android_host import Dex, DexError
 from trace_native_callers import invoked_method_indexes, method_definitions, uleb
 
@@ -45,9 +46,8 @@ def _annotation_strings(dex: Dex, offset: int) -> list[dict]:
             value, pos = _encoded_value(dex, pos)
             # ONLY known HTTP annotations and literal path: no @Headers and no auth.
             if (typ_name in HTTP_ANNOTATIONS and key == "value"
-                    and isinstance(value, str) and value.startswith("/")
-                    and len(value) <= 200
-                    and all(32 <= ord(ch) <= 126 for ch in value)):
+                    and isinstance(value, str)
+                    and re.fullmatch(r"[A-Za-z0-9_./{}?=&:%+-]{1,200}", value)):
                 out.append({"annotation": typ_name, "static_path": value})
     return out
 
