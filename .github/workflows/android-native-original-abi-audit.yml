@@ -1,0 +1,29 @@
+name: Android original signed 5-split ABI inventory (READ-ONLY)
+on:
+  push:
+    branches:
+      - experiment/android-native-yandex-fileinfo-hooklab-20261109
+    paths:
+      - 'android/native-yandex-hooklab/audit_original_native_abis.py'
+      - '.github/workflows/android-native-original-abi-audit.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  static-original-native-abi-identity:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate source syntax and manifest invariants
+        run: |
+          python3 -m py_compile android/native-yandex-hooklab/audit_original_native_abis.py
+          python3 -m unittest discover -s android/native-yandex-hooklab/tests -p 'test_clone_native_splits_ephemeral.py'
+      - name: Inspect publisher signed native libraries / five split ABIs only
+        run: python3 android/native-yandex-hooklab/audit_original_native_abis.py
+      - name: Verify no third-party release output
+        if: always()
+        run: |
+          test ! -d android/native-yandex-hooklab/release
+          test ! -d android/native-yandex-hooklab/patched
+          echo 'Verified signed ABI metadata; no binary upload/install'
