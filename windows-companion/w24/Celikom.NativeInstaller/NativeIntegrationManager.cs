@@ -73,7 +73,7 @@ public static class NativeIntegrationManager
         if (!File.Exists(exe) || !File.Exists(asar))
             throw new IOException("YANDEX_NOT_INSTALLED");
         var actualVersion = FileVersionInfo.GetVersionInfo(exe).FileVersion;
-        if (actualVersion is not ("5.126.1" or "5.126.1.0"))
+        if (actualVersion is not ("5.126.1" or "5.126.1.0" or "5.126.1.56270518164a6ebd4b974971490df41224a69d68"))
             throw new IOException("UNSUPPORTED_YANDEX_VERSION");
         if (!NativeHostSignature.IsValid(exe))
             throw new IOException("OFFICIAL_YANDEX_EXE_NOT_TRUSTED");

@@ -43,7 +43,7 @@ public static class YandexHostProbe
                 return new(YandexHostStatus.IncompleteInstallation, "");
 
             var version = FileVersionInfo.GetVersionInfo(executable).FileVersion ?? "";
-            if (version is not ("5.126.1" or "5.126.1.0"))
+            if (version is not ("5.126.1" or "5.126.1.0" or "5.126.1.56270518164a6ebd4b974971490df41224a69d68"))
                 return new(YandexHostStatus.UnsupportedVersion, version);
 
             // Check the executable itself, not merely whether it carries a certificate.
