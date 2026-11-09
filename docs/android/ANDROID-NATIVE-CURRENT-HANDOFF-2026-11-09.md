@@ -56,3 +56,13 @@ PASS: own-source ARMv7 rootless hooks; own MediaPlayer audible controls; защ�
 NOT PROVEN: runtime hook внутри Yandex, его собственный MediaSource decoder, корректная аудиоподмена/Seek для RASKOL/Дым, бесщелчковый native join, login в клоне, Play Protect для клона.
 
 Дальше делать именно native Yandex. Не возвращаться к очередным synthetic sound лабораториям.
+
+
+## Обновление: независимый ARSCLib gate и чистый ARM runtime (09.11.2026)
+
+- Apktool CI 42662932538 ранее завершился ошибкой. Скрипт скрыл исходный stderr и оставил эвристический ярлык `ANDROID_FRAMEWORK_MISSING`, поэтому точная первопричина ошибки Apktool **не установлена**.
+- Новый независимый инструмент REAndroid APKEditor/ARSCLib 1.4.9 (закреплённый SHA-256) в CI смог декодировать и пересобрать **как минимум первый base split**; новая проверка намеренно остановила дальнейшую работу, потому что пять original ContentProvider authorities не были изменены. [CI 42668435366](https://github.com/manufact-test/nomusic/actions/runs/42668435366): `ARSC_PROVIDER_AUTHORITY_COLLISION`. До всех пяти APK и runtime дошли НЕ БЫЛИ. Это не регрессия звука.
+- Конфликтующие объявления: `@string/passport_sync_adapter_content_authority`, `com.yandex.passport.authsdk.provider.ru.yandex.music`, `com.yandex.passport.internal.provider.ru.yandex.music`, `com.yandex.passport.internal.sso.ru.yandex.music`, `com.yandex.preinstallsatellite.appmetrica.provider`. Нельзя переименовать их вслепую: нужен анализ ресурсов, вызовов Yandex Passport, DEX и авторизации. Не публиковать и не устанавливать такой клон.
+- Альтернативный non-destructive native-host gate: отдельно установленный ПОДЛИННЫЙ подписанный Яндекс в ЧИСТОМ ARM64 Android-13 эмуляторе GitHub Actions, без клонирования, патча, аккаунта и музыки, без вмешательства в телефон. [Новая CI 42669152016](https://github.com/manufact-test/nomusic/actions/runs/42669152016). Пока результат этого run не был проверен как PASS; не засчитывать запуск до получения `completed/success`.
+- Новые документы: [ANDROID-NATIVE-ARSC-CLONE-GATE-2026-11-09.md](ANDROID-NATIVE-ARSC-CLONE-GATE-2026-11-09.md), [ANDROID-NATIVE-ARM-EMULATOR-ISOLATED-2026-11-09.md](ANDROID-NATIVE-ARM-EMULATOR-ISOLATED-2026-11-09.md).
+- Приоритет: если чистый native original host запускается, изучать возможность read-only source observation в disposable ARM-окружении. До настоящего native decoder FileInfo→MediaSource runtime свидетельства и установки side-by-side на HONOR всё ещё далеко. Принятые own-source audio тесты НЕ повторять. Test.50 и официальный Яндекс не менять.

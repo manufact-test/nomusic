@@ -1,3 +1,5 @@
+> Обновление 09.11.2026: ARSCLib альтернативно перепаковал первый split, но остановлен пятью совпадающими ContentProvider authorities: CI 42668435366, `ARSC_PROVIDER_AUTHORITY_COLLISION`. Побочный клон на HONOR НЕ устанавливать. Отдельный чистый ARM-эмуляторный оригинал Яндекса: CI 42669152016, статус на момент записи ожидает проверки. Подробнее в `ANDROID-NATIVE-CURRENT-HANDOFF-2026-11-09.md` и `ANDROID-NATIVE-ARM-EMULATOR-ISOLATED-2026-11-09.md`.
+
 # CELIKOM Android — NEXT CHAT, актуальный указатель
 
 **Сначала обязательно прочесть** docs/android/ANDROID-NATIVE-CURRENT-HANDOFF-2026-11-09.md. Он содержит полный актуальный статус после owner-проверки звука. Старый накопленный NEXT-CHAT.md сохранён в Git history.
