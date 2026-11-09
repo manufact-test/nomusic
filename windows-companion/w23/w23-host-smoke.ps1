@@ -95,6 +95,7 @@ try {
   $report.modifiedAppLaunched = @(Get-Process -Id $proc.Id -ErrorAction SilentlyContinue).Count -gt 0
   if (Test-Path $diagnostics) {
     $events = @(Get-Content $diagnostics)
+    $report.observedEvents = @($events | Sort-Object -Unique)
     $report.nativeHostLoaded = 'HOST_LOADED' -in $events
     $report.rendererInjected = 'RENDERER_INJECTED' -in $events
     $report.resourceHookAttached = 'RESOURCE_ATTACHED' -in $events
