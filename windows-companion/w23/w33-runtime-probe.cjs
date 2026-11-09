@@ -206,6 +206,30 @@
       note("CDP_" + prefix + "_ACAO_" +
         classifyOrigin(header(headers, "access-control-allow-origin")));
     };
+    // W41 CI-only: expose ONLY a bounded protocol identifier (not the
+    // Origin string/host/path/query). Scheme is public app metadata, not
+    // a credential; never propagate unknown header values to diagnostics.
+    const observeWireScheme = origin => {
+      if (process.env.CELIKOM_W41_SCHEME_ONLY !== "1") return;
+      if (typeof origin !== "string" || origin.length > 256) {
+        note("CDP_WIRE_SCHEME_UNAVAILABLE"); return;
+      }
+      const match = /^([a-z][a-z0-9+.-]{0,31}):\/\/([a-z0-9.-]{1,128})(?::([0-9]{1,5}))?\/?$/i.exec(origin);
+      if (!match) { note("CDP_WIRE_SCHEME_NONSTANDARD_FORMAT"); return; }
+      // Uppercase scheme contains no URL, hostname, port, credentials or path.
+      note("CDP_WIRE_SCHEME_" + match[1].toUpperCase().replace(/[^A-Z0-9]/g, "_"));
+      const host = match[2].toLowerCase();
+      note("CDP_WIRE_HOST_" +
+        (host === "desktop" ? "DESKTOP" :
+          host === "app" ? "APP" :
+          host === "music" ? "MUSIC" :
+          host === "localhost" ? "LOCALHOST" :
+          host === "yandex" ? "YANDEX" :
+          host === "music.yandex.ru" ? "MUSIC_YANDEX_RU" :
+          host === "desktop.app.music.yandex.net" ? "DESKTOP_YANDEX_NET" :
+          "OTHER"));
+      note(match[3] ? "CDP_WIRE_PORT_PRESENT" : "CDP_WIRE_PORT_ABSENT");
+    };
     const tracked = new Set();
     let seen = false, closed = false;
     const onMessage = (_event, method, data) => {
@@ -224,6 +248,7 @@
             tracked.has(String(data?.requestId))) {
           if (process.env.CELIKOM_W39_CORS_HEADERS === "1")
             observeHeaders(data?.headers, "WIRE_REQUEST");
+          observeWireScheme(header(data?.headers, "origin"));
         } else if (method === "Network.responseReceivedExtraInfo" &&
             tracked.has(String(data?.requestId))) {
           if (process.env.CELIKOM_W39_CORS_HEADERS === "1") {
