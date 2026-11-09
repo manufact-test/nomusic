@@ -223,14 +223,26 @@ def run():
         if total_dex_literal_rewrites != 1:
             raise arsc.TrialError("IDENTITY_DEX_LITERAL_COUNT_DRIFT")
         emulator_runtime = {}
-        if os.getenv("CELIKOM_CLEAN_ARM_EMULATOR") == "1":
-            # This intentionally runs ONLY on a disposable clean ARM emulator,
-            # never on an owner device or in an emulator with user accounts.
+        native_arm = os.getenv("CELIKOM_CLEAN_ARM_EMULATOR") == "1"
+        translated_x64 = os.getenv("CELIKOM_CLEAN_ANDROID_TRANSLATION") == "1"
+        if native_arm and translated_x64:
+            raise arsc.TrialError("RUNTIME_MODE_AMBIGUOUS")
+        if native_arm or translated_x64:
+            # Disposable GitHub Android emulator ONLY. No owner device, login,
+            # Play Protect bypass, LSPatch, media playback or modified vendor
+            # APK distribution. Translation is NOT ARM-device compatibility.
             import time
             abi = arsc.run(["adb", "shell", "getprop", "ro.product.cpu.abilist"],
-                           "ARM_EMULATOR_ABI", 30).strip()
-            if "arm64-v8a" not in abi:
-                raise arsc.TrialError("ARM64_RUNTIME_REQUIRED")
+                           "ANDROID_EMULATOR_ABI", 30).strip()
+            bridge = arsc.run(["adb", "shell", "getprop", "ro.dalvik.vm.native.bridge"],
+                              "ANDROID_NATIVE_BRIDGE", 30).strip()
+            if translated_x64:
+                if "x86_64" not in abi or "arm64-v8a" not in abi:
+                    raise arsc.TrialError("API35_X64_ARM64_TRANSLATION_UNAVAILABLE")
+                if not bridge or bridge in ("0", "false"):
+                    raise arsc.TrialError("API35_X64_NATIVE_BRIDGE_UNAVAILABLE")
+            elif "arm64-v8a" not in abi or "x86_64" in abi:
+                raise arsc.TrialError("NATIVE_ARM64_RUNTIME_REQUIRED")
             arsc.run(["adb", "install-multiple", *[str(p) for p in apks]],
                      "ARM_INSTALL_PUBLISHER_ORIGINAL", 240)
             arsc.run(["adb", "install-multiple", *[str(p) for p in clone_output_apks]],
@@ -258,7 +270,9 @@ def run():
                 "original_split_count": original_count,
                 "clone_split_count": clone_count,
                 "clone_process_alive_after_launch": True,
-                "emulator_abi": abi
+                "emulator_abi": abi,
+                "arm_binary_translation": translated_x64,
+                "native_bridge_present": bool(bridge) and bridge not in ("0", "false")
             }
         result = {
             "verdict": "FIVE_SPLIT_IDENTITY_STRUCTURAL_PASS_ONLY",
@@ -276,7 +290,9 @@ def run():
         }
         if emulator_runtime:
             result.update(emulator_runtime)
-            result["verdict"] = "SIDE_BY_SIDE_ARM_EMULATOR_INSTALL_AND_LAUNCH_PASS_NOT_AUDIO"
+            result["verdict"] = ("SIDE_BY_SIDE_X64_ARM_TRANSLATED_INSTALL_LAUNCH_ONLY"
+                                 if translated_x64 else
+                                 "SIDE_BY_SIDE_ARM_EMULATOR_INSTALL_AND_LAUNCH_PASS_NOT_AUDIO")
     return result
 
 
