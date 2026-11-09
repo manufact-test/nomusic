@@ -91,6 +91,19 @@ jobs:
           dotnet run --project windows-companion/w15/Celikom.Companion.Tests/Celikom.Companion.Tests.csproj -c Release
           if ($LASTEXITCODE -ne 0) { throw 'W32_ONE_CLICK_ZIP_TEST_FAILED' }
           Write-Output 'W32_ZIP_UPDATE_METADATA_AND_DOWNGRADE_GUARD_PASS'
+          if (-not (Test-Path $installer)) {
+            Write-Output 'W32_INSTALLER_DISAPPEARED_AFTER_ZIP_VALIDATION'
+            Write-Output "W32_ZIP_STILL_PRESENT=$(Test-Path $package)"
+            Get-ChildItem windows-companion/w20/output -ErrorAction SilentlyContinue |
+              Select-Object Name, Length | Format-Table
+            try {
+              $detections = @(Get-MpThreatDetection -ErrorAction Stop)
+              Write-Output "W32_DEFENDER_DETECTIONS=$($detections.Count)"
+              $detections | Select-Object -First 8 ThreatID, ActionSuccess | Format-Table
+            } catch { Write-Output 'W32_DEFENDER_DIAGNOSTICS_UNAVAILABLE' }
+            throw 'W32_INSTALLER_MISSING_AFTER_ZIP_STAGE'
+          }
+          Write-Output 'W32_EXE_STILL_PRESENT_AFTER_ZIP_VALIDATION'
       - name: Disposable Windows per-user install and uninstall smoke
         shell: pwsh
         run: |
