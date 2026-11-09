@@ -1,0 +1,75 @@
+name: Android native-Yandex exact FileInfo hooklab (read-only module)
+on:
+  push:
+    branches:
+      - experiment/android-native-yandex-fileinfo-hooklab-20261109
+    paths:
+      - 'android/native-yandex-hooklab/**'
+      - '.github/workflows/android-native-yandex-hooklab.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  isolated-synthetic-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Verify exact classloader/hook method contract using synthetic Yandex DTOs
+        run: |
+          set -eu
+          mkdir -p /tmp/celikom-jvm-hooklab
+          javac --release 17 -d /tmp/celikom-jvm-hooklab \
+            android/native-yandex-hooklab/app/src/main/java/pro/celikom/yandex/nativehooklab/HookSpec.java \
+            $(find android/native-yandex-hooklab/tests/src -type f -name '*.java' | sort)
+          java -cp /tmp/celikom-jvm-hooklab HookSpecTest
+      - name: Disallow sensitive permissions, substitute player and mutable audio sources
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          base = Path('android/native-yandex-hooklab')
+          manifest = (base/'app/src/main/AndroidManifest.xml').read_text()
+          source = (base/'app/src/main/java/pro/celikom/yandex/nativehooklab/NativeHookEntry.java').read_text()
+          build = (base/'app/build.gradle.kts').read_text()
+          assert '<uses-permission' not in manifest
+          assert '"false"' in build or 'false' in build
+          for forbidden in ['MediaPlayer(', 'WebView(', 'setResult(', 'setDataSource(', 'Authorization', 'OAuth', 'getDeclaredField("urls")']:
+              assert forbidden not in source, forbidden
+          assert 'chain.proceed()' in source
+          assert 'setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)' in source
+          print('PASS: read-only, no dangerous permissions, no external player or OAuth capture')
+          PY
+  android-module-build:
+    needs: isolated-synthetic-contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+      - name: Build only CELIKOM read-only Xposed module, never original/patched Yandex
+        run: gradle -p android/native-yandex-hooklab :app:assembleDebug --no-daemon --stacktrace
+      - name: Verify Xposed module metadata and APK integrity (CI does not release binary)
+        run: |
+          set -eu
+          APK=android/native-yandex-hooklab/app/build/outputs/apk/debug/app-debug.apk
+          test -f "$APK"
+          unzip -Z1 "$APK" | grep -Fx 'META-INF/xposed/java_init.list'
+          unzip -Z1 "$APK" | grep -Fx 'META-INF/xposed/module.prop'
+          unzip -Z1 "$APK" | grep -Fx 'META-INF/xposed/scope.list'
+          unzip -p "$APK" META-INF/xposed/scope.list | grep -Fx 'ru.yandex.music'
+          unzip -p "$APK" META-INF/xposed/java_init.list | grep -Fx 'pro.celikom.yandex.nativehooklab.NativeHookEntry'
+          test -n "${ANDROID_HOME}"
+          TOOL=$(find "${ANDROID_HOME}/build-tools" -name apksigner -type f | sort -V | tail -1)
+          "$TOOL" verify --verbose --print-certs "$APK" | grep 'Verified using v2 scheme (APK Signature Scheme v2): true'
+          sha256sum "$APK"
+          echo 'PASS: source-only in-process module builds, signed, metadata correct. NOT injected in Yandex. Play Protect NOT tested.'
