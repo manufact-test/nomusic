@@ -315,15 +315,77 @@ def full_native_main_ui_pass(samples, activity_status, foreground):
 
 
 def classify_activity_exit_info(raw):
-    """Only system process exit reason categories, never raw exit details."""
-    return {
-        "exit_reason_crash": "REASON_CRASH" in raw,
-        "exit_reason_crash_native": "REASON_CRASH_NATIVE" in raw,
-        "exit_reason_exit_self": "REASON_EXIT_SELF" in raw,
-        "exit_reason_permission_change": "REASON_PERMISSION_CHANGE" in raw,
-        "exit_reason_excessive_resource_usage": "REASON_EXCESSIVE_RESOURCE_USAGE" in raw,
-        "raw_exit_info_exposed": False
+    """Classify Android 11 ApplicationExitInfo for MAIN, excluding helpers.
+
+    AOSP uses numeric reason=4 (APP CRASH(EXCEPTION)), not REASON_CRASH.
+    Never interpret unscoped or helper-process records as a MAIN crash.
+    No process identifiers, timestamps or raw system text are returned.
+    """
+    import re
+    known = {
+        1: "exit_self", 2: "signaled", 3: "low_memory",
+        4: "crash", 5: "crash_native", 6: "anr",
+        7: "initialization_failure", 8: "permission_change",
+        9: "excessive_resource_usage", 12: "dependency_died",
     }
+    # AOSP dumpsys emits ApplicationExitInfo records with process and reason
+    # on one or multiple lines. Never assign an unnamed record to MAIN.
+    blocks = re.split(
+        r"(?im)(?=^\\s*(?:ApplicationExitInfo\\s*#?\\d+|#\\d+:\\s*ApplicationExitInfo))",
+        raw)
+    if len(blocks) == 1:
+        blocks = raw.splitlines()
+    main_codes, auxiliary_codes, unknown_codes = set(), set(), set()
+    for block in blocks:
+        matches = re.findall(r"\\breason\\s*[=:]\\s*(\\d{1,2})\\b", block, re.I)
+        if not matches:
+            continue
+        process = re.search(
+            r"\\b(?:processName|process|process name)\\s*[=:]\\s*"
+            r"([A-Za-z0-9_.:]+)", block, re.I)
+        name = process.group(1) if process else None
+        target = (main_codes if name == source.DEST else
+                  auxiliary_codes if name and name.startswith(source.DEST + ":")
+                  else unknown_codes)
+        for number in matches[:16]:
+            code = int(number)
+            if 0 <= code <= 16:
+                target.add(code)
+    return {
+        **{"exit_reason_" + label: code in main_codes
+           for code, label in known.items()},
+        "main_exit_record_seen": bool(main_codes),
+        "auxiliary_exit_record_seen": bool(auxiliary_codes),
+        "unattributed_exit_record_seen": bool(unknown_codes),
+        "unattributed_crash_reason_seen": bool({4, 5} & unknown_codes),
+        "exit_info_command_unrecognized": (
+            "Unknown command" in raw or "Bad activity command" in raw),
+        "raw_exit_info_exposed": False,
+    }
+
+
+def classify_clone_process_events(raw):
+    """Bounded Android event-log lifecycle flags, MAIN distinct from helper."""
+    import re
+    main = re.compile(
+        r"(?<![A-Za-z0-9_.])" + re.escape(source.DEST) +
+        r"(?![A-Za-z0-9_.:])")
+    tags = ("am_proc_start", "am_proc_died", "am_kill",
+            "am_crash", "am_anr")
+    flags = {tag + "_main_seen": False for tag in tags}
+    helper_seen = False
+    for line in raw.splitlines()[:5000]:
+        if source.DEST not in line:
+            continue
+        helper_seen |= bool(re.search(
+            re.escape(source.DEST) + r":[A-Za-z0-9_.]+", line))
+        if not main.search(line):
+            continue
+        for tag in tags:
+            if re.search(r"\\b" + tag + r"\\b", line):
+                flags[tag + "_main_seen"] = True
+    return {**flags, "auxiliary_process_events_seen": helper_seen,
+            "raw_event_log_exposed": False}
 
 
 
@@ -613,6 +675,10 @@ def run():
                     raise arsc.TrialError("CLONE_RECEIVED_UNAUTHORIZED_CREDENTIAL_PERMISSION")
             print(json.dumps({"emulator_install_gate": "SIDE_BY_SIDE_5_AND_5_PASS",
                               "owner_phone_touched": False, "credential_use": False}))
+            # Disposable emulator only: scope lifecycle evidence to this launch.
+            if preserve_original_dex:
+                arsc.run(["adb", "logcat", "-c"],
+                         "CLEAN_EMULATOR_LAUNCH_EVENT_SCOPE", 30)
             launch_stdout = arsc.run(
                 ["adb", "shell", "am", "start", "-W",
                  "-a", "android.intent.action.MAIN",
@@ -656,10 +722,24 @@ def run():
                 # emulator. Emit ONLY boolean classifications, never raw logs,
                 # URLs, requests, tokens, stack traces or account contents.
                 raw_crashes = arsc.run(
-                    ["adb", "logcat", "-d", "-v", "brief", "-t", "1000",
+                    ["adb", "logcat", "-d", "-v", "brief", "-t", "2000",
                      "-s", "AndroidRuntime:E", "ActivityManager:W",
-                     "ActivityTaskManager:W"],
+                     "ActivityTaskManager:W", "libc:F", "DEBUG:F"],
                     "ARM_CLONE_PRIVACY_SAFE_CRASH_CLASSIFICATION", 35)
+                if preserve_original_dex:
+                    try:
+                        event_log = arsc.run(
+                            ["adb", "logcat", "-b", "events", "-d",
+                             "-v", "brief", "-t", "3000"],
+                            "CLONE_SCOPED_PROCESS_LIFECYCLE", 35)
+                        print(json.dumps({
+                            "clone_process_lifecycle":
+                                classify_clone_process_events(event_log)
+                        }, sort_keys=True))
+                    except arsc.TrialError:
+                        print(json.dumps({
+                            "clone_process_lifecycle": "ANDROID_EVENTS_UNAVAILABLE"
+                        }))
                 relevant_crash = raw_crashes.rsplit(
                     "Process: " + source.DEST, 1)[-1][:16000]
                 if preserve_original_dex:

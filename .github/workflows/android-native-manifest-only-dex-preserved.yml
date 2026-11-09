@@ -5,6 +5,8 @@ on:
       - experiment/android-native-yandex-fileinfo-hooklab-20261109
     paths:
       - '.github/workflows/android-native-manifest-only-dex-preserved.yml'
+      - 'android/native-yandex-hooklab/clone_native_identity_phase2_ephemeral.py'
+      - 'android/native-yandex-hooklab/tests/test_clone_crash_classification.py'
   workflow_dispatch:
 permissions:
   contents: read

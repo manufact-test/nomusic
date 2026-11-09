@@ -4,7 +4,7 @@ from unittest.mock import patch
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from clone_native_identity_phase2_ephemeral import classify_clone_launch_logcat, summarize_installed_package_code_flags, classify_activity_start, classify_activity_exit_info, disposable_foreground_snapshot, full_native_main_ui_pass
+from clone_native_identity_phase2_ephemeral import classify_clone_launch_logcat, summarize_installed_package_code_flags, classify_activity_start, classify_activity_exit_info, classify_clone_process_events, disposable_foreground_snapshot, full_native_main_ui_pass
 
 
 class SafeCloneCrashClassificationTest(unittest.TestCase):
@@ -77,10 +77,61 @@ class SafeCloneCrashClassificationTest(unittest.TestCase):
         self.assertNotIn("NEVER_SHARE", str(report))
 
     def test_exit_reason_classification_no_raw_data(self):
-        report = classify_activity_exit_info("REASON_EXIT_SELF\\nraw_token=NEVER_SHARE")
+        raw = ("ApplicationExitInfo #0: process=pro.celikom.yandex.nativeclonelab "
+               "reason=1 (EXIT SELF) raw_token=NEVER_SHARE")
+        report = classify_activity_exit_info(raw)
         self.assertTrue(report["exit_reason_exit_self"])
+        self.assertTrue(report["main_exit_record_seen"])
         self.assertFalse(report["exit_reason_crash"])
         self.assertNotIn("NEVER_SHARE", str(report))
+
+    def test_android_11_numeric_crash_reason_main_vs_appmetrica(self):
+        raw = ("ApplicationExitInfo #0: process=pro.celikom.yandex.nativeclonelab:AppMetrica "
+               "reason=5 (APP CRASH(NATIVE))\\n"
+               "ApplicationExitInfo #1:\\n"
+               "  process=pro.celikom.yandex.nativeclonelab\\n"
+               "  reason=4 (APP CRASH(EXCEPTION))\\n"
+               "  trace=NEVER_EXPOSE")
+        report = classify_activity_exit_info(raw)
+        self.assertTrue(report["exit_reason_crash"])
+        self.assertFalse(report["exit_reason_crash_native"])
+        self.assertTrue(report["auxiliary_exit_record_seen"])
+        self.assertFalse(report["unattributed_exit_record_seen"])
+        self.assertNotIn("NEVER_EXPOSE", str(report))
+
+    def test_helper_only_is_not_main_exit(self):
+        report = classify_activity_exit_info(
+            "ApplicationExitInfo #0: process=pro.celikom.yandex.nativeclonelab:AppMetrica "
+            "reason=4 (APP CRASH(EXCEPTION))")
+        self.assertFalse(report["exit_reason_crash"])
+        self.assertFalse(report["main_exit_record_seen"])
+        self.assertTrue(report["auxiliary_exit_record_seen"])
+
+    def test_exit_info_without_process_is_unattributed(self):
+        report = classify_activity_exit_info(
+            "ApplicationExitInfo #0: reason=4 (APP CRASH(EXCEPTION))")
+        self.assertFalse(report["exit_reason_crash"])
+        self.assertTrue(report["unattributed_crash_reason_seen"])
+
+    def test_process_events_main_vs_auxiliary_and_no_raw(self):
+        raw = ("I/am_proc_start: [0,111,10000,pro.celikom.yandex.nativeclonelab,top]\\n"
+               "I/am_proc_died: [0,111,pro.celikom.yandex.nativeclonelab]\\n"
+               "I/am_crash: [0,111,pro.celikom.yandex.nativeclonelab]\\n"
+               "I/am_proc_start: [0,112,10000,pro.celikom.yandex.nativeclonelab:AppMetrica,service]\\n"
+               "PRIVATE_VALUE")
+        report = classify_clone_process_events(raw)
+        self.assertTrue(report["am_proc_start_main_seen"])
+        self.assertTrue(report["am_proc_died_main_seen"])
+        self.assertTrue(report["am_crash_main_seen"])
+        self.assertTrue(report["auxiliary_process_events_seen"])
+        self.assertFalse(report["am_kill_main_seen"])
+        self.assertNotIn("PRIVATE_VALUE", str(report))
+
+    def test_only_helper_events_never_claim_main(self):
+        report = classify_clone_process_events(
+            "I/am_proc_died: [0,123,pro.celikom.yandex.nativeclonelab:AppMetrica]")
+        self.assertFalse(report["am_proc_died_main_seen"])
+        self.assertTrue(report["auxiliary_process_events_seen"])
 
     def test_foreground_snapshot_only_reports_package_membership(self):
         pkg = "pro.celikom.yandex.nativeclonelab"
