@@ -14,6 +14,7 @@ import zipfile
 from pathlib import Path
 import clone_native_splits_ephemeral as source
 import clone_native_splits_arsclib_ephemeral as arsc
+from inspect_android_host import Dex
 
 ANDROID = "{" + source.ANDROID + "}"
 FOCUS = "com.yandex.permission.READ_CREDENTIALS"
@@ -37,6 +38,8 @@ def run():
         declaration_rows = []
         usage_rows = []
         component_references = []
+        app_classes = []
+        application_manifest_records = []
         dex_counts = {}
         all_defined = set()
         component_name_shapes = {"relative_dot": [], "unqualified": [],
@@ -52,6 +55,12 @@ def run():
             xml = source.ET.parse(decoded / "AndroidManifest.xml").getroot()
             if xml.attrib.get("package") != source.SOURCE:
                 raise arsc.TrialError("MANIFEST_ORIGINAL_IDENTITY_DRIFT")
+            for el in xml.iter("application"):
+                application_manifest_records.append({
+                    "split": split,
+                    "public_application_class": el.attrib.get(ANDROID+"name", ""),
+                    "hasCode": el.attrib.get(ANDROID+"hasCode", "android-default")
+                })
             for el in xml.iter():
                 tag = el.tag
                 name = el.attrib.get(ANDROID+"name", "")
@@ -80,13 +89,20 @@ def run():
             with zipfile.ZipFile(apk) as z:
                 for entry in z.namelist():
                     if entry.startswith("classes") and entry.endswith(".dex"):
-                        dex_counts[entry] = dex_counts.get(entry,0) + z.read(entry).count(FOCUS.encode())
+                        raw = z.read(entry)
+                        dex_counts[entry] = dex_counts.get(entry,0) + raw.count(FOCUS.encode())
+                        if "Lru/yandex/music/YMApplication;" in Dex(raw).defined_classes():
+                            app_classes.append({"split":split, "dex":entry,
+                                                "declares_original_application_class":True})
         if FOCUS not in all_defined:
             raise arsc.TrialError("EXPECTED_CREDENTIAL_PERMISSION_DECLARATION_MISSING")
         return {
             "verdict": "SIGNED_MANIFEST_PERMISSION_AUDIT_STATIC_ONLY",
             "source": "2026.10.3 #170gpr",
             "original_five_splits_verified": True,
+            "application_manifest_records": application_manifest_records,
+            "ymapplication_class_definition": app_classes,
+            "ymapplication_declared_in_original_dex": len(app_classes) > 0,
             "manifest_component_name_shape_counts": {
                 shape: len(entries) for shape, entries in component_name_shapes.items()
             },
