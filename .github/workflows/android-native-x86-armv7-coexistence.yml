@@ -1,12 +1,7 @@
 name: Android 11 x86 ARMv7 sorted AppMetrica consistent clone MAIN UI (EPHEMERAL)
+# Archived failed sorted-AppMetrica A/B: keep reproducible but never auto-rerun
+# on unrelated diagnostics changes. The manifest-only control is the current gate.
 on:
-  push:
-    branches:
-      - experiment/android-native-yandex-fileinfo-hooklab-20261109
-    paths:
-      - '.github/workflows/android-native-x86-armv7-coexistence.yml'
-      - 'android/native-yandex-hooklab/clone_native_identity_phase2_ephemeral.py'
-      - 'android/native-yandex-hooklab/tests/test_clone_crash_classification.py'
   workflow_dispatch:
 permissions:
   contents: read
