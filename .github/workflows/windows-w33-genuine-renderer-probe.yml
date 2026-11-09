@@ -1,4 +1,4 @@
-name: CELIKOM W37 passive genuine-Yandex network failure classification
+name: CELIKOM W38 exact native CORS failure enum observation
 
 on:
   push:
@@ -73,7 +73,13 @@ jobs:
           if (@($probe | Where-Object { $_ -match '^W33_RT_CDP_(LOAD_FAILED_|HTTP_|CSP_CONSOLE)' }).Count -eq 0) {
             throw 'W37_CDP_HAS_NO_CLASSIFIED_NETWORK_OUTCOME'
           }
-          Write-Output 'W37_NATIVE_CDP_BOUNDARY_CLASSIFIED'
+          if ('W33_RT_CDP_LOAD_FAILED_CORS' -notin $probe) {
+            throw 'W38_EXPECTED_NATIVE_CORS_EVENT_NOT_OBSERVED'
+          }
+          if (@($probe | Where-Object { $_ -match '^W33_RT_CDP_CORS_ENUM_' }).Count -eq 0) {
+            throw 'W38_CORS_ERROR_ENUM_MISSING'
+          }
+          Write-Output 'W38_NATIVE_CORS_ERROR_ENUM_CLASSIFIED'
       - name: Retain only sanitized CI report (never patched Yandex binaries or credentials)
         if: always()
         uses: actions/upload-artifact@v4
