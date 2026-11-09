@@ -4,7 +4,7 @@ from unittest.mock import patch
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from clone_native_identity_phase2_ephemeral import classify_clone_launch_logcat, summarize_installed_package_code_flags, classify_activity_start, classify_activity_exit_info, disposable_foreground_snapshot
+from clone_native_identity_phase2_ephemeral import classify_clone_launch_logcat, summarize_installed_package_code_flags, classify_activity_start, classify_activity_exit_info, disposable_foreground_snapshot, full_native_main_ui_pass
 
 
 class SafeCloneCrashClassificationTest(unittest.TestCase):
@@ -101,6 +101,30 @@ class SafeCloneCrashClassificationTest(unittest.TestCase):
     def test_foreground_snapshot_rejects_wrong_package(self):
         with self.assertRaisesRegex(Exception, "UNAPPROVED_FOREGROUND_PACKAGE"):
             disposable_foreground_snapshot("some.other.package")
+
+    def test_auxiliary_appmetrica_never_counts_as_main_player(self):
+        samples = [{
+            "any_named_process_alive": True,
+            "ps_auxiliary_process_alive": True,
+            "safe_auxiliary_process_suffixes": ["AppMetrica"],
+            "direct_pid_alive": False,
+            "ps_main_process_alive": False,
+        }]
+        self.assertFalse(full_native_main_ui_pass(
+            samples, {"activity_status_ok": True, "activity_explicit_error": False},
+            {"activity_resumed_for_package": True}))
+
+    def test_main_process_without_resumed_activity_is_not_a_pass(self):
+        self.assertFalse(full_native_main_ui_pass(
+            [{"direct_pid_alive": True, "ps_main_process_alive": True}],
+            {"activity_status_ok": True, "activity_explicit_error": False},
+            {"activity_resumed_for_package": False}))
+
+    def test_only_real_main_and_resumed_activity_pass(self):
+        self.assertTrue(full_native_main_ui_pass(
+            [{"direct_pid_alive": True, "ps_main_process_alive": True}],
+            {"activity_status_ok": True, "activity_explicit_error": False},
+            {"activity_resumed_for_package": True}))
 
     def test_no_crash_produces_zero_flags(self):
         report = classify_clone_launch_logcat("")
