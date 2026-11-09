@@ -1,5 +1,12 @@
 name: Android exact-GPR parallel clone feasibility (READ ONLY)
 on:
+  push:
+    branches:
+      - experiment/android-native-yandex-fileinfo-hooklab-20261109
+    paths:
+      - 'android/native-yandex-hooklab/audit_parallel_clone.py'
+      - 'android/native-yandex-hooklab/tests/test_parallel_clone.py'
+      - '.github/workflows/android-native-yandex-clone-feasibility.yml'
   workflow_dispatch:
 permissions:
   contents: read
