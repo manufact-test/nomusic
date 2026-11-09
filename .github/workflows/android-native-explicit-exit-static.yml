@@ -1,0 +1,30 @@
+name: Android native clone MAIN self-exit signed static audit (READ-ONLY)
+on:
+  push:
+    branches:
+      - experiment/android-native-yandex-fileinfo-hooklab-20261109
+    paths:
+      - 'android/native-yandex-hooklab/audit_native_exit_calls_static.py'
+      - 'android/native-yandex-hooklab/tests/test_native_exit_targets.py'
+      - '.github/workflows/android-native-explicit-exit-static.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  original-signed-static-exit-callsite:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate safe parser and exact termination method targets
+        run: |
+          python3 -m py_compile android/native-yandex-hooklab/audit_native_exit_calls_static.py
+          PYTHONPATH=tools/android-native-gate1 python3 -m unittest discover -s android/native-yandex-hooklab/tests -p 'test_native_exit_targets.py' -v
+      - name: Publisher-signed untouched Yandex five splits static check
+        run: PYTHONPATH=tools/android-native-gate1 python3 android/native-yandex-hooklab/audit_native_exit_calls_static.py
+      - name: No vendor APK or other private artifact retained
+        if: always()
+        run: |
+          test ! -d android/native-yandex-hooklab/release
+          test ! -d android/native-yandex-hooklab/patched
+          echo 'Read-only evidence; no bundled signed APK, keys, accounts or telemetry'
