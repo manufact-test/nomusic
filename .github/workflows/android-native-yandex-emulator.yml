@@ -64,9 +64,9 @@ jobs:
             adb shell pm list packages com.android.vending | grep -Fx 'package:com.android.vending'
             echo "Install 5 CELIKOM-lab-signed patched Yandex splits on EMPTY emulator, NO uninstall, root or disabled protection."
             adb install-multiple "${CELIKOM_EMULATOR_TEST_DIR}"/*.apk
-            count=$(adb shell pm path ru.yandex.music | grep -c 'package:')
-            echo "Installed APK split count: $count"
-            test "$count" -eq 5
+            echo "Installed APK split count:"
+            adb shell pm path ru.yandex.music
+            test "$(adb shell pm path ru.yandex.music | grep -c 'package:')" -eq 5
             echo "Start native Yandex without entering any account credentials."
             adb shell monkey -p ru.yandex.music -c android.intent.category.LAUNCHER 1 || true
             sleep 15
