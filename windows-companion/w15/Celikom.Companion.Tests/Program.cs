@@ -24,6 +24,23 @@ try
         "incomplete install is never treated as compatible");
     Directory.Delete(incomplete, true);
 
+    Test(BridgeServer.ValidNativeOrigin("https://desktop.app.music.yandex.net"),
+        "native Yandex renderer is allowed");
+    Test(!BridgeServer.ValidNativeOrigin("https://evil.yandex.net"),
+        "unrelated renderer is denied");
+    Test(!BridgeServer.ValidNativeOrigin("null"),
+        "opaque renderer origin is denied");
+    using (var native = new NativeTokenPublisher(Path.Combine(folder, "native-test")))
+    {
+        var key = new string('a', 64);
+        native.Publish(key);
+        Test(File.ReadAllText(native.FilePath) == key, "native bridge capability published");
+        native.Publish(new string('b', 64));
+        Test(File.ReadAllText(native.FilePath) == new string('b', 64),
+            "native pairing capability rotates");
+    }
+    Test(!File.Exists(Path.Combine(folder, "native-test", "native-bridge.key")),
+        "native bridge capability removed on shutdown");
     var store = new SessionStore(folder);
     var first = store.LoadOrCreate();
     Test(Guid.TryParse(first.InstallationId, out _), "device ID");

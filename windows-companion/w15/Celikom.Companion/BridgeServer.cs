@@ -20,6 +20,17 @@ public sealed class BridgeServer : IAsyncDisposable
     private static readonly Regex AddonOrigin =
         new(@"^https://addon-[1-9][0-9]{0,7}\.pulsesync\.invalid$",
             RegexOptions.CultureInvariant);
+    // Native Electron renderer origins (no wildcard, no file: or null).
+    private static readonly HashSet<string> NativeYandexOrigins =
+        new(StringComparer.Ordinal)
+        {
+            "https://desktop.app.music.yandex.net",
+            "https://music.yandex.ru",
+            "https://next.music.yandex.ru",
+            "https://music.yandex.com"
+        };
+    public static bool ValidNativeOrigin(string? origin) =>
+        origin is not null && NativeYandexOrigins.Contains(origin);
     private readonly object _gate = new();
     private readonly CelikomApi _api;
     private readonly SessionStore _store;
@@ -114,7 +125,7 @@ public sealed class BridgeServer : IAsyncDisposable
         {
             // Only explicitly approved isolated add-on origins may issue requests.
             var origin = context.Request.Headers.Origin.ToString();
-            if (!AddonOrigin.IsMatch(origin))
+            if (!AddonOrigin.IsMatch(origin) && !ValidNativeOrigin(origin))
             {
                 context.Response.StatusCode = StatusCodes.Status403Forbidden;
                 return;
@@ -180,7 +191,8 @@ public sealed class BridgeServer : IAsyncDisposable
             catch (Exception ex) when (ex is JsonException or BadHttpRequestException)
             { return Results.BadRequest(); }
             if (beat == null || beat.Status is not ("OFF" or "UNAVAILABLE" or "ORIGINAL" or
-                  "RESOLVING" or "SDK_MAPPING_ACCEPTED" or "HOST_ERROR"))
+                  "RESOLVING" or "SDK_MAPPING_ACCEPTED" or "HOST_ERROR" or
+                  "NATIVE_CONNECTED" or "NATIVE_MAPPING_ACCEPTED"))
                 return Results.BadRequest();
             lock (_gate)
             {

@@ -16,6 +16,7 @@ public sealed class MainWindow : Form
     private static readonly Color Border = ColorTranslator.FromHtml("#DCE8E3");
 
     private readonly SessionStore _store = new();
+    private NativeTokenPublisher? _nativeToken;
     private readonly CelikomApi _api;
     private readonly BridgeServer _bridge;
     private readonly TextBox _origin = new();
@@ -177,8 +178,8 @@ public sealed class MainWindow : Form
         _song.AutoEllipsis = false;
         Add(layout, _song, 53);
 
-        Add(layout, Label("ПЕРВОЕ ПОДКЛЮЧЕНИЕ", 11, true), 39);
-        Add(layout, Label("Открой дополнение CELIKOM внутри Яндекса и введи код.", 9, false, Secondary), 41);
+        Add(layout, Label("ПОДКЛЮЧЕНИЕ К ЯНДЕКСУ", 11, true), 39);
+        Add(layout, Label("Подключение происходит автоматически. Отдельные коды и моды устанавливать не нужно.", 9, false, Secondary), 41);
         var pair = new TableLayoutPanel
         {
             Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1,
@@ -213,13 +214,14 @@ public sealed class MainWindow : Form
         };
         _copy.Dock = DockStyle.Fill;
         pair.Controls.Add(_copy, 1, 0);
-        Add(layout, pair, 48);
+        // Native integration uses a same-user ephemeral capability. Old
+        // PulseSync pairing widgets are retained in code for legacy tests,
+        // but are not exposed in the native Windows consumer journey.
         _rotate.Text = "Получить новый код";
         _rotate.FlatStyle = FlatStyle.Flat;
         _rotate.BackColor = Paper;
         _rotate.FlatAppearance.BorderColor = Border;
         _rotate.Click += (_, _) => _bridge.RotateCode();
-        Add(layout, _rotate, 43);
 
         var openYandex = Button("Открыть Яндекс.Музыку", false);
         openYandex.Click += (_, _) =>
@@ -305,12 +307,16 @@ public sealed class MainWindow : Form
         try
         {
             await _bridge.StartAsync();
+            _nativeToken = new NativeTokenPublisher();
+            _nativeToken.Publish(_api.Settings.BridgeToken);
             _bridgeStarted = true;
             UpdateSafe();
         }
         catch
         {
             _bridgeStarted = false;
+            _nativeToken?.Dispose();
+            _nativeToken = null;
             _status.Text = "Локальная служба недоступна. Закрой другие копии CELIKOM.";
             _accountStatus.Text = "Не удалось запустить службу CELIKOM.";
             _toggle.Enabled = false;
@@ -385,10 +391,17 @@ public sealed class MainWindow : Form
             _copy.Enabled = false;
             _rotate.Enabled = _api.IsLoggedIn;
         }
+        if (_bridgeStarted)
+        {
+            try { _nativeToken?.Publish(_api.Settings.BridgeToken); }
+            catch { _status.Text = "Ошибка локального подключения CELIKOM."; }
+        }
         var state = _bridge.LastStatus;
         _song.Text = state switch
         {
             "SDK_MAPPING_ACCEPTED" => "Подмена передана SDK. Реальный звук пока не подтверждён.",
+            "NATIVE_CONNECTED" => "Связь с Яндексом есть. Ожидаем композицию.",
+            "NATIVE_MAPPING_ACCEPTED" => "Источник подмены выбран в Яндексе.",
             "RESOLVING" => "Ищем одобренную версию песни…",
             "ORIGINAL" => "Подмена недоступна — оригинальная версия.",
             "OFF" => "Подмена выключена.",
@@ -435,6 +448,7 @@ public sealed class MainWindow : Form
         try { await _bridge.DisposeAsync(); }
         finally
         {
+            _nativeToken?.Dispose();
             _api.Dispose();
             _tray.Dispose();
             Close();
