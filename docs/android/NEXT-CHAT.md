@@ -1,3 +1,13 @@
+# ⛔ LATEST OWNER HARD OVERRIDE · 2026-11-09 · NATIVE ANDROID YANDEX ONLY
+
+The owner explicitly rejected the previous assistant's `WebView` Yandex website app. **CELIKOM must work with the genuine Android Yandex Music CLIENT experience**: log into Yandex **inside the Yandex Android client**, listen there, same native player Play/Pause/Seek/Next/playlist/radio. CELIKOM may be an in-process Android module, a supported modified native Yandex build, or a separate settings/helper app, but **MUST NOT replace native Yandex with an embedded website / user-facing CELIKOM player or request Yandex credentials in CELIKOM**. Any change to that UX requires explicit permission **before coding**.
+
+**New definitive handoff:** [ANDROID-NATIVE-YANDEX-RESTART-OWNER-OVERRIDE-2026-11-09.md](ANDROID-NATIVE-YANDEX-RESTART-OWNER-OVERRIDE-2026-11-09.md). **Ready copy/paste:** [ANDROID-ONE-PLAYER-NEXT-CHAT-PROMPT-2026-11-09.md](ANDROID-ONE-PLAYER-NEXT-CHAT-PROMPT-2026-11-09.md).
+
+Rejected / archived WebView code: `feature/android-yandex-web-oneclock-20261109`, source snapshot `a7c9f80f95322f0a2e2854010c23788e3b1ea0b9` before rejection annotations; build CI 42584183770 PASS only as web demo; **DO NOT DELIVER OR RETEST**; user's personal Library web-preview APK is archived. Old abstract lab: `experiment/android-one-player-source-gate-20261109`, policy/code contracts only. Stable Android, accepted Test.50, official Yandex, backend, DB and 1426 approved tracks untouched. **Next: create a new isolated NATIVE-IN-PROCESS branch from THIS research branch and work without owner involvement until genuine native-Yandex integration is demonstrated.** No USB/ADB/file exports, no Play Protect bypass, no fake APK or background work promises.
+
+---
+
 # CURRENT OVERRIDE · 2026-11-09 — owner selects IN-PROCESS SINGLE-PLAYER architecture
 
 **LATEST DECISION — read before all historic Test.76 notes below.** User explicitly said stop small bugfixes; whether CELIKOM is a standalone app/equalizer/module is irrelevant. Must keep familiar Yandex experience, single player managing original OR alternative source, fast start, native seek/pause/Next, normal installation with **Google Play Protect ON**. User now ALLOWS investigation of a compatible modified Yandex Android client (supersedes 2026-11-04 no-patcher decision), but not silent modification of their installed stock Yandex or bypassing security.
