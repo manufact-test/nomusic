@@ -17,7 +17,11 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 APK = HERE / "armv7-loader-host/app/build/outputs/apk/debug/app-debug.apk"
 WITNESS = os.getenv("CELIKOM_OWN_WITNESS") == "1"
-PACKAGE = "pro.celikom.armv7loaderhost.witness" if WITNESS else "pro.celikom.armv7loaderhost"
+AUDIO = os.getenv("CELIKOM_OWN_AUDIO") == "1"
+if WITNESS and AUDIO:
+    raise ValueError("INCOMPATIBLE_TEST_VARIANTS")
+PACKAGE = ("pro.celikom.armv7loaderhost.audio" if AUDIO else
+           "pro.celikom.armv7loaderhost.witness" if WITNESS else "pro.celikom.armv7loaderhost")
 MODULE = HERE / "armv7-witness-module/app/build/outputs/apk/debug/app-debug.apk"
 JAR_URL = "https://github.com/JingMatrix/LSPatch/releases/download/v1.2/lspatch-v1.2-487-release.jar"
 JAR_SHA = "d238fdc414d121b7fa454d8b4ccf420df3a8c97d563761861ff92bd9c5da2165"
@@ -82,9 +86,9 @@ def check_host(path, patched=False):
             if "assets/lspatch/so/armeabi-v7a/liblspatch.so" not in names:
                 raise ValueError("LSPATCH_ARMV7_LOADER_MISSING")
             embedded = [n for n in names if n.startswith("assets/lspatch/modules/") and n.endswith(".apk")]
-            if WITNESS and len(embedded) != 1:
+            if (WITNESS or AUDIO) and len(embedded) != 1:
                 raise ValueError("WITNESS_MODULE_NOT_EMBEDDED")
-            if not WITNESS and embedded:
+            if not (WITNESS or AUDIO) and embedded:
                 raise ValueError("UNEXPECTED_MODULE_EMBEDDED")
     return True
 
@@ -117,12 +121,13 @@ def main():
         args = ["java", "-jar", str(jar), "-k", str(store), "owned-test-only",
                 "celikomlab", "owned-test-only"]
         signed_module = None
-        if WITNESS:
+        if WITNESS or AUDIO:
             if not MODULE.is_file():
                 raise ValueError("OWN_MODULE_MISSING")
             with zipfile.ZipFile(MODULE) as mz:
-                if mz.read("META-INF/xposed/scope.list").decode().strip() != PACKAGE:
-                    raise ValueError("WITNESS_SCOPE_MISMATCH")
+                scopes = set(mz.read("META-INF/xposed/scope.list").decode().splitlines())
+                if scopes != {"pro.celikom.armv7loaderhost.witness", "pro.celikom.armv7loaderhost.audio"} or PACKAGE not in scopes:
+                    raise ValueError("OWN_SOURCE_SCOPES_MISMATCH")
                 if mz.read("META-INF/xposed/java_init.list").decode().strip() != "pro.celikom.armv7witnessmodule.HookWitnessEntry":
                     raise ValueError("WITNESS_ENTRY_MISMATCH")
                 if "minApiVersion=102" not in mz.read("META-INF/xposed/module.prop").decode():
@@ -146,7 +151,7 @@ def main():
         patched_cert = signed_sha(patched)
         if patched_cert == original_cert:
             raise ValueError("PATCHED_CERT_NOT_SEPARATE")
-        if WITNESS:
+        if WITNESS or AUDIO:
             if patched_cert != signed_sha(signed_module):
                 raise ValueError("WITNESS_SIGNER_MISMATCH")
             with zipfile.ZipFile(patched) as z:
@@ -161,11 +166,11 @@ def main():
             if root_temp not in dest.parents or dest.exists():
                 raise ValueError("INVALID_ARTIFACT_LOCATION")
             dest.mkdir(parents=True, mode=0o700)
-            shutil.copyfile(patched, dest / ("CELIKOM-ARMv7-HOOK-WITNESS-Test.apk" if WITNESS else "CELIKOM-ARMv7-LOADER-ONLY-Test.apk"))
+            shutil.copyfile(patched, dest / ("CELIKOM-ARMv7-AUDIO-SMOKE-Test.apk" if AUDIO else "CELIKOM-ARMv7-HOOK-WITNESS-Test.apk" if WITNESS else "CELIKOM-ARMv7-LOADER-ONLY-Test.apk"))
         print(json.dumps({
-            "verdict": "OWN_MODULE_WITNESS_STATIC_PASS_NO_DEVICE_RUN" if WITNESS else "OWN_SOURCE_ARMV7_PATCHED_STATIC_PASS_NO_DEVICE_RUN",
+            "verdict": ("OWN_AUDIO_SMOKE_STATIC_PASS_NO_DEVICE_RUN" if AUDIO else "OWN_MODULE_WITNESS_STATIC_PASS_NO_DEVICE_RUN" if WITNESS else "OWN_SOURCE_ARMV7_PATCHED_STATIC_PASS_NO_DEVICE_RUN"),
             "package": PACKAGE, "native_abi": "armeabi-v7a",
-            "permissions": 0, "sigbypass": 0, "modules_embedded": 1 if WITNESS else 0,
+            "permissions": 0, "sigbypass": 0, "modules_embedded": 1 if (WITNESS or AUDIO) else 0,
             "yandex_code_included": False,
             "yandex_modified_or_installed": False, "runtime_tested": False,
             "play_protect_verdict": "NOT_TESTED_ON_DEVICE",

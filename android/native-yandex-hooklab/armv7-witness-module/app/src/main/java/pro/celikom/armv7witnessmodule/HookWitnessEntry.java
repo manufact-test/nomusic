@@ -13,6 +13,7 @@ import io.github.libxposed.api.XposedModule;
  */
 public final class HookWitnessEntry extends XposedModule {
     private static final String TARGET = "pro.celikom.armv7loaderhost.witness";
+    private static final String AUDIO = "pro.celikom.armv7loaderhost.audio";
     private static final String ACTIVITY = "pro.celikom.armv7loaderhost.MainActivity";
     private static final String STATE = "pro.celikom.armv7loaderhost.HookWitnessState";
     private boolean attachHooked;
@@ -21,7 +22,7 @@ public final class HookWitnessEntry extends XposedModule {
     @Override public void onModuleLoaded(ModuleLoadedParam param) { }
 
     @Override public void onPackageLoaded(PackageLoadedParam param) {
-        if (TARGET.equals(param.getPackageName())) installAttach();
+        if (TARGET.equals(param.getPackageName()) || AUDIO.equals(param.getPackageName())) installAttach();
     }
     @Override public void onPackageReady(PackageReadyParam param) {
         if (TARGET.equals(param.getPackageName())) installAttach();
@@ -39,6 +40,8 @@ public final class HookWitnessEntry extends XposedModule {
                         Context app = (Context) chain.getThisObject();
                         if (app != null && TARGET.equals(app.getPackageName())) {
                             installActivity(app.getClassLoader());
+                        } else if (app != null && AUDIO.equals(app.getPackageName())) {
+                            installAudioSource(app.getClassLoader());
                         }
                     } catch (Throwable ignored) {
                         // Never affect the original application lifecycle.
@@ -73,4 +76,31 @@ public final class HookWitnessEntry extends XposedModule {
             // Module and host versions must match; fail without side effects.
         }
     }
+    private boolean audioArmed;
+    private synchronized void installAudioSource(ClassLoader appLoader) {
+        if (audioArmed) return;
+        try {
+            Class<?> selector = Class.forName("pro.celikom.armv7loaderhost.AudioSmokeSource", false, appLoader);
+            Class<?> witness = Class.forName("pro.celikom.armv7loaderhost.AudioSmokeState", false, appLoader);
+            Method armed = witness.getMethod("arm");
+            Method swap = witness.getMethod("swap");
+            Method chooseA = selector.getDeclaredMethod("chooseA");
+            hook(chooseA).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                .intercept(chain -> {
+                    Object original = chain.proceed();
+                    if (original instanceof Integer && ((Integer) original) == 0) {
+                        try { swap.invoke(null); } catch (Throwable ignored) {}
+                        // This ONLY changes our synthetic lab tone ID before
+                        // prepare. Never accesses or hooks Yandex/other apps.
+                        return Integer.valueOf(1);
+                    }
+                    return original;
+                });
+            audioArmed = true;
+            armed.invoke(null);
+        } catch (Throwable ignored) {
+            // Fail closed, original tone remains selected.
+        }
+    }
+
 }
