@@ -1,4 +1,4 @@
-name: CELIKOM W40 native CORS Origin-scheme classification
+name: CELIKOM W41 native Yandex Origin exact scheme classification
 
 on:
   push:
@@ -52,6 +52,7 @@ jobs:
           CELIKOM_W33_RUNTIME_PROBE: '1'
           CELIKOM_W37_CDP_PROBE: '1'
           CELIKOM_W39_CORS_HEADERS: '1'
+          CELIKOM_W41_SCHEME_ONLY: '1'
         run: |
           ./windows-companion/w23/w23-host-smoke.ps1
           if ($LASTEXITCODE -ne 0) { throw 'W33_DISPOSABLE_NATIVE_PROBE_FAIL' }
@@ -90,7 +91,13 @@ jobs:
           if (@($probe | Where-Object { $_ -match '^W33_RT_CDP_WIRE_REQUEST_ORIGIN_' }).Count -eq 0) {
             throw 'W40_WIRE_ORIGIN_SCHEME_NOT_OBSERVED'
           }
-          Write-Output 'W40_NATIVE_WIRE_ORIGIN_SCHEME_OBSERVED'
+          if (@($probe | Where-Object { $_ -match '^W33_RT_CDP_WIRE_SCHEME_' }).Count -eq 0) {
+            throw 'W41_WIRE_ORIGIN_SCHEME_UNKNOWN'
+          }
+          if (@($probe | Where-Object { $_ -match '^W33_RT_CDP_WIRE_HOST_' }).Count -eq 0) {
+            throw 'W41_WIRE_HOST_CATEGORY_MISSING'
+          }
+          Write-Output 'W41_NATIVE_WIRE_SCHEME_CLASSIFIED'
       - name: Retain only sanitized CI report (never patched Yandex binaries or credentials)
         if: always()
         uses: actions/upload-artifact@v4
