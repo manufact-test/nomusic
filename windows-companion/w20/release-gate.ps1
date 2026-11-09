@@ -13,9 +13,16 @@ $filesSection = [regex]::Match($text, '(?ms)^\[Files\]\s*$(.*?)(?=^\[|\z)')
 if (-not $filesSection.Success) { throw "W20_MISSING_FILES_SECTION" }
 $entries = @($filesSection.Groups[1].Value -split "\r?\n" |
     Where-Object { $_ -match '^\s*Source\s*:' })
-if ($entries.Count -ne 1 -or
-    $entries[0] -notmatch 'Source:\s*"\.\.\\publish\\\{#AppExecutable\}"') {
-    throw "W20_THIRD_PARTY_OR_UNKNOWN_BINARY_IN_INSTALLER"
+$allowed = @(
+    'Source: "..\publish\{#AppExecutable}"',
+    'Source: "..\..\w23\dist\host.cjs"',
+    'Source: "..\..\w23\dist\renderer.js"'
+)
+if ($entries.Count -ne 3) { throw 'W24_UNEXPECTED_INSTALLER_FILE_COUNT' }
+foreach ($entry in $allowed) {
+    if (@($entries | Where-Object { $_.Trim().StartsWith($entry, [StringComparison]::Ordinal) }).Count -ne 1) {
+        throw 'W24_INSTALLER_FILE_NOT_ALLOWED'
+    }
 }
 if ($text -notmatch '(?m)^PrivilegesRequired=lowest\s*$' -or
     $text -notmatch '(?m)^DefaultDirName=\{localappdata\}\\Programs\\CELIKOM\s*$' -or
@@ -23,9 +30,8 @@ if ($text -notmatch '(?m)^PrivilegesRequired=lowest\s*$' -or
     throw "W20_INSTALLER_SECURITY_POLICY_FAILED"
 }
 if ($Mode -eq "Release") {
-    # This must remain fail-closed until independent written Yandex/PulseSync
-    # permissions (as applicable), audio E2E, rollback, Win10/11 security and
-    # trusted code signing are verified in an approved release record.
-    throw "W20_RELEASE_BLOCKED_NO_LICENSED_NATIVE_AUDIO_OR_SIGNED_RELEASE"
+    # Consumer release only after audible native playback, controls,
+    # recovery, Windows security and signature checks pass.
+    throw "W24_RELEASE_BLOCKED_NO_VERIFIED_AUDIO_OR_SIGNING"
 }
-Write-Output "W20_STAGE_PACKAGE_POLICY_PASS: OWN_EXECUTABLE_ONLY"
+Write-Output "W24_STAGE_PACKAGE_POLICY_PASS: OWN_EXECUTABLE_AND_NATIVE_MODULE"
