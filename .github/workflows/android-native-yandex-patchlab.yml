@@ -1,0 +1,38 @@
+name: Android exact native Yandex in-process rootless patchlab (ephemeral, read-only)
+on:
+  push:
+    branches:
+      - experiment/android-native-yandex-fileinfo-hooklab-20261109
+    paths:
+      - 'android/native-yandex-hooklab/ephemeral_patch_lab.py'
+      - '.github/workflows/android-native-yandex-patchlab.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  publisher-verified-no-spoof-patch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+      - name: Build minimal read-only module (not an independent player)
+        run: gradle -p android/native-yandex-hooklab :app:assembleDebug --no-daemon
+      - name: Validate exact native host pin and patcher script syntax
+        run: |
+          python -m py_compile android/native-yandex-hooklab/ephemeral_patch_lab.py
+          test -n "${ANDROID_HOME}"
+      - name: Ephemeral authorized separate-device candidate packaging only (NO install, signature spoof, or binary artifact)
+        run: python android/native-yandex-hooklab/ephemeral_patch_lab.py
+      - name: Confirm no original/patched host APK is staged for release
+        if: always()
+        run: |
+          test ! -d android/native-yandex-hooklab/release
+          test ! -d android/native-yandex-hooklab/patched
+          echo "No modified proprietary Yandex APK artifact is uploaded from CI"
