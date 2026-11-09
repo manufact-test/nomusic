@@ -36,8 +36,20 @@ MODULE_PATH = HERE / "app" / "build" / "outputs" / "apk" / "debug" / "app-debug.
 def run(cmd:list[str], *, timeout:int=240)->str:
     proc=subprocess.run(cmd,capture_output=True,text=True,timeout=timeout)
     if proc.returncode:
-        # Avoid accidental third-party logging of URLs / environment.
-        raise RuntimeError(f"{Path(cmd[0]).name} returned {proc.returncode}; see isolated CI patch step status")
+        # Log only exception-class/status lines, NEVER upstream URLs, call arguments,
+        # account data, arbitrary stdout, local files or signing passwords.
+        safe = []
+        for raw in (proc.stderr+"\n"+proc.stdout).splitlines():
+            line = raw.strip()
+            if any(token in line for token in ("Exception", "Error", "ERROR", "Unsupported",
+                                              "failed", "Failed", "NoClassDef", "Caused by",
+                                              "invalid", "Invalid", "not found", "Not found")):
+                line = re.sub(r"https?://[^ ]+", "<redacted-url>", line)
+                line = re.sub(r"/tmp/[^ ]+", "<redacted-tmp>", line)
+                line = line.replace("celikom-test-only", "<redacted-lab-key>")
+                safe.append(line[:180])
+        diagnostics = " | ".join(safe[-7:]) or "no safe diagnostics"
+        raise RuntimeError(f"{Path(cmd[0]).name} returned {proc.returncode}: {diagnostics}")
     return proc.stdout
 
 def sha(path:Path):
