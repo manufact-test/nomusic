@@ -98,4 +98,17 @@ jobs:
             esac
             echo "W30_LIVE_HTTP_METHOD_$method=$code"
           done
+          for origin in 'https://music.yandex.ru' 'null' 'musicapplication://desktop'; do
+            case "$origin" in
+              'https://music.yandex.ru') label=BROWSER;;
+              'null') label=OPAQUE;;
+              *) label=NATIVE;;
+            esac
+            code="$(curl -sS --connect-timeout 10 --max-time 15 -D "/tmp/w30-live-$label-headers" -o /dev/null \
+              -X OPTIONS -H "Origin: $origin" https://darkred-camel-588676.hostingersite.com/api/v1/audio/7 -w '%{http_code}')"
+            allow="$(awk 'tolower($1)=="access-control-allow-origin:"{print $2}' "/tmp/w30-live-$label-headers" | tr -d '\r' | head -1)"
+            rm -f "/tmp/w30-live-$label-headers"
+            echo "W30_LIVE_OPTIONS_$label=$code CORS=$allow"
+          done
+          echo "W30_LIVE_HEALTH=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 15 https://darkred-camel-588676.hostingersite.com/api/v1/health)"
           REMOTE
