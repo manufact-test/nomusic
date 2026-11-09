@@ -115,7 +115,18 @@ try {
     Start-Sleep -Milliseconds 500
     if (Test-Path $capability) {
       $key = (Get-Content $capability -Raw).Trim()
-      if ($key -match '^[0-9a-f]{64}
+      if ($key.Length -eq 64 -and $key -match '\A[0-9a-f]{64}\z') { $keyReady=$true; break }
+    }
+  }
+  if (-not $keyReady) { throw 'COMPANION_BRIDGE_NOT_STARTED' }
+  $report.companionBridgeStarted = $true
+  $proc = Start-Process $exe -PassThru
+  Start-Sleep -Seconds 20
+  if (Test-Path $bridgeDiagnostic) {
+    $bridgeEvents = @(Get-Content $bridgeDiagnostic)
+    $report.nativeBridgePreflight = 'NATIVE_PREFLIGHT' -in $bridgeEvents
+    $report.nativeBridgeStateReached = 'NATIVE_STATE_REQUEST' -in $bridgeEvents
+  }
   $report.modifiedAppLaunched = @(Get-Process -Id $proc.Id -ErrorAction SilentlyContinue).Count -gt 0
   if (Test-Path $diagnostics) {
     $events = @(Get-Content $diagnostics)
