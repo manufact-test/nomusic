@@ -126,16 +126,15 @@ def signer_digest(apk, apksigner):
     p = subprocess.run([apksigner, "verify", "--verbose", "--print-certs", str(apk)],
                        text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=50)
     if p.returncode: raise ValueError("APK signature verification FAILED")
-    hits = re.findall(r"Signer #\d+ certificate SHA-256 digest:\s*([a-fA-F0-9:]+)", p.stdout)
-    if len(hits) != 1:
-        print("SIGNER_DEBUG: matching_digest_count=" + str(len(hits)) +
-              " signer_sha256=" + json.dumps(hits[:6]) +
-              " signer_lines=" + json.dumps([x.strip() for x in p.stdout.splitlines()
-                                                if "Signer" in x or "Verified using" in x][:18]),
-              file=sys.stderr)
+    hits = re.findall(r"(?:V\\d+(?:\\.\\d+)? Signer|Signer #\\d+) certificate SHA-256 digest:\\s*([a-fA-F0-9:]+)", p.stdout)
+    signers = {h.replace(":", "").lower() for h in hits}
+    if signers != {RUSTORE_SHA256_CERT}:
+        print("SIGNER_DEBUG: cert_sha256=" + json.dumps(sorted(signers)), file=sys.stderr)
         raise ValueError("Unexpected APK signing certificate set")
-    digest = hits[0].replace(":", "").lower()
-    if digest != RUSTORE_SHA256_CERT: raise ValueError("APK signer does not match official store certificate")
+    digest = RUSTORE_SHA256_CERT
+    if not ("Verified using v2 scheme (APK Signature Scheme v2): true" in p.stdout or
+            "Verified using v3 scheme (APK Signature Scheme v3): true" in p.stdout):
+        raise ValueError("APK v2/v3 verified signature missing")
     return digest
 
 def manifest_version(apk, aapt):
