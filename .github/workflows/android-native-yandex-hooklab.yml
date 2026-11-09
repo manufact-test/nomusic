@@ -25,8 +25,10 @@ jobs:
           mkdir -p /tmp/celikom-jvm-hooklab
           javac --release 17 -d /tmp/celikom-jvm-hooklab \
             android/native-yandex-hooklab/app/src/main/java/pro/celikom/yandex/nativehooklab/HookSpec.java \
+            android/native-yandex-hooklab/app/src/main/java/pro/celikom/yandex/nativehooklab/NativeSourceGate.java \
             $(find android/native-yandex-hooklab/tests/src -type f -name '*.java' | sort)
           java -cp /tmp/celikom-jvm-hooklab HookSpecTest
+          java -cp /tmp/celikom-jvm-hooklab NativeSourceGateTest
       - name: Test read-only ARM device gate (synthetic snapshots; no phone connected)
         run: python3 -m unittest discover -s android/native-yandex-hooklab/tests -p 'test_*.py' -v
       - name: Disallow sensitive permissions, substitute player and mutable audio sources
