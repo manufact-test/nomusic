@@ -9,6 +9,7 @@ on:
       - 'tools/android-native-gate1/trace_source_route_literals.py'
       - 'tools/android-native-gate1/trace_media_api_routes.py'
       - 'tools/android-native-gate1/trace_source_api_consumers.py'
+      - 'tools/android-native-gate1/trace_fileinfo_model.py'
   workflow_dispatch:
 permissions:
   contents: read
