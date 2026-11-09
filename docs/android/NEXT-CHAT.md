@@ -42,3 +42,7 @@
 ## Проба параллельной копии без установки на HONOR
 
 Добавлен **только read-only** аудит `audit_parallel_clone.py` + CI `.github/workflows/android-native-yandex-clone-feasibility.yml`: считает совпадения package/authorities/DEX оригинального подписанного #170gpr, APK удаляются после теста. **Не создаёт и не публикует клон.** Подробности: `docs/android/ANDROID-NATIVE-CLONE-STATIC-GATE-2026-11-09.md`.
+
+## Проверены риски клонирования #170gpr (CI PASS)
+
+[CI 42637284714](https://github.com/manufact-test/nomusic/actions/runs/42637284714): 5 официально подписанных split APK, 6 DEX; 11 провайдеров, 9 package-bound authorities, 109 ссылок на старый пакет в manifest, из них **86 — имена Java-классов, не требующие слепой замены**; в DEX 2 точные строки package ID и 35 других содержащих ID. Бездумное клонирование НЕ готово. В нашей ветке добавлен собственный ARMv7 loader host без Яндекса; его CI и реальный запуск надо подтвердить отдельно. docs/android/ANDROID-NATIVE-CLONE-STATIC-GATE-2026-11-09.md.
