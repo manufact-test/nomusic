@@ -32,3 +32,11 @@ Seven synthetic-only tests: candidate DEX detection, reference-only negative, al
 - One-player native seek/pause/next/radio test and account safety. **No signed APK has been produced by this work.**
 
 See `docs/android/ANDROID-NATIVE-YANDEX-GATE1-SOURCE-AUDIT-2026-11-09.md` for exact source-level NO-GO and trust issues with existing Xposed examples.
+
+## Latest verified native Android research — 2026-11-09
+
+A **real official publisher-signed native Yandex RuStore APK**, `2026.10.3 #170rur` code `24026531`, was downloaded **only into ephemeral CI scratch space**, verified by Android `apksigner` v2/v3 and against the public RuStore signing SHA256 `aca405ded8b25cb2e8c6da69425d2b4307d087c1276fc06ad5942731ccc51dba`, scanned then deleted. APK SHA256 `dfa1091383ee9fead30f8bb34eb01b46d7705ae8ab400b8abfbc73c271e5bcde`. [Static proof #42599929142 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/42599929142); [expanded media surface #42600494250 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/42600494250). Six DEX; internal native Yandex playback/queue/media session classes and `PlayAudioApi` identified, 24 framework media invokes on classes3. **No actual source-replacement hook proven.**
+
+New files: `trace_native_callers.py` (bytecode callsites, **not raw string matching**), `inventory_native_media_surface.py` (Yandex native playback class/method surface), `probe_rustore.py` (public store metadata), `audit_rustore_host_once.py` (ephemeral signed official APK check), `audit_gpr_aptoide_once.py` (exact Google Play channel attempt with signature/manifest gate, **not successfully sourced**). Do **not** publish, distribute, run or install third-party Yandex APKs. [Unit tests #42601003730 SUCCESS — 24 cases](https://github.com/manufact-test/nomusic/actions/runs/42601003730).
+
+**Exact HONOR #170gpr still not obtained.** Public APKPure/Aptoide pages list it, but Aptoide API exposed a 2020 fallback and its documented version-pinned request returned HTTP 404. This correctly aborted before downloading. The `#170rur` signer pin must **not** be assumed to match Google Play signing; mismatches are blockers to investigate, not bypass. Full evidence: `docs/android/ANDROID-NATIVE-YANDEX-ACTUAL-SIGNED-APK-SURFACE-2026-11-09.md`. No owner phone action or installable CELIKOM candidate exists.
