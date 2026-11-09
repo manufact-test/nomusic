@@ -115,6 +115,15 @@ def main() -> dict:
                 edited, counts = baseline.rewrite_manifest(payload.decode("utf-8"))
             except Exception as exc:
                 raise TrialError("ARSC_MANIFEST_REWRITE_" + type(exc).__name__.upper()) from None
+            # Provider authorities must be globally unique across installed apps:
+            # refuse a clone if ANY of the original registered authorities remains.
+            ns = "{" + baseline.ANDROID + "}authorities"
+            def provider_set(xml_bytes):
+                root = baseline.ET.fromstring(xml_bytes)
+                return {a.strip() for p in root.iter("provider")
+                        for a in p.attrib.get(ns, "").split(";") if a.strip()}
+            if provider_set(payload) & provider_set(edited):
+                raise TrialError("ARSC_PROVIDER_AUTHORITY_COLLISION")
             manifest.write_bytes(edited)
             for kind, value in counts.items():
                 totals[kind] += value
@@ -138,21 +147,15 @@ def main() -> dict:
                 raise TrialError("ARSC_PACKAGE_OR_SPLIT_METADATA_DRIFT")
             signature = run([baseline.sdk_tool("apksigner"), "verify",
                              "--print-certs", str(aligned)], "ARSC_SIGNATURE", 60)
-            fingerprints = re.findall(
-                r"Signer #1 certificate SHA-256 digest:\s*([0-9a-fA-F]+)", signature)
-            if len(fingerprints) != 1 or fingerprints[0].lower() == baseline.RUSTORE_SHA256_CERT:
-                # Signature verifier output contains only public certificate metadata;
-                # print field labels and counts, not certificate data, to diagnose CLI format.
-                print(json.dumps({
-                    "signing_probe": "NOT_MATCHED",
-                    "verify_stdout_line_count": len(signature.splitlines()),
-                    "cert_labels": [line.split(":", 1)[0].strip()[:100]
-                                    for line in signature.splitlines() if "cert" in line.lower()][:10],
-                    "sha256_matches": len(fingerprints),
-                    "is_publisher_signature": bool(fingerprints) and
-                                              fingerprints[0].lower() == baseline.RUSTORE_SHA256_CERT
-                }))
-                raise TrialError("ARSC_SIGNING_IDENTITY_INVALID")
+            # SDK apksigner labels are version-specific ("V3.0 Signer: ..."
+            # or "Signer #1 ..."). Match the certificate SHA-256 value, not its prefix.
+            certificate_lines = [line for line in signature.splitlines()
+                                 if "certificate" in line.lower() and "sha-256" in line.lower()]
+            fingerprints = [match.group(0).lower()
+                            for line in certificate_lines
+                            if (match := re.search(r"\b[0-9a-fA-F]{64}\b", line))]
+            if len(fingerprints) != 1 or fingerprints[0] == baseline.RUSTORE_SHA256_CERT:
+                raise TrialError("ARSC_SIGNING_IDENTITY_INVALID", signature)
             if baseline.native_payload_hashes(apk) != baseline.native_payload_hashes(aligned):
                 raise TrialError("ARSC_DEX_OR_NATIVE_PAYLOAD_DRIFT")
             rebuilt_splits.add(split)
