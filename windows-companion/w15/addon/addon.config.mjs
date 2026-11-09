@@ -3,7 +3,7 @@ export default {
   directoryName:"4b112dcf-c5e4-4caf-bb10-5a68995186a4",
   name:"CELIKOM Companion — Windows Preview",
   description:"Связь с отдельным CELIKOM Companion для подмены одобренных версий в Яндекс.Музыке.",
-  version:"0.15.0-preview",
+  version:"0.15.1-preview",
   author:["CELIKOM"],
   type:"script",
   requirements:{minHostApi:1,capabilities:[]},

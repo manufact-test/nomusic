@@ -188,8 +188,14 @@ public sealed class MainWindow : Form
         _copy.BackColor = Paper;
         _copy.Click += (_, _) =>
         {
-            if (_bridge.PairCode.Length == 6 && _api.IsLoggedIn)
-                try { Clipboard.SetText(_bridge.PairCode); }
+            if (_api.IsLoggedIn)
+                try
+                {
+                    if (_bridge.PairCode.Length != 6 ||
+                        _bridge.CodeExpires <= DateTimeOffset.UtcNow)
+                        _bridge.RotateCode();
+                    Clipboard.SetText(_bridge.PairCode);
+                }
                 catch { /* Clipboard can be busy; leave code visible. */ }
         };
         _copy.Dock = DockStyle.Fill;
@@ -330,7 +336,8 @@ public sealed class MainWindow : Form
         _toggle.Text = _bridge.Enabled ? "Стоп" : "Старт";
         _toggle.BackColor = connected ? Accent : ColorTranslator.FromHtml("#D1D9D6");
         _toggle.ForeColor = connected ? Color.White : Secondary;
-        if (_bridge.PairCode.Length == 6 && _api.IsLoggedIn)
+        if (_bridge.PairCode.Length == 6 && _api.IsLoggedIn &&
+            _bridge.CodeExpires > DateTimeOffset.UtcNow)
         {
             _code.Text = _bridge.PairCode;
             _copy.Enabled = true;

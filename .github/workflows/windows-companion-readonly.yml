@@ -6,7 +6,6 @@ on:
     branches:
       - experiment/windows-companion-integration-20261108
     paths:
-      - windows-companion/**
       - .github/workflows/windows-companion-readonly.yml
 
 permissions:
