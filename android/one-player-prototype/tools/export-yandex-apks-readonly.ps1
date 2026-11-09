@@ -33,7 +33,7 @@ for ($i = 0; $i -lt $paths.Count; $i++) {
 }
 $rows | ConvertTo-Json -Depth 3 | Set-Content -Encoding UTF8 (Join-Path $root 'checksums.json')
 $zip = $root + '.zip'
-Compress-Archive -LiteralPath (Join-Path $root '*') -DestinationPath $zip -CompressionLevel Optimal
+Compress-Archive -Path (Join-Path $root '*') -DestinationPath $zip -CompressionLevel Optimal
 Write-Output ('PRIVATE APK snapshot: ' + $zip)
 Write-Output ('Extracted APK parts: ' + $rows.Count)
 Write-Output 'NO user data, OAuth/session files, app databases, or music cache copied.'
