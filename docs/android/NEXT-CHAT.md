@@ -1,3 +1,13 @@
+# 2026-11-09 · FINAL TESTED ROOTLESS HOST HANDOFF — NATIVE ARM ENVIRONMENT REQUIRED
+
+**Branch:** `experiment/android-native-yandex-fileinfo-hooklab-20261109`. Full evidence: `docs/android/ANDROID-NATIVE-LSPATCH-EMULATOR-ROOT-CAUSE-2026-11-09.md`. Code: `android/native-yandex-hooklab/`, scoped to exact signed native Yandex `2026.10.3 #170gpr`. The module itself builds [PASS](https://github.com/manufact-test/nomusic/actions/runs/42611563341), target exact FileInfo converter methods verified, structural 5-split LSPatch packaging [PASS](https://github.com/manufact-test/nomusic/actions/runs/42613455742). **But working in-process native Yandex CELIKOM hook NOT PROVEN.**
+
+Control: unmodified publisher-signed Yandex stays running in disposable Android11 x86+ARMv7 translator [PASS](https://github.com/manufact-test/nomusic/actions/runs/42621833205). LSPatch-patched host crashes at `System.load` of `liblspatch.so` on Android11 **x86** with CELIKOM [NO-GO](https://github.com/manufact-test/nomusic/actions/runs/42622523007), x86 with **ZERO** modules [NO-GO](https://github.com/manufact-test/nomusic/actions/runs/42622723034), and Android11 **x86_64** [NO-GO](https://github.com/manufact-test/nomusic/actions/runs/42624416091), all before module. Android13 x86_64 install fails unsupported `armeabi-v7a` ABI. LSPatch ELF binaries for all four ISA are present, correct, uncompressed and 4KiB aligned [PASS](https://github.com/manufact-test/nomusic/actions/runs/42623602723); the runtime issue is emulator loader/native bridge, but no proof of same issue on real ARM.
+
+**DO NOT repeat same AVD CI runs. NEXT GATE:** a **disposable native ARM Android13+ device** with Play Protect ON and a safe repeatable signing/install + rollback procedure, leaving owner's primary HONOR and original store-signed Yandex intact. No Play Protect pass, no source replacement, no pause/seek test. User asked native Yandex app as sole player, never WebView/second player, no password capture, no disabling protections, no root/signature spoofing. Stable Test.50, server/catalog untouched. Existing CI uses ephemeral keys and deletes proprietary binaries, so cannot supply a stable installable end-user APK from GitHub. Owner consent for research was **separate test environment only**.
+
+---
+
 # 2026-11-09 · LATEST NATIVE YANDEX HOOKLAB GATE — ACTUAL LSPATCH LOADER NO-GO (NOT CELIKOM)
 
 **Branch:** `experiment/android-native-yandex-fileinfo-hooklab-20261109`. **Read first:** `docs/android/ANDROID-NATIVE-LSPATCH-EMULATOR-ROOT-CAUSE-2026-11-09.md`, then `docs/android/ANDROID-NATIVE-YANDEX-ROOTLESS-HOOKLAB-2026-11-09.md`. Fully isolated; no changes to user HONOR, accepted Test.50, stable, production API/DB/catalog, original Yandex.
