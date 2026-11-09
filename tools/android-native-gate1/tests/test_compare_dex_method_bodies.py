@@ -34,7 +34,7 @@ class SemanticCodeTests(unittest.TestCase):
                 byte=n&127;n>>=7
                 out.append(byte | (128 if n else 0))
                 if not n:return bytes(out)
-        raw.extend(uleb(length)+text.encode("ascii")+b"\\0")
+        raw.extend(uleb(length)+text.encode("ascii")+b"\0")
         struct.pack_into("<I",raw,string_table+4*string_index,pos)
         struct.pack_into("<I",raw,32,len(raw))
         self.assertEqual(Dex(bytes(raw)).string(3),text)
