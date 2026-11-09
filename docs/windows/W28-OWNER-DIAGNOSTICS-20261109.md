@@ -1,6 +1,8 @@
 # W28 — Owner-first diagnostics for Windows CELIKOM 0.24.1 (2026-11-09)
 
 ## Status
+**W28 проверено (2026-11-09):** функциональный SHA `4418f4fa190d247694696558b8016cd7d7e2cc8a` (CELIKOM 0.24.1); [Windows installer CI 42634928360](https://github.com/manufact-test/nomusic/actions/runs/42634928360) — SUCCESS, [internal installer artifact 13681259210](https://github.com/manufact-test/nomusic/actions/runs/42634928360/artifacts/13681259210). [Genuine-Yandex CI 42634928333](https://github.com/manufact-test/nomusic/actions/runs/42634928333) — SUCCESS: ownerNativeLogCreated=true, ownerNativeLogRedacted=true, managedRefreshCycleVerified=true, originalBytesRestored=true, originalSignatureRestored=true, error="". **Audio="NOT_TESTED_NO_ACCOUNT"; владелец ещё не подтвердил исправление паузы!**
+
 - W27 real audio blocker **FAIL remains**. NO audible approved replacement confirmed.
 - A new dedicated backup precedes changes: `backup/windows-w28-before-diagnostics-20261109` at W27 `099d71c5030cba3d8fb72efd051e4bf82bc2ad7b`.
 - Development branch: `experiment/windows-companion-integration-20261108`.
@@ -33,3 +35,10 @@
 
 ## Disposable CI upgrade coverage
 The W23 genuine Yandex runner checks that ordinary Electron diagnostics are created automatically without dev environment flags, every exported native event line is a strict UTC/code/numeric-ID entry, and the managed Restore -> Install refresh cycle works with verified file hashes. No authenticated audio claim results from this coverage.
+
+## Final checked version and owner's next action
+- Install ZIP artifact `CELIKOM-W28-DIAGNOSTIC-UNSIGNED` (inside: installer EXE), version 0.24.1. CI: https://github.com/manufact-test/nomusic/actions/runs/42634928360/artifacts/13681259210 (SUCCESS).
+- Existing 0.24.0 users: install the updated CELIKOM, choose **«Обновить модуль»** in the main tab to restore and reapply the updated native module, accept restart of Yandex. Otherwise Yandex will retain the OLD host/renderer without new diagnostic events.
+- Enable CELIKOM; play Guf «Новогодняя» or another known approved track, test pause and next. Then press **«Скачать диагностику»**, save one TXT and send it.
+- Genuine unsigned internal diagnostic build only. Real audible source/audio and native pause/seek/Next remain **UNVERIFIED/OWNER FAIL** until owner confirms after examining TXT. CI has no Yandex account and cannot reproduce owner audible issue.
+- Exact latest verified CODE SHA: `4418f4fa190d247694696558b8016cd7d7e2cc8a`. Backup: `backup/windows-w28-before-diagnostics-20261109` plus owner handoff backup `backup/windows-w27-owner-audio-fail-handoff-20261109`.
