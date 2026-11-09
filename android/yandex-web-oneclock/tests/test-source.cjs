@@ -15,10 +15,20 @@ function env() {
     constructor(){
       this.tagName='AUDIO';this.src='https://music.yandex.ru/original.mp3';
       this.paused=true;this.currentTime=0;this.srcObject=null;
-      this.played=0;this.loaded=0;
+      this.played=0;this.loaded=0;this.handlers=new Map();
     }
     play(){this.played++;return Promise.resolve();}
     load(){this.loaded++;}
+    addEventListener(type,listener,options={}) {
+      const arr=this.handlers.get(type)||[];
+      arr.push({listener,once:!!options.once});
+      this.handlers.set(type,arr);
+    }
+    emit(type) {
+      const arr=this.handlers.get(type)||[];
+      this.handlers.set(type,arr.filter(x=>!x.once));
+      for(const h of arr)h.listener({target:this,type});
+    }
   }
   master=new FakeMedia();
   const adapter={
@@ -89,4 +99,26 @@ test('no Yandex host/invalid cache URL is rejected',async()=>{
   x.root.__CELIKOM_WEB_SOURCE_V1__.ready('42884423','555',232330,'https://attacker.invalid/audio');
   await x.master.play();
   assert.equal(x.master.loaded,0);
+});
+
+test('failed alternate startup restores ORIGINAL on same audio element',async()=>{
+  const x=env();
+  x.root.__CELIKOM_WEB_SOURCE_V1__.enable(true);ready(x.root);
+  await x.master.play();
+  assert.match(x.master.src,/__celikom_audio/);
+  x.master.emit('error');
+  assert.equal(x.master.src,'https://music.yandex.ru/original.mp3');
+  assert.equal(x.master.loaded,2);
+  assert.equal(x.master.played,2);
+  assert.equal(x.sent.some(e=>e.phase==='original-startup-fallback'),true);
+});
+test('playing alternate never triggers mid-song original fallback',async()=>{
+  const x=env();
+  x.root.__CELIKOM_WEB_SOURCE_V1__.enable(true);ready(x.root);
+  await x.master.play();
+  x.master.emit('playing');
+  assert.equal(x.sent.some(e=>e.phase==='alternate-playing'),true);
+  x.master.emit('error');
+  assert.match(x.master.src,/__celikom_audio/);
+  assert.equal(x.master.loaded,1);
 });
