@@ -48,3 +48,7 @@ Last: STOPPED
 **Limits:** This is a CELIKOM-owned synthetic `MediaPlayer` test, not Yandex's private player or decoder; it cannot prove compatibility with Yandex FileInfoDto/eed, timing, DRM, radio/playlist race conditions, Play Protect distribution decisions, or sound without artifacts. User's installed `ru.yandex.music` and its offline downloads remain untouched.
 
 **Next:** stop repeating own-source laboratory stages. The next implementation gate must use a lawful, safe, separated *native Yandex* test environment / version with single original player and version-pinned read-only FileInfoDto hook before making any audio mutation. Never ask to uninstall the owner's official Yandex. No current native-Yandex audio PASS.
+
+## ФИНАЛЬНЫЙ owner-аудио PASS — 09.11.2026
+
+После скриншота (19:33) владелец подтвердил на слух: три синтетических звука воспроизводились, Pause/Resume/Seek/Next работали корректно. Это заменяет прежние статусы 'real audio not tested' и 'verbal confirmation pending' **только для собственного Audio Smoke APK**. Полной native Yandex аудиоподмены пока нет; отсутствие щелчков в native Яндексе не подтверждено. Fallback YES на скрине — ручной выбор оригинала, не автоматический fallback при ошибке. Повторять own-audio испытания не требуется; дальнейший фокус — реальный native Yandex. См. ANDROID-NATIVE-CURRENT-HANDOFF-2026-11-09.md.
