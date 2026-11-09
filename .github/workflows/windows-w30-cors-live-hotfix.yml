@@ -100,9 +100,11 @@ jobs:
           ' "$candidate"
           test "$(readlink -f "$root/current")" = "$old"
           switched=0
+          cache_probe=''
           rollback() {
             status=$?
             trap - EXIT
+            if [[ -n "$cache_probe" ]]; then rm -f "$cache_probe"; fi
             if [[ "$status" != 0 && "$switched" = 1 && "$(readlink -f "$root/current")" = "$candidate" ]]; then
               ln -s "$old" "$root/w30-rollback-$$"
               mv -Tf "$root/w30-rollback-$$" "$root/current"
@@ -114,8 +116,34 @@ jobs:
           ln -s "$candidate" "$root/w30-next-$$"
           mv -Tf "$root/w30-next-$$" "$root/current"
           switched=1
+          # LiteSpeed PHP may retain a compiled class across the current symlink
+          # switch. A one-use random, POST-only same-site probe expires immediately.
+          public=/home/u235811320/domains/darkred-camel-588676.hostingersite.com/public_html
+          test -d "$public" && test ! -L "$public"
+          cache_probe="$public/w30-cors-$(openssl rand -hex 20).php"
+          cat > "$cache_probe" <<'PHP_CACHE'
+          <?php
+          declare(strict_types=1);
+          if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST' || ($_SERVER['HTTP_X_W30_AUDIO'] ?? '') !== '1') {
+              http_response_code(404); exit;
+          }
+          header('Cache-Control: no-store');
+          $f = dirname(__DIR__) . '/celikom/current/src/Application.php';
+          if (!is_file($f)) {http_response_code(503);exit;}
+          if (function_exists('opcache_invalidate')) {
+              opcache_invalidate($f, true);
+              opcache_invalidate((string) realpath($f), true);
+          }
+          if (function_exists('opcache_reset')) opcache_reset();
+          echo 'W30_CACHE_CLEARED';
+          PHP_CACHE
+          chmod 0644 "$cache_probe"
+          cache_response="$(curl -sS --connect-timeout 10 --max-time 20 -X POST -H 'X-W30-Audio: 1' "$site/$(basename "$cache_probe")")"
+          rm -f "$cache_probe"
+          cache_probe=''
+          test "$cache_response" = W30_CACHE_CLEARED || { echo 'W30_WEB_PHP_CACHE_INVALIDATE_FAILED'; exit 4; }
           opaque="$(curl -sS --connect-timeout 10 --max-time 20 -D "$backup/audio-opaque-headers" -o /dev/null -X OPTIONS -H 'Origin: null' "$site/api/v1/audio/7" -w '%{http_code}')"
-          test "$opaque" = 204
+          if [[ "$opaque" != 204 ]]; then echo "W30_LIVE_NATIVE_HTTP=$opaque"; exit 5; fi
           grep -qi '^access-control-allow-origin: null' "$backup/audio-opaque-headers"
           browser="$(curl -sS --connect-timeout 10 --max-time 20 -D "$backup/audio-browser-headers" -o /dev/null -X OPTIONS -H 'Origin: https://music.yandex.ru' "$site/api/v1/audio/7" -w '%{http_code}')"
           test "$browser" = 204
