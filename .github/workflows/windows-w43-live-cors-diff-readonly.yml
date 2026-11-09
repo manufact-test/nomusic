@@ -1,0 +1,77 @@
+name: CELIKOM W43 live vs stage native CORS PHP parity (READ ONLY)
+
+on:
+  push:
+    branches:
+      - experiment/windows-companion-integration-20261108
+    paths:
+      - .github/workflows/windows-w43-live-cors-diff-readonly.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  live-stage-php-parity:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Compare existing production PHP to staged exact Origin fix, no server writes
+        shell: bash
+        env:
+          HOSTINGER_SSH_KEY: ${{ secrets.HOSTINGER_SSH_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "$HOSTINGER_SSH_KEY" || { echo W43_READONLY_KEY_MISSING; exit 1; }
+          umask 077
+          work="$(mktemp -d)"
+          trap 'rm -rf "$work"' EXIT
+          printf '%s\n' "$HOSTINGER_SSH_KEY" | tr -d '\r' > "$work/key"
+          ssh-keygen -y -P '' -f "$work/key" > "$work/public"
+          fingerprint="$(ssh-keygen -lf "$work/public" | awk '{print $2}')"
+          [[ "$fingerprint" == 'SHA256:Q6FyifXRq6garceQdIIjBmXhkk81Ic1p/x9JTSYHWUk' ]] ||
+            { echo W43_UNRECOGNIZED_SERVER_KEY; exit 1; }
+          printf '%s\n' '[92.113.19.189]:65002 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAf8M2EVwq0oJI8I9KZ0NFE8P8yDOvDATEhkQti/Kk/0' > "$work/known_hosts"
+          # Single read-only remote command. No modifications to server files,
+          # release symlinks, database, cache, permissions or runtime.
+          ssh -T -p 65002 -i "$work/key" -o BatchMode=yes -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=yes -o "UserKnownHostsFile=$work/known_hosts" \
+            -o GlobalKnownHostsFile=/dev/null -o ConnectTimeout=15 \
+            u235811320@92.113.19.189 \
+            'cat /home/u235811320/domains/darkred-camel-588676.hostingersite.com/celikom/current/src/Application.php' > "$work/live.php"
+          python3 - "$work/live.php" server/src/Application.php <<'PY'
+          from pathlib import Path
+          import hashlib
+          import sys
+          live_bytes = Path(sys.argv[1]).read_bytes()
+          stage_bytes = Path(sys.argv[2]).read_bytes()
+          digest = lambda raw: hashlib.sha256(raw).hexdigest()
+          print("W43_LIVE_PHP_SHA256="+digest(live_bytes))
+          print("W43_STAGE_PHP_SHA256="+digest(stage_bytes))
+          live = live_bytes.decode("utf-8").replace("\r\n","\n")
+          stage = stage_bytes.decode("utf-8").replace("\r\n","\n")
+          anchor = "                'musicapplication://desktop',\n"
+          addition = (
+              "                // Genuine native Yandex 5.126.1 uses the hyphenated protocol.\n"
+              "                // Only signed numeric audio routes; never auth/admin/resolve.\n"
+              "                'music-application://desktop',\n"
+          )
+          if stage.count(addition) != 1 or stage.count(anchor) != 1:
+              raise SystemExit("W43_STAGE_EXACT_HUNK_MISSING")
+          if live.count(anchor) != 1 or "music-application://desktop" in live:
+              raise SystemExit("W43_LIVE_ANCHOR_UNEXPECTED_OR_ALREADY_APPLIED")
+          if stage.replace(addition, "") == live:
+              print("W43_EXACT_SINGLE_HUNK_STAGE_LIVE_PARITY")
+          else:
+              print("W43_STAGE_FULL_FILE_REPLACEMENT_NO_GO")
+              expected = live.replace(anchor, anchor + addition)
+              assert expected.count(addition) == 1
+              print("W43_GUARDED_ONE_HUNK_PATCH_FEASIBLE")
+              print("W43_PROPOSED_LIVE_SHA256="+digest(expected.encode("utf-8")))
+          print("W43_READ_ONLY_PHP_PARITY_COMPLETED")
+          PY
+      - name: Verify no upload, production mutation or deployment in this workflow
+        run: echo W43_NO_DEPLOY_NO_PRODUCTION_WRITES
