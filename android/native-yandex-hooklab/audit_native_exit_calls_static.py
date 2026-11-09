@@ -28,6 +28,14 @@ TARGETS = {
     ("Landroid/os/Process;", "killProcess", "(I)V"): "android_kill_process",
 }
 YM_APPLICATION = "Lru/yandex/music/YMApplication;"
+UNCAUGHT_HANDLER_CLASS = "Lck7;"
+UNCAUGHT_HANDLER_INTERFACE = "Ljava/lang/Thread$UncaughtExceptionHandler;"
+EXCEPTION_HANDLER_SETTERS = {
+    ("Ljava/lang/Thread;", "setDefaultUncaughtExceptionHandler",
+     "(Ljava/lang/Thread$UncaughtExceptionHandler;)V"): "default",
+    ("Ljava/lang/Thread;", "setUncaughtExceptionHandler",
+     "(Ljava/lang/Thread$UncaughtExceptionHandler;)V"): "per_thread",
+}
 
 
 def exit_target(method):
@@ -45,6 +53,34 @@ def safe_method_meta(method):
     return {"owner": clazz, "method": name, "prototype": proto}
 
 
+def classify_uncaught_handler_definition(dex):
+    """Only public DEX inheritance metadata; no app code or literals exported."""
+    for i in range(dex.class_count):
+        class_off = dex.class_offset + i * 32
+        if dex.descriptor(dex.u32(class_off)) != UNCAUGHT_HANDLER_CLASS:
+            continue
+        superclass = dex.descriptor(dex.u32(class_off + 8))
+        interfaces_offset = dex.u32(class_off + 12)
+        interfaces = []
+        if interfaces_offset:
+            n = dex.u32(interfaces_offset)
+            if n > 100:
+                raise DexError("Unexpected handler interface count")
+            dex.bounds(interfaces_offset + 4, n * 2)
+            interfaces = [
+                dex.descriptor(dex.u16(interfaces_offset + 4 + k * 2))
+                for k in range(n)
+            ]
+        return {
+            "class_defined": True,
+            "implements_uncaught_handler": UNCAUGHT_HANDLER_INTERFACE in interfaces,
+            "superclass_object": superclass == "Ljava/lang/Object;",
+            "superclass_is_uncaught_handler": superclass == UNCAUGHT_HANDLER_INTERFACE,
+        }
+    return {"class_defined": False, "implements_uncaught_handler": False,
+            "superclass_object": False, "superclass_is_uncaught_handler": False}
+
+
 def inspect_dex(raw):
     dex = Dex(raw)
     method_indexes = {
@@ -58,11 +94,19 @@ def inspect_dex(raw):
     scanned = 0
     bounded_callers = []
     app_invoke_targets = []
+    installer_invocations = []
+    handler_definition = classify_uncaught_handler_definition(dex)
     for caller, code_off in method_definitions(dex):
         scanned += 1
         caller_method = dex.method(caller)
         try:
             for called, _, _ in invoked_method_indexes(dex, code_off):
+                called_method = dex.method(called)
+                setter = EXCEPTION_HANDLER_SETTERS.get(called_method)
+                if setter is not None:
+                    meta = safe_method_meta(caller_method)
+                    if meta and len(installer_invocations) < 20:
+                        installer_invocations.append({"setter": setter, **meta})
                 if caller_method[0] == YM_APPLICATION:
                     # Keep direct-invoke method IDENTITY only in memory, not output.
                     app_invoke_targets.append(dex.method(called))
@@ -82,6 +126,8 @@ def inspect_dex(raw):
             anomalies += 1
     return {
         "bounded_callers": bounded_callers,
+        "handler_definition": handler_definition,
+        "uncaught_handler_install_sites": installer_invocations,
         "ym_application_invoke_targets": app_invoke_targets,
         "exit_target_references": len(method_indexes),
         "method_bodies_scanned": scanned,
@@ -123,8 +169,15 @@ def run():
                      for x in d["ym_application_invoke_targets"]}
         direct_ymapp_neighbors = [c for c in caller_details
                                   if (c["owner"], c["method"], c["prototype"]) in app_calls]
+        definitions = [d["handler_definition"] for d in observations
+                       if d["handler_definition"]["class_defined"]]
+        installers = [i for d in observations
+                      for i in d["uncaught_handler_install_sites"]]
         return {
             "verdict": "STATIC_EXIT_CALLSITE_EVIDENCE_ONLY",
+            "uncaught_exit_handler_definitions": definitions,
+            "uncaught_handler_install_sites": installers[:20],
+            "uncaught_handler_install_sites_total": len(installers),
             "original_dex_count": len(observations),
             "bounded_explicit_exit_callsite_owners": caller_details,
             "ymapplication_directly_invokes_exit_callers": direct_ymapp_neighbors,
