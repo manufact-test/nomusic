@@ -61,9 +61,10 @@ public static class AppUpdateManager
 
             // PE metadata is a compatibility guard, not an Authenticode trust claim.
             var metadata = FileVersionInfo.GetVersionInfo(stagedPath);
-            if (!Version.TryParse(metadata.FileVersion, out var version) ||
-                !string.Equals(metadata.ProductName, "CELIKOM", StringComparison.Ordinal) ||
-                !string.Equals(metadata.CompanyName, "CELIKOM", StringComparison.Ordinal))
+            // Inno Setup pads PE version-info strings with spaces on Windows.
+            if (!Version.TryParse(metadata.FileVersion?.Trim(), out var version) ||
+                !string.Equals(metadata.ProductName?.Trim(), "CELIKOM", StringComparison.Ordinal) ||
+                !string.Equals(metadata.CompanyName?.Trim(), "CELIKOM", StringComparison.Ordinal))
                 throw new IOException("UPDATE_NOT_CELIKOM");
             if (version <= currentVersion)
                 throw new IOException("UPDATE_NOT_NEWER");

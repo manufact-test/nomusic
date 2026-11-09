@@ -82,7 +82,7 @@ jobs:
           $ErrorActionPreference = 'Stop'
           $installer = 'windows-companion/w20/output/CELIKOM-W32-EASY-UPDATE-UNSIGNED.exe'
           $meta = [Diagnostics.FileVersionInfo]::GetVersionInfo((Resolve-Path $installer))
-          if ($meta.FileVersion -ne '0.24.4.0' -or $meta.ProductName -ne 'CELIKOM' -or $meta.CompanyName -ne 'CELIKOM') {
+          if ($meta.FileVersion.Trim() -ne '0.24.4.0' -or $meta.ProductName.Trim() -ne 'CELIKOM' -or $meta.CompanyName.Trim() -ne 'CELIKOM') {
             throw "W32_INSTALLER_PE_VERSION_MISMATCH: version=$($meta.FileVersion) product=$($meta.ProductName) company=$($meta.CompanyName)"
           }
           $package = Join-Path $env:RUNNER_TEMP 'CELIKOM-W32-test-package.zip'
