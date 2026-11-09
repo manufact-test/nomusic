@@ -356,7 +356,7 @@ def run():
                          "ORIGINAL_CONTROL_DIRECT_LAUNCH", 60)
                 time.sleep(5)
                 original_pid = arsc.run(
-                    ["adb", "shell", "sh", "-c", "pidof " + source.SOURCE + " || true"],
+                    ["adb", "shell", "pidof " + source.SOURCE + " || true"],
                     "ORIGINAL_CONTROL_PROCESS_PROBE", 30).strip()
                 if not original_pid:
                     original_raw = arsc.run(
@@ -406,8 +406,7 @@ def run():
             time.sleep(5)
             # pidof normally exits nonzero when app crashed; this is a
             # diagnostic case, not a subprocess invocation failure.
-            pid = arsc.run(["adb", "shell", "sh", "-c",
-                            "pidof " + source.DEST + " || true"],
+            pid = arsc.run(["adb", "shell", "pidof " + source.DEST + " || true"],
                            "ARM_CLONE_PROCESS_PROBE", 30).strip()
             if not pid:
                 # Read only limited system crash tags on an empty, unauthenticated
