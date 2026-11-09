@@ -125,11 +125,10 @@ def trace_playaudio(data: bytes) -> dict:
     names = set()
     for i in range(dex.method_count):
         cls, name, sig = dex.method(i)
-        if cls == TARGET or cls.startswith(PREFIX):
-            if len(refs) < MAX_REFS:
-                refs[i] = (cls, name, sig)
-            if cls.startswith(PREFIX):
-                names.add(cls)
+        if cls.startswith(PREFIX):
+            names.add(cls)
+        if cls == TARGET and len(refs) < MAX_REFS:
+            refs[i] = (cls, name, sig)
     core = sorted(s for s in dex.defined_classes() if s.startswith(PREFIX))
     invocations = []
     count = 0
