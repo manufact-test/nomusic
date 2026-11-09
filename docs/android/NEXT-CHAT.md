@@ -1,3 +1,11 @@
+# 2026-11-09 · NEW HEAD — real source-only native-host APK/XAPK inventory, CI PASS
+
+**Branch:** `experiment/android-native-yandex-gate1-20261109` (isolated from research `f2d2ed11`; NO stable, Test.50, server, Yandex app, or data changes). **Code:** [read-only inspector](../../tools/android-native-gate1/inspect_android_host.py), [tests](../../tools/android-native-gate1/tests/test_inspect_android_host.py), [README](../../tools/android-native-gate1/README.md); CI [#42597718915 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/42597718915), **7 synthetic APK/XAPK tests**. No installable APK, no user main phone action. Exact `ru.yandex.music` host `2026.10.3 #170gpr` has NOT been inspected: only third-party XAPK catalog listings found (potentially untrusted). Tool parses split APK DEX candidate method tables, distinguishes defined classes vs references and always reports `NO_NATIVE_SOURCE_HOOK_PROVEN`, correctly not claiming native integration. Static scanner needs an **independently trusted, legal exact Yandex host** to inventory, followed by test-environment in-process proof of exact track+edition and media-source selection. Owner UX native Yandex only. Rootless patcher substrate is available but signer collision / Play Protect + actual media hook remain blocking; no WebView or own player.
+
+**External source audit:** [ANDROID-NATIVE-YANDEX-GATE1-SOURCE-AUDIT-2026-11-09.md](ANDROID-NATIVE-YANDEX-GATE1-SOURCE-AUDIT-2026-11-09.md). **Status: Gate0+static tool ready; actual native Gate1 remains NO-GO.** No owner action justified now.
+
+---
+
 # 2026-11-09 UPDATE — SOURCE-AUDITED NATIVE YANDEX GATE 1: EXACT NO-GO, no APK
 
 **Current isolated branch:** `experiment/android-native-yandex-gate1-20261109`, from research `f2d2ed11`. **Read first:** [ANDROID-NATIVE-YANDEX-GATE1-SOURCE-AUDIT-2026-11-09.md](ANDROID-NATIVE-YANDEX-GATE1-SOURCE-AUDIT-2026-11-09.md), then the existing owner override below.
