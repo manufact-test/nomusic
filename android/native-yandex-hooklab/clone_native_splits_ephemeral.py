@@ -204,7 +204,13 @@ if __name__=="__main__":
     except Exception as err:
         reason=str(err)
         if not re.fullmatch(r"[A-Z_]{6,80}",reason):
-            reason="EPHEMERAL_CLONE_TRIAL_FAILED"
+            reason=(
+                "MANIFEST_XML_PARSE_FAILED" if isinstance(err,ET.ParseError) else
+                "REQUIRED_TOOL_OR_MANIFEST_FILE_MISSING" if isinstance(err,FileNotFoundError) else
+                "UNEXPECTED_VALUE_ERROR" if isinstance(err,ValueError) else
+                "UNEXPECTED_"+type(err).__name__.upper()+"_FAILURE")
+            if not re.fullmatch(r"[A-Z_]{6,80}",reason):
+                reason="EPHEMERAL_CLONE_TRIAL_FAILED"
         print(json.dumps({"verdict":"STRUCTURAL_CLONE_BLOCKED",
                           "reason":reason,"apks_distributed":False}))
         sys.exit(2)
