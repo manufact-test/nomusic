@@ -1,4 +1,5 @@
 using System.Net;
+using System.Security.Cryptography;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -53,7 +54,9 @@ public sealed class CelikomApi : IDisposable
             Origin = normalized,
             Email = tokens.Value.email,
             AccessToken = tokens.Value.access,
-            RefreshToken = tokens.Value.refresh
+            RefreshToken = tokens.Value.refresh,
+            // A prior SDK pairing must not gain access to a newly signed-in account.
+            BridgeToken = Convert.ToHexString(RandomNumberGenerator.GetBytes(32)).ToLowerInvariant()
         };
         _store.Save(next);
         Volatile.Write(ref _current, next);
@@ -62,7 +65,11 @@ public sealed class CelikomApi : IDisposable
     public async Task LogoutAsync(CancellationToken ct = default)
     {
         var previous = Settings;
-        var cleaned = previous with { Email = "", AccessToken = "", RefreshToken = "" };
+        var cleaned = previous with
+        {
+            Email = "", AccessToken = "", RefreshToken = "",
+            BridgeToken = Convert.ToHexString(RandomNumberGenerator.GetBytes(32)).ToLowerInvariant()
+        };
         Volatile.Write(ref _current, cleaned);
         _store.Save(cleaned);
         if (!SessionStore.IsHexToken(previous.RefreshToken) || previous.Origin.Length == 0) return;

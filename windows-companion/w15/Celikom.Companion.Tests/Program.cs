@@ -73,6 +73,9 @@ try
     Test(api.IsLoggedIn, "CELIKOM auth session accepted");
     Test(api.Email == "test@example.com", "account displayed");
     Test(store.LoadOrCreate().RefreshToken == expectedRefresh, "session retained through DPAPI");
+    var authenticatedBridgeToken = store.LoadOrCreate().BridgeToken;
+    Test(authenticatedBridgeToken != first.BridgeToken,
+        "sign-in rotates prior add-on bridge capability");
     var resolved = await api.ResolveAsync("123", CancellationToken.None);
     Test(resolved?.AudioUrl == "https://api.celikom.example" + audio, "live-contract resolve mapping");
     Test(backendCalls.SequenceEqual(new [] { "/api/v1/auth/login", "/api/v1/resolve" }),
@@ -129,6 +132,8 @@ try
     await api.LogoutAsync();
     Test(!api.IsLoggedIn, "only Windows CELIKOM session logged out");
     Test(store.LoadOrCreate().RefreshToken == "", "local refresh token cleared");
+    Test(store.LoadOrCreate().BridgeToken != authenticatedBridgeToken,
+        "logout invalidates old add-on pairing without touching Yandex account");
     Console.WriteLine("W15_NATIVE_CONTRACT_PASS " + checks);
 }
 finally

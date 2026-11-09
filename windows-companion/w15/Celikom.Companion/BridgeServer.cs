@@ -47,7 +47,13 @@ public sealed class BridgeServer : IAsyncDisposable
 
     public void SetEnabled(bool enabled)
     {
-        lock (_gate) _enabled = enabled;
+        lock (_gate)
+        {
+            if (_enabled == enabled) return;
+            _enabled = enabled;
+            _lastStatus = enabled ? "UNAVAILABLE" : "OFF";
+            _lastSong = "";
+        }
         Changed?.Invoke();
     }
 
