@@ -88,8 +88,21 @@ try {
   # CI-only: append fixed invalid-token fetch probe to disposable host, NOT owner installer.
   if ($env:CELIKOM_W33_RUNTIME_PROBE -eq '1') {
     $probe = Get-Content 'windows-companion/w23/w33-runtime-probe.cjs' -Raw -Encoding UTF8
-    Add-Content 'windows-companion/w23/dist/host.cjs' -Value ([Environment]::NewLine + $probe) -Encoding UTF8
-    Write-Output 'W33_DISPOSABLE_RENDERER_PROBE_ATTACHED'
+    $hostPath = Join-Path $env:GITHUB_WORKSPACE 'windows-companion\w23\dist\host.cjs'
+    $builtHost = Get-Content $hostPath -Raw -Encoding UTF8
+    $needle = 'if (!validView(view) || busy.has(view)) return;'
+    if ([regex]::Matches($builtHost, [regex]::Escape($needle)).Count -ne 1) {
+      throw 'W36_HOST_APPROVED_GATE_ANCHOR_MISSING'
+    }
+    # This temporary hook exists only in the disposable CI-built copy, never
+    # in the committed release host or the owner's installed 0.24.4 module.
+    $insertion = $needle + [Environment]::NewLine +
+      '  try { globalThis.__celikomW33OnApprovedView?.(view); } catch {}'
+    $builtHost = $builtHost.Replace($needle, $insertion)
+    [System.IO.File]::WriteAllText($hostPath,
+      $builtHost + [Environment]::NewLine + $probe,
+      [System.Text.UTF8Encoding]::new($false))
+    Write-Output 'W36_DISPOSABLE_APPROVED_GATE_PROBE_ATTACHED'
   }
   $out = Join-Path $root 'staged'
   $args = @('windows-companion/w23/asar-images.mjs','--asar',$asar,'--exe',$exe,'--host','windows-companion/w23/dist/host.cjs','--renderer','windows-companion/w23/dist/renderer.js','--asar-sha',$originalAsar,'--exe-sha',$originalExe,'--out',$out)
