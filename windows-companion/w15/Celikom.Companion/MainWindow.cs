@@ -40,7 +40,7 @@ public sealed class MainWindow : Form
     {
         _api = new CelikomApi(_store);
         _bridge = new BridgeServer(_api, _store);
-        _bridge.Changed += UpdateSafe;
+        _bridge.Changed += () => UpdateSafe();
 
         Text = "CELIKOM Companion — Windows";
         ClientSize = new Size(488, 612);
