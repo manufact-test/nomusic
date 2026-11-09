@@ -12,7 +12,7 @@ permissions:
 jobs:
   publisher-signed-original-arm-runtime:
     runs-on: macos-15
-    timeout-minutes: 45
+    timeout-minutes: 26
     steps:
       - uses: actions/checkout@v4
       - name: Validate non-mutating test script syntax
@@ -24,7 +24,10 @@ jobs:
           target: google_apis
           arch: arm64-v8a
           profile: pixel_5
-          emulator-boot-timeout: 600
+          emulator-boot-timeout: 360
+          # GitHub macOS arm64 runner has no nested HVF (HV_UNSUPPORTED).
+          # One bounded attempt via QEMU software emulation, NOT Play Protect bypass.
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -accel off
           script: python3 android/native-yandex-hooklab/original_yandex_arm_emulator_ephemeral.py
       - name: Confirm no repository third-party binaries
         if: always()
