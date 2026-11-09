@@ -25,6 +25,8 @@ TOOLS = HERE.parents[1] / "tools" / "android-native-gate1"
 sys.path.insert(0, str(TOOLS))
 import audit_gpr_apkpure_once as gpr
 from audit_rustore_host_once import sdk_tool, RUSTORE_SHA256_CERT
+from inspect_android_host import Dex, DEX_MAX
+from trace_native_callers import method_definitions
 
 PATCHER_URL = "https://github.com/JingMatrix/LSPatch/releases/download/v1.2/lspatch-v1.2-487-release.jar"
 PATCHER_SHA256 = "d238fdc414d121b7fa454d8b4ccf420df3a8c97d563761861ff92bd9c5da2165"
@@ -78,6 +80,42 @@ def signer(path:Path):
         raise ValueError("APK v2/v3 verification missing")
     return values.pop()
 
+def verify_observer_binary_methods(base_apk:Path):
+    """Fail closed unless the exact published GPR DEX contains both hook targets."""
+    expected={
+        ("Lsw7;","y0","(Lcom/yandex/music/shared/player/content/remote/fileinfo/FileInfoDto;Z)Leed;"),
+        ("Lsw7;","z0","(Lcom/yandex/music/shared/player/content/remote/fileinfo/OldGetFileInfoDto;Z)Leed;"),
+    }
+    found=set()
+    with zipfile.ZipFile(base_apk) as z:
+        for item in z.infolist():
+            if not re.fullmatch(r"classes\\d*\\.dex",item.filename):
+                continue
+            if item.file_size>DEX_MAX:
+                raise ValueError("DEX size exceeds static hook preflight cap")
+            dex=Dex(z.read(item))
+            declared=set(dex.defined_classes())
+            if "Lsw7;" not in declared:
+                continue
+            for idx,code_offset in method_definitions(dex):
+                triple=dex.method(idx)
+                if triple in expected:
+                    found.add(triple)
+    if found!=expected:
+        raise ValueError("Exact two source conversion methods not defined in pinned #170gpr host")
+    return sorted(f"{name}"+signature for cls,name,signature in found)
+
+
+def original_native_architectures(apks:list[Path]):
+    found=set()
+    for apk in apks:
+        with zipfile.ZipFile(apk) as z:
+            for n in z.namelist():
+                if n.startswith("lib/") and n.endswith(".so") and n.count("/")>=2:
+                    found.add(n.split("/")[1])
+    return sorted(found)
+
+
 def main():
     if not MODULE_PATH.is_file():
         raise ValueError("CELIKOM observer module not built")
@@ -115,6 +153,12 @@ def main():
         originals=gpr.split_apks(incoming,root)
         gpr.inspect_publisher(originals)  # Checks EXACT version, original publisher and package.
         orig=[(apk_id(p),p) for p in originals]
+        exact_base=next((p for p in originals
+                         if not apk_id(p)[2]),None)
+        if exact_base is None:
+            raise ValueError("Missing native Yandex base APK")
+        method_contract=verify_observer_binary_methods(exact_base)
+        native_abis=original_native_architectures(originals)
         if len(orig)!=5 or len({v[2] for v,p in orig})!=5:
             raise ValueError("Expected five distinct native Yandex splits")
         for identity,p in orig:
@@ -185,6 +229,9 @@ def main():
             "patcher_sha256":PATCHER_SHA256,
             "signature_spoof_level":0,
             "splits":len(patched),
+            "split_ids":sorted([v[2] or "base" for v,p in orig]),
+            "native_abis":native_abis,
+            "verified_exact_method_contracts":method_contract,
             "embedded_module":"CELIKOM read-only FileInfoDto observer",
             "module_sha256":sha(module),
             "lab_signer_sha256":lab_sig,
