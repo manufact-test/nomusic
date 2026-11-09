@@ -66,3 +66,14 @@ NOT PROVEN: runtime hook внутри Yandex, его собственный Medi
 - Альтернативный non-destructive native-host gate: отдельно установленный ПОДЛИННЫЙ подписанный Яндекс в ЧИСТОМ ARM64 Android-13 эмуляторе GitHub Actions, без клонирования, патча, аккаунта и музыки, без вмешательства в телефон. [Новая CI 42669152016](https://github.com/manufact-test/nomusic/actions/runs/42669152016). Пока результат этого run не был проверен как PASS; не засчитывать запуск до получения `completed/success`.
 - Новые документы: [ANDROID-NATIVE-ARSC-CLONE-GATE-2026-11-09.md](ANDROID-NATIVE-ARSC-CLONE-GATE-2026-11-09.md), [ANDROID-NATIVE-ARM-EMULATOR-ISOLATED-2026-11-09.md](ANDROID-NATIVE-ARM-EMULATOR-ISOLATED-2026-11-09.md).
 - Приоритет: если чистый native original host запускается, изучать возможность read-only source observation в disposable ARM-окружении. До настоящего native decoder FileInfo→MediaSource runtime свидетельства и установки side-by-side на HONOR всё ещё далеко. Принятые own-source audio тесты НЕ повторять. Test.50 и официальный Яндекс не менять.
+
+
+## Структурная пятёрка PASS (09.11.2026), это НЕ runtime PASS
+
+После read-only аудита public Passport/AppMetrica refs [CI 42669936573](https://github.com/manufact-test/nomusic/actions/runs/42669936573)
+новый ограниченный provider identity Phase2 [CI 42670648029](https://github.com/manufact-test/nomusic/actions/runs/42670648029)
+**SUCCESS 5/5 split APK**: пересборка, переподпись тестовым ключом, проверка метаданных всех пяти пакетов, библиотек и всех DEX, кроме одного явно заданного обратимого AppMetrica literal patch. Поправлены 4 provider authority объявления, 1 Passport sync string. Все файлы только в TemporaryDirectory CI, не публиковались, не устанавливались.
+
+**НЕТ доказательства:** side-by-side Android PackageManager установка, приложение запускается, нормальный Yandex login и Passport, read-only hook внутри клона, FileInfo→decoder runtime, native-подмена, Play Protect. Запуск original ARM emulator [CI 42669152016](https://github.com/manufact-test/nomusic/actions/runs/42669152016) проверяется отдельно и сам по себе клона не доказывает.
+
+Новый этап: изолированный ARM emulator install original+clone, затем native read-only observer при безопасном разрешённом пути. HONOR, Test.50, Windows, extension, сервер и production НЕ трогать.

@@ -1,3 +1,5 @@
+> ОБНОВЛЕНИЕ: Phase2 offline structural clone **5/5 PASS**, GitHub Actions 42670648029. Новое: `docs/android/ANDROID-NATIVE-PROVIDER-IDENTITY-PHASE2-2026-11-09.md`. Все ограничения: клону ещё НЕ подтверждены установка, запуск, Yandex login, Play Protect, native decoder и audio. Ни один APK не распространялся. Дальше clean ARM emulator side-by-side test, без телефона владельца.
+
 > Обновление 09.11.2026: ARSCLib альтернативно перепаковал первый split, но остановлен пятью совпадающими ContentProvider authorities: CI 42668435366, `ARSC_PROVIDER_AUTHORITY_COLLISION`. Побочный клон на HONOR НЕ устанавливать. Отдельный чистый ARM-эмуляторный оригинал Яндекса: CI 42669152016, статус на момент записи ожидает проверки. Подробнее в `ANDROID-NATIVE-CURRENT-HANDOFF-2026-11-09.md` и `ANDROID-NATIVE-ARM-EMULATOR-ISOLATED-2026-11-09.md`.
 
 # CELIKOM Android — NEXT CHAT, актуальный указатель

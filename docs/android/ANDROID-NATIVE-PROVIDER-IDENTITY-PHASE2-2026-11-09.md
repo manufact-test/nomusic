@@ -13,3 +13,24 @@ Workflow: `.github/workflows/android-native-identity-phase2-ephemeral.yml`
 Script: `android/native-yandex-hooklab/clone_native_identity_phase2_ephemeral.py`
 
 No impact to official Yandex/HONOR, Test.50, extension, server or database.
+
+
+## Verified Phase 2 result (09.11.2026)
+
+**PASS, STRUCTURAL ONLY:** [CI 42670648029](https://github.com/manufact-test/nomusic/actions/runs/42670648029).
+Exactly **5/5** original #170gpr splits were decoded, narrowly edited, rebuilt,
+zipaligned and signed with one ephemeral non-Yandex certificate. All five
+manifest package/split/version metadata checks passed, as did signature
+verification, all original native library byte comparisons, and exact DEX
+payload comparison against the one explicitly permitted AppMetrica string
+replacement (and its recalculated DEX header hashes). Exactly four manifest
+provider identity changes, one sync resource change, one DEX literal change.
+No third-party APK retained/published/installed.
+
+This is *not* real Yandex login or native decoder proof. Real Android installer
+side-by-side, process launch, account login, hook binding, Play Protect
+and Yandex audio are all still **NOT TESTED**. Do NOT send to HONOR,
+distribute modified publisher APKs, or call the native product ready.
+Next safe gate: clean isolated ARM emulator install BOTH original and test clone
+and verify process launch with NO authentication. Only after that consider
+read-only FileInfo witness in genuine Yandex client.
