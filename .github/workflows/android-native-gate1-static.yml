@@ -1,0 +1,31 @@
+name: Android native Yandex Gate 1 static audit tests
+on:
+  push:
+    branches:
+      - experiment/android-native-yandex-gate1-20261109
+    paths:
+      - 'tools/android-native-gate1/**'
+      - '.github/workflows/android-native-gate1-static.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  static-host-inspector-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Syntax and offline synthetic APK/XAPK tests
+        run: |
+          python -m py_compile tools/android-native-gate1/inspect_android_host.py
+          python -Werror::ResourceWarning -m unittest discover -v -s tools/android-native-gate1/tests
+      - name: Fail if proprietary APK/XAPK is committed in gate folder
+        run: |
+          if find tools/android-native-gate1 -type f \( -iname '*.apk' -o -iname '*.xapk' -o -iname '*.apks' -o -iname '*.dex' \) | grep -q .; then
+            echo "Private/proprietary Android binaries must not be committed"
+            exit 1
+          fi
