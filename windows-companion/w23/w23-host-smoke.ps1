@@ -17,6 +17,9 @@ $report = [ordered]@{
   nativeHostLoaded = $false
   rendererInjected = $false
   resourceHookAttached = $false
+  companionBridgeStarted = $false
+  nativeBridgePreflight = $false
+  nativeBridgeStateReached = $false
   originalBytesRestored = $false
   originalSignatureRestored = $false
   audio = 'NOT_TESTED_NO_ACCOUNT'
@@ -31,6 +34,7 @@ $originalExe = ''
 $originalAsar = ''
 $backedUp = $false
 $failed = $null
+$companionProcess = $null
 $managedBackup = Join-Path $root "managed-backup"
 $cli = "windows-companion/w24/Celikom.NativeInstaller.Cli/Celikom.NativeInstaller.Cli.csproj"
 $yandexRoot = Split-Path $exe -Parent
@@ -98,12 +102,90 @@ try {
   $report.managedInstallerActive = $true
   $report.modifiedExeSignature = (Get-AuthenticodeSignature $exe).Status.ToString()
   $data = Join-Path $env:LOCALAPPDATA 'CELIKOM\Windows'
-  New-Item -ItemType Directory $data -Force | Out-Null
-  ('a'*64) | Set-Content (Join-Path $data 'native-bridge.key') -NoNewline
+  $capability = Join-Path $data 'native-bridge.key'
   $diagnostics = Join-Path $root 'host-events.txt'
+  $bridgeDiagnostic = Join-Path $root 'bridge-events.txt'
   $env:CELIKOM_W23_DEV_DIAG = $diagnostics
+  $env:CELIKOM_W23_DEV_BRIDGE_DIAG = $bridgeDiagnostic
+  $companionExe = Join-Path $env:GITHUB_WORKSPACE 'windows-companion\w23\companion\CELIKOM.Companion.exe'
+  if (-not (Test-Path $companionExe)) { throw 'COMPANION_BINARY_MISSING' }
+  $companionProcess = Start-Process $companionExe -PassThru
+  $keyReady = $false
+  for ($i=0; $i -lt 30; $i++) {
+    Start-Sleep -Milliseconds 500
+    if (Test-Path $capability) {
+      $key = (Get-Content $capability -Raw).Trim()
+      if ($key -match '^[0-9a-f]{64}
+  $report.modifiedAppLaunched = @(Get-Process -Id $proc.Id -ErrorAction SilentlyContinue).Count -gt 0
+  if (Test-Path $diagnostics) {
+    $events = @(Get-Content $diagnostics)
+    $report.observedEvents = @($events | Sort-Object -Unique)
+    $report.nativeHostLoaded = 'HOST_LOADED' -in $events
+    $report.rendererInjected = 'RENDERER_INJECTED' -in $events
+    $report.resourceHookAttached = 'RESOURCE_ATTACHED' -in $events
+  }
+  if (-not $report.modifiedAppLaunched) { throw 'MODIFIED_YANDEX_NOT_RUNNING' }
+  if (-not $report.nativeHostLoaded) { throw 'NATIVE_HOST_BOOTSTRAP_NOT_EXECUTED' }
+  if (-not $report.rendererInjected -or -not $report.resourceHookAttached)
+    { throw 'NATIVE_RESOURCE_NOT_ATTACHED' }
+  if (-not $report.nativeBridgePreflight -or -not $report.nativeBridgeStateReached)
+    { throw 'NATIVE_RENDERER_CANNOT_REACH_COMPANION' }
+} catch {
+  $failed = $_.Exception.Message
+  $report.error = $failed
+} finally {
+  try {
+    Get-Process -Name 'Яндекс Музыка' -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+    if ($companionProcess) {
+      Stop-Process -Id $companionProcess.Id -Force -ErrorAction SilentlyContinue
+    }
+    Start-Sleep -Seconds 3
+    if ($backedUp) {
+      if (Test-Path (Join-Path $managedBackup 'recovery.json')) {
+        & dotnet run --project $cli -c Release -- --restore $yandexRoot $managedBackup
+        if ($LASTEXITCODE -eq 0) {
+          $report.managedRestoreConfirmed = $true
+        } else {
+          $failed = 'W24_RECOVERY_MANAGER_FAILED'
+          $report.error = $failed
+        }
+      }
+      # Last-resort cleanup is only for this disposable CI machine.
+      if (-not $report.managedRestoreConfirmed) {
+        Copy-Item $backupExe $exe -Force -ErrorAction Stop
+        Copy-Item $backupAsar $asar -Force -ErrorAction Stop
+      }
+      $report.originalBytesRestored =
+        ((Get-FileHash $exe -Algorithm SHA256).Hash.ToLowerInvariant() -eq $originalExe) -and
+        ((Get-FileHash $asar -Algorithm SHA256).Hash.ToLowerInvariant() -eq $originalAsar)
+      $report.originalSignatureRestored = (Get-AuthenticodeSignature $exe).Status -eq 'Valid'
+    }
+    Remove-Item (Join-Path $env:LOCALAPPDATA 'CELIKOM\Windows\native-bridge.key') -Force -ErrorAction SilentlyContinue
+    Remove-Item Env:\CELIKOM_W23_DEV_DIAG -ErrorAction SilentlyContinue
+    Remove-Item Env:\CELIKOM_W23_DEV_BRIDGE_DIAG -ErrorAction SilentlyContinue
+  } catch {
+    $failed = 'RESTORE_FAILED'
+    $report.error = $failed
+  }
+  Report
+  $report | ConvertTo-Json -Depth 5 | Write-Output
+}
+if ($backedUp -and (-not $report.originalBytesRestored -or -not $report.originalSignatureRestored)) {
+  throw 'RESTORE_NOT_VERIFIED'
+}
+if ($failed) { throw $failed }
+) { $keyReady=$true; break }
+    }
+  }
+  if (-not $keyReady) { throw 'COMPANION_BRIDGE_NOT_STARTED' }
+  $report.companionBridgeStarted = $true
   $proc = Start-Process $exe -PassThru
   Start-Sleep -Seconds 20
+  if (Test-Path $bridgeDiagnostic) {
+    $bridgeEvents = @(Get-Content $bridgeDiagnostic)
+    $report.nativeBridgePreflight = 'NATIVE_PREFLIGHT' -in $bridgeEvents
+    $report.nativeBridgeStateReached = 'NATIVE_STATE_REQUEST' -in $bridgeEvents
+  }
   $report.modifiedAppLaunched = @(Get-Process -Id $proc.Id -ErrorAction SilentlyContinue).Count -gt 0
   if (Test-Path $diagnostics) {
     $events = @(Get-Content $diagnostics)
