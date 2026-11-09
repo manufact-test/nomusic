@@ -9,6 +9,8 @@ $report = [ordered]@{
   defender = 'UNKNOWN'
   genuineYandexSigned = $false
   ownImagesStaged = $false
+  managedInstallerActive = $false
+  managedRestoreConfirmed = $false
   modifiedExeSignature = 'NOT_CHECKED'
   modifiedAppLaunched = $false
   nativeHostLoaded = $false
@@ -28,6 +30,9 @@ $originalExe = ''
 $originalAsar = ''
 $backedUp = $false
 $failed = $null
+$managedBackup = Join-Path $root "managed-backup"
+$cli = "windows-companion/w24/Celikom.NativeInstaller.Cli/Celikom.NativeInstaller.Cli.csproj"
+$yandexRoot = Split-Path $exe -Parent
 try {
   $mp = Get-MpComputerStatus -ErrorAction Stop
   if ($mp.AntivirusEnabled -and -not $mp.RealTimeProtectionEnabled) {
@@ -78,12 +83,17 @@ try {
     throw 'STAGED_IMAGES_WRONG_SOURCE'
   }
   $report.ownImagesStaged = $true
-  Copy-Item (Join-Path $out 'app.asar') $asar -Force
-  Copy-Item (Join-Path $out 'YandexMusic.patched.exe') $exe -Force
-  if ((Get-FileHash $asar -Algorithm SHA256).Hash.ToLowerInvariant() -ne $manifest.modifiedAsarSha -or
-      (Get-FileHash $exe -Algorithm SHA256).Hash.ToLowerInvariant() -ne $manifest.modifiedExeSha) {
-    throw 'HOST_FILES_CHANGED_DURING_APPLY'
+  # Actual same .NET integration transaction used by the CELIKOM desktop app:
+  # signed preflight -> exact backup -> two-phase apply -> post-write verification.
+  & dotnet run --project $cli -c Release -- --install $yandexRoot 'windows-companion/w23/dist' $managedBackup
+  if ($LASTEXITCODE -ne 0) { throw 'W24_NATIVE_MANAGER_INSTALL_FAILED' }
+  $installedRecord = Get-Content (Join-Path $managedBackup 'recovery.json') -Raw | ConvertFrom-Json
+  if ($installedRecord.State -ne 'ACTIVE' -or
+      (Get-FileHash $exe -Algorithm SHA256).Hash.ToLowerInvariant() -ne $installedRecord.AppliedExe -or
+      (Get-FileHash $asar -Algorithm SHA256).Hash.ToLowerInvariant() -ne $installedRecord.AppliedAsar) {
+    throw 'W24_INSTALLED_PAIR_MISMATCH'
   }
+  $report.managedInstallerActive = $true
   $report.modifiedExeSignature = (Get-AuthenticodeSignature $exe).Status.ToString()
   $data = Join-Path $env:LOCALAPPDATA 'CELIKOM\Windows'
   New-Item -ItemType Directory $data -Force | Out-Null
@@ -110,8 +120,20 @@ try {
     Get-Process -Name 'Яндекс Музыка' -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
     Start-Sleep -Seconds 3
     if ($backedUp) {
-      Copy-Item $backupExe $exe -Force -ErrorAction Stop
-      Copy-Item $backupAsar $asar -Force -ErrorAction Stop
+      if (Test-Path (Join-Path $managedBackup 'recovery.json')) {
+        & dotnet run --project $cli -c Release -- --restore $yandexRoot $managedBackup
+        if ($LASTEXITCODE -eq 0) {
+          $report.managedRestoreConfirmed = $true
+        } else {
+          $failed = 'W24_RECOVERY_MANAGER_FAILED'
+          $report.error = $failed
+        }
+      }
+      # Last-resort cleanup is only for this disposable CI machine.
+      if (-not $report.managedRestoreConfirmed) {
+        Copy-Item $backupExe $exe -Force -ErrorAction Stop
+        Copy-Item $backupAsar $asar -Force -ErrorAction Stop
+      }
       $report.originalBytesRestored =
         ((Get-FileHash $exe -Algorithm SHA256).Hash.ToLowerInvariant() -eq $originalExe) -and
         ((Get-FileHash $asar -Algorithm SHA256).Hash.ToLowerInvariant() -eq $originalAsar)
