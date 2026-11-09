@@ -4,7 +4,7 @@ from unittest.mock import patch
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from clone_native_identity_phase2_ephemeral import classify_clone_launch_logcat, summarize_installed_package_code_flags, classify_activity_start, classify_activity_exit_info, classify_clone_process_events, disposable_foreground_snapshot, full_native_main_ui_pass
+from clone_native_identity_phase2_ephemeral import classify_clone_launch_logcat, summarize_installed_package_code_flags, classify_activity_start, classify_activity_exit_info, classify_clone_process_events, classify_main_pid_scoped_system_logs, disposable_foreground_snapshot, full_native_main_ui_pass
 
 
 class SafeCloneCrashClassificationTest(unittest.TestCase):
@@ -140,6 +140,36 @@ class SafeCloneCrashClassificationTest(unittest.TestCase):
                          ["am_proc_start", "am_create_activity", "am_resume_activity", "am_proc_died"])
         self.assertTrue(out["main_activity_lifecycle_observed"])
         self.assertNotIn("PRIVATE_TOKEN", str(out))
+
+    def test_main_pid_only_logging_never_leaks_credentials(self):
+        exit_info = (
+            "ApplicationExitInfo #0:\n"
+            "  timestamp=X pid=404 realUid=10234\n"
+            "  process=pro.celikom.yandex.nativeclonelab reason=1 status=0\n"
+            "ApplicationExitInfo #1:\n"
+            "  timestamp=X pid=405 realUid=10234\n"
+            "  process=pro.celikom.yandex.nativeclonelab:AppMetrica reason=1 status=0\n")
+        logs = (
+            "11-09 21:59:00.011  402  402 E System.err: java.lang.SecurityException: ORIGINAL_PRIVATE\n"
+            "11-09 21:59:00.012  405  405 E System.err: java.lang.RuntimeException: AUX_PRIVATE\n"
+            "11-09 21:59:00.013  404  404 E System.err: java.lang.IllegalStateException: token=MAIN_PRIVATE\n"
+            "11-09 21:59:00.014  404  404 W Other: unrelated marker\n")
+        report = classify_main_pid_scoped_system_logs(exit_info, logs)
+        self.assertTrue(report["main_exit_pid_records_available"])
+        self.assertTrue(report["main_pid_scoped_system_err_seen"])
+        self.assertTrue(report["main_pid_java_exception_marker_seen"])
+        self.assertTrue(report["main_pid_scoped_error_severity_seen"])
+        self.assertFalse(report["main_pid_security_exception_marker_seen"])
+        for secret in ("ORIGINAL_PRIVATE", "AUX_PRIVATE", "MAIN_PRIVATE", "token="):
+            self.assertNotIn(secret, str(report))
+
+    def test_main_pid_log_fails_closed_if_no_process_pid(self):
+        raw = "ApplicationExitInfo #0: process=pro.celikom.yandex.nativeclonelab reason=1"
+        log = "11-09 21:59:00.013  404  404 E System.err: java.lang.SecurityException: SECRET"
+        result = classify_main_pid_scoped_system_logs(raw, log)
+        self.assertFalse(result["main_exit_pid_records_available"])
+        self.assertFalse(result["main_pid_security_exception_marker_seen"])
+        self.assertNotIn("SECRET", str(result))
 
     def test_helper_only_is_not_main_exit(self):
         report = classify_activity_exit_info(

@@ -416,6 +416,64 @@ def classify_clone_process_events(raw):
 
 
 
+
+def classify_main_pid_scoped_system_logs(exit_info_raw, threadtime_raw):
+    """Read-only categorical log evidence scoped to MAIN exit-info PIDs.
+
+    This prevents attribution of original Yandex or AppMetrica errors to MAIN.
+    Never emit PID, class stack, logcat text, URL, username, path or token.
+    Unknown PID/logcat formats fail closed to NO_OBSERVATION.
+    """
+    import re
+    blocks = re.split(
+        r"(?im)(?=^\s*(?:ApplicationExitInfo\s*#?\d+|#\d+:\s*ApplicationExitInfo))",
+        exit_info_raw)
+    if len(blocks) == 1:
+        blocks = exit_info_raw.splitlines()
+    target_pids = set()
+    for block in blocks[:80]:
+        match = re.search(r"\bprocess\s*[=:]\s*([A-Za-z0-9_.:]+)", block)
+        if not match or match.group(1) != source.DEST:
+            continue
+        pid = re.search(r"\bpid\s*[=:]\s*(\d{1,8})\b", block)
+        if pid and 1 <= int(pid.group(1)) <= 99999999:
+            target_pids.add(int(pid.group(1)))
+    tags = set()
+    relevant_messages = []
+    for line in threadtime_raw.splitlines()[-15000:]:
+        event = re.match(
+            r"^\s*\d\d-\d\d\s+\d\d:\d\d:\d\d\.\d+\s+"
+            r"(\d+)\s+\d+\s+([A-Z])\s+([^:]+):\s*(.*)$", line)
+        if not event or int(event.group(1)) not in target_pids:
+            continue
+        _, severity, tag, message = event.groups()
+        if len(relevant_messages) >= 400:
+            break
+        tag = tag.strip()
+        if tag in ("System.err", "AndroidRuntime"):
+            tags.add(tag)
+        relevant_messages.append((severity, tag, message))
+    combined = "\n".join(x[2] for x in relevant_messages)
+    return {
+        "main_exit_pid_records_available": bool(target_pids),
+        "main_pid_scoped_log_lines_seen": bool(relevant_messages),
+        "main_pid_scoped_error_severity_seen":
+            any(s in ("E", "F") for s, _, _ in relevant_messages),
+        "main_pid_scoped_system_err_seen": "System.err" in tags,
+        "main_pid_scoped_android_runtime_seen": "AndroidRuntime" in tags,
+        "main_pid_java_exception_marker_seen":
+            bool(re.search(r"\b[A-Za-z0-9_.]*(?:Exception|Error)\b", combined)),
+        "main_pid_security_exception_marker_seen": "SecurityException" in combined,
+        "main_pid_class_loading_marker_seen":
+            any(x in combined for x in ("ClassNotFoundException", "NoClassDefFoundError",
+                                         "VerifyError", "LinkageError")),
+        "main_pid_uncaught_handler_marker_seen": "uncaughtException" in combined,
+        "raw_process_text_exposed": False,
+        "log_causal_attribution_unproven": True,
+    }
+
+
+
 def run():
     if os.getenv("GITHUB_ACTIONS") != "true":
         raise arsc.TrialError("CI_ONLY")
@@ -784,6 +842,21 @@ def run():
                         print(json.dumps({
                             "clone_exit_info": classify_activity_exit_info(exit_dump)
                         },sort_keys=True))
+                        # Passive Android logcat classification, exactly MAIN PID(s)
+                        # from scoped ApplicationExitInfo; never write raw log data.
+                        try:
+                            timeline = arsc.run(
+                                ["adb", "logcat", "-d", "-b", "main",
+                                 "-v", "threadtime", "-t", "12000"],
+                                "CLONE_MAIN_SCOPED_JAVA_DIAGNOSTICS", 45)
+                            print(json.dumps({
+                                "clone_main_pid_logs": classify_main_pid_scoped_system_logs(
+                                    exit_dump, timeline)
+                            }, sort_keys=True))
+                        except arsc.TrialError:
+                            print(json.dumps({
+                                "clone_main_pid_logs": "ANDROID_MAIN_PID_LOG_UNAVAILABLE"
+                            }))
                     except arsc.TrialError:
                         print(json.dumps({"clone_exit_info": "ANDROID_EXIT_INFO_UNAVAILABLE"}))
                 print(json.dumps({
