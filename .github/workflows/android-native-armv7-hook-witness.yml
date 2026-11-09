@@ -34,7 +34,7 @@ jobs:
           base=Path('android/native-yandex-hooklab/armv7-witness-module/app')
           source=(base/'src/main/java/pro/celikom/armv7witnessmodule/HookWitnessEntry.java').read_text()
           scope=(base/'src/main/resources/META-INF/xposed/scope.list').read_text().strip()
-          assert scope == 'pro.celikom.armv7loaderhost.witness'
+          assert set(scope.splitlines()) == {'pro.celikom.armv7loaderhost.witness', 'pro.celikom.armv7loaderhost.audio'}
           assert 'ru.yandex.music' not in source
           assert 'setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)' in source
           assert 'chain.proceed()' in source

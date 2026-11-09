@@ -1,0 +1,71 @@
+name: CELIKOM own ARMv7 in-process audio smoke (NO Yandex)
+on:
+  push:
+    branches:
+      - experiment/android-native-yandex-fileinfo-hooklab-20261109
+    paths:
+      - 'android/native-yandex-hooklab/armv7-loader-host/**'
+      - 'android/native-yandex-hooklab/armv7-witness-module/**'
+      - 'android/native-yandex-hooklab/build_owned_loader_host.py'
+      - '.github/workflows/android-native-armv7-audio-smoke.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  own-audio-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 28
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+      - name: Build unique OWN source-audio host, ARMv7 and no permissions
+        run: gradle -p android/native-yandex-hooklab/armv7-loader-host :app:assembleDebug --no-daemon -PcelikomAudioAppId=pro.celikom.armv7loaderhost.audio
+      - name: Build own Xposed module scoped ONLY to two CELIKOM lab apps
+        run: gradle -p android/native-yandex-hooklab/armv7-witness-module :app:assembleDebug --no-daemon
+      - name: Independent safety and native audio contract checks
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          root=Path("android/native-yandex-hooklab")
+          module=(root/"armv7-witness-module/app/src/main/java/pro/celikom/armv7witnessmodule/HookWitnessEntry.java").read_text()
+          scope=(root/"armv7-witness-module/app/src/main/resources/META-INF/xposed/scope.list").read_text().splitlines()
+          host=(root/"armv7-loader-host/app/src/main/java/pro/celikom/armv7loaderhost/AudioSmokeScreen.java").read_text()
+          selector=(root/"armv7-loader-host/app/src/main/java/pro/celikom/armv7loaderhost/AudioSmokeSource.java").read_text()
+          assert set(scope)=={"pro.celikom.armv7loaderhost.witness","pro.celikom.armv7loaderhost.audio"}
+          assert "ru.yandex.music" not in module and "ru.yandex.music" not in host
+          assert "installAudioSource" in module and "chain.proceed()" in module
+          assert "Source changed BEFORE PREPARE" in host and "MediaPlayer" in host
+          assert "release()" in host and "prepareAsync()" in host
+          assert "pause()" in host and "seekTo(" in host
+          assert "fallback" in host and "nexts++" in host
+          assert "chooseA()" in selector and "return A_ORIGINAL" in selector
+          assert "android.permission" not in host
+          print("PASS: no Yandex, single MediaPlayer, source before prepare, pause seek Next fallback contracts")
+          PY
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Package scoped module and unique app with pinned LSPatch (sigbypass=0)
+        env:
+          CELIKOM_OWN_AUDIO: '1'
+          CELIKOM_OWNED_ARTIFACT_DIR: ${{ runner.temp }}/own-audio-smoke
+        run: |
+          python3 -m py_compile android/native-yandex-hooklab/build_owned_loader_host.py
+          python3 android/native-yandex-hooklab/build_owned_loader_host.py
+      - name: Upload ONLY own-source synthetic audio lab APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: CELIKOM-ARMv7-AUDIO-SMOKE-OWNER-TEST
+          path: ${{ runner.temp }}/own-audio-smoke/CELIKOM-ARMv7-AUDIO-SMOKE-Test.apk
+          if-no-files-found: error
+          retention-days: 7
+      - name: Remove ephemeral lab APK
+        if: always()
+        run: rm -rf -- "$RUNNER_TEMP/own-audio-smoke"
