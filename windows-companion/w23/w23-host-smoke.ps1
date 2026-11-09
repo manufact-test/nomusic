@@ -20,6 +20,8 @@ $report = [ordered]@{
   companionBridgeStarted = $false
   nativeBridgePreflight = $false
   nativeBridgeStateReached = $false
+  mainProcessRelayReached = $false
+  rendererStateDelivered = $false
   originalBytesRestored = $false
   originalSignatureRestored = $false
   audio = 'NOT_TESTED_NO_ACCOUNT'
@@ -134,13 +136,18 @@ try {
     $report.nativeHostLoaded = 'HOST_LOADED' -in $events
     $report.rendererInjected = 'RENDERER_INJECTED' -in $events
     $report.resourceHookAttached = 'RESOURCE_ATTACHED' -in $events
+    $report.mainProcessRelayReached = 'LOCAL_STATE_OK' -in $events
+    $report.rendererStateDelivered = 'RENDERER_STATE_DELIVERED' -in $events
   }
   if (-not $report.modifiedAppLaunched) { throw 'MODIFIED_YANDEX_NOT_RUNNING' }
   if (-not $report.nativeHostLoaded) { throw 'NATIVE_HOST_BOOTSTRAP_NOT_EXECUTED' }
   if (-not $report.rendererInjected -or -not $report.resourceHookAttached)
     { throw 'NATIVE_RESOURCE_NOT_ATTACHED' }
-  if (-not $report.nativeBridgePreflight -or -not $report.nativeBridgeStateReached)
-    { throw 'NATIVE_RENDERER_CANNOT_REACH_COMPANION' }
+  # Requests are made by the trusted Electron main process: no renderer
+  # CORS preflight is required, and neither CSP nor PNA is altered.
+  if (-not $report.nativeBridgeStateReached -or
+      -not $report.mainProcessRelayReached -or -not $report.rendererStateDelivered)
+    { throw 'NATIVE_MAIN_PROCESS_RELAY_CANNOT_REACH_COMPANION' }
 } catch {
   $failed = $_.Exception.Message
   $report.error = $failed
