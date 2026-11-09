@@ -191,7 +191,7 @@ def summarize_installed_package_code_flags(raw):
     import re
     flag_lines = [line for line in raw.splitlines() if "flags=[" in line]
     return {
-        "has_code_flag": any(re.search(r"\\bHAS_CODE\\b", line) for line in flag_lines),
+        "has_code_flag": any(re.search(r"\bHAS_CODE\b", line) for line in flag_lines),
         "has_code_path_record": "codePath=" in raw,
         "has_base_apk_record": "base.apk" in raw,
         "has_classloader_record": "classLoaderName=" in raw,
