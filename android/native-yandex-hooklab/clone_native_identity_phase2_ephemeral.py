@@ -347,9 +347,13 @@ def run():
             if os.getenv("CELIKOM_ORIGINAL_CONTROL_LAUNCH") == "1":
                 # Unmodified publisher app is a control. If it fails on the
                 # same translated emulator, a clone crash alone proves nothing.
-                arsc.run(["adb", "shell", "monkey", "-p", source.SOURCE,
-                          "-c", "android.intent.category.LAUNCHER", "1"],
-                         "ORIGINAL_CONTROL_LAUNCH_INTENT", 50)
+                # Explicit signed launcher activity; monkey with one random
+                # event could press BACK and spuriously make the process exit.
+                arsc.run(["adb", "shell", "am", "start", "-W",
+                          "-a", "android.intent.action.MAIN",
+                          "-c", "android.intent.category.LAUNCHER",
+                          "-n", source.SOURCE + "/ru.yandex.music.main.MainScreenActivity"],
+                         "ORIGINAL_CONTROL_DIRECT_LAUNCH", 60)
                 time.sleep(5)
                 original_pid = arsc.run(
                     ["adb", "shell", "sh", "-c", "pidof " + source.SOURCE + " || true"],
@@ -394,9 +398,11 @@ def run():
                     raise arsc.TrialError("CLONE_RECEIVED_UNAUTHORIZED_CREDENTIAL_PERMISSION")
             print(json.dumps({"emulator_install_gate": "SIDE_BY_SIDE_5_AND_5_PASS",
                               "owner_phone_touched": False, "credential_use": False}))
-            arsc.run(["adb", "shell", "monkey", "-p", source.DEST,
-                      "-c", "android.intent.category.LAUNCHER", "1"],
-                     "ARM_CLONE_LAUNCH_INTENT", 50)
+            arsc.run(["adb", "shell", "am", "start", "-W",
+                      "-a", "android.intent.action.MAIN",
+                      "-c", "android.intent.category.LAUNCHER",
+                      "-n", source.DEST + "/ru.yandex.music.main.MainScreenActivity"],
+                     "ARM_CLONE_DIRECT_LAUNCH", 60)
             time.sleep(5)
             # pidof normally exits nonzero when app crashed; this is a
             # diagnostic case, not a subprocess invocation failure.
