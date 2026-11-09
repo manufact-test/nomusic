@@ -35,8 +35,8 @@ class TrialError(Exception):
                                 x, re.IGNORECASE)]
         safe = []
         for line in matched[-5:]:
-            line = re.sub(r"https?://\\S+", "[URL]", line)
-            line = re.sub(r"/(?:tmp|home|opt|runner)/\\S+", "[PATH]", line)
+            line = re.sub(r"https?://\S+", "[URL]", line)
+            line = re.sub(r"/(?:tmp|home|opt|runner)/\S+", "[PATH]", line)
             safe.append(line[:240])
         self.hints = safe
 
@@ -139,7 +139,7 @@ def main() -> dict:
             signature = run([baseline.sdk_tool("apksigner"), "verify",
                              "--print-certs", str(aligned)], "ARSC_SIGNATURE", 60)
             fingerprints = re.findall(
-                r"Signer #1 certificate SHA-256 digest:\\s*([0-9a-fA-F]+)", signature)
+                r"Signer #1 certificate SHA-256 digest:\s*([0-9a-fA-F]+)", signature)
             if len(fingerprints) != 1 or fingerprints[0].lower() == baseline.RUSTORE_SHA256_CERT:
                 raise TrialError("ARSC_SIGNING_IDENTITY_INVALID")
             if baseline.native_payload_hashes(apk) != baseline.native_payload_hashes(aligned):
