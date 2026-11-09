@@ -22,6 +22,7 @@ from pathlib import Path
 
 from inspect_android_host import DEX_MAX, Dex, DexError
 from trace_native_callers import dex_callers
+from inventory_native_media_surface import inspect_surface
 
 PACKAGE = "ru.yandex.music"
 CODE = 24026531
@@ -151,7 +152,8 @@ def manifest_version(apk, aapt):
 
 def scan(apk):
     output = {"classes": 0, "method_ids": 0, "factory_refs": 0,
-              "factory_invoke_calls": 0, "incomplete_methods": 0, "dex_count": 0}
+              "factory_invoke_calls": 0, "incomplete_methods": 0, "dex_count": 0,
+              "media_surfaces": []}
     with zipfile.ZipFile(apk) as archive:
         dexnames = sorted(n for n in archive.namelist()
                           if re.fullmatch(r"classes\d*\.dex", n))
@@ -168,6 +170,7 @@ def scan(apk):
             output["factory_invoke_calls"] += calls["call_sites"]
             output["incomplete_methods"] += len(calls["anomalies"])
             output["dex_count"] += 1
+            output["media_surfaces"].append({"dex": name, **inspect_surface(dexbytes)})
     return output
 
 def main():
