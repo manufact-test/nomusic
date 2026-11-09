@@ -1,3 +1,5 @@
+> **W22 latest 2026-11-09 verified engineering:** Independent W21 recovery core (20 tests) and W22 Yandex file-info source adapter (13 tests) now pass in CI. [Current handoff](NEXT-CHAT.md) controls. They are source-only internal components; no actual Yandex injection/audio, legal modified-client distribution, digital signature or working customer installer verified. W20 internal installer remains non-audio-only, not a consumer release.
+
 # CELIKOM Windows Companion — delivery plan, responsibilities and test gates
 
 > **LATEST 2026-11-09 OWNER PRODUCT CORRECTION:** [Current NEXT-CHAT](NEXT-CHAT.md) and [W19 owner correction](W19-OWNER-PRODUCT-CORRECTION-20261109.md) supersede all old stop/go instructions below. Native consumer CELIKOM + Yandex single playback pipeline, one normal Windows installer, no customer Sandbox/VM/manual mod setup, no disabling Defender/SmartScreen. W15.2 UI/addon built; W18 mod install+addon import real; original Yandex EXE signature invalidated by PulseSync mod; native audio not proven. All phases below are historical planning until confirmed new architecture. Do not fabricate "clean" security compatibility.

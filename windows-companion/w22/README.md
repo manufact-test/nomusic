@@ -49,3 +49,7 @@ consumer delivery. W20 consumer staging does not include this adapter.
 determine a version-compatible insertion method and obtain distribution
 rights where needed. Then verify native source+pause+seek+next+fallback,
 signing/reputation and guarded rollback before publishing user installer.
+
+## Verified source-only CI (2026-11-09)
+
+[W22 run 42599679157](https://github.com/manufact-test/nomusic/actions/runs/42599679157): SUCCESS; independent native file-info hook **13/13**, prior CELIKOM source controller **10/10**, native .NET bridge (including MIME) **44 checks**. No Yandex executable patched or tested, no native audible source verification, and no release permission implied.

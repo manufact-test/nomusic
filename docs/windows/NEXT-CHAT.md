@@ -1,3 +1,29 @@
+# W22 CURRENT HANDOFF — independent native source adapter (2026-11-09)
+
+**Owner invariant still unchanged:** one normal CELIKOM installer with the real Yandex Music desktop UI and native Yandex playback, Play/Pause/Seek/Next/queue. No second player, password collection for Yandex, terminal, sandbox/VM or manual mod work for customer. Owner's PC **was not modified** by W20–W22. Do not send any W20/W22 internal artifacts to owner as a working product.
+
+**Latest code branch:** \`experiment/windows-companion-integration-20261108\`. W20 verified internal installer, W21 independent recovery core, W22 independent source-only file-info adapter. Current handoff source \`windows-companion/w22/README.md\`, \`windows-companion/w21/README.md\`, \`docs/windows/W22-INDEPENDENT-ADAPTER-HANDOFF-20261109.md\`.
+
+## Actual new verified work
+- **W20** [CI 42596579243](https://github.com/manufact-test/nomusic/actions/runs/42596579243) SUCCESS. Internal per-user installer installs/uninstalls CELIKOM-owned EXE; never bundles or edits Yandex. Not signed, no audio, not for owner.
+- **W21** [CI 42598726742](https://github.com/manufact-test/nomusic/actions/runs/42598726742) SUCCESS. \`W21_RECOVERY_CONTRACT_PASS 20\`, zero build warnings. Independently written source \`windows-companion/w21/Celikom.Recovery\`: backup with exact original hashes, no overwrite, registered-known-modification restore, refusal for foreign update/tamper, partial crash recovery. **Fixture tests only; no real Yandex file restored by W21.**
+- **W22** [CI 42599679157](https://github.com/manufact-test/nomusic/actions/runs/42599679157) SUCCESS. 13/13 independent source-hook contract tests; 10/10 W15 legacy Node source checks; 44 native .NET bridge/MIME checks. \`windows-companion/w22/native-resource-adapter.mjs\` uses Yandex file-info resource response structure (studied from MIT FkCensor) without PulseSync Client or PulseSync GPL SDK, retaining Yandex's playback clock, queue and transport methods. Exact licensed CELIKOM signed grant, MP3/AAC transport, bounded request fallback, cancellation on Next/Stop, batch prefetch and clean hook disposal. **NO Yandex host injection or real audio tested**.
+- **W15 MIME correction:** \`SourceGrant\` carries \`MimeType\` from signed server response to independent adapter; \`audio/mpeg\` and \`audio/mp4\` remain validated. 44 native checks pass.
+- **Backup before W21:** \`backup/windows-w21-before-recovery-engine-20261109\`; pre-W20 \`backup/windows-w20-pre-safe-installer-20261109\` and previous accepted baselines remain untouched.
+
+## Real blockers
+1. **Actual source hook has NOT run in the real installed signed Yandex.** W22 is the source mapping kernel only. Need a genuine desktop insertion point and developer-controlled authenticated playback of one approved track with Pause/Seek/Next/fallback.
+2. **Unsigned modified third-party EXE.** MIT FkCensor's installer replaces ASAR and EXE hash in its own approach; this, like W17 PulseSync, can invalidate official Yandex Authenticode. W20's own EXE signing alone cannot solve that. No bypass/hidden modification.
+3. **Yandex Windows license sections 4.1–4.3** [official terms](https://yandex.ru/legal/music_mobile_agreement/ru/) restrict third-party changes and commercial distribution without permission (subject to statutory exceptions); written rights / legal review needed before commercial modified-client distribution. MIT FkCensor license allows reuse of **its** code, not Yandex EXE/music. W22 itself is newly written and does not import PulseSync GPL SDK.
+4. **Installer integration incomplete.** W20 stage still installs only own companion; W21 rollback and W22 source adapter are internal isolated libraries, not wired to a user installer, and no code signing or Win10/11 owner acceptance.
+
+## Next work
+- Audit/implement an independent version-gated **host connector** that can attach W22 resource adapter to the actual 5.126.1 renderer in a disposable developer Windows, without extracting user credentials or changing security settings. Keep all patching outside W20 consumer build, and enforce the exact W21 recovery lifecycle before any experimental modification.
+- Confirm signed grants + Range 206 and native Yandex Play/Pause/Seek/Next with an authorized separate music test account; static or anonymous launch is NOT audio E2E. Request no Sandbox/VM or development setup from owner.
+- Settle contractual rights and Windows trust/distribution design; only then wire W21+W22 to a **single** reversible, transparently consented installer and hand one meaningful candidate to owner. If unable to obtain legal rights, state blocker directly, do not build an unsafe silent patcher.
+- No Android, browser extension, API/backend, website or production changes.
+
+---
 # W20 VERIFIED INTERNAL INSTALLER CHECKPOINT (2026-11-09)
 
 Read [W20 release-safety decision](W20-RELEASE-SAFETY-AND-INSTALLER-20261109.md). A developer-only single EXE installer stage (Windows [CI 42596579243](https://github.com/manufact-test/nomusic/actions/runs/42596579243) SUCCESS, 43 native contract checks, install/uninstall smoke PASS) and read-only pinned Yandex host signature/hash probe are added to the experimental Windows branch. **NOT a user build or proof of native audio.** Primary Yandex Windows app EULA 4.1–4.3 and PulseSync Client EULA 3.1 make modified/bundled commercial distribution contingent on explicit rights/appropriate legal assessment. The release gate fails closed. No owner Sandbox or other manual work. Last W15.2 verified UI/audio status remains as below. Pre-W20 source protected at `backup/windows-w20-pre-safe-installer-20261109`.
