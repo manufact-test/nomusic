@@ -63,7 +63,7 @@ jobs:
           if (@($probe | Where-Object { $_ -match '^W33_RT_MAIN_(HTTP_|REDIRECT|NETWORK_ERROR|TIMEOUT)' }).Count -eq 0) {
             throw 'W36_NO_TRUSTED_MAIN_NETWORK_CONTROL'
           }
-          if (@($probe | Where-Object { $_ -match '^W33_RT_(NATIVE|MUSIC_WEB|NEXT_WEB|DESKTOP_WEB)_(HTTP_|FETCH_|TIMEOUT)' }).Count -eq 0) {
+          if (@($probe | Where-Object { $_ -match '^W33_RT_(NATIVE|MUSIC_WEB|NEXT_WEB|DESKTOP_WEB|MUSIC_COM)_(HTTP_|FETCH_|TIMEOUT)' }).Count -eq 0) {
             throw 'W36_NO_APPROVED_RENDERER_FETCH_RESULT'
           }
           Write-Output 'W36_REAL_YANDEX_RENDERER_BOUNDARY_TEST_COMPLETED'
