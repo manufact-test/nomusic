@@ -15,3 +15,15 @@
 - No new Windows installer required for this *server* fix if deployed; current installed 0.24.2 maps valid source URL.
 - Backup: backup/windows-w30-before-owner-audio-cors-diagnosis-20261109 at 4137b247187e88313642d4a025eddf9d7719e717.
 - Do not deploy unreviewed broad legacy Hostinger server zip: broad deploy workflow contains database migration/snapshot/owner operations. Validate live server version and independently verify exact file before a one-file hotfix. Verify signed audio from desktop (HTTP 200/206 + CORS) before claiming audio fixed.
+
+## Live private Hostinger activation — 2026-11-09
+
+**Guarded GitHub Actions live run https://github.com/manufact-test/nomusic/actions/runs/42646675471: SUCCESS.**
+- Preflight on active site confirmed browser audio OPTIONS Origin https://music.yandex.ru => 204/ACAO, but native opaque Origin null and musicapplication://desktop => 404/no ACAO. Real CORS defect, though not proof that this is the ONLY native audio fault.
+- W30 PHP 8.3 stream/range/preflight/security tests green: https://github.com/manufact-test/nomusic/actions/runs/42643440610.
+- First live attempt https://github.com/manufact-test/nomusic/actions/runs/42645545587 failed HTTP proof and AUTO-ROLLED BACK due to stale LiteSpeed compiled PHP after symlink switch.
+- Second run #42646675471 checked exact original live Application.php SHA256, cloned immutable release to a new version, changed ONLY that PHP file, preserved original file and previous release path in independent backup, verified candidate behavior and syntax. After atomic symlink switch, one-time random POST-only PHP cache invalidation was run and immediately deleted.
+- LIVE HTTPS: audio OPTIONS Origin null => 204/Access-Control-Allow-Origin null. Browser origin => 204/unchanged ACAO. Health => 200. Opaque origin to account auth route => no ACAO. Success markers W30_LIVE_AUDIO_CORS_204_PASS, W30_LIVE_BROWSER_CORS_PASS, W30_LIVE_HEALTH_PASS, W30_ORIGINAL_RELEASE_PRESERVED.
+- Active release identifier w30-audio-cors-603564c68082 (under private Hostinger releases). Rollback backup backups/w30-audio-cors-603564c68082 and previous-release. No MySQL migrations, account data, production audio, Windows binaries or extension altered. Existing Windows CELIKOM 0.24.2 remains compatible; no installer needed.
+- Real signed-range audio success and audible playback inside owner Yandex account are NOT yet verified. Ask owner to Stop/Start CELIKOM and restart Yandex if necessary; compare approved vs ordinary tracks, Play/Pause/Seek/Next, attach new diagnostic if it fails.
+- Future full deployment from feature/api-range must include this scoped CORS correction, otherwise hotfix will revert. Canonical sync remains required before broad Hostinger rollout.

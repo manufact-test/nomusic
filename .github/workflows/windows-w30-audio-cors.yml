@@ -61,7 +61,6 @@ jobs:
             exit 1
           fi
           printf '%s\n' '[92.113.19.189]:65002 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAf8M2EVwq0oJI8I9KZ0NFE8P8yDOvDATEhkQti/Kk/0' > "$work/known_hosts"
-          echo "GIT_BASELINE_SHA256=$(git show 4137b247187e88313642d4a025eddf9d7719e717:server/src/Application.php | sha256sum | awk '{print $1}')"
           ssh -T -p 65002 -i "$work/key" -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
             -o "UserKnownHostsFile=$work/known_hosts" -o GlobalKnownHostsFile=/dev/null \
             -o ConnectTimeout=15 u235811320@92.113.19.189 'bash -s' <<'REMOTE'
@@ -111,4 +110,16 @@ jobs:
             echo "W30_LIVE_OPTIONS_$label=$code CORS=$allow"
           done
           echo "W30_LIVE_HEALTH=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 15 https://darkred-camel-588676.hostingersite.com/api/v1/health)"
+          /opt/alt/php83/usr/bin/php -r '
+            require $argv[1] . "/bootstrap.php";
+            $config = require $argv[1] . "/config/app.php";
+            $app = new Celikom\Application($config);
+            foreach (["null","musicapplication://desktop","https://desktop.app.music.yandex.net","https://music.yandex.ru"] as $origin) {
+              $r=$app->handle("OPTIONS","/api/v1/audio/7",[],["Origin"=>$origin]);
+              if ($r->status !== 204 || ($r->headers["Access-Control-Allow-Origin"]??null) !== $origin) exit(9);
+            }
+            $r=$app->handle("OPTIONS","/api/v1/auth/login",[],["Origin"=>"null"]);
+            if (isset($r->headers["Access-Control-Allow-Origin"])) exit(10);
+            echo "W30_INDEPENDENT_LIVE_PHP_CORS_VERIFY_PASS",PHP_EOL;
+          ' "$root/current"
           REMOTE
