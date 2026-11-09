@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Drawing;
+using Celikom.NativeInstaller;
 
 namespace Celikom.Companion;
 
@@ -26,6 +27,10 @@ public sealed class MainWindow : Form
     private readonly Label _status = new();
     private readonly Label _song = new();
     private readonly Label _hostStatus = new();
+    private readonly Button _connectYandex = new();
+    private readonly Button _restoreYandex = new();
+    private NativeInstallState _nativeInstallState = NativeInstallState.NotInstalled;
+    private bool _integrationBusy;
     private YandexHostResult? _hostReport;
     private bool _hostProbeBusy;
     private DateTimeOffset _lastHostProbe;
@@ -223,6 +228,21 @@ public sealed class MainWindow : Form
         _rotate.FlatAppearance.BorderColor = Border;
         _rotate.Click += (_, _) => _bridge.RotateCode();
 
+        var hostActions = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1,
+            Margin = Padding.Empty
+        };
+        hostActions.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 53));
+        hostActions.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 47));
+        ConfigureAuthButton(_connectYandex, true, "Подключить CELIKOM");
+        ConfigureAuthButton(_restoreYandex, false, "Восстановить Яндекс");
+        hostActions.Controls.Add(_connectYandex, 0, 0);
+        hostActions.Controls.Add(_restoreYandex, 1, 0);
+        _connectYandex.Click += ConnectYandexAsync;
+        _restoreYandex.Click += RestoreYandexAsync;
+        Add(layout, hostActions, 52);
+
         var openYandex = Button("Открыть Яндекс.Музыку", false);
         openYandex.Click += (_, _) =>
         {
@@ -288,11 +308,15 @@ public sealed class MainWindow : Form
         _hostProbeBusy = true;
         try
         {
-            _hostReport = await Task.Run(() => YandexHostProbe.Inspect());
+            var inspected = await Task.Run(() =>
+                (YandexHostProbe.Inspect(), NativeIntegrationManager.Inspect()));
+            _hostReport = inspected.Item1;
+            _nativeInstallState = inspected.Item2;
         }
         catch
         {
             _hostReport = new(YandexHostStatus.InspectionUnavailable, "");
+            _nativeInstallState = NativeInstallState.Changed;
         }
         finally
         {
@@ -301,6 +325,89 @@ public sealed class MainWindow : Form
             UpdateSafe();
         }
     }
+
+    private async void ConnectYandexAsync(object? sender, EventArgs e)
+    {
+        if (_integrationBusy || _nativeInstallState == NativeInstallState.Active) return;
+        if (_hostReport?.Status != YandexHostStatus.OfficialBaselineVerified)
+        {
+            MessageBox.Show(this, "Установленная версия Яндекс.Музыки пока не поддерживается.", "CELIKOM");
+            return;
+        }
+        var answer = MessageBox.Show(this,
+            "CELIKOM сохранит оригинальные файлы Яндекс.Музыки и подключит свою подмену. " +
+            "Яндекс будет аккуратно закрыт и перезапущен. Продолжить?",
+            "Подключить CELIKOM", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+        if (answer != DialogResult.Yes) return;
+        _integrationBusy = true;
+        UpdateSafe();
+        try
+        {
+            await Task.Run(() => NativeIntegrationManager.Install());
+            _bridge.SetEnabled(_api.IsLoggedIn);
+            _hostStatus.Text = "CELIKOM подключён к Яндексу.";
+            try
+            {
+                var exe = Path.Combine(NativeIntegrationManager.DefaultYandexDirectory,
+                    "Яндекс Музыка.exe");
+                Process.Start(new ProcessStartInfo(exe) { UseShellExecute = true });
+            }
+            catch { /* Connected files verified; user may open Yandex normally. */ }
+        }
+        catch (Exception error)
+        {
+            MessageBox.Show(this, DescribeIntegrationFailure(error), "CELIKOM",
+                MessageBoxButtons.OK, MessageBoxIcon.Warning);
+        }
+        finally
+        {
+            _integrationBusy = false;
+            await RefreshHostAsync();
+            UpdateSafe();
+        }
+    }
+
+    private async void RestoreYandexAsync(object? sender, EventArgs e)
+    {
+        if (_integrationBusy) return;
+        var answer = MessageBox.Show(this,
+            "Отключить CELIKOM и вернуть оригинальные файлы Яндекс.Музыки?",
+            "Восстановить Яндекс", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+        if (answer != DialogResult.Yes) return;
+        _integrationBusy = true;
+        _bridge.SetEnabled(false);
+        UpdateSafe();
+        try
+        {
+            await Task.Run(() => NativeIntegrationManager.Restore());
+            _hostStatus.Text = "Оригинальная Яндекс.Музыка восстановлена.";
+        }
+        catch (Exception error)
+        {
+            MessageBox.Show(this, DescribeIntegrationFailure(error), "CELIKOM",
+                MessageBoxButtons.OK, MessageBoxIcon.Warning);
+        }
+        finally
+        {
+            _integrationBusy = false;
+            await RefreshHostAsync();
+            UpdateSafe();
+        }
+    }
+
+    private static string DescribeIntegrationFailure(Exception error) => error.Message switch
+    {
+        "CLOSE_YANDEX_AND_TRY_AGAIN" => "Закрой Яндекс.Музыку и повтори действие.",
+        "UNSUPPORTED_YANDEX_VERSION" or "UNSUPPORTED_ASAR_VERSION" =>
+            "Текущая версия Яндекс.Музыки ещё не поддерживается.",
+        "CELIKOM_NATIVE_MODULE_NOT_INSTALLED" =>
+            "Модуль интеграции не найден. Установи полную сборку CELIKOM.",
+        "YANDEX_UPDATED_OR_BACKUP_CHANGED" or "YANDEX_FILES_DIFFER_FROM_KNOWN_BACKUP" =>
+            "Файлы Яндекс.Музыки изменились. CELIKOM не будет перезаписывать их вслепую.",
+        "PREVIOUS_INSTALL_INTERRUPTED_RESTORE_FIRST" =>
+            "Предыдущая установка прервалась. Сначала восстанови оригинал.",
+        _ => "Подключение не завершено. Файлы Яндекса не следует менять вручную."
+    };
 
     private async Task StartBridgeAsync()
     {
@@ -374,7 +481,7 @@ public sealed class MainWindow : Form
         var connected = _bridgeStarted && _api.IsLoggedIn;
         _login.Enabled = !_loggingIn;
         _logout.Enabled = !_loggingIn && _api.IsLoggedIn;
-        _toggle.Enabled = connected;
+        _toggle.Enabled = connected && _nativeInstallState == NativeInstallState.Active;
         _toggle.Text = _bridge.Enabled ? "Стоп" : "Старт";
         _toggle.BackColor = connected ? Accent : ColorTranslator.FromHtml("#D1D9D6");
         _toggle.ForeColor = connected ? Color.White : Secondary;
@@ -411,8 +518,9 @@ public sealed class MainWindow : Form
         };
         _status.Text = !_bridgeStarted ? "Локальная служба пока не запущена"
             : !_api.IsLoggedIn ? "Войди в CELIKOM на вкладке «Аккаунт»"
-            : !_bridge.Enabled ? "CELIKOM готов. Подмена выключена."
-            : "Мост включён. Реальная подмена в Яндексе не подтверждена.";
+            : _nativeInstallState != NativeInstallState.Active ? "Подключи CELIKOM к Яндекс.Музыке."
+            : !_bridge.Enabled ? "CELIKOM подключён. Подмена выключена."
+            : "CELIKOM включён. Управление остаётся в Яндексе.";
         _hostStatus.Text = _hostReport?.Status switch
         {
             YandexHostStatus.NotInstalled => "Яндекс.Музыка не найдена. Установи её с официального сайта.",
@@ -428,6 +536,17 @@ public sealed class MainWindow : Form
             _accountStatus.Text = _api.IsLoggedIn
                 ? "Вход выполнен: " + _api.Email
                 : "Нет активной сессии CELIKOM.";
+        _connectYandex.Enabled = !_integrationBusy &&
+            _hostReport?.Status == YandexHostStatus.OfficialBaselineVerified &&
+            _nativeInstallState != NativeInstallState.Active;
+        _restoreYandex.Enabled = !_integrationBusy &&
+            _nativeInstallState is NativeInstallState.Active or NativeInstallState.Interrupted;
+        if (_nativeInstallState == NativeInstallState.Active)
+            _hostStatus.Text = "Подключён к Яндекс.Музыке. Плеер и очередь остаются родными.";
+        else if (_nativeInstallState == NativeInstallState.Interrupted)
+            _hostStatus.Text = "Подключение прервалось. Доступно восстановление оригинала.";
+        else if (_nativeInstallState == NativeInstallState.Changed)
+            _hostStatus.Text = "Яндекс обновился или изменён. Автоматических изменений не будет.";
         _tray.Text = connected && _bridge.Enabled
             ? "CELIKOM — включён" : "CELIKOM — выключен";
     }

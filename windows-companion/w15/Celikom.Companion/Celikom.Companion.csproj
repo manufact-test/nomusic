@@ -7,10 +7,11 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <AssemblyName>CELIKOM.Companion</AssemblyName>
-    <Version>0.15.2</Version>
+    <Version>0.24.0</Version>
     <PublishSingleFile>true</PublishSingleFile>
   </PropertyGroup>
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <ProjectReference Include="../../w24/Celikom.NativeInstaller/Celikom.NativeInstaller.csproj" />
   </ItemGroup>
 </Project>
