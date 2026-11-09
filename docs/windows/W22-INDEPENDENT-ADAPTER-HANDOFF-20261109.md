@@ -9,11 +9,11 @@
 - W18: CELIKOM SDK addon was imported, modified Yandex process started, no playback tested.
 - W20: developer-only installer installs and removes CELIKOM EXE only (CI SUCCESS 42596579243).
 - W21: independently written safe two-file backup/recovery engine, 20 contract checks passed (CI SUCCESS 42598726742). Not wired to customer installer.
-- W22: independently written \`native-resource-adapter.mjs\`, 13 native source-only hook checks passed plus 10 W15 Node and 44 native bridge/MIME checks (CI SUCCESS 42599679157). It hooks an **already found** \`getFileInfo\` /\`getFileInfoBatch\` resource prototype and passes validated CELIKOM audio source as \`transport:raw\`, \`codec:mp3\` or \`aac-mp4\`. It never changes Yandex's clock/queue/control API. Next/Stop cancellation, no-change fallback, bounded stalls and disposal are tested **only in fixtures**.
+- W22: independently written `native-resource-adapter.mjs`, 13 native source-only hook checks passed plus 10 W15 Node and 44 native bridge/MIME checks (CI SUCCESS 42599679157). It hooks an **already found** `getFileInfo` /`getFileInfoBatch` resource prototype and passes validated CELIKOM audio source as `transport:raw`, `codec:mp3` or `aac-mp4`. It never changes Yandex's clock/queue/control API. Next/Stop cancellation, no-change fallback, bounded stalls and disposal are tested **only in fixtures**.
 
 ## Independent third-party reference
 
-[FkCensor by S4YN3X](https://github.com/S4YN3X/FkCensor) uses MIT-licensed source to alter Yandex ASAR and embedded EXE ASAR hash. Its \`assets/inject.js\` demonstrates a Yandex renderer file-info resource hook with \`downloadInfo\`, \`downloadInfos\`, \`fileInfo\` and \`fileInfos\` fields. W22 uses the resource shape as a compatibility research reference, not FkCensor's external track catalog. Any existing rights/attribution requirements remain with their author.
+[FkCensor by S4YN3X](https://github.com/S4YN3X/FkCensor) uses MIT-licensed source to alter Yandex ASAR and embedded EXE ASAR hash. Its `assets/inject.js` demonstrates a Yandex renderer file-info resource hook with `downloadInfo`, `downloadInfos`, `fileInfo` and `fileInfos` fields. W22 uses the resource shape as a compatibility research reference, not FkCensor's external track catalog. Any existing rights/attribution requirements remain with their author.
 
 However, **its installer still changes the official signed EXE**, therefore it does not eliminate Authenticode or Yandex licensing concerns. An independently developed source adapter avoids the proprietary PulseSync dependency but not third-party product rights.
 

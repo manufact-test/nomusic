@@ -6,18 +6,18 @@ UI, queue, audio decoder and transport controls.
 
 ## Actual source delivered
 
-- \`native-resource-adapter.mjs\`: independent JavaScript adapter for the
-  resource \`getFileInfo\` / \`getFileInfoBatch\` API shape demonstrated by
+- `native-resource-adapter.mjs`: independent JavaScript adapter for the
+  resource `getFileInfo` / `getFileInfoBatch` API shape demonstrated by
   the MIT FkCensor implementation. It has no PulseSync runtime/SDK import,
   third-party audio database, Yandex account access or second player.
 - CELIKOM source grants are checked through the already-owned W15
-  \`validateCelikomGrant\`: exact ID, origin, entitlement, signed media URL and
+  `validateCelikomGrant`: exact ID, origin, entitlement, signed media URL and
   expiration. Source MIME is preserved by the W15 .NET bridge (MP3 and M4A).
 - Single request has a bounded deadline (1.25 seconds by default); future
   playback should not stall forever when CELIKOM backend hangs.
 - Next/Stop invalidate pending requests; unsupported inputs fall back to
   native original. A batch uses cached approved grants only.
-- \`dispose()\` restores native resource methods; no pause/seek/Next or
+- `dispose()` restores native resource methods; no pause/seek/Next or
   playlist control hooks are installed.
 - CI compiles and tests W15 bridge, W15 Node controller and this W22 adapter
   with 13 resource-contract scenarios. This is an **offline contract test**,
