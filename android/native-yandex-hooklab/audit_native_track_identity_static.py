@@ -20,6 +20,8 @@ import clone_native_splits_ephemeral as exact
 
 from inspect_android_host import Dex
 from trace_media_api_routes import inspect_media_route_annotations
+from trace_native_callers import uleb
+from trace_playaudio_boundary import _encoded_value
 
 PREFIX = "Lcom/yandex/music/shared/player/content/remote/"
 API_CLASSES = {
@@ -43,10 +45,81 @@ ROUTE_TARGETS = {
 }
 
 
+def annotated_public_identity_params(dex):
+    """Read ONLY pre-approved static identity parameter labels on selected APIs.
+
+    Annotation values such as auth headers, device/session identifiers, URLs and
+    other string literals are deliberately ignored, even when present.
+    This is STATIC metadata; it is not an observed playback request.
+    """
+    allowed = {"trackId", "track_id", "track-id", "resourceId",
+               "realId", "albumId", "album_id", "track", "id"}
+    hits = []
+    for class_index in range(dex.class_count):
+        base = dex.class_offset + class_index * 32
+        owner = dex.descriptor(dex.u32(base))
+        if owner not in API_CLASSES:
+            continue
+        annotations = dex.u32(base + 20)
+        if not annotations:
+            continue
+        field_count = dex.u32(annotations + 4)
+        method_count = dex.u32(annotations + 8)
+        param_count = dex.u32(annotations + 12)
+        if max(field_count, method_count, param_count) > 500:
+            raise ValueError("UNEXPECTED_API_ANNOTATION_DIRECTORY")
+        pos = annotations + 16 + (field_count + method_count) * 8
+        dex.bounds(pos, param_count * 8)
+        for i in range(param_count):
+            method_idx = dex.u32(pos + i * 8)
+            ref_list_off = dex.u32(pos + i * 8 + 4)
+            if not ref_list_off:
+                continue
+            actual_owner, method_name, signature = dex.method(method_idx)
+            if actual_owner != owner:
+                raise ValueError("API_ANNOTATION_OWNER_MISMATCH")
+            parameters = dex.u32(ref_list_off)
+            if parameters > 25:
+                raise ValueError("UNEXPECTED_PARAM_ANNOTATION_COUNT")
+            dex.bounds(ref_list_off + 4, parameters * 4)
+            for pidx in range(parameters):
+                setoff = dex.u32(ref_list_off + 4 + pidx * 4)
+                if not setoff:
+                    continue
+                annos = dex.u32(setoff)
+                if annos > 15:
+                    raise ValueError("UNEXPECTED_PARAMETER_ANNOTATION_SET")
+                dex.bounds(setoff + 4, annos * 4)
+                for ai in range(annos):
+                    off = dex.u32(setoff + 4 + ai * 4)
+                    dex.bounds(off, 2)
+                    typ, cursor = uleb(dex, off + 1)
+                    annotation_type = dex.descriptor(typ)
+                    fields, cursor = uleb(dex, cursor)
+                    if fields > 20:
+                        raise ValueError("UNEXPECTED_ENCODED_ANNOTATION_FIELDS")
+                    for _ in range(fields):
+                        name_idx, cursor = uleb(dex, cursor)
+                        key = dex.string(name_idx)
+                        value, cursor = _encoded_value(dex, cursor)
+                        if key != "value" or not isinstance(value, str) or value not in allowed:
+                            continue
+                        hits.append({
+                            "api": API_CLASSES[owner],
+                            "method": method_name,
+                            "signature": signature,
+                            "parameter_index": pidx,
+                            "annotation_type": annotation_type,
+                            "identity_label": value
+                        })
+    return hits
+
+
 def inspect_splits(apks):
     method_defs = {}
     model_fields = {}
     route_matches = []
+    identity_parameter_annotations = []
     exact_identity_strings = {s: 0 for s in IDENTITY_NAMES}
     dex_count = 0
     for apk in apks:
@@ -75,6 +148,7 @@ def inspect_splits(apks):
                     field_type = dex.descriptor(dex.u16(pos + 2))
                     field_name = dex.string(dex.u32(pos + 4))
                     model_fields.setdefault(kind, set()).add((field_name, field_type))
+                identity_parameter_annotations.extend(annotated_public_identity_params(dex))
                 routes = inspect_media_route_annotations(z.read(filename))["route_matches"]
                 route_matches.extend({
                     "api": API_CLASSES.get(r["interface_class"], "other"),
@@ -101,6 +175,9 @@ def inspect_splits(apks):
         },
         "selected_static_route_annotations": sorted(
             route_matches, key=lambda x:(x["route"],x["method"]))[:24],
+        "whitelisted_public_track_identity_param_annotations":
+            sorted(identity_parameter_annotations,
+                   key=lambda x:(x["api"],x["method"],x["parameter_index"]))[:40],
         "fileinfo_model_field_types": {
             k: [{"field": n,"type": t} for n,t in sorted(v)][:40]
             for k,v in sorted(model_fields.items())
