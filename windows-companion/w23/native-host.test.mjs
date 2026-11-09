@@ -121,3 +121,11 @@ test("foreign track ID cannot trigger a localhost resolve request",async()=>{
   });
   assert.equal(network.filter(r=>r.path.startsWith("/v1/resolve")).length,0);
 });
+
+test("normal native diagnostic events contain only code/id, no signed audio URL",async()=>{
+  const {diagnostics}=await runHost("musicapplication://desktop/",{
+    queue:[{requestId:"1",trackId:"123"}]
+  });
+  assert.ok(diagnostics.some(x=>/\\|RESOLVE_REQUEST\\|track=123$/.test(x)));
+  assert.ok(diagnostics.every(x=>!x.includes("token=")&&!x.includes("audioUrl")));
+});

@@ -199,6 +199,18 @@ try
     Test(store.LoadOrCreate().RefreshToken == "", "local refresh token cleared");
     Test(store.LoadOrCreate().BridgeToken != authenticatedBridgeToken,
         "logout invalidates old add-on pairing without touching Yandex account");
+    var safeTimestamp = "2026-11-09T17:06:00.000Z";
+    Test(DiagnosticLog.IsSafeEntry(safeTimestamp + "|SOURCE_MAPPED|track=123"),
+        "safe numeric track event passes export");
+    Test(!DiagnosticLog.IsSafeEntry(safeTimestamp + "|SOURCE_MAPPED|track=123?token=SECRET"),
+        "signed URL cannot appear in diagnostic event");
+    Test(!DiagnosticLog.IsSafeEntry(safeTimestamp + "|LOGIN_EMAIL=test@example.com"),
+        "email cannot appear in diagnostic event");
+    DiagnosticLog.Record("OWNER_DIAG_TEST", "123");
+    var snapshot = DiagnosticLog.ExportText("5.126.1.0", "ACTIVE", true, true, true);
+    Test(snapshot.Contains("OWNER_DIAG_TEST|track=123"), "diagnostic export has observed event");
+    Test(!snapshot.Contains(expectedAccess) && !snapshot.Contains(expectedRefresh) &&
+        !snapshot.Contains("test@example.com"), "diagnostics exclude credentials and email");
     Console.WriteLine("W15_NATIVE_CONTRACT_PASS " + checks);
 }
 finally

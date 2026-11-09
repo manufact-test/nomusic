@@ -41,6 +41,11 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'W24_NPM_INSTALL_FAILED' }
           npm run build
           if ($LASTEXITCODE -ne 0) { throw 'W24_NATIVE_BUNDLE_FAILED' }
+      - name: Verify actual bundled diagnostics and native source contracts
+        shell: pwsh
+        run: |
+          node --test windows-companion/w22/native-resource-adapter.test.mjs windows-companion/w23/native-host.test.mjs windows-companion/w23/renderer-relay.test.mjs
+          if ($LASTEXITCODE -ne 0) { throw 'W28_NATIVE_DIAGNOSTICS_CONTRACT_FAILED' }
       - name: Compile source with warnings as errors
         run: dotnet build windows-companion/w15/Celikom.Companion/Celikom.Companion.csproj -c Release -warnaserror
       - name: Run native local bridge and host preflight tests
@@ -77,7 +82,7 @@ jobs:
           $ErrorActionPreference = 'Stop'
           $exe = Join-Path $env:LOCALAPPDATA 'Programs\CELIKOM\CELIKOM.Companion.exe'
           $unins = Join-Path $env:LOCALAPPDATA 'Programs\CELIKOM\unins000.exe'
-          $installer = 'windows-companion/w20/output/CELIKOM-W24-INTERNAL-NATIVE-UNSIGNED.exe'
+          $installer = 'windows-companion/w20/output/CELIKOM-W28-DIAGNOSTIC-UNSIGNED.exe'
           $yandexDir = Join-Path $env:LOCALAPPDATA 'Programs\YandexMusic'
           if (Test-Path $exe) { throw 'W20_DIRTY_INSTALL_RUNNER' }
           if (Test-Path $yandexDir) { throw 'W20_RUNNER_YANDEX_PREEXISTS' }
@@ -99,13 +104,13 @@ jobs:
       - name: Report internal package fingerprint
         shell: pwsh
         run: |
-          $hash = (Get-FileHash windows-companion/w20/output/CELIKOM-W24-INTERNAL-NATIVE-UNSIGNED.exe -Algorithm SHA256).Hash
+          $hash = (Get-FileHash windows-companion/w20/output/CELIKOM-W28-DIAGNOSTIC-UNSIGNED.exe -Algorithm SHA256).Hash
           Write-Output "W20_INTERNAL_UNSIGNED_SHA256=$hash"
           Write-Output 'W24 INTERNAL: installer and restoration; native audible playback NOT YET ACCEPTED'
       - name: Retain INTERNAL staging build, not a release
         uses: actions/upload-artifact@v4
         with:
-          name: CELIKOM-W24-INTERNAL-NATIVE-UNSIGNED
-          path: windows-companion/w20/output/CELIKOM-W24-INTERNAL-NATIVE-UNSIGNED.exe
+          name: CELIKOM-W28-DIAGNOSTIC-UNSIGNED
+          path: windows-companion/w20/output/CELIKOM-W28-DIAGNOSTIC-UNSIGNED.exe
           if-no-files-found: error
-          retention-days: 5
+          retention-days: 10

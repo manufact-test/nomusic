@@ -51,7 +51,7 @@ import { createNativeResourceAdapter } from "../w22/native-resource-adapter.mjs"
           try {
             const url = new URL(entry.name);
             if (url.origin !== apiOrigin ||
-                !/^\\/api\\/v1\\/audio\\/[A-Za-z0-9_-]{1,128}$/.test(url.pathname)) continue;
+                (!url.pathname.startsWith("/api/v1/audio/") ||\n                 !/^[A-Za-z0-9_-]{1,128}$/.test(url.pathname.slice(14)))) continue;
             report("MEDIA_REQUEST_SEEN");
             const status = Number(entry.responseStatus);
             report(status >= 200 && status < 300 ? "MEDIA_HTTP_OK" :

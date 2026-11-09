@@ -131,3 +131,22 @@ test("untrusted scheme never installs CELIKOM API into a foreign renderer",()=>{
   assert.equal(r.window.__celikomBridgeNativeDrain,undefined);
   assert.equal(r.Resource.prototype.getFileInfo.name,"getFileInfo");
 });
+
+test("diagnostic queue reports native mapping as NOT audio verification and never contains a signed URL",async()=>{
+  const r=createRenderer();
+  r.window.__celikomBridgeNativeSetState({enabled:true,signedIn:true,apiOrigin:origin});
+  const pending=new r.Resource().getFileInfo({trackId:"123"});
+  await tick();
+  for (const item of r.window.__celikomBridgeNativeDrain())
+    r.window.__celikomBridgeNativeReceive(item.requestId,makeGrant(item.trackId));
+  await pending;
+  const events=r.window.__celikomBridgeNativeDrainDiagnostics();
+  const code=events.map(([value])=>value);
+  assert.ok(code.includes("RESOURCE_HOOK_ATTACHED"));
+  assert.ok(code.includes("RENDERER_STATE_ON"));
+  assert.ok(code.includes("SOURCE_MAPPED"));
+  assert.ok(events.some(([value,id])=>value==="SOURCE_MAPPED"&&id==="123"));
+  const serialized=JSON.stringify(events);
+  assert.ok(!serialized.includes("token=")&&!serialized.includes("api.celikom.example"));
+  r.handlers.beforeunload();
+});
