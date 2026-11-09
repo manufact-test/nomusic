@@ -1,3 +1,5 @@
+**W34 cross-project audit (09 Nov) READ-ONLY Android:** docs/windows/W34-ANDROID-CROSS-AUDIT-20261109.md. Exact Android hooklab HEAD `d8137cc574b76d8fd7d20eee2cc30013f87b6d5f`: FileInfoDto includes urls/codec/key/gain/r128; generation/track+edition pre-prepare gate is model, no Yandex native audio. Windows current `toDownloadInfo` forcibly removes key/iv and rewrites codec/transport/gain/url, **potential second decoder metadata mismatch, not proven**. Owner 0.24.4 audio-probe FETCH_BLOCKED still makes renderer transport/CSP first priority. Compare actual native Windows schema only after transport evidence; no code changes. Backup backup/windows-w33-pre-android-cross-audit-20261109.
+
 # CURRENT WINDOWS HANDOFF — W34 (2026-11-09)
 
 **Read first:** [W34 owner-confirmed 0.24.4 and W33 signed-audio investigation](W34-OWNER-HANDOFF-20261109.md).

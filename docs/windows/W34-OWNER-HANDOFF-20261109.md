@@ -38,3 +38,7 @@ Date: 2026-11-09. **This is a handoff, not a new working binary.**
 ## 5. Communication to owner
 - Russian, concise. No huge diagnostic walls, no invented button names, no promises of audible fix before owner hears it. Report: what's proven, what failed, what will be checked.
 - **No action is required from owner now. CELIKOM 0.24.4 stays installed.** Before requesting any new diagnostic/user download, first make the disposable-test conclusion decisive and validate proposed fix in CI.
+
+
+## 6. Lessons imported from Android native research, read-only
+Reviewed actual Android hooklab HEAD `d8137cc574b76d8fd7d20eee2cc30013f87b6d5f`. Signed Android FileInfo DTO includes crypto/codec metadata (`key`, `urls`, `codec`, `gain`, `r128`), and source is intended to be bound to exact track+edition before decoder prepare. **Do not assume Android Java DTO = Windows Electron envelope**. Windows `toDownloadInfo` currently strips `key/iv` and forces `transport:'raw'`, codec, gain and URL; this **could** separately break the Windows native decoder after renderer fetch is repaired. First establish actual Windows renderer CSP/network boundary, then independently observe native Windows original file-info/decoder schema and authenticated source consumption without leaking keys. Own Android ARMv7 playable MediaPlayer smoke is not Yandex audio proof, nor is latest Android x86 emulator where even unmodified original control failed to stay alive. Full cross-audit: `docs/windows/W34-ANDROID-CROSS-AUDIT-20261109.md`. Android branch and all functional components untouched.
