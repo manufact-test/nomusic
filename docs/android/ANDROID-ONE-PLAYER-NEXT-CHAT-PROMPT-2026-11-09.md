@@ -1,3 +1,9 @@
+# ТЕКУЩЕЕ ЗАДАНИЕ · 09.11.2026 · ДОКАЗАН НЕЗАВИСИМЫЙ СБОЙ ЗАГРУЗЧИКА LSPATCH
+
+Рабочая ветка `experiment/android-native-yandex-fileinfo-hooklab-20261109`. Читать `docs/android/ANDROID-NATIVE-LSPATCH-EMULATOR-ROOT-CAUSE-2026-11-09.md`. Ключевой результат: точный официальный Яндекс `2026.10.3 #170gpr` на ARMv7-транслирующем Android11 эмуляторе запускается [PASS](https://github.com/manufact-test/nomusic/actions/runs/42621833205), а тот же переподписанный LSPatch-модифицированный клиент **не запускается даже с нулём CELIKOM-модулей** [NO-GO](https://github.com/manufact-test/nomusic/actions/runs/42622723034). Ошибка `liblspatch.so / dlopen failed / UnsatisfiedLinkError`, возникает ещё до нашего кода. Версия с CELIKOM падает так же [NO-GO](https://github.com/manufact-test/nomusic/actions/runs/42622523007). При этом `liblspatch.so` существует в APK для 4 ISA, правильный ELF, ZIP без сжатия и выровнен 4096 [PASS](https://github.com/manufact-test/nomusic/actions/runs/42623602723). Поэтому НЕ исправлять вслепую наш FileInfoDto код и НЕ повторять тот же эмулятор; переходить к настоящему ARM Android13 изолированному тестовому окружению или другому доказанному безопасному методу. Подмена подписи выключена `sigbypass=0`, защиту не выключать. Текущий код read-only наблюдатель, а не подмена звука; рабочий продукт НЕ подтверждён. HONOR владельца и стабильный Test.50 не трогать, WebView/второй плеер не возвращать.
+
+---
+
 # 2026-11-09 · СДЕЛАНА СБОРКА НАСТОЯЩЕГО ROOTLESS-МОДУЛЯ + ВРЕМЕННАЯ ПАТЧЕНАЯ ЯНДЕКС.МУЗЫКА
 
 **Ветка:** `experiment/android-native-yandex-fileinfo-hooklab-20261109`. **Читать в первую очередь:** `docs/android/ANDROID-NATIVE-YANDEX-ROOTLESS-HOOKLAB-2026-11-09.md`.
