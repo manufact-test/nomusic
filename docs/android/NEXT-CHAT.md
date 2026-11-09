@@ -1,3 +1,13 @@
+# 2026-11-09 UPDATE — SOURCE-AUDITED NATIVE YANDEX GATE 1: EXACT NO-GO, no APK
+
+**Current isolated branch:** `experiment/android-native-yandex-gate1-20261109`, from research `f2d2ed11`. **Read first:** [ANDROID-NATIVE-YANDEX-GATE1-SOURCE-AUDIT-2026-11-09.md](ANDROID-NATIVE-YANDEX-GATE1-SOURCE-AUDIT-2026-11-09.md), then the existing owner override below.
+
+Directly examined public source trees for ChromaSync-Mobile (README only), YaMusicTabs (only obfuscated bottom-tab hook for older Yandex 2026.03.4), YaMusicLsposed (MediaSession metadata/download; **OAuth header capture and app shared-pref access — reject as an untrusted library**), and modern source-available rootless JingMatrix LSPatch. **The patcher framework exists, but no verified Yandex 2026.10.3 #170gpr internal source-selection hook with strict track+edition ID and no independently audited Play-Protect-ON native install path exists in inspected sources.** Android update certificate compatibility forbids silently installing a different-signed patched `ru.yandex.music` over the user's official app.
+
+**Decision:** Gate 0 public ecosystem inventory done; actual native Gate 1 **blocked** at exact Yandex host/audio hook + safe rootless signing/install provenance. A genuine compatible native host/read-only in-process catalog-ID and source-preparation proof is prerequisite to code. **No APK built, no fake demonstration, no CI claim, no official Yandex changes, no owner action requested.** Don't revive WebView, second-player Test.77 or root dependency. Preserve Test.50/stable/server/catalog. Any destructive install or changed UX needs owner approval before acting.
+
+---
+
 # ⛔ LATEST OWNER HARD OVERRIDE · 2026-11-09 · NATIVE ANDROID YANDEX ONLY
 
 The owner explicitly rejected the previous assistant's `WebView` Yandex website app. **CELIKOM must work with the genuine Android Yandex Music CLIENT experience**: log into Yandex **inside the Yandex Android client**, listen there, same native player Play/Pause/Seek/Next/playlist/radio. CELIKOM may be an in-process Android module, a supported modified native Yandex build, or a separate settings/helper app, but **MUST NOT replace native Yandex with an embedded website / user-facing CELIKOM player or request Yandex credentials in CELIKOM**. Any change to that UX requires explicit permission **before coding**.
