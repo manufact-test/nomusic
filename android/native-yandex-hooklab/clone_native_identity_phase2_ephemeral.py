@@ -214,6 +214,60 @@ def dex_header_integrity(raw):
 
 
 
+
+def installed_process_snapshot(package):
+    """Capture short-lived startup behaviour without identifiers or raw logs."""
+    import subprocess
+    if package not in (source.SOURCE, source.DEST):
+        raise arsc.TrialError("UNAPPROVED_PACKAGE_PROCESS_PROBE")
+    pid = subprocess.run(["adb", "shell", "pidof", package],
+                         text=True, capture_output=True, timeout=20)
+    main_alive = (pid.returncode == 0 and
+                  bool(pid.stdout.strip()) and
+                  all(x.isdigit() for x in pid.stdout.split()))
+    ps = subprocess.run(["adb", "shell", "ps", "-A"],
+                        text=True, capture_output=True, timeout=30)
+    if ps.returncode:
+        raise arsc.TrialError("ANDROID_PS_PROBE_FAILED")
+    process_names = [line.split()[-1] for line in ps.stdout.splitlines()[1:]
+                     if line.split()]
+    return {
+        "direct_pid_alive": main_alive,
+        "ps_main_process_alive": package in process_names,
+        "ps_auxiliary_process_alive": any(
+            name.startswith(package + ":") for name in process_names),
+        "any_named_process_alive": (main_alive or package in process_names or
+            any(name.startswith(package + ":") for name in process_names)),
+        "raw_process_output_exposed": False
+    }
+
+
+def classify_activity_start(stdout):
+    """Public Activity Manager status only, no raw command contents."""
+    return {
+        "activity_status_ok": "Status: ok" in stdout,
+        "activity_explicit_error": ("Error:" in stdout or
+                                   "Exception" in stdout or
+                                   "Activity not started" in stdout),
+        "launch_state_cold": "LaunchState: COLD" in stdout,
+        "launch_state_warm": "LaunchState: WARM" in stdout,
+        "raw_activity_output_exposed": False
+    }
+
+
+def classify_activity_exit_info(raw):
+    """Only system process exit reason categories, never raw exit details."""
+    return {
+        "exit_reason_crash": "REASON_CRASH" in raw,
+        "exit_reason_crash_native": "REASON_CRASH_NATIVE" in raw,
+        "exit_reason_exit_self": "REASON_EXIT_SELF" in raw,
+        "exit_reason_permission_change": "REASON_PERMISSION_CHANGE" in raw,
+        "exit_reason_excessive_resource_usage": "REASON_EXCESSIVE_RESOURCE_USAGE" in raw,
+        "raw_exit_info_exposed": False
+    }
+
+
+
 def run():
     if os.getenv("GITHUB_ACTIONS") != "true":
         raise arsc.TrialError("CI_ONLY")
@@ -503,16 +557,29 @@ def run():
                     raise arsc.TrialError("CLONE_RECEIVED_UNAUTHORIZED_CREDENTIAL_PERMISSION")
             print(json.dumps({"emulator_install_gate": "SIDE_BY_SIDE_5_AND_5_PASS",
                               "owner_phone_touched": False, "credential_use": False}))
-            arsc.run(["adb", "shell", "am", "start", "-W",
-                      "-a", "android.intent.action.MAIN",
-                      "-c", "android.intent.category.LAUNCHER",
-                      "-n", source.DEST + "/ru.yandex.music.main.MainScreenActivity"],
-                     "ARM_CLONE_DIRECT_LAUNCH", 60)
-            time.sleep(5)
-            # pidof normally exits nonzero when app crashed; this is a
-            # diagnostic case, not a subprocess invocation failure.
-            pid = arsc.run(["adb", "shell", "pidof " + source.DEST + " || true"],
-                           "ARM_CLONE_PROCESS_PROBE", 30).strip()
+            launch_stdout = arsc.run(
+                ["adb", "shell", "am", "start", "-W",
+                 "-a", "android.intent.action.MAIN",
+                 "-c", "android.intent.category.LAUNCHER",
+                 "-n", source.DEST + "/ru.yandex.music.main.MainScreenActivity"],
+                "ARM_CLONE_DIRECT_LAUNCH", 60)
+            if preserve_original_dex:
+                print(json.dumps({
+                    "clone_activity_start": classify_activity_start(launch_stdout)
+                },sort_keys=True))
+                startup_samples = []
+                for delay in (0.1, 1.0, 4.0):
+                    time.sleep(delay)
+                    startup_samples.append(installed_process_snapshot(source.DEST))
+                print(json.dumps({
+                    "manifest_only_clone_startup_samples": startup_samples
+                },sort_keys=True))
+                pid = "observed" if startup_samples[-1]["any_named_process_alive"] else ""
+            else:
+                time.sleep(5)
+                # Preserve the formerly verified simple liveness probe.
+                pid = arsc.run(["adb", "shell", "pidof " + source.DEST + " || true"],
+                               "ARM_CLONE_PROCESS_PROBE", 30).strip()
             if not pid:
                 # Read only limited system crash tags on an empty, unauthenticated
                 # emulator. Emit ONLY boolean classifications, never raw logs,
@@ -524,6 +591,17 @@ def run():
                     "ARM_CLONE_PRIVACY_SAFE_CRASH_CLASSIFICATION", 35)
                 relevant_crash = raw_crashes.rsplit(
                     "Process: " + source.DEST, 1)[-1][:16000]
+                if preserve_original_dex:
+                    try:
+                        exit_dump = arsc.run(
+                            ["adb", "shell", "dumpsys", "activity", "exit-info",
+                             source.DEST],
+                            "CLONE_PRIVACY_SAFE_EXIT_STATUS", 35)
+                        print(json.dumps({
+                            "clone_exit_info": classify_activity_exit_info(exit_dump)
+                        },sort_keys=True))
+                    except arsc.TrialError:
+                        print(json.dumps({"clone_exit_info": "ANDROID_EXIT_INFO_UNAVAILABLE"}))
                 print(json.dumps({
                     "clone_launch_result": "PROCESS_NOT_ALIVE",
                     "dex_path_mentions_base_apk": (
