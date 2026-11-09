@@ -9,6 +9,7 @@ on:
       - 'tools/android-native-gate1/inventory_native_media_surface.py'
       - 'tools/android-native-gate1/trace_audio_neighbors.py'
       - 'tools/android-native-gate1/trace_playaudio_boundary.py'
+      - 'tools/android-native-gate1/trace_source_route_literals.py'
   workflow_dispatch:
 permissions:
   contents: read
