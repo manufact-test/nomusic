@@ -60,6 +60,7 @@ def run():
                 application_manifest_records.append({
                     "split": split,
                     "public_application_class": el.attrib.get(ANDROID+"name", ""),
+                    "public_application_process": el.attrib.get(ANDROID+"process", "package-default"),
                     "hasCode": el.attrib.get(ANDROID+"hasCode", "android-default")
                 })
             for el in xml.iter():
@@ -75,6 +76,7 @@ def run():
                             public_launcher_activities.append({
                                 "split": split,
                                 "public_activity_class": name,
+                                "public_launcher_process": el.attrib.get(ANDROID+"process","application-default"),
                                 "exported": el.attrib.get(ANDROID+"exported","")
                             })
                 if tag in component_tags:
