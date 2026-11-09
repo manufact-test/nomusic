@@ -40,8 +40,8 @@
       try {
         const u = new URL(uri);
         if (u.origin !== "https://music.yandex.ru" ||
-            !/^\/__celikom_audio\/[A-Za-z0-9-]{20,120}\/[1-9][0-9]{0,23}\.mp3$/.test(u.pathname)) return;
-        if (!u.pathname.endsWith("/" + id + ".mp3")) return;
+            !/^\/__celikom_audio\/[A-Za-z0-9-]{20,120}\/[1-9][0-9]{0,23}\/[1-9][0-9]{0,23}\.mp3$/.test(u.pathname)) return;
+        if (!u.pathname.endsWith("/" + id + "/" + albumId + ".mp3")) return;
         allowed.set(id, {albumId, durationMs, uri:u.href});
         while (allowed.size > 40) allowed.delete(allowed.keys().next().value);
       } catch (_) {}
