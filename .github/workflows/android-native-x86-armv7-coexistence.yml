@@ -26,7 +26,7 @@ jobs:
           python3 -m unittest discover -s android/native-yandex-hooklab/tests -p 'test_resolved_provider_authorities.py'
           python3 -m unittest discover -s android/native-yandex-hooklab/tests -p 'test_shadowed_signature_permissions.py'
           python3 -m unittest discover -s android/native-yandex-hooklab/tests -p 'test_clone_crash_classification.py'
-      - name: Android 11 original and clone runtime using corrected PID probe
+      - name: Android 11 compare installed HAS CODE and Java classloader paths
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 30
