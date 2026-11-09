@@ -13,6 +13,7 @@ import json
 import os
 import re
 import shutil
+import struct
 import subprocess
 import tempfile
 import urllib.request
@@ -116,6 +117,43 @@ def original_native_architectures(apks:list[Path]):
     return sorted(found)
 
 
+def loader_library_preflight(apk:Path):
+    """Verify real embedded LSPatch .so ELF ISA, ZIP storage and page alignment."""
+    expected={"armeabi-v7a":40,"arm64-v8a":183,"x86":3,"x86_64":62}
+    layout={}
+    with zipfile.ZipFile(apk,"r") as z, apk.open("rb") as file:
+        for abi,machine in expected.items():
+            member=f"assets/lspatch/so/{abi}/liblspatch.so"
+            if member not in z.namelist():
+                raise ValueError("LSPatch loader library absent from patched base: "+abi)
+            info=z.getinfo(member)
+            if info.compress_type!=zipfile.ZIP_STORED:
+                raise ValueError("LSPatch loader ELF is not ZIP_STORED: "+abi)
+            file.seek(info.header_offset)
+            header=file.read(30)
+            if len(header)!=30 or header[:4]!=b"PK\\x03\\x04":
+                raise ValueError("LSPatch native loader ZIP header invalid")
+            namelen,extralen=struct.unpack_from("<HH",header,26)
+            data_offset=info.header_offset+30+namelen+extralen
+            with z.open(info) as stream:
+                elf=stream.read(20)
+            if elf[:4]!=b"\\x7fELF" or len(elf)!=20:
+                raise ValueError("LSPatch loader has no ELF header")
+            real_machine=struct.unpack_from("<H",elf,18)[0]
+            if real_machine!=machine:
+                raise ValueError("LSPatch packaged ABI mismatches ELF machine: "+abi)
+            layout[abi]={
+                "elf_machine":real_machine,
+                "elf_class":elf[4],
+                "stored":True,
+                "data_alignment_4096":data_offset%4096==0,
+                "size_bytes":info.file_size,
+            }
+            if data_offset%4096:
+                raise ValueError("LSPatch ELF not page-aligned in patched archive: "+abi)
+    return layout
+
+
 def main():
     if not MODULE_PATH.is_file():
         raise ValueError("CELIKOM observer module not built")
@@ -206,6 +244,7 @@ def main():
         if {signer(p) for p in patched}!={lab_sig}:
             raise ValueError("Patched split signer differs from lab module")
         base=next(p for p in patched if not apk_id(p)[2])
+        loader_layout=loader_library_preflight(base)
         with zipfile.ZipFile(base) as z:
             names=z.namelist()
             if "assets/lspatch/config.json" not in names:
@@ -257,6 +296,7 @@ def main():
             "splits":len(patched),
             "split_ids":sorted([v[2] or "base" for v,p in orig]),
             "native_abis":native_abis,
+            "lspatch_loader_elf_preflight":loader_layout,
             "verified_exact_method_contracts":method_contract,
             "embedded_module":("NONE_LSPATCH_ONLY_CONTROL" if diag_no_module
                                else "CELIKOM read-only FileInfoDto observer"),
