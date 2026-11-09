@@ -1,0 +1,79 @@
+name: CELIKOM W45 guarded PHP candidate patch rehearsal (NO DEPLOY)
+
+on:
+  push:
+    branches:
+      - experiment/windows-companion-integration-20261108
+    paths:
+      - .github/workflows/windows-w45-candidate-patch-rehearsal.yml
+      - server/deploy/w45-native-origin-surgical.php
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  exact-live-file-surgical-rehearsal:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+      - name: Read existing production PHP without writing and build one-hunk candidate locally
+        shell: bash
+        env:
+          HOSTINGER_SSH_KEY: ${{ secrets.HOSTINGER_SSH_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "$HOSTINGER_SSH_KEY" || { echo W44_HOST_KEY_MISSING; exit 1; }
+          umask 077
+          work="$(mktemp -d)"
+          trap 'rm -rf "$work"' EXIT
+          printf '%s\n' "$HOSTINGER_SSH_KEY" | tr -d '\r' > "$work/key"
+          ssh-keygen -y -P '' -f "$work/key" > "$work/public"
+          [[ "$(ssh-keygen -lf "$work/public" | awk '{print $2}')" == 'SHA256:Q6FyifXRq6garceQdIIjBmXhkk81Ic1p/x9JTSYHWUk' ]] ||
+            { echo W44_UNKNOWN_KEY; exit 1; }
+          printf '%s\n' '[92.113.19.189]:65002 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAf8M2EVwq0oJI8I9KZ0NFE8P8yDOvDATEhkQti/Kk/0' > "$work/known_hosts"
+          ssh -T -p 65002 -i "$work/key" -o BatchMode=yes -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=yes -o "UserKnownHostsFile=$work/known_hosts" \
+            -o GlobalKnownHostsFile=/dev/null -o ConnectTimeout=15 \
+            u235811320@92.113.19.189 \
+            'cat /home/u235811320/domains/darkred-camel-588676.hostingersite.com/celikom/current/src/Application.php' > "$work/live.php"
+          # Only on the disposable GitHub runner. Its pathname must satisfy
+          # the surgical PHP helper's strict fresh release-candidate guard.
+          candidate="$work/releases/w45-native-cors-$(printf '%s' "$GITHUB_SHA" | cut -c1-12)/src"
+          mkdir -p "$candidate"
+          cp "$work/live.php" "$candidate/Application.php"
+          php -l server/deploy/w45-native-origin-surgical.php
+          # Reject a path outside a fresh w45 candidate.
+          if php server/deploy/w45-native-origin-surgical.php "$work/live.php" > /dev/null 2>&1; then
+            echo W45_PATH_GUARD_FAILED
+            exit 1
+          fi
+          echo W45_PATH_GUARD_PASS
+          php server/deploy/w45-native-origin-surgical.php "$candidate/Application.php"
+          [[ "$(sha256sum "$candidate/Application.php" | awk '{print $1}')" == \
+            '920a4fa28357a3e61d6af64085448eacc76ea8c3c3c1946597b6428e61b506e0' ]] ||
+            { echo W45_CANDIDATE_HASH_MISMATCH; exit 1; }
+          if php server/deploy/w45-native-origin-surgical.php "$candidate/Application.php" > /dev/null 2>&1; then
+            echo W45_SECOND_PATCH_NOT_BLOCKED
+            exit 1
+          fi
+          echo W45_IDEMPOTENT_REJECT_PASS
+          cp "$candidate/Application.php" server/src/Application.php
+          echo W45_EXACT_PHP_CANDIDATE_ONLY_PASS
+      - name: PHP syntax plus complete signed media CORS and security regression on locally patched live code
+        shell: bash
+        run: |
+          set -euo pipefail
+          php -l server/src/Application.php
+          php -l server/tests/smoke.php
+          php server/tests/smoke.php
+          echo W45_PHP_CANDIDATE_FULL_SMOKE_PASS
+      - name: Affirm no production writes, no deploy and no artifact containing remote source
+        run: echo W45_STRICTLY_LOCAL_REHEARSAL_NO_RELEASE_NO_UPLOAD
