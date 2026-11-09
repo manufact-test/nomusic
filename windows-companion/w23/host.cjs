@@ -35,7 +35,10 @@ function validView(view){
     note("ORIGIN_SCHEME_"+scheme.slice(0,15));
     const hostname=url.hostname.toUpperCase().replace(/[^A-Z0-9]/g,"_").slice(0,35);
     if (hostname) note("ORIGIN_HOST_"+hostname);
-    if (approvedOrigins.has(url.origin)) {note("APPROVED_VIEW");return true;}
+    if (approvedOrigins.has(url.origin) ||
+        (url.protocol==="musicapplication:"&&url.hostname==="desktop")) {
+      note("APPROVED_VIEW");return true;
+    }
     note("VIEW_NOT_APPROVED");
   } catch {note("VIEW_UNKNOWN_URL");}
   return false;

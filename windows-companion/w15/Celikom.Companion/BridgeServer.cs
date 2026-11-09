@@ -31,6 +31,23 @@ public sealed class BridgeServer : IAsyncDisposable
         };
     public static bool ValidNativeOrigin(string? origin) =>
         origin is not null && NativeYandexOrigins.Contains(origin);
+    public static bool ValidNativeProtocolOrigin(string? origin) =>
+        origin is "null" or "musicapplication://desktop";
+    private static bool IsNativeProtocolRequest(HttpContext context)
+    {
+        var origin = context.Request.Headers.Origin.ToString();
+        if (!ValidNativeProtocolOrigin(origin)) return false;
+        // A file:/sandboxed web page cannot access native playback without
+        // possessing the 256-bit same-user capability and explicit native marker.
+        if (context.Request.Method == "OPTIONS")
+        {
+            var requested = context.Request.Headers.AccessControlRequestHeaders.ToString();
+            return requested.Contains("x-celikom-bridge-token", StringComparison.OrdinalIgnoreCase) &&
+                   requested.Contains("x-celikom-native-host", StringComparison.OrdinalIgnoreCase);
+        }
+        return context.Request.Headers["X-Celikom-Native-Host"].ToString() == "1" &&
+               SessionStore.IsHexToken(context.Request.Headers["X-Celikom-Bridge-Token"].ToString());
+    }
     private readonly object _gate = new();
     private readonly CelikomApi _api;
     private readonly SessionStore _store;
@@ -125,14 +142,15 @@ public sealed class BridgeServer : IAsyncDisposable
         {
             // Only explicitly approved isolated add-on origins may issue requests.
             var origin = context.Request.Headers.Origin.ToString();
-            if (!AddonOrigin.IsMatch(origin) && !ValidNativeOrigin(origin))
+            if (!AddonOrigin.IsMatch(origin) && !ValidNativeOrigin(origin) &&
+                !IsNativeProtocolRequest(context))
             {
                 context.Response.StatusCode = StatusCodes.Status403Forbidden;
                 return;
             }
             context.Response.Headers.AccessControlAllowOrigin = origin;
             context.Response.Headers.Vary = "Origin";
-            context.Response.Headers.AccessControlAllowHeaders = "Content-Type, X-Celikom-Bridge-Token";
+            context.Response.Headers.AccessControlAllowHeaders = "Content-Type, X-Celikom-Bridge-Token, X-Celikom-Native-Host";
             context.Response.Headers.AccessControlAllowMethods = "GET, POST, OPTIONS";
             context.Response.Headers.CacheControl = "no-store";
             context.Response.Headers["X-Content-Type-Options"] = "nosniff";

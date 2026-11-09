@@ -29,7 +29,13 @@ try
     Test(!BridgeServer.ValidNativeOrigin("https://evil.yandex.net"),
         "unrelated renderer is denied");
     Test(!BridgeServer.ValidNativeOrigin("null"),
-        "opaque renderer origin is denied");
+        "opaque origin denied without native capability");
+    Test(BridgeServer.ValidNativeProtocolOrigin("null"),
+        "custom Electron scheme can serialize an opaque origin");
+    Test(BridgeServer.ValidNativeProtocolOrigin("musicapplication://desktop"),
+        "exact official native protocol accepted for capability checking");
+    Test(!BridgeServer.ValidNativeProtocolOrigin("file://local"),
+        "arbitrary local protocol is not a native host");
     using (var native = new NativeTokenPublisher(Path.Combine(folder, "native-test")))
     {
         var key = new string('a', 64);
