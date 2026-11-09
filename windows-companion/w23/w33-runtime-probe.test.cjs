@@ -19,7 +19,15 @@ function harness({ initialUrl = "", loading = true, failOnce = false, cdp = fals
   debuggerEvents.attach = () => { debugAttached = true; };
   debuggerEvents.detach = () => { debugAttached = false; };
   debuggerEvents.sendCommand = async () => ({});
+  const debuggerMock = Object.assign(new EventEmitter(), {
+    attached: false,
+    attach() { this.attached = true; },
+    detach() { this.attached = false; },
+    isAttached() { return this.attached; },
+    async sendCommand(_method) { return {}; }
+  });
   const view = Object.assign(new EventEmitter(), {
+    ...(cdp ? { debugger: debuggerMock } : {}),
     id: 42,
     ...(cdp ? {debugger: debuggerEvents} : {}),
     isDestroyed: () => false,
@@ -91,7 +99,7 @@ function harness({ initialUrl = "", loading = true, failOnce = false, cdp = fals
   vm.runInNewContext(source, context, {timeout:1000});
   app.emit("web-contents-created", {}, view);
   return {
-    app, view, events, intervals, timeouts,
+    app, view, debuggerMock, events, intervals, timeouts,
     setReady(nextUrl="musicapplication://desktop/") { url=nextUrl;isLoading=false;view.emit("dom-ready"); },
     scan() { intervals[0].fn(); },
     executions:()=>executions
@@ -155,4 +163,30 @@ test("W39: passive Chromium CORS categories contain no raw headers, URLs, or fai
   assert.ok(!h.events.join("\\n").includes("UNSAFE_CREDENTIAL_VALUE_NEVER_EMIT"));
   assert.ok(!h.events.join("\\n").includes("unexpected.example"));
   assert.ok(!h.events.join("\\n").includes("hostingersite.com"));
+});
+
+test("W39: passive CDP logs only categorical request/response Origin and CORS reason", async()=>{
+  const h=harness({cdp:true});
+  h.setReady();
+  await flush();
+  const requestId="secret-request-123";
+  const privateUrl="https://darkred-camel-588676.hostingersite.com/api/v1/audio/7?token="+"0".repeat(64)+"&expires=1800000180&sid=1";
+  h.debuggerMock.emit("message",{}, "Network.requestWillBeSent", {
+    requestId,
+    request:{url:privateUrl, method:"GET", headers:{Origin:"null","Authorization":"secret-private"}}
+  });
+  h.debuggerMock.emit("message",{},"Network.responseReceivedExtraInfo",{
+    requestId,statusCode:403,headers:{"Access-Control-Allow-Origin":"https://music.yandex.ru","Set-Cookie":"secret-private"}
+  });
+  h.debuggerMock.emit("message",{},"Network.loadingFailed",{
+    requestId,corsErrorStatus:{corsError:"MissingAllowOriginHeader", failedParameter:"secret-private"}
+  });
+  assert.ok(h.events.includes("W33_RT_CDP_REQUEST_SEEN"));
+  assert.ok(h.events.includes("W33_RT_CDP_REQUEST_ORIGIN_NULL"));
+  assert.ok(h.events.includes("W33_RT_CDP_WIRE_STATUS_403"));
+  assert.ok(h.events.includes("W33_RT_CDP_WIRE_RESPONSE_ACAO_MUSIC_WEB"));
+  assert.ok(h.events.includes("W33_RT_CDP_CORS_ENUM_MISSING_ALLOW_ORIGIN_HEADER"));
+  assert.equal(h.events.some(e=>e.includes("secret-private")||e.includes("token=")),false);
+  h.timeouts.filter(t=>t.ms===750).forEach(t=>t.fn());
+  await flush();
 });
