@@ -1,0 +1,75 @@
+name: CELIKOM W42 genuine Windows native Origin live CORS read-only verification
+
+on:
+  push:
+    branches:
+      - experiment/windows-companion-integration-20261108
+    paths:
+      - .github/workflows/windows-w42-live-hyphenated-origin-readonly.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  stage-and-live-origin:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+      - name: Verify staged exact native CORS, signed Range and deny cases
+        run: |
+          set -euo pipefail
+          php -l server/src/Application.php
+          php -l server/tests/smoke.php
+          php server/tests/smoke.php
+          echo W42_STAGED_EXACT_ORIGIN_PASS
+      - name: Read-only public HTTPS old-vs-correct Origin probe; invalid token only
+        shell: bash
+        run: |
+          set -euo pipefail
+          base='https://darkred-camel-588676.hostingersite.com'
+          origin='music-application://desktop'
+          scratch="$(mktemp -d)"
+          trap 'rm -rf "$scratch"' EXIT
+          # Probe only fixed invalid-token request; never a real user stream.
+          status_options="$(curl -sS -D "$scratch/options" -o /dev/null -X OPTIONS \
+            -H "Origin: $origin" -H 'Access-Control-Request-Method: GET' \
+            -H 'Access-Control-Request-Headers: Range' \
+            --connect-timeout 10 --max-time 25 -w '%{http_code}' "$base/api/v1/audio/7")"
+          status_get="$(curl -sS -D "$scratch/get" -o /dev/null \
+            -H "Origin: $origin" -H 'Range: bytes=0-31' \
+            --connect-timeout 10 --max-time 25 -w '%{http_code}' \
+            "$base/api/v1/audio/7?token=0000000000000000000000000000000000000000000000000000000000000000&expires=1800000180&sid=1")"
+          status_auth="$(curl -sS -D "$scratch/auth" -o /dev/null -X OPTIONS \
+            -H "Origin: $origin" -H 'Access-Control-Request-Method: POST' \
+            --connect-timeout 10 --max-time 25 -w '%{http_code}' "$base/api/v1/auth/login")"
+          classify_acao() {
+            local value
+            value="$(awk 'tolower($1)=="access-control-allow-origin:" { print $2 }' "$1" | tr -d '\r' | tail -1)"
+            if [[ -z "$value" ]]; then echo MISSING
+            elif [[ "$value" == "$origin" ]]; then echo EXACT_NATIVE
+            else echo UNEXPECTED; fi
+          }
+          cors_options="$(classify_acao "$scratch/options")"
+          cors_get="$(classify_acao "$scratch/get")"
+          cors_auth="$(classify_acao "$scratch/auth")"
+          echo "W42_LIVE_OPTIONS_STATUS=$status_options ACAO=$cors_options"
+          echo "W42_LIVE_INVALID_TOKEN_STATUS=$status_get ACAO=$cors_get"
+          echo "W42_LIVE_AUTH_OPTIONS_STATUS=$status_auth ACAO=$cors_auth"
+          [[ "$status_get" == '403' ]] || { echo W42_INVALID_TOKEN_MUST_STAY_DENIED; exit 1; }
+          [[ "$cors_auth" == MISSING ]] || { echo W42_AUTH_ORIGIN_LEAK; exit 1; }
+          [[ "$cors_options" != UNEXPECTED && "$cors_get" != UNEXPECTED ]] ||
+            { echo W42_UNEXPECTED_CORS_ORIGIN; exit 1; }
+          if [[ "$cors_options" == EXACT_NATIVE && "$cors_get" == EXACT_NATIVE ]]; then
+            echo W42_LIVE_CORRECT_ORIGIN_ALREADY_ACTIVE
+          else
+            echo W42_LIVE_CORRECT_ORIGIN_NOT_YET_ACTIVE
+          fi
+          echo W42_LIVE_READ_ONLY_NO_PRODUCTION_WRITES
