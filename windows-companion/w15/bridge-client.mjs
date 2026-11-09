@@ -46,7 +46,20 @@ export function createCompanionBridge({ net, storage }) {
         credentials:"omit", cache:"no-store", timeoutMs:2500, headers: headers()
       });
       return {paired:true, enabled:s?.enabled===true, signedIn:s?.signedIn===true, apiOrigin: typeof s?.apiOrigin === "string" ? s.apiOrigin : ""};
-    } catch { return {paired:false, enabled:false}; }
+    } catch (error) {
+      // Old browser-addon pairing becomes invalid when CELIKOM user logs out
+      // or switches accounts. Clear only the local bridge capability, NEVER
+      // a Yandex token or the user's CELIKOM account credentials.
+      if (/\b(?:401|403)\b/.test(String(error?.message ?? error))) {
+        secret = "";
+        try {
+          if (typeof storage.remove === "function") await storage.remove(TOKEN_KEY);
+          else await storage.set(TOKEN_KEY, "");
+        } catch { /* clear in memory regardless */ }
+        return {paired:false, enabled:false, needsPair:true};
+      }
+      return {paired:false, enabled:false, needsPair:false};
+    }
   }
   async function resolve(id, signal) {
     if (!HEX.test(secret) || !/^[1-9][0-9]{0,23}$/.test(id)) return null;

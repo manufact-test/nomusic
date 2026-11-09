@@ -16,7 +16,7 @@ export default defineAddon({
       // Only a paired companion can supply an API origin and signed grant.
       allowedOrigin: () => trustedApiOrigin
     });
-    let stopped=false, asked=false, timer;
+    let stopped=false, asked=false, timer, nextPairPromptAt=0;
     const stop=()=>{
       if(stopped)return;
       stopped=true;
@@ -25,8 +25,10 @@ export default defineAddon({
       void controller.dispose();
     };
     const ask=async()=>{
-      if(asked||stopped)return;
+      if(asked||stopped||Date.now()<nextPairPromptAt)return;
       asked=true;
+      // Prevent modal spam on user cancellation or bad code.
+      nextPairPromptAt=Date.now()+60000;
       try {
         const values = await api.modals.form({
           title:"Подключить CELIKOM Companion",
@@ -40,6 +42,7 @@ export default defineAddon({
         if(ok)await check();
         else void api.toasts.show("CELIKOM: неверный или просроченный код.");
       } catch { /* No modal support or user cancelled: remain off */ }
+      finally {asked=false;}
     };
     const check=async()=>{
       if(stopped)return;
@@ -48,7 +51,11 @@ export default defineAddon({
       if(!local.pairedLocally) {controller.disable();void ask();return;}
       const status=await local.state();
       if(stopped)return;
-      if(!status.paired) {controller.disable();return;}
+      if(!status.paired) {
+        controller.disable();
+        if(status.needsPair===true || !local.pairedLocally)void ask();
+        return;
+      }
       let canonicalOrigin="";
       try {
         const parsed=new URL(status.apiOrigin || "");

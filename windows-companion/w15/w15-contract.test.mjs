@@ -110,3 +110,42 @@ test("W15 paired token only in local header; not account credentials",async()=>{
       assert.equal(opts.headers["X-Celikom-Bridge-Token"],"b".repeat(64));
   }
 });
+
+test("W15 stale bridge pairing after CELIKOM logout can recover", async()=>{
+  const store = {"celikom-w15-bridge-token":"b".repeat(64)};
+  const requests=[];
+  const transport=createCompanionBridge({
+    storage:{
+      get:async key=>store[key],
+      set:async (key,val)=>{store[key]=val},
+      remove:async key=>{delete store[key]}
+    },
+    net:{json:async(url,opts)=>{
+      requests.push({url,opts});
+      if(url.endsWith("/v1/state"))
+        throw Error("Request failed: HTTP 401 Unauthorized");
+      if(url.endsWith("/v1/pair"))
+        return {bridgeToken:"c".repeat(64)};
+      return {companion:true,version:15};
+    }}
+  });
+  await transport.initialize();
+  assert.equal(transport.pairedLocally,true);
+  const old=await transport.state();
+  assert.deepEqual(old,{paired:false,enabled:false,needsPair:true});
+  assert.equal(transport.pairedLocally,false);
+  assert.equal(Object.keys(store).length,0);
+  assert.equal(await transport.pair("123456"),true);
+  assert.equal(transport.pairedLocally,true);
+});
+test("W15 temporary bridge interruption never clears paired local secret",async()=>{
+  const store={"celikom-w15-bridge-token":"b".repeat(64)};
+  const transport=createCompanionBridge({
+    storage:{get:async key=>store[key],set:async(k,v)=>{store[k]=v}},
+    net:{json:async()=>{throw Error("connection refused")}}
+  });
+  await transport.initialize();
+  assert.deepEqual(await transport.state(),{paired:false,enabled:false,needsPair:false});
+  assert.equal(transport.pairedLocally,true);
+  assert.equal(store["celikom-w15-bridge-token"],"b".repeat(64));
+});
