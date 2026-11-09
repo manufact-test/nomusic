@@ -20,7 +20,8 @@ Date: 2026-11-09. **CI-only investigation; not an audio repair or owner update.*
 
 ## Verification and interpretation
 - New isolated workflow: https://github.com/manufact-test/nomusic/actions/runs/42691438851
-- **Status at document creation: W36 running.** Node tests and native bridge preflight passed in workflow; final real-renderer network category and byte-restoration verdict pending. Update here once final evidence arrives.
+- **W36 initial run #42691438851: FAIL/inconclusive for renderer.** Four probe unit tests passed; genuine Windows Yandex host was loaded/injected and native state reached; the trusted Electron main invalid-token request returned `MAIN_HTTP_403` with `MAIN_ACAO_NATIVE`. The probe returned `NO_APPROVED_RENDERER_OBSERVED` and `NO_RENDERER_RESULT_OBSERVED` despite the genuine host separately logging `APPROVED_VIEW`, `RENDERER_INJECTED`, `RESOURCE_ATTACHED`. **Do NOT infer renderer CSP/CORS from missing probe.** Native CI report: `originalBytesRestored=true`, `originalSignatureRestored=true`, `error=""`; workflow failed only on `W36_NO_APPROVED_RENDERER_FETCH_RESULT`.
+- **Follow-up narrow correction:** reuse the exact native host `validView(view)` allowlist and log only redacted scheme/hostname-category flags to identify why the separate probe cannot see the renderer. Follow-up CI #42692435777 (running when updated). No source/audio/owner changes.
 - `MAIN_HTTP_403` proves only the invalid URL is reachable to trusted main; never implies an authorized signed 206.
 - `NATIVE_HTTP_403_VISIBLE` indicates a denied endpoint response is visible from native renderer under current policy, not that playback or codec compatibility works.
 - `NATIVE_FETCH_BLOCKED_TYPEERROR_CSP_CONNECT_SRC` supports an actual native renderer CSP block; `FETCH_BLOCKED` without a CSP event cannot distinguish CSP, CORS, proxy or redirect.
