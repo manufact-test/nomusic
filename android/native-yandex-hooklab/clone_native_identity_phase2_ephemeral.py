@@ -38,6 +38,18 @@ def patch_one_dex(data):
         return data, False
     if count != 1 or not data.startswith(b"dex\n"):
         raise arsc.TrialError("DEX_TARGET_NOT_ONE_EXACT_LITERAL")
+    # ART requires string_ids to be strictly sorted. The legacy fixed-length
+    # substitute is known to violate this rule: NEVER emit such a broken DEX.
+    from inspect_android_host import Dex
+    parsed = Dex(data)
+    original_slots = [idx for idx in range(parsed.string_count)
+                      if parsed.string(idx) == OLD_METRICA]
+    if len(original_slots) != 1:
+        raise arsc.TrialError("DEX_STRING_ID_NOT_UNIQUE")
+    idx = original_slots[0]
+    if idx == 0 or idx + 1 >= parsed.string_count or not (
+            parsed.string(idx - 1) < NEW_METRICA < parsed.string(idx + 1)):
+        raise arsc.TrialError("DEX_STRING_ID_ORDER_FAIL_CLOSED")
     updated = bytearray(data.replace(original, replacement, 1))
     updated[12:32] = hashlib.sha1(updated[32:]).digest()
     updated[8:12] = struct.pack("<I", zlib.adler32(updated[12:]) & 0xffffffff)
@@ -348,11 +360,8 @@ def run():
         # This isolates manifest/package rewriting from the known-bad
         # AppMetrica byte substitution that violated DEX string_ids ordering.
         preserve_original_dex = os.getenv("CELIKOM_MANIFEST_ONLY_ORIGINAL_DEX") == "1"
-        if preserve_original_dex and not (
-            os.getenv("CELIKOM_CLEAN_ANDROID_ARMV7_TRANSLATION") == "1"
-            and os.getenv("GITHUB_ACTIONS") == "true"
-        ):
-            raise arsc.TrialError("MANIFEST_ONLY_REQUIRES_DISPOSABLE_ARMV7_CI")
+        if preserve_original_dex and os.getenv("GITHUB_ACTIONS") != "true":
+            raise arsc.TrialError("MANIFEST_ONLY_REQUIRES_EPHEMERAL_GITHUB_CI")
         if omit_shadowed and os.getenv("CELIKOM_CLEAN_ANDROID_ARMV7_TRANSLATION") != "1":
             raise arsc.TrialError("SHADOWED_SIGNATURE_TEST_REQUIRES_DISPOSABLE_X86_ARMV7")
         for i, apk in enumerate(apks):
