@@ -39,9 +39,9 @@ def is_media_call(triple):
 def bounded_obfuscated(triple):
     """Do not expose third-party snippets, method bodies or strings."""
     owner,name,signature=triple
+    if owner==CONVERTER:return "exact-fileinfo-converter"
     if re.fullmatch(r"L[a-zA-Z0-9_$]{1,14};",owner):
         return owner+"->"+name[:40]
-    if owner==CONVERTER:return "exact-fileinfo-converter"
     return "named-other-class"
 
 def analyze_dex(raw):
