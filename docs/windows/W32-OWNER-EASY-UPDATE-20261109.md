@@ -20,3 +20,15 @@ Latest owner-uploaded \`2.txt\`, GeneratedUTC 2026-11-09T18:22:36Z, proves **App
 - Compile .NET 10 WinForms and Native Module Identity. W24 test with real generated ASAR verifies recognized host marker, compare assets and tampered mismatch. W15 test diagnostics header and in-app updater ZIP acceptance. Inno CI reads actual PE version+company/product, zipped installer Stage, rejects non-new, performs two installs in same AppId before uninstall (no duplicate). W23 genuine Yandex smoke confirms exact native restore.
 - Testing installer and file identity in disposable CI does NOT prove audible native Yandex replacement, currently still owner FAIL. W31 AUDIO_PROBE_* events require owner to actually open W32 app with module successfully refreshed and send fresh TXT.
 - Do not deploy server or touch Android, browser extension, Yandex native internals beyond existing opt-in module refresh.
+
+
+## Final verified CI and owner package (2026-11-09)
+
+- Functional packaged SHA: 13cce0fa8020e75e9199c0d31df684057e2eee03.
+- W20 one-installer Windows CI https://github.com/manufact-test/nomusic/actions/runs/42677316909 SUCCESS. ZIP selection, PE publisher/version, anti-downgrade, repeated same-AppId install, uninstall and native assets.
+- W23 genuine Yandex disposable install/restore CI https://github.com/manufact-test/nomusic/actions/runs/42677316959 SUCCESS. Real account/audible playback NOT TESTED.
+- Companion Preview https://github.com/manufact-test/nomusic/actions/runs/42677317102 SUCCESS.
+- Direct previous-owner upgrade https://github.com/manufact-test/nomusic/actions/runs/42677949767 SUCCESS. Downloaded original 0.24.2 installer from run 42638433588 and new 0.24.4 installer from run 42677316909. Installed old, then new over same AppId. New running executable version verified 0.24.4.0; only one uninstaller; local session.dpapi sentinel preserved; installed native host asset marker 0.24.4; no Yandex installation touched; uninstall leaves owner profile intact.
+- Download one internal unsigned full installer ZIP https://github.com/manufact-test/nomusic/actions/runs/42677316909/artifacts/13699829659, artifact name CELIKOM-W32-EASY-UPDATE-UNSIGNED.
+- For existing 0.24.2, one-time run new setup EXE OVER old (DO NOT manually uninstall). Existing 0.24.2 has no in-app updater button. In new UI footer verify CELIKOM 0.24.4 and module version. If old module mismatch, click Обновить модуль once; subsequent ZIPs through in-app Обновить CELIKOM из ZIP или EXE.
+- Owner audio mapping/pause STILL UNVERIFIED; after matched module, obtain new TXT including AUDIO_PROBE_* codes before further player changes.
