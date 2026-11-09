@@ -225,9 +225,10 @@ def run():
         emulator_runtime = {}
         native_arm = os.getenv("CELIKOM_CLEAN_ARM_EMULATOR") == "1"
         translated_x64 = os.getenv("CELIKOM_CLEAN_ANDROID_TRANSLATION") == "1"
-        if native_arm and translated_x64:
+        translated_x86_armv7 = os.getenv("CELIKOM_CLEAN_ANDROID_ARMV7_TRANSLATION") == "1"
+        if sum((native_arm, translated_x64, translated_x86_armv7)) > 1:
             raise arsc.TrialError("RUNTIME_MODE_AMBIGUOUS")
-        if native_arm or translated_x64:
+        if native_arm or translated_x64 or translated_x86_armv7:
             # Disposable GitHub Android emulator ONLY. No owner device, login,
             # Play Protect bypass, LSPatch, media playback or modified vendor
             # APK distribution. Translation is NOT ARM-device compatibility.
@@ -241,6 +242,11 @@ def run():
                     raise arsc.TrialError("API35_X64_ARM64_TRANSLATION_UNAVAILABLE")
                 if not bridge or bridge in ("0", "false"):
                     raise arsc.TrialError("API35_X64_NATIVE_BRIDGE_UNAVAILABLE")
+            elif translated_x86_armv7:
+                if "x86" not in abi.split(",") or "armeabi-v7a" not in abi.split(","):
+                    raise arsc.TrialError("API30_X86_ARMV7_TRANSLATION_UNAVAILABLE")
+                if not bridge or bridge in ("0", "false"):
+                    raise arsc.TrialError("API30_X86_NATIVE_BRIDGE_UNAVAILABLE")
             elif "arm64-v8a" not in abi or "x86_64" in abi:
                 raise arsc.TrialError("NATIVE_ARM64_RUNTIME_REQUIRED")
             arsc.run(["adb", "install-multiple", *[str(p) for p in apks]],
@@ -271,7 +277,9 @@ def run():
                 "clone_split_count": clone_count,
                 "clone_process_alive_after_launch": True,
                 "emulator_abi": abi,
-                "arm_binary_translation": translated_x64,
+                "arm_binary_translation": translated_x64 or translated_x86_armv7,
+                "translation_abi": ("armeabi-v7a" if translated_x86_armv7 else
+                                    "arm64-v8a" if translated_x64 else "native-arm64"),
                 "native_bridge_present": bool(bridge) and bridge not in ("0", "false")
             }
         result = {
@@ -290,9 +298,12 @@ def run():
         }
         if emulator_runtime:
             result.update(emulator_runtime)
-            result["verdict"] = ("SIDE_BY_SIDE_X64_ARM_TRANSLATED_INSTALL_LAUNCH_ONLY"
-                                 if translated_x64 else
-                                 "SIDE_BY_SIDE_ARM_EMULATOR_INSTALL_AND_LAUNCH_PASS_NOT_AUDIO")
+            result["verdict"] = (
+                "SIDE_BY_SIDE_X86_ARMV7_TRANSLATED_INSTALL_LAUNCH_ONLY"
+                if translated_x86_armv7 else
+                "SIDE_BY_SIDE_X64_ARM_TRANSLATED_INSTALL_LAUNCH_ONLY"
+                if translated_x64 else
+                "SIDE_BY_SIDE_ARM_EMULATOR_INSTALL_AND_LAUNCH_PASS_NOT_AUDIO")
     return result
 
 
