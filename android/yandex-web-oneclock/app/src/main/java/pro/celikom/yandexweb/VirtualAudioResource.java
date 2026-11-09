@@ -29,6 +29,8 @@ final class VirtualAudioResource {
         return denied(404,"Not Found",Collections.emptyMap());
     String id=tail.substring(0,tail.indexOf('/'));
     String albumId=tail.substring(tail.indexOf('/')+1,tail.length()-4);
+    if(!broker.isEnabled()||!broker.signedIn())
+        return denied(403,"Forbidden",Collections.emptyMap());
     CelikomBroker.Asset asset=broker.asset(id,albumId);
     if(asset==null||!asset.file.isFile())return denied(404,"Not Found",Collections.emptyMap());
     long total=asset.file.length();
