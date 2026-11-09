@@ -84,6 +84,9 @@ final class Application
             && in_array($origin, [
                 'null',
                 'musicapplication://desktop',
+                // Genuine native Yandex 5.126.1 uses the hyphenated protocol.
+                // Only signed numeric audio routes; never auth/admin/resolve.
+                'music-application://desktop',
                 'https://desktop.app.music.yandex.net',
                 'https://next.music.yandex.ru',
                 'https://music.yandex.com',
