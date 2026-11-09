@@ -190,8 +190,12 @@ def main():
         stage.mkdir()
         # Level 0: explicitly DISABLE LSPatch's signature impersonation/spoofing.
         # Signature mismatch may prevent Yandex login. Stop instead of bypassing.
-        run(["java","-jar",str(jar),"-k",str(keystore),lab_pass,lab_alias,lab_pass,
-             "-m",str(module),"-o",str(stage),"-l","0",*map(str,ordered)],timeout=500)
+        diag_no_module = os.getenv("CELIKOM_DIAGNOSTIC_NO_MODULE") == "1"
+        args = ["java","-jar",str(jar),"-k",str(keystore),lab_pass,lab_alias,lab_pass]
+        if not diag_no_module:
+            args += ["-m",str(module)]
+        args += ["-o",str(stage),"-l","0",*map(str,ordered)]
+        run(args,timeout=500)
         patched=sorted(stage.glob("*.apk"))
         if len(patched)!=len(originals):
             raise ValueError("Patched split count differs from original")
@@ -207,11 +211,15 @@ def main():
             if "assets/lspatch/config.json" not in names:
                 raise ValueError("Missing embedded LSPatch runtime configuration")
             embed=[n for n in names if re.fullmatch(r"assets/lspatch/modules/[^/]+\.apk",n)]
-            if len(embed)!=1:
-                raise ValueError("Missing or multiple embedded CELIKOM modules")
-            content=z.read(embed[0])
-            if hashlib.sha256(content).hexdigest()!=sha(module):
-                raise ValueError("Embedded CELIKOM module does not match signed module")
+            if diag_no_module:
+                if embed:
+                    raise ValueError("No-module control unexpectedly contains a module")
+            else:
+                if len(embed)!=1:
+                    raise ValueError("Missing or multiple embedded CELIKOM modules")
+                content=z.read(embed[0])
+                if hashlib.sha256(content).hexdigest()!=sha(module):
+                    raise ValueError("Embedded CELIKOM module does not match signed module")
             raw=z.read("assets/lspatch/config.json")
             cfg=json.loads(raw.decode("utf-8"))
             # Defensive validation independent of vendor JSON field spelling.
@@ -250,8 +258,9 @@ def main():
             "split_ids":sorted([v[2] or "base" for v,p in orig]),
             "native_abis":native_abis,
             "verified_exact_method_contracts":method_contract,
-            "embedded_module":"CELIKOM read-only FileInfoDto observer",
-            "module_sha256":sha(module),
+            "embedded_module":("NONE_LSPATCH_ONLY_CONTROL" if diag_no_module
+                               else "CELIKOM read-only FileInfoDto observer"),
+            "module_sha256":(None if diag_no_module else sha(module)),
             "lab_signer_sha256":lab_sig,
             "host_modified_in_ci_only":True,
             "host_installed":False,
