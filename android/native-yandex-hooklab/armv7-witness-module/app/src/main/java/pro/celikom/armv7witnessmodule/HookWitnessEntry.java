@@ -9,7 +9,7 @@ import io.github.libxposed.api.XposedModule;
 
 /**
  * Own-source safe witness; STRICTLY ONLY pro.celikom.armv7loaderhost.witness.
- * Original ru.yandex.music and audio/media APIs are never touched.
+ * Any third-party package and all audio/media APIs are outside scope.
  */
 public final class HookWitnessEntry extends XposedModule {
     private static final String TARGET = "pro.celikom.armv7loaderhost.witness";
