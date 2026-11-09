@@ -1,0 +1,33 @@
+name: Android unmodified Yandex external API audit (NO PATCH)
+on:
+  push:
+    branches:
+      - experiment/android-native-yandex-fileinfo-hooklab-20261109
+    paths:
+      - 'android/native-yandex-hooklab/audit_unmodified_yandex_ipc.py'
+      - 'android/native-yandex-hooklab/tests/test_unmodified_yandex_ipc.py'
+      - '.github/workflows/android-native-unmodified-ipc.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  signed-gpr-manifest-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Synthetic no-Yandex unit tests
+        run: |
+          python3 -m unittest discover -s android/native-yandex-hooklab/tests -p 'test_unmodified_yandex_ipc.py' -v
+          python3 -m py_compile android/native-yandex-hooklab/audit_unmodified_yandex_ipc.py
+      - name: Inspect only exact signed native Yandex manifest / public IPC; no modification
+        run: python3 android/native-yandex-hooklab/audit_unmodified_yandex_ipc.py
+      - name: Confirm no proprietary APK artifact
+        if: always()
+        run: |
+          test ! -d android/native-yandex-hooklab/release
+          test ! -d android/native-yandex-hooklab/patched
+          echo 'NO APK created or uploaded; no owner device involved'
