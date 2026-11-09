@@ -1,3 +1,11 @@
+# FINAL EMULATOR CROSS-CHECK — 2026-11-09
+
+[Android 11 **x86_64** Google Play AVD (ARMv7 translator) #42624416091 — NO-GO](https://github.com/manufact-test/nomusic/actions/runs/42624416091): all **five** lab-signed native Yandex APK parts install, original package/launcher present; 0/5 alive process samples after launch; `liblspatch.so` `dlopen failed` /`UnsatisfiedLinkError` /`ExceptionInInitializerError`; **no CELIKOM module lifecycle event**. This is independent confirmation of same LSPatch rootless loader problem on both Android11 **x86** and **x86_64** translated environments; Android13 x86_64 has unsupported ABI. The direct publisher-signed original Yandex on Android11 x86 remains PASS. No audio test was possible.
+
+**Actionable final gate:** All easy CI environment paths exhausted without violating user constraints. The loaded file is present, ELF ISA-correct for all four archs, ZIP_STORED and 4096-aligned ([#42623602723 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/42623602723)); this is a runtime loader/ABI-bridge issue on tested AVDs, NOT missing module/packing. **Do not call it a universal native Android ARM failure**: there is no verified native ARM test yet. Next requires **separate native ARM Android13+ test device** with Play Protect ON; do NOT uninstall/sideload on owner's primary HONOR. Any native-player pre-prepare FileInfo source substitution remains unimplemented. Never enable signature impersonation, root, modified owner account access, or double playback as a workaround.
+
+---
+
 # FINAL STATIC ELF VERDICT — 09.11.2026
 
 **[CI #42623602723 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/42623602723)** verified actual patched native Yandex *base.apk* embeds LSPatch `liblspatch.so` **for all four** ABIs: `armeabi-v7a` (ELF32 EM_ARM 40), `arm64-v8a` (ELF64 EM_AARCH64 183), `x86` (ELF32 EM_386 3), `x86_64` (ELF64 EM_X86_64 62). All entries `ZIP_STORED`, and the actual ZIP local-file payload offsets are **4096-byte aligned**. The file is NOT simply omitted, compressed, or built for a wrong ELF ISA. It is present but native `System.load` **cannot resolve/load it in the tested Android 11 x86→ARMv7 translated process**. Android 11 and 13 x86 emulators are not equivalent to native ARM hardware.
