@@ -43,6 +43,7 @@ try
     var grant = GrantValidator.FromResolve(payload, "123", origin, now);
     Test(grant != null, "real PHP ResolveService grant accepted");
     Test(grant!.ExpiresAt == unix * 1000, "server Unix seconds to JS milliseconds");
+    Test(grant.MimeType == "audio/mpeg", "source mime survives bridge to native decoder");
     Test(grant.AudioUrl == "https://api.celikom.example" + audio, "exact HTTPS signed URL");
     Test(GrantValidator.FromResolve(Parse(new { found = true, audio_url = audio + "&sid=8",
         expires_at = unix, duration_ms = 200000, mime_type = "audio/mpeg" }), "123", origin, now) == null,
