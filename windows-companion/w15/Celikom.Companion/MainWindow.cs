@@ -24,6 +24,10 @@ public sealed class MainWindow : Form
     private readonly TextBox _code = new();
     private readonly Label _status = new();
     private readonly Label _song = new();
+    private readonly Label _hostStatus = new();
+    private YandexHostResult? _hostReport;
+    private bool _hostProbeBusy;
+    private DateTimeOffset _lastHostProbe;
     private readonly Label _accountStatus = new();
     private readonly Button _login = new();
     private readonly Button _logout = new();
@@ -90,7 +94,16 @@ public sealed class MainWindow : Form
         _tray.DoubleClick += (_, _) => ShowMain();
         Resize += (_, _) => { if (WindowState == FormWindowState.Minimized) Hide(); };
         FormClosing += ClosingAsync;
-        Shown += async (_, _) => await StartBridgeAsync();
+        Shown += async (_, _) =>
+        {
+            await StartBridgeAsync();
+            await RefreshHostAsync();
+        };
+        Activated += (_, _) =>
+        {
+            if (DateTimeOffset.UtcNow - _lastHostProbe > TimeSpan.FromMinutes(2))
+                _ = RefreshHostAsync();
+        };
         UpdateSafe();
     }
 
@@ -215,7 +228,10 @@ public sealed class MainWindow : Form
             catch { MessageBox.Show(this, "Открой Яндекс.Музыку обычным способом.", "CELIKOM"); }
         };
         Add(layout, openYandex, 47);
-        Add(layout, Label("CELIKOM не управляет громкостью, очередью или перемоткой.", 9, false, Secondary), 39);
+        _hostStatus.ForeColor = Secondary;
+        _hostStatus.Font = new Font("Segoe UI", 9F);
+        _hostStatus.AutoEllipsis = false;
+        Add(layout, _hostStatus, 49);
     }
 
     private void BuildAccount(TabPage page)
@@ -262,6 +278,26 @@ public sealed class MainWindow : Form
         button.FlatAppearance.BorderColor = Border;
         button.BackColor = primary ? Accent : Paper;
         button.ForeColor = primary ? Color.White : Ink;
+    }
+
+    private async Task RefreshHostAsync()
+    {
+        if (_closing || _hostProbeBusy) return;
+        _hostProbeBusy = true;
+        try
+        {
+            _hostReport = await Task.Run(() => YandexHostProbe.Inspect());
+        }
+        catch
+        {
+            _hostReport = new(YandexHostStatus.InspectionUnavailable, "");
+        }
+        finally
+        {
+            _lastHostProbe = DateTimeOffset.UtcNow;
+            _hostProbeBusy = false;
+            UpdateSafe();
+        }
     }
 
     private async Task StartBridgeAsync()
@@ -363,7 +399,18 @@ public sealed class MainWindow : Form
         _status.Text = !_bridgeStarted ? "Локальная служба пока не запущена"
             : !_api.IsLoggedIn ? "Войди в CELIKOM на вкладке «Аккаунт»"
             : !_bridge.Enabled ? "CELIKOM готов. Подмена выключена."
-            : "CELIKOM включён. Ожидаем модуль Яндекса.";
+            : "Мост включён. Реальная подмена в Яндексе не подтверждена.";
+        _hostStatus.Text = _hostReport?.Status switch
+        {
+            YandexHostStatus.NotInstalled => "Яндекс.Музыка не найдена. Установи её с официального сайта.",
+            YandexHostStatus.IncompleteInstallation => "Яндекс установлен неполностью. Его файлы не изменялись.",
+            YandexHostStatus.UnsupportedVersion => "Версия Яндекса не проверена: " + _hostReport.Version,
+            YandexHostStatus.UntrustedExecutable => "Цифровая подпись Яндекса не прошла проверку. Ничего не меняем.",
+            YandexHostStatus.UnknownAsar => "Файлы Яндекса отличаются от проверенного оригинала.",
+            YandexHostStatus.OfficialBaselineVerified => "Оригинальный Яндекс 5.126.1 проверен. Подмена звука НЕ подтверждена.",
+            YandexHostStatus.InspectionUnavailable => "Не удалось безопасно проверить Яндекс. Файлы не менялись.",
+            _ => "Проверяем совместимость установленной Яндекс.Музыки…"
+        };
         if (!preserveAccountStatus)
             _accountStatus.Text = _api.IsLoggedIn
                 ? "Вход выполнен: " + _api.Email

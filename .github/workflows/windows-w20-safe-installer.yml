@@ -1,0 +1,89 @@
+name: CELIKOM W20 safe Windows installer staging
+
+on:
+  push:
+    branches:
+      - experiment/windows-companion-integration-20261108
+    paths:
+      - windows-companion/w15/**
+      - windows-companion/w20/**
+      - .github/workflows/windows-w20-safe-installer.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  safe-installer-stage:
+    runs-on: windows-2022
+    timeout-minutes: 32
+    steps:
+      - name: Checkout only source
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Compile source with warnings as errors
+        run: dotnet build windows-companion/w15/Celikom.Companion/Celikom.Companion.csproj -c Release -warnaserror
+      - name: Run native local bridge and host preflight tests
+        run: dotnet run --project windows-companion/w15/Celikom.Companion.Tests/Celikom.Companion.Tests.csproj -c Release
+      - name: Verify stage-only distribution policy
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          & ./windows-companion/w20/release-gate.ps1 -Mode Stage
+          if ($LASTEXITCODE -ne 0) { throw 'W20_STAGE_POLICY_FAILED' }
+      - name: Publish self-contained CELIKOM-owned Windows binary
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          dotnet publish windows-companion/w15/Celikom.Companion/Celikom.Companion.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:DebugType=None -o windows-companion/w20/publish
+          if ($LASTEXITCODE -ne 0) { throw 'W20_PUBLISH_FAILED' }
+      - name: Compile internal Inno Setup installer
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $compiler = Join-Path \${env:ProgramFiles(x86)} 'Inno Setup 6\ISCC.exe'
+          if (-not (Test-Path $compiler)) {
+            choco install innosetup -y --no-progress --limit-output
+            if ($LASTEXITCODE -notin @(0,3010)) { throw 'W20_INNO_SETUP_INSTALL_FAILED' }
+          }
+          if (-not (Test-Path $compiler)) { throw 'W20_INNO_COMPILER_NOT_FOUND' }
+          & $compiler windows-companion/w20/installer/CELIKOM.iss
+          if ($LASTEXITCODE -ne 0) { throw 'W20_INSTALLER_COMPILE_FAILED' }
+      - name: Disposable Windows per-user install and uninstall smoke
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $exe = Join-Path $env:LOCALAPPDATA 'Programs\CELIKOM\CELIKOM.Companion.exe'
+          $unins = Join-Path $env:LOCALAPPDATA 'Programs\CELIKOM\unins000.exe'
+          $installer = 'windows-companion/w20/output/CELIKOM-W20-INTERNAL-UNSIGNED.exe'
+          $yandexDir = Join-Path $env:LOCALAPPDATA 'Programs\YandexMusic'
+          if (Test-Path $exe) { throw 'W20_DIRTY_INSTALL_RUNNER' }
+          if (Test-Path $yandexDir) { throw 'W20_RUNNER_YANDEX_PREEXISTS' }
+          if (-not (Test-Path $installer)) { throw 'W20_MISSING_INSTALLER' }
+          $install = Start-Process -FilePath $installer -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/SP-' -Wait -PassThru
+          if ($install.ExitCode -ne 0 -or -not (Test-Path $exe) -or -not (Test-Path $unins)) { throw 'W20_INSTALL_SMOKE_FAILED' }
+          if (Test-Path $yandexDir) { throw 'W20_INSTALLED_OR_TOUCHED_YANDEX' }
+          $remove = Start-Process -FilePath $unins -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART' -Wait -PassThru
+          if ($remove.ExitCode -ne 0) { throw 'W20_UNINSTALL_EXIT_NONZERO' }
+          Start-Sleep -Seconds 2
+          if (Test-Path $exe) { throw 'W20_OWN_EXE_NOT_REMOVED' }
+          if (Test-Path $yandexDir) { throw 'W20_UNINSTALL_TOUCHED_YANDEX' }
+          Write-Output 'W20_INTERNAL_INSTALL_UNINSTALL_PASS_NO_YANDEX_FILES'
+      - name: Report internal package fingerprint
+        shell: pwsh
+        run: |
+          $hash = (Get-FileHash windows-companion/w20/output/CELIKOM-W20-INTERNAL-UNSIGNED.exe -Algorithm SHA256).Hash
+          Write-Output "W20_INTERNAL_UNSIGNED_SHA256=$hash"
+          Write-Output 'NOT AUDIO TESTED; NOT CODE SIGNED; NOT APPROVED FOR DISTRIBUTION'
+      - name: Retain INTERNAL staging build, not a release
+        uses: actions/upload-artifact@v4
+        with:
+          name: CELIKOM-W20-INTERNAL-UNSIGNED-NOT-AUDIO
+          path: windows-companion/w20/output/CELIKOM-W20-INTERNAL-UNSIGNED.exe
+          if-no-files-found: error
+          retention-days: 5

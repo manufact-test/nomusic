@@ -1,3 +1,9 @@
+# W20 CURRENT SAFETY/INSTALLER CHECKPOINT (2026-11-09)
+
+Read [W20 release-safety decision](W20-RELEASE-SAFETY-AND-INSTALLER-20261109.md). A developer-only single EXE installer stage and read-only pinned Yandex host signature/hash probe are added to the experimental Windows branch. **NOT a user build or proof of native audio.** Primary Yandex Windows app EULA 4.1–4.3 and PulseSync Client EULA 3.1 make modified/bundled commercial distribution contingent on explicit rights/appropriate legal assessment. The release gate fails closed. No owner Sandbox or other manual work. Last W15.2 verified UI/audio status remains as below. Pre-W20 source protected at `backup/windows-w20-pre-safe-installer-20261109`.
+
+---
+
 # CELIKOM Windows — current handoff after W19 (2026-11-09)
 
 **OWNER'S LATEST DECISION SUPERSEDES EARLIER NEXT-STEPS:** Stop sending the owner through Windows Sandbox, Windows Optional Features, Hyper-V, a manual PulseSync installer, or VM setup. The owner has Windows 10 **Pro** 22H2 (OS build **19045.6456**), runs **official Yandex Music 5.126.1.0**, and has explicitly rejected the fragmented W19 manual test path. **User-facing goal is one normal branded CELIKOM installer/application.** A person installs it once, starts CELIKOM alongside the normal Yandex desktop UI, logs into Yandex *in Yandex*, and CELIKOM automatically swaps only approved track sources. Yandex owns its original decoder, queue, Play/Pause/Seek/Next/media keys. **No second audio player, no embedded web replacement, no manual mods, no security disabling, no terminal/VM work for end users.** Internal integration may involve a disclosed version-compatible modification if safe, recoverable and legally distributable; never secretly modify Yandex, violate user consent or conceal protections.

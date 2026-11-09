@@ -13,6 +13,17 @@ void Test(bool condition, string message)
 var folder = Path.Combine(Path.GetTempPath(), "celikom-w15-contract-" + Guid.NewGuid().ToString("N"));
 try
 {
+    Test(YandexHostProbe.VerifiedVersion == "5.126.1.0", "pinned official host version");
+    Test(YandexHostProbe.VerifiedAsarSha256.Length == 64, "pinned official ASAR fingerprint");
+    Test(YandexHostProbe.Inspect(Path.Combine(folder, "yandex-not-installed")).Status ==
+        YandexHostStatus.NotInstalled, "missing host does not prompt for patching");
+    var incomplete = Path.Combine(folder, "broken-yandex");
+    Directory.CreateDirectory(incomplete);
+    File.WriteAllText(Path.Combine(incomplete, "Яндекс Музыка.exe"), "not an app");
+    Test(YandexHostProbe.Inspect(incomplete).Status == YandexHostStatus.IncompleteInstallation,
+        "incomplete install is never treated as compatible");
+    Directory.Delete(incomplete, true);
+
     var store = new SessionStore(folder);
     var first = store.LoadOrCreate();
     Test(Guid.TryParse(first.InstallationId, out _), "device ID");
