@@ -175,8 +175,23 @@
         case "https://next.music.yandex.ru": return "NEXT_WEB";
         case "https://music.yandex.com": return "MUSIC_COM";
         case "*": return "WILDCARD";
-        default: return raw.startsWith("musicapplication:") ? "UNLISTED_NATIVE" :
-          raw.startsWith("https:") ? "UNLISTED_HTTPS" : "UNLISTED_OTHER";
+        default: {
+          const text = raw.toLowerCase();
+          if (text.startsWith("musicapplication:")) return "UNLISTED_NATIVE";
+          if (text.startsWith("https:")) return "UNLISTED_HTTPS";
+          if (text.startsWith("http://127.0.0.1:") ||
+              text.startsWith("http://localhost:") ||
+              text === "http://127.0.0.1" ||
+              text === "http://localhost") return "LOCAL_HTTP";
+          if (text.startsWith("http:")) return "UNLISTED_HTTP";
+          if (text.startsWith("chrome-extension:")) return "EXTENSION";
+          if (text.startsWith("file:")) return "FILE";
+          if (text.startsWith("chrome:") || text.startsWith("devtools:")) return "CHROMIUM_INTERNAL";
+          if (text.startsWith("app:") || text.startsWith("yandex:") ||
+              text.startsWith("ymusic:")) return "APP_SCHEME";
+          if (/^[a-z][a-z0-9+.-]{1,32}:/.test(text)) return "CUSTOM_SCHEME";
+          return "UNRECOGNIZED_FORMAT";
+        }
       }
     };
     const header = (headers, name) => {
