@@ -12,7 +12,7 @@ await build({
 });
 await fs.copyFile(path.join(root,"host.cjs"),path.join(outdir,"host.cjs"));
 const content=await fs.readFile(path.join(outdir,"renderer.js"),"utf8");
-if(!content.includes("__celikomBridgeSetToken")||
+if(!content.includes("__celikomBridgeNativeDrain")||
    !content.includes("get-file-info")||content.length<3500)
   throw Error("W23_INVALID_RENDERER_BUNDLE");
 console.log("W23_RENDERER_BUNDLE_PASS",content.length);
