@@ -95,7 +95,7 @@ def launch(original_baseline: bool = False):
         # Only names like libname.so, not full linker messages or paths.
         if ("dlopen failed" in line or "UnsatisfiedLinkError" in line
                 or "couldn't find" in line.lower() or "linker" in line.lower()):
-            for basename in re.findall(r"lib[A-Za-z0-9_.+-]{1,90}\\.so", line):
+            for basename in re.findall(r"lib[A-Za-z0-9_.+-]{1,90}\.so", line):
                 if len(library_basename_candidates) < 24:
                     library_basename_candidates.append(basename)
             lower = line.lower()
