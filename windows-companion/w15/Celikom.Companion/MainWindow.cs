@@ -249,7 +249,14 @@ public sealed class MainWindow : Form
             try { Process.Start(new ProcessStartInfo("yandexmusic://") { UseShellExecute = true }); }
             catch { MessageBox.Show(this, "Открой Яндекс.Музыку обычным способом.", "CELIKOM"); }
         };
-        Add(layout, openYandex, 47);
+        var tools = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1 };
+        tools.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
+        tools.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
+        var downloadDiagnostics = Button("Скачать диагностику", false);
+        downloadDiagnostics.Click += (_, _) => SaveDiagnostics();
+        tools.Controls.Add(openYandex, 0, 0);
+        tools.Controls.Add(downloadDiagnostics, 1, 0);
+        Add(layout, tools, 47);
         _hostStatus.ForeColor = Secondary;
         _hostStatus.Font = new Font("Segoe UI", 9F);
         _hostStatus.AutoEllipsis = false;
@@ -343,7 +350,9 @@ public sealed class MainWindow : Form
         UpdateSafe();
         try
         {
+            DiagnosticLog.Record("NATIVE_INSTALL_REQUEST");
             await Task.Run(() => NativeIntegrationManager.Install());
+            DiagnosticLog.Record("NATIVE_INSTALL_OK");
             _bridge.SetEnabled(_api.IsLoggedIn);
             _hostStatus.Text = "CELIKOM подключён к Яндексу.";
             try
@@ -356,6 +365,7 @@ public sealed class MainWindow : Form
         }
         catch (Exception error)
         {
+            DiagnosticLog.Record("NATIVE_INSTALL_FAILED");
             MessageBox.Show(this, DescribeIntegrationFailure(error), "CELIKOM",
                 MessageBoxButtons.OK, MessageBoxIcon.Warning);
         }
@@ -379,7 +389,9 @@ public sealed class MainWindow : Form
         UpdateSafe();
         try
         {
+            DiagnosticLog.Record("NATIVE_RESTORE_REQUEST");
             await Task.Run(() => NativeIntegrationManager.Restore());
+            DiagnosticLog.Record("NATIVE_RESTORE_OK");
             _hostStatus.Text = "Оригинальная Яндекс.Музыка восстановлена.";
         }
         catch (Exception error)
@@ -392,6 +404,36 @@ public sealed class MainWindow : Form
             _integrationBusy = false;
             await RefreshHostAsync();
             UpdateSafe();
+        }
+    }
+
+    private void SaveDiagnostics()
+    {
+        DiagnosticLog.Record("EXPORT_REQUEST");
+        using var save = new SaveFileDialog
+        {
+            Title = "Скачать диагностику CELIKOM",
+            Filter = "Текстовый файл (*.txt)|*.txt",
+            FileName = "CELIKOM-diagnostics-" + DateTime.Now.ToString("yyyyMMdd-HHmmss") + ".txt",
+            AddExtension = true,
+            DefaultExt = "txt",
+            OverwritePrompt = true,
+            RestoreDirectory = true
+        };
+        if (save.ShowDialog(this) != DialogResult.OK) return;
+        try
+        {
+            var snapshot = DiagnosticLog.ExportText(_hostReport?.Version,
+                _nativeInstallState.ToString().ToUpperInvariant(), _bridgeStarted,
+                _bridge.Enabled, _api.IsLoggedIn);
+            File.WriteAllText(save.FileName, snapshot, System.Text.Encoding.UTF8);
+            DiagnosticLog.Record("EXPORT_SAVED");
+            MessageBox.Show(this, "Диагностика сохранена. Пришли этот TXT в чат.", "CELIKOM");
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            DiagnosticLog.Record("EXPORT_FAILED");
+            MessageBox.Show(this, "Не удалось сохранить файл. Выбери другую папку.", "CELIKOM");
         }
     }
 
@@ -413,6 +455,7 @@ public sealed class MainWindow : Form
     {
         try
         {
+            DiagnosticLog.Record("GUI_STARTED");
             await _bridge.StartAsync();
             _nativeToken = new NativeTokenPublisher();
             _nativeToken.Publish(_api.Settings.BridgeToken);
@@ -439,11 +482,13 @@ public sealed class MainWindow : Form
         try
         {
             await _api.LoginAsync(_origin.Text.Trim(), _email.Text.Trim(), _password.Text);
+            DiagnosticLog.Record("LOGIN_OK");
             _password.Clear();
             _accountStatus.Text = "Вход подтверждён. Перейди на «Главная» и нажми «Старт».";
         }
         catch (ApiFailure e2)
         {
+            DiagnosticLog.Record("LOGIN_FAILED");
             _accountStatus.Text = e2.Category switch
             {
                 "INVALID_CREDENTIALS" => "Неверная почта или пароль.",
@@ -464,7 +509,7 @@ public sealed class MainWindow : Form
     {
         _bridge.SetEnabled(false);
         _logout.Enabled = false;
-        try { await _api.LogoutAsync(); _accountStatus.Text = "Выход выполнен. Старый код подключения недействителен."; }
+        try { await _api.LogoutAsync(); DiagnosticLog.Record("LOGOUT_OK"); _accountStatus.Text = "Выход выполнен. Старый код подключения недействителен."; }
         catch { _accountStatus.Text = "Не удалось завершить выход. Проверь подключение."; }
         finally { UpdateSafe(preserveAccountStatus: true); }
     }

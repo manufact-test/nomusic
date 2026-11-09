@@ -96,6 +96,7 @@ public sealed class BridgeServer : IAsyncDisposable
             _lastStatus = enabled ? "UNAVAILABLE" : "OFF";
             _lastSong = "";
         }
+        DiagnosticLog.Record(enabled ? "START_ENABLED" : "STOP_DISABLED");
         Changed?.Invoke();
     }
 
@@ -195,6 +196,7 @@ public sealed class BridgeServer : IAsyncDisposable
         app.MapGet("/v1/state", (HttpContext ctx) =>
         {
             if (!Authorized(ctx)) return Results.Unauthorized();
+            if (IsNativeProtocolRequest(ctx)) DiagnosticLog.Record("NATIVE_STATE_RECEIVED");
             return Results.Json(new { enabled = CanResolve,
                 signedIn = _api.IsLoggedIn, apiOrigin = _api.IsLoggedIn ? _api.Origin : "", transport = "paired" });
         });
@@ -204,16 +206,22 @@ public sealed class BridgeServer : IAsyncDisposable
             if (!Authorized(ctx)) return Results.Unauthorized();
             var id = ctx.Request.Query["track_id"].ToString();
             if (!GrantValidator.IsTrackId(id)) return Results.BadRequest(new { error = "invalid_track" });
-            if (!CanResolve) return Results.Json(new { found = false });
+            DiagnosticLog.Record("RESOLVE_REQUEST", id);
+            if (!CanResolve) { DiagnosticLog.Record("RESOLVE_DISABLED", id); return Results.Json(new { found = false }); }
             try
             {
                 var grant = await _api.ResolveAsync(id, ctx.RequestAborted);
-                if (!CanResolve || grant is null) return Results.Json(new { found = false });
+                if (!CanResolve || grant is null)
+                {
+                    DiagnosticLog.Record("RESOLVE_MISS", id);
+                    return Results.Json(new { found = false });
+                }
+                DiagnosticLog.Record("RESOLVE_APPROVED", id);
                 return Results.Json(new { found = true, grant });
             }
-            catch (OperationCanceledException) { return Results.StatusCode(499); }
-            catch (ApiFailure) { return Results.Json(new { found = false }); }
-            catch (HttpRequestException) { return Results.Json(new { found = false }); }
+            catch (OperationCanceledException) { DiagnosticLog.Record("RESOLVE_CANCELLED", id); return Results.StatusCode(499); }
+            catch (ApiFailure) { DiagnosticLog.Record("RESOLVE_API_FAILURE", id); return Results.Json(new { found = false }); }
+            catch (HttpRequestException) { DiagnosticLog.Record("RESOLVE_NETWORK_FAILURE", id); return Results.Json(new { found = false }); }
         });
 
         app.MapPost("/v1/heartbeat", async (HttpContext ctx) =>
@@ -232,6 +240,7 @@ public sealed class BridgeServer : IAsyncDisposable
                 _lastSong = GrantValidator.IsTrackId(beat.TrackId) ? beat.TrackId! : "";
                 _lastStatus = beat.Status;
             }
+            DiagnosticLog.Record("HEARTBEAT_" + beat.Status);
             Changed?.Invoke();
             return Results.Json(new { ok = true });
         });
@@ -240,6 +249,7 @@ public sealed class BridgeServer : IAsyncDisposable
         {
             await app.StartAsync(ct);
             _app = app;
+            DiagnosticLog.Record("BRIDGE_STARTED");
         }
         catch { await app.DisposeAsync(); throw; }
     }
