@@ -1,6 +1,6 @@
-# W20 CURRENT SAFETY/INSTALLER CHECKPOINT (2026-11-09)
+# W20 VERIFIED INTERNAL INSTALLER CHECKPOINT (2026-11-09)
 
-Read [W20 release-safety decision](W20-RELEASE-SAFETY-AND-INSTALLER-20261109.md). A developer-only single EXE installer stage and read-only pinned Yandex host signature/hash probe are added to the experimental Windows branch. **NOT a user build or proof of native audio.** Primary Yandex Windows app EULA 4.1–4.3 and PulseSync Client EULA 3.1 make modified/bundled commercial distribution contingent on explicit rights/appropriate legal assessment. The release gate fails closed. No owner Sandbox or other manual work. Last W15.2 verified UI/audio status remains as below. Pre-W20 source protected at `backup/windows-w20-pre-safe-installer-20261109`.
+Read [W20 release-safety decision](W20-RELEASE-SAFETY-AND-INSTALLER-20261109.md). A developer-only single EXE installer stage (Windows [CI 42596579243](https://github.com/manufact-test/nomusic/actions/runs/42596579243) SUCCESS, 43 native contract checks, install/uninstall smoke PASS) and read-only pinned Yandex host signature/hash probe are added to the experimental Windows branch. **NOT a user build or proof of native audio.** Primary Yandex Windows app EULA 4.1–4.3 and PulseSync Client EULA 3.1 make modified/bundled commercial distribution contingent on explicit rights/appropriate legal assessment. The release gate fails closed. No owner Sandbox or other manual work. Last W15.2 verified UI/audio status remains as below. Pre-W20 source protected at `backup/windows-w20-pre-safe-installer-20261109`.
 
 ---
 
