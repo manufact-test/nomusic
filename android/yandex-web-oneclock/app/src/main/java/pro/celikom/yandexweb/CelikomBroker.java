@@ -160,10 +160,13 @@ final class CelikomBroker {
             finally{pending.remove(key);}
         });
     }
-    Asset asset(String id) {
-        if(!numeric(id)) return null;
-        for(Asset a: ready.values())if(a.id.equals(id)&&a.file.isFile())return a;
-        return null;
+    Asset asset(String id,String albumId) {
+        if(!numeric(id)||!numeric(albumId))return null;
+        Asset a=ready.get(id+":"+albumId);
+        return a!=null&&a.file.isFile()?a:null;
+    }
+    void announceReady() {
+        for(Asset a:ready.values())if(a.file.isFile())sendReady(a);
     }
 
     void discardAll() {
