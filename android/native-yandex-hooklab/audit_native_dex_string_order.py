@@ -61,7 +61,19 @@ def run():
                 new_slot = slot_order(changed, clone.NEW_METRICA)
                 if not old_slot["slot_order_valid"]:
                     raise ValueError("PUBLISHER_STRING_ID_SLOT_INVALID")
+                dex = Dex(original)
+                target_idx = next(i for i in range(dex.string_count)
+                                  if dex.string(i) == clone.OLD_METRICA)
+                before, after = dex.string(target_idx - 1), dex.string(target_idx + 1)
+                # Concrete test candidates preserve the sorted DEX index and
+                # change only the FINAL byte of the public provider authority.
+                candidates = [clone.OLD_METRICA[:-1] + char for char in "qspxtak"]
+                viable_candidates = [value for value in candidates
+                                     if before <= value < after and
+                                     len(value) == len(clone.OLD_METRICA) and
+                                     value != clone.OLD_METRICA]
                 results.append({
+                    "candidate_public_authorities_with_sorted_slot": viable_candidates,
                     "dex_file": dex_file,
                     "publisher_string_id_slot_sorted": old_slot["slot_order_valid"],
                     "modified_string_id_slot_sorted": new_slot["slot_order_valid"],
