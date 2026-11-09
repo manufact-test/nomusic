@@ -1,0 +1,28 @@
+name: CELIKOM Android official RuStore APK static research (ephemeral)
+on:
+  push:
+    branches:
+      - experiment/android-native-yandex-gate1-20261109
+    paths:
+      - '.github/workflows/android-native-rustore-static.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  official-store-readonly:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Ensure Android SDK tools are available
+        run: |
+          python -m py_compile tools/android-native-gate1/audit_rustore_host_once.py
+          test -n "${ANDROID_HOME}"
+          find "${ANDROID_HOME}/build-tools" -name apksigner -type f | head -1 | grep -q apksigner
+          find "${ANDROID_HOME}/build-tools" -name aapt -type f | head -1 | grep -q aapt
+      - name: Download only authenticated public-store-signed package into ephemeral temp, inspect only, delete immediately
+        run: |
+          python tools/android-native-gate1/audit_rustore_host_once.py
