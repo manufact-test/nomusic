@@ -1,3 +1,13 @@
+# 2026-11-09 · LATEST GATE 2 — REAL FILEINFO DTO URLS FOUND, ROOTLESS INSTALL BLOCKER
+
+**Read first:** [ANDROID-NATIVE-FILEINFO-GATE2-2026-11-09.md](ANDROID-NATIVE-FILEINFO-GATE2-2026-11-09.md) then [ANDROID-NATIVE-GPR-VERIFIED-2026-11-09.md](ANDROID-NATIVE-GPR-VERIFIED-2026-11-09.md). Current isolated branch: `experiment/android-native-yandex-gate1-20261109`. Exact native HONOR `ru.yandex.music 2026.10.3 #170gpr` 5 split APKs from APKPure are signed by the SAME verified Yandex publisher certificate as official #170rur; no APK retained/installed. [Proof](https://github.com/manufact-test/nomusic/actions/runs/42606555769).
+
+**Major new proof, not fake concept:** genuine native interfaces `FileInfoApi.a → resources/v2/file-info`, `OldFileInfoApi.a → get-file-info`, `DownloadInfoApi.b → tracks/{trackId}/download-info` verified on #170gpr; [routes](https://github.com/manufact-test/nomusic/actions/runs/42609347093). Bytecode [callgraph](https://github.com/manufact-test/nomusic/actions/runs/42609598200): `Lhee.a` invokes both new/old FileInfo APIs, awaits Retrofit then converts `FileInfoDto` / `OldGetFileInfoDto` into internal `Leed`. [Model](https://github.com/manufact-test/nomusic/actions/runs/42609925869): `FileInfoDto` has `urls`, `codec`, `bitrate`, `key`, `quality`, `gain` and `r128`. This is a **real, technically relevant single-native-decoder source-selection candidate**, but dynamic `MediaSource.prepare` handoff is NOT proven. The earlier `PlayAudioApi` route is **`plays`**, probably recording listening events, therefore NOT a hook.
+
+**Absolute blocker for installable test:** a normal standalone CELIKOM can't inject source changes into the unchanged official Android Yandex app; rootless LSPatch-style modified native host requires re-signing, cannot update same-package store-signed original in place. Side-by-side clone or uninstall changes onboarding and needs OWNER APPROVAL before coding/installing; Play Protect ON compatibility untested. Owner original Yandex, Test.50, stable, backend, catalogue untouched. No test APK built, no WebView, no separate music clock, no password or OAuth capture. Next research: read-only in-process exact ID/edition/source-before-prepare evidence in disposable host; only then approve modified host install path and pursue real test. Do not ask owner to delete anything.
+
+---
+
 # 2026-11-09 · EXACT HONOR #170gpr PUBLISHER VERIFIED — NEWEST GATE1 STATUS
 
 **First read:** [ANDROID-NATIVE-GPR-VERIFIED-2026-11-09.md](ANDROID-NATIVE-GPR-VERIFIED-2026-11-09.md). This is the current audited native-APK handoff, superseding older assertions that `#170gpr` is unavailable.
