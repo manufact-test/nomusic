@@ -5,6 +5,7 @@ on:
       - experiment/android-native-yandex-gate1-20261109
     paths:
       - '.github/workflows/android-native-rustore-static.yml'
+      - 'tools/android-native-gate1/audit_rustore_host_once.py'
   workflow_dispatch:
 permissions:
   contents: read
