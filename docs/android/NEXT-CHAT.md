@@ -62,3 +62,7 @@
 ## НОВОЕ: подтверждён собственный ROOTLESS libxposed hook на реальном HONOR — PASS
 
 Скриншот владельца `Screenshot_20261109_184208.jpg`: `Native host: STARTED`, `Module hook armed: YES`, `onCreate intercepted: YES` в отдельном CELIKOM ARMv7 Hook Witness. Значит, libxposed реально выполнился в своём ARMv7 приложении на HONOR 50 Android 13; проблема x86 loader не применима к этому ARM own-host. **НЕ означает работы в нативном Яндексе или аудиоподмены!** Следующий блокер — безопасная отдельная native-Yandex интеграция без удаления официального ru.yandex.music и без Play Protect bypass. Подробности в `docs/android/ANDROID-NATIVE-ARMV7-OWNER-WITNESS-2026-11-09.md`.
+
+## Быстрые гипотезы неизменённого Яндекса — завершённый sprint
+
+Проверка [CI 42649327835](https://github.com/manufact-test/nomusic/actions/runs/42649327835) SUCCESS: read-only IPC аудит точной подписанной #170gpr. Видны MediaBrowserService (2), VIEW (9), MEDIA_PLAY_FROM_SEARCH (1), 3 exported provider из 11; **не найден подтверждённый внешний API подмены native FileInfo/MediaSource**. Android MediaSession/VPN/Accessibility/AudioPlaybackCapture не обеспечивают прозрачную замену источника внутри чужого декодера. Конкурент ChromaSync-Mobile без root тоже использует подготовленный патчером native Яндекс. Решено не затягивать гипотезы и продолжать по LSPatch in-process для **разрешённого тестового нативного клиента**, сохраняя официальный Яндекс на HONOR нетронутым. Документ: `docs/android/ANDROID-NATIVE-UNMODIFIED-APP-QUICK-HYPOTHESES-2026-11-09.md`. Это ещё не рабочая аудиоподмена.
