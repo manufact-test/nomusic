@@ -40,6 +40,7 @@ def run():
         component_references = []
         app_classes = []
         application_manifest_records = []
+        public_launcher_activities = []
         dex_counts = {}
         all_defined = set()
         component_name_shapes = {"relative_dot": [], "unqualified": [],
@@ -64,6 +65,18 @@ def run():
             for el in xml.iter():
                 tag = el.tag
                 name = el.attrib.get(ANDROID+"name", "")
+                if tag in ("activity", "activity-alias"):
+                    for filt in el.findall("intent-filter"):
+                        has_main = any(act.attrib.get(ANDROID+"name") == "android.intent.action.MAIN"
+                                       for act in filt.findall("action"))
+                        has_launcher = any(cat.attrib.get(ANDROID+"name") == "android.intent.category.LAUNCHER"
+                                           for cat in filt.findall("category"))
+                        if has_main and has_launcher:
+                            public_launcher_activities.append({
+                                "split": split,
+                                "public_activity_class": name,
+                                "exported": el.attrib.get(ANDROID+"exported","")
+                            })
                 if tag in component_tags:
                     shape = ("empty_name" if not name else
                              "relative_dot" if name.startswith(".") else
@@ -101,6 +114,7 @@ def run():
             "source": "2026.10.3 #170gpr",
             "original_five_splits_verified": True,
             "application_manifest_records": application_manifest_records,
+            "public_launcher_activities": public_launcher_activities[:20],
             "ymapplication_class_definition": app_classes,
             "ymapplication_declared_in_original_dex": len(app_classes) > 0,
             "manifest_component_name_shape_counts": {
