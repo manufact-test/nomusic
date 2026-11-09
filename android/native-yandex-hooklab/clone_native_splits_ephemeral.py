@@ -147,7 +147,10 @@ def main():
                     "-o",str(folder),str(apk)],"APKTOOL_DECODE_FAILED",220)
             manifest=folder/"AndroidManifest.xml"
             if not manifest.is_file():raise ValueError("MANIFEST_NOT_DECODED")
-            rewritten,changes=rewrite_manifest(manifest.read_text(encoding="utf-8"))
+            payload=manifest.read_bytes()
+            if not payload.lstrip().startswith(b"<"):
+                raise ValueError("APKTOOL_MANIFEST_UNDECODED_BINARY")
+            rewritten,changes=rewrite_manifest(payload.decode("utf-8"))
             manifest.write_bytes(rewritten)
             for k,v in changes.items():totals[k]+=v
             rebuilt=work/("new-unsigned"+str(i)+".apk")
