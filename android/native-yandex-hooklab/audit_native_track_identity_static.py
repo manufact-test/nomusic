@@ -52,8 +52,12 @@ def annotated_public_identity_params(dex):
     other string literals are deliberately ignored, even when present.
     This is STATIC metadata; it is not an observed playback request.
     """
+    # Explicit public playback/edition metadata labels only; NEVER log
+    # arbitrary annotation values (tokens, headers, keys, device identifiers).
     allowed = {"trackId", "track_id", "track-id", "resourceId",
-               "realId", "albumId", "album_id", "track", "id"}
+               "resource_id", "realId", "albumId", "album_id", "album-id",
+               "playId", "track", "id", "quality", "codec", "codecs",
+               "container", "bitrate", "format", "edition", "version"}
     hits = []
     for class_index in range(dex.class_count):
         base = dex.class_offset + class_index * 32
