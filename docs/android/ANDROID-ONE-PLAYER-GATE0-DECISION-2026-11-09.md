@@ -31,3 +31,11 @@
 - [GitHub Actions artifact (debug APK)](https://github.com/manufact-test/nomusic/actions/runs/42532598788/artifacts/13637703961), artifact ZIP SHA256 per GitHub digest `46bb56b3f389945fbf373e9f42d441a5dd0868244039d28d37bea0714f745bcc` (ZIP digest, **not APK hash**). Retention through 2026-11-15 UTC. This is a *debug signed* standalone laboratory APK despite workflow artifact name saying 'unsigned-for-research'; it is **not a release signature** and cannot replace official Yandex Music.
 - The lab is a single-MediaPlayer Android Activity that lets a tester pick two user-owned audio files via the system picker, simulate catalog+edition IDs, choose a verified cached source before start, pause, seek, and release old playback on Next. Metadata duration comes from `MediaMetadataRetriever` (not a second player).
 - **No Yandex interface integration / no real in-process ID evidence / no Play Protect on-device verdict**. Gate 1 for modified Yandex still blocked. The lab is ready for *optional separate-device* hands-on evaluation; never tell owner to uninstall or alter official Yandex for this.
+
+## Follow-on implementation: host queue coordination
+
+Added `SinglePlayerCoordinator` with an explicit **authorized host API** (`HostPlayer`, `CatalogueResolver`, `Telemetry`): a track from the same host queue triggers replacement eligibility before `prepare`; a generation fence excludes stale play/pause/seek from the prior track; a track switch always stops the old source first. No external Media3 controller or audio-session hijack. Fake-host tests exercise replacement selection, exact-original fallback, host native commands, Next generation increase, stale-event rejection and stop safety.
+
+The real Yandex app has **not** provided these host interfaces. Connecting `SinglePlayerCoordinator` to stock `ru.yandex.music` is still blocked by sandbox, proprietary implementation and lack of compatible, auditable extension source. The standalone Lab Activity remains only a local-files harness.
+
+An APK built by this branch has its **own** package `pro.celikom.oneplayerlab`; signature does not alter Yandex, and a successful GitHub debug build does not imply Play Protect approval. No primary-phone test is requested.
