@@ -24,7 +24,8 @@
    https://yandex.ru/legal/music_mobile_agreement/ru/
    Clauses 4.1–4.3 restrict client modification and commercial redistribution
    without Yandex's written consent, subject to statutory exceptions.
-3. As a result, neither a bundled PulseSync build nor our own unsigned modified
+3. The pinned `@pulsesync/addon-sdk` 0.18.0 package is separately listed on npm as **GPL-3.0-or-later** (https://www.npmjs.com/package/@pulsesync/addon-sdk). The consequences for bundling or distributing the compiled CELIKOM addon require a separate GPL compliance review; this package license does not grant distribution rights to the proprietary host.
+4. As a result, neither a bundled PulseSync build nor our own unsigned modified
    Yandex client is a permitted, ready-to-distribute solution on currently
    verified evidence. A no-modification runtime attach technique would still
    require contractual/legal assessment; no official source-provider API has
