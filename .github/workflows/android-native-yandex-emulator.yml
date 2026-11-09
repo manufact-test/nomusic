@@ -14,10 +14,10 @@ jobs:
   google-play-image-smoke:
     runs-on: ubuntu-latest
     timeout-minutes: 35
-    env:
-      CELIKOM_EMULATOR_TEST_DIR: ${{ runner.temp }}/celikom-native-hook-test-apks
     steps:
       - uses: actions/checkout@v4
+      - name: Scope all proprietary binaries to the current ephemeral runner
+        run: echo "CELIKOM_EMULATOR_TEST_DIR=${RUNNER_TEMP}/celikom-native-hook-test-apks" >> "${GITHUB_ENV}"
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
