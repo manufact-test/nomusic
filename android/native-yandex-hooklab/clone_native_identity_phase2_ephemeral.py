@@ -294,6 +294,27 @@ def run():
                 raise arsc.TrialError("IDENTITY_SPLIT_METADATA_DRIFT")
             with zipfile.ZipFile(apk) as old_zip, zipfile.ZipFile(aligned) as new_zip:
                 if not split:
+                    # Compare only public Android application loader flags from
+                    # the actually compiled signed manifests (not XML source).
+                    def compiled_loader_flags(target, stage):
+                        dump = arsc.run(
+                            [source.sdk_tool("aapt"), "dump", "xmltree",
+                             str(target), "AndroidManifest.xml"],
+                            stage, 70)
+                        allowed = ("android:hasCode(", "android:useEmbeddedDex(",
+                                   "android:extractNativeLibs(",
+                                   "android:isolatedSplits(",
+                                   "android:classLoader(")
+                        return sorted(line.strip()[:180] for line in dump.splitlines()
+                                      if "A: " in line and
+                                      any(tag in line for tag in allowed))
+                    original_flags = compiled_loader_flags(apk, "ORIGINAL_COMPILED_MANIFEST")
+                    clone_flags = compiled_loader_flags(aligned, "CLONE_COMPILED_MANIFEST")
+                    print(json.dumps({
+                        "compiled_application_loader_flags_original": original_flags,
+                        "compiled_application_loader_flags_clone": clone_flags,
+                        "compiled_flags_preserved": original_flags == clone_flags
+                    },sort_keys=True))
                     dex_storage = {}
                     for dex_name in sorted(src_dex):
                         original_entry = old_zip.getinfo(dex_name)
