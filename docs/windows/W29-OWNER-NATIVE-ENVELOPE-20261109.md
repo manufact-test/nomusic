@@ -20,3 +20,12 @@
 - Original Yandex recovery flow untouched. No change to Android, extension, server or production.
 - CI real Yandex uses disposable runner but has no authorized music account; never claim audio fixed without owner hearing a successful CELIKOM substitution and native pause/seek/next.
 - Owner install path: press «Восстановить Яндекс» in old CELIKOM; uninstall old application; install ONE new 0.24.2 EXE from completed artifact; connect CELIKOM in GUI once. Do not manually edit Yandex or disable Defender. Audio still unverified pending test.
+
+## Verified CI after W29 functional commit
+- Functional code SHA: `bceb51b51f8c32da51c0f5cf98ec39679f166173`.
+- [W22 adapter/source CI #42638433704](https://github.com/manufact-test/nomusic/actions/runs/42638433704): SUCCESS.
+- [W23 genuine-Yandex disposable Windows CI #42638433590](https://github.com/manufact-test/nomusic/actions/runs/42638433590): SUCCESS; 43 JS/native source/renderer tests; 66 .NET bridge checks; native host install/restore, owner diagnostic log, and original bytes/signature restoration verified. Report error="".
+- [W20 one-installer CI #42638433588](https://github.com/manufact-test/nomusic/actions/runs/42638433588): SUCCESS, including real Windows installation/uninstallation smoke.
+- [Companion Preview CI #42638433646](https://github.com/manufact-test/nomusic/actions/runs/42638433646): SUCCESS.
+- Owner-downloadable **single internal installer ZIP**: [CELIKOM-W29-NATIVE-SAFE-UNSIGNED artifact #13683048267](https://github.com/manufact-test/nomusic/actions/runs/42638433588/artifacts/13683048267), contains one EXE, version 0.24.2; archive download from GitHub Actions.
+- Genuine owner-account audio=NOT_TESTED_NO_ACCOUNT. No claim that actual Yandex track play, pause, seek, Next now work; owner must test. Existing 0.24.1 diagnostic retains its value.
