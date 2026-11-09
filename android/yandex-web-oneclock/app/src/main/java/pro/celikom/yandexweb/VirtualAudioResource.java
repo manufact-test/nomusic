@@ -12,7 +12,7 @@ final class VirtualAudioResource {
   private final CelikomBroker broker;
   private final String nonce;
   VirtualAudioResource(CelikomBroker broker,String nonce){this.broker=broker;this.nonce=nonce;}
-  String virtualUrl(String id){return "https://music.yandex.ru/__celikom_audio/"+nonce+"/"+id+".mp3";}
+  String virtualUrl(String id,String albumId){return "https://music.yandex.ru/__celikom_audio/"+nonce+"/"+id+"/"+albumId+".mp3";}
   WebResourceResponse intercept(WebResourceRequest req){
     Uri url=req.getUrl();
     if(!"https".equals(url.getScheme())||!"music.yandex.ru".equals(url.getHost()))return null;
@@ -25,9 +25,11 @@ final class VirtualAudioResource {
     String expected=prefix+nonce+"/";
     if(!path.startsWith(expected))return denied(404,"Not Found",Collections.emptyMap());
     String tail=path.substring(expected.length());
-    if(!tail.matches("[1-9][0-9]{0,23}\\.mp3"))return denied(404,"Not Found",Collections.emptyMap());
-    String id=tail.substring(0,tail.length()-4);
-    CelikomBroker.Asset asset=broker.asset(id);
+    if(!tail.matches("[1-9][0-9]{0,23}/[1-9][0-9]{0,23}\\.mp3"))
+        return denied(404,"Not Found",Collections.emptyMap());
+    String id=tail.substring(0,tail.indexOf('/'));
+    String albumId=tail.substring(tail.indexOf('/')+1,tail.length()-4);
+    CelikomBroker.Asset asset=broker.asset(id,albumId);
     if(asset==null||!asset.file.isFile())return denied(404,"Not Found",Collections.emptyMap());
     long total=asset.file.length();
     RangePolicy.Selection range;
