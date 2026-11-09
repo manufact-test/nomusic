@@ -22,3 +22,11 @@ Workflow: .github/workflows/android-native-clone-structure-ephemeral.yml
 
 Need exact real CI outcome and subsequent trusted runtime test before
 claiming any installable CELIKOM-enabled native client exists.
+
+## Actual isolated CI outcome (2026-11-09)
+
+- [CI 42661704048](https://github.com/manufact-test/nomusic/actions/runs/42661704048): exact signed original 5 splits, correct publisher; Apktool `--force-manifest` argument unsupported for this invocation.
+- [CI 42662712027](https://github.com/manufact-test/nomusic/actions/runs/42662712027): no-resources decode leaves binary AndroidManifest.xml; app ID cannot be safely edited.
+- [CI 42662932538](https://github.com/manufact-test/nomusic/actions/runs/42662932538): full resource decode / manifestation begins, but rebuild fails with `APKTOOL_REBUILD_FAILED_ANDROID_FRAMEWORK_MISSING`.
+- **NO-GO** for this cloning toolchain as-is. No APK built for user, no original app modified, no Play Protect evaluation, no runtime auth, no audio playback. Do not repeat those same CI passes. Research accurate 5-split resource rebuild / identity collisions or use an isolated authorized physical native test host.
+- Source guard regression suite remains green, but not integrated in Yandex's active decoder.

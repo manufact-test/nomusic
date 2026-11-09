@@ -30,3 +30,7 @@ On 2026-11-09 the owner listened to the independent CELIKOM ARMv7 Audio Smoke Te
 ## No changes
 
 Official installed Yandex, downloaded music/account, stable Android, accepted Test.50 backup, extension, Windows, production API and database remain untouched.
+
+## Parallel install feasibility result: BLOCKED, not a music regression
+
+The first ephemeral native client clone experiment confirmed source APK signatures and all 5 splits but failed resource reassembly under Apktool 2.12.1; [CI 42662932538](https://github.com/manufact-test/nomusic/actions/runs/42662932538). This is a separate packaging/Android resource framework block. Neither successful owner synthetic audio tests nor 10,031 model assertions prove patched Yandex Play Protect acceptance or source swap. Do not distribute any third-party clone binaries, delete official Yandex, disable Play Protect, or imply the native product is ready.
