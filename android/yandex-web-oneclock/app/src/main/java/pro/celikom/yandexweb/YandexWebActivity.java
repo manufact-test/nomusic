@@ -207,7 +207,17 @@ public final class YandexWebActivity extends Activity {
                 long duration=j.optLong("durationMs",0);
                 broker.prefetch(id,albumId,duration);
             }else if("selected".equals(kind)){
-                status.setText("CELIKOM: версия выбрана перед воспроизведением");
+                status.setText("CELIKOM: альтернативный источник выбран");
+            }else if("playback".equals(kind)){
+                String phase=j.optString("phase","");
+                if("alternate-playing".equals(phase))
+                    status.setText("CELIKOM: альтернативный источник играет в плеере Яндекса");
+                else if("host-overwrote-source".equals(phase))
+                    status.setText("Яндекс сменил источник: подмена не подтверждена");
+                else if("alternate-error".equals(phase))
+                    status.setText("Не удалось воспроизвести альтернативный источник");
+            }else if("injected".equals(kind)){
+                status.setText("CELIKOM: веб-модуль подключён");
             }
         }catch(Exception ignored){}
     }
