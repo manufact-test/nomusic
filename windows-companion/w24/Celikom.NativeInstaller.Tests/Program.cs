@@ -65,7 +65,7 @@ Check(Hash(changed.Executable)==changed.NewExeSha256,"patched EXE hash consisten
 Check(Hash(changed.Asar)==changed.NewAsarSha256,"patched ASAR hash consistent");
 Check(!changed.Executable.SequenceEqual(exe),"EXE patch applied");
 Check(!changed.Asar.SequenceEqual(asar),"ASAR patch applied");
-Check(!changed.Executable.AsSpan().Contains(Encoding.ASCII.GetBytes(headerHash)),"old embedded hash removed");
+Check(changed.Executable.AsSpan().IndexOf(Encoding.ASCII.GetBytes(headerHash)) < 0,"old embedded hash removed");
 Check(changed.Asar.Length>asar.Length+host.Length+renderer.Length,"new content embedded");
 
 Reject(()=>NativeAsarImageBuilder.Build(exe,asar,host,renderer,new string('0',64),originalAsarHash),
