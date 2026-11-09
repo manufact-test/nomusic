@@ -33,6 +33,20 @@ public sealed class BridgeServer : IAsyncDisposable
         origin is not null && NativeYandexOrigins.Contains(origin);
     public static bool ValidNativeProtocolOrigin(string? origin) =>
         origin is "null" or "musicapplication://desktop";
+    private static void TraceNative(HttpContext context)
+    {
+        if (!ValidNativeProtocolOrigin(context.Request.Headers.Origin.ToString())) return;
+        if (!IsNativeProtocolRequest(context)) return;
+        var target = Environment.GetEnvironmentVariable("CELIKOM_W23_DEV_BRIDGE_DIAG");
+        if (string.IsNullOrWhiteSpace(target)) return;
+        var code = context.Request.Method == "OPTIONS" ? "NATIVE_PREFLIGHT" :
+            context.Request.Path == "/v1/state" ? "NATIVE_STATE_REQUEST" :
+            context.Request.Path == "/v1/heartbeat" ? "NATIVE_HEARTBEAT_REQUEST" : "";
+        if (code.Length == 0) return;
+        try { File.AppendAllText(target, code + Environment.NewLine); }
+        catch (IOException) { }
+        catch (UnauthorizedAccessException) { }
+    }
     private static bool IsNativeProtocolRequest(HttpContext context)
     {
         var origin = context.Request.Headers.Origin.ToString();
@@ -154,6 +168,7 @@ public sealed class BridgeServer : IAsyncDisposable
             context.Response.Headers.AccessControlAllowMethods = "GET, POST, OPTIONS";
             context.Response.Headers.CacheControl = "no-store";
             context.Response.Headers["X-Content-Type-Options"] = "nosniff";
+            TraceNative(context);
             if (context.Request.Method == "OPTIONS")
             {
                 context.Response.StatusCode = StatusCodes.Status204NoContent;
