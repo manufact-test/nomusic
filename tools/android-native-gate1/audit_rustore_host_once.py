@@ -126,7 +126,7 @@ def signer_digest(apk, apksigner):
     p = subprocess.run([apksigner, "verify", "--verbose", "--print-certs", str(apk)],
                        text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=50)
     if p.returncode: raise ValueError("APK signature verification FAILED")
-    hits = re.findall(r"(?:V\d+(?:\.\d+)? Signer|Signer #\d+) certificate SHA-256 digest:\s*([a-fA-F0-9:]+)", p.stdout)
+    hits = re.findall(r"(?:V\d+(?:\.\d+)? Signer:|Signer #\d+) certificate SHA-256 digest:\s*([a-fA-F0-9:]+)", p.stdout)
     signers = {h.replace(":", "").lower() for h in hits}
     if signers != {RUSTORE_SHA256_CERT}:
         print("SIGNER_DEBUG: cert_sha256=" + json.dumps(sorted(signers)), file=sys.stderr)
