@@ -28,7 +28,19 @@ ET.register_namespace("android",ANDROID)
 
 def action(cmd,reason,timeout=240):
     p=subprocess.run(cmd,capture_output=True,text=True,timeout=timeout)
-    if p.returncode:raise ValueError(reason)
+    if p.returncode:
+        if reason in ("APKTOOL_DECODE_FAILED", "APKTOOL_REBUILD_FAILED"):
+            lines=(p.stderr+"\n"+p.stdout).lower()
+            clue=("BAD_OPTION" if "unknown option" in lines or "unrecognized option" in lines else
+                  "ANDROID_FRAMEWORK_MISSING" if "framework" in lines and "not found" in lines else
+                  "MANIFEST_PARSE_FAILURE" if "manifest" in lines and ("error" in lines or "exception" in lines) else
+                  "RESOURCE_DECODE_FAILURE" if "resource" in lines and ("error" in lines or "exception" in lines) else
+                  "ZIP_ARCHIVE_FAILURE" if "zip" in lines and ("error" in lines or "exception" in lines) else
+                  "JAVA_RUNTIME_FAILURE" if "classnotfound" in lines or "unsupportedclassversion" in lines else
+                  "UNCLASSIFIED")
+            # Only a category; no third-party contents, paths, or user data.
+            raise ValueError(reason+"_"+clue)
+        raise ValueError(reason)
     return p.stdout
 
 def fetch_pin(file):
