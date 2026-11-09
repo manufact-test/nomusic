@@ -34,15 +34,26 @@ public final class NativeHookEntry extends XposedModule {
     @Override
     public void onModuleLoaded(ModuleLoadedParam param) {
         processName = param.getProcessName();
+        if (HookSpec.TARGET_PACKAGE.equals(processName)
+                || (processName != null
+                    && processName.startsWith(HookSpec.TARGET_PACKAGE + ":"))) {
+            Log.i(TAG, "observer: module loaded");
+        }
     }
 
     @Override
     public void onPackageLoaded(PackageLoadedParam param) {
+        if (HookSpec.TARGET_PACKAGE.equals(param.getPackageName())) {
+            Log.i(TAG, "observer: package loaded");
+        }
         maybeInstallAttachHook(param.getPackageName());
     }
 
     @Override
     public void onPackageReady(PackageReadyParam param) {
+        if (HookSpec.TARGET_PACKAGE.equals(param.getPackageName())) {
+            Log.i(TAG, "observer: package ready");
+        }
         maybeInstallAttachHook(param.getPackageName());
     }
 
