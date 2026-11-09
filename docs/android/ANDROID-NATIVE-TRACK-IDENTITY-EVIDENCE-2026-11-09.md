@@ -26,3 +26,17 @@ Next after real Android native-host runtime: read-only counters and typed
 identity shape match in exact #170gpr process; no request/token logging.
 Only then integrate `NativeSourceGate` with exact trackId + edition before
 prepare (single original Yandex player).
+
+## Supplemental signed evidence and test implementation — 09.11.2026
+
+Published-signer verified #170gpr static CI [42609347093](https://github.com/manufact-test/nomusic/actions/runs/42609347093) already showed real Retrofit routes and signatures:
+- `DownloadInfoApi.b(String,Boolean,Boolean,String): Call` → `tracks/{trackId}/download-info`. This proves a typed download-path argument, but NOT that the same ID corresponds to the audible native source.
+- `FileInfoApi.a(String,String,String,String,long,String,Integer,Integer,String): Call` → `resources/v2/file-info`.
+- `OldFileInfoApi.a(String,String,String,String,long,String,Integer,Integer,String,String): Call` → `get-file-info`.
+- `Lhee.a` calls the actual `FileInfoApi.a` in signed DEX [42609598200](https://github.com/manufact-test/nomusic/actions/runs/42609598200); the exact semantic meaning of those string arguments, track+edition pairing, and relation to a playing MediaSource remain NOT OBSERVED.
+
+A new independent read-only static audit `android/native-yandex-hooklab/audit_native_track_identity_static.py` checks method signatures, matching routes, DTO shapes, static identifier labels and Retrofit parameter annotations **only for approved track/album/identity labels**. It deliberately ignores credentials, URLs, cookies, headers, arbitrary string values and files. Never confuse its PASS with native audio or live track-ID detection.
+
+At handoff, first new action run [42673655477](https://github.com/manufact-test/nomusic/actions/runs/42673655477) marked FAILURE but had **zero jobs** according to GitHub REST (`total_count:0`), so there is no source test result and no error trace to attribute to code. Updated audit run [42674235050](https://github.com/manufact-test/nomusic/actions/runs/42674235050) was queued when recorded; do not claim a static PASS unless actual job logs show one. The repository code is saved. No need to re-run the already passed owner AUDIO SMOKE.
+
+**Track ID product contract:** trackId + edition (and playback generation) must be correlated to native source-before-prepare. UI MediaSession display metadata or the download ID alone cannot be trusted as exact source identity; stale events after Next are rejected. Unknown identity => original native Yandex source, not an arbitrary CELIKOM match. A second MediaPlayer is forbidden.
