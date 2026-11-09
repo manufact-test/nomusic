@@ -1,0 +1,34 @@
+name: CELIKOM W30 native audio origin contract (stage only)
+
+on:
+  push:
+    branches:
+      - experiment/windows-companion-integration-20261108
+    paths:
+      - server/src/Application.php
+      - server/tests/smoke.php
+      - .github/workflows/windows-w30-audio-cors.yml
+
+permissions:
+  contents: read
+
+jobs:
+  native-audio-cors:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+      - name: Syntax-check narrow audio-origin fix
+        run: |
+          php -l server/src/Application.php
+          php -l server/tests/smoke.php
+      - name: Audio stream, HEAD, Range, security and native CORS contracts
+        run: php server/tests/smoke.php
+      - name: Confirm no server deployment, original app remains untouched
+        run: echo 'W30_SERVER_STAGED_ONLY_NO_PRODUCTION_MUTATION'
