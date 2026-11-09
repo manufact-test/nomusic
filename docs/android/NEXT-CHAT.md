@@ -34,3 +34,7 @@
 ## Решение владельца: основной Яндекс не удалять
 
 На HONOR допустимо тестирование **только если установленная официальная Яндекс.Музыка остаётся нетронутой**. Параллельная копия с отдельным package ID рассматривается как эксперимент, но пока **не собрана**: docs/android/ANDROID-NATIVE-PARALLEL-CLONE-GATE-2026-11-09.md. Рабочий профиль без изменения package ID не устраняет конфликт подписи. Не устанавливать текущую переподписанную ru.yandex.music на HONOR.
+
+## Взято полезное из Windows W28 (read-only review)
+
+Проверена Windows branch `experiment/windows-companion-integration-20261108` @ `7c1858e6` (W28). Подтверждены работающие renderer hook, source grant bridge, таймауты/защита от запоздавшей подмены и безопасная диагностика. **Настоящий звук в Windows ещё FAIL/не подтверждён**, нельзя копировать синтетический file-info ответ (особенно key/iv/codec) в Android. Выводы и порядок Android: `docs/android/ANDROID-NATIVE-WINDOWS-W28-LESSONS-2026-11-09.md`. Windows-код не изменяли.
