@@ -12,6 +12,7 @@ import hashlib
 import json
 import os
 import re
+import shutil
 import subprocess
 import tempfile
 import urllib.request
@@ -77,13 +78,26 @@ def main():
         if (init!="pro.celikom.yandex.nativehooklab.NativeHookEntry"
                 or scope!=PACKAGE or "minApiVersion=102" not in prop):
             raise ValueError("Module scope/entry/API manifest mismatch")
-    home=Path.home()
-    keystore=home/".android"/"debug.keystore"
-    if not keystore.exists():
-        raise ValueError("Lab Android debug keystore missing")
-    lab_sig=signer(MODULE_PATH)
     with tempfile.TemporaryDirectory(prefix="celikom-offline-patchlab-") as folder:
         root=Path(folder)
+        # One-time throwaway test key: no key enters Git, no device/release update
+        # path is implied. Sign module and patched splits with the SAME lab key.
+        keystore=root/"ephemeral-lab-key.jks"
+        lab_pass="celikom-test-only"
+        lab_alias="celikomlab"
+        run(["keytool","-genkeypair","-keystore",str(keystore),
+             "-storetype","JKS","-storepass",lab_pass,"-keypass",lab_pass,
+             "-alias",lab_alias,"-keyalg","RSA","-keysize","2048",
+             "-validity","30","-dname","CN=CELIKOM Disposable Test Only, O=CELIKOM, C=XX"],timeout=70)
+        module=root/"celikom-observer-module.apk"
+        shutil.copyfile(MODULE_PATH,module)
+        run([sdk_tool("apksigner"),"sign","--ks",str(keystore),
+             "--ks-pass","pass:"+lab_pass,"--ks-key-alias",lab_alias,
+             "--key-pass","pass:"+lab_pass,"--min-sdk-version","28",
+             "--v4-signing-enabled","false",str(module)],timeout=80)
+        lab_sig=signer(module)
+        if lab_sig==RUSTORE_SHA256_CERT:
+            raise ValueError("Unexpected signing identity collision")
         incoming=root/"exact-owner-build.xapk"
         nbytes,host_sha=gpr.download(incoming)
         originals=gpr.split_apks(incoming,root)
@@ -120,8 +134,8 @@ def main():
         stage.mkdir()
         # Level 0: explicitly DISABLE LSPatch's signature impersonation/spoofing.
         # Signature mismatch may prevent Yandex login. Stop instead of bypassing.
-        run(["java","-jar",str(jar),"-k",str(keystore),"android","androiddebugkey","android",
-             "-m",str(MODULE_PATH),"-o",str(stage),"-l","0",*map(str,ordered)],timeout=500)
+        run(["java","-jar",str(jar),"-k",str(keystore),lab_pass,lab_alias,lab_pass,
+             "-m",str(module),"-o",str(stage),"-l","0",*map(str,ordered)],timeout=500)
         patched=sorted(stage.glob("*.apk"))
         if len(patched)!=len(originals):
             raise ValueError("Patched split count differs from original")
@@ -140,7 +154,7 @@ def main():
             if len(embed)!=1:
                 raise ValueError("Missing or multiple embedded CELIKOM modules")
             content=z.read(embed[0])
-            if hashlib.sha256(content).hexdigest()!=sha(MODULE_PATH):
+            if hashlib.sha256(content).hexdigest()!=sha(module):
                 raise ValueError("Embedded CELIKOM module does not match signed module")
             raw=z.read("assets/lspatch/config.json")
             cfg=json.loads(raw.decode("utf-8"))
@@ -160,7 +174,7 @@ def main():
             "signature_spoof_level":0,
             "splits":len(patched),
             "embedded_module":"CELIKOM read-only FileInfoDto observer",
-            "module_sha256":sha(MODULE_PATH),
+            "module_sha256":sha(module),
             "lab_signer_sha256":lab_sig,
             "host_modified_in_ci_only":True,
             "host_installed":False,
