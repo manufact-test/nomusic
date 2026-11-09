@@ -32,7 +32,7 @@ function validView(view){
     if (view.isDestroyed()) return false;
     const url=new URL(view.getURL());
     const scheme=(url.protocol||"unknown").replace(/[^a-z]/gi,"").toUpperCase();
-    note("ORIGIN_SCHEME_"+scheme.slice(0,15));
+    note("ORIGIN_SCHEME_"+scheme.slice(0,28));
     const hostname=url.hostname.toUpperCase().replace(/[^A-Z0-9]/g,"_").slice(0,35);
     if (hostname) note("ORIGIN_HOST_"+hostname);
     if (approvedOrigins.has(url.origin) ||
