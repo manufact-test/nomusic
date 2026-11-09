@@ -6,7 +6,7 @@ import { EventEmitter } from "node:events";
 
 const source = fs.readFileSync(new URL("./host.cjs", import.meta.url), "utf8");
 
-async function runHost(url, { queue = [], token = "a".repeat(64) } = {}) {
+async function runHost(url, { queue = [], token = "b".repeat(64) } = {}) {
   const diagnostics = [], evaluated = [], network = [];
   let drained = false;
   const view = {
@@ -92,7 +92,7 @@ test("trusted native Yandex scheme connects via Electron main process",async()=>
     assert.ok(diagnostics.includes("RENDERER_STATE_DELIVERED"),url);
     assert.ok(network.some(r=>r.path==="/v1/state"),url);
     assert.ok(network.every(r=>r.host==="127.0.0.1" && r.port===21471),url);
-    assert.ok(evaluated.every(js=>!js.includes("a".repeat(64))),"token never leaked to renderer");
+    assert.ok(evaluated.every(js=>!js.includes("b".repeat(64))),"token never leaked to renderer");
   }
 });
 test("unrelated or spoofed desktop renderer never gets native bridge",async()=>{
@@ -113,7 +113,7 @@ test("approved exact-ID grant is relayed, not CELIKOM login tokens",async()=>{
   assert.ok(network.some(r=>r.path==="/v1/resolve?track_id=123"));
   assert.ok(diagnostics.includes("LOCAL_RESOLVE_REPLY"));
   assert.ok(evaluated.some(s=>s.includes("__celikomBridgeNativeReceive")));
-  assert.ok(evaluated.every(s=>!s.includes("a".repeat(64))),"bridge capability never injected");
+  assert.ok(evaluated.every(s=>!s.includes("b".repeat(64))),"bridge capability never injected");
 });
 test("foreign track ID cannot trigger a localhost resolve request",async()=>{
   const {network}=await runHost("musicapplication://desktop/",{
