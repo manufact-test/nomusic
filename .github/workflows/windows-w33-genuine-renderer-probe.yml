@@ -1,4 +1,4 @@
-name: CELIKOM W39 native CORS request/response category observation
+name: CELIKOM W40 native CORS Origin-scheme classification
 
 on:
   push:
@@ -87,7 +87,10 @@ jobs:
           if (@($probe | Where-Object { $_ -match '^W33_RT_CDP_REQUEST_ORIGIN_' }).Count -eq 0) {
             throw 'W39_REQUEST_ORIGIN_CATEGORY_MISSING'
           }
-          Write-Output 'W39_NATIVE_ORIGIN_CATEGORIES_CAPTURED'
+          if (@($probe | Where-Object { $_ -match '^W33_RT_CDP_WIRE_REQUEST_ORIGIN_' }).Count -eq 0) {
+            throw 'W40_WIRE_ORIGIN_SCHEME_NOT_OBSERVED'
+          }
+          Write-Output 'W40_NATIVE_WIRE_ORIGIN_SCHEME_OBSERVED'
       - name: Retain only sanitized CI report (never patched Yandex binaries or credentials)
         if: always()
         uses: actions/upload-artifact@v4
