@@ -34,3 +34,22 @@ distribute modified publisher APKs, or call the native product ready.
 Next safe gate: clean isolated ARM emulator install BOTH original and test clone
 and verify process launch with NO authentication. Only after that consider
 read-only FileInfo witness in genuine Yandex client.
+
+
+## Resolved provider uniqueness static gate PASS — 09.11.2026
+
+[CI 42678096410](https://github.com/manufact-test/nomusic/actions/runs/42678096410)
+SUCCESS 5/5 structurally rebuilt split APKs. New
+`resolved_provider_authorities` resolves the pinned resource-backed
+Passport sync authority to its actual original and separate-clone value;
+compares full public ContentProvider identity sets and fails closed if any
+overlap, duplicate or unsupported resource reference remains.
+Result: `resolved_original_vs_clone_provider_collisions: 0`.
+Three new synthetic unit invariants PASS.
+
+No publishing/retention of vendor APKs or keys; no device installation.
+No proof of Login, Play Protect, Android PackageManager coexistence, native
+decoder, Yandex signed package service assumptions or real audio.
+
+Avoid auto-repeating known nonbootable macOS hosted ARM emulator; coexistence
+workflow now explicitly manual-dispatch only for future authorized runners.

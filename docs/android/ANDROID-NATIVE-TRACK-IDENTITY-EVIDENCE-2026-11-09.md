@@ -40,3 +40,19 @@ A new independent read-only static audit `android/native-yandex-hooklab/audit_na
 At handoff, first new action run [42673655477](https://github.com/manufact-test/nomusic/actions/runs/42673655477) marked FAILURE but had **zero jobs** according to GitHub REST (`total_count:0`), so there is no source test result and no error trace to attribute to code. Updated audit run [42674235050](https://github.com/manufact-test/nomusic/actions/runs/42674235050) was queued when recorded; do not claim a static PASS unless actual job logs show one. The repository code is saved. No need to re-run the already passed owner AUDIO SMOKE.
 
 **Track ID product contract:** trackId + edition (and playback generation) must be correlated to native source-before-prepare. UI MediaSession display metadata or the download ID alone cannot be trusted as exact source identity; stale events after Next are rejected. Unknown identity => original native Yandex source, not an arbitrary CELIKOM match. A second MediaPlayer is forbidden.
+
+
+## Signed original client: real FileInfo param0 trackId — PASS
+
+Read-only [CI 42677418284](https://github.com/manufact-test/nomusic/actions/runs/42677418284) and expanded annotations [42677690317](https://github.com/manufact-test/nomusic/actions/runs/42677690317) prove in #170gpr signed five splits:
+modern/legacy FileInfoApi request `@Query("trackId")` in **parameter 0**,
+`@Query("codecs")` in parameter 1 and `@Query("quality")` in parameter 3.
+DownloadInfoApi `tracks/{trackId}/download-info` param0 also trackId.
+Version-locked scanner assert requires param0 evidence on both APIs;
+[CI 42677831933](https://github.com/manufact-test/nomusic/actions/runs/42677831933) SUCCESS.
+
+**Crucial distinction:** Static Retrofit annotation proves API request's declared
+track ID parameter, NOT that a running native Yandex decoder has consumed it
+or that a safe CELIKOM bridge can read it. Edition metadata still unknown.
+`NativeTrackIdentityGate.java` (10,015 locally verified JVM assertions,
+CI 42677264985) is only an unconnected *fail-closed model*.

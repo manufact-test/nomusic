@@ -99,3 +99,23 @@ Software-emulation original-Yandex ARM host retry [42672246229](https://github.c
 ## Последняя проверка GitHub Actions по trackId
 
 Вторая попытка static track identity scanner [42674235050](https://github.com/manufact-test/nomusic/actions/runs/42674235050) тоже завершилась `failure` без единого GitHub job (`jobs: []`). Следовательно, **нет результатов исполнения scanner**, и причину workflow-level отказа из доступных логов не установить. НЕ утверждать ни синтаксическую, ни DEX-проверочную успешность нового scanner до настоящего job PASS. Предыдущие signed-DEX static proofs 42609347093/42609598200 и standalone 5/5 structural PASS 42670648029 остаются без изменения.
+
+
+## Новый подтверждённый результат — trackId в REAL FileInfo API (09.11.2026)
+
+**Ключевой статический прорыв:** [CI 42677418284](https://github.com/manufact-test/nomusic/actions/runs/42677418284) SUCCESS и расширенный metadata [CI 42677690317](https://github.com/manufact-test/nomusic/actions/runs/42677690317) SUCCESS, оригинал Яндекс.Музыки 2026.10.3 #170gpr code 24026531, 5 publisher-signed splits / 6 DEX:
+- `FileInfoApi.a` (route `resources/v2/file-info`): exact Retrofit parameter 0 has label **`trackId`**, param 1 **`codecs`**, param 3 **`quality`**.
+- `OldFileInfoApi.a` (`get-file-info`): same **trackId @ index 0, codecs @ 1, quality @ 3**.
+- `DownloadInfoApi.b` route `tracks/{trackId}/download-info`, param 0 `trackId`.
+- Scanner now **FAILS CLOSED** if either modern or legacy `trackId` at parameter index 0 disappears, [CI 42677831933](https://github.com/manufact-test/nomusic/actions/runs/42677831933) SUCCESS.
+- `Ldjv.a():String` appears immediately upstream of `DownloadInfoApi.a`, and `Ldjv` is also an input to `Lhee.a` which invokes real file-info; this is a promising, **still non-authoritative** correlation candidate.
+
+So it IS technically plausible to capture the exact Yandex track ID from its OWN native file-info request without a second player. But **no runtime access to the ID**, edition identity, source descriptor→native decoder linkage, normal clone login, Play Protect, real audio/Seek/Next has yet been demonstrated. Do NOT advertise ID capture as already operational.
+
+New pure-Java `NativeTrackIdentityGate` enforces exact trackId + edition + playback generation, matching file-info request and pre-prepare descriptor, no post-prepare swap, stale Next/replay rejection and fail-original mismatch. JVM locally **10,015 assertions PASS** and existing hooklab [CI 42677264985](https://github.com/manufact-test/nomusic/actions/runs/42677264985) both jobs SUCCESS. MODEL only; NO native audio.
+
+**Side-by-side packaging:** [CI 42678096410](https://github.com/manufact-test/nomusic/actions/runs/42678096410) SUCCESS: five split APK rebuilt and validated, **zero resolved ContentProvider authority collisions** between original publisher app and separate clone, including resource-backed Passport sync. Signed APKs/key erased in ephemeral CI, no user install or distribution. This closes only a *static provider identity* sub-gate; cannot guarantee Passport login, process runtime or Android installer.
+
+**Real runtime gate remains BLOCKED:** GitHub hosted macOS ARM QEMU HVF_UNSUPPORTED even software -accel off; do not auto-repeat. ARM clone coexistence workflow changed to manual dispatch only pending different proven runner. No installable owner-safe native CELIKOM+Yandex product, audio replacement, decoder runtime proof or Play Protect verdict. Original HONOR, Test.50, Windows, extension, server, database, production untouched.
+
+Next technical gate: isolated **genuine native Yandex runtime** on an ARM-capable authorized disposable environment to observe FileInfo request param0 matches actual playing track ID and descriptor **before decoder prepare**. Then rights-approved single-source swap and owner tests RASKOL/«Дым», first-join click and playlist/radio/Next. Never revert to two-player architecture or disable security.
