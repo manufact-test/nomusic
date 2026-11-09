@@ -1,0 +1,27 @@
+name: Android pinned original DEX string-ID ordering A/B (READ-ONLY)
+on:
+  push:
+    branches:
+      - experiment/android-native-yandex-fileinfo-hooklab-20261109
+    paths:
+      - 'android/native-yandex-hooklab/audit_native_dex_string_order.py'
+      - '.github/workflows/android-native-dex-string-order.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  signed-original-dex-string-order:
+    runs-on: ubuntu-latest
+    timeout-minutes: 14
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile analyzer source only
+        run: python3 -m py_compile android/native-yandex-hooklab/audit_native_dex_string_order.py
+      - name: Verify one fixed-length AppMetrica DEX literal patch maintains string-id sorted order
+        run: python3 android/native-yandex-hooklab/audit_native_dex_string_order.py
+      - name: No original or clone vendor APK artifacts
+        if: always()
+        run: |
+          test ! -d android/native-yandex-hooklab/release
+          test ! -d android/native-yandex-hooklab/patched
+          echo 'Only boolean signed-DEX slot audit metadata, no APK distributed'
