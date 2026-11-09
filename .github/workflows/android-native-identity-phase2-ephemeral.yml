@@ -21,6 +21,8 @@ jobs:
           java-version: '21'
       - name: Validate source only (no vendor APKs)
         run: python3 -m py_compile android/native-yandex-hooklab/clone_native_identity_phase2_ephemeral.py
+      - name: Synthetic provider authority resolution invariants
+        run: python3 -m unittest discover -s android/native-yandex-hooklab/tests -p 'test_resolved_provider_authorities.py' -v
       - name: Five-split exact scoped public provider identity trial
         run: python3 android/native-yandex-hooklab/clone_native_identity_phase2_ephemeral.py
       - name: No source APK published, installed, retained or uploaded

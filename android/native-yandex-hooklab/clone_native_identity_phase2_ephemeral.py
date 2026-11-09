@@ -78,6 +78,31 @@ def replace_sync_resource(decoded):
     return matches
 
 
+def resolved_provider_authorities(manifest_bytes, sync_value):
+    """Compare actual public provider identities, resolving the one pinned sync resource.
+
+    This catches literal and resource-backed collisions before attempting an
+    install next to the publisher-signed original. No device or private state.
+    Unknown resource references fail closed rather than guess.
+    """
+    root = source.ET.fromstring(manifest_bytes)
+    names = set()
+    for provider in root.iter("provider"):
+        value = provider.attrib.get(ANDROID + "authorities", "")
+        for part in value.split(";"):
+            name = part.strip()
+            if not name:
+                continue
+            if name == "@string/" + SYNC_KEY:
+                name = sync_value
+            elif name.startswith("@"):
+                raise arsc.TrialError("UNRESOLVED_PROVIDER_AUTHORITY_RESOURCE")
+            if name in names:
+                raise arsc.TrialError("DUPLICATE_PROVIDER_AUTHORITY")
+            names.add(name)
+    return names
+
+
 def run():
     if os.getenv("GITHUB_ACTIONS") != "true":
         raise arsc.TrialError("CI_ONLY")
@@ -116,8 +141,15 @@ def run():
                       "-dex", "-i", str(apk), "-o", str(decoded)],
                      "IDENTITY_DECODE_SPLIT_" + str(i), 240)
             manifest = decoded / "AndroidManifest.xml"
-            initial, _ = source.rewrite_manifest(manifest.read_bytes().decode("utf-8"))
+            publisher_manifest = manifest.read_bytes()
+            initial, _ = source.rewrite_manifest(publisher_manifest.decode("utf-8"))
             next_manifest, rewritten = rewrite_passport_and_metrica(initial)
+            publisher_auths = resolved_provider_authorities(publisher_manifest, OLD_SYNC)
+            clone_auths = resolved_provider_authorities(next_manifest, NEW_SYNC)
+            if publisher_auths & clone_auths:
+                raise arsc.TrialError("SIDE_BY_SIDE_PROVIDER_AUTHORITY_COLLISION")
+            if len(publisher_auths) != len(clone_auths):
+                raise arsc.TrialError("PROVIDER_AUTHORITY_COUNT_DRIFT")
             manifest.write_bytes(next_manifest)
             total_passport_provider_rewrites += rewritten
             resource_changes = replace_sync_resource(decoded)
@@ -234,6 +266,7 @@ def run():
             "manifest_passport_metrica_provider_rewrites": total_passport_provider_rewrites,
             "passport_sync_resource_rewrites": total_resource_rewrites,
             "single_reversible_appmetrica_dex_literal_rewrite": True,
+            "resolved_original_vs_clone_provider_collisions": 0,
             "published_vendor_apks": False,
             "installed_on_owner_phone": False,
             "app_auth_or_login_tested": False,
