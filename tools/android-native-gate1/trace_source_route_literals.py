@@ -24,6 +24,11 @@ def safe_route(value:str)->bool:
     # Bare CamelCase method/class names are not HTTP route literals.
     if "/" not in value and "-" not in value and "_" not in value and any(c.isupper() for c in value):
         return False
+    # Require endpoint-like path, not generic MIME types or preference keys.
+    if "/" not in value and value not in ("download-info","get-file-info","file-info"):
+        return False
+    if value.lower().startswith(("audio/","application/","android.","android/")):
+        return False
     if not any(word in value.lower() for word in TOKENS):
         return False
     if value.lower() in ("plays","audio","source","stream","track","playback"):
@@ -34,14 +39,18 @@ def safe_route(value:str)->bool:
 
 def source_route_scan(data:bytes)->dict:
     dex=Dex(data)
-    candidates={}
-    matches=0
+    ranked=[]
     for i in range(dex.string_count):
         val=dex.string(i)
         if safe_route(val):
-            matches+=1
-            if len(candidates)<MAX_MATCHES:
-                candidates[i]=val
+            v=val.lower()
+            score= sum(10 for token in ("file-info","download-info","/track/get","/bundle/track/init","stream")
+                       if token in v)
+            score+=sum(2 for token in ("source","track","playable") if token in v)
+            ranked.append((-score,i,val))
+    ranked.sort()
+    matches=len(ranked)
+    candidates={i:val for _,i,val in ranked[:MAX_MATCHES]}
     usages=[]
     visited=0
     errors=[]
