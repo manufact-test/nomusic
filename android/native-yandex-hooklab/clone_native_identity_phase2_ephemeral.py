@@ -311,7 +311,7 @@ def run():
                 # Only check an explicit positive grant: if a different-signer
                 # clone somehow receives credential permission, fail immediately.
                 if __import__("re").search(
-                    r"com\\.yandex\\.permission\\.READ_CREDENTIALS\\s*:\\s*granted=true",
+                    r"com\.yandex\.permission\.READ_CREDENTIALS\s*:\s*granted=true",
                     package_dump):
                     raise arsc.TrialError("CLONE_RECEIVED_UNAUTHORIZED_CREDENTIAL_PERMISSION")
             print(json.dumps({"emulator_install_gate": "SIDE_BY_SIDE_5_AND_5_PASS",
