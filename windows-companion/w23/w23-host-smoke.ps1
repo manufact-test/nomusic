@@ -88,7 +88,7 @@ try {
   # CI-only: append fixed invalid-token fetch probe to disposable host, NOT owner installer.
   if ($env:CELIKOM_W33_RUNTIME_PROBE -eq '1') {
     $probe = Get-Content 'windows-companion/w23/w33-runtime-probe.cjs' -Raw -Encoding UTF8
-    Add-Content 'windows-companion/w23/dist/host.cjs' -Value ("\n" + $probe) -Encoding UTF8
+    Add-Content 'windows-companion/w23/dist/host.cjs' -Value ([Environment]::NewLine + $probe) -Encoding UTF8
     Write-Output 'W33_DISPOSABLE_RENDERER_PROBE_ATTACHED'
   }
   $out = Join-Path $root 'staged'
