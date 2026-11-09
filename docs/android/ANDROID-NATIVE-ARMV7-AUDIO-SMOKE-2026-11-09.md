@@ -26,3 +26,25 @@ Never distribute patched Yandex APKs.
 - **Runtime status: NOT TESTED ON HONOR**. Neither Play Protect result nor actual sound, pause, seek, Next, fallback or live Xposed pre-prepare selection have been confirmed. Full audio sound test required manually.
 - Owner check: install alongside original official Yandex and previous OWN lab apps, never uninstall or update official ru.yandex.music. Open CELIKOM Audio Smoke Test, test Start A (660Hz if source hook), Pause/Resume, Seek +3s, Next B (330Hz), Fallback A (440Hz). Report screenshot with hook armed/source changed/Prepare/Pause/SeekComplete/Next/Errors counters. If Play Protect blocks, stop and report without bypass.
 - A green own MediaPlayer test is NOT proof of compatibility with the native Yandex ExoPlayer/eed decoder; do not treat it as audio replacement on the actual Yandex app.
+
+## Owner device screenshot — runtime counters PASS (2026-11-09 19:33 device time)
+
+Owner submitted `Screenshot_20261109_193331.jpg` from HONOR 50. Visible results:
+```
+Module hook ARMED: YES
+Source changed BEFORE PREPARE: YES
+Track: A
+Source: ORIGINAL A 440Hz
+Prepared: NOT YET
+Playing: NO
+Fallback: YES
+Prepare=3  Pause=1  Resume=1
+SeekComplete=1  Next=1  Errors=0
+Last: STOPPED
+```
+
+**Proven on actual phone:** owned libxposed module loaded and intercepted a source-selection result before MediaPlayer.prepareAsync; asynchronous prepare callback was counted 3 times, Pause/Resume, Seek completion, Next and manual original-source Fallback have nonzero counters, 0 registered errors. The photo shows final STOPPED state; `Prepared: NOT YET` and `Playing: NO` are expected once the player has been released. `Fallback: YES` corresponds to the owner's manual Fallback button, **not proof of an automatic decoder-error recovery**. No verbal confirmation of audible tone quality, gaps or clicks yet.
+
+**Limits:** This is a CELIKOM-owned synthetic `MediaPlayer` test, not Yandex's private player or decoder; it cannot prove compatibility with Yandex FileInfoDto/eed, timing, DRM, radio/playlist race conditions, Play Protect distribution decisions, or sound without artifacts. User's installed `ru.yandex.music` and its offline downloads remain untouched.
+
+**Next:** stop repeating own-source laboratory stages. The next implementation gate must use a lawful, safe, separated *native Yandex* test environment / version with single original player and version-pinned read-only FileInfoDto hook before making any audio mutation. Never ask to uninstall the owner's official Yandex. No current native-Yandex audio PASS.
