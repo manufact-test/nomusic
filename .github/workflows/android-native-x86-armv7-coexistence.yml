@@ -25,6 +25,7 @@ jobs:
           python3 -m py_compile android/native-yandex-hooklab/clone_native_identity_phase2_ephemeral.py
           python3 -m unittest discover -s android/native-yandex-hooklab/tests -p 'test_resolved_provider_authorities.py'
           python3 -m unittest discover -s android/native-yandex-hooklab/tests -p 'test_shadowed_signature_permissions.py'
+          python3 -m unittest discover -s android/native-yandex-hooklab/tests -p 'test_clone_crash_classification.py'
       - name: Android 11 ARMv7 install original plus base-only permission-adjusted test clone
         uses: reactivecircus/android-emulator-runner@v2
         with:
