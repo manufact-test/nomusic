@@ -23,7 +23,7 @@ const nativeDirectory = path.join(process.env.LOCALAPPDATA || "", "CELIKOM", "Wi
 const nativeFile = path.join(nativeDirectory, "native-events.log");
 const logged = new Set();
 const recent = [];
-const noisy = new Set(["RESOLVE_REQUEST", "GRANT_FOUND", "GRANT_MISS",
+const noisy = new Set(["TRACK_CHANGED", "RESOLVE_REQUEST", "GRANT_FOUND", "GRANT_MISS",
   "GRANT_DELIVERED", "GRANT_DELIVERY_FAILED", "LOCAL_RESOLVE_REPLY",
   "RESOLVE_BRIDGE_FAILURE", "NATIVE_FILEINFO_REQUEST", "NATIVE_FILEINFO_OK",
   "NATIVE_FILEINFO_ERROR", "SOURCE_ORIGINAL", "SOURCE_MAPPED",
