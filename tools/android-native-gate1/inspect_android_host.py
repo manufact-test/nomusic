@@ -95,10 +95,15 @@ class Dex:
         else:
             raise DexError("Invalid DEX string ULEB128")
         self.bounds(offset, 1)
-        raw = self.data[offset:min(offset + 4096, len(self.data))].tobytes().split(b"\0", 1)
-        if len(raw) != 2:
-            raise DexError("Missing DEX string terminator")
-        return raw[0].decode("utf-8", errors="replace")
+        # DEX MUTF-8 strings can be substantially longer than 4096 bytes.
+        # Scan only to the terminator, capped at 1MiB for malicious input.
+        start = offset
+        limit = min(len(self.data), start + 1024 * 1024)
+        while offset < limit and self.data[offset] != 0:
+            offset += 1
+        if offset >= limit:
+            raise DexError("DEX string terminator missing or length exceeds 1MiB")
+        return self.data[start:offset].tobytes().decode("utf-8", errors="replace")
 
     @lru_cache(maxsize=4096)
     def descriptor(self, index: int) -> str:
