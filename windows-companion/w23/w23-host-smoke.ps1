@@ -8,6 +8,7 @@ $report = [ordered]@{
   os = 'Windows Server 2022 disposable'
   defender = 'UNKNOWN'
   genuineYandexSigned = $false
+  actualFileVersion = ''
   ownImagesStaged = $false
   managedInstallerActive = $false
   managedRestoreConfirmed = $false
@@ -71,6 +72,7 @@ try {
     throw 'YANDEX_ORIGINAL_MISMATCH'
   }
   $report.genuineYandexSigned = $true
+  $report.actualFileVersion = [System.Diagnostics.FileVersionInfo]::GetVersionInfo($exe).FileVersion
   Copy-Item $exe $backupExe
   Copy-Item $asar $backupAsar
   $backedUp = $true

@@ -72,7 +72,8 @@ public static class NativeIntegrationManager
         var asar = Path.Combine(root, PairRecovery.AsarName);
         if (!File.Exists(exe) || !File.Exists(asar))
             throw new IOException("YANDEX_NOT_INSTALLED");
-        if (FileVersionInfo.GetVersionInfo(exe).FileVersion != SupportedVersion)
+        var actualVersion = FileVersionInfo.GetVersionInfo(exe).FileVersion;
+        if (actualVersion is not ("5.126.1" or "5.126.1.0"))
             throw new IOException("UNSUPPORTED_YANDEX_VERSION");
         if (!NativeHostSignature.IsValid(exe))
             throw new IOException("OFFICIAL_YANDEX_EXE_NOT_TRUSTED");
