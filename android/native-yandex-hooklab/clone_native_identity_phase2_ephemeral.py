@@ -287,6 +287,21 @@ def disposable_foreground_snapshot(package):
 
 
 
+
+def full_native_main_ui_pass(samples, activity_status, foreground):
+    """Fail closed: AppMetrica/helper process is NEVER a main-player PASS."""
+    if not samples:
+        return False
+    last = samples[-1]
+    return bool(
+        activity_status.get("activity_status_ok")
+        and not activity_status.get("activity_explicit_error")
+        and (last.get("direct_pid_alive") or last.get("ps_main_process_alive"))
+        and foreground.get("activity_resumed_for_package")
+    )
+
+
+
 def classify_activity_exit_info(raw):
     """Only system process exit reason categories, never raw exit details."""
     return {
@@ -605,16 +620,23 @@ def run():
                     startup_samples.append(installed_process_snapshot(source.DEST))
                 foreground = disposable_foreground_snapshot(source.DEST)
                 original_after_clone = installed_process_snapshot(source.SOURCE)
+                main_ui_pass = full_native_main_ui_pass(
+                    startup_samples,
+                    classify_activity_start(launch_stdout),
+                    foreground
+                )
                 print(json.dumps({
                     "manifest_only_clone_startup_samples": startup_samples,
                     "manifest_only_clone_foreground": foreground,
+                    "main_player_ui_runtime_pass": main_ui_pass,
+                    "auxiliary_process_is_not_main_player": True,
                     "original_process_alive_after_clone_launch":
                         original_after_clone["any_named_process_alive"],
                     "login_and_audio_untested": True
                 },sort_keys=True))
                 if not original_after_clone["any_named_process_alive"]:
                     raise arsc.TrialError("PUBLISHER_PROCESS_DID_NOT_SURVIVE_CLONE")
-                pid = "observed" if startup_samples[-1]["any_named_process_alive"] else ""
+                pid = "observed" if main_ui_pass else ""
             else:
                 time.sleep(5)
                 # Preserve the formerly verified simple liveness probe.
@@ -653,7 +675,9 @@ def run():
                     "owner_phone_touched": False,
                     "raw_log_published": False
                 }, sort_keys=True))
-                raise arsc.TrialError("ARM_CLONE_PROCESS_NOT_ALIVE")
+                raise arsc.TrialError(
+                    "MAIN_UI_NOT_READY_AUXILIARY_PROCESS_ALONE_INSUFFICIENT"
+                    if preserve_original_dex else "ARM_CLONE_PROCESS_NOT_ALIVE")
             emulator_runtime = {
                 "clean_arm_emulator_side_by_side_installed": True,
                 "original_split_count": original_count,
