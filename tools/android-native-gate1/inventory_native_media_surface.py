@@ -28,6 +28,26 @@ def inspect_surface(data:bytes)->dict:
     classes=dex.defined_classes()
     yandex_classes=sorted(c for c in classes if c.startswith(OWNER_PREFIX))
     likely=[c for c in yandex_classes if any(t in c.lower() for t in TOKENS)]
+    # Concentrate on owner-named native playback packages, not unrelated UI/WebView.
+    core_prefixes = (
+        "Lcom/yandex/music/shared/playback/",
+        "Lcom/yandex/music/shared/play/audio2/",
+        "Lcom/yandex/music/shared/media/session/",
+        "Lcom/yandex/music/shared/music_starter/",
+    )
+    core = sorted(c for c in classes if c.startswith(core_prefixes))
+    ranked = sorted(core, key=lambda c: (
+        -sum(t in c.lower() for t in ("source", "stream", "audio", "player", "track", "queue", "media")),
+        c
+    ))
+    chosen = ranked[:55]
+    chosen_set = set(chosen)
+    method_samples = []
+    for idx in range(dex.method_count):
+        cls, method, sig = dex.method(idx)
+        if cls in chosen_set and method not in ("<init>", "<clinit>"):
+            if len(method_samples) < 90:
+                method_samples.append({"class": cls, "method": method, "signature": sig})
     # Use prefix counts, not actual values (secrets and resources never inspected).
     prefixes=Counter()
     for c in yandex_classes:
@@ -68,6 +88,9 @@ def inspect_surface(data:bytes)->dict:
         "type_counts":ref_counts,
         "most_common_yandex_package_prefixes":prefixes.most_common(12),
         "yandex_media_named_class_examples":likely[:MAX_EXAMPLES],
+        "native_playback_core_total_classes":len(core),
+        "native_playback_core_class_candidates":chosen,
+        "native_playback_core_method_samples":method_samples,
         "android_framework_media_method_refs":len(refs),
         "android_framework_media_invoke_calls":count,
         "android_framework_invoke_examples":example,
