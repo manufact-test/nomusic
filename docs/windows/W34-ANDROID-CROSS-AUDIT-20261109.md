@@ -23,3 +23,7 @@ D. CI must prove no credential leak or CSP/webSecurity weakening. Audible owner 
 
 ## Boundaries and documentation status
 Android HEAD and current owner device are read-only. The Android native hooklab still does NOT prove login, patched Yandex install, native audio source swap or Play Protect on an actual device. Windows W33 has a real owner's correct 0.24.4 match and 4/4 blocked fetch probes but not proved native CSP (the missing `AUDIO_CSP_BLOCKED` event is not conclusive). **Two independent failure candidates: (1) renderer fetch policy / transport; (2) Windows downloadInfo/decoder metadata mismatch, which may only surface after (1) is fixed.**
+
+
+## 2026-11-09 late update — genuine Android original/clone runtime corrected
+At the initial cross-review Android branch was `d8137cc574...`; newer HEAD observed `36ca37bd0ce1e37cea1bc005789b0a970cbe6464`. The [latest original/clone emulator gate #42688277066](https://github.com/manufact-test/nomusic/actions/runs/42688277066) reported **original_control_runtime=PROCESS_ALIVE_AFTER_LAUNCH** for the unchanged publisher-signed original. The separately re-signed clone still failed `ARM_CLONE_PROCESS_NOT_ALIVE`, with a bounded Java classloading hint `ru.yandex.music.YMApplication`; clone Play Protect/login/audio not proven. Older language about even the original failing in an emulator applied to a different earlier runner/attempt and must NOT be repeated as the current result. This changes Android feasibility evidence only and does not fix Windows source transport or sound.
