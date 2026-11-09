@@ -331,17 +331,17 @@ def classify_activity_exit_info(raw):
     # AOSP dumpsys emits ApplicationExitInfo records with process and reason
     # on one or multiple lines. Never assign an unnamed record to MAIN.
     blocks = re.split(
-        r"(?im)(?=^\\s*(?:ApplicationExitInfo\\s*#?\\d+|#\\d+:\\s*ApplicationExitInfo))",
+        r"(?im)(?=^\s*(?:ApplicationExitInfo\s*#?\d+|#\d+:\s*ApplicationExitInfo))",
         raw)
     if len(blocks) == 1:
         blocks = raw.splitlines()
     main_codes, auxiliary_codes, unknown_codes = set(), set(), set()
     for block in blocks:
-        matches = re.findall(r"\\breason\\s*[=:]\\s*(\\d{1,2})\\b", block, re.I)
+        matches = re.findall(r"\breason\s*[=:]\s*(\d{1,2})\b", block, re.I)
         if not matches:
             continue
         process = re.search(
-            r"\\b(?:processName|process|process name)\\s*[=:]\\s*"
+            r"\b(?:processName|process|process name)\s*[=:]\s*"
             r"([A-Za-z0-9_.:]+)", block, re.I)
         name = process.group(1) if process else None
         target = (main_codes if name == source.DEST else
@@ -382,7 +382,7 @@ def classify_clone_process_events(raw):
         if not main.search(line):
             continue
         for tag in tags:
-            if re.search(r"\\b" + tag + r"\\b", line):
+            if re.search(r"\b" + tag + r"\b", line):
                 flags[tag + "_main_seen"] = True
     return {**flags, "auxiliary_process_events_seen": helper_seen,
             "raw_event_log_exposed": False}
