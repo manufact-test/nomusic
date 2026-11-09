@@ -43,4 +43,19 @@ public final class HookSpec {
         throw new NoSuchMethodException(
                 "No exact native converter found (refusing approximate hook): " + name);
     }
+    /**
+     * Exact downstream model accessor observed in the signed #170gpr DEX:
+     * Leed;->a()Ljava/lang/String;. No inference about contents: do not
+     * read, persist or log the returned String.
+     */
+    public static Method findModelStringAccessor(ClassLoader loader)
+            throws ClassNotFoundException, NoSuchMethodException {
+        Class<?> model=Class.forName("eed", false, loader);
+        Method method=model.getDeclaredMethod("a");
+        if (Modifier.isStatic(method.getModifiers())
+                || method.getParameterCount()!=0
+                || !method.getReturnType().equals(String.class))
+            throw new NoSuchMethodException("EXACT_MODEL_ACCESSOR_NOT_PRESENT");
+        return method;
+    }
 }

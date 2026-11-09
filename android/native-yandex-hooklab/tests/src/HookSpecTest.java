@@ -19,6 +19,11 @@ public final class HookSpecTest {
         try { HookSpec.findConversion(loader, "y0", HookSpec.OLD_FILE_DTO); }
         catch (NoSuchMethodException expected) { rejected = true; }
         if (!rejected) throw new AssertionError("approximate hook must fail");
-        System.out.println("PASS: exact host, legacy/modern method fingerprints, no fuzzy fallback");
+        Method sourceModelAccessor = HookSpec.findModelStringAccessor(loader);
+        if (!sourceModelAccessor.getName().equals("a")
+                || !sourceModelAccessor.getReturnType().equals(String.class)
+                || sourceModelAccessor.getParameterCount() != 0)
+            throw new AssertionError("exact downstream model accessor contract");
+        System.out.println("PASS: exact host, FileInfo conversions, optional eed accessor, no fuzzy fallback");
     }
 }

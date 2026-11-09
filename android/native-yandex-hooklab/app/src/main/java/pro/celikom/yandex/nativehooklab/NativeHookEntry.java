@@ -27,6 +27,7 @@ public final class NativeHookEntry extends XposedModule {
     private static final String TAG = "CELIKOM-NativeLab";
     private final AtomicInteger newConversions = new AtomicInteger();
     private final AtomicInteger oldConversions = new AtomicInteger();
+    private final AtomicInteger modelAccessorCalls = new AtomicInteger();
     private String processName;
     private boolean attachHooked;
     private boolean targetHooked;
@@ -114,6 +115,23 @@ public final class NativeHookEntry extends XposedModule {
                         return result;
                     });
             targetHooked = true;
+            // Optional secondary boundary. Exact DEX signature was confirmed
+            // on the publisher-signed host; it may be a getter not a decoder.
+            // Count invocations only, never inspect the returned String.
+            try {
+                Method downstream = HookSpec.findModelStringAccessor(appLoader);
+                hook(downstream)
+                    .setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                    .intercept(chain -> {
+                        Object result = chain.proceed();
+                        if (result != null) safeCount("model-accessor",
+                                modelAccessorCalls);
+                        return result;
+                    });
+                Log.i(TAG, "observer: downstream model accessor armed (counts only)");
+            } catch (Throwable ignored) {
+                log(Log.WARN, TAG, "observer: downstream accessor unavailable; converters unaffected");
+            }
             log(Log.INFO, TAG, "observer: native file-info converter hooks armed; read-only");
             Log.i(TAG, "observer: native file-info converter hooks armed; read-only");
         } catch (Throwable ignored) {
