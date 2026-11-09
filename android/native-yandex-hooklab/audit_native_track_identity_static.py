@@ -168,6 +168,14 @@ def inspect_splits(apks):
     if not any(r["api"] == "downloadinfo" and r["route"] == "tracks/{trackId}/download-info"
                for r in route_matches):
         raise ValueError("DOWNLOAD_TRACK_ID_ROUTE_NOT_FOUND")
+    # New observed signed #170gpr proof: BOTH audible file-info API
+    # variants declare first parameter @Query("trackId").
+    # Fail closed on any future version/parameter drift, not name guessing.
+    for api in ("modern_fileinfo", "legacy_fileinfo"):
+        if not any(p["api"] == api and p["parameter_index"] == 0
+                   and p["identity_label"] == "trackId"
+                   for p in identity_parameter_annotations):
+            raise ValueError("FILEINFO_TRACKID_PARAM0_NOT_PROVEN_" + api.upper())
     return {
         "verdict": "STATIC_TRACK_ID_PRESENT_ACTIVE_PLAYBACK_BINDING_NOT_PROVEN",
         "signed_yandex_version": "2026.10.3 #170gpr",
