@@ -122,7 +122,12 @@ def main() -> dict:
                 root = baseline.ET.fromstring(xml_bytes)
                 return {a.strip() for p in root.iter("provider")
                         for a in p.attrib.get(ns, "").split(";") if a.strip()}
-            if provider_set(payload) & provider_set(edited):
+            provider_collisions = provider_set(payload) & provider_set(edited)
+            if provider_collisions:
+                # ContentProvider authority names are public package metadata,
+                # not user data; needed to identify side-by-side install conflicts.
+                print(json.dumps({"split_index": index, "colliding_provider_authorities":
+                                  sorted(provider_collisions)}, sort_keys=True))
                 raise TrialError("ARSC_PROVIDER_AUTHORITY_COLLISION")
             manifest.write_bytes(edited)
             for kind, value in counts.items():
