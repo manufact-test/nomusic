@@ -1,11 +1,8 @@
 name: Android clean ARM Yandex original + CELIKOM clone coexistence (NO DISTRIBUTION)
+# Disabled auto-runs: hosted macOS ARM emulator failed twice with
+# HVF_UNSUPPORTED even when -accel off. DO NOT re-run without a proven
+# ARM-capable runner and a separate explicit reviewed dispatch.
 on:
-  push:
-    branches:
-      - experiment/android-native-yandex-fileinfo-hooklab-20261109
-    paths:
-      - 'android/native-yandex-hooklab/clone_native_identity_phase2_ephemeral.py'
-      - '.github/workflows/android-native-clone-arm-coexistence-ephemeral.yml'
   workflow_dispatch:
 permissions:
   contents: read
