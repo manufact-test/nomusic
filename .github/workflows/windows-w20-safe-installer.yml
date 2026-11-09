@@ -114,7 +114,19 @@ jobs:
           $yandexDir = Join-Path $env:LOCALAPPDATA 'Programs\YandexMusic'
           if (Test-Path $exe) { throw 'W20_DIRTY_INSTALL_RUNNER' }
           if (Test-Path $yandexDir) { throw 'W20_RUNNER_YANDEX_PREEXISTS' }
-          if (-not (Test-Path $installer)) { throw 'W20_MISSING_INSTALLER' }
+          if (-not (Test-Path $installer)) {
+            Write-Output "W32_SMOKE_PWD=$((Get-Location).Path)"
+            Write-Output "W32_SMOKE_WORKSPACE=$env:GITHUB_WORKSPACE"
+            Write-Output "W32_INSTALLER_ABSOLUTE=$((Join-Path $env:GITHUB_WORKSPACE $installer))"
+            Get-ChildItem (Join-Path $env:GITHUB_WORKSPACE 'windows-companion/w20/output') -Force -ErrorAction SilentlyContinue |
+              Select-Object Name, Length | Format-Table
+            try {
+              $detections = @(Get-MpThreatDetection -ErrorAction Stop)
+              Write-Output "W32_SMOKE_DEFENDER_COUNT=$($detections.Count)"
+              $detections | Select-Object -First 8 ThreatID, ActionSuccess | Format-Table
+            } catch { Write-Output 'W32_SMOKE_DEFENDER_DIAGNOSTICS_UNAVAILABLE' }
+            throw 'W20_MISSING_INSTALLER'
+          }
           $install = Start-Process -FilePath $installer -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/SP-' -Wait -PassThru
           if ($install.ExitCode -ne 0 -or -not (Test-Path $exe) -or -not (Test-Path $unins)) { throw 'W24_INSTALL_SMOKE_FAILED' }
           $native = Join-Path $env:LOCALAPPDATA 'Programs\CELIKOM\integration'
