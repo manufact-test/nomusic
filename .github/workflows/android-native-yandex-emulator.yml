@@ -72,12 +72,8 @@ jobs:
             sleep 15
             echo "CELIKOM observer event categories only:"
             adb logcat -d -s CELIKOM-NativeLab:I '*:S' | sed -n '1,35p'
-            if adb logcat -d -s CELIKOM-NativeLab:I '*:S' | grep -q 'observer: native file-info converter hooks armed; read-only'; then
-              echo 'PASS: exact native converter observer hooked in Android 11 translated emulator. NOT Android13, playback or Play Protect proof.'
-            else
-              echo 'NO-GO: native in-process hook registration was not observed; APK install alone insufficient.'
-              exit 2
-            fi
+            adb shell pidof ru.yandex.music || true
+            adb logcat -d -s CELIKOM-NativeLab:I '*:S' | grep -q 'observer: native file-info converter hooks armed; read-only' && echo 'PASS: exact native converter observer hooked in Android 11 emulator (no playback or Play Protect claim).' || (echo 'NO-GO: native hook registration not witnessed; packaging success is insufficient.'; exit 2)
       - name: Delete temporary proprietary Yandex APKs regardless of outcome, no artifact upload
         if: always()
         run: |
