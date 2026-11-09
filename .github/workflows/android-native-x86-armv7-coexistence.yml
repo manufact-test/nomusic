@@ -23,7 +23,8 @@ jobs:
       - name: Verify source syntax and original package safety guards
         run: |
           python3 -m py_compile android/native-yandex-hooklab/clone_native_identity_phase2_ephemeral.py
-          python3 -m unittest discover -s android/native-yandex-hooklab/tests -p 'test_resolved_provider_authorities.py'\n          python3 -m unittest discover -s android/native-yandex-hooklab/tests -p 'test_shadowed_signature_permissions.py'
+          python3 -m unittest discover -s android/native-yandex-hooklab/tests -p 'test_resolved_provider_authorities.py'
+          python3 -m unittest discover -s android/native-yandex-hooklab/tests -p 'test_shadowed_signature_permissions.py'
       - name: Android 11 Google APIs x86 native bridge / ABI matched original+clone install
         uses: reactivecircus/android-emulator-runner@v2
         with:
