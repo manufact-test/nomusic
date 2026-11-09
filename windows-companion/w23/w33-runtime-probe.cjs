@@ -77,12 +77,19 @@
   // This function is serialized into the genuine Yandex renderer (not a
   // separate browser, local player, test HTML page, or isolated WebView).
   async function rendererProbe() {
-    const native = location.protocol === "musicapplication:";
+    // Match the same native custom-scheme normalization as renderer-entry.mjs.
+    const scheme = String(location.protocol || "").replace(/[^a-z]/gi, "").toLowerCase();
+    const host = String(location.hostname || "").toLowerCase();
+    const native = scheme === "musicapplication" && host === "desktop";
     const type = native ? "NATIVE" :
       location.origin === "https://music.yandex.ru" ? "MUSIC_WEB" :
       location.origin === "https://next.music.yandex.ru" ? "NEXT_WEB" :
       location.origin === "https://desktop.app.music.yandex.net" ? "DESKTOP_WEB" :
-      "OTHER";
+      location.origin === "https://music.yandex.com" ? "MUSIC_COM" : "OTHER";
+    const realm = type !== "OTHER" ? "APPROVED" :
+      scheme === "https" ? "UNEXPECTED_HTTPS" :
+      scheme === "about" ? "ABOUT" :
+      scheme === "file" ? "FILE" : "UNEXPECTED_SCHEME";
     const base = "https://darkred-camel-588676.hostingersite.com";
     const url = base + "/api/v1/audio/7?token=" + "0".repeat(64) +
       "&expires=1800000180&sid=1";
@@ -118,7 +125,7 @@
       await new Promise(resolve => setTimeout(resolve, 250));
       document.removeEventListener("securitypolicyviolation", mark, true);
     }
-    return { type, outcome, csp };
+    return { type, outcome, csp, realm };
   }
 
   function approved(view) {
@@ -131,7 +138,7 @@
     } catch { return false; }
   }
   function classify(result) {
-    const type = ["NATIVE", "MUSIC_WEB", "NEXT_WEB", "DESKTOP_WEB", "OTHER"]
+    const type = ["NATIVE", "MUSIC_WEB", "NEXT_WEB", "DESKTOP_WEB", "MUSIC_COM", "OTHER"]
       .includes(result?.type) ? result.type : "OTHER";
     const outcome = ["HTTP_403_VISIBLE", "HTTP_200_VISIBLE", "HTTP_206_VISIBLE",
       "HTTP_OTHER_VISIBLE", "TIMEOUT", "FETCH_BLOCKED_TYPEERROR",
@@ -165,6 +172,9 @@
           note("RENDERER_EXECUTION_FAILED");
         } else {
           note(classify(value.result));
+          const realm = ["APPROVED","UNEXPECTED_HTTPS","ABOUT","FILE","UNEXPECTED_SCHEME"]
+            .includes(value.result.realm) ? value.result.realm : "UNKNOWN";
+          note("REALM_" + realm);
           completed.add(view.id);
         }
       }).finally(() => { pending--; inFlight.delete(view.id); });
