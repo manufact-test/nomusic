@@ -110,7 +110,7 @@ jobs:
           $ErrorActionPreference = 'Stop'
           $exe = Join-Path $env:LOCALAPPDATA 'Programs\CELIKOM\CELIKOM.Companion.exe'
           $unins = Join-Path $env:LOCALAPPDATA 'Programs\CELIKOM\unins000.exe'
-          $installer = 'windows-companion/w20/output/CELIKOM-W31-AUDIO-TRACE-UNSIGNED.exe'
+          $installer = 'windows-companion/w20/output/CELIKOM-W32-EASY-UPDATE-UNSIGNED.exe'
           $yandexDir = Join-Path $env:LOCALAPPDATA 'Programs\YandexMusic'
           if (Test-Path $exe) { throw 'W20_DIRTY_INSTALL_RUNNER' }
           if (Test-Path $yandexDir) { throw 'W20_RUNNER_YANDEX_PREEXISTS' }
@@ -150,13 +150,13 @@ jobs:
       - name: Report internal package fingerprint
         shell: pwsh
         run: |
-          $hash = (Get-FileHash windows-companion/w20/output/CELIKOM-W31-AUDIO-TRACE-UNSIGNED.exe -Algorithm SHA256).Hash
+          $hash = (Get-FileHash windows-companion/w20/output/CELIKOM-W32-EASY-UPDATE-UNSIGNED.exe -Algorithm SHA256).Hash
           Write-Output "W20_INTERNAL_UNSIGNED_SHA256=$hash"
           Write-Output 'W24 INTERNAL: installer and restoration; native audible playback NOT YET ACCEPTED'
       - name: Retain INTERNAL staging build, not a release
         uses: actions/upload-artifact@v4
         with:
-          name: CELIKOM-W31-AUDIO-TRACE-UNSIGNED
-          path: windows-companion/w20/output/CELIKOM-W31-AUDIO-TRACE-UNSIGNED.exe
+          name: CELIKOM-W32-EASY-UPDATE-UNSIGNED
+          path: windows-companion/w20/output/CELIKOM-W32-EASY-UPDATE-UNSIGNED.exe
           if-no-files-found: error
           retention-days: 10
