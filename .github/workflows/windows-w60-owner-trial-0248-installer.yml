@@ -83,6 +83,37 @@ jobs:
           if (-not (Test-Path $compiler)) { throw 'W20_INNO_COMPILER_NOT_FOUND' }
           & $compiler windows-companion/w20/installer/CELIKOM.iss
           if ($LASTEXITCODE -ne 0) { throw 'W20_INSTALLER_COMPILE_FAILED' }
+      - name: Verify authentic CELIKOM C icons in Windows EXE and Setup PE
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          Add-Type -AssemblyName System.Drawing
+          $iconPath = 'windows-companion/w20/assets/CELIKOM.ico'
+          if (-not (Test-Path $iconPath)) { throw 'W66_OFFICIAL_ICON_NOT_GENERATED' }
+          $icoBytes = [IO.File]::ReadAllBytes((Resolve-Path $iconPath).Path)
+          if ($icoBytes.Length -lt 512 -or $icoBytes[2] -ne 1 -or $icoBytes[4] -ne 4) {
+            throw 'W66_OFFICIAL_ICON_INVALID'
+          }
+          function Assert-CelikomIcon($path, $label) {
+            $icon = [Drawing.Icon]::ExtractAssociatedIcon((Resolve-Path $path).Path)
+            if ($null -eq $icon) { throw "W66_NO_ICON_$label" }
+            $bmp = $icon.ToBitmap()
+            $mintPixels = 0
+            for ($y = 1; $y -lt $bmp.Height; $y += 2) {
+              for ($x = 1; $x -lt $bmp.Width; $x += 2) {
+                $c = $bmp.GetPixel($x, $y)
+                if ($c.A -gt 128 -and $c.R -ge 70 -and $c.R -le 145 -and
+                    $c.G -ge 175 -and $c.G -le 255 -and
+                    $c.B -ge 135 -and $c.B -le 225) { $mintPixels++ }
+              }
+            }
+            $bmp.Dispose()
+            $icon.Dispose()
+            if ($mintPixels -lt 8) { throw "W66_DEFAULT_ICON_NOT_BRAND_$label $mintPixels" }
+            Write-Output "W66_OFFICIAL_C_ICON_$label PASS"
+          }
+          Assert-CelikomIcon 'windows-companion/w20/publish/CELIKOM.Companion.exe' 'APP'
+          Assert-CelikomIcon 'windows-companion/w20/output/CELIKOM-W65-ACCOUNT-SUPPORT-UX-UNSIGNED.exe' 'INSTALLER'
       - name: Validate updater ZIP selection, PE version and anti-downgrade
         shell: pwsh
         run: |
