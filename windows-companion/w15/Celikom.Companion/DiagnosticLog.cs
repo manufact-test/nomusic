@@ -77,7 +77,9 @@ public static class DiagnosticLog
         text.AppendLine("Enabled=" + enabled.ToString().ToLowerInvariant());
         text.AppendLine("SignedIn=" + signedIn.ToString().ToLowerInvariant());
         text.AppendLine("AUDIO_PROBE_* is an independent 32-byte diagnostic GET from the Yandex renderer (CSP/CORS), NOT verified playback.");
-        text.AppendLine("PLAYER_ENGINE_* and PLAYER_AUDIO_* are Electron webContents events; only PLAYER_AUDIO_AUDIBLE indicates webContents emitted sound, NOT confirmed replacement.");\n        text.AppendLine("MEDIA_* DOM events may remain NOT_OBSERVED for WebAudio. UI Play/Pause label changes are NOT monitored.");\n        text.AppendLine("AUDIO_URL_RESOURCE_UNATTRIBUTED can be the separate 32-byte probe; it is NOT evidence of player playback.");
+        text.AppendLine("PLAYER_ENGINE_* and PLAYER_AUDIO_* are Electron webContents events; only PLAYER_AUDIO_AUDIBLE indicates webContents emitted sound, NOT confirmed replacement.");
+        text.AppendLine("MEDIA_* DOM events may remain NOT_OBSERVED for WebAudio. UI Play/Pause label changes are NOT monitored.");
+        text.AppendLine("AUDIO_URL_RESOURCE_UNATTRIBUTED can be the separate 32-byte probe; it is NOT evidence of player playback.");
         text.AppendLine("PNR: NOT_IMPLEMENTED_OR_NOT_IDENTIFIED.");
         text.AppendLine("Events: UTC | allowlisted code | optional numeric track id. No raw request URLs or error messages.");
         text.AppendLine("--- EVENTS ---");
