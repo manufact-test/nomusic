@@ -450,13 +450,12 @@ public sealed partial class MainWindow
         AudioPreflight.Result result;
         try
         {
-            result = await AudioPreflight.CheckAsync(path, original,
-                _bridge.LastTrackTitle, _bridge.LastTrackArtist);
+            result = await AudioPreflight.CheckAsync(path, original);
         }
         catch (Exception)
         {
-            result = new AudioPreflight.Result(null, true, false,
-                "Файл не удалось проверить. Выберите другой MP3 или M4A.", "");
+            result = new AudioPreflight.Result(null, true,
+                "Файл не удалось проверить. Выберите другой MP3 или M4A.");
         }
         if (generation != _compactFilePreflightGeneration || _closing ||
             trackId != _bridge.LastSong || _compactSelectedAudio != path) return;
@@ -601,8 +600,7 @@ public sealed partial class MainWindow
             if (upload is null) throw new ApiFailure(400, "INVALID_FILE");
             // Independent preflight immediately before multipart body transmission:
             // never upload when the file changed after initial selection.
-            var checkedAgain = await AudioPreflight.CheckAsync(
-                upload, durationMs, _bridge.LastTrackTitle, _bridge.LastTrackArtist, token.Token);
+            var checkedAgain = await AudioPreflight.CheckAsync(upload, durationMs, token.Token);
             if (checkedAgain.Blocked || track != _bridge.LastSong)
             {
                 _compactAudioPreflight = checkedAgain;
