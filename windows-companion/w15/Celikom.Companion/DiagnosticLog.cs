@@ -61,7 +61,7 @@ public static class DiagnosticLog
         string? nativeModuleVersion = null, bool? nativeMatchesApplication = null)
     {
         var text = new StringBuilder();
-        text.AppendLine("CELIKOM WINDOWS OWNER DIAGNOSTICS — W48");
+        text.AppendLine("CELIKOM WINDOWS OWNER DIAGNOSTICS — W50");
         text.AppendLine("GeneratedUTC=" + DateTimeOffset.UtcNow.ToString("O", CultureInfo.InvariantCulture));
         text.AppendLine("AppVersion=" + (typeof(DiagnosticLog).Assembly.GetName().Version?.ToString() ?? "unknown"));
         text.AppendLine("NativeModuleVersion=" +
@@ -69,17 +69,17 @@ public static class DiagnosticLog
                 ? nativeModuleVersion : "unknown"));
         text.AppendLine("NativeModuleMatchesApp=" +
             (nativeMatchesApplication is null ? "unknown" : nativeMatchesApplication.Value ? "true" : "false"));
-        text.AppendLine("CodeBaseline=W48_ACTUAL_PLAYER_ENGINE_DIAGNOSTICS");
+        text.AppendLine("CodeBaseline=W50_NATIVE_NETWORK_WITHOUT_DIAGNOSTIC_FETCH");
         text.AppendLine("YandexVersion=" + (yandexVersion is not null &&
             Regex.IsMatch(yandexVersion, @"^[0-9.]{1,24}$") ? yandexVersion : "unknown"));
         text.AppendLine("NativeIntegration=" + (Code.IsMatch(integration) ? integration : "UNKNOWN"));
         text.AppendLine("BridgeStarted=" + bridgeStarted.ToString().ToLowerInvariant());
         text.AppendLine("Enabled=" + enabled.ToString().ToLowerInvariant());
         text.AppendLine("SignedIn=" + signedIn.ToString().ToLowerInvariant());
-        text.AppendLine("AUDIO_PROBE_* is an independent 32-byte diagnostic GET from the Yandex renderer (CSP/CORS), NOT verified playback.");
+        text.AppendLine("W50 makes NO separate audio probe requests. PLAYER_NET_* is passive CDP observation of Yandex network/preloading, not confirmation of audible playback.");
         text.AppendLine("PLAYER_ENGINE_* and PLAYER_AUDIO_* are Electron webContents events; only PLAYER_AUDIO_AUDIBLE indicates webContents emitted sound, NOT confirmed replacement.");
         text.AppendLine("MEDIA_* DOM events may remain NOT_OBSERVED for WebAudio. UI Play/Pause label changes are NOT monitored.");
-        text.AppendLine("AUDIO_URL_RESOURCE_UNATTRIBUTED can be the separate 32-byte probe; it is NOT evidence of player playback.");
+        text.AppendLine("PLAYER_AUDIO_RESOURCE_TIMING_SEEN can be preloading. PLAYER_NET_HTTP_PARTIAL/FINISHED does NOT prove audio decoded.");
         text.AppendLine("PNR: NOT_IMPLEMENTED_OR_NOT_IDENTIFIED.");
         text.AppendLine("Events: UTC | allowlisted code | optional numeric track id. No raw request URLs or error messages.");
         text.AppendLine("--- EVENTS ---");
@@ -87,7 +87,7 @@ public static class DiagnosticLog
         // verified UTC events, merge native and GUI logs in time order, cap size.
         // No event is interpreted as confirmed replaced sound.
         var entries = new List<string>();
-        var cutoff = DateTimeOffset.UtcNow.AddMinutes(-60);
+        var cutoff = DateTimeOffset.UtcNow.AddMinutes(-15);
         static bool RecentSafe(string line, DateTimeOffset after) =>
             IsSafeEntry(line) && line.Length >= 24 &&
             DateTimeOffset.TryParseExact(line[..24], "yyyy-MM-ddTHH:mm:ss.fffZ",
@@ -117,13 +117,20 @@ public static class DiagnosticLog
                     if (RecentSafe(line, cutoff)) entries.Add(line);
         }
         entries.Sort(StringComparer.Ordinal);
-        text.AppendLine("DiagnosticScope=LAST_60_MINUTES");
-        text.AppendLine("ReplacementAudibleProof=NOT_AVAILABLE_FROM_PROBE_OR_MAPPING");
+        text.AppendLine("DiagnosticScope=LAST_15_MINUTES");
+        text.AppendLine("ReplacementAudibleProof=NOT_AVAILABLE_FROM_NETWORK_OR_MAPPING");
         text.AppendLine("EngineFastPauseObserved=" +
             entries.Any(s => s.Contains("|PLAYER_ENGINE_FAST_PAUSE", StringComparison.Ordinal))
                 .ToString().ToLowerInvariant());
         text.AppendLine("PlayerAudibleEventObserved=" +
             entries.Any(s => s.Contains("|PLAYER_AUDIO_AUDIBLE", StringComparison.Ordinal))
+                .ToString().ToLowerInvariant());
+        text.AppendLine("FastPauseTrackAttribution=NOT_AVAILABLE_WITHOUT_PLAYER_TRACK_ID");
+        text.AppendLine("PlayerNetworkRequestObserved=" +
+            entries.Any(s => s.Contains("|PLAYER_NET_REQUEST|track=", StringComparison.Ordinal))
+                .ToString().ToLowerInvariant());
+        text.AppendLine("PlayerNetworkCorsFailureObserved=" +
+            entries.Any(s => s.Contains("|PLAYER_NET_CORS_BLOCKED|track=", StringComparison.Ordinal))
                 .ToString().ToLowerInvariant());
         text.AppendLine("DecoderErrorObserved=" +
             entries.Any(s => s.Contains("|PLAYER_CDP_PIPELINE_ERROR", StringComparison.Ordinal) ||
