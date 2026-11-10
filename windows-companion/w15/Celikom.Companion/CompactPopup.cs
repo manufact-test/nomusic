@@ -34,9 +34,12 @@ public sealed partial class MainWindow
     private readonly Label _compactSuggestResultNote = new();
     private readonly ProgressBar _compactUploadProgress = new();
     private readonly PopupButton _compactAccountTrigger = new();
+    private readonly PopupSectionPanel _compactAccountFrame = new();
     private readonly Panel _compactAccountBody = new();
     private readonly PopupButton _compactSupportTrigger = new();
+    private readonly PopupSectionPanel _compactSupportFrame = new();
     private readonly Panel _compactSupportBody = new();
+    private PopupMultilineInput _compactSupportInput = null!;
     private readonly Label _compactVersion = new();
     private readonly TextBox _compactCode = new();
     private readonly TextBox _compactNewPassword = new();
@@ -47,8 +50,8 @@ public sealed partial class MainWindow
     private readonly TextBox _compactPromoCode = new();
     private readonly PopupButton _compactPromoSubmit = new();
     private readonly Label _compactPromoMessage = new();
-    private readonly PopupSelect _compactSupportKind = new();
-    private readonly PopupSelect _compactSupportCategory = new();
+    private readonly PopupOptionSelect _compactSupportKind = new();
+    private readonly PopupOptionSelect _compactSupportCategory = new();
     private readonly Label _compactSupportDescriptionLabel = Tiny("Опишите проблему", 9);
     private readonly Label _compactUploadDurationCaption = Tiny("Длительность песни, сек", 9);
     private readonly Label _compactUploadDurationKnown = Tiny("", 9);
@@ -192,15 +195,20 @@ public sealed partial class MainWindow
         _compactScroll.Controls.Add(_compactScrollbar);
         _compactScrollbar.BringToFront();
 
-        _connectionMark.Text = "●";
-        _connectionMark.Font = new Font("Segoe UI Symbol", 12F);
+        // Render a true ~7px dot: a text bullet changes its baseline by DPI
+        // and appeared oversized, crooked in the owner's Windows screenshot.
+        _connectionMark.Text = "";
         _connectionMark.ForeColor = ColorTranslator.FromHtml("#858B8E");
-        _connectionMark.Font = new Font("Segoe UI Symbol", 10F);
-        _connectionMark.TextAlign = ContentAlignment.MiddleCenter;
-        Place(_connectionMark, _compactHeader, 0, 10, 11, 15);
+        _connectionMark.Paint += (_, e) =>
+        {
+            e.Graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+            using var brush = new SolidBrush(_connectionMark.ForeColor);
+            e.Graphics.FillEllipse(brush, 0, 0, 7, 7);
+        };
+        Place(_connectionMark, _compactHeader, 2, 17, 7, 7);
         var logo = Tiny("CELIKOM", 11, Ink);
         logo.Font = new Font("Segoe UI", 11F, FontStyle.Bold);
-        Place(logo, _compactHeader, 15, 8, 97, 24);
+        Place(logo, _compactHeader, 16, 8, 97, 24);
         _connectionState.Font = new Font("Segoe UI", 8F);
         _connectionState.ForeColor = Secondary;
         _connectionState.TextAlign = ContentAlignment.MiddleRight;
@@ -268,15 +276,32 @@ public sealed partial class MainWindow
         {
             _compactAccountOpen = !_compactAccountOpen;
             LayoutCompact();
-            if (_compactAccountOpen) ScrollCompactTo(_compactAccountTrigger);
+            if (_compactAccountOpen)
+            {
+                _ = RefreshCompactBenefitsAsync();
+                ScrollCompactTo(_compactAccountFrame);
+            }
         });
         SetupMainButton(_compactSupportTrigger, "▸ Связь с поддержкой", (_, _) =>
         {
             _compactSupportOpen = !_compactSupportOpen;
             _compactSupportTrigger.Text = (_compactSupportOpen ? "▾" : "▸") + " Связь с поддержкой";
             LayoutCompact();
-            if (_compactSupportOpen) ScrollCompactTo(_compactSupportTrigger);
+            if (_compactSupportOpen) ScrollCompactTo(_compactSupportFrame);
         });
+        _compactAccountFrame.BackColor = Paper;
+        _compactAccountFrame.OutlineColor = Border;
+        _compactAccountTrigger.Borderless = true;
+        _compactAccountTrigger.BackColor = Paper;
+        _compactAccountTrigger.ForeColor = Ink;
+        _compactAccountTrigger.TextAlign = ContentAlignment.MiddleLeft;
+        _compactAccountFrame.Controls.Add(_compactAccountTrigger);
+        _compactAccountFrame.Controls.Add(_compactAccountBody);
+        _compactSupportFrame.BackColor = Paper;
+        _compactSupportFrame.OutlineColor = Border;
+        _compactSupportTrigger.Borderless = true;
+        _compactSupportFrame.Controls.Add(_compactSupportTrigger);
+        _compactSupportFrame.Controls.Add(_compactSupportBody);
         _compactSupportTrigger.BackColor = Paper;
         _compactSupportTrigger.ForeColor = Secondary;
         _compactSupportTrigger.TextAlign = ContentAlignment.MiddleLeft;
@@ -309,8 +334,7 @@ public sealed partial class MainWindow
             _compactHeader, _compactActions, _compactStartup, _compactUploadButton,
             _compactUploadBody, _compactSuggestButton, _compactSuggestBody,
             _compactAccess, _compactTrack, _compactTrackArtist,
-            _compactVersionStatus, _compactAccountTrigger,
-            _compactAccountBody, _compactSupportTrigger, _compactSupportBody,
+            _compactVersionStatus, _compactAccountFrame, _compactSupportFrame,
             _staffPanel
         }) _compactScroll.Controls.Add(c);
         _compactScrollbar.BringToFront();
@@ -370,9 +394,13 @@ public sealed partial class MainWindow
             LayoutCompact();
         });
         _compactPromoToggle.BackColor = Paper;
+        _compactPromoToggle.Borderless = true;
+        _compactPromoToggle.TextAlign = ContentAlignment.MiddleLeft;
         _compactPromoToggle.ForeColor = Secondary;
+        _compactPromoToggle.Font = new Font("Segoe UI", 8.5F);
         _compactPromoCode.PlaceholderText = "Промокод";
         _compactPromoCode.MaxLength = 64;
+        _compactPromoCode.Font = new Font("Segoe UI", 9F);
         SetupMainButton(_compactPromoSubmit, "Активировать", CompactPromoSubmitAsync);
         _compactPromoMessage.ForeColor = Accent;
         _compactPromoMessage.Font = new Font("Segoe UI", 8F);
@@ -392,8 +420,8 @@ public sealed partial class MainWindow
     private void BuildCompactSupportBody()
     {
         var label = Tiny("Вид обращения", 9);
+        label.BackColor = Paper;
         Place(label, _compactSupportBody, 0, 1, 250, 24);
-        _compactSupportKind.DropDownStyle = ComboBoxStyle.DropDownList;
         _compactSupportKind.Items.AddRange(new object[]{
             "Обычное обращение · ответ по почте", "Проблема с текущей песней"
         });
@@ -401,7 +429,7 @@ public sealed partial class MainWindow
         _compactSupportKind.SelectedIndexChanged += (_, _) => LayoutCompact();
         _compactSupportKind.BackColor = Surface;
         _compactSupportKind.ForeColor = Ink;
-        _compactSupportKind.DropDownWidth = 350;
+        _compactSupportKind.DropDownWidth = 300;
         _compactSupportBody.Controls.Add(_compactSupportKind);
         _compactSupportCategory.Items.AddRange(new object[] {
             "Не включается версия CELIKOM",
@@ -410,10 +438,9 @@ public sealed partial class MainWindow
             "Другая проблема"
         });
         _compactSupportCategory.SelectedIndex = 0;
-        _compactSupportCategory.DropDownStyle = ComboBoxStyle.DropDownList;
         _compactSupportCategory.BackColor = Surface;
         _compactSupportCategory.ForeColor = Ink;
-        _compactSupportCategory.DropDownWidth = 310;
+        _compactSupportCategory.DropDownWidth = 300;
         _compactSupportBody.Controls.Add(_compactSupportCategory);
         _compactSupportBody.Controls.Add(_compactSupportCategoryLabel);
         Place(_compactSupportDescriptionLabel, _compactSupportBody, 0, 79, 250, 24);
@@ -422,8 +449,8 @@ public sealed partial class MainWindow
         _compactSupportText.ScrollBars = ScrollBars.Vertical;
         _compactSupportText.BackColor = Surface;
         _compactSupportText.ForeColor = Ink;
-        _compactSupportText.BorderStyle = BorderStyle.FixedSingle;
-        _compactSupportBody.Controls.Add(_compactSupportText);
+        _compactSupportInput = new PopupMultilineInput(_compactSupportText);
+        _compactSupportBody.Controls.Add(_compactSupportInput);
         SetupMainButton(_compactSupportSubmit, "Отправить", CompactSendSupportAsync);
         _compactSupportBody.Controls.Add(_compactSupportSubmit);
         _compactSupportMessage.ForeColor = Accent;
@@ -572,8 +599,9 @@ public sealed partial class MainWindow
             _installedModule.MatchesApplication;
         _compactAccountTrigger.Text = _api.IsLoggedIn ? "Аккаунт · подключён" :
             "Аккаунт · требуется вход";
-        _compactAccountTrigger.BackColor = !_api.IsLoggedIn ? Danger : Surface;
+        _compactAccountFrame.OutlineColor = !_api.IsLoggedIn ? Danger : Border;
         _compactAccountTrigger.ForeColor = !_api.IsLoggedIn ? Color.White : Ink;
+        _compactAccountFrame.Invalidate();
         _compactAccountTrigger.Invalidate();
         _signedInIdentity.Text = _api.Email;
         _start.Text = "Старт";
@@ -683,11 +711,10 @@ public sealed partial class MainWindow
                 (_compactTrack, 32, 0, true),
                 (_compactTrackArtist, 25, 3, !string.IsNullOrWhiteSpace(_compactTrackArtist.Text)),
                 (_compactVersionStatus, 40, 8, hasTrack),
-                (_compactAccountTrigger, 44, 8, true),
-                (_compactAccountBody, CompactAccountHeight(), 8, _compactAccountOpen),
-                (_compactSupportTrigger, 29, 8, true),
-                (_compactSupportBody, _compactSupportKind.SelectedIndex == 1 ? 373 : 296,
-                    8, _compactSupportOpen),
+                (_compactAccountFrame, _compactAccountOpen ? 54 + CompactAccountHeight() : 44, 10, true),
+                (_compactSupportFrame, _compactSupportOpen ?
+                    54 + (_compactSupportKind.SelectedIndex == 1 ? 373 : 296) : 35,
+                    8, true),
                 (_staffPanel, 29, 8, _diagnosticsAllowed)
             };
             var contentHeight = 18 + rows.Where(r => r.visible).Sum(r => r.height + r.gap);
@@ -722,8 +749,19 @@ public sealed partial class MainWindow
             _start.SetBounds(0, 0, (width - 8) / 2, 40);
             _stop.SetBounds((width + 8) / 2, 0, (width - 8) / 2, 40);
             Place(_diagnosticsButton, _staffPanel, 0, 0, width, 28);
-            LayoutCompactAccount(width);
-            LayoutCompactSupport(width);
+            // Accordion headings and bodies share one border and parent control.
+            Place(_compactAccountTrigger, _compactAccountFrame, 10, 3, width - 20, 40);
+            _compactAccountBody.Visible = _compactAccountOpen;
+            if (_compactAccountOpen)
+                Place(_compactAccountBody, _compactAccountFrame, 12, 44,
+                    width - 24, CompactAccountHeight());
+            Place(_compactSupportTrigger, _compactSupportFrame, 10, 1, width - 20, 33);
+            _compactSupportBody.Visible = _compactSupportOpen;
+            if (_compactSupportOpen)
+                Place(_compactSupportBody, _compactSupportFrame, 12, 42,
+                    width - 24, _compactSupportKind.SelectedIndex == 1 ? 373 : 296);
+            LayoutCompactAccount(width - 24);
+            LayoutCompactSupport(width - 24);
             LayoutCompactContributions(width);
             _compactScrollbar.BringToFront();
         }
@@ -818,7 +856,7 @@ public sealed partial class MainWindow
         }
         Place(_compactSupportDescriptionLabel, _compactSupportBody, 0,
             song ? 145 : 78, w, 24);
-        Place(_compactSupportText, _compactSupportBody, 0, song ? 174 : 109, w, 94);
+        Place(_compactSupportInput, _compactSupportBody, 0, song ? 174 : 109, w, 99);
         Place(_compactSupportSubmit, _compactSupportBody, 0, song ? 275 : 209, w, 40);
         Place(_compactSupportMessage, _compactSupportBody, 0, song ? 324 : 256, w, 48);
     }
