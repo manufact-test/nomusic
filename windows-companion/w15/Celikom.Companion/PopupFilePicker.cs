@@ -76,12 +76,21 @@ public sealed class PopupFilePicker : Button
         e.Graphics.DrawLine(iconPen, x - 8, y + 2, x - 8, y + 9);
         e.Graphics.DrawLine(iconPen, x + 8, y + 2, x + 8, y + 9);
         e.Graphics.DrawLine(iconPen, x - 8, y + 9, x + 8, y + 9);
-        var box = new Rectangle(55, 8, Math.Max(20, Width - 65), Height - 16);
+        var xText = 55;
+        var width = Math.Max(20, Width - 65);
         using var titleFont = new Font(Font.FontFamily, 9F, FontStyle.Bold);
-        var visible = _selectedFile.Length > 0 ? _selectedFile : Text;
-        TextRenderer.DrawText(e.Graphics, visible, titleFont,
-            box, Enabled ? Ink : Muted, TextFormatFlags.Left | TextFormatFlags.VerticalCenter |
+        using var detailFont = new Font(Font.FontFamily, 8.2F);
+        var title = _selectedFile.Length > 0 ? "Файл выбран" : "Выбрать MP3 или M4A";
+        var detail = _selectedFile.Length > 0 ?
+            _selectedFile : "Нажмите, чтобы выбрать файл";
+        TextRenderer.DrawText(e.Graphics, title, titleFont,
+            new Rectangle(xText, 12, width, 24), Ink,
+            TextFormatFlags.Left | TextFormatFlags.VerticalCenter |
             TextFormatFlags.SingleLine | TextFormatFlags.EndEllipsis);
+        TextRenderer.DrawText(e.Graphics, detail, detailFont,
+            new Rectangle(xText, 39, width, 30), Muted,
+            TextFormatFlags.Left | TextFormatFlags.VerticalCenter |
+            TextFormatFlags.WordBreak | TextFormatFlags.EndEllipsis);
         if (Focused && ShowFocusCues)
             ControlPaint.DrawFocusRectangle(e.Graphics,
                 Rectangle.Inflate(ClientRectangle, -5, -5), Hover, Base);
