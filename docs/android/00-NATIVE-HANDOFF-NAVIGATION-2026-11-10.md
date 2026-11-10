@@ -2,7 +2,14 @@
 
 **Начальная точка:** `docs/android/START-NEXT-CHAT-ANDROID-NATIVE-2026-11-10.md` — готовый текст первого сообщения новому разработчику.
 
-## НОВЕЙШИЙ ПРОВЕРЕННЫЙ CI — Lemb source alternatives + exact source-instance generation fence (10.11.2026)
+## ТОЧНАЯ НОВЕЙШАЯ CI GREEN ТОЧКА — строгий source-instance fail-closed на ARM64 (10.11.2026)
+
+- **Исходники и тесты SHA:** `59aa2d14bf32fd0f5eb553c09ec88738d84353a0`; **точный бэкап:** `backup/android-signed-source-instance-failclosed-arm64-ci-green-20261110`. **Главный отчёт:** `docs/android/ANDROID-NATIVE-SOURCE-INSTANCE-ARM64-AND-LEMB-BRANCHES-2026-11-10.md`.
+- После предыдущего green `3aaab880` поймали дополнительную ошибку исследовательского допуска: после событий `OUT_OF_ORDER` более поздний чистый `open/read/close` мог снова дать `syntheticSequenceComplete=true`. Исправлено: **любое rejected-событие текущего поколения навсегда лишает его статуса complete**; stale-вызовы старых поколений новое не портят. Добавлены регрессии.
+- **[Нативный ARM64 Linux JVM #42828086262 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/42828086262)**: 44 480 OWN-ONLY assertions + 27 concurrency checks, 4 800 stale callbacks. **[Read-only Android module #42828086264 SUCCESS 2/2](https://github.com/manufact-test/nomusic/actions/runs/42828086264)**. Signed original Lemb factory source census [#42827236492 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/42827236492).
+- `NativeSourceInstanceFence` — чистая локальная Java-модель без подключения к `NativeHookEntry`. Нет live Android ARM runtime decoder proof, selected trackId/edition/generation / Lemb source match, Android аудиоподмена **НЕ** работает; HONOR/Test.50/Windows/production не трогали.
+
+## ПРЕДЫДУЩИЙ ПРОВЕРЕННЫЙ CI — Lemb source alternatives + exact source-instance generation fence (10.11.2026)
 
 - **CI GREEN SHA:** `3aaab880fff4326b596f63a52a89a0f4d0085fef`; **точный бэкап:** `backup/android-signed-source-instance-arm64-lemb-ci-green-20261110`. **Читать первым:** `docs/android/ANDROID-NATIVE-SOURCE-INSTANCE-ARM64-AND-LEMB-BRANCHES-2026-11-10.md`.
 - Подписанный original #170gpr: **8 concrete Lemb implementations**, 4 direct `Lemb.t/remove` callsites в `Lchg.t/remove`, `Lciv.e`, `Larv.g`. Даже доказанный ранее `Lero→Lwq7→Lmb4` может быть **не выбранным** источником.
