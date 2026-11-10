@@ -106,6 +106,17 @@ def execute() -> dict:
         run(["adb", "install-multiple", *map(str, apks)],
             "SIGNED_ORIGINAL_INSTALL_BLOCKED", 240)
         run(["adb", "install", str(apk)], "OWN_PROBE_INSTALL_BLOCKED", 120)
+        # One bounded guest-only launch of the unchanged publisher UI.
+        # This may register MediaSession services that do not exist before
+        # Application.onCreate. Clean emulator: no owner account or playback.
+        run(["adb", "shell", "monkey", "-p", signed.SOURCE,
+             "-c", "android.intent.category.LAUNCHER", "1"],
+            "ORIGINAL_GUEST_LAUNCH_BLOCKED", 35)
+        time.sleep(6)
+        running = run(["adb", "shell", "pidof", signed.SOURCE],
+                      "ORIGINAL_GUEST_PROCESS_NOT_RUNNING", 20).strip()
+        if not running:
+            raise Blocked("ORIGINAL_GUEST_PROCESS_NOT_RUNNING")
         # Do not perform sign-in or media playback. Own Activity queries
         # public SessionToken commands only, with no state changes.
         run(["adb", "logcat", "-c"], "CLEAR_TEST_LOG", 30)
