@@ -24,6 +24,21 @@ class NativePlayerImplementorTests(unittest.TestCase):
         self.assertEqual(report["concrete_prepare_method_body_count"],1)
         self.assertFalse(report["audio_decoder_or_real_player_proven"])
 
+    def test_prepare_body_can_be_in_abstract_ancestor(self):
+        target=INTERFACES["media3_exoplayer"]
+        base="Labstract;"; concrete="Lconcrete;"
+        rel={target:(0x200,tuple()),base:(0x400,(target,)),
+             concrete:(0,(base,))}
+        bodies={base:{("prepare","()V")}}
+        report=summarize(rel,bodies)["media3_exoplayer"]
+        self.assertEqual(report["concrete_implementor_count"],1)
+        self.assertEqual(report["concrete_prepare_method_body_count"],0)
+        self.assertEqual(report["implementors_with_ancestor_prepare_body"],1)
+        hits=report["first_concrete_candidates"][0]["inherited_public_api_body_candidates"]
+        self.assertEqual(hits[0]["bounded_owner"],base)
+        self.assertEqual(hits[0]["ancestor_depth"],1)
+        self.assertFalse(hits[0]["exact_native_source_proven"])
+
     def test_reject_self_and_cycle(self):
         target=INTERFACES["legacy_exoplayer2"]
         rel={target:(0x200,tuple()),"Lcycle1;":(0,("Lcycle2;",)),

@@ -78,6 +78,35 @@ def bounded_name(owner):
     return owner if re.fullmatch(r"L[A-Za-z0-9_$]{1,16};",owner) else "REDACTED_NAMED_CLASS"
 
 
+
+def ancestry_method_bodies(owner, relationships, bodies):
+    """Follow concrete and abstract base/interface types, bounded and read-only.
+
+    A leaf implementing ExoPlayer may inherit prepare() from an abstract
+    ancestor. Inheritance alone cannot prove execution or audio ownership.
+    """
+    visited=set()
+    frontier=[(owner,0)]
+    matches=[]
+    while frontier:
+        current,depth=frontier.pop(0)
+        if current in visited or depth>24 or len(visited)>128:
+            continue
+        visited.add(current)
+        for name,sig in bodies.get(current,set()):
+            if name in METHOD_NAMES:
+                matches.append((current,name,sig,depth))
+        if current in relationships:
+            frontier.extend((parent,depth+1) for parent in relationships[current][1])
+    matches.sort(key=lambda x:(x[3],x[0],x[1],x[2]))
+    return [{
+        "bounded_owner":bounded_name(class_),
+        "method":name,
+        "signature":sig,
+        "ancestor_depth":depth,
+        "exact_native_source_proven":False,
+    } for class_,name,sig,depth in matches[:24]]
+
 def summarize(relationships:dict, bodies:dict) ->dict:
     report={}
     for group, interface in INTERFACES.items():
@@ -89,12 +118,18 @@ def summarize(relationships:dict, bodies:dict) ->dict:
                 "bounded_owner":bounded_name(owner),
                 "has_concrete_prepare_body":("prepare","()V") in source_methods,
                 "public_api_methods_with_bodies":source_methods,
+                "inherited_public_api_body_candidates":ancestry_method_bodies(
+                    owner, relationships, bodies),
             })
         report[group]={
             "public_interface_defined":interface in relationships,
             "concrete_implementor_count":len(owners),
             "concrete_prepare_method_body_count":sum(
                 ("prepare","()V") in bodies.get(o,set()) for o in owners),
+            "implementors_with_ancestor_prepare_body":sum(
+                any(row["method"]=="prepare" and row["signature"]=="()V"
+                    for row in ancestry_method_bodies(o,relationships,bodies))
+                for o in owners),
             "first_concrete_candidates":evidence,
             "output_bounded":len(owners)>MAX_OWNERS,
             "audio_decoder_or_real_player_proven":False,
