@@ -15,6 +15,7 @@ src.append(r/'Test43FadeRecovery.java')
 src.append(r/'Test44OwnerEndpoint.java')
 src.append(r/'Test47CurrentFirstStability.java')
 src.append(r/'Test48SourceEffectLease.java')
+src.append(r/'TestRepeatedSeekTimeoutRecovery.java')
 src.append(r/'../addon/TestSeekTimeoutCircuitBreaker.java')
 subprocess.run(['java','com.sun.tools.javac.Main','-encoding','UTF-8','-source','8','-target','8','-cp',str(json),'-d',str(out),*map(str,src)],check=True)
 subprocess.run(['java','-cp',str(out)+os.pathsep+str(json),'pro.celikom.nativeprobe.identitydiag.TestEngine'],check=True,timeout=45)
@@ -39,6 +40,7 @@ subprocess.run(['java','-cp',str(out)+os.pathsep+str(json),'pro.celikom.nativepr
 subprocess.run(['java','-cp',str(out)+os.pathsep+str(json),'pro.celikom.nativeprobe.identitydiag.Test47CurrentFirstStability'],check=True,timeout=45)
 subprocess.run(['java','-cp',str(out)+os.pathsep+str(json),'pro.celikom.nativeprobe.identitydiag.Test48SourceEffectLease'],check=True,timeout=45)
 subprocess.run(['java','-cp',str(out)+os.pathsep+str(json),'pro.celikom.nativeprobe.identitydiag.TestSeekTimeoutCircuitBreaker'],check=True,timeout=45)
+subprocess.run(['java','-cp',str(out)+os.pathsep+str(json),'pro.celikom.nativeprobe.identitydiag.TestRepeatedSeekTimeoutRecovery'],check=True,timeout=45)
 
 # Protect the owner-approved 0.3.78 local-cache startup and cached user-seek behavior.
 subprocess.run(['java','-cp',str(out)+os.pathsep+str(json),'pro.celikom.nativeprobe.identitydiag.TestCachedAudioRollback'],check=True,timeout=45)
