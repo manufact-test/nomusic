@@ -9,6 +9,11 @@ namespace Celikom.Companion;
 public sealed partial class MainWindow
 {
     private readonly Panel _compactScroll = new();
+    private readonly Panel _compactFooter = new();
+    private readonly VScrollBar _compactScrollbar = new();
+    private readonly Dictionary<Control, int> _compactPositions = new();
+    private int _compactScrollTop;
+    private int _compactScrollMax;
     private readonly Panel _compactHeader = new();
     private readonly Panel _compactActions = new();
     private readonly PopupButton _compactUploadButton = new();
@@ -146,17 +151,35 @@ public sealed partial class MainWindow
 
         _compactScroll.Dock = DockStyle.Fill;
         _compactScroll.BackColor = Paper;
-        _compactScroll.AutoScroll = true;
+        // The standard WinForms AutoScroll changes viewport width during layout
+        // and caused the owner's double right gutter / unreachable forms.
+        // A stable scrollbar owns the vertical viewport explicitly.
+        _compactScroll.AutoScroll = false;
+        _compactScroll.TabStop = true;
         _compactScroll.Resize += (_, _) => LayoutCompact();
+        _compactScroll.MouseWheel += CompactMouseWheel;
+        _compactFooter.Dock = DockStyle.Bottom;
+        _compactFooter.Height = 30;
+        _compactFooter.BackColor = Paper;
+        Controls.Add(_compactFooter);
         Controls.Add(_compactScroll);
+        _compactFooter.BringToFront();
+        _compactScrollbar.Dock = DockStyle.Right;
+        _compactScrollbar.Width = SystemInformation.VerticalScrollBarWidth;
+        _compactScrollbar.SmallChange = 30;
+        _compactScrollbar.Scroll += (_, e) => SetCompactOffset(e.NewValue);
+        _compactScroll.Controls.Add(_compactScrollbar);
+        _compactScrollbar.BringToFront();
 
         _connectionMark.Text = "●";
         _connectionMark.Font = new Font("Segoe UI Symbol", 12F);
         _connectionMark.ForeColor = ColorTranslator.FromHtml("#858B8E");
-        Place(_connectionMark, _compactHeader, 0, 5, 17, 24);
+        _connectionMark.Font = new Font("Segoe UI Symbol", 10F);
+        _connectionMark.TextAlign = ContentAlignment.MiddleCenter;
+        Place(_connectionMark, _compactHeader, 0, 10, 11, 15);
         var logo = Tiny("CELIKOM", 11, Ink);
         logo.Font = new Font("Segoe UI", 11F, FontStyle.Bold);
-        Place(logo, _compactHeader, 19, 8, 92, 24);
+        Place(logo, _compactHeader, 15, 8, 97, 24);
         _connectionState.Font = new Font("Segoe UI", 8F);
         _connectionState.ForeColor = Secondary;
         _connectionState.TextAlign = ContentAlignment.MiddleRight;
@@ -233,6 +256,9 @@ public sealed partial class MainWindow
         _compactVersion.ForeColor = Quiet;
         _compactVersion.Font = new Font("Segoe UI", 9F);
         _compactVersion.Text = "CELIKOM " + AppUpdateManager.RunningVersion.ToString(3);
+        _compactVersion.Location = new Point(16, 6);
+        _compactVersion.Size = new Size(250, 20);
+        _compactFooter.Controls.Add(_compactVersion);
 
         BuildCompactAccountBody();
         BuildCompactSupportBody();
@@ -256,8 +282,10 @@ public sealed partial class MainWindow
             _compactUploadBody, _compactSuggestButton, _compactSuggestBody,
             _compactAccess, _compactTrack, _compactVersionStatus, _compactAccountTrigger,
             _compactAccountBody, _compactSupportTrigger, _compactSupportBody,
-            _staffPanel, _compactVersion
+            _staffPanel
         }) _compactScroll.Controls.Add(c);
+        _compactScrollbar.BringToFront();
+        InstallCompactWheelSupport(_compactScroll);
         RenderCompact();
         LayoutCompact();
     }
@@ -430,15 +458,41 @@ public sealed partial class MainWindow
         panel.Controls.Add(description);
     }
 
+    private void InstallCompactWheelSupport(Control control)
+    {
+        foreach (Control child in control.Controls)
+        {
+            if (child == _compactScrollbar) continue;
+            // Native dropdown and multiline editor must retain their own input.
+            if (child is not ComboBox && child is not TextBox)
+                child.MouseWheel += CompactMouseWheel;
+            InstallCompactWheelSupport(child);
+        }
+    }
+
+    private void CompactMouseWheel(object? sender, MouseEventArgs e)
+    {
+        if (_compactScrollMax == 0) return;
+        var lines = Math.Max(1, SystemInformation.MouseWheelScrollLines);
+        var delta = -Math.Sign(e.Delta) * Math.Min(lines, 5) * 30;
+        SetCompactOffset(_compactScrollTop + delta);
+    }
+
+    private void SetCompactOffset(int value)
+    {
+        var clamped = Math.Clamp(value, 0, _compactScrollMax);
+        if (_compactScrollTop == clamped) return;
+        _compactScrollTop = clamped;
+        LayoutCompact();
+    }
+
     private void ScrollCompactTo(Control target)
     {
         if (!IsHandleCreated || IsDisposed) return;
         BeginInvoke(new Action(() =>
         {
-            if (IsDisposed || !target.Visible || !target.IsHandleCreated) return;
-            // Keep the expanded section's header visible and make scrolling
-            // deliberate instead of trapping the form below the viewport.
-            _compactScroll.ScrollControlIntoView(target);
+            if (IsDisposed || !_compactPositions.TryGetValue(target, out var y)) return;
+            SetCompactOffset(Math.Max(0, y - 14));
         }));
     }
 
@@ -534,38 +588,52 @@ public sealed partial class MainWindow
             {
                 (_compactHeader, 34, 7, true),
                 (_compactActions, 40, 8, true),
-                (_compactStartup, 44, 8, !string.IsNullOrWhiteSpace(_compactStartupText)),
+                (_compactStartup, 45, 8, !string.IsNullOrWhiteSpace(_compactStartupText)),
                 (_compactUploadButton, 40, 8, true),
                 (_compactUploadBody, _compactUploadView == "form" ?
-                    (_bridge.LastTrackDurationMs >= 1000 ? 310 : 356) : 116, 8,
+                    (_bridge.LastTrackDurationMs >= 1000 ? 310 : 356) : 126, 8,
                     _compactUploadOpen),
                 (_compactSuggestButton, 40, 12, true),
-                (_compactSuggestBody, _compactSuggestView == "form" ? 117 : 118, 8, _compactSuggestOpen),
+                (_compactSuggestBody, _compactSuggestView == "form"
+                    ? (string.IsNullOrWhiteSpace(_compactSuggestNote.Text) ? 92 : 128)
+                    : 126, 8, _compactSuggestOpen),
                 (_compactAccess, 35, 8, true),
-                (_compactTrack, 38, 4, true),
-                (_compactVersionStatus, 39, 8, hasTrack),
+                (_compactTrack, 56, 4, true),
+                (_compactVersionStatus, 40, 8, hasTrack),
                 (_compactAccountTrigger, 44, 8, true),
                 (_compactAccountBody, CompactAccountHeight(), 8, _compactAccountOpen),
                 (_compactSupportTrigger, 29, 8, true),
-                (_compactSupportBody, _compactSupportKind.SelectedIndex == 1 ? 373 : 296, 8, _compactSupportOpen),
-                (_staffPanel, 29, 1, _diagnosticsAllowed),
-                (_compactVersion, 19, 6, true)
+                (_compactSupportBody, _compactSupportKind.SelectedIndex == 1 ? 373 : 296,
+                    8, _compactSupportOpen),
+                (_staffPanel, 29, 8, _diagnosticsAllowed)
             };
-            var total = 15 + rows.Where(r => r.visible).Sum(r => r.height + r.gap);
-            // Panel.ClientSize can already exclude an active scrollbar, so
-            // subtracting it twice produced the asymmetric right gutter.
-            var viewport = _compactScroll.Width -
-                (total > _compactScroll.Height ? SystemInformation.VerticalScrollBarWidth : 0);
-            var width = Math.Max(215, viewport - 32);
+            var contentHeight = 18 + rows.Where(r => r.visible).Sum(r => r.height + r.gap);
+            _compactScrollMax = Math.Max(0, contentHeight - _compactScroll.ClientSize.Height);
+            _compactScrollTop = Math.Clamp(_compactScrollTop, 0, _compactScrollMax);
+            var showBar = _compactScrollMax > 0;
+            _compactScrollbar.Visible = showBar;
+            if (showBar)
+            {
+                _compactScrollbar.Minimum = 0;
+                _compactScrollbar.LargeChange = Math.Max(1, _compactScroll.ClientSize.Height);
+                _compactScrollbar.Maximum = Math.Max(
+                    _compactScrollbar.LargeChange - 1, contentHeight - 1);
+                _compactScrollbar.Value = _compactScrollTop;
+            }
+            var viewportWidth = _compactScroll.ClientSize.Width -
+                (showBar ? _compactScrollbar.Width : 0);
+            var width = Math.Max(190, viewportWidth - 32);
+            _compactPositions.Clear();
             int y = 15;
             foreach (var row in rows)
             {
                 row.item.Visible = row.visible;
                 if (!row.visible) continue;
-                row.item.SetBounds(16, y, width, row.height);
+                _compactPositions[row.item] = y;
+                row.item.SetBounds(16, y - _compactScrollTop, width, row.height);
                 y += row.height + row.gap;
             }
-            _compactScroll.AutoScrollMinSize = new Size(0, y);
+            // Viewport and footer do not move. Content alone translates.
             _connectionState.SetBounds(Math.Max(112, width - 136), 7,
                 Math.Min(136, width - 112), 23);
             _start.SetBounds(0, 0, (width - 8) / 2, 40);
@@ -574,6 +642,7 @@ public sealed partial class MainWindow
             LayoutCompactAccount(width);
             LayoutCompactSupport(width);
             LayoutCompactContributions(width);
+            _compactScrollbar.BringToFront();
         }
         finally { _compactScroll.ResumeLayout(false); _compactLayoutBusy = false; }
     }
