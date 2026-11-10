@@ -1,3 +1,13 @@
+## NEWEST 2026-11-10: REAL SIGNED TYPED FileInfo LINEAGE / CI ALL GREEN
+
+**Verified code:** `78b0437f17888ce49a4c1bea0ba06ca96cb455b9`; **rollback:** `backup/android-signed-typed-dispatch-field-audit-ci-green-20261110`. [Полный отчёт](docs/android/ANDROID-NATIVE-SIGNED-TYPED-DISPATCH-EVIDENCE-2026-11-10.md). Результат: оригинальный signed six-DEX содержит Lhee.a→Lxa7, Lged.a unwrap Leed, Lfqr coroutine→Ldiv, Lygv.r(Ldiv)→Ljgv, её реальные потребители Lcq7/Lo4y/Llvc/Larv. Далее обфусцированные Lga4/Lkq7/Lnro могут взаимодействовать через Le48/Le93.
+
+**ВАЖНОЕ исправление ложноположительного пути:** возможная Larv.g→Lero→Lga4.c→Le48.a→Ldl8.a→Lsu5.invoke→Lro7.y0 цепочка не доказывает audio source. У Le48.a 16 потенциальных реализаций; Lga4.c читает **Le48 field-2**, конструктор кладёт Lzcd в **field-1**, прямые записи field-2 имеют источники Lya4/Lkc6 и неизвестные, Lsu5.invoke имеет 721 opcode и switch (независимые сценарии). Все точные field refs проверены на 230 533 DEX телах. Изолированный ARM decoder PREPARE с текущим trackId+edition+generation НЕ подтверждён. Контракты замены не включать.
+
+**Green CI:** [typed #42808158803](https://github.com/manufact-test/nomusic/actions/runs/42808158803), [post DTO #42808680756](https://github.com/manufact-test/nomusic/actions/runs/42808680756), [typed candidate #42810750855](https://github.com/manufact-test/nomusic/actions/runs/42810750855), [dynamic #42809849405](https://github.com/manufact-test/nomusic/actions/runs/42809849405), [field #42810607588](https://github.com/manufact-test/nomusic/actions/runs/42810607588), [Android hooklab #42810750850](https://github.com/manufact-test/nomusic/actions/runs/42810750850) 2/2. No owner APK, Windows, HONOR, Test.50, API or production touched.
+
+---
+
 ## НОВЕЙШАЯ ПРОВЕРЕННАЯ ТОЧКА — signed register/CFG + coroutine (10.11.2026)
 
 **Код CI GREEN:** 8b7bc64f89249e5434da739851bececce2adb121. **Бэкап:** backup/android-signed-register-cfg-ci-green-20261110. Исследование оригинального подписанного 6-DEX APK [#42806655214 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/42806655214); сборка модуля и тесты [#42806655152 SUCCESS 2/2](https://github.com/manufact-test/nomusic/actions/runs/42806655152). **Отчёт:** docs/android/ANDROID-NATIVE-SIGNED-REGISTER-COROUTINE-CFG-EVIDENCE-2026-11-10.md.
