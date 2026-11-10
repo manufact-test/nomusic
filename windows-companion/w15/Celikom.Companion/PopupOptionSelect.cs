@@ -66,6 +66,14 @@ public sealed class PopupOptionSelect : Control
         };
     }
 
+    protected override bool IsInputKey(Keys keyData)
+    {
+        // Without this, WinForms treats Up/Down as dialog focus traversal:
+        // the KeyDown handler never receives real keyboard arrow presses.
+        return (keyData & Keys.KeyCode) is Keys.Up or Keys.Down or Keys.Enter or Keys.Space
+            || base.IsInputKey(keyData);
+    }
+
     protected override void OnClick(EventArgs e)
     {
         base.OnClick(e);
