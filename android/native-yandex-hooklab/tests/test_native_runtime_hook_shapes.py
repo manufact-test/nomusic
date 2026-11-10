@@ -38,6 +38,28 @@ class ExactNativeHookShapeTests(unittest.TestCase):
             with self.subTest(fields=n):
                 self.assertFalse(mod.check_shapes(mod.TARGETS,n)["one_typed_lero_lmb4_field"])
 
+    def test_direct_lero_construction_is_not_synonymous_with_factory(self):
+        cases=[("(Lwzi;Lga4;)V","(Lwzi;Lga4;Ljava/lang/Object;)V")]
+        for pair in cases:
+            r=mod.check_lero_constructors(pair)
+            self.assertTrue(r["both_exact_lero_creation_shapes_proven"])
+            self.assertTrue(r["direct_Locv_construction_can_bypass_kvs_factory"])
+            self.assertEqual(r["exact_lero_constructor_short_count"],1)
+            self.assertEqual(r["exact_lero_constructor_long_count"],1)
+            self.assertFalse(r["actual_live_selected_source_or_decoder_proven"])
+
+    def test_missing_or_ambiguous_constructor_fails_closed(self):
+        long="(Lwzi;Lga4;Ljava/lang/Object;)V"
+        short="(Lwzi;Lga4;)V"
+        for pair in [(),(short,),(long,),(short,short,long),
+                     (short,long,long),(short,"(Lwzi;Lga4;I)V"),
+                     (short,"(Lwzi;Lga4;[B)V"),
+                     (short,"(Lwzi;Lga4;Lfoo;Ljava/lang/Object;)V")]:
+            with self.subTest(pair=pair):
+                self.assertFalse(
+                    mod.check_lero_constructors(pair)[
+                        "both_exact_lero_creation_shapes_proven"])
+
     def test_never_outputs_private_field_name(self):
         source=(ROOT/"audit_native_runtime_hook_shapes.py").read_text()
         self.assertIn("reader_fields.add(",source)
