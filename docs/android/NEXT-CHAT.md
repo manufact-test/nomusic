@@ -1,3 +1,13 @@
+# 10.11.2026 — АВТОРИТЕТНАЯ НАВИГАЦИЯ / ПЕРЕДАЧА
+
+**Начинать с** `docs/android/00-NATIVE-HANDOFF-NAVIGATION-2026-11-10.md` и **`docs/android/START-NEXT-CHAT-ANDROID-NATIVE-2026-11-10.md`**. Нижеследующие разделы этого файла являются историей и могут содержать устаревшие слова LATEST и SHA.
+
+**Последний проверенный код:** `d7d3f8b82b6d752ed7837dd9955ccb51df71641d`. **Два CI SUCCESS:** [signed six-DEX bridge scan #42804081064](https://github.com/manufact-test/nomusic/actions/runs/42804081064), [Android module build/tests #42804081053](https://github.com/manufact-test/nomusic/actions/runs/42804081053). Прямой caller `FileInfo→sw7.y0/z0`: `Lhee;->a`. Есть consumer `Lged;->a`, но связка к декодеру НЕ доказана. В оригинальном Android APK статически найдены по два вызывающих метода `MediaSession.setMetadata` и `setPlaybackState`, НЕТ подтверждения их live исполнения на пользовательском треке. Полный отчёт `docs/android/ANDROID-NATIVE-SIGNED-SHARED-CALLER-MEDIASESSION-EVIDENCE-2026-11-10.md`.
+
+**Windows W58:** пользователь ПОДТВЕРДИЛ аудиоподмену, Pause, Seek, Next, Previous, MyWave на Windows 0.24.7; в Android такой замены ещё НЕ БЫЛО. Уже перенесены только чистые модельные контракты для grant/Stop/Next; основной блокер — реальная Android decoder pre-prepare точка. Все рабочие версии/production не тронуты.
+
+---
+
 ## NEW VERIFIED ANDROID CHECKPOINT — Windows W58 logic carried into source-only Android (2026-11-10)
 
 **GitHub code SHA `e2a3c7c9577ea0a44966d1859296d77e0bae40d7`, CI [#42802150192 SUCCESS 2/2](https://github.com/manufact-test/nomusic/actions/runs/42802150192), backup `backup/android-w58-grant-stop-next-ci-green-20261110`.** Owner Windows 0.24.7 genuinely PASSED audio + Pause/Seek/Next/MyWave. Windows Stop leaves *already delivered* signed audio playing in existing Yandex buffer, but no proven newly mapped track after OFF. Do NOT confuse this UX semantics with an active background hook.

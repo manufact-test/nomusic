@@ -47,3 +47,8 @@ Before considering any installation on a **separate disposable device**, run `py
 ## 10.11.2026 — verified signed media engine class hierarchy
 
 Read-only signed-original CI now found 4 concrete obfuscated classes implementing AndroidX Media3 ExoPlayer, but no named `ExoPlayerImpl`, `DefaultMediaSourceFactory` nor `prepare()V` code body in those four class inheritance chains. See `docs/android/ANDROID-NATIVE-REAL-PLAYER-IMPLEMENTOR-EVIDENCE-2026-11-10.md`. These are static implementation candidates, NOT a verified native audio source. An ubuntu-24.04-arm runner is native Linux ARM64 but cannot boot an accelerated native Android guest without /dev/kvm; do not treat CI's ARM runner as a working Android device. No owner action now.
+
+## Current handoff / verified signed source evidence (2026-11-10)
+
+For all new engineering sessions, start at `docs/android/00-NATIVE-HANDOFF-NAVIGATION-2026-11-10.md`. Latest signed actual Yandex six-DEX static audit: [CI #42804081064](https://github.com/manufact-test/nomusic/actions/runs/42804081064) SUCCESS; exact FileInfo converter caller `Lhee;->a`, model consumer `Lged;->a`; no proven dataflow into four obfuscated concrete Media3 ExoPlayer implementors. Platform `MediaSession.setMetadata` and `setPlaybackState` each have two signed-APK static callers, **not** actual runtime proof. Read-only module build/synthetic tests [CI #42804081053](https://github.com/manufact-test/nomusic/actions/runs/42804081053) SUCCESS 2/2. Windows real audio success DOES NOT imply Android source swap. No user APK or phone modifications.
+
