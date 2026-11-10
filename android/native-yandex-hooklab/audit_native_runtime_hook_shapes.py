@@ -34,6 +34,8 @@ TARGETS={
 LIMIT_DEX=6
 MAX_BODIES=240000
 MAX_LERO_READER_FIELDS=10
+SHORT_LERO_CTOR="(Lwzi;Lga4;)V"
+
 
 
 def check_shapes(methods,reader_fields):
@@ -51,9 +53,26 @@ def check_shapes(methods,reader_fields):
     }
 
 
+def check_lero_constructors(signatures):
+    """Two independent real Lero creation paths, without exporting third type."""
+    shapes=list(signatures)
+    short=sum(s==SHORT_LERO_CTOR for s in shapes)
+    long=sum(s.startswith("(Lwzi;Lga4;L") and s.endswith(";)V")
+             and s!=SHORT_LERO_CTOR and s.count(";")==3
+             for s in shapes)
+    return {
+        "exact_lero_constructor_short_count":short,
+        "exact_lero_constructor_long_count":long,
+        "direct_Locv_construction_can_bypass_kvs_factory":True,
+        "both_exact_lero_creation_shapes_proven":short==1 and long==1,
+        "actual_live_selected_source_or_decoder_proven":False,
+    }
+
+
 def inspect_signed(splits):
     defined=Counter()
     reader_fields=set()
+    lero_constructors=[]
     dex_count=0
     bodies=0
     for apk in splits:
@@ -80,16 +99,22 @@ def inspect_signed(splits):
                     signature=d.method(idx)
                     if signature in TARGETS:
                         defined[signature]+=1
+                    if signature[0]=="Lero;" and signature[1]=="<init>":
+                        lero_constructors.append(signature[2])
     if dex_count!=LIMIT_DEX:raise ValueError("SIGNED_SIX_DEX_MISSING")
     if any(defined[t]!=1 for t in TARGETS):
         raise ValueError("EXACT_METHOD_DEFINITION_COUNT")
     result=check_shapes(defined,len(reader_fields))
+    creation=check_lero_constructors(lero_constructors)
+    if not creation["both_exact_lero_creation_shapes_proven"]:
+        raise ValueError("EXACT_LERO_CONSTRUCTOR_PAIR_NOT_PROVEN")
     if not result["one_typed_lero_lmb4_field"]:
         raise ValueError("EXACT_LERO_READER_FIELD_COUNT")
     return {
         "signed_dex_count":dex_count,
         "method_bodies_scanned":bodies,
         **result,
+        **creation,
         "original_apks_unchanged":True,
         "no_device_account_secret_url_media_or_dex_output":True,
     }
@@ -119,6 +144,7 @@ if __name__=="__main__":
             "DEX_TOO_LARGE","TOO_MANY_LERO_TYPED_READER_FIELDS","METHOD_BOUND",
             "SIGNED_SIX_DEX_MISSING","EXACT_METHOD_DEFINITION_COUNT",
             "EXACT_LERO_READER_FIELD_COUNT","SIGNED_CI_ONLY",
+            "EXACT_LERO_CONSTRUCTOR_PAIR_NOT_PROVEN",
             "PINNED_ORIGINAL_SHA_MISMATCH","FIVE_SIGNED_SPLITS_REQUIRED",
         }
         code=str(exc)
