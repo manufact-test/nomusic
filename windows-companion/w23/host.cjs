@@ -62,6 +62,7 @@ const noisy = new Set(["TRACK_CHANGED", "RESOLVE_REQUEST", "GRANT_FOUND", "GRANT
   "PLAYER_CDP_STATE_NOT_PLAYING",
   "PLAYER_URL_MATCH", "PLAYER_URL_QUERY_MISSING", "PLAYER_URL_QUERY_CHANGED",
   "PLAYER_URL_EXPECTATION_MISSING", "PLAYER_URL_EXPIRED_AT_REQUEST",
+  "PLAYER_URL_SIGNED_FIELDS_INTACT",
   "PLAYER_403_JSON", "PLAYER_403_HTML", "PLAYER_403_OTHER",
   "PLAYER_403_PHP_INVALID_AUDIO_TOKEN", "PLAYER_403_PHP_ACCESS_DENIED",
   "PLAYER_403_JSON_UNCLASSIFIED",
@@ -77,6 +78,7 @@ const noisy = new Set(["TRACK_CHANGED", "RESOLVE_REQUEST", "GRANT_FOUND", "GRANT
   // Correlation requires ALL native requests, not the first occurrence only.
   "PLAYER_URL_MATCH", "PLAYER_URL_QUERY_MISSING", "PLAYER_URL_QUERY_CHANGED",
   "PLAYER_URL_EXPECTATION_MISSING", "PLAYER_URL_EXPIRED_AT_REQUEST",
+  "PLAYER_URL_SIGNED_FIELDS_INTACT",
   "PLAYER_403_JSON", "PLAYER_403_HTML", "PLAYER_403_OTHER",
   "PLAYER_403_PHP_INVALID_AUDIO_TOKEN", "PLAYER_403_PHP_ACCESS_DENIED",
   "PLAYER_403_JSON_UNCLASSIFIED"]);
@@ -337,6 +339,21 @@ function classifyPlayerUrl(view, resourceId, actualUrl) {
   const actual = actualUrl.origin + actualUrl.pathname + actualUrl.search;
   if (actual === entry.href) return "PLAYER_URL_MATCH";
   if (!actualUrl.search) return "PLAYER_URL_QUERY_MISSING";
+  try {
+    const expected = new URL(entry.href);
+    const fields = ["token", "expires", "sid"];
+    const parsed = actualUrl.searchParams;
+    // PHP checks the signed fields, not their URL order. An unrelated extra
+    // query field does not by itself break the HMAC. Be conservative about
+    // duplicated signed fields (PHP and URLSearchParams can differ).
+    const intact = fields.every(key => {
+      const exp = expected.searchParams.getAll(key);
+      const got = parsed.getAll(key);
+      return exp.length === got.length && exp.length <= 1 &&
+        (exp.length === 0 || exp[0] === got[0]);
+    });
+    if (intact) return "PLAYER_URL_SIGNED_FIELDS_INTACT";
+  } catch {}
   return "PLAYER_URL_QUERY_CHANGED";
 }
 // Read only a real native GET's tiny JSON *403* on our exact audio route.
