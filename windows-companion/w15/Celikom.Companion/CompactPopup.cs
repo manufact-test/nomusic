@@ -51,7 +51,7 @@ public sealed partial class MainWindow
     private readonly Label _compactSupportMessage = new();
     private readonly Label _compactUploadNote = new();
     private readonly TextBox _compactUploadDuration = new();
-    private readonly PopupButton _compactFilePicker = new();
+    private readonly PopupFilePicker _compactFilePicker = new();
     private readonly Label _compactFileName = new();
     private readonly CheckBox _compactRights = new();
     private readonly PopupButton _compactUploadSubmit = new();
@@ -385,7 +385,7 @@ public sealed partial class MainWindow
         _compactUploadBody.Controls.Add(_compactUploadDurationKnown);
         _compactUploadDuration.PlaceholderText = "Например, 180";
         _compactUploadBody.Controls.Add(_compactDurationInput);
-        SetupMainButton(_compactFilePicker, "Выбрать MP3 / M4A", CompactChooseAudio);
+        _compactFilePicker.Click += CompactChooseAudio;
         _compactUploadBody.Controls.Add(_compactFilePicker);
         _compactFileName.ForeColor = Secondary;
         _compactUploadBody.Controls.Add(_compactFileName);
@@ -536,7 +536,9 @@ public sealed partial class MainWindow
                 (_compactActions, 40, 8, true),
                 (_compactStartup, 44, 8, !string.IsNullOrWhiteSpace(_compactStartupText)),
                 (_compactUploadButton, 40, 8, true),
-                (_compactUploadBody, _compactUploadView == "form" ? 288 : 116, 8, _compactUploadOpen),
+                (_compactUploadBody, _compactUploadView == "form" ?
+                    (_bridge.LastTrackDurationMs >= 1000 ? 310 : 356) : 116, 8,
+                    _compactUploadOpen),
                 (_compactSuggestButton, 40, 12, true),
                 (_compactSuggestBody, _compactSuggestView == "form" ? 117 : 118, 8, _compactSuggestOpen),
                 (_compactAccess, 35, 8, true),
@@ -682,15 +684,15 @@ public sealed partial class MainWindow
             Place(known ? _compactUploadDurationKnown : _compactUploadDurationCaption,
                 _compactUploadBody, 0, 30, w, 21);
             if (!known) Place(_compactDurationInput, _compactUploadBody, 0, 51, w, 38);
-            Place(_compactFilePicker, _compactUploadBody, 0, known ? 54 : 95, w, 40);
-            Place(_compactFileName, _compactUploadBody, 0, known ? 98 : 139, w, 25);
-            Place(_compactRights, _compactUploadBody, 0, known ? 130 : 170, w, 31);
-            Place(_compactUploadSubmit, _compactUploadBody, 0, known ? 169 : 205, w, 40);
+            Place(_compactFilePicker, _compactUploadBody, 0, known ? 54 : 96, w, 74);
+            Place(_compactFileName, _compactUploadBody, 0, known ? 132 : 174, w, 24);
+            Place(_compactRights, _compactUploadBody, 0, known ? 162 : 206, w, 31);
+            Place(_compactUploadSubmit, _compactUploadBody, 0, known ? 202 : 246, w, 40);
             if (_compactUploadCancellation is not null)
                 Place(_compactUploadProgress, _compactUploadBody, 0,
-                    known ? 215 : 250, w, 13);
+                    known ? 248 : 292, w, 13);
             Place(_compactUploadNote, _compactUploadBody, 0,
-                known ? 236 : 261, w, 48);
+                known ? 266 : 309, w, 45);
         }
         else if (result)
         {
