@@ -189,6 +189,20 @@ var footer = (Control)Get("_compactFooter");
 var footerLabel = (Control)Get("_compactVersion");
 var root = (TableLayoutPanel)Get("_compactFrame");
 var dot = (Control)Get("_connectionMark");
+Console.WriteLine("W65_FOOTER_GEOMETRY " + System.Text.Json.JsonSerializer.Serialize(new
+{
+    labelParent = ReferenceEquals(footerLabel.Parent, footer),
+    footerParent = ReferenceEquals(footer.Parent, root),
+    footerVisible = footer.Visible,
+    labelVisible = footerLabel.Visible,
+    labelBottom = footerLabel.Bottom,
+    footerHeight = footer.ClientSize.Height,
+    footerBottom = footer.Bottom,
+    clientHeight = form.ClientSize.Height,
+    dotWidth = dot.Width,
+    dotHeight = dot.Height,
+    dotText = dot.Text
+}));
 if (!ReferenceEquals(footerLabel.Parent, footer) ||
     !ReferenceEquals(footer.Parent, root) ||
     !footer.Visible || !footerLabel.Visible ||
