@@ -1,0 +1,46 @@
+name: CELIKOM own-source instance generation fence native ARM64 JVM (NO Yandex)
+on:
+  push:
+    branches:
+      - experiment/android-native-yandex-fileinfo-hooklab-20261109
+    paths:
+      - 'android/native-yandex-hooklab/app/src/main/java/pro/celikom/yandex/nativehooklab/NativeSourceInstanceFence.java'
+      - 'android/native-yandex-hooklab/tests/src/NativeSourceInstanceFenceTest.java'
+      - 'android/native-yandex-hooklab/tests/src/NativeSourceInstanceConcurrencyTest.java'
+      - '.github/workflows/android-native-source-instance-arm64-jvm.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  own-only-source-causality-arm64:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Confirm native ARM64 Linux, not Android runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(uname -m)" = aarch64
+          echo 'ARM64 Linux JVM only. Not an Android decoder, not a publisher Yandex host.'
+      - name: Compile only CELIKOM source-instance model and independent stress tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/celikom-source-instance-arm64
+          javac --release 17 -d /tmp/celikom-source-instance-arm64 \
+            android/native-yandex-hooklab/app/src/main/java/pro/celikom/yandex/nativehooklab/NativeSourceInstanceFence.java \
+            android/native-yandex-hooklab/tests/src/NativeSourceInstanceFenceTest.java \
+            android/native-yandex-hooklab/tests/src/NativeSourceInstanceConcurrencyTest.java
+          java -cp /tmp/celikom-source-instance-arm64 NativeSourceInstanceFenceTest
+          java -cp /tmp/celikom-source-instance-arm64 NativeSourceInstanceConcurrencyTest
+      - name: Confirm no Yandex, decoder or media access
+        if: always()
+        run: |
+          test ! -d android/native-yandex-hooklab/release
+          test ! -d android/native-yandex-hooklab/patched
+          echo 'OWN-ONLY model; no original APK, audio, auth, user information or live playback'
