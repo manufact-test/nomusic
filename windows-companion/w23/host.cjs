@@ -286,16 +286,30 @@ async function tick(view) {
     }
     if (now - (lastStatus.get(view)?.at || 0) > 2200) {
       const status = await execute(view, ";window.__celikomBridgeNativeStatus?.()||'ORIGINAL'");
-      const currentId = await execute(view,
-        ";window.__celikomBridgeNativeCurrentTrackId?.()||''");
-      const trackId = typeof currentId === "string" && /^[1-9][0-9]{0,23}$/.test(currentId)
-        ? currentId : null;
+      const observed = await execute(view,
+        ";window.__celikomBridgeNativeCurrentTrack?.()||null");
+      const trackId = typeof observed?.id === "string" &&
+        /^[1-9][0-9]{0,23}$/.test(observed.id) ? observed.id : null;
+      // Validate once more at the native boundary. None of the free-form
+      // metadata ever enters the diagnostic event stream or public API.
+      const cleanText = value => typeof value === "string" &&
+        value.length <= 720 && !/[\\u0000-\\u001f]/.test(value)
+          ? value.trim().slice(0, 180) : "";
+      const title = trackId ? cleanText(observed.title) : "";
+      const artist = trackId ? cleanText(observed.artist) : "";
+      const durationMs = trackId &&
+        Number.isSafeInteger(observed.durationMs) &&
+        observed.durationMs >= 1000 && observed.durationMs <= 86400000
+          ? observed.durationMs : null;
       const previous = lastStatus.get(view);
-      lastStatus.set(view, { value: status, trackId, at: now });
+      lastStatus.set(view, { value: status, trackId, title, artist, durationMs, at: now });
       if ((status === "NATIVE_CONNECTED" || status === "NATIVE_MAPPING_ACCEPTED" ||
            status === "ORIGINAL") &&
-          (!previous || status !== previous.value || trackId !== previous.trackId)) {
-        await localRequest(token, "/v1/heartbeat", "POST", {trackId,status});
+          (!previous || status !== previous.value || trackId !== previous.trackId ||
+           title !== previous.title || artist !== previous.artist ||
+           durationMs !== previous.durationMs)) {
+        await localRequest(token, "/v1/heartbeat", "POST",
+          {trackId, status, title, artist, durationMs});
       }
     }
   } finally {
