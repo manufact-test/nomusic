@@ -87,6 +87,34 @@ class TypedWrapperTests(unittest.TestCase):
         result=safe_instruction_shape(WithField([0x005b,0],[]),0x5b,(0x005b,0))
         self.assertEqual(result,{"kind":"iput_object","owner":"Lxa7;","field_type":"Leed;"})
 
+    def test_iget_object_wrapper_projection_kills_alias_not_identity(self):
+        # Lcq7.i0 -> wrapper v1; iget-object v1,v1,field; check-cast Lga4
+        # then Lero.<init>{v1}; must NOT call it direct wrapper-object flow.
+        src=("Lcq7;","i0","()Ljava/lang/Object;")
+        consumer=("Lero;","<init>","(Lga4;)V")
+        code=[0x0071,0,0, 0x010c, 0x1154,0,
+              0x1070,1,0x0001, 0x000e]
+        rows=profile_tracked_results(FakeDex(code,[src,consumer]),0,{src})
+        self.assertEqual(rows[0]["events"],[])
+        self.assertFalse(rows[0]["proven_exact_track"])
+
+    def test_move_object_alias_is_different_from_field_projection(self):
+        src=("Lcq7;","i0","()Ljava/lang/Object;")
+        consumer=("Lero;","<init>","(Ljava/lang/Object;)V")
+        # move-object v2,v1 still preserves identity (unlike iget-object).
+        code=[0x0071,0,0,0x010c,0x1207,0x1070,1,0x0002,0x000e]
+        rows=profile_tracked_results(FakeDex(code,[src,consumer]),0,{src})
+        self.assertIn({"action":"invoke","target":"Lero;-><init>","arg_word":0},
+                      rows[0]["events"])
+
+    def test_nibble_const_overwrites_object_alias(self):
+        src=("Lcq7;","i0","()Ljava/lang/Object;")
+        consumer=("Lero;","<init>","(Ljava/lang/Object;)V")
+        # const/4 v1, -1 is encoded 0xf112; kills result object.
+        code=[0x0071,0,0,0x010c,0xf112,0x1070,1,0x0001,0x000e]
+        rows=profile_tracked_results(FakeDex(code,[src,consumer]),0,{src})
+        self.assertEqual(rows[0]["events"],[])
+
     def test_bad_proto_rejected(self):
         for bad in ["","()", "(Labc)V","(Z)","(I)VV"]:
             with self.assertRaises(ValueError,msg=bad):
