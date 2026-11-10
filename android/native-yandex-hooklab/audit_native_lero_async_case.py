@@ -149,7 +149,11 @@ def ctor_and_switch_slot(d,ins):
                 field=field_k(d,pr)
                 break
             if previous in (0x12,0x13,0x14,0x15):
-                break
+                # A nearby unrelated constant may define v2 while the
+                # switch still selects v1 loaded from the tag field.
+                dest=((pr[0]>>8)&15) if previous==0x12 else pr[0]>>8
+                if dest==reg:
+                    break
         if field:
             return {"switch_ordinal":i,"switch":ins[i],
                     "tag_field":field,"cases":switch_table_for_ins(ins,i)}
