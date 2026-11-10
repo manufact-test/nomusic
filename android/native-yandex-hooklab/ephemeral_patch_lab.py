@@ -28,6 +28,7 @@ import audit_gpr_apkpure_once as gpr
 from audit_rustore_host_once import sdk_tool, RUSTORE_SHA256_CERT
 from inspect_android_host import Dex, DEX_MAX
 from trace_native_callers import method_definitions
+from lab_private_export import export_private_lab_parts
 
 PATCHER_URL = "https://github.com/JingMatrix/LSPatch/releases/download/v1.2/lspatch-v1.2-487-release.jar"
 PATCHER_SHA256 = "d238fdc414d121b7fa454d8b4ccf420df3a8c97d563761861ff92bd9c5da2165"
@@ -282,6 +283,17 @@ def main():
             for i,p in enumerate(sorted(patched)):
                 shutil.copyfile(p,target/f"native-split-{i}.apk")
 
+        # Private operator-side export is separate from CI emulator staging and
+        # may happen ONLY after every existing exact-host, signature, split,
+        # loader and embedded-module verification above has passed. Never use
+        # this output for the owner's primary phone or public distribution.
+        private_output = export_private_lab_parts(
+            [(apk_id(p)[2], p) for p in patched],
+            os.getenv("CELIKOM_ARM_LAB_OUTPUT_DIR"),
+            os.getenv("CELIKOM_ARM_LAB_EXPORT_ACK"),
+            repo_root=HERE.parents[1], lab_signer=lab_sig,
+        )
+
         print(json.dumps({
             "result":"PATCHED_EXACT_NATIVE_HOST_BUNDLE_STRUCTURALLY_VERIFIED_NO_RUNTIME",
             "base_original_package":PACKAGE,
@@ -302,7 +314,8 @@ def main():
                                else "CELIKOM read-only FileInfoDto observer"),
             "module_sha256":(None if diag_no_module else sha(module)),
             "lab_signer_sha256":lab_sig,
-            "host_modified_in_ci_only":True,
+            "host_modified_in_ci_only":not private_output["exported"],
+            "private_arm_research_output":private_output,
             "host_installed":False,
             "runtime_hook_evidence":False,
             "play_protect_tested":False,

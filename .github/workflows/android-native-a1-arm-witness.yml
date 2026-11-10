@@ -6,6 +6,9 @@ on:
     paths:
       - 'android/native-yandex-hooklab/witness_installed_arm_host.py'
       - 'android/native-yandex-hooklab/tests/test_witness_installed_arm_host.py'
+      - 'android/native-yandex-hooklab/tests/test_lab_private_export.py'
+      - 'android/native-yandex-hooklab/lab_private_export.py'
+      - 'android/native-yandex-hooklab/ephemeral_patch_lab.py'
       - '.github/workflows/android-native-a1-arm-witness.yml'
   workflow_dispatch:
 permissions:
@@ -22,6 +25,8 @@ jobs:
       - name: Verify witness logic without touching any device
         run: |
           python3 -m unittest discover -s android/native-yandex-hooklab/tests -p test_witness_installed_arm_host.py -v
+          python3 -m unittest discover -s android/native-yandex-hooklab/tests -p test_lab_private_export.py -v
+          python3 -m py_compile android/native-yandex-hooklab/ephemeral_patch_lab.py
       - name: Strict static no-install/no-sideload/no-audio check
         run: |
           python3 - <<'PY'
