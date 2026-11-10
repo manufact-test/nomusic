@@ -498,6 +498,24 @@ def classify_main_pid_scoped_system_logs(exit_info_raw, threadtime_raw):
             caused_by_types.append(klass)
         if len(caused_by_types) >= 6:
             break
+    # Most startup exits observed here are EXIT_SELF(0) with no FATAL
+    # AndroidRuntime marker; a vendor-installed uncaught handler may log the
+    # Throwable under a different tag before System.exit. Extract ONLY the
+    # fixed grammar of exception class names from MAIN-PID E/F messages.
+    # No messages, tag content, arguments, stack frames or account data leave CI.
+    nonruntime_error_lines = "\n".join(
+        message for severity, tag, message in relevant_messages
+        if severity in ("E", "F") and tag != "AndroidRuntime")
+    bounded_nonruntime_types = []
+    approved_class_roots = (
+        "java.", "javax.", "android.", "androidx.", "kotlin.",
+        "com.yandex.", "ru.yandex.", "com.google.", "org.chromium.")
+    for klass in re.findall(throwable_pattern, nonruntime_error_lines):
+        if (len(klass) <= 160 and klass.startswith(approved_class_roots)
+                and klass not in bounded_nonruntime_types):
+            bounded_nonruntime_types.append(klass)
+        if len(bounded_nonruntime_types) >= 6:
+            break
     stages = (
         ("APPLICATION_CREATE", "Unable to create application"),
         ("PROVIDER_INSTANTIATE", "Unable to instantiate provider"),
@@ -513,6 +531,8 @@ def classify_main_pid_scoped_system_logs(exit_info_raw, threadtime_raw):
         "main_pid_android_runtime_fatal_seen": "FATAL EXCEPTION" in runtime_text,
         "main_pid_bounded_runtime_throwable_types": runtime_types,
         "main_pid_bounded_caused_by_throwable_types": caused_by_types,
+        "main_pid_bounded_nonruntime_error_throwable_types": bounded_nonruntime_types,
+        "main_pid_nonruntime_error_lines_observed": bool(nonruntime_error_lines),
         "main_pid_android_runtime_initialization_stage": runtime_stage,
         "main_exit_pid_records_available": bool(target_pids),
         "main_pid_scoped_log_lines_seen": bool(relevant_messages),
