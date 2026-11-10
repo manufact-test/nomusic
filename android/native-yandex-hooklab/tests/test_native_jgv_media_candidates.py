@@ -57,6 +57,8 @@ class SignedLjgvMediaCandidatesTests(unittest.TestCase):
 
     def test_exact_interest_groups_not_media_names_only(self):
         self.assertIn("Lcq7;",TARGET_METHODS)
+        self.assertIn("Lro7;",TARGET_METHODS)
+        self.assertIn("Le48;",CLASSES)
         self.assertIn("Ljgv;",CLASSES)
         self.assertIn("Lfxc;",MEDIA_CONCRETES)
 
