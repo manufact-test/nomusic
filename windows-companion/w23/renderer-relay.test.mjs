@@ -174,3 +174,10 @@ test("W48 structural native file-info witness exports only field presence, never
   assert.ok(!names.includes("PLAYER_AUDIO_AUDIBLE"));
   r.handlers.beforeunload();
 });
+
+test("W50 renderer bundle cannot generate the old false-positive 32-byte audio probe",()=>{
+  assert.ok(!bundle.includes("AUDIO_PROBE_STARTED"),"no synthetic audio probe codes in owner bundle");
+  assert.ok(!bundle.includes("bytes=0-31"),"no separate diagnostic audio GET");
+  assert.ok(bundle.includes("PLAYER_AUDIO_RESOURCE_TIMING_SEEN"),
+    "resource timing is attributed to native media or preloading only");
+});
