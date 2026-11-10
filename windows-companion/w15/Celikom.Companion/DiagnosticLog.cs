@@ -61,7 +61,7 @@ public static class DiagnosticLog
         string? nativeModuleVersion = null, bool? nativeMatchesApplication = null)
     {
         var text = new StringBuilder();
-        text.AppendLine("CELIKOM WINDOWS OWNER DIAGNOSTICS — W32");
+        text.AppendLine("CELIKOM WINDOWS OWNER DIAGNOSTICS — W48");
         text.AppendLine("GeneratedUTC=" + DateTimeOffset.UtcNow.ToString("O", CultureInfo.InvariantCulture));
         text.AppendLine("AppVersion=" + (typeof(DiagnosticLog).Assembly.GetName().Version?.ToString() ?? "unknown"));
         text.AppendLine("NativeModuleVersion=" +
@@ -69,7 +69,7 @@ public static class DiagnosticLog
                 ? nativeModuleVersion : "unknown"));
         text.AppendLine("NativeModuleMatchesApp=" +
             (nativeMatchesApplication is null ? "unknown" : nativeMatchesApplication.Value ? "true" : "false"));
-        text.AppendLine("CodeBaseline=W32_EASY_UPDATE_NATIVE_IDENTITY");
+        text.AppendLine("CodeBaseline=W48_ACTUAL_PLAYER_ENGINE_DIAGNOSTICS");
         text.AppendLine("YandexVersion=" + (yandexVersion is not null &&
             Regex.IsMatch(yandexVersion, @"^[0-9.]{1,24}$") ? yandexVersion : "unknown"));
         text.AppendLine("NativeIntegration=" + (Code.IsMatch(integration) ? integration : "UNKNOWN"));
@@ -77,7 +77,7 @@ public static class DiagnosticLog
         text.AppendLine("Enabled=" + enabled.ToString().ToLowerInvariant());
         text.AppendLine("SignedIn=" + signedIn.ToString().ToLowerInvariant());
         text.AppendLine("AUDIO_PROBE_* is an independent 32-byte diagnostic GET from the Yandex renderer (CSP/CORS), NOT verified playback.");
-        text.AppendLine("Renderer media events: may be NOT_OBSERVED if the player uses WebAudio instead of HTMLMediaElement.");
+        text.AppendLine("PLAYER_ENGINE_* and PLAYER_AUDIO_* are Electron webContents events; only PLAYER_AUDIO_AUDIBLE indicates webContents emitted sound, NOT confirmed replacement.");\n        text.AppendLine("MEDIA_* DOM events may remain NOT_OBSERVED for WebAudio. UI Play/Pause label changes are NOT monitored.");\n        text.AppendLine("AUDIO_URL_RESOURCE_UNATTRIBUTED can be the separate 32-byte probe; it is NOT evidence of player playback.");
         text.AppendLine("PNR: NOT_IMPLEMENTED_OR_NOT_IDENTIFIED.");
         text.AppendLine("Events: UTC | allowlisted code | optional numeric track id. No raw request URLs or error messages.");
         text.AppendLine("--- EVENTS ---");
