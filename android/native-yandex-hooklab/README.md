@@ -1,3 +1,5 @@
+> **Native A1 latest A/B, 11.11.2026:** [actual clone-before-original CI](../../docs/android/ANDROID-A1-SINGLE-APK-CLONE-FIRST-AB-20261111.md). One APK clone installs but native MAIN fails even ALONE, original signature/publisher app not involved in collision. Repackaging cannot be declared solved; no owner APK. Exact backup `backup/android-native-singleapk-clone-alone-and-coexistence-a-b-no-ui-20261111`.
+
 > **Latest 11.11.2026: native single-APK parallel-clone A1** — [full 5+1 evidence](../../docs/android/ANDROID-A1-PARALLEL-SINGLE-APK-MERGE-20261111.md), [competitor feasibility matrix](../../docs/android/ANDROID-A1-SEVEN-COMPETITORS-AND-5PLUS1-VERDICT-20261111.md). Exact 5 publisher-signed split + 1 separately signed merged clone APK **installed together** on disposable Android 11; **clone MAIN still EXIT_SELF(0), no playable native UI**. CI workflow intentionally FAIL; no user APK, no Play Protect or HONOR mutation. Do not revert to WebView or double audio engine. Research backup: `backup/android-parallel-one-apk-5plus1-install-pass-ui-blocked-20261111`.
 
 # CELIKOM Android native-Yandex hook lab (ISOLATED, READ-ONLY)
