@@ -35,6 +35,7 @@ jobs:
             android/native-yandex-hooklab/app/src/main/java/pro/celikom/yandex/nativehooklab/NativeSourceInstanceFence.java \
             android/native-yandex-hooklab/app/src/main/java/pro/celikom/yandex/nativehooklab/NativeSourceDispatchWitness.java \
             android/native-yandex-hooklab/app/src/main/java/pro/celikom/yandex/nativehooklab/NativeReaderExecutionWitness.java \
+            android/native-yandex-hooklab/app/src/main/java/pro/celikom/yandex/nativehooklab/NativeOwnerConstructionWitness.java \
             $(find android/native-yandex-hooklab/tests/src -type f -name '*.java' | sort)
           java -cp /tmp/celikom-jvm-hooklab HookSpecTest
           java -cp /tmp/celikom-jvm-hooklab NativeSourceGateTest
@@ -48,6 +49,7 @@ jobs:
           java -cp /tmp/celikom-jvm-hooklab NativeSourceInstanceConcurrencyTest
           java -cp /tmp/celikom-jvm-hooklab NativeSourceDispatchWitnessTest
           java -cp /tmp/celikom-jvm-hooklab NativeSourceDispatchLifecycleRaceTest
+          java -cp /tmp/celikom-jvm-hooklab NativeOwnerConstructionWitnessTest
           java -cp /tmp/celikom-jvm-hooklab NativeReaderExecutionWitnessTest
       - name: Test read-only ARM device gate (synthetic snapshots; no phone connected)
         run: python3 -m unittest discover -s android/native-yandex-hooklab/tests -p 'test_*.py' -v
@@ -95,6 +97,12 @@ jobs:
           assert 'HookSpec.findSourceLifecycle(loader,concrete,action)' in source
           assert 'chain.proceed()' in source
           assert 'sourceDispatch.onFactory(result, SystemClock.elapsedRealtime())' in source
+          assert 'HookSpec.findLocvSourceBuilder(loader)' in source
+          assert 'ownerConstruction.begin(chain.getThisObject())' in source
+          assert 'ownerConstruction.onConstructed(exact)' in source
+          assert 'ownerConstruction.finish(scope,true)' in source
+          assert 'ownerConstruction.finish(scope,false)' in source
+          assert 'sourceDispatch.onOwnerChild(' in source
           assert 'sourceDispatch.onLifecycleTBegin(receiver,time)' in source
           assert 'sourceDispatch.onLifecycleTFinish(' in source
           assert 'receiver,false,SystemClock.elapsedRealtime()' in source
@@ -117,6 +125,13 @@ jobs:
           assert 'failedTCalls++' in witness
           assert 'pendingReadersDiscarded+=pendingReaders[i]' in witness
           assert 'ambiguousTCalls++' in witness
+          assert 'onOwnerChild(Object owner,Object child,long now)' in witness
+          assert 'parentOwnerReaderCompletions+=pendingReaders[i]' in witness
+          owner=(base/'app/src/main/java/pro/celikom/yandex/nativehooklab/NativeOwnerConstructionWitness.java').read_text()
+          assert 'ThreadLocal<Scope>' in owner
+          assert 'scope.child!=child' in owner
+          assert 'scope.previous==null' in owner
+          assert 'scope.owner=null' in owner
           reader=(base/'app/src/main/java/pro/celikom/yandex/nativehooklab/NativeReaderExecutionWitness.java').read_text()
           assert 'ThreadLocal<Scope>' in reader
           assert 'scope.openedSource!=receiver' in reader
@@ -125,7 +140,7 @@ jobs:
           assert 'inReader.remove()' in reader
           for unsafe in ('openConnection(', 'getMediaId', 'getTitle', 'getUri', 'HttpURLConnection', 'setDataSource',
                          'MediaPlayer', 'getDeclaredField', 'Log.', 'System.out.'):
-              assert unsafe not in witness and unsafe not in reader, unsafe
+              assert unsafe not in witness and unsafe not in reader and unsafe not in owner, unsafe
           assert 'System.out.' not in fence and 'Log.' not in fence and 'MediaPlayer' not in fence
           for forbidden in ('HttpURLConnection','getMediaId','getMetadata','getTitle',
                             'getUri','trackId','editionId','getDeclaredField'):
