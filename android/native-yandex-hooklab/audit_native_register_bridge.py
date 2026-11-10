@@ -170,6 +170,77 @@ def register_witnesses(dex, code_off):
     }
 
 
+
+def opcode_role(op):
+    """Privacy-safe DEX instruction family, never instruction bytes or values."""
+    if op in INVOKES:
+        return "invoke_interface" if op in (0x72,0x78) else "invoke"
+    if op == 0x0c:
+        return "move_result_object"
+    if op == 0x0b:
+        return "move_result_wide"
+    if op == 0x0a:
+        return "move_result"
+    if op in (0x07,0x08,0x09):
+        return "move_object"
+    if op == 0x11:
+        return "return_object"
+    if op in BRANCHES:
+        return "branch"
+    if op in (0x5b,0x69):
+        return "object_field_store"
+    if op == 0x1f:
+        return "check_cast"
+    if op in (0x52,0x53,0x54,0x55,0x56,0x57,0x58):
+        return "field_get"
+    if op in (0x62,0x63,0x64,0x65,0x66,0x67,0x68):
+        return "static_get"
+    if op in (0x0e,0x0f,0x10):
+        return "return"
+    return "other"
+
+
+def coroutine_callsite_witness(dex, code_off):
+    """Bounded direct seed/DTO callsites and interface destination hints.
+
+    Coroutine invokeSuspend and reflective/dynamic calls are NOT call-value
+    proof. Report only structural categories and short symbols.
+    """
+    ins = list(instructions(dex, code_off))
+    direct_seeds = []
+    interface_targets = set()
+    model_calls = set()
+    for i, (_pc, op, w) in enumerate(ins):
+        if op not in INVOKES:
+            continue
+        callee = dex.method(w[1])
+        if op in (0x72,0x78):
+            interface_targets.add(bounded_obfuscated(callee))
+        if callee[0] == MODEL_OWNER:
+            model_calls.add(bounded_obfuscated(callee))
+        if callee[0] not in SEED_OWNERS or callee[1] != "a":
+            continue
+        after = [opcode_role(near_op) for _,near_op,_ in ins[i+1:i+6]]
+        sig = callee[2]
+        ret = sig.split(")",1)[-1]
+        direct_seeds.append({
+            "target": bounded_obfuscated(callee),
+            "object_return_signature": ret.startswith("L") or ret.startswith("["),
+            "returns_exact_eed": ret == MODEL_OWNER,
+            "has_continuation_parameter": "Lkotlin/coroutines/Continuation;" in sig,
+            "following_opcode_roles": after,
+            "direct_argument_word_count": len(invoke_registers(op,w)),
+            "dynamic_decoder_or_current_track_proven": False,
+        })
+    return {
+        "direct_Lhee_or_Lged_invokes": direct_seeds[:MAX_EVENTS],
+        "interface_dispatch_target_hints": sorted(interface_targets)[:MAX_EVENTS],
+        "interface_distinct_count": len(interface_targets),
+        "exact_eed_method_target_hints": sorted(model_calls)[:MAX_EVENTS],
+        "coroutine_return_or_decoder_bound": False,
+    }
+
+
 def summarize_graph(scans):
     reverse = defaultdict(set)
     sources = set()
@@ -223,6 +294,7 @@ def scan_signed(apks):
                         "coroutine_signature": "Lkotlin/coroutines/Continuation;" in method[2],
                         "direct_callers_count": len(reverse.get(method, ())),
                         "local_register_trace": register_witnesses(d, code_off),
+                        "coroutine_callsite_trace": coroutine_callsite_witness(d, code_off),
                     }
                     matches.append(match)
     chosen = [x for x in matches if x["method"] in ("Lhee;->a", "Lged;->a")]
