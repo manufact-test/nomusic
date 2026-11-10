@@ -140,3 +140,59 @@ if (!category.Visible || !send.Visible ||
 SaveStage(prefix + "-song-support.png");
 Console.WriteLine("W63_EXPANDED_ACCOUNT_SUPPORT_AND_GREEN_DUPLICATE_CARD_PASS");
 
+// W64: fixed footer and stable width must survive any expansion.
+// Visual checks use the actual WinForms viewport and exercise the same
+// explicit scrollbar used by mouse wheel, not AutoScroll which was broken.
+form.ClientSize = new Size(308, 450);
+Set("_compactSupportOpen", false);
+Set("_compactUploadOpen", false);
+Set("_compactSuggestOpen", false);
+Set("_compactAccountOpen", false);
+Relayout();
+var baselineWidth = ((Control)Get("_compactUploadButton")).Width;
+var footer = (Control)Get("_compactFooter");
+var footerLabel = (Control)Get("_compactVersion");
+var dot = (Control)Get("_connectionMark");
+if (!ReferenceEquals(footerLabel.Parent, footer) ||
+    footer.Bottom != form.ClientSize.Height ||
+    dot.Width > 12 || dot.TextAlign != ContentAlignment.MiddleCenter)
+    throw new Exception("W64_VERSION_FOOTER_NOT_ANCHORED_OR_INDICATOR_NOT_CENTERED");
+
+Set("_compactSupportOpen", true);
+Set("_compactAccountOpen", true);
+Set("_compactUploadOpen", true);
+Set("_compactUploadView", "form");
+Relayout();
+var scrollbar = (VScrollBar)Get("_compactScrollbar");
+if (!scrollbar.Visible ||
+    ((Control)Get("_compactUploadButton")).Width != baselineWidth ||
+    footer.Bottom != form.ClientSize.Height)
+    throw new Exception("W64_SCROLLBAR_CHANGED_GUTTER_OR_MOVED_FOOTER");
+var layoutTop = ((Control)Get("_compactHeader")).Top;
+var offsetSetter = typeof(MainWindow).GetMethod("SetCompactOffset",
+    System.Reflection.BindingFlags.Instance |
+    System.Reflection.BindingFlags.NonPublic)!;
+offsetSetter.Invoke(form, [300]);
+if (((Control)Get("_compactHeader")).Top >= layoutTop ||
+    scrollbar.Value <= 0 || footer.Bottom != form.ClientSize.Height)
+    throw new Exception("W64_SCROLL_NOT_WORKING");
+SaveStage(prefix + "-scrolled.png");
+
+Set("_compactAccountOpen", false);
+Set("_compactSupportOpen", false);
+Set("_compactUploadOpen", true);
+Set("_compactUploadView", "form");
+Set("_compactSelectedAudio", "bad_audio.mp3");
+Set("_compactAudioPreflight", new AudioPreflight.Result(
+    152000, true, true, "Оригинал: 3:43 · файл: 2:32. Допуск подмены — 1,5 с.",
+    "Название файла не похоже на текущую песню."));
+offsetSetter.Invoke(form, [0]);
+Relayout();
+var durationWarning = (Label)Get("_compactAudioValidation");
+if (!durationWarning.Visible || durationWarning.ForeColor.R < 200 ||
+    ((Button)Get("_compactUploadSubmit")).Enabled)
+    throw new Exception("W64_INVALID_AUDIO_NOT_RED_OR_UPLOAD_NOT_BLOCKED");
+SaveStage(prefix + "-invalid-audio.png");
+Console.WriteLine("W64_SCROLLED_PANEL_EQUAL_GUTTERS_FIXED_FOOTER_RED_AUDIO_PRECHECK_PASS");
+
+
