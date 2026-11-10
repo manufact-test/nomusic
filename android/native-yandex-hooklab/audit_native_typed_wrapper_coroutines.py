@@ -28,8 +28,8 @@ from audit_native_register_bridge import (
 )
 import clone_native_splits_ephemeral as exact
 
-WRAPPERS = ("Lxa7;", "Lta7;", "Lwa7;", "Lya7;", "Lbee;", "Ldiv;", "Leed;")
-SEEDS = ("Lhee;", "Lged;", "Lfed;", "Lgee;", "Lfqr;")
+WRAPPERS = ("Lxa7;", "Lta7;", "Lwa7;", "Lya7;", "Lbee;", "Ldiv;", "Ljgv;", "Leed;")
+SEEDS = ("Lhee;", "Lged;", "Lfed;", "Lgee;", "Lfqr;", "Lygv;")
 INTERFACES = ("Lcod;", "Leod;")
 OWNERS = frozenset(WRAPPERS + SEEDS + INTERFACES)
 SOURCE = "Lsw7;"
@@ -269,7 +269,8 @@ def inspect_seed_propagation(apks):
     tracked={
         ("Lsw7;","y0"),("Lsw7;","z0"),
         ("Lhee;","a"),("Lged;","a"),
-        ("Lta7;","c"),("Lwa7;","a"),("Leed;","a")
+        ("Lta7;","c"),("Lwa7;","a"),("Leed;","a"),
+        ("Lygv;","r")
     }
     scan_owners=frozenset(SEEDS+WRAPPERS)
     output={}
@@ -368,7 +369,7 @@ def scan_signed(apks):
     selected_methods={
         ("Lhee;","a"),("Lged;","a"),
         ("Lfqr;","invokeSuspend"),("Lfed;","invokeSuspend"),
-        ("Lgee;","invokeSuspend")
+        ("Lgee;","invokeSuspend"),("Lygv;","r")
     }
     for apk in apks:
         with zipfile.ZipFile(apk) as z:
@@ -383,7 +384,7 @@ def scan_signed(apks):
                     if excerpt:windows[bounded_obfuscated(triple)]=excerpt
     simplified=[]
     for triple,record in sorted(bodies.items()):
-        if triple[0] in WRAPPERS or triple[1]=="invokeSuspend":
+        if triple[0] in WRAPPERS or triple[1]=="invokeSuspend" or (triple[0]=="Lygv;" and triple[1]=="r"):
             simplified.append(record)
     return {
         "stats":stats,
