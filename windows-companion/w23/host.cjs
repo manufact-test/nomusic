@@ -301,9 +301,9 @@ function observeNativePlayback(view) {
             const value = String(item?.value || "").slice(0, 256);
             // Fixed Chromium Media event enum names only, never log raw
             // potentially sensitive media error text or source URLs.
-            if (/\\bkPlay\\b/.test(value)) note("PLAYER_CDP_EVENT_START");
-            else if (/\\bkPause\\b/.test(value)) note("PLAYER_CDP_EVENT_PAUSE");
-            else if (/\\bkPipelineError\\b/.test(value))
+            if (/\bkPlay\b/.test(value)) note("PLAYER_CDP_EVENT_START");
+            else if (/\bkPause\b/.test(value)) note("PLAYER_CDP_EVENT_PAUSE");
+            else if (/\bkPipelineError\b/.test(value))
               note("PLAYER_CDP_EVENT_PIPELINE_ERROR");
           }
         } else if (method === "Media.playerPropertiesChanged" &&
