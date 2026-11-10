@@ -1,9 +1,11 @@
+**НОВЕЙШАЯ ПРОВЕРЕННАЯ ЗАДАЧА:** прочти `docs/android/ANDROID-NATIVE-SIGNED-TYPED-DISPATCH-EVIDENCE-2026-11-10.md`. Реальная signed six-DEX структурная цепь Lhee.a FileInfo→Lxa7→Lged.a→Leed→Lfqr coroutine→Ldiv; отдельно типизированный метод Lygv.r(Ldiv)→Ljgv и далее Lcq7/Lo4y/Larv, Lga4/Le48. В найденном 7-hop графе к ExoPlayer Lro7.y0 **ОШИБОЧНО предполагать реальный source**: один виртуальный переход из 16 кандидатов, Lsu5.invoke — 721-opcode switch; проверка оригинала доказала, что Lga4.c читает Le48 field-2, а ctor инициализирует field-1. Реальные прямые записи field-2: Lya4/Lkc6/неизвестные. Точная current-track decoder identity НЕ доказана, никаких аудиохуков не включать. [Original typed CI](https://github.com/manufact-test/nomusic/actions/runs/42810750855), [field CI](https://github.com/manufact-test/nomusic/actions/runs/42810607588), [Android module 2/2](https://github.com/manufact-test/nomusic/actions/runs/42810750850) — SUCCESS. Следующий цельный блок: доисследовать конкретное значение field-2 через coroutine/unknown writers и реальный decoder PREPARE; если статика заканчивается — только изолированный ARM Android host. Никаких испытаний на основном HONOR.
+
 Привет! Продолжаем **существующий CELIKOM Android**. Ты новый ведущий разработчик; ничего не начинай с нуля и работай большими самостоятельными блоками.
 
 **GitHub:** https://github.com/manufact-test/nomusic
 **Ветка:** `experiment/android-native-yandex-fileinfo-hooklab-20261109`
-**Последний проверенный код:** `8b7bc64f89249e5434da739851bececce2adb121`
-**Бэкап:** `backup/android-signed-register-cfg-ci-green-20261110`
+**Последний проверенный код:** `78b0437f17888ce49a4c1bea0ba06ca96cb455b9`
+**Бэкап:** `backup/android-signed-typed-dispatch-field-audit-ci-green-20261110`
 **Текущий HEAD:** сначала проверь напрямую; после проверенного SHA могли быть только документационные коммиты.
 
 **Новая информация:** подписанный six-DEX регистровый/CFG-анализ [#42806655214 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/42806655214), сборка/тесты модуля [#42806655152 SUCCESS 2/2](https://github.com/manufact-test/nomusic/actions/runs/42806655152). Отчёт `docs/android/ANDROID-NATIVE-SIGNED-REGISTER-COROUTINE-CFG-EVIDENCE-2026-11-10.md`. Реальный bounded may-flow: sw7.y0/z0 → Lxa7.<init>; Lged.a вызывает Lhee.a, результат доходит до Leed.a / Lta7.c / Lwa7.a / возврата; direct coroutine callers Lfed/Lgee/Lfqr. Требуется проследить Lxa7 / field spills и интерфейсные collect/emit до действительного audio datasource, но пока decoder proof НЕТ и Android подмена НЕ работает.
