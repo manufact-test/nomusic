@@ -19,7 +19,8 @@ from pathlib import Path
 HERE=Path(__file__).resolve().parent
 sys.path.insert(0,str(HERE.parents[1]/"tools"/"android-native-gate1"))
 from inspect_android_host import Dex,DexError,DEX_MAX
-from trace_native_callers import method_definitions
+from trace_native_callers import method_definitions,INVOKES
+from audit_native_register_bridge import instructions,invoke_registers,move_object_registers
 import clone_native_splits_ephemeral as exact
 
 TARGETS={
@@ -70,12 +71,58 @@ def check_lero_constructors(signatures):
     }
 
 
+def local_ocv_ero_constructor_calls(d,ins):
+    """Exact caller and bounded local receiver new-instance identity ONLY.
+
+    A constructor can be called on a field/parameter rather than a local new
+    instance; count it but never claim an exact local object unless DEX
+    register alias provenance remains straight-line. No heap/async/decoder
+    joins and no private constants or bytecode in report.
+    """
+    callsites=0
+    local_receiver_matches=0
+    for index,(_pc,op,words) in enumerate(ins):
+        if op not in (0x70,0x76):continue   # invoke-direct / range
+        triple=d.method(words[1])
+        if triple[0]!="Lero;" or triple[1]!="<init>":continue
+        callsites+=1
+        regs=invoke_registers(op,words)
+        if not regs:continue
+        receiver=regs[0]
+        current=receiver
+        for j in range(index-1,max(-1,index-55),-1):
+            _,prev_op,prev_words=ins[j]
+            if prev_op in (0x27,0x28,0x29,0x2a,0x2b,0x2c,
+                           0x0e,0x0f,0x10,0x11) or 0x32<=prev_op<=0x3d:
+                break
+            move=move_object_registers(prev_op,prev_words)
+            if move and move[0]==current:
+                current=move[1]
+                continue
+            if prev_op==0x22 and prev_words[0]>>8==current:
+                if d.descriptor(prev_words[1])=="Lero;":
+                    local_receiver_matches+=1
+                break
+            if prev_op in (0x0a,0x0b,0x0c,0x12,0x13,0x14,
+                           0x15,0x16,0x17,0x18,0x19,0x1a,0x1b,
+                           0x1c,0x54,0x62,0x63,0x64) and (
+                    (prev_words[0]>>8)&15)==current:
+                break
+    return {
+        "exact_ocv_i0_invokes_lero_ctor":callsites,
+        "same_straightline_receiver_new_instance_sites":local_receiver_matches,
+        "constructor_invocations_may_be_conditional":True,
+        "one_runtime_owner_child_or_decoder_proven":False,
+    }
+
+
 def inspect_signed(splits):
     defined=Counter()
     reader_fields=set()
     lero_constructors=[]
     dex_count=0
     bodies=0
+    owner_callsite=None
     for apk in splits:
         with zipfile.ZipFile(apk) as archive:
             for entry in archive.infolist():
@@ -100,6 +147,11 @@ def inspect_signed(splits):
                     signature=d.method(idx)
                     if signature in TARGETS or signature==OWNER_BUILDER:
                         defined[signature]+=1
+                    if signature==OWNER_BUILDER:
+                        if owner_callsite is not None:
+                            raise ValueError("DUPLICATE_LOCV_SOURCE_BUILDER")
+                        owner_callsite=local_ocv_ero_constructor_calls(
+                            d,list(instructions(d,code)))
                     if signature[0]=="Lero;" and signature[1]=="<init>":
                         lero_constructors.append(signature[2])
     if dex_count!=LIMIT_DEX:raise ValueError("SIGNED_SIX_DEX_MISSING")
@@ -107,6 +159,8 @@ def inspect_signed(splits):
         raise ValueError("EXACT_METHOD_DEFINITION_COUNT")
     if defined[OWNER_BUILDER]!=1:
         raise ValueError("EXACT_LOCV_I0_METHOD_MISSING_OR_AMBIGUOUS")
+    if not owner_callsite or owner_callsite["exact_ocv_i0_invokes_lero_ctor"]<1:
+        raise ValueError("SIGNED_LOCV_SOURCE_CTOR_CALLSITE_MISSING")
     result=check_shapes(defined,len(reader_fields))
     creation=check_lero_constructors(lero_constructors)
     if not creation["both_exact_lero_creation_shapes_proven"]:
@@ -119,6 +173,7 @@ def inspect_signed(splits):
         **result,
         **creation,
         "signed_exact_ocv_i0_no_arg_void_count":defined[OWNER_BUILDER],
+        "exact_owner_to_direct_ero_constructor_callsites":owner_callsite,
         "owner_constructor_runtime_nesting_proven":False,
         "original_apks_unchanged":True,
         "no_device_account_secret_url_media_or_dex_output":True,
@@ -151,6 +206,8 @@ if __name__=="__main__":
             "EXACT_LERO_READER_FIELD_COUNT","SIGNED_CI_ONLY",
             "EXACT_LERO_CONSTRUCTOR_PAIR_NOT_PROVEN",
             "EXACT_LOCV_I0_METHOD_MISSING_OR_AMBIGUOUS",
+            "DUPLICATE_LOCV_SOURCE_BUILDER",
+            "SIGNED_LOCV_SOURCE_CTOR_CALLSITE_MISSING",
             "PINNED_ORIGINAL_SHA_MISMATCH","FIVE_SIGNED_SPLITS_REQUIRED",
         }
         code=str(exc)
