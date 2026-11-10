@@ -189,6 +189,31 @@ class SafeCloneCrashClassificationTest(unittest.TestCase):
         for word in ("SECRETHELPER", "NEVER_LOG", "PRIVATE_PATH", "SECRET", "BAD_HELPER"):
             self.assertNotIn(word, str(result))
 
+    def test_nonruntime_vendor_exception_is_only_a_class_not_private_log(self):
+        exit_info = ("ApplicationExitInfo #0:\n pid=818\n "
+                     "process=pro.celikom.yandex.nativeclonelab reason=1 status=0\n"
+                     "ApplicationExitInfo #1:\n pid=819\n "
+                     "process=pro.celikom.yandex.nativeclonelab:AppMetrica reason=1\n")
+        logs = (
+            "11-09 21:59:00.011  818  818 E VendorCrash: java.lang.IllegalStateException: "
+            "token=SECRET_MAIN https://secret.invalid/a\n"
+            "11-09 21:59:00.012  818  818 E SystemStuff: "
+            "android.content.res.Resources$NotFoundException: SECRET_RESOURCE\n"
+            "11-09 21:59:00.013  819  819 E VendorCrash: java.lang.SecurityException: "
+            "SECRET_HELPER\n"
+            "11-09 21:59:00.014  817  817 E VendorCrash: "
+            "java.lang.RuntimeException: SECRET_OTHER\n")
+        result = classify_main_pid_scoped_system_logs(exit_info, logs)
+        self.assertTrue(result["main_pid_nonruntime_error_lines_observed"])
+        self.assertEqual(
+            result["main_pid_bounded_nonruntime_error_throwable_types"],
+            ["java.lang.IllegalStateException",
+             "android.content.res.Resources$NotFoundException"])
+        for secret in ("SECRET_MAIN", "SECRET_RESOURCE", "SECRET_HELPER",
+                       "SECRET_OTHER", "secret.invalid", "token="):
+            self.assertNotIn(secret, str(result))
+
+
     def test_main_pid_log_fails_closed_if_no_process_pid(self):
         raw = "ApplicationExitInfo #0: process=pro.celikom.yandex.nativeclonelab reason=1"
         log = "11-09 21:59:00.013  404  404 E System.err: java.lang.SecurityException: SECRET"
