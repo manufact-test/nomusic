@@ -30,6 +30,13 @@ const targets=[
   ["CODEC_AUDIO_MPEG","audio/mpeg"],
   ["TRANSPORT_RAW","transport:\"raw\""],
   ["DECRYPT","decrypt"],
+  ["ENC_RAW","encraw"],
+  ["ENUM_ENC_RAW","ENCRAW"],
+  ["TRANSPORT_PROPERTY",".transport"],
+  ["MEDIA_SOURCE_FACTORY","createMediaSource("],
+  ["GET_MEDIA_SOURCE","getMediaSource("],
+  ["MEDIA_ERROR_CODE","E_GET_MEDIA_SRC"],
+  ["ERROR_PLAYER","playerErrorsRaised"],
   ["WEB_AUDIO","AudioContext"],
   ["HTML_MEDIA_SOURCE","MediaSource"],
 ];
@@ -46,6 +53,7 @@ function walk(entries,prefix="") {
     const path=prefix?prefix+"/"+name:name;
     if(node.files){walk(node.files,path);continue;}
     if(node.unpacked||!/\.(?:js|mjs|cjs|html)$/.test(path)) continue;
+    if(!path.startsWith("app/_next/static/chunks/"))continue;
     if(!Number.isSafeInteger(node.size)||!/^\d+$/.test(node.offset))continue;
     scripts++;
     const offset=dataStart+Number(node.offset);
@@ -57,7 +65,7 @@ function walk(entries,prefix="") {
       if(index<0)continue;
       totals[label]++;
       matched=true;
-      if(shown>=35)continue;
+      if(shown>=65)continue;
       // Small semantic context only, never copy any full proprietary bundle.
       const context=preview(src.slice(Math.max(0,index-130),Math.min(src.length,index+needle.length+170)));
       console.log("W49_STATIC_CONTEXT "+JSON.stringify({label,file:path.slice(0,190),bytes:node.size,context}));
