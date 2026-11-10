@@ -90,7 +90,8 @@ public sealed partial class MainWindow
             _compactPresenceStatus is "approved" or "pending" or "none" &&
             DateTimeOffset.UtcNow - _compactPresenceChecked < TimeSpan.FromSeconds(15))
             return _compactPresenceStatus;
-        if (_compactPresencePending is { IsCompleted: false })
+        if (_compactPresencePending is { IsCompleted: false } &&
+            _compactPresencePendingTrack == trackId)
             return await _compactPresencePending;
         async Task<string> Read()
         {
@@ -102,6 +103,7 @@ public sealed partial class MainWindow
         }
         var task = Read();
         _compactPresencePending = task;
+        _compactPresencePendingTrack = trackId;
         try
         {
             var status = await task;
@@ -117,7 +119,10 @@ public sealed partial class MainWindow
         finally
         {
             if (ReferenceEquals(_compactPresencePending, task))
+            {
                 _compactPresencePending = null;
+                _compactPresencePendingTrack = "";
+            }
         }
     }
 
@@ -426,11 +431,11 @@ public sealed partial class MainWindow
 
     private async void CompactSuggestAsync(object? sender, EventArgs e)
     {
-        if (_compactContributionBusy || !_api.IsLoggedIn) return;
-        var track = _bridge.LastSong;
-        if (!GrantValidator.IsTrackId(track))
+        if (_compactContributionBusy || !_api.IsLoggedIn || _compactSuggestView != "form") return;
+        var track = _compactPinnedSuggestTrack;
+        if (!GrantValidator.IsTrackId(track) || track != _bridge.LastSong)
         {
-            _compactSuggestNote.Text = "Сначала запусти песню в Яндексе.";
+            _compactSuggestNote.Text = "Песня сменилась. Открой предложение заново.";
             return;
         }
         _compactContributionBusy = true;
@@ -438,35 +443,44 @@ public sealed partial class MainWindow
         try
         {
             var current = await _api.GetTrackVersionStatusAsync(track);
-            if (JsonText(current, "status") == "approved")
+            var status = JsonText(current, "status");
+            if (status is "approved" or "pending")
             {
-                _compactSuggestNote.Text = "Для этой песни версия уже доступна.";
+                CompactResult(false, status == "approved" ? "Версия уже доступна" : "Версия на проверке",
+                    "Песня уже в CELIKOM. Повторное предложение не требуется.");
                 return;
             }
-            if (JsonText(current, "status") == "pending")
-            {
-                _compactSuggestNote.Text = "Песня уже ожидает проверки.";
-                return;
-            }
-            await _api.SuggestTrackAsync(track);
-            _compactSuggestNote.Text = "Предложение отправлено.";
+            if (status != "none" || track != _bridge.LastSong)
+                throw new ApiFailure(400, "TRACK_CHANGED");
+            await _api.SuggestTrackAsync(track, _bridge.LastTrackTitle, _bridge.LastTrackArtist);
+            CompactResult(false, "Предложение отправлено",
+                "Песня отправлена на рассмотрение. Повторное предложение не требуется.");
         }
         catch (Exception ex) { _compactSuggestNote.Text = DescribeAccountError(ex); }
-        finally { _compactContributionBusy = false; _compactSuggestSubmit.Enabled = true; }
+        finally
+        {
+            _compactContributionBusy = false;
+            RenderCompact();
+            LayoutCompact();
+        }
     }
 
     private async void CompactUploadAsync(object? sender, EventArgs e)
     {
         if (_compactUploadCancellation is not null)
         {
-            // Pressing the same primary button again cancels the in-flight transfer.
-            _compactUploadCancellation.Cancel();
+            var answer = MessageBox.Show(this,
+                "Отменить передачу файла? Уже отправленные данные нельзя будет продолжить с того же места.",
+                "Отменить загрузку?", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+            if (answer == DialogResult.Yes) _compactUploadCancellation.Cancel();
             return;
         }
-        var track = _bridge.LastSong;
-        if (!_api.IsLoggedIn || !GrantValidator.IsTrackId(track))
+        if (_compactUploadView != "form") return;
+        var track = _compactPinnedUploadTrack;
+        if (!_api.IsLoggedIn || !GrantValidator.IsTrackId(track) ||
+            track != _bridge.LastSong)
         {
-            _compactUploadNote.Text = "Войди и запусти песню в Яндексе.";
+            _compactUploadNote.Text = "Песня изменилась. Открой загрузку заново.";
             return;
         }
         if (!_compactRights.Checked)
@@ -479,39 +493,71 @@ public sealed partial class MainWindow
             _compactUploadNote.Text = "Выбери MP3 или M4A.";
             return;
         }
-        if (!double.TryParse(_compactUploadDuration.Text.Trim().Replace(',', '.'),
-                NumberStyles.AllowDecimalPoint, CultureInfo.InvariantCulture, out var seconds) ||
-            seconds < 1 || seconds > 86400)
+        var durationMs = _bridge.LastTrackDurationMs;
+        if (durationMs < 1000)
         {
-            _compactUploadNote.Text = "Укажи длительность песни в секундах.";
-            return;
+            if (!double.TryParse(_compactUploadDuration.Text.Trim().Replace(',', '.'),
+                    NumberStyles.AllowDecimalPoint, CultureInfo.InvariantCulture, out var seconds) ||
+                seconds < 1 || seconds > 86400)
+            {
+                _compactUploadNote.Text = "Не удалось получить длительность из Яндекса. Укажи её в секундах.";
+                return;
+            }
+            durationMs = (long)Math.Round(seconds * 1000);
         }
         using var token = new CancellationTokenSource();
         _compactUploadCancellation = token;
         _compactUploadSubmit.Text = "Отменить";
         _compactUploadSubmit.Enabled = true;
-        _compactUploadNote.Text = "Загружаем файл…";
+        _compactUploadNote.Text = "Проверяем песню перед отправкой…";
+        _compactUploadProgress.Value = 0;
+        LayoutCompact();
         try
         {
             var version = await _api.GetTrackVersionStatusAsync(track, token.Token);
-            if (JsonText(version, "status") is "approved" or "pending")
+            var status = JsonText(version, "status");
+            if (status is "approved" or "pending")
             {
-                _compactUploadNote.Text = "Версия уже доступна или на проверке.";
+                CompactResult(true, status == "approved" ? "Версия уже доступна" : "Трек уже добавлен",
+                    "Повторно загружать эту песню не требуется.");
                 return;
             }
-            await _api.UploadTrackAsync(track, _compactSelectedAudio,
-                (long)Math.Round(seconds * 1000), token.Token);
-            _compactUploadNote.Text = "Отправлено на модерацию.";
+            if (status != "none" || track != _bridge.LastSong)
+                throw new ApiFailure(400, "TRACK_CHANGED");
+            var upload = _compactSelectedAudio;
+            var progress = new Progress<int>(percent =>
+            {
+                if (_compactUploadCancellation != token || _closing) return;
+                _compactUploadProgress.Value = Math.Clamp(percent, 0, 100);
+                _compactUploadNote.Text = percent >= 100
+                    ? "Файл передан. Ждём ответа сервера…"
+                    : "Загружаем: " + percent + "%";
+            });
+            await _api.UploadTrackAsync(track, upload, durationMs,
+                _bridge.LastTrackTitle, _bridge.LastTrackArtist,
+                _compactUploadRequestId, progress, token.Token);
+            CompactResult(true, "Отправлено на проверку",
+                "Версия ожидает модерации. Повторная загрузка не требуется.");
+            _compactPresenceStatus = "pending";
+            _compactPresenceChecked = DateTimeOffset.UtcNow;
             _compactSelectedAudio = null;
             _compactFileName.Text = "";
             _compactRights.Checked = false;
+            _compactUploadRequestId = Guid.NewGuid();
         }
         catch (OperationCanceledException) { _compactUploadNote.Text = "Загрузка отменена."; }
+        catch (ApiFailure ex) when (ex.Category is "track_pending" or "track_already_approved")
+        {
+            CompactResult(true, ex.Category == "track_pending" ? "Трек уже добавлен" : "Версия уже доступна",
+                "Эта версия уже есть в CELIKOM, повторная отправка не нужна.");
+        }
         catch (Exception ex) { _compactUploadNote.Text = DescribeAccountError(ex); }
         finally
         {
             _compactUploadCancellation = null;
             _compactUploadSubmit.Text = "Отправить на проверку";
+            RenderCompact();
+            LayoutCompact();
         }
     }
 }
