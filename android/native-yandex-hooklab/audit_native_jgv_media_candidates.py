@@ -36,10 +36,15 @@ TARGET_METHODS={
   "Lo4y;":{"a","b","c","d"},
   "Llvc;":{"a"},
   "Larv;":{"g"},
+  "Lero;":{"<init>"},
+  "Lga4;":{"c"},
+  "Ldl8;":{"a"},
+  "Lsu5;":{"invoke"},
+  "Lro7;":{"y0"},
 }
 MODEL_TYPES={
   "Ljgv;","Ldiv;","Lkq7;","Lga4;","Lt6f;","Lnro;","Lwzi;",
-  "Lggv;","Lpkv;","Lw010;","Ligv;","Lavt;"
+  "Lggv;","Lpkv;","Lw010;","Ligv;","Lavt;","Le48;"
 }
 CLASSES=set(TARGET_METHODS)|MODEL_TYPES
 PLAYER_INTERFACES={
