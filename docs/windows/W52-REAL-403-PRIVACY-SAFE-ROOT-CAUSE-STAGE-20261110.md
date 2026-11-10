@@ -21,6 +21,12 @@ Changed `windows-companion/w23/host.cjs`:
 
 New offline cases in `windows-companion/w23/native-host.test.mjs`: exact URL, stripped query, changed SID, unmapped resource ID, expired grant, JSON invalid token, JSON access denied, unknown server JSON, HTML/oversized/foreign responses, 206 non-inspection, URL secrecy and distinct `resource_id` label.
 
+## Read-only vendor URL flow audit — follow-up
+- Pinned vendor-signed Yandex ASAR scanned in isolated W49 runner; **SUCCESS** https://github.com/manufact-test/nomusic/actions/runs/42788482449. No real session, player playback, media HTTP request or owner installation.
+- The original `DownloadInfoSource.src` builds from `downloadInfo.urls[0]`, then optionally appends `getQueryParamsString()` and a media position fragment. The appended `?container=...&codec=...` is conditional on specific MP4 codec metadata, and `vsid/sourceIndex` would also force it. For mapped `codec=mp3`, `transport=raw` and `createMediaSource` without those options, **the normal MP3 source getter does not append that second query string**; it preserves the signed query through this getter (plus an HTTP-omitted `#t` fragment).
+- Therefore the apparent double-`?` possibility is **not a demonstrated cause of these MP3 403s**. Do not append fake padding query parameters, modify backend token format, or patch vendor source based on that hypothesis. Query manipulation in later browser/loader stages still requires a real request/grant comparison.
+- Server callchain review confirms `userAccess` checks session+entitlement before resolving a signed URL and `AudioAccessService` checks the session/entitlement again for each Range. This makes entitlement expiry/revocation possible but **not established**; the live 403 code and request query are still absent from 0.24.6 diagnostics.
+
 ## Release gate and interpretation
 - `URL_QUERY_MISSING/CHANGED` on the **same resource ID**: investigate Yandex media source URL rewriting/prefetch and correct source construction without removing server signature/session protection; retest a disposable signed Yandex runner.
 - `URL_MATCH` + `PHP_INVALID_AUDIO_TOKEN`: verify live PHP key/configuration consistency, database version changes and timestamp/expiry skew using privacy-safe server-side comparison and a fresh legitimately issued grant. Do not expose token/key or broaden TTL before proof.
