@@ -24,6 +24,7 @@ public final class NativeSourceDispatchWitness {
     private static final int LIMIT=16;
     private final Object[] objects=new Object[LIMIT];
     private final Object[] readers=new Object[LIMIT];
+    private final Object[] parentOwners=new Object[LIMIT];
     private final boolean[] constructed=new boolean[LIMIT];
     private final boolean[] factoryReturned=new boolean[LIMIT];
     private final boolean[] started=new boolean[LIMIT];
@@ -36,6 +37,7 @@ public final class NativeSourceDispatchWitness {
     private int sourceReaderLinks,completedReaderChains,unmatchedReaders;
     private int constructors,constructedTCalls,factoryTCalls;
     private int failedTCalls,ambiguousTCalls,pendingReadersDiscarded;
+    private int parentChildLinks,parentOwnerReaderCompletions,ambiguousParentLinks;
 
     private int type(Object obj){
         if(obj==null)return -1;
@@ -48,6 +50,7 @@ public final class NativeSourceDispatchWitness {
         pendingReaders[i]=0;
         objects[i]=null;
         readers[i]=null;
+        parentOwners[i]=null;
         constructed[i]=false;
         factoryReturned[i]=false;
         started[i]=false;
@@ -94,6 +97,45 @@ public final class NativeSourceDispatchWitness {
         int i=remember(source,now);
         if(!constructed[i])constructors++;
         constructed[i]=true;
+    }
+
+    /**
+     * Live stack nesting from exact ocv.i0() to exact ero constructor,
+     * corroborated against a previously observed SAME ocv lifecycle owner.
+     * This is NOT selected-track or decoder proof. A source object is never
+     * chosen by title, class-only matching, callback time or tag.
+     */
+    public synchronized boolean onOwnerChild(Object owner,Object child,long now){
+        if(now<0||owner==null||child==null
+                ||!"ocv".equals(owner.getClass().getName())
+                ||!"ero".equals(child.getClass().getName())){
+            rejectedUnknown++;
+            return false;
+        }
+        expire(now);
+        int parent=-1,source=-1;
+        for(int i=0;i<LIMIT;i++){
+            if(objects[i]==owner&&(started[i]||tInFlight[i]))parent=i;
+            if(objects[i]==child&&constructed[i])source=i;
+        }
+        if(parent<0||source<0||parent==source)return false;
+        if(parentOwners[source]!=null&&parentOwners[source]!=owner){
+            ambiguousParentLinks++;
+            clear(source);
+            return false;
+        }
+        if(parentOwners[source]==null){
+            parentOwners[source]=owner;
+            parentChildLinks++;
+        }
+        return true;
+    }
+    private boolean hasStartedOwner(int child){
+        Object owner=parentOwners[child];
+        if(owner==null)return false;
+        for(int i=0;i<LIMIT;i++)
+            if(objects[i]==owner&&started[i]&&!tInFlight[i])return true;
+        return false;
     }
 
     /** A pre-invocation witness is provisional, never a successful t(). */
@@ -143,6 +185,8 @@ public final class NativeSourceDispatchWitness {
             if(constructed[i])constructedTCalls++;
             if(factoryReturned[i])factoryTCalls++;
             completedReaderChains+=pendingReaders[i];
+            if(hasStartedOwner(i))
+                parentOwnerReaderCompletions+=pendingReaders[i];
             pendingReaders[i]=0;
             return true;
         }
@@ -191,6 +235,7 @@ public final class NativeSourceDispatchWitness {
             if(readers[i]!=reader || objects[i]==null)continue;
             if(started[i]){
                 completedReaderChains++;
+                if(hasStartedOwner(i))parentOwnerReaderCompletions++;
                 return true;
             }
             if(tInFlight[i]){
@@ -220,18 +265,21 @@ public final class NativeSourceDispatchWitness {
                 removals,rejectedUnknown,clockDiscontinuities,sourceReaderLinks,
                 completedReaderChains,unmatchedReaders,constructors,
                 constructedTCalls,factoryTCalls,failedTCalls,ambiguousTCalls,
-                pending,pendingReadersDiscarded);
+                pending,pendingReadersDiscarded,parentChildLinks,
+                parentOwnerReaderCompletions,ambiguousParentLinks);
     }
     public static final class Snapshot {
         public final int factories,lifecycleCalls,matchedCalls,unmatchedCalls,
                 removals,rejectedUnknown,clockDiscontinuities,sourceReaderLinks,
                 completedReaderChains,unmatchedReaders,constructors,
                 constructedTCalls,factoryTCalls,failedTCalls,ambiguousTCalls,
-                pendingReaderCompletions,pendingReadersDiscarded;
+                pendingReaderCompletions,pendingReadersDiscarded,
+                parentChildLinks,parentOwnerReaderCompletions,ambiguousParentLinks;
         private Snapshot(int f,int calls,int match,int unmatch,int remove,
                          int reject,int rollback,int links,int completed,
                          int unmatchedReaders,int ctor,int ctorT,int factoryT,
-                         int failed,int overlap,int pending,int discarded){
+                         int failed,int overlap,int pending,int discarded,
+                         int ownerLinks,int ownerReaders,int ownerConflicts){
             factories=f;lifecycleCalls=calls;matchedCalls=match;
             unmatchedCalls=unmatch;removals=remove;rejectedUnknown=reject;
             clockDiscontinuities=rollback;sourceReaderLinks=links;
@@ -239,6 +287,8 @@ public final class NativeSourceDispatchWitness {
             constructors=ctor;constructedTCalls=ctorT;factoryTCalls=factoryT;
             failedTCalls=failed;ambiguousTCalls=overlap;
             pendingReaderCompletions=pending;pendingReadersDiscarded=discarded;
+            parentChildLinks=ownerLinks;parentOwnerReaderCompletions=ownerReaders;
+            ambiguousParentLinks=ownerConflicts;
         }
     }
 }
