@@ -243,6 +243,22 @@ if (!durationWarning.Visible || durationWarning.ForeColor.R < 200 ||
     ((Button)Get("_compactUploadSubmit")).Enabled)
     throw new Exception("W64_INVALID_AUDIO_NOT_RED_OR_UPLOAD_NOT_BLOCKED");
 SaveStage(prefix + "-invalid-audio.png");
+// The owner explicitly removed the guessed filename warning, including
+// internal preflight fields. Verify no accidentally hidden counterpart exists.
+if (typeof(AudioPreflight).GetMethod("FilenameSuspicious") is not null ||
+    typeof(AudioPreflight.Result).GetProperty("NameSuspicious") is not null ||
+    typeof(MainWindow).GetField("_compactFilenameWarning",
+        System.Reflection.BindingFlags.Instance |
+        System.Reflection.BindingFlags.NonPublic) is not null)
+    throw new Exception("W65_FILENAME_HEURISTIC_MUST_NOT_EXIST");
+var promoButton = (PopupButton)Get("_compactPromoToggle");
+var benefitsButton = (PopupButton)Get("_compactBenefitsToggle");
+if (!promoButton.Borderless || !benefitsButton.Borderless ||
+    promoButton.Font.Size > 9 || benefitsButton.Font.Size > 9 ||
+    !ReferenceEquals(benefitsButton.Parent, account))
+    throw new Exception("W65_ACCOUNT_INNER_DETAILS_ARE_NOT_EXT_STYLE");
+Console.WriteLine("W65_NO_FILENAME_CHECK_AND_REAL_BENEFITS_CONTROLS_PASS");
+
 Console.WriteLine("W65_BORDERED_ACCORDIONS_DARK_SUPPORT_NO_FILENAME_CHECK_SCROLL_GUTTERS_PASS");
 Console.WriteLine("W64_SCROLLED_PANEL_EQUAL_GUTTERS_FIXED_FOOTER_RED_AUDIO_PRECHECK_PASS");
 
