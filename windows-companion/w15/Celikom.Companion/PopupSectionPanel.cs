@@ -7,6 +7,8 @@ namespace Celikom.Companion;
 /// <summary>Dark rounded bordered section matching extension .upload-panel.</summary>
 public sealed class PopupSectionPanel : Panel
 {
+    [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
+    public Color OutlineColor { get; set; } = ColorTranslator.FromHtml("#30474B");
     public PopupSectionPanel()
     {
         SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint |
@@ -18,7 +20,7 @@ public sealed class PopupSectionPanel : Panel
         base.OnPaint(e);
         if (Width < 15 || Height < 15) return;
         e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
-        using var pen = new Pen(ColorTranslator.FromHtml("#30474B"), 1f);
+        using var pen = new Pen(OutlineColor, 1f);
         var r = new RectangleF(.8f, .8f, Width - 2f, Height - 2f);
         using var path = new GraphicsPath();
         const float a = 10f;
