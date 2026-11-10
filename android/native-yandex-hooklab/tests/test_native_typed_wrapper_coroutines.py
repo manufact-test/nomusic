@@ -1,0 +1,77 @@
+import sys
+import unittest
+from pathlib import Path
+sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
+from audit_native_typed_wrapper_coroutines import (
+    brief_type, parse_types, method_profile, profile_tracked_results,
+    class_field_shapes, field_at
+)
+
+
+class FakeDex:
+    def __init__(self, code, methods):
+        self.words=[0]*8+code
+        self.words[6]=len(code)
+        self.methods=methods
+        self.method_count=len(methods)
+    def bounds(self,off,size):
+        if off<0 or off+size>len(self.words)*2:
+            raise ValueError("DEX_BOUNDS")
+    def u16(self,off):
+        return self.words[off//2]
+    def u32(self,off):
+        return self.u16(off)|(self.u16(off+2)<<16)
+    def method(self,idx):
+        return self.methods[idx]
+
+
+class TypedWrapperTests(unittest.TestCase):
+    def test_descriptor_parser_for_mixed_arrays_and_coroutines(self):
+        args,out=parse_types("(Leed;[I[[Lxa7;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;")
+        self.assertEqual(args,["Leed;","[I","[[Lxa7;","Lkotlin/coroutines/Continuation;"])
+        self.assertEqual(out,"Ljava/lang/Object;")
+        self.assertEqual(brief_type("Leed;"),"Leed;")
+        self.assertEqual(brief_type("[[Lxa7;"),"array")
+        self.assertEqual(method_profile(("Lta7;","c","(Leed;I)Lwa7;"))["return_type"],"Lwa7;")
+        with self.assertRaises(ValueError):
+            parse_types("(Lbad)")
+
+    def test_converter_result_reaches_constructor_only_at_argument_one(self):
+        producer=("Lsw7;","y0","(Ljava/lang/Object;)Leed;")
+        ctor=("Lxa7;","<init>","(Leed;)V")
+        # invoke-static {v1} -> result v2 -> invoke-direct {v4(this),v2} -> return
+        code=[0x1071,0,0x0001, 0x020c,
+              0x2070,1,0x0024, 0x000e]
+        rows=profile_tracked_results(FakeDex(code,[producer,ctor]),0,{producer})
+        self.assertEqual(rows[0]["events"],[{"action":"invoke","target":"Lxa7;-><init>","arg_word":1}])
+        self.assertFalse(rows[0]["proven_exact_track"])
+
+    def test_converter_result_does_not_reach_unrelated_interface(self):
+        producer=("Lsw7;","y0","()Leed;")
+        sink=("Leod;","emit","(Leed;)V")
+        code=[0x0071,0,0, 0x020c, 0x0212,
+              0x1072,1,0x0002, 0x000e]
+        rows=profile_tracked_results(FakeDex(code,[producer,sink]),0,{producer})
+        self.assertEqual(rows[0]["events"],[])
+
+    def test_branch_join_return_may_flow(self):
+        producer=("Lged;","a","()Ljava/lang/Object;")
+        code=[0x0071,0,0, 0x020c, 0x0038,3, 0x000e, 0x0211]
+        rows=profile_tracked_results(FakeDex(code,[producer]),0,{producer})
+        self.assertIn({"action":"return_object","target":"none","arg_word":0},
+                      rows[0]["events"])
+        self.assertFalse(rows[0]["bounded_search_truncated"])
+
+    def test_bad_proto_rejected(self):
+        for bad in ["","()", "(Labc)V","(Z)","(I)VV"]:
+            with self.assertRaises(ValueError,msg=bad):
+                parse_types(bad)
+
+    def test_privacy_restricts_named_class_descriptors(self):
+        self.assertEqual(brief_type("Lcom/yandex/music/analytics/Internal;"),"other-object")
+        self.assertEqual(brief_type("Ljava/lang/String;"),"java-string")
+        self.assertEqual(brief_type("Landroidx/media3/datasource/DataSource;"),"public-media3-type")
+
+
+if __name__=="__main__":
+    unittest.main()
