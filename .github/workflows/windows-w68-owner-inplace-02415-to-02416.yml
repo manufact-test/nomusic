@@ -20,7 +20,7 @@ jobs:
       - name: Retrieve verified 0.24.15 W67 owner installer
         uses: actions/download-artifact@v4
         with:
-          name: CELIKOM-W68-SUPPORT-SELECT-GUARD-UNSIGNED
+          name: CELIKOM-W67-SUPPORT-SELECT-GUARD-UNSIGNED
           run-id: 42858640960
           repository: manufact-test/nomusic
           github-token: ${{ github.token }}
@@ -37,7 +37,7 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference='Stop'
-          $oldSetup=(Resolve-Path 'old/CELIKOM-W68-SUPPORT-SELECT-GUARD-UNSIGNED.exe').Path
+          $oldSetup=(Resolve-Path 'old/CELIKOM-W67-SUPPORT-SELECT-GUARD-UNSIGNED.exe').Path
           $newSetup=(Resolve-Path 'new/CELIKOM-W68-SUBSCRIPTION-TRIAL-GATE-UNSIGNED.exe').Path
           $newHash=(Get-FileHash $newSetup -Algorithm SHA256).Hash
           if ($newHash -ne '8F9455F4BE4E750D1BE6AFA629D7D2A8519293E10F200281AAA21EBE23319665') {
