@@ -9,10 +9,11 @@ const source = fs.readFileSync(new URL("./host.cjs", import.meta.url), "utf8");
 async function runHost(url, { queue = [], token = "b".repeat(64) } = {}) {
   const diagnostics = [], evaluated = [], network = [];
   let drained = false;
+  const viewEvents = new Map();
   const view = {
     isDestroyed: () => false,
     getURL: () => url,
-    on: () => {},
+    on: (name, handler) => { const handlers = viewEvents.get(name) || []; handlers.push(handler); viewEvents.set(name, handlers); },
     executeJavaScript: async script => {
       evaluated.push(script);
       if (script.includes("return !!window.__celikomBridgeNativeDrain")) return true;
@@ -77,7 +78,12 @@ async function runHost(url, { queue = [], token = "b".repeat(64) } = {}) {
   };
   vm.runInNewContext(source,context,{timeout:1200});
   await new Promise(resolve=>setTimeout(resolve,35));
-  return {diagnostics,evaluated,network};
+  return {diagnostics,evaluated,network,
+    emitView: (name,...args) => {
+      for(const handler of viewEvents.get(name) || []) handler({},...args);
+    },
+    witnessCount: name => (viewEvents.get(name)||[]).length
+  };
 }
 
 test("trusted native Yandex scheme connects via Electron main process",async()=>{
@@ -130,4 +136,33 @@ test("normal native diagnostic events contain only code/id, no signed audio URL"
   });
   assert.ok(diagnostics.some(x=>/\\|RESOLVE_REQUEST\\|track=123$/.test(x)));
   assert.ok(diagnostics.every(x=>!x.includes("token=")&&!x.includes("audioUrl")));
+});
+
+test("W48 genuine Electron media events reveal fast start-pause and real audible state", async () => {
+  const r=await runHost("musicapplication://desktop/");
+  assert.equal(r.witnessCount("media-started-playing"),1);
+  assert.equal(r.witnessCount("media-paused"),1);
+  assert.equal(r.witnessCount("audio-state-changed"),1);
+  r.emitView("media-started-playing");
+  r.emitView("media-paused");
+  r.emitView("audio-state-changed",false);
+  r.emitView("audio-state-changed",true);
+  const codes=r.diagnostics;
+  for(const code of ["PLAYER_ENGINE_STARTED","PLAYER_ENGINE_PAUSED",
+    "PLAYER_ENGINE_FAST_PAUSE","PLAYER_AUDIO_SILENT","PLAYER_AUDIO_AUDIBLE"]) {
+    assert.ok(codes.includes(code),code);
+  }
+  assert.ok(codes.every(line=>!line.includes("token=")&&!line.includes("audioUrl")));
+});
+test("W48 untrusted Yandex-like renderer receives no media observer", async () => {
+  const r=await runHost("musicapplication://evil/");
+  for(const name of ["media-started-playing","media-paused","audio-state-changed"])
+    assert.equal(r.witnessCount(name),0);
+  r.emitView("media-started-playing");
+  assert.ok(!r.diagnostics.includes("PLAYER_ENGINE_STARTED"));
+});
+test("W48 media witness attaches once per view across repeated host tick cycles", async () => {
+  const r=await runHost("musicapplication://desktop/");
+  for(const name of ["media-started-playing","media-paused","audio-state-changed"])
+    assert.equal(r.witnessCount(name),1);
 });
