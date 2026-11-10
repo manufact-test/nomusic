@@ -18,6 +18,7 @@ import zlib
 from pathlib import Path
 import clone_native_splits_ephemeral as source
 import clone_native_splits_arsclib_ephemeral as arsc
+from clone_lab_profileability import enable_private_lab_shell_profiling
 
 OLD_METRICA = "com.yandex.preinstallsatellite.appmetrica.provider"
 NEW_METRICA = "com.yandex.preinstallsatellite.appmetrica.provideq"
@@ -568,6 +569,12 @@ def run():
         sorted_metrica_runtime = os.getenv("CELIKOM_SORTED_METRICA_RUNTIME") == "1"
         strict_main_ui_gate = preserve_original_dex or sorted_metrica_runtime
         profile_main_launch = os.getenv("CELIKOM_PROFILE_MAIN_LAUNCH") == "1"
+        private_profileable = os.getenv("CELIKOM_LAB_CLONE_PROFILEABLE_SHELL") == "1"
+        if private_profileable and not (profile_main_launch and preserve_original_dex
+                and os.getenv("CELIKOM_CLEAN_ANDROID_ARMV7_TRANSLATION") == "1"
+                and os.getenv("CELIKOM_ORIGINAL_CONTROL_LAUNCH") == "1"
+                and os.getenv("GITHUB_ACTIONS") == "true"):
+            raise arsc.TrialError("PROFILEABLE_CLONE_ONLY_ON_EPHEMERAL_ORIGINAL_DEX_EMULATOR")
         if profile_main_launch and not (
                 preserve_original_dex and
                 os.getenv("CELIKOM_CLEAN_ANDROID_ARMV7_TRANSLATION") == "1" and
@@ -600,7 +607,7 @@ def run():
                     "publisher_signed_manifest_profileability":
                         publisher_profileability
                 }, sort_keys=True))
-                if (profile_main_launch and not
+                if (profile_main_launch and not private_profileable and not
                         publisher_profileability["ordinary_shell_method_tracing_authorized"]):
                     raise arsc.TrialError("SIGNED_YANDEX_SHELL_PROFILING_NOT_ALLOWED")
             initial, _ = source.rewrite_manifest(publisher_manifest.decode("utf-8"))
@@ -610,6 +617,14 @@ def run():
                 new_profile = classify_manifest_shell_profileability(next_manifest)
                 if old_profile != new_profile:
                     raise arsc.TrialError("CLONE_PROFILEABLE_PERMISSIONS_DRIFT")
+                # Enable standard Android profiling ONLY on the independent
+                # non-distributable lab clone, never publisher-signed original.
+                if private_profileable:
+                    next_manifest = enable_private_lab_shell_profiling(next_manifest)
+                    lab_profile = classify_manifest_shell_profileability(next_manifest)
+                    if not (lab_profile["ordinary_shell_method_tracing_authorized"]
+                            and not lab_profile["publisher_debuggable"]):
+                        raise arsc.TrialError("LAB_CLONE_PROFILEABLE_GATE_MISSING")
             # Only the BASE APK declares app-level custom permissions;
             # config splits must NOT be forced to have those declarations.
             if omit_shadowed and not split:
@@ -991,7 +1006,9 @@ def run():
             "app_auth_or_login_tested": False,
             "fileinfo_decoder_proven": False,
             "native_audio_tested": False,
-            "play_protect_tested": False
+            "play_protect_tested": False,
+            "profileable_shell_only_on_separate_lab_clone": private_profileable,
+            "publisher_original_profileable_unchanged": True
         }
         if emulator_runtime:
             result.update(emulator_runtime)

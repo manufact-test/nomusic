@@ -1,0 +1,53 @@
+name: Android A1 clone main ART trace on isolated CI emulator
+on:
+  push:
+    branches:
+      - feature/android-parallel-clone-runtime-preflight-20261111
+    paths:
+      - 'android/native-yandex-hooklab/clone_lab_profileability.py'
+      - 'android/native-yandex-hooklab/clone_native_identity_phase2_ephemeral.py'
+      - 'android/native-yandex-hooklab/tests/test_clone_lab_profileability.py'
+      - '.github/workflows/android-native-a1-clone-profileable-emulator.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  original-and-clone:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - name: Pure unit and trace parser tests
+        run: |
+          python3 -m py_compile android/native-yandex-hooklab/clone_native_identity_phase2_ephemeral.py android/native-yandex-hooklab/clone_lab_profileability.py
+          python3 -m unittest discover -s android/native-yandex-hooklab/tests -p test_clone_lab_profileability.py -v
+          python3 -m unittest discover -s android/native-yandex-hooklab/tests -p test_native_startup_trace.py -v
+          python3 -m unittest discover -s android/native-yandex-hooklab/tests -p test_clone_crash_classification.py -v
+      - name: Enable KVM only in disposable emulator
+        run: |
+          test -e /dev/kvm
+          sudo chmod 666 /dev/kvm
+      - name: Install publisher control and separately signed clone; profile clone main
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 30
+          target: google_apis
+          arch: x86
+          profile: pixel_5
+          emulator-boot-timeout: 480
+          emulator-options: -no-snapshot-load -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none
+          disable-animations: true
+          script: >
+            CELIKOM_CLEAN_ANDROID_ARMV7_TRANSLATION=1
+            CELIKOM_MANIFEST_ONLY_ORIGINAL_DEX=1
+            CELIKOM_OMIT_SHADOWED_SIGNATURE_DECLS=1
+            CELIKOM_ORIGINAL_CONTROL_LAUNCH=1
+            CELIKOM_LAB_CLONE_PROFILEABLE_SHELL=1
+            CELIKOM_PROFILE_MAIN_LAUNCH=1
+            python3 android/native-yandex-hooklab/clone_native_identity_phase2_ephemeral.py
+      - name: No vendor APKs, tracing data or signing keys retained
+        if: always()
+        run: |
+          test ! -d android/native-yandex-hooklab/release
+          test ! -d android/native-yandex-hooklab/patched
+          echo "Private ephemeral APK and trace cleanup; no artifacts uploaded"

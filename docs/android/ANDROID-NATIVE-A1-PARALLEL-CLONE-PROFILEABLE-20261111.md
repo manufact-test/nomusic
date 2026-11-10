@@ -1,0 +1,7 @@
+# A1 parallel clone startup diagnostics — 11.11.2026
+
+Baseline: 3ec107670a9c20b68d259873a450775e2738c772; backup/android-parallel-clone-pre-arttrace-20261111.
+The five publisher-signed original and five independently signed clone splits previously installed together on Android 11 translated x86; clone MAIN EXIT_SELF(0) before UI. Previous profiler was denied because original was not profileable by shell.
+Only for a never-distributed clone in a disposable GitHub emulator, add Android standard profileable shell=true. Do not modify the publisher-signed original, its DEX, signature, DRM, login, Play Protect or user device. Preserve original controls; verify MAIN/foreground rather than AppMetrica helper. ART trace is ephemeral, never uploaded, and the summarizer emits only bounded booleans for whitelisted lifecycle methods.
+Current goal is to distinguish startup self-exit caused by exception handling from other process exits. This may not reveal a causal reason or solve the clone. Never present CI static PASS as working audio, sign-in, one-APK product, or device success.
+Next gate: if genuine MAIN/UI works in disposable runtime, build stable clone-specific native hooklab module in separate package and test on owner HONOR with Play Protect ON, keeping original Yandex intact. When complete and accepted on LSPatch, remind owner to replace LSPatch with own implementation.
