@@ -2,7 +2,15 @@
 
 **Status:** Source code only; builds a *CELIKOM Xposed module APK* (not an independent music player). Owner authorized research and preparation for **a separate disposable test device only**. No package was installed, and **nothing** on the owner's HONOR, stable Test.50, catalog or server is touched.
 
-## LATEST OWN Android 13 actual MediaPlayer runtime PASS (2026-11-10)
+## NEWEST verified actual Android 13 async player race / rapid Start-Stop-Next (2026-11-10)
+
+- **CI-green code:** `50735e6d56481ea0ce3da8fdcb03589cad90608c`; frozen backup: `backup/android-own-api33-rapid-reload-race-pass-20261110`; full evidence: `docs/android/ANDROID-OWN-API33-RAPID-RELOAD-RACE-PASS-2026-11-10.md`.
+- [Real API33 MediaPlayer CI #42837053639 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/42837053639): **BOTH** `OWN_DECODER_LIFECYCLE` (same-track paused/playing source reload and Next) **AND** `OWN_ASYNC_RACE_PASS` (12 rounds of rapid start/stop on same A during prepare, Next B, 48 platform player creations with never two simultaneously, six B pause+seek). Only OWN generated WAV on `x86_64` emulator, `-noaudio`; no Yandex or owner test.
+- Fixed pending position bug in OWN `AudioSmokeScreen`: `restoreSeekMs` is authoritative **before** `onPrepared`, not just after seek starts. Late simulated tickets rejected; do NOT claim 36 real Android late callbacks.
+- Earlier exact same Java sources on SHA `31c34b23`: [ARMv7 host #42837003150 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/42837003150), [scope #42837003307 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/42837003307), [research module #42837003096 SUCCESS 2/2](https://github.com/manufact-test/nomusic/actions/runs/42837003096); only subsequent diff before current green SHA is a workflow edit.
+- Android Yandex source/decoder preprepare **NOT** identified; no working audio swap. Public MediaSession and AudioPlaybackCallback do not expose another app's private `Lemb`/DataSource. Keep Test.50/HONOR/Windows/production unchanged.
+
+## PREVIOUS OWN Android 13 actual MediaPlayer runtime PASS (2026-11-10)
 
 - **CI-green source:** `bb26aca9652850c69fbd0896a26bec22601826b0`; **frozen backup:** `backup/android-own-api33-real-mediaplayer-source-reload-pass-20261110`; detailed evidence: `docs/android/ANDROID-OWN-API33-MEDIAPLAYER-RUNTIME-PASS-2026-11-10.md`.
 - On a disposable **Android 13 x86_64 emulator**, only the CELIKOM-owned no-permission `armv7-loader-host` APK runs a synthetic 8s WAV through real Android `MediaPlayer`. Real callbacks show original A→Seek→Pause→Start alternative A (pause and 2.2s position retained)→Resume→Stop original A (position/playing retained)→Next original B. Android code calls `OwnSameTrackReloadPlan.decide` for the actual source change; releases old MediaPlayer before new prepare; does NOT call Windows Electron reloadEntity. CI logged `RESULT=PASS CODE=OWN_DECODER_LIFECYCLE`.
