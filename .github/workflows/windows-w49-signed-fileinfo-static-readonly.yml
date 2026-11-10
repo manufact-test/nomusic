@@ -7,6 +7,7 @@ on:
     paths:
       - .github/workflows/windows-w49-signed-fileinfo-static-readonly.yml
       - windows-companion/w49/static-native-fileinfo-audit.mjs
+      - windows-companion/w49/deep-native-fileinfo-audit.mjs
 
 permissions:
   contents: read
@@ -47,6 +48,8 @@ jobs:
           }
           node windows-companion/w49/static-native-fileinfo-audit.mjs $original
           if ($LASTEXITCODE -ne 0) { throw 'W49_STATIC_AUDIT_FAILED' }
+          node windows-companion/w49/deep-native-fileinfo-audit.mjs $original
+          if ($LASTEXITCODE -ne 0) { throw 'W49_SEMANTIC_AUDIT_FAILED' }
           $after=(Get-FileHash $original -Algorithm SHA256).Hash.ToLowerInvariant()
           if ($after -ne $before) { throw 'W49_ASAR_CHANGED_DURING_READONLY_AUDIT' }
           Write-Output 'W49_VERIFIED_SIGNED_SOURCE_READ_ONLY_PASS'
