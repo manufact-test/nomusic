@@ -25,6 +25,7 @@ from inspect_android_host import Dex,DexError,DEX_MAX
 from trace_native_callers import method_definitions
 from audit_native_register_bridge import instructions, move_object_registers
 from audit_native_typed_wrapper_coroutines import brief_type,method_profile
+from trace_native_model_to_decoder import bounded_obfuscated
 import clone_native_splits_ephemeral as exact
 
 CLASS="Lga4;"
@@ -159,6 +160,7 @@ def scan_fields(apks):
     readers=defaultdict(set)
     writers=defaultdict(set)
     ctor_types=defaultdict(set)
+    all_writer_types=defaultdict(list)
     target_read_slots=set()
     for record in records:
         for access in record["accesses"]:
@@ -169,10 +171,17 @@ def scan_fields(apks):
                     target_read_slots.add(slot)
             else:
                 writers[slot].add(record["method"])
-        if record["method"][0]==CLASS and record["method"][1]=="<init>":
-            for store in record["stores"]:
-                slot=slots[store["_field_key"]]
-                ctor_types[slot].add(store["new_instance_type_on_same_unbranched_register"])
+        for store in record["stores"]:
+            slot=slots[store["_field_key"]]
+            observed=store["new_instance_type_on_same_unbranched_register"]
+            all_writer_types[slot].append({
+                "writer":bounded_obfuscated(record["method"]),
+                "same_method_unbranched_new_instance":observed,
+                "branch_uncertainty":store["has_branch_or_exception_uncertainty"],
+                "runtime_receiver_selected":False,
+            })
+            if record["method"][0]==CLASS and record["method"][1]=="<init>":
+                ctor_types[slot].add(observed)
     return {
         "six_original_dex_complete":True,
         "defined_method_bodies_scanned":scanned_bodies,
@@ -191,7 +200,8 @@ def scan_fields(apks):
             "field_slot":slot,
             "read_method_count":len(readers.get(slot,())),
             "write_method_count":len(writers.get(slot,())),
-            "writer_hints":[f"{m[0]}->{m[1]}" for m in sorted(writers.get(slot,()))[:MAX_FIELD_HANDLERS]],
+            "writer_hints":[bounded_obfuscated(m) for m in sorted(writers.get(slot,()))[:MAX_FIELD_HANDLERS]],
+            "bounded_writer_value_origins":all_writer_types.get(slot,[])[:MAX_FIELD_HANDLERS],
             "ctor_new_instance_types":sorted(ctor_types.get(slot,())),
             "no_reflection_or_dynamic_field_write_proven":False,
         } for slot in sorted(slots.values())],
