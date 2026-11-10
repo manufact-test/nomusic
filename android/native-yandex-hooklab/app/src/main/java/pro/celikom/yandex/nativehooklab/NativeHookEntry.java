@@ -10,6 +10,7 @@ import android.os.SystemClock;
 import android.util.Log;
 
 import java.lang.reflect.Method;
+import java.lang.reflect.Field;
 import java.util.List;
 import java.util.Set;
 import java.util.HashSet;
@@ -48,7 +49,12 @@ public final class NativeHookEntry extends XposedModule {
     private final NativeSourceDispatchWitness sourceDispatch =
             new NativeSourceDispatchWitness();
     private final Set<String> sourceLifecycleHooked = new HashSet<>();
+    private final NativeReaderExecutionWitness readerExecution =
+            new NativeReaderExecutionWitness();
+    private Field leroReaderField;
     private boolean sourceFactoryHooked;
+    private boolean readerMethodHooked;
+    private final Set<String> readerSourceMethodsHooked = new HashSet<>();
     private String processName;
     private boolean attachHooked;
     private boolean targetHooked;
@@ -92,7 +98,8 @@ public final class NativeHookEntry extends XposedModule {
                 // Retry only for a version-verified context; no eager unsafe hook.
                 if (verifiedHostContext != null
                         && (!targetHooked || !metadataHooked || !playbackStateHooked
-                            || !sourceFactoryHooked || sourceLifecycleHooked.size() < 16)) {
+                            || !sourceFactoryHooked || sourceLifecycleHooked.size() < 16
+                            || !readerMethodHooked || readerSourceMethodsHooked.size() < 3)) {
                     onAttached(verifiedHostContext);
                 }
             }
@@ -145,6 +152,7 @@ public final class NativeHookEntry extends XposedModule {
             ClassLoader appLoader = pair.loader;
             Method modern = pair.modern;
             Method old = pair.legacy;
+            armReaderExecutionWitness(appLoader);
             armSourceDispatchWitness(appLoader);
             if (targetHooked) return;
 
@@ -214,6 +222,13 @@ public final class NativeHookEntry extends XposedModule {
      * this can be prefetch or background data. No source mutation is allowed.
      */
     private synchronized void armSourceDispatchWitness(ClassLoader loader) {
+        if (leroReaderField == null) {
+            try {
+                leroReaderField=HookSpec.findLeroReaderField(loader);
+            } catch(Throwable ignored) {
+                log(Log.WARN,TAG,"observer: exact Lero reader field unavailable");
+            }
+        }
         if (!sourceFactoryHooked) {
             try {
                 Method factory=HookSpec.findSourceFactory(loader);
@@ -243,16 +258,27 @@ public final class NativeHookEntry extends XposedModule {
                     hook(method)
                             .setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
                             .intercept(chain -> {
-                                Object result=chain.proceed();
+                                // Record exact invocation identity BEFORE the native
+                                // scheduling code can dispatch Lmb4.a on another thread.
                                 try {
                                     Object receiver=chain.getThisObject();
                                     long time=SystemClock.elapsedRealtime();
-                                    if("t".equals(action))sourceDispatch.onLifecycleT(receiver,time);
-                                    else sourceDispatch.onRemove(receiver,time);
-                                    safeSourceDispatchLog();
+                                    if("t".equals(action)) {
+                                        sourceDispatch.onLifecycleT(receiver,time);
+                                        if("ero".equals(concrete)
+                                                &&leroReaderField!=null) {
+                                            Object reader=leroReaderField.get(receiver);
+                                            sourceDispatch.onOwnedReader(receiver,reader,time);
+                                        }
+                                    } else {
+                                        sourceDispatch.onRemove(receiver,time);
+                                    }
                                 }catch(Throwable ignored){
-                                    // No throws, no result/argument modifications.
+                                    // Do not affect real Yandex lifecycle calls.
                                 }
+                                Object result=chain.proceed();
+                                try { safeSourceDispatchLog(); }
+                                catch(Throwable ignored){}
                                 return result;
                             });
                     sourceLifecycleHooked.add(hookKey);
@@ -280,6 +306,90 @@ public final class NativeHookEntry extends XposedModule {
                     + " unknown="+s.rejectedUnknown
                     + " NOT player selected / NOT decoder prepare");
         }
+    }
+
+    /**
+     * Read-only execution nesting for the concrete signed Lmb4.a() and Lha4
+     * open/read/close implementation. Unlike static DEX co-occurrence, this
+     * observes real method invocations within ONE reader call on ONE thread.
+     * It is still not a current audible track/selected decoder proof.
+     *
+     * Never reads DataSpec, byte[] data, URL, track/edition or authentication.
+     * No mutation and no second playback instance.
+     */
+    private synchronized void armReaderExecutionWitness(ClassLoader loader){
+        if(!readerMethodHooked){
+            try {
+                Method reader=HookSpec.findReaderExecution(loader);
+                hook(reader)
+                        .setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                        .intercept(chain -> {
+                            Object receiver=chain.getThisObject();
+                            NativeReaderExecutionWitness.Scope scope=
+                                    readerExecution.begin(receiver);
+                            try {
+                                Object result=chain.proceed();
+                                boolean full=readerExecution.finish(scope,true);
+                                if(full) {
+                                    try {
+                                        sourceDispatch.onCompletedReader(
+                                                receiver,SystemClock.elapsedRealtime());
+                                    }catch(Throwable ignored){}
+                                }
+                                safeReaderExecutionLog();
+                                return result;
+                            }catch(Throwable ex){
+                                readerExecution.finish(scope,false);
+                                throw ex;
+                            }
+                        });
+                readerMethodHooked=true;
+            }catch(Throwable ignored){
+                log(Log.WARN,TAG,"observer: exact Lmb4.a unavailable");
+            }
+        }
+        for(String operation:new String[]{"b","read","close"}){
+            if(readerSourceMethodsHooked.contains(operation))continue;
+            try{
+                Method method=HookSpec.findReaderSourceMethod(loader,operation);
+                hook(method)
+                        .setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                        .intercept(chain -> {
+                            Object result=chain.proceed();
+                            try {
+                                Object receiver=chain.getThisObject();
+                                if("b".equals(operation))readerExecution.open(receiver);
+                                else if("read".equals(operation)
+                                        &&result instanceof Integer
+                                        &&((Integer)result)>0)
+                                    readerExecution.positiveRead(receiver);
+                                else if("close".equals(operation))
+                                    readerExecution.close(receiver);
+                            }catch(Throwable ignored){}
+                            return result;
+                        });
+                readerSourceMethodsHooked.add(operation);
+            }catch(Throwable ignored){
+                log(Log.WARN,TAG,"observer: one exact Lha4 method unavailable");
+            }
+        }
+        Log.i(TAG,"observer: reader chain methods="+readerSourceMethodsHooked.size()
+                + " reader=" + readerMethodHooked + " NOT decoder ownership");
+    }
+
+    private void safeReaderExecutionLog(){
+        try{
+            NativeReaderExecutionWitness.Snapshot s=readerExecution.snapshot();
+            if(s.readers==1 || s.readers%20==0){
+                NativeSourceDispatchWitness.Snapshot link=sourceDispatch.snapshot();
+                Log.i(TAG,"observer: reader executions="+s.readers
+                        + " full-invocation-open-read-close="+s.fullSameSource
+                        + " exceptions="+s.threw
+                        + " factory-Lero-to-reader-full-chain="+link.completedReaderChains
+                        + " ambiguous-unmatched="+link.unmatchedReaders
+                        + " NOT selected live track / NOT decoder prepare");
+            }
+        }catch(Throwable ignored){}
     }
 
     /**
