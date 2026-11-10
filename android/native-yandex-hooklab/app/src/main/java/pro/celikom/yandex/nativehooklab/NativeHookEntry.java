@@ -51,6 +51,9 @@ public final class NativeHookEntry extends XposedModule {
             new NativeSourceDispatchWitness();
     private final Set<String> sourceLifecycleHooked = new HashSet<>();
     private final Set<Integer> sourceConstructorHooks = new HashSet<>();
+    private final NativeOwnerConstructionWitness ownerConstruction =
+            new NativeOwnerConstructionWitness();
+    private boolean ownerBuilderHooked;
     private final NativeReaderExecutionWitness readerExecution =
             new NativeReaderExecutionWitness();
     private Field leroReaderField;
@@ -102,6 +105,7 @@ public final class NativeHookEntry extends XposedModule {
                         && (!targetHooked || !metadataHooked || !playbackStateHooked
                             || !sourceFactoryHooked || sourceLifecycleHooked.size() < 16
                             || sourceConstructorHooks.size() < 2
+                            || !ownerBuilderHooked
                             || !readerMethodHooked || readerSourceMethodsHooked.size() < 3)) {
                     onAttached(verifiedHostContext);
                 }
@@ -238,9 +242,10 @@ public final class NativeHookEntry extends XposedModule {
                                     // AFTER original constructor succeeds.
                                     Object result=chain.proceed();
                                     try{
+                                        Object exact=chain.getThisObject();
                                         sourceDispatch.onConstructed(
-                                                chain.getThisObject(),
-                                                SystemClock.elapsedRealtime());
+                                                exact,SystemClock.elapsedRealtime());
+                                        ownerConstruction.onConstructed(exact);
                                     }catch(Throwable ignored){}
                                     return result;
                                 });
@@ -251,6 +256,39 @@ public final class NativeHookEntry extends XposedModule {
                 }
             }catch(Throwable ignored){
                 log(Log.WARN,TAG,"observer: Lero constructor pair unresolved");
+            }
+        }
+        if(!ownerBuilderHooked){
+            try{
+                Method ownerI0=HookSpec.findLocvSourceBuilder(loader);
+                hook(ownerI0)
+                        .setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                        .intercept(chain -> {
+                            // The only valid child identity is an exact Lero
+                            // constructor nesting inside this SAME ocv.i0 on
+                            // this SAME Java thread. Async branches fail closed.
+                            NativeOwnerConstructionWitness.Scope scope=
+                                    ownerConstruction.begin(chain.getThisObject());
+                            try{
+                                Object result=chain.proceed();
+                                NativeOwnerConstructionWitness.Match pair=
+                                        ownerConstruction.finish(scope,true);
+                                if(pair!=null){
+                                    try{
+                                        sourceDispatch.onOwnerChild(
+                                                pair.owner,pair.child,
+                                                SystemClock.elapsedRealtime());
+                                    }catch(Throwable ignored){}
+                                }
+                                return result;
+                            }catch(Throwable original){
+                                ownerConstruction.finish(scope,false);
+                                throw original;
+                            }
+                        });
+                ownerBuilderHooked=true;
+            }catch(Throwable ignored){
+                log(Log.WARN,TAG,"observer: exact ocv.i0 source owner unavailable");
             }
         }
         if (leroReaderField == null) {
@@ -341,6 +379,7 @@ public final class NativeHookEntry extends XposedModule {
         Log.i(TAG,"observer: exact source lifecycle witness hooks="
                 + sourceLifecycleHooked.size()
                 + " direct-Lero-constructors=" + sourceConstructorHooks.size()
+                + " exact-ocv-builder=" + ownerBuilderHooked
                 + " factory=" + sourceFactoryHooked
                 + " NOT selected player proof");
     }
@@ -355,6 +394,8 @@ public final class NativeHookEntry extends XposedModule {
                     + " direct-Lero-constructors="+s.constructors
                     + " constructor-to-t="+s.constructedTCalls
                     + " factory-to-t="+s.factoryTCalls
+                    + " nested-ocv-ero="+s.parentChildLinks
+                    + " same-owner-complete-reader="+s.parentOwnerReaderCompletions
                     + " unmatched="+s.unmatchedCalls
                     + " removes="+s.removals
                     + " unknown="+s.rejectedUnknown
