@@ -108,6 +108,37 @@ try
         if (path == "/api/v1/auth/login")
             return JsonResponse(new { user = new { id = 1, email = "test@example.com", status = "active" },
                 access_token = expectedAccess, refresh_token = expectedRefresh, expires_in = 900 });
+        if (path == "/api/v1/entitlement")
+            return JsonResponse(new { allowed = true, source = "promo",
+                valid_until = (string?)null, reason = "promo_lifetime" });
+        if (path == "/api/v1/promos/redeem")
+        {
+            Test(request.Headers.Authorization?.Parameter == expectedAccess,
+                "promo uses CELIKOM bearer only");
+            return JsonResponse(new { revoked = false, already_activated = false,
+                entitlement = new { allowed = true, source = "promo",
+                    valid_until = (string?)null, reason = "promo_lifetime" } });
+        }
+        if (path == "/api/v1/support")
+        {
+            Test(request.Headers.Authorization?.Parameter == expectedAccess,
+                "support uses CELIKOM bearer only");
+            var content = request.Content!.ReadAsStringAsync().GetAwaiter().GetResult();
+            Test(!content.Contains("refresh_token") && !content.Contains("access_token"),
+                "support does not leak tokens");
+            using var payload = JsonDocument.Parse(content);
+            var body = payload.RootElement;
+            Test(body.GetProperty("request_key").GetString()!.Length == 36,
+                "support idempotent request key");
+            if (body.GetProperty("kind").GetString() == "song")
+            {
+                Test(body.GetProperty("report").GetProperty("category").GetString() == "audio_issue",
+                    "song report category matches extension");
+                Test(body.GetProperty("report").GetProperty("track").GetProperty("id").GetString() == "144530503",
+                    "only exact owner track ID reported");
+            }
+            return JsonResponse(new { ticket_id = 3 });
+        }
         if (path == "/api/v1/auth/me")
         {
             Test(request.Headers.Authorization?.Parameter == expectedAccess,
@@ -137,6 +168,19 @@ try
     Test(resolved?.AudioUrl == "https://api.celikom.example" + audio, "live-contract resolve mapping");
     Test(backendCalls.SequenceEqual(new [] { "/api/v1/auth/login", "/api/v1/resolve" }),
         "only expected private backend endpoints");
+    var accessPreview = await api.GetEntitlementAsync();
+    Test(accessPreview.GetProperty("source").GetString() == "promo" &&
+         accessPreview.GetProperty("valid_until").ValueKind == JsonValueKind.Null,
+        "W62 lifetime promo access is server-backed (not hardcoded)");
+    var redeemed = await api.RedeemPromoAsync("TESTPROMO123");
+    Test(redeemed.GetProperty("entitlement").GetProperty("allowed").GetBoolean(),
+        "W62 promo redeems via existing service");
+    var support = await api.SendSupportAsync("Проверка поддержки", Guid.NewGuid());
+    Test(support.GetProperty("ticket_id").GetInt32() == 3, "W62 general support real API");
+    var songSupport = await api.SendSongSupportAsync("Звук прерывается", Guid.NewGuid(),
+        "144530503", "audio_issue", true, true);
+    Test(songSupport.GetProperty("ticket_id").GetInt32() == 3,
+        "W62 typed song support real API");
     Test(!await api.CanExportDiagnosticsAsync(),
         "regular active user cannot export owner diagnostics");
     Test(backendCalls[^1] == "/api/v1/auth/me",
