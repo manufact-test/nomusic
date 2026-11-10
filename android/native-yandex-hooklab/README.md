@@ -35,3 +35,10 @@ Use source-available **JingMatrix/LSPatch v1.2 build 487**, pinned upstream rele
 Before considering any installation on a **separate disposable device**, run `python3 android/native-yandex-hooklab/probe_arm_device.py` from a PC with adb and exactly one authorized **spare** phone connected. It uses only `adb devices`, `getprop` and `pm path`; it never installs, removes, launches, roots or changes anything. It refuses the known owner HONOR 50, an existing Yandex package, Android below API 33, emulators, no Play Store and devices lacking `armeabi-v7a` (the exact native #170gpr host contains ARMv7 32-bit libraries). On a 64-bit-only Android device the official host is ABI-incompatible even if its CPU is arm64.
 
 **A green preflight is NOT permission to install anything.** It is not proof that Play Protect is enabled, that the phone is an authorized spare, or that libxposed works. Those require explicit on-device checks and a separate lab installation decision. It never reports device serials, paths, account data or Play Protect status guesses. Unit tests run in the existing hooklab CI without adb.
+
+## 10 Nov 2026: final source admission MODEL (not a live Yandex hook)
+
+`NativePrePrepareAdmission.java` coordinates exact native track+edition+generation observation, FileInfo and the actual decoder-descriptor identity (only an approved future host may supply those values), plus a single pre-prepare source decision. Unknown identity, unsafe/stale candidate, edition mismatch, or missing real FileInfo → original source. Duplicate/stale prepare → no apply. No MediaPlayer or source mutation in the model.
+
+[CI 42780177178](https://github.com/manufact-test/nomusic/actions/runs/42780177178) SUCCESS 2/2: 35,032 model admission assertions incl. 5,000 Next; 10,037 NativeSourceGate; 10,015 NativeTrackIdentityGate; read-only module APK built in CI but NOT released. **No live Yandex decoder/source replacement has been verified.** See `docs/android/ANDROID-NATIVE-FINAL-ADMISSION-HANDOFF-2026-11-10.md` and `docs/android/NEXT-CHAT.md`.
+

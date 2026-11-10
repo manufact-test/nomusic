@@ -1,5 +1,16 @@
 # CELIKOM Android — передача следующему ведущему разработчику (10.11.2026)
 
+## FINAL CHECKPOINT 10.11.2026 — atomic pre-prepare admission model, 2/2 CI SUCCESS
+
+**Кодовый HEAD до документов:** `6ee199858e25ceddcc229cd1ad51b0bb5526b8ab`. **Backup:** `backup/android-native-preprepare-final-code-20261110`. **Главный новый отчёт:** `docs/android/ANDROID-NATIVE-FINAL-ADMISSION-HANDOFF-2026-11-10.md`. **Подготовлен текст для следующего чата:** `docs/android/START-NEXT-CHAT-ANDROID-NATIVE-2026-11-10.md`.
+
+**[CI 42780177178](https://github.com/manufact-test/nomusic/actions/runs/42780177178) 2/2 SUCCESS**: Java модель `NativePrePrepareAdmission.java` атомарно проверяет точный track+edition+generation, FileInfo и descriptor перед prepare; 35 032 assertions PASS, включая 5 000 Next. `NativeSourceGate` исправлен: stale/rejected offer больше не возвращает ALT другого трека; 10 037 assertions PASS. `NativeTrackIdentityGate` 10 015 assertions PASS; Gradle read-only module builds. Всё **только тестовая модель**, не нативная подмена.
+
+**Ключевой NO-GO без изменений:** подписанный оригинал работает, но clone MAIN `EXIT_SELF status=0`, собственного UI нет; издатель запрещает shell ART profiling, а публичного лицензированного native audio-source extension подтверждено не было. Дополнительный статический аудит всех шести DEX не доказал `eed → decoder pre-prepare`. Не устраивать снова x86 AppMetrica/loader, не обходить защиту/подпись, не переходить на WebView или второй плеер. Следующий рубеж — **авторизованный настоящий native host/source extension**, а не новые схемы перепаковки без доказательств. Test.50/HONOR/Windows/server/DB/production не тронуты.
+
+---
+
+
 ## 10.11.2026 — новое: FileInfo → Media3 short-path audited, no decoder runtime proof
 
 **Code HEAD before docs:** `b807fe3b312823961b1c4d55fd669fcbc1df57d1`. **Backup:** `backup/android-native-crossdex-source-hop-readonly-20261110`.
