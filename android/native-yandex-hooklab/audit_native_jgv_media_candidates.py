@@ -23,7 +23,8 @@ from inspect_android_host import Dex, DexError, DEX_MAX
 from trace_native_callers import method_definitions, INVOKES, invoked_method_indexes
 from audit_native_media_implementors import relations
 from audit_native_typed_wrapper_coroutines import (
-    brief_type, class_field_shapes, method_profile, instructions
+    brief_type, class_field_shapes, method_profile, instructions,
+    safe_instruction_shape
 )
 from audit_native_postfileinfo_lifecycle import merge_reverse, reverse_to_forward
 from trace_native_source_hops import inspect_one_dex
@@ -108,8 +109,30 @@ def bounded_method_media_calls(triple,dex,code_off):
             to_related.append(method_hint(callee))
         if "Ljgv;" in callee[2] or callee[0]=="Ljgv;":
             caller_protos.append(method_profile(callee))
+    # A 721-opcode synthetic lambda multiplexor can reference Lro7.y0
+    # in an UNRELATED switch case. A mere callgraph edge is not sound flow.
+    focused=triple[0] in {"Lga4;","Ldl8;","Lsu5;","Lro7;","Lero;"}
+    small=focused and len(ins)<=80
+    role_rows=[safe_instruction_shape(dex,op,w) for _,op,w in ins[:80]] if focused else []
+    windows=[]
+    if focused and not small:
+        for i,(_,op,w) in enumerate(ins):
+            if op not in INVOKES:continue
+            target=dex.method(w[1])
+            if target[0] not in {"Lro7;","Le48;","Lfxc;"}:continue
+            window=[safe_instruction_shape(dex,hop,words)
+                    for _,hop,words in ins[max(0,i-8):i+9]]
+            windows.append({"target":bounded_obfuscated(target),
+                            "relative_target_index":min(8,i),
+                            "bounded_roles":window})
+            if len(windows)>=4:break
     return {
         "instructions":len(ins),
+        "switch_opcode_count":sum(op in (0x2b,0x2c) for _,op,_ in ins),
+        "small_method_opcode_roles":role_rows if small else [],
+        "large_method_start_opcode_roles":role_rows[:32] if focused and not small else [],
+        "large_method_media_call_windows":windows,
+        "same_body_media_calls_may_be_different_switch_arms":len(ins)>80,
         "direct_named_media_call_count":len(api_hits),
         "direct_named_media_calls":sorted(set(api_hits))[:MAX_OUTPUT],
         "related_model_method_invokes":sorted(set(to_related))[:MAX_OUTPUT],
