@@ -1,0 +1,34 @@
+name: Android original-signed Ljgv consumer media source boundary (READ-ONLY)
+on:
+  push:
+    branches:
+      - experiment/android-native-yandex-fileinfo-hooklab-20261109
+    paths:
+      - 'android/native-yandex-hooklab/audit_native_jgv_media_candidates.py'
+      - 'android/native-yandex-hooklab/tests/test_native_jgv_media_candidates.py'
+      - '.github/workflows/android-native-jgv-media-candidates.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  signed-jgv-source-lineage:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Unit test class ancestry and bounded native media symbol detection
+        run: |
+          set -eu
+          python3 -m py_compile android/native-yandex-hooklab/audit_native_jgv_media_candidates.py
+          python3 -m unittest discover -s android/native-yandex-hooklab/tests -p 'test_native_jgv_media_candidates.py' -v
+      - name: Read-only original signed five-APK six-DEX typed Ljgv source boundary
+        run: python3 android/native-yandex-hooklab/audit_native_jgv_media_candidates.py
+      - name: No publisher binary source strings user data or media are exported
+        if: always()
+        run: |
+          test ! -d android/native-yandex-hooklab/release
+          test ! -d android/native-yandex-hooklab/patched
+          echo 'No decoder source swap; static inspection only; package untouched'
