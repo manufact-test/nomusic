@@ -56,14 +56,27 @@ public final class HookSpec {
             throw new NoSuchMethodException("NOT_AN_EXACT_LEMB_IMPLEMENTOR");
         Class<?> parameter="t".equals(operation)
                 ?Class.forName("dmb",false,loader):null;
-        for(Method method:holder.getDeclaredMethods()) {
-            if(method.getName().equals(operation)
-                    && !Modifier.isStatic(method.getModifiers())
-                    && !Modifier.isAbstract(method.getModifiers())
-                    && method.getReturnType()==void.class
-                    && method.getParameterCount()==(parameter==null?0:1)
-                    && (parameter==null || method.getParameterTypes()[0]==parameter))
-                return method;
+        // Signed #170gpr: alt, ojz and t6f inherit BOTH methods from mir.
+        // Declared-method-only lookup silently skipped 6 out of 16 expected
+        // class/operation pairs. Walk strictly the concrete superclass
+        // chain. Do not follow arbitrary interfaces or method name matches.
+        for(Class<?> current=holder;
+                current!=null && current!=Object.class;
+                current=current.getSuperclass()) {
+            Method selected=null;
+            for(Method method:current.getDeclaredMethods()) {
+                if(!method.getName().equals(operation)
+                        ||Modifier.isStatic(method.getModifiers())
+                        ||Modifier.isAbstract(method.getModifiers())
+                        ||method.getReturnType()!=void.class
+                        ||method.getParameterCount()!=(parameter==null?0:1)
+                        ||(parameter!=null&&method.getParameterTypes()[0]!=parameter))
+                    continue;
+                if(selected!=null)
+                    throw new NoSuchMethodException("AMBIGUOUS_LEMB_LIFECYCLE");
+                selected=method;
+            }
+            if(selected!=null)return selected;
         }
         throw new NoSuchMethodException("EXACT_LEMB_LIFECYCLE_UNAVAILABLE");
     }
