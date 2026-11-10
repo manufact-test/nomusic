@@ -765,8 +765,8 @@ public sealed class MainWindow : Form
         // bridge state toggle. Explain that existing playback/preload may
         // survive, rather than promising instant hot-swap that does not exist.
         _switchHint.Text = _bridge.Enabled
-            ? "Подмена включена для новых загрузок песен. Если трек уже играл, запусти его заново."
-            : "Подмена выключена. Уже загруженная песня может доиграть; новые треки идут из Яндекса.";
+            ? "Подмена включена. Для уже играющей песни CELIKOM попробует обновить источник без сброса позиции."
+            : "Подмена выключена. Уже играющая песня переключится на оригинал, если Яндекс поддержит обновление.";
         if (_bridge.PairCode.Length == 6 && _api.IsLoggedIn &&
             _bridge.CodeExpires > DateTimeOffset.UtcNow)
         {
