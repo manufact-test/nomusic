@@ -8,6 +8,10 @@
 
 **W53 CI source+GUI regression:** W48 #42790106070 SUCCESS; W20 #42789543676 SUCCESS; W15 Preview #42789294565 SUCCESS. Newest complete CI on corrected W23 disposable PowerShell gate https://github.com/manufact-test/nomusic/actions/runs/42790279901 and W41 https://github.com/manufact-test/nomusic/actions/runs/42790279982 must be verified before any future packaging gate; W20 https://github.com/manufact-test/nomusic/actions/runs/42790280129 is source/staging only. All tests synthetic or disposable; none authenticated/audio-PASS. **Rollback** `backup/windows-w52-403-classification-before-export-fix-20261110` at `34e4559de0edeef7df89567cb928de1a99d13859`. Working branch `experiment/windows-companion-integration-20261108`.
 
+**W53 CI safety correction:** Synthetic malformed owner-export examples were accidentally written into the global native-events log by the W15 test suite, causing strict W23/W41 disposable-host smoke to reject them. Fixed via an isolated temp export directory; nothing malformed now enters the real owner-log path. W23/W41 workflow triggers include these tests. Distinguish `PLAYER_URL_SIGNED_FIELDS_INTACT` (order or extra unrelated query) from actual token/expires/sid corruption. Full detail in W53 doc.
+
+**W54 read-only live SSH preflight:** https://github.com/manufact-test/nomusic/actions/runs/42791183852 SUCCESS, found **zero accessible recent candidate HTTP access/error logs** under the narrowly inspected Hostinger domain paths. No production writes, URLs, IPs or secrets logged. Thus cannot retroactively classify the owner's original seven HTTP403s from server access logs.
+
 **NEXT:** Establish cause of LIVE audio 403 using a low-risk path, not an invented token/host bypass; inspect only legitimately authorized session/server evidence. Once fix is proven, create actual version >0.24.6 and run verified same-app DPAPI-auth-preserving update, then deliver exclusively through verified ChatGPT Library `CELIKOM/Windows`. No manual owner trial of unchanged 0.24.6.
 
 ---
