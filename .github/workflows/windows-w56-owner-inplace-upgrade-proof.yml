@@ -85,10 +85,10 @@ jobs:
           if (-not (Test-Path $hostFile) -or -not (Test-Path $renderer)) {
             throw 'W56_NATIVE_MODULE_NOT_UPDATED'
           }
-          $host=[IO.File]::ReadAllText($hostFile)
+          $hostText=[IO.File]::ReadAllText($hostFile)
           $rendererText=[IO.File]::ReadAllText($renderer)
-          if (-not $host.Contains('const CELIKOM_NATIVE_VERSION = "0.24.7"') -or
-              -not $host.Contains('PLAYER_URL_SIGNED_FIELDS_INTACT') -or
+          if (-not $hostText.Contains('const CELIKOM_NATIVE_VERSION = "0.24.7"') -or
+              -not $hostText.Contains('PLAYER_URL_SIGNED_FIELDS_INTACT') -or
               -not $rendererText.Contains('celikom_native_query_guard')) {
             throw 'W56_NATIVE_SIGNED_URL_FIX_ABSENT_AFTER_UPGRADE'
           }
