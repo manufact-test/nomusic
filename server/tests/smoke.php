@@ -205,6 +205,33 @@ try {
                 'Unknown origin cannot preflight audio range');
         }
     });
+    run('W56 signed audio survives native Yandex telemetry question mark without weakening HMAC', function () use ($app, $query): void {
+        // Genuine original DownloadInfoSource.src appends ?vsid/source_index
+        // even to an existing signed audio URL. The native adapter appends
+        // a harmless final guard value after the validated signed fields.
+        $signedUrl = '/api/v1/audio/7?token=' . $query['token'] . '&expires=' . $query['expires'];
+        parse_str((string) parse_url($signedUrl . '?vsid=V&source_index=2', PHP_URL_QUERY), $broken);
+        expect($app->handle('GET', '/api/v1/audio/7', $broken,
+            ['Range' => 'bytes=0-3'])->status === 403, 'Unprotected timestamp invalid after vendor suffix');
+        $guardedUrl = $signedUrl . '&celikom_native_query_guard=0';
+        parse_str((string) parse_url($guardedUrl . '?vsid=V&source_index=2#t=42', PHP_URL_QUERY), $protected);
+        expect($protected['token'] === $query['token'] &&
+            $protected['expires'] === $query['expires'], 'Signed query fields unchanged by native suffix');
+        expect($protected['celikom_native_query_guard'] === '0?vsid=V',
+            'Vendor question mark isolated within ignored guard value');
+        $response = $app->handle('GET', '/api/v1/audio/7', $protected,
+            ['Range' => 'bytes=0-3']);
+        expect($response->status === 206 && bytes($response) === '0123',
+            'Native decorated URL still verifies HMAC and streams Range');
+        $forged = $protected;
+        $forged['token'] = str_repeat('0', 64);
+        expect($app->handle('GET', '/api/v1/audio/7', $forged)->status === 403,
+            'Native guard does not weaken invalid-token denial');
+        $expired = $protected;
+        $expired['expires'] = '1';
+        expect($app->handle('GET', '/api/v1/audio/7', $expired)->status === 403,
+            'Native guard does not weaken expiry rejection');
+    });
     run('whole audio and HEAD', function () use ($app, $query): void {
         $response = $app->handle('GET', '/api/v1/audio/7', $query);
         expect($response->status === 200 && bytes($response) === '0123456789abcdef', 'Whole body');
