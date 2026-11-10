@@ -1,0 +1,34 @@
+name: Android publisher-signed Ldiv downstream consumer check (READ-ONLY)
+on:
+  push:
+    branches:
+      - experiment/android-native-yandex-fileinfo-hooklab-20261109
+    paths:
+      - 'android/native-yandex-hooklab/audit_native_postfileinfo_lifecycle.py'
+      - 'android/native-yandex-hooklab/tests/test_native_postfileinfo_lifecycle.py'
+      - '.github/workflows/android-native-postfileinfo-lifecycle.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  exact-signed-l-div-consumers:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Validate bounded cross-DEX method and consumer discovery
+        run: |
+          set -eu
+          python3 -m py_compile android/native-yandex-hooklab/audit_native_postfileinfo_lifecycle.py
+          python3 -m unittest discover -s android/native-yandex-hooklab/tests -p 'test_native_postfileinfo_lifecycle.py' -v
+      - name: Read-only signed six-DEX post-FileInfo consumer inspection
+        run: python3 android/native-yandex-hooklab/audit_native_postfileinfo_lifecycle.py
+      - name: Ensure no signed vendor package, user media or credentials are exported
+        if: always()
+        run: |
+          test ! -d android/native-yandex-hooklab/release
+          test ! -d android/native-yandex-hooklab/patched
+          echo 'No native Yandex app patched or released. No decoder source proof implied.'
