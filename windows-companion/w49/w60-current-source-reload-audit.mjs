@@ -22,8 +22,8 @@ for(const chunk of chunks) {
   const src=inspectAsar(bytes,chunk).toString("utf8");
   const isPlayer=chunk.includes("9091-");
   const tokens=isPlayer
-    ? ["class Z{","restartContext(","setIndex(","setProgress(","playContext(","playCurrent(","restartTrack(","resume()","getCurrentEntity(","this.player.play(","this.player.playback","changeCurrentIndex","reloadEntity(","reload(e)","reloadMediaSource(","mediaController.reload(","currentMediaPlayer.play(","playbackState.queueState.index","getCurrentEntity(","currentContextEntityPair","disableCache"]
-    : ["getMediaSource(","getFileInfo(","getCurrentTrack(","restartContext(","setIndex(","playContext(","reloadCurrent(","invalidateMediaSource(","reloadEntity(","reload(e)","getPreloadedFileInfo(","disableCache","mediaSourceData=null"];
+    ? ["class Z{","restartContext(","setIndex(","setProgress(","playContext(","playCurrent(","restartTrack(","resume()","getCurrentEntity(","this.player.play(","this.player.playback","changeCurrentIndex","reloadEntity(","reload(e)","reloadMediaSource(","mediaController.reload(","currentMediaPlayer.play(","playbackState.queueState.index","getCurrentEntity(","currentContextEntityPair","disableCache","QUALITY_CHANGE","qualityChange","reloadEntity(C.QUALITY_CHANGE)","beforeEntityReloadProcessStart"]
+    : ["getMediaSource(","getFileInfo(","getCurrentTrack(","restartContext(","setIndex(","playContext(","reloadCurrent(","invalidateMediaSource(","reloadEntity(","reload(e)","getPreloadedFileInfo(","disableCache","mediaSourceData=null","QUALITY_CHANGE","qualityChange"];
   const found={};
   for(const token of tokens){
     let idx=-1,offset=0; const hits=[];
