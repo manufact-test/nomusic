@@ -5,7 +5,7 @@ on:
     branches:
       - experiment/windows-stop-lifecycle-20261110
     paths:
-      - .github/workflows/windows-w60-owner-inplace-0248-to-0248.yml
+      - .github/workflows/windows-w60-owner-inplace-0247-to-0248.yml
   workflow_dispatch:
 
 permissions:
@@ -17,19 +17,19 @@ jobs:
     runs-on: windows-2022
     timeout-minutes: 18
     steps:
-      - name: Retrieve exact previous owner 0.24.6 internal installer
-        uses: actions/download-artifact@v4
-        with:
-          name: CELIKOM-W60-LIVE-TOGGLE-EXTENSION-UI-UNSIGNED
-          run-id: 42806599439
-          repository: manufact-test/nomusic
-          github-token: ${{ github.token }}
-          path: old
-      - name: Retrieve exact W56 stage-only 0.24.7 candidate
+      - name: Retrieve exact accepted owner 0.24.7 internal installer
         uses: actions/download-artifact@v4
         with:
           name: CELIKOM-W56-SIGNED-QUERY-GUARD-UNSIGNED
           run-id: 42796898660
+          repository: manufact-test/nomusic
+          github-token: ${{ github.token }}
+          path: old
+      - name: Retrieve exact W60 stage-only 0.24.8 candidate
+        uses: actions/download-artifact@v4
+        with:
+          name: CELIKOM-W60-LIVE-TOGGLE-EXTENSION-UI-UNSIGNED
+          run-id: 42806599439
           repository: manufact-test/nomusic
           github-token: ${{ github.token }}
           path: new
