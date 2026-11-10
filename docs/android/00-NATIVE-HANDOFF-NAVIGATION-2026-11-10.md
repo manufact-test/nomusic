@@ -2,7 +2,16 @@
 
 **Начальная точка:** `docs/android/START-NEXT-CHAT-ANDROID-NATIVE-2026-11-10.md` — готовый текст первого сообщения новому разработчику.
 
-## ТОЧНАЯ НОВЕЙШАЯ CI GREEN ТОЧКА — строгий source-instance fail-closed на ARM64 (10.11.2026)
+## НОВЕЙШАЯ CI GREEN — Windows 0.24.9 audio lessons → OWN Android same-track reload (10.11.2026)
+
+- **Проверенный code SHA:** `a7f83f0ab836bbeeb12538c6a389c9569d326610`; **замороженный rollback:** `backup/android-windows-w60-owned-reload-armv7-arm64-ci-green-20261110`; главный документ: `docs/android/ANDROID-WINDOWS-W63-AUDIO-PARITY-OWNED-RELOAD-2026-11-10.md`.
+- **Наконец сопоставили реальные исходники Windows:** `w22/native-resource-adapter.mjs` + `w60/current-source-refresh.mjs` и свежие W57/W60/W61/W62/W63. Owner audio/Pause/Seek/Next/MyWave/Start/Stop **PASS на Windows 0.24.9**, W63 (0.24.11) пока пользовательский UI-кандидат. Windows работает через проверенный `getFileInfo` и Electron `7123.VE.reloadEntity("QUALITY_CHANGE")`; Android **не имеет доказанного идентичного API**.
+- Из принципов Windows портирован **реально собираемый ARMv7 OWN-only Android стенд:** `OwnSameTrackReloadPlan.java`, новые Start/Stop в `AudioSmokeScreen` для той же 8-секундной искусственной песни A. **Только при смене источника** релиз единственного `MediaPlayer` и создание нового; position/paused восстанавливаются после `prepareAsync→seekTo`, быстрые повторные нажатия защищены revision, Next B остаётся оригиналом. **Не Яндекс!**
+- **CI SUCCESS:** [OWN ARMv7 Android build + safety + 50 020 assertions #42830966825](https://github.com/manufact-test/nomusic/actions/runs/42830966825); [ARM64 Linux JVM test #42831135970](https://github.com/manufact-test/nomusic/actions/runs/42831135970). Нет физического Android-аудио теста и live Yandex decoder evidence, оригинал не меняли.
+- **Windows W56 query guard не переносить на Android:** вызван конкретным Windows `DownloadInfoSource` append `?vsid`; подтверждения такого Android транспорта нет; `NativeGrantContract` правильно отклоняет неподписанные дополнения. Не копировать JS Electron reload, ключи/IV, DRM и URL в неподтверждённый Android путь.
+- **Единственный главнейший blocker:** выбранный live `Lemb` receiver (из восьми вариантов) + тот же current `trackId/edition/generation` → истинный decoder preprepare. Без отдельного ARM Android test host нельзя обещать owner APK. Test.50/HONOR/Windows/production не трогались.
+
+## ПРЕДЫДУЩАЯ CI GREEN ТОЧКА — строгий source-instance fail-closed на ARM64 (10.11.2026)
 
 - **Исходники и тесты SHA:** `59aa2d14bf32fd0f5eb553c09ec88738d84353a0`; **точный бэкап:** `backup/android-signed-source-instance-failclosed-arm64-ci-green-20261110`. **Главный отчёт:** `docs/android/ANDROID-NATIVE-SOURCE-INSTANCE-ARM64-AND-LEMB-BRANCHES-2026-11-10.md`.
 - После предыдущего green `3aaab880` поймали дополнительную ошибку исследовательского допуска: после событий `OUT_OF_ORDER` более поздний чистый `open/read/close` мог снова дать `syntheticSequenceComplete=true`. Исправлено: **любое rejected-событие текущего поколения навсегда лишает его статуса complete**; stale-вызовы старых поколений новое не портят. Добавлены регрессии.
