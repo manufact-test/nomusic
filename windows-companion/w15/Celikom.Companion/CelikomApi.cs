@@ -303,6 +303,28 @@ public sealed class CelikomApi : IDisposable
             new { message = message.Trim(), request_key = requestKey.ToString("D"), kind = "general" }, ct);
     }
 
+    // Same typed server SongReport contract as extension/src/popup/song-report.ts.
+    // Only the current exact Yandex ID and observed bridge booleans are sent.
+    public Task<JsonElement> SendSongSupportAsync(string message, Guid requestKey,
+        string trackId, string category, bool bridgeStarted, bool enabled,
+        CancellationToken ct = default)
+    {
+        if (!GrantValidator.IsTrackId(trackId) ||
+            category is not ("not_replacing" or "wrong_version" or "audio_issue" or "other") ||
+            message.Trim().Length > 2000)
+            throw new ApiFailure(400, "INVALID_REQUEST");
+        var report = new
+        {
+            category,
+            version = AppUpdateManager.RunningVersion.ToString(3),
+            track = new { id = trackId, title = "", artist = "", album = "" },
+            diagnostics = new { enabled, bridgeReady = bridgeStarted }
+        };
+        return SignedRequestAsync("support", HttpMethod.Post,
+            new { message = message.Trim(), request_key = requestKey.ToString("D"),
+                  kind = "song", report }, ct);
+    }
+
     public async Task<JsonElement> RegisterAsync(string origin, string email, string password,
         CancellationToken ct = default)
     {
