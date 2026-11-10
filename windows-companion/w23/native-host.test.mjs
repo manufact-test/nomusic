@@ -6,7 +6,8 @@ import { EventEmitter } from "node:events";
 
 const source = fs.readFileSync(new URL("./host.cjs", import.meta.url), "utf8");
 
-async function runHost(url, { queue = [], token = "b".repeat(64), debuggerDriver = null } = {}) {
+async function runHost(url, { queue = [], token = "b".repeat(64),
+  debuggerDriver = null, stateOverride = null } = {}) {
   const diagnostics = [], evaluated = [], network = [];
   let drained = false;
   const viewEvents = new Map();
@@ -51,7 +52,7 @@ async function runHost(url, { queue = [], token = "b".repeat(64), debuggerDriver
               audioUrl:"https://api.celikom.example/api/v1/audio/1?token="+ "a".repeat(64) + "&expires=1800000180",
               expiresAt:1800000180000,mimeType:"audio/mpeg"
             }}
-            : {enabled:false,signedIn:false,apiOrigin:""};
+            : (stateOverride ?? {enabled:false,signedIn:false,apiOrigin:""});
           resp.emit("data", Buffer.from(JSON.stringify(value)));
           resp.emit("end");
         });
@@ -205,4 +206,85 @@ test("W48 read-only CDP witness skips a debug session already attached",async()=
   const r=await runHost("musicapplication://desktop/",{debuggerDriver:debug});
   assert.equal(attachCalls,0);
   assert.ok(r.diagnostics.includes("PLAYER_CDP_UNAVAILABLE"));
+});
+
+test("W50 CDP tracks only Yandex's real signed audio request after no CELIKOM probe",async()=>{
+  const debug=new EventEmitter();
+  let attached=false;const commands=[];
+  debug.isAttached=()=>attached;
+  debug.attach=()=>{attached=true;};
+  debug.detach=()=>{attached=false;};
+  debug.sendCommand=async cmd=>{commands.push(cmd);};
+  const r=await runHost("musicapplication://desktop/",{
+    debuggerDriver:debug,
+    stateOverride:{enabled:true,signedIn:true,apiOrigin:"https://api.celikom.example"}
+  });
+  assert.ok(commands.includes("Media.enable"));
+  assert.ok(commands.includes("Network.enable"));
+  assert.ok(r.diagnostics.includes("PLAYER_NET_READY"));
+  const media="https://api.celikom.example/api/v1/audio/42498653?token="+
+    "a".repeat(64)+"&expires=1800000180&sid=7";
+  debug.emit("message",{},"Network.requestWillBeSent",{
+    requestId:"req1",request:{url:media,method:"GET"},type:"Fetch"
+  });
+  debug.emit("message",{},"Network.responseReceived",{
+    requestId:"req1",response:{status:206,headers:{"Content-Type":"audio/mpeg"}}
+  });
+  debug.emit("message",{},"Network.loadingFinished",{requestId:"req1"});
+  assert.ok(r.diagnostics.includes("PLAYER_NET_REQUEST|track=42498653"));
+  assert.ok(r.diagnostics.includes("PLAYER_NET_GET|track=42498653"));
+  assert.ok(r.diagnostics.includes("PLAYER_NET_FETCH|track=42498653"));
+  assert.ok(r.diagnostics.includes("PLAYER_NET_HTTP_PARTIAL|track=42498653"));
+  assert.ok(r.diagnostics.includes("PLAYER_NET_FINISHED|track=42498653"));
+  assert.ok(r.diagnostics.every(x=>!x.includes("token=")&&!x.includes("expires=")
+    &&!x.includes("api.celikom.example")&&!x.includes("Content-Type")));
+});
+test("W50 identifies actual CORS credential and CSP failures without showing request URLs",async()=>{
+  const debug=new EventEmitter();let connected=false;
+  debug.isAttached=()=>connected;debug.attach=()=>{connected=true;};
+  debug.detach=()=>{connected=false;};debug.sendCommand=async()=>{};
+  const r=await runHost("musicapplication://desktop/",{
+    debuggerDriver:debug,
+    stateOverride:{enabled:true,signedIn:true,apiOrigin:"https://api.celikom.example"}
+  });
+  const media="https://api.celikom.example/api/v1/audio/85025192?token="+
+    "b".repeat(64)+"&expires=1800000180";
+  debug.emit("message",{},"Network.requestWillBeSent",{
+    requestId:"req2",request:{url:media,method:"GET"},type:"Media"
+  });
+  debug.emit("message",{},"Network.loadingFailed",{
+    requestId:"req2",
+    corsErrorStatus:{corsError:"InvalidAllowCredentials",failedParameter:"SECRET"}
+  });
+  for(const code of ["PLAYER_NET_REQUEST","PLAYER_NET_MEDIA","PLAYER_NET_FAILED",
+    "PLAYER_NET_CORS_BLOCKED","PLAYER_NET_CORS_CREDENTIALS"])
+    assert.ok(r.diagnostics.includes(code+"|track=85025192"),code);
+  debug.emit("message",{},"Network.requestWillBeSent",{
+    requestId:"req3",request:{url:media,method:"GET"},type:"Fetch"
+  });
+  debug.emit("message",{},"Network.loadingFailed",{
+    requestId:"req3",blockedReason:"csp",errorText:"PASSWORD OR SIGNED URL"
+  });
+  assert.ok(r.diagnostics.includes("PLAYER_NET_CSP_BLOCKED|track=85025192"));
+  assert.ok(!JSON.stringify(r.diagnostics).includes("SECRET"));
+  assert.ok(!JSON.stringify(r.diagnostics).includes("PASSWORD"));
+});
+test("W50 network observer ignores all foreign, unsigned, unknown and auth URLs",async()=>{
+  const debug=new EventEmitter();let connected=false;
+  debug.isAttached=()=>connected;debug.attach=()=>{connected=true;};
+  debug.detach=()=>{connected=false;};debug.sendCommand=async()=>{};
+  const r=await runHost("musicapplication://desktop/",{
+    debuggerDriver:debug,
+    stateOverride:{enabled:true,signedIn:true,apiOrigin:"https://api.celikom.example"}
+  });
+  for(const uri of [
+    "https://another.example/api/v1/audio/9?token=secret",
+    "https://api.celikom.example/api/v1/auth/login?token=secret",
+    "https://api.celikom.example/api/v1/audio/9extra?token=secret",
+    "https://evil.example/track.mp3"
+  ])debug.emit("message",{},"Network.requestWillBeSent",{
+    requestId:uri,request:{url:uri,method:"GET"},type:"Fetch"
+  });
+  assert.ok(!r.diagnostics.some(x=>x.startsWith("PLAYER_NET_REQUEST")));
+  assert.ok(!r.diagnostics.some(x=>x.includes("secret")));
 });
