@@ -1,3 +1,13 @@
+## UPDATE 10.11.2026 — temporal diagnostic CI green + meaningful log summaries
+
+**CI [#42797745570](https://github.com/manufact-test/nomusic/actions/runs/42797745570): SUCCESS 2/2**: >36k synthetic rapid Next/prefetch/privacy assertions, ARM source-only Xposed observer APK compiles and signature metadata passes. NO real Yandex host/runtime or source replacement.
+
+Follow-up fixes: `NativeHookEntry.safeCount` now uses **metadata update** vs **FileInfo conversion** labels correctly, and every 20 metadata updates prints **only aggregate categories** (one nearby source, ambiguous multiple, none, clock discontinuity). `diagnose_emulator.py` recognizes distinct `CONVERSION_WITNESSED`, `METADATA_WITNESSED` and `TEMPORAL_ORDER_AGGREGATE` without exposing raw log lines. New categorical-parser unit tests; no song/account data processed. Snapshot backup `backup/android-native-temporal-event-probe-ci-passed-20261110` (code from green CI).
+
+This does NOT prove the correct track / edition, is NOT plugged into `NativePrePrepareAdmission`, and cannot replace audio. Still requires a verified compatible native ARM Android host, not an x86 test or user HONOR installation.
+
+---
+
 ## UPDATE 10.11.2026 — Native FileInfo / MediaSession temporal witness (NEWEST)
 
 **Previous checkpoint and rollback:** `backup/android-native-before-temporal-event-probe-20261110` at `1ad5870f05105ffc5f9a105a052aca211ebaa6a7`.

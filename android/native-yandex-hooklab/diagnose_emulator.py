@@ -24,6 +24,35 @@ def redact_type(text):
     types = re.findall(r"(?:java|android|dalvik|kotlin|org\.lsposed|io\.github)[\w.$/]*(?:Exception|Error)", text)
     return list(dict.fromkeys(types))[:5]
 
+def observer_event_category(line: str) -> str | None:
+    """Redacted event-type decoder. Never return raw metadata, IDs or log lines."""
+    if TAG not in line or "observer:" not in line:
+        return None
+    if "native file-info converter hooks armed" in line:
+        return "HOOKS_ARMED"
+    if "unsupported host version" in line:
+        return "UNSUPPORTED_HOST_VERSION"
+    if "no exact converter pair" in line:
+        return "CONVERTER_NOT_FOUND"
+    if "cannot attach" in line:
+        return "ATTACH_HOOK_FAILED"
+    if "context unavailable" in line:
+        return "CONTEXT_UNAVAILABLE"
+    if "module loaded" in line:
+        return "MODULE_LOADED"
+    if "package loaded" in line:
+        return "PACKAGE_LOADED"
+    if "platform metadata witness armed" in line:
+        return "METADATA_HOOK_ARMED"
+    if "metadata update count" in line:
+        return "METADATA_WITNESSED"
+    if "file-info conversion count" in line:
+        return "CONVERSION_WITNESSED"
+    if "temporal-only aggregate" in line:
+        return "TEMPORAL_ORDER_AGGREGATE"
+    return None
+
+
 def launch(original_baseline: bool = False, patched_without_module: bool = False):
     code, out, err = adb("shell", "pm", "path", PACKAGE)
     count = sum(line.startswith("package:") for line in out.splitlines())
@@ -69,23 +98,9 @@ def launch(original_baseline: bool = False, patched_without_module: bool = False
     library_basename_candidates = []
     loader_failure_categories = []
     for line in logs.splitlines():
-        if TAG in line and "observer:" in line:
-            if "hooks armed" in line:
-                events.append("HOOKS_ARMED")
-            elif "unsupported host version" in line:
-                events.append("UNSUPPORTED_HOST_VERSION")
-            elif "no exact converter pair" in line:
-                events.append("CONVERTER_NOT_FOUND")
-            elif "cannot attach" in line:
-                events.append("ATTACH_HOOK_FAILED")
-            elif "context unavailable" in line:
-                events.append("CONTEXT_UNAVAILABLE")
-            elif "module loaded" in line:
-                events.append("MODULE_LOADED")
-            elif "package loaded" in line:
-                events.append("PACKAGE_LOADED")
-            elif "file-info conversion count" in line:
-                events.append("CONVERSION_WITNESSED")
+        event = observer_event_category(line)
+        if event is not None:
+            events.append(event)
         if "AndroidRuntime" in line or "FATAL EXCEPTION" in line or "Caused by:" in line:
             runtime_exceptions.extend(redact_type(line))
             if "FATAL EXCEPTION" in line:

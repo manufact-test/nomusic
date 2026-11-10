@@ -212,8 +212,14 @@ public final class NativeHookEntry extends XposedModule {
                         int count = metadataUpdates.get();
                         if (count == 1 || count % 20 == 0) {
                             // Only broad sequence category and aggregate count.
-                            Log.i(TAG, "observer: temporal-only metadata/source order="
-                                    + temporalOrder.name() + " metadata-updates=" + count);
+                            NativeEventOrderProbe.Snapshot totals = eventOrder.snapshot();
+                            Log.i(TAG, "observer: temporal-only aggregate single="
+                                    + totals.oneSourceWindows + " ambiguous="
+                                    + totals.ambiguousWindows + " no-source="
+                                    + totals.noSourceWindows + " clock-reset="
+                                    + totals.clockDiscontinuities + " metadata-updates="
+                                    + totals.metadataCallbacks + " last-category="
+                                    + temporalOrder.name());
                         }
                         return result;
                     });
@@ -230,8 +236,10 @@ public final class NativeHookEntry extends XposedModule {
             int n = counter.incrementAndGet();
             // Count only, throttled. No account, source URL, trackId, key, or timestamp.
             if (n == 1 || n % 20 == 0) {
-                log(Log.INFO, TAG, "observer: " + kind + " file-info conversion count=" + n);
-                Log.i(TAG, "observer: " + kind + " file-info conversion count=" + n);
+                String category = "platform-media-metadata-update".equals(kind)
+                        ? " metadata update count=" : " file-info conversion count=";
+                log(Log.INFO, TAG, "observer: " + kind + category + n);
+                Log.i(TAG, "observer: " + kind + category + n);
             }
         } catch (Throwable ignored) {
             // Logging/observer failures can never interfere with Yandex.
