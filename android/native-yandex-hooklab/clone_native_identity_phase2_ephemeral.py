@@ -516,6 +516,42 @@ def classify_main_pid_scoped_system_logs(exit_info_raw, threadtime_raw):
             bounded_nonruntime_types.append(klass)
         if len(bounded_nonruntime_types) >= 6:
             break
+    # Publisher code can log throwable frames outside AndroidRuntime. Report
+    # fixed subsystem labels ONLY (never method/class, raw stack, token or
+    # message), scoped to the clone MAIN PID from ApplicationExitInfo.
+    subsystem_labels = []
+    within_exception = 0
+    for severity, tag, message in relevant_messages:
+        if severity not in ("E", "F") or tag == "AndroidRuntime":
+            continue
+        if re.search(throwable_pattern, message):
+            within_exception = 12
+        elif within_exception > 0:
+            within_exception -= 1
+        if within_exception <= 0:
+            continue
+        frame = re.search(
+            r"^\s*at\s+([A-Za-z_$][A-Za-z0-9_.$]{4,180})\s*\(",
+            message)
+        if not frame:
+            continue
+        symbol = frame.group(1)
+        if symbol.startswith(("com.yandex.passport.", "ru.yandex.passport.")):
+            label = "YANDEX_PASSPORT"
+        elif symbol.startswith(("ru.yandex.music.", "com.yandex.music.")):
+            label = "YANDEX_MUSIC"
+        elif symbol.startswith(("com.yandex.metrica.", "io.appmetrica.")):
+            label = "METRICA"
+        elif symbol.startswith(("com.google.android.gms.", "com.google.android.play.")):
+            label = "GOOGLE_SERVICES"
+        elif symbol.startswith(("android.", "java.", "javax.", "dalvik.", "kotlin.")):
+            label = "ANDROID_RUNTIME"
+        else:
+            label = "OTHER_OR_UNKNOWN"
+        if label not in subsystem_labels:
+            subsystem_labels.append(label)
+        if len(subsystem_labels) >= 6:
+            break
     stages = (
         ("APPLICATION_CREATE", "Unable to create application"),
         ("PROVIDER_INSTANTIATE", "Unable to instantiate provider"),
@@ -532,6 +568,7 @@ def classify_main_pid_scoped_system_logs(exit_info_raw, threadtime_raw):
         "main_pid_bounded_runtime_throwable_types": runtime_types,
         "main_pid_bounded_caused_by_throwable_types": caused_by_types,
         "main_pid_bounded_nonruntime_error_throwable_types": bounded_nonruntime_types,
+        "main_pid_nonruntime_exception_frame_subsystems": subsystem_labels,
         "main_pid_nonruntime_error_lines_observed": bool(nonruntime_error_lines),
         "main_pid_android_runtime_initialization_stage": runtime_stage,
         "main_exit_pid_records_available": bool(target_pids),
