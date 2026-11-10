@@ -26,6 +26,7 @@ from audit_native_media_implementors import relations,transitive_implementors
 from audit_native_postfileinfo_lifecycle import merge_reverse,reverse_to_forward
 from audit_native_jgv_media_candidates import MEDIA_CONCRETES,PLAYER_INTERFACES
 from trace_native_model_to_decoder import bounded_obfuscated
+from audit_native_typed_wrapper_coroutines import method_profile
 import clone_native_splits_ephemeral as exact
 
 ROOTS=("Le48;","Le93;","Lmir;")
@@ -127,11 +128,22 @@ def reachable_media(forward,virtual,seeds):
                 truncated=True
                 break
             if depth>0 and media_destination(node):
+                edges=[]
+                for before,after in zip(path,path[1:]):
+                    options=virtual.get(before,set())
+                    dynamic=after in options
+                    edges.append({
+                        "kind":"possible_virtual_dispatch" if dynamic else "static_invoke_adjacency",
+                        "dispatch_candidate_count":len(options) if dynamic else 0,
+                        "dynamic_receiver_selected_in_live_player":False,
+                    })
                 witness={
                     "seed":bounded_obfuscated(seed),
                     "hops":depth,
                     "possible_virtual_dispatch_used":uses_dynamic,
                     "method_hints":[bounded_obfuscated(x) for x in path],
+                    "signed_method_prototypes":[method_profile(x) for x in path],
+                    "edge_qualification":edges,
                     "audio_source_identity_or_decoder_proven":False,
                 }
                 break
