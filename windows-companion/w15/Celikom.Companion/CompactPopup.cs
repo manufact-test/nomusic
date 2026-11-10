@@ -18,8 +18,8 @@ public sealed partial class MainWindow
     private readonly Panel _compactActions = new();
     private readonly PopupButton _compactUploadButton = new();
     private readonly PopupButton _compactSuggestButton = new();
-    private readonly Panel _compactUploadBody = new();
-    private readonly Panel _compactSuggestBody = new();
+    private readonly PopupSectionPanel _compactUploadBody = new();
+    private readonly PopupSectionPanel _compactSuggestBody = new();
     private readonly Label _compactAccess = new();
     private readonly Label _compactTrack = new();
     private readonly Label _compactTrackArtist = new();
@@ -56,10 +56,14 @@ public sealed partial class MainWindow
     private readonly PopupButton _compactSupportSubmit = new();
     private readonly Label _compactSupportMessage = new();
     private readonly Label _compactUploadNote = new();
+    private readonly Label _compactAudioValidation = new();
+    private readonly Label _compactFilenameWarning = new();
+    private readonly Label _compactSuggestHeading = new();
+    private readonly Label _compactSuggestCaption = new();
     private readonly TextBox _compactUploadDuration = new();
     private readonly PopupFilePicker _compactFilePicker = new();
     private readonly Label _compactFileName = new();
-    private readonly CheckBox _compactRights = new();
+    private readonly PopupRightsCheck _compactRights = new();
     private readonly PopupButton _compactUploadSubmit = new();
     private readonly Label _compactSuggestNote = new();
     private readonly PopupButton _compactSuggestSubmit = new();
@@ -90,6 +94,11 @@ public sealed partial class MainWindow
     private bool _compactSupportBusy;
     private bool _compactPromoBusy;
     private bool _compactContributionBusy;
+    private AudioPreflight.Result? _compactAudioPreflight;
+    private int _compactFilePreflightGeneration;
+    private bool _compactFileChecking;
+    private string _compactPreflightTrack = "";
+    private long _compactPreflightReferenceMs;
     private string _compactUploadView = "error";
     private string _compactSuggestView = "error";
     private string _compactPresenceTrack = "";
@@ -228,7 +237,10 @@ public sealed partial class MainWindow
         _compactAccess.ForeColor = Accent;
         _compactAccess.Font = new Font("Segoe UI", 9F);
         _compactAccess.Text = _api.IsLoggedIn ? "Проверяем доступ…" : "Войдите в аккаунт, чтобы начать";
-        _compactTrack.ForeColor = Secondary;
+        _compactTrack.ForeColor = Ink;
+        _compactTrack.Font = new Font("Segoe UI", 9F);
+        _compactTrack.BackColor = Paper;
+        _compactTrack.AutoEllipsis = false;
         _compactTrack.Font = new Font("Segoe UI", 9F);
         _compactTrack.Text = "Запустите трек в Яндекс Музыке";
         _compactTrackArtist.ForeColor = Secondary;
@@ -411,39 +423,68 @@ public sealed partial class MainWindow
 
     private void BuildCompactContributions()
     {
-        _compactUploadTrack.ForeColor = Secondary;
+        _compactUploadTrack.ForeColor = Ink;
+        _compactUploadTrack.Font = new Font("Segoe UI", 9F);
+        _compactUploadTrack.BackColor = _compactUploadBody.BackColor;
         _compactUploadTrack.Text = "Текущая песня не определена";
         _compactUploadBody.Controls.Add(_compactUploadTrack);
         Place(_compactUploadDurationCaption, _compactUploadBody, 0, 28, 250, 23);
         _compactUploadDurationKnown.ForeColor = Secondary;
+        _compactUploadDurationKnown.BackColor = _compactUploadBody.BackColor;
+        _compactUploadDurationCaption.BackColor = _compactUploadBody.BackColor;
         _compactUploadBody.Controls.Add(_compactUploadDurationKnown);
         _compactUploadDuration.PlaceholderText = "Например, 180";
         _compactUploadBody.Controls.Add(_compactDurationInput);
         _compactFilePicker.Click += CompactChooseAudio;
         _compactUploadBody.Controls.Add(_compactFilePicker);
         _compactFileName.ForeColor = Secondary;
+        _compactFileName.BackColor = _compactUploadBody.BackColor;
         _compactUploadBody.Controls.Add(_compactFileName);
-        _compactRights.Text = "Подтверждаю права на аудиофайл";
-        _compactRights.ForeColor = Secondary;
-        _compactRights.BackColor = Paper;
-        _compactRights.Font = new Font("Segoe UI", 8F);
+        _compactRights.CheckedChanged += (_, _) => RenderCompact();
         _compactUploadBody.Controls.Add(_compactRights);
         SetupMainButton(_compactUploadSubmit, "Отправить на проверку", CompactUploadAsync);
         _compactUploadBody.Controls.Add(_compactUploadSubmit);
-        _compactUploadNote.ForeColor = Accent;
+        _compactUploadNote.ForeColor = Secondary;
+        _compactUploadNote.BackColor = _compactUploadBody.BackColor;
+        _compactUploadNote.Font = new Font("Segoe UI", 8.5F);
         _compactUploadNote.Font = new Font("Segoe UI", 8F);
         _compactUploadBody.Controls.Add(_compactUploadNote);
+        _compactAudioValidation.Font = new Font("Segoe UI", 8.5F);
+        _compactAudioValidation.ForeColor = Secondary;
+        _compactAudioValidation.BackColor = ColorTranslator.FromHtml("#152A28");
+        _compactAudioValidation.Padding = new Padding(8, 5, 8, 5);
+        _compactAudioValidation.BorderStyle = BorderStyle.FixedSingle;
+        _compactUploadBody.Controls.Add(_compactAudioValidation);
+        _compactFilenameWarning.Font = new Font("Segoe UI", 8.5F);
+        _compactFilenameWarning.ForeColor = ColorTranslator.FromHtml("#FFBDB7");
+        _compactFilenameWarning.BackColor = ColorTranslator.FromHtml("#301C20");
+        _compactFilenameWarning.Padding = new Padding(8, 5, 8, 5);
+        _compactFilenameWarning.BorderStyle = BorderStyle.FixedSingle;
+        _compactUploadBody.Controls.Add(_compactFilenameWarning);
         _compactUploadProgress.Visible = false;
         _compactUploadProgress.Style = ProgressBarStyle.Continuous;
         _compactUploadBody.Controls.Add(_compactUploadProgress);
         ConfigureCompactResult(_compactUploadResult, _compactUploadResultTitle, _compactUploadResultNote);
         _compactUploadBody.Controls.Add(_compactUploadResult);
 
-        _compactSuggestTrack.ForeColor = Secondary;
+        _compactSuggestTrack.ForeColor = Ink;
+        _compactSuggestTrack.Font = new Font("Segoe UI", 9F);
+        _compactSuggestTrack.BackColor = _compactSuggestBody.BackColor;
         _compactSuggestBody.Controls.Add(_compactSuggestTrack);
+        _compactSuggestHeading.Text = "Предложить песню";
+        _compactSuggestHeading.Font = new Font("Segoe UI", 10F, FontStyle.Bold);
+        _compactSuggestHeading.ForeColor = Ink;
+        _compactSuggestHeading.BackColor = _compactSuggestBody.BackColor;
+        _compactSuggestBody.Controls.Add(_compactSuggestHeading);
+        _compactSuggestCaption.Text = "Для этой песни нужна альтернативная версия.";
+        _compactSuggestCaption.Font = new Font("Segoe UI", 8.5F);
+        _compactSuggestCaption.ForeColor = Secondary;
+        _compactSuggestCaption.BackColor = _compactSuggestBody.BackColor;
+        _compactSuggestBody.Controls.Add(_compactSuggestCaption);
         SetupMainButton(_compactSuggestSubmit, "Отправить предложение", CompactSuggestAsync);
         _compactSuggestBody.Controls.Add(_compactSuggestSubmit);
-        _compactSuggestNote.ForeColor = Accent;
+        _compactSuggestNote.ForeColor = Secondary;
+        _compactSuggestNote.BackColor = _compactSuggestBody.BackColor;
         _compactSuggestNote.Font = new Font("Segoe UI", 8F);
         _compactSuggestBody.Controls.Add(_compactSuggestNote);
         ConfigureCompactResult(_compactSuggestResult, _compactSuggestResultTitle, _compactSuggestResultNote);
@@ -558,6 +599,11 @@ public sealed partial class MainWindow
             if (_compactUploadCancellation is null)
             {
                 _compactUploadRequestId = Guid.NewGuid();
+                ++_compactFilePreflightGeneration;
+                _compactAudioPreflight = null;
+                _compactSelectedAudio = null;
+                _compactFilePicker.SelectedFile = "";
+                _compactFileChecking = false;
                 _compactUploadOpen = false;
                 _compactSuggestOpen = false;
                 ++_compactOpenEpoch;
@@ -585,8 +631,11 @@ public sealed partial class MainWindow
         _compactSuggestButton.Enabled = _api.IsLoggedIn && !_compactContributionBusy;
         _compactSuggestSubmit.Enabled = _api.IsLoggedIn &&
             valid && !_compactContributionBusy && _compactSuggestView == "form";
-        _compactUploadSubmit.Enabled = _api.IsLoggedIn &&
-            valid && (_compactUploadCancellation is not null || _compactUploadView == "form");
+        _compactUploadSubmit.Enabled = _compactUploadCancellation is not null ||
+            (_api.IsLoggedIn && valid && _compactUploadView == "form" &&
+             !_compactFileChecking && _compactSelectedAudio is not null &&
+             _compactAudioPreflight is { Blocked: false } &&
+             _compactPreflightTrack == _bridge.LastSong && _compactRights.Checked);
         _compactAccountBody.Invalidate();
     }
 
