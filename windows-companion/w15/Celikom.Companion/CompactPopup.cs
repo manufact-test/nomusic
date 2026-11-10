@@ -84,6 +84,7 @@ public sealed partial class MainWindow
     {
         var b = new PopupButton();
         ConfigureAuthButton(b, primary, value);
+        b.Dock = DockStyle.None; // absolute compact stacking, never overlap sibling actions
         b.Font = new Font("Segoe UI", 9F, primary ? FontStyle.Bold : FontStyle.Regular);
         return b;
     }
@@ -136,6 +137,7 @@ public sealed partial class MainWindow
 
         ConfigureAuthButton(_start, true, "Старт");
         ConfigureAuthButton(_stop, false, "Стоп");
+        _start.Dock = _stop.Dock = DockStyle.None;
         _start.Font = _stop.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
         _start.Click += StartAction;
         _stop.Click += (_, _) => _bridge.SetEnabled(false);
@@ -186,6 +188,7 @@ public sealed partial class MainWindow
 
         _staffPanel.BackColor = Paper;
         ConfigureAuthButton(_diagnosticsButton, false, "Скопировать диагностику");
+        _diagnosticsButton.Dock = DockStyle.None;
         _diagnosticsButton.BackColor = Paper;
         _diagnosticsButton.ForeColor = Quiet;
         _diagnosticsButton.Font = new Font("Segoe UI", 8F);
@@ -193,7 +196,7 @@ public sealed partial class MainWindow
         _staffPanel.Controls.Add(_diagnosticsButton);
         _staffPanel.Visible = false;
         _compactReady = true;
-        _compactAccountOpen = !_api.IsLoggedIn;
+        _compactAccountOpen = false; // first-run red CTA; Start expands form on demand
 
         foreach (var c in new Control[]
         {
@@ -210,6 +213,7 @@ public sealed partial class MainWindow
     private static void SetupMainButton(PopupButton b, string caption, EventHandler clicked)
     {
         ConfigureAuthButton(b, false, caption);
+        b.Dock = DockStyle.None;
         b.Font = new Font("Segoe UI", 9F);
         b.Click += clicked;
     }
@@ -232,6 +236,7 @@ public sealed partial class MainWindow
         _compactAccountMessage.Font = new Font("Segoe UI", 9F);
         _compactAccountMessage.AutoEllipsis = false;
         ConfigureAuthButton(_login, true, "Войти");
+        _login.Dock = DockStyle.None;
         _login.Click += CompactAccountSubmitAsync;
         SetupMainButton(_compactModeButton, "Создать аккаунт", (_, _) =>
         {
@@ -263,6 +268,7 @@ public sealed partial class MainWindow
         _compactPromoMessage.ForeColor = Accent;
         _compactPromoMessage.Font = new Font("Segoe UI", 8F);
         ConfigureAuthButton(_logout, false, "Выйти");
+        _logout.Dock = DockStyle.None;
         _logout.Click += LogoutAsync;
         foreach (var child in new Control[]
         {
