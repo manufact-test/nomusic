@@ -47,6 +47,8 @@ def check_zero_loader(apk: Path, prior: Path, expected_signer: str, arsc) -> dic
         raise arsc.TrialError("METALOADER_CLONE_IDENTITY_INVALID")
     if fingerprint(apk, arsc) != expected_signer:
         raise arsc.TrialError("METALOADER_DIFFERENT_LAB_SIGNER")
+    if not zipfile.is_zipfile(apk):
+        raise arsc.TrialError("METALOADER_OUTER_NOT_ZIP")
     with zipfile.ZipFile(apk) as z:
         required = ("assets/lspatch/config.json", "assets/lspatch/origin.apk",
                     "assets/lspatch/loader.dex", "classes.dex")
@@ -71,6 +73,10 @@ def check_zero_loader(apk: Path, prior: Path, expected_signer: str, arsc) -> dic
         if len(nested_data) > 128 * 1024 * 1024:
             raise arsc.TrialError("METALOADER_ORIGIN_TOO_LARGE")
         import io
+        if not zipfile.is_zipfile(io.BytesIO(nested_data)):
+            raise arsc.TrialError("METALOADER_EMBEDDED_ORIGIN_NOT_ZIP")
+        if not zipfile.is_zipfile(prior):
+            raise arsc.TrialError("METALOADER_PRIOR_CLONE_NOT_ZIP")
         with zipfile.ZipFile(io.BytesIO(nested_data)) as original_zip, \
              zipfile.ZipFile(prior) as prior_zip:
             def payload(zf):
