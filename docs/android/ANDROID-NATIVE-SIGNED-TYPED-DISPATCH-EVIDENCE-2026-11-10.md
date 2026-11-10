@@ -33,7 +33,7 @@
 - [16-way возможный dispatch и конструкторы #42809849405](https://github.com/manufact-test/nomusic/actions/runs/42809849405) — SUCCESS.
 - [Фактический DEX field reader/writer #42810607588](https://github.com/manufact-test/nomusic/actions/runs/42810607588) — SUCCESS.
 - [Уточнение конкретных Lya4/Lkc6/Lzcd #42810750855](https://github.com/manufact-test/nomusic/actions/runs/42810750855) — SUCCESS.
-- Android hooklab по-прежнему **только read-only module**, не патченый Яндекс и не реальная аудиоподмена. Проверка Android-модуля новой точки: https://github.com/manufact-test/nomusic/actions/runs/42810750850 (сверить конечное состояние отдельно).
+- Android hooklab по-прежнему **только read-only module**, не патченый Яндекс и не реальная аудиоподмена. Проверка Android-модуля новой точки: https://github.com/manufact-test/nomusic/actions/runs/42810750850 — **SUCCESS 2/2**, оба задания завершены успешно.
 
 ## Что именно мешает полному Android source swap
 
