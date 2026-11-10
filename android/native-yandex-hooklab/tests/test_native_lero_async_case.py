@@ -5,7 +5,7 @@ from unittest.mock import patch
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 from audit_native_lero_async_case import (
     int_constant_from_words,nearby_constructor_tag,switch_table_for_ins,
-    branch_contains_loader,constructor_tag_field
+    branch_contains_loader,constructor_tag_field,select_switch_case_target
 )
 
 
@@ -60,6 +60,27 @@ class SignedAsyncCaseTests(unittest.TestCase):
              (3,0x0e,(0x000e,)),(5,0x0e,(0x000e,)),
              (7,0,(0x0200,2,3,0,10,0,3,0,5,0))]
         self.assertEqual(switch_table_for_ins(ins,0),{3:3,10:5})
+
+    def test_missing_case_selects_next_instruction_default(self):
+        ins=[
+            (0,0x2b,(0x002b,8,0)),(3,0x0e,(0x000e,)),
+            (8,0,(0x0100,1,4,0,3,0))
+        ]
+        cases=switch_table_for_ins(ins,0)
+        table={"cases":cases,"switch_ordinal":0}
+        self.assertEqual(select_switch_case_target(table,ins,4),
+                         {"target_pc":3,"explicit":True,"default":False})
+        self.assertEqual(select_switch_case_target(table,ins,99),
+                         {"target_pc":3,"explicit":False,"default":True})
+
+    def test_lero_this_is_same_actual_object_argument_not_any_register(self):
+        dex=FakeDex([("Lwq7;","<init>","(ILjava/lang/Object;)V")])
+        ins=[(0,0x12,(0x4212,)),
+             (1,0x70,(0x3070,0,0x0321))]
+        matched=nearby_constructor_tag(dex,ins,1,owner_register=3)
+        mismatch=nearby_constructor_tag(dex,ins,1,owner_register=2)
+        self.assertTrue(matched["ctor_object_arg_is_lero_this"])
+        self.assertFalse(mismatch["ctor_object_arg_is_lero_this"])
 
     def test_wrong_payload_kind_is_not_accepted(self):
         ins=[(0,0x2b,(0x002b,7,0)),
