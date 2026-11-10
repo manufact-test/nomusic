@@ -45,9 +45,15 @@ public final class TestRepeatedSeekTimeoutRecovery {
   TestEngine.api.resolved.done(TestEngine.found(),null);
   File audio=File.createTempFile("seek-failopen-model", ".audio");
   TestEngine.api.downloaded.done(audio,null);
-  check(e.player!=null,"second candidate decoder is prepared only after normal authorization");
+  check(e.player!=null,"second candidate decoder exists only after normal authorization");
+  // The problematic HONOR case is a native seek WITHOUT a completion ACK.
+  // Fake MediaPlayer defaults to an immediate successful seek callback; turn
+  // that off BEFORE onPrepared, otherwise the success legitimately clears
+  // the first timeout streak and the test would be asserting a false bug.
+  e.player.asyncSeek=true;
   e.player.prepared.onPrepared(e.player);
-  check(e.ready&&e.player!=null,"normal Test.50 second attempt can prepare");
+  check(e.ready&&e.player!=null,
+    "second Test.50 attempt prepares but its decoder seek remains unacknowledged");
 
   MediaPlayer second=e.player;
   SystemClock.now+=1000;
