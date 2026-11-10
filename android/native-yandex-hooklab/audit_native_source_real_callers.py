@@ -44,6 +44,7 @@ PRODUCERS={
  ("Lga4;","a"),("Lga4;","b"),("Lga4;","c"),("Lga4;","d"),
  ("Le48;","a"),("Luiq;","a"),
  ("Lz3f;","a"),("Lz3f;","b"),
+ ("Lfwm;","M"),("Lw4y;","z"),("Leyc;","d"),
 }
 MAX_METHOD_BODIES=80
 MAX_OUTLINE=60
