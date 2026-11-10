@@ -2,7 +2,14 @@
 
 **Status:** Source code only; builds a *CELIKOM Xposed module APK* (not an independent music player). Owner authorized research and preparation for **a separate disposable test device only**. No package was installed, and **nothing** on the owner's HONOR, stable Test.50, catalog or server is touched.
 
-## NEWEST signed native typed-model / field2 receiver proof (2026-11-10)
+## LATEST publisher-signed obfuscated DataSource source/read evidence (2026-11-10)
+
+- **Verified code:** `6b5bfde53d81a29920f32a3c6b13b730b216e669`; **backup:** `backup/android-signed-dual-source-dataspec-open-ci-green-20261110`; full note `docs/android/ANDROID-NATIVE-SIGNED-DATASPEC-OPEN-SOURCE-EVIDENCE-2026-11-10.md`.
+- Exact signed six-DEX class and method inheritance: `Lm48` defines `b(La58):J`, `getUri`, `close`; its parent `Lv38` defines `read([BII):I`. Combined contract matches a DataSource-like shape, with 33 concrete implementations including `Lha4` and `Lza4`. No claim that a specific current Yandex track is routed through it.
+- `Lga4.b/c` use secondary Le48, while `Lga4.d` reads primary Le48. `Lcq7.i0` places `Lya4 → Lza4` (throwing open/read) in secondary, `Lcq7.A → Luiq` in primary. `Luiq.a` lazily caches `Lm48` via `Lz3f`; real static invoke `Lz3f.a → Lm48.b(La58)`, and `Lha4.f` delegates to `Lm48.b`.
+- [Signed source/open CI #42815048696](https://github.com/manufact-test/nomusic/actions/runs/42815048696) SUCCESS, [Android module CI #42815048701](https://github.com/manufact-test/nomusic/actions/runs/42815048701) SUCCESS 2/2. **No current-track + edition + generation binding / decoder prepare / Android audio replacement proof.** Source-only read-only research remains isolated.
+
+## PREVIOUS signed native typed-model / field2 receiver proof (2026-11-10)
 
 - Verified code `78b0437f17888ce49a4c1bea0ba06ca96cb455b9`, rollback `backup/android-signed-typed-dispatch-field-audit-ci-green-20261110`.
 - Full actual signed source-to-model investigation: `docs/android/ANDROID-NATIVE-SIGNED-TYPED-DISPATCH-EVIDENCE-2026-11-10.md`.
