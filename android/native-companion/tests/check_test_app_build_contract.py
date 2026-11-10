@@ -16,9 +16,9 @@ verifier = (ROOT / "verify_test_release.py").read_text(encoding="utf-8")
 assert spec["package"] == "pro.celikom.nativeprobe.test"
 assert spec["stable_package"] == "pro.celikom.nativeprobe"
 assert spec["label"] == "CELIKOM Test"
-assert spec["version"] == "0.3.85-test.50"
-assert spec["version_code"] == 86135
-assert spec["apk_filename"] == "CELIKOM-Android-0.3.85-TEST-50-DEFERRED-LOOKAHEAD-SIGNED.apk"
+assert spec["version"] == "0.3.85-test.51"
+assert spec["version_code"] == 86136
+assert spec["apk_filename"] == "CELIKOM-Android-0.3.85-TEST-51-SEEK-FAILOPEN-SIGNED.apk"
 assert spec["signing_certificate_sha256"] == "67fe81c56fac1c1d145344b69a0e3faf9005cf6607f4e26ca27d5926c3eefc4f"
 assert spec["test_permission"].startswith(spec["package"] + ".")
 assert spec["file_provider_authority"].startswith(spec["package"] + ".")
@@ -66,6 +66,7 @@ for forbidden_action in ("stable.json", "/updates/android/stable.json", "publish
 assert "scp -P 65002" in workflow and "CELIKOM_HOSTINGER_SSH_KEY" in workflow
 assert "CELIKOM_ANDROID_SIGNING_P12_B64" in workflow
 assert "actions/upload-artifact@v4" in workflow and "retention-days: 7" in workflow
+assert "experiment/android-test51-seek-failopen-honor-20261110" in workflow
 assert workflow.count(spec["apk_filename"]) == 2, "Build output and uploaded APK names must agree"
 assert workflow.count(spec["apk_filename"].removesuffix(".apk") + ".verification.json") == 2, "Verification names must agree"
 assert workflow.count(spec["apk_filename"].removesuffix("SIGNED.apk") + "RECEIPT.json") == 2, "Receipt names must agree"
