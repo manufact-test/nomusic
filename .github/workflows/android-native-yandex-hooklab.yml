@@ -47,6 +47,7 @@ jobs:
           java -cp /tmp/celikom-jvm-hooklab NativeSourceInstanceFenceTest
           java -cp /tmp/celikom-jvm-hooklab NativeSourceInstanceConcurrencyTest
           java -cp /tmp/celikom-jvm-hooklab NativeSourceDispatchWitnessTest
+          java -cp /tmp/celikom-jvm-hooklab NativeSourceDispatchLifecycleRaceTest
           java -cp /tmp/celikom-jvm-hooklab NativeReaderExecutionWitnessTest
       - name: Test read-only ARM device gate (synthetic snapshots; no phone connected)
         run: python3 -m unittest discover -s android/native-yandex-hooklab/tests -p 'test_*.py' -v
@@ -94,7 +95,10 @@ jobs:
           assert 'HookSpec.findSourceLifecycle(loader,concrete,action)' in source
           assert 'chain.proceed()' in source
           assert 'sourceDispatch.onFactory(result, SystemClock.elapsedRealtime())' in source
-          assert 'sourceDispatch.onLifecycleT(receiver,time)' in source
+          assert 'sourceDispatch.onLifecycleTBegin(receiver,time)' in source
+          assert 'sourceDispatch.onLifecycleTFinish(' in source
+          assert 'receiver,false,SystemClock.elapsedRealtime()' in source
+          assert 'receiver,true,SystemClock.elapsedRealtime()' in source
           assert 'sourceDispatch.onRemove(receiver,time)' in source
           assert 'HookSpec.findLeroReaderField(loader)' in source
           assert 'sourceDispatch.onOwnedReader(receiver,reader,time)' in source
@@ -108,7 +112,11 @@ jobs:
           assert '!"ero".equals(source.getClass().getName())' in witness
           assert 'onOwnedReader(Object source,Object reader,long at)' in witness
           assert 'onCompletedReader(Object reader,long at)' in witness
-          assert 'objects[i]==source&&started[i]' in witness
+          assert 'objects[i]==source&&(started[i]||tInFlight[i])' in witness
+          assert 'completedReaderChains+=pendingReaders[i]' in witness
+          assert 'failedTCalls++' in witness
+          assert 'pendingReadersDiscarded+=pendingReaders[i]' in witness
+          assert 'ambiguousTCalls++' in witness
           reader=(base/'app/src/main/java/pro/celikom/yandex/nativehooklab/NativeReaderExecutionWitness.java').read_text()
           assert 'ThreadLocal<Scope>' in reader
           assert 'scope.openedSource!=receiver' in reader
