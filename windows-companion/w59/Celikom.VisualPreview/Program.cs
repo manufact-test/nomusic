@@ -162,8 +162,12 @@ Relayout();
 var baselineWidth = ((Control)Get("_compactUploadButton")).Width;
 var footer = (Control)Get("_compactFooter");
 var footerLabel = (Control)Get("_compactVersion");
+var root = (TableLayoutPanel)Get("_compactFrame");
 var dot = (Control)Get("_connectionMark");
 if (!ReferenceEquals(footerLabel.Parent, footer) ||
+    !ReferenceEquals(footer.Parent, root) ||
+    !footer.Visible || !footerLabel.Visible ||
+    footerLabel.Bounds.Bottom > footer.ClientSize.Height ||
     footer.Bottom != form.ClientSize.Height ||
     dot.Width > 12 || (dot as Label)?.TextAlign != ContentAlignment.MiddleCenter)
     throw new Exception("W64_VERSION_FOOTER_NOT_ANCHORED_OR_INDICATOR_NOT_CENTERED");
@@ -187,6 +191,16 @@ if (((Control)Get("_compactHeader")).Top >= layoutTop ||
     scrollbar.Value <= 0 || footer.Bottom != form.ClientSize.Height)
     throw new Exception("W64_SCROLL_NOT_WORKING");
 SaveStage(prefix + "-scrolled.png");
+// Wheel events must move the same scrollbar; the user should never be trapped.
+var beforeWheel = scrollbar.Value;
+typeof(MainWindow).GetMethod("CompactMouseWheel",
+    System.Reflection.BindingFlags.Instance |
+    System.Reflection.BindingFlags.NonPublic)!.Invoke(form,
+    [(Control)Get("_compactScroll"),
+      new MouseEventArgs(MouseButtons.None, 0, 5, 5, -120)]);
+if (scrollbar.Value <= beforeWheel || footer.Bottom != form.ClientSize.Height)
+    throw new Exception("W64_MOUSE_WHEEL_NOT_SCROLLING_OR_FOOTER_MOVED");
+SaveStage(prefix + "-wheel.png");
 
 Set("_compactAccountOpen", false);
 Set("_compactSupportOpen", false);
