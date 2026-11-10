@@ -23,7 +23,7 @@ class ha4 {
     public int read(byte[] out,int start,int length){return 1;}
     public void close(){}
 }
-class ocv implements emb { public void t(dmb x) {} public void remove() {} }
+class ocv implements emb { public void t(dmb x) {} public void remove() {} public void i0() {} }
 class ojz implements emb { public void t(dmb x) {} public void remove() {} }
 class t67 implements emb { public void t(dmb x) {} public void remove() {} }
 class t6f implements emb { public void t(dmb x) {} public void remove() {} }
