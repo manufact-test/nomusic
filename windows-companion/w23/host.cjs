@@ -54,7 +54,12 @@ const noisy = new Set(["TRACK_CHANGED", "RESOLVE_REQUEST", "GRANT_FOUND", "GRANT
   "FILEINFO_NATIVE_KEY_FIELD", "FILEINFO_NATIVE_IV_FIELD",
   "FILEINFO_NATIVE_URLS_ARRAY", "FILEINFO_NATIVE_URLS_OTHER",
   "FILEINFO_NATIVE_CODEC_MP3", "FILEINFO_NATIVE_CODEC_AAC",
-  "FILEINFO_NATIVE_CODEC_OTHER", "FILEINFO_NATIVE_TRANSPORT_FIELD"]);
+  "FILEINFO_NATIVE_CODEC_OTHER", "FILEINFO_NATIVE_TRANSPORT_FIELD",
+  "PLAYER_CDP_READY", "PLAYER_CDP_UNAVAILABLE", "PLAYER_CDP_DETACHED",
+  "PLAYER_CDP_PIPELINE_ERROR", "PLAYER_CDP_ERROR_MESSAGE",
+  "PLAYER_CDP_EVENT_START", "PLAYER_CDP_EVENT_PAUSE",
+  "PLAYER_CDP_EVENT_PIPELINE_ERROR", "PLAYER_CDP_STATE_PLAYING",
+  "PLAYER_CDP_STATE_NOT_PLAYING"]);
 function note(code, trackId = null) {
   if (!/^[A-Z_]{3,48}$/.test(code)) return;
   const id = typeof trackId === "string" && /^[1-9][0-9]{0,17}$/.test(trackId)
@@ -269,6 +274,58 @@ function observeNativePlayback(view) {
     note("PLAYER_WITNESS_UNAVAILABLE");
     return;
   }
+  // CDP Media domain is a passive native decoder witness. Never call
+  // Network.getResponseBody, Runtime.evaluate, fetch, play, pause or seek.
+  // When DevTools are already open or another client owns the debugger,
+  // fail open and leave the original player entirely untouched.
+  const debug = view.debugger;
+  if (debug && typeof debug.attach === "function" &&
+      typeof debug.sendCommand === "function" &&
+      typeof debug.isAttached === "function" &&
+      !(typeof view.isDevToolsOpened === "function" && view.isDevToolsOpened()) &&
+      !debug.isAttached()) {
+    try {
+      debug.attach("1.3");
+      debug.on("message", (_event, method, params) => {
+        if (!validView(view)) return;
+        if (method === "Media.playerErrorsRaised" &&
+            Array.isArray(params?.errors) && params.errors.length > 0)
+          note("PLAYER_CDP_PIPELINE_ERROR");
+        else if (method === "Media.playerMessagesLogged" &&
+            Array.isArray(params?.messages) &&
+            params.messages.some(x => x?.level === "error"))
+          note("PLAYER_CDP_ERROR_MESSAGE");
+        else if (method === "Media.playerEventsAdded" &&
+            Array.isArray(params?.events)) {
+          for (const item of params.events.slice(0, 30)) {
+            const value = String(item?.value || "").slice(0, 256);
+            // Fixed Chromium Media event enum names only, never log raw
+            // potentially sensitive media error text or source URLs.
+            if (/\\bkPlay\\b/.test(value)) note("PLAYER_CDP_EVENT_START");
+            else if (/\\bkPause\\b/.test(value)) note("PLAYER_CDP_EVENT_PAUSE");
+            else if (/\\bkPipelineError\\b/.test(value))
+              note("PLAYER_CDP_EVENT_PIPELINE_ERROR");
+          }
+        } else if (method === "Media.playerPropertiesChanged" &&
+            Array.isArray(params?.properties)) {
+          for (const prop of params.properties.slice(0, 30)) {
+            if (prop?.name !== "kIsPlaying") continue;
+            if (prop.value === "true") note("PLAYER_CDP_STATE_PLAYING");
+            if (prop.value === "false") note("PLAYER_CDP_STATE_NOT_PLAYING");
+          }
+        }
+      });
+      debug.on("detach", () => { if (validView(view)) note("PLAYER_CDP_DETACHED"); });
+      Promise.resolve(debug.sendCommand("Media.enable")).then(
+        () => { if (validView(view)) note("PLAYER_CDP_READY"); },
+        () => {
+          if (validView(view)) note("PLAYER_CDP_UNAVAILABLE");
+          try { if (debug.isAttached()) debug.detach(); } catch {}
+        });
+    } catch {
+      note("PLAYER_CDP_UNAVAILABLE");
+    }
+  } else note("PLAYER_CDP_UNAVAILABLE");
   let lastStarted = 0;
   view.on("media-started-playing", () => {
     if (!validView(view)) return;
