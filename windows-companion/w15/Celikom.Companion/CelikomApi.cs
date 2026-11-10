@@ -3,6 +3,7 @@ using System.Security.Cryptography;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
+using System.Text;
 
 namespace Celikom.Companion;
 
@@ -37,6 +38,53 @@ public sealed class CelikomApi : IDisposable
         SessionStore.IsHexToken(Settings.AccessToken) && SessionStore.IsHexToken(Settings.RefreshToken);
     public string Origin => Settings.Origin;
     public string Email => Settings.Email;
+
+    // Keep in sync with extension/src/auth/diagnostic-access.ts.
+    // The local UI is not an authority: verify active user ID/status/email
+    // against the signed-in CELIKOM backend on every diagnostic export.
+    private static readonly HashSet<string> DiagnosticIdentityHashes =
+        new(StringComparer.Ordinal)
+        {
+            "18e9af33bc55e691582e0495d6f9024611649a3342742ec7569cd565e28af572",
+            "50bc7e488885f21b0af751f8e2ed3bc622d3bc097c6541817c9ef742cdf7777e"
+        };
+
+    public async Task<bool> CanExportDiagnosticsAsync(CancellationToken ct = default)
+    {
+        var session = Settings;
+        if (!IsLoggedIn || string.IsNullOrWhiteSpace(session.Origin)) return false;
+        JsonElement data;
+        var endpoint = new Uri(session.Origin + "/api/v1/auth/me");
+        try
+        {
+            data = await RequestAsync(endpoint, HttpMethod.Get, null, session.AccessToken, ct);
+        }
+        catch (ApiFailure ex) when (ex.HttpStatus == 401)
+        {
+            if (!await RefreshOnceAsync(session.AccessToken, ct)) return false;
+            var latest = Settings;
+            if (!IsLoggedIn || latest.InstallationId != session.InstallationId ||
+                latest.Origin != session.Origin || latest.Email != session.Email) return false;
+            data = await RequestAsync(endpoint, HttpMethod.Get, null, latest.AccessToken, ct);
+        }
+        if (!IsLoggedIn || Settings.Email != session.Email ||
+            Settings.InstallationId != session.InstallationId ||
+            Settings.Origin != session.Origin) return false;
+        if (data.ValueKind != JsonValueKind.Object ||
+            !data.TryGetProperty("user", out var user) ||
+            user.ValueKind != JsonValueKind.Object ||
+            !user.TryGetProperty("id", out var id) ||
+            !id.TryGetInt64(out var userId) || userId < 1 ||
+            !user.TryGetProperty("status", out var status) ||
+            status.GetString() != "active" ||
+            !user.TryGetProperty("email", out var emailValue) ||
+            emailValue.ValueKind != JsonValueKind.String) return false;
+        var email = emailValue.GetString()?.Trim().ToLowerInvariant() ?? "";
+        if (!string.Equals(email, session.Email.Trim(), StringComparison.OrdinalIgnoreCase)) return false;
+        var digest = Convert.ToHexString(
+            SHA256.HashData(Encoding.UTF8.GetBytes(email))).ToLowerInvariant();
+        return DiagnosticIdentityHashes.Contains(digest);
+    }
 
     public async Task LoginAsync(string origin, string email, string password, CancellationToken ct = default)
     {
