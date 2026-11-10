@@ -7,6 +7,7 @@ on:
       - 'android/native-yandex-hooklab/clone_lab_profileability.py'
       - 'android/native-yandex-hooklab/clone_native_identity_phase2_ephemeral.py'
       - 'android/native-yandex-hooklab/tests/test_clone_lab_profileability.py'
+      - 'android/native-yandex-hooklab/tests/test_clone_crash_classification.py'
       - '.github/workflows/android-native-a1-clone-profileable-emulator.yml'
   workflow_dispatch:
 permissions:
