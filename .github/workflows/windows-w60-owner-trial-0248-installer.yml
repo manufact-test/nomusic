@@ -1,0 +1,169 @@
+name: CELIKOM W60 0.24.8 owner trial installer - private, unsigned
+
+on:
+  push:
+    branches:
+      - experiment/windows-stop-lifecycle-20261110
+    paths:
+      - windows-companion/w15/**
+      - windows-companion/w20/**
+      - windows-companion/w21/**
+      - windows-companion/w23/**
+      - windows-companion/w24/**
+      - windows-companion/w22/**
+      - windows-companion/w60/**
+      - .github/workflows/windows-w60-owner-trial-0248-installer.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  safe-installer-stage:
+    runs-on: windows-2022
+    timeout-minutes: 32
+    steps:
+      - name: Checkout only source
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Setup Node 22 (only for building embedded assets)
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Build CELIKOM native host and renderer files
+        shell: pwsh
+        working-directory: windows-companion/w23
+        run: |
+          npm install --no-audit --no-fund --no-package-lock
+          if ($LASTEXITCODE -ne 0) { throw 'W24_NPM_INSTALL_FAILED' }
+          npm run build
+          if ($LASTEXITCODE -ne 0) { throw 'W24_NATIVE_BUNDLE_FAILED' }
+      - name: W60 version-pinned owner native reload full lifecycle contracts
+        shell: pwsh
+        run: |
+          node --test windows-companion/w60/current-source-refresh.test.mjs
+          if ($LASTEXITCODE -ne 0) { throw 'W60_LIVE_RELOAD_GATE_FAILED' }
+      - name: Verify actual bundled diagnostics and native source contracts
+        shell: pwsh
+        run: |
+          node --test windows-companion/w22/native-resource-adapter.test.mjs windows-companion/w23/native-host.test.mjs windows-companion/w23/renderer-relay.test.mjs windows-companion/w23/audio-probe.test.mjs
+          if ($LASTEXITCODE -ne 0) { throw 'W28_NATIVE_DIAGNOSTICS_CONTRACT_FAILED' }
+      - name: Compile source with warnings as errors
+        run: dotnet build windows-companion/w15/Celikom.Companion/Celikom.Companion.csproj -c Release -warnaserror
+      - name: Run native local bridge and host preflight tests
+        run: dotnet run --project windows-companion/w15/Celikom.Companion.Tests/Celikom.Companion.Tests.csproj -c Release
+      - name: Test native image construction and crash recovery
+        run: dotnet run --project windows-companion/w24/Celikom.NativeInstaller.Tests/Celikom.NativeInstaller.Tests.csproj -c Release
+      - name: Verify stage-only distribution policy
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          & ./windows-companion/w20/release-gate.ps1 -Mode Stage
+          # Script exceptions already fail this step; native LASTEXITCODE is stale.
+      - name: Publish self-contained CELIKOM-owned Windows binary
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          dotnet publish windows-companion/w15/Celikom.Companion/Celikom.Companion.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:DebugType=None -o windows-companion/w20/publish
+          if ($LASTEXITCODE -ne 0) { throw 'W20_PUBLISH_FAILED' }
+      - name: Compile internal Inno Setup installer
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $compiler = Join-Path ${env:ProgramFiles(x86)} 'Inno Setup 6\ISCC.exe'
+          if (-not (Test-Path $compiler)) {
+            choco install innosetup -y --no-progress --limit-output
+            if ($LASTEXITCODE -notin @(0,3010)) { throw 'W20_INNO_SETUP_INSTALL_FAILED' }
+          }
+          if (-not (Test-Path $compiler)) { throw 'W20_INNO_COMPILER_NOT_FOUND' }
+          & $compiler windows-companion/w20/installer/CELIKOM.iss
+          if ($LASTEXITCODE -ne 0) { throw 'W20_INSTALLER_COMPILE_FAILED' }
+      - name: Validate updater ZIP selection, PE version and anti-downgrade
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $installer = 'windows-companion/w20/output/CELIKOM-W60-LIVE-TOGGLE-EXTENSION-UI-UNSIGNED.exe'
+          $meta = [Diagnostics.FileVersionInfo]::GetVersionInfo((Resolve-Path $installer))
+          if ($meta.FileVersion.Trim() -ne '0.24.8.0' -or $meta.ProductName.Trim() -ne 'CELIKOM' -or $meta.CompanyName.Trim() -ne 'CELIKOM') {
+            throw "W32_INSTALLER_PE_VERSION_MISMATCH: version=$($meta.FileVersion) product=$($meta.ProductName) company=$($meta.CompanyName)"
+          }
+          $package = Join-Path $env:RUNNER_TEMP 'CELIKOM-W32-test-package.zip'
+          Compress-Archive -Path $installer -DestinationPath $package
+          $env:CELIKOM_UPDATE_TEST_PACKAGE = $package
+          dotnet run --project windows-companion/w15/Celikom.Companion.Tests/Celikom.Companion.Tests.csproj -c Release
+          if ($LASTEXITCODE -ne 0) { throw 'W32_ONE_CLICK_ZIP_TEST_FAILED' }
+          Write-Output 'W32_ZIP_UPDATE_METADATA_AND_DOWNGRADE_GUARD_PASS'
+          if (-not (Test-Path $installer)) {
+            Write-Output 'W32_INSTALLER_DISAPPEARED_AFTER_ZIP_VALIDATION'
+            Write-Output "W32_ZIP_STILL_PRESENT=$(Test-Path $package)"
+            Get-ChildItem windows-companion/w20/output -ErrorAction SilentlyContinue |
+              Select-Object Name, Length | Format-Table
+            try {
+              $detections = @(Get-MpThreatDetection -ErrorAction Stop)
+              Write-Output "W32_DEFENDER_DETECTIONS=$($detections.Count)"
+              $detections | Select-Object -First 8 ThreatID, ActionSuccess | Format-Table
+            } catch { Write-Output 'W32_DEFENDER_DIAGNOSTICS_UNAVAILABLE' }
+            throw 'W32_INSTALLER_MISSING_AFTER_ZIP_STAGE'
+          }
+          Write-Output 'W32_EXE_STILL_PRESENT_AFTER_ZIP_VALIDATION'
+      - name: Disposable Windows per-user install and uninstall smoke
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $exe = Join-Path $env:LOCALAPPDATA 'Programs\CELIKOM\CELIKOM.Companion.exe'
+          $unins = Join-Path $env:LOCALAPPDATA 'Programs\CELIKOM\unins000.exe'
+          $installer = 'windows-companion/w20/output/CELIKOM-W60-LIVE-TOGGLE-EXTENSION-UI-UNSIGNED.exe'
+          $yandexDir = Join-Path $env:LOCALAPPDATA 'Programs\YandexMusic'
+          if (Test-Path $exe) { throw 'W20_DIRTY_INSTALL_RUNNER' }
+          if (Test-Path $yandexDir) { throw 'W20_RUNNER_YANDEX_PREEXISTS' }
+          if (-not (Test-Path $installer)) {
+            Write-Output "W32_SMOKE_PWD=$((Get-Location).Path)"
+            Write-Output "W32_SMOKE_WORKSPACE=$env:GITHUB_WORKSPACE"
+            Write-Output "W32_INSTALLER_ABSOLUTE=$((Join-Path $env:GITHUB_WORKSPACE $installer))"
+            Get-ChildItem (Join-Path $env:GITHUB_WORKSPACE 'windows-companion/w20/output') -Force -ErrorAction SilentlyContinue |
+              Select-Object Name, Length | Format-Table
+            try {
+              $detections = @(Get-MpThreatDetection -ErrorAction Stop)
+              Write-Output "W32_SMOKE_DEFENDER_COUNT=$($detections.Count)"
+              $detections | Select-Object -First 8 ThreatID, ActionSuccess | Format-Table
+            } catch { Write-Output 'W32_SMOKE_DEFENDER_DIAGNOSTICS_UNAVAILABLE' }
+            throw 'W20_MISSING_INSTALLER'
+          }
+          $install = Start-Process -FilePath $installer -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/SP-' -Wait -PassThru
+          if ($install.ExitCode -ne 0 -or -not (Test-Path $exe) -or -not (Test-Path $unins)) { throw 'W24_INSTALL_SMOKE_FAILED' }
+          $native = Join-Path $env:LOCALAPPDATA 'Programs\CELIKOM\integration'
+          if (-not (Test-Path (Join-Path $native 'host.cjs')) -or
+              -not (Test-Path (Join-Path $native 'renderer.js'))) {
+            throw 'W24_NATIVE_ASSETS_NOT_INSTALLED'
+          }
+          if (Test-Path $yandexDir) { throw 'W20_INSTALLED_OR_TOUCHED_YANDEX' }
+          $upgrade = Start-Process -FilePath $installer -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/SP-' -Wait -PassThru
+          if ($upgrade.ExitCode -ne 0 -or -not (Test-Path $exe)) { throw 'W32_SAME_APPID_UPGRADE_FAILED' }
+          if (Test-Path (Join-Path $env:LOCALAPPDATA 'Programs\CELIKOM\unins001.exe')) {
+            throw 'W32_SECOND_UNINSTALLER_MEANS_DUPLICATE_APPLICATION'
+          }
+          Write-Output 'W32_SAME_APPLICATION_INPLACE_INSTALL_PASS'
+          $remove = Start-Process -FilePath $unins -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART' -Wait -PassThru
+          if ($remove.ExitCode -ne 0) { throw 'W20_UNINSTALL_EXIT_NONZERO' }
+          Start-Sleep -Seconds 2
+          if (Test-Path $exe) { throw 'W20_OWN_EXE_NOT_REMOVED' }
+          if (Test-Path $yandexDir) { throw 'W20_UNINSTALL_TOUCHED_YANDEX' }
+          Write-Output 'W20_INTERNAL_INSTALL_UNINSTALL_PASS_NO_YANDEX_FILES'
+      - name: Report internal package fingerprint
+        shell: pwsh
+        run: |
+          $hash = (Get-FileHash windows-companion/w20/output/CELIKOM-W60-LIVE-TOGGLE-EXTENSION-UI-UNSIGNED.exe -Algorithm SHA256).Hash
+          Write-Output "W20_INTERNAL_UNSIGNED_SHA256=$hash"
+          Write-Output 'W24 INTERNAL: installer and restoration; native audible playback NOT YET ACCEPTED'
+      - name: Retain INTERNAL staging build, not a release
+        uses: actions/upload-artifact@v4
+        with:
+          name: CELIKOM-W60-LIVE-TOGGLE-EXTENSION-UI-UNSIGNED
+          path: windows-companion/w20/output/CELIKOM-W60-LIVE-TOGGLE-EXTENSION-UI-UNSIGNED.exe
+          if-no-files-found: error
+          retention-days: 10
