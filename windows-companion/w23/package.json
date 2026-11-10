@@ -1,1 +1,1 @@
-{"name":"celikom-native-yandex-bridge","version":"0.24.4","private":true,"type":"module","scripts":{"build":"node build.mjs"},"devDependencies":{"esbuild":"0.25.12"}}
+{"name":"celikom-native-yandex-bridge","version":"0.24.6","private":true,"type":"module","scripts":{"build":"node build.mjs"},"devDependencies":{"esbuild":"0.25.12"}}
