@@ -6,6 +6,7 @@ on:
       - experiment/windows-stop-lifecycle-20261110
     paths:
       - windows-companion/w15/Celikom.Companion/MainWindow.cs
+      - windows-companion/w15/Celikom.Companion/PopupButton.cs
       - windows-companion/w15/Celikom.Companion.Tests/**
       - windows-companion/w22/native-resource-adapter.test.mjs
       - windows-companion/w23/renderer-relay.test.mjs
