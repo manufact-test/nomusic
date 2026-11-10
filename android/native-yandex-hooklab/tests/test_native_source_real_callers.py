@@ -1,14 +1,30 @@
 import sys
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
-from audit_native_source_real_callers import relevant,invocation_windows,class_ancestry
+from audit_native_source_real_callers import (relevant,invocation_windows,
+    class_ancestry,source_wrapper_field_projections)
 
 
 class FakeDex:
     def __init__(self,methods):
         self.methods=methods
     def method(self,i):return self.methods[i]
+
+
+
+class CodeDex(FakeDex):
+    def __init__(self,code,methods):
+        super().__init__(methods)
+        self.words=[0]*8+list(code)
+        self.words[6]=len(code)
+    def bounds(self,offset,size):
+        if offset<0 or offset+size>2*len(self.words):
+            raise ValueError("DEX_BOUNDS")
+    def u16(self,offset):return self.words[offset//2]
+    def u32(self,offset):return self.u16(offset)|(self.u16(offset+2)<<16)
+    def descriptor(self,i):return {1:"Lga4;"}[i]
 
 
 class ActualSignedCallersAuditTests(unittest.TestCase):
@@ -35,6 +51,46 @@ class ActualSignedCallersAuditTests(unittest.TestCase):
         dex=FakeDex([("Lstranger;","i0","()V")])
         ins=[(0,0x71,(0x0071,0,0))]
         self.assertEqual(invocation_windows(dex,ins,{("Lcq7;","i0")}),[])
+
+    def test_exact_wrapper_iget_field_projection_to_lero_conditional_path(self):
+        producer=("Lcq7;","i0","()Ljava/lang/Object;")
+        sink=("Lero;","<init>","(Ljava/lang/Object;Lga4;)V")
+        # invoke, result v1, iget-object v1,v1, check-cast Lga4,
+        # if-eqz v1 skip, invoke-direct {v7,v4,v1} constructor, return
+        code=[0x0071,0,0,0x010c,0x1154,0,
+              0x011f,1,0x0138,5,0x3070,1,0x0147,0x000e]
+        key=("LoriginalWrapper;","Lga4;","private_not_exported")
+        with patch("audit_native_source_real_callers.field_key",return_value=key):
+            rows=source_wrapper_field_projections(CodeDex(code,[producer,sink]),0)
+        self.assertEqual(len(rows),1)
+        row=rows[0]
+        self.assertTrue(row["distinct_object_identity_from_wrapper"])
+        self.assertEqual(row["projection_cast_types"],["Lga4;"])
+        event=row["projected_field_may_flow_events"][0]
+        self.assertEqual(event["callee"],"Lero;-><init>")
+        self.assertEqual(event["argument_word"],2)
+        self.assertTrue(event["conditional_branch_crossed"])
+        self.assertFalse(event["actual_runtime_call_proven"])
+
+    def test_wrong_iget_receiver_does_not_prove_wrapper_projection(self):
+        producer=("Lcq7;","i0","()Ljava/lang/Object;")
+        code=[0x0071,0,0,0x010c,0x2154,0,0x000e]
+        key=("Lwrapper;","Lga4;","hidden")
+        with patch("audit_native_source_real_callers.field_key",return_value=key):
+            self.assertEqual(source_wrapper_field_projections(
+                CodeDex(code,[producer]),0),[])
+
+    def test_shared_register_wrapper_and_field_are_distinct_objects(self):
+        producer=("Lcq7;","i0","()Ljava/lang/Object;")
+        sink=("Lero;","<init>","(Lga4;)V")
+        code=[0x0071,0,0,0x010c,0x1154,0,0x1070,1,0x0001,0x000e]
+        key=("Lwrapper;","Lga4;","private")
+        with patch("audit_native_source_real_callers.field_key",return_value=key):
+            result=source_wrapper_field_projections(
+                CodeDex(code,[producer,sink]),0)
+        self.assertTrue(result[0]["distinct_object_identity_from_wrapper"])
+        self.assertEqual(result[0]["projected_field_may_flow_events"][0]
+                         ["argument_word"],0)
 
     def test_ancestry_cannot_prove_decoder(self):
         self.assertFalse(class_ancestry({"Lmir;":(17,("Lbase;",))},"Lmir;")
