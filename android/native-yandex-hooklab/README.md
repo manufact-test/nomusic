@@ -2,7 +2,16 @@
 
 **Status:** Source code only; builds a *CELIKOM Xposed module APK* (not an independent music player). Owner authorized research and preparation for **a separate disposable test device only**. No package was installed, and **nothing** on the owner's HONOR, stable Test.50, catalog or server is touched.
 
-## LATEST publisher-signed obfuscated DataSource source/read evidence (2026-11-10)
+## LATEST signed original URI model → native DataSource source lifecycle (2026-11-10)
+
+- **Verified CI green code:** `f327f5b9bcfee028e754f9a803f29ade347cb240`, **frozen rollback:** `backup/android-signed-uri-locv-source-cfg-green-20261110`, **details:** `docs/android/ANDROID-NATIVE-SIGNED-URI-TO-DATASOURCE-LIFECYCLE-EVIDENCE-2026-11-10.md`.
+- `Locv.i0` reads URI-like input, `Lw4y.z` inspects scheme/host/path/query (never exporting values), coroutine `Llky` and `Lfwm.M` produce local `Ljgv`; bounded CFG shows it may pass as argument 1 to `Lcq7.i0` and `Lcq7.D`.
+- `Lcq7.i0` has two concrete callers, `Lo4y.c` and `Locv.i0`: they **project a field** from a wrapper using `iget-object`, then conditionally pass cast `Lga4` into `Lnro/Lero`. Corrected old DEX 22c register kill that had incorrectly equated wrapper identity with field value. `Locv.t/remove` conditionally invoke `i0`.
+- `Lcq7.A` result reaches the exact primary Le48 `Lga4` field in the same basic block; `Lga4.d` primary `Lm48` reaches constructor argument 3 of `Lha4`. The signed `Lha4.f` and `Lha4.read` methods call `Lm48.b(La58)` and `Lv38.read([BII)`.
+- Verified [signed source #42819113120](https://github.com/manufact-test/nomusic/actions/runs/42819113120), [actual CFG #42819106641](https://github.com/manufact-test/nomusic/actions/runs/42819106641), [taint fix #42817633107](https://github.com/manufact-test/nomusic/actions/runs/42817633107), [Android module #42819113420](https://github.com/manufact-test/nomusic/actions/runs/42819113420) SUCCESS 2/2.
+- **No runtime current trackId+edition+generation / decoder PREPARE / Android replacement audio proof.** No vendor APK patches, no user or installed Yandex changes.
+
+## PREVIOUS publisher-signed obfuscated DataSource source/read evidence (2026-11-10)
 
 - **Verified code:** `6b5bfde53d81a29920f32a3c6b13b730b216e669`; **backup:** `backup/android-signed-dual-source-dataspec-open-ci-green-20261110`; full note `docs/android/ANDROID-NATIVE-SIGNED-DATASPEC-OPEN-SOURCE-EVIDENCE-2026-11-10.md`.
 - Exact signed six-DEX class and method inheritance: `Lm48` defines `b(La58):J`, `getUri`, `close`; its parent `Lv38` defines `read([BII):I`. Combined contract matches a DataSource-like shape, with 33 concrete implementations including `Lha4` and `Lza4`. No claim that a specific current Yandex track is routed through it.
