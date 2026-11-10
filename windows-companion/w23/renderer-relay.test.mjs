@@ -126,6 +126,30 @@ test("stop during native relay keeps Yandex source and clears queued requests",a
   assert.equal(output.downloadInfo.key,"yandex-drm");
   r.handlers.beforeunload();
 });
+test("W58 real renderer Stop blocks all future grants while already-returned Yandex media source is immutable",async()=>{
+  const r=createRenderer(),player=new r.Resource();
+  r.window.__celikomBridgeNativeSetState({enabled:true,signedIn:true,apiOrigin:origin});
+  const prior=player.getFileInfo({trackId:"123"});
+  await tick();
+  const queue=r.window.__celikomBridgeNativeDrain();
+  assert.equal(queue.length,1);
+  r.window.__celikomBridgeNativeReceive(queue[0].requestId,makeGrant("123"));
+  const resident=await prior;
+  assert.equal(resident.downloadInfo.url,makeGrant("123").audioUrl+"&celikom_native_query_guard=0");
+  r.window.__celikomBridgeNativeSetState({enabled:false,signedIn:true,apiOrigin:origin});
+  assert.equal(r.window.__celikomBridgeNativeStatus(),"ORIGINAL");
+  const same=await player.getFileInfo({trackId:"123"});
+  const next=await player.getFileInfo({trackId:"456"});
+  const batch=await player.getFileInfoBatch({trackIds:["123","456"]});
+  assert.equal(same.downloadInfo.url,"https://official.yandex.example/stream");
+  assert.equal(next.downloadInfo.url,"https://official.yandex.example/stream");
+  assert.equal(batch.downloadInfos[0].url,"https://official.yandex.example/stream");
+  assert.equal(r.window.__celikomBridgeNativeDrain().length,0);
+  assert.equal(resident.downloadInfo.url,makeGrant("123").audioUrl+"&celikom_native_query_guard=0",
+    "file-info already delivered to Yandex is not retrospectively changed");
+  r.handlers.beforeunload();
+});
+
 test("untrusted scheme never installs CELIKOM API into a foreign renderer",()=>{
   const r=createRenderer({hostname:"evil",protocol:"musicapplication:"});
   assert.equal(r.window.__celikomBridgeNativeDrain,undefined);
