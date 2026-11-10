@@ -36,7 +36,7 @@ FOCUS={
  ("Lcq7;","i0"),("Lo4y;","c"),("Locv;","i0"),
  ("Lga4;","b"),("Lga4;","c"),("Lga4;","d"),
  ("Lmir;","t"),("Lmir;","remove"),
- ("Lero;","<init>"),("Lmb4;","a"),
+ ("Lero;","<init>"),("Lnro;","<init>"),("Lmb4;","a"),
  ("Ldl8;","a"),("Lbr1;","invoke"),("Lx3f;","invokeSuspend")
 }
 PRODUCERS={
@@ -176,6 +176,31 @@ def source_wrapper_field_projections(d,code_off):
     return result[:MAX_CALLS]
 
 
+
+def model_input_to_i0_windows(d,ins,context=90):
+    """Conservative input-side register coordinates for active-model candidates.
+
+    This is method-local structural evidence only: no value/identity across
+    coroutine callbacks, branches or fields. Constants/strings are redacted.
+    """
+    result=[]
+    for i,(_,op,w) in enumerate(ins):
+        if op not in INVOKES:continue
+        callee=d.method(w[1])
+        if (callee[0],callee[1])!=("Lcq7;","i0"):continue
+        regs=invoke_registers(op,w)
+        before=[{
+            "ordinal":n,**safe_operand_metadata(d,ins[n][1],ins[n][2])
+        } for n in range(max(0,i-context),i+1)]
+        result.append({
+            "i0_invoke_ordinal":i,
+            "i0_argument_registers":regs,
+            "pre_invoke_safe_register_roles":before,
+            "proven_current_music_track":False,
+        })
+    return result[:MAX_CALLS]
+
+
 def class_ancestry(rel,owner):
     parents=rel.get(owner,(0,()))[1]
     return {
@@ -225,6 +250,8 @@ def inspect_targets(apks):
                         "wrapper_field_projection":source_wrapper_field_projections(d,off)
                         if m[0] in ("Lo4y;","Locv;") else [],
                         "callee_windows":invocation_windows(d,ins,PRODUCERS),
+                        "exact_i0_model_input_windows":model_input_to_i0_windows(d,ins)
+                        if m[0] in ("Lo4y;","Locv;") else [],
                         "named_exoplayer_owner_direct_invoked":any(
                           d.method(w[1])[0] in {"Lro7;","Lfxc;","Lwxc;","Lyzt;"}
                           for _,op,w in ins if op in INVOKES),
