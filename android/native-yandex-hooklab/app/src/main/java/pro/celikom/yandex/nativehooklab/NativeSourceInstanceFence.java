@@ -77,7 +77,7 @@ public final class NativeSourceInstanceFence {
         if (v!=Verdict.RECORDED)return v;
         if (phase!=Phase.SELECTED)return reject(Verdict.OUT_OF_ORDER);
         if (selection!=selected)return poison();
-        if (sourceOwner==null||reader==null)return reject(Verdict.UNKNOWN_SOURCE);
+        if (sourceOwner==null||reader==null)return poison();
         owner=sourceOwner;
         source=reader;
         phase=Phase.SOURCE_BOUND;
@@ -108,7 +108,7 @@ public final class NativeSourceInstanceFence {
         if (v!=Verdict.RECORDED)return v;
         if (phase!=Phase.BEFORE_PREPARE)return reject(Verdict.OUT_OF_ORDER);
         if (sourceOwner!=owner)return poison();
-        if (loaderObject==null||taskObject==null)return reject(Verdict.UNKNOWN_SOURCE);
+        if (loaderObject==null||taskObject==null)return poison();
         loader=loaderObject;
         task=taskObject;
         phase=Phase.TASK_QUEUED;
@@ -133,7 +133,7 @@ public final class NativeSourceInstanceFence {
         if (phase!=Phase.TASK_RUNNING && phase!=Phase.CLOSED)
             return reject(Verdict.OUT_OF_ORDER);
         if (loaderObject!=loader||reader!=source)return poison();
-        if (spec==null)return reject(Verdict.UNKNOWN_SOURCE);
+        if (spec==null)return poison();
         if (phase==Phase.CLOSED&&!seekWasRequested)
             return reject(Verdict.OUT_OF_ORDER);
         dataSpec=spec;
@@ -150,7 +150,7 @@ public final class NativeSourceInstanceFence {
         if (phase!=Phase.OPEN && phase!=Phase.READING)
             return reject(Verdict.OUT_OF_ORDER);
         if (loaderObject!=loader||reader!=source||spec!=dataSpec)return poison();
-        if (bytes<0)return reject(Verdict.OUT_OF_ORDER);
+        if (bytes< -1)return reject(Verdict.OUT_OF_ORDER);
         if (bytes>0) {
             everRead=true;
             readCount++;
