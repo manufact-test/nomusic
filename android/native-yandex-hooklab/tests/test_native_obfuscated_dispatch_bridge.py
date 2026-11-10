@@ -31,6 +31,9 @@ class VirtualMediaBridgeTests(unittest.TestCase):
         path=trace["media_paths"][0]
         self.assertEqual(path["hops"],3)
         self.assertTrue(path["possible_virtual_dispatch_used"])
+        self.assertEqual(len(path["signed_method_prototypes"]),4)
+        self.assertEqual(path["edge_qualification"][1]["kind"],"possible_virtual_dispatch")
+        self.assertEqual(path["edge_qualification"][1]["dispatch_candidate_count"],1)
         self.assertFalse(path["audio_source_identity_or_decoder_proven"])
         self.assertFalse(trace["current_decoder_source_proven"])
 
