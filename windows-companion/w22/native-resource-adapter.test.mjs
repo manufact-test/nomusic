@@ -43,6 +43,7 @@ test('approved mp3 changes only source, leaves native response intact',async()=>
   assert.equal(r.responseTime,41);assert.equal(r.downloadInfo.url,url);
   assert.deepEqual(r.downloadInfo.urls,[url]);assert.equal(r.downloadInfo.codec,'mp3');
   assert.equal(r.downloadInfo.transport,'raw');assert.equal(r.downloadInfo.key,undefined);
+  assert.equal(r.downloadInfo.bitrate,320,'MP3 must not inherit original AAC bitrate');
   assert.equal(a.status,'SOURCE_MAPPING_RETURNED_NOT_AUDIO_VERIFIED');a.dispose();
 });
 test('approved MP4 uses AAC codec, not MP3',async()=>{
@@ -233,5 +234,19 @@ test('no approved grant never cuts off a slow native Yandex original',async()=>{
   const official={downloadInfo:{trackId:'123',url:'https://official.example/native'}};
   release(official);
   assert.deepEqual(await wait,official);
+  a.dispose();
+});
+
+test('W50 MP3 mapping ignores native AAC bitrate but keeps envelope and original method safe',async()=>{
+  const a=create();const {proto}=resource();
+  proto.getFileInfo=async params=>({responseTime:47,requestUrl:'native-resource-api',
+    downloadInfo:{trackId:String(params.trackId),codec:'aac',bitrate:128,transport:'encraw',
+      key:'not-for-plaintext',urls:['https://official.example/native'],gain:true}});
+  a.attach(proto);a.enable();
+  const r=await proto.getFileInfo({trackId:'123'});
+  assert.equal(r.responseTime,47);assert.equal(r.requestUrl,'native-resource-api');
+  assert.equal(r.downloadInfo.codec,'mp3');assert.equal(r.downloadInfo.transport,'raw');
+  assert.equal(r.downloadInfo.bitrate,320);assert.equal(r.downloadInfo.key,undefined);
+  assert.equal(r.downloadInfo.gain,false);assert.deepEqual(r.downloadInfo.urls,[url]);
   a.dispose();
 });
