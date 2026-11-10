@@ -1,3 +1,15 @@
+## UPDATE 10.11.2026 — Native FileInfo / MediaSession temporal witness (NEWEST)
+
+**Previous checkpoint and rollback:** `backup/android-native-before-temporal-event-probe-20261110` at `1ad5870f05105ffc5f9a105a052aca211ebaa6a7`.
+
+Implemented `NativeEventOrderProbe.java`: a bounded, pure-Java diagnostic, now connected to the existing read-only FileInfo converter hooks (modern and legacy) and platform `MediaSession.setMetadata` observer in `NativeHookEntry`. Every method proceeds unmodified. Classifier records only monotonic event ordering, not absolute timestamps, IDs, editions, URLs, source responses, accounts or metadata values.
+
+Diagnostic categories: one nearby FileInfo (temporal coincidence only), multiple nearby FileInfo (ambiguity/prefetch), metadata without recent FileInfo, clock discontinuity. Source event queue saturates at 2 and is consumed once for each metadata callback. The 12-second window is a provisional upper diagnostic bound, NOT a performance benchmark. `SINGLE_RECENT_FILEINFO_TEMPORAL_ONLY` is explicitly NOT a verified track-to-source match and may never authorize replacement. `NativePrePrepareAdmission` remains disconnected from real native decoder.
+
+`NativeEventOrderProbeTest.java` exercises duplicate metadata, 12,000 Next/radio bursts, 20,000 prefetch events, expiry and clock reversal. Hooklab CI compiles/runs it as well as the Android libxposed module build. No user APK yet: actual runtime Yandex hook and native audio replacement still UNVERIFIED. Owner HONOR, stable Test.50, server and production untouched. ChromaSync paid/manual patcher rejected, no outreach.
+
+---
+
 ## UPDATE: open-source native playback event evidence (10.11.2026)
 
 Owner personally confirmed ChromaSync Android requires payment and manual patcher; **do not ask for it**, do not claim it free. No candidate outside CELIKOM was installed or paid for.

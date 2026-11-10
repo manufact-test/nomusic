@@ -5,6 +5,7 @@ import android.content.Context;
 import android.content.pm.PackageInfo;
 import android.media.MediaMetadata;
 import android.media.session.MediaSession;
+import android.os.SystemClock;
 import android.util.Log;
 
 import java.lang.reflect.Method;
@@ -33,6 +34,8 @@ public final class NativeHookEntry extends XposedModule {
     // Privacy-safe lifecycle signal: count framework metadata updates without
     // accessing the MediaMetadata fields or MediaSession queue contents.
     private final AtomicInteger metadataUpdates = new AtomicInteger();
+    // Diagnostic-only sequence categories; NEVER an audio-source identity gate.
+    private final NativeEventOrderProbe eventOrder = new NativeEventOrderProbe(12000);
     private String processName;
     private boolean attachHooked;
     private boolean targetHooked;
@@ -135,7 +138,10 @@ public final class NativeHookEntry extends XposedModule {
                         .setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
                         .intercept(chain -> {
                             Object result = chain.proceed();
-                            if (result != null) safeCount("modern", newConversions);
+                            if (result != null) {
+                                eventOrder.onFileInfo(SystemClock.elapsedRealtime());
+                                safeCount("modern", newConversions);
+                            }
                             return result;
                         });
                 modernHooked = true;
@@ -145,7 +151,10 @@ public final class NativeHookEntry extends XposedModule {
                         .setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
                         .intercept(chain -> {
                             Object result = chain.proceed();
-                            if (result != null) safeCount("legacy", oldConversions);
+                            if (result != null) {
+                                eventOrder.onFileInfo(SystemClock.elapsedRealtime());
+                                safeCount("legacy", oldConversions);
+                            }
                             return result;
                         });
                 legacyHooked = true;
@@ -197,7 +206,15 @@ public final class NativeHookEntry extends XposedModule {
                     .setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
                     .intercept(chain -> {
                         Object result = chain.proceed();
+                        NativeEventOrderProbe.Verdict temporalOrder =
+                                eventOrder.onMetadata(SystemClock.elapsedRealtime());
                         safeCount("platform-media-metadata-update", metadataUpdates);
+                        int count = metadataUpdates.get();
+                        if (count == 1 || count % 20 == 0) {
+                            // Only broad sequence category and aggregate count.
+                            Log.i(TAG, "observer: temporal-only metadata/source order="
+                                    + temporalOrder.name() + " metadata-updates=" + count);
+                        }
                         return result;
                     });
             metadataHooked = true;

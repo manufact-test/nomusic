@@ -28,11 +28,13 @@ jobs:
             android/native-yandex-hooklab/app/src/main/java/pro/celikom/yandex/nativehooklab/NativeSourceGate.java \
             android/native-yandex-hooklab/app/src/main/java/pro/celikom/yandex/nativehooklab/NativeTrackIdentityGate.java \
             android/native-yandex-hooklab/app/src/main/java/pro/celikom/yandex/nativehooklab/NativePrePrepareAdmission.java \
+            android/native-yandex-hooklab/app/src/main/java/pro/celikom/yandex/nativehooklab/NativeEventOrderProbe.java \
             $(find android/native-yandex-hooklab/tests/src -type f -name '*.java' | sort)
           java -cp /tmp/celikom-jvm-hooklab HookSpecTest
           java -cp /tmp/celikom-jvm-hooklab NativeSourceGateTest
           java -cp /tmp/celikom-jvm-hooklab pro.celikom.yandex.nativehooklab.NativeTrackIdentityGateTest
           java -cp /tmp/celikom-jvm-hooklab NativePrePrepareAdmissionTest
+          java -cp /tmp/celikom-jvm-hooklab NativeEventOrderProbeTest
       - name: Test read-only ARM device gate (synthetic snapshots; no phone connected)
         run: python3 -m unittest discover -s android/native-yandex-hooklab/tests -p 'test_*.py' -v
       - name: Disallow sensitive permissions, substitute player and mutable audio sources
@@ -53,6 +55,9 @@ jobs:
           assert '"setMetadata", MediaMetadata.class' in source
           assert 'safeCount("platform-media-metadata-update", metadataUpdates)' in source
           assert 'metadataHooked' in source
+          assert 'eventOrder.onFileInfo(SystemClock.elapsedRealtime())' in source
+          assert 'eventOrder.onMetadata(SystemClock.elapsedRealtime())' in source
+          assert 'temporal-only metadata/source order=' in source
           for forbidden in ['getString(', 'getLong(', 'metadata.get', 'MediaMetadata.METADATA_', 'getQueue(', 'getMediaId(', 'getDescription(']:
               assert forbidden not in source, forbidden
           assert 'if (targetHooked) return;' in source
