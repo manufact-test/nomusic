@@ -1,0 +1,36 @@
+name: Android native A1 ARM witness safe contract
+on:
+  push:
+    branches:
+      - feature/android-native-clone-lspatch-a1-20261111
+    paths:
+      - 'android/native-yandex-hooklab/witness_installed_arm_host.py'
+      - 'android/native-yandex-hooklab/tests/test_witness_installed_arm_host.py'
+      - '.github/workflows/android-native-a1-arm-witness.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  witness-safe-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Verify witness logic without touching any device
+        run: |
+          python3 -m unittest discover -s android/native-yandex-hooklab/tests -p test_witness_installed_arm_host.py -v
+      - name: Strict static no-install/no-sideload/no-audio check
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path("android/native-yandex-hooklab/witness_installed_arm_host.py").read_text()
+          for forbidden in ('"install"', '"uninstall"', '"root"', '"force-stop"', '"start"', '"-c"', 'MediaPlayer(', 'setDataSource('):
+              assert forbidden not in p, forbidden
+          assert 'LOG_TAG + ":I"' in p
+          assert '"native_audio_swap_verified": False' in p
+          assert 'proc.communicate' in p
+          print("A1_OBSERVER_PRIVACY_AND_NO_MUTATION_CONTRACT_PASS; NOT_RUNTIME")
+          PY
