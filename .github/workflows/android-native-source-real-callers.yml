@@ -1,0 +1,34 @@
+name: Android signed exact i0 consumer and native source callback caller audit (READ-ONLY)
+on:
+  push:
+    branches:
+      - experiment/android-native-yandex-fileinfo-hooklab-20261109
+    paths:
+      - 'android/native-yandex-hooklab/audit_native_source_real_callers.py'
+      - 'android/native-yandex-hooklab/tests/test_native_source_real_callers.py'
+      - '.github/workflows/android-native-source-real-callers.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  native-original-actual-caller-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Unit test exact signed callsites without runtime claim
+        run: |
+          set -eu
+          python3 -m py_compile android/native-yandex-hooklab/audit_native_source_real_callers.py
+          python3 -m unittest discover -s android/native-yandex-hooklab/tests -p 'test_native_source_real_callers.py' -v
+      - name: Full read-only original signed five APK six DEX direct caller inspection
+        run: python3 android/native-yandex-hooklab/audit_native_source_real_callers.py
+      - name: No Yandex APK or media emission
+        if: always()
+        run: |
+          test ! -d android/native-yandex-hooklab/release
+          test ! -d android/native-yandex-hooklab/patched
+          echo 'Potential value flow only; no user track current decoder proof'
