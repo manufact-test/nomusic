@@ -244,6 +244,7 @@ try
         when + "|PLAYER_NET_REQUEST|resource_id=739209\n" +
         when + "|PLAYER_NET_HTTP_FORBIDDEN|resource_id=739209\n" +
         when + "|PLAYER_URL_QUERY_CHANGED|resource_id=739209\n" +
+        when + "|PLAYER_URL_SIGNED_FIELDS_INTACT|resource_id=739209\n" +
         when + "|PLAYER_403_PHP_INVALID_AUDIO_TOKEN|resource_id=739209\n" +
         when + "|PLAYER_403_HTML|resource_id=739209\n" +
         when + "|PLAYER_403_PHP_ACCESS_DENIED|resource_id=739209\n" +
@@ -263,6 +264,7 @@ try
     Test(snapshot.Contains("NativeAudio403Observed=true") &&
          snapshot.Contains("PlayerNetworkRequestObserved=true") &&
          snapshot.Contains("NativeMediaUrlQueryMismatchObserved=true") &&
+         snapshot.Contains("NativeMediaUrlSignedFieldsIntactObserved=true") &&
          snapshot.Contains("Native403PhpSignatureRejectionObserved=true") &&
          snapshot.Contains("Native403PhpAccessDenialObserved=true") &&
          snapshot.Contains("Native403HtmlResponseObserved=true"),
