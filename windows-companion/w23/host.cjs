@@ -59,7 +59,16 @@ const noisy = new Set(["TRACK_CHANGED", "RESOLVE_REQUEST", "GRANT_FOUND", "GRANT
   "PLAYER_CDP_PIPELINE_ERROR", "PLAYER_CDP_ERROR_MESSAGE",
   "PLAYER_CDP_EVENT_START", "PLAYER_CDP_EVENT_PAUSE",
   "PLAYER_CDP_EVENT_PIPELINE_ERROR", "PLAYER_CDP_STATE_PLAYING",
-  "PLAYER_CDP_STATE_NOT_PLAYING"]);
+  "PLAYER_CDP_STATE_NOT_PLAYING",
+  "PLAYER_NET_READY", "PLAYER_NET_UNAVAILABLE", "PLAYER_NET_REQUEST",
+  "PLAYER_NET_GET", "PLAYER_NET_HEAD", "PLAYER_NET_METHOD_OTHER",
+  "PLAYER_NET_MEDIA", "PLAYER_NET_FETCH", "PLAYER_NET_XHR",
+  "PLAYER_NET_TYPE_OTHER", "PLAYER_NET_HTTP_PARTIAL", "PLAYER_NET_HTTP_FULL",
+  "PLAYER_NET_HTTP_FORBIDDEN", "PLAYER_NET_HTTP_UNAUTHORIZED",
+  "PLAYER_NET_HTTP_OTHER", "PLAYER_NET_FINISHED",
+  "PLAYER_NET_FAILED", "PLAYER_NET_CORS_BLOCKED",
+  "PLAYER_NET_CORS_CREDENTIALS", "PLAYER_NET_CORS_PREFLIGHT",
+  "PLAYER_NET_CSP_BLOCKED", "PLAYER_AUDIO_RESOURCE_TIMING_SEEN"]);
 function note(code, trackId = null) {
   if (!/^[A-Z_]{3,48}$/.test(code)) return;
   const id = typeof trackId === "string" && /^[1-9][0-9]{0,17}$/.test(trackId)
@@ -195,6 +204,7 @@ async function relayState(view, token, now) {
     signedIn: state?.signedIn === true,
     apiOrigin: typeof state?.apiOrigin === "string" ? state.apiOrigin.slice(0, 256) : ""
   };
+  nativeAudioOrigins.set(view, safeState.apiOrigin);
   const ok = await execute(view,
     ";(()=>{if(!window.__celikomBridgeNativeSetState)return false;" +
     "window.__celikomBridgeNativeSetState(" + JSON.stringify(safeState) + ");return true})()");
@@ -267,6 +277,7 @@ async function tick(view) {
 // only confirmed 32 bytes of MP3 were reachable; it never proved playback.
 // No media commands, no WebAudio monkeypatches, no URLs/account data logged.
 const playbackWitnesses = new WeakSet();
+const nativeAudioOrigins = new WeakMap();
 function observeNativePlayback(view) {
   if (!validView(view) || playbackWitnesses.has(view)) return;
   playbackWitnesses.add(view);
@@ -286,8 +297,68 @@ function observeNativePlayback(view) {
       !debug.isAttached()) {
     try {
       debug.attach("1.3");
+      const mediaRequests = new Map();
+      // W50 native CDP Network observer: NO request/response bodies, URL,
+      // headers, token, cookies, or personal data enter owner diagnostics.
+      // The W48 independent probe has been disabled; matched GETs now
+      // originate from Yandex itself (possibly its prefetcher, not sound).
       debug.on("message", (_event, method, params) => {
         if (!validView(view)) return;
+        const requestId = typeof params?.requestId === "string" &&
+          params.requestId.length < 160 ? params.requestId : null;
+        if (method === "Network.requestWillBeSent" && requestId) {
+          const origin = nativeAudioOrigins.get(view);
+          let id = null;
+          try {
+            const u = new URL(params?.request?.url);
+            if (origin && u.origin === origin && !u.username && !u.password)
+              id = /^\\/api\\/v1\\/audio\\/([1-9][0-9]{0,17})$/.exec(u.pathname)?.[1] || null;
+          } catch {}
+          if (!id) return;
+          if (mediaRequests.size >= 64)
+            mediaRequests.delete(mediaRequests.keys().next().value);
+          mediaRequests.set(requestId, id);
+          note("PLAYER_NET_REQUEST",id);
+          const m = params?.request?.method;
+          note(m === "GET" ? "PLAYER_NET_GET" :
+            m === "HEAD" ? "PLAYER_NET_HEAD" : "PLAYER_NET_METHOD_OTHER", id);
+          note(params?.type === "Media" ? "PLAYER_NET_MEDIA" :
+            params?.type === "Fetch" ? "PLAYER_NET_FETCH" :
+            params?.type === "XHR" ? "PLAYER_NET_XHR" : "PLAYER_NET_TYPE_OTHER", id);
+          return;
+        }
+        if (requestId && mediaRequests.has(requestId)) {
+          const id = mediaRequests.get(requestId);
+          if (method === "Network.responseReceived") {
+            const status = Number(params?.response?.status);
+            note(status === 206 ? "PLAYER_NET_HTTP_PARTIAL" :
+              status === 200 ? "PLAYER_NET_HTTP_FULL" :
+              status === 403 ? "PLAYER_NET_HTTP_FORBIDDEN" :
+              status === 401 ? "PLAYER_NET_HTTP_UNAUTHORIZED" :
+              "PLAYER_NET_HTTP_OTHER",id);
+            return;
+          }
+          if (method === "Network.loadingFailed") {
+            note("PLAYER_NET_FAILED",id);
+            const cors=String(params?.corsErrorStatus?.corsError||"");
+            if(cors){
+              note("PLAYER_NET_CORS_BLOCKED",id);
+              if (/InvalidAllowCredentials|WildcardOriginNotAllowed/i.test(cors))
+                note("PLAYER_NET_CORS_CREDENTIALS",id);
+              else if (/Preflight/i.test(cors))
+                note("PLAYER_NET_CORS_PREFLIGHT",id);
+            } else if(params?.blockedReason==="csp")
+              note("PLAYER_NET_CSP_BLOCKED",id);
+            mediaRequests.delete(requestId);
+            return;
+          }
+          if (method === "Network.loadingFinished") {
+            note("PLAYER_NET_FINISHED",id);
+            mediaRequests.delete(requestId);
+            return;
+          }
+        }
+
         if (method === "Media.playerErrorsRaised" &&
             Array.isArray(params?.errors) && params.errors.length > 0)
           note("PLAYER_CDP_PIPELINE_ERROR");
@@ -322,6 +393,11 @@ function observeNativePlayback(view) {
           if (validView(view)) note("PLAYER_CDP_UNAVAILABLE");
           try { if (debug.isAttached()) debug.detach(); } catch {}
         });
+      // Passive read-only recording of status and request destination class;
+      // Network is NOT intercepted, requests are never modified or retried.
+      Promise.resolve(debug.sendCommand("Network.enable")).then(
+        () => { if (validView(view)) note("PLAYER_NET_READY"); },
+        () => { if (validView(view)) note("PLAYER_NET_UNAVAILABLE"); });
     } catch {
       note("PLAYER_CDP_UNAVAILABLE");
     }
