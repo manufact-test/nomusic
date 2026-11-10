@@ -4,9 +4,9 @@
 
 ## Контрольная точка
 
-- Код после заключительного подписанного исследования: `3aaab880fff4326b596f63a52a89a0f4d0085fef`.
+- **Последний CI GREEN код:** `59aa2d14bf32fd0f5eb553c09ec88738d84353a0` (предыдущий зелёный `3aaab880fff4326b596f63a52a89a0f4d0085fef`).
 - Рабочая ветка: `experiment/android-native-yandex-fileinfo-hooklab-20261109`.
-- Откат: `backup/android-signed-source-instance-arm64-lemb-ci-green-20261110` (создан и указывает на точный зелёный SHA).
+- **Последний rollback:** `backup/android-signed-source-instance-failclosed-arm64-ci-green-20261110`. Предыдущий rollback: `backup/android-signed-source-instance-arm64-lemb-ci-green-20261110`.
 - До этого этапа: код `f04745f7dcd4455996eadf56dc0be6c52a44c63f`, откат `backup/android-signed-lero-lmb4-reader-case-ci-green-20261110`.
 - Все действия — GitHub, read-only original signed DEX и **OWN-ONLY** Java model. Не использованы личный HONOR, пользовательский аккаунт, аудиофайлы, URL, оригинальный APK-патч, DRM, production, API или Windows.
 
@@ -45,13 +45,17 @@
 - `syntheticSequenceComplete` означает **только успешный искусственный набор событий**. Он никогда не доказывает player-selected receiver или декодер, **не даёт разрешения на AUDIO ALTERNATE**.
 
 **Регрессии**:
-- `tests/src/NativeSourceInstanceFenceTest.java`: **44 478 проверки**, в том числе 5 000 детерминированных циклов Next/радио, invalid source, повтор той же «песни», Stop, Seek+reopen, clock rollback, exact-reference против `equals()`.
+- `tests/src/NativeSourceInstanceFenceTest.java`: **44 480 проверки после дополнительной регрессии**, в том числе 5 000 детерминированных циклов Next/радио, invalid source, повтор той же «песни», Stop, Seek+reopen, clock rollback, exact-reference против `equals()`.
 - `tests/src/NativeSourceInstanceConcurrencyTest.java`: ещё **27 явных проверок**, плюс **4 800** намеренно запоздавших действий в параллельных потоках, 8 одновременных запросов pre-prepare (пропускается только один), гонка двух задач.
 - JVM-tests подключены к read-only workflow `.github/workflows/android-native-yandex-hooklab.yml`, Android-module build остаётся отдельным 2/2 gate. Workflow дополнительно запрещает использование новой модели внутри `NativeHookEntry`.
 - **Независимый настоящий ARM64 Linux-host**: `.github/workflows/android-native-source-instance-arm64-jvm.yml` собирает и запускает эти же тесты на `ubuntu-24.04-arm`, подтверждает `uname -m = aarch64`. Это **не Android runtime** и не ExoPlayer/decoder.
-- [ARM64 Linux JVM gate #42826864698 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/42826864698).
+- [ARM64 Linux JVM #42828086262 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/42828086262) (новейший), [предыдущая #42826864698 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/42826864698).
 - [Синтетические Java tests + Android build #42826380279 SUCCESS 2/2](https://github.com/manufact-test/nomusic/actions/runs/42826380279).
-- [Новый read-only module CI после исследования #42827236060](https://github.com/manufact-test/nomusic/actions/runs/42827236060): **SUCCESS 2/2**.
+- [Новейший read-only Android module #42828086264 SUCCESS 2/2](https://github.com/manufact-test/nomusic/actions/runs/42828086264); ранее [#42827236060 SUCCESS 2/2](https://github.com/manufact-test/nomusic/actions/runs/42827236060).
+
+## Дополнительная строгая регрессия после первого ARM64 прохода
+
+Первоначальная модель позволяла `syntheticSequenceComplete=true` после успешного `open/read/close`, даже если раньше внутри **того же** поколения был `OUT_OF_ORDER`. Исправили: `rejectedCount==0` обязателен для complete; нет «отмывания» аномальных source-событий задним числом. Вызовы `STALE` от **старого** поколения намеренно не увеличивают `rejectedCount` нового. Это модель, а не реальное наблюдение аудио.
 
 ## 3. Непреодолённая граница: selected source / actual decoder / текущий track ID
 
