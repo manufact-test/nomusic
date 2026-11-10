@@ -5,6 +5,8 @@ on:
       - experiment/android-native-yandex-fileinfo-hooklab-20261109
     paths:
       - 'android/native-yandex-hooklab/armv7-loader-host/app/src/main/java/pro/celikom/armv7loaderhost/OwnAndroidMediaRuntimeProbe.java'
+      - 'android/native-yandex-hooklab/armv7-loader-host/app/src/main/java/pro/celikom/armv7loaderhost/OwnAndroidAsyncRaceProbe.java'
+      - 'android/native-yandex-hooklab/armv7-loader-host/app/src/main/java/pro/celikom/armv7loaderhost/AudioSmokeScreen.java'
       - 'android/native-yandex-hooklab/armv7-loader-host/app/src/main/java/pro/celikom/armv7loaderhost/MainActivity.java'
       - 'android/native-yandex-hooklab/armv7-loader-host/app/src/main/java/pro/celikom/armv7loaderhost/AudioSmokeSource.java'
       - 'android/native-yandex-hooklab/armv7-loader-host/app/build.gradle.kts'
@@ -38,17 +40,23 @@ jobs:
           base=Path("android/native-yandex-hooklab/armv7-loader-host")
           app=(base/"app/src/main/java/pro/celikom/armv7loaderhost/MainActivity.java").read_text()
           probe=(base/"app/src/main/java/pro/celikom/armv7loaderhost/OwnAndroidMediaRuntimeProbe.java").read_text()
+          race=(base/"app/src/main/java/pro/celikom/armv7loaderhost/OwnAndroidAsyncRaceProbe.java").read_text()
           gradle=(base/"app/build.gradle.kts").read_text()
           manifest=(base/"app/src/main/AndroidManifest.xml").read_text()
           assert 'celikomOwnEmulator' in gradle and 'listOf("x86_64")' in gradle
           assert '"pro.celikom.armv7loaderhost.audio"' in app and '"celikom_own_probe"' in app
           assert 'new OwnAndroidMediaRuntimeProbe(this,witness).run()' in app
+          assert 'new OwnAndroidAsyncRaceProbe(this,witness).run()' in app
+          assert '"celikom_own_race"' in app
+          assert 'new MediaPlayer()' in race and 'setOnPreparedListener' in race
+          assert 'OwnSameTrackReloadPlan.decide(' in race
+          assert 'OWN_ASYNC_RACE_PASS' in race and 'ROUNDS=12' in race
           assert 'new MediaPlayer()' in probe and 'MediaDataSource' in probe
           assert 'seekTo(' in probe and 'pause()' in probe and 'prepareAsync()' in probe
           for forbidden in ('ru.yandex.music','ACCESS_NETWORK_STATE','INTERNET',
                             'MediaProjection','AudioRecord','getAccount','getMediaId',
                             'getUri','HttpURLConnection','LSPatch'):
-              assert forbidden not in probe and forbidden not in manifest
+              assert forbidden not in probe and forbidden not in race and forbidden not in manifest
           assert '<uses-permission' not in manifest
           print("PASS: only own WAV, Android MediaPlayer, no vendor access or media capture")
           PY
@@ -75,4 +83,4 @@ jobs:
         run: |
           test ! -d android/native-yandex-hooklab/release
           test ! -d android/native-yandex-hooklab/patched
-          echo 'Only own unprivileged emulator APK. No vendor/player modifications, user login, audio recording, APK delivery.'
+          echo 'Only own unprivileged emulator APK. Both actual MediaPlayer lifecycle and rapid async race tests. No vendor/player modifications, login or audio recording.'
