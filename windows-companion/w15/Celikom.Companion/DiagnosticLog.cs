@@ -58,8 +58,12 @@ public static class DiagnosticLog
 
     public static string ExportText(string? yandexVersion, string integration,
         bool bridgeStarted, bool enabled, bool signedIn,
-        string? nativeModuleVersion = null, bool? nativeMatchesApplication = null)
+        string? nativeModuleVersion = null, bool? nativeMatchesApplication = null,
+        string? diagnosticDirectory = null)
     {
+        // The optional directory permits isolated synthetic export fixtures in
+        // contract tests. Real GUI callers always use the fixed user-owned path.
+        var readDirectory = diagnosticDirectory ?? DirectoryPath;
         var text = new StringBuilder();
         text.AppendLine("CELIKOM WINDOWS OWNER DIAGNOSTICS — W53");
         text.AppendLine("GeneratedUTC=" + DateTimeOffset.UtcNow.ToString("O", CultureInfo.InvariantCulture));
@@ -101,7 +105,7 @@ public static class DiagnosticLog
                 "companion-events.log.1", "companion-events.log",
                 "native-events.log.1", "native-events.log" })
             {
-                var file = Path.Combine(DirectoryPath, name);
+                var file = Path.Combine(readDirectory, name);
                 try
                 {
                     if (!File.Exists(file)) continue;
