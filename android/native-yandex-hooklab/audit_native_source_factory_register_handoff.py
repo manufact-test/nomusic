@@ -39,6 +39,8 @@ SOURCE_CANDIDATES={
     ("Lha4;","<init>"),("Lha4;","b"),("Lha4;","f"),("Lha4;","read"),
     ("Lz3f;","a"),("Lz3f;","b"),
     ("Luiq;","a"),("Lygv;","r"),
+    ("Locv;","i0"),("Lw4y;","z"),("Lfwm;","M"),
+    ("Lero;","<init>"),("Lnro;","<init>"),("Llky;","<init>"),
 }
 MAX_CALLER_METHODS=75
 MAX_FOCUSED_BODY_LENGTH=5000
