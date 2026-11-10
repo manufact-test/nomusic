@@ -399,7 +399,8 @@ public sealed partial class MainWindow
         _compactPromoToggle.TextAlign = ContentAlignment.MiddleLeft;
         _compactPromoToggle.ForeColor = Secondary;
         _compactPromoToggle.Font = new Font("Segoe UI", 8.5F);
-        _compactPromoCode.PlaceholderText = "Промокод";
+        _compactPromoCode.PlaceholderText = "";
+        _compactPromoInput.Hint = "Промокод"; // standard CELIKOM neutral #AAB8BE, not OS hint color
         _compactPromoCode.MaxLength = 64;
         _compactPromoCode.Font = new Font("Segoe UI", 9F);
         SetupMainButton(_compactPromoSubmit, "Активировать", CompactPromoSubmitAsync);
