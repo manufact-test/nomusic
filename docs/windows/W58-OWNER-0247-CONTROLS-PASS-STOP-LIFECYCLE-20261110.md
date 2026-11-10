@@ -1,0 +1,29 @@
+# W58 — owner accepts controls/MyWave; Stop semantics diagnosed (2026-11-10)
+
+## Owner confirmation (no new Windows runtime)
+On the **already installed Windows 0.24.7**, owner explicitly reports **perfect playback, pause, rewind/seek, normal playlist Next/previous, and MyWave unknown upcoming tracks**. These are genuine owner manual verifications, not merely simulated tests. Preserve this version as the first accepted Windows audio + controls baseline. The owner noticed one further behavior: **after pressing CELIKOM Stop and then exiting CELIKOM, a currently substituted Yandex song continued audibly playing**. Treat as a real UX issue/report rather than deny it.
+
+Attached owner redacted diagnostic: `CELIKOM-diagnostics-20261110-133516.txt`, generated UTC `2026-11-10T10:35:17.6070872+00:00`. Read without publishing signed URLs or session credentials. This 15-minute export contains at 10:27:01.552 UTC `STOP_DISABLED`; at 10:27:02.974 `PLAYER_ENGINE_PAUSED` and at 10:27:02.976 `PLAYER_CDP_DETACHED`. The last native media events in that segment were before Stop. It **does not** contain a later newly selected song while the bridge was disabled, so it cannot prove whether the next unheard song also remained substituted. Another GUI run starts 10:33:39 with `START_ENABLED`, so subsequent substituted playback after 10:33:39 must NOT be misattributed to the earlier Stop.
+
+This owner's active-session events document multiple real native `PLAYER_NET_HTTP_PARTIAL` (206) source IDs 139, 90, 78, 45, 3, 1, no HTTP403 or CORS. Only the owner's listening confirms audio; CDP `PlayerAudibleEventObserved=false` is a limited observer indicator, not contradiction.
+
+## Confirmed causal mechanics from source audit
+- Native GUI `MainWindow.cs` uses `_bridge.SetEnabled(!_bridge.Enabled)` for Start/Stop and tray uses `SetEnabled(false)`.
+- `BridgeServer.cs` `SetEnabled(false)` changes `_enabled` and logs `STOP_DISABLED`. `CanResolve = Enabled && _api.IsLoggedIn`; `/v1/resolve` answers `found:false` when off. It does not send any Yandex media command or revoke previously signed URLs.
+- Native `host.cjs` polls `/v1/state` every ~2200ms on active host, delivering `enabled:false` or fallback OFF into already-running Yandex renderer.
+- `renderer-entry.mjs` `__celikomBridgeNativeSetState(false)` calls `adapter.disable()`, which `native-resource-adapter.mjs` uses to cancel outstanding resolves and clear its own cache; future native `getFileInfo/getFileInfoBatch` calls invoke original Yandex.
+- **Previously delivered `downloadInfo.urls[0]` is a plain URL in the Yandex player's existing media source**. CELIKOM cannot mutate already-created decoder streams or erase Yandex media/preload buffers by disabling a hook. The signed audio is served directly by CELIKOM backend using its still-unexpired per-session URL, independent of the Windows bridge after issue. Thus current replacement can continue after Stop or after closing companion, **without implying the app has clandestinely stayed active**. Already-prefetched next tracks may similarly remain cached: not proven in owner's run. Existing grant expiry/entitlement security must not be weakened.
+- This is a **Stop UX semantics gap**: the UI says simply `Стоп` and `Подмена выключена`, while what the source layer strictly guarantees is **no further CELIKOM mapping on new file-info requests**. Do not claim that an already loaded audio stream instantaneously reverts to the original Yandex sound. The exact ability to switch mid-track *without restarting player/losing time* is **unverified**, not implemented.
+
+## Independent W58 regression proof (on separate experiment branch, not owner's 0.24.7)
+Created `experiment/windows-stop-lifecycle-20261110` from frozen W57 owner-approved source. Only test and CI workflow code added, no runtime patch:
+- `windows-companion/w22/native-resource-adapter.test.mjs`: initial approved source persists in already-returned Yandex result; Stop disables adapter and primes; repeated same-ID, subsequent new ID, and batch calls choose real original Yandex URLs; no further CELIKOM resolve requests.
+- `windows-companion/w23/renderer-relay.test.mjs`: actual built renderer bridge receives enabled:false, returns ORIGINAL, no new grants; original Yandex source on subsequent single/batch, and prior resident URL intentionally remains unchanged.
+- Windows staging native source/renderer/host tests **SUCCESS**: https://github.com/manufact-test/nomusic/actions/runs/42801132035. No installer and no new Yandex native module. Stage-only branch is not merged into owner runtime automatically.
+
+## Next safe decision
+Preserve accepted **Windows 0.24.7** and backup `backup/windows-w57-owner-audio-accepted-0247-20261110`. Do not force Yandex `reload()`, Next, pause, or media keys merely to fake an instant Stop fix; that would interrupt listening or change track and might regress owner-approved sound. Clarify UI semantics (e.g. `Отключить подмену` and note that buffered current track may finish) as a small, separately approved UX follow-up. A true seamless immediate reversion requires a proven version-gated native-Yandex source refresh without losing queue/position; investigate read-only before any prototype or new build.
+
+One useful owner manual check, when convenient: press CELIKOM **Стоп** during an approved replaced song, then *search and play a different new approved track not already in the current queue/preload*, to see if it plays Yandex original. If it still plays CELIKOM replacement, capture new 15-min diagnostics; distinguish stale preloading from an actual off-state authorization leak. This is a **test request**, not a blocker to the already owner-approved 0.24.7 audio/controls baseline.
+
+No changes to Android Test.50, PHP production, Yandex original, or GUI 0.24.7 performed in W58.
