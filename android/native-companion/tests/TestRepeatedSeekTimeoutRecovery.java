@@ -67,6 +67,12 @@ public final class TestRepeatedSeekTimeoutRecovery {
   check(e.completedReason!=null&&e.completedReason.contains("оригинал"),
     "show fail-open status instead of repeated loading");
 
+  // An out-of-order async timeout may arrive after the observed source
+  // changes but BEFORE the real boundary event. It cannot disarm A.
+  TestEngine.p.current=TestEngine.source("2",0,true);
+  e.suspend("seek_timeout",e.retryDelay());
+  check(e.seekTimeoutBreaker.blocked(current),
+    "stale cross-source timeout must not unlock the old original-only latch");
   int afterLatch=TestEngine.api.resolves;
   TestEngine.p.current=TestEngine.source("1",100,true);
   e.update(TestEngine.p.current);
@@ -85,6 +91,20 @@ public final class TestRepeatedSeekTimeoutRecovery {
     "different song gets its own normal signed lookup");
   e.close();
  }
+ static void supersededAckCannotClearStreak()throws Exception{
+  preparedReplacement();
+  ReplacementEngine e=TestEngine.e;
+  MediaPlayer p=e.player;
+  p.asyncSeek=true;
+  e.seek(TestEngine.p.current,6000,5000);
+  check(e.audioOwner.seekInFlight(p)&&e.audioOwner.seekFlightCurrentOperation(p)
+        &&"ALIGNMENT".equals(e.audioOwner.inFlightKind(p)),
+   "new alignment flight is eligible in the original operation");
+  e.audioOwner.event(AudioOwnership.Event.PAUSE);
+  check(e.audioOwner.seekInFlight(p)&&!e.audioOwner.seekFlightCurrentOperation(p),
+   "pause revokes callback eligibility even when old seek remains in flight");
+  e.close();
+ }
  static void noIdentityCannotLatch()throws Exception{
   preparedReplacement();
   ReplacementEngine e=TestEngine.e;
@@ -97,6 +117,7 @@ public final class TestRepeatedSeekTimeoutRecovery {
  }
  public static void main(String[] args)throws Exception{
   exerciseRepeatAndRewind();
+  supersededAckCannotClearStreak();
   noIdentityCannotLatch();
   System.out.println("PASS: "+assertions+
     " engine-fake repeated-seek fallback and true Next isolation checks; no HONOR audio measured");
