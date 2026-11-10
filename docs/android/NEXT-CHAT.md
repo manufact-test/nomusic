@@ -1,3 +1,13 @@
+## НОВЕЙШАЯ NATIVE ANDROID ПРОВЕРКА НА ТЕЛЕФОНЕ — отдельный публичный MediaSession Gate (10.11.2026)
+
+- **Новая нативная одно-плеерная архитектура**, НЕ Test.50, НЕ Test.51 и НЕ «эквалайзер». Готова отдельная подписанная *диагностическая*, **НЕ аудиоподменяющая** APK `CELIKOM Native Gate` для проверки публичных возможностей уже работающего оригинального Яндекса на HONOR.
+- **[Полный документ, приватность, ручной чек-лист, SHA256](ANDROID-NATIVE-HONOR-PUBLIC-SESSION-GATE-2026-11-10.md)**. [GitHub CI #42863386941 — SUCCESS 2/2](https://github.com/manufact-test/nomusic/actions/runs/42863386941). Точный проверенный код `f565c5650fcf018ae946597e0fc47b2ecb50bc53`; frozen backup `backup/android-native-public-session-gate-signed-ci-green-20261110`; APK SHA256 `1c4672a72dc1a2f2be030e5edff3600a8a2cbe1c5c3c618d5ffc3063d6cd1bd6`. APK из GitHub Actions извлечена, SHA сверен с build receipt, копия в Library `/CELIKOM/Android/Native/CELIKOM-Native-Gate-0.1-READONLY.apk`.
+- Проверка №1 **без разрешений**: публичный media service binder; №2 **добровольно и только с явным системным широким доступом к уведомлениям**: `MediaSessionManager.getActiveSessions` уже работающего Яндекса и ONLY BOOLEAN platform/Media3 command flags. NotificationListener callbacks пусты; интернета, сохранения данных, треков, паролей/URI, playback команд и подмены источника нет. Android запрещает разрешение — **не обходить** Play Protect/restricted settings. После проверки отозвать доступ. На телефоне ещё не проверено.
+- **Даже CHANGE_MEDIA_ITEMS=true НЕ означает native source-first подмену**. Это всего лишь проверка доступных MediaSession команд. Реальный выбранный decoder/source, `trackId+edition+generation` и альтернативная аудиодорожка пока НЕ доказаны. Путь через исходную нативную архитектуру остаётся NO-GO, пока не появится разрешённый источник до decoder prepare. Отдельный native read-only Lero/Lmb4/Lha4 код/DEX с прежним CI-green сохранён.
+- Основной Яндекс на HONOR, owner-accepted Test.50, Test.51, Windows, расширение, API, DB и production НЕ изменялись.
+
+---
+
 ## АКТУАЛЬНАЯ NATIVE ANDROID ТОЧКА — source→reader nested execution, CI GREEN (10.11.2026)
 
 - **ЭТО НОВАЯ ОДНОПЛЕЕРНАЯ НАТИВНАЯ РАЗРАБОТКА, НЕ TEST.50, НЕ TEST.51 И НЕ DynamicsProcessing.** Ветка `experiment/android-native-yandex-fileinfo-hooklab-20261109`. Старый Test.50 «как эквалайзер» — независимый принятый эталон; случайная Test.51 не используется.
