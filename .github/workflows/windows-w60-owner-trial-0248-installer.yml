@@ -1,4 +1,4 @@
-name: CELIKOM W63 0.24.11 owner UI parity trial — private
+name: CELIKOM W64 0.24.12 owner UI fixes trial — private
 
 on:
   push:
@@ -87,9 +87,9 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          $installer = 'windows-companion/w20/output/CELIKOM-W63-EXTENSION-UX-TRACK-UNSIGNED.exe'
+          $installer = 'windows-companion/w20/output/CELIKOM-W64-EXTENSION-FINAL-UX-UNSIGNED.exe'
           $meta = [Diagnostics.FileVersionInfo]::GetVersionInfo((Resolve-Path $installer))
-          if ($meta.FileVersion.Trim() -ne '0.24.11.0' -or $meta.ProductName.Trim() -ne 'CELIKOM' -or $meta.CompanyName.Trim() -ne 'CELIKOM') {
+          if ($meta.FileVersion.Trim() -ne '0.24.12.0' -or $meta.ProductName.Trim() -ne 'CELIKOM' -or $meta.CompanyName.Trim() -ne 'CELIKOM') {
             throw "W32_INSTALLER_PE_VERSION_MISMATCH: version=$($meta.FileVersion) product=$($meta.ProductName) company=$($meta.CompanyName)"
           }
           $package = Join-Path $env:RUNNER_TEMP 'CELIKOM-W32-test-package.zip'
@@ -117,7 +117,7 @@ jobs:
           $ErrorActionPreference = 'Stop'
           $exe = Join-Path $env:LOCALAPPDATA 'Programs\CELIKOM\CELIKOM.Companion.exe'
           $unins = Join-Path $env:LOCALAPPDATA 'Programs\CELIKOM\unins000.exe'
-          $installer = 'windows-companion/w20/output/CELIKOM-W63-EXTENSION-UX-TRACK-UNSIGNED.exe'
+          $installer = 'windows-companion/w20/output/CELIKOM-W64-EXTENSION-FINAL-UX-UNSIGNED.exe'
           $yandexDir = Join-Path $env:LOCALAPPDATA 'Programs\YandexMusic'
           if (Test-Path $exe) { throw 'W20_DIRTY_INSTALL_RUNNER' }
           if (Test-Path $yandexDir) { throw 'W20_RUNNER_YANDEX_PREEXISTS' }
@@ -157,13 +157,13 @@ jobs:
       - name: Report internal package fingerprint
         shell: pwsh
         run: |
-          $hash = (Get-FileHash windows-companion/w20/output/CELIKOM-W63-EXTENSION-UX-TRACK-UNSIGNED.exe -Algorithm SHA256).Hash
+          $hash = (Get-FileHash windows-companion/w20/output/CELIKOM-W64-EXTENSION-FINAL-UX-UNSIGNED.exe -Algorithm SHA256).Hash
           Write-Output "W20_INTERNAL_UNSIGNED_SHA256=$hash"
           Write-Output 'W24 INTERNAL: installer and restoration; native audible playback NOT YET ACCEPTED'
       - name: Retain INTERNAL staging build, not a release
         uses: actions/upload-artifact@v4
         with:
-          name: CELIKOM-W63-EXTENSION-UX-TRACK-UNSIGNED
-          path: windows-companion/w20/output/CELIKOM-W63-EXTENSION-UX-TRACK-UNSIGNED.exe
+          name: CELIKOM-W64-EXTENSION-FINAL-UX-UNSIGNED
+          path: windows-companion/w20/output/CELIKOM-W64-EXTENSION-FINAL-UX-UNSIGNED.exe
           if-no-files-found: error
           retention-days: 10
