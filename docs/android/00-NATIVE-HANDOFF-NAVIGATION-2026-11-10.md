@@ -2,7 +2,15 @@
 
 **Начальная точка:** `docs/android/START-NEXT-CHAT-ANDROID-NATIVE-2026-11-10.md` — готовый текст первого сообщения новому разработчику.
 
-## НОВЕЙШАЯ CI GREEN ТОЧКА — оригинальный FileInfo → typed model → реальный Le48 field (10.11.2026)
+## НОВЕЙШИЙ ПРОВЕРЕННЫЙ КОД — obfuscated DataSource + два Le48-источника (10.11.2026)
+
+- **CI GREEN SHA:** `6b5bfde53d81a29920f32a3c6b13b730b216e669`; **независимый откат:** `backup/android-signed-dual-source-dataspec-open-ci-green-20261110`.
+- **Читать ПЕРВЫМ:** `docs/android/ANDROID-NATIVE-SIGNED-DATASPEC-OPEN-SOURCE-EVIDENCE-2026-11-10.md`. Установлен подписанный DEX DataSource-совместимый контракт Lm48(b(La58):J, getUri, close) + родитель Lv38(read([BII):I), 33 реализации; проверены реальные Lha4.open/read и Lz3f.a→Lm48.b(La58).
+- Lga4.b/c используют secondary Le48, Lga4.d primary Le48; secondary в Lcq7.i0 = Lya4 → Lza4 (открытие/чтение выбрасывает исключение), **primary = Lcq7.A→Luiq** (ленивая фабрика Lm48). Оба источника передаются в Lha4, нельзя их путать. Общее соседство с ExoPlayer **не доказывает** текущий trackId/edition/generation и live decoder PREPARE.
+- **CI:** [field2 #42813687276 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/42813687276), [two slots #42814211492 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/42814211492), [inherited API #42814967628 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/42814967628), [source/open #42815048696 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/42815048696), [Android module #42815048701 SUCCESS 2/2](https://github.com/manufact-test/nomusic/actions/runs/42815048701).
+- **Нет Android audio PASS** и точной идентичности FileInfo→текущий экземпляр Lm48 перед prepare. Ничего в player/replacement не подключено; Test.50/HONOR/Windows/API/production не тронуты.
+
+## ПРЕДЫДУЩАЯ CI GREEN ТОЧКА — оригинальный FileInfo → typed model → реальный Le48 field (10.11.2026)
 
 - **Проверенный код:** `78b0437f17888ce49a4c1bea0ba06ca96cb455b9`. **Бэкап:** `backup/android-signed-typed-dispatch-field-audit-ci-green-20261110` → ровно `78b0437f17888ce49a4c1bea0ba06ca96cb455b9`.
 - **Читать первым:** `docs/android/ANDROID-NATIVE-SIGNED-TYPED-DISPATCH-EVIDENCE-2026-11-10.md` — реальные DEX данные от Lhee/Lged через Leed/Ldiv → Lygv.r → Ljgv → Lcq7/Lo4y/Larv; неоднозначный 16-way Le48 dispatch и точный writer/reader аудит двух разных Le48-полей класса Lga4.
