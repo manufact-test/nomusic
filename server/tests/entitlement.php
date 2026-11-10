@@ -197,6 +197,21 @@ try {
         $path = (string)parse_url($data['audio_url'], PHP_URL_PATH);
         expect($app->handle('GET', $path, $signed, ['Range' => 'bytes=0-3'])->status === 206, 'real Range');
         expect($app->handle('HEAD', $path, $signed)->status === 200, 'signed HEAD');
+        // W56: exact signed URL is unchanged; only the native renderer
+        // media source URL gets a final harmless query guard. Yandex's
+        // "?vsid=...&source_index=..." then cannot corrupt signed sid.
+        $nativeMedia = $data['audio_url'] . '&celikom_native_query_guard=0?vsid=V&source_index=2#t=0';
+        parse_str((string)parse_url($nativeMedia, PHP_URL_QUERY), $nativeSigned);
+        expect($nativeSigned['sid'] === (string)$sessionId &&
+            $nativeSigned['token'] === $signed['token'] &&
+            $nativeSigned['expires'] === $signed['expires'],
+            'Yandex URL metadata cannot change session-bound signed fields');
+        expect($app->handle('GET', $path, $nativeSigned, ['Range' => 'bytes=0-3'])->status === 206,
+            'W56 signed live-session Range succeeds with inert metadata guard');
+        parse_str((string)parse_url($data['audio_url'] . '?vsid=V&source_index=2', PHP_URL_QUERY), $brokenNative);
+        expect($app->handle('GET', $path, $brokenNative, ['Range' => 'bytes=0-3'])->status === 403,
+            'W56 unprotected telemetry query breaks strict sid validation');
+
         expect($app->handle('GET', $path, $signed, ['Range' => 'bytes=999999999-'])->status === 416, 'signed 416');
         $tampered = $signed; $tampered['sid'] = (string)($sessionId + 1);
         expect($app->handle('GET', $path, $tampered)->status === 403, 'cannot move capability to another session');
@@ -252,6 +267,8 @@ try {
         }
         $pdo->exec('UPDATE user_sessions SET revoked_at = UTC_TIMESTAMP(6) WHERE id = ' . $sessionId);
         expect($app->handle('GET', $path, $signed)->status === 403, 'revoked session invalidates buffered seek/range');
+        expect($app->handle('GET', $path, $nativeSigned)->status === 403,
+            'W56 query guard cannot bypass revoked session');
         expect($app->handle('GET', '/api/v1/resolve', $query, $headers)->status === 401, 'revoked resolve denied');
     });
     run('Stage10 migration rerun preserves existing trial and catalog', function () use ($pdo, $runner, $catalogBefore): void {
