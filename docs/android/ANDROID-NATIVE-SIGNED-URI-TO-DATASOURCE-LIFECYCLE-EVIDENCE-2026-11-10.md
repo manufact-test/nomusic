@@ -63,7 +63,7 @@
 - [Source factory + lifecycle caller census #42819113120](https://github.com/manufact-test/nomusic/actions/runs/42819113120) — **SUCCESS**.
 - [Signed wrapper/coroutine strict regression #42817633107](https://github.com/manufact-test/nomusic/actions/runs/42817633107) — **SUCCESS**.
 - [Exact signed URI-model and i0 field projection #42819106641](https://github.com/manufact-test/nomusic/actions/runs/42819106641) — **SUCCESS**.
-- [Read-only Android module at latest code #42819113420](https://github.com/manufact-test/nomusic/actions/runs/42819113420) — **проверить окончательный статус 2/2**.
+- [Read-only Android module at latest code #42819113420](https://github.com/manufact-test/nomusic/actions/runs/42819113420) — **SUCCESS 2/2**.
 
 Следующий большой этап: вывести изолированный **пассивный** идентификатор связи URI / model / source-generation на границе actual DataSource.open и decoder prepare без URI, токенов, аудио или модификаций официального Яндекса; проверить, что \`Locv.t/remove\` относятся к реальному выбранному MediaSource, а не фоновому prefetch. Для runtime-части нужен **отдельный ARM-test host**, не пользовательский HONOR и не старый x86 LSPatch. Если реальный preprepare не доказан, по-прежнему NO-GO к Android аудиоподмене.
 
