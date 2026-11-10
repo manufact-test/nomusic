@@ -204,7 +204,7 @@ public sealed partial class MainWindow
             using var brush = new SolidBrush(_connectionMark.ForeColor);
             e.Graphics.FillEllipse(brush, 0, 0, 7, 7);
         };
-        Place(_connectionMark, _compactHeader, 2, 17, 7, 7);
+        Place(_connectionMark, _compactHeader, 2, 15, 7, 7); // align with visible "CELIKOM" glyph, not Label bounding box
         var logo = Tiny("CELIKOM", 11, Ink);
         logo.Font = new Font("Segoe UI", 11F, FontStyle.Bold);
         Place(logo, _compactHeader, 16, 8, 97, 24);
@@ -708,8 +708,7 @@ public sealed partial class MainWindow
                 (_compactVersionStatus, 40, 8, hasTrack),
                 (_compactAccountFrame, _compactAccountOpen ? 54 + CompactAccountHeight() : 44, 10, true),
                 (_compactSupportFrame, _compactSupportOpen ?
-                    54 + (_compactSupportKind.SelectedIndex == 1 ? 373 : 296) : 35,
-                    8, true),
+                    54 + CompactSupportBodyHeight() : 35, 8, true),
                 (_staffPanel, 29, 8, _diagnosticsAllowed)
             };
             var contentHeight = 18 + rows.Where(r => r.visible).Sum(r => r.height + r.gap);
@@ -754,7 +753,7 @@ public sealed partial class MainWindow
             _compactSupportBody.Visible = _compactSupportOpen;
             if (_compactSupportOpen)
                 Place(_compactSupportBody, _compactSupportFrame, 12, 42,
-                    width - 24, _compactSupportKind.SelectedIndex == 1 ? 373 : 296);
+                    width - 24, CompactSupportBodyHeight());
             LayoutCompactAccount(width - 24);
             LayoutCompactSupport(width - 24);
             LayoutCompactContributions(width);
@@ -771,11 +770,11 @@ public sealed partial class MainWindow
 
     private int CompactSignedHeight()
     {
-        int y = 8 + 35; // promo summary
+        int y = 8 + 45; // promo summary + 12px breathing room
         if (_compactPromoOpen)
         {
-            y += 44 + 46;
-            if (_compactPromoMessage.Text.Length > 0) y += 40;
+            y += 52 + 52; // 42px input/button, 10px between them
+            if (_compactPromoMessage.Text.Length > 0) y += 44;
         }
         y += 34; // email
         y += CompactBenefitsHeight();
@@ -803,17 +802,17 @@ public sealed partial class MainWindow
             // Exact extension order: summary -> optional promo form -> email
             // -> real benefits -> logout. Everything stays inside one card.
             Place(_compactPromoToggle, _compactAccountBody, 0, y, w, 33);
-            y += 35;
+            y += 45; // 12px between promo summary and form
             if (_compactPromoOpen)
             {
                 Place(_compactPromoInput, _compactAccountBody, 0, y, w, 42);
-                y += 44;
+                y += 52; // 10px between input and Activate
                 Place(_compactPromoSubmit, _compactAccountBody, 0, y, w, 42);
-                y += 46;
+                y += 52;
                 if (_compactPromoMessage.Text.Length > 0)
                 {
                     Place(_compactPromoMessage, _compactAccountBody, 0, y, w, 38);
-                    y += 40;
+                    y += 44;
                 }
             }
             Place(_signedInIdentity, _compactAccountBody, 0, y, w, 30);
@@ -861,6 +860,13 @@ public sealed partial class MainWindow
         }
     }
 
+    private int CompactSupportBodyHeight()
+    {
+        var song = _compactSupportKind.SelectedIndex == 1;
+        var hasMessage = !string.IsNullOrWhiteSpace(_compactSupportMessage.Text);
+        return (song ? 338 : 273) + (hasMessage ? 48 : 0);
+    }
+
     private void LayoutCompactSupport(int w)
     {
         var song = _compactSupportKind.SelectedIndex == 1;
@@ -875,26 +881,52 @@ public sealed partial class MainWindow
         Place(_compactSupportDescriptionLabel, _compactSupportBody, 0,
             song ? 145 : 78, w, 24);
         Place(_compactSupportInput, _compactSupportBody, 0, song ? 174 : 109, w, 99);
-        Place(_compactSupportSubmit, _compactSupportBody, 0, song ? 275 : 209, w, 40);
-        Place(_compactSupportMessage, _compactSupportBody, 0, song ? 324 : 256, w, 48);
+        // 13–14 px between textarea and submit, not a 1px collision.
+        Place(_compactSupportSubmit, _compactSupportBody, 0, song ? 286 : 222, w, 40);
+        _compactSupportMessage.Visible = false;
+        if (!string.IsNullOrWhiteSpace(_compactSupportMessage.Text))
+            Place(_compactSupportMessage, _compactSupportBody, 0,
+                song ? 339 : 275, w, 42);
+    }
+
+    private int UploadBodyInnerWidth() =>
+        Math.Max(110, Math.Max(190, _compactScroll.ClientSize.Width - 36) - 26);
+
+    private int UploadTrackHeight()
+    {
+        var h = TextRenderer.MeasureText(_compactUploadTrack.Text,
+            _compactUploadTrack.Font, new Size(UploadBodyInnerWidth(), 140),
+            TextFormatFlags.WordBreak | TextFormatFlags.NoPadding).Height;
+        return Math.Clamp(h + 4, 24, 56);
+    }
+
+    private int UploadNoteHeight()
+    {
+        if (string.IsNullOrWhiteSpace(_compactUploadNote.Text)) return 0;
+        var h = TextRenderer.MeasureText(_compactUploadNote.Text,
+            _compactUploadNote.Font, new Size(UploadBodyInnerWidth(), 140),
+            TextFormatFlags.WordBreak | TextFormatFlags.NoPadding).Height;
+        return Math.Clamp(h + 10, 26, 65);
     }
 
     private int CompactUploadFormHeight()
     {
-        int y = 14 + 25 + 6 + 43 + 8;
+        // Must exactly mirror the actual visible controls below. Nothing is
+        // reserved for validation, progress or notes until they are shown.
+        int y = 14 + 31 + UploadTrackHeight() + 6;
         y += _bridge.LastTrackDurationMs >= 1000 ? 25 : 70;
-        y += 79 + 9;
+        y += 79 + 9; // file picker
         if (_compactFileChecking || _compactAudioPreflight is not null)
             y += CompactValidationHeight() + 8;
-        y += 48 + 10;
+        y += 48 + 10; // rights declaration
         if (_compactUploadCancellation is not null) y += 15 + 7;
-        y += 44 + 6;
-        if (!string.IsNullOrWhiteSpace(_compactUploadNote.Text)) y += 58;
+        y += 44 + 6; // submit
+        y += UploadNoteHeight();
         return y + 14;
     }
 
     private int CompactValidationHeight() =>
-        _compactFileChecking ? 48 :
+        _compactFileChecking ? 46 :
         _compactAudioPreflight?.Blocked == true ? 108 : 56;
 
     private int CompactSuggestFormHeight() =>
@@ -918,8 +950,9 @@ public sealed partial class MainWindow
             int y = 14;
             Place(_compactUploadHeading, _compactUploadBody, 13, y, inner, 25);
             y += 31;
-            Place(_compactUploadTrack, _compactUploadBody, 13, y, inner, 43);
-            y += 51;
+            var titleHeight = UploadTrackHeight();
+            Place(_compactUploadTrack, _compactUploadBody, 13, y, inner, titleHeight);
+            y += titleHeight + 6;
             if (_bridge.LastTrackDurationMs >= 1000)
             {
                 Place(_compactUploadDurationKnown, _compactUploadBody, 13, y, inner, 25);
@@ -962,9 +995,8 @@ public sealed partial class MainWindow
             Place(_compactUploadSubmit, _compactUploadBody, 13, y, inner, 44);
             y += 50;
             if (!string.IsNullOrWhiteSpace(_compactUploadNote.Text))
-            {
-                Place(_compactUploadNote, _compactUploadBody, 13, y, inner, 58);
-            }
+                Place(_compactUploadNote, _compactUploadBody, 13, y, inner,
+                    UploadNoteHeight());
         }
         else if (result)
         {
