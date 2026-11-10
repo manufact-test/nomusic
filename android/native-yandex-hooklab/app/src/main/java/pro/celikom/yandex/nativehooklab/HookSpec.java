@@ -32,7 +32,7 @@ public final class HookSpec {
         Class<?> result=Class.forName("emb",false,loader);
         for(Method method:holder.getDeclaredMethods()) {
             if("A".equals(method.getName())
-                    && Modifier.isStatic(method.getModifiers())
+                    && !Modifier.isAbstract(method.getModifiers())
                     && method.getReturnType()==result
                     && method.getParameterCount()==2
                     && method.getParameterTypes()[0]==first
