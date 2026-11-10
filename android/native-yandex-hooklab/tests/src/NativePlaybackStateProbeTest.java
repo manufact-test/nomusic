@@ -45,7 +45,8 @@ public final class NativePlaybackStateProbeTest {
         p.onPublishedState(2, 120);
         yes(p.snapshot().unknownStates == 1, "unknown platform state");
         yes(p.snapshot().pausesSoonAfterPlay == 0, "unknown cannot bridge rapid pair");
-        p.onPublishedState(3, 70);
+        p.onPublishedState(3, 70); // clock reversal; discarded to avoid false pair
+        p.onPublishedState(3, 71); // fresh baseline in new clock epoch
         p.onPublishedState(2, 75);
         yes(p.snapshot().timeResets == 1, "clock reversal invalidates previous state");
         yes(p.snapshot().pausesSoonAfterPlay == 1, "fresh post-reset pair allowed");
