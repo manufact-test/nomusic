@@ -411,25 +411,89 @@ public sealed partial class MainWindow
         finally { _compactSupportBusy = false; _compactSupportSubmit.Enabled = true; }
     }
 
-    private void CompactChooseAudio(object? sender, EventArgs e)
+    private long? GetCompactOriginalDuration()
+    {
+        var known = _bridge.LastTrackDurationMs;
+        if (known >= 1000) return known;
+        if (double.TryParse(_compactUploadDuration.Text.Trim().Replace(',', '.'),
+                NumberStyles.AllowDecimalPoint, CultureInfo.InvariantCulture, out var seconds) &&
+            seconds is >= 1 and <= 86400)
+            return (long)Math.Round(seconds * 1000);
+        return null;
+    }
+
+    private void CompactUploadError(string message)
+    {
+        _compactUploadNote.Text = message;
+        _compactUploadNote.ForeColor = ColorTranslator.FromHtml("#FFBDB7");
+        _compactUploadNote.BackColor = _compactUploadBody.BackColor;
+        RenderCompact();
+        LayoutCompact();
+    }
+
+    private async Task CheckCompactFileAsync(int debounceMs = 0)
+    {
+        if (_compactSelectedAudio is null || _compactUploadView != "form") return;
+        var path = _compactSelectedAudio;
+        var trackId = _compactPinnedUploadTrack;
+        var original = GetCompactOriginalDuration();
+        var generation = ++_compactFilePreflightGeneration;
+        _compactFileChecking = true;
+        _compactAudioPreflight = null;
+        _compactPreflightTrack = "";
+        _compactPreflightReferenceMs = 0;
+        RenderCompact();
+        LayoutCompact();
+        if (debounceMs > 0) await Task.Delay(debounceMs);
+        if (generation != _compactFilePreflightGeneration || _closing ||
+            trackId != _bridge.LastSong || _compactSelectedAudio != path) return;
+        AudioPreflight.Result result;
+        try
+        {
+            result = await AudioPreflight.CheckAsync(path, original,
+                _bridge.LastTrackTitle, _bridge.LastTrackArtist);
+        }
+        catch (Exception)
+        {
+            result = new AudioPreflight.Result(null, true, false,
+                "Файл не удалось проверить. Выберите другой MP3 или M4A.", "");
+        }
+        if (generation != _compactFilePreflightGeneration || _closing ||
+            trackId != _bridge.LastSong || _compactSelectedAudio != path) return;
+        _compactFileChecking = false;
+        _compactAudioPreflight = result;
+        _compactPreflightTrack = trackId;
+        _compactPreflightReferenceMs = original ?? 0;
+        _compactUploadNote.Text = "";
+        RenderCompact();
+        LayoutCompact();
+    }
+
+    private async void CompactChooseAudio(object? sender, EventArgs e)
     {
         using var select = new OpenFileDialog
         {
-            Title = "Выбери версию песни", Filter = "Аудио (*.mp3;*.m4a)|*.mp3;*.m4a",
+            Title = "Выбери версию песни",
+            Filter = "Аудио (*.mp3;*.m4a)|*.mp3;*.m4a",
             RestoreDirectory = true, CheckFileExists = true
         };
         if (select.ShowDialog(this) != DialogResult.OK) return;
         var file = new FileInfo(select.FileName);
-        if (file.Length is < 1024 or > 31_457_280)
+        if (file.Length is < 1024 or > AudioPreflight.MaxBytes)
         {
-            _compactUploadNote.Text = "Размер: до 30 МиБ.";
+            CompactUploadError("Выберите MP3 или M4A размером до 30 МиБ.");
             return;
         }
         _compactSelectedAudio = file.FullName;
         _compactUploadRequestId = Guid.NewGuid();
-        _compactFilePicker.SelectedFile = file.Name;
-        _compactFileName.Text = file.Name.Length > 36 ? file.Name[..33] + "…" : file.Name;
+        _compactFilePicker.SelectedFile = file.Name + " · " +
+            (file.Length / 1_048_576d).ToString("0.0",
+                CultureInfo.GetCultureInfo("ru-RU")) + " МиБ";
+        // The extension displays this inside its file picker, not a second label.
+        _compactFileName.Text = "";
         _compactUploadNote.Text = "";
+        _compactUploadNote.ForeColor = Secondary;
+        await CheckCompactFileAsync();
     }
 
     private async void CompactSuggestAsync(object? sender, EventArgs e)
@@ -502,17 +566,17 @@ public sealed partial class MainWindow
             _compactUploadNote.Text = "Выбери MP3 или M4A.";
             return;
         }
-        var durationMs = _bridge.LastTrackDurationMs;
-        if (durationMs < 1000)
+        var durationMs = GetCompactOriginalDuration();
+        if (durationMs is null)
         {
-            if (!double.TryParse(_compactUploadDuration.Text.Trim().Replace(',', '.'),
-                    NumberStyles.AllowDecimalPoint, CultureInfo.InvariantCulture, out var seconds) ||
-                seconds < 1 || seconds > 86400)
-            {
-                _compactUploadNote.Text = "Не удалось получить длительность из Яндекса. Укажи её в секундах.";
-                return;
-            }
-            durationMs = (long)Math.Round(seconds * 1000);
+            CompactUploadError("Не удалось определить длительность текущей песни. Отправка заблокирована.");
+            return;
+        }
+        if (_compactFileChecking || _compactAudioPreflight is not { Blocked: false } ||
+            _compactPreflightTrack != track || _compactPreflightReferenceMs != durationMs)
+        {
+            CompactUploadError("Сначала дождитесь проверки аудиофайла. Неподходящая длительность блокирует загрузку.");
+            return;
         }
         using var token = new CancellationTokenSource();
         _compactUploadCancellation = token;
@@ -534,6 +598,19 @@ public sealed partial class MainWindow
             if (status != "none" || track != _bridge.LastSong)
                 throw new ApiFailure(400, "TRACK_CHANGED");
             var upload = _compactSelectedAudio;
+            if (upload is null) throw new ApiFailure(400, "INVALID_FILE");
+            // Independent preflight immediately before multipart body transmission:
+            // never upload when the file changed after initial selection.
+            var checkedAgain = await AudioPreflight.CheckAsync(
+                upload, durationMs, _bridge.LastTrackTitle, _bridge.LastTrackArtist, token.Token);
+            if (checkedAgain.Blocked || track != _bridge.LastSong)
+            {
+                _compactAudioPreflight = checkedAgain;
+                _compactFileChecking = false;
+                CompactUploadError(checkedAgain.Blocked ? checkedAgain.DurationMessage :
+                    "Трек изменился. Повторите загрузку.");
+                return;
+            }
             var progress = new Progress<int>(percent =>
             {
                 if (_compactUploadCancellation != token || _closing) return;
@@ -542,7 +619,7 @@ public sealed partial class MainWindow
                     ? "Файл передан. Ждём ответа сервера…"
                     : "Загружаем: " + percent + "%";
             });
-            await _api.UploadTrackAsync(track, upload, durationMs,
+            await _api.UploadTrackAsync(track, upload, durationMs.Value,
                 _bridge.LastTrackTitle, _bridge.LastTrackArtist,
                 _compactUploadRequestId, progress, token.Token);
             if (_bridge.LastSong == track && _compactPresenceTrack == track)
@@ -563,13 +640,13 @@ public sealed partial class MainWindow
             _compactRights.Checked = false;
             _compactUploadRequestId = Guid.NewGuid();
         }
-        catch (OperationCanceledException) { _compactUploadNote.Text = "Загрузка отменена."; }
+        catch (OperationCanceledException) { CompactUploadError("Загрузка отменена."); }
         catch (ApiFailure ex) when (ex.Category is "track_pending" or "track_already_approved")
         {
             CompactResult(true, ex.Category == "track_pending" ? "Трек уже добавлен" : "Версия уже доступна",
                 "Эта версия уже есть в CELIKOM, повторная отправка не нужна.");
         }
-        catch (Exception ex) { _compactUploadNote.Text = DescribeAccountError(ex); }
+        catch (Exception ex) { CompactUploadError(DescribeAccountError(ex)); }
         finally
         {
             _compactUploadCancellation = null;
