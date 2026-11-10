@@ -22,6 +22,7 @@ public sealed partial class MainWindow
     private readonly Panel _compactSuggestBody = new();
     private readonly Label _compactAccess = new();
     private readonly Label _compactTrack = new();
+    private readonly Label _compactTrackArtist = new();
     private readonly Label _compactVersionStatus = new();
     private readonly Label _compactStartup = new();
     private readonly Panel _compactUploadResult = new();
@@ -230,10 +231,14 @@ public sealed partial class MainWindow
         _compactTrack.ForeColor = Secondary;
         _compactTrack.Font = new Font("Segoe UI", 9F);
         _compactTrack.Text = "Запустите трек в Яндекс Музыке";
+        _compactTrackArtist.ForeColor = Secondary;
+        _compactTrackArtist.Font = new Font("Segoe UI", 8.5F);
+        _compactTrackArtist.Text = "";
+        _compactTrackArtist.AutoEllipsis = true;
         _compactVersionStatus.Font = new Font("Segoe UI", 8.5F);
         _compactVersionStatus.ForeColor = Secondary;
         _compactVersionStatus.Text = "Версия песни CELIKOM";
-        _compactStartup.Font = new Font("Segoe UI", 8.5F);
+        _compactStartup.Font = new Font("Segoe UI", 10F, FontStyle.Bold);
         _compactStartup.ForeColor = Accent;
         _compactStartup.Text = "";
         SetupMainButton(_compactAccountTrigger, "Аккаунт · войти", (_, _) =>
@@ -280,7 +285,8 @@ public sealed partial class MainWindow
         {
             _compactHeader, _compactActions, _compactStartup, _compactUploadButton,
             _compactUploadBody, _compactSuggestButton, _compactSuggestBody,
-            _compactAccess, _compactTrack, _compactVersionStatus, _compactAccountTrigger,
+            _compactAccess, _compactTrack, _compactTrackArtist,
+            _compactVersionStatus, _compactAccountTrigger,
             _compactAccountBody, _compactSupportTrigger, _compactSupportBody,
             _staffPanel
         }) _compactScroll.Controls.Add(c);
@@ -527,14 +533,18 @@ public sealed partial class MainWindow
         {
             var title = _bridge.LastTrackTitle;
             var artist = _bridge.LastTrackArtist;
-            _compactTrack.Text = title.Length > 0
-                ? title + (artist.Length > 0 ? " — " + artist : "")
-                : "Track ID " + id;
+            _compactTrack.Text = title.Length > 0 ? title : "Track ID " + id;
+            _compactTrackArtist.Text = artist;
         }
-        else _compactTrack.Text = "Запустите трек в Яндекс Музыке";
+        else
+        {
+            _compactTrack.Text = "Запустите трек в Яндекс Музыке";
+            _compactTrackArtist.Text = "";
+        }
 
-        _compactUploadTrack.Text = _compactTrack.Text;
-        _compactSuggestTrack.Text = _compactTrack.Text;
+        _compactUploadTrack.Text = _compactTrack.Text +
+            (_compactTrackArtist.Text.Length > 0 ? " — " + _compactTrackArtist.Text : "");
+        _compactSuggestTrack.Text = _compactUploadTrack.Text;
         var duration = _bridge.LastTrackDurationMs;
         _compactUploadDurationKnown.Text = duration >= 1000 ?
             "Длительность: " + TimeSpan.FromMilliseconds(duration).ToString(@"m\:ss") : "";
@@ -555,7 +565,11 @@ public sealed partial class MainWindow
             if (valid && _api.IsLoggedIn && IsHandleCreated)
                 _ = RefreshCompactPresenceAsync(id);
         }
-        _compactVersionStatus.Text = !_api.IsLoggedIn ? "Войди, чтобы проверить версию" :
+        var activelyReplacing = _bridge.Enabled && _bridge.LastStatus ==
+            "NATIVE_MAPPING_ACCEPTED" && _compactPresenceStatus == "approved";
+        _compactVersionStatus.Text = activelyReplacing ?
+            "Подмена активна · версия CELIKOM" :
+            !_api.IsLoggedIn ? "Войди, чтобы проверить версию" :
             _compactPresenceStatus switch
             {
                 "approved" => "Версия песни CELIKOM доступна для подмены",
@@ -565,7 +579,7 @@ public sealed partial class MainWindow
                 _ => "Проверяем версию песни CELIKOM…"
             };
         _compactVersionStatus.ForeColor =
-            _compactPresenceStatus == "approved" ? Accent :
+            activelyReplacing || _compactPresenceStatus == "approved" ? Accent :
             _compactPresenceStatus == "pending" ? ColorTranslator.FromHtml("#FFE1A1") : Secondary;
         _compactUploadButton.Enabled = _api.IsLoggedIn && !_compactContributionBusy;
         _compactSuggestButton.Enabled = _api.IsLoggedIn && !_compactContributionBusy;
@@ -598,7 +612,8 @@ public sealed partial class MainWindow
                     ? (string.IsNullOrWhiteSpace(_compactSuggestNote.Text) ? 92 : 128)
                     : 126, 8, _compactSuggestOpen),
                 (_compactAccess, 35, 8, true),
-                (_compactTrack, 56, 4, true),
+                (_compactTrack, 32, 0, true),
+                (_compactTrackArtist, 25, 3, !string.IsNullOrWhiteSpace(_compactTrackArtist.Text)),
                 (_compactVersionStatus, 40, 8, hasTrack),
                 (_compactAccountTrigger, 44, 8, true),
                 (_compactAccountBody, CompactAccountHeight(), 8, _compactAccountOpen),
@@ -648,7 +663,7 @@ public sealed partial class MainWindow
     }
 
     private int CompactAccountHeight() => _api.IsLoggedIn ?
-        (_compactPromoOpen ? 242 : 112) :
+        (_compactPromoOpen ? 270 : 132) :
         _compactAccountMode is "login" or "register" ? 326 :
         _compactAccountMode is "verify" ? 256 :
         _compactAccountMode is "recovery" ? 207 : 308;
@@ -668,15 +683,19 @@ public sealed partial class MainWindow
 
         if (signed)
         {
-            Place(_signedInIdentity, _compactAccountBody, 0, 0, w, 27);
-            Place(_compactPromoToggle, _compactAccountBody, 0, 30, w, 32);
+            // Same order as extension/popup/popup.html:
+            // Promo section, signed-in identity, then sign out.
+            Place(_compactPromoToggle, _compactAccountBody, 0, 5, w, 35);
             if (_compactPromoOpen)
             {
-                Place(_compactPromoInput, _compactAccountBody, 0, 67, w, 42);
-                Place(_compactPromoSubmit, _compactAccountBody, 0, 115, w, 40);
-                Place(_compactPromoMessage, _compactAccountBody, 0, 159, w, 37);
+                Place(_compactPromoInput, _compactAccountBody, 0, 49, w, 42);
+                Place(_compactPromoSubmit, _compactAccountBody, 0, 100, w, 40);
+                Place(_compactPromoMessage, _compactAccountBody, 0, 146, w, 44);
             }
-            Place(_logout, _compactAccountBody, 0, _compactPromoOpen ? 200 : 69, w, 40);
+            Place(_signedInIdentity, _compactAccountBody, 0,
+                _compactPromoOpen ? 199 : 48, w, 26);
+            Place(_logout, _compactAccountBody, 0,
+                _compactPromoOpen ? 230 : 81, w, 40);
             return;
         }
         _compactEmailLabel.Text = "Email";
