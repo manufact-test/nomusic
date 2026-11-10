@@ -1,5 +1,8 @@
 # CELIKOM Android native-Yandex hook lab (ISOLATED, READ-ONLY)
 
+> **CURRENT A1 checkpoint (11.11.2026):** [реальный ARM read-only witness + приватный lab split export](../../docs/android/ANDROID-NATIVE-A1-REAL-ARM-LSPATCH-WITNESS-20261111.md). Отдельная ветка `feature/android-native-clone-lspatch-a1-20261111`, CI [42902701224](https://github.com/manufact-test/nomusic/actions/runs/42902701224) SUCCESS. Ни одного ARM native Yandex runtime/аудиотеста нет; **не выдавать это за работающий APK**. Возвращаться к прежним synthetic-only задачам без аппаратного gate не нужно.
+
+
 **Status:** Source code only; builds a *CELIKOM Xposed module APK* (not an independent music player). Owner authorized research and preparation for **a separate disposable test device only**. No package was installed, and **nothing** on the owner's HONOR, stable Test.50, catalog or server is touched.
 
 ## NEWEST verified actual Android 13 async player race / rapid Start-Stop-Next (2026-11-10)
