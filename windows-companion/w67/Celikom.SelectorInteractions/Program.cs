@@ -1,6 +1,7 @@
 // Real Win32 mouse/keyboard exercise on disposable Windows CI desktop.
 // Does not contact support API, open the Yandex player or touch user installation.
 using System.Drawing;
+using System.Drawing.Imaging;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Windows.Forms;
@@ -116,6 +117,18 @@ internal static class Program
             var targetPoint = menu.PointToScreen(new Point(
                 item.Bounds.Left + Math.Min(45, item.Width / 2),
                 item.Bounds.Top + item.Height / 2));
+            if (iteration == 0)
+            {
+                // Inspect the real OS-rendered popup (including hover style).
+                SetCursorPos(targetPoint.X, targetPoint.Y);
+                Pump();
+                var screenshots = Path.GetFullPath("windows-companion/w67/out");
+                Directory.CreateDirectory(screenshots);
+                using var screenshot = new Bitmap(menu.Width, menu.Height);
+                using (var g = Graphics.FromImage(screenshot))
+                    g.CopyFromScreen(menu.PointToScreen(Point.Empty), Point.Empty, menu.Size);
+                screenshot.Save(Path.Combine(screenshots, "support-kind-hover.png"), ImageFormat.Png);
+            }
             Click(targetPoint);
             Pump(); // complete queued WinForms native menu Close and deferred layout
             if (support.SelectedIndex != target)
