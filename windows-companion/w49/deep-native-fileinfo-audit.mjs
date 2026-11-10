@@ -96,6 +96,20 @@ for(const fileName of files){
         playerPos:player,moduleStart,moduleId:last?.[1]||"UNKNOWN",
         exportHeader:moduleHead.replace(/\s+/g," ").slice(0,600)
       }));
+      const moduleEnd=s.indexOf("},",player+1000);
+      for(const needle of ["extends N","new N(","class er","class y","class et","class Z","class M","class $","this.mediaProvider="]){
+        const positions=[];let pos=player;
+        while((pos=s.indexOf(needle,pos))>=0 && positions.length<4){
+          if(pos>player+53000)break;
+          positions.push(pos);pos+=needle.length;
+        }
+        for(const at of positions) {
+          console.log("W49F_PLAYER_EXPORT_REFERENCE "+JSON.stringify({
+            needle,pos:at,context:s.slice(Math.max(0,at-95),Math.min(s.length,at+235))
+              .replace(/\s+/g," ").slice(0,330)
+          }));
+        }
+      }
     }
     for(const needle of ["class N{play(e)", "corePlay(", "getMediaSource(", "hooks.afterError.promise", "beforeMediaStartPlaying.promise", "MEDIA_ELEMENT_ERROR"]) {
       const pos=s.indexOf(needle);
