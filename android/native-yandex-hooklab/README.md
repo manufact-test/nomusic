@@ -2,7 +2,13 @@
 
 **Status:** Source code only; builds a *CELIKOM Xposed module APK* (not an independent music player). Owner authorized research and preparation for **a separate disposable test device only**. No package was installed, and **nothing** on the owner's HONOR, stable Test.50, catalog or server is touched.
 
-## LATEST own-source instance fence and signed Lemb source alternatives (2026-11-10)
+## NEWEST verified source-instance fail-closed ARM64 checkpoint (2026-11-10)
+
+- **CI GREEN code:** `59aa2d14bf32fd0f5eb553c09ec88738d84353a0`; **frozen rollback:** `backup/android-signed-source-instance-failclosed-arm64-ci-green-20261110`; evidence: `docs/android/ANDROID-NATIVE-SOURCE-INSTANCE-ARM64-AND-LEMB-BRANCHES-2026-11-10.md`.
+- Strict `NativeSourceInstanceFence.snapshot`: any rejected event in same generation permanently invalidates synthetic `complete`, even after clean `open/read/close`; old-generation stale events do not poison new epochs. New regression tests cover both. All code remains OWN-ONLY pure Java, no `NativeHookEntry` wiring.
+- [Native ARM64 Linux JVM #42828086262](https://github.com/manufact-test/nomusic/actions/runs/42828086262) SUCCESS; [Android lab and module #42828086264](https://github.com/manufact-test/nomusic/actions/runs/42828086264) SUCCESS 2/2. This is **NOT a Yandex decoder runtime test or working alternate audio**. Signed 8 `Lemb` implementations still require a trusted active-source witness.
+
+## PREVIOUS own-source instance fence and signed Lemb source alternatives (2026-11-10)
 
 - **Signed-original + OWN-ONLY code:** `3aaab880fff4326b596f63a52a89a0f4d0085fef`, immutable backup `backup/android-signed-source-instance-arm64-lemb-ci-green-20261110`; full evidence: `docs/android/ANDROID-NATIVE-SOURCE-INSTANCE-ARM64-AND-LEMB-BRANCHES-2026-11-10.md`.
 - Exactly 8 concrete `Lemb` implementors and only 4 direct `Lemb.t/remove` callsites in signed 6 DEX. `Lero` is just one of possible source classes (e.g. factories `Lkvs.A`, `Locv.i0`, `Larv.g` instantiate multiple alternative `Lemb` types). **Do not equate a static Lero reader chain with the selected active player.**
