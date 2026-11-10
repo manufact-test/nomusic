@@ -20,6 +20,7 @@ HERE=Path(__file__).resolve().parent
 sys.path.insert(0,str(HERE.parents[1]/"tools"/"android-native-gate1"))
 from inspect_android_host import Dex,DexError,DEX_MAX
 from trace_native_callers import method_definitions,INVOKES
+from audit_native_media_implementors import relations
 from audit_native_register_bridge import instructions,invoke_registers,move_object_registers
 import clone_native_splits_ephemeral as exact
 
@@ -37,6 +38,10 @@ LIMIT_DEX=6
 MAX_BODIES=240000
 MAX_LERO_READER_FIELDS=10
 SHORT_LERO_CTOR="(Lwzi;Lga4;)V"
+SOURCE_IMPLEMENTORS={
+    "Lalt;","Lchg;","Lero;","Locv;","Lojz;","Lt67;","Lt6f;","Lxq7;"
+}
+SOURCE_METHODS={"t":"(Ldmb;)V","remove":"()V"}
 
 
 
@@ -116,6 +121,40 @@ def local_ocv_ero_constructor_calls(d,ins):
     }
 
 
+def lifecycle_method_resolution(implementors, declared, ancestry):
+    """Class hierarchy audit only; runtime hook registration not proven.
+
+    A subclass may inherit t/remove instead of declaring them. A method
+    declared by an interface isn't an invocable concrete hook body.
+    """
+    output={}
+    for cls in sorted(implementors):
+        rows={}
+        for operation,descriptor in SOURCE_METHODS.items():
+            matches=[]
+            cursor=cls
+            seen=set()
+            for depth in range(32):
+                if cursor in seen or cursor is None:break
+                seen.add(cursor)
+                if (operation,descriptor) in declared.get(cursor,set()):
+                    matches.append((cursor,depth))
+                    break
+                parents=ancestry.get(cursor,())
+                # Follow the actual Java superclass, not any interface; it
+                # appears first in our signed class-def relations() output.
+                cursor=parents[0] if parents else None
+                if cursor=="Ljava/lang/Object;":break
+            rows[operation]={
+                "declared_on_concrete_class":bool(matches and matches[0][1]==0),
+                "concrete_implementation_owner":matches[0][0] if matches else None,
+                "inherited_from_superclass":bool(matches and matches[0][1]>0),
+                "hookable_declaration_resolved":bool(matches),
+            }
+        output[cls]=rows
+    return output
+
+
 def inspect_signed(splits):
     defined=Counter()
     reader_fields=set()
@@ -123,6 +162,8 @@ def inspect_signed(splits):
     dex_count=0
     bodies=0
     owner_callsite=None
+    ancestry={}
+    declared={}
     for apk in splits:
         with zipfile.ZipFile(apk) as archive:
             for entry in archive.infolist():
@@ -131,6 +172,9 @@ def inspect_signed(splits):
                 if entry.file_size>DEX_MAX:raise ValueError("DEX_TOO_LARGE")
                 d=Dex(archive.read(entry.filename))
                 dex_count+=1
+                for name,(flags,parents) in relations(d).items():
+                    if name in ancestry:raise ValueError("DUPLICATE_SOURCE_CLASS")
+                    ancestry[name]=parents
                 n,off=d.table(80,8)
                 for i in range(n):
                     pos=off+i*8
@@ -145,6 +189,9 @@ def inspect_signed(splits):
                     bodies+=1
                     if bodies>MAX_BODIES:raise ValueError("METHOD_BOUND")
                     signature=d.method(idx)
+                    if signature[0] in SOURCE_IMPLEMENTORS or signature[0] in ancestry:
+                        if signature[1] in SOURCE_METHODS and signature[2]==SOURCE_METHODS[signature[1]]:
+                            declared.setdefault(signature[0],set()).add((signature[1],signature[2]))
                     if signature in TARGETS or signature==OWNER_BUILDER:
                         defined[signature]+=1
                     if signature==OWNER_BUILDER:
@@ -167,7 +214,10 @@ def inspect_signed(splits):
         raise ValueError("EXACT_LERO_CONSTRUCTOR_PAIR_NOT_PROVEN")
     if not result["one_typed_lero_lmb4_field"]:
         raise ValueError("EXACT_LERO_READER_FIELD_COUNT")
+    lifecycle=lifecycle_method_resolution(SOURCE_IMPLEMENTORS,declared,ancestry)
     return {
+        "signed_source_implementor_lifecycle_resolution":lifecycle,
+        "signature_only_lifecycle_resolution_not_runtime_observed":True,
         "signed_dex_count":dex_count,
         "method_bodies_scanned":bodies,
         **result,
@@ -208,6 +258,7 @@ if __name__=="__main__":
             "EXACT_LOCV_I0_METHOD_MISSING_OR_AMBIGUOUS",
             "DUPLICATE_LOCV_SOURCE_BUILDER",
             "SIGNED_LOCV_SOURCE_CTOR_CALLSITE_MISSING",
+            "DUPLICATE_SOURCE_CLASS",
             "PINNED_ORIGINAL_SHA_MISMATCH","FIVE_SIGNED_SPLITS_REQUIRED",
         }
         code=str(exc)
