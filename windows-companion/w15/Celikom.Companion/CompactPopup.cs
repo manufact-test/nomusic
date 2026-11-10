@@ -10,6 +10,7 @@ public sealed partial class MainWindow
 {
     private readonly Panel _compactScroll = new();
     private readonly Panel _compactFooter = new();
+    private readonly TableLayoutPanel _compactFrame = new();
     private readonly VScrollBar _compactScrollbar = new();
     private readonly Dictionary<Control, int> _compactPositions = new();
     private int _compactScrollTop;
@@ -169,12 +170,19 @@ public sealed partial class MainWindow
         _compactScroll.TabStop = true;
         _compactScroll.Resize += (_, _) => LayoutCompact();
         _compactScroll.MouseWheel += CompactMouseWheel;
-        _compactFooter.Dock = DockStyle.Bottom;
-        _compactFooter.Height = 30;
+        _compactFooter.Dock = DockStyle.Fill;
         _compactFooter.BackColor = Paper;
-        Controls.Add(_compactFooter);
-        Controls.Add(_compactScroll);
-        _compactFooter.BringToFront();
+        _compactFrame.Dock = DockStyle.Fill;
+        _compactFrame.Margin = Padding.Empty;
+        _compactFrame.Padding = Padding.Empty;
+        _compactFrame.RowCount = 2;
+        _compactFrame.ColumnCount = 1;
+        _compactFrame.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        _compactFrame.RowStyles.Add(new RowStyle(SizeType.Absolute, 30));
+        _compactFrame.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        _compactFrame.Controls.Add(_compactScroll, 0, 0);
+        _compactFrame.Controls.Add(_compactFooter, 0, 1);
+        Controls.Add(_compactFrame);
         _compactScrollbar.Dock = DockStyle.Right;
         _compactScrollbar.Width = 12; // fits inside right 16px inset; body never narrows
         _compactScrollbar.SmallChange = 30;
