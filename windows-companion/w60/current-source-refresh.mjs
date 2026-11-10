@@ -107,20 +107,36 @@ export function createCurrentSourceRefresh({onEvent = () => {}} = {}) {
     original = null;
     patchedGetter = null;
   }
-  // Read-only current entity for Windows UI; never uses the preload ID.
-  function currentTrackId() {
-    if (disposed) return "";
+  // Only the currently playing/paused queue entity, not a prefetched item.
+  // Read bounded DISPLAY metadata only. Never expose URLs, tokens, account
+  // information, Yandex state objects or internal player references.
+  function currentTrack() {
+    if (disposed) return null;
     const player = current?.deref();
-    if (!player) return "";
+    if (!player) return null;
     try {
       const state = player.state;
-      if (!playable(state)) return "";
-      const id = state.queueState.currentEntity.value.entity.data.meta.id;
-      const normalized = typeof id === "number" && Number.isSafeInteger(id) ? String(id) : id;
-      return typeof normalized === "string" && EXACT_ID.test(normalized) ? normalized : "";
-    } catch { return ""; }
+      if (!playable(state)) return null;
+      const entry = state.queueState.currentEntity.value.entity;
+      const meta = entry.data.meta;
+      const id = typeof meta.id === "number" && Number.isSafeInteger(meta.id)
+        ? String(meta.id) : meta.id;
+      if (typeof id !== "string" || !EXACT_ID.test(id)) return null;
+      const clean = value => typeof value === "string"
+        ? value.replace(/[\\u0000-\\u001f\\u007f]/g, " ").trim().slice(0, 180) : "";
+      const artists = Array.isArray(meta.artists) ? meta.artists
+        .slice(0, 4).map(a => clean(a?.name ?? a?.artist?.name)).filter(Boolean) : [];
+      const title = clean(meta.title) || clean(meta.name) || clean(entry.data.title);
+      const artist = artists.join(", ") || clean(meta.artist) || clean(entry.data.artist);
+      const rawDuration = meta.durationMs ?? entry.data.durationMs ??
+        meta.duration_milliseconds;
+      const durationMs = Number.isSafeInteger(rawDuration) &&
+        rawDuration >= 1000 && rawDuration <= 86400000 ? rawDuration : null;
+      return {id, title, artist, durationMs};
+    } catch { return null; }
   }
+  function currentTrackId() { return currentTrack()?.id || ""; }
 
-  return Object.freeze({attach, request, dispose, currentTrackId,
+  return Object.freeze({attach, request, dispose, currentTrack, currentTrackId,
     get attached() { return !!prototype && !disposed; }});
 }
