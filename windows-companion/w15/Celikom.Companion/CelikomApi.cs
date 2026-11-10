@@ -258,5 +258,100 @@ public sealed class CelikomApi : IDisposable
         return element;
     }
 
+    // The popup uses the SAME CELIKOM endpoints as the browser extension.
+    // UI previews never authorize playback; ResolveAsync is still the authority.
+    private async Task<JsonElement> SignedRequestAsync(string route, HttpMethod method,
+        object? body = null, CancellationToken ct = default)
+    {
+        var session = Settings;
+        if (!IsLoggedIn) throw new ApiFailure(401, "INVALID_SESSION");
+        var target = new Uri(session.Origin + "/api/v1/" + route);
+        try { return await RequestAsync(target, method, body, session.AccessToken, ct); }
+        catch (ApiFailure ex) when (ex.HttpStatus == 401)
+        {
+            if (!await RefreshOnceAsync(session.AccessToken, ct))
+                throw new ApiFailure(401, "INVALID_SESSION");
+            var current = Settings;
+            if (!IsLoggedIn || current.Origin != session.Origin ||
+                current.InstallationId != session.InstallationId ||
+                current.Email != session.Email)
+                throw new ApiFailure(401, "INVALID_SESSION");
+            // Repeat only idempotent reads; never replay promo/support writes.
+            if (method != HttpMethod.Get) throw new ApiFailure(401, "INVALID_SESSION");
+            return await RequestAsync(target, method, body, current.AccessToken, ct);
+        }
+    }
+
+    public Task<JsonElement> GetEntitlementAsync(CancellationToken ct = default) =>
+        SignedRequestAsync("entitlement", HttpMethod.Get, ct: ct);
+
+    public Task<JsonElement> RedeemPromoAsync(string rawCode, CancellationToken ct = default)
+    {
+        var code = rawCode.Trim();
+        if (code.Length is < 8 or > 64 ||
+            !System.Text.RegularExpressions.Regex.IsMatch(code, "^[A-Za-z0-9_-]+$"))
+            throw new ApiFailure(400, "INVALID_PROMO");
+        return SignedRequestAsync("promos/redeem", HttpMethod.Post, new { code }, ct);
+    }
+
+    public Task<JsonElement> SendSupportAsync(string message, Guid requestKey,
+        CancellationToken ct = default)
+    {
+        if (message.Trim().Length is < 3 or > 2000)
+            throw new ApiFailure(400, "INVALID_REQUEST");
+        return SignedRequestAsync("support", HttpMethod.Post,
+            new { message = message.Trim(), request_key = requestKey.ToString("D"), kind = "general" }, ct);
+    }
+
+    public async Task<JsonElement> RegisterAsync(string origin, string email, string password,
+        CancellationToken ct = default)
+    {
+        var normalized = GrantValidator.NormalizeOrigin(origin).GetLeftPart(UriPartial.Authority);
+        return await RequestAsync(new Uri(normalized + "/api/v1/auth/register"),
+            HttpMethod.Post, new { email = email.Trim(), password,
+                installation_id = Settings.InstallationId }, null, ct);
+    }
+
+    public async Task VerifyEmailAsync(string origin, string email, string code,
+        CancellationToken ct = default)
+    {
+        if (!System.Text.RegularExpressions.Regex.IsMatch(code.Trim(), "^[0-9]{6}$"))
+            throw new ApiFailure(400, "INVALID_CODE");
+        var normalized = GrantValidator.NormalizeOrigin(origin).GetLeftPart(UriPartial.Authority);
+        var previous = Settings;
+        var result = await RequestAsync(new Uri(normalized + "/api/v1/auth/verify-email"),
+            HttpMethod.Post,
+            new { email = email.Trim(), code = code.Trim(),
+                installation_id = previous.InstallationId }, null, ct);
+        var tokens = ReadTokens(result);
+        if (tokens is null) throw new ApiFailure(403, "EMAIL_VERIFICATION_REQUIRED");
+        var next = previous with
+        {
+            Origin = normalized, Email = tokens.Value.email,
+            AccessToken = tokens.Value.access, RefreshToken = tokens.Value.refresh,
+            BridgeToken = Convert.ToHexString(RandomNumberGenerator.GetBytes(32)).ToLowerInvariant()
+        };
+        _store.Save(next);
+        Volatile.Write(ref _current, next);
+    }
+
+    public async Task RequestPasswordResetAsync(string email, CancellationToken ct = default)
+    {
+        await RequestAsync(new Uri(GrantValidator.NormalizeOrigin(
+            Settings.Origin.Length > 0 ? Settings.Origin :
+                "https://darkred-camel-588676.hostingersite.com") + "api/v1/auth/request-reset"),
+            HttpMethod.Post, new { email = email.Trim() }, null, ct);
+    }
+
+    public async Task ResetPasswordAsync(string email, string code, string newPassword,
+        CancellationToken ct = default)
+    {
+        await RequestAsync(new Uri(GrantValidator.NormalizeOrigin(
+            Settings.Origin.Length > 0 ? Settings.Origin :
+                "https://darkred-camel-588676.hostingersite.com") + "api/v1/auth/reset-password"),
+            HttpMethod.Post,
+            new { email = email.Trim(), code = code.Trim(), new_password = newPassword }, null, ct);
+    }
+
     public void Dispose() { _http.Dispose(); _refreshLock.Dispose(); }
 }
