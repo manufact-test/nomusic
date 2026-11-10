@@ -1,0 +1,34 @@
+name: Android original signed obfuscated DataSource-like contract (READ-ONLY)
+on:
+  push:
+    branches:
+      - experiment/android-native-yandex-fileinfo-hooklab-20261109
+    paths:
+      - 'android/native-yandex-hooklab/audit_native_obfuscated_datasource_shape.py'
+      - 'android/native-yandex-hooklab/tests/test_native_obfuscated_datasource_shape.py'
+      - '.github/workflows/android-native-obfuscated-datasource-shape.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  publisher-signed-obfuscated-source-shapes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Test source-like signature classification is conservative
+        run: |
+          set -eu
+          python3 -m py_compile android/native-yandex-hooklab/audit_native_obfuscated_datasource_shape.py
+          python3 -m unittest discover -s android/native-yandex-hooklab/tests -p 'test_native_obfuscated_datasource_shape.py' -v
+      - name: Inspect unchanged signed APK and six DEX for source interface lineage
+        run: python3 android/native-yandex-hooklab/audit_native_obfuscated_datasource_shape.py
+      - name: Read-only signed APK policy
+        if: always()
+        run: |
+          test ! -d android/native-yandex-hooklab/release
+          test ! -d android/native-yandex-hooklab/patched
+          echo 'No Yandex APK export, no audio user state, no hook or decoder claim'
