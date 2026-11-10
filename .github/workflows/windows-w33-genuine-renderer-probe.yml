@@ -70,35 +70,52 @@ jobs:
           if (@($probe | Where-Object { $_ -match '^W33_RT_(NATIVE|MUSIC_WEB|NEXT_WEB|DESKTOP_WEB|MUSIC_COM)_(HTTP_|FETCH_|TIMEOUT)' }).Count -eq 0) {
             throw 'W36_NO_APPROVED_RENDERER_FETCH_RESULT'
           }
-          if ('W33_RT_CDP_NETWORK_ENABLED' -notin $probe) {
-            throw 'W37_PASSIVE_CDP_NOT_ENABLED'
+          if ('W33_RT_CDP_ALREADY_ATTACHED' -in $probe) {
+            # W50+ host.cjs owns the sole CDP debugger for the trusted view.
+            # The old independent W41 probe cannot also attach. Verify that
+            # CDP Media+Network was enabled by CELIKOM itself, not by W41.
+            $ownerNativeLog = Join-Path $env:LOCALAPPDATA 'CELIKOM\Windows\native-events.log'
+            if (-not (Test-Path $ownerNativeLog)) { throw 'W53_HOST_CDP_OWNER_LOG_MISSING' }
+            $nativeEvents = @(Get-Content $ownerNativeLog -TotalCount 3000)
+            if (@($nativeEvents | Where-Object { $_ -match '\|PLAYER_CDP_READY$' }).Count -eq 0) {
+              throw 'W53_HOST_CDP_MEDIA_NOT_READY'
+            }
+            if (@($nativeEvents | Where-Object { $_ -match '\|PLAYER_NET_READY$' }).Count -eq 0) {
+              throw 'W53_HOST_CDP_NETWORK_NOT_READY'
+            }
+            Write-Output 'W53_HOST_OWNED_MEDIA_AND_NETWORK_CDP_VERIFIED'
+            Write-Output 'W41_LEGACY_CDP_WIRE_CLASSIFICATION_NOT_REMEASURED_DUE_TO_OWNERSHIP'
+          } else {
+            if ('W33_RT_CDP_NETWORK_ENABLED' -notin $probe) {
+              throw 'W37_PASSIVE_CDP_NOT_ENABLED'
+            }
+            if (@($probe | Where-Object { $_ -match '^W33_RT_CDP_(LOAD_FAILED_|HTTP_|CSP_CONSOLE)' }).Count -eq 0) {
+              throw 'W37_CDP_HAS_NO_CLASSIFIED_NETWORK_OUTCOME'
+            }
+            if ('W33_RT_CDP_LOAD_FAILED_CORS' -notin $probe) {
+              throw 'W38_EXPECTED_NATIVE_CORS_EVENT_NOT_OBSERVED'
+            }
+            if (@($probe | Where-Object { $_ -match '^W33_RT_CDP_CORS_ENUM_' }).Count -eq 0) {
+              throw 'W38_CORS_ERROR_ENUM_MISSING'
+            }
+            if ('W33_RT_CDP_REQUEST_SEEN' -notin $probe -or
+                'W33_RT_CDP_LOAD_FAILED_CORS' -notin $probe) {
+              throw 'W39_NATIVE_CORS_REQUEST_MISSING'
+            }
+            if (@($probe | Where-Object { $_ -match '^W33_RT_CDP_REQUEST_ORIGIN_' }).Count -eq 0) {
+              throw 'W39_REQUEST_ORIGIN_CATEGORY_MISSING'
+            }
+            if (@($probe | Where-Object { $_ -match '^W33_RT_CDP_WIRE_REQUEST_ORIGIN_' }).Count -eq 0) {
+              throw 'W40_WIRE_ORIGIN_SCHEME_NOT_OBSERVED'
+            }
+            if (@($probe | Where-Object { $_ -match '^W33_RT_CDP_WIRE_SCHEME_' }).Count -eq 0) {
+              throw 'W41_WIRE_ORIGIN_SCHEME_UNKNOWN'
+            }
+            if (@($probe | Where-Object { $_ -match '^W33_RT_CDP_WIRE_HOST_' }).Count -eq 0) {
+              throw 'W41_WIRE_HOST_CATEGORY_MISSING'
+            }
+            Write-Output 'W41_NATIVE_WIRE_SCHEME_CLASSIFIED'
           }
-          if (@($probe | Where-Object { $_ -match '^W33_RT_CDP_(LOAD_FAILED_|HTTP_|CSP_CONSOLE)' }).Count -eq 0) {
-            throw 'W37_CDP_HAS_NO_CLASSIFIED_NETWORK_OUTCOME'
-          }
-          if ('W33_RT_CDP_LOAD_FAILED_CORS' -notin $probe) {
-            throw 'W38_EXPECTED_NATIVE_CORS_EVENT_NOT_OBSERVED'
-          }
-          if (@($probe | Where-Object { $_ -match '^W33_RT_CDP_CORS_ENUM_' }).Count -eq 0) {
-            throw 'W38_CORS_ERROR_ENUM_MISSING'
-          }
-          if ('W33_RT_CDP_REQUEST_SEEN' -notin $probe -or
-              'W33_RT_CDP_LOAD_FAILED_CORS' -notin $probe) {
-            throw 'W39_NATIVE_CORS_REQUEST_MISSING'
-          }
-          if (@($probe | Where-Object { $_ -match '^W33_RT_CDP_REQUEST_ORIGIN_' }).Count -eq 0) {
-            throw 'W39_REQUEST_ORIGIN_CATEGORY_MISSING'
-          }
-          if (@($probe | Where-Object { $_ -match '^W33_RT_CDP_WIRE_REQUEST_ORIGIN_' }).Count -eq 0) {
-            throw 'W40_WIRE_ORIGIN_SCHEME_NOT_OBSERVED'
-          }
-          if (@($probe | Where-Object { $_ -match '^W33_RT_CDP_WIRE_SCHEME_' }).Count -eq 0) {
-            throw 'W41_WIRE_ORIGIN_SCHEME_UNKNOWN'
-          }
-          if (@($probe | Where-Object { $_ -match '^W33_RT_CDP_WIRE_HOST_' }).Count -eq 0) {
-            throw 'W41_WIRE_HOST_CATEGORY_MISSING'
-          }
-          Write-Output 'W41_NATIVE_WIRE_SCHEME_CLASSIFIED'
       - name: Retain only sanitized CI report (never patched Yandex binaries or credentials)
         if: always()
         uses: actions/upload-artifact@v4
