@@ -1,0 +1,34 @@
+name: Android signed FileInfo possible virtual dispatch to media source (READ-ONLY)
+on:
+  push:
+    branches:
+      - experiment/android-native-yandex-fileinfo-hooklab-20261109
+    paths:
+      - 'android/native-yandex-hooklab/audit_native_obfuscated_dispatch_bridge.py'
+      - 'android/native-yandex-hooklab/tests/test_native_obfuscated_dispatch_bridge.py'
+      - '.github/workflows/android-native-obfuscated-dispatch-bridge.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  original-signed-virtual-dispatch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Verify possible virtual dispatch is always fail-closed
+        run: |
+          set -eu
+          python3 -m py_compile android/native-yandex-hooklab/audit_native_obfuscated_dispatch_bridge.py
+          python3 -m unittest discover -s android/native-yandex-hooklab/tests -p 'test_native_obfuscated_dispatch_bridge.py' -v
+      - name: Recheck unmodified signed six DEX and bounded virtual dispatch edges
+        run: python3 android/native-yandex-hooklab/audit_native_obfuscated_dispatch_bridge.py
+      - name: No patch source audio credentials or original APK artifact
+        if: always()
+        run: |
+          test ! -d android/native-yandex-hooklab/release
+          test ! -d android/native-yandex-hooklab/patched
+          echo 'Static possible dispatch only: no actual audio source or decoder proof'
