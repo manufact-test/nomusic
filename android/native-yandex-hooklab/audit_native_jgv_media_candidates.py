@@ -42,6 +42,9 @@ TARGET_METHODS={
   "Ldl8;":{"a","<init>"},
   "Lsu5;":{"invoke","<init>"},
   "Lro7;":{"y0"},
+  "Lya4;":{"a","<init>"},
+  "Lkc6;":{"a","<init>"},
+  "Lzcd;":{"a","<init>"},
 }
 MODEL_TYPES={
   "Ljgv;","Ldiv;","Lkq7;","Lga4;","Lt6f;","Lnro;","Lwzi;",
@@ -111,7 +114,7 @@ def bounded_method_media_calls(triple,dex,code_off):
             caller_protos.append(method_profile(callee))
     # A 721-opcode synthetic lambda multiplexor can reference Lro7.y0
     # in an UNRELATED switch case. A mere callgraph edge is not sound flow.
-    focused=triple[0] in {"Lga4;","Ldl8;","Lsu5;","Lro7;","Lero;"}
+    focused=triple[0] in {"Lga4;","Ldl8;","Lsu5;","Lro7;","Lero;","Lya4;","Lkc6;","Lzcd;"}
     small=focused and len(ins)<=80
     role_rows=[safe_instruction_shape(dex,op,w) for _,op,w in ins[:80]] if focused else []
     windows=[]
