@@ -473,12 +473,9 @@ public sealed class MainWindow : Form
         }
         var answer = MessageBox.Show(this,
             upgrading
-                ? "Обновить модуль CELIKOM внутри Яндекс.Музыки? " +
-                  "Сначала будут проверены и восстановлены оригинальные файлы, затем " +
-                  "установлен новый модуль с диагностикой. Яндекс перезапустится."
-                : "CELIKOM сохранит оригинальные файлы Яндекс.Музыки и подключит свою подмену. " +
-                  "Яндекс будет аккуратно закрыт и перезапущен. Продолжить?",
-            upgrading ? "Обновить модуль CELIKOM" : "Подключить CELIKOM",
+                ? "Чтобы CELIKOM работал, нужно обновить подключение к Яндекс.Музыке. Яндекс перезапустится. Продолжить?"
+                : "Подключить CELIKOM к Яндекс.Музыке? Оригинальные файлы будут сохранены, Яндекс перезапустится.",
+            "Подключение CELIKOM",
             MessageBoxButtons.YesNo, MessageBoxIcon.Question);
         if (answer != DialogResult.Yes) return;
         _integrationBusy = true;
@@ -665,8 +662,8 @@ public sealed class MainWindow : Form
         {
             DiagnosticLog.Record("APP_UPDATE_NATIVE_REFRESH_FAILED");
             MessageBox.Show(this,
-                "CELIKOM обновился, но модуль Яндекса не обновился: " +
-                DescribeIntegrationFailure(error) + "\nНажми «Обновить модуль» после проверки.",
+                "CELIKOM обновился, но подключение к Яндексу нужно завершить. " +
+                DescribeIntegrationFailure(error) + "\nНажми «Старт», чтобы повторить.",
                 "Обновление CELIKOM", MessageBoxButtons.OK, MessageBoxIcon.Warning);
         }
         finally
@@ -725,8 +722,9 @@ public sealed class MainWindow : Form
             await _api.LoginAsync(_origin.Text.Trim(), _email.Text.Trim(), _password.Text);
             DiagnosticLog.Record("LOGIN_OK");
             _password.Clear();
-            _accountStatus.Text = "Вход выполнен. Можно нажать «Старт».";
+            _accountStatus.Text = "";
             NavigateAccount(false);
+            await RefreshDiagnosticsAccessAsync();
         }
         catch (ApiFailure e2)
         {
@@ -736,10 +734,10 @@ public sealed class MainWindow : Form
                 "INVALID_CREDENTIALS" => "Неверная почта или пароль.",
                 "EMAIL_VERIFICATION_REQUIRED" => "Сначала подтверди почту в CELIKOM.",
                 "RATE_LIMITED" => "Слишком много попыток входа.",
-                _ => "Не удалось войти. Проверь адрес API и доступ."
+                _ => "Не удалось войти. Проверь подключение к интернету."
             };
         }
-        catch (Exception) { _accountStatus.Text = "Не удалось войти. Проверь сеть и адрес API."; }
+        catch (Exception) { _accountStatus.Text = "Не удалось войти. Проверь интернет."; }
         finally
         {
             _loggingIn = false;
@@ -750,10 +748,13 @@ public sealed class MainWindow : Form
     private async void LogoutAsync(object? sender, EventArgs e)
     {
         _bridge.SetEnabled(false);
+        ++_diagnosticsEpoch;
+        _diagnosticsAllowed = false;
+        _staffPanel.Visible = false;
         _logout.Enabled = false;
-        try { await _api.LogoutAsync(); DiagnosticLog.Record("LOGOUT_OK"); _accountStatus.Text = "Выход выполнен. Старый код подключения недействителен."; }
+        try { await _api.LogoutAsync(); DiagnosticLog.Record("LOGOUT_OK"); _accountStatus.Text = ""; }
         catch { _accountStatus.Text = "Не удалось завершить выход. Проверь подключение."; }
-        finally { UpdateSafe(preserveAccountStatus: true); }
+        finally { UpdateSafe(preserveAccountStatus: true); NavigateAccount(true); }
     }
 
     private void UpdateSafe(bool preserveAccountStatus = false)
@@ -770,20 +771,18 @@ public sealed class MainWindow : Form
         _logout.Enabled = !_loggingIn && _api.IsLoggedIn;
         var switchAvailable = connected && _nativeInstallState == NativeInstallState.Active &&
             _installedModule.MatchesApplication;
-        _start.Enabled = switchAvailable && !_bridge.Enabled;
+        _start.Enabled = _bridgeStarted && !_integrationBusy && !_updatingApplication &&
+            (!switchAvailable || !_bridge.Enabled);
         _stop.Enabled = switchAvailable && _bridge.Enabled;
         _connectionMark.ForeColor = switchAvailable && _bridge.Enabled
             ? Accent : ColorTranslator.FromHtml("#858B8E");
-        _connectionState.Text = !connected ? "Войти в CELIKOM" :
-            !switchAvailable ? "Нет подключения" :
+        _connectionState.Text = !connected ? "Войти в аккаунт" :
+            !switchAvailable ? "Нужно подключить" :
             _bridge.Enabled ? "Подключён" : "Выключен";
         _connectionState.ForeColor = switchAvailable && _bridge.Enabled ? Accent : Secondary;
-        // A source URL already delivered to Yandex cannot be changed by a
-        // bridge state toggle. Explain that existing playback/preload may
-        // survive, rather than promising instant hot-swap that does not exist.
-        _switchHint.Text = _bridge.Enabled
-            ? "Подмена включена. Для уже играющей песни CELIKOM попробует обновить источник без сброса позиции."
-            : "Подмена выключена. Уже играющая песня переключится на оригинал, если Яндекс поддержит обновление.";
+        _switchHint.Text = !_api.IsLoggedIn ? "Войди в аккаунт, чтобы начать." :
+            !switchAvailable ? "Нажми «Старт», чтобы подключить Яндекс.Музыку." :
+            _bridge.Enabled ? "Подмена включена" : "Подмена выключена";
         if (_bridge.PairCode.Length == 6 && _api.IsLoggedIn &&
             _bridge.CodeExpires > DateTimeOffset.UtcNow)
         {
@@ -815,11 +814,10 @@ public sealed class MainWindow : Form
             "HOST_ERROR" => "Ошибка подключения к модулю Яндекса.",
             _ => "Модуль Яндекса пока не подключён."
         };
-        _status.Text = !_bridgeStarted ? "Локальная служба пока не запущена"
-            : !_api.IsLoggedIn ? "Войди в CELIKOM на вкладке «Аккаунт»"
-            : _nativeInstallState != NativeInstallState.Active ? "Подключи CELIKOM к Яндекс.Музыке."
-            : !_bridge.Enabled ? "CELIKOM подключён. Подмена выключена."
-            : "CELIKOM подключён. Слушай в Яндекс.Музыке.";
+        _status.Text = !_bridgeStarted ? "Не удалось запустить CELIKOM"
+            : !_api.IsLoggedIn ? "Для начала войди в аккаунт."
+            : !switchAvailable ? "Подключение к Яндексу требуется один раз."
+            : !_bridge.Enabled ? "Готов к работе" : "CELIKOM работает";
         _hostStatus.Text = _hostReport?.Status switch
         {
             YandexHostStatus.NotInstalled => "Яндекс.Музыка не найдена. Установи её с официального сайта.",
@@ -831,10 +829,12 @@ public sealed class MainWindow : Form
             YandexHostStatus.InspectionUnavailable => "Не удалось безопасно проверить Яндекс. Файлы не менялись.",
             _ => "Проверяем совместимость установленной Яндекс.Музыки…"
         };
-        if (!preserveAccountStatus)
-            _accountStatus.Text = _api.IsLoggedIn
-                ? "Вход выполнен: " + _api.Email
-                : "Нет активной сессии CELIKOM.";
+        _accountSignedIn.Visible = _api.IsLoggedIn;
+        _accountSignedOut.Visible = !_api.IsLoggedIn;
+        _signedInIdentity.Text = _api.Email;
+        if (!preserveAccountStatus && !_api.IsLoggedIn && string.IsNullOrWhiteSpace(_accountStatus.Text))
+            _accountStatus.Text = "Войди в аккаунт, чтобы начать.";
+        UpdateNavigation(_accountPanel.Visible);
         _connectYandex.Text = _nativeInstallState == NativeInstallState.Active
             ? "Обновить модуль" : "Подключить CELIKOM";
         _connectYandex.Enabled = !_integrationBusy &&
@@ -851,15 +851,7 @@ public sealed class MainWindow : Form
             _hostStatus.Text = "Подключение прервалось. Доступно восстановление оригинала.";
         else if (_nativeInstallState == NativeInstallState.Changed)
             _hostStatus.Text = "Яндекс обновился или изменён. Автоматических изменений не будет.";
-        var moduleText = _nativeInstallState == NativeInstallState.Active
-            ? _installedModule.MatchesApplication
-                ? "Модуль Яндекса: " + AppUpdateManager.RunningVersion.ToString(3) + " ✓"
-                : "Модуль Яндекса: " +
-                  (_installedModule.Version == "unknown" ? "старая версия" : _installedModule.Version) +
-                  " — не совпадает"
-            : "Модуль Яндекса: не подключён";
-        _versionFooter.Text = "CELIKOM " + AppUpdateManager.RunningVersion.ToString(3) +
-            "   |   " + moduleText;
+        _versionFooter.Text = "CELIKOM " + AppUpdateManager.RunningVersion.ToString(3);
         _tray.Text = connected && _bridge.Enabled
             ? "CELIKOM — включён" : "CELIKOM — выключен";
     }
