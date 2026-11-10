@@ -6,7 +6,7 @@
 
 - Код после заключительного подписанного исследования: `3aaab880fff4326b596f63a52a89a0f4d0085fef`.
 - Рабочая ветка: `experiment/android-native-yandex-fileinfo-hooklab-20261109`.
-- Откат: `backup/android-signed-source-instance-arm64-lemb-ci-green-20261110` (указать только после создания из CI GREEN SHA).
+- Откат: `backup/android-signed-source-instance-arm64-lemb-ci-green-20261110` (создан и указывает на точный зелёный SHA).
 - До этого этапа: код `f04745f7dcd4455996eadf56dc0be6c52a44c63f`, откат `backup/android-signed-lero-lmb4-reader-case-ci-green-20261110`.
 - Все действия — GitHub, read-only original signed DEX и **OWN-ONLY** Java model. Не использованы личный HONOR, пользовательский аккаунт, аудиофайлы, URL, оригинальный APK-патч, DRM, production, API или Windows.
 
@@ -51,7 +51,7 @@
 - **Независимый настоящий ARM64 Linux-host**: `.github/workflows/android-native-source-instance-arm64-jvm.yml` собирает и запускает эти же тесты на `ubuntu-24.04-arm`, подтверждает `uname -m = aarch64`. Это **не Android runtime** и не ExoPlayer/decoder.
 - [ARM64 Linux JVM gate #42826864698 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/42826864698).
 - [Синтетические Java tests + Android build #42826380279 SUCCESS 2/2](https://github.com/manufact-test/nomusic/actions/runs/42826380279).
-- [Новый read-only module CI после исследования #42827236060](https://github.com/manufact-test/nomusic/actions/runs/42827236060): проверить финальный статус 2/2 при создании точного бэкапа.
+- [Новый read-only module CI после исследования #42827236060](https://github.com/manufact-test/nomusic/actions/runs/42827236060): **SUCCESS 2/2**.
 
 ## 3. Непреодолённая граница: selected source / actual decoder / текущий track ID
 
