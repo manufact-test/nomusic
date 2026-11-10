@@ -1,3 +1,15 @@
+# FIRST READ — W67 P0 SUPPORT SELECTOR CRASH / WINDOWS 0.24.14 OWNER TEST (2026-11-10)
+
+**URGENT NEXT ACTION:** Read `docs/windows/W67-SUPPORT-SELECT-CRASH-OWNER-HANDOFF-20261110.md` FIRST, then W66 document below. The owner **actually installed and tested W66 / 0.24.14** and observed a **new blocking regression: the entire Windows CELIKOM app exits while opening/changing `Вид обращения` inside `Связь с поддержкой`**. Two UI defects coexist: popup extends outside window to the right and active menu row/text is misaligned. This is **three issues, not just cosmetic**. Owner explicitly requested **NO code fixes now**, only this handoff, with the next chat to fix them as one block. This chat made **documentation-only commits**: **current 0.24.14 binary and exact frozen source are untouched**.
+
+**Likely source:** `windows-companion/w15/Celikom.Companion/PopupOptionSelect.cs` — ContextMenuStrip hard minimum width (parent `_compactSupportKind.DropDownWidth = 300`), `SelectedIndexChanged` raises `LayoutCompact()` from `CompactPopup.cs` synchronously while menu item clicked, menu.Close() and menu.Closed => Dispose. The lifecycle/reentrancy is a HYPOTHESIS, not an established crash cause. Reproduce, log actual exception and add real mouse menu-item lifecycle tests. Existing screenshot harness only assigned SelectedIndex programmatically and missed this crash.
+
+**Keep unchanged:** repository `manufact-test/nomusic`, working branch `experiment/windows-stop-lifecycle-20261110`, **W66 exact backup** `backup/windows-w66-02414-built-ci-passed-await-owner-20261110` @ `6b4a8088b299f802366bc85e3ff28515930336e4`; W65 rollback `backup/windows-w65-02413-built-ci-passed-await-owner-20261110` @ `5ce1b6ebdecf9a49259d29241e5aa29619d2f429`. No new W67 installer yet. W66 remains the built owner candidate: GitHub https://github.com/manufact-test/nomusic/actions/runs/42846306058, Library `/CELIKOM/Windows/CELIKOM-W66-COMPACT-UX-BRAND-UNSIGNED.exe`, SHA256 `2028f53113eef88cfc65b4181336fc9db723a7360a051a551b280863668493f9`.
+
+**Next developer:** correct all 3 support selector defects in a single substantial W67 / 0.24.15 build; preserve working support-to-admin API and DPAPI session, native Start/Stop, pause/seek/MyWave, Yandex originals, production, and Android Test.50. Validate real dropdown click/selection/close and keyboard navigation (not screenshot alone); run installer and in-place 0.24.14→0.24.15 CI proof; publish verified exact EXE into ChatGPT **Library → CELIKOM → Windows** and return a direct Library **file card**, not a sandbox guess. Don't declare user-PC crash resolved until owner validates. Owner prefers no small status updates: work in a large block and report when substantial/full.
+
+---
+
 # FIRST READ — W66 Windows 0.24.14 PRIVATE OWNER TRIAL (2026-11-10)
 
 **Authoritative next handoff:** `docs/windows/W66-OWNER-02414-ICON-METADATA-AND-DYNAMIC-UI-20261110.md`. Continue existing `manufact-test/nomusic`, branch `experiment/windows-stop-lifecycle-20261110`. This chat completed W66 source and build; user **has not tested W66 on real PC yet**. Do NOT begin anew or change music engine/audio source logic.
