@@ -47,7 +47,11 @@ export function createCurrentSourceRefresh({onEvent = () => {}} = {}) {
 
     const observedGet = function() {
       const state = descriptor.get.call(this);
-      if (!disposed && playable(state)) current = new WeakRef(this);
+      if (!disposed) {
+        // The vendor getter must keep its exact return/throw behavior even if
+        // an exotic entity's metadata accessor rejects our observer.
+        try { if (playable(state)) current = new WeakRef(this); } catch {}
+      }
       return state;
     };
     try {
