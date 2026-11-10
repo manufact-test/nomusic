@@ -3,6 +3,8 @@ package pro.celikom.yandex.nativehooklab;
 import android.app.Application;
 import android.content.Context;
 import android.content.pm.PackageInfo;
+import android.media.MediaMetadata;
+import android.media.session.MediaSession;
 import android.util.Log;
 
 import java.lang.reflect.Method;
@@ -28,6 +30,9 @@ public final class NativeHookEntry extends XposedModule {
     private final AtomicInteger newConversions = new AtomicInteger();
     private final AtomicInteger oldConversions = new AtomicInteger();
     private final AtomicInteger modelAccessorCalls = new AtomicInteger();
+    // Privacy-safe lifecycle signal: count framework metadata updates without
+    // accessing the MediaMetadata fields or MediaSession queue contents.
+    private final AtomicInteger metadataUpdates = new AtomicInteger();
     private String processName;
     private boolean attachHooked;
     private boolean targetHooked;
@@ -38,6 +43,7 @@ public final class NativeHookEntry extends XposedModule {
     private boolean modernHooked;
     private boolean legacyHooked;
     private boolean accessorHooked;
+    private boolean metadataHooked;
 
     @Override
     public void onModuleLoaded(ModuleLoadedParam param) {
@@ -67,7 +73,8 @@ public final class NativeHookEntry extends XposedModule {
                 readyClassLoader = param.getClassLoader();
                 // Attach can run before all split / secondary classes resolve.
                 // Retry only for a version-verified context; no eager unsafe hook.
-                if (verifiedHostContext != null && !targetHooked) {
+                if (verifiedHostContext != null
+                        && (!targetHooked || !metadataHooked)) {
                     onAttached(verifiedHostContext);
                 }
             }
@@ -103,7 +110,7 @@ public final class NativeHookEntry extends XposedModule {
 
     @SuppressWarnings("deprecation")
     private synchronized void onAttached(Context context) {
-        if (targetHooked || !HookSpec.TARGET_PACKAGE.equals(context.getPackageName())) return;
+        if (!HookSpec.TARGET_PACKAGE.equals(context.getPackageName())) return;
         try {
             PackageInfo p = context.getPackageManager().getPackageInfo(
                     HookSpec.TARGET_PACKAGE, 0);
@@ -112,6 +119,8 @@ public final class NativeHookEntry extends XposedModule {
                 return;
             }
             verifiedHostContext = context;
+            armPlatformMetadataWitness();
+            if (targetHooked) return;
             // Only an exact pair from a SINGLE verified loader may be used.
             HookSpec.ResolvedPair pair = HookSpec.findConversionPair(
                     readyClassLoader, context.getClassLoader());
@@ -166,6 +175,36 @@ public final class NativeHookEntry extends XposedModule {
             Log.i(TAG, "observer: native file-info converter hooks armed; read-only");
         } catch (Throwable ignored) {
             log(Log.WARN, TAG, "observer: no exact converter pair; original unaffected");
+        }
+    }
+
+    /**
+     * Platform-only read-only witness inspired by the open-source YaMusicLsposed
+     * MediaSession.setMetadata hook (Windyx0, MIT-licensed), implemented anew.
+     * Scope is enforced by the exact Yandex app version gate in onAttached.
+     *
+     * No titles, artists, IDs, URLs, durations, MediaMetadata fields, album art,
+     * queues, or user data are read. No second player and no source mutation.
+     * This ONLY proves that the host process publishes platform metadata,
+     * NOT that any particular FileInfo request is the audible track.
+     */
+    private synchronized void armPlatformMetadataWitness() {
+        if (metadataHooked) return;
+        try {
+            Method method = MediaSession.class.getDeclaredMethod(
+                    "setMetadata", MediaMetadata.class);
+            hook(method)
+                    .setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                    .intercept(chain -> {
+                        Object result = chain.proceed();
+                        safeCount("platform-media-metadata-update", metadataUpdates);
+                        return result;
+                    });
+            metadataHooked = true;
+            log(Log.INFO, TAG, "observer: platform metadata witness armed; counts only");
+        } catch (Throwable ignored) {
+            // A missing platform hook must not prevent native FileInfo observation.
+            log(Log.WARN, TAG, "observer: platform metadata witness unavailable");
         }
     }
 

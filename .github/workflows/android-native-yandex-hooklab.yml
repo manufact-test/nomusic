@@ -49,7 +49,14 @@ jobs:
               assert forbidden not in source, forbidden
           assert 'chain.proceed()' in source
           assert 'setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)' in source
-          print('PASS: read-only, no dangerous permissions, no external player or OAuth capture')
+          assert 'MediaSession.class.getDeclaredMethod(' in source
+          assert '"setMetadata", MediaMetadata.class' in source
+          assert 'safeCount("platform-media-metadata-update", metadataUpdates)' in source
+          assert 'metadataHooked' in source
+          for forbidden in ['getString(', 'getLong(', 'metadata.get', 'MediaMetadata.METADATA_', 'getQueue(', 'getMediaId(', 'getDescription(']:
+              assert forbidden not in source, forbidden
+          assert 'if (targetHooked) return;' in source
+          print('PASS: exact-version metadata witness is read-only, no data values, no second player')
           PY
   android-module-build:
     needs: isolated-synthetic-contract

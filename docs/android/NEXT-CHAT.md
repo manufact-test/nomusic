@@ -1,3 +1,19 @@
+## UPDATE: open-source native playback event evidence (10.11.2026)
+
+Owner personally confirmed ChromaSync Android requires payment and manual patcher; **do not ask for it**, do not claim it free. No candidate outside CELIKOM was installed or paid for.
+
+Checked actual public code, **not marketing alone**:
+- [windyx0/YaMusicLsposed](https://github.com/windyx0/YaMusicLsposed/blob/main/app/src/main/java/io/github/windyx0/yamusiclsposed/MainHook.kt) (MIT): hooks Android framework `android.media.session.MediaSession.setMetadata` from within Yandex process; its sample reads/logs metadata, **we intentionally DO NOT**.
+- [daanqq/YaMusicTabs](https://github.com/daanqq/YaMusicTabs) (source available): modern libxposed `onPackageReady` with the Yandex host classloader to hook native UI. No audio source swap.
+- [errorman-awful/YMDownloaderXposed](https://github.com/errorman-awful/YMDownloaderXposed): public GitHub repository has README/demo, **no Android source**, not a reusable implementation.
+- ChromaSync Android still has only README publicly; exact paywalled module source unavailable.
+
+**Implemented in our native FileInfo module:** passive, version-locked `MediaSession.setMetadata` observer with only throttled integer counter and immutable original call path. Does not inspect MediaMetadata fields, track IDs, titles, URLs, queues, accounts or audio. It can later establish whether a native Android host process emits media metadata changes, *independently* of our already present FileInfo converter counters. A media session event DOES NOT confirm trackId+edition+generation identity or decoder source. Never use it to select alternate audio.
+
+This is a concrete open-source-informed engineering improvement, not a full working native source replacement; must verify module build CI separately and real Yandex runtime only on suitable isolated ARM hardware. Primary HONOR, Test.50, other branches, Windows, extension, server/DB/production unchanged. Backup `backup/android-native-before-open-source-metadata-20261110` before these changes.
+
+---
+
 ## UPDATE 10.11.2026 — signed native ExoPlayer implementor truth (LATEST)
 
 **Verified code commit:** `fcd7550b86ee93082ff3a8b119e38b29d02482d8`. **Rollback backup:** `backup/android-native-real-media-implementation-evidence-20261110`.
