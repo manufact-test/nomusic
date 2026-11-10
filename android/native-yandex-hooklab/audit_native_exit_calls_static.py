@@ -81,6 +81,60 @@ def classify_uncaught_handler_definition(dex):
             "superclass_object": False, "superclass_is_uncaught_handler": False}
 
 
+
+def immediate_int_before_exit(dex, code_off, pc, opcode):
+    """Prove ONLY adjacent single-register literal at callsite; no value flow.
+
+    An instruction-boundary walk prevents treating a multicodeunit operand as
+    a fake preceding const. A nonadjacent or dynamic value is NOT_PROVEN.
+    """
+    from trace_native_callers import OP_WIDTH, payload_width
+    if opcode not in (0x71, 0x77):
+        return "NOT_PROVEN"
+    count = dex.u32(code_off + 12)
+    if count > 3_000_000 or pc >= count:
+        raise DexError("Invalid DEX exit-call code unit offset")
+    start = code_off + 16
+    first = dex.u16(start + pc * 2)
+    if first & 0xff != opcode:
+        raise DexError("Exit-call opcode not aligned")
+    arg_count = (first >> 12) if opcode == 0x71 else (first >> 8)
+    if arg_count != 1:
+        return "NOT_PROVEN"
+    last = dex.u16(start + (pc + 2) * 2)
+    register = (last & 0xF) if opcode == 0x71 else last
+    cur = 0
+    previous = None
+    while cur < pc:
+        word = dex.u16(start + cur * 2)
+        op = word & 0xff
+        width = payload_width(dex, start, count, cur, word >> 8) if op == 0 else OP_WIDTH.get(op)
+        if width is None or cur + width > pc:
+            raise DexError("Invalid instruction boundary before exit call")
+        previous = (cur, width, op, word)
+        cur += width
+    if previous is None:
+        return "NOT_PROVEN"
+    pos, width, op, word = previous
+    literal = None
+    if op == 0x12 and width == 1 and ((word >> 8) & 0xF) == register:
+        nibble = (word >> 12) & 0xF
+        literal = nibble - 16 if nibble >= 8 else nibble
+    elif op in (0x13, 0x15) and width == 2 and (word >> 8) == register:
+        n = dex.u16(start + (pos + 1) * 2)
+        literal = n - 65536 if n >= 32768 else n
+        if op == 0x15:
+            literal <<= 16
+    elif op == 0x14 and width == 3 and (word >> 8) == register:
+        lo = dex.u16(start + (pos + 1) * 2)
+        hi = dex.u16(start + (pos + 2) * 2)
+        n = lo | hi << 16
+        literal = n - (1 << 32) if n & (1 << 31) else n
+    if literal is None:
+        return "NOT_PROVEN"
+    return "IMMEDIATE_CONST_ZERO" if literal == 0 else "IMMEDIATE_CONST_NONZERO"
+
+
 def inspect_dex(raw):
     dex = Dex(raw)
     method_indexes = {
@@ -101,7 +155,7 @@ def inspect_dex(raw):
         scanned += 1
         caller_method = dex.method(caller)
         try:
-            for called, _, _ in invoked_method_indexes(dex, code_off):
+            for called, pc, opcode in invoked_method_indexes(dex, code_off):
                 called_method = dex.method(called)
                 if (caller_method[0] == UNCAUGHT_HANDLER_CLASS and
                         caller_method[1] == "uncaughtException"):
@@ -127,7 +181,12 @@ def inspect_dex(raw):
                     yandex_namespace[kind] += 1
                 meta = safe_method_meta(caller_method)
                 if meta and len(bounded_callers) < 24:
-                    bounded_callers.append({"exit_api": kind, **meta})
+                    evidence = immediate_int_before_exit(dex, code_off, pc, opcode)
+                    bounded_callers.append({
+                        "exit_api": kind,
+                        "immediate_integer_argument_evidence": evidence,
+                        **meta
+                    })
         except DexError:
             anomalies += 1
     return {
