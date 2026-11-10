@@ -28,7 +28,7 @@ from audit_native_register_bridge import (
 )
 import clone_native_splits_ephemeral as exact
 
-WRAPPERS = ("Lxa7;", "Lta7;", "Lwa7;", "Leed;")
+WRAPPERS = ("Lxa7;", "Lta7;", "Lwa7;", "Lya7;", "Lbee;", "Leed;")
 SEEDS = ("Lhee;", "Lged;", "Lfed;", "Lgee;", "Lfqr;")
 INTERFACES = ("Lcod;", "Leod;")
 OWNERS = frozenset(WRAPPERS + SEEDS + INTERFACES)
@@ -293,9 +293,94 @@ def inspect_seed_propagation(apks):
     return dict(sorted(output.items()))
 
 
+
+def safe_instruction_shape(dex,op,words):
+    """Only structural opcode and bounded type hints. No literal bytes/strings."""
+    if op in INVOKES:
+        callee=dex.method(words[1])
+        return {
+            "kind":"invoke_interface" if op in (0x72,0x78) else "invoke",
+            "target":_abstract_short(callee),
+            "argument_count":len(invoke_registers(op,words)),
+        }
+    if op in (0x0a,0x0b,0x0c):
+        return {"kind":("move_result_object" if op==0x0c else "move_result")}
+    if op in (0x07,0x08,0x09):
+        return {"kind":"move_object"}
+    if op in (0x1f,0x20,0x22):
+        # type reference: check-cast, instance-of, new-instance
+        type_id=words[1] if op in (0x1f,0x20,0x22) else None
+        return {
+            "kind":{0x1f:"check_cast",0x20:"instance_of",0x22:"new_instance"}[op],
+            "type":brief_type(dex.descriptor(type_id)),
+        }
+    if op in (0x54,0x5b,0x62,0x69):
+        owner,typ=field_at(dex,words[1])
+        return {"kind":{
+            0x54:"iget_object",0x5b:"iput_object",
+            0x62:"sget_object",0x69:"sput_object"
+        }[op],"owner":brief_type(owner),"field_type":brief_type(typ)}
+    if op==0x11:return {"kind":"return_object"}
+    if op in (0x0e,0x0f,0x10):return {"kind":"return"}
+    if op in (0x28,0x29,0x2a):return {"kind":"goto"}
+    if 0x32<=op<=0x3d:return {"kind":"conditional_branch"}
+    if op in (0x2b,0x2c):return {"kind":"switch"}
+    if op==0x27:return {"kind":"throw"}
+    if op in (0x1a,0x1b):return {"kind":"const_string_reference_redacted"}
+    if op==0x0d:return {"kind":"move_exception"}
+    if op in (0x12,0x13,0x14,0x15,0x16,0x17,0x18,0x19):
+        return {"kind":"const_numeric"}
+    return {"kind":"other"}
+
+
+def focused_producer_windows(dex,code_off,interesting,pre=6,post=44):
+    """Group only immediately surrounding signed FileInfo/coroutine callsites."""
+    ins=list(instructions(dex,code_off))
+    result=[]
+    for index,(_,op,words) in enumerate(ins):
+        if op not in INVOKES:
+            continue
+        method=dex.method(words[1])
+        if (method[0],method[1]) not in interesting:
+            continue
+        excerpt=[safe_instruction_shape(dex,xop,xw)
+                 for _,xop,xw in ins[max(0,index-pre):index+post+1]]
+        result.append({
+            "producer":_abstract_short(method),
+            "relative_invoke_index":min(index,pre),
+            "structural_window":excerpt,
+            "register_or_decoder_proven":False,
+        })
+        if len(result)>=6:
+            break
+    return result
+
+
 def scan_signed(apks):
     bodies,classes,stats=enumerate_target_bodies(apks)
     paths=inspect_seed_propagation(apks)
+    windows={}
+    selected={
+        ("Lsw7;","y0"),("Lsw7;","z0"),
+        ("Lhee;","a"),("Lged;","a"),
+        ("Lta7;","c"),("Lwa7;","a"),("Leed;","a")
+    }
+    selected_methods={
+        ("Lhee;","a"),("Lged;","a"),
+        ("Lfqr;","invokeSuspend"),("Lfed;","invokeSuspend"),
+        ("Lgee;","invokeSuspend")
+    }
+    for apk in apks:
+        with zipfile.ZipFile(apk) as z:
+            for e in z.infolist():
+                if not re.fullmatch(r"classes[0-9]*\.dex",e.filename):continue
+                dex=Dex(z.read(e.filename))
+                for mid,off in method_definitions(dex):
+                    triple=dex.method(mid)
+                    if (triple[0],triple[1]) not in selected_methods:
+                        continue
+                    excerpt=focused_producer_windows(dex,off,selected)
+                    if excerpt:windows[bounded_obfuscated(triple)]=excerpt
     simplified=[]
     for triple,record in sorted(bodies.items()):
         if triple[0] in WRAPPERS or triple[1]=="invokeSuspend":
@@ -307,6 +392,7 @@ def scan_signed(apks):
         "target_method_body_count":len(bodies),
         "wrapper_and_coroutine_method_profiles":simplified[:MAX_TARGET_BODIES],
         "exact_producer_argument_path_mayflow":paths,
+        "focused_signed_producer_opcode_windows":windows,
         "real_audio_datasource_reached":False,
         "current_trackid_edition_generation_proven":False,
         "decoder_preprepare_proven":False,
