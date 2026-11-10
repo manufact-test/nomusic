@@ -126,7 +126,9 @@ public final class NativeSourceDispatchWitness {
      */
     public synchronized boolean onLifecycleTFinish(Object receiver,
                                                    boolean returnedNormally,long now){
-        if(now<0||type(receiver)<0){rejectedUnknown++;return false;}
+        // BEGIN has already classified/rejected the receiver. FINISH
+        // must not double-count an untrusted receiver or admit one.
+        if(now<0||type(receiver)<0)return false;
         expire(now);
         for(int i=0;i<LIMIT;i++){
             if(objects[i]!=receiver||!tInFlight[i])continue;
