@@ -280,7 +280,11 @@ def cfg_result_witness(dex, code_off):
         if not ((producer[0]==SOURCE_OWNER and producer[1] in ("y0","z0"))
                 or (producer[0] in SEED_OWNERS and producer[1]=="a")):
             continue
-        start_pc = ins[i+1][0]
+        # Start AFTER move-result-object; the move-result itself writes the
+        # seed and must not erroneously clear it as an unrelated overwrite.
+        if i+2 >= len(ins):
+            continue
+        start_pc = ins[i+2][0]
         root = ins[i+1][2][0] >> 8
         stack=[(start_pc, frozenset((root,)), 0)]
         visited=set()
