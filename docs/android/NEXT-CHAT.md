@@ -1,4 +1,13 @@
-## НОВЕЙШАЯ CI GREEN — Windows 0.24.9 audio lessons → OWN Android same-track reload (10.11.2026)
+## НОВЕЙШИЙ ПРОВЕРЕННЫЙ ANDROID RUNTIME PASS — API33 OWN MediaPlayer, source reload/Seek/Pause/Next (10.11.2026)
+
+- **CI GREEN код:** `bb26aca9652850c69fbd0896a26bec22601826b0`, **точный immutable backup:** `backup/android-own-api33-real-mediaplayer-source-reload-pass-20261110`, **главный документ:** `docs/android/ANDROID-OWN-API33-MEDIAPLAYER-RUNTIME-PASS-2026-11-10.md`.
+- **Впервые реальные Android 13 native MediaPlayer callbacks в эмуляторе, не JVM модель:** собственный WAV A 440 Hz → Seek 2.2 с → Pause → SAME-TRACK Start alternative A 660 Hz с сохранением Pause и позиции → Resume → Stop, original A 440 Hz с сохранением Playing/позиции → Next B original 330 Hz. Источник выбирается через тот же `OwnSameTrackReloadPlan.decide`; старый плеер сначала release, новый один. На реальном Android CI `RESULT=PASS CODE=OWN_DECODER_LIFECYCLE`.
+- **[Android 13 OWN runtime #42835181030 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/42835181030)**; на том же SHA [OWN ARMv7 host+50 020 tests #42835181029 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/42835181029), [scoped own module #42835181289 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/42835181289), [native-Yandex research build #42835181034 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/42835181034).
+- **Жёсткая граница:** Android emulator x86_64 использует только OWN-пакет, WAV и `-noaudio`; не доказывает слышимый звук, Android-Яндекс, выбранный Lemb из 8 реализаций, trackId+edition+generation или декодер Яндекса. Реальная Android CELIKOM-подмена всё ещё **NO-GO**. Original/Test.50/HONOR/Windows/API/production не трогать.
+
+---
+
+## ПРЕДЫДУЩАЯ CI GREEN — Windows 0.24.9 audio lessons → OWN Android same-track reload (10.11.2026)
 
 - **Проверенный code SHA:** `a7f83f0ab836bbeeb12538c6a389c9569d326610`; **замороженный rollback:** `backup/android-windows-w60-owned-reload-armv7-arm64-ci-green-20261110`; главный документ: `docs/android/ANDROID-WINDOWS-W63-AUDIO-PARITY-OWNED-RELOAD-2026-11-10.md`.
 - **Наконец сопоставили реальные исходники Windows:** `w22/native-resource-adapter.mjs` + `w60/current-source-refresh.mjs` и свежие W57/W60/W61/W62/W63. Owner audio/Pause/Seek/Next/MyWave/Start/Stop **PASS на Windows 0.24.9**, W63 (0.24.11) пока пользовательский UI-кандидат. Windows работает через проверенный `getFileInfo` и Electron `7123.VE.reloadEntity("QUALITY_CHANGE")`; Android **не имеет доказанного идентичного API**.
