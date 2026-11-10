@@ -117,6 +117,9 @@ import { createCurrentSourceRefresh } from "../w60/current-source-refresh.mjs";
     job?.finish(grant ?? null);
   };
   const playerSourceRefresh = createCurrentSourceRefresh({onEvent: report});
+  // Only the actual current player entity, never a prefetched song.
+  // No player controls or media source are changed by this UI-only observer.
+  window.__celikomBridgeNativeCurrentTrackId = () => playerSourceRefresh.currentTrackId();
 
   window.__celikomBridgeNativeSetState = next => {
     if (stopped) return;
@@ -211,6 +214,7 @@ import { createCurrentSourceRefresh } from "../w60/current-source-refresh.mjs";
     delete window.__celikomBridgeNativeReceive;
     delete window.__celikomBridgeNativeSetState;
     delete window.__celikomBridgeNativeStatus;
+    delete window.__celikomBridgeNativeCurrentTrackId;
     delete window.__celikomBridgeNativeDrainDiagnostics;
   }, { once: true });
 })();
