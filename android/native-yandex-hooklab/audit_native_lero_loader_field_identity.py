@@ -169,7 +169,8 @@ def scan_signed(apks):
                     and m[2].startswith("(Lha4;La58;")),None)
     lero_ctor=next(((m,d,off) for m,(d,off) in focus.items()
                     if m[0]=="Lero;" and m[1]=="<init>"
-                    and m[2].startswith("(Lwzi;Lga4;") and m[2].endswith(")V")),None)
+                    and m[2].startswith("(Lwzi;Lga4;") and m[2].endswith(")V")
+                    and method_profile(m)["param_count"]==3),None)
     reader=next(((m,d,off) for m,(d,off) in focus.items()
                  if m[0]=="Lmb4;" and m[1]=="a" and m[2]=="()V"),None)
     if not full_ctor or not lero_ctor or not reader:
@@ -180,7 +181,13 @@ def scan_signed(apks):
     slot=constructor_source_field(cd,coff,cm)
     if slot is None:raise ValueError("EXACT_LMB4_SOURCE_FIELD_NOT_PROVEN")
     construction=basic_block_return_into_reader_ctor(ld,loff)
+    if not construction or not any(
+        row["source_to_reader_ctor_argument_basic_block_witness"]
+        for row in construction):
+        raise ValueError("LGA4_RETURN_TO_LMB4_ARG_NOT_PROVEN")
     accesses=loader_source_field_reads(rd,roff,slot)
+    if not accesses:
+        raise ValueError("LMB4_EXACT_LOADER_FIELD_READ_NOT_PROVEN")
     return {
         "publisher_original_apks":5,
         "signed_original_dex":6,
@@ -220,6 +227,8 @@ if __name__=="__main__":
         codes={
             "FOCUSED_LERO_READER_BODIES_MISSING",
             "EXACT_LMB4_SOURCE_FIELD_NOT_PROVEN","SIGNED_SIX_DEX_EXPECTED",
+            "LGA4_RETURN_TO_LMB4_ARG_NOT_PROVEN",
+            "LMB4_EXACT_LOADER_FIELD_READ_NOT_PROVEN",
             "SIGNED_BODY_BOUND","FOCUSED_BODY_BOUND",
         }
         print(json.dumps({
