@@ -168,6 +168,33 @@ def reachable_media(forward,virtual,seeds):
     }
 
 
+
+def exact_path_constructor_census(reverse):
+    """Static caller evidence for Le48 candidate receiver creation only.
+
+    Method appearance is not concrete object flow; different overloaded
+    constructors or async injection can create distinct instances.
+    """
+    owners={"Lga4;","Ldl8;","Lsu5;","Lero;","Lro7;"}
+    methods=set()
+    result={}
+    for m in sorted(reverse):
+        if m[0] not in owners or m[1] not in ("<init>","a","c","invoke","y0"):
+            continue
+        methods.add(m)
+        result.setdefault(m[0],[]).append({
+            "callee":method_profile(m),
+            "direct_caller_count":len(reverse[m]),
+            "callers":[bounded_obfuscated(c) for c in sorted(reverse[m])[:18]],
+            "receiver_instance_proven":False,
+        })
+    return {
+        "observed_path_method_targets":len(methods),
+        "per_owner":{owner:rows[:24] for owner,rows in sorted(result.items())},
+        "fileinfo_to_callback_instance_binding_proven":False,
+    }
+
+
 def signed_scan(apks):
     scans=[]
     relationships={}
@@ -200,6 +227,7 @@ def signed_scan(apks):
         "invoke_call_edges":sum(x["invoke_edges"] for x in scans),
         "obfuscated_root_class_hierarchy_dispatch":classes,
         "candidate_virtual_edges":sum(len(x) for x in virtual.values()),
+        "exact_candidate_receiver_constructor_census":exact_path_constructor_census(reverse),
         "bounded_callgraph_with_possible_dispatch":reachable_media(
             forward,virtual,seeds),
         "virtual_edges_are_over_approximation":True,
