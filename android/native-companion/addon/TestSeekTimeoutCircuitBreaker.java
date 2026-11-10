@@ -60,6 +60,26 @@ public final class TestSeekTimeoutCircuitBreaker {
   check(!g.timeout("A",-1).originalUntilBoundary,"invalid time cannot latch");
   check(!g.timeout("A",100).originalUntilBoundary,"new valid A starts clean");
  }
+ static void foreignOrUnknownFailureMustNotUnlock() {
+  SeekTimeoutCircuitBreaker g=new SeekTimeoutCircuitBreaker();
+  g.timeout("A",1000);
+  g.timeout("A",1100);
+  check(g.blocked("A"),"A latched before stale callbacks");
+  check(!g.timeout(null,1200).originalUntilBoundary&&g.blocked("A"),
+   "unidentified timeout cannot clear the A latch");
+  check(!g.timeout("",1201).originalUntilBoundary&&g.blocked("A"),
+   "empty identity cannot clear the A latch");
+  check(!g.timeout("A",-1).originalUntilBoundary&&g.blocked("A"),
+   "invalid clock cannot clear the A latch");
+  SeekTimeoutCircuitBreaker.Decision other=g.timeout("B",1300);
+  check(!other.originalUntilBoundary&&other.observedTimeouts==0&&g.blocked("A"),
+   "foreign source callback cannot clear A or poison B");
+  check(g.timeout("A",1400).originalUntilBoundary&&g.blocked("A"),
+   "old source remains original-only until a real boundary");
+  g.boundary();
+  check(!g.blocked("A")&&!g.timeout("B",1600).originalUntilBoundary,
+   "only true boundary starts clean B");
+ }
  static void manyHealthySongsNeverBlock() {
   SeekTimeoutCircuitBreaker g=new SeekTimeoutCircuitBreaker();
   for(int i=0;i<50000;i++){
@@ -87,6 +107,7 @@ public final class TestSeekTimeoutCircuitBreaker {
   resetAndNoCrossTrackCarryover();
   realAckAndLongDelay();
   missingIdentityIsNotRetained();
+  foreignOrUnknownFailureMustNotUnlock();
   manyHealthySongsNeverBlock();
   longSameSongTimeouts();
   System.out.println("PASS: Test.50 isolated seek timeout fail-open gate "+checks+
