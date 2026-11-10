@@ -205,9 +205,10 @@ async function inject(view) {
   return true;
 }
 async function relayState(view, token, now) {
-  // W60: localhost state transitions should apply within one user-visible
-  // button press, not after the old ~2.2-second polling delay.
-  if (now - (lastStateAt.get(view) || 0) < 600) return;
+  // W61: short bounded local-only state poll to reduce time from UI click
+  // to the native source refresh. Per-view tick is serialized (busy WeakSet)
+  // and this never speeds up the actual Yandex media source download.
+  if (now - (lastStateAt.get(view) || 0) < 260) return;
   lastStateAt.set(view, now);
   const state = await localRequest(token, "/v1/state");
   if (state && typeof state === "object") note("LOCAL_STATE_OK");
