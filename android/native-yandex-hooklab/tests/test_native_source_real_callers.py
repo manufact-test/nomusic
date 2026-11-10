@@ -96,7 +96,7 @@ class ActualSignedCallersAuditTests(unittest.TestCase):
         producer=("Lcq7;","i0","(Lxfs;Ljgv;Lacb;)Ljava/lang/Object;")
         dex=FakeDex([producer])
         rows=model_input_to_i0_windows(
-            dex,[(0,0x3071,(0x3071,0,0x0321))])
+            dex,[(0,0x71,(0x3071,0,0x0321))])
         self.assertEqual(rows[0]["i0_argument_registers"],[1,2,3])
         self.assertEqual(rows[0]["i0_invoke_ordinal"],0)
         self.assertFalse(rows[0]["proven_current_music_track"])
