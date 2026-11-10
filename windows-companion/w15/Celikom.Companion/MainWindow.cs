@@ -51,7 +51,7 @@ public sealed partial class MainWindow : Form
     private readonly PopupButton _start = new();
     private readonly PopupButton _stop = new();
     private readonly Label _connectionState = new();
-    private readonly Label _connectionMark = new();
+    private readonly Panel _connectionMark = new(); // exact 7px indicator; Label enforces 10px minimum on Windows
     private readonly Label _switchHint = new();
     private readonly PopupButton _rotate = new();
     private readonly PopupButton _copy = new();
