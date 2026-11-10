@@ -47,12 +47,12 @@ public sealed partial class MainWindow
     private readonly Label _compactSuggestTrack = new();
     private readonly Label _compactEmailLabel = new();
     private readonly Label _compactPasswordLabel = new();
-    private readonly PopupInput _compactEmailInput;
-    private readonly PopupInput _compactPasswordInput;
-    private readonly PopupInput _compactCodeInput;
-    private readonly PopupInput _compactNewPasswordInput;
-    private readonly PopupInput _compactPromoInput;
-    private readonly PopupInput _compactDurationInput;
+    private PopupInput _compactEmailInput = null!;
+    private PopupInput _compactPasswordInput = null!;
+    private PopupInput _compactCodeInput = null!;
+    private PopupInput _compactNewPasswordInput = null!;
+    private PopupInput _compactPromoInput = null!;
+    private PopupInput _compactDurationInput = null!;
 
     private bool _compactReady;
     private bool _compactLayoutBusy;
@@ -96,6 +96,7 @@ public sealed partial class MainWindow
 
     private void BuildCompactPopup()
     {
+        _origin.Text = string.IsNullOrWhiteSpace(_api.Origin) ? DefaultApiOrigin : _api.Origin;
         // The browser popup uses a 292px minimum width. Windows retains its
         // native title bar; the *content* is matched without wide tabs.
         ClientSize = new Size(308, 515);
@@ -231,7 +232,7 @@ public sealed partial class MainWindow
         _login.Click += CompactAccountSubmitAsync;
         SetupMainButton(_compactModeButton, "Создать аккаунт", (_, _) =>
         {
-            _compactAccountMode = _compactAccountMode == "register" ? "login" : "register";
+            _compactAccountMode = _compactAccountMode == "login" ? "register" : "login";
             _compactAccountMessage.Text = "";
             LayoutCompact();
         });
