@@ -90,6 +90,8 @@ public sealed partial class MainWindow
     private string _compactPresenceStatus = "";
     private DateTimeOffset _compactPresenceChecked;
     private Task<string>? _compactPresencePending;
+    private string _compactPresencePendingTrack = "";
+    private Guid _compactUploadRequestId = Guid.NewGuid();
     private int _compactPresenceEpoch;
     private int _compactOpenEpoch;
     private string _compactPinnedUploadTrack = "";
@@ -472,6 +474,7 @@ public sealed partial class MainWindow
             ++_compactPresenceEpoch;
             if (_compactUploadCancellation is null)
             {
+                _compactUploadRequestId = Guid.NewGuid();
                 _compactUploadOpen = false;
                 _compactSuggestOpen = false;
                 ++_compactOpenEpoch;
