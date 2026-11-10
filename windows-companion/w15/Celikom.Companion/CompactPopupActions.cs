@@ -576,17 +576,17 @@ public sealed partial class MainWindow
         if (!_api.IsLoggedIn || !GrantValidator.IsTrackId(track) ||
             track != _bridge.LastSong)
         {
-            _compactUploadNote.Text = "Песня изменилась. Открой загрузку заново.";
+            CompactUploadError("Песня изменилась. Открой загрузку заново.");
             return;
         }
         if (!_compactRights.Checked)
         {
-            _compactUploadNote.Text = "Подтверди права на файл.";
+            CompactUploadError("Подтверди права на файл.");
             return;
         }
         if (_compactSelectedAudio is null || !File.Exists(_compactSelectedAudio))
         {
-            _compactUploadNote.Text = "Выбери MP3 или M4A.";
+            CompactUploadError("Выбери MP3 или M4A.");
             return;
         }
         var durationMs = GetCompactOriginalDuration();
@@ -640,6 +640,7 @@ public sealed partial class MainWindow
                 _compactUploadNote.Text = percent >= 100
                     ? "Файл передан. Ждём ответа сервера…"
                     : "Загружаем: " + percent + "%";
+                LayoutCompact(); // show dynamic feedback only during actual transfer
             });
             await _api.UploadTrackAsync(track, upload, durationMs.Value,
                 _bridge.LastTrackTitle, _bridge.LastTrackArtist,
