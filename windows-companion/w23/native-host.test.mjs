@@ -476,3 +476,15 @@ test("W53 signed fields are distinguished from harmless order or unrelated query
   assert.ok(!JSON.stringify(r.diagnostics).includes(token));
   assert.ok(!JSON.stringify(r.diagnostics).includes(sid+"?vsid"));
 });
+
+test("W66 host sanitizer cannot discard D or other letters, still rejects controls",()=>{
+  const sourceRegex = source.match(/value\.length <= 720 && !\/([^\n]+)\/\.test\(value\)/);
+  assert.ok(sourceRegex,"host has expected bounded display metadata filter");
+  const invalid=new RegExp(sourceRegex[1]);
+  for (const safe of ["D","TRITIA","kavabanga Depo kolibri",
+      "ABCDFHJLNPRTVXZ 02468", "中文 и русский"]) {
+    assert.equal(invalid.test(safe),false,"safe title/artist preserved: "+safe);
+  }
+  assert.equal(invalid.test("\u0000"),true,"NUL still rejected");
+  assert.equal(invalid.test("\n"),true,"line break still rejected");
+});
