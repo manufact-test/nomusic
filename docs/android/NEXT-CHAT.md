@@ -1,3 +1,12 @@
+## НОВАЯ КОНТРОЛЬНАЯ ТОЧКА — Test.50 четыре seek timeout пути, CI GREEN (10.11.2026)
+
+- **READ FIRST:** [проверенный four-path audit](ANDROID-TEST50-SEEK-TIMEOUT-FOUR-PATHS-CI-GREEN-2026-11-10.md). Работать в `experiment/android-test50-repeated-seek-failopen-20261110`, код `ca22fc91fc2658a2f3aed597cd128caf1b9c285f`, бэкап `backup/android-test50-seek-timeout-four-paths-ci-green-20261110`.
+- **CI [#42847799573 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/42847799573)**: 106025 модельных, 36 fake-`ReplacementEngine` assertions, Android source/D8/host/release validation; frozen `seek/completeSeek` untouched.
+- Исправлены: поздний неизвестный/чужой timeout не снимает latch, stale/Pause/WARM ACK не сбрасывает timeout streak, `hot_cached_seek_timeout` теперь считается вместе с тремя обычными seek timeout. В diagnostic `replacement_seek_timeout_failopen` добавлены reason/trackId/поколения.
+- **Это не работающий native Android источник Яндекса и не физический HONOR PASS.** Test.50, стабильная, Windows, production, подписи, DRM и установленные приложения не тронуты; APK НЕ выпускали. Дальше — только отдельный разрешённый Test-кандидат, потом физическая пауза/Seek «Дым» и «Раскол» и Next/радио с диагностикой.
+
+---
+
 ## АКТУАЛЬНО 10.11.2026 — Test.50 original-only после двух native seek timeout (эксперимент, не релиз)
 
 - **READ FIRST:** [полный отчёт](ANDROID-TEST50-REPEATED-SEEK-FAILOPEN-EXPERIMENT-2026-11-10.md).
