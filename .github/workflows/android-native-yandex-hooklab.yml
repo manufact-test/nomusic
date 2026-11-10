@@ -108,10 +108,10 @@ jobs:
           assert 'sourceDispatch.onCompletedReader(' in source
           witness=(base/'app/src/main/java/pro/celikom/yandex/nativehooklab/NativeSourceDispatchWitness.java').read_text()
           assert 'objects[i]==receiver' in witness
-          assert 'onFactory(Object returned,long elapsedMs)' in witness
+          assert 'onFactory(Object returned,long now)' in witness
           assert '!"ero".equals(source.getClass().getName())' in witness
-          assert 'onOwnedReader(Object source,Object reader,long at)' in witness
-          assert 'onCompletedReader(Object reader,long at)' in witness
+          assert 'onOwnedReader(Object source,Object reader,long now)' in witness
+          assert 'onCompletedReader(Object reader,long now)' in witness
           assert 'objects[i]==source&&(started[i]||tInFlight[i])' in witness
           assert 'completedReaderChains+=pendingReaders[i]' in witness
           assert 'failedTCalls++' in witness
