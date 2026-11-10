@@ -46,6 +46,23 @@ for(const name of paths){
     }
     const at=s.indexOf("class tL{");
     if(at<0)throw Error("W52_VENDOR_DOWNLOAD_INFO_SOURCE_MISSING");
+    // W56 fixed, original-signed vendor source contract. This is what makes
+    // a valid CELIKOM query fail if native playback uses the raw grant URL.
+    // Preserve only boolean results, never playback URLs or account context.
+    const source=s.slice(at,at+1850);
+    const telemetryNeedle='t&&"vsid"in t&&void 0===t.vsid&&(t.vsid=this.telemetry.vsid)';
+    const indexNeedle='t&&"sourceIndex"in t&&void 0===t.sourceIndex&&(t.sourceIndex=this.telemetry.onBeforeSetSource())';
+    const checks={
+      telemetryAttached:s.includes('beforeMediaHandler(e){')&&
+        s.includes('beforeMediaStartPlaying')&&s.includes(telemetryNeedle)&&s.includes(indexNeedle),
+      getterAppendsQuestion:source.includes('this.getQueryParamsString()')&&
+        source.includes('.concat(this.data.urls[0]).concat(a,"#t=")'),
+      getterAddsVsid:source.includes('r.append("vsid",this.vsid)'),
+      getterAddsSourceIndex:source.includes('r.append("source_index",a)'),
+      mp3DoesNotDisableTelemetry:source.includes('this.vsid&&r.append')
+    };
+    if(Object.values(checks).some(x=>!x))throw Error("W56_VENDOR_SIGNED_QUERY_CONTRACT_NOT_VERIFIED");
+    console.log("W56_ORIGINAL_SIGNED_URL_CONCAT_AND_TELEMETRY_PROVEN "+JSON.stringify(checks));
     const full=s.slice(at,at+2450);
     const safe=full.replace(/https?:\/\/[^\s'"<>]+/g,"[URL]")
       .replace(/\b[a-f0-9]{40,}\b/gi,"[HASH]")
