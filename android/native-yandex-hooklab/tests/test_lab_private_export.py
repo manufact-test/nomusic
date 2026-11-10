@@ -14,6 +14,10 @@ CERT = "a" * 64
 
 class PrivateLabExportTest(unittest.TestCase):
     def setUp(self):
+        # Test the local-only path without weakening the production CI guard.
+        self.local_env = patch.dict(os.environ, {"GITHUB_ACTIONS": "false"})
+        self.local_env.start()
+        self.addCleanup(self.local_env.stop)
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
         self.home = Path(self.tmp.name)
