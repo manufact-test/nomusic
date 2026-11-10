@@ -77,8 +77,9 @@ public static class GrantValidator
             !long.TryParse(exp, NumberStyles.None, CultureInfo.InvariantCulture, out var urlExp) ||
             urlExp != expiresSeconds ||
             !args.TryGetValue("token", out var token) || !HexTokenPattern.IsMatch(token) ||
-            (args.TryGetValue("sid", out var sid) && !Regex.IsMatch(sid, @"^[1-9][0-9]{0,17}$",
-                RegexOptions.CultureInvariant)))
+            !args.TryGetValue("sid", out var sid) ||
+            !Regex.IsMatch(sid, @"^[1-9][0-9]{0,17}$",
+                RegexOptions.CultureInvariant))
             return null;
 
         return new SourceGrant(trackId, true, true, link.AbsoluteUri, expiresSeconds * 1000,
