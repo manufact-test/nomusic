@@ -150,6 +150,28 @@ def omit_shadowed_signature_permission_declarations(manifest_bytes):
     return source.ET.tostring(root, encoding="utf-8", xml_declaration=True), len(omitted)
 
 
+def classify_manifest_shell_profileability(manifest_bytes):
+    """Only original public AndroidManifest fields; no APK or identity output."""
+    root = source.ET.fromstring(manifest_bytes)
+    app = root.find("application")
+    if root.tag != "manifest" or app is None:
+        raise arsc.TrialError("PROFILE_PUBLIC_MANIFEST_STRUCTURE_INVALID")
+    namespace = "{" + source.ANDROID + "}"
+    child = app.find("profileable")
+    debuggable = app.attrib.get(namespace + "debuggable", "false") == "true"
+    shell = child is not None and child.attrib.get(namespace + "shell") == "true"
+    enabled = child is None or child.attrib.get(namespace + "enabled", "true") != "false"
+    return {
+        "publisher_debuggable": debuggable,
+        "profileable_declaration_present": child is not None,
+        "profileable_shell_granted": bool(shell),
+        "profileable_enabled": bool(enabled),
+        "ordinary_shell_method_tracing_authorized": bool(debuggable or shell and enabled),
+        "raw_manifest_exposed": False,
+        "does_not_change_application_permissions": True
+    }
+
+
 def classify_clone_launch_logcat(raw):
     """Report bounded public Java CLASS names and flags only, never raw log text.
 
@@ -571,8 +593,18 @@ def run():
                      "IDENTITY_DECODE_SPLIT_" + str(i), 240)
             manifest = decoded / "AndroidManifest.xml"
             publisher_manifest = manifest.read_bytes()
+            if not split:
+                print(json.dumps({
+                    "publisher_signed_manifest_profileability":
+                        classify_manifest_shell_profileability(publisher_manifest)
+                }, sort_keys=True))
             initial, _ = source.rewrite_manifest(publisher_manifest.decode("utf-8"))
             next_manifest, rewritten = rewrite_passport_and_metrica(initial)
+            if not split:
+                old_profile = classify_manifest_shell_profileability(publisher_manifest)
+                new_profile = classify_manifest_shell_profileability(next_manifest)
+                if old_profile != new_profile:
+                    raise arsc.TrialError("CLONE_PROFILEABLE_PERMISSIONS_DRIFT")
             # Only the BASE APK declares app-level custom permissions;
             # config splits must NOT be forced to have those declarations.
             if omit_shadowed and not split:
