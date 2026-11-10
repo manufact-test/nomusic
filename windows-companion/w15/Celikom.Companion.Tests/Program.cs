@@ -143,6 +143,15 @@ try
         if (path == "/api/v1/auth/login")
             return JsonResponse(new { user = new { id = 1, email = "test@example.com", status = "active" },
                 access_token = expectedAccess, refresh_token = expectedRefresh, expires_in = 900 });
+        if (path == "/api/v1/auth/activate")
+        {
+            Test(request.Method == HttpMethod.Post &&
+                request.Headers.Authorization?.Parameter == expectedAccess,
+                "W68 trial activation uses POST with current user bearer");
+            return JsonResponse(new { ok = true, trial = new { activated = true, trial_seconds = 259200 },
+                entitlement = new { allowed = true, source = "trial",
+                    valid_until = now.AddDays(3).ToString("O"), reason = "trial_active" } });
+        }
         if (path == "/api/v1/entitlement")
             return JsonResponse(new { allowed = true, source = "promo",
                 valid_until = (string?)null, reason = "promo_lifetime" });
@@ -203,6 +212,36 @@ try
     Test(resolved?.AudioUrl == "https://api.celikom.example" + audio, "live-contract resolve mapping");
     Test(backendCalls.SequenceEqual(new [] { "/api/v1/auth/login", "/api/v1/resolve" }),
         "only expected private backend endpoints");
+    // W68 launch gate: trial begins on explicit first Start, never on login,
+    // preview, or local session load. The server is the only clock/authority.
+    var beforeTrialCalls = backendCalls.Count;
+    var started = await api.ActivatePlaybackAsync();
+    Test(backendCalls.Count == beforeTrialCalls + 1 &&
+        backendCalls[^1] == "/api/v1/auth/activate",
+        "W68 explicit server trial activation, not local timestamp");
+    Test(PlaybackEntitlement.Allowed(started, now),
+        "W68 active 72h trial accepted only after server response");
+    Test(!PlaybackEntitlement.Allowed(Parse(new { allowed = true,
+        source = "trial", valid_until = now.AddSeconds(-1).ToString("O"),
+        reason = "trial_active" }), now), "W68 expired trial blocked");
+    Test(!PlaybackEntitlement.Allowed(Parse(new { allowed = false,
+        source = "subscription", valid_until = now.AddDays(10).ToString("O"),
+        reason = "subscription_inactive" }), now), "W68 unpaid account blocked");
+    Test(!PlaybackEntitlement.Allowed(Parse(new { allowed = true,
+        source = "subscription", valid_until = (string?)null,
+        reason = "subscription_active" }), now), "W68 malformed forever subscription denied");
+    Test(!PlaybackEntitlement.Allowed(Parse(new { allowed = true,
+        source = "none", valid_until = (string?)null,
+        reason = "trial_not_started" }), now), "W68 unknown perpetual source denied");
+    Test(!PlaybackEntitlement.Allowed(Parse(new { allowed = false,
+        source = "trial", valid_until = now.AddHours(10).ToString("O"),
+        reason = "service_incident" }), now), "W68 incident not marked active");
+    Test(PlaybackEntitlement.Allowed(Parse(new { allowed = true,
+        source = "promo", valid_until = (string?)null,
+        reason = "promo_active" }), now), "W68 genuine lifetime promo accepted");
+    Test(!PlaybackEntitlement.Allowed(Parse(new { allowed = true,
+        source = "trial", valid_until = "invalid-date", reason = "trial_active" }), now),
+        "W68 unparseable expiry fails closed");
     var accessPreview = await api.GetEntitlementAsync();
     Test(accessPreview.GetProperty("source").GetString() == "promo" &&
          accessPreview.GetProperty("valid_until").ValueKind == JsonValueKind.Null,
