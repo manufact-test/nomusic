@@ -51,7 +51,7 @@ def int_constant_from_words(op,words):
     return None
 
 
-def nearby_constructor_tag(d,ins,at):
+def nearby_constructor_tag(d,ins,at,owner_register=None):
     """Backtrack EXACT integer tag word 1 of Lwq7.<init>(I,Object).
 
     Do not cross basic-block boundaries. Respect move copies and clobbers.
@@ -84,13 +84,16 @@ def nearby_constructor_tag(d,ins,at):
                         "arg_coords":regs,
                         "const_ordinal":i,
                         "constructor_ordinal":at,
-                        "single_basic_block":True}
+                        "single_basic_block":True,
+                        "ctor_object_arg_is_lero_this":(regs[2]==owner_register)
+                        if owner_register is not None else False}
         if op in (0x0a,0x0b,0x0c,0x1a,0x1b,0x1c,0x22,0x54,0x62):
             dst=(words[0]>>8)&15 if op==0x54 else words[0]>>8
             if dst==source:break
     return {"tag":None,"constructor":method,"arg_coords":regs,
             "const_ordinal":None,"constructor_ordinal":at,
-            "single_basic_block":False}
+            "single_basic_block":False,
+            "ctor_object_arg_is_lero_this":False}
 
 
 def switch_table_for_ins(ins,idx):
@@ -209,7 +212,10 @@ def direct_lero_dispatch_witness(d,defs):
                 if op not in INVOKES:continue
                 callee=d.method(w[1])
                 if callee[0]==OWNER and callee[1]=="<init>":
-                    evidence=nearby_constructor_tag(d,ins,i)
+                    # From verified DEX code_item: first incoming register
+                    # of an instance method is p0, the *actual* this object.
+                    owner_reg=d.u16(off)-d.u16(off+2)
+                    evidence=nearby_constructor_tag(d,ins,i,owner_reg)
                     if evidence:origin.append(evidence)
         if m[0]==OWNER and m[1]=="<init>" and m[2]=="(ILjava/lang/Object;)V":
             # constructor parameter input int coordinate is in registers/ins.
@@ -282,20 +288,30 @@ def signed_scan(apks):
         if tag is None:
             actual_case.append({"tag_is_direct_constant":False})
             continue
-        target=table["cases"].get(tag)
+        explicit=table["cases"].get(tag)
+        switch_ordinal=table["switch_ordinal"]
+        next_index=switch_ordinal+1
+        # DEX switch default path falls THROUGH to the next code
+        # instruction when selector has no listed key. Synthetic lambdas
+        # often use default for a real handler; absence of explicit key
+        # does NOT mean the branch cannot run.
+        default_pc=dins[next_index][0] if next_index<len(dins) else None
+        target=explicit if explicit is not None else default_pc
+        case_loader=(branch_contains_loader(dd,dins,target)
+                     if target is not None else False)
         actual_case.append({
             "tag_is_direct_constant":True,
             "tag_field_matches_dispatch_read":
                 exact_ctor_field==table["tag_field"],
-            "tag_has_explicit_switch_case":target is not None,
-            "case_target_directly_invokes_exact_loader":
-                branch_contains_loader(dd,dins,target) if target is not None else False,
-            "constructor_source_object_is_lero_argument":record["arg_coords"][2]
-                is not None,
-            "no_run_time_current_decoder_or_track_proven":True,
+            "tag_has_explicit_switch_case":explicit is not None,
+            "selector_takes_default_fallthrough":explicit is None,
+            "exact_case_target_directly_invokes_loader":case_loader,
+            "constructor_passes_actual_lero_this":record["ctor_object_arg_is_lero_this"],
+            "not_proven_live_executor_or_selected_player":True,
         })
     static_match=any(x.get("tag_field_matches_dispatch_read") and
-                     x.get("case_target_directly_invokes_exact_loader")
+                     x.get("exact_case_target_directly_invokes_loader") and
+                     x.get("constructor_passes_actual_lero_this")
                      for x in actual_case)
     return {
         "signed_original_split_count":5,
