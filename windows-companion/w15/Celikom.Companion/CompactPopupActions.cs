@@ -275,6 +275,7 @@ public sealed partial class MainWindow
             if (mode == "login")
             {
                 await _api.LoginAsync(_origin.Text.Trim(), email, password);
+                ResetCompactBenefits();
                 _password.Clear();
                 _compactAccountMessage.Text = "";
                 _compactAccountOpen = false;
@@ -305,6 +306,7 @@ public sealed partial class MainWindow
             {
                 await _api.VerifyEmailAsync(_origin.Text.Trim(),
                     _compactPendingEmail ?? email, _compactCode.Text);
+                ResetCompactBenefits();
                 _compactCode.Clear();
                 _compactAccountMode = "login";
                 _compactAccountOpen = false;
@@ -349,7 +351,9 @@ public sealed partial class MainWindow
         if (_compactPromoBusy || !_api.IsLoggedIn) return;
         _compactPromoBusy = true;
         _compactPromoSubmit.Enabled = false;
+        _compactPromoMessage.ForeColor = Secondary;
         _compactPromoMessage.Text = "Проверяем промокод…";
+        LayoutCompact();
         try
         {
             var result = await _api.RedeemPromoAsync(_compactPromoCode.Text);
@@ -360,12 +364,22 @@ public sealed partial class MainWindow
                 result.TryGetProperty("already_activated", out var existing) &&
                 existing.ValueKind == JsonValueKind.True ?
                 "Промокод уже активирован." : "Промокод активирован.";
+            _compactPromoMessage.ForeColor = Accent;
             _compactPromoCode.Clear();
             _compactAccessChecked = DateTimeOffset.MinValue;
             await RefreshCompactAccessAsync(force: true);
         }
-        catch (Exception ex) { _compactPromoMessage.Text = DescribeAccountError(ex); }
-        finally { _compactPromoBusy = false; _compactPromoSubmit.Enabled = true; }
+        catch (Exception ex)
+        {
+            _compactPromoMessage.ForeColor = ColorTranslator.FromHtml("#FF918B");
+            _compactPromoMessage.Text = DescribeAccountError(ex);
+        }
+        finally
+        {
+            _compactPromoBusy = false;
+            _compactPromoSubmit.Enabled = true;
+            if (!_closing) LayoutCompact();
+        }
     }
 
     private async void CompactSendSupportAsync(object? sender, EventArgs e)
