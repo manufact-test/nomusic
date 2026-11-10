@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <queries><package android:name="ru.yandex.music"/></queries>
+    <!-- No Internet, media storage, audio recording, location or accessibility. -->
+    <application
+        android:allowBackup="false"
+        android:usesCleartextTraffic="false"
+        android:label="CELIKOM Native Gate"
+        android:theme="@android:style/Theme.Material.Light.NoActionBar">
+        <activity android:name=".GateActivity" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity>
+        <!-- Optional, explicit broad Android notification access.
+             The listener callback is a NO-OP; the app only asks Android's
+             MediaSessionManager for existing native session command flags. -->
+        <service
+            android:name=".NativeSessionListener"
+            android:exported="true"
+            android:label="CELIKOM Native Gate · media only"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService"/>
+            </intent-filter>
+        </service>
+    </application>
+</manifest>
