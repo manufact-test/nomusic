@@ -62,7 +62,6 @@ public sealed partial class MainWindow
     private readonly Label _compactUploadHeading = new();
     private readonly Label _compactUploadNote = new();
     private readonly Label _compactAudioValidation = new();
-    private readonly Label _compactFilenameWarning = new();
     private readonly Label _compactSuggestHeading = new();
     private readonly Label _compactSuggestCaption = new();
     private readonly TextBox _compactUploadDuration = new();
@@ -503,12 +502,6 @@ public sealed partial class MainWindow
         _compactAudioValidation.Padding = new Padding(8, 5, 8, 5);
         _compactAudioValidation.BorderStyle = BorderStyle.FixedSingle;
         _compactUploadBody.Controls.Add(_compactAudioValidation);
-        _compactFilenameWarning.Font = new Font("Segoe UI", 8.5F);
-        _compactFilenameWarning.ForeColor = ColorTranslator.FromHtml("#FFBDB7");
-        _compactFilenameWarning.BackColor = ColorTranslator.FromHtml("#301C20");
-        _compactFilenameWarning.Padding = new Padding(8, 5, 8, 5);
-        _compactFilenameWarning.BorderStyle = BorderStyle.FixedSingle;
-        _compactUploadBody.Controls.Add(_compactFilenameWarning);
         _compactUploadProgress.Visible = false;
         _compactUploadProgress.Style = ProgressBarStyle.Continuous;
         _compactUploadBody.Controls.Add(_compactUploadProgress);
@@ -868,7 +861,6 @@ public sealed partial class MainWindow
         y += 79 + 9;
         if (_compactFileChecking || _compactAudioPreflight is not null)
             y += CompactValidationHeight() + 8;
-        if (_compactAudioPreflight?.NameSuspicious == true) y += 57 + 8;
         y += 48 + 10;
         if (_compactUploadCancellation is not null) y += 15 + 7;
         y += 44 + 6;
@@ -894,7 +886,6 @@ public sealed partial class MainWindow
             _compactDurationInput, _compactUploadDurationKnown, _compactFilePicker,
             _compactFileName, _compactRights, _compactUploadSubmit, _compactUploadNote,
             _compactUploadProgress, _compactUploadResult, _compactAudioValidation,
-            _compactFilenameWarning
         }) child.Visible = false;
 
         if (form)
@@ -935,12 +926,6 @@ public sealed partial class MainWindow
                 var size = CompactValidationHeight();
                 Place(label, _compactUploadBody, 13, y, inner, size);
                 y += size + 8;
-            }
-            if (_compactAudioPreflight?.NameSuspicious == true)
-            {
-                _compactFilenameWarning.Text = _compactAudioPreflight.NameMessage;
-                Place(_compactFilenameWarning, _compactUploadBody, 13, y, inner, 57);
-                y += 65;
             }
             Place(_compactRights, _compactUploadBody, 13, y, inner, 48);
             y += 58;
