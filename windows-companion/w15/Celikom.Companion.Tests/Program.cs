@@ -234,21 +234,21 @@ try
         "W53 rejects extra log fields");
     Test(!DiagnosticLog.IsSafeEntry(safeTimestamp + "|PLAYER_NET_REQUEST|resource_id=0139"),
         "W53 rejects ambiguous leading-zero resource IDs");
-    Test(!DiagnosticLog.IsSafeEntry(safeTimestamp + "|PLAYER_NET_REQUEST|resource_id=139\\nSECRET"),
+    Test(!DiagnosticLog.IsSafeEntry(safeTimestamp + "|PLAYER_NET_REQUEST|resource_id=139\nSECRET"),
         "W53 rejects multiline log injection");
     var nativeFixture = Path.Combine(DiagnosticLog.DirectoryPath, "native-events.log");
     Directory.CreateDirectory(DiagnosticLog.DirectoryPath);
     var when = DateTimeOffset.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffZ",
         System.Globalization.CultureInfo.InvariantCulture);
     File.AppendAllText(nativeFixture,
-        when + "|PLAYER_NET_REQUEST|resource_id=739209\\n" +
-        when + "|PLAYER_NET_HTTP_FORBIDDEN|resource_id=739209\\n" +
-        when + "|PLAYER_URL_QUERY_CHANGED|resource_id=739209\\n" +
-        when + "|PLAYER_403_PHP_INVALID_AUDIO_TOKEN|resource_id=739209\\n" +
-        when + "|PLAYER_403_HTML|resource_id=739209\\n" +
-        when + "|PLAYER_403_PHP_ACCESS_DENIED|resource_id=739209\\n" +
-        when + "|PLAYER_NET_REQUEST|resource_id=739209?token=SENSITIVE\\n" +
-        when + "|PLAYER_NET_REQUEST|resource_id=739209|sid=SENSITIVE\\n");
+        when + "|PLAYER_NET_REQUEST|resource_id=739209\n" +
+        when + "|PLAYER_NET_HTTP_FORBIDDEN|resource_id=739209\n" +
+        when + "|PLAYER_URL_QUERY_CHANGED|resource_id=739209\n" +
+        when + "|PLAYER_403_PHP_INVALID_AUDIO_TOKEN|resource_id=739209\n" +
+        when + "|PLAYER_403_HTML|resource_id=739209\n" +
+        when + "|PLAYER_403_PHP_ACCESS_DENIED|resource_id=739209\n" +
+        when + "|PLAYER_NET_REQUEST|resource_id=739209?token=SENSITIVE\n" +
+        when + "|PLAYER_NET_REQUEST|resource_id=739209|sid=SENSITIVE\n");
     DiagnosticLog.Record("OWNER_DIAG_TEST", "123");
     var snapshot = DiagnosticLog.ExportText("5.126.1.0", "ACTIVE", true, true, true);
     Test(snapshot.Contains("OWNER_DIAG_TEST|track=123"), "diagnostic export has observed event");
