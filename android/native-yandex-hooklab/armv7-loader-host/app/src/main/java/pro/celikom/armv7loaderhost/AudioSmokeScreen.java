@@ -55,11 +55,15 @@ public final class AudioSmokeScreen extends ScrollView {
         int observed=wanted?AudioSmokeSource.chooseA():AudioSmokeSource.originalA();
         // A rapid second toggle must preserve the position and play intent
         // from a pending seek-to-restore, not snapshot a temporary 0ms state.
-        int position=restoreSeekPending?restoreSeekMs:0;
-        if(prepared && !restoreSeekPending) {
+        // Pending position exists from the instant prepareAsync() starts,
+        // not only after onPrepared() begins the asynchronous seek.
+        // Otherwise a quick second toggle silently resets to 0ms.
+        boolean pendingRestore=restoreSeekMs>0;
+        int position=pendingRestore?restoreSeekMs:0;
+        if(prepared && !pendingRestore) {
             try { position=player.getCurrentPosition(); } catch(Throwable ignored) { }
         }
-        boolean shouldPlay=restoreSeekPending?resumeAfterPrepare
+        boolean shouldPlay=pendingRestore?resumeAfterPrepare
                 :(prepared?playing:resumeAfterPrepare);
         OwnSameTrackReloadPlan.Decision decision=OwnSameTrackReloadPlan.decide(
                 track,selected,wanted,observed,position,shouldPlay);
