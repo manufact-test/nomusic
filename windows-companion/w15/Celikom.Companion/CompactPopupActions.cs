@@ -195,7 +195,9 @@ public sealed partial class MainWindow
             {
                 _compactPinnedUploadTrack = id;
                 _compactUploadView = "form";
-                _compactUploadNote.Text = "Новая версия появится после проверки.";
+                // No permanent placeholder under Send: feedback only appears on demand.
+                _compactUploadNote.Text = "";
+                _compactUploadNote.ForeColor = Secondary;
                 _compactFileName.Text = "";
                 _compactSelectedAudio = null;
                 _compactFilePicker.SelectedFile = "";
@@ -397,16 +399,19 @@ public sealed partial class MainWindow
         if (!song && message.Length < 3)
         {
             _compactSupportMessage.Text = "Опиши проблему перед отправкой.";
+            LayoutCompact();
             return;
         }
         if (song && !GrantValidator.IsTrackId(_bridge.LastSong))
         {
             _compactSupportMessage.Text = "Запусти песню в Яндексе и повтори.";
+            LayoutCompact();
             return;
         }
         _compactSupportBusy = true;
         _compactSupportSubmit.Enabled = false;
         _compactSupportMessage.Text = "Отправляем…";
+        LayoutCompact();
         try
         {
             if (song)
@@ -422,7 +427,12 @@ public sealed partial class MainWindow
             _compactSupportMessage.Text = "Сообщение отправлено.";
         }
         catch (Exception ex) { _compactSupportMessage.Text = DescribeAccountError(ex); }
-        finally { _compactSupportBusy = false; _compactSupportSubmit.Enabled = true; }
+        finally
+        {
+            _compactSupportBusy = false;
+            _compactSupportSubmit.Enabled = true;
+            if (!_closing) LayoutCompact();
+        }
     }
 
     private long? GetCompactOriginalDuration()
