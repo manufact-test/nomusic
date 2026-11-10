@@ -205,7 +205,9 @@ async function inject(view) {
   return true;
 }
 async function relayState(view, token, now) {
-  if (now - (lastStateAt.get(view) || 0) < 2200) return;
+  // W60: localhost state transitions should apply within one user-visible
+  // button press, not after the old ~2.2-second polling delay.
+  if (now - (lastStateAt.get(view) || 0) < 600) return;
   lastStateAt.set(view, now);
   const state = await localRequest(token, "/v1/state");
   if (state && typeof state === "object") note("LOCAL_STATE_OK");
