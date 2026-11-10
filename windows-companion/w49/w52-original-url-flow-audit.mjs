@@ -28,6 +28,22 @@ let result={};
 for(const name of paths){
   const s=inspectAsar(bytes,name).toString("utf8");
   if(name.includes("layout-")){
+    // W55: an MP3 source can still receive VSID/sourceIndex later, even if
+    // not passed to the original constructor. Inspect all actual writers.
+    const setters=[".vsid=",".sourceIndex=",".vsid =",".sourceIndex =",
+      "sourceIndex:","vsid:","getQueryParamsString()"];
+    for(const needle of setters){
+      const positions=[];let pos=-1;
+      while((pos=s.indexOf(needle,pos+1))>=0&&positions.length<50)
+        positions.push(pos);
+      const points=positions.slice(0,8).map(at=>({
+        pos:at,
+        context:compact(s.slice(Math.max(0,at-175),Math.min(s.length,at+needle.length+220)))
+      }));
+      console.log("W55_VENDOR_SOURCE_FIELD_WRITERS "+JSON.stringify({
+        needle,count:positions.length,points
+      }));
+    }
     const at=s.indexOf("class tL{");
     if(at<0)throw Error("W52_VENDOR_DOWNLOAD_INFO_SOURCE_MISSING");
     const full=s.slice(at,at+2450);
