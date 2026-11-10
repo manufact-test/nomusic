@@ -1,10 +1,7 @@
 name: Android native MAIN startup ART profiler, isolated read-only (EPHEMERAL)
+# Archived: publisher-signed Yandex #170gpr has profileable shell=false,
+# debuggable=false. Only manual after permission changes by the publisher.
 on:
-  push:
-    branches:
-      - experiment/android-native-yandex-fileinfo-hooklab-20261109
-    paths:
-      - '.github/workflows/android-native-main-startup-profiler.yml'
   workflow_dispatch:
 permissions:
   contents: read

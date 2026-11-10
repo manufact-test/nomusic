@@ -594,10 +594,15 @@ def run():
             manifest = decoded / "AndroidManifest.xml"
             publisher_manifest = manifest.read_bytes()
             if not split:
+                publisher_profileability = classify_manifest_shell_profileability(
+                    publisher_manifest)
                 print(json.dumps({
                     "publisher_signed_manifest_profileability":
-                        classify_manifest_shell_profileability(publisher_manifest)
+                        publisher_profileability
                 }, sort_keys=True))
+                if (profile_main_launch and not
+                        publisher_profileability["ordinary_shell_method_tracing_authorized"]):
+                    raise arsc.TrialError("SIGNED_YANDEX_SHELL_PROFILING_NOT_ALLOWED")
             initial, _ = source.rewrite_manifest(publisher_manifest.decode("utf-8"))
             next_manifest, rewritten = rewrite_passport_and_metrica(initial)
             if not split:
