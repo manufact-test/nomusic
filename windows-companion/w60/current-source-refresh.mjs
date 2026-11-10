@@ -124,11 +124,22 @@ export function createCurrentSourceRefresh({onEvent = () => {}} = {}) {
       if (typeof id !== "string" || !EXACT_ID.test(id)) return null;
       const clean = value => typeof value === "string"
         ? value.replace(/[\\u0000-\\u001f\\u007f]/g, " ").trim().slice(0, 180) : "";
-      const artists = Array.isArray(meta.artists) ? meta.artists
-        .slice(0, 4).map(a => clean(a?.name ?? a?.artist?.name)).filter(Boolean) : [];
-      const title = clean(meta.title) || clean(meta.name) || clean(entry.data.title);
-      const artist = artists.join(", ") || clean(meta.artist) || clean(entry.data.artist);
-      const rawDuration = meta.durationMs ?? entry.data.durationMs ??
+      const raw = entry.data || {};
+      const sources = [meta.artists, raw.artists, raw.track?.artists,
+        meta.albumArtists, raw.metadata?.artists, raw.track?.meta?.artists];
+      const list = sources.find(Array.isArray) || [];
+      const artists = list.slice(0, 4).map(a => clean(
+        typeof a === "string" ? a :
+          a?.name ?? a?.artist?.name ?? a?.artistName ?? a?.title)).filter(Boolean);
+      const title = clean(meta.title) || clean(meta.name) ||
+        clean(raw.title) || clean(raw.track?.title) || clean(raw.metadata?.title);
+      const fallbackArtist = [meta.artist, raw.artist, meta.mainArtist,
+        raw.track?.artist, meta.artistName, meta.artistsName,
+        raw.metadata?.artist, raw.track?.meta?.artist].map(a =>
+          clean(typeof a === "string" ? a : a?.name ?? a?.title)).find(Boolean) || "";
+      const artist = artists.join(", ") || fallbackArtist;
+      const rawDuration = meta.durationMs ?? raw.durationMs ??
+        raw.track?.durationMs ?? raw.metadata?.durationMs ??
         meta.duration_milliseconds;
       const durationMs = Number.isSafeInteger(rawDuration) &&
         rawDuration >= 1000 && rawDuration <= 86400000 ? rawDuration : null;
