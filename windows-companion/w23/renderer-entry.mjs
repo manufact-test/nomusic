@@ -1,5 +1,4 @@
 import { createNativeResourceAdapter } from "../w22/native-resource-adapter.mjs";
-import { createSignedAudioProbe } from "./audio-probe.mjs";
 
 // Runs inside Yandex's already running renderer. The Electron main process
 // handles the localhost connection; this view never fetches localhost itself.
@@ -30,11 +29,9 @@ import { createSignedAudioProbe } from "./audio-probe.mjs";
     if (diagnosticQueue.length > 256) diagnosticQueue.shift();
   }
   window.__celikomBridgeNativeDrainDiagnostics = () => diagnosticQueue.splice(0, 48);
-  const audioProbe = createSignedAudioProbe({
-    getOrigin: () => apiOrigin,
-    fetcher: typeof fetch === "function" ? (...args) => fetch(...args) : null,
-    onEvent: report
-  });
+  // W50: stop the diagnostic 32-byte GET. W45 CORS is already proven live.
+  // All future signed-audio network requests can now be attributed by a
+  // passive Network observer to Yandex's own media pipeline or preloading.
   // Do not copy blockedURIs (which can contain signed audio URLs) to logs.
   if (typeof document !== "undefined" && document?.addEventListener) {
     document.addEventListener("securitypolicyviolation", event => {
@@ -72,7 +69,9 @@ import { createSignedAudioProbe } from "./audio-probe.mjs";
             // A PerformanceObserver entry may be OUR own independent 32-byte
             // probe, not a request made by Yandex's audio decoder. It must
             // never be counted as evidence the real player fetched or played.
-            report("AUDIO_URL_RESOURCE_UNATTRIBUTED");
+            // No CELIKOM diagnostic fetch exists in W50. Still not proof
+            // of audible playback: it can be native preloading.
+            report("PLAYER_AUDIO_RESOURCE_TIMING_SEEN");
           } catch {}
         }
       });
@@ -114,10 +113,6 @@ import { createSignedAudioProbe } from "./audio-probe.mjs";
   window.__celikomBridgeNativeReceive = (requestId, grant) => {
     if (stopped || typeof requestId !== "string") return;
     const job = pending.get(requestId);
-    if (job && grant && typeof grant.audioUrl === "string") {
-      // Probe is independent of native playback; do not await or mutate grant.
-      void audioProbe.run(grant.audioUrl, job.trackId);
-    }
     job?.finish(grant ?? null);
   };
   window.__celikomBridgeNativeSetState = next => {
