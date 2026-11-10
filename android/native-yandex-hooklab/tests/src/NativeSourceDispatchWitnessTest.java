@@ -1,5 +1,6 @@
 import java.lang.reflect.Method;
 import java.lang.reflect.Field;
+import java.lang.reflect.Constructor;
 import pro.celikom.yandex.nativehooklab.HookSpec;
 import pro.celikom.yandex.nativehooklab.NativeSourceDispatchWitness;
 
@@ -33,6 +34,13 @@ public final class NativeSourceDispatchWitnessTest {
             throw new AssertionError("untrusted method unexpectedly allowed");
         } catch(NoSuchMethodException expected){tests++;}
 
+        Constructor<?>[] exactCtors=HookSpec.findLeroConstructors(loader);
+        yes(exactCtors.length==2
+                    && exactCtors[0].getParameterTypes().length==2
+                    && exactCtors[1].getParameterTypes().length==3
+                    && exactCtors[0].getParameterTypes()[0]==wzi.class
+                    && exactCtors[1].getParameterTypes()[1]==ga4.class,
+            "both Lero constructors directly observed, not only kvs.A factory");
         Field leroReader=HookSpec.findLeroReaderField(loader);
         yes(leroReader.getType()==mb4.class
                     &&leroReader.getDeclaringClass()==ero.class,
@@ -80,6 +88,33 @@ public final class NativeSourceDispatchWitnessTest {
         yes(link.snapshot().sourceReaderLinks==2
                 &&link.snapshot().completedReaderChains==1,
                 "strict reference counts without audio or identifier data");
+
+        // Direct Locv.i0-like Lero construction bypasses the kvs.A factory.
+        // It must be observed, but never treated as a player selection.
+        NativeSourceDispatchWitness direct=new NativeSourceDispatchWitness();
+        Object fromLocv=exactCtors[1].newInstance(new wzi(),new ga4(),new Object());
+        Object fromShort=exactCtors[0].newInstance(new wzi(),new ga4());
+        direct.onConstructed(fromLocv,250);
+        direct.onConstructed(fromShort,251);
+        direct.onLifecycleT(fromLocv,252);
+        direct.onLifecycleT(fromShort,253);
+        yes(direct.snapshot().constructors==2
+                &&direct.snapshot().constructedTCalls==2
+                &&direct.snapshot().factoryTCalls==0,
+                "direct constructors known, no fictitious factory use");
+        yes(direct.onOwnedReader(fromLocv,(mb4)leroReader.get(fromLocv),254),
+                "direct Locv source reaches exact typed reader without kvs.A");
+        yes(direct.onCompletedReader((mb4)leroReader.get(fromLocv),255),
+                "direct-constructed reader evidence is tracked separately");
+        direct.onFactory(fromLocv,256);
+        yes(direct.snapshot().factories==1
+                &&direct.snapshot().constructors==2,
+                "factory provenance merge does not fake another constructor");
+        direct.onRemove(fromLocv,257);
+        yes(!direct.onCompletedReader((mb4)leroReader.get(fromLocv),258),
+                "remove cancels direct source identity before completion");
+        yes(!direct.onOwnedReader(new ero(),new mb4(),259),
+                "neither constructor nor factory tracking accepts unobserved source");
 
         NativeSourceDispatchWitness w=new NativeSourceDispatchWitness();
         Object selected=new ero();
