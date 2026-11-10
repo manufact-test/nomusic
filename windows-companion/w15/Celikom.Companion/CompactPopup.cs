@@ -11,7 +11,7 @@ public sealed partial class MainWindow
     private readonly Panel _compactScroll = new();
     private readonly Panel _compactFooter = new();
     private readonly TableLayoutPanel _compactFrame = new();
-    private readonly VScrollBar _compactScrollbar = new();
+    private readonly PopupThinScroll _compactScrollbar = new();
     private readonly Dictionary<Control, int> _compactPositions = new();
     private int _compactScrollTop;
     private int _compactScrollMax;
@@ -188,7 +188,7 @@ public sealed partial class MainWindow
         _compactFrame.Controls.Add(_compactFooter, 0, 1);
         Controls.Add(_compactFrame);
         _compactScrollbar.Dock = DockStyle.Right;
-        _compactScrollbar.Width = 12; // fits inside right 16px inset; body never narrows
+        _compactScrollbar.Width = 5; // dark thumb inside right gutter
         _compactScrollbar.SmallChange = 30;
         _compactScrollbar.Scroll += (_, e) => SetCompactOffset(e.NewValue);
         _compactScroll.Controls.Add(_compactScrollbar);
@@ -727,7 +727,7 @@ public sealed partial class MainWindow
             }
             // The thumb lives inside the existing right inset. Content width
             // is exactly the same with or without a vertical scrollbar.
-            var width = Math.Max(190, _compactScroll.ClientSize.Width - 32);
+            var width = Math.Max(190, _compactScroll.ClientSize.Width - 36);
             _compactPositions.Clear();
             int y = 15;
             foreach (var row in rows)
