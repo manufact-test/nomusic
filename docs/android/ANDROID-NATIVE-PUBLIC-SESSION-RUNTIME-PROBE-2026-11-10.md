@@ -22,3 +22,8 @@ This runtime attempt can legitimately be **inconclusive** if the unlogged origin
 No real \`trackId + edition + generation -> FileInfo -> actual decoder descriptor -> exactly one source before prepare\` has been observed in unchanged Yandex. No authorized third-party file-URI source contract exists in evidence. No root, bypass, unofficial account API, second player or WebView is allowed. Until that evidence exists, **NO-GO for CELIKOM native source replacement**. Never distribute the probe as a CELIKOM solution.
 
 Source: https://developer.android.com/reference/androidx/media3/session/MediaController
+
+
+## Runtime first pass and controlled platform-browser fallback
+
+CI 42783663050: mechanics SUCCESS, but exact signed original #170gpr on disposable Android11, unauthenticated, yielded one public binder candidate and Media3 state CONNECTION_NOT_ESTABLISHED; every flag false because the handshake failed, not because Yandex definitely rejected a command. Added one last strictly read-only platform MediaBrowser.connect() fallback to this exact exported service. Reads only categorical PlaybackState actions, never invokes play, media URI, queue, OAuth, FileInfo or decoder. A failure without login is still inconclusive for authenticated playback. CI follow-up recorded separately after run.

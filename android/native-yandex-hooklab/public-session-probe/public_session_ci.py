@@ -26,12 +26,16 @@ STATES = {
     "CONNECTED_READONLY", "CONNECTION_NOT_ESTABLISHED",
     "VERSION_UNPINNED", "NO_PUBLIC_SERVICE", "AMBIGUOUS_SERVICE",
     "PUBLISHER_PACKAGE_MISSING", "PUBLIC_SESSION_PROBE_UNAVAILABLE", "TIMEOUT",
+    "PLATFORM_BROWSER_CONNECTED", "PUBLIC_BIND_REJECTED", "PUBLIC_BIND_UNAVAILABLE",
 }
 PATTERN = re.compile(
     r"PROBE_RESULT state=([A-Z_]+) eligible=([0-9]+)"
     r" connected=(true|false) change_items=(true|false)"
     r" set_item=(true|false) get_item=(true|false)"
     r" play_pause=(true|false) seek=(true|false)"
+    r" browser_connected=(true|false)"
+    r" platform_play_from_uri=(true|false)"
+    r" platform_play_from_media_id=(true|false)"
     r" source_replace_proven=false audio_tested=false"
 )
 
@@ -49,10 +53,12 @@ def run(argv: list[str], stage: str, timeout: int = 120) -> str:
 
 def sanitize_logcat(text: str) -> dict | None:
     for match in PATTERN.finditer(text):
-        state, count, connected, change, set_item, get_item, play, seek = match.groups()
+        state, count, connected, change, set_item, get_item, play, seek, browser, uri, media_id = match.groups()
         if state not in STATES or int(count) > 8:
             continue
         if connected == "true" and state != "CONNECTED_READONLY":
+            continue
+        if browser == "true" and state != "PLATFORM_BROWSER_CONNECTED":
             continue
         return {
             "state": state,
@@ -63,6 +69,9 @@ def sanitize_logcat(text: str) -> dict | None:
             "command_get_current_item_advertised": get_item == "true",
             "command_play_pause_advertised": play == "true",
             "command_seek_advertised": seek == "true",
+            "platform_browser_connected": browser == "true",
+            "platform_action_play_from_uri": uri == "true",
+            "platform_action_play_from_media_id": media_id == "true",
         }
     return None
 

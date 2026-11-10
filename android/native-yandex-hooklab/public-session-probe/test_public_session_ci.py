@@ -15,6 +15,8 @@ class ProbeResultTests(unittest.TestCase):
                   "state=CONNECTED_READONLY eligible=1 connected=true "
                   "change_items=false set_item=false get_item=true "
                   "play_pause=true seek=true "
+                  "browser_connected=false platform_play_from_uri=false "
+                  "platform_play_from_media_id=false "
                   "source_replace_proven=false audio_tested=false")
         result = module.sanitize_logcat(sample)
         self.assertEqual(result["state"], "CONNECTED_READONLY")
@@ -29,12 +31,28 @@ class ProbeResultTests(unittest.TestCase):
         self.assertIsNone(module.sanitize_logcat(
             "PROBE_RESULT state=BOGUS eligible=1 connected=true "
             "change_items=true set_item=true get_item=true "
-            "play_pause=true seek=true source_replace_proven=false audio_tested=false"))
+            "play_pause=true seek=true browser_connected=false "
+            "platform_play_from_uri=false platform_play_from_media_id=false "
+            "source_replace_proven=false audio_tested=false"))
+
+    def test_platform_browser_connected_only(self):
+        sample = ("PROBE_RESULT state=PLATFORM_BROWSER_CONNECTED eligible=1 "
+                  "connected=false change_items=false set_item=false "
+                  "get_item=false play_pause=false seek=false "
+                  "browser_connected=true platform_play_from_uri=true "
+                  "platform_play_from_media_id=false "
+                  "source_replace_proven=false audio_tested=false")
+        result = module.sanitize_logcat(sample)
+        self.assertTrue(result["platform_browser_connected"])
+        self.assertTrue(result["platform_action_play_from_uri"])
+        self.assertFalse(result["command_change_media_items_advertised"])
 
     def test_inconsistent_or_excess_candidates_rejected(self):
         base = ("PROBE_RESULT state=TIMEOUT eligible=1 connected=true "
                 "change_items=false set_item=false get_item=false "
                 "play_pause=false seek=false "
+                "browser_connected=false platform_play_from_uri=false "
+                "platform_play_from_media_id=false "
                 "source_replace_proven=false audio_tested=false")
         self.assertIsNone(module.sanitize_logcat(base))
         self.assertIsNone(module.sanitize_logcat(base.replace(
