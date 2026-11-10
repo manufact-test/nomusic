@@ -1,0 +1,43 @@
+name: CELIKOM W48 honest native playback diagnostics (STAGING ONLY)
+
+on:
+  push:
+    branches:
+      - experiment/windows-companion-integration-20261108
+    paths:
+      - .github/workflows/windows-w48-playback-witness-contract.yml
+
+permissions:
+  contents: read
+
+jobs:
+  truthful-witness:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Build genuine Yandex native renderer bundle, without modifying any app
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd windows-companion/w23
+          npm install --no-audit --no-fund --no-package-lock
+          npm run build
+      - name: Test isolated real-playback signals, redacted original file-info and resource origin ambiguity
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check windows-companion/w23/host.cjs
+          node --check windows-companion/w22/native-resource-adapter.mjs
+          node --test windows-companion/w22/native-resource-adapter.test.mjs windows-companion/w23/native-host.test.mjs windows-companion/w23/renderer-relay.test.mjs windows-companion/w23/audio-probe.test.mjs
+          grep -q 'PLAYER_ENGINE_FAST_PAUSE' windows-companion/w23/host.cjs
+          grep -q 'AUDIO_URL_RESOURCE_UNATTRIBUTED' windows-companion/w23/renderer-entry.mjs
+          ! grep -q 'report("MEDIA_REQUEST_SEEN")' windows-companion/w23/renderer-entry.mjs
+          echo W48_REAL_ENGINE_WITNESS_AND_HONEST_RESOURCE_EVENTS_PASS
+      - name: Strictly no production, installer, signed audio, or owner Yandex changes
+        run: echo W48_STAGING_ONLY_NOT_A_PLAYBACK_FIX
