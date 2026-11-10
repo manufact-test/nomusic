@@ -67,8 +67,11 @@ void Relayout()
 void ScrollStage(Control row)
 {
     var positions = (Dictionary<Control, int>)Get("_compactPositions");
-    if (!positions.TryGetValue(row, out var y))
-        throw new Exception("W64_STAGE_POSITION_MISSING " + row.Name);
+    Control owner = row;
+    while (!positions.ContainsKey(owner) && owner.Parent is not null)
+        owner = owner.Parent;
+    if (!positions.TryGetValue(owner, out var y))
+        throw new Exception("W65_STAGE_POSITION_MISSING " + row.Name);
     typeof(MainWindow).GetMethod("SetCompactOffset",
         System.Reflection.BindingFlags.Instance |
         System.Reflection.BindingFlags.NonPublic)!.Invoke(form, [Math.Max(0, y - 15)]);
@@ -90,6 +93,21 @@ if (!email.Visible || !password.Visible || !login.Visible ||
     email.Bounds.IntersectsWith(password.Bounds) ||
     login.Bounds.IntersectsWith(password.Bounds))
     throw new Exception("W63_ACCOUNT_FORM_INVISIBLE_OR_OVERLAPPING");
+
+var accountFrame = (Control)Get("_compactAccountFrame");
+var supportFrame = (Control)Get("_compactSupportFrame");
+if (!ReferenceEquals(account.Parent, accountFrame) ||
+    !ReferenceEquals(((Control)Get("_compactAccountTrigger")).Parent, accountFrame) ||
+    !ReferenceEquals(support.Parent, supportFrame) ||
+    !ReferenceEquals(((Control)Get("_compactSupportTrigger")).Parent, supportFrame))
+    throw new Exception("W65_ACCOUNT_SUPPORT_HAVE_NO_SHARED_BORDER");
+if (accountFrame.Width != supportFrame.Width ||
+    account.Left < 10 || account.Right > accountFrame.Width - 10)
+    throw new Exception("W65_CARD_GUTTER_NOT_BALANCED");
+var promo = (PopupButton)Get("_compactPromoToggle");
+if (!promo.Borderless || promo.Font.Size > 9F)
+    throw new Exception("W65_PROMO_NOT_MATCHING_EXTENSION_TYPOGRAPHY");
+
 ScrollStage(account);
 SaveStage(prefix + "-account.png");
 
@@ -102,6 +120,13 @@ var send = (Control)Get("_compactSupportSubmit");
 if (!send.Visible || send.Parent != support ||
     send.Bottom > support.ClientSize.Height)
     throw new Exception("W63_SUPPORT_SEND_HIDDEN_OR_CLIPPED");
+var supportSelection = (PopupOptionSelect)Get("_compactSupportKind");
+var textArea = (Control)Get("_compactSupportInput");
+if (!textArea.Visible || !supportSelection.Visible ||
+    ((TextBox)Get("_compactSupportText")).BorderStyle != BorderStyle.None ||
+    !ReferenceEquals(textArea.Parent, support) ||
+    !ReferenceEquals(supportSelection.Parent, support))
+    throw new Exception("W65_SUPPORT_STILL_USES_WHITE_NATIVE_BORDER");
 ScrollStage(support);
 SaveStage(prefix + "-support.png");
 
@@ -138,10 +163,10 @@ SaveStage(prefix + "-upload.png");
 // Ensure the user can reach Send via scroll even when the window is narrow.
 Set("_compactUploadOpen", false);
 Set("_compactSupportOpen", true);
-((ComboBox)Get("_compactSupportKind")).SelectedIndex = 1;
+((PopupOptionSelect)Get("_compactSupportKind")).SelectedIndex = 1;
 Relayout();
 var category = (Control)Get("_compactSupportCategory");
-var desc = (Control)Get("_compactSupportText");
+var desc = (Control)Get("_compactSupportInput");
 if (!category.Visible || !send.Visible ||
     category.Bounds.IntersectsWith(desc.Bounds) ||
     send.Bottom > support.ClientSize.Height)
@@ -169,7 +194,7 @@ if (!ReferenceEquals(footerLabel.Parent, footer) ||
     !footer.Visible || !footerLabel.Visible ||
     footerLabel.Bounds.Bottom > footer.ClientSize.Height ||
     footer.Bottom != form.ClientSize.Height ||
-    dot.Width > 12 || (dot as Label)?.TextAlign != ContentAlignment.MiddleCenter)
+    dot.Width > 8 || dot.Height > 8 || dot.Text.Length != 0)
     throw new Exception("W64_VERSION_FOOTER_NOT_ANCHORED_OR_INDICATOR_NOT_CENTERED");
 
 Set("_compactSupportOpen", true);
@@ -177,11 +202,13 @@ Set("_compactAccountOpen", true);
 Set("_compactUploadOpen", true);
 Set("_compactUploadView", "form");
 Relayout();
-var scrollbar = (VScrollBar)Get("_compactScrollbar");
+var scrollbar = (PopupThinScroll)Get("_compactScrollbar");
 if (!scrollbar.Visible ||
     ((Control)Get("_compactUploadButton")).Width != baselineWidth ||
-    footer.Bottom != form.ClientSize.Height)
-    throw new Exception("W64_SCROLLBAR_CHANGED_GUTTER_OR_MOVED_FOOTER");
+    footer.Bottom != form.ClientSize.Height ||
+    scrollbar.Width > 6 ||
+    scrollbar.Left - ((Control)Get("_compactUploadButton")).Right < 14)
+    throw new Exception("W65_SCROLLBAR_TOUCHES_CARD_OR_CHANGED_GUTTER");
 var layoutTop = ((Control)Get("_compactHeader")).Top;
 var offsetSetter = typeof(MainWindow).GetMethod("SetCompactOffset",
     System.Reflection.BindingFlags.Instance |
@@ -208,8 +235,7 @@ Set("_compactUploadOpen", true);
 Set("_compactUploadView", "form");
 Set("_compactSelectedAudio", "bad_audio.mp3");
 Set("_compactAudioPreflight", new AudioPreflight.Result(
-    152000, true, true, "Оригинал: 3:43 · файл: 2:32. Допуск подмены — 1,5 с.",
-    "Название файла не похоже на текущую песню."));
+    152000, true, "Оригинал: 3:43 · файл: 2:32. Допуск подмены — 1,5 с."));
 offsetSetter.Invoke(form, [0]);
 Relayout();
 var durationWarning = (Label)Get("_compactAudioValidation");
@@ -217,6 +243,7 @@ if (!durationWarning.Visible || durationWarning.ForeColor.R < 200 ||
     ((Button)Get("_compactUploadSubmit")).Enabled)
     throw new Exception("W64_INVALID_AUDIO_NOT_RED_OR_UPLOAD_NOT_BLOCKED");
 SaveStage(prefix + "-invalid-audio.png");
+Console.WriteLine("W65_BORDERED_ACCORDIONS_DARK_SUPPORT_NO_FILENAME_CHECK_SCROLL_GUTTERS_PASS");
 Console.WriteLine("W64_SCROLLED_PANEL_EQUAL_GUTTERS_FIXED_FOOTER_RED_AUDIO_PRECHECK_PASS");
 
 
