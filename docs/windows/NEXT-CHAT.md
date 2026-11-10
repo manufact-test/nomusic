@@ -1,3 +1,17 @@
+# CELIKOM Windows — W53 native 403 export regression fixed, still NO-GO (2026-11-10)
+
+**FIRST READ:** `docs/windows/W53-HTTP403-DIAGNOSTIC-EXPORT-GATE-20261110.md`, then `docs/windows/W52-REAL-403-PRIVACY-SAFE-ROOT-CAUSE-STAGE-20261110.md`, and the owner's real W51 handoff.
+
+**Critical correction:** The W52 C# GUI owner's TXT export would have SILENTLY DROPPED every `PLAYER_403_*` and `resource_id=` event due its old `[A-Z_]` / `track`-only allowlist; even `PlayerNetworkRequestObserved` summary would falsely be `false`. W53 fixes strict allowlist, summaries, 15-minute export and companion end-to-end tests. W53 also fixes per-resource `PLAYER_403_*` deduplication, permits bounded CDP JSON enum read ONLY for a tiny genuine audio-GET HTTP403, and distinguishes `PLAYER_URL_SIGNED_FIELDS_INTACT` from harmless query reorder or extra unrelated params. The fixed PowerShell genuine-Yandex owner-log gate must match exactly the new allowlist. Multiple earlier CI failures were from that outdated PowerShell gate, not evidence of owner playback failure.
+
+**Current 0.24.6 audio still RED on owner machine:** original/ordinary tracks audible, approved substitutes silent, 7 real Media GETs all HTTP403. A separate source audit found original mapped MP3 URL getter normally preserves token query. Exact live reason **NOT PROVEN** because original 0.24.6 owner TXT cannot expose real request URL or body, and W53 hasn't been installed. Do NOT claim a server-side or URL rewrite fix. No production/backend/Android/vendor-owner changes; no new owner installer for diagnosis only.
+
+**W53 CI source+GUI regression:** W48 #42790106070 SUCCESS; W20 #42789543676 SUCCESS; W15 Preview #42789294565 SUCCESS. Newest complete CI on corrected W23 disposable PowerShell gate https://github.com/manufact-test/nomusic/actions/runs/42790279901 and W41 https://github.com/manufact-test/nomusic/actions/runs/42790279982 must be verified before any future packaging gate; W20 https://github.com/manufact-test/nomusic/actions/runs/42790280129 is source/staging only. All tests synthetic or disposable; none authenticated/audio-PASS. **Rollback** `backup/windows-w52-403-classification-before-export-fix-20261110` at `34e4559de0edeef7df89567cb928de1a99d13859`. Working branch `experiment/windows-companion-integration-20261108`.
+
+**NEXT:** Establish cause of LIVE audio 403 using a low-risk path, not an invented token/host bypass; inspect only legitimately authorized session/server evidence. Once fix is proven, create actual version >0.24.6 and run verified same-app DPAPI-auth-preserving update, then deliver exclusively through verified ChatGPT Library `CELIKOM/Windows`. No manual owner trial of unchanged 0.24.6.
+
+---
+
 # CELIKOM Windows — W52 staged 403 root-cause classification, NO RELEASE (2026-11-10)
 
 **CURRENT FIRST READ:** `docs/windows/W52-REAL-403-PRIVACY-SAFE-ROOT-CAUSE-STAGE-20261110.md`. Preserve W51 real owner evidence in `docs/windows/W51-OWNER-0246-REAL-MEDIA-HTTP403-ROOT-CAUSE-HANDOFF-20261110.md`.
