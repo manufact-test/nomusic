@@ -83,7 +83,16 @@ public static class DiagnosticLog
         text.AppendLine("PNR: NOT_IMPLEMENTED_OR_NOT_IDENTIFIED.");
         text.AppendLine("Events: UTC | allowlisted code | optional numeric track id. No raw request URLs or error messages.");
         text.AppendLine("--- EVENTS ---");
-        var count = 0;
+        // W48: past sessions masked the current failure. Export ONLY recent,
+        // verified UTC events, merge native and GUI logs in time order, cap size.
+        // No event is interpreted as confirmed replaced sound.
+        var entries = new List<string>();
+        var cutoff = DateTimeOffset.UtcNow.AddMinutes(-60);
+        static bool RecentSafe(string line, DateTimeOffset after) =>
+            IsSafeEntry(line) && line.Length >= 24 &&
+            DateTimeOffset.TryParseExact(line[..24], "yyyy-MM-ddTHH:mm:ss.fffZ",
+                CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var stamp) &&
+            stamp >= after;
         lock (Gate)
         {
             foreach (var name in new[] {
@@ -98,20 +107,30 @@ public static class DiagnosticLog
                         FileShare.ReadWrite | FileShare.Delete);
                     using var reader = new StreamReader(stream, Encoding.UTF8);
                     for (var i = 0; i < 20000 && reader.ReadLine() is { } line; i++)
-                    {
-                        if (!IsSafeEntry(line)) continue;
-                        text.AppendLine(line);
-                        count++;
-                    }
+                        if (RecentSafe(line, cutoff)) entries.Add(line);
                 }
                 catch (IOException) { text.AppendLine("LOG_FILE_UNAVAILABLE"); }
                 catch (UnauthorizedAccessException) { text.AppendLine("LOG_FILE_UNAVAILABLE"); }
             }
-            if (count == 0)
+            if (entries.Count == 0)
                 foreach (var line in Recent)
-                    if (IsSafeEntry(line)) text.AppendLine(line);
+                    if (RecentSafe(line, cutoff)) entries.Add(line);
         }
-        if (count == 0) text.AppendLine("NO_PERSISTENT_EVENTS_AVAILABLE");
+        entries.Sort(StringComparer.Ordinal);
+        text.AppendLine("DiagnosticScope=LAST_60_MINUTES");
+        text.AppendLine("ReplacementAudibleProof=NOT_AVAILABLE_FROM_PROBE_OR_MAPPING");
+        text.AppendLine("EngineFastPauseObserved=" +
+            entries.Any(s => s.Contains("|PLAYER_ENGINE_FAST_PAUSE", StringComparison.Ordinal))
+                .ToString().ToLowerInvariant());
+        text.AppendLine("PlayerAudibleEventObserved=" +
+            entries.Any(s => s.Contains("|PLAYER_AUDIO_AUDIBLE", StringComparison.Ordinal))
+                .ToString().ToLowerInvariant());
+        text.AppendLine("DecoderErrorObserved=" +
+            entries.Any(s => s.Contains("|PLAYER_CDP_PIPELINE_ERROR", StringComparison.Ordinal) ||
+                s.Contains("|PLAYER_CDP_ERROR_MESSAGE", StringComparison.Ordinal))
+                .ToString().ToLowerInvariant());
+        foreach (var line in entries.TakeLast(1600)) text.AppendLine(line);
+        if (entries.Count == 0) text.AppendLine("NO_RECENT_EVENTS_AVAILABLE");
         return text.ToString();
     }
 }
