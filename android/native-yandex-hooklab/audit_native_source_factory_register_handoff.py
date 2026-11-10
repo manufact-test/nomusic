@@ -41,6 +41,8 @@ SOURCE_CANDIDATES={
     ("Luiq;","a"),("Lygv;","r"),
     ("Locv;","i0"),("Lw4y;","z"),("Lfwm;","M"),
     ("Lero;","<init>"),("Lnro;","<init>"),("Llky;","<init>"),
+    ("Locv;","t"),("Locv;","remove"),
+    ("Lemb;","t"),("Lemb;","remove"),
 }
 MAX_CALLER_METHODS=75
 MAX_FOCUSED_BODY_LENGTH=5000
