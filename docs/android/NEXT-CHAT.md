@@ -1,4 +1,14 @@
-## НОВЕЙШИЙ ПРОВЕРЕННЫЙ ANDROID RUNTIME PASS — API33 OWN MediaPlayer, source reload/Seek/Pause/Next (10.11.2026)
+## НОВЕЙШАЯ CI GREEN — Android 13 real MediaPlayer rapid Start/Stop/Next race PASS (10.11.2026)
+
+- **Точный код:** `50735e6d56481ea0ce3da8fdcb03589cad90608c`; **неизменяемый rollback:** `backup/android-own-api33-rapid-reload-race-pass-20261110`. **Читать первым:** `docs/android/ANDROID-OWN-API33-RAPID-RELOAD-RACE-PASS-2026-11-10.md`.
+- **Реальный Android 13 Google APIs x86_64 emulator / OWN-WAV only / noaudio**: обычный source reload с сохранением Pause/Seek/Next **PASS** и **новый быстрый стресс** 12 round / 48 media-player creates / max1 concurrent / 47 release, 12 B prepared, 6 Paused+Seek **PASS**. CI зафиксировал **`RESULT=PASS CODE=OWN_DECODER_LIFECYCLE` И `RESULT=PASS CODE=OWN_ASYNC_RACE_PASS`** в одном run [#42837053639 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/42837053639).
+- Починен настоящий баг OWN UI: второй Start/Stop **до `onPrepared`** сбрасывал pending restore position в 0; теперь `restoreSeekMs>0` действует с начала prepareAsync. 36 искусственно вставленных stale-tickets отсекаются generation guard, но **реальное число framework late callbacks не измерено** — не путать.
+- **Android ARMv7 host [#42837003150 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/42837003150), own scoped module [#42837003307 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/42837003307), native research [#42837003096 SUCCESS 2/2](https://github.com/manufact-test/nomusic/actions/runs/42837003096)** на соседнем SHA `31c34b23`; после него менялась **только workflow safety-check** (проверено compare). Оригинальный Yandex/owner Test.50/Windows/API/production НЕ менялся.
+- **Android Yandex runtime selected Lemb / trackId+edition+generation → real decoder preprepare НЕ ДОКАЗАН**. Обычные Android `AudioPlaybackCallback`/MediaSession уведомления не открывают объект DataSource чужого плеера. Android CELIKOM source swap по-прежнему **NO-GO**, не выдавать собственный тестовый APK за готовую подмену.
+
+---
+
+## ПРЕДЫДУЩИЙ ПРОВЕРЕННЫЙ ANDROID RUNTIME PASS — API33 OWN MediaPlayer, source reload/Seek/Pause/Next (10.11.2026)
 
 - **CI GREEN код:** `bb26aca9652850c69fbd0896a26bec22601826b0`, **точный immutable backup:** `backup/android-own-api33-real-mediaplayer-source-reload-pass-20261110`, **главный документ:** `docs/android/ANDROID-OWN-API33-MEDIAPLAYER-RUNTIME-PASS-2026-11-10.md`.
 - **Впервые реальные Android 13 native MediaPlayer callbacks в эмуляторе, не JVM модель:** собственный WAV A 440 Hz → Seek 2.2 с → Pause → SAME-TRACK Start alternative A 660 Hz с сохранением Pause и позиции → Resume → Stop, original A 440 Hz с сохранением Playing/позиции → Next B original 330 Hz. Источник выбирается через тот же `OwnSameTrackReloadPlan.decide`; старый плеер сначала release, новый один. На реальном Android CI `RESULT=PASS CODE=OWN_DECODER_LIFECYCLE`.
