@@ -145,8 +145,32 @@ test("diagnostic queue reports native mapping as NOT audio verification and neve
   assert.ok(code.includes("RESOURCE_HOOK_ATTACHED"));
   assert.ok(code.includes("RENDERER_STATE_ON"));
   assert.ok(code.includes("SOURCE_MAPPED"));
+  assert.ok(code.includes("FILEINFO_NATIVE_KEY_FIELD"));
+  assert.ok(code.includes("FILEINFO_NATIVE_CODEC_AAC"));
   assert.ok(events.some(([value,id])=>value==="SOURCE_MAPPED"&&id==="123"));
+  assert.ok(events.some(([value,id])=>value==="FILEINFO_NATIVE_KEY_FIELD"&&id==="123"));
+  assert.ok(!code.includes("PLAYER_AUDIO_AUDIBLE"),"source mapping must not be called audible playback");
   const serialized=JSON.stringify(events);
   assert.ok(!serialized.includes("token=")&&!serialized.includes("api.celikom.example"));
+  r.handlers.beforeunload();
+});
+
+test("W48 structural native file-info witness exports only field presence, never crypto values",async()=>{
+  const r=createRenderer();
+  r.window.__celikomBridgeNativeSetState({enabled:true,signedIn:true,apiOrigin:origin});
+  const pending=new r.Resource().getFileInfo({trackId:"123"});
+  await tick();
+  const req=r.window.__celikomBridgeNativeDrain();
+  for(const item of req) r.window.__celikomBridgeNativeReceive(item.requestId,makeGrant(item.trackId));
+  await pending;
+  const events=r.window.__celikomBridgeNativeDrainDiagnostics();
+  const names=events.map(x=>x[0]);
+  assert.ok(names.includes("FILEINFO_NATIVE_KEY_FIELD"));
+  assert.ok(names.includes("FILEINFO_NATIVE_CODEC_AAC"));
+  assert.ok(!JSON.stringify(events).includes("yandex-drm"));
+  assert.ok(!JSON.stringify(events).includes("official.yandex.example"));
+  assert.ok(!JSON.stringify(events).includes("token="));
+  assert.ok(!names.includes("PLAYER_ENGINE_STARTED"));
+  assert.ok(!names.includes("PLAYER_AUDIO_AUDIBLE"));
   r.handlers.beforeunload();
 });
