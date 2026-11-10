@@ -4,6 +4,7 @@ import {createNativeResourceAdapter} from './native-resource-adapter.mjs';
 
 const now = 1800000000000;
 const url = 'https://api.celikom.example/api/v1/audio/22?token='+'a'.repeat(64)+'&expires='+Math.floor((now+180000)/1000);
+const nativeUrl = url + '&celikom_native_query_guard=0';
 const grant = (id='123', overrides={}) => ({
   trackId:id, approved:true, entitled:true, audioUrl:url,
   expiresAt:now+180000, mimeType:'audio/mpeg', ...overrides
@@ -40,8 +41,8 @@ test('disabled is transparent: no CELIKOM request',async()=>{
 test('approved mp3 changes only source, leaves native response intact',async()=>{
   const a=create();const {proto}=resource();a.attach(proto);a.enable();
   const r=await proto.getFileInfo({trackId:'123'});
-  assert.equal(r.responseTime,41);assert.equal(r.downloadInfo.url,url);
-  assert.deepEqual(r.downloadInfo.urls,[url]);assert.equal(r.downloadInfo.codec,'mp3');
+  assert.equal(r.responseTime,41);assert.equal(r.downloadInfo.url,nativeUrl);
+  assert.deepEqual(r.downloadInfo.urls,[nativeUrl]);assert.equal(r.downloadInfo.codec,'mp3');
   assert.equal(r.downloadInfo.transport,'raw');assert.equal(r.downloadInfo.key,undefined);
   assert.equal(r.downloadInfo.bitrate,320,'MP3 must not inherit original AAC bitrate');
   assert.equal(a.status,'SOURCE_MAPPING_RETURNED_NOT_AUDIO_VERIFIED');a.dispose();
@@ -101,13 +102,13 @@ test('prefetch enables batch mapping for current exact ID',async()=>{
   const a=create();const {proto,stats}=resource();a.attach(proto);a.enable();
   a.trackChanged('123');assert.equal(await a.prime('123'),true);
   const r=await proto.getFileInfoBatch({trackIds:['123','456']});
-  assert.equal(r.downloadInfos[0].url,url);assert.equal(stats.batch,1);a.dispose();
+  assert.equal(r.downloadInfos[0].url,nativeUrl);assert.equal(stats.batch,1);a.dispose();
 });
 test('batch-first playback resolves CELIKOM without requiring single-file event',async()=>{
   let calls=0;const a=create(async()=>{calls++;return grant()});
   const {proto}=resource();a.attach(proto);a.enable();
   const r=await proto.getFileInfoBatch({trackIds:['123']});
-  assert.equal(r.downloadInfos[0].url,url);
+  assert.equal(r.downloadInfos[0].url,nativeUrl);
   assert.equal(r.downloadInfos[0].key,undefined);
   assert.equal(calls,1);a.dispose();
 });
@@ -118,7 +119,7 @@ test('Next in batch resolves exact future track without changing Yandex queue',a
   const r=await proto.getFileInfoBatch({trackIds:['123','456','789']});
   assert.deepEqual(queried,['123','456','789']);
   assert.equal(r.downloadInfos.length,1,'do not append missing Yandex queue items');
-  assert.equal(r.downloadInfos[0].url,url);
+  assert.equal(r.downloadInfos[0].url,nativeUrl);
   assert.deepEqual(r.downloadInfos.map(x=>x.trackId),['123']);
   a.dispose();
 });
@@ -184,7 +185,7 @@ test('slow real Yandex metadata is awaited before applying approved source',asyn
   const reply=await pending;
   assert.equal(reply.responseTime,41);
   assert.deepEqual(reply.extraClock,{stillNative:true});
-  assert.equal(reply.downloadInfo.url,url);
+  assert.equal(reply.downloadInfo.url,nativeUrl);
   assert.ok(!events.some(([code])=>code==='SOURCE_SYNTHETIC_RESPONSE'));
   a.dispose();
 });
@@ -247,6 +248,43 @@ test('W50 MP3 mapping ignores native AAC bitrate but keeps envelope and original
   assert.equal(r.responseTime,47);assert.equal(r.requestUrl,'native-resource-api');
   assert.equal(r.downloadInfo.codec,'mp3');assert.equal(r.downloadInfo.transport,'raw');
   assert.equal(r.downloadInfo.bitrate,320);assert.equal(r.downloadInfo.key,undefined);
-  assert.equal(r.downloadInfo.gain,false);assert.deepEqual(r.downloadInfo.urls,[url]);
+  assert.equal(r.downloadInfo.gain,false);assert.deepEqual(r.downloadInfo.urls,[nativeUrl]);
   a.dispose();
+});
+
+test('W56 genuine DownloadInfoSource telemetry cannot corrupt signed SID/expires/token',async()=>{
+  const signed=url+'&sid=7';
+  const a=create(async id=>grant(id,{audioUrl:signed}));
+  const {proto}=resource();a.attach(proto);a.enable();
+  const mapped=(await proto.getFileInfo({trackId:'123'})).downloadInfo;
+  assert.equal(mapped.urls[0],signed+'&celikom_native_query_guard=0');
+  assert.equal(mapped.url,mapped.urls[0]);
+  // Yandex signed-source class appends its telemetry using "?" to urls[0],
+  // then the media element appends a time fragment. This models that exact
+  // vendor behavior verified against the pinned 5.126.1 original ASAR.
+  const requested=new URL(mapped.urls[0]+'?vsid=YT55&source_index=2#t=42');
+  const original=new URL(signed);
+  for(const key of ['token','expires','sid'])
+    assert.equal(requested.searchParams.get(key),original.searchParams.get(key),
+      key+' must survive native telemetry unchanged');
+  assert.equal(requested.searchParams.get('celikom_native_query_guard'),'0?vsid=YT55');
+  assert.equal(requested.searchParams.get('source_index'),'2');
+  assert.equal(requested.hash,'#t=42','native seek fragment must remain intact');
+  const broken=new URL(signed+'?vsid=YT55&source_index=2#t=42');
+  assert.equal(broken.searchParams.get('sid'),'7?vsid=YT55');
+  assert.notEqual(broken.searchParams.get('sid'),original.searchParams.get('sid'));
+  a.dispose();
+});
+test('W56 query guard only touches validated CELIKOM native mapped source',async()=>{
+  const a=create();const {proto}=resource();a.attach(proto);
+  const originalBefore=await proto.getFileInfo({trackId:'123'});
+  assert.equal(originalBefore.downloadInfo.url,'https://official.example/native');
+  a.enable();
+  const invalid=grant('123',{audioUrl:url+'&celikom_native_query_guard=0'});
+  a.disable();a.enable();a.dispose();
+  const b=create(async()=>invalid);const obj=resource();b.attach(obj.proto);b.enable();
+  const originalAfter=await obj.proto.getFileInfo({trackId:'123'});
+  assert.equal(originalAfter.downloadInfo.url,'https://official.example/native',
+    'untrusted guard in grant must fail the normal signed URL validator');
+  b.dispose();
 });
