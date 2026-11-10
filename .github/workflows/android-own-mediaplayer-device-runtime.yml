@@ -30,7 +30,7 @@ jobs:
           set -euo pipefail
           gradle -p android/native-yandex-hooklab/armv7-loader-host :app:assembleDebug --no-daemon -PcelikomOwnEmulator=true
           test -f android/native-yandex-hooklab/armv7-loader-host/app/build/outputs/apk/debug/app-debug.apk
-      - name: Safety: fixed package, no app permissions or vendor access
+      - name: "Safety: fixed package, no app permissions or vendor access"
         run: |
           python3 - <<'PY'
           from pathlib import Path
