@@ -225,13 +225,17 @@ try
     DiagnosticLog.Record("OWNER_DIAG_TEST", "123");
     var snapshot = DiagnosticLog.ExportText("5.126.1.0", "ACTIVE", true, true, true);
     Test(snapshot.Contains("OWNER_DIAG_TEST|track=123"), "diagnostic export has observed event");
-    Test(snapshot.Contains("DiagnosticScope=LAST_60_MINUTES"), "recent sessions only");
-    Test(snapshot.Contains("ReplacementAudibleProof=NOT_AVAILABLE_FROM_PROBE_OR_MAPPING"),
+    Test(snapshot.Contains("DiagnosticScope=LAST_15_MINUTES"), "recent sessions only");
+    Test(snapshot.Contains("ReplacementAudibleProof=NOT_AVAILABLE_FROM_NETWORK_OR_MAPPING"),
         "successful MP3 probe never implies audio replacement");
-    Test(snapshot.Contains("CodeBaseline=W48_ACTUAL_PLAYER_ENGINE_DIAGNOSTICS"), "real-engine diagnostic contract");
+    Test(snapshot.Contains("CodeBaseline=W50_NATIVE_NETWORK_WITHOUT_DIAGNOSTIC_FETCH"), "real-engine diagnostic contract");
     Test(snapshot.Contains("EngineFastPauseObserved=") &&
         snapshot.Contains("PlayerAudibleEventObserved=") &&
         snapshot.Contains("DecoderErrorObserved="), "typed owner playback evidence summary");
+    Test(snapshot.Contains("PlayerNetworkRequestObserved=") &&
+        snapshot.Contains("PlayerNetworkCorsFailureObserved=") &&
+        snapshot.Contains("FastPauseTrackAttribution=NOT_AVAILABLE_WITHOUT_PLAYER_TRACK_ID"),
+        "real Yandex network evidence remains distinct from playable audio");
     Test(!snapshot.Contains("yandex-drm") && !snapshot.Contains("token="),
         "owner export never leaks native crypto or signed URLs");
     Test(!snapshot.Contains(expectedAccess) && !snapshot.Contains(expectedRefresh) &&
