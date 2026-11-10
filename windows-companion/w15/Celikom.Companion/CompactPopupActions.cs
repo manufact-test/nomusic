@@ -84,7 +84,16 @@ public sealed partial class MainWindow
         catch
         {
             if (generation == _compactAccessGeneration && !_closing)
-                _compactAccess.Text = "Нет связи. Доступ проверяется сервером.";
+            {
+                _compactAccess.Text = "Нет связи. Подмена выключена до проверки доступа.";
+                if (_bridge.Enabled)
+                {
+                    ++_compactStartEpoch;
+                    _compactStarting = false;
+                    _bridge.SetEnabled(false);
+                    DiagnosticLog.Record("ACTIVE_ENTITLEMENT_CHECK_UNAVAILABLE");
+                }
+            }
         }
         finally { _compactAccessBusy = false; }
     }
