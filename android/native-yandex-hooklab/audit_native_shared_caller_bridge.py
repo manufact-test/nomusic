@@ -210,6 +210,15 @@ def joined_graph_findings(items: list[dict]) -> dict:
         "dex_invoke_edge_count": edges,
         "method_triples_joined_across_six_dex": True,
         "source_kind": "signed FileInfo converter callers, exact native DTO model",
+        # Minimal identifiers only: guide the next audit to the actual signed
+        # converter callsite, not just a class name guessed from R8 symbols.
+        "direct_converter_caller_hints": [
+            bounded_obfuscated(x) for x in sorted(source)[:8]],
+        "direct_model_consumer_hints": [
+            bounded_obfuscated(x) for x in sorted(model)[:12]],
+        "converter_caller_count": len(source),
+        "model_consumer_count": len(model),
+        "source_callsite_audio_flow_proven": False,
         "sink_kinds": {
             "media3_implementor_symbols": 4,
             "media3_public_interface": True,

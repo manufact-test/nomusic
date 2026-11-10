@@ -63,6 +63,9 @@ class SharedCallerBridgeTests(unittest.TestCase):
         group=res["method_proximity"]["media3_interface_or_obfuscated_implementor"]
         self.assertEqual(group["converter_callers"]["shared_callers_within_bounded_depth"],1)
         self.assertFalse(res["real_decoder_proven"])
+        self.assertEqual(res["converter_caller_count"], 1)
+        self.assertEqual(res["direct_converter_caller_hints"], ["LswSource;->a"])
+        self.assertFalse(res["source_callsite_audio_flow_proven"])
         self.assertFalse(res["replacement_audio_played_in_native_android"])
 
     def test_negative_or_large_search_guarded(self):
