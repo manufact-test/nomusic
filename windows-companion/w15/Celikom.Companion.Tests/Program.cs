@@ -108,6 +108,12 @@ try
         if (path == "/api/v1/auth/login")
             return JsonResponse(new { user = new { id = 1, email = "test@example.com", status = "active" },
                 access_token = expectedAccess, refresh_token = expectedRefresh, expires_in = 900 });
+        if (path == "/api/v1/auth/me")
+        {
+            Test(request.Headers.Authorization?.Parameter == expectedAccess,
+                "diagnostic permission asks server using CELIKOM authorization");
+            return JsonResponse(new { user = new { id = 1, email = "test@example.com", status = "active" } });
+        }
         if (path == "/api/v1/resolve")
         {
             Test(request.Headers.Authorization?.Parameter == expectedAccess,
@@ -131,6 +137,10 @@ try
     Test(resolved?.AudioUrl == "https://api.celikom.example" + audio, "live-contract resolve mapping");
     Test(backendCalls.SequenceEqual(new [] { "/api/v1/auth/login", "/api/v1/resolve" }),
         "only expected private backend endpoints");
+    Test(!await api.CanExportDiagnosticsAsync(),
+        "regular active user cannot export owner diagnostics");
+    Test(backendCalls[^1] == "/api/v1/auth/me",
+        "diagnostics access revalidates server user, not UI email alone");
 
     await using (var bridge = new BridgeServer(api, store))
     {
