@@ -1,3 +1,15 @@
+## АКТУАЛЬНАЯ NATIVE ANDROID ТОЧКА — source→reader nested execution, CI GREEN (10.11.2026)
+
+- **ЭТО НОВАЯ ОДНОПЛЕЕРНАЯ НАТИВНАЯ РАЗРАБОТКА, НЕ TEST.50, НЕ TEST.51 И НЕ DynamicsProcessing.** Ветка `experiment/android-native-yandex-fileinfo-hooklab-20261109`. Старый Test.50 «как эквалайзер» — независимый принятый эталон; случайная Test.51 не используется.
+- **[Детальный отчёт](ANDROID-NATIVE-SIGNED-LERO-READER-EXECUTION-2026-11-10.md).** Native реальный код `6146109dd77352dbc73563c26dcaf1dfd6ff6c38`, rollback `backup/android-native-lero-lmb4-ha4-signed-readonly-chain-ci-green-20261110`.
+- **[JVM + Android module #42860807834 SUCCESS 2/2](https://github.com/manufact-test/nomusic/actions/runs/42860807834)**; **[signed 5-APK, 6-DEX exact method/field check #42860839260 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/42860839260)**: семь точных определений методов `Lkvs.A / Lero.t/remove / Lmb4.a / Lha4.b/read/close` и ОДНО поле `Lero→Lmb4` действительно существуют в оригинале.
+- Код через точную reference identity соединяет factory `Lkvs.A` → `Lero.t` → принадлежащий `Lmb4.a` → реальный `Lha4` open/positive read/close **только если hooks фактически исполнятся в разрешённом host**. 10 000 synthetic cycles, защита от разных объектов/поколений/потоков/exception. **Никакой аудиоподмены в Яндексе пока нет и на HONOR ничего не устанавливалось.**
+- **Жёсткий единственный блокер:** исполняемый разрешённый native ARM Android host, который может доказать *actual selected current track+edition+generation → настоящая decoder source before prepare*. Без этого Xposed-модуль остается наблюдателем, обычный отдельный Android APK не сможет изменить чужой player из sandbox. Не повторять x86 LSPatch/clone/AppMetrica, не подменять это OWN WAV тестами.
+- Отдельно проверено направление ARM TCG без KVM: официальная Android Emulator software `-accel off` **неподдерживаемая и очень медленная**, а публичная лабораторная сборка `lhns/android-arm-tcg` для установки больших APK требует обхода проверки подписи в системном oat. Это **запрещено для CELIKOM**, не использовать как доказательство нормальной защищённой установки Яндекса. Play Protect/DRM/signature не обходить.
+- Owner-accepted Test.50, Test.51, официальный установленный Yandex/HONOR, Windows, расширение, API/БД, production, server НЕ трогать. Никакого «готово» и user APK до доказанной native подмены.
+
+---
+
 ## ВАЖНО: НОВАЯ НАТИВНАЯ ANDROID ВЕТКА (10.11.2026)
 
 - **ЭТО НЕ Test.50/эквалайзер!** Работа по исходной native-Yandex one-player архитектуре продолжается **только** в `experiment/android-native-yandex-fileinfo-hooklab-20261109`. Случайная Test.51 из другой ветки не относится к этой задаче и не должна переноситься сюда.
