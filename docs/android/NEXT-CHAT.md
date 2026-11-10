@@ -1,3 +1,10 @@
+## 10.11.2026 IMPORTANT: verified CELIKOM Windows W57 audio breakthrough reviewed
+
+**Windows 0.24.7 real replacement audio heard by owner, real HTTP206, 0 HTTP403.** Desktop Yandex DownloadInfoSource appended its own second ?vsid query to already signed audio URL and Windows team fixed the resultant session-field corruption with a narrow media-only trailing guard. This is DESKTOP Electron-specific; not evidence the native Android player also does that. See docs/android/ANDROID-WINDOWS-W57-TRANSFERABILITY-2026-11-10.md.
+
+Experimental native Android observer has new public playback state *aggregate-only* witness and synthetic JVM tests; no audio source swap and no actual patched native Yandex ARM run yet. Windows accepted baseline, Android Test.50 and HONOR unchanged.
+
+---
 ## VERIFIED CHECKPOINT: 10.11.2026 — CI SUCCESS / NO NATIVE AUDIO CLAIM
 
 **Latest verified CODE SHA:** `c5f76316f8a00e8b30c2cdae402fe0ec64dfeea2` on `experiment/android-native-yandex-fileinfo-hooklab-20261109`.
