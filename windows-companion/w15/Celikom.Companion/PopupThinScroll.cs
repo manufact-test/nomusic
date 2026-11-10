@@ -100,7 +100,7 @@ public sealed class PopupThinScroll : Control
         var (top, height) = ThumbBounds();
         var width = Math.Max(2, Width - 2);
         using var brush = new SolidBrush(Thumb);
-        e.Graphics.FillRoundedRectangle(brush,
-            new RectangleF(1, top, width, height), 2);
+        // Avoid WinForms/OS themed scrollbar chrome entirely.
+        e.Graphics.FillRectangle(brush, new RectangleF(1, top, width, height));
     }
 }
