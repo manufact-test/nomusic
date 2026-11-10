@@ -2,7 +2,15 @@
 
 **Status:** Source code only; builds a *CELIKOM Xposed module APK* (not an independent music player). Owner authorized research and preparation for **a separate disposable test device only**. No package was installed, and **nothing** on the owner's HONOR, stable Test.50, catalog or server is touched.
 
-## LATEST signed original URI model → native DataSource source lifecycle (2026-11-10)
+## LATEST publisher-original exact Lero → async callback → byte reader (2026-11-10)
+
+- **Code** `f04745f7dcd4455996eadf56dc0be6c52a44c63f`; **frozen rollback** `backup/android-signed-lero-lmb4-reader-case-ci-green-20261110`; details `docs/android/ANDROID-NATIVE-SIGNED-LERO-LMB4-EXECUTION-CHAIN-2026-11-10.md`.
+- Signed concrete local `Lga4.c():Lha4` return goes into `Lero.Lha4` field and `Lmb4.<init>` source argument1 in same basic block. The constructor writes exact `Lmb4:Lm48` field, consumed by `Lmb4.a` and cast `Lha4`. The method calls `Lha4.b(La58)` twice, `read([BII)`, `close()`.
+- Actual DEX packed-switch decoding validates `Lero.t`'s `Lwq7` synthetic callback mode: it selects the **default fallthrough** not one of 2 keyed cases. Exact constructor field capture of `Lero.this` and matching field load in selected callback yield the static `Lero.Lmb4.a` case.
+- [Reader CI #42821377729](https://github.com/manufact-test/nomusic/actions/runs/42821377729), [async selector #42822722957](https://github.com/manufact-test/nomusic/actions/runs/42822722957), [exact field #42823360505](https://github.com/manufact-test/nomusic/actions/runs/42823360505), [read-only module #42823360398](https://github.com/manufact-test/nomusic/actions/runs/42823360398) SUCCESS 2/2.
+- **Still no current trackId+edition+generation runtime binding, actual decoder PREPARE or Android audio replacement proof.** Source-only lab, no owner installations, no vendor APK changes.
+
+## PREVIOUS signed original URI model → native DataSource source lifecycle (2026-11-10)
 
 - **Verified CI green code:** `f327f5b9bcfee028e754f9a803f29ade347cb240`, **frozen rollback:** `backup/android-signed-uri-locv-source-cfg-green-20261110`, **details:** `docs/android/ANDROID-NATIVE-SIGNED-URI-TO-DATASOURCE-LIFECYCLE-EVIDENCE-2026-11-10.md`.
 - `Locv.i0` reads URI-like input, `Lw4y.z` inspects scheme/host/path/query (never exporting values), coroutine `Llky` and `Lfwm.M` produce local `Ljgv`; bounded CFG shows it may pass as argument 1 to `Lcq7.i0` and `Lcq7.D`.
