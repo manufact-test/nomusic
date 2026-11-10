@@ -6,7 +6,7 @@
 
 - **Ветка:** \`experiment/android-native-yandex-fileinfo-hooklab-20261109\`
 - **CI-проверенный исходный код:** \`f04745f7dcd4455996eadf56dc0be6c52a44c63f\`
-- **Бэкап для точного отката:** \`backup/android-signed-lero-lmb4-reader-case-ci-green-20261110\` (проверить наличие / SHA)
+- **Бэкап для точного отката:** \`backup/android-signed-lero-lmb4-reader-case-ci-green-20261110\` (создана, указывает на точный CI green SHA)
 - **Оригинальный объект исследования:** неизменённый издательски подписанный Yandex Music 2026.10.3 #170gpr, 5 APK, 6 DEX, 230 533 тела методов.
 - **Ранее найденный вход:** \`docs/android/ANDROID-NATIVE-SIGNED-URI-TO-DATASOURCE-LIFECYCLE-EVIDENCE-2026-11-10.md\`.
 
@@ -37,7 +37,7 @@
 - [Потребитель DataSource и lifecycle #42821377729](https://github.com/manufact-test/nomusic/actions/runs/42821377729) — SUCCESS
 - [Точный режим Lero / Lwq7 и captured object #42822722957](https://github.com/manufact-test/nomusic/actions/runs/42822722957) — SUCCESS
 - [Точное поле Lero / Lmb4 / Lha4 #42823360505](https://github.com/manufact-test/nomusic/actions/runs/42823360505) — SUCCESS
-- [Android read-only module на code checkpoint #42823360398](https://github.com/manufact-test/nomusic/actions/runs/42823360398) — проверить оба задания SUCCESS
+- [Android read-only module на code checkpoint #42823360398](https://github.com/manufact-test/nomusic/actions/runs/42823360398) — **SUCCESS 2/2**
 
 Все 3 скрипта используют pinned publisher hash, read-only проверку подписи, временные каталоги и ограниченное структурное описание; ни одного vendor APK не патчили и не публиковали. Ошибки синтетических тестов и чрезмерно широкого выбора конструктора в процессе исследования устранены. Не считать промежуточные красные workflow текущей рабочей точкой.
 
