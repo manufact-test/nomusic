@@ -14,6 +14,9 @@ public sealed class PopupFilePicker : Button
     private static readonly Color Muted = ColorTranslator.FromHtml("#AAB8BE");
     private bool _hovered;
     private string _selectedFile = "";
+    [System.ComponentModel.DesignerSerializationVisibility(
+        System.ComponentModel.DesignerSerializationVisibility.Hidden)]
+    [System.ComponentModel.Browsable(false)]
     public string SelectedFile
     {
         get => _selectedFile;
