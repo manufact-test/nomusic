@@ -1,4 +1,5 @@
 import java.lang.reflect.Method;
+import java.lang.reflect.Field;
 import pro.celikom.yandex.nativehooklab.HookSpec;
 import pro.celikom.yandex.nativehooklab.NativeSourceDispatchWitness;
 
@@ -31,6 +32,54 @@ public final class NativeSourceDispatchWitnessTest {
             HookSpec.findSourceLifecycle(loader,"ero","decode");
             throw new AssertionError("untrusted method unexpectedly allowed");
         } catch(NoSuchMethodException expected){tests++;}
+
+        Field leroReader=HookSpec.findLeroReaderField(loader);
+        yes(leroReader.getType()==mb4.class
+                    &&leroReader.getDeclaringClass()==ero.class,
+                "one exact typed Lero->Lmb4 reference");
+        Method loaderBody=HookSpec.findReaderExecution(loader);
+        yes(loaderBody.getParameterCount()==0
+                &&loaderBody.getReturnType()==void.class,
+                "one exact Lmb4.a no-arg reader execution");
+        for(String op:new String[]{"b","read","close"}){
+            Method method=HookSpec.findReaderSourceMethod(loader,op);
+            yes(method.getDeclaringClass()==ha4.class,
+                    "exact concrete ha4 operation "+op);
+        }
+        try {
+            HookSpec.findReaderSourceMethod(loader,"getUri");
+            throw new AssertionError("unknown source method accepted");
+        }catch(NoSuchMethodException expected){tests++;}
+
+        NativeSourceDispatchWitness link=new NativeSourceDispatchWitness();
+        ero factorySource=new ero();
+        ero unrelated=new ero();
+        mb4 exact=(mb4)leroReader.get(factorySource);
+        link.onFactory(factorySource,1000);
+        yes(!link.onOwnedReader(factorySource,exact,1001),
+                "reader cannot link before source t() starts");
+        link.onLifecycleT(factorySource,1002);
+        yes(link.onOwnedReader(factorySource,exact,1003),
+                "factory Lero->t->typed Lmb4 linked");
+        yes(!link.onCompletedReader((mb4)leroReader.get(unrelated),1004),
+                "different reader rejected despite identical class");
+        yes(link.onCompletedReader(exact,1005),
+                "exact reader completion linked to factory source");
+        link.onRemove(factorySource,1006);
+        yes(!link.onCompletedReader(exact,1007),
+                "remove evicts historical source-reader association");
+        yes(!link.onOwnedReader(unrelated,(mb4)leroReader.get(unrelated),1010),
+                "background Lero was not factory observed");
+        ero stale=new ero();
+        link.onFactory(stale,2000);
+        link.onLifecycleT(stale,2001);
+        yes(link.onOwnedReader(stale,(mb4)leroReader.get(stale),2002),
+                "second owned source attached");
+        yes(!link.onCompletedReader((mb4)leroReader.get(stale),17003),
+                "reader assignment expires after bounded window");
+        yes(link.snapshot().sourceReaderLinks==2
+                &&link.snapshot().completedReaderChains==1,
+                "strict reference counts without audio or identifier data");
 
         NativeSourceDispatchWitness w=new NativeSourceDispatchWitness();
         Object selected=new ero();
