@@ -16,6 +16,27 @@ function validId(raw) {
     ? String(raw) : typeof raw === 'string' ? raw : '';
   return exactTrackId({ id });
 }
+// W48 read-only structure witness. Never export field contents, URLs,
+// ciphertext, crypto material, Yandex metadata, or signed CELIKOM grants.
+// Static shape hints do not prove the native decoder accepted the source.
+function observeOriginalFileInfo(info, emit, id) {
+  if (!info || typeof info !== 'object' || Array.isArray(info)) return;
+  if (Object.prototype.hasOwnProperty.call(info, 'key'))
+    emit('FILEINFO_NATIVE_KEY_FIELD', id);
+  if (Object.prototype.hasOwnProperty.call(info, 'iv'))
+    emit('FILEINFO_NATIVE_IV_FIELD', id);
+  if (Object.prototype.hasOwnProperty.call(info, 'transport'))
+    emit('FILEINFO_NATIVE_TRANSPORT_FIELD', id);
+  if (Object.prototype.hasOwnProperty.call(info, 'urls'))
+    emit(Array.isArray(info.urls) ? 'FILEINFO_NATIVE_URLS_ARRAY' : 'FILEINFO_NATIVE_URLS_OTHER', id);
+  if (typeof info.codec === 'string') {
+    const c = info.codec.trim().toLowerCase();
+    emit(c === 'mp3' || c === 'mpeg' ? 'FILEINFO_NATIVE_CODEC_MP3' :
+      c.startsWith('aac') || c.startsWith('mp4a') ? 'FILEINFO_NATIVE_CODEC_AAC' :
+      'FILEINFO_NATIVE_CODEC_OTHER', id);
+  }
+}
+
 function toDownloadInfo(original, trackId, url, mimeType, quality) {
   const result = { ...(original && typeof original === 'object' && !('error' in original) ? original : {}) };
   delete result.key;
@@ -182,6 +203,7 @@ export function createNativeResourceAdapter({ resolve, allowedOrigin, now = Date
         return value;
       }
       emit(field === 'fileInfo' ? 'FILEINFO_SHAPE_FILE' : 'FILEINFO_SHAPE_DOWNLOAD', id);
+      observeOriginalFileInfo(value[field], emit, id);
       const replacement = toDownloadInfo(value[field], id, grant.signedUrl, grant.mimeType, params?.quality);
       emit('SOURCE_MAPPED', id);
       status = 'SOURCE_MAPPING_RETURNED_NOT_AUDIO_VERIFIED';
@@ -237,6 +259,7 @@ export function createNativeResourceAdapter({ resolve, allowedOrigin, now = Date
         for (const [id, grant] of hits) {
           const index = list.findIndex(x => x && validId(x.trackId) === id);
           if (index < 0 || !list[index] || typeof list[index] !== 'object') continue;
+          observeOriginalFileInfo(list[index], emit, id);
           list[index] = toDownloadInfo(list[index],
             id, grant.signedUrl, grant.mimeType, params?.quality);
           mapped = true;
