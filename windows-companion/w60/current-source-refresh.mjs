@@ -107,6 +107,20 @@ export function createCurrentSourceRefresh({onEvent = () => {}} = {}) {
     original = null;
     patchedGetter = null;
   }
-  return Object.freeze({attach, request, dispose,
+  // Read-only current entity for Windows UI; never uses the preload ID.
+  function currentTrackId() {
+    if (disposed) return "";
+    const player = current?.deref();
+    if (!player) return "";
+    try {
+      const state = player.state;
+      if (!playable(state)) return "";
+      const id = state.queueState.currentEntity.value.entity.data.meta.id;
+      const normalized = typeof id === "number" && Number.isSafeInteger(id) ? String(id) : id;
+      return typeof normalized === "string" && EXACT_ID.test(normalized) ? normalized : "";
+    } catch { return ""; }
+  }
+
+  return Object.freeze({attach, request, dispose, currentTrackId,
     get attached() { return !!prototype && !disposed; }});
 }
