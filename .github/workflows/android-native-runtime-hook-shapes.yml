@@ -1,0 +1,35 @@
+name: Android pinned signed Lero reader hook signatures (read-only)
+on:
+  push:
+    branches:
+      - experiment/android-native-yandex-fileinfo-hooklab-20261109
+    paths:
+      - 'android/native-yandex-hooklab/audit_native_runtime_hook_shapes.py'
+      - 'android/native-yandex-hooklab/tests/test_native_runtime_hook_shapes.py'
+      - 'android/native-yandex-hooklab/app/src/main/java/pro/celikom/yandex/nativehooklab/HookSpec.java'
+      - '.github/workflows/android-native-runtime-hook-shapes.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  signed-exact-reader-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Reject ambiguous runtime-hook signatures on synthetic fixtures
+        run: |
+          set -euo pipefail
+          python3 -m py_compile android/native-yandex-hooklab/audit_native_runtime_hook_shapes.py
+          python3 -m unittest discover -s android/native-yandex-hooklab/tests -p 'test_native_runtime_hook_shapes.py' -v
+      - name: Check publisher-signed unchanged 5 APK / 6 DEX concrete reader shapes
+        run: python3 android/native-yandex-hooklab/audit_native_runtime_hook_shapes.py
+      - name: No patched publisher APK, credentials, media or runtime release
+        if: always()
+        run: |
+          test ! -d android/native-yandex-hooklab/release
+          test ! -d android/native-yandex-hooklab/patched
+          echo 'Exact signed type/field audit only. No selected decoder or source mutation.'
