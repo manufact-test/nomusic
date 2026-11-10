@@ -1,8 +1,8 @@
-name: Android native A1 one-APK parallel clone merge runtime gate (ephemeral)
+name: Android native A1 one-APK clone-before-original A/B runtime gate
 on:
   push:
     branches:
-      - feature/android-parallel-clone-single-apk-merge-20261111
+      - experiment/android-native-clone-singleapk-coexistence-ab-20261111
     paths:
       - 'android/native-yandex-hooklab/merge_lab_splits_ephemeral.py'
       - 'android/native-yandex-hooklab/tests/test_merge_lab_splits_ephemeral.py'
@@ -42,6 +42,7 @@ jobs:
             CELIKOM_OMIT_SHADOWED_SIGNATURE_DECLS=1
             CELIKOM_ORIGINAL_CONTROL_LAUNCH=1
             CELIKOM_MERGE_PARALLEL_SINGLE_APK=1
+            CELIKOM_CLONE_FIRST_AB=1
             python3 android/native-yandex-hooklab/clone_native_identity_phase2_ephemeral.py
       - name: Assert no third-party merged APK or private key retained
         if: always()
