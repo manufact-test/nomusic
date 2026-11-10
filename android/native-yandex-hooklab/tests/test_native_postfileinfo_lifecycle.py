@@ -62,6 +62,15 @@ class SignedPostFileinfoLifecycleTests(unittest.TestCase):
         self.assertEqual(trace["bounded_consumer_to_media_callgraph_proximity"]
                          ["first_media_proximity_paths"],[])
 
+    def test_next_typed_jgv_consumer_is_not_implicitly_decoder(self):
+        model=("Ljgv;","a","()Ljava/lang/Object;")
+        owner=M("nextConsumer")
+        report,trace=downstream_consumer_telemetry({model:{owner}},{},"Ljgv;")
+        self.assertEqual(report["direct_dto_consumer_method_count"],1)
+        self.assertEqual(trace["consumer_owner_examples"],["LnextConsumer;"])
+        self.assertFalse(trace["bounded_consumer_to_media_callgraph_proximity"]
+                         ["decoder_proven"])
+
     def test_reject_incomplete_dex(self):
         with self.assertRaises(ValueError):
             merge_reverse([{"complete":False}])
