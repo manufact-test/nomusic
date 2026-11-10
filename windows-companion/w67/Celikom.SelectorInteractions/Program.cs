@@ -16,6 +16,8 @@ internal static class Program
     [DllImport("user32.dll")] private static extern IntPtr WindowFromPoint(Point p);
     [DllImport("user32.dll")] private static extern bool GetWindowRect(IntPtr hwnd, out Rect rect);
     [DllImport("user32.dll")] private static extern bool SetForegroundWindow(IntPtr hwnd);
+    [DllImport("user32.dll")] private static extern IntPtr GetForegroundWindow();
+    [DllImport("user32.dll")] private static extern void keybd_event(byte vk, byte scan, uint flags, UIntPtr extraInfo);
     [StructLayout(LayoutKind.Sequential)]
     private struct Rect { public int Left, Top, Right, Bottom; }
     private static MainWindow _form = null!;
@@ -41,6 +43,14 @@ internal static class Program
         mouse_event(LeftDown, 0, 0, 0, UIntPtr.Zero);
         Pump();
         mouse_event(LeftUp, 0, 0, 0, UIntPtr.Zero);
+        Pump();
+    }
+    private static void KeyPress(Keys key)
+    {
+        // Physical Windows key-down/up injection with the GUI foregrounded.
+        keybd_event((byte)key, 0, 0, UIntPtr.Zero);
+        Pump();
+        keybd_event((byte)key, 0, 2, UIntPtr.Zero);
         Pump();
     }
     private static void PositionSelector(PopupOptionSelect select)
@@ -123,26 +133,32 @@ internal static class Program
             Click(support.PointToScreen(new Point(40, support.Height / 2)));
             Click(support.PointToScreen(new Point(50, -13)));
             Pump();
+            var stale = typeof(PopupOptionSelect).GetField("_activeMenu", PrivateInstance)?.GetValue(support);
+            if (stale is ContextMenuStrip { Visible: true })
+                throw new InvalidOperationException("W67_CLICK_OUTSIDE_DID_NOT_DISMISS_MENU");
             if (form.IsDisposed || !form.Visible)
                 throw new InvalidOperationException("W67_OUTSIDE_DISMISS_CLOSED_APP");
         }
         Console.WriteLine("W67_OUTSIDE_DISMISS_REOPEN_PASS");
         // Keyboard navigation with genuine WinForms focused control and OS keys.
         PositionSelector(support);
+        form.Activate();
+        SetForegroundWindow(form.Handle);
+        support.Select();
         support.Focus();
         Pump();
+        Console.WriteLine($"W67_KEYBOARD_FOCUS focused={support.Focused} foreground={GetForegroundWindow() == form.Handle}");
+        if (!support.Focused) throw new InvalidOperationException("W67_SELECTOR_NOT_KEYBOARD_FOCUSED");
         var beforeKeys = support.SelectedIndex;
-        SendKeys.SendWait(beforeKeys == 0 ? "{DOWN}" : "{UP}");
-        Pump();
+        KeyPress(beforeKeys == 0 ? Keys.Down : Keys.Up);
         if (support.SelectedIndex == beforeKeys)
             throw new InvalidOperationException("W67_KEYBOARD_ARROW_SELECTION_NOT_HANDLED");
-        SendKeys.SendWait("{ENTER}");
-        Pump();
+        KeyPress(Keys.Enter);
         var keyboardMenu = (ContextMenuStrip?)typeof(PopupOptionSelect)
             .GetField("_activeMenu", PrivateInstance)?.GetValue(support)
             ?? throw new InvalidOperationException("W67_KEYBOARD_ENTER_DID_NOT_OPEN");
-        SendKeys.SendWait("{DOWN}{ENTER}");
-        Pump();
+        KeyPress(Keys.Down);
+        KeyPress(Keys.Enter);
         if (form.IsDisposed || !form.Visible)
             throw new InvalidOperationException("W67_KEYBOARD_MENU_CLOSED_APP");
         Console.WriteLine("W67_KEYBOARD_ARROWS_ENTER_PASS");
