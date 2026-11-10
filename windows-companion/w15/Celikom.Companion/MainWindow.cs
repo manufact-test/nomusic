@@ -118,8 +118,7 @@ public sealed partial class MainWindow : Form
             await StartBridgeAsync();
             await RefreshHostAsync();
             if (_finishApplicationUpdate) await CompleteApplicationUpdateAsync();
-            if (!_api.IsLoggedIn) NavigateAccount(true);
-            else
+            if (_api.IsLoggedIn)
             {
                 await RefreshDiagnosticsAccessAsync();
                 await RefreshCompactAccessAsync(force: true);
