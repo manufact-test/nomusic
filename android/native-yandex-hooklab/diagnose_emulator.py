@@ -50,6 +50,10 @@ def observer_event_category(line: str) -> str | None:
         return "CONVERSION_WITNESSED"
     if "temporal-only aggregate" in line:
         return "TEMPORAL_ORDER_AGGREGATE"
+    if "published playback-state witness armed" in line:
+        return "PLAYBACK_STATE_HOOK_ARMED"
+    if "published-playback aggregate reports=" in line:
+        return "PLAYBACK_STATE_AGGREGATE"
     return None
 
 

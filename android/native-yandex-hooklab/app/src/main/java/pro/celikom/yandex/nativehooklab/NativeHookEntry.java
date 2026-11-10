@@ -5,6 +5,7 @@ import android.content.Context;
 import android.content.pm.PackageInfo;
 import android.media.MediaMetadata;
 import android.media.session.MediaSession;
+import android.media.session.PlaybackState;
 import android.os.SystemClock;
 import android.util.Log;
 
@@ -36,6 +37,9 @@ public final class NativeHookEntry extends XposedModule {
     private final AtomicInteger metadataUpdates = new AtomicInteger();
     // Diagnostic-only sequence categories; NEVER an audio-source identity gate.
     private final NativeEventOrderProbe eventOrder = new NativeEventOrderProbe(12000);
+    // Counts published states only, never actual decoder success or current track.
+    private final NativePlaybackStateProbe publishedState = new NativePlaybackStateProbe();
+    private final AtomicInteger publishedStateUpdates = new AtomicInteger();
     private String processName;
     private boolean attachHooked;
     private boolean targetHooked;
@@ -47,6 +51,7 @@ public final class NativeHookEntry extends XposedModule {
     private boolean legacyHooked;
     private boolean accessorHooked;
     private boolean metadataHooked;
+    private boolean playbackStateHooked;
 
     @Override
     public void onModuleLoaded(ModuleLoadedParam param) {
@@ -77,7 +82,7 @@ public final class NativeHookEntry extends XposedModule {
                 // Attach can run before all split / secondary classes resolve.
                 // Retry only for a version-verified context; no eager unsafe hook.
                 if (verifiedHostContext != null
-                        && (!targetHooked || !metadataHooked)) {
+                        && (!targetHooked || !metadataHooked || !playbackStateHooked)) {
                     onAttached(verifiedHostContext);
                 }
             }
@@ -123,6 +128,7 @@ public final class NativeHookEntry extends XposedModule {
             }
             verifiedHostContext = context;
             armPlatformMetadataWitness();
+            armPublishedPlaybackStateWitness();
             if (targetHooked) return;
             // Only an exact pair from a SINGLE verified loader may be used.
             HookSpec.ResolvedPair pair = HookSpec.findConversionPair(
@@ -228,6 +234,52 @@ public final class NativeHookEntry extends XposedModule {
         } catch (Throwable ignored) {
             // A missing platform hook must not prevent native FileInfo observation.
             log(Log.WARN, TAG, "observer: platform metadata witness unavailable");
+        }
+    }
+
+    /**
+     * Exact-host read-only playback-state observation. Only the public Android
+     * integer enum is read; no metadata, song ID, position, URL, audio or queue.
+     * Multiple MediaSessions/user pause may cause misleading aggregate events.
+     */
+    private synchronized void armPublishedPlaybackStateWitness() {
+        if (playbackStateHooked) return;
+        try {
+            Method method = MediaSession.class.getDeclaredMethod(
+                    "setPlaybackState", PlaybackState.class);
+            hook(method)
+                    .setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                    .intercept(chain -> {
+                        Object result = chain.proceed();
+                        try {
+                            Object[] args = chain.getArgs();
+                            if (args != null && args.length == 1
+                                    && args[0] instanceof PlaybackState) {
+                                int publishedEnum = ((PlaybackState) args[0]).getState();
+                                NativePlaybackStateProbe.Snapshot totals =
+                                        publishedState.onPublishedState(
+                                                publishedEnum, SystemClock.elapsedRealtime());
+                                int n = publishedStateUpdates.incrementAndGet();
+                                if (n == 1 || n % 20 == 0) {
+                                    Log.i(TAG, "observer: published-playback aggregate reports="
+                                            + totals.reports + " transitions=" + totals.transitions
+                                            + " rapid-play-pause=" + totals.pausesSoonAfterPlay
+                                            + " rapid-pause-play=" + totals.playsSoonAfterPause
+                                            + " buffer-pause=" + totals.buffersThenPauses
+                                            + " buffering=" + totals.reportedBufferings
+                                            + " errors=" + totals.reportedErrors
+                                            + " clock-reset=" + totals.timeResets);
+                                }
+                            }
+                        } catch (Throwable ignored) {
+                            // An observer cannot break the original state setter.
+                        }
+                        return result;
+                    });
+            playbackStateHooked = true;
+            log(Log.INFO, TAG, "observer: published playback-state witness armed; counts only");
+        } catch (Throwable ignored) {
+            log(Log.WARN, TAG, "observer: published playback-state witness unavailable");
         }
     }
 
