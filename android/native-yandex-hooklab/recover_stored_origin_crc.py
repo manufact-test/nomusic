@@ -62,6 +62,7 @@ def rewrite_only_if_origin_crc_mismatch(input_apk: Path,
         entry = src.getinfo(HOST)
         raw = raw_stored_member(input_apk, entry)
         actual_crc = zlib.crc32(raw) & 0xffffffff
+        crc_repaired = entry.CRC != actual_crc
         reading_error = None
         try:
             src.read(entry)
@@ -78,7 +79,7 @@ def rewrite_only_if_origin_crc_mismatch(input_apk: Path,
                 raise ValueError("ZIP_READER_AND_RAW_CRC_DISAGREE")
             return {"crc_repaired": False, "layout_repacked": False,
                     "verified_outer_entry_count": len(entries)}
-        if reading_error == "CRC_MISMATCH" and entry.CRC == actual_crc:
+        if reading_error == "CRC_MISMATCH" and not crc_repaired:
             raise ValueError("ZIP_CRC_ERROR_BUT_RAW_CRC_MATCHES")
         # Intact native/DEX payload will be independently SHA compared to
         # the verified original clone AFTER this ZIP container rebuild.
@@ -101,7 +102,7 @@ def rewrite_only_if_origin_crc_mismatch(input_apk: Path,
                 check.read(entry)
             except (zipfile.BadZipFile, RuntimeError):
                 raise ValueError("REBUILT_APK_MEMBER_CRC_FAILED") from None
-    return {"crc_repaired": entry.CRC != actual_crc,
+    return {"crc_repaired": crc_repaired,
             "layout_repacked": True,
             "repacked_reason": reading_error,
             "verified_outer_entry_count": len(entries)}
