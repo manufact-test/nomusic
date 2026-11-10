@@ -75,7 +75,7 @@ const noisy = new Set(["TRACK_CHANGED", "RESOLVE_REQUEST", "GRANT_FOUND", "GRANT
   "PLAYER_NET_CORS_CREDENTIALS", "PLAYER_NET_CORS_PREFLIGHT",
   "PLAYER_NET_CSP_BLOCKED", "PLAYER_AUDIO_RESOURCE_TIMING_SEEN"]);
 function note(code, trackId = null, idKind = "track") {
-  if (!/^[A-Z_]{3,48}$/.test(code)) return;
+  if (!/^[A-Z0-9_]{3,48}$/.test(code)) return;
   const id = typeof trackId === "string" && /^[1-9][0-9]{0,17}$/.test(trackId)
     ? trackId : null;
   if (!noisy.has(code) && logged.has(code)) return;
