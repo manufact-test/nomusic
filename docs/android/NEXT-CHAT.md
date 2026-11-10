@@ -1,8 +1,16 @@
+## НОВЕЙШАЯ ПРОВЕРЕННАЯ ТОЧКА — signed register/CFG + coroutine (10.11.2026)
+
+**Код CI GREEN:** 8b7bc64f89249e5434da739851bececce2adb121. **Бэкап:** backup/android-signed-register-cfg-ci-green-20261110. Исследование оригинального подписанного 6-DEX APK [#42806655214 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/42806655214); сборка модуля и тесты [#42806655152 SUCCESS 2/2](https://github.com/manufact-test/nomusic/actions/runs/42806655152). **Отчёт:** docs/android/ANDROID-NATIVE-SIGNED-REGISTER-COROUTINE-CFG-EVIDENCE-2026-11-10.md.
+
+**Реально найдено:** sw7.y0/z0 → объектный результат → Lxa7.<init> (bounded CFG); Lged.a → Lhee.a → Leed.a / Lta7.c / Lwa7.a, наблюдается возврат объекта. Lfed / Lgee / Lfqr — прямые coroutine invokeSuspend callers; в Lfqr есть collect/emit, но результат не доказан как payload интерфейса. Это только статическая may-flow DEX, НЕ активный decoder source и НЕ Android audio PASS. Android grant/Stop контракты не подключались к настоящему декодеру. Не трогать Test.50/HONOR/официальный Яндекс/Windows/API/production/DRM/подписи.
+
+---
+
 # 10.11.2026 — АВТОРИТЕТНАЯ НАВИГАЦИЯ / ПЕРЕДАЧА
 
 **Начинать с** `docs/android/00-NATIVE-HANDOFF-NAVIGATION-2026-11-10.md` и **`docs/android/START-NEXT-CHAT-ANDROID-NATIVE-2026-11-10.md`**. Нижеследующие разделы этого файла являются историей и могут содержать устаревшие слова LATEST и SHA.
 
-**Последний проверенный код:** `d7d3f8b82b6d752ed7837dd9955ccb51df71641d`. **Два CI SUCCESS:** [signed six-DEX bridge scan #42804081064](https://github.com/manufact-test/nomusic/actions/runs/42804081064), [Android module build/tests #42804081053](https://github.com/manufact-test/nomusic/actions/runs/42804081053). Прямой caller `FileInfo→sw7.y0/z0`: `Lhee;->a`. Есть consumer `Lged;->a`, но связка к декодеру НЕ доказана. В оригинальном Android APK статически найдены по два вызывающих метода `MediaSession.setMetadata` и `setPlaybackState`, НЕТ подтверждения их live исполнения на пользовательском треке. Полный отчёт `docs/android/ANDROID-NATIVE-SIGNED-SHARED-CALLER-MEDIASESSION-EVIDENCE-2026-11-10.md`.
+**Предыдущий проверенный код:** `d7d3f8b82b6d752ed7837dd9955ccb51df71641d`. **Два CI SUCCESS:** [signed six-DEX bridge scan #42804081064](https://github.com/manufact-test/nomusic/actions/runs/42804081064), [Android module build/tests #42804081053](https://github.com/manufact-test/nomusic/actions/runs/42804081053). Прямой caller `FileInfo→sw7.y0/z0`: `Lhee;->a`. Есть consumer `Lged;->a`, но связка к декодеру НЕ доказана. В оригинальном Android APK статически найдены по два вызывающих метода `MediaSession.setMetadata` и `setPlaybackState`, НЕТ подтверждения их live исполнения на пользовательском треке. Полный отчёт `docs/android/ANDROID-NATIVE-SIGNED-SHARED-CALLER-MEDIASESSION-EVIDENCE-2026-11-10.md`.
 
 **Windows W58:** пользователь ПОДТВЕРДИЛ аудиоподмену, Pause, Seek, Next, Previous, MyWave на Windows 0.24.7; в Android такой замены ещё НЕ БЫЛО. Уже перенесены только чистые модельные контракты для grant/Stop/Next; основной блокер — реальная Android decoder pre-prepare точка. Все рабочие версии/production не тронуты.
 
