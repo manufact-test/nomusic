@@ -854,7 +854,7 @@ def run():
         # Never merge or sign the installed publisher original. No sigbypass.
         merged_clone = None
         if os.getenv("CELIKOM_MERGE_PARALLEL_SINGLE_APK") == "1":
-            if not (preserve_original_dex and omit_shadowed and
+            if not (preserve_original_dex and (omit_shadowed or namespaced_perms) and
                     os.getenv("CELIKOM_CLEAN_ANDROID_ARMV7_TRANSLATION") == "1" and
                     os.getenv("CELIKOM_ORIGINAL_CONTROL_LAUNCH") == "1" and
                     os.getenv("GITHUB_ACTIONS") == "true"):
