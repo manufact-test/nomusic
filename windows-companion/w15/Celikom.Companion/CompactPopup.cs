@@ -55,6 +55,7 @@ public sealed partial class MainWindow
     private readonly TextBox _compactSupportText = new();
     private readonly PopupButton _compactSupportSubmit = new();
     private readonly Label _compactSupportMessage = new();
+    private readonly Label _compactUploadHeading = new();
     private readonly Label _compactUploadNote = new();
     private readonly Label _compactAudioValidation = new();
     private readonly Label _compactFilenameWarning = new();
@@ -423,6 +424,11 @@ public sealed partial class MainWindow
 
     private void BuildCompactContributions()
     {
+        _compactUploadHeading.Text = "Загрузить версию";
+        _compactUploadHeading.Font = new Font("Segoe UI", 10F, FontStyle.Bold);
+        _compactUploadHeading.ForeColor = Ink;
+        _compactUploadHeading.BackColor = _compactUploadBody.BackColor;
+        _compactUploadBody.Controls.Add(_compactUploadHeading);
         _compactUploadTrack.ForeColor = Ink;
         _compactUploadTrack.Font = new Font("Segoe UI", 9F);
         _compactUploadTrack.BackColor = _compactUploadBody.BackColor;
@@ -654,12 +660,10 @@ public sealed partial class MainWindow
                 (_compactStartup, 45, 8, !string.IsNullOrWhiteSpace(_compactStartupText)),
                 (_compactUploadButton, 40, 8, true),
                 (_compactUploadBody, _compactUploadView == "form" ?
-                    (_bridge.LastTrackDurationMs >= 1000 ? 310 : 356) : 126, 8,
-                    _compactUploadOpen),
+                    CompactUploadFormHeight() : 130, 8, _compactUploadOpen),
                 (_compactSuggestButton, 40, 12, true),
                 (_compactSuggestBody, _compactSuggestView == "form"
-                    ? (string.IsNullOrWhiteSpace(_compactSuggestNote.Text) ? 92 : 128)
-                    : 126, 8, _compactSuggestOpen),
+                    ? CompactSuggestFormHeight() : 130, 8, _compactSuggestOpen),
                 (_compactAccess, 35, 8, true),
                 (_compactTrack, 32, 0, true),
                 (_compactTrackArtist, 25, 3, !string.IsNullOrWhiteSpace(_compactTrackArtist.Text)),
@@ -804,61 +808,137 @@ public sealed partial class MainWindow
         Place(_compactSupportMessage, _compactSupportBody, 0, song ? 324 : 256, w, 48);
     }
 
+    private int CompactUploadFormHeight()
+    {
+        int y = 14 + 25 + 6 + 43 + 8;
+        y += _bridge.LastTrackDurationMs >= 1000 ? 25 : 70;
+        y += 79 + 9;
+        if (_compactFileChecking || _compactAudioPreflight is not null)
+            y += CompactValidationHeight() + 8;
+        if (_compactAudioPreflight?.NameSuspicious == true) y += 57 + 8;
+        y += 48 + 10;
+        if (_compactUploadCancellation is not null) y += 15 + 7;
+        y += 44 + 6;
+        if (!string.IsNullOrWhiteSpace(_compactUploadNote.Text)) y += 58;
+        return y + 14;
+    }
+
+    private int CompactValidationHeight() =>
+        _compactFileChecking ? 48 :
+        _compactAudioPreflight?.Blocked == true ? 108 : 56;
+
+    private int CompactSuggestFormHeight() =>
+        14 + 25 + 37 + 48 + 44 +
+        (string.IsNullOrWhiteSpace(_compactSuggestNote.Text) ? 0 : 55) + 16;
+
     private void LayoutCompactContributions(int w)
     {
+        var inner = Math.Max(110, w - 26);
         bool form = _compactUploadView == "form";
         bool result = _compactUploadView == "result";
         foreach (var child in new Control[] {
-            _compactUploadTrack, _compactUploadDurationCaption,
+            _compactUploadHeading, _compactUploadTrack, _compactUploadDurationCaption,
             _compactDurationInput, _compactUploadDurationKnown, _compactFilePicker,
-            _compactFileName, _compactRights, _compactUploadSubmit,
-            _compactUploadNote, _compactUploadProgress, _compactUploadResult
+            _compactFileName, _compactRights, _compactUploadSubmit, _compactUploadNote,
+            _compactUploadProgress, _compactUploadResult, _compactAudioValidation,
+            _compactFilenameWarning
         }) child.Visible = false;
+
         if (form)
         {
-            Place(_compactUploadTrack, _compactUploadBody, 0, 0, w, 28);
-            var known = _bridge.LastTrackDurationMs >= 1000;
-            Place(known ? _compactUploadDurationKnown : _compactUploadDurationCaption,
-                _compactUploadBody, 0, 30, w, 21);
-            if (!known) Place(_compactDurationInput, _compactUploadBody, 0, 51, w, 38);
-            Place(_compactFilePicker, _compactUploadBody, 0, known ? 54 : 96, w, 74);
-            Place(_compactFileName, _compactUploadBody, 0, known ? 132 : 174, w, 24);
-            Place(_compactRights, _compactUploadBody, 0, known ? 162 : 206, w, 31);
-            Place(_compactUploadSubmit, _compactUploadBody, 0, known ? 202 : 246, w, 40);
+            int y = 14;
+            Place(_compactUploadHeading, _compactUploadBody, 13, y, inner, 25);
+            y += 31;
+            Place(_compactUploadTrack, _compactUploadBody, 13, y, inner, 43);
+            y += 51;
+            if (_bridge.LastTrackDurationMs >= 1000)
+            {
+                Place(_compactUploadDurationKnown, _compactUploadBody, 13, y, inner, 25);
+                y += 25;
+            }
+            else
+            {
+                Place(_compactUploadDurationCaption, _compactUploadBody, 13, y, inner, 24);
+                Place(_compactDurationInput, _compactUploadBody, 13, y + 24, inner, 40);
+                y += 70;
+            }
+            Place(_compactFilePicker, _compactUploadBody, 13, y, inner, 79);
+            y += 88;
+            if (_compactFileChecking || _compactAudioPreflight is not null)
+            {
+                var blocked = _compactAudioPreflight?.Blocked == true;
+                var label = _compactAudioValidation;
+                label.Text = _compactFileChecking ? "Проверяем длительность файла…" :
+                    _compactAudioPreflight?.DurationMessage ?? "";
+                label.BackColor = blocked ?
+                    ColorTranslator.FromHtml("#301C20") : ColorTranslator.FromHtml("#142B22");
+                label.ForeColor = blocked ?
+                    ColorTranslator.FromHtml("#FFBDB7") : ColorTranslator.FromHtml("#9CEACB");
+                if (_compactFileChecking)
+                {
+                    label.BackColor = ColorTranslator.FromHtml("#152A28");
+                    label.ForeColor = Secondary;
+                }
+                var size = CompactValidationHeight();
+                Place(label, _compactUploadBody, 13, y, inner, size);
+                y += size + 8;
+            }
+            if (_compactAudioPreflight?.NameSuspicious == true)
+            {
+                _compactFilenameWarning.Text = _compactAudioPreflight.NameMessage;
+                Place(_compactFilenameWarning, _compactUploadBody, 13, y, inner, 57);
+                y += 65;
+            }
+            Place(_compactRights, _compactUploadBody, 13, y, inner, 48);
+            y += 58;
             if (_compactUploadCancellation is not null)
-                Place(_compactUploadProgress, _compactUploadBody, 0,
-                    known ? 248 : 292, w, 13);
-            Place(_compactUploadNote, _compactUploadBody, 0,
-                known ? 266 : 309, w, 45);
+            {
+                Place(_compactUploadProgress, _compactUploadBody, 13, y, inner, 15);
+                y += 22;
+            }
+            Place(_compactUploadSubmit, _compactUploadBody, 13, y, inner, 44);
+            y += 50;
+            if (!string.IsNullOrWhiteSpace(_compactUploadNote.Text))
+            {
+                Place(_compactUploadNote, _compactUploadBody, 13, y, inner, 58);
+            }
         }
         else if (result)
         {
-            Place(_compactUploadResult, _compactUploadBody, 0, 0, w, 112);
-            Place(_compactUploadResultTitle, _compactUploadResult, 12, 12, w - 24, 28);
-            Place(_compactUploadResultNote, _compactUploadResult, 12, 44, w - 24, 65);
+            Place(_compactUploadResult, _compactUploadBody, 12, 12, inner, 108);
+            Place(_compactUploadResultTitle, _compactUploadResult, 12, 11, inner - 24, 27);
+            Place(_compactUploadResultNote, _compactUploadResult, 12, 42, inner - 24, 62);
         }
         else
-        {
-            Place(_compactUploadNote, _compactUploadBody, 0, 0, w, 110);
-        }
+            Place(_compactUploadNote, _compactUploadBody, 13, 13, inner, 102);
 
-        _compactSuggestResult.Visible = _compactSuggestView == "result";
-        _compactSuggestTrack.Visible = _compactSuggestView == "form";
-        _compactSuggestSubmit.Visible = _compactSuggestView == "form";
-        _compactSuggestNote.Visible = _compactSuggestView is "error" or "checking" or "form";
+        _compactSuggestHeading.Visible = false;
+        _compactSuggestCaption.Visible = false;
+        _compactSuggestResult.Visible = false;
+        _compactSuggestTrack.Visible = false;
+        _compactSuggestSubmit.Visible = false;
+        _compactSuggestNote.Visible = false;
         if (_compactSuggestView == "result")
         {
-            Place(_compactSuggestResult, _compactSuggestBody, 0, 0, w, 114);
-            Place(_compactSuggestResultTitle, _compactSuggestResult, 12, 12, w - 24, 27);
-            Place(_compactSuggestResultNote, _compactSuggestResult, 12, 43, w - 24, 68);
+            Place(_compactSuggestResult, _compactSuggestBody, 12, 12, inner, 108);
+            Place(_compactSuggestResultTitle, _compactSuggestResult, 12, 10, inner - 24, 28);
+            Place(_compactSuggestResultNote, _compactSuggestResult, 12, 42, inner - 24, 60);
         }
         else if (_compactSuggestView == "form")
         {
-            Place(_compactSuggestTrack, _compactSuggestBody, 0, 0, w, 28);
-            Place(_compactSuggestSubmit, _compactSuggestBody, 0, 36, w, 40);
-            Place(_compactSuggestNote, _compactSuggestBody, 0, 80, w, 38);
+            int y = 14;
+            Place(_compactSuggestHeading, _compactSuggestBody, 13, y, inner, 25);
+            y += 25;
+            Place(_compactSuggestCaption, _compactSuggestBody, 13, y, inner, 37);
+            y += 37;
+            Place(_compactSuggestTrack, _compactSuggestBody, 13, y, inner, 48);
+            y += 48;
+            Place(_compactSuggestSubmit, _compactSuggestBody, 13, y, inner, 44);
+            y += 44;
+            if (!string.IsNullOrWhiteSpace(_compactSuggestNote.Text))
+                Place(_compactSuggestNote, _compactSuggestBody, 13, y, inner, 55);
         }
-        else Place(_compactSuggestNote, _compactSuggestBody, 0, 0, w, 110);
+        else Place(_compactSuggestNote, _compactSuggestBody, 13, 13, inner, 104);
     }
 
 }
