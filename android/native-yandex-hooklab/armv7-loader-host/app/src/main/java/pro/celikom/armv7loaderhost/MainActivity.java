@@ -7,7 +7,12 @@ import android.graphics.Color;
 import android.view.Gravity;
 
 public final class MainActivity extends Activity {
-    static { System.loadLibrary("celikom_host_probe"); }
+    static {
+        // Default ARMv7 witness still strictly requires real JNI.
+        // Our OWN x86_64 WAV-only emulator probe deliberately has no JNI.
+        if (!BuildConfig.CELIKOM_OWN_EMULATOR)
+            System.loadLibrary("celikom_host_probe");
+    }
     private AudioSmokeScreen audioScreen;
     @Override public void onCreate(Bundle b) {
         // Explicit adb-triggered check on our isolated emulator app ONLY.
