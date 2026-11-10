@@ -1,3 +1,19 @@
+# FIRST READ — W66 Windows 0.24.14 PRIVATE OWNER TRIAL (2026-11-10)
+
+**Authoritative next handoff:** `docs/windows/W66-OWNER-02414-ICON-METADATA-AND-DYNAMIC-UI-20261110.md`. Continue existing `manufact-test/nomusic`, branch `experiment/windows-stop-lifecycle-20261110`. This chat completed W66 source and build; user **has not tested W66 on real PC yet**. Do NOT begin anew or change music engine/audio source logic.
+
+**Fixed owner's confirmed bugs:** malformed JS RegExp stripped capital "D" (and other uppercase letters/digits) from artist/song labels in both vendor current-source reader and localhost host sanitation; both corrected and regression-tested (incl. kavabanga Depo kolibri, Unicode). Fixed support Send gap and on-demand feedback, promo gap and neutral placeholder, eliminated empty reserved upload area by measured title/note heights and conditional validation/progress, adjusted 7px status dot to align to text. Replaced Windows document icon in titlebar, taskbar, tray, installer with **exact official green C from extension/assets/icons**; deterministic ICO source script, PE and Inno embedding verified.
+
+**W66 exact frozen built source:** `backup/windows-w66-02414-built-ci-passed-await-owner-20261110` @ `6b4a8088b299f802366bc85e3ff28515930336e4`. **Pre-W66 W65 backup:** `backup/windows-w65-02413-owner-final-feedback-pre-w66-20261110` @ `de08b9c5ef509811347771d2c044e635e15ad3d4`. W61 accepted-audio backup unchanged.
+
+**CI SUCCESS:** W66 real UI screenshots/height and gap validation https://github.com/manufact-test/nomusic/actions/runs/42845448149; full W66 0.24.14 build/Node/native/source/installer/icon from exact frozen SHA https://github.com/manufact-test/nomusic/actions/runs/42846306058; independent synthetic same-user DPAPI 0.24.13→0.24.14 one AppId and vendor untouched https://github.com/manufact-test/nomusic/actions/runs/42846415169.
+
+**Direct owner EXE:** `CELIKOM-W66-COMPACT-UX-BRAND-UNSIGNED.exe` 43,492,716 bytes, SHA256 `2028f53113eef88cfc65b4181336fc9db723a7360a051a551b280863668493f9`, GitHub artifact `13777993165`; ChatGPT Library `/CELIKOM/Windows/`, file ID `file_00000000a96c8243811ad4bc82387b4b`, lib ID `libfile_44cba65dcd248191a832c60c5f42ce3b`. **Round-trip sha and cmp exact**.
+
+**NEXT:** Owner installs directly over installed 0.24.13, checks D in artist/title across popup and upload, icon taskbar/title/setup/tray, dot alignment, promo/support gaps, dynamic upload form, validates audio Start/Stop, pause, seek, MyWave no regressions. No public release, no claim of owner acceptance before actual testing; no Android Test.50, production, Yandex originals changes.
+
+---
+
 # FIRST READ — CELIKOM Windows W65 / 0.24.13 PRIVATE OWNER TRIAL (2026-11-10)
 
 **READ FIRST:** `docs/windows/W65-OWNER-02413-ACCOUNT-SUPPORT-UX-20261110.md`. Continue existing Windows app in `manufact-test/nomusic`, branch `experiment/windows-stop-lifecycle-20261110`; do NOT create another app. User approved final batch of W64 0.24.12 UI fixes. W65 0.24.13 uses one bordered account accordion and one bordered support accordion, fully dark custom selectors and textarea, compact promo typography, actual API-backed opt-in benefits/referrals, 7px aligned status dot, 5px right-gutter scroll thumb. **All filename-based guessing and warnings removed** even for Unicode names; upload eligibility still checks actual audio format and duration. Never change W60 audio source reload/seek/pause/MyWave, original Yandex files, Android Test.50 or production.
