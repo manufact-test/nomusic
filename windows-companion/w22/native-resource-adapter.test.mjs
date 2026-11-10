@@ -98,6 +98,30 @@ test('Stop cancels unresolved grant and preserves native source',async()=>{
   await new Promise(resolve=>setTimeout(resolve,3));a.disable();release(grant());
   assert.equal((await first).downloadInfo.url,'https://official.example/native');a.dispose();
 });
+test('W58 Stop disables NEW single, same-track and batch requests but cannot revoke a returned Yandex media source',async()=>{
+  let calls=0;
+  const a=create(async id=>{calls++;return grant(id)});
+  const {proto}=resource();a.attach(proto);a.enable();
+  const loaded=await proto.getFileInfo({trackId:'123'});
+  assert.equal(loaded.downloadInfo.url,nativeUrl);
+  assert.equal(calls,1);
+  a.disable();
+  assert.equal(a.enabled,false);
+  assert.equal(a.status,'OFF');
+  assert.equal(await a.prime('123'),false);
+  // The prior result is now owned/possibly buffered by Yandex: our adapter
+  // cannot retroactively replace its URL or stop already-downloaded bytes.
+  assert.equal(loaded.downloadInfo.url,nativeUrl);
+  const previousTrackAgain=await proto.getFileInfo({trackId:'123'});
+  const followingTrack=await proto.getFileInfo({trackId:'456'});
+  const batch=await proto.getFileInfoBatch({trackIds:['123','456']});
+  assert.equal(previousTrackAgain.downloadInfo.url,'https://official.example/native');
+  assert.equal(followingTrack.downloadInfo.url,'https://official.example/native');
+  assert.equal(batch.downloadInfos[0].url,'https://official.example/');
+  assert.equal(calls,1,'Stop must never make another CELIKOM resolve call');
+  a.dispose();
+});
+
 test('prefetch enables batch mapping for current exact ID',async()=>{
   const a=create();const {proto,stats}=resource();a.attach(proto);a.enable();
   a.trackChanged('123');assert.equal(await a.prime('123'),true);
