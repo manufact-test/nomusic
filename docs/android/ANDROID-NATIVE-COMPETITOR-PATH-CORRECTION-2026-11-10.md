@@ -27,3 +27,10 @@
 Не посылать письма Яндексу. Не переделывать на отдельный player и не обращаться к неофициальному аккаунтному API. Следующий технический этап — подготовка строго изолированного ARM-native compatibility preflight на *запасном устройстве*, затем один ручной тест после подтверждения безопасной установки. Не пытаться обходить Android-подпись или издательские защитные механизмы для установки.
 
 **Статус:** обоснованная стратегия, НЕ проверенная нативная подмена и НЕ разрешение на установку. Этот коммит — только корректировка документации; нового CI/audio теста нет. Test.50, официальный HONOR, Windows, extension, server, DB, production не тронуты.
+
+
+## New code batch: classloader-ready retry (10.11.2026)
+
+`NativeHookEntry.java` now keeps a context **only after exact host version validation** and rechecks the pinned `sw7.y0/z0` method contracts when LibXposed `onPackageReady` supplies its definitive classloader. Both method signatures must be resolved before installing either; a partial install cannot be doubled on callback retry. The optional `eed.a()` witness also installs only once. This is a concrete correctness improvement for classloader timing, **not evidence of active native audio replacement**. Builds checked by native hooklab workflow.
+
+Old `android-native-yandex-emulator.yml` automatic x86/ARM translation smoke was **disabled**; existing [42622523007](https://github.com/manufact-test/nomusic/actions/runs/42622523007) and [42622723034](https://github.com/manufact-test/nomusic/actions/runs/42622723034) already proved the LSPatch loader fails before any observer, including with no module. Rerun only with meaningful new native ARM compatible environment/loader fix.

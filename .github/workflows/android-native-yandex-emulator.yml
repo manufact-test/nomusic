@@ -1,13 +1,8 @@
 name: Android 11 ARMv7 translated native Yandex hook smoke (fallback ONLY)
+# Archived 10.11.2026: same-package x86+ARM translator LSPatch loader
+# crashes before CELIKOM module; repeated automatic runs waste CI minutes.
+# Manual invocation only if concrete loader fix / suitable genuine ARM host exists.
 on:
-  push:
-    branches:
-      - experiment/android-native-yandex-fileinfo-hooklab-20261109
-    paths:
-      - '.github/workflows/android-native-yandex-emulator.yml'
-      - 'android/native-yandex-hooklab/ephemeral_patch_lab.py'
-      - 'android/native-yandex-hooklab/app/src/main/java/pro/celikom/yandex/nativehooklab/NativeHookEntry.java'
-      - 'android/native-yandex-hooklab/diagnose_emulator.py'
   workflow_dispatch:
 permissions:
   contents: read
