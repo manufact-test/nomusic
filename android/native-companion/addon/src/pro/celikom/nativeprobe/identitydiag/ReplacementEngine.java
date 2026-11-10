@@ -741,6 +741,12 @@ final class ReplacementEngine {
   if(sourceJump){explicitSourceSeek=true;sourceSeekedThisTrack=true;}
   if(sourceJump&&seeking&&audioOwner.seekInFlight(player))
    supersedePendingAlignmentForSourceSeek("source_position_jump");
+  // A same-song rewind must not masquerade as a true source boundary
+  // and re-enable a repeatedly timed-out decoder. Only Next/Stop resets it.
+  if(seekTimeoutBreaker.blocked(s.key)&&Objects.equals(s.key,identityKey)){
+   status="Перемотка замены нестабильна — играет оригинал до следующей песни";
+   return;
+  }
   if(completedKey!=null&&completedKey.equals(s.key)){
    if(s.playing&&s.position<completedPosition-1500){completedKey=null;completedReason=null;lookupKey=null;descriptor=null;nextLookup=0;LogStore.log("replacement_repeat_detected",LogStore.map("sourcePositionMs",s.position));}
    else{status=completedReason==null?"Ожидаем следующую песню; играет оригинал":completedReason;return;}
