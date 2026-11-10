@@ -34,7 +34,9 @@ public final class TestRepeatedSeekTimeoutRecovery {
   check(e.completedKey==null&&e.armed()&&!e.seekTimeoutBreaker.blocked(current),
     "first timeout retains legacy retry behavior and does NOT block this track");
 
-  SystemClock.now+=2000;
+  // First timeout retains Test.50's own retryDelay(), which may be
+  // longer than a fixed 2s; wait for its actual deterministic deadline.
+  SystemClock.now=Math.max(SystemClock.now+2000,e.nextLookup+100);
   TestEngine.p.current=TestEngine.source("1",1600,true);
   int beforeRetry=TestEngine.api.resolves;
   e.update(TestEngine.p.current);
