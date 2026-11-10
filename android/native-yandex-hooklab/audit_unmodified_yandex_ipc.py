@@ -16,8 +16,14 @@ from pathlib import Path
 import audit_parallel_clone as clone
 
 COMPONENTS = ("activity", "activity-alias", "service", "receiver", "provider")
-MEDIA_ACTIONS = {
+# Public Android media service intent actions, not proprietary Yandex symbols.
+MEDIA_SERVICE_ACTIONS = {
     "android.media.browse.MediaBrowserService",
+    "androidx.media3.session.MediaSessionService",
+    "androidx.media3.session.MediaLibraryService",
+}
+MEDIA_ACTIONS = {
+    *MEDIA_SERVICE_ACTIONS,
     "android.media.action.MEDIA_PLAY_FROM_SEARCH",
     "android.intent.action.MEDIA_SEARCH",
     "android.intent.action.VIEW",
@@ -33,19 +39,27 @@ def collect_components(xmltree: str) -> dict:
     comp = []
     current = None
     filter_depth = None
+    application_depth = None
+    application_permission = False
+    application_enabled = True
     for line in xmltree.splitlines():
         trim = line.strip()
         indent = element_indent(line)
         element = re.match(r"E: ([a-zA-Z0-9_.-]+)(?:\s|$)", trim)
         if element:
             tag = element.group(1)
+            if application_depth is not None and indent <= application_depth:
+                application_depth = None
             if current and indent <= current["_depth"]:
                 comp.append(current)
                 current = None
                 filter_depth = None
+            if tag == "application" and current is None:
+                application_depth = indent
             if tag in COMPONENTS:
                 current = {
                     "kind": tag, "exported": "unknown", "permission": False,
+                    "enabled": True,
                     "read_write_permission": False, "provider_grant": False,
                     "intent_filters": 0, "media_intents": set(),
                     "_depth": indent,
@@ -57,7 +71,7 @@ def collect_components(xmltree: str) -> dict:
             elif current and filter_depth is not None and indent <= filter_depth:
                 filter_depth = None
             continue
-        if not current:
+        if not current and application_depth is None:
             continue
         match = re.match(r'A: ([a-zA-Z0-9_.:-]+)(?:\([^)]*\))?=', trim)
         if not match:
@@ -68,6 +82,14 @@ def collect_components(xmltree: str) -> dict:
         # aapt dump xmltree boolean attrs often serialize as "(type 0x12)0xffffffff"
         is_true = value.lower() == "true" or ("(type 0x12)" in trim and trim.endswith("0xffffffff"))
         is_false = value.lower() == "false" or ("(type 0x12)" in trim and trim.endswith("0x0"))
+        if current is None:
+            if key.endswith(":permission"):
+                application_permission = bool(value) or "(type" in trim
+            elif key.endswith(":enabled") and is_false:
+                application_enabled = False
+            continue
+        if key.endswith(":enabled") and is_false:
+            current["enabled"] = False
         if key.endswith(":exported"):
             current["exported"] = "yes" if is_true else ("no" if is_false else "unknown")
         if key.endswith(":permission"):
@@ -96,8 +118,39 @@ def collect_components(xmltree: str) -> dict:
             totals[typ]["grant_uri_permission_true"] = sum(x["provider_grant"] for x in group)
     visible = {action: sum(action in x["media_intents"] for x in comp)
                for action in sorted(MEDIA_ACTIONS)}
+    media_services = [x for x in comp if x["kind"] == "service"
+                      and bool(x["media_intents"] & MEDIA_SERVICE_ACTIONS)]
+    # A public, permissionless exported service is *only* a candidate for
+    # a legitimate controller connection. It does not establish acceptance
+    # of URI, replaceMediaItem, codec, source change, or active session.
+    public = [x for x in media_services if x["exported"] == "yes"
+              and x["enabled"] and application_enabled
+              and not x["permission"] and not application_permission]
+    guarded = [x for x in media_services if x["exported"] == "yes"
+               and (x["permission"] or application_permission)]
+    disabled = [x for x in media_services if not x["enabled"] or not application_enabled]
+    media_surface = {
+        "media_services_declared": len(media_services),
+        "media_browser_action": sum(
+            "android.media.browse.MediaBrowserService" in x["media_intents"]
+            for x in media_services),
+        "media3_session_action": sum(
+            "androidx.media3.session.MediaSessionService" in x["media_intents"]
+            for x in media_services),
+        "media3_library_action": sum(
+            "androidx.media3.session.MediaLibraryService" in x["media_intents"]
+            for x in media_services),
+        "exported_no_manifest_permission_candidates": len(public),
+        "exported_permission_guarded": len(guarded),
+        "unexported": sum(x["exported"] == "no" for x in media_services),
+        "export_unspecified": sum(x["exported"] == "unknown" for x in media_services),
+        "disabled": len(disabled),
+        "runtime_session_or_commands_observed": False,
+        "any_native_source_change_proven": False,
+    }
     return {
         "component_roles": totals, "media_action_counts": visible,
+        "media_session_surface": media_surface,
         "manifest_claim": "COUNT_ONLY_NO_EXTERNAL_AUDIO_REPLACEMENT_PROOF",
         "private_values_emitted": False,
     }

@@ -1,3 +1,9 @@
+## UPDATE 10.11.2026 — no-patch public MediaSession source-access hypothesis
+
+New bounded **signed-original manifest** classifier and regression tests (not runtime): `docs/android/ANDROID-NATIVE-PUBLIC-MEDIA-SESSION-GATE-2026-11-10.md`. Android's documented `MediaController.replaceMediaItem` exists but is conditional on `COMMAND_CHANGE_MEDIA_ITEMS`; Yandex has not been shown to grant that command nor to accept rights-cleared external media into its native player. **Never treat exported MediaBrowserService as an in-process hook**. CI evidence: see latest `android-native-unmodified-ipc` workflow after code commit. No original Yandex, HONOR, Test.50, server, DB, Windows or browser extension touched. Backup: `backup/android-native-public-session-gate-20261110`.
+
+---
+
 ## UPDATE 10.11.2026 — verified publisher-access feasibility gate (NO-GO)
 
 New research: `docs/android/ANDROID-NATIVE-PUBLISHER-HOST-FEASIBILITY-2026-11-10.md`. Android's app sandbox and MediaSession do **not** provide a generic source replacement hook into unmodified Yandex; `AudioPlaybackCapture` is output-only. Official Yandex archived job postings **confirm partner SDK/API integration work (MTS Music)**, but neither a publicly usable audio source extension nor permission for CELIKOM is documented. Precise unsolved prerequisite: **publisher-approved pre-prepare native source host**, including authoritative track+edition+generation and rights-cleared source contract. Clone `EXIT_SELF(0)` is confirmed; actual cause remains unknown (not proven anti-tamper). Native replacement remains **NO-GO**; no changes to code, APK or phone, no new CI because docs/research only. Backup pre-docs: `backup/android-native-publisher-host-gate-20261110` at `0cf4ee3be8b092a316eacdaa0dce988e20b8c49b`. Do **not** restart LSPatch x86 or AppMetrica experiments. Next action only with an explicitly documented or authorized publisher-supported interface; otherwise raise owner-level feasibility decision.
