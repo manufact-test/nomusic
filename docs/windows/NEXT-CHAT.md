@@ -1,3 +1,15 @@
+# FIRST READ — CELIKOM WINDOWS W62 / 0.24.10 PRIVATE OWNER TEST (2026-11-10)
+
+**New authoritative handoff:** `docs/windows/W62-EXTENSION-PARITY-AND-OWNER-AUDIO-20261110.md`. User personally tested 0.24.9 and confirmed replacement, seek, pause, Start/Stop, NO audible click; delay remains around 0.36s dispatch + 0.74s official Yandex source reload. Owner diagnostic `1.zip` was actually read and analyzed. 0.24.9 approved audio baseline **frozen** at `backup/windows-w61-0249-audio-owner-approved-before-ui-parity-20261110` SHA `44e69d78b459ed512862819280ebdb8b3dbc7e7d`.
+
+**W62 built successfully, not owner-tested yet:** new compact native Windows layout matching actual extension screenshot hierarchy (302-ish px, no wide tabs), functional authenticated account registration/recovery, server-backed entitlement/promocode and support, typed song reports, contribution endpoints, passive current song ID. Source backup `backup/windows-w62-02410-built-ci-await-owner-20261110` @ `eb1c9f2e1de69091c14f0e275d99f000f94d4d00`. No native audio switching algorithm changes; W61 polling/reload retained.
+
+**Verified build:** https://github.com/manufact-test/nomusic/actions/runs/42817316962 SUCCESS. **Visual anti-overlap and layout screenshot:** https://github.com/manufact-test/nomusic/actions/runs/42817228046 SUCCESS. **Independent same-app 0.24.9→0.24.10 DPAPI proof:** https://github.com/manufact-test/nomusic/actions/runs/42817785847 SUCCESS. **Exact file:** `CELIKOM-W62-EXTENSION-PARITY-UNSIGNED.exe`, EXE SHA256 `ed2dff94d3d59bc600432f7f9b826ecc13850778937944a07bc198dbee6a5cde`, Library `/CELIKOM/Windows/`, file `file_000000006a7481f4bd310f424f863a46`. Re-downloaded SHA verified. **Do NOT publish as owner-accepted yet**.
+
+**Next:** let owner test UX and audio on 0.24.10. Known functional distinctions from browser extension: Return Original currently equals global Stop; upload asks duration seconds instead of inspecting audio automatically; real track ID shown, metadata title/artist not fetched. Do not misrepresent as pixel/feature identical; preserve all accepted sound paths and signed Yandex baseline. Production, Android Test.50 and original vendor files untouched.
+
+---
+
 # FIRST READ — CELIKOM Windows W61 / 0.24.9 PRIVATE OWNER CANDIDATE (2026-11-10)
 
 **READ FIRST:** `docs/windows/W61-CONSUMER-UX-FAST-TOGGLE-OWNER-CANDIDATE-20261110.md`. Continue existing native Windows companion, NOT new app. Owner **personally confirmed 0.24.8 Start/Stop correctly changes the source of an already playing song**, but complains of delayed and sharp audible transition ("пшик"). Missing fresh diagnostic ZIP: user says it was attached, but it did not appear in available files. **Do not invent log evidence or claim click fixed.**
