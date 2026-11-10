@@ -290,7 +290,7 @@ async function tick(view) {
 const playbackWitnesses = new WeakSet();
 const nativeAudioOrigins = new WeakMap();
 const nativeExpectedAudio = new WeakMap();
-const AUDIO_RESOURCE_PATH = /^\\/api\\/v1\\/audio\\/([1-9][0-9]{0,17})$/;
+const AUDIO_RESOURCE_PATH = /^\/api\/v1\/audio\/([1-9][0-9]{0,17})$/;
 function rememberExpectedAudio(view, grant) {
   if (!validView(view) || grant?.approved !== true ||
       grant?.entitled !== true || typeof grant.audioUrl !== "string" ||
@@ -418,8 +418,8 @@ function observeNativePlayback(view) {
               const contentType = Object.entries(headers).find(([k]) =>
                 k.toLowerCase() === "content-type")?.[1];
               const ct = typeof contentType === "string" ? contentType.toLowerCase() : "";
-              const json = /^application\\/json(?:\\s*;|\\s*$)/.test(ct);
-              const html = /^text\\/html(?:\\s*;|\\s*$)/.test(ct);
+              const json = /^application\/json(?:\s*;|\s*$)/.test(ct);
+              const html = /^text\/html(?:\s*;|\s*$)/.test(ct);
               note(json ? "PLAYER_403_JSON" : html ? "PLAYER_403_HTML" :
                 "PLAYER_403_OTHER", id, "resource_id");
               const rawLength = Object.entries(headers).find(([k]) =>
