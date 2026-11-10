@@ -1,3 +1,9 @@
+## UPDATE 10.11.2026 — signed Yandex public Media3 read-only runtime capability probe
+
+The exact signed manifest CI [42782747091](https://github.com/manufact-test/nomusic/actions/runs/42782747091) **SUCCESS** identifies **one exported, enabled, permissionless media-service binder candidate** (among three declared media services), but it does **not** prove audio substitution. Added `android/native-yandex-hooklab/public-session-probe/`: a separate CELIKOM-owned read-only AndroidX Media3 Controller diagnostic to determine if unmodified publisher Yandex *actually connects* and advertises `COMMAND_CHANGE_MEDIA_ITEMS` in disposable Android11 emulator, without playback, auth, altered APK, own MediaPlayer or data capture. See `docs/android/ANDROID-NATIVE-PUBLIC-SESSION-RUNTIME-PROBE-2026-11-10.md`. Runtime CI triggered by code commit; do **not** call this true native replacement. Previous model CI #42782747549 SUCCESS. Backup `backup/android-native-public-session-runtime-preflight-20261110` at `af0e3d9e0a1cf24be4d3ac2cf6fc31da9353cf3a`.
+
+---
+
 ## UPDATE 10.11.2026 — no-patch public MediaSession source-access hypothesis
 
 New bounded **signed-original manifest** classifier and regression tests (not runtime): `docs/android/ANDROID-NATIVE-PUBLIC-MEDIA-SESSION-GATE-2026-11-10.md`. Android's documented `MediaController.replaceMediaItem` exists but is conditional on `COMMAND_CHANGE_MEDIA_ITEMS`; Yandex has not been shown to grant that command nor to accept rights-cleared external media into its native player. **Never treat exported MediaBrowserService as an in-process hook**. CI evidence: see latest `android-native-unmodified-ipc` workflow after code commit. No original Yandex, HONOR, Test.50, server, DB, Windows or browser extension touched. Backup: `backup/android-native-public-session-gate-20261110`.

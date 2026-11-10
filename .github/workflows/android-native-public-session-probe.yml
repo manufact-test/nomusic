@@ -1,0 +1,64 @@
+name: Android signed Yandex public Media3 session capability, no mutations
+on:
+  push:
+    branches:
+      - experiment/android-native-yandex-fileinfo-hooklab-20261109
+    paths:
+      - 'android/native-yandex-hooklab/public-session-probe/**'
+      - '.github/workflows/android-native-public-session-probe.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  signed-original-public-session-readonly:
+    runs-on: ubuntu-latest
+    timeout-minutes: 38
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+      - name: Check no source mutation, passwords or audio playback and test output privacy parser
+        run: |
+          python3 -m unittest discover -s android/native-yandex-hooklab/public-session-probe -p 'test_*.py' -v
+          python3 -m py_compile android/native-yandex-hooklab/public-session-probe/public_session_ci.py
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('android/native-yandex-hooklab/public-session-probe/app/src/main')
+          manifest=(p/'AndroidManifest.xml').read_text()
+          source=(p/'java/pro/celikom/nativepublicsession/ProbeActivity.java').read_text()
+          assert '<uses-permission' not in manifest
+          for forbidden in ['.replaceMediaItem(', '.setMediaItem(', '.play(', '.prepare(', '.getCurrentMediaItem(', 'MediaPlayer(', 'WebView(', 'setDataSource(', 'getMetadata(', 'getQueue(', 'getMediaMetadata(']:
+              assert forbidden not in source, forbidden
+          assert 'source_replace_proven=false' in source
+          print('PASS: public controller CAPABILITY-ONLY, never media mutation or account access')
+          PY
+      - name: Build only own, non-released MediaSession capability diagnostic
+        run: gradle -p android/native-yandex-hooklab/public-session-probe :app:assembleDebug --no-daemon
+      - name: Prepare KVM for isolated Android 11 emulator
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+          test -e /dev/kvm
+      - name: Attempt read-only public Media3 flags on original signed Yandex (no playback)
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 30
+          target: google_apis
+          arch: x86
+          profile: pixel_5
+          emulator-boot-timeout: 480
+          emulator-options: -no-snapshot-load -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none
+          disable-animations: true
+          script: python3 android/native-yandex-hooklab/public-session-probe/public_session_ci.py
+      - name: Ensure no original or owned app released
+        if: always()
+        run: |
+          test ! -d android/native-yandex-hooklab/release
+          test ! -d android/native-yandex-hooklab/patched
+          echo 'Own probe and genuine signed Yandex existed only on disposable runner; no APK uploaded'
