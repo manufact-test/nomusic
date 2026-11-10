@@ -20,12 +20,12 @@ public final class HookSpecTest {
         catch (NoSuchMethodException expected) { rejected = true; }
         if (!rejected) throw new AssertionError("approximate hook must fail");
         HookSpec.ResolvedPair pair = HookSpec.findConversionPair(loader, loader);
-        if (pair.loader != loader || pair.modern != modern || pair.legacy != old)
+        if (pair.loader != loader || !pair.modern.equals(modern) || !pair.legacy.equals(old))
             throw new AssertionError("preferred exact host loader did not resolve both converters");
 
         ClassLoader missing = new ClassLoader(null) {};
         HookSpec.ResolvedPair fallback = HookSpec.findConversionPair(missing, loader);
-        if (fallback.loader != loader || fallback.modern != modern || fallback.legacy != old)
+        if (fallback.loader != loader || !fallback.modern.equals(modern) || !fallback.legacy.equals(old))
             throw new AssertionError("ready loader fallback did not use exact verified Context loader");
 
         HookSpec.ResolvedPair noPreferred = HookSpec.findConversionPair(null, loader);
