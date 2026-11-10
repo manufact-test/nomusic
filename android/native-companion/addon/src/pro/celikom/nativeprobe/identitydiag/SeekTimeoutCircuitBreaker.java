@@ -30,12 +30,16 @@ final class SeekTimeoutCircuitBreaker {
  }
 
  Decision timeout(String currentKey,long at) {
-  if(currentKey==null||currentKey.isEmpty()||at<0L) {
-   reset();
+  // A late/unidentified seek timeout is NOT an authorized track boundary.
+  // In particular, it may never clear an already latched original-only song.
+  if(currentKey==null||currentKey.isEmpty()||at<0L)
    return new Decision(false,0,false);
+  if(latched) {
+   // A foreign key is not counted, and cannot disarm the old source.
+   boolean same=Objects.equals(key,currentKey);
+   return new Decision(same,same?consecutive:0,false);
   }
   if(!Objects.equals(key,currentKey)) reset();
-  if(latched) return new Decision(true,consecutive,false);
   if(lastFailureAt<0 || at<lastFailureAt || at-lastFailureAt>WINDOW_MS)
    consecutive=0;
   key=currentKey;
