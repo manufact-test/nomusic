@@ -1,3 +1,15 @@
+# CELIKOM Windows — W50 genuine-network and bitrate experiment staged, 2026-11-10
+
+**READ FIRST:** `docs/windows/W50-REAL-YANDEX-NETWORK-NO-SELF-PROBE-20261110.md` plus owner report `docs/windows/W49-OWNER-0245-SIGNED-SOURCE-CALLCHAIN-20261110.md`. Owner currently installed **0.24.5** GUI+native; approved mapped tracks are silent; ordinary Yandex songs play. Last attached `CELIKOM-diagnostics-20261110-105211.txt` proved original source FileInfo has AAC/key/transport and genuine CDP media-start/pause **before** first approved mapping. After approved mapping, no further native media start observed. Do not misattribute global fast-pause to approved tracks or call signed 32-byte probe actual playback.
+
+**W49 signed original Yandex 5.126.1 read-only CI confirms** true chain `getMediaSource → getFileInfo → createMediaSource → corePlay`, raw/encraw & MP3 supported. Working open MIT reference `S4YN3X/F_ckCensor` uses raw MP3 with no key and bitrate 320, contrasting our inherited original AAC bitrate. The key problem may instead be genuine Yandex network fetch and its credentials/CORS; W45 signed 32-byte probe uses `credentials:omit` and is NOT real player network proof.
+
+**W50 source-only changes** (version **0.24.6**, experimental unsigned update, not yet owner-installed): no independent 32-byte audio GET; passive CDP Network exact trusted audio origin + numeric track path only, emits real `PLAYER_NET_REQUEST`/HTTP206/403/CORS/failed/finished classified codes without URLs/query/tokens or requests modification; new `PLAYER_AUDIO_RESOURCE_TIMING_SEEN` might be prefetch, no sound claim; MP3 nominal bitrate 320; owner log last 15m and typed evidence. W50 CI unit + W23 signed Yandex disposable + W20 internal installer must ALL pass, then separate **0.24.5→0.24.6 same-app upgrade** proof before user link. Previous backup `backup/windows-w49-signed-native-and-competitor-source-verified-20261110` @ `57cc262384dad3e785237d9fc814c7bf196ac416`. W45 server CORS live remains unchanged. Android/Test.50 untouched.
+
+**If CI succeeds and owner tests 0.24.6:** success only audible replacement in actual native Yandex + pause/seek/Next. If no `PLAYER_NET_REQUEST` after `SOURCE_MAPPED`, investigate native prepare/corePlay. If real signed GET blocked, analyze native CORS/credentials; if genuine GET206 finished but silent, investigate decoder. Do not blindly alter backend, keys/IV, or send more empty diagnostic-only installers.
+
+## Archived W48 handoff
+
 # CELIKOM Windows — W48 true diagnostic 0.24.5 stage and owner-upgrade PASS (2026-11-10)
 
 **Owner's actual verdict RED:** accepted mapped tracks on currently installed 0.24.4 trigger rapid UI Play/Pause oscillation and end paused/silent; ordinary untouched Yandex tracks work. This is NOT a CORS issue anymore: owner's 4.txt has 3/3 signed independent tiny MP3 HTTP 206 after W45. **No real native replacement audio ever confirmed.** Read `docs/windows/W48-REAL-PLAYER-DIAGNOSTIC-OWNER-FAIL-20261110.md`.
