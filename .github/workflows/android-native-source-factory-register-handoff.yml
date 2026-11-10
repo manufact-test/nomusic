@@ -1,0 +1,34 @@
+name: Android signed source factory register handoff and callsite census (READ-ONLY)
+on:
+  push:
+    branches:
+      - experiment/android-native-yandex-fileinfo-hooklab-20261109
+    paths:
+      - 'android/native-yandex-hooklab/audit_native_source_factory_register_handoff.py'
+      - 'android/native-yandex-hooklab/tests/test_native_source_factory_register_handoff.py'
+      - '.github/workflows/android-native-source-factory-register-handoff.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  exact-original-signature-source-object-flow:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Validate register field and constructor use without cross-branch assumptions
+        run: |
+          set -eu
+          python3 -m py_compile android/native-yandex-hooklab/audit_native_source_factory_register_handoff.py
+          python3 -m unittest discover -s android/native-yandex-hooklab/tests -p 'test_native_source_factory_register_handoff.py' -v
+      - name: Publisher-signed five-split six-DEX exact source handoff audit
+        run: python3 android/native-yandex-hooklab/audit_native_source_factory_register_handoff.py
+      - name: Strict read-only artifacts check
+        if: always()
+        run: |
+          test ! -d android/native-yandex-hooklab/patched
+          test ! -d android/native-yandex-hooklab/release
+          echo 'Original signed APK only, no accounts, URIs, decoder patches or user media'
