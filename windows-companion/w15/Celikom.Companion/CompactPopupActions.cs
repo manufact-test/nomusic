@@ -73,6 +73,13 @@ public sealed partial class MainWindow
             if (generation != _compactAccessGeneration || !_api.IsLoggedIn || _closing) return;
             _compactAccess.Text = AccessLabel(response);
             _compactAccessChecked = DateTimeOffset.UtcNow;
+            if (_bridge.Enabled && !PlaybackEntitlement.Allowed(response, DateTimeOffset.UtcNow))
+            {
+                ++_compactStartEpoch;
+                _compactStarting = false;
+                _bridge.SetEnabled(false);
+                DiagnosticLog.Record("ACTIVE_ENTITLEMENT_REVOKED");
+            }
         }
         catch
         {
@@ -276,6 +283,9 @@ public sealed partial class MainWindow
         {
             if (mode == "login")
             {
+                ++_compactStartEpoch;
+                _compactStarting = false;
+                _bridge.SetEnabled(false);
                 await _api.LoginAsync(_origin.Text.Trim(), email, password);
                 ResetCompactBenefits();
                 _password.Clear();
@@ -306,6 +316,9 @@ public sealed partial class MainWindow
             }
             else if (mode == "verify")
             {
+                ++_compactStartEpoch;
+                _compactStarting = false;
+                _bridge.SetEnabled(false);
                 await _api.VerifyEmailAsync(_origin.Text.Trim(),
                     _compactPendingEmail ?? email, _compactCode.Text);
                 ResetCompactBenefits();

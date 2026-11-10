@@ -277,7 +277,12 @@ public sealed class CelikomApi : IDisposable
                 current.Email != session.Email)
                 throw new ApiFailure(401, "INVALID_SESSION");
             // Repeat only idempotent reads; never replay promo/support writes.
-            if (method != HttpMethod.Get) throw new ApiFailure(401, "INVALID_SESSION");
+            // POST auth/activate is idempotent in MySQL. A 401 means the
+            // expired access token could not start the trial; after rotating
+            // the refresh token it is safe to retry this specific operation.
+            // NEVER blindly replay promo, upload or support writes.
+            if (method != HttpMethod.Get && !(route == "auth/activate" && method == HttpMethod.Post))
+                throw new ApiFailure(401, "INVALID_SESSION");
             return await RequestAsync(target, method, body, current.AccessToken, ct);
         }
     }
@@ -293,8 +298,22 @@ public sealed class CelikomApi : IDisposable
     public Task<JsonElement> CreateReferralCodeAsync(CancellationToken ct = default) =>
         SignedRequestAsync("referrals/code", HttpMethod.Post, new { }, ct);
 
+
     public Task<JsonElement> GetEntitlementAsync(CancellationToken ct = default) =>
         SignedRequestAsync("entitlement", HttpMethod.Get, ct: ct);
+
+    // Same explicit first-Start transaction as the browser extension.
+    // Merely logging in, installing, showing the account or checking the
+    // entitlement preview must NEVER start a trial.
+    public async Task<JsonElement> ActivatePlaybackAsync(CancellationToken ct = default)
+    {
+        var response = await SignedRequestAsync("auth/activate", HttpMethod.Post, new { }, ct);
+        if (response.ValueKind != JsonValueKind.Object ||
+            !response.TryGetProperty("entitlement", out var entitlement) ||
+            entitlement.ValueKind != JsonValueKind.Object)
+            throw new ApiFailure(502, "ENTITLEMENT_REQUIRED");
+        return entitlement.Clone();
+    }
 
     public Task<JsonElement> RedeemPromoAsync(string rawCode, CancellationToken ct = default)
     {

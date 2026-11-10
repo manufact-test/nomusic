@@ -312,9 +312,9 @@ public sealed partial class MainWindow : Form
         _accountSignedIn.Visible = _api.IsLoggedIn;
     }
 
-    private void StartAction(object? sender, EventArgs e)
+    private async void StartAction(object? sender, EventArgs e)
     {
-        if (!_bridgeStarted || _integrationBusy || _compactStarting) return;
+        if (!_bridgeStarted || _integrationBusy || _compactStarting || _closing) return;
         if (!_api.IsLoggedIn)
         {
             _compactAccountOpen = true;
@@ -323,20 +323,68 @@ public sealed partial class MainWindow : Form
             ScrollCompactTo(_compactAccountTrigger);
             return;
         }
-        if (_nativeInstallState != NativeInstallState.Active ||
-            !_installedModule.MatchesApplication)
-        {
-            ConnectYandexAsync(sender, e);
-            return;
-        }
-        if (!OpenYandexIfNeeded()) return;
-        _bridge.SetEnabled(true);
+        // Every Start, including a later reinstall or expired subscription,
+        // requires live server authority. Never infer playback entitlement
+        // from the presence of stored DPAPI tokens or the account UI.
+        var generation = ++_compactStartEpoch;
+        var account = _api.Settings;
         _compactStarting = true;
-        _compactStartupText = "Подождите, идёт загрузка Яндекс.Музыки…";
+        _compactStartupText = "Проверяем пробный период или подписку…";
         RenderCompact();
         LayoutCompact();
-        var generation = ++_compactStartEpoch;
-        _ = MonitorStartupAsync(generation);
+        try
+        {
+            var access = await _api.ActivatePlaybackAsync();
+            if (generation != _compactStartEpoch || _closing || IsDisposed ||
+                _api.Settings.InstallationId != account.InstallationId ||
+                _api.Settings.Email != account.Email || !_api.IsLoggedIn) return;
+            ++_compactAccessGeneration; // invalidate an older read-only preview
+            _compactAccess.Text = AccessLabel(access);
+            _compactAccessChecked = DateTimeOffset.UtcNow;
+            if (!PlaybackEntitlement.Allowed(access, DateTimeOffset.UtcNow))
+            {
+                _bridge.SetEnabled(false);
+                _compactStarting = false;
+                _compactStartupText = "Доступ завершён. Активируй промокод или подписку.";
+                DiagnosticLog.Record("START_ENTITLEMENT_DENIED");
+                return;
+            }
+            if (_nativeInstallState != NativeInstallState.Active ||
+                !_installedModule.MatchesApplication)
+            {
+                _compactStarting = false;
+                _compactStartupText = "";
+                ConnectYandexAsync(sender, e);
+                return;
+            }
+            if (!OpenYandexIfNeeded())
+            {
+                _compactStarting = false;
+                _compactStartupText = "";
+                return;
+            }
+            _bridge.SetEnabled(true);
+            _compactStarting = true;
+            _compactStartupText = "Подождите, идёт загрузка Яндекс.Музыки…";
+            _ = MonitorStartupAsync(generation);
+        }
+        catch (Exception)
+        {
+            if (generation != _compactStartEpoch || _closing || IsDisposed) return;
+            _bridge.SetEnabled(false);
+            _compactStarting = false;
+            _compactStartupText = "Не удалось проверить доступ на сервере. Подмена выключена.";
+            DiagnosticLog.Record("START_ENTITLEMENT_UNAVAILABLE");
+        }
+        finally
+        {
+            if (generation == _compactStartEpoch && !_closing && !IsDisposed)
+            {
+                RenderCompact();
+                LayoutCompact();
+                UpdateSafe();
+            }
+        }
     }
 
     private bool OpenYandexIfNeeded()
@@ -510,12 +558,29 @@ public sealed partial class MainWindow : Form
             MessageBoxButtons.YesNo, MessageBoxIcon.Question);
         if (answer != DialogResult.Yes) return;
         _integrationBusy = true;
-        _compactStartupText = "Подождите, идёт загрузка Яндекс.Музыки…";
+        var generation = ++_compactStartEpoch;
+        var account = _api.Settings;
+        _compactStartupText = "Проверяем пробный период или подписку…";
         RenderCompact();
         LayoutCompact();
         UpdateSafe();
         try
         {
+            var access = await _api.ActivatePlaybackAsync();
+            if (generation != _compactStartEpoch || _closing || !_api.IsLoggedIn ||
+                _api.Settings.InstallationId != account.InstallationId ||
+                _api.Settings.Email != account.Email) return;
+            if (!PlaybackEntitlement.Allowed(access, DateTimeOffset.UtcNow))
+            {
+                _bridge.SetEnabled(false);
+                _compactStarting = false;
+                _compactStartupText = "Нет действующей подписки или пробного периода.";
+                DiagnosticLog.Record("NATIVE_INSTALL_ENTITLEMENT_DENIED");
+                return;
+            }
+            _compactStartupText = "Подождите, идёт загрузка Яндекс.Музыки…";
+            RenderCompact();
+            LayoutCompact();
             DiagnosticLog.Record(upgrading ? "NATIVE_UPGRADE_REQUEST" : "NATIVE_INSTALL_REQUEST");
             if (upgrading)
             {
@@ -525,12 +590,26 @@ public sealed partial class MainWindow : Form
             }
             await Task.Run(() => NativeIntegrationManager.Install());
             DiagnosticLog.Record("NATIVE_INSTALL_OK");
-            _bridge.SetEnabled(_api.IsLoggedIn);
-            _compactStartupText = "Подождите, идёт загрузка Яндекс.Музыки…";
-            _compactStarting = _api.IsLoggedIn;
-            var generation = ++_compactStartEpoch;
-            if (_compactStarting) _ = MonitorStartupAsync(generation);
+            // Verify again after a long native install. Expiry, logout, Stop,
+            // account switch or network failure must not enable playback.
+            var allowedNow = false;
+            if (generation == _compactStartEpoch && !_closing && _api.IsLoggedIn &&
+                _api.Settings.InstallationId == account.InstallationId &&
+                _api.Settings.Email == account.Email)
+            {
+                try {
+                    var refreshed = await _api.GetEntitlementAsync();
+                    allowedNow = PlaybackEntitlement.Allowed(refreshed, DateTimeOffset.UtcNow);
+                } catch { DiagnosticLog.Record("NATIVE_INSTALL_ENTITLEMENT_RECHECK_FAILED"); }
+            }
+            _bridge.SetEnabled(allowedNow);
+            _compactStartupText = allowedNow
+                ? "Подождите, идёт загрузка Яндекс.Музыки…"
+                : "Доступ не подтверждён. Нажми «Старт» после проверки подписки.";
+            _compactStarting = allowedNow;
+            if (allowedNow) _ = MonitorStartupAsync(generation);
             _hostStatus.Text = "CELIKOM подключён к Яндексу.";
+            if (!allowedNow) return;
             try
             {
                 var exe = Path.Combine(NativeIntegrationManager.DefaultYandexDirectory,
@@ -538,6 +617,13 @@ public sealed partial class MainWindow : Form
                 Process.Start(new ProcessStartInfo(exe) { UseShellExecute = true });
             }
             catch { /* Connected files verified; user may open Yandex normally. */ }
+        }
+        catch (ApiFailure)
+        {
+            _bridge.SetEnabled(false);
+            _compactStarting = false;
+            _compactStartupText = "Не удалось проверить доступ. Яндекс не изменён.";
+            DiagnosticLog.Record("NATIVE_INSTALL_ENTITLEMENT_UNAVAILABLE");
         }
         catch (Exception error)
         {
@@ -551,6 +637,8 @@ public sealed partial class MainWindow : Form
         finally
         {
             _integrationBusy = false;
+            RenderCompact();
+            LayoutCompact();
             await RefreshHostAsync();
             UpdateSafe();
         }
@@ -694,7 +782,9 @@ public sealed partial class MainWindow : Form
                 NativeIntegrationManager.Install();
             });
             DiagnosticLog.Record("APP_UPDATE_NATIVE_REFRESH_OK");
-            _bridge.SetEnabled(_api.IsLoggedIn);
+            // An upgrade must not restart native playback from a locally
+            // remembered login. The owner presses Start for a fresh check.
+            _bridge.SetEnabled(false);
             var exe = Path.Combine(NativeIntegrationManager.DefaultYandexDirectory, "Яндекс Музыка.exe");
             try { Process.Start(new ProcessStartInfo(exe) { UseShellExecute = true }); }
             catch { /* Owner can open Yandex normally. */ }
@@ -756,6 +846,8 @@ public sealed partial class MainWindow : Form
     {
         if (_loggingIn) return;
         _loggingIn = true;
+        ++_compactStartEpoch;
+        _compactStarting = false;
         _login.Enabled = false;
         _bridge.SetEnabled(false);
         try
@@ -788,6 +880,8 @@ public sealed partial class MainWindow : Form
 
     private async void LogoutAsync(object? sender, EventArgs e)
     {
+        ++_compactStartEpoch;
+        _compactStarting = false;
         _bridge.SetEnabled(false);
         ++_diagnosticsEpoch;
         _diagnosticsAllowed = false;
