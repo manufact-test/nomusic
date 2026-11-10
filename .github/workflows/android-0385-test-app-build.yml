@@ -1,4 +1,4 @@
-name: CELIKOM Android 0.3.85 side-by-side test APK (reusable build)
+name: CELIKOM Android Test.51 side-by-side signed seek fail-open APK
 
 on:
   workflow_call:
@@ -30,7 +30,7 @@ concurrency:
 
 jobs:
   build-test-app:
-    if: inputs.source_branch == 'feature/android-0385-test50-deferred-lookahead-20261106' && inputs.source_repository == 'manufact-test/nomusic'
+    if: inputs.source_branch == 'experiment/android-test51-seek-failopen-honor-20261110' && inputs.source_repository == 'manufact-test/nomusic'
     runs-on: ubuntu-latest
     timeout-minutes: 40
     steps:
@@ -47,7 +47,7 @@ jobs:
           SOURCE_BRANCH: ${{ inputs.source_branch }}
           SOURCE_REPOSITORY: ${{ inputs.source_repository }}
           VALIDATION_RUN_ID: ${{ inputs.validation_run_id }}
-          EXPECTED_BRANCH: feature/android-0385-test50-deferred-lookahead-20261106
+          EXPECTED_BRANCH: experiment/android-test51-seek-failopen-honor-20261110
         shell: bash
         run: |
           set -euo pipefail
@@ -125,7 +125,7 @@ jobs:
           set -euo pipefail
           ROOT=android/native-companion
           KIT="$RUNNER_TEMP/kit"
-          OUT="$RUNNER_TEMP/CELIKOM-Android-0.3.85-TEST-50-DEFERRED-LOOKAHEAD-SIGNED.apk"
+          OUT="$RUNNER_TEMP/CELIKOM-Android-0.3.85-TEST-51-SEEK-FAILOPEN-SIGNED.apk"
           python3 "$ROOT/build_test_release.py" \
             --sdk "$KIT/sdk" \
             --build-tools "$KIT/build-tools/36.0.0" \
@@ -136,7 +136,7 @@ jobs:
             --work-dir "$RUNNER_TEMP/test-build-work" \
             --output "$OUT"
           test -s "$OUT"
-          test -s "$RUNNER_TEMP/CELIKOM-Android-0.3.85-TEST-50-DEFERRED-LOOKAHEAD-SIGNED.verification.json"
+          test -s "$RUNNER_TEMP/CELIKOM-Android-0.3.85-TEST-51-SEEK-FAILOPEN-SIGNED.verification.json"
           echo "TEST_APK=$OUT" >> "$GITHUB_ENV"
 
       - name: Create immutable JSON build receipt
@@ -187,6 +187,8 @@ jobs:
             "request_install_packages_absent":proof["request_install_packages_absent"],
             "original_assets_unchanged":proof["original_assets_unchanged"],
             "regression_checks":{
+              "seek_timeout_four_paths":"passed",
+              "original_until_source_boundary":"passed",
               "full_native_host_suite":"passed",
               "first_join_production_host_parity":"passed",
               "check_0385_seek_baseline_unchanged":"passed",
@@ -203,7 +205,7 @@ jobs:
             "physical_phone_playback_verified":False,
             "acoustic_acceptance":False
           }
-          out=pathlib.Path(os.environ["RUNNER_TEMP"],"CELIKOM-Android-0.3.85-TEST-50-DEFERRED-LOOKAHEAD-RECEIPT.json")
+          out=pathlib.Path(os.environ["RUNNER_TEMP"],"CELIKOM-Android-0.3.85-TEST-51-SEEK-FAILOPEN-RECEIPT.json")
           out.write_text(json.dumps(receipt,ensure_ascii=False,indent=2)+"\n",encoding="utf-8")
           print(json.dumps(receipt,ensure_ascii=False,indent=2))
           PY
@@ -211,10 +213,10 @@ jobs:
       - name: Upload signed test APK and verification receipt only
         uses: actions/upload-artifact@v4
         with:
-          name: CELIKOM-Test-0.3.85-test.48-code-86133
+          name: CELIKOM-Test-0.3.85-test.51-code-86136
           path: |
-            ${{ runner.temp }}/CELIKOM-Android-0.3.85-TEST-50-DEFERRED-LOOKAHEAD-SIGNED.apk
-            ${{ runner.temp }}/CELIKOM-Android-0.3.85-TEST-50-DEFERRED-LOOKAHEAD-SIGNED.verification.json
-            ${{ runner.temp }}/CELIKOM-Android-0.3.85-TEST-50-DEFERRED-LOOKAHEAD-RECEIPT.json
+            ${{ runner.temp }}/CELIKOM-Android-0.3.85-TEST-51-SEEK-FAILOPEN-SIGNED.apk
+            ${{ runner.temp }}/CELIKOM-Android-0.3.85-TEST-51-SEEK-FAILOPEN-SIGNED.verification.json
+            ${{ runner.temp }}/CELIKOM-Android-0.3.85-TEST-51-SEEK-FAILOPEN-RECEIPT.json
           if-no-files-found: error
           retention-days: 7
