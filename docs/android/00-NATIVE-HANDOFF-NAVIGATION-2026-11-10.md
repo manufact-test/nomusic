@@ -1,3 +1,12 @@
+## ВАЖНО: НОВАЯ НАТИВНАЯ ANDROID ВЕТКА (10.11.2026)
+
+- **ЭТО НЕ Test.50/эквалайзер!** Работа по исходной native-Yandex one-player архитектуре продолжается **только** в `experiment/android-native-yandex-fileinfo-hooklab-20261109`. Случайная Test.51 из другой ветки не относится к этой задаче и не должна переноситься сюда.
+- [Новый read-only runtime-кандидат Lemb factory→t same-instance](ANDROID-NATIVE-LEMB-INSTANCE-RUNTIME-WITNESS-2026-11-10.md): exact `Lkvs.A(zcb,gmb):emb` + восемь `Lemb.t(dmb)/remove` реализаций; наблюдение `==` объекта без URL, звука, токенов и модификации Яндекса. Кодовой SHA `9073ea35d3f5ef2a996b197d237f4265ab0ab564`; CI требует подтверждения после текущего push.
+- Текущий результат **не является работающей подменой**: source factory→t может быть фоновым; не доказаны активный current `trackId+edition+generation`, decoder prepare и разрешённый in-process host. Пока NO-GO к user APK.
+- Исторический, принятый владельцем Android Test.50 и вся прежняя работа с DynamicsProcessing не имеют отношения к этой ветке и запрещены к изменениям. HONOR, Windows, расширение, API/БД, production и официальный APK не трогать.
+
+---
+
 # CELIKOM Android — актуальная навигация к передаче (10.11.2026)
 
 **Начальная точка:** `docs/android/START-NEXT-CHAT-ANDROID-NATIVE-2026-11-10.md` — готовый текст первого сообщения новому разработчику.
