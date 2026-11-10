@@ -110,6 +110,21 @@ if (!result.Visible || uploadSubmit.Visible)
 ((ScrollableControl)Get("_compactScroll")).ScrollControlIntoView(result);
 SaveStage(prefix + "-approved.png");
 
+// The normal upload path must visibly contain the file chooser, rights
+// declaration and a usable submit button; no hidden/overlapping controls.
+Set("_compactUploadView", "form");
+Relayout();
+var picker = (Control)Get("_compactFilePicker");
+var rights = (Control)Get("_compactRights");
+var submitUpload = (Control)Get("_compactUploadSubmit");
+var uploadPanel = (Control)Get("_compactUploadBody");
+if (!picker.Visible || !rights.Visible || !submitUpload.Visible ||
+    picker.Bounds.IntersectsWith(rights.Bounds) ||
+    submitUpload.Bottom > uploadPanel.ClientSize.Height)
+    throw new Exception("W63_UPLOAD_FORM_INVISIBLE_OR_CLIPPED");
+((ScrollableControl)Get("_compactScroll")).ScrollControlIntoView(uploadPanel);
+SaveStage(prefix + "-upload.png");
+
 // Ensure the user can reach Send via scroll even when the window is narrow.
 Set("_compactUploadOpen", false);
 Set("_compactSupportOpen", true);
