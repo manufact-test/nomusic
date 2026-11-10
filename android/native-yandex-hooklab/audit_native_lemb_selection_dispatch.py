@@ -35,6 +35,9 @@ MAX_CALLS=1800
 MAX_ENTRIES=70
 MAX_FIELDS=500
 MAX_WINDOWS=16
+FACTORY_METHODS={("Lkvs;","A"),("Larv;","g"),("Locv;","i0")}
+FACTORY_CALLEES={("Lkvs;","A"),("Lciv;","<init>"),
+    ("Lero;","<init>"),("Lxq7;","<init>")}
 
 
 def classification(owner, hierarchy, media_implementors):
@@ -85,6 +88,8 @@ def inspect_signed(apks):
     call_count=0
     callers=defaultdict(list)
     instantiations=defaultdict(list)
+    factory_allocations=defaultdict(list)
+    factory_callers=defaultdict(set)
     for apk in apks:
         with zipfile.ZipFile(apk) as z:
             for member in z.infolist():
@@ -108,10 +113,14 @@ def inspect_signed(apks):
                     for idx,(_,op,w) in enumerate(ins):
                         if op==0x22:
                             typ=d.descriptor(w[1])
+                            if (caller[0],caller[1]) in FACTORY_METHODS:
+                                factory_allocations[caller].append((idx,typ))
                             if typ in ("Lero;","Locv;"):
                                 instantiations[typ].append(bounded_obfuscated(caller))
                         if op not in INVOKES:continue
                         callee=d.method(w[1])
+                        if (callee[0],callee[1]) in FACTORY_CALLEES:
+                            factory_callers[callee].add(caller)
                         if callee[0]!=ABSTRACT or callee[1] not in DESIRED:
                             continue
                         call_count+=1
@@ -146,6 +155,22 @@ def inspect_signed(apks):
         "Lemb_direct_caller_method_count":len(callers),
         "callers_grouped_by_static_owner_class":dict(sorted(grouped.items())),
         "caller_examples":by_method[:MAX_ENTRIES],
+        "factory_direct_caller_methods":[{
+            "callee":method_profile(m),
+            "distinct_calling_method_count":len(origins),
+            "bounded_callers":[bounded_obfuscated(x)
+                               for x in sorted(origins)[:MAX_ENTRIES]],
+            "actual_player_use_proven":False
+        } for m,origins in sorted(factory_callers.items())],
+        "source_factory_possible_concrete_lifecycle_classes":[{
+            "factory_method":method_profile(m),
+            "instantiated_implementor_types":[{
+                "instruction_ordinal":ordinal,
+                "candidate_type":brief_type(typ),
+                "exact_runtime_branch_taken":False
+            } for ordinal,typ in values if typ in descendants][:MAX_ENTRIES],
+            "condition_and_dispatch_not_observed_at_runtime":True
+        } for m,values in sorted(factory_allocations.items())],
         "new_instance_Lero_direct_method_caller_count":len(set(instantiations["Lero;"])),
         "new_instance_Locv_direct_method_caller_count":len(set(instantiations["Locv;"])),
         "Lero_constructor_method_hints":sorted(set(instantiations["Lero;"]))[:MAX_ENTRIES],
