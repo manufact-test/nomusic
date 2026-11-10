@@ -20,6 +20,6 @@
 - **[Android Xposed read-only модуль CI #42804081053 — SUCCESS 2/2](https://github.com/manufact-test/nomusic/actions/runs/42804081053)**.
 - Резервная ветка точно проверенного кода: `backup/android-signed-source-bridge-media-session-ci-green-20261110` → `d7d3f8b82b6d752ed7837dd9955ccb51df71641d`.
 - До нового аудита: `backup/android-pre-real-signed-bridge-proximity-audit-20261110` → `0a1f035113fb826f88ebf827a46e5edc66635c7f`.
-- Эталон владельца **Test.50**: `backup/android-test50-exact-source-owner-accepted-20261108`; не изменять.
+- Эталон владельца **Test.50** (реально проверен ref `5d737d203a0b364b0cb4fd6886040b8bd0c6fbd1`): `backup/android-test50-exact-source-owner-accepted-20261106`; не изменять.
 
 **Реальный статус:** Windows CELIKOM **да**, Android CELIKOM source substitution **нет**. Нужна действительная граница текущего decoder source; MediaSession — не она. Не выдавать исходный SDK/CI за реальный audio PASS, не переустанавливать Яндекс на основном телефоне.
