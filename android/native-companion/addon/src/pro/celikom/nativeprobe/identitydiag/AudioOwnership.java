@@ -77,6 +77,11 @@ final class AudioOwnership {
  private boolean inFlightRangeWait;
  private SeekContext inFlightContext;
  boolean seekInFlight(MediaPlayer p){return p!=null&&p==inFlightDecoder;}
+ // A pause/seek supersession advances operationEpoch even if MediaPlayer's
+ // untagged old callback is still pending on the same decoder instance.
+ boolean seekFlightCurrentOperation(MediaPlayer p){
+  return seekInFlight(p)&&inFlightEpoch==operationEpoch;
+ }
  long inFlightSequence(MediaPlayer p){return seekInFlight(p)?inFlightSequence:-1;}
  String inFlightKind(MediaPlayer p){return seekInFlight(p)&&inFlightKind!=null?inFlightKind.name():null;}
  long inFlightTargetMs(MediaPlayer p){return seekInFlight(p)?inFlightTarget:-1;}
