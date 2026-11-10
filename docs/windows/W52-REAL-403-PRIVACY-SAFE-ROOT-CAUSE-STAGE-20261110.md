@@ -32,7 +32,7 @@ New offline cases in `windows-companion/w23/native-host.test.mjs`: exact URL, st
 ## CI / rollback
 - W52 source-only W48 native witness flow: https://github.com/manufact-test/nomusic/actions/runs/42787607771 **SUCCESS** (54 Node tests). Previous W48 failure at earlier W52 SHA was a stale W48 grep for removed W48 ResourceTiming, corrected to W50 current semantics.
 - W52 W20 safe installer **staging** source compatibility: https://github.com/manufact-test/nomusic/actions/runs/42787432243 **SUCCESS**. This does not authorize distributing the built installer or mean sound works.
-- W23 genuine signed vendor disposable flow (SHA `1e6ad2d5`) is tracked at https://github.com/manufact-test/nomusic/actions/runs/42787432599; its final result must be verified separately. It tests isolated host and original restoration, **not user-account playback**.
+- W23 genuine signed vendor disposable flow (SHA `1e6ad2d5`) is tracked at https://github.com/manufact-test/nomusic/actions/runs/42787432599; **SUCCESS** (verified GitHub Actions). It tests isolated host and original restoration, **not user-account playback**.
 - Frozen W51 backup: `backup/windows-w51-http403-pre-w52-stage-20261110` @ `a2797566fde88fc707e54f14ff0ef6e014e9c68b`.
 - The earlier owner 0.24.6 source backup remains `backup/windows-w50-owner-0246-audio-403-pre-w51-docs-20261110` @ `38b9e0d691b47a11a800eb4c6d26d07fc47068fe`.
 
