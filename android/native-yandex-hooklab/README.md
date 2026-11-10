@@ -2,7 +2,14 @@
 
 **Status:** Source code only; builds a *CELIKOM Xposed module APK* (not an independent music player). Owner authorized research and preparation for **a separate disposable test device only**. No package was installed, and **nothing** on the owner's HONOR, stable Test.50, catalog or server is touched.
 
-## LATEST Windows W60 concept transferred to OWN ARMv7 Android source-reload (2026-11-10)
+## LATEST OWN Android 13 actual MediaPlayer runtime PASS (2026-11-10)
+
+- **CI-green source:** `bb26aca9652850c69fbd0896a26bec22601826b0`; **frozen backup:** `backup/android-own-api33-real-mediaplayer-source-reload-pass-20261110`; detailed evidence: `docs/android/ANDROID-OWN-API33-MEDIAPLAYER-RUNTIME-PASS-2026-11-10.md`.
+- On a disposable **Android 13 x86_64 emulator**, only the CELIKOM-owned no-permission `armv7-loader-host` APK runs a synthetic 8s WAV through real Android `MediaPlayer`. Real callbacks show original A→Seek→Pause→Start alternative A (pause and 2.2s position retained)→Resume→Stop original A (position/playing retained)→Next original B. Android code calls `OwnSameTrackReloadPlan.decide` for the actual source change; releases old MediaPlayer before new prepare; does NOT call Windows Electron reloadEntity. CI logged `RESULT=PASS CODE=OWN_DECODER_LIFECYCLE`.
+- [Real Android runtime #42835181030 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/42835181030), [ARMv7 owned host #42835181029 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/42835181029), [scope #42835181289 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/42835181289), [research module #42835181034 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/42835181034).
+- Crucially **NO Yandex package, user account, phone, audible playback, native Android selected Lemb source identity or live original decoder** was tested. Android CELIKOM audio swap NO-GO. This is a clean OWN-only actual Android platform proof, not a release.
+  
+## PREVIOUS Windows W60 concept transferred to OWN ARMv7 Android source-reload (2026-11-10)
 
 - **CI GREEN code:** `a7f83f0ab836bbeeb12538c6a389c9569d326610`; **backup:** `backup/android-windows-w60-owned-reload-armv7-arm64-ci-green-20261110`; evidence: `docs/android/ANDROID-WINDOWS-W63-AUDIO-PARITY-OWNED-RELOAD-2026-11-10.md`.
 - Compared actual owner-accepted Windows 0.24.9 native source adapter and Electron source reload; W56 signed query guard is **Windows-only**, not blindly copied into Android. Android signed Yandex has eight candidate `Lemb` implementations and no verified native equivalent of Electron `reloadEntity("QUALITY_CHANGE")`.
