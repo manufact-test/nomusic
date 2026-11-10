@@ -39,7 +39,7 @@ jobs:
       DB_PASSWORD: w68-disposable-ci-password
       AUDIO_SIGNING_KEY: w68-disposable-ci-sample-signing-key-not-production
       ANALYTICS_PRIVACY_KEY: w68-disposable-ci-sample-analytics-key-not-production
-      STORAGE_PATH: ${{ runner.temp }}/w68-disposable-private-audio
+      STORAGE_PATH: /tmp/w68-disposable-private-audio
       FEATURE_REPLACEMENTS: "1"
       FEATURE_USER_AUTH: "1"
       FEATURE_USER_ENTITLEMENT: "1"
