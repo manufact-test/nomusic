@@ -139,8 +139,9 @@ jobs:
           root=Path("android/native-companion/addon/src/pro/celikom/nativeprobe/identitydiag")
           engine=(root/"ReplacementEngine.java").read_text()
           policy=(root/"SeekTimeoutCircuitBreaker.java").read_text()
-          assert engine.count('recoverSeekTimeout("native_inflight_expired")')==1
-          assert engine.count('recoverSeekTimeout("alignment_elapsed_expired")')==1
+          assert engine.count('suspend("seek_timeout",retryDelay())')==3, 'two update sites + original seek() delayed callback'
+          assert 'final boolean nativeSeekTimedOut="seek_timeout".equals(reason)' in engine
+          assert 'seekTimeoutBreaker.timeout(sameSource?failedKey:null' in engine
           assert 'seekTimeoutBreaker.successfulSeek(key)' in engine
           assert 'seekTimeoutBreaker.boundary()' in engine
           assert 'audioOwner.unsupported("repeated_seek_timeout")' in engine
