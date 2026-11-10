@@ -86,6 +86,7 @@ def inspect_one_dex(data):
     reverse = defaultdict(set)
     sources = {"converter_caller": set(), "model_consumer": set()}
     media_methods = set()
+    media_namespace_methods = set()
     # Method refs, not classes: a 0 in media3 indicates no un-obfuscated
     # symbols, NOT evidence that no media engine exists in the APK.
     media_family_refs = defaultdict(set)
@@ -127,8 +128,12 @@ def inspect_one_dex(data):
             reverse[callee].add(caller)
             if is_media_call(callee):
                 media_methods.add(callee)
+            if media_namespace_family(callee) in ("androidx_media3", "legacy_exoplayer2"):
+                media_namespace_methods.add(callee)
         if is_media_call(caller):
             media_methods.add(caller)
+        if media_namespace_family(caller) in ("androidx_media3", "legacy_exoplayer2"):
+            media_namespace_methods.add(caller)
     if unsupported_bodies:
         return {
             "complete": False, "unsupported_method_bodies": unsupported_bodies,
@@ -137,7 +142,16 @@ def inspect_one_dex(data):
     results = {}
     for kind, seeds in sources.items():
         chains = call_graph_hops(reverse, seeds, media_methods)
+        nearby_namespace = call_graph_hops(reverse, seeds, media_namespace_methods)
         results[kind] = {
+            "media_namespace_proximity_only": {
+                "paths_up_to_3": len(nearby_namespace),
+                "first_hints": [{
+                    "hops": len(path) - 1,
+                    "method_classes": [bounded_obfuscated(method) for method in path],
+                    "decoder_or_dataflow_proven": False,
+                } for path in nearby_namespace[:MAX_WITNESSES]],
+            },
             "seed_method_count": len(seeds),
             "media3_invoke_chain_count_up_to_3": len(chains),
             "by_call_depth": {str(n): sum(len(c) - 1 == n for c in chains)
@@ -154,6 +168,7 @@ def inspect_one_dex(data):
         "complete": True, "unsupported_method_bodies": 0,
         "defined_method_bodies": scanned, "invoke_edges": edges,
         "media3_source_methods_referenced": len(media_methods),
+        "media_namespace_methods_referenced": len(media_namespace_methods),
         "media_family_method_refs": dict(sorted(
             (key, len(value)) for key, value in media_family_refs.items())),
         "media_family_defined_classes": dict(sorted(media_family_defined.items())),
