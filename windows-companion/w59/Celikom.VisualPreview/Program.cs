@@ -155,7 +155,7 @@ var footerLabel = (Control)Get("_compactVersion");
 var dot = (Control)Get("_connectionMark");
 if (!ReferenceEquals(footerLabel.Parent, footer) ||
     footer.Bottom != form.ClientSize.Height ||
-    dot.Width > 12 || dot.TextAlign != ContentAlignment.MiddleCenter)
+    dot.Width > 12 || (dot as Label)?.TextAlign != ContentAlignment.MiddleCenter)
     throw new Exception("W64_VERSION_FOOTER_NOT_ANCHORED_OR_INDICATOR_NOT_CENTERED");
 
 Set("_compactSupportOpen", true);
