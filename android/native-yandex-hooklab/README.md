@@ -2,7 +2,15 @@
 
 **Status:** Source code only; builds a *CELIKOM Xposed module APK* (not an independent music player). Owner authorized research and preparation for **a separate disposable test device only**. No package was installed, and **nothing** on the owner's HONOR, stable Test.50, catalog or server is touched.
 
-## LATEST publisher-original exact Lero → async callback → byte reader (2026-11-10)
+## LATEST own-source instance fence and signed Lemb source alternatives (2026-11-10)
+
+- **Signed-original + OWN-ONLY code:** `3aaab880fff4326b596f63a52a89a0f4d0085fef`, immutable backup `backup/android-signed-source-instance-arm64-lemb-ci-green-20261110`; full evidence: `docs/android/ANDROID-NATIVE-SOURCE-INSTANCE-ARM64-AND-LEMB-BRANCHES-2026-11-10.md`.
+- Exactly 8 concrete `Lemb` implementors and only 4 direct `Lemb.t/remove` callsites in signed 6 DEX. `Lero` is just one of possible source classes (e.g. factories `Lkvs.A`, `Locv.i0`, `Larv.g` instantiate multiple alternative `Lemb` types). **Do not equate a static Lero reader chain with the selected active player.**
+- New isolated pure-Java `NativeSourceInstanceFence`: exact JVM `Object ==` source/reader/loader/task identities, generation fencing, duplicate preprepare rejection, seek-reopen, Stop, monotonic-clock rollback, zero media or network. **Not referenced by `NativeHookEntry` and cannot authorize audio.**
+- 44,478 synthetic assertions + 27 concurrency assertions and 4,800 deliberately stale cross-thread callbacks pass on [real ARM64 Linux JVM #42826864698](https://github.com/manufact-test/nomusic/actions/runs/42826864698) (**NOT Android runtime**). [Signed factory candidates #42827236492](https://github.com/manufact-test/nomusic/actions/runs/42827236492) SUCCESS. [Android module #42827236060](https://github.com/manufact-test/nomusic/actions/runs/42827236060) SUCCESS 2/2.
+- Still **no chosen current track/edition/generation nor live decoder preprepare proof**. No Android audio replacement, no Yandex/owner account/phone mutation.
+
+## PREVIOUS publisher-original exact Lero → async callback → byte reader (2026-11-10)
 
 - **Code** `f04745f7dcd4455996eadf56dc0be6c52a44c63f`; **frozen rollback** `backup/android-signed-lero-lmb4-reader-case-ci-green-20261110`; details `docs/android/ANDROID-NATIVE-SIGNED-LERO-LMB4-EXECUTION-CHAIN-2026-11-10.md`.
 - Signed concrete local `Lga4.c():Lha4` return goes into `Lero.Lha4` field and `Lmb4.<init>` source argument1 in same basic block. The constructor writes exact `Lmb4:Lm48` field, consumed by `Lmb4.a` and cast `Lha4`. The method calls `Lha4.b(La58)` twice, `read([BII)`, `close()`.
