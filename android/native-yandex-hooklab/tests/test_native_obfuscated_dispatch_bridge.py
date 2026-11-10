@@ -3,7 +3,8 @@ import unittest
 from pathlib import Path
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 from audit_native_obfuscated_dispatch_bridge import (
-    possible_virtual_overrides,reachable_media,type_subclasses,media_destination
+    possible_virtual_overrides,reachable_media,type_subclasses,media_destination,
+    exact_path_constructor_census
 )
 
 
@@ -50,6 +51,14 @@ class VirtualMediaBridgeTests(unittest.TestCase):
             "Labstract;":(0x401,("Le48;",))
         }
         self.assertEqual(type_subclasses(relations,"Le48;"),["Lone;"])
+
+    def test_constructor_callers_are_evidence_not_instance_dispatch(self):
+        init=("Ldl8;","<init>","()V")
+        owner=("Larv;","g","()V")
+        census=exact_path_constructor_census({init:{owner}})
+        self.assertEqual(census["observed_path_method_targets"],1)
+        self.assertEqual(census["per_owner"]["Ldl8;"][0]["direct_caller_count"],1)
+        self.assertFalse(census["fileinfo_to_callback_instance_binding_proven"])
 
     def test_only_sdk_media_owners_count(self):
         self.assertTrue(media_destination(("Lfxc;","play","()V")))
