@@ -1,9 +1,3 @@
-## ПЕРВЫМ ДЕЛОМ — НОВЫЙ ПЛАН ДОСТАВКИ ANDROID (10.11.2026)
-
-**[ПРОЧИТАТЬ ПЕРВЫМ: ANDROID-DELIVERY-DECISION-ONE-PLAYER-VS-OWN-APP-2026-11-10.md](ANDROID-DELIVERY-DECISION-ONE-PLAYER-VS-OWN-APP-2026-11-10.md).** Владелец остановил многодневную DEX-разведку: три конечных gate. A: только разрешённый рабочий source rebind официального Android Яндекса (публичный API/IPC без root/патча). B: документированное право встроить оригинальный каталог Яндекса в собственный CELIKOM. C: если A не проходит — сразу собственный CELIKOM Media3 player и интерфейс с подтверждёнными правами и действующим entitlement. Ни один synthetic observer, constructor count или green CI не равен рабочей подмене. Native Gate **STOP-SHIP** после Play Protect; Test.50, Windows, extension, production, original HONOR не трогать. Новая автономная работа в отдельных ветках и с rollback; не повторять тестовые APK до реального воспроизведения в разрешённом first-party host.
-
----
-
 ## АКТУАЛЬНАЯ NATIVE ANDROID ТОЧКА (10.11.2026): ПОДМЕНЫ ЕЩЁ НЕТ, НО СЕРЬЁЗНАЯ ОШИБКА HOOK-WITNESS УСТРАНЕНА
 
 - **Только НОВАЯ нативная ветка**, `experiment/android-native-yandex-fileinfo-hooklab-20261109`. Не Test.50, не Test.51, не старое «как эквалайзер», не Windows и не второй плеер.
