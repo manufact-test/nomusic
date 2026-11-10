@@ -68,6 +68,9 @@ class SignedLjgvMediaCandidatesTests(unittest.TestCase):
         self.assertIn("Lcq7;",TARGET_METHODS)
         self.assertIn("Lro7;",TARGET_METHODS)
         self.assertIn("Le48;",CLASSES)
+        self.assertIn("Lya4;",TARGET_METHODS)
+        self.assertIn("Lkc6;",TARGET_METHODS)
+        self.assertIn("Lzcd;",TARGET_METHODS)
         self.assertIn("Ljgv;",CLASSES)
         self.assertIn("Lfxc;",MEDIA_CONCRETES)
 
