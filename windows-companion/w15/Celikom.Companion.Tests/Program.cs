@@ -95,21 +95,22 @@ try
     var testAudio = Path.Combine(folder, "wrong_artist_wrong_song.mp3");
     Directory.CreateDirectory(folder);
     await File.WriteAllBytesAsync(testAudio, frames);
-    var okDuration = await AudioPreflight.CheckAsync(testAudio, duration,
-        "Потрачено", "TRITIA");
-    Test(!okDuration.Blocked && okDuration.NameSuspicious,
-        "matching measured duration permits but warns about filename mismatch");
-    var wrongDuration = await AudioPreflight.CheckAsync(testAudio, 223000,
-        "До дна", "Нигатив");
+    var okDuration = await AudioPreflight.CheckAsync(testAudio, duration);
+    Test(!okDuration.Blocked,
+        "matching duration permits any filename regardless of title");
+    var unicodeAudio = Path.Combine(folder, "中文-💿-неизвестно.mp3");
+    File.Copy(testAudio, unicodeAudio);
+    var unicodeOk = await AudioPreflight.CheckAsync(unicodeAudio, duration);
+    Test(!unicodeOk.Blocked, "unicode filenames cannot trigger name-based rejection");
+    File.Delete(unicodeAudio);
+    var wrongDuration = await AudioPreflight.CheckAsync(testAudio, 223000);
     Test(wrongDuration.Blocked && wrongDuration.DurationMessage.Contains("Допуск подмены"),
         "large duration mismatch is rejected BEFORE any upload");
-    var unknownOriginal = await AudioPreflight.CheckAsync(testAudio, null,
-        "До дна", "Нигатив");
+    var unknownOriginal = await AudioPreflight.CheckAsync(testAudio, null);
     Test(unknownOriginal.Blocked, "unverified original duration fails closed");
     var invalidAudio = Path.Combine(folder, "fake.mp3");
     await File.WriteAllBytesAsync(invalidAudio, new byte[2048]);
-    var fake = await AudioPreflight.CheckAsync(invalidAudio, 2350,
-        "Test", "Artist");
+    var fake = await AudioPreflight.CheckAsync(invalidAudio, 2350);
     Test(fake.Blocked && fake.DurationMs == null,
         "fake MP3 is rejected locally (not just filename validation)");
     File.Delete(testAudio);
