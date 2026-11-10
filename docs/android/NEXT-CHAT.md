@@ -1,3 +1,11 @@
+## VERIFIED GREEN CHECKPOINT 2026-11-10 / cross-platform Windows W57
+
+- **Current Android native hooklab code SHA**: 4166b3f5f75df45b717308356995af22e1babc3c. [GitHub Actions CI #42800426147 SUCCESS 2/2](https://github.com/manufact-test/nomusic/actions/runs/42800426147): full synthetic native source, event order and playback-state tests; Android libxposed module debug APK compiles and signature/module metadata validates. **No actual Android Yandex audio hook or source replacement proven**.
+- New passive Android framework MediaSession.setPlaybackState observer tracks published enum and aggregate rapid Play/Pause/Buffering/Error reports. It reads **ONLY public enum** and cannot know track or user intent; multiple MediaSessions and normal user pause can look like quick state flips. Never connect to source replacement or decoder admission.
+- Windows **0.24.7** owner-verified first real audible approved replacement inside real Yandex desktop. Native audio GET 206 (2), 403 (0). W56 root cause is **desktop-specific** vendor-added second ?vsid query corrupting signed source URL sid, fixed without HMAC bypass. Android has no verified equivalent, so DO NOT port the desktop URL padding blindly. Full review at docs/android/ANDROID-WINDOWS-W57-TRANSFERABILITY-2026-11-10.md.
+- **Rollback exact tested code:** backup/android-native-w57-review-playback-state-ci-success-20261110 (same SHA as above); pre-review baseline backup/android-native-before-windows-breakthrough-review-20261110 at 22d5ef25. Do not touch stable Android Test.50, owner's HONOR or Yandex, Windows 0.24.7 or production server. No APK suitable for user installation.
+
+---
 ## 10.11.2026 IMPORTANT: verified CELIKOM Windows W57 audio breakthrough reviewed
 
 **Windows 0.24.7 real replacement audio heard by owner, real HTTP206, 0 HTTP403.** Desktop Yandex DownloadInfoSource appended its own second ?vsid query to already signed audio URL and Windows team fixed the resultant session-field corruption with a narrow media-only trailing guard. This is DESKTOP Electron-specific; not evidence the native Android player also does that. See docs/android/ANDROID-WINDOWS-W57-TRANSFERABILITY-2026-11-10.md.
