@@ -1,0 +1,35 @@
+name: Native ARM Linux hosted runner viability (NO APK, capability ONLY)
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - experiment/android-native-yandex-fileinfo-hooklab-20261109
+    paths:
+      - '.github/workflows/android-native-arm-linux-runner-gate.yml'
+permissions:
+  contents: read
+jobs:
+  linux-arm64-kvm-capability:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 5
+    steps:
+      - name: Report native hardware ISA, virtualization and installed emulator tools only
+        shell: bash
+        run: |
+          set -euo pipefail
+          architecture="$(uname -m)"
+          if [ "$architecture" != "aarch64" ]; then
+            echo '{"verdict":"RUNNER_NOT_NATIVE_AARCH64","source_or_apk_tested":false}'
+            exit 2
+          fi
+          kvm=false
+          if [ -c /dev/kvm ] && [ -r /dev/kvm ] && [ -w /dev/kvm ]; then kvm=true; fi
+          qemu=false
+          if command -v qemu-system-aarch64 >/dev/null 2>&1; then qemu=true; fi
+          android_emulator=false
+          if command -v emulator >/dev/null 2>&1; then android_emulator=true; fi
+          echo "{\"verdict\":\"NATIVE_ARM_LINUX_RUNNER_CAPABILITY_ONLY\",\"arch\":\"aarch64\",\"kvm_read_write\":$kvm,\"qemu_arm64_preinstalled\":$qemu,\"android_emulator_preinstalled\":$android_emulator,\"host_is_not_android\":true,\"arm_android_player_tested\":false,\"vendor_apk_downloaded\":false}"
+      - name: Zero proprietary or user files
+        if: always()
+        run: |
+          echo 'No Android VM started, no signed Yandex, no patcher, no credentials'
