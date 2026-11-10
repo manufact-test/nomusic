@@ -1,0 +1,32 @@
+name: Android read-only HONOR parallel preflight contract
+on:
+  push:
+    branches:
+      - feature/android-parallel-clone-runtime-preflight-20261111
+    paths:
+      - 'android/native-yandex-hooklab/probe_parallel_honor.py'
+      - 'android/native-yandex-hooklab/tests/test_probe_parallel_honor.py'
+      - '.github/workflows/android-native-a1-honor-readonly-preflight.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  read-only-no-device:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Read-only HONOR preflight synthetic tests, no adb connection
+        run: |
+          python3 -m unittest discover -s android/native-yandex-hooklab/tests -p test_probe_parallel_honor.py -v
+          python3 -m py_compile android/native-yandex-hooklab/probe_parallel_honor.py
+      - name: No unauthorized app installation or data access
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          s=Path('android/native-yandex-hooklab/probe_parallel_honor.py').read_text()
+          for forbidden in ['"install"','"uninstall"','"force-stop"','"root"','"logcat"','"clear"','"start"','getString(']:
+              assert forbidden not in s, forbidden
+          assert 'native_audio_replacement_tested": False' in s
+          assert '"device_mutation": False' in s
+          PY
