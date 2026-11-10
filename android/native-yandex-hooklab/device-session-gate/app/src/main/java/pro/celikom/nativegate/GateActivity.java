@@ -254,7 +254,7 @@ public final class GateActivity extends Activity {
                 }
             },getMainExecutor());
             main.postDelayed(()->{
-                if(active(task)&&controllerFuture==null)
+                if(active(task)&&!future.isDone())
                     show("MEDIA3_TOKEN_TIMEOUT",flags
                             +"\nСессия платформы доступна, Media3 не подтвердился.");
             },12000L);
