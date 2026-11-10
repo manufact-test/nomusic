@@ -1,0 +1,83 @@
+name: CELIKOM Android first-party single-player build gate (NO APK DISTRIBUTION)
+on:
+  push:
+    branches:
+      - experiment/android-owned-player-delivery-20261110
+    paths:
+      - 'android/owned-player/**'
+      - '.github/workflows/android-owned-player-delivery-ci.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  contract-and-scope:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Compile pure-Java signed-audio and queue-generation guards
+        run: |
+          set -eu
+          mkdir -p /tmp/celikom-owned-contract
+          javac --release 17 -d /tmp/celikom-owned-contract \
+            android/owned-player/app/src/main/java/pro/celikom/ownedplayer/OwnedPlaybackContract.java \
+            android/owned-player/app/src/main/java/pro/celikom/ownedplayer/OwnedQueueFence.java \
+            android/owned-player/tests/OwnedContractTest.java
+          java -cp /tmp/celikom-owned-contract OwnedContractTest
+      - name: Enforce isolation, trial entitlement, safety and one actual decoder
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          root=Path('android/owned-player')
+          manifest=(root/'app/src/main/AndroidManifest.xml').read_text()
+          files=list((root/'app/src/main/java').rglob('*.java'))
+          code='\n'.join(x.read_text() for x in files)
+          assert '<uses-permission android:name="android.permission.INTERNET"' in manifest
+          assert '<uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK"' in manifest
+          assert 'android:exported="false"' in manifest
+          assert 'android:allowBackup="false"' in manifest
+          assert 'android:usesCleartextTraffic="false"' in manifest
+          assert 'android:allowAudioPlaybackCapture="false"' in manifest
+          assert code.count('new ExoPlayer.Builder(')==1, 'ONE player only'
+          assert 'new MediaSession.Builder(' in code
+          assert 'OwnedPlaybackContract.activeAccess(' in code
+          assert 'api.entitled()' in code and 'api.healthy()' in code
+          assert 'if(!api.entitled())' in code
+          assert 'new MediaItem.Builder()' in code and 'setUri(received.url)' in code
+          assert 'player.stop();player.clearMediaItems()' in code
+          assert 'accountAtPlay' in code and 'generation.current(serial,trackId)' in code
+          assert 'java.security.KeyStore' in code
+          assert 'AndroidKeyStore' in code
+          for bad in ['MediaProjectionManager','NotificationListenerService','AccessibilityService',
+                      'android.permission.RECORD_AUDIO','WebView','ru.yandex.music',
+                      'LSPatch','XposedModule','setAudioAttributes(AudioAttributes.Builder().setAllowedCapturePolicy',
+                      'getDeviceId','getMediaId()']:
+              assert bad not in code+manifest, bad
+          print('PASS: one ExoPlayer / MediaSessionService, own paid catalogue only; no external Yandex injection, no bypass')
+          PY
+
+  android-native-build:
+    needs: contract-and-scope
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+      - name: Build first-party standalone Android app, do NOT upload/sign public binary
+        run: |
+          set -eu
+          gradle -p android/owned-player :app:assembleDebug --no-daemon --stacktrace
+          test -s android/owned-player/app/build/outputs/apk/debug/app-debug.apk
+          echo 'PASS: isolated first-party Android APK compiles. NOT owner Play Protect tested or acoustic PASS.'
