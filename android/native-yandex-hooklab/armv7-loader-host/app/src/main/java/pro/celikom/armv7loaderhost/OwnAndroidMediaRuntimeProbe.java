@@ -65,9 +65,18 @@ public final class OwnAndroidMediaRuntimeProbe {
                     result(false,"PAUSE_SEEK_NOT_RETAINED");return;
                 }
                 note("PAUSE_AND_SEEK_A_PASS");
+                // Execute the SAME pure source selection contract used by
+                // our OWN interactive Android app. Do not fake a target.
+                OwnSameTrackReloadPlan.Decision start=OwnSameTrackReloadPlan.decide(
+                    1,source,true,AudioSmokeSource.A_ALT,pausedAtMs,false);
+                if(!start.reload || start.targetSource!=AudioSmokeSource.A_ALT
+                        || start.resumeAfterPrepare) {
+                    result(false,"SOURCE_PLAN_START_MISMATCH");return;
+                }
                 // Windows W60 principle: rebuild only source, with original
                 // paused state and progress; old player released FIRST.
-                prepare(1,pausedAtMs,false,"A_ALTERNATE_PAUSED",()->{},()->{
+                prepare(start.targetSource,start.positionMs,start.resumeAfterPrepare,
+                    "A_ALTERNATE_PAUSED",()->{},()->{
                     if(completed)return;
                     try {
                         if(player.isPlaying()){
@@ -88,7 +97,14 @@ public final class OwnAndroidMediaRuntimeProbe {
                                     result(false,"ALTERNATE_NEVER_STARTED");return;
                                 }
                                 int position=player.getCurrentPosition();
-                                prepare(0,position,true,"A_ORIGINAL_PLAYING",()->{},()->{
+                                OwnSameTrackReloadPlan.Decision stop=OwnSameTrackReloadPlan.decide(
+                                    1,source,false,AudioSmokeSource.A_ORIGINAL,position,true);
+                                if(!stop.reload || stop.targetSource!=AudioSmokeSource.A_ORIGINAL
+                                        || !stop.resumeAfterPrepare){
+                                    result(false,"SOURCE_PLAN_STOP_MISMATCH");return;
+                                }
+                                prepare(stop.targetSource,stop.positionMs,
+                                    stop.resumeAfterPrepare,"A_ORIGINAL_PLAYING",()->{},()->{
                                     if(completed)return;
                                     try {
                                         if(!player.isPlaying() || 
@@ -96,8 +112,15 @@ public final class OwnAndroidMediaRuntimeProbe {
                                             result(false,"PLAYING_RELOAD_FAILED");return;
                                         }
                                         note("PLAYING_RELOAD_PASS");
-                                        // Next to a distinct original track B.
-                                        prepare(2,0,true,"B_ORIGINAL_NEXT",()->{
+                                        // Next is a distinct song with no approved
+                                        // alternate source: never remap B to A.
+                                        OwnSameTrackReloadPlan.Decision next=OwnSameTrackReloadPlan.decide(
+                                            2,AudioSmokeSource.B_ORIGINAL,true,
+                                            AudioSmokeSource.A_ALT,0,true);
+                                        if(next.reload ||next.targetSource!=AudioSmokeSource.B_ORIGINAL){
+                                            result(false,"SOURCE_PLAN_NEXT_MISMATCH");return;
+                                        }
+                                        prepare(next.targetSource,0,true,"B_ORIGINAL_NEXT",()->{
                                             handler.postDelayed(()->{
                                                 if(completed)return;
                                                 if(source!=2||player==null||!player.isPlaying()
