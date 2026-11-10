@@ -63,6 +63,27 @@ for(const fileName of files){
       shown++;
     }
   }
+  if(fileName.includes("layout-")) {
+    for(const needle of [
+      "getFileInfo(e){let{entity:t",
+      "async getFileInfo(e){",
+      "createMediaSource(e){",
+      "createMediaSource({downloadInfo",
+      "getFileInfoFromResource(e){",
+      "getFileInfoBatch(e){",
+      "mediaSourceData=l",
+      "this.transports"
+    ]){
+      const pos=s.indexOf(needle,270000);
+      if(pos<0)continue;
+      const raw=s.slice(Math.max(0,pos-130),Math.min(s.length,pos+1350));
+      const context=raw.replace(/https?:\\/\\/[^\\s'"<>]+/g,"[URL]")
+        .replace(/\\b[a-f0-9]{40,}\\b/gi,"[HASH]")
+        .replace(/[\\u0000-\\u001f\\u007f-\\u009f]+/g," ")
+        .replace(/\\s+/g," ").slice(0,1500);
+      console.log("W49C_FOCAL "+JSON.stringify({needle,pos,context}));
+    }
+  }
   console.log("W49B_SEMANTIC_COUNTS "+JSON.stringify({file:fileName,bytes:s.length,tally}));
 }
 console.log("W49B_READONLY_VERIFIED_ORIGINAL");
