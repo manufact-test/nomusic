@@ -144,6 +144,9 @@ jobs:
           assert 'seekTimeoutBreaker.successfulSeek(key)' in engine
           assert 'seekTimeoutBreaker.boundary()' in engine
           assert 'audioOwner.unsupported("repeated_seek_timeout")' in engine
+          assert engine.index('if(seekTimeoutBreaker.blocked(s.key)') < engine.index('if(completedKey!=null&&completedKey.equals(s.key))'), 'same-song rewinds must not reactivate'
+          assert 'p.setOnSeekCompleteListener(mp->onDecoderSeekComplete(mp,key))' in engine
+          assert 'boolean hadFlight=audioOwner.seekInFlight(mp)' in engine
           assert 'originalUntilBoundary' in policy
           assert 'Yandex' not in policy.split('void successfulSeek')[1].split('void boundary')[0]
           print("PASS: Test.50 production path references experimental same-track timeout fail-open only")
