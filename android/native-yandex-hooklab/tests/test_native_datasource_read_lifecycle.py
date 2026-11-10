@@ -44,7 +44,7 @@ class SourceExecutionCallsiteTests(unittest.TestCase):
 
     def test_register_field_origin_exact_same_basic_block(self):
         dex=FakeDex([("Lha4;","read","([BII)I")])
-        ins=[(0,0x54,(0x2054,3)),
+        ins=[(0,0x54,(0x2254,3)),
              (2,0x71,(0x1071,0,0x0002))]
         key=("Lmb4;","Lha4;","hidden")
         with patch("audit_native_ga4_field_receiver.field_key",return_value=key):
@@ -56,7 +56,7 @@ class SourceExecutionCallsiteTests(unittest.TestCase):
     def test_branch_stops_source_register_attribution(self):
         dex=FakeDex([("Lha4;","read","([BII)I")])
         ins=[
-            (0,0x54,(0x2054,3)),
+            (0,0x54,(0x2254,3)),
             (2,0x38,(0x0038,5)),
             (4,0x71,(0x1071,0,0x0002))
         ]
@@ -68,7 +68,7 @@ class SourceExecutionCallsiteTests(unittest.TestCase):
     def test_early_register_overwrite_kills_same_source_claim(self):
         dex=FakeDex([("Lha4;","read","([BII)I")])
         ins=[
-            (0,0x54,(0x2054,3)),
+            (0,0x54,(0x2254,3)),
             (2,0x12,(0x0212,)),
             (3,0x71,(0x1071,0,0x0002))
         ]
