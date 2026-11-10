@@ -1,3 +1,9 @@
+## UPDATE 10.11.2026 — confirmed official Yandex contact and concrete external dependency
+
+**Ready, NOT sent:** `docs/android/ANDROID-NATIVE-YANDEX-PARTNER-INQUIRY-2026-11-10.md`. Official contact: `partner@music.yandex.ru` listed in music **content-license offer** (not a verified Android developer-relations address); official Music support chat → “Другой вопрос” is another route to seek forwarding. Yandex archived engineering vacancy mentions SDK/API integration work, but no source-before-prepare SDK is confirmed. BandLink Partner API is smartlinks only, unrelated to Android player. Prepared concise good-faith partner request plus detailed technical acceptance contract; no tokens/audio/DEX/signer shared, **outreach not sent**. **Only external publisher-supported source contract remains**; no more emulator/hook repetition without new capability. No code changed and no new CI warranted. Snapshot backup `backup/android-native-yandex-partner-request-prep-20261110` at `bd82f509ce215438e55b1cb7796228fd7f65fc72`.
+
+---
+
 ## FINAL CHECKPOINT 10.11.2026 — legitimate public MediaSession experiment, NO usable source host
 
 **Code HEAD:** `dc61cd8d7f6c116d91e74ae30c174a50528cde83`. **Immutable backup before docs:** `backup/android-native-public-session-final-evidence-20261110`. This is a *first-party CELIKOM-owned, read-only diagnostic* against the **genuine pinned publisher-signed Yandex**, not a native audio replacement and not a patched host.
