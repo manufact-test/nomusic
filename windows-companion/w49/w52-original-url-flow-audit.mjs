@@ -31,10 +31,10 @@ for(const name of paths){
     const at=s.indexOf("class tL{");
     if(at<0)throw Error("W52_VENDOR_DOWNLOAD_INFO_SOURCE_MISSING");
     const full=s.slice(at,at+2450);
-    const safe=full.replace(/https?:\\/\\/[^\\s'"<>]+/g,"[URL]")
-      .replace(/\\b[a-f0-9]{40,}\\b/gi,"[HASH]")
-      .replace(/[\\u0000-\\u001f\\u007f-\\u009f]+/g," ")
-      .replace(/\\s+/g," ").slice(0,2400);
+    const safe=full.replace(/https?:\/\/[^\s'"<>]+/g,"[URL]")
+      .replace(/\b[a-f0-9]{40,}\b/gi,"[HASH]")
+      .replace(/[\u0000-\u001f\u007f-\u009f]+/g," ")
+      .replace(/\s+/g," ").slice(0,2400);
     console.log("W52_VENDOR_SOURCE_BUILDER "+JSON.stringify({pos:at,context:safe}));
   }
   const found={};
