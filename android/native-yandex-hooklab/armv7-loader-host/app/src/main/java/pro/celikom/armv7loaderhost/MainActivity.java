@@ -15,6 +15,20 @@ public final class MainActivity extends Activity {
     }
     private AudioSmokeScreen audioScreen;
     @Override public void onCreate(Bundle b) {
+        // Separate own-only Android runtime race mode. No vendor process.
+        if(getPackageName().equals("pro.celikom.armv7loaderhost.audio")
+                && getIntent()!=null
+                && getIntent().getBooleanExtra("celikom_own_race",false)) {
+            super.onCreate(b);
+            TextView witness=new TextView(this);
+            witness.setTextColor(Color.BLACK);
+            witness.setBackgroundColor(Color.WHITE);
+            witness.setTextSize(17f);
+            witness.setPadding(24,24,24,24);
+            setContentView(witness);
+            new OwnAndroidAsyncRaceProbe(this,witness).run();
+            return;
+        }
         // Explicit adb-triggered check on our isolated emulator app ONLY.
         // Never reachable from the real Yandex package or normal startup.
         if(getPackageName().equals("pro.celikom.armv7loaderhost.audio")
