@@ -81,6 +81,40 @@ try
         "missing track returns original");
     Test(!GrantValidator.IsTrackId("123:42"), "no fuzzy album ID");
     Test(!GrantValidator.IsTrackId("01"), "no ambiguous leading zeros");
+    // W64: Only validate audio locally BEFORE a multipart request can begin.
+    // Deterministic 128kbps 44.1kHz MPEG1 Layer III frames, no real music.
+    var frames = new byte[417 * 90];
+    for (var i = 0; i < 90; i++)
+    {
+        var at = i * 417;
+        frames[at] = 0xff; frames[at + 1] = 0xfb;
+        frames[at + 2] = 0x90; frames[at + 3] = 0x64;
+    }
+    var duration = AudioPreflight.Mp3DurationMs(frames);
+    Test(duration is > 2300 and < 2400, "MP3 frames determine actual duration");
+    var testAudio = Path.Combine(folder, "wrong_artist_wrong_song.mp3");
+    Directory.CreateDirectory(folder);
+    await File.WriteAllBytesAsync(testAudio, frames);
+    var okDuration = await AudioPreflight.CheckAsync(testAudio, duration,
+        "Потрачено", "TRITIA");
+    Test(!okDuration.Blocked && okDuration.NameSuspicious,
+        "matching measured duration permits but warns about filename mismatch");
+    var wrongDuration = await AudioPreflight.CheckAsync(testAudio, 223000,
+        "До дна", "Нигатив");
+    Test(wrongDuration.Blocked && wrongDuration.DurationMessage.Contains("Допуск подмены"),
+        "large duration mismatch is rejected BEFORE any upload");
+    var unknownOriginal = await AudioPreflight.CheckAsync(testAudio, null,
+        "До дна", "Нигатив");
+    Test(unknownOriginal.Blocked, "unverified original duration fails closed");
+    var invalidAudio = Path.Combine(folder, "fake.mp3");
+    await File.WriteAllBytesAsync(invalidAudio, new byte[2048]);
+    var fake = await AudioPreflight.CheckAsync(invalidAudio, 2350,
+        "Test", "Artist");
+    Test(fake.Blocked && fake.DurationMs == null,
+        "fake MP3 is rejected locally (not just filename validation)");
+    File.Delete(testAudio);
+    File.Delete(invalidAudio);
+
 
     // GitHub Windows installer workflow injects the built ZIP after Inno Setup.
     var zipFixture = Environment.GetEnvironmentVariable("CELIKOM_UPDATE_TEST_PACKAGE");
