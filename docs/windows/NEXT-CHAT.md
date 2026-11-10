@@ -1,3 +1,17 @@
+# FIRST READ — CELIKOM Windows W65 / 0.24.13 PRIVATE OWNER TRIAL (2026-11-10)
+
+**READ FIRST:** `docs/windows/W65-OWNER-02413-ACCOUNT-SUPPORT-UX-20261110.md`. Continue existing Windows app in `manufact-test/nomusic`, branch `experiment/windows-stop-lifecycle-20261110`; do NOT create another app. User approved final batch of W64 0.24.12 UI fixes. W65 0.24.13 uses one bordered account accordion and one bordered support accordion, fully dark custom selectors and textarea, compact promo typography, actual API-backed opt-in benefits/referrals, 7px aligned status dot, 5px right-gutter scroll thumb. **All filename-based guessing and warnings removed** even for Unicode names; upload eligibility still checks actual audio format and duration. Never change W60 audio source reload/seek/pause/MyWave, original Yandex files, Android Test.50 or production.
+
+**Immutable exact W65 built source backup:** `backup/windows-w65-02413-built-ci-passed-await-owner-20261110` @ `5ce1b6ebdecf9a49259d29241e5aa29619d2f429`. Pre-W65 backup `backup/windows-w64-02412-owner-last-ui-feedback-before-w65-20261110` @ `3cde12a3bb7ac439d621f9b8d8b3d065e0d16af1`. Accepted W61 audio baseline `backup/windows-w61-0249-audio-owner-approved-before-ui-parity-20261110` @ `44e69d78b459ed512862819280ebdb8b3dbc7e7d`.
+
+**SUCCESS:** actual WinForms screenshot, expanded account/support, promo/benefits, scrollbar, negative filename-heuristic tests https://github.com/manufact-test/nomusic/actions/runs/42838998161; full unsigned Windows 0.24.13 installer https://github.com/manufact-test/nomusic/actions/runs/42838998263; independent 0.24.12→0.24.13 same-user DPAPI, same app/uninstaller, untouched Yandex https://github.com/manufact-test/nomusic/actions/runs/42839920232.
+
+**EXACT unsigned owner EXE:** `CELIKOM-W65-ACCOUNT-SUPPORT-UX-UNSIGNED.exe` 43,542,477 bytes, SHA256 `6d8f1ff5ca26260c5a3350e8d8adad8732b350ca412628f870c3889a51fb6574`; GitHub Actions artifact `13775480729`. ChatGPT Library `/CELIKOM/Windows/CELIKOM-W65-ACCOUNT-SUPPORT-UX-UNSIGNED.exe` (`file_00000000ce28824390eab48175e050fb`, `libfile_526fdf375cfc819182c18e1a29ed83d5`); byte-for-byte round-trip SHA reverified.
+
+**NEXT ACTION:** Owner installs 0.24.13 over existing 0.24.12 without uninstalling or logging back in. Visually test account/promocode/benefits, support, scrollbar equal gutters, 7px indicator, no filename warning on bad-duration arbitrary-name MP3; then pause, seek, Start/Stop, MyWave. Do not claim W65 owner-tested or ready for public release before user's direct acceptance. Source is frozen since CI; new commits after source backup are docs/upgrade workflow only.
+
+---
+
 # FIRST READ — CELIKOM Windows W64 / 0.24.12 PRIVATE OWNER TRIAL (2026-11-10)
 
 **READ FIRST:** `docs/windows/W64-OWNER-02412-UX-PREUPLOAD-SCROLL-20261110.md`. Continue existing CELIKOM Windows `manufact-test/nomusic`, branch `experiment/windows-stop-lifecycle-20261110`. User finished all screenshot feedback on actual 0.24.11 and requested one large integrated fix. W64 0.24.12 addresses fixed bottom version, smaller centered status dot, precise Yandex loading text, title/artist multi-line, active/native version status distinction, extension-like suggestion/upload UI, immediate red 1.5-second file-duration preflight with blocked send, filename warning, styled rights checkbox, stable gutters and real scrollable account/support/upload panels. **Native audio switching/reload remains unchanged.**
