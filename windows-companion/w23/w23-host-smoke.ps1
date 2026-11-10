@@ -185,7 +185,7 @@ try {
     throw 'W28_NATIVE_OWNER_LOG_MISSING_HOST_EVENT'
   }
   foreach ($line in $ownerLines) {
-    if ($line -notmatch '^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z\|[A-Z0-9_]{3,48}(\|(?:track|resource_id)=[1-9][0-9]{0,17})?) {
+    if ($line -notmatch '^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z\|[A-Z0-9_]{3,48}(\|(?:track|resource_id)=[1-9][0-9]{0,17})?$') {
       throw 'W28_NATIVE_OWNER_LOG_UNSAFE'
     }
   }
