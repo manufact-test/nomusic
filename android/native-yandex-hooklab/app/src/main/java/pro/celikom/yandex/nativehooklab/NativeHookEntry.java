@@ -10,6 +10,7 @@ import android.os.SystemClock;
 import android.util.Log;
 
 import java.lang.reflect.Method;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import io.github.libxposed.api.XposedInterface;
@@ -252,10 +253,10 @@ public final class NativeHookEntry extends XposedModule {
                     .intercept(chain -> {
                         Object result = chain.proceed();
                         try {
-                            Object[] args = chain.getArgs();
-                            if (args != null && args.length == 1
-                                    && args[0] instanceof PlaybackState) {
-                                int publishedEnum = ((PlaybackState) args[0]).getState();
+                            List<Object> args = chain.getArgs();
+                            if (args != null && args.size() == 1
+                                    && args.get(0) instanceof PlaybackState) {
+                                int publishedEnum = ((PlaybackState) args.get(0)).getState();
                                 NativePlaybackStateProbe.Snapshot totals =
                                         publishedState.onPublishedState(
                                                 publishedEnum, SystemClock.elapsedRealtime());

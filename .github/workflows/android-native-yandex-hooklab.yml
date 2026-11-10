@@ -60,7 +60,7 @@ jobs:
           assert 'playbackStateHooked' in source
           assert '"setPlaybackState", PlaybackState.class' in source
           assert 'published-playback aggregate reports=' in source
-          assert '((PlaybackState) args[0]).getState()' in source
+          assert '((PlaybackState) args.get(0)).getState()' in source
           assert 'eventOrder.onFileInfo(SystemClock.elapsedRealtime())' in source
           assert 'eventOrder.onMetadata(SystemClock.elapsedRealtime())' in source
           assert 'temporal-only aggregate single=' in source
