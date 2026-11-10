@@ -87,6 +87,22 @@ public final class NativeSourceDispatchLifecycleRaceTest {
         check(!conflict.onLifecycleTFinish(src,true,504),
                 "invalidated slot cannot be resurrected");
 
+        // A second t() on an already-successful SAME source (e.g. seek)
+        // is not another new source commitment, regardless of whether that
+        // repeated native call later fails.
+        NativeSourceDispatchWitness replay=new NativeSourceDispatchWitness();
+        ero reused=new ero();
+        replay.onConstructed(reused,600);
+        replay.onLifecycleTBegin(reused,601);
+        check(replay.onLifecycleTFinish(reused,true,602),
+                "first original t succeeds");
+        replay.onLifecycleTBegin(reused,603);
+        check(!replay.onLifecycleTFinish(reused,false,604),
+                "repeated t cannot promote a new start after failure");
+        check(replay.snapshot().reusedTCalls==1
+                &&replay.snapshot().matchedCalls==1,
+                "second t only counts as reuse, not another successful source");
+
         // 5k asynchronous source switches. Each cycle begins, queues
         // a read, and either fails or succeeds. No prior generation may
         // leak its pending source into the next one.
