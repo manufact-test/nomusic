@@ -282,6 +282,17 @@ public sealed class CelikomApi : IDisposable
         }
     }
 
+    // Mirrors extension benefits-popup.ts: no referral code is created just
+    // by opening the account. Only an explicit button performs the POST.
+    public Task<JsonElement> GetReferralsAsync(CancellationToken ct = default) =>
+        SignedRequestAsync("referrals", HttpMethod.Get, ct: ct);
+
+    public Task<JsonElement> GetRewardsAsync(CancellationToken ct = default) =>
+        SignedRequestAsync("rewards", HttpMethod.Get, ct: ct);
+
+    public Task<JsonElement> CreateReferralCodeAsync(CancellationToken ct = default) =>
+        SignedRequestAsync("referrals/code", HttpMethod.Post, new { }, ct);
+
     public Task<JsonElement> GetEntitlementAsync(CancellationToken ct = default) =>
         SignedRequestAsync("entitlement", HttpMethod.Get, ct: ct);
 
