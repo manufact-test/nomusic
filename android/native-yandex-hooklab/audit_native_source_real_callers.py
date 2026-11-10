@@ -38,7 +38,10 @@ FOCUS={
  ("Lmir;","t"),("Lmir;","remove"),
  ("Lero;","<init>"),("Lnro;","<init>"),("Lmb4;","a"),
  ("Ldl8;","a"),("Lbr1;","invoke"),("Lx3f;","invokeSuspend"),
- ("Lw4y;","z"),("Lfwm;","M"),("Llky;","<init>")
+ ("Lw4y;","z"),("Lfwm;","M"),("Llky;","<init>"),
+ ("Locv;","t"),("Locv;","remove"),
+ ("Lero;","t"),("Lero;","remove"),
+ ("Lemb;","t"),("Lemb;","remove")
 }
 PRODUCERS={
  ("Lcq7;","A"),("Lcq7;","i0"),
@@ -250,7 +253,7 @@ def inspect_targets(apks):
                         "model_ingress_structural_roles":[{
                             "ordinal":n,**safe_operand_metadata(d,hop,words)
                          } for n,(_,hop,words) in enumerate(ins[:95])]
-                         if m[0] in ("Lw4y;","Lfwm;","Llky;") else [],
+                         if m[0] in ("Lw4y;","Lfwm;","Llky;") or (m[0]=="Locv;" and m[1] in ("t","remove")) else [],
                         "direct_typed_source_calls":profiles[:MAX_OUTLINE],
                         "producer_result_mayflow":result_flow[:MAX_OUTLINE],
                         "wrapper_field_projection":source_wrapper_field_projections(d,off)
