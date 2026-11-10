@@ -1,3 +1,11 @@
+## NEW VERIFIED ANDROID CHECKPOINT — Windows W58 logic carried into source-only Android (2026-11-10)
+
+**GitHub code SHA `e2a3c7c9577ea0a44966d1859296d77e0bae40d7`, CI [#42802150192 SUCCESS 2/2](https://github.com/manufact-test/nomusic/actions/runs/42802150192), backup `backup/android-w58-grant-stop-next-ci-green-20261110`.** Owner Windows 0.24.7 genuinely PASSED audio + Pause/Seek/Next/MyWave. Windows Stop leaves *already delivered* signed audio playing in existing Yandex buffer, but no proven newly mapped track after OFF. Do NOT confuse this UX semantics with an active background hook.
+
+Imported strict native approved signed grant shape/Track ID/expiry/entitlement checks and exact Stop/Next/re-enable epoch fencing into **`NativeGrantContract.java`** and **`NativeReplacementLifecycle.java`** with thousands of simulated races. Important: These are **NOT YET CONNECTED** to a verified real Android decoder; no Android audio replacement tested. The desktop `&celikom_native_query_guard=0` trick was NOT copied because Android URL transformation is unknown. No Windows/production/HONOR/Test.50 changes. Full report: `docs/android/ANDROID-WINDOWS-W58-NATIVE-REUSE-2026-11-10.md`.
+
+---
+
 ## VERIFIED GREEN CHECKPOINT 2026-11-10 / cross-platform Windows W57
 
 - **Current Android native hooklab code SHA**: 4166b3f5f75df45b717308356995af22e1babc3c. [GitHub Actions CI #42800426147 SUCCESS 2/2](https://github.com/manufact-test/nomusic/actions/runs/42800426147): full synthetic native source, event order and playback-state tests; Android libxposed module debug APK compiles and signature/module metadata validates. **No actual Android Yandex audio hook or source replacement proven**.
