@@ -46,7 +46,10 @@ const noisy = new Set(["TRACK_CHANGED", "RESOLVE_REQUEST", "GRANT_FOUND", "GRANT
   "AUDIO_PROBE_BYTES_MPTHREE", "AUDIO_PROBE_BYTES_MPFOUR",
   "AUDIO_PROBE_BYTES_OTHER", "AUDIO_PROBE_BODY_UNAVAILABLE",
   "AUDIO_PROBE_FETCH_BLOCKED", "AUDIO_PROBE_TIMEOUT",
-  "AUDIO_PROBE_UNAVAILABLE", "AUDIO_CSP_BLOCKED"]);
+  "AUDIO_PROBE_UNAVAILABLE", "AUDIO_CSP_BLOCKED",
+  // These are Chromium/Electron player engine events, not the 32-byte probe.
+  "PLAYER_ENGINE_STARTED", "PLAYER_ENGINE_PAUSED", "PLAYER_ENGINE_FAST_PAUSE",
+  "PLAYER_AUDIO_AUDIBLE", "PLAYER_AUDIO_SILENT", "PLAYER_WITNESS_UNAVAILABLE"]);
 function note(code, trackId = null) {
   if (!/^[A-Z_]{3,48}$/.test(code)) return;
   const id = typeof trackId === "string" && /^[1-9][0-9]{0,17}$/.test(trackId)
@@ -210,6 +213,7 @@ async function relayGrant(view, token, request) {
 }
 async function tick(view) {
   if (!validView(view) || busy.has(view)) return;
+  observeNativePlayback(view);
   busy.add(view);
   try {
     if (!await inject(view)) return;
@@ -249,6 +253,36 @@ async function tick(view) {
     busy.delete(view);
   }
 }
+// W48: Observe the actual Electron media engine. The old AUDIO_PROBE 206
+// only confirmed 32 bytes of MP3 were reachable; it never proved playback.
+// No media commands, no WebAudio monkeypatches, no URLs/account data logged.
+const playbackWitnesses = new WeakSet();
+function observeNativePlayback(view) {
+  if (!validView(view) || playbackWitnesses.has(view)) return;
+  playbackWitnesses.add(view);
+  if (typeof view.on !== "function") {
+    note("PLAYER_WITNESS_UNAVAILABLE");
+    return;
+  }
+  let lastStarted = 0;
+  view.on("media-started-playing", () => {
+    if (!validView(view)) return;
+    lastStarted = Date.now();
+    note("PLAYER_ENGINE_STARTED");
+  });
+  view.on("media-paused", () => {
+    if (!validView(view)) return;
+    note("PLAYER_ENGINE_PAUSED");
+    if (lastStarted && Date.now() - lastStarted < 1500)
+      note("PLAYER_ENGINE_FAST_PAUSE");
+    lastStarted = 0;
+  });
+  view.on("audio-state-changed", (_event, audible) => {
+    if (!validView(view) || typeof audible !== "boolean") return;
+    note(audible ? "PLAYER_AUDIO_AUDIBLE" : "PLAYER_AUDIO_SILENT");
+  });
+}
+
 app.on("web-contents-created", (_event, view) => {
   view.on("dom-ready", () => { injected.delete(view); void tick(view); });
   view.on("did-finish-load", () => { injected.delete(view); void tick(view); });
