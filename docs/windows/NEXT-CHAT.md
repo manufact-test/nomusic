@@ -1,3 +1,15 @@
+# CELIKOM Windows — W51 handoff: owner 0.24.6 native Media GET HTTP 403 (2026-11-10)
+
+**START HERE:** `docs/windows/W51-OWNER-0246-REAL-MEDIA-HTTP403-ROOT-CAUSE-HANDOFF-20261110.md` (evidence + confirmed server 403 branches + privacy-safe root-cause plan). **Ready-to-copy next chat:** `docs/windows/W51-START-NEXT-CHAT-20261110.md`.
+
+**Owner's final REAL audio test on installed 0.24.6 is RED:** ordinary native Yandex tracks play; replaced tracks rapidly toggle Play/Pause and stall silent. Diagnostic `CELIKOM-diagnostics-20261110-114109.txt`, generated 08:41:11 UTC, confirms GUI/native 0.24.6, native bridge active and signed in, `SOURCE_MAPPED`. W50 removed ALL self-generated audio probes. CDP genuine Yandex native network shows **7 real GET / 7 HTTP 403** on signed audio path resource IDs 139 (4), 89 (3); 0 successful Media 200/206, no CORS error and no audible event. Those **139/89 are replacement resource IDs**, mislabeled `track=` in W50's diagnostic; don't confuse with Yandex track IDs. Earlier rapid start/pause events preceded approved mapping, so cannot assert their attribution to it. User's real audible fail is decisive regardless.
+
+**SERVER** `AudioController.php` 403 JSON cases are invalid `sid/token/expires/HMAC/version` or `access_denied` for revalidated session/entitlement; also consider hosting/WAF 403 until error origin classified. Independent W48 signed 32-byte fetch yielded 206, but W50 native Media GET is denied. **Most useful hypothesis** native Yandex rewrites/strips signed URL query, **NOT PROVEN** (query/body intentionally redacted). Compare expected grant URL vs CDP requested URL safely in RAM only; log typed exact/missing/changed/expired flags, no secrets; distinguish server 403 category/upstream and fix ONLY the proved cause. Don't modify CORS, waive signing or entitlement, change codec/bitrate again, use standalone player, or publish blind installer. **No code/production changes in W51.**
+
+**Branch:** `experiment/windows-companion-integration-20261108`. **Frozen W50 pre-W51 backup:** `backup/windows-w50-owner-0246-audio-403-pre-w51-docs-20261110` @ `38b9e0d691b47a11a800eb4c6d26d07fc47068fe`. W50 baseline release tests remained green but NOT audio acceptance. Android/Test.50 untouched. Only after evidence-based repair and real CI + safe single-app update may owner retest. When sending a future EXE, use verified **ChatGPT Library `CELIKOM/Windows`** and a directly clickable file card — owner rejects broken sandbox download links.
+
+## Archived W50 handoff
+
 # CELIKOM Windows — W50 0.24.6 real-network CI PASS, owner manual playback gate, 2026-11-10
 
 **Read primary:** `docs/windows/W50-REAL-YANDEX-NETWORK-NO-SELF-PROBE-20261110.md`, then `docs/windows/W49-OWNER-0245-SIGNED-SOURCE-CALLCHAIN-20261110.md`. Owner 0.24.5 diagnostic disclosed NO audible approved replacement; owner described native fast Play↔Pause and silence on older 0.24.4. W49 proved fast pause in 0.24.5 export preceded first approved mapping, so **not attributable**. Original vendor-signed Yandex supports raw MP3 and original getMediaSource→corePlay; working MIT reference sets nominal bitrate 320 vs our inherited AAC bitrate.
