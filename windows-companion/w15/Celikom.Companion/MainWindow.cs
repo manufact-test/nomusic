@@ -328,7 +328,7 @@ public sealed partial class MainWindow : Form
         if (!OpenYandexIfNeeded()) return;
         _bridge.SetEnabled(true);
         _compactStarting = true;
-        _compactStartupText = "Открываем Яндекс.Музыку и ждём подключения…";
+        _compactStartupText = "Подождите, идёт загрузка Яндекс.Музыки…";
         RenderCompact();
         LayoutCompact();
         var generation = ++_compactStartEpoch;
@@ -506,9 +506,7 @@ public sealed partial class MainWindow : Form
             MessageBoxButtons.YesNo, MessageBoxIcon.Question);
         if (answer != DialogResult.Yes) return;
         _integrationBusy = true;
-        _compactStartupText = upgrading
-            ? "Обновляем подключение к Яндекс.Музыке…"
-            : "Подключаем CELIKOM к Яндекс.Музыке…";
+        _compactStartupText = "Подождите, идёт загрузка Яндекс.Музыки…";
         RenderCompact();
         LayoutCompact();
         UpdateSafe();
@@ -524,7 +522,7 @@ public sealed partial class MainWindow : Form
             await Task.Run(() => NativeIntegrationManager.Install());
             DiagnosticLog.Record("NATIVE_INSTALL_OK");
             _bridge.SetEnabled(_api.IsLoggedIn);
-            _compactStartupText = "Модуль подключён. Запускаем Яндекс.Музыку…";
+            _compactStartupText = "Подождите, идёт загрузка Яндекс.Музыки…";
             _compactStarting = _api.IsLoggedIn;
             var generation = ++_compactStartEpoch;
             if (_compactStarting) _ = MonitorStartupAsync(generation);
