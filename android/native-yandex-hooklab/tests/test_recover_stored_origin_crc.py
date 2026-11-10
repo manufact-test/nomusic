@@ -1,0 +1,69 @@
+"""Synthetic ZIP CRC recovery contract. No third-party APK, network or device."""
+import io
+import sys
+import tempfile
+import unittest
+import zipfile
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from recover_stored_origin_crc import HOST, rewrite_only_if_origin_crc_mismatch
+
+class CrcRecoveryTest(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.dir = Path(self.temp.name)
+    def input_zip(self, corrupt=True):
+        inner = io.BytesIO()
+        with zipfile.ZipFile(inner, "w") as z:
+            z.writestr("classes.dex", b"original-dex")
+        src = self.dir / "patched.apk"
+        with zipfile.ZipFile(src, "w") as z:
+            z.writestr("classes.dex", b"loader-stub")
+            z.writestr(HOST, inner.getvalue(), compress_type=zipfile.ZIP_STORED)
+            z.writestr("assets/lspatch/config.json", b'{"sigBypassLevel":0}')
+        if corrupt:
+            data = bytearray(src.read_bytes())
+            central = data.find(b"PK\x01\x02")
+            hits = 0
+            while central >= 0:
+                n = int.from_bytes(data[central+28:central+30],"little")
+                name = data[central+46:central+46+n]
+                if name == HOST.encode():
+                    data[central+16:central+20] = b"\x01\x02\x03\x04"
+                    hits += 1
+                central = data.find(b"PK\x01\x02",central+4)
+            assert hits == 1
+            src.write_bytes(data)
+        return src,inner.getvalue()
+    def test_corrects_only_incorrect_stored_crc(self):
+        src, origin = self.input_zip()
+        with zipfile.ZipFile(src) as z:
+            with self.assertRaises(zipfile.BadZipFile):
+                z.read(HOST)
+        dest=self.dir/"fixed.apk"
+        result=rewrite_only_if_origin_crc_mismatch(src,dest)
+        self.assertTrue(result["crc_repaired"])
+        with zipfile.ZipFile(dest) as z:
+            self.assertEqual(z.read(HOST),origin)
+            self.assertEqual(z.read("classes.dex"),b"loader-stub")
+            self.assertIn(b'"sigBypassLevel":0',z.read("assets/lspatch/config.json"))
+    def test_rejects_double_repair_and_new_destination_collision(self):
+        src,_=self.input_zip(corrupt=False)
+        dest=self.dir/"fixed.apk"
+        result=rewrite_only_if_origin_crc_mismatch(src,dest)
+        self.assertFalse(result["crc_repaired"])
+        self.assertFalse(dest.exists())
+        with self.assertRaisesRegex(ValueError,"NEW_SEPARATE_OUTPUT"):
+            rewrite_only_if_origin_crc_mismatch(src,src)
+    def test_corruption_in_other_member_must_fail(self):
+        src,_=self.input_zip()
+        b=bytearray(src.read_bytes())
+        p=b.find(b"PK\x01\x02")
+        b[p+16:p+20]=b"\xff\xff\xff\xff"
+        src.write_bytes(b)
+        with self.assertRaisesRegex(ValueError,"UNRELATED_APK_ENTRY"):
+            rewrite_only_if_origin_crc_mismatch(src,self.dir/"invalid.apk")
+
+if __name__ == "__main__":
+    unittest.main()

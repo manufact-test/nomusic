@@ -17,6 +17,7 @@ import urllib.request
 from pathlib import Path
 
 from merge_lab_splits_ephemeral import fingerprint, verify_merged_payloads
+from recover_stored_origin_crc import rewrite_only_if_origin_crc_mismatch
 import clone_native_splits_ephemeral as source
 
 JAR_URL = "https://github.com/JingMatrix/LSPatch/releases/download/v1.2/lspatch-v1.2-487-release.jar"
@@ -142,5 +143,26 @@ def wrap_clone_with_lspatch_zero(clone: Path, work: Path, key: Path,
     if len(results) != 1:
         raise arsc.TrialError("METALOADER_NOT_EXACT_ONE_APK")
     print(json.dumps({"lspatch_zero_phase": "ONE_PATCH_OUTPUT_DISCOVERED"}))
-    report = check_zero_loader(results[0], clone, expected_signer, arsc)
-    return results[0], report
+    try:
+        raw_rebuilt = work / "loader-zero-crc-only-rebuilt-unsigned.apk"
+        crc_report = rewrite_only_if_origin_crc_mismatch(results[0], raw_rebuilt)
+    except (ValueError, zipfile.BadZipFile):
+        raise arsc.TrialError("LSPATCH_OUTER_CRC_REPAIR_NOT_SAFE") from None
+    final_apk = results[0]
+    if crc_report["crc_repaired"]:
+        aligned = work / "loader-zero-crc-aligned.apk"
+        arsc.run([source.sdk_tool("zipalign"), "-f", "-p", "4",
+                  str(raw_rebuilt), str(aligned)],
+                 "LSPATCH_REBUILT_ZIPALIGN", 90)
+        arsc.run([source.sdk_tool("apksigner"), "sign", "--ks", str(key),
+                  "--ks-pass", "pass:ephemeral-lab-only",
+                  "--ks-key-alias", "research", "--key-pass", "pass:ephemeral-lab-only",
+                  "--min-sdk-version", "28", "--v4-signing-enabled", "false",
+                  str(aligned)], "LSPATCH_REBUILT_SIGN_WITH_OWN_LAB_KEY", 90)
+        if fingerprint(aligned, arsc) != expected_signer:
+            raise arsc.TrialError("LSPATCH_REBUILT_OWN_SIGNER_MISMATCH")
+        final_apk = aligned
+        print(json.dumps({"lspatch_zero_phase": "EMBEDDED_ORIGIN_CRC_REBUILT_AND_RESIGNED"}))
+    report = check_zero_loader(final_apk, clone, expected_signer, arsc)
+    report["nested_origin_zip_crc_repaired"] = crc_report["crc_repaired"]
+    return final_apk, report
