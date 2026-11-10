@@ -1,3 +1,15 @@
+## АКТУАЛЬНО 10.11.2026 — Test.50 original-only после двух native seek timeout (эксперимент, не релиз)
+
+- **READ FIRST:** [полный отчёт](ANDROID-TEST50-REPEATED-SEEK-FAILOPEN-EXPERIMENT-2026-11-10.md).
+- **Ветка:** `experiment/android-test50-repeated-seek-failopen-20261110`; **проверенный исходник:** `7440d70be0e0584fde12bff2c1fc43725717475e`; **резерв:** `backup/android-test50-repeated-seek-failopen-ci-green-20261110`.
+- **Точный Test.50 owner-accepted base** `backup/android-test50-exact-source-owner-accepted-20261106` @ `5d737d203a0b364b0cb4fd6886040b8bd0c6fbd1` не менялся. Windows / stable / production / HONOR не тронуты.
+- **Что сделано:** отдельный `SeekTimeoutCircuitBreaker` и защищённый `ReplacementEngine.suspend("seek_timeout")`: один timeout старый retry, два timeout той же песни за 60 с → вторичный декодер release, исходное усиление возвращено и original-only до следующего трека. Покрыты ВСЕ 3 timeout входа, в том числе delayed watchdog. Backward scrub той же песни не переоткрывает замену. `seek()` и `completeSeek()` побайтно неизменны согласно Test.50 golden freeze.
+- **Полный Android CI [#42843272827 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/42843272827)**: 106 018 модельных assertions + 17 `ReplacementEngine` fake-player сценариев, 21 addon host suites, исходники Android API36, D8, golden seek hashes, release contract. Подписанная Test APK/OTA **не запускались и не выпускались**.
+- **НЕ доказано:** физический звук «Дым»/«Раскол» и корректность паузы/перемотки на HONOR. Функция отключает наши повторные попытки, не исправляет нативный Яндекс и не является source-first FileInfo Android. Следующая проверка — только отдельная тестовая APK после отдельного разрешения, без изменения Test.50 и stable.
+- Указатель на параллельные native-source исследования: `experiment/android-native-yandex-fileinfo-hooklab-20261109`, чей OWN Android13 MediaPlayer прошёл, но настоящий selected `Lemb` не найден. Не путать с Test.50.
+
+---
+
 # Test.50 — remember NEXT during current prepare (2026-11-06)
 
 Baseline: Test.48 (not rejected Test.49). Input CELIKOM-combined-20261106-230322.txt, last run Test.49: 7 prefetch starts, 15 cold starts, 19 completed transitions; previous Test.48: 25 prefetch starts, 5 cold starts, 30 completed transitions. Distinct usage scenarios, not measured acoustic PCM.
