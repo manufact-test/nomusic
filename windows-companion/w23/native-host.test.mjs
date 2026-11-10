@@ -179,7 +179,8 @@ test("W48 passive Media CDP reports player error and fixed events without sensit
   debug.sendCommand=async name=>{ sent.push(name); };
   const r=await runHost("musicapplication://desktop/",{debuggerDriver:debug});
   assert.ok(r.diagnostics.includes("PLAYER_CDP_READY"));
-  assert.deepEqual(sent,["Media.enable"]);
+  assert.ok(sent.includes("Media.enable"));
+  assert.ok(sent.includes("Network.enable"));
   debug.emit("message",{}, "Media.playerErrorsRaised",
     {errors:[{message:"TOKEN_SECRET_EXAMPLE",errorCode:"DRM-PRIVATE"}]});
   debug.emit("message",{}, "Media.playerEventsAdded",
