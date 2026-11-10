@@ -73,38 +73,123 @@ public sealed class PopupOptionSelect : Control
         ShowOptions();
     }
 
+    // Kept to preserve the pre-existing property contract. A dropdown must
+    // never grow wider than its visible compact owner just to satisfy this hint.
+    private ContextMenuStrip? _activeMenu;
+
     private void ShowOptions()
     {
-        if (Items.Count == 0) return;
+        if (IsDisposed || Disposing || !IsHandleCreated || Items.Count == 0) return;
+        if (_activeMenu is { IsDisposed: false, Visible: true } open)
+        {
+            open.Close();
+            return;
+        }
+
+        var owner = FindForm();
+        var ownerRight = owner is null ? PointToScreen(Point.Empty).X + Width :
+            owner.RectangleToScreen(owner.ClientRectangle).Right;
+        var remaining = Math.Max(1, ownerRight - PointToScreen(Point.Empty).X - 4);
+        // The old hardcoded DropDownWidth=300 pushed the 232px selector outside
+        // the real 308px window. All row text wraps inside this exact bound.
+        var menuWidth = Math.Max(1, Math.Min(Width, remaining));
         var menu = new ContextMenuStrip
         {
+            AutoClose = true,
             AutoSize = false,
-            Width = Math.Max(Width, DropDownWidth),
+            Width = menuWidth,
             BackColor = ColorTranslator.FromHtml("#141B1F"),
             ForeColor = ForeColor,
             Font = Font,
             ShowImageMargin = false,
-            Padding = new Padding(0, 4, 0, 4),
+            ShowCheckMargin = false,
+            Padding = new Padding(1, 3, 1, 3),
             Renderer = new ToolStripProfessionalRenderer(new DarkPalette())
         };
+        var totalHeight = menu.Padding.Vertical;
         for (int i = 0; i < Items.Count; i++)
         {
             int index = i;
-            var item = new ToolStripMenuItem(Items[i])
+            var textAreaWidth = Math.Max(32, menuWidth - 30);
+            var textHeight = TextRenderer.MeasureText(Items[i], Font,
+                new Size(textAreaWidth, 120),
+                TextFormatFlags.WordBreak | TextFormatFlags.NoPadding |
+                TextFormatFlags.NoPrefix).Height;
+            var item = new DarkOptionItem(Items[i], index == SelectedIndex)
             {
                 AutoSize = false,
-                Width = menu.Width - 4,
-                Height = 31,
-                BackColor = menu.BackColor,
-                ForeColor = ForeColor,
-                Checked = index == SelectedIndex
+                Width = Math.Max(1, menuWidth - 4),
+                Height = Math.Max(36, textHeight + 12),
+                Margin = Padding.Empty,
+                Padding = Padding.Empty,
+                Font = Font,
+                ForeColor = ForeColor
             };
-            item.Click += (_, _) => { SelectedIndex = index; menu.Close(); };
+            totalHeight += item.Height;
+            item.Click += (_, _) =>
+            {
+                // WinForms itself is STILL inside ToolStripDropDown.OnItemClicked
+                // here. Never rebuild the compact form or dispose the menu on
+                // this stack. The 0.24.14 owner crash was ObjectDisposedException
+                // in ToolStripDropDown.SetVisibleCore after premature Dispose.
+                if (!IsHandleCreated || IsDisposed || Disposing) return;
+                BeginInvoke(new Action(() =>
+                {
+                    if (IsDisposed || Disposing) return;
+                    if (!menu.IsDisposed && menu.Visible) menu.Close();
+                    SelectedIndex = index;
+                }));
+            };
             menu.Items.Add(item);
         }
-        menu.Height = menu.Items.Count * 31 + 8;
-        menu.Closed += (_, _) => menu.Dispose();
-        menu.Show(this, new Point(0, Height - 1));
+        menu.Height = totalHeight;
+        _activeMenu = menu;
+        menu.Closed += (_, _) =>
+        {
+            if (ReferenceEquals(_activeMenu, menu)) _activeMenu = null;
+            // Closing happens *inside* the WinForms item-click dispatch. Do
+            // not dispose synchronously: native OnItemClicked still uses Handle.
+            if (menu.IsDisposed) return;
+            if (!IsDisposed && !Disposing && IsHandleCreated)
+                BeginInvoke(new Action(() => { if (!menu.IsDisposed) menu.Dispose(); }));
+            else
+                menu.Dispose();
+        };
+        try { menu.Show(this, new Point(0, Height - 1)); }
+        catch
+        {
+            _activeMenu = null;
+            menu.Dispose();
+            throw;
+        }
+    }
+
+    private sealed class DarkOptionItem(string label, bool isCurrent) : ToolStripMenuItem(label)
+    {
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            // Owner paint disables the native check-glyph gutter that previously
+            // pushed the label/highlight sideways. All rows align consistently.
+            var bg = Selected ? ColorTranslator.FromHtml("#19302D") :
+                ColorTranslator.FromHtml("#141B1F");
+            using (var fill = new SolidBrush(bg))
+                e.Graphics.FillRectangle(fill, new Rectangle(Point.Empty, Size));
+            if (Selected)
+            {
+                using var border = new Pen(ColorTranslator.FromHtml("#66E0BF"));
+                e.Graphics.DrawRectangle(border, 1, 1,
+                    Math.Max(0, Width - 3), Math.Max(0, Height - 3));
+            }
+            if (isCurrent)
+            {
+                using var accent = new SolidBrush(ColorTranslator.FromHtml("#66E0BF"));
+                e.Graphics.FillRectangle(accent, 5, Height / 2 - 4, 3, 8);
+            }
+            TextRenderer.DrawText(e.Graphics, Text, Font,
+                new Rectangle(15, 2, Math.Max(5, Width - 26), Height - 4),
+                ForeColor, TextFormatFlags.Left | TextFormatFlags.VerticalCenter |
+                TextFormatFlags.WordBreak | TextFormatFlags.NoPrefix);
+        }
     }
 
     protected override void OnPaint(PaintEventArgs e)

@@ -1,4 +1,4 @@
-name: CELIKOM W66 0.24.14 icon + UX private owner trial
+name: CELIKOM W67 0.24.15 support selector crash private trial
 
 on:
   push:
@@ -12,6 +12,7 @@ on:
       - windows-companion/w24/**
       - windows-companion/w22/**
       - windows-companion/w60/**
+      - windows-companion/w67/**
       - .github/workflows/windows-w60-owner-trial-0248-installer.yml
   workflow_dispatch:
 
@@ -55,6 +56,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'W28_NATIVE_DIAGNOSTICS_CONTRACT_FAILED' }
       - name: Compile source with warnings as errors
         run: dotnet build windows-companion/w15/Celikom.Companion/Celikom.Companion.csproj -c Release -warnaserror
+      - name: Test real mouse/keyboard support selector lifecycle (24 changes)
+        run: dotnet run --project windows-companion/w67/Celikom.SelectorInteractions/Celikom.SelectorInteractions.csproj -c Release
       - name: Run native local bridge and host preflight tests
         run: dotnet run --project windows-companion/w15/Celikom.Companion.Tests/Celikom.Companion.Tests.csproj -c Release
       - name: Test native image construction and crash recovery
@@ -89,14 +92,14 @@ jobs:
           $ErrorActionPreference = 'Stop'
           Add-Type -AssemblyName System.Drawing
           $iconPath = 'windows-companion/w20/assets/CELIKOM.ico'
-          if (-not (Test-Path $iconPath)) { throw 'W66_OFFICIAL_ICON_NOT_GENERATED' }
+          if (-not (Test-Path $iconPath)) { throw 'W67_OFFICIAL_ICON_NOT_GENERATED' }
           $icoBytes = [IO.File]::ReadAllBytes((Resolve-Path $iconPath).Path)
           if ($icoBytes.Length -lt 512 -or $icoBytes[2] -ne 1 -or $icoBytes[4] -ne 4) {
-            throw 'W66_OFFICIAL_ICON_INVALID'
+            throw 'W67_OFFICIAL_ICON_INVALID'
           }
           function Assert-CelikomIcon($path, $label) {
             $icon = [Drawing.Icon]::ExtractAssociatedIcon((Resolve-Path $path).Path)
-            if ($null -eq $icon) { throw "W66_NO_ICON_$label" }
+            if ($null -eq $icon) { throw "W67_NO_ICON_$label" }
             $bmp = $icon.ToBitmap()
             $mintPixels = 0
             for ($y = 1; $y -lt $bmp.Height; $y += 2) {
@@ -109,18 +112,18 @@ jobs:
             }
             $bmp.Dispose()
             $icon.Dispose()
-            if ($mintPixels -lt 8) { throw "W66_DEFAULT_ICON_NOT_BRAND_$label $mintPixels" }
-            Write-Output "W66_OFFICIAL_C_ICON_$label PASS"
+            if ($mintPixels -lt 8) { throw "W67_DEFAULT_ICON_NOT_BRAND_$label $mintPixels" }
+            Write-Output "W67_OFFICIAL_C_ICON_$label PASS"
           }
           Assert-CelikomIcon 'windows-companion/w20/publish/CELIKOM.Companion.exe' 'APP'
-          Assert-CelikomIcon 'windows-companion/w20/output/CELIKOM-W66-COMPACT-UX-BRAND-UNSIGNED.exe' 'INSTALLER'
+          Assert-CelikomIcon 'windows-companion/w20/output/CELIKOM-W67-SUPPORT-SELECT-GUARD-UNSIGNED.exe' 'INSTALLER'
       - name: Validate updater ZIP selection, PE version and anti-downgrade
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          $installer = 'windows-companion/w20/output/CELIKOM-W66-COMPACT-UX-BRAND-UNSIGNED.exe'
+          $installer = 'windows-companion/w20/output/CELIKOM-W67-SUPPORT-SELECT-GUARD-UNSIGNED.exe'
           $meta = [Diagnostics.FileVersionInfo]::GetVersionInfo((Resolve-Path $installer))
-          if ($meta.FileVersion.Trim() -ne '0.24.14.0' -or $meta.ProductName.Trim() -ne 'CELIKOM' -or $meta.CompanyName.Trim() -ne 'CELIKOM') {
+          if ($meta.FileVersion.Trim() -ne '0.24.15.0' -or $meta.ProductName.Trim() -ne 'CELIKOM' -or $meta.CompanyName.Trim() -ne 'CELIKOM') {
             throw "W32_INSTALLER_PE_VERSION_MISMATCH: version=$($meta.FileVersion) product=$($meta.ProductName) company=$($meta.CompanyName)"
           }
           $package = Join-Path $env:RUNNER_TEMP 'CELIKOM-W32-test-package.zip'
@@ -148,7 +151,7 @@ jobs:
           $ErrorActionPreference = 'Stop'
           $exe = Join-Path $env:LOCALAPPDATA 'Programs\CELIKOM\CELIKOM.Companion.exe'
           $unins = Join-Path $env:LOCALAPPDATA 'Programs\CELIKOM\unins000.exe'
-          $installer = 'windows-companion/w20/output/CELIKOM-W66-COMPACT-UX-BRAND-UNSIGNED.exe'
+          $installer = 'windows-companion/w20/output/CELIKOM-W67-SUPPORT-SELECT-GUARD-UNSIGNED.exe'
           $yandexDir = Join-Path $env:LOCALAPPDATA 'Programs\YandexMusic'
           if (Test-Path $exe) { throw 'W20_DIRTY_INSTALL_RUNNER' }
           if (Test-Path $yandexDir) { throw 'W20_RUNNER_YANDEX_PREEXISTS' }
@@ -188,13 +191,13 @@ jobs:
       - name: Report internal package fingerprint
         shell: pwsh
         run: |
-          $hash = (Get-FileHash windows-companion/w20/output/CELIKOM-W66-COMPACT-UX-BRAND-UNSIGNED.exe -Algorithm SHA256).Hash
+          $hash = (Get-FileHash windows-companion/w20/output/CELIKOM-W67-SUPPORT-SELECT-GUARD-UNSIGNED.exe -Algorithm SHA256).Hash
           Write-Output "W20_INTERNAL_UNSIGNED_SHA256=$hash"
           Write-Output 'W24 INTERNAL: installer and restoration; native audible playback NOT YET ACCEPTED'
       - name: Retain INTERNAL staging build, not a release
         uses: actions/upload-artifact@v4
         with:
-          name: CELIKOM-W66-COMPACT-UX-BRAND-UNSIGNED
-          path: windows-companion/w20/output/CELIKOM-W66-COMPACT-UX-BRAND-UNSIGNED.exe
+          name: CELIKOM-W67-SUPPORT-SELECT-GUARD-UNSIGNED
+          path: windows-companion/w20/output/CELIKOM-W67-SUPPORT-SELECT-GUARD-UNSIGNED.exe
           if-no-files-found: error
           retention-days: 10

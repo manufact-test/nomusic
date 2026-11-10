@@ -82,19 +82,32 @@ internal static class Program
         var events = 0;
         support.SelectedIndexChanged += (_, _) => events++;
         Console.WriteLine("W67_BASELINE_START selected=" + support.SelectedIndex);
-        for (int iteration = 0; iteration < 10; iteration++)
+        for (int iteration = 0; iteration < 24; iteration++)
         {
             var target = iteration % 2 == 0 ? 1 : 0;
             PositionSelector(support);
             Click(support.PointToScreen(new Point(Math.Min(40, support.Width / 2), support.Height / 2)));
-            var firstItem = support.PointToScreen(new Point(30, support.Height + 15));
-            var hwnd = WindowFromPoint(firstItem);
-            if (hwnd == IntPtr.Zero || !GetWindowRect(hwnd, out var popupRect))
-                throw new InvalidOperationException("W67_MENU_NOT_OPEN " + iteration);
-            Console.WriteLine($"W67_MENU_OPEN cycle={iteration} rect={popupRect.Left},{popupRect.Top},{popupRect.Right},{popupRect.Bottom} selector={support.Width}");
-            // On old 0.24.14 each item is 31 px tall, 4 px top menu padding.
-            var rowY = target == 0 ? 19 : 50;
-            Click(support.PointToScreen(new Point(35, support.Height + rowY)));
+            var menu = (ContextMenuStrip?)typeof(PopupOptionSelect)
+                .GetField("_activeMenu", PrivateInstance)?.GetValue(support)
+                ?? throw new InvalidOperationException("W67_MENU_NOT_OPEN " + iteration);
+            var item = menu.Items[target];
+            Pump();
+            var popupOrigin = menu.PointToScreen(Point.Empty);
+            var formBounds = form.RectangleToScreen(form.ClientRectangle);
+            var popupBounds = new Rectangle(popupOrigin, menu.Size);
+            Console.WriteLine($"W67_MENU_OPEN cycle={iteration} rect={popupBounds} selector={support.Width} font={support.Font.Size}");
+            if (popupBounds.Left < formBounds.Left || popupBounds.Right > formBounds.Right)
+                throw new InvalidOperationException($"W67_MENU_SPILLS_OUT_OF_FORM {popupBounds} form={formBounds}");
+            if (menu.ShowImageMargin || menu.ShowCheckMargin || menu.Items.OfType<ToolStripItem>()
+                .Any(x => x.Margin.Horizontal != 0 || x.Width > menu.Width || x.Width < menu.Width - 8))
+                throw new InvalidOperationException("W67_MENU_ITEM_GUTTER_OR_WIDTH_UNEVEN");
+            // User-like mouse click on the actual second/first menu item,
+            // not SelectedIndex assignment or PerformClick().
+            var targetPoint = menu.PointToScreen(new Point(
+                item.Bounds.Left + Math.Min(45, item.Width / 2),
+                item.Bounds.Top + item.Height / 2));
+            Click(targetPoint);
+            Pump(); // complete queued WinForms native menu Close and deferred layout
             if (support.SelectedIndex != target)
                 throw new InvalidOperationException($"W67_MOUSE_SELECTION_FAILED cycle={iteration} expected={target} actual={support.SelectedIndex}");
             if (category.Visible != (target == 1))
@@ -102,7 +115,52 @@ internal static class Program
             if (form.IsDisposed || !form.Visible)
                 throw new InvalidOperationException("W67_APP_CLOSED_DURING_SELECTION");
         }
-        Console.WriteLine("W67_BASELINE_REAL_MOUSE_SELECTION_PASS events=" + events);
+        Console.WriteLine("W67_REAL_MOUSE_SELECTION_AND_WIDTH_PASS events=" + events);
+        // Click outside and reopen repeatedly; no extra selection or dead menu.
+        for (int i = 0; i < 8; i++)
+        {
+            PositionSelector(support);
+            Click(support.PointToScreen(new Point(40, support.Height / 2)));
+            Click(support.PointToScreen(new Point(50, -13)));
+            Pump();
+            if (form.IsDisposed || !form.Visible)
+                throw new InvalidOperationException("W67_OUTSIDE_DISMISS_CLOSED_APP");
+        }
+        Console.WriteLine("W67_OUTSIDE_DISMISS_REOPEN_PASS");
+        // Keyboard navigation with genuine WinForms focused control and OS keys.
+        PositionSelector(support);
+        support.Focus();
+        Pump();
+        var beforeKeys = support.SelectedIndex;
+        SendKeys.SendWait(beforeKeys == 0 ? "{DOWN}" : "{UP}");
+        Pump();
+        if (support.SelectedIndex == beforeKeys)
+            throw new InvalidOperationException("W67_KEYBOARD_ARROW_SELECTION_NOT_HANDLED");
+        SendKeys.SendWait("{ENTER}");
+        Pump();
+        var keyboardMenu = (ContextMenuStrip?)typeof(PopupOptionSelect)
+            .GetField("_activeMenu", PrivateInstance)?.GetValue(support)
+            ?? throw new InvalidOperationException("W67_KEYBOARD_ENTER_DID_NOT_OPEN");
+        SendKeys.SendWait("{DOWN}{ENTER}");
+        Pump();
+        if (form.IsDisposed || !form.Visible)
+            throw new InvalidOperationException("W67_KEYBOARD_MENU_CLOSED_APP");
+        Console.WriteLine("W67_KEYBOARD_ARROWS_ENTER_PASS");
+        // Same popup implementation is used for the song issue category menu.
+        if (support.SelectedIndex != 1) support.SelectedIndex = 1;
+        PositionSelector(category);
+        Click(category.PointToScreen(new Point(45, category.Height / 2)));
+        var categoryMenu = (ContextMenuStrip?)typeof(PopupOptionSelect)
+            .GetField("_activeMenu", PrivateInstance)?.GetValue(category)
+            ?? throw new InvalidOperationException("W67_CATEGORY_MENU_NOT_OPEN");
+        var fourth = categoryMenu.Items[3];
+        Click(categoryMenu.PointToScreen(new Point(
+            fourth.Bounds.Left + 35, fourth.Bounds.Top + fourth.Height / 2)));
+        Pump();
+        if (category.SelectedIndex != 3)
+            throw new InvalidOperationException("W67_CATEGORY_MOUSE_SELECTION_FAILED");
+        Console.WriteLine("W67_CATEGORY_MOUSE_SELECTION_PASS");
+        Console.WriteLine("W67_ALL_MENU_INTERACTION_NO_CRASH_PASS");
         return 0;
     }
 }

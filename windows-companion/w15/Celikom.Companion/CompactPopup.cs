@@ -431,7 +431,6 @@ public sealed partial class MainWindow
         _compactSupportKind.SelectedIndexChanged += (_, _) => LayoutCompact();
         _compactSupportKind.BackColor = Surface;
         _compactSupportKind.ForeColor = Ink;
-        _compactSupportKind.DropDownWidth = 300;
         _compactSupportBody.Controls.Add(_compactSupportKind);
         _compactSupportCategory.Items.AddRange(new object[] {
             "Не включается версия CELIKOM",
@@ -442,7 +441,6 @@ public sealed partial class MainWindow
         _compactSupportCategory.SelectedIndex = 0;
         _compactSupportCategory.BackColor = Surface;
         _compactSupportCategory.ForeColor = Ink;
-        _compactSupportCategory.DropDownWidth = 300;
         _compactSupportBody.Controls.Add(_compactSupportCategory);
         _compactSupportBody.Controls.Add(_compactSupportCategoryLabel);
         Place(_compactSupportDescriptionLabel, _compactSupportBody, 0, 79, 250, 24);
