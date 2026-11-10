@@ -55,6 +55,15 @@ class SignedLjgvMediaCandidatesTests(unittest.TestCase):
         result=bounded_method_media_calls(method,DummyDex([0x0071,0,0,0x000e],[callee]),0)
         self.assertEqual(result["direct_named_media_call_count"],0)
 
+    def test_large_lambda_may_contain_unrelated_media_call_arms(self):
+        method=("Lsu5;","invoke","()Ljava/lang/Object;")
+        media=("Lro7;","y0","(Lzzm;)V")
+        code=[0x000e]*90+[0x0071,0,0,0x000e]
+        report=bounded_method_media_calls(method,DummyDex(code,[media]),0)
+        self.assertTrue(report["same_body_media_calls_may_be_different_switch_arms"])
+        self.assertEqual(report["direct_named_media_call_count"],1)
+        self.assertFalse(report["direct_player_source_proven"])
+
     def test_exact_interest_groups_not_media_names_only(self):
         self.assertIn("Lcq7;",TARGET_METHODS)
         self.assertIn("Lro7;",TARGET_METHODS)
