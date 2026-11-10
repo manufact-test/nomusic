@@ -162,6 +162,7 @@ public sealed partial class MainWindow
         _compactDurationInput = new PopupInput(_compactUploadDuration);
 
         _compactScroll.Dock = DockStyle.Fill;
+        _compactScroll.Margin = Padding.Empty;
         _compactScroll.BackColor = Paper;
         // The standard WinForms AutoScroll changes viewport width during layout
         // and caused the owner's double right gutter / unreachable forms.
@@ -171,6 +172,7 @@ public sealed partial class MainWindow
         _compactScroll.Resize += (_, _) => LayoutCompact();
         _compactScroll.MouseWheel += CompactMouseWheel;
         _compactFooter.Dock = DockStyle.Fill;
+        _compactFooter.Margin = Padding.Empty;
         _compactFooter.BackColor = Paper;
         _compactFrame.Dock = DockStyle.Fill;
         _compactFrame.Margin = Padding.Empty;
