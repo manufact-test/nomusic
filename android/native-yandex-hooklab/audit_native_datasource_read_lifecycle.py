@@ -34,18 +34,20 @@ READ_METHODS={("Lha4;","read"),("Lv38;","read")}
 OPEN_METHODS={("Lha4;","b"),("Lm48;","b")}
 CLOSE_METHODS={("Lha4;","close"),("Lha4;","d"),("Lm48;","close")}
 INTERESTING_CALLS=READ_METHODS|OPEN_METHODS|CLOSE_METHODS
-LIFECYCLE_OWNERS={"Lmb4;","Lha4;","Lmir;","Lero;","Locv;","Lemb;","Lcq7;","Lga4;"}
+LIFECYCLE_OWNERS={"Lmb4;","Lha4;","Lmir;","Lero;","Locv;","Lemb;","Lcq7;","Lga4;","Loi;","Llir;","Lwq7;"}
 TARGET_METHODS={
  ("Lmb4;","a"),("Lmb4;","<init>"),("Lmb4;","b"),
  ("Lha4;","b"),("Lha4;","f"),("Lha4;","read"),("Lha4;","close"),("Lha4;","d"),
  ("Lero;","<init>"),("Lero;","t"),("Lero;","remove"),
  ("Locv;","<init>"),("Locv;","t"),("Locv;","remove"),("Locv;","i0"),
  ("Lmir;","t"),("Lmir;","remove"),("Lmir;","a"),
+ ("Llir;","e"),("Loi;","invokeSuspend"),("Lwq7;","e"),
 }
 MAX_SAFE_WINDOW=13
 MAX_FOCUSED_METHODS=100
 MAX_CALLSITE_ROWS=80
 MAX_GRAPH_METHODS=240000
+MAX_METHOD_INPUT_SHAPES=115
 
 def safe_events_for_call(d,ins,i):
     """Local callsite window in instruction ordinals; no private values.
@@ -135,6 +137,46 @@ def typed_callsite_facts(d,ins):
     return out
 
 
+
+
+def bounded_lifecycle_method_shape(d,m,ins):
+    """First safe method roles; redacts strings, constants, URLs, bytecode.
+
+    Helps bind the Lha4 instance passed to Lmb4 constructor to fields
+    used by Lmb4.a without assuming conditional runtime execution.
+    """
+    selected=(m[0] in {"Lero;","Lmb4;","Llir;","Loi;","Lwq7;"})
+    if not selected:return []
+    cap=(115 if m[0] in ("Lmb4;","Lero;") else 55)
+    roles=[]
+    for i,(_,op,w) in enumerate(ins[:cap]):
+        info=safe_operand_metadata(d,op,w)
+        if info["kind"]=="other":continue
+        roles.append({"ordinal":i,**info})
+    return roles[:MAX_METHOD_INPUT_SHAPES]
+
+
+def exact_source_register_reuse(facts, method):
+    """Four callsites may use the same receiver register, NOT live object proof."""
+    if method[0]!="Lmb4;" or method[1]!="a":return {}
+    candidates=defaultdict(set)
+    for event in facts:
+        called=event["callsite"]["callee"]
+        key=called["owner"]+"->"+called["method"]
+        words=event["callsite"]["register_arguments"]
+        if words:candidates[key].add(words[0])
+    opens=candidates.get("Lha4;->b",set())
+    reads=candidates.get("Lha4;->read",set())
+    closes=candidates.get("Lha4;->close",set())
+    same=bool(opens and reads and closes and opens==reads==closes)
+    return {
+        "site_receiver_register_sets":{k:sorted(v) for k,v in sorted(candidates.items())},
+        "all_open_read_close_callsite_receiver_registers_identical":same,
+        "register_identity_across_branches_not_live_object_identity":True,
+        "decoder_or_active_track_proven":False,
+    }
+
+
 def inspect_signed(apks):
     dex_count=0
     total_bodies=0
@@ -168,12 +210,15 @@ def inspect_signed(apks):
                         "method":method_profile(d.method(w[1])),
                     } for _,op,w in ins if op in INVOKES and
                        d.method(w[1])[0] in LIFECYCLE_OWNERS]
+                    callsite_facts=typed_callsite_facts(d,ins)
                     target_bodies[m]={
                         "method":method_profile(m),
+                        "method_start_bounded_safe_roles":bounded_lifecycle_method_shape(d,m,ins),
+                        "source_open_read_close_receiver_set":exact_source_register_reuse(callsite_facts,m),
                         "instruction_count":len(ins),
                         "branch_count":sum(op in (0x2b,0x2c) or 0x32<=op<=0x3d
                                            for _,op,_ in ins),
-                        "source_open_read_close_calls":typed_callsite_facts(d,ins),
+                        "source_open_read_close_calls":callsite_facts,
                         "lifecycle_class_calls":direct[:48],
                         "player_decoder_owner_or_selected_track_proven":False,
                     }
