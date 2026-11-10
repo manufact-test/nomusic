@@ -9,6 +9,7 @@ on:
       - windows-companion/w15/Celikom.Companion.Tests/**
       - windows-companion/w22/native-resource-adapter.test.mjs
       - windows-companion/w23/renderer-relay.test.mjs
+      - windows-companion/w59/**
       - .github/workflows/windows-w59-popup-theme-compile-stage.yml
   workflow_dispatch:
 
@@ -52,6 +53,20 @@ jobs:
           Write-Output 'W59_EXTENSION_THEME_AND_REAL_ACTION_CONTRACT_PASS'
       - name: Compile actual Windows WinForms app with warnings as errors
         run: dotnet build windows-companion/w15/Celikom.Companion/Celikom.Companion.csproj -c Release -warnaserror
+      - name: Render source-only themed UI to PNG without any Yandex player
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $png = Join-Path $env:RUNNER_TEMP 'CELIKOM-W59-UI-STAGE.png'
+          dotnet run --project windows-companion/w59/Celikom.VisualPreview/Celikom.VisualPreview.csproj -c Release -- $png
+          if ($LASTEXITCODE -ne 0 -or -not (Test-Path $png)) { throw 'W59_STAGE_SCREENSHOT_FAILED' }
+          Copy-Item $png (Join-Path $env:GITHUB_WORKSPACE 'CELIKOM-W59-UI-STAGE.png')
+      - name: Inspect static UI preview (not an installer)
+        uses: actions/upload-artifact@v4
+        with:
+          name: CELIKOM-W59-UI-STAGE
+          path: CELIKOM-W59-UI-STAGE.png
+          retention-days: 3
       - name: Run native bridge, auth and signed-source contract suite
         run: dotnet run --project windows-companion/w15/Celikom.Companion.Tests/Celikom.Companion.Tests.csproj -c Release
       - name: Build unmodified accepted renderer and verify Stop transitions
