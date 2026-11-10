@@ -69,10 +69,10 @@ import { createSignedAudioProbe } from "./audio-probe.mjs";
             if (url.origin !== apiOrigin ||
                 (!url.pathname.startsWith("/api/v1/audio/") ||
                  !/^[A-Za-z0-9_-]{1,128}$/.test(url.pathname.slice(14)))) continue;
-            report("MEDIA_REQUEST_SEEN");
-            const status = Number(entry.responseStatus);
-            report(status >= 200 && status < 300 ? "MEDIA_HTTP_OK" :
-              status >= 400 ? "MEDIA_HTTP_FAILED" : "MEDIA_HTTP_UNVERIFIED");
+            // A PerformanceObserver entry may be OUR own independent 32-byte
+            // probe, not a request made by Yandex's audio decoder. It must
+            // never be counted as evidence the real player fetched or played.
+            report("AUDIO_URL_RESOURCE_UNATTRIBUTED");
           } catch {}
         }
       });
