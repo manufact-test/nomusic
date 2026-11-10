@@ -4,10 +4,15 @@ interface emb { void t(dmb arg); void remove(); }
 class zcb {}
 class gmb {}
 class dmb {}
+class wzi {}
+class ga4 {}
 class alt implements emb { public void t(dmb x) {} public void remove() {} }
 class chg implements emb { public void t(dmb x) {} public void remove() {} }
 class ero implements emb {
     private final mb4 sourceReader=new mb4();
+    ero() {}
+    ero(wzi input,ga4 model) {}
+    ero(wzi input,ga4 model,Object extra) {}
     public void t(dmb x) {}
     public void remove() {}
 }
