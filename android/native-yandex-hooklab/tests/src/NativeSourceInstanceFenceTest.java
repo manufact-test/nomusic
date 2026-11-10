@@ -82,6 +82,8 @@ public final class NativeSourceInstanceFenceTest {
                 f.fence.descriptorBeforePrepare(f.epoch,f.selection,f.owner,f.reader,110),
                 "cannot double prepare");
         eq(1,f.fence.snapshot().prepareCount,"no second decision");
+        yes(!f.fence.snapshot().syntheticSequenceComplete,
+                "a rejected event makes whole observed epoch unfit for causal proof");
     }
 
     private static void sameEqualsDoesNotMeanSameInstance() {
@@ -142,8 +144,10 @@ public final class NativeSourceInstanceFenceTest {
                 f.fence.read(f.epoch,f.loader,f.reader,f.spec,-2,10),
                 "negative read count invalid");
         f.read(11);f.close(12);
-        yes(f.fence.snapshot().syntheticSequenceComplete,
-                "valid later exact structural sequence");
+        yes(!f.fence.snapshot().syntheticSequenceComplete,
+                "old invalid observation cannot be rehabilitated by later calls");
+        eq(3,f.fence.snapshot().rejectedCount,
+                "two out-of-order calls and invalid negative byte count recorded");
         Fixture unknown=new Fixture();
         long missing=unknown.fence.begin(null,10);
         eq(Phase.INVALIDATED,unknown.fence.snapshot().phase,"null selection unavailable");
