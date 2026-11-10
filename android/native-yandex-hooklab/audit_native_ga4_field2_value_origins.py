@@ -61,6 +61,8 @@ def destination_reg(op, words):
         return (words[0]>>8)&15
     if op in (0x02,0x05,0x08,0x03,0x06,0x09):
         return words[0]>>8 if op in (0x02,0x05,0x08) else words[1]
+    if op==0x54 or op==0x12:
+        return (words[0]>>8)&15
     if op in OPAQUE_WRITES:
         return words[0]>>8
     return None
