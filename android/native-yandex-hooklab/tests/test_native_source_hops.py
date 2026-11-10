@@ -30,9 +30,7 @@ class StaticSourceHopTests(unittest.TestCase):
         sink = ("Landroidx/media3/exoplayer/ExoPlayerImpl;", "prepare", "()V")
         reverse = {sink: {e}, e: {d}, d: {c}, c: {b}, b: {a}}
         self.assertEqual(call_graph_hops(reverse, {a, b, c, d}, {sink}),
-                         [[d, c, b, a]] if False else
-                         [chain for chain in call_graph_hops(reverse, {c, d}, {sink})
-                          if chain[0] == c or chain[0] == d])
+                         [[d, e, sink], [c, d, e, sink]])
         self.assertFalse(call_graph_hops({}, {a}, {sink}))
 
     def test_hop_limit_rejects_unbounded_search(self):
