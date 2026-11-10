@@ -1,0 +1,34 @@
+name: Android publisher-signed FileInfo register witness (READ-ONLY)
+on:
+  push:
+    branches:
+      - experiment/android-native-yandex-fileinfo-hooklab-20261109
+    paths:
+      - 'android/native-yandex-hooklab/audit_native_register_bridge.py'
+      - 'android/native-yandex-hooklab/tests/test_native_register_bridge.py'
+      - '.github/workflows/android-native-register-bridge-audit.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  signed-register-witness:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Test bounded register decoder and fail-closed evidence semantics
+        run: |
+          set -eu
+          python3 -m py_compile android/native-yandex-hooklab/audit_native_register_bridge.py
+          python3 -m unittest discover -s android/native-yandex-hooklab/tests -p 'test_native_register_bridge.py' -v
+      - name: Verify unchanged publisher-signed XAPK and trace selected DEX register chains
+        run: python3 android/native-yandex-hooklab/audit_native_register_bridge.py
+      - name: Never export publisher APK DEX user data tokens or media
+        if: always()
+        run: |
+          test ! -d android/native-yandex-hooklab/release
+          test ! -d android/native-yandex-hooklab/patched
+          echo 'READ ONLY / no installation / no vendor binary export / no decoder proof'
