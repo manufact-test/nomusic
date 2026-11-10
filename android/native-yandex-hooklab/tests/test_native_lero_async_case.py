@@ -5,7 +5,8 @@ from unittest.mock import patch
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 from audit_native_lero_async_case import (
     int_constant_from_words,nearby_constructor_tag,switch_table_for_ins,
-    branch_contains_loader,constructor_tag_field,select_switch_case_target
+    branch_contains_loader,constructor_tag_field,select_switch_case_target,
+    constructor_captured_object_field
 )
 
 
@@ -108,6 +109,31 @@ class SignedAsyncCaseTests(unittest.TestCase):
                        ("Lother;","Lmb4;","private")
                    ]):
             self.assertFalse(branch_contains_loader(dex,ins,3))
+
+    def test_constructor_p2_exact_field_capture(self):
+        # code_item p0=v1 p1=int=v2 p2=Object=v3; iput-object v3,v1
+        dex=FakeDex()
+        dex.u16=lambda off: 4 if off==0 else 3 if off==2 else 0
+        ins=[(0,0x59,(0x1259,0)),(2,0x5b,(0x135b,1))]
+        capture=("Lwq7;","Ljava/lang/Object;","capture_slot")
+        with patch("audit_native_lero_async_case.field_key",return_value=capture):
+            self.assertEqual(constructor_captured_object_field(dex,0,ins),capture)
+
+    def test_mismatched_constructor_capture_and_dispatch_reader_rejected(self):
+        dex=FakeDex([("Lmb4;","a","()V")],["Lero;"])
+        ins=[(3,0x54,(0x0054,1)),
+             (5,0x1f,(0x001f,0)),
+             (7,0x54,(0x0054,2)),
+             (9,0x70,(0x1070,0,0)),
+             (12,0x0e,(0x000e,))]
+        captured=("Lwq7;","Ljava/lang/Object;","different_field")
+        with patch("audit_native_lero_async_case.field_key",
+                   side_effect=[
+                       ("Lwq7;","Ljava/lang/Object;","read_field"),
+                       ("Lero;","Lmb4;","source")
+                   ]):
+            self.assertFalse(branch_contains_loader(
+                dex,ins,3,expected_capture_field=captured))
 
     def test_exact_constructor_tag_field_not_object_field(self):
         dex=FakeDex()
