@@ -60,6 +60,11 @@ const noisy = new Set(["TRACK_CHANGED", "RESOLVE_REQUEST", "GRANT_FOUND", "GRANT
   "PLAYER_CDP_EVENT_START", "PLAYER_CDP_EVENT_PAUSE",
   "PLAYER_CDP_EVENT_PIPELINE_ERROR", "PLAYER_CDP_STATE_PLAYING",
   "PLAYER_CDP_STATE_NOT_PLAYING",
+  "PLAYER_URL_MATCH", "PLAYER_URL_QUERY_MISSING", "PLAYER_URL_QUERY_CHANGED",
+  "PLAYER_URL_EXPECTATION_MISSING", "PLAYER_URL_EXPIRED_AT_REQUEST",
+  "PLAYER_403_JSON", "PLAYER_403_HTML", "PLAYER_403_OTHER",
+  "PLAYER_403_PHP_INVALID_AUDIO_TOKEN", "PLAYER_403_PHP_ACCESS_DENIED",
+  "PLAYER_403_JSON_UNCLASSIFIED",
   "PLAYER_NET_READY", "PLAYER_NET_UNAVAILABLE", "PLAYER_NET_REQUEST",
   "PLAYER_NET_GET", "PLAYER_NET_HEAD", "PLAYER_NET_METHOD_OTHER",
   "PLAYER_NET_MEDIA", "PLAYER_NET_FETCH", "PLAYER_NET_XHR",
@@ -69,14 +74,14 @@ const noisy = new Set(["TRACK_CHANGED", "RESOLVE_REQUEST", "GRANT_FOUND", "GRANT
   "PLAYER_NET_FAILED", "PLAYER_NET_CORS_BLOCKED",
   "PLAYER_NET_CORS_CREDENTIALS", "PLAYER_NET_CORS_PREFLIGHT",
   "PLAYER_NET_CSP_BLOCKED", "PLAYER_AUDIO_RESOURCE_TIMING_SEEN"]);
-function note(code, trackId = null) {
+function note(code, trackId = null, idKind = "track") {
   if (!/^[A-Z_]{3,48}$/.test(code)) return;
   const id = typeof trackId === "string" && /^[1-9][0-9]{0,17}$/.test(trackId)
     ? trackId : null;
   if (!noisy.has(code) && logged.has(code)) return;
   if (!noisy.has(code)) logged.add(code);
   const line = new Date().toISOString() + "|" + code +
-    (id ? "|track=" + id : "") + "\n";
+    (id ? "|" + (idKind === "resource_id" ? "resource_id" : "track") + "=" + id : "") + "\n";
   recent.push(line);
   if (recent.length > 256) recent.shift();
   if (process.env.LOCALAPPDATA) {
@@ -204,6 +209,9 @@ async function relayState(view, token, now) {
     signedIn: state?.signedIn === true,
     apiOrigin: typeof state?.apiOrigin === "string" ? state.apiOrigin.slice(0, 256) : ""
   };
+  const previousOrigin = nativeAudioOrigins.get(view);
+  if (!safeState.enabled || !safeState.signedIn || previousOrigin !== safeState.apiOrigin)
+    nativeExpectedAudio.delete(view);
   nativeAudioOrigins.set(view, safeState.apiOrigin);
   const ok = await execute(view,
     ";(()=>{if(!window.__celikomBridgeNativeSetState)return false;" +
@@ -223,6 +231,9 @@ async function relayGrant(view, token, request) {
   else note("RESOLVE_BRIDGE_FAILURE", request.trackId);
   const grant = response?.found === true ? response.grant ?? null : null;
   note(grant ? "GRANT_FOUND" : "GRANT_MISS", request.trackId);
+  // W52: keep the exact grant URL ONLY in process memory for comparison with
+  // the native player request. Never log, hash, serialize, or persist it.
+  rememberExpectedAudio(view, grant);
   // The result is application data only; no bridge capability or auth token
   // is transmitted into the renderer, only an approved signed audio grant.
   const sent = await execute(view,
@@ -278,6 +289,69 @@ async function tick(view) {
 // No media commands, no WebAudio monkeypatches, no URLs/account data logged.
 const playbackWitnesses = new WeakSet();
 const nativeAudioOrigins = new WeakMap();
+const nativeExpectedAudio = new WeakMap();
+const AUDIO_RESOURCE_PATH = /^\\/api\\/v1\\/audio\\/([1-9][0-9]{0,17})$/;
+function rememberExpectedAudio(view, grant) {
+  if (!validView(view) || grant?.approved !== true ||
+      grant?.entitled !== true || typeof grant.audioUrl !== "string" ||
+      typeof grant.trackId !== "string" ||
+      !/^[1-9][0-9]{0,23}$/.test(grant.trackId)) return;
+  try {
+    const expectedOrigin = nativeAudioOrigins.get(view);
+    const url = new URL(grant.audioUrl);
+    const resourceId = AUDIO_RESOURCE_PATH.exec(url.pathname)?.[1];
+    const expiresAt = grant.expiresAt;
+    const now = Date.now();
+    if (!expectedOrigin || url.protocol !== "https:" ||
+        url.origin !== expectedOrigin || !resourceId ||
+        url.username || url.password || url.hash ||
+        !Number.isSafeInteger(expiresAt) || expiresAt <= now ||
+        expiresAt > now + 1800000 ||
+        !/^[a-f0-9]{64}$/.test(url.searchParams.get("token") || "") ||
+        !/^[0-9]{9,12}$/.test(url.searchParams.get("expires") || "") ||
+        Number(url.searchParams.get("expires")) * 1000 !== expiresAt ||
+        (url.searchParams.has("sid") &&
+          !/^[1-9][0-9]{0,17}$/.test(url.searchParams.get("sid") || "")) ||
+        new Set(url.searchParams.keys()).size !== [...url.searchParams.keys()].length ||
+        [...url.searchParams.keys()].some(k => !["token","expires","sid"].includes(k)))
+      return;
+    let entries = nativeExpectedAudio.get(view);
+    if (!entries) { entries = new Map(); nativeExpectedAudio.set(view, entries); }
+    for (const [key, item] of entries) if (item.expiresAt <= now) entries.delete(key);
+    if (entries.size >= 32) entries.delete(entries.keys().next().value);
+    // Yandex track ID remains private metadata and is never used as an audio path ID.
+    entries.set(resourceId, { href: url.origin + url.pathname + url.search,
+      expiresAt, yandexTrackId: grant.trackId });
+  } catch { /* Invalid grant is handled by the existing renderer validator. */ }
+}
+function classifyPlayerUrl(view, resourceId, actualUrl) {
+  const entry = nativeExpectedAudio.get(view)?.get(resourceId);
+  if (!entry) return "PLAYER_URL_EXPECTATION_MISSING";
+  if (entry.expiresAt <= Date.now()) return "PLAYER_URL_EXPIRED_AT_REQUEST";
+  const actual = actualUrl.origin + actualUrl.pathname + actualUrl.search;
+  if (actual === entry.href) return "PLAYER_URL_MATCH";
+  if (!actualUrl.search) return "PLAYER_URL_QUERY_MISSING";
+  return "PLAYER_URL_QUERY_CHANGED";
+}
+// Read only a real native GET's tiny JSON *403* on our exact audio route.
+// Never request bodies of successful audio, other routes, or Yandex resources;
+// never log body/error text, only two hardcoded PHP denial enums.
+async function classifyAudioDenial(debug, requestId, id, eligible) {
+  if (!eligible) return;
+  try {
+    const response = await debug.sendCommand("Network.getResponseBody", { requestId });
+    if (response?.base64Encoded || typeof response?.body !== "string" ||
+        response.body.length > 160) return;
+    const body = JSON.parse(response.body);
+    if (!body || typeof body !== "object" || Array.isArray(body) ||
+        Object.keys(body).length !== 1) return;
+    if (body.error === "invalid_audio_token")
+      note("PLAYER_403_PHP_INVALID_AUDIO_TOKEN", id, "resource_id");
+    else if (body.error === "access_denied")
+      note("PLAYER_403_PHP_ACCESS_DENIED", id, "resource_id");
+    else note("PLAYER_403_JSON_UNCLASSIFIED", id, "resource_id");
+  } catch { /* Read-only CDP body access may be unavailable; do not interfere. */ }
+}
 function observeNativePlayback(view) {
   if (!validView(view) || playbackWitnesses.has(view)) return;
   playbackWitnesses.add(view);
@@ -308,53 +382,72 @@ function observeNativePlayback(view) {
           params.requestId.length < 160 ? params.requestId : null;
         if (method === "Network.requestWillBeSent" && requestId) {
           const origin = nativeAudioOrigins.get(view);
-          let id = null;
+          let id = null, url = null;
           try {
             const u = new URL(params?.request?.url);
-            if (origin && u.origin === origin && !u.username && !u.password)
-              id = /^\/api\/v1\/audio\/([1-9][0-9]{0,17})$/.exec(u.pathname)?.[1] || null;
+            if (origin && u.origin === origin && !u.username && !u.password) {
+              id = AUDIO_RESOURCE_PATH.exec(u.pathname)?.[1] || null;
+              if (id) url = u;
+            }
           } catch {}
           if (!id) return;
           if (mediaRequests.size >= 64)
             mediaRequests.delete(mediaRequests.keys().next().value);
-          mediaRequests.set(requestId, id);
-          note("PLAYER_NET_REQUEST",id);
           const m = params?.request?.method;
+          mediaRequests.set(requestId, { id, method: m, forbiddenJson: false });
+          note("PLAYER_NET_REQUEST", id, "resource_id");
+          note(classifyPlayerUrl(view, id, url), id, "resource_id");
           note(m === "GET" ? "PLAYER_NET_GET" :
-            m === "HEAD" ? "PLAYER_NET_HEAD" : "PLAYER_NET_METHOD_OTHER", id);
+            m === "HEAD" ? "PLAYER_NET_HEAD" : "PLAYER_NET_METHOD_OTHER", id, "resource_id");
           note(params?.type === "Media" ? "PLAYER_NET_MEDIA" :
             params?.type === "Fetch" ? "PLAYER_NET_FETCH" :
-            params?.type === "XHR" ? "PLAYER_NET_XHR" : "PLAYER_NET_TYPE_OTHER", id);
+            params?.type === "XHR" ? "PLAYER_NET_XHR" : "PLAYER_NET_TYPE_OTHER", id, "resource_id");
           return;
         }
         if (requestId && mediaRequests.has(requestId)) {
-          const id = mediaRequests.get(requestId);
+          const entry = mediaRequests.get(requestId), id = entry.id;
           if (method === "Network.responseReceived") {
             const status = Number(params?.response?.status);
             note(status === 206 ? "PLAYER_NET_HTTP_PARTIAL" :
               status === 200 ? "PLAYER_NET_HTTP_FULL" :
               status === 403 ? "PLAYER_NET_HTTP_FORBIDDEN" :
               status === 401 ? "PLAYER_NET_HTTP_UNAUTHORIZED" :
-              "PLAYER_NET_HTTP_OTHER",id);
+              "PLAYER_NET_HTTP_OTHER", id, "resource_id");
+            if (status === 403) {
+              const headers = params?.response?.headers || {};
+              const contentType = Object.entries(headers).find(([k]) =>
+                k.toLowerCase() === "content-type")?.[1];
+              const ct = typeof contentType === "string" ? contentType.toLowerCase() : "";
+              const json = /^application\\/json(?:\\s*;|\\s*$)/.test(ct);
+              const html = /^text\\/html(?:\\s*;|\\s*$)/.test(ct);
+              note(json ? "PLAYER_403_JSON" : html ? "PLAYER_403_HTML" :
+                "PLAYER_403_OTHER", id, "resource_id");
+              const rawLength = Object.entries(headers).find(([k]) =>
+                k.toLowerCase() === "content-length")?.[1];
+              const length = rawLength === undefined ? null : Number(rawLength);
+              entry.forbiddenJson = entry.method === "GET" && json &&
+                (length === null || (Number.isSafeInteger(length) && length <= 160));
+            }
             return;
           }
           if (method === "Network.loadingFailed") {
-            note("PLAYER_NET_FAILED",id);
-            const cors=String(params?.corsErrorStatus?.corsError||"");
-            if(cors){
-              note("PLAYER_NET_CORS_BLOCKED",id);
+            note("PLAYER_NET_FAILED", id, "resource_id");
+            const cors = String(params?.corsErrorStatus?.corsError || "");
+            if (cors) {
+              note("PLAYER_NET_CORS_BLOCKED", id, "resource_id");
               if (/InvalidAllowCredentials|WildcardOriginNotAllowed/i.test(cors))
-                note("PLAYER_NET_CORS_CREDENTIALS",id);
+                note("PLAYER_NET_CORS_CREDENTIALS", id, "resource_id");
               else if (/Preflight/i.test(cors))
-                note("PLAYER_NET_CORS_PREFLIGHT",id);
-            } else if(params?.blockedReason==="csp")
-              note("PLAYER_NET_CSP_BLOCKED",id);
+                note("PLAYER_NET_CORS_PREFLIGHT", id, "resource_id");
+            } else if (params?.blockedReason === "csp")
+              note("PLAYER_NET_CSP_BLOCKED", id, "resource_id");
             mediaRequests.delete(requestId);
             return;
           }
           if (method === "Network.loadingFinished") {
-            note("PLAYER_NET_FINISHED",id);
+            note("PLAYER_NET_FINISHED", id, "resource_id");
             mediaRequests.delete(requestId);
+            void classifyAudioDenial(debug, requestId, id, entry.forbiddenJson);
             return;
           }
         }
