@@ -42,3 +42,8 @@ Before considering any installation on a **separate disposable device**, run `py
 
 [CI 42780177178](https://github.com/manufact-test/nomusic/actions/runs/42780177178) SUCCESS 2/2: 35,032 model admission assertions incl. 5,000 Next; 10,037 NativeSourceGate; 10,015 NativeTrackIdentityGate; read-only module APK built in CI but NOT released. **No live Yandex decoder/source replacement has been verified.** See `docs/android/ANDROID-NATIVE-FINAL-ADMISSION-HANDOFF-2026-11-10.md` and `docs/android/NEXT-CHAT.md`.
 
+
+
+## 10.11.2026 — verified signed media engine class hierarchy
+
+Read-only signed-original CI now found 4 concrete obfuscated classes implementing AndroidX Media3 ExoPlayer, but no named `ExoPlayerImpl`, `DefaultMediaSourceFactory` nor `prepare()V` code body in those four class inheritance chains. See `docs/android/ANDROID-NATIVE-REAL-PLAYER-IMPLEMENTOR-EVIDENCE-2026-11-10.md`. These are static implementation candidates, NOT a verified native audio source. An ubuntu-24.04-arm runner is native Linux ARM64 but cannot boot an accelerated native Android guest without /dev/kvm; do not treat CI's ARM runner as a working Android device. No owner action now.
