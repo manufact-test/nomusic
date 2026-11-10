@@ -8,7 +8,7 @@ namespace Celikom.Companion;
 /// Chrome popup-inspired 10px-rounded button with legible disabled state.
 /// Owner-drawn ONLY for presentation; preserves native WinForms Button events.
 /// Palette matches extension/popup/popup.css.
-</summary>
+/// </summary>
 public sealed class PopupButton : Button
 {
     public PopupButton()
