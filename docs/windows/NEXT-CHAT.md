@@ -1,3 +1,13 @@
+# FIRST READ — CELIKOM Windows W61 / 0.24.9 PRIVATE OWNER CANDIDATE (2026-11-10)
+
+**READ FIRST:** `docs/windows/W61-CONSUMER-UX-FAST-TOGGLE-OWNER-CANDIDATE-20261110.md`. Continue existing native Windows companion, NOT new app. Owner **personally confirmed 0.24.8 Start/Stop correctly changes the source of an already playing song**, but complains of delayed and sharp audible transition ("пшик"). Missing fresh diagnostic ZIP: user says it was attached, but it did not appear in available files. **Do not invent log evidence or claim click fixed.**
+
+**W61 0.24.9 already compiled:** full CI **SUCCESS** https://github.com/manufact-test/nomusic/actions/runs/42811326672; independent **0.24.8→0.24.9 same-user DPAPI one-app update SUCCESS** https://github.com/manufact-test/nomusic/actions/runs/42811784981; UI/Windows tests pass. Exact EXE `CELIKOM-W61-CONSUMER-UX-FAST-TOGGLE-UNSIGNED.exe`, SHA256 `71c656129d68d596439e242513242fe86acd47eb0b9c35a94e7fb469f934159d`. **Uploaded to ChatGPT Library** `/CELIKOM/Windows/`, library file `file_00000000a5d88246892f939fa3507c7c`; re-downloaded and checksum verified. Need owner's actual real-machine test, not another blind build. Start from current branch head, which adds docs only on top of successful W61 source.
+
+**W61 UX:** full-width navigation, red Account until login, first-run login screen with email/password only, no visible API/dev clutter, diagnostics ONLY authenticated live-verified staff from exact Chrome extension email-hash allowlist, Start can connect/update installed native module with confirmation and automatically open Yandex if closed. Local state poll reduced from 600ms to 260ms. **No experimental volume fading**; signed source reload preserved until sound problem is causally researched. Preserve real owner 0.24.8 source backup `backup/windows-w60-0248-owner-toggle-pass-before-ux-20261110` @ `a2a0a719080e101bc38f81adf59bcb76a185450b` and owner accepted 0.24.7 backup. Never edit Android Test.50, production or vendor original signed Yandex.
+
+---
+
 # FIRST READ — CELIKOM Windows W60 / 0.24.8 OWNER TRIAL READY, NOT YET OWNER-TESTED (2026-11-10)
 
 **Контекст:** Продолжение уже существующего CELIKOM Windows companion for the **real installed desktop Yandex.Music**, not a fork and not a second music player. Owner uses 0.24.7, personally confirms sound replacement + pause + seek + Next + MyWave all work great. Owner NOW wants **instant same-track Start/Stop** and **desktop GUI identical in style to real browser extension**. Owner asked previous assistant to STOP, save and hand off; **do not restart design or root-cause research from scratch**.
