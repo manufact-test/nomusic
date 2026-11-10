@@ -57,7 +57,7 @@ jobs:
       - name: Compile source with warnings as errors
         run: dotnet build windows-companion/w15/Celikom.Companion/Celikom.Companion.csproj -c Release -warnaserror
       - name: Test real mouse/keyboard support selector lifecycle (24 changes)
-        run: dotnet run --project windows-companion/w68/Celikom.SelectorInteractions/Celikom.SelectorInteractions.csproj -c Release
+        run: dotnet run --project windows-companion/w67/Celikom.SelectorInteractions/Celikom.SelectorInteractions.csproj -c Release
       - name: Run native local bridge and host preflight tests
         run: dotnet run --project windows-companion/w15/Celikom.Companion.Tests/Celikom.Companion.Tests.csproj -c Release
       - name: Test native image construction and crash recovery
