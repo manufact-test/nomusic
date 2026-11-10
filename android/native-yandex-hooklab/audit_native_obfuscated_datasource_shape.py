@@ -27,6 +27,8 @@ from audit_native_typed_wrapper_coroutines import (
     brief_type,method_profile,class_field_shapes
 )
 from audit_native_postfileinfo_lifecycle import merge_reverse
+from audit_native_register_bridge import instructions
+from audit_native_ga4_field2_value_origins import safe_operand_metadata
 from trace_native_model_to_decoder import bounded_obfuscated
 import clone_native_splits_ephemeral as exact
 
@@ -45,7 +47,7 @@ KEEP_METHODS={
  "Luiq;":{"a","<init>"},
  "Lha4;":{"b","c","d","f","close","read","getUri","<init>"},
  "Lza4;":{"b","c","d","f","close","read","getUri","<init>"},
- "Lz3f;":{"<init>"},
+ "Lz3f;":{"a","b","<init>"},
 }
 MAX_CLASSES=400000
 MAX_SUBTYPES=300
@@ -81,6 +83,7 @@ def signed_class_and_method_shapes(apks):
     relationships={}
     owners=defaultdict(set)
     definitions=defaultdict(set)
+    callsite_profiles={}
     fields={}
     dex_count=0
     for apk in apks:
@@ -106,6 +109,22 @@ def signed_class_and_method_shapes(apks):
                     m=d.method(idx)
                     if m[0] in TARGET_OWNER_NAMES:
                         definitions[m[0]].add(m)
+                    if m[1] in KEEP_METHODS.get(m[0],set()) and m not in callsite_profiles:
+                        ins=list(instructions(d,off))
+                        cap=160
+                        # Only structural type/register coordinates; never
+                        # export bytecode/string constants or actual URI.
+                        relevant=[{
+                            "ordinal":i,
+                            **safe_operand_metadata(d,op,w),
+                        } for i,(_,op,w) in enumerate(ins[:cap])]
+                        callsite_profiles[m]={
+                            "method":exact_shape(m),
+                            "instructions":len(ins),
+                            "first_instructions_truncated":len(ins)>cap,
+                            "safe_register_roles":relevant,
+                            "exact_live_decoder_binding":False,
+                        }
     if dex_count!=6:raise ValueError("SIX_SIGNED_DEX_REQUIRED")
     if SOURCE_INTERFACE not in relationships or DATA_READER_ANCESTOR not in relationships:
         raise ValueError("OBFUSCATED_DATASOURCE_INTERFACE_MISSING")
@@ -138,6 +157,8 @@ def signed_class_and_method_shapes(apks):
         "concrete_implementor_examples":[brief_type(t) for t in implementors[:MAX_SUBTYPES]],
         "ha4_is_implementor":"Lha4;" in implementors,
         "za4_is_implementor":"Lza4;" in implementors,
+        "selected_source_open_and_factory_register_windows":[
+            rec for _,rec in sorted(callsite_profiles.items())[:50]],
         "actual_source_ownership_current_audio_proven":False,
     }
 
