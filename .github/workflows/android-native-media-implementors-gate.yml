@@ -1,0 +1,33 @@
+name: Android exact signed concrete ExoPlayer implementation scan (READ-ONLY)
+on:
+  push:
+    branches:
+      - experiment/android-native-yandex-fileinfo-hooklab-20261109
+    paths:
+      - 'android/native-yandex-hooklab/audit_native_media_implementors.py'
+      - 'android/native-yandex-hooklab/tests/test_native_media_implementors.py'
+      - '.github/workflows/android-native-media-implementors-gate.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  signed-concrete-decoder-candidates:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Validate DEX class-implements graph with artificial classes
+        run: |
+          python3 -m py_compile android/native-yandex-hooklab/audit_native_media_implementors.py
+          python3 -m unittest discover -s android/native-yandex-hooklab/tests -p 'test_native_media_implementors.py' -v
+      - name: Discover concrete implementations inside exact signed 6 DEX
+        run: python3 android/native-yandex-hooklab/audit_native_media_implementors.py
+      - name: No APK or account data exported
+        if: always()
+        run: |
+          test ! -d android/native-yandex-hooklab/release
+          test ! -d android/native-yandex-hooklab/patched
+          echo 'Static signed class hierarchy only, no playback'
