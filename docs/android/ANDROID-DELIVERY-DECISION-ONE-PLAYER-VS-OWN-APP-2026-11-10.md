@@ -1,3 +1,5 @@
+> **КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ (10.11.2026):** [ОСНОВНОЕ ТЗ ВЛАДЕЛЬЦА — отдельное CELIKOM РЯДОМ с официальной Яндекс.Музыкой](ANDROID-PRODUCT-REQUIREMENT-OWNER-CLARIFICATION-2026-11-10.md). Никакого решения поместить Яндекс *внутрь* CELIKOM или заменить сервис на CELIKOM-only Media3 владелец НЕ принимал. Конкурентские клоны/WebView/старую Test.50 лишь сравнивали как возможные fallback, они НЕ выбраны. Содержимое ниже со словами «Яндекс внутри CELIKOM», «fallback approved tracks Media3» и «обязательный WebView proof» — **ОШИБОЧНОЕ и SUPERSEDED**, НЕ ИСПОЛНЯТЬ. Основную native companion ветку не менять без разрешения владельца.
+
 > **SUPERSEDED 10.11.2026:** ошибочный продуктовый выбор «собственный CELIKOM Media3 без каталога Яндекса» отклонён владельцем. [Правильное ТЗ — Яндекс внутри CELIKOM](ANDROID-CORRECTED-PRODUCT-REQUIREMENT-YANDEX-INSIDE-CELIKOM-2026-11-10.md). Остальной текст — исторический анализ, а НЕ указание продолжать standalone Media3-only.
 
 # CELIKOM Android — новый план доставки, 10 ноября 2026
