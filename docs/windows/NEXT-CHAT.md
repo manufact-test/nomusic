@@ -1,3 +1,17 @@
+# FIRST READ — CELIKOM Windows W64 / 0.24.12 PRIVATE OWNER TRIAL (2026-11-10)
+
+**READ FIRST:** `docs/windows/W64-OWNER-02412-UX-PREUPLOAD-SCROLL-20261110.md`. Continue existing CELIKOM Windows `manufact-test/nomusic`, branch `experiment/windows-stop-lifecycle-20261110`. User finished all screenshot feedback on actual 0.24.11 and requested one large integrated fix. W64 0.24.12 addresses fixed bottom version, smaller centered status dot, precise Yandex loading text, title/artist multi-line, active/native version status distinction, extension-like suggestion/upload UI, immediate red 1.5-second file-duration preflight with blocked send, filename warning, styled rights checkbox, stable gutters and real scrollable account/support/upload panels. **Native audio switching/reload remains unchanged.**
+
+**Frozen source backup** `backup/windows-w64-02412-built-ci-await-owner-20261110` @ `12c0833dbe51d5f2b5970feedbecc2a4427b0edb`. Previous W63 source `backup/windows-w63-02411-built-ci-await-owner-20261110` @ `266beacfcfa524eeb9ecae91d44b9316ec257286`. Accepted audio W61 0.24.9 `backup/windows-w61-0249-audio-owner-approved-before-ui-parity-20261110` @ `44e69d78b459ed512862819280ebdb8b3dbc7e7d`. Never rewrite backups.
+
+**CI SUCCESS**: 9 real visual Windows snapshots/scroll/footer/red-error checks https://github.com/manufact-test/nomusic/actions/runs/42830887008, signed source/native W60 check https://github.com/manufact-test/nomusic/actions/runs/42831338168, W64 installer build https://github.com/manufact-test/nomusic/actions/runs/42831368648, **independent 0.24.11→0.24.12 same-user DPAPI, one app and untouched Yandex** https://github.com/manufact-test/nomusic/actions/runs/42831819681.
+
+**Exact installer:** `CELIKOM-W64-EXTENSION-FINAL-UX-UNSIGNED.exe` SHA256 `c8e5dd395fdb7133a91f8418d0b910f97c84168111586166592ffac03144b5b7` (43,540,794 bytes). Library path `/CELIKOM/Windows/`, file ID `file_000000002c048246b2d291ac04157925` / library ID `libfile_9e5b773199b88191b695a8610f216c6d`. **Read-back hash identical**.
+
+**NEXT STEP:** user installs over actual 0.24.11 without uninstall/relogin, checks gutter/scroll/footer/account/promocode, song title+artist and actual native-active status, wrong audio MP3 preflight immediately red with no server transfer, then checks pause/seek/Start/Stop/MyWave. W64 is NOT owner-tested and not publicly released. Potential remaining artist extraction depends on Yandex current-player metadata; no invented artist/title. Do NOT alter Android Test.50, production, original Yandex audio/player files.
+
+---
+
 # FIRST READ — W63 Windows 0.24.11 PRIVATE OWNER TRIAL (2026-11-10)
 
 **READ:** `docs/windows/W63-OWNER-02411-EXTENSION-UX-TRACK-20261110.md`. Continue CELIKOM Windows in `manufact-test/nomusic` / `experiment/windows-stop-lifecycle-20261110`, **NOT a new app**. Owner explicitly rejected W62 0.24.10 UI while audio worked. New **0.24.11** addresses empty account and clipped support, no Original button, Start label, real status green approved/pending before showing contribution forms, song title/artist from current player when present, true startup feedback, proper compact widths and admin-only diagnostics. Do NOT claim pixels/features are fully identical before user test. No source edits after successful W63 build, just docs.
