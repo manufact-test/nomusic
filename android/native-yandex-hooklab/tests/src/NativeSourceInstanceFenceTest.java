@@ -146,8 +146,8 @@ public final class NativeSourceInstanceFenceTest {
         f.read(11);f.close(12);
         yes(!f.fence.snapshot().syntheticSequenceComplete,
                 "old invalid observation cannot be rehabilitated by later calls");
-        eq(3,f.fence.snapshot().rejectedCount,
-                "two out-of-order calls and invalid negative byte count recorded");
+        eq(4,f.fence.snapshot().rejectedCount,
+                "three out-of-order calls and invalid negative byte count recorded");
         Fixture unknown=new Fixture();
         long missing=unknown.fence.begin(null,10);
         eq(Phase.INVALIDATED,unknown.fence.snapshot().phase,"null selection unavailable");
