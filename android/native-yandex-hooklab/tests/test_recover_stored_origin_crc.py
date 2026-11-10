@@ -4,6 +4,7 @@ import sys
 import tempfile
 import unittest
 import zipfile
+from unittest.mock import patch
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from recover_stored_origin_crc import HOST, rewrite_only_if_origin_crc_mismatch
@@ -48,6 +49,23 @@ class CrcRecoveryTest(unittest.TestCase):
             self.assertEqual(z.read(HOST),origin)
             self.assertEqual(z.read("classes.dex"),b"loader-stub")
             self.assertIn(b'"sigBypassLevel":0',z.read("assets/lspatch/config.json"))
+    def test_overlapping_directory_layout_repacked_even_when_crc_matches(self):
+        src,origin=self.input_zip(corrupt=False)
+        original_read=zipfile.ZipFile.read
+        def simulate_overlap(zf, name, *args, **kwargs):
+            n = name.filename if isinstance(name, zipfile.ZipInfo) else name
+            if zf.filename == str(src) and n == HOST:
+                raise zipfile.BadZipFile("Overlapped entries: Possible zip bomb")
+            return original_read(zf,name,*args,**kwargs)
+        dest=self.dir/"repaired-overlap.apk"
+        with patch.object(zipfile.ZipFile,"read",simulate_overlap):
+            result=rewrite_only_if_origin_crc_mismatch(src,dest)
+        self.assertTrue(result["layout_repacked"])
+        self.assertFalse(result["crc_repaired"])
+        self.assertEqual(result["repacked_reason"],"OVERLAPPING_DIRECTORY_LAYOUT")
+        with zipfile.ZipFile(dest) as z:
+            self.assertEqual(z.read(HOST),origin)
+
     def test_rejects_double_repair_and_new_destination_collision(self):
         src,_=self.input_zip(corrupt=False)
         dest=self.dir/"fixed.apk"

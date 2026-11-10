@@ -1,4 +1,4 @@
-"""Tightly bounded repair of a known malformed ZIP CRC in a private lab clone.
+"""Tightly bounded repair of origin ZIP CRC or overlapping-entry directory metadata.
 
 An upstream metaloader output may contain a STORED nested origin.apk whose
 central-directory CRC does not match its intact bytes. This repairs only ZIP
@@ -62,9 +62,26 @@ def rewrite_only_if_origin_crc_mismatch(input_apk: Path,
         entry = src.getinfo(HOST)
         raw = raw_stored_member(input_apk, entry)
         actual_crc = zlib.crc32(raw) & 0xffffffff
-        if entry.CRC == actual_crc:
-            # No changes needed; caller must use the original signed clone.
-            return {"crc_repaired": False, "verified_outer_entry_count": len(entries)}
+        reading_error = None
+        try:
+            src.read(entry)
+        except zipfile.BadZipFile as exc:
+            message = str(exc).lower()
+            if "overlapped entries" in message:
+                reading_error = "OVERLAPPING_DIRECTORY_LAYOUT"
+            elif "bad crc" in message:
+                reading_error = "CRC_MISMATCH"
+            else:
+                raise ValueError("UNKNOWN_EMBEDDED_ORIGIN_ZIP_CORRUPTION") from None
+        if reading_error is None:
+            if entry.CRC != actual_crc:
+                raise ValueError("ZIP_READER_AND_RAW_CRC_DISAGREE")
+            return {"crc_repaired": False, "layout_repacked": False,
+                    "verified_outer_entry_count": len(entries)}
+        if reading_error == "CRC_MISMATCH" and entry.CRC == actual_crc:
+            raise ValueError("ZIP_CRC_ERROR_BUT_RAW_CRC_MATCHES")
+        # Intact native/DEX payload will be independently SHA compared to
+        # the verified original clone AFTER this ZIP container rebuild.
         with zipfile.ZipFile(output_apk, "w", allowZip64=True) as rebuilt:
             rebuilt.comment = src.comment
             for member in entries:
@@ -84,4 +101,7 @@ def rewrite_only_if_origin_crc_mismatch(input_apk: Path,
                 check.read(entry)
             except (zipfile.BadZipFile, RuntimeError):
                 raise ValueError("REBUILT_APK_MEMBER_CRC_FAILED") from None
-    return {"crc_repaired": True, "verified_outer_entry_count": len(entries)}
+    return {"crc_repaired": entry.CRC != actual_crc,
+            "layout_repacked": True,
+            "repacked_reason": reading_error,
+            "verified_outer_entry_count": len(entries)}

@@ -149,7 +149,7 @@ def wrap_clone_with_lspatch_zero(clone: Path, work: Path, key: Path,
     except (ValueError, zipfile.BadZipFile):
         raise arsc.TrialError("LSPATCH_OUTER_CRC_REPAIR_NOT_SAFE") from None
     final_apk = results[0]
-    if crc_report["crc_repaired"]:
+    if crc_report["layout_repacked"]:
         aligned = work / "loader-zero-crc-aligned.apk"
         arsc.run([source.sdk_tool("zipalign"), "-f", "-p", "4",
                   str(raw_rebuilt), str(aligned)],
@@ -162,7 +162,10 @@ def wrap_clone_with_lspatch_zero(clone: Path, work: Path, key: Path,
         if fingerprint(aligned, arsc) != expected_signer:
             raise arsc.TrialError("LSPATCH_REBUILT_OWN_SIGNER_MISMATCH")
         final_apk = aligned
-        print(json.dumps({"lspatch_zero_phase": "EMBEDDED_ORIGIN_CRC_REBUILT_AND_RESIGNED"}))
+        print(json.dumps({"lspatch_zero_phase": "EMBEDDED_ORIGIN_ZIP_LAYOUT_REBUILT_OWN_SIGNER"}))
     report = check_zero_loader(final_apk, clone, expected_signer, arsc)
     report["nested_origin_zip_crc_repaired"] = crc_report["crc_repaired"]
+    report["nested_origin_zip_layout_repacked"] = crc_report["layout_repacked"]
+    if crc_report["layout_repacked"]:
+        report["nested_origin_zip_layout_issue"] = crc_report["repacked_reason"]
     return final_apk, report
