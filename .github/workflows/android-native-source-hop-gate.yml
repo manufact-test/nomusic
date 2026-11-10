@@ -1,0 +1,33 @@
+name: Android signed source-to-Media3 shallow call paths (READ-ONLY)
+on:
+  push:
+    branches:
+      - experiment/android-native-yandex-fileinfo-hooklab-20261109
+    paths:
+      - '.github/workflows/android-native-source-hop-gate.yml'
+      - 'android/native-yandex-hooklab/trace_native_source_hops.py'
+      - 'android/native-yandex-hooklab/tests/test_native_source_hops.py'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  signed-source-hops-readonly:
+    runs-on: ubuntu-latest
+    timeout-minutes: 22
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Compile and test bounded graph without media or credentials
+        run: |
+          python3 -m py_compile android/native-yandex-hooklab/trace_native_source_hops.py
+          python3 -m unittest discover -s android/native-yandex-hooklab/tests -p 'test_native_source_hops.py' -v
+      - name: Scan exactly pinned unchanged publisher signed six DEX
+        run: python3 android/native-yandex-hooklab/trace_native_source_hops.py
+      - name: No vendor APK, trace, stream or keys delivered
+        if: always()
+        run: |
+          test ! -d android/native-yandex-hooklab/release
+          test ! -d android/native-yandex-hooklab/patched
+          echo 'Read-only signed DEX static call graph only; no copied audio or vendor binary'
