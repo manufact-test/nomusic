@@ -10,6 +10,7 @@ on:
       - windows-companion/w22/native-resource-adapter.mjs
       - windows-companion/w22/native-resource-adapter.test.mjs
       - windows-companion/w24/**
+      - windows-companion/w15/Celikom.Companion.Tests/**
       - .github/workflows/windows-w23-native-host.yml
   workflow_dispatch:
 
