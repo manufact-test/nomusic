@@ -1,5 +1,16 @@
 # CELIKOM Android Test.51 — isolated signed HONOR seek timeout verification (2026-11-10)
 
+## Подписанный выпуск — проверено, 10.11.2026
+
+- **Точная версия исходников подписанного APK:** `53576ddd6bc73af602ae7fd7cb4935b5c4afe374`. Защищённый rollback: `backup/android-test51-signed-ci-green-owner-review-20261110`.
+- **[GitHub CI #42853269873 — SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/42853269873)**: `native-android` SUCCESS, `build-celikom-test / build-test-app` SUCCESS, задачи stable publish SKIPPED.
+- Артефакт Actions ID `13782340992`, название `CELIKOM-Test-0.3.85-test.51-code-86136`, APK `CELIKOM-Android-0.3.85-TEST-51-SEEK-FAILOPEN-SIGNED.apk`.
+- **SHA-256 APK:** `a978114c8dafbf20e04983ddffd0d448bff63cdca28ec50f1e3f48f734a1c76f`; точный размер **8 833 177 bytes**. ZIP распакован, SHA-256 сверен с verification.json и receipt.json.
+- Проверен **оригинальный сертификат подписи** SHA-256 `67fe81c56fac1c1d145344b69a0e3faf9005cf6607f4e26ca27d5926c3eefc4f`; **APK Signature Scheme v3 PASS**, v2 не заявлен (v2=false и у исходного base APK). Оригинальные assets прежние; пакет `pro.celikom.nativeprobe.test`; OTA отключён; request-install permission отсутствует.
+- Экземпляр APK загружен в персональную CELIKOM Library, `libfile_e4d1daff51ec8191b49272c6c9217188`, путь `/CELIKOM/Android/CELIKOM-Android-0.3.85-test.51-signed.apk`.
+- **Owner HONOR акустический PASS пока отсутствует.** Исходники, Test.50 backup, основная Android-версия, Windows, Yandex APK, production, API, БД и сервер не изменялись.
+
+
 ## Purpose
 
 Test.51 is a **separate candidate build**, derived from owner-accepted Test.50 plus the four-path timeout recovery audit. It is **not** an accepted stable release or a verified fix for the original Yandex decoder transport.
