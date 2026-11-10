@@ -1842,13 +1842,14 @@ final class ReplacementEngine {
   * The original Yandex player is never commanded by this method.
   */
  void suspend(String reason,long delay){
-  final boolean nativeSeekTimedOut="seek_timeout".equals(reason);
+  final boolean nativeSeekTimedOut="seek_timeout".equals(reason)
+      ||"hot_cached_seek_timeout".equals(reason);
   final String failedKey=identityKey;
   final PlaybackSource failedSource=owner.current;
   final boolean sameSource=nativeSeekTimedOut&&failedKey!=null
       &&failedSource!=null&&Objects.equals(failedKey,failedSource.key);
-  // All original Test.50 seek-timeout entrypoints (including the delayed
-  // native seek watchdog) pass through this single recovery method.
+  // All three original Test.50 alignment seek-timeout entrypoints and the
+  // separately guarded audible-cache seek watchdog converge here.
   SeekTimeoutCircuitBreaker.Decision decision=nativeSeekTimedOut
       ?seekTimeoutBreaker.timeout(sameSource?failedKey:null,
           SystemClock.elapsedRealtime()):null;
