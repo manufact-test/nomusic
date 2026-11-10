@@ -32,6 +32,7 @@ jobs:
             android/native-yandex-hooklab/app/src/main/java/pro/celikom/yandex/nativehooklab/NativePlaybackStateProbe.java \
             android/native-yandex-hooklab/app/src/main/java/pro/celikom/yandex/nativehooklab/NativeGrantContract.java \
             android/native-yandex-hooklab/app/src/main/java/pro/celikom/yandex/nativehooklab/NativeReplacementLifecycle.java \
+            android/native-yandex-hooklab/app/src/main/java/pro/celikom/yandex/nativehooklab/NativeSourceInstanceFence.java \
             $(find android/native-yandex-hooklab/tests/src -type f -name '*.java' | sort)
           java -cp /tmp/celikom-jvm-hooklab HookSpecTest
           java -cp /tmp/celikom-jvm-hooklab NativeSourceGateTest
@@ -41,6 +42,7 @@ jobs:
           java -cp /tmp/celikom-jvm-hooklab NativePlaybackStateProbeTest
           java -cp /tmp/celikom-jvm-hooklab NativeGrantContractTest
           java -cp /tmp/celikom-jvm-hooklab NativeReplacementLifecycleTest
+          java -cp /tmp/celikom-jvm-hooklab NativeSourceInstanceFenceTest
       - name: Test read-only ARM device gate (synthetic snapshots; no phone connected)
         run: python3 -m unittest discover -s android/native-yandex-hooklab/tests -p 'test_*.py' -v
       - name: Disallow sensitive permissions, substitute player and mutable audio sources
@@ -79,6 +81,14 @@ jobs:
               assert unsafe not in grant and unsafe not in lifecycle, unsafe
           for forbidden in ['getString(', 'getLong(', 'metadata.get', 'MediaMetadata.METADATA_', 'getQueue(', 'getMediaId(', 'getDescription(']:
               assert forbidden not in source, forbidden
+          fence=(base/'app/src/main/java/pro/celikom/yandex/nativehooklab/NativeSourceInstanceFence.java').read_text()
+          assert 'NativeSourceInstanceFence' not in source, 'new model must remain unwired from Yandex'
+          assert 'System.out.' not in fence and 'Log.' not in fence and 'MediaPlayer' not in fence
+          for forbidden in ('HttpURLConnection','getMediaId','getMetadata','getTitle',
+                            'getUri','trackId','editionId','getDeclaredField'):
+              assert forbidden not in fence, forbidden
+          assert 'selectedSource' in fence and 'generation' in fence
+          assert 'syntheticSequenceComplete' in fence
           assert 'if (targetHooked) return;' in source
           print('PASS: exact-version metadata witness is read-only, no data values, no second player')
           PY
