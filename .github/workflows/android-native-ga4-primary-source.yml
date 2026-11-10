@@ -1,0 +1,35 @@
+name: Android original signed Lga4 dual Le48 source slot audit (READ-ONLY)
+on:
+  push:
+    branches:
+      - experiment/android-native-yandex-fileinfo-hooklab-20261109
+    paths:
+      - 'android/native-yandex-hooklab/audit_native_ga4_primary_source.py'
+      - 'android/native-yandex-hooklab/audit_native_ga4_field2_value_origins.py'
+      - 'android/native-yandex-hooklab/tests/test_native_ga4_primary_source.py'
+      - '.github/workflows/android-native-ga4-primary-source.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  original-signed-two-receiver-fields:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Compile and verify exact disjoint source slot invariants
+        run: |
+          set -eu
+          python3 -m py_compile android/native-yandex-hooklab/audit_native_ga4_primary_source.py
+          python3 -m unittest discover -s android/native-yandex-hooklab/tests -p 'test_native_ga4_primary_source.py' -v
+      - name: Read-only signed six DEX Lga4 primary and secondary register paths
+        run: python3 android/native-yandex-hooklab/audit_native_ga4_primary_source.py
+      - name: No host binary or writable playback package output
+        if: always()
+        run: |
+          test ! -d android/native-yandex-hooklab/release
+          test ! -d android/native-yandex-hooklab/patched
+          echo 'Pinned original only; real native source/decoder remains unproven'
