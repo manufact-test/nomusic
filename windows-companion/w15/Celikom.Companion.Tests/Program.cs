@@ -222,13 +222,52 @@ try
         "signed URL cannot appear in diagnostic event");
     Test(!DiagnosticLog.IsSafeEntry(safeTimestamp + "|LOGIN_EMAIL=test@example.com"),
         "email cannot appear in diagnostic event");
+    Test(DiagnosticLog.IsSafeEntry(safeTimestamp + "|PLAYER_NET_REQUEST|resource_id=139"),
+        "W53 native resource id survives export allowlist");
+    Test(DiagnosticLog.IsSafeEntry(safeTimestamp + "|PLAYER_403_PHP_INVALID_AUDIO_TOKEN|resource_id=139"),
+        "W53 typed 403 event survives export allowlist");
+    Test(DiagnosticLog.IsSafeEntry(safeTimestamp + "|PLAYER_URL_QUERY_CHANGED|resource_id=89"),
+        "W53 signed URL mismatch classification survives export");
+    Test(!DiagnosticLog.IsSafeEntry(safeTimestamp + "|PLAYER_URL_MATCH|resource_id=139?token=SECRET"),
+        "W53 rejects URLs and query leakage in signed request log");
+    Test(!DiagnosticLog.IsSafeEntry(safeTimestamp + "|PLAYER_403_HTML|resource_id=139|token=secret"),
+        "W53 rejects extra log fields");
+    Test(!DiagnosticLog.IsSafeEntry(safeTimestamp + "|PLAYER_NET_REQUEST|resource_id=0139"),
+        "W53 rejects ambiguous leading-zero resource IDs");
+    Test(!DiagnosticLog.IsSafeEntry(safeTimestamp + "|PLAYER_NET_REQUEST|resource_id=139\\nSECRET"),
+        "W53 rejects multiline log injection");
+    var nativeFixture = Path.Combine(DiagnosticLog.DirectoryPath, "native-events.log");
+    Directory.CreateDirectory(DiagnosticLog.DirectoryPath);
+    var when = DateTimeOffset.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffZ",
+        System.Globalization.CultureInfo.InvariantCulture);
+    File.AppendAllText(nativeFixture,
+        when + "|PLAYER_NET_REQUEST|resource_id=739209\\n" +
+        when + "|PLAYER_NET_HTTP_FORBIDDEN|resource_id=739209\\n" +
+        when + "|PLAYER_URL_QUERY_CHANGED|resource_id=739209\\n" +
+        when + "|PLAYER_403_PHP_INVALID_AUDIO_TOKEN|resource_id=739209\\n" +
+        when + "|PLAYER_403_HTML|resource_id=739209\\n" +
+        when + "|PLAYER_403_PHP_ACCESS_DENIED|resource_id=739209\\n" +
+        when + "|PLAYER_NET_REQUEST|resource_id=739209?token=SENSITIVE\\n" +
+        when + "|PLAYER_NET_REQUEST|resource_id=739209|sid=SENSITIVE\\n");
     DiagnosticLog.Record("OWNER_DIAG_TEST", "123");
     var snapshot = DiagnosticLog.ExportText("5.126.1.0", "ACTIVE", true, true, true);
     Test(snapshot.Contains("OWNER_DIAG_TEST|track=123"), "diagnostic export has observed event");
     Test(snapshot.Contains("DiagnosticScope=LAST_15_MINUTES"), "recent sessions only");
     Test(snapshot.Contains("ReplacementAudibleProof=NOT_AVAILABLE_FROM_NETWORK_OR_MAPPING"),
         "successful MP3 probe never implies audio replacement");
-    Test(snapshot.Contains("CodeBaseline=W50_NATIVE_NETWORK_WITHOUT_DIAGNOSTIC_FETCH"), "real-engine diagnostic contract");
+    Test(snapshot.Contains("CodeBaseline=W53_NATIVE_403_CLASSIFICATION_EXPORT_SAFE"), "W53 truthful diagnostics baseline");
+    Test(snapshot.Contains("PLAYER_URL_QUERY_CHANGED|resource_id=739209"),
+        "W53 native URL mismatch reaches actual exported TXT");
+    Test(snapshot.Contains("PLAYER_403_PHP_INVALID_AUDIO_TOKEN|resource_id=739209"),
+        "W53 real PHP denial category reaches owner export");
+    Test(snapshot.Contains("NativeAudio403Observed=true") &&
+         snapshot.Contains("PlayerNetworkRequestObserved=true") &&
+         snapshot.Contains("NativeMediaUrlQueryMismatchObserved=true") &&
+         snapshot.Contains("Native403PhpSignatureRejectionObserved=true") &&
+         snapshot.Contains("Native403PhpAccessDenialObserved=true") &&
+         snapshot.Contains("Native403HtmlResponseObserved=true"),
+        "W53 owner summary correctly reflects native resource events");
+    Test(!snapshot.Contains("SENSITIVE"),"W53 malformed native lines cannot leak signed query or sid");
     Test(snapshot.Contains("EngineFastPauseObserved=") &&
         snapshot.Contains("PlayerAudibleEventObserved=") &&
         snapshot.Contains("DecoderErrorObserved="), "typed owner playback evidence summary");
