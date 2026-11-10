@@ -37,7 +37,29 @@ function observeOriginalFileInfo(info, emit, id) {
   }
 }
 
+// W56: Yandex's DownloadInfoSource.src appends "?vsid=...&source_index=..."
+// to urls[0] even when it already contains CELIKOM's signed query. Without
+// an inert trailing field that becomes "sid=7?vsid=...", which fails PHP's
+// strict SID/HMAC checks. Attach this ONLY to an already-validated native
+// playback URL; NEVER alter the grant, signer, native renderer or PHP checks.
+// Any Yandex-appended "?..." is swallowed by this ignored field's value,
+// while token/expires/sid remain exactly as issued. Ordinary Yandex source
+// links are not touched.
+const NATIVE_SIGNED_QUERY_GUARD = "celikom_native_query_guard=0";
+function nativePlaybackUrl(validatedSignedUrl) {
+  if (typeof validatedSignedUrl !== "string" ||
+      !validatedSignedUrl.startsWith("https://") ||
+      !validatedSignedUrl.includes("?token=") ||
+      !validatedSignedUrl.includes("&expires=") ||
+      validatedSignedUrl.includes("#") ||
+      validatedSignedUrl.includes("celikom_native_query_guard")) {
+    throw new TypeError("W56_UNVALIDATED_SIGNED_SOURCE");
+  }
+  return validatedSignedUrl + "&" + NATIVE_SIGNED_QUERY_GUARD;
+}
+
 function toDownloadInfo(original, trackId, url, mimeType, quality) {
+  const mediaUrl = nativePlaybackUrl(url);
   const result = { ...(original && typeof original === 'object' && !('error' in original) ? original : {}) };
   delete result.key;
   delete result.iv;
@@ -51,7 +73,7 @@ function toDownloadInfo(original, trackId, url, mimeType, quality) {
     // This is a compatibility experiment; owner audio remains UNVERIFIED.
     gain: false, bitrate: mimeType === 'audio/mpeg' ? 320
       : (Number.isFinite(result.bitrate) && result.bitrate > 0) ? result.bitrate : undefined,
-    urls: [url], url
+    urls: [mediaUrl], url: mediaUrl
   };
 }
 
