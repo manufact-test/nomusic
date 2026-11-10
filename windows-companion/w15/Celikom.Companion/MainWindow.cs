@@ -10,11 +10,15 @@ namespace Celikom.Companion;
 /// </summary>
 public sealed class MainWindow : Form
 {
-    private static readonly Color Ink = ColorTranslator.FromHtml("#0B1013");
-    private static readonly Color Paper = ColorTranslator.FromHtml("#F7F8F4");
-    private static readonly Color Secondary = ColorTranslator.FromHtml("#556368");
-    private static readonly Color Accent = ColorTranslator.FromHtml("#14594D");
-    private static readonly Color Border = ColorTranslator.FromHtml("#DCE8E3");
+    // Windows presentation follows the actual shipped Chrome extension popup.css.
+    // Keep these colors synchronized with extension/popup/popup.css (W59).
+    private static readonly Color Ink = ColorTranslator.FromHtml("#F4F7F8");
+    private static readonly Color Paper = ColorTranslator.FromHtml("#0B1013");
+    private static readonly Color Surface = ColorTranslator.FromHtml("#141B1F");
+    private static readonly Color Secondary = ColorTranslator.FromHtml("#AAB8BE");
+    private static readonly Color Accent = ColorTranslator.FromHtml("#66E0BF");
+    private static readonly Color AccentInk = ColorTranslator.FromHtml("#07110E");
+    private static readonly Color Border = ColorTranslator.FromHtml("#2A3439");
 
     private readonly SessionStore _store = new();
     private NativeTokenPublisher? _nativeToken;
@@ -42,7 +46,11 @@ public sealed class MainWindow : Form
     private readonly Label _accountStatus = new();
     private readonly Button _login = new();
     private readonly Button _logout = new();
-    private readonly Button _toggle = new();
+    private readonly Button _start = new();
+    private readonly Button _stop = new();
+    private readonly Label _connectionState = new();
+    private readonly Label _connectionMark = new();
+    private readonly Label _switchHint = new();
     private readonly Button _rotate = new();
     private readonly Button _copy = new();
     private readonly NotifyIcon _tray;
@@ -59,43 +67,67 @@ public sealed class MainWindow : Form
         _bridge.Changed += () => UpdateSafe();
 
         Text = "CELIKOM " + AppUpdateManager.RunningVersion.ToString(3) + " — Windows";
-        ClientSize = new Size(500, 690);
-        MinimumSize = new Size(485, 675);
+        ClientSize = new Size(462, 760);
+        MinimumSize = new Size(440, 730);
         StartPosition = FormStartPosition.CenterScreen;
         Font = new Font("Segoe UI", 10F);
         BackColor = Paper;
         ForeColor = Ink;
         AutoScaleMode = AutoScaleMode.Dpi;
 
-        var header = new Panel { Dock = DockStyle.Top, Height = 76, BackColor = Ink };
+        // Popup-style header: green connected mark, compact brand, live status.
+        var header = new Panel { Dock = DockStyle.Top, Height = 74, BackColor = Paper };
+        _connectionMark.Text = "●";
+        _connectionMark.Font = new Font("Segoe UI Symbol", 16F, FontStyle.Regular);
+        _connectionMark.ForeColor = ColorTranslator.FromHtml("#858B8E");
+        _connectionMark.Location = new Point(18, 20);
+        _connectionMark.Size = new Size(23, 31);
         var logo = new Label
         {
-            Text = "CELIKOM", Font = new Font("Segoe UI", 23F, FontStyle.Bold),
-            ForeColor = Color.White, Location = new Point(20, 5),
-            AutoSize = false, Height = 45, Width = 420
+            Text = "CELIKOM", Font = new Font("Segoe UI", 20F, FontStyle.Bold),
+            ForeColor = Ink, Location = new Point(42, 14),
+            AutoSize = false, Height = 40, Width = 220
         };
-        var tagline = new Label
-        {
-            Text = "Для Яндекс.Музыки · Windows",
-            ForeColor = ColorTranslator.FromHtml("#66E0BF"), Location = new Point(22, 51),
-            AutoSize = false, Height = 21, Width = 415
-        };
+        _connectionState.Font = new Font("Segoe UI", 9F, FontStyle.Regular);
+        _connectionState.ForeColor = Secondary;
+        _connectionState.TextAlign = ContentAlignment.MiddleRight;
+        _connectionState.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+        _connectionState.Location = new Point(285, 23);
+        _connectionState.Size = new Size(156, 27);
+        _connectionState.Text = "Отключён";
+        header.Resize += (_, _) =>
+            _connectionState.Left = header.ClientSize.Width - _connectionState.Width - 20;
+        header.Controls.Add(_connectionMark);
         header.Controls.Add(logo);
-        header.Controls.Add(tagline);
+        header.Controls.Add(_connectionState);
 
         _pages.Dock = DockStyle.Fill;
-        _pages.Font = new Font("Segoe UI", 10F, FontStyle.Bold);
-        var home = new TabPage("Главная") { BackColor = Paper, UseVisualStyleBackColor = false };
-        var account = new TabPage("Аккаунт") { BackColor = Paper, UseVisualStyleBackColor = false };
+        _pages.Font = new Font("Segoe UI", 10F, FontStyle.Regular);
+        _pages.DrawMode = TabDrawMode.OwnerDrawFixed;
+        _pages.ItemSize = new Size(144, 34);
+        _pages.SizeMode = TabSizeMode.Fixed;
+        _pages.DrawItem += (_, e) =>
+        {
+            var selected = e.Index == _pages.SelectedIndex;
+            using var background = new SolidBrush(selected ? Surface : Paper);
+            e.Graphics.FillRectangle(background, e.Bounds);
+            TextRenderer.DrawText(e.Graphics, _pages.TabPages[e.Index].Text,
+                _pages.Font, e.Bounds, selected ? Accent : Secondary,
+                TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
+        };
+        var home = new TabPage("Главная") { BackColor = Paper, ForeColor = Ink,
+            UseVisualStyleBackColor = false };
+        var account = new TabPage("Аккаунт") { BackColor = Paper, ForeColor = Ink,
+            UseVisualStyleBackColor = false };
         _pages.TabPages.Add(home);
         _pages.TabPages.Add(account);
-        var footerBar = new Panel { Dock = DockStyle.Bottom, Height = 38,
-            BackColor = ColorTranslator.FromHtml("#E5EEEA") };
+        var footerBar = new Panel { Dock = DockStyle.Bottom, Height = 36,
+            BackColor = Surface };
         _versionFooter.Dock = DockStyle.Fill;
         _versionFooter.Padding = new Padding(15, 0, 8, 0);
         _versionFooter.TextAlign = ContentAlignment.MiddleLeft;
-        _versionFooter.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
-        _versionFooter.ForeColor = Ink;
+        _versionFooter.Font = new Font("Segoe UI", 8.5F);
+        _versionFooter.ForeColor = Secondary;
         _versionFooter.AutoEllipsis = true;
         footerBar.Controls.Add(_versionFooter);
         Controls.Add(_pages);
@@ -137,7 +169,7 @@ public sealed class MainWindow : Form
             Dock = DockStyle.Fill,
             ColumnCount = 1,
             RowCount = 0,
-            Padding = new Padding(17, 13, 17, 8),
+            Padding = new Padding(17, 12, 17, 9),
             BackColor = Paper,
             AutoScroll = false
         };
@@ -161,6 +193,7 @@ public sealed class MainWindow : Form
             Text = text, TextAlign = ContentAlignment.MiddleLeft,
             Font = new Font("Segoe UI", font, bold ? FontStyle.Bold : FontStyle.Regular),
             ForeColor = color ?? Ink,
+            BackColor = Paper,
             AutoEllipsis = true
         };
 
@@ -170,38 +203,53 @@ public sealed class MainWindow : Form
         {
             Text = caption, FlatStyle = FlatStyle.Flat,
             Font = new Font("Segoe UI", 10F, FontStyle.Bold),
-            BackColor = primary ? Accent : Paper,
-            ForeColor = primary ? Color.White : Ink,
+            BackColor = primary ? Accent : Surface,
+            ForeColor = primary ? AccentInk : Ink,
             Cursor = Cursors.Hand, UseVisualStyleBackColor = false
         };
-        btn.FlatAppearance.BorderSize = primary ? 0 : 1;
-        btn.FlatAppearance.BorderColor = Border;
+        btn.FlatAppearance.BorderSize = 1;
+        btn.FlatAppearance.BorderColor = primary ? Accent : Border;
         return btn;
     }
 
     private void BuildHome(TabPage page)
     {
         var layout = PageLayout(page);
-        Add(layout, Label("Управление остаётся в Яндекс.Музыке.", 10, false, Secondary), 38);
-        _status.ForeColor = Accent;
-        _status.Font = new Font("Segoe UI", 11F, FontStyle.Bold);
+        Add(layout, Label("Управление CELIKOM", 11, true), 32);
+        _status.ForeColor = Secondary;
+        _status.Font = new Font("Segoe UI", 10F, FontStyle.Regular);
         _status.AutoEllipsis = false;
-        Add(layout, _status, 50);
-        Add(layout, Label("ПОДМЕНА ВЕРСИЙ", 11, true), 36);
-        _toggle.Text = "Старт";
-        _toggle.FlatStyle = FlatStyle.Flat;
-        _toggle.FlatAppearance.BorderSize = 0;
-        _toggle.BackColor = Accent;
-        _toggle.ForeColor = Color.White;
-        _toggle.Font = new Font("Segoe UI", 12F, FontStyle.Bold);
-        _toggle.Click += (_, _) => _bridge.SetEnabled(!_bridge.Enabled);
-        Add(layout, _toggle, 52);
-        _song.ForeColor = Secondary;
-        _song.AutoEllipsis = false;
-        Add(layout, _song, 53);
+        Add(layout, _status, 47);
 
-        Add(layout, Label("ПОДКЛЮЧЕНИЕ К ЯНДЕКСУ", 11, true), 39);
-        Add(layout, Label("Подключение происходит автоматически. Отдельные коды и моды устанавливать не нужно.", 9, false, Secondary), 41);
+        // Same separate Start / Stop controls as the Chrome popup; they change
+        // the existing native bridge state, not any Yandex account or player keys.
+        var primaryActions = new TableLayoutPanel {
+            ColumnCount = 2, RowCount = 1, Dock = DockStyle.Fill, Margin = Padding.Empty
+        };
+        primaryActions.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
+        primaryActions.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
+        ConfigureAuthButton(_start, true, "Старт");
+        ConfigureAuthButton(_stop, false, "Стоп");
+        _start.Margin = new Padding(0, 2, 4, 2);
+        _stop.Margin = new Padding(4, 2, 0, 2);
+        _start.Click += (_, _) => _bridge.SetEnabled(true);
+        _stop.Click += (_, _) => _bridge.SetEnabled(false);
+        primaryActions.Controls.Add(_start, 0, 0);
+        primaryActions.Controls.Add(_stop, 1, 0);
+        Add(layout, primaryActions, 52);
+
+        _switchHint.ForeColor = Secondary;
+        _switchHint.Font = new Font("Segoe UI", 8.5F);
+        _switchHint.AutoEllipsis = false;
+        Add(layout, _switchHint, 49);
+
+        _song.ForeColor = Secondary;
+        _song.Font = new Font("Segoe UI", 9F);
+        _song.AutoEllipsis = false;
+        Add(layout, _song, 49);
+
+        Add(layout, Label("Яндекс.Музыка", 11, true), 34);
+        Add(layout, Label("Слушай музыку в Яндексе. CELIKOM работает отдельно, твой аккаунт Яндекса здесь не нужен.", 9, false, Secondary), 44);
         var pair = new TableLayoutPanel
         {
             Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1,
@@ -211,7 +259,7 @@ public sealed class MainWindow : Form
         pair.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 40));
         _code.ReadOnly = true;
         _code.TabStop = false;
-        _code.BackColor = Paper;
+        _code.BackColor = Surface;
         _code.BorderStyle = BorderStyle.None;
         _code.Font = new Font("Consolas", 20F, FontStyle.Bold);
         _code.ForeColor = Accent;
@@ -221,7 +269,8 @@ public sealed class MainWindow : Form
         _copy.Text = "Копировать";
         _copy.FlatStyle = FlatStyle.Flat;
         _copy.FlatAppearance.BorderColor = Border;
-        _copy.BackColor = Paper;
+        _copy.BackColor = Surface;
+        _copy.ForeColor = Ink;
         _copy.Click += (_, _) =>
         {
             if (_api.IsLoggedIn)
@@ -241,7 +290,8 @@ public sealed class MainWindow : Form
         // but are not exposed in the native Windows consumer journey.
         _rotate.Text = "Получить новый код";
         _rotate.FlatStyle = FlatStyle.Flat;
-        _rotate.BackColor = Paper;
+        _rotate.BackColor = Surface;
+        _rotate.ForeColor = Ink;
         _rotate.FlatAppearance.BorderColor = Border;
         _rotate.Click += (_, _) => _bridge.RotateCode();
 
@@ -258,9 +308,9 @@ public sealed class MainWindow : Form
         hostActions.Controls.Add(_restoreYandex, 1, 0);
         _connectYandex.Click += ConnectYandexAsync;
         _restoreYandex.Click += RestoreYandexAsync;
-        Add(layout, hostActions, 52);
+        Add(layout, hostActions, 50);
 
-        var openYandex = Button("Открыть Яндекс.Музыку", false);
+        var openYandex = Button("Открыть Яндекс", false);
         openYandex.Click += (_, _) =>
         {
             try { Process.Start(new ProcessStartInfo("yandexmusic://") { UseShellExecute = true }); }
@@ -269,21 +319,21 @@ public sealed class MainWindow : Form
         var tools = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1 };
         tools.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
         tools.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
-        var downloadDiagnostics = Button("Скачать диагностику", false);
+        var downloadDiagnostics = Button("Диагностика", false);
         // Default WinForms button width truncated both labels in the owner screenshot.
         openYandex.Dock = DockStyle.Fill;
         downloadDiagnostics.Dock = DockStyle.Fill;
         downloadDiagnostics.Click += (_, _) => SaveDiagnostics();
         tools.Controls.Add(openYandex, 0, 0);
         tools.Controls.Add(downloadDiagnostics, 1, 0);
-        Add(layout, tools, 47);
-        ConfigureAuthButton(_updateApplication, false, "Обновить CELIKOM из ZIP или EXE");
+        Add(layout, tools, 46);
+        ConfigureAuthButton(_updateApplication, false, "Обновить CELIKOM");
         _updateApplication.Click += UpdateApplicationAsync;
         Add(layout, _updateApplication, 43);
         _hostStatus.ForeColor = Secondary;
-        _hostStatus.Font = new Font("Segoe UI", 9F);
+        _hostStatus.Font = new Font("Segoe UI", 8.5F);
         _hostStatus.AutoEllipsis = false;
-        Add(layout, _hostStatus, 49);
+        Add(layout, _hostStatus, 54);
     }
 
     private void BuildAccount(TabPage page)
@@ -291,13 +341,22 @@ public sealed class MainWindow : Form
         var layout = PageLayout(page);
         Add(layout, Label("Вход в существующий аккаунт CELIKOM", 11, true), 44);
         Add(layout, Label("Адрес твоего API (HTTPS)", 9, false, Secondary), 28);
+        _origin.BackColor = Surface;
+        _origin.ForeColor = Ink;
+        _origin.BorderStyle = BorderStyle.FixedSingle;
         _origin.Text = _api.Origin;
         _origin.PlaceholderText = "https://адрес-API-CELIKOM";
         Add(layout, _origin, 42);
         Add(layout, Label("Учётная запись", 9, false, Secondary), 31);
+        _email.BackColor = Surface;
+        _email.ForeColor = Ink;
+        _email.BorderStyle = BorderStyle.FixedSingle;
         _email.Text = _api.Email;
         _email.PlaceholderText = "Электронная почта CELIKOM";
         Add(layout, _email, 42);
+        _password.BackColor = Surface;
+        _password.ForeColor = Ink;
+        _password.BorderStyle = BorderStyle.FixedSingle;
         _password.UseSystemPasswordChar = true;
         _password.PlaceholderText = "Пароль CELIKOM";
         Add(layout, _password, 42);
@@ -326,10 +385,10 @@ public sealed class MainWindow : Form
         button.Dock = DockStyle.Fill;
         button.Font = new Font("Segoe UI", 10F, FontStyle.Bold);
         button.FlatStyle = FlatStyle.Flat;
-        button.FlatAppearance.BorderSize = primary ? 0 : 1;
-        button.FlatAppearance.BorderColor = Border;
-        button.BackColor = primary ? Accent : Paper;
-        button.ForeColor = primary ? Color.White : Ink;
+        button.FlatAppearance.BorderSize = 1;
+        button.FlatAppearance.BorderColor = primary ? Accent : Border;
+        button.BackColor = primary ? Accent : Surface;
+        button.ForeColor = primary ? AccentInk : Ink;
     }
 
     private async Task RefreshHostAsync()
@@ -609,7 +668,8 @@ public sealed class MainWindow : Form
             _nativeToken = null;
             _status.Text = "Локальная служба недоступна. Закрой другие копии CELIKOM.";
             _accountStatus.Text = "Не удалось запустить службу CELIKOM.";
-            _toggle.Enabled = false;
+            _start.Enabled = false;
+            _stop.Enabled = false;
         }
     }
 
@@ -666,11 +726,22 @@ public sealed class MainWindow : Form
         var connected = _bridgeStarted && _api.IsLoggedIn;
         _login.Enabled = !_loggingIn;
         _logout.Enabled = !_loggingIn && _api.IsLoggedIn;
-        _toggle.Enabled = connected && _nativeInstallState == NativeInstallState.Active &&
+        var switchAvailable = connected && _nativeInstallState == NativeInstallState.Active &&
             _installedModule.MatchesApplication;
-        _toggle.Text = _bridge.Enabled ? "Стоп" : "Старт";
-        _toggle.BackColor = connected ? Accent : ColorTranslator.FromHtml("#D1D9D6");
-        _toggle.ForeColor = connected ? Color.White : Secondary;
+        _start.Enabled = switchAvailable && !_bridge.Enabled;
+        _stop.Enabled = switchAvailable && _bridge.Enabled;
+        _connectionMark.ForeColor = switchAvailable && _bridge.Enabled
+            ? Accent : ColorTranslator.FromHtml("#858B8E");
+        _connectionState.Text = !connected ? "Войти в CELIKOM" :
+            !switchAvailable ? "Нет подключения" :
+            _bridge.Enabled ? "Подключён" : "Выключен";
+        _connectionState.ForeColor = switchAvailable && _bridge.Enabled ? Accent : Secondary;
+        // A source URL already delivered to Yandex cannot be changed by a
+        // bridge state toggle. Explain that existing playback/preload may
+        // survive, rather than promising instant hot-swap that does not exist.
+        _switchHint.Text = _bridge.Enabled
+            ? "Подмена включена для новых загрузок песен. Если трек уже играл, запусти его заново."
+            : "Подмена выключена. Уже загруженная песня может доиграть; новые треки идут из Яндекса.";
         if (_bridge.PairCode.Length == 6 && _api.IsLoggedIn &&
             _bridge.CodeExpires > DateTimeOffset.UtcNow)
         {
@@ -692,12 +763,12 @@ public sealed class MainWindow : Form
         var state = _bridge.LastStatus;
         _song.Text = state switch
         {
-            "SDK_MAPPING_ACCEPTED" => "Подмена передана SDK. Реальный звук пока не подтверждён.",
+            "SDK_MAPPING_ACCEPTED" => "Подмена передана проигрывателю Яндекса.",
             "NATIVE_CONNECTED" => "Связь с Яндексом есть. Ожидаем композицию.",
-            "NATIVE_MAPPING_ACCEPTED" => "Адрес подмены передан Яндексу. Звук пока не подтверждён.",
+            "NATIVE_MAPPING_ACCEPTED" => "Версия CELIKOM передана Яндекс.Музыке.",
             "RESOLVING" => "Ищем одобренную версию песни…",
             "ORIGINAL" => "Подмена недоступна — оригинальная версия.",
-            "OFF" => "Подмена выключена.",
+            "OFF" => "Подмена выключена. Текущий звук может быть в кеше Яндекса.",
             "UNAVAILABLE" => "Ожидаем текущую песню Яндекса.",
             "HOST_ERROR" => "Ошибка подключения к модулю Яндекса.",
             _ => "Модуль Яндекса пока не подключён."
@@ -706,7 +777,7 @@ public sealed class MainWindow : Form
             : !_api.IsLoggedIn ? "Войди в CELIKOM на вкладке «Аккаунт»"
             : _nativeInstallState != NativeInstallState.Active ? "Подключи CELIKOM к Яндекс.Музыке."
             : !_bridge.Enabled ? "CELIKOM подключён. Подмена выключена."
-            : "CELIKOM включён. Управление остаётся в Яндексе.";
+            : "CELIKOM подключён. Слушай в Яндекс.Музыке.";
         _hostStatus.Text = _hostReport?.Status switch
         {
             YandexHostStatus.NotInstalled => "Яндекс.Музыка не найдена. Установи её с официального сайта.",
@@ -714,7 +785,7 @@ public sealed class MainWindow : Form
             YandexHostStatus.UnsupportedVersion => "Версия Яндекса не проверена: " + _hostReport.Version,
             YandexHostStatus.UntrustedExecutable => "Цифровая подпись Яндекса не прошла проверку. Ничего не меняем.",
             YandexHostStatus.UnknownAsar => "Файлы Яндекса отличаются от проверенного оригинала.",
-            YandexHostStatus.OfficialBaselineVerified => "Оригинальный Яндекс 5.126.1 проверен. Подмена звука НЕ подтверждена.",
+            YandexHostStatus.OfficialBaselineVerified => "Оригинальная Яндекс.Музыка проверена. Можно подключать CELIKOM.",
             YandexHostStatus.InspectionUnavailable => "Не удалось безопасно проверить Яндекс. Файлы не менялись.",
             _ => "Проверяем совместимость установленной Яндекс.Музыки…"
         };
@@ -732,7 +803,7 @@ public sealed class MainWindow : Form
         _updateApplication.Enabled = !_integrationBusy && !_updatingApplication;
         if (_nativeInstallState == NativeInstallState.Active)
             _hostStatus.Text = _installedModule.MatchesApplication
-                ? "Модуль Яндекса совпадает с программой. Звук подмены ещё проверяется."
+                ? "Модуль Яндекса подключён и совпадает с версией CELIKOM."
                 : "В Яндексе старый модуль! Нажми «Обновить модуль».";
         else if (_nativeInstallState == NativeInstallState.Interrupted)
             _hostStatus.Text = "Подключение прервалось. Доступно восстановление оригинала.";
