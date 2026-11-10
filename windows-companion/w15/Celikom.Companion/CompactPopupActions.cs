@@ -425,6 +425,8 @@ public sealed partial class MainWindow
             return;
         }
         _compactSelectedAudio = file.FullName;
+        _compactUploadRequestId = Guid.NewGuid();
+        _compactFilePicker.SelectedFile = file.Name;
         _compactFileName.Text = file.Name.Length > 36 ? file.Name[..33] + "…" : file.Name;
         _compactUploadNote.Text = "";
     }
@@ -541,6 +543,7 @@ public sealed partial class MainWindow
             _compactPresenceStatus = "pending";
             _compactPresenceChecked = DateTimeOffset.UtcNow;
             _compactSelectedAudio = null;
+            _compactFilePicker.SelectedFile = "";
             _compactFileName.Text = "";
             _compactRights.Checked = false;
             _compactUploadRequestId = Guid.NewGuid();
