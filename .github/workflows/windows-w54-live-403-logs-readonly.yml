@@ -46,22 +46,13 @@ jobs:
           # Search only probable access/error log names modified within 3 days.
           # Never echo paths, IP addresses, request lines, query strings, headers
           # or secrets. No write/copy/chmod/deploy to the hosting environment.
-          total=0
-          readable=0
-          hits=0
-          while IFS= read -r -d '' file; do
-            total=$((total+1))
-            if [[ -r "$file" ]]; then
-              readable=$((readable+1))
-              if (( readable <= 30 )); then
-                n="$(grep -a -Ec '/api/v1/audio/(139|89)([? ]|$)' "$file" 2>/dev/null || true)"
-                if [[ "$n" =~ ^[0-9]+$ ]]; then hits=$((hits+n)); fi
-              fi
-            fi
-            if (( total >= 100 )); then break; fi
-          done < <(find "${dirs[@]}" -maxdepth 6 -type f             \( -iname '*access*log*' -o -iname '*request*log*' -o -iname '*error*log*' \)             -mtime -3 -size -32M -print0 2>/dev/null)
-          printf 'W54_RECENT_LOG_CANDIDATES=%d\n' "$total"
-          printf 'W54_READABLE_LOG_CANDIDATES=%d\n' "$readable"
-          printf 'W54_AUDIO_RESOURCE_PATH_MATCHES_CAPPED=%d\n' "$hits"
+          # Metadata only: count candidate paths, do not print any filename.
+          # Some Hostinger directories are unreadable by the SSH account;
+          # their errors must not abort a read-only census.
+          count="$( (find "${dirs[@]}" -maxdepth 6 -type f \
+            \( -iname '*access*log*' -o -iname '*request*log*' -o -iname '*error*log*' \) \
+            -mtime -3 -size -32M -print0 2>/dev/null || true) | tr -cd '\\000' | wc -c)"
+          count="$(printf '%s' "$count" | tr -dc '0-9')"
+          printf 'W54_RECENT_LOG_CANDIDATES=%s\\n' "${count:-0}"
           echo W54_NO_PRODUCTION_WRITES_NO_URL_OR_TOKEN_EXPORT
           REMOTE
