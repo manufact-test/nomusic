@@ -27,10 +27,12 @@ jobs:
             android/native-yandex-hooklab/app/src/main/java/pro/celikom/yandex/nativehooklab/HookSpec.java \
             android/native-yandex-hooklab/app/src/main/java/pro/celikom/yandex/nativehooklab/NativeSourceGate.java \
             android/native-yandex-hooklab/app/src/main/java/pro/celikom/yandex/nativehooklab/NativeTrackIdentityGate.java \
+            android/native-yandex-hooklab/app/src/main/java/pro/celikom/yandex/nativehooklab/NativePrePrepareAdmission.java \
             $(find android/native-yandex-hooklab/tests/src -type f -name '*.java' | sort)
           java -cp /tmp/celikom-jvm-hooklab HookSpecTest
           java -cp /tmp/celikom-jvm-hooklab NativeSourceGateTest
           java -cp /tmp/celikom-jvm-hooklab pro.celikom.yandex.nativehooklab.NativeTrackIdentityGateTest
+          java -cp /tmp/celikom-jvm-hooklab NativePrePrepareAdmissionTest
       - name: Test read-only ARM device gate (synthetic snapshots; no phone connected)
         run: python3 -m unittest discover -s android/native-yandex-hooklab/tests -p 'test_*.py' -v
       - name: Disallow sensitive permissions, substitute player and mutable audio sources
