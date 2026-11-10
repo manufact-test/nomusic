@@ -117,7 +117,7 @@ public sealed class PopupOptionSelect : Control
         const float corner = 8f;
         path.AddArc(rect.Left, rect.Top, corner * 2, corner * 2, 180, 90);
         path.AddArc(rect.Right - corner * 2, rect.Top, corner * 2, corner * 2, 270, 90);
-        path.AddArc(rect.Right - corner * 2, rect.Bottom - corner * 2, corner * 2, 0, 90);
+        path.AddArc(rect.Right - corner * 2, rect.Bottom - corner * 2, corner * 2, corner * 2, 0, 90);
         path.AddArc(rect.Left, rect.Bottom - corner * 2, corner * 2, corner * 2, 90, 90);
         path.CloseFigure();
         using var fill = new SolidBrush(BackColor);
