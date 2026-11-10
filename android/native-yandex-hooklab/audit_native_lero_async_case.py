@@ -184,7 +184,32 @@ def constructor_tag_field(d,ins,tag_reg):
     return None
 
 
-def branch_contains_loader(d,ins,start_pc):
+
+def constructor_captured_object_field(d,code_off,ins):
+    """Resolve exact 22c iput-object p2 -> Lwq7 instance field.
+
+    Use code_item incoming registers, not a guessed class field name.
+    """
+    registers=d.u16(code_off)
+    incoming=d.u16(code_off+2)
+    first_param=registers-incoming
+    object_param=first_param+2  # p0=this, p1=int tag, p2=Object
+    fields=set()
+    for _,op,words in ins:
+        if op in (0x27,0x28,0x29,0x2a,0x2b,0x2c) or 0x32<=op<=0x3d:
+            break
+        if op!=0x5b:continue
+        source=(words[0]>>8)&15
+        holder=(words[0]>>12)&15
+        key=field_k(d,words)
+        if source==object_param and holder==first_param and key[0]==OWNER:
+            fields.add(key)
+    if len(fields)!=1:
+        return None
+    return next(iter(fields))
+
+
+def branch_contains_loader(d,ins,start_pc,expected_capture_field=None):
     """Case target belongs to direct loader invocation before next switch case?
 
     The first block may fall through; avoid traversing arbitrary cases.
@@ -196,6 +221,7 @@ def branch_contains_loader(d,ins,start_pc):
     if start is None:return False
     seen_lero=False
     seen_loader=False
+    matched_capture_field=False
     for _,op,w in ins[start:start+12]:
         if op in (0x0e,0x0f,0x10,0x11,0x27,0x28,0x29,0x2a,0x2b,0x2c):
             break
@@ -203,12 +229,15 @@ def branch_contains_loader(d,ins,start_pc):
             seen_lero=True
         if op==0x54:
             key=field_k(d,w)
+            if expected_capture_field is not None and key==expected_capture_field:
+                matched_capture_field=True
             if key[0]==ORIGIN and key[1]==LOADER:
                 seen_loader=True
         if op in INVOKES:
             m=d.method(w[1])
             if (m[0],m[1])==(LOADER,"a"):
-                return seen_lero and seen_loader
+                return (seen_lero and seen_loader and
+                        (matched_capture_field or expected_capture_field is None))
     return False
 
 
@@ -273,6 +302,7 @@ def signed_scan(apks):
     # For (I,Object) constructor: p0=this, p1=int, p2=object.
     int_param=registers-incoming+1
     exact_ctor_field=constructor_tag_field(cd,ins,int_param)
+    captured_field=constructor_captured_object_field(cd,off,ins)
     if exact_ctor_field is None:
         raise ValueError("SIGNED_LWQ7_TAG_FIELD_NOT_STORED")
     dd,doff,dins,dm=dispatch
@@ -304,8 +334,9 @@ def signed_scan(apks):
         # instruction, not to a synthetic exceptional state.
         branch=select_switch_case_target(table,dins,tag)
         target=branch["target_pc"]
-        case_loader=(branch_contains_loader(dd,dins,target)
-                     if target is not None else False)
+        case_loader=(branch_contains_loader(
+            dd,dins,target,expected_capture_field=captured_field)
+            if target is not None and captured_field is not None else False)
         actual_case.append({
             "tag_is_direct_constant":True,
             "tag_field_matches_dispatch_read":
@@ -314,6 +345,8 @@ def signed_scan(apks):
             "selector_takes_default_fallthrough":branch["default"],
             "exact_case_target_directly_invokes_loader":case_loader,
             "constructor_passes_actual_lero_this":record["ctor_object_arg_is_lero_this"],
+            "captured_lero_object_field_matches_case_reader":
+                captured_field is not None and case_loader,
             "not_proven_live_executor_or_selected_player":True,
         })
     static_match=any(x.get("tag_field_matches_dispatch_read") and
@@ -325,6 +358,7 @@ def signed_scan(apks):
         "signed_original_dex_count":6,
         "lifecycle_Lero_t_to_Lwq7_tagged_task_call_count":len(source),
         "constructor_selector_field_matches_switch":exact_ctor_field==table["tag_field"],
+        "constructor_object_capture_slot_exactly_identified":captured_field is not None,
         "dispatch_switch_case_count":len(table["cases"]),
         "callsite_case_results":actual_case[:MAX_HITS],
         "exact_Lero_scheduled_task_selects_Lmb4_a_case":static_match,
