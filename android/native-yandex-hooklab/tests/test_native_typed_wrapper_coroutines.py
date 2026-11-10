@@ -4,7 +4,7 @@ from pathlib import Path
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 from audit_native_typed_wrapper_coroutines import (
     brief_type, parse_types, method_profile, profile_tracked_results,
-    class_field_shapes, field_at
+    class_field_shapes, field_at, safe_instruction_shape, focused_producer_windows
 )
 
 
@@ -61,6 +61,31 @@ class TypedWrapperTests(unittest.TestCase):
         self.assertIn({"action":"return_object","target":"none","arg_word":0},
                       rows[0]["events"])
         self.assertFalse(rows[0]["bounded_search_truncated"])
+
+    def test_opcode_excerpt_shows_structure_not_raw_literals(self):
+        producer=("Lged;","a","()Ljava/lang/Object;")
+        # const-string points at local string ID, which must never be emitted
+        code=[0x0071,0,0,0x020c,0x011a,0x0200,0x0211]
+        dex=FakeDex(code,[producer])
+        excerpt=focused_producer_windows(dex,0,{("Lged;","a")},pre=0,post=4)
+        self.assertEqual(excerpt[0]["producer"],"Lged;->a")
+        self.assertEqual(excerpt[0]["structural_window"][2]["kind"],
+                         "const_string_reference_redacted")
+        self.assertNotIn("0x0200",str(excerpt))
+        self.assertFalse(excerpt[0]["register_or_decoder_proven"])
+
+    def test_object_field_shape_only_without_name(self):
+        class WithField(FakeDex):
+            def table(self, offset, width):
+                return 1,16
+            def u16(self,offset):
+                if offset == 16:return 0
+                if offset == 18:return 1
+                return super().u16(offset)
+            def descriptor(self,idx):
+                return ("Lxa7;","Leed;")[idx]
+        result=safe_instruction_shape(WithField([0x005b,0],[]),0x5b,(0x005b,0))
+        self.assertEqual(result,{"kind":"iput_object","owner":"Lxa7;","field_type":"Leed;"})
 
     def test_bad_proto_rejected(self):
         for bad in ["","()", "(Labc)V","(Z)","(I)VV"]:
