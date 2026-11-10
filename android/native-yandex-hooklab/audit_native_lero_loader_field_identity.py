@@ -169,7 +169,7 @@ def scan_signed(apks):
                     and m[2].startswith("(Lha4;La58;")),None)
     lero_ctor=next(((m,d,off) for m,(d,off) in focus.items()
                     if m[0]=="Lero;" and m[1]=="<init>"
-                    and m[2].startswith("(Lwzi;Lga4;Ljava/lang/Object;)V")),None)
+                    and m[2].startswith("(Lwzi;Lga4;") and m[2].endswith(")V")),None)
     reader=next(((m,d,off) for m,(d,off) in focus.items()
                  if m[0]=="Lmb4;" and m[1]=="a" and m[2]=="()V"),None)
     if not full_ctor or not lero_ctor or not reader:
