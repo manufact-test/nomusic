@@ -2,6 +2,7 @@ package pro.celikom.yandex.nativehooklab;
 
 import java.lang.reflect.Method;
 import java.lang.reflect.Field;
+import java.lang.reflect.Constructor;
 import java.lang.reflect.Modifier;
 
 /**
@@ -131,6 +132,41 @@ public final class HookSpec {
                 ||Modifier.isAbstract(method.getModifiers()))
             throw new NoSuchMethodException("NONINSTANCE_HA4_OPERATION");
         return method;
+    }
+
+    /**
+     * Lero has two distinct signed source-construction paths:
+     * (wzi,ga4) and (wzi,ga4,one reference argument). The long constructor
+     * can be reached directly from Locv.i0 without returning from Lkvs.A;
+     * observing that factory alone therefore misses possible Lero sources.
+     *
+     * This is ONLY an object identity witness, never a selected player proof.
+     * Reflection never invokes either constructor and never reads its params.
+     * Fail closed on any signature drift or ambiguity.
+     */
+    public static Constructor<?>[] findLeroConstructors(ClassLoader loader)
+            throws ClassNotFoundException, NoSuchMethodException {
+        Class<?> holder=Class.forName("ero",false,loader);
+        Class<?> wzi=Class.forName("wzi",false,loader);
+        Class<?> ga4=Class.forName("ga4",false,loader);
+        Constructor<?> shortCtor=null,longCtor=null;
+        for(Constructor<?> ctor:holder.getDeclaredConstructors()){
+            Class<?>[] types=ctor.getParameterTypes();
+            if(types.length<2 || types[0]!=wzi || types[1]!=ga4)continue;
+            if(types.length==2){
+                if(shortCtor!=null)throw new NoSuchMethodException(
+                        "AMBIGUOUS_LERO_SHORT_CTOR");
+                shortCtor=ctor;
+            }else if(types.length==3
+                    &&!types[2].isPrimitive() &&!types[2].isArray()){
+                if(longCtor!=null)throw new NoSuchMethodException(
+                        "AMBIGUOUS_LERO_LONG_CTOR");
+                longCtor=ctor;
+            }else throw new NoSuchMethodException("UNEXPECTED_LERO_CTOR_SHAPE");
+        }
+        if(shortCtor==null || longCtor==null)
+            throw new NoSuchMethodException("EXACT_LERO_CTOR_PAIR_UNAVAILABLE");
+        return new Constructor<?>[]{shortCtor,longCtor};
     }
 
     public static boolean isApprovedHost(String packageName, String versionName, long versionCode) {
