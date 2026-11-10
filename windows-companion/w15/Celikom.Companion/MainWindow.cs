@@ -71,6 +71,10 @@ public sealed partial class MainWindow : Form
     private bool _bridgeStarted;
     private bool _closing;
     private bool _loggingIn;
+    // Server is the authority; this periodic check only updates UI/state
+    // after a subscription expires or the network becomes unavailable.
+    private readonly System.Windows.Forms.Timer _entitlementPulse = new()
+        { Interval = 15000 };
 
     public MainWindow(bool finishApplicationUpdate = false)
     {
@@ -121,10 +125,16 @@ public sealed partial class MainWindow : Form
         };
         _tray.DoubleClick += (_, _) => ShowMain();
         Resize += (_, _) => { if (WindowState == FormWindowState.Minimized) Hide(); };
+        _entitlementPulse.Tick += (_, _) =>
+        {
+            if (!_closing && _bridge.Enabled && _api.IsLoggedIn)
+                _ = RefreshCompactAccessAsync(force: true);
+        };
         FormClosing += ClosingAsync;
         Shown += async (_, _) =>
         {
             await StartBridgeAsync();
+            _entitlementPulse.Start();
             await RefreshHostAsync();
             if (_finishApplicationUpdate) await CompleteApplicationUpdateAsync();
             if (_api.IsLoggedIn)
@@ -1013,6 +1023,8 @@ public sealed partial class MainWindow : Form
         if (_closing) return;
         e.Cancel = true;
         _closing = true;
+        _entitlementPulse.Stop();
+        _entitlementPulse.Dispose();
         _tray.Visible = false;
         try { await _bridge.DisposeAsync(); }
         finally
