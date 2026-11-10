@@ -100,6 +100,23 @@ class ExactNativeHookShapeTests(unittest.TestCase):
         self.assertEqual(mod.local_ocv_ero_constructor_calls(
             d,wrong)["same_straightline_receiver_new_instance_sites"],0)
 
+    def test_inherited_exact_lifecycle_resolution(self):
+        cls={"Lero;","Locv;","Lalt;"}
+        own={"Lero;":{("t","(Ldmb;)V"),("remove","()V")},
+             "Lbase;":{("t","(Ldmb;)V"),("remove","()V")}}
+        parents={"Lero;":("Ljava/lang/Object;","Lemb;"),
+                 "Locv;":("Lbase;","Lemb;"),
+                 "Lalt;":("Lempty;", "Lemb;"),
+                 "Lbase;":("Ljava/lang/Object;",),
+                 "Lempty;":("Ljava/lang/Object;",)}
+        data=mod.lifecycle_method_resolution(cls,own,parents)
+        self.assertTrue(data["Lero;"]["t"]["declared_on_concrete_class"])
+        self.assertTrue(data["Locv;"]["t"]["inherited_from_superclass"])
+        self.assertEqual(data["Locv;"]["t"]["concrete_implementation_owner"],"Lbase;")
+        self.assertTrue(data["Locv;"]["remove"]["hookable_declaration_resolved"])
+        self.assertFalse(data["Lalt;"]["t"]["hookable_declaration_resolved"])
+        self.assertFalse(data["Lalt;"]["remove"]["hookable_declaration_resolved"])
+
     def test_never_outputs_private_field_name(self):
         source=(ROOT/"audit_native_runtime_hook_shapes.py").read_text()
         self.assertIn("reader_fields.add(",source)
