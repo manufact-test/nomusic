@@ -313,6 +313,7 @@ public sealed partial class MainWindow
         _compactFooter.Controls.Add(_compactVersion);
 
         BuildCompactAccountBody();
+        BuildCompactBenefits();
         BuildCompactSupportBody();
         BuildCompactContributions();
 
@@ -385,11 +386,12 @@ public sealed partial class MainWindow
         _compactModeButton.BackColor = _compactForgotButton.BackColor = Paper;
         _compactForgotButton.ForeColor = Secondary;
         _signedInIdentity.Font = new Font("Segoe UI", 9F);
-        _signedInIdentity.ForeColor = Secondary;
+        _signedInIdentity.ForeColor = Accent;
         SetupMainButton(_compactPromoToggle, "▸ Промокод", (_, _) =>
         {
             _compactPromoOpen = !_compactPromoOpen;
             _compactPromoToggle.Text = (_compactPromoOpen ? "▾" : "▸") + " Промокод";
+            _compactPromoMessage.Text = "";
             LayoutCompact();
         });
         _compactPromoToggle.BackColor = Paper;
@@ -762,10 +764,24 @@ public sealed partial class MainWindow
     }
 
     private int CompactAccountHeight() => _api.IsLoggedIn ?
-        (_compactPromoOpen ? 270 : 132) :
+        CompactSignedHeight() :
         _compactAccountMode is "login" or "register" ? 326 :
         _compactAccountMode is "verify" ? 256 :
         _compactAccountMode is "recovery" ? 207 : 308;
+
+    private int CompactSignedHeight()
+    {
+        int y = 8 + 35; // promo summary
+        if (_compactPromoOpen)
+        {
+            y += 44 + 46;
+            if (_compactPromoMessage.Text.Length > 0) y += 40;
+        }
+        y += 34; // email
+        y += CompactBenefitsHeight();
+        y += 50; // logout and bottom padding
+        return y;
+    }
 
     private void LayoutCompactAccount(int w)
     {
@@ -780,21 +796,30 @@ public sealed partial class MainWindow
             _compactAccountMessage,_signedInIdentity,_compactPromoToggle,
             _compactPromoInput,_compactPromoSubmit,_compactPromoMessage,_logout }) c.Visible = false;
 
+        HideCompactBenefits();
         if (signed)
         {
-            // Same order as extension/popup/popup.html:
-            // Promo section, signed-in identity, then sign out.
-            Place(_compactPromoToggle, _compactAccountBody, 0, 5, w, 35);
+            int y = 8;
+            // Exact extension order: summary -> optional promo form -> email
+            // -> real benefits -> logout. Everything stays inside one card.
+            Place(_compactPromoToggle, _compactAccountBody, 0, y, w, 33);
+            y += 35;
             if (_compactPromoOpen)
             {
-                Place(_compactPromoInput, _compactAccountBody, 0, 49, w, 42);
-                Place(_compactPromoSubmit, _compactAccountBody, 0, 100, w, 40);
-                Place(_compactPromoMessage, _compactAccountBody, 0, 146, w, 44);
+                Place(_compactPromoInput, _compactAccountBody, 0, y, w, 42);
+                y += 44;
+                Place(_compactPromoSubmit, _compactAccountBody, 0, y, w, 42);
+                y += 46;
+                if (_compactPromoMessage.Text.Length > 0)
+                {
+                    Place(_compactPromoMessage, _compactAccountBody, 0, y, w, 38);
+                    y += 40;
+                }
             }
-            Place(_signedInIdentity, _compactAccountBody, 0,
-                _compactPromoOpen ? 199 : 48, w, 26);
-            Place(_logout, _compactAccountBody, 0,
-                _compactPromoOpen ? 230 : 81, w, 40);
+            Place(_signedInIdentity, _compactAccountBody, 0, y, w, 30);
+            y += 34;
+            LayoutCompactBenefits(w, ref y);
+            Place(_logout, _compactAccountBody, 0, y, w, 40);
             return;
         }
         _compactEmailLabel.Text = "Email";
