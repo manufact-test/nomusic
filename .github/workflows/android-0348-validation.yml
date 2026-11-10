@@ -141,6 +141,8 @@ jobs:
           policy=(root/"SeekTimeoutCircuitBreaker.java").read_text()
           assert engine.count('suspend("seek_timeout",retryDelay())')==3, 'two update sites + original seek() delayed callback'
           assert 'final boolean nativeSeekTimedOut="seek_timeout".equals(reason)' in engine
+          assert '||"hot_cached_seek_timeout".equals(reason)' in engine
+          assert engine.count('suspend("hot_cached_seek_timeout",retryDelay())')==1
           assert 'seekTimeoutBreaker.timeout(sameSource?failedKey:null' in engine
           assert 'seekTimeoutBreaker.successfulSeek(key)' in engine
           assert 'seekTimeoutBreaker.boundary()' in engine
