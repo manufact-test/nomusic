@@ -11,13 +11,21 @@ public sealed partial class MainWindow
     private readonly Panel _compactScroll = new();
     private readonly Panel _compactHeader = new();
     private readonly Panel _compactActions = new();
-    private readonly PopupButton _compactOriginal = new();
     private readonly PopupButton _compactUploadButton = new();
     private readonly PopupButton _compactSuggestButton = new();
     private readonly Panel _compactUploadBody = new();
     private readonly Panel _compactSuggestBody = new();
     private readonly Label _compactAccess = new();
     private readonly Label _compactTrack = new();
+    private readonly Label _compactVersionStatus = new();
+    private readonly Label _compactStartup = new();
+    private readonly Panel _compactUploadResult = new();
+    private readonly Label _compactUploadResultTitle = new();
+    private readonly Label _compactUploadResultNote = new();
+    private readonly Panel _compactSuggestResult = new();
+    private readonly Label _compactSuggestResultTitle = new();
+    private readonly Label _compactSuggestResultNote = new();
+    private readonly ProgressBar _compactUploadProgress = new();
     private readonly PopupButton _compactAccountTrigger = new();
     private readonly Panel _compactAccountBody = new();
     private readonly PopupButton _compactSupportTrigger = new();
@@ -34,6 +42,9 @@ public sealed partial class MainWindow
     private readonly Label _compactPromoMessage = new();
     private readonly ComboBox _compactSupportKind = new();
     private readonly ComboBox _compactSupportCategory = new();
+    private readonly Label _compactSupportDescriptionLabel = Tiny("Опишите проблему", 9);
+    private readonly Label _compactUploadDurationCaption = Tiny("Длительность песни, сек", 9);
+    private readonly Label _compactUploadDurationKnown = Tiny("", 9);
     private readonly Label _compactSupportCategoryLabel = Tiny("Что произошло?", 9);
     private readonly TextBox _compactSupportText = new();
     private readonly PopupButton _compactSupportSubmit = new();
@@ -73,6 +84,18 @@ public sealed partial class MainWindow
     private bool _compactSupportBusy;
     private bool _compactPromoBusy;
     private bool _compactContributionBusy;
+    private string _compactUploadView = "error";
+    private string _compactSuggestView = "error";
+    private string _compactPresenceTrack = "";
+    private string _compactPresenceStatus = "";
+    private DateTimeOffset _compactPresenceChecked;
+    private Task<string>? _compactPresencePending;
+    private int _compactPresenceEpoch;
+    private int _compactOpenEpoch;
+    private string _compactPinnedUploadTrack = "";
+    private string _compactPinnedSuggestTrack = "";
+    private string _compactStartupText = "";
+    private bool _compactStarting;
 
     private static readonly Color Quiet = ColorTranslator.FromHtml("#788991");
 
@@ -93,6 +116,7 @@ public sealed partial class MainWindow
     {
         child.Location = new Point(x, y);
         child.Size = new Size(Math.Max(10, width), height);
+        child.Visible = true; // W63: previous layout hid all account form controls permanently
         if (child.Parent != parent) parent.Controls.Add(child);
     }
 
@@ -103,8 +127,8 @@ public sealed partial class MainWindow
         _origin.Text = string.IsNullOrWhiteSpace(_api.Origin) ? DefaultApiOrigin : _api.Origin;
         // The browser popup uses a 292px minimum width. Windows retains its
         // native title bar; the *content* is matched without wide tabs.
-        ClientSize = new Size(308, 515);
-        MinimumSize = new Size(308, 490);
+        ClientSize = new Size(308, 482);
+        MinimumSize = new Size(308, 470);
         MaximumSize = new Size(308, 820);
         FormBorderStyle = FormBorderStyle.FixedSingle;
         MaximizeBox = false;
@@ -144,18 +168,27 @@ public sealed partial class MainWindow
         _compactActions.Controls.Add(_start);
         _compactActions.Controls.Add(_stop);
 
-        SetupMainButton(_compactOriginal, "Вернуть оригинал", (_, _) => _bridge.SetEnabled(false));
-        SetupMainButton(_compactUploadButton, "Загрузить версию", (_, _) =>
+        SetupMainButton(_compactUploadButton, "Загрузить версию", async (_, _) =>
         {
-            _compactUploadOpen = !_compactUploadOpen;
-            _compactSuggestOpen = false;
-            LayoutCompact();
+            if (_compactUploadOpen)
+            {
+                _compactUploadOpen = false;
+                ++_compactOpenEpoch;
+                LayoutCompact();
+                return;
+            }
+            await OpenCompactContributionAsync(upload: true);
         });
-        SetupMainButton(_compactSuggestButton, "Предложить песню", (_, _) =>
+        SetupMainButton(_compactSuggestButton, "Предложить песню", async (_, _) =>
         {
-            _compactSuggestOpen = !_compactSuggestOpen;
-            _compactUploadOpen = false;
-            LayoutCompact();
+            if (_compactSuggestOpen)
+            {
+                _compactSuggestOpen = false;
+                ++_compactOpenEpoch;
+                LayoutCompact();
+                return;
+            }
+            await OpenCompactContributionAsync(upload: false);
         });
         _compactAccess.ForeColor = Accent;
         _compactAccess.Font = new Font("Segoe UI", 9F);
@@ -163,23 +196,31 @@ public sealed partial class MainWindow
         _compactTrack.ForeColor = Secondary;
         _compactTrack.Font = new Font("Segoe UI", 9F);
         _compactTrack.Text = "Запустите трек в Яндекс Музыке";
+        _compactVersionStatus.Font = new Font("Segoe UI", 8.5F);
+        _compactVersionStatus.ForeColor = Secondary;
+        _compactVersionStatus.Text = "Версия песни CELIKOM";
+        _compactStartup.Font = new Font("Segoe UI", 8.5F);
+        _compactStartup.ForeColor = Accent;
+        _compactStartup.Text = "";
         SetupMainButton(_compactAccountTrigger, "Аккаунт · войти", (_, _) =>
         {
             _compactAccountOpen = !_compactAccountOpen;
             LayoutCompact();
+            if (_compactAccountOpen) ScrollCompactTo(_compactAccountTrigger);
         });
         SetupMainButton(_compactSupportTrigger, "▸ Связь с поддержкой", (_, _) =>
         {
             _compactSupportOpen = !_compactSupportOpen;
             _compactSupportTrigger.Text = (_compactSupportOpen ? "▾" : "▸") + " Связь с поддержкой";
             LayoutCompact();
+            if (_compactSupportOpen) ScrollCompactTo(_compactSupportTrigger);
         });
         _compactSupportTrigger.BackColor = Paper;
         _compactSupportTrigger.ForeColor = Secondary;
         _compactSupportTrigger.TextAlign = ContentAlignment.MiddleLeft;
         _compactSupportTrigger.Font = new Font("Segoe UI", 9F);
         _compactVersion.ForeColor = Quiet;
-        _compactVersion.Font = new Font("Segoe UI", 8F);
+        _compactVersion.Font = new Font("Segoe UI", 8.5F);
         _compactVersion.Text = "CELIKOM " + AppUpdateManager.RunningVersion.ToString(3);
 
         BuildCompactAccountBody();
@@ -200,9 +241,9 @@ public sealed partial class MainWindow
 
         foreach (var c in new Control[]
         {
-            _compactHeader, _compactActions, _compactOriginal, _compactUploadButton,
+            _compactHeader, _compactActions, _compactStartup, _compactUploadButton,
             _compactUploadBody, _compactSuggestButton, _compactSuggestBody,
-            _compactAccess, _compactTrack, _compactAccountTrigger,
+            _compactAccess, _compactTrack, _compactVersionStatus, _compactAccountTrigger,
             _compactAccountBody, _compactSupportTrigger, _compactSupportBody,
             _staffPanel, _compactVersion
         }) _compactScroll.Controls.Add(c);
@@ -307,8 +348,7 @@ public sealed partial class MainWindow
         _compactSupportCategory.FlatStyle = FlatStyle.Flat;
         _compactSupportBody.Controls.Add(_compactSupportCategory);
         _compactSupportBody.Controls.Add(_compactSupportCategoryLabel);
-        var description = Tiny("Опишите проблему", 9);
-        Place(description, _compactSupportBody, 0, 79, 250, 24);
+        Place(_compactSupportDescriptionLabel, _compactSupportBody, 0, 79, 250, 24);
         _compactSupportText.Multiline = true;
         _compactSupportText.MaxLength = 2000;
         _compactSupportText.ScrollBars = ScrollBars.Vertical;
@@ -329,8 +369,9 @@ public sealed partial class MainWindow
         _compactUploadTrack.ForeColor = Secondary;
         _compactUploadTrack.Text = "Текущая песня не определена";
         _compactUploadBody.Controls.Add(_compactUploadTrack);
-        var durationLabel = Tiny("Длительность песни, сек", 9);
-        Place(durationLabel, _compactUploadBody, 0, 28, 250, 23);
+        Place(_compactUploadDurationCaption, _compactUploadBody, 0, 28, 250, 23);
+        _compactUploadDurationKnown.ForeColor = Secondary;
+        _compactUploadBody.Controls.Add(_compactUploadDurationKnown);
         _compactUploadDuration.PlaceholderText = "Например, 180";
         _compactUploadBody.Controls.Add(_compactDurationInput);
         SetupMainButton(_compactFilePicker, "Выбрать MP3 / M4A", CompactChooseAudio);
@@ -347,6 +388,11 @@ public sealed partial class MainWindow
         _compactUploadNote.ForeColor = Accent;
         _compactUploadNote.Font = new Font("Segoe UI", 8F);
         _compactUploadBody.Controls.Add(_compactUploadNote);
+        _compactUploadProgress.Visible = false;
+        _compactUploadProgress.Style = ProgressBarStyle.Continuous;
+        _compactUploadBody.Controls.Add(_compactUploadProgress);
+        ConfigureCompactResult(_compactUploadResult, _compactUploadResultTitle, _compactUploadResultNote);
+        _compactUploadBody.Controls.Add(_compactUploadResult);
 
         _compactSuggestTrack.ForeColor = Secondary;
         _compactSuggestBody.Controls.Add(_compactSuggestTrack);
@@ -355,6 +401,34 @@ public sealed partial class MainWindow
         _compactSuggestNote.ForeColor = Accent;
         _compactSuggestNote.Font = new Font("Segoe UI", 8F);
         _compactSuggestBody.Controls.Add(_compactSuggestNote);
+        ConfigureCompactResult(_compactSuggestResult, _compactSuggestResultTitle, _compactSuggestResultNote);
+        _compactSuggestBody.Controls.Add(_compactSuggestResult);
+    }
+
+    private static void ConfigureCompactResult(Panel panel, Label heading, Label description)
+    {
+        panel.BackColor = ColorTranslator.FromHtml("#123B31");
+        panel.BorderStyle = BorderStyle.FixedSingle;
+        heading.BackColor = panel.BackColor;
+        heading.ForeColor = ColorTranslator.FromHtml("#8AFFCF");
+        heading.Font = new Font("Segoe UI", 10F, FontStyle.Bold);
+        description.BackColor = panel.BackColor;
+        description.ForeColor = ColorTranslator.FromHtml("#E3F7ED");
+        description.Font = new Font("Segoe UI", 8.5F);
+        panel.Controls.Add(heading);
+        panel.Controls.Add(description);
+    }
+
+    private void ScrollCompactTo(Control target)
+    {
+        if (!IsHandleCreated || IsDisposed) return;
+        BeginInvoke(new Action(() =>
+        {
+            if (IsDisposed || !target.Visible || !target.IsHandleCreated) return;
+            // Keep the expanded section's header visible and make scrolling
+            // deliberate instead of trapping the form below the viewport.
+            _compactScroll.ScrollControlIntoView(target);
+        }));
     }
 
     private void RenderCompact()
