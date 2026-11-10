@@ -83,7 +83,8 @@ class ExactWriterProvenanceTests(unittest.TestCase):
         code=[0xf212,0x0071,0,0,0x030c,0x135b,0,0x000e]
         dex=FakeDex(code,[src])
         key=("Lga4;","Le48;","field_private")
-        with patch("audit_native_ga4_field2_value_origins.field_key",return_value=key):
+        with patch("audit_native_ga4_field2_value_origins.field_key",return_value=key), \
+                patch("audit_native_typed_wrapper_coroutines.field_at",return_value=("Lga4;","Le48;")):
             row=safe_writer_structural_excerpt(dex,0,{key})[0]
         self.assertEqual(row["register_roles"][0]["result_register"],2)
         self.assertEqual(row["register_roles"][2]["result_register"],3)
