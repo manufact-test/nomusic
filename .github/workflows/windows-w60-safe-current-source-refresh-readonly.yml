@@ -1,0 +1,53 @@
+name: CELIKOM W60 original signed Yandex current source refresh audit READ-ONLY
+
+on:
+  push:
+    branches:
+      - experiment/windows-stop-lifecycle-20261110
+    paths:
+      - windows-companion/w49/w60-current-source-reload-audit.mjs
+      - .github/workflows/windows-w60-safe-current-source-refresh-readonly.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  exact-vendor-player-readonly:
+    runs-on: windows-2022
+    timeout-minutes: 19
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify vendor identity and inspect player contract without running playback
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $ProgressPreference='SilentlyContinue'
+          $setup=Join-Path $env:RUNNER_TEMP 'w60-signed-yandex.exe'
+          Invoke-WebRequest 'https://desktop.app.music.yandex.net/stable/Yandex_Music_x64_5.126.1.exe' -OutFile $setup -UseBasicParsing -TimeoutSec 240
+          if ((Get-FileHash $setup -Algorithm SHA256).Hash.ToLowerInvariant() -ne '131fa1d9bc32eee2baadbdd7c1fe7aa8ba4a2f89ec972dd462aa06ee5b170435') {
+            throw 'W60_PINNED_VENDOR_SETUP_MISMATCH'
+          }
+          $sig=Get-AuthenticodeSignature $setup
+          if ($sig.Status -ne 'Valid' -or $sig.SignerCertificate.Subject -notmatch '(?i)Yandex|Яндекс') {
+            throw 'W60_SIGNED_VENDOR_UNTRUSTED'
+          }
+          $p=Start-Process $setup -ArgumentList '/S' -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw 'W60_VENDOR_INSTALL_FAILED' }
+          $asar=Join-Path $env:LOCALAPPDATA 'Programs\YandexMusic\resources\app.asar'
+          if ((Get-FileHash $asar -Algorithm SHA256).Hash.ToLowerInvariant() -ne '5a259722d60f746ec32c8bf6e880e375e888315080fb18e67c29b54b582c1215') {
+            throw 'W60_ASAR_MISMATCH'
+          }
+          node windows-companion/w49/w60-current-source-reload-audit.mjs $asar
+          if ($LASTEXITCODE -ne 0) { throw 'W60_READONLY_STATIC_AUDIT_FAILED' }
+          if ((Get-FileHash $asar -Algorithm SHA256).Hash.ToLowerInvariant() -ne '5a259722d60f746ec32c8bf6e880e375e888315080fb18e67c29b54b582c1215') {
+            throw 'W60_ORIGINAL_CHANGED'
+          }
+          Write-Output W60_VENDOR_ORIGINAL_UNMODIFIED
+      - name: No user Yandex playback or real account touched
+        run: echo W60_ONLY_SIGNED_VENDOR_DISPOSABLE_READONLY_NO_OWNER_UPDATE
