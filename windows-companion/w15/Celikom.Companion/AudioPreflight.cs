@@ -90,7 +90,7 @@ public static class AudioPreflight
     public static long? Mp3DurationMs(byte[] bytes)
     {
         var size = bytes.Length;
-        if (size is < 1024 or > MaxBytes) return null;
+        if (size < 1024 || size > MaxBytes) return null;
         bool Marker(int at, string text)
         {
             if (at < 0 || at + text.Length > size) return false;
@@ -178,7 +178,7 @@ public static class AudioPreflight
 
     public static long? M4aDurationMs(byte[] bytes)
     {
-        if (bytes.Length is < 1024 or > MaxBytes) return null;
+        if (bytes.Length < 1024 || bytes.Length > MaxBytes) return null;
         var size = bytes.Length;
         uint U32(int p) => BinaryPrimitives.ReadUInt32BigEndian(bytes.AsSpan(p, 4));
         ushort U16(int p) => BinaryPrimitives.ReadUInt16BigEndian(bytes.AsSpan(p, 2));
