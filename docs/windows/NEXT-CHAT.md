@@ -12,6 +12,8 @@
 
 **W54 read-only live SSH preflight:** https://github.com/manufact-test/nomusic/actions/runs/42791183852 SUCCESS, found **zero accessible recent candidate HTTP access/error logs** under the narrowly inspected Hostinger domain paths. No production writes, URLs, IPs or secrets logged. Thus cannot retroactively classify the owner's original seven HTTP403s from server access logs.
 
+**W53 verified end-to-end stage gates:** W15/W22 #42791600640 SUCCESS, Windows preview #42791600534 SUCCESS, W20 #42791600240 SUCCESS, genuine signed original Yandex disposable W23 #42791811325 SUCCESS with byte-identical restore. New conditional legacy W41 observer ownership check #42792654175 needs final CI verdict; when host owns CDP it does NOT remeasure old wire-Origin categories. The one-use W54 Hostinger SSH census workflow has been removed after SUCCESS and zero accessible log candidates; only sanitized documentation and its historical run remain. Backup `backup/windows-w53-403-export-isolation-nativehost-pass-20261110` at `b5eeb51`. Owner app still 0.24.6 unchanged, sound NO-GO, no new EXE.
+
 **NEXT:** Establish cause of LIVE audio 403 using a low-risk path, not an invented token/host bypass; inspect only legitimately authorized session/server evidence. Once fix is proven, create actual version >0.24.6 and run verified same-app DPAPI-auth-preserving update, then deliver exclusively through verified ChatGPT Library `CELIKOM/Windows`. No manual owner trial of unchanged 0.24.6.
 
 ---
