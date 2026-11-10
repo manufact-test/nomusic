@@ -79,7 +79,7 @@ def type_provenance_writes(dex,code_off,interesting):
             results.append({
                 "_field_key":key,
                 "new_instance_type_on_same_unbranched_register":
-                    brief_type(reg_types.get(value,"unknown")),
+                    (brief_type(reg_types[value]) if value in reg_types else "unknown"),
                 "has_branch_or_exception_uncertainty":uncertain,
                 "constructor_instance_bound_to_live_receiver":False,
             })
@@ -116,6 +116,7 @@ def scan_fields(apks):
     records=[]
     all_keys=set()
     target_defs=[]
+    scanned_bodies=0
     total_code_units=0
     dex_count=0
     for apk in apks:
@@ -134,6 +135,7 @@ def scan_fields(apks):
                 all_keys.update(keys)
                 for idx,off in method_definitions(d):
                     method=d.method(idx)
+                    scanned_bodies+=1
                     if method[0]==CLASS:
                         target_defs.append(method)
                     if not keys:continue
@@ -173,7 +175,8 @@ def scan_fields(apks):
                 ctor_types[slot].add(store["new_instance_type_on_same_unbranched_register"])
     return {
         "six_original_dex_complete":True,
-        "defined_method_bodies_field_scanned":len(records),
+        "defined_method_bodies_scanned":scanned_bodies,
+        "method_bodies_with_target_field_access":len(records),
         "all_code_instruction_count":total_code_units,
         "distinct_le48_fields_on_ga4":len(slots),
         "exact_field_slot_caller_c":{
