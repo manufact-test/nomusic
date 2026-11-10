@@ -4,7 +4,7 @@ from unittest.mock import patch
 from pathlib import Path
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 from audit_native_source_real_callers import (relevant,invocation_windows,
-    class_ancestry,source_wrapper_field_projections)
+    class_ancestry,source_wrapper_field_projections,model_input_to_i0_windows)
 
 
 class FakeDex:
@@ -91,6 +91,15 @@ class ActualSignedCallersAuditTests(unittest.TestCase):
         self.assertTrue(result[0]["distinct_object_identity_from_wrapper"])
         self.assertEqual(result[0]["projected_field_may_flow_events"][0]
                          ["argument_word"],0)
+
+    def test_structural_i0_input_registers_are_not_current_track_proof(self):
+        producer=("Lcq7;","i0","(Lxfs;Ljgv;Lacb;)Ljava/lang/Object;")
+        dex=FakeDex([producer])
+        rows=model_input_to_i0_windows(
+            dex,[(0,0x3071,(0x3071,0,0x0321))])
+        self.assertEqual(rows[0]["i0_argument_registers"],[1,2,3])
+        self.assertEqual(rows[0]["i0_invoke_ordinal"],0)
+        self.assertFalse(rows[0]["proven_current_music_track"])
 
     def test_ancestry_cannot_prove_decoder(self):
         self.assertFalse(class_ancestry({"Lmir;":(17,("Lbase;",))},"Lmir;")
