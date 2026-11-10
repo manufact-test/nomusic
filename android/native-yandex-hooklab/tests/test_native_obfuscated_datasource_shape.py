@@ -37,6 +37,19 @@ class ObfuscatedDataSourceShapeTests(unittest.TestCase):
         self.assertFalse(out["dataspec_to_long_signature"])
         self.assertFalse(out["data_source_like_signature_complete"])
 
+    def test_inherited_data_reader_and_source_method_union(self):
+        source={
+            ("Lm48;","b","(La58;)J"),
+            ("Lm48;","close","()V"),
+            ("Lm48;","getUri","()Landroid/net/Uri;"),
+        }
+        parent={("Lv38;","read","([BII)I")}
+        self.assertFalse(api_shape_census(source)["data_source_like_signature_complete"])
+        self.assertFalse(api_shape_census(parent)["data_source_like_signature_complete"])
+        combined=api_shape_census(source|parent)
+        self.assertTrue(combined["data_source_like_signature_complete"])
+        self.assertFalse(combined["actual_instantiated_music_decoder_datasource_proven"])
+
     def test_wrong_return_type_does_not_count(self):
         m={
             ("Lm48;","b","(La58;)I"),
