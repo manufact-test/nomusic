@@ -1,4 +1,4 @@
-name: CELIKOM W65 0.24.13 owner final UI parity trial — private
+name: CELIKOM W66 0.24.14 icon + UX private owner trial
 
 on:
   push:
@@ -113,14 +113,14 @@ jobs:
             Write-Output "W66_OFFICIAL_C_ICON_$label PASS"
           }
           Assert-CelikomIcon 'windows-companion/w20/publish/CELIKOM.Companion.exe' 'APP'
-          Assert-CelikomIcon 'windows-companion/w20/output/CELIKOM-W65-ACCOUNT-SUPPORT-UX-UNSIGNED.exe' 'INSTALLER'
+          Assert-CelikomIcon 'windows-companion/w20/output/CELIKOM-W66-COMPACT-UX-BRAND-UNSIGNED.exe' 'INSTALLER'
       - name: Validate updater ZIP selection, PE version and anti-downgrade
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          $installer = 'windows-companion/w20/output/CELIKOM-W65-ACCOUNT-SUPPORT-UX-UNSIGNED.exe'
+          $installer = 'windows-companion/w20/output/CELIKOM-W66-COMPACT-UX-BRAND-UNSIGNED.exe'
           $meta = [Diagnostics.FileVersionInfo]::GetVersionInfo((Resolve-Path $installer))
-          if ($meta.FileVersion.Trim() -ne '0.24.13.0' -or $meta.ProductName.Trim() -ne 'CELIKOM' -or $meta.CompanyName.Trim() -ne 'CELIKOM') {
+          if ($meta.FileVersion.Trim() -ne '0.24.14.0' -or $meta.ProductName.Trim() -ne 'CELIKOM' -or $meta.CompanyName.Trim() -ne 'CELIKOM') {
             throw "W32_INSTALLER_PE_VERSION_MISMATCH: version=$($meta.FileVersion) product=$($meta.ProductName) company=$($meta.CompanyName)"
           }
           $package = Join-Path $env:RUNNER_TEMP 'CELIKOM-W32-test-package.zip'
@@ -148,7 +148,7 @@ jobs:
           $ErrorActionPreference = 'Stop'
           $exe = Join-Path $env:LOCALAPPDATA 'Programs\CELIKOM\CELIKOM.Companion.exe'
           $unins = Join-Path $env:LOCALAPPDATA 'Programs\CELIKOM\unins000.exe'
-          $installer = 'windows-companion/w20/output/CELIKOM-W65-ACCOUNT-SUPPORT-UX-UNSIGNED.exe'
+          $installer = 'windows-companion/w20/output/CELIKOM-W66-COMPACT-UX-BRAND-UNSIGNED.exe'
           $yandexDir = Join-Path $env:LOCALAPPDATA 'Programs\YandexMusic'
           if (Test-Path $exe) { throw 'W20_DIRTY_INSTALL_RUNNER' }
           if (Test-Path $yandexDir) { throw 'W20_RUNNER_YANDEX_PREEXISTS' }
@@ -188,13 +188,13 @@ jobs:
       - name: Report internal package fingerprint
         shell: pwsh
         run: |
-          $hash = (Get-FileHash windows-companion/w20/output/CELIKOM-W65-ACCOUNT-SUPPORT-UX-UNSIGNED.exe -Algorithm SHA256).Hash
+          $hash = (Get-FileHash windows-companion/w20/output/CELIKOM-W66-COMPACT-UX-BRAND-UNSIGNED.exe -Algorithm SHA256).Hash
           Write-Output "W20_INTERNAL_UNSIGNED_SHA256=$hash"
           Write-Output 'W24 INTERNAL: installer and restoration; native audible playback NOT YET ACCEPTED'
       - name: Retain INTERNAL staging build, not a release
         uses: actions/upload-artifact@v4
         with:
-          name: CELIKOM-W65-ACCOUNT-SUPPORT-UX-UNSIGNED
-          path: windows-companion/w20/output/CELIKOM-W65-ACCOUNT-SUPPORT-UX-UNSIGNED.exe
+          name: CELIKOM-W66-COMPACT-UX-BRAND-UNSIGNED
+          path: windows-companion/w20/output/CELIKOM-W66-COMPACT-UX-BRAND-UNSIGNED.exe
           if-no-files-found: error
           retention-days: 10
