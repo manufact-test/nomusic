@@ -312,7 +312,7 @@ function observeNativePlayback(view) {
           try {
             const u = new URL(params?.request?.url);
             if (origin && u.origin === origin && !u.username && !u.password)
-              id = /^\\/api\\/v1\\/audio\\/([1-9][0-9]{0,17})$/.exec(u.pathname)?.[1] || null;
+              id = /^\/api\/v1\/audio\/([1-9][0-9]{0,17})$/.exec(u.pathname)?.[1] || null;
           } catch {}
           if (!id) return;
           if (mediaRequests.size >= 64)
