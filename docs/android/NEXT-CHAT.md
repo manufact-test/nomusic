@@ -1,3 +1,9 @@
+## UPDATE 10.11.2026 — verified publisher-access feasibility gate (NO-GO)
+
+New research: `docs/android/ANDROID-NATIVE-PUBLISHER-HOST-FEASIBILITY-2026-11-10.md`. Android's app sandbox and MediaSession do **not** provide a generic source replacement hook into unmodified Yandex; `AudioPlaybackCapture` is output-only. Official Yandex archived job postings **confirm partner SDK/API integration work (MTS Music)**, but neither a publicly usable audio source extension nor permission for CELIKOM is documented. Precise unsolved prerequisite: **publisher-approved pre-prepare native source host**, including authoritative track+edition+generation and rights-cleared source contract. Clone `EXIT_SELF(0)` is confirmed; actual cause remains unknown (not proven anti-tamper). Native replacement remains **NO-GO**; no changes to code, APK or phone, no new CI because docs/research only. Backup pre-docs: `backup/android-native-publisher-host-gate-20261110` at `0cf4ee3be8b092a316eacdaa0dce988e20b8c49b`. Do **not** restart LSPatch x86 or AppMetrica experiments. Next action only with an explicitly documented or authorized publisher-supported interface; otherwise raise owner-level feasibility decision.
+
+---
+
 # CELIKOM Android — NEXT CHAT (10.11.2026)
 
 ## FINAL CHECKPOINT 10.11.2026 — atomic pre-prepare admission model, 2/2 CI SUCCESS
