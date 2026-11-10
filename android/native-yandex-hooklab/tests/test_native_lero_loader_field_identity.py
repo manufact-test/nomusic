@@ -33,18 +33,15 @@ class ExactLeroReaderFieldTests(unittest.TestCase):
         ]
         # invoke-virtual Lga4.c ; move-result-object v2;
         # new-instance v3; invoke-direct Lmb4.<init>{v3,v2,v4,v5,v6}
-        dex=FakeDex([0x106e,0,0x0001,0x020c,
-                     0x0322,1,
-                     0x5070,1,0x65423,0x000e],methods)
-        # 35c five args C=v3 D=v2 E=v4 F=v5, G=v6
-        dex.words[8+2+1+2+1+2]=0x5243  # replace invoke packed list if needed
+        dex=FakeDex([],methods)
+        # DEX 35c: count 5, G=v6, C=v3, D=v2, E=v4, F=v5.
         # Simpler verify decoders by constructing direct instruction iterator
         from unittest.mock import patch as mock
         ins=[
             (0,0x6e,(0x106e,0,0x0001)),
             (3,0x0c,(0x020c,)),
             (4,0x22,(0x0322,1)),
-            (6,0x70,(0x6570,1,0x5423)),
+            (6,0x70,(0x5670,1,0x5423)),
             (9,0x0e,(0x000e,))
         ]
         with mock("audit_native_lero_loader_field_identity.instructions",return_value=iter(ins)):
@@ -53,13 +50,13 @@ class ExactLeroReaderFieldTests(unittest.TestCase):
         self.assertEqual(rows[0]["bounded_direct_target_events"][0]["source_argument_word"],1)
 
     def test_constructor_p1_written_to_exact_m48_slot(self):
-        dex=FakeDex([0x125b,0,0x000e],register_count=7,incoming=5)
+        dex=FakeDex([0x235b,0,0x000e],register_count=7,incoming=5)
         key=("Lmb4;","Lm48;","private_slot")
         with patch("audit_native_lero_loader_field_identity.field_key",return_value=key):
             self.assertEqual(constructor_source_field(dex,0,("Lmb4;","<init>","()V")),key)
 
     def test_mismatching_field_does_not_identify_loader_source(self):
-        dex=FakeDex([0x125b,0,0x000e],register_count=7,incoming=5)
+        dex=FakeDex([0x235b,0,0x000e],register_count=7,incoming=5)
         key=("Lmb4;","Lother;","private")
         with patch("audit_native_lero_loader_field_identity.field_key",return_value=key):
             self.assertIsNone(constructor_source_field(dex,0,("Lmb4;","<init>","()V")))
