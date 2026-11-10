@@ -72,12 +72,11 @@ var
   RemoveCheck: TNewCheckBox;
   ContinueButton, CancelButton: TNewButton;
 begin
-  Form := CreateCustomForm();
+  // Inno Setup 6.6+: CreateCustomForm requires explicit unscaled size,
+  // KeepSizeX and KeepSizeY at construction (properties are read-only).
+  Form := CreateCustomForm(480, 194, True, True);
   try
     Form.Caption := 'CELIKOM — удаление';
-    Form.ClientWidth := ScaleX(480);
-    Form.ClientHeight := ScaleY(194);
-    Form.KeepSizeY := True;
 
     Intro := TLabel.Create(Form);
     Intro.Parent := Form;
