@@ -8,7 +8,7 @@ namespace Celikom.Companion;
 /// One native CELIKOM window, never a media player. Yandex remains the
 /// only source of media keys, queue, pause and seek.
 /// </summary>
-public sealed class MainWindow : Form
+public sealed partial class MainWindow : Form
 {
     // Windows presentation follows the actual shipped Chrome extension popup.css.
     // Keep these colors synchronized with extension/popup/popup.css (W59).
@@ -98,74 +98,8 @@ public sealed class MainWindow : Form
             }
         };
 
-        // Popup-style header: green connected mark, compact brand, live status.
-        var header = new Panel { Dock = DockStyle.Top, Height = 74, BackColor = Paper };
-        _connectionMark.Text = "●";
-        _connectionMark.Font = new Font("Segoe UI Symbol", 16F, FontStyle.Regular);
-        _connectionMark.ForeColor = ColorTranslator.FromHtml("#858B8E");
-        _connectionMark.Location = new Point(18, 20);
-        _connectionMark.Size = new Size(23, 31);
-        var logo = new Label
-        {
-            Text = "CELIKOM", Font = new Font("Segoe UI", 20F, FontStyle.Bold),
-            ForeColor = Ink, Location = new Point(42, 14),
-            AutoSize = false, Height = 40, Width = 220
-        };
-        _connectionState.Font = new Font("Segoe UI", 9F, FontStyle.Regular);
-        _connectionState.ForeColor = Secondary;
-        _connectionState.TextAlign = ContentAlignment.MiddleRight;
-        _connectionState.Anchor = AnchorStyles.Top | AnchorStyles.Right;
-        _connectionState.Location = new Point(285, 23);
-        _connectionState.Size = new Size(156, 27);
-        _connectionState.Text = "Отключён";
-        header.Resize += (_, _) =>
-            _connectionState.Left = header.ClientSize.Width - _connectionState.Width - 20;
-        header.Controls.Add(_connectionMark);
-        header.Controls.Add(logo);
-        header.Controls.Add(_connectionState);
-
-        _pages.Dock = DockStyle.Fill;
-        _pages.BackColor = Paper;
-        _homePanel.Dock = DockStyle.Fill;
-        _homePanel.BackColor = Paper;
-        _accountPanel.Dock = DockStyle.Fill;
-        _accountPanel.BackColor = Paper;
-        _pages.Controls.Add(_accountPanel);
-        _pages.Controls.Add(_homePanel);
-        _accountPanel.Visible = false;
-
-        // Extension-like navigation without the native WinForms tab strip:
-        // its system-colored border/blank gutter cannot match popup.css.
-        var navigation = new Panel { Dock = DockStyle.Top, Height = 46,
-            BackColor = Paper, Padding = new Padding(17, 1, 17, 1) };
-        var navButtons = new TableLayoutPanel { Dock = DockStyle.Fill,
-            ColumnCount = 2, RowCount = 1, Margin = Padding.Empty };
-        navButtons.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
-        navButtons.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
-        ConfigureAuthButton(_homeTab, true, "Главная");
-        ConfigureAuthButton(_accountTab, false, "Аккаунт");
-        _homeTab.Margin = new Padding(0, 0, 4, 3);
-        _accountTab.Margin = new Padding(4, 0, 0, 3);
-        _homeTab.Click += (_, _) => NavigateAccount(false);
-        _accountTab.Click += (_, _) => NavigateAccount(true);
-        navButtons.Controls.Add(_homeTab, 0, 0);
-        navButtons.Controls.Add(_accountTab, 1, 0);
-        navigation.Controls.Add(navButtons);
-        var footerBar = new Panel { Dock = DockStyle.Bottom, Height = 31,
-            BackColor = Surface };
-        _versionFooter.Dock = DockStyle.Fill;
-        _versionFooter.Padding = new Padding(15, 0, 8, 0);
-        _versionFooter.TextAlign = ContentAlignment.MiddleLeft;
-        _versionFooter.Font = new Font("Segoe UI", 8.5F);
-        _versionFooter.ForeColor = Secondary;
-        _versionFooter.AutoEllipsis = true;
-        footerBar.Controls.Add(_versionFooter);
-        Controls.Add(_pages);
-        Controls.Add(navigation);
-        Controls.Add(header);
-        Controls.Add(footerBar);
-        BuildHome(_homePanel);
-        BuildAccount(_accountPanel);
+        // One compact popup sourced from the actual Chrome extension layout.
+        BuildCompactPopup();
 
         var menu = new ContextMenuStrip();
         menu.Items.Add("Открыть CELIKOM", null, (_, _) => ShowMain());
@@ -185,18 +119,29 @@ public sealed class MainWindow : Form
             await RefreshHostAsync();
             if (_finishApplicationUpdate) await CompleteApplicationUpdateAsync();
             if (!_api.IsLoggedIn) NavigateAccount(true);
-            else await RefreshDiagnosticsAccessAsync();
+            else
+            {
+                await RefreshDiagnosticsAccessAsync();
+                await RefreshCompactAccessAsync(force: true);
+            }
         };
         Activated += (_, _) =>
         {
             if (DateTimeOffset.UtcNow - _lastHostProbe > TimeSpan.FromMinutes(2))
                 _ = RefreshHostAsync();
+            if (_api.IsLoggedIn) _ = RefreshCompactAccessAsync();
         };
         UpdateSafe();
     }
 
     private void NavigateAccount(bool account)
     {
+        if (_compactReady)
+        {
+            _compactAccountOpen = account;
+            LayoutCompact();
+            return;
+        }
         _accountPanel.Visible = account;
         _homePanel.Visible = !account;
         if (account) _accountPanel.BringToFront();
@@ -403,6 +348,7 @@ public sealed class MainWindow : Form
             !string.Equals(email, _api.Email, StringComparison.OrdinalIgnoreCase)) return;
         _diagnosticsAllowed = allowed;
         _staffPanel.Visible = allowed;
+        LayoutCompact();
     }
 
     private async void SaveDiagnosticsAuthorized(object? sender, EventArgs e)
@@ -754,7 +700,15 @@ public sealed class MainWindow : Form
         _logout.Enabled = false;
         try { await _api.LogoutAsync(); DiagnosticLog.Record("LOGOUT_OK"); _accountStatus.Text = ""; }
         catch { _accountStatus.Text = "Не удалось завершить выход. Проверь подключение."; }
-        finally { UpdateSafe(preserveAccountStatus: true); NavigateAccount(true); }
+        finally
+        {
+            ++_compactAccessGeneration;
+            _compactAccess.Text = "Войдите в аккаунт, чтобы начать";
+            _compactPromoOpen = false;
+            _compactAccountMode = "login";
+            UpdateSafe(preserveAccountStatus: true);
+            NavigateAccount(true);
+        }
     }
 
     private void UpdateSafe(bool preserveAccountStatus = false)
@@ -854,6 +808,7 @@ public sealed class MainWindow : Form
         _versionFooter.Text = "CELIKOM " + AppUpdateManager.RunningVersion.ToString(3);
         _tray.Text = connected && _bridge.Enabled
             ? "CELIKOM — включён" : "CELIKOM — выключен";
+        RenderCompact();
     }
 
     private void ShowMain()
