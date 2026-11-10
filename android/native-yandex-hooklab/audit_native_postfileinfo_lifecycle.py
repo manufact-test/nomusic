@@ -99,7 +99,7 @@ def bounded_path_to_media(forward,seeds,depth=MAX_DEPTH,cap=MAX_WALK):
     }
 
 
-def typed_anchors(apks):
+def typed_anchors(apks, dto=DTO):
     """Only model-typed method and field references; no full class/source export."""
     protos=set()
     field_owners=Counter()
@@ -113,14 +113,14 @@ def typed_anchors(apks):
                 d=Dex(z.read(item))
                 for i in range(d.method_count):
                     triple=d.method(i)
-                    if DTO in triple[2] or triple[0]==DTO:
+                    if dto in triple[2] or triple[0]==dto:
                         protos.add(triple)
                 count,_=d.table(80,8)
                 for i in range(count):
                     owner,typ=field_at(d,i)
-                    if typ==DTO:
+                    if typ==dto:
                         field_owners[owner]+=1
-                    if owner==DTO:
+                    if owner==dto:
                         field_types[brief_type(typ)]+=1
                 defined+=1
     if defined!=6:
@@ -138,8 +138,8 @@ def typed_anchors(apks):
     }
 
 
-def consumer_summary(reverse):
-    dto_callees={m for m in reverse if m[0]==DTO}
+def consumer_summary(reverse, dto=DTO):
+    dto_callees={m for m in reverse if m[0]==dto}
     detail=[]
     callers=set()
     for m in sorted(dto_callees):
@@ -159,8 +159,8 @@ def consumer_summary(reverse):
     }
 
 
-def downstream_consumer_telemetry(reverse,typed):
-    info=consumer_summary(reverse)
+def downstream_consumer_telemetry(reverse,typed,dto=DTO):
+    info=consumer_summary(reverse,dto)
     consumer=info.pop("_consumer_methods")
     forward=reverse_to_forward(reverse)
     # Different source sets, to avoid 'no path' from arbitrarily selecting just
@@ -190,9 +190,30 @@ def scan_signed(apks):
     if len(scans)!=6:
         raise ValueError("SIGNED_DEX_COUNT")
     reverse=merge_reverse(scans)
-    typed=typed_anchors(apks)
-    consumers,proximity=downstream_consumer_telemetry(reverse,typed)
+    typed=typed_anchors(apks, DTO)
+    consumers,proximity=downstream_consumer_telemetry(reverse,typed,DTO)
     typed.pop("_dto_protos")
+    next_typed=typed_anchors(apks,"Ljgv;")
+    next_consumers,next_proximity=downstream_consumer_telemetry(
+        reverse,next_typed,"Ljgv;")
+    next_typed.pop("_dto_protos")
+    # Exact, typed DTO -> post-FileInfo converter method; this is a
+    # structural method signature, NOT evidence of actual audio preparation.
+    transfer={
+        method:direct_callers for method,direct_callers in reverse.items()
+        if method[0]=="Lygv;" and method[1]=="r"
+        and "Ldiv;" in method[2] and "Ljgv;" in method[2]
+    }
+    bridge={
+        "exact_typed_conversion_refs":len(transfer),
+        "direct_conversion_callers":[{
+            "callee":method_profile(m),
+            "caller_count":len(callers),
+            "caller_hints":[method_label(c)
+                            for c in sorted(callers)[:MAX_CALLERS]],
+        } for m,callers in sorted(transfer.items())],
+        "substitution_preprepare_proven":False,
+    }
     return {
         "joined_signed_dex_count":len(scans),
         "joined_defined_method_bodies":sum(x["defined_method_bodies"] for x in scans),
@@ -200,6 +221,10 @@ def scan_signed(apks):
         "structural_l_div_type_references":typed,
         "direct_l_div_method_consumers":consumers,
         "downstream_caller_proximity":proximity,
+        "typed_l_div_to_l_jgv_conversion":bridge,
+        "post_l_jgv_type_references":next_typed,
+        "post_l_jgv_method_consumers":next_consumers,
+        "post_l_jgv_caller_proximity":next_proximity,
         "coroutine_result_object_to_decoder_binding_proven":False,
         "exact_current_track_edition_generation_proven":False,
         "audio_substitution_in_android_runtime_proven":False,
