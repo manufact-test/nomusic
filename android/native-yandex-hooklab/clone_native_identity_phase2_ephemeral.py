@@ -545,6 +545,12 @@ def run():
         preserve_original_dex = os.getenv("CELIKOM_MANIFEST_ONLY_ORIGINAL_DEX") == "1"
         sorted_metrica_runtime = os.getenv("CELIKOM_SORTED_METRICA_RUNTIME") == "1"
         strict_main_ui_gate = preserve_original_dex or sorted_metrica_runtime
+        profile_main_launch = os.getenv("CELIKOM_PROFILE_MAIN_LAUNCH") == "1"
+        if profile_main_launch and not (
+                preserve_original_dex and
+                os.getenv("CELIKOM_CLEAN_ANDROID_ARMV7_TRANSLATION") == "1" and
+                os.getenv("CELIKOM_ORIGINAL_CONTROL_LAUNCH") == "1"):
+            raise arsc.TrialError("PROFILE_MAIN_REQUIRES_DISPOSABLE_ORIGINAL_DEX_CONTROL")
         if sorted_metrica_runtime and preserve_original_dex:
             raise arsc.TrialError("SORTED_METRICA_REQUIRES_MUTABLE_LAB_DEX")
         if sorted_metrica_runtime and os.getenv("CELIKOM_CLEAN_ANDROID_ARMV7_TRANSLATION") != "1":
@@ -806,12 +812,19 @@ def run():
             if strict_main_ui_gate:
                 arsc.run(["adb", "logcat", "-c"],
                          "CLEAN_EMULATOR_LAUNCH_EVENT_SCOPE", 30)
+            # Official ActivityManager startup profiler, no app instrumentation
+            # edits, only disposable CI. The binary trace stays private in CI.
+            launch_args = ["adb", "shell", "am", "start", "-W"]
+            if profile_main_launch:
+                from observe_native_startup_trace import TRACE_PATH
+                launch_args.extend(["--start-profiler", TRACE_PATH])
+            launch_args.extend([
+                "-a", "android.intent.action.MAIN",
+                "-c", "android.intent.category.LAUNCHER",
+                "-n", source.DEST + "/ru.yandex.music.main.MainScreenActivity"
+            ])
             launch_stdout = arsc.run(
-                ["adb", "shell", "am", "start", "-W",
-                 "-a", "android.intent.action.MAIN",
-                 "-c", "android.intent.category.LAUNCHER",
-                 "-n", source.DEST + "/ru.yandex.music.main.MainScreenActivity"],
-                "ARM_CLONE_DIRECT_LAUNCH", 60)
+                launch_args, "ARM_CLONE_DIRECT_LAUNCH", 60)
             if strict_main_ui_gate:
                 print(json.dumps({
                     "clone_activity_start": classify_activity_start(launch_stdout)
@@ -844,6 +857,11 @@ def run():
                 # Preserve the formerly verified simple liveness probe.
                 pid = arsc.run(["adb", "shell", "pidof " + source.DEST + " || true"],
                                "ARM_CLONE_PROCESS_PROBE", 30).strip()
+            if profile_main_launch:
+                from observe_native_startup_trace import observe_disposable_trace
+                print(json.dumps({
+                    "main_startup_art_profile": observe_disposable_trace()
+                }, sort_keys=True))
             if not pid:
                 # Read only limited system crash tags on an empty, unauthenticated
                 # emulator. Emit ONLY boolean classifications, never raw logs,

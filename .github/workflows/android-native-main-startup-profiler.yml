@@ -1,0 +1,44 @@
+name: Android native MAIN startup ART profiler, isolated read-only (EPHEMERAL)
+on:
+  push:
+    branches:
+      - experiment/android-native-yandex-fileinfo-hooklab-20261109
+    paths:
+      - '.github/workflows/android-native-main-startup-profiler.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  profile-clone-main-only:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - name: Enable KVM for disposable Android 11
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+          test -e /dev/kvm
+      - name: Verify trace parser and existing MAIN UI safety tests
+        run: |
+          python3 -m py_compile android/native-yandex-hooklab/observe_native_startup_trace.py android/native-yandex-hooklab/clone_native_identity_phase2_ephemeral.py
+          python3 -m unittest discover -s android/native-yandex-hooklab/tests -p 'test_native_startup_trace.py' -v
+          python3 -m unittest discover -s android/native-yandex-hooklab/tests -p 'test_clone_crash_classification.py' -v
+      - name: Read-only ActivityManager startup profiler on disposable clone MAIN
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 30
+          target: google_apis
+          arch: x86
+          profile: pixel_5
+          emulator-boot-timeout: 480
+          emulator-options: -no-snapshot-load -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none
+          disable-animations: true
+          script: CELIKOM_CLEAN_ANDROID_ARMV7_TRANSLATION=1 CELIKOM_MANIFEST_ONLY_ORIGINAL_DEX=1 CELIKOM_OMIT_SHADOWED_SIGNATURE_DECLS=1 CELIKOM_ORIGINAL_CONTROL_LAUNCH=1 CELIKOM_PROFILE_MAIN_LAUNCH=1 python3 android/native-yandex-hooklab/clone_native_identity_phase2_ephemeral.py
+      - name: Ensure no original, clone APK, trace or signing key published
+        if: always()
+        run: |
+          test ! -d android/native-yandex-hooklab/release
+          test ! -d android/native-yandex-hooklab/patched
+          echo 'No publisher APK, trace, method table, accounts or keys delivered'
