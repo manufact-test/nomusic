@@ -440,6 +440,11 @@ public sealed partial class MainWindow
         _compactUploadDurationCaption.BackColor = _compactUploadBody.BackColor;
         _compactUploadBody.Controls.Add(_compactUploadDurationKnown);
         _compactUploadDuration.PlaceholderText = "Например, 180";
+        _compactUploadDuration.TextChanged += (_, _) =>
+        {
+            if (_compactSelectedAudio is not null && _compactUploadView == "form")
+                _ = CheckCompactFileAsync(debounceMs: 280);
+        };
         _compactUploadBody.Controls.Add(_compactDurationInput);
         _compactFilePicker.Click += CompactChooseAudio;
         _compactUploadBody.Controls.Add(_compactFilePicker);
