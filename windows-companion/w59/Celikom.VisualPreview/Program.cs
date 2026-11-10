@@ -273,6 +273,64 @@ if (!promoButton.Borderless || !benefitsButton.Borderless ||
     throw new Exception("W65_ACCOUNT_INNER_DETAILS_ARE_NOT_EXT_STYLE");
 Console.WriteLine("W65_NO_FILENAME_CHECK_AND_REAL_BENEFITS_CONTROLS_PASS");
 
+
+// W66 owner acceptance: no whitespace reservations in support/upload.
+// Test the *rendered* positions and whether content grows only on feedback.
+Set("_compactSupportOpen", true);
+Set("_compactUploadOpen", false);
+((PopupOptionSelect)Get("_compactSupportKind")).SelectedIndex = 0;
+((Label)Get("_compactSupportMessage")).Text = "";
+Relayout();
+var supportInput = (Control)Get("_compactSupportInput");
+var supportSubmit = (Control)Get("_compactSupportSubmit");
+var supportBody = (Control)Get("_compactSupportBody");
+var gap = supportSubmit.Top - supportInput.Bottom;
+if (gap < 11 || gap > 17 || supportBody.Bottom > ((Control)Get("_compactSupportFrame")).Height)
+    throw new Exception("W66_SUPPORT_GAP_MUST_BE_12PX_WITHIN_BOUNDS " + gap);
+var supportHeightBefore = supportBody.Height;
+((Label)Get("_compactSupportMessage")).Text = "Сообщение отправлено.";
+Relayout();
+if (supportBody.Height <= supportHeightBefore ||
+    !((Label)Get("_compactSupportMessage")).Visible)
+    throw new Exception("W66_SUPPORT_FEEDBACK_MUST_EXPAND_ON_DEMAND");
+((Label)Get("_compactSupportMessage")).Text = "";
+Relayout();
+if (supportBody.Height != supportHeightBefore ||
+    ((Label)Get("_compactSupportMessage")).Visible)
+    throw new Exception("W66_SUPPORT_FEEDBACK_MUST_COLLAPSE");
+Set("_compactSupportOpen", false);
+Set("_compactUploadOpen", true);
+Set("_compactUploadView", "form");
+Set("_compactSelectedAudio", null);
+Set("_compactAudioPreflight", null);
+((Label)Get("_compactUploadNote")).Text = "";
+Relayout();
+var uploadBody = (Control)Get("_compactUploadBody");
+var originalHeight = uploadBody.Height;
+var currentSubmit = (Control)Get("_compactUploadSubmit");
+if (!currentSubmit.Visible || uploadBody.Height - currentSubmit.Bottom > 28)
+    throw new Exception("W66_UPLOAD_HAS_RESERVED_BLANK_BOTTOM_SPACE");
+((Label)Get("_compactUploadNote")).Text = "Проверяем данные файла…";
+Relayout();
+if (uploadBody.Height <= originalHeight ||
+    !((Label)Get("_compactUploadNote")).Visible)
+    throw new Exception("W66_UPLOAD_FEEDBACK_MUST_EXPAND_ON_DEMAND");
+((Label)Get("_compactUploadNote")).Text = "";
+Relayout();
+if (uploadBody.Height != originalHeight ||
+    ((Label)Get("_compactUploadNote")).Visible)
+    throw new Exception("W66_UPLOAD_FEEDBACK_MUST_COLLAPSE");
+var dotMark = (Control)Get("_connectionMark");
+if (dotMark.Width != 7 || dotMark.Height != 7 || dotMark.Top != 15)
+    throw new Exception("W66_STATUS_DOT_NOT_CENTERED_AT_7PX");
+var neutralInput = new PopupInput(new TextBox());
+neutralInput.Hint = "Промокод";
+if (neutralInput.Hint != "Промокод" || neutralInput.Controls.OfType<Label>()
+        .Single().ForeColor != ColorTranslator.FromHtml("#AAB8BE"))
+    throw new Exception("W66_PROMO_HINT_NOT_NEUTRAL");
+SaveStage(prefix + "-w66-compact-upload.png");
+Console.WriteLine("W66_DYNAMIC_UPLOAD_AND_SUPPORT_GAPS_PROMO_COLOR_DOT_PASS");
+
 Console.WriteLine("W65_BORDERED_ACCORDIONS_DARK_SUPPORT_NO_FILENAME_CHECK_SCROLL_GUTTERS_PASS");
 Console.WriteLine("W64_SCROLLED_PANEL_EQUAL_GUTTERS_FIXED_FOOTER_RED_AUDIO_PRECHECK_PASS");
 
