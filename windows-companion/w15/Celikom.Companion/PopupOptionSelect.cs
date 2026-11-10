@@ -20,6 +20,8 @@ public sealed class PopupOptionSelect : Control
     [Browsable(false)]
     public ItemList Items { get; } = new();
     private int _selectedIndex = -1;
+    [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
+    [Browsable(false)]
     public int SelectedIndex
     {
         get => _selectedIndex;
