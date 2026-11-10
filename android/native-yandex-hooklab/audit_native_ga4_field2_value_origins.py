@@ -178,7 +178,7 @@ def exact_store_witnesses(dex,code_off,slot_keys):
     return out
 
 
-def discover_read_slot(apks):
+def discover_read_slot(apks, reader_method='c'):
     """Determine field by actual read and invoke in Lga4.c, not alphabetical order."""
     candidates=set()
     for apk in apks:
@@ -188,7 +188,7 @@ def discover_read_slot(apks):
                 d=Dex(z.read(name))
                 for mid,coff in method_definitions(d):
                     owner,meth,_=d.method(mid)
-                    if owner!=CLASS or meth!="c":continue
+                    if owner!=CLASS or meth!=reader_method:continue
                     ins=list(instructions(d,coff))
                     for i,(_,op,words) in enumerate(ins):
                         if op!=0x54:continue
