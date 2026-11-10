@@ -1,0 +1,33 @@
+name: CELIKOM W67 support selector real mouse lifecycle regression
+on:
+  push:
+    branches:
+      - experiment/windows-stop-lifecycle-20261110
+    paths:
+      - windows-companion/w67/**
+      - windows-companion/w15/Celikom.Companion/PopupOptionSelect.cs
+      - windows-companion/w15/Celikom.Companion/CompactPopup.cs
+      - .github/workflows/windows-w67-support-selector-interaction.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  real-support-selector:
+    runs-on: windows-2022
+    timeout-minutes: 16
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Compile real WinForms app and interaction driver
+        run: dotnet build windows-companion/w67/Celikom.SelectorInteractions/Celikom.SelectorInteractions.csproj -c Release -warnaserror
+      - name: Exercise actual menu mouse down/up, repeat type changes and child form relayout
+        run: dotnet run --no-build --project windows-companion/w67/Celikom.SelectorInteractions/Celikom.SelectorInteractions.csproj -c Release
+      - name: Verify no native audio/backend paths are exercised
+        run: echo W67_OFFLINE_SUPPORT_SELECTOR_ONLY_NO_YANDEX_OR_SERVER
