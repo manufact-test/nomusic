@@ -214,6 +214,24 @@ class SafeCloneCrashClassificationTest(unittest.TestCase):
             self.assertNotIn(secret, str(result))
 
 
+    def test_main_pid_nonruntime_error_frame_subsystems_are_labels_only(self):
+        exit_info = ("ApplicationExitInfo #0:\n pid=987\n "
+                     "process=pro.celikom.yandex.nativeclonelab reason=1 status=0\n"
+                     "ApplicationExitInfo #1:\n pid=988\n "
+                     "process=pro.celikom.yandex.nativeclonelab:AppMetrica reason=1\n")
+        logs = (
+            "11-09 21:59:00.010  987  987 E Vendor: java.lang.IllegalStateException: TOKEN_PRIVATE\n"
+            "11-09 21:59:00.011  987  987 E Vendor:     at com.yandex.passport.internal.Auth.init(Auth.java:34)\n"
+            "11-09 21:59:00.012  987  987 E Vendor:     at ru.yandex.music.YMApplication.onCreate(YMApplication.java:4)\n"
+            "11-09 21:59:00.013  988  988 E Vendor:     at com.google.android.gms.Secret.method(Secret.java:1)\n")
+        result = classify_main_pid_scoped_system_logs(exit_info, logs)
+        self.assertEqual(result["main_pid_nonruntime_exception_frame_subsystems"],
+                         ["YANDEX_PASSPORT", "YANDEX_MUSIC"])
+        self.assertNotIn("Auth.init", str(result))
+        self.assertNotIn("TOKEN_PRIVATE", str(result))
+        self.assertNotIn("Secret", str(result))
+
+
     def test_main_pid_log_fails_closed_if_no_process_pid(self):
         raw = "ApplicationExitInfo #0: process=pro.celikom.yandex.nativeclonelab reason=1"
         log = "11-09 21:59:00.013  404  404 E System.err: java.lang.SecurityException: SECRET"
