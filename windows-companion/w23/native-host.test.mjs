@@ -451,3 +451,28 @@ test("W53 body classifier is bounded by known header size or actual transfer len
     "unknown and oversized JSON must not be requested for body inspection");
   assert.ok(r.diagnostics.some(x=>x.endsWith("|PLAYER_403_PHP_INVALID_AUDIO_TOKEN|resource_id=139")));
 });
+
+test("W53 signed fields are distinguished from harmless order or unrelated query",async()=>{
+  const grant=w52Grant("139"), {debug}=w52Debugger();
+  const r=await runHost("musicapplication://desktop/",{
+    queue:[{requestId:"1",trackId:"123"}],debuggerDriver:debug,grantOverride:grant,
+    stateOverride:{enabled:true,signedIn:true,apiOrigin:"https://api.celikom.example"}
+  });
+  const expected=new URL(grant.audioUrl),token=expected.searchParams.get("token");
+  const exp=expected.searchParams.get("expires"),sid=expected.searchParams.get("sid");
+  for(const [requestId,url,classification] of [
+    ["reordered","https://api.celikom.example/api/v1/audio/139?sid="+sid+
+      "&expires="+exp+"&token="+token,"PLAYER_URL_SIGNED_FIELDS_INTACT"],
+    ["additional",grant.audioUrl+"&locale=en","PLAYER_URL_SIGNED_FIELDS_INTACT"],
+    ["damaged",grant.audioUrl.replace("sid="+sid,"sid="+sid+"?vsid=abc"),
+      "PLAYER_URL_QUERY_CHANGED"],
+    ["duplicate",grant.audioUrl+"&sid=8","PLAYER_URL_QUERY_CHANGED"]
+  ]){
+    debug.emit("message",{},"Network.requestWillBeSent",{
+      requestId,request:{url,method:"GET"},type:"Media"
+    });
+    assert.ok(r.diagnostics.some(x=>x.endsWith("|"+classification+"|resource_id=139")),classification);
+  }
+  assert.ok(!JSON.stringify(r.diagnostics).includes(token));
+  assert.ok(!JSON.stringify(r.diagnostics).includes(sid+"?vsid"));
+});
