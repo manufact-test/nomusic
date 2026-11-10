@@ -29,6 +29,9 @@ return [
     'auth_enabled' => $boolean('FEATURE_USER_AUTH'),
     // Read-only Stage11 views; never enables payments or subscription entitlement.
     'billing_views_enabled' => $boolean('FEATURE_BILLING_VIEWS'),
+    // Independent, fail-closed commercial gate. OFF until a verified
+    // payment provider is connected and existing paid accounts reconciled.
+    'paid_entitlement_enabled' => $boolean('FEATURE_PAID_ENTITLEMENT'),
     'referrals_enabled' => $boolean('FEATURE_REFERRAL_ATTRIBUTION'),
     'reward_eligibility_enabled' => $boolean('FEATURE_REWARD_ELIGIBILITY'),
     // Owner-supplied private mail credentials; default OFF until SMTP and DNS are verified.

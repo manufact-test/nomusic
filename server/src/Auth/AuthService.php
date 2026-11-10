@@ -188,7 +188,7 @@ final class AuthService
         if ($update->rowCount() === 1) $this->event((int)$row['user_id'], 'first_activation');
         $this->event((int)$row['user_id'], 'celikom_started');
         return ['ok' => true] + ($trial === null ? [] : ['trial' => $trial,
-            'entitlement' => (new \Celikom\Entitlement\EntitlementService($this->pdo))->check((int)$row['user_id'])->json()]);
+            'entitlement' => (new \Celikom\Entitlement\EntitlementService($this->pdo, (bool)($this->config['paid_entitlement_enabled'] ?? false)))->check((int)$row['user_id'])->json()]);
     }
 
     /** Confirmation of email is the only path that activates a new account session. */

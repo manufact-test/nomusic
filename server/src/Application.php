@@ -149,7 +149,7 @@ final class Application
                 if(strlen($body)>2048)throw new \InvalidArgumentException();
                 $data=json_decode($body,true,16,JSON_THROW_ON_ERROR);
                 if(!is_array($data)||array_keys($data)!==['code']||!is_string($data['code']))throw new \InvalidArgumentException();
-                $result=(new \Celikom\Promo\PromoService($pdo))->redeem((int)$session['user_id'],$data['code']);
+                $result=(new \Celikom\Promo\PromoService($pdo, (bool)($this->config['paid_entitlement_enabled'] ?? false)))->redeem((int)$session['user_id'],$data['code']);
                 $response=Response::json(200,$result);$response->headers['Cache-Control']='no-store';return $response;
             }catch(\JsonException|\InvalidArgumentException){return Response::json(400,['error'=>'invalid_promo']);}
             catch(\DomainException $e){return Response::json(409,['error'=>in_array($e->getMessage(),['promo_payment_pending','promo_lifetime_active','account_unavailable'],true)?$e->getMessage():'promo_unavailable']);}
@@ -194,7 +194,7 @@ final class Application
             $pdo = $this->database();
             $user = (new BearerAuthenticator($pdo))->session($headers);
             if ($user === null) return Response::json(401, ['error' => 'invalid_session']);
-            return Response::json(200, (new EntitlementService($pdo))->check($user['user_id'])->json());
+            return Response::json(200, (new EntitlementService($pdo, (bool)($this->config['paid_entitlement_enabled'] ?? false)))->check($user['user_id'])->json());
         }
         if ($method === 'GET' && $path === '/api/v1/config') {
             $incident = ($this->config['entitlement_enabled'] ?? false)
@@ -390,7 +390,7 @@ final class Application
                 return Response::json(503, ['error' => 'replacements_disabled']);
             }
             return (new AudioController($this->catalog(), $this->storage(), $this->tokens(),
-                ($this->config['entitlement_enabled'] ?? false) ? new AudioAccessService($this->database()) : null))->handle($method, (int) $match[1], $query, $headers);
+                ($this->config['entitlement_enabled'] ?? false) ? new AudioAccessService($this->database(), (bool)($this->config['paid_entitlement_enabled'] ?? false)) : null))->handle($method, (int) $match[1], $query, $headers);
         }
         return Response::json(404, ['error' => 'not_found']);
     }
@@ -402,7 +402,7 @@ final class Application
         $pdo = $this->database();
         $session = (new BearerAuthenticator($pdo))->session($headers);
         if ($session === null) return Response::json(401, ['error' => 'invalid_session']);
-        $entitlement = (new EntitlementService($pdo))->check($session['user_id']);
+        $entitlement = (new EntitlementService($pdo, (bool)($this->config['paid_entitlement_enabled'] ?? false)))->check($session['user_id']);
         if (!$entitlement->allowed) return Response::json(403, ['error' => 'access_denied', 'entitlement' => $entitlement->json()]);
         return $session + ['valid_until' => $entitlement->validUntil];
     }
@@ -410,7 +410,10 @@ final class Application
     private function authorized(array $headers): bool
     {
         $token = $this->config['test_api_token'];
-        // Private test access until the account and entitlement stages.
+        // Prevent a legacy beta bearer from bypassing paid/trial checks.
+        // Legacy API_TEST_TOKEN remains usable only in the pre-auth lab.
+        if (($this->config['auth_enabled'] ?? false) &&
+            ($this->config['entitlement_enabled'] ?? false)) return false;
         return strlen($token) >= 24 && hash_equals('Bearer ' . $token, $headers['authorization'] ?? '');
     }
 

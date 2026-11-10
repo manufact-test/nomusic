@@ -10,7 +10,7 @@ use Celikom\Entitlement\EntitlementService;
 
 final class PromoService
 {
-    public function __construct(private readonly PDO $pdo) {}
+    public function __construct(private readonly PDO $pdo, private readonly bool $billingEnabled = false) {}
     public static function code(mixed $value): string
     {
         if (!is_string($value) || !preg_match('/^[A-Za-z0-9_-]{8,64}$/D',trim($value))) throw new \InvalidArgumentException('invalid_promo');
@@ -72,7 +72,7 @@ final class PromoService
             $now=(string)$this->pdo->query('SELECT UTC_TIMESTAMP(6)')->fetchColumn();
             if($promo['revoked_at']!==null || (int)$promo['used_activations']>=(int)$promo['max_activations'] || ($promo['activation_deadline']!==null && $promo['activation_deadline']<=$now)) throw new \DomainException('promo_unavailable');
             if((int)$promo['discount_percent']!==100) throw new \DomainException('promo_payment_pending');
-            $previous=(new PromoAccessService($this->pdo))->best($userId);
+            $previous=(new PromoAccessService($this->pdo, $this->billingEnabled))->best($userId);
             if($previous!==null && $previous['until']===null)throw new \DomainException('promo_lifetime_active');
             $forever=(int)$promo['forever']===1;
             $from=$forever?$now:max($now,$previous['until']??$now);

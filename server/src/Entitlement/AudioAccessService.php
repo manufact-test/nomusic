@@ -9,7 +9,7 @@ use PDO;
 /** A signed URL is scoped to one independent session and rechecked on every Range. */
 final class AudioAccessService
 {
-    public function __construct(private readonly PDO $pdo) {}
+    public function __construct(private readonly PDO $pdo, private readonly bool $billingEnabled = false) {}
 
     public function allowed(int $sessionId): bool
     {
@@ -17,6 +17,6 @@ final class AudioAccessService
             WHERE id = ? AND revoked_at IS NULL AND refresh_expires_at > UTC_TIMESTAMP(6)');
         $q->execute([$sessionId]);
         $id = $q->fetchColumn();
-        return $id !== false && (new EntitlementService($this->pdo))->check((int)$id)->allowed;
+        return $id !== false && (new EntitlementService($this->pdo, $this->billingEnabled))->check((int)$id)->allowed;
     }
 }

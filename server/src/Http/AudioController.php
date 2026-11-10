@@ -26,6 +26,12 @@ final class AudioController
                 return Response::json(403, ['error' => 'invalid_audio_token']);
             $sessionId = (int)$query['sid'];
         }
+        // A v1 token without a user session is never a paid customer grant.
+        // Disable the beta-only non-session audio route whenever account
+        // entitlement is active, including HEAD and every Range request.
+        if ($this->access !== null && $sessionId === null) {
+            return Response::json(403, ['error' => 'invalid_audio_token']);
+        }
         if (!$this->tokens->valid($id, (int) $row['version'], is_string($query['expires'] ?? null) ? $query['expires'] : '', is_string($query['token'] ?? null) ? $query['token'] : '', sessionId: $sessionId)) {
             return Response::json(403, ['error' => 'invalid_audio_token']);
         }
