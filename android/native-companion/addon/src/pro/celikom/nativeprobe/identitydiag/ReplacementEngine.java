@@ -838,11 +838,11 @@ final class ReplacementEngine {
        let a stale warm callback resume the old fade at the new source position. */
     if(sourceJump&&fading){seek(s,position(s),0);return;}
     if(audioOwner.seekExpired(player,clock,streaming!=null&&!streaming.complete()?STREAM_SEEK_TIMEOUT_MS:SEEK_TIMEOUT_MS))
-     recoverSeekTimeout("native_inflight_expired");
+     suspend("seek_timeout",retryDelay());
     else status="Ожидаем предыдущую перемотку; играет оригинал";
     return;
    }
-   if(seeking){if(clock-seekStarted>seekBudget)recoverSeekTimeout("alignment_elapsed_expired");return;}
+   if(seeking){if(clock-seekStarted>seekBudget)suspend("seek_timeout",retryDelay());return;}
    long target=position(s);if(target>=s.duration){suspend("source_end",30000);return;}if(target>=player.getDuration()){
      if(PlaybackDuration.boundedTail(s.duration,player.getDuration()))
       LogStore.log("replacement_expected_tail",LogStore.map("trackId",trackId,"sourceDurationMs",s.duration,"measuredDurationMs",player.getDuration(),"action","handoff_to_original_before_next_track"));
@@ -1837,23 +1837,27 @@ final class ReplacementEngine {
   * source within 60s stop repetitive decoder reconnect attempts.
   * The original Yandex player is never commanded by this method.
   */
- void recoverSeekTimeout(String phase){
-  final String key=identityKey;
-  final PlaybackSource currentSource=owner.current;
-  final boolean sameSource=key!=null&&currentSource!=null
-     &&Objects.equals(key,currentSource.key);
-  SeekTimeoutCircuitBreaker.Decision decision=seekTimeoutBreaker.timeout(
-    sameSource?key:null,SystemClock.elapsedRealtime());
-  LogStore.log("replacement_seek_timeout_failopen",LogStore.map(
-    "phase",phase,"timeoutCount",decision.observedTimeouts,
-    "originalUntilBoundary",decision.originalUntilBoundary,
-    "sameCurrentSource",sameSource,"outputMeasured",false,
-    "yandexPauseSeekConfirmed",false));
-  suspend("seek_timeout",retryDelay());
-  if(decision.originalUntilBoundary&&sameSource&&key!=null
-      &&Objects.equals(identityKey,key)&&owner.current!=null
-      &&Objects.equals(owner.current.key,key)){
-   completedKey=key;
+ void suspend(String reason,long delay){
+  final boolean nativeSeekTimedOut="seek_timeout".equals(reason);
+  final String failedKey=identityKey;
+  final PlaybackSource failedSource=owner.current;
+  final boolean sameSource=nativeSeekTimedOut&&failedKey!=null
+      &&failedSource!=null&&Objects.equals(failedKey,failedSource.key);
+  // All original Test.50 seek-timeout entrypoints (including the delayed
+  // native seek watchdog) pass through this single recovery method.
+  SeekTimeoutCircuitBreaker.Decision decision=nativeSeekTimedOut
+      ?seekTimeoutBreaker.timeout(sameSource?failedKey:null,
+          SystemClock.elapsedRealtime()):null;
+  if(decision!=null)LogStore.log("replacement_seek_timeout_failopen",
+      LogStore.map("timeoutCount",decision.observedTimeouts,
+        "originalUntilBoundary",decision.originalUntilBoundary,
+        "sameCurrentSource",sameSource,"outputMeasured",false,
+        "yandexPauseSeekConfirmed",false));
+if(streaming!=null&&Arrays.asList("prepare_timeout","prepare_failed","duration_or_session_invalid","seek_timeout","media_player_error","decoder_start_timeout").contains(reason)){streamFallbackKey=identityKey;delay=1000;LogStore.log("replacement_stream_fallback",LogStore.map("reason",reason));}if("replacement_completed".equals(reason)||"replacement_end".equals(reason)||"source_end".equals(reason)){completedKey=identityKey;completedPosition=owner.current==null?0:position(owner.current);}Map<String,Object> recovery=owner.runtimeSnapshot("replacement_recovery_"+reason);generation++;preparing=false;release(reason);descriptor=null;lookupKey=null;nextLookup=SystemClock.elapsedRealtime()+delay;audioOwner.recovering(reason);ownerEvent("recovery");recovery.put("reason",reason);recovery.put("automaticModeRetained",armed());recovery.put("retryMs",delay);recovery.put("retryAtElapsedMs",nextLookup);recovery.put("failureCount",failures);recovery.put("postReleaseReady",ready);recovery.put("postReleasePreparing",preparing);LogStore.log("replacement_recovery",recovery);
+  if(decision!=null&&decision.originalUntilBoundary&&sameSource
+      &&Objects.equals(identityKey,failedKey)&&owner.current!=null
+      &&Objects.equals(owner.current.key,failedKey)){
+   completedKey=failedKey;
    completedPosition=position(owner.current);
    completedReason="Перемотка замены нестабильна — играет оригинал до следующей песни";
    audioOwner.unsupported("repeated_seek_timeout");
@@ -1861,7 +1865,6 @@ final class ReplacementEngine {
    ownerEvent("seek_timeout_original_failsafe");
   }
  }
- void suspend(String reason,long delay){if(streaming!=null&&Arrays.asList("prepare_timeout","prepare_failed","duration_or_session_invalid","seek_timeout","media_player_error","decoder_start_timeout").contains(reason)){streamFallbackKey=identityKey;delay=1000;LogStore.log("replacement_stream_fallback",LogStore.map("reason",reason));}if("replacement_completed".equals(reason)||"replacement_end".equals(reason)||"source_end".equals(reason)){completedKey=identityKey;completedPosition=owner.current==null?0:position(owner.current);}Map<String,Object> recovery=owner.runtimeSnapshot("replacement_recovery_"+reason);generation++;preparing=false;release(reason);descriptor=null;lookupKey=null;nextLookup=SystemClock.elapsedRealtime()+delay;audioOwner.recovering(reason);ownerEvent("recovery");recovery.put("reason",reason);recovery.put("automaticModeRetained",armed());recovery.put("retryMs",delay);recovery.put("retryAtElapsedMs",nextLookup);recovery.put("failureCount",failures);recovery.put("postReleaseReady",ready);recovery.put("postReleasePreparing",preparing);LogStore.log("replacement_recovery",recovery);}
  void returnOriginal(){
   if(!accountLeaseCurrent())return;
   if(player==null||effect==null||!ready||!current(identityKey)||!owner.current.playing
