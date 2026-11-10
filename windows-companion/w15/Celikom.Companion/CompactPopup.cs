@@ -442,15 +442,61 @@ public sealed partial class MainWindow
         _compactAccountTrigger.BackColor = !_api.IsLoggedIn ? Danger : Surface;
         _compactAccountTrigger.ForeColor = !_api.IsLoggedIn ? Color.White : Ink;
         _compactAccountTrigger.Invalidate();
-        _start.Text = !_api.IsLoggedIn ? "Старт" : connected ? "Старт" : "Повторить";
-        _compactTrack.Text = GrantValidator.IsTrackId(_bridge.LastSong)
-            ? "Track ID " + _bridge.LastSong : "Запустите трек в Яндекс Музыке";
-        _compactUploadTrack.Text = GrantValidator.IsTrackId(_bridge.LastSong)
-            ? "Track ID " + _bridge.LastSong : "Сначала запустите песню в Яндексе";
-        _compactSuggestTrack.Text = _compactUploadTrack.Text;
-        _compactOriginal.Enabled = connected && _bridge.Enabled;
-        _compactSuggestSubmit.Enabled = _api.IsLoggedIn && GrantValidator.IsTrackId(_bridge.LastSong);
-        _compactUploadSubmit.Enabled = _api.IsLoggedIn && GrantValidator.IsTrackId(_bridge.LastSong);
+        _signedInIdentity.Text = _api.Email;
+        _start.Text = "Старт";
+        _compactStartup.Text = _compactStartupText;
+
+        var id = _bridge.LastSong;
+        var valid = GrantValidator.IsTrackId(id);
+        if (valid)
+        {
+            var title = _bridge.LastTrackTitle;
+            var artist = _bridge.LastTrackArtist;
+            _compactTrack.Text = title.Length > 0
+                ? title + (artist.Length > 0 ? " — " + artist : "")
+                : "Track ID " + id;
+        }
+        else _compactTrack.Text = "Запустите трек в Яндекс Музыке";
+
+        _compactUploadTrack.Text = _compactTrack.Text;
+        _compactSuggestTrack.Text = _compactTrack.Text;
+        var duration = _bridge.LastTrackDurationMs;
+        _compactUploadDurationKnown.Text = duration >= 1000 ?
+            "Длительность: " + TimeSpan.FromMilliseconds(duration).ToString(@"m\:ss") : "";
+
+        if (id != _compactPresenceTrack)
+        {
+            _compactPresenceTrack = valid ? id : "";
+            _compactPresenceStatus = "";
+            _compactPresenceChecked = DateTimeOffset.MinValue;
+            ++_compactPresenceEpoch;
+            if (_compactUploadCancellation is null)
+            {
+                _compactUploadOpen = false;
+                _compactSuggestOpen = false;
+                ++_compactOpenEpoch;
+            }
+            if (valid && _api.IsLoggedIn && IsHandleCreated)
+                _ = RefreshCompactPresenceAsync(id);
+        }
+        _compactVersionStatus.Text = !_api.IsLoggedIn ? "Войди, чтобы проверить версию" :
+            _compactPresenceStatus switch
+            {
+                "approved" => "Версия песни CELIKOM доступна для подмены",
+                "pending" => "Версия песни CELIKOM на проверке",
+                "none" => "Версия песни CELIKOM ещё не загружена",
+                "error" => "Не удалось проверить версию песни CELIKOM",
+                _ => "Проверяем версию песни CELIKOM…"
+            };
+        _compactVersionStatus.ForeColor =
+            _compactPresenceStatus == "approved" ? Accent :
+            _compactPresenceStatus == "pending" ? ColorTranslator.FromHtml("#FFE1A1") : Secondary;
+        _compactUploadButton.Enabled = _api.IsLoggedIn && !_compactContributionBusy;
+        _compactSuggestButton.Enabled = _api.IsLoggedIn && !_compactContributionBusy;
+        _compactSuggestSubmit.Enabled = _api.IsLoggedIn &&
+            valid && !_compactContributionBusy && _compactSuggestView == "form";
+        _compactUploadSubmit.Enabled = _api.IsLoggedIn &&
+            valid && (_compactUploadCancellation is not null || _compactUploadView == "form");
         _compactAccountBody.Invalidate();
     }
 
@@ -461,31 +507,34 @@ public sealed partial class MainWindow
         try
         {
             _compactScroll.SuspendLayout();
-            var dimensions = new (Control item, int height, int gap, bool visible)[]
+            var hasTrack = GrantValidator.IsTrackId(_bridge.LastSong);
+            var rows = new (Control item, int height, int gap, bool visible)[]
             {
                 (_compactHeader, 34, 7, true),
                 (_compactActions, 40, 8, true),
-                (_compactOriginal, 40, 8, true),
+                (_compactStartup, 44, 8, !string.IsNullOrWhiteSpace(_compactStartupText)),
                 (_compactUploadButton, 40, 8, true),
-                (_compactUploadBody, 276, 8, _compactUploadOpen),
-                (_compactSuggestButton, 40, 16, true),
-                (_compactSuggestBody, 117, 8, _compactSuggestOpen),
+                (_compactUploadBody, _compactUploadView == "form" ? 288 : 116, 8, _compactUploadOpen),
+                (_compactSuggestButton, 40, 12, true),
+                (_compactSuggestBody, _compactSuggestView == "form" ? 117 : 118, 8, _compactSuggestOpen),
                 (_compactAccess, 35, 8, true),
-                (_compactTrack, 38, 11, true),
+                (_compactTrack, 38, 4, true),
+                (_compactVersionStatus, 39, 8, hasTrack),
                 (_compactAccountTrigger, 44, 8, true),
                 (_compactAccountBody, CompactAccountHeight(), 8, _compactAccountOpen),
                 (_compactSupportTrigger, 29, 8, true),
-                (_compactSupportBody, _compactSupportKind.SelectedIndex == 1 ? 364 : 284, 8, _compactSupportOpen),
+                (_compactSupportBody, _compactSupportKind.SelectedIndex == 1 ? 373 : 296, 8, _compactSupportOpen),
                 (_staffPanel, 29, 1, _diagnosticsAllowed),
                 (_compactVersion, 19, 6, true)
             };
-            int needed = 16;
-            foreach (var row in dimensions) if (row.visible) needed += row.height + row.gap;
-            var scrollWidth = needed > _compactScroll.ClientSize.Height ?
-                SystemInformation.VerticalScrollBarWidth : 0;
-            int width = Math.Max(215, _compactScroll.ClientSize.Width - 32 - scrollWidth);
+            var total = 15 + rows.Where(r => r.visible).Sum(r => r.height + r.gap);
+            // Panel.ClientSize can already exclude an active scrollbar, so
+            // subtracting it twice produced the asymmetric right gutter.
+            var viewport = _compactScroll.Width -
+                (total > _compactScroll.Height ? SystemInformation.VerticalScrollBarWidth : 0);
+            var width = Math.Max(215, viewport - 32);
             int y = 15;
-            foreach (var row in dimensions)
+            foreach (var row in rows)
             {
                 row.item.Visible = row.visible;
                 if (!row.visible) continue;
@@ -493,7 +542,8 @@ public sealed partial class MainWindow
                 y += row.height + row.gap;
             }
             _compactScroll.AutoScrollMinSize = new Size(0, y);
-            _connectionState.SetBounds(Math.Max(112, width - 136), 7, Math.Min(136, width - 112), 23);
+            _connectionState.SetBounds(Math.Max(112, width - 136), 7,
+                Math.Min(136, width - 112), 23);
             _start.SetBounds(0, 0, (width - 8) / 2, 40);
             _stop.SetBounds((width + 8) / 2, 0, (width - 8) / 2, 40);
             Place(_diagnosticsButton, _staffPanel, 0, 0, width, 28);
@@ -586,22 +636,68 @@ public sealed partial class MainWindow
             Place(_compactSupportCategoryLabel, _compactSupportBody, 0, 73, w, 22);
             Place(_compactSupportCategory, _compactSupportBody, 0, 98, w, 39);
         }
-        Place(_compactSupportText, _compactSupportBody, 0, song ? 164 : 109, w, 90);
-        Place(_compactSupportSubmit, _compactSupportBody, 0, song ? 264 : 206, w, 40);
-        Place(_compactSupportMessage, _compactSupportBody, 0, song ? 312 : 249, w, 49);
+        Place(_compactSupportDescriptionLabel, _compactSupportBody, 0,
+            song ? 145 : 78, w, 24);
+        Place(_compactSupportText, _compactSupportBody, 0, song ? 174 : 109, w, 94);
+        Place(_compactSupportSubmit, _compactSupportBody, 0, song ? 275 : 209, w, 40);
+        Place(_compactSupportMessage, _compactSupportBody, 0, song ? 324 : 256, w, 48);
     }
 
     private void LayoutCompactContributions(int w)
     {
-        Place(_compactUploadTrack, _compactUploadBody, 0, 0, w, 26);
-        Place(_compactDurationInput, _compactUploadBody, 0, 54, w, 38);
-        Place(_compactFilePicker, _compactUploadBody, 0, 99, w, 40);
-        Place(_compactFileName, _compactUploadBody, 0, 140, w, 28);
-        Place(_compactRights, _compactUploadBody, 0, 170, w, 23);
-        Place(_compactUploadSubmit, _compactUploadBody, 0, 201, w, 40);
-        Place(_compactUploadNote, _compactUploadBody, 0, 245, w, 30);
-        Place(_compactSuggestTrack, _compactSuggestBody, 0, 0, w, 27);
-        Place(_compactSuggestSubmit, _compactSuggestBody, 0, 34, w, 40);
-        Place(_compactSuggestNote, _compactSuggestBody, 0, 78, w, 39);
+        bool form = _compactUploadView == "form";
+        bool result = _compactUploadView == "result";
+        foreach (var child in new Control[] {
+            _compactUploadTrack, _compactUploadDurationCaption,
+            _compactDurationInput, _compactUploadDurationKnown, _compactFilePicker,
+            _compactFileName, _compactRights, _compactUploadSubmit,
+            _compactUploadNote, _compactUploadProgress, _compactUploadResult
+        }) child.Visible = false;
+        if (form)
+        {
+            Place(_compactUploadTrack, _compactUploadBody, 0, 0, w, 28);
+            var known = _bridge.LastTrackDurationMs >= 1000;
+            Place(known ? _compactUploadDurationKnown : _compactUploadDurationCaption,
+                _compactUploadBody, 0, 30, w, 21);
+            if (!known) Place(_compactDurationInput, _compactUploadBody, 0, 51, w, 38);
+            Place(_compactFilePicker, _compactUploadBody, 0, known ? 54 : 95, w, 40);
+            Place(_compactFileName, _compactUploadBody, 0, known ? 98 : 139, w, 25);
+            Place(_compactRights, _compactUploadBody, 0, known ? 130 : 170, w, 31);
+            Place(_compactUploadSubmit, _compactUploadBody, 0, known ? 169 : 205, w, 40);
+            if (_compactUploadCancellation is not null)
+                Place(_compactUploadProgress, _compactUploadBody, 0,
+                    known ? 215 : 250, w, 13);
+            Place(_compactUploadNote, _compactUploadBody, 0,
+                known ? 236 : 261, w, 48);
+        }
+        else if (result)
+        {
+            Place(_compactUploadResult, _compactUploadBody, 0, 0, w, 112);
+            Place(_compactUploadResultTitle, _compactUploadResult, 12, 12, w - 24, 28);
+            Place(_compactUploadResultNote, _compactUploadResult, 12, 44, w - 24, 65);
+        }
+        else
+        {
+            Place(_compactUploadNote, _compactUploadBody, 0, 0, w, 110);
+        }
+
+        _compactSuggestResult.Visible = _compactSuggestView == "result";
+        _compactSuggestTrack.Visible = _compactSuggestView == "form";
+        _compactSuggestSubmit.Visible = _compactSuggestView == "form";
+        _compactSuggestNote.Visible = _compactSuggestView is "error" or "checking" or "form";
+        if (_compactSuggestView == "result")
+        {
+            Place(_compactSuggestResult, _compactSuggestBody, 0, 0, w, 114);
+            Place(_compactSuggestResultTitle, _compactSuggestResult, 12, 12, w - 24, 27);
+            Place(_compactSuggestResultNote, _compactSuggestResult, 12, 43, w - 24, 68);
+        }
+        else if (_compactSuggestView == "form")
+        {
+            Place(_compactSuggestTrack, _compactSuggestBody, 0, 0, w, 28);
+            Place(_compactSuggestSubmit, _compactSuggestBody, 0, 36, w, 40);
+            Place(_compactSuggestNote, _compactSuggestBody, 0, 80, w, 38);
+        }
+        else Place(_compactSuggestNote, _compactSuggestBody, 0, 0, w, 110);
     }
+
 }
