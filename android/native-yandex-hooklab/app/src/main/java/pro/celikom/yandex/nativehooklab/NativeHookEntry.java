@@ -11,6 +11,7 @@ import android.util.Log;
 
 import java.lang.reflect.Method;
 import java.lang.reflect.Field;
+import java.lang.reflect.Constructor;
 import java.util.List;
 import java.util.Set;
 import java.util.HashSet;
@@ -49,6 +50,7 @@ public final class NativeHookEntry extends XposedModule {
     private final NativeSourceDispatchWitness sourceDispatch =
             new NativeSourceDispatchWitness();
     private final Set<String> sourceLifecycleHooked = new HashSet<>();
+    private final Set<Integer> sourceConstructorHooks = new HashSet<>();
     private final NativeReaderExecutionWitness readerExecution =
             new NativeReaderExecutionWitness();
     private Field leroReaderField;
@@ -99,6 +101,7 @@ public final class NativeHookEntry extends XposedModule {
                 if (verifiedHostContext != null
                         && (!targetHooked || !metadataHooked || !playbackStateHooked
                             || !sourceFactoryHooked || sourceLifecycleHooked.size() < 16
+                            || sourceConstructorHooks.size() < 2
                             || !readerMethodHooked || readerSourceMethodsHooked.size() < 3)) {
                     onAttached(verifiedHostContext);
                 }
@@ -222,6 +225,34 @@ public final class NativeHookEntry extends XposedModule {
      * this can be prefetch or background data. No source mutation is allowed.
      */
     private synchronized void armSourceDispatchWitness(ClassLoader loader) {
+        if(sourceConstructorHooks.size()<2){
+            try{
+                Constructor<?>[] constructors=HookSpec.findLeroConstructors(loader);
+                for(Constructor<?> constructor:constructors){
+                    int argc=constructor.getParameterCount();
+                    if(sourceConstructorHooks.contains(argc))continue;
+                    try{
+                        hook(constructor)
+                                .setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                                .intercept(chain -> {
+                                    // AFTER original constructor succeeds.
+                                    Object result=chain.proceed();
+                                    try{
+                                        sourceDispatch.onConstructed(
+                                                chain.getThisObject(),
+                                                SystemClock.elapsedRealtime());
+                                    }catch(Throwable ignored){}
+                                    return result;
+                                });
+                        sourceConstructorHooks.add(argc);
+                    }catch(Throwable ignored){
+                        log(Log.WARN,TAG,"observer: exact Lero ctor hook unavailable");
+                    }
+                }
+            }catch(Throwable ignored){
+                log(Log.WARN,TAG,"observer: Lero constructor pair unresolved");
+            }
+        }
         if (leroReaderField == null) {
             try {
                 leroReaderField=HookSpec.findLeroReaderField(loader);
@@ -290,6 +321,7 @@ public final class NativeHookEntry extends XposedModule {
         }
         Log.i(TAG,"observer: exact source lifecycle witness hooks="
                 + sourceLifecycleHooked.size()
+                + " direct-Lero-constructors=" + sourceConstructorHooks.size()
                 + " factory=" + sourceFactoryHooked
                 + " NOT selected player proof");
     }
@@ -301,6 +333,9 @@ public final class NativeHookEntry extends XposedModule {
             Log.i(TAG,"observer: source identity-only factories="+s.factories
                     + " t-calls="+s.lifecycleCalls
                     + " same-instance-factory-t="+s.matchedCalls
+                    + " direct-Lero-constructors="+s.constructors
+                    + " constructor-to-t="+s.constructedTCalls
+                    + " factory-to-t="+s.factoryTCalls
                     + " unmatched="+s.unmatchedCalls
                     + " removes="+s.removals
                     + " unknown="+s.rejectedUnknown
