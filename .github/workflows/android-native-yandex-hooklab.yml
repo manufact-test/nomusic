@@ -34,6 +34,7 @@ jobs:
             android/native-yandex-hooklab/app/src/main/java/pro/celikom/yandex/nativehooklab/NativeReplacementLifecycle.java \
             android/native-yandex-hooklab/app/src/main/java/pro/celikom/yandex/nativehooklab/NativeSourceInstanceFence.java \
             android/native-yandex-hooklab/app/src/main/java/pro/celikom/yandex/nativehooklab/NativeSourceDispatchWitness.java \
+            android/native-yandex-hooklab/app/src/main/java/pro/celikom/yandex/nativehooklab/NativeReaderExecutionWitness.java \
             $(find android/native-yandex-hooklab/tests/src -type f -name '*.java' | sort)
           java -cp /tmp/celikom-jvm-hooklab HookSpecTest
           java -cp /tmp/celikom-jvm-hooklab NativeSourceGateTest
@@ -46,6 +47,7 @@ jobs:
           java -cp /tmp/celikom-jvm-hooklab NativeSourceInstanceFenceTest
           java -cp /tmp/celikom-jvm-hooklab NativeSourceInstanceConcurrencyTest
           java -cp /tmp/celikom-jvm-hooklab NativeSourceDispatchWitnessTest
+          java -cp /tmp/celikom-jvm-hooklab NativeReaderExecutionWitnessTest
       - name: Test read-only ARM device gate (synthetic snapshots; no phone connected)
         run: python3 -m unittest discover -s android/native-yandex-hooklab/tests -p 'test_*.py' -v
       - name: Disallow sensitive permissions, substitute player and mutable audio sources
@@ -94,13 +96,28 @@ jobs:
           assert 'sourceDispatch.onFactory(result, SystemClock.elapsedRealtime())' in source
           assert 'sourceDispatch.onLifecycleT(receiver,time)' in source
           assert 'sourceDispatch.onRemove(receiver,time)' in source
+          assert 'HookSpec.findLeroReaderField(loader)' in source
+          assert 'sourceDispatch.onOwnedReader(receiver,reader,time)' in source
+          assert 'HookSpec.findReaderExecution(loader)' in source
+          assert 'HookSpec.findReaderSourceMethod(loader,operation)' in source
+          assert 'readerExecution.positiveRead(receiver)' in source
+          assert 'sourceDispatch.onCompletedReader(' in source
           witness=(base/'app/src/main/java/pro/celikom/yandex/nativehooklab/NativeSourceDispatchWitness.java').read_text()
           assert 'objects[i]==receiver' in witness
           assert 'onFactory(Object returned,long elapsedMs)' in witness
           assert 'source.getClass().getName()' not in witness
+          assert 'onOwnedReader(Object source,Object reader,long at)' in witness
+          assert 'onCompletedReader(Object reader,long at)' in witness
+          assert 'objects[i]==source&&started[i]' in witness
+          reader=(base/'app/src/main/java/pro/celikom/yandex/nativehooklab/NativeReaderExecutionWitness.java').read_text()
+          assert 'ThreadLocal<Scope>' in reader
+          assert 'scope.openedSource!=receiver' in reader
+          assert 'if(scope.previous==null)inReader.remove()' in reader
+          assert 'returnedNormally && scope.opened && scope.read' in reader
+          assert 'inReader.remove()' in reader
           for unsafe in ('openConnection(', 'getMediaId', 'getTitle', 'getUri', 'HttpURLConnection', 'setDataSource',
                          'MediaPlayer', 'getDeclaredField', 'Log.', 'System.out.'):
-              assert unsafe not in witness, unsafe
+              assert unsafe not in witness and unsafe not in reader, unsafe
           assert 'System.out.' not in fence and 'Log.' not in fence and 'MediaPlayer' not in fence
           for forbidden in ('HttpURLConnection','getMediaId','getMetadata','getTitle',
                             'getUri','trackId','editionId','getDeclaredField'):
