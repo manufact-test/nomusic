@@ -28,6 +28,12 @@ jobs:
         run: gradle -p android/native-yandex-hooklab/armv7-loader-host :app:assembleDebug --no-daemon -PcelikomAudioAppId=pro.celikom.armv7loaderhost.audio
       - name: Build own Xposed module scoped ONLY to two CELIKOM lab apps
         run: gradle -p android/native-yandex-hooklab/armv7-witness-module :app:assembleDebug --no-daemon
+      - name: Test Windows W60 parity on OWN-only source toggles; never Yandex
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/celikom-own-source-reload
+          javac --release 17 -d /tmp/celikom-own-source-reload             android/native-yandex-hooklab/armv7-loader-host/app/src/main/java/pro/celikom/armv7loaderhost/AudioSmokeSource.java             android/native-yandex-hooklab/armv7-loader-host/app/src/main/java/pro/celikom/armv7loaderhost/OwnSameTrackReloadPlan.java             android/native-yandex-hooklab/armv7-loader-host/tests/OwnSameTrackReloadPlanTest.java
+          java -cp /tmp/celikom-own-source-reload OwnSameTrackReloadPlanTest
       - name: Independent safety and native audio contract checks
         run: |
           python3 - <<'PY'
@@ -45,6 +51,16 @@ jobs:
           assert "pause()" in host and "seekTo(" in host
           assert "fallback" in host and "nexts++" in host
           assert "chooseA()" in selector and "return A_ORIGINAL" in selector
+          assert "Start CELIKOM — reload current A" in host
+          assert "Stop CELIKOM — reload original A" in host
+          assert "OwnSameTrackReloadPlan.decide(" in host
+          assert "restoreSeekPending" in host and "resumeAfterPrepare" in host
+          assert "Source changed BEFORE PREPARE" in host
+          assert host.count("new MediaPlayer()")==1
+          assert "getCurrentPosition()" in host and "seekTo(requested" in host
+          assert "replacementEnabled" in host
+          assert "reloadEntity" not in host, 'Windows method is not Android API'
+          assert "MediaProjection" not in host and "AudioRecord" not in host
           assert "android.permission" not in host
           print("PASS: no Yandex, single MediaPlayer, source before prepare, pause seek Next fallback contracts")
           PY
