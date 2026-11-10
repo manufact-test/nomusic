@@ -1,0 +1,34 @@
+name: Android exact Lero loader constructor and source field identity (READ-ONLY)
+on:
+  push:
+    branches:
+      - experiment/android-native-yandex-fileinfo-hooklab-20261109
+    paths:
+      - 'android/native-yandex-hooklab/audit_native_lero_loader_field_identity.py'
+      - 'android/native-yandex-hooklab/tests/test_native_lero_loader_field_identity.py'
+      - '.github/workflows/android-native-lero-loader-field-identity.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  exact-signed-source-field:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Test typed constructor and exact field joins
+        run: |
+          set -eu
+          python3 -m py_compile android/native-yandex-hooklab/audit_native_lero_loader_field_identity.py
+          python3 -m unittest discover -s android/native-yandex-hooklab/tests -p 'test_native_lero_loader_field_identity.py' -v
+      - name: Publisher-signed unchanged five APK six DEX Lero Lmb4 Lha4 field proof
+        run: python3 android/native-yandex-hooklab/audit_native_lero_loader_field_identity.py
+      - name: Enforce no vendor binary exports
+        if: always()
+        run: |
+          test ! -d android/native-yandex-hooklab/release
+          test ! -d android/native-yandex-hooklab/patched
+          echo 'No live decoder or audio modifications'
