@@ -32,29 +32,33 @@ public sealed class MainWindow : Form
     private readonly Label _song = new();
     private readonly Label _hostStatus = new();
     private readonly Label _versionFooter = new();
-    private readonly Button _updateApplication = new();
+    private readonly PopupButton _updateApplication = new();
     private NativeModuleIdentity _installedModule = NativeModuleIdentity.Unknown;
     private bool _updatingApplication;
     private readonly bool _finishApplicationUpdate;
-    private readonly Button _connectYandex = new();
-    private readonly Button _restoreYandex = new();
+    private readonly PopupButton _connectYandex = new();
+    private readonly PopupButton _restoreYandex = new();
     private NativeInstallState _nativeInstallState = NativeInstallState.NotInstalled;
     private bool _integrationBusy;
     private YandexHostResult? _hostReport;
     private bool _hostProbeBusy;
     private DateTimeOffset _lastHostProbe;
     private readonly Label _accountStatus = new();
-    private readonly Button _login = new();
-    private readonly Button _logout = new();
-    private readonly Button _start = new();
-    private readonly Button _stop = new();
+    private readonly PopupButton _login = new();
+    private readonly PopupButton _logout = new();
+    private readonly PopupButton _start = new();
+    private readonly PopupButton _stop = new();
     private readonly Label _connectionState = new();
     private readonly Label _connectionMark = new();
     private readonly Label _switchHint = new();
-    private readonly Button _rotate = new();
-    private readonly Button _copy = new();
+    private readonly PopupButton _rotate = new();
+    private readonly PopupButton _copy = new();
     private readonly NotifyIcon _tray;
-    private readonly TabControl _pages = new();
+    private readonly Panel _pages = new();
+    private readonly Panel _homePanel = new();
+    private readonly Panel _accountPanel = new();
+    private readonly PopupButton _homeTab = new();
+    private readonly PopupButton _accountTab = new();
     private bool _bridgeStarted;
     private bool _closing;
     private bool _loggingIn;
@@ -102,25 +106,32 @@ public sealed class MainWindow : Form
         header.Controls.Add(_connectionState);
 
         _pages.Dock = DockStyle.Fill;
-        _pages.Font = new Font("Segoe UI", 10F, FontStyle.Regular);
-        _pages.DrawMode = TabDrawMode.OwnerDrawFixed;
-        _pages.ItemSize = new Size(144, 34);
-        _pages.SizeMode = TabSizeMode.Fixed;
-        _pages.DrawItem += (_, e) =>
-        {
-            var selected = e.Index == _pages.SelectedIndex;
-            using var background = new SolidBrush(selected ? Surface : Paper);
-            e.Graphics.FillRectangle(background, e.Bounds);
-            TextRenderer.DrawText(e.Graphics, _pages.TabPages[e.Index].Text,
-                _pages.Font, e.Bounds, selected ? Accent : Secondary,
-                TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
-        };
-        var home = new TabPage("Главная") { BackColor = Paper, ForeColor = Ink,
-            UseVisualStyleBackColor = false };
-        var account = new TabPage("Аккаунт") { BackColor = Paper, ForeColor = Ink,
-            UseVisualStyleBackColor = false };
-        _pages.TabPages.Add(home);
-        _pages.TabPages.Add(account);
+        _pages.BackColor = Paper;
+        _homePanel.Dock = DockStyle.Fill;
+        _homePanel.BackColor = Paper;
+        _accountPanel.Dock = DockStyle.Fill;
+        _accountPanel.BackColor = Paper;
+        _pages.Controls.Add(_accountPanel);
+        _pages.Controls.Add(_homePanel);
+        _accountPanel.Visible = false;
+
+        // Extension-like navigation without the native WinForms tab strip:
+        // its system-colored border/blank gutter cannot match popup.css.
+        var navigation = new Panel { Dock = DockStyle.Top, Height = 46,
+            BackColor = Paper, Padding = new Padding(17, 1, 17, 1) };
+        var navButtons = new TableLayoutPanel { Dock = DockStyle.Left,
+            Width = 304, ColumnCount = 2, RowCount = 1, Margin = Padding.Empty };
+        navButtons.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
+        navButtons.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
+        ConfigureAuthButton(_homeTab, true, "Главная");
+        ConfigureAuthButton(_accountTab, false, "Аккаунт");
+        _homeTab.Margin = new Padding(0, 0, 4, 3);
+        _accountTab.Margin = new Padding(4, 0, 0, 3);
+        _homeTab.Click += (_, _) => NavigateAccount(false);
+        _accountTab.Click += (_, _) => NavigateAccount(true);
+        navButtons.Controls.Add(_homeTab, 0, 0);
+        navButtons.Controls.Add(_accountTab, 1, 0);
+        navigation.Controls.Add(navButtons);
         var footerBar = new Panel { Dock = DockStyle.Bottom, Height = 36,
             BackColor = Surface };
         _versionFooter.Dock = DockStyle.Fill;
@@ -131,10 +142,11 @@ public sealed class MainWindow : Form
         _versionFooter.AutoEllipsis = true;
         footerBar.Controls.Add(_versionFooter);
         Controls.Add(_pages);
+        Controls.Add(navigation);
         Controls.Add(header);
         Controls.Add(footerBar);
-        BuildHome(home);
-        BuildAccount(account);
+        BuildHome(_homePanel);
+        BuildAccount(_accountPanel);
 
         var menu = new ContextMenuStrip();
         menu.Items.Add("Открыть CELIKOM", null, (_, _) => ShowMain());
@@ -162,7 +174,19 @@ public sealed class MainWindow : Form
         UpdateSafe();
     }
 
-    private static TableLayoutPanel PageLayout(TabPage page)
+    private void NavigateAccount(bool account)
+    {
+        _accountPanel.Visible = account;
+        _homePanel.Visible = !account;
+        _accountTab.BackColor = account ? Accent : Surface;
+        _accountTab.ForeColor = account ? AccentInk : Ink;
+        _homeTab.BackColor = account ? Surface : Accent;
+        _homeTab.ForeColor = account ? Ink : AccentInk;
+        _accountTab.Invalidate();
+        _homeTab.Invalidate();
+    }
+
+    private static TableLayoutPanel PageLayout(Control page)
     {
         var root = new TableLayoutPanel
         {
@@ -199,7 +223,7 @@ public sealed class MainWindow : Form
 
     private static Button Button(string caption, bool primary)
     {
-        var btn = new Button
+        var btn = new PopupButton
         {
             Text = caption, FlatStyle = FlatStyle.Flat,
             Font = new Font("Segoe UI", 10F, FontStyle.Bold),
@@ -212,7 +236,7 @@ public sealed class MainWindow : Form
         return btn;
     }
 
-    private void BuildHome(TabPage page)
+    private void BuildHome(Control page)
     {
         var layout = PageLayout(page);
         Add(layout, Label("Управление CELIKOM", 11, true), 32);
@@ -336,7 +360,7 @@ public sealed class MainWindow : Form
         Add(layout, _hostStatus, 54);
     }
 
-    private void BuildAccount(TabPage page)
+    private void BuildAccount(Control page)
     {
         var layout = PageLayout(page);
         Add(layout, Label("Вход в существующий аккаунт CELIKOM", 11, true), 44);
@@ -684,7 +708,8 @@ public sealed class MainWindow : Form
             await _api.LoginAsync(_origin.Text.Trim(), _email.Text.Trim(), _password.Text);
             DiagnosticLog.Record("LOGIN_OK");
             _password.Clear();
-            _accountStatus.Text = "Вход подтверждён. Перейди на «Главная» и нажми «Старт».";
+            _accountStatus.Text = "Вход выполнен. Можно нажать «Старт».";
+            NavigateAccount(false);
         }
         catch (ApiFailure e2)
         {
