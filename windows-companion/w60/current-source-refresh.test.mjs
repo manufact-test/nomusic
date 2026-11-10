@@ -114,3 +114,21 @@ test("W60 malicious current-entity getter must not break original playback gette
   assert.equal(await r.request(),false);
   r.dispose();
 });
+
+
+test("W62 passive current-song identity is read-only and never a preloaded song",async()=>{
+  const h=harness({status:"playing",trackId:"148222333"});
+  const r=createCurrentSourceRefresh();
+  assert.equal(r.attach(h.webpackRequire),true);
+  const player=new h.NativeYandexPlayback();
+  assert.equal(r.currentTrackId(),"","no player observed yet");
+  void player.state;
+  assert.equal(r.currentTrackId(),"148222333");
+  assert.deepEqual(player.calls,[],"observing ID does not reload or touch media");
+  player.snapshot.playerState.status.value="idle";
+  assert.equal(r.currentTrackId(),"","stale paused track is not reported");
+  player.snapshot.playerState.status.value="paused";
+  assert.equal(r.currentTrackId(),"148222333","paused current entity remains observable");
+  r.dispose();
+  assert.equal(r.currentTrackId(),"","dispose clears all metadata");
+});
