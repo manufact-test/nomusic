@@ -40,8 +40,8 @@ public sealed partial class MainWindow
     private readonly TextBox _compactPromoCode = new();
     private readonly PopupButton _compactPromoSubmit = new();
     private readonly Label _compactPromoMessage = new();
-    private readonly ComboBox _compactSupportKind = new();
-    private readonly ComboBox _compactSupportCategory = new();
+    private readonly PopupSelect _compactSupportKind = new();
+    private readonly PopupSelect _compactSupportCategory = new();
     private readonly Label _compactSupportDescriptionLabel = Tiny("Опишите проблему", 9);
     private readonly Label _compactUploadDurationCaption = Tiny("Длительность песни, сек", 9);
     private readonly Label _compactUploadDurationKnown = Tiny("", 9);
@@ -344,7 +344,7 @@ public sealed partial class MainWindow
         _compactSupportKind.SelectedIndexChanged += (_, _) => LayoutCompact();
         _compactSupportKind.BackColor = Surface;
         _compactSupportKind.ForeColor = Ink;
-        _compactSupportKind.FlatStyle = FlatStyle.Flat;
+        _compactSupportKind.DropDownWidth = 350;
         _compactSupportBody.Controls.Add(_compactSupportKind);
         _compactSupportCategory.Items.AddRange(new object[] {
             "Не включается версия CELIKOM",
@@ -356,7 +356,7 @@ public sealed partial class MainWindow
         _compactSupportCategory.DropDownStyle = ComboBoxStyle.DropDownList;
         _compactSupportCategory.BackColor = Surface;
         _compactSupportCategory.ForeColor = Ink;
-        _compactSupportCategory.FlatStyle = FlatStyle.Flat;
+        _compactSupportCategory.DropDownWidth = 310;
         _compactSupportBody.Controls.Add(_compactSupportCategory);
         _compactSupportBody.Controls.Add(_compactSupportCategoryLabel);
         Place(_compactSupportDescriptionLabel, _compactSupportBody, 0, 79, 250, 24);
