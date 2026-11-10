@@ -9,6 +9,7 @@ This does not test audio and CANNOT be sent to user's HONOR 50.
 from __future__ import annotations
 
 import hashlib
+import zipfile
 import json
 import re
 import zipfile
@@ -49,6 +50,7 @@ def check_zero_loader(apk: Path, prior: Path, expected_signer: str, arsc) -> dic
         raise arsc.TrialError("METALOADER_DIFFERENT_LAB_SIGNER")
     if not zipfile.is_zipfile(apk):
         raise arsc.TrialError("METALOADER_OUTER_NOT_ZIP")
+    print(json.dumps({"lspatch_zero_phase": "OUTER_APK_ZIP_CONFIRMED"}))
     with zipfile.ZipFile(apk) as z:
         required = ("assets/lspatch/config.json", "assets/lspatch/origin.apk",
                     "assets/lspatch/loader.dex", "classes.dex")
@@ -60,6 +62,8 @@ def check_zero_loader(apk: Path, prior: Path, expected_signer: str, arsc) -> dic
             raise arsc.TrialError("METALOADER_CONTROL_HAS_EMBEDDED_MODULE")
         try:
             cfg = json.loads(z.read("assets/lspatch/config.json").decode("utf-8"))
+        except zipfile.BadZipFile:
+            raise arsc.TrialError("METALOADER_CONFIG_MEMBER_BAD_CRC") from None
         except (ValueError, UnicodeError):
             raise arsc.TrialError("METALOADER_CONFIG_INVALID") from None
         if (type(cfg.get("sigBypassLevel")) is not int or
@@ -69,7 +73,10 @@ def check_zero_loader(apk: Path, prior: Path, expected_signer: str, arsc) -> dic
             raise arsc.TrialError("METALOADER_EXTERNAL_MANAGER_NOT_ALLOWED")
         # Compare original code and native libs inside the embedded host, not
         # outer stub classes.dex (which deliberately contains loader, NOT host).
-        nested_data = z.read("assets/lspatch/origin.apk")
+        try:
+            nested_data = z.read("assets/lspatch/origin.apk")
+        except zipfile.BadZipFile:
+            raise arsc.TrialError("METALOADER_EMBEDDED_ORIGIN_MEMBER_BAD_CRC") from None
         if len(nested_data) > 128 * 1024 * 1024:
             raise arsc.TrialError("METALOADER_ORIGIN_TOO_LARGE")
         import io
@@ -77,6 +84,7 @@ def check_zero_loader(apk: Path, prior: Path, expected_signer: str, arsc) -> dic
             raise arsc.TrialError("METALOADER_EMBEDDED_ORIGIN_NOT_ZIP")
         if not zipfile.is_zipfile(prior):
             raise arsc.TrialError("METALOADER_PRIOR_CLONE_NOT_ZIP")
+        print(json.dumps({"lspatch_zero_phase": "INNER_HOST_ZIP_CONFIRMED"}))
         with zipfile.ZipFile(io.BytesIO(nested_data)) as original_zip, \
              zipfile.ZipFile(prior) as prior_zip:
             def payload(zf):
@@ -84,7 +92,10 @@ def check_zero_loader(apk: Path, prior: Path, expected_signer: str, arsc) -> dic
                         for name in zf.namelist() if
                         re.fullmatch(r"classes\d*\.dex", name)
                         or name.startswith("lib/") and name.endswith(".so")}
-            actual, expected = payload(original_zip), payload(prior_zip)
+            try:
+                actual, expected = payload(original_zip), payload(prior_zip)
+            except zipfile.BadZipFile:
+                raise arsc.TrialError("METALOADER_ORIGIN_CODE_CRC_INVALID") from None
             if actual != expected or "classes.dex" not in actual:
                 raise arsc.TrialError("METALOADER_ORIGIN_NATIVE_CODE_DRIFT")
     return {
@@ -120,13 +131,16 @@ def wrap_clone_with_lspatch_zero(clone: Path, work: Path, key: Path,
         raise arsc.TrialError("PINNED_PATCHER_DOWNLOAD_OR_HASH_FAILED") from None
     stage = work / "private-lab-metadata-loader-zero"
     stage.mkdir()
+    print(json.dumps({"lspatch_zero_phase": "PINNED_PATCHER_VERIFIED"}))
     arsc.run(
         ["java", "-jar", str(patcher), "-k", str(key),
          "ephemeral-lab-only", "research", "ephemeral-lab-only",
          "-o", str(stage), "-l", "0", str(clone)],
         "LSPATCH_CLONE_BOOTSTRAP_ZERO_BYPASS", 500)
+    print(json.dumps({"lspatch_zero_phase": "PATCH_COMMAND_COMPLETED"}))
     results = list(stage.glob("*.apk"))
     if len(results) != 1:
         raise arsc.TrialError("METALOADER_NOT_EXACT_ONE_APK")
+    print(json.dumps({"lspatch_zero_phase": "ONE_PATCH_OUTPUT_DISCOVERED"}))
     report = check_zero_loader(results[0], clone, expected_signer, arsc)
     return results[0], report
