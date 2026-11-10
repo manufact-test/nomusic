@@ -1,3 +1,13 @@
+# CELIKOM Windows — W52 staged 403 root-cause classification, NO RELEASE (2026-11-10)
+
+**CURRENT FIRST READ:** `docs/windows/W52-REAL-403-PRIVACY-SAFE-ROOT-CAUSE-STAGE-20261110.md`. Preserve W51 real owner evidence in `docs/windows/W51-OWNER-0246-REAL-MEDIA-HTTP403-ROOT-CAUSE-HANDOFF-20261110.md`.
+
+Owner still has **0.24.6**, audible approved replacement **NO-GO**. Existing 7 native Media GETs all 403; exact live reason **NOT PROVEN** by old redacted logs. W52 stage-only `w23/host.cjs` now compares trusted granted URL with native request URL privately in RAM, emits fixed `PLAYER_URL_*` classification + scoped 403 JSON/HTML and optional PHP denial enum, changes resource label to `resource_id=`. Added Node tests and updated stale W48 smoke check: W48 #42787607771 SUCCESS; W20 staging #42787432243 SUCCESS. W23 signed Yandex disposable runner https://github.com/manufact-test/nomusic/actions/runs/42787432599 result must be verified; no authenticated owner playback run. New rollback `backup/windows-w51-http403-pre-w52-stage-20261110` @ `a2797566`.
+
+**DO NOT** ship W52 diagnostics-only EXE, alter backend/production, waive HMAC/session binding, or claim the silent playback fixed. Need causal proof by live URL comparison and/or scoped server 403 category before narrow repair, then strict tests and one authorized in-place owner update through verified ChatGPT Library `CELIKOM/Windows`. Android and vendor Yandex installation untouched.
+
+---
+
 # CELIKOM Windows — W51 handoff: owner 0.24.6 native Media GET HTTP 403 (2026-11-10)
 
 **START HERE:** `docs/windows/W51-OWNER-0246-REAL-MEDIA-HTTP403-ROOT-CAUSE-HANDOFF-20261110.md` (evidence + confirmed server 403 branches + privacy-safe root-cause plan). **Ready-to-copy next chat:** `docs/windows/W51-START-NEXT-CHAT-20261110.md`.
