@@ -426,9 +426,9 @@ public sealed partial class MainWindow
 
     private int CompactAccountHeight() => _api.IsLoggedIn ?
         (_compactPromoOpen ? 242 : 112) :
-        _compactAccountMode is "login" or "register" ? 295 :
-        _compactAccountMode is "verify" ? 224 :
-        _compactAccountMode is "recovery" ? 207 : 293;
+        _compactAccountMode is "login" or "register" ? 326 :
+        _compactAccountMode is "verify" ? 256 :
+        _compactAccountMode is "recovery" ? 207 : 308;
 
     private void LayoutCompactAccount(int w)
     {
