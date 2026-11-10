@@ -128,6 +128,18 @@ def switch_table_for_ins(ins,idx):
     return cases
 
 
+
+def select_switch_case_target(table,ins,tag):
+    """Exact DEX switch semantics: nonmatching tag executes fallthrough."""
+    explicit=table["cases"].get(tag)
+    if explicit is not None:
+        return {"target_pc":explicit,"explicit":True,"default":False}
+    index=table["switch_ordinal"]+1
+    if index>=len(ins):
+        return {"target_pc":None,"explicit":False,"default":True}
+    return {"target_pc":ins[index][0],"explicit":False,"default":True}
+
+
 def field_k(d,w):
     return field_key(d,w[1])
 
@@ -288,23 +300,18 @@ def signed_scan(apks):
         if tag is None:
             actual_case.append({"tag_is_direct_constant":False})
             continue
-        explicit=table["cases"].get(tag)
-        switch_ordinal=table["switch_ordinal"]
-        next_index=switch_ordinal+1
-        # DEX switch default path falls THROUGH to the next code
-        # instruction when selector has no listed key. Synthetic lambdas
-        # often use default for a real handler; absence of explicit key
-        # does NOT mean the branch cannot run.
-        default_pc=dins[next_index][0] if next_index<len(dins) else None
-        target=explicit if explicit is not None else default_pc
+        # DEX switch default path falls THROUGH to the next
+        # instruction, not to a synthetic exceptional state.
+        branch=select_switch_case_target(table,dins,tag)
+        target=branch["target_pc"]
         case_loader=(branch_contains_loader(dd,dins,target)
                      if target is not None else False)
         actual_case.append({
             "tag_is_direct_constant":True,
             "tag_field_matches_dispatch_read":
                 exact_ctor_field==table["tag_field"],
-            "tag_has_explicit_switch_case":explicit is not None,
-            "selector_takes_default_fallthrough":explicit is None,
+            "tag_has_explicit_switch_case":branch["explicit"],
+            "selector_takes_default_fallthrough":branch["default"],
             "exact_case_target_directly_invokes_loader":case_loader,
             "constructor_passes_actual_lero_this":record["ctor_object_arg_is_lero_this"],
             "not_proven_live_executor_or_selected_player":True,
