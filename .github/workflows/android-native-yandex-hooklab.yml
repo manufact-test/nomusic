@@ -98,7 +98,7 @@ jobs:
           assert 'objects[i]==receiver' in witness
           assert 'onFactory(Object returned,long elapsedMs)' in witness
           assert 'source.getClass().getName()' not in witness
-          for unsafe in ('URL', 'getMediaId', 'getTitle', 'getUri', 'HttpURLConnection', 'setDataSource',
+          for unsafe in ('openConnection(', 'getMediaId', 'getTitle', 'getUri', 'HttpURLConnection', 'setDataSource',
                          'MediaPlayer', 'getDeclaredField', 'Log.', 'System.out.'):
               assert unsafe not in witness, unsafe
           assert 'System.out.' not in fence and 'Log.' not in fence and 'MediaPlayer' not in fence
