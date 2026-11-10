@@ -21,7 +21,7 @@ Signed Yandex #170gpr six DEX audit previously established:
 ## Validation and remaining blocker
 
 - `NativeSourceDispatchWitnessTest` uses only synthetic obfuscated descriptors and 10,000 same-instance / late-identity cycles. Pure JVM.
-- CI: `.github/workflows/android-native-yandex-hooklab.yml` runs old safety suite + new tests and compiles signed read-only Xposed module. For exact current code and run result, inspect GitHub Actions before citing a final green SHA.
+- **CI GREEN:** [#42857995073 — SUCCESS 2/2](https://github.com/manufact-test/nomusic/actions/runs/42857995073), exact code `9073ea35d3f5ef2a996b197d237f4265ab0ab564`, immutable rollback `backup/android-native-lemb-instance-observer-ci-green-20261110`. Both JVM regression / security and Android module build passed. The CI module is a read-only research artifact, NOT a functioning publisher playback-source replacement.
 - No authorized and working host with the real publisher-original player source selector is connected; the host is not instrumentable from a separate no-root ordinary Android app.
 - **No legitimate native Android audio replacement APK exists from this change.** Do not release an APK claiming it works in Yandex. Do not bypass original signature, DRM, Play Protect or install a modified app on owner HONOR.
 
