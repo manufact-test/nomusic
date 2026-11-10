@@ -1,3 +1,5 @@
+> **SIGNED TEST.51 READY (10.11.2026):** [CI #42853269873 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/42853269873), source SHA `53576ddd6bc73af602ae7fd7cb4935b5c4afe374`, immutable backup `backup/android-test51-signed-ci-green-owner-review-20261110`, signed APK SHA256 `a978114c8dafbf20e04983ddffd0d448bff63cdca28ec50f1e3f48f734a1c76f`, v3 signer verified, Library `libfile_e4d1daff51ec8191b49272c6c9217188`. Full details [Test51 owner checklist](ANDROID-TEST51-SIGNED-OWNER-VERIFY-2026-11-10.md). APK физически на HONOR **не проверена**. Test.50/stable/Windows/production unchanged.
+
 ## Test.51 — разрешён отдельный подписанный APK для HONOR (10.11.2026)
 
 - [Сборка, безопасность и точный чек-лист прослушивания](ANDROID-TEST51-SIGNED-OWNER-VERIFY-2026-11-10.md).
