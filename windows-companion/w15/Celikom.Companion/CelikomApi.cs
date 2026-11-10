@@ -353,5 +353,98 @@ public sealed class CelikomApi : IDisposable
             new { email = email.Trim(), code = code.Trim(), new_password = newPassword }, null, ct);
     }
 
+    public Task<JsonElement> GetConfigAsync(CancellationToken ct = default)
+    {
+        var origin = Settings.Origin.Length != 0 ? Settings.Origin :
+            "https://darkred-camel-588676.hostingersite.com";
+        return RequestAsync(new Uri(origin + "/api/v1/config"),
+            HttpMethod.Get, null, null, ct);
+    }
+
+    public Task<JsonElement> GetTrackVersionStatusAsync(string id, CancellationToken ct = default)
+    {
+        if (!GrantValidator.IsTrackId(id)) throw new ApiFailure(400, "INVALID_TRACK");
+        return SignedRequestAsync("tracks/version-status?service=yandex&track_id=" + id,
+            HttpMethod.Get, ct: ct);
+    }
+
+    // The real server requires multipart/form-data. A POST must NOT be retried
+    // automatically on 401/timeouts: its result could already have committed.
+    private async Task<JsonElement> SendContributionAsync(string route, string trackId,
+        Dictionary<string,string> fields, string? audioFile, CancellationToken ct)
+    {
+        if (!GrantValidator.IsTrackId(trackId) || !IsLoggedIn)
+            throw new ApiFailure(401, "INVALID_SESSION");
+        var auth = Settings;
+        using var http = new HttpClient(new HttpClientHandler
+            { AllowAutoRedirect = false, UseCookies = false })
+            { Timeout = TimeSpan.FromMinutes(2) };
+        using var form = new MultipartFormDataContent();
+        form.Add(new StringContent("yandex"), "service");
+        form.Add(new StringContent(trackId), "track_id");
+        foreach (var (key,value) in fields) form.Add(new StringContent(value), key);
+        if (audioFile is not null)
+        {
+            var info = new FileInfo(audioFile);
+            if (!info.Exists || info.Length is < 1024 or > 31_457_280 ||
+                !(info.Extension.Equals(".mp3", StringComparison.OrdinalIgnoreCase) ||
+                  info.Extension.Equals(".m4a", StringComparison.OrdinalIgnoreCase)))
+                throw new ApiFailure(413, "INVALID_FILE");
+            var input = new FileStream(audioFile, FileMode.Open, FileAccess.Read,
+                FileShare.Read, 81920, FileOptions.Asynchronous);
+            var file = new StreamContent(input);
+            file.Headers.ContentType = new MediaTypeHeaderValue(
+                info.Extension.Equals(".m4a", StringComparison.OrdinalIgnoreCase) ?
+                    "audio/mp4" : "audio/mpeg");
+            form.Add(file, "file", info.Name);
+        }
+        using var request = new HttpRequestMessage(HttpMethod.Post,
+            auth.Origin + "/api/v1/" + route);
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", auth.AccessToken);
+        request.Content = form;
+        using var response = await http.SendAsync(request,
+            HttpCompletionOption.ResponseHeadersRead, ct);
+        if (Settings.AccessToken != auth.AccessToken || Settings.Origin != auth.Origin)
+            throw new ApiFailure(401, "INVALID_SESSION");
+        if ((int)response.StatusCode is >= 300 and < 400)
+            throw new ApiFailure((int)response.StatusCode, "REDIRECT_FORBIDDEN");
+        if (response.Content.Headers.ContentLength > 48_000)
+            throw new ApiFailure(0, "RESPONSE_TOO_LARGE");
+        var bytes = await response.Content.ReadAsByteArrayAsync(ct);
+        if (bytes.Length > 48_000) throw new ApiFailure(0, "RESPONSE_TOO_LARGE");
+        JsonElement result;
+        try
+        {
+            using var document = JsonDocument.Parse(bytes);
+            result = document.RootElement.Clone();
+        }
+        catch (JsonException) { throw new ApiFailure(0, "INVALID_API_JSON"); }
+        if (!response.IsSuccessStatusCode)
+        {
+            var error = result.ValueKind == JsonValueKind.Object &&
+                result.TryGetProperty("error", out var e) && e.ValueKind == JsonValueKind.String
+                ? e.GetString() ?? "CONTRIBUTION_FAILED" : "CONTRIBUTION_FAILED";
+            throw new ApiFailure((int)response.StatusCode, error);
+        }
+        return result;
+    }
+
+    public Task<JsonElement> SuggestTrackAsync(string id, CancellationToken ct = default) =>
+        SendContributionAsync("track-requests", id, new Dictionary<string,string>(), null, ct);
+
+    public Task<JsonElement> UploadTrackAsync(string id, string audioFile, long durationMs,
+        CancellationToken ct = default)
+    {
+        if (durationMs is < 1000 or > 86_400_000)
+            throw new ApiFailure(400, "INVALID_DURATION");
+        var fields = new Dictionary<string,string>
+        {
+            ["declaration"] = "1",
+            ["request_id"] = Guid.NewGuid().ToString("D"),
+            ["duration_ms"] = durationMs.ToString(System.Globalization.CultureInfo.InvariantCulture)
+        };
+        return SendContributionAsync("uploads", id, fields, audioFile, ct);
+    }
+
     public void Dispose() { _http.Dispose(); _refreshLock.Dispose(); }
 }
