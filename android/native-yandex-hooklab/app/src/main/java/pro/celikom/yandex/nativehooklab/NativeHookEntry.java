@@ -31,6 +31,13 @@ public final class NativeHookEntry extends XposedModule {
     private String processName;
     private boolean attachHooked;
     private boolean targetHooked;
+    // Real host classloader may become available after Application.attach.
+    // Store only a verified, exact-version Context; never bind another package.
+    private Context verifiedHostContext;
+    private ClassLoader readyClassLoader;
+    private boolean modernHooked;
+    private boolean legacyHooked;
+    private boolean accessorHooked;
 
     @Override
     public void onModuleLoaded(ModuleLoadedParam param) {
@@ -54,6 +61,16 @@ public final class NativeHookEntry extends XposedModule {
     public void onPackageReady(PackageReadyParam param) {
         if (HookSpec.TARGET_PACKAGE.equals(param.getPackageName())) {
             Log.i(TAG, "observer: package ready");
+        }
+        if (HookSpec.TARGET_PACKAGE.equals(param.getPackageName())) {
+            synchronized (this) {
+                readyClassLoader = param.getClassLoader();
+                // Attach can run before all split / secondary classes resolve.
+                // Retry only for a version-verified context; no eager unsafe hook.
+                if (verifiedHostContext != null && !targetHooked) {
+                    onAttached(verifiedHostContext);
+                }
+            }
         }
         maybeInstallAttachHook(param.getPackageName());
     }
@@ -94,43 +111,58 @@ public final class NativeHookEntry extends XposedModule {
                 log(Log.WARN, TAG, "observer: unsupported host version; no hooks");
                 return;
             }
-            ClassLoader appLoader = context.getClassLoader();
+            verifiedHostContext = context;
+            ClassLoader appLoader = readyClassLoader != null
+                    ? readyClassLoader : context.getClassLoader();
+            // Resolve BOTH structural targets before installing EITHER.
+            // A classloader-timing miss must not cause one-sided registration.
             Method modern = HookSpec.findConversion(
                     appLoader, "y0", HookSpec.FILE_DTO);
             Method old = HookSpec.findConversion(
                     appLoader, "z0", HookSpec.OLD_FILE_DTO);
 
-            hook(modern)
-                    .setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
-                    .intercept(chain -> {
-                        Object result = chain.proceed();
-                        if (result != null) safeCount("modern", newConversions);
-                        return result;
-                    });
-            hook(old)
-                    .setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
-                    .intercept(chain -> {
-                        Object result = chain.proceed();
-                        if (result != null) safeCount("legacy", oldConversions);
-                        return result;
-                    });
-            targetHooked = true;
+            // onAttached and onPackageReady may race. Idempotent flags make
+            // a partial registration safe to retry after runtime class loading.
+            if (!modernHooked) {
+                hook(modern)
+                        .setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                        .intercept(chain -> {
+                            Object result = chain.proceed();
+                            if (result != null) safeCount("modern", newConversions);
+                            return result;
+                        });
+                modernHooked = true;
+            }
+            if (!legacyHooked) {
+                hook(old)
+                        .setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                        .intercept(chain -> {
+                            Object result = chain.proceed();
+                            if (result != null) safeCount("legacy", oldConversions);
+                            return result;
+                        });
+                legacyHooked = true;
+            }
+            targetHooked = modernHooked && legacyHooked;
             // Optional secondary boundary. Exact DEX signature was confirmed
             // on the publisher-signed host; it may be a getter not a decoder.
             // Count invocations only, never inspect the returned String.
-            try {
-                Method downstream = HookSpec.findModelStringAccessor(appLoader);
-                hook(downstream)
-                    .setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
-                    .intercept(chain -> {
-                        Object result = chain.proceed();
-                        if (result != null) safeCount("model-accessor",
-                                modelAccessorCalls);
-                        return result;
-                    });
-                Log.i(TAG, "observer: downstream model accessor armed (counts only)");
-            } catch (Throwable ignored) {
-                log(Log.WARN, TAG, "observer: downstream accessor unavailable; converters unaffected");
+            if (!accessorHooked) {
+                try {
+                    Method downstream = HookSpec.findModelStringAccessor(appLoader);
+                    hook(downstream)
+                        .setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                        .intercept(chain -> {
+                            Object result = chain.proceed();
+                            if (result != null) safeCount("model-accessor",
+                                    modelAccessorCalls);
+                            return result;
+                        });
+                    accessorHooked = true;
+                    Log.i(TAG, "observer: downstream model accessor armed (counts only)");
+                } catch (Throwable ignored) {
+                    log(Log.WARN, TAG, "observer: downstream accessor unavailable; converters unaffected");
+                }
             }
             log(Log.INFO, TAG, "observer: native file-info converter hooks armed; read-only");
             Log.i(TAG, "observer: native file-info converter hooks armed; read-only");
