@@ -207,6 +207,62 @@ def discover_read_slot(apks):
     return candidates
 
 
+
+def safe_operand_metadata(dex, op, words):
+    """DEX register *coordinates* and safe type hints, never constant values."""
+    from audit_native_register_bridge import invoke_registers
+    from audit_native_typed_wrapper_coroutines import safe_instruction_shape
+    role=safe_instruction_shape(dex,op,words)
+    if op in INVOKES:
+        role["argument_register_coordinates"]=invoke_registers(op,words)
+    elif op in MOVE_OPS:
+        moved=move_object_registers(op,words)
+        role["copy_dest"],role["copy_source"]=moved
+    elif op in (0x22,0x0c,0x62):
+        role["result_register"]=words[0]>>8
+    elif op in (0x1f,):
+        role["cast_register"]=words[0]>>8
+    elif op==0x54:
+        role["result_register"]=(words[0]>>8)&15
+        role["object_register"]=words[0]>>12
+    elif op==0x5b:
+        role["stored_value_register"]=(words[0]>>8)&15
+        role["target_object_register"]=words[0]>>12
+    elif op==0x12:
+        role["result_register"]=(words[0]>>8)&15
+    elif op in (0x13,0x14,0x15,0x16,0x17,0x18,0x19,0x1a,0x1b,0x1c):
+        role["result_register"]=words[0]>>8
+    return role
+
+
+def safe_writer_structural_excerpt(dex,code_off,slot_keys):
+    """Full (<=90 instr) method or 60-instr around exact field2 writes.
+
+    Retains only register coordinates, public/obfuscated class descriptors and
+    safe invocation signatures, with zero constant values or proprietary raw
+    class method bodies.
+    """
+    ins=list(instructions(dex,code_off))
+    sites=[i for i,(_,op,w) in enumerate(ins)
+           if op==0x5b and field_key(dex,w[1]) in slot_keys]
+    if not sites:return []
+    windows=[]
+    for target in sites:
+        start=0 if len(ins)<=90 else max(0,target-35)
+        end=len(ins) if len(ins)<=90 else min(len(ins),target+25)
+        windows.append({
+            "total_instructions":len(ins),
+            "selected_store_ordinal":target,
+            "truncated":start>0 or end<len(ins),
+            "register_roles":[{
+                "ordinal":i,
+                **safe_operand_metadata(dex,ins[i][1],ins[i][2]),
+            } for i in range(start,end)],
+            "may_describe_unrelated_paths":True,
+        })
+    return windows
+
+
 def scan_signed(apks):
     slots=discover_read_slot(apks)
     writes=[]
@@ -228,6 +284,7 @@ def scan_signed(apks):
                         item.pop("_slot")
                         item["writer_method"]=limited_method(method)
                         item["writer_profile"]=method_profile(method)
+                        item["writer_register_windows"]=safe_writer_structural_excerpt(d,coff,present)
                         writes.append(item)
     if dexes!=6 or not writes:raise ValueError("MISSING_SIGNED_OR_FIELD_WRITES")
     if len(writes)>MAX_RESULT:raise ValueError("FIELD_WRITES_LIMIT")
