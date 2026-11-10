@@ -3,7 +3,8 @@ import unittest
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from audit_native_shared_caller_bridge import (
-    upstream_depths, shared_caller_proximity, joined_graph_findings, sink_family
+    upstream_depths, shared_caller_proximity, joined_graph_findings, sink_family,
+    media_session_api_family, media_session_callsite_census
 )
 
 def M(symbol):
@@ -69,6 +70,39 @@ class SharedCallerBridgeTests(unittest.TestCase):
             upstream_depths({}, {M("source")}, depth=7)
         with self.assertRaises(ValueError):
             upstream_depths({M("a"):{M("b")}}, {M("a")}, cap=1)
+
+    def test_platform_session_exact_signatures_only(self):
+        self.assertEqual(media_session_api_family((
+            "Landroid/media/session/MediaSession;",
+            "setMetadata", "(Landroid/media/MediaMetadata;)V")),
+            "exact_android_framework_observer_methods")
+        self.assertEqual(media_session_api_family((
+            "Landroid/media/session/MediaSession;",
+            "setPlaybackState", "(Landroid/media/session/PlaybackState;)V")),
+            "exact_android_framework_observer_methods")
+        self.assertIsNone(media_session_api_family((
+            "Landroid/media/session/MediaSession;",
+            "setPlaybackState", "(Ljava/lang/Object;)V")))
+        self.assertEqual(media_session_api_family((
+            "Landroid/support/v4/media/session/MediaSessionCompat;",
+            "setPlaybackState", "(Labc;)V")), "media_session_compat_methods")
+        self.assertIsNone(media_session_api_family((
+            "Landroidx/media3/session/MediaSession;", "update", "()V")))
+
+    def test_non_authoritative_platform_session_counts(self):
+        exact=("Landroid/media/session/MediaSession;",
+               "setMetadata","(Landroid/media/MediaMetadata;)V")
+        reverse={exact:{M("caller"),M("caller2")},
+                 ("Landroid/media/session/MediaSession;",
+                  "setPlaybackState", "(Landroid/media/session/PlaybackState;)V"):
+                  {M("caller2")}}
+        census=media_session_callsite_census(reverse)
+        platform=census["exact_android_framework_observer_methods"]
+        self.assertEqual(platform["unique_direct_caller_methods"],2)
+        self.assertFalse(platform["runtime_media_session_callback_proven"])
+        self.assertEqual(platform["per_method"]["setMetadata"]["unique_caller_methods"],2)
+        self.assertEqual(platform["per_method"]["setPlaybackState"]["unique_caller_methods"],1)
+
 
 if __name__ == "__main__":
     unittest.main()

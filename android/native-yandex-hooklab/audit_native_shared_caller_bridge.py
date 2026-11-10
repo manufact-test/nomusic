@@ -110,6 +110,67 @@ def sink_family(method: tuple) -> str | None:
     return None
 
 
+
+def media_session_api_family(method: tuple) -> str | None:
+    """Exact public Android framework method names used by our observer.
+
+    Do not infer that Media3 or Compat inevitably calls platform methods.
+    Both can use reflection, adapters, AIDL, and different player sessions.
+    """
+    owner, name, signature = method
+    if (owner == "Landroid/media/session/MediaSession;"
+            and (name == "setMetadata" and
+                 signature == "(Landroid/media/MediaMetadata;)V" or
+                 name == "setPlaybackState" and
+                 signature == "(Landroid/media/session/PlaybackState;)V")):
+        return "exact_android_framework_observer_methods"
+    if owner in {
+        "Landroid/support/v4/media/session/MediaSessionCompat;",
+        "Landroidx/media/session/MediaSessionCompat;"
+    } and name in ("setMetadata", "setPlaybackState"):
+        return "media_session_compat_methods"
+    if owner == "Landroidx/media3/session/MediaSession;" and name in (
+            "setPlayer", "setSessionActivity", "setExtras"):
+        return "media3_public_session_methods"
+    return None
+
+
+def media_session_callsite_census(reverse: dict) -> dict:
+    """Count method *callers*, not runtime state changes or actual invocations."""
+    groups = {
+        "exact_android_framework_observer_methods": {},
+        "media_session_compat_methods": {},
+        "media3_public_session_methods": {},
+    }
+    for callee, callers in reverse.items():
+        group = media_session_api_family(callee)
+        if group is None:
+            continue
+        # Never print original APK string values, code or named private classes.
+        label = callee[1]
+        entry = groups[group].setdefault(label, {"distinct_caller_methods": set()})
+        entry["distinct_caller_methods"].update(callers)
+
+    out = {}
+    for group, methods in groups.items():
+        out[group] = {
+            "observed_static_invoke_target_names": sorted(methods),
+            "unique_direct_caller_methods": len(set().union(
+                *(value["distinct_caller_methods"] for value in methods.values()))),
+            "per_method": {
+                method: {
+                    "unique_caller_methods": len(item["distinct_caller_methods"]),
+                    "bounded_caller_hints": [
+                        bounded_obfuscated(x)
+                        for x in sorted(item["distinct_caller_methods"])[:6]
+                    ],
+                } for method, item in sorted(methods.items())
+            },
+            "runtime_media_session_callback_proven": False,
+        }
+    return out
+
+
 def joined_graph_findings(items: list[dict]) -> dict:
     """Join exact *method triples* across all verified DEX, not local IDs."""
     reverse = defaultdict(set)
@@ -155,6 +216,8 @@ def joined_graph_findings(items: list[dict]) -> dict:
             "android_framework_media_classes": len(PLATFORM_MEDIA),
         },
         "method_proximity": report,
+        "platform_media_session_hook_static_callsite_census":
+            media_session_callsite_census(reverse),
         "real_player_selected": False,
         "real_decoder_proven": False,
         "trackid_edition_generation_bound_to_source": False,
