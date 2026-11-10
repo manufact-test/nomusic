@@ -33,6 +33,8 @@ public sealed partial class MainWindow
     private readonly PopupButton _compactPromoSubmit = new();
     private readonly Label _compactPromoMessage = new();
     private readonly ComboBox _compactSupportKind = new();
+    private readonly ComboBox _compactSupportCategory = new();
+    private readonly Label _compactSupportCategoryLabel = Tiny("Что произошло?", 9);
     private readonly TextBox _compactSupportText = new();
     private readonly PopupButton _compactSupportSubmit = new();
     private readonly Label _compactSupportMessage = new();
@@ -281,10 +283,24 @@ public sealed partial class MainWindow
             "Обычное обращение · ответ по почте", "Проблема с текущей песней"
         });
         _compactSupportKind.SelectedIndex = 0;
+        _compactSupportKind.SelectedIndexChanged += (_, _) => LayoutCompact();
         _compactSupportKind.BackColor = Surface;
         _compactSupportKind.ForeColor = Ink;
         _compactSupportKind.FlatStyle = FlatStyle.Flat;
         _compactSupportBody.Controls.Add(_compactSupportKind);
+        _compactSupportCategory.Items.AddRange(new object[] {
+            "Не включается версия CELIKOM",
+            "Играет неправильная версия",
+            "Звук обрывается или рассинхронизируется",
+            "Другая проблема"
+        });
+        _compactSupportCategory.SelectedIndex = 0;
+        _compactSupportCategory.DropDownStyle = ComboBoxStyle.DropDownList;
+        _compactSupportCategory.BackColor = Surface;
+        _compactSupportCategory.ForeColor = Ink;
+        _compactSupportCategory.FlatStyle = FlatStyle.Flat;
+        _compactSupportBody.Controls.Add(_compactSupportCategory);
+        _compactSupportBody.Controls.Add(_compactSupportCategoryLabel);
         var description = Tiny("Опишите проблему", 9);
         Place(description, _compactSupportBody, 0, 79, 250, 24);
         _compactSupportText.Multiline = true;
@@ -379,7 +395,7 @@ public sealed partial class MainWindow
                 (_compactAccountTrigger, 44, 8, true),
                 (_compactAccountBody, CompactAccountHeight(), 8, _compactAccountOpen),
                 (_compactSupportTrigger, 29, 8, true),
-                (_compactSupportBody, 284, 8, _compactSupportOpen),
+                (_compactSupportBody, _compactSupportKind.SelectedIndex == 1 ? 364 : 284, 8, _compactSupportOpen),
                 (_staffPanel, 29, 1, _diagnosticsAllowed),
                 (_compactVersion, 19, 6, true)
             };
@@ -481,10 +497,18 @@ public sealed partial class MainWindow
 
     private void LayoutCompactSupport(int w)
     {
+        var song = _compactSupportKind.SelectedIndex == 1;
         Place(_compactSupportKind, _compactSupportBody, 0, 27, w, 39);
-        Place(_compactSupportText, _compactSupportBody, 0, 109, w, 90);
-        Place(_compactSupportSubmit, _compactSupportBody, 0, 206, w, 40);
-        Place(_compactSupportMessage, _compactSupportBody, 0, 249, w, 34);
+        _compactSupportCategory.Visible = song;
+        _compactSupportCategoryLabel.Visible = song;
+        if (song)
+        {
+            Place(_compactSupportCategoryLabel, _compactSupportBody, 0, 73, w, 22);
+            Place(_compactSupportCategory, _compactSupportBody, 0, 98, w, 39);
+        }
+        Place(_compactSupportText, _compactSupportBody, 0, song ? 164 : 109, w, 90);
+        Place(_compactSupportSubmit, _compactSupportBody, 0, song ? 264 : 206, w, 40);
+        Place(_compactSupportMessage, _compactSupportBody, 0, song ? 312 : 249, w, 49);
     }
 
     private void LayoutCompactContributions(int w)
