@@ -4,7 +4,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from audit_native_register_bridge import (
     invoke_registers, move_object_registers, register_witnesses, instructions,
-    summarize_graph, coroutine_callsite_witness
+    summarize_graph, coroutine_callsite_witness, cfg_result_witness
 )
 
 
@@ -86,6 +86,27 @@ class RegisterBridgeTests(unittest.TestCase):
         self.assertEqual(witness["following_opcode_roles"][0],"move_result_object")
         self.assertEqual(result["interface_distinct_count"],1)
         self.assertFalse(result["coroutine_return_or_decoder_bound"])
+
+    def test_cfg_branch_join_preserves_converter_may_flow(self):
+        conv=("Lsw7;","y0","()Leed;")
+        target=("Leod;","emit","(Leed;)V")
+        # Branch split, both arms copy result v2 to v3, then interface invoke.
+        code=[0x0071,0,0, 0x020c,
+              0x0038,4, 0x2307, 0x0228, 0x2307,
+              0x1072,1,0x0003, 0x000e]
+        rows=cfg_result_witness(FakeDex(code,[conv,target]),0)
+        self.assertEqual(rows[0]["possible_uses"][0]["kind"],"invoke_interface")
+        self.assertEqual(rows[0]["possible_uses"][0]["target"],"Leod;->emit")
+        self.assertTrue(rows[0]["register_may_flow_only"])
+        self.assertFalse(rows[0]["complete_decoder_or_coroutine_flow"])
+
+    def test_cfg_overwrite_prevents_false_flow(self):
+        conv=("Lsw7;","y0","()Leed;")
+        target=("Leod;","emit","(Leed;)V")
+        code=[0x0071,0,0, 0x020c, 0x0212,
+              0x1072,1,0x0002, 0x000e]
+        rows=cfg_result_witness(FakeDex(code,[conv,target]),0)
+        self.assertEqual(rows[0]["possible_uses"],[])
 
     def test_incomplete_dex_not_silently_accepted(self):
         with self.assertRaises(ValueError):
