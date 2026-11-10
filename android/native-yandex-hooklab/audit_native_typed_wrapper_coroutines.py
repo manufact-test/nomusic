@@ -28,7 +28,7 @@ from audit_native_register_bridge import (
 )
 import clone_native_splits_ephemeral as exact
 
-WRAPPERS = ("Lxa7;", "Lta7;", "Lwa7;", "Lya7;", "Lbee;", "Leed;")
+WRAPPERS = ("Lxa7;", "Lta7;", "Lwa7;", "Lya7;", "Lbee;", "Ldiv;", "Leed;")
 SEEDS = ("Lhee;", "Lged;", "Lfed;", "Lgee;", "Lfqr;")
 INTERFACES = ("Lcod;", "Leod;")
 OWNERS = frozenset(WRAPPERS + SEEDS + INTERFACES)
