@@ -1,0 +1,110 @@
+name: CELIKOM W62 0.24.9 to 0.24.10 one-app DPAPI same-user upgrade proof
+
+on:
+  push:
+    branches:
+      - experiment/windows-stop-lifecycle-20261110
+    paths:
+      - .github/workflows/windows-w62-owner-inplace-0249-to-02410.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  existing-owner-inplace-upgrade:
+    runs-on: windows-2022
+    timeout-minutes: 18
+    steps:
+      - name: Retrieve owner-accepted 0.24.9 private installer
+        uses: actions/download-artifact@v4
+        with:
+          name: CELIKOM-W61-CONSUMER-UX-FAST-TOGGLE-UNSIGNED
+          run-id: 42811326672
+          repository: manufact-test/nomusic
+          github-token: ${{ github.token }}
+          path: old
+      - name: Retrieve W62 private 0.24.10 candidate
+        uses: actions/download-artifact@v4
+        with:
+          name: CELIKOM-W62-EXTENSION-PARITY-UNSIGNED
+          run-id: 42817316962
+          repository: manufact-test/nomusic
+          github-token: ${{ github.token }}
+          path: new
+      - name: Verify one AppId, real same-user DPAPI encryption, native source and Yandex untouched
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $oldSetup=(Resolve-Path 'old/CELIKOM-W61-CONSUMER-UX-FAST-TOGGLE-UNSIGNED.exe').Path
+          $newSetup=(Resolve-Path 'new/CELIKOM-W62-EXTENSION-PARITY-UNSIGNED.exe').Path
+          $program=Join-Path $env:LOCALAPPDATA 'Programs\CELIKOM'
+          $exe=Join-Path $program 'CELIKOM.Companion.exe'
+          $uninstaller=Join-Path $program 'unins000.exe'
+          $yandex=Join-Path $env:LOCALAPPDATA 'Programs\YandexMusic'
+          $state=Join-Path $env:LOCALAPPDATA 'CELIKOM\Windows'
+          $session=Join-Path $state 'session.dpapi'
+          if ((Test-Path $program) -or (Test-Path $yandex)) { throw 'W60_DIRTY_RUNNER' }
+          if ([Diagnostics.FileVersionInfo]::GetVersionInfo($oldSetup).FileVersion.Trim() -ne '0.24.9.0') {
+            throw 'W60_BAD_OLD_INSTALLER'
+          }
+          if ([Diagnostics.FileVersionInfo]::GetVersionInfo($newSetup).FileVersion.Trim() -ne '0.24.10.0') {
+            throw 'W60_BAD_NEW_INSTALLER'
+          }
+          $old=Start-Process $oldSetup -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/SP-' -Wait -PassThru
+          if ($old.ExitCode -ne 0 -or -not (Test-Path $exe)) { throw 'W62_0249_INSTALL_FAILED' }
+          if ([Diagnostics.FileVersionInfo]::GetVersionInfo($exe).FileVersion.Trim() -ne '0.24.9.0') {
+            throw 'W60_OLD_EXE_VERSION_MISMATCH'
+          }
+          New-Item -ItemType Directory $state -Force | Out-Null
+          $marker='W60_SAME_USER_DPAPI_OWNER_AUTH_PRESERVATION'
+          $plain=[Text.Encoding]::UTF8.GetBytes($marker)
+          $scope=[Security.Cryptography.DataProtectionScope]::CurrentUser
+          $sealed=[Security.Cryptography.ProtectedData]::Protect($plain,$null,$scope)
+          [IO.File]::WriteAllBytes($session,$sealed)
+          $before=(Get-FileHash $session -Algorithm SHA256).Hash
+          $appUpgrade=Start-Process $newSetup -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/SP-' -Wait -PassThru
+          if ($appUpgrade.ExitCode -ne 0 -or -not (Test-Path $exe)) { throw 'W62_02410_UPGRADE_FAILED' }
+          if ([Diagnostics.FileVersionInfo]::GetVersionInfo($exe).FileVersion.Trim() -ne '0.24.10.0') {
+            throw 'W62_02410_ACTUAL_EXE_VERSION_WRONG'
+          }
+          if ((Get-FileHash $session -Algorithm SHA256).Hash -ne $before) {
+            throw 'W60_SESSION_ENCRYPTED_BYTES_MODIFIED'
+          }
+          $unsealed=[Security.Cryptography.ProtectedData]::Unprotect(
+            [IO.File]::ReadAllBytes($session),$null,$scope)
+          if ([Text.Encoding]::UTF8.GetString($unsealed) -ne $marker) {
+            throw 'W60_OWNER_DPAPI_NOT_DECRYPTABLE_AFTER_UPDATE'
+          }
+          if (-not (Test-Path $uninstaller) -or (Test-Path (Join-Path $program 'unins001.exe'))) {
+            throw 'W60_DUPLICATE_APPLICATION_OR_UNINSTALLER'
+          }
+          $hostFile=Join-Path $program 'integration\host.cjs'
+          $renderer=Join-Path $program 'integration\renderer.js'
+          if (-not (Test-Path $hostFile) -or -not (Test-Path $renderer)) {
+            throw 'W60_NATIVE_MODULE_NOT_UPDATED'
+          }
+          $hostText=[IO.File]::ReadAllText($hostFile)
+          $rendererText=[IO.File]::ReadAllText($renderer)
+          if (-not $hostText.Contains('const CELIKOM_NATIVE_VERSION = "0.24.10"') -or
+              -not $hostText.Contains('NATIVE_TOGGLE_RELOAD_REQUEST') -or
+              -not $hostText.Contains('PLAYER_URL_SIGNED_FIELDS_INTACT') -or
+              -not $rendererText.Contains('NATIVE_TOGGLE_RELOAD_REQUEST') -or
+              -not $rendererText.Contains('celikom_native_query_guard')) {
+            throw 'W60_NATIVE_SIGNED_URL_FIX_ABSENT_AFTER_UPGRADE'
+          }
+          if (Test-Path $yandex) { throw 'W60_UPGRADE_MODIFIED_YANDEX' }
+          Write-Output 'W62_0249_TO_02410_ONE_APPLICATION_UPGRADE_PASS'
+          Write-Output 'W60_GENUINE_SAME_USER_DPAPI_PROTECTED_BYTES_PRESERVED_PASS'
+          Write-Output 'W62_NATIVE_GUARD_AND_HOST_02410_PRESENT_PASS'
+          Write-Output 'W60_NO_VENDOR_FILES_TOUCHED_PASS'
+          $removed=Start-Process $uninstaller -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART' -Wait -PassThru
+          if ($removed.ExitCode -ne 0) { throw 'W60_UNINSTALL_FAILED' }
+          Start-Sleep -Seconds 2
+          if (Test-Path $exe) { throw 'W60_UNINSTALL_LEFT_APP' }
+          if ((Get-FileHash $session -Algorithm SHA256).Hash -ne $before -or
+              (Test-Path $yandex)) { throw 'W60_UNINSTALL_OWNER_DATA_OR_VENDOR_CHANGED' }
+          Write-Output 'W60_UNINSTALL_PRESERVES_DPAPI_AND_YANDEX_PASS'
+      - name: Output only outcome categories, never real owner sessions or signing keys
+        run: echo W60_CI_ONLY_UNSIGNED_CANDIDATE_OWNER_AUDIO_NOT_YET_ACCEPTED
