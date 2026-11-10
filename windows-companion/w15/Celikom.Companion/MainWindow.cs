@@ -96,6 +96,11 @@ public sealed partial class MainWindow : Form
                 key.Handled = true;
                 UpdateApplicationAsync(this, EventArgs.Empty);
             }
+            if (_diagnosticsAllowed && key.Control && key.Shift && key.KeyCode == Keys.D)
+            {
+                key.Handled = true;
+                SaveDiagnosticsAuthorized(this, EventArgs.Empty);
+            }
         };
 
         // One compact popup sourced from the actual Chrome extension layout.
@@ -404,6 +409,42 @@ public sealed partial class MainWindow : Form
             return;
         }
         SaveDiagnostics();
+    }
+
+    private async void CopyDiagnosticsAuthorized(object? sender, EventArgs e)
+    {
+        // A visible button alone never authorizes exporting diagnostics.
+        bool allowed;
+        try { allowed = _api.IsLoggedIn && await _api.CanExportDiagnosticsAsync(); }
+        catch { allowed = false; }
+        if (!allowed)
+        {
+            _diagnosticsAllowed = false;
+            _staffPanel.Visible = false;
+            LayoutCompact();
+            return;
+        }
+        try
+        {
+            var report = DiagnosticLog.ExportText(_hostReport?.Version,
+                _nativeInstallState.ToString().ToUpperInvariant(), _bridgeStarted,
+                _bridge.Enabled, _api.IsLoggedIn, _installedModule.Version,
+                _nativeInstallState == NativeInstallState.Active ?
+                    _installedModule.MatchesApplication : null);
+            Clipboard.SetText(report);
+            _diagnosticsButton.Text = "Скопировано";
+            await Task.Delay(1200);
+        }
+        catch
+        {
+            _diagnosticsButton.Text = "Не удалось скопировать";
+            await Task.Delay(1200);
+        }
+        finally
+        {
+            if (!_closing && !_diagnosticsButton.IsDisposed)
+                _diagnosticsButton.Text = "Скопировать диагностику";
+        }
     }
 
     private static void ConfigureAuthButton(Button button, bool primary, string text)
