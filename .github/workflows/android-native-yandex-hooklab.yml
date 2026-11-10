@@ -57,7 +57,9 @@ jobs:
           assert 'metadataHooked' in source
           assert 'eventOrder.onFileInfo(SystemClock.elapsedRealtime())' in source
           assert 'eventOrder.onMetadata(SystemClock.elapsedRealtime())' in source
-          assert 'temporal-only metadata/source order=' in source
+          assert 'temporal-only aggregate single=' in source
+          assert 'metadata update count=' in source
+          assert 'file-info conversion count=' in source
           for forbidden in ['getString(', 'getLong(', 'metadata.get', 'MediaMetadata.METADATA_', 'getQueue(', 'getMediaId(', 'getDescription(']:
               assert forbidden not in source, forbidden
           assert 'if (targetHooked) return;' in source
