@@ -2,6 +2,13 @@
 
 **Status:** Source code only; builds a *CELIKOM Xposed module APK* (not an independent music player). Owner authorized research and preparation for **a separate disposable test device only**. No package was installed, and **nothing** on the owner's HONOR, stable Test.50, catalog or server is touched.
 
+## Latest publisher-signed DEX register/CFG audit (2026-11-10)
+
+- Source-only `audit_native_register_bridge.py`, tests and independent workflow `android-native-register-bridge-audit.yml`.
+- Pinned signed APK CI [#42806655214](https://github.com/manufact-test/nomusic/actions/runs/42806655214) SUCCESS; module build [#42806655152](https://github.com/manufact-test/nomusic/actions/runs/42806655152) SUCCESS 2/2; rollback `backup/android-signed-register-cfg-ci-green-20261110` at `8b7bc64f89249e5434da739851bececce2adb121`.
+- Confirmed bounded register may-flow: FileInfo sw7.y0/z0 result → Lxa7 constructor; Lged.a invokes Lhee.a and can pass the result to Leed.a/Lta7.c/Lwa7.a. Coroutine immediate callers Lfed/Lgee/Lfqr exist. NO direct source/decoder or active-audio proof; module remains read-only.
+- Detailed report: `docs/android/ANDROID-NATIVE-SIGNED-REGISTER-COROUTINE-CFG-EVIDENCE-2026-11-10.md`.
+
 ## Exact target
 
 - Native Yandex Music `ru.yandex.music`, **2026.10.3 #170gpr**, code **24026531**, exact original signer SHA256 `aca405ded8b25cb2e8c6da69425d2b4307d087c1276fc06ad5942731ccc51dba` pinned in the offline host audit.
