@@ -1,0 +1,34 @@
+name: Android signed exact Le48 source field-2 writer values (READ-ONLY)
+on:
+  push:
+    branches:
+      - experiment/android-native-yandex-fileinfo-hooklab-20261109
+    paths:
+      - 'android/native-yandex-hooklab/audit_native_ga4_field2_value_origins.py'
+      - 'android/native-yandex-hooklab/tests/test_native_ga4_field2_value_origins.py'
+      - '.github/workflows/android-native-ga4-field2-value-origins.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  signed-native-exact-field2-writers:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Unit test exact field slot and object register provenance
+        run: |
+          set -eu
+          python3 -m py_compile android/native-yandex-hooklab/audit_native_ga4_field2_value_origins.py
+          python3 -m unittest discover -s android/native-yandex-hooklab/tests -p 'test_native_ga4_field2_value_origins.py' -v
+      - name: Analyze unchanged publisher signed APK field-2 writer registers
+        run: python3 android/native-yandex-hooklab/audit_native_ga4_field2_value_origins.py
+      - name: Read-only guard
+        if: always()
+        run: |
+          test ! -d android/native-yandex-hooklab/release
+          test ! -d android/native-yandex-hooklab/patched
+          echo 'Only publisher-pinned signed DEX static analysis; no decoder or active player proof'
