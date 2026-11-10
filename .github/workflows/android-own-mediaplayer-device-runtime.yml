@@ -8,6 +8,7 @@ on:
       - 'android/native-yandex-hooklab/armv7-loader-host/app/src/main/java/pro/celikom/armv7loaderhost/MainActivity.java'
       - 'android/native-yandex-hooklab/armv7-loader-host/app/src/main/java/pro/celikom/armv7loaderhost/AudioSmokeSource.java'
       - 'android/native-yandex-hooklab/armv7-loader-host/app/build.gradle.kts'
+      - 'android/native-yandex-hooklab/armv7-loader-host/ci/run_own_android_emulator_probe.sh'
       - '.github/workflows/android-own-mediaplayer-device-runtime.yml'
   workflow_dispatch:
 permissions:
@@ -67,24 +68,8 @@ jobs:
           emulator-boot-timeout: 420
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
           disable-animations: true
-          script: |
-            set -euo pipefail
-            APK=android/native-yandex-hooklab/armv7-loader-host/app/build/outputs/apk/debug/app-debug.apk
-            adb install -r "$APK"
-            PKG=pro.celikom.armv7loaderhost.audio
-            test "$(adb shell getprop ro.build.version.sdk | tr -d '\r')" = 33
-            test "$(adb shell pm path "$PKG" | grep -c 'package:')" = 1
-            adb logcat -c
-            adb shell am start -W -n "$PKG"/pro.celikom.armv7loaderhost.MainActivity --ez celikom_own_probe true
-            RESULT=""
-            for tick in $(seq 1 65); do
-              RESULT="$(adb logcat -d -s CelikomOwnMediaProbe:D '*:S' | grep -E 'RESULT=(PASS|FAIL)' | tail -1 || true)"
-              if [ -n "$RESULT" ]; then break; fi
-              sleep 1
-            done
-            echo "$RESULT" | sed -E 's/.*(RESULT=(PASS|FAIL) CODE=[A-Z0-9_]+).*/\1/'
-            echo "$RESULT" | grep -q 'RESULT=PASS CODE=OWN_DECODER_LIFECYCLE'
-            echo 'PASS: actual Android 13 MediaPlayer prepared, seeked, paused, reloaded same track, restored paused and playing, then Next B'
+          # Single command: runner otherwise runs each 'script:' line in its own sh process.
+          script: bash android/native-yandex-hooklab/armv7-loader-host/ci/run_own_android_emulator_probe.sh
       - name: Final source-only safety
         if: always()
         run: |
