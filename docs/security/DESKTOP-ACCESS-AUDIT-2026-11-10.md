@@ -1,31 +1,66 @@
-# Browser extension access audit — 2026-11-10
+# Проверка доступа компьютерного расширения — 10.11.2026
 
-Status: baseline extension/server regression PASS; two narrowly scoped server guard changes under verification. This document is not production approval.
+**Итог:** автоматические проверки прошли; подготовлено ограниченное серверное исправление. На действующий сервер оно **не установлено**. Готовность платного запуска пока не подтверждена.
 
-## Scope and preserved versions
-- Accepted extension: 0.4.73, `63d8cd891e1db82e0245122391fd4ab5cdd323be`.
-- Server reviewed: `7e648eacaeb50cc371842590ed7a30284e440d2a`.
-- No playback source changes, production deployment, migrations, real payments, trial resets, account/session changes or Android/Windows application changes.
-- The workflow uses disposable MySQL and synthetic fixture audio; it has no production secrets.
-- Local execution environment became unavailable; current runtime checks use isolated GitHub Actions instead.
+## Что проверено
 
-## Findings requiring release attention
-1. The checked server has a billing lifecycle foundation, NOT a connected payment-to-playback implementation: no concrete BillingAdapter is registered by Application; public checkout/webhook routes are absent; all Application and AudioAccessService EntitlementService constructions use default billingEnabled=false. FEATURE_BILLING_VIEWS only exposes a read model. Merely enabling that flag or showing a successful checkout cannot grant paid playback.
-2. A legacy API_TEST_TOKEN bearer deliberately bypasses account entitlement and can mint v1 unbound audio URLs. It is not present in the accepted account-only client. Before commercial launch verify privately that it is unset on the actual deployment, or remove/isolate legacy access in a coordinated server change. This review does not establish a leaked token. Production configuration was not inspected.
-3. Trial is per verified account, not per human. A new independently verified email can create a new account/trial; registration throttling reduces bulk requests but is not proof of one person/one trial. No invasive device fingerprinting or payment requirement was introduced.
-4. Already delivered audio bytes and transferable short-lived signed URLs cannot be made secret from their authorized recipient by hiding JavaScript. The server remains the access boundary; URL expiry, session revocation and entitlement are rechecked on each new HTTP Range request. Existing delivered bytes are not retroactively revoked.
+| Часть | Источник / результат |
+| --- | --- |
+| Принятое расширение 0.4.73 | `63d8cd891e1db82e0245122391fd4ab5cdd323be`; 360/360 тестов, manifest и сборочная проверка безопасности PASS |
+| Серверная основа | `7e648eacaeb50cc371842590ed7a30284e440d2a` |
+| Подготовленное исправление | `ad9062b57dc614c4394e4ef3520790f662acbb30`; окончательная проверка с дополнительной регрессией `5b83fef136d14a473db093eee96e499f3735e55a` |
+| Базовая проверка | [42865053883 — PASS](https://github.com/manufact-test/nomusic/actions/runs/42865053883) |
+| Исправление, дополнительные проверки и сверка действующего сервера | [42866474354 — PASS](https://github.com/manufact-test/nomusic/actions/runs/42866474354) |
 
-## Source-confirmed controls (runtime results pending)
-- Explicit verified activation, one stored trial per account, parent row lock across devices, exactly 259200 seconds on the database clock, immutable ledger/window agreement.
-- Anonymous/expired/revoked accounts cannot resolve account-bound media. Signature binds replacement/version/expiry/session; removing/changing sid cannot downgrade an account URL.
-- Browser display-preview cache is not authorization. Fresh checks gate descriptors; heartbeat revalidates playing/cached audio, source restores to original on denied/unavailable access.
-- Playback authority cache is bounded to ten seconds and finite entitlement deadline; network failure does not renew authority. Wall-clock checks in the client are not a server security boundary.
-- Promos require owner-issued grants, verified account, activation limit and one-use records; lifetime owner promos are intentional exceptions.
-- Payment foundation checks verified canonical events, server quote amount/currency, unique events/charges, exact grant windows, refund/chargeback revocation and concurrent writes. These fixture adapter checks are not real provider verification.
+В проверенной ветке нет изменений исходников расширения, Android или Windows-приложения. Воспроизведение 0.4.73, настройки и оформление сохранены. Нет выкладки, миграций, изменения реальных аккаунтов/промокодов/подписок, сброса trial или обработки настоящих платежей.
 
-## Before payment activation
-Confirm the exact current provider/backend branch and deployed release; wire one verified billing-enabled decision consistently into entitlement, resolve and Range, without enabling it just because billing views are enabled. Verify real provider sandbox checkout, webhook authenticity, server amount/currency, replay, out-of-order events, refund, renewal failure and paid expiry through HTTP. Verify ordinary account expiry restores original, payment grants the same account access on independent sessions, and admin promos remain valid. Only then perform a coordinated production rollout; no production rollout is authorized by this audit.
+## Три дня и прекращение доступа
 
-## Evidence
-Isolated workflow: `.github/workflows/desktop-access-readiness-audit.yml`.
-Final run URL and measured results will be appended after completion.
+- Trial начинается при явной активации подтверждённого аккаунта. Регистрация, вход и чтение статуса его не запускают.
+- Продолжительность — 259200 секунд по часам БД. Переустановка, повторный Start и второе устройство не создают новый период тому же аккаунту.
+- Параллельные активации создают ровно один период и одну запись журнала.
+- Истёкший доступ запрещает resolve и новые запросы аудио, даже с ранее выданной действующей подписью. Изменение sid, удаление sid и подделка подписи не дают аккаунтной ссылки.
+- Кэш статуса интерфейса не выдаёт права воспроизведения. Проверены отказ запуска без доступа, отзыв доступа, выход, поздние ответы и сетевые сбои.
+- При прекращении доступа должна останавливаться подмена и возвращаться оригинальная музыка. Аккаунт, песни, загрузки и само расширение не удаляются.
+- Бессрочные и конечные промокоды владельца — намеренные исключения из платного доступа. Их действительность и отзыв проверены.
+
+## Подготовленное исправление
+
+При включённой проверке пользовательского доступа старый служебный способ всё ещё позволял получать музыку без аккаунтной проверки. Закрыты обе части этого пути:
+
+1. Resolve в аккаунтном режиме всегда проверяет пользовательскую сессию и право доступа.
+2. Аудиоконтроллер в этом режиме отвергает старые ссылки, не связанные с пользовательской сессией, включая HEAD и Range.
+
+Две новые проверки сначала воспроизвели оба случая на прежних исходниках в одноразовой БД, затем прошли с исправлением. Существующий приватный режим без аккаунтной проверки сохранил свои прежние контракты. Проверки модерации, загрузок, поддержки, прав администратора, CSRF, trial, промокодов, инцидентов, наград и биллинга прошли.
+
+Служебные настройки на действующем сервере проверены только чтением: этот старый механизм пока настроен. Это **не доказательство утечки ключа**. Значение ключа не выводилось и не использовалось для получения реального аудио.
+
+## Действующий сервер
+
+Проверка без подключения к БД подтвердила: пользовательская авторизация и проверка доступа включены; биллинг и финансовые представления выключены; debug выключен; файл конфигурации с закрытыми правами и аудиохранилище находятся вне публичной папки.
+
+Сверены хеши 12 файлов конфигурации и авторизации. 11 совпадают с рассмотренной серверной основой. Application.php точно соответствует известному варианту W45 с хешем `920a4fa28357a3e61d6af64085448eacc76ea8c3c3c1946597b6428e61b506e0`. Он отличается от основы дополнительной дублирующей записью CORS для native-клиента; проверенные механизмы авторизации совпадают. Расхождение не проигнорировано как неизвестное.
+
+Эта проверка не является общим аудитом всех серверных файлов, конфигурации веб-сервера, секретов GitHub Actions или инфраструктуры хостинга.
+
+## Что осталось для оплаты
+
+В **рассмотренном серверном коде** есть основа учёта платежей, но нет зарегистрированного адаптера реального провайдера и рабочих HTTP checkout/webhook-маршрутов. Рабочие решения доступа пока не включают оплаченные периоды. Флаг финансовых представлений не включает оплаченный доступ.
+
+Изолированный тестовый адаптер подтвердил проверку подписи, суммы и валюты, отсутствие повторного начисления, конкурентные уведомления, отмену продления, окончание периода, неуспешное продление, возвраты и chargeback. Это не проверка настоящего платёжного провайдера.
+
+Перед платным запуском необходимо:
+- Сверить ветку/код уже подготовленной оплаты с этой серверной основой.
+- Подключить проверенную оплату к одному решению доступа для entitlement, resolve и аудио.
+- Пройти sandbox провайдера: оплата, повтор webhook, потеря ответа, продление, возврат, окончание срока и восстановление доступа на независимых устройствах.
+- Отдельно согласовать выкладку подготовленных серверных ограничений с другими клиентами, использующими общий API; сохранить действующий native CORS и иметь проверенный откат.
+
+Новый APK или переустановка расширения для подготовленного серверного исправления не нужны. Платёжные маршруты и реальные платные права этим изменением не включены.
+
+## Практические границы
+
+Trial закреплён за подтверждённым **аккаунтом**, а не за человеком: новый подтверждённый адрес может получить новый trial. Ограничение регистрации снижает массовые запросы, но не гарантирует «один человек — один период».
+
+Уже переданные пользователю аудиобайты нельзя отозвать задним числом. Подписанная ссылка — краткосрочное разрешение, которое может быть передано до истечения срока; новый запрос всё равно проверяет срок, сессию и действующее право доступа. Сокрытие JavaScript не заменяет серверную авторизацию.
+
+Новая ручная проверка реального Chrome/Brave в этой сессии не выполнялась. Проверялся код принятой версии и её автоматическая регрессия; источник воспроизведения не менялся.
