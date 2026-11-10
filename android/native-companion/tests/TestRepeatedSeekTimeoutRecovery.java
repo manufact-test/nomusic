@@ -67,6 +67,7 @@ public final class TestRepeatedSeekTimeoutRecovery {
     "backward scrub cannot rearm a failed same-track decoder");
 
   e.sourceBoundary("manual_next","2");
+  TestEngine.p.current=TestEngine.source("2",0,true);
   check(!e.seekTimeoutBreaker.blocked(current)&&e.completedKey==null,
     "only Next/real boundary resets timed-out source lease");
   e.identity(LogStore.map("mediaAlias","2","albumId","42",
