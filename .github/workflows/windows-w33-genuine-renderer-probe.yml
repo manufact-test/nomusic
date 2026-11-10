@@ -8,6 +8,7 @@ on:
       - windows-companion/w23/w33-runtime-probe.cjs
       - windows-companion/w23/w33-runtime-probe.test.cjs
       - windows-companion/w23/w23-host-smoke.ps1
+      - windows-companion/w15/Celikom.Companion.Tests/**
       - .github/workflows/windows-w33-genuine-renderer-probe.yml
   workflow_dispatch:
 
