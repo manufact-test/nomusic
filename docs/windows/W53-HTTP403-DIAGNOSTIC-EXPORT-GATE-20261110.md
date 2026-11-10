@@ -20,9 +20,11 @@ W52's Electron `host.cjs` emitted typed `PLAYER_403_*` events with digits and `r
 Source tests must pass and the owner must not be asked to install the still-silent 0.24.6 again. W53's improved diagnostic output is **not on the owner's machine** until a future approved update. Exact live rejection reason cannot be inferred from simulated test data, however detailed. Continue with supported read-only source validation and the least invasive evidence path; only once a narrow corrective change is proven should a signed/bounded same-app upgrade and single owner playback validation be requested. Library delivery must use verified `CELIKOM/Windows` file card, never a guessed sandbox path.
 
 ## Verification / rollback
-- W53 W48 native tests workflow: https://github.com/manufact-test/nomusic/actions/runs/42789543674 (SUCCESS, including new native GET regression fixtures).
-- W53 W20 staging workflow: https://github.com/manufact-test/nomusic/actions/runs/42789543676 (final result must be verified, no published installer).
-- W53 W23 genuine vendor disposable workflow: https://github.com/manufact-test/nomusic/actions/runs/42789543699 (final result must be verified, original vendor restore required).
+- W53 Node native W48 witness https://github.com/manufact-test/nomusic/actions/runs/42790106070 **SUCCESS** (including 403 categorization, repeated requests and URL signed-field preservation).
+- W53 Windows W15/W22 CI https://github.com/manufact-test/nomusic/actions/runs/42791600640 **SUCCESS**, Windows Preview CI https://github.com/manufact-test/nomusic/actions/runs/42791600534 **SUCCESS**.
+- W53 complete W20 staging/installer compatibility https://github.com/manufact-test/nomusic/actions/runs/42791600240 **SUCCESS**. The build was internal CI only, never given to owner; this does not prove real audible playback.
+- W53 W23 genuine signed Yandex disposable integration and restore https://github.com/manufact-test/nomusic/actions/runs/42791811325 **SUCCESS** after isolating owner-log test fixtures. Original vendor files verified restored; no authenticated playback.
+- W53 W41 separate native-origin boundary https://github.com/manufact-test/nomusic/actions/runs/42791819785 (result must be verified separately).
 - W52 rollback: `backup/windows-w52-403-classification-before-export-fix-20261110` at `34e4559de0edeef7df89567cb928de1a99d13859`.
 - Earlier W51 pre-W52 rollback: `backup/windows-w51-http403-pre-w52-stage-20261110` at `a2797566fde88fc707e54f14ff0ef6e014e9c68b`.
 
