@@ -73,7 +73,13 @@ const noisy = new Set(["TRACK_CHANGED", "RESOLVE_REQUEST", "GRANT_FOUND", "GRANT
   "PLAYER_NET_HTTP_OTHER", "PLAYER_NET_FINISHED",
   "PLAYER_NET_FAILED", "PLAYER_NET_CORS_BLOCKED",
   "PLAYER_NET_CORS_CREDENTIALS", "PLAYER_NET_CORS_PREFLIGHT",
-  "PLAYER_NET_CSP_BLOCKED", "PLAYER_AUDIO_RESOURCE_TIMING_SEEN"]);
+  "PLAYER_NET_CSP_BLOCKED", "PLAYER_AUDIO_RESOURCE_TIMING_SEEN",
+  // Correlation requires ALL native requests, not the first occurrence only.
+  "PLAYER_URL_MATCH", "PLAYER_URL_QUERY_MISSING", "PLAYER_URL_QUERY_CHANGED",
+  "PLAYER_URL_EXPECTATION_MISSING", "PLAYER_URL_EXPIRED_AT_REQUEST",
+  "PLAYER_403_JSON", "PLAYER_403_HTML", "PLAYER_403_OTHER",
+  "PLAYER_403_PHP_INVALID_AUDIO_TOKEN", "PLAYER_403_PHP_ACCESS_DENIED",
+  "PLAYER_403_JSON_UNCLASSIFIED"]);
 function note(code, trackId = null, idKind = "track") {
   if (!/^[A-Z0-9_]{3,48}$/.test(code)) return;
   const id = typeof trackId === "string" && /^[1-9][0-9]{0,17}$/.test(trackId)
@@ -394,7 +400,7 @@ function observeNativePlayback(view) {
           if (mediaRequests.size >= 64)
             mediaRequests.delete(mediaRequests.keys().next().value);
           const m = params?.request?.method;
-          mediaRequests.set(requestId, { id, method: m, forbiddenJson: false });
+          mediaRequests.set(requestId, { id, method: m, forbiddenJson: false, forbiddenJsonLength: null });
           note("PLAYER_NET_REQUEST", id, "resource_id");
           note(classifyPlayerUrl(view, id, url), id, "resource_id");
           note(m === "GET" ? "PLAYER_NET_GET" :
@@ -427,6 +433,7 @@ function observeNativePlayback(view) {
               const length = rawLength === undefined ? null : Number(rawLength);
               entry.forbiddenJson = entry.method === "GET" && json &&
                 (length === null || (Number.isSafeInteger(length) && length <= 160));
+              entry.forbiddenJsonLength = length;
             }
             return;
           }
@@ -447,7 +454,14 @@ function observeNativePlayback(view) {
           if (method === "Network.loadingFinished") {
             note("PLAYER_NET_FINISHED", id, "resource_id");
             mediaRequests.delete(requestId);
-            void classifyAudioDenial(debug, requestId, id, entry.forbiddenJson);
+            // Network.getResponseBody returns a full response; never ask for it
+            // on an unknown or unbounded payload. A PHP error has tiny JSON.
+            const encoded = params?.encodedDataLength;
+            const knownLength = entry.forbiddenJsonLength;
+            const bounded = Number.isSafeInteger(knownLength) ?
+              knownLength >= 0 && knownLength <= 160 :
+              Number.isFinite(encoded) && encoded >= 0 && encoded <= 4096;
+            void classifyAudioDenial(debug, requestId, id, entry.forbiddenJson && bounded);
             return;
           }
         }
