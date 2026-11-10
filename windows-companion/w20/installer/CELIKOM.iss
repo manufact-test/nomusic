@@ -5,8 +5,8 @@
 [Setup]
 AppId={{D99FDB90-46BF-4EE5-989E-659A2B6450D6}
 AppName=CELIKOM
-AppVersion=0.24.4
-VersionInfoVersion=0.24.4.0
+AppVersion=0.24.5
+VersionInfoVersion=0.24.5.0
 VersionInfoCompany=CELIKOM
 VersionInfoProductName=CELIKOM
 VersionInfoDescription=CELIKOM Windows Setup
@@ -21,7 +21,7 @@ Compression=lzma2
 SolidCompression=yes
 DisableDirPage=yes
 OutputDir=..\output
-OutputBaseFilename=CELIKOM-W32-EASY-UPDATE-UNSIGNED
+OutputBaseFilename=CELIKOM-W48-PLAYER-DIAG-UNSIGNED
 UninstallDisplayIcon={app}\{#AppExecutable}
 CloseApplications=yes
 RestartApplications=no
