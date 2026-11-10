@@ -86,10 +86,10 @@ try
     var zipFixture = Environment.GetEnvironmentVariable("CELIKOM_UPDATE_TEST_PACKAGE");
     if (!string.IsNullOrWhiteSpace(zipFixture))
     {
-        var staged = AppUpdateManager.Stage(zipFixture, new Version(0, 24, 9, 0));
-        Test(staged.Version == new Version(0, 24, 10, 0),
+        var staged = AppUpdateManager.Stage(zipFixture, new Version(0, 24, 10, 0));
+        Test(staged.Version == new Version(0, 24, 11, 0),
             "ZIP one-click updater accepts new CELIKOM version");
-        Test(Path.GetFileName(staged.Path).StartsWith("CELIKOM-W62-",StringComparison.Ordinal),
+        Test(Path.GetFileName(staged.Path).StartsWith("CELIKOM-W63-",StringComparison.Ordinal),
             "ZIP extraction stages only CELIKOM installer");
         bool oldRejected = false;
         try { AppUpdateManager.Stage(zipFixture, AppUpdateManager.RunningVersion); }
