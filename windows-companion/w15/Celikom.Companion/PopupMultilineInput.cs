@@ -19,7 +19,9 @@ public sealed class PopupMultilineInput : UserControl
         _input.BackColor = ColorTranslator.FromHtml("#141B1F");
         _input.ForeColor = ColorTranslator.FromHtml("#F4F7F8");
         _input.Font = new Font("Segoe UI", 9F);
-        _input.ScrollBars = ScrollBars.Vertical;
+        // A native TextBox scrollbar stays bright white even on a dark
+        // background. Hide that chrome; keyboard/caret scrolling remains native.
+        _input.ScrollBars = ScrollBars.None;
         Controls.Add(_input);
         _input.GotFocus += (_, _) => Invalidate();
         _input.LostFocus += (_, _) => Invalidate();
