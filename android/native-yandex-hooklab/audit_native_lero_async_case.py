@@ -255,7 +255,23 @@ def signed_scan(apks):
         raise ValueError("SIGNED_LWQ7_TAG_FIELD_NOT_STORED")
     dd,doff,dins,dm=dispatch
     table=ctor_and_switch_slot(dd,dins)
-    if table is None:raise ValueError("SIGNED_LWQ7_SWITCH_TAG_ABSENT")
+
+    if table is None:
+        role=[]
+        for pc,op,w in dins[:12]:
+            kind=("iget_int" if op==0x52 else
+                  "iget_int_other" if op in (0x53,0x55,0x56,0x57,0x58) else
+                  "move_int" if op in (0x01,0x02,0x03) else
+                  "switch" if op in (0x2b,0x2c) else "other")
+            rec={"kind":kind,"pc":pc,"instruction_word_register_A":(w[0]>>8)&15}
+            if kind=="iget_int":
+                key=field_k(dd,w)
+                rec["field_owner_type"]=brief_type(key[0])
+                rec["field_value_type"]=brief_type(key[1])
+                rec["object_register_B"]=(w[0]>>12)&15
+            role.append(rec)
+        print("SIGNED_LWQ7_TAG_SCAN_FIRST_ROLES "+json.dumps(role,sort_keys=True))
+        raise ValueError("SIGNED_LWQ7_SWITCH_TAG_ABSENT")
     actual_case=[]
     for record in source:
         tag=record["tag"]
