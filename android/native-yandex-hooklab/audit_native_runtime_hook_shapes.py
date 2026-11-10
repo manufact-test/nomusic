@@ -31,6 +31,7 @@ TARGETS={
     ("Lha4;","read","([BII)I"),
     ("Lha4;","close","()V"),
 }
+OWNER_BUILDER=("Locv;","i0","()V")
 LIMIT_DEX=6
 MAX_BODIES=240000
 MAX_LERO_READER_FIELDS=10
@@ -97,13 +98,15 @@ def inspect_signed(splits):
                     bodies+=1
                     if bodies>MAX_BODIES:raise ValueError("METHOD_BOUND")
                     signature=d.method(idx)
-                    if signature in TARGETS:
+                    if signature in TARGETS or signature==OWNER_BUILDER:
                         defined[signature]+=1
                     if signature[0]=="Lero;" and signature[1]=="<init>":
                         lero_constructors.append(signature[2])
     if dex_count!=LIMIT_DEX:raise ValueError("SIGNED_SIX_DEX_MISSING")
     if any(defined[t]!=1 for t in TARGETS):
         raise ValueError("EXACT_METHOD_DEFINITION_COUNT")
+    if defined[OWNER_BUILDER]!=1:
+        raise ValueError("EXACT_LOCV_I0_METHOD_MISSING_OR_AMBIGUOUS")
     result=check_shapes(defined,len(reader_fields))
     creation=check_lero_constructors(lero_constructors)
     if not creation["both_exact_lero_creation_shapes_proven"]:
@@ -115,6 +118,8 @@ def inspect_signed(splits):
         "method_bodies_scanned":bodies,
         **result,
         **creation,
+        "signed_exact_ocv_i0_no_arg_void_count":defined[OWNER_BUILDER],
+        "owner_constructor_runtime_nesting_proven":False,
         "original_apks_unchanged":True,
         "no_device_account_secret_url_media_or_dex_output":True,
     }
@@ -145,6 +150,7 @@ if __name__=="__main__":
             "SIGNED_SIX_DEX_MISSING","EXACT_METHOD_DEFINITION_COUNT",
             "EXACT_LERO_READER_FIELD_COUNT","SIGNED_CI_ONLY",
             "EXACT_LERO_CONSTRUCTOR_PAIR_NOT_PROVEN",
+            "EXACT_LOCV_I0_METHOD_MISSING_OR_AMBIGUOUS",
             "PINNED_ORIGINAL_SHA_MISMATCH","FIVE_SIGNED_SPLITS_REQUIRED",
         }
         code=str(exc)
