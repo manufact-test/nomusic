@@ -1,0 +1,34 @@
+name: Android publisher-signed DataSource read consumer and lifecycle (READ-ONLY)
+on:
+  push:
+    branches:
+      - experiment/android-native-yandex-fileinfo-hooklab-20261109
+    paths:
+      - 'android/native-yandex-hooklab/audit_native_datasource_read_lifecycle.py'
+      - 'android/native-yandex-hooklab/tests/test_native_datasource_read_lifecycle.py'
+      - '.github/workflows/android-native-datasource-read-lifecycle.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  signed-source-open-read-lifecycle:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Verify exact invoke registers, field origin and branch caveat
+        run: |
+          set -eu
+          python3 -m py_compile android/native-yandex-hooklab/audit_native_datasource_read_lifecycle.py
+          python3 -m unittest discover -s android/native-yandex-hooklab/tests -p 'test_native_datasource_read_lifecycle.py' -v
+      - name: Inspect publisher-signed unchanged six DEX for actual source read caller
+        run: python3 android/native-yandex-hooklab/audit_native_datasource_read_lifecycle.py
+      - name: Confirm no patched vendor binary or media artifacts
+        if: always()
+        run: |
+          test ! -d android/native-yandex-hooklab/release
+          test ! -d android/native-yandex-hooklab/patched
+          echo 'Static source lifecycle only, no selected player/track or decoder prepared'
