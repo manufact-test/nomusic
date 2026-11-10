@@ -73,9 +73,9 @@ jobs:
             throw 'W50_NEW_DIAGNOSTIC_MODULE_NOT_INSTALLED'
           }
           if (Test-Path $originalYandex) { throw 'W50_UPGRADE_TOUCHED_YANDEX' }
-          Write-Output 'W50_0244_TO_0245_SAME_APP_INPLACE_PASS'
+          Write-Output 'W50_0245_TO_0246_SAME_APP_INPLACE_PASS'
           Write-Output 'W50_ACCOUNT_DPAPI_PRESERVED_PASS'
-          Write-Output 'W50_NATIVE_PLAYER_DIAGNOSTICS_PRESENT_PASS'
+          Write-Output 'W50_NATIVE_NETWORK_DIAGNOSTICS_PRESENT_PASS'
           Write-Output 'W50_NO_YANDEX_FILE_CHANGE_PASS'
           $removed = Start-Process $uninstall -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART' -Wait -PassThru
           if ($removed.ExitCode -ne 0) { throw 'W50_UNINSTALL_FAILED' }
