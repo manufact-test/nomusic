@@ -17,6 +17,7 @@ PrivilegesRequired=lowest
 ArchitecturesAllowed=x64compatible
 MinVersion=10.0
 WizardStyle=modern
+SetupIconFile=..\\assets\\CELIKOM.ico
 Compression=lzma2
 SolidCompression=yes
 DisableDirPage=yes
