@@ -1,3 +1,5 @@
+> **STOP / НЕ СООТВЕТСТВУЕТ ПРОДУКТОВОМУ ТЗ (10.11.2026).** Владелец уточнил: CELIKOM должен включать саму Яндекс.Музыку с пользовательским каталогом, «Моей волной» и плейлистами. Этот Media3-only prototype показывает только approved CELIKOM replacements и поэтому неприемлем как основная Android-версия или fallback. Не продолжать разработку, не отдавать APK и не выдавать CI за продукт. См. [исправленное ТЗ](../../docs/android/ANDROID-CORRECTED-PRODUCT-REQUIREMENT-YANDEX-INSIDE-CELIKOM-2026-11-10.md).
+
 # CELIKOM First-Party Android Player — OWNED fallback (NOT a Yandex clone)
 
 **Branch:** experiment/android-owned-player-delivery-20261110. Prototype only; no user APK distribution. Android native source injection Gate A and full Yandex catalogue license Gate B both failed to identify a supported integration. Do not bypass Play Protect or Android sandbox.
