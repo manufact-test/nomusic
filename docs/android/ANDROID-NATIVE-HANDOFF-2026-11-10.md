@@ -1,5 +1,18 @@
 # CELIKOM Android — передача следующему ведущему разработчику (10.11.2026)
 
+## 10.11.2026 — новое: FileInfo → Media3 short-path audited, no decoder runtime proof
+
+**Code HEAD before docs:** `b807fe3b312823961b1c4d55fd669fcbc1df57d1`. **Backup:** `backup/android-native-crossdex-source-hop-readonly-20261110`.
+
+**READ-ONLY signed original 5 splits / 6 DEX:** [CI 42777930530](https://github.com/manufact-test/nomusic/actions/runs/42777930530), [42778116766](https://github.com/manufact-test/nomusic/actions/runs/42778116766), [42778216759](https://github.com/manufact-test/nomusic/actions/runs/42778216759), [42778331313](https://github.com/manufact-test/nomusic/actions/runs/42778331313) all SUCCESS. 230,533 method bodies / 837,500 invoke links scanned. 33 Media3 classes / 384 refs exist; strict names createMediaSource/prepare not detected. Graph joined **across all six DEX**: **0 bounded 1–3-hop** links from 1 converter-caller and 6 `eed` model consumers to recognizable Media3/ExoPlayer classes. This is **only a bounded static negative**, not proof decoder absent. **No actual trackId + edition → decoder pre-prepare** yet.
+
+**Runtime still NO-GO:** [42776115700](https://github.com/manufact-test/nomusic/actions/runs/42776115700) strict Android11 original+clone: MAIN self-exits `reason=1 status=0`; clone foreground UI absent; original runs. Publisher-signed manifest `debuggable=false` and `profileable shell=false`; no authorized ART method trace. Do not circumvent signature, OAuth/Passport, Play Protect, DRM, or force modified Yandex onto HONOR. Do not do another unsorted DEX patch or second-player architecture.
+
+**Full new report:** `docs/android/ANDROID-NATIVE-SIGNED-SOURCE-HOP-EVIDENCE-2026-11-10.md`. Next productive gate: obtain a legitimately permitted in-process native host/integration API, then observe source-boundary ownership and real track+edition before prepare. No manual owner action, no new install now. Test.50, Windows, extension, backend, DB, production all untouched.
+
+---
+
+
 ## UPDATE 10.11.2026 — publisher ART profiling denied; exit(0) caller still not attributed
 
 **Latest code HEAD before this docs commit:** `360fec15b719543b909035daee99b30e3257c7ad`.
