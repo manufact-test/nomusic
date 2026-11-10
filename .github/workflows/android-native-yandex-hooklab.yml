@@ -43,6 +43,7 @@ jobs:
           java -cp /tmp/celikom-jvm-hooklab NativeGrantContractTest
           java -cp /tmp/celikom-jvm-hooklab NativeReplacementLifecycleTest
           java -cp /tmp/celikom-jvm-hooklab NativeSourceInstanceFenceTest
+          java -cp /tmp/celikom-jvm-hooklab NativeSourceInstanceConcurrencyTest
       - name: Test read-only ARM device gate (synthetic snapshots; no phone connected)
         run: python3 -m unittest discover -s android/native-yandex-hooklab/tests -p 'test_*.py' -v
       - name: Disallow sensitive permissions, substitute player and mutable audio sources
