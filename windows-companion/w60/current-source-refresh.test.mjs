@@ -7,7 +7,8 @@ function harness({status="playing",trackId="123",hasModule=true}={}) {
     constructor() {
       this.calls=[];
       this.snapshot={
-        queueState:{currentEntity:{value:{entity:{data:{meta:{id:trackId}}}}}},
+        queueState:{currentEntity:{value:{entity:{data:{meta:{id:trackId,
+          title:"Раскол", artists:[{name:"Исполнитель"}],durationMs:178000}}}}}},
         playerState:{status:{value:status},progress:{value:{position:73.42}}}
       };
     }
@@ -131,4 +132,22 @@ test("W62 passive current-song identity is read-only and never a preloaded song"
   assert.equal(r.currentTrackId(),"148222333","paused current entity remains observable");
   r.dispose();
   assert.equal(r.currentTrackId(),"","dispose clears all metadata");
+});
+
+test("W63 exact current song yields safe title artist duration without control mutations",()=>{
+  const h=harness({trackId:"34483761"}),r=createCurrentSourceRefresh();
+  assert.equal(r.attach(h.webpackRequire),true);
+  const p=new h.NativeYandexPlayback();
+  void p.state;
+  assert.deepEqual(r.currentTrack(),{
+    id:"34483761",title:"Раскол",artist:"Исполнитель",durationMs:178000
+  });
+  assert.deepEqual(p.calls,[]);
+  p.snapshot.queueState.currentEntity.value.entity.data.meta.title=
+    "Name".repeat(150);
+  assert.equal(r.currentTrack().title.length,180,"bounded presentation only");
+  p.snapshot.queueState.currentEntity.value.entity.data.meta.id="bad";
+  assert.equal(r.currentTrack(),null,"cannot expose untrusted identifier");
+  r.dispose();
+  assert.equal(r.currentTrack(),null);
 });
