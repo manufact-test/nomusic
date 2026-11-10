@@ -195,7 +195,7 @@ public final class NativeSourceInstanceFence {
     public synchronized Snapshot snapshot() {
         return new Snapshot(phase,generation,prepareCount,openCount,readCount,
                 closeCount,seekCount,rejectedCount,
-                !poisoned&&phase==Phase.CLOSED&&prepareCount==1
+                !poisoned&&rejectedCount==0&&phase==Phase.CLOSED&&prepareCount==1
                         &&openCount>=1&&closeCount>=1&&everRead);
     }
 
