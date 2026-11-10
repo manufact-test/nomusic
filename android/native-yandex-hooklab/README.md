@@ -2,7 +2,15 @@
 
 **Status:** Source code only; builds a *CELIKOM Xposed module APK* (not an independent music player). Owner authorized research and preparation for **a separate disposable test device only**. No package was installed, and **nothing** on the owner's HONOR, stable Test.50, catalog or server is touched.
 
-## NEWEST verified source-instance fail-closed ARM64 checkpoint (2026-11-10)
+## LATEST Windows W60 concept transferred to OWN ARMv7 Android source-reload (2026-11-10)
+
+- **CI GREEN code:** `a7f83f0ab836bbeeb12538c6a389c9569d326610`; **backup:** `backup/android-windows-w60-owned-reload-armv7-arm64-ci-green-20261110`; evidence: `docs/android/ANDROID-WINDOWS-W63-AUDIO-PARITY-OWNED-RELOAD-2026-11-10.md`.
+- Compared actual owner-accepted Windows 0.24.9 native source adapter and Electron source reload; W56 signed query guard is **Windows-only**, not blindly copied into Android. Android signed Yandex has eight candidate `Lemb` implementations and no verified native equivalent of Electron `reloadEntity("QUALITY_CHANGE")`.
+- Implemented **only inside own generated WAV ARMv7 lab app**: `OwnSameTrackReloadPlan.java` and `AudioSmokeScreen.java` Start/Stop on current A preserve paused/position; release old `MediaPlayer` BEFORE constructing next; skip unchanged source; Next B remains original, async callbacks revision-fenced, fast toggles during restoration preserve pending seek.
+- [OWN ARMv7 Android build/scope/safety/50,020 checks #42830966825](https://github.com/manufact-test/nomusic/actions/runs/42830966825) **SUCCESS**. [Real ARM64 Linux JVM source-selection plan #42831135970](https://github.com/manufact-test/nomusic/actions/runs/42831135970) **SUCCESS**. No device install, no real Yandex, no user account, no actual audio heard by owner.
+- **Android playback substitution remains NO-GO** pending proof selected `Lemb` instance + current track/edition/generation + actual decoder prepare; lab model not wired to vendor app.
+
+## PREVIOUS verified source-instance fail-closed ARM64 checkpoint (2026-11-10)
 
 - **CI GREEN code:** `59aa2d14bf32fd0f5eb553c09ec88738d84353a0`; **frozen rollback:** `backup/android-signed-source-instance-failclosed-arm64-ci-green-20261110`; evidence: `docs/android/ANDROID-NATIVE-SOURCE-INSTANCE-ARM64-AND-LEMB-BRANCHES-2026-11-10.md`.
 - Strict `NativeSourceInstanceFence.snapshot`: any rejected event in same generation permanently invalidates synthetic `complete`, even after clean `open/read/close`; old-generation stale events do not poison new epochs. New regression tests cover both. All code remains OWN-ONLY pure Java, no `NativeHookEntry` wiring.
