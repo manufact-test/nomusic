@@ -359,8 +359,8 @@ public sealed partial class MainWindow
             _installedModule.MatchesApplication;
         _compactAccountTrigger.Text = _api.IsLoggedIn ? "Аккаунт · подключён" :
             "Аккаунт · требуется вход";
-        _compactAccountTrigger.BackColor = !_api.IsLoggedIn && !_compactAccountOpen ? Danger : Surface;
-        _compactAccountTrigger.ForeColor = !_api.IsLoggedIn && !_compactAccountOpen ? Color.White : Ink;
+        _compactAccountTrigger.BackColor = !_api.IsLoggedIn ? Danger : Surface;
+        _compactAccountTrigger.ForeColor = !_api.IsLoggedIn ? Color.White : Ink;
         _compactAccountTrigger.Invalidate();
         _start.Text = !_api.IsLoggedIn ? "Старт" : connected ? "Старт" : "Повторить";
         _compactTrack.Text = GrantValidator.IsTrackId(_bridge.LastSong)
