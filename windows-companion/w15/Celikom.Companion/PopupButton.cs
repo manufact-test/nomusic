@@ -45,9 +45,11 @@ public sealed class PopupButton : Button
         using (var fill = new SolidBrush(background)) e.Graphics.FillPath(fill, path);
         using (var pen = new Pen(outline, 1f)) e.Graphics.DrawPath(pen, path);
         var foreground = Enabled ? ForeColor : ColorTranslator.FromHtml("#778990");
+        var alignment = TextAlign == ContentAlignment.MiddleLeft ?
+            TextFormatFlags.Left : TextFormatFlags.HorizontalCenter;
         TextRenderer.DrawText(e.Graphics, Text, Font,
             Rectangle.Inflate(ClientRectangle, -8, 0), foreground,
-            TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter |
+            alignment | TextFormatFlags.VerticalCenter |
             TextFormatFlags.EndEllipsis | TextFormatFlags.SingleLine);
         if (Focused && ShowFocusCues)
             ControlPaint.DrawFocusRectangle(e.Graphics, Rectangle.Inflate(ClientRectangle, -5, -5),
