@@ -87,11 +87,25 @@ public final class NativeSourceGateTest {
             eq(1,g.commits(),"single source per Next");
         }
     }
+    private static void staleOrRejectedOffersNeverLeakAnotherTracksChoice() {
+        NativeSourceGate g = new NativeSourceGate(850);
+        long stale = g.beginTrack("A", "edition", 0);
+        long live = g.beginTrack("B", "edition", 10);
+        eq(Choice.ALTERNATE, g.propose(live, ready("B", "edition"), 20).choice,
+                "B accepted independently");
+        NativeSourceGate.Result old = g.propose(stale, ready("A", "edition"), 21);
+        eq(Reason.STALE_REVISION, old.reason, "stale rejected");
+        eq(Choice.UNDECIDED, old.choice, "stale cannot leak B alternate");
+        NativeSourceGate.Result wrong = g.propose(live, ready("B", "edition"), 22);
+        eq(Reason.ALREADY_COMMITTED, wrong.reason, "second offer rejected");
+        eq(Choice.UNDECIDED, wrong.choice, "rejection cannot imply source switch");
+        eq(Choice.ALTERNATE, g.prepare(live, 23), "live B still owns its single source");
+    }
     public static void main(String[] args){
         acceptedBeforePrepareOnly();raskolAndDymPositionDelay();
         nextCancelsInflight();notReadyOrCryptoMismatchFailClosed();
         lateResolveBeforePrepare();explicitFallbackOnlyBeforePrepare();
-        stressQuickNextAndStaleCallbacks();
+        stressQuickNextAndStaleCallbacks();staleOrRejectedOffersNeverLeakAnotherTracksChoice();
         System.out.println("PASS: NativeSourceGate "+count+" assertions; RASKOL/DYM, startup, 2500 quick Next, pause/seek, no mid-play crossfade");
     }
 }

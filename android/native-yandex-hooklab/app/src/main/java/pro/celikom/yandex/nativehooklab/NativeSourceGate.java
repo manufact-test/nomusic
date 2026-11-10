@@ -74,17 +74,20 @@ public final class NativeSourceGate {
      * checks. A network request may return AFTER Next or after original starts.
      */
     public synchronized Result propose(long rev,Candidate candidate,long nowMs) {
-        if(rev!=revision)return new Result(choice,Reason.STALE_REVISION);
+        // Result.choice is the OFFER outcome, never the current generation's
+        // committed source. A stale/late caller MUST NOT see ALTERNATE through
+        // its rejected result and mistakenly apply it to another track.
+        if(rev!=revision)return new Result(Choice.UNDECIDED,Reason.STALE_REVISION);
         if(stage!=Stage.BEFORE_PREPARE||choice!=Choice.UNDECIDED)
-            return new Result(choice,Reason.ALREADY_COMMITTED);
+            return new Result(Choice.UNDECIDED,Reason.ALREADY_COMMITTED);
         if(nowMs<startedAtMs||nowMs-startedAtMs>resolveBudgetMs)
-            return new Result(choice,Reason.TOO_LATE);
+            return new Result(Choice.UNDECIDED,Reason.TOO_LATE);
         if(candidate==null||!activeTrack.equals(candidate.track)
                 ||!activeEdition.equals(candidate.edition))
-            return new Result(choice,Reason.WRONG_TRACK);
-        if(!candidate.ready())return new Result(choice,Reason.NOT_READY);
+            return new Result(Choice.UNDECIDED,Reason.WRONG_TRACK);
+        if(!candidate.ready())return new Result(Choice.UNDECIDED,Reason.NOT_READY);
         choice=Choice.ALTERNATE;
-        return new Result(choice,Reason.ACCEPTED);
+        return new Result(Choice.ALTERNATE,Reason.ACCEPTED);
     }
 
     /**

@@ -114,11 +114,29 @@ public final class NativePrePrepareAdmissionTest {
                 NativeSourceGate.Choice.ALTERNATE, "new selection can prepare alternate");
         eq(g.committedSourceDecisions(), 1, "one successful commit");
     }
+    private static void conflictingFileInfoAndSafeOneCommit() {
+        NativePrePrepareAdmission gate = new NativePrePrepareAdmission(850);
+        long rev = gate.begin("42884423", "version-1", 10);
+        eq(NativePrePrepareAdmission.Offer.ACCEPTED_PENDING,
+                gate.offer(rev, ready("42884423", "version-1"), 11), "pending");
+        yes(gate.observeFileInfo(rev, "42884423", "version-1"),
+                "first fileinfo matches");
+        yes(!gate.observeFileInfo(rev, "42884423", "version-2"),
+                "conflicting native edition rejected");
+        NativePrePrepareAdmission.Decision d =
+                gate.commitAtNativePrepare(rev, "42884423", "version-1", 13);
+        eq(d.source, NativeSourceGate.Choice.ORIGINAL,
+                "conflicting identity vetoes already queued alternate");
+        eq(d.identity, NativeTrackIdentityGate.Verdict.ORIGINAL_MISMATCH,
+                "conflict irreversible for this generation");
+        eq(gate.committedSourceDecisions(), 1, "exactly one prepare");
+    }
     public static void main(String[] args) {
         nativeExactBeforePrepareOnly();
         blockedIdentityAlwaysOriginal();
         raceNextAndUnsafe();
         deadlineAndAbort();
+        conflictingFileInfoAndSafeOneCommit();
         System.out.println("PASS: NativePrePrepareAdmission MODEL " + checks
                 + " assertions; same-generation FileInfo→decoder identity, no double clock,"
                 + " 5000 Next races, missing edition, unsafe/late candidate and abort");
