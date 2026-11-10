@@ -1,3 +1,9 @@
+# ARCHIVED / REJECTED BY OWNER — DO NOT SEND OR USE
+
+This document was an incorrectly proposed outreach path. The owner explicitly rejected contacting Yandex about an Android audio source replacement. **No email was sent**. Do not recommend this approach in future handoffs. The active competitor-based direction is `docs/android/ANDROID-NATIVE-COMPETITOR-PATH-CORRECTION-2026-11-10.md`.
+
+---
+
 # CELIKOM Android — официальный запрос в Яндекс Музыку о поддерживаемой native-интеграции
 
 **Подготовлено 10.11.2026. Статус: НЕ ОТПРАВЛЕНО.** Не отправлять автоматически от имени владельца без согласования его контактных данных и представительства.
