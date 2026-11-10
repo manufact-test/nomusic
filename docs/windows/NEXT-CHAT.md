@@ -1,3 +1,15 @@
+# FIRST READ — W63 Windows 0.24.11 PRIVATE OWNER TRIAL (2026-11-10)
+
+**READ:** `docs/windows/W63-OWNER-02411-EXTENSION-UX-TRACK-20261110.md`. Continue CELIKOM Windows in `manufact-test/nomusic` / `experiment/windows-stop-lifecycle-20261110`, **NOT a new app**. Owner explicitly rejected W62 0.24.10 UI while audio worked. New **0.24.11** addresses empty account and clipped support, no Original button, Start label, real status green approved/pending before showing contribution forms, song title/artist from current player when present, true startup feedback, proper compact widths and admin-only diagnostics. Do NOT claim pixels/features are fully identical before user test. No source edits after successful W63 build, just docs.
+
+**W63 exact source backup:** `backup/windows-w63-02411-built-ci-await-owner-20261110` @ `266beacfcfa524eeb9ecae91d44b9316ec257286`; owner-accepted 0.24.9 audio backup `backup/windows-w61-0249-audio-owner-approved-before-ui-parity-20261110` @ `44e69d78b459ed512862819280ebdb8b3dbc7e7d`; owner rejected 0.24.10 GUI snapshot `backup/windows-w62-02410-owner-ui-rejected-before-w63-20261110` @ `25101ccfb4fbb09e255e3b10a1664e8c69de4b6e`. **Leave all unchanged**.
+
+**SUCCESS:** Installer https://github.com/manufact-test/nomusic/actions/runs/42824296777, Windows visual expanded account/support/green existing/upload https://github.com/manufact-test/nomusic/actions/runs/42824296883, independent **0.24.10→0.24.11 one-app same-user encrypted session + original Yandex untouched** https://github.com/manufact-test/nomusic/actions/runs/42824740871. Artifact id `13768535851`. File `CELIKOM-W63-EXTENSION-UX-TRACK-UNSIGNED.exe` SHA256 `591e76abfab8573770fb34c88cc809f85d175f1c1649b61abd8e3b95e0f5a276`, 43,543,132 bytes. Direct Library `/CELIKOM/Windows/` file ID `file_00000000850c81f4a77794566d9616c7`; downloaded round-trip and SHA rechecked.
+
+**Next:** Owner must test real 0.24.11 app UX/title/green server statuses and audio pause/seek/Start/Stop/MyWave. Sound switching not modified; display metadata may fall back to Track ID and manual duration if Yandex does not supply these fields. No production, Android Test.50 or vendor-original changes. Never announce owner acceptance before actual test.
+
+---
+
 # FIRST READ — CELIKOM WINDOWS W62 / 0.24.10 PRIVATE OWNER TEST (2026-11-10)
 
 **New authoritative handoff:** `docs/windows/W62-EXTENSION-PARITY-AND-OWNER-AUDIO-20261110.md`. User personally tested 0.24.9 and confirmed replacement, seek, pause, Start/Stop, NO audible click; delay remains around 0.36s dispatch + 0.74s official Yandex source reload. Owner diagnostic `1.zip` was actually read and analyzed. 0.24.9 approved audio baseline **frozen** at `backup/windows-w61-0249-audio-owner-approved-before-ui-parity-20261110` SHA `44e69d78b459ed512862819280ebdb8b3dbc7e7d`.
