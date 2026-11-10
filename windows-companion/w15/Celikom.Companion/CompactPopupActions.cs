@@ -198,6 +198,7 @@ public sealed partial class MainWindow
                 _compactUploadNote.Text = "Новая версия появится после проверки.";
                 _compactFileName.Text = "";
                 _compactSelectedAudio = null;
+                _compactFilePicker.SelectedFile = "";
                 _compactRights.Checked = false;
             }
             else
@@ -455,8 +456,14 @@ public sealed partial class MainWindow
             if (status != "none" || track != _bridge.LastSong)
                 throw new ApiFailure(400, "TRACK_CHANGED");
             await _api.SuggestTrackAsync(track, _bridge.LastTrackTitle, _bridge.LastTrackArtist);
-            CompactResult(false, "Предложение отправлено",
-                "Песня отправлена на рассмотрение. Повторное предложение не требуется.");
+            if (_bridge.LastSong == track)
+                CompactResult(false, "Предложение отправлено",
+                    "Песня отправлена на рассмотрение. Повторное предложение не требуется.");
+            else
+            {
+                _compactSuggestView = "error";
+                _compactSuggestNote.Text = "Предложение по предыдущей песне отправлено.";
+            }
         }
         catch (Exception ex) { _compactSuggestNote.Text = DescribeAccountError(ex); }
         finally
@@ -538,10 +545,18 @@ public sealed partial class MainWindow
             await _api.UploadTrackAsync(track, upload, durationMs,
                 _bridge.LastTrackTitle, _bridge.LastTrackArtist,
                 _compactUploadRequestId, progress, token.Token);
-            CompactResult(true, "Отправлено на проверку",
-                "Версия ожидает модерации. Повторная загрузка не требуется.");
-            _compactPresenceStatus = "pending";
-            _compactPresenceChecked = DateTimeOffset.UtcNow;
+            if (_bridge.LastSong == track && _compactPresenceTrack == track)
+            {
+                CompactResult(true, "Отправлено на проверку",
+                    "Версия ожидает модерации. Повторная загрузка не требуется.");
+                _compactPresenceStatus = "pending";
+                _compactPresenceChecked = DateTimeOffset.UtcNow;
+            }
+            else
+            {
+                _compactUploadView = "error";
+                _compactUploadNote.Text = "Файл предыдущей песни отправлен на проверку.";
+            }
             _compactSelectedAudio = null;
             _compactFilePicker.SelectedFile = "";
             _compactFileName.Text = "";
