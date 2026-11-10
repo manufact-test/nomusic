@@ -12,12 +12,12 @@ public static class DiagnosticLog
     private const int RingLimit = 256;
     private static readonly object Gate = new();
     private static readonly Queue<string> Recent = new();
-    private static readonly Regex Code = new(@"^[A-Z_]{3,48}$",
+    private static readonly Regex Code = new(@"^[A-Z0-9_]{3,48}$",
         RegexOptions.Compiled | RegexOptions.CultureInvariant);
     private static readonly Regex Id = new(@"^[1-9][0-9]{0,17}$",
         RegexOptions.Compiled | RegexOptions.CultureInvariant);
     private static readonly Regex SafeLine = new(
-        @"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z\|[A-Z_]{3,48}(\|track=[1-9][0-9]{0,17})?$",
+        @"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z\|[A-Z0-9_]{3,48}(\|(?:track|resource_id)=[1-9][0-9]{0,17})?$",
         RegexOptions.Compiled | RegexOptions.CultureInvariant);
     public static string DirectoryPath => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
@@ -61,7 +61,7 @@ public static class DiagnosticLog
         string? nativeModuleVersion = null, bool? nativeMatchesApplication = null)
     {
         var text = new StringBuilder();
-        text.AppendLine("CELIKOM WINDOWS OWNER DIAGNOSTICS — W50");
+        text.AppendLine("CELIKOM WINDOWS OWNER DIAGNOSTICS — W53");
         text.AppendLine("GeneratedUTC=" + DateTimeOffset.UtcNow.ToString("O", CultureInfo.InvariantCulture));
         text.AppendLine("AppVersion=" + (typeof(DiagnosticLog).Assembly.GetName().Version?.ToString() ?? "unknown"));
         text.AppendLine("NativeModuleVersion=" +
@@ -69,19 +69,21 @@ public static class DiagnosticLog
                 ? nativeModuleVersion : "unknown"));
         text.AppendLine("NativeModuleMatchesApp=" +
             (nativeMatchesApplication is null ? "unknown" : nativeMatchesApplication.Value ? "true" : "false"));
-        text.AppendLine("CodeBaseline=W50_NATIVE_NETWORK_WITHOUT_DIAGNOSTIC_FETCH");
+        text.AppendLine("CodeBaseline=W53_NATIVE_403_CLASSIFICATION_EXPORT_SAFE");
         text.AppendLine("YandexVersion=" + (yandexVersion is not null &&
             Regex.IsMatch(yandexVersion, @"^[0-9.]{1,24}$") ? yandexVersion : "unknown"));
         text.AppendLine("NativeIntegration=" + (Code.IsMatch(integration) ? integration : "UNKNOWN"));
         text.AppendLine("BridgeStarted=" + bridgeStarted.ToString().ToLowerInvariant());
         text.AppendLine("Enabled=" + enabled.ToString().ToLowerInvariant());
         text.AppendLine("SignedIn=" + signedIn.ToString().ToLowerInvariant());
-        text.AppendLine("W50 makes NO separate audio probe requests. PLAYER_NET_* is passive CDP observation of Yandex network/preloading, not confirmation of audible playback.");
+        text.AppendLine("W53 makes NO separate audio probe requests. PLAYER_NET_* is passive CDP observation of Yandex network/preloading, not confirmation of audible playback.");
         text.AppendLine("PLAYER_ENGINE_* and PLAYER_AUDIO_* are Electron webContents events; only PLAYER_AUDIO_AUDIBLE indicates webContents emitted sound, NOT confirmed replacement.");
         text.AppendLine("MEDIA_* DOM events may remain NOT_OBSERVED for WebAudio. UI Play/Pause label changes are NOT monitored.");
         text.AppendLine("PLAYER_AUDIO_RESOURCE_TIMING_SEEN can be preloading. PLAYER_NET_HTTP_PARTIAL/FINISHED does NOT prove audio decoded.");
+        text.AppendLine("PLAYER_URL_* compares exact signed origin/path/query in memory, never exports links, tokens, sid, HTTP bodies or keys.");
+        text.AppendLine("PLAYER_403_* distinguishes native HTTP denial classes, not confirmed PHP origin unless a fixed PHP error enum is present.");
         text.AppendLine("PNR: NOT_IMPLEMENTED_OR_NOT_IDENTIFIED.");
-        text.AppendLine("Events: UTC | allowlisted code | optional numeric track id. No raw request URLs or error messages.");
+        text.AppendLine("Events: UTC | allowlisted code | optional numeric track or CELIKOM resource_id. No raw request URLs or error messages.");
         text.AppendLine("--- EVENTS ---");
         // W48: past sessions masked the current failure. Export ONLY recent,
         // verified UTC events, merge native and GUI logs in time order, cap size.
@@ -127,10 +129,31 @@ public static class DiagnosticLog
                 .ToString().ToLowerInvariant());
         text.AppendLine("FastPauseTrackAttribution=NOT_AVAILABLE_WITHOUT_PLAYER_TRACK_ID");
         text.AppendLine("PlayerNetworkRequestObserved=" +
-            entries.Any(s => s.Contains("|PLAYER_NET_REQUEST|track=", StringComparison.Ordinal))
+            entries.Any(s => s.Contains("|PLAYER_NET_REQUEST|resource_id=", StringComparison.Ordinal) ||
+                s.Contains("|PLAYER_NET_REQUEST|track=", StringComparison.Ordinal))
                 .ToString().ToLowerInvariant());
         text.AppendLine("PlayerNetworkCorsFailureObserved=" +
-            entries.Any(s => s.Contains("|PLAYER_NET_CORS_BLOCKED|track=", StringComparison.Ordinal))
+            entries.Any(s => s.Contains("|PLAYER_NET_CORS_BLOCKED|resource_id=", StringComparison.Ordinal) ||
+                s.Contains("|PLAYER_NET_CORS_BLOCKED|track=", StringComparison.Ordinal))
+                .ToString().ToLowerInvariant());
+        text.AppendLine("NativeAudio403Observed=" +
+            entries.Any(s => s.Contains("|PLAYER_NET_HTTP_FORBIDDEN|resource_id=", StringComparison.Ordinal))
+                .ToString().ToLowerInvariant());
+        text.AppendLine("NativeMediaUrlExactMatchObserved=" +
+            entries.Any(s => s.Contains("|PLAYER_URL_MATCH|resource_id=", StringComparison.Ordinal))
+                .ToString().ToLowerInvariant());
+        text.AppendLine("NativeMediaUrlQueryMismatchObserved=" +
+            entries.Any(s => s.Contains("|PLAYER_URL_QUERY_MISSING|resource_id=", StringComparison.Ordinal) ||
+                s.Contains("|PLAYER_URL_QUERY_CHANGED|resource_id=", StringComparison.Ordinal))
+                .ToString().ToLowerInvariant());
+        text.AppendLine("Native403PhpSignatureRejectionObserved=" +
+            entries.Any(s => s.Contains("|PLAYER_403_PHP_INVALID_AUDIO_TOKEN|resource_id=", StringComparison.Ordinal))
+                .ToString().ToLowerInvariant());
+        text.AppendLine("Native403PhpAccessDenialObserved=" +
+            entries.Any(s => s.Contains("|PLAYER_403_PHP_ACCESS_DENIED|resource_id=", StringComparison.Ordinal))
+                .ToString().ToLowerInvariant());
+        text.AppendLine("Native403HtmlResponseObserved=" +
+            entries.Any(s => s.Contains("|PLAYER_403_HTML|resource_id=", StringComparison.Ordinal))
                 .ToString().ToLowerInvariant());
         text.AppendLine("DecoderErrorObserved=" +
             entries.Any(s => s.Contains("|PLAYER_CDP_PIPELINE_ERROR", StringComparison.Ordinal) ||
