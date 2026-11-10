@@ -1,3 +1,14 @@
+## НОВАЯ ПРАКТИЧЕСКАЯ ВЕТКА ОТ TEST.50 — GREEN (10.11.2026)
+
+- После успешного OWN Android13 MediaPlayer / 12-round race [#42837053639](https://github.com/manufact-test/nomusic/actions/runs/42837053639) подтверждено: на x86_64 Android **только собственные WAV**, не реальная native-Yandex подмена. Выбранный Yandex `Lemb` runtime не установлен.
+- По проверенным старым CI настоящий signed Yandex #170gpr запускается в **Android 11 x86/ARM translation** (baseline [#42621833205](https://github.com/manufact-test/nomusic/actions/runs/42621833205)), но **анонимного живого playback witness нет**. ARM64 macOS эмулятор дважды не загрузился [#42672246229](https://github.com/manufact-test/nomusic/actions/runs/42672246229), hosted ARM64 Linux KVM **нет** [#42792130918](https://github.com/manufact-test/nomusic/actions/runs/42792130918); public MediaSession bind [#42785272172](https://github.com/manufact-test/nomusic/actions/runs/42785272172) **rejected**. Не повторять те же тупиковые CI.
+- Вместо новых DEX циклов открыт отдельный **поведенческий Android Test.50 эксперимент**: `experiment/android-test50-repeated-seek-failopen-20261110`, green SHA `7440d70be0e0584fde12bff2c1fc43725717475e`, backup `backup/android-test50-repeated-seek-failopen-ci-green-20261110`; [CI #42843272827 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/42843272827).
+- Полный документ в другой ветке: [ANDROID-TEST50-REPEATED-SEEK-FAILOPEN-EXPERIMENT-2026-11-10.md](https://github.com/manufact-test/nomusic/blob/experiment/android-test50-repeated-seek-failopen-20261110/docs/android/ANDROID-TEST50-REPEATED-SEEK-FAILOPEN-EXPERIMENT-2026-11-10.md).
+- После **двух неуспешных seek за 60 с на одной песне** Test.50-эксперимент откатывает в оригинал до следующего трека; одна неудача допускает прежний retry. Полный Android CI и защитный hash старого seek/ACK прошли. **Не выдан APK и не подтверждён звук на HONOR**, эталон Test.50 `backup/android-test50-exact-source-owner-accepted-20261106` @ `5d737d2` неизменен.
+- Основные Windows, browser, production/API, сервер, DRM/подписи, пользовательский HONOR и установленный официальный Яндекс не трогались. Продолжение без отдельного ARM-хоста — на экспериментальной Test.50 ветке, не в signed-Dex mayflow.
+
+---
+
 ## НОВЕЙШАЯ CI GREEN — Android 13 real MediaPlayer rapid Start/Stop/Next race PASS (10.11.2026)
 
 - **Точный код:** `50735e6d56481ea0ce3da8fdcb03589cad90608c`; **неизменяемый rollback:** `backup/android-own-api33-rapid-reload-race-pass-20261110`. **Читать первым:** `docs/android/ANDROID-OWN-API33-RAPID-RELOAD-RACE-PASS-2026-11-10.md`.
