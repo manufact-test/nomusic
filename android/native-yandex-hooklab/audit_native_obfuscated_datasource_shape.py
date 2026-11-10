@@ -131,6 +131,9 @@ def signed_class_and_method_shapes(apks):
         "types":classes,
         "data_reader_method_shapes":api_shape_census(owners[DATA_READER_ANCESTOR]),
         "data_source_method_shapes":api_shape_census(owners[SOURCE_INTERFACE]),
+        "inherited_source_plus_reader_contract":api_shape_census(
+            owners[SOURCE_INTERFACE] | owners[DATA_READER_ANCESTOR]),
+        "all_methods_in_source_parent_split":True,
         "data_source_concrete_implementor_count":len(implementors),
         "concrete_implementor_examples":[brief_type(t) for t in implementors[:MAX_SUBTYPES]],
         "ha4_is_implementor":"Lha4;" in implementors,
