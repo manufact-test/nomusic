@@ -4,7 +4,8 @@ from pathlib import Path
 from unittest.mock import patch
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 from audit_native_datasource_read_lifecycle import (
-    safe_events_for_call,source_field_load_to_call,typed_callsite_facts
+    safe_events_for_call,source_field_load_to_call,typed_callsite_facts,
+    exact_source_register_reuse
 )
 
 
@@ -64,6 +65,32 @@ class SourceExecutionCallsiteTests(unittest.TestCase):
         with patch("audit_native_ga4_field_receiver.field_key",return_value=key):
             row=source_field_load_to_call(dex,ins,2)
         self.assertFalse(row["receiver_loaded_from_field_in_same_basic_block"])
+
+    def test_exact_receiver_register_reuse_is_not_object_or_decoder_proof(self):
+        ev=[
+            {"callsite":{"callee":{"owner":"Lha4;","method":"b"},
+                          "register_arguments":[8,2]}},
+            {"callsite":{"callee":{"owner":"Lha4;","method":"read"},
+                          "register_arguments":[8,2,3,4]}},
+            {"callsite":{"callee":{"owner":"Lha4;","method":"close"},
+                          "register_arguments":[8]}},
+        ]
+        row=exact_source_register_reuse(ev,("Lmb4;","a","()V"))
+        self.assertTrue(row["all_open_read_close_callsite_receiver_registers_identical"])
+        self.assertTrue(row["register_identity_across_branches_not_live_object_identity"])
+        self.assertFalse(row["decoder_or_active_track_proven"])
+
+    def test_register_reassigned_in_different_source_sites_is_not_reuse(self):
+        ev=[
+            {"callsite":{"callee":{"owner":"Lha4;","method":"b"},
+                          "register_arguments":[8,2]}},
+            {"callsite":{"callee":{"owner":"Lha4;","method":"read"},
+                          "register_arguments":[9,2,3,4]}},
+            {"callsite":{"callee":{"owner":"Lha4;","method":"close"},
+                          "register_arguments":[8]}},
+        ]
+        row=exact_source_register_reuse(ev,("Lmb4;","a","()V"))
+        self.assertFalse(row["all_open_read_close_callsite_receiver_registers_identical"])
 
     def test_early_register_overwrite_kills_same_source_claim(self):
         dex=FakeDex([("Lha4;","read","([BII)I")])
