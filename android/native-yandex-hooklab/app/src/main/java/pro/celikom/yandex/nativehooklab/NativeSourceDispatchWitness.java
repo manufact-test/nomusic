@@ -36,7 +36,7 @@ public final class NativeSourceDispatchWitness {
     private int rejectedUnknown,clockDiscontinuities;
     private int sourceReaderLinks,completedReaderChains,unmatchedReaders;
     private int constructors,constructedTCalls,factoryTCalls;
-    private int failedTCalls,ambiguousTCalls,pendingReadersDiscarded;
+    private int failedTCalls,ambiguousTCalls,pendingReadersDiscarded,reusedTCalls;
     private int parentChildLinks,parentOwnerReaderCompletions,ambiguousParentLinks;
 
     private int type(Object obj){
@@ -152,8 +152,10 @@ public final class NativeSourceDispatchWitness {
                 return;
             }
             if(started[i]){
-                // Repeated t() does not create new trusted source evidence.
-                matchedCalls++;
+                // A seek/replay may invoke t() again for the same object.
+                // Do not count its BEGIN as successful; the original may
+                // still throw. Already-proven earlier t() remains unchanged.
+                reusedTCalls++;
                 return;
             }
             tInFlight[i]=true;
@@ -266,7 +268,7 @@ public final class NativeSourceDispatchWitness {
                 completedReaderChains,unmatchedReaders,constructors,
                 constructedTCalls,factoryTCalls,failedTCalls,ambiguousTCalls,
                 pending,pendingReadersDiscarded,parentChildLinks,
-                parentOwnerReaderCompletions,ambiguousParentLinks);
+                parentOwnerReaderCompletions,ambiguousParentLinks,reusedTCalls);
     }
     public static final class Snapshot {
         public final int factories,lifecycleCalls,matchedCalls,unmatchedCalls,
@@ -274,12 +276,13 @@ public final class NativeSourceDispatchWitness {
                 completedReaderChains,unmatchedReaders,constructors,
                 constructedTCalls,factoryTCalls,failedTCalls,ambiguousTCalls,
                 pendingReaderCompletions,pendingReadersDiscarded,
-                parentChildLinks,parentOwnerReaderCompletions,ambiguousParentLinks;
+                parentChildLinks,parentOwnerReaderCompletions,ambiguousParentLinks,
+                reusedTCalls;
         private Snapshot(int f,int calls,int match,int unmatch,int remove,
                          int reject,int rollback,int links,int completed,
                          int unmatchedReaders,int ctor,int ctorT,int factoryT,
                          int failed,int overlap,int pending,int discarded,
-                         int ownerLinks,int ownerReaders,int ownerConflicts){
+                         int ownerLinks,int ownerReaders,int ownerConflicts,int reused){
             factories=f;lifecycleCalls=calls;matchedCalls=match;
             unmatchedCalls=unmatch;removals=remove;rejectedUnknown=reject;
             clockDiscontinuities=rollback;sourceReaderLinks=links;
@@ -288,7 +291,7 @@ public final class NativeSourceDispatchWitness {
             failedTCalls=failed;ambiguousTCalls=overlap;
             pendingReaderCompletions=pending;pendingReadersDiscarded=discarded;
             parentChildLinks=ownerLinks;parentOwnerReaderCompletions=ownerReaders;
-            ambiguousParentLinks=ownerConflicts;
+            ambiguousParentLinks=ownerConflicts;reusedTCalls=reused;
         }
     }
 }
