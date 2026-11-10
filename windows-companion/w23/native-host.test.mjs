@@ -7,7 +7,7 @@ import { EventEmitter } from "node:events";
 const source = fs.readFileSync(new URL("./host.cjs", import.meta.url), "utf8");
 
 async function runHost(url, { queue = [], token = "b".repeat(64),
-  debuggerDriver = null, stateOverride = null } = {}) {
+  debuggerDriver = null, stateOverride = null, grantOverride = null, clock = Date } = {}) {
   const diagnostics = [], evaluated = [], network = [];
   let drained = false;
   const viewEvents = new Map();
@@ -47,7 +47,7 @@ async function runHost(url, { queue = [], token = "b".repeat(64),
           resp.resume = () => {};
           callback(resp);
           const value = options.path.startsWith("/v1/resolve")
-            ? {found:true,grant:{
+            ? {found:true,grant:grantOverride ?? {
               trackId:"123",approved:true,entitled:true,
               audioUrl:"https://api.celikom.example/api/v1/audio/1?token="+ "a".repeat(64) + "&expires=1800000180",
               expiresAt:1800000180000,mimeType:"audio/mpeg"
@@ -75,7 +75,7 @@ async function runHost(url, { queue = [], token = "b".repeat(64),
       LOCALAPPDATA:"C:\\Users\\test",
       CELIKOM_W23_DEV_DIAG:"diagnostics.log"
     }},
-    URL,WeakMap,WeakSet,Set,JSON,Buffer,Date,Promise,console,encodeURIComponent,
+    URL,WeakMap,WeakSet,Set,JSON,Buffer,Date:clock,Promise,console,encodeURIComponent,
     setInterval:callback=>{callback();return{unref(){}}}
   };
   vm.runInNewContext(source,context,{timeout:1200});
@@ -232,11 +232,11 @@ test("W50 CDP tracks only Yandex's real signed audio request after no CELIKOM pr
     requestId:"req1",response:{status:206,headers:{"Content-Type":"audio/mpeg"}}
   });
   debug.emit("message",{},"Network.loadingFinished",{requestId:"req1"});
-  assert.ok(r.diagnostics.some(line=>line.endsWith("|PLAYER_NET_REQUEST|track=42498653")),JSON.stringify({diag:r.diagnostics,network:r.network}));
-  assert.ok(r.diagnostics.some(line=>line.endsWith("|PLAYER_NET_GET|track=42498653")));
-  assert.ok(r.diagnostics.some(line=>line.endsWith("|PLAYER_NET_FETCH|track=42498653")));
-  assert.ok(r.diagnostics.some(line=>line.endsWith("|PLAYER_NET_HTTP_PARTIAL|track=42498653")));
-  assert.ok(r.diagnostics.some(line=>line.endsWith("|PLAYER_NET_FINISHED|track=42498653")));
+  assert.ok(r.diagnostics.some(line=>line.endsWith("|PLAYER_NET_REQUEST|resource_id=42498653")),JSON.stringify({diag:r.diagnostics,network:r.network}));
+  assert.ok(r.diagnostics.some(line=>line.endsWith("|PLAYER_NET_GET|resource_id=42498653")));
+  assert.ok(r.diagnostics.some(line=>line.endsWith("|PLAYER_NET_FETCH|resource_id=42498653")));
+  assert.ok(r.diagnostics.some(line=>line.endsWith("|PLAYER_NET_HTTP_PARTIAL|resource_id=42498653")));
+  assert.ok(r.diagnostics.some(line=>line.endsWith("|PLAYER_NET_FINISHED|resource_id=42498653")));
   assert.ok(r.diagnostics.every(x=>!x.includes("token=")&&!x.includes("expires=")
     &&!x.includes("api.celikom.example")&&!x.includes("Content-Type")));
 });
@@ -259,14 +259,14 @@ test("W50 identifies actual CORS credential and CSP failures without showing req
   });
   for(const code of ["PLAYER_NET_REQUEST","PLAYER_NET_MEDIA","PLAYER_NET_FAILED",
     "PLAYER_NET_CORS_BLOCKED","PLAYER_NET_CORS_CREDENTIALS"])
-    assert.ok(r.diagnostics.some(line=>line.endsWith("|"+code+"|track=85025192")),code+" "+JSON.stringify({diag:r.diagnostics,network:r.network}));
+    assert.ok(r.diagnostics.some(line=>line.endsWith("|"+code+"|resource_id=85025192")),code+" "+JSON.stringify({diag:r.diagnostics,network:r.network}));
   debug.emit("message",{},"Network.requestWillBeSent",{
     requestId:"req3",request:{url:media,method:"GET"},type:"Fetch"
   });
   debug.emit("message",{},"Network.loadingFailed",{
     requestId:"req3",blockedReason:"csp",errorText:"PASSWORD OR SIGNED URL"
   });
-  assert.ok(r.diagnostics.some(line=>line.endsWith("|PLAYER_NET_CSP_BLOCKED|track=85025192")));
+  assert.ok(r.diagnostics.some(line=>line.endsWith("|PLAYER_NET_CSP_BLOCKED|resource_id=85025192")));
   assert.ok(!JSON.stringify(r.diagnostics).includes("SECRET"));
   assert.ok(!JSON.stringify(r.diagnostics).includes("PASSWORD"));
 });
@@ -288,4 +288,125 @@ test("W50 network observer ignores all foreign, unsigned, unknown and auth URLs"
   });
   assert.ok(!r.diagnostics.some(x=>x.startsWith("PLAYER_NET_REQUEST")));
   assert.ok(!r.diagnostics.some(x=>x.includes("secret")));
+});
+
+function w52Grant(resourceId, trackId="123", seconds=120, sid="7") {
+  const expires = Math.floor(Date.now()/1000) + seconds;
+  const audioUrl = "https://api.celikom.example/api/v1/audio/" + resourceId +
+    "?token=" + "e".repeat(64) + "&expires=" + expires +
+    (sid ? "&sid=" + sid : "");
+  return { trackId, approved:true, entitled:true, audioUrl,
+    expiresAt: expires * 1000, mimeType:"audio/mpeg" };
+}
+function w52Debugger(body = '{"error":"invalid_audio_token"}') {
+  const debug = new EventEmitter(), commands = [];
+  let attached = false;
+  debug.isAttached = () => attached;
+  debug.attach = () => { attached=true; };
+  debug.detach = () => { attached=false; };
+  debug.sendCommand = async (command, args) => {
+    commands.push([command,args]);
+    if (command === "Network.getResponseBody") return {body,base64Encoded:false};
+    return {};
+  };
+  return {debug,commands};
+}
+test("W52 compares actual native Media URL to in-memory signed grant, never writes the grant", async () => {
+  const grant = w52Grant("139");
+  const {debug,commands} = w52Debugger();
+  const r = await runHost("musicapplication://desktop/",{
+    queue:[{requestId:"1",trackId:"123"}], debuggerDriver:debug,
+    grantOverride:grant,
+    stateOverride:{enabled:true,signedIn:true,apiOrigin:"https://api.celikom.example"}
+  });
+  const requests = [
+    ["full", grant.audioUrl, "PLAYER_URL_MATCH"],
+    ["missing",grant.audioUrl.split("?")[0], "PLAYER_URL_QUERY_MISSING"],
+    ["changed",grant.audioUrl.replace("sid=7","sid=8"),"PLAYER_URL_QUERY_CHANGED"],
+    ["unknown",grant.audioUrl.replace("/139?","/89?"),"PLAYER_URL_EXPECTATION_MISSING"]
+  ];
+  for(const [requestId,url,expected] of requests) {
+    debug.emit("message",{},"Network.requestWillBeSent",{
+      requestId, request:{url,method:"GET"}, type:"Media"
+    });
+    const id = requestId === "unknown" ? "89" : "139";
+    assert.ok(r.diagnostics.some(x=>x.endsWith("|"+expected+"|resource_id="+id)),
+      expected+" "+JSON.stringify(r.diagnostics));
+  }
+  assert.ok(r.diagnostics.some(x=>x.endsWith("|RESOLVE_REQUEST|track=123")));
+  assert.ok(!r.diagnostics.some(x=>x.includes("|PLAYER_NET_REQUEST|track=")));
+  assert.ok(!JSON.stringify(r.diagnostics).includes(grant.audioUrl));
+  assert.ok(!JSON.stringify(r.diagnostics).includes("sid=7"));
+  assert.ok(!JSON.stringify(r.diagnostics).includes("token="));
+  assert.ok(!commands.some(([name])=>name==="Network.getResponseBody"),
+    "URL comparison alone must not inspect response bodies");
+});
+test("W52 categorizes only bounded real native audio 403 JSON responses", async () => {
+  for (const [body,classification] of [
+    ['{"error":"invalid_audio_token"}',"PLAYER_403_PHP_INVALID_AUDIO_TOKEN"],
+    ['{"error":"access_denied"}',"PLAYER_403_PHP_ACCESS_DENIED"],
+    ['{"error":"some_unknown_error"}',"PLAYER_403_JSON_UNCLASSIFIED"]
+  ]) {
+    const grant = w52Grant("139");
+    const {debug,commands} = w52Debugger(body);
+    const r = await runHost("musicapplication://desktop/",{
+      queue:[{requestId:"1",trackId:"123"}], debuggerDriver:debug,
+      grantOverride:grant,
+      stateOverride:{enabled:true,signedIn:true,apiOrigin:"https://api.celikom.example"}
+    });
+    debug.emit("message",{},"Network.requestWillBeSent",{
+      requestId:"native1", request:{url:grant.audioUrl,method:"GET"}, type:"Media"
+    });
+    debug.emit("message",{},"Network.responseReceived",{
+      requestId:"native1",
+      response:{status:403,headers:{"Content-Type":"application/json; charset=utf-8","Content-Length":"31"}}
+    });
+    debug.emit("message",{},"Network.loadingFinished",{requestId:"native1"});
+    await new Promise(resolve=>setTimeout(resolve,5));
+    assert.ok(r.diagnostics.some(x=>x.endsWith("|"+classification+"|resource_id=139")),
+      classification+" "+JSON.stringify(r.diagnostics));
+    assert.equal(commands.filter(([name])=>name==="Network.getResponseBody").length,1);
+    assert.ok(!JSON.stringify(r.diagnostics).includes(body));
+  }
+});
+test("W52 never reads foreign, successful, HTML, or oversized 403 response bodies",async()=>{
+  const grant=w52Grant("139"), {debug,commands}=w52Debugger("PRIVATE_TOKEN_EXAMPLE");
+  const r=await runHost("musicapplication://desktop/",{
+    queue:[{requestId:"1",trackId:"123"}], debuggerDriver:debug,
+    grantOverride:grant,
+    stateOverride:{enabled:true,signedIn:true,apiOrigin:"https://api.celikom.example"}
+  });
+  for (const [requestId,url,status,headers] of [
+    ["success",grant.audioUrl,206,{"Content-Type":"audio/mpeg"}],
+    ["html",grant.audioUrl,403,{"Content-Type":"text/html"}],
+    ["oversized",grant.audioUrl,403,{"Content-Type":"application/json","Content-Length":"1000"}],
+    ["foreign","https://not-celikom.example/api/v1/audio/139",403,{"Content-Type":"application/json"}]
+  ]) {
+    debug.emit("message",{},"Network.requestWillBeSent",{
+      requestId, request:{url,method:"GET"},type:"Media"
+    });
+    debug.emit("message",{},"Network.responseReceived",{
+      requestId,response:{status,headers}
+    });
+    debug.emit("message",{},"Network.loadingFinished",{requestId});
+  }
+  await new Promise(resolve=>setTimeout(resolve,5));
+  assert.equal(commands.filter(([name])=>name==="Network.getResponseBody").length,0);
+  assert.ok(r.diagnostics.some(x=>x.endsWith("|PLAYER_403_HTML|resource_id=139")));
+  assert.ok(!JSON.stringify(r.diagnostics).includes("PRIVATE_TOKEN_EXAMPLE"));
+});
+test("W52 expired expected grant is distinguished without leaking signed URL",async()=>{
+  const grant=w52Grant("139","123",30), {debug}=w52Debugger();
+  let fakeNow=Date.now();
+  class FakeDate extends Date {static now(){return fakeNow;}}
+  const r=await runHost("musicapplication://desktop/",{
+    queue:[{requestId:"1",trackId:"123"}], debuggerDriver:debug,
+    grantOverride:grant,clock:FakeDate,
+    stateOverride:{enabled:true,signedIn:true,apiOrigin:"https://api.celikom.example"}
+  });
+  fakeNow=grant.expiresAt+1;
+  debug.emit("message",{},"Network.requestWillBeSent",{
+    requestId:"tooLate", request:{url:grant.audioUrl,method:"GET"},type:"Media"
+  });
+  assert.ok(r.diagnostics.some(x=>x.endsWith("|PLAYER_URL_EXPIRED_AT_REQUEST|resource_id=139")));
 });
