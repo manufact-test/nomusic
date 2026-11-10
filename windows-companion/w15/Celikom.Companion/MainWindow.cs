@@ -79,7 +79,7 @@ public sealed partial class MainWindow : Form
         _bridge = new BridgeServer(_api, _store);
         _bridge.Changed += () => UpdateSafe();
 
-        Text = "CELIKOM " + AppUpdateManager.RunningVersion.ToString(3) + " — Windows";
+        Text = "CELIKOM"; // version is shown in the compact popup footer, not clipped in titlebar
         ClientSize = new Size(462, 570);
         MinimumSize = new Size(430, 540);
         StartPosition = FormStartPosition.CenterScreen;
