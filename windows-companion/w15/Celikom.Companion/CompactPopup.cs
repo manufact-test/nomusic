@@ -137,7 +137,7 @@ public sealed partial class MainWindow
     private static void Place(Control child, Control parent, int x, int y, int width, int height)
     {
         child.Location = new Point(x, y);
-        child.Size = new Size(Math.Max(10, width), height);
+        child.Size = new Size(Math.Max(1, width), height); // 7px status dot is intentional
         child.Visible = true; // W63: previous layout hid all account form controls permanently
         if (child.Parent != parent) parent.Controls.Add(child);
     }
