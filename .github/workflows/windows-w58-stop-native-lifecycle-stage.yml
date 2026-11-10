@@ -1,0 +1,40 @@
+name: CELIKOM W58 Stop lifecycle staging regressions (NO RELEASE)
+
+on:
+  push:
+    branches:
+      - experiment/windows-stop-lifecycle-20261110
+    paths:
+      - windows-companion/w22/native-resource-adapter.mjs
+      - windows-companion/w22/native-resource-adapter.test.mjs
+      - windows-companion/w23/renderer-entry.mjs
+      - windows-companion/w23/renderer-relay.test.mjs
+      - windows-companion/w23/native-host.test.mjs
+      - windows-companion/w23/build.mjs
+      - .github/workflows/windows-w58-stop-native-lifecycle-stage.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  stop-native-bridge:
+    runs-on: windows-2022
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install exact existing renderer bundler (no user software)
+        working-directory: windows-companion/w23
+        run: npm install --no-package-lock --ignore-scripts --no-audit --no-fund
+      - name: Bundle unchanged owner 0.24.7 renderer into staging worktree
+        working-directory: windows-companion/w23
+        run: npm run build
+      - name: Stop cancellation/new-track fallback, real renderer and native host
+        run: node --test windows-companion/w22/native-resource-adapter.test.mjs windows-companion/w23/renderer-relay.test.mjs windows-companion/w23/native-host.test.mjs
+      - name: Explicitly forbid deployment
+        run: echo W58_TESTS_ONLY_DO_NOT_BUILD_OR_INSTALL_OWNER_UPDATE_OR_MODIFY_YANDEX
