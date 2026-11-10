@@ -53,11 +53,14 @@ public final class AudioSmokeScreen extends ScrollView {
             return;
         }
         int observed=wanted?AudioSmokeSource.chooseA():AudioSmokeSource.originalA();
-        int position=0;
-        if(prepared) {
+        // A rapid second toggle must preserve the position and play intent
+        // from a pending seek-to-restore, not snapshot a temporary 0ms state.
+        int position=restoreSeekPending?restoreSeekMs:0;
+        if(prepared && !restoreSeekPending) {
             try { position=player.getCurrentPosition(); } catch(Throwable ignored) { }
         }
-        boolean shouldPlay=prepared?playing:resumeAfterPrepare;
+        boolean shouldPlay=restoreSeekPending?resumeAfterPrepare
+                :(prepared?playing:resumeAfterPrepare);
         OwnSameTrackReloadPlan.Decision decision=OwnSameTrackReloadPlan.decide(
                 track,selected,wanted,observed,position,shouldPlay);
         if(!decision.reload) {
@@ -160,6 +163,7 @@ public final class AudioSmokeScreen extends ScrollView {
         render();
     }
     private void pauseResume(){
+        if(restoreSeekPending){last="POSITION RESTORE IN PROGRESS";return;}
         if(!prepared||player==null){last="NOT PREPARED";return;}
         try{
             if(playing){player.pause();pauses++;playing=false;last="PAUSED";}
@@ -167,6 +171,7 @@ public final class AudioSmokeScreen extends ScrollView {
         }catch(Throwable x){errors++;last="PAUSE FAILED";}
     }
     private void seek(){
+        if(restoreSeekPending){last="POSITION RESTORE IN PROGRESS";return;}
         if(!prepared||player==null){last="NOT PREPARED";return;}
         try{int pos=Math.min(7600,player.getCurrentPosition()+3000);
             player.seekTo(pos,MediaPlayer.SEEK_CLOSEST);last="SEEK REQUESTED "+pos+"ms";
