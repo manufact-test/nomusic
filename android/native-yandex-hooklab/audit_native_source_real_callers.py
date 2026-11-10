@@ -20,7 +20,9 @@ HERE=Path(__file__).resolve().parent
 sys.path.insert(0,str(HERE.parents[1]/"tools"/"android-native-gate1"))
 from inspect_android_host import Dex,DexError,DEX_MAX
 from trace_native_callers import method_definitions,INVOKES
-from audit_native_register_bridge import instructions
+from audit_native_register_bridge import (instructions, move_object_registers,
+    invoke_registers, instruction_successors)
+from audit_native_ga4_field_receiver import field_key
 from audit_native_typed_wrapper_coroutines import (
     method_profile,profile_tracked_results,brief_type
 )
@@ -73,6 +75,106 @@ def invocation_windows(d,ins,producer):
     return windows[:MAX_CALLS]
 
 
+
+def source_wrapper_field_projections(d,code_off):
+    """Track the FIELD VALUE, never the Lcq7.i0 wrapper object itself.
+
+    Explicit iget-object is a heap projection. Only the projected register
+    is propagated on a bounded CFG with branch uncertainty. A matching
+    invocation is a POSSIBLE conditional path, not a live player instance.
+    """
+    ins=list(instructions(d,code_off))
+    positions={pc:i for i,(pc,_,_) in enumerate(ins)}
+    result=[]
+    for i,(_,op,w) in enumerate(ins):
+        if op not in INVOKES or i+2>=len(ins) or ins[i+1][1]!=0x0c:
+            continue
+        called=d.method(w[1])
+        if (called[0],called[1])!=("Lcq7;","i0"):
+            continue
+        wrapper_reg=ins[i+1][2][0]>>8
+        # Each direct field projection of the returned wrapper within a
+        # short basic-block window is independently qualified.
+        for j in range(i+2,min(i+12,len(ins))):
+            _,hop,words=ins[j]
+            if hop in (0x27,0x28,0x29,0x2a,0x2b,0x2c) or 0x32<=hop<=0x3d:
+                break
+            if hop!=0x54:
+                continue
+            input_reg=(words[0]>>12)&15
+            if input_reg!=wrapper_reg:
+                continue
+            dst=(words[0]>>8)&15
+            field=field_key(d,words[1])
+            work=[(ins[j+1][0],frozenset({dst}),False,0)] if j+1<len(ins) else []
+            visited=set()
+            events=set()
+            truncated=False
+            while work:
+                pc,aliases,crossed_branch,depth=work.pop()
+                state=(pc,aliases,crossed_branch)
+                if state in visited:continue
+                visited.add(state)
+                if len(visited)>12000 or depth>220:
+                    truncated=True
+                    continue
+                k=positions.get(pc)
+                if k is None:continue
+                cur_pc,opcode,params=ins[k]
+                regs=set(aliases)
+                if opcode in INVOKES:
+                    method=d.method(params[1])
+                    for word_idx,reg in enumerate(invoke_registers(opcode,params)):
+                        if reg in regs and (method[0] in {
+                            "Lero;","Lnro;","Lmir;","Lga4;","Le48;"
+                        } or method[0].startswith("Landroidx/media3/")):
+                            events.add((
+                                bounded_obfuscated(method),word_idx,
+                                crossed_branch))
+                move=move_object_registers(opcode,params)
+                if move:
+                    dest,source=move
+                    has=source in regs
+                    regs.discard(dest)
+                    if has:regs.add(dest)
+                elif opcode in (0x01,0x12,0x54):
+                    regs.discard((params[0]>>8)&15)
+                elif opcode==0x03:
+                    regs.discard(params[1])
+                elif opcode in (0x02,0x0a,0x0b,0x0c,0x13,0x14,0x15,
+                               0x16,0x17,0x18,0x19,0x1a,0x1b,0x1c,
+                               0x22,0x62,0x63,0x64):
+                    regs.discard(params[0]>>8)
+                if not regs or k+1>=len(ins):continue
+                nxt=ins[k+1][0]
+                nexts=instruction_successors(cur_pc,opcode,params,nxt)
+                for successor in nexts:
+                    if successor in positions:
+                        work.append((successor,frozenset(regs),
+                                     crossed_branch or 0x32<=opcode<=0x3d
+                                     or opcode in (0x2b,0x2c),depth+1))
+            cast_types=[]
+            for _,nextop,nextwords in ins[j+1:min(j+7,len(ins))]:
+                if nextop==0x1f and nextwords[0]>>8==dst:
+                    cast_types.append(brief_type(d.descriptor(nextwords[1])))
+            result.append({
+                "source_producer":"Lcq7;->i0",
+                "wrapper_result_word_register":wrapper_reg,
+                "projection_declared_owner":brief_type(field[0]),
+                "projection_declared_type":brief_type(field[1]),
+                "projection_cast_types":cast_types,
+                "distinct_object_identity_from_wrapper":True,
+                "projected_field_may_flow_events":[{
+                    "callee":callee,"argument_word":arg,
+                    "conditional_branch_crossed":branched,
+                    "actual_runtime_call_proven":False
+                } for callee,arg,branched in sorted(events)[:MAX_EVENTS]],
+                "bounded_cfg_truncated":truncated,
+                "runtime_active_track_proven":False,
+            })
+    return result[:MAX_CALLS]
+
+
 def class_ancestry(rel,owner):
     parents=rel.get(owner,(0,()))[1]
     return {
@@ -119,6 +221,8 @@ def inspect_targets(apks):
                         "branch_count":sum(op in (0x2b,0x2c) or 0x32<=op<=0x3d for _,op,_ in ins),
                         "direct_typed_source_calls":profiles[:MAX_OUTLINE],
                         "producer_result_mayflow":result_flow[:MAX_OUTLINE],
+                        "wrapper_field_projection":source_wrapper_field_projections(d,off)
+                        if m[0] in ("Lo4y;","Locv;") else [],
                         "callee_windows":invocation_windows(d,ins,PRODUCERS),
                         "named_exoplayer_owner_direct_invoked":any(
                           d.method(w[1])[0] in {"Lro7;","Lfxc;","Lwxc;","Lyzt;"}
