@@ -176,7 +176,7 @@ public sealed partial class MainWindow
         Controls.Add(_compactScroll);
         _compactFooter.BringToFront();
         _compactScrollbar.Dock = DockStyle.Right;
-        _compactScrollbar.Width = SystemInformation.VerticalScrollBarWidth;
+        _compactScrollbar.Width = 12; // fits inside right 16px inset; body never narrows
         _compactScrollbar.SmallChange = 30;
         _compactScrollbar.Scroll += (_, e) => SetCompactOffset(e.NewValue);
         _compactScroll.Controls.Add(_compactScrollbar);
@@ -693,9 +693,9 @@ public sealed partial class MainWindow
                     _compactScrollbar.LargeChange - 1, contentHeight - 1);
                 _compactScrollbar.Value = _compactScrollTop;
             }
-            var viewportWidth = _compactScroll.ClientSize.Width -
-                (showBar ? _compactScrollbar.Width : 0);
-            var width = Math.Max(190, viewportWidth - 32);
+            // The thumb lives inside the existing right inset. Content width
+            // is exactly the same with or without a vertical scrollbar.
+            var width = Math.Max(190, _compactScroll.ClientSize.Width - 32);
             _compactPositions.Clear();
             int y = 15;
             foreach (var row in rows)
