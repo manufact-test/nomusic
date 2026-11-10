@@ -44,6 +44,40 @@ public final class HookSpec {
                 "No exact native converter found (refusing approximate hook): " + name);
     }
     /**
+     * Two structural source-model conversions must resolve in the SAME host
+     * classloader before either is hooked. Prefer Xposed PackageReady loader,
+     * but tolerate split/classloader timing by retrying the verified host
+     * Context loader; never mix types from unrelated loaders.
+     */
+    public static final class ResolvedPair {
+        public final ClassLoader loader;
+        public final Method modern;
+        public final Method legacy;
+
+        private ResolvedPair(ClassLoader loader, Method modern, Method legacy) {
+            this.loader = loader;
+            this.modern = modern;
+            this.legacy = legacy;
+        }
+    }
+
+    public static ResolvedPair findConversionPair(ClassLoader preferred, ClassLoader fallback)
+            throws ClassNotFoundException, NoSuchMethodException {
+        ClassLoader first = preferred != null ? preferred : fallback;
+        if (first == null) throw new ClassNotFoundException("NO_NATIVE_HOST_CLASSLOADER");
+        try {
+            return new ResolvedPair(first,
+                    findConversion(first, "y0", FILE_DTO),
+                    findConversion(first, "z0", OLD_FILE_DTO));
+        } catch (ClassNotFoundException | NoSuchMethodException miss) {
+            if (fallback == null || fallback == first) throw miss;
+            return new ResolvedPair(fallback,
+                    findConversion(fallback, "y0", FILE_DTO),
+                    findConversion(fallback, "z0", OLD_FILE_DTO));
+        }
+    }
+
+    /**
      * Exact downstream model accessor observed in the signed #170gpr DEX:
      * Leed;->a()Ljava/lang/String;. No inference about contents: do not
      * read, persist or log the returned String.

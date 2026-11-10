@@ -19,6 +19,28 @@ public final class HookSpecTest {
         try { HookSpec.findConversion(loader, "y0", HookSpec.OLD_FILE_DTO); }
         catch (NoSuchMethodException expected) { rejected = true; }
         if (!rejected) throw new AssertionError("approximate hook must fail");
+        HookSpec.ResolvedPair pair = HookSpec.findConversionPair(loader, loader);
+        if (pair.loader != loader || pair.modern != modern || pair.legacy != old)
+            throw new AssertionError("preferred exact host loader did not resolve both converters");
+
+        ClassLoader missing = new ClassLoader(null) {};
+        HookSpec.ResolvedPair fallback = HookSpec.findConversionPair(missing, loader);
+        if (fallback.loader != loader || fallback.modern != modern || fallback.legacy != old)
+            throw new AssertionError("ready loader fallback did not use exact verified Context loader");
+
+        HookSpec.ResolvedPair noPreferred = HookSpec.findConversionPair(null, loader);
+        if (noPreferred.loader != loader)
+            throw new AssertionError("context class loader missing when no ready loader given");
+
+        boolean missingPairRejected = false;
+        try { HookSpec.findConversionPair(missing, missing); }
+        catch (ClassNotFoundException | NoSuchMethodException expected) {
+            missingPairRejected = true;
+        }
+        if (!missingPairRejected)
+            throw new AssertionError("unresolved host loader must be rejected, not guessed");
+        System.out.println("PASS: exact paired model hooks, classloader fallback, unresolved loader rejects");
+
         Method sourceModelAccessor = HookSpec.findModelStringAccessor(loader);
         if (!sourceModelAccessor.getName().equals("a")
                 || !sourceModelAccessor.getReturnType().equals(String.class)

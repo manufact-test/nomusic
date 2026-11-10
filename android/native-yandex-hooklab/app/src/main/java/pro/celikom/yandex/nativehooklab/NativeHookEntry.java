@@ -112,14 +112,12 @@ public final class NativeHookEntry extends XposedModule {
                 return;
             }
             verifiedHostContext = context;
-            ClassLoader appLoader = readyClassLoader != null
-                    ? readyClassLoader : context.getClassLoader();
-            // Resolve BOTH structural targets before installing EITHER.
-            // A classloader-timing miss must not cause one-sided registration.
-            Method modern = HookSpec.findConversion(
-                    appLoader, "y0", HookSpec.FILE_DTO);
-            Method old = HookSpec.findConversion(
-                    appLoader, "z0", HookSpec.OLD_FILE_DTO);
+            // Only an exact pair from a SINGLE verified loader may be used.
+            HookSpec.ResolvedPair pair = HookSpec.findConversionPair(
+                    readyClassLoader, context.getClassLoader());
+            ClassLoader appLoader = pair.loader;
+            Method modern = pair.modern;
+            Method old = pair.legacy;
 
             // onAttached and onPackageReady may race. Idempotent flags make
             // a partial registration safe to retry after runtime class loading.
