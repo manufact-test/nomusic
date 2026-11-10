@@ -11,6 +11,8 @@ namespace Celikom.Companion;
 /// </summary>
 public sealed class PopupButton : Button
 {
+    [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
+    public bool Borderless { get; set; }
     public PopupButton()
     {
         SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint |
@@ -28,6 +30,23 @@ public sealed class PopupButton : Button
         e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
         e.Graphics.Clear(Parent?.BackColor ?? ColorTranslator.FromHtml("#0B1013"));
         if (Width < 5 || Height < 5) return;
+        if (Borderless)
+        {
+            // Details summary inside the SAME outer bordered card; no nested rectangle.
+            var bg = Parent?.BackColor ?? BackColor;
+            e.Graphics.Clear(bg);
+            var color = Enabled ? ForeColor : ColorTranslator.FromHtml("#778990");
+            var align = TextAlign == ContentAlignment.MiddleLeft
+                ? TextFormatFlags.Left : TextFormatFlags.HorizontalCenter;
+            TextRenderer.DrawText(e.Graphics, Text, Font,
+                Rectangle.Inflate(ClientRectangle, -6, 0), color,
+                align | TextFormatFlags.VerticalCenter |
+                TextFormatFlags.EndEllipsis | TextFormatFlags.SingleLine);
+            if (Focused && ShowFocusCues)
+                ControlPaint.DrawFocusRectangle(e.Graphics,
+                    Rectangle.Inflate(ClientRectangle, -4, -4));
+            return;
+        }
         using var path = new GraphicsPath();
         var r = 10f;
         var rect = new RectangleF(.8f, .8f, Width - 2f, Height - 2f);
