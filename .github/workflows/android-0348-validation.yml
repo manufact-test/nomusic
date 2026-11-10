@@ -34,6 +34,7 @@ on:
       - feature/android-0385-test47-session-stability-20261106
       - feature/android-0385-test48-session-fx-hold-20261106
       - feature/android-0385-test50-deferred-lookahead-20261106
+      - experiment/android-test50-repeated-seek-failopen-20261110
       - feature/android-0370-honor-join-pause-updater-staging
       - feature/android-0371-rollback-0369-staging
       - feature/android-0372-ota-release-staging
@@ -123,6 +124,30 @@ jobs:
       - name: Run full Android native host regression suite
         shell: bash
         run: python3 android/native-companion/tests/run_engine.py
+      - name: Verify isolated Test.50 repeated-seek fail-open gate (not an APK release)
+        shell: bash
+        run: |
+          set -euo pipefail
+          SRC=android/native-companion/addon
+          MAIN="$SRC/src/pro/celikom/nativeprobe/identitydiag/SeekTimeoutCircuitBreaker.java"
+          TEST="$SRC/TestSeekTimeoutCircuitBreaker.java"
+          mkdir -p "$RUNNER_TEMP/seek-timeout-gate"
+          javac --release 8 -d "$RUNNER_TEMP/seek-timeout-gate" "$MAIN" "$TEST"
+          java -cp "$RUNNER_TEMP/seek-timeout-gate" pro.celikom.nativeprobe.identitydiag.TestSeekTimeoutCircuitBreaker
+          python3 - <<'PY'
+          from pathlib import Path
+          root=Path("android/native-companion/addon/src/pro/celikom/nativeprobe/identitydiag")
+          engine=(root/"ReplacementEngine.java").read_text()
+          policy=(root/"SeekTimeoutCircuitBreaker.java").read_text()
+          assert engine.count('recoverSeekTimeout("native_inflight_expired")')==1
+          assert engine.count('recoverSeekTimeout("alignment_elapsed_expired")')==1
+          assert 'seekTimeoutBreaker.successfulSeek(key)' in engine
+          assert 'seekTimeoutBreaker.boundary()' in engine
+          assert 'audioOwner.unsupported("repeated_seek_timeout")' in engine
+          assert 'originalUntilBoundary' in policy
+          assert 'Yandex' not in policy.split('void successfulSeek')[1].split('void boundary')[0]
+          print("PASS: Test.50 production path references experimental same-track timeout fail-open only")
+          PY
       - name: Compile native sources and run D8
         shell: bash
         run: |
