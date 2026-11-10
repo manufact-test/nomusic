@@ -85,6 +85,18 @@ for(const fileName of files){
     }
   }
   if(fileName.includes("9091-")) {
+    const player=s.indexOf("class N{play(e)");
+    if(player>=0) {
+      const before=s.slice(0,player);
+      const starts=[...before.matchAll(/(?:^|[},])(\d{2,6}):\((?:e|t),(?:e|t),(?:r|a)\)=>\{/g)];
+      const last=starts.at(-1);
+      const moduleStart=last?.index??-1;
+      const moduleHead=moduleStart>=0?s.slice(moduleStart,moduleStart+600):"UNKNOWN";
+      console.log("W49E_PLAYER_WEBPACK_EXPORT "+JSON.stringify({
+        playerPos:player,moduleStart,moduleId:last?.[1]||"UNKNOWN",
+        exportHeader:moduleHead.replace(/\s+/g," ").slice(0,600)
+      }));
+    }
     for(const needle of ["class N{play(e)", "corePlay(", "getMediaSource(", "hooks.afterError.promise", "beforeMediaStartPlaying.promise", "MEDIA_ELEMENT_ERROR"]) {
       const pos=s.indexOf(needle);
       if(pos<0)continue;
