@@ -37,9 +37,9 @@ TARGET_METHODS={
   "Llvc;":{"a"},
   "Larv;":{"g"},
   "Lero;":{"<init>"},
-  "Lga4;":{"c"},
-  "Ldl8;":{"a"},
-  "Lsu5;":{"invoke"},
+  "Lga4;":{"c","<init>"},
+  "Ldl8;":{"a","<init>"},
+  "Lsu5;":{"invoke","<init>"},
   "Lro7;":{"y0"},
 }
 MODEL_TYPES={
