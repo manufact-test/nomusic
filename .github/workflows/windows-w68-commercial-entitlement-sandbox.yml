@@ -59,6 +59,14 @@ jobs:
           for file in server/config/app.php server/src/Application.php server/src/Entitlement/AudioAccessService.php server/src/Auth/AuthService.php server/src/Promo/PromoService.php server/src/Http/AudioController.php server/tests/prelaunch-commercial.php; do
             php -l "$file"
           done
+      - name: Permit fixture transaction rollback trigger creation in disposable MySQL only
+        shell: bash
+        run: |
+          set -euo pipefail
+          container="$(docker ps --filter 'ancestor=mysql:8.0' -q | head -n 1)"
+          test -n "$container"
+          docker exec "$container" mysql -u root -pw68-disposable-ci-root \
+            -e 'SET GLOBAL log_bin_trust_function_creators=1;'
       - name: Run independent baseline PHP API smoke
         run: php server/tests/smoke.php
       - name: Run real disposable MySQL migrations, account and trial integration
