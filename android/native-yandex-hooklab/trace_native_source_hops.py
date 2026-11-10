@@ -165,6 +165,12 @@ def inspect_one_dex(data):
             ],
         }
     return {
+        # Private graph retained only in this ephemeral CI Python process.
+        # The returned JSON contains no graph nodes, DEX methods or APK bytes.
+        "_reverse_edges": reverse,
+        "_source_methods": sources,
+        "_media_namespace_sinks": media_namespace_methods,
+        "_strict_media_sinks": media_methods,
         "complete": True, "unsupported_method_bodies": 0,
         "defined_method_bodies": scanned, "invoke_edges": edges,
         "media3_source_methods_referenced": len(media_methods),
@@ -174,6 +180,40 @@ def inspect_one_dex(data):
         "media_family_defined_classes": dict(sorted(media_family_defined.items())),
         "namespace_limit": "A missing named API is not proof no player/decoder exists.",
         "search": results,
+    }
+
+
+def merge_signed_dex_callgraphs(results):
+    """Join method triples across DEX; never export the full graph."""
+    reverse = defaultdict(set)
+    sources = {"converter_caller": set(), "model_consumer": set()}
+    strict_media, namespace_media = set(), set()
+    for item in results:
+        for callee, callers in item["_reverse_edges"].items():
+            reverse[callee].update(callers)
+        for category, methods in item["_source_methods"].items():
+            sources[category].update(methods)
+        strict_media.update(item["_strict_media_sinks"])
+        namespace_media.update(item["_media_namespace_sinks"])
+    counts = {}
+    for kind, seeds in sources.items():
+        strict = call_graph_hops(reverse, seeds, strict_media)
+        nearby = call_graph_hops(reverse, seeds, namespace_media)
+        counts[kind] = {
+            "unique_seed_methods": len(seeds),
+            "strict_named_media3_chains": len(strict),
+            "media_namespace_chains_only": len(nearby),
+            "bounded_namespace_paths": [
+                {"hop_count": len(chain) - 1,
+                 "method_hints": [bounded_obfuscated(method) for method in chain],
+                 "register_flow_or_decoder_proven": False}
+                for chain in nearby[:MAX_WITNESSES]
+            ],
+        }
+    return {
+        "method_key_joined_across_six_dex": True,
+        "cross_dex_static_invoke_chains": counts,
+        "no_runtime_or_bytecode_value_flow_claim": True,
     }
 
 
@@ -201,8 +241,10 @@ def run():
                     observed.append(inspect_one_dex(z.read(entry)))
         if len(observed) != 6 or any(not d["complete"] for d in observed):
             raise ValueError("SIGNED_DEX_SCAN_NOT_COMPLETE")
+        full_joined = merge_signed_dex_callgraphs(observed)
         return {
             "verdict": "STATIC_INVOKE_CHAIN_ONLY_NO_PLAYBACK_PROOF",
+            "joined_six_dex_call_graph": full_joined,
             "signed_original_split_count": 5,
             "dex_count": 6,
             "all_code_bodies_scanned": True,
