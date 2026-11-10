@@ -838,6 +838,11 @@ def run():
             merged_clone, merge_report = merge_ephemeral(
                 clone_output_apks, work, editor, key, new_fingerprint, arsc)
             print(json.dumps({"private_one_apk_merge": merge_report}, sort_keys=True))
+        clone_first_ab = os.getenv("CELIKOM_CLONE_FIRST_AB") == "1"
+        if clone_first_ab and (merged_clone is None or
+                os.getenv("CELIKOM_CLEAN_ANDROID_ARMV7_TRANSLATION") != "1" or
+                os.getenv("CELIKOM_ORIGINAL_CONTROL_LAUNCH") != "1"):
+            raise arsc.TrialError("CLONE_FIRST_AB_NEEDS_VERIFIED_SINGLE_APK_DISPOSABLE_CONTROL")
         emulator_runtime = {}
         native_arm = os.getenv("CELIKOM_CLEAN_ARM_EMULATOR") == "1"
         translated_x64 = os.getenv("CELIKOM_CLEAN_ANDROID_TRANSLATION") == "1"
@@ -865,6 +870,46 @@ def run():
                     raise arsc.TrialError("API30_X86_NATIVE_BRIDGE_UNAVAILABLE")
             elif "arm64-v8a" not in abi or "x86_64" in abi:
                 raise arsc.TrialError("NATIVE_ARM64_RUNTIME_REQUIRED")
+            # A/B: does a one-APK independent clone boot before ANY original
+            # publisher app is present? This isolates package coexistence from
+            # clone package-identity and resource/lifecycle startup problems.
+            # NO account, audio, installed owner app or original APK mutation.
+            if clone_first_ab:
+                arsc.run(["adb", "install", str(merged_clone)],
+                         "CLONE_FIRST_AB_INSTALL_ONE_LAB_APK", 240)
+                if sum(x.startswith("package:") for x in
+                       arsc.run(["adb", "shell", "pm", "path", source.DEST],
+                                "CLONE_FIRST_AB_PM_PATH", 40).splitlines()) != 1:
+                    raise arsc.TrialError("CLONE_FIRST_AB_PACKAGE_MANAGER_INVALID")
+                first_status = arsc.run([
+                    "adb", "shell", "am", "start", "-W",
+                    "-a", "android.intent.action.MAIN",
+                    "-c", "android.intent.category.LAUNCHER",
+                    "-n", source.DEST + "/ru.yandex.music.main.MainScreenActivity"],
+                    "CLONE_FIRST_AB_DIRECT_MAIN", 60)
+                time.sleep(5)
+                first_main = installed_process_snapshot(source.DEST)
+                first_foreground = disposable_foreground_snapshot(source.DEST)
+                first_success = full_native_main_ui_pass(
+                    [first_main], classify_activity_start(first_status),
+                    first_foreground)
+                print(json.dumps({
+                    "ab_condition": "SINGLE_CLONE_BEFORE_ORIGINAL",
+                    "clone_standalone_package_manager_pass": True,
+                    "clone_standalone_main_activity_and_focus_pass": first_success,
+                    "standalone_main_pid_alive": first_main["direct_pid_alive"]
+                                               or first_main["ps_main_process_alive"],
+                    "standalone_auxiliary_only": first_main["ps_auxiliary_process_alive"]
+                                                and not first_main["ps_main_process_alive"],
+                    "standalone_activity_resumed": first_foreground[
+                        "activity_resumed_for_package"],
+                    "standalone_window_focused": first_foreground[
+                        "window_focus_for_package"],
+                    "user_phone_mutated": False,
+                    "audio_or_login_attempted": False,
+                },sort_keys=True))
+                # A/B second stage starts only after completing this report;
+                # do not change clone permissions, DEX, user data or package ID.
             arsc.run(["adb", "install-multiple", *[str(p) for p in apks]],
                      "ARM_INSTALL_PUBLISHER_ORIGINAL", 240)
             if os.getenv("CELIKOM_ORIGINAL_CONTROL_LAUNCH") == "1":
@@ -904,7 +949,11 @@ def run():
                     "original_code_flags": summarize_installed_package_code_flags(original_info),
                     "original_signature_untouched": True,
                     "login_tested": False, "audio_tested": False}))
-            if merged_clone is not None:
+            if merged_clone is not None and clone_first_ab:
+                # Already installed the EXACT same lab APK as first A/B arm.
+                # No same-app overwrite, update or reinstall.
+                pass
+            elif merged_clone is not None:
                 arsc.run(["adb", "install", str(merged_clone)],
                          "ARM_INSTALL_TEST_SINGLE_APK_CLONE", 240)
             else:
