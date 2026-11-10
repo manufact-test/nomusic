@@ -19,6 +19,7 @@ from pathlib import Path
 import clone_native_splits_ephemeral as source
 import clone_native_splits_arsclib_ephemeral as arsc
 from merge_lab_splits_ephemeral import merge_ephemeral
+from clone_lspatch_loader_zero import wrap_clone_with_lspatch_zero
 from clone_lab_profileability import enable_private_lab_shell_profiling
 
 OLD_METRICA = "com.yandex.preinstallsatellite.appmetrica.provider"
@@ -839,6 +840,14 @@ def run():
                 clone_output_apks, work, editor, key, new_fingerprint, arsc)
             print(json.dumps({"private_one_apk_merge": merge_report}, sort_keys=True))
         clone_first_ab = os.getenv("CELIKOM_CLONE_FIRST_AB") == "1"
+        loader_zero = os.getenv("CELIKOM_CLONE_LSPATCH_LOADER_ZERO") == "1"
+        if loader_zero and not clone_first_ab:
+            raise arsc.TrialError("LAB_LOADER_ZERO_NEEDS_CLONE_FIRST_AB")
+        if loader_zero:
+            merged_clone, loader_report = wrap_clone_with_lspatch_zero(
+                merged_clone, work, key, new_fingerprint, arsc)
+            print(json.dumps({"private_clone_lspatch_loader_zero": loader_report},
+                             sort_keys=True))
         if clone_first_ab and (merged_clone is None or
                 os.getenv("CELIKOM_CLEAN_ANDROID_ARMV7_TRANSLATION") != "1" or
                 os.getenv("CELIKOM_ORIGINAL_CONTROL_LAUNCH") != "1"):
