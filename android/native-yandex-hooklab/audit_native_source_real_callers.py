@@ -41,7 +41,11 @@ FOCUS={
  ("Lw4y;","z"),("Lfwm;","M"),("Llky;","<init>"),
  ("Locv;","t"),("Locv;","remove"),
  ("Lero;","t"),("Lero;","remove"),
- ("Lemb;","t"),("Lemb;","remove")
+ ("Lemb;","t"),("Lemb;","remove"),
+ ("Lchg;","<init>"),("Lchg;","t"),("Lchg;","remove"),
+ ("Lciv;","<init>"),("Lciv;","e"),
+ ("Lkvs;","A"),("Larv;","g"),("Luk3;","<init>"),
+ ("Lxq7;","<init>"),("Lxq7;","t"),("Lxq7;","remove")
 }
 PRODUCERS={
  ("Lcq7;","A"),("Lcq7;","i0"),
@@ -244,7 +248,7 @@ def inspect_targets(apks):
                     } for i,(_,op,w) in enumerate(ins) if op in INVOKES and
                         (d.method(w[1])[0] in {
                          "Lcq7;","Lga4;","Le48;","Luiq;","Lm48;","Lv38;",
-                         "Lro7;","Lfxc;","Lwxc;","Lyzt;"
+                         "Lro7;","Lfxc;","Lwxc;","Lyzt;","Lemb;","Lchg;"
                         } or "Landroidx/media3/" in d.method(w[1])[0])]
                     record={
                         "method":method_profile(m),
@@ -253,7 +257,7 @@ def inspect_targets(apks):
                         "model_ingress_structural_roles":[{
                             "ordinal":n,**safe_operand_metadata(d,hop,words)
                          } for n,(_,hop,words) in enumerate(ins[:95])]
-                         if m[0] in ("Lw4y;","Lfwm;","Llky;") or (m[0]=="Locv;" and m[1] in ("t","remove")) else [],
+                         if m[0] in ("Lw4y;","Lfwm;","Llky;","Lchg;","Lciv;","Larv;","Lkvs;","Lxq7;") or (m[0]=="Locv;" and m[1] in ("t","remove")) else [],
                         "direct_typed_source_calls":profiles[:MAX_OUTLINE],
                         "producer_result_mayflow":result_flow[:MAX_OUTLINE],
                         "wrapper_field_projection":source_wrapper_field_projections(d,off)
