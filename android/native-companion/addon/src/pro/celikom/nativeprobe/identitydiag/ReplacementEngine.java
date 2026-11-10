@@ -1268,7 +1268,7 @@ final class ReplacementEngine {
       "trackId",trackId,"sourceItemGeneration",owner.sourceItemGeneration,
       "freshResolveRequired",true,"measuredDurationVerified",true,"audioKeyMatches",true));
     }
-    status=armed()?"Аудио готово; синхронизируем":"Аудио готово заранее; можно включать автозамену";logTrace("replacement_prepared",LogStore.map("trackId",trackId,"measuredDurationMs",mp.getDuration(),"sourceDurationMs",now.duration,"separateAudioSession",true,"beforeArm",!armed()));owner.requestFastJoinSamples();update(now);};p.setOnPreparedListener(livePrepared);p.setOnSeekCompleteListener(mp->completeSeek(mp,key));
+    status=armed()?"Аудио готово; синхронизируем":"Аудио готово заранее; можно включать автозамену";logTrace("replacement_prepared",LogStore.map("trackId",trackId,"measuredDurationMs",mp.getDuration(),"sourceDurationMs",now.duration,"separateAudioSession",true,"beforeArm",!armed()));owner.requestFastJoinSamples();update(now);};p.setOnPreparedListener(livePrepared);p.setOnSeekCompleteListener(mp->onDecoderSeekComplete(mp,key));
     if(decoderPrimed)livePrepared.onPrepared(p);else p.prepareAsync();if(source!=null)source.prefetch();final MediaPlayer preparingPlayer=p;owner.handler.postDelayed(()->{if(player==preparingPlayer&&!ready)suspend("prepare_timeout",retryDelay());},10000);
    }catch(Exception e){suspend("prepare_failed",retryDelay());status="Не удалось подготовить аудио; играет оригинал";}
  }
@@ -1341,6 +1341,18 @@ final class ReplacementEngine {
     "hardwareOutputMeasured",false));
    return;
   }
+ }
+ /**
+  * Preserve the accepted Test.50 completeSeek() byte-for-byte.
+  * Only a genuinely in-flight seek that has finished native alignment can
+  * clear the experimental timeout streak. Stale/duplicate callbacks cannot.
+  */
+ void onDecoderSeekComplete(MediaPlayer mp,String key){
+  boolean hadFlight=audioOwner.seekInFlight(mp);
+  completeSeek(mp,key);
+  if(hadFlight&&mp==player&&current(key)&&!seeking&&aligned
+      &&!audioOwner.seekInFlight(mp))
+   seekTimeoutBreaker.successfulSeek(key);
  }
  void completeSeek(MediaPlayer mp,String key){
   if(mp!=player||!Objects.equals(identityKey,key)||!accountLeaseCurrent())return;
@@ -1425,7 +1437,6 @@ final class ReplacementEngine {
   // handover drift budget, rather than launching a second redundant seek.
   if(Math.abs(residual)<=HANDOVER_DRIFT_MS){
    aligned=true;
-   seekTimeoutBreaker.successfulSeek(key);
    if(!now.playing)resumePositionRetained=true;
   }
   update(now);
