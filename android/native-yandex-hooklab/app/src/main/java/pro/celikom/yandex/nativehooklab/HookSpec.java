@@ -18,6 +18,54 @@ public final class HookSpec {
             "com.yandex.music.shared.player.content.remote.fileinfo.OldGetFileInfoDto";
 
     private HookSpec() {}
+    // Exact signed DEX interface Lemb;->t(Ldmb;)V and remove()V, factory
+    // Lkvs;->A(Lzcb;Lgmb;)Lemb;. Source class names are intentionally pinned;
+    // do not hook approximate/overloaded methods or infer active decoder.
+    public static final String[] SOURCE_IMPLEMENTORS={
+            "alt","chg","ero","ocv","ojz","t67","t6f","xq7"
+    };
+    public static Method findSourceFactory(ClassLoader loader)
+            throws ClassNotFoundException, NoSuchMethodException {
+        Class<?> holder=Class.forName("kvs",false,loader);
+        Class<?> first=Class.forName("zcb",false,loader);
+        Class<?> second=Class.forName("gmb",false,loader);
+        Class<?> result=Class.forName("emb",false,loader);
+        for(Method method:holder.getDeclaredMethods()) {
+            if("A".equals(method.getName())
+                    && Modifier.isStatic(method.getModifiers())
+                    && method.getReturnType()==result
+                    && method.getParameterCount()==2
+                    && method.getParameterTypes()[0]==first
+                    && method.getParameterTypes()[1]==second) return method;
+        }
+        throw new NoSuchMethodException("EXACT_LEMB_FACTORY_UNAVAILABLE");
+    }
+
+    public static Method findSourceLifecycle(ClassLoader loader,String implementor,
+                                             String operation)
+            throws ClassNotFoundException, NoSuchMethodException {
+        boolean pinned=false;
+        for(String name:SOURCE_IMPLEMENTORS)if(name.equals(implementor))pinned=true;
+        if(!pinned || (!"t".equals(operation)&&!"remove".equals(operation)))
+            throw new NoSuchMethodException("NOT_A_PINNED_LEMB_OPERATION");
+        Class<?> contract=Class.forName("emb",false,loader);
+        Class<?> holder=Class.forName(implementor,false,loader);
+        if(!contract.isAssignableFrom(holder))
+            throw new NoSuchMethodException("NOT_AN_EXACT_LEMB_IMPLEMENTOR");
+        Class<?> parameter="t".equals(operation)
+                ?Class.forName("dmb",false,loader):null;
+        for(Method method:holder.getDeclaredMethods()) {
+            if(method.getName().equals(operation)
+                    && !Modifier.isStatic(method.getModifiers())
+                    && !Modifier.isAbstract(method.getModifiers())
+                    && method.getReturnType()==void.class
+                    && method.getParameterCount()==(parameter==null?0:1)
+                    && (parameter==null || method.getParameterTypes()[0]==parameter))
+                return method;
+        }
+        throw new NoSuchMethodException("EXACT_LEMB_LIFECYCLE_UNAVAILABLE");
+    }
+
 
     public static boolean isApprovedHost(String packageName, String versionName, long versionCode) {
         return TARGET_PACKAGE.equals(packageName)
