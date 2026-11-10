@@ -1854,10 +1854,11 @@ final class ReplacementEngine {
       ?seekTimeoutBreaker.timeout(sameSource?failedKey:null,
           SystemClock.elapsedRealtime()):null;
   if(decision!=null)LogStore.log("replacement_seek_timeout_failopen",
-      LogStore.map("timeoutCount",decision.observedTimeouts,
+      LogStore.map("reason",reason,"timeoutCount",decision.observedTimeouts,
         "originalUntilBoundary",decision.originalUntilBoundary,
-        "sameCurrentSource",sameSource,"outputMeasured",false,
-        "yandexPauseSeekConfirmed",false));
+        "trackId",trackId,"sourceItemGeneration",owner.sourceItemGeneration,
+        "replacementGeneration",generation,"sameCurrentSource",sameSource,
+        "outputMeasured",false,"yandexPauseSeekConfirmed",false));
 if(streaming!=null&&Arrays.asList("prepare_timeout","prepare_failed","duration_or_session_invalid","seek_timeout","media_player_error","decoder_start_timeout").contains(reason)){streamFallbackKey=identityKey;delay=1000;LogStore.log("replacement_stream_fallback",LogStore.map("reason",reason));}if("replacement_completed".equals(reason)||"replacement_end".equals(reason)||"source_end".equals(reason)){completedKey=identityKey;completedPosition=owner.current==null?0:position(owner.current);}Map<String,Object> recovery=owner.runtimeSnapshot("replacement_recovery_"+reason);generation++;preparing=false;release(reason);descriptor=null;lookupKey=null;nextLookup=SystemClock.elapsedRealtime()+delay;audioOwner.recovering(reason);ownerEvent("recovery");recovery.put("reason",reason);recovery.put("automaticModeRetained",armed());recovery.put("retryMs",delay);recovery.put("retryAtElapsedMs",nextLookup);recovery.put("failureCount",failures);recovery.put("postReleaseReady",ready);recovery.put("postReleasePreparing",preparing);LogStore.log("replacement_recovery",recovery);
   if(decision!=null&&decision.originalUntilBoundary&&sameSource
       &&Objects.equals(identityKey,failedKey)&&owner.current!=null
