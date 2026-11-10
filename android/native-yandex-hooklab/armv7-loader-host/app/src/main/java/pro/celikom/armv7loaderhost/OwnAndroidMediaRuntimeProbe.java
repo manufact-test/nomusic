@@ -164,9 +164,13 @@ public final class OwnAndroidMediaRuntimeProbe {
             p.setOnSeekCompleteListener(mp->{
                 if(ticket!=revision||mp!=player||completed)return;
                 try {
-                    positionRestoreCount++;
-                    if(expectedPlaying)mp.start();
-                    note(label+"_SEEK_RESTORED");
+                    // The very first test performs a normal user Seek.
+                    // Only a new player's position restoration counts here.
+                    if(position>0) {
+                        positionRestoreCount++;
+                        if(expectedPlaying)mp.start();
+                    }
+                    note(label+(position>0?"_SEEK_RESTORED":"_USER_SEEK"));
                     afterSeek.run();
                 }catch(Throwable bad){result(false,"RESTORE_CALLBACK");}
             });
