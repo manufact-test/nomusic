@@ -1,0 +1,33 @@
+name: Android publisher-signed concrete SDK decoder entrypoints (READ-ONLY)
+on:
+  push:
+    branches:
+      - experiment/android-native-yandex-fileinfo-hooklab-20261109
+    paths:
+      - 'android/native-yandex-hooklab/audit_native_media_engine.py'
+      - 'android/native-yandex-hooklab/tests/test_native_media_engine.py'
+      - '.github/workflows/android-native-media-engine-gate.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  exact-signed-public-player-api:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Verify bounded strict public SDK matcher
+        run: |
+          python3 -m py_compile android/native-yandex-hooklab/audit_native_media_engine.py
+          python3 -m unittest discover -s android/native-yandex-hooklab/tests -p 'test_native_media_engine.py' -v
+      - name: Audit exact genuine five signed Yandex splits, six DEX
+        run: python3 android/native-yandex-hooklab/audit_native_media_engine.py
+      - name: No modified vendor APK, audio or user information
+        if: always()
+        run: |
+          test ! -d android/native-yandex-hooklab/release
+          test ! -d android/native-yandex-hooklab/patched
+          echo 'Source-only public Android SDK implementation census; no audio runtime'
