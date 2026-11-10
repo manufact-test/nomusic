@@ -40,9 +40,9 @@ jobs:
       AUDIO_SIGNING_KEY: w68-disposable-ci-sample-signing-key-not-production
       ANALYTICS_PRIVACY_KEY: w68-disposable-ci-sample-analytics-key-not-production
       STORAGE_PATH: /tmp/w68-disposable-private-audio
-      FEATURE_REPLACEMENTS: "1"
-      FEATURE_USER_AUTH: "1"
-      FEATURE_USER_ENTITLEMENT: "1"
+      FEATURE_REPLACEMENTS: "0"
+      FEATURE_USER_AUTH: "0"
+      FEATURE_USER_ENTITLEMENT: "0"
       FEATURE_PAID_ENTITLEMENT: "0"
     steps:
       - uses: actions/checkout@v4
