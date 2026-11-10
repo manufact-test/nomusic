@@ -69,7 +69,7 @@ def transitive_implementors(relationships:dict, target:str)->list[str]:
         memo[owner]=result
         return result
     return sorted(owner for owner,(flags, _) in relationships.items()
-                  if owner!=target and not flags & 0x200 and reaches(owner))
+                  if owner!=target and not flags & (0x200 | 0x400) and reaches(owner))
 
 
 def bounded_name(owner):
