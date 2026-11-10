@@ -225,6 +225,15 @@ try
     DiagnosticLog.Record("OWNER_DIAG_TEST", "123");
     var snapshot = DiagnosticLog.ExportText("5.126.1.0", "ACTIVE", true, true, true);
     Test(snapshot.Contains("OWNER_DIAG_TEST|track=123"), "diagnostic export has observed event");
+    Test(snapshot.Contains("DiagnosticScope=LAST_60_MINUTES"), "recent sessions only");
+    Test(snapshot.Contains("ReplacementAudibleProof=NOT_AVAILABLE_FROM_PROBE_OR_MAPPING"),
+        "successful MP3 probe never implies audio replacement");
+    Test(snapshot.Contains("CodeBaseline=W48_ACTUAL_PLAYER_ENGINE_DIAGNOSTICS"), "real-engine diagnostic contract");
+    Test(snapshot.Contains("EngineFastPauseObserved=") &&
+        snapshot.Contains("PlayerAudibleEventObserved=") &&
+        snapshot.Contains("DecoderErrorObserved="), "typed owner playback evidence summary");
+    Test(!snapshot.Contains("yandex-drm") && !snapshot.Contains("token="),
+        "owner export never leaks native crypto or signed URLs");
     Test(!snapshot.Contains(expectedAccess) && !snapshot.Contains(expectedRefresh) &&
         !snapshot.Contains("test@example.com"), "diagnostics exclude credentials and email");
     Console.WriteLine("W15_NATIVE_CONTRACT_PASS " + checks);
