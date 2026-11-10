@@ -28,7 +28,7 @@ public final class TestRepeatedSeekTimeoutRecovery {
   String current=e.identityKey;
   check(current!=null&&e.armed(),"owner's automatic mode is active");
   MediaPlayer first=e.player;
-  e.recoverSeekTimeout("alignment_elapsed_expired");
+  e.suspend("seek_timeout",e.retryDelay());
   check(first.released&&e.player==null&&e.effect==null,
     "one timeout releases secondary and restores original ownership");
   check(e.completedKey==null&&e.armed()&&!e.seekTimeoutBreaker.blocked(current),
@@ -57,7 +57,7 @@ public final class TestRepeatedSeekTimeoutRecovery {
 
   MediaPlayer second=e.player;
   SystemClock.now+=1000;
-  e.recoverSeekTimeout("native_inflight_expired");
+  e.suspend("seek_timeout",e.retryDelay());
   check(second.released&&e.player==null&&e.effect==null,
     "second timeout releases decoder and source attenuation immediately");
   check(e.seekTimeoutBreaker.blocked(current)&&current.equals(e.completedKey),
@@ -90,7 +90,7 @@ public final class TestRepeatedSeekTimeoutRecovery {
   ReplacementEngine e=TestEngine.e;
   e.sourceBoundary("identity_missing",null);
   check(e.identityKey==null,"not attached after boundary");
-  e.recoverSeekTimeout("stale_callback");
+  e.suspend("seek_timeout",e.retryDelay());
   check(!e.seekTimeoutBreaker.blocked(null)&&e.completedKey==null,
     "late unidentified timeout cannot grant or block a live replacement");
   e.close();
