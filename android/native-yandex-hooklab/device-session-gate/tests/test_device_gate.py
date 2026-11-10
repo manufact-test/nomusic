@@ -81,7 +81,9 @@ class DeviceSessionGate(unittest.TestCase):
         self.assertIn("не доказывает право",JAVA)
         self.assertIn("Никаких команд Яндексу не отправлено",JAVA)
         self.assertIn("source",JAVA)
-        self.assertIn("No mutation",JAVA+" No mutation") # explicit category boundary
+        self.assertIn("Вызовов setMediaItems / play / seek НЕ было.",JAVA)
+        self.assertNotIn("TransportControls",JAVA)
+        self.assertNotIn("MediaSession.set",JAVA)
 
 
 if __name__=="__main__":
