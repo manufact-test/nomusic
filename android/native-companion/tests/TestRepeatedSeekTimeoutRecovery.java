@@ -22,13 +22,13 @@ public final class TestRepeatedSeekTimeoutRecovery {
   check(TestEngine.e.player!=null&&TestEngine.e.ready,
     "real engine fake current decoder is prepared before induced timeout");
  }
- static void exerciseRepeatAndRewind()throws Exception{
+ static void exerciseRepeatAndRewind(String timeoutReason)throws Exception{
   preparedReplacement();
   ReplacementEngine e=TestEngine.e;
   String current=e.identityKey;
   check(current!=null&&e.armed(),"owner's automatic mode is active");
   MediaPlayer first=e.player;
-  e.suspend("seek_timeout",e.retryDelay());
+  e.suspend(timeoutReason,e.retryDelay());
   check(first.released&&e.player==null&&e.effect==null,
     "one timeout releases secondary and restores original ownership");
   check(e.completedKey==null&&e.armed()&&!e.seekTimeoutBreaker.blocked(current),
@@ -57,7 +57,7 @@ public final class TestRepeatedSeekTimeoutRecovery {
 
   MediaPlayer second=e.player;
   SystemClock.now+=1000;
-  e.suspend("seek_timeout",e.retryDelay());
+  e.suspend(timeoutReason,e.retryDelay());
   check(second.released&&e.player==null&&e.effect==null,
     "second timeout releases decoder and source attenuation immediately");
   check(e.seekTimeoutBreaker.blocked(current)&&current.equals(e.completedKey),
@@ -116,7 +116,8 @@ public final class TestRepeatedSeekTimeoutRecovery {
   e.close();
  }
  public static void main(String[] args)throws Exception{
-  exerciseRepeatAndRewind();
+  exerciseRepeatAndRewind("seek_timeout");
+  exerciseRepeatAndRewind("hot_cached_seek_timeout");
   supersededAckCannotClearStreak();
   noIdentityCannotLatch();
   System.out.println("PASS: "+assertions+
