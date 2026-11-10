@@ -1,4 +1,14 @@
-## НОВЕЙШАЯ CI GREEN ТОЧКА — URI-модель → Lcq7.i0 → Lga4/Lero/Lha4 → DataSource (10.11.2026)
+## НОВЕЙШИЙ CI GREEN — точный Lero → Lwq7 task → Lmb4 DataSource.open/read/close (10.11.2026)
+
+- **Проверенный SHA:** `f04745f7dcd4455996eadf56dc0be6c52a44c63f`; **замороженный откат:** `backup/android-signed-lero-lmb4-reader-case-ci-green-20261110`.
+- **Читать первым:** `docs/android/ANDROID-NATIVE-SIGNED-LERO-LMB4-EXECUTION-CHAIN-2026-11-10.md`. Signed original 5 APK/6 DEX/230533 bodies: `Lga4.c():Lha4` move-result **в том же basic block** записывается в `Lero.Lha4` и передаётся в `Lmb4.<init>` word1; конструктор кладёт его в точное поле `Lmb4:Lm48`; `Lmb4.a` читает тот же field-ref, cast `Lha4`, вызовы `b(La58)`×2/`read([BII)`/`close()`.
+- В `Lero.t` **проверен actual DEX selector** и захват точного `Lero.this` в `Lwq7.<init>(I,Object)`. Mode **не** входит в 2 explicit packed-switch кейса `Lwq7.e` и выполняет **default fallthrough**, где `Lwq7` считывает то же captured field → `Lero.Lmb4` → `Lmb4.a`. У `Lero.t` есть `execute/get`, но это не runtime-аудио подтверждение.
+- **CI SUCCESS:** [source read #42821377729](https://github.com/manufact-test/nomusic/actions/runs/42821377729), [selector/capture #42822722957](https://github.com/manufact-test/nomusic/actions/runs/42822722957), [exact source field #42823360505](https://github.com/manufact-test/nomusic/actions/runs/42823360505), [Android module #42823360398](https://github.com/manufact-test/nomusic/actions/runs/42823360398) 2/2.
+- **Критическая граница:** точный выбранный `trackId+edition+generation` в живом ExoPlayer и `decoder PREPARE` всё ещё НЕ доказаны. Android replacement audio НЕ работает, runtime hooks/прошивки не тронуты. Следующий этап: отдельный пассивный ARM Android player/source witness. Не повторять x86 LSPatch; не трогать Test.50/HONOR/Windows/production.
+
+---
+
+## ПРЕДЫДУЩАЯ CI GREEN ТОЧКА — URI-модель → Lcq7.i0 → Lga4/Lero/Lha4 → DataSource (10.11.2026)
 
 - **Проверенный исходник:** `f327f5b9bcfee028e754f9a803f29ade347cb240`, **rollback:** `backup/android-signed-uri-locv-source-cfg-green-20261110`.
 - **Читать первым:** `docs/android/ANDROID-NATIVE-SIGNED-URI-TO-DATASOURCE-LIFECYCLE-EVIDENCE-2026-11-10.md`. В оригинальном подписанном six-DEX `Locv.i0` читает URI-подобные данные, `Lw4y.z` парсит scheme/host/path/query (значения не экспортированы); результат попадает в coroutine `Llky`, `Lfwm.M` возвращает `Ljgv`, который bounded CFG передаёт `Lcq7.i0` и `Lcq7.D`.
