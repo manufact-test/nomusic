@@ -11,6 +11,8 @@ import android.util.Log;
 
 import java.lang.reflect.Method;
 import java.util.List;
+import java.util.Set;
+import java.util.HashSet;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import io.github.libxposed.api.XposedInterface;
@@ -41,6 +43,12 @@ public final class NativeHookEntry extends XposedModule {
     // Counts published states only, never actual decoder success or current track.
     private final NativePlaybackStateProbe publishedState = new NativePlaybackStateProbe();
     private final AtomicInteger publishedStateUpdates = new AtomicInteger();
+    // Exact #170gpr factory/lifecycle identity-only observations.
+    // Neither events nor counts authorize replacing the current player source.
+    private final NativeSourceDispatchWitness sourceDispatch =
+            new NativeSourceDispatchWitness();
+    private final Set<String> sourceLifecycleHooked = new HashSet<>();
+    private boolean sourceFactoryHooked;
     private String processName;
     private boolean attachHooked;
     private boolean targetHooked;
@@ -83,7 +91,8 @@ public final class NativeHookEntry extends XposedModule {
                 // Attach can run before all split / secondary classes resolve.
                 // Retry only for a version-verified context; no eager unsafe hook.
                 if (verifiedHostContext != null
-                        && (!targetHooked || !metadataHooked || !playbackStateHooked)) {
+                        && (!targetHooked || !metadataHooked || !playbackStateHooked
+                            || !sourceFactoryHooked || sourceLifecycleHooked.size() < 16)) {
                     onAttached(verifiedHostContext);
                 }
             }
@@ -130,13 +139,14 @@ public final class NativeHookEntry extends XposedModule {
             verifiedHostContext = context;
             armPlatformMetadataWitness();
             armPublishedPlaybackStateWitness();
-            if (targetHooked) return;
             // Only an exact pair from a SINGLE verified loader may be used.
             HookSpec.ResolvedPair pair = HookSpec.findConversionPair(
                     readyClassLoader, context.getClassLoader());
             ClassLoader appLoader = pair.loader;
             Method modern = pair.modern;
             Method old = pair.legacy;
+            armSourceDispatchWitness(appLoader);
+            if (targetHooked) return;
 
             // onAttached and onPackageReady may race. Idempotent flags make
             // a partial registration safe to retry after runtime class loading.
@@ -191,6 +201,84 @@ public final class NativeHookEntry extends XposedModule {
             Log.i(TAG, "observer: native file-info converter hooks armed; read-only");
         } catch (Throwable ignored) {
             log(Log.WARN, TAG, "observer: no exact converter pair; original unaffected");
+        }
+    }
+
+    /**
+     * Read-only exact signed #170gpr method witness: Lkvs.A(Zcb,Gmb):Lemb and
+     * concrete Lemb.t(dmb)/remove() methods across eight verified types.
+     *
+     * We match the SAME OBJECT returned by factory to a lifecycle call using
+     * reference identity (not title/track/URL, not object.toString/equals).
+     * A match is still NOT proof of active ExoPlayer source or decoder prepare:
+     * this can be prefetch or background data. No source mutation is allowed.
+     */
+    private synchronized void armSourceDispatchWitness(ClassLoader loader) {
+        if (!sourceFactoryHooked) {
+            try {
+                Method factory=HookSpec.findSourceFactory(loader);
+                hook(factory)
+                        .setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                        .intercept(chain -> {
+                            Object result=chain.proceed();
+                            try {
+                                sourceDispatch.onFactory(result, SystemClock.elapsedRealtime());
+                                safeSourceDispatchLog();
+                            } catch(Throwable ignored) {
+                                // Observation cannot change any factory result.
+                            }
+                            return result;
+                        });
+                sourceFactoryHooked=true;
+            } catch (Throwable ignored) {
+                log(Log.WARN,TAG,"observer: exact source factory unavailable");
+            }
+        }
+        for(String concrete:HookSpec.SOURCE_IMPLEMENTORS) {
+            for(String action:new String[]{"t","remove"}) {
+                final String hookKey=concrete + ":" + action;
+                if(sourceLifecycleHooked.contains(hookKey))continue;
+                try {
+                    Method method=HookSpec.findSourceLifecycle(loader,concrete,action);
+                    hook(method)
+                            .setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                            .intercept(chain -> {
+                                Object result=chain.proceed();
+                                try {
+                                    Object receiver=chain.getThisObject();
+                                    long time=SystemClock.elapsedRealtime();
+                                    if("t".equals(action))sourceDispatch.onLifecycleT(receiver,time);
+                                    else sourceDispatch.onRemove(receiver,time);
+                                    safeSourceDispatchLog();
+                                }catch(Throwable ignored){
+                                    // No throws, no result/argument modifications.
+                                }
+                                return result;
+                            });
+                    sourceLifecycleHooked.add(hookKey);
+                } catch(Throwable ignored) {
+                    // Some implementors inherit lifecycle calls, or load later.
+                    // We never hook an approximate name or unknown signature.
+                }
+            }
+        }
+        Log.i(TAG,"observer: exact source lifecycle witness hooks="
+                + sourceLifecycleHooked.size()
+                + " factory=" + sourceFactoryHooked
+                + " NOT selected player proof");
+    }
+
+    private void safeSourceDispatchLog() {
+        NativeSourceDispatchWitness.Snapshot s=sourceDispatch.snapshot();
+        int total=s.factories+s.lifecycleCalls+s.removals;
+        if(total==1 || total%20==0) {
+            Log.i(TAG,"observer: source identity-only factories="+s.factories
+                    + " t-calls="+s.lifecycleCalls
+                    + " same-instance-factory-t="+s.matchedCalls
+                    + " unmatched="+s.unmatchedCalls
+                    + " removes="+s.removals
+                    + " unknown="+s.rejectedUnknown
+                    + " NOT player selected / NOT decoder prepare");
         }
     }
 
