@@ -1,0 +1,93 @@
+name: Android OWN real MediaPlayer pause-seek-Start-Stop emulator (NO Yandex)
+on:
+  push:
+    branches:
+      - experiment/android-native-yandex-fileinfo-hooklab-20261109
+    paths:
+      - 'android/native-yandex-hooklab/armv7-loader-host/app/src/main/java/pro/celikom/armv7loaderhost/OwnAndroidMediaRuntimeProbe.java'
+      - 'android/native-yandex-hooklab/armv7-loader-host/app/src/main/java/pro/celikom/armv7loaderhost/MainActivity.java'
+      - 'android/native-yandex-hooklab/armv7-loader-host/app/src/main/java/pro/celikom/armv7loaderhost/AudioSmokeSource.java'
+      - 'android/native-yandex-hooklab/armv7-loader-host/app/build.gradle.kts'
+      - '.github/workflows/android-own-mediaplayer-device-runtime.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  actual-own-android-platform-player:
+    runs-on: ubuntu-latest
+    timeout-minutes: 27
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+      - name: Assemble ONLY distinct OWN synthetic emulator app, x86_64
+        run: |
+          set -euo pipefail
+          gradle -p android/native-yandex-hooklab/armv7-loader-host :app:assembleDebug --no-daemon -PcelikomOwnEmulator=true
+          test -f android/native-yandex-hooklab/armv7-loader-host/app/build/outputs/apk/debug/app-debug.apk
+      - name: Safety: fixed package, no app permissions or vendor access
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          base=Path("android/native-yandex-hooklab/armv7-loader-host")
+          app=(base/"app/src/main/java/pro/celikom/armv7loaderhost/MainActivity.java").read_text()
+          probe=(base/"app/src/main/java/pro/celikom/armv7loaderhost/OwnAndroidMediaRuntimeProbe.java").read_text()
+          gradle=(base/"app/build.gradle.kts").read_text()
+          manifest=(base/"app/src/main/AndroidManifest.xml").read_text()
+          assert 'celikomOwnEmulator' in gradle and 'listOf("x86_64")' in gradle
+          assert '"pro.celikom.armv7loaderhost.audio"' in app and '"celikom_own_probe"' in app
+          assert 'new OwnAndroidMediaRuntimeProbe(this,witness).run()' in app
+          assert 'new MediaPlayer()' in probe and 'MediaDataSource' in probe
+          assert 'seekTo(' in probe and 'pause()' in probe and 'prepareAsync()' in probe
+          for forbidden in ('ru.yandex.music','ACCESS_NETWORK_STATE','INTERNET',
+                            'MediaProjection','AudioRecord','getAccount','getMediaId',
+                            'getUri','HttpURLConnection','LSPatch'):
+              assert forbidden not in probe and forbidden not in manifest
+          assert '<uses-permission' not in manifest
+          print("PASS: only own WAV, Android MediaPlayer, no vendor access or media capture")
+          PY
+      - name: Allow KVM on disposable emulator runner (no device changes)
+        run: |
+          test -e /dev/kvm
+          sudo chmod 666 /dev/kvm
+      - name: Boot Android 13 x86_64 Google APIs and exercise native MediaPlayer callbacks
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 33
+          target: google_apis
+          arch: x86_64
+          profile: pixel_5
+          cores: 2
+          ram-size: 3072M
+          emulator-boot-timeout: 420
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
+          disable-animations: true
+          script: |
+            set -euo pipefail
+            APK=android/native-yandex-hooklab/armv7-loader-host/app/build/outputs/apk/debug/app-debug.apk
+            adb install -r "$APK"
+            PKG=pro.celikom.armv7loaderhost.audio
+            test "$(adb shell getprop ro.build.version.sdk | tr -d '\r')" = 33
+            test "$(adb shell pm path "$PKG" | grep -c 'package:')" = 1
+            adb logcat -c
+            adb shell am start -W -n "$PKG"/pro.celikom.armv7loaderhost.MainActivity --ez celikom_own_probe true
+            RESULT=""
+            for tick in $(seq 1 65); do
+              RESULT="$(adb logcat -d -s CelikomOwnMediaProbe:D '*:S' | grep -E 'RESULT=(PASS|FAIL)' | tail -1 || true)"
+              if [ -n "$RESULT" ]; then break; fi
+              sleep 1
+            done
+            echo "$RESULT" | sed -E 's/.*(RESULT=(PASS|FAIL) CODE=[A-Z0-9_]+).*/\1/'
+            echo "$RESULT" | grep -q 'RESULT=PASS CODE=OWN_DECODER_LIFECYCLE'
+            echo 'PASS: actual Android 13 MediaPlayer prepared, seeked, paused, reloaded same track, restored paused and playing, then Next B'
+      - name: Final source-only safety
+        if: always()
+        run: |
+          test ! -d android/native-yandex-hooklab/release
+          test ! -d android/native-yandex-hooklab/patched
+          echo 'Only own unprivileged emulator APK. No vendor/player modifications, user login, audio recording, APK delivery.'
