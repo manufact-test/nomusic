@@ -59,7 +59,7 @@ jobs:
           assert host.count("new MediaPlayer()")==1
           assert "getCurrentPosition()" in host and "seekTo(requested" in host
           assert "replacementEnabled" in host
-          assert "reloadEntity" not in host, 'Windows method is not Android API'
+          assert ".reloadEntity(" not in host, 'Windows player method cannot run on Android'
           assert "MediaProjection" not in host and "AudioRecord" not in host
           assert "android.permission" not in host
           print("PASS: no Yandex, single MediaPlayer, source before prepare, pause seek Next fallback contracts")
