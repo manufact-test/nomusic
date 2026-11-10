@@ -236,8 +236,9 @@ try
         "W53 rejects ambiguous leading-zero resource IDs");
     Test(!DiagnosticLog.IsSafeEntry(safeTimestamp + "|PLAYER_NET_REQUEST|resource_id=139\nSECRET"),
         "W53 rejects multiline log injection");
-    var nativeFixture = Path.Combine(DiagnosticLog.DirectoryPath, "native-events.log");
-    Directory.CreateDirectory(DiagnosticLog.DirectoryPath);
+    var fixtureLogsDirectory = Path.Combine(folder, "owner-export-isolated");
+    var nativeFixture = Path.Combine(fixtureLogsDirectory, "native-events.log");
+    Directory.CreateDirectory(fixtureLogsDirectory);
     var when = DateTimeOffset.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffZ",
         System.Globalization.CultureInfo.InvariantCulture);
     File.AppendAllText(nativeFixture,
@@ -250,8 +251,11 @@ try
         when + "|PLAYER_403_PHP_ACCESS_DENIED|resource_id=739209\n" +
         when + "|PLAYER_NET_REQUEST|resource_id=739209?token=SENSITIVE\n" +
         when + "|PLAYER_NET_REQUEST|resource_id=739209|sid=SENSITIVE\n");
+    File.AppendAllText(Path.Combine(fixtureLogsDirectory, "companion-events.log"),
+        when + "|OWNER_DIAG_TEST|track=123\n");
     DiagnosticLog.Record("OWNER_DIAG_TEST", "123");
-    var snapshot = DiagnosticLog.ExportText("5.126.1.0", "ACTIVE", true, true, true);
+    var snapshot = DiagnosticLog.ExportText("5.126.1.0", "ACTIVE", true, true, true,
+        diagnosticDirectory: fixtureLogsDirectory);
     Test(snapshot.Contains("OWNER_DIAG_TEST|track=123"), "diagnostic export has observed event");
     Test(snapshot.Contains("DiagnosticScope=LAST_15_MINUTES"), "recent sessions only");
     Test(snapshot.Contains("ReplacementAudibleProof=NOT_AVAILABLE_FROM_NETWORK_OR_MAPPING"),
