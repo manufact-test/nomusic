@@ -13,6 +13,12 @@ public sealed class PopupFilePicker : Button
     private static readonly Color Ink = ColorTranslator.FromHtml("#F4F7F8");
     private static readonly Color Muted = ColorTranslator.FromHtml("#AAB8BE");
     private bool _hovered;
+    private string _selectedFile = "";
+    public string SelectedFile
+    {
+        get => _selectedFile;
+        set { _selectedFile = (value ?? "").Trim(); Invalidate(); }
+    }
 
     public PopupFilePicker()
     {
@@ -56,7 +62,7 @@ public sealed class PopupFilePicker : Button
         outline.CloseFigure();
         using var fill = new SolidBrush(Base);
         using var pen = new Pen(_hovered ? Hover : Outline, 1.4f)
-            { DashStyle = DashStyle.Dash };
+            { DashStyle = _selectedFile.Length > 0 ? DashStyle.Solid : DashStyle.Dash };
         e.Graphics.FillPath(fill, outline);
         e.Graphics.DrawPath(pen, outline);
         using var iconPen = new Pen(_hovered ? Hover : Muted, 2);
@@ -68,7 +74,9 @@ public sealed class PopupFilePicker : Button
         e.Graphics.DrawLine(iconPen, x + 8, y + 2, x + 8, y + 9);
         e.Graphics.DrawLine(iconPen, x - 8, y + 9, x + 8, y + 9);
         var box = new Rectangle(55, 8, Math.Max(20, Width - 65), Height - 16);
-        TextRenderer.DrawText(e.Graphics, Text, new Font(Font.FontFamily, 9F, FontStyle.Bold),
+        using var titleFont = new Font(Font.FontFamily, 9F, FontStyle.Bold);
+        var visible = _selectedFile.Length > 0 ? _selectedFile : Text;
+        TextRenderer.DrawText(e.Graphics, visible, titleFont,
             box, Enabled ? Ink : Muted, TextFormatFlags.Left | TextFormatFlags.VerticalCenter |
             TextFormatFlags.SingleLine | TextFormatFlags.EndEllipsis);
         if (Focused && ShowFocusCues)
