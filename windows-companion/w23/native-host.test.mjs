@@ -6,13 +6,14 @@ import { EventEmitter } from "node:events";
 
 const source = fs.readFileSync(new URL("./host.cjs", import.meta.url), "utf8");
 
-async function runHost(url, { queue = [], token = "b".repeat(64) } = {}) {
+async function runHost(url, { queue = [], token = "b".repeat(64), debuggerDriver = null } = {}) {
   const diagnostics = [], evaluated = [], network = [];
   let drained = false;
   const viewEvents = new Map();
   const view = {
     isDestroyed: () => false,
     getURL: () => url,
+    debugger: debuggerDriver,
     on: (name, handler) => { const handlers = viewEvents.get(name) || []; handlers.push(handler); viewEvents.set(name, handlers); },
     executeJavaScript: async script => {
       evaluated.push(script);
@@ -165,4 +166,43 @@ test("W48 media witness attaches once per view across repeated host tick cycles"
   const r=await runHost("musicapplication://desktop/");
   for(const name of ["media-started-playing","media-paused","audio-state-changed"])
     assert.equal(r.witnessCount(name),1);
+});
+
+test("W48 passive Media CDP reports player error and fixed events without sensitive payload",async()=>{
+  const debug=new EventEmitter();
+  const sent=[];
+  let attached=false;
+  debug.isAttached=()=>attached;
+  debug.attach=version=>{ assert.equal(version,"1.3"); attached=true; };
+  debug.detach=()=>{attached=false;};
+  debug.sendCommand=async name=>{ sent.push(name); };
+  const r=await runHost("musicapplication://desktop/",{debuggerDriver:debug});
+  assert.ok(r.diagnostics.includes("PLAYER_CDP_READY"));
+  assert.deepEqual(sent,["Media.enable"]);
+  debug.emit("message",{}, "Media.playerErrorsRaised",
+    {errors:[{message:"TOKEN_SECRET_EXAMPLE",errorCode:"DRM-PRIVATE"}]});
+  debug.emit("message",{}, "Media.playerEventsAdded",
+    {events:[{value:'{"event":"kPlay"}'},{value:'{"event":"kPause"}'}]});
+  debug.emit("message",{}, "Media.playerPropertiesChanged",
+    {properties:[{name:"kIsPlaying",value:"true"},{name:"kIsPlaying",value:"false"}]});
+  debug.emit("message",{}, "Media.playerMessagesLogged",
+    {messages:[{level:"error",message:"PRIVATE_SIGNED_AUDIO_URL"}]});
+  for(const code of ["PLAYER_CDP_PIPELINE_ERROR","PLAYER_CDP_EVENT_START",
+    "PLAYER_CDP_EVENT_PAUSE","PLAYER_CDP_STATE_PLAYING",
+    "PLAYER_CDP_STATE_NOT_PLAYING","PLAYER_CDP_ERROR_MESSAGE"])
+    assert.ok(r.diagnostics.includes(code),code);
+  const exported=JSON.stringify(r.diagnostics);
+  assert.ok(!exported.includes("TOKEN_SECRET_EXAMPLE"));
+  assert.ok(!exported.includes("PRIVATE_SIGNED_AUDIO_URL"));
+  assert.ok(!exported.includes("DRM-PRIVATE"));
+});
+test("W48 read-only CDP witness skips a debug session already attached",async()=>{
+  const debug=new EventEmitter();
+  let attachCalls=0;
+  debug.isAttached=()=>true;
+  debug.attach=()=>{attachCalls++;};
+  debug.sendCommand=async()=>{throw Error("MUST_NOT_SEND");};
+  const r=await runHost("musicapplication://desktop/",{debuggerDriver:debug});
+  assert.equal(attachCalls,0);
+  assert.ok(r.diagnostics.includes("PLAYER_CDP_UNAVAILABLE"));
 });
