@@ -249,7 +249,17 @@ def profile_tracked_results(dex, code_off, producers):
                 0x01,0x02,0x03,0x0a,0x0b,0x0c,0x12,0x13,0x14,
                 0x15,0x16,0x17,0x18,0x19,0x1a,0x1b,0x1c,
                 0x22,0x62,0x63,0x64,0x54):
-                regs.discard(words[0]>>8)
+                # CRITICAL: 22c iget-object (0x54) and 11n const/4
+                # encode destination A as a four-bit nibble. Using the
+                # entire high byte falsely leaves a tainted wrapper
+                # register alive across a field projection (v1,v1).
+                if opcode in (0x01,0x12,0x54):
+                    dest=(words[0]>>8)&15
+                elif opcode==0x03:
+                    dest=words[1]
+                else:
+                    dest=words[0]>>8
+                regs.discard(dest)
             nxt=ins[ii+1][0] if ii+1<len(ins) else None
             if nxt is None or not regs:continue
             for successor in instruction_successors(ip,opcode,words,nxt):
