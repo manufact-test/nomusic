@@ -241,6 +241,104 @@ def coroutine_callsite_witness(dex, code_off):
     }
 
 
+
+def signed_bits(value, width):
+    sign = 1 << (width-1)
+    return (value ^ sign) - sign
+
+
+def instruction_successors(pc, op, words, next_pc):
+    """Conservative DEX branch model; switch/throw/return stop tracing."""
+    if op in (0x0e,0x0f,0x10,0x11,0x27,0x2b,0x2c):
+        return ()
+    if op == 0x28:
+        return (pc + signed_bits(words[0] >> 8, 8),)
+    if op == 0x29:
+        return (pc + signed_bits(words[1], 16),)
+    if op == 0x2a:
+        return (pc + signed_bits(words[1] | (words[2]<<16),32),)
+    if 0x32 <= op <= 0x3d:
+        return (next_pc, pc + signed_bits(words[1], 16))
+    return (next_pc,)
+
+
+def cfg_result_witness(dex, code_off):
+    """May-flow register propagation for object returns through bounded branches.
+
+    Starts ONLY at adjacent move-result-object of sw7, Lhee.a, or Lged.a.
+    Uses explicit DEX register copying/branch control, never heuristic timestamps.
+    Missing heap, exceptions, wide-register, reflective and coroutine resume
+    semantics make this a *candidate witness*, not a complete value proof.
+    """
+    ins = list(instructions(dex,code_off))
+    positions = {pc:i for i,(pc,_,_) in enumerate(ins)}
+    output = []
+    for i,(_pc,op,w) in enumerate(ins):
+        if op not in INVOKES or i+1>=len(ins) or ins[i+1][1]!=0x0c:
+            continue
+        producer = dex.method(w[1])
+        if not ((producer[0]==SOURCE_OWNER and producer[1] in ("y0","z0"))
+                or (producer[0] in SEED_OWNERS and producer[1]=="a")):
+            continue
+        start_pc = ins[i+1][0]
+        root = ins[i+1][2][0] >> 8
+        stack=[(start_pc, frozenset((root,)), 0)]
+        visited=set()
+        events=set()
+        truncated=False
+        while stack:
+            pc,tainted,depth=stack.pop()
+            key=(pc,tainted)
+            if key in visited:
+                continue
+            visited.add(key)
+            if len(visited)>8000 or depth>240:
+                truncated=True
+                continue
+            idx=positions.get(pc)
+            if idx is None:
+                continue
+            current_pc,current_op,words=ins[idx]
+            state=set(tainted)
+            if current_op in INVOKES and current_pc!=ins[i][0]:
+                if state.intersection(invoke_registers(current_op,words)):
+                    dest=dex.method(words[1])
+                    events.add(("invoke_interface" if current_op in (0x72,0x78)
+                                else "invoke", bounded_obfuscated(dest)))
+            if current_op in (0x5b,0x69):
+                reg=((words[0]>>8)&15) if current_op==0x5b else (words[0]>>8)
+                if reg in state:
+                    events.add(("object_field_store","none"))
+            if current_op==0x11 and (words[0]>>8) in state:
+                events.add(("return_object","none"))
+            move=move_object_registers(current_op,words)
+            if move:
+                dest,src=move
+                src_tainted=src in state
+                state.discard(dest)
+                if src_tainted:
+                    state.add(dest)
+            elif current_op in (
+                0x01,0x02,0x03,0x0a,0x0b,0x0c,
+                0x12,0x13,0x14,0x15,0x16,0x17,0x18,0x19,
+                0x1a,0x1b,0x1c,0x22,0x62,0x63,0x64):
+                state.discard(words[0]>>8)
+            nxt=ins[idx+1][0] if idx+1<len(ins) else None
+            if nxt is None or not state:
+                continue
+            for successor in instruction_successors(current_pc,current_op,words,nxt):
+                if successor in positions:
+                    stack.append((successor,frozenset(state),depth+1))
+        output.append({
+            "producer": bounded_obfuscated(producer),
+            "possible_uses": [{"kind":a,"target":b} for a,b in sorted(events)[:MAX_EVENTS]],
+            "bounded_search_truncated":truncated,
+            "register_may_flow_only": True,
+            "complete_decoder_or_coroutine_flow": False,
+        })
+    return output[:MAX_EVENTS]
+
+
 def summarize_graph(scans):
     reverse = defaultdict(set)
     sources = set()
@@ -295,6 +393,7 @@ def scan_signed(apks):
                         "direct_callers_count": len(reverse.get(method, ())),
                         "local_register_trace": register_witnesses(d, code_off),
                         "coroutine_callsite_trace": coroutine_callsite_witness(d, code_off),
+                        "bounded_cfg_register_may_flow": cfg_result_witness(d, code_off),
                     }
                     matches.append(match)
     chosen = [x for x in matches if x["method"] in ("Lhee;->a", "Lged;->a")]
