@@ -1,3 +1,17 @@
+# FIRST READ — W67 Windows 0.24.15 built/CI/upgrade PASS, awaiting owner-PC test (2026-11-10)
+
+**READ:** `docs/windows/W67-OWNER-02415-SUPPORT-SELECT-LIFECYCLE-CI-PASS-20261110.md`. W67 Windows source is frozen at **`5a1f5a3a81e0ae98909315ead137ca9a5260896b`**, protected backup `backup/windows-w67-02415-built-ci-passed-await-owner-20261110`. Continue original repo `manufact-test/nomusic`, branch `experiment/windows-stop-lifecycle-20261110` (later docs/CI-only commits do not change built exe). Do NOT redo from scratch.
+
+**Cause proven** on 0.24.14 with actual native Windows mouse-click in CI #42856421539: `ContextMenuStrip.Closed` disposed the dropdown *synchronously* while `ToolStripDropDown.OnItemClicked` still used its handle; fatal `System.ObjectDisposedException` exited process. Not just hypothetical layout re-entrancy. W67 defers disposal/selection until native event dispatch completes, bounds menu to compact control width, custom draws even highlight/text, adds keyboard arrows/Enter/Space via `IsInputKey`. Also removed hardcoded dropdown width 300. Support API unchanged.
+
+**W67 real interaction CI** https://github.com/manufact-test/nomusic/actions/runs/42857977946 **SUCCESS** (24 physical mouse changes, 8 outside dismiss/reopen, arrow/Enter, category). **W67 full actual installer CI** https://github.com/manufact-test/nomusic/actions/runs/42858640960 **SUCCESS** (code/native tests, icons, PE, stage/security, installer + install/uninstall smoke). **Independent 0.24.14→0.24.15 same-AppId same-user DPAPI/host/Yandex preservation CI** https://github.com/manufact-test/nomusic/actions/runs/42859695926 **SUCCESS**.
+
+**Direct owner candidate**: ChatGPT Library `/CELIKOM/Windows/CELIKOM-W67-SUPPORT-SELECT-GUARD-UNSIGNED.exe`, **SHA256 `c885262a5fedb15cfa05f930531e6ce706ee41c4cc4505e129496d104df6ffab`**, 43,534,754 bytes. Library roundtrip SHA rechecked. Library file `file_0000000042988243960d5afc1cdccc1b`, `libfile_7bbf7e9dd8f081919133c6c4982029fe`. GitHub artifact `13782839469`.
+
+**NEXT:** Owner has NOT yet tested 0.24.15 on actual computer. Ask him to install over 0.24.14 without uninstall, click switch support kinds repeatedly, check no process exit/menu bounds/row alignment, support delivery (previous W66 had working admin delivery), login, audio Start/Stop/pause/seek/MyWave. Do not call it owner-accepted until he reports. DPI125% unverified. W66 rollback `backup/windows-w66-02414-built-ci-passed-await-owner-20261110` and audio baseline W61 must remain untouched. No Android Test.50, production or Yandex originals changes.
+
+---
+
 # FIRST READ — W67 P0 SUPPORT SELECTOR CRASH / WINDOWS 0.24.14 OWNER TEST (2026-11-10)
 
 **URGENT NEXT ACTION:** Read `docs/windows/W67-SUPPORT-SELECT-CRASH-OWNER-HANDOFF-20261110.md` FIRST, then W66 document below. The owner **actually installed and tested W66 / 0.24.14** and observed a **new blocking regression: the entire Windows CELIKOM app exits while opening/changing `Вид обращения` inside `Связь с поддержкой`**. Two UI defects coexist: popup extends outside window to the right and active menu row/text is misaligned. This is **three issues, not just cosmetic**. Owner explicitly requested **NO code fixes now**, only this handoff, with the next chat to fix them as one block. This chat made **documentation-only commits**: **current 0.24.14 binary and exact frozen source are untouched**.
