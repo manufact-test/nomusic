@@ -98,7 +98,7 @@ var accountFrame = (Control)Get("_compactAccountFrame");
 var supportFrame = (Control)Get("_compactSupportFrame");
 if (!ReferenceEquals(account.Parent, accountFrame) ||
     !ReferenceEquals(((Control)Get("_compactAccountTrigger")).Parent, accountFrame) ||
-    !ReferenceEquals(support.Parent, supportFrame) ||
+    !ReferenceEquals(((Control)Get("_compactSupportBody")).Parent, supportFrame) ||
     !ReferenceEquals(((Control)Get("_compactSupportTrigger")).Parent, supportFrame))
     throw new Exception("W65_ACCOUNT_SUPPORT_HAVE_NO_SHARED_BORDER");
 if (accountFrame.Width != supportFrame.Width ||
