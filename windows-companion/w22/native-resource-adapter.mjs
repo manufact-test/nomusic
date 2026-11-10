@@ -46,8 +46,11 @@ function toDownloadInfo(original, trackId, url, mimeType, quality) {
     ...result, trackId, realId: trackId,
     codec: mimeType === 'audio/mp4' ? 'aac-mp4' : 'mp3',
     transport: 'raw', quality: result.quality || quality || 'nq',
-    gain: false, bitrate: (Number.isFinite(result.bitrate) && result.bitrate > 0)
-      ? result.bitrate : mimeType === 'audio/mpeg' ? 320 : undefined,
+    // A replaced MP3 must not retain the native AAC stream's reported
+    // bitrate. Keep the same nominal MP3-320 contract as F_ckCensor (MIT).
+    // This is a compatibility experiment; owner audio remains UNVERIFIED.
+    gain: false, bitrate: mimeType === 'audio/mpeg' ? 320
+      : (Number.isFinite(result.bitrate) && result.bitrate > 0) ? result.bitrate : undefined,
     urls: [url], url
   };
 }
