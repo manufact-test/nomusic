@@ -286,12 +286,16 @@ async function tick(view) {
     }
     if (now - (lastStatus.get(view)?.at || 0) > 2200) {
       const status = await execute(view, ";window.__celikomBridgeNativeStatus?.()||'ORIGINAL'");
+      const currentId = await execute(view,
+        ";window.__celikomBridgeNativeCurrentTrackId?.()||''");
+      const trackId = typeof currentId === "string" && /^[1-9][0-9]{0,23}$/.test(currentId)
+        ? currentId : null;
       const previous = lastStatus.get(view);
-      lastStatus.set(view, { value: status, at: now });
+      lastStatus.set(view, { value: status, trackId, at: now });
       if ((status === "NATIVE_CONNECTED" || status === "NATIVE_MAPPING_ACCEPTED" ||
-           status === "ORIGINAL") && (!previous || status !== previous.value)) {
-        await localRequest(token, "/v1/heartbeat", "POST",
-          {trackId:null,status});
+           status === "ORIGINAL") &&
+          (!previous || status !== previous.value || trackId !== previous.trackId)) {
+        await localRequest(token, "/v1/heartbeat", "POST", {trackId,status});
       }
     }
   } finally {
