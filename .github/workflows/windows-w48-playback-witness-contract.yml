@@ -6,6 +6,11 @@ on:
       - experiment/windows-companion-integration-20261108
     paths:
       - .github/workflows/windows-w48-playback-witness-contract.yml
+      - windows-companion/w23/host.cjs
+      - windows-companion/w23/native-host.test.mjs
+      - windows-companion/w23/renderer-entry.mjs
+      - windows-companion/w23/renderer-relay.test.mjs
+      - windows-companion/w22/native-resource-adapter.mjs
 
 permissions:
   contents: read
@@ -36,6 +41,8 @@ jobs:
           node --check windows-companion/w22/native-resource-adapter.mjs
           node --test windows-companion/w22/native-resource-adapter.test.mjs windows-companion/w23/native-host.test.mjs windows-companion/w23/renderer-relay.test.mjs windows-companion/w23/audio-probe.test.mjs
           grep -q 'PLAYER_ENGINE_FAST_PAUSE' windows-companion/w23/host.cjs
+          grep -q 'PLAYER_CDP_PIPELINE_ERROR' windows-companion/w23/host.cjs
+          grep -q 'PLAYER_AUDIO_AUDIBLE' windows-companion/w23/host.cjs
           grep -q 'AUDIO_URL_RESOURCE_UNATTRIBUTED' windows-companion/w23/renderer-entry.mjs
           ! grep -q 'report("MEDIA_REQUEST_SEEN")' windows-companion/w23/renderer-entry.mjs
           echo W48_REAL_ENGINE_WITNESS_AND_HONEST_RESOURCE_EVENTS_PASS
