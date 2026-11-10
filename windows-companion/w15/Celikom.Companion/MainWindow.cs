@@ -796,6 +796,7 @@ public sealed partial class MainWindow : Form
             ++_compactAccessGeneration;
             _compactAccess.Text = "Войдите в аккаунт, чтобы начать";
             _compactPromoOpen = false;
+            ResetCompactBenefits();
             _compactAccountMode = "login";
             UpdateSafe(preserveAccountStatus: true);
             NavigateAccount(true);
