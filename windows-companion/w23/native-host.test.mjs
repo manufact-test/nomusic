@@ -410,3 +410,44 @@ test("W52 expired expected grant is distinguished without leaking signed URL",as
   });
   assert.ok(r.diagnostics.some(x=>x.endsWith("|PLAYER_URL_EXPIRED_AT_REQUEST|resource_id=139")));
 });
+
+test("W53 retains repeated 403 and URL classifications per resource, without leaking URLs",async()=>{
+  const grant=w52Grant("139"),{debug}=w52Debugger();
+  const r=await runHost("musicapplication://desktop/",{
+    queue:[{requestId:"1",trackId:"123"}],debuggerDriver:debug,grantOverride:grant,
+    stateOverride:{enabled:true,signedIn:true,apiOrigin:"https://api.celikom.example"}
+  });
+  for(const [rid,url] of [["native1",grant.audioUrl],["native2",grant.audioUrl]]) {
+    debug.emit("message",{},"Network.requestWillBeSent",{
+      requestId:rid,request:{url,method:"GET"},type:"Media"
+    });
+    debug.emit("message",{},"Network.responseReceived",{
+      requestId:rid,response:{status:403,headers:{"Content-Type":"text/html"}}
+    });
+    debug.emit("message",{},"Network.loadingFinished",{requestId:rid});
+  }
+  assert.equal(r.diagnostics.filter(x=>x.endsWith("|PLAYER_URL_MATCH|resource_id=139")).length,2);
+  assert.equal(r.diagnostics.filter(x=>x.endsWith("|PLAYER_403_HTML|resource_id=139")).length,2);
+  assert.ok(!JSON.stringify(r.diagnostics).includes(grant.audioUrl));
+});
+test("W53 body classifier is bounded by known header size or actual transfer length",async()=>{
+  const grant=w52Grant("139"),{debug,commands}=w52Debugger('{"error":"invalid_audio_token"}');
+  const r=await runHost("musicapplication://desktop/",{
+    queue:[{requestId:"1",trackId:"123"}],debuggerDriver:debug,grantOverride:grant,
+    stateOverride:{enabled:true,signedIn:true,apiOrigin:"https://api.celikom.example"}
+  });
+  for(const [rid,bytes] of [["unbounded",undefined],["too-large",40000],["bounded",240]]) {
+    debug.emit("message",{},"Network.requestWillBeSent",{
+      requestId:rid,request:{url:grant.audioUrl,method:"GET"},type:"Media"
+    });
+    debug.emit("message",{},"Network.responseReceived",{
+      requestId:rid,response:{status:403,headers:{"Content-Type":"application/json"}}
+    });
+    debug.emit("message",{},"Network.loadingFinished",
+      {requestId:rid,...(bytes===undefined?{}:{encodedDataLength:bytes})});
+  }
+  await new Promise(resolve=>setTimeout(resolve,6));
+  assert.equal(commands.filter(([cmd])=>cmd==="Network.getResponseBody").length,1,
+    "unknown and oversized JSON must not be requested for body inspection");
+  assert.ok(r.diagnostics.some(x=>x.endsWith("|PLAYER_403_PHP_INVALID_AUDIO_TOKEN|resource_id=139")));
+});
