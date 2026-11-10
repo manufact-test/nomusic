@@ -1,6 +1,7 @@
 package pro.celikom.yandex.nativehooklab;
 
 import java.lang.reflect.Method;
+import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 
 /**
@@ -66,6 +67,71 @@ public final class HookSpec {
         throw new NoSuchMethodException("EXACT_LEMB_LIFECYCLE_UNAVAILABLE");
     }
 
+
+    /**
+     * Exact typed Lero -> Lmb4 field. Never reflect into URI/DataSpec,
+     * track metadata, credentials or other arbitrary fields.
+     */
+    public static Field findLeroReaderField(ClassLoader loader)
+            throws ClassNotFoundException, NoSuchFieldException {
+        Class<?> source=Class.forName("ero",false,loader);
+        Class<?> reader=Class.forName("mb4",false,loader);
+        Field found=null;
+        for(Field field:source.getDeclaredFields()) {
+            if(field.getType()!=reader||Modifier.isStatic(field.getModifiers()))
+                continue;
+            if(found!=null)throw new NoSuchFieldException("MULTIPLE_LERO_READER_FIELDS");
+            found=field;
+        }
+        if(found==null)throw new NoSuchFieldException("EXACT_LERO_READER_FIELD_MISSING");
+        found.setAccessible(true);
+        return found;
+    }
+
+    /** Signed Lmb4.a():void, exact reader execution. */
+    public static Method findReaderExecution(ClassLoader loader)
+            throws ClassNotFoundException, NoSuchMethodException {
+        Class<?> holder=Class.forName("mb4",false,loader);
+        Method method=holder.getDeclaredMethod("a");
+        if(Modifier.isStatic(method.getModifiers())
+                ||Modifier.isAbstract(method.getModifiers())
+                ||method.getReturnType()!=void.class
+                ||method.getParameterCount()!=0)
+            throw new NoSuchMethodException("EXACT_LMB4_A_UNAVAILABLE");
+        return method;
+    }
+
+    /**
+     * Exact signed Lha4.b(La58):long / read(byte[],int,int):int /
+     * close():void. Reflection checks SHAPE ONLY. No DataSpec is read.
+     */
+    public static Method findReaderSourceMethod(ClassLoader loader,String operation)
+            throws ClassNotFoundException, NoSuchMethodException {
+        Class<?> holder=Class.forName("ha4",false,loader);
+        Method method;
+        switch(operation){
+            case "b":
+                method=holder.getDeclaredMethod("b",Class.forName("a58",false,loader));
+                if(method.getReturnType()!=long.class)throw new NoSuchMethodException(
+                        "EXACT_HA4_OPEN_RETURN_MISMATCH");
+                break;
+            case "read":
+                method=holder.getDeclaredMethod("read",byte[].class,int.class,int.class);
+                if(method.getReturnType()!=int.class)throw new NoSuchMethodException(
+                        "EXACT_HA4_READ_RETURN_MISMATCH");
+                break;
+            case "close":
+                method=holder.getDeclaredMethod("close");
+                if(method.getReturnType()!=void.class)throw new NoSuchMethodException(
+                        "EXACT_HA4_CLOSE_RETURN_MISMATCH");
+                break;
+            default:throw new NoSuchMethodException("UNKNOWN_HA4_OPERATION");
+        }
+        if(Modifier.isStatic(method.getModifiers())
+                ||Modifier.isAbstract(method.getModifiers()))
+            throw new NoSuchMethodException("NONINSTANCE_HA4_OPERATION");
+        return method;
+    }
 
     public static boolean isApprovedHost(String packageName, String versionName, long versionCode) {
         return TARGET_PACKAGE.equals(packageName)
