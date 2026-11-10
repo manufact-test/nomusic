@@ -244,7 +244,7 @@ public sealed partial class MainWindow
         _diagnosticsButton.BackColor = Paper;
         _diagnosticsButton.ForeColor = Quiet;
         _diagnosticsButton.Font = new Font("Segoe UI", 8F);
-        _diagnosticsButton.Click += SaveDiagnosticsAuthorized;
+        _diagnosticsButton.Click += CopyDiagnosticsAuthorized;
         _staffPanel.Controls.Add(_diagnosticsButton);
         _staffPanel.Visible = false;
         _compactReady = true;
