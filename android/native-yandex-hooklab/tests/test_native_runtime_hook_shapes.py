@@ -60,6 +60,46 @@ class ExactNativeHookShapeTests(unittest.TestCase):
                     mod.check_lero_constructors(pair)[
                         "both_exact_lero_creation_shapes_proven"])
 
+    def test_signed_ocv_local_ctor_uses_same_exact_new_instance_receiver(self):
+        class FakeDex:
+            def method(self, index):
+                return ("Lero;","<init>","(Lwzi;Lga4;)V")
+            def descriptor(self, index):
+                return "Lero;" if index==1 else "Lunknown;"
+        d=FakeDex()
+        direct=[
+            (0,0x22,(0x0022,1)),       # new-instance v0, Lero
+            (2,0x70,(0x3070,2,0x0210)), # invoke-direct {v0,v1,v2}
+        ]
+        seen=mod.local_ocv_ero_constructor_calls(d,direct)
+        self.assertEqual(seen["exact_ocv_i0_invokes_lero_ctor"],1)
+        self.assertEqual(seen["same_straightline_receiver_new_instance_sites"],1)
+        self.assertFalse(seen["one_runtime_owner_child_or_decoder_proven"])
+
+        alias=[
+            (0,0x22,(0x0022,1)),
+            (2,0x07,(0x0107,)),         # move-object v1,v0
+            (3,0x70,(0x3070,2,0x0321)), # invoke-direct {v1,v2,v3}
+        ]
+        self.assertEqual(mod.local_ocv_ero_constructor_calls(
+            d,alias)["same_straightline_receiver_new_instance_sites"],1)
+
+        branch=[
+            (0,0x22,(0x0022,1)),
+            (2,0x28,(0x0028,)),         # goto: branch breaks static proof
+            (3,0x70,(0x3070,2,0x0210)),
+        ]
+        partial=mod.local_ocv_ero_constructor_calls(d,branch)
+        self.assertEqual(partial["exact_ocv_i0_invokes_lero_ctor"],1)
+        self.assertEqual(partial["same_straightline_receiver_new_instance_sites"],0)
+
+        wrong=[
+            (0,0x22,(0x0022,3)),       # different constructed class
+            (2,0x70,(0x3070,2,0x0210)),
+        ]
+        self.assertEqual(mod.local_ocv_ero_constructor_calls(
+            d,wrong)["same_straightline_receiver_new_instance_sites"],0)
+
     def test_never_outputs_private_field_name(self):
         source=(ROOT/"audit_native_runtime_hook_shapes.py").read_text()
         self.assertIn("reader_fields.add(",source)
