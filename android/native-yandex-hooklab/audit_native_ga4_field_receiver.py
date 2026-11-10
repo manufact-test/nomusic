@@ -199,6 +199,7 @@ def scan_fields(apks):
         "field_write_and_initialization_census":[{
             "field_slot":slot,
             "read_method_count":len(readers.get(slot,())),
+            "read_method_hints":[bounded_obfuscated(m) for m in sorted(readers.get(slot,()))[:MAX_FIELD_HANDLERS]],
             "write_method_count":len(writers.get(slot,())),
             "writer_hints":[bounded_obfuscated(m) for m in sorted(writers.get(slot,()))[:MAX_FIELD_HANDLERS]],
             "bounded_writer_value_origins":all_writer_types.get(slot,[])[:MAX_FIELD_HANDLERS],
