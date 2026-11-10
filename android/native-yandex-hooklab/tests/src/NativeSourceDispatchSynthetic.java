@@ -6,7 +6,18 @@ class gmb {}
 class dmb {}
 class alt implements emb { public void t(dmb x) {} public void remove() {} }
 class chg implements emb { public void t(dmb x) {} public void remove() {} }
-class ero implements emb { public void t(dmb x) {} public void remove() {} }
+class ero implements emb {
+    private final mb4 sourceReader=new mb4();
+    public void t(dmb x) {}
+    public void remove() {}
+}
+class mb4 { public void a() {} }
+class a58 {}
+class ha4 {
+    public long b(a58 input){return -1L;}
+    public int read(byte[] out,int start,int length){return 1;}
+    public void close(){}
+}
 class ocv implements emb { public void t(dmb x) {} public void remove() {} }
 class ojz implements emb { public void t(dmb x) {} public void remove() {} }
 class t67 implements emb { public void t(dmb x) {} public void remove() {} }
