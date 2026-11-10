@@ -1,4 +1,5 @@
 import { createNativeResourceAdapter } from "../w22/native-resource-adapter.mjs";
+import { createCurrentSourceRefresh } from "../w60/current-source-refresh.mjs";
 
 // Runs inside Yandex's already running renderer. The Electron main process
 // handles the localhost connection; this view never fetches localhost itself.
@@ -16,7 +17,7 @@ import { createNativeResourceAdapter } from "../w22/native-resource-adapter.mjs"
       !(nativeScheme === "musicapplication" &&
         window.location.hostname.toLowerCase() === "desktop")) return;
 
-  let apiOrigin = "", stopped = false, attached = false;
+  let apiOrigin = "", stopped = false, attached = false, stateSeen = false;
   let pendingCount = 0, sequence = 0, lastReported = "";
   const queued = [], pending = new Map();
   const MAX_QUEUE = 24;
@@ -115,8 +116,11 @@ import { createNativeResourceAdapter } from "../w22/native-resource-adapter.mjs"
     const job = pending.get(requestId);
     job?.finish(grant ?? null);
   };
+  const playerSourceRefresh = createCurrentSourceRefresh({onEvent: report});
+
   window.__celikomBridgeNativeSetState = next => {
     if (stopped) return;
+    const previousActive = adapter.enabled;
     let origin = "";
     try {
       const uri = new URL(next?.apiOrigin);
@@ -128,6 +132,12 @@ import { createNativeResourceAdapter } from "../w22/native-resource-adapter.mjs"
     if (next?.enabled === true && next?.signedIn === true && !!origin && attached)
       adapter.enable();
     else adapter.disable();
+    // AFTER switching CELIKOM's grant hook, ask the signed native player to
+    // recreate its already-loaded source while preserving pause/position.
+    // Initial app state receipt deliberately never triggers a second play.
+    if (stateSeen && previousActive !== adapter.enabled && attached &&
+        playerSourceRefresh.attached) void playerSourceRefresh.request();
+    stateSeen = true;
     const status = adapter.enabled ? "NATIVE_CONNECTED" : "ORIGINAL";
     if (status !== lastReported) {
       lastReported = status;
@@ -166,6 +176,9 @@ import { createNativeResourceAdapter } from "../w22/native-resource-adapter.mjs"
         try {
           adapter.attach(klass.prototype);
           attached = true;
+          // Exact original Yandex 5.126.1, no alternate media player.
+          // Failure to bind is safely a no-op; core replacement stays intact.
+          playerSourceRefresh.attach(webpackRequire);
           report("RESOURCE_HOOK_ATTACHED");
           console.info("[CELIKOM] Native file-info source connector attached");
           return true;
@@ -192,6 +205,7 @@ import { createNativeResourceAdapter } from "../w22/native-resource-adapter.mjs"
     clearInterval(deadline);
     for (const job of pending.values()) job.finish(null);
     queued.length = 0;
+    playerSourceRefresh.dispose();
     adapter.dispose();
     delete window.__celikomBridgeNativeDrain;
     delete window.__celikomBridgeNativeReceive;
