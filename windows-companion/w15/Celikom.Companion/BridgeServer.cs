@@ -71,6 +71,9 @@ public sealed class BridgeServer : IAsyncDisposable
     private int _failedPairs;
     private bool _enabled;
     private string _lastSong = "";
+    private string _lastTitle = "";
+    private string _lastArtist = "";
+    private long _lastDurationMs;
     private string _lastStatus = "NOT_CONNECTED";
     public event Action? Changed;
 
@@ -83,6 +86,9 @@ public sealed class BridgeServer : IAsyncDisposable
     public bool Enabled { get { lock (_gate) return _enabled; } }
     public string PairCode { get { lock (_gate) return _code; } }
     public string LastSong { get { lock (_gate) return _lastSong; } }
+    public string LastTrackTitle { get { lock (_gate) return _lastTitle; } }
+    public string LastTrackArtist { get { lock (_gate) return _lastArtist; } }
+    public long LastTrackDurationMs { get { lock (_gate) return _lastDurationMs; } }
     public string LastStatus { get { lock (_gate) return _lastStatus; } }
     public DateTimeOffset CodeExpires { get { lock (_gate) return _codeExpires; } }
     public bool CanResolve => Enabled && _api.IsLoggedIn;
@@ -95,6 +101,9 @@ public sealed class BridgeServer : IAsyncDisposable
             _enabled = enabled;
             _lastStatus = enabled ? "UNAVAILABLE" : "OFF";
             _lastSong = "";
+            _lastTitle = "";
+            _lastArtist = "";
+            _lastDurationMs = 0;
         }
         DiagnosticLog.Record(enabled ? "START_ENABLED" : "STOP_DISABLED");
         Changed?.Invoke();
@@ -237,7 +246,13 @@ public sealed class BridgeServer : IAsyncDisposable
                 return Results.BadRequest();
             lock (_gate)
             {
-                _lastSong = GrantValidator.IsTrackId(beat.TrackId) ? beat.TrackId! : "";
+                var valid = GrantValidator.IsTrackId(beat.TrackId);
+                _lastSong = valid ? beat.TrackId! : "";
+                // No account data or URLs: strictly bounded display text, local only.
+                _lastTitle = valid ? SafeTrackText(beat.Title) : "";
+                _lastArtist = valid ? SafeTrackText(beat.Artist) : "";
+                _lastDurationMs = valid && beat.DurationMs is >= 1000 and <= 86400000
+                    ? beat.DurationMs.Value : 0;
                 _lastStatus = beat.Status;
             }
             DiagnosticLog.Record("HEARTBEAT_" + beat.Status);
@@ -266,5 +281,9 @@ public sealed class BridgeServer : IAsyncDisposable
     }
 
     public sealed record PairRequest(string Code);
-    public sealed record Heartbeat(string? TrackId, string Status);
+    private static string SafeTrackText(string? value) =>
+        value is { Length: <= 180 } && !value.Any(char.IsControl) ? value.Trim() : "";
+
+    public sealed record Heartbeat(string? TrackId, string Status,
+        string? Title = null, string? Artist = null, long? DurationMs = null);
 }
