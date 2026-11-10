@@ -22,7 +22,7 @@ public sealed class PopupInput : UserControl
         _input.BorderStyle = BorderStyle.None;
         _input.BackColor = Background;
         _input.ForeColor = ForeColor;
-        _input.Font = new Font("Segoe UI", 10F);
+        _input.Font = new Font("Segoe UI", 9F);
         _input.GotFocus += (_, _) => Invalidate();
         _input.LostFocus += (_, _) => Invalidate();
         Controls.Add(_input);
