@@ -44,7 +44,7 @@ jobs:
           if (-not $html.Contains('data-action="start"') -or -not $html.Contains('data-action="stop"')) {
             throw 'W59_EXTENSION_PRIMARY_ACTION_MISSING'
           }
-          if (-not $window.Contains('_start.Click += (_, _) => _bridge.SetEnabled(true)') -or
+          if (-not $window.Contains('_start.Click += StartAction') -or
               -not $window.Contains('_stop.Click += (_, _) => _bridge.SetEnabled(false)')) {
             throw 'W59_WINDOWS_ACTION_NOT_BOUND'
           }
