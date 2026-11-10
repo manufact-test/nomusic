@@ -293,7 +293,7 @@ async function tick(view) {
       // Validate once more at the native boundary. None of the free-form
       // metadata ever enters the diagnostic event stream or public API.
       const cleanText = value => typeof value === "string" &&
-        value.length <= 720 && !/[\\u0000-\\u001f]/.test(value)
+        value.length <= 720 && !/[\u0000-\u001f\u007f]/.test(value)
           ? value.trim().slice(0, 180) : "";
       const title = trackId ? cleanText(observed.title) : "";
       const artist = trackId ? cleanText(observed.artist) : "";
