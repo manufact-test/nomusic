@@ -1,0 +1,54 @@
+name: CELIKOM W49 signed original Yandex source descriptor STATIC audit
+
+on:
+  push:
+    branches:
+      - experiment/windows-companion-integration-20261108
+    paths:
+      - .github/workflows/windows-w49-signed-fileinfo-static-readonly.yml
+      - windows-companion/w49/static-native-fileinfo-audit.mjs
+
+permissions:
+  contents: read
+
+jobs:
+  verified-vendor-static:
+    runs-on: windows-2022
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Read original signed Yandex ASAR, no account and no patched executable
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $ProgressPreference='SilentlyContinue'
+          $setup=Join-Path $env:RUNNER_TEMP 'w49-official-yandex.exe'
+          Invoke-WebRequest 'https://desktop.app.music.yandex.net/stable/Yandex_Music_x64_5.126.1.exe' -OutFile $setup -UseBasicParsing -TimeoutSec 240
+          $sha=(Get-FileHash $setup -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($sha -ne '131fa1d9bc32eee2baadbdd7c1fe7aa8ba4a2f89ec972dd462aa06ee5b170435') {
+            throw 'W49_VENDOR_INSTALLER_SHA_MISMATCH'
+          }
+          $sig=Get-AuthenticodeSignature $setup
+          if ($sig.Status -ne 'Valid' -or $sig.SignerCertificate.Subject -notmatch '(?i)Yandex|Яндекс') {
+            throw 'W49_VENDOR_INSTALLER_SIGNATURE_UNTRUSTED'
+          }
+          $p=Start-Process $setup -ArgumentList '/S' -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw 'W49_SIGNED_YANDEX_INSTALL_FAILED' }
+          $original=Join-Path $env:LOCALAPPDATA 'Programs\YandexMusic\resources\app.asar'
+          if (-not (Test-Path $original)) { throw 'W49_ORIGINAL_ASAR_MISSING' }
+          $before=(Get-FileHash $original -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($before -ne '5a259722d60f746ec32c8bf6e880e375e888315080fb18e67c29b54b582c1215') {
+            throw 'W49_OFFICIAL_ASAR_IDENTITY_MISMATCH'
+          }
+          node windows-companion/w49/static-native-fileinfo-audit.mjs $original
+          if ($LASTEXITCODE -ne 0) { throw 'W49_STATIC_AUDIT_FAILED' }
+          $after=(Get-FileHash $original -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($after -ne $before) { throw 'W49_ASAR_CHANGED_DURING_READONLY_AUDIT' }
+          Write-Output 'W49_VERIFIED_SIGNED_SOURCE_READ_ONLY_PASS'
+      - name: State that no user machine, session, source overrides, or release modified
+        run: echo 'W49_STATIC_ONLY_NO_USER_MACHINE_NO_INSTALLER_RELEASE'
