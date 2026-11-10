@@ -1354,9 +1354,13 @@ final class ReplacementEngine {
   * clear the experimental timeout streak. Stale/duplicate callbacks cannot.
   */
  void onDecoderSeekComplete(MediaPlayer mp,String key){
-  boolean hadFlight=audioOwner.seekInFlight(mp);
+  // A WARM ACK or an ACK from a PAUSE/superseded operation must not erase
+  // evidence of an unfinished ALIGNMENT seek on the current song.
+  // Android MediaPlayer callbacks carry no native seek sequence number.
+  boolean eligibleFlight=seeking&&audioOwner.seekFlightCurrentOperation(mp)
+      &&"ALIGNMENT".equals(audioOwner.inFlightKind(mp));
   completeSeek(mp,key);
-  if(hadFlight&&mp==player&&current(key)&&!seeking&&aligned
+  if(eligibleFlight&&mp==player&&current(key)&&!seeking&&aligned
       &&!audioOwner.seekInFlight(mp))
    seekTimeoutBreaker.successfulSeek(key);
  }
