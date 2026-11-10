@@ -7,7 +7,7 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <AssemblyName>CELIKOM.Companion</AssemblyName>
-    <Version>0.24.12</Version>
+    <Version>0.24.13</Version>
     <PublishSingleFile>true</PublishSingleFile>
   </PropertyGroup>
   <ItemGroup>
