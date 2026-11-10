@@ -4,7 +4,8 @@ from pathlib import Path
 from unittest.mock import patch
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 from audit_native_ga4_field2_value_origins import (
-    find_definition,exact_store_witnesses,destination_reg,source_register
+    find_definition,exact_store_witnesses,destination_reg,source_register,
+    safe_operand_metadata,safe_writer_structural_excerpt
 )
 
 
@@ -75,6 +76,27 @@ class ExactWriterProvenanceTests(unittest.TestCase):
         self.assertEqual(destination_reg(0x54,(0xf254,0)),2)
         self.assertEqual(destination_reg(0x12,(0xf212,)),2)
         self.assertEqual(source_register(0x5b,(0xf35b,0)),3)
+
+    def test_safe_register_windows_reveal_argument_position_without_constant_value(self):
+        src=("Lfoo;","make","()Le48;")
+        # const/4 v2, -1; invoke-static {}; move-result-object v3; iput-object v3,v1,field0
+        code=[0xf212,0x0071,0,0,0x030c,0x135b,0,0x000e]
+        dex=FakeDex(code,[src])
+        key=("Lga4;","Le48;","field_private")
+        with patch("audit_native_ga4_field2_value_origins.field_key",return_value=key):
+            row=safe_writer_structural_excerpt(dex,0,{key})[0]
+        self.assertEqual(row["register_roles"][0]["result_register"],2)
+        self.assertEqual(row["register_roles"][2]["result_register"],3)
+        self.assertEqual(row["register_roles"][3]["stored_value_register"],3)
+        self.assertNotIn("0xf212",str(row))
+        self.assertTrue(row["may_describe_unrelated_paths"])
+
+    def test_exact_invoke_registers_and_cast_are_coordinates_only(self):
+        dex=FakeDex([0x000e],[("Le48;","a","()Lm48;")],{1:"Le48;"})
+        self.assertEqual(safe_operand_metadata(dex,0x72,(0x1072,0,0x0002))
+                         ["argument_register_coordinates"],[2])
+        self.assertEqual(safe_operand_metadata(dex,0x1f,(0x021f,1))
+                         ["cast_register"],2)
 
     def test_cross_field_does_not_make_same_instance(self):
         dex=FakeDex([0x0222,1,0x125b,0,0x000e],types={1:"Lya4;"})
