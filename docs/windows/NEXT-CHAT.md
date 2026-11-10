@@ -1,3 +1,17 @@
+# CELIKOM Windows — W56 native signed URL guard + 0.24.7 candidate (2026-11-10)
+
+**FIRST READ:** `docs/windows/W56-NATIVE-TELEMETRY-QUERY-HMAC-GUARD-20261110.md`. Continue existing `experiment/windows-companion-integration-20261108`; never start over. Original owner **0.24.6** AUDIO NO-GO evidence in W51 (7 native Media GETs all 403 to resource IDs 139/89). No Android/production/Yandex-owner changes.
+
+**NEW CAUSAL CODE FINDING** from exact vendor-signed Yandex 5.126.1 ASAR: telemetry hook sets `DownloadInfoSource.vsid` and `sourceIndex` before media playback; `src` naively concatenates `?vsid=...` to the supplied URL. For CELIKOM `...?token=...&expires=...&sid=7`, PHP receives `sid=7?vsid=...` and returns 403. Earlier W52 assumption of safe MP3 construction was incomplete; later TelemetryPlugin mutates the source. Verified pinned vendor audit #42795212512 and source contract #42796327933 SUCCESS. The user's original actual seven GET URLs remain redacted; owner real audio PASS not claimed yet.
+
+**W56 fix staged in `windows-companion/w22/native-resource-adapter.mjs`:** after independently validating an approved grant, append ignored `&celikom_native_query_guard=0` only to native media `downloadInfo.urls[0]`/`url`; telemetry `?vsid` lands in guard value, token/expires/sid and `#t` seek remain intact. No PHP authorization/signing change. Stage-only Node + PHP/MySQL tests including 206 valid Range and 403 tampered/expired/revoked session **SUCCESS** https://github.com/manufact-test/nomusic/actions/runs/42796387968. Signed genuine Yandex disposable host restore #42796125980 SUCCESS. W53 diagnostics export safety retained.
+
+**0.24.7 TEST CANDIDATE** staging metadata updated (.NET, Inno, native host, package), same Inno AppId and DPAPI folder, no second app. W20 staging job https://github.com/manufact-test/nomusic/actions/runs/42796898660 result to verify. DO NOT ship an EXE until W20 success, independent 0.24.6→0.24.7 same-app DPAPI upgrade proof, artifact check and actual ChatGPT Library `CELIKOM/Windows` card. Unsigned test version must not be called final audio release. Owner should then check one substituted song + normal song + Pause/Seek with 15-minute privacy-safe diagnostics on failure. No repeated test of unchanged 0.24.6.
+
+**BACKUP:** `backup/windows-w55-before-native-signed-query-guard-20261110` @ `b56ad543f15c1e0970f38a6b4429ff59c6f2eb9a`. Earlier exact owner 0.24.6 `backup/windows-w50-owner-0246-audio-403-pre-w51-docs-20261110`.
+
+---
+
 # CELIKOM Windows — W53 native 403 export regression fixed, still NO-GO (2026-11-10)
 
 **FIRST READ:** `docs/windows/W53-HTTP403-DIAGNOSTIC-EXPORT-GATE-20261110.md`, then `docs/windows/W52-REAL-403-PRIVACY-SAFE-ROOT-CAUSE-STAGE-20261110.md`, and the owner's real W51 handoff.
