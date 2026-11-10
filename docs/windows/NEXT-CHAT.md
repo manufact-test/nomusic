@@ -1,3 +1,13 @@
+# CELIKOM Windows — W57 OWNER AUDIO PLAYBACK SUCCESS 0.24.7 (2026-11-10)
+
+**FIRST READ:** `docs/windows/W57-OWNER-0247-REAL-AUDIO-SUCCESS-20261110.md`, then W56 signed-query guard. The owner **explicitly reports real approved replacements now play** on installed CELIKOM Windows **0.24.7**: «Охуеть, всё работает.)))». Attached owner actual diagnostics `CELIKOM-diagnostics-20261110-132656.txt` (generated 10:26:59 UTC) validate native installed 0.24.7, `NativeIntegration=ACTIVE`, valid signed field comparison, and **two genuine native Media GET HTTP 206** (resource IDs **139 and 1**), **zero HTTP403**, zero observed CORS block; positive Yandex track mapping and session continuity. This is the **first owner-accepted core AUDIO PLAYBACK baseline**. The user hearing audio confirms sound; CDP `PlayerAudibleEventObserved=false` means only the CDP couldn't prove sound. Old `PLAYER_ENGINE_FAST_PAUSE` preceded source mapping; one native resource 139 loadFailed after 206/track switch remains non-403/undetermined. Pause/Seek/Next long-run QA is still **not separately verified**, not a known regression.
+
+**DO NOT REGRESS:** Keep exact W56 `&celikom_native_query_guard=0` source-only suffix on validated signed native `downloadInfo.url/urls[0]`, never weaken PHP HMAC, sid, entitlement or change audio transport blindly. Owner-installed 0.24.7 is good; don't push another build without a specific justified improvement and owner need. Signed original Yandex host and Android/Test.50 untouched. Private unsigned installer (not public signed release) Library `/CELIKOM/Windows/CELIKOM-W56-SIGNED-QUERY-GUARD-UNSIGNED.exe`, SHA256 `cdd69637336045de8922c07fe4063f3b0e942e2e536d7d972469b921bf4f02f8`. Packaging and 0.24.6→0.24.7 same-app DPAPI CI have passed.
+
+**NEXT:** Preserve W57 as exact frozen owner-approved rollback; only follow up on distinct Pause/Seek/Next and stability when appropriate. No new owner 0.24.7 installation/retest request and no needless diagnostic build.
+
+---
+
 # CELIKOM Windows — W56 native signed URL guard + 0.24.7 candidate (2026-11-10)
 
 **FIRST READ:** `docs/windows/W56-NATIVE-TELEMETRY-QUERY-HMAC-GUARD-20261110.md`. Continue existing `experiment/windows-companion-integration-20261108`; never start over. Original owner **0.24.6** AUDIO NO-GO evidence in W51 (7 native Media GETs all 403 to resource IDs 139/89). No Android/production/Yandex-owner changes.
