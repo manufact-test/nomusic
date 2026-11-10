@@ -232,7 +232,7 @@ test("W50 CDP tracks only Yandex's real signed audio request after no CELIKOM pr
     requestId:"req1",response:{status:206,headers:{"Content-Type":"audio/mpeg"}}
   });
   debug.emit("message",{},"Network.loadingFinished",{requestId:"req1"});
-  assert.ok(r.diagnostics.includes("PLAYER_NET_REQUEST|track=42498653"));
+  assert.ok(r.diagnostics.includes("PLAYER_NET_REQUEST|track=42498653"),JSON.stringify({diag:r.diagnostics,network:r.network}));
   assert.ok(r.diagnostics.includes("PLAYER_NET_GET|track=42498653"));
   assert.ok(r.diagnostics.includes("PLAYER_NET_FETCH|track=42498653"));
   assert.ok(r.diagnostics.includes("PLAYER_NET_HTTP_PARTIAL|track=42498653"));
@@ -259,7 +259,7 @@ test("W50 identifies actual CORS credential and CSP failures without showing req
   });
   for(const code of ["PLAYER_NET_REQUEST","PLAYER_NET_MEDIA","PLAYER_NET_FAILED",
     "PLAYER_NET_CORS_BLOCKED","PLAYER_NET_CORS_CREDENTIALS"])
-    assert.ok(r.diagnostics.includes(code+"|track=85025192"),code);
+    assert.ok(r.diagnostics.includes(code+"|track=85025192"),code+" "+JSON.stringify({diag:r.diagnostics,network:r.network}));
   debug.emit("message",{},"Network.requestWillBeSent",{
     requestId:"req3",request:{url:media,method:"GET"},type:"Fetch"
   });
