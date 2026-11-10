@@ -1,6 +1,6 @@
 # Browser extension access audit — 2026-11-10
 
-Status: source review in progress; isolated regression run pending. This document is not production approval.
+Status: baseline extension/server regression PASS; two narrowly scoped server guard changes under verification. This document is not production approval.
 
 ## Scope and preserved versions
 - Accepted extension: 0.4.73, `63d8cd891e1db82e0245122391fd4ab5cdd323be`.

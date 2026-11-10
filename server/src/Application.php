@@ -347,7 +347,9 @@ final class Application
         }
         if (($method === 'GET' && $path === '/api/v1/resolve') || ($method === 'POST' && $path === '/api/v1/events/batch')) {
             $access = null;
-            if (!$this->authorized($headers)) {
+            // Account mode never accepts the legacy private-test bearer for playback.
+            // Owner moderation/upload credentials remain independent of this route.
+            if (($this->config['entitlement_enabled'] ?? false) || !$this->authorized($headers)) {
                 $access = $this->userAccess($headers);
                 if ($access instanceof Response) return $access;
             }

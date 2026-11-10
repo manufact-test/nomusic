@@ -49,7 +49,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: 7e648eacaeb50cc371842590ed7a30284e440d2a
+          persist-credentials: false
       - uses: shivammathur/setup-php@v2
         with:
           php-version: "8.3"
@@ -64,6 +64,22 @@ jobs:
         run: |
           set -euo pipefail
           php server/tests/database.php
+          cp server/src/Application.php "$RUNNER_TEMP/audit-patched-Application.php"
+          cp server/src/Http/AudioController.php "$RUNNER_TEMP/audit-patched-AudioController.php"
+          trap 'cp "$RUNNER_TEMP/audit-patched-Application.php" server/src/Application.php; cp "$RUNNER_TEMP/audit-patched-AudioController.php" server/src/Http/AudioController.php' EXIT
+          git show 7e648eacaeb50cc371842590ed7a30284e440d2a:server/src/Application.php > server/src/Application.php
+          git show 7e648eacaeb50cc371842590ed7a30284e440d2a:server/src/Http/AudioController.php > server/src/Http/AudioController.php
+          if php server/tests/entitlement.php > "$RUNNER_TEMP/audit-baseline-resolve.log" 2>&1; then
+            echo 'Baseline unexpectedly passed the new legacy resolve restriction'; exit 1
+          fi
+          grep -Fq 'legacy service bearer must not bypass account entitlement' "$RUNNER_TEMP/audit-baseline-resolve.log"
+          cp "$RUNNER_TEMP/audit-patched-Application.php" server/src/Application.php
+          if php server/tests/entitlement.php > "$RUNNER_TEMP/audit-baseline-audio.log" 2>&1; then
+            echo 'Baseline audio unexpectedly passed the new session requirement'; exit 1
+          fi
+          grep -Fq 'unbound legacy audio must not bypass account entitlement' "$RUNNER_TEMP/audit-baseline-audio.log"
+          cp "$RUNNER_TEMP/audit-patched-AudioController.php" server/src/Http/AudioController.php
+          echo 'Both legacy bypasses reproduced on the original synthetic baseline; checking the candidate fixes next.'
           php server/tests/auth.php
           php server/tests/entitlement.php
           php server/tests/promos.php
