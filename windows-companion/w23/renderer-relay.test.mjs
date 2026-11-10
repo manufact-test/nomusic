@@ -72,7 +72,7 @@ test("real bundled renderer integrates one approved source, keeps Yandex pause/s
   r.window.__celikomBridgeNativeReceive(requests[0].requestId,makeGrant("123"));
   const result=await pending;
   assert.equal(result.responseTime,13);
-  assert.equal(result.downloadInfo.url,makeGrant("123").audioUrl);
+  assert.equal(result.downloadInfo.url,makeGrant("123").audioUrl+"&celikom_native_query_guard=0");
   assert.equal(result.downloadInfo.key,undefined);
   assert.equal(r.window.__celikomBridgeNativeStatus(),"NATIVE_MAPPING_ACCEPTED");
   assert.strictEqual(r.Resource.prototype.pause,r.originalPause);
@@ -111,7 +111,7 @@ test("native batch-first request performs exact-ID source injection",async()=>{
       item.trackId==="123"?makeGrant("123"):null);
   }
   const result=await pending;
-  assert.equal(result.downloadInfos[0].url,makeGrant("123").audioUrl);
+  assert.equal(result.downloadInfos[0].url,makeGrant("123").audioUrl+"&celikom_native_query_guard=0");
   assert.equal(result.downloadInfos[1].url,"https://official.yandex.example/next");
   r.handlers.beforeunload();
 });
