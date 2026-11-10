@@ -1,7 +1,6 @@
 using System.Buffers.Binary;
 using System.Globalization;
 using System.Text;
-using System.Text.RegularExpressions;
 
 namespace Celikom.Companion;
 
@@ -14,22 +13,20 @@ public static class AudioPreflight
 {
     public const long MaxBytes = 31_457_280;
     public const long AllowedDeltaMs = 1_500;
-    public sealed record Result(long? DurationMs, bool Blocked,
-        bool NameSuspicious, string DurationMessage, string NameMessage);
+    public sealed record Result(long? DurationMs, bool Blocked, string DurationMessage);
 
     public static async Task<Result> CheckAsync(string path, long? originalDurationMs,
-        string songTitle, string songArtist, CancellationToken ct = default)
+        CancellationToken ct = default)
     {
         var info = new FileInfo(path);
         if (!info.Exists || info.Length is < 1024 or > MaxBytes ||
             !new[] { ".mp3", ".m4a" }.Contains(info.Extension,
                 StringComparer.OrdinalIgnoreCase))
-            return new Result(null, true, false,
-                "Выберите MP3 или M4A размером до 30 МиБ.", "");
+            return new Result(null, true, "Выберите MP3 или M4A размером до 30 МиБ.");
         byte[] bytes;
         try { bytes = await File.ReadAllBytesAsync(info.FullName, ct).ConfigureAwait(false); }
         catch (OperationCanceledException) { throw; }
-        catch { return new Result(null, true, false, "Не удалось прочитать файл.", ""); }
+        catch { return new Result(null, true, "Не удалось прочитать файл."); }
         long? duration;
         try
         {
@@ -38,33 +35,27 @@ public static class AudioPreflight
         }
         catch { duration = null; }
 
-        var suspicious = FilenameSuspicious(info.Name, songTitle, songArtist);
-        const string mismatchText =
-            "Название файла не похоже на текущую песню. Проверьте, что выбрали нужную версию.";
-        var warning = suspicious ? mismatchText : "";
         if (duration is null)
-            return new Result(null, true, suspicious,
-                "Не удалось проверить длительность аудиофайла. Этот файл нельзя отправить.",
-                warning);
+            return new Result(null, true,
+                "Не удалось проверить длительность аудиофайла. Этот файл нельзя отправить.");
         if (originalDurationMs is null or < 1000 or > 86400000)
-            return new Result(duration, true, suspicious,
-                "Не удалось определить длительность текущей песни в Яндексе. Подождите определения трека.",
-                warning);
+            return new Result(duration, true,
+                "Не удалось определить длительность текущей песни в Яндексе. Подождите определения трека.");
         var diff = Math.Abs(duration.Value - originalDurationMs.Value);
         var description = "Оригинал: " + Display(originalDurationMs.Value) +
             " · файл: " + Display(duration.Value) + ".";
         if (diff <= AllowedDeltaMs)
-            return new Result(duration, false, suspicious,
-                description + " Длительность подходит для подмены.", warning);
+            return new Result(duration, false,
+                description + " Длительность подходит для подмены.");
         var extra = diff > 5_000
             ? " Разница больше 5 секунд: выберите подходящую версию." : "";
-        return new Result(duration, true, suspicious,
+        return new Result(duration, true,
             description + " Файл " +
             (duration.Value > originalDurationMs.Value ? "длиннее" : "короче") +
             " на " + Math.Round(diff / 1_000d, MidpointRounding.AwayFromZero)
                 .ToString("0", CultureInfo.InvariantCulture) +
             " с." + extra +
-            " Допуск подмены — 1,5 с. Выберите файл подходящей длительности.", warning);
+            " Допуск подмены — 1,5 с. Выберите файл подходящей длительности.");
     }
 
     private static string Display(long ms)
@@ -72,19 +63,6 @@ public static class AudioPreflight
         var seconds = ms / 1000;
         return (seconds / 60).ToString(CultureInfo.InvariantCulture) + ":" +
             (seconds % 60).ToString("00", CultureInfo.InvariantCulture);
-    }
-
-    public static bool FilenameSuspicious(string filename, string title, string artist)
-    {
-        var basename = Path.GetFileNameWithoutExtension(filename).ToLowerInvariant();
-        var known = (title + " " + artist).ToLowerInvariant();
-        var words = Regex.Matches(known, @"[\p{L}\p{N}]{3,}")
-            .Select(m => m.Value)
-            .Distinct(StringComparer.Ordinal)
-            .ToArray();
-        // No trustworthy metadata? Never claim a filename mismatch.
-        if (words.Length == 0) return false;
-        return !words.Any(word => basename.Contains(word, StringComparison.Ordinal));
     }
 
     public static long? Mp3DurationMs(byte[] bytes)
