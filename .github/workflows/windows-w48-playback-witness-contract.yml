@@ -43,7 +43,7 @@ jobs:
           grep -q 'PLAYER_ENGINE_FAST_PAUSE' windows-companion/w23/host.cjs
           grep -q 'PLAYER_CDP_PIPELINE_ERROR' windows-companion/w23/host.cjs
           grep -q 'PLAYER_AUDIO_AUDIBLE' windows-companion/w23/host.cjs
-          grep -q 'AUDIO_URL_RESOURCE_UNATTRIBUTED' windows-companion/w23/renderer-entry.mjs
+          grep -q 'PLAYER_AUDIO_RESOURCE_TIMING_SEEN' windows-companion/w23/renderer-entry.mjs
           ! grep -q 'report("MEDIA_REQUEST_SEEN")' windows-companion/w23/renderer-entry.mjs
           echo W48_REAL_ENGINE_WITNESS_AND_HONEST_RESOURCE_EVENTS_PASS
       - name: Strictly no production, installer, signed audio, or owner Yandex changes
