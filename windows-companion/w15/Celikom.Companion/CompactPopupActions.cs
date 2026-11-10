@@ -225,12 +225,12 @@ public sealed partial class MainWindow
             return;
         }
         var message = _compactSupportText.Text.Trim();
-        if (message.Length < 3)
+        var song = _compactSupportKind.SelectedIndex == 1;
+        if (!song && message.Length < 3)
         {
             _compactSupportMessage.Text = "Опиши проблему перед отправкой.";
             return;
         }
-        var song = _compactSupportKind.SelectedIndex == 1;
         if (song && !GrantValidator.IsTrackId(_bridge.LastSong))
         {
             _compactSupportMessage.Text = "Запусти песню в Яндексе и повтори.";
