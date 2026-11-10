@@ -2,7 +2,14 @@
 
 **Начальная точка:** `docs/android/START-NEXT-CHAT-ANDROID-NATIVE-2026-11-10.md` — готовый текст первого сообщения новому разработчику.
 
-## Самый новый подтверждённый результат
+## НОВЕЙШАЯ CI GREEN ТОЧКА — оригинальный FileInfo → typed model → реальный Le48 field (10.11.2026)
+
+- **Проверенный код:** `78b0437f17888ce49a4c1bea0ba06ca96cb455b9`. **Бэкап:** `backup/android-signed-typed-dispatch-field-audit-ci-green-20261110` → ровно `78b0437f17888ce49a4c1bea0ba06ca96cb455b9`.
+- **Читать первым:** `docs/android/ANDROID-NATIVE-SIGNED-TYPED-DISPATCH-EVIDENCE-2026-11-10.md` — реальные DEX данные от Lhee/Lged через Leed/Ldiv → Lygv.r → Ljgv → Lcq7/Lo4y/Larv; неоднозначный 16-way Le48 dispatch и точный writer/reader аудит двух разных Le48-полей класса Lga4.
+- **CI SUCCESS:** [typed coroutines #42808158803](https://github.com/manufact-test/nomusic/actions/runs/42808158803), [Ldiv/Ljgv consumers #42808680756](https://github.com/manufact-test/nomusic/actions/runs/42808680756), [media candidates #42810750855](https://github.com/manufact-test/nomusic/actions/runs/42810750855), [virtual dispatch #42809849405](https://github.com/manufact-test/nomusic/actions/runs/42809849405), [exact field writer #42810607588](https://github.com/manufact-test/nomusic/actions/runs/42810607588), [Android module #42810750850](https://github.com/manufact-test/nomusic/actions/runs/42810750850) SUCCESS 2/2.
+- **НЕ decoder proof:** найденная семишаговая близость к Lro7.y0 зависит от выбора одного из 16 виртуальных receiver и разных switch-веток. Фактически Lga4.c использует Le48 field-2, а конструктор инициализирует Lzcd в ДРУГОЙ field-1. Field-2 наблюдался с Lya4/Lkc6 и неизвестными writes, без подтверждённого current-track source. Android audio replacement по-прежнему НЕТ.
+
+## Предыдущая подтверждённая точка
 
 - **Точный проверенный код:** `8b7bc64f89249e5434da739851bececce2adb121` — [signed DEX CI #42806655214](https://github.com/manufact-test/nomusic/actions/runs/42806655214) SUCCESS, [Android module CI #42806655152](https://github.com/manufact-test/nomusic/actions/runs/42806655152) SUCCESS 2/2.
 - **Rollback:** `backup/android-signed-register-cfg-ci-green-20261110` → `8b7bc64f89249e5434da739851bececce2adb121`.
