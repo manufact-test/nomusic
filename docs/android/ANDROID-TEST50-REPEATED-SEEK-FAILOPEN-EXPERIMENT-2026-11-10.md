@@ -1,3 +1,7 @@
+> **ОБНОВЛЕНО 10.11.2026:** последующий CI-green аудит закрыл дополнительные late-timeout/ACK и hot-cached timeout обходы. Актуальный [four-path отчёт и точный rollback](ANDROID-TEST50-SEEK-TIMEOUT-FOUR-PATHS-CI-GREEN-2026-11-10.md), код `ca22fc91`, [CI #42847799573 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/42847799573). Далее — исторический отчёт первой версии эксперимента (`7440d70b`).
+
+---
+
 # CELIKOM Android — отдельный эксперимент Test.50: повторные seek timeout → оригинал до Next
 
 **10 ноября 2026.** Это **не** выпуск APK и **не** изменение принятой Test.50.
