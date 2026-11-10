@@ -1,0 +1,34 @@
+name: Android signed Lemb source selection dispatch receiver census (READ-ONLY)
+on:
+  push:
+    branches:
+      - experiment/android-native-yandex-fileinfo-hooklab-20261109
+    paths:
+      - 'android/native-yandex-hooklab/audit_native_lemb_selection_dispatch.py'
+      - 'android/native-yandex-hooklab/tests/test_native_lemb_selection_dispatch.py'
+      - '.github/workflows/android-native-lemb-selection-dispatch.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  original-signed-lemb-caller-census:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Verify that static caller and exact receiver do not conflate
+        run: |
+          set -eu
+          python3 -m py_compile android/native-yandex-hooklab/audit_native_lemb_selection_dispatch.py
+          python3 -m unittest discover -s android/native-yandex-hooklab/tests -p 'test_native_lemb_selection_dispatch.py' -v
+      - name: Original publisher-signed six DEX Lemb source selection callsites
+        run: python3 android/native-yandex-hooklab/audit_native_lemb_selection_dispatch.py
+      - name: Read-only signed source guards
+        if: always()
+        run: |
+          test ! -d android/native-yandex-hooklab/release
+          test ! -d android/native-yandex-hooklab/patched
+          echo 'No chosen decoder or selected receiver proved, no third-party APK generated'
