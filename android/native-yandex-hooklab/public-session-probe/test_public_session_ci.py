@@ -22,7 +22,8 @@ class ProbeResultTests(unittest.TestCase):
         self.assertEqual(result["state"], "CONNECTED_READONLY")
         self.assertFalse(result["command_change_media_items_advertised"])
         self.assertTrue(result["media3_session_connected"])
-        self.assertNotIn("uri", repr(result).lower())
+        self.assertNotIn("https://", repr(result).lower())
+        self.assertNotIn("access_token", repr(result).lower())
 
     def test_non_matching_line_or_private_data_rejected(self):
         self.assertIsNone(module.sanitize_logcat(
