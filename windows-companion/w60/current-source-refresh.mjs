@@ -123,7 +123,7 @@ export function createCurrentSourceRefresh({onEvent = () => {}} = {}) {
         ? String(meta.id) : meta.id;
       if (typeof id !== "string" || !EXACT_ID.test(id)) return null;
       const clean = value => typeof value === "string"
-        ? value.replace(/[\\u0000-\\u001f\\u007f]/g, " ").trim().slice(0, 180) : "";
+        ? value.replace(/[\u0000-\u001f\u007f]/g, " ").trim().slice(0, 180) : "";
       const raw = entry.data || {};
       const sources = [meta.artists, raw.artists, raw.track?.artists,
         meta.albumArtists, raw.metadata?.artists, raw.track?.meta?.artists];
