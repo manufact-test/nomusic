@@ -1,3 +1,14 @@
+## VERIFIED CHECKPOINT: 10.11.2026 — CI SUCCESS / NO NATIVE AUDIO CLAIM
+
+**Latest verified CODE SHA:** `c5f76316f8a00e8b30c2cdae402fe0ec64dfeea2` on `experiment/android-native-yandex-fileinfo-hooklab-20261109`.
+**[CI #42798290760 SUCCESS 2/2](https://github.com/manufact-test/nomusic/actions/runs/42798290760):** pure-Java `NativeEventOrderProbeTest`, Python categorical/redaction tests and existing source/identity tests passed; Android observer APK built, metadata and signing structure verified. A previous CI #42798154589 failed only because its guard still expected an old log phrase; the guard was corrected and entire CI reran green.
+
+**What changed from pre-experiment SHA `1ad5870f`:** pure-Java bounded FileInfo/metadata temporal classifier, native read-only hook observer integration, distinct FileInfo vs MediaSession counter categories, aggregate logs, updated safe emulator log parser and unit tests. There is no source mutation. Every real audio source comparison still requires a physically valid native-Yandex host; metadata temporal proximity is **not** trackId+edition proof. Do not use it in `NativePrePrepareAdmission`.
+
+**Backups:** `backup/android-native-before-temporal-event-probe-20261110` at `1ad5870f`; `backup/android-native-temporal-event-probe-ci-passed-20261110` at `518dd07d`. Owner Test.50 baseline unchanged. No APK for manual Yandex testing, no production, no HONOR changes, no ChromaSync purchase.
+
+---
+
 ## UPDATE 10.11.2026 — temporal diagnostic CI green + meaningful log summaries
 
 **CI [#42797745570](https://github.com/manufact-test/nomusic/actions/runs/42797745570): SUCCESS 2/2**: >36k synthetic rapid Next/prefetch/privacy assertions, ARM source-only Xposed observer APK compiles and signature metadata passes. NO real Yandex host/runtime or source replacement.
