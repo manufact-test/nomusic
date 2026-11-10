@@ -18,6 +18,7 @@ import zlib
 from pathlib import Path
 import clone_native_splits_ephemeral as source
 import clone_native_splits_arsclib_ephemeral as arsc
+from clone_namespaced_signature_permissions import namespace_clone_signature_permissions
 from merge_lab_splits_ephemeral import merge_ephemeral
 from clone_lab_profileability import enable_private_lab_shell_profiling
 
@@ -619,7 +620,17 @@ def run():
         total_dex_literal_rewrites = 0
         total_resource_rewrites = 0
         omitted_permission_declarations = 0
+        own_permission_rewrites = {"declarations": 0, "requests": 0, "component_references": 0}
         omit_shadowed = os.getenv("CELIKOM_OMIT_SHADOWED_SIGNATURE_DECLS") == "1"
+        namespaced_perms = os.getenv("CELIKOM_CLONE_NAMESPACED_SIGNATURE_PERMISSIONS") == "1"
+        if namespaced_perms and omit_shadowed:
+            raise arsc.TrialError("PERMISSION_AB_VARIANTS_MUTUALLY_EXCLUSIVE")
+        if namespaced_perms and not (preserve_original_dex if "preserve_original_dex" in locals() else
+                os.getenv("CELIKOM_MANIFEST_ONLY_ORIGINAL_DEX") == "1"):
+            raise arsc.TrialError("NAMESPACED_PERMISSION_TRIAL_REQUIRES_UNMODIFIED_DEX")
+        if namespaced_perms and not (os.getenv("CELIKOM_CLEAN_ANDROID_ARMV7_TRANSLATION") == "1"
+                and os.getenv("CELIKOM_ORIGINAL_CONTROL_LAUNCH") == "1"):
+            raise arsc.TrialError("NAMESPACED_PERMISSIONS_DISPOSABLE_CONTROL_ONLY")
         # Diagnostic control: keep *all* publisher DEX bytes untouched.
         # This isolates manifest/package rewriting from the known-bad
         # AppMetrica byte substitution that violated DEX string_ids ordering.
@@ -688,6 +699,13 @@ def run():
             if omit_shadowed and not split:
                 next_manifest, count = omit_shadowed_signature_permission_declarations(next_manifest)
                 omitted_permission_declarations += count
+            if namespaced_perms and not split:
+                try:
+                    next_manifest, own_counts = namespace_clone_signature_permissions(next_manifest)
+                except ValueError:
+                    raise arsc.TrialError("NAMESPACED_SIGNATURE_PERMISSION_CONTRACT_FAILED") from None
+                for k,v in own_counts.items():
+                    own_permission_rewrites[k] += v
             publisher_auths = resolved_provider_authorities(publisher_manifest, OLD_SYNC)
             clone_auths = resolved_provider_authorities(next_manifest, NEW_SYNC)
             if publisher_auths & clone_auths:
@@ -825,6 +843,12 @@ def run():
             raise arsc.TrialError("IDENTITY_DEX_LITERAL_COUNT_DRIFT")
         if omit_shadowed and omitted_permission_declarations != 2:
             raise arsc.TrialError("SHADOWED_SIGNATURE_PERMISSION_COUNT_DRIFT")
+        if namespaced_perms and own_permission_rewrites["declarations"] != 2:
+            raise arsc.TrialError("NAMESPACED_SIGNATURE_PERMISSION_REWRITE_COUNT_DRIFT")
+        if namespaced_perms:
+            print(json.dumps({"clone_owned_signature_permissions": own_permission_rewrites,
+                              "grants_original_yandex_credentials": False,
+                              "protects_self_declared_permissions": True}, sort_keys=True))
         # One-APK research path: merge five ALREADY-verified parallel-clone
         # splits, then check exact package, lab signer, native libs and all DEX.
         # Never merge or sign the installed publisher original. No sigbypass.
@@ -1131,6 +1155,7 @@ def run():
             "sorted_metrica_authority_consistency_trial": sorted_metrica_runtime,
             "resolved_original_vs_clone_provider_collisions": 0,
             "shadowed_signature_declarations_omitted_in_install_only_clone": omitted_permission_declarations,
+            "clone_owned_signature_permissions_trial": own_permission_rewrites if namespaced_perms else None,
             "issuer_permission_protection_not_weakened": True,
             "published_vendor_apks": False,
             "installed_on_owner_phone": False,

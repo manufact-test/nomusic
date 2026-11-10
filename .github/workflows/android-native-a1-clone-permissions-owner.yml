@@ -1,0 +1,52 @@
+name: Android A1 own-signature-permission versus removed-declarations clone startup A/B
+on:
+  push:
+    branches:
+      - experiment/android-native-a1-namespaced-signature-permissions-20261111
+    paths:
+      - 'android/native-yandex-hooklab/clone_namespaced_signature_permissions.py'
+      - 'android/native-yandex-hooklab/tests/test_clone_namespaced_signature_permissions.py'
+      - 'android/native-yandex-hooklab/clone_native_identity_phase2_ephemeral.py'
+      - '.github/workflows/android-native-a1-clone-permissions-owner.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  isolated-clone-local-credentials-permission:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify signature isolation invariants (no emulator)
+        run: |
+          python3 -m py_compile android/native-yandex-hooklab/clone_namespaced_signature_permissions.py android/native-yandex-hooklab/clone_native_identity_phase2_ephemeral.py
+          python3 -m unittest discover -s android/native-yandex-hooklab/tests -p test_clone_namespaced_signature_permissions.py -v
+          python3 -m unittest discover -s android/native-yandex-hooklab/tests -p test_merge_lab_splits_ephemeral.py -v
+      - name: Enable ephemeral KVM
+        run: |
+          test -e /dev/kvm
+          sudo chmod 666 /dev/kvm
+      - name: Clone with own signature declarations before and after original original-signer app
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 30
+          target: google_apis
+          arch: x86
+          profile: pixel_5
+          emulator-boot-timeout: 480
+          emulator-options: -no-snapshot-load -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none
+          disable-animations: true
+          script: >
+            CELIKOM_CLEAN_ANDROID_ARMV7_TRANSLATION=1
+            CELIKOM_MANIFEST_ONLY_ORIGINAL_DEX=1
+            CELIKOM_CLONE_NAMESPACED_SIGNATURE_PERMISSIONS=1
+            CELIKOM_ORIGINAL_CONTROL_LAUNCH=1
+            CELIKOM_MERGE_PARALLEL_SINGLE_APK=1
+            CELIKOM_CLONE_FIRST_AB=1
+            python3 android/native-yandex-hooklab/clone_native_identity_phase2_ephemeral.py
+      - name: Delete all third-party APK/credentials/private signing material
+        if: always()
+        run: |
+          test ! -d android/native-yandex-hooklab/release
+          test ! -d android/native-yandex-hooklab/patched
+          echo "Only temporary CI clone/original lab, no artifacts uploaded"
