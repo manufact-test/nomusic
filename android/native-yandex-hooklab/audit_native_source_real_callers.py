@@ -37,7 +37,8 @@ FOCUS={
  ("Lga4;","b"),("Lga4;","c"),("Lga4;","d"),
  ("Lmir;","t"),("Lmir;","remove"),
  ("Lero;","<init>"),("Lnro;","<init>"),("Lmb4;","a"),
- ("Ldl8;","a"),("Lbr1;","invoke"),("Lx3f;","invokeSuspend")
+ ("Ldl8;","a"),("Lbr1;","invoke"),("Lx3f;","invokeSuspend"),
+ ("Lw4y;","z"),("Lfwm;","M"),("Llky;","<init>")
 }
 PRODUCERS={
  ("Lcq7;","A"),("Lcq7;","i0"),
@@ -246,6 +247,10 @@ def inspect_targets(apks):
                         "method":method_profile(m),
                         "instruction_count":len(ins),
                         "branch_count":sum(op in (0x2b,0x2c) or 0x32<=op<=0x3d for _,op,_ in ins),
+                        "model_ingress_structural_roles":[{
+                            "ordinal":n,**safe_operand_metadata(d,hop,words)
+                         } for n,(_,hop,words) in enumerate(ins[:95])]
+                         if m[0] in ("Lw4y;","Lfwm;","Llky;") else [],
                         "direct_typed_source_calls":profiles[:MAX_OUTLINE],
                         "producer_result_mayflow":result_flow[:MAX_OUTLINE],
                         "wrapper_field_projection":source_wrapper_field_projections(d,off)
