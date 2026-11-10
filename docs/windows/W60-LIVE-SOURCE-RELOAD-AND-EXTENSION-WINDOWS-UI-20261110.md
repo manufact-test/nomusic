@@ -28,3 +28,11 @@ W60 owner test candidate **0.24.8**, same Inno AppId `D99FDB90-46BF-4EE5-989E-65
 
 ## Strict isolation
 No edits to Android Test.50, PHP/live hosting, Yandex user's original account, production DB, original signed vendor files or accepted Windows 0.24.7 branch. Frozen rollback branch remains available.
+
+## W60 verified packaging status and exact identities — final handoff update 2026-11-10
+
+- **Already compiled** private 0.24.8 owner test Inno EXE, no change to original 0.24.7: https://github.com/manufact-test/nomusic/actions/runs/42806599439 **SUCCESS**. CI build source SHA `b752573a9a1d3b076a6038878ba40fb0a232123e`. Filename `CELIKOM-W60-LIVE-TOGGLE-EXTENSION-UI-UNSIGNED.exe` (NOT public signed). **EXE SHA256** `a1c5380c25b17872723a27dc013fed0dbd9eebce3e38bb6b47017ede29578fee` verified in original Windows build logs. Artifact **13760040010**, artifact ZIP SHA256 `91c6efb246da7373ed267dd7fd206e492d4df7b8ff3b2456682cb2802ac6ba79`; distinguish ZIP digest from inner EXE digest.
+- **Independent, real 0.24.7 → 0.24.8 in-place upgrade**, same Inno AppId, one uninstaller, identical saved DPAPI encrypted session bytes and same-user decryptability, native signed guard and new host present, Yandex original untouched: https://github.com/manufact-test/nomusic/actions/runs/42807129308 **SUCCESS**. This is a clean disposable Windows runner, **not the owner's personal PC**.
+- Source static and renderer/GUI CI PASS: W59 https://github.com/manufact-test/nomusic/actions/runs/42806556823; W60 native reload https://github.com/manufact-test/nomusic/actions/runs/42806516765; signed vendor method https://github.com/manufact-test/nomusic/actions/runs/42804556792.
+- **NOT YET DONE:** deliver this EXE as a verified direct **ChatGPT Library → CELIKOM → Windows** file card; new owner audible test of live same-track Start/Stop and pause; verify replacement + MyWave unchanged. Any fresh update beyond 0.24.8 is unjustified before owner test. No claim that dark WinForms UI has full functionality from extension: UI color/style and native functional buttons exist, upload/suggest/support are not ported to Windows.
+- Owner requested a quick chat handoff; previous assistant stopped work intentionally at this safe point. The next chat should **finish delivery of the already built exact 0.24.8** without restarting the investigation.
