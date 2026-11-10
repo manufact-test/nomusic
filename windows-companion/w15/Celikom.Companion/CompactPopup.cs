@@ -130,8 +130,8 @@ public sealed partial class MainWindow
         _origin.Text = string.IsNullOrWhiteSpace(_api.Origin) ? DefaultApiOrigin : _api.Origin;
         // The browser popup uses a 292px minimum width. Windows retains its
         // native title bar; the *content* is matched without wide tabs.
-        ClientSize = new Size(308, 482);
-        MinimumSize = new Size(308, 470);
+        ClientSize = new Size(308, 450);
+        MinimumSize = new Size(308, 440);
         MaximumSize = new Size(308, 820);
         FormBorderStyle = FormBorderStyle.FixedSingle;
         MaximizeBox = false;
@@ -231,7 +231,7 @@ public sealed partial class MainWindow
         _compactSupportTrigger.TextAlign = ContentAlignment.MiddleLeft;
         _compactSupportTrigger.Font = new Font("Segoe UI", 9F);
         _compactVersion.ForeColor = Quiet;
-        _compactVersion.Font = new Font("Segoe UI", 8.5F);
+        _compactVersion.Font = new Font("Segoe UI", 9F);
         _compactVersion.Text = "CELIKOM " + AppUpdateManager.RunningVersion.ToString(3);
 
         BuildCompactAccountBody();
