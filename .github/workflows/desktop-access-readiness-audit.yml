@@ -84,6 +84,9 @@ jobs:
           php server/tests/auth.php
           php server/tests/entitlement.php
           php server/tests/promos.php
+          php server/tests/uploads.php
+          php server/tests/admin.php
+          php server/tests/support.php
           php server/tests/incidents.php
           php server/tests/billing.php
           php server/tests/referrals.php
