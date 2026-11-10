@@ -169,6 +169,23 @@ public final class HookSpec {
         return new Constructor<?>[]{shortCtor,longCtor};
     }
 
+    /**
+     * Exact publisher-defined ocv.i0():void; this method constructs a direct
+     * Lero source on a conditional path. Observation only, never a player
+     * selection or a source-swapping entry point.
+     */
+    public static Method findLocvSourceBuilder(ClassLoader loader)
+            throws ClassNotFoundException, NoSuchMethodException {
+        Class<?> owner=Class.forName("ocv",false,loader);
+        Method method=owner.getDeclaredMethod("i0");
+        if(Modifier.isStatic(method.getModifiers())
+                ||Modifier.isAbstract(method.getModifiers())
+                ||method.getReturnType()!=void.class
+                ||method.getParameterCount()!=0)
+            throw new NoSuchMethodException("EXACT_LOCV_I0_UNAVAILABLE");
+        return method;
+    }
+
     public static boolean isApprovedHost(String packageName, String versionName, long versionCode) {
         return TARGET_PACKAGE.equals(packageName)
                 && TARGET_VERSION.equals(versionName)
