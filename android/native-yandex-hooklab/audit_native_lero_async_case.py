@@ -313,7 +313,16 @@ def run():
 if __name__=="__main__":
     try:print(json.dumps(run(),sort_keys=True,ensure_ascii=False))
     except (RuntimeError,ValueError,DexError,OSError,zipfile.BadZipFile) as exc:
+        known={
+            "FOCUSED_METHOD_TOO_LARGE","DUPLICATE_TAG_CTOR",
+            "DUPLICATE_DISPATCH","SIGNED_LERO_LWQ7_EXACT_TRIAD_MISSING",
+            "SIGNED_LWQ7_TAG_FIELD_NOT_STORED",
+            "SIGNED_LWQ7_SWITCH_TAG_ABSENT","SIGNED_SIX_DEX_REQUIRED",
+            "SIGNED_ARCHIVE_PIN","SIGNED_SPLIT_COUNT",
+        }
+        message=str(exc)
         print(json.dumps({"verdict":"SIGNED_LWQ7_CASE_AUDIT_INCOMPLETE",
                           "error_class_only":type(exc).__name__,
+                          "static_failure_code":message if message in known else "OTHER",
                           "real_playback_substitution_proven":False}))
         sys.exit(2)
