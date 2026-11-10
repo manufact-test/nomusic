@@ -62,3 +62,22 @@ Next developer, in this order:
 ## 4. Scope unchanged
 
 The owner's accepted Test.50, official Yandex installation, other Android branches, Windows companion, browser extension, server, database, production and user music catalog were not altered. All final code in the isolated native hooklab branch, backup created. No license to distribute a repackaged proprietary Yandex APK is assumed.
+
+
+---
+
+## FINAL CHECKPOINT 10.11.2026 — legitimate public MediaSession experiment, NO usable source host
+
+**Code HEAD:** `dc61cd8d7f6c116d91e74ae30c174a50528cde83`. **Immutable backup before docs:** `backup/android-native-public-session-final-evidence-20261110`. This is a *first-party CELIKOM-owned, read-only diagnostic* against the **genuine pinned publisher-signed Yandex**, not a native audio replacement and not a patched host.
+
+**Verified CI:**
+- [42782747091](https://github.com/manufact-test/nomusic/actions/runs/42782747091) SUCCESS, static signed five-split manifest. Three media service declarations, two `MediaBrowserService` actions; one explicit exported, enabled and without manifest permission binder candidate. This does **not** imply externally replaceable audio.
+- [42783663050](https://github.com/manufact-test/nomusic/actions/runs/42783663050) SUCCESS test mechanics; cold guest-free disposable Android 11 controller handshake **not established**. `COMMAND_CHANGE_MEDIA_ITEMS` false only because controller was not connected.
+- [42784630427](https://github.com/manufact-test/nomusic/actions/runs/42784630427) SUCCESS test mechanics; fallback through the platform `MediaBrowser.connect()` to that exported candidate **rejected**: `PUBLIC_BIND_REJECTED`. No playback command ever sent.
+- [42785272172](https://github.com/manufact-test/nomusic/actions/runs/42785272172) SUCCESS test mechanics **after a single bounded launch of the unmodified original guest UI on isolated emulator** and verifying MAIN process exists: still **`PUBLIC_BIND_REJECTED`**, Media3 not connected, platform browser not connected. No login or account involved.
+- [42785272231](https://github.com/manufact-test/nomusic/actions/runs/42785272231) SUCCESS existing synthetic hooklab jobs, **not publisher audio**.
+
+**Narrow interpretation:** public *manifest* service candidate does not permit third-party controller access in the tested **unauthenticated disposable environment**. Exact binder rejection condition is **not known**; no claim about a logged-in publisher app or anti-tamper. The test did not call `replaceMediaItem`, `setMediaItem`, play/pause, seek, URL, FileInfo or decoder; no user metadata was read. Android `MediaController` may permit queue changes only if session owner advertises the required commands; here there was no connected controller to inspect. This does **not** establish a native pre-prepare source replacement.
+
+**Engineering admission:** NO-GO for the requested exact original-Yandex one-player alternative audio source. There is **no verified supported publisher source API/SDK, authorized instrumented host, or runtime `track+edition+generation -> real decoder source` witness**. Stop additional emulator/package or speculative DEX experiments unless an actually new lawful host capability appears. No new user APK or manual QA now. Explicit next dependency: publisher-approved integration/compatibility agreement identifying actual source-before-prepare API and rights/DRM limits. Test.50, official HONOR, Windows, extension, server, DB and production untouched.
+
