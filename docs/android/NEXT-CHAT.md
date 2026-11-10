@@ -1,3 +1,12 @@
+## Test.51 — разрешён отдельный подписанный APK для HONOR (10.11.2026)
+
+- [Сборка, безопасность и точный чек-лист прослушивания](ANDROID-TEST51-SIGNED-OWNER-VERIFY-2026-11-10.md).
+- Выделенная ветка: `experiment/android-test51-seek-failopen-honor-20261110`, Test.51 `0.3.85-test.51/code86136`, `pro.celikom.nativeprobe.test`, отдельная от stable.
+- Собирается от CI-green four-path backup `ca22fc91`, Test.50 owner-accepted `5d737d2` и stable неизменны. До готового signed-APK/artifact не считать физический результат доказанным. Установка обновляет только старый пакет CELIKOM Test, не создаёт третью копию.
+- Для завершения: native Android CI SUCCESS → reusable signed Test51 SUCCESS → проверить signer/artifact receipt → вручную HONOR «Дым», «Раскол», Pause/Seek/Next/радио, получить диагностический архив; без фактического прослушивания никаких утверждений об исправлении.
+
+---
+
 ## НОВАЯ КОНТРОЛЬНАЯ ТОЧКА — Test.50 четыре seek timeout пути, CI GREEN (10.11.2026)
 
 - **READ FIRST:** [проверенный four-path audit](ANDROID-TEST50-SEEK-TIMEOUT-FOUR-PATHS-CI-GREEN-2026-11-10.md). Работать в `experiment/android-test50-repeated-seek-failopen-20261110`, код `ca22fc91fc2658a2f3aed597cd128caf1b9c285f`, бэкап `backup/android-test50-seek-timeout-four-paths-ci-green-20261110`.
