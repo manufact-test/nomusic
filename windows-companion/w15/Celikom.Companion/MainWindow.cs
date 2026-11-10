@@ -19,6 +19,8 @@ public sealed class MainWindow : Form
     private static readonly Color Accent = ColorTranslator.FromHtml("#66E0BF");
     private static readonly Color AccentInk = ColorTranslator.FromHtml("#07110E");
     private static readonly Color Border = ColorTranslator.FromHtml("#2A3439");
+    private static readonly Color Danger = ColorTranslator.FromHtml("#F05A69");
+    private const string DefaultApiOrigin = "https://darkred-camel-588676.hostingersite.com";
 
     private readonly SessionStore _store = new();
     private NativeTokenPublisher? _nativeToken;
@@ -59,6 +61,13 @@ public sealed class MainWindow : Form
     private readonly Panel _accountPanel = new();
     private readonly PopupButton _homeTab = new();
     private readonly PopupButton _accountTab = new();
+    private readonly Panel _accountSignedOut = new();
+    private readonly Panel _accountSignedIn = new();
+    private readonly Label _signedInIdentity = new();
+    private readonly Panel _staffPanel = new();
+    private readonly PopupButton _diagnosticsButton = new();
+    private bool _diagnosticsAllowed;
+    private int _diagnosticsEpoch;
     private bool _bridgeStarted;
     private bool _closing;
     private bool _loggingIn;
@@ -71,13 +80,23 @@ public sealed class MainWindow : Form
         _bridge.Changed += () => UpdateSafe();
 
         Text = "CELIKOM " + AppUpdateManager.RunningVersion.ToString(3) + " — Windows";
-        ClientSize = new Size(462, 760);
-        MinimumSize = new Size(440, 730);
+        ClientSize = new Size(462, 570);
+        MinimumSize = new Size(430, 540);
         StartPosition = FormStartPosition.CenterScreen;
         Font = new Font("Segoe UI", 10F);
         BackColor = Paper;
         ForeColor = Ink;
         AutoScaleMode = AutoScaleMode.Dpi;
+        KeyPreview = true;
+        KeyDown += (_, key) =>
+        {
+            // Staff-only offline update. Ordinary users see no developer tools.
+            if (_diagnosticsAllowed && key.Control && key.Shift && key.KeyCode == Keys.U)
+            {
+                key.Handled = true;
+                UpdateApplicationAsync(this, EventArgs.Empty);
+            }
+        };
 
         // Popup-style header: green connected mark, compact brand, live status.
         var header = new Panel { Dock = DockStyle.Top, Height = 74, BackColor = Paper };
@@ -119,8 +138,8 @@ public sealed class MainWindow : Form
         // its system-colored border/blank gutter cannot match popup.css.
         var navigation = new Panel { Dock = DockStyle.Top, Height = 46,
             BackColor = Paper, Padding = new Padding(17, 1, 17, 1) };
-        var navButtons = new TableLayoutPanel { Dock = DockStyle.Left,
-            Width = 304, ColumnCount = 2, RowCount = 1, Margin = Padding.Empty };
+        var navButtons = new TableLayoutPanel { Dock = DockStyle.Fill,
+            ColumnCount = 2, RowCount = 1, Margin = Padding.Empty };
         navButtons.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
         navButtons.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
         ConfigureAuthButton(_homeTab, true, "Главная");
@@ -132,7 +151,7 @@ public sealed class MainWindow : Form
         navButtons.Controls.Add(_homeTab, 0, 0);
         navButtons.Controls.Add(_accountTab, 1, 0);
         navigation.Controls.Add(navButtons);
-        var footerBar = new Panel { Dock = DockStyle.Bottom, Height = 36,
+        var footerBar = new Panel { Dock = DockStyle.Bottom, Height = 31,
             BackColor = Surface };
         _versionFooter.Dock = DockStyle.Fill;
         _versionFooter.Padding = new Padding(15, 0, 8, 0);
@@ -165,6 +184,8 @@ public sealed class MainWindow : Form
             await StartBridgeAsync();
             await RefreshHostAsync();
             if (_finishApplicationUpdate) await CompleteApplicationUpdateAsync();
+            if (!_api.IsLoggedIn) NavigateAccount(true);
+            else await RefreshDiagnosticsAccessAsync();
         };
         Activated += (_, _) =>
         {
@@ -178,8 +199,15 @@ public sealed class MainWindow : Form
     {
         _accountPanel.Visible = account;
         _homePanel.Visible = !account;
-        _accountTab.BackColor = account ? Accent : Surface;
-        _accountTab.ForeColor = account ? AccentInk : Ink;
+        if (account) _accountPanel.BringToFront();
+        else _homePanel.BringToFront();
+        UpdateNavigation(account);
+    }
+
+    private void UpdateNavigation(bool account)
+    {
+        _accountTab.BackColor = !_api.IsLoggedIn ? Danger : (account ? Accent : Surface);
+        _accountTab.ForeColor = !_api.IsLoggedIn ? Color.White : (account ? AccentInk : Ink);
         _homeTab.BackColor = account ? Surface : Accent;
         _homeTab.ForeColor = account ? Ink : AccentInk;
         _accountTab.Invalidate();
@@ -193,7 +221,7 @@ public sealed class MainWindow : Form
             Dock = DockStyle.Fill,
             ColumnCount = 1,
             RowCount = 0,
-            Padding = new Padding(17, 12, 17, 9),
+            Padding = new Padding(18, 18, 18, 9),
             BackColor = Paper,
             AutoScroll = false
         };
@@ -239,168 +267,157 @@ public sealed class MainWindow : Form
     private void BuildHome(Control page)
     {
         var layout = PageLayout(page);
-        Add(layout, Label("Управление CELIKOM", 11, true), 32);
+        Add(layout, Label("Управление музыкой", 12, true), 42);
         _status.ForeColor = Secondary;
-        _status.Font = new Font("Segoe UI", 10F, FontStyle.Regular);
+        _status.Font = new Font("Segoe UI", 10F);
         _status.AutoEllipsis = false;
-        Add(layout, _status, 47);
+        Add(layout, _status, 49);
 
-        // Same separate Start / Stop controls as the Chrome popup; they change
-        // the existing native bridge state, not any Yandex account or player keys.
-        var primaryActions = new TableLayoutPanel {
-            ColumnCount = 2, RowCount = 1, Dock = DockStyle.Fill, Margin = Padding.Empty
+        var actions = new TableLayoutPanel
+        {
+            ColumnCount = 2, RowCount = 1, Dock = DockStyle.Fill,
+            Margin = Padding.Empty
         };
-        primaryActions.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
-        primaryActions.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
+        actions.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
+        actions.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
         ConfigureAuthButton(_start, true, "Старт");
         ConfigureAuthButton(_stop, false, "Стоп");
-        _start.Margin = new Padding(0, 2, 4, 2);
-        _stop.Margin = new Padding(4, 2, 0, 2);
-        _start.Click += (_, _) => _bridge.SetEnabled(true);
+        _start.Margin = new Padding(0, 2, 5, 2);
+        _stop.Margin = new Padding(5, 2, 0, 2);
+        _start.Click += StartAction;
         _stop.Click += (_, _) => _bridge.SetEnabled(false);
-        primaryActions.Controls.Add(_start, 0, 0);
-        primaryActions.Controls.Add(_stop, 1, 0);
-        Add(layout, primaryActions, 52);
+        actions.Controls.Add(_start, 0, 0);
+        actions.Controls.Add(_stop, 1, 0);
+        Add(layout, actions, 54);
 
         _switchHint.ForeColor = Secondary;
-        _switchHint.Font = new Font("Segoe UI", 8.5F);
+        _switchHint.Font = new Font("Segoe UI", 9F);
         _switchHint.AutoEllipsis = false;
-        Add(layout, _switchHint, 49);
-
+        Add(layout, _switchHint, 54);
         _song.ForeColor = Secondary;
         _song.Font = new Font("Segoe UI", 9F);
         _song.AutoEllipsis = false;
-        Add(layout, _song, 49);
+        Add(layout, _song, 52);
 
-        Add(layout, Label("Яндекс.Музыка", 11, true), 34);
-        Add(layout, Label("Слушай музыку в Яндексе. CELIKOM работает отдельно, твой аккаунт Яндекса здесь не нужен.", 9, false, Secondary), 44);
-        var pair = new TableLayoutPanel
-        {
-            Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1,
-            Margin = Padding.Empty
-        };
-        pair.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 60));
-        pair.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 40));
-        _code.ReadOnly = true;
-        _code.TabStop = false;
-        _code.BackColor = Surface;
-        _code.BorderStyle = BorderStyle.None;
-        _code.Font = new Font("Consolas", 20F, FontStyle.Bold);
-        _code.ForeColor = Accent;
-        _code.Dock = DockStyle.Fill;
-        _code.TextAlign = HorizontalAlignment.Center;
-        pair.Controls.Add(_code, 0, 0);
-        _copy.Text = "Копировать";
-        _copy.FlatStyle = FlatStyle.Flat;
-        _copy.FlatAppearance.BorderColor = Border;
-        _copy.BackColor = Surface;
-        _copy.ForeColor = Ink;
-        _copy.Click += (_, _) =>
-        {
-            if (_api.IsLoggedIn)
-                try
-                {
-                    if (_bridge.PairCode.Length != 6 ||
-                        _bridge.CodeExpires <= DateTimeOffset.UtcNow)
-                        _bridge.RotateCode();
-                    Clipboard.SetText(_bridge.PairCode);
-                }
-                catch { /* Clipboard can be busy; leave code visible. */ }
-        };
-        _copy.Dock = DockStyle.Fill;
-        pair.Controls.Add(_copy, 1, 0);
-        // Native integration uses a same-user ephemeral capability. Old
-        // PulseSync pairing widgets are retained in code for legacy tests,
-        // but are not exposed in the native Windows consumer journey.
-        _rotate.Text = "Получить новый код";
-        _rotate.FlatStyle = FlatStyle.Flat;
-        _rotate.BackColor = Surface;
-        _rotate.ForeColor = Ink;
-        _rotate.FlatAppearance.BorderColor = Border;
-        _rotate.Click += (_, _) => _bridge.RotateCode();
-
-        var hostActions = new TableLayoutPanel
-        {
-            Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1,
-            Margin = Padding.Empty
-        };
-        hostActions.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 53));
-        hostActions.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 47));
-        ConfigureAuthButton(_connectYandex, true, "Подключить CELIKOM");
-        ConfigureAuthButton(_restoreYandex, false, "Восстановить Яндекс");
-        hostActions.Controls.Add(_connectYandex, 0, 0);
-        hostActions.Controls.Add(_restoreYandex, 1, 0);
-        _connectYandex.Click += ConnectYandexAsync;
-        _restoreYandex.Click += RestoreYandexAsync;
-        Add(layout, hostActions, 50);
-
-        var openYandex = Button("Открыть Яндекс", false);
-        openYandex.Click += (_, _) =>
-        {
-            try { Process.Start(new ProcessStartInfo("yandexmusic://") { UseShellExecute = true }); }
-            catch { MessageBox.Show(this, "Открой Яндекс.Музыку обычным способом.", "CELIKOM"); }
-        };
-        var tools = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1 };
-        tools.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
-        tools.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
-        var downloadDiagnostics = Button("Диагностика", false);
-        // Default WinForms button width truncated both labels in the owner screenshot.
-        openYandex.Dock = DockStyle.Fill;
-        downloadDiagnostics.Dock = DockStyle.Fill;
-        downloadDiagnostics.Click += (_, _) => SaveDiagnostics();
-        tools.Controls.Add(openYandex, 0, 0);
-        tools.Controls.Add(downloadDiagnostics, 1, 0);
-        Add(layout, tools, 46);
-        ConfigureAuthButton(_updateApplication, false, "Обновить CELIKOM");
-        _updateApplication.Click += UpdateApplicationAsync;
-        Add(layout, _updateApplication, 43);
-        _hostStatus.ForeColor = Secondary;
-        _hostStatus.Font = new Font("Segoe UI", 8.5F);
-        _hostStatus.AutoEllipsis = false;
-        Add(layout, _hostStatus, 54);
+        // Only a verified developer identity sees a diagnostic export button.
+        _staffPanel.Dock = DockStyle.Bottom;
+        _staffPanel.Height = 57;
+        _staffPanel.Padding = new Padding(18, 4, 18, 4);
+        _staffPanel.BackColor = Paper;
+        _staffPanel.Visible = false;
+        ConfigureAuthButton(_diagnosticsButton, false, "Диагностика");
+        _diagnosticsButton.Click += SaveDiagnosticsAuthorized;
+        _staffPanel.Controls.Add(_diagnosticsButton);
+        page.Controls.Add(_staffPanel);
+        _staffPanel.BringToFront();
     }
 
     private void BuildAccount(Control page)
     {
-        var layout = PageLayout(page);
-        Add(layout, Label("Вход в существующий аккаунт CELIKOM", 11, true), 44);
-        Add(layout, Label("Адрес твоего API (HTTPS)", 9, false, Secondary), 28);
-        _origin.BackColor = Surface;
-        _origin.ForeColor = Ink;
-        _origin.BorderStyle = BorderStyle.FixedSingle;
-        _origin.Text = _api.Origin;
-        _origin.PlaceholderText = "https://адрес-API-CELIKOM";
-        Add(layout, _origin, 42);
-        Add(layout, Label("Учётная запись", 9, false, Secondary), 31);
-        _email.BackColor = Surface;
-        _email.ForeColor = Ink;
-        _email.BorderStyle = BorderStyle.FixedSingle;
+        _accountSignedOut.Dock = DockStyle.Fill;
+        _accountSignedIn.Dock = DockStyle.Fill;
+        _accountSignedOut.BackColor = Paper;
+        _accountSignedIn.BackColor = Paper;
+        page.Controls.Add(_accountSignedIn);
+        page.Controls.Add(_accountSignedOut);
+
+        var layout = PageLayout(_accountSignedOut);
+        Add(layout, Label("Войти в CELIKOM", 13, true), 48);
+        Add(layout, Label("Email", 9, false, Secondary), 30);
         _email.Text = _api.Email;
-        _email.PlaceholderText = "Электронная почта CELIKOM";
-        Add(layout, _email, 42);
-        _password.BackColor = Surface;
-        _password.ForeColor = Ink;
-        _password.BorderStyle = BorderStyle.FixedSingle;
+        _email.PlaceholderText = "Электронная почта";
+        Add(layout, new PopupInput(_email), 51);
+        Add(layout, new Panel { BackColor = Paper }, 13);
+        Add(layout, Label("Пароль", 9, false, Secondary), 30);
         _password.UseSystemPasswordChar = true;
-        _password.PlaceholderText = "Пароль CELIKOM";
-        Add(layout, _password, 42);
-
-        var buttons = new TableLayoutPanel { ColumnCount = 2, RowCount = 1 };
-        buttons.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 52));
-        buttons.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 48));
+        _password.PlaceholderText = "Пароль";
+        Add(layout, new PopupInput(_password), 51);
+        Add(layout, new Panel { BackColor = Paper }, 18);
         ConfigureAuthButton(_login, true, "Войти");
-        ConfigureAuthButton(_logout, false, "Выйти");
-        buttons.Controls.Add(_login, 0, 0);
-        buttons.Controls.Add(_logout, 1, 0);
-        Add(layout, buttons, 51);
         _login.Click += LoginAsync;
-        _logout.Click += LogoutAsync;
-
-        _accountStatus.ForeColor = Accent;
+        Add(layout, _login, 52);
+        _accountStatus.ForeColor = Danger;
+        _accountStatus.Font = new Font("Segoe UI", 9F);
         _accountStatus.AutoEllipsis = false;
-        Add(layout, _accountStatus, 65);
-        Add(layout, Label("Пароль Яндекс.Музыки здесь НЕ нужен.", 10, true, Accent), 41);
-        Add(layout, Label("CELIKOM хранит свою сессию в защищённом хранилище Windows. При выходе старый код подключения отключается.", 9, false, Secondary), 72);
+        _accountStatus.Text = "Войди в аккаунт, чтобы включить CELIKOM.";
+        Add(layout, _accountStatus, 64);
+
+        var signed = PageLayout(_accountSignedIn);
+        Add(signed, Label("Аккаунт CELIKOM", 13, true), 49);
+        _signedInIdentity.ForeColor = Accent;
+        _signedInIdentity.Font = new Font("Segoe UI", 10F);
+        _signedInIdentity.AutoEllipsis = true;
+        Add(signed, _signedInIdentity, 49);
+        Add(signed, new Panel { BackColor = Paper }, 18);
+        ConfigureAuthButton(_logout, false, "Выйти из аккаунта");
+        _logout.Click += LogoutAsync;
+        Add(signed, _logout, 51);
+
+        // Preserve encrypted origin for upgrades; default to shipped service.
+        _origin.Text = string.IsNullOrWhiteSpace(_api.Origin) ? DefaultApiOrigin : _api.Origin;
+        _accountSignedOut.Visible = !_api.IsLoggedIn;
+        _accountSignedIn.Visible = _api.IsLoggedIn;
+    }
+
+    private void StartAction(object? sender, EventArgs e)
+    {
+        if (!_bridgeStarted || _integrationBusy) return;
+        if (!_api.IsLoggedIn)
+        {
+            _accountStatus.Text = "Для начала войди в аккаунт.";
+            NavigateAccount(true);
+            return;
+        }
+        if (_nativeInstallState != NativeInstallState.Active ||
+            !_installedModule.MatchesApplication)
+        {
+            ConnectYandexAsync(sender, e);
+            return;
+        }
+        _bridge.SetEnabled(true);
+        OpenYandexIfNeeded();
+    }
+
+    private static void OpenYandexIfNeeded()
+    {
+        try
+        {
+            if (Process.GetProcessesByName("Яндекс Музыка").Length == 0)
+                Process.Start(new ProcessStartInfo("yandexmusic://")
+                { UseShellExecute = true });
+        }
+        catch { /* Owner can open Yandex normally. */ }
+    }
+
+    private async Task RefreshDiagnosticsAccessAsync()
+    {
+        var generation = ++_diagnosticsEpoch;
+        var email = _api.Email;
+        _diagnosticsAllowed = false;
+        _staffPanel.Visible = false;
+        if (!_api.IsLoggedIn) return;
+        bool allowed;
+        try { allowed = await _api.CanExportDiagnosticsAsync(); }
+        catch { allowed = false; }
+        if (generation != _diagnosticsEpoch || !_api.IsLoggedIn ||
+            !string.Equals(email, _api.Email, StringComparison.OrdinalIgnoreCase)) return;
+        _diagnosticsAllowed = allowed;
+        _staffPanel.Visible = allowed;
+    }
+
+    private async void SaveDiagnosticsAuthorized(object? sender, EventArgs e)
+    {
+        // A previous visible button is not enough: verify live authority again.
+        bool allowed;
+        try { allowed = _api.IsLoggedIn && await _api.CanExportDiagnosticsAsync(); }
+        catch { allowed = false; }
+        if (!allowed)
+        {
+            _diagnosticsAllowed = false;
+            _staffPanel.Visible = false;
+            return;
+        }
+        SaveDiagnostics();
     }
 
     private static void ConfigureAuthButton(Button button, bool primary, string text)
