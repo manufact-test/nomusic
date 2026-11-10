@@ -59,7 +59,8 @@ class CrcRecoveryTest(unittest.TestCase):
     def test_corruption_in_other_member_must_fail(self):
         src,_=self.input_zip()
         b=bytearray(src.read_bytes())
-        p=b.find(b"PK\x01\x02")
+        # Last outer central-directory record: avoid a nested ZIP signature.
+        p=b.rfind(b"PK\x01\x02")
         b[p+16:p+20]=b"\xff\xff\xff\xff"
         src.write_bytes(b)
         with self.assertRaisesRegex(ValueError,"UNRELATED_APK_ENTRY"):
