@@ -1,0 +1,60 @@
+name: android-plan-a-oneclock-verify
+on:
+  push:
+    branches:
+      - feature/android-yandex-client-plan-a-20261110
+    paths:
+      - 'android/yandex-web-oneclock/**'
+      - '.github/workflows/android-oneclock-plan-a-verify.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  oneclock-isolated:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: android/yandex-web-oneclock
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Configure Android SDK 35
+        run: |
+          SDK_MANAGER="$(find /usr/local/lib/android/sdk/cmdline-tools -path '*/bin/sdkmanager' -type f | sort -V | tail -n1)"
+          test -n "$SDK_MANAGER"
+          yes | "$SDK_MANAGER" --licenses >/dev/null || true
+          "$SDK_MANAGER" 'platforms;android-35' 'build-tools;35.0.0'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.10.2'
+      - name: Single-player source policy unit tests (mock-only)
+        run: node --test tests/test-source.cjs
+      - name: Original CELIKOM identity adapter compatibility
+        run: |
+          mkdir -p ../../extension/dist/unpacked/player ../../extension/dist/unpacked/adapters
+          for src in ../../extension/src/player/*.ts; do
+            cp "$src" "../../extension/dist/unpacked/player/$(basename "$src" .ts).js"
+          done
+          cp app/src/main/assets/celikom-core.js ../../extension/dist/unpacked/player/core.js
+          cp app/src/main/assets/celikom-yandex-adapter.js ../../extension/dist/unpacked/adapters/yandex-music-adapter.js
+          node --test ../../extension/tests/yandex-adapter.test.mjs
+      - name: Native Range contract unit test (mock-only)
+        run: |
+          mkdir -p build/testclasses
+          javac -d build/testclasses app/src/main/java/pro/celikom/yandexweb/RangePolicy.java tests/TestRangePolicy.java
+          java -cp build/testclasses TestRangePolicy
+      - name: Require a single host audio engine and minimal manifest
+        run: |
+          if grep -R -E '(new MediaPlayer\(|new AudioTrack\(|new Audio\(|createElement\(["\x27]audio)' app/src/main/java app/src/main/assets/celikom-web-source.js; then
+            echo "Unexpected independent playback engine"; exit 1
+          fi
+          if grep -R -E '(BIND_ACCESSIBILITY_SERVICE|REQUEST_INSTALL_PACKAGES|BIND_NOTIFICATION_LISTENER_SERVICE|MANAGE_EXTERNAL_STORAGE)' app/src/main/AndroidManifest.xml; then
+            echo "Unexpected high-risk permission"; exit 1
+          fi
+      - name: Compile existing isolated WebView APK (verification only)
+        run: gradle --no-daemon :app:assembleDebug
+      - name: Verify built file exists (no artifact upload, no distribution)
+        run: test -s app/build/outputs/apk/debug/app-debug.apk
