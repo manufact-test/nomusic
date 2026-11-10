@@ -16,11 +16,14 @@ public final class NativeSourceDispatchWitness {
     private final Object[] objects=new Object[16];
     private final Object[] readers=new Object[16];
     private final boolean[] started=new boolean[16];
+    private final boolean[] constructed=new boolean[16];
+    private final boolean[] factoryReturned=new boolean[16];
     private final long[] storedAt=new long[16];
     private int next;
     private int factories,lifecycleCalls,matchedCalls,unmatchedCalls,removals;
     private int rejectedUnknown,clockDiscontinuities;
     private int sourceReaderLinks,completedReaderChains,unmatchedReaders;
+    private int constructors,constructedTCalls,factoryTCalls;
 
     private int type(Object object) {
         if(object==null)return -1;
@@ -32,6 +35,8 @@ public final class NativeSourceDispatchWitness {
         objects[i]=null;
         readers[i]=null;
         started[i]=false;
+        constructed[i]=false;
+        factoryReturned[i]=false;
         storedAt[i]=0;
     }
     private void expire(long now){
@@ -43,17 +48,42 @@ public final class NativeSourceDispatchWitness {
             }
         }
     }
+    private int remember(Object value,long time){
+        for(int i=0;i<objects.length;i++){
+            if(objects[i]==value){
+                storedAt[i]=time;
+                return i;
+            }
+        }
+        int index=next;
+        clear(index);
+        objects[index]=value;
+        storedAt[index]=time;
+        next=(next+1)%objects.length;
+        return index;
+    }
     public synchronized void onFactory(Object returned,long elapsedMs){
         if(elapsedMs<0||type(returned)<0){rejectedUnknown++;return;}
         expire(elapsedMs);
-        for(int i=0;i<objects.length;i++){
-            if(objects[i]==returned){storedAt[i]=elapsedMs;factories++;return;}
-        }
-        clear(next);
-        objects[next]=returned;
-        storedAt[next]=elapsedMs;
-        next=(next+1)%objects.length;
+        int i=remember(returned,elapsedMs);
+        factoryReturned[i]=true;
         factories++;
+    }
+    /**
+     * Constructor is a separate, non-equivalent provenance from a factory:
+     * Locv.i0 may construct an ero directly and never call kvs.A.
+     * Does not imply selected/playing/prepared source, only a living object.
+     */
+    public synchronized void onConstructed(Object created,long elapsedMs){
+        if(elapsedMs<0||created==null
+                ||!"ero".equals(created.getClass().getName())){
+            rejectedUnknown++;
+            return;
+        }
+        expire(elapsedMs);
+        int i=remember(created,elapsedMs);
+        if(!constructed[i])constructors++;
+        constructed[i]=true;
     }
     public synchronized void onLifecycleT(Object receiver,long elapsedMs){
         if(elapsedMs<0||type(receiver)<0){rejectedUnknown++;return;}
@@ -62,6 +92,10 @@ public final class NativeSourceDispatchWitness {
         for(int i=0;i<objects.length;i++){
             if(objects[i]==receiver){
                 matchedCalls++;
+                if(!started[i]) {
+                    if(constructed[i])constructedTCalls++;
+                    if(factoryReturned[i])factoryTCalls++;
+                }
                 started[i]=true;
                 return;
             }
@@ -116,18 +150,21 @@ public final class NativeSourceDispatchWitness {
     public synchronized Snapshot snapshot(){
         return new Snapshot(factories,lifecycleCalls,matchedCalls,unmatchedCalls,
                 removals,rejectedUnknown,clockDiscontinuities,sourceReaderLinks,
-                completedReaderChains,unmatchedReaders);
+                completedReaderChains,unmatchedReaders,constructors,
+                constructedTCalls,factoryTCalls);
     }
     public static final class Snapshot {
         public final int factories,lifecycleCalls,matchedCalls,unmatchedCalls,
                 removals,rejectedUnknown,clockDiscontinuities,sourceReaderLinks,
-                completedReaderChains,unmatchedReaders;
+                completedReaderChains,unmatchedReaders,constructors,
+                constructedTCalls,factoryTCalls;
         private Snapshot(int f,int c,int m,int u,int r,int unknown,int rollback,
-                         int links,int chains,int unmatched){
+                         int links,int chains,int unmatched,int ctor,int ctorT,int factoryT){
             factories=f;lifecycleCalls=c;matchedCalls=m;unmatchedCalls=u;
             removals=r;rejectedUnknown=unknown;clockDiscontinuities=rollback;
             sourceReaderLinks=links;completedReaderChains=chains;
             unmatchedReaders=unmatched;
+            constructors=ctor;constructedTCalls=ctorT;factoryTCalls=factoryT;
         }
     }
 }
