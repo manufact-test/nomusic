@@ -142,6 +142,9 @@ public static class DiagnosticLog
         text.AppendLine("NativeMediaUrlExactMatchObserved=" +
             entries.Any(s => s.Contains("|PLAYER_URL_MATCH|resource_id=", StringComparison.Ordinal))
                 .ToString().ToLowerInvariant());
+        text.AppendLine("NativeMediaUrlSignedFieldsIntactObserved=" +
+            entries.Any(s => s.Contains("|PLAYER_URL_SIGNED_FIELDS_INTACT|resource_id=", StringComparison.Ordinal))
+                .ToString().ToLowerInvariant());
         text.AppendLine("NativeMediaUrlQueryMismatchObserved=" +
             entries.Any(s => s.Contains("|PLAYER_URL_QUERY_MISSING|resource_id=", StringComparison.Ordinal) ||
                 s.Contains("|PLAYER_URL_QUERY_CHANGED|resource_id=", StringComparison.Ordinal))
