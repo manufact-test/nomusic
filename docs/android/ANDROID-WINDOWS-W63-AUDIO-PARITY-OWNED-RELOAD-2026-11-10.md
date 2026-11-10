@@ -38,9 +38,11 @@
 4. GitHub Actions `android-native-armv7-audio-smoke.yml` компилирует основной безопасный Android-стенд + модуль только для двух собственных package names, запускает Java тесты и проверяет запреты. `android-native-owned-windows-parity-arm64.yml` запускает те же тесты на **реальном ARM64 Linux/JVM**, это **не Android MediaPlayer**.
 5. Всё экспериментальное, с оригинальными собственными тонами (никаких треков/аккаунтов), без изменения/перепаковки publisher signed Yandex и без установки на личный HONOR. Проведение физического слышимого OWN теста не подтверждено.
 
+**Точная CI GREEN контрольная точка:** `a7f83f0ab836bbeeb12538c6a389c9569d326610`, резерв `backup/android-windows-w60-owned-reload-armv7-arm64-ci-green-20261110`.
+
 **Последние проверки:**
 - [ARM64 Linux Windows-parity #42831135970](https://github.com/manufact-test/nomusic/actions/runs/42831135970) — SUCCESS.
-- [OWN ARMv7 audio APK #42830966825](https://github.com/manufact-test/nomusic/actions/runs/42830966825) — проверить завершение, до зелёного результата не считать релизным/успешным.
+- [OWN ARMv7 audio APK + 50 020 portable test assertions #42830966825 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/42830966825).
 - [Read-only Android hooklab #42830847621](https://github.com/manufact-test/nomusic/actions/runs/42830847621) — SUCCESS для предыдущего изменения.
 - [W63 Windows private CI #42824296777](https://github.com/manufact-test/nomusic/actions/runs/42824296777) — SUCCESS, пользовательская приёмка W63 ещё требуется.
 
