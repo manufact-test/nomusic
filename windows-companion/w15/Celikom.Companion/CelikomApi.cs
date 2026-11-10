@@ -393,7 +393,8 @@ public sealed class CelikomApi : IDisposable
     // The real server requires multipart/form-data. A POST must NOT be retried
     // automatically on 401/timeouts: its result could already have committed.
     private async Task<JsonElement> SendContributionAsync(string route, string trackId,
-        Dictionary<string,string> fields, string? audioFile, CancellationToken ct)
+        Dictionary<string,string> fields, string? audioFile, CancellationToken ct,
+        IProgress<int>? progress = null)
     {
         if (!GrantValidator.IsTrackId(trackId) || !IsLoggedIn)
             throw new ApiFailure(401, "INVALID_SESSION");
@@ -414,7 +415,8 @@ public sealed class CelikomApi : IDisposable
                 throw new ApiFailure(413, "INVALID_FILE");
             var input = new FileStream(audioFile, FileMode.Open, FileAccess.Read,
                 FileShare.Read, 81920, FileOptions.Asynchronous);
-            var file = new StreamContent(input);
+            var file = new StreamContent(progress is null ? input :
+                new ProgressReadStream(input, progress));
             file.Headers.ContentType = new MediaTypeHeaderValue(
                 info.Extension.Equals(".m4a", StringComparison.OrdinalIgnoreCase) ?
                     "audio/mp4" : "audio/mpeg");
@@ -451,10 +453,19 @@ public sealed class CelikomApi : IDisposable
         return result;
     }
 
-    public Task<JsonElement> SuggestTrackAsync(string id, CancellationToken ct = default) =>
-        SendContributionAsync("track-requests", id, new Dictionary<string,string>(), null, ct);
+    public Task<JsonElement> SuggestTrackAsync(string id, string title = "",
+        string artist = "", CancellationToken ct = default) =>
+        SendContributionAsync("track-requests", id, new Dictionary<string,string>
+        {
+            ["title"] = SafeMetadata(title),
+            ["artist"] = SafeMetadata(artist)
+        }, null, ct);
+
+    private static string SafeMetadata(string value) =>
+        value is { Length: <= 240 } && !value.Any(char.IsControl) ? value.Trim() : "";
 
     public Task<JsonElement> UploadTrackAsync(string id, string audioFile, long durationMs,
+        string title, string artist, Guid requestKey, IProgress<int>? progress,
         CancellationToken ct = default)
     {
         if (durationMs is < 1000 or > 86_400_000)
@@ -462,10 +473,13 @@ public sealed class CelikomApi : IDisposable
         var fields = new Dictionary<string,string>
         {
             ["declaration"] = "1",
-            ["request_id"] = Guid.NewGuid().ToString("D"),
-            ["duration_ms"] = durationMs.ToString(System.Globalization.CultureInfo.InvariantCulture)
+            ["request_id"] = requestKey.ToString("D"),
+            ["duration_ms"] = durationMs.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            ["title"] = SafeMetadata(title),
+            ["artist"] = SafeMetadata(artist),
+            ["album"] = ""
         };
-        return SendContributionAsync("uploads", id, fields, audioFile, ct);
+        return SendContributionAsync("uploads", id, fields, audioFile, ct, progress);
     }
 
     public void Dispose() { _http.Dispose(); _refreshLock.Dispose(); }
