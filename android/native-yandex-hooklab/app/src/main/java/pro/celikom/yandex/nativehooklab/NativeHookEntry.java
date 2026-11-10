@@ -289,13 +289,16 @@ public final class NativeHookEntry extends XposedModule {
                     hook(method)
                             .setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
                             .intercept(chain -> {
-                                // Record exact invocation identity BEFORE the native
-                                // scheduling code can dispatch Lmb4.a on another thread.
+                                // A Lero.t may queue work BEFORE it returns.
+                                // BEGIN is provisional. A thrown original t
+                                // MUST NOT manufacture a successful source or
+                                // promote an early async completed reader.
+                                Object receiver=null;
                                 try {
-                                    Object receiver=chain.getThisObject();
+                                    receiver=chain.getThisObject();
                                     long time=SystemClock.elapsedRealtime();
                                     if("t".equals(action)) {
-                                        sourceDispatch.onLifecycleT(receiver,time);
+                                        sourceDispatch.onLifecycleTBegin(receiver,time);
                                         if("ero".equals(concrete)
                                                 &&leroReaderField!=null) {
                                             Object reader=leroReaderField.get(receiver);
@@ -305,12 +308,28 @@ public final class NativeHookEntry extends XposedModule {
                                         sourceDispatch.onRemove(receiver,time);
                                     }
                                 }catch(Throwable ignored){
-                                    // Do not affect real Yandex lifecycle calls.
+                                    // Instrumentation failure never affects player.
                                 }
-                                Object result=chain.proceed();
-                                try { safeSourceDispatchLog(); }
-                                catch(Throwable ignored){}
-                                return result;
+                                try {
+                                    Object result=chain.proceed();
+                                    if("t".equals(action) && receiver!=null) {
+                                        try {
+                                            sourceDispatch.onLifecycleTFinish(
+                                                receiver,true,SystemClock.elapsedRealtime());
+                                        }catch(Throwable ignored){}
+                                    }
+                                    try { safeSourceDispatchLog(); }
+                                    catch(Throwable ignored){}
+                                    return result;
+                                }catch(Throwable original){
+                                    if("t".equals(action) && receiver!=null) {
+                                        try {
+                                            sourceDispatch.onLifecycleTFinish(
+                                                receiver,false,SystemClock.elapsedRealtime());
+                                        }catch(Throwable ignored){}
+                                    }
+                                    throw original;
+                                }
                             });
                     sourceLifecycleHooked.add(hookKey);
                 } catch(Throwable ignored) {
