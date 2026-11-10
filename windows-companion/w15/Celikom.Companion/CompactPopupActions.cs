@@ -49,6 +49,13 @@ public sealed partial class MainWindow
     private async Task RefreshCompactAccessAsync(bool force = false)
     {
         if (!_compactReady || _closing || !IsHandleCreated) return;
+        if (!_api.IsLoggedIn)
+        {
+            ++_compactAccessGeneration;
+            _compactAccess.Text = "Войдите в аккаунт, чтобы начать";
+            return;
+        }
+        if (_compactAccessBusy) return;
         var generation = ++_compactAccessGeneration;
         if (!_api.IsLoggedIn)
         {
@@ -223,22 +230,25 @@ public sealed partial class MainWindow
             _compactSupportMessage.Text = "Опиши проблему перед отправкой.";
             return;
         }
-        if (_compactSupportKind.SelectedIndex == 1)
+        var song = _compactSupportKind.SelectedIndex == 1;
+        if (song && !GrantValidator.IsTrackId(_bridge.LastSong))
         {
-            if (!GrantValidator.IsTrackId(_bridge.LastSong))
-            {
-                _compactSupportMessage.Text = "Запусти песню в Яндексе и повтори.";
-                return;
-            }
-            // Real track ID, no fabricated artist/title/playback state.
-            message = "Проблема с песней · Yandex Track ID " + _bridge.LastSong + ": " + message;
+            _compactSupportMessage.Text = "Запусти песню в Яндексе и повтори.";
+            return;
         }
         _compactSupportBusy = true;
         _compactSupportSubmit.Enabled = false;
         _compactSupportMessage.Text = "Отправляем…";
         try
         {
-            await _api.SendSupportAsync(message, _compactSupportKey);
+            if (song)
+            {
+                var categories = new[] { "not_replacing", "wrong_version", "audio_issue", "other" };
+                var selected = Math.Clamp(_compactSupportCategory.SelectedIndex, 0, categories.Length - 1);
+                await _api.SendSongSupportAsync(message, _compactSupportKey,
+                    _bridge.LastSong, categories[selected], _bridgeStarted, _bridge.Enabled);
+            }
+            else await _api.SendSupportAsync(message, _compactSupportKey);
             _compactSupportKey = Guid.NewGuid();
             _compactSupportText.Clear();
             _compactSupportMessage.Text = "Сообщение отправлено.";
