@@ -1,5 +1,22 @@
 # CELIKOM Android — NEXT CHAT (10.11.2026)
 
+## UPDATE 10.11.2026 — publisher ART profiling denied; exit(0) caller still not attributed
+
+**Latest code HEAD before this docs commit:** `360fec15b719543b909035daee99b30e3257c7ad`.
+**Current code backup:** `backup/android-native-profileability-gate-exit-evidence-20261110`.
+Earlier backup: `backup/android-native-pre-activity-start-trace-20261110`.
+
+Real isolated Android 11 [ART startup-profiler CI #42775069981](https://github.com/manufact-test/nomusic/actions/runs/42775069981) reported `trace_available=false`, no trace file, no secret/raw trace or third-party APK distributed. Clone MAIN still exits `ApplicationExitInfo REASON_EXIT_SELF=1, status=0`; helper :AppMetrica alone alive, original Yandex still alive; UI gate FAIL.
+
+**The publisher-signed original manifest explains the supported-access limit**: [structural CI #42775600758](https://github.com/manufact-test/nomusic/actions/runs/42775600758) SUCCESS, `profileable_declaration_present=true`, `profileable_shell_granted=false`, `publisher_debuggable=false`, `ordinary_shell_method_tracing_authorized=false`. Android official profileable specification states shell tools require app debug mode or explicit profileable shell permission. Neither is available here. **Do not add `debuggable` or `profileable` to a publisher app, run as root, or bypass Android policy.** New code rejects future `CELIKOM_PROFILE_MAIN_LAUNCH=1` if signed publisher doesn't grant tracing; startup profiler workflow is manual-only archived for authorized future cases.
+
+**Additional signed-Dex static audit:** [CI #42775940114](https://github.com/manufact-test/nomusic/actions/runs/42775940114) SUCCESS, 6 original DEX / all methods decoded. The scanner investigated adjacent immediate-register arguments at 7 known termination callsites (5 `System.exit`, 2 `Process.killProcess`); **all 7 = `NOT_PROVEN`**, so `status=0` does **not** identify the actual caller. Three of the `System.exit` sites remain inside `Lck7.uncaughtException`, but no live invocation proof. Do not misread `NOT_PROVEN` as proof of a dynamic or nonzero argument.
+
+**Current hard verdict: NO-GO for clone MAIN/UI and native audio;** unchanged original and 5+5 installation are not enough. No trackId/edition→actual decoder trace, no RASKOL/«Дым» native regression or replacement sound. A technical route forward requires a legitimate publisher-approved profiling/integration capability or independently verified authorized native source API. Do not reverse a publisher protection to make clone work. Windows, Test.50, official HONOR Yandex, extension, backend/DB/production not modified. No owner manual action.
+
+---
+
+
 ## UPDATE 10.11.2026 — EXIT_SELF(0), runtime and Windows cross-audit
 
 **Code HEAD before docs:** b2e0f785083ea687631c95d1e2173a563cae9b4d.
