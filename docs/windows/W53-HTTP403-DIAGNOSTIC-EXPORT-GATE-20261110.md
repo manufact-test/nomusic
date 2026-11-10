@@ -27,3 +27,13 @@ Source tests must pass and the owner must not be asked to install the still-sile
 - Earlier W51 pre-W52 rollback: `backup/windows-w51-http403-pre-w52-stage-20261110` at `a2797566fde88fc707e54f14ff0ef6e014e9c68b`.
 
 **NO-GO:** HTTP403 cause in the owner's native renderer, end-to-end actual HTTP206, audible substitute, Pause/Seek/Next are not yet validated.
+
+## W53 later correction: prevent synthetic export fixtures from poisoning genuine-Yandex CI
+- The original W53 owner-export regression appended deliberately malformed URLs into the global `%LOCALAPPDATA%/CELIKOM/Windows/native-events.log`. The W23/W41 genuine Yandex smoke runners execute W15 tests before their own host tests, so their strict owner-log validator correctly rejected the old synthetic bad rows (`W28_NATIVE_OWNER_LOG_UNSAFE`). **This was a regression-fixture side effect, not vendor/player failure.**
+- `DiagnosticLog.ExportText` now accepts an optional source directory used **only by the testing caller**; GUI continues reading its fixed private user folder. `Celikom.Companion.Tests` writes malformed native/companion fixtures under its own temporary test directory, then deletes them at cleanup. No production log changes, no fake input left behind for later integration stages. Frozen original `w23-host-smoke.ps1` was restored byte-for-byte except for strict numeric-code/`resource_id` event support. CI triggers now include W15 tests in W23 and W41 paths.
+- The renderer URL comparator distinguishes `PLAYER_URL_SIGNED_FIELDS_INTACT` from changes to signed `token/expires/sid`. A reorder or extra unrelated query param may differ bytewise but remain valid under PHP signature parsing; don't claim it causes 403. Duplicate signed fields or changes to their values remain `PLAYER_URL_QUERY_CHANGED`.
+- The instrumented main process only reads tiny bounded native GET JSON 403; if no known Content-Length, `Network.loadingFinished.encodedDataLength` must be <=4096 bytes. Unexpected/large/foreign media bodies are never inspected.
+
+## W54 read-only live hosting log feasibility
+- Fingerprinted owner-authorized SSH read-only metadata census: https://github.com/manufact-test/nomusic/actions/runs/42791183852 **SUCCESS**. One permitted domain root was present; **zero recently modified readable access/error log candidates** matching the narrow names under checked Hostinger paths. No URL, IP, access token, session, host file content or secret was printed; no writes/deploy to production.
+- This does **not** mean there were zero real requests. It means that the necessary per-request audit logs were not available through that restricted SSH scope. The old 7 real Media 403s remain unexplained. Do not invent a hosting/WAF diagnosis or repeat a blind owner install.
