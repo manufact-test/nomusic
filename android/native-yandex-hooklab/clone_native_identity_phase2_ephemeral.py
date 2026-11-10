@@ -18,6 +18,7 @@ import zlib
 from pathlib import Path
 import clone_native_splits_ephemeral as source
 import clone_native_splits_arsclib_ephemeral as arsc
+from merge_lab_splits_ephemeral import merge_ephemeral
 from clone_lab_profileability import enable_private_lab_shell_profiling
 
 OLD_METRICA = "com.yandex.preinstallsatellite.appmetrica.provider"
@@ -824,6 +825,19 @@ def run():
             raise arsc.TrialError("IDENTITY_DEX_LITERAL_COUNT_DRIFT")
         if omit_shadowed and omitted_permission_declarations != 2:
             raise arsc.TrialError("SHADOWED_SIGNATURE_PERMISSION_COUNT_DRIFT")
+        # One-APK research path: merge five ALREADY-verified parallel-clone
+        # splits, then check exact package, lab signer, native libs and all DEX.
+        # Never merge or sign the installed publisher original. No sigbypass.
+        merged_clone = None
+        if os.getenv("CELIKOM_MERGE_PARALLEL_SINGLE_APK") == "1":
+            if not (preserve_original_dex and omit_shadowed and
+                    os.getenv("CELIKOM_CLEAN_ANDROID_ARMV7_TRANSLATION") == "1" and
+                    os.getenv("CELIKOM_ORIGINAL_CONTROL_LAUNCH") == "1" and
+                    os.getenv("GITHUB_ACTIONS") == "true"):
+                raise arsc.TrialError("MERGE_REQUIRES_ISOLATED_TRANSLATED_ANDROID_CONTROL")
+            merged_clone, merge_report = merge_ephemeral(
+                clone_output_apks, work, editor, key, new_fingerprint, arsc)
+            print(json.dumps({"private_one_apk_merge": merge_report}, sort_keys=True))
         emulator_runtime = {}
         native_arm = os.getenv("CELIKOM_CLEAN_ARM_EMULATOR") == "1"
         translated_x64 = os.getenv("CELIKOM_CLEAN_ANDROID_TRANSLATION") == "1"
@@ -890,15 +904,20 @@ def run():
                     "original_code_flags": summarize_installed_package_code_flags(original_info),
                     "original_signature_untouched": True,
                     "login_tested": False, "audio_tested": False}))
-            arsc.run(["adb", "install-multiple", *[str(p) for p in clone_output_apks]],
-                     "ARM_INSTALL_TEST_CLONE", 240)
+            if merged_clone is not None:
+                arsc.run(["adb", "install", str(merged_clone)],
+                         "ARM_INSTALL_TEST_SINGLE_APK_CLONE", 240)
+            else:
+                arsc.run(["adb", "install-multiple", *[str(p) for p in clone_output_apks]],
+                         "ARM_INSTALL_TEST_CLONE", 240)
             original_paths = arsc.run(["adb", "shell", "pm", "path", source.SOURCE],
                                       "ARM_PM_ORIGINAL", 40)
             clone_paths = arsc.run(["adb", "shell", "pm", "path", source.DEST],
                                    "ARM_PM_CLONE", 40)
             original_count = sum(x.startswith("package:") for x in original_paths.splitlines())
             clone_count = sum(x.startswith("package:") for x in clone_paths.splitlines())
-            if original_count != 5 or clone_count != 5:
+            expected_clone_count = 1 if merged_clone is not None else 5
+            if original_count != 5 or clone_count != expected_clone_count:
                 raise arsc.TrialError("ARM_SIDE_BY_SIDE_SPLIT_COUNT_INVALID")
             clone_info = arsc.run(
                 ["adb", "shell", "dumpsys", "package", source.DEST],
@@ -915,8 +934,14 @@ def run():
                     r"com\.yandex\.permission\.READ_CREDENTIALS\s*:\s*granted=true",
                     package_dump):
                     raise arsc.TrialError("CLONE_RECEIVED_UNAUTHORIZED_CREDENTIAL_PERMISSION")
-            print(json.dumps({"emulator_install_gate": "SIDE_BY_SIDE_5_AND_5_PASS",
-                              "owner_phone_touched": False, "credential_use": False}))
+            print(json.dumps({
+                "emulator_install_gate": ("SIDE_BY_SIDE_5_ORIGINAL_AND_1_CLONE_PASS"
+                                          if merged_clone is not None else
+                                          "SIDE_BY_SIDE_5_AND_5_PASS"),
+                "original_parts_installed": original_count,
+                "clone_parts_installed": clone_count,
+                "owner_phone_touched": False,
+                "credential_use": False}, sort_keys=True))
             # Disposable emulator only: scope lifecycle evidence to this launch.
             if strict_main_ui_gate:
                 arsc.run(["adb", "logcat", "-c"],
@@ -1064,6 +1089,7 @@ def run():
             "fileinfo_decoder_proven": False,
             "native_audio_tested": False,
             "play_protect_tested": False,
+            "merge_one_apk_structural_only": merged_clone is not None,
             "profileable_shell_only_on_separate_lab_clone": private_profileable,
             "publisher_original_profileable_unchanged": True
         }

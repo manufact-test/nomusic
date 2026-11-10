@@ -1,0 +1,51 @@
+name: Android native A1 one-APK parallel clone merge runtime gate (ephemeral)
+on:
+  push:
+    branches:
+      - feature/android-parallel-clone-single-apk-merge-20261111
+    paths:
+      - 'android/native-yandex-hooklab/merge_lab_splits_ephemeral.py'
+      - 'android/native-yandex-hooklab/tests/test_merge_lab_splits_ephemeral.py'
+      - 'android/native-yandex-hooklab/clone_native_identity_phase2_ephemeral.py'
+      - '.github/workflows/android-native-a1-single-apk-merge-emulator.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  isolated-merge-and-real-package-manager:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify merge byte-preservation unit contract
+        run: |
+          python3 -m py_compile android/native-yandex-hooklab/merge_lab_splits_ephemeral.py android/native-yandex-hooklab/clone_native_identity_phase2_ephemeral.py
+          python3 -m unittest discover -s android/native-yandex-hooklab/tests -p test_merge_lab_splits_ephemeral.py -v
+          python3 -m unittest discover -s android/native-yandex-hooklab/tests -p test_clone_crash_classification.py -v
+      - name: Enable disposable KVM
+        run: |
+          test -e /dev/kvm
+          sudo chmod 666 /dev/kvm
+      - name: Build verified merged clone and install beside untouched signed original
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 30
+          target: google_apis
+          arch: x86
+          profile: pixel_5
+          emulator-boot-timeout: 480
+          emulator-options: -no-snapshot-load -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none
+          disable-animations: true
+          script: >
+            CELIKOM_CLEAN_ANDROID_ARMV7_TRANSLATION=1
+            CELIKOM_MANIFEST_ONLY_ORIGINAL_DEX=1
+            CELIKOM_OMIT_SHADOWED_SIGNATURE_DECLS=1
+            CELIKOM_ORIGINAL_CONTROL_LAUNCH=1
+            CELIKOM_MERGE_PARALLEL_SINGLE_APK=1
+            python3 android/native-yandex-hooklab/clone_native_identity_phase2_ephemeral.py
+      - name: Assert no third-party merged APK or private key retained
+        if: always()
+        run: |
+          test ! -d android/native-yandex-hooklab/release
+          test ! -d android/native-yandex-hooklab/patched
+          echo "All clone/original APKs, signing key and device traces scoped to deleted temporary workspace"
