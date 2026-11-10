@@ -64,6 +64,16 @@ void Relayout()
     => typeof(MainWindow).GetMethod("LayoutCompact",
         System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)?
         .Invoke(form, null);
+void ScrollStage(Control row)
+{
+    var positions = (Dictionary<Control, int>)Get("_compactPositions");
+    if (!positions.TryGetValue(row, out var y))
+        throw new Exception("W64_STAGE_POSITION_MISSING " + row.Name);
+    typeof(MainWindow).GetMethod("SetCompactOffset",
+        System.Reflection.BindingFlags.Instance |
+        System.Reflection.BindingFlags.NonPublic)!.Invoke(form, [Math.Max(0, y - 15)]);
+    Application.DoEvents();
+}
 
 var prefix = Path.Combine(Path.GetDirectoryName(args[0])!,
     Path.GetFileNameWithoutExtension(args[0]));
@@ -80,7 +90,7 @@ if (!email.Visible || !password.Visible || !login.Visible ||
     email.Bounds.IntersectsWith(password.Bounds) ||
     login.Bounds.IntersectsWith(password.Bounds))
     throw new Exception("W63_ACCOUNT_FORM_INVISIBLE_OR_OVERLAPPING");
-((ScrollableControl)Get("_compactScroll")).ScrollControlIntoView(account);
+ScrollStage(account);
 SaveStage(prefix + "-account.png");
 
 // Test support form actually opens and exposes a working Send button.
@@ -92,7 +102,7 @@ var send = (Control)Get("_compactSupportSubmit");
 if (!send.Visible || send.Parent != support ||
     send.Bottom > support.ClientSize.Height)
     throw new Exception("W63_SUPPORT_SEND_HIDDEN_OR_CLIPPED");
-((ScrollableControl)Get("_compactScroll")).ScrollControlIntoView(support);
+ScrollStage(support);
 SaveStage(prefix + "-support.png");
 
 // Approved/pending status must replace the upload form, not duplicate it.
@@ -107,7 +117,7 @@ var result = (Control)Get("_compactUploadResult");
 var uploadSubmit = (Control)Get("_compactUploadSubmit");
 if (!result.Visible || uploadSubmit.Visible)
     throw new Exception("W63_APPROVED_UPLOAD_DID_NOT_HIDE_FORM");
-((ScrollableControl)Get("_compactScroll")).ScrollControlIntoView(result);
+ScrollStage((Control)Get("_compactUploadBody"));
 SaveStage(prefix + "-approved.png");
 
 // The normal upload path must visibly contain the file chooser, rights
@@ -122,7 +132,7 @@ if (!picker.Visible || !rights.Visible || !submitUpload.Visible ||
     picker.Bounds.IntersectsWith(rights.Bounds) ||
     submitUpload.Bottom > uploadPanel.ClientSize.Height)
     throw new Exception("W63_UPLOAD_FORM_INVISIBLE_OR_CLIPPED");
-((ScrollableControl)Get("_compactScroll")).ScrollControlIntoView(uploadPanel);
+ScrollStage(uploadPanel);
 SaveStage(prefix + "-upload.png");
 
 // Ensure the user can reach Send via scroll even when the window is narrow.
@@ -136,7 +146,7 @@ if (!category.Visible || !send.Visible ||
     category.Bounds.IntersectsWith(desc.Bounds) ||
     send.Bottom > support.ClientSize.Height)
     throw new Exception("W63_SONG_SUPPORT_FORM_NOT_USABLE");
-((ScrollableControl)Get("_compactScroll")).ScrollControlIntoView(support);
+ScrollStage(support);
 SaveStage(prefix + "-song-support.png");
 Console.WriteLine("W63_EXPANDED_ACCOUNT_SUPPORT_AND_GREEN_DUPLICATE_CARD_PASS");
 
