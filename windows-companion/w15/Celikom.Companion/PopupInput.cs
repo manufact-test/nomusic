@@ -47,7 +47,7 @@ public sealed class PopupInput : UserControl
         path.AddArc(rect.Left, rect.Top, r * 2, r * 2, 180, 90);
         path.AddArc(rect.Right - r * 2, rect.Top, r * 2, r * 2, 270, 90);
         path.AddArc(rect.Right - r * 2, rect.Bottom - r * 2, r * 2, r * 2, 0, 90);
-        path.AddArc(rect.Left, rect.Bottom - r * 2, r * 2, 90, 90);
+        path.AddArc(rect.Left, rect.Bottom - r * 2, r * 2, r * 2, 90, 90);
         path.CloseFigure();
         using var fill = new SolidBrush(Background);
         using var pen = new Pen(_input.Focused ? FocusOutline : Outline, 1.2F);
