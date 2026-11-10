@@ -98,6 +98,7 @@ public sealed partial class MainWindow
     private string _compactPinnedSuggestTrack = "";
     private string _compactStartupText = "";
     private bool _compactStarting;
+    private int _compactStartEpoch;
 
     private static readonly Color Quiet = ColorTranslator.FromHtml("#788991");
 
@@ -166,7 +167,15 @@ public sealed partial class MainWindow
         _start.Dock = _stop.Dock = DockStyle.None;
         _start.Font = _stop.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
         _start.Click += StartAction;
-        _stop.Click += (_, _) => _bridge.SetEnabled(false);
+        _stop.Click += (_, _) =>
+        {
+            ++_compactStartEpoch;
+            _compactStarting = false;
+            _compactStartupText = "";
+            _bridge.SetEnabled(false);
+            RenderCompact();
+            LayoutCompact();
+        };
         _compactActions.Controls.Add(_start);
         _compactActions.Controls.Add(_stop);
 
@@ -446,6 +455,16 @@ public sealed partial class MainWindow
         _compactAccountTrigger.Invalidate();
         _signedInIdentity.Text = _api.Email;
         _start.Text = "Старт";
+        var nativeStatus = _bridge.LastStatus;
+        if (_compactStarting && _bridge.Enabled &&
+            nativeStatus is "NATIVE_CONNECTED" or "NATIVE_MAPPING_ACCEPTED" or
+                "ORIGINAL" or "RESOLVING")
+        {
+            ++_compactStartEpoch;
+            _compactStarting = false;
+            _compactStartupText = "";
+            if (IsHandleCreated) BeginInvoke(new Action(LayoutCompact));
+        }
         _compactStartup.Text = _compactStartupText;
 
         var id = _bridge.LastSong;
