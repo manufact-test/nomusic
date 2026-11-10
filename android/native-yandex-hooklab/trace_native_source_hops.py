@@ -30,6 +30,26 @@ MAX_HOPS = 3
 MAX_WITNESSES = 12
 
 
+def media_namespace_family(method):
+    """Classify PUBLIC SDK class namespaces only; do not infer decoder ownership."""
+    owner, name, signature = method
+    if owner.startswith("Landroidx/media3/"):
+        return "androidx_media3"
+    if owner.startswith("Lcom/google/android/exoplayer2/"):
+        return "legacy_exoplayer2"
+    if owner == "Landroid/media/MediaCodec;":
+        return "platform_media_codec"
+    if owner == "Landroid/media/AudioTrack;":
+        return "platform_audio_track"
+    if owner == "Landroid/media/MediaExtractor;":
+        return "platform_media_extractor"
+    if owner == "Landroid/media/MediaPlayer;":
+        return "platform_media_player"
+    if owner == "Lged;":
+        return "named_obfuscated_bridge_ged"
+    return None
+
+
 def call_graph_hops(reverse, source_methods, media_methods, max_hops=MAX_HOPS):
     """Traverse from a Media3 call backwards, never infer data movement."""
     if not 1 <= max_hops <= MAX_HOPS:
@@ -66,6 +86,20 @@ def inspect_one_dex(data):
     reverse = defaultdict(set)
     sources = {"converter_caller": set(), "model_consumer": set()}
     media_methods = set()
+    # Method refs, not classes: a 0 in media3 indicates no un-obfuscated
+    # symbols, NOT evidence that no media engine exists in the APK.
+    media_family_refs = defaultdict(set)
+    for method_index in range(dex.method_count):
+        triple = dex.method(method_index)
+        family = media_namespace_family(triple)
+        if family is not None:
+            media_family_refs[family].add(triple)
+    defined_classes = dex.defined_classes()
+    media_family_defined = defaultdict(int)
+    for owner in defined_classes:
+        family = media_namespace_family((owner, "", ""))
+        if family is not None:
+            media_family_defined[family] += 1
     scanned = 0
     edges = 0
     unsupported_bodies = 0
@@ -120,6 +154,10 @@ def inspect_one_dex(data):
         "complete": True, "unsupported_method_bodies": 0,
         "defined_method_bodies": scanned, "invoke_edges": edges,
         "media3_source_methods_referenced": len(media_methods),
+        "media_family_method_refs": dict(sorted(
+            (key, len(value)) for key, value in media_family_refs.items())),
+        "media_family_defined_classes": dict(sorted(media_family_defined.items())),
+        "namespace_limit": "A missing named API is not proof no player/decoder exists.",
         "search": results,
     }
 
@@ -158,6 +196,17 @@ def run():
                 "invoke_edges": sum(d["invoke_edges"] for d in observed),
                 "media3_source_method_refs": sum(d["media3_source_methods_referenced"]
                                                  for d in observed),
+            },
+            "public_player_namespace_census": {
+                family: {
+                    "method_refs": sum(d["media_family_method_refs"].get(family, 0)
+                                       for d in observed),
+                    "defined_classes": sum(d["media_family_defined_classes"].get(family, 0)
+                                           for d in observed)
+                } for family in (
+                    "androidx_media3", "legacy_exoplayer2", "platform_media_codec",
+                    "platform_audio_track", "platform_media_extractor",
+                    "platform_media_player", "named_obfuscated_bridge_ged")
             },
             "by_dex": [
                 {"ordinal": i + 1, "search": item["search"]}

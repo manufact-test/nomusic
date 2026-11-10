@@ -3,10 +3,24 @@ import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from trace_native_source_hops import call_graph_hops
+from trace_native_source_hops import call_graph_hops, media_namespace_family
 
 
 class StaticSourceHopTests(unittest.TestCase):
+    def test_sdk_namespace_distinctions(self):
+        self.assertEqual(media_namespace_family(
+            ("Landroid/media/MediaCodec;", "configure", "()V")), "platform_media_codec")
+        self.assertEqual(media_namespace_family(
+            ("Landroidx/media3/exoplayer/source/MediaSource;", "createMediaSource", "()V")),
+            "androidx_media3")
+        self.assertEqual(media_namespace_family(
+            ("Lcom/google/android/exoplayer2/ExoPlayer;", "prepare", "()V")),
+            "legacy_exoplayer2")
+        self.assertEqual(media_namespace_family(
+            ("Lged;", "a", "()V")), "named_obfuscated_bridge_ged")
+        self.assertIsNone(media_namespace_family(
+            ("Lsecret/path;", "prepare", "()V")))
+
     def test_chain_1_to_3_hops(self):
         start = ("Lsource;", "start", "()V")
         middle = ("Lmiddle;", "a", "()V")
