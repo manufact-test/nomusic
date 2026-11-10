@@ -80,6 +80,10 @@ public sealed partial class MainWindow : Form
         _bridge.Changed += () => UpdateSafe();
 
         Text = "CELIKOM"; // version is shown in the compact popup footer, not clipped in titlebar
+        // ApplicationIcon is built from the SAME official extension "C" mark.
+        // The PE resource survives installation, so it also brands the taskbar.
+        try { Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath) ?? SystemIcons.Application; }
+        catch { Icon = SystemIcons.Application; }
         ClientSize = new Size(462, 570);
         MinimumSize = new Size(430, 540);
         StartPosition = FormStartPosition.CenterScreen;
@@ -112,7 +116,7 @@ public sealed partial class MainWindow : Form
         menu.Items.Add("Выход", null, (_, _) => Close());
         _tray = new NotifyIcon
         {
-            Icon = SystemIcons.Application, ContextMenuStrip = menu,
+            Icon = Icon, ContextMenuStrip = menu,
             Visible = true, Text = "CELIKOM — выключено"
         };
         _tray.DoubleClick += (_, _) => ShowMain();
