@@ -305,11 +305,13 @@ public sealed partial class MainWindow : Form
 
     private void StartAction(object? sender, EventArgs e)
     {
-        if (!_bridgeStarted || _integrationBusy) return;
+        if (!_bridgeStarted || _integrationBusy || _compactStarting) return;
         if (!_api.IsLoggedIn)
         {
-            _accountStatus.Text = "Для начала войди в аккаунт.";
-            NavigateAccount(true);
+            _compactAccountOpen = true;
+            _compactAccountMessage.Text = "Войди в аккаунт, чтобы включить CELIKOM.";
+            LayoutCompact();
+            ScrollCompactTo(_compactAccountTrigger);
             return;
         }
         if (_nativeInstallState != NativeInstallState.Active ||
@@ -318,19 +320,58 @@ public sealed partial class MainWindow : Form
             ConnectYandexAsync(sender, e);
             return;
         }
+        if (!OpenYandexIfNeeded()) return;
         _bridge.SetEnabled(true);
-        OpenYandexIfNeeded();
+        _compactStarting = true;
+        _compactStartupText = "Открываем Яндекс.Музыку и ждём подключения…";
+        RenderCompact();
+        LayoutCompact();
+        var generation = ++_compactStartEpoch;
+        _ = MonitorStartupAsync(generation);
     }
 
-    private static void OpenYandexIfNeeded()
+    private bool OpenYandexIfNeeded()
     {
         try
         {
-            if (Process.GetProcessesByName("Яндекс Музыка").Length == 0)
-                Process.Start(new ProcessStartInfo("yandexmusic://")
-                { UseShellExecute = true });
+            if (Process.GetProcessesByName("Яндекс Музыка").Length != 0) return true;
         }
-        catch { /* Owner can open Yandex normally. */ }
+        catch { /* Try normal launch. */ }
+
+        if (MessageBox.Show(this, "Открыть Яндекс.Музыку?",
+                "Запустить Яндекс.Музыку", MessageBoxButtons.YesNo,
+                MessageBoxIcon.Question) != DialogResult.Yes)
+            return false;
+        try
+        {
+            var exe = Path.Combine(NativeIntegrationManager.DefaultYandexDirectory,
+                "Яндекс Музыка.exe");
+            if (File.Exists(exe))
+                Process.Start(new ProcessStartInfo(exe) { UseShellExecute = true });
+            else
+                Process.Start(new ProcessStartInfo("yandexmusic://") { UseShellExecute = true });
+            return true;
+        }
+        catch
+        {
+            _compactStartupText = "Не удалось открыть Яндекс. Попробуй запустить его вручную.";
+            RenderCompact();
+            LayoutCompact();
+            return false;
+        }
+    }
+
+    private async Task MonitorStartupAsync(int generation)
+    {
+        // The Yandex application may genuinely need time to initialize its
+        // Electron renderer. Show bounded guidance, never fake percentages.
+        await Task.Delay(TimeSpan.FromSeconds(22));
+        if (generation != _compactStartEpoch || _closing || !_compactStarting ||
+            !_bridge.Enabled || IsDisposed) return;
+        _compactStarting = false;
+        _compactStartupText = "Яндекс запускается дольше обычного. Проверь его окно.";
+        RenderCompact();
+        LayoutCompact();
     }
 
     private async Task RefreshDiagnosticsAccessAsync()
@@ -424,6 +465,11 @@ public sealed partial class MainWindow : Form
             MessageBoxButtons.YesNo, MessageBoxIcon.Question);
         if (answer != DialogResult.Yes) return;
         _integrationBusy = true;
+        _compactStartupText = upgrading
+            ? "Обновляем подключение к Яндекс.Музыке…"
+            : "Подключаем CELIKOM к Яндекс.Музыке…";
+        RenderCompact();
+        LayoutCompact();
         UpdateSafe();
         try
         {
@@ -437,6 +483,10 @@ public sealed partial class MainWindow : Form
             await Task.Run(() => NativeIntegrationManager.Install());
             DiagnosticLog.Record("NATIVE_INSTALL_OK");
             _bridge.SetEnabled(_api.IsLoggedIn);
+            _compactStartupText = "Модуль подключён. Запускаем Яндекс.Музыку…";
+            _compactStarting = _api.IsLoggedIn;
+            var generation = ++_compactStartEpoch;
+            if (_compactStarting) _ = MonitorStartupAsync(generation);
             _hostStatus.Text = "CELIKOM подключён к Яндексу.";
             try
             {
@@ -449,6 +499,9 @@ public sealed partial class MainWindow : Form
         catch (Exception error)
         {
             DiagnosticLog.Record(upgrading ? "NATIVE_UPGRADE_FAILED" : "NATIVE_INSTALL_FAILED");
+            ++_compactStartEpoch;
+            _compactStarting = false;
+            _compactStartupText = "Не удалось подключить Яндекс.Музыку.";
             MessageBox.Show(this, DescribeIntegrationFailure(error), "CELIKOM",
                 MessageBoxButtons.OK, MessageBoxIcon.Warning);
         }
