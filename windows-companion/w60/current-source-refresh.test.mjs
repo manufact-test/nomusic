@@ -151,3 +151,25 @@ test("W63 exact current song yields safe title artist duration without control m
   r.dispose();
   assert.equal(r.currentTrack(),null);
 });
+
+test("W66 song and artist metadata keep uppercase D, digits and Unicode intact",()=>{
+  const h=harness({trackId:"34483761"}),r=createCurrentSourceRefresh();
+  assert.equal(r.attach(h.webpackRequire),true);
+  const p=new h.NativeYandexPlayback();
+  const meta=p.snapshot.queueState.currentEntity.value.entity.data.meta;
+  meta.title="Город и Туман";
+  meta.artists=[{name:"kavabanga Depo kolibri"}];
+  void p.state;
+  assert.deepEqual(r.currentTrack(),{
+    id:"34483761",title:"Город и Туман",
+    artist:"kavabanga Depo kolibri",durationMs:178000
+  });
+  meta.title="TRITIA 10AGE 02468 ABCDFHJLNPRTVXZ";
+  meta.artists=[{name:"中文 русский DÉPÔ 0123456789"}];
+  assert.equal(r.currentTrack().title,meta.title);
+  assert.equal(r.currentTrack().artist,meta.artists[0].name);
+  meta.title="D\u0000evil\n";
+  assert.equal(r.currentTrack().title,"D evil");
+  assert.deepEqual(p.calls,[],"display-only observation never reloads media");
+  r.dispose();
+});
