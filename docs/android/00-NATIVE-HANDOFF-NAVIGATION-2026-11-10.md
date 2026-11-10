@@ -2,6 +2,12 @@
 
 **Начальная точка:** `docs/android/START-NEXT-CHAT-ANDROID-NATIVE-2026-11-10.md` — готовый текст первого сообщения новому разработчику.
 
+## Самый новый подтверждённый результат
+
+- **Точный проверенный код:** `8b7bc64f89249e5434da739851bececce2adb121` — [signed DEX CI #42806655214](https://github.com/manufact-test/nomusic/actions/runs/42806655214) SUCCESS, [Android module CI #42806655152](https://github.com/manufact-test/nomusic/actions/runs/42806655152) SUCCESS 2/2.
+- **Rollback:** `backup/android-signed-register-cfg-ci-green-20261110` → `8b7bc64f89249e5434da739851bececce2adb121`.
+- **Сначала изучать:** `docs/android/ANDROID-NATIVE-SIGNED-REGISTER-COROUTINE-CFG-EVIDENCE-2026-11-10.md`. Выявлены Lxa7.<init>, Lged.a → Lhee.a и прямые coroutine callers; это may-flow, не Android decoder proof.
+
 ## Главное, читать по порядку
 
 1. **Новый результат подписанного Android APK:** `docs/android/ANDROID-NATIVE-SIGNED-SHARED-CALLER-MEDIASESSION-EVIDENCE-2026-11-10.md` — 6 DEX / 837 500 вызовов, прямой FileInfo caller `Lhee;->a`, model consumer `Lged;->a`, без ложного decoder proof, 2+2 прямых вызова MediaSession.
@@ -15,7 +21,7 @@
 
 - Репозиторий: https://github.com/manufact-test/nomusic
 - Рабочая ветка: `experiment/android-native-yandex-fileinfo-hooklab-20261109`; перед работой считать текущий HEAD, docs-коммит может быть новее кода.
-- **Проверенный код:** `d7d3f8b82b6d752ed7837dd9955ccb51df71641d`.
+- **Предыдущий проверенный код (shared-caller этап):** `d7d3f8b82b6d752ed7837dd9955ccb51df71641d`.
 - **[Подписанный APK статический CI #42804081064 — SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/42804081064)**.
 - **[Android Xposed read-only модуль CI #42804081053 — SUCCESS 2/2](https://github.com/manufact-test/nomusic/actions/runs/42804081053)**.
 - Резервная ветка точно проверенного кода: `backup/android-signed-source-bridge-media-session-ci-green-20261110` → `d7d3f8b82b6d752ed7837dd9955ccb51df71641d`.
