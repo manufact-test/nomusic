@@ -33,6 +33,7 @@ jobs:
             android/native-yandex-hooklab/app/src/main/java/pro/celikom/yandex/nativehooklab/NativeGrantContract.java \
             android/native-yandex-hooklab/app/src/main/java/pro/celikom/yandex/nativehooklab/NativeReplacementLifecycle.java \
             android/native-yandex-hooklab/app/src/main/java/pro/celikom/yandex/nativehooklab/NativeSourceInstanceFence.java \
+            android/native-yandex-hooklab/app/src/main/java/pro/celikom/yandex/nativehooklab/NativeSourceDispatchWitness.java \
             $(find android/native-yandex-hooklab/tests/src -type f -name '*.java' | sort)
           java -cp /tmp/celikom-jvm-hooklab HookSpecTest
           java -cp /tmp/celikom-jvm-hooklab NativeSourceGateTest
@@ -44,6 +45,7 @@ jobs:
           java -cp /tmp/celikom-jvm-hooklab NativeReplacementLifecycleTest
           java -cp /tmp/celikom-jvm-hooklab NativeSourceInstanceFenceTest
           java -cp /tmp/celikom-jvm-hooklab NativeSourceInstanceConcurrencyTest
+          java -cp /tmp/celikom-jvm-hooklab NativeSourceDispatchWitnessTest
       - name: Test read-only ARM device gate (synthetic snapshots; no phone connected)
         run: python3 -m unittest discover -s android/native-yandex-hooklab/tests -p 'test_*.py' -v
       - name: Disallow sensitive permissions, substitute player and mutable audio sources
@@ -83,7 +85,22 @@ jobs:
           for forbidden in ['getString(', 'getLong(', 'metadata.get', 'MediaMetadata.METADATA_', 'getQueue(', 'getMediaId(', 'getDescription(']:
               assert forbidden not in source, forbidden
           fence=(base/'app/src/main/java/pro/celikom/yandex/nativehooklab/NativeSourceInstanceFence.java').read_text()
-          assert 'NativeSourceInstanceFence' not in source, 'new model must remain unwired from Yandex'
+          assert 'NativeSourceInstanceFence' not in source, 'old synthetic model must remain unwired from Yandex'
+          # Exact signed factory/t observation may count reference identity,
+          # but must not mutate an audio source or identify an audible decoder.
+          assert 'HookSpec.findSourceFactory(loader)' in source
+          assert 'HookSpec.findSourceLifecycle(loader,concrete,action)' in source
+          assert 'chain.proceed()' in source
+          assert 'sourceDispatch.onFactory(result, SystemClock.elapsedRealtime())' in source
+          assert 'sourceDispatch.onLifecycleT(receiver,time)' in source
+          assert 'sourceDispatch.onRemove(receiver,time)' in source
+          witness=(base/'app/src/main/java/pro/celikom/yandex/nativehooklab/NativeSourceDispatchWitness.java').read_text()
+          assert 'objects[i]==receiver' in witness
+          assert 'onFactory(Object returned,long elapsedMs)' in witness
+          assert 'source.getClass().getName()' not in witness
+          for unsafe in ('URL', 'getMediaId', 'getTitle', 'getUri', 'HttpURLConnection', 'setDataSource',
+                         'MediaPlayer', 'getDeclaredField', 'Log.', 'System.out.'):
+              assert unsafe not in witness, unsafe
           assert 'System.out.' not in fence and 'Log.' not in fence and 'MediaPlayer' not in fence
           for forbidden in ('HttpURLConnection','getMediaId','getMetadata','getTitle',
                             'getUri','trackId','editionId','getDeclaredField'):
