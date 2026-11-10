@@ -2,7 +2,15 @@
 
 **Status:** Source code only; builds a *CELIKOM Xposed module APK* (not an independent music player). Owner authorized research and preparation for **a separate disposable test device only**. No package was installed, and **nothing** on the owner's HONOR, stable Test.50, catalog or server is touched.
 
-## Latest publisher-signed DEX register/CFG audit (2026-11-10)
+## NEWEST signed native typed-model / field2 receiver proof (2026-11-10)
+
+- Verified code `78b0437f17888ce49a4c1bea0ba06ca96cb455b9`, rollback `backup/android-signed-typed-dispatch-field-audit-ci-green-20261110`.
+- Full actual signed source-to-model investigation: `docs/android/ANDROID-NATIVE-SIGNED-TYPED-DISPATCH-EVIDENCE-2026-11-10.md`.
+- Native DTO wrapper Lxa7 → Leed → typed Ldiv → Lygv.r(Ldiv):Ljgv → real consumers Lcq7/Lo4y/Larv. NO verified same-current-track decoder.
+- Possible 7-hop obfuscated route to Lro7.y0 uses an **ambiguous 16-way Le48.a dispatch**. Exact original DEX read/write census across 230,533 method bodies shows Lga4.c loads Le48 field-2; ctor's Lzcd is in field-1, and field-2 has Lya4/Lkc6/unknown writers. Lsu5.invoke has unrelated switch branches. Treat the graph as candidate only, never as proof for sound substitution.
+- Signed CI verified: typed [#42810750855](https://github.com/manufact-test/nomusic/actions/runs/42810750855), field [#42810607588](https://github.com/manufact-test/nomusic/actions/runs/42810607588), and read-only Android module [#42810750850](https://github.com/manufact-test/nomusic/actions/runs/42810750850) SUCCESS 2/2. No installable Yandex audio replacement.
+
+## Previous publisher-signed DEX register/CFG audit (2026-11-10)
 
 - Source-only `audit_native_register_bridge.py`, tests and independent workflow `android-native-register-bridge-audit.yml`.
 - Pinned signed APK CI [#42806655214](https://github.com/manufact-test/nomusic/actions/runs/42806655214) SUCCESS; module build [#42806655152](https://github.com/manufact-test/nomusic/actions/runs/42806655152) SUCCESS 2/2; rollback `backup/android-signed-register-cfg-ci-green-20261110` at `8b7bc64f89249e5434da739851bececce2adb121`.
