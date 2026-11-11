@@ -18,6 +18,10 @@ from pathlib import Path
 
 import clone_native_splits_ephemeral as source
 from clone_main_crash_buffer import classify_main_crash_buffer, classify_main_exit_status
+from native_arm13_startup_observer import (
+    classify_startup_events, only_new_main_exit_info,
+    classify_new_main_log_signals,
+)
 from native_arm13_signed_original_control import (
     adb, check_guest_container, pm_category, private_process, pm_session_install
 )
@@ -173,7 +177,12 @@ def start(package: str) -> tuple[dict, dict]:
     Only report enum categories from ActivityExitInfo & scoped crash buffer.
     No log line, component class, account content, PID or file retained.
     """
-    adb(["shell", "logcat", "-c"])
+    # Explicitly clear the events buffer too; avoid stale lifecycle witnesses.
+    # Preserve a prelaunch exit-info baseline because ApplicationExitInfo can
+    # retain earlier clone runs after uninstall/reinstall in the same guest.
+    prior_exit_info = (adb(["shell", "dumpsys", "activity", "exit-info", package],
+                           timeout=35, allow=True) if package == CLONE else "")
+    adb(["shell", "logcat", "-b", "all", "-c"])
     launch = adb(["shell", "am", "start", "--user", "0",
                   "-n", package + "/" + MAIN_CLASS], timeout=60, allow=True)
     observations = []
@@ -187,11 +196,31 @@ def start(package: str) -> tuple[dict, dict]:
                                         or "Warning: Activity not started" in launch)
     exit_info = adb(["shell", "dumpsys", "activity", "exit-info", package],
                     timeout=35, allow=True)
-    safe_exit = classify_main_exit_status(exit_info) if package == CLONE else {
+    filtered_exit, fresh_exit = (
+        only_new_main_exit_info(prior_exit_info, exit_info)
+        if package == CLONE else ("", {
+            "new_main_exit_record_seen": False,
+            "historical_main_exit_records_ignored": 0,
+            "raw_exit_history_exposed": False,
+        }))
+    safe_exit = classify_main_exit_status(filtered_exit) if package == CLONE else {
         "latest_main_exit_reason": "NOT_APPLICABLE",
         "latest_main_exit_status": "NOT_APPLICABLE",
         "exact_main_exit_record_seen": False,
         "raw_exit_info_exposed": False}
+    # System event tags and only exact newly exited MAIN-PID warnings/errors.
+    # Never print vendor logs, exception contents, PIDs, paths, or account data.
+    events = adb(["shell", "logcat", "-d", "-b", "events",
+                  "-v", "brief", "-t", "9000"], timeout=45, allow=True)
+    status["startup_event_witness"] = classify_startup_events(events, package)
+    main_log = (adb(["shell", "logcat", "-d", "-b", "main",
+                     "-v", "threadtime", "-t", "12000"],
+                    timeout=45, allow=True)
+                if package == CLONE and fresh_exit["new_main_exit_record_seen"]
+                else "")
+    safe_exit["fresh_launch_record_filter"] = fresh_exit
+    safe_exit["new_main_pid_log_witness"] = classify_new_main_log_signals(
+        filtered_exit, main_log)
     if status["main_alive"] and status["activity_resumed"]:
         return status, {**safe_exit, "fatal_category": "NOT_OBSERVED",
                         "signal": "NOT_OBSERVED", "java_dlopen_failed": False,
@@ -199,7 +228,7 @@ def start(package: str) -> tuple[dict, dict]:
     buffer = adb(["shell", "logcat", "-d", "-b", "crash",
                   "-v", "threadtime", "-t", "3000"],
                  timeout=45, allow=True)
-    safe = classify_main_crash_buffer(exit_info, buffer) if package == CLONE else {}
+    safe = classify_main_crash_buffer(filtered_exit, buffer) if package == CLONE else {}
     return status, {**safe_exit,
                     "fatal_category": safe.get("fatal_category", "NOT_ATTRIBUTED"),
                     "signal": safe.get("native_main_signal", "NOT_ATTRIBUTED"),
