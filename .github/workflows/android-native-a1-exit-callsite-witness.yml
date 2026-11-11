@@ -49,40 +49,38 @@ jobs:
         with:
           distribution: temurin
           java-version: '21'
-      - name: Install ARM Android build tools through verified Ubuntu-ports mirror
+      - name: Install ARM build tools using TLS-validated official Ubuntu archive address
         timeout-minutes: 5
         shell: bash
         run: |
           set -euo pipefail
           if ! { command -v aapt >/dev/null && command -v apksigner >/dev/null && command -v zipalign >/dev/null; }; then
-            echo 'ARM image missing Android tools; checking signed Ubuntu archive mirrors'
-            # The ARM runner DNS resolved GitHub and ghcr.io, but
-            # ports.ubuntu.com was unreachable: don't retry the dead hostname.
-            if timeout 6s curl -fsSIL --max-time 5 https://us.ports.ubuntu.com/ubuntu-ports/dists/noble/InRelease >/dev/null; then
-              base_uri='https://us.ports.ubuntu.com/ubuntu-ports'
-              security_uri="$base_uri"
-              echo 'APT_SOURCE=OFFICIAL_US_PORTS'
-            elif timeout 6s curl -fsSIL --max-time 5 https://mirror.hetzner.com/ubuntu-ports/packages/dists/noble/InRelease >/dev/null; then
-              base_uri='https://mirror.hetzner.com/ubuntu-ports/packages'
-              security_uri='https://mirror.hetzner.com/ubuntu-ports/security'
-              echo 'APT_SOURCE=HETZNER_SIGNED_UBUNTU_PORTS'
-            else
-              echo 'APT_SOURCE_UNREACHABLE: no safe signed ARM mirror'
+            # The GitHub ARM DNS resolver currently cannot resolve ports.ubuntu.com.
+            # These addresses were independently observed on the public Ubuntu
+            # archive and validated with the correct ports.ubuntu.com TLS name
+            # from a fresh GitHub ARM runner before adding an /etc/hosts entry.
+            verified=''
+            for ip in 91.189.91.102 91.189.91.103 91.189.91.104 91.189.92.19; do
+              if timeout 7s curl --fail --silent --show-error --connect-timeout 3
+                  --max-time 6 --resolve "ports.ubuntu.com:443:$ip"
+                  https://ports.ubuntu.com/ubuntu-ports/dists/noble/InRelease
+                  -o /dev/null 2>/dev/null; then
+                verified="$ip"
+                break
+              fi
+            done
+            if [ -z "$verified" ]; then
+              echo 'OFFICIAL_ARCHIVE_TLS_UNAVAILABLE: cannot safely install tools'
               exit 31
             fi
-            # Limit sources to the chosen publisher-signed Ubuntu archive.
-            # The original system config is unchanged; temporary apt
-            # Dir::Etc::* overrides only affect this job's apt commands.
-            cat > "$RUNNER_TEMP/celikom-a1-ubuntu-ports.sources" <<EOF
+            printf '%s ports.ubuntu.com\n' "$verified" | sudo tee -a /etc/hosts >/dev/null
+            echo 'OFFICIAL_UBUNTU_PORTS_TLS_IDENTITY_VERIFIED'
+            # HTTPS hostname verification plus Ubuntu's unchanged archive
+            # signing key; no unsigned sources, TLS bypass or mirror trust.
+            cat > "$RUNNER_TEMP/celikom-a1-ubuntu-ports.sources" <<'EOF'
           Types: deb
-          URIs: $base_uri
-          Suites: noble noble-updates noble-backports
-          Components: main restricted universe multiverse
-          Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg
-
-          Types: deb
-          URIs: $security_uri
-          Suites: noble-security
+          URIs: https://ports.ubuntu.com/ubuntu-ports
+          Suites: noble noble-updates noble-backports noble-security
           Components: main restricted universe multiverse
           Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg
           EOF
