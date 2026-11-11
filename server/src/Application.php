@@ -128,7 +128,9 @@ final class Application
                     if(!is_array($data)||!is_string($data['message']??null)||!is_string($data['request_key']??null))throw new \InvalidArgumentException();
                     if(!in_array($data['kind']??'general',['general','song'],true))throw new \InvalidArgumentException();
                     $report=($data['kind']??'general')==='song'?\Celikom\Support\SongReport::normalize($data['report']??null):null;
-                    $diagnostics=($data['kind']??'general')==='general'?($data['support_diagnostics']??$data['diagnostics']??null):null;
+                    $legacyDiagnostics=$data['diagnostics']??null;
+                    $diagnostics=($data['kind']??'general')==='general'?($data['support_diagnostics']??
+                        (is_array($legacyDiagnostics)&&($legacyDiagnostics['platform']??null)==='windows'?$legacyDiagnostics:null)):null;
                     if($diagnostics!==null&&!is_array($diagnostics))throw new \InvalidArgumentException();
                     $data=['ticket_id'=>$support->create((int)$session['user_id'],$data['message'],$data['request_key'],$report,$diagnostics)];
                 }else return Response::json(405,['error'=>'method_not_allowed']);

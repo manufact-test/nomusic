@@ -237,7 +237,7 @@ try{
   $payload=['kind'=>'general','message'=>'Проверка скрытой диагностики','request_key'=>$uuid(),'support_diagnostics'=>$report];
   $response=$app->handle('POST','/api/v1/support',[],$auth,json_encode($payload));expect($response->status===200,'General attachment accepted via authenticated HTTP route');
   $newId=json_decode($response->body,true)['ticket_id'];expect($service->thread($newId)['report']['diagnostics']['activationCount']===3,'HTTP route persists snapshot');
-  $legacy=$app->handle('POST','/api/v1/support',[],$auth,json_encode(['kind'=>'general','message'=>'Другой прежний клиент','request_key'=>$uuid(),'report'=>['legacy'=>'unchanged']]));expect($legacy->status===200,'Legacy general report field stays compatible');
+  $legacy=$app->handle('POST','/api/v1/support',[],$auth,json_encode(['kind'=>'general','message'=>'Другой прежний клиент','request_key'=>$uuid(),'report'=>['legacy'=>'unchanged'],'diagnostics'=>['platform'=>'android','legacy'=>'unchanged']]));expect($legacy->status===200,'Legacy general report field stays compatible');
   $pdo->prepare('DELETE FROM user_sessions WHERE user_id=?')->execute([$u]);$pdo->prepare('DELETE FROM user_devices WHERE user_id=?')->execute([$u]);$pdo->prepare('DELETE FROM user_email_security WHERE user_id=?')->execute([$u]);
  });
 }finally{
