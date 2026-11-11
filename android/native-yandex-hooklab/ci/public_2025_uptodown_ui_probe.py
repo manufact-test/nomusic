@@ -58,7 +58,7 @@ def main() -> int:
                 clicks = 0
                 body = page.locator("body").inner_text(timeout=15000)
                 for _ in range(MAX_CLICKS):
-                    if TARGET in body:
+                    if TARGET in body or ALT in body:
                         break
                     # The public 'show more' UI loads older releases dynamically.
                     labels = [
