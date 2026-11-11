@@ -86,28 +86,64 @@ def unbundle_candidate(path: Path, destination: Path) -> list[Path]:
 
 
 def verify_split_set(apks: list[Path]) -> dict:
+    """Verify every APK cryptographically, with exact-base version constraint.
+
+    Android-generated *configuration splits* can legitimately report empty
+    versionName in aapt. Accept that ONLY on an explicit named split, with
+    the exact same verified package and versionCode and publisher cert.
+    The one and only BASE must have exact 2025.10.4 #120.1gpr versionName.
+    This does not modify, resign, patch, install or execute any APK.
+    """
     if not apks or len(apks) > MAX_PARTS:
         raise GateError("PUBLIC_SPLIT_SET_INVALID")
     bases = 0
+    empty_split_versions = 0
     names = set()
     for path in apks:
-        result = inspect(path, channel="gpr")
-        # inspect validates signature, exact version and cert for EACH split.
-        # For a split-only version name quirk, fail closed rather than guessing.
         badging = private_command(["aapt", "dump", "badging", str(path)])
-        split = re.search(r"^package:.*?\bsplit='([^']+)'", badging, re.M)
+        package_line = next((x for x in badging.splitlines()
+                             if x.startswith("package:")), "")
+        if not package_line:
+            raise GateError("PUBLIC_APK_PACKAGE_BADGING_MISSING")
+        split = re.search(r"\bsplit='([^']+)'", package_line)
+        if split and not split.group(1):
+            raise GateError("PUBLIC_SPLIT_NAME_EMPTY")
         name = split.group(1) if split else "base"
         if name in names:
             raise GateError("PUBLIC_DUPLICATE_SPLIT")
         names.add(name)
-        bases += int(name == "base")
-        if not result["publisher_cert_matches_verified_rustore_2026_reference"]:
+        is_base = not bool(split)
+        bases += int(is_base)
+        ver = re.search(r"\bversionName='([^']*)'", package_line)
+        if not ver:
+            raise GateError("PUBLIC_APK_VERSION_NAME_ATTRIBUTE_MISSING")
+        reported = ver.group(1)
+        if is_base:
+            if reported != VERSION_NAME_GPR:
+                raise GateError("PUBLIC_BASE_VERSION_NOT_EXACT_2025_GPR")
+            expected = VERSION_NAME_GPR
+        else:
+            if reported not in ("", VERSION_NAME_GPR):
+                raise GateError("PUBLIC_NAMED_SPLIT_VERSION_MISMATCH")
+            expected = reported
+            empty_split_versions += int(reported == "")
+        # An APK listing and checksum are NOT issuer proof. apksigner must
+        # cryptographically verify EACH untouched split, and its ONE pinned
+        # issuer cert must match independently verified original Yandex issuer.
+        signer = private_command(["apksigner", "verify", "--verbose",
+                                  "--print-certs", str(path)])
+        checked = verify_metadata(badging, signer, expected_version=expected)
+        if not checked["publisher_cert_matches_verified_rustore_2026_reference"]:
             raise GateError("PUBLIC_ISSUER_NOT_CONFIRMED")
     if bases != 1:
         raise GateError("PUBLIC_BASE_SPLIT_MISSING")
-    return {"verified_issuer_signed_splits": len(apks),
-            "all_apks_have_exact_2025_gpr_identity": True,
-            "all_apks_cryptographically_signed": True}
+    return {
+        "verified_issuer_signed_splits": len(apks),
+        "exactly_one_2025_gpr_base_manifest": True,
+        "android_config_splits_empty_version_name_count": empty_split_versions,
+        "all_apks_have_exact_2025_gpr_identity": True,
+        "all_apks_cryptographically_signed": True,
+    }
 
 
 def browser_download(directory: Path) -> tuple[Path | None, dict]:
