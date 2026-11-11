@@ -34,3 +34,9 @@ Date: 2026-11-11. **Verified strict native Yandex clone MAIN/UI status: NO-GO**.
 Tested SHA: 7c894ebe02e9b4ff1bc42f7a039e7f259e2e979d. Frozen backup branch: backup/android-a1-native-arm13-three-layout-clone-exit-self-proven-20261111 at the same SHA. Before-exit-probes branch: backup/android-a1-before-true-arm13-clone-exit-ab-diagnostics-20261111 at 61198d71c0f75cc1dd8e3ee20f51673458cb9cbc. Previous ARM original/own-hook green backup: backup/android-a1-true-arm13-signed-yandex-original-and-owned-hook-green-20261111 at 06f2d237059c014c12548f85c5d67acf24e8ee00.
 
 Code: android/native-yandex-hooklab/clone_native_arm13_redroid_gate.py, clone_native_identity_phase2_ephemeral.py, clone_main_crash_buffer.py, native_arm13_signed_original_control.py. Workflow: .github/workflows/android-native-a1-arm13-clone-main-ab.yml.
+
+## Confirmed current official integration/rights context
+
+[Current Yandex Music mobile license (sections 4.1–4.4)](https://yandex.ru/legal/music_mobile_agreement/ru/) explicitly restricts modification/derivative use and modified/commercial distribution without written consent of the rightsholder, subject to the applicable law. This is a **separate distribution permission issue**, not technical proof of the EXIT_SELF cause. Publicly reviewed Yandex developer resources did not establish a supported SDK to embed the **full native Yandex Music player/UI** into an independently signed CELIKOM app. Do not claim none can exist privately or under partnership.
+
+GitHub tracking issue: [#41 — Android A1 native clone self-exit blocker](https://github.com/manufact-test/nomusic/issues/41). It records acceptance gates and prevents more ungrounded ABI/ZIP/LSPatch work.
