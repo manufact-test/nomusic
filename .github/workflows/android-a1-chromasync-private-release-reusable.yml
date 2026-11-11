@@ -1,0 +1,181 @@
+name: Private release ChromaSync native Android13 — exact APK / no public assets
+on:
+  workflow_call:
+    inputs:
+      release_tag:
+        description: Exact tag in the CALLER'S PRIVATE repository
+        type: string
+        required: true
+permissions:
+  contents: read
+jobs:
+  exact-private-native-arm13:
+    name: Exact private uploaded APK — ARM13 standalone / original-first
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 49
+    env:
+      CELIKOM_CLEAN_ANDROID_NATIVE_REDDROID: '1'
+      EXPECTED_SHA256: 4e6edb1c471f6b3715eae4c0a35f0bd898b0daaa87f3f8fb3ba0b20d1638b53d
+      EXPECTED_BYTES: '102572843'
+    steps:
+      - name: Never stage APK from the public source repository
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "$GITHUB_REPOSITORY" = "manufact-test/nomusic" ]; then
+            echo '::error::NEED_PRIVATE_CALLER: refusing public repo binary download'
+            exit 2
+          fi
+          echo 'PRIVATE_CALLER_CONFIRMED'
+      - uses: actions/checkout@v4
+        with:
+          repository: manufact-test/nomusic
+          ref: e7b3cb114d6d52d7e3341f3db26db4ca49bd1b04
+          persist-credentials: false
+      - name: Verify observer code and classifications
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile android/native-yandex-hooklab/ci/chromasync_exact_arm13_probe.py
+          python3 -m unittest discover -s android/native-yandex-hooklab/tests -p test_chromasync_exact_arm13_probe.py -v
+      - name: Download exact APK from CALLER'S PRIVATE GitHub Release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PRIVATE_TAG: ${{ inputs.release_tag }}
+        run: |
+          set -euo pipefail
+          command -v gh
+          test -n "$PRIVATE_TAG"
+          mkdir -p "$RUNNER_TEMP/private-chromasync"
+          # GitHub release asset; NEVER commit APK to Git history or public Actions.
+          if ! gh release download "$PRIVATE_TAG" --repo "$GITHUB_REPOSITORY" \
+              --pattern 'ChromaSync-Clone-3.0.1.apk' \
+              --dir "$RUNNER_TEMP/private-chromasync" --clobber >/dev/null 2>&1; then
+            echo '::error::PRIVATE_RELEASE_ASSET_DOWNLOAD_FAILED'
+            exit 3
+          fi
+          asset="$RUNNER_TEMP/private-chromasync/ChromaSync-Clone-3.0.1.apk"
+          test -f "$asset" || { echo '::error::ASSET_MISSING'; exit 3; }
+          if [ "$(stat -c %s "$asset")" != "$EXPECTED_BYTES" ] ||
+             [ "$(sha256sum "$asset" | cut -d' ' -f1)" != "$EXPECTED_SHA256" ]; then
+            echo '::error::EXACT_OWNER_APK_SIZE_OR_SHA_MISMATCH'
+            exit 3
+          fi
+          echo '{"exact_competitor_sha256_verified":true,"private_binary_published_publicly":false}'
+      - name: Boot real clean ARM64 + ARMv7 Android13
+        timeout-minutes: 16
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash android/native-yandex-hooklab/ci/native_arm_redroid_boot_only.sh
+          test "$(docker exec celikom-native-arm-android13 getprop sys.boot_completed)" = 1
+      - name: True standalone install + same MAIN PID resumed for 16 seconds
+        shell: bash
+        run: |
+          set -euo pipefail
+          set +e
+          python3 android/native-yandex-hooklab/ci/chromasync_exact_arm13_probe.py \
+            --apk "$RUNNER_TEMP/private-chromasync/ChromaSync-Clone-3.0.1.apk" \
+            --transport docker --mode alone | tee "$RUNNER_TEMP/competitor-alone.json"
+          result="${PIPESTATUS[0]}"
+          set -e
+          echo "$result" > "$RUNNER_TEMP/competitor-alone.status"
+      - name: Prepare official signed-control tools (TLS host + official Ubuntu GPG)
+        shell: bash
+        timeout-minutes: 5
+        run: |
+          set -euo pipefail
+          if ! { command -v aapt >/dev/null && command -v apksigner >/dev/null; }; then
+            verified=''
+            for ip in 91.189.91.102 91.189.91.103 91.189.91.104 91.189.92.19; do
+              if timeout 7s curl -fsS --connect-timeout 3 --max-time 6 \
+                --resolve "ports.ubuntu.com:443:$ip" \
+                https://ports.ubuntu.com/ubuntu-ports/dists/noble/InRelease \
+                -o /dev/null 2>/dev/null; then
+                verified="$ip"
+                break
+              fi
+            done
+            if [ -z "$verified" ]; then echo '::error::OFFICIAL_ARCHIVE_TLS_UNAVAILABLE'; exit 31; fi
+            printf '%s ports.ubuntu.com\n' "$verified" | sudo tee -a /etc/hosts >/dev/null
+            cat > "$RUNNER_TEMP/ubuntu-ports.sources" <<'EOF'
+          Types: deb
+          URIs: https://ports.ubuntu.com/ubuntu-ports
+          Suites: noble noble-updates noble-backports noble-security
+          Components: main restricted universe multiverse
+          Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg
+          EOF
+            source="$RUNNER_TEMP/ubuntu-ports.sources"
+            opts=(-o "Dir::Etc::sourcelist=$source" -o 'Dir::Etc::sourceparts=-'
+                  -o 'Acquire::Retries=0' -o 'Acquire::https::Timeout=12')
+            sudo timeout 75s apt-get "${opts[@]}" update -qq
+            sudo timeout 90s env DEBIAN_FRONTEND=noninteractive \
+              apt-get "${opts[@]}" install -y -qq aapt apksigner
+          fi
+          sdk="$RUNNER_TEMP/native-stock-sdk"
+          mkdir -p "$sdk/build-tools/35.0.0"
+          for tool in aapt apksigner; do
+            ln -sf "$(command -v "$tool")" "$sdk/build-tools/35.0.0/$tool"
+            test -x "$sdk/build-tools/35.0.0/$tool"
+          done
+          echo "ANDROID_HOME=$sdk" >> "$GITHUB_ENV"
+      - name: Verify separately pinned genuine publisher-signed official Yandex control
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os, sys
+          from pathlib import Path
+          sys.path.insert(0, 'tools/android-native-gate1')
+          import audit_gpr_apkpure_once as gpr
+          work=Path(os.environ['RUNNER_TEMP'])/'publisher-stock'
+          work.mkdir(parents=True,exist_ok=True)
+          source=work/'original-2026.xapk'
+          n,digest=gpr.download(source)
+          if (n,digest) != (60433885, '918bd50599dc6a942e190a409303e843b83dcb6d11b90b03c00240331333cf84'):
+            raise SystemExit('OFFICIAL_STOCK_PIN_MISMATCH')
+          apks=gpr.split_apks(source, work)
+          if len(apks)!=5:
+            raise SystemExit('OFFICIAL_STOCK_SPLIT_COUNT_MISMATCH')
+          gpr.inspect_publisher(apks)
+          (work/'paths.txt').write_text('\n'.join(map(str,apks))+'\n')
+          print('{"real_publisher_signed_stock_control_verified":true}')
+          PY
+      - name: Completely fresh separate ARM13 guest for stock-first coexistence
+        timeout-minutes: 17
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker stop celikom-native-arm-android13 >/dev/null || true
+          sudo rm -rf -- "$RUNNER_TEMP/celikom-redroid-data"
+          bash android/native-yandex-hooklab/ci/native_arm_redroid_boot_only.sh
+          mapfile -t stock < "$RUNNER_TEMP/publisher-stock/paths.txt"
+          set +e
+          python3 android/native-yandex-hooklab/ci/chromasync_exact_arm13_probe.py \
+            --apk "$RUNNER_TEMP/private-chromasync/ChromaSync-Clone-3.0.1.apk" \
+            --transport docker --mode stock-first --stock-apks "${stock[@]}" \
+            | tee "$RUNNER_TEMP/competitor-stock-first.json"
+          result="${PIPESTATUS[0]}"
+          set -e
+          echo "$result" > "$RUNNER_TEMP/competitor-stock-first.status"
+      - name: Strict actual-runtime verdict — never claim audio/login/Play Protect
+        shell: bash
+        run: |
+          set -euo pipefail
+          standalone="$(cat "$RUNNER_TEMP/competitor-alone.status")"
+          coexist="$(cat "$RUNNER_TEMP/competitor-stock-first.status")"
+          echo "{\"exact_apk_live_arm13_tested\":true,\"alone_exit\":$standalone,\"coexist_exit\":$coexist,\"login_tested\":false,\"audio_tested\":false,\"play_protect_tested\":false}"
+          [ "$standalone" = 0 ] && [ "$coexist" = 0 ] || exit 1
+      - name: Destroy guests and purge exact private APK + original; NEVER upload artifact
+        if: always()
+        shell: bash
+        run: |
+          docker stop celikom-native-arm-android13 >/dev/null 2>&1 || true
+          sudo umount /dev/binderfs >/dev/null 2>&1 || true
+          sudo modprobe -r binder_linux >/dev/null 2>&1 || true
+          sudo rm -rf -- "$RUNNER_TEMP/celikom-redroid-data"
+          rm -rf -- "$RUNNER_TEMP/private-chromasync" "$RUNNER_TEMP/publisher-stock" "$RUNNER_TEMP/native-stock-sdk" \
+            "$RUNNER_TEMP/competitor-alone.json" "$RUNNER_TEMP/competitor-alone.status" \
+            "$RUNNER_TEMP/competitor-stock-first.json" "$RUNNER_TEMP/competitor-stock-first.status"
+          echo '{"private_apk_action_artifact_uploaded":false,"owner_honor_touched":false,"signature_bypass_attempted":false}'
