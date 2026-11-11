@@ -164,6 +164,7 @@ def browser_download(directory: Path) -> tuple[Path | None, dict]:
                         dest=urlsplit(href)
                         buttons.append({
                             "element":el.evaluate("(e)=>e.tagName.toLowerCase()"),
+                            "short_public_label":" ".join(label.split()[:4])[:55],
                             "visible":el.is_visible(),
                             "label_group":"variants" if re.search(r"варианты|variants",label,re.I)
                                else "download" if DOWNLOAD_RE.search(label) else
