@@ -12,6 +12,7 @@ from native_arm13_startup_observer import (
     classify_startup_events,
     only_new_main_exit_info,
     classify_new_main_log_signals,
+    classify_live_main_log_signals,
     ORIGINAL,
 )
 
@@ -164,6 +165,44 @@ class ArmStartupObserverTests(unittest.TestCase):
         self.assertFalse(out["main_scoped_warning_or_error_seen"])
         self.assertFalse(out["new_main_exit_pid_available"])
         self.assertNotIn(SECRET, str(out))
+
+    def test_live_signed_original_can_have_same_exception_marker(self):
+        original_log = (
+            log(612, "E", "System.err", "java.lang.IllegalStateException " + SECRET)
+            + log(612, "E", "System.err", "java.lang.IllegalArgumentException " + SECRET)
+            + log(613, "F", "AndroidRuntime", "FATAL EXCEPTION: main " + SECRET)
+        )
+        witness = classify_live_main_log_signals("612", original_log)
+        self.assertTrue(witness["new_main_exit_pid_available"])
+        self.assertEqual(witness["throwable_groups"],
+                         ["ILLEGAL_STATE", "ILLEGAL_ARGUMENT"])
+        self.assertTrue(witness["illegal_state_error_severity_seen"])
+        self.assertFalse(witness["illegal_state_warning_severity_seen"])
+        self.assertFalse(witness["android_runtime_fatal_seen"])
+        self.assertNotIn(SECRET, str(witness))
+        self.assertNotIn("612", str(witness))
+
+    def test_live_original_scope_rejects_multi_pid_injection_or_no_pid(self):
+        raw = (log(612, "E", "AndroidRuntime", "java.lang.IllegalStateException ")
+               + log(613, "W", "System.err", "java.lang.IllegalStateException "))
+        for candidate in ("", "612 613", "612;echo SECRET", "-1", "0", "612\n613",
+                          "999999999", "1.5", "612 garbage"):
+            with self.subTest(candidate=candidate):
+                result = classify_live_main_log_signals(candidate, raw)
+                self.assertFalse(result["new_main_exit_pid_available"])
+                self.assertFalse(result["main_scoped_error_severity_seen"])
+                self.assertEqual(result["throwable_groups"], [])
+        with self.assertRaises(ValueError):
+            classify_live_main_log_signals(None, raw)
+
+    def test_warning_vs_error_illegal_state_not_conflated(self):
+        raw = log(615, "W", "System.err", "java.lang.IllegalStateException " + SECRET)
+        result = classify_live_main_log_signals("615", raw)
+        self.assertTrue(result["illegal_state_warning_severity_seen"])
+        self.assertFalse(result["illegal_state_error_severity_seen"])
+        self.assertFalse(result["main_scoped_error_severity_seen"])
+        self.assertTrue(result["main_scoped_warning_or_error_seen"])
+        self.assertNotIn(SECRET, str(result))
 
     def test_no_event_does_not_imply_healthy_app(self):
         out = classify_startup_events("", CLONE)
