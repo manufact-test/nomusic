@@ -56,6 +56,59 @@ public static class DiagnosticLog
     public static bool IsSafeEntry(string? line) =>
         line is not null && line.Length <= 128 && SafeLine.IsMatch(line);
 
+
+    /// <summary>
+    /// Customer-initiated support snapshot: bounded data from the existing
+    /// allowlisted logs. No raw URLs, emails, paths, token fields or messages.
+    /// Does not grant the customer the developer-only export UI.
+    /// </summary>
+    public static object ExportSupportSnapshot(string? yandexVersion, string integration,
+        bool bridgeStarted, bool enabled, string? nativeModuleVersion,
+        bool? nativeMatchesApplication, string? lastTrackId,
+        string? diagnosticDirectory = null)
+    {
+        var raw = ExportText(yandexVersion, integration, bridgeStarted, enabled, true,
+            nativeModuleVersion, nativeMatchesApplication, diagnosticDirectory);
+        var now = DateTimeOffset.UtcNow;
+        var events = raw.Split('\n', StringSplitOptions.RemoveEmptyEntries)
+            .Select(line => line.TrimEnd('\r'))
+            .Where(IsSafeEntry)
+            .Select(line =>
+            {
+                var parts = line.Split('|');
+                var parsed = DateTimeOffset.TryParseExact(parts[0],
+                    "yyyy-MM-ddTHH:mm:ss.fffZ", CultureInfo.InvariantCulture,
+                    DateTimeStyles.AssumeUniversal, out var stamp);
+                var age = parsed ? Math.Max(0, (int)(now - stamp).TotalSeconds) : 901;
+                var identity = parts.Length == 3 ? parts[2].Split('=', 2) : [];
+                return new {
+                    ageSeconds = age,
+                    code = parts[1],
+                    trackId = identity.Length == 2 && identity[0] == "track" ? identity[1] : null,
+                    resourceId = identity.Length == 2 && identity[0] == "resource_id" ? identity[1] : null
+                };
+            })
+            .Where(e => e.ageSeconds <= 900)
+            .TakeLast(64)
+            .ToArray();
+        static string Version(string? value) =>
+            value is not null && Regex.IsMatch(value, @"^[0-9]{1,4}(\.[0-9]{1,4}){1,3}$")
+                ? value : "unknown";
+        return new {
+            platform = "windows",
+            appVersion = AppUpdateManager.RunningVersion.ToString(3),
+            nativeModuleVersion = Version(nativeModuleVersion),
+            yandexVersion = Version(yandexVersion),
+            integration = Code.IsMatch(integration) ? integration : "UNKNOWN",
+            nativeMatchesApplication,
+            bridgeStarted,
+            enabled,
+            lastTrackId = Id.IsMatch(lastTrackId ?? "") ? lastTrackId : null,
+            scopeSeconds = 900,
+            events
+        };
+    }
+
     public static string ExportText(string? yandexVersion, string integration,
         bool bridgeStarted, bool enabled, bool signedIn,
         string? nativeModuleVersion = null, bool? nativeMatchesApplication = null,
