@@ -4,7 +4,7 @@ from unittest.mock import patch
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from clone_native_identity_phase2_ephemeral import classify_clone_launch_logcat, summarize_installed_package_code_flags, classify_activity_start, classify_activity_exit_info, classify_clone_process_events, classify_main_pid_scoped_system_logs, disposable_foreground_snapshot, full_native_main_ui_pass
+from clone_native_identity_phase2_ephemeral import classify_clone_launch_logcat, summarize_installed_package_code_flags, classify_activity_start, classify_activity_exit_info, classify_clone_process_events, classify_main_pid_scoped_system_logs, disposable_foreground_snapshot, full_native_main_ui_pass, classify_nonblocking_activity_start
 
 
 class SafeCloneCrashClassificationTest(unittest.TestCase):
@@ -70,6 +70,20 @@ class SafeCloneCrashClassificationTest(unittest.TestCase):
         self.assertTrue(report["launch_state_cold"])
         self.assertFalse(report["activity_explicit_error"])
         self.assertNotIn("NEVER_SHARE", str(report))
+
+    def test_nonblocking_start_only_confirms_dispatch_not_foreground(self):
+        report = classify_nonblocking_activity_start(
+            "Starting: Intent { act=android.intent.action.MAIN cmp=secret.private }")
+        self.assertTrue(report["activity_status_ok"])
+        self.assertTrue(report["nonblocking_dispatch_only"])
+        self.assertFalse(report["raw_activity_output_exposed"])
+        self.assertNotIn("secret.private", str(report))
+        self.assertFalse(full_native_main_ui_pass(
+            [{"ps_main_process_alive": False}], report,
+            {"activity_resumed_for_package": False, "window_focus_for_package": False}))
+        failed = classify_nonblocking_activity_start("Error: Activity not started")
+        self.assertFalse(failed["activity_status_ok"])
+        self.assertTrue(failed["activity_explicit_error"])
 
     def test_activity_failure_does_not_dump_raw(self):
         report = classify_activity_start("Error: Activity not started with private=NEVER_SHARE")
