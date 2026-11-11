@@ -118,6 +118,25 @@ class SignalGateTest(unittest.TestCase):
         self.assertNotIn("/secret", str(result))
         self.assertNotIn("private.apk", str(result))
 
+    def test_v1_signature_stripping_error_is_distinct_from_certificate_info(self):
+        result = classify_apksigner_failure(
+            1, "",
+            "DOES NOT VERIFY\nERROR: JAR signer SAMPLE.RSA: JAR signature "
+            "META-INF/SAMPLE.SF indicates the APK is signed using APK Signature "
+            "Scheme v2 but no such signature was found. Signature stripped?")
+        self.assertEqual(result["specific_error_reasons"],
+                         ["v1_signature_stripping_v2"])
+        self.assertNotIn("SAMPLE", str(result))
+
+    def test_v1_crypto_unsupported_old_api_is_distinct(self):
+        result = classify_apksigner_failure(
+            1, "", "ERROR: JAR signer TEST: JAR signature uses digest algorithm "
+                   "SHA-256 which is not supported on API Level(s) 1-20")
+        self.assertIn("v1_crypto_not_supported_for_lower_api",
+                      result["specific_error_reasons"])
+        self.assertIn("v1_digest_not_supported_for_lower_api",
+                      result["specific_error_reasons"])
+
     def test_signature_report_contract_is_bounded(self):
         box, apk = self.archive([("AndroidManifest.xml", b"fake")])
         with box:
