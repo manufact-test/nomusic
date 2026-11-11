@@ -43,3 +43,21 @@ No `AndroidRuntime FATAL EXCEPTION`, Android EventLog `am_crash`/system `am_kill
 - Before exact AOSP field scoping: `backup/android-a1-before-aosp-events-exact-process-scoping-20261111` @ `afe6c4efa03ad01ae4f759ddc7bd318e848c1900`
 
 Related: [Approved master](CELIKOM-ANDROID-NATIVE-CLONE-MASTER-TZ-20261110.md), [handoff](ANDROID-A1-NEXT-CHAT-FINAL-HANDOFF-20261111.md), [blocker issue #41](https://github.com/manufact-test/nomusic/issues/41).
+
+## 11 November 2026 — exact **per-PID** correlation verified (subsequent controlled run)
+
+**[CI 43001833178](https://github.com/manufact-test/nomusic/actions/runs/43001833178)**, code `4d79ef03e70845d6d7be6c3cada6fb8d4f058f9b`, passed **47/47** startup/classifier/loader/merge tests (20+17+6+4); Redroid Android13 native ARM boot PASS; strict native clone runtime gate **FAILURE as expected**, not a unit error.
+
+New method `classify_main_cycle_correlation` privately joins `ApplicationExitInfo` exact fresh MAIN process PIDs with structured AOSP `am_proc_start/am_proc_died` PIDs and PID-scoped logcat `IllegalStateException`. Only boolean/count categories leave CI; no raw PID, stack, class string or credentials.
+
+**Across EACH of the 3 independent clone layouts**, exactly **2 different fresh exact-MAIN exit PIDs** have all of:
+1. `EXIT_SELF` and exit status 0;
+2. a matching `am_proc_start` and `am_proc_died` in native Android EventLog (helper processes excluded by AOSP structured process-name field);
+3. an E/F-scoped `IllegalStateException` marker in that PID's main log.
+
+That is 6 individually correlated clone MAIN lifecycles, not merely six lines mentioning a package name. The same publisher-signed original MAIN remains alive after a single `am_proc_start` without an `am_proc_died` or `ILLEGAL_STATE` marker in the bounded window; it has a different `ILLEGAL_ARGUMENT` logging marker. **These are associations; no stack/specific instruction or intentional publisher security check has been proved.** Repeating the same three layouts or only adding more identical PID counters no longer improves causal understanding. A new next step must expose materially new, legitimate evidence.
+
+No Android APK delivered, no owner HONOR touched, no signature/Passport/DRM bypass, no communication to Yandex. User-approved Stage A remains NO-GO and Stage B remains locked.
+
+---
+
