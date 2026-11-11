@@ -62,6 +62,7 @@ final class SongReport
    if(is_string($endpoint)&&in_array($endpoint,['config','auth/me','entitlement','resolve','tracks/upload-status','tracks/version-status','rewards'],true))$entry['endpoint']=$endpoint;
    $safe['trace'][]=$entry;
   }
+  if(isset($d['windows']))$safe['windows']=WindowsSupportDiagnostics::normalize($d['windows']);
   return $safe;
  }
 }
