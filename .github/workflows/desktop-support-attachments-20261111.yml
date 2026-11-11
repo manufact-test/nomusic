@@ -75,3 +75,22 @@ jobs:
           php server/tests/entitlement.php
           php server/tests/uploads.php
           php server/tests/admin.php
+
+  live-readonly:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - uses: actions/checkout@v4
+      - name: Read source hashes only, without database or environment access
+        env:
+          HOSTINGER_SSH_KEY: ${{ secrets.HOSTINGER_SSH_KEY }}
+        run: |
+          set -euo pipefail
+          dir=$(mktemp -d)
+          trap 'rm -rf "$dir"' EXIT
+          printf '%s\n' "$HOSTINGER_SSH_KEY" | tr -d '\r' > "$dir/key"
+          chmod 600 "$dir/key"
+          ssh-keygen -y -P '' -f "$dir/key" > "$dir/key.pub"
+          test "$(ssh-keygen -lf "$dir/key.pub" -E sha256 | awk '{print $2}')" = 'SHA256:Q6FyifXRq6garceQdIIjBmXhkk81Ic1p/x9JTSYHWUk'
+          printf '%s\n' '[92.113.19.189]:65002 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAf8M2EVwq0oJI8I9KZ0NFE8P8yDOvDATEhkQti/Kk/0' > "$dir/known_hosts"
+          ssh -p 65002 -i "$dir/key" -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o "UserKnownHostsFile=$dir/known_hosts" -o GlobalKnownHostsFile=/dev/null -o ConnectTimeout=15 u235811320@92.113.19.189 /opt/alt/php83/usr/bin/php < .github/scripts/browser-support-live-readonly.php
