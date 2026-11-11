@@ -1,0 +1,62 @@
+name: Android A1 OWN x86 native LSPatch control without ARM bridge (no vendor)
+on:
+  push:
+    branches:
+      - experiment/android-native-a1-lspatch-clone-loader0-20261111
+    paths:
+      - 'android/native-yandex-hooklab/own_lspatch_x86_native_control.py'
+      - 'android/native-yandex-hooklab/armv7-loader-host/app/build.gradle.kts'
+      - 'android/native-yandex-hooklab/build_owned_loader_host.py'
+      - 'android/native-yandex-hooklab/own_lspatch_nativebridge_control.py'
+      - '.github/workflows/android-native-a1-owned-x86-native-control.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  own-no-vendor-x86-native:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+      - name: Assemble OWN 32-bit x86 NDK control (no Yandex)
+        run: gradle -p android/native-yandex-hooklab/armv7-loader-host :app:assembleDebug -PcelikomOwnX86Control=true --no-daemon
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Patch only OWN x86 APK with upstream zero-bypass loader, no modules
+        env:
+          CELIKOM_OWN_X86_BRIDGE: '1'
+        run: |
+          python3 -m py_compile android/native-yandex-hooklab/own_lspatch_x86_native_control.py
+          export CELIKOM_OWNED_ARTIFACT_DIR="$RUNNER_TEMP/celikom-own-x86-lab"
+          python3 android/native-yandex-hooklab/build_owned_loader_host.py
+      - name: Enable isolated Android emulator KVM
+        run: |
+          test -e /dev/kvm
+          sudo chmod 666 /dev/kvm
+      - name: Compare OWN x86-native JNI baseline to OWN zero-bypass LSPatch runtime
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 30
+          target: google_apis
+          arch: x86
+          profile: pixel_5
+          emulator-boot-timeout: 480
+          emulator-options: -no-snapshot-load -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none
+          disable-animations: true
+          script: CELIKOM_OWN_X86_BRIDGE=1 CELIKOM_X86_NATIVE_CONTROL=1 python3 android/native-yandex-hooklab/own_lspatch_x86_native_control.py
+      - name: Zero third-party APK retention
+        if: always()
+        run: |
+          rm -rf -- "$RUNNER_TEMP/celikom-own-x86-lab"
+          test ! -d android/native-yandex-hooklab/release
+          test ! -d android/native-yandex-hooklab/patched
+          echo "Only ephemeral OWN APKs tested, no Yandex or account data"
