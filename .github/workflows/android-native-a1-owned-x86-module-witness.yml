@@ -1,0 +1,68 @@
+name: Android A1 OWN native x86 LSPatch libxposed in-process witness (no vendor)
+on:
+  push:
+    branches:
+      - experiment/android-native-a1-lspatch-clone-loader0-20261111
+    paths:
+      - 'android/native-yandex-hooklab/own_lspatch_x86_witness_runtime.py'
+      - 'android/native-yandex-hooklab/tests/test_own_lspatch_x86_witness_runtime.py'
+      - 'android/native-yandex-hooklab/armv7-witness-module/**'
+      - 'android/native-yandex-hooklab/armv7-loader-host/app/src/main/java/pro/celikom/armv7loaderhost/MainActivity.java'
+      - 'android/native-yandex-hooklab/build_owned_loader_host.py'
+      - '.github/workflows/android-native-a1-owned-x86-module-witness.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  own-module-only:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+      - name: Validate own-package-only exact scope and parser (no device)
+        run: |
+          python3 -m py_compile android/native-yandex-hooklab/own_lspatch_x86_witness_runtime.py
+          python3 -m unittest discover -s android/native-yandex-hooklab/tests -p test_own_lspatch_x86_witness_runtime.py -v
+      - name: Build only OWN native x86 JNI package
+        run: gradle -p android/native-yandex-hooklab/armv7-loader-host :app:assembleDebug -PcelikomOwnX86Control=true --no-daemon
+      - name: Build OWN-only libxposed read-only module
+        run: gradle -p android/native-yandex-hooklab/armv7-witness-module :app:assembleDebug --no-daemon
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Upstream LSPatch level 0 with exactly one own module (no release artifacts)
+        env:
+          CELIKOM_OWN_X86_WITNESS: '1'
+        run: |
+          export CELIKOM_OWNED_ARTIFACT_DIR="$RUNNER_TEMP/celikom-own-x86-witness"
+          python3 android/native-yandex-hooklab/build_owned_loader_host.py
+      - name: Enable disposable Android emulator virtualization
+        run: |
+          test -e /dev/kvm
+          sudo chmod 666 /dev/kvm
+      - name: Prove actual in-process read-only OWN onCreate interception
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 30
+          target: google_apis
+          arch: x86
+          profile: pixel_5
+          emulator-boot-timeout: 480
+          emulator-options: -no-snapshot-load -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
+          disable-animations: true
+          script: CELIKOM_OWN_X86_WITNESS=1 CELIKOM_OWN_X86_WITNESS_RUNTIME=1 python3 android/native-yandex-hooklab/own_lspatch_x86_witness_runtime.py
+      - name: Remove lab-only APKs and certify no Yandex
+        if: always()
+        run: |
+          rm -rf -- "$RUNNER_TEMP/celikom-own-x86-witness"
+          test ! -d android/native-yandex-hooklab/release
+          test ! -d android/native-yandex-hooklab/patched
+          echo "No third-party APK touched, original phone untouched"

@@ -22,7 +22,8 @@ X86 = "pro.celikom.armv7loaderhost.x86control"
 OUTPUT = "CELIKOM-X86-LOADER-ONLY-Test.apk"
 
 
-def package_x86_loader(patched: Path, work: Path) -> tuple[Path, dict]:
+def package_x86_loader(patched: Path, work: Path,
+                       expect_own_module: bool = False) -> tuple[Path, dict]:
     recovered = work / "x86-recovered-unsigned.apk"
     info = rewrite_only_if_origin_crc_mismatch(patched, recovered)
     original = recovered if info["layout_repacked"] else patched
@@ -51,12 +52,14 @@ def package_x86_loader(patched: Path, work: Path) -> tuple[Path, dict]:
         cfg = json.loads(source.read("assets/lspatch/config.json"))
         if type(cfg.get("sigBypassLevel")) is not int or cfg["sigBypassLevel"] != 0:
             raise RuntimeError("X86_NONZERO_SIGNATURE_BYPASS_PROHIBITED")
-        if [n for n in source.namelist() if n.startswith("assets/lspatch/modules/")]:
-            raise RuntimeError("X86_UNAUTHORIZED_MODULE")
+        embedded = [n for n in source.namelist()
+                    if n.startswith("assets/lspatch/modules/") and n.endswith(".apk")]
+        if len(embedded) != (1 if expect_own_module else 0):
+            raise RuntimeError("X86_OWN_MODULE_NUMBER_INVALID")
     return aligned, {"native_library_machine": "EM_386",
                      "no_machine_mirror": True, "upstream_loader_elf_verified": True,
                      "host_abi": "x86", "lab_signature": True,
-                     "sigbypass": 0, "modules_embedded": 0,
+                     "sigbypass": 0, "modules_embedded": int(expect_own_module),
                      "recovered_origin_layout": bool(info["layout_repacked"])}
 
 
