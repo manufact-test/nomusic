@@ -49,7 +49,10 @@ def main() -> int:
             context = browser.new_context(locale="ru-RU", accept_downloads=False)
             try:
                 page = context.new_page()
-                page.goto(ROOT, wait_until="domcontentloaded", timeout=45000)
+                response=page.goto(ROOT, wait_until="domcontentloaded", timeout=45000)
+                if response is None or response.status != 200:
+                    raise ValueError("PUBLIC_STOREFRONT_HTTP_NON_200")
+                page.wait_for_timeout(2000)
                 if not approved_storefront(page.url):
                     raise ValueError("OUTSIDE_PUBLIC_STOREFRONT")
                 clicks = 0
@@ -63,6 +66,8 @@ def main() -> int:
                         page.get_by_text(re.compile(r"^Показать больше$",re.I)),
                         page.get_by_text(re.compile(r"^See more$",re.I)),
                         page.get_by_text(re.compile(r"^Load more$",re.I)),
+                        page.get_by_text(re.compile(r"^Показать ещё$",re.I)),
+                        page.get_by_text(re.compile(r"^Показать еще$",re.I)),
                     ]
                     clicked=False
                     for label in labels:
@@ -86,7 +91,13 @@ def main() -> int:
                 if TARGET in body:
                     has_link = bool(page.locator("a").filter(
                         has_text=re.compile(r"2025\.10\.4\s*#120\.1rur")).count())
-                print(json.dumps(safe_summary(body,clicks,has_link),sort_keys=True))
+                output=safe_summary(body,clicks,has_link)
+                output["visible_version_label_occurrences"] = len(re.findall(r"202[56]\.\d{2}\.\d+", body))
+                output["public_show_more_text_present"] = bool(re.search(
+                    r"ПОКАЗАТЬ БОЛЬШЕ|Показать больше|See more|Load more|Показать е[щш]ё",
+                    body,re.I))
+                output["page_has_yandex_heading"] = bool(re.search(r"Яндекс Музыка|Yandex Music",body,re.I))
+                print(json.dumps(output,sort_keys=True))
             finally:
                 context.close()
                 browser.close()
@@ -96,6 +107,8 @@ def main() -> int:
         category="PUBLIC_BROWSER_UI_PROBE_UNAVAILABLE"
         if isinstance(error,ValueError) and str(error)=="OUTSIDE_PUBLIC_STOREFRONT":
             category="PUBLIC_BROWSER_UNEXPECTED_REDIRECT"
+        elif isinstance(error,ValueError) and str(error)=="PUBLIC_STOREFRONT_HTTP_NON_200":
+            category="PUBLIC_STOREFRONT_HTTP_NON_200"
         print(json.dumps({
             "verdict":category,"apk_downloaded":False,
             "publisher_signature_verified":False,
