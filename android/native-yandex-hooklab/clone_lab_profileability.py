@@ -4,6 +4,7 @@ No issuer signature spoof, code patching, accounts, permission weakening or
 Play Protect modification. Never apply to original, device or release binary.
 """
 from __future__ import annotations
+import re
 import xml.etree.ElementTree as ET
 
 ANDROID = "{http://schemas.android.com/apk/res/android}"
@@ -49,7 +50,7 @@ def classify_compiled_shell_profiler(xmltree: str) -> dict:
             if "E: " in item:
                 break
             if "A: android:shell(" in item:
-                flag = any(x in item.lower() for x in ("0xffffffff", "0x1", "0x01"))
+                flag = re.search(r"\)\s*0x(?:ffffffff|0*1)\s*$", item.lower()) is not None
         break
     return {"compiled_profileable_declaration_seen": present,
             "compiled_shell_profiler_true": flag,
