@@ -50,11 +50,29 @@ def _safe_caller_group(klass: str) -> str:
     return "OTHER_OR_UNKNOWN"
 
 
+def likely_default_art_trace_capacity_reached(record_count: int,
+                                             record_size: int,
+                                             header_offset: int) -> bool:
+    """8 MiB ART default buffer signature, only a heuristic.
+
+    AOSP ART explicitly reports data-file-overflow in the trace header.
+    This secondary check catches absent/unknown overflow metadata and stops
+    interpreting missing events as proof of method non-execution.
+    """
+    if record_count < 0 or record_size not in (9, 10, 14):
+        return False
+    bytes_used = record_count * record_size + max(header_offset, 32)
+    return 8 * 1024 * 1024 - 256 <= bytes_used <= 8 * 1024 * 1024
+
+
 def classify_art_trace(raw: bytes) -> dict:
     """Parse v1..v3 Android SLOW traces without exposing method names or data."""
     verdict = {"trace_format_verified": False, "trace_methods_section_seen": False,
                "trace_main_thread_mapped": False, "trace_records_observed": False,
                "trace_valid_record_count": 0,
+               "trace_overflow_header_status": "NOT_DECLARED",
+               "default_8mib_capacity_likely_reached": False,
+               "negative_method_observations_unreliable": True,
                "raw_trace_exposed": False}
     for kind in KINDS:
         verdict[kind + "_entered_main"] = False
@@ -77,6 +95,14 @@ def classify_art_trace(raw: bytes) -> dict:
     if end < 0:
         return verdict
     head = raw[:end].decode("utf-8", errors="replace")
+    # ART intentionally stops recording following method events once its
+    # non-streaming trace buffer fills, so absence of an entry is NOT proof
+    # that the method was never called (Android ART Trace::FinishTracing).
+    overflow = re.search(r"(?m)^data-file-overflow=(true|false)\s*$", head)
+    if overflow:
+        verdict["trace_overflow_header_status"] = (
+            "CONFIRMED_OVERFLOW" if overflow.group(1) == "true"
+            else "NO_OVERFLOW_REPORTED")
     if "*threads\n" not in head or "*methods\n" not in head:
         return verdict
     verdict["trace_methods_section_seen"] = True
@@ -123,6 +149,12 @@ def classify_art_trace(raw: bytes) -> dict:
         verdict["trace_format_verified"] = True
         verdict["trace_valid_record_count"] = count
         verdict["trace_records_observed"] = count > 0
+        capacity_likely_full = likely_default_art_trace_capacity_reached(
+            count, rec_size, offset)
+        verdict["default_8mib_capacity_likely_reached"] = capacity_likely_full
+        verdict["negative_method_observations_unreliable"] = (
+            verdict["trace_overflow_header_status"] != "NO_OVERFLOW_REPORTED"
+            or capacity_likely_full)
         stacks: dict[int, list[int]] = {}
         direct_groups = set()
         exception_caller_groups = set()

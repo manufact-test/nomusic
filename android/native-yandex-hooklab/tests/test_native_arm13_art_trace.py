@@ -8,8 +8,9 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 from observe_native_startup_trace import classify_art_trace
 
 
-def trace(records, methods):
-    header = ("*version\n3\n*threads\n1\tmain\n2\tworker\n*methods\n"
+def trace(records, methods, overflow="false"):
+    header = ("*version\n3\ndata-file-overflow=" + overflow
+              + "\n*threads\n1\tmain\n2\tworker\n*methods\n"
               + "".join("0x%x\tL%s;\t%s\t()V\n" % (i, klass, name)
                         for i, klass, name in methods)
               + "*end\n").encode("utf-8")
@@ -237,6 +238,41 @@ class OwnedArmArtTraceTests(unittest.TestCase):
                 verdict = classify_profiler_launch(raw)
                 self.assertEqual(verdict, expected)
                 self.assertNotIn("HIDE_ME", verdict)
+
+    def test_art_header_explicitly_flags_buffer_overflow(self):
+        from observe_native_startup_trace import likely_default_art_trace_capacity_reached
+        self.assertTrue(likely_default_art_trace_capacity_reached(
+            599184, 14, 32))  # 599184 * 14 + 32 == exactly 8 MiB
+        self.assertFalse(likely_default_art_trace_capacity_reached(
+            100, 14, 32))
+        self.assertFalse(likely_default_art_trace_capacity_reached(
+            -1, 14, 32))
+        self.assertFalse(likely_default_art_trace_capacity_reached(
+            599184, 200, 32))
+        data = trace([(1, 4), (1, 4 | 1)],
+                     [(4, "ru/yandex/music/YMApplication", "onCreate")],
+                     overflow="true")
+        out = classify_art_trace(data)
+        self.assertTrue(out["trace_format_verified"])
+        self.assertTrue(out["ymapplication_oncreate_entered_main"])
+        self.assertEqual(out["trace_overflow_header_status"], "CONFIRMED_OVERFLOW")
+        self.assertTrue(out["negative_method_observations_unreliable"])
+        self.assertFalse(out["default_8mib_capacity_likely_reached"])
+        self.assertFalse(out["raw_trace_exposed"])
+
+    def test_unfilled_trace_false_header_and_missing_metadata(self):
+        data = trace([(1, 4), (1, 4 | 1)],
+                     [(4, "java/lang/Thread",
+                       "setDefaultUncaughtExceptionHandler")])
+        out = classify_art_trace(data)
+        self.assertEqual(out["trace_overflow_header_status"],
+                         "NO_OVERFLOW_REPORTED")
+        self.assertFalse(out["default_8mib_capacity_likely_reached"])
+        self.assertFalse(out["negative_method_observations_unreliable"])
+        unknown = classify_art_trace(data.replace(
+            b"data-file-overflow=false", b"data-file-overflow=unknown"))
+        self.assertEqual(unknown["trace_overflow_header_status"], "NOT_DECLARED")
+        self.assertTrue(unknown["negative_method_observations_unreliable"])
 
     def test_corrupt_or_too_small_is_inconclusive(self):
         for raw in (b"", b"PRIVATE", b"*version\n3\n*methods\n", b"\0" * 20):
