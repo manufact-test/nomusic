@@ -9,7 +9,7 @@ on:
       - 'android/native-yandex-hooklab/ci/lab_signer_signal_gate.py'
       - 'android/native-yandex-hooklab/ci/test_lab_signer_signal_gate.py'
 permissions:
-  contents: read
+  contents: write
 jobs:
   owned-control-before-disposable-2025-clone:
     runs-on: ubuntu-latest
