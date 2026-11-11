@@ -67,8 +67,76 @@ def extract_exact_nested_origin(source: Path, output: Path) -> dict:
         "exact_owner_outer_sha_verified": True,
         "nested_content_modified": False,
         "foreign_module_installed": False,
-        "signature_bypass_used": False,
+        "new_signature_bypass_applied": False,
     }
+
+
+def classify_exit_info(text: str) -> dict:
+    """Fixed Android ApplicationExitInfo categories for THIS exact MAIN only."""
+    import re
+    known = {1: "self", 2: "signaled", 3: "low_memory", 4: "crash_java",
+             5: "crash_native", 6: "anr", 7: "init_failure", 8: "permission_change",
+             9: "resource", 12: "dependency_died"}
+    blocks = re.split(
+        r"(?im)(?=^\s*(?:ApplicationExitInfo\s*#?\d+|#\d+:\s*ApplicationExitInfo))",
+        text
+    )
+    if len(blocks) == 1:
+        blocks = text.splitlines()
+    reasons, statuses = set(), set()
+    for block in blocks:
+        name = re.search(r"\b(?:processName|process|process name)\s*[=:]\s*"
+                         r"([A-Za-z0-9_.:]+)", block, re.I)
+        if name is None or name.group(1) != CLONE_PACKAGE:
+            continue
+        for reason in re.findall(r"\breason\s*[=:]\s*(\d{1,2})\b", block, re.I):
+            if 0 <= int(reason) <= 16:
+                reasons.add(int(reason))
+        for status in re.findall(r"\bstatus\s*[=:]\s*(-?\d{1,4})\b", block, re.I):
+            if -255 <= int(status) <= 255:
+                statuses.add(int(status))
+    return {
+        "main_exit_info_record_found": bool(reasons),
+        "main_exit_reason_" + "self": 1 in reasons,
+        "main_exit_reason_crash_java": 4 in reasons,
+        "main_exit_reason_crash_native": 5 in reasons,
+        "main_exit_reason_init_failure": 7 in reasons,
+        "main_exit_reason_anr": 6 in reasons,
+        "main_exit_reason_low_memory": 3 in reasons,
+        "main_exit_self_status_zero": 1 in reasons and 0 in statuses,
+        "main_exit_status_available": bool(statuses),
+        "exit_info_available_but_not_main": bool(text.strip()) and not bool(reasons),
+        "raw_android_exit_history_shared": False,
+    }
+
+
+def classify_process_events(text: str) -> dict:
+    import re
+    boundary = re.compile(r"(?<![A-Za-z0-9_.])" + re.escape(CLONE_PACKAGE) +
+                          r"(?![A-Za-z0-9_.:])")
+    tags = ("am_proc_start", "am_proc_died", "am_kill", "am_crash",
+            "am_anr", "am_create_activity", "am_resume_activity", "am_destroy_activity")
+    flags = {tag + "_main": False for tag in tags}
+    for line in text.splitlines()[:6000]:
+        if CLONE_PACKAGE not in line or not boundary.search(line):
+            continue
+        for tag in tags:
+            if re.search(r"\b" + tag + r"\b", line):
+                flags[tag + "_main"] = True
+    return {**flags, "raw_android_event_log_shared": False}
+
+
+def append_read_only_exit_info(guest: DockerGuest, result: dict) -> None:
+    activity = guest.command("shell", "dumpsys", "activity", "exit-info",
+                             CLONE_PACKAGE, timeout=30)
+    result["exit_info_command_succeeded"] = activity.returncode == 0
+    if activity.returncode == 0:
+        result.update(classify_exit_info(activity.stdout))
+    events = guest.command("shell", "logcat", "-b", "events", "-d", "-t", "500",
+                           timeout=30)
+    result["android_event_query_succeeded"] = events.returncode == 0
+    if events.returncode == 0:
+        result.update(classify_process_events(events.stdout))
 
 
 def run(source: Path, guest: DockerGuest) -> dict:
@@ -105,6 +173,8 @@ def run(source: Path, guest: DockerGuest) -> dict:
         result["verdict"] = "UNWRAPPED_HOST_LAUNCH_FAILED"
         return result
     result.update(guest.observe(CLONE_PACKAGE))
+    if not result["main_survives"]:
+        append_read_only_exit_info(guest, result)
     result["verdict"] = (
         "UNWRAPPED_2025_HOST_MAIN_SAME_PID_16S"
         if result["main_survives"] and result["activity_resumed_all_samples"]
