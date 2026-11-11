@@ -48,12 +48,32 @@ def classify_apksigner_failure(returncode: int, stdout: str, stderr: str) -> dic
         match = re.match(r"^\s*(ERROR|WARNING)\s*:\s*(.*)", line, re.I)
         if match:
             (errors if match.group(1).upper() == "ERROR" else warnings).append(match.group(2))
+    # Classify the *single diagnostic* into narrow apksig reasons, never into
+    # a fabricated human-readable excerpt of a proprietary APK or signer name.
+    specific = {
+        "v1_signature_stripping_v2": r"indicates.{0,120}signed using apk signature scheme v2.{0,100}no such signature",
+        "v1_signature_stripping_v3": r"indicates.{0,120}signed using apk signature scheme v3.{0,100}no such signature",
+        "v1_crypto_not_supported_for_lower_api": r"jar signature.{0,200}not supported on api level",
+        "v1_digest_not_supported_for_lower_api": r"digest algorithm.{0,150}not supported on api level",
+        "v1_signature_content_digest_failure": r"(?:signature|manifest|entry).{0,80}digest.{0,80}(?:does not match|mismatch|failed)",
+        "v1_pkcs7_signature_invalid": r"(?:jar signature|pkcs.?7|cms).{0,180}(?:verify|invalid|corrupt)",
+        "v1_cert_chain_not_supported": r"(?:jar signer|certificate).{0,180}(?:not trusted|invalid cert|certificate exception)",
+        "v1_unprotected_zip_entries": r"(?:not signed by|no jar entries covered|unsigned jar entr)",
+        "v1_duplicate_manifest_section": r"duplicate section in meta-inf/manifest",
+        "v1_manifest_missing_section_name": r"(?:unnamed|does not have a name).{0,80}section",
+        "v1_malformed_manifest": r"(?:malformed|parse|invalid).{0,80}manifest",
+        "v2_signing_block_missing": r"(?:no apk signature scheme v2|v2 signature missing)",
+        "v3_signing_block_missing": r"(?:no apk signature scheme v3|v3 signature missing)",
+        "scheme_signer_mismatch": r"(?:different signers|signers do not match|mismatched signer)",
+    }
     # SDK sometimes emits a Java exception instead of an ERROR: prefix.
     exceptions = [line.strip() for line in combined.splitlines()
                   if re.match(r"^\s*(?:java\.[\w.]+\.)?[\w]*(?:Exception|Error)(?::|$)", line)]
     diagnostic_text = "\n".join(errors + exceptions).lower()
     categories = sorted(name for name, patterns in _ERROR_PATTERNS.items()
                         if any(re.search(pattern, diagnostic_text) for pattern in patterns))
+    specific_reasons = sorted(name for name, pattern in specific.items()
+                              if re.search(pattern, diagnostic_text))
     # A nonzero exit is always failure, but generic banner/cert info is
     # insufficient evidence for a specific signing-scheme failure.
     if not categories:
@@ -65,6 +85,7 @@ def classify_apksigner_failure(returncode: int, stdout: str, stderr: str) -> dic
         flags["v" + scheme] = verified.lower() == "true"
     return {"apksigner_exit_zero": False,
             "failure_categories": categories,
+            "specific_error_reasons": specific_reasons or ["unclassified_sdk_error"],
             "diagnostic_error_count": len(errors),
             "diagnostic_warning_count": len(warnings),
             "reported_scheme_verification": flags,
