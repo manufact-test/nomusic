@@ -179,10 +179,23 @@ try
                 "support idempotent request key");
             if (body.GetProperty("kind").GetString() == "song")
             {
+                if (body.GetProperty("report").GetProperty("diagnostics")
+                    .TryGetProperty("windows", out var songWindows) &&
+                    songWindows.ValueKind == JsonValueKind.Object)
+                    Test(songWindows.GetProperty("platform").GetString() == "windows" &&
+                         songWindows.GetProperty("events").ValueKind == JsonValueKind.Array,
+                         "W70 song ticket automatically carries bounded Windows diagnostic payload");
                 Test(body.GetProperty("report").GetProperty("category").GetString() == "audio_issue",
                     "song report category matches extension");
                 Test(body.GetProperty("report").GetProperty("track").GetProperty("id").GetString() == "144530503",
                     "only exact owner track ID reported");
+            }
+            else if (body.TryGetProperty("diagnostics", out var generalWindows) &&
+                     generalWindows.ValueKind == JsonValueKind.Object)
+            {
+                Test(generalWindows.GetProperty("platform").GetString() == "windows" &&
+                     generalWindows.GetProperty("scopeSeconds").GetInt32() == 900,
+                     "W70 general ticket automatically carries bounded diagnostics");
             }
             return JsonResponse(new { ticket_id = 3 });
         }
@@ -252,10 +265,14 @@ try
     var redeemed = await api.RedeemPromoAsync("TESTPROMO123");
     Test(redeemed.GetProperty("entitlement").GetProperty("allowed").GetBoolean(),
         "W62 promo redeems via existing service");
-    var support = await api.SendSupportAsync("Проверка поддержки", Guid.NewGuid());
+    var automaticDiagnostics = DiagnosticLog.ExportSupportSnapshot(
+        "5.126.1.0", "ACTIVE", true, true, "0.24.18", true, "144530503");
+    var support = await api.SendSupportAsync("Проверка поддержки", Guid.NewGuid(),
+        diagnostics: automaticDiagnostics);
     Test(support.GetProperty("ticket_id").GetInt32() == 3, "W62 general support real API");
     var songSupport = await api.SendSongSupportAsync("Звук прерывается", Guid.NewGuid(),
-        "144530503", "audio_issue", true, true);
+        "144530503", "audio_issue", true, true,
+        windowsDiagnostics: automaticDiagnostics);
     Test(songSupport.GetProperty("ticket_id").GetInt32() == 3,
         "W62 typed song support real API");
     Test(!await api.CanExportDiagnosticsAsync(),
@@ -405,6 +422,25 @@ try
          snapshot.Contains("Native403HtmlResponseObserved=true"),
         "W53 owner summary correctly reflects native resource events");
     Test(!snapshot.Contains("SENSITIVE"),"W53 malformed native lines cannot leak signed query or sid");
+    var auto = DiagnosticLog.ExportSupportSnapshot("5.126.1.0","ACTIVE", true, true,
+        "0.24.18", true, "123", fixtureLogsDirectory);
+    var autoJson = JsonSerializer.Serialize(auto);
+    using (var parsedAuto = JsonDocument.Parse(autoJson))
+    {
+        var root = parsedAuto.RootElement;
+        Test(root.GetProperty("platform").GetString() == "windows" &&
+            root.GetProperty("scopeSeconds").GetInt32() == 900,
+            "W70 auto-attachment includes version, bounded scope and platform");
+        var events = root.GetProperty("events");
+        Test(events.GetArrayLength() <= 64 &&
+             events.EnumerateArray().Any(x => x.GetProperty("code").GetString() ==
+                "PLAYER_NET_HTTP_FORBIDDEN" &&
+                x.GetProperty("resourceId").GetString() == "739209"),
+             "W70 auto-support includes recent error and safe numeric resource id");
+    }
+    Test(!autoJson.Contains("SENSITIVE") && !autoJson.Contains("token=") &&
+         !autoJson.Contains("test@example.com") && !autoJson.Contains("sid="),
+         "W70 automatic customer attachment is free of tokens, email and signed URLs");
     Test(snapshot.Contains("EngineFastPauseObserved=") &&
         snapshot.Contains("PlayerAudibleEventObserved=") &&
         snapshot.Contains("DecoderErrorObserved="), "typed owner playback evidence summary");
