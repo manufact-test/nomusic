@@ -6,7 +6,8 @@ from clone_main_crash_buffer import LOG, main_exit_pids
 TAG = "CELIKOM_A1_EXIT_WITNESS"
 EVENTS = frozenset(("ARMED", "UNCAUGHT", "SYSTEM_EXIT", "RUNTIME_EXIT", "PROCESS_KILL"))
 ORIGINS = frozenset(("REGISTERED", "NO_HOOK", "VENDOR_UNCAUGHT_HANDLER",
-                      "VENDOR", "PLATFORM", "UNKNOWN", "NONE"))
+                      "STATIC_HANDLER", "STATIC_RUN_A", "STATIC_RUN_B",
+                      "STATIC_INVOKER", "VENDOR", "PLATFORM", "UNKNOWN", "NONE"))
 ERRORS = frozenset(("ILLEGAL_STATE", "SECURITY", "LINK", "OTHER_THROWABLE", "NONE"))
 THREADS = frozenset(("MAIN", "OTHER"))
 

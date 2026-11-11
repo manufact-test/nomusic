@@ -77,8 +77,16 @@ public final class ExitCallsiteWitness extends XposedModule {
             boolean vendor = false, platform = false;
             for (StackTraceElement frame : Thread.currentThread().getStackTrace()) {
                 String name = frame.getClassName();
+                // Four actual direct-exit owners from a prior scan of signed
+                // 2026 host DEX. Emit only fixed family labels: no raw stack.
                 if ("ck7".equals(name) && "uncaughtException".equals(frame.getMethodName()))
-                    return "VENDOR_UNCAUGHT_HANDLER";
+                    return "STATIC_HANDLER";
+                if ("mi7".equals(name) && "run".equals(frame.getMethodName()))
+                    return "STATIC_RUN_A";
+                if ("xx0".equals(name) && "run".equals(frame.getMethodName()))
+                    return "STATIC_RUN_B";
+                if ("tn".equals(name) && "invoke".equals(frame.getMethodName()))
+                    return "STATIC_INVOKER";
                 if (name.startsWith("ru.yandex.") || name.startsWith("com.yandex."))
                     vendor = true;
                 else if (name.startsWith("android.") || name.startsWith("java."))

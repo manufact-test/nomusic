@@ -49,6 +49,16 @@ class WitnessClassifierTests(unittest.TestCase):
         self.assertEqual(out["observed_events"], [])
         self.assertTrue(out["runtime_cause_not_assumed"])
 
+    def test_known_static_obfuscated_callers_are_bounded_enums(self):
+        out = classify_exit_witness(
+            EXIT,
+            entry(1234, "SYSTEM_EXIT", origin="STATIC_RUN_B", error="NONE")
+            + entry(1234, "PROCESS_KILL", origin="STATIC_INVOKER", error="NONE")
+            + entry(1234, "SYSTEM_EXIT", origin="STATIC_HANDLER", error="NONE"))
+        self.assertEqual(out["caller_groups"],
+                         ["STATIC_HANDLER", "STATIC_INVOKER", "STATIC_RUN_B"])
+        self.assertEqual(out["observed_events"], ["PROCESS_KILL", "SYSTEM_EXIT"])
+
     def test_background_event_not_claimed_main(self):
         out = classify_exit_witness(EXIT, entry(1234, "UNCAUGHT", thread="OTHER"))
         self.assertEqual(out["main_thread_event_count_bounded"], 0)
