@@ -95,8 +95,8 @@ try{
     !str_contains(json_encode($internal),'leak@example.invalid'),
     'server strips token, URL, arbitrary email and unsupported properties');
   $html=(new SupportAdminView($pdo))->render(str_repeat('a',64),$id);
-  expect(str_contains($html,'Техническая диагностика Windows')&&
-    str_contains($html,'Скачать диагностику JSON')&&str_contains($html,'PLAYER_NET_HTTP_FORBIDDEN'),
+  expect(!str_contains($html,'Техническая диагностика')&&
+    str_contains($html,'Скачать диагностику JSON')&&!str_contains($html,'PLAYER_NET_HTTP_FORBIDDEN'),
     'administrator can view general report without contaminating message text');
   $email=$pdo->prepare('SELECT body FROM support_messages WHERE ticket_id=? ORDER BY id LIMIT 1');
   $email->execute([$id]);
@@ -153,7 +153,7 @@ try{
   expect(strpos($all,'ticket='.$general.'"')<strpos($all,'ticket='.$id.'"'),'Pending All list sorts by latest ID');
   $ordinary=$view->render(str_repeat('a',64),0,1,1,$u,'general');
   expect(str_contains($ordinary,'ticket='.$general.'"')&&!str_contains($ordinary,'ticket='.$id.'"'),'General tab excludes song ticket');
-  $html=$view->render(str_repeat('a',64),$id);expect(str_contains($html,'&lt;script&gt;song')&&!str_contains($html,'<script>song'),'Metadata escaped');expect(str_contains($html,'resolve-song')&&!str_contains($html,'support/reply'),'Song has resolution, no mandatory reply');expect(str_contains($html,'Скачать диагностику JSON'),'Download link available in song ticket');
+  $html=$view->render(str_repeat('a',64),$id);expect(str_contains($html,'&lt;script&gt;song')&&!str_contains($html,'<script>song'),'Metadata escaped');expect(str_contains($html,'resolve-song')&&!str_contains($html,'support/reply'),'Song has resolution, no mandatory reply');expect(str_contains($html,'Скачать диагностику JSON'),'Download link available in song ticket');expect(!str_contains($html,'Техническая диагностика'),'Song inline diagnostic removed, file remains');
   $list=$view->render(str_repeat('a',64),0);
   expect(str_contains($list,'<th>Обращения</th>')&&!str_contains($list,'<th>Песни'),'Single total column');
   expect(str_contains($list,'class="support-unhandled"'),'Open account highlighted');
@@ -208,7 +208,7 @@ try{
   $internal=$service->thread($id);expect($internal['report']['platform']==='android','Mobile source identified in admin attachment');
   expect(!str_contains(json_encode($internal),'SECRET'),'Mobile input independently sanitized');
   $html=(new SupportAdminView($pdo))->render(str_repeat('a',64),$id);
-  expect(str_contains($html,'Техническая диагностика Android')&&str_contains($html,'Скачать диагностику JSON'),'Shared admin displays mobile attachment and file link');
+  expect(!str_contains($html,'Техническая диагностика')&&str_contains($html,'Скачать диагностику JSON'),'Shared admin displays mobile attachment and file link');
  });
  run('Ordinary support automatically stores a bounded attachment with admin-only download and stable retries',function()use($service,$config,$user,$admin,$uuid,$pdo,&$sent):void{
   $u=$user();$other=$user();$owner=$admin('owner');$viewer=$admin('viewer');$key=$uuid();$before=count($sent);
@@ -222,7 +222,7 @@ try{
   expect(!str_contains(json_encode($thread),'SECRET')&&!str_contains(json_encode($thread),'PRIVATE'),'Server independently strips unknown private fields');
   try{$service->thread($id,$other);throw new RuntimeException('cross_user_attachment');}catch(DomainException){}
   $html=(new SupportAdminView($pdo))->render(str_repeat('a',64),$id);
-  expect(str_contains($html,'Скачать диагностику JSON')&&str_contains($html,'/admin/support/reply'),'General attachment keeps ordinary correspondence');
+  expect(str_contains($html,'Скачать диагностику JSON')&&!str_contains($html,'Техническая диагностика')&&str_contains($html,'/admin/support/reply'),'General attachment keeps ordinary correspondence');
   $headers=static function(int $id)use($pdo):array{
    $token=bin2hex(random_bytes(32));$csrf=AdminAuth::csrfForToken($token);
    $pdo->prepare('INSERT INTO admin_sessions(token_hash,admin_id,csrf_hash,expires_at) VALUES (?,?,?,UTC_TIMESTAMP()+INTERVAL 1 HOUR)')->execute([hash('sha256',$token),$id,hash('sha256',$csrf)]);

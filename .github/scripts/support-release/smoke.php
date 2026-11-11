@@ -91,7 +91,7 @@ try {
   &&!str_contains($file[1],'QA_PRIVATE_MARKER'),'attachment_sanitized');
  supportCheck(supportHttp($downloadPath)[0]===303&&supportHttp($downloadPath,'GET',null,$bearer)[0]===303,'customer_export_denied');
  $page=supportHttp('/admin?tab=support&ticket='.$ticket,'GET',null,'',Celikom\Admin\AdminAuth::COOKIE.'='.$adminToken);
- supportCheck($page[0]===200&&str_contains($page[1],'Скачать диагностику JSON')&&str_contains($page[1],'Техническая диагностика расширения')&&!str_contains($page[1],'QA_PRIVATE_MARKER'),'admin_page');
+ supportCheck($page[0]===200&&str_contains($page[1],'Скачать диагностику JSON')&&!str_contains($page[1],'Техническая диагностика')&&!str_contains($page[1],'QA_PRIVATE_MARKER'),'admin_page');
  foreach(['android','windows'] as $platform){
   $other=$payload;$other['request_key']=$uuid();$other['message']='Проверка общего приёма диагностики';
   if($platform==='android')$other['support_diagnostics']['platform']='android';
@@ -104,10 +104,20 @@ try {
   $pdo->prepare('UPDATE support_messages SET mail_required=0 WHERE ticket_id=?')->execute([$otherId]);
   $again=supportHttp('/api/v1/support','POST',$otherBody,$bearer);supportCheck($again[0]===200&&(json_decode($again[1],true)['ticket_id']??null)===$otherId,'cross_platform_https_retry');
   $otherPage=supportHttp('/admin?tab=support&ticket='.$otherId,'GET',null,'',Celikom\Admin\AdminAuth::COOKIE.'='.$adminToken);
-  supportCheck($otherPage[0]===200&&str_contains($otherPage[1],'Скачать диагностику JSON')&&str_contains($otherPage[1],$platform==='android'?'Техническая диагностика Android':'Техническая диагностика Windows'),'cross_platform_admin_page');
+  supportCheck($otherPage[0]===200&&str_contains($otherPage[1],'Скачать диагностику JSON')&&!str_contains($otherPage[1],'Техническая диагностика'),'cross_platform_admin_page');
   $otherFile=supportHttp('/admin/support/diagnostics?ticket='.$otherId,'GET',null,'',Celikom\Admin\AdminAuth::COOKIE.'='.$adminToken);
   supportCheck($otherFile[0]===200&&(json_decode($otherFile[1],true)['report']['platform']??null)===$platform&&!str_contains($otherFile[1],'QA_PRIVATE_MARKER'),'cross_platform_download');
  }
+ $song=['kind'=>'song','message'=>'Проверка отображения отчёта о песне','request_key'=>$uuid(),
+  'report'=>['category'=>'wrong_version','version'=>'0.4.76','track'=>['id'=>'1','title'=>'QA song','artist'=>'QA','album'=>''],
+   'diagnostics'=>['phase'=>'ERROR','token'=>'QA_PRIVATE_MARKER']]];
+ $songBody=json_encode($song,JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE);
+ $songSaved=$app->handle('POST','/api/v1/support',[],['authorization'=>'Bearer '.$bearer,'content-type'=>'application/json'],$songBody);
+ supportCheck($songSaved->status===200,'song_persistence');$songId=json_decode($songSaved->body,true)['ticket_id'];
+ $songPage=supportHttp('/admin?tab=support&ticket='.$songId,'GET',null,'',Celikom\Admin\AdminAuth::COOKIE.'='.$adminToken);
+ supportCheck($songPage[0]===200&&str_contains($songPage[1],'Скачать диагностику JSON')&&!str_contains($songPage[1],'Техническая диагностика')&&str_contains($songPage[1],'QA song'),'song_admin_page');
+ $songFile=supportHttp('/admin/support/diagnostics?ticket='.$songId,'GET',null,'',Celikom\Admin\AdminAuth::COOKIE.'='.$adminToken);
+ supportCheck($songFile[0]===200&&(json_decode($songFile[1],true)['report']['diagnostics']['phase']??null)==='ERROR'&&!str_contains($songFile[1],'QA_PRIVATE_MARKER'),'song_download_preserved');
  $q=$pdo->prepare('SELECT COUNT(*) FROM account_trials WHERE user_id=?');$q->execute([$uid]);supportCheck((int)$q->fetchColumn()===0,'no_trial_activation');
  $success=true;
 }catch(Throwable $error){

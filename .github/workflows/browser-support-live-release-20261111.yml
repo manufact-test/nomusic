@@ -43,7 +43,7 @@ jobs:
       - name: Validate and exercise exact patch and platform contracts
         run: |
           set -euo pipefail
-          bash -n .github/scripts/support-release/deploy.sh
+          bash -n .github/scripts/support-release/admin-ui-deploy.sh
           php -l .github/scripts/support-release/patch.php
           php -l .github/scripts/support-release/smoke.php
           php -l server/src/Support/SupportReport.php
@@ -65,4 +65,4 @@ jobs:
       - name: Guarded code-only release, backup, live private support check and automatic rollback
         env:
           HOSTINGER_SSH_KEY: ${{ secrets.HOSTINGER_SSH_KEY }}
-        run: bash .github/scripts/support-release/deploy.sh
+        run: bash .github/scripts/support-release/admin-ui-deploy.sh
