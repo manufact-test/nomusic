@@ -40,6 +40,40 @@ def main_exit_pids(exit_dump: str) -> set[int]:
     return values
 
 
+
+def _native_link_failure_mode(log_text: str) -> str:
+    """Fixed, privacy-safe linker diagnostics. Never return an error message."""
+    patterns = (
+        ("NAMESPACE_DENIED", r"not accessible for the namespace|not permitted in linker namespace|namespace.*(?:inaccessible|denied)"),
+        ("DEP_MISSING", r"(?:needed by|referenced by|DT_NEEDED).*?(?:not found|missing)|library\\s+['\\\"][^'\\\"]+\\.so['\\\"]\\s+not found"),
+        ("LIBRARY_NOT_FOUND", r"(?:library\\s+)?['\\\"]?liblspatch\\.so['\\\"]?\\s+not found|no such file or directory|couldn't find|cannot find"),
+        ("SYMBOL_UNRESOLVED", r"cannot locate symbol|undefined symbol|symbol lookup error"),
+        ("ELF_ARCH_INVALID", r"wrong ELF class|instead of (?:32|64)-bit|e_machine|unexpected ELF|ELFCLASS"),
+        ("ELF_INVALID", r"bad ELF|invalid ELF|not an ELF|ELF header|ELF load command"),
+        ("ZIP_ENTRY_INVALID", r"zip entry|zip archive|zip file|not uncompressed|compressed entry|invalid zip"),
+        ("PAGE_OR_MMAP", r"mmap failed|couldn't map|could not map|page aligned|not page-aligned|invalid offset|segment.*align"),
+        ("LIBRARY_SECURITY_DENIED", r"permission denied|access denied|avc: denied|SELinux"),
+        ("RELOCATION_FAILURE", r"relocation|unsupported relocation|relocating"),
+        ("JNI_INIT_FAILURE", r"JNI_OnLoad|init_array|DT_INIT"),
+    )
+    for label, pattern in patterns:
+        if re.search(pattern, log_text, re.I | re.S):
+            return label
+    return "UNKNOWN_DLOPEN" if re.search(r"dlopen failed|UnsatisfiedLinkError", log_text, re.I) else "NOT_OBSERVED"
+
+
+def _native_link_path_family(log_text: str) -> str:
+    """Classify loading origin without exposing a path or package private data."""
+    if re.search(r"\\.apk!/assets/lspatch/so/", log_text, re.I):
+        return "ZIP_ASSET_LOADER"
+    if re.search(r"\\.apk!/lib/", log_text, re.I):
+        return "ZIP_LIB"
+    if re.search(r"/(?:lib|lib64)/liblspatch\\.so", log_text, re.I):
+        return "EXTRACTED_LIB"
+    if re.search(r"liblspatch\\.so", log_text, re.I):
+        return "UNSPECIFIED_LSPATCH_PATH"
+    return "NOT_OBSERVED"
+
 def classify_main_crash_buffer(exit_dump: str, crash_buffer: str) -> dict:
     """Fixed category labels only, no raw process/exception data returned."""
     pids = main_exit_pids(exit_dump)
@@ -82,6 +116,9 @@ def classify_main_crash_buffer(exit_dump: str, crash_buffer: str) -> dict:
         "native_link_library_lspatch_named": has(r"liblspatch\.so"),
         "native_link_library_cpp_shared_named": has(r"libc\+\+_shared\.so"),
         "native_link_dlopen_failed": has(r"dlopen failed"),
+        "native_link_failure_mode": _native_link_failure_mode(text),
+        "native_link_path_family": _native_link_path_family(text),
+        "native_link_error_line_observed": bool([p for p in parts if re.search(r"dlopen failed|UnsatisfiedLinkError", p, re.I)]),
         "native_link_wrong_elf_class": has(
             r"wrong ELF class|32-bit instead of 64-bit|64-bit instead of 32-bit"),
         "native_link_missing_library_marker": has(

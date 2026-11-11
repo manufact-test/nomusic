@@ -81,5 +81,37 @@ class SafeMainCrashBufferTest(unittest.TestCase):
         self.assertFalse(report["exception_free_text_exposed"])
 
 
+    def test_linker_cause_matrix_with_secret_redaction(self):
+        samples = (
+            ("dlopen failed: library 'liblspatch.so' needed by '/secret/token/libfoo.so' not found", "DEP_MISSING"),
+            ("dlopen failed: library 'libprivate.so' is not accessible for the namespace 'classloader-namespace'", "NAMESPACE_DENIED"),
+            ("dlopen failed: cannot locate symbol 'privateToken' referenced by '/secret/liblspatch.so'", "SYMBOL_UNRESOLVED"),
+            ("dlopen failed: bad ELF magic in /private/liblspatch.so", "ELF_INVALID"),
+            ("dlopen failed: wrong ELF class: ELFCLASS64 /private/liblspatch.so", "ELF_ARCH_INVALID"),
+            ("dlopen failed: zip entry not uncompressed /private/app.apk!/assets/lspatch/so/x86/liblspatch.so", "ZIP_ENTRY_INVALID"),
+            ("dlopen failed: couldn't map /data/app/private.apk!/assets/lspatch/so/x86/liblspatch.so", "PAGE_OR_MMAP"),
+            ("dlopen failed: permission denied /secret/path/liblspatch.so", "LIBRARY_SECURITY_DENIED"),
+            ("dlopen failed: unknown private failure access_token=VERYSECRET", "UNKNOWN_DLOPEN"),
+        )
+        for line, expected in samples:
+            with self.subTest(expected=expected):
+                result = classify_main_crash_buffer(EXIT, row(431, "E", "AndroidRuntime", line))
+                self.assertEqual(result["native_link_failure_mode"], expected)
+                self.assertNotIn("VERYSECRET", str(result))
+                self.assertNotIn("/private", str(result))
+                self.assertNotIn("token", str(result).lower())
+
+    def test_zip_loader_path_family_and_scoped_pid(self):
+        raw = (row(431, "E", "AndroidRuntime",
+                   "java.lang.UnsatisfiedLinkError: dlopen failed: "
+                   "/data/app/PRIVATE/base.apk!/assets/lspatch/so/armeabi-v7a/liblspatch.so")
+               + row(432, "E", "AndroidRuntime",
+                     "dlopen failed: bad ELF magic /secret/libother.so"))
+        out = classify_main_crash_buffer(EXIT, raw)
+        self.assertEqual(out["native_link_path_family"], "ZIP_ASSET_LOADER")
+        self.assertEqual(out["native_link_failure_mode"], "UNKNOWN_DLOPEN")
+        self.assertTrue(out["native_link_error_line_observed"])
+        self.assertNotIn("PRIVATE", str(out))
+
 if __name__=="__main__":
     unittest.main()

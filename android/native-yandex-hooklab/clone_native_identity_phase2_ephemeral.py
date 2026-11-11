@@ -895,6 +895,21 @@ def run():
                     raise arsc.TrialError("API30_X86_NATIVE_BRIDGE_UNAVAILABLE")
             elif "arm64-v8a" not in abi or "x86_64" in abi:
                 raise arsc.TrialError("NATIVE_ARM64_RUNTIME_REQUIRED")
+
+            vm_isa = arsc.run(
+                ["adb", "shell", "getprop", "ro.dalvik.vm.isa.arm"],
+                "ANDROID_ARM_TRANSLATION_ISA_PROPERTY", 30).strip()
+            # No serials, package paths, tokens or full device properties.
+            print(json.dumps({"lspatch_native_linker_device_context": {
+                "abi_x86": "x86" in abi.split(","),
+                "abi_x86_64": "x86_64" in abi.split(","),
+                "abi_armeabi_v7a": "armeabi-v7a" in abi.split(","),
+                "abi_arm64_v8a": "arm64-v8a" in abi.split(","),
+                "native_bridge_present": bool(bridge) and bridge not in ("0", "false"),
+                "arm_translation_isa_x86": vm_isa == "x86",
+                "arm_translation_isa_x86_64": vm_isa == "x86_64",
+                "ro_vm_isa_arm_defined": bool(vm_isa),
+            }}, sort_keys=True))
             # A/B: does a one-APK independent clone boot before ANY original
             # publisher app is present? This isolates package coexistence from
             # clone package-identity and resource/lifecycle startup problems.
