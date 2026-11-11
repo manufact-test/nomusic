@@ -35,6 +35,28 @@ class SafeMainCrashBufferTest(unittest.TestCase):
             self.assertNotIn(secret,str(result))
         self.assertFalse(result["raw_crash_buffer_exposed"])
 
+    def test_offline_original_package_scope_is_exact_and_never_crosses_apps(self):
+        from clone_main_crash_buffer import classify_main_exit_status
+        original="ru.yandex.music"
+        dump=(f"ApplicationExitInfo #0: pid=712 process={original} reason=4 status=0\\n"
+              f"ApplicationExitInfo #1: pid=431 process={CLONE} reason=1 status=0\\n")
+        crash=(row(712,"E","AndroidRuntime","FATAL EXCEPTION: main")
+               +row(712,"E","AndroidRuntime","java.lang.IllegalStateException: " + SECRET)
+               +row(431,"E","AndroidRuntime","java.lang.SecurityException: " + SECRET))
+        x=classify_main_crash_buffer(dump, crash, target_package=original)
+        self.assertEqual(x["fatal_category"],"APPLICATION_STATE")
+        self.assertTrue(x["android_runtime_fatal_main_seen"])
+        self.assertEqual(main_exit_pids(dump,target_package=original),{712})
+        self.assertEqual(classify_main_exit_status(dump,target_package=original)["latest_main_exit_reason"],"JAVA_CRASH")
+        self.assertNotIn("712",str(x))
+        self.assertNotIn("TOPSECRET",str(x))
+
+    def test_offline_crash_classifier_rejects_untrusted_package_identity(self):
+        with self.assertRaises(ValueError):
+            classify_main_crash_buffer(EXIT, "", target_package="arbitrary.package")
+        with self.assertRaises(ValueError):
+            main_exit_pids(EXIT,target_package="ru.yandex.music:any_helper")
+
     def test_explicit_main_scope_unknown_pid_fails_closed(self):
         raw = row(431,"E","AndroidRuntime","FATAL EXCEPTION: main java.lang.UnsatisfiedLinkError")
         result = classify_main_crash_buffer(
