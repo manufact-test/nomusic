@@ -55,12 +55,15 @@ def private_process(args, timeout=75):
     return subprocess.run(args, capture_output=True, text=True, timeout=timeout)
 
 
-def pm_session_install(apks: list[str]) -> str:
+def pm_session_install(apks: list[str],
+                       expected_package: str = PACKAGE) -> str:
     """Native AOSP install-create/write/commit for 5 signed split APKs.
 
     install-multiple belongs to the ADB *host*, not to Android shell 'pm'.
     Never spoof signatures or bypass PackageManager enforcement.
     """
+    if expected_package not in (PACKAGE, "pro.celikom.yandex.nativeclonelab"):
+        fail("PRIVATE_PM_SESSION_PACKAGE_NOT_LAB_ALLOWLIST")
     if len(apks) != 5:
         fail("ORIGINAL_PM_SESSION_MUST_HAVE_FIVE_APKS")
     uploads = []
@@ -71,7 +74,7 @@ def pm_session_install(apks: list[str]) -> str:
         if not path.is_file() or path.suffix != ".apk":
             fail("ORIGINAL_SESSION_SPLIT_MISSING")
         meta = y.apkmeta(path)
-        if meta.get("name") != PACKAGE or meta.get("versionCode") != "24026531":
+        if meta.get("name") != expected_package or meta.get("versionCode") != "24026531":
             fail("ORIGINAL_SESSION_VENDOR_IDENTITY_CHANGED")
         name = meta.get("split", "") or "base"
         if name == "base":

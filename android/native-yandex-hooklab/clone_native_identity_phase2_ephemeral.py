@@ -895,7 +895,8 @@ def run():
             try:
                 return test_independent_clone_and_original(
                     merged_clone, apks, new_fingerprint, loader_zero,
-                    direct_clone=independent_signed_host_no_loader)
+                    direct_clone=independent_signed_host_no_loader,
+                    clone_splits=clone_output_apks)
             except ValueError as exc:
                 if __import__("re").fullmatch("[A-Z0-9_]{6,96}", str(exc)):
                     raise arsc.TrialError(str(exc)) from None

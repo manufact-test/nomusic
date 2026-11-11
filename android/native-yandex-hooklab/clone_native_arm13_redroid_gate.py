@@ -19,7 +19,7 @@ from pathlib import Path
 import clone_native_splits_ephemeral as source
 from clone_main_crash_buffer import classify_main_crash_buffer, classify_main_exit_status
 from native_arm13_signed_original_control import (
-    adb, check_guest_container, pm_category, private_process
+    adb, check_guest_container, pm_category, private_process, pm_session_install
 )
 
 CONTAINER = "celikom-native-arm-android13"
@@ -108,6 +108,48 @@ def install_own_one_apk(apk: Path):
         fail("NATIVE_ARM13_CLONE_SINGLE_INSTALLED_APK_NOT_FOUND")
 
 
+def install_clone_five_verified_splits(apks: list[Path], signer: str):
+    """Native Android session, exactly five independently signed OWN clone APKs.
+
+    The publisher's original five signed APKs are *not* touched by this stage.
+    No trust/DRM/signature/credential hooks, only a package-layout A/B.
+    """
+    if len(apks) != 5:
+        fail("NATIVE_ARM13_CLONE_SPLIT_LAYOUT_REQUIRES_FIVE")
+    from merge_lab_splits_ephemeral import fingerprint
+    import clone_native_splits_arsclib_ephemeral as arsc
+    splits = set()
+    for apk in apks:
+        meta = source.apkmeta(apk)
+        if (meta.get("name") != CLONE or meta.get("versionCode") != "24026531"
+                or meta.get("split", "") in splits):
+            fail("NATIVE_ARM13_CLONE_FIVE_SPLIT_IDENTITY_CHANGED")
+        if fingerprint(apk, arsc) != signer:
+            fail("NATIVE_ARM13_CLONE_FIVE_SPLIT_LAB_SIGNER_DRIFT")
+        splits.add(meta.get("split", ""))
+    if len(splits) != 5 or "" not in splits:
+        fail("NATIVE_ARM13_CLONE_FIVE_SPLIT_BASE_MISSING")
+    result = pm_session_install([str(x) for x in apks],
+                                expected_package=CLONE)
+    if result != "Success":
+        fail("NATIVE_ARM13_CLONE_FIVE_INSTALL_" +
+             (result[:60] if result.startswith("PRIVATE_PM_") else
+              "UNKNOWN_INSTALL_FAILURE"))
+    installed = adb(["shell", "pm", "path", CLONE])
+    if sum(x.startswith("package:") for x in installed.splitlines()) != 5:
+        fail("NATIVE_ARM13_CLONE_FIVE_INSTALL_COUNT_DRIFT")
+
+
+def uninstall_own_clone_only():
+    """No removal of publisher package, only independently named lab clone."""
+    res = private_process(["docker", "exec", CONTAINER, "pm",
+                           "uninstall", "--user", "0", CLONE], timeout=95)
+    if res.returncode or "Success" not in res.stdout:
+        fail("NATIVE_ARM13_CLONE_RESET_UNINSTALL_FAILED")
+    if adb(["shell", "pm", "path", CLONE], allow=True).strip():
+        fail("NATIVE_ARM13_CLONE_RESET_USER_APP_STILL_INSTALLED")
+
+
 def snapshot(package: str) -> dict:
     if package not in (CLONE, ORIGINAL):
         fail("NATIVE_ARM13_SNAPSHOT_UNAPPROVED_PACKAGE")
@@ -172,7 +214,8 @@ def start(package: str) -> tuple[dict, dict]:
 
 def test_independent_clone_and_original(clone: Path, original_splits: list[Path],
                                         signer: str, loader_zero: bool,
-                                        direct_clone: Path | None = None) -> dict:
+                                        direct_clone: Path | None = None,
+                                        clone_splits: list[Path] | None = None) -> dict:
     env = require_native_arm()
     if not loader_zero:
         fail("NATIVE_ARM13_CLONE_LSPATCH_ZERO_REQUIRED")
@@ -182,18 +225,20 @@ def test_independent_clone_and_original(clone: Path, original_splits: list[Path]
     # Match identical signed host DEX/native payload with and without
     # the upstream LSPatch loader. Run each only in a clean ephemeral CI app
     # state and never rewrite the original publisher-signed five APKs.
-    if direct_clone is None:
-        fail("NATIVE_ARM13_DIRECT_CLONE_CONTROL_REQUIRED")
+    if direct_clone is None or clone_splits is None:
+        fail("NATIVE_ARM13_CLONE_ALL_THREE_LAYOUTS_REQUIRED")
+    # A: original independently signed five clone splits (no merge/no loader).
+    install_clone_five_verified_splits(clone_splits, signer)
+    clone_splits_alone, clone_splits_exit = start(CLONE)
+    uninstall_own_clone_only()
+
+    # B: our five splits merged into ONE APK, still without LSPatch.
     verify_lab_clone(direct_clone, signer, loader_zero=False)
     install_own_one_apk(direct_clone)
     direct_alone, direct_exit = start(CLONE)
-    uninstall = private_process(
-        ["docker", "exec", CONTAINER, "pm", "uninstall", "--user", "0", CLONE],
-        timeout=95)
-    if uninstall.returncode or "Success" not in uninstall.stdout:
-        fail("NATIVE_ARM13_DIRECT_CLONE_CLEAN_UNINSTALL_REQUIRED")
-    if adb(["shell", "pm", "path", CLONE], allow=True).strip():
-        fail("NATIVE_ARM13_DIRECT_CLONE_NOT_REMOVED")
+    uninstall_own_clone_only()
+
+    # C: same ONE APK with upstream LSPatch loader level0, no modules.
     install_own_one_apk(clone)
     clone_alone, clone_crash = start(CLONE)
 
@@ -216,6 +261,8 @@ def test_independent_clone_and_original(clone: Path, original_splits: list[Path]
               and clone_after["main_alive"]
               else "NATIVE_ARM13_CLONE_MAIN_OR_COEXISTENCE_NO_GO")
     report = {"result": result, "runtime": env,
+              "five_clone_splits_before_original": clone_splits_alone,
+              "five_clone_splits_exit_category": clone_splits_exit,
               "direct_clone_before_original": direct_alone,
               "direct_clone_exit_category": direct_exit,
               "lspatch_zero_clone_before_original": clone_alone,
