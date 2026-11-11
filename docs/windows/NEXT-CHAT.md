@@ -1,3 +1,11 @@
+# FIRST READ — W73 LIVE MAIL VERDICT (11.11.2026): real Windows general notifications found in Gmail Inbox
+
+**Authoritative new report:** `docs/windows/W73-LIVE-MAIL-DELIVERY-AUDIT-20261111.md`. Verified actual active release `browser-support-076-b807cd691074`; Windows 0.24.20 source `66ffb6348f821416adabb9de4ce110adef1d5b7b` unchanged. Two real general notification emails marked SMTP `sent` were both independently FOUND in the configured Gmail **INBOX**, after exact live-vs-GitHub SMTP identity match: CI https://github.com/manufact-test/nomusic/actions/runs/43004471837. Independent real SMTP sent both support/general and admin-reply probes: CI 43003487354; separate Gmail receipt proved: CI 43004186705; prod read-only mail/ticket audit: CI 43004088750. Recent real DB: two admin replies `sent`; their recipient inboxes aren't accessible. Two song cases correctly have `mail_required=0`.
+
+**Do not fix a nonexistent Windows or support SMTP bug.** Browser and Windows do NOT automatically email customers upon creating general tickets; support receives the initial mail, customer email comes only after an admin reply. Owner's missing expected mail may refer to another mailbox or customer receipt, but this explanation is not proven without owner confirmation. Existing support notifications are NOT lost; real Gmail inbox verified 2/2. No Windows EXE, PHP production release, admin UI, music, subscription or DB changed. W73 added only protected CI checks/docs. Preserve all existing backup branches, especially `backup/windows-w73-before-mail-chain-audit-20261111` and W72 compiled original.
+
+---
+
 # FIRST READ — W73 TASK HANDOFF (2026-11-11): Windows ordinary support EMAIL not confirmed
 
 **Owner's latest real-world feedback:** Windows 0.24.20 **song-problem diagnostics arrive correctly**, but in an **ordinary support message the expected email does not arrive**. The owner asked for a **precise TZ and transfer to the NEXT CHAT**, not for speculative quick patches in this one. **This is an OPEN defect, NOT fixed.** No Windows code/installer/server changed for W73 yet.
