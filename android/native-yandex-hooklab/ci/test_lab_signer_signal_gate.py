@@ -68,7 +68,7 @@ class SignalGateTest(unittest.TestCase):
             self.assertFalse(result["zip_opened"])
 
     def test_verifier_nonzero_never_accepted(self):
-        result = classify_apksigner_failure(1, "", "Digest mismatch for /private/vendor/account")
+        result = classify_apksigner_failure(1, "", "ERROR: Digest mismatch for /private/vendor/account")
         self.assertFalse(result["apksigner_exit_zero"])
         self.assertIn("entry_digest_problem", result["failure_categories"])
         self.assertNotIn("/private", str(result))
@@ -83,10 +83,40 @@ class SignalGateTest(unittest.TestCase):
         self.assertEqual(result["failure_categories"], [])
 
     def test_scheme_and_sdk_failure_buckets(self):
-        result = classify_apksigner_failure(1, "", "V2 signature failed for min SDK 28")
+        result = classify_apksigner_failure(1, "", "ERROR: V2 signature failed for min SDK 28")
         self.assertFalse(result["apksigner_exit_zero"])
         self.assertIn("v2_scheme_problem", result["failure_categories"])
         self.assertIn("sdk_level_rejection", result["failure_categories"])
+
+    def test_info_lines_are_not_diagnosed_as_signing_errors(self):
+        # Prior CI conflated these normal --verbose/--print-certs info lines
+        # with a signature or certificate root cause.
+        info = ("DOES NOT VERIFY\n"
+                "Verified using v1 scheme (JAR signing): false\n"
+                "Signer #1 certificate SHA-256 digest: 0123456789abcdef")
+        result = classify_apksigner_failure(1, info, "")
+        self.assertEqual(result["failure_categories"], ["unclassified"])
+        self.assertEqual(result["reported_scheme_verification"], {"v1": False})
+        self.assertEqual(result["diagnostic_error_count"], 0)
+        self.assertTrue(result["generic_does_not_verify_banner"])
+
+    def test_error_only_not_warning_or_certificate_info(self):
+        result = classify_apksigner_failure(
+            1, "Signer #1 certificate SHA-256 digest: aabb\n"
+               "Verified using v2 scheme (APK Signature Scheme v2): true",
+            "WARNING: JAR signature output may vary\n"
+            "ERROR: ZIP central directory malformed")
+        self.assertIn("zip_or_central_directory", result["failure_categories"])
+        self.assertNotIn("certificate_or_signer", result["failure_categories"])
+        self.assertNotIn("v1_jar_problem", result["failure_categories"])
+        self.assertEqual(result["diagnostic_warning_count"], 1)
+
+    def test_error_diagnostics_do_not_leak_private_paths(self):
+        result = classify_apksigner_failure(
+            1, "", "ERROR: certificate digest mismatch at /secret/account/private.apk")
+        self.assertIn("entry_digest_problem", result["failure_categories"])
+        self.assertNotIn("/secret", str(result))
+        self.assertNotIn("private.apk", str(result))
 
     def test_signature_report_contract_is_bounded(self):
         box, apk = self.archive([("AndroidManifest.xml", b"fake")])
