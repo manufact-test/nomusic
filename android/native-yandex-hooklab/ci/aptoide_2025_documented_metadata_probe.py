@@ -15,7 +15,7 @@ TARGET_PACKAGE = "ru.yandex.music"
 TARGET_RUR = "2025.10.4 #120.1rur"
 TARGET_GPR = "2025.10.4 #120.1gpr"
 MAX_JSON = 512 * 1024
-API_HOST = "https://ws2.aptoide.com"
+API_HOSTS = ("https://ws75.aptoide.com", "https://ws2.aptoide.com")
 # Public level 7 documented API: https://ws2.aptoide.com/api/7/app/getMeta?info=1
 PATH = f"/api/7/app/getMeta/package_name={TARGET_PACKAGE}/vercode={TARGET_CODE}"
 
@@ -55,30 +55,41 @@ def classify(data: dict) -> dict:
 
 
 def probe() -> dict:
-    request = urllib.request.Request(API_HOST + PATH, headers={
-        "User-Agent": "CELIKOM-Android-A1-readonly-metadata/1.0",
-        "Accept": "application/json",
-    })
-    with urllib.request.urlopen(request, timeout=25) as response:
-        if response.status != 200 or response.geturl().split("/")[2].lower() != "ws2.aptoide.com":
-            raise ValueError("UNEXPECTED_REMOTE_ENDPOINT")
-        raw = response.read(MAX_JSON + 1)
-    if len(raw) > MAX_JSON:
-        raise ValueError("METADATA_EXCEEDS_BOUNDED_LIMIT")
-    return classify(json.loads(raw))
+    states = []
+    for origin in API_HOSTS:
+        request = urllib.request.Request(origin + PATH, headers={
+            "User-Agent": "CELIKOM-Android-A1-readonly-metadata/1.0",
+            "Accept": "application/json",
+        })
+        try:
+            with urllib.request.urlopen(request, timeout=20) as response:
+                if response.status != 200:
+                    states.append("HTTP_NON_200")
+                    continue
+                host = response.geturl().split("/")[2].lower()
+                if host not in {"ws75.aptoide.com", "ws2.aptoide.com"}:
+                    states.append("REDIRECTED_TO_UNEXPECTED_HOST")
+                    continue
+                raw = response.read(MAX_JSON + 1)
+            if len(raw) > MAX_JSON:
+                states.append("METADATA_TOO_LARGE")
+                continue
+            return classify(json.loads(raw))
+        except urllib.error.HTTPError as exc:
+            states.append("HTTP_" + str(exc.code) if exc.code in (401, 403, 404, 429, 500, 502, 503) else "HTTP_OTHER")
+        except (ValueError, urllib.error.URLError, OSError, TypeError):
+            states.append("NETWORK_OR_FORMAT_ERROR")
+    return {
+        "verdict": "PUBLIC_CATALOG_API_UNAVAILABLE",
+        "source_attempt_categories": states,
+        "apk_downloaded": False,
+        "native_2025_test_permitted": False,
+    }
 
 
 def main() -> int:
-    try:
-        output = probe()
-    except (ValueError, urllib.error.URLError, OSError, TypeError):
-        output = {
-            "verdict": "PUBLIC_CATALOG_API_UNAVAILABLE",
-            "apk_downloaded": False,
-            "native_2025_test_permitted": False,
-        }
-    print(json.dumps(output, sort_keys=True))
-    return 0  # Discovery not finding a candidate is not a test failure.
+    print(json.dumps(probe(), sort_keys=True))
+    return 0
 
 
 if __name__ == "__main__":
