@@ -1,3 +1,20 @@
+# FIRST READ — W72 0.24.20 Windows support diagnostics + extension-derived anti-drop safeguards (2026-11-11)
+
+**Full authoritative handoff:** `docs/windows/W72-EXTENSION-ANTI-DROP-GUARDS-02420-20261111.md`.
+
+Owner corrected speech-to-text: wanted a review of **browser extension** anti-drop design, **not Android**. The owner wants **one** Windows installer with both hidden automatic support diagnostics and reconnect fixes. Completed in W72 0.24.20, isolated from accepted W69 0.24.17.
+
+- Real W69 0.24.17 diagnostic `Вставленный текст(20261111-090013).txt` proved Windows itself switched off on an unsuccessful entitlement check at 08:59:21Z and owner manually restarted at 08:59:39Z. Three reported drops, but only that instance is individually proven.
+- Auto hidden 15-minute/64-event allowlisted diagnostics are included in both general and song support messages. W72 fixed the earlier 1600-line truncation so an incident 13 minutes earlier survives 2500+ native poll messages. Live backend/admin already updated by extension team; **do NOT deploy W72's older inherited PHP to Hostinger**.
+- Transient GET network failures: bounded retry, 5s suspended/15s normal recheck, fresh no-cache/Connection:close GET after VPN route problems, network-address-change hint only accelerates recheck. Replacement remains disabled until an **explicit new allowed server entitlement**; 401/403, expired entitlement, manual Stop, sign-out and account changes never auto-resume. Concurrent token-refresh session resurrection fixed with lock/identity guard, with delayed-401/Logout tests. More granular privacy-safe failure logs.
+- Browser extension source used: `extension/src/shared/read-recovery.ts`, `extension/src/background/{service-worker,tab-recovery,controller-bootstrap}.ts`, `extension/src/auth/auth-broker.ts`, `extension/src/player/{player-bridge,replacement-controller,fail-open-controller,original-audio-guard}.ts`. Browser audio guard and heartbeat are NOT directly portable because Windows native host lifecycle differs; original native audio/pause/seek/next and Yandex files unchanged.
+- Exact compiled code **`66ffb6348f821416adabb9de4ce110adef1d5b7b`**, backup `backup/windows-w72-02420-extension-anti-drop-and-support-ci-green-20261111`. Current working branch `experiment/windows-w72-extension-anti-drop-guards-20261111` includes later docs and independent upgrade workflow.
+- Complete 0.24.20 Windows + disposable MySQL support CI **SUCCESS** https://github.com/manufact-test/nomusic/actions/runs/42998876460; actual owner W69 **0.24.17 → W72 0.24.20** DPAPI-preserving Yandex-untouched one-app upgrade **SUCCESS** https://github.com/manufact-test/nomusic/actions/runs/42999441879. Native contract tests **138 PASS**.
+- One private unsigned 0.24.20 EXE, **43,542,513 bytes**, SHA256 `1cc9321d8aeb1482a8c23aad8cc1285bb1896f81402ea60c6692b483c180ccd9`. GitHub artifact `13845601337`, familiar Library `/CELIKOM/Windows/CELIKOM-Windows-Setup.exe` (stable `libfile_9cef6593f5e88191a339835933fbc550`) and versioned `/CELIKOM/Windows/CELIKOM-W72-SUPPORT-ANTI-DROP-GUARDS-UNSIGNED.exe` (`libfile_01af2848721481918220f25bdf06d1d5`). Both Library versions SHA/byte verified. Previous versioned 0.24.17 installer and backups preserved.
+- Await owner's physical test on Windows: 20–30 min music/MyWave, pause/seek/Next, manual Stop, optional VPN switch; send general + song test support messages and verify hidden admin JSON. CI success does not prove owner-device intermittent audio is fixed. No public release/signing or payment-provider work yet.
+
+---
+
 # FIRST READ — W70 Windows 0.24.18 automatic private diagnostics attached to every support message (2026-11-11)
 
 **AUTHORITATIVE:** `docs/windows/W70-AUTO-SUPPORT-DIAGNOSTICS-02418-20261111.md`. Owner confirmed Windows 0.24.17 works, then noted standard support reports lacked automatic hidden diagnostics. W69 0.24.17 was general TEXT ONLY; song had numeric track/bridge booleans; full developer log was manual + staff-only. This is now implemented **on an isolated W70 branch**, and requires separate backend rollout before customer reports can be seen in live admin.
