@@ -21,6 +21,7 @@ from clone_main_crash_buffer import classify_main_crash_buffer, classify_main_ex
 from native_arm13_startup_observer import (
     classify_startup_events, only_new_main_exit_info,
     classify_new_main_log_signals, classify_live_main_log_signals,
+    classify_main_cycle_correlation,
 )
 from native_arm13_signed_original_control import (
     adb, check_guest_container, pm_category, private_process, pm_session_install
@@ -226,6 +227,9 @@ def start(package: str) -> tuple[dict, dict]:
     safe_exit["fresh_launch_record_filter"] = fresh_exit
     safe_exit["new_main_pid_log_witness"] = classify_new_main_log_signals(
         filtered_exit, main_log)
+    if package == CLONE:
+        safe_exit["per_main_pid_cycle_correlation"] = (
+            classify_main_cycle_correlation(filtered_exit, events, main_log))
     # Only the publisher-signed original may use the live PID control.
     # A clone exited before sampling must use immutable exit-info PID records.
     if package == ORIGINAL:
