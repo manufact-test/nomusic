@@ -35,6 +35,35 @@ try
     Test(StartupHostPreflight.BlockReason(Celikom.NativeInstaller.NativeInstallState.Changed,
             new YandexHostResult(YandexHostStatus.OfficialBaselineVerified, "5.126.1.0")) != null,
         "W74 changed patched host never bypasses backup safety gate");
+    // W75: a temporary /auth/me failure must never hide an already
+    // verified owner's diagnostics button, but never authorizes export.
+    var temporaryError = new HttpRequestException("synthetic unreachable");
+    Test(DiagnosticsAccessRecovery.KeepButtonOnFailure(
+        true, true, "https://example.test", "installation-1", "owner@example.test",
+        "https://example.test", "installation-1", "OWNER@example.test", temporaryError),
+        "W75 existing verified owner keeps diagnostics control visible during transient network failure");
+    Test(!DiagnosticsAccessRecovery.KeepButtonOnFailure(
+        false, true, "https://example.test", "installation-1", "owner@example.test",
+        "https://example.test", "installation-1", "owner@example.test", temporaryError),
+        "W75 never shows developer diagnostics for unverified user");
+    Test(!DiagnosticsAccessRecovery.KeepButtonOnFailure(
+        true, true, "https://example.test", "installation-1", "owner@example.test",
+        "https://example.test", "installation-1", "other@example.test", temporaryError),
+        "W75 account switch always hides previous owner's diagnostics");
+    Test(!DiagnosticsAccessRecovery.KeepButtonOnFailure(
+        true, true, "https://example.test", "installation-1", "owner@example.test",
+        "https://example.test", "installation-2", "owner@example.test", temporaryError),
+        "W75 device change never reuses prior owner identity");
+    Test(!DiagnosticsAccessRecovery.KeepButtonOnFailure(
+        true, false, "https://example.test", "installation-1", "owner@example.test",
+        "https://example.test", "installation-1", "owner@example.test", temporaryError),
+        "W75 logout always revokes diagnostics");
+    Test(!DiagnosticsAccessRecovery.KeepButtonOnFailure(
+        true, true, "https://example.test", "installation-1", "owner@example.test",
+        "https://example.test", "installation-1", "owner@example.test",
+        new ApiFailure(403, "ACCESS_DENIED")),
+        "W75 real server permission denial hides owner diagnostics");
+
     Test(YandexHostProbe.VerifiedVersion == "5.126.1.0", "pinned official host version");
     Test(YandexHostProbe.VerifiedAsarSha256.Length == 64, "pinned official ASAR fingerprint");
     Test(YandexHostProbe.Inspect(Path.Combine(folder, "yandex-not-installed")).Status ==
@@ -187,9 +216,9 @@ try
     if (!string.IsNullOrWhiteSpace(zipFixture))
     {
         var staged = AppUpdateManager.Stage(zipFixture, new Version(0, 24, 16, 0));
-        Test(staged.Version == new Version(0, 24, 21, 0),
+        Test(staged.Version == new Version(0, 24, 22, 0),
             "ZIP one-click updater accepts new CELIKOM version");
-        Test(Path.GetFileName(staged.Path).StartsWith("CELIKOM-W74-",StringComparison.Ordinal),
+        Test(Path.GetFileName(staged.Path).StartsWith("CELIKOM-W75-",StringComparison.Ordinal),
             "ZIP extraction stages only CELIKOM installer");
         bool oldRejected = false;
         try { AppUpdateManager.Stage(zipFixture, AppUpdateManager.RunningVersion); }
@@ -638,6 +667,44 @@ try
              !fullWindowJson.Contains("SENSITIVE") && !fullWindowJson.Contains("token="),
              "W72 full-window incident report is bounded, filtered and redacted");
     }
+
+    // W75: persistent incident file survives noisy rolling event logs and
+    // remains entirely allowlisted without storing log strings or tokens.
+    var archiveDir = Path.Combine(folder, "w75-persistent-incidents");
+    Directory.CreateDirectory(archiveDir);
+    DiagnosticLog.Record("ACTIVE_ENTITLEMENT_NETWORK_SUSPENDED", null, archiveDir);
+    DiagnosticLog.Record("ACTIVE_ENTITLEMENT_RECOVERED", null, archiveDir);
+    DiagnosticLog.Record("NATIVE_STATE_RECEIVED", null, archiveDir);
+    var preserved = DiagnosticLog.ReadIncidentHistory(archiveDir);
+    Test(preserved.Count == 2 &&
+         preserved.Any(x => x.Contains("|ACTIVE_ENTITLEMENT_NETWORK_SUSPENDED")) &&
+         preserved.Any(x => x.Contains("|ACTIVE_ENTITLEMENT_RECOVERED")),
+        "W75 only incident transitions are durably archived, not native poll chatter");
+    var noisy = string.Concat(Enumerable.Repeat(
+        DateTimeOffset.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffZ") +
+        "|NATIVE_STATE_RECEIVED\n", 3000));
+    File.WriteAllText(Path.Combine(archiveDir, "companion-events.log"), noisy);
+    var historic = DiagnosticLog.ExportText("5.126.1.0", "ACTIVE",
+        true, false, true, "0.24.22", true, archiveDir);
+    Test(historic.Contains("PERSISTENT INCIDENT HISTORY") &&
+         historic.Contains("|ACTIVE_ENTITLEMENT_NETWORK_SUSPENDED") &&
+         historic.Contains("|ACTIVE_ENTITLEMENT_RECOVERED"),
+        "W75 owner export still contains incident even after thousands of native polls");
+    Test(!DiagnosticLog.IsIncidentCode("NATIVE_STATE_RECEIVED") &&
+         !historic.Contains("token=") && !historic.Contains("password="),
+        "W75 archived incidents never carry polling chatter or credentials");
+    var savedPast = DateTimeOffset.UtcNow.AddHours(-3).ToString("yyyy-MM-ddTHH:mm:ss.fffZ");
+    File.WriteAllText(Path.Combine(archiveDir, "incident-events.log"),
+        savedPast + "|ACTIVE_ENTITLEMENT_NETWORK_SUSPENDED\n");
+    Test(DiagnosticLog.ReadIncidentHistory(archiveDir).Any(x =>
+        x.Contains(savedPast) && x.Contains("|ACTIVE_ENTITLEMENT_NETWORK_SUSPENDED")),
+        "W75 owner can recover outage history hours after disconnect");
+    var stale = DateTimeOffset.UtcNow.AddDays(-8).ToString("yyyy-MM-ddTHH:mm:ss.fffZ");
+    File.AppendAllText(Path.Combine(archiveDir, "incident-events.log"),
+        stale + "|ACTIVE_ENTITLEMENT_NETWORK_SUSPENDED\n" +
+        savedPast + "|ACCESS_TOKEN=SECRET\n");
+    Test(DiagnosticLog.ReadIncidentHistory(archiveDir).Count == 1,
+        "W75 seven-day cutoff and allowlist reject stale and tampered incident archive");
 
     Test(snapshot.Contains("EngineFastPauseObserved=") &&
         snapshot.Contains("PlayerAudibleEventObserved=") &&
