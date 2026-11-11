@@ -325,19 +325,20 @@ public sealed class CelikomApi : IDisposable
     }
 
     public Task<JsonElement> SendSupportAsync(string message, Guid requestKey,
-        CancellationToken ct = default)
+        CancellationToken ct = default, object? diagnostics = null)
     {
         if (message.Trim().Length is < 3 or > 2000)
             throw new ApiFailure(400, "INVALID_REQUEST");
         return SignedRequestAsync("support", HttpMethod.Post,
-            new { message = message.Trim(), request_key = requestKey.ToString("D"), kind = "general" }, ct);
+            new { message = message.Trim(), request_key = requestKey.ToString("D"),
+                kind = "general", diagnostics }, ct);
     }
 
     // Same typed server SongReport contract as extension/src/popup/song-report.ts.
     // Only the current exact Yandex ID and observed bridge booleans are sent.
     public Task<JsonElement> SendSongSupportAsync(string message, Guid requestKey,
         string trackId, string category, bool bridgeStarted, bool enabled,
-        CancellationToken ct = default)
+        CancellationToken ct = default, object? windowsDiagnostics = null)
     {
         if (!GrantValidator.IsTrackId(trackId) ||
             category is not ("not_replacing" or "wrong_version" or "audio_issue" or "other") ||
@@ -348,7 +349,7 @@ public sealed class CelikomApi : IDisposable
             category,
             version = AppUpdateManager.RunningVersion.ToString(3),
             track = new { id = trackId, title = "", artist = "", album = "" },
-            diagnostics = new { enabled, bridgeReady = bridgeStarted }
+            diagnostics = new { enabled, bridgeReady = bridgeStarted, windows = windowsDiagnostics }
         };
         return SignedRequestAsync("support", HttpMethod.Post,
             new { message = message.Trim(), request_key = requestKey.ToString("D"),
