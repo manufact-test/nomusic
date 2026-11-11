@@ -17,7 +17,7 @@ import zipfile
 from pathlib import Path
 
 import clone_native_splits_ephemeral as source
-from clone_main_crash_buffer import classify_main_crash_buffer
+from clone_main_crash_buffer import classify_main_crash_buffer, classify_main_exit_status
 from native_arm13_signed_original_control import (
     adb, check_guest_container, pm_category, private_process
 )
@@ -126,37 +126,74 @@ def snapshot(package: str) -> dict:
 
 
 def start(package: str) -> tuple[dict, dict]:
+    """Launch a genuine guest MAIN and sample its lifecycle at bounded intervals.
+
+    Only report enum categories from ActivityExitInfo & scoped crash buffer.
+    No log line, component class, account content, PID or file retained.
+    """
     adb(["shell", "logcat", "-c"])
     launch = adb(["shell", "am", "start", "--user", "0",
                   "-n", package + "/" + MAIN_CLASS], timeout=60, allow=True)
-    time.sleep(7)
-    status = snapshot(package)
-    if status["main_alive"] and status["activity_resumed"]:
-        return status, {"fatal_category":"NOT_OBSERVED",
-                        "signal":"NOT_OBSERVED", "java_dlopen_failed":False,
-                        "original_crash_buffer_dumped":False}
+    observations = []
+    for delay in (0.25, 0.75, 1.5, 4.0):
+        time.sleep(delay)
+        observations.append(snapshot(package))
+    status = observations[-1]
+    status["process_temporarily_alive"] = any(x["main_alive"] for x in observations)
+    status["activity_temporarily_resumed"] = any(x["activity_resumed"] for x in observations)
+    status["launch_intent_accepted"] = ("Starting:" in launch
+                                        or "Warning: Activity not started" in launch)
     exit_info = adb(["shell", "dumpsys", "activity", "exit-info", package],
                     timeout=35, allow=True)
+    safe_exit = classify_main_exit_status(exit_info) if package == CLONE else {
+        "latest_main_exit_reason": "NOT_APPLICABLE",
+        "latest_main_exit_status": "NOT_APPLICABLE",
+        "exact_main_exit_record_seen": False,
+        "raw_exit_info_exposed": False}
+    if status["main_alive"] and status["activity_resumed"]:
+        return status, {**safe_exit, "fatal_category": "NOT_OBSERVED",
+                        "signal": "NOT_OBSERVED", "java_dlopen_failed": False,
+                        "original_crash_buffer_dumped": False}
     buffer = adb(["shell", "logcat", "-d", "-b", "crash",
                   "-v", "threadtime", "-t", "3000"],
                  timeout=45, allow=True)
     safe = classify_main_crash_buffer(exit_info, buffer) if package == CLONE else {}
-    return status, {"fatal_category":safe.get("fatal_category", "NOT_ATTRIBUTED"),
-                    "signal":safe.get("native_main_signal", "NOT_ATTRIBUTED"),
-                    "native_first_frame_group":safe.get(
+    return status, {**safe_exit,
+                    "fatal_category": safe.get("fatal_category", "NOT_ATTRIBUTED"),
+                    "signal": safe.get("native_main_signal", "NOT_ATTRIBUTED"),
+                    "native_first_frame_group": safe.get(
                         "native_backtrace_first_frame_group", "NOT_OBSERVED"),
-                    "java_dlopen_failed":safe.get("native_link_dlopen_failed", False),
-                    "original_crash_buffer_dumped":False}
-
+                    "java_dlopen_failed": safe.get("native_link_dlopen_failed", False),
+                    "application_component_factory_failure": safe.get(
+                        "application_component_factory_failure", False),
+                    "application_create_failure": safe.get(
+                        "application_create_failure", False),
+                    "original_crash_buffer_dumped": False}
 
 def test_independent_clone_and_original(clone: Path, original_splits: list[Path],
-                                        signer: str, loader_zero: bool) -> dict:
+                                        signer: str, loader_zero: bool,
+                                        direct_clone: Path | None = None) -> dict:
     env = require_native_arm()
     if not loader_zero:
         fail("NATIVE_ARM13_CLONE_LSPATCH_ZERO_REQUIRED")
     verify_lab_clone(clone, signer, loader_zero)
     if len(original_splits) != 5:
         fail("NATIVE_ARM13_ORIGINAL_CONTROL_FIVE_SPLITS_REQUIRED")
+    # Match identical signed host DEX/native payload with and without
+    # the upstream LSPatch loader. Run each only in a clean ephemeral CI app
+    # state and never rewrite the original publisher-signed five APKs.
+    if direct_clone is None:
+        fail("NATIVE_ARM13_DIRECT_CLONE_CONTROL_REQUIRED")
+    verify_lab_clone(direct_clone, signer, loader_zero=False)
+    install_own_one_apk(direct_clone)
+    direct_alone, direct_exit = start(CLONE)
+    uninstall = private_process(
+        ["docker", "exec", CONTAINER, "pm", "uninstall", "--user", "0", CLONE],
+        timeout=95)
+    if uninstall.returncode or "Success" not in uninstall.stdout:
+        fail("NATIVE_ARM13_DIRECT_CLONE_CLEAN_UNINSTALL_REQUIRED")
+    if adb(["shell", "pm", "path", CLONE], allow=True).strip():
+        fail("NATIVE_ARM13_DIRECT_CLONE_NOT_REMOVED")
     install_own_one_apk(clone)
     clone_alone, clone_crash = start(CLONE)
 
@@ -179,6 +216,9 @@ def test_independent_clone_and_original(clone: Path, original_splits: list[Path]
               and clone_after["main_alive"]
               else "NATIVE_ARM13_CLONE_MAIN_OR_COEXISTENCE_NO_GO")
     report = {"result": result, "runtime": env,
+              "direct_clone_before_original": direct_alone,
+              "direct_clone_exit_category": direct_exit,
+              "lspatch_zero_clone_before_original": clone_alone,
               "clone_before_original": clone_alone,
               "clone_crash_category": clone_crash,
               "original_publisher_signed_five_splits": True,

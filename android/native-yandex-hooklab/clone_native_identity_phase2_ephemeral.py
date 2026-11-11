@@ -873,6 +873,7 @@ def run():
             print(json.dumps({"private_one_apk_merge": merge_report}, sort_keys=True))
         clone_first_ab = os.getenv("CELIKOM_CLONE_FIRST_AB") == "1"
         loader_zero = os.getenv("CELIKOM_CLONE_LSPATCH_LOADER_ZERO") == "1"
+        independent_signed_host_no_loader = merged_clone
         if loader_zero and not clone_first_ab:
             raise arsc.TrialError("LAB_LOADER_ZERO_NEEDS_CLONE_FIRST_AB")
         if loader_zero:
@@ -893,7 +894,8 @@ def run():
             from clone_native_arm13_redroid_gate import test_independent_clone_and_original
             try:
                 return test_independent_clone_and_original(
-                    merged_clone, apks, new_fingerprint, loader_zero)
+                    merged_clone, apks, new_fingerprint, loader_zero,
+                    direct_clone=independent_signed_host_no_loader)
             except ValueError as exc:
                 if __import__("re").fullmatch("[A-Z0-9_]{6,96}", str(exc)):
                     raise arsc.TrialError(str(exc)) from None

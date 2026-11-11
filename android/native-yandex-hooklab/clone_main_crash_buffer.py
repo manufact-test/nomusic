@@ -259,3 +259,50 @@ def classify_main_crash_buffer(exit_dump: str, crash_buffer: str) -> dict:
         "process_identifiers_exposed": False,
         "exception_free_text_exposed": False,
     }
+
+
+def classify_main_exit_status(exit_dump: str) -> dict:
+    """Safely classify Android 13 ApplicationExitInfo for *exact clone MAIN*.
+
+    REASON_EXIT_SELF=1, CRASH=4, CRASH_NATIVE=5; any helper/other package
+    cannot contribute. Process IDs, times, traces, free text never leave CI.
+    A missing MAIN record MUST report NOT_OBSERVED, never EXIT_SELF.
+    """
+    blocks = EXIT_BLOCK.split(exit_dump[:250000])
+    if len(blocks) == 1:
+        blocks = exit_dump[:250000].splitlines()
+    names = {
+        1: "EXIT_SELF", 2: "SIGNALED", 3: "LOW_MEMORY",
+        4: "JAVA_CRASH", 5: "NATIVE_CRASH", 6: "ANR",
+        7: "INITIALIZATION_FAILURE", 8: "PERMISSION_CHANGE",
+        9: "EXCESSIVE_RESOURCES", 12: "DEPENDENCY_DIED",
+    }
+    matched = []
+    for block in blocks[:100]:
+        proc = re.search(
+            r"\b(?:processName|process|process name)\s*[=:]\s*"
+            r"([A-Za-z0-9_.:]+)", block, re.I)
+        if proc is None or proc.group(1) != CLONE:
+            continue
+        reason = re.search(r"\breason\s*[=:]\s*(\d{1,2})\b", block, re.I)
+        if reason is None:
+            continue
+        code = int(reason.group(1))
+        status = re.search(r"\bstatus\s*[=:]\s*(-?\d{1,6})\b", block, re.I)
+        status_num = int(status.group(1)) if status else None
+        status_label = ("ZERO" if status_num == 0 else
+                        "NONZERO" if status_num is not None else
+                        "NOT_REPORTED")
+        matched.append({"reason": names.get(code, "UNKNOWN"),
+                        "status": status_label})
+    if not matched:
+        return {"exact_main_exit_record_seen": False,
+                "latest_main_exit_reason": "NOT_OBSERVED",
+                "latest_main_exit_status": "NOT_REPORTED",
+                "main_exit_record_count_bounded": 0,
+                "raw_exit_info_exposed": False}
+    return {"exact_main_exit_record_seen": True,
+            "latest_main_exit_reason": matched[0]["reason"],
+            "latest_main_exit_status": matched[0]["status"],
+            "main_exit_record_count_bounded": min(len(matched), 100),
+            "raw_exit_info_exposed": False}

@@ -200,5 +200,40 @@ class SafeMainCrashBufferTest(unittest.TestCase):
         self.assertFalse(out["main_tombstone_header_matched"])
         self.assertNotIn("PRIVATE",str(out))
 
+
+
+class MainExitStatusPrivacyTests(unittest.TestCase):
+    def test_exact_main_exit_self_zero_even_with_helpers(self):
+        from clone_main_crash_buffer import classify_main_exit_status
+        dump = (
+            f"ApplicationExitInfo #0:\n pid=123 process={CLONE}:AppMetrica reason=5 status=11\n"
+            f"ApplicationExitInfo #1:\n pid=124 process={CLONE} reason=1 status=0 private={SECRET}\n"
+            "ApplicationExitInfo #2:\n pid=125 process=ru.yandex.music reason=4 status=66\n"
+        )
+        x = classify_main_exit_status(dump)
+        self.assertEqual(x["latest_main_exit_reason"], "EXIT_SELF")
+        self.assertEqual(x["latest_main_exit_status"], "ZERO")
+        self.assertEqual(x["main_exit_record_count_bounded"], 1)
+        self.assertNotIn("123", str(x))
+        self.assertNotIn(SECRET, str(x))
+        self.assertFalse(x["raw_exit_info_exposed"])
+
+    def test_absent_main_fails_closed(self):
+        from clone_main_crash_buffer import classify_main_exit_status
+        x = classify_main_exit_status(
+            f"ApplicationExitInfo #0: pid=123 process={CLONE}:helper reason=1 status=0")
+        self.assertFalse(x["exact_main_exit_record_seen"])
+        self.assertEqual(x["latest_main_exit_reason"], "NOT_OBSERVED")
+
+    def test_native_crash_exit_vs_java(self):
+        from clone_main_crash_buffer import classify_main_exit_status
+        for code, expected in [(4,"JAVA_CRASH"),(5,"NATIVE_CRASH"),
+                               (7,"INITIALIZATION_FAILURE"),(99,"UNKNOWN")]:
+            with self.subTest(code=code):
+                x = classify_main_exit_status(
+                    f"ApplicationExitInfo #0: process={CLONE} reason={code} status=11")
+                self.assertEqual(x["latest_main_exit_reason"], expected)
+                self.assertEqual(x["latest_main_exit_status"], "NONZERO")
+
 if __name__=="__main__":
     unittest.main()
