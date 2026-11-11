@@ -49,12 +49,19 @@ jobs:
         with:
           distribution: temurin
           java-version: '21'
-      - name: Install standalone ARM native APK audit/build tools
+      - name: Install standalone ARM native APK audit/build tools (bounded package mirror)
+        timeout-minutes: 5
         shell: bash
         run: |
           set -euo pipefail
-          sudo apt-get update -qq
-          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq aapt apksigner zipalign
+          # First use the image's existing binary cache. Avoid indefinite
+          # unattended apt repository waits on GitHub-hosted ARM runners.
+          if ! { command -v aapt >/dev/null && command -v apksigner >/dev/null && command -v zipalign >/dev/null; }; then
+            if ! sudo timeout 75s env DEBIAN_FRONTEND=noninteractive apt-get -o Acquire::Retries=0 -o Acquire::http::Timeout=15 install -y -qq aapt apksigner zipalign; then
+              sudo timeout 90s apt-get -o Acquire::Retries=0 -o Acquire::http::Timeout=15 update -qq
+              sudo timeout 90s env DEBIAN_FRONTEND=noninteractive apt-get -o Acquire::Retries=0 -o Acquire::http::Timeout=15 install -y -qq aapt apksigner zipalign
+            fi
+          fi
           sdk="$RUNNER_TEMP/celikom-native-arm13-sdk"
           mkdir -p "$sdk/build-tools/35.0.0"
           for tool in aapt apksigner zipalign; do
