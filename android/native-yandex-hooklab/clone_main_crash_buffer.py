@@ -236,6 +236,19 @@ def classify_main_crash_buffer(exit_dump: str, crash_buffer: str, target_package
         "APPLICATION_STATE" if app_state else
         "OTHER_JAVA" if java_error else "NOT_OBSERVED")
     assert category in ALLOWED_CATEGORIES
+    # Fixed vocabulary of Java exception classes only. The message, stack,
+    # proprietary type/field names, paths and all identifiers stay private.
+    exception_patterns = {
+        "ILLEGAL_STATE": r"\\bIllegalStateException\\b",
+        "NULL_POINTER": r"\\bNullPointerException\\b",
+        "ILLEGAL_ARGUMENT": r"\\bIllegalArgumentException\\b",
+        "SECURITY_EXCEPTION": r"\\bSecurityException\\b",
+        "RESOURCE_MISSING": r"\\bResources\\$NotFoundException\\b",
+        "CLASS_NOT_FOUND": r"\\bClassNotFoundException\\b",
+        "LINK_ERROR": r"\\bUnsatisfiedLinkError\\b",
+    }
+    exception_subtypes = sorted(label for label, pattern in exception_patterns.items()
+                                if re.search(pattern, text))
     return {
         **native_crash,
         "crash_main_pid_evidence_available": bool(pids),
@@ -264,6 +277,7 @@ def classify_main_crash_buffer(exit_dump: str, crash_buffer: str, target_package
             r"Unable to (?:create|instantiate) application"),
         "activity_launch_failure": has(r"Unable to start activity"),
         "fatal_category": category,
+        "fixed_java_exception_subtypes": exception_subtypes,
         "raw_crash_buffer_exposed": False,
         "process_identifiers_exposed": False,
         "exception_free_text_exposed": False,
