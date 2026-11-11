@@ -284,11 +284,18 @@ def _java_lifecycle_origin(lines: list[str]) -> str:
     return "NOT_OBSERVED"
 
 
-def _java_message_category(lines: list[str]) -> str:
-    """Only the first exception's message, not arbitrary vendor stack lines.
+JAVA_SECURITY_MESSAGE_TOKENS = (
+    ("SIGNATURE", r"\bsignatures?\b"),
+    ("CERTIFICATE", r"\b(?:certificate|certificates|cert)\b"),
+    ("TRUST", r"\b(?:trusted|untrusted|trust)\b"),
+    ("INTEGRITY", r"\b(?:integrity|tamper|tampered|modified)\b"),
+    ("INSTALL_SOURCE", r"\b(?:installer|install source|origin store|source store)\b"),
+    ("SIGNING_DIGEST", r"\b(?:digest|fingerprint|sha-256|sha256)\b"),
+)
+JAVA_SECURITY_TOKEN_LABELS = frozenset(x[0] for x in JAVA_SECURITY_MESSAGE_TOKENS)
 
-    Categories are weak signals, not proof of an integrity check.
-    """
+def _first_exception_message_text(lines: list[str]) -> str:
+    # Only a bounded throw message, no stack line or exception type.
     first = False
     pieces: list[str] = []
     for ln in lines:
@@ -305,11 +312,31 @@ def _java_message_category(lines: list[str]) -> str:
                 pieces.append(parts[1][:240])
         elif pieces and len(pieces) < 3 and len(ln) < 256:
             pieces.append(ln)
-    message = " ".join(pieces)
+    return " ".join(pieces)[:640]
+
+
+def _java_message_category(lines: list[str]) -> str:
+    """Weak static hint, never treats a keyword as proof of a root cause."""
+    message = _first_exception_message_text(lines)
     for label, pattern in JAVA_MESSAGE_HINTS:
         if re.search(pattern, message, re.I):
             return label
     return "NONE"
+
+
+def _java_security_message_markers(lines: list[str]) -> list[str]:
+    message = _first_exception_message_text(lines)
+    return sorted(label for label,pattern in JAVA_SECURITY_MESSAGE_TOKENS
+                  if re.search(pattern,message,re.I))
+
+
+def _java_fatal_thread_enum(lines: list[str]) -> str:
+    for ln in lines:
+        hit=re.search(r"\bFATAL EXCEPTION:\s*(.+)",ln)
+        if not hit:
+            continue
+        return "MAIN_UI" if hit.group(1).strip() == "main" else "NON_MAIN"
+    return "NOT_OBSERVED"
 
 
 def _scoped_android_runtime_java_origin(lines: list[str]) -> dict:
@@ -358,6 +385,10 @@ def _scoped_android_runtime_java_origin(lines: list[str]) -> dict:
         last_cause_first_frame = first_frame
     startup_lifecycle = _java_lifecycle_origin(body)
     message_hint = _java_message_category(body)
+    security_message_markers = _java_security_message_markers(body)
+    fatal_thread = _java_fatal_thread_enum(body)
+    assert set(security_message_markers) <= JAVA_SECURITY_TOKEN_LABELS
+    assert fatal_thread in {"MAIN_UI", "NON_MAIN", "NOT_OBSERVED"}
     assert startup_lifecycle in JAVA_LIFECYCLE_LABELS
     assert message_hint in JAVA_HINT_LABELS
     assert first_frame in JAVA_ALLOWED_FRAME_FAMILIES
@@ -368,6 +399,8 @@ def _scoped_android_runtime_java_origin(lines: list[str]) -> dict:
         "java_fatal_seen_scoped": fatal_seen,
         "java_startup_lifecycle_enum": startup_lifecycle,
         "java_exception_message_hint_enum": message_hint,
+        "java_exception_security_markers": security_message_markers,
+        "java_fatal_thread_enum": fatal_thread,
         "java_top_exception_enum": top_exception,
         "java_last_cause_exception_enum": root_exception,
         "java_top_stack_family": first_frame,
