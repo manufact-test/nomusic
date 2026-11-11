@@ -1,0 +1,88 @@
+name: Android A1 2025 user draft XAPK issuer signature verification — no install
+on:
+  push:
+    branches: [experiment/android-a1-user-original-gpr-real-arm13-20261111]
+    paths:
+      - '.github/workflows/android-a1-2025-owner-gpr-draft-issuer-gate.yml'
+      - 'android/native-yandex-hooklab/ci/publisher_2025_provenance_gate.py'
+      - 'android/native-yandex-hooklab/ci/uptodown_2025_gpr_ephemeral_verify.py'
+permissions:
+  contents: write
+jobs:
+  exact-unpublished-issuer:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Check unpublished release ID and one exact owner XAPK asset
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          [ "$GITHUB_REPOSITORY" = 'manufact-test/nomusic' ]
+          [ "$GITHUB_REF_NAME" = 'experiment/android-a1-user-original-gpr-real-arm13-20261111' ]
+          gh api --paginate "repos/$GITHUB_REPOSITORY/releases?per_page=100" --jq \
+            '.[] | select(.id == 442137464 and .draft == true and .published_at == null and .tag_name == "a1-yandex-2025-gpr-private-test") | .id' \
+            | grep -qx '442137464' || { echo '::error::UNPUBLISHED_USER_RELEASE_NOT_CONFIRMED'; exit 3; }
+          gh api "repos/$GITHUB_REPOSITORY/releases/442137464/assets?per_page=100" --jq \
+            '.[] | select(.id == 736739728 and .name == "yandex-music-2025-10-4-120-1gpr.xapk" and .size == 45961661 and .digest == "sha256:8e43be8900d28ee92c8e315ed07069568858bfd4a593757fba9d276bd0c54053" and .state == "uploaded") | .id' \
+            | grep -qx '736739728' || { echo '::error::EXACT_USER_XAPK_ASSET_DRIFT'; exit 3; }
+          echo '{"unpublished_owner_release_exact_asset":true,"apk_published":false}'
+      - name: Download draft privately and verify pinned SHA256
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/owner-gpr-2025"
+          if ! gh release download a1-yandex-2025-gpr-private-test \
+              --repo "$GITHUB_REPOSITORY" \
+              --pattern 'yandex-music-2025-10-4-120-1gpr.xapk' \
+              --dir "$RUNNER_TEMP/owner-gpr-2025" --clobber >/dev/null 2>&1; then
+            gh api -H 'Accept: application/octet-stream' \
+              "repos/$GITHUB_REPOSITORY/releases/assets/736739728" \
+              > "$RUNNER_TEMP/owner-gpr-2025/yandex-music-2025-10-4-120-1gpr.xapk" 2>/dev/null || {
+                echo '::error::DRAFT_XAPK_DOWNLOAD_FAILED'; exit 3;
+              }
+          fi
+          file="$RUNNER_TEMP/owner-gpr-2025/yandex-music-2025-10-4-120-1gpr.xapk"
+          [ "$(stat -c %s "$file")" = '45961661' ] || exit 4
+          [ "$(sha256sum "$file" | cut -d' ' -f1)" = \
+            '8e43be8900d28ee92c8e315ed07069568858bfd4a593757fba9d276bd0c54053' ] || exit 4
+          echo '{"owner_original_xapk_exact_sha256":true,"signatures_not_yet_verified":true}'
+      - name: Authenticate all unmodified APKs with exact publisher cert, code, package, channel
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq aapt apksigner
+          python3 -m unittest discover -s android/native-yandex-hooklab/tests \
+            -p test_publisher_2025_provenance_gate.py -v
+          python3 - <<'PY'
+          import json,os,sys
+          from pathlib import Path
+          sys.path.insert(0,'android/native-yandex-hooklab/ci')
+          from uptodown_2025_gpr_ephemeral_verify import unbundle_candidate,verify_split_set
+          from publisher_2025_provenance_gate import GateError
+          root=Path(os.environ["RUNNER_TEMP"])/"owner-gpr-2025"
+          try:
+              paths=unbundle_candidate(root/"yandex-music-2025-10-4-120-1gpr.xapk",root)
+              verified=verify_split_set(paths)
+          except (GateError,ValueError,OSError) as error:
+              reason=str(error) if isinstance(error,GateError) else "UNTRUSTED_APK_ARCHIVE"
+              print(json.dumps({"verdict":"REJECTED_UNVERIFIED_USER_ARCHIVE","reason":reason,
+                "installed":False,"stage_a":"NO_GO"},sort_keys=True))
+              raise SystemExit(4)
+          print(json.dumps({"verdict":"AUTHENTIC_2025_GPR_ISSUER_SIGNED_SOURCE",
+            **verified,"binary_uploaded":False,"native_runtime_tested":False,
+            "stage_a":"NO_GO"},sort_keys=True))
+          PY
+      - name: ALWAYS discard all vendor bytes — NO artifacts
+        if: always()
+        shell: bash
+        run: |
+          rm -rf -- "$RUNNER_TEMP/owner-gpr-2025"
+          echo '{"unpublished_draft_not_published":true,"owner_honor_untouched":true,"apk_artifact_uploaded":false}'
