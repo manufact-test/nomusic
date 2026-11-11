@@ -661,16 +661,26 @@ def run():
         strict_main_ui_gate = preserve_original_dex or sorted_metrica_runtime
         profile_main_launch = os.getenv("CELIKOM_PROFILE_MAIN_LAUNCH") == "1"
         private_profileable = os.getenv("CELIKOM_LAB_CLONE_PROFILEABLE_SHELL") == "1"
-        if private_profileable and not (profile_main_launch and preserve_original_dex
-                and os.getenv("CELIKOM_CLEAN_ANDROID_ARMV7_TRANSLATION") == "1"
+        # The native ARM13 branch is a distinct throwaway clone-only ART trace
+        # diagnostic. It never changes publisher original, App auth, source DEX,
+        # system protections or the owner device. Keep all prior emulator gates.
+        native_owned_trace = (native_redroid_mode and
+                              os.getenv("CELIKOM_NATIVE_ARM13_OWN_CLONE_ART_TRACE") == "1")
+        allowed_trace_lab = (native_owned_trace or
+                             os.getenv("CELIKOM_CLEAN_ANDROID_ARMV7_TRANSLATION") == "1")
+        if private_profileable and not (
+                profile_main_launch and preserve_original_dex
+                and allowed_trace_lab
                 and os.getenv("CELIKOM_ORIGINAL_CONTROL_LAUNCH") == "1"
                 and os.getenv("GITHUB_ACTIONS") == "true"):
-            raise arsc.TrialError("PROFILEABLE_CLONE_ONLY_ON_EPHEMERAL_ORIGINAL_DEX_EMULATOR")
+            raise arsc.TrialError("PROFILEABLE_CLONE_ONLY_ON_PRIVATE_CI")
         if profile_main_launch and not (
-                preserve_original_dex and
-                os.getenv("CELIKOM_CLEAN_ANDROID_ARMV7_TRANSLATION") == "1" and
-                os.getenv("CELIKOM_ORIGINAL_CONTROL_LAUNCH") == "1"):
-            raise arsc.TrialError("PROFILE_MAIN_REQUIRES_DISPOSABLE_ORIGINAL_DEX_CONTROL")
+                private_profileable and preserve_original_dex
+                and allowed_trace_lab
+                and os.getenv("CELIKOM_ORIGINAL_CONTROL_LAUNCH") == "1"):
+            raise arsc.TrialError("PROFILE_MAIN_REQUIRES_OWN_PROFILEABLE_CLONE")
+        if native_redroid_mode and (private_profileable or profile_main_launch) and not native_owned_trace:
+            raise arsc.TrialError("NATIVE_ARM13_OWNED_ART_TRACE_FLAG_REQUIRED")
         if sorted_metrica_runtime and preserve_original_dex:
             raise arsc.TrialError("SORTED_METRICA_REQUIRES_MUTABLE_LAB_DEX")
         if sorted_metrica_runtime and os.getenv("CELIKOM_CLEAN_ANDROID_ARMV7_TRANSLATION") != "1":

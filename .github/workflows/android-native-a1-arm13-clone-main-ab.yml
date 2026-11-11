@@ -1,10 +1,13 @@
-name: Android A1 real ARM13 native signed original + independent zero-bypass clone MAIN A/B
+name: Android A1 ARM13 own clone ART shell-profiler controlled experiment
 on:
   push:
     branches:
-      - experiment/android-native-a1-lspatch-clone-loader0-20261111
+      - experiment/android-a1-arm13-shell-profiler-no-bypass-20261111
     paths:
       - 'android/native-yandex-hooklab/clone_native_arm13_redroid_gate.py'
+      - 'android/native-yandex-hooklab/clone_native_identity_phase2_ephemeral.py'
+      - 'android/native-yandex-hooklab/observe_native_startup_trace.py'
+      - 'android/native-yandex-hooklab/tests/test_native_arm13_art_trace.py'
       - 'android/native-yandex-hooklab/native_arm13_startup_observer.py'
       - 'android/native-yandex-hooklab/native_arm13_timeline_origin.py'
       - 'android/native-yandex-hooklab/tests/test_native_arm13_startup_observer.py'
@@ -40,9 +43,11 @@ jobs:
       - name: Verify structural tests and Python gate syntax first; no APK downloaded yet
         shell: bash
         run: |
-          python3 -m py_compile android/native-yandex-hooklab/clone_native_arm13_redroid_gate.py android/native-yandex-hooklab/native_arm13_signed_original_control.py android/native-yandex-hooklab/clone_native_identity_phase2_ephemeral.py android/native-yandex-hooklab/native_arm13_startup_observer.py android/native-yandex-hooklab/native_arm13_timeline_origin.py
+          python3 -m py_compile android/native-yandex-hooklab/clone_native_arm13_redroid_gate.py android/native-yandex-hooklab/native_arm13_signed_original_control.py android/native-yandex-hooklab/clone_native_identity_phase2_ephemeral.py android/native-yandex-hooklab/native_arm13_startup_observer.py android/native-yandex-hooklab/native_arm13_timeline_origin.py android/native-yandex-hooklab/observe_native_startup_trace.py
           python3 -m unittest discover -s android/native-yandex-hooklab/tests -p test_native_arm13_startup_observer.py -v
           python3 -m unittest discover -s android/native-yandex-hooklab/tests -p test_native_arm13_timeline_origin.py -v
+          python3 -m unittest discover -s android/native-yandex-hooklab/tests -p test_native_arm13_art_trace.py -v
+          python3 -m unittest discover -s android/native-yandex-hooklab/tests -p test_clone_lab_profileability.py -v
           python3 -m unittest discover -s android/native-yandex-hooklab/tests -p test_clone_main_crash_buffer.py -v
           python3 -m unittest discover -s android/native-yandex-hooklab/tests -p test_clone_lspatch_loader_zero.py -v
           python3 -m unittest discover -s android/native-yandex-hooklab/tests -p test_merge_lab_splits_ephemeral.py -v
@@ -62,6 +67,9 @@ jobs:
           CELIKOM_MERGE_PARALLEL_SINGLE_APK: '1'
           CELIKOM_CLONE_FIRST_AB: '1'
           CELIKOM_CLONE_LSPATCH_LOADER_ZERO: '1'
+          CELIKOM_NATIVE_ARM13_OWN_CLONE_ART_TRACE: '1'
+          CELIKOM_LAB_CLONE_PROFILEABLE_SHELL: '1'
+          CELIKOM_PROFILE_MAIN_LAUNCH: '1'
         run: |
           python3 android/native-yandex-hooklab/clone_native_identity_phase2_ephemeral.py
       - name: Wipe pinned binary downloads, lab keys, owned clone and guest

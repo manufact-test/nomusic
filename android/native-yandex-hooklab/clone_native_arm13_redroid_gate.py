@@ -24,6 +24,7 @@ from native_arm13_startup_observer import (
     classify_main_cycle_correlation,
 )
 from native_arm13_timeline_origin import classify_merged_startup_timeline
+from observe_native_startup_trace import TRACE_PATH, observe_disposable_trace
 from native_arm13_signed_original_control import (
     adb, check_guest_container, pm_category, private_process, pm_session_install
 )
@@ -49,7 +50,9 @@ def require_native_arm() -> dict:
             or os.environ.get("CELIKOM_MERGE_PARALLEL_SINGLE_APK") != "1"
             or os.environ.get("CELIKOM_CLONE_FIRST_AB") != "1"
             or os.environ.get("CELIKOM_ORIGINAL_CONTROL_LAUNCH") != "1"
-            or os.environ.get("CELIKOM_LAB_CLONE_PROFILEABLE_SHELL") == "1"
+            or os.environ.get("CELIKOM_LAB_CLONE_PROFILEABLE_SHELL") != "1"
+            or os.environ.get("CELIKOM_PROFILE_MAIN_LAUNCH") != "1"
+            or os.environ.get("CELIKOM_NATIVE_ARM13_OWN_CLONE_ART_TRACE") != "1"
             or os.environ.get("CELIKOM_BRIDGE_X86_RESOURCE_ARMV7") == "1"
             or os.uname().machine != "aarch64"):
         fail("NATIVE_ARM13_CLONE_CI_MODE_UNAUTHORIZED")
@@ -173,7 +176,7 @@ def snapshot(package: str) -> dict:
             "window_focus": focused, "raw_pid_or_window_logged": False}
 
 
-def start(package: str) -> tuple[dict, dict]:
+def start(package: str, *, own_art_trace: bool = False) -> tuple[dict, dict]:
     """Launch a genuine guest MAIN and sample its lifecycle at bounded intervals.
 
     Only report enum categories from ActivityExitInfo & scoped crash buffer.
@@ -185,13 +188,29 @@ def start(package: str) -> tuple[dict, dict]:
     prior_exit_info = (adb(["shell", "dumpsys", "activity", "exit-info", package],
                            timeout=35, allow=True) if package == CLONE else "")
     adb(["shell", "logcat", "-b", "all", "-c"])
-    launch = adb(["shell", "am", "start", "--user", "0",
-                  "-n", package + "/" + MAIN_CLASS], timeout=60, allow=True)
+    if own_art_trace and package != CLONE:
+        fail("OWN_ART_TRACE_CANNOT_PROFILE_PUBLISHER_ORIGINAL")
+    if own_art_trace:
+        adb(["shell", "rm", "-f", TRACE_PATH], timeout=20)
+    launch_args = ["shell", "am", "start", "--user", "0"]
+    if own_art_trace:
+        # -P starts standard Android method profiling and stops when idle.
+        # No developer keys, root, credentials, hook or protection bypass.
+        launch_args.extend(["-P", TRACE_PATH])
+    launch = adb([*launch_args, "-n", package + "/" + MAIN_CLASS],
+                 timeout=60, allow=True)
     observations = []
     for delay in (0.25, 0.75, 1.5, 4.0):
         time.sleep(delay)
         observations.append(snapshot(package))
     status = observations[-1]
+    if own_art_trace:
+        # ActivityManager stop is best-effort: short lived clone may already
+        # be gone. The only trace path is fixed, private, size-limited and
+        # deleted by observe_disposable_trace even when parsing fails.
+        adb(["shell", "am", "profile", "stop", CLONE],
+            timeout=25, allow=True)
+        status["private_owned_art_method_trace"] = observe_disposable_trace()
     status["process_temporarily_alive"] = any(x["main_alive"] for x in observations)
     status["activity_temporarily_resumed"] = any(x["activity_resumed"] for x in observations)
     status["launch_intent_accepted"] = ("Starting:" in launch
@@ -292,7 +311,10 @@ def test_independent_clone_and_original(clone: Path, original_splits: list[Path]
     # B: our five splits merged into ONE APK, still without LSPatch.
     verify_lab_clone(direct_clone, signer, loader_zero=False)
     install_own_one_apk(direct_clone)
-    direct_alone, direct_exit = start(CLONE)
+    # A single profileable independent clone gets the ART method trace.
+    # Both other clone layouts remain without an active profiler, and the
+    # publisher original is NEVER profiled or modified.
+    direct_alone, direct_exit = start(CLONE, own_art_trace=True)
     uninstall_own_clone_only()
 
     # C: same ONE APK with upstream LSPatch loader level0, no modules.
@@ -330,6 +352,8 @@ def test_independent_clone_and_original(clone: Path, original_splits: list[Path]
               "clone_after_original": clone_after,
               "one_independent_lab_clone_apk": True,
               "sigBypassLevel": 0, "lspatch_modules_embedded": 0,
+              "only_independent_lab_clone_shell_profileable": True,
+              "publisher_original_profileability_unchanged": True,
               "vendor_original_bytes_modified": False,
               "login_or_passport_tested": False,
               "audio_or_decoder_tested": False,
