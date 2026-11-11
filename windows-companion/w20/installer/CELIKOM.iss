@@ -5,8 +5,8 @@
 [Setup]
 AppId={{D99FDB90-46BF-4EE5-989E-659A2B6450D6}
 AppName=CELIKOM
-AppVersion=0.24.17
-VersionInfoVersion=0.24.17.0
+AppVersion=0.24.18
+VersionInfoVersion=0.24.18.0
 VersionInfoCompany=CELIKOM
 VersionInfoProductName=CELIKOM
 VersionInfoDescription=CELIKOM Windows Setup
@@ -22,7 +22,7 @@ Compression=lzma2
 SolidCompression=yes
 DisableDirPage=yes
 OutputDir=..\output
-OutputBaseFilename=CELIKOM-W69-UNINSTALL-LOGIN-CHOICE-UNSIGNED
+OutputBaseFilename=CELIKOM-W70-SUPPORT-AUTO-DIAGNOSTICS-UNSIGNED
 UninstallDisplayIcon={app}\{#AppExecutable}
 CloseApplications=yes
 RestartApplications=no
