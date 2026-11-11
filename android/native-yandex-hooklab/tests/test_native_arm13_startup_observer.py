@@ -30,7 +30,15 @@ AFTER = (
 
 
 def event(tag, value):
-    return f"11-11 12:33:00.000 I {tag}: [0, 102, {value}, {SECRET}]\n"
+    # Android's EventLogTags (API 33): MAIN process name has a tag-specific
+    # field index; a helper's hosting component can mention the same package.
+    if tag == "am_proc_start":
+        fields = f"0, 102, 10001, {value}, service, {SECRET}"
+    elif tag in ("am_proc_died", "am_crash", "am_kill"):
+        fields = f"0, 102, {value}, 0, {SECRET}"
+    else:
+        fields = f"0, 102, 1, {value}, {SECRET}"
+    return f"11-11 12:33:00.000 I {tag}: [{fields}]\n"
 
 
 def log(pid, severity, tag, message):
@@ -81,6 +89,35 @@ class ArmStartupObserverTests(unittest.TestCase):
         self.assertEqual(out["main_event_order"], [])
         self.assertFalse(out["process_died_seen"])
         self.assertTrue(out["auxiliary_process_events_seen"])
+
+    def test_aosp_helper_process_has_package_as_hosting_component(self):
+        # The previous string-match parser misattributed this helper event
+        # to MAIN because it saw the exact package in the hosting field.
+        helper = (
+            "I/am_proc_start( 101): [0,51,10001," + CLONE +
+            ":AppMetrica,service," + CLONE + "]\n"
+            "I/am_proc_died( 101): [0,51," + CLONE + ":AppMetrica,0,0]\n"
+        )
+        out = classify_startup_events(helper, CLONE)
+        self.assertTrue(out["auxiliary_process_events_seen"])
+        self.assertTrue(out["strict_aosp_process_field_scoping"])
+        self.assertTrue(out["exact_main_package_token_seen"])
+        self.assertEqual(out["main_event_order"], [])
+        self.assertFalse(out["process_start_seen"])
+        self.assertFalse(out["process_died_seen"])
+
+    def test_aosp_activity_only_recognized_when_component_matches(self):
+        raw = (
+            event("am_resume_activity", CLONE + "/MainActivity")
+            + event("am_finish_activity", CLONE + ":helper/MainActivity")
+            + event("am_proc_start", CLONE + ":helper")
+            + event("am_proc_died", CLONE)
+        )
+        out = classify_startup_events(raw, CLONE)
+        self.assertEqual(out["main_event_order"],
+                         ["am_resume_activity", "am_proc_died"])
+        self.assertFalse(out["finish_event_before_death"])
+        self.assertTrue(out["activity_resumed_seen"])
 
     def test_reject_unknown_package(self):
         with self.assertRaises(ValueError):
@@ -153,9 +190,9 @@ class ArmStartupObserverTests(unittest.TestCase):
         # Real adb logcat -b events -v brief uses I/am_proc_start( 1234):,
         # not "I am_proc_start:". The previous parser silently missed it.
         raw = (
-            "I/am_proc_start( 1234): [0,231," + CLONE + ",private=NOPE]\n"
+            "I/am_proc_start( 1234): [0,231,10001," + CLONE + ",service,private=NOPE]\n"
             "I/am_resume_activity( 1234): [0,private," + CLONE + "/Main]\n"
-            "I/am_proc_start( 1234): [0,231," + CLONE + ":helper]\n"
+            "I/am_proc_start( 1234): [0,231,10001," + CLONE + ":helper,service," + CLONE + "]\n"
             "I/am_finish_activity( 1234): [0,private," + CLONE + "/Main]\n"
             "I/am_proc_died( 1234): [0,231," + CLONE + "]\n"
         )
