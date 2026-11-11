@@ -1,0 +1,30 @@
+name: CELIKOM W73 confirm real support mailbox receipt via IMAP
+on:
+  push:
+    branches: [experiment/windows-w72-extension-anti-drop-guards-20261111]
+    paths:
+      - .github/workflows/windows-w73-imap-receipt.yml
+      - .github/scripts/windows-w73/imap-mailbox-receipt.py
+permissions:
+  contents: read
+concurrency:
+  group: celikom-hostinger-private-test
+  cancel-in-progress: false
+jobs:
+  confirm:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Check mail receipt script
+        run: python3 -m py_compile .github/scripts/windows-w73/imap-mailbox-receipt.py
+      - name: Send one synthetic email and confirm it in the real support mailbox without reading any other messages
+        env:
+          CELIKOM_SMTP_HOST: ${{ secrets.CELIKOM_SMTP_HOST }}
+          CELIKOM_SMTP_PORT: ${{ secrets.CELIKOM_SMTP_PORT }}
+          CELIKOM_SMTP_USER: ${{ secrets.CELIKOM_SMTP_USER }}
+          CELIKOM_SMTP_PASSWORD: ${{ secrets.CELIKOM_SMTP_PASSWORD }}
+          CELIKOM_MAIL_FROM: ${{ secrets.CELIKOM_MAIL_FROM }}
+        run: python3 .github/scripts/windows-w73/imap-mailbox-receipt.py
