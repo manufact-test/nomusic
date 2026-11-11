@@ -1,0 +1,93 @@
+name: CELIKOM A1 2025 official SDK signing root-cause controls (no install)
+on:
+  push:
+    branches: [experiment/android-a1-2025-sdk-signer-triage-20261112]
+    paths:
+      - '.github/workflows/android-a1-2025-official-sdk-signer-triage.yml'
+      - 'android/native-yandex-hooklab/ci/official_sdk_signer_control.py'
+      - 'android/native-yandex-hooklab/ci/owner_2025_gpr_lab_clone_no_bypass_arm13.py'
+      - 'android/native-yandex-hooklab/ci/lab_signer_signal_gate.py'
+      - 'android/native-yandex-hooklab/ci/test_lab_signer_signal_gate.py'
+permissions:
+  contents: read
+jobs:
+  owned-control-before-disposable-2025-clone:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Verify synthetic tests and official SDK 35 provenance
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -B android/native-yandex-hooklab/ci/test_lab_signer_signal_gate.py -v
+          python3 -B android/native-yandex-hooklab/ci/test_lab_unsigned_archive_cleanroom.py -v
+          python3 -B -m py_compile android/native-yandex-hooklab/ci/official_sdk_signer_control.py android/native-yandex-hooklab/ci/owner_2025_gpr_lab_clone_no_bypass_arm13.py
+          [ -n "${ANDROID_HOME:-}" ] && [ -d "$ANDROID_HOME/build-tools/35.0.0" ]
+          [ -f "$ANDROID_HOME/build-tools/35.0.0/apksigner" ]
+          [ -f "$ANDROID_HOME/build-tools/35.0.0/zipalign" ]
+          [ -f "$ANDROID_HOME/build-tools/35.0.0/aapt" ]
+          printf '{"sdk_35_path_available":true,"apt_apksigner_used":false,"synthetic_controls_required_first":true}\n'
+      - name: Sign/verify own synthetic APKs and reject tampered copies with official SDK
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -B android/native-yandex-hooklab/ci/official_sdk_signer_control.py
+      - name: Retrieve exactly pinned 2025 original from unpublished draft
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [ "$GITHUB_REPOSITORY" = manufact-test/nomusic ]
+          gh api --paginate "repos/$GITHUB_REPOSITORY/releases?per_page=100" --jq '.[] | select(.id == 442137464 and .draft == true and .tag_name == "a1-yandex-2025-gpr-private-test") | .id' | grep -qx 442137464
+          gh api "repos/$GITHUB_REPOSITORY/releases/442137464/assets?per_page=100" --jq '.[] | select(.id == 736739728 and .name == "yandex-music-2025-10-4-120-1gpr.xapk" and .size == 45961661 and .digest == "sha256:8e43be8900d28ee92c8e315ed07069568858bfd4a593757fba9d276bd0c54053") | .id' | grep -qx 736739728
+          mkdir -p "$RUNNER_TEMP/owner-2025-official-sdk-triage"
+          gh release download a1-yandex-2025-gpr-private-test --repo "$GITHUB_REPOSITORY" --pattern yandex-music-2025-10-4-120-1gpr.xapk --dir "$RUNNER_TEMP/owner-2025-official-sdk-triage" --clobber >/dev/null
+          xapk="$RUNNER_TEMP/owner-2025-official-sdk-triage/yandex-music-2025-10-4-120-1gpr.xapk"
+          [ "$(stat -c %s "$xapk")" = 45961661 ]
+          [ "$(sha256sum "$xapk" | cut -d' ' -f1)" = 8e43be8900d28ee92c8e315ed07069568858bfd4a593757fba9d276bd0c54053 ]
+      - name: Verify 16/16 original then ephemeral own-key 2025 clone signatures
+        env:
+          CELIKOM_A1_PINNED_SDK_VERSION: 35.0.0
+        timeout-minutes: 12
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, os, sys, tempfile
+          from pathlib import Path
+          sys.path.insert(0,"android/native-yandex-hooklab/ci")
+          from owner_2025_gpr_lab_clone_no_bypass_arm13 import verified_orig_paths, ephemeral_clone
+          archive=Path(os.environ["RUNNER_TEMP"])/"owner-2025-official-sdk-triage/yandex-music-2025-10-4-120-1gpr.xapk"
+          with tempfile.TemporaryDirectory(prefix="celikom-2025-official-sdk-disposable-") as folder:
+              try:
+                  work=Path(folder)
+                  original=verified_orig_paths(archive,work)
+                  print(json.dumps({"verified_original_publisher_splits":len(original),"synthetic_sdk_gate_passed":True,"android_install_attempted":False},sort_keys=True))
+                  built,result=ephemeral_clone(original,work)
+                  if len(built)!=16: raise RuntimeError("LAB_SPLIT_COUNT_NOT_16")
+                  print(json.dumps({"verdict":"OWN_2025_LAB_ALL_16_SIGNED_VERIFIED_NOT_RUNTIME_GO",
+                                    "lab_splits_verified":len(built),**result,
+                                    "android_install_attempted":False,"stage_a":"NO_GO"},sort_keys=True))
+              except Exception as exc:
+                  code=str(exc)
+                  if not (code.isupper() and len(code)<96):
+                      code=type(exc).__name__
+                  print(json.dumps({"verdict":"OWN_2025_OFFICIAL_SDK_DIAGNOSTIC_FAILED",
+                                    "safe_reason":code,"android_install_attempted":False,
+                                    "vendor_apk_distributed":False,"stage_a":"NO_GO"},sort_keys=True))
+                  raise SystemExit(5)
+          PY
+      - name: Always delete proprietor original, disposable keys and lab clones
+        if: always()
+        shell: bash
+        run: |
+          rm -rf -- "$RUNNER_TEMP/owner-2025-official-sdk-triage"
+          echo '{"owner_original_draft_unpublished":true,"android_install_attempted":false,"apk_artifact_uploaded":false,"owner_phone_modified":false}'
