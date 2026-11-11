@@ -16,12 +16,19 @@ LOG = re.compile(
     r"(\d{1,8})\s+\d+\s+([A-Z])\s+([^:]{1,48}):\s*(.*)$")
 EXIT_BLOCK = re.compile(
     r"(?im)(?=^\s*(?:ApplicationExitInfo\s*#?\d+|#\d+:\s*ApplicationExitInfo))")
+ALLOWED_TARGET_PACKAGES = frozenset(("pro.celikom.yandex.nativeclonelab", "ru.yandex.music"))
+def _target_guard(value: str) -> None:
+    if value not in ALLOWED_TARGET_PACKAGES:
+        raise ValueError("UNSUPPORTED_OFFLINE_CRASH_TARGET")
+
+
 ALLOWED_CATEGORIES = (
     "NATIVE_LINK", "NATIVE_SIGNAL", "CLASS_RESOLUTION", "DEX_VERIFICATION", "PERMISSION",
     "RESOURCE", "APPLICATION_STATE", "OTHER_JAVA", "NOT_OBSERVED")
 
 
-def main_exit_pids(exit_dump: str) -> set[int]:
+def main_exit_pids(exit_dump: str, target_package: str = CLONE) -> set[int]:
+    _target_guard(target_package)
     chunks = EXIT_BLOCK.split(exit_dump[:250000])
     if len(chunks) == 1:
         chunks = exit_dump[:250000].splitlines()
@@ -30,7 +37,7 @@ def main_exit_pids(exit_dump: str) -> set[int]:
         process = re.search(
             r"\b(?:processName|process|process name)\s*[=:]\s*"
             r"([A-Za-z0-9_.:]+)", chunk, re.I)
-        if process is None or process.group(1) != CLONE:
+        if process is None or process.group(1) != target_package:
             continue
         match = re.search(r"\bpid\s*[=:]\s*(\d{1,8})\b", chunk, re.I)
         if match is not None:
@@ -143,14 +150,15 @@ def _native_backtrace_group(message: str) -> str:
     return "OTHER"
 
 
-def classify_main_native_crash(exit_dump: str, crash_buffer: str) -> dict:
+def classify_main_native_crash(exit_dump: str, crash_buffer: str, target_package: str = CLONE) -> dict:
+    _target_guard(target_package)
     """Only owner MAIN PID and debuggerd header explicitly naming that PID.
 
     Tombstone backtraces are usually emitted by debuggerd, NOT by the
     crashing app PID. Scope DEBUG frames using its public victim header,
     and never return raw paths, stack traces, addresses, or arbitrary names.
     """
-    victims = main_exit_pids(exit_dump)
+    victims = main_exit_pids(exit_dump, target_package)
     signal = "NOT_OBSERVED"
     reporters: set[int] = set()
     frames: list[str] = []
@@ -173,7 +181,7 @@ def classify_main_native_crash(exit_dump: str, crash_buffer: str) -> dict:
             reporters.discard(reporter_pid)
             hit = re.search(r"\bpid:\s*(\d{1,8})\s*,\s*tid:", message)
             if hit and int(hit.group(1)) in victims and (
-                    ">>> " + CLONE + " <<<") in message:
+                    ">>> " + target_package + " <<<") in message:
                 reporters.add(reporter_pid)
                 header_seen = True
             continue
@@ -191,9 +199,10 @@ def classify_main_native_crash(exit_dump: str, crash_buffer: str) -> dict:
     }
 
 
-def classify_main_crash_buffer(exit_dump: str, crash_buffer: str) -> dict:
+def classify_main_crash_buffer(exit_dump: str, crash_buffer: str, target_package: str = CLONE) -> dict:
+    _target_guard(target_package)
     """Fixed category labels only, no raw process/exception data returned."""
-    pids = main_exit_pids(exit_dump)
+    pids = main_exit_pids(exit_dump, target_package)
     parts = []
     for line in crash_buffer.splitlines()[-10000:]:
         event = LOG.match(line)
@@ -208,7 +217,7 @@ def classify_main_crash_buffer(exit_dump: str, crash_buffer: str) -> dict:
     text = "\n".join(parts)
     has = lambda pattern: re.search(pattern, text, re.I) is not None
     native_link = has(r"\b(?:UnsatisfiedLinkError|dlopen failed)\b")
-    native_crash = classify_main_native_crash(exit_dump, crash_buffer)
+    native_crash = classify_main_native_crash(exit_dump, crash_buffer, target_package)
     class_resolution = has(
         r"\b(?:ClassNotFoundException|NoClassDefFoundError|NoSuchMethodError)\b")
     dex_verification = has(r"\b(?:VerifyError|IncompatibleClassChangeError)\b")
@@ -261,7 +270,8 @@ def classify_main_crash_buffer(exit_dump: str, crash_buffer: str) -> dict:
     }
 
 
-def classify_main_exit_status(exit_dump: str) -> dict:
+def classify_main_exit_status(exit_dump: str, target_package: str = CLONE) -> dict:
+    _target_guard(target_package)
     """Safely classify Android 13 ApplicationExitInfo for *exact clone MAIN*.
 
     REASON_EXIT_SELF=1, CRASH=4, CRASH_NATIVE=5; any helper/other package
@@ -282,7 +292,7 @@ def classify_main_exit_status(exit_dump: str) -> dict:
         proc = re.search(
             r"\b(?:processName|process|process name)\s*[=:]\s*"
             r"([A-Za-z0-9_.:]+)", block, re.I)
-        if proc is None or proc.group(1) != CLONE:
+        if proc is None or proc.group(1) != target_package:
             continue
         reason = re.search(r"\breason\s*[=:]\s*(\d{1,2})\b", block, re.I)
         if reason is None:
