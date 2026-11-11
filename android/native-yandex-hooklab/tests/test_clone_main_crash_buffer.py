@@ -51,6 +51,20 @@ class SafeMainCrashBufferTest(unittest.TestCase):
         self.assertNotIn("712",str(x))
         self.assertNotIn("TOPSECRET",str(x))
 
+    def test_fixed_java_exception_subtypes_are_only_static_enums(self):
+        raw=(row(431,"E","AndroidRuntime",
+                "java.lang.IllegalStateException: private=TOPSECRET")
+             +row(431,"E","AndroidRuntime",
+                "Caused by: java.lang.NullPointerException: " + SECRET)
+             +row(432,"E","AndroidRuntime",
+                "Caused by: java.lang.SecurityException: helper only " + SECRET))
+        summary=classify_main_crash_buffer(EXIT,raw)
+        self.assertEqual(summary["fixed_java_exception_subtypes"],
+                         ["ILLEGAL_STATE","NULL_POINTER"])
+        self.assertNotIn("TOPSECRET",str(summary))
+        self.assertNotIn("private.invalid",str(summary))
+        self.assertNotIn("SecurityException",str(summary))
+
     def test_offline_crash_classifier_rejects_untrusted_package_identity(self):
         with self.assertRaises(ValueError):
             classify_main_crash_buffer(EXIT, "", target_package="arbitrary.package")
