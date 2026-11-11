@@ -436,19 +436,33 @@ public sealed partial class MainWindow
         LayoutCompact();
         try
         {
+            // One bounded snapshot per request key, reused if HTTP retries.
+            _compactSupportDiagnostics ??= DiagnosticLog.ExportSupportSnapshot(
+                _hostReport?.Version, _nativeInstallState.ToString().ToUpperInvariant(),
+                _bridgeStarted, _bridge.Enabled, _installedModule.Version,
+                _nativeInstallState == NativeInstallState.Active ?
+                    _installedModule.MatchesApplication : null, _bridge.LastSong);
             if (song)
             {
                 var categories = new[] { "not_replacing", "wrong_version", "audio_issue", "other" };
                 var selected = Math.Clamp(_compactSupportCategory.SelectedIndex, 0, categories.Length - 1);
                 await _api.SendSongSupportAsync(message, _compactSupportKey,
-                    _bridge.LastSong, categories[selected], _bridgeStarted, _bridge.Enabled);
+                    _bridge.LastSong, categories[selected], _bridgeStarted, _bridge.Enabled,
+                    windowsDiagnostics: _compactSupportDiagnostics);
             }
-            else await _api.SendSupportAsync(message, _compactSupportKey);
+            else await _api.SendSupportAsync(message, _compactSupportKey,
+                diagnostics: _compactSupportDiagnostics);
+            DiagnosticLog.Record("SUPPORT_SENT");
+            _compactSupportDiagnostics = null;
             _compactSupportKey = Guid.NewGuid();
             _compactSupportText.Clear();
             _compactSupportMessage.Text = "Сообщение отправлено.";
         }
-        catch (Exception ex) { _compactSupportMessage.Text = DescribeAccountError(ex); }
+        catch (Exception ex)
+        {
+            DiagnosticLog.Record("SUPPORT_SEND_FAILED");
+            _compactSupportMessage.Text = DescribeAccountError(ex);
+        }
         finally
         {
             _compactSupportBusy = false;
