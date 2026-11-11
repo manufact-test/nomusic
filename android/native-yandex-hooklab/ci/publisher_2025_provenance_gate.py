@@ -33,7 +33,7 @@ class GateError(Exception):
 
 def verify_metadata(aapt_text: str, signer_text: str, expected_version: str = VERSION_NAME) -> dict:
     match = re.search(
-        r"^package:\s+name='([^']+)'\s+versionCode='([^']+)'\s+versionName='([^']+)'",
+        r"^package:\s+name='([^']+)'\s+versionCode='([^']+)'\s+versionName='([^']*)'",
         aapt_text, re.MULTILINE)
     if not match:
         raise GateError("BAD_MANIFEST_METADATA")
