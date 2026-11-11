@@ -35,13 +35,13 @@ try {
         }
         return 'OTHER';
     };
-    echo 'W73_SMTP_PROVIDER_CLASS='.$classify($mailHost)."\\n";
+    echo 'W73_SMTP_PROVIDER_CLASS='.$classify($mailHost)."\n";
     $mx=[];$mxWeights=[];
-    $hasMx=$mailDomain!=='' && getmxrr($mailDomain,$mx,$mxWeights);
-    echo 'W73_SUPPORT_DOMAIN_MX_PRESENT='.($hasMx?'YES':'NO')."\\n";
+    $hasMx=$mailDomain!=='' && function_exists('getmxrr') && getmxrr($mailDomain,$mx,$mxWeights);
+    echo 'W73_SUPPORT_DOMAIN_MX_PRESENT='.($hasMx?'YES':'NO')."\n";
     if ($hasMx) {
         $mxClasses=array_unique(array_map($classify,$mx));
-        echo 'W73_SUPPORT_DOMAIN_MX_CLASS='.implode('_',$mxClasses)."\\n";
+        echo 'W73_SUPPORT_DOMAIN_MX_CLASS='.implode('_',$mxClasses)."\n";
     }
     $pdo=\Celikom\Database\Connection::open($config);
     $query="SELECT t.kind, IF(m.admin_id IS NULL,'notification','admin_reply') AS direction,
@@ -71,6 +71,6 @@ try {
     echo "W73_LIVE_AUDIT_READONLY_PASS\n";
 } catch (\Throwable $e) {
     // Do not leak DB, SMTP, account, or filesystem exception strings into CI logs.
-    fwrite(STDERR,"W73_LIVE_AUDIT_FAILED\n");
+    fwrite(STDERR,"W73_LIVE_AUDIT_FAILED_CLASS=".get_class($e)."\n");
     exit(1);
 }
