@@ -70,7 +70,23 @@ public static class DiagnosticLog
         var raw = ExportText(yandexVersion, integration, bridgeStarted, enabled, true,
             nativeModuleVersion, nativeMatchesApplication, diagnosticDirectory);
         var now = DateTimeOffset.UtcNow;
-        var events = raw.Split('\n', StringSplitOptions.RemoveEmptyEntries)
+        // Local state polling runs several times per second. A simple last-64
+        // slice would hide three earlier outage events behind hundreds of
+        // NATIVE_STATE_RECEIVED/LOCAL_STATE_OK lines. Reserve room for the last
+        // 24 distinct error/entitlement transitions, and 40 contextual events.
+        static bool IsPollingChatter(string code) => code is
+            "NATIVE_STATE_RECEIVED" or "LOCAL_STATE_OK" or
+            "RENDERER_STATE_DELIVERED" or "RENDERER_BRIDGE_STATE_SEEN";
+        static bool IsIncident(string code) =>
+            code.StartsWith("ACTIVE_ENTITLEMENT_", StringComparison.Ordinal) ||
+            code.Contains("ERROR", StringComparison.Ordinal) ||
+            code.Contains("FAILED", StringComparison.Ordinal) ||
+            code.Contains("FORBIDDEN", StringComparison.Ordinal) ||
+            code.Contains("CORS", StringComparison.Ordinal) ||
+            code.Contains("UNAVAILABLE", StringComparison.Ordinal) ||
+            code.Contains("DISCONNECT", StringComparison.Ordinal) ||
+            code.Contains("SUSPENDED", StringComparison.Ordinal);
+        var parsedEvents = raw.Split('\n', StringSplitOptions.RemoveEmptyEntries)
             .Select(line => line.TrimEnd('\r'))
             .Where(IsSafeEntry)
             .Select(line =>
@@ -89,8 +105,15 @@ public static class DiagnosticLog
                 };
             })
             .Where(e => e.ageSeconds <= 900)
-            .TakeLast(64)
             .ToArray();
+        var incidentIndices = Enumerable.Range(0, parsedEvents.Length)
+            .Where(i => IsIncident(parsedEvents[i].code))
+            .TakeLast(24);
+        var contextIndices = Enumerable.Range(0, parsedEvents.Length)
+            .Where(i => !IsPollingChatter(parsedEvents[i].code))
+            .TakeLast(40);
+        var events = incidentIndices.Concat(contextIndices).Distinct()
+            .OrderBy(i => i).Select(i => parsedEvents[i]).ToArray();
         static string Version(string? value) =>
             value is not null && Regex.IsMatch(value, @"^[0-9]{1,4}(\.[0-9]{1,4}){1,3}$")
                 ? value : "unknown";
