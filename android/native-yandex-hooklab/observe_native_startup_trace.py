@@ -5,6 +5,7 @@ launch. The trace is never published or retained; only fixed category flags
 are printed. No method/stack listing, audio, requests, accounts, APK or PIDs.
 """
 from __future__ import annotations
+import os
 import re
 import struct
 import subprocess
@@ -153,17 +154,42 @@ def classify_art_trace(raw: bytes) -> dict:
     return verdict
 
 
-def observe_disposable_trace():
-    """Only called on a clean emulator from a gated GitHub Actions job."""
+
+CONTAINER = "celikom-native-arm-android13"
+
+
+def observe_disposable_trace(*, owned_arm_container: bool = False):
+    """Only fixed-category evidence, never an ART file, symbol, path or PID.
+
+    ARM13 Redroid runs inside Docker; an adb binary is NOT installed on
+    the GitHub ARM host. Use fixed docker-exec commands, no host file copy,
+    no host trace file. Existing x86 emulators can still use the old ADB
+    code path. Both paths always try to wipe the exact ephemeral trace.
+    """
     report = {
         "profiler_requested": True, "trace_available": False,
         "trace_size_within_bound": False, "trace_read_error": False,
         "profiled_main_ui_unverified": True, "raw_trace_published": False,
+        "trace_transport": "PRIVATE_DOCKER_EXEC" if owned_arm_container else
+                           "PRIVATE_ADB",
     }
+    if owned_arm_container:
+        if (os.environ.get("GITHUB_ACTIONS") != "true"
+                or os.environ.get("CELIKOM_CLEAN_ANDROID_NATIVE_REDDROID") != "1"
+                or os.environ.get("CELIKOM_NATIVE_ARM13_OWN_CLONE_ART_TRACE") != "1"):
+            report["trace_read_error"] = True
+            report["trace_transport_guard_rejected"] = True
+            return report
+        stat_args = ["docker", "exec", CONTAINER, "stat", "-c", "%s", TRACE_PATH]
+        read_args = ["docker", "exec", CONTAINER, "cat", TRACE_PATH]
+        delete_args = ["docker", "exec", CONTAINER, "rm", "-f", TRACE_PATH]
+    else:
+        stat_args = ["adb", "shell", "stat", "-c", "%s", TRACE_PATH]
+        read_args = ["adb", "exec-out", "cat", TRACE_PATH]
+        delete_args = ["adb", "shell", "rm", "-f", TRACE_PATH]
     try:
-        stat = subprocess.run(
-            ["adb", "shell", "stat", "-c", "%s", TRACE_PATH],
-            capture_output=True, text=True, timeout=15)
+        stat = subprocess.run(stat_args, capture_output=True,
+                              text=True, timeout=15)
         if stat.returncode != 0 or not stat.stdout.strip().isdigit():
             return report
         size = int(stat.stdout.strip())
@@ -171,18 +197,18 @@ def observe_disposable_trace():
         if size <= 0 or size > MAX_TRACE_BYTES:
             return report
         report["trace_size_within_bound"] = True
-        p = subprocess.run(
-            ["adb", "exec-out", "cat", TRACE_PATH],
-            capture_output=True, timeout=45)
-        if p.returncode or len(p.stdout) > MAX_TRACE_BYTES or len(p.stdout) != size:
+        data = subprocess.run(read_args, capture_output=True, timeout=45)
+        if (data.returncode or len(data.stdout) > MAX_TRACE_BYTES
+                or len(data.stdout) != size):
             report["trace_read_error"] = True
             return report
-        report["trace_evidence"] = classify_art_trace(p.stdout)
+        report["trace_evidence"] = classify_art_trace(data.stdout)
         return report
     except (subprocess.TimeoutExpired, OSError, ValueError):
         report["trace_read_error"] = True
         return report
     finally:
-        subprocess.run(
-            ["adb", "shell", "rm", "-f", TRACE_PATH],
-            capture_output=True, timeout=15)
+        try:
+            subprocess.run(delete_args, capture_output=True, timeout=15)
+        except (subprocess.TimeoutExpired, OSError):
+            report["trace_cleanup_observation_unavailable"] = True

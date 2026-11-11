@@ -55,6 +55,66 @@ class OwnedArmArtTraceTests(unittest.TestCase):
         self.assertEqual(out["direct_exit_caller_groups"], ["OTHER_OR_UNKNOWN"])
         self.assertEqual(out["runtime_exit_entry_count_bounded"], 1)
 
+    def test_native_arm_uses_fixed_docker_not_missing_host_adb(self):
+        import os
+        import types
+        from unittest.mock import patch
+        from observe_native_startup_trace import (
+            CONTAINER, TRACE_PATH, observe_disposable_trace,
+        )
+        env = {
+            "GITHUB_ACTIONS": "true",
+            "CELIKOM_CLEAN_ANDROID_NATIVE_REDDROID": "1",
+            "CELIKOM_NATIVE_ARM13_OWN_CLONE_ART_TRACE": "1",
+        }
+        calls = []
+        def fake_run(args, **kwargs):
+            calls.append(args)
+            if "stat" in args:
+                return types.SimpleNamespace(returncode=1, stdout="", stderr="")
+            return types.SimpleNamespace(returncode=0, stdout=b"", stderr=b"")
+        with patch.dict(os.environ, env), patch(
+                "observe_native_startup_trace.subprocess.run", side_effect=fake_run):
+            out = observe_disposable_trace(owned_arm_container=True)
+        self.assertFalse(out["trace_available"])
+        self.assertFalse(out["trace_read_error"])
+        self.assertEqual(out["trace_transport"], "PRIVATE_DOCKER_EXEC")
+        self.assertEqual(calls[0], ["docker", "exec", CONTAINER,
+                                    "stat", "-c", "%s", TRACE_PATH])
+        self.assertEqual(calls[-1], ["docker", "exec", CONTAINER,
+                                     "rm", "-f", TRACE_PATH])
+        self.assertTrue(all(cmd[0] == "docker" for cmd in calls))
+
+    def test_native_art_trace_transport_requires_explicit_ci_permissions(self):
+        import os
+        from unittest.mock import patch
+        from observe_native_startup_trace import observe_disposable_trace
+        with patch.dict(os.environ, {
+                "GITHUB_ACTIONS": "false",
+                "CELIKOM_CLEAN_ANDROID_NATIVE_REDDROID": "1",
+                "CELIKOM_NATIVE_ARM13_OWN_CLONE_ART_TRACE": "1",
+        }):
+            out = observe_disposable_trace(owned_arm_container=True)
+        self.assertTrue(out["trace_transport_guard_rejected"])
+        self.assertTrue(out["trace_read_error"])
+        self.assertFalse(out["trace_available"])
+
+    def test_missing_docker_cli_fails_closed_without_raw_output(self):
+        import os
+        from unittest.mock import patch
+        from observe_native_startup_trace import observe_disposable_trace
+        with patch.dict(os.environ, {
+                "GITHUB_ACTIONS": "true",
+                "CELIKOM_CLEAN_ANDROID_NATIVE_REDDROID": "1",
+                "CELIKOM_NATIVE_ARM13_OWN_CLONE_ART_TRACE": "1",
+        }), patch("observe_native_startup_trace.subprocess.run",
+                  side_effect=FileNotFoundError("PRIVATE_USER_SECRET")):
+            out = observe_disposable_trace(owned_arm_container=True)
+        self.assertTrue(out["trace_read_error"])
+        self.assertFalse(out["trace_available"])
+        self.assertFalse(out["raw_trace_published"])
+        self.assertNotIn("PRIVATE_USER_SECRET", str(out))
+
     def test_corrupt_or_too_small_is_inconclusive(self):
         for raw in (b"", b"PRIVATE", b"*version\n3\n*methods\n", b"\0" * 20):
             with self.subTest(value=raw[:12]):

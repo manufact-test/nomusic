@@ -210,7 +210,8 @@ def start(package: str, *, own_art_trace: bool = False) -> tuple[dict, dict]:
         # deleted by observe_disposable_trace even when parsing fails.
         adb(["shell", "am", "profile", "stop", CLONE],
             timeout=25, allow=True)
-        status["private_owned_art_method_trace"] = observe_disposable_trace()
+        status["private_owned_art_method_trace"] = observe_disposable_trace(
+            owned_arm_container=True)
     status["process_temporarily_alive"] = any(x["main_alive"] for x in observations)
     status["activity_temporarily_resumed"] = any(x["activity_resumed"] for x in observations)
     status["launch_intent_accepted"] = ("Starting:" in launch
