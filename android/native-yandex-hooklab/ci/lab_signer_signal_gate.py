@@ -32,17 +32,44 @@ _ERROR_PATTERNS = {
 }
 
 def classify_apksigner_failure(returncode: int, stdout: str, stderr: str) -> dict:
-    """A nonzero exit is never treated as valid, irrespective of message text."""
+    """Parse *errors* separately from apksigner's informational --print-certs.
+
+    Crucial: 'Verified using v1 scheme (JAR signing): false' and
+    'Signer #1 certificate ...' can be ordinary verifier INFO lines.
+    Calling these the root cause of a nonzero exit is a false attribution.
+    We never return raw lines, certificate fingerprints, file paths or APK data.
+    """
     if returncode == 0:
-        return {"apksigner_exit_zero": True, "failure_categories": []}
-    # Never return, log, or preserve the sensitive raw text supplied to this.
-    combined = (stdout + "\n" + stderr).lower()[:262144]
-    found = sorted(name for name, fragments in _ERROR_PATTERNS.items()
-                   if any(re.search(pattern, combined) for pattern in fragments))
-    return {
-        "apksigner_exit_zero": False,
-        "failure_categories": found or ["unclassified"],
-    }
+        return {"apksigner_exit_zero": True, "failure_categories": [],
+                "diagnostic_error_count": 0, "diagnostic_warning_count": 0}
+    combined = (stdout + "\n" + stderr)[:262144]
+    errors, warnings = [], []
+    for line in combined.splitlines():
+        match = re.match(r"^\s*(ERROR|WARNING)\s*:\s*(.*)", line, re.I)
+        if match:
+            (errors if match.group(1).upper() == "ERROR" else warnings).append(match.group(2))
+    # SDK sometimes emits a Java exception instead of an ERROR: prefix.
+    exceptions = [line.strip() for line in combined.splitlines()
+                  if re.match(r"^\s*(?:java\.[\w.]+\.)?[\w]*(?:Exception|Error)(?::|$)", line)]
+    diagnostic_text = "\n".join(errors + exceptions).lower()
+    categories = sorted(name for name, patterns in _ERROR_PATTERNS.items()
+                        if any(re.search(pattern, diagnostic_text) for pattern in patterns))
+    # A nonzero exit is always failure, but generic banner/cert info is
+    # insufficient evidence for a specific signing-scheme failure.
+    if not categories:
+        categories = ["unclassified"]
+    flags = {}
+    for scheme, verified in re.findall(
+            r"Verified using v([123]) scheme[^\r\n]*?:\s*(true|false)",
+            combined, re.I):
+        flags["v" + scheme] = verified.lower() == "true"
+    return {"apksigner_exit_zero": False,
+            "failure_categories": categories,
+            "diagnostic_error_count": len(errors),
+            "diagnostic_warning_count": len(warnings),
+            "reported_scheme_verification": flags,
+            "generic_does_not_verify_banner": bool(
+                re.search(r"\bDOES NOT VERIFY\b", combined, re.I))}
 
 def probe_apk_zip(path: Path) -> dict:
     """Bounded read-only integrity/metadata scan; no ZIP member names disclosed.
