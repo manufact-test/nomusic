@@ -32,7 +32,7 @@ candidate="$root/releases/$id"
 input="$root/incoming/$id"
 backup="$root/backups/$id"
 test "$(sha256sum "$input/payload.tar.gz" | awk '{print $1}')" = "$archive_hash"
-mkdir "$input/payload"
+mkdir -p "$input/payload"
 tar -xzf "$input/payload.tar.gz" -C "$input/payload"
 old=$(readlink -f "$root/current")
 [[ "$old" == "$root/releases/"* ]]
@@ -79,11 +79,11 @@ rollback(){
   exit "$status"
 }
 trap rollback EXIT
+active=1
 ln -s "$candidate" "$root/.support-current-$id"
 mv -Tf "$root/.support-current-$id" "$root/current"
 # Match the existing deploy launcher refresh without altering its content.
 touch "$public_index"
-active=1
 sleep 3
 "$php" "$input/payload/smoke.php" "$id"
 test "$(sha256sum "$public_index" | awk '{print $1}')" = "$public_hash"
