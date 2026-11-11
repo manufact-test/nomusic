@@ -68,6 +68,7 @@ def main() -> int:
                         page.get_by_text(re.compile(r"^Load more$",re.I)),
                         page.get_by_text(re.compile(r"^Показать ещё$",re.I)),
                         page.get_by_text(re.compile(r"^Показать еще$",re.I)),
+                        page.get_by_text(re.compile(r"Показать\s+больше|Show\s+more|See\s+more",re.I)),
                     ]
                     clicked=False
                     for label in labels:
@@ -97,6 +98,8 @@ def main() -> int:
                     r"ПОКАЗАТЬ БОЛЬШЕ|Показать больше|See more|Load more|Показать е[щш]ё",
                     body,re.I))
                 output["page_has_yandex_heading"] = bool(re.search(r"Яндекс Музыка|Yandex Music",body,re.I))
+                output["ui_show_more_leaf_matches"] = page.get_by_text(re.compile(
+                    r"Показать\s+больше|Show\s+more|See\s+more",re.I)).count()
                 print(json.dumps(output,sort_keys=True))
             finally:
                 context.close()
