@@ -84,5 +84,42 @@ class ExactCompetitorProbeTests(unittest.TestCase):
             guest.install([Path("/does/not/exist.apk")] * 6)
 
 
+    def test_pid_restart_is_not_sustained_main(self):
+        class Restarting(p.Guest):
+            def __init__(self):
+                self.count = 0
+            def command(self, *args, **kwargs):
+                self.count += 1
+                class Result:
+                    returncode = 0
+                result = Result()
+                result.stdout = str(10000 + (self.count // 3))
+                return result
+            def shell(self, *args):
+                return "mResumedActivity: ActivityRecord{app.chromasync.yamclone/.Main}"
+        report = Restarting().observe(p.CLONE_PACKAGE, sleeper=lambda _: None)
+        self.assertEqual(len(report["samples"]), 16)
+        self.assertTrue(report["activity_resumed_all_samples"])
+        self.assertFalse(report["stable_main_pid"])
+        self.assertFalse(report["main_survives"])
+
+    def test_stable_main_pid_is_required(self):
+        class Staying(p.Guest):
+            def __init__(self):
+                pass
+            def command(self, *args, **kwargs):
+                class Result:
+                    returncode = 0
+                    stdout = "23456\n"
+                return Result()
+            def shell(self, *args):
+                return "topResumedActivity=ActivityRecord{app.chromasync.yamclone/.Main}"
+        report = Staying().observe(p.CLONE_PACKAGE, sleeper=lambda _: None)
+        self.assertEqual(len(report["samples"]), 16)
+        self.assertTrue(report["stable_main_pid"])
+        self.assertTrue(report["main_survives"])
+        self.assertTrue(report["activity_resumed_all_samples"])
+
+
 if __name__ == "__main__":
     unittest.main()
