@@ -93,5 +93,20 @@ class PublisherGateTest(unittest.TestCase):
             self.assertFalse(mod.inspect(Path("/fake-unread.apk"))["historical_4pda_bytes_and_md5_match"])
 
 
+    def test_alternate_gpr_requires_exact_channel(self):
+        gpr = AAPT.replace(mod.VERSION_NAME,mod.VERSION_NAME_GPR)
+        self.assertTrue(mod.verify_metadata(gpr,SIGNER,mod.VERSION_NAME_GPR)["version_name_exact"])
+        with self.assertRaisesRegex(mod.GateError,"WRONG_PACKAGE_OR_VERSION"):
+            mod.verify_metadata(gpr,SIGNER,mod.VERSION_NAME)
+
+    def test_gpr_does_not_claim_rur_historical_md5(self):
+        gpr=AAPT.replace(mod.VERSION_NAME,mod.VERSION_NAME_GPR)
+        with patch.object(mod, "file_hashes", return_value=(mod.HISTORICAL_BYTES,"c"*64,mod.HISTORICAL_MD5)), \
+             patch.object(mod, "private_command", side_effect=[SIGNER,gpr]):
+            x=mod.inspect(Path("/fake-unread.apk"),channel="gpr")
+        self.assertFalse(x["historical_4pda_bytes_and_md5_match"])
+        self.assertEqual(x["verified_2025_release_channel"],"gpr")
+
+
 if __name__ == "__main__":
     unittest.main()
