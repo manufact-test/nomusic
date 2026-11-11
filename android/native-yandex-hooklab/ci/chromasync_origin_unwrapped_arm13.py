@@ -144,6 +144,9 @@ def append_read_only_exit_info(guest: DockerGuest, result: dict) -> None:
         # Reuse the project's tested, privacy-safe, PID-scoped classifier.
         # Its default target is CELIKOM A1. Retarget ONLY this isolated
         # process for the exact competitor's guest; restore in finally.
+        hooklab = str(Path(__file__).resolve().parents[1])
+        if hooklab not in sys.path:
+            sys.path.insert(0, hooklab)
         import clone_main_crash_buffer as witness
         old_package = witness.CLONE
         try:
