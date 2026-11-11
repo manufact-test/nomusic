@@ -224,7 +224,7 @@ public sealed partial class MainWindow
             ++_compactStartEpoch;
             _compactStarting = false;
             _compactStartupText = "";
-            _bridge.SetEnabled(false);
+            StopPlaybackExplicitly();
             RenderCompact();
             LayoutCompact();
         };
