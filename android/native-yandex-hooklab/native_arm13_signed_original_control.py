@@ -26,22 +26,46 @@ def fail(stage):
 
 
 def adb(args, timeout=75, allow=False):
-    result = subprocess.run(["adb", "-s", "127.0.0.1:5555", *args],
-                            capture_output=True, text=True, timeout=timeout)
+    """Execute ONLY in pinned disposable container; never talk to an ADB device."""
+    if args[0] == "shell":
+        command = ["docker", "exec", "celikom-native-arm-android13", *args[1:]]
+    elif args[0] == "install-multiple":
+        guest = []
+        for index, path in enumerate(args[1:]):
+            pathname = Path(path)
+            if not pathname.is_file() or pathname.suffix != ".apk" or index >= 5:
+                fail("ORIGINAL_UNVERIFIED_LOCAL_SPLIT_FILE")
+            guest_path = "/data/local/tmp/celikom-signed-original-" + str(index) + ".apk"
+            copied = subprocess.run(
+                ["docker", "cp", str(pathname),
+                 "celikom-native-arm-android13:" + guest_path],
+                capture_output=True, text=True, timeout=90)
+            if copied.returncode:
+                fail("ORIGINAL_PRIVATE_GUEST_COPY_FAILED")
+            guest.append(guest_path)
+        command = ["docker", "exec", "celikom-native-arm-android13",
+                   "pm", "install-multiple", "--user", "0", *guest]
+    else:
+        fail("UNSUPPORTED_ORIGINAL_GUEST_ACTION")
+    result = subprocess.run(command, capture_output=True, text=True, timeout=timeout)
     if result.returncode and not allow:
-        fail("ORIGINAL_PRIVATE_ADB_FAILED")
+        fail("ORIGINAL_PRIVATE_GUEST_COMMAND_FAILED")
     return result.stdout if result.returncode == 0 else ""
 
 
-def run():
+def check_guest_container():
     if os.getenv("GITHUB_ACTIONS") != "true" or os.uname().machine != "aarch64":
         fail("EPHEMERAL_ARM_HOST_CI_ONLY")
-    devices = subprocess.run(["adb", "devices"], capture_output=True,
-                             text=True, timeout=25).stdout.splitlines()
-    ready = [x.split()[0] for x in devices[1:]
-             if len(x.split()) == 2 and x.split()[1] == "device"]
-    if ready != ["127.0.0.1:5555"]:
-        fail("ONLY_LOCAL_REDDROID_ADB_ALLOWED")
+    p = subprocess.run(["docker", "inspect", "celikom-native-arm-android13",
+                        "--format", "{{.State.Running}}"],
+                       capture_output=True, text=True, timeout=20)
+    if p.returncode or p.stdout.strip() != "true":
+        fail("NATIVE_ARM_REDDROID_CONTAINER_NOT_RUNNING")
+
+
+
+def run():
+    check_guest_container()
     if adb(["shell", "getprop", "sys.boot_completed"]).strip() != "1":
         fail("NATIVE_ARM_ANDROID_BOOT_INCOMPLETE")
     sdk = adb(["shell", "getprop", "ro.build.version.sdk"]).strip()
