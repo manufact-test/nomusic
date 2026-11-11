@@ -6,10 +6,10 @@ namespace Celikom\Support;
 final class SupportReport
 {
  public static function normalize(array $input):array {
-  if(($input['schema_version']??null)!==1 || ($input['platform']??null)!=='chromium'
+  if(($input['schema_version']??null)!==1 || !in_array($input['platform']??null,['chromium','android'],true)
    || !is_string($input['version']??null) || !preg_match('/^\d{1,4}\.\d{1,4}\.\d{1,4}$/D',$input['version']))
    throw new \InvalidArgumentException('invalid_request');
-  $out=['schema_version'=>1,'platform'=>'chromium','version'=>$input['version'],
+  $out=['schema_version'=>1,'platform'=>$input['platform'],'version'=>$input['version'],
    'diagnostics'=>SongReport::diagnostics($input['diagnostics']??[])];
   if(isset($input['track'])) {
    try {

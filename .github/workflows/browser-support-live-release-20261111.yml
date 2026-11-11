@@ -1,0 +1,68 @@
+name: Approved browser support release
+on:
+  push:
+    branches: [feature/server-general-support-attachments-20261111]
+    paths:
+      - .github/workflows/browser-support-live-release-20261111.yml
+      - .github/scripts/support-release/**
+permissions:
+  contents: read
+concurrency:
+  group: celikom-hostinger-private-test
+  cancel-in-progress: false
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: ci-disposable-mysql
+          MYSQL_DATABASE: celikom_test
+        ports: ['3306:3306']
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -pci-disposable-mysql"
+          --health-interval=10s --health-timeout=5s --health-retries=10
+    env:
+      DB_HOST: 127.0.0.1
+      DB_PORT: 3306
+      DB_NAME: celikom_test
+      DB_USER: root
+      DB_PASSWORD: ci-disposable-mysql
+      STORAGE_PATH: /tmp/celikom-support-release-tests
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 16
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: pdo_mysql, fileinfo, curl
+          coverage: none
+      - name: Validate and exercise exact patch and platform contracts
+        run: |
+          set -euo pipefail
+          bash -n .github/scripts/support-release/deploy.sh
+          php -l .github/scripts/support-release/patch.php
+          php -l .github/scripts/support-release/smoke.php
+          php -l server/src/Support/SupportReport.php
+          python3 .github/scripts/support-release/build-payload.py
+          python3 .github/scripts/support-release/test-patch.py
+          php server/tests/database.php
+          php server/tests/support.php
+          php server/tests/auth.php
+          php server/tests/entitlement.php
+  deploy:
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 16
+          persist-credentials: false
+      - name: Guarded code-only release, backup, live private support check and automatic rollback
+        env:
+          HOSTINGER_SSH_KEY: ${{ secrets.HOSTINGER_SSH_KEY }}
+        run: bash .github/scripts/support-release/deploy.sh

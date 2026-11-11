@@ -17,7 +17,7 @@ final class SupportService
   $body=$this->validate($body,$key);
   // Existing report_json column also stores private Windows diagnostics for
   // general inquiries; only message body is emailed and visible to the user.
-  $storedReport=$report??($diagnostics===null?null:(($diagnostics['platform']??null)==='chromium'
+  $storedReport=$report??($diagnostics===null?null:(in_array($diagnostics['platform']??null,['chromium','android'],true)
    ?SupportReport::normalize($diagnostics):['platform'=>'windows',
    'diagnostics'=>WindowsSupportDiagnostics::normalize($diagnostics)]));
   $json=$storedReport===null?null:json_encode($storedReport,JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE);

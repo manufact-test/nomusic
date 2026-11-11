@@ -200,6 +200,16 @@ try{
   expect($panel->handle('GET',$url,$query,$viewerHeaders,'')->status===403,'Viewer cannot download diagnostic');
   expect($panel->handle('GET',$url,['ticket'=>(string)$general],$ownerHeaders,'')->status===404,'General tickets cannot be downloaded as song diagnostics');
  });
+ run('Android common support envelope is stored privately and displayed in the shared administration',function()use($service,$user,$uuid,$pdo):void{
+  $u=$user();$diagnostics=['schema_version'=>1,'platform'=>'android','version'=>'0.3.52',
+   'diagnostics'=>['phase'=>'ERROR','paused'=>false,'trace'=>[['event'=>'backend_http','endpoint'=>'resolve','httpCode'=>503,'authorization'=>'SECRET']]],'token'=>'SECRET'];
+  $id=$service->create($u,'Проверка общего приёма Android',$uuid(),null,$diagnostics);
+  expect($service->thread($id,$u)['report']===null,'Customer cannot read common mobile diagnostic attachment');
+  $internal=$service->thread($id);expect($internal['report']['platform']==='android','Mobile source identified in admin attachment');
+  expect(!str_contains(json_encode($internal),'SECRET'),'Mobile input independently sanitized');
+  $html=(new SupportAdminView($pdo))->render(str_repeat('a',64),$id);
+  expect(str_contains($html,'Техническая диагностика Android')&&str_contains($html,'Скачать диагностику JSON'),'Shared admin displays mobile attachment and file link');
+ });
  run('Ordinary support automatically stores a bounded attachment with admin-only download and stable retries',function()use($service,$config,$user,$admin,$uuid,$pdo,&$sent):void{
   $u=$user();$other=$user();$owner=$admin('owner');$viewer=$admin('viewer');$key=$uuid();$before=count($sent);
   $report=['schema_version'=>1,'platform'=>'chromium','version'=>'0.4.76','account'=>['email'=>'PRIVATE'],

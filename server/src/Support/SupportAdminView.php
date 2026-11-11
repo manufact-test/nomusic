@@ -24,9 +24,9 @@ final class SupportAdminView
    $q=$this->pdo->prepare('SELECT u.id,u.email FROM users u JOIN support_tickets t ON t.user_id=u.id WHERE t.id=?');$q->execute([$selected]);$user=$q->fetch(\PDO::FETCH_ASSOC);
    $kind=$thread['kind'];
    $html.='<h2>Обращение №'.$selected.' · '.self::status($thread['status']).'</h2><p>'.self::e($user['email']).'</p>';
-   if($kind==='general'&&is_array($thread['report'])&&($thread['report']['platform']??null)==='chromium'){
+   if($kind==='general'&&is_array($thread['report'])&&in_array($thread['report']['platform']??null,['chromium','android'],true)){
      $html.='<p><a class="button" href="/admin/support/diagnostics?ticket='.$selected.'">Скачать диагностику JSON</a></p>';
-     $html.='<details><summary>Техническая диагностика расширения</summary><pre style="white-space:pre-wrap;overflow-wrap:anywhere">'.self::e(json_encode($thread['report'],JSON_PRETTY_PRINT|JSON_UNESCAPED_UNICODE)).'</pre></details>';
+     $html.='<details><summary>Техническая диагностика '.(($thread['report']['platform']??null)==='android'?'Android':'расширения').'</summary><pre style="white-space:pre-wrap;overflow-wrap:anywhere">'.self::e(json_encode($thread['report'],JSON_PRETTY_PRINT|JSON_UNESCAPED_UNICODE)).'</pre></details>';
    }
    if($kind==='general'&&is_array($thread['report'])&&($thread['report']['platform']??null)==='windows'){
      $html.='<p><a class="button" href="/admin/support/diagnostics?ticket='.$selected.'">Скачать диагностику JSON</a></p>';
