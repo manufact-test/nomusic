@@ -26,35 +26,47 @@ if [ "$arch" != "arm64" ]; then
   echo '{"result":"CONTAINER_IMAGE_ARCH_NOT_ARM64","android_started":false}'
   exit 2
 fi
-mkdir -p "$RUNNER_TEMP/celikom-redroid-data"
-if ! docker run -d --rm --privileged \
-    --name celikom-native-arm-android13 \
-    --network bridge \
-    -p 127.0.0.1:5555:5555 \
-    --mount type=bind,source=/dev/binderfs,target=/dev/binderfs \
-    --mount type=bind,source="$RUNNER_TEMP/celikom-redroid-data",target=/data \
-    "$image" androidboot.use_memfd=1 >/dev/null 2>&1; then
-  echo '{"result":"CONTAINER_ANDROID_START_REJECTED","android_started":false}'
-  exit 2
-fi
+# A runner can intermittently start a container which immediately exits.
+# Retry ONCE in a CLEAN throwaway /data (no APK installed yet). Never
+# re-use the failed guest, downgrade signature checks or fake an Android pass.
 boot=false
-for attempt in $(seq 1 90); do
-  if ! docker inspect celikom-native-arm-android13 --format '{{.State.Running}}' 2>/dev/null | grep -q '^true$'; then
-    break
+used_second_attempt=false
+for boot_attempt in 1 2; do
+  if [ "$boot_attempt" -eq 2 ]; then
+    used_second_attempt=true
+    docker stop celikom-native-arm-android13 >/dev/null 2>&1 || true
+    sudo rm -rf -- "$RUNNER_TEMP/celikom-redroid-data"
   fi
-  state="$(docker exec celikom-native-arm-android13 getprop sys.boot_completed 2>/dev/null || true)"
-  if [ "$state" = "1" ]; then boot=true; break; fi
-  sleep 3
+  mkdir -p "$RUNNER_TEMP/celikom-redroid-data"
+  if docker run -d --rm --privileged \
+      --name celikom-native-arm-android13 \
+      --network bridge \
+      -p 127.0.0.1:5555:5555 \
+      --mount type=bind,source=/dev/binderfs,target=/dev/binderfs \
+      --mount type=bind,source="$RUNNER_TEMP/celikom-redroid-data",target=/data \
+      "$image" androidboot.use_memfd=1 >/dev/null 2>&1; then
+    for attempt in $(seq 1 90); do
+      if ! docker inspect celikom-native-arm-android13 \
+          --format '{{.State.Running}}' 2>/dev/null | grep -q '^true$'; then
+        break
+      fi
+      state="$(docker exec celikom-native-arm-android13 getprop sys.boot_completed 2>/dev/null || true)"
+      if [ "$state" = "1" ]; then
+        boot=true
+        break
+      fi
+      sleep 3
+    done
+  fi
+  if [ "$boot" = true ]; then break; fi
+  docker stop celikom-native-arm-android13 >/dev/null 2>&1 || true
 done
 if [ "$boot" != "true" ]; then
-  logs="$(docker logs --tail 200 celikom-native-arm-android13 2>&1 || true)"
-  binder_problem=false
-  if printf '%s' "$logs" | grep -iq 'binder.*\(failed\|not found\|could not\|permission denied\)'; then
-    binder_problem=true
-  fi
-  echo "{\"result\":\"CONTAINER_ARM_ANDROID_NOT_BOOTED\",\"binder_error_marker\":$binder_problem,\"owner_phone_touched\":false,\"vendor_apk_installed\":false}"
+  echo '{"result":"CONTAINER_ARM_ANDROID_TWO_CLEAN_BOOT_ATTEMPTS_FAILED","owner_phone_touched":false,"vendor_apk_installed":false}'
   exit 2
 fi
+echo "{\"result\":\"NATIVE_ARM_ANDROID_BOOT_RETRY_STATUS\",\"second_clean_boot_attempt_used\":$used_second_attempt,\"vendor_apk_installed\":false}"
+
 sdk="$(docker exec celikom-native-arm-android13 getprop ro.build.version.sdk 2>/dev/null || true)"
 abi="$(docker exec celikom-native-arm-android13 getprop ro.product.cpu.abilist 2>/dev/null || true)"
 abi32="$(docker exec celikom-native-arm-android13 getprop ro.product.cpu.abilist32 2>/dev/null || true)"
