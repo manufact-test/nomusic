@@ -24,7 +24,9 @@ from native_arm13_startup_observer import (
     classify_main_cycle_correlation,
 )
 from native_arm13_timeline_origin import classify_merged_startup_timeline
-from observe_native_startup_trace import TRACE_PATH, observe_disposable_trace
+from observe_native_startup_trace import (
+    TRACE_PATH, observe_disposable_trace, classify_profiler_launch,
+)
 from native_arm13_signed_original_control import (
     adb, check_guest_container, pm_category, private_process, pm_session_install
 )
@@ -194,17 +196,23 @@ def start(package: str, *, own_art_trace: bool = False) -> tuple[dict, dict]:
         adb(["shell", "rm", "-f", TRACE_PATH], timeout=20)
     launch_args = ["shell", "am", "start", "--user", "0"]
     if own_art_trace:
-        # -P starts standard Android method profiling and stops when idle.
+        # Controlled variant: explicit Android method profiler instead of
+        # the prior idle-stopping -P. It is stopped by ActivityManager below.
         # No developer keys, root, credentials, hook or protection bypass.
-        launch_args.extend(["-P", TRACE_PATH])
+        launch_args.extend(["--start-profiler", TRACE_PATH])
     launch = adb([*launch_args, "-n", package + "/" + MAIN_CLASS],
                  timeout=60, allow=True)
+    if own_art_trace:
+        # Fixed-category ActivityManager response; never print intent, private
+        # paths, stack, user app logs or command contents.
+        profiler_launch_category = classify_profiler_launch(launch)
     observations = []
     for delay in (0.25, 0.75, 1.5, 4.0):
         time.sleep(delay)
         observations.append(snapshot(package))
     status = observations[-1]
     if own_art_trace:
+        status["private_art_start_command_category"] = profiler_launch_category
         # ActivityManager stop is best-effort: short lived clone may already
         # be gone. The only trace path is fixed, private, size-limited and
         # deleted by observe_disposable_trace even when parsing fails.

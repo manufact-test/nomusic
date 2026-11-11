@@ -30,3 +30,27 @@ def enable_private_lab_shell_profiling(manifest: bytes) -> bytes:
         raise ValueError("DISABLED_PROFILEABILITY_NOT_OVERRIDDEN")
     profile.set(ANDROID + "shell", "true")
     return ET.tostring(root, encoding="utf-8", xml_declaration=True)
+
+
+def classify_compiled_shell_profiler(xmltree: str) -> dict:
+    """Recognize only fixed aapt XML-tree profileable shell boolean.
+
+    Check the compiled, independently lab-signed APK, not editable XML source.
+    Never return a manifest snippet, third-party package name or raw symbols.
+    """
+    lines = xmltree.splitlines()[:25000]
+    present = False
+    flag = False
+    for pos, line in enumerate(lines):
+        if "E: profileable" not in line:
+            continue
+        present = True
+        for item in lines[pos + 1:pos + 12]:
+            if "E: " in item:
+                break
+            if "A: android:shell(" in item:
+                flag = any(x in item.lower() for x in ("0xffffffff", "0x1", "0x01"))
+        break
+    return {"compiled_profileable_declaration_seen": present,
+            "compiled_shell_profiler_true": flag,
+            "raw_manifest_exposed": False}

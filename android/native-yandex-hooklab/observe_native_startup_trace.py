@@ -158,6 +158,20 @@ def classify_art_trace(raw: bytes) -> dict:
 CONTAINER = "celikom-native-arm-android13"
 
 
+def classify_profiler_launch(raw: str) -> str:
+    """Android ActivityManager command response, no free-text disclosure."""
+    normalized = raw.lower()
+    if "unknown option" in normalized or "unknown argument" in normalized:
+        return "PROFILER_OPTION_UNSUPPORTED"
+    if "not profileable" in normalized or "not debuggable" in normalized:
+        return "PROFILER_ACCESS_REJECTED"
+    if "permission denied" in normalized or "securityexception" in normalized:
+        return "PROFILER_PERMISSION_REJECTED"
+    if "starting:" in normalized or "warning: activity not started" in normalized:
+        return "ACTIVITY_START_COMMAND_ACCEPTED"
+    return "ACTIVITY_START_UNCLASSIFIED"
+
+
 def observe_disposable_trace(*, owned_arm_container: bool = False):
     """Only fixed-category evidence, never an ART file, symbol, path or PID.
 
@@ -172,6 +186,7 @@ def observe_disposable_trace(*, owned_arm_container: bool = False):
         "profiled_main_ui_unverified": True, "raw_trace_published": False,
         "trace_transport": "PRIVATE_DOCKER_EXEC" if owned_arm_container else
                            "PRIVATE_ADB",
+        "trace_stat_category": "NOT_CHECKED",
     }
     if owned_arm_container:
         if (os.environ.get("GITHUB_ACTIONS") != "true"
@@ -190,8 +205,17 @@ def observe_disposable_trace(*, owned_arm_container: bool = False):
     try:
         stat = subprocess.run(stat_args, capture_output=True,
                               text=True, timeout=15)
-        if stat.returncode != 0 or not stat.stdout.strip().isdigit():
+        if stat.returncode != 0:
+            err = (stat.stderr or "").lower()
+            report["trace_stat_category"] = (
+                "FILE_ABSENT" if "no such file" in err or "not found" in err else
+                "PERMISSION_DENIED" if "permission denied" in err else
+                "OTHER_STAT_FAILURE")
             return report
+        if not stat.stdout.strip().isdigit():
+            report["trace_stat_category"] = "STAT_OUTPUT_UNRECOGNIZED"
+            return report
+        report["trace_stat_category"] = "SIZE_OBSERVED"
         size = int(stat.stdout.strip())
         report["trace_available"] = size > 0
         if size <= 0 or size > MAX_TRACE_BYTES:

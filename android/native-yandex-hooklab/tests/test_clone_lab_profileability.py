@@ -4,7 +4,9 @@ import unittest
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import xml.etree.ElementTree as ET
-from clone_lab_profileability import enable_private_lab_shell_profiling
+from clone_lab_profileability import (
+    enable_private_lab_shell_profiling, classify_compiled_shell_profiler,
+)
 
 NS = "{http://schemas.android.com/apk/res/android}"
 BASE = ('<manifest xmlns:android="http://schemas.android.com/apk/res/android"'
@@ -24,6 +26,33 @@ class TestLabProfileable(unittest.TestCase):
         out = ET.fromstring(enable_private_lab_shell_profiling(
             BASE.replace('<profileable android:shell="false"/>', "").encode()))
         self.assertEqual(out.find("application").find("profileable").get(NS + "shell"), "true")
+    def test_compiled_profileable_element_is_actually_enabled(self):
+        sample = (
+            "    E: application (line=1)\n"
+            "      E: profileable (line=2)\n"
+            "        A: android:shell(0x01010510)=(type 0x12)0xffffffff\n"
+            "        A: android:enabled(0x0101000e)=(type 0x12)0xffffffff\n"
+            "      E: activity (line=3)\n"
+        )
+        result = classify_compiled_shell_profiler(sample)
+        self.assertTrue(result["compiled_shell_profiler_true"])
+        self.assertTrue(result["compiled_profileable_declaration_seen"])
+        self.assertFalse(result["raw_manifest_exposed"])
+        self.assertFalse(classify_compiled_shell_profiler(
+            sample.replace("0xffffffff", "0x0"))["compiled_shell_profiler_true"])
+        self.assertFalse(classify_compiled_shell_profiler(
+            "    E: application (line=1)")["compiled_profileable_declaration_seen"])
+
+    def test_compiled_profileable_rejects_other_element_shell_attribute(self):
+        fake = (
+            "E: application\n"
+            "  A: android:shell(0x01010510)=(type 0x12)0xffffffff\n"
+            "E: profileable\n"
+            "  A: android:shell(0x01010510)=(type 0x12)0x0\n"
+        )
+        self.assertFalse(classify_compiled_shell_profiler(
+            fake)["compiled_shell_profiler_true"])
+
     def test_no_original_package(self):
         for pkg in ("ru.yandex.music", "other.app"):
             with self.assertRaisesRegex(ValueError, "NOT_THE_ISOLATED"):

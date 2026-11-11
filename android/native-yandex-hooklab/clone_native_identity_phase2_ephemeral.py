@@ -20,7 +20,9 @@ import clone_native_splits_ephemeral as source
 import clone_native_splits_arsclib_ephemeral as arsc
 from merge_lab_splits_ephemeral import merge_ephemeral
 from clone_lspatch_loader_zero import wrap_clone_with_lspatch_zero
-from clone_lab_profileability import enable_private_lab_shell_profiling
+from clone_lab_profileability import (
+    enable_private_lab_shell_profiling, classify_compiled_shell_profiler,
+)
 from clone_main_crash_buffer import classify_main_crash_buffer
 
 OLD_METRICA = "com.yandex.preinstallsatellite.appmetrica.provider"
@@ -787,6 +789,16 @@ def run():
             if len(new_fingerprint) != 64 or new_fingerprint == source.RUSTORE_SHA256_CERT:
                 raise arsc.TrialError("IDENTITY_SIGNER_NOT_INDEPENDENT")
             new_meta = source.apkmeta(aligned)
+            if private_profileable and not split:
+                compiled_profile = arsc.run(
+                    [source.sdk_tool("aapt"), "dump", "xmltree",
+                     str(aligned), "AndroidManifest.xml"],
+                    "OWN_CLONE_COMPILED_PROFILER_VERIFY", 70)
+                bounded_profile = classify_compiled_shell_profiler(compiled_profile)
+                print(json.dumps({"own_lab_compiled_profileability": bounded_profile},
+                                 sort_keys=True))
+                if not bounded_profile["compiled_shell_profiler_true"]:
+                    raise arsc.TrialError("OWN_LAB_COMPILED_PROFILEABILITY_MISSING")
             if (new_meta.get("name") != source.DEST or
                 new_meta.get("split", "") != split or
                 new_meta.get("versionCode") != "24026531"):

@@ -115,6 +115,25 @@ class OwnedArmArtTraceTests(unittest.TestCase):
         self.assertFalse(out["raw_trace_published"])
         self.assertNotIn("PRIVATE_USER_SECRET", str(out))
 
+    def test_profiler_launch_error_categories_do_not_expose_raw(self):
+        from observe_native_startup_trace import classify_profiler_launch
+        samples = [
+            ("Starting: Intent { account_token=HIDE_ME }",
+             "ACTIVITY_START_COMMAND_ACCEPTED"),
+            ("Unknown option: --start-profiler account_token=HIDE_ME",
+             "PROFILER_OPTION_UNSUPPORTED"),
+            ("SecurityException permission denied account_token=HIDE_ME",
+             "PROFILER_PERMISSION_REJECTED"),
+            ("Not profileable package HIDE_ME",
+             "PROFILER_ACCESS_REJECTED"),
+            ("This is arbitrary secret HIDE_ME", "ACTIVITY_START_UNCLASSIFIED"),
+        ]
+        for raw, expected in samples:
+            with self.subTest(expected=expected):
+                verdict = classify_profiler_launch(raw)
+                self.assertEqual(verdict, expected)
+                self.assertNotIn("HIDE_ME", verdict)
+
     def test_corrupt_or_too_small_is_inconclusive(self):
         for raw in (b"", b"PRIVATE", b"*version\n3\n*methods\n", b"\0" * 20):
             with self.subTest(value=raw[:12]):
