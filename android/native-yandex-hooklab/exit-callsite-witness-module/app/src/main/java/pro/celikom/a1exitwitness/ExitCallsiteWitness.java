@@ -55,6 +55,7 @@ public final class ExitCallsiteWitness extends XposedModule {
         count += observe(android.os.Process.class, "killProcess",
             new Class<?>[] {int.class}, "PROCESS_KILL") ? 1 : 0;
         count += hookApplicationAttach() ? 1 : 0;
+        count += observeHi2IllegalStateConstructor() ? 1 : 0;
         // Arms only tell us that a hook was registered, not that it ran.
         emit("ARMED", count > 0 ? "REGISTERED" : "NO_HOOK", "NONE");
     }
@@ -95,6 +96,68 @@ public final class ExitCallsiteWitness extends XposedModule {
         }
     }
 
+
+
+    /**
+     * Observe the message CLASSIFICATION of a normal IllegalStateException
+     * constructed inside the exact signed hi2.j coroutine. The constructor,
+     * its arguments and exception behavior are not modified. Raw message
+     * text (which might include secrets) is NEVER logged or stored.
+     */
+    private boolean observeHi2IllegalStateConstructor() {
+        try {
+            Constructor<IllegalStateException> ctor =
+                IllegalStateException.class.getDeclaredConstructor(String.class);
+            ctor.setAccessible(true);
+            hook(ctor).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                .intercept(chain -> {
+                    try {
+                        if (callerIsExactHi2Coroutine()) {
+                            Object value = chain.getArg(0);
+                            emit("HI2_EXCEPTION", "STATIC_COROUTINE",
+                                 redactedErrorCategory(value));
+                        }
+                    } catch (Throwable ignored) { }
+                    return chain.proceed();
+                });
+            return true;
+        } catch (Throwable ignored) {
+            return false;
+        }
+    }
+
+    private static boolean callerIsExactHi2Coroutine() {
+        try {
+            for (StackTraceElement frame : Thread.currentThread().getStackTrace()) {
+                if ("hi2".equals(frame.getClassName())
+                        && "j".equals(frame.getMethodName()))
+                    return true;
+            }
+        } catch (Throwable ignored) { }
+        return false;
+    }
+
+    private static String redactedErrorCategory(Object value) {
+        if (!(value instanceof String)) return "EXC_UNKNOWN";
+        String s = ((String) value).toLowerCase(java.util.Locale.ROOT);
+        // Fixed small lexical enum, not a transcript or hash of secrets.
+        boolean signing = s.contains("signature") || s.contains("certificate")
+            || s.contains("signing") || s.contains("sha256");
+        boolean identity = s.contains("passport") || s.contains("auth")
+            || s.contains("account") || s.contains("credential")
+            || s.contains("login") || s.contains("token");
+        if (signing && identity) return "EXC_SIGN_AND_AUTH";
+        if (signing) return "EXC_SIGNATURE";
+        if (identity) return "EXC_AUTH";
+        if (s.contains("permission") || s.contains("denied") || s.contains("grant"))
+            return "EXC_PERMISSION";
+        if (s.contains("locale") || s.contains("language"))
+            return "EXC_LOCALE";
+        if (s.contains("process") || s.contains("package")
+                || s.contains("component") || s.contains("restart"))
+            return "EXC_LIFECYCLE";
+        return "EXC_OTHER";
+    }
 
     private boolean prefixHookInstalled;
 

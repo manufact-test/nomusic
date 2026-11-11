@@ -121,6 +121,15 @@ class WitnessClassifierTests(unittest.TestCase):
         x = classify_exit_witness(EXIT, raw)
         self.assertEqual(x["first_exit_run_mode_groups"], [])
 
+    def test_exception_category_scoped_without_secret_data(self):
+        raw = (entry(1234, "HI2_EXCEPTION", "STATIC_COROUTINE", "EXC_SIGNATURE", "OTHER")
+               + entry(9999, "HI2_EXCEPTION", "STATIC_COROUTINE", "EXC_AUTH", "OTHER")
+               + "secret_account_token")
+        x = classify_exit_witness(EXIT, raw)
+        self.assertEqual(x["hi2_exception_categories"], ["EXC_SIGNATURE"])
+        self.assertTrue(x["hi2_exception_message_or_token_never_exported"])
+        self.assertNotIn("secret_account_token", str(x))
+
     def test_background_event_not_claimed_main(self):
         out = classify_exit_witness(EXIT, entry(1234, "UNCAUGHT", thread="OTHER"))
         self.assertEqual(out["main_thread_event_count_bounded"], 0)

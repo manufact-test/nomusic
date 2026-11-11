@@ -6,18 +6,22 @@ from clone_main_crash_buffer import LOG, main_exit_pids
 TAG = "CELIKOM_A1_EXIT_WITNESS"
 EVENTS = frozenset(("ARMED", "UNCAUGHT", "SYSTEM_EXIT", "RUNTIME_EXIT",
                     "PROCESS_KILL", "PREFIX_CHECK", "PREFIX_HOOK",
-                    "RUN_CTOR", "RUN_ENTER", "RUN_HOOK"))
+                    "RUN_CTOR", "RUN_ENTER", "RUN_HOOK",
+                    "HI2_EXCEPTION"))
 ORIGINS = frozenset(("REGISTERED", "NO_HOOK", "VENDOR_UNCAUGHT_HANDLER",
                       "STATIC_HANDLER", "STATIC_RUN_A", "STATIC_RUN_B",
                       "STATIC_INVOKER", "VENDOR", "PLATFORM", "UNKNOWN", "NONE",
                       "OWN_MAIN", "OWN_AUX", "ORIGINAL_MAIN", "ORIGINAL_AUX",
-                      "UNCLASSIFIED"))
+                      "UNCLASSIFIED", "STATIC_COROUTINE"))
 ERRORS = frozenset(("ILLEGAL_STATE", "SECURITY", "LINK", "OTHER_THROWABLE",
                     "NONE", "MATCH_TRUE", "MATCH_FALSE",
                     "KILL_TARGET_SELF", "KILL_TARGET_OTHER",
                     "KILL_TARGET_UNKNOWN", "CASE_0", "CASE_1", "CASE_2",
                     "CASE_3", "CASE_4", "CASE_5", "CASE_6", "CASE_7",
-                    "CASE_OTHER", "CASE_UNKNOWN"))
+                    "CASE_OTHER", "CASE_UNKNOWN",
+                    "EXC_UNKNOWN", "EXC_SIGN_AND_AUTH", "EXC_SIGNATURE",
+                    "EXC_AUTH", "EXC_PERMISSION", "EXC_LOCALE",
+                    "EXC_LIFECYCLE", "EXC_OTHER"))
 THREADS = frozenset(("MAIN", "OTHER"))
 
 
@@ -43,6 +47,7 @@ def classify_exit_witness(exit_dump: str, main_log: str) -> dict:
     first_kill_target_by_pid: dict[int, str] = {}
     last_main_run_case_by_pid: dict[int, str] = {}
     first_exit_run_case_by_pid: dict[int, str] = {}
+    hi2_exception_categories: set[str] = set()
     for line in main_log.splitlines()[-18000:]:
         match = LOG.match(line)
         if not match:
@@ -69,6 +74,9 @@ def classify_exit_witness(exit_dump: str, main_log: str) -> dict:
             untrusted += 1
             continue
         kinds.add(event)
+        if (event == "HI2_EXCEPTION" and origin == "STATIC_COROUTINE"
+                and error.startswith("EXC_")):
+            hi2_exception_categories.add(error)
         origins.add(origin)
         errors.add(error)
         main_events += thread == "MAIN"
@@ -99,6 +107,9 @@ def classify_exit_witness(exit_dump: str, main_log: str) -> dict:
         "first_exit_run_mode_groups": sorted(set(first_exit_run_case_by_pid.values())),
         "first_exit_run_mode_main_pid_count_bounded": min(len(first_exit_run_case_by_pid), 10),
         "run_mode_observation_not_replacement": True,
+        "hi2_exception_categories": sorted(hi2_exception_categories),
+        "hi2_exception_absence_inconclusive": True,
+        "hi2_exception_message_or_token_never_exported": True,
         "prefix_check_observed": "PREFIX_CHECK" in kinds,
         "prefix_match_result_categories": sorted(x for x in errors if x.startswith("MATCH_")),
         "prefix_known_target_groups": sorted(x for x in origins if x in {
