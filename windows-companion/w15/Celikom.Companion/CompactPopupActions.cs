@@ -334,6 +334,8 @@ public sealed partial class MainWindow
             {
                 ++_compactStartEpoch;
                 _compactStarting = false;
+                _resumeAfterNetworkFailure = false;
+                ++_compactAccessGeneration;
                 _bridge.SetEnabled(false);
                 await _api.LoginAsync(_origin.Text.Trim(), email, password);
                 ResetCompactBenefits();
