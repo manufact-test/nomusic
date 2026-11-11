@@ -18,6 +18,7 @@ from pathlib import Path
 PACKAGE = "ru.yandex.music"
 VERSION_CODE = 24025542
 VERSION_NAME = "2025.10.4 #120.1rur"
+VERSION_NAME_GPR = "2025.10.4 #120.1gpr"
 # Cross-checked historical 31 Oct 2025 4PDA #29718 claim: NOT an issuer attestation.
 HISTORICAL_BYTES = 59498960
 HISTORICAL_MD5 = "710b04ac0cc784f2576710343d4c37c1"
@@ -30,14 +31,14 @@ class GateError(Exception):
     """Only safe, fixed public failure categories."""
 
 
-def verify_metadata(aapt_text: str, signer_text: str) -> dict:
+def verify_metadata(aapt_text: str, signer_text: str, expected_version: str = VERSION_NAME) -> dict:
     match = re.search(
         r"^package:\s+name='([^']+)'\s+versionCode='([^']+)'\s+versionName='([^']+)'",
         aapt_text, re.MULTILINE)
     if not match:
         raise GateError("BAD_MANIFEST_METADATA")
     package, code, version = match.groups()
-    if (package, code, version) != (PACKAGE, str(VERSION_CODE), VERSION_NAME):
+    if (package, code, version) != (PACKAGE, str(VERSION_CODE), expected_version):
         raise GateError("WRONG_PACKAGE_OR_VERSION")
 
     # apksigner exits nonzero on invalid cryptographic signatures. These
@@ -91,17 +92,21 @@ def private_command(argv: list[str]) -> str:
     return result.stdout
 
 
-def inspect(candidate: Path, aapt: str = "aapt", apksigner: str = "apksigner") -> dict:
+def inspect(candidate: Path, aapt: str = "aapt", apksigner: str = "apksigner", channel: str = "rur") -> dict:
     size, sha, md5 = file_hashes(candidate)
     # DO NOT invoke any code from candidate; only established Android SDK parsers.
     signer = private_command([apksigner, "verify", "--verbose", "--print-certs", str(candidate)])
     manifest = private_command([aapt, "dump", "badging", str(candidate)])
-    checked = verify_metadata(manifest, signer)
-    historical = size == HISTORICAL_BYTES and md5 == HISTORICAL_MD5
+    if channel not in ("rur", "gpr"):
+        raise GateError("UNSUPPORTED_RELEASE_CHANNEL")
+    checked = verify_metadata(manifest, signer,
+                              VERSION_NAME if channel == "rur" else VERSION_NAME_GPR)
+    historical = channel == "rur" and size == HISTORICAL_BYTES and md5 == HISTORICAL_MD5
     return {
         "verdict": "PUBLISHER_SIGNED_2025_CANDIDATE_VERIFIED",
         **checked,
         "candidate_sha256": sha,
+        "verified_2025_release_channel": channel,
         "historical_4pda_bytes_and_md5_match": historical,
         "historical_forum_md5_is_not_publisher_attestation": True,
         "actual_apk_provenance_channel_independently_confirmed": False,
@@ -114,6 +119,7 @@ def inspect(candidate: Path, aapt: str = "aapt", apksigner: str = "apksigner") -
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--apk", type=Path, help="local, unmodified original candidate")
+    parser.add_argument("--channel", choices=("rur","gpr"), default="rur")
     args = parser.parse_args(argv)
     if args.apk is None:
         print(json.dumps({
@@ -124,7 +130,7 @@ def main(argv: list[str] | None = None) -> int:
         }, sort_keys=True))
         return 0
     try:
-        result = inspect(args.apk)
+        result = inspect(args.apk, channel=args.channel)
         print(json.dumps(result, sort_keys=True))
         return 0
     except GateError as error:
