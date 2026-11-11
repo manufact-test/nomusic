@@ -1,3 +1,5 @@
+> **CI 0.24.22 SUCCESS — ПРОВЕРЕНО:** [GitHub Actions 43091527029](https://github.com/manufact-test/nomusic/actions/runs/43091527029). 158 W15 .NET Windows contracts, 16 native installer contracts, Inno Setup and real disposable Windows 0.24.21 → 0.24.22 same-AppId inplace upgrade, saved-login DPAPI decrypt preserved, native host/renderer SHA identical, no vendor Yandex folder touched. Artifact `CELIKOM-W75-PERSISTENT-DIAGNOSTICS-UNSIGNED` (EXE within ZIP), final unsigned installer SHA256 `ECEA2166B087702D5A66590130A6D8DC647E9DB8E33F2E7B0C5063469DBA4FCA`. Physical owner's 60–90 sec outage cause remains unknown until owner sends the real `companion-events.log`/`native-events.log` and optional `.1` from `%LOCALAPPDATA%\CELIKOM\Windows`. Keep `session.dpapi` PRIVATE.
+
 # CELIKOM Windows W75 — диагностика не исчезает при сбое связи (0.24.22)
 
 Дата: 11.11.2026. Исходная проверенная сборка W74 0.24.21 — CI [43085966611](https://github.com/manufact-test/nomusic/actions/runs/43085966611) PASS, exact backup `backup/windows-w74-02421-start-race-retry-ci-pass-20261111`. W75 построена поверх неё, нативные скрипты подмены не изменялись.
