@@ -7,6 +7,10 @@ import android.util.Log;
 import io.github.libxposed.api.XposedInterface;
 import io.github.libxposed.api.XposedModule;
 import java.lang.reflect.Method;
+import java.lang.reflect.Constructor;
+import java.util.Collections;
+import java.util.Map;
+import java.util.WeakHashMap;
 
 /**
  * Laboratory-only early-exit observer. Exactly one independent, disposable
@@ -19,11 +23,19 @@ public final class ExitCallsiteWitness extends XposedModule {
     private static final String PACKAGE = "pro.celikom.yandex.nativeclonelab";
     private static final String TAG = "CELIKOM_A1_EXIT_WITNESS";
     private boolean armed;
+    private boolean exitCtorHooked;
+    private boolean exitRunHooked;
+    private final Map<Object, Integer> constructorModes =
+        Collections.synchronizedMap(new WeakHashMap<>());
 
     @Override public void onModuleLoaded(ModuleLoadedParam param) { }
 
     @Override public void onPackageLoaded(PackageLoadedParam param) {
-        if (PACKAGE.equals(param.getPackageName())) arm();
+        if (PACKAGE.equals(param.getPackageName())) {
+            arm();
+            try { installExactRunModeWitness(param.getDefaultClassLoader()); }
+            catch (Throwable ignored) { }
+        }
     }
 
     @Override public void onPackageReady(PackageReadyParam param) {
@@ -96,8 +108,11 @@ public final class ExitCallsiteWitness extends XposedModule {
                     try {
                         if (PACKAGE.equals(Application.getProcessName())) {
                             Object context = chain.getArg(0);
-                            if (context instanceof Context)
-                                installExactPrefixWitness(((Context) context).getClassLoader());
+                            if (context instanceof Context) {
+                                ClassLoader loader = ((Context) context).getClassLoader();
+                                installExactPrefixWitness(loader);
+                                installExactRunModeWitness(loader);
+                            }
                         }
                     } catch (Throwable ignored) { }
                     return result;
@@ -135,6 +150,68 @@ public final class ExitCallsiteWitness extends XposedModule {
             emit("PREFIX_HOOK", "REGISTERED", "NONE");
         } catch (Throwable ignored) {
             emit("PREFIX_HOOK", "NO_HOOK", "NONE");
+        }
+    }
+
+
+    /**
+     * A1 isolated read-only clone: constructor mode and Runnable enter marker.
+     * Both original constructor and run always execute without alterations.
+     */
+    private synchronized void installExactRunModeWitness(ClassLoader appLoader) {
+        if (appLoader == null || (exitCtorHooked && exitRunHooked)) return;
+        try {
+            Class<?> target = Class.forName("xx0", false, appLoader);
+            if (!exitCtorHooked) {
+                Constructor<?> constructor = target.getDeclaredConstructor(Context.class, int.class);
+                constructor.setAccessible(true);
+                hook(constructor).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                    .intercept(chain -> {
+                        Object result = chain.proceed();
+                        try {
+                            Object owner = chain.getThisObject();
+                            Object value = chain.getArg(1);
+                            if (owner != null && value instanceof Integer) {
+                                Integer mode = (Integer) value;
+                                constructorModes.put(owner, mode);
+                                emit("RUN_CTOR", "STATIC_RUN_B", modeCategory(mode));
+                            }
+                        } catch (Throwable ignored) { }
+                        return result;
+                    });
+                exitCtorHooked = true;
+            }
+            if (!exitRunHooked) {
+                Method run = target.getDeclaredMethod("run");
+                run.setAccessible(true);
+                hook(run).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                    .intercept(chain -> {
+                        try {
+                            Integer mode = constructorModes.get(chain.getThisObject());
+                            emit("RUN_ENTER", "STATIC_RUN_B", modeCategory(mode));
+                        } catch (Throwable ignored) { }
+                        return chain.proceed();
+                    });
+                exitRunHooked = true;
+            }
+            emit("RUN_HOOK", "REGISTERED", "NONE");
+        } catch (Throwable ignored) {
+            emit("RUN_HOOK", "NO_HOOK", "NONE");
+        }
+    }
+
+    private static String modeCategory(Integer mode) {
+        if (mode == null) return "CASE_UNKNOWN";
+        switch (mode.intValue()) {
+            case 0: return "CASE_0";
+            case 1: return "CASE_1";
+            case 2: return "CASE_2";
+            case 3: return "CASE_3";
+            case 4: return "CASE_4";
+            case 5: return "CASE_5";
+            case 6: return "CASE_6";
+            case 7: return "CASE_7";
+            default: return "CASE_OTHER";
         }
     }
 
