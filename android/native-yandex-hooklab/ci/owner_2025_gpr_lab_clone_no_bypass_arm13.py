@@ -341,6 +341,16 @@ def main(archive: Path) -> dict:
             exit_info=guest("dumpsys","activity","exit-info",PKG,timeout=40)
             if exit_info.returncode==0:
                 result["own_lab_main_exit"]=diagnostics.classify_main_exit_status(exit_info.stdout)
+                # Existing read-only PID-scoped classifier; raw Java/vendor
+                # crash lines, stack frames and account data never leave CI.
+                crash=guest("logcat","-b","crash","-d",timeout=45)
+                if crash.returncode==0:
+                    result["own_lab_main_crash_category"]=diagnostics.classify_main_crash_buffer(
+                        exit_info.stdout,crash.stdout)
+                else:
+                    result["own_lab_main_crash_category"]={"fatal_category":"NOT_OBSERVED",
+                                                             "crash_buffer_unavailable":True,
+                                                             "raw_log_disclosed":False}
         result["verdict"]=(
             "OWN_2025_LAB_CLONE_MAIN_75S_STABLE"
             if result["same_exact_main_pid_25_of_25"] and result["resumed_25_of_25"]
