@@ -69,6 +69,9 @@ public sealed partial class MainWindow : Form
     private bool _diagnosticsAllowed;
     private int _diagnosticsEpoch;
     private bool _bridgeStarted;
+    // A brief server outage may suspend music. Never auto-start without a new,
+    // positive authenticated entitlement and the user's original Start intent.
+    private bool _resumeAfterNetworkFailure;
     private bool _closing;
     private bool _loggingIn;
     // Server is the authority; this periodic check only updates UI/state
@@ -116,7 +119,7 @@ public sealed partial class MainWindow : Form
 
         var menu = new ContextMenuStrip();
         menu.Items.Add("Открыть CELIKOM", null, (_, _) => ShowMain());
-        menu.Items.Add("Остановить подмену", null, (_, _) => _bridge.SetEnabled(false));
+        menu.Items.Add("Остановить подмену", null, (_, _) => StopPlaybackExplicitly());
         menu.Items.Add("Выход", null, (_, _) => Close());
         _tray = new NotifyIcon
         {
@@ -127,7 +130,7 @@ public sealed partial class MainWindow : Form
         Resize += (_, _) => { if (WindowState == FormWindowState.Minimized) Hide(); };
         _entitlementPulse.Tick += (_, _) =>
         {
-            if (!_closing && _bridge.Enabled && _api.IsLoggedIn)
+            if (!_closing && (_bridge.Enabled || _resumeAfterNetworkFailure) && _api.IsLoggedIn)
                 _ = RefreshCompactAccessAsync(force: true);
         };
         FormClosing += ClosingAsync;
@@ -248,7 +251,7 @@ public sealed partial class MainWindow : Form
         _start.Margin = new Padding(0, 2, 5, 2);
         _stop.Margin = new Padding(5, 2, 0, 2);
         _start.Click += StartAction;
-        _stop.Click += (_, _) => _bridge.SetEnabled(false);
+        _stop.Click += (_, _) => StopPlaybackExplicitly();
         actions.Controls.Add(_start, 0, 0);
         actions.Controls.Add(_stop, 1, 0);
         Add(layout, actions, 54);
@@ -322,6 +325,17 @@ public sealed partial class MainWindow : Form
         _accountSignedIn.Visible = _api.IsLoggedIn;
     }
 
+    private void StopPlaybackExplicitly()
+    {
+        // User Stop ALWAYS overrides any automatic reconnect intent.
+        _resumeAfterNetworkFailure = false;
+        ++_compactAccessGeneration; // discard a just-finished stale pulse
+        ++_compactStartEpoch;
+        _compactStarting = false;
+        _bridge.SetEnabled(false);
+        DiagnosticLog.Record("ACTIVE_ENTITLEMENT_MANUAL_STOP");
+    }
+
     private async void StartAction(object? sender, EventArgs e)
     {
         if (!_bridgeStarted || _integrationBusy || _compactStarting || _closing) return;
@@ -333,6 +347,8 @@ public sealed partial class MainWindow : Form
             ScrollCompactTo(_compactAccountTrigger);
             return;
         }
+        _resumeAfterNetworkFailure = false;
+        ++_compactAccessGeneration; // user action wins over any outstanding poll
         // Every Start, including a later reinstall or expired subscription,
         // requires live server authority. Never infer playback entitlement
         // from the presence of stored DPAPI tokens or the account UI.
@@ -553,6 +569,7 @@ public sealed partial class MainWindow : Form
 
     private async void ConnectYandexAsync(object? sender, EventArgs e)
     {
+        _resumeAfterNetworkFailure = false;
         if (_integrationBusy) return;
         var upgrading = _nativeInstallState == NativeInstallState.Active;
         if (!upgrading && _hostReport?.Status != YandexHostStatus.OfficialBaselineVerified)
@@ -890,6 +907,7 @@ public sealed partial class MainWindow : Form
 
     private async void LogoutAsync(object? sender, EventArgs e)
     {
+        _resumeAfterNetworkFailure = false;
         ++_compactStartEpoch;
         _compactStarting = false;
         _bridge.SetEnabled(false);
@@ -1023,6 +1041,7 @@ public sealed partial class MainWindow : Form
         if (_closing) return;
         e.Cancel = true;
         _closing = true;
+        _resumeAfterNetworkFailure = false;
         _entitlementPulse.Stop();
         _entitlementPulse.Dispose();
         _tray.Visible = false;
