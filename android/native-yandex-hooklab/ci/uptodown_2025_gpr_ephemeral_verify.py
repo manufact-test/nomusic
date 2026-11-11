@@ -126,6 +126,11 @@ def browser_download(directory: Path) -> tuple[Path | None, dict]:
         try:
             page=context.new_page()
             captured=[]
+            page_events=[]
+            def hook_page(new_page):
+                new_page.on("download",lambda download: captured.append(download))
+                page_events.append(new_page)
+            context.on("page",hook_page)
             page.on("download",lambda download: captured.append(download))
             response=page.goto(DETAIL,wait_until="domcontentloaded",timeout=45000)
             if response is None or response.status != 200:
@@ -223,6 +228,7 @@ def browser_download(directory: Path) -> tuple[Path | None, dict]:
             for _ in range(10):
                 if captured: break
                 page.wait_for_timeout(900)
+            diagnostics["public_pages_opened"] = len(context.pages)
             if not captured:
                 return None, diagnostics
             dl=captured[0]
