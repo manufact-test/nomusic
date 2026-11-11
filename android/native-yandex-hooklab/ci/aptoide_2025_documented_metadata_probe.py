@@ -17,7 +17,11 @@ TARGET_GPR = "2025.10.4 #120.1gpr"
 MAX_JSON = 512 * 1024
 API_HOSTS = ("https://ws75.aptoide.com", "https://ws2.aptoide.com")
 # Public level 7 documented API: https://ws2.aptoide.com/api/7/app/getMeta?info=1
-PATH = f"/api/7/app/getMeta/package_name={TARGET_PACKAGE}/vercode={TARGET_CODE}"
+PATHS = (
+    f"/api/7/app/getMeta/package_name={TARGET_PACKAGE}/vercode={TARGET_CODE}",
+    f"/api/7/app/getMeta/package_name={TARGET_PACKAGE}",
+    f"/api/7/app/get/package_name={TARGET_PACKAGE}/nodes=meta,versions",
+)
 
 
 def classify(data: dict) -> dict:
@@ -56,8 +60,8 @@ def classify(data: dict) -> dict:
 
 def probe() -> dict:
     states = []
-    for origin in API_HOSTS:
-        request = urllib.request.Request(origin + PATH, headers={
+    for origin, path in ((origin, path) for origin in API_HOSTS for path in PATHS):
+        request = urllib.request.Request(origin + path, headers={
             "User-Agent": "CELIKOM-Android-A1-readonly-metadata/1.0",
             "Accept": "application/json",
         })
@@ -74,7 +78,21 @@ def probe() -> dict:
             if len(raw) > MAX_JSON:
                 states.append("METADATA_TOO_LARGE")
                 continue
-            return classify(json.loads(raw))
+            payload = json.loads(raw)
+            if isinstance(payload, dict) and "nodes" in payload:
+                nodes = payload.get("nodes", {})
+                meta = (nodes.get("meta") or {}).get("data") or {}
+                versions = (nodes.get("versions") or {}).get("list") or []
+                if isinstance(versions, list):
+                    for item in versions[:150]:
+                        file = item.get("file") if isinstance(item, dict) else None
+                        if isinstance(file, dict) and str(file.get("vercode")) == str(TARGET_CODE):
+                            return classify({"info":{"status":"OK"},"data":{"package":TARGET_PACKAGE,"file":file}})
+                payload = {"info":{"status":"OK"},"data":meta}
+            result = classify(payload)
+            if "UNTRUSTED_CANDIDATE" in result["verdict"]:
+                return result
+            states.append(result["verdict"])
         except urllib.error.HTTPError as exc:
             states.append("HTTP_" + str(exc.code) if exc.code in (401, 403, 404, 429, 500, 502, 503) else "HTTP_OTHER")
         except (ValueError, urllib.error.URLError, OSError, TypeError):
