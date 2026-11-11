@@ -108,7 +108,10 @@ def ephemeral_clone(originals: list[Path], work: Path) -> tuple[list[tuple[str,P
                       "--ks",str(lab_key),"--ks-pass","pass:ephemeral-lab-only",
                       "--ks-key-alias","celikom-lab",
                       "--key-pass","pass:ephemeral-lab-only",
-                      "--min-sdk-version","28","--v4-signing-enabled","false",
+                      "--min-sdk-version","21","--v1-signing-enabled","true",
+                      "--v2-signing-enabled","true",
+                      "--v3-signing-enabled","true",
+                      "--v4-signing-enabled","false",
                       str(aligned)],"CLONE_SIGN_FAILED",90)
         check=apk_name(aligned)
         if (check.get("name")!=PKG or check.get("versionCode")!=CODE or
