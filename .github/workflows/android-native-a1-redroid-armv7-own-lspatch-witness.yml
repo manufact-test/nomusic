@@ -1,0 +1,94 @@
+name: Android A1 real native ARMv7 own LSPatch witness via ARM Android13 Redroid
+on:
+  push:
+    branches:
+      - experiment/android-native-a1-lspatch-clone-loader0-20261111
+    paths:
+      - 'android/native-yandex-hooklab/ci/native_arm_redroid_own_witness.sh'
+      - 'android/native-yandex-hooklab/finalize_owned_armv7_native_lab.py'
+      - 'android/native-yandex-hooklab/armv7-loader-host/app/src/main/java/pro/celikom/armv7loaderhost/MainActivity.java'
+      - '.github/workflows/android-native-a1-redroid-armv7-own-lspatch-witness.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  owned-armv7-build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+      - name: Compile OWN ARMv7 JNI witness, no Yandex
+        run: gradle -p android/native-yandex-hooklab/armv7-loader-host :app:assembleDebug -PcelikomWitnessAppId=pro.celikom.armv7loaderhost.witness --no-daemon
+      - name: Compile OWN scoped LibXposed read-only module
+        run: gradle -p android/native-yandex-hooklab/armv7-witness-module :app:assembleDebug --no-daemon
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Upstream zero-bypass LSPatch patches only our test package and module
+        env:
+          CELIKOM_OWN_WITNESS: '1'
+        shell: bash
+        run: |
+          export CELIKOM_OWNED_ARTIFACT_DIR="$RUNNER_TEMP/celikom-own-arm-input"
+          python3 android/native-yandex-hooklab/build_owned_loader_host.py
+      - name: Preserve identical OWN JNI/module bytes, align/sign with throwaway lab key
+        env:
+          CELIKOM_OWN_WITNESS: '1'
+        shell: bash
+        run: |
+          python3 -m py_compile android/native-yandex-hooklab/finalize_owned_armv7_native_lab.py
+          export CELIKOM_OWN_ARM_INPUT="$RUNNER_TEMP/celikom-own-arm-input/CELIKOM-ARMv7-HOOK-WITNESS-Test.apk"
+          export CELIKOM_OWN_ARM_OUTPUT="$RUNNER_TEMP/celikom-own-arm-final/CELIKOM-ARMv7-HOOK-WITNESS-Test.apk"
+          python3 android/native-yandex-hooklab/finalize_owned_armv7_native_lab.py
+      - name: Transfer OWN-only test APK to isolated native ARM CI runner (not public release)
+        uses: actions/upload-artifact@v4
+        with:
+          name: CELIKOM-A1-OWN-ARMV7-EPHEMERAL-CI
+          path: ${{ runner.temp }}/celikom-own-arm-final/CELIKOM-ARMv7-HOOK-WITNESS-Test.apk
+          retention-days: 1
+          if-no-files-found: error
+      - name: Remove transient OWN APK build directories
+        if: always()
+        shell: bash
+        run: rm -rf -- "$RUNNER_TEMP/celikom-own-arm-input" "$RUNNER_TEMP/celikom-own-arm-final"
+  actual-native-armv7-android13:
+    needs: owned-armv7-build
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 22
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: CELIKOM-A1-OWN-ARMV7-EPHEMERAL-CI
+          path: ${{ runner.temp }}/celikom-armv7-witness-downloaded
+      - name: Check ephemeral OWN script and package existence, no vendor download
+        shell: bash
+        run: |
+          bash -n android/native-yandex-hooklab/ci/native_arm_redroid_boot_only.sh
+          bash -n android/native-yandex-hooklab/ci/native_arm_redroid_own_witness.sh
+          test -f "$RUNNER_TEMP/celikom-armv7-witness-downloaded/CELIKOM-ARMv7-HOOK-WITNESS-Test.apk"
+      - name: Boot proven native ARM64 Android13 with 32-bit ARM userspace
+        shell: bash
+        timeout-minutes: 16
+        run: bash android/native-yandex-hooklab/ci/native_arm_redroid_boot_only.sh
+      - name: Install ONLY own witness and validate real ARMv7 in-process onCreate hook
+        shell: bash
+        timeout-minutes: 3
+        run: bash android/native-yandex-hooklab/ci/native_arm_redroid_own_witness.sh
+      - name: Destroy Android CI container, internal APK and binderfs
+        if: always()
+        shell: bash
+        run: |
+          docker stop celikom-native-arm-android13 >/dev/null 2>&1 || true
+          sudo umount /dev/binderfs >/dev/null 2>&1 || true
+          sudo modprobe -r binder_linux >/dev/null 2>&1 || true
+          sudo rm -rf -- "$RUNNER_TEMP/celikom-redroid-data" "$RUNNER_TEMP/celikom-armv7-witness-downloaded"
+          echo '{"vendor_code_downloaded":false,"owner_phone_modified":false,"published_user_apk":false}'
