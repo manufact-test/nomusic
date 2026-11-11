@@ -1,3 +1,5 @@
+> **Доказан следующий блокер:** [A/B на ARMv7-mirror в disposable emulator](ANDROID-A1-ARMV7-MIRROR-NATIVE-CRASH-GATE-20261111.md), CI [42980968489](https://github.com/manufact-test/nomusic/actions/runs/42980968489): прежнего dlopen Java error нет, но теперь Android `REASON_CRASH_NATIVE / status 11`, MAIN/UI NO-GO. Debuggerd cause investigation CI [42981555329](https://github.com/manufact-test/nomusic/actions/runs/42981555329) ещё надо проверить. Никаких изменений на HONOR, отдельная ветка бэкапа @ 89de4fd.
+
 > **Подтверждённая причина (11.11.2026):** [EM_386 → EM_ARM в эмуляторном native bridge, CI 42980016274](ANDROID-A1-LSPATCH-NATIVE-BRIDGE-ELF-ROOT-CAUSE-20261111.md). LSPatch metaloader выбирает x86 .so при PackageManager ARMv7; Android linker ожидает ARM. Root cause экспериментального CRASH установлен, UI всё ещё FAIL. Ранее записанные ниже «причина неизвестна» относятся к более ранним прогонам. Backup: `backup/android-a1-elf-machine-mismatch-proven-20261111` @ `8da1b888308bf7531485cd40e4d98b1907982b72`. No bypass, no HONOR install.
 
 # CELIKOM Android A1 — проверенные результаты LSPatch zero-bypass (11.11.2026)
