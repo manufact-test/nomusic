@@ -1,0 +1,35 @@
+name: Android A1 B42 source contract (isolated)
+on:
+  push:
+    branches:
+      - experiment/android-a1-parallel-audio-contract-20261111
+    paths:
+      - 'android/native-audio-contract/**'
+      - 'docs/android/ANDROID-A1-PARALLEL-AUDIO-CONTRACT-20261111.md'
+      - '.github/workflows/android-a1-b42-source-contract.yml'
+  pull_request:
+    paths:
+      - 'android/native-audio-contract/**'
+      - 'docs/android/ANDROID-A1-PARALLEL-AUDIO-CONTRACT-20261111.md'
+      - '.github/workflows/android-a1-b42-source-contract.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  isolated-source-contract:
+    name: B42 pure source-only contract tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Syntax validation
+        run: |
+          node --check android/native-audio-contract/source-contract.mjs
+          node --check android/native-audio-contract/source-contract.test.mjs
+      - name: Deterministic state and HTTP contract tests
+        run: node --test android/native-audio-contract/source-contract.test.mjs
