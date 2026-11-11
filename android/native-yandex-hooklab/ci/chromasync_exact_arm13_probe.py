@@ -115,6 +115,48 @@ class Guest:
         }
 
 
+
+class DockerGuest(Guest):
+    """Talk only to the pinned disposable Redroid container, NO ADB or device."""
+
+    CONTAINER = "celikom-native-arm-android13"
+
+    def __init__(self):
+        super().__init__(serial="127.0.0.1:5555", adb="docker")
+
+    def command(self, *args: str, timeout: int = 35):
+        if not args or args[0] != "shell":
+            raise RuntimeError("DOCKER_COMMAND_SCOPE_REJECTED")
+        return subprocess.run(
+            ["docker", "exec", self.CONTAINER, *args[1:]],
+            capture_output=True, text=True, errors="replace",
+            timeout=timeout, check=False
+        )
+
+    def install(self, apks: list[Path]) -> str:
+        if not 1 <= len(apks) <= 5:
+            raise RuntimeError("INVALID_INSTALL_APK_COUNT")
+        guest_paths = []
+        try:
+            for i, apk in enumerate(apks):
+                if not apk.is_file():
+                    raise RuntimeError("HOST_APK_NOT_FOUND")
+                destination = f"/data/local/tmp/celikom-probe-{i}.apk"
+                cp = subprocess.run(
+                    ["docker", "cp", str(apk), f"{self.CONTAINER}:{destination}"],
+                    capture_output=True, text=True, errors="replace", timeout=120
+                )
+                if cp.returncode:
+                    raise RuntimeError("DOCKER_APK_COPY_FAILED")
+                guest_paths.append(destination)
+            operation = "install-multiple" if len(apks) > 1 else "install"
+            installed = self.command("shell", "pm", operation, *guest_paths, timeout=150)
+            return classify_install(installed.stdout, installed.stderr, installed.returncode)
+        finally:
+            if guest_paths:
+                self.command("shell", "rm", "-f", *guest_paths)
+
+
 def probe(guest: Guest, apk: Path, mode: str, stock_apks: list[Path]) -> dict:
     if guest.serial != "127.0.0.1:5555":
         raise RuntimeError("NON_LOCAL_GUEST_FORBIDDEN")
@@ -178,9 +220,11 @@ def main() -> int:
     parser.add_argument("--mode", choices=("alone", "stock-first"), default="alone")
     parser.add_argument("--stock-apks", nargs="*", type=Path, default=[])
     parser.add_argument("--serial", default="127.0.0.1:5555")
+    parser.add_argument("--transport", choices=("adb", "docker"), default="adb")
     args = parser.parse_args()
     try:
-        result = probe(Guest(serial=args.serial), args.apk, args.mode, args.stock_apks)
+        guest = DockerGuest() if args.transport == "docker" else Guest(serial=args.serial)
+        result = probe(guest, args.apk, args.mode, args.stock_apks)
         print(json.dumps(result, sort_keys=True))
         return 0 if result["verdict"] == "NATIVE_MAIN_RESUMED_16S" else 1
     except (RuntimeError, OSError, subprocess.TimeoutExpired) as error:
