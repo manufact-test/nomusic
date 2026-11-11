@@ -1,0 +1,69 @@
+name: CELIKOM W73 complete Windows support to admin reply Gmail E2E
+on:
+  push:
+    branches: [experiment/windows-w72-extension-anti-drop-guards-20261111]
+    paths:
+      - .github/workflows/windows-w73-reply-e2e.yml
+      - .github/scripts/windows-w73/disposable-reply-mail-e2e.php
+      - .github/scripts/windows-w73/disposable-reply-mailbox-proof.py
+permissions:
+  contents: read
+concurrency:
+  group: celikom-w73-isolated-gmail-proof
+  cancel-in-progress: false
+jobs:
+  e2e:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 12
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: ci-disposable-mysql
+          MYSQL_DATABASE: celikom_test
+        ports: ['3306:3306']
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -pci-disposable-mysql"
+          --health-interval=10s --health-timeout=5s --health-retries=10
+    env:
+      APP_ENV: test
+      DB_HOST: 127.0.0.1
+      DB_PORT: 3306
+      DB_NAME: celikom_test
+      DB_USER: root
+      DB_PASSWORD: ci-disposable-mysql
+      STORAGE_PATH: /tmp/celikom-w73-disposable
+      CELIKOM_MAIL_TRANSPORT: smtp
+      CELIKOM_SMTP_HOST: ${{ secrets.CELIKOM_SMTP_HOST }}
+      CELIKOM_SMTP_PORT: ${{ secrets.CELIKOM_SMTP_PORT }}
+      CELIKOM_SMTP_USER: ${{ secrets.CELIKOM_SMTP_USER }}
+      CELIKOM_SMTP_PASSWORD: ${{ secrets.CELIKOM_SMTP_PASSWORD }}
+      CELIKOM_MAIL_FROM: ${{ secrets.CELIKOM_MAIL_FROM }}
+      W73_RESULT_FILE: /tmp/w73-mail-receipts.json
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: pdo_mysql, openssl
+          coverage: none
+      - name: Lint isolated W73 scenario
+        run: |
+          php -l .github/scripts/windows-w73/disposable-reply-mail-e2e.php
+          python3 -m py_compile .github/scripts/windows-w73/disposable-reply-mailbox-proof.py
+      - name: Recheck existing support, RBAC and repeat contracts in disposable database with mail sink
+        env:
+          CELIKOM_MAIL_TRANSPORT: disabled
+        run: php server/tests/support.php
+      - name: Full Windows-format general ticket, owner-only JSON, real admin reply, actual Gmail SMTP
+        run: php .github/scripts/windows-w73/disposable-reply-mail-e2e.php
+      - name: Independently verify notification and customer reply reached Gmail INBOX
+        run: python3 .github/scripts/windows-w73/disposable-reply-mailbox-proof.py
+      - name: Assert no production access or unprotected output artifacts
+        run: |
+          test "$DB_NAME" = celikom_test
+          test "$APP_ENV" = test
+          test -f "$W73_RESULT_FILE"
+          echo 'W73_E2E_DISPOSABLE_DB_AND_TEST_MAIL_ONLY'
