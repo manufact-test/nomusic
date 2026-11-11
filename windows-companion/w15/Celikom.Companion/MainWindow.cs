@@ -945,16 +945,19 @@ public sealed partial class MainWindow : Form
             _installedModule.MatchesApplication;
         _start.Enabled = _bridgeStarted && !_integrationBusy && !_updatingApplication &&
             (!switchAvailable || !_bridge.Enabled);
-        _stop.Enabled = switchAvailable && _bridge.Enabled;
+        _stop.Enabled = switchAvailable && (_bridge.Enabled || _resumeAfterNetworkFailure);
         _connectionMark.ForeColor = switchAvailable && _bridge.Enabled
             ? Accent : ColorTranslator.FromHtml("#858B8E");
         _connectionState.Text = !connected ? "Войти в аккаунт" :
             !switchAvailable ? "Нужно подключить" :
-            _bridge.Enabled ? "Подключён" : "Выключен";
+            _bridge.Enabled ? "Подключён" :
+            _resumeAfterNetworkFailure ? "Нет связи" : "Выключен";
         _connectionState.ForeColor = switchAvailable && _bridge.Enabled ? Accent : Secondary;
         _switchHint.Text = !_api.IsLoggedIn ? "Войди в аккаунт, чтобы начать." :
             !switchAvailable ? "Нажми «Старт», чтобы подключить Яндекс.Музыку." :
-            _bridge.Enabled ? "Подмена включена" : "Подмена выключена";
+            _bridge.Enabled ? "Подмена включена" :
+            _resumeAfterNetworkFailure ? "Проверяем связь для возобновления подмены" :
+            "Подмена выключена";
         if (_bridge.PairCode.Length == 6 && _api.IsLoggedIn &&
             _bridge.CodeExpires > DateTimeOffset.UtcNow)
         {
@@ -989,7 +992,9 @@ public sealed partial class MainWindow : Form
         _status.Text = !_bridgeStarted ? "Не удалось запустить CELIKOM"
             : !_api.IsLoggedIn ? "Для начала войди в аккаунт."
             : !switchAvailable ? "Подключение к Яндексу требуется один раз."
-            : !_bridge.Enabled ? "Готов к работе" : "CELIKOM работает";
+            : !_bridge.Enabled ?
+                (_resumeAfterNetworkFailure ? "Нет связи. Ожидаем восстановления." : "Готов к работе")
+                : "CELIKOM работает";
         _hostStatus.Text = _hostReport?.Status switch
         {
             YandexHostStatus.NotInstalled => "Яндекс.Музыка не найдена. Установи её с официального сайта.",
