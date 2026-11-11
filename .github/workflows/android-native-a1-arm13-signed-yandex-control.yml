@@ -37,6 +37,19 @@ jobs:
         shell: bash
         timeout-minutes: 16
         run: bash android/native-yandex-hooklab/ci/native_arm_redroid_boot_only.sh
+      - name: Inspect supported Android PackageInstaller session commands without APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="$(docker exec celikom-native-arm-android13 pm help 2>&1 || true)"
+          cmd_output="$(docker exec celikom-native-arm-android13 cmd package help 2>&1 || true)"
+          for command in install-multiple install-create install-write install-commit install-abandon; do
+            pm=false
+            cmd=false
+            if printf '%s' "$output" | grep -q "$command"; then pm=true; fi
+            if printf '%s' "$cmd_output" | grep -q "$command"; then cmd=true; fi
+            printf '{"pm_command":"%s","in_pm_help":%s,"in_cmd_package_help":%s,"vendor_apk_loaded":false}\n' "$command" "$pm" "$cmd"
+          done
       - name: Check original issuer-signed five split package, install and check MAIN
         shell: bash
         timeout-minutes: 6
