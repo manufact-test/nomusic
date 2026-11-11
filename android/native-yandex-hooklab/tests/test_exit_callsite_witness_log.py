@@ -70,6 +70,30 @@ class WitnessClassifierTests(unittest.TestCase):
         self.assertEqual(x["prefix_match_result_categories"], ["MATCH_FALSE", "MATCH_TRUE"])
         self.assertNotIn("nativeclonelab", str(x))
 
+    def test_last_prefix_before_first_kill_correlates_same_main_pid_only(self):
+        # MIXED PIDs may interleave. Only last MAIN-thread prefix for the
+        # exact kill-owning MAIN PID can be associated with first exit call.
+        raw = (entry(1234, "PREFIX_CHECK", origin="OWN_MAIN", error="MATCH_FALSE")
+               + entry(4321, "PREFIX_CHECK", origin="OWN_AUX", error="MATCH_TRUE")
+               + entry(1234, "PREFIX_CHECK", origin="OWN_AUX", error="MATCH_TRUE")
+               + entry(1234, "PROCESS_KILL", origin="STATIC_RUN_B", error="NONE")
+               + entry(1234, "PREFIX_CHECK", origin="OWN_MAIN", error="MATCH_FALSE")
+               + entry(1234, "SYSTEM_EXIT", origin="STATIC_RUN_B", error="NONE"))
+        x = classify_exit_witness(EXIT, raw)
+        self.assertEqual(x["first_exit_has_preceding_main_prefix_by_pid_bounded"], 1)
+        self.assertEqual(x["first_exit_preceding_main_prefix_groups"], ["OWN_AUX"])
+        self.assertEqual(x["first_exit_preceding_main_prefix_results"], ["MATCH_TRUE"])
+        self.assertNotIn("4321", str(x))
+        self.assertTrue(x["first_exit_preceding_prefix_not_causal_proof"])
+
+    def test_background_prefix_not_claimed_for_main_exit(self):
+        raw = (entry(1234, "PREFIX_CHECK", origin="OWN_AUX",
+                     error="MATCH_TRUE", thread="OTHER")
+               + entry(1234, "PROCESS_KILL", origin="STATIC_RUN_B"))
+        x = classify_exit_witness(EXIT, raw)
+        self.assertEqual(x["first_exit_has_preceding_main_prefix_by_pid_bounded"], 0)
+        self.assertEqual(x["first_exit_preceding_main_prefix_results"], [])
+
     def test_background_event_not_claimed_main(self):
         out = classify_exit_witness(EXIT, entry(1234, "UNCAUGHT", thread="OTHER"))
         self.assertEqual(out["main_thread_event_count_bounded"], 0)

@@ -30,6 +30,11 @@ def classify_exit_witness(exit_dump: str, main_log: str) -> dict:
     main_events = 0
     armed = False
     untrusted = 0
+    # Kept strictly private: these keys are exact exited MAIN PIDs. Never
+    # serialize a PID or raw log text. Correlation is per MAIN thread only.
+    last_main_prefix_by_pid: dict[int, tuple[str, str]] = {}
+    first_exit_prefix_by_pid: dict[int, tuple[str, str]] = {}
+    first_exit_seen: set[int] = set()
     for line in main_log.splitlines()[-18000:]:
         match = LOG.match(line)
         if not match:
@@ -60,6 +65,14 @@ def classify_exit_witness(exit_dump: str, main_log: str) -> dict:
         errors.add(error)
         main_events += thread == "MAIN"
         armed |= event == "ARMED" and origin == "REGISTERED"
+        number = int(pid)
+        if thread == "MAIN":
+            if event == "PREFIX_CHECK" and error in ("MATCH_TRUE", "MATCH_FALSE"):
+                last_main_prefix_by_pid[number] = (origin, error)
+            elif event in ("PROCESS_KILL", "SYSTEM_EXIT") and number not in first_exit_seen:
+                first_exit_seen.add(number)
+                if number in last_main_prefix_by_pid:
+                    first_exit_prefix_by_pid[number] = last_main_prefix_by_pid[number]
     return {
         "scoped_fresh_main_pid_available": bool(pids),
         "module_armed_on_main": armed,
@@ -68,6 +81,13 @@ def classify_exit_witness(exit_dump: str, main_log: str) -> dict:
         "prefix_match_result_categories": sorted(x for x in errors if x.startswith("MATCH_")),
         "prefix_known_target_groups": sorted(x for x in origins if x in {
             "OWN_MAIN", "OWN_AUX", "ORIGINAL_MAIN", "ORIGINAL_AUX"}),
+        "first_exit_has_preceding_main_prefix_by_pid_bounded": min(
+            len(first_exit_prefix_by_pid), 10),
+        "first_exit_preceding_main_prefix_results": sorted(set(
+            err for _, err in first_exit_prefix_by_pid.values())),
+        "first_exit_preceding_main_prefix_groups": sorted(set(
+            origin for origin, _ in first_exit_prefix_by_pid.values())),
+        "first_exit_preceding_prefix_not_causal_proof": True,
         "observed_events": sorted(kinds),
         "caller_groups": sorted(origins),
         "exception_categories": sorted(errors),
