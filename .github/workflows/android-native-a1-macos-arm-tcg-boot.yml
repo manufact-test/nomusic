@@ -1,0 +1,48 @@
+name: Android A1 native ARM64 macOS software-emulator boot capability (NO APK)
+on:
+  push:
+    branches:
+      - experiment/android-native-a1-lspatch-clone-loader0-20261111
+    paths:
+      - '.github/workflows/android-native-a1-macos-arm-tcg-boot.yml'
+      - 'android/native-yandex-hooklab/arm_android_tcg_boot_gate.py'
+      - 'android/native-yandex-hooklab/tests/test_arm_android_tcg_boot_gate.py'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  native-arm-android-boot-only:
+    runs-on: macos-15
+    timeout-minutes: 17
+    env:
+      # Android SDK docs require this explicit opt-in to unsupported, slow
+      # software emulation (-accel off). Earlier attempts lacked the opt-in.
+      ANDROID_I_WANT_MY_TCG: 'yes'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Static source assertions only (no vendor APK)
+        run: |
+          python3 -m py_compile android/native-yandex-hooklab/arm_android_tcg_boot_gate.py
+          python3 -m unittest discover -s android/native-yandex-hooklab/tests -p test_arm_android_tcg_boot_gate.py -v
+      - name: Confirm Apple Silicon runner; no proprietary APK or device
+        shell: bash
+        run: |
+          test "$(uname -m)" = arm64
+          test "$ANDROID_I_WANT_MY_TCG" = yes
+          echo '{"host_arm64":true,"software_emulation_opted_in":true,"apk_installed":false}'
+      - name: Boot clean ARM64 Android API30 in explicit TCG (NO APK)
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 30
+          target: google_apis
+          arch: arm64-v8a
+          profile: pixel_5
+          emulator-boot-timeout: 500
+          emulator-options: -no-snapshot-load -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -accel off
+          script: python3 android/native-yandex-hooklab/arm_android_tcg_boot_gate.py
+      - name: Confirm no project/vendor APK artifacts
+        if: always()
+        run: |
+          test ! -d android/native-yandex-hooklab/release
+          test ! -d android/native-yandex-hooklab/patched
+          echo '{"vendor_apk_downloaded":false,"owner_phone_touched":false,"source_artifacts_uploaded":false}'
