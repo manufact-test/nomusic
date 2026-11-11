@@ -95,8 +95,11 @@ def verify_lab_clone(apk: Path, signer: str, loader_zero: bool) -> None:
             if type(config.get("sigBypassLevel")) is not int or \
                     config["sigBypassLevel"] != 0:
                 fail("NATIVE_ARM13_CLONE_SIGBYPASS_PROHIBITED")
-            if any(x.startswith("assets/lspatch/modules/") for x in names):
-                fail("NATIVE_ARM13_CLONE_MODULES_MUST_BE_ZERO")
+            modules = [x for x in names
+                       if x.startswith("assets/lspatch/modules/") and x.endswith(".apk")]
+            expected_count = int(os.getenv("CELIKOM_A1_EXIT_WITNESS") == "1")
+            if len(modules) != expected_count:
+                fail("NATIVE_ARM13_CLONE_WITNESS_MODULE_COUNT_INVALID")
         elif lspatch_config in names:
             fail("NATIVE_ARM13_CLONE_UNEXPECTED_LOADER")
     # The clone is already signed and structurally validated by existing
@@ -240,6 +243,10 @@ def start(package: str) -> tuple[dict, dict]:
     safe_exit["fresh_launch_record_filter"] = fresh_exit
     safe_exit["new_main_pid_log_witness"] = classify_new_main_log_signals(
         filtered_exit, main_log)
+    if package == CLONE and os.getenv("CELIKOM_A1_EXIT_WITNESS") == "1":
+        from exit_callsite_witness_log import classify_exit_witness
+        safe_exit["exact_main_exit_callsite_witness"] = classify_exit_witness(
+            filtered_exit, main_log)
     if package == CLONE:
         safe_exit["per_main_pid_cycle_correlation"] = (
             classify_main_cycle_correlation(filtered_exit, events, main_log))
@@ -369,7 +376,8 @@ def test_independent_clone_and_original(clone: Path, original_splits: list[Path]
                           original_permission_dump),
               },
               "one_independent_lab_clone_apk": True,
-              "sigBypassLevel": 0, "lspatch_modules_embedded": 0,
+              "sigBypassLevel": 0,
+              "lspatch_modules_embedded": int(os.getenv("CELIKOM_A1_EXIT_WITNESS") == "1"),
               "vendor_original_bytes_modified": False,
               "login_or_passport_tested": False,
               "audio_or_decoder_tested": False,

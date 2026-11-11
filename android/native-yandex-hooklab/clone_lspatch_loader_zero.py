@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import hashlib
 import os
+import shutil
 import copy
 import zipfile
 import json
@@ -42,7 +43,8 @@ def download_pinned_patcher(path: Path) -> None:
         raise ValueError("UPSTREAM_PATCHER_DIGEST_DRIFT")
 
 
-def check_zero_loader(apk: Path, prior: Path, expected_signer: str, arsc) -> dict:
+def check_zero_loader(apk: Path, prior: Path, expected_signer: str, arsc,
+                      witness_module_sha256: str | None = None) -> dict:
     """Fail closed on signature bypass, package/version drift, lost code or modules."""
     p = source.apkmeta(apk)
     original_id = source.apkmeta(prior)
@@ -62,8 +64,13 @@ def check_zero_loader(apk: Path, prior: Path, expected_signer: str, arsc) -> dic
             raise arsc.TrialError("METALOADER_MISSING_BOOTSTRAP_PART")
         module_names = [name for name in z.namelist()
                         if name.startswith("assets/lspatch/modules/") and name.endswith(".apk")]
-        if module_names:
-            raise arsc.TrialError("METALOADER_CONTROL_HAS_EMBEDDED_MODULE")
+        if witness_module_sha256 is None:
+            if module_names:
+                raise arsc.TrialError("METALOADER_CONTROL_HAS_EMBEDDED_MODULE")
+        elif (len(module_names) != 1 or
+              not re.fullmatch(r"[0-9a-f]{64}", witness_module_sha256) or
+              hashlib.sha256(z.read(module_names[0])).hexdigest() != witness_module_sha256):
+            raise arsc.TrialError("METALOADER_WITNESS_MODULE_DRIFT")
         try:
             cfg = json.loads(z.read("assets/lspatch/config.json").decode("utf-8"))
         except zipfile.BadZipFile:
@@ -108,7 +115,7 @@ def check_zero_loader(apk: Path, prior: Path, expected_signer: str, arsc) -> dic
         "clone_package": source.DEST,
         "issuer_signed_original_touched": False,
         "signature_bypass_level": 0,
-        "separate_module_embedded": False,
+        "separate_module_embedded": witness_module_sha256 is not None,
         "embedded_origin_dex_count": sum(x.startswith("classes") and x.endswith(".dex") for x in actual),
         "embedded_origin_native_lib_count": sum(x.startswith("lib/") for x in actual),
         "embedded_origin_sha256_payload_parity": True,
@@ -231,14 +238,51 @@ def wrap_clone_with_lspatch_zero(clone: Path, work: Path, key: Path,
         download_pinned_patcher(patcher)
     except (ValueError, OSError):
         raise arsc.TrialError("PINNED_PATCHER_DOWNLOAD_OR_HASH_FAILED") from None
+    witness_digest = None
+    signed_witness = None
+    if os.getenv("CELIKOM_A1_EXIT_WITNESS") == "1":
+        if (os.getenv("GITHUB_ACTIONS") != "true" or
+                os.getenv("CELIKOM_NATIVE_ARM13_REDDROID_CLONE") != "1"):
+            raise arsc.TrialError("EXIT_WITNESS_DISPOSABLE_NATIVE_ARM_ONLY")
+        path = os.getenv("CELIKOM_A1_EXIT_WITNESS_APK", "")
+        runner = Path(os.getenv("RUNNER_TEMP", "/nonexistent")).resolve()
+        candidate = Path(path).resolve() if path else Path("/nonexistent")
+        if not candidate.is_file() or runner not in candidate.parents:
+            raise arsc.TrialError("EXIT_WITNESS_EPHEMERAL_MODULE_MISSING")
+        if candidate.stat().st_size > 4 * 1024 * 1024:
+            raise arsc.TrialError("EXIT_WITNESS_MODULE_TOO_LARGE")
+        with zipfile.ZipFile(candidate) as mz:
+            if (mz.read("META-INF/xposed/scope.list").decode("utf-8").split()
+                    != [source.DEST] or
+                    mz.read("META-INF/xposed/java_init.list").decode("utf-8").strip()
+                    != "pro.celikom.a1exitwitness.ExitCallsiteWitness" or
+                    "minApiVersion=102" not in
+                    mz.read("META-INF/xposed/module.prop").decode("utf-8")):
+                raise arsc.TrialError("EXIT_WITNESS_MODULE_SCOPE_INVALID")
+        manifest = arsc.run(
+            [source.sdk_tool("aapt"), "dump", "xmltree", str(candidate), "AndroidManifest.xml"],
+            "EXIT_WITNESS_MANIFEST_AUDIT", 45)
+        if "E: uses-permission" in manifest:
+            raise arsc.TrialError("EXIT_WITNESS_PERMISSIONS_FORBIDDEN")
+        signed_witness = work / "lab-exit-observer-only.apk"
+        shutil.copyfile(candidate, signed_witness)
+        arsc.run([source.sdk_tool("apksigner"), "sign", "--ks", str(key),
+                  "--ks-pass", "pass:ephemeral-lab-only",
+                  "--ks-key-alias", "research", "--key-pass", "pass:ephemeral-lab-only",
+                  "--min-sdk-version", "28", "--v4-signing-enabled", "false",
+                  str(signed_witness)], "EXIT_WITNESS_SIGN_WITH_OWN_LAB_KEY", 90)
+        if fingerprint(signed_witness, arsc) != expected_signer:
+            raise arsc.TrialError("EXIT_WITNESS_SAME_LAB_SIGNER_REQUIRED")
+        witness_digest = hashlib.sha256(signed_witness.read_bytes()).hexdigest()
     stage = work / "private-lab-metadata-loader-zero"
     stage.mkdir()
     print(json.dumps({"lspatch_zero_phase": "PINNED_PATCHER_VERIFIED"}))
-    arsc.run(
-        ["java", "-jar", str(patcher), "-k", str(key),
-         "ephemeral-lab-only", "research", "ephemeral-lab-only",
-         "-o", str(stage), "-l", "0", str(clone)],
-        "LSPATCH_CLONE_BOOTSTRAP_ZERO_BYPASS", 500)
+    patch_command = ["java", "-jar", str(patcher), "-k", str(key),
+                     "ephemeral-lab-only", "research", "ephemeral-lab-only"]
+    if signed_witness is not None:
+        patch_command.extend(["-m", str(signed_witness)])
+    patch_command.extend(["-o", str(stage), "-l", "0", str(clone)])
+    arsc.run(patch_command, "LSPATCH_CLONE_BOOTSTRAP_ZERO_BYPASS", 500)
     print(json.dumps({"lspatch_zero_phase": "PATCH_COMMAND_COMPLETED"}))
     results = list(stage.glob("*.apk"))
     if len(results) != 1:
@@ -264,7 +308,8 @@ def wrap_clone_with_lspatch_zero(clone: Path, work: Path, key: Path,
             raise arsc.TrialError("LSPATCH_REBUILT_OWN_SIGNER_MISMATCH")
         final_apk = aligned
         print(json.dumps({"lspatch_zero_phase": "EMBEDDED_ORIGIN_ZIP_LAYOUT_REBUILT_OWN_SIGNER"}))
-    report = check_zero_loader(final_apk, clone, expected_signer, arsc)
+    report = check_zero_loader(final_apk, clone, expected_signer, arsc,
+                               witness_module_sha256=witness_digest)
     try:
         report["signed_lspatch_native_elf_layout"] = verify_native_loader_elf_offsets(final_apk)
     except (ValueError, zipfile.BadZipFile):
@@ -293,7 +338,8 @@ def wrap_clone_with_lspatch_zero(clone: Path, work: Path, key: Path,
                   str(aligned)], "BRIDGE_MIRROR_LAB_SIGN_ONLY", 90)
         if fingerprint(aligned, arsc) != expected_signer:
             raise arsc.TrialError("BRIDGE_MIRROR_SIGNER_MISMATCH")
-        check_zero_loader(aligned, clone, expected_signer, arsc)
+        check_zero_loader(aligned, clone, expected_signer, arsc,
+                          witness_module_sha256=witness_digest)
         try:
             bridge_report["signed_mirrored_elf_layout"] = (
                 verify_native_loader_elf_offsets(aligned, expected_x86_machine=40))
