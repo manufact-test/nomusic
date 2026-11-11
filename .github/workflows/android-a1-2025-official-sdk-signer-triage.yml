@@ -60,6 +60,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          # Origin provenance gate invokes aapt/apksigner by name: use the very same official SDK 35.
+          export PATH="$ANDROID_HOME/build-tools/35.0.0:$PATH"
           python3 - <<'PY'
           import json, os, sys, tempfile
           from pathlib import Path
