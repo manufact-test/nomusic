@@ -81,3 +81,11 @@ Separate own-only scoped LibXposed mode observer and exact MAIN PID parser sourc
 Main source stays frozen at cc4cb0f93489168db21502f3ef195855ae9fb743. Stage A NO-GO, Stage B locked. Do not bypass signature, Passport, DRM or Play Protect. No owner HONOR, accepted Test.50, Windows, production or backend changes. Next actual differentiating evidence is same fresh MAIN PID RUN_ENTER CASE_N before OWN_AUX MATCH_TRUE then Process.killProcess(other PID) then EXIT_SELF. If CASE_2 is confirmed, verify lawful issuer-grant constraints; if the required publisher trust cannot be satisfied, report native A1 feasibility as blocked, not fixed.
 
 Backup before this doc: backup/android-a1-xx0-mode2-passport-static-signed-evidence-20261111 @ db144351631ecee03073e1375da6b34706a32be4.
+
+## Final repeatable same-PID signature-mode2 evidence (11 Nov)
+
+See `ANDROID-A1-20261111-SIGNATURE-TRUST-LIVE-NO-GO.md` for complete, source-linked verdict. The prior paragraph here described runtime `CASE_2` as pending at its earlier checkpoint; that is superseded by [CI 43040652116](https://github.com/manufact-test/nomusic/actions/runs/43040652116): **both** independently fresh MAIN processes entered CASE_2, followed by OWN_AUX prefix match, kill-other and EXIT_SELF(0), while the signed original survived.
+
+[CI 43042561533](https://github.com/manufact-test/nomusic/actions/runs/43042561533) directly observed a **signature-related** IllegalStateException constructed by `Lhi2.j` within dying clone MAIN (no raw error string exposed). [CI 43043472606](https://github.com/manufact-test/nomusic/actions/runs/43043472606) confirmed **both** same MAIN PIDs have ordered `EXC_SIGNATURE → CASE_2 → OWN_AUX MATCH_TRUE → KILL_TARGET_OTHER → EXIT_SELF(0)`. Not proof of specific publisher policy or exactly which signer is rejected, but strong evidence against blindly repackaging. Security/Passport/signature bypass remains prohibited. **Stage A NO-GO. No user APK.**
+
+Official ARM runner `ports.ubuntu.com` DNS failure was recovered with per-job TLS-validated Canonical IP mapping and unchanged official Ubuntu archive signature verification. Main product source remains frozen, Test.50 and Windows unchanged.
