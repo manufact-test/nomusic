@@ -67,7 +67,7 @@ class SafeMainCrashBufferTest(unittest.TestCase):
 
     def test_java_main_top_and_caused_by_stack_origin_families_are_privacy_safe(self):
         original="ru.yandex.music"
-        exit_info=f"ApplicationExitInfo #0: pid=712 process={original} reason=4 status=0\\n"
+        exit_info=f"ApplicationExitInfo #0: pid=712 process={original} reason=4 status=0\n"
         crash=(
             row(712,"E","AndroidRuntime","FATAL EXCEPTION: main")
             +row(712,"E","AndroidRuntime","Process: ru.yandex.music, PID: 712")
