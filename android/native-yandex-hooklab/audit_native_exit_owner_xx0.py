@@ -178,6 +178,43 @@ def guard_path_evidence(dex, code_off: int) -> dict:
         any(p < branch < kill_pc and branch - p <= 18
             for p in kotlin_prefix for branch in gated)
     )
+    # The obfuscator merges multiple Runnable operations behind an integer
+    # switch. Enumerate exact case keys and graph reachability, not literals,
+    # runtime operands, package values, signature checks or vendor code.
+    switch_routes = []
+    for branch, kind in ops.items():
+        if kind not in (0x2B, 0x2C) or len(switch_routes) >= 4:
+            continue
+        offset = dex.u32(start + (branch + 1) * 2)
+        if offset >= 0x80000000:
+            offset -= 0x100000000
+        payload = branch + offset
+        size = dex.u16(start + (payload + 1) * 2)
+        if size > 128 or size + 1 != len(succ[branch]):
+            raise DexError("Unexpected switch graph case count")
+        if kind == 0x2B:
+            first_key = dex.u32(start + (payload + 2) * 2)
+            if first_key >= 0x80000000:
+                first_key -= 0x100000000
+            keys = [first_key + n for n in range(size)]
+        else:
+            keys = [dex.u32(start + (payload + 2 + n * 2) * 2)
+                    for n in range(size)]
+            keys = [x if x < 0x80000000 else x - 0x100000000
+                    for x in keys]
+        switch_routes.append({
+            "switch_code_unit_bounded": min(branch, MAX_CODE_UNITS),
+            "default_can_reach_kill": bool(
+                kill_pc is not None and reaches(succ[branch][0], kill_pc)),
+            "case_routes": [
+                {"case": key if -16 <= key <= 16 else "OTHER",
+                 "can_reach_kill": bool(
+                     kill_pc is not None and reaches(succ[branch][n + 1], kill_pc))}
+                for n, key in enumerate(keys)
+            ],
+            "cases_bounded": size,
+            "static_graph_only": True,
+        })
     return {
         "kill_process_invocations": min(len(kills), 4),
         "system_exit_invocations": min(len(exits), 4),
@@ -188,6 +225,7 @@ def guard_path_evidence(dex, code_off: int) -> dict:
         "package_name_lookup_precedes_kill": bool(
             kill_pc is not None and any(pc < kill_pc for pc in package_api)),
         "all_cfg_edges_well_formed": True,
+        "switch_case_kill_reachability": switch_routes,
         "no_string_operands_or_process_names_exposed": True,
         "branch_feasibility_not_runtime_causality": True,
     }
