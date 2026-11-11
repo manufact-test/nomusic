@@ -24,6 +24,11 @@ jobs:
       - run: npm --prefix extension run validate
       - run: npm run security
       - run: npm run build:extension
+      - name: Verify final package
+        run: |
+          cd extension/dist
+          sha256sum --check celikom-extension-0.4.76.zip.sha256
+          cat celikom-extension-0.4.76.zip.sha256
       - uses: actions/upload-artifact@v4
         with:
           name: celikom-extension-0.4.76
@@ -54,7 +59,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: 7fcc3c32d217a901e819a40856295051decda585
+          ref: 6d4006e874aef08c1430759b4c5d303e2f0a06a0
       - uses: shivammathur/setup-php@v2
         with:
           php-version: '8.3'
