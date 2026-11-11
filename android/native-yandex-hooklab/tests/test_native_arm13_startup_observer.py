@@ -117,11 +117,44 @@ class ArmStartupObserverTests(unittest.TestCase):
         self.assertTrue(out["main_scoped_error_severity_seen"])
         self.assertTrue(out["uncaught_handler_marker_seen"])
         self.assertFalse(out["android_runtime_fatal_seen"])
-        self.assertEqual(out["throwable_groups"], ["APP_STATE", "NATIVE_LINK"])
+        self.assertEqual(out["throwable_groups"], ["ILLEGAL_STATE", "NATIVE_LINK"])
         self.assertFalse(out["raw_main_log_exposed"])
         self.assertNotIn(SECRET, str(out))
         self.assertNotIn("java.", str(out))
         self.assertNotIn("102", str(out))
+
+    def test_only_bounded_subsystem_groups_from_current_error_stack(self):
+        filtered, _ = only_new_main_exit_info(BEFORE, AFTER)
+        private = "/data/user/0/private/account/DO_NOT_LEAK"
+        raw = (
+            log(101, "E", "System.err", "java.lang.SecurityException " + SECRET)
+            + log(101, "E", "System.err", "    at com.yandex.passport.Private.read(" + private + ")")
+            + log(102, "E", "System.err", "java.lang.IllegalArgumentException " + SECRET)
+            + log(102, "E", "System.err", "    at ru.yandex.music.Private.run(" + private + ")")
+            + log(102, "E", "System.err", "    at com.yandex.passport.Private.lookup(" + private + ")")
+            + log(102, "W", "System.err", "    at java.lang.Thread.run(Thread.java:10)")
+            + log(102, "E", "System.err", "    at com.vendor.unknown.Helper.go(" + private + ")")
+        )
+        out = classify_new_main_log_signals(filtered, raw)
+        self.assertIn("ILLEGAL_ARGUMENT", out["throwable_groups"])
+        self.assertNotIn("SECURITY", out["throwable_groups"])
+        self.assertEqual(out["exception_stack_subsystems"], [
+            "YANDEX_MUSIC", "YANDEX_PASSPORT",
+            "ANDROID_RUNTIME", "OTHER_OR_UNKNOWN",
+        ])
+        self.assertEqual(out["exception_stack_frames_seen_bounded"], 4)
+        self.assertTrue(out["system_err_tag_seen"])
+        self.assertFalse(out["android_runtime_tag_seen"])
+        for secret in ("PRIVATE", "DO_NOT_LEAK", "token", "/data/user", "102"):
+            self.assertNotIn(secret, str(out))
+
+    def test_differential_event_buffer_coverage_is_not_lifecycle_proof(self):
+        out = classify_startup_events(
+            event("am_proc_start", "unrelated.example.package"), CLONE)
+        self.assertTrue(out["known_event_tag_seen_any_package"])
+        self.assertFalse(out["exact_main_package_token_seen"])
+        self.assertGreater(out["buffer_entry_count_bounded"], 0)
+        self.assertFalse(out["process_start_seen"])
 
     def test_unattributed_or_stale_pid_never_leaks(self):
         out = classify_new_main_log_signals(
