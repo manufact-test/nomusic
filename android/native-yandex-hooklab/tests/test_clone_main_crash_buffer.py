@@ -149,5 +149,56 @@ class SafeMainCrashBufferTest(unittest.TestCase):
         self.assertFalse(result["native_link_machine_mismatch"]["seen"])
         self.assertNotIn("EM_PRIVATE", str(result))
 
+    def test_native_tombstone_debuggerd_reporter_is_scoped_to_main(self):
+        raw = (row(431, "F", "libc", "Fatal signal 11 (SIGSEGV), private=HIDE_THIS")
+               + row(930, "F", "DEBUG",
+                     f"pid: 431, tid: 431, name: PRIVATE >>> {CLONE} <<<")
+               + row(930, "F", "DEBUG",
+                     "#00 pc 0000001c /data/app/SECRET/liblspatch.so (token=SECRET)")
+               + row(930, "F", "DEBUG",
+                     "#01 pc 00000050 /system/lib/libndk_translation.so")
+               + row(931, "F", "DEBUG",
+                     "pid: 432, tid: 432, name: helper >>> " + CLONE + ":AppMetrica <<<")
+               + row(931, "F", "DEBUG",
+                     "#00 pc 00000099 /secret/libart.so token=PRIVATE")
+               + row(934, "F", "DEBUG",
+                     "pid: 543, tid: 543, name: other >>> ru.yandex.music <<<")
+               + row(934, "F", "DEBUG",
+                     "#00 pc 00000097 /secret/libc.so token=PRIVATE"))
+        out = classify_main_crash_buffer(EXIT, raw)
+        self.assertEqual(out["fatal_category"], "NATIVE_SIGNAL")
+        self.assertEqual(out["native_main_signal"], "SIGSEGV")
+        self.assertTrue(out["main_tombstone_header_matched"])
+        self.assertEqual(out["native_backtrace_first_frame_group"], "LSPATCH")
+        self.assertEqual(out["native_backtrace_frame_groups"],
+                         ["LSPATCH", "NATIVE_BRIDGE"])
+        self.assertEqual(out["native_backtrace_frame_count_bounded"], 2)
+        for secret in ("HIDE_THIS", "SECRET", "PRIVATE", "liblspatch.so", "930", "431"):
+            self.assertNotIn(secret, str(out))
+        self.assertFalse(out["raw_native_crash_exposed"])
+
+    def test_helper_tombstone_cannot_count_as_main_native_crash(self):
+        raw = (row(432, "F", "libc", "Fatal signal 11 (SIGSEGV)")
+               + row(930, "F", "DEBUG",
+                     f"pid: 432, tid: 432, name: helper >>> {CLONE}:AppMetrica <<<")
+               + row(930, "F", "DEBUG",
+                     "#00 pc deadbeef /data/app/liblspatch.so"))
+        out=classify_main_crash_buffer(EXIT,raw)
+        self.assertEqual(out["fatal_category"],"NOT_OBSERVED")
+        self.assertFalse(out["main_tombstone_header_matched"])
+        self.assertEqual(out["native_main_signal"],"NOT_OBSERVED")
+        self.assertEqual(out["native_backtrace_frame_groups"], [])
+
+    def test_unknown_pid_crash_does_not_publish_details(self):
+        raw = (row(431,"F","libc","Fatal signal 11 (SIGSEGV)")
+               +row(930,"F","DEBUG",f"pid: 431, tid: 431, name: MAIN >>> {CLONE} <<<")
+               +row(930,"F","DEBUG","#00 pc PRIVATE /data/app/liblspatch.so"))
+        out=classify_main_crash_buffer(
+            f"ApplicationExitInfo #0: process={CLONE} reason=5",
+            raw)
+        self.assertEqual(out["native_main_signal"],"NOT_OBSERVED")
+        self.assertFalse(out["main_tombstone_header_matched"])
+        self.assertNotIn("PRIVATE",str(out))
+
 if __name__=="__main__":
     unittest.main()

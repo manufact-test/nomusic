@@ -17,7 +17,7 @@ LOG = re.compile(
 EXIT_BLOCK = re.compile(
     r"(?im)(?=^\s*(?:ApplicationExitInfo\s*#?\d+|#\d+:\s*ApplicationExitInfo))")
 ALLOWED_CATEGORIES = (
-    "NATIVE_LINK", "CLASS_RESOLUTION", "DEX_VERIFICATION", "PERMISSION",
+    "NATIVE_LINK", "NATIVE_SIGNAL", "CLASS_RESOLUTION", "DEX_VERIFICATION", "PERMISSION",
     "RESOURCE", "APPLICATION_STATE", "OTHER_JAVA", "NOT_OBSERVED")
 
 
@@ -127,6 +127,70 @@ def _elf_machine_mismatch(log_text: str) -> dict:
     return {"seen": True, "actual": actual, "expected": expected}
 
 
+
+def _native_backtrace_group(message: str) -> str:
+    """Never expose raw PCs, paths, symbols or process data."""
+    if re.search(r"(?:^|[/\s])liblspatch[.]so\b", message, re.I):
+        return "LSPATCH"
+    if re.search(r"lib(?:houdini|ndk_translation|nativebridge)[\w.]*[.]so", message, re.I):
+        return "NATIVE_BRIDGE"
+    if re.search(r"(?:^|[/\s])libart[.]so\b", message, re.I):
+        return "LIBART"
+    if re.search(r"(?:^|[/\s])libc[.]so\b", message, re.I):
+        return "LIBC"
+    if re.search(r"(?:^|[/\s])(?:linker|linker64)(?:\s|$)", message, re.I):
+        return "LINKER"
+    return "OTHER"
+
+
+def classify_main_native_crash(exit_dump: str, crash_buffer: str) -> dict:
+    """Only owner MAIN PID and debuggerd header explicitly naming that PID.
+
+    Tombstone backtraces are usually emitted by debuggerd, NOT by the
+    crashing app PID. Scope DEBUG frames using its public victim header,
+    and never return raw paths, stack traces, addresses, or arbitrary names.
+    """
+    victims = main_exit_pids(exit_dump)
+    signal = "NOT_OBSERVED"
+    reporters: set[int] = set()
+    frames: list[str] = []
+    header_seen = False
+    for line in crash_buffer.splitlines()[-10000:]:
+        parsed = LOG.match(line)
+        if parsed is None:
+            continue
+        reporter_pid, severity, tag, message = parsed.groups()
+        reporter_pid = int(reporter_pid)
+        tag = tag.strip()
+        if reporter_pid in victims and tag == "libc":
+            hit = re.search(r"\bFatal signal\s+\d+\s+\((SIG[A-Z]+)\)", message)
+            if hit and hit.group(1) in (
+                    "SIGSEGV", "SIGABRT", "SIGBUS", "SIGILL", "SIGTRAP"):
+                signal = hit.group(1)
+        if tag != "DEBUG" or severity not in ("E", "F", "W"):
+            continue
+        if re.search(r"\bpid:\s*\d+\s*,\s*tid:", message):
+            reporters.discard(reporter_pid)
+            hit = re.search(r"\bpid:\s*(\d{1,8})\s*,\s*tid:", message)
+            if hit and int(hit.group(1)) in victims and (
+                    ">>> " + CLONE + " <<<") in message:
+                reporters.add(reporter_pid)
+                header_seen = True
+            continue
+        if reporter_pid not in reporters:
+            continue
+        if len(frames) < 32 and re.match(r"\s*#\d{2}\s+pc\s+", message):
+            frames.append(_native_backtrace_group(message))
+    return {
+        "native_main_signal": signal,
+        "main_tombstone_header_matched": header_seen,
+        "native_backtrace_frame_groups": frames[:12],
+        "native_backtrace_first_frame_group": frames[0] if frames else "NOT_OBSERVED",
+        "native_backtrace_frame_count_bounded": min(len(frames), 32),
+        "raw_native_crash_exposed": False,
+    }
+
+
 def classify_main_crash_buffer(exit_dump: str, crash_buffer: str) -> dict:
     """Fixed category labels only, no raw process/exception data returned."""
     pids = main_exit_pids(exit_dump)
@@ -144,6 +208,7 @@ def classify_main_crash_buffer(exit_dump: str, crash_buffer: str) -> dict:
     text = "\n".join(parts)
     has = lambda pattern: re.search(pattern, text, re.I) is not None
     native_link = has(r"\b(?:UnsatisfiedLinkError|dlopen failed)\b")
+    native_crash = classify_main_native_crash(exit_dump, crash_buffer)
     class_resolution = has(
         r"\b(?:ClassNotFoundException|NoClassDefFoundError|NoSuchMethodError)\b")
     dex_verification = has(r"\b(?:VerifyError|IncompatibleClassChangeError)\b")
@@ -154,6 +219,7 @@ def classify_main_crash_buffer(exit_dump: str, crash_buffer: str) -> dict:
     java_error = has(r"\b(?:Exception|Error)\b")
     category = (
         "NATIVE_LINK" if native_link else
+        "NATIVE_SIGNAL" if native_crash["native_main_signal"] != "NOT_OBSERVED" else
         "CLASS_RESOLUTION" if class_resolution else
         "DEX_VERIFICATION" if dex_verification else
         "PERMISSION" if permissions else
@@ -162,6 +228,7 @@ def classify_main_crash_buffer(exit_dump: str, crash_buffer: str) -> dict:
         "OTHER_JAVA" if java_error else "NOT_OBSERVED")
     assert category in ALLOWED_CATEGORIES
     return {
+        **native_crash,
         "crash_main_pid_evidence_available": bool(pids),
         "crash_buffer_main_pid_lines_seen": bool(parts),
         "android_runtime_fatal_main_seen": has(r"FATAL EXCEPTION:"),
