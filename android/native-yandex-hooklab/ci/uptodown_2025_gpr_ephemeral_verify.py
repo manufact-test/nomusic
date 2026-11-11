@@ -163,7 +163,7 @@ def browser_download(directory: Path) -> tuple[Path | None, dict]:
             if not safe_download_filename(dl.suggested_filename):
                 raise GateError("PUBLIC_BINARY_FILENAME_NOT_APK")
             out=directory/"candidate-public-2025"
-            dl.save_as(out, timeout=95000)
+            dl.save_as(out)
             if dl.failure():
                 raise GateError("PUBLIC_DOWNLOAD_FAILED")
             if out.stat().st_size > MAX_ARCHIVE_BYTES or out.stat().st_size < 4096:
