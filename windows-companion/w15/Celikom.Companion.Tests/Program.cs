@@ -277,6 +277,9 @@ try
          EntitlementCheckRecovery.FailureCode(new TaskCanceledException()) ==
              "ACTIVE_ENTITLEMENT_TIMEOUT",
          "W72 captive-portal HTML, VPN redirect and timeout are classified safely");
+    Test(EntitlementCheckRecovery.PollIntervalMs(false) == 15_000 &&
+         EntitlementCheckRecovery.PollIntervalMs(true) == 5_000,
+         "W72 extension-style recovery polling never increases normal live API traffic");
     Test(!EntitlementCheckRecovery.IsTransient(new ApiFailure(401, "INVALID_SESSION")) &&
          !EntitlementCheckRecovery.IsTransient(new ApiFailure(403, "ACCESS_DENIED")) &&
          !EntitlementCheckRecovery.IsTransient(new InvalidOperationException()),
