@@ -20,6 +20,7 @@ import clone_main_crash_buffer as diagnostics
 from uptodown_2025_gpr_ephemeral_verify import unbundle_candidate,verify_split_set
 from publisher_2025_provenance_gate import GateError,private_command
 from lab_signer_signal_gate import probe_apk_zip, safe_report
+from lab_unsigned_archive_cleanroom import remove_stale_v1_from_disposable_unsigned
 
 PKG="pro.celikom.yandex.nativeclonelab"
 ORIGINAL="ru.yandex.music"
@@ -78,6 +79,7 @@ def ephemeral_clone(originals: list[Path], work: Path) -> tuple[list[tuple[str,P
     originals_seen=set()
     clone_seen=set()
     provider_rewrites=0
+    obsolete_v1_entries_removed=0
     for i,original in enumerate(originals):
         old=apk_name(original)
         name=old.get("split","")
@@ -112,9 +114,12 @@ def ephemeral_clone(originals: list[Path], work: Path) -> tuple[list[tuple[str,P
                               "lab_split_index":i,
                               "zip_probe":unsigned_probe},sort_keys=True))
             stop("OWN_CLONE_UNSIGNED_ZIP_INVALID")
+        cleaned=work/f"own-lab-clean-unsigned-{i}.apk"
+        cleaned_meta=remove_stale_v1_from_disposable_unsigned(raw_clone,cleaned)
+        obsolete_v1_entries_removed+=cleaned_meta["discarded_obsolete_v1_entries"]
         aligned=work/f"lab-clone-{i}.apk"
         source.action([source.sdk_tool("zipalign"),"-f","-p","4",
-                       str(raw_clone),str(aligned)],"CLONE_ZIPALIGN_FAILED",100)
+                       str(cleaned),str(aligned)],"CLONE_ZIPALIGN_FAILED",100)
         source.action([source.sdk_tool("apksigner"),"sign",
                       "--ks",str(lab_key),"--ks-pass","pass:ephemeral-lab-only",
                       "--ks-key-alias","celikom-lab",
@@ -186,6 +191,7 @@ def ephemeral_clone(originals: list[Path], work: Path) -> tuple[list[tuple[str,P
       "all_original_dex_and_native_payloads_byte_preserved":True,
       "clone_cert_distinct_from_verified_publisher":True,
       "provider_authorities_from_original_package_rewritten":provider_rewrites,
+      "obsolete_v1_jarsign_entries_removed_from_disposable_clone":obsolete_v1_entries_removed,
       "original_signer_spoofed":False,"signature_bypass_used":False}
 
 def install_clones(clones: list[tuple[str,Path]]) -> str:
@@ -228,7 +234,7 @@ def install_clones(clones: list[tuple[str,Path]]) -> str:
 def native_check() -> dict:
     if (os.getenv("GITHUB_ACTIONS")!="true" or
         os.getenv("GITHUB_REPOSITORY")!="manufact-test/nomusic" or
-        os.getenv("GITHUB_REF_NAME")!="experiment/android-a1-owner2025-signer-offline-lab-20261111" or
+        os.getenv("GITHUB_REF_NAME")!="experiment/android-a1-owner2025-v1-sanitized-signer-lab-20261111" or
         os.getenv("CELIKOM_CLEAN_ANDROID_NATIVE_REDDROID")!="1" or
         platform.machine()!="aarch64"):
         stop("DISPOSABLE_REAL_ARM13_ONLY")
