@@ -199,8 +199,25 @@ def browser_download(directory: Path) -> tuple[Path | None, dict]:
                             page.wait_for_timeout(3500)
                         except Exception:
                             pass
+                final=urlsplit(page.url)
                 diagnostics["post_click_same_version_page"]= (
-                    urlsplit(page.url).path == "/android/dw/1120247189")
+                    final.path == "/android/dw/1120247189")
+                diagnostics["post_click_path_category"] = (
+                    "same_dw" if final.path == "/android/dw/1120247189" else
+                    "post_download" if "post-download" in final.path else
+                    "android_download" if final.path.endswith("/android/download") else
+                    "other_dw" if "/dw/" in final.path else
+                    "other_public_uptodown" if (final.hostname or "").endswith("uptodown.com") else
+                    "other_external")
+                diagnostics["post_click_path"] = (
+                    final.path[:120] if (final.hostname or "").endswith("uptodown.com") else None)
+                current_text=page.locator("body").inner_text(timeout=9000)
+                diagnostics["post_click_version_text_visible"]=bool(VERSION_RE.search(current_text))
+                diagnostics["post_click_variant_controls_visible"]=bool(
+                    re.search(r"варианты|variants",current_text,re.I))
+                diagnostics["post_click_store_installer_prompt"]=bool(
+                    re.search(r"Uptodown App Store|Uptodown App|магазин Uptodown",current_text,re.I))
+                diagnostics["post_click_download_text_visible"]=bool(DOWNLOAD_RE.search(current_text))
             # Do not sleep indefinitely or follow restricted destinations.
             for _ in range(10):
                 if captured: break
