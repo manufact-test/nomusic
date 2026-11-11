@@ -64,5 +64,40 @@ jobs:
           echo "{\"result\":\"PASSIVE_OWN_ARM_ANDROID_DEVICE_CAPABILITY\",\"binder_module_load_succeeded\":$loaded,\"binder_devices_present\":$node,\"binderfs_after_load\":$binderfs_after,\"docker_available\":$docker_present,\"android_started\":false,\"vendor_apk_installed\":false,\"owner_phone_touched\":false}"
           # Reset ephemeral runner if supported; tests never modify any real device.
           sudo modprobe -r binder_linux >/dev/null 2>&1 || true
+      - name: Probe binder driver registration and temporary binderfs mount (no Android)
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo modprobe binder_linux devices=binder,hwbinder,vndbinder >/dev/null 2>&1 || true
+          kernel_binder_major=false
+          misc_binder_entries=false
+          sysfs_binder_registered=false
+          binderfs_mount_succeeded=false
+          temporary_binder_device=false
+          if grep -Eq '^[[:space:]]*[0-9]+[[:space:]]+binder
+        run: echo '{"android_image_downloaded":false,"third_party_code_executed":false,"device_connected":false}'
+ /proc/devices; then
+            kernel_binder_major=true
+          fi
+          if grep -Eq '^[[:space:]]*[0-9]+[[:space:]]+(binder|hwbinder|vndbinder)
+        run: echo '{"android_image_downloaded":false,"third_party_code_executed":false,"device_connected":false}'
+ /proc/misc; then
+            misc_binder_entries=true
+          fi
+          for node in binder hwbinder vndbinder; do
+            if [ -e "/sys/class/misc/$node" ]; then sysfs_binder_registered=true; fi
+          done
+          testfolder="$RUNNER_TEMP/own-empty-binderfs-gate"
+          mkdir -p "$testfolder"
+          if sudo mount -t binder binder "$testfolder" >/dev/null 2>&1; then
+            binderfs_mount_succeeded=true
+            if [ -e "$testfolder/binder" ] || [ -e "$testfolder/binder-control" ]; then
+              temporary_binder_device=true
+            fi
+            sudo umount "$testfolder" >/dev/null 2>&1 || true
+          fi
+          echo "{\"result\":\"ARM_NATIVE_BINDER_DRIVER_REGISTRATION\",\"binder_char_major\":$kernel_binder_major,\"misc_binder_registered\":$misc_binder_entries,\"sysfs_binder_registered\":$sysfs_binder_registered,\"binderfs_mount_succeeded\":$binderfs_mount_succeeded,\"binderfs_temporary_device\":$temporary_binder_device,\"android_started\":false,\"vendor_code_executed\":false}"
+          sudo modprobe -r binder_linux >/dev/null 2>&1 || true
+          rmdir "$testfolder"
       - name: No software or device installation performed
         run: echo '{"android_image_downloaded":false,"third_party_code_executed":false,"device_connected":false}'
