@@ -84,13 +84,33 @@ class Guest:
         return classify_install(result.stdout, result.stderr, result.returncode)
 
     def launch(self, package: str) -> str:
-        result = self.command("shell", "am", "start", "-a",
-                              "android.intent.action.MAIN", "-c",
-                              "android.intent.category.LAUNCHER", "-p", package)
+        """Resolve a REAL exported launcher component, then start explicitly.
+
+        The previous blind -p intent can fail resolution even if the cloned
+        APK has a valid launcher. Never infer startup success from exit status.
+        No package manager output, activity class or vendor stack is logged.
+        """
+        if package != CLONE_PACKAGE:
+            raise RuntimeError("NON_CLONE_MAIN_LAUNCH_FORBIDDEN")
+        resolved = self.command(
+            "shell", "cmd", "package", "resolve-activity", "--brief",
+            "--user", "0", "-a", "android.intent.action.MAIN", "-c",
+            "android.intent.category.LAUNCHER", "-p", package,
+        )
+        if resolved.returncode:
+            return "MAIN_ACTIVITY_RESOLUTION_FAILED"
+        candidates = [
+            line.strip() for line in resolved.stdout.splitlines()
+            if re.fullmatch(re.escape(package) + r"/[A-Za-z0-9_.$]+",
+                            line.strip())
+        ]
+        if len(candidates) != 1:
+            return "MAIN_ACTIVITY_UNRESOLVED"
+        result = self.command("shell", "am", "start", "-n", candidates[0])
         response = result.stdout + result.stderr
-        return ("MAIN_LAUNCH_REJECTED"
-                if result.returncode or "Error:" in response or "Exception" in response
-                else "MAIN_LAUNCH_ACCEPTED")
+        if result.returncode or "Error:" in response or "Exception" in response:
+            return "MAIN_EXPLICIT_START_REJECTED"
+        return "MAIN_LAUNCH_ACCEPTED"
 
     def observe(self, package: str, sleeper=time.sleep) -> dict:
         # One package process *remaining* alive is insufficient if an app is
@@ -142,6 +162,25 @@ class DockerGuest(Guest):
     def install(self, apks: list[Path]) -> str:
         if not 1 <= len(apks) <= 5:
             raise RuntimeError("INVALID_INSTALL_APK_COUNT")
+        if len(apks) > 1:
+            if len(apks) != 5:
+                raise RuntimeError("SIGNED_STOCK_SPLIT_COUNT_INVALID")
+            # CRITICAL: 'install-multiple' is a HOST adb operation, NOT an
+            # Android-shell 'pm' subcommand! The first genuine CI used that
+            # invalid shell operation, returning INSTALL_FAILED_OTHER.
+            # Reuse the already-proven signed-stock native ARM13 installer:
+            # pm install-create / install-write / install-commit.
+            hooklab = str(Path(__file__).resolve().parents[1])
+            if hooklab not in sys.path:
+                sys.path.insert(0, hooklab)
+            from native_arm13_signed_original_control import pm_session_install
+            try:
+                result = pm_session_install(
+                    [str(apk) for apk in apks], expected_package=STOCK_PACKAGE
+                )
+            except ValueError:
+                raise RuntimeError("SIGNED_STOCK_SESSION_PRECHECK_FAILED")
+            return "INSTALLED" if result == "Success" else result
         guest_paths = []
         try:
             for i, apk in enumerate(apks):
