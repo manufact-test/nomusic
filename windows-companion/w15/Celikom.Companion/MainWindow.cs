@@ -872,6 +872,8 @@ public sealed partial class MainWindow : Form
     private async void LoginAsync(object? sender, EventArgs e)
     {
         if (_loggingIn) return;
+        _resumeAfterNetworkFailure = false;
+        ++_compactAccessGeneration;
         _loggingIn = true;
         ++_compactStartEpoch;
         _compactStarting = false;
