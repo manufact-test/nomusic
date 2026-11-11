@@ -12,7 +12,9 @@ ORIGINS = frozenset(("REGISTERED", "NO_HOOK", "VENDOR_UNCAUGHT_HANDLER",
                       "OWN_MAIN", "OWN_AUX", "ORIGINAL_MAIN", "ORIGINAL_AUX",
                       "UNCLASSIFIED"))
 ERRORS = frozenset(("ILLEGAL_STATE", "SECURITY", "LINK", "OTHER_THROWABLE",
-                    "NONE", "MATCH_TRUE", "MATCH_FALSE"))
+                    "NONE", "MATCH_TRUE", "MATCH_FALSE",
+                    "KILL_TARGET_SELF", "KILL_TARGET_OTHER",
+                    "KILL_TARGET_UNKNOWN"))
 THREADS = frozenset(("MAIN", "OTHER"))
 
 
@@ -35,6 +37,7 @@ def classify_exit_witness(exit_dump: str, main_log: str) -> dict:
     last_main_prefix_by_pid: dict[int, tuple[str, str]] = {}
     first_exit_prefix_by_pid: dict[int, tuple[str, str]] = {}
     first_exit_seen: set[int] = set()
+    first_kill_target_by_pid: dict[int, str] = {}
     for line in main_log.splitlines()[-18000:]:
         match = LOG.match(line)
         if not match:
@@ -67,6 +70,9 @@ def classify_exit_witness(exit_dump: str, main_log: str) -> dict:
         armed |= event == "ARMED" and origin == "REGISTERED"
         number = int(pid)
         if thread == "MAIN":
+            if (event == "PROCESS_KILL" and number not in first_kill_target_by_pid
+                    and error.startswith("KILL_TARGET_")):
+                first_kill_target_by_pid[number] = error
             if event == "PREFIX_CHECK" and error in ("MATCH_TRUE", "MATCH_FALSE"):
                 last_main_prefix_by_pid[number] = (origin, error)
             elif event in ("PROCESS_KILL", "SYSTEM_EXIT") and number not in first_exit_seen:
@@ -88,6 +94,9 @@ def classify_exit_witness(exit_dump: str, main_log: str) -> dict:
         "first_exit_preceding_main_prefix_groups": sorted(set(
             origin for origin, _ in first_exit_prefix_by_pid.values())),
         "first_exit_preceding_prefix_not_causal_proof": True,
+        "first_kill_target_groups": sorted(set(first_kill_target_by_pid.values())),
+        "first_kill_target_observed_main_pids_bounded": min(len(first_kill_target_by_pid), 10),
+        "kill_target_main_pid_only_no_raw_target_pid": True,
         "observed_events": sorted(kinds),
         "caller_groups": sorted(origins),
         "exception_categories": sorted(errors),

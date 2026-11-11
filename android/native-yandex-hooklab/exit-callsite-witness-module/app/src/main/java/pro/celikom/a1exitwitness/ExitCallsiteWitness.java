@@ -62,6 +62,15 @@ public final class ExitCallsiteWitness extends XposedModule {
                             else if (value instanceof IllegalStateException) category = "ILLEGAL_STATE";
                             else if (value instanceof LinkageError) category = "LINK";
                             else if (value instanceof Throwable) category = "OTHER_THROWABLE";
+                        } else if ("PROCESS_KILL".equals(event)) {
+                            Object value = chain.getArg(0);
+                            if (value instanceof Integer) {
+                                category = ((Integer) value).intValue()
+                                        == android.os.Process.myPid()
+                                        ? "KILL_TARGET_SELF" : "KILL_TARGET_OTHER";
+                            } else {
+                                category = "KILL_TARGET_UNKNOWN";
+                            }
                         }
                         emit(event, callerGroup(), category);
                     } catch (Throwable ignored) { }

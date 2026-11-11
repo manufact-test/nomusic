@@ -94,6 +94,15 @@ class WitnessClassifierTests(unittest.TestCase):
         self.assertEqual(x["first_exit_has_preceding_main_prefix_by_pid_bounded"], 0)
         self.assertEqual(x["first_exit_preceding_main_prefix_results"], [])
 
+    def test_kill_target_pid_is_private_enum_only(self):
+        raw = (entry(1234, "PROCESS_KILL", origin="STATIC_RUN_B",
+                     error="KILL_TARGET_SELF")
+               + entry(1234, "SYSTEM_EXIT", origin="STATIC_RUN_B", error="NONE"))
+        x = classify_exit_witness(EXIT, raw)
+        self.assertEqual(x["first_kill_target_groups"], ["KILL_TARGET_SELF"])
+        self.assertEqual(x["first_kill_target_observed_main_pids_bounded"], 1)
+        self.assertTrue(x["kill_target_main_pid_only_no_raw_target_pid"])
+
     def test_background_event_not_claimed_main(self):
         out = classify_exit_witness(EXIT, entry(1234, "UNCAUGHT", thread="OTHER"))
         self.assertEqual(out["main_thread_event_count_bounded"], 0)
