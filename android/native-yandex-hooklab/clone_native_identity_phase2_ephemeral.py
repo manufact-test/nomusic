@@ -298,6 +298,21 @@ def classify_activity_start(stdout):
 
 
 
+def classify_nonblocking_activity_start(stdout):
+    """Confirm ActivityManager dispatch only; MAIN/UI still must be live."""
+    import re
+    return {
+        "activity_status_ok": bool(re.search(r"(?m)^Starting:\\s+Intent\\s*\\{", stdout)),
+        "activity_explicit_error": (
+            "Error:" in stdout or "Exception" in stdout
+            or "Activity not started" in stdout),
+        "launch_state_cold": False,
+        "launch_state_warm": False,
+        "nonblocking_dispatch_only": True,
+        "raw_activity_output_exposed": False,
+    }
+
+
 def disposable_foreground_snapshot(package):
     """Only foreground booleans from public Android activity/window manager.
 
@@ -891,7 +906,8 @@ def run():
                                 "CLONE_FIRST_AB_PM_PATH", 40).splitlines()) != 1:
                     raise arsc.TrialError("CLONE_FIRST_AB_PACKAGE_MANAGER_INVALID")
                 first_status = arsc.run([
-                    "adb", "shell", "am", "start", "-W",
+                    "adb", "shell", "am", "start",
+                    *(["--user", "0"] if loader_zero else ["-W"]),
                     "-a", "android.intent.action.MAIN",
                     "-c", "android.intent.category.LAUNCHER",
                     "-n", source.DEST + "/ru.yandex.music.main.MainScreenActivity"],
@@ -899,9 +915,10 @@ def run():
                 time.sleep(5)
                 first_main = installed_process_snapshot(source.DEST)
                 first_foreground = disposable_foreground_snapshot(source.DEST)
+                first_launch_class = (classify_nonblocking_activity_start(first_status)
+                                      if loader_zero else classify_activity_start(first_status))
                 first_success = full_native_main_ui_pass(
-                    [first_main], classify_activity_start(first_status),
-                    first_foreground)
+                    [first_main], first_launch_class, first_foreground)
                 print(json.dumps({
                     "ab_condition": "SINGLE_CLONE_BEFORE_ORIGINAL",
                     "clone_standalone_package_manager_pass": True,
@@ -1006,7 +1023,8 @@ def run():
                          "CLEAN_EMULATOR_LAUNCH_EVENT_SCOPE", 30)
             # Official ActivityManager startup profiler, no app instrumentation
             # edits, only disposable CI. The binary trace stays private in CI.
-            launch_args = ["adb", "shell", "am", "start", "-W"]
+            launch_args = (["adb", "shell", "am", "start", "--user", "0"]
+                           if loader_zero else ["adb", "shell", "am", "start", "-W"])
             if profile_main_launch:
                 from observe_native_startup_trace import TRACE_PATH
                 launch_args.extend(["--start-profiler", TRACE_PATH])
@@ -1016,10 +1034,12 @@ def run():
                 "-n", source.DEST + "/ru.yandex.music.main.MainScreenActivity"
             ])
             launch_stdout = arsc.run(
-                launch_args, "ARM_CLONE_DIRECT_LAUNCH", 60)
+                launch_args, "ARM_CLONE_DIRECT_LAUNCH", 25 if loader_zero else 60)
+            launch_class = (classify_nonblocking_activity_start(launch_stdout)
+                            if loader_zero else classify_activity_start(launch_stdout))
             if strict_main_ui_gate:
                 print(json.dumps({
-                    "clone_activity_start": classify_activity_start(launch_stdout)
+                    "clone_activity_start": launch_class
                 },sort_keys=True))
                 startup_samples = []
                 for delay in (0.1, 1.0, 4.0, 8.0):
@@ -1029,7 +1049,7 @@ def run():
                 original_after_clone = installed_process_snapshot(source.SOURCE)
                 main_ui_pass = full_native_main_ui_pass(
                     startup_samples,
-                    classify_activity_start(launch_stdout),
+                    launch_class,
                     foreground
                 )
                 print(json.dumps({
