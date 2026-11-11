@@ -4,7 +4,7 @@ declare(strict_types=1);
 ini_set('display_errors','0');
 function supportCheck(bool $ok,string $code):void {if(!$ok)throw new RuntimeException($code);}
 function supportHttp(string $path,string $method='GET',?string $body=null,string $bearer='',string $cookie='',string $origin='https://music.yandex.ru'):array {
- supportCheck(str_starts_with($path,'/api/v1/')||str_starts_with($path,'/admin/support/'),'http_path');
+ supportCheck(str_starts_with($path,'/api/v1/')||str_starts_with($path,'/admin/support/')||str_starts_with($path,'/admin?tab=support&ticket='),'http_path');
  $ch=curl_init('https://darkred-camel-588676.hostingersite.com'.$path);$headers=[];
  $request=['Origin: '.$origin,'Cache-Control: no-store'];
  if($body!==null)$request[]='Content-Type: application/json';
@@ -68,8 +68,16 @@ try {
  $ticket=json_decode($saved->body,true,8,JSON_THROW_ON_ERROR)['ticket_id']??null;
  supportCheck(is_int($ticket)&&$ticket>0,'ticket_created');
  $pdo->prepare('UPDATE support_messages SET mail_required=0 WHERE ticket_id=?')->execute([$ticket]);
- $repeat=supportHttp('/api/v1/support','POST',$body,$bearer);
- supportCheck($repeat[0]===200&&(json_decode($repeat[1],true)['ticket_id']??null)===$ticket,'https_exact_retry');
+ $replayed=false;
+ for($attempt=0;$attempt<10;$attempt++){
+  $repeat=supportHttp('/api/v1/support','POST',$body,$bearer);
+  if($repeat[0]===200&&(json_decode($repeat[1],true)['ticket_id']??null)===$ticket){$replayed=true;break;}
+  $error=json_decode($repeat[1],true)['error']??'non_json';
+  if(!is_string($error)||!preg_match('/^[a-z_]{1,64}$/D',$error))$error='other';
+  echo 'SUPPORT_HTTPS_RETRY_STATUS:'.$repeat[0].':'.$error."\n";
+  usleep(1000000);
+ }
+ supportCheck($replayed,'https_exact_retry');
  $q=$pdo->prepare('SELECT COUNT(*) FROM support_tickets WHERE user_id=?');$q->execute([$uid]);supportCheck((int)$q->fetchColumn()===1,'no_duplicate_ticket');
  $customer=supportHttp('/api/v1/support/'.$ticket,'GET',null,$bearer);
  supportCheck($customer[0]===200&&(json_decode($customer[1],true)['report']??null)===null,'customer_report_hidden');
@@ -82,8 +90,8 @@ try {
   &&($attachment['report']['diagnostics']['currentTime']??null)===12.5
   &&!str_contains($file[1],'QA_PRIVATE_MARKER'),'attachment_sanitized');
  supportCheck(supportHttp($downloadPath)[0]===303&&supportHttp($downloadPath,'GET',null,$bearer)[0]===303,'customer_export_denied');
- $page=supportHttp('/admin/support/diagnostics?ticket='.$ticket,'GET',null,'',Celikom\Admin\AdminAuth::COOKIE.'='.$adminToken);
- supportCheck($page[0]===200,'download_repeat');
+ $page=supportHttp('/admin?tab=support&ticket='.$ticket,'GET',null,'',Celikom\Admin\AdminAuth::COOKIE.'='.$adminToken);
+ supportCheck($page[0]===200&&str_contains($page[1],'Скачать диагностику JSON')&&str_contains($page[1],'Техническая диагностика расширения')&&!str_contains($page[1],'QA_PRIVATE_MARKER'),'admin_page');
  foreach(['android','windows'] as $platform){
   $other=$payload;$other['request_key']=$uuid();$other['message']='Проверка общего приёма диагностики';
   if($platform==='android')$other['support_diagnostics']['platform']='android';
@@ -95,6 +103,8 @@ try {
   $otherId=json_decode($stored->body,true)['ticket_id']??null;supportCheck(is_int($otherId),'cross_platform_ticket');
   $pdo->prepare('UPDATE support_messages SET mail_required=0 WHERE ticket_id=?')->execute([$otherId]);
   $again=supportHttp('/api/v1/support','POST',$otherBody,$bearer);supportCheck($again[0]===200&&(json_decode($again[1],true)['ticket_id']??null)===$otherId,'cross_platform_https_retry');
+  $otherPage=supportHttp('/admin?tab=support&ticket='.$otherId,'GET',null,'',Celikom\Admin\AdminAuth::COOKIE.'='.$adminToken);
+  supportCheck($otherPage[0]===200&&str_contains($otherPage[1],'Скачать диагностику JSON')&&str_contains($otherPage[1],$platform==='android'?'Техническая диагностика Android':'Техническая диагностика Windows'),'cross_platform_admin_page');
   $otherFile=supportHttp('/admin/support/diagnostics?ticket='.$otherId,'GET',null,'',Celikom\Admin\AdminAuth::COOKIE.'='.$adminToken);
   supportCheck($otherFile[0]===200&&(json_decode($otherFile[1],true)['report']['platform']??null)===$platform&&!str_contains($otherFile[1],'QA_PRIVATE_MARKER'),'cross_platform_download');
  }

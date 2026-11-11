@@ -48,6 +48,10 @@ mkdir -p "$candidate" "$backup"
 cp -a "$old/." "$candidate/"
 printf '%s\n' "$old" > "$backup/previous-release"
 cp "$input/payload/manifest.json" "$backup/manifest.json"
+public_index="$(dirname "$root")/public_html/index.php"
+test -f "$public_index" && test ! -L "$public_index"
+cp -p "$public_index" "$backup/public-index.php"
+public_hash=$(sha256sum "$public_index" | awk '{print $1}')
 for path in src/Application.php src/Admin/AdminPanel.php src/Support/SongReport.php src/Support/SupportService.php src/Support/SupportAdminView.php; do
   mkdir -p "$backup/$(dirname "$path")"
   cp -p "$old/$path" "$backup/$path"
@@ -69,6 +73,7 @@ rollback(){
   if [[ "$active" == 1 && "$status" != 0 && "$(readlink -f "$root/current")" == "$candidate" ]]; then
     ln -s "$old" "$root/.support-rollback-$id"
     mv -Tf "$root/.support-rollback-$id" "$root/current"
+    touch -r "$backup/public-index.php" "$public_index"
     echo SUPPORT_AUTOMATIC_ROLLBACK_COMPLETE
   fi
   exit "$status"
@@ -76,8 +81,12 @@ rollback(){
 trap rollback EXIT
 ln -s "$candidate" "$root/.support-current-$id"
 mv -Tf "$root/.support-current-$id" "$root/current"
+# Match the existing deploy launcher refresh without altering its content.
+touch "$public_index"
 active=1
+sleep 3
 "$php" "$input/payload/smoke.php" "$id"
+test "$(sha256sum "$public_index" | awk '{print $1}')" = "$public_hash"
 test "$(sha256sum "$root/shared/env" | awk '{print $1}')" = "$env_hash"
 test "$(readlink -f "$root/current")" = "$candidate"
 echo SUPPORT_RELEASE_ACTIVE_ENV_PRESERVED
