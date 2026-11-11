@@ -52,49 +52,88 @@ public sealed partial class MainWindow
         if (!_compactReady || _closing || !IsHandleCreated) return;
         if (!_api.IsLoggedIn)
         {
+            _resumeAfterNetworkFailure = false;
             ++_compactAccessGeneration;
-            _compactAccess.Text = "Войдите в аккаунт, чтобы начать";
-            return;
-        }
-        if (_compactAccessBusy) return;
-        var generation = ++_compactAccessGeneration;
-        if (!_api.IsLoggedIn)
-        {
             _compactAccess.Text = "Войдите в аккаунт, чтобы начать";
             return;
         }
         if (_compactAccessBusy) return;
         if (!force && DateTimeOffset.UtcNow - _compactAccessChecked < TimeSpan.FromSeconds(75))
             return;
+        var generation = ++_compactAccessGeneration;
+        var account = _api.Settings;
+        bool StillSameUser() => generation == _compactAccessGeneration && !_closing &&
+            !IsDisposed && _api.IsLoggedIn &&
+            _api.Settings.InstallationId == account.InstallationId &&
+            string.Equals(_api.Settings.Email, account.Email, StringComparison.OrdinalIgnoreCase);
         _compactAccessBusy = true;
         _compactAccess.Text = "Проверяем доступ…";
         try
         {
-            var response = await _api.GetEntitlementAsync();
-            if (generation != _compactAccessGeneration || !_api.IsLoggedIn || _closing) return;
+            JsonElement response;
+            try { response = await _api.GetEntitlementAsync(); }
+            catch (Exception ex) when (_bridge.Enabled && EntitlementCheckRecovery.IsTransient(ex))
+            {
+                // A one-off 9-second timeout, 429 or 5xx need not force a manual
+                // Stop/Start. One short, bounded GET retry only; no replayed writes.
+                DiagnosticLog.Record("ACTIVE_ENTITLEMENT_RETRY");
+                await Task.Delay(400);
+                using var retryTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+                response = await _api.GetEntitlementAsync(retryTimeout.Token);
+                DiagnosticLog.Record("ACTIVE_ENTITLEMENT_RETRY_OK");
+            }
+            if (!StillSameUser()) return;
             _compactAccess.Text = AccessLabel(response);
             _compactAccessChecked = DateTimeOffset.UtcNow;
-            if (_bridge.Enabled && !PlaybackEntitlement.Allowed(response, DateTimeOffset.UtcNow))
+            var allowed = PlaybackEntitlement.Allowed(response, DateTimeOffset.UtcNow);
+            if (!allowed)
             {
-                ++_compactStartEpoch;
-                _compactStarting = false;
-                _bridge.SetEnabled(false);
-                DiagnosticLog.Record("ACTIVE_ENTITLEMENT_REVOKED");
-            }
-        }
-        catch
-        {
-            if (generation == _compactAccessGeneration && !_closing)
-            {
-                _compactAccess.Text = "Нет связи. Подмена выключена до проверки доступа.";
+                _resumeAfterNetworkFailure = false; // authoritative deny NEVER reconnects
                 if (_bridge.Enabled)
                 {
                     ++_compactStartEpoch;
                     _compactStarting = false;
                     _bridge.SetEnabled(false);
-                    DiagnosticLog.Record("ACTIVE_ENTITLEMENT_CHECK_UNAVAILABLE");
+                    DiagnosticLog.Record("ACTIVE_ENTITLEMENT_REVOKED");
                 }
             }
+            else if (EntitlementCheckRecovery.MayResume(
+                _resumeAfterNetworkFailure, _api.IsLoggedIn,
+                _nativeInstallState == NativeInstallState.Active,
+                _installedModule.MatchesApplication, response, DateTimeOffset.UtcNow))
+            {
+                // This was automatically stopped only after a transient failure.
+                // Restore ONLY after a brand-new signed-in server success; manual
+                // Stop, logout, account change and expired access cancel recovery.
+                _resumeAfterNetworkFailure = false;
+                _bridge.SetEnabled(true);
+                DiagnosticLog.Record("ACTIVE_ENTITLEMENT_RECOVERED");
+            }
+        }
+        catch (Exception ex)
+        {
+            if (!StillSameUser()) return;
+            var transient = EntitlementCheckRecovery.IsTransient(ex);
+            if (_bridge.Enabled)
+            {
+                ++_compactStartEpoch;
+                _compactStarting = false;
+                _resumeAfterNetworkFailure = transient &&
+                    _nativeInstallState == NativeInstallState.Active &&
+                    _installedModule.MatchesApplication;
+                _bridge.SetEnabled(false); // fail closed until new live authority
+                DiagnosticLog.Record(transient ?
+                    "ACTIVE_ENTITLEMENT_NETWORK_SUSPENDED" :
+                    "ACTIVE_ENTITLEMENT_CHECK_UNAVAILABLE");
+            }
+            else if (!transient && _resumeAfterNetworkFailure)
+            {
+                _resumeAfterNetworkFailure = false;
+                DiagnosticLog.Record("ACTIVE_ENTITLEMENT_RECOVERY_DENIED");
+            }
+            _compactAccess.Text = _resumeAfterNetworkFailure
+                ? "Нет связи. Подмена приостановлена; повторим проверку автоматически."
+                : "Доступ не подтверждён. Подмена выключена.";
         }
         finally { _compactAccessBusy = false; }
     }
