@@ -57,7 +57,28 @@ def adb(args, timeout=75, allow=False):
         private = result.stdout + result.stderr
         match = re.search(r"(INSTALL_(?:FAILED|PARSE_FAILED)_[A-Z0-9_]{2,50})",
                           private)
-        return ("PRIVATE_PM_" + match.group(1)) if match else "PRIVATE_PM_OTHER_ERROR"
+        if match:
+            return "PRIVATE_PM_" + match.group(1)
+        clues = (
+            ("unknown option", "UNSUPPORTED_OPTION"),
+            ("unknown command", "COMMAND_UNAVAILABLE"),
+            ("permission denied", "PERMISSION_DENIED"),
+            ("can't open", "CANNOT_OPEN_GUEST_FILE"),
+            ("cannot open", "CANNOT_OPEN_GUEST_FILE"),
+            ("no such file", "GUEST_FILE_NOT_FOUND"),
+            ("file not found", "GUEST_FILE_NOT_FOUND"),
+            ("failed to stat", "GUEST_FILE_STAT_FAILED"),
+            ("failed to parse", "PACKAGE_PARSE_FAILED"),
+            ("insufficient", "INSUFFICIENT_SPACE"),
+            ("java.lang.", "JAVA_EXCEPTION"),
+            ("exception occurred", "JAVA_EXCEPTION"),
+            ("failure", "GENERIC_INSTALL_FAILURE"),
+            ("error", "GENERIC_TOOL_ERROR"),
+        )
+        for text, category in clues:
+            if text in private.lower():
+                return "PRIVATE_PM_" + category
+        return "PRIVATE_PM_EMPTY_OUTPUT" if not private.strip() else "PRIVATE_PM_UNCLASSIFIED_OUTPUT"
     if result.returncode and not allow:
         fail("ORIGINAL_PRIVATE_GUEST_COMMAND_FAILED")
     return result.stdout if result.returncode == 0 else ""
