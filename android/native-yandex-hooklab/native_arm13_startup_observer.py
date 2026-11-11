@@ -146,6 +146,80 @@ def classify_startup_events(raw: str, package: str) -> dict:
     }
 
 
+
+def classify_main_cycle_correlation(filtered_exit: str, event_log: str,
+                                    main_log: str) -> dict:
+    """Privately correlate *each* new exact clone MAIN PID across three buffers.
+
+    ActivityExitInfo + AOSP EventLog structured process fields + Android main
+    logcat are read-only evidence. Do not leak PID, timestamps, stack, paths,
+    class details or message. A correlation is not proof of what called exit.
+    """
+    relevant = main_exit_pids(filtered_exit)
+    zero_exits = set()
+    entries = EXIT_BLOCK.split(filtered_exit[:250000])
+    if len(entries) == 1:
+        entries = filtered_exit[:250000].splitlines()
+    for block in entries[:100]:
+        name, pid = PROCESS_RE.search(block), PID_RE.search(block)
+        if name is None or name.group(1) != CLONE or pid is None:
+            continue
+        value = int(pid.group(1))
+        if value not in relevant:
+            continue
+        reason = re.search(r"\breason\s*[=:]\s*(\d{1,2})\b", block, re.I)
+        status = re.search(r"\bstatus\s*[=:]\s*(-?\d{1,6})\b", block, re.I)
+        if reason and status and reason.group(1) == "1" and int(status.group(1)) == 0:
+            zero_exits.add(value)
+
+    process_start = set()
+    process_died = set()
+    for line in event_log.splitlines()[-9000:]:
+        marker = EVENT_RE.search(line[:180])
+        if marker is None or marker.group(1) not in ("am_proc_start", "am_proc_died"):
+            continue
+        tag = marker.group(1)
+        fields = _event_fields(line)
+        index = PROCESS_FIELD_POSITION[tag]
+        if len(fields) <= index or fields[index] != CLONE or len(fields) <= 1:
+            continue
+        pid_text = fields[1]
+        if not re.fullmatch(r"[1-9][0-9]{0,7}", pid_text):
+            continue
+        pid = int(pid_text)
+        if pid not in relevant:
+            continue
+        (process_start if tag == "am_proc_start" else process_died).add(pid)
+
+    illegal_state = set()
+    for line in main_log.splitlines()[-15000:]:
+        match = LOG.match(line)
+        if match is None:
+            continue
+        raw_pid, severity, tag, message = match.groups()
+        pid = int(raw_pid)
+        if pid not in relevant or severity not in ("E", "F"):
+            continue
+        if re.search(r"\bIllegalStateException\b", message):
+            illegal_state.add(pid)
+
+    complete = process_start & process_died
+    return {
+        "exact_new_main_exit_pids_bounded": min(len(relevant), 100),
+        "main_exit_self_zero_pids_bounded": min(len(zero_exits), 100),
+        "event_start_correlated_pids_bounded": min(len(process_start), 100),
+        "event_died_correlated_pids_bounded": min(len(process_died), 100),
+        "start_and_died_correlated_pids_bounded": min(len(complete), 100),
+        "illegal_state_error_correlated_pids_bounded": min(len(illegal_state), 100),
+        "all_new_main_exits_self_zero": bool(relevant) and relevant <= zero_exits,
+        "all_new_main_exits_start_and_die": bool(relevant) and relevant <= complete,
+        "all_new_main_exits_with_illegal_state_log": bool(relevant)
+            and relevant <= illegal_state,
+        "raw_process_ids_or_log_exposed": False,
+        "correlation_is_not_causation": True,
+    }
+
+
 def only_new_main_exit_info(before: str, after: str) -> tuple[str, dict]:
     """Exclude historical exact-MAIN exit records before this cold launch.
 
