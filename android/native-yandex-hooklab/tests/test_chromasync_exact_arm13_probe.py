@@ -138,10 +138,10 @@ class ExactCompetitorProbeTests(unittest.TestCase):
                 result.stderr = ""
                 return result
         component = "app.chromasync.yamclone/ru.yandex.music.main.MainScreenActivity"
-        guest = Fake("priority=0\\n" + component + "\\n")
+        guest = Fake("priority=0\n" + component + "\n")
         self.assertEqual(guest.launch(p.CLONE_PACKAGE), "MAIN_LAUNCH_ACCEPTED")
         self.assertEqual(guest.calls[-1][-2:], ("-n", component))
-        no_component = Fake("No activity found\\n")
+        no_component = Fake("No activity found\n")
         self.assertEqual(no_component.launch(p.CLONE_PACKAGE), "MAIN_ACTIVITY_UNRESOLVED")
         self.assertEqual(len(no_component.calls), 1)
 
@@ -156,9 +156,9 @@ class ExactCompetitorProbeTests(unittest.TestCase):
                     stderr = ""
                 result = Result()
                 if "resolve-activity" in args:
-                    result.stdout = "app.chromasync.yamclone/ru.yandex.music.main.MainScreenActivity\\n"
+                    result.stdout = "app.chromasync.yamclone/ru.yandex.music.main.MainScreenActivity\n"
                 else:
-                    result.stdout = "Error: Activity not started\\n"
+                    result.stdout = "Error: Activity not started\n"
                 return result
         self.assertEqual(Fake().launch(p.CLONE_PACKAGE), "MAIN_EXPLICIT_START_REJECTED")
 
