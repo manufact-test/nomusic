@@ -19,6 +19,7 @@ import clone_native_splits_arsclib_ephemeral as arsc
 import clone_main_crash_buffer as diagnostics
 from uptodown_2025_gpr_ephemeral_verify import unbundle_candidate,verify_split_set
 from publisher_2025_provenance_gate import GateError,private_command
+from lab_signer_signal_gate import probe_apk_zip, safe_report
 
 PKG="pro.celikom.yandex.nativeclonelab"
 ORIGINAL="ru.yandex.music"
@@ -101,6 +102,16 @@ def ephemeral_clone(originals: list[Path], work: Path) -> tuple[list[tuple[str,P
         arsc.run(["java","-Xmx3g","-jar",str(jar),"b","-t","xml",
                   "-i",str(decoded),"-o",str(raw_clone)],
                  "ARSC_REBUILD_2025_SPLIT",360)
+        unsigned_probe=probe_apk_zip(raw_clone)
+        if (not unsigned_probe["zip_integrity_ok"]
+            or unsigned_probe["duplicate_entry_names"]
+            or unsigned_probe["unsafe_entry_name_count"]
+            or unsigned_probe["encrypted_entry_count"]
+            or not unsigned_probe["contains_binary_manifest"]):
+            print(json.dumps({"stage":"UNSIGNED_LAB_ARCHIVE",
+                              "lab_split_index":i,
+                              "zip_probe":unsigned_probe},sort_keys=True))
+            stop("OWN_CLONE_UNSIGNED_ZIP_INVALID")
         aligned=work/f"lab-clone-{i}.apk"
         source.action([source.sdk_tool("zipalign"),"-f","-p","4",
                        str(raw_clone),str(aligned)],"CLONE_ZIPALIGN_FAILED",100)
@@ -113,6 +124,16 @@ def ephemeral_clone(originals: list[Path], work: Path) -> tuple[list[tuple[str,P
                       "--v3-signing-enabled","true",
                       "--v4-signing-enabled","false",
                       str(aligned)],"CLONE_SIGN_FAILED",90)
+        signed_probe=probe_apk_zip(aligned)
+        if (not signed_probe["zip_integrity_ok"]
+            or signed_probe["duplicate_entry_names"]
+            or signed_probe["unsafe_entry_name_count"]
+            or signed_probe["encrypted_entry_count"]
+            or not signed_probe["contains_binary_manifest"]):
+            print(json.dumps({"stage":"SIGNED_LAB_ARCHIVE",
+                              "lab_split_index":i,
+                              "zip_probe":signed_probe},sort_keys=True))
+            stop("OWN_CLONE_SIGNED_ZIP_INVALID")
         check=apk_name(aligned)
         if (check.get("name")!=PKG or check.get("versionCode")!=CODE or
             check.get("split","")!=name or name in clone_seen):
@@ -138,7 +159,9 @@ def ephemeral_clone(originals: list[Path], work: Path) -> tuple[list[tuple[str,P
             }
             print(json.dumps({"stage":"LAB_SIGNATURE_VALIDATION",
                               "original_vendor_signature_unmodified":True,
-                              "lab_split_index":i,
+                              **safe_report(unsigned_probe,signed_probe,
+                                            verified.returncode,verified.stdout,
+                                            verified.stderr,i),
                               "sdk_failure_signals":[k for k,v in signals.items() if v],
                               "sdk_result_exit_nonzero":True,
                               "clone_apk_not_installed":True},sort_keys=True))
@@ -205,7 +228,7 @@ def install_clones(clones: list[tuple[str,Path]]) -> str:
 def native_check() -> dict:
     if (os.getenv("GITHUB_ACTIONS")!="true" or
         os.getenv("GITHUB_REPOSITORY")!="manufact-test/nomusic" or
-        os.getenv("GITHUB_REF_NAME")!="experiment/android-a1-2025-signing-readonly-rootcause-20261111" or
+        os.getenv("GITHUB_REF_NAME")!="experiment/android-a1-owner2025-signer-offline-lab-20261111" or
         os.getenv("CELIKOM_CLEAN_ANDROID_NATIVE_REDDROID")!="1" or
         platform.machine()!="aarch64"):
         stop("DISPOSABLE_REAL_ARM13_ONLY")
