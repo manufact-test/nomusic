@@ -6,7 +6,9 @@ on:
     paths:
       - 'android/native-yandex-hooklab/clone_native_arm13_redroid_gate.py'
       - 'android/native-yandex-hooklab/native_arm13_startup_observer.py'
+      - 'android/native-yandex-hooklab/native_arm13_timeline_origin.py'
       - 'android/native-yandex-hooklab/tests/test_native_arm13_startup_observer.py'
+      - 'android/native-yandex-hooklab/tests/test_native_arm13_timeline_origin.py'
       - 'android/native-yandex-hooklab/clone_native_identity_phase2_ephemeral.py'
       - '.github/workflows/android-native-a1-arm13-clone-main-ab.yml'
   workflow_dispatch:
@@ -38,8 +40,9 @@ jobs:
       - name: Verify structural tests and Python gate syntax first; no APK downloaded yet
         shell: bash
         run: |
-          python3 -m py_compile android/native-yandex-hooklab/clone_native_arm13_redroid_gate.py android/native-yandex-hooklab/native_arm13_signed_original_control.py android/native-yandex-hooklab/clone_native_identity_phase2_ephemeral.py android/native-yandex-hooklab/native_arm13_startup_observer.py
+          python3 -m py_compile android/native-yandex-hooklab/clone_native_arm13_redroid_gate.py android/native-yandex-hooklab/native_arm13_signed_original_control.py android/native-yandex-hooklab/clone_native_identity_phase2_ephemeral.py android/native-yandex-hooklab/native_arm13_startup_observer.py android/native-yandex-hooklab/native_arm13_timeline_origin.py
           python3 -m unittest discover -s android/native-yandex-hooklab/tests -p test_native_arm13_startup_observer.py -v
+          python3 -m unittest discover -s android/native-yandex-hooklab/tests -p test_native_arm13_timeline_origin.py -v
           python3 -m unittest discover -s android/native-yandex-hooklab/tests -p test_clone_main_crash_buffer.py -v
           python3 -m unittest discover -s android/native-yandex-hooklab/tests -p test_clone_lspatch_loader_zero.py -v
           python3 -m unittest discover -s android/native-yandex-hooklab/tests -p test_merge_lab_splits_ephemeral.py -v

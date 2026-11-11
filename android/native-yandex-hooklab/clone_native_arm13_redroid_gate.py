@@ -23,6 +23,7 @@ from native_arm13_startup_observer import (
     classify_new_main_log_signals, classify_live_main_log_signals,
     classify_main_cycle_correlation,
 )
+from native_arm13_timeline_origin import classify_merged_startup_timeline
 from native_arm13_signed_original_control import (
     adb, check_guest_container, pm_category, private_process, pm_session_install
 )
@@ -232,12 +233,22 @@ def start(package: str) -> tuple[dict, dict]:
             classify_main_cycle_correlation(filtered_exit, events, main_log))
     # Only the publisher-signed original may use the live PID control.
     # A clone exited before sampling must use immutable exit-info PID records.
+    live_pid = ""
     if package == ORIGINAL:
         live_pid = (adb(["shell", "pidof", ORIGINAL], timeout=30, allow=True)
                     if observe_main_log else "")
         safe_exit["original_live_main_pid_log_witness"] = (
             classify_live_main_log_signals(live_pid, main_log))
         safe_exit["control_original_alive_at_observation"] = bool(observe_main_log)
+    # One merged Android main+events read, not two stitched snapshots.
+    # All raw data remain in the disposable CI process; only fixed labels.
+    merged_log = (adb(["shell", "logcat", "-d", "-b", "main", "-b", "events",
+                       "-v", "threadtime", "-t", "20000"],
+                      timeout=45, allow=True) if observe_main_log else "")
+    safe_exit["cross_buffer_startup_timeline"] = classify_merged_startup_timeline(
+        merged_log, package,
+        fresh_main_exit=filtered_exit if package == CLONE else "",
+        original_live_pid=live_pid if package == ORIGINAL else "")
     if status["main_alive"] and status["activity_resumed"]:
         return status, {**safe_exit, "fatal_category": "NOT_OBSERVED",
                         "signal": "NOT_OBSERVED", "java_dlopen_failed": False,
