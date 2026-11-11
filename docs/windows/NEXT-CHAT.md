@@ -1,3 +1,19 @@
+# FIRST READ — W75 0.24.22 FIXED DISAPPEARING DIAGNOSTICS (11.11.2026)
+
+**Latest owner complaint:** CELIKOM Windows disconnected during listening, automatically resumed only after ~60–90 sec, then owner-only diagnostics button vanished on click. Physical disconnect's root cause **NOT YET KNOWN**; must obtain current local log files from the owner before touching network/audio/reconnection timing.
+
+**Confirmed independent GUI bug:** old `RefreshDiagnosticsAccessAsync` clears the button before every `auth/me` probe; `CopyDiagnosticsAuthorized` catches any exception (temporary VPN/timeout included) and treats it as revoked authorization. This is why owner's button vanished. This is NOT proof the remote server revoked staff privileges.
+
+**W75 fix:** `DiagnosticsAccessRecovery.KeepButtonOnFailure` retains *visibility only* after prior verified owner permission for same signed-in origin/installation/email and transient error; export STILL requires fresh successful online `auth/me`. 401/403, logout, actual denial, other users never bypass. At temporary click failure shows `Нет связи · повтори` instead of hiding. `DiagnosticLog.Record` now independently writes bounded safe incident markers (connection lost/recovery etc) to `%LOCALAPPDATA%\CELIKOM\Windows\incident-events.log(.1)`; no token/email/URL/raw error content. Owner TXT export also includes retained last 7 days (max 1000 and size capped). **Already happened outages (before 0.24.22):** owner may still have `companion-events.log(.1)` and `native-events.log(.1)` in same directory. DO NOT ask for `session.dpapi` (secret saved login). Do not assert actual outage cause without them.
+
+**Version:** Windows 0.24.22 (GUI-only), branch `experiment/windows-w75-diagnostics-resilience-20261111`. Original backup `backup/windows-w75-pre-diagnostics-resilience-20261111`; original W74 0.24.21 CI 43085966611. Main authoritative report `docs/windows/W75-PERSISTENT-DIAGNOSTICS-02422-20261111.md`. No music/native scripts/server/backoffice/extension changes.
+
+**Verified CI:** [43091527029](https://github.com/manufact-test/nomusic/actions/runs/43091527029) SUCCESS; Windows .NET 154/158 contract checks (158 including ZIP), 16 native image contracts, genuine 0.24.21→0.24.22 reinstall in place with DPAPI same user and identical 0.24.21 native asset hashes, no files Yandex touched. EXE SHA `ECEA2166B087702D5A66590130A6D8DC647E9DB8E33F2E7B0C5063469DBA4FCA`. Download zipped `CELIKOM-W75-PERSISTENT-DIAGNOSTICS-UNSIGNED` from CI run 43091527029 and run installer once OVER existing version. No uninstall.
+
+**Next action:** owner to send original actual logs **now** from AppData; analyze whether network/entitlement response, bridge/native status, or Yandex itself caused the 1–1.5 min drop. Do NOT mix this independent issue with the proven disappearing button bug. Wait for owner's physical 0.24.22 verification before claiming issue fixed in their environment.
+
+---
+
 # FIRST READ — W74 0.24.21 START-RACE / TRANSIENT REQUEST PATCH, CI SUCCESS (11.11.2026)
 
 **Owner's latest bug:** 0.24.20 first click «Старт» showed false modal «Установленная версия Яндекс.Музыки пока не поддерживается», second click generic «Не удалось проверить доступ на сервере», third click correctly prompted open Yandex and worked. W74 addresses exactly these, preserving music/entitlement/native code.
