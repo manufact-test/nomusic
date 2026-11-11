@@ -7,3 +7,5 @@ The 98MiB third-party APK must **never be committed to this public Git repositor
 - Live Android exact APK test: **RUN REQUESTED; no runtime result yet**.
 - After the owner confirms `Save draft`, lead A edits only this marker to start one bounded CI run in branch `experiment/android-a1-public-draft-arm13-20261111`.
 - Product Stage A = NO-GO; approved A1 main and Android Test.50 untouched.
+
+- Retry #2: native main launcher OS resolution + established publisher-signed 5-split PM session; first live run #43072068606 exposed invalid `pm install-multiple` and ambiguous blind `am start -p`.
