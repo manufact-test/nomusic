@@ -86,19 +86,19 @@ jobs:
       - name: Fetch exact proven W74 0.24.21 installer for real inplace test
         uses: actions/download-artifact@v4
         with:
-          name: CELIKOM-W72-SUPPORT-ANTI-DROP-GUARDS-UNSIGNED
-          run-id: 42998876460
+          name: CELIKOM-W74-START-PREFLIGHT-RETRY-UNSIGNED
+          run-id: 43085966611
           repository: manufact-test/nomusic
           github-token: ${{ github.token }}
           path: old-approved
-      - name: Preserve DPAPI, native 0.24.20 assets, AppId and untouched Yandex on 0.24.21 to 0.24.22
+      - name: Preserve DPAPI, native 0.24.21 assets, AppId and untouched Yandex on 0.24.21 to 0.24.22
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          $old=(Resolve-Path 'old-approved/CELIKOM-W72-SUPPORT-ANTI-DROP-GUARDS-UNSIGNED.exe').Path
+          $old=(Resolve-Path 'old-approved/CELIKOM-W74-START-PREFLIGHT-RETRY-UNSIGNED.exe').Path
           $new=(Resolve-Path 'windows-companion/w20/output/CELIKOM-W75-PERSISTENT-DIAGNOSTICS-UNSIGNED.exe').Path
           if ((Get-FileHash $old -Algorithm SHA256).Hash -ne '2AB54A9B51D7C2E908EE4DBE537FDD4E58840907D1D6A1D5F2AE07FD4AB1CCA2') {
-            throw 'W75_W72_ORIGINAL_HASH_MISMATCH'
+            throw 'W75_W74_ORIGINAL_HASH_MISMATCH'
           }
           $app=Join-Path $env:LOCALAPPDATA 'Programs\CELIKOM'
           $exe=Join-Path $app 'CELIKOM.Companion.exe'
