@@ -62,7 +62,9 @@ def classify_art_trace(raw: bytes) -> dict:
         verdict[kind + "_returned_main"] = False
         verdict[kind + "_unwound_main"] = False
     verdict["illegalstate_constructor_caller_groups"] = []
+    verdict["illegalstate_constructor_ancestor_groups"] = []
     verdict["illegalstate_constructor_entries_bounded"] = 0
+    verdict["constructor_trace_may_start_mid_call"] = True
     verdict["direct_exit_caller_groups"] = []
     verdict["system_exit_entry_count_bounded"] = 0
     verdict["runtime_exit_entry_count_bounded"] = 0
@@ -124,6 +126,7 @@ def classify_art_trace(raw: bytes) -> dict:
         stacks: dict[int, list[int]] = {}
         direct_groups = set()
         exception_caller_groups = set()
+        exception_ancestor_groups = set()
         for i in range(count):
             off = offset + i * rec_size
             if version == 1:
@@ -146,6 +149,12 @@ def classify_art_trace(raw: bytes) -> dict:
                         exception_caller_groups.add(
                             grouped_methods.get(stack[-1], "OTHER_OR_UNKNOWN")
                             if stack else "OTHER_OR_UNKNOWN")
+                        # Allow only finite coarse family labels. The ART
+                        # trace may start inside an active stack, so ancestry
+                        # is a hint, not proven causal source of exceptions.
+                        for ancestor in stack[-24:]:
+                            exception_ancestor_groups.add(
+                                grouped_methods.get(ancestor, "OTHER_OR_UNKNOWN"))
                     if kind in ("system_exit", "runtime_exit", "process_kill"):
                         count_field = kind + "_entry_count_bounded"
                         verdict[count_field] = min(100, verdict[count_field] + 1)
@@ -172,6 +181,8 @@ def classify_art_trace(raw: bytes) -> dict:
         verdict["direct_exit_caller_groups"] = sorted(direct_groups)[:len(CALLER_GROUPS)]
         verdict["illegalstate_constructor_caller_groups"] = (
             sorted(exception_caller_groups)[:len(CALLER_GROUPS)])
+        verdict["illegalstate_constructor_ancestor_groups"] = (
+            sorted(exception_ancestor_groups)[:len(CALLER_GROUPS)])
     except (ValueError, struct.error, IndexError, OverflowError):
         verdict["trace_format_verified"] = False
         verdict["trace_valid_record_count"] = 0
@@ -185,9 +196,27 @@ CONTAINER = "celikom-native-arm-android13"
 
 def should_stop_owned_profile_early(package: str, main_alive: bool,
                                     already_stopped: bool) -> bool:
-    """Stop only our alive ephemeral research clone; never publisher original."""
+    """Legacy early-stop test; no publisher-original interaction."""
     return (package == "pro.celikom.yandex.nativeclonelab"
             and bool(main_alive) and not bool(already_stopped))
+
+
+def choose_owned_profile_stop_stage(package: str, *,
+                                    main_alive: bool, activity_resumed: bool,
+                                    live_sample_count: int, already_stopped: bool) -> str:
+    """Controlled later ART flush: wait for two verified alive observations.
+
+    Earlier first-alive flush captured the pre-onCreate stage; this alternate
+    observation checks a later window. Never wait for login, account data or
+    perform extra actions in the publisher-signed original.
+    """
+    if (package != "pro.celikom.yandex.nativeclonelab"
+            or not main_alive or already_stopped):
+        return "NOT_ELIGIBLE"
+    if live_sample_count < 2:
+        return "WAIT_FOR_SECOND_ALIVE"
+    return ("SECOND_ALIVE_ACTIVITY_RESUMED" if activity_resumed
+            else "SECOND_ALIVE_NO_RESUME")
 
 
 def classify_profiler_launch(raw: str) -> str:

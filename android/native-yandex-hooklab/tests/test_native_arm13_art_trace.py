@@ -170,6 +170,55 @@ class OwnedArmArtTraceTests(unittest.TestCase):
                          ["YANDEX_MUSIC"])
         self.assertNotIn("MainScreenActivity", str(out))
 
+    def test_owned_trace_second_alive_sample_stop_stage(self):
+        from observe_native_startup_trace import choose_owned_profile_stop_stage
+        pkg = "pro.celikom.yandex.nativeclonelab"
+        choose = choose_owned_profile_stop_stage
+        self.assertEqual(
+            choose(pkg, main_alive=True, activity_resumed=True,
+                   live_sample_count=1, already_stopped=False),
+            "WAIT_FOR_SECOND_ALIVE")
+        self.assertEqual(
+            choose(pkg, main_alive=True, activity_resumed=True,
+                   live_sample_count=2, already_stopped=False),
+            "SECOND_ALIVE_ACTIVITY_RESUMED")
+        self.assertEqual(
+            choose(pkg, main_alive=True, activity_resumed=False,
+                   live_sample_count=2, already_stopped=False),
+            "SECOND_ALIVE_NO_RESUME")
+        self.assertEqual(
+            choose(pkg, main_alive=False, activity_resumed=True,
+                   live_sample_count=2, already_stopped=False),
+            "NOT_ELIGIBLE")
+        self.assertEqual(
+            choose(pkg, main_alive=True, activity_resumed=True,
+                   live_sample_count=2, already_stopped=True),
+            "NOT_ELIGIBLE")
+        self.assertEqual(
+            choose("ru.yandex.music", main_alive=True, activity_resumed=True,
+                   live_sample_count=2, already_stopped=False),
+            "NOT_ELIGIBLE")
+
+    def test_exception_ctor_ancestor_categories_are_only_safe_groups(self):
+        raw = trace([
+            (2, 4), (2, 8), (2, 12), (2, 16),
+            (2, 16 | 1), (2, 12 | 1), (2, 8 | 1), (2, 4 | 1)
+        ], [
+            (4, "ru/yandex/music/private/TokenProcessor", "sensitive1"),
+            (8, "android/os/Handler", "dispatchMessage"),
+            (12, "java/lang/SomeRuntime", "doWork"),
+            (16, "java/lang/IllegalStateException", "<init>")
+        ])
+        out = classify_art_trace(raw)
+        self.assertEqual(out["illegalstate_constructor_entries_bounded"], 1)
+        self.assertEqual(out["illegalstate_constructor_caller_groups"],
+                         ["ANDROID_RUNTIME"])
+        self.assertEqual(out["illegalstate_constructor_ancestor_groups"],
+                         ["ANDROID_RUNTIME", "YANDEX_MUSIC"])
+        self.assertTrue(out["constructor_trace_may_start_mid_call"])
+        for secret in ("TokenProcessor", "sensitive1", "private"):
+            self.assertNotIn(secret, str(out))
+
     def test_profiler_launch_error_categories_do_not_expose_raw(self):
         from observe_native_startup_trace import classify_profiler_launch
         samples = [

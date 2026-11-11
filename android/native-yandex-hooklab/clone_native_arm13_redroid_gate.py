@@ -26,7 +26,7 @@ from native_arm13_startup_observer import (
 from native_arm13_timeline_origin import classify_merged_startup_timeline
 from observe_native_startup_trace import (
     TRACE_PATH, observe_disposable_trace, classify_profiler_launch,
-    should_stop_owned_profile_early,
+    choose_owned_profile_stop_stage,
 )
 from native_arm13_signed_original_control import (
     adb, check_guest_container, pm_category, private_process, pm_session_install
@@ -209,22 +209,35 @@ def start(package: str, *, own_art_trace: bool = False) -> tuple[dict, dict]:
         profiler_launch_category = classify_profiler_launch(launch)
     observations = []
     stopped_while_main_alive = False
+    stop_stage = "NOT_ELIGIBLE"
+    live_count = 0
     for delay in (0.25, 0.75, 1.5, 4.0):
         time.sleep(delay)
         observed = snapshot(package)
         observations.append(observed)
-        if own_art_trace and should_stop_owned_profile_early(
-                package, observed["main_alive"], stopped_while_main_alive):
-            # Try to flush a real trace BEFORE EXIT_SELF. This is a diagnostic
-            # perturbation, not evidence of normal unprofiled startup behavior.
-            # Do not profile original or expose method names/bytes.
-            adb(["shell", "am", "profile", "stop", CLONE],
-                timeout=25, allow=True)
-            stopped_while_main_alive = True
+        if own_art_trace:
+            live_count += int(observed["main_alive"])
+            stage = choose_owned_profile_stop_stage(
+                package, main_alive=observed["main_alive"],
+                activity_resumed=observed["activity_resumed"],
+                live_sample_count=live_count,
+                already_stopped=stopped_while_main_alive)
+            if stage.startswith("SECOND_ALIVE_"):
+                # Intentionally wait for a SECOND independently observed
+                # live MAIN snapshot; a previous early trace ended before
+                # YMApplication.onCreate. If clone dies before this point,
+                # no phase is asserted. Original is never traced.
+                adb(["shell", "am", "profile", "stop", CLONE],
+                    timeout=25, allow=True)
+                stopped_while_main_alive = True
+                stop_stage = stage
     status = observations[-1]
     if own_art_trace:
         status["private_art_start_command_category"] = profiler_launch_category
         status["art_profile_stop_while_main_alive_attempted"] = stopped_while_main_alive
+        status["art_profile_stop_stage"] = (
+            stop_stage if stopped_while_main_alive else
+            "NO_SECOND_ALIVE_SAMPLE_FALLBACK")
         if not stopped_while_main_alive:
             # Fallback may be too late to flush a trace; never imply otherwise.
             adb(["shell", "am", "profile", "stop", CLONE],
