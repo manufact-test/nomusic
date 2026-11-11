@@ -10,12 +10,17 @@ final class SupportService
   if(strlen($text)<3||strlen($text)>6000||!preg_match('//u',$text)||preg_match('/[\x00-\x08\x0B\x0C\x0E-\x1F]/',$text)||!preg_match('/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/D',$key))throw new \InvalidArgumentException('invalid_request');
   return $text;
  }
- public function create(int $user,string $body,string $key,?array $report=null):int {
+ public function create(int $user,string $body,string $key,?array $report=null,?array $diagnostics=null):int {
   $report=$report===null?null:SongReport::normalize($report);
   $kind=$report===null?'general':'song';
   if($report!==null&&trim($body)==='')$body=SongReport::CATEGORIES[$report['category']];
   $body=$this->validate($body,$key);
-  $json=$report===null?null:json_encode($report,JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE);
+  // Existing report_json column also stores private Windows diagnostics for
+  // general inquiries; only message body is emailed and visible to the user.
+  $storedReport=$report??($diagnostics===null?null:(in_array($diagnostics['platform']??null,['chromium','android'],true)
+   ?SupportReport::normalize($diagnostics):['platform'=>'windows',
+   'diagnostics'=>WindowsSupportDiagnostics::normalize($diagnostics)]));
+  $json=$storedReport===null?null:json_encode($storedReport,JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE);
   $hash=$report===null?null:hash('sha256',json_encode([$report['track']['id'],$report['category'],$body,!empty($report['diagnostics']['trace'])?$key:null],JSON_THROW_ON_ERROR));$this->pdo->beginTransaction();
   try {
    // Per-account lock makes rate limits and duplicate handling atomic.
@@ -36,7 +41,7 @@ final class SupportService
  public function thread(int $id,?int $user=null,int $page=1):array {
   $page=max(1,min(100000,$page));$offset=($page-1)*5;
   $q=$this->pdo->prepare('SELECT id,kind,status,created_at,report_json FROM support_tickets WHERE id=?'.($user!==null?' AND user_id=?':''));$q->execute($user!==null?[$id,$user]:[$id]);$ticket=$q->fetch(\PDO::FETCH_ASSOC);if(!$ticket)throw new \DomainException('not_found');
-  $q=$this->pdo->prepare("SELECT id,body,created_at,IF(admin_id IS NULL,'user','support') AS author FROM support_messages WHERE ticket_id=? ORDER BY id DESC LIMIT 6 OFFSET $offset");$q->execute([$id]);$rows=$q->fetchAll(\PDO::FETCH_ASSOC);$ticket['report']=$ticket['report_json']===null?null:json_decode($ticket['report_json'],true,16,JSON_THROW_ON_ERROR);unset($ticket['report_json']);$ticket['has_more']=count($rows)>5;$ticket['message_page']=$page;$ticket['messages']=array_reverse(array_slice($rows,0,5));return $ticket;
+  $q=$this->pdo->prepare("SELECT id,body,created_at,IF(admin_id IS NULL,'user','support') AS author FROM support_messages WHERE ticket_id=? ORDER BY id DESC LIMIT 6 OFFSET $offset");$q->execute([$id]);$rows=$q->fetchAll(\PDO::FETCH_ASSOC);$ticket['report']=$ticket['report_json']===null?null:($user!==null&&$ticket['kind']==='general'?null:json_decode($ticket['report_json'],true,16,JSON_THROW_ON_ERROR));unset($ticket['report_json']);$ticket['has_more']=count($rows)>5;$ticket['message_page']=$page;$ticket['messages']=array_reverse(array_slice($rows,0,5));return $ticket;
  }
  public function reply(int $admin,int $id,string $body,string $key):void {
   $body=$this->validate($body,$key);$this->pdo->beginTransaction();

@@ -24,10 +24,16 @@ final class SupportAdminView
    $q=$this->pdo->prepare('SELECT u.id,u.email FROM users u JOIN support_tickets t ON t.user_id=u.id WHERE t.id=?');$q->execute([$selected]);$user=$q->fetch(\PDO::FETCH_ASSOC);
    $kind=$thread['kind'];
    $html.='<h2>Обращение №'.$selected.' · '.self::status($thread['status']).'</h2><p>'.self::e($user['email']).'</p>';
-   if($kind==='song'&&is_array($thread['report'])){
+   if($kind==='general'&&is_array($thread['report'])&&in_array($thread['report']['platform']??null,['chromium','android'],true)){
+     $html.='<p><a class="button" href="/admin/support/diagnostics?ticket='.$selected.'">Скачать диагностику JSON</a></p>';
+   }
+   if($kind==='general'&&is_array($thread['report'])&&($thread['report']['platform']??null)==='windows'){
+     $html.='<p><a class="button" href="/admin/support/diagnostics?ticket='.$selected.'">Скачать диагностику JSON</a></p>';
+    }
+    if($kind==='song'&&is_array($thread['report'])){
     $r=$thread['report'];$t=$r['track'];
     $html.='<p><a class="button" href="/admin/support/diagnostics?ticket='.$selected.'">Скачать диагностику JSON</a></p>';
-    $html.='<p><strong>Проблема с песней: '.self::e(SongReport::CATEGORIES[$r['category']]??'Другая проблема').'</strong></p><p>'.self::e(trim($t['artist'].' — '.$t['title'])).' · Track ID '.self::e($t['id']).'</p><p>Версия расширения: '.self::e($r['version']).' · '.self::e(MoscowTime::display($thread['created_at'])).' (Москва)</p><details><summary>Техническая диагностика</summary><pre style="white-space:pre-wrap;overflow-wrap:anywhere">'.self::e(json_encode($r['diagnostics'],JSON_PRETTY_PRINT|JSON_UNESCAPED_UNICODE)).'</pre></details>';
+    $html.='<p><strong>Проблема с песней: '.self::e(SongReport::CATEGORIES[$r['category']]??'Другая проблема').'</strong></p><p>'.self::e(trim($t['artist'].' — '.$t['title'])).' · Track ID '.self::e($t['id']).'</p><p>Версия расширения: '.self::e($r['version']).' · '.self::e(MoscowTime::display($thread['created_at'])).' (Москва)</p>';
    }
    foreach($thread['messages'] as $m){
     $html.='<p style="margin:16px 0 8px">'.($m['author']==='user'?'Сообщение':'Ответ поддержки').'</p><article style="padding:16px;border:1px solid #555;border-radius:12px"><p style="white-space:pre-wrap;overflow-wrap:anywhere">'.self::e(self::messageBody($m['body'])).'</p></article>';
