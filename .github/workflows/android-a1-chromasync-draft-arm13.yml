@@ -104,7 +104,7 @@ jobs:
           bash android/native-yandex-hooklab/ci/native_arm_redroid_boot_only.sh
           test "$(docker exec celikom-native-arm-android13 getprop sys.boot_completed)" = 1
 
-      - name: ChromaSync exact original APK ALONE: PackageManager + MAIN 16s PID/resume
+      - name: "ChromaSync exact original APK ALONE: PackageManager + MAIN 16s PID/resume"
         shell: bash
         run: |
           set -euo pipefail
@@ -177,7 +177,7 @@ jobs:
           print('{"original_publisher_signed_control_verified":true}')
           PY
 
-      - name: NEW Android13 guest: publisher Yandex FIRST then exact ChromaSync
+      - name: "NEW Android13 guest: publisher Yandex FIRST then exact ChromaSync"
         timeout-minutes: 17
         shell: bash
         run: |
