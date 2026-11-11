@@ -1,3 +1,5 @@
+> **ARM NativeBridge limitation is bypassed by testing on proper ARM Android13, not patched:** [CI 42987483624](https://github.com/manufact-test/nomusic/actions/runs/42987483624) proves original upstream LSPatch works with OWN ARMv7 Android13 and onCreate hook, no signature bypass. This supersedes any assumption that ARMv7 loader universally crashes. Report: [true ARM13 test](ANDROID-A1-TRUE-ARM13-REDROID-LSPATCH-OWN-HOOK-VERIFIED-20261111.md). Native Yandex clone MAIN/UI and audio still NO-GO.
+
 # CELIKOM Android A1 — decisive vendor-free differential: ARMv7 NativeBridge fails, native x86 LSPatch runs (11.11.2026)
 
 **VERDICT:** LSPatch v1.2-487 with `sigBypassLevel=0` demonstrably boots in a permissionless **OWN native x86 application** on our pinned Android 11 x86 emulator. The **same pinned upstream LSPatch** fails with `SIGSEGV` when the same emulator must translate an **OWN ARMv7 application** through NativeBridge, even after we correct the proven `EM_386` vs `EM_ARM` library-selection mismatch. This isolates the current emulator blocker from Yandex code. **No Yandex clone native UI, login or audio replacement has been achieved.**
