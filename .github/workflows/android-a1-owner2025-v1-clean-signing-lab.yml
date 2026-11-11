@@ -1,0 +1,86 @@
+name: CELIKOM A1 2025 own-key clean signing after stale v1 removal (no install)
+on:
+  push:
+    branches: [experiment/android-a1-owner2025-v1-sanitized-signer-lab-20261111]
+    paths:
+      - '.github/workflows/android-a1-owner2025-v1-clean-signing-lab.yml'
+      - 'android/native-yandex-hooklab/ci/owner_2025_gpr_lab_clone_no_bypass_arm13.py'
+      - 'android/native-yandex-hooklab/ci/lab_signer_signal_gate.py'
+      - 'android/native-yandex-hooklab/ci/test_lab_signer_signal_gate.py'
+      - 'android/native-yandex-hooklab/ci/lab_unsigned_archive_cleanroom.py'
+      - 'android/native-yandex-hooklab/ci/test_lab_unsigned_archive_cleanroom.py'
+permissions:
+  contents: write
+jobs:
+  ephemeral-signature-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 13
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Independently check synthetic archive and signer classifier fixtures
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -B android/native-yandex-hooklab/ci/test_lab_signer_signal_gate.py -v
+          python3 -B android/native-yandex-hooklab/ci/test_lab_unsigned_archive_cleanroom.py -v
+          python3 -B -m py_compile android/native-yandex-hooklab/ci/owner_2025_gpr_lab_clone_no_bypass_arm13.py android/native-yandex-hooklab/ci/lab_signer_signal_gate.py android/native-yandex-hooklab/ci/lab_unsigned_archive_cleanroom.py
+      - name: Retrieve exact owner XAPK from unpublished draft, no release or artifact changes
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [ "$GITHUB_REPOSITORY" = manufact-test/nomusic ]
+          gh api --paginate "repos/$GITHUB_REPOSITORY/releases?per_page=100" --jq '.[] | select(.id == 442137464 and .draft == true and .tag_name == "a1-yandex-2025-gpr-private-test") | .id' | grep -qx 442137464
+          gh api "repos/$GITHUB_REPOSITORY/releases/442137464/assets?per_page=100" --jq '.[] | select(.id == 736739728 and .name == "yandex-music-2025-10-4-120-1gpr.xapk" and .size == 45961661 and .digest == "sha256:8e43be8900d28ee92c8e315ed07069568858bfd4a593757fba9d276bd0c54053") | .id' | grep -qx 736739728
+          mkdir -p "$RUNNER_TEMP/owner-2025-signature-diagnostic"
+          gh release download a1-yandex-2025-gpr-private-test --repo "$GITHUB_REPOSITORY" --pattern yandex-music-2025-10-4-120-1gpr.xapk --dir "$RUNNER_TEMP/owner-2025-signature-diagnostic" --clobber >/dev/null
+          xapk="$RUNNER_TEMP/owner-2025-signature-diagnostic/yandex-music-2025-10-4-120-1gpr.xapk"
+          [ "$(stat -c %s "$xapk")" = 45961661 ]
+          [ "$(sha256sum "$xapk" | cut -d' ' -f1)" = 8e43be8900d28ee92c8e315ed07069568858bfd4a593757fba9d276bd0c54053 ]
+      - name: Verify original signer, rebuild ephemeral independent clone locally, inspect apksigner verifier status
+        shell: bash
+        timeout-minutes: 10
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo env DEBIAN_FRONTEND=noninteractive apt-get install -y -qq aapt apksigner zipalign
+          mkdir -p "$RUNNER_TEMP/owner-2025-signature-diagnostic/sdk/build-tools/35.0.0"
+          for tool in aapt apksigner zipalign; do
+            ln -sf "$(command -v "$tool")" "$RUNNER_TEMP/owner-2025-signature-diagnostic/sdk/build-tools/35.0.0/$tool"
+          done
+          export ANDROID_HOME="$RUNNER_TEMP/owner-2025-signature-diagnostic/sdk"
+          python3 - <<'PY'
+          import json, os, sys, tempfile
+          from pathlib import Path
+          sys.path.insert(0,"android/native-yandex-hooklab/ci")
+          from owner_2025_gpr_lab_clone_no_bypass_arm13 import verified_orig_paths,ephemeral_clone
+          source=Path(os.environ["RUNNER_TEMP"])/"owner-2025-signature-diagnostic/yandex-music-2025-10-4-120-1gpr.xapk"
+          with tempfile.TemporaryDirectory(prefix="celikom-signing-offline-") as folder:
+              try:
+                  work=Path(folder)
+                  parts=verified_orig_paths(source,work)
+                  print(json.dumps({"source_all_16_signed_publisher_verified":len(parts)==16,"android_guest_started":False}))
+                  compiled,info=ephemeral_clone(parts,work)
+                  print(json.dumps({"verdict":"ALL_16_LAB_SPLITS_VERIFIED","count":len(compiled),**info},sort_keys=True))
+              except Exception as exc:
+                  reason=str(exc)
+                  print(json.dumps({"verdict":"LAB_SIGNER_OFFLINE_DIAGNOSTIC_FAILED",
+                                    "safe_fixed_reason":reason if reason.isupper() and len(reason)<96 else type(exc).__name__,
+                                    "android_guest_started":False,
+                                    "original_publisher_signature_modified":False,
+                                    "invalid_clone_installed":False},sort_keys=True))
+                  raise SystemExit(5)
+          PY
+      - name: Always erase original archive, lab signing key, generated APKs, no artifact
+        if: always()
+        shell: bash
+        run: |
+          rm -rf -- "$RUNNER_TEMP/owner-2025-signature-diagnostic"
+          echo '{"owner_original_draft_unpublished":true,"clone_distributed":false,"android_guest_started":false,"owner_phone_modified":false}'
