@@ -38,8 +38,8 @@ class SafeMainCrashBufferTest(unittest.TestCase):
     def test_offline_original_package_scope_is_exact_and_never_crosses_apps(self):
         from clone_main_crash_buffer import classify_main_exit_status
         original="ru.yandex.music"
-        dump=(f"ApplicationExitInfo #0: pid=712 process={original} reason=4 status=0\\n"
-              f"ApplicationExitInfo #1: pid=431 process={CLONE} reason=1 status=0\\n")
+        dump=(f"ApplicationExitInfo #0: pid=712 process={original} reason=4 status=0\n"
+              f"ApplicationExitInfo #1: pid=431 process={CLONE} reason=1 status=0\n")
         crash=(row(712,"E","AndroidRuntime","FATAL EXCEPTION: main")
                +row(712,"E","AndroidRuntime","java.lang.IllegalStateException: " + SECRET)
                +row(431,"E","AndroidRuntime","java.lang.SecurityException: " + SECRET))
