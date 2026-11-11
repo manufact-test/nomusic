@@ -39,3 +39,21 @@ No product release: Test.50, Windows, production and user's device untouched. Ma
 [Actual ARM13 CI 43026569379](https://github.com/manufact-test/nomusic/actions/runs/43026569379): OWN scoped Java observer builds, test suite passes, real native Android13 boots, LSPatch0 clone wraps six matching signed-host DEX and three .so with ONE own module, original signed app stays alive. The module sees its exact Kotlin prefix comparator within Lxx0.run at runtime; finite observed categories include OWN_MAIN and OWN_AUX, with MATCH_TRUE and MATCH_FALSE. Clone still exits MAIN twice with EXIT_SELF(0), strict workflow gate fails as intended. This proves runtime comparison of process-name-like values, not which particular match selected the kill branch. No raw app names or strings from runtime logged.
 
 A new parser-only privacy-safe correlation now records the last MAIN-thread PREFIX_CHECK marker in each **exact fresh exited MAIN PID** before its first PROCESS_KILL or SYSTEM_EXIT marker. Output is a fixed finite enum per PID collapsed into a set; no PID, time, tokens or values. An event immediately preceding termination is **temporal evidence**, not necessarily the causal predicate. Added two synthetic interleaving/background-thread tests. The scoped observation still never overrides the security policy or return values.
+
+## Exact same-PID kill target witness (final narrow A/B, 11 Nov 2026)
+
+[ARM13 CI 43028345936](https://github.com/manufact-test/nomusic/actions/runs/43028345936), isolated experiment SHA cc176ee80a91190e379f46899b157065201a73e4. Our OWN module compiles. Native ARM13 guest and lab LSPatch0 wrapper succeed; original issuer-signed Yandex remains alive. The strict native cloned MAIN gate still fails (two fresh MAIN PIDs, EXIT_SELF status zero). No native user UI or audio replacement.
+
+For **both** fresh independent clone MAIN PID instances, our pass-through hooks observed:
+- Lxx0.run() prefix check on OWN_AUX group: MATCH_TRUE directly preceding first termination call in each MAIN PID
+- android.os.Process.killProcess is invoked with a PID **different from the executing MAIN process PID** (KILL_TARGET_OTHER on both MAIN lifecycles)
+- Java System.exit and Runtime.exit are also called by the exact Lxx0.run frame, and each MAIN exits with ZERO
+- The signed-original static DEX graph independently confirms exactly one conditional route towards killProcess and a preceding string prefix comparison, ActivityManager.getRunningAppProcesses, Context.getPackageName
+
+**What is established:** This is a concrete process-lifecycle exit path; the method first targets another process PID before the MAIN process itself exits. The static/runtime evidence is tightly aligned, and the two fresh MAIN attempts reproduce identically.
+
+**What remains unknown:** Whether the target-other PID is precisely the auxiliary process (as opposed to another PID); why Lxx0.run() is invoked twice rather than original publisher-signed host surviving; whether this is a locale/process restart routine, a package-identity bug, or security enforcement. Do NOT assert security-bypass checks, do NOT disable components or signature checks as a fix, do NOT claim working application.
+
+**Next diagnosis only if needed:** Inspect signed original Lby0.a / Lby0.p(Context) / Lhi2.j callsites that construct/schedule the multi-branch Lxx0 runnable. Determine process-restart vs legitimate safety policy first; avoid more blind repackaging. No producer/stable/user APK from this laboratory result.
+
+Exact rollback branch: backup/android-a1-xx0-aux-prefix-other-pid-kill-evidence-20261111 at cc176ee80a91190e379f46899b157065201a73e4. Primary lead source remains frozen cc4cb0f93489168db21502f3ef195855ae9fb743; no changes to original Yandex on user device, accepted Test.50, Windows, server or extension. Stage A NO-GO, Stage B locked.
