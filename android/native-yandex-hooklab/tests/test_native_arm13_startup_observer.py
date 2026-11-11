@@ -13,6 +13,7 @@ from native_arm13_startup_observer import (
     only_new_main_exit_info,
     classify_new_main_log_signals,
     classify_live_main_log_signals,
+    classify_main_cycle_correlation,
     ORIGINAL,
 )
 
@@ -262,6 +263,64 @@ class ArmStartupObserverTests(unittest.TestCase):
         self.assertFalse(result["main_scoped_error_severity_seen"])
         self.assertTrue(result["main_scoped_warning_or_error_seen"])
         self.assertNotIn(SECRET, str(result))
+
+    def test_two_fresh_exact_main_pids_correlate_without_leaking_identity(self):
+        exits = (
+            f"ApplicationExitInfo #0:\n pid=102 process={CLONE} reason=1 status=0\n"
+            f"ApplicationExitInfo #1:\n pid=104 process={CLONE} reason=1 status=0\n"
+            f"ApplicationExitInfo #2:\n pid=103 process={CLONE}:AppMetrica reason=5 status=11\n"
+        )
+        events = (
+            "I/am_proc_start( 1): [0,102,10001," + CLONE + ",service,private]\n"
+            "I/am_proc_died( 1): [0,102," + CLONE + ",0,0]\n"
+            "I/am_proc_start( 1): [0,104,10001," + CLONE + ",service,private]\n"
+            "I/am_proc_died( 1): [0,104," + CLONE + ",0,0]\n"
+            "I/am_proc_start( 1): [0,103,10001," + CLONE + ":AppMetrica,service," + CLONE + "]\n"
+        )
+        main = (log(102, "E", "Opaque", "java.lang.IllegalStateException " + SECRET)
+                + log(104, "F", "Opaque", "java.lang.IllegalStateException " + SECRET)
+                + log(103, "E", "Opaque", "java.lang.IllegalStateException " + SECRET))
+        d = classify_main_cycle_correlation(exits, events, main)
+        self.assertEqual(d["exact_new_main_exit_pids_bounded"], 2)
+        self.assertEqual(d["main_exit_self_zero_pids_bounded"], 2)
+        self.assertEqual(d["event_start_correlated_pids_bounded"], 2)
+        self.assertEqual(d["event_died_correlated_pids_bounded"], 2)
+        self.assertEqual(d["illegal_state_error_correlated_pids_bounded"], 2)
+        self.assertTrue(d["all_new_main_exits_self_zero"])
+        self.assertTrue(d["all_new_main_exits_start_and_die"])
+        self.assertTrue(d["all_new_main_exits_with_illegal_state_log"])
+        self.assertTrue(d["correlation_is_not_causation"])
+        self.assertFalse(d["raw_process_ids_or_log_exposed"])
+        for private in ("102", "104", "103", SECRET, "Opaque"):
+            self.assertNotIn(private, str(d))
+
+    def test_missing_one_cycle_log_and_helper_hosting_never_establish_both(self):
+        exits = (
+            f"ApplicationExitInfo #0:\n pid=102 process={CLONE} reason=1 status=0\n"
+            f"ApplicationExitInfo #1:\n pid=104 process={CLONE} reason=1 status=0\n"
+        )
+        helper_only = (
+            "I/am_proc_start( 1): [0,102,10001," + CLONE +
+            ":helper,service," + CLONE + "]\n"
+            "I/am_proc_died( 1): [0,102," + CLONE + ":helper,0,0]\n"
+            "I/am_proc_start( 1): [0,104,10001," + CLONE + ",service,private]\n"
+        )
+        main = log(102, "E", "Opaque", "java.lang.IllegalStateException " + SECRET)
+        d = classify_main_cycle_correlation(exits, helper_only, main)
+        self.assertEqual(d["event_start_correlated_pids_bounded"], 1)
+        self.assertEqual(d["event_died_correlated_pids_bounded"], 0)
+        self.assertEqual(d["illegal_state_error_correlated_pids_bounded"], 1)
+        self.assertFalse(d["all_new_main_exits_start_and_die"])
+        self.assertFalse(d["all_new_main_exits_with_illegal_state_log"])
+
+    def test_no_exit_records_no_cycle_attestation(self):
+        d = classify_main_cycle_correlation("", event("am_proc_start", CLONE),
+                                            log(102, "E", "Opaque",
+                                                "java.lang.IllegalStateException"))
+        self.assertEqual(d["exact_new_main_exit_pids_bounded"], 0)
+        self.assertFalse(d["all_new_main_exits_self_zero"])
+        self.assertFalse(d["all_new_main_exits_start_and_die"])
+        self.assertFalse(d["all_new_main_exits_with_illegal_state_log"])
 
     def test_no_event_does_not_imply_healthy_app(self):
         out = classify_startup_events("", CLONE)
