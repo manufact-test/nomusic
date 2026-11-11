@@ -70,6 +70,27 @@ public sealed partial class MainWindow : Form
     private readonly PopupButton _diagnosticsButton = new();
     private bool _diagnosticsAllowed;
     private int _diagnosticsEpoch;
+    private string _diagnosticsVerifiedOrigin = "";
+    private string _diagnosticsVerifiedInstallation = "";
+    private string _diagnosticsVerifiedEmail = "";
+
+    private bool DiagnosticsVerificationStillCurrent()
+    {
+        var session = _api.Settings;
+        return _api.IsLoggedIn && _diagnosticsAllowed &&
+            string.Equals(_diagnosticsVerifiedOrigin, session.Origin, StringComparison.Ordinal) &&
+            string.Equals(_diagnosticsVerifiedInstallation, session.InstallationId, StringComparison.Ordinal) &&
+            string.Equals(_diagnosticsVerifiedEmail, session.Email, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private void RevokeDiagnosticsVisibility()
+    {
+        _diagnosticsAllowed = false;
+        _staffPanel.Visible = false;
+        _diagnosticsVerifiedOrigin = "";
+        _diagnosticsVerifiedInstallation = "";
+        _diagnosticsVerifiedEmail = "";
+    }
     private bool _bridgeStarted;
     // A brief server outage may suspend music. Never auto-start without a new,
     // positive authenticated entitlement and the user's original Start intent.
@@ -520,30 +541,84 @@ public sealed partial class MainWindow : Form
     private async Task RefreshDiagnosticsAccessAsync()
     {
         var generation = ++_diagnosticsEpoch;
-        var email = _api.Email;
-        _diagnosticsAllowed = false;
-        _staffPanel.Visible = false;
-        if (!_api.IsLoggedIn) return;
+        var account = _api.Settings;
+        if (!_api.IsLoggedIn)
+        {
+            RevokeDiagnosticsVisibility();
+            LayoutCompact();
+            return;
+        }
+        // Do not hide an already authenticated owner's button just because
+        // a new permission check is still in flight (VPN reconnect race).
+        if (!DiagnosticsVerificationStillCurrent()) RevokeDiagnosticsVisibility();
         bool allowed;
         try { allowed = await _api.CanExportDiagnosticsAsync(); }
-        catch { allowed = false; }
+        catch (Exception error)
+        {
+            if (generation != _diagnosticsEpoch || !_api.IsLoggedIn ||
+                _api.Settings.InstallationId != account.InstallationId ||
+                _api.Settings.Origin != account.Origin ||
+                !string.Equals(_api.Settings.Email, account.Email, StringComparison.OrdinalIgnoreCase))
+                return;
+            if (DiagnosticsAccessRecovery.KeepButtonOnFailure(
+                _diagnosticsAllowed, _api.IsLoggedIn,
+                _diagnosticsVerifiedOrigin, _diagnosticsVerifiedInstallation,
+                _diagnosticsVerifiedEmail,
+                account.Origin, account.InstallationId, account.Email, error))
+            {
+                // This preserves only UI visibility. Export still requires a
+                // successful fresh online identity check on each click.
+                DiagnosticLog.Record("DIAGNOSTICS_ACCESS_CHECK_DEFERRED");
+                return;
+            }
+            allowed = false;
+        }
         if (generation != _diagnosticsEpoch || !_api.IsLoggedIn ||
-            !string.Equals(email, _api.Email, StringComparison.OrdinalIgnoreCase)) return;
-        _diagnosticsAllowed = allowed;
-        _staffPanel.Visible = allowed;
+            _api.Settings.InstallationId != account.InstallationId ||
+            _api.Settings.Origin != account.Origin ||
+            !string.Equals(_api.Settings.Email, account.Email, StringComparison.OrdinalIgnoreCase))
+            return;
+        if (allowed)
+        {
+            _diagnosticsAllowed = true;
+            _diagnosticsVerifiedOrigin = account.Origin;
+            _diagnosticsVerifiedInstallation = account.InstallationId;
+            _diagnosticsVerifiedEmail = account.Email;
+            _staffPanel.Visible = true;
+        }
+        else RevokeDiagnosticsVisibility(); // genuine server rejection
         LayoutCompact();
     }
 
     private async void SaveDiagnosticsAuthorized(object? sender, EventArgs e)
     {
-        // A previous visible button is not enough: verify live authority again.
+        // Owner shortcut: never export using a stale local grant.
+        if (!DiagnosticsVerificationStillCurrent()) return;
+        var account = _api.Settings;
         bool allowed;
-        try { allowed = _api.IsLoggedIn && await _api.CanExportDiagnosticsAsync(); }
-        catch { allowed = false; }
+        try { allowed = await _api.CanExportDiagnosticsAsync(); }
+        catch (Exception error)
+        {
+            if (DiagnosticsAccessRecovery.KeepButtonOnFailure(
+                DiagnosticsVerificationStillCurrent(), _api.IsLoggedIn,
+                _diagnosticsVerifiedOrigin, _diagnosticsVerifiedInstallation,
+                _diagnosticsVerifiedEmail,
+                account.Origin, account.InstallationId, account.Email, error))
+            {
+                DiagnosticLog.Record("DIAGNOSTICS_EXPORT_CHECK_DEFERRED");
+                return;
+            }
+            allowed = false;
+        }
+        if (!DiagnosticsVerificationStillCurrent() ||
+            _api.Settings.InstallationId != account.InstallationId ||
+            _api.Settings.Origin != account.Origin ||
+            !string.Equals(_api.Settings.Email, account.Email, StringComparison.OrdinalIgnoreCase))
+            return;
         if (!allowed)
         {
-            _diagnosticsAllowed = false;
-            _staffPanel.Visible = false;
+            RevokeDiagnosticsVisibility();
+            LayoutCompact();
             return;
         }
         SaveDiagnostics();
@@ -551,14 +626,36 @@ public sealed partial class MainWindow : Form
 
     private async void CopyDiagnosticsAuthorized(object? sender, EventArgs e)
     {
-        // A visible button alone never authorizes exporting diagnostics.
+        // Only the same previously verified owner may attempt a new check.
+        if (!DiagnosticsVerificationStillCurrent()) return;
+        var account = _api.Settings;
         bool allowed;
-        try { allowed = _api.IsLoggedIn && await _api.CanExportDiagnosticsAsync(); }
-        catch { allowed = false; }
+        try { allowed = await _api.CanExportDiagnosticsAsync(); }
+        catch (Exception error)
+        {
+            if (DiagnosticsAccessRecovery.KeepButtonOnFailure(
+                DiagnosticsVerificationStillCurrent(), _api.IsLoggedIn,
+                _diagnosticsVerifiedOrigin, _diagnosticsVerifiedInstallation,
+                _diagnosticsVerifiedEmail,
+                account.Origin, account.InstallationId, account.Email, error))
+            {
+                DiagnosticLog.Record("DIAGNOSTICS_EXPORT_CHECK_DEFERRED");
+                _diagnosticsButton.Text = "Нет связи · повтори";
+                await Task.Delay(1600);
+                if (DiagnosticsVerificationStillCurrent() && !_diagnosticsButton.IsDisposed)
+                    _diagnosticsButton.Text = "Скопировать диагностику";
+                return;
+            }
+            allowed = false;
+        }
+        if (!DiagnosticsVerificationStillCurrent() ||
+            _api.Settings.InstallationId != account.InstallationId ||
+            _api.Settings.Origin != account.Origin ||
+            !string.Equals(_api.Settings.Email, account.Email, StringComparison.OrdinalIgnoreCase))
+            return;
         if (!allowed)
         {
-            _diagnosticsAllowed = false;
-            _staffPanel.Visible = false;
+            RevokeDiagnosticsVisibility(); // genuine revoked role / invalid account
             LayoutCompact();
             return;
         }
@@ -988,8 +1085,7 @@ public sealed partial class MainWindow : Form
         _compactStarting = false;
         _bridge.SetEnabled(false);
         ++_diagnosticsEpoch;
-        _diagnosticsAllowed = false;
-        _staffPanel.Visible = false;
+        RevokeDiagnosticsVisibility();
         _logout.Enabled = false;
         try { await _api.LogoutAsync(); DiagnosticLog.Record("LOGOUT_OK"); _accountStatus.Text = ""; }
         catch { _accountStatus.Text = "Не удалось завершить выход. Проверь подключение."; }
