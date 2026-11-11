@@ -1,0 +1,85 @@
+name: A1 exact ChromaSync — native Android13 window/UI content-free witness
+on:
+  push:
+    branches:
+      - experiment/android-a1-chromasync-native-ui-witness-20261111
+    paths:
+      - '.github/workflows/android-a1-chromasync-native-ui-witness.yml'
+      - 'android/native-yandex-hooklab/ci/chromasync_native_ui_witness.py'
+      - 'android/native-yandex-hooklab/tests/test_chromasync_native_ui_witness.py'
+permissions:
+  contents: write
+jobs:
+  predicates:
+    name: Synthetic classifiers — NOT actual APK runtime
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - run: |
+          set -euo pipefail
+          python3 -m unittest discover -s android/native-yandex-hooklab/tests -p test_chromasync_native_ui_witness.py -v
+          python3 -m unittest discover -s android/native-yandex-hooklab/tests -p test_chromasync_exact_arm13_probe.py -v
+  native-guest:
+    name: Real native ARM13 exact draft APK focus + UI hierarchy witness (no pixels uploaded)
+    needs: predicates
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 25
+    env:
+      CELIKOM_CLEAN_ANDROID_NATIVE_REDDROID: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Verify exact owner uploaded UNPUBLISHED draft exists; no APK ever committed
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REPOSITORY" = 'manufact-test/nomusic'
+          draft_id="$(gh api --paginate "repos/$GITHUB_REPOSITORY/releases?per_page=100" \
+            --jq '.[] | select(.draft == true and .tag_name == "a1-chromasync-301-unpublished-test") | .id' | head -n 1)"
+          [ -n "$draft_id" ] || { echo '::error::EXACT_UNPUBLISHED_DRAFT_MISSING'; exit 3; }
+          bytes="$(gh api "repos/$GITHUB_REPOSITORY/releases/$draft_id/assets?per_page=100" \
+            --jq '.[] | select(.name == "ChromaSync-Clone-3.0.1.apk") | .size' | head -n 1)"
+          [ "$bytes" = '102572843' ] || { echo '::error::EXACT_DRAFT_ASSET_SIZE_MISMATCH'; exit 3; }
+          mkdir -p "$RUNNER_TEMP/owner-competitor"
+          gh release download 'a1-chromasync-301-unpublished-test' --repo "$GITHUB_REPOSITORY" \
+            --pattern 'ChromaSync-Clone-3.0.1.apk' --dir "$RUNNER_TEMP/owner-competitor" \
+            --clobber >/dev/null 2>&1 || { echo '::error::UNPUBLISHED_DRAFT_DOWNLOAD_FAILED'; exit 3; }
+          asset="$RUNNER_TEMP/owner-competitor/ChromaSync-Clone-3.0.1.apk"
+          test "$(sha256sum "$asset" | cut -d' ' -f1)" = \
+            4e6edb1c471f6b3715eae4c0a35f0bd898b0daaa87f3f8fb3ba0b20d1638b53d || {
+              echo '::error::EXACT_COMPETITOR_APK_SHA256_MISMATCH'; exit 3;
+            }
+          echo '{"exact_owner_apk_verified":true,"draft_still_unpublished":true}'
+      - name: Boot disposable actual native ARM Android13
+        shell: bash
+        timeout-minutes: 16
+        run: |
+          set -euo pipefail
+          bash android/native-yandex-hooklab/ci/native_arm_redroid_boot_only.sh
+          test "$(docker exec celikom-native-arm-android13 getprop sys.boot_completed)" = 1
+      - name: Require FIRST proven exact native MAIN same PID, then inspect window read-only
+        shell: bash
+        timeout-minutes: 6
+        run: |
+          set -euo pipefail
+          python3 android/native-yandex-hooklab/ci/chromasync_exact_arm13_probe.py \
+            --apk "$RUNNER_TEMP/owner-competitor/ChromaSync-Clone-3.0.1.apk" \
+            --transport docker --mode alone
+          python3 android/native-yandex-hooklab/ci/chromasync_native_ui_witness.py
+          echo '{"user_account_used":false,"audio_tested":false,"visual_ui_acceptance_not_claimed":true}'
+      - name: Destroy Redroid, screenshot/tree and proprietary guest APK
+        if: always()
+        shell: bash
+        run: |
+          docker stop celikom-native-arm-android13 >/dev/null 2>&1 || true
+          sudo umount /dev/binderfs >/dev/null 2>&1 || true
+          sudo modprobe -r binder_linux >/dev/null 2>&1 || true
+          sudo rm -rf -- "$RUNNER_TEMP/celikom-redroid-data"
+          rm -rf -- "$RUNNER_TEMP/owner-competitor"
+          echo '{"guest_destroyed":true,"ui_screen_uploaded":false,"competitor_apk_published":false,"owner_device_touched":false}'
