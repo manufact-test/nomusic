@@ -125,9 +125,9 @@ try
     if (!string.IsNullOrWhiteSpace(zipFixture))
     {
         var staged = AppUpdateManager.Stage(zipFixture, new Version(0, 24, 16, 0));
-        Test(staged.Version == new Version(0, 24, 18, 0),
+        Test(staged.Version == new Version(0, 24, 19, 0),
             "ZIP one-click updater accepts new CELIKOM version");
-        Test(Path.GetFileName(staged.Path).StartsWith("CELIKOM-W70-",StringComparison.Ordinal),
+        Test(Path.GetFileName(staged.Path).StartsWith("CELIKOM-W71-",StringComparison.Ordinal),
             "ZIP extraction stages only CELIKOM installer");
         bool oldRejected = false;
         try { AppUpdateManager.Stage(zipFixture, AppUpdateManager.RunningVersion); }
@@ -258,6 +258,28 @@ try
     Test(!PlaybackEntitlement.Allowed(Parse(new { allowed = true,
         source = "trial", valid_until = "invalid-date", reason = "trial_active" }), now),
         "W68 unparseable expiry fails closed");
+    // W71: only fresh, positive authenticated entitlement may resume after a network flap.
+    Test(EntitlementCheckRecovery.IsTransient(new HttpRequestException()) &&
+         EntitlementCheckRecovery.IsTransient(new TaskCanceledException()) &&
+         EntitlementCheckRecovery.IsTransient(new ApiFailure(429, "RATE_LIMITED")) &&
+         EntitlementCheckRecovery.IsTransient(new ApiFailure(503, "API_ERROR")),
+         "W71 temporary network, 429 and 5xx errors retryable");
+    Test(!EntitlementCheckRecovery.IsTransient(new ApiFailure(401, "INVALID_SESSION")) &&
+         !EntitlementCheckRecovery.IsTransient(new ApiFailure(403, "ACCESS_DENIED")) &&
+         !EntitlementCheckRecovery.IsTransient(new InvalidOperationException()),
+         "W71 denied session and local errors not retryable");
+    var freshAllowed = Parse(new { allowed = true, source = "promo",
+        valid_until = (string?)null, reason = "promo_active" });
+    var freshDenied = Parse(new { allowed = false, source = "trial",
+        valid_until = now.AddHours(1).ToString("O"), reason = "service_incident" });
+    Test(EntitlementCheckRecovery.MayResume(true, true, true, true, freshAllowed, now),
+         "W71 approved server entitlement may restore suspended playback");
+    Test(!EntitlementCheckRecovery.MayResume(false, true, true, true, freshAllowed, now) &&
+         !EntitlementCheckRecovery.MayResume(true, false, true, true, freshAllowed, now) &&
+         !EntitlementCheckRecovery.MayResume(true, true, false, true, freshAllowed, now) &&
+         !EntitlementCheckRecovery.MayResume(true, true, true, false, freshAllowed, now) &&
+         !EntitlementCheckRecovery.MayResume(true, true, true, true, freshDenied, now),
+         "W71 manual stop, logout, mismatch and denied never auto-restart");
     var accessPreview = await api.GetEntitlementAsync();
     Test(accessPreview.GetProperty("source").GetString() == "promo" &&
          accessPreview.GetProperty("valid_until").ValueKind == JsonValueKind.Null,
@@ -266,7 +288,7 @@ try
     Test(redeemed.GetProperty("entitlement").GetProperty("allowed").GetBoolean(),
         "W62 promo redeems via existing service");
     var automaticDiagnostics = DiagnosticLog.ExportSupportSnapshot(
-        "5.126.1.0", "ACTIVE", true, true, "0.24.18", true, "144530503");
+        "5.126.1.0", "ACTIVE", true, true, "0.24.19", true, "144530503");
     var support = await api.SendSupportAsync("Проверка поддержки", Guid.NewGuid(),
         diagnostics: automaticDiagnostics);
     Test(support.GetProperty("ticket_id").GetInt32() == 3, "W62 general support real API");
