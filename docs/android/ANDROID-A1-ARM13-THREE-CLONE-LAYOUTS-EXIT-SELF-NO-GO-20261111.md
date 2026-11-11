@@ -40,3 +40,11 @@ Code: android/native-yandex-hooklab/clone_native_arm13_redroid_gate.py, clone_na
 [Current Yandex Music mobile license (sections 4.1–4.4)](https://yandex.ru/legal/music_mobile_agreement/ru/) explicitly restricts modification/derivative use and modified/commercial distribution without written consent of the rightsholder, subject to the applicable law. This is a **separate distribution permission issue**, not technical proof of the EXIT_SELF cause. Publicly reviewed Yandex developer resources did not establish a supported SDK to embed the **full native Yandex Music player/UI** into an independently signed CELIKOM app. Do not claim none can exist privately or under partnership.
 
 GitHub tracking issue: [#41 — Android A1 native clone self-exit blocker](https://github.com/manufact-test/nomusic/issues/41). It records acceptance gates and prevents more ungrounded ABI/ZIP/LSPatch work.
+
+## Last engineering stabilization (same date)
+
+New documentary Stage-A guard script android/native-yandex-hooklab/native_clone_stage_a_evidence_gate.py and frozen JSON docs/android/CELIKOM-ANDROID-A1-STAGE-A-EVIDENCE-20261111.json, with pure regression tests and [CI 42994205737](https://github.com/manufact-test/nomusic/actions/runs/42994205737) green. Its expected outcome is **NO-GO**, because issuer rights, native cloned UI, Play Protect and audible owner acceptance are not validated. This is evidence consistency, NOT an app runtime fix.
+
+Bounded once-only Redroid clean-boot retry was introduced in android/native-yandex-hooklab/ci/native_arm_redroid_boot_only.sh to avoid conflating ephemeral guest exits with product failures. [CI 42994395668](https://github.com/manufact-test/nomusic/actions/runs/42994395668) green for a normal first boot; retry recovery has not been observed in this CI result. Neither result changes the clone EXIT_SELF(0).
+
+[Authoritative next-chat handoff](ANDROID-A1-NEXT-CHAT-FINAL-HANDOFF-20261111.md) and [publisher integration options](ANDROID-A1-PUBLISHER-SUPPORTED-INTEGRATION-OPTIONS-20261111.md) now contain actual user-product constraints, source/backup and contact questions. GitHub issue [#41](https://github.com/manufact-test/nomusic/issues/41) stays OPEN.
