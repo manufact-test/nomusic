@@ -45,8 +45,8 @@ def _native_link_failure_mode(log_text: str) -> str:
     """Fixed, privacy-safe linker diagnostics. Never return an error message."""
     patterns = (
         ("NAMESPACE_DENIED", r"not accessible for the namespace|not permitted in linker namespace|namespace.*(?:inaccessible|denied)"),
-        ("DEP_MISSING", r"(?:needed by|referenced by|DT_NEEDED).*?(?:not found|missing)|library\\s+['\\\"][^'\\\"]+\\.so['\\\"]\\s+not found"),
-        ("LIBRARY_NOT_FOUND", r"(?:library\\s+)?['\\\"]?liblspatch\\.so['\\\"]?\\s+not found|no such file or directory|couldn't find|cannot find"),
+        ("DEP_MISSING", r"(?:needed by|referenced by|DT_NEEDED).*?(?:not found|missing)|library\s+['\\"][^'\\"]+\.so['\\"]\s+not found"),
+        ("LIBRARY_NOT_FOUND", r"(?:library\s+)?['\\"]?liblspatch\.so['\\"]?\s+not found|no such file or directory|couldn't find|cannot find"),
         ("SYMBOL_UNRESOLVED", r"cannot locate symbol|undefined symbol|symbol lookup error"),
         ("ELF_ARCH_INVALID", r"wrong ELF class|instead of (?:32|64)-bit|e_machine|unexpected ELF|ELFCLASS"),
         ("ELF_INVALID", r"bad ELF|invalid ELF|not an ELF|ELF header|ELF load command"),
@@ -64,13 +64,13 @@ def _native_link_failure_mode(log_text: str) -> str:
 
 def _native_link_path_family(log_text: str) -> str:
     """Classify loading origin without exposing a path or package private data."""
-    if re.search(r"\\.apk!/assets/lspatch/so/", log_text, re.I):
+    if re.search(r"\.apk!/assets/lspatch/so/", log_text, re.I):
         return "ZIP_ASSET_LOADER"
-    if re.search(r"\\.apk!/lib/", log_text, re.I):
+    if re.search(r"\.apk!/lib/", log_text, re.I):
         return "ZIP_LIB"
-    if re.search(r"/(?:lib|lib64)/liblspatch\\.so", log_text, re.I):
+    if re.search(r"/(?:lib|lib64)/liblspatch\.so", log_text, re.I):
         return "EXTRACTED_LIB"
-    if re.search(r"liblspatch\\.so", log_text, re.I):
+    if re.search(r"liblspatch\.so", log_text, re.I):
         return "UNSPECIFIED_LSPATCH_PATH"
     return "NOT_OBSERVED"
 
