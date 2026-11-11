@@ -17,6 +17,13 @@ MAX_RECORDS = 1_000_000
 # Public known method signatures verified by the signed, read-only DEX audit.
 WATCH = {
     ("ru/yandex/music/YMApplication", "onCreate"): "ymapplication_oncreate",
+    ("ru/yandex/music/YMApplication", "attachBaseContext"):
+        "ymapplication_attachbasecontext",
+    ("ru/yandex/music/main/MainScreenActivity", "onCreate"):
+        "mainscreen_oncreate",
+    ("ru/yandex/music/main/MainScreenActivity", "onResume"):
+        "mainscreen_onresume",
+    ("java/lang/IllegalStateException", "<init>"): "illegalstate_constructor",
     ("ck7", "uncaughtException"): "uncaught_handler",
     ("java/lang/System", "exit"): "system_exit",
     ("java/lang/Runtime", "exit"): "runtime_exit",
@@ -52,6 +59,10 @@ def classify_art_trace(raw: bytes) -> dict:
     for kind in KINDS:
         verdict[kind + "_entered_main"] = False
         verdict[kind + "_entered_any"] = False
+        verdict[kind + "_returned_main"] = False
+        verdict[kind + "_unwound_main"] = False
+    verdict["illegalstate_constructor_caller_groups"] = []
+    verdict["illegalstate_constructor_entries_bounded"] = 0
     verdict["direct_exit_caller_groups"] = []
     verdict["system_exit_entry_count_bounded"] = 0
     verdict["runtime_exit_entry_count_bounded"] = 0
@@ -112,6 +123,7 @@ def classify_art_trace(raw: bytes) -> dict:
         verdict["trace_records_observed"] = count > 0
         stacks: dict[int, list[int]] = {}
         direct_groups = set()
+        exception_caller_groups = set()
         for i in range(count):
             off = offset + i * rec_size
             if version == 1:
@@ -128,6 +140,12 @@ def classify_art_trace(raw: bytes) -> dict:
                     verdict[kind + "_entered_any"] = True
                     if tid == main_tid:
                         verdict[kind + "_entered_main"] = True
+                    if kind == "illegalstate_constructor":
+                        verdict["illegalstate_constructor_entries_bounded"] = min(
+                            100, verdict["illegalstate_constructor_entries_bounded"] + 1)
+                        exception_caller_groups.add(
+                            grouped_methods.get(stack[-1], "OTHER_OR_UNKNOWN")
+                            if stack else "OTHER_OR_UNKNOWN")
                     if kind in ("system_exit", "runtime_exit", "process_kill"):
                         count_field = kind + "_entry_count_bounded"
                         verdict[count_field] = min(100, verdict[count_field] + 1)
@@ -137,6 +155,11 @@ def classify_art_trace(raw: bytes) -> dict:
                 if len(stack) < 2048:
                     stack.append(method_id)
             elif action in (1, 2):
+                kind = watch.get(method_id)
+                if kind and tid == main_tid:
+                    verdict[kind + (
+                        "_returned_main" if action == 1 else
+                        "_unwound_main")] = True
                 # Traces can start mid-call. Never invent a caller when stack
                 # is missing or unbalanced.
                 if stack and stack[-1] == method_id:
@@ -147,6 +170,8 @@ def classify_art_trace(raw: bytes) -> dict:
                     stack.clear()
         verdict["stack_tracking_available"] = bool(grouped_methods) and count > 0
         verdict["direct_exit_caller_groups"] = sorted(direct_groups)[:len(CALLER_GROUPS)]
+        verdict["illegalstate_constructor_caller_groups"] = (
+            sorted(exception_caller_groups)[:len(CALLER_GROUPS)])
     except (ValueError, struct.error, IndexError, OverflowError):
         verdict["trace_format_verified"] = False
         verdict["trace_valid_record_count"] = 0

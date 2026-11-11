@@ -126,6 +126,50 @@ class OwnedArmArtTraceTests(unittest.TestCase):
         self.assertFalse(should_stop_owned_profile_early(clone + ":AppMetrica",
                                                         True, False))
 
+    def test_ym_application_oncreate_normal_return_and_exception_constructor(self):
+        raw = trace(
+            [(1, 4), (1, 8), (1, 9), (1, 5), (1, 4 | 1)],
+            [(4, "ru/yandex/music/YMApplication", "onCreate"),
+             (8, "java/lang/IllegalStateException", "<init>")])
+        out = classify_art_trace(raw)
+        self.assertTrue(out["ymapplication_oncreate_entered_main"])
+        self.assertTrue(out["ymapplication_oncreate_returned_main"])
+        self.assertFalse(out["ymapplication_oncreate_unwound_main"])
+        self.assertTrue(out["illegalstate_constructor_entered_main"])
+        self.assertEqual(out["illegalstate_constructor_entries_bounded"], 1)
+        self.assertEqual(out["illegalstate_constructor_caller_groups"],
+                         ["YANDEX_MUSIC"])
+        self.assertFalse(out["system_exit_entered_any"])
+        self.assertFalse(out["raw_trace_exposed"])
+
+    def test_app_oncreate_throw_unwind_not_misreported_as_normal_return(self):
+        raw = trace([(1, 4), (1, 8), (1, 8 | 1), (1, 4 | 2)],
+                    [(4, "ru/yandex/music/YMApplication", "onCreate"),
+                     (8, "java/lang/Thread",
+                      "setDefaultUncaughtExceptionHandler")])
+        out = classify_art_trace(raw)
+        self.assertTrue(out["ymapplication_oncreate_entered_main"])
+        self.assertFalse(out["ymapplication_oncreate_returned_main"])
+        self.assertTrue(out["ymapplication_oncreate_unwound_main"])
+        self.assertTrue(out["handler_install_entered_main"])
+        self.assertTrue(out["handler_install_returned_main"])
+
+    def test_startup_activity_methods_and_exception_caller_privacy(self):
+        raw = trace(
+            [(1, 4), (1, 8), (1, 8 | 1), (1, 4 | 1),
+             (1, 12), (1, 16), (1, 16 | 1), (1, 12 | 1)],
+            [(4, "ru/yandex/music/main/MainScreenActivity", "onCreate"),
+             (8, "java/lang/IllegalStateException", "<init>"),
+             (12, "ru/yandex/music/main/MainScreenActivity", "onResume"),
+             (16, "java/lang/IllegalStateException", "<init>")])
+        out = classify_art_trace(raw)
+        self.assertTrue(out["mainscreen_oncreate_returned_main"])
+        self.assertTrue(out["mainscreen_onresume_returned_main"])
+        self.assertEqual(out["illegalstate_constructor_entries_bounded"], 2)
+        self.assertEqual(out["illegalstate_constructor_caller_groups"],
+                         ["YANDEX_MUSIC"])
+        self.assertNotIn("MainScreenActivity", str(out))
+
     def test_profiler_launch_error_categories_do_not_expose_raw(self):
         from observe_native_startup_trace import classify_profiler_launch
         samples = [
