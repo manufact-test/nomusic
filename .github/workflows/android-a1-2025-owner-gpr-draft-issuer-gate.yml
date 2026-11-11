@@ -62,7 +62,7 @@ jobs:
           python3 -m unittest discover -s android/native-yandex-hooklab/tests \
             -p test_publisher_2025_provenance_gate.py -v
           python3 - <<'PY'
-          import json,os,sys
+          import json,os,sys,re,subprocess
           from pathlib import Path
           sys.path.insert(0,'android/native-yandex-hooklab/ci')
           from uptodown_2025_gpr_ephemeral_verify import unbundle_candidate,verify_split_set
@@ -70,6 +70,22 @@ jobs:
           root=Path(os.environ["RUNNER_TEMP"])/"owner-gpr-2025"
           try:
               paths=unbundle_candidate(root/"yandex-music-2025-10-4-120-1gpr.xapk",root)
+              for index, part in enumerate(paths):
+                  command=subprocess.run(["aapt","dump","badging",str(part)],
+                                         capture_output=True,text=True,timeout=40)
+                  package_line=next((s for s in command.stdout.splitlines()
+                                      if s.startswith("package:")), "")
+                  fields=dict(re.findall(r"([A-Za-z][A-Za-z0-9]*)='([^']*)'",package_line))
+                  print(json.dumps({
+                      "original_split_index":index,
+                      "aapt_success":command.returncode==0,
+                      "package_record_present":bool(package_line),
+                      "package":fields.get("name","MISSING"),
+                      "version_code":fields.get("versionCode","MISSING"),
+                      "version_name":fields.get("versionName","MISSING"),
+                      "split_name_present":"split" in fields,
+                      "has_apk_classes_dex":__import__("zipfile").ZipFile(part).namelist().count("classes.dex")>0,
+                  },sort_keys=True))
               verified=verify_split_set(paths)
           except (GateError,ValueError,OSError) as error:
               reason=str(error) if isinstance(error,GateError) else "UNTRUSTED_APK_ARCHIVE"
