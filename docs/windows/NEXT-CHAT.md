@@ -1,3 +1,11 @@
+# FIRST READ — W73 FINAL E2E CONFIRMED (2026-11-11)
+
+**W73 support task complete; no Windows/server code fix necessary.** Full verified contract: Windows 0.24.20 `kind=general` with bounded hidden `diagnostics.platform=windows` → authenticated API ticket → owner-only downloadable sanitized JSON in admin → actual `/admin/support/reply` with CSRF → real SMTP → customer email in Gmail **INBOX**. Independent disposable MySQL + synthetic private Gmail alias, exact final CI [43005996273](https://github.com/manufact-test/nomusic/actions/runs/43005996273) SUCCESS; also [43005920992](https://github.com/manufact-test/nomusic/actions/runs/43005920992) SUCCESS. Two authentic live general support notification emails verified 2/2 in production support Gmail INBOX [43004471837](https://github.com/manufact-test/nomusic/actions/runs/43004471837). Song still no mail; retries are idempotent, admin JSON private. 
+
+**Full report:** `docs/windows/W73-END-TO-END-REPLY-GMAIL-RECEIPT-20261111.md`. No production changes and no 0.24.21 installer. Windows original `66ffb6348f821416adabb9de4ce110adef1d5b7b` and actual shared server unchanged; no need to contact owner for more information. Do not interpret this as an automatic customer receipt feature: client email follows actual admin reply only. End-of-W73 Git exact backup recorded in final W73 doc/branch.
+
+---
+
 # FIRST READ — W73 LIVE MAIL VERDICT (11.11.2026): real Windows general notifications found in Gmail Inbox
 
 **Authoritative new report:** `docs/windows/W73-LIVE-MAIL-DELIVERY-AUDIT-20261111.md`. Verified actual active release `browser-support-076-b807cd691074`; Windows 0.24.20 source `66ffb6348f821416adabb9de4ce110adef1d5b7b` unchanged. Two real general notification emails marked SMTP `sent` were both independently FOUND in the configured Gmail **INBOX**, after exact live-vs-GitHub SMTP identity match: CI https://github.com/manufact-test/nomusic/actions/runs/43004471837. Independent real SMTP sent both support/general and admin-reply probes: CI 43003487354; separate Gmail receipt proved: CI 43004186705; prod read-only mail/ticket audit: CI 43004088750. Recent real DB: two admin replies `sent`; their recipient inboxes aren't accessible. Two song cases correctly have `mail_required=0`.
