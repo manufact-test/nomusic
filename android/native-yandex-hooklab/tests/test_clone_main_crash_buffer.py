@@ -159,6 +159,33 @@ class SafeMainCrashBufferTest(unittest.TestCase):
         self.assertEqual(summary["java_startup_lifecycle_enum"],"NOT_OBSERVED")
         self.assertNotIn("certificate",str(summary).lower())
 
+    def test_java_security_markers_are_fixed_and_main_only(self):
+        crash=(row(431,"E","AndroidRuntime","FATAL EXCEPTION: main")
+             +row(431,"E","AndroidRuntime",
+                  "java.lang.IllegalStateException: bad signature; untrusted certificate, "
+                  "installer unknown; digest check " + SECRET)
+             +row(431,"E","AndroidRuntime",
+                  "at ru.yandex.music.private.SECRET.run(Secret.java:7)")
+             +row(432,"E","AndroidRuntime",
+                  "FATAL EXCEPTION: DefaultDispatcher-worker-1")
+             +row(432,"E","AndroidRuntime",
+                  "java.lang.IllegalStateException: integrity modified, fingerprint"))
+        summary=classify_main_crash_buffer(EXIT,crash)
+        self.assertEqual(summary["java_fatal_thread_enum"],"MAIN_UI")
+        self.assertEqual(summary["java_exception_security_markers"],
+                         ["CERTIFICATE","INSTALL_SOURCE","SIGNATURE","SIGNING_DIGEST","TRUST"])
+        for token in ("TOPSECRET","installer unknown","signature;","DefaultDispatcher"):
+            self.assertNotIn(token,str(summary))
+
+    def test_non_main_java_fatal_thread_returns_static_enum_only(self):
+        crash=(row(431,"E","AndroidRuntime",
+                  "FATAL EXCEPTION: DefaultDispatcher-worker-SECRET")
+              +row(431,"E","AndroidRuntime","java.lang.IllegalStateException: " + SECRET))
+        summary=classify_main_crash_buffer(EXIT,crash)
+        self.assertEqual(summary["java_fatal_thread_enum"],"NON_MAIN")
+        self.assertEqual(summary["java_exception_security_markers"],[])
+        self.assertNotIn("SECRET",str(summary))
+
     def test_offline_crash_classifier_rejects_untrusted_package_identity(self):
         with self.assertRaises(ValueError):
             classify_main_crash_buffer(EXIT, "", target_package="arbitrary.package")
