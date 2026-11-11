@@ -195,7 +195,7 @@ def browser_download(directory: Path) -> tuple[Path | None, dict]:
                     diagnostics["download_button_visible"]=bool(primary.count())
                     if primary.count():
                         try:
-                            primary.last.click(timeout=6000)
+                            primary.first.click(timeout=6000)
                             page.wait_for_timeout(3500)
                         except Exception:
                             pass
