@@ -17,8 +17,37 @@ jobs:
       - run: |
           python3 -m py_compile android/native-yandex-hooklab/ci/chromasync_exact_arm13_probe.py
           python3 -m unittest discover -s android/native-yandex-hooklab/tests -p test_chromasync_exact_arm13_probe.py -v
-  live-arm13:
+
+  arm-no-apk-smoke:
+    name: REAL ARM Android13 Redroid + Docker guest — NO competitor APK
     needs: synthetic-not-runtime
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 23
+    steps:
+      - uses: actions/checkout@v4
+      - name: Boot actual clean ARM Android13 in disposable runner
+        timeout-minutes: 17
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash android/native-yandex-hooklab/ci/native_arm_redroid_boot_only.sh
+          test "$(docker exec celikom-native-arm-android13 getprop ro.build.version.sdk)" = 33
+          docker exec celikom-native-arm-android13 getprop ro.product.cpu.abilist | grep -F 'arm64-v8a'
+          test "$(docker exec celikom-native-arm-android13 getprop sys.boot_completed)" = 1
+          docker exec celikom-native-arm-android13 pm list packages | grep -F 'package:android'
+          ! docker exec celikom-native-arm-android13 pm list packages | grep -F 'app.chromasync.yamclone'
+          echo '{"native_android13_clean_guest_live":true,"private_apk_available":false,"vendor_apk_installed":false}'
+      - name: Remove disposable guest
+        if: always()
+        shell: bash
+        run: |
+          docker stop celikom-native-arm-android13 >/dev/null 2>&1 || true
+          sudo umount /dev/binderfs >/dev/null 2>&1 || true
+          sudo modprobe -r binder_linux >/dev/null 2>&1 || true
+          sudo rm -rf -- "$RUNNER_TEMP/celikom-redroid-data"
+
+  live-arm13:
+    needs: [synthetic-not-runtime, arm-no-apk-smoke]
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 47
     env:
@@ -44,27 +73,19 @@ jobs:
               echo '::error::EXACT_APK_SHA256_MISMATCH'; exit 3;
             }
           echo '{"private_apk_digest_verified":true,"native_test_performed":false}'
-      - name: Install Android package inspection and ADB tools
-        run: |
-          set -euo pipefail
-          if ! command -v adb >/dev/null || ! command -v aapt >/dev/null || ! command -v apksigner >/dev/null; then
-            sudo apt-get update -qq
-            sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq adb aapt apksigner zipalign
-          fi
       - name: Boot genuine clean ARM Android13
         timeout-minutes: 16
         run: |
           set -euo pipefail
           bash android/native-yandex-hooklab/ci/native_arm_redroid_boot_only.sh
-          adb connect 127.0.0.1:5555 >/dev/null
-          adb -s 127.0.0.1:5555 wait-for-device
+          test "$(docker exec celikom-native-arm-android13 getprop sys.boot_completed)" = 1
       - name: Install and observe original competitor APK alone
         shell: bash
         run: |
           set -euo pipefail
           set +e
           python3 android/native-yandex-hooklab/ci/chromasync_exact_arm13_probe.py \
-            --apk "$RUNNER_TEMP/chromasync-exact.apk" --mode alone \
+            --apk "$RUNNER_TEMP/chromasync-exact.apk" --mode alone --transport docker \
             | tee "$RUNNER_TEMP/chroma-alone.json"
           echo "${PIPESTATUS[0]}" > "$RUNNER_TEMP/chroma-alone-status"
           set -e
@@ -97,12 +118,11 @@ jobs:
           docker stop celikom-native-arm-android13 >/dev/null || true
           sudo rm -rf -- "$RUNNER_TEMP/celikom-redroid-data"
           bash android/native-yandex-hooklab/ci/native_arm_redroid_boot_only.sh
-          adb connect 127.0.0.1:5555 >/dev/null
-          adb -s 127.0.0.1:5555 wait-for-device
+          test "$(docker exec celikom-native-arm-android13 getprop sys.boot_completed)" = 1
           mapfile -t stock < "$RUNNER_TEMP/stock-splits/paths.txt"
           set +e
           python3 android/native-yandex-hooklab/ci/chromasync_exact_arm13_probe.py \
-            --apk "$RUNNER_TEMP/chromasync-exact.apk" --mode stock-first \
+            --apk "$RUNNER_TEMP/chromasync-exact.apk" --mode stock-first --transport docker \
             --stock-apks "${stock[@]}" | tee "$RUNNER_TEMP/chroma-stock-first.json"
           echo "${PIPESTATUS[0]}" > "$RUNNER_TEMP/chroma-stock-first-status"
           set -e
