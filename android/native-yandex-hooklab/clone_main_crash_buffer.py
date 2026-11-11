@@ -253,6 +253,65 @@ def _java_frame_family(line: str) -> str:
     return "OTHER_APP_OR_LIBRARY"
 
 
+JAVA_LIFECYCLE_MARKERS = (
+    ("APPLICATION_ON_CREATE", r"\bat android[.]app[.]Instrumentation[.]callApplicationOnCreate[(]"),
+    ("APPLICATION_BIND", r"\bat android[.]app[.]ActivityThread[.]handleBindApplication[(]"),
+    ("ACTIVITY_CREATE", r"\bat android[.]app[.]ActivityThread[.]performLaunchActivity[(]"),
+    ("ACTIVITY_RESUME", r"\bat android[.]app[.]ActivityThread[.]performResumeActivity[(]"),
+    ("CONTENT_PROVIDER_INSTALL", r"\bat android[.]app[.]ActivityThread[.]installProvider[(]"),
+    ("APP_COMPONENT_FACTORY", r"\bat android[.]app[.]AppComponentFactory[.]instantiate"),
+    ("MAIN_EVENT_LOOP", r"\bat android[.]os[.]Looper[.]loop[(]"),
+)
+JAVA_MESSAGE_HINTS = (
+    ("TRUST_OR_PACKAGE", r"\b(?:signature|signing|certificate|certification|trusted|untrusted|integrity|installer)\b"),
+    ("IDENTITY_OR_CONTEXT", r"\b(?:package|packageName|context|applicationId|uid|userId)\b"),
+    ("SERVICE_OR_PROVIDER", r"\b(?:provider|service|binder|contentresolver|content provider)\b"),
+    ("STARTUP_ORDER", r"\b(?:initializ(?:ed|ation|ing)|not initialized|already registered|not ready)\b"),
+    ("FEATURE_OR_CONFIG", r"\b(?:feature|configuration|config|flag|setting|option)\b"),
+    ("DEVICE_OR_PLATFORM", r"\b(?:unsupported|android version|emulator|device not|android api)\b"),
+    ("ACCOUNT_OR_SESSION", r"\b(?:account|passport|session|login|authentication)\b"),
+    ("STORAGE_OR_DATABASE", r"\b(?:database|sqlite|storage|preferences)\b"),
+    ("NETWORK_OR_TRANSPORT", r"\b(?:network|timeout|connection|host|dns)\b"),
+)
+JAVA_HINT_LABELS = frozenset([a for a, _ in JAVA_MESSAGE_HINTS] + ["NONE"])
+JAVA_LIFECYCLE_LABELS = frozenset([a for a, _ in JAVA_LIFECYCLE_MARKERS] + ["NOT_OBSERVED"])
+
+def _java_lifecycle_origin(lines: list[str]) -> str:
+    """Classify Android public framework frames, not vendor call sites."""
+    for label, pattern in JAVA_LIFECYCLE_MARKERS:
+        if any(re.search(pattern, ln) for ln in lines):
+            return label
+    return "NOT_OBSERVED"
+
+
+def _java_message_category(lines: list[str]) -> str:
+    """Only the first exception's message, not arbitrary vendor stack lines.
+
+    Categories are weak signals, not proof of an integrity check.
+    """
+    first = False
+    pieces: list[str] = []
+    for ln in lines:
+        if re.search(r"\bFATAL EXCEPTION:", ln):
+            first = True
+            continue
+        if not first:
+            continue
+        if re.match(r"\s*(?:at\s+|Caused by:)", ln):
+            break
+        if re.match(r"\s*[\w.$]+(?:Exception|Error)(?:\s*:|$)", ln):
+            parts = ln.split(":", 1)
+            if len(parts) == 2:
+                pieces.append(parts[1][:240])
+        elif pieces and len(pieces) < 3 and len(ln) < 256:
+            pieces.append(ln)
+    message = " ".join(pieces)
+    for label, pattern in JAVA_MESSAGE_HINTS:
+        if re.search(pattern, message, re.I):
+            return label
+    return "NONE"
+
+
 def _scoped_android_runtime_java_origin(lines: list[str]) -> dict:
     """Summarize AndroidRuntime MAIN stack without ever exporting stack names.
 
@@ -297,12 +356,18 @@ def _scoped_android_runtime_java_origin(lines: list[str]) -> dict:
     if cause_count == 0:
         root_exception = top_exception
         last_cause_first_frame = first_frame
+    startup_lifecycle = _java_lifecycle_origin(body)
+    message_hint = _java_message_category(body)
+    assert startup_lifecycle in JAVA_LIFECYCLE_LABELS
+    assert message_hint in JAVA_HINT_LABELS
     assert first_frame in JAVA_ALLOWED_FRAME_FAMILIES
     assert last_cause_first_frame in JAVA_ALLOWED_FRAME_FAMILIES
     assert top_exception in JAVA_ALLOWED_THROWABLES
     assert root_exception in JAVA_ALLOWED_THROWABLES
     return {
         "java_fatal_seen_scoped": fatal_seen,
+        "java_startup_lifecycle_enum": startup_lifecycle,
+        "java_exception_message_hint_enum": message_hint,
         "java_top_exception_enum": top_exception,
         "java_last_cause_exception_enum": root_exception,
         "java_top_stack_family": first_frame,
