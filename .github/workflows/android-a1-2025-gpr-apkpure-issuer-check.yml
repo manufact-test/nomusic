@@ -1,0 +1,39 @@
+name: Android A1 2025 GPR APKPure public candidate cryptographic check (NO install)
+on:
+  push:
+    branches:
+      - experiment/android-a1-2025-issuer-provenance-gate-20261111
+    paths:
+      - '.github/workflows/android-a1-2025-gpr-apkpure-issuer-check.yml'
+      - 'android/native-yandex-hooklab/ci/public_apkpure_2025_issuer_probe.py'
+      - 'android/native-yandex-hooklab/ci/uptodown_2025_gpr_ephemeral_verify.py'
+      - 'android/native-yandex-hooklab/ci/publisher_2025_provenance_gate.py'
+permissions:
+  contents: read
+jobs:
+  strict-public-candidate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Install Android SDK cryptographic APK inspection tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq aapt apksigner
+          python3 -m py_compile android/native-yandex-hooklab/ci/public_apkpure_2025_issuer_probe.py
+          python3 -m py_compile android/native-yandex-hooklab/ci/uptodown_2025_gpr_ephemeral_verify.py
+          python3 -m py_compile android/native-yandex-hooklab/ci/publisher_2025_provenance_gate.py
+      - name: Old public archived version acquisition — verify publisher cert and version, no native install
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 android/native-yandex-hooklab/ci/public_apkpure_2025_issuer_probe.py
+      - name: Prohibit public archive artifacts and user device modifications
+        if: always()
+        shell: bash
+        run: |
+          echo '{"owner_device_modified":false,"third_party_archive_uploaded":false,"stage_a":"NO_GO"}'
