@@ -32,11 +32,11 @@ jobs:
           if command -v java >/dev/null 2>&1 && java -version 2>&1 | grep -q '"21'; then jdk21=true; fi
           if command -v keytool >/dev/null 2>&1; then keytool_present=true; fi
           if command -v adb >/dev/null 2>&1; then adb_present=true; fi
-          if [ -n "$ANDROID_HOME" ] && [ -d "$ANDROID_HOME" ]; then android_home_present=true; fi
-          if [ -n "$ANDROID_HOME" ] && [ -d "$ANDROID_HOME/platform-tools" ]; then platform_tools_present=true; fi
-          if [ -n "$ANDROID_HOME" ]; then
-            find "$ANDROID_HOME/build-tools" -maxdepth 2 -type f -name aapt -print -quit 2>/dev/null | grep -q . && aapt_present=true || true
-            find "$ANDROID_HOME/build-tools" -maxdepth 2 -type f -name zipalign -print -quit 2>/dev/null | grep -q . && zipalign_present=true || true
-            find "$ANDROID_HOME/build-tools" -maxdepth 2 -type f -name apksigner -print -quit 2>/dev/null | grep -q . && signer_present=true || true
+          if [ -n "${ANDROID_HOME:-}" ] && [ -d "${ANDROID_HOME:-}" ]; then android_home_present=true; fi
+          if [ -n "${ANDROID_HOME:-}" ] && [ -d "${ANDROID_HOME:-}/platform-tools" ]; then platform_tools_present=true; fi
+          if [ -n "${ANDROID_HOME:-}" ]; then
+            find "${ANDROID_HOME:-}/build-tools" -maxdepth 2 -type f -name aapt -print -quit 2>/dev/null | grep -q . && aapt_present=true || true
+            find "${ANDROID_HOME:-}/build-tools" -maxdepth 2 -type f -name zipalign -print -quit 2>/dev/null | grep -q . && zipalign_present=true || true
+            find "${ANDROID_HOME:-}/build-tools" -maxdepth 2 -type f -name apksigner -print -quit 2>/dev/null | grep -q . && signer_present=true || true
           fi
           echo "{\"result\":\"NATIVE_ARM_CLONE_BUILD_TOOL_READONLY_CAPABILITY\",\"arm_runner\":$arm,\"java\":$java_present,\"java21\":$jdk21,\"keytool\":$keytool_present,\"aapt\":$aapt_present,\"zipalign\":$zipalign_present,\"apksigner\":$signer_present,\"android_sdk_home\":$android_home_present,\"android_platform_tools\":$platform_tools_present,\"adb_binary\":$adb_present,\"apk_downloaded\":false,\"owner_phone_touched\":false}"
