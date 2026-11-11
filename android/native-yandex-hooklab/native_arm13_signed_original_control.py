@@ -48,6 +48,12 @@ def adb(args, timeout=75, allow=False):
     else:
         fail("UNSUPPORTED_ORIGINAL_GUEST_ACTION")
     result = subprocess.run(command, capture_output=True, text=True, timeout=timeout)
+    if result.returncode and args[0] == "install-multiple":
+        # Only fixed PackageManager failure codes; no exception text/paths/URLs.
+        private = result.stdout + result.stderr
+        match = re.search(r"\\b(INSTALL_(?:FAILED|PARSE_FAILED)_[A-Z0-9_]{2,50})\\b",
+                          private)
+        return ("PRIVATE_PM_" + match.group(1)) if match else "PRIVATE_PM_OTHER_ERROR"
     if result.returncode and not allow:
         fail("ORIGINAL_PRIVATE_GUEST_COMMAND_FAILED")
     return result.stdout if result.returncode == 0 else ""
@@ -90,6 +96,9 @@ def run():
         installed_result = adb(["install-multiple", *[str(x) for x in signed]],
                                timeout=200, allow=True)
         if "Success" not in installed_result:
+            # Emit only fixed PackageManager code, not raw vendor logs or args.
+            if installed_result.startswith("PRIVATE_PM_"):
+                fail(installed_result[:95])
             fail("PUBLISHER_SIGNED_ORIGINAL_INSTALL_FAILED")
         paths = adb(["shell", "pm", "path", PACKAGE])
         count = sum(x.startswith("package:") for x in paths.splitlines())
