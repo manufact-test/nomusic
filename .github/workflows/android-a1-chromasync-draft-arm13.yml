@@ -1,0 +1,218 @@
+name: CELIKOM A1 — exact ChromaSync in PUBLIC Actions from UNPUBLISHED draft asset
+on:
+  push:
+    branches:
+      - experiment/android-a1-public-draft-arm13-20261111
+    paths:
+      - '.github/workflows/android-a1-chromasync-draft-arm13.yml'
+      - 'docs/android/ANDROID-A1-CHROMASYNC-DRAFT-ARM13-RETRIGGER-20261111.md'
+  workflow_dispatch:
+# CONTENTS:WRITE is required specifically to read non-public draft release assets.
+# This workflow never changes a release, commits an APK, or publishes any artifact.
+# Only push on isolated owner-controlled experiment branch; no PR/fork triggers.
+permissions:
+  contents: write
+
+jobs:
+  exact-draft-preflight:
+    name: Draft-only API and 13 deterministic tests (NO Android pass)
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    outputs:
+      draft_ready: ${{ steps.draft.outputs.draft_ready }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Verify local diagnostic code (not competitor runtime)
+        run: |
+          set -euo pipefail
+          python3 -m py_compile android/native-yandex-hooklab/ci/chromasync_exact_arm13_probe.py
+          python3 -m unittest discover -s android/native-yandex-hooklab/tests -p test_chromasync_exact_arm13_probe.py -v
+      - name: Confirm exact 98MB APK exists ONLY in an UNPUBLISHED draft
+        id: draft
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REPOSITORY" = 'manufact-test/nomusic'
+          test "$GITHUB_REF_NAME" = 'experiment/android-a1-public-draft-arm13-20261111'
+          command -v gh
+          tag='a1-chromasync-301-unpublished-test'
+          # REST listing with contents:write can access draft releases.
+          # Never accept an accidentally PUBLISHED release.
+          release_id="$(gh api --paginate "repos/$GITHUB_REPOSITORY/releases?per_page=100" \
+            --jq '.[] | select(.draft == true and .tag_name == "a1-chromasync-301-unpublished-test") | .id' \
+            | head -n 1)"
+          if [ -z "$release_id" ]; then
+            echo '::error::UNPUBLISHED_DRAFT_NOT_READY: no exact-tag draft; do NOT publish an APK'
+            exit 3
+          fi
+          size="$(gh api "repos/$GITHUB_REPOSITORY/releases/$release_id/assets?per_page=100" \
+            --jq '.[] | select(.name == "ChromaSync-Clone-3.0.1.apk") | .size' \
+            | head -n 1)"
+          if [ "$size" != '102572843' ]; then
+            echo '::error::DRAFT_ASSET_MISSING_OR_WRONG_SIZE'
+            exit 3
+          fi
+          echo 'draft_ready=true' >> "$GITHUB_OUTPUT"
+          echo '{"unpublished_draft_with_expected_asset":true,"original_apk_executed":false,"public_release_created":false}'
+
+  real-arm13-draft-only:
+    name: LIVE exact ChromaSync native ARM13 A/B — only after SHA256
+    needs: exact-draft-preflight
+    if: needs.exact-draft-preflight.outputs.draft_ready == 'true'
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 49
+    env:
+      CELIKOM_CLEAN_ANDROID_NATIVE_REDDROID: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Fetch binary from GitHub UNPUBLISHED draft; SHA256 pin; NO artifacts
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/celikom-unpublished-draft"
+          # API preflight above explicitly confirmed draft=true. Do NOT download
+          # via a direct public release/browser_download_url.
+          if ! gh release download 'a1-chromasync-301-unpublished-test' \
+              --repo "$GITHUB_REPOSITORY" \
+              --pattern 'ChromaSync-Clone-3.0.1.apk' \
+              --dir "$RUNNER_TEMP/celikom-unpublished-draft" \
+              --clobber >/dev/null 2>&1; then
+            echo '::error::DRAFT_ASSET_DOWNLOAD_NOT_AUTHORIZED'
+            exit 3
+          fi
+          asset="$RUNNER_TEMP/celikom-unpublished-draft/ChromaSync-Clone-3.0.1.apk"
+          test "$(stat -c %s "$asset")" = 102572843 || { echo '::error::EXACT_SIZE_MISMATCH'; exit 3; }
+          test "$(sha256sum "$asset" | cut -d' ' -f1)" = \
+            4e6edb1c471f6b3715eae4c0a35f0bd898b0daaa87f3f8fb3ba0b20d1638b53d || {
+              echo '::error::EXACT_SHA256_MISMATCH'; exit 3;
+            }
+          echo '{"exact_competitor_apk_verified":true,"published":false,"native_ui_tested":false}'
+
+      - name: Native genuine ARM64 + ARMv7 Android13 clean Redroid boot
+        timeout-minutes: 16
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash android/native-yandex-hooklab/ci/native_arm_redroid_boot_only.sh
+          test "$(docker exec celikom-native-arm-android13 getprop sys.boot_completed)" = 1
+
+      - name: ChromaSync exact original APK ALONE: PackageManager + MAIN 16s PID/resume
+        shell: bash
+        run: |
+          set -euo pipefail
+          set +e
+          python3 android/native-yandex-hooklab/ci/chromasync_exact_arm13_probe.py \
+            --apk "$RUNNER_TEMP/celikom-unpublished-draft/ChromaSync-Clone-3.0.1.apk" \
+            --transport docker --mode alone | tee "$RUNNER_TEMP/competitor-alone-result.json"
+          result="${PIPESTATUS[0]}"
+          set -e
+          echo "$result" > "$RUNNER_TEMP/competitor-alone.status"
+
+      - name: Restore official signed-stock verifier via TLS-validated Ubuntu/GPG
+        timeout-minutes: 5
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! { command -v aapt >/dev/null && command -v apksigner >/dev/null; }; then
+            verified=''
+            for ip in 91.189.91.102 91.189.91.103 91.189.91.104 91.189.92.19; do
+              if timeout 7s curl -fsS --connect-timeout 3 --max-time 6 \
+                --resolve "ports.ubuntu.com:443:$ip" \
+                https://ports.ubuntu.com/ubuntu-ports/dists/noble/InRelease -o /dev/null 2>/dev/null; then
+                verified="$ip"
+                break
+              fi
+            done
+            if [ -z "$verified" ]; then echo '::error::OFFICIAL_UBUNTU_TLS_UNAVAILABLE'; exit 31; fi
+            printf '%s ports.ubuntu.com\n' "$verified" | sudo tee -a /etc/hosts >/dev/null
+            cat > "$RUNNER_TEMP/celikom-draft-ubuntu.sources" <<'EOF'
+          Types: deb
+          URIs: https://ports.ubuntu.com/ubuntu-ports
+          Suites: noble noble-updates noble-backports noble-security
+          Components: main restricted universe multiverse
+          Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg
+          EOF
+            source="$RUNNER_TEMP/celikom-draft-ubuntu.sources"
+            opts=(-o "Dir::Etc::sourcelist=$source" -o 'Dir::Etc::sourceparts=-'
+                  -o 'Acquire::Retries=0' -o 'Acquire::https::Timeout=12')
+            sudo timeout 75s apt-get "${opts[@]}" update -qq
+            sudo timeout 90s env DEBIAN_FRONTEND=noninteractive \
+              apt-get "${opts[@]}" install -y -qq aapt apksigner
+          fi
+          sdk="$RUNNER_TEMP/celikom-draft-stock-sdk"
+          mkdir -p "$sdk/build-tools/35.0.0"
+          for tool in aapt apksigner; do
+            ln -sf "$(command -v "$tool")" "$sdk/build-tools/35.0.0/$tool"
+            test -x "$sdk/build-tools/35.0.0/$tool"
+          done
+          echo "ANDROID_HOME=$sdk" >> "$GITHUB_ENV"
+
+      - name: Fetch 2026 publisher-signed original five splits with pinned cert and archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os, sys
+          from pathlib import Path
+          sys.path.insert(0,'tools/android-native-gate1')
+          import audit_gpr_apkpure_once as gpr
+          root=Path(os.environ['RUNNER_TEMP'])/'celikom-original-stock'
+          root.mkdir(parents=True,exist_ok=True)
+          archive=root/'original.xapk'
+          size,digest=gpr.download(archive)
+          if (size,digest)!=(60433885,'918bd50599dc6a942e190a409303e843b83dcb6d11b90b03c00240331333cf84'):
+            raise SystemExit('ORIGINAL_SIGNED_ARCHIVE_PIN_MISMATCH')
+          splits=gpr.split_apks(archive,root)
+          if len(splits)!=5: raise SystemExit('FIVE_OFFICIAL_SPLITS_REQUIRED')
+          gpr.inspect_publisher(splits)
+          (root/'paths.txt').write_text('\n'.join(map(str,splits))+'\n')
+          print('{"original_publisher_signed_control_verified":true}')
+          PY
+
+      - name: NEW Android13 guest: publisher Yandex FIRST then exact ChromaSync
+        timeout-minutes: 17
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker stop celikom-native-arm-android13 >/dev/null || true
+          sudo rm -rf -- "$RUNNER_TEMP/celikom-redroid-data"
+          bash android/native-yandex-hooklab/ci/native_arm_redroid_boot_only.sh
+          mapfile -t stock < "$RUNNER_TEMP/celikom-original-stock/paths.txt"
+          set +e
+          python3 android/native-yandex-hooklab/ci/chromasync_exact_arm13_probe.py \
+            --apk "$RUNNER_TEMP/celikom-unpublished-draft/ChromaSync-Clone-3.0.1.apk" \
+            --transport docker --mode stock-first --stock-apks "${stock[@]}" \
+            | tee "$RUNNER_TEMP/competitor-coexist-result.json"
+          result="${PIPESTATUS[0]}"
+          set -e
+          echo "$result" > "$RUNNER_TEMP/competitor-coexist.status"
+
+      - name: Runtime lifecycle gate; UI pixels, login/audio/Play Protect NOT proven
+        shell: bash
+        run: |
+          set -euo pipefail
+          alone="$(cat "$RUNNER_TEMP/competitor-alone.status")"
+          together="$(cat "$RUNNER_TEMP/competitor-coexist.status")"
+          echo "{\"competitor_exact_native_launch_tested\":true,\"alone_exit_code\":$alone,\"stock_first_exit_code\":$together,\"audio_tested\":false,\"passport_tested\":false,\"play_protect_tested\":false}"
+          test "$alone" = 0 && test "$together" = 0
+
+      - name: ALWAYS destroy guests and local proprietary source; never upload binary
+        if: always()
+        shell: bash
+        run: |
+          docker stop celikom-native-arm-android13 >/dev/null 2>&1 || true
+          sudo umount /dev/binderfs >/dev/null 2>&1 || true
+          sudo modprobe -r binder_linux >/dev/null 2>&1 || true
+          sudo rm -rf -- "$RUNNER_TEMP/celikom-redroid-data"
+          rm -rf -- "$RUNNER_TEMP/celikom-unpublished-draft" "$RUNNER_TEMP/celikom-original-stock" \
+            "$RUNNER_TEMP/competitor-alone-result.json" "$RUNNER_TEMP/competitor-alone.status" \
+            "$RUNNER_TEMP/competitor-coexist-result.json" "$RUNNER_TEMP/competitor-coexist.status"
+          echo '{"competitor_published":false,"owner_phone_touched":false,"protected_system_bypassed":false}'
