@@ -18,15 +18,19 @@ jobs:
       EXPECTED_SHA256: 4e6edb1c471f6b3715eae4c0a35f0bd898b0daaa87f3f8fb3ba0b20d1638b53d
       EXPECTED_BYTES: '102572843'
     steps:
-      - name: Never stage APK from the public source repository
+      - name: Require actual PRIVATE caller repository before private binary download
         shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          if [ "$GITHUB_REPOSITORY" = "manufact-test/nomusic" ]; then
-            echo '::error::NEED_PRIVATE_CALLER: refusing public repo binary download'
+          command -v gh
+          private="$(gh api "repos/$GITHUB_REPOSITORY" --jq '.private')"
+          if [ "$private" != 'true' ] || [ "$GITHUB_REPOSITORY" = "manufact-test/nomusic" ]; then
+            echo '::error::NEED_PRIVATE_CALLER: refusing binary staging on public repo'
             exit 2
           fi
-          echo 'PRIVATE_CALLER_CONFIRMED'
+          echo 'PRIVATE_CALLER_VISIBILITY_VERIFIED'
       - uses: actions/checkout@v4
         with:
           repository: manufact-test/nomusic
