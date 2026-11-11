@@ -31,7 +31,7 @@ THROWABLE_CLASSES = (
                       r"|\bVerifyError\b|\bLinkageError\b"),
     ("NATIVE_LINK", r"\bUnsatisfiedLinkError\b|\bdlopen failed\b"),
     ("NULL_STATE", r"\bNullPointerException\b"),
-    ("OTHER_THROWABLE", r"\b[A-Za-z0-9_$]+(?:Exception|Error)\b"),
+    ("OTHER_THROWABLE", r"\b[A-Z][A-Za-z0-9_$]*(?:Exception|Error)\b"),
 )
 
 
