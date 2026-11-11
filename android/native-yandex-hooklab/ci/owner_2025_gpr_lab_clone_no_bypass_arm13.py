@@ -119,9 +119,31 @@ def ephemeral_clone(originals: list[Path], work: Path) -> tuple[list[tuple[str,P
             stop("OWN_CLONE_SPLIT_MANIFEST_DRIFT")
         if source.native_payload_hashes(original)!=source.native_payload_hashes(aligned):
             stop("OWN_CLONE_DEX_OR_NATIVE_PAYLOAD_DRIFT")
-        signature=source.action([source.sdk_tool("apksigner"),"verify",
-                                 "--verbose","--print-certs",str(aligned)],
-                                 "OWN_CLONE_SIGNATURE_NOT_VERIFIED",100)
+        verified=cmd([source.sdk_tool("apksigner"),"verify",
+                      "--verbose","--print-certs",str(aligned)],100)
+        if verified.returncode:
+            # Classify failure without publishing unsigned app bytes,
+            # private paths, certificate, stack, stderr or vendor strings.
+            private=(verified.stdout+"\n"+verified.stderr).lower()
+            signals={
+                "digest_mismatch": ("digest" in private and "mismatch" in private),
+                "zip_reconstruction": ("zip entry" in private or "zip central" in private),
+                "scheme_v1": ("jar signature" in private or "v1 signature" in private),
+                "scheme_v2": ("v2 scheme" in private or "v2 signature" in private),
+                "scheme_v3": ("v3 scheme" in private or "v3 signature" in private),
+                "manifest_format": ("manifest" in private or "binary xml" in private),
+                "min_sdk": ("min sdk" in private or "minsdk" in private),
+                "unsigned_entry": ("unsigned" in private),
+                "signer_certificate": ("certificate" in private or "signer" in private),
+            }
+            print(json.dumps({"stage":"LAB_SIGNATURE_VALIDATION",
+                              "original_vendor_signature_unmodified":True,
+                              "lab_split_index":i,
+                              "sdk_failure_signals":[k for k,v in signals.items() if v],
+                              "sdk_result_exit_nonzero":True,
+                              "clone_apk_not_installed":True},sort_keys=True))
+            stop("OWN_CLONE_SIGNATURE_NOT_VERIFIED")
+        signature=verified.stdout
         matched=re.findall(r"Signer #1 certificate SHA-256 digest:\s*([0-9a-fA-F:]+)",
                            signature)
         if len(matched)!=1:
@@ -183,7 +205,7 @@ def install_clones(clones: list[tuple[str,Path]]) -> str:
 def native_check() -> dict:
     if (os.getenv("GITHUB_ACTIONS")!="true" or
         os.getenv("GITHUB_REPOSITORY")!="manufact-test/nomusic" or
-        os.getenv("GITHUB_REF_NAME")!="experiment/android-a1-genuine2025-original-vs-own-clone-20261111" or
+        os.getenv("GITHUB_REF_NAME")!="experiment/android-a1-2025-signing-readonly-rootcause-20261111" or
         os.getenv("CELIKOM_CLEAN_ANDROID_NATIVE_REDDROID")!="1" or
         platform.machine()!="aarch64"):
         stop("DISPOSABLE_REAL_ARM13_ONLY")
