@@ -2,6 +2,10 @@
 import importlib.util
 from pathlib import Path
 import unittest
+import sys
+
+# Import the adjacent standalone Python lab scripts as CI executes them.
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 here=Path(__file__).resolve().parents[1]/"own_lspatch_x86_witness_runtime.py"
 spec=importlib.util.spec_from_file_location("own_x86_witness",here)
