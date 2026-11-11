@@ -16,6 +16,29 @@ class SchedulingSummaryTests(unittest.TestCase):
         self.assertNotIn("register", repr(item))
         self.assertIsNone(safe_invocation(("bad class!", "post", "()V"), 1))
 
+
+    def test_nearby_const_direct_ctor_three_registers(self):
+        import struct
+        from audit_native_exit_schedule_by0 import constructor_mode_nearby_constant
+        class Fake:
+            def __init__(self, words):
+                self.data = bytearray(16 + len(words) * 2)
+                struct.pack_into("<I", self.data, 12, len(words))
+                for n, w in enumerate(words):
+                    struct.pack_into("<H", self.data, 16 + n * 2, w)
+            def u16(self, off):
+                return struct.unpack_from("<H", self.data, off)[0]
+            def u32(self, off):
+                return struct.unpack_from("<I", self.data, off)[0]
+        # const/4 v2,#2 then invoke-direct {v0,v1,v2}
+        fake = Fake([0x2212, 0x3070, 0x0001, 0x0210, 0x000e])
+        value = constructor_mode_nearby_constant(fake, 0, 1, 0x70)
+        self.assertEqual(value["mode"], 2)
+        self.assertEqual(value["reason"], "NEARBY_CONST_ONLY")
+        not_three = constructor_mode_nearby_constant(
+            Fake([0x2212, 0x2070, 0x0001, 0x0210]), 0, 1, 0x70)
+        self.assertEqual(not_three["mode"], "NOT_PROVEN")
+
     def test_missing_scheduler_body_fails_closed(self):
         with self.assertRaises(ValueError):
             summarize([])

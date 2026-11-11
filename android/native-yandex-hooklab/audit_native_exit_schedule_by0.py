@@ -18,7 +18,7 @@ sys.path.insert(0, str(HERE.parents[1] / "tools" / "android-native-gate1"))
 import clone_native_splits_ephemeral as exact
 from audit_native_exit_calls_static import safe_method_meta
 from inspect_android_host import Dex, DexError
-from trace_native_callers import method_definitions, invoked_method_indexes
+from trace_native_callers import method_definitions, invoked_method_indexes, OP_WIDTH, payload_width
 
 SCHEDULER_BODIES = frozenset((
     ("Lby0;", "a", "()V"),
@@ -44,6 +44,73 @@ def safe_invocation(method: tuple[str, str, str], code_units: int) -> dict | Non
             "scheduler_api_by_name": method[1] in INTERESTING}
 
 
+
+
+def constructor_mode_nearby_constant(dex, code_off: int, call_pc: int,
+                                     op: int) -> dict:
+    """Conservative local basic-block const witness, not global data flow.
+
+    Only the *integer mode register* of invoke-direct(Context,int) is sampled.
+    Resets knowledge on jumps / branches and unknown register overwrites.
+    No string values, private fields or opcode bytes are returned.
+    """
+    count = dex.u32(code_off + 12)
+    start = code_off + 16
+    if count > 500000 or call_pc >= count or op not in (0x70, 0x76):
+        return {"mode": "NOT_PROVEN", "reason": "UNSUPPORTED"}
+    first = dex.u16(start + call_pc * 2)
+    last = dex.u16(start + (call_pc + 2) * 2)
+    if first & 255 != op:
+        return {"mode": "NOT_PROVEN", "reason": "CALLSITE_MISMATCH"}
+    argc = (first >> 12) if op == 0x70 else (first >> 8)
+    if argc != 3:
+        return {"mode": "NOT_PROVEN", "reason": "NOT_THREE_REGISTERS"}
+    register = ((last >> 8) & 15) if op == 0x70 else last + 2
+    recent_const = None
+    pc = 0
+    while pc < call_pc:
+        word = dex.u16(start + pc * 2)
+        opcode = word & 255
+        width = (payload_width(dex, start, count, pc, word >> 8)
+                 if opcode == 0 else OP_WIDTH.get(opcode))
+        if width is None or width < 1 or pc + width > call_pc:
+            return {"mode": "NOT_PROVEN", "reason": "INVALID_INSTRUCTION_WIDTH"}
+        if opcode in tuple(range(0x28, 0x2D)) + tuple(range(0x32, 0x3E)):
+            recent_const = None
+        elif opcode in (0x12, 0x13, 0x14, 0x15):
+            dest = (word >> 8) & 15 if opcode == 0x12 else (word >> 8)
+            if dest == register:
+                if opcode == 0x12:
+                    val = (word >> 12) & 15
+                    val = val - 16 if val >= 8 else val
+                elif opcode == 0x13:
+                    val = dex.u16(start + (pc + 1) * 2)
+                    val = val - 65536 if val >= 32768 else val
+                elif opcode == 0x14:
+                    val = (dex.u16(start + (pc + 1) * 2)
+                           | (dex.u16(start + (pc + 2) * 2) << 16))
+                    val = val - 0x100000000 if val >= 0x80000000 else val
+                else:
+                    val = dex.u16(start + (pc + 1) * 2) << 16
+                recent_const = val
+        else:
+            # Invalidate on common register writes to the mode register.
+            # Unrecognised writers mean this is only a local-nearby witness.
+            dest = (word >> 8) & 15 if opcode in (
+                0x01, 0x04, 0x07, 0x20, 0x21, 0x23) else (word >> 8)
+            if (dest == register and opcode in (
+                    0x02, 0x03, 0x05, 0x06, 0x08, 0x09,
+                    0x0A, 0x0B, 0x0C, 0x0D, 0x1A, 0x1B,
+                    0x1C, 0x20, 0x21, 0x22, 0x23)
+                or dest == register and opcode in range(0x44, 0x69)):
+                recent_const = None
+        pc += width
+    if recent_const is None:
+        return {"mode": "NOT_PROVEN", "reason": "NO_LOCAL_CONST"}
+    if recent_const not in range(0, 8):
+        return {"mode": "OTHER", "reason": "NEARBY_CONST_ONLY"}
+    return {"mode": recent_const, "reason": "NEARBY_CONST_ONLY"}
+
 def inspect_dex(data: bytes) -> dict:
     dex = Dex(data)
     known_targets = {i: dex.method(i) for i in range(dex.method_count)
@@ -53,6 +120,7 @@ def inspect_dex(data: bytes) -> dict:
                 dex.method(i)[1] == "<init>"}
     bodies = []
     caller_refs = []
+    constructor_mode_sites = []
     own_class_definitions = []
     for index in range(dex.class_count):
         pos = dex.class_offset + index * 32
@@ -92,6 +160,15 @@ def inspect_dex(data: bytes) -> dict:
                 relevant_incoming.append(callee)
             if invoked in xx0_ctor:
                 relevant_incoming.append(("Lxx0;", "<init>", "()NOT_EXACT"))
+                if len(constructor_mode_sites) < 12:
+                    caller = safe_method_meta(method)
+                    if caller:
+                        constructor_mode_sites.append({
+                            "caller": caller,
+                            "case": constructor_mode_nearby_constant(
+                                dex, off, pc, opcode),
+                            "only_local_const_not_global_dataflow": True,
+                        })
         if owned or xx0_init:
             bodies.append({
                 "method": safe_method_meta(method),
@@ -118,6 +195,7 @@ def inspect_dex(data: bytes) -> dict:
                         })
     return {
         "signed_class_info": own_class_definitions,
+        "constructor_mode_sites": constructor_mode_sites,
         "signed_scheduler_bodies": bodies[:12],
         "bounded_incoming_method_refs": caller_refs[:75],
         "method_bodies_scanned_bounded": min(scanned, 500000),
@@ -148,6 +226,7 @@ def summarize(segments: list[dict]) -> dict:
         "known_runtime_exit_owner": "Lxx0;.run()V",
         "own_sched_lookups": len(distinct_scheduler),
         "direct_bodies": bodies[:12],
+        "constructor_mode_site_evidence": [x for s in segments for x in s["constructor_mode_sites"]][:12],
         "runnable_class_info": classes,
         "incoming_callers": unique_callers[:60],
         "inbound_ctor_and_scheduler_site_count_bounded": min(len(unique_callers), 100),
