@@ -61,10 +61,7 @@ jobs:
             # from a fresh GitHub ARM runner before adding an /etc/hosts entry.
             verified=''
             for ip in 91.189.91.102 91.189.91.103 91.189.91.104 91.189.92.19; do
-              if timeout 7s curl --fail --silent --show-error --connect-timeout 3
-                  --max-time 6 --resolve "ports.ubuntu.com:443:$ip"
-                  https://ports.ubuntu.com/ubuntu-ports/dists/noble/InRelease
-                  -o /dev/null 2>/dev/null; then
+              if timeout 7s curl -fsS --connect-timeout 3 --max-time 6 --resolve "ports.ubuntu.com:443:$ip" https://ports.ubuntu.com/ubuntu-ports/dists/noble/InRelease -o /dev/null 2>/dev/null; then
                 verified="$ip"
                 break
               fi
