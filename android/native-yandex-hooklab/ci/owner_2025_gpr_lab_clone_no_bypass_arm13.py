@@ -15,6 +15,7 @@ HERE=Path(__file__).resolve().parent
 ROOT=HERE.parent
 sys.path.insert(0,str(ROOT))
 import clone_native_splits_ephemeral as source
+import clone_native_splits_arsclib_ephemeral as arsc
 import clone_main_crash_buffer as diagnostics
 from uptodown_2025_gpr_ephemeral_verify import unbundle_candidate,verify_split_set
 from publisher_2025_provenance_gate import GateError,private_command
@@ -62,8 +63,8 @@ def verified_orig_paths(xapk: Path, root: Path) -> list[Path]:
     return parts
 
 def ephemeral_clone(originals: list[Path], work: Path) -> tuple[list[tuple[str,Path]],dict]:
-    jar=work/"apktool-verified.jar"
-    source.fetch_pin(jar)
+    jar=work/"APKEditor-1.4.9-verified.jar"
+    arsc.download_editor(jar)
     lab_key=work/"unique-ephemeral-signer.jks"
     source.action(["keytool","-genkeypair","-noprompt","-storetype","JKS",
         "-keystore",str(lab_key),"-storepass","ephemeral-lab-only",
@@ -84,9 +85,9 @@ def ephemeral_clone(originals: list[Path], work: Path) -> tuple[list[tuple[str,P
             stop("ORIGINAL_META_DRIFT")
         originals_seen.add(name)
         decoded=work/f"decoded-{i}"
-        source.action(["java","-Xmx3g","-jar",str(jar),"d","-f","-s",
-                       "-o",str(decoded),str(original)],
-                      "APKTOOL_DECODE_FAILED",360)
+        arsc.run(["java","-Xmx3g","-jar",str(jar),"d","-t","xml",
+                  "-dex","-i",str(original),"-o",str(decoded)],
+                 "ARSC_DECODE_2025_SPLIT",360)
         manifest=decoded/"AndroidManifest.xml"
         if not manifest.is_file():
             stop("DECODED_MANIFEST_MISSING")
@@ -97,8 +98,9 @@ def ephemeral_clone(originals: list[Path], work: Path) -> tuple[list[tuple[str,P
         provider_rewrites+=stats["provider_authorities"]
         manifest.write_bytes(rewritten)
         raw_clone=work/f"unsigned-{i}.apk"
-        source.action(["java","-Xmx3g","-jar",str(jar),"b",str(decoded),
-                       "-o",str(raw_clone)],"APKTOOL_REBUILD_FAILED",360)
+        arsc.run(["java","-Xmx3g","-jar",str(jar),"b","-t","xml",
+                  "-i",str(decoded),"-o",str(raw_clone)],
+                 "ARSC_REBUILD_2025_SPLIT",360)
         aligned=work/f"lab-clone-{i}.apk"
         source.action([source.sdk_tool("zipalign"),"-f","-p","4",
                        str(raw_clone),str(aligned)],"CLONE_ZIPALIGN_FAILED",100)
