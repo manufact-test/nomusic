@@ -1,0 +1,35 @@
+name: Android A1 2025 public older-version storefront browser (NO APK)
+on:
+  push:
+    branches:
+      - experiment/android-a1-2025-issuer-provenance-gate-20261111
+    paths:
+      - '.github/workflows/android-a1-2025-uptodown-public-ui.yml'
+      - 'android/native-yandex-hooklab/ci/public_2025_uptodown_ui_probe.py'
+permissions:
+  contents: read
+jobs:
+  public-ui-only:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Verify browser and script syntax
+        run: |
+          set -euo pipefail
+          python3 -m py_compile android/native-yandex-hooklab/ci/public_2025_uptodown_ui_probe.py
+          command -v google-chrome
+          google-chrome --version
+      - name: Isolated Playwright runtime for public site UI (no downloaded APK)
+        run: |
+          set -euo pipefail
+          python3 -m venv "$RUNNER_TEMP/celikom-public-browser"
+          "$RUNNER_TEMP/celikom-public-browser/bin/python" -m pip -q install playwright==1.58.0
+          "$RUNNER_TEMP/celikom-public-browser/bin/python" android/native-yandex-hooklab/ci/public_2025_uptodown_ui_probe.py
+      - name: Confirm no APK binary/artifacts/owner device touched
+        if: always()
+        run: |
+          rm -rf -- "$RUNNER_TEMP/celikom-public-browser"
+          echo '{"yandex_apk_downloaded":false,"apk_published":false,"owner_honor_touched":false,"stage_a":"NO_GO"}'
