@@ -137,6 +137,22 @@ def append_read_only_exit_info(guest: DockerGuest, result: dict) -> None:
     result["android_event_query_succeeded"] = events.returncode == 0
     if events.returncode == 0:
         result.update(classify_process_events(events.stdout))
+    crash = guest.command("shell", "logcat", "-b", "crash", "-d",
+                          "-v", "threadtime", "-t", "1200", timeout=30)
+    result["crash_buffer_query_succeeded"] = crash.returncode == 0
+    if activity.returncode == 0 and crash.returncode == 0:
+        # Reuse the project's tested, privacy-safe, PID-scoped classifier.
+        # Its default target is CELIKOM A1. Retarget ONLY this isolated
+        # process for the exact competitor's guest; restore in finally.
+        import clone_main_crash_buffer as witness
+        old_package = witness.CLONE
+        try:
+            witness.CLONE = CLONE_PACKAGE
+            scoped = witness.classify_main_crash_buffer(
+                activity.stdout, crash.stdout)
+        finally:
+            witness.CLONE = old_package
+        result["main_crash_diagnostic"] = scoped
 
 
 def run(source: Path, guest: DockerGuest) -> dict:
