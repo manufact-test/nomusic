@@ -1,0 +1,85 @@
+{
+  "schema": 1,
+  "project": "CELIKOM Android native A1",
+  "requested_architecture": "one independently signed native Android APK, original Yandex decoder",
+  "reference_branch": "experiment/android-native-a1-lspatch-clone-loader0-20261111",
+  "frozen_tested_source": "7c894ebe02e9b4ff1bc42f7a039e7f259e2e979d",
+  "signature_bypass_level": 0,
+  "publisher_signature_spoofing": false,
+  "owner_phone_touched_by_ci": false,
+  "user_apk_release_allowed": false,
+  "phase_b_start_allowed": false,
+  "gates": {
+    "owned_native_arm_lspatch_hook": {
+      "status": "pass",
+      "evidence": [
+        "https://github.com/manufact-test/nomusic/actions/runs/42987483624"
+      ]
+    },
+    "publisher_signed_original_arm_main": {
+      "status": "pass",
+      "evidence": [
+        "https://github.com/manufact-test/nomusic/actions/runs/42990078186",
+        "https://github.com/manufact-test/nomusic/actions/runs/42991987794"
+      ]
+    },
+    "clone_five_splits_main": {
+      "status": "blocked",
+      "evidence": [
+        "https://github.com/manufact-test/nomusic/actions/runs/42991987803"
+      ]
+    },
+    "clone_merged_no_loader_main": {
+      "status": "blocked",
+      "evidence": [
+        "https://github.com/manufact-test/nomusic/actions/runs/42991348866",
+        "https://github.com/manufact-test/nomusic/actions/runs/42991987803"
+      ]
+    },
+    "clone_merged_lspatch0_main": {
+      "status": "blocked",
+      "evidence": [
+        "https://github.com/manufact-test/nomusic/actions/runs/42991348866",
+        "https://github.com/manufact-test/nomusic/actions/runs/42991987803"
+      ]
+    },
+    "publisher_authorized_embedding": {
+      "status": "unknown",
+      "evidence": []
+    },
+    "publisher_supported_native_ui_sdk": {
+      "status": "unknown",
+      "evidence": []
+    },
+    "independent_clone_native_ui_and_coexistence": {
+      "status": "blocked",
+      "evidence": [
+        "https://github.com/manufact-test/nomusic/actions/runs/42991987803"
+      ]
+    },
+    "native_login_and_mywave": {
+      "status": "not_tested",
+      "evidence": []
+    },
+    "same_yandex_decoder_licensed_source_swap": {
+      "status": "not_tested",
+      "evidence": []
+    },
+    "pause_seek_next_and_background": {
+      "status": "not_tested",
+      "evidence": []
+    },
+    "play_protect_enabled_owner_phone": {
+      "status": "not_tested",
+      "evidence": []
+    },
+    "owner_audible_stage_a_acceptance": {
+      "status": "not_tested",
+      "evidence": []
+    },
+    "exact_candidate_signed_sha_rollback_archived": {
+      "status": "not_tested",
+      "evidence": []
+    }
+  }
+}

@@ -1,0 +1,35 @@
+name: Android A1 Stage-A evidence and release safety gate (no device/APK)
+on:
+  push:
+    branches:
+      - experiment/android-native-a1-lspatch-clone-loader0-20261111
+    paths:
+      - 'android/native-yandex-hooklab/native_clone_stage_a_evidence_gate.py'
+      - 'android/native-yandex-hooklab/tests/test_native_clone_stage_a_evidence_gate.py'
+      - 'docs/android/CELIKOM-ANDROID-A1-STAGE-A-EVIDENCE-20261111.json'
+      - '.github/workflows/android-native-a1-stage-a-evidence-gate.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  evidence-consistency:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: No-APK static evidence check
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile android/native-yandex-hooklab/native_clone_stage_a_evidence_gate.py
+          python3 -m unittest discover -s android/native-yandex-hooklab/tests -p test_native_clone_stage_a_evidence_gate.py -v
+          python3 android/native-yandex-hooklab/native_clone_stage_a_evidence_gate.py docs/android/CELIKOM-ANDROID-A1-STAGE-A-EVIDENCE-20261111.json
+      - name: Confirm current NO-GO cannot be misrepresented as user release PASS
+        shell: bash
+        run: |
+          set -euo pipefail
+          if python3 android/native-yandex-hooklab/native_clone_stage_a_evidence_gate.py docs/android/CELIKOM-ANDROID-A1-STAGE-A-EVIDENCE-20261111.json --require-release-ready; then
+            echo "Unexpected Stage-A ready despite signed original alone" >&2
+            exit 2
+          fi
+          echo "Stage A remains NO-GO, no Android artifact packaged or published"
