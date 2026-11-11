@@ -1,0 +1,49 @@
+name: Android A1 native ARM64 Linux binderfs capability for no-KVM own Android
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - experiment/android-native-a1-lspatch-clone-loader0-20261111
+    paths:
+      - '.github/workflows/android-native-a1-arm-linux-binderfs-gate.yml'
+permissions:
+  contents: read
+jobs:
+  passive-arm-binder-check:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04-arm, ubuntu-26.04-arm]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 5
+    steps:
+      - name: Read-only kernel and binder filesystem capability, no Android image or APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "$(uname -m)" != "aarch64" ]; then
+            echo '{"native_arm_linux":false,"android_started":false}'
+            exit 2
+          fi
+          binderfs=false
+          existing_binder=false
+          available_binder_module=false
+          built_in_binder=false
+          if grep -q '[[:space:]]binder[[:space:]]*' /proc/filesystems || \
+             grep -q '[[:space:]]binderfs[[:space:]]*' /proc/filesystems; then binderfs=true; fi
+          for node in /dev/binder /dev/hwbinder /dev/vndbinder; do
+            if [ -e "$node" ]; then existing_binder=true; fi
+          done
+          if command -v modinfo >/dev/null 2>&1 && modinfo binder_linux >/dev/null 2>&1; then
+            available_binder_module=true
+          fi
+          kernel_config="/boot/config-$(uname -r)"
+          if [ -f "$kernel_config" ] && grep -q '^CONFIG_ANDROID_BINDER_IPC=y' "$kernel_config"; then
+            built_in_binder=true
+          fi
+          if [ -r /proc/config.gz ] && zcat /proc/config.gz 2>/dev/null | grep -q '^CONFIG_ANDROID_BINDER_IPC=y'; then
+            built_in_binder=true
+          fi
+          echo "{\"result\":\"ARM_LINUX_BINDERFS_PASSIVE_CAPABILITY_ONLY\",\"native_arm_linux\":true,\"binderfs_listed\":$binderfs,\"existing_binder_device\":$existing_binder,\"binder_module_available\":$available_binder_module,\"binder_built_in\":$built_in_binder,\"android_started\":false,\"play_protect_tested\":false,\"own_or_vendor_apk_installed\":false,\"owner_phone_touched\":false}"
+      - name: No software or device installation performed
+        run: echo '{"android_image_downloaded":false,"third_party_code_executed":false,"device_connected":false}'
