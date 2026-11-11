@@ -1,0 +1,83 @@
+name: CELIKOM A1 causal control — pristine package name with independent own key on ARM13
+on:
+  push:
+    branches: [experiment/android-a1-2025-causal-startup-controls-20261112]
+    paths:
+      - '.github/workflows/android-a1-2025-original-name-own-key-arm13.yml'
+      - 'android/native-yandex-hooklab/ci/owner_2025_same_name_own_key_arm13_control.py'
+      - 'android/native-yandex-hooklab/clone_main_crash_buffer.py'
+      - 'android/native-yandex-hooklab/tests/test_clone_main_crash_buffer.py'
+permissions:
+  contents: write
+jobs:
+  same-name-own-signer:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 42
+    env:
+      CELIKOM_CLEAN_ANDROID_NATIVE_REDDROID: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Run synthetic crash classification isolation tests before private binary access
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -B -m unittest discover -s android/native-yandex-hooklab/tests -p 'test_clone_main_crash_buffer.py' -v
+          python3 -B -m py_compile android/native-yandex-hooklab/ci/owner_2025_same_name_own_key_arm13_control.py android/native-yandex-hooklab/clone_main_crash_buffer.py
+      - name: Retrieve pinned publisher original from the existing unpublished draft (no upload)
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          [ "$GITHUB_REPOSITORY" = manufact-test/nomusic ]
+          [ "$GITHUB_REF_NAME" = experiment/android-a1-2025-causal-startup-controls-20261112 ]
+          gh api --paginate "repos/$GITHUB_REPOSITORY/releases?per_page=100" --jq '.[] | select(.id == 442137464 and .draft == true and .tag_name == "a1-yandex-2025-gpr-private-test") | .id' | grep -qx 442137464
+          gh api "repos/$GITHUB_REPOSITORY/releases/442137464/assets?per_page=100" --jq '.[] | select(.id == 736739728 and .name == "yandex-music-2025-10-4-120-1gpr.xapk" and .size == 45961661 and .digest == "sha256:8e43be8900d28ee92c8e315ed07069568858bfd4a593757fba9d276bd0c54053") | .id' | grep -qx 736739728
+          mkdir -p "$RUNNER_TEMP/owner-2025-causal-identity"
+          gh release download a1-yandex-2025-gpr-private-test --repo "$GITHUB_REPOSITORY" --pattern yandex-music-2025-10-4-120-1gpr.xapk --dir "$RUNNER_TEMP/owner-2025-causal-identity" --clobber >/dev/null
+          f="$RUNNER_TEMP/owner-2025-causal-identity/yandex-music-2025-10-4-120-1gpr.xapk"
+          [ "$(stat -c %s "$f")" = 45961661 ]
+          [ "$(sha256sum "$f" | cut -d' ' -f1)" = 8e43be8900d28ee92c8e315ed07069568858bfd4a593757fba9d276bd0c54053 ]
+      - name: Prepare Android apksigner/aapt/zipalign; strict verification stays enabled
+        shell: bash
+        timeout-minutes: 6
+        run: |
+          set -euo pipefail
+          sudo timeout 120 apt-get update -qq
+          sudo timeout 90 env DEBIAN_FRONTEND=noninteractive apt-get install -y -qq aapt apksigner zipalign
+          sdk="$RUNNER_TEMP/own-key-same-name-arm-sdk"
+          mkdir -p "$sdk/build-tools/35.0.0"
+          for tool in aapt apksigner zipalign; do
+            ln -sf "$(command -v "$tool")" "$sdk/build-tools/35.0.0/$tool"
+          done
+          echo "ANDROID_HOME=$sdk" >> "$GITHUB_ENV"
+      - name: Boot clean true native ARM64 plus ARMv7 Android13 guest
+        shell: bash
+        timeout-minutes: 16
+        run: |
+          set -euo pipefail
+          bash android/native-yandex-hooklab/ci/native_arm_redroid_boot_only.sh
+          [ "$(docker exec celikom-native-arm-android13 getprop sys.boot_completed)" = 1 ]
+          [ "$(docker exec celikom-native-arm-android13 getprop ro.build.version.sdk)" = 33 ]
+      - name: No APKEditor/no renaming; own-key sign all 16; strict 75s native launch control
+        shell: bash
+        timeout-minutes: 18
+        run: |
+          set -euo pipefail
+          python3 -B android/native-yandex-hooklab/ci/owner_2025_same_name_own_key_arm13_control.py --xapk "$RUNNER_TEMP/owner-2025-causal-identity/yandex-music-2025-10-4-120-1gpr.xapk"
+      - name: Always erase source, all own-key APKs and data; never upload artifact
+        if: always()
+        shell: bash
+        run: |
+          docker stop celikom-native-arm-android13 >/dev/null 2>&1 || true
+          sudo umount /dev/binderfs >/dev/null 2>&1 || true
+          sudo modprobe -r binder_linux >/dev/null 2>&1 || true
+          sudo rm -rf -- "$RUNNER_TEMP/celikom-redroid-data"
+          rm -rf -- "$RUNNER_TEMP/owner-2025-causal-identity" "$RUNNER_TEMP/own-key-same-name-arm-sdk"
+          echo '{"original_publisher_source_unmodified":true,"no_download_artifact":true,"user_phone_touched":false,"no_signature_or_drm_bypass":true,"stage_a":"NO_GO"}'
