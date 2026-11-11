@@ -156,8 +156,14 @@ try
                     valid_until = now.AddDays(3).ToString("O"), reason = "trial_active" } });
         }
         if (path == "/api/v1/entitlement")
+        {
+            Test(request.Method == HttpMethod.Get && request.Headers.ConnectionClose == true &&
+                 request.Headers.CacheControl?.NoStore == true &&
+                 request.Headers.CacheControl?.NoCache == true,
+                 "W72 entitlement GET bypasses stale cached VPN route and cache");
             return JsonResponse(new { allowed = true, source = "promo",
                 valid_until = (string?)null, reason = "promo_lifetime" });
+        }
         if (path == "/api/v1/promos/redeem")
         {
             Test(request.Headers.Authorization?.Parameter == expectedAccess,
@@ -264,6 +270,13 @@ try
          EntitlementCheckRecovery.IsTransient(new ApiFailure(429, "RATE_LIMITED")) &&
          EntitlementCheckRecovery.IsTransient(new ApiFailure(503, "API_ERROR")),
          "W71 temporary network, 429 and 5xx errors retryable");
+    Test(EntitlementCheckRecovery.IsTransient(new ApiFailure(0, "INVALID_API_JSON")) &&
+         EntitlementCheckRecovery.IsTransient(new ApiFailure(302, "REDIRECT_FORBIDDEN")) &&
+         EntitlementCheckRecovery.FailureCode(new ApiFailure(0, "INVALID_API_JSON")) ==
+             "ACTIVE_ENTITLEMENT_BAD_RESPONSE" &&
+         EntitlementCheckRecovery.FailureCode(new TaskCanceledException()) ==
+             "ACTIVE_ENTITLEMENT_TIMEOUT",
+         "W72 captive-portal HTML, VPN redirect and timeout are classified safely");
     Test(!EntitlementCheckRecovery.IsTransient(new ApiFailure(401, "INVALID_SESSION")) &&
          !EntitlementCheckRecovery.IsTransient(new ApiFailure(403, "ACCESS_DENIED")) &&
          !EntitlementCheckRecovery.IsTransient(new InvalidOperationException()),
@@ -380,6 +393,52 @@ try
                 "stop disables future source replacement");
     }
 
+    // W72: extension's refresh-race regression ported to real Windows DPAPI.
+    // An old 401 can spawn a refresh that finishes AFTER a user's logout.
+    // The late successful POST must never resurrect that earlier login.
+    var raceFolder = Path.Combine(folder, "refresh-race");
+    var raceStore = new SessionStore(raceFolder);
+    var refreshEntered = new TaskCompletionSource<bool>(
+        TaskCreationOptions.RunContinuationsAsynchronously);
+    var releaseRefresh = new TaskCompletionSource<HttpResponseMessage>(
+        TaskCreationOptions.RunContinuationsAsynchronously);
+    var raceRefreshCalls = 0;
+    using (var raceApi = new CelikomApi(raceStore,
+        new AsyncFakeHandler(async (request, cancel) =>
+        {
+            var route = request.RequestUri!.AbsolutePath;
+            if (route == "/api/v1/auth/login")
+                return JsonResponse(new { user = new { id = 91, email = "race@example.invalid", status = "active" },
+                    access_token = new string('1', 64), refresh_token = new string('2', 64), expires_in = 900 });
+            if (route == "/api/v1/entitlement")
+                return JsonResponse(new { error = "invalid_session" }, 401);
+            if (route == "/api/v1/auth/refresh")
+            {
+                ++raceRefreshCalls;
+                refreshEntered.TrySetResult(true);
+                return await releaseRefresh.Task.WaitAsync(cancel);
+            }
+            if (route == "/api/v1/auth/logout") return JsonResponse(new { ok = true });
+            return JsonResponse(new { error = "not_found" }, 404);
+        })))
+    {
+        await raceApi.LoginAsync("https://api.celikom.example",
+            "race@example.invalid", "test_password");
+        var pendingOldRefresh = raceApi.GetEntitlementAsync();
+        await refreshEntered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await raceApi.LogoutAsync();
+        releaseRefresh.SetResult(JsonResponse(new {
+            user = new { id = 91, email = "race@example.invalid", status = "active" },
+            access_token = new string('3', 64), refresh_token = new string('4', 64), expires_in = 900 }));
+        var oldRefreshRejected = false;
+        try { await pendingOldRefresh; }
+        catch (ApiFailure ex) when (ex.HttpStatus == 401) { oldRefreshRejected = true; }
+        Test(oldRefreshRejected && !raceApi.IsLoggedIn &&
+             raceStore.LoadOrCreate().RefreshToken == "" &&
+             raceStore.LoadOrCreate().AccessToken == "" &&
+             raceRefreshCalls == 1,
+             "W72 stale in-flight refresh cannot restore access after logout");
+    }
     await api.LogoutAsync();
     Test(!api.IsLoggedIn, "only Windows CELIKOM session logged out");
     Test(store.LoadOrCreate().RefreshToken == "", "local refresh token cleared");
@@ -515,4 +574,12 @@ sealed class FakeHandler(Func<HttpRequestMessage, HttpResponseMessage> reply) : 
     protected override Task<HttpResponseMessage> SendAsync(
         HttpRequestMessage request, CancellationToken cancellationToken) =>
         Task.FromResult(reply(request));
+}
+
+sealed class AsyncFakeHandler(
+    Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>> reply) : HttpMessageHandler
+{
+    protected override Task<HttpResponseMessage> SendAsync(
+        HttpRequestMessage request, CancellationToken cancellationToken) =>
+        reply(request, cancellationToken);
 }
