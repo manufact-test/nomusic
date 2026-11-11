@@ -64,5 +64,25 @@ class ExactCompetitorProbeTests(unittest.TestCase):
             p.probe(Fake(), Path("/not/a/file"), "alone", [])
 
 
+    def test_docker_transport_uses_only_disposable_container(self):
+        guest = p.DockerGuest()
+        self.assertEqual(guest.serial, "127.0.0.1:5555")
+        self.assertEqual(guest.CONTAINER, "celikom-native-arm-android13")
+        with self.assertRaisesRegex(RuntimeError, "DOCKER_COMMAND_SCOPE_REJECTED"):
+            guest.command("install", "/tmp/test.apk")
+
+    def test_docker_transport_requires_actual_apk(self):
+        guest = p.DockerGuest()
+        with self.assertRaisesRegex(RuntimeError, "HOST_APK_NOT_FOUND"):
+            guest.install([Path("/does/not/exist.apk")])
+
+    def test_docker_transport_rejects_unbounded_apks(self):
+        guest = p.DockerGuest()
+        with self.assertRaisesRegex(RuntimeError, "INVALID_INSTALL_APK_COUNT"):
+            guest.install([])
+        with self.assertRaisesRegex(RuntimeError, "INVALID_INSTALL_APK_COUNT"):
+            guest.install([Path("/does/not/exist.apk")] * 6)
+
+
 if __name__ == "__main__":
     unittest.main()
