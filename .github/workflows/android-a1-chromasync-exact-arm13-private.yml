@@ -89,6 +89,45 @@ jobs:
             | tee "$RUNNER_TEMP/chroma-alone.json"
           echo "${PIPESTATUS[0]}" > "$RUNNER_TEMP/chroma-alone-status"
           set -e
+      - name: Prepare official signed stock verification tools after standalone competitor run
+        shell: bash
+        timeout-minutes: 5
+        run: |
+          set -euo pipefail
+          if ! { command -v aapt >/dev/null && command -v apksigner >/dev/null; }; then
+            verified=''
+            for ip in 91.189.91.102 91.189.91.103 91.189.91.104 91.189.92.19; do
+              if timeout 7s curl -fsS --connect-timeout 3 --max-time 6 \
+                --resolve "ports.ubuntu.com:443:$ip" \
+                https://ports.ubuntu.com/ubuntu-ports/dists/noble/InRelease \
+                -o /dev/null 2>/dev/null; then
+                  verified="$ip"
+                  break
+              fi
+            done
+            if [ -z "$verified" ]; then echo 'OFFICIAL_ARCHIVE_TLS_UNAVAILABLE'; exit 31; fi
+            printf '%s ports.ubuntu.com\n' "$verified" | sudo tee -a /etc/hosts >/dev/null
+            cat > "$RUNNER_TEMP/celikom-stock-ubuntu-ports.sources" <<'EOF'
+          Types: deb
+          URIs: https://ports.ubuntu.com/ubuntu-ports
+          Suites: noble noble-updates noble-backports noble-security
+          Components: main restricted universe multiverse
+          Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg
+          EOF
+            apt_source="$RUNNER_TEMP/celikom-stock-ubuntu-ports.sources"
+            opts=(-o "Dir::Etc::sourcelist=$apt_source" -o 'Dir::Etc::sourceparts=-'
+                  -o 'Acquire::Retries=0' -o 'Acquire::https::Timeout=12')
+            sudo timeout 75s apt-get "${opts[@]}" update -qq
+            sudo timeout 90s env DEBIAN_FRONTEND=noninteractive \
+              apt-get "${opts[@]}" install -y -qq aapt apksigner
+          fi
+          sdk="$RUNNER_TEMP/celikom-stock-sdk"
+          mkdir -p "$sdk/build-tools/35.0.0"
+          for tool in aapt apksigner; do
+            ln -sf "$(command -v "$tool")" "$sdk/build-tools/35.0.0/$tool"
+            test -x "$sdk/build-tools/35.0.0/$tool"
+          done
+          echo "ANDROID_HOME=$sdk" >> "$GITHUB_ENV"
       - name: Get separately pinned issuer-signed Yandex 2026 control
         shell: bash
         run: |
