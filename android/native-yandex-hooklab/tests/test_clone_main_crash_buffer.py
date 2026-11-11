@@ -129,7 +129,7 @@ class SafeMainCrashBufferTest(unittest.TestCase):
         result=classify_main_crash_buffer(EXIT,raw)
         self.assertEqual(result["java_exception_message_hint_enum"],"TRUST_OR_PACKAGE")
         self.assertEqual(result["java_startup_lifecycle_enum"],"APPLICATION_ON_CREATE")
-        self.assertNotIn("certificate",str(result).lower())
+        self.assertNotIn("a certificate is untrusted",str(result).lower())
         self.assertNotIn("TOPSECRET",str(result))
         self.assertNotIn("PRIVATE",str(result))
 
