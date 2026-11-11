@@ -26,7 +26,7 @@ try {
     echo 'W73_SMTP_SUPPORT_ADDRESS_VALID='.(filter_var($config['mail_from']??'',FILTER_VALIDATE_EMAIL)?'YES':'NO')."\n";
     echo 'W73_SMTP_PORT_ALLOWED='.(in_array((int)($config['mail_port']??0),[465,587],true)?'YES':'NO')."\n";
     $mailHost=strtolower((string)($config['mail_host']??''));
-    $mailDomain=strtolower((string)substr(strrchr((string)($config['mail_from']??''),'@')?:'','1'));
+    $mailDomain=strtolower((string)substr(strrchr((string)($config['mail_from']??''),'@')?:'',1));
     $classify=static function(string $host):string {
         foreach (['hostinger','titan','gmail','google','yandex','mail.ru','zoho',
                   'office365','outlook','brevo','sendgrid','mailgun','postmark',
