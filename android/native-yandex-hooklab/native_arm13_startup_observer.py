@@ -126,12 +126,31 @@ def only_new_main_exit_info(before: str, after: str) -> tuple[str, dict]:
 
 
 def classify_new_main_log_signals(filtered_exit: str, main_log: str) -> dict:
-    """Read only E/F/W log lines attributed to new exact-MAIN exit-info PID.
+    """Only E/F/W log lines matching fresh exited clone MAIN PID(s)."""
+    return _classify_scoped_main_log(main_exit_pids(filtered_exit), main_log)
 
-    No raw text, exception symbol, path, URL, thread ID or credential leaves.
-    Cross-process Android framework messages are intentionally not attributed.
+
+def classify_live_main_log_signals(pidof_output: str, main_log: str) -> dict:
+    """Read-only working ORIGINAL MAIN control from public 'pidof' output.
+
+    Exactly one numeric PID is accepted (no shell or arbitrary process input);
+    the caller must check the publisher-signed original MAIN is alive and
+    Activity resumed. Both buffers are private; report contains only categories.
+    A PID alone is not an attestation of the publisher app identity.
     """
-    pids = main_exit_pids(filtered_exit)
+    if type(pidof_output) is not str:
+        raise ValueError("INVALID_READ_ONLY_PROCESS_WITNESS")
+    candidate = pidof_output.strip()
+    pids = {int(candidate)} if re.fullmatch(r"[1-9][0-9]{0,7}", candidate) else set()
+    return _classify_scoped_main_log(pids, main_log)
+
+
+def _classify_scoped_main_log(pids: set[int], main_log: str) -> dict:
+    """Shared exact-PID parser for departed clone and surviving original.
+
+    No raw text, class names, stack frames, paths, URLs, PIDs or account
+    data leave this function. Missing PID means no attributed observation.
+    """
     groups = []
     stack_subsystems = []
     fatal_seen = False
@@ -142,6 +161,8 @@ def classify_new_main_log_signals(filtered_exit: str, main_log: str) -> dict:
     exception_window = 0
     system_err_tag_seen = False
     android_runtime_tag_seen = False
+    illegal_state_error_severity_seen = False
+    illegal_state_warning_severity_seen = False
     for line in main_log.splitlines()[-15000:]:
         event = LOG.match(line)
         if event is None or int(event.group(1)) not in pids:
@@ -155,6 +176,9 @@ def classify_new_main_log_signals(filtered_exit: str, main_log: str) -> dict:
         matched += 1
         if severity in ("E", "F"):
             error_seen = True
+        if re.search(r"\bIllegalStateException\b", message):
+            illegal_state_error_severity_seen |= severity in ("E", "F")
+            illegal_state_warning_severity_seen |= severity == "W"
         if tag.strip() == "AndroidRuntime" and "FATAL EXCEPTION" in message:
             fatal_seen = True
         if re.search(r"\buncaughtException\b", message, re.I):
@@ -199,6 +223,8 @@ def classify_new_main_log_signals(filtered_exit: str, main_log: str) -> dict:
         "android_runtime_fatal_seen": fatal_seen,
         "uncaught_handler_marker_seen": uncaught_seen,
         "throwable_groups": groups[:7],
+        "illegal_state_error_severity_seen": illegal_state_error_severity_seen,
+        "illegal_state_warning_severity_seen": illegal_state_warning_severity_seen,
         "exception_stack_subsystems": stack_subsystems[:6],
         "exception_stack_frames_seen_bounded": min(stack_frames, 50),
         "system_err_tag_seen": system_err_tag_seen,
