@@ -302,7 +302,7 @@ def classify_nonblocking_activity_start(stdout):
     """Confirm ActivityManager dispatch only; MAIN/UI still must be live."""
     import re
     return {
-        "activity_status_ok": bool(re.search(r"(?m)^Starting:\\s+Intent\\s*\\{", stdout)),
+        "activity_status_ok": bool(re.search(r"(?m)^Starting:\s+Intent\s*\{", stdout)),
         "activity_explicit_error": (
             "Error:" in stdout or "Exception" in stdout
             or "Activity not started" in stdout),
