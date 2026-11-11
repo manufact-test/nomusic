@@ -1,3 +1,5 @@
+> **ARM Android13 publisher control verified 11.11.2026:** [CI 42990078186](https://github.com/manufact-test/nomusic/actions/runs/42990078186) signed original 5 APK MAIN alive and resumed. No sign-in, audio, Google Play Services, or Play Protect in Redroid. A/B clone research 42990746852 is running and is not yet proof of a working independent native Yandex client. Read [original control](ANDROID-A1-TRUE-ARM13-SIGNED-YANDEX-ORIGINAL-CONTROL-20261111.md).
+
 # CELIKOM Android A1 — настоящий ARM Android 13 / ARMv7 LSPatch LibXposed hook подтверждён (11.11.2026)
 
 **ГЛАВНЫЙ РЕЗУЛЬТАТ:** впервые есть реальный Android 13 в Linux/ARM64 контейнере с нативной поддержкой armeabi-v7a, в котором установлен и запущен **только наш** тестовый ARMv7 APK с LSPatch v1.2-487, `sigBypassLevel=0` и нашим LibXposed-модулем. Фактически исполнен перехват `MainActivity.onCreate` **внутри процесса**; фиксированная метка `OWN_NATIVE_ARMV7_LSPATCH_MODULE_ENTERED`. Никакой установленной Яндекс.Музыки и звукового теста.
