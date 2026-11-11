@@ -1,0 +1,24 @@
+name: CELIKOM A1 MAIN Java causal diagnostics (synthetic privacy gates)
+on:
+  push:
+    branches: [experiment/android-a1-2025-privatelog-java-rootcause-20261112]
+    paths:
+      - '.github/workflows/android-a1-main-java-private-diagnostics-tests.yml'
+      - 'android/native-yandex-hooklab/clone_main_crash_buffer.py'
+      - 'android/native-yandex-hooklab/tests/test_clone_main_crash_buffer.py'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  pid-scoped-java-crash-privacy:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify MAIN-only exception origin, empty scope and privacy using synthetic fixtures only
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -B -m unittest discover -s android/native-yandex-hooklab/tests -p 'test_clone_main_crash_buffer.py' -v
+          python3 -B -m py_compile android/native-yandex-hooklab/clone_main_crash_buffer.py
+          echo '{"synthetic_privacy_tests":"PASS","vendor_apk_touched":false,"owner_device_touched":false,"runtime_stability_tested":false,"stage_a":"NO_GO"}'
