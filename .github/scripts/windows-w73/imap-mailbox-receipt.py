@@ -18,7 +18,10 @@ def run():
     password=os.environ["CELIKOM_SMTP_PASSWORD"]
     from_addr=os.environ["CELIKOM_MAIL_FROM"].strip()
     imap_host={"smtp.hostinger.com":"imap.hostinger.com",
-               "smtp.titan.email":"imap.titan.email"}.get(host)
+               "smtp.titan.email":"imap.titan.email",
+               "smtp.gmail.com":"imap.gmail.com",
+               "smtp.googlemail.com":"imap.gmail.com",
+               "smtp-relay.gmail.com":"imap.gmail.com"}.get(host)
     if not imap_host or port not in (465,587):
         print("W73_IMAP_PROVIDER_NOT_SUPPORTED")
         return 3
