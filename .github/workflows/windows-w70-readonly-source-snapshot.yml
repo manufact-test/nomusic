@@ -1,0 +1,51 @@
+name: CELIKOM W70 LIVE readonly PHP support source snapshot (code only)
+on:
+  push:
+    branches: [experiment/windows-w70-auto-support-diagnostics-20261111]
+    paths:
+      - .github/workflows/windows-w70-readonly-source-snapshot.yml
+permissions:
+  contents: read
+jobs:
+  source:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Copy only five public-code PHP source files from immutable live release
+        shell: bash
+        env:
+          HOSTINGER_SSH_KEY: ${{ secrets.HOSTINGER_SSH_KEY }}
+        run: |
+          set -euo pipefail
+          umask 077
+          dir="$(mktemp -d)"
+          trap 'rm -rf "$dir"' EXIT
+          printf '%s\n' "$HOSTINGER_SSH_KEY" | tr -d '\r' > "$dir/key"
+          ssh-keygen -y -P '' -f "$dir/key" > "$dir/pub"
+          [[ "$(ssh-keygen -lf "$dir/pub" | awk '{print $2}')" == 'SHA256:Q6FyifXRq6garceQdIIjBmXhkk81Ic1p/x9JTSYHWUk' ]]
+          printf '%s\n' '[92.113.19.189]:65002 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAf8M2EVwq0oJI8I9KZ0NFE8P8yDOvDATEhkQti/Kk/0' > "$dir/known_hosts"
+          opts=(-i "$dir/key" -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o "UserKnownHostsFile=$dir/known_hosts" -o GlobalKnownHostsFile=/dev/null -o ConnectTimeout=15)
+          target='u235811320@92.113.19.189'
+          root='/home/u235811320/domains/darkred-camel-588676.hostingersite.com/celikom/current'
+          mkdir -p live-src/Support live-src/Admin
+          for rel in src/Support/SupportService.php src/Support/SongReport.php src/Support/SupportAdminView.php src/Admin/AdminPanel.php src/Application.php; do
+            scp -P 65002 "${opts[@]}" "$target:$root/$rel" "live-${rel/src\//}" || exit 4
+          done
+          for rel in Support/SupportService.php Support/SongReport.php Support/SupportAdminView.php Admin/AdminPanel.php Application.php; do
+            [[ -f "live-$rel" ]] || exit 5
+            [[ "$(wc -c < "live-$rel")" -ge 1000 ]] || exit 6
+          done
+          mkdir -p live-src/Support live-src/Admin
+          mv live-Support/*.php live-src/Support/
+          mv live-Admin/*.php live-src/Admin/
+          mv live-Application.php live-src/Application.php
+          echo 'LIVE_CODE_ONLY_FILES_RETRIEVED_READONLY'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: CELIKOM-W70-LIVE-SUPPORT-CODE-READONLY
+          path: live-src/
+          if-no-files-found: error
+          retention-days: 1
