@@ -1,0 +1,67 @@
+name: Android A1 owner signed original 2025 GPR — native ARM13 75s MAIN
+on:
+  push:
+    branches: [experiment/android-a1-user-original-gpr-real-arm13-20261111]
+    paths:
+      - '.github/workflows/android-a1-2025-owner-gpr-native-arm13.yml'
+      - 'android/native-yandex-hooklab/ci/owner_2025_gpr_arm13_signed_control.py'
+permissions:
+  contents: write
+jobs:
+  genuine-signed-2025:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 32
+    env:
+      CELIKOM_CLEAN_ANDROID_NATIVE_REDDROID: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Verify private draft, fetch exact original bytes
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          [ "$GITHUB_REPOSITORY" = 'manufact-test/nomusic' ]
+          [ "$GITHUB_REF_NAME" = 'experiment/android-a1-user-original-gpr-real-arm13-20261111' ]
+          gh api --paginate "repos/$GITHUB_REPOSITORY/releases?per_page=100" --jq '.[] | select(.id == 442137464 and .draft == true and .tag_name == "a1-yandex-2025-gpr-private-test") | .id' | grep -qx '442137464'
+          gh api "repos/$GITHUB_REPOSITORY/releases/442137464/assets?per_page=100" --jq '.[] | select(.id == 736739728 and .name == "yandex-music-2025-10-4-120-1gpr.xapk" and .size == 45961661 and .digest == "sha256:8e43be8900d28ee92c8e315ed07069568858bfd4a593757fba9d276bd0c54053") | .id' | grep -qx '736739728'
+          mkdir -p "$RUNNER_TEMP/owner-gpr-2025"
+          gh release download a1-yandex-2025-gpr-private-test --repo "$GITHUB_REPOSITORY" --pattern 'yandex-music-2025-10-4-120-1gpr.xapk' --dir "$RUNNER_TEMP/owner-gpr-2025" --clobber >/dev/null
+          xapk="$RUNNER_TEMP/owner-gpr-2025/yandex-music-2025-10-4-120-1gpr.xapk"
+          [ "$(stat -c %s "$xapk")" = '45961661' ]
+          [ "$(sha256sum "$xapk" | cut -d' ' -f1)" = '8e43be8900d28ee92c8e315ed07069568858bfd4a593757fba9d276bd0c54053' ]
+          echo '{"unpublished_owner_original_sha256_confirmed":true}'
+      - name: Prepare Android SDK signing tools and test Python syntax
+        shell: bash
+        timeout-minutes: 5
+        run: |
+          set -euo pipefail
+          sudo timeout 120 apt-get update -qq
+          sudo timeout 90 env DEBIAN_FRONTEND=noninteractive apt-get install -y -qq aapt apksigner
+          python3 -m py_compile android/native-yandex-hooklab/ci/owner_2025_gpr_arm13_signed_control.py
+          python3 -m unittest discover -s android/native-yandex-hooklab/tests -p test_publisher_2025_provenance_gate.py -v
+      - name: Boot true clean ARM64 plus ARMv7 Android13
+        shell: bash
+        timeout-minutes: 16
+        run: |
+          set -euo pipefail
+          bash android/native-yandex-hooklab/ci/native_arm_redroid_boot_only.sh
+          [ "$(docker exec celikom-native-arm-android13 getprop sys.boot_completed)" = 1 ]
+      - name: Reverify publisher signer and install genuine 16-split 2025 Yandex; MAIN 75s
+        shell: bash
+        timeout-minutes: 9
+        run: |
+          set -euo pipefail
+          python3 android/native-yandex-hooklab/ci/owner_2025_gpr_arm13_signed_control.py --xapk "$RUNNER_TEMP/owner-gpr-2025/yandex-music-2025-10-4-120-1gpr.xapk"
+      - name: Always destroy genuine ARM guest and temporary original files, no artifact
+        if: always()
+        shell: bash
+        run: |
+          docker stop celikom-native-arm-android13 >/dev/null 2>&1 || true
+          sudo umount /dev/binderfs >/dev/null 2>&1 || true
+          sudo modprobe -r binder_linux >/dev/null 2>&1 || true
+          sudo rm -rf -- "$RUNNER_TEMP/celikom-redroid-data"
+          rm -rf -- "$RUNNER_TEMP/owner-gpr-2025"
+          echo '{"unpublished_owner_release_preserved":true,"binary_artifact_uploaded":false,"owner_phone_unmodified":true,"stage_a":"NO_GO"}'
