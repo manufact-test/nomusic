@@ -83,6 +83,15 @@ def verified_orig_paths(xapk: Path, root: Path) -> list[Path]:
         stop("ORIGINAL_ISSUER_VERIFICATION_FAILED")
     return parts
 
+def lab_manifest_min_sdk(apk: Path) -> int | None:
+    """Return only numerical minSdk from public APK manifest metadata."""
+    result = cmd([lab_sdk_tool("aapt"), "dump", "badging", str(apk)], 60)
+    if result.returncode:
+        return None
+    match = re.search(r"^sdkVersion:'(\d+)'", result.stdout, re.M)
+    return int(match.group(1)) if match else None
+
+
 def ephemeral_clone(originals: list[Path], work: Path) -> tuple[list[tuple[str,Path]],dict]:
     jar=work/"APKEditor-1.4.9-verified.jar"
     arsc.download_editor(jar)
@@ -187,6 +196,10 @@ def ephemeral_clone(originals: list[Path], work: Path) -> tuple[list[tuple[str,P
                                             verified.returncode,verified.stdout,
                                             verified.stderr,i),
                               "sdk_failure_signals":[k for k,v in signals.items() if v],
+                              "split_is_base":name=="",
+                              "original_declared_min_sdk":lab_manifest_min_sdk(original),
+                              "scratch_signed_declared_min_sdk":lab_manifest_min_sdk(aligned),
+                              "signer_forced_min_sdk":21,
                               "sdk_result_exit_nonzero":True,
                               "clone_apk_not_installed":True},sort_keys=True))
             stop("OWN_CLONE_SIGNATURE_NOT_VERIFIED")
