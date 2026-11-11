@@ -19,3 +19,17 @@
 - Current safe diagnostic source: `backup/android-a1-emulator-armv7-mirror-native-crash-gate-20261111` @ `89de4fd6d0d58a2fcde51f44e034a91001a5b481`.
 - Prior proved-linker error backup: `backup/android-a1-elf-machine-mismatch-proven-20261111` @ `8da1b888308bf7531485cd40e4d98b1907982b72`.
 - Never modify accepted Android Test.50, Windows, browser extension, production, or user's HONOR while these experiments are NO-GO.
+
+
+## Finalized crash buffer evidence: CI 42981555329 (11.11.2026)
+
+[Actual run 42981555329](https://github.com/manufact-test/nomusic/actions/runs/42981555329) finished **FAIL** because hard native MAIN/UI gate remains unsatisfied. All classifier/mirror static tests passed.
+
+- **Standalone clone before original install:** exact MAIN PID from ApplicationExitInfo and matching debuggerd victim header; `native_main_signal=SIGSEGV`, `fatal_category=NATIVE_SIGNAL`, `native_backtrace_first_frame_group=LIBART`. Top 12 frame groups: `LIBART, LIBART, LIBART, LIBART, NATIVE_BRIDGE, OTHER, LIBART, LIBART, LIBART, LIBART, NATIVE_BRIDGE, OTHER`.
+- **Clone alongside original signed 5 splits:** exact MAIN victim debuggerd match; `SIGSEGV`, first frame `LIBART`, `NATIVE_BRIDGE` appears further down. Original control process remains alive. No scoped `UnsatisfiedLinkError/dlopen failed`.
+- Thus **native crash is confirmed**, and ART/native-bridge execution is involved. The precise instruction, ownership and root cause of the SIGSEGV remain unproven; frame groups do **not** prove faulty Android ART or faulty LSPatch. Not evidence for physical ARM64 behavior.
+- Current emulator is not a valid stage-A UI/audio acceptance target for this pinned native-bridge LSPatch loader variant. Further random manifest/ZIP patches are not justified. Next meaningful gate is a **safe native ARM runtime** with no original-phone modification, if available, before owner preflight. No request for a second physical phone.
+- Original one-APK clone is still separate, `sigBypassLevel=0`, signed with ephemeral lab signer, no module from competitors, no Play Protect setting changes, no code or audio released.
+- Stage B reminder only after real audible A accepted with exact backup; **not due now**.
+
+Current documented source+diagnostics after this note: `e7d160af2b63ee06aef027653fec54c45d9405d9` (previous HEAD; documentation advances it).
