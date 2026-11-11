@@ -19,6 +19,9 @@ public sealed class CelikomApi : IDisposable
     private readonly HttpClient _http;
     private readonly SessionStore _store;
     private readonly SemaphoreSlim _refreshLock = new(1, 1);
+    // Prevent an in-flight auth refresh (or login) from resurrecting a user
+    // session after Logout, or overwriting a newer login in another window.
+    private readonly object _sessionCommitLock = new();
     private SecretRecord _current;
     private const int MaxJsonBytes = 48 * 1024;
 
@@ -106,20 +109,30 @@ public sealed class CelikomApi : IDisposable
             // A prior SDK pairing must not gain access to a newly signed-in account.
             BridgeToken = Convert.ToHexString(RandomNumberGenerator.GetBytes(32)).ToLowerInvariant()
         };
-        _store.Save(next);
-        Volatile.Write(ref _current, next);
+        lock (_sessionCommitLock)
+        {
+            if (!ReferenceEquals(Settings, previous))
+                throw new ApiFailure(401, "INVALID_SESSION");
+            _store.Save(next);
+            Volatile.Write(ref _current, next);
+        }
     }
 
     public async Task LogoutAsync(CancellationToken ct = default)
     {
-        var previous = Settings;
-        var cleaned = previous with
+        SecretRecord previous;
+        lock (_sessionCommitLock)
         {
-            Email = "", AccessToken = "", RefreshToken = "",
-            BridgeToken = Convert.ToHexString(RandomNumberGenerator.GetBytes(32)).ToLowerInvariant()
-        };
-        Volatile.Write(ref _current, cleaned);
-        _store.Save(cleaned);
+            previous = Settings;
+            var cleaned = previous with
+            {
+                Email = "", AccessToken = "", RefreshToken = "",
+                BridgeToken = Convert.ToHexString(RandomNumberGenerator.GetBytes(32)).ToLowerInvariant()
+            };
+            // Local logout takes priority over all pending GET and refresh tasks.
+            Volatile.Write(ref _current, cleaned);
+            _store.Save(cleaned);
+        }
         if (!SessionStore.IsHexToken(previous.RefreshToken) || previous.Origin.Length == 0) return;
         try
         {
@@ -183,9 +196,15 @@ public sealed class CelikomApi : IDisposable
                 AccessToken = tokens.Value.access,
                 RefreshToken = tokens.Value.refresh
             };
-            // Persist the new refresh token BEFORE subsequent requests can use it.
-            _store.Save(updated);
-            Volatile.Write(ref _current, updated);
+            // A refresh response arriving after Logout or a newer Login MUST
+            // NOT restore the old account. Mirror the extension session-version
+            // guard, with an atomic comparison across all local token commits.
+            lock (_sessionCommitLock)
+            {
+                if (!ReferenceEquals(Settings, session)) return false;
+                _store.Save(updated);
+                Volatile.Write(ref _current, updated);
+            }
             return true;
         }
         finally { _refreshLock.Release(); }
@@ -214,6 +233,16 @@ public sealed class CelikomApi : IDisposable
         using var request = new HttpRequestMessage(method, endpoint);
         if (access is { Length: 64 }) request.Headers.Authorization =
             new AuthenticationHeaderValue("Bearer", access);
+        if (method == HttpMethod.Get &&
+            endpoint.AbsolutePath == "/api/v1/entitlement")
+        {
+            // The extension drops old GET transports after VPN changes.
+            // A fresh entitlement connection avoids keeping a broken TCP
+            // route alive across poll cycles; NEVER affects audio Range URLs.
+            request.Headers.ConnectionClose = true;
+            request.Headers.CacheControl = new CacheControlHeaderValue
+                { NoCache = true, NoStore = true };
+        }
         if (body != null) request.Content = JsonContent.Create(body);
         using var response = await _http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct);
         if ((int)response.StatusCode is >= 300 and < 400)
