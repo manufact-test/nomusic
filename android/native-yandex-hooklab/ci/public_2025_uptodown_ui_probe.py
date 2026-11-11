@@ -102,6 +102,21 @@ def main() -> int:
                 output["page_has_yandex_heading"] = bool(re.search(r"Яндекс Музыка|Yandex Music",body,re.I))
                 output["ui_show_more_leaf_matches"] = page.get_by_text(re.compile(
                     r"Показать\s+больше|Show\s+more|See\s+more",re.I)).count()
+                if ALT in body:
+                    previous=page.url
+                    try:
+                        version_row=page.get_by_text(
+                            re.compile(r"2025\.10\.4\s*#120\.1gpr",re.I)).last
+                        if version_row.is_visible():
+                            version_row.click(timeout=4000)
+                            page.wait_for_timeout(1800)
+                        current=page.url
+                        output["gpr_version_row_click_succeeded"] = current != previous
+                        output["gpr_detail_page_same_public_host"] = approved_storefront(current)
+                        if current != previous and approved_storefront(current):
+                            output["gpr_public_detail_url"] = current
+                    except Exception:
+                        output["gpr_version_row_click_succeeded"] = False
                 print(json.dumps(output,sort_keys=True))
             finally:
                 context.close()
