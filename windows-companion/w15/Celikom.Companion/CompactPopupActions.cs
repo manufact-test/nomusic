@@ -136,7 +136,11 @@ public sealed partial class MainWindow
                 ? "Нет связи. Подмена приостановлена; повторим проверку автоматически."
                 : "Доступ не подтверждён. Подмена выключена.";
         }
-        finally { _compactAccessBusy = false; }
+        finally
+        {
+            _compactAccessBusy = false;
+            if (!_closing && !IsDisposed) UpdateSafe();
+        }
     }
 
     private async Task<string> ReadCompactPresenceAsync(string trackId, bool force)
