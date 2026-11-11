@@ -121,5 +121,60 @@ class ExactCompetitorProbeTests(unittest.TestCase):
         self.assertTrue(report["activity_resumed_all_samples"])
 
 
+    def test_resolved_explicit_main_component_is_required(self):
+        class Fake(p.Guest):
+            def __init__(self, resolved):
+                self.resolved = resolved
+                self.calls = []
+            def command(self, *args, **kwargs):
+                self.calls.append(args)
+                class Result:
+                    returncode = 0
+                result = Result()
+                result.stdout = (
+                    self.resolved if "resolve-activity" in args
+                    else "Starting: Intent { cmp=app.chromasync.yamclone/... }"
+                )
+                result.stderr = ""
+                return result
+        component = "app.chromasync.yamclone/ru.yandex.music.main.MainScreenActivity"
+        guest = Fake("priority=0\\n" + component + "\\n")
+        self.assertEqual(guest.launch(p.CLONE_PACKAGE), "MAIN_LAUNCH_ACCEPTED")
+        self.assertEqual(guest.calls[-1][-2:], ("-n", component))
+        no_component = Fake("No activity found\\n")
+        self.assertEqual(no_component.launch(p.CLONE_PACKAGE), "MAIN_ACTIVITY_UNRESOLVED")
+        self.assertEqual(len(no_component.calls), 1)
+
+    def test_launch_rejection_is_not_considered_a_live_main(self):
+        class Fake(p.Guest):
+            def __init__(self):
+                pass
+            def command(self, *args, **kwargs):
+                class Result:
+                    returncode = 0
+                    stdout = ""
+                    stderr = ""
+                result = Result()
+                if "resolve-activity" in args:
+                    result.stdout = "app.chromasync.yamclone/ru.yandex.music.main.MainScreenActivity\\n"
+                else:
+                    result.stdout = "Error: Activity not started\\n"
+                return result
+        self.assertEqual(Fake().launch(p.CLONE_PACKAGE), "MAIN_EXPLICIT_START_REJECTED")
+
+    def test_split_stock_uses_existing_pm_session_not_invalid_shell_multiple(self):
+        from unittest.mock import patch
+        from types import SimpleNamespace
+        seen = []
+        fake = SimpleNamespace(pm_session_install=lambda items, expected_package: (
+            seen.append((items, expected_package)) or "Success"))
+        with patch.dict("sys.modules", {"native_arm13_signed_original_control": fake}):
+            installed = p.DockerGuest().install([Path("/a.apk")] * 5)
+        self.assertEqual(installed, "INSTALLED")
+        self.assertEqual(seen[0][1], p.STOCK_PACKAGE)
+        self.assertEqual(len(seen[0][0]), 5)
+
+
+
 if __name__ == "__main__":
     unittest.main()
