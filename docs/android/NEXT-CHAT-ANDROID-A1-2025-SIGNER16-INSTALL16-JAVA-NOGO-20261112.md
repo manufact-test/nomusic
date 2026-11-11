@@ -49,3 +49,9 @@
 Не размножать старые queued 0 jobs [43097031056](https://github.com/manufact-test/nomusic/actions/runs/43097031056) и [43096955087](https://github.com/manufact-test/nomusic/actions/runs/43096955087); сначала проверить их статус.
 
 В конце каждого следующего большого захода — **точный backup, обновить docs, issue #41, написать короткий проверенный отчёт**.
+
+## Результат дополнительной безопасной категории Java crash (12.11)
+
+[CI 43106889245](https://github.com/manufact-test/nomusic/actions/runs/43106889245) — ещё один настоящий ARM Android13 запуск именно собственной копии 2025. Подпись 16/16 + установка 16/16 остались PASS. Нативный MAIN **снова FAIL**. PID-scoped private `logcat -b crash` + `ApplicationExitInfo` классифицирован существующим `clone_main_crash_buffer.py`: **`fatal_category=APPLICATION_STATE`**, `android_runtime_fatal_main_seen=true`, `crash_main_pid_evidence_available=true`, `crash_buffer_main_pid_lines_seen=true`; `native_link_error_seen=false`, `native_main_signal=NOT_OBSERVED`, `application_component_factory_failure=false`, `application_create_failure=false`, `activity_launch_failure=false`, `lspatch_bootstrap_mentioned=false`. Raw Java stack/PID/app byte contents в логи и артефакты не попали. Это **не** доказательство проверки подписи или DRM, а безопасное сужение до Java-state исключения. НЕЛЬЗЯ делать обходы или снимать проверку приложения; следующий шаг — анализ документированных/собственных configuration/manifest metadata при полном соблюдении vendor-trust ограничений либо эскалация о правах.
+
+**Не повторять** тождественную ARM сборку ради получения той же `APPLICATION_STATE` категории; нужна новая разрешённая, каузально разделяющая гипотеза и тест. До этого — Stage A NO-GO.
