@@ -445,7 +445,7 @@ try
         "W53 owner summary correctly reflects native resource events");
     Test(!snapshot.Contains("SENSITIVE"),"W53 malformed native lines cannot leak signed query or sid");
     var auto = DiagnosticLog.ExportSupportSnapshot("5.126.1.0","ACTIVE", true, true,
-        "0.24.18", true, "123", fixtureLogsDirectory);
+        "0.24.19", true, "123", fixtureLogsDirectory);
     var autoJson = JsonSerializer.Serialize(auto);
     using (var parsedAuto = JsonDocument.Parse(autoJson))
     {
@@ -463,6 +463,32 @@ try
     Test(!autoJson.Contains("SENSITIVE") && !autoJson.Contains("token=") &&
          !autoJson.Contains("test@example.com") && !autoJson.Contains("sid="),
          "W70 automatic customer attachment is free of tokens, email and signed URLs");
+    // W71: flood of status polls cannot hide three intermittent network outages.
+    var pollingFlood = string.Concat(Enumerable.Repeat(when + "|NATIVE_STATE_RECEIVED\n" +
+        when + "|LOCAL_STATE_OK\n" + when + "|RENDERER_STATE_DELIVERED\n", 200));
+    File.AppendAllText(Path.Combine(fixtureLogsDirectory, "companion-events.log"),
+        pollingFlood + when + "|ACTIVE_ENTITLEMENT_NETWORK_SUSPENDED\n" +
+        when + "|ACTIVE_ENTITLEMENT_RECOVERED\n" +
+        when + "|ACTIVE_ENTITLEMENT_NETWORK_SUSPENDED\n" +
+        when + "|ACTIVE_ENTITLEMENT_RECOVERED\n" +
+        when + "|ACTIVE_ENTITLEMENT_NETWORK_SUSPENDED\n");
+    var outageJson = JsonSerializer.Serialize(DiagnosticLog.ExportSupportSnapshot(
+        "5.126.1.0", "ACTIVE", true, false, "0.24.19", true, "123", fixtureLogsDirectory));
+    using (var outageDoc = JsonDocument.Parse(outageJson))
+    {
+        var incidents = outageDoc.RootElement.GetProperty("events").EnumerateArray().ToArray();
+        Test(incidents.Length <= 64 &&
+             incidents.Count(x => x.GetProperty("code").GetString() ==
+                 "ACTIVE_ENTITLEMENT_NETWORK_SUSPENDED") == 3 &&
+             incidents.Count(x => x.GetProperty("code").GetString() ==
+                 "ACTIVE_ENTITLEMENT_RECOVERED") == 2,
+             "W71 three network disconnects survive 600 polling messages");
+        Test(incidents.All(x => x.GetProperty("code").GetString() is not
+                 ("NATIVE_STATE_RECEIVED" or "LOCAL_STATE_OK" or "RENDERER_STATE_DELIVERED")),
+             "W71 noisy status polling never floods hidden support attachment");
+    }
+    Test(!outageJson.Contains("SENSITIVE") && !outageJson.Contains("token="),
+         "W71 intermittent outage report remains secret-free");
     Test(snapshot.Contains("EngineFastPauseObserved=") &&
         snapshot.Contains("PlayerAudibleEventObserved=") &&
         snapshot.Contains("DecoderErrorObserved="), "typed owner playback evidence summary");
