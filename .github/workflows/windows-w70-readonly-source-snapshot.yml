@@ -30,7 +30,7 @@ jobs:
           opts=(-i "$dir/key" -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o "UserKnownHostsFile=$dir/known_hosts" -o GlobalKnownHostsFile=/dev/null -o ConnectTimeout=15)
           target='u235811320@92.113.19.189'
           root='/home/u235811320/domains/darkred-camel-588676.hostingersite.com/celikom/current'
-          mkdir -p live-src/Support live-src/Admin
+          mkdir -p live-src/Support live-src/Admin live-Support live-Admin
           for rel in src/Support/SupportService.php src/Support/SongReport.php src/Support/SupportAdminView.php src/Admin/AdminPanel.php src/Application.php; do
             scp -P 65002 "${opts[@]}" "$target:$root/$rel" "live-${rel/src\//}" || exit 4
           done
