@@ -45,8 +45,8 @@ def _native_link_failure_mode(log_text: str) -> str:
     """Fixed, privacy-safe linker diagnostics. Never return an error message."""
     patterns = (
         ("NAMESPACE_DENIED", r"not accessible for the namespace|not permitted in linker namespace|namespace.*(?:inaccessible|denied)"),
-        ("DEP_MISSING", r"(?:needed by|referenced by|DT_NEEDED).*?(?:not found|missing)|library\s+['\\"][^'\\"]+\.so['\\"]\s+not found"),
-        ("LIBRARY_NOT_FOUND", r"(?:library\s+)?['\\"]?liblspatch\.so['\\"]?\s+not found|no such file or directory|couldn't find|cannot find"),
+        ("DEP_MISSING", r"(?:needed by|referenced by|DT_NEEDED).*?(?:not found|missing)|library.{0,150}[.]so.{0,30}not found"),
+        ("LIBRARY_NOT_FOUND", r"liblspatch[.]so.{0,80}not found|no such file or directory|couldn.t find|cannot find"),
         ("SYMBOL_UNRESOLVED", r"cannot locate symbol|undefined symbol|symbol lookup error"),
         ("ELF_ARCH_INVALID", r"wrong ELF class|instead of (?:32|64)-bit|e_machine|unexpected ELF|ELFCLASS"),
         ("ELF_INVALID", r"bad ELF|invalid ELF|not an ELF|ELF header|ELF load command"),
