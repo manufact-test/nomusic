@@ -90,40 +90,42 @@ def build_signed_mirror(patched: Path, working: Path) -> tuple[Path, dict]:
                      bool(recovery["layout_repacked"]), "one_apk_only": True}
 
 
-def launch_owned(apk: Path, label: str) -> dict:
+def launch_owned(apk: Path, label: str, package: str = OWN) -> dict:
     """Only own APK. Main PID, actual resumed/focused activity and safe crash labels."""
-    if apk_identity(apk) != (OWN, "1", ""):
+    if package not in (OWN, "pro.celikom.armv7loaderhost.x86control"):
+        raise RuntimeError("OWN_UNRECOGNIZED_CONTROL_PACKAGE")
+    if apk_identity(apk) != (package, "1", ""):
         raise RuntimeError("OWN_CONTROL_PACKAGE_OR_VERSION_CHANGED")
     install = execute(["adb", "install", str(apk)], "OWN_" + label + "_INSTALL", 120)
     if "Success" not in install:
         raise RuntimeError("OWN_" + label + "_INSTALL_NOT_CONFIRMED")
-    paths = execute(["adb", "shell", "pm", "path", OWN], "OWN_PM_CHECK", 30)
+    paths = execute(["adb", "shell", "pm", "path", package], "OWN_PM_CHECK", 30)
     if sum(x.startswith("package:") for x in paths.splitlines()) != 1:
         raise RuntimeError("OWN_INSTALL_MULTISPLIT_UNEXPECTED")
     execute(["adb", "logcat", "-c"], "OWN_CLEAN_LOGCAT", 30)
     # Nonblocking: loader failures may block am start -W for a long time.
     execute(["adb", "shell", "am", "start", "--user", "0",
-             "-n", ACTIVITY], "OWN_" + label + "_MAIN_LAUNCH", 45)
+             "-n", package + "/pro.celikom.armv7loaderhost.MainActivity"], "OWN_" + label + "_MAIN_LAUNCH", 45)
     time.sleep(6)
-    pidtext = execute(["adb", "shell", "pidof", OWN], "OWN_PID", 20, check=False)
+    pidtext = execute(["adb", "shell", "pidof", package], "OWN_PID", 20, check=False)
     is_alive = bool(pidtext.strip()) and all(x.isdigit() for x in pidtext.split())
     activities = execute(["adb", "shell", "dumpsys", "activity", "activities"],
                          "OWN_ACTIVITY", 25)
     windows = execute(["adb", "shell", "dumpsys", "window", "windows"],
                       "OWN_WINDOW", 25)
-    resumed = any(OWN + "/" in row and
+    resumed = any(package + "/" in row and
                   ("mResumedActivity" in row or "topResumedActivity" in row)
                   for row in activities.splitlines())
-    focused = any(OWN + "/" in row and "mCurrentFocus" in row
+    focused = any(package + "/" in row and "mCurrentFocus" in row
                   for row in windows.splitlines())
-    exit_info = execute(["adb", "shell", "dumpsys", "activity", "exit-info", OWN],
+    exit_info = execute(["adb", "shell", "dumpsys", "activity", "exit-info", package],
                         "OWN_EXIT_INFO", 30)
     crash = execute(["adb", "logcat", "-d", "-b", "crash", "-v",
                      "threadtime", "-t", "3000"], "OWN_CRASH_BUFFER", 45)
     # Existing fixed-vocabulary classifier is intentionally tied to our private
     # clone name. Normalize only this OWN lab package in local process memory.
     safe = classify_main_crash_buffer(
-        exit_info.replace(OWN, CLONE), crash.replace(OWN, CLONE))
+        exit_info.replace(package, CLONE), crash.replace(package, CLONE))
     return {"label": label, "main_alive": is_alive, "activity_resumed": resumed,
             "window_focused": focused,
             "native_signal": safe["native_main_signal"],

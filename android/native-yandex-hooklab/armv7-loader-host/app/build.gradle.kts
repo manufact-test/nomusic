@@ -1,5 +1,6 @@
 plugins { id("com.android.application") }
 val ownEmulatorEnabled = providers.gradleProperty("celikomOwnEmulator").orNull == "true"
+val ownX86Control = providers.gradleProperty("celikomOwnX86Control").orNull
 android {
     namespace = "pro.celikom.armv7loaderhost"
     buildFeatures { buildConfig = true }
@@ -16,15 +17,23 @@ android {
         val ownEmulator = providers.gradleProperty("celikomOwnEmulator").orNull
         require(ownEmulator == null || ownEmulator == "true")
         require(ownEmulator == null || (witnessId == null && audioId == null))
+        // Native 32-bit x86 differential on the SAME API30 emulator as ARMv7 bridge.
+        // Strictly our permissionless lab; no Yandex or user-device applicability.
+        require(ownX86Control == null || ownX86Control == "true")
+        require(ownX86Control == null ||
+            (ownEmulator == null && witnessId == null && audioId == null))
         buildConfigField("boolean", "CELIKOM_OWN_EMULATOR", if (ownEmulator != null) "true" else "false")
-        applicationId = if (ownEmulator != null) "pro.celikom.armv7loaderhost.audio"
+        applicationId = if (ownX86Control != null) "pro.celikom.armv7loaderhost.x86control"
+            else if (ownEmulator != null) "pro.celikom.armv7loaderhost.audio"
             else audioId ?: witnessId ?: "pro.celikom.armv7loaderhost"
-        manifestPlaceholders["celikomLabLabel"] = if (audioId != null || ownEmulator != null) "CELIKOM Audio Smoke Test" else if (witnessId == null) "CELIKOM ARM Loader Lab" else "CELIKOM ARM Hook Witness"
+        manifestPlaceholders["celikomLabLabel"] = if (ownX86Control != null) "CELIKOM x86 Native Loader Control"
+            else if (audioId != null || ownEmulator != null) "CELIKOM Audio Smoke Test" else if (witnessId == null) "CELIKOM ARM Loader Lab" else "CELIKOM ARM Hook Witness"
         minSdk = 28
         targetSdk = 33
         versionCode = 1
         versionName = "0.1.0-arm-loader-only"
-        ndk { abiFilters += if (ownEmulator != null) listOf("x86_64") else listOf("armeabi-v7a") }
+        ndk { abiFilters += if (ownX86Control != null) listOf("x86")
+            else if (ownEmulator != null) listOf("x86_64") else listOf("armeabi-v7a") }
     }
     // OWN x86_64 emulator decodes memory WAV in Java and needs NO JNI.
     // Default ARMv7 host still builds and loads its exact native library.

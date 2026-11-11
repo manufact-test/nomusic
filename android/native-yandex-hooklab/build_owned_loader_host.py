@@ -18,9 +18,11 @@ HERE = Path(__file__).resolve().parent
 APK = HERE / "armv7-loader-host/app/build/outputs/apk/debug/app-debug.apk"
 WITNESS = os.getenv("CELIKOM_OWN_WITNESS") == "1"
 AUDIO = os.getenv("CELIKOM_OWN_AUDIO") == "1"
-if WITNESS and AUDIO:
+X86 = os.getenv("CELIKOM_OWN_X86_BRIDGE") == "1"
+if sum((WITNESS, AUDIO, X86)) > 1:
     raise ValueError("INCOMPATIBLE_TEST_VARIANTS")
-PACKAGE = ("pro.celikom.armv7loaderhost.audio" if AUDIO else
+PACKAGE = ("pro.celikom.armv7loaderhost.x86control" if X86 else
+           "pro.celikom.armv7loaderhost.audio" if AUDIO else
            "pro.celikom.armv7loaderhost.witness" if WITNESS else "pro.celikom.armv7loaderhost")
 MODULE = HERE / "armv7-witness-module/app/build/outputs/apk/debug/app-debug.apk"
 JAR_URL = "https://github.com/JingMatrix/LSPatch/releases/download/v1.2/lspatch-v1.2-487-release.jar"
@@ -73,12 +75,14 @@ def check_host(path, patched=False):
     with zipfile.ZipFile(path) as archive:
         native = [n for n in archive.namelist()
                   if n.startswith("lib/") and n.endswith(".so")]
-        if not native or any(not n.startswith("lib/armeabi-v7a/") for n in native):
-            raise ValueError("HOST_ABI_NOT_ARMV7_ONLY")
-        elf = archive.read("lib/armeabi-v7a/libcelikom_host_probe.so")[:20]
+        expected_abi = "x86" if X86 else "armeabi-v7a"
+        expected_machine = 3 if X86 else 40
+        if not native or any(not n.startswith("lib/" + expected_abi + "/") for n in native):
+            raise ValueError("HOST_UNEXPECTED_OWN_ABI")
+        elf = archive.read("lib/" + expected_abi + "/libcelikom_host_probe.so")[:20]
         if len(elf) != 20 or elf[:4] != b"\x7fELF" or elf[4] != 1 or \
-                struct.unpack_from("<H", elf, 18)[0] != 40:
-            raise ValueError("HOST_ARMV7_ELF_INVALID")
+                struct.unpack_from("<H", elf, 18)[0] != expected_machine:
+            raise ValueError("HOST_NATIVE_ELF_INVALID")
         if patched:
             names = archive.namelist()
             if "assets/lspatch/config.json" not in names:
@@ -166,10 +170,10 @@ def main():
             if root_temp not in dest.parents or dest.exists():
                 raise ValueError("INVALID_ARTIFACT_LOCATION")
             dest.mkdir(parents=True, mode=0o700)
-            shutil.copyfile(patched, dest / ("CELIKOM-ARMv7-AUDIO-SMOKE-Test.apk" if AUDIO else "CELIKOM-ARMv7-HOOK-WITNESS-Test.apk" if WITNESS else "CELIKOM-ARMv7-LOADER-ONLY-Test.apk"))
+            shutil.copyfile(patched, dest / ("CELIKOM-X86-LOADER-ONLY-Test.apk" if X86 else "CELIKOM-ARMv7-AUDIO-SMOKE-Test.apk" if AUDIO else "CELIKOM-ARMv7-HOOK-WITNESS-Test.apk" if WITNESS else "CELIKOM-ARMv7-LOADER-ONLY-Test.apk"))
         print(json.dumps({
-            "verdict": ("OWN_AUDIO_SMOKE_STATIC_PASS_NO_DEVICE_RUN" if AUDIO else "OWN_MODULE_WITNESS_STATIC_PASS_NO_DEVICE_RUN" if WITNESS else "OWN_SOURCE_ARMV7_PATCHED_STATIC_PASS_NO_DEVICE_RUN"),
-            "package": PACKAGE, "native_abi": "armeabi-v7a",
+            "verdict": ("OWN_X86_NATIVE_PATCHED_STATIC_PASS_NO_DEVICE_RUN" if X86 else "OWN_AUDIO_SMOKE_STATIC_PASS_NO_DEVICE_RUN" if AUDIO else "OWN_MODULE_WITNESS_STATIC_PASS_NO_DEVICE_RUN" if WITNESS else "OWN_SOURCE_ARMV7_PATCHED_STATIC_PASS_NO_DEVICE_RUN"),
+            "package": PACKAGE, "native_abi": "x86" if X86 else "armeabi-v7a",
             "permissions": 0, "sigbypass": 0, "modules_embedded": 1 if (WITNESS or AUDIO) else 0,
             "yandex_code_included": False,
             "yandex_modified_or_installed": False, "runtime_tested": False,
