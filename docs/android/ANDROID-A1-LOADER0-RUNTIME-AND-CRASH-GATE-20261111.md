@@ -1,3 +1,5 @@
+> **Подтверждённая причина (11.11.2026):** [EM_386 → EM_ARM в эмуляторном native bridge, CI 42980016274](ANDROID-A1-LSPATCH-NATIVE-BRIDGE-ELF-ROOT-CAUSE-20261111.md). LSPatch metaloader выбирает x86 .so при PackageManager ARMv7; Android linker ожидает ARM. Root cause экспериментального CRASH установлен, UI всё ещё FAIL. Ранее записанные ниже «причина неизвестна» относятся к более ранним прогонам. Backup: `backup/android-a1-elf-machine-mismatch-proven-20261111` @ `8da1b888308bf7531485cd40e4d98b1907982b72`. No bypass, no HONOR install.
+
 # CELIKOM Android A1 — проверенные результаты LSPatch zero-bypass (11.11.2026)
 
 ## Доказанное

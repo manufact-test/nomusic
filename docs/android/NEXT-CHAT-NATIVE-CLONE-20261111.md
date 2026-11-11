@@ -1,3 +1,5 @@
+> **СВЕЖИЙ VERIFIED CHECKPOINT 11.11.2026:** корневая причина `dlopen` установлена: [CI 42980016274](https://github.com/manufact-test/nomusic/actions/runs/42980016274), `EM_386` (x86 lib) при ожидаемом `EM_ARM` (ARMv7 process/bridge). Сначала читай [ROOT CAUSE AND NEXT ABI FIX](ANDROID-A1-LSPATCH-NATIVE-BRIDGE-ELF-ROOT-CAUSE-20261111.md). Все последующие исторические формулировки «неизвестно» устарели. Рабочего native UI/звука пока нет, владелец HONOR не тестирует. Backup `backup/android-a1-elf-machine-mismatch-proven-20261111` @ `8da1b888308bf7531485cd40e4d98b1907982b72`.
+
 # ПЕРВОЕ СООБЩЕНИЕ ДЛЯ СЛЕДУЮЩЕГО ЧАТА — CELIKOM Android native A1 (11.11.2026)
 
 [$github](app://connector_76869538009648d5b282a4bb21c3d157)
