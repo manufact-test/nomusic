@@ -233,6 +233,10 @@ def summarize_installed_package_code_flags(raw):
         "has_code_path_record": "codePath=" in raw,
         "has_base_apk_record": "base.apk" in raw,
         "has_classloader_record": "classLoaderName=" in raw,
+        "primary_cpu_abi": next(
+            (abi for abi in ("armeabi-v7a", "arm64-v8a", "x86", "x86_64")
+             if re.search(r"\\bprimaryCpuAbi\\s*=\\s*" + re.escape(abi) + r"\\b", raw)),
+            "UNKNOWN"),
         "raw_dumpsys_exposed": False
     }
 

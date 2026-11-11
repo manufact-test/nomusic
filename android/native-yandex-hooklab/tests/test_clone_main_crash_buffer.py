@@ -113,5 +113,22 @@ class SafeMainCrashBufferTest(unittest.TestCase):
         self.assertTrue(out["native_link_error_line_observed"])
         self.assertNotIn("PRIVATE", str(out))
 
+    def test_dlopen_terms_statically_whitelisted(self):
+        raw = (row(431, "E", "AndroidRuntime",
+                   "dlopen failed: could not open shared library from zip: "
+                   "/data/USER_PRIVATE/path/secret_file.apk "
+                   "unexpected error access_token=VERYSECRET")
+               + row(432, "E", "AndroidRuntime",
+                     "dlopen failed: permission denied HELPER_SECRET"))
+        report = classify_main_crash_buffer(EXIT, raw)
+        self.assertIn("could", report["native_link_allowlisted_terms"])
+        self.assertIn("not", report["native_link_allowlisted_terms"])
+        self.assertIn("open", report["native_link_allowlisted_terms"])
+        self.assertIn("library", report["native_link_allowlisted_terms"])
+        self.assertNotIn("token", str(report).lower())
+        self.assertNotIn("verysecret", str(report).lower())
+        self.assertNotIn("user_private", str(report).lower())
+        self.assertNotIn("permission", report["native_link_allowlisted_terms"])
+
 if __name__=="__main__":
     unittest.main()

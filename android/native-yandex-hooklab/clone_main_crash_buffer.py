@@ -74,6 +74,44 @@ def _native_link_path_family(log_text: str) -> str:
         return "UNSPECIFIED_LSPATCH_PATH"
     return "NOT_OBSERVED"
 
+
+# Only static English diagnostic terms are allowed to leave the ephemeral CI.
+# Never expose arbitrary dlerror fragments, paths, usernames or filenames.
+LINKER_TERMS = frozenset((
+    "access", "address", "aligned", "alignment", "allow", "already", "and",
+    "android", "archive", "available", "bad", "because", "blocked", "cannot",
+    "check", "class", "code", "compressed", "corrupt", "could", "data",
+    "denied", "dependency", "dlopen", "dynamic", "elf", "entry", "error",
+    "expected", "failed", "file", "files", "find", "for", "found", "from",
+    "has", "have", "header", "in", "incompatible", "invalid", "isa", "is",
+    "library", "libraries", "linker", "load", "loaded", "loading",
+    "machine", "map", "mmap", "missing", "name", "native", "needed",
+    "namespace", "no", "not", "of", "offset", "on", "open", "opening",
+    "or", "page", "path", "permission", "relocation", "required",
+    "requires", "section", "segment", "shared", "size", "so", "symbol",
+    "system", "the", "to", "too", "unable", "undefined", "unexpected",
+    "unknown", "unsupported", "using", "version", "was", "which",
+    "with", "without", "wrong", "zip", "read", "phdr", "program",
+    "memory", "reserved", "commit", "overlap", "overlapping",
+))
+
+
+def _dlopen_allowlisted_terms(messages: list[str]) -> list[str]:
+    """Finite vocabulary: neither arbitrary substrings nor dynamic errors."""
+    ordered = []
+    for message in messages:
+        match = re.search(r"dlopen failed:([^\\n]{0,1800})", message, re.I)
+        if not match:
+            continue
+        for raw in re.findall(r"[A-Za-z]{2,30}", match.group(1)):
+            word = raw.lower()
+            if word in LINKER_TERMS and word not in ordered:
+                ordered.append(word)
+                if len(ordered) >= 25:
+                    return ordered
+    return ordered
+
+
 def classify_main_crash_buffer(exit_dump: str, crash_buffer: str) -> dict:
     """Fixed category labels only, no raw process/exception data returned."""
     pids = main_exit_pids(exit_dump)
@@ -117,6 +155,7 @@ def classify_main_crash_buffer(exit_dump: str, crash_buffer: str) -> dict:
         "native_link_library_cpp_shared_named": has(r"libc\+\+_shared\.so"),
         "native_link_dlopen_failed": has(r"dlopen failed"),
         "native_link_failure_mode": _native_link_failure_mode(text),
+        "native_link_allowlisted_terms": _dlopen_allowlisted_terms(parts),
         "native_link_path_family": _native_link_path_family(text),
         "native_link_error_line_observed": bool([p for p in parts if re.search(r"dlopen failed|UnsatisfiedLinkError", p, re.I)]),
         "native_link_wrong_elf_class": has(
