@@ -31,5 +31,5 @@ jobs:
           docker stop celikom-native-arm-android13 >/dev/null 2>&1 || true
           sudo umount /dev/binderfs >/dev/null 2>&1 || true
           sudo modprobe -r binder_linux >/dev/null 2>&1 || true
-          rm -rf "$RUNNER_TEMP/celikom-redroid-data"
+          sudo rm -rf -- "$RUNNER_TEMP/celikom-redroid-data"
           echo '{"apk_artifact_published":false,"owner_honor_touched":false,"vendor_code_executed":false}'

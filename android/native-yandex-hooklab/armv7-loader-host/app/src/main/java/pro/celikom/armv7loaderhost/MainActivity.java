@@ -66,7 +66,8 @@ public final class MainActivity extends Activity {
                 + "onCreate intercepted: " + (intercepted ? "YES" : "NOT OBSERVED") + "\n\n"
                 + "If both YES: LSPatch ran our module inside this OWN lab app.\n"
                 + "This is NOT a Yandex or audio replacement test.");
-            if (getPackageName().equals("pro.celikom.armv7loaderhost.x86control")) {
+            if (getPackageName().equals("pro.celikom.armv7loaderhost.x86control")
+                    || getPackageName().equals("pro.celikom.armv7loaderhost.witness")) {
                 // Fixed enum only; no app data, secrets, URLs or audio in logs.
                 android.util.Log.i("CelikomOwnHookWitness", "RESULT="
                     + (armed && intercepted ? "PASS" : "FAIL")
