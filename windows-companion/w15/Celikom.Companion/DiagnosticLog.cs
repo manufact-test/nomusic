@@ -10,6 +10,11 @@ public static class DiagnosticLog
 {
     private const long Limit = 384 * 1024;
     private const int RingLimit = 256;
+    // High-frequency native status chatter can rotate the main event log
+    // before anyone opens the owner diagnostics UI. Preserve only allowlisted
+    // incident transitions independently, bounded to 2 x 512 KiB on disk.
+    private const long IncidentLogLimit = 512 * 1024;
+    private const string IncidentFile = "incident-events.log";
     private static readonly object Gate = new();
     private static readonly Queue<string> Recent = new();
     private static readonly Regex Code = new(@"^[A-Z0-9_]{3,48}$",
@@ -23,7 +28,8 @@ public static class DiagnosticLog
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
         "CELIKOM", "Windows");
 
-    public static void Record(string code, string? trackId = null)
+    public static void Record(string code, string? trackId = null,
+        string? diagnosticDirectory = null)
     {
         if (!Code.IsMatch(code)) return;
         var line = DateTimeOffset.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffZ",
@@ -33,22 +39,93 @@ public static class DiagnosticLog
         {
             Recent.Enqueue(line);
             while (Recent.Count > RingLimit) Recent.Dequeue();
-            try
-            {
-                Directory.CreateDirectory(DirectoryPath);
-                var file = Path.Combine(DirectoryPath, "companion-events.log");
-                if (File.Exists(file) && new FileInfo(file).Length >= Limit)
-                {
-                    if (File.Exists(file + ".1")) File.Delete(file + ".1");
-                    File.Move(file, file + ".1");
-                }
-                using var stream = new FileStream(file, FileMode.Append, FileAccess.Write, FileShare.ReadWrite);
-                var buffer = Encoding.UTF8.GetBytes(line + "\n");
-                stream.Write(buffer);
-            }
+            var directory = diagnosticDirectory ?? DirectoryPath;
+            try { AppendBounded(directory, "companion-events.log", Limit, line); }
             catch (IOException) { /* An in-memory ring survives temporary file lock. */ }
             catch (UnauthorizedAccessException) { }
+            if (IsIncidentCode(code))
+            {
+                // Best effort, even if the busy main log cannot be written.
+                try { AppendBounded(directory, IncidentFile, IncidentLogLimit, line); }
+                catch (IOException) { }
+                catch (UnauthorizedAccessException) { }
+            }
         }
+    }
+
+    public static bool IsIncidentCode(string code) =>
+        Code.IsMatch(code) &&
+        (code.StartsWith("ACTIVE_ENTITLEMENT_", StringComparison.Ordinal) ||
+         code.StartsWith("START_ENTITLEMENT_", StringComparison.Ordinal) ||
+         code.Contains("DISCONNECT", StringComparison.Ordinal) ||
+         code.Contains("NETWORK", StringComparison.Ordinal) ||
+         code.Contains("UNAVAILABLE", StringComparison.Ordinal) ||
+         code.Contains("SUSPEND", StringComparison.Ordinal) ||
+         code.Contains("RECOVER", StringComparison.Ordinal) ||
+         code.Contains("FAILED", StringComparison.Ordinal) ||
+         code.Contains("ERROR", StringComparison.Ordinal) ||
+         code.Contains("REVOKED", StringComparison.Ordinal) ||
+         code.Contains("DEFERRED", StringComparison.Ordinal));
+
+    private static void AppendBounded(string directory, string fileName,
+        long maxBytes, string line)
+    {
+        Directory.CreateDirectory(directory);
+        var path = Path.Combine(directory, fileName);
+        if (File.Exists(path) && new FileInfo(path).Length >= maxBytes)
+        {
+            if (File.Exists(path + ".1")) File.Delete(path + ".1");
+            File.Move(path, path + ".1");
+        }
+        using var stream = new FileStream(path, FileMode.Append, FileAccess.Write, FileShare.ReadWrite);
+        stream.Write(Encoding.UTF8.GetBytes(line + "\n"));
+    }
+
+    /// <summary>
+    /// Durable allowlisted incident history, independent of high-frequency
+    /// native polling. There are no URLs, mail addresses, bearer tokens, paths
+    /// or arbitrary exception messages. Per-installation files are bounded.
+    /// </summary>
+    public static IReadOnlyList<string> ReadIncidentHistory(
+        string? diagnosticDirectory = null, DateTimeOffset? asOf = null)
+    {
+        var directory = diagnosticDirectory ?? DirectoryPath;
+        var now = asOf ?? DateTimeOffset.UtcNow;
+        var cutoff = now.AddDays(-7);
+        var entries = new List<string>();
+        lock (Gate)
+        {
+            foreach (var name in new[] { IncidentFile + ".1", IncidentFile })
+            {
+                try
+                {
+                    var path = Path.Combine(directory, name);
+                    if (!File.Exists(path)) continue;
+                    using var stream = new FileStream(path, FileMode.Open, FileAccess.Read,
+                        FileShare.ReadWrite | FileShare.Delete);
+                    using var reader = new StreamReader(stream, Encoding.UTF8);
+                    for (var i = 0; i < 15000 && reader.ReadLine() is { } line; i++)
+                    {
+                        if (!IsSafeEntry(line) || line.Length < 24 ||
+                            !DateTimeOffset.TryParseExact(line[..24],
+                                "yyyy-MM-ddTHH:mm:ss.fffZ",
+                                CultureInfo.InvariantCulture,
+                                DateTimeStyles.AssumeUniversal, out var timestamp) ||
+                            timestamp < cutoff || timestamp > now.AddSeconds(5))
+                            continue;
+                        var separator = line.IndexOf('|');
+                        var codeEnd = line.IndexOf('|', separator + 1);
+                        var eventCode = codeEnd < 0 ? line[(separator + 1)..]
+                            : line[(separator + 1)..codeEnd];
+                        if (IsIncidentCode(eventCode)) entries.Add(line);
+                    }
+                }
+                catch (IOException) { }
+                catch (UnauthorizedAccessException) { }
+            }
+        }
+        entries.Sort(StringComparer.Ordinal);
+        return entries.TakeLast(1000).ToArray();
     }
 
     /// <summary>Validate again when reading: even a tampered log cannot inject
@@ -274,6 +351,10 @@ public static class DiagnosticLog
                 .ToString().ToLowerInvariant());
         foreach (var line in entries.TakeLast(1600)) text.AppendLine(line);
         if (entries.Count == 0) text.AppendLine("NO_RECENT_EVENTS_AVAILABLE");
+        text.AppendLine("--- PERSISTENT INCIDENT HISTORY (LAST 7 DAYS, MAX 1000) ---");
+        var incidents = ReadIncidentHistory(readDirectory);
+        foreach (var line in incidents) text.AppendLine(line);
+        if (incidents.Count == 0) text.AppendLine("NO_STORED_INCIDENTS");
         return text.ToString();
     }
 }
