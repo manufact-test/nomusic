@@ -7,7 +7,7 @@
 - CI 42917410602: собственные signature-права клона без ослабления издательских прав не решают MAIN EXIT_SELF(0).
 - CI 42919749078: однокомпонентный LSPatch loader с сигнатурным обходом строго 0 после безопасной перестройки ZIP layout проходит статическую проверку DEX и библиотек; am start -W зависал.
 - CI 42975010817: с неблокирующим am start загрузчик LSPatch level=0 устанавливается как один APK; вместе с оригиналом (5 + 1) нет установочного конфликта. Android принимает намерение запуска, однако нет MAIN/UI, возникают am_crash и REASON_CRASH (не прежний EXIT_SELF). Диагностика AndroidRuntime показала UnsatisfiedLinkError (native-library error). Приложение НЕ РАБОТАЕТ.
-- CI 42976444763: новая диагностика отдельного Android logcat CRASH buffer, строго ограниченная MAIN PID и закрытыми категориями native library/ABI/loader. Её фактический итог необходимо взять из завершённого workflow, не считать заранее успехом.
+- CI 42976444763: завершился ожидаемым **runtime FAIL**. Новый отдельный Android logcat CRASH buffer, строго ограниченный MAIN PID, показал: fatal_category=NATIVE_LINK, android_runtime_fatal_main_seen=true, native_link_dlopen_failed=true, native_link_library_lspatch_named=true, lspatch_bootstrap_mentioned=true. Отдельная установка клона без оригинала дала тот же результат. В отчёте native_link_wrong_elf_class=false и native_link_missing_library_marker=false, что **НЕ** доказывает правильность архитектуры/пути; точный dlopen cause неизвестен. Unit tests новой диагностики прошли, сырые логи и секреты не публиковались.
 
 ## Присланный ChromaSync APK — проверено офлайн
 
