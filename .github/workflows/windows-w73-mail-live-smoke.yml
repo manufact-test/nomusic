@@ -1,0 +1,53 @@
+name: CELIKOM W73 live SMTP two-direction acceptance (no DB writes)
+on:
+  push:
+    branches: [experiment/windows-w72-extension-anti-drop-guards-20261111]
+    paths:
+      - .github/workflows/windows-w73-mail-live-smoke.yml
+      - .github/scripts/windows-w73/mail-live-smoke.php
+permissions:
+  contents: read
+concurrency:
+  group: celikom-hostinger-private-test
+  cancel-in-progress: false
+jobs:
+  mail:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Validate remote PHP before sending
+        run: php -l .github/scripts/windows-w73/mail-live-smoke.php
+      - name: Exactly one staff notification and one customer reply SMTP probe
+        shell: bash
+        env:
+          HOSTINGER_SSH_KEY: ${{ secrets.HOSTINGER_SSH_KEY }}
+          CELIKOM_SMTP_TEST_TO: ${{ secrets.CELIKOM_SMTP_TEST_TO }}
+        run: |
+          set -euo pipefail
+          test -n "${HOSTINGER_SSH_KEY:-}"
+          test -n "${CELIKOM_SMTP_TEST_TO:-}"
+          umask 077
+          work="$(mktemp -d)"
+          target='u235811320@92.113.19.189'
+          base='/home/u235811320/domains/darkred-camel-588676.hostingersite.com/celikom'
+          remote="$base/incoming/w73-mail-${GITHUB_SHA}"
+          clean() {
+            if [[ "${#opts[@]}" -gt 0 ]]; then
+              ssh -T -p 65002 "${opts[@]}" "$target" "rm -f '$remote/mail-live-smoke.php'; rmdir '$remote'" >/dev/null 2>&1 || true
+            fi
+            rm -rf "$work"
+          }
+          opts=()
+          trap clean EXIT
+          printf '%s\n' "$HOSTINGER_SSH_KEY" | tr -d '\r' > "$work/key"
+          ssh-keygen -y -P '' -f "$work/key" > "$work/pub"
+          test "$(ssh-keygen -lf "$work/pub" | awk '{print $2}')" = 'SHA256:Q6FyifXRq6garceQdIIjBmXhkk81Ic1p/x9JTSYHWUk'
+          printf '%s\n' '[92.113.19.189]:65002 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAf8M2EVwq0oJI8I9KZ0NFE8P8yDOvDATEhkQti/Kk/0' > "$work/known_hosts"
+          opts=(-i "$work/key" -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o "UserKnownHostsFile=$work/known_hosts" -o GlobalKnownHostsFile=/dev/null -o ConnectTimeout=15)
+          ssh -T -p 65002 "${opts[@]}" "$target" "umask 077; test -L '$base/current'; mkdir '$remote'; chmod 0700 '$remote'"
+          scp -P 65002 "${opts[@]}" .github/scripts/windows-w73/mail-live-smoke.php "$target:$remote/mail-live-smoke.php"
+          printf '%s' "$CELIKOM_SMTP_TEST_TO" | ssh -T -p 65002 "${opts[@]}" "$target" "/opt/alt/php83/usr/bin/php '$remote/mail-live-smoke.php'"
+          echo 'W73_NO_DB_WRITES_NO_PRODUCTION_RELEASE_CHANGES'
