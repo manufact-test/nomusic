@@ -32,3 +32,7 @@
   - `.github/workflows/android-native-a1-arm13-clone-main-ab.yml`.
 - Current clone research source `4e15a8d616d4acb1e86bbd8e5c723a2e9ba8a23a` (CI status MUST be checked before changing claim).
 - Original publisher, Test.50, accepted Windows, browser extension, backend/production and owner's ONE HONOR remain untouched.
+
+## Later original-control confirmation — 2026-11-11
+
+[Native ARM13 three-layout clone A/B CI 42991987803](https://github.com/manufact-test/nomusic/actions/runs/42991987803) confirms the unmodified five publisher-signed original Yandex APKs continue running while three laboratory clones self-exit with status ZERO. The original publisher certificate and code remain unchanged. Independent original-only repeat [CI 42991987794](https://github.com/manufact-test/nomusic/actions/runs/42991987794) GREEN. Full [clone-specific NO-GO report](ANDROID-A1-ARM13-THREE-CLONE-LAYOUTS-EXIT-SELF-NO-GO-20261111.md).
