@@ -8,12 +8,13 @@ import io.github.libxposed.api.XposedInterface;
 import io.github.libxposed.api.XposedModule;
 
 /**
- * Own-source safe witness; STRICTLY ONLY pro.celikom.armv7loaderhost.witness.
- * Any third-party package and all audio/media APIs are outside scope.
+ * Own-source safe witness; ONLY CELIKOM-owned test host packages.
+ * Any third-party package and official Yandex are outside scope.
  */
 public final class HookWitnessEntry extends XposedModule {
     private static final String TARGET = "pro.celikom.armv7loaderhost.witness";
     private static final String AUDIO = "pro.celikom.armv7loaderhost.audio";
+    private static final String OWN_X86 = "pro.celikom.armv7loaderhost.x86control";
     private static final String ACTIVITY = "pro.celikom.armv7loaderhost.MainActivity";
     private static final String STATE = "pro.celikom.armv7loaderhost.HookWitnessState";
     private boolean attachHooked;
@@ -22,10 +23,11 @@ public final class HookWitnessEntry extends XposedModule {
     @Override public void onModuleLoaded(ModuleLoadedParam param) { }
 
     @Override public void onPackageLoaded(PackageLoadedParam param) {
-        if (TARGET.equals(param.getPackageName()) || AUDIO.equals(param.getPackageName())) installAttach();
+        if (TARGET.equals(param.getPackageName()) || AUDIO.equals(param.getPackageName())
+                || OWN_X86.equals(param.getPackageName())) installAttach();
     }
     @Override public void onPackageReady(PackageReadyParam param) {
-        if (TARGET.equals(param.getPackageName())) installAttach();
+        if (TARGET.equals(param.getPackageName()) || OWN_X86.equals(param.getPackageName())) installAttach();
     }
 
     private synchronized void installAttach() {
@@ -38,7 +40,8 @@ public final class HookWitnessEntry extends XposedModule {
                     Object originalResult = chain.proceed();
                     try {
                         Context app = (Context) chain.getThisObject();
-                        if (app != null && TARGET.equals(app.getPackageName())) {
+                        if (app != null && (TARGET.equals(app.getPackageName())
+                                || OWN_X86.equals(app.getPackageName()))) {
                             installActivity(app.getClassLoader());
                         } else if (app != null && AUDIO.equals(app.getPackageName())) {
                             installAudioSource(app.getClassLoader());

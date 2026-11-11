@@ -56,13 +56,22 @@ public final class MainActivity extends Activity {
         text.setTextColor(Color.BLACK);
         text.setBackgroundColor(Color.WHITE);
         text.setTextSize(18f);
-        if (getPackageName().equals("pro.celikom.armv7loaderhost.witness")) {
-            text.setText("CELIKOM ARMv7 — hook witness\n\n"
+        if (getPackageName().equals("pro.celikom.armv7loaderhost.witness")
+                || getPackageName().equals("pro.celikom.armv7loaderhost.x86control")) {
+            boolean armed = HookWitnessState.armed();
+            boolean intercepted = HookWitnessState.intercepted();
+            text.setText("CELIKOM OWN — hook witness\n\n"
                 + "Native host: STARTED\n"
-                + "Module hook armed: " + (HookWitnessState.armed() ? "YES" : "NOT OBSERVED") + "\n"
-                + "onCreate intercepted: " + (HookWitnessState.intercepted() ? "YES" : "NOT OBSERVED") + "\n\n"
+                + "Module hook armed: " + (armed ? "YES" : "NOT OBSERVED") + "\n"
+                + "onCreate intercepted: " + (intercepted ? "YES" : "NOT OBSERVED") + "\n\n"
                 + "If both YES: LSPatch ran our module inside this OWN lab app.\n"
                 + "This is NOT a Yandex or audio replacement test.");
+            if (getPackageName().equals("pro.celikom.armv7loaderhost.x86control")) {
+                // Fixed enum only; no app data, secrets, URLs or audio in logs.
+                android.util.Log.i("CelikomOwnHookWitness", "RESULT="
+                    + (armed && intercepted ? "PASS" : "FAIL")
+                    + " CODE=OWN_MODULE_ACTIVITY_INTERCEPTED");
+            }
         } else {
             text.setText("CELIKOM ARMv7 loader test\n\n"
                 + "This is a separate test app. No Yandex, music or account access.\n"

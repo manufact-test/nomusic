@@ -18,8 +18,13 @@ HERE = Path(__file__).resolve().parent
 APK = HERE / "armv7-loader-host/app/build/outputs/apk/debug/app-debug.apk"
 WITNESS = os.getenv("CELIKOM_OWN_WITNESS") == "1"
 AUDIO = os.getenv("CELIKOM_OWN_AUDIO") == "1"
-X86 = os.getenv("CELIKOM_OWN_X86_BRIDGE") == "1"
-if sum((WITNESS, AUDIO, X86)) > 1:
+X86_WITNESS = os.getenv("CELIKOM_OWN_X86_WITNESS") == "1"
+X86 = os.getenv("CELIKOM_OWN_X86_BRIDGE") == "1" or X86_WITNESS
+WITNESS = WITNESS or X86_WITNESS
+if (WITNESS and AUDIO) or (os.getenv("CELIKOM_OWN_X86_BRIDGE") == "1"
+                             and X86_WITNESS):
+    raise ValueError("INCOMPATIBLE_OWN_X86_VARIANTS")
+if not X86_WITNESS and sum((WITNESS, AUDIO, X86)) > 1:
     raise ValueError("INCOMPATIBLE_TEST_VARIANTS")
 PACKAGE = ("pro.celikom.armv7loaderhost.x86control" if X86 else
            "pro.celikom.armv7loaderhost.audio" if AUDIO else
@@ -130,7 +135,8 @@ def main():
                 raise ValueError("OWN_MODULE_MISSING")
             with zipfile.ZipFile(MODULE) as mz:
                 scopes = set(mz.read("META-INF/xposed/scope.list").decode().splitlines())
-                if scopes != {"pro.celikom.armv7loaderhost.witness", "pro.celikom.armv7loaderhost.audio"} or PACKAGE not in scopes:
+                if scopes != {"pro.celikom.armv7loaderhost.witness", "pro.celikom.armv7loaderhost.audio",
+                              "pro.celikom.armv7loaderhost.x86control"} or PACKAGE not in scopes:
                     raise ValueError("OWN_SOURCE_SCOPES_MISMATCH")
                 if mz.read("META-INF/xposed/java_init.list").decode().strip() != "pro.celikom.armv7witnessmodule.HookWitnessEntry":
                     raise ValueError("WITNESS_ENTRY_MISMATCH")
@@ -170,7 +176,7 @@ def main():
             if root_temp not in dest.parents or dest.exists():
                 raise ValueError("INVALID_ARTIFACT_LOCATION")
             dest.mkdir(parents=True, mode=0o700)
-            shutil.copyfile(patched, dest / ("CELIKOM-X86-LOADER-ONLY-Test.apk" if X86 else "CELIKOM-ARMv7-AUDIO-SMOKE-Test.apk" if AUDIO else "CELIKOM-ARMv7-HOOK-WITNESS-Test.apk" if WITNESS else "CELIKOM-ARMv7-LOADER-ONLY-Test.apk"))
+            shutil.copyfile(patched, dest / ("CELIKOM-X86-HOOK-WITNESS-Test.apk" if X86_WITNESS else "CELIKOM-X86-LOADER-ONLY-Test.apk" if X86 else "CELIKOM-ARMv7-AUDIO-SMOKE-Test.apk" if AUDIO else "CELIKOM-ARMv7-HOOK-WITNESS-Test.apk" if WITNESS else "CELIKOM-ARMv7-LOADER-ONLY-Test.apk"))
         print(json.dumps({
             "verdict": ("OWN_X86_NATIVE_PATCHED_STATIC_PASS_NO_DEVICE_RUN" if X86 else "OWN_AUDIO_SMOKE_STATIC_PASS_NO_DEVICE_RUN" if AUDIO else "OWN_MODULE_WITNESS_STATIC_PASS_NO_DEVICE_RUN" if WITNESS else "OWN_SOURCE_ARMV7_PATCHED_STATIC_PASS_NO_DEVICE_RUN"),
             "package": PACKAGE, "native_abi": "x86" if X86 else "armeabi-v7a",
