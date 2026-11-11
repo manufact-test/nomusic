@@ -48,12 +48,40 @@ def _exact_package_in_line(line: str, package: str) -> bool:
     ) is not None
 
 
-def classify_startup_events(raw: str, package: str) -> dict:
-    """Only event tag names for exact MAIN package, not helper ':process'.
+# Public Android EventLogTags specify process name field positions.
+# AOSP am_proc_start: [User,PID,UID,ProcessName,Type,Component]
+# AOSP am_proc_died / am_kill / am_crash: [User,PID,ProcessName,...]
+# Match by the *process name*, never another occurrence of package in the
+# component / hosting field (helpers share the same package in that field).
+PROCESS_FIELD_POSITION = {
+    "am_proc_start": 3, "am_proc_died": 2,
+    "am_kill": 2, "am_crash": 2,
+}
+# am_anr contains a package field, not an exact process identity: skip it
+# rather than misattribute a helper ANR to the MAIN process.
+ACTIVITY_TAGS = frozenset({
+    "am_create_activity", "am_resume_activity", "am_pause_activity",
+    "am_finish_activity", "am_destroy_activity",
+})
 
-    An Android event entry can mention a package as an activity component or
-    as process name. Keep bounded event order but no PIDs, timestamps, reasons,
-    class names, log messages, URLs, tokens, account data or process metadata.
+
+def _event_fields(line: str) -> list[str]:
+    """Private bounded Android -v brief '[...]' fields; never returned."""
+    left, right = line.find("["), line.rfind("]")
+    if left < 0 or right <= left or right - left > 4000:
+        return []
+    return [x.strip() for x in line[left + 1:right].split(",", 10)]
+
+
+def classify_startup_events(raw: str, package: str) -> dict:
+    """Read-only finite lifecycle events scoped to exact MAIN process.
+
+    A full package name anywhere in a line is NOT sufficient. App process
+    creation/death must use AOSP structured ProcessName fields; an Activity
+    event must contain an exact package/component. This avoids treating a
+    :helper process with a package-name hosting field as MAIN.
+
+    Only fixed event tags, booleans and bounded counts leave this module.
     """
     if package not in PACKAGES:
         raise ValueError("UNAPPROVED_PACKAGE")
@@ -61,29 +89,50 @@ def classify_startup_events(raw: str, package: str) -> dict:
     auxiliary_seen = False
     seen_exact_token = False
     recognized_unscoped = False
+    skipped_ambiguous = 0
     lines = raw.splitlines()[-9000:]
     for line in lines:
-        recognized_unscoped |= EVENT_RE.search(line) is not None
-        if package not in line:
+        marker = EVENT_RE.search(line[:180])
+        if marker is None:
             continue
-        auxiliary_seen |= re.search(
-            re.escape(package) + r":[A-Za-z0-9_.$]+", line) is not None
-        if not _exact_package_in_line(line, package):
+        recognized_unscoped = True
+        fields = _event_fields(line)
+        if not fields:
             continue
-        seen_exact_token = True
-        event = EVENT_RE.search(line)
-        if event and len(tags) < 32:
-            tags.append(event.group(1))
+        tag = marker.group(1)
+        # Auxiliary processes may be mentioned without a main-process entry.
+        auxiliary_seen |= any(
+            x.startswith(package + ":") and bool(x[len(package) + 1:])
+            for x in fields[:6]
+        )
+        seen_exact_token |= any(x == package or x.startswith(package + "/")
+                                for x in fields[:6])
+        is_main = False
+        if tag in PROCESS_FIELD_POSITION:
+            index = PROCESS_FIELD_POSITION[tag]
+            is_main = len(fields) > index and fields[index] == package
+        elif tag in ACTIVITY_TAGS:
+            # ActivityManager on some Android versions has TaskID,
+            # older variants don't. Activity component starts package+"/".
+            is_main = any(
+                x.startswith(package + "/") and len(x) > len(package) + 1
+                for x in fields[2:7]
+            )
+        else:
+            skipped_ambiguous += 1
+        if is_main and len(tags) < 32:
+            tags.append(tag)
     return {
         "main_event_order": tags,
         "buffer_entry_count_bounded": min(len(lines), 9000),
         "known_event_tag_seen_any_package": recognized_unscoped,
         "exact_main_package_token_seen": seen_exact_token,
+        "ambiguous_event_count_bounded": min(skipped_ambiguous, 100),
+        "strict_aosp_process_field_scoping": True,
         "process_start_seen": "am_proc_start" in tags,
         "process_died_seen": "am_proc_died" in tags,
         "system_kill_event_seen": "am_kill" in tags,
-        "system_crash_or_anr_event_seen": any(
-            t in tags for t in ("am_crash", "am_anr")),
+        "system_crash_or_anr_event_seen": "am_crash" in tags,
         "activity_created_seen": "am_create_activity" in tags,
         "activity_resumed_seen": "am_resume_activity" in tags,
         "activity_finish_seen": "am_finish_activity" in tags,
