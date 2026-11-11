@@ -74,14 +74,10 @@ jobs:
           sysfs_binder_registered=false
           binderfs_mount_succeeded=false
           temporary_binder_device=false
-          if grep -Eq '^[[:space:]]*[0-9]+[[:space:]]+binder
-        run: echo '{"android_image_downloaded":false,"third_party_code_executed":false,"device_connected":false}'
- /proc/devices; then
+          if grep -Eq '^[[:space:]]*[0-9]+[[:space:]]+binder$' /proc/devices; then
             kernel_binder_major=true
           fi
-          if grep -Eq '^[[:space:]]*[0-9]+[[:space:]]+(binder|hwbinder|vndbinder)
-        run: echo '{"android_image_downloaded":false,"third_party_code_executed":false,"device_connected":false}'
- /proc/misc; then
+          if grep -Eq '^[[:space:]]*[0-9]+[[:space:]]+(binder|hwbinder|vndbinder)$' /proc/misc; then
             misc_binder_entries=true
           fi
           for node in binder hwbinder vndbinder; do
