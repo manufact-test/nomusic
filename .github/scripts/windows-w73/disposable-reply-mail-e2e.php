@@ -2,7 +2,7 @@
 declare(strict_types=1);
 // Isolated W73 contract test: disposable MySQL only, synthetic Gmail alias.
 // No production DB writes, user accounts or admin sessions.
-require dirname(__DIR__,3).'/server/tests/smoke.php';
+require dirname(__DIR__,3).'/server/bootstrap.php';
 use Celikom\Database\Connection;
 use Celikom\Database\MigrationRunner;
 use Celikom\Storage\LocalStorageAdapter;
