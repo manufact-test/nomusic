@@ -52,3 +52,15 @@ jobs:
             echo GITHUB_HTTPS_FAIL
           fi
           echo DONE_PROBE_NO_VENDOR_NO_APT
+
+      - name: Probe official Ubuntu archive HTTPS with independently observed A records
+        shell: bash
+        run: |
+          set -u
+          for ip in 91.189.91.102 91.189.91.103 91.189.91.104 91.189.92.19 185.125.190.36 185.125.190.39; do
+            if timeout 7s curl --fail --silent --show-error --location --connect-timeout 3 --max-time 6 --resolve "ports.ubuntu.com:443:$ip" https://ports.ubuntu.com/ubuntu-ports/dists/noble/InRelease -o /dev/null 2>/dev/null; then
+              echo "OFFICIAL_PORTS_TLS_OK_$ip"
+            else
+              echo "OFFICIAL_PORTS_TLS_FAIL_$ip"
+            fi
+          done
