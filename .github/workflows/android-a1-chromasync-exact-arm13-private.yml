@@ -1,0 +1,128 @@
+name: Android A1 exact ChromaSync live ARM13 (BLOCKED if private APK missing)
+on:
+  push:
+    branches:
+      - experiment/android-a1-chromasync-real-arm13-probe-20261111
+    paths:
+      - '.github/workflows/android-a1-chromasync-exact-arm13-private.yml'
+      - 'android/native-yandex-hooklab/ci/chromasync_exact_arm13_probe.py'
+      - 'android/native-yandex-hooklab/tests/test_chromasync_exact_arm13_probe.py'
+permissions:
+  contents: read
+jobs:
+  synthetic-not-runtime:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          python3 -m py_compile android/native-yandex-hooklab/ci/chromasync_exact_arm13_probe.py
+          python3 -m unittest discover -s android/native-yandex-hooklab/tests -p test_chromasync_exact_arm13_probe.py -v
+  live-arm13:
+    needs: synthetic-not-runtime
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 47
+    env:
+      PRIVATE_APK_URL: ${{ secrets.CELIKOM_CHROMASYNC_301_EXACT_URL }}
+      CELIKOM_CLEAN_ANDROID_NATIVE_REDDROID: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Require original private APK and verify exact SHA256
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "$PRIVATE_APK_URL" ]; then
+            echo '::error::BLOCKED_NO_PRIVATE_APK: chat upload is NOT mounted in GitHub Actions. NO competitor Android test.'
+            exit 3
+          fi
+          case "$PRIVATE_APK_URL" in https://*) ;; *) echo '::error::HTTPS_REQUIRED'; exit 3 ;; esac
+          if ! curl --proto '=https' --tlsv1.2 --fail --location --silent --max-time 240 \
+            --output "$RUNNER_TEMP/chromasync-exact.apk" "$PRIVATE_APK_URL" 2>/dev/null; then
+            echo '::error::PRIVATE_APK_STAGING_FAILED'; exit 3
+          fi
+          test "$(sha256sum "$RUNNER_TEMP/chromasync-exact.apk" | cut -d' ' -f1)" = \
+            4e6edb1c471f6b3715eae4c0a35f0bd898b0daaa87f3f8fb3ba0b20d1638b53d || {
+              echo '::error::EXACT_APK_SHA256_MISMATCH'; exit 3;
+            }
+          echo '{"private_apk_digest_verified":true,"native_test_performed":false}'
+      - name: Install Android package inspection and ADB tools
+        run: |
+          set -euo pipefail
+          if ! command -v adb >/dev/null || ! command -v aapt >/dev/null || ! command -v apksigner >/dev/null; then
+            sudo apt-get update -qq
+            sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq adb aapt apksigner zipalign
+          fi
+      - name: Boot genuine clean ARM Android13
+        timeout-minutes: 16
+        run: |
+          set -euo pipefail
+          bash android/native-yandex-hooklab/ci/native_arm_redroid_boot_only.sh
+          adb connect 127.0.0.1:5555 >/dev/null
+          adb -s 127.0.0.1:5555 wait-for-device
+      - name: Install and observe original competitor APK alone
+        shell: bash
+        run: |
+          set -euo pipefail
+          set +e
+          python3 android/native-yandex-hooklab/ci/chromasync_exact_arm13_probe.py \
+            --apk "$RUNNER_TEMP/chromasync-exact.apk" --mode alone \
+            | tee "$RUNNER_TEMP/chroma-alone.json"
+          echo "${PIPESTATUS[0]}" > "$RUNNER_TEMP/chroma-alone-status"
+          set -e
+      - name: Get separately pinned issuer-signed Yandex 2026 control
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os, sys
+          from pathlib import Path
+          sys.path.insert(0,'tools/android-native-gate1')
+          import audit_gpr_apkpure_once as gpr
+          root=Path(os.environ['RUNNER_TEMP'])/'stock-splits'
+          root.mkdir(parents=True,exist_ok=True)
+          archive=root/'signed-original.xapk'
+          size,digest=gpr.download(archive)
+          if (size,digest)!=(60433885,'918bd50599dc6a942e190a409303e843b83dcb6d11b90b03c00240331333cf84'):
+              raise SystemExit('STOCK_ARCHIVE_PIN_MISMATCH')
+          splits=gpr.split_apks(archive,root)
+          if len(splits)!=5: raise SystemExit('STOCK_SPLIT_COUNT_MISMATCH')
+          gpr.inspect_publisher(splits)
+          (root/'paths.txt').write_text('\n'.join(map(str,splits))+'\n')
+          print('{"issuer_signed_original_control":true}')
+          PY
+      - name: Boot fresh ARM Android13, install original FIRST then competitor
+        shell: bash
+        timeout-minutes: 16
+        run: |
+          set -euo pipefail
+          docker stop celikom-native-arm-android13 >/dev/null || true
+          sudo rm -rf -- "$RUNNER_TEMP/celikom-redroid-data"
+          bash android/native-yandex-hooklab/ci/native_arm_redroid_boot_only.sh
+          adb connect 127.0.0.1:5555 >/dev/null
+          adb -s 127.0.0.1:5555 wait-for-device
+          mapfile -t stock < "$RUNNER_TEMP/stock-splits/paths.txt"
+          set +e
+          python3 android/native-yandex-hooklab/ci/chromasync_exact_arm13_probe.py \
+            --apk "$RUNNER_TEMP/chromasync-exact.apk" --mode stock-first \
+            --stock-apks "${stock[@]}" | tee "$RUNNER_TEMP/chroma-stock-first.json"
+          echo "${PIPESTATUS[0]}" > "$RUNNER_TEMP/chroma-stock-first-status"
+          set -e
+      - name: Strict native gate — cannot claim login audio or Play Protect
+        shell: bash
+        run: |
+          set -euo pipefail
+          alone="$(cat "$RUNNER_TEMP/chroma-alone-status")"
+          together="$(cat "$RUNNER_TEMP/chroma-stock-first-status")"
+          echo "{\"alone_exit_code\":$alone,\"stock_first_exit_code\":$together,\"audio_tested\":false,\"play_protect_tested\":false}"
+          test "$alone" = 0 && test "$together" = 0
+      - name: Destroy guest and delete ALL APK bytes; no external artifact
+        if: always()
+        shell: bash
+        run: |
+          docker stop celikom-native-arm-android13 >/dev/null 2>&1 || true
+          sudo umount /dev/binderfs >/dev/null 2>&1 || true
+          sudo modprobe -r binder_linux >/dev/null 2>&1 || true
+          sudo rm -rf -- "$RUNNER_TEMP/celikom-redroid-data"
+          rm -rf -- "$RUNNER_TEMP/chromasync-exact.apk" "$RUNNER_TEMP/stock-splits" \
+            "$RUNNER_TEMP/chroma-alone.json" "$RUNNER_TEMP/chroma-alone-status" \
+            "$RUNNER_TEMP/chroma-stock-first.json" "$RUNNER_TEMP/chroma-stock-first-status"
+          echo '{"apk_uploaded_as_artifact":false,"owner_phone_touched":false,"bypass_attempted":false}'
