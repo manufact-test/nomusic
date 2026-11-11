@@ -19,3 +19,17 @@ ChromaSync: независимый clone package, нативный Yandex 2025.1
 Билд отдельной ветки: experiment/android-a1-exit-callsite-witness-20261111; исходный резерв: backup/android-a1-before-exit-callsite-witness-20261111 @ cc4cb0f. Workflow .github/workflows/android-native-a1-exit-callsite-witness.yml. 1-day artifact содержит ТОЛЬКО наш исходный модуль, без APK Яндекса. Тестовый host, ключи и исходные vendor splits эфемерны. CI строгий: даже если сборка и тесты зелёные, MAIN EXIT_SELF продолжает означать А1 NO-GO.
 
 Ветка НЕ интегрируется в основу без проверки результатов. Не трогать Test.50, Windows, расширение, production, HONOR или официальный Яндекс. Этап B по-прежнему заблокирован до слышимой проверки Stage A владельцем.
+
+## Native ARM13 confirmed owner and static conditional route (11 Nov)
+
+Real CI [43023613994](https://github.com/manufact-test/nomusic/actions/runs/43023613994) confirmed actual own LibXposed observer in dying clone MAIN, pass-through System.exit/Runtime.exit/Process.killProcess; signed original survived, clone self-exited; strict app UI gate correctly FAIL.
+
+Second real CI [43024491519](https://github.com/manufact-test/nomusic/actions/runs/43024491519) used finite allowlisted static exit owners. It **actually observed** STATIC_RUN_B = original signed DEX class Lxx0;.run in the clone MAIN exit-call stack, alongside System.exit and Process.killProcess. No uncaught event observed; no proof of reason.
+
+Signed-original-only static audit CI [43025413011](https://github.com/manufact-test/nomusic/actions/runs/43025413011) found Lxx0;.run is 200 DEX code units, 13 if-branches, one switch, four gotos, two return instructions; it directly calls ActivityManager.getRunningAppProcesses, Context.getPackageName, Kotlin string prefix compare, Process.killProcess then System.exit, alongside unrelated locale/package-manager code. Three constructor callsites (Lby0.a, Lby0.p, Lhi2.j); zero direct run method calls (asynchronous dispatch possible, not proven).
+
+A bounded control-flow edge audit [43026129390](https://github.com/manufact-test/nomusic/actions/runs/43026129390) validates every graph edge and finds **one conditional arm that can reach killProcess while the other cannot**, with preceding Kotlin string-prefix comparator and running-process/package-name inspection. The actual compared values or why branch was selected at runtime remain unknown. Do not claim proven publisher protection.
+
+Next optional direct experiment: on disposable lab clone ONLY, with signature bypass still zero, observe the RESULT of that exact Kotlin prefix check when the runtime stack is within Lxx0.run. The module never changes arguments, return value or exception. Output only fixed categories (own main/aux, original main/aux, unmatched) and boolean match, no strings or account data. If Kotlin hook fails to arm, report NO_HOOK, and never infer the comparison result from missing evidence.
+
+No product release: Test.50, Windows, production and user's device untouched. Main lead branch remains at original frozen cc4cb0f; research isolated.

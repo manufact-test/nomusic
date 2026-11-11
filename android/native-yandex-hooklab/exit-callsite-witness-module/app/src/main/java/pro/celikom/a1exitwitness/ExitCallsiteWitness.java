@@ -1,6 +1,7 @@
 package pro.celikom.a1exitwitness;
 
 import android.app.Application;
+import android.content.Context;
 import android.os.Looper;
 import android.util.Log;
 import io.github.libxposed.api.XposedInterface;
@@ -41,6 +42,7 @@ public final class ExitCallsiteWitness extends XposedModule {
             new Class<?>[] {int.class}, "RUNTIME_EXIT") ? 1 : 0;
         count += observe(android.os.Process.class, "killProcess",
             new Class<?>[] {int.class}, "PROCESS_KILL") ? 1 : 0;
+        count += hookApplicationAttach() ? 1 : 0;
         // Arms only tell us that a hook was registered, not that it ran.
         emit("ARMED", count > 0 ? "REGISTERED" : "NO_HOOK", "NONE");
     }
@@ -70,6 +72,81 @@ public final class ExitCallsiteWitness extends XposedModule {
         } catch (Throwable ignored) {
             return false;
         }
+    }
+
+
+    private boolean prefixHookInstalled;
+
+    private boolean hookApplicationAttach() {
+        try {
+            Method attach = Application.class.getDeclaredMethod("attach", Context.class);
+            attach.setAccessible(true);
+            hook(attach).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                .intercept(chain -> {
+                    Object result = chain.proceed();
+                    try {
+                        if (PACKAGE.equals(Application.getProcessName())) {
+                            Object context = chain.getArg(0);
+                            if (context instanceof Context)
+                                installExactPrefixWitness(((Context) context).getClassLoader());
+                        }
+                    } catch (Throwable ignored) { }
+                    return result;
+                });
+            return true;
+        } catch (Throwable ignored) {
+            return false;
+        }
+    }
+
+    private synchronized void installExactPrefixWitness(ClassLoader appLoader) {
+        if (prefixHookInstalled || appLoader == null) return;
+        try {
+            // This exact method prototype was established in a signed
+            // read-only DEX scan. No replacement, no arg changes.
+            Class<?> kotlin = Class.forName("kotlin.text.c", false, appLoader);
+            Method prefix = kotlin.getDeclaredMethod(
+                "r", String.class, String.class, boolean.class);
+            prefix.setAccessible(true);
+            hook(prefix).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                .intercept(chain -> {
+                    Object result = chain.proceed();
+                    try {
+                        if (callerIsExactExitOwner()) {
+                            String category = argumentGroup(chain.getArg(0));
+                            if ("UNCLASSIFIED".equals(category))
+                                category = argumentGroup(chain.getArg(1));
+                            emit("PREFIX_CHECK", category,
+                                 Boolean.TRUE.equals(result) ? "MATCH_TRUE" : "MATCH_FALSE");
+                        }
+                    } catch (Throwable ignored) { }
+                    return result;
+                });
+            prefixHookInstalled = true;
+            emit("PREFIX_HOOK", "REGISTERED", "NONE");
+        } catch (Throwable ignored) {
+            emit("PREFIX_HOOK", "NO_HOOK", "NONE");
+        }
+    }
+
+    private static boolean callerIsExactExitOwner() {
+        try {
+            for (StackTraceElement frame : Thread.currentThread().getStackTrace())
+                if ("xx0".equals(frame.getClassName()) &&
+                        "run".equals(frame.getMethodName()))
+                    return true;
+        } catch (Throwable ignored) { }
+        return false;
+    }
+
+    private static String argumentGroup(Object arg) {
+        if (!(arg instanceof String)) return "UNCLASSIFIED";
+        String s = (String) arg;
+        if (PACKAGE.equals(s)) return "OWN_MAIN";
+        if (s.startsWith(PACKAGE + ":")) return "OWN_AUX";
+        if ("ru.yandex.music".equals(s)) return "ORIGINAL_MAIN";
+        if (s.startsWith("ru.yandex.music:")) return "ORIGINAL_AUX";
+        return "UNCLASSIFIED";
     }
 
     private static String callerGroup() {

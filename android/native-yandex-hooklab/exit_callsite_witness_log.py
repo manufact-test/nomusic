@@ -4,11 +4,15 @@ from __future__ import annotations
 from clone_main_crash_buffer import LOG, main_exit_pids
 
 TAG = "CELIKOM_A1_EXIT_WITNESS"
-EVENTS = frozenset(("ARMED", "UNCAUGHT", "SYSTEM_EXIT", "RUNTIME_EXIT", "PROCESS_KILL"))
+EVENTS = frozenset(("ARMED", "UNCAUGHT", "SYSTEM_EXIT", "RUNTIME_EXIT",
+                    "PROCESS_KILL", "PREFIX_CHECK", "PREFIX_HOOK"))
 ORIGINS = frozenset(("REGISTERED", "NO_HOOK", "VENDOR_UNCAUGHT_HANDLER",
                       "STATIC_HANDLER", "STATIC_RUN_A", "STATIC_RUN_B",
-                      "STATIC_INVOKER", "VENDOR", "PLATFORM", "UNKNOWN", "NONE"))
-ERRORS = frozenset(("ILLEGAL_STATE", "SECURITY", "LINK", "OTHER_THROWABLE", "NONE"))
+                      "STATIC_INVOKER", "VENDOR", "PLATFORM", "UNKNOWN", "NONE",
+                      "OWN_MAIN", "OWN_AUX", "ORIGINAL_MAIN", "ORIGINAL_AUX",
+                      "UNCLASSIFIED"))
+ERRORS = frozenset(("ILLEGAL_STATE", "SECURITY", "LINK", "OTHER_THROWABLE",
+                    "NONE", "MATCH_TRUE", "MATCH_FALSE"))
 THREADS = frozenset(("MAIN", "OTHER"))
 
 
@@ -59,6 +63,11 @@ def classify_exit_witness(exit_dump: str, main_log: str) -> dict:
     return {
         "scoped_fresh_main_pid_available": bool(pids),
         "module_armed_on_main": armed,
+        "prefix_hook_reported": "PREFIX_HOOK" in kinds,
+        "prefix_check_observed": "PREFIX_CHECK" in kinds,
+        "prefix_match_result_categories": sorted(x for x in errors if x.startswith("MATCH_")),
+        "prefix_known_target_groups": sorted(x for x in origins if x in {
+            "OWN_MAIN", "OWN_AUX", "ORIGINAL_MAIN", "ORIGINAL_AUX"}),
         "observed_events": sorted(kinds),
         "caller_groups": sorted(origins),
         "exception_categories": sorted(errors),

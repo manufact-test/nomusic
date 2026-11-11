@@ -59,6 +59,17 @@ class WitnessClassifierTests(unittest.TestCase):
                          ["STATIC_HANDLER", "STATIC_INVOKER", "STATIC_RUN_B"])
         self.assertEqual(out["observed_events"], ["PROCESS_KILL", "SYSTEM_EXIT"])
 
+    def test_prefix_result_categorized_without_string_values(self):
+        raw = (entry(1234, "PREFIX_HOOK", origin="REGISTERED", error="NONE")
+               + entry(1234, "PREFIX_CHECK", origin="OWN_AUX", error="MATCH_TRUE")
+               + entry(1234, "PREFIX_CHECK", origin="UNCLASSIFIED", error="MATCH_FALSE"))
+        x = classify_exit_witness(EXIT, raw)
+        self.assertTrue(x["prefix_hook_reported"])
+        self.assertTrue(x["prefix_check_observed"])
+        self.assertEqual(x["prefix_known_target_groups"], ["OWN_AUX"])
+        self.assertEqual(x["prefix_match_result_categories"], ["MATCH_FALSE", "MATCH_TRUE"])
+        self.assertNotIn("nativeclonelab", str(x))
+
     def test_background_event_not_claimed_main(self):
         out = classify_exit_witness(EXIT, entry(1234, "UNCAUGHT", thread="OTHER"))
         self.assertEqual(out["main_thread_event_count_bounded"], 0)
