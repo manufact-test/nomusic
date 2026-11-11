@@ -18,7 +18,10 @@ EVENT_TAGS = (
     "am_create_activity", "am_resume_activity", "am_pause_activity",
     "am_finish_activity", "am_destroy_activity",
 )
-EVENT_RE = re.compile(r"\b(" + "|".join(EVENT_TAGS) + r")\s*:")
+# logcat -v brief: "I/am_proc_start( 1234): [...]"; some tests and
+# Android formats use "I am_proc_start: [...]" instead. Both are tags.
+EVENT_RE = re.compile(r"\b(" + "|".join(EVENT_TAGS) +
+                      r")(?:\s*\(\s*\d{1,8}\s*\))?\s*:")
 PROCESS_RE = re.compile(r"\b(?:processName|process|process name)\s*[=:]\s*"
                         r"([A-Za-z0-9_.:]+)", re.I)
 PID_RE = re.compile(r"\bpid\s*[=:]\s*(\d{1,8})\b")
