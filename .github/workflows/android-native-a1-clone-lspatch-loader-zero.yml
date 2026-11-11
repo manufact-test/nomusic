@@ -51,6 +51,7 @@ jobs:
             CELIKOM_MERGE_PARALLEL_SINGLE_APK=1
             CELIKOM_CLONE_FIRST_AB=1
             CELIKOM_CLONE_LSPATCH_LOADER_ZERO=1
+            CELIKOM_BRIDGE_X86_RESOURCE_ARMV7=1
             python3 android/native-yandex-hooklab/clone_native_identity_phase2_ephemeral.py
       - name: Confirm absence of persisted third-party APKs and keys
         if: always()

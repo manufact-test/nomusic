@@ -9,6 +9,8 @@ This does not test audio and CANNOT be sent to user's HONOR 50.
 from __future__ import annotations
 
 import hashlib
+import os
+import copy
 import zipfile
 import json
 import re
@@ -117,7 +119,7 @@ def check_zero_loader(apk: Path, prior: Path, expected_signer: str, arsc) -> dic
     }
 
 
-def verify_native_loader_elf_offsets(apk: Path) -> dict:
+def verify_native_loader_elf_offsets(apk: Path, expected_x86_machine: int = 3) -> dict:
     """Audit ABI/ELF/ZIP page alignment on the ACTUALLY signed outer APK.
 
     Absolute offsets cannot be inferred from a rebuilt unsigned intermediary.
@@ -126,7 +128,7 @@ def verify_native_loader_elf_offsets(apk: Path) -> dict:
     has an unexpected ELF ISA.
     """
     architectures = {"armeabi-v7a": (40, 1), "arm64-v8a": (183, 2),
-                     "x86": (3, 1), "x86_64": (62, 2)}
+                     "x86": (expected_x86_machine, 1), "x86_64": (62, 2)}
     result = {}
     with zipfile.ZipFile(apk) as archive, apk.open("rb") as fh:
         for abi, (machine, elf_class) in architectures.items():
@@ -156,6 +158,63 @@ def verify_native_loader_elf_offsets(apk: Path) -> dict:
     if not all(x["page_aligned_4096"] for x in result.values()):
         raise ValueError("METALOADER_LIBRARY_UNALIGNED_IN_SIGNED_APK")
     return result
+
+
+
+def mirror_x86_loader_resource_for_arm_bridge(source_apk: Path, output_apk: Path) -> dict:
+    """Emulator ONLY: mirror upstream ARMv7 ELF at the x86-named resource.
+
+    The zero-bypass LSPatch Java stub stays byte-identical. Test whether the
+    Android x86/native-ARM bridge accepts the correct EM_ARM loader. This is
+    not a distributable app or a fix for general x86 hardware.
+    """
+    if source_apk.resolve() == output_apk.resolve() or output_apk.exists():
+        raise ValueError("BRIDGE_MIRROR_NEW_OUTPUT_REQUIRED")
+    arm_name = "assets/lspatch/so/armeabi-v7a/liblspatch.so"
+    x86_name = "assets/lspatch/so/x86/liblspatch.so"
+    with zipfile.ZipFile(source_apk) as source_zip:
+        infos = source_zip.infolist()
+        names = [m.filename for m in infos]
+        if len(infos) > 10000 or len(names) != len(set(names)):
+            raise ValueError("BRIDGE_MIRROR_UNSAFE_ZIP_ENTRIES")
+        if sum(m.file_size for m in infos) > 512 * 1024 * 1024:
+            raise ValueError("BRIDGE_MIRROR_ZIP_SIZE_LIMIT")
+        arm, x86 = source_zip.read(arm_name), source_zip.read(x86_name)
+        if (arm[:4] != b"\x7fELF" or x86[:4] != b"\x7fELF"
+                or arm[4] != 1 or x86[4] != 1
+                or struct.unpack_from("<H", arm, 18)[0] != 40
+                or struct.unpack_from("<H", x86, 18)[0] != 3):
+            raise ValueError("BRIDGE_MIRROR_SOURCE_ABI_UNEXPECTED")
+        if (source_zip.getinfo(arm_name).compress_type != zipfile.ZIP_STORED
+                or source_zip.getinfo(x86_name).compress_type != zipfile.ZIP_STORED):
+            raise ValueError("BRIDGE_MIRROR_NATIVE_NOT_STORED")
+        with zipfile.ZipFile(output_apk, "w", allowZip64=True) as result:
+            result.comment = source_zip.comment
+            for entry in infos:
+                body = arm if entry.filename == x86_name else source_zip.read(entry)
+                dst = copy.copy(entry)
+                dst.extra = b""
+                dst.CRC = dst.file_size = dst.compress_size = 0
+                if (dst.filename.startswith("assets/lspatch/so/")
+                        and dst.filename.endswith("/liblspatch.so")
+                        and dst.compress_type == zipfile.ZIP_STORED):
+                    pos = result.fp.tell()
+                    pad = (-(pos + 30 + len(dst.filename.encode("utf-8")))) % 4096
+                    if 0 < pad < 4:
+                        pad += 4096
+                    if pad:
+                        dst.extra = struct.pack("<HH", 0xEFA1, pad - 4) + bytes(pad - 4)
+                result.writestr(dst, body, compress_type=entry.compress_type)
+    with zipfile.ZipFile(output_apk) as result:
+        if result.read(x86_name) != result.read(arm_name):
+            raise ValueError("BRIDGE_MIRROR_NOT_ARMV7_IDENTICAL")
+        for entry in result.infolist():
+            result.read(entry)
+    return {"scope": "EMULATOR_X86_ARMV7_BRIDGE_ONLY",
+            "loader_bytes_from": "PINNED_UPSTREAM_ARMV7",
+            "source_x86_machine": 3, "mirrored_x86_resource_machine": 40,
+            "host_dex_changed": False, "signature_bypass_changed": False,
+            "redistributable": False}
 
 
 def wrap_clone_with_lspatch_zero(clone: Path, work: Path, key: Path,
@@ -214,4 +273,32 @@ def wrap_clone_with_lspatch_zero(clone: Path, work: Path, key: Path,
     report["nested_origin_zip_layout_repacked"] = crc_report["layout_repacked"]
     if crc_report["layout_repacked"]:
         report["nested_origin_zip_layout_issue"] = crc_report["repacked_reason"]
+    if os.getenv("CELIKOM_BRIDGE_X86_RESOURCE_ARMV7") == "1":
+        if not (os.getenv("GITHUB_ACTIONS") == "true"
+                and os.getenv("CELIKOM_CLEAN_ANDROID_ARMV7_TRANSLATION") == "1"
+                and os.getenv("CELIKOM_CLONE_LSPATCH_LOADER_ZERO") == "1"):
+            raise arsc.TrialError("BRIDGE_MIRROR_DISPOSABLE_CI_ONLY")
+        raw = work / "bridge-armv7-mirror-unsigned.apk"
+        try:
+            bridge_report = mirror_x86_loader_resource_for_arm_bridge(final_apk, raw)
+        except (ValueError, zipfile.BadZipFile):
+            raise arsc.TrialError("BRIDGE_MIRROR_STRUCTURAL_FAILURE") from None
+        aligned = work / "bridge-armv7-mirror-aligned.apk"
+        arsc.run([source.sdk_tool("zipalign"), "-f", "-p", "4",
+                  str(raw), str(aligned)], "BRIDGE_MIRROR_ALIGN", 90)
+        arsc.run([source.sdk_tool("apksigner"), "sign", "--ks", str(key),
+                  "--ks-pass", "pass:ephemeral-lab-only",
+                  "--ks-key-alias", "research", "--key-pass", "pass:ephemeral-lab-only",
+                  "--min-sdk-version", "28", "--v4-signing-enabled", "false",
+                  str(aligned)], "BRIDGE_MIRROR_LAB_SIGN_ONLY", 90)
+        if fingerprint(aligned, arsc) != expected_signer:
+            raise arsc.TrialError("BRIDGE_MIRROR_SIGNER_MISMATCH")
+        check_zero_loader(aligned, clone, expected_signer, arsc)
+        try:
+            bridge_report["signed_mirrored_elf_layout"] = (
+                verify_native_loader_elf_offsets(aligned, expected_x86_machine=40))
+        except (ValueError, zipfile.BadZipFile):
+            raise arsc.TrialError("BRIDGE_MIRROR_SIGNED_ABI_OR_ALIGNMENT_FAILED") from None
+        report["bridge_mirror_ab"] = bridge_report
+        final_apk = aligned
     return final_apk, report

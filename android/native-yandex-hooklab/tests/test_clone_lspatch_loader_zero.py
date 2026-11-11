@@ -1,5 +1,6 @@
 """LSPatch zero-signature-bypass clone gate, without any app/patcher execution."""
 import io
+import struct
 import json
 import sys
 import unittest
@@ -7,7 +8,7 @@ import tempfile
 import zipfile
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from clone_lspatch_loader_zero import check_zero_loader
+from clone_lspatch_loader_zero import check_zero_loader, mirror_x86_loader_resource_for_arm_bridge, verify_native_loader_elf_offsets
 
 class DummyError(Exception):
     pass
@@ -77,6 +78,40 @@ class LoaderZeroTest(unittest.TestCase):
         layout=verify_native_loader_elf_offsets(f)
         self.assertEqual(set(layout),{"armeabi-v7a","arm64-v8a","x86","x86_64"})
         self.assertTrue(all(x["page_aligned_4096"] for x in layout.values()))
+
+
+    def test_emulator_mirror_only_changes_x86_loader_resource(self):
+        arm="assets/lspatch/so/armeabi-v7a/liblspatch.so"
+        x86="assets/lspatch/so/x86/liblspatch.so"
+        contents={
+            arm:b"\x7fELF"+bytes([1])+bytes(13)+struct.pack("<H",40)+bytes(12),
+            x86:b"\x7fELF"+bytes([1])+bytes(13)+struct.pack("<H",3)+bytes(12),
+            "assets/lspatch/so/arm64-v8a/liblspatch.so":
+                 b"\x7fELF"+bytes([2])+bytes(13)+struct.pack("<H",183)+bytes(12),
+            "assets/lspatch/so/x86_64/liblspatch.so":
+                 b"\x7fELF"+bytes([2])+bytes(13)+struct.pack("<H",62)+bytes(12),
+            "classes.dex":b"STUB_UNCHANGED",
+            "assets/lspatch/origin.apk":b"ORIGIN_UNCHANGED"}
+        original=self.root/"mirror-source.apk"
+        with zipfile.ZipFile(original,"w") as z:
+            for name,body in contents.items():
+                info=zipfile.ZipInfo(name)
+                info.compress_type=zipfile.ZIP_STORED
+                z.writestr(info,body)
+        result=self.root/"bridge-mirror.apk"
+        report=mirror_x86_loader_resource_for_arm_bridge(original,result)
+        self.assertEqual(report["mirrored_x86_resource_machine"],40)
+        with zipfile.ZipFile(original) as before, zipfile.ZipFile(result) as after:
+            self.assertEqual(set(before.namelist()),set(after.namelist()))
+            for name in before.namelist():
+                self.assertEqual(after.read(name),
+                                 before.read(arm if name==x86 else name))
+        layouts=verify_native_loader_elf_offsets(result, expected_x86_machine=40)
+        self.assertTrue(all(v["page_aligned_4096"] for v in layouts.values()))
+        with self.assertRaises(ValueError):
+            verify_native_loader_elf_offsets(result)
+        with self.assertRaises(ValueError):
+            mirror_x86_loader_resource_for_arm_bridge(original,result)
 
     def test_never_allow_signature_bypass(self):
         for level in (1,2,3,True,"0"):
