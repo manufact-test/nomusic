@@ -48,6 +48,9 @@ def classify_exit_witness(exit_dump: str, main_log: str) -> dict:
     last_main_run_case_by_pid: dict[int, str] = {}
     first_exit_run_case_by_pid: dict[int, str] = {}
     hi2_exception_categories: set[str] = set()
+    sig_error_seen_by_pid: set[int] = set()
+    signature_before_mode2_by_pid: set[int] = set()
+    full_ordered_chain_main_pids: set[int] = set()
     for line in main_log.splitlines()[-18000:]:
         match = LOG.match(line)
         if not match:
@@ -74,15 +77,24 @@ def classify_exit_witness(exit_dump: str, main_log: str) -> dict:
             untrusted += 1
             continue
         kinds.add(event)
+        number = int(pid)
         if (event == "HI2_EXCEPTION" and origin == "STATIC_COROUTINE"
                 and error.startswith("EXC_")):
             hi2_exception_categories.add(error)
+            if error in ("EXC_SIGNATURE", "EXC_SIGN_AND_AUTH"):
+                sig_error_seen_by_pid.add(number)
         origins.add(origin)
         errors.add(error)
         main_events += thread == "MAIN"
         armed |= event == "ARMED" and origin == "REGISTERED"
-        number = int(pid)
         if thread == "MAIN":
+            if (event == "RUN_ENTER" and error == "CASE_2"
+                    and number in sig_error_seen_by_pid):
+                signature_before_mode2_by_pid.add(number)
+            if (event == "PROCESS_KILL" and error.startswith("KILL_TARGET_")
+                    and number in signature_before_mode2_by_pid
+                    and last_main_prefix_by_pid.get(number) == ("OWN_AUX", "MATCH_TRUE")):
+                full_ordered_chain_main_pids.add(number)
             if event == "RUN_ENTER" and error.startswith("CASE_"):
                 last_main_run_case_by_pid[number] = error
             if (event in ("PROCESS_KILL", "SYSTEM_EXIT")
@@ -108,6 +120,12 @@ def classify_exit_witness(exit_dump: str, main_log: str) -> dict:
         "first_exit_run_mode_main_pid_count_bounded": min(len(first_exit_run_case_by_pid), 10),
         "run_mode_observation_not_replacement": True,
         "hi2_exception_categories": sorted(hi2_exception_categories),
+        "hi2_signature_error_new_main_pids_bounded": min(len(sig_error_seen_by_pid), 10),
+        "hi2_signature_error_precedes_mode2_in_main_pids_bounded":
+            min(len(signature_before_mode2_by_pid), 10),
+        "ordered_signature_mode2_aux_prefix_kill_chain_main_pids_bounded":
+            min(len(full_ordered_chain_main_pids), 10),
+        "ordered_chain_logcat_marker_order_not_proof_of_policy_intent": True,
         "hi2_exception_absence_inconclusive": True,
         "hi2_exception_message_or_token_never_exported": True,
         "prefix_check_observed": "PREFIX_CHECK" in kinds,

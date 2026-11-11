@@ -130,6 +130,29 @@ class WitnessClassifierTests(unittest.TestCase):
         self.assertTrue(x["hi2_exception_message_or_token_never_exported"])
         self.assertNotIn("secret_account_token", str(x))
 
+    def test_signature_mode2_prefix_kill_is_same_pid_and_ordered(self):
+        raw = (entry(1234, "HI2_EXCEPTION", "STATIC_COROUTINE", "EXC_SIGNATURE", "OTHER")
+               + entry(9999, "RUN_ENTER", "STATIC_RUN_B", "CASE_2")
+               + entry(1234, "RUN_ENTER", "STATIC_RUN_B", "CASE_2")
+               + entry(1234, "PREFIX_CHECK", "OWN_AUX", "MATCH_TRUE")
+               + entry(1234, "PROCESS_KILL", "STATIC_RUN_B", "KILL_TARGET_OTHER"))
+        x = classify_exit_witness(EXIT, raw)
+        self.assertEqual(x["hi2_signature_error_new_main_pids_bounded"], 1)
+        self.assertEqual(x["hi2_signature_error_precedes_mode2_in_main_pids_bounded"], 1)
+        self.assertEqual(
+            x["ordered_signature_mode2_aux_prefix_kill_chain_main_pids_bounded"], 1)
+        self.assertTrue(x["ordered_chain_logcat_marker_order_not_proof_of_policy_intent"])
+
+    def test_out_of_order_error_never_counts_as_before_case2(self):
+        raw = (entry(1234, "RUN_ENTER", "STATIC_RUN_B", "CASE_2")
+               + entry(1234, "HI2_EXCEPTION", "STATIC_COROUTINE", "EXC_SIGNATURE", "OTHER")
+               + entry(1234, "PREFIX_CHECK", "OWN_AUX", "MATCH_TRUE")
+               + entry(1234, "PROCESS_KILL", "STATIC_RUN_B", "KILL_TARGET_OTHER"))
+        x = classify_exit_witness(EXIT, raw)
+        self.assertEqual(x["hi2_signature_error_precedes_mode2_in_main_pids_bounded"], 0)
+        self.assertEqual(
+            x["ordered_signature_mode2_aux_prefix_kill_chain_main_pids_bounded"], 0)
+
     def test_background_event_not_claimed_main(self):
         out = classify_exit_witness(EXIT, entry(1234, "UNCAUGHT", thread="OTHER"))
         self.assertEqual(out["main_thread_event_count_bounded"], 0)
