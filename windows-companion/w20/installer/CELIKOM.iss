@@ -5,8 +5,8 @@
 [Setup]
 AppId={{D99FDB90-46BF-4EE5-989E-659A2B6450D6}
 AppName=CELIKOM
-AppVersion=0.24.19
-VersionInfoVersion=0.24.19.0
+AppVersion=0.24.20
+VersionInfoVersion=0.24.20.0
 VersionInfoCompany=CELIKOM
 VersionInfoProductName=CELIKOM
 VersionInfoDescription=CELIKOM Windows Setup
@@ -22,7 +22,7 @@ Compression=lzma2
 SolidCompression=yes
 DisableDirPage=yes
 OutputDir=..\output
-OutputBaseFilename=CELIKOM-W71-SUPPORT-NETWORK-RECOVERY-UNSIGNED
+OutputBaseFilename=CELIKOM-W72-SUPPORT-ANTI-DROP-GUARDS-UNSIGNED
 UninstallDisplayIcon={app}\{#AppExecutable}
 CloseApplications=yes
 RestartApplications=no
