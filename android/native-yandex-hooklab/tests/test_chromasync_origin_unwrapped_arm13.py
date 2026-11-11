@@ -4,8 +4,10 @@ import io
 import zipfile
 from pathlib import Path
 import unittest
+import sys
 
 FILE = Path(__file__).resolve().parents[1] / "ci" / "chromasync_origin_unwrapped_arm13.py"
+sys.path.insert(0, str(FILE.parent))
 spec = importlib.util.spec_from_file_location("chromasync_origin", FILE)
 m = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(m)
