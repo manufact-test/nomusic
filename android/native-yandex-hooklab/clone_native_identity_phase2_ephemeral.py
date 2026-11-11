@@ -641,6 +641,18 @@ def run():
         total_resource_rewrites = 0
         omitted_permission_declarations = 0
         omit_shadowed = os.getenv("CELIKOM_OMIT_SHADOWED_SIGNATURE_DECLS") == "1"
+        # Only actual native ARM Android13 Redroid on disposable ARM64 Linux CI.
+        # Distinct from older x86+ARMv7 translated emulator mode.
+        native_redroid_mode = os.getenv("CELIKOM_CLEAN_ANDROID_NATIVE_REDDROID") == "1"
+        if native_redroid_mode and (
+                os.getenv("GITHUB_ACTIONS") != "true"
+                or os.uname().machine != "aarch64"
+                or os.getenv("CELIKOM_NATIVE_ARM13_REDDROID_CLONE") != "1"
+                or os.getenv("CELIKOM_CLEAN_ANDROID_ARMV7_TRANSLATION") == "1"
+                or os.getenv("CELIKOM_CLEAN_ANDROID_TRANSLATION") == "1"
+                or os.getenv("CELIKOM_CLEAN_ARM_EMULATOR") == "1"
+                or os.getenv("CELIKOM_BRIDGE_X86_RESOURCE_ARMV7") == "1"):
+            raise arsc.TrialError("NATIVE_ARM13_REDDROID_DISPOSABLE_GUARD_VIOLATION")
         # Diagnostic control: keep *all* publisher DEX bytes untouched.
         # This isolates manifest/package rewriting from the known-bad
         # AppMetrica byte substitution that violated DEX string_ids ordering.
@@ -665,7 +677,7 @@ def run():
             raise arsc.TrialError("SORTED_METRICA_REQUIRES_DISPOSABLE_ANDROID_EMULATOR")
         if preserve_original_dex and os.getenv("GITHUB_ACTIONS") != "true":
             raise arsc.TrialError("MANIFEST_ONLY_REQUIRES_EPHEMERAL_GITHUB_CI")
-        if omit_shadowed and os.getenv("CELIKOM_CLEAN_ANDROID_ARMV7_TRANSLATION") != "1":
+        if omit_shadowed and not (native_redroid_mode or os.getenv("CELIKOM_CLEAN_ANDROID_ARMV7_TRANSLATION") == "1"):
             raise arsc.TrialError("SHADOWED_SIGNATURE_TEST_REQUIRES_DISPOSABLE_X86_ARMV7")
         for i, apk in enumerate(apks):
             meta = source.apkmeta(apk)
@@ -852,7 +864,7 @@ def run():
         merged_clone = None
         if os.getenv("CELIKOM_MERGE_PARALLEL_SINGLE_APK") == "1":
             if not (preserve_original_dex and omit_shadowed and
-                    os.getenv("CELIKOM_CLEAN_ANDROID_ARMV7_TRANSLATION") == "1" and
+                    (os.getenv("CELIKOM_CLEAN_ANDROID_ARMV7_TRANSLATION") == "1" or native_redroid_mode) and
                     os.getenv("CELIKOM_ORIGINAL_CONTROL_LAUNCH") == "1" and
                     os.getenv("GITHUB_ACTIONS") == "true"):
                 raise arsc.TrialError("MERGE_REQUIRES_ISOLATED_TRANSLATED_ANDROID_CONTROL")
@@ -869,9 +881,23 @@ def run():
             print(json.dumps({"private_clone_lspatch_loader_zero": loader_report},
                              sort_keys=True))
         if clone_first_ab and (merged_clone is None or
-                os.getenv("CELIKOM_CLEAN_ANDROID_ARMV7_TRANSLATION") != "1" or
+                not (os.getenv("CELIKOM_CLEAN_ANDROID_ARMV7_TRANSLATION") == "1"
+                     or native_redroid_mode) or
                 os.getenv("CELIKOM_ORIGINAL_CONTROL_LAUNCH") != "1"):
             raise arsc.TrialError("CLONE_FIRST_AB_NEEDS_VERIFIED_SINGLE_APK_DISPOSABLE_CONTROL")
+        if native_redroid_mode:
+            if not (preserve_original_dex and omit_shadowed and
+                    clone_first_ab and loader_zero and
+                    merged_clone is not None):
+                raise arsc.TrialError("NATIVE_ARM13_REDDROID_STRICT_CLONE_GATE_REQUIRED")
+            from clone_native_arm13_redroid_gate import test_independent_clone_and_original
+            try:
+                return test_independent_clone_and_original(
+                    merged_clone, apks, new_fingerprint, loader_zero)
+            except ValueError as exc:
+                if __import__("re").fullmatch("[A-Z0-9_]{6,96}", str(exc)):
+                    raise arsc.TrialError(str(exc)) from None
+                raise arsc.TrialError("NATIVE_ARM13_REDDROID_PRIVATE_RUNTIME_FAILURE") from None
         emulator_runtime = {}
         native_arm = os.getenv("CELIKOM_CLEAN_ARM_EMULATOR") == "1"
         translated_x64 = os.getenv("CELIKOM_CLEAN_ANDROID_TRANSLATION") == "1"
