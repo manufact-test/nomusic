@@ -118,9 +118,13 @@ def inspect_dex(data: bytes) -> dict:
     xx0_ctor = {i for i in range(dex.method_count)
                 if dex.method(i)[0] == "Lxx0;" and
                 dex.method(i)[1] == "<init>"}
+    coroutine_ctor = {i for i in range(dex.method_count)
+                      if dex.method(i)[0] == "Lhi2;" and
+                      dex.method(i)[1] == "<init>"}
     bodies = []
     caller_refs = []
     constructor_mode_sites = []
+    coroutine_constructor_callers = []
     own_class_definitions = []
     for index in range(dex.class_count):
         pos = dex.class_offset + index * 32
@@ -158,6 +162,15 @@ def inspect_dex(data: bytes) -> dict:
                     invokes.append(metadata)
             if callee in SCHEDULER_BODIES:
                 relevant_incoming.append(callee)
+            if invoked in coroutine_ctor and len(coroutine_constructor_callers) < 40:
+                source_owner = safe_method_meta(method)
+                if source_owner:
+                    coroutine_constructor_callers.append({
+                        "caller": source_owner,
+                        "constructor_prototype": callee[2],
+                        "caller_is_ymapplication": method[0] ==
+                            "Lru/yandex/music/YMApplication;",
+                    })
             if invoked in xx0_ctor:
                 relevant_incoming.append(("Lxx0;", "<init>", "()NOT_EXACT"))
                 if len(constructor_mode_sites) < 12:
@@ -196,6 +209,7 @@ def inspect_dex(data: bytes) -> dict:
     return {
         "signed_class_info": own_class_definitions,
         "constructor_mode_sites": constructor_mode_sites,
+        "coroutine_constructor_callers": coroutine_constructor_callers,
         "signed_scheduler_bodies": bodies[:12],
         "bounded_incoming_method_refs": caller_refs[:75],
         "method_bodies_scanned_bounded": min(scanned, 500000),
@@ -227,6 +241,8 @@ def summarize(segments: list[dict]) -> dict:
         "own_sched_lookups": len(distinct_scheduler),
         "direct_bodies": bodies[:12],
         "constructor_mode_site_evidence": [x for s in segments for x in s["constructor_mode_sites"]][:12],
+        "passport_coroutine_constructor_callers": [
+            x for s in segments for x in s["coroutine_constructor_callers"]][:40],
         "runnable_class_info": classes,
         "incoming_callers": unique_callers[:60],
         "inbound_ctor_and_scheduler_site_count_bounded": min(len(unique_callers), 100),

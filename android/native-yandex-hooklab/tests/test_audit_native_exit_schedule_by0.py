@@ -52,6 +52,7 @@ class SchedulingSummaryTests(unittest.TestCase):
         item = {
             "signed_scheduler_bodies": bodies, "signed_class_info": [],
             "constructor_mode_sites": [],
+            "coroutine_constructor_callers": [],
             "bounded_incoming_method_refs": [
                 {"invoked": list(next(iter(SCHEDULER_BODIES))),
                  "caller": dict(owner="Lexample;", method="startup", prototype="()V"),
