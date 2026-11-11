@@ -70,6 +70,72 @@ try{
   $calls=0;$bad=$config;$bad['mail_test_sink']=static function()use(&$calls):void{$calls++;throw new RuntimeException('isolated_failure');};$s=new SupportService($pdo,$bad);$u=$user();$key=$uuid();$id=$s->create($u,'Почта недоступна',$key);expect($id>0,'ticket committed');$s->create($u,'Почта недоступна',$key);expect($calls===1,'no auto resend');
   expect($pdo->query('SELECT delivery FROM support_messages WHERE ticket_id='.$id)->fetchColumn()==='unknown','delivery uncertainty explicit');
  });
+ run('Windows diagnostic snapshots accompany general and song cases privately, sanitized and RBAC guarded',function()use($service,$user,$admin,$uuid,$pdo):void{
+  $u=$user();$owner=$admin('owner');$viewer=$admin('viewer');$key=$uuid();
+  $diagnostics=['platform'=>'windows','appVersion'=>'0.24.18','nativeModuleVersion'=>'0.24.18',
+    'yandexVersion'=>'5.126.1.0','integration'=>'ACTIVE','bridgeStarted'=>true,
+    'enabled'=>true,'nativeMatchesApplication'=>true,'lastTrackId'=>'12345',
+    'accessToken'=>'SECRET','password'=>'SECRET','email'=>'leak@example.invalid',
+    'events'=>[
+      ['code'=>'PLAYER_NET_HTTP_FORBIDDEN','ageSeconds'=>27,'resourceId'=>'739209',
+       'url'=>'https://example.invalid?token=SECRET','authorization'=>'SECRET'],
+      ['code'=>'PLAYER_URL_QUERY_CHANGED','ageSeconds'=>8,'resourceId'=>'739209'],
+      ['code'=>'GARBAGE','ageSeconds'=>2,'error'=>'SECRET'],
+      ['code'=>'PLAYER_NET_REQUEST','ageSeconds'=>1000,'token'=>'SECRET'],
+    ]];
+  $id=$service->create($u,'Периодически прерывается звук',$key,null,$diagnostics);
+  expect($service->create($u,'Периодически прерывается звук',$key,null,$diagnostics)===$id,
+    'same request key, same private diagnostic replays without duplicates');
+  expect($service->thread($id,$u)['report']===null,
+    'private general diagnostic absent from customer support thread');
+  $internal=$service->thread($id);
+  expect($internal['kind']==='general'&&count($internal['report']['diagnostics']['events'])===2,
+    'two recent allowlisted events, ordinary reply path maintained');
+  expect(!str_contains(json_encode($internal),'SECRET')&&
+    !str_contains(json_encode($internal),'leak@example.invalid'),
+    'server strips token, URL, arbitrary email and unsupported properties');
+  $html=(new SupportAdminView($pdo))->render(str_repeat('a',64),$id);
+  expect(str_contains($html,'Техническая диагностика Windows')&&
+    str_contains($html,'Скачать диагностику JSON')&&str_contains($html,'PLAYER_NET_HTTP_FORBIDDEN'),
+    'administrator can view general report without contaminating message text');
+  $email=$pdo->prepare('SELECT body FROM support_messages WHERE ticket_id=? ORDER BY id LIMIT 1');
+  $email->execute([$id]);
+  expect($email->fetchColumn()==='Периодически прерывается звук',
+    'only clean customer text persists as mail body');
+  try{$service->create($u,'Периодически прерывается звук',$key,null,
+      array_replace($diagnostics,['enabled'=>false]));throw new RuntimeException('changed_payload_retry');}
+  catch(InvalidArgumentException){}
+  $song=['category'=>'audio_issue','track'=>['id'=>'12345','title'=>'','artist'=>'','album'=>''],
+    'version'=>'0.24.18','diagnostics'=>['enabled'=>true,'bridgeReady'=>true,'windows'=>$diagnostics]];
+  $songId=$service->create($u,'Проблема с песней',$uuid(),$song);
+  $songReport=$service->thread($songId)['report'];
+  expect(($songReport['diagnostics']['windows']['events'][0]['code']??null)==='PLAYER_NET_HTTP_FORBIDDEN',
+    'song report preserves Windows event trace in existing typed song diagnostics');
+  expect(!str_contains(json_encode($songReport),'SECRET'),
+    'song diagnostics independently sanitized server-side');
+  $panel=new AdminPanel($pdo,new LocalStorageAdapter('/tmp/celikom-support-tests'),false,false,[]);
+  $auth=static function(int $adminId)use($pdo):array{
+    $token=bin2hex(random_bytes(32));$csrf=AdminAuth::csrfForToken($token);
+    $pdo->prepare('INSERT INTO admin_sessions(token_hash,admin_id,csrf_hash,expires_at) VALUES (?,?,?,UTC_TIMESTAMP()+INTERVAL 1 HOUR)')
+      ->execute([hash('sha256',$token),$adminId,hash('sha256',$csrf)]);
+    return ['cookie'=>AdminAuth::COOKIE.'='.$token];
+  };
+  $ownerAuth=$auth($owner);$viewerAuth=$auth($viewer);
+  $url='/admin/support/diagnostics';$query=['ticket'=>(string)$id];
+  $download=$panel->handle('GET',$url,$query,$ownerAuth,'');
+  expect($download->status===200&&str_contains($download->body,'PLAYER_NET_HTTP_FORBIDDEN'),
+    'private general diagnostic downloadable by owner');
+  expect(!str_contains($download->body,'SECRET')&&
+    str_contains($download->headers['Content-Disposition']??'','attachment'),
+    'JSON remains secret-free and uses attachment policy');
+  expect($panel->handle('GET',$url,$query,$viewerAuth,'')->status===403,
+    'viewer prohibited from downloading user diagnostics');
+  expect($panel->handle('GET',$url,$query,[],'')->status===303,
+    'anonymous user requires login for diagnostic export');
+  $songFile=$panel->handle('GET',$url,['ticket'=>(string)$songId],$ownerAuth,'');
+  expect($songFile->status===200&&str_contains($songFile->body,'PLAYER_NET_HTTP_FORBIDDEN'),
+    'song diagnostic remains downloadable');
+ });
  run('Song support is separate, sanitized, deduplicated, resolvable without email and cannot close general correspondence',function()use($service,$user,$admin,$uuid,$pdo,&$sent):void{
   $u=$user();$owner=$admin('owner');$viewer=$admin('viewer');$before=count($sent);
   $report=['category'=>'audio_issue','track'=>['id'=>'50163040','artist'=>'SLIMUS','title'=>'<script>song</script>','album'=>'Album','access_token'=>'SECRET'],'version'=>'0.4.41','diagnostics'=>['phase'=>'READY','enabled'=>true,'bridgeHealthy'=>true,'replacementError'=>'api_unavailable','network'=>[['endpoint'=>'config','httpStatus'=>504,'result'=>'api_response_error','elapsedMs'=>10000,'authorization'=>'SECRET']],'token'=>'SECRET','recentLog'=>['SECRET'],'source'=>'https://private.example/SECRET']];
