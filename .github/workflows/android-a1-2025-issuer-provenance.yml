@@ -7,6 +7,8 @@ on:
       - '.github/workflows/android-a1-2025-issuer-provenance.yml'
       - 'android/native-yandex-hooklab/ci/publisher_2025_provenance_gate.py'
       - 'android/native-yandex-hooklab/ci/official_2025_store_metadata_probe.py'
+      - 'android/native-yandex-hooklab/ci/aptoide_2025_documented_metadata_probe.py'
+      - 'android/native-yandex-hooklab/tests/test_aptoide_2025_documented_metadata_probe.py'
       - 'android/native-yandex-hooklab/tests/test_publisher_2025_provenance_gate.py'
       - 'docs/android/ANDROID-A1-2025-ISSUER-CHECK-RETRIGGER-20261111.md'
   workflow_dispatch:
@@ -29,6 +31,13 @@ jobs:
           python3 -m py_compile android/native-yandex-hooklab/ci/official_2025_store_metadata_probe.py
           python3 -m unittest discover -s android/native-yandex-hooklab/tests \
             -p 'test_publisher_2025_provenance_gate.py' -v
+      - name: Public documented Aptoide old-version metadata (third-party, NOT trusted)
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile android/native-yandex-hooklab/ci/aptoide_2025_documented_metadata_probe.py
+          python3 -m unittest discover -s android/native-yandex-hooklab/tests -p 'test_aptoide_2025_documented_metadata_probe.py' -v
+          python3 android/native-yandex-hooklab/ci/aptoide_2025_documented_metadata_probe.py
       - name: Current official RuStore public metadata — no binary, no login
         shell: bash
         run: |
