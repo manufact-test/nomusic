@@ -48,8 +48,12 @@ def adb(args, timeout=75, allow=False):
     else:
         fail("UNSUPPORTED_ORIGINAL_GUEST_ACTION")
     result = subprocess.run(command, capture_output=True, text=True, timeout=timeout)
-    if result.returncode and args[0] == "install-multiple":
-        # Only fixed PackageManager failure codes; no exception text/paths/URLs.
+    if args[0] == "install-multiple":
+        # pm may return zero even when its output is Failure [...]. Never
+        # treat shell exit=0 as confirmed install; only exact Success.
+        if result.returncode == 0 and "Success" in result.stdout:
+            return "Success"
+        # Only fixed PackageManager failure codes, no paths or stack traces.
         private = result.stdout + result.stderr
         match = re.search(r"(INSTALL_(?:FAILED|PARSE_FAILED)_[A-Z0-9_]{2,50})",
                           private)
