@@ -1,0 +1,42 @@
+name: Android A1 ARM native clone tools capability only (no APK)
+on:
+  push:
+    branches:
+      - experiment/android-native-a1-lspatch-clone-loader0-20261111
+    paths:
+      - '.github/workflows/android-native-a1-arm-clone-tools-capability.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  platform-native-tool-readiness:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 5
+    steps:
+      - name: Read-only ARM64 Android SDK and Java build-tool inventory
+        shell: bash
+        run: |
+          set -euo pipefail
+          arm=false
+          java_present=false
+          jdk21=false
+          keytool_present=false
+          aapt_present=false
+          zipalign_present=false
+          signer_present=false
+          android_home_present=false
+          platform_tools_present=false
+          adb_present=false
+          if [ "$(uname -m)" = "aarch64" ]; then arm=true; fi
+          if command -v java >/dev/null 2>&1; then java_present=true; fi
+          if command -v java >/dev/null 2>&1 && java -version 2>&1 | grep -q '"21'; then jdk21=true; fi
+          if command -v keytool >/dev/null 2>&1; then keytool_present=true; fi
+          if command -v adb >/dev/null 2>&1; then adb_present=true; fi
+          if [ -n "$ANDROID_HOME" ] && [ -d "$ANDROID_HOME" ]; then android_home_present=true; fi
+          if [ -n "$ANDROID_HOME" ] && [ -d "$ANDROID_HOME/platform-tools" ]; then platform_tools_present=true; fi
+          if [ -n "$ANDROID_HOME" ]; then
+            find "$ANDROID_HOME/build-tools" -maxdepth 2 -type f -name aapt -print -quit 2>/dev/null | grep -q . && aapt_present=true || true
+            find "$ANDROID_HOME/build-tools" -maxdepth 2 -type f -name zipalign -print -quit 2>/dev/null | grep -q . && zipalign_present=true || true
+            find "$ANDROID_HOME/build-tools" -maxdepth 2 -type f -name apksigner -print -quit 2>/dev/null | grep -q . && signer_present=true || true
+          fi
+          echo "{\"result\":\"NATIVE_ARM_CLONE_BUILD_TOOL_READONLY_CAPABILITY\",\"arm_runner\":$arm,\"java\":$java_present,\"java21\":$jdk21,\"keytool\":$keytool_present,\"aapt\":$aapt_present,\"zipalign\":$zipalign_present,\"apksigner\":$signer_present,\"android_sdk_home\":$android_home_present,\"android_platform_tools\":$platform_tools_present,\"adb_binary\":$adb_present,\"apk_downloaded\":false,\"owner_phone_touched\":false}"
