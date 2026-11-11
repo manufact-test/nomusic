@@ -1,3 +1,17 @@
+# FIRST READ — W73 TASK HANDOFF (2026-11-11): Windows ordinary support EMAIL not confirmed
+
+**Owner's latest real-world feedback:** Windows 0.24.20 **song-problem diagnostics arrive correctly**, but in an **ordinary support message the expected email does not arrive**. The owner asked for a **precise TZ and transfer to the NEXT CHAT**, not for speculative quick patches in this one. **This is an OPEN defect, NOT fixed.** No Windows code/installer/server changed for W73 yet.
+
+**MAIN CURRENT TZ:** `docs/windows/W73-TZ-WINDOWS-GENERAL-SUPPORT-EMAIL-AND-DIAGNOSTICS-PARITY-20261111.md`. Read it in full FIRST. Then `docs/support/SUPPORT-DIAGNOSTICS-CONTRACT-20261111.md` and `docs/decisions/DESKTOP-SUPPORT-ATTACHMENTS-20261111.md` from extension/server implementation.
+
+**Critical verified distinction:** Browser 0.4.76 general POST uses `support_diagnostics`; Windows 0.24.20 general POST uses `diagnostics:{platform:"windows"}` — active PHP `Application.php` explicitly accepts BOTH. Its `SupportService` schedules an initial **general** email to `mail_from`/support mailbox; after an **admin reply**, user email receives the response. There is **NO automatic end-user email receipt** on creation in the existing browser contract; **song does not require mail**. UI `Сообщение отправлено` means API returned successfully, **not SMTP delivered**. Server records `support_messages.delivery = pending/sending/sent/unknown`; live SMTP wasn't tested by prior extension CI, because production QA disabled sending. Check actual live current release/database ticket and status, authorized SMTP pipeline and inboxes before changing any code. Do not assume the problem is Windows versus SMTP; do not leak account/SMTP credentials in logs.
+
+**Current known good Windows source:** exact compiled SHA `66ffb6348f821416adabb9de4ce110adef1d5b7b`; `backup/windows-w72-02420-extension-anti-drop-and-support-ci-green-20261111`. Branch `experiment/windows-w72-extension-anti-drop-guards-20261111` includes this handoff docs. CI Windows/server https://github.com/manufact-test/nomusic/actions/runs/42998876460 ; Windows 0.24.17→0.24.20 upgrade CI https://github.com/manufact-test/nomusic/actions/runs/42999441879 . Preserve working installed W72 and owner-accepted W69. Browser/server source: `feature/desktop-support-attachments-20261111` and `feature/server-general-support-attachments-20261111`. Last documented active live release: `browser-support-076-b807cd691074` — verify current anew. **Never upload old Windows-branch PHP over live browser team's server.**
+
+**Acceptance:** one ordinary Windows ticket, private owner-only JSON in admin, one working inbound general email to support mailbox, one real admin reply email to user (NOT automatic customer acknowledgment), stable UUID retry/no duplicate, song report unchanged, safe and transparent delivery failure. Return to owner only with verified root cause, solution, exact backup, and real proof; if only SMTP/server is faulty, DO NOT release a meaningless new Windows EXE.
+
+---
+
 # FIRST READ — W72 0.24.20 Windows support diagnostics + extension-derived anti-drop safeguards (2026-11-11)
 
 **Full authoritative handoff:** `docs/windows/W72-EXTENSION-ANTI-DROP-GUARDS-02420-20261111.md`.
