@@ -411,7 +411,7 @@ public sealed partial class MainWindow : Form
             LayoutCompact();
             var access = await StartupActivationRecovery.ActivateAsync(
                 ct => _api.ActivatePlaybackAsync(ct), StillSameStart,
-                DiagnosticLog.Record);
+                code => DiagnosticLog.Record(code));
             if (!StillSameStart()) return;
             ++_compactAccessGeneration; // invalidate an older read-only preview
             _compactAccess.Text = AccessLabel(access);
