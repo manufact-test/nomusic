@@ -25,6 +25,24 @@ try {
     echo 'W73_SMTP_TRANSPORT='.((($config['mail_transport']??'')==='smtp')?'SMTP':'OTHER')."\n";
     echo 'W73_SMTP_SUPPORT_ADDRESS_VALID='.(filter_var($config['mail_from']??'',FILTER_VALIDATE_EMAIL)?'YES':'NO')."\n";
     echo 'W73_SMTP_PORT_ALLOWED='.(in_array((int)($config['mail_port']??0),[465,587],true)?'YES':'NO')."\n";
+    $mailHost=strtolower((string)($config['mail_host']??''));
+    $mailDomain=strtolower((string)substr(strrchr((string)($config['mail_from']??''),'@')?:'','1'));
+    $classify=static function(string $host):string {
+        foreach (['hostinger','titan','gmail','google','yandex','mail.ru','zoho',
+                  'office365','outlook','brevo','sendgrid','mailgun','postmark',
+                  'smtp2go','amazonses'] as $tag) {
+            if (str_contains($host,$tag)) return strtoupper(str_replace('.','_',$tag));
+        }
+        return 'OTHER';
+    };
+    echo 'W73_SMTP_PROVIDER_CLASS='.$classify($mailHost)."\\n";
+    $mx=[];$mxWeights=[];
+    $hasMx=$mailDomain!=='' && getmxrr($mailDomain,$mx,$mxWeights);
+    echo 'W73_SUPPORT_DOMAIN_MX_PRESENT='.($hasMx?'YES':'NO')."\\n";
+    if ($hasMx) {
+        $mxClasses=array_unique(array_map($classify,$mx));
+        echo 'W73_SUPPORT_DOMAIN_MX_CLASS='.implode('_',$mxClasses)."\\n";
+    }
     $pdo=\Celikom\Database\Connection::open($config);
     $query="SELECT t.kind, IF(m.admin_id IS NULL,'notification','admin_reply') AS direction,
                    m.delivery,m.mail_required,COUNT(*) AS count
