@@ -54,7 +54,7 @@ export function validateGrant(raw, track, origin, nowMs, safetyMs = 30_000, dura
   if (!raw || !track || raw.trackId !== track.trackId ||
       raw.approved !== true || raw.entitled !== true ||
       !Number.isSafeInteger(raw.version) || raw.version < 1 ||
-      (track.replacementVersion !== null && raw.version !== track.replacementVersion) ||
+      (track.replacementVersion != null && raw.version !== track.replacementVersion) ||
       !Number.isSafeInteger(raw.durationMs) ||
       Math.abs(raw.durationMs - track.durationMs) > durationToleranceMs ||
       !MIME.has(raw.mimeType) || typeof raw.audioUrl !== "string" ||
