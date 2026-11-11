@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import contextlib
 import io
+import os
 import json
 import re
 import shutil
@@ -120,7 +121,7 @@ def browser_download(directory: Path) -> tuple[Path | None, dict]:
         "source_is_issuer_authorized": False,
     }
     with sync_playwright() as api:
-        browser=api.chromium.launch(channel="chrome",headless=True,
+        browser=api.chromium.launch(channel="chrome",headless=os.getenv("CELIKOM_PUBLIC_HEADFUL") != "1",
                                     args=["--no-sandbox","--disable-dev-shm-usage"])
         context=browser.new_context(locale="ru-RU", accept_downloads=True)
         try:
