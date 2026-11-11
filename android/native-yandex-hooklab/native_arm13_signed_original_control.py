@@ -25,63 +25,107 @@ def fail(stage):
     raise ValueError(stage)
 
 
+CONTAINER = "celikom-native-arm-android13"
+
+
+def pm_category(output):
+    """Fixed Android package error category, never raw text or paths."""
+    hit = re.search(r"(INSTALL_(?:FAILED|PARSE_FAILED)_[A-Z0-9_]{2,50})", output)
+    if hit:
+        return hit.group(1)
+    for needle, category in (
+        ("unknown option", "UNKNOWN_OPTION"),
+        ("unknown command", "UNKNOWN_COMMAND"),
+        ("permission denied", "PERMISSION_DENIED"),
+        ("can't open", "GUEST_CANNOT_OPEN"),
+        ("no such file", "GUEST_FILE_NOT_FOUND"),
+        ("failed to stat", "GUEST_STAT_FAILED"),
+        ("insufficient", "LOW_SPACE"),
+        ("exception occurred", "JAVA_EXCEPTION"),
+        ("failure", "GENERIC_FAILURE"),
+        ("error", "GENERIC_ERROR"),
+    ):
+        if needle in output.lower():
+            return category
+    return "EMPTY_OUTPUT" if not output.strip() else "UNCLASSIFIED_OUTPUT"
+
+
+def private_process(args, timeout=75):
+    """Capture errors privately, without printing proprietary resources."""
+    return subprocess.run(args, capture_output=True, text=True, timeout=timeout)
+
+
+def pm_session_install(apks: list[str]) -> str:
+    """Native AOSP install-create/write/commit for 5 signed split APKs.
+
+    install-multiple belongs to the ADB *host*, not to Android shell 'pm'.
+    Never spoof signatures or bypass PackageManager enforcement.
+    """
+    if len(apks) != 5:
+        fail("ORIGINAL_PM_SESSION_MUST_HAVE_FIVE_APKS")
+    uploads = []
+    base_count = 0
+    split_names = set()
+    for i, item in enumerate(apks):
+        path = Path(item)
+        if not path.is_file() or path.suffix != ".apk":
+            fail("ORIGINAL_SESSION_SPLIT_MISSING")
+        meta = y.apkmeta(path)
+        if meta.get("name") != PACKAGE or meta.get("versionCode") != "24026531":
+            fail("ORIGINAL_SESSION_VENDOR_IDENTITY_CHANGED")
+        name = meta.get("split", "") or "base"
+        if name == "base":
+            base_count += 1
+        if name in split_names:
+            fail("ORIGINAL_SESSION_DUPLICATE_SPLIT_NAME")
+        split_names.add(name)
+        guest = "/data/local/tmp/own-pinned-publisher-" + str(i) + ".apk"
+        copy = private_process(["docker", "cp", str(path), CONTAINER + ":" + guest],
+                               timeout=90)
+        if copy.returncode:
+            fail("ORIGINAL_GUEST_SPLIT_COPY_FAILED")
+        uploads.append((name, guest, path.stat().st_size))
+    if base_count != 1:
+        fail("ORIGINAL_SESSION_NOT_ONE_BASE")
+    total = sum(size for _, _, size in uploads)
+    created = private_process(["docker", "exec", CONTAINER, "pm", "install-create",
+                               "--user", "0", "-S", str(total)], timeout=90)
+    created_raw = created.stdout + created.stderr
+    match = re.search(r"Success:.*\[([0-9]{1,12})\]", created.stdout)
+    if created.returncode or not match:
+        return "PRIVATE_PM_SESSION_CREATE_" + pm_category(created_raw)
+    session = match.group(1)
+    committed = False
+    try:
+        for name, guest, size in uploads:
+            write = private_process(["docker", "exec", CONTAINER, "pm", "install-write",
+                                     "-S", str(size), session, name, guest],
+                                    timeout=90)
+            if write.returncode or not write.stdout.strip().startswith("Success"):
+                return "PRIVATE_PM_SESSION_WRITE_" + pm_category(write.stdout + write.stderr)
+        commit = private_process(["docker", "exec", CONTAINER, "pm",
+                                  "install-commit", session], timeout=180)
+        if commit.returncode or not commit.stdout.strip().startswith("Success"):
+            return "PRIVATE_PM_SESSION_COMMIT_" + pm_category(commit.stdout + commit.stderr)
+        committed = True
+        return "Success"
+    finally:
+        if not committed:
+            # Only abandon our own session; never touch installed apps.
+            private_process(["docker", "exec", CONTAINER,
+                             "pm", "install-abandon", session], timeout=40)
+
+
 def adb(args, timeout=75, allow=False):
-    """Execute ONLY in pinned disposable container; never talk to an ADB device."""
-    if args[0] == "shell":
-        command = ["docker", "exec", "celikom-native-arm-android13", *args[1:]]
-    elif args[0] == "install-multiple":
-        guest = []
-        for index, path in enumerate(args[1:]):
-            pathname = Path(path)
-            if not pathname.is_file() or pathname.suffix != ".apk" or index >= 5:
-                fail("ORIGINAL_UNVERIFIED_LOCAL_SPLIT_FILE")
-            guest_path = "/data/local/tmp/celikom-signed-original-" + str(index) + ".apk"
-            copied = subprocess.run(
-                ["docker", "cp", str(pathname),
-                 "celikom-native-arm-android13:" + guest_path],
-                capture_output=True, text=True, timeout=90)
-            if copied.returncode:
-                fail("ORIGINAL_PRIVATE_GUEST_COPY_FAILED")
-            guest.append(guest_path)
-        command = ["docker", "exec", "celikom-native-arm-android13",
-                   "pm", "install-multiple", "--user", "0", *guest]
-    else:
-        fail("UNSUPPORTED_ORIGINAL_GUEST_ACTION")
-    result = subprocess.run(command, capture_output=True, text=True, timeout=timeout)
+    """Shell inside pinned OWN CI Android only; no physical ADB device."""
     if args[0] == "install-multiple":
-        # pm may return zero even when its output is Failure [...]. Never
-        # treat shell exit=0 as confirmed install; only exact Success.
-        if result.returncode == 0 and "Success" in result.stdout:
-            return "Success"
-        # Only fixed PackageManager failure codes, no paths or stack traces.
-        private = result.stdout + result.stderr
-        match = re.search(r"(INSTALL_(?:FAILED|PARSE_FAILED)_[A-Z0-9_]{2,50})",
-                          private)
-        if match:
-            return "PRIVATE_PM_" + match.group(1)
-        clues = (
-            ("unknown option", "UNSUPPORTED_OPTION"),
-            ("unknown command", "COMMAND_UNAVAILABLE"),
-            ("permission denied", "PERMISSION_DENIED"),
-            ("can't open", "CANNOT_OPEN_GUEST_FILE"),
-            ("cannot open", "CANNOT_OPEN_GUEST_FILE"),
-            ("no such file", "GUEST_FILE_NOT_FOUND"),
-            ("file not found", "GUEST_FILE_NOT_FOUND"),
-            ("failed to stat", "GUEST_FILE_STAT_FAILED"),
-            ("failed to parse", "PACKAGE_PARSE_FAILED"),
-            ("insufficient", "INSUFFICIENT_SPACE"),
-            ("java.lang.", "JAVA_EXCEPTION"),
-            ("exception occurred", "JAVA_EXCEPTION"),
-            ("failure", "GENERIC_INSTALL_FAILURE"),
-            ("error", "GENERIC_TOOL_ERROR"),
-        )
-        for text, category in clues:
-            if text in private.lower():
-                return "PRIVATE_PM_" + category
-        return "PRIVATE_PM_EMPTY_OUTPUT" if not private.strip() else "PRIVATE_PM_UNCLASSIFIED_OUTPUT"
-    if result.returncode and not allow:
+        return pm_session_install(args[1:])
+    if args[0] != "shell":
+        fail("UNSUPPORTED_ORIGINAL_GUEST_ACTION")
+    p = private_process(["docker", "exec", CONTAINER, *args[1:]], timeout=timeout)
+    if p.returncode and not allow:
         fail("ORIGINAL_PRIVATE_GUEST_COMMAND_FAILED")
-    return result.stdout if result.returncode == 0 else ""
+    return p.stdout if p.returncode == 0 else ""
 
 
 def check_guest_container():
