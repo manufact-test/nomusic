@@ -96,6 +96,7 @@ public sealed partial class MainWindow
     private bool _compactAccessBusy;
     private DateTimeOffset _compactAccessChecked;
     private bool _compactSupportBusy;
+    private object? _compactSupportDiagnostics; // cached for idempotent retries
     private bool _compactPromoBusy;
     private bool _compactContributionBusy;
     private AudioPreflight.Result? _compactAudioPreflight;
