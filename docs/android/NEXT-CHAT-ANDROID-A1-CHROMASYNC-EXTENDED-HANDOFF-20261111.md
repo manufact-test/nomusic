@@ -1,5 +1,8 @@
 # FIRST MESSAGE FOR NEXT LEAD — CELIKOM Android A1 (handoff 11.11.2026)
 
+
+> **NEW research continuation (after this 75s handoff):** [2025 publisher-signed provenance gate](ANDROID-A1-2025-ISSUER-SIGNED-PROVENANCE-GATE-20261111.md), isolated research branch experiment/android-a1-2025-issuer-provenance-gate-20261111, pre-work backup backup/android-a1-pre-2025-issuer-control-20261111 @ 779780d6113a6c24f110d8f53ad2dbbc4e72d313. GitHub Actions [#43083139558](https://github.com/manufact-test/nomusic/actions/runs/43083139558) passed 14/14 **synthetic** publisher-identity/provenance checks and read live official RuStore metadata for **2026.10.3 #170rur**, not the sought **2025.10.4 #120.1rur**. The old publisher-signed APK was NOT acquired; **no** 2025 native runtime test happened. The independent CELIKOM 2026 EXIT_SELF(0) is NOT fixed. Stage A still **NO-GO**, no user install, no bypass. The historical 4PDA #29718 reported 59,498,960 bytes and MD5 710b04ac0cc784f2576710343d4c37c1, but neither establishes publisher signing without cryptographic verification.
+
 > This is the **current** handoff (not the older early-November no-APK/no-ARM preflight). The full original owner-supplied ChromaSync has now passed genuine native ARM Android13 16s AND 75s lifecycle tests; the nested origin-only 2025 host **does not**. Product CELIKOM is still blocked.
 
 ## Assignment and nonnegotiable product requirements
