@@ -1,3 +1,5 @@
+> **ФИНАЛЬНЫЙ РЕЗУЛЬТАТ НА ТОЧНОМ ДЕЙСТВУЮЩЕМ PHP:** [GitHub Actions 43006529881](https://github.com/manufact-test/nomusic/actions/runs/43006529881) — **SUCCESS**. Через SSH read-only скопированы исключительно 8 актуальных PHP-файлов `browser-support-076-b807cd691074` во временный CI runner, сверены хеши Application, SupportService, SupportAdminView и SmtpMailer. В `celikom_test` на этом точном серверном коде прошла цепочка Windows `general+diagnostics` → приватный JSON и тикет в админке → настоящий `/admin/support/reply` → Gmail SMTP → **реальный Inbox пользовательского alias**. Отдельно Inbox уведомления поддержки, идемпотентность и song без обязательной почты. Production backend/DB не менялись, клиент не пересобирался. Этот запуск окончательно заменяет менее строгие предыдущие проверки на старом PHP snapshot.
+
 # W73 — финальная сквозная проверка Windows support → админка → email (11.11.2026)
 
 ## Итог: ПОДТВЕРЖДЕНО
