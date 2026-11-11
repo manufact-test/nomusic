@@ -34,6 +34,11 @@ public static class EntitlementCheckRecovery
         _ => "ACTIVE_ENTITLEMENT_UNKNOWN_FAILURE"
     };
 
+    // 5 seconds only while suspended for network recovery (same as extension
+    // access retry cadence); ordinary authorized playback stays at 15 seconds.
+    public static int PollIntervalMs(bool suspendedForNetwork) =>
+        suspendedForNetwork ? 5_000 : 15_000;
+
     public static bool MayResume(bool pendingRecovery, bool loggedIn,
         bool nativeModuleActive, bool nativeModuleMatchesApplication,
         JsonElement freshEntitlement, DateTimeOffset now) =>
