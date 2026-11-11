@@ -27,3 +27,21 @@ Verified initial source and exact backup: 76cc47d086d1404eef95dd6bf199d6bce84f83
 backup/android-a1-before-platform-permission-differential-20261111.
 
 No writes to Test.50, Windows W61, extension, server, production, owner phone, original Yandex, Play Protect, auth/DRM; no contact with Yandex. Helper B works solely on its audio contract branch; only A may merge a reviewed PR.
+
+
+## Actual ARM13 execution: measured outcome (CI 43016902789)
+
+Source SHA f8752077bf7f82fb215b9a1491c28a8c1e0726f6; native ARM13 Redroid disposable guest. Structural unit suites: 20+7+8 NEW+17+6+4 = 62 tests PASS, syntax PASS, true ARM guest boot PASS. Product CI overall FAILURE by deliberate strict clone MAIN gate: all three clone layouts still exact MAIN EXIT_SELF(0), original publisher-signed MAIN alive. No playable Yandex clone or owner APK.
+
+PackageManager observations (unmodified original and independently signed clone):
+- Every layout requests 34 permissions: Android 25, Yandex 3, Google 3, other 3. Clone before original installation: 16 granted Android install rights, zero granted Yandex; focus READ_CREDENTIALS is requested but NOT_LISTED in install grants.
+- After installing the signed original: original 16 Android plus TWO Yandex install grants. Independently signed LSPatch-zero clone has the same 16 Android grants and TWO Yandex explicit denied grants, one the public focus READ_CREDENTIALS. The 34 shared requested names are identical.
+- Newly scoped public OS system log shows ZERO exact-package permission/component/AppOps/security denial categories for five-split, merged direct, LSPatch-zero clone and surviving original. Zero markers does not establish absence of all denials.
+
+**CRITICAL causal limitation:** all three clones EXIT_SELF(0) *before original installation* in this A/B run, when their two Yandex permissions are not listed rather than explicitly denied. The subsequent permission mismatch is real OS behavior but is NOT demonstrated to trigger self-exit. Historical signed-manifest static audit ALREADY showed both original custom permission declarations are signature protected and READ_CREDENTIALS does not occur as a literal in six DEX:
+docs/android/ANDROID-NATIVE-SIGNATURE-PERMISSION-INSTALL-ONLY-2026-11-09.md.
+Do not duplicate this experiment or use it to justify grant spoofing / weakening / app identity bypass.
+
+Next valid path is a genuinely new independently grounded, authorized native integration witness. AOSP visibility cannot force a separately signed app to hold issuer-signature permissions. If no authorized embedding contract exists and the owner forbids publisher contact / architectural change, this is an unresolved external technical and rights dependency, not a fixable CI quality gate.
+
+Privacy: only bounded summary JSON emitted, no raw logcat/dumpsys, PIDs, token, account or publisher binary artifacts. Original device, Play Protect, Test.50, Windows and production untouched.
