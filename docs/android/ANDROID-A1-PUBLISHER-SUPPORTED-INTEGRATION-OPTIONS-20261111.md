@@ -1,4 +1,4 @@
-# CELIKOM Android A1 — official native integration/rights research — 11 November 2026
+> **11.11.2026 independent verification/decision record:** [native UI publisher rights decision gate](ANDROID-A1-PUBLISHER-RIGHTS-NATIVE-UI-DECISION-GATE-20261111.md) compares an authorized native SDK against public Android MediaSession, external Activity and unsuitable alternatives, with exact evidence and written technical acceptance questions. No outreach has been sent. Current Stage A remains NO-GO; this page's message is still a DRAFT requiring explicit owner consent.\n\n# CELIKOM Android A1 — official native integration/rights research — 11 November 2026
 
 This is a factual publisher integration investigation, NOT legal advice and NOT a change to the approved CELIKOM product scope.
 
