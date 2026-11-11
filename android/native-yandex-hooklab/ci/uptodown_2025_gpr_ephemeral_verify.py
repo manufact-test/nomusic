@@ -140,45 +140,67 @@ def browser_download(directory: Path) -> tuple[Path | None, dict]:
                 VERSION_RE.search(text) or parsed.path == "/android/dw/1120247189")
             # A download may fire automatically when the old-version page opens.
             if not captured:
-                # Minimal DOM controls inventory for a PUBLIC storefront; never
-                # reveal markup, full links, query tokens or page content.
+                # Uptodown's PUBLIC download page offers a visible
+                # "All variants" button for XAPK/APK. Prefer this normal UI
+                # instead of the app-store installer download link.
+                variants=page.locator("button").filter(
+                    has_text=re.compile(r"варианты|variants",re.I))
+                diagnostics["variants_button_count"] = variants.count()
+                if variants.count():
+                    try:
+                        variants.last.click(timeout=5000)
+                        page.wait_for_timeout(1900)
+                        diagnostics["variants_button_clicked"]=True
+                    except Exception:
+                        diagnostics["variants_button_clicked"]=False
                 buttons=[]
                 for el in page.locator("a,button,[role='button']").all()[:350]:
                     try:
-                        text = el.inner_text(timeout=900).strip()
-                        if not DOWNLOAD_RE.search(text) and not re.search(r"варианты|variants",text,re.I):
+                        label=el.inner_text(timeout=900).strip()
+                        if len(label)>110 or not re.search(
+                            r"Download|Скачать|Загрузить|variants|варианты|XAPK|APK",label,re.I):
                             continue
-                        if len(text) > 100: continue
                         href=el.get_attribute("href") or ""
                         dest=urlsplit(href)
                         buttons.append({
                             "element":el.evaluate("(e)=>e.tagName.toLowerCase()"),
                             "visible":el.is_visible(),
-                            "label_group":"variants" if re.search(r"варианты|variants",text,re.I) else "download",
+                            "label_group":"variants" if re.search(r"варианты|variants",label,re.I)
+                               else "download" if DOWNLOAD_RE.search(label) else
+                               "archive" if "XAPK" in label.upper() else "apk",
                             "href_path_kind":"download" if "download" in dest.path else
-                                "dw" if "/dw/" in dest.path else "other" if href else "none",
+                               "dw" if "/dw/" in dest.path else
+                               "other" if href else "none",
                             "href_host_group":"uptodown" if "uptodown.com" in (dest.hostname or "") else
-                                "relative" if not dest.hostname else "external",
+                               "relative" if not dest.hostname else "external",
                             "has_download_attribute":el.get_attribute("download") is not None,
                         })
                     except Exception:
                         continue
-                diagnostics["public_download_controls"] = buttons[:12]
-                matches=page.get_by_text(DOWNLOAD_RE)
-                diagnostics["download_button_visible"] = bool(matches.count())
-                for i in range(min(12,matches.count())):
-                    item=matches.nth(i)
+                diagnostics["public_download_controls_after_variants"]=buttons[:14]
+                # Observe public variant selection; no private API calls.
+                maybe=page.locator("a,button").filter(has_text=re.compile(
+                    r"^(?:APK|XAPK|Download APK|Скачать APK|Скачать XAPK)$", re.I))
+                diagnostics["direct_public_apk_variant_count"]=maybe.count()
+                if maybe.count():
                     try:
-                        if not item.is_visible():
-                            continue
-                        # Prefer the last/primary visible CTA, never open account/login.
-                        item.click(timeout=4000)
-                        page.wait_for_timeout(2200)
-                        diagnostics["post_click_same_version_page"] = (
-                            urlsplit(page.url).path == "/android/dw/1120247189")
-                        if captured: break
-                    except (BrowserTimeout, Exception):
-                        continue
+                        maybe.last.click(timeout=5000)
+                        page.wait_for_timeout(1400)
+                    except Exception:
+                        pass
+                if not captured:
+                    # Primary download is next to variants; restrict to BUTTON,
+                    # avoid older pages' unrelated download/navigation anchors.
+                    primary=page.locator("button").filter(has_text=DOWNLOAD_RE)
+                    diagnostics["download_button_visible"]=bool(primary.count())
+                    if primary.count():
+                        try:
+                            primary.last.click(timeout=6000)
+                            page.wait_for_timeout(3500)
+                        except Exception:
+                            pass
+                diagnostics["post_click_same_version_page"]= (
+                    urlsplit(page.url).path == "/android/dw/1120247189")
             # Do not sleep indefinitely or follow restricted destinations.
             for _ in range(10):
                 if captured: break
