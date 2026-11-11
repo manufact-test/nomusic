@@ -1,3 +1,16 @@
+# FIRST READ — W74 0.24.21 START-RACE / TRANSIENT REQUEST PATCH, CI SUCCESS (11.11.2026)
+
+**Owner's latest bug:** 0.24.20 first click «Старт» showed false modal «Установленная версия Яндекс.Музыки пока не поддерживается», second click generic «Не удалось проверить доступ на сервере», third click correctly prompted open Yandex and worked. W74 addresses exactly these, preserving music/entitlement/native code.
+
+**W74 branch:** `experiment/windows-w74-start-preflight-retry-20261111`.
+**Full report:** `docs/windows/W74-START-PREFLIGHT-RETRY-02421-20261111.md`.
+**Authoritative CI:** [43085966611](https://github.com/manufact-test/nomusic/actions/runs/43085966611) SUCCESS — .NET 10 win-x64 warnings-as-errors, 147 W15 contracts incl HostPreflight/one retry/no retry on 401/403/429/cancel, 16 native image contracts, complete Inno Setup and verified existing-owner W72 0.24.20 → W74 0.24.21 in-place upgrade. Old W72 setup SHA pinned; DPAPI saved sign-in preserved and decryptable, installed native host.cjs/renderer.js identical SHA, same AppId/no duplicate uninstaller; Yandex folder untouched. Unsigned installer SHA256 `2AB54A9B51D7C2E908EE4DBE537FDD4E58840907D1D6A1D5F2AE07FD4AB1CCA2`.
+**Artifact:** Actions run 43085966611 → Artifacts → `CELIKOM-W74-START-PREFLIGHT-RETRY-UNSIGNED` → `CELIKOM-W74-START-PREFLIGHT-RETRY-UNSIGNED.exe`. Requires a **single in-place update** from installed 0.24.20, never uninstall, never repatch Yandex just for this GUI fix. No server/php/admin/Android/extension/native audio changes, no fake success on network failure.
+**Safety rollback:** W74 pre-work branch `backup/windows-w74-pre-start-guards-02420-20261111`; original W72 accepted 0.24.20 code `66ffb6348f821416adabb9de4ce110adef1d5b7b`; original W72 installer Actions 42998876460. W74 final exact backup recorded by branch `backup/windows-w74-02421-start-race-retry-ci-pass-20261111`.
+**Next action:** owner installs W74 build on own PC and presses Start **once**. This physical result remains **not yet verified**. If failure remains, get hidden support diagnostic; don't change music playback, native scripts, or active Hostinger release speculatively. Only change confirmed problem.
+
+---
+
 > **ФИНАЛЬНЫЙ РЕЗУЛЬТАТ НА ТОЧНОМ ДЕЙСТВУЮЩЕМ PHP:** [GitHub Actions 43006529881](https://github.com/manufact-test/nomusic/actions/runs/43006529881) — **SUCCESS**. Через SSH read-only скопированы исключительно 8 актуальных PHP-файлов `browser-support-076-b807cd691074` во временный CI runner, сверены хеши Application, SupportService, SupportAdminView и SmtpMailer. В `celikom_test` на этом точном серверном коде прошла цепочка Windows `general+diagnostics` → приватный JSON и тикет в админке → настоящий `/admin/support/reply` → Gmail SMTP → **реальный Inbox пользовательского alias**. Отдельно Inbox уведомления поддержки, идемпотентность и song без обязательной почты. Production backend/DB не менялись, клиент не пересобирался. Этот запуск окончательно заменяет менее строгие предыдущие проверки на старом PHP snapshot.
 
 # FIRST READ — W73 FINAL E2E CONFIRMED (2026-11-11)
