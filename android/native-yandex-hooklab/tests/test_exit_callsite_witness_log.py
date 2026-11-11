@@ -103,6 +103,24 @@ class WitnessClassifierTests(unittest.TestCase):
         self.assertEqual(x["first_kill_target_observed_main_pids_bounded"], 1)
         self.assertTrue(x["kill_target_main_pid_only_no_raw_target_pid"])
 
+    def test_exact_main_runnable_variant_before_own_exit(self):
+        raw = (entry(1234, "RUN_HOOK", "REGISTERED", "NONE")
+               + entry(1234, "RUN_CTOR", "STATIC_RUN_B", "CASE_2")
+               + entry(1234, "RUN_ENTER", "STATIC_RUN_B", "CASE_2")
+               + entry(1234, "PREFIX_CHECK", "OWN_AUX", "MATCH_TRUE")
+               + entry(1234, "PROCESS_KILL", "STATIC_RUN_B", "KILL_TARGET_OTHER")
+               + entry(1234, "RUN_ENTER", "STATIC_RUN_B", "CASE_5"))
+        x = classify_exit_witness(EXIT, raw)
+        self.assertEqual(x["first_exit_run_mode_groups"], ["CASE_2"])
+        self.assertEqual(x["first_exit_run_mode_main_pid_count_bounded"], 1)
+        self.assertTrue(x["run_mode_entered"])
+
+    def test_wrong_thread_runnable_not_joined(self):
+        raw = (entry(1234, "RUN_ENTER", "STATIC_RUN_B", "CASE_0", "OTHER")
+               + entry(1234, "PROCESS_KILL", "STATIC_RUN_B", "KILL_TARGET_OTHER"))
+        x = classify_exit_witness(EXIT, raw)
+        self.assertEqual(x["first_exit_run_mode_groups"], [])
+
     def test_background_event_not_claimed_main(self):
         out = classify_exit_witness(EXIT, entry(1234, "UNCAUGHT", thread="OTHER"))
         self.assertEqual(out["main_thread_event_count_bounded"], 0)

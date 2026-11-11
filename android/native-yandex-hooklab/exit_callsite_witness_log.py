@@ -5,7 +5,8 @@ from clone_main_crash_buffer import LOG, main_exit_pids
 
 TAG = "CELIKOM_A1_EXIT_WITNESS"
 EVENTS = frozenset(("ARMED", "UNCAUGHT", "SYSTEM_EXIT", "RUNTIME_EXIT",
-                    "PROCESS_KILL", "PREFIX_CHECK", "PREFIX_HOOK"))
+                    "PROCESS_KILL", "PREFIX_CHECK", "PREFIX_HOOK",
+                    "RUN_CTOR", "RUN_ENTER", "RUN_HOOK"))
 ORIGINS = frozenset(("REGISTERED", "NO_HOOK", "VENDOR_UNCAUGHT_HANDLER",
                       "STATIC_HANDLER", "STATIC_RUN_A", "STATIC_RUN_B",
                       "STATIC_INVOKER", "VENDOR", "PLATFORM", "UNKNOWN", "NONE",
@@ -14,7 +15,9 @@ ORIGINS = frozenset(("REGISTERED", "NO_HOOK", "VENDOR_UNCAUGHT_HANDLER",
 ERRORS = frozenset(("ILLEGAL_STATE", "SECURITY", "LINK", "OTHER_THROWABLE",
                     "NONE", "MATCH_TRUE", "MATCH_FALSE",
                     "KILL_TARGET_SELF", "KILL_TARGET_OTHER",
-                    "KILL_TARGET_UNKNOWN"))
+                    "KILL_TARGET_UNKNOWN", "CASE_0", "CASE_1", "CASE_2",
+                    "CASE_3", "CASE_4", "CASE_5", "CASE_6", "CASE_7",
+                    "CASE_OTHER", "CASE_UNKNOWN"))
 THREADS = frozenset(("MAIN", "OTHER"))
 
 
@@ -38,6 +41,8 @@ def classify_exit_witness(exit_dump: str, main_log: str) -> dict:
     first_exit_prefix_by_pid: dict[int, tuple[str, str]] = {}
     first_exit_seen: set[int] = set()
     first_kill_target_by_pid: dict[int, str] = {}
+    last_main_run_case_by_pid: dict[int, str] = {}
+    first_exit_run_case_by_pid: dict[int, str] = {}
     for line in main_log.splitlines()[-18000:]:
         match = LOG.match(line)
         if not match:
@@ -70,6 +75,12 @@ def classify_exit_witness(exit_dump: str, main_log: str) -> dict:
         armed |= event == "ARMED" and origin == "REGISTERED"
         number = int(pid)
         if thread == "MAIN":
+            if event == "RUN_ENTER" and error.startswith("CASE_"):
+                last_main_run_case_by_pid[number] = error
+            if (event in ("PROCESS_KILL", "SYSTEM_EXIT")
+                    and number not in first_exit_run_case_by_pid
+                    and number in last_main_run_case_by_pid):
+                first_exit_run_case_by_pid[number] = last_main_run_case_by_pid[number]
             if (event == "PROCESS_KILL" and number not in first_kill_target_by_pid
                     and error.startswith("KILL_TARGET_")):
                 first_kill_target_by_pid[number] = error
@@ -83,6 +94,11 @@ def classify_exit_witness(exit_dump: str, main_log: str) -> dict:
         "scoped_fresh_main_pid_available": bool(pids),
         "module_armed_on_main": armed,
         "prefix_hook_reported": "PREFIX_HOOK" in kinds,
+        "run_mode_hook_reported": "RUN_HOOK" in kinds,
+        "run_mode_entered": "RUN_ENTER" in kinds,
+        "first_exit_run_mode_groups": sorted(set(first_exit_run_case_by_pid.values())),
+        "first_exit_run_mode_main_pid_count_bounded": min(len(first_exit_run_case_by_pid), 10),
+        "run_mode_observation_not_replacement": True,
         "prefix_check_observed": "PREFIX_CHECK" in kinds,
         "prefix_match_result_categories": sorted(x for x in errors if x.startswith("MATCH_")),
         "prefix_known_target_groups": sorted(x for x in origins if x in {

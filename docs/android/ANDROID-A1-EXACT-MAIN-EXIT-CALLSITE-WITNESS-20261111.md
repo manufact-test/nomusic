@@ -57,3 +57,11 @@ For **both** fresh independent clone MAIN PID instances, our pass-through hooks 
 **Next diagnosis only if needed:** Inspect signed original Lby0.a / Lby0.p(Context) / Lhi2.j callsites that construct/schedule the multi-branch Lxx0 runnable. Determine process-restart vs legitimate safety policy first; avoid more blind repackaging. No producer/stable/user APK from this laboratory result.
 
 Exact rollback branch: backup/android-a1-xx0-aux-prefix-other-pid-kill-evidence-20261111 at cc176ee80a91190e379f46899b157065201a73e4. Primary lead source remains frozen cc4cb0f93489168db21502f3ef195855ae9fb743; no changes to original Yandex on user device, accepted Test.50, Windows, server or extension. Stage A NO-GO, Stage B locked.
+
+## Signed scheduler provenance and new runtime Runnable-mode witness (11 Nov)
+
+Signed #170gpr source-only CI 43032933630 PASS (three synthetic tests and all six immutable publisher-signed DEX). Lxx0 is a Runnable, constructed by exactly three observed callers: Lby0.a() creates Lxx0(Context,int) and hands it to Lay0.execute(Runnable); Lby0.p(Context) creates Lxx0 and also calls Lay0.execute(Runnable), while coordinating AndroidX application locales. Lhi2.j(Object) constructs Lxx0 and posts via Handler.getMainLooper(). The incoming paths include Lqx0.attachBaseContext -> Lby0.p and Lc63.onCreate -> Lby0.a, plus Lhi2.invokeSuspend -> Lhi2.j. The latter has Passport/analytics and an IllegalStateException constructor, but this does not establish that the exception causes process exit.
+
+New isolated optional lab probe hooks Lxx0(Context,int) and Lxx0.run using official LibXposed API102 hook(Executable). Both hooks ALWAYS forward chain.proceed unchanged; the module maps only 0..7 / OTHER / UNKNOWN constructor case numbers by object identity, then correlates entering a particular Runnable mode on the same exact newly exited MAIN PID before the first exit call. The module may miss a constructor installed too late: CASE_UNKNOWN is inconclusive and should not trigger blind revisions. No strings, account data, APK source, process PIDs or raw stacks included.
+
+Only the disposable clone with signature bypass 0 is scoped. Main A1 source frozen; do not merge until runtime proof and authorized bug fix. No consumer APK yet.
