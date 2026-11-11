@@ -239,13 +239,13 @@ def classify_main_crash_buffer(exit_dump: str, crash_buffer: str, target_package
     # Fixed vocabulary of Java exception classes only. The message, stack,
     # proprietary type/field names, paths and all identifiers stay private.
     exception_patterns = {
-        "ILLEGAL_STATE": r"\\bIllegalStateException\\b",
-        "NULL_POINTER": r"\\bNullPointerException\\b",
-        "ILLEGAL_ARGUMENT": r"\\bIllegalArgumentException\\b",
-        "SECURITY_EXCEPTION": r"\\bSecurityException\\b",
-        "RESOURCE_MISSING": r"\\bResources\\$NotFoundException\\b",
-        "CLASS_NOT_FOUND": r"\\bClassNotFoundException\\b",
-        "LINK_ERROR": r"\\bUnsatisfiedLinkError\\b",
+        "ILLEGAL_STATE": r"\bIllegalStateException\b",
+        "NULL_POINTER": r"\bNullPointerException\b",
+        "ILLEGAL_ARGUMENT": r"\bIllegalArgumentException\b",
+        "SECURITY_EXCEPTION": r"\bSecurityException\b",
+        "RESOURCE_MISSING": r"\bResources\$NotFoundException\b",
+        "CLASS_NOT_FOUND": r"\bClassNotFoundException\b",
+        "LINK_ERROR": r"\bUnsatisfiedLinkError\b",
     }
     exception_subtypes = sorted(label for label, pattern in exception_patterns.items()
                                 if re.search(pattern, text))
