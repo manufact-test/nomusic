@@ -1,0 +1,76 @@
+name: CELIKOM A1 original signed 2025 GPR vs own separately signed clone — native ARM13, NO bypass
+on:
+  push:
+    branches: [experiment/android-a1-genuine2025-original-vs-own-clone-20261111]
+    paths:
+      - '.github/workflows/android-a1-owner-2025-gpr-no-bypass-clone.yml'
+      - 'android/native-yandex-hooklab/ci/owner_2025_gpr_lab_clone_no_bypass_arm13.py'
+permissions:
+  contents: write
+jobs:
+  owner-signed-2025-lab-clone:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 46
+    env:
+      CELIKOM_CLEAN_ANDROID_NATIVE_REDDROID: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Exact unchanged user-supplied publisher signed 2025 GPR draft only
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          [ "$GITHUB_REPOSITORY" = 'manufact-test/nomusic' ]
+          [ "$GITHUB_REF_NAME" = 'experiment/android-a1-genuine2025-original-vs-own-clone-20261111' ]
+          gh api --paginate "repos/$GITHUB_REPOSITORY/releases?per_page=100" --jq '.[] | select(.id == 442137464 and .draft == true and .tag_name == "a1-yandex-2025-gpr-private-test") | .id' | grep -qx '442137464'
+          gh api "repos/$GITHUB_REPOSITORY/releases/442137464/assets?per_page=100" --jq '.[] | select(.id == 736739728 and .name == "yandex-music-2025-10-4-120-1gpr.xapk" and .size == 45961661 and .digest == "sha256:8e43be8900d28ee92c8e315ed07069568858bfd4a593757fba9d276bd0c54053") | .id' | grep -qx '736739728'
+          mkdir -p "$RUNNER_TEMP/owner-gpr-2025"
+          gh release download a1-yandex-2025-gpr-private-test --repo "$GITHUB_REPOSITORY" --pattern 'yandex-music-2025-10-4-120-1gpr.xapk' --dir "$RUNNER_TEMP/owner-gpr-2025" --clobber >/dev/null
+          xapk="$RUNNER_TEMP/owner-gpr-2025/yandex-music-2025-10-4-120-1gpr.xapk"
+          [ "$(stat -c %s "$xapk")" = '45961661' ]
+          [ "$(sha256sum "$xapk" | cut -d' ' -f1)" = '8e43be8900d28ee92c8e315ed07069568858bfd4a593757fba9d276bd0c54053' ]
+          echo '{"original_publisher_archive_sha256_verified":true,"original_cloned_yet":false}'
+      - name: Install signed Ubuntu Android build tools and Java-backed own lab key
+        shell: bash
+        timeout-minutes: 6
+        run: |
+          set -euo pipefail
+          sudo timeout 120 apt-get update -qq
+          sudo timeout 90 env DEBIAN_FRONTEND=noninteractive apt-get install -y -qq aapt apksigner zipalign
+          sdk="$RUNNER_TEMP/owner-2025-lab-sdk"
+          mkdir -p "$sdk/build-tools/35.0.0"
+          for tool in aapt apksigner zipalign; do
+            ln -sf "$(command -v "$tool")" "$sdk/build-tools/35.0.0/$tool"
+          done
+          echo "ANDROID_HOME=$sdk" >> "$GITHUB_ENV"
+          python3 -m py_compile android/native-yandex-hooklab/ci/owner_2025_gpr_lab_clone_no_bypass_arm13.py
+      - name: Boot truly native ARM64+ARMv7 Android13 clean disposable Redroid
+        shell: bash
+        timeout-minutes: 16
+        run: |
+          set -euo pipefail
+          bash android/native-yandex-hooklab/ci/native_arm_redroid_boot_only.sh
+          [ "$(docker exec celikom-native-arm-android13 getprop sys.boot_completed)" = 1 ]
+      - name: Verify signed original 16/16, build own separately signed no-bypass clone, test native MAIN 16s
+        shell: bash
+        timeout-minutes: 22
+        run: |
+          set -euo pipefail
+          python3 android/native-yandex-hooklab/ci/owner_2025_gpr_lab_clone_no_bypass_arm13.py --xapk "$RUNNER_TEMP/owner-gpr-2025/yandex-music-2025-10-4-120-1gpr.xapk"
+      - name: ALWAYS delete own clone build, original source, lab key, guest; no binary artifact
+        if: always()
+        shell: bash
+        run: |
+          docker stop celikom-native-arm-android13 >/dev/null 2>&1 || true
+          sudo umount /dev/binderfs >/dev/null 2>&1 || true
+          sudo modprobe -r binder_linux >/dev/null 2>&1 || true
+          sudo rm -rf -- "$RUNNER_TEMP/celikom-redroid-data"
+          rm -rf -- "$RUNNER_TEMP/owner-gpr-2025" "$RUNNER_TEMP/owner-2025-lab-sdk"
+          echo '{"lab_apk_published":false,"publisher_original_repacked":false,"user_device_touched":false,"signature_bypass":false,"stage_a":"NO_GO"}'
