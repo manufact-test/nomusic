@@ -44,6 +44,46 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/server-general-support-attachments-20261111
+          path: server-contract-source
+          persist-credentials: false
+      - name: Read only current production PHP CODE into disposable CI runner (never deploy)
+        shell: bash
+        env:
+          HOSTINGER_SSH_KEY: ${{ secrets.HOSTINGER_SSH_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "${HOSTINGER_SSH_KEY:-}"
+          umask 077
+          work="$(mktemp -d)"
+          trap 'rm -rf "$work"' EXIT
+          printf '%s\n' "$HOSTINGER_SSH_KEY" | tr -d '\r' > "$work/key"
+          ssh-keygen -y -P '' -f "$work/key" > "$work/pub"
+          test "$(ssh-keygen -lf "$work/pub" | awk '{print $2}')" = 'SHA256:Q6FyifXRq6garceQdIIjBmXhkk81Ic1p/x9JTSYHWUk'
+          printf '%s\n' '[92.113.19.189]:65002 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAf8M2EVwq0oJI8I9KZ0NFE8P8yDOvDATEhkQti/Kk/0' > "$work/known_hosts"
+          opts=(-i "$work/key" -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o "UserKnownHostsFile=$work/known_hosts" -o GlobalKnownHostsFile=/dev/null -o ConnectTimeout=15)
+          target='u235811320@92.113.19.189'
+          root='/home/u235811320/domains/darkred-camel-588676.hostingersite.com/celikom'
+          active="$(ssh -T -p 65002 "${opts[@]}" "$target" "readlink -f '$root/current'")"
+          test "$active" = "$root/releases/browser-support-076-b807cd691074"
+          for rel in \
+            src/Application.php src/Admin/AdminPanel.php \
+            src/Auth/SmtpMailer.php src/Support/SupportService.php \
+            src/Support/SupportReport.php src/Support/SongReport.php \
+            src/Support/SupportAdminView.php src/Support/WindowsSupportDiagnostics.php; do
+            scp -q -P 65002 "${opts[@]}" "$target:$active/$rel" "server/$rel"
+            test -s "server/$rel"
+          done
+          test "$(sha256sum server/src/Application.php | awk '{print $1}')" = 'd3e29b77bcd18490497e50838f419d87990f9d343f85d876d90cb06937e89630'
+          test "$(sha256sum server/src/Support/SupportService.php | awk '{print $1}')" = '5f735c9bf257fad159d082ee11bc3e58a67efd401d75b64ab4b4dc1b77a575e0'
+          test "$(sha256sum server/src/Support/SupportAdminView.php | awk '{print $1}')" = 'aeccc5d4cbf503826ee9f5fcdfed2e5abc0b920101bd0ec136e9277e8184dd32'
+          test "$(sha256sum server/src/Auth/SmtpMailer.php | awk '{print $1}')" = 'a7bed0c18c38fc7f227017d59b44f76a31803c19570c463d2359c7c553b0a1a7'
+          test "$(ssh -T -p 65002 "${opts[@]}" "$target" "readlink -f '$root/current'")" = "$active"
+          cp server-contract-source/server/tests/support.php server/tests/support.php
+          cp server-contract-source/server/tests/smoke.php server/tests/smoke.php
+          echo 'W73_EXACT_LIVE_PHP_OVERLAID_DISPOSABLE_RUNNER_ONLY'
       - uses: shivammathur/setup-php@v2
         with:
           php-version: '8.3'
