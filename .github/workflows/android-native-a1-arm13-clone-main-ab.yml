@@ -6,6 +6,8 @@ on:
     paths:
       - 'android/native-yandex-hooklab/clone_native_arm13_redroid_gate.py'
       - 'android/native-yandex-hooklab/clone_native_identity_phase2_ephemeral.py'
+      - 'android/native-yandex-hooklab/clone_lab_profileability.py'
+      - 'android/native-yandex-hooklab/tests/test_clone_lab_profileability.py'
       - 'android/native-yandex-hooklab/observe_native_startup_trace.py'
       - 'android/native-yandex-hooklab/tests/test_native_arm13_art_trace.py'
       - 'android/native-yandex-hooklab/native_arm13_startup_observer.py'
