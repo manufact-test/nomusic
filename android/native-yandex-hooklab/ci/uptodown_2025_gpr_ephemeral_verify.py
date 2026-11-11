@@ -140,6 +140,30 @@ def browser_download(directory: Path) -> tuple[Path | None, dict]:
                 VERSION_RE.search(text) or parsed.path == "/android/dw/1120247189")
             # A download may fire automatically when the old-version page opens.
             if not captured:
+                # Minimal DOM controls inventory for a PUBLIC storefront; never
+                # reveal markup, full links, query tokens or page content.
+                buttons=[]
+                for el in page.locator("a,button,[role='button']").all()[:350]:
+                    try:
+                        text = el.inner_text(timeout=900).strip()
+                        if not DOWNLOAD_RE.search(text) and not re.search(r"варианты|variants",text,re.I):
+                            continue
+                        if len(text) > 100: continue
+                        href=el.get_attribute("href") or ""
+                        dest=urlsplit(href)
+                        buttons.append({
+                            "element":el.evaluate("(e)=>e.tagName.toLowerCase()"),
+                            "visible":el.is_visible(),
+                            "label_group":"variants" if re.search(r"варианты|variants",text,re.I) else "download",
+                            "href_path_kind":"download" if "download" in dest.path else
+                                "dw" if "/dw/" in dest.path else "other" if href else "none",
+                            "href_host_group":"uptodown" if "uptodown.com" in (dest.hostname or "") else
+                                "relative" if not dest.hostname else "external",
+                            "has_download_attribute":el.get_attribute("download") is not None,
+                        })
+                    except Exception:
+                        continue
+                diagnostics["public_download_controls"] = buttons[:12]
                 matches=page.get_by_text(DOWNLOAD_RE)
                 diagnostics["download_button_visible"] = bool(matches.count())
                 for i in range(min(12,matches.count())):
@@ -150,6 +174,8 @@ def browser_download(directory: Path) -> tuple[Path | None, dict]:
                         # Prefer the last/primary visible CTA, never open account/login.
                         item.click(timeout=4000)
                         page.wait_for_timeout(2200)
+                        diagnostics["post_click_same_version_page"] = (
+                            urlsplit(page.url).path == "/android/dw/1120247189")
                         if captured: break
                     except (BrowserTimeout, Exception):
                         continue
