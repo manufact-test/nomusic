@@ -49,18 +49,49 @@ jobs:
         with:
           distribution: temurin
           java-version: '21'
-      - name: Install standalone ARM native APK audit/build tools (bounded package mirror)
+      - name: Install ARM Android build tools through verified Ubuntu-ports mirror
         timeout-minutes: 5
         shell: bash
         run: |
           set -euo pipefail
-          # First use the image's existing binary cache. Avoid indefinite
-          # unattended apt repository waits on GitHub-hosted ARM runners.
           if ! { command -v aapt >/dev/null && command -v apksigner >/dev/null && command -v zipalign >/dev/null; }; then
-            if ! sudo timeout 75s env DEBIAN_FRONTEND=noninteractive apt-get -o Acquire::Retries=0 -o Acquire::http::Timeout=15 install -y -qq aapt apksigner zipalign; then
-              sudo timeout 90s apt-get -o Acquire::Retries=0 -o Acquire::http::Timeout=15 update -qq
-              sudo timeout 90s env DEBIAN_FRONTEND=noninteractive apt-get -o Acquire::Retries=0 -o Acquire::http::Timeout=15 install -y -qq aapt apksigner zipalign
+            echo 'ARM image missing Android tools; checking signed Ubuntu archive mirrors'
+            # The ARM runner DNS resolved GitHub and ghcr.io, but
+            # ports.ubuntu.com was unreachable: don't retry the dead hostname.
+            if timeout 6s curl -fsSIL --max-time 5 https://us.ports.ubuntu.com/ubuntu-ports/dists/noble/InRelease >/dev/null; then
+              base_uri='https://us.ports.ubuntu.com/ubuntu-ports'
+              security_uri="$base_uri"
+              echo 'APT_SOURCE=OFFICIAL_US_PORTS'
+            elif timeout 6s curl -fsSIL --max-time 5 https://mirror.hetzner.com/ubuntu-ports/packages/dists/noble/InRelease >/dev/null; then
+              base_uri='https://mirror.hetzner.com/ubuntu-ports/packages'
+              security_uri='https://mirror.hetzner.com/ubuntu-ports/security'
+              echo 'APT_SOURCE=HETZNER_SIGNED_UBUNTU_PORTS'
+            else
+              echo 'APT_SOURCE_UNREACHABLE: no safe signed ARM mirror'
+              exit 31
             fi
+            # Limit sources to the chosen publisher-signed Ubuntu archive.
+            # The original system config is unchanged; temporary apt
+            # Dir::Etc::* overrides only affect this job's apt commands.
+            cat > "$RUNNER_TEMP/celikom-a1-ubuntu-ports.sources" <<EOF
+          Types: deb
+          URIs: $base_uri
+          Suites: noble noble-updates noble-backports
+          Components: main restricted universe multiverse
+          Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg
+
+          Types: deb
+          URIs: $security_uri
+          Suites: noble-security
+          Components: main restricted universe multiverse
+          Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg
+          EOF
+            apt_src="$RUNNER_TEMP/celikom-a1-ubuntu-ports.sources"
+            opts=(-o "Dir::Etc::sourcelist=$apt_src" -o 'Dir::Etc::sourceparts=-'
+                  -o 'Acquire::Retries=0' -o 'Acquire::http::Timeout=12'
+                  -o 'Acquire::https::Timeout=12')
+            sudo timeout 75s apt-get "${opts[@]}" update -qq
+            sudo timeout 90s env DEBIAN_FRONTEND=noninteractive apt-get "${opts[@]}" install -y -qq aapt apksigner zipalign
           fi
           sdk="$RUNNER_TEMP/celikom-native-arm13-sdk"
           mkdir -p "$sdk/build-tools/35.0.0"
