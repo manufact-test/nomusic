@@ -26,6 +26,7 @@ from native_arm13_startup_observer import (
 from native_arm13_timeline_origin import classify_merged_startup_timeline
 from observe_native_startup_trace import (
     TRACE_PATH, observe_disposable_trace, classify_profiler_launch,
+    should_stop_owned_profile_early,
 )
 from native_arm13_signed_original_control import (
     adb, check_guest_container, pm_category, private_process, pm_session_install
@@ -207,17 +208,27 @@ def start(package: str, *, own_art_trace: bool = False) -> tuple[dict, dict]:
         # paths, stack, user app logs or command contents.
         profiler_launch_category = classify_profiler_launch(launch)
     observations = []
+    stopped_while_main_alive = False
     for delay in (0.25, 0.75, 1.5, 4.0):
         time.sleep(delay)
-        observations.append(snapshot(package))
+        observed = snapshot(package)
+        observations.append(observed)
+        if own_art_trace and should_stop_owned_profile_early(
+                package, observed["main_alive"], stopped_while_main_alive):
+            # Try to flush a real trace BEFORE EXIT_SELF. This is a diagnostic
+            # perturbation, not evidence of normal unprofiled startup behavior.
+            # Do not profile original or expose method names/bytes.
+            adb(["shell", "am", "profile", "stop", CLONE],
+                timeout=25, allow=True)
+            stopped_while_main_alive = True
     status = observations[-1]
     if own_art_trace:
         status["private_art_start_command_category"] = profiler_launch_category
-        # ActivityManager stop is best-effort: short lived clone may already
-        # be gone. The only trace path is fixed, private, size-limited and
-        # deleted by observe_disposable_trace even when parsing fails.
-        adb(["shell", "am", "profile", "stop", CLONE],
-            timeout=25, allow=True)
+        status["art_profile_stop_while_main_alive_attempted"] = stopped_while_main_alive
+        if not stopped_while_main_alive:
+            # Fallback may be too late to flush a trace; never imply otherwise.
+            adb(["shell", "am", "profile", "stop", CLONE],
+                timeout=25, allow=True)
         status["private_owned_art_method_trace"] = observe_disposable_trace(
             owned_arm_container=True)
     status["process_temporarily_alive"] = any(x["main_alive"] for x in observations)

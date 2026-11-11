@@ -158,6 +158,13 @@ def classify_art_trace(raw: bytes) -> dict:
 CONTAINER = "celikom-native-arm-android13"
 
 
+def should_stop_owned_profile_early(package: str, main_alive: bool,
+                                    already_stopped: bool) -> bool:
+    """Stop only our alive ephemeral research clone; never publisher original."""
+    return (package == "pro.celikom.yandex.nativeclonelab"
+            and bool(main_alive) and not bool(already_stopped))
+
+
 def classify_profiler_launch(raw: str) -> str:
     """Android ActivityManager command response, no free-text disclosure."""
     normalized = raw.lower()

@@ -115,6 +115,17 @@ class OwnedArmArtTraceTests(unittest.TestCase):
         self.assertFalse(out["raw_trace_published"])
         self.assertNotIn("PRIVATE_USER_SECRET", str(out))
 
+    def test_early_profile_stop_never_targets_original_or_dead_process(self):
+        from observe_native_startup_trace import should_stop_owned_profile_early
+        clone = "pro.celikom.yandex.nativeclonelab"
+        original = "ru.yandex.music"
+        self.assertTrue(should_stop_owned_profile_early(clone, True, False))
+        self.assertFalse(should_stop_owned_profile_early(clone, False, False))
+        self.assertFalse(should_stop_owned_profile_early(clone, True, True))
+        self.assertFalse(should_stop_owned_profile_early(original, True, False))
+        self.assertFalse(should_stop_owned_profile_early(clone + ":AppMetrica",
+                                                        True, False))
+
     def test_profiler_launch_error_categories_do_not_expose_raw(self):
         from observe_native_startup_trace import classify_profiler_launch
         samples = [
