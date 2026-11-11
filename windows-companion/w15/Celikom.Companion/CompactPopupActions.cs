@@ -113,6 +113,7 @@ public sealed partial class MainWindow
         catch (Exception ex)
         {
             if (!StillSameUser()) return;
+            DiagnosticLog.Record(EntitlementCheckRecovery.FailureCode(ex));
             var transient = EntitlementCheckRecovery.IsTransient(ex);
             if (_bridge.Enabled)
             {
