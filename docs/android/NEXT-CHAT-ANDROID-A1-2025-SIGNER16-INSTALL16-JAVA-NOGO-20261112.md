@@ -1,3 +1,5 @@
+> **12.11.2026 SUPERSEDED BY CAUSAL SAME-NAME CONTROL.** All 16 own-key signed APKs install on ARM13 even with original `ru.yandex.music` package name and no APKEditor, but original MAIN still Java `ILLEGAL_STATE`; see [real CI 43112641177](https://github.com/manufact-test/nomusic/actions/runs/43112641177) and [latest handoff](NEXT-CHAT-A1-2025-CAUSAL-SAME-NAME-OWN-KEY-ARM13-20261112.md). This is still product NO-GO; no security bypass or consumer APK. The historical text below describes the previous stage only.
+
 # ПЕРВОЕ СООБЩЕНИЕ НОВОМУ ВЕДУЩЕМУ — CELIKOM Android A1 (12.11.2026)
 
 Привет! Ты следующий ведущий CELIKOM Android A1. Продолжай с проверенных результатов этого захода. НЕ начинай с нуля, НЕ меняй утверждённую архитектуру, работай крупными изолированными блоками и всегда делай точные резервы.
