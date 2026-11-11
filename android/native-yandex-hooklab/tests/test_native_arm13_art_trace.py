@@ -274,6 +274,41 @@ class OwnedArmArtTraceTests(unittest.TestCase):
         self.assertEqual(unknown["trace_overflow_header_status"], "NOT_DECLARED")
         self.assertTrue(unknown["negative_method_observations_unreliable"])
 
+    def test_sampled_stack_does_not_claim_exact_java_invocation(self):
+        from observe_native_startup_trace import classify_sampled_art_trace
+        raw = trace([(1, 4), (1, 8), (1, 8 | 1), (1, 4 | 1)],
+                    [(4, "ru/yandex/music/YMApplication", "onCreate"),
+                     (8, "java/lang/IllegalStateException", "<init>")])
+        out = classify_sampled_art_trace(raw)
+        self.assertTrue(out["trace_format_verified"])
+        self.assertTrue(out["sampled_stacks_not_exact_method_calls"])
+        self.assertEqual(out["sampling_interval_us"], 10000)
+        self.assertIn("ymapplication_oncreate",
+                      out["sampled_watch_names_main_thread"])
+        self.assertIn("illegalstate_constructor",
+                      out["sampled_watch_names_any_thread"])
+        self.assertNotIn("illegalstate_constructor_caller_groups", out)
+        self.assertNotIn("system_exit_entry_count_bounded", out)
+        self.assertNotIn("returned_main", str(out))
+        self.assertFalse(out["raw_trace_exposed"])
+
+    def test_sampled_trace_transport_rejects_non_owned_non_ci_mode(self):
+        import os
+        from unittest.mock import patch
+        from observe_native_startup_trace import observe_disposable_trace
+        with patch.dict(os.environ, {
+            "GITHUB_ACTIONS": "true",
+            "CELIKOM_CLEAN_ANDROID_NATIVE_REDDROID": "1",
+            "CELIKOM_NATIVE_ARM13_OWN_CLONE_ART_TRACE": "1",
+            "CELIKOM_OWN_ART_SAMPLING_10000US": "0",
+        }), patch("observe_native_startup_trace.subprocess.run",
+                  side_effect=AssertionError("SHOULD_NOT_RUN_DOCKER")):
+            out = observe_disposable_trace(owned_arm_container=True,
+                                            sampling_mode=True)
+        self.assertTrue(out["trace_transport_guard_rejected"])
+        self.assertFalse(out["raw_trace_published"])
+        self.assertFalse(out["trace_available"])
+
     def test_corrupt_or_too_small_is_inconclusive(self):
         for raw in (b"", b"PRIVATE", b"*version\n3\n*methods\n", b"\0" * 20):
             with self.subTest(value=raw[:12]):

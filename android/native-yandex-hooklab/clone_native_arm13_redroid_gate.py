@@ -26,7 +26,7 @@ from native_arm13_startup_observer import (
 from native_arm13_timeline_origin import classify_merged_startup_timeline
 from observe_native_startup_trace import (
     TRACE_PATH, observe_disposable_trace, classify_profiler_launch,
-    choose_owned_profile_stop_stage,
+    choose_owned_profile_stop_stage, should_stop_owned_profile_early,
 )
 from native_arm13_signed_original_control import (
     adb, check_guest_container, pm_category, private_process, pm_session_install
@@ -197,10 +197,11 @@ def start(package: str, *, own_art_trace: bool = False) -> tuple[dict, dict]:
         adb(["shell", "rm", "-f", TRACE_PATH], timeout=20)
     launch_args = ["shell", "am", "start", "--user", "0"]
     if own_art_trace:
-        # Controlled variant: explicit Android method profiler instead of
-        # the prior idle-stopping -P. It is stopped by ActivityManager below.
-        # No developer keys, root, credentials, hook or protection bypass.
-        launch_args.extend(["--start-profiler", TRACE_PATH])
+        # Standard shell sampling profiler only for separately signed OWN
+        # non-distributable clone. Reduces default 8 MiB ART buffer churn.
+        # Not a debugger, not signature/DRM/Auth interference.
+        launch_args.extend(["--start-profiler", TRACE_PATH,
+                            "--sampling", "10000"])
     launch = adb([*launch_args, "-n", package + "/" + MAIN_CLASS],
                  timeout=60, allow=True)
     if own_art_trace:
@@ -217,16 +218,15 @@ def start(package: str, *, own_art_trace: bool = False) -> tuple[dict, dict]:
         observations.append(observed)
         if own_art_trace:
             live_count += int(observed["main_alive"])
-            stage = choose_owned_profile_stop_stage(
-                package, main_alive=observed["main_alive"],
-                activity_resumed=observed["activity_resumed"],
-                live_sample_count=live_count,
-                already_stopped=stopped_while_main_alive)
-            if stage.startswith("SECOND_ALIVE_"):
-                # Intentionally wait for a SECOND independently observed
-                # live MAIN snapshot; a previous early trace ended before
-                # YMApplication.onCreate. If clone dies before this point,
-                # no phase is asserted. Original is never traced.
+            # Sampling gets the FIRST live observation so it actually has
+            # time to flush. A delayed instrumentation stop had yielded a
+            # zero-byte file. Sampling cannot establish causal method calls.
+            stage = ("FIRST_ALIVE_SAMPLED" if should_stop_owned_profile_early(
+                package, observed["main_alive"], stopped_while_main_alive)
+                else "NOT_ELIGIBLE")
+            if stage == "FIRST_ALIVE_SAMPLED":
+                # A short, bounded read-only diagnostic perturbation.
+                # The publisher signed original is never profiled.
                 adb(["shell", "am", "profile", "stop", CLONE],
                     timeout=25, allow=True)
                 stopped_while_main_alive = True
@@ -243,7 +243,7 @@ def start(package: str, *, own_art_trace: bool = False) -> tuple[dict, dict]:
             adb(["shell", "am", "profile", "stop", CLONE],
                 timeout=25, allow=True)
         status["private_owned_art_method_trace"] = observe_disposable_trace(
-            owned_arm_container=True)
+            owned_arm_container=True, sampling_mode=True)
     status["process_temporarily_alive"] = any(x["main_alive"] for x in observations)
     status["activity_temporarily_resumed"] = any(x["activity_resumed"] for x in observations)
     status["launch_intent_accepted"] = ("Starting:" in launch
@@ -328,6 +328,8 @@ def test_independent_clone_and_original(clone: Path, original_splits: list[Path]
     env = require_native_arm()
     if not loader_zero:
         fail("NATIVE_ARM13_CLONE_LSPATCH_ZERO_REQUIRED")
+    if os.getenv("CELIKOM_OWN_ART_SAMPLING_10000US") != "1":
+        fail("LAB_SAMPLING_INTERVAL_EXPLICIT_10000US_REQUIRED")
     verify_lab_clone(clone, signer, loader_zero)
     if len(original_splits) != 5:
         fail("NATIVE_ARM13_ORIGINAL_CONTROL_FIVE_SPLITS_REQUIRED")

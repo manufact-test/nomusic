@@ -1,8 +1,8 @@
-name: Android A1 ARM13 own clone ART shell-profiler controlled experiment
+name: Android A1 ARM13 noncausal sampled ART stack experiment
 on:
   push:
     branches:
-      - experiment/android-a1-arm13-shell-profiler-no-bypass-20261111
+      - experiment/android-a1-arm13-sampled-stack-only-20261111
     paths:
       - 'android/native-yandex-hooklab/clone_native_arm13_redroid_gate.py'
       - 'android/native-yandex-hooklab/clone_native_identity_phase2_ephemeral.py'
@@ -72,6 +72,7 @@ jobs:
           CELIKOM_NATIVE_ARM13_OWN_CLONE_ART_TRACE: '1'
           CELIKOM_LAB_CLONE_PROFILEABLE_SHELL: '1'
           CELIKOM_PROFILE_MAIN_LAUNCH: '1'
+          CELIKOM_OWN_ART_SAMPLING_10000US: '1'
         run: |
           python3 android/native-yandex-hooklab/clone_native_identity_phase2_ephemeral.py
       - name: Wipe pinned binary downloads, lab keys, owned clone and guest

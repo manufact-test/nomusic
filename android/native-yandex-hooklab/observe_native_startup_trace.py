@@ -223,6 +223,36 @@ def classify_art_trace(raw: bytes) -> dict:
 
 
 
+def classify_sampled_art_trace(raw: bytes) -> dict:
+    """Never equate ART --sampling stack observations with actual calls.
+
+    With sampling, synthetic ART ENTER/EXIT transitions approximate sampled
+    stack changes. Only report fixed whitelisted observation markers and
+    capacity metadata; never claim exact Java invocation, return, unwind,
+    thrown exception or deliberate process exit from these transitions.
+    """
+    full = classify_art_trace(raw)
+    named = sorted(kind for kind in KINDS
+                   if full.get(kind + "_entered_any", False))
+    named_main = sorted(kind for kind in KINDS
+                        if full.get(kind + "_entered_main", False))
+    return {
+        "trace_format_verified": full["trace_format_verified"],
+        "trace_records_observed": full["trace_records_observed"],
+        "trace_valid_record_count": full["trace_valid_record_count"],
+        "trace_main_thread_mapped": full["trace_main_thread_mapped"],
+        "trace_overflow_header_status": full["trace_overflow_header_status"],
+        "default_8mib_capacity_likely_reached":
+            full["default_8mib_capacity_likely_reached"],
+        "sampling_interval_us": 10000,
+        "sampled_watch_names_any_thread": named,
+        "sampled_watch_names_main_thread": named_main,
+        "sampled_stacks_not_exact_method_calls": True,
+        "causation_not_established": True,
+        "raw_trace_exposed": False,
+    }
+
+
 CONTAINER = "celikom-native-arm-android13"
 
 
@@ -265,7 +295,8 @@ def classify_profiler_launch(raw: str) -> str:
     return "ACTIVITY_START_UNCLASSIFIED"
 
 
-def observe_disposable_trace(*, owned_arm_container: bool = False):
+def observe_disposable_trace(*, owned_arm_container: bool = False,
+                             sampling_mode: bool = False):
     """Only fixed-category evidence, never an ART file, symbol, path or PID.
 
     ARM13 Redroid runs inside Docker; an adb binary is NOT installed on
@@ -281,6 +312,11 @@ def observe_disposable_trace(*, owned_arm_container: bool = False):
                            "PRIVATE_ADB",
         "trace_stat_category": "NOT_CHECKED",
     }
+    if sampling_mode and (not owned_arm_container or
+                          os.environ.get("CELIKOM_OWN_ART_SAMPLING_10000US") != "1"):
+        report["trace_read_error"] = True
+        report["trace_transport_guard_rejected"] = True
+        return report
     if owned_arm_container:
         if (os.environ.get("GITHUB_ACTIONS") != "true"
                 or os.environ.get("CELIKOM_CLEAN_ANDROID_NATIVE_REDDROID") != "1"
@@ -319,7 +355,9 @@ def observe_disposable_trace(*, owned_arm_container: bool = False):
                 or len(data.stdout) != size):
             report["trace_read_error"] = True
             return report
-        report["trace_evidence"] = classify_art_trace(data.stdout)
+        report["trace_evidence"] = (
+            classify_sampled_art_trace(data.stdout) if sampling_mode else
+            classify_art_trace(data.stdout))
         return report
     except (subprocess.TimeoutExpired, OSError, ValueError):
         report["trace_read_error"] = True
