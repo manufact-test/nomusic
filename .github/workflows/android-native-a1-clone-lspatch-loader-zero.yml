@@ -5,6 +5,8 @@ on:
       - experiment/android-native-a1-lspatch-clone-loader0-20261111
     paths:
       - 'android/native-yandex-hooklab/clone_lspatch_loader_zero.py'
+      - 'android/native-yandex-hooklab/clone_main_crash_buffer.py'
+      - 'android/native-yandex-hooklab/tests/test_clone_main_crash_buffer.py'
       - 'android/native-yandex-hooklab/recover_stored_origin_crc.py'
       - 'android/native-yandex-hooklab/tests/test_recover_stored_origin_crc.py'
       - 'android/native-yandex-hooklab/tests/test_clone_lspatch_loader_zero.py'
@@ -21,7 +23,8 @@ jobs:
       - uses: actions/checkout@v4
       - name: Static signature/config/media isolation tests
         run: |
-          python3 -m py_compile android/native-yandex-hooklab/recover_stored_origin_crc.py android/native-yandex-hooklab/clone_lspatch_loader_zero.py android/native-yandex-hooklab/clone_native_identity_phase2_ephemeral.py
+          python3 -m py_compile android/native-yandex-hooklab/clone_main_crash_buffer.py android/native-yandex-hooklab/recover_stored_origin_crc.py android/native-yandex-hooklab/clone_lspatch_loader_zero.py android/native-yandex-hooklab/clone_native_identity_phase2_ephemeral.py
+          python3 -m unittest discover -s android/native-yandex-hooklab/tests -p test_clone_main_crash_buffer.py -v
           python3 -m unittest discover -s android/native-yandex-hooklab/tests -p test_recover_stored_origin_crc.py -v
           python3 -m unittest discover -s android/native-yandex-hooklab/tests -p test_clone_lspatch_loader_zero.py -v
           python3 -m unittest discover -s android/native-yandex-hooklab/tests -p test_merge_lab_splits_ephemeral.py -v

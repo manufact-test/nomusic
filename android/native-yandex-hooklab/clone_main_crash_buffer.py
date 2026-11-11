@@ -1,0 +1,102 @@
+"""Private CI-only Android crash-buffer classifier for independent native clone.
+
+Reads Android's CRASH log buffer *only* on a disposable emulator after an
+unauthenticated cold start. Scopes every line to MAIN PIDs recorded in
+ApplicationExitInfo. Returns a fixed vocabulary of boolean/enum signals;
+never exports process IDs, class names, stack frames, messages, paths, URLs,
+tokens, or raw logcat lines. Does not install, run, patch or read any app.
+"""
+from __future__ import annotations
+
+import re
+
+CLONE = "pro.celikom.yandex.nativeclonelab"
+LOG = re.compile(
+    r"^\s*\d\d-\d\d\s+\d\d:\d\d:\d\d\.\d+\s+"
+    r"(\d{1,8})\s+\d+\s+([A-Z])\s+([^:]{1,48}):\s*(.*)$")
+EXIT_BLOCK = re.compile(
+    r"(?im)(?=^\s*(?:ApplicationExitInfo\s*#?\d+|#\d+:\s*ApplicationExitInfo))")
+ALLOWED_CATEGORIES = (
+    "NATIVE_LINK", "CLASS_RESOLUTION", "DEX_VERIFICATION", "PERMISSION",
+    "RESOURCE", "APPLICATION_STATE", "OTHER_JAVA", "NOT_OBSERVED")
+
+
+def main_exit_pids(exit_dump: str) -> set[int]:
+    chunks = EXIT_BLOCK.split(exit_dump[:250000])
+    if len(chunks) == 1:
+        chunks = exit_dump[:250000].splitlines()
+    values: set[int] = set()
+    for chunk in chunks[:100]:
+        process = re.search(
+            r"\b(?:processName|process|process name)\s*[=:]\s*"
+            r"([A-Za-z0-9_.:]+)", chunk, re.I)
+        if process is None or process.group(1) != CLONE:
+            continue
+        match = re.search(r"\bpid\s*[=:]\s*(\d{1,8})\b", chunk, re.I)
+        if match is not None:
+            pid = int(match.group(1))
+            if 1 <= pid <= 99999999:
+                values.add(pid)
+    return values
+
+
+def classify_main_crash_buffer(exit_dump: str, crash_buffer: str) -> dict:
+    """Fixed category labels only, no raw process/exception data returned."""
+    pids = main_exit_pids(exit_dump)
+    parts = []
+    for line in crash_buffer.splitlines()[-10000:]:
+        event = LOG.match(line)
+        if event is None or int(event.group(1)) not in pids:
+            continue
+        _, severity, tag, message = event.groups()
+        if severity not in ("E", "F", "W") or tag.strip() not in (
+                "AndroidRuntime", "libc", "DEBUG", "System.err"):
+            continue
+        if len(parts) < 500:
+            parts.append(message[:2048])
+    text = "\n".join(parts)
+    has = lambda pattern: re.search(pattern, text, re.I) is not None
+    native_link = has(r"\b(?:UnsatisfiedLinkError|dlopen failed)\b")
+    class_resolution = has(
+        r"\b(?:ClassNotFoundException|NoClassDefFoundError|NoSuchMethodError)\b")
+    dex_verification = has(r"\b(?:VerifyError|IncompatibleClassChangeError)\b")
+    permissions = has(r"\b(?:SecurityException|Permission Denial)\b")
+    resources = has(
+        r"\b(?:InflateException|Resources\$NotFoundException)\b")
+    app_state = has(r"\b(?:IllegalStateException|NullPointerException|IllegalArgumentException)\b")
+    java_error = has(r"\b(?:Exception|Error)\b")
+    category = (
+        "NATIVE_LINK" if native_link else
+        "CLASS_RESOLUTION" if class_resolution else
+        "DEX_VERIFICATION" if dex_verification else
+        "PERMISSION" if permissions else
+        "RESOURCE" if resources else
+        "APPLICATION_STATE" if app_state else
+        "OTHER_JAVA" if java_error else "NOT_OBSERVED")
+    assert category in ALLOWED_CATEGORIES
+    return {
+        "crash_main_pid_evidence_available": bool(pids),
+        "crash_buffer_main_pid_lines_seen": bool(parts),
+        "android_runtime_fatal_main_seen": has(r"FATAL EXCEPTION:"),
+        "native_link_error_seen": native_link,
+        "native_link_library_lspatch_named": has(r"liblspatch\.so"),
+        "native_link_library_cpp_shared_named": has(r"libc\+\+_shared\.so"),
+        "native_link_dlopen_failed": has(r"dlopen failed"),
+        "native_link_wrong_elf_class": has(
+            r"wrong ELF class|32-bit instead of 64-bit|64-bit instead of 32-bit"),
+        "native_link_missing_library_marker": has(
+            r"\blibrary\b.{0,120}\bnot found\b|cannot locate"),
+        "android_native_bridge_mentioned": has(
+            r"native.bridge|NativeBridge|libhoudini|libndk_translation"),
+        "lspatch_bootstrap_mentioned": has(
+            r"org\.lsposed\.lspatch|LSPAppComponentFactoryStub"),
+        "application_component_factory_failure": has(
+            r"Unable to instantiate appComponentFactory"),
+        "application_create_failure": has(
+            r"Unable to (?:create|instantiate) application"),
+        "activity_launch_failure": has(r"Unable to start activity"),
+        "fatal_category": category,
+        "raw_crash_buffer_exposed": False,
+        "process_identifiers_exposed": False,
+        "exception_free_text_exposed": False,
+    }

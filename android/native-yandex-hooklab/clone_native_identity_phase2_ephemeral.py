@@ -21,6 +21,7 @@ import clone_native_splits_arsclib_ephemeral as arsc
 from merge_lab_splits_ephemeral import merge_ephemeral
 from clone_lspatch_loader_zero import wrap_clone_with_lspatch_zero
 from clone_lab_profileability import enable_private_lab_shell_profiling
+from clone_main_crash_buffer import classify_main_crash_buffer
 
 OLD_METRICA = "com.yandex.preinstallsatellite.appmetrica.provider"
 NEW_METRICA = "com.yandex.preinstallsatellite.appmetrica.provideq"
@@ -919,6 +920,25 @@ def run():
                                       if loader_zero else classify_activity_start(first_status))
                 first_success = full_native_main_ui_pass(
                     [first_main], first_launch_class, first_foreground)
+                if loader_zero and not first_success:
+                    # A/B control: classify startup crash before original Yandex
+                    # is installed. Do not read/upload any account data.
+                    try:
+                        first_exit = arsc.run(
+                            ["adb", "shell", "dumpsys", "activity", "exit-info",
+                             source.DEST], "AB_CLONE_ONLY_EXIT_INFO", 35)
+                        first_crash = arsc.run(
+                            ["adb", "logcat", "-d", "-b", "crash", "-v",
+                             "threadtime", "-t", "3000"],
+                            "AB_CLONE_ONLY_CRASH_BUFFER", 45)
+                        print(json.dumps({
+                            "standalone_clone_main_crash": classify_main_crash_buffer(
+                                first_exit, first_crash)
+                        }, sort_keys=True))
+                    except arsc.TrialError:
+                        print(json.dumps({
+                            "standalone_clone_main_crash": "CRASH_BUFFER_UNAVAILABLE"
+                        }))
                 print(json.dumps({
                     "ab_condition": "SINGLE_CLONE_BEFORE_ORIGINAL",
                     "clone_standalone_package_manager_pass": True,
@@ -1122,6 +1142,23 @@ def run():
                         except arsc.TrialError:
                             print(json.dumps({
                                 "clone_main_pid_logs": "ANDROID_MAIN_PID_LOG_UNAVAILABLE"
+                            }))
+                        # Android has a distinct 'crash' buffer. MAIN 'main'
+                        # buffer can be empty although ActivityExitInfo is
+                        # REASON_CRASH. Scrutinize only exact MAIN PIDs.
+                        try:
+                            crash_buffer = arsc.run(
+                                ["adb", "logcat", "-d", "-b", "crash", "-v",
+                                 "threadtime", "-t", "3000"],
+                                "CLONE_SCOPED_CRASH_BUFFER", 45)
+                            print(json.dumps({
+                                "clone_main_crash_buffer":
+                                    classify_main_crash_buffer(exit_dump, crash_buffer)
+                            }, sort_keys=True))
+                        except arsc.TrialError:
+                            print(json.dumps({
+                                "clone_main_crash_buffer":
+                                    "ANDROID_CRASH_BUFFER_UNAVAILABLE"
                             }))
                     except arsc.TrialError:
                         print(json.dumps({"clone_exit_info": "ANDROID_EXIT_INFO_UNAVAILABLE"}))
