@@ -69,6 +69,50 @@ def classify_png_header(data: bytes) -> dict:
     }
 
 
+def classify_dump_command(result_code: int, output: str) -> dict:
+    """Only categories; never emit APK/UI strings, hierarchies or screenshots."""
+    low = output.lower()
+    return {
+        "command_exit_zero": result_code == 0,
+        "dump_claims_complete": "dumped to" in low,
+        "dump_had_exception": "exception" in low,
+        "dump_had_security_error": "securityexception" in low or "permission denial" in low,
+        "dump_had_command_error": "error" in low or "usage:" in low,
+    }
+
+
+def classify_general_focus(data: str) -> dict:
+    """Android 13 sometimes puts focus in general window dump only."""
+    keys = ("mCurrentFocus=", "mFocusedApp=", "mInputMethodTarget=",
+            "FocusedWindow:", "FocusedApplication:", "mCurrentFocus :")
+    focus_rows = [line for line in data.splitlines() if any(k in line for k in keys)]
+    return {
+        "global_focus_present": bool(focus_rows),
+        "global_focus_clone": any(PACKAGE in row for row in focus_rows),
+        "clone_window_record_present": any(
+            PACKAGE in row and ("Window{" in row or "WindowState" in row)
+            for row in data.splitlines()
+        ),
+    }
+
+
+def inspect_ui_dump(result: dict) -> None:
+    for label, outpath in (("local", TREE), ("sdcard", "/sdcard/celikom-ui-witness.xml")):
+        ui = shell("uiautomator", "dump", outpath, timeout=65)
+        result["uiautomator_" + label] = classify_dump_command(
+            ui.returncode, ui.stdout + ui.stderr)
+        raw = shell("cat", outpath, timeout=20)
+        result["xml_" + label + "_readable"] = raw.returncode == 0
+        if raw.returncode == 0:
+            try:
+                result.update(classify_ui_tree(raw.stdout))
+                result["ui_xml_path_used"] = label
+                break
+            except ET.ParseError:
+                result["xml_" + label + "_malformed"] = True
+        shell("rm", "-f", outpath)
+
+
 def main():
     if (os.getenv("GITHUB_ACTIONS") != "true" or
             os.getenv("CELIKOM_CLEAN_ANDROID_NATIVE_REDDROID") != "1" or
@@ -91,16 +135,11 @@ def main():
         else:
             result["window_query_failed"] = True
 
-        ui = shell("uiautomator", "dump", TREE, timeout=65)
-        if ui.returncode == 0:
-            raw = shell("cat", TREE, timeout=20)
-            if raw.returncode == 0:
-                try:
-                    result.update(classify_ui_tree(raw.stdout))
-                except ET.ParseError:
-                    result["ui_hierarchy_parse_failure"] = True
-        else:
-            result["ui_hierarchy_unavailable"] = True
+        whole_window = shell("dumpsys", "window", timeout=30)
+        result["global_window_dump_available"] = whole_window.returncode == 0
+        if whole_window.returncode == 0:
+            result.update(classify_general_focus(whole_window.stdout))
+        inspect_ui_dump(result)
 
         screen = shell("screencap", "-p", SCREEN, timeout=30)
         if screen.returncode == 0:
@@ -116,9 +155,9 @@ def main():
         else:
             result["screenshot_unavailable"] = True
     finally:
-        shell("rm", "-f", TREE, SCREEN)
+        shell("rm", "-f", TREE, "/sdcard/celikom-ui-witness.xml", SCREEN)
     result["native_window_witness"] = bool(
-        result.get("clone_focused_or_targeted") and
+        (result.get("clone_focused_or_targeted") or result.get("global_focus_clone")) and
         result.get("ui_contains_clone_nodes")
     )
     print(json.dumps(result, sort_keys=True))
