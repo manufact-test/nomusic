@@ -32,6 +32,12 @@ This certificate fingerprint is an independently anchored comparator, not standa
 - .github/workflows/android-a1-2025-issuer-provenance.yml: public GitHub Actions, branch scoped, only synthetic tests + official metadata and a no-APK blocked verdict. CI success is NOT a true Android13 host run.
 - No secrets, private binary, vendor code, competitor content or logs are stored/published. No modifications to main A1, Test.50, Windows, extension, backend/production, user HONOR, official Yandex or unpublished competitor draft.
 
+## Verified new public CI result
+
+- [GitHub Actions run #43083139558](https://github.com/manufact-test/nomusic/actions/runs/43083139558), code and workflow HEAD **19f396b22d4bffc78b43ded86de083d9b76de44f**: 14/14 synthetic issuer/version/signer/no-candidate regression tests **PASS**.
+- Actual HTTPS official RuStore metadata response in that CI: **2026.10.3 #170rur** is current for package ru.yandex.music; verdict CURRENT_STORE_METADATA_NOT_TARGET_2025_RELEASE. This proves **only current metadata mismatches** target, not that archived official files cannot exist anywhere.
+- Fail-closed no-APK control emitted PUBLISHER_SIGNED_2025_SAMPLE_NOT_YET_OBTAINED, native_2025_test_permitted=false; no APK uploaded/installed/launched; no ARM13 native 2025 runtime test, no CELIKOM boot/audio fix. **CI SUCCESS is provenance tooling validation, product NO-GO.**
+
 ## Next gate, only when legitimate bytes are available
 
 1. Find independently attributable original publisher-signed 2025.10.4 #120.1rur through a lawful trustworthy source. Do not silently substitute any ChromaSync inner host or random MOD.
