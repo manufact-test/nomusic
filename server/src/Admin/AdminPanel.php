@@ -60,11 +60,13 @@ final class AdminPanel
             if(!$ticket)return Response::json(400,['error'=>'invalid_request']);
             try{$thread=(new \Celikom\Support\SupportService($this->pdo,$this->config))->thread($ticket);}
             catch(\DomainException){return Response::json(404,['error'=>'not_found']);}
-            if($thread['kind']!=='song'||!is_array($thread['report']))return Response::json(404,['error'=>'not_found']);
-            $payload=json_encode(['schema'=>'celikom-song-diagnostic-v1','ticket'=>$ticket,
+            if(!is_array($thread['report'])||($thread['kind']!=='song'&&
+              !($thread['kind']==='general'&&($thread['report']['platform']??null)==='windows')))
+                 return Response::json(404,['error'=>'not_found']);
+            $payload=json_encode(['schema'=>'celikom-support-diagnostic-v1','ticket'=>$ticket,'kind'=>$thread['kind'],
               'report'=>$thread['report']],JSON_PRETTY_PRINT|JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR);
             return new Response(200,['Content-Type'=>'application/json; charset=utf-8',
-             'Content-Disposition'=>'attachment; filename="CELIKOM-song-'.$ticket.'-diagnostics.json"',
+             'Content-Disposition'=>'attachment; filename="CELIKOM-support-'.$ticket.'-diagnostics.json"',
              'X-Content-Type-Options'=>'nosniff','Cache-Control'=>'no-store'], $payload);
         }
         if(in_array($path,['/admin/support/reply','/admin/support/resolve-song'],true)){
