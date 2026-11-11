@@ -551,6 +551,32 @@ try
     }
     Test(!outageJson.Contains("SENSITIVE") && !outageJson.Contains("token="),
          "W71 intermittent outage report remains secret-free");
+    // W72 regression: the owner-export TXT keeps only 1600 recent rows,
+    // whereas hidden support must retain an event from thirteen minutes ago
+    // even after 2500 harmless native status polls.
+    var oldIncidentStamp = DateTimeOffset.UtcNow.AddMinutes(-13)
+        .ToString("yyyy-MM-ddTHH:mm:ss.fffZ");
+    File.AppendAllText(Path.Combine(fixtureLogsDirectory, "companion-events.log"),
+        oldIncidentStamp + "|ACTIVE_ENTITLEMENT_NETWORK_SUSPENDED\n" +
+        string.Concat(Enumerable.Repeat(when + "|NATIVE_STATE_RECEIVED\n", 2_500)) +
+        when + "|ACTIVE_ENTITLEMENT_RECOVERED\n");
+    var fullWindowJson = JsonSerializer.Serialize(DiagnosticLog.ExportSupportSnapshot(
+        "5.126.1.0", "ACTIVE", true, false, "0.24.20", true, "123",
+        fixtureLogsDirectory));
+    using (var fullWindowDoc = JsonDocument.Parse(fullWindowJson))
+    {
+        var history = fullWindowDoc.RootElement.GetProperty("events")
+            .EnumerateArray().ToArray();
+        Test(history.Length <= 64 && history.Any(x =>
+            x.GetProperty("code").GetString() == "ACTIVE_ENTITLEMENT_NETWORK_SUSPENDED" &&
+            x.GetProperty("ageSeconds").GetInt32() >= 720),
+            "W72 13-minute-old disconnect survives more than 2500 later status polls");
+        Test(!history.Any(x => x.GetProperty("code").GetString() ==
+             "NATIVE_STATE_RECEIVED") &&
+             !fullWindowJson.Contains("SENSITIVE") && !fullWindowJson.Contains("token="),
+             "W72 full-window incident report is bounded, filtered and redacted");
+    }
+
     Test(snapshot.Contains("EngineFastPauseObserved=") &&
         snapshot.Contains("PlayerAudibleEventObserved=") &&
         snapshot.Contains("DecoderErrorObserved="), "typed owner playback evidence summary");
