@@ -93,27 +93,33 @@ class Guest:
                 else "MAIN_LAUNCH_ACCEPTED")
 
     def observe(self, package: str, sleeper=time.sleep) -> dict:
+        # One package process *remaining* alive is insufficient if an app is
+        # continuously crashing/restarting between samples. Track PID identity
+        # privately; publish only a stable/changed boolean, never PID values.
         observations = []
-        for seconds in (1, 2, 3, 5, 5):
-            sleeper(seconds)
+        observed_pids = []
+        for _ in range(16):
+            sleeper(1)
             pid = self.command("shell", "pidof", package)
             if pid.returncode not in (0, 1):
                 raise RuntimeError("ADB_PID_CHECK_FAILED")
-            alive = pid.returncode == 0 and bool(
-                re.fullmatch(r"\s*\d+(?:\s+\d+)*\s*", pid.stdout)
-            )
+            identity = pid.stdout.strip() if (pid.returncode == 0
+                       and re.fullmatch(r"\d+", pid.stdout.strip())) else None
+            observed_pids.append(identity)
             dump = self.shell("dumpsys", "activity", "activities")
             observations.append({
-                "main_alive": alive,
+                "main_alive": identity is not None,
                 "activity_resumed": resumed_for_package(dump, package),
             })
+        ever_alive = all(row["main_alive"] for row in observations)
+        stable_main_pid = ever_alive and len(set(observed_pids)) == 1
         return {
             "window_seconds": 16,
             "samples": observations,
-            "main_survives": all(row["main_alive"] for row in observations),
+            "main_survives": ever_alive and stable_main_pid,
+            "stable_main_pid": stable_main_pid,
             "activity_resumed_all_samples": all(row["activity_resumed"] for row in observations),
         }
-
 
 
 class DockerGuest(Guest):
@@ -207,7 +213,7 @@ def probe(guest: Guest, apk: Path, mode: str, stock_apks: list[Path]) -> dict:
     observation = guest.observe(CLONE_PACKAGE)
     outcome.update(observation)
     outcome["verdict"] = (
-        "NATIVE_MAIN_RESUMED_16S"
+        "NATIVE_MAIN_SAME_PID_RESUMED_16S"
         if observation["main_survives"] and observation["activity_resumed_all_samples"]
         else "MAIN_NOT_SUSTAINED_OR_RESUMED"
     )
@@ -226,7 +232,7 @@ def main() -> int:
         guest = DockerGuest() if args.transport == "docker" else Guest(serial=args.serial)
         result = probe(guest, args.apk, args.mode, args.stock_apks)
         print(json.dumps(result, sort_keys=True))
-        return 0 if result["verdict"] == "NATIVE_MAIN_RESUMED_16S" else 1
+        return 0 if result["verdict"] == "NATIVE_MAIN_SAME_PID_RESUMED_16S" else 1
     except (RuntimeError, OSError, subprocess.TimeoutExpired) as error:
         print(json.dumps({
             "verdict": "NOT_RUN_OR_ABORTED", "owner_device_touched": False,
