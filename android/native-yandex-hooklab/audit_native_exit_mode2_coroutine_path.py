@@ -118,6 +118,52 @@ def reachable(edges: dict[int, list[int]], start: int, goal: int,
     return False
 
 
+
+def nearby_error_literal_categories(dex, off: int, exception_pc: int) -> dict:
+    """Inspect only local const-string instructions, report predefined enums.
+
+    No user/account/source literal can escape the signed-only temporary runner.
+    This is lexical context only: DEX register flow / exception throwing
+    cannot be inferred from nearby literal tokens.
+    """
+    code_units = dex.u32(off + 12)
+    start = off + 16
+    pc = 0
+    hints = set()
+    direct_literal_count = 0
+    while pc < exception_pc and pc < code_units:
+        word = dex.u16(start + pc*2)
+        op = word & 255
+        width = (payload_width(dex, start, code_units, pc, word >> 8)
+                 if op == 0 else OP_WIDTH.get(op))
+        if width is None or pc + width > code_units:
+            raise DexError("Invalid literal instruction width")
+        if exception_pc - pc <= 40 and op in (0x1A, 0x1B):
+            idx = (dex.u16(start + (pc+1)*2) if op == 0x1A
+                   else dex.u32(start + (pc+1)*2))
+            value = dex.string(idx).casefold()[:500]
+            direct_literal_count += 1
+            groups = (
+                ("SIGNATURE_OR_CERT", ("signature", "signing", "certificate", "sha256")),
+                ("ACCOUNT_AUTH", ("passport", "auth", "account", "credential", "login", "token")),
+                ("PACKAGE_OR_PROCESS", ("package", "process", "component", "restart")),
+                ("LOCALE", ("locale", "language", "translation")),
+                ("PERMISSION", ("permission", "denied", "grant")),
+                ("INIT_FAILURE", ("initializ", "invalid state", "failed", "failure")),
+            )
+            for label, keys in groups:
+                if any(key in value for key in keys):
+                    hints.add(label)
+        pc += width
+    return {
+        "direct_const_string_sites_near_exception_bounded":
+            min(direct_literal_count, 20),
+        "allowlisted_lexical_hints_only": sorted(hints),
+        "string_contents_never_exported": True,
+        "this_does_not_prove_exception_message": True,
+    }
+
+
 def inspect_one(dex, code_off: int) -> dict:
     opcodes, edges, switches = valid_cfg(dex, code_off)
     direct = [(pc, dex.method(index))
@@ -178,6 +224,9 @@ def inspect_one(dex, code_off: int) -> dict:
         "has_exact_mode2_ctor": True,
         "handler_post_sites_bounded": min(len(post_sites), 10),
         "illegal_state_ctor_sites_bounded": min(len(illegal_sites), 10),
+        "nearby_exception_literal_hints":
+            nearby_error_literal_categories(dex, code_off, illegal_sites[0])
+            if illegal_sites else {"none": True},
         "illegal_state_ctor_dominates_mode2_creation": any(
             pc < target and required(pc) for pc in illegal_sites),
         "guards_separating_mode2_creation_count_bounded": min(len(branches), 100),

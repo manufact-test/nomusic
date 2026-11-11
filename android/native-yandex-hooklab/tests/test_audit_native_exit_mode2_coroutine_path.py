@@ -5,7 +5,7 @@ import sys
 import unittest
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
-from audit_native_exit_mode2_coroutine_path import valid_cfg, reachable
+from audit_native_exit_mode2_coroutine_path import valid_cfg, reachable, nearby_error_literal_categories
 from inspect_android_host import DexError
 
 
@@ -40,6 +40,17 @@ class StaticGraph(unittest.TestCase):
     def test_no_unaligned_jump_allowed(self):
         with self.assertRaises(DexError):
             valid_cfg(FakeDex([0x0038, 0x7FFF, 0x000e]), 0)
+
+    def test_safe_literal_classifier_exposes_no_string_data(self):
+        class MsgDex(FakeDex):
+            def string(self, idx):
+                return "Secret account token and passport not for output"
+        # const-string v0, string@1 followed by return-void
+        dex = MsgDex([0x001a, 1, 0x000e])
+        result = nearby_error_literal_categories(dex, 0, 2)
+        self.assertEqual(result["allowlisted_lexical_hints_only"], ["ACCOUNT_AUTH"])
+        self.assertNotIn("Secret", str(result))
+        self.assertTrue(result["this_does_not_prove_exception_message"])
 
     def test_exit_nodes_have_no_successors(self):
         dex = FakeDex([0x000e, 0x000e])
