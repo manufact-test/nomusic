@@ -53,5 +53,27 @@ class UnwrappedOriginTests(unittest.TestCase):
             m.run(Path("missing.apk"), NotAllowed())
 
 
+    def test_exit_info_scopes_exact_main_not_helper(self):
+        raw = ("ApplicationExitInfo #0 processName=app.chromasync.yamclone:helper reason=4 status=1\n"
+               "ApplicationExitInfo #1 processName=app.chromasync.yamclone reason=1 status=0\n")
+        seen = m.classify_exit_info(raw)
+        self.assertTrue(seen["main_exit_info_record_found"])
+        self.assertTrue(seen["main_exit_reason_self"])
+        self.assertTrue(seen["main_exit_self_status_zero"])
+        self.assertFalse(seen["main_exit_reason_crash_java"])
+        self.assertFalse(seen["raw_android_exit_history_shared"])
+
+    def test_events_scope_exact_main_only(self):
+        text = (
+            "am_proc_died app.chromasync.yamclone:aux\n"
+            "am_proc_died app.chromasync.yamclone\n"
+            "am_crash app.chromasync.yamclone:aux\n"
+        )
+        seen = m.classify_process_events(text)
+        self.assertTrue(seen["am_proc_died_main"])
+        self.assertFalse(seen["am_crash_main"])
+        self.assertFalse(seen["raw_android_event_log_shared"])
+
+
 if __name__ == "__main__":
     unittest.main()
