@@ -51,7 +51,7 @@ def adb(args, timeout=75, allow=False):
     if result.returncode and args[0] == "install-multiple":
         # Only fixed PackageManager failure codes; no exception text/paths/URLs.
         private = result.stdout + result.stderr
-        match = re.search(r"\\b(INSTALL_(?:FAILED|PARSE_FAILED)_[A-Z0-9_]{2,50})\\b",
+        match = re.search(r"(INSTALL_(?:FAILED|PARSE_FAILED)_[A-Z0-9_]{2,50})",
                           private)
         return ("PRIVATE_PM_" + match.group(1)) if match else "PRIVATE_PM_OTHER_ERROR"
     if result.returncode and not allow:
