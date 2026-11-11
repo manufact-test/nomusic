@@ -1,0 +1,41 @@
+name: Android A1 2025 GPR public old-version issuer verification (NO install)
+on:
+  push:
+    branches:
+      - experiment/android-a1-2025-issuer-provenance-gate-20261111
+    paths:
+      - '.github/workflows/android-a1-2025-gpr-public-candidate-verify.yml'
+      - 'android/native-yandex-hooklab/ci/uptodown_2025_gpr_ephemeral_verify.py'
+      - 'android/native-yandex-hooklab/ci/publisher_2025_provenance_gate.py'
+permissions:
+  contents: read
+jobs:
+  public-old-signed-candidate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 13
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Prepare Android SDK offline signing and manifest verification
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq aapt apksigner zipalign
+          command -v aapt && command -v apksigner && command -v google-chrome
+          python3 -m py_compile android/native-yandex-hooklab/ci/uptodown_2025_gpr_ephemeral_verify.py
+          python3 -m py_compile android/native-yandex-hooklab/ci/publisher_2025_provenance_gate.py
+      - name: Normal public version page download only — verify cryptographic original before any install
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m venv "$RUNNER_TEMP/celikom-public-candidate-env"
+          "$RUNNER_TEMP/celikom-public-candidate-env/bin/python" -m pip -q install playwright==1.58.0
+          "$RUNNER_TEMP/celikom-public-candidate-env/bin/python" android/native-yandex-hooklab/ci/uptodown_2025_gpr_ephemeral_verify.py
+      - name: ALWAYS purge temporary runtime — no APK in repository/artifacts
+        if: always()
+        shell: bash
+        run: |
+          rm -rf -- "$RUNNER_TEMP/celikom-public-candidate-env"
+          echo '{"all_candidate_binary_bytes_ephemeral":true,"owner_honor_unmodified":true,"no_public_apk_artifacts":true,"celikom_stage_a":"NO_GO"}'
