@@ -13,6 +13,28 @@ void Test(bool condition, string message)
 var folder = Path.Combine(Path.GetTempPath(), "celikom-w15-contract-" + Guid.NewGuid().ToString("N"));
 try
 {
+    // W74: first Start must not confuse an in-flight host scan with an
+    // unsupported vendor version. Existing active native integration is valid
+    // without checking the original ASAR hash of the modified host.
+    Test(StartupHostPreflight.BlockReason(Celikom.NativeInstaller.NativeInstallState.NotInstalled,
+            null)!.Contains("ещё не завершена"),
+        "W74 pending host scan never reports unsupported Yandex");
+    Test(StartupHostPreflight.BlockReason(Celikom.NativeInstaller.NativeInstallState.Active,
+            null) == null,
+        "W74 existing native integration bypasses original-host hash probe");
+    Test(StartupHostPreflight.BlockReason(Celikom.NativeInstaller.NativeInstallState.NotInstalled,
+            new YandexHostResult(YandexHostStatus.OfficialBaselineVerified, "5.126.1.0")) == null,
+        "W74 only verified official baseline permits first integration");
+    Test(StartupHostPreflight.BlockReason(Celikom.NativeInstaller.NativeInstallState.NotInstalled,
+            new YandexHostResult(YandexHostStatus.InspectionUnavailable, "")) is { } temporarily &&
+         !temporarily.Contains("не поддерживается"),
+        "W74 interrupted inspection never shows false unsupported modal");
+    Test(StartupHostPreflight.BlockReason(Celikom.NativeInstaller.NativeInstallState.NotInstalled,
+            new YandexHostResult(YandexHostStatus.UnsupportedVersion, "9.9.9"))!.Contains("не поддерживается"),
+        "W74 genuine unsupported version still blocked");
+    Test(StartupHostPreflight.BlockReason(Celikom.NativeInstaller.NativeInstallState.Changed,
+            new YandexHostResult(YandexHostStatus.OfficialBaselineVerified, "5.126.1.0")) != null,
+        "W74 changed patched host never bypasses backup safety gate");
     Test(YandexHostProbe.VerifiedVersion == "5.126.1.0", "pinned official host version");
     Test(YandexHostProbe.VerifiedAsarSha256.Length == 64, "pinned official ASAR fingerprint");
     Test(YandexHostProbe.Inspect(Path.Combine(folder, "yandex-not-installed")).Status ==
@@ -60,6 +82,46 @@ try
     var unix = now.ToUnixTimeSeconds() + 200;
     var audio = "/api/v1/audio/42?token=" + new string('a', 64) + "&expires=" + unix + "&sid=7";
     JsonElement Parse(object source) { using var json = JsonDocument.Parse(JsonSerializer.Serialize(source)); return json.RootElement.Clone(); }
+    // W74: retry only an idempotent activation once after a bounded transient
+    // network failure. A denial, throttle, or cancelled user intent is never
+    // blindly replayed. The retry can authorize only from a fresh server JSON.
+    var activationCalls = 0;
+    var activationCodes = new List<string>();
+    var freshAccess = Parse(new { allowed = true, source = "promo",
+        valid_until = (string?)null, reason = "promo_lifetime" });
+    var recoveredAccess = await StartupActivationRecovery.ActivateAsync(
+        _ => {
+            activationCalls++;
+            return activationCalls == 1
+                ? Task.FromException<JsonElement>(new HttpRequestException("synthetic route failure"))
+                : Task.FromResult(freshAccess);
+        }, () => true, activationCodes.Add);
+    Test(activationCalls == 2 && recoveredAccess.GetProperty("allowed").GetBoolean() &&
+         activationCodes.SequenceEqual(new [] {
+             "ACTIVE_ENTITLEMENT_NETWORK_ERROR", "START_ENTITLEMENT_RETRY",
+             "START_ENTITLEMENT_RETRY_OK"
+         }), "W74 one network failure retries activation exactly once");
+    activationCalls = 0;
+    try {
+        await StartupActivationRecovery.ActivateAsync(
+            _ => {
+                activationCalls++;
+                return Task.FromException<JsonElement>(new ApiFailure(403, "ACCESS_DENIED"));
+            }, () => true);
+        throw new Exception("W74_DENIAL_MUST_THROW");
+    } catch (ApiFailure denied) when (denied.HttpStatus == 403) { }
+    Test(activationCalls == 1 && !StartupActivationRecovery.SafeToRetry(
+        new ApiFailure(429, "RATE_LIMITED")), "W74 no retry for denial or throttle");
+    activationCalls = 0;
+    try {
+        await StartupActivationRecovery.ActivateAsync(
+            _ => {
+                activationCalls++;
+                return Task.FromException<JsonElement>(new HttpRequestException("synthetic"));
+            }, () => false);
+        throw new Exception("W74_INVALID_START_MUST_THROW");
+    } catch (HttpRequestException) { }
+    Test(activationCalls == 1, "W74 Stop/account change vetoes retry");
     var payload = Parse(new { found = true, audio_url = audio, expires_at = unix,
         duration_ms = 200_000, mime_type = "audio/mpeg" });
     var origin = GrantValidator.NormalizeOrigin("https://api.celikom.example");
@@ -125,9 +187,9 @@ try
     if (!string.IsNullOrWhiteSpace(zipFixture))
     {
         var staged = AppUpdateManager.Stage(zipFixture, new Version(0, 24, 16, 0));
-        Test(staged.Version == new Version(0, 24, 20, 0),
+        Test(staged.Version == new Version(0, 24, 21, 0),
             "ZIP one-click updater accepts new CELIKOM version");
-        Test(Path.GetFileName(staged.Path).StartsWith("CELIKOM-W72-",StringComparison.Ordinal),
+        Test(Path.GetFileName(staged.Path).StartsWith("CELIKOM-W74-",StringComparison.Ordinal),
             "ZIP extraction stages only CELIKOM installer");
         bool oldRejected = false;
         try { AppUpdateManager.Stage(zipFixture, AppUpdateManager.RunningVersion); }
