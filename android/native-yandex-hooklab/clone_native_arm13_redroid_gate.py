@@ -24,6 +24,11 @@ from native_arm13_startup_observer import (
     classify_main_cycle_correlation,
 )
 from native_arm13_timeline_origin import classify_merged_startup_timeline
+from native_arm13_platform_contract import (
+    classify_installed_permission_state,
+    compare_installed_permission_states,
+    classify_public_system_denials,
+)
 from native_arm13_signed_original_control import (
     adb, check_guest_container, pm_category, private_process, pm_session_install
 )
@@ -156,6 +161,13 @@ def uninstall_own_clone_only():
         fail("NATIVE_ARM13_CLONE_RESET_USER_APP_STILL_INSTALLED")
 
 
+def _public_permission_dump(package: str) -> str:
+    """Read-only Android package-manager state; never printed or persisted."""
+    if package not in (CLONE, ORIGINAL):
+        fail("NATIVE_ARM13_PERMISSION_DUMP_UNAPPROVED_PACKAGE")
+    return adb(["shell", "dumpsys", "package", package], timeout=45, allow=True)
+
+
 def snapshot(package: str) -> dict:
     if package not in (CLONE, ORIGINAL):
         fail("NATIVE_ARM13_SNAPSHOT_UNAPPROVED_PACKAGE")
@@ -249,6 +261,12 @@ def start(package: str) -> tuple[dict, dict]:
         merged_log, package,
         fresh_main_exit=filtered_exit if package == CLONE else "",
         original_live_pid=live_pid if package == ORIGINAL else "")
+    # System-service access denials are not necessarily emitted by MAIN PID:
+    # read public OS system buffer, classify exact package only, redact all text.
+    system_log = adb(["shell", "logcat", "-d", "-b", "system", "-v",
+                      "threadtime", "-t", "12000"], timeout=45, allow=True)
+    safe_exit["public_os_denial_witness"] = classify_public_system_denials(
+        system_log, package)
     if status["main_alive"] and status["activity_resumed"]:
         return status, {**safe_exit, "fatal_category": "NOT_OBSERVED",
                         "signal": "NOT_OBSERVED", "java_dlopen_failed": False,
@@ -286,17 +304,20 @@ def test_independent_clone_and_original(clone: Path, original_splits: list[Path]
         fail("NATIVE_ARM13_CLONE_ALL_THREE_LAYOUTS_REQUIRED")
     # A: original independently signed five clone splits (no merge/no loader).
     install_clone_five_verified_splits(clone_splits, signer)
+    five_clone_permission_dump = _public_permission_dump(CLONE)
     clone_splits_alone, clone_splits_exit = start(CLONE)
     uninstall_own_clone_only()
 
     # B: our five splits merged into ONE APK, still without LSPatch.
     verify_lab_clone(direct_clone, signer, loader_zero=False)
     install_own_one_apk(direct_clone)
+    direct_clone_permission_dump = _public_permission_dump(CLONE)
     direct_alone, direct_exit = start(CLONE)
     uninstall_own_clone_only()
 
     # C: same ONE APK with upstream LSPatch loader level0, no modules.
     install_own_one_apk(clone)
+    zero_clone_permission_dump = _public_permission_dump(CLONE)
     clone_alone, clone_crash = start(CLONE)
 
     # Independently and originally signed Yandex source, untouched: verify
@@ -310,6 +331,8 @@ def test_independent_clone_and_original(clone: Path, original_splits: list[Path]
     original_packages = adb(["shell", "pm", "path", ORIGINAL], timeout=35)
     if sum(x.startswith("package:") for x in original_packages.splitlines()) != 5:
         fail("NATIVE_ARM13_ORIGINAL_SIGNED_SPLIT_COUNT_CHANGED")
+    original_permission_dump = _public_permission_dump(ORIGINAL)
+    clone_permission_dump_after_original = _public_permission_dump(CLONE)
     original_main, original_crash = start(ORIGINAL)
     clone_after = snapshot(CLONE)
     result = ("NATIVE_ARM13_CLONE_MAIN_LIFECYCLE_AND_ORIGINAL_COEXIST"
@@ -328,6 +351,23 @@ def test_independent_clone_and_original(clone: Path, original_splits: list[Path]
               "original_publisher_signed_five_splits": True,
               "original_main": original_main, "original_crash_category": original_crash,
               "clone_after_original": clone_after,
+              "public_install_permission_differential": {
+                  "five_clone_splits": classify_installed_permission_state(
+                      five_clone_permission_dump, CLONE),
+                  "direct_one_apk_clone": classify_installed_permission_state(
+                      direct_clone_permission_dump, CLONE),
+                  "zero_loader_clone_before_original":
+                      classify_installed_permission_state(zero_clone_permission_dump, CLONE),
+                  "signed_original": classify_installed_permission_state(
+                      original_permission_dump, ORIGINAL),
+                  "zero_loader_clone_after_original":
+                      classify_installed_permission_state(
+                          clone_permission_dump_after_original, CLONE),
+                  "shared_requested_permission_differential":
+                      compare_installed_permission_states(
+                          clone_permission_dump_after_original,
+                          original_permission_dump),
+              },
               "one_independent_lab_clone_apk": True,
               "sigBypassLevel": 0, "lspatch_modules_embedded": 0,
               "vendor_original_bytes_modified": False,
