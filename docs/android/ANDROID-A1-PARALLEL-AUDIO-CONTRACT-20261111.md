@@ -60,3 +60,12 @@ A HEAD probe must return 200, matching supported MIME, positive content length, 
 4. Owner audible validation on actual native host required (replacement/original, Next/MyWave, same-track Start/Stop, pause/seek/expiry/fallback). Stage A stays NO-GO until approved; no custom Stage B injector.
 
 **Release classification:** B42 preparation can test PASS while Android A1 product remains NO-GO.
+
+
+## Lead A review hardening after PR #43 integration
+
+The main A1 integrator accepted the helper's source-only contract, then tightened the same module before allowing any future host adapter:
+- REPLACEMENT decision has private object identity tied to the issuing source-contract instance. Manually fabricated tickets or tickets from a second contract are rejected.
+- commit consumes each ticket once (whether native application succeeded or failed); repeated callback cannot double-apply an old source.
+- Every HTTP Range 206/416 classification requires a valid previously verified HEAD size/strong ETag. 416 must match the witnessed total and genuinely be out of bounds.
+- Extra deterministic tests prevent regressions. All remain pure contract tests; signed Yandex native host remains unintegrated and Stage A still NO-GO.

@@ -116,11 +116,20 @@ export function buildByteRangeHeaders(start, end = null, etag = null) {
 export function validateRangeResponse(response, start, requestedEnd = null, expected = null) {
   if (!validMs(start) || (requestedEnd !== null && (!validMs(requestedEnd) || requestedEnd < start)))
     return Object.freeze({ ok: false, code: "INVALID_RANGE" });
+  // Seek/range is only valid against a previously verified immutable HEAD.
+  // Without it, a valid-looking 206 from another version must fail closed.
+  if (!expected || !Number.isSafeInteger(expected.size) || expected.size <= 0 ||
+      !isStrongEtag(expected.etag))
+    return Object.freeze({ ok: false, code: "HEAD_WITNESS_REQUIRED" });
   const h = response?.headers;
   const range = header(h, "content-range");
   if (response?.status === 416) {
     const match = /^bytes \*\/([1-9][0-9]*)$/.exec(range || "");
-    return Object.freeze({ ok: false, code: match ? "RANGE_UNSATISFIABLE" : "INVALID_416" });
+    if (!match) return Object.freeze({ ok: false, code: "INVALID_416" });
+    const total = Number(match[1]);
+    if (!Number.isSafeInteger(total) || total !== expected.size || start < total)
+      return Object.freeze({ ok: false, code: "RANGE_MISMATCH" });
+    return Object.freeze({ ok: false, code: "RANGE_UNSATISFIABLE" });
   }
   if (response?.status !== 206) return Object.freeze({ ok: false, code: "RANGE_NOT_PARTIAL" });
   const parts = /^bytes ([0-9]+)-([0-9]+)\/([1-9][0-9]*)$/.exec(range || "");
@@ -132,7 +141,7 @@ export function validateRangeResponse(response, start, requestedEnd = null, expe
       begin !== start || end < begin || end >= total ||
       (requestedEnd !== null && end > requestedEnd) ||
       length !== end - begin + 1 ||
-      (expected && (total !== expected.size || etag !== expected.etag)))
+      total !== expected.size || etag !== expected.etag)
     return Object.freeze({ ok: false, code: "RANGE_MISMATCH" });
   return Object.freeze({ ok: true, start: begin, end, total });
 }
@@ -161,6 +170,9 @@ export function createAudioSourceContract({
 
   let generation = 0, requestSeq = 0, track = null, enabled = false;
   let forcedOriginal = false, disposed = false, pending = null, state = "OFF";
+  // Only decisions issued by THIS instance may be applied, once.
+  const issuedTickets = new WeakSet();
+  const consumedTickets = new WeakSet();
   function note(code) {
     // Diagnostics deliberately receive ONLY enumerated codes, never IDs,
     // signed URLs, transport secrets or exception messages.
@@ -176,7 +188,11 @@ export function createAudioSourceContract({
     return !disposed && generation === g && requestSeq === seq;
   }
   function choice(action, code, g = generation, seq = requestSeq, more = {}) {
-    return Object.freeze({ action, code, generation: g, requestSeq: seq, ...more });
+    const ticket = Object.freeze({
+      action, code, generation: g, requestSeq: seq, ...more
+    });
+    issuedTickets.add(ticket);
+    return ticket;
   }
   function original(code) {
     state = enabled && !disposed ? "ORIGINAL" : "OFF";
@@ -280,7 +296,9 @@ export function createAudioSourceContract({
     }
   }
   function isCurrent(decision) {
-    return !!decision && current(decision.generation, decision.requestSeq) &&
+    return decision !== null && typeof decision === "object" &&
+      issuedTickets.has(decision) && !consumedTickets.has(decision) &&
+      current(decision.generation, decision.requestSeq) &&
       (decision.action !== "REPLACEMENT" ||
         (enabled && !forcedOriginal && track?.trackId === decision.trackId &&
          track?.albumId === decision.albumId && track?.editionId === decision.editionId &&
@@ -288,6 +306,8 @@ export function createAudioSourceContract({
   }
   function commit(decision, applied) {
     if (!isCurrent(decision) || decision.action === "IGNORE") return false;
+    // Source application is one-shot: no double reload on repeated callback.
+    consumedTickets.add(decision);
     if (decision.action === "REPLACEMENT") {
       state = applied === true ? "SOURCE_SELECTED_NOT_AUDIBLE_VERIFIED" : "ORIGINAL";
       note(applied === true ? "NATIVE_SOURCE_ACCEPTED_NOT_AUDIO_VERIFIED" : "NATIVE_SOURCE_REJECTED");

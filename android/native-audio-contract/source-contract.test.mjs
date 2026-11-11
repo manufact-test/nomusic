@@ -169,10 +169,33 @@ test("GET 206 matching range / length / ETag is accepted", () => {
 });
 
 test("416 returns honest unsatisfiable, 200 range fallback not falsely accepted", () => {
+  const expected = { size: 4_500_000, etag: '"abc-3"' };
   assert.equal(validateRangeResponse({
     status: 416, headers: {"content-range": "bytes */4500000"}
-  }, 4_500_000).code, "RANGE_UNSATISFIABLE");
-  assert.equal(validateRangeResponse(head(), 0).code, "RANGE_NOT_PARTIAL");
+  }, 4_500_000, null, expected).code, "RANGE_UNSATISFIABLE");
+  assert.equal(validateRangeResponse(head(), 0, null, expected).code, "RANGE_NOT_PARTIAL");
+  assert.equal(validateRangeResponse({
+    status: 416, headers: {"content-range": "bytes */3500000"}
+  }, 4_500_000, null, expected).code, "RANGE_MISMATCH");
+  assert.equal(validateRangeResponse({
+    status: 416, headers: {"content-range": "bytes */4500000"}
+  }, 1024, null, expected).code, "RANGE_MISMATCH");
+});
+
+test("206 and 416 reject missing or untrusted HEAD witness", () => {
+  const response = { status: 206, headers: {
+    "content-range": "bytes 2048-4095/4500000",
+    "content-length": "2048", etag: '"abc-3"'
+  }};
+  for (const witness of [null, undefined, {}, {size: 4500000},
+                         {size: 4500000, etag: 'W/"weak"'},
+                         {size: 0, etag: '"abc-3"'}]) {
+    assert.equal(validateRangeResponse(response, 2048, 4095, witness).code,
+                 "HEAD_WITNESS_REQUIRED");
+  }
+  assert.equal(validateRangeResponse({
+    status: 416, headers: {"content-range": "bytes */4500000"}
+  }, 4_500_000).code, "HEAD_WITNESS_REQUIRED");
 });
 
 test("Next cancels late old-track resolve; stale response cannot commit", async () => {
@@ -305,4 +328,38 @@ test("late HEAD after Next is ignored even when probe ignores AbortSignal", asyn
   gate.next(originalTrack("456"));
   if (release) release(head());
   assert.equal((await old).action, "IGNORE");
+});
+
+test("forged/replayed ticket is rejected; valid ticket is one-shot", async () => {
+  const { gate } = await prepared();
+  const ticket = await gate.requestSource();
+  assert.equal(ticket.action, "REPLACEMENT");
+  const forged = { ...ticket };
+  assert.equal(gate.isCurrent(forged), false);
+  assert.equal(gate.commit(forged, true), false);
+  assert.equal(gate.commit(ticket, true), true);
+  assert.equal(gate.isCurrent(ticket), false);
+  assert.equal(gate.commit(ticket, true), false);
+  assert.equal(gate.snapshot().state, "SOURCE_SELECTED_NOT_AUDIBLE_VERIFIED");
+});
+
+test("ticket cannot cross source-contract instances even with identical state", async () => {
+  const first = await prepared();
+  const second = await prepared();
+  const ticket = await first.gate.requestSource();
+  await second.gate.requestSource();
+  assert.equal(second.gate.isCurrent(ticket), false);
+  assert.equal(second.gate.commit(ticket, true), false);
+});
+
+test("late cancellation and failed host application consume or revoke ticket", async () => {
+  const { gate } = await prepared();
+  const failed = await gate.requestSource();
+  assert.equal(gate.commit(failed, false), false);
+  assert.equal(gate.isCurrent(failed), false);
+  assert.equal(gate.commit(failed, true), false);
+  const pending = await gate.requestSource();
+  gate.next(originalTrack("456"));
+  assert.equal(gate.commit(pending, true), false);
+  assert.equal(gate.isCurrent(pending), false);
 });

@@ -3,6 +3,7 @@ on:
   push:
     branches:
       - experiment/android-a1-parallel-audio-contract-20261111
+      - experiment/android-native-a1-lspatch-clone-loader0-20261111
     paths:
       - 'android/native-audio-contract/**'
       - 'docs/android/ANDROID-A1-PARALLEL-AUDIO-CONTRACT-20261111.md'
