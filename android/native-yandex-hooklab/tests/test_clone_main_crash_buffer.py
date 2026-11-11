@@ -65,6 +65,57 @@ class SafeMainCrashBufferTest(unittest.TestCase):
         self.assertNotIn("private.invalid",str(summary))
         self.assertNotIn("SecurityException",str(summary))
 
+    def test_java_main_top_and_caused_by_stack_origin_families_are_privacy_safe(self):
+        original="ru.yandex.music"
+        exit_info=f"ApplicationExitInfo #0: pid=712 process={original} reason=4 status=0\\n"
+        crash=(
+            row(712,"E","AndroidRuntime","FATAL EXCEPTION: main")
+            +row(712,"E","AndroidRuntime","Process: ru.yandex.music, PID: 712")
+            +row(712,"E","AndroidRuntime","java.lang.RuntimeException: " + SECRET)
+            +row(712,"E","AndroidRuntime","    at android.app.ActivityThread.handleBindApplication(SECRET.java:12)")
+            +row(712,"E","AndroidRuntime","Caused by: java.lang.IllegalStateException: " + SECRET)
+            +row(712,"E","AndroidRuntime","    at ru.yandex.music.private.SECRET.invoke(SECRET.java:17)")
+            +row(712,"E","AndroidRuntime","    at com.google.android.gms.internal.SECRET.run(SECRET.java:19)")
+            +row(731,"E","AndroidRuntime","FATAL EXCEPTION: main")
+            +row(731,"E","AndroidRuntime","Caused by: java.lang.SecurityException: helper " + SECRET)
+            +row(731,"E","AndroidRuntime","    at java.lang.Thread.run(Thread.java:123)")
+        )
+        result=classify_main_crash_buffer(exit_info,crash,target_package=original)
+        self.assertTrue(result["java_fatal_seen_scoped"])
+        self.assertEqual(result["java_top_exception_enum"],"RUNTIME_EXCEPTION")
+        self.assertEqual(result["java_last_cause_exception_enum"],"ILLEGAL_STATE")
+        self.assertEqual(result["java_top_stack_family"],"ANDROID_FRAMEWORK")
+        self.assertEqual(result["java_last_cause_stack_family"],"YANDEX_APP")
+        self.assertEqual(result["java_caused_by_count_bounded"],1)
+        self.assertEqual(result["java_stack_frame_count_bounded"],3)
+        self.assertFalse(result["java_stack_raw_exposed"])
+        self.assertFalse(result["java_vendor_class_names_exposed"])
+        for secret in ("SECRET","712","731","ru.yandex.music.private","access_token","private.invalid"):
+            self.assertNotIn(secret,str(result))
+
+    def test_java_main_without_causes_treats_first_exception_as_root(self):
+        crash=(row(431,"E","AndroidRuntime","FATAL EXCEPTION: main")
+               +row(431,"E","AndroidRuntime","java.lang.IllegalStateException: " + SECRET)
+               +row(431,"E","AndroidRuntime","   at com.google.firebase.SECRET.run(Secret.java:101)"))
+        summary=classify_main_crash_buffer(EXIT,crash)
+        self.assertEqual(summary["java_top_exception_enum"],"ILLEGAL_STATE")
+        self.assertEqual(summary["java_last_cause_exception_enum"],"ILLEGAL_STATE")
+        self.assertEqual(summary["java_top_stack_family"],"GOOGLE_SDK")
+        self.assertEqual(summary["java_last_cause_stack_family"],"GOOGLE_SDK")
+        self.assertEqual(summary["java_caused_by_count_bounded"],0)
+        self.assertNotIn("firebase",str(summary).lower())
+
+    def test_java_scope_failure_does_not_claim_stack_or_cause(self):
+        crash=(row(431,"E","AndroidRuntime","java.lang.IllegalStateException: " + SECRET)
+               +row(432,"E","AndroidRuntime","FATAL EXCEPTION: main")
+               +row(432,"E","AndroidRuntime","at ru.yandex.secret.CLASS.run(Secret.java:1)"))
+        summary=classify_main_crash_buffer(EXIT,crash)
+        self.assertFalse(summary["java_fatal_seen_scoped"])
+        self.assertEqual(summary["java_top_stack_family"],"NOT_OBSERVED")
+        self.assertEqual(summary["java_top_exception_enum"],"NOT_OBSERVED")
+        self.assertEqual(summary["java_last_cause_exception_enum"],"NOT_OBSERVED")
+        self.assertEqual(summary["java_stack_frame_count_bounded"],0)
+
     def test_offline_crash_classifier_rejects_untrusted_package_identity(self):
         with self.assertRaises(ValueError):
             classify_main_crash_buffer(EXIT, "", target_package="arbitrary.package")
