@@ -1,0 +1,74 @@
+name: CELIKOM W70 live audio + support READONLY after browser admin release
+on:
+  push:
+    branches:
+      - experiment/windows-w70-auto-support-diagnostics-20261111
+    paths:
+      - .github/workflows/windows-w70-live-audio-and-support-readonly-20261111.yml
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Verify active support release and original Yandex native audio HTTPS without writes
+        shell: bash
+        env:
+          HOSTINGER_SSH_KEY: ${{ secrets.HOSTINGER_SSH_KEY }}
+        run: |
+          set -euo pipefail
+          umask 077
+          test -n "$HOSTINGER_SSH_KEY"
+          dir="$(mktemp -d)"
+          trap 'rm -rf "$dir"' EXIT
+          printf '%s\n' "$HOSTINGER_SSH_KEY" | tr -d '\r' > "$dir/key"
+          ssh-keygen -y -P '' -f "$dir/key" > "$dir/pub"
+          test "$(ssh-keygen -lf "$dir/pub" | awk '{print $2}')" = 'SHA256:Q6FyifXRq6garceQdIIjBmXhkk81Ic1p/x9JTSYHWUk'
+          printf '%s\n' '[92.113.19.189]:65002 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAf8M2EVwq0oJI8I9KZ0NFE8P8yDOvDATEhkQti/Kk/0' > "$dir/known_hosts"
+          opts=(-i "$dir/key" -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o "UserKnownHostsFile=$dir/known_hosts" -o GlobalKnownHostsFile=/dev/null -o ConnectTimeout=15)
+          ssh -T -p 65002 "${opts[@]}" 'u235811320@92.113.19.189' 'bash -s' <<'REMOTE'
+          set -euo pipefail
+          root='/home/u235811320/domains/darkred-camel-588676.hostingersite.com/celikom'
+          api='https://darkred-camel-588676.hostingersite.com'
+          test -L "$root/current"
+          active="$(readlink -f "$root/current")"
+          [[ "$active" == "$root"/releases/* ]]
+          echo "W70_LIVE_RELEASE=$(basename "$active")"
+          test -f "$active/src/Support/WindowsSupportDiagnostics.php"
+          test -f "$active/src/Support/SupportReport.php"
+          grep -Fq "'music-application://desktop'" "$active/src/Application.php"
+          grep -Fq 'support_diagnostics' "$active/src/Application.php"
+          echo 'W70_LIVE_AUDIO_ORIGIN_AND_SUPPORT_HANDLERS_PRESENT'
+          work="$(mktemp -d)"
+          trap 'rm -rf "$work"' EXIT
+          request() {
+            local label="$1" method="$2" endpoint="$3" origin="$4"
+            curl --silent --show-error --connect-timeout 10 --max-time 25 -X "$method" \
+              -H "Origin: $origin" -D "$work/headers" -o /dev/null \
+              -w '%{http_code}' "$api$endpoint" > "$work/status"
+            echo "W70_LIVE_${label}_HTTP=$(cat "$work/status")"
+          }
+          request NATIVE_AUDIO_OPTIONS OPTIONS '/api/v1/audio/7' 'music-application://desktop'
+          test "$(cat "$work/status")" = 204
+          tr -d '\r' < "$work/headers" | grep -Fxi 'access-control-allow-origin: music-application://desktop' >/dev/null
+          request BROWSER_AUDIO_OPTIONS OPTIONS '/api/v1/audio/7' 'https://music.yandex.ru'
+          test "$(cat "$work/status")" = 204
+          tr -d '\r' < "$work/headers" | grep -Fxi 'access-control-allow-origin: https://music.yandex.ru' >/dev/null
+          request AUDIO_INVALID_TOKEN GET '/api/v1/audio/7?token=0000000000000000000000000000000000000000000000000000000000000000&expires=1800000180&sid=1' 'music-application://desktop'
+          test "$(cat "$work/status")" = 403
+          tr -d '\r' < "$work/headers" | grep -Fxi 'access-control-allow-origin: music-application://desktop' >/dev/null
+          request AUTH_NATIVE_OPTIONS OPTIONS '/api/v1/auth/login' 'music-application://desktop'
+          ! grep -Eqi '^access-control-allow-origin:' "$work/headers"
+          request SUPPORT_ANON GET '/api/v1/support' 'https://music.yandex.ru'
+          test "$(cat "$work/status")" = 401
+          health="$(curl -sS --connect-timeout 10 --max-time 25 -o /dev/null -w '%{http_code}' "$api/api/v1/health")"
+          echo "W70_LIVE_HEALTH_HTTP=$health"
+          test "$health" = 200
+          echo 'W70_LIVE_NATIVE_AUDIO_SUPPORT_NO_REGRESSION_READONLY_PASS'
+          REMOTE
