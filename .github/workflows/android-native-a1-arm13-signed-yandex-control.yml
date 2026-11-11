@@ -24,7 +24,7 @@ jobs:
         run: |
           set -euo pipefail
           sudo apt-get update -qq
-          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq aapt apksigner adb zipalign
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq aapt apksigner zipalign
           sdk="$RUNNER_TEMP/celikom-arm-sdk"
           mkdir -p "$sdk/build-tools/35.0.0"
           for tool in aapt apksigner zipalign; do
@@ -37,11 +37,6 @@ jobs:
         shell: bash
         timeout-minutes: 16
         run: bash android/native-yandex-hooklab/ci/native_arm_redroid_boot_only.sh
-      - name: Establish ONLY localhost ADB to disposable ARM Android
-        shell: bash
-        run: |
-          adb connect 127.0.0.1:5555 >/dev/null
-          adb -s 127.0.0.1:5555 wait-for-device
       - name: Check original issuer-signed five split package, install and check MAIN
         shell: bash
         timeout-minutes: 6
@@ -50,7 +45,6 @@ jobs:
         if: always()
         shell: bash
         run: |
-          adb disconnect 127.0.0.1:5555 >/dev/null 2>&1 || true
           docker stop celikom-native-arm-android13 >/dev/null 2>&1 || true
           sudo umount /dev/binderfs >/dev/null 2>&1 || true
           sudo modprobe -r binder_linux >/dev/null 2>&1 || true
