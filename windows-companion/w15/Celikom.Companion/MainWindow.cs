@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Drawing;
+using System.Net.NetworkInformation;
 using Celikom.NativeInstaller;
 
 namespace Celikom.Companion;
@@ -72,6 +73,7 @@ public sealed partial class MainWindow : Form
     // A brief server outage may suspend music. Never auto-start without a new,
     // positive authenticated entitlement and the user's original Start intent.
     private bool _resumeAfterNetworkFailure;
+    private DateTimeOffset _lastNetworkRecheckHint;
     private bool _closing;
     private bool _loggingIn;
     // Server is the authority; this periodic check only updates UI/state
@@ -85,6 +87,7 @@ public sealed partial class MainWindow : Form
         _api = new CelikomApi(_store);
         _bridge = new BridgeServer(_api, _store);
         _bridge.Changed += () => UpdateSafe();
+        NetworkChange.NetworkAddressChanged += OnNetworkAddressChanged;
 
         Text = "CELIKOM"; // version is shown in the compact popup footer, not clipped in titlebar
         // ApplicationIcon is built from the SAME official extension "C" mark.
@@ -323,6 +326,28 @@ public sealed partial class MainWindow : Form
         _origin.Text = string.IsNullOrWhiteSpace(_api.Origin) ? DefaultApiOrigin : _api.Origin;
         _accountSignedOut.Visible = !_api.IsLoggedIn;
         _accountSignedIn.Visible = _api.IsLoggedIn;
+    }
+
+    // Connectivity signals are hints only. Revalidate suspended music after
+    // a VPN/adapter change, but never enable playback from an online event.
+    private void OnNetworkAddressChanged(object? sender, EventArgs e)
+    {
+        if (_closing || !IsHandleCreated) return;
+        try
+        {
+            BeginInvoke(new Action(() =>
+            {
+                if (_closing || IsDisposed || !_resumeAfterNetworkFailure ||
+                    !_api.IsLoggedIn || _compactAccessBusy) return;
+                var now = DateTimeOffset.UtcNow;
+                if (now - _lastNetworkRecheckHint < TimeSpan.FromSeconds(3)) return;
+                _lastNetworkRecheckHint = now;
+                DiagnosticLog.Record("ACTIVE_ENTITLEMENT_ROUTE_CHANGED");
+                _ = RefreshCompactAccessAsync(force: true);
+            }));
+        }
+        catch (InvalidOperationException) { }
+        catch (ObjectDisposedException) { }
     }
 
     private void StopPlaybackExplicitly()
@@ -940,6 +965,12 @@ public sealed partial class MainWindow : Form
             return;
         }
 
+        // Match the extension's prompt recovery without polling the healthy
+        // service more often. Network outages never grant offline playback.
+        var pollInterval = EntitlementCheckRecovery.PollIntervalMs(
+            _resumeAfterNetworkFailure);
+        if (_entitlementPulse.Interval != pollInterval)
+            _entitlementPulse.Interval = pollInterval;
         var connected = _bridgeStarted && _api.IsLoggedIn;
         _login.Enabled = !_loggingIn;
         _logout.Enabled = !_loggingIn && _api.IsLoggedIn;
@@ -1049,6 +1080,7 @@ public sealed partial class MainWindow : Form
         e.Cancel = true;
         _closing = true;
         _resumeAfterNetworkFailure = false;
+        NetworkChange.NetworkAddressChanged -= OnNetworkAddressChanged;
         _entitlementPulse.Stop();
         _entitlementPulse.Dispose();
         _tray.Visible = false;
