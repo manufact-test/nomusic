@@ -116,6 +116,49 @@ class SafeMainCrashBufferTest(unittest.TestCase):
         self.assertEqual(summary["java_last_cause_exception_enum"],"NOT_OBSERVED")
         self.assertEqual(summary["java_stack_frame_count_bounded"],0)
 
+    def test_java_lifecycle_first_exc_message_hint_only_is_static_enum(self):
+        raw=(row(431,"E","AndroidRuntime","FATAL EXCEPTION: main")
+            +row(431,"E","AndroidRuntime",
+                 "java.lang.IllegalStateException: A certificate is untrusted " + SECRET)
+            +row(431,"E","AndroidRuntime",
+                 "    at ru.yandex.music.SECRET.x(Private.java:42)")
+            +row(431,"E","AndroidRuntime",
+                 "    at android.app.Instrumentation.callApplicationOnCreate(Instrumentation.java:123)")
+            +row(432,"E","AndroidRuntime",
+                 "java.lang.IllegalStateException: service missing; token=TOPSECRET"))
+        result=classify_main_crash_buffer(EXIT,raw)
+        self.assertEqual(result["java_exception_message_hint_enum"],"TRUST_OR_PACKAGE")
+        self.assertEqual(result["java_startup_lifecycle_enum"],"APPLICATION_ON_CREATE")
+        self.assertNotIn("certificate",str(result).lower())
+        self.assertNotIn("TOPSECRET",str(result))
+        self.assertNotIn("PRIVATE",str(result))
+
+    def test_java_lifecycle_detects_activity_launch_without_vendor_code(self):
+        raw=(row(431,"E","AndroidRuntime","FATAL EXCEPTION: main")
+             +row(431,"E","AndroidRuntime",
+                  "java.lang.IllegalStateException: not initialized " + SECRET)
+             +row(431,"E","AndroidRuntime",
+                  "at android.app.ActivityThread.performLaunchActivity(ActivityThread.java:1234)")
+             +row(431,"E","AndroidRuntime",
+                  "at android.os.Looper.loop(Looper.java:235)"))
+        summary=classify_main_crash_buffer(EXIT,raw)
+        self.assertEqual(summary["java_startup_lifecycle_enum"],"ACTIVITY_CREATE")
+        self.assertEqual(summary["java_exception_message_hint_enum"],"STARTUP_ORDER")
+        self.assertNotIn("SECRET",str(summary))
+
+    def test_java_hint_does_not_trust_helper_crash_or_stack_fragments(self):
+        raw=(row(431,"E","AndroidRuntime","FATAL EXCEPTION: main")
+             +row(431,"E","AndroidRuntime",
+                  "java.lang.IllegalStateException: " + SECRET)
+             +row(431,"E","AndroidRuntime",
+                  "at ru.yandex.music.SECRET.certificateAndPackage(Secret.java:3)")
+             +row(432,"E","AndroidRuntime",
+                  "java.lang.IllegalStateException: certificate invalid"))
+        summary=classify_main_crash_buffer(EXIT,raw)
+        self.assertEqual(summary["java_exception_message_hint_enum"],"NONE")
+        self.assertEqual(summary["java_startup_lifecycle_enum"],"NOT_OBSERVED")
+        self.assertNotIn("certificate",str(summary).lower())
+
     def test_offline_crash_classifier_rejects_untrusted_package_identity(self):
         with self.assertRaises(ValueError):
             classify_main_crash_buffer(EXIT, "", target_package="arbitrary.package")
