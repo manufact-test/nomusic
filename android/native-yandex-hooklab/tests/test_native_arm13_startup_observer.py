@@ -149,6 +149,28 @@ class ArmStartupObserverTests(unittest.TestCase):
         for secret in ("PRIVATE", "DO_NOT_LEAK", "token", "/data/user", "102"):
             self.assertNotIn(secret, str(out))
 
+    def test_real_logcat_brief_event_tag_format_with_process_pid(self):
+        # Real adb logcat -b events -v brief uses I/am_proc_start( 1234):,
+        # not "I am_proc_start:". The previous parser silently missed it.
+        raw = (
+            "I/am_proc_start( 1234): [0,231," + CLONE + ",private=NOPE]\n"
+            "I/am_resume_activity( 1234): [0,private," + CLONE + "/Main]\n"
+            "I/am_proc_start( 1234): [0,231," + CLONE + ":helper]\n"
+            "I/am_finish_activity( 1234): [0,private," + CLONE + "/Main]\n"
+            "I/am_proc_died( 1234): [0,231," + CLONE + "]\n"
+        )
+        out = classify_startup_events(raw, CLONE)
+        self.assertEqual(out["main_event_order"], [
+            "am_proc_start", "am_resume_activity",
+            "am_finish_activity", "am_proc_died",
+        ])
+        self.assertTrue(out["known_event_tag_seen_any_package"])
+        self.assertTrue(out["activity_resumed_seen"])
+        self.assertTrue(out["finish_event_before_death"])
+        self.assertTrue(out["auxiliary_process_events_seen"])
+        self.assertNotIn("1234", str(out))
+        self.assertNotIn("NOPE", str(out))
+
     def test_differential_event_buffer_coverage_is_not_lifecycle_proof(self):
         out = classify_startup_events(
             event("am_proc_start", "unrelated.example.package"), CLONE)
