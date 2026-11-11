@@ -45,6 +45,7 @@ public sealed partial class MainWindow : Form
     private bool _integrationBusy;
     private YandexHostResult? _hostReport;
     private bool _hostProbeBusy;
+    private Task? _hostProbeTask; // shared by startup and background inspection
     private DateTimeOffset _lastHostProbe;
     private readonly Label _accountStatus = new();
     private readonly PopupButton _login = new();
@@ -378,16 +379,40 @@ public sealed partial class MainWindow : Form
         // from the presence of stored DPAPI tokens or the account UI.
         var generation = ++_compactStartEpoch;
         var account = _api.Settings;
+        bool StillSameStart() => generation == _compactStartEpoch && !_closing &&
+            !IsDisposed && _api.IsLoggedIn &&
+            _api.Settings.InstallationId == account.InstallationId &&
+            _api.Settings.Email == account.Email;
         _compactStarting = true;
-        _compactStartupText = "Проверяем пробный период или подписку…";
+        _compactStartupText = "Проверяем Яндекс.Музыку…";
         RenderCompact();
         LayoutCompact();
         try
         {
-            var access = await _api.ActivatePlaybackAsync();
-            if (generation != _compactStartEpoch || _closing || IsDisposed ||
-                _api.Settings.InstallationId != account.InstallationId ||
-                _api.Settings.Email != account.Email || !_api.IsLoggedIn) return;
+            // Shown/Activated may still be scanning Yandex. Join that exact
+            // in-flight check before deciding "unsupported" or calling the API.
+            if (_hostReport is null || _hostProbeBusy ||
+                DateTimeOffset.UtcNow - _lastHostProbe > TimeSpan.FromMinutes(2))
+            {
+                await RefreshHostAsync();
+                if (!StillSameStart()) return;
+            }
+            if (StartupHostPreflight.BlockReason(_nativeInstallState, _hostReport) is
+                { } hostProblem)
+            {
+                _compactStarting = false;
+                _compactStartupText = hostProblem;
+                DiagnosticLog.Record("START_HOST_PREFLIGHT_BLOCKED");
+                return;
+            }
+
+            _compactStartupText = "Проверяем пробный период или подписку…";
+            RenderCompact();
+            LayoutCompact();
+            var access = await StartupActivationRecovery.ActivateAsync(
+                ct => _api.ActivatePlaybackAsync(ct), StillSameStart,
+                DiagnosticLog.Record);
+            if (!StillSameStart()) return;
             ++_compactAccessGeneration; // invalidate an older read-only preview
             _compactAccess.Text = AccessLabel(access);
             _compactAccessChecked = DateTimeOffset.UtcNow;
@@ -404,7 +429,7 @@ public sealed partial class MainWindow : Form
             {
                 _compactStarting = false;
                 _compactStartupText = "";
-                ConnectYandexAsync(sender, e);
+                await ConnectYandexAsync(sender, e);
                 return;
             }
             if (!OpenYandexIfNeeded())
@@ -418,12 +443,23 @@ public sealed partial class MainWindow : Form
             _compactStartupText = "Подождите, идёт загрузка Яндекс.Музыки…";
             _ = MonitorStartupAsync(generation);
         }
-        catch (Exception)
+        catch (Exception error)
         {
-            if (generation != _compactStartEpoch || _closing || IsDisposed) return;
+            if (!StillSameStart()) return;
             _bridge.SetEnabled(false);
             _compactStarting = false;
-            _compactStartupText = "Не удалось проверить доступ на сервере. Подмена выключена.";
+            // A failed transport/timeout is NOT evidence that the user's
+            // subscription was denied or that the server is down.
+            _compactStartupText = error switch
+            {
+                ApiFailure { HttpStatus: 401 } => "Сессия устарела. Войди в аккаунт повторно.",
+                ApiFailure { HttpStatus: 403 } => "Сервер не разрешил доступ. Проверь подписку.",
+                ApiFailure { HttpStatus: 429 } => "Слишком много запросов. Повтори чуть позже.",
+                _ when EntitlementCheckRecovery.IsTransient(error) =>
+                    "Не удалось установить связь. Подмена выключена — повтори «Старт».",
+                _ => "Не удалось подтвердить доступ. Подмена выключена."
+            };
+            DiagnosticLog.Record(EntitlementCheckRecovery.FailureCode(error));
             DiagnosticLog.Record("START_ENTITLEMENT_UNAVAILABLE");
         }
         finally
@@ -561,9 +597,16 @@ public sealed partial class MainWindow : Form
         button.ForeColor = primary ? AccentInk : Ink;
     }
 
-    private async Task RefreshHostAsync()
+    private Task RefreshHostAsync()
     {
-        if (_closing || _hostProbeBusy) return;
+        if (_closing) return Task.CompletedTask;
+        if (_hostProbeTask is { IsCompleted: false } active) return active;
+        _hostProbeTask = RefreshHostCoreAsync();
+        return _hostProbeTask;
+    }
+
+    private async Task RefreshHostCoreAsync()
+    {
         _hostProbeBusy = true;
         try
         {
@@ -591,14 +634,21 @@ public sealed partial class MainWindow : Form
         }
     }
 
-    private async void ConnectYandexAsync(object? sender, EventArgs e)
+    private async Task ConnectYandexAsync(object? sender, EventArgs e)
     {
         _resumeAfterNetworkFailure = false;
         if (_integrationBusy) return;
         var upgrading = _nativeInstallState == NativeInstallState.Active;
-        if (!upgrading && _hostReport?.Status != YandexHostStatus.OfficialBaselineVerified)
+        // Defense-in-depth: no "unsupported version" modal based on a null or
+        // temporarily unavailable scan. StartAction already awaited the probe.
+        if (StartupHostPreflight.BlockReason(_nativeInstallState, _hostReport) is
+            { } hostProblem)
         {
-            MessageBox.Show(this, "Установленная версия Яндекс.Музыки пока не поддерживается.", "CELIKOM");
+            _compactStarting = false;
+            _compactStartupText = hostProblem;
+            RenderCompact();
+            LayoutCompact();
+            DiagnosticLog.Record("START_HOST_PREFLIGHT_BLOCKED");
             return;
         }
         var answer = MessageBox.Show(this,
