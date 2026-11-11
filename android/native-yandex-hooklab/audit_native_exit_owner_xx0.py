@@ -69,6 +69,129 @@ def control_flow_shape(dex, code_off: int) -> dict:
     }
 
 
+
+def guard_path_evidence(dex, code_off: int) -> dict:
+    """Only CFG edges and public method families. No string operands or bypass.
+
+    Positive branch reachability means the program has a possible path to
+    self-termination, not proof that the observed runtime took that path or
+    proof of WHY it did so.
+    """
+    dex.bounds(code_off, 16)
+    count = dex.u32(code_off + 12)
+    if count > MAX_CODE_UNITS:
+        raise DexError("Target CFG too large")
+    start = code_off + 16
+    dex.bounds(start, count * 2)
+    ops, succ = {}, {}
+    pc = 0
+    while pc < count:
+        word = dex.u16(start + pc * 2)
+        op = word & 255
+        width = (payload_width(dex, start, count, pc, word >> 8)
+                 if op == 0 else OP_WIDTH.get(op))
+        if width is None or pc + width > count:
+            raise DexError("Invalid CFG instruction boundary")
+        ops[pc] = op
+        after = pc + width
+        destinations = [after] if after < count else []
+        if 0x32 <= op <= 0x3D:
+            delta = dex.u16(start + (pc + 1) * 2)
+            if delta >= 0x8000:
+                delta -= 0x10000
+            destinations.append(pc + delta)
+        elif op == 0x28:
+            delta = word >> 8
+            if delta >= 128:
+                delta -= 256
+            destinations = [pc + delta]
+        elif op == 0x29:
+            delta = dex.u16(start + (pc + 1) * 2)
+            if delta >= 32768:
+                delta -= 65536
+            destinations = [pc + delta]
+        elif op == 0x2A:
+            delta = dex.u32(start + (pc + 1) * 2)
+            if delta >= 0x80000000:
+                delta -= 0x100000000
+            destinations = [pc + delta]
+        elif op in (0x2B, 0x2C):
+            offset = dex.u32(start + (pc + 1) * 2)
+            if offset >= 0x80000000:
+                offset -= 0x100000000
+            payload = pc + offset
+            if payload < 0 or payload >= count:
+                raise DexError("Switch payload out of bounds")
+            marker = dex.u16(start + payload * 2)
+            size = dex.u16(start + (payload + 1) * 2)
+            if (marker != (0x0100 if op == 0x2B else 0x0200)
+                    or size > 4096):
+                raise DexError("Unexpected switch payload")
+            first_target = payload + (4 if op == 0x2B else 2 + 2 * size)
+            for n in range(size):
+                offset_word = dex.u32(start + (first_target + 2 * n) * 2)
+                if offset_word >= 0x80000000:
+                    offset_word -= 0x100000000
+                destinations.append(pc + offset_word)
+        elif op in range(0x0E, 0x12) or op == 0x27 or op == 0:
+            destinations = []
+        succ[pc] = destinations
+        pc = after
+    for destinations in succ.values():
+        for target in destinations:
+            if target not in ops:
+                raise DexError("Malformed control-flow edge")
+    invocations = [(pc, dex.method(idx))
+                   for idx, pc, _ in invoked_method_indexes(dex, code_off)]
+    kills = [pc for pc, method in invocations if method == (
+        "Landroid/os/Process;", "killProcess", "(I)V")]
+    exits = [pc for pc, method in invocations if method == (
+        "Ljava/lang/System;", "exit", "(I)V")]
+    process_api = [pc for pc, m in invocations if m[:2] == (
+        "Landroid/app/ActivityManager;", "getRunningAppProcesses")]
+    package_api = [pc for pc, m in invocations if m[:2] == (
+        "Landroid/content/Context;", "getPackageName")]
+    kotlin_prefix = [pc for pc, m in invocations if m == (
+        "Lkotlin/text/c;", "r", "(Ljava/lang/String;Ljava/lang/String;Z)Z")]
+    kill_pc = kills[0] if kills else None
+    def reaches(frm: int, dest: int) -> bool:
+        seen, stack = set(), [frm]
+        while stack:
+            x = stack.pop()
+            if x == dest:
+                return True
+            if x in seen:
+                continue
+            seen.add(x)
+            stack.extend(succ[x])
+        return False
+    gated = []
+    if kill_pc is not None:
+        for branch, op in ops.items():
+            if not 0x32 <= op <= 0x3D or branch >= kill_pc:
+                continue
+            options = [reaches(arm, kill_pc) for arm in succ[branch]]
+            if len(options) == 2 and options[0] != options[1]:
+                gated.append(branch)
+    prefix_before_guard = bool(
+        kill_pc is not None and kotlin_prefix and
+        any(p < branch < kill_pc and branch - p <= 18
+            for p in kotlin_prefix for branch in gated)
+    )
+    return {
+        "kill_process_invocations": min(len(kills), 4),
+        "system_exit_invocations": min(len(exits), 4),
+        "control_flow_guarding_kill_count_bounded": min(len(gated), 100),
+        "prefix_comparison_precedes_one_guard_to_kill": prefix_before_guard,
+        "running_process_enumeration_precedes_kill": bool(
+            kill_pc is not None and any(pc < kill_pc for pc in process_api)),
+        "package_name_lookup_precedes_kill": bool(
+            kill_pc is not None and any(pc < kill_pc for pc in package_api)),
+        "all_cfg_edges_well_formed": True,
+        "no_string_operands_or_process_names_exposed": True,
+        "branch_feasibility_not_runtime_causality": True,
+    }
+
 def audit_dex(data: bytes) -> dict:
     dex = Dex(data)
     target_idx = {i for i in range(dex.method_count) if dex.method(i) == TARGET}
@@ -79,6 +202,7 @@ def audit_dex(data: bytes) -> dict:
         "target_definitions": 0,
         "target_invocations": [],
         "target_control_flow": [],
+        "exit_guard_path_evidence": [],
         "incoming_constructor_sites": [],
         "incoming_direct_run_sites": [],
         "other_xx0_method_defs_bounded": 0,
@@ -94,6 +218,7 @@ def audit_dex(data: bytes) -> dict:
         if is_target:
             report["target_definitions"] += 1
             report["target_control_flow"].append(control_flow_shape(dex, code))
+            report["exit_guard_path_evidence"].append(guard_path_evidence(dex, code))
         for called, pc, op in invoked_method_indexes(dex, code):
             callee = dex.method(called)
             if is_target and len(report["target_invocations"]) < 55:
@@ -151,6 +276,7 @@ def run() -> dict:
             "original_signed_dex_count": dex_count,
             "exact_xx0_run_definition_count": 1,
             "xx0_run_control_flow": target["target_control_flow"][0],
+            "xx0_guard_path_evidence": target["exit_guard_path_evidence"][0],
             "xx0_run_direct_invokes": target["target_invocations"],
             "xx0_constructor_callers": [x for s in segments
                                        for x in s["incoming_constructor_sites"]][:35],
