@@ -1,0 +1,34 @@
+name: Android A1 signed exit runnable xx0 scheduler provenance (read-only CI)
+on:
+  push:
+    branches:
+      - experiment/android-a1-exit-callsite-witness-20261111
+    paths:
+      - 'android/native-yandex-hooklab/audit_native_exit_schedule_by0.py'
+      - 'android/native-yandex-hooklab/tests/test_audit_native_exit_schedule_by0.py'
+      - '.github/workflows/android-native-a1-xx0-scheduling-audit.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  signed-scheduler-audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 19
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Run synthetic scheduler format and fail-closed tests
+        run: |
+          set -euo pipefail
+          python3 -m py_compile android/native-yandex-hooklab/audit_native_exit_schedule_by0.py
+          python3 -m unittest discover -s android/native-yandex-hooklab/tests -p test_audit_native_exit_schedule_by0.py -v
+      - name: Audit pinned signed original DEX only, no package patching
+        timeout-minutes: 13
+        run: python3 android/native-yandex-hooklab/audit_native_exit_schedule_by0.py
+      - name: Assert no original APK or device output persisted
+        if: always()
+        run: |
+          test ! -d android/native-yandex-hooklab/release
+          echo '{"apk_uploaded":false,"phone_touched":false,"protection_bypassed":false}'
