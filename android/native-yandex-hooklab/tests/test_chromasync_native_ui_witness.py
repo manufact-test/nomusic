@@ -44,5 +44,23 @@ class NativeUiWitnessTest(unittest.TestCase):
         self.assertFalse(m.classify_png_header(b"not png")["screenshot_png_valid"])
 
 
+    def test_general_focus_detects_clone(self):
+        dump = "mCurrentFocus=Window{123 u0 app.chromasync.yamclone/ru.yandex.music.main.MainScreenActivity}"
+        self.assertTrue(m.classify_general_focus(dump)["global_focus_clone"])
+        self.assertTrue(m.classify_general_focus(dump)["clone_window_record_present"])
+
+    def test_general_focus_does_not_invent_focus(self):
+        dump = "Window{345 u0 app.chromasync.yamclone/ru.yandex.music.main.MainScreenActivity}"
+        self.assertFalse(m.classify_general_focus(dump)["global_focus_present"])
+
+    def test_dump_command_status_is_safe_boolean_categories(self):
+        good = m.classify_dump_command(0, "UI hierchary dumped to: /sdcard/x.xml")
+        self.assertTrue(good["command_exit_zero"])
+        self.assertTrue(good["dump_claims_complete"])
+        bad = m.classify_dump_command(0, "ERROR: java.lang.SecurityException")
+        self.assertTrue(bad["dump_had_security_error"])
+        self.assertTrue(bad["dump_had_command_error"])
+
+
 if __name__ == "__main__":
     unittest.main()
