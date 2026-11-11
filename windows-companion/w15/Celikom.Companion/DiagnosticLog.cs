@@ -67,9 +67,42 @@ public static class DiagnosticLog
         bool? nativeMatchesApplication, string? lastTrackId,
         string? diagnosticDirectory = null)
     {
-        var raw = ExportText(yandexVersion, integration, bridgeStarted, enabled, true,
-            nativeModuleVersion, nativeMatchesApplication, diagnosticDirectory);
         var now = DateTimeOffset.UtcNow;
+        var cutoff = now.AddMinutes(-15);
+        var entries = new List<string>();
+        var directory = diagnosticDirectory ?? DirectoryPath;
+        // Scan the real last-15-minute allowlisted log, not ExportText's
+        // owner-friendly last-1600-line display. A busy 180ms native poll can
+        // otherwise erase earlier incidents before support filtering begins.
+        static bool RecentSafe(string? line, DateTimeOffset after, DateTimeOffset until) =>
+            IsSafeEntry(line) && line!.Length >= 24 &&
+            DateTimeOffset.TryParseExact(line[..24], "yyyy-MM-ddTHH:mm:ss.fffZ",
+                CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var stamp) &&
+            stamp >= after && stamp <= until;
+        lock (Gate)
+        {
+            foreach (var name in new[] {
+                "companion-events.log.1", "companion-events.log",
+                "native-events.log.1", "native-events.log" })
+            {
+                var file = Path.Combine(directory, name);
+                try
+                {
+                    if (!File.Exists(file)) continue;
+                    using var stream = new FileStream(file, FileMode.Open, FileAccess.Read,
+                        FileShare.ReadWrite | FileShare.Delete);
+                    using var reader = new StreamReader(stream, Encoding.UTF8);
+                    for (var i = 0; i < 20_000 && reader.ReadLine() is { } line; i++)
+                        if (RecentSafe(line, cutoff, now.AddSeconds(5))) entries.Add(line);
+                }
+                catch (IOException) { /* Best effort; never block user support. */ }
+                catch (UnauthorizedAccessException) { }
+            }
+            if (entries.Count == 0)
+                foreach (var line in Recent)
+                    if (RecentSafe(line, cutoff, now.AddSeconds(5))) entries.Add(line);
+        }
+        entries.Sort(StringComparer.Ordinal);
         // Local state polling runs several times per second. A simple last-64
         // slice would hide three earlier outage events behind hundreds of
         // NATIVE_STATE_RECEIVED/LOCAL_STATE_OK lines. Reserve room for the last
@@ -86,10 +119,7 @@ public static class DiagnosticLog
             code.Contains("UNAVAILABLE", StringComparison.Ordinal) ||
             code.Contains("DISCONNECT", StringComparison.Ordinal) ||
             code.Contains("SUSPENDED", StringComparison.Ordinal);
-        var parsedEvents = raw.Split('\n', StringSplitOptions.RemoveEmptyEntries)
-            .Select(line => line.TrimEnd('\r'))
-            .Where(IsSafeEntry)
-            .Select(line =>
+        var parsedEvents = entries.Select(line =>
             {
                 var parts = line.Split('|');
                 var parsed = DateTimeOffset.TryParseExact(parts[0],
