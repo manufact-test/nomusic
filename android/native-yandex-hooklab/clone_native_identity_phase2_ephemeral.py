@@ -235,7 +235,7 @@ def summarize_installed_package_code_flags(raw):
         "has_classloader_record": "classLoaderName=" in raw,
         "primary_cpu_abi": next(
             (abi for abi in ("armeabi-v7a", "arm64-v8a", "x86", "x86_64")
-             if re.search(r"\\bprimaryCpuAbi\\s*=\\s*" + re.escape(abi) + r"\\b", raw)),
+             if re.search(r"primaryCpuAbi\s*=\s*" + re.escape(abi) + r"\b", raw)),
             "UNKNOWN"),
         "raw_dumpsys_exposed": False
     }

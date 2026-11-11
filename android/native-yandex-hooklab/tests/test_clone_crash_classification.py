@@ -343,5 +343,15 @@ class SafeCloneCrashClassificationTest(unittest.TestCase):
         self.assertFalse(any(report.values()))
 
 
+    def test_public_package_abi_categorized_without_paths(self):
+        from clone_native_identity_phase2_ephemeral import summarize_installed_package_code_flags
+        sample = ("Package [pro.celikom.yandex.nativeclonelab] "
+                  "primaryCpuAbi=armeabi-v7a nativeLibraryDir=/PRIVATE/secret "
+                  "secret=NEVER_PRINT")
+        result = summarize_installed_package_code_flags(sample)
+        self.assertEqual(result["primary_cpu_abi"], "armeabi-v7a")
+        self.assertNotIn("PRIVATE", str(result))
+        self.assertNotIn("NEVER_PRINT", str(result))
+
 if __name__ == "__main__":
     unittest.main()

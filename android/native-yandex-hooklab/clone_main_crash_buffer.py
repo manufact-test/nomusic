@@ -100,7 +100,7 @@ def _dlopen_allowlisted_terms(messages: list[str]) -> list[str]:
     """Finite vocabulary: neither arbitrary substrings nor dynamic errors."""
     ordered = []
     for message in messages:
-        match = re.search(r"dlopen failed:([^\\n]{0,1800})", message, re.I)
+        match = re.search(r"dlopen failed:(.{0,1800})", message, re.I)
         if not match:
             continue
         for raw in re.findall(r"[A-Za-z]{2,30}", match.group(1)):
