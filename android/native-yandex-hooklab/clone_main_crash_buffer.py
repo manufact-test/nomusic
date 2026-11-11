@@ -199,11 +199,127 @@ def classify_main_native_crash(exit_dump: str, crash_buffer: str, target_package
     }
 
 
+JAVA_FRAME_FAMILY = (
+    ("android.", "ANDROID_FRAMEWORK"),
+    ("com.android.", "ANDROID_FRAMEWORK"),
+    ("dalvik.", "ANDROID_FRAMEWORK"),
+    ("java.", "JAVA_RUNTIME"),
+    ("javax.", "JAVA_RUNTIME"),
+    ("libcore.", "JAVA_RUNTIME"),
+    ("sun.", "JAVA_RUNTIME"),
+    ("androidx.", "ANDROIDX"),
+    ("kotlin.", "KOTLIN"),
+    ("kotlinx.", "KOTLIN"),
+    ("com.google.android.gms.", "GOOGLE_SDK"),
+    ("com.google.firebase.", "GOOGLE_SDK"),
+    ("ru.yandex.", "YANDEX_APP"),
+    ("com.yandex.", "YANDEX_APP"),
+    ("pro.celikom.", "CELIKOM_APP"),
+)
+JAVA_ROOT_EXCEPTIONS = (
+    ("ILLEGAL_STATE", "IllegalStateException"),
+    ("NULL_POINTER", "NullPointerException"),
+    ("ILLEGAL_ARGUMENT", "IllegalArgumentException"),
+    ("SECURITY_EXCEPTION", "SecurityException"),
+    ("RUNTIME_EXCEPTION", "RuntimeException"),
+    ("UNSATISFIED_LINK", "UnsatisfiedLinkError"),
+    ("CLASS_NOT_FOUND", "ClassNotFoundException"),
+    ("NO_CLASS_DEF", "NoClassDefFoundError"),
+    ("RESOURCE_NOT_FOUND", "NotFoundException"),
+    ("UNKNOWN_JAVA_EXCEPTION", "Exception"),
+)
+JAVA_ALLOWED_FRAME_FAMILIES = frozenset(
+    ("ANDROID_FRAMEWORK", "JAVA_RUNTIME", "ANDROIDX", "KOTLIN",
+     "GOOGLE_SDK", "YANDEX_APP", "CELIKOM_APP",
+     "OTHER_APP_OR_LIBRARY", "NOT_OBSERVED"))
+JAVA_ALLOWED_THROWABLES = frozenset(x[0] for x in JAVA_ROOT_EXCEPTIONS) | {"NOT_OBSERVED"}
+
+def _java_throwable_label(message: str) -> str:
+    """Only output enum names. Never a vendor type, method or error text."""
+    for label, literal in JAVA_ROOT_EXCEPTIONS:
+        if re.search(r"(?<![A-Za-z0-9_$])" + re.escape(literal) + r"\b", message):
+            return label
+    return "NOT_OBSERVED"
+
+
+def _java_frame_family(line: str) -> str:
+    match = re.match(r"^\s*at\s+([A-Za-z_$][A-Za-z0-9_.$-]*)\(", line)
+    if not match:
+        return "NOT_OBSERVED"
+    frame = match.group(1).lower()
+    for prefix, label in JAVA_FRAME_FAMILY:
+        if frame.startswith(prefix):
+            return label
+    return "OTHER_APP_OR_LIBRARY"
+
+
+def _scoped_android_runtime_java_origin(lines: list[str]) -> dict:
+    """Summarize AndroidRuntime MAIN stack without ever exporting stack names.
+
+    The caller must already constrain the lines to exact MAIN PID and to the
+    AndroidRuntime crash tag. Cannot infer the presence of an integrity check.
+    """
+    body = lines[:500]
+    top_exception = "NOT_OBSERVED"
+    root_exception = "NOT_OBSERVED"
+    first_frame = "NOT_OBSERVED"
+    last_cause_first_frame = "NOT_OBSERVED"
+    cause_count = 0
+    frame_count = 0
+    waiting_for_cause_frame = False
+    fatal_seen = False
+    for line in body:
+        if re.search(r"\bFATAL EXCEPTION:", line):
+            fatal_seen = True
+            continue
+        if not fatal_seen:
+            continue
+        is_cause = re.match(r"\s*Caused by:\s*", line) is not None
+        if is_cause:
+            cause_count = min(cause_count + 1, 30)
+            label = _java_throwable_label(line)
+            root_exception = label
+            last_cause_first_frame = "NOT_OBSERVED"
+            waiting_for_cause_frame = True
+        elif top_exception == "NOT_OBSERVED":
+            # The first exception after FATAL header is usually on its own
+            # AndroidRuntime line. Do not treat a stack-frame as exception.
+            if not re.match(r"\s*(at\s+|\.\.\.\s*\d+\s+more)", line):
+                top_exception = _java_throwable_label(line)
+        fam = _java_frame_family(line)
+        if fam != "NOT_OBSERVED":
+            frame_count = min(frame_count + 1, 500)
+            if first_frame == "NOT_OBSERVED":
+                first_frame = fam
+            if waiting_for_cause_frame:
+                last_cause_first_frame = fam
+                waiting_for_cause_frame = False
+    if cause_count == 0:
+        root_exception = top_exception
+        last_cause_first_frame = first_frame
+    assert first_frame in JAVA_ALLOWED_FRAME_FAMILIES
+    assert last_cause_first_frame in JAVA_ALLOWED_FRAME_FAMILIES
+    assert top_exception in JAVA_ALLOWED_THROWABLES
+    assert root_exception in JAVA_ALLOWED_THROWABLES
+    return {
+        "java_fatal_seen_scoped": fatal_seen,
+        "java_top_exception_enum": top_exception,
+        "java_last_cause_exception_enum": root_exception,
+        "java_top_stack_family": first_frame,
+        "java_last_cause_stack_family": last_cause_first_frame,
+        "java_caused_by_count_bounded": cause_count,
+        "java_stack_frame_count_bounded": frame_count,
+        "java_stack_raw_exposed": False,
+        "java_vendor_class_names_exposed": False,
+    }
+
+
 def classify_main_crash_buffer(exit_dump: str, crash_buffer: str, target_package: str = CLONE) -> dict:
     _target_guard(target_package)
     """Fixed category labels only, no raw process/exception data returned."""
     pids = main_exit_pids(exit_dump, target_package)
     parts = []
+    android_runtime_lines = []
     for line in crash_buffer.splitlines()[-10000:]:
         event = LOG.match(line)
         if event is None or int(event.group(1)) not in pids:
@@ -214,6 +330,8 @@ def classify_main_crash_buffer(exit_dump: str, crash_buffer: str, target_package
             continue
         if len(parts) < 500:
             parts.append(message[:2048])
+        if tag.strip() == "AndroidRuntime" and len(android_runtime_lines) < 500:
+            android_runtime_lines.append(message[:2048])
     text = "\n".join(parts)
     has = lambda pattern: re.search(pattern, text, re.I) is not None
     native_link = has(r"\b(?:UnsatisfiedLinkError|dlopen failed)\b")
@@ -251,6 +369,7 @@ def classify_main_crash_buffer(exit_dump: str, crash_buffer: str, target_package
                                 if re.search(pattern, text))
     return {
         **native_crash,
+        **_scoped_android_runtime_java_origin(android_runtime_lines),
         "crash_main_pid_evidence_available": bool(pids),
         "crash_buffer_main_pid_lines_seen": bool(parts),
         "android_runtime_fatal_main_seen": has(r"FATAL EXCEPTION:"),
