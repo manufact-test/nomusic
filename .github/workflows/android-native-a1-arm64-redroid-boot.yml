@@ -1,0 +1,35 @@
+name: Android A1 native ARM64 Android13 Redroid boot-only CI (no APK)
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - experiment/android-native-a1-lspatch-clone-loader0-20261111
+    paths:
+      - '.github/workflows/android-native-a1-arm64-redroid-boot.yml'
+      - 'android/native-yandex-hooklab/ci/native_arm_redroid_boot_only.sh'
+permissions:
+  contents: read
+jobs:
+  no-apk-native-arm:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 19
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check the boot-only capability script, no third-party Android app
+        shell: bash
+        run: |
+          bash -n android/native-yandex-hooklab/ci/native_arm_redroid_boot_only.sh
+          ! grep -Eq 'adb (install|uninstall)|ru[.]yandex[.]music' android/native-yandex-hooklab/ci/native_arm_redroid_boot_only.sh
+      - name: Start native ARM64 Android13 only if ephemeral binderfs is available
+        shell: bash
+        timeout-minutes: 17
+        run: bash android/native-yandex-hooklab/ci/native_arm_redroid_boot_only.sh
+      - name: Destroy own native Android13 container and binderfs
+        if: always()
+        shell: bash
+        run: |
+          docker stop celikom-native-arm-android13 >/dev/null 2>&1 || true
+          sudo umount /dev/binderfs >/dev/null 2>&1 || true
+          sudo modprobe -r binder_linux >/dev/null 2>&1 || true
+          rm -rf "$RUNNER_TEMP/celikom-redroid-data"
+          echo '{"apk_artifact_published":false,"owner_honor_touched":false,"vendor_code_executed":false}'
