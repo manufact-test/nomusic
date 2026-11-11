@@ -80,15 +80,30 @@ jobs:
           mkdir -p "$RUNNER_TEMP/celikom-unpublished-draft"
           # API preflight above explicitly confirmed draft=true. Do NOT download
           # via a direct public release/browser_download_url.
+          asset="$RUNNER_TEMP/celikom-unpublished-draft/ChromaSync-Clone-3.0.1.apk"
           if ! gh release download 'a1-chromasync-301-unpublished-test' \
               --repo "$GITHUB_REPOSITORY" \
               --pattern 'ChromaSync-Clone-3.0.1.apk' \
               --dir "$RUNNER_TEMP/celikom-unpublished-draft" \
               --clobber >/dev/null 2>&1; then
-            echo '::error::DRAFT_ASSET_DOWNLOAD_NOT_AUTHORIZED'
-            exit 3
+            # gh CLI has historically had draft-asset lookup regressions.
+            # REST is an independent fallback with the SAME authenticated
+            # caller and exact draft-only selection, NOT a public asset link.
+            release_id="$(gh api --paginate "repos/$GITHUB_REPOSITORY/releases?per_page=100" \
+              --jq '.[] | select(.draft == true and .tag_name == "a1-chromasync-301-unpublished-test") | .id' \
+              | head -n 1)"
+            [ -n "$release_id" ] || { echo '::error::DRAFT_NOT_FOUND_FOR_REST'; exit 3; }
+            asset_id="$(gh api "repos/$GITHUB_REPOSITORY/releases/$release_id/assets?per_page=100" \
+              --jq '.[] | select(.name == "ChromaSync-Clone-3.0.1.apk") | .id' \
+              | head -n 1)"
+            [ -n "$asset_id" ] || { echo '::error::DRAFT_ASSET_ID_MISSING'; exit 3; }
+            if ! gh api -H 'Accept: application/octet-stream' \
+                "repos/$GITHUB_REPOSITORY/releases/assets/$asset_id" \
+                > "$asset" 2>/dev/null; then
+              echo '::error::DRAFT_ASSET_DOWNLOAD_NOT_AUTHORIZED'
+              exit 3
+            fi
           fi
-          asset="$RUNNER_TEMP/celikom-unpublished-draft/ChromaSync-Clone-3.0.1.apk"
           test "$(stat -c %s "$asset")" = 102572843 || { echo '::error::EXACT_SIZE_MISMATCH'; exit 3; }
           test "$(sha256sum "$asset" | cut -d' ' -f1)" = \
             4e6edb1c471f6b3715eae4c0a35f0bd898b0daaa87f3f8fb3ba0b20d1638b53d || {
