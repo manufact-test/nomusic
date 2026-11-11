@@ -1,3 +1,5 @@
+> **Decisive vendor-free A/B 11.11.2026:** [OWN ARMv7 NativeBridge SIGSEGV vs native x86 LSPatch launch pass](ANDROID-A1-OWNED-ARMV7-NATIVEBRIDGE-VS-NATIVE-X86-AB-20261111.md), CI 42982872899 + 42983717005. The previous MAIN SIGSEGV is reproducible with **no Yandex code**; in the same Android 11 emulator LSPatch succeeds on native x86. Do not conflate with a verified physical ARM launch or Yandex native UI. Exact checkpoint `d305f32dabb4e4209d2fa3fbf51bd55edec09db4` backed up.
+
 # Android A1 — ARMv7 loader mirror: dlopen снят, следующий блокер native crash (11.11.2026)
 
 **Status:** NO-GO native MAIN/UI; isolated disposable Android 11 emulator only. No installable CELIKOM release, no login/audio/device owner tests.
