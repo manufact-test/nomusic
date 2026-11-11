@@ -1,3 +1,5 @@
+> **11.11.2026 IMPORTANT: NEW real negative 2025 signing A/B completed.** Read [NEXT-CHAT-ANDROID-A1-POST-V1-REAL-CI-20261111.md](NEXT-CHAT-ANDROID-A1-POST-V1-REAL-CI-20261111.md) FIRST and [actual failed cleanroom A/B](ANDROID-A1-2025-V1-SIGNER-SCRATCH-CLEANROOM-RESULT-20261111.md). 17 synthetic tests PASS; issuer original 16/16 PASS; independent 2025 clone **still signature verifier FAIL BEFORE install** in [CI 43100028330](https://github.com/manufact-test/nomusic/actions/runs/43100028330). Removing old v1 META-INF scratch entries did **not** solve. Stage A NO-GO. Main A1 and Test.50 unchanged. Older status paragraphs below are historical; this is the current status.
+
 # CELIKOM Android A1 — 2025 GPR signer ZIP forensics (11.11.2026)
 
 ## Что реально изменилось за этот заход
