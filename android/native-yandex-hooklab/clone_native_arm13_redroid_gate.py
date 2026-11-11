@@ -20,7 +20,7 @@ import clone_native_splits_ephemeral as source
 from clone_main_crash_buffer import classify_main_crash_buffer, classify_main_exit_status
 from native_arm13_startup_observer import (
     classify_startup_events, only_new_main_exit_info,
-    classify_new_main_log_signals,
+    classify_new_main_log_signals, classify_live_main_log_signals,
 )
 from native_arm13_signed_original_control import (
     adb, check_guest_container, pm_category, private_process, pm_session_install
@@ -213,14 +213,27 @@ def start(package: str) -> tuple[dict, dict]:
     events = adb(["shell", "logcat", "-d", "-b", "events",
                   "-v", "brief", "-t", "9000"], timeout=45, allow=True)
     status["startup_event_witness"] = classify_startup_events(events, package)
+    # Exactly the same public main-buffer parser for failed clone and working
+    # signed-original control. Without this, a common Android warning could be
+    # mistaken for a clone-specific cause.
+    observe_main_log = ((package == CLONE and
+                         fresh_exit["new_main_exit_record_seen"])
+                        or (package == ORIGINAL and
+                            status["main_alive"] and status["activity_resumed"]))
     main_log = (adb(["shell", "logcat", "-d", "-b", "main",
                      "-v", "threadtime", "-t", "12000"],
-                    timeout=45, allow=True)
-                if package == CLONE and fresh_exit["new_main_exit_record_seen"]
-                else "")
+                    timeout=45, allow=True) if observe_main_log else "")
     safe_exit["fresh_launch_record_filter"] = fresh_exit
     safe_exit["new_main_pid_log_witness"] = classify_new_main_log_signals(
         filtered_exit, main_log)
+    # Only the publisher-signed original may use the live PID control.
+    # A clone exited before sampling must use immutable exit-info PID records.
+    if package == ORIGINAL:
+        live_pid = (adb(["shell", "pidof", ORIGINAL], timeout=30, allow=True)
+                    if observe_main_log else "")
+        safe_exit["original_live_main_pid_log_witness"] = (
+            classify_live_main_log_signals(live_pid, main_log))
+        safe_exit["control_original_alive_at_observation"] = bool(observe_main_log)
     if status["main_alive"] and status["activity_resumed"]:
         return status, {**safe_exit, "fatal_category": "NOT_OBSERVED",
                         "signal": "NOT_OBSERVED", "java_dlopen_failed": False,
