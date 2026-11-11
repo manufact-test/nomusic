@@ -286,7 +286,7 @@ def install_clones(clones: list[tuple[str,Path]]) -> str:
 def native_check() -> dict:
     if (os.getenv("GITHUB_ACTIONS")!="true" or
         os.getenv("GITHUB_REPOSITORY")!="manufact-test/nomusic" or
-        os.getenv("GITHUB_REF_NAME")!="experiment/android-a1-owner2025-v1-sanitized-signer-lab-20261111" or
+        os.getenv("GITHUB_REF_NAME")!="experiment/android-a1-2025-sdk-signer-triage-20261112" or
         os.getenv("CELIKOM_CLEAN_ANDROID_NATIVE_REDDROID")!="1" or
         platform.machine()!="aarch64"):
         stop("DISPOSABLE_REAL_ARM13_ONLY")
@@ -326,24 +326,24 @@ def main(archive: Path) -> dict:
             "Starting:" in launch.stdout or "Warning: Activity not started" in launch.stdout)
         seen=[]
         resumed=0
-        for _ in range(16):
-            time.sleep(1)
+        for _ in range(25):
+            time.sleep(3)
             pid=guest("pidof",PKG)
             seen.append(pid.stdout.strip() if re.fullmatch(r"\d+",pid.stdout.strip()) else None)
             activity=guest("dumpsys","activity","activities")
             resumed+=int(any(PKG+"/" in x and
                          ("mResumedActivity" in x or "topResumedActivity" in x)
                          for x in activity.stdout.splitlines()))
-        result["main_alive_16_of_16"]=all(x is not None for x in seen)
-        result["same_exact_main_pid_16_of_16"]=all(x is not None for x in seen) and len(set(seen))==1
-        result["resumed_16_of_16"]=resumed==16
-        if not result["same_exact_main_pid_16_of_16"]:
+        result["main_alive_25_of_25"]=all(x is not None for x in seen)
+        result["same_exact_main_pid_25_of_25"]=all(x is not None for x in seen) and len(set(seen))==1
+        result["resumed_25_of_25"]=resumed==25
+        if not result["same_exact_main_pid_25_of_25"]:
             exit_info=guest("dumpsys","activity","exit-info",PKG,timeout=40)
             if exit_info.returncode==0:
                 result["own_lab_main_exit"]=diagnostics.classify_main_exit_status(exit_info.stdout)
         result["verdict"]=(
-            "OWN_2025_LAB_CLONE_MAIN_16S_STABLE"
-            if result["same_exact_main_pid_16_of_16"] and result["resumed_16_of_16"]
+            "OWN_2025_LAB_CLONE_MAIN_75S_STABLE"
+            if result["same_exact_main_pid_25_of_25"] and result["resumed_25_of_25"]
             else "OWN_2025_LAB_CLONE_MAIN_NO_GO")
         return result
 
@@ -356,7 +356,7 @@ if __name__=="__main__":
         report=main(args.xapk)
         print(json.dumps(report,sort_keys=True))
         # A strict failure is an experimental NO-GO, never mislabeled green.
-        sys.exit(0 if report["verdict"]=="OWN_2025_LAB_CLONE_MAIN_16S_STABLE" else 1)
+        sys.exit(0 if report["verdict"]=="OWN_2025_LAB_CLONE_MAIN_75S_STABLE" else 1)
     except Exception as error:
         reason=str(error)
         if not re.fullmatch(r"[A-Z][A-Z0-9_]{4,92}",reason):
