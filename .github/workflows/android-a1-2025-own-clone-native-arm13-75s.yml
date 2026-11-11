@@ -4,6 +4,7 @@ on:
     branches: [experiment/android-a1-2025-sdk-signer-triage-20261112]
     paths:
       - '.github/workflows/android-a1-2025-own-clone-native-arm13-75s.yml'
+      - 'android/native-yandex-hooklab/ci/owner_2025_gpr_lab_clone_no_bypass_arm13.py'
 permissions:
   contents: write
 jobs:
