@@ -13,6 +13,7 @@ import zipfile
 import json
 import re
 import zipfile
+import struct
 import urllib.request
 from pathlib import Path
 
@@ -116,6 +117,47 @@ def check_zero_loader(apk: Path, prior: Path, expected_signer: str, arsc) -> dic
     }
 
 
+def verify_native_loader_elf_offsets(apk: Path) -> dict:
+    """Audit ABI/ELF/ZIP page alignment on the ACTUALLY signed outer APK.
+
+    Absolute offsets cannot be inferred from a rebuilt unsigned intermediary.
+    Match exact 4 known architectures; do not expose any third-party binary
+    bytes. Fail closed if any loader was compressed, missing, misaligned or
+    has an unexpected ELF ISA.
+    """
+    architectures = {"armeabi-v7a": (40, 1), "arm64-v8a": (183, 2),
+                     "x86": (3, 1), "x86_64": (62, 2)}
+    result = {}
+    with zipfile.ZipFile(apk) as archive, apk.open("rb") as fh:
+        for abi, (machine, elf_class) in architectures.items():
+            member = f"assets/lspatch/so/{abi}/liblspatch.so"
+            if member not in archive.namelist():
+                raise ValueError("METALOADER_LIBRARY_ABI_MISSING")
+            info = archive.getinfo(member)
+            if info.compress_type != zipfile.ZIP_STORED:
+                raise ValueError("METALOADER_LIBRARY_NOT_STORED")
+            fh.seek(info.header_offset)
+            local_header = fh.read(30)
+            if len(local_header) != 30 or local_header[:4] != b"PK\x03\x04":
+                raise ValueError("METALOADER_LIBRARY_LOCAL_HEADER_INVALID")
+            name_len, extra_len = struct.unpack_from("<HH", local_header, 26)
+            offset = info.header_offset + 30 + name_len + extra_len
+            with archive.open(info) as library:
+                elf = library.read(20)
+            if not elf.startswith(b"\x7fELF") or len(elf) != 20:
+                raise ValueError("METALOADER_LIBRARY_INVALID_ELF")
+            found = struct.unpack_from("<H", elf, 18)[0]
+            if found != machine or elf[4] != elf_class:
+                raise ValueError("METALOADER_LIBRARY_ABI_ELF_MISMATCH")
+            result[abi] = {"expected_elf_machine": machine,
+                           "elf_class": elf_class,
+                           "page_aligned_4096": offset % 4096 == 0,
+                           "stored": True}
+    if not all(x["page_aligned_4096"] for x in result.values()):
+        raise ValueError("METALOADER_LIBRARY_UNALIGNED_IN_SIGNED_APK")
+    return result
+
+
 def wrap_clone_with_lspatch_zero(clone: Path, work: Path, key: Path,
                                  expected_signer: str, arsc) -> tuple[Path, dict]:
     # Strictly after the successful 5->1 cloned-bundle merge and its verifier.
@@ -164,6 +206,10 @@ def wrap_clone_with_lspatch_zero(clone: Path, work: Path, key: Path,
         final_apk = aligned
         print(json.dumps({"lspatch_zero_phase": "EMBEDDED_ORIGIN_ZIP_LAYOUT_REBUILT_OWN_SIGNER"}))
     report = check_zero_loader(final_apk, clone, expected_signer, arsc)
+    try:
+        report["signed_lspatch_native_elf_layout"] = verify_native_loader_elf_offsets(final_apk)
+    except (ValueError, zipfile.BadZipFile):
+        raise arsc.TrialError("LSPATCH_SIGNED_LOADER_ABI_OR_ALIGNMENT_FAILED") from None
     report["nested_origin_zip_crc_repaired"] = crc_report["crc_repaired"]
     report["nested_origin_zip_layout_repacked"] = crc_report["layout_repacked"]
     if crc_report["layout_repacked"]:

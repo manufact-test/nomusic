@@ -66,6 +66,33 @@ class CrcRecoveryTest(unittest.TestCase):
         with zipfile.ZipFile(dest) as z:
             self.assertEqual(z.read(HOST),origin)
 
+    def test_keeps_page_alignment_of_stored_lspatch_elf_assets(self):
+        # Real loader is 4-ABI. Synthetic ELF contains header fields only.
+        src, inner = self.input_zip(corrupt=True)
+        with zipfile.ZipFile(src,"a") as z:
+            for abi,machine,klass in (
+                    ("armeabi-v7a",40,1),("arm64-v8a",183,2),
+                    ("x86",3,1),("x86_64",62,2)):
+                elf=bytearray(20)
+                elf[:4]=b"\x7fELF"
+                elf[4]=klass
+                elf[18:20]=machine.to_bytes(2,"little")
+                z.writestr("assets/lspatch/so/"+abi+"/liblspatch.so",
+                           bytes(elf),compress_type=zipfile.ZIP_STORED)
+        dest=self.dir/"repaired-with-elf.apk"
+        result=rewrite_only_if_origin_crc_mismatch(src,dest)
+        self.assertTrue(result["layout_repacked"])
+        with zipfile.ZipFile(dest) as z, dest.open("rb") as fh:
+            self.assertEqual(z.read(HOST),inner)
+            for abi in ("armeabi-v7a","arm64-v8a","x86","x86_64"):
+                info=z.getinfo("assets/lspatch/so/"+abi+"/liblspatch.so")
+                fh.seek(info.header_offset)
+                header=fh.read(30)
+                name_len=int.from_bytes(header[26:28],"little")
+                extra_len=int.from_bytes(header[28:30],"little")
+                data_start=info.header_offset+30+name_len+extra_len
+                self.assertEqual(data_start%4096,0,abi)
+
     def test_rejects_double_repair_and_new_destination_collision(self):
         src,_=self.input_zip(corrupt=False)
         dest=self.dir/"fixed.apk"

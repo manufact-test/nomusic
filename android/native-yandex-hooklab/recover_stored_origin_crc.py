@@ -95,6 +95,24 @@ def rewrite_only_if_origin_crc_mismatch(input_apk: Path,
                 # bytes and compression/metadata; no source DEX modifications.
                 clone_info = copy.copy(member)
                 clone_info.CRC = clone_info.compress_size = clone_info.file_size = 0
+                if (member.filename.startswith("assets/lspatch/so/")
+                        and member.filename.endswith("/liblspatch.so")
+                        and member.compress_type == zipfile.ZIP_STORED):
+                    # ZIP metadata rebuild MUST preserve 4096-byte direct-map
+                    # layout for the native metaloader's STORED ELF assets.
+                    # Use a well-formed extra-field padding record. This does
+                    # not touch any library or embedded original bytes.
+                    position = rebuilt.fp.tell()
+                    utf8_name = member.filename.encode("utf-8")
+                    padding = (-(position + 30 + len(utf8_name)
+                                 + len(clone_info.extra))) % 4096
+                    if 0 < padding < 4:
+                        padding += 4096
+                    if padding:
+                        if len(clone_info.extra) + padding > 65535:
+                            raise ValueError("LOADER_ZIP_ALIGNMENT_EXTRA_TOO_LARGE")
+                        clone_info.extra += (struct.pack("<HH", 0xEFA1, padding - 4)
+                                             + bytes(padding - 4))
                 rebuilt.writestr(clone_info, body, compress_type=member.compress_type)
     with zipfile.ZipFile(output_apk) as check:
         for entry in check.infolist():
