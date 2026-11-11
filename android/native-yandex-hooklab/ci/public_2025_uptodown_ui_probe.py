@@ -58,7 +58,7 @@ def main() -> int:
                 clicks = 0
                 body = page.locator("body").inner_text(timeout=15000)
                 for _ in range(MAX_CLICKS):
-                    if TARGET in body or ALT in body:
+                    if TARGET in body:
                         break
                     # The public 'show more' UI loads older releases dynamically.
                     labels = [
@@ -93,6 +93,8 @@ def main() -> int:
                     has_link = bool(page.locator("a").filter(
                         has_text=re.compile(r"2025\.10\.4\s*#120\.1rur")).count())
                 output=safe_summary(body,clicks,has_link)
+                output["alternate_public_link_present"] = bool(page.locator("a").filter(
+                    has_text=re.compile(r"2025\.10\.4\s*#120\.1gpr")).count()) if ALT in body else False
                 output["visible_version_label_occurrences"] = len(re.findall(r"202[56]\.\d{2}\.\d+", body))
                 output["public_show_more_text_present"] = bool(re.search(
                     r"ПОКАЗАТЬ БОЛЬШЕ|Показать больше|See more|Load more|Показать е[щш]ё",
