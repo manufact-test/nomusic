@@ -42,6 +42,25 @@ def cmd(argv,timeout=90):
 def guest(*argv,timeout=35):
     return cmd(["docker","exec",CONTAINER,*argv],timeout)
 
+def lab_sdk_tool(name: str) -> str:
+    """Pin actual SDK Build Tools in an isolated CI, not apt tool symlinks."""
+    version = os.getenv("CELIKOM_A1_PINNED_SDK_VERSION")
+    if not version:
+        return source.sdk_tool(name)
+    if not re.fullmatch(r"\d+\.\d+\.\d+", version):
+        stop("PINNED_ANDROID_SDK_VERSION_INVALID")
+    root_text = os.getenv("ANDROID_HOME") or os.getenv("ANDROID_SDK_ROOT")
+    if not root_text:
+        stop("PINNED_ANDROID_SDK_ROOT_MISSING")
+    root = Path(root_text).resolve()
+    folder = root / "build-tools" / version
+    candidate = folder / name
+    if (not candidate.is_file() or candidate.is_symlink()
+            or not candidate.resolve().is_relative_to(folder.resolve())):
+        stop("PINNED_ANDROID_SDK_TOOL_NOT_OFFICIAL")
+    return str(candidate)
+
+
 def apk_name(path: Path) -> dict:
     return source.apkmeta(path)
 
@@ -118,9 +137,9 @@ def ephemeral_clone(originals: list[Path], work: Path) -> tuple[list[tuple[str,P
         cleaned_meta=remove_stale_v1_from_disposable_unsigned(raw_clone,cleaned)
         obsolete_v1_entries_removed+=cleaned_meta["discarded_obsolete_v1_entries"]
         aligned=work/f"lab-clone-{i}.apk"
-        source.action([source.sdk_tool("zipalign"),"-f","-p","4",
+        source.action([lab_sdk_tool("zipalign"),"-f","-p","4",
                        str(cleaned),str(aligned)],"CLONE_ZIPALIGN_FAILED",100)
-        source.action([source.sdk_tool("apksigner"),"sign",
+        source.action([lab_sdk_tool("apksigner"),"sign",
                       "--ks",str(lab_key),"--ks-pass","pass:ephemeral-lab-only",
                       "--ks-key-alias","celikom-lab",
                       "--key-pass","pass:ephemeral-lab-only",
@@ -145,7 +164,7 @@ def ephemeral_clone(originals: list[Path], work: Path) -> tuple[list[tuple[str,P
             stop("OWN_CLONE_SPLIT_MANIFEST_DRIFT")
         if source.native_payload_hashes(original)!=source.native_payload_hashes(aligned):
             stop("OWN_CLONE_DEX_OR_NATIVE_PAYLOAD_DRIFT")
-        verified=cmd([source.sdk_tool("apksigner"),"verify",
+        verified=cmd([lab_sdk_tool("apksigner"),"verify",
                       "--verbose","--print-certs",str(aligned)],100)
         if verified.returncode:
             # Classify failure without publishing unsigned app bytes,
