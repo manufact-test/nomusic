@@ -125,9 +125,9 @@ try
     if (!string.IsNullOrWhiteSpace(zipFixture))
     {
         var staged = AppUpdateManager.Stage(zipFixture, new Version(0, 24, 16, 0));
-        Test(staged.Version == new Version(0, 24, 19, 0),
+        Test(staged.Version == new Version(0, 24, 20, 0),
             "ZIP one-click updater accepts new CELIKOM version");
-        Test(Path.GetFileName(staged.Path).StartsWith("CELIKOM-W71-",StringComparison.Ordinal),
+        Test(Path.GetFileName(staged.Path).StartsWith("CELIKOM-W72-",StringComparison.Ordinal),
             "ZIP extraction stages only CELIKOM installer");
         bool oldRejected = false;
         try { AppUpdateManager.Stage(zipFixture, AppUpdateManager.RunningVersion); }
@@ -504,7 +504,7 @@ try
         "W53 owner summary correctly reflects native resource events");
     Test(!snapshot.Contains("SENSITIVE"),"W53 malformed native lines cannot leak signed query or sid");
     var auto = DiagnosticLog.ExportSupportSnapshot("5.126.1.0","ACTIVE", true, true,
-        "0.24.19", true, "123", fixtureLogsDirectory);
+        "0.24.20", true, "123", fixtureLogsDirectory);
     var autoJson = JsonSerializer.Serialize(auto);
     using (var parsedAuto = JsonDocument.Parse(autoJson))
     {
@@ -532,7 +532,7 @@ try
         when + "|ACTIVE_ENTITLEMENT_RECOVERED\n" +
         when + "|ACTIVE_ENTITLEMENT_NETWORK_SUSPENDED\n");
     var outageJson = JsonSerializer.Serialize(DiagnosticLog.ExportSupportSnapshot(
-        "5.126.1.0", "ACTIVE", true, false, "0.24.19", true, "123", fixtureLogsDirectory));
+        "5.126.1.0", "ACTIVE", true, false, "0.24.20", true, "123", fixtureLogsDirectory));
     using (var outageDoc = JsonDocument.Parse(outageJson))
     {
         var incidents = outageDoc.RootElement.GetProperty("events").EnumerateArray().ToArray();
